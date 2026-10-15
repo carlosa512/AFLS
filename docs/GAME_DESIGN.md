@@ -13,8 +13,8 @@ stories emerge from interlocking systems rather than scripts.
 2. **Front-office depth.** The salary cap, the draft and player development are the game.
 3. **Readable, calm UI.** One obvious next action, numbers that explain themselves, works on a
    phone.
-4. **Open data.** Fictional league by default; everything is JSON so the community can mod in
-   real rosters.
+4. **Open data.** Real NFL markets and divisions with original nicknames and fictional players;
+   everything is JSON so the community can mod in real rosters.
 
 ## How the match engine works
 
@@ -37,7 +37,7 @@ INT 0.77, 3rd-down 40%, FG 83.5%, home win 56%. Better-rated team wins ~69%.
 
 ## Roadmap
 
-**✅ Foundation (done)** — fictional 32-team league, 53-man rosters, 1–20 ratings, contracts
+**✅ Foundation (done)** — 32 teams in the real NFL markets (original nicknames), 53-man rosters, 1–20 ratings, contracts
 under a $301.2M cap, NFL-formula schedule, play-by-play engine, standings + tiebreakers,
 14-team playoffs, box scores, league leaders, depth chart editing, autosave, placeholder
 offseason (aging, retirements, generated rookies).

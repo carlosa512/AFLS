@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { RESERVED_NICKNAMES } from './data/teams';
 import { createLeague, SALARY_CAP } from './generate';
 import { playWeek, simToEndOfSeason, startNextSeason } from './league';
 import * as coach from './match/coach';
@@ -46,6 +47,11 @@ describe('league generation', () => {
       expect(payroll(league, team.id)).toBeLessThanOrEqual(SALARY_CAP);
       expect(new Set(roster.map((p) => p.jersey)).size).toBe(53);
     }
+  });
+
+  it('uses unique abbreviations and no licensed nicknames', () => {
+    expect(new Set(league.teams.map((t) => t.abbrev)).size).toBe(32);
+    for (const t of league.teams) expect(RESERVED_NICKNAMES).not.toContain(t.name);
   });
 
   it('keeps every attribute on the 1–20 scale', () => {

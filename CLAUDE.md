@@ -5,8 +5,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 
 ## Standing instructions from the project owner
 
-- **Subagents: use the Haiku model.** Whenever you spawn agents for this project, pass
-  `model: "haiku"` to save tokens. Do the work inline when an agent isn't clearly needed.
+- **Subagents: cheapest model that still does the job well.** Saving tokens matters, but not
+  at the cost of speed or quality. Use `model: "haiku"` for simple, mechanical work (searches,
+  data lists, boilerplate) and `model: "sonnet"` for anything needing judgment or real coding.
+  Do the work inline when an agent isn't clearly needed.
 - Keep explanations short and concrete, with a clear next step.
 
 ## Commands
@@ -36,6 +38,7 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - Ratings are 1–20 (FM-style). Salaries are in **thousands of dollars**.
 - `yardLine` is always yards from the *offense's own* goal line (0–100).
 - `League` must stay plain JSON. If you change its shape, bump `SAVE_VERSION` in `generate.ts`.
-- Fictional names only: no NFL team names, logos, "Super Bowl", "AFC/NFC". Real-name data is a
-  community mod concern.
+- Teams use the real NFL markets and divisional alignment with **original nicknames**. Never
+  ship NFL nicknames, logos, "Super Bowl" or "AFC/NFC" (see `RESERVED_NICKNAMES`). Real player
+  names are a community mod concern.
 - Match the existing style: small pure functions in the engine, comments that explain *why*.

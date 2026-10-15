@@ -1,5 +1,5 @@
 import { FIRST_NAMES, LAST_NAMES } from './data/names';
-import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
+import { CONFERENCES, DIVISIONS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
 import {
   ATTRIBUTE_PROFILES,
   BODY,
@@ -126,6 +126,19 @@ function normalizePayroll(players: Player[], target: number): void {
   for (const p of players) {
     p.contract.salary = Math.round(MIN_SALARY + (p.contract.salary - MIN_SALARY) * factor);
   }
+}
+
+/** Rename teams in saves made before the switch to real NFL markets (same ids and divisions). */
+export function migrateLeague(league: League): League {
+  const first = league.teams[0];
+  if (first?.city === LEGACY_FIRST_TEAM.city && first.name === LEGACY_FIRST_TEAM.name) {
+    league.teams.forEach((team, i) => {
+      const seed = TEAM_SEEDS[i];
+      Object.assign(team, { city: seed.city, name: seed.name, abbrev: seed.abbrev, colors: [...seed.colors] });
+    });
+    league.divisions.forEach((d, i) => (d.name = DIVISIONS[i].name));
+  }
+  return league;
 }
 
 export interface NewLeagueOptions {
