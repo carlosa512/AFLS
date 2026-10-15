@@ -41,7 +41,7 @@ class StatBuffer {
 }
 
 interface PlayResult {
-  kind: 'run' | 'pass' | 'sack' | 'scramble' | 'kneel';
+  kind: 'run' | 'pass' | 'sack' | 'scramble' | 'kneel' | 'spike';
   yards: number;
   text: string;
   duration: number;
@@ -471,7 +471,7 @@ class GameSim {
     this.snapshot = null;
     const scoreDiff = this.score[kickingSide] - this.score[receivingSide];
 
-    if (coach.shouldOnside(scoreDiff, this.quarter, this.clock)) {
+    if (coach.shouldOnside(scoreDiff, this.quarter, this.clock, this.timeouts[kickingSide])) {
       const recovered = this.rng.chance(0.12);
       this.playTime(3);
       this.setAnim(kickingSide, 'kickoff', 35, 46, 46);
@@ -618,21 +618,32 @@ class GameSim {
     const offSide = this.offense;
     if (this.clockRunning) {
       const s = this.situation();
-      if (coach.offenseTimeout(s)) this.useTimeout(offSide);
+      if (coach.playForFieldGoal(s)) {
+        // Bleed the clock to the last few seconds, then stop it for a kick at the gun.
+        const runoff = this.rng.int(coach.MILK_RUNOFF_MIN, 41);
+        const leave = this.rng.int(2, 4);
+        // If the next snap would come with too little time for a play and a kick, stop at the gun instead.
+        if (s.clock - runoff <= 10) {
+          this.preSnapRunoff(Math.max(0, s.clock - leave));
+          if (s.offTimeouts > 0) this.useTimeout(offSide);
+          else this.clockRunning = false; // the field-goal unit sprints on and snaps in time
+        } else {
+          this.preSnapRunoff(runoff);
+          this.clockRunning = false; // already ran the clock for this snap
+        }
+      } else if (coach.offenseTimeout(s)) this.useTimeout(offSide);
       else if (coach.defenseTimeout(s)) this.useTimeout(this.def);
+      else if (coach.shouldSpike(s)) return this.spike();
     }
     if (this.clockRunning) {
       const t = coach.tempo(this.situation());
-      this.preSnapRunoff(t === 'hurry' ? this.rng.int(8, 16) : t === 'milk' ? this.rng.int(36, 41) : this.rng.int(28, 39));
-      if (this.clock <= 0) return;
+      this.preSnapRunoff(t === 'hurry' ? this.rng.int(8, 16) : t === 'milk' ? this.rng.int(coach.MILK_RUNOFF_MIN, 41) : this.rng.int(28, 39));
     }
+    if (this.clock <= 0) return;
 
     const s = this.situation();
     if (coach.shouldKneel(s)) return this.kneel();
-
-    const endOfHalf = (this.quarter === 2 || this.quarter >= 4) && this.clock <= 6;
-    const kickToWinOrTie = this.quarter === 2 || (s.scoreDiff <= 0 && s.scoreDiff >= -3);
-    if (endOfHalf && kickToWinOrTie && s.fgMakeProb >= 0.25) return this.fieldGoal();
+    if (coach.kickNow(s)) return this.fieldGoal();
 
     if (this.down === 4) {
       const decision = coach.fourthDown(s, this.rng);
@@ -680,11 +691,31 @@ class GameSim {
     const qb = this.lineups[this.offense].qb;
     this.takeSnapshot();
     const buf = new StatBuffer();
+    if (this.down === 4) {
+      // Fourth down: the quarterback rolls out and runs around until the clock hits zero.
+      const loss = Math.min(this.rng.int(4, 9), this.yardLine - 1);
+      buf.add(qb, 'rushAtt');
+      buf.add(qb, 'rushYds', -loss);
+      const text = `${short(qb)} rolls out and runs out the clock`;
+      this.resolve({ kind: 'kneel', yards: -loss, text, duration: this.clock, clockStops: false, stats: buf });
+      return;
+    }
     // At the 1 the snap is taken in place: a kneel must never become a safety.
     const loss = Math.min(1, this.yardLine - 1);
     buf.add(qb, 'rushAtt');
     buf.add(qb, 'rushYds', -loss);
     this.resolve({ kind: 'kneel', yards: -loss, text: `${short(qb)} kneels.`, duration: 2, clockStops: false, stats: buf });
+  }
+
+  /** Out of timeouts: hurry to the line and throw the ball into the turf. Costs a down. */
+  private spike() {
+    this.preSnapRunoff(this.rng.int(4, 8));
+    if (this.clock <= 0) return;
+    const qb = this.lineups[this.offense].qb;
+    const buf = new StatBuffer();
+    buf.add(qb, 'passAtt');
+    this.takeSnapshot();
+    this.resolve({ kind: 'spike', yards: 0, text: `${short(qb)} spikes the ball to stop the clock`, duration: this.clock >= 3 ? 1 : 0, clockStops: true, stats: buf, passAttempt: true, complete: false });
   }
 
   /** Weighted pick of the defender who makes the tackle, based on how far the play went. */
@@ -816,7 +847,7 @@ class GameSim {
     if (pressured) {
       const pSack = clamp(0.21 - 0.012 * (q.awareness - 12) - 0.01 * (q.agility - 12), 0.08, 0.38);
       if (rng.chance(pSack)) return this.sack(def, defCall);
-      if (rng.chance(clamp(0.1 + 0.02 * (q.speed - 10), 0.03, 0.35))) return this.scramble(def);
+      if (rng.chance(clamp(0.1 + 0.02 * (q.speed - 10), 0.03, 0.35))) return this.scramble(def, s);
       if (rng.chance(0.12)) {
         buf.add(qb, 'passAtt');
         return { kind: 'pass', yards: 0, text: `${short(qb)} under pressure, throws it away`, duration: rng.int(4, 6), clockStops: true, stats: buf, passAttempt: true, complete: false, airYards: 0, depth: 'short' };
@@ -995,7 +1026,7 @@ class GameSim {
     return result;
   }
 
-  private scramble(def: Lineup): PlayResult {
+  private scramble(def: Lineup, s: Situation): PlayResult {
     const qb = this.lineups[this.offense].qb;
     const buf = new StatBuffer();
     const q = qb.ratings;
@@ -1017,9 +1048,14 @@ class GameSim {
       buf.add(tackler, 'tackles');
       text += ` (${short(tackler)})`;
     }
-    const slide = !td && this.rng.chance(0.4);
     const lane = this.rng.pick([-0.9, 0.9]);
-    return { kind: 'scramble', yards, text: slide ? `${text}, slides` : text, duration: this.rng.int(5, 8), clockStops: false, stats: buf, lane };
+    if (td) return { kind: 'scramble', yards, text, duration: this.rng.int(5, 8), clockStops: true, stats: buf, lane };
+    // A quarterback in a two-minute drill heads for the sideline; one protecting a lead stays in.
+    const t = coach.tempo(s);
+    const oob = this.rng.chance(t === 'hurry' ? 0.55 : t === 'milk' ? 0.05 : 0.2);
+    const slide = !oob && this.rng.chance(0.4);
+    const ending = oob ? ', out of bounds' : slide ? ', slides' : '';
+    return { kind: 'scramble', yards, text: text + ending, duration: this.rng.int(5, 8), clockStops: oob && this.oobStopsClock(), stats: buf, lane };
   }
 
   /** Apply a scrimmage play: penalties, clock, stats, and the resulting field state. */
@@ -1069,7 +1105,7 @@ class GameSim {
     }
 
     this.credit(result.stats);
-    if (result.kind === 'pass') {
+    if (result.kind === 'pass' || result.kind === 'spike') {
       ts.passAtt++;
       if (result.complete) {
         ts.passCmp++;

@@ -157,7 +157,7 @@ export interface TeamGameStats {
 }
 
 /** What the replay viewer animates for a logged play. */
-export type PlayKind = 'run' | 'pass' | 'incomplete' | 'int' | 'sack' | 'scramble' | 'kneel' | 'penalty' | 'kickoff' | 'punt' | 'fg' | 'xp' | 'two';
+export type PlayKind = 'run' | 'pass' | 'incomplete' | 'int' | 'sack' | 'scramble' | 'kneel' | 'spike' | 'penalty' | 'kickoff' | 'punt' | 'fg' | 'xp' | 'two';
 
 export interface PlayLogEntry {
   quarter: number;

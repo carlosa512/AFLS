@@ -193,6 +193,31 @@ describe('end-of-game rules (regressions)', () => {
     }
   });
 
+  it('never lets a trailing offense end regulation on an ordinary run', () => {
+    for (const { game, r } of results) {
+      const plays = r.plays!;
+      const snaps = plays.filter((p) => p.down && p.quarter === 4);
+      const last = snaps[snaps.length - 1];
+      if (!last || plays.some((p) => p.quarter >= 5)) continue;
+      const i = plays.indexOf(last);
+      const before = plays[i - 1];
+      const diff = last.offense === game.homeId ? before.homeScore - before.awayScore : before.awayScore - before.homeScore;
+      if (diff < 0) expect(last.kind).not.toBe('run');
+    }
+  });
+
+  it('only spikes on early downs and never kneels away the fourth quarter while trailing', () => {
+    for (const { game, r } of results) {
+      r.plays!.forEach((p, i) => {
+        if (p.kind === 'spike') expect(p.down).toBeLessThan(4);
+        if (p.kind !== 'kneel' || p.quarter < 4) return;
+        const before = r.plays![i - 1];
+        const diff = p.offense === game.homeId ? before.homeScore - before.awayScore : before.awayScore - before.homeScore;
+        expect(diff).toBeGreaterThanOrEqual(0);
+      });
+    }
+  });
+
   it('keeps red-zone touchdowns within red-zone trips and logs both two-minute warnings', () => {
     for (const { r } of results) {
       for (const t of [r.home, r.away]) expect(t.redZoneTd).toBeLessThanOrEqual(t.redZoneAtt);
@@ -284,6 +309,39 @@ describe('coach decisions', () => {
     expect(coach.shouldKneel({ ...base, defTimeouts: 3 })).toBe(false);
     expect(coach.shouldKneel({ ...base, scoreDiff: -3 })).toBe(false);
     expect(coach.shouldKneel({ ...base, down: 4, clock: 20 })).toBe(false);
+  });
+
+  it('kills the clock on fourth down instead of punting it back', () => {
+    expect(coach.shouldKneel({ ...base, down: 4, clock: 7 })).toBe(true);
+    expect(coach.shouldKneel({ ...base, down: 4, clock: 20 })).toBe(false);
+    // Up three scores the defense won't burn timeouts, so the leader can kneel through them.
+    expect(coach.shouldKneel({ ...base, defTimeouts: 3, scoreDiff: 21 })).toBe(true);
+  });
+
+  it('runs the end-of-game field-goal script', () => {
+    const inRange = { ...base, scoreDiff: -2, yardLine: 75, fgMakeProb: 0.92, clock: 40 };
+    expect(coach.playForFieldGoal(inRange)).toBe(true);
+    expect(coach.tempo(inRange)).toBe('milk');
+    expect(coach.offenseTimeout(inRange)).toBe(false);
+    expect(coach.kickNow({ ...inRange, clock: 4 })).toBe(true);
+    // Out of timeouts with the clock stopped: kick now rather than risk an in-bounds snap.
+    expect(coach.kickNow({ ...inRange, fgMakeProb: 0.6, offTimeouts: 0, clock: 18 })).toBe(true);
+    expect(coach.kickNow({ ...inRange, scoreDiff: -4, clock: 4 })).toBe(false);
+  });
+
+  it('spikes only in a two-minute drill without timeouts', () => {
+    const drill = { ...base, scoreDiff: -4, yardLine: 60, offTimeouts: 0, clock: 25, down: 1 };
+    expect(coach.shouldSpike(drill)).toBe(true);
+    expect(coach.shouldSpike({ ...drill, offTimeouts: 1 })).toBe(false);
+    expect(coach.shouldSpike({ ...drill, down: 4 })).toBe(false);
+    expect(coach.shouldSpike({ ...drill, scoreDiff: 3 })).toBe(false);
+    expect(coach.passProbability({ ...drill, down: 2, distance: 3 })).toBe(1);
+  });
+
+  it('kicks deep when the defense can still get the ball back', () => {
+    expect(coach.shouldOnside(-2, 4, 124, 3)).toBe(false);
+    expect(coach.shouldOnside(-2, 4, 100, 0)).toBe(true);
+    expect(coach.shouldOnside(-10, 4, 200, 3)).toBe(true);
   });
 
   it('chases points when trailing late', () => {

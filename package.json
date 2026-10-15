@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "sim": "tsx scripts/calibrate.ts"
+    "sim": "tsx scripts/calibrate.ts",
+    "endings": "tsx scripts/endings.ts"
   },
   "dependencies": {
     "react": "19.3.1",
