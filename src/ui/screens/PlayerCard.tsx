@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { playerOvr, POSITION_NAMES } from '../../engine/positions';
 import { passerRating } from '../../engine/stats';
 import type { Attribute, League, Player, StatLine } from '../../engine/types';
@@ -92,15 +92,39 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const potLo = Math.max(ovr, Math.floor(p.potential - 1));
   const potHi = Math.min(20, Math.ceil(p.potential + 1));
 
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  // Modal behaviour: focus moves into the card, Tab stays inside it, and focus returns on close.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    return () => opener?.focus?.();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return onClose();
+      if (e.key !== 'Tab' || !sheetRef.current) return;
+      const focusable = sheetRef.current.querySelectorAll<HTMLElement>('button, [href], input, select, [tabindex]:not([tabindex="-1"])');
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first) return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={`${p.firstName} ${p.lastName}`} onClick={(e) => e.stopPropagation()}>
+      <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-label={`${p.firstName} ${p.lastName}`} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head" style={{ background: team?.colors[0] ?? '#333', boxShadow: `inset 0 -6px 0 ${team?.colors[1] ?? '#666'}` }}>
           <span className="jersey">{p.jersey}</span>
           <div style={{ minWidth: 0 }}>
@@ -112,7 +136,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               {p.firstName} {p.lastName}
             </h2>
           </div>
-          <button className="close-x" onClick={onClose} aria-label="Close">
+          <button ref={closeRef} className="close-x" onClick={onClose} aria-label="Close">
             ✕
           </button>
         </div>

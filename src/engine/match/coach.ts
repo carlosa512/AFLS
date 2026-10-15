@@ -45,7 +45,7 @@ export function shouldKneel(s: Situation): boolean {
   if (s.overtime || s.scoreDiff <= 0) return false;
   if (s.quarter === 4) {
     // Never kneel on fourth down unless the snap itself ends the game.
-    if (s.down === 4) return s.clock <= 3;
+    if (s.down === 4) return s.clock <= 2;
     // Each kneel takes ~2s, then ~40s of play clock runs unless the defense calls timeout.
     const kneels = 4 - s.down;
     const burnable = kneels * 42 - Math.min(s.defTimeouts, kneels) * 40;
@@ -67,6 +67,8 @@ export function fourthDown(s: Situation, rng: Rng): FourthDown {
   // Late-game logic.
   if (s.quarter >= 4) {
     const behind = -s.scoreDiff;
+    // A trailing offense in overtime is on its last possession: any punt ends the game.
+    if (s.overtime && behind > 0) return behind <= 3 && inRange ? 'fg' : 'go';
     if (behind > 0 && behind <= 3 && inRange && (secondsLeft <= 120 || s.distance > 3)) return 'fg';
     if (behind > 3 && secondsLeft <= 300) return 'go';
     if (behind > 0 && secondsLeft <= 150) return 'go';

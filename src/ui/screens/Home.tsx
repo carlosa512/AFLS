@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import { champion, gamesInWeek, userGame } from '../../engine/league';
 import { teamRatings } from '../../engine/roster';
-import { ROUND_NAMES } from '../../engine/season/playoffs';
+import { allSeeds, ROUND_NAMES, roundWeek } from '../../engine/season/playoffs';
 import { computeRecords, divisionStandings } from '../../engine/season/standings';
 import { teamLeader } from '../../engine/stats';
 import type { Game, League, StatKey, Team } from '../../engine/types';
@@ -78,13 +78,18 @@ function NextGame({ league }: { league: League }) {
 
   if (league.phase === 'complete') return null;
   if (!game) {
-    const eliminated = league.phase === 'playoffs';
+    // The top seed has no Wild Card game: that is a bye, not elimination.
+    const topSeedBye = league.phase === 'playoffs' && league.week === roundWeek('WC') && allSeeds(league)[user.conference][0] === user.id;
+    const eliminated = league.phase === 'playoffs' && !topSeedBye;
+    const title = topSeedBye ? 'Wild Card: first-round bye' : eliminated ? 'Season over for you' : `${weekLabel(league.week)}: bye week`;
     return (
-      <Panel title={eliminated ? 'Season over for you' : `${weekLabel(league.week)}: bye week`}>
+      <Panel title={title}>
         <p className="muted" style={{ margin: 0 }}>
-          {eliminated
-            ? 'Your team is out of the playoffs. Sim ahead to see who wins the title, then start next season.'
-            : 'No game this week. Use it to tune your depth chart, then play the week to see the league results.'}
+          {topSeedBye
+            ? 'You earned the top seed and skip the Wild Card round. Play the week to see who you will host in the Divisional Round.'
+            : eliminated
+              ? 'Your team is out of the playoffs. Sim ahead to see who wins the title, then start next season.'
+              : 'No game this week. Use it to tune your depth chart, then play the week to see the league results.'}
         </p>
       </Panel>
     );

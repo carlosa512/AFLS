@@ -49,7 +49,17 @@ function MySchedule({ league }: { league: League }) {
             const res = r ? (us > them ? 'W' : us < them ? 'L' : 'T') : null;
             return (
               <tr key={week} className={r ? 'clickable' : week === league.week ? 'is-user' : ''} onClick={r ? () => nav.openGame(game.id) : undefined}>
-                <td>{game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(week)}</td>
+                <td>
+                  {r ? (
+                    <button className="linklike" onClick={(e) => (e.stopPropagation(), nav.openGame(game.id))}>
+                      {game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(week)}
+                    </button>
+                  ) : game.playoffRound ? (
+                    ROUND_NAMES[game.playoffRound]
+                  ) : (
+                    weekLabel(week)
+                  )}
+                </td>
                 <td>
                   <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
                     <span className="muted" style={{ width: '1.2em' }}>

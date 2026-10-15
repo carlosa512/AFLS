@@ -119,7 +119,8 @@ export function App() {
         : null;
 
   const pendingGames = gamesInWeek(league).filter((g) => !g.result).length;
-  const activeTab = route.view === 'game' || route.view === 'watch' ? route.back.view : route.view === 'live' ? 'home' : route.view;
+  const tabOf = (r: Route): Route['view'] => (r.view === 'game' || r.view === 'watch' ? tabOf(r.back) : r.view === 'live' ? 'home' : r.view);
+  const activeTab = tabOf(route);
 
   return (
     <NavContext.Provider value={nav}>

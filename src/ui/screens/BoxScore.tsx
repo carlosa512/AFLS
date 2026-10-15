@@ -211,7 +211,7 @@ function PlayByPlay({ league, plays }: { league: League; plays: PlayLogEntry[] }
                   <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
                     <TeamChip team={off} />
                   </span>
-                  {p.down ? <FieldStrip small yardLine={p.yardLine} toGain={p.yardLine + p.distance} /> : <span className="field-placeholder" />}
+                  {p.down ? <FieldStrip small yardLine={p.yardLine} toGain={p.yardLine + p.distance} /> : <span className="field" aria-hidden="true" style={{ visibility: 'hidden' }} />}
                   <span className="txt">
                     {p.down ? <b className="num" style={{ marginRight: 8 }}>{downText(p)}</b> : null}
                     {p.text}
@@ -255,7 +255,7 @@ export function BoxScore({ league, gameId, onBack }: { league: League; gameId: n
         <button className="btn btn-sm btn-ghost" onClick={onBack}>
           ← Back
         </button>
-        {(r.plays?.length ?? 0) > 20 && (
+        {(r.plays ?? []).some((p) => !p.scoring) && (
           <button className="btn btn-sm btn-primary" onClick={() => nav.watchGame(game.id)}>
             ▶ Watch replay
           </button>

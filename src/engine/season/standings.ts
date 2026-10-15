@@ -85,6 +85,7 @@ export function sortTeams(league: League, ids: number[], records: Map<number, Te
     }
     const members = new Set(group);
     const h2h = new Map<number, [number, number, number]>(group.map((id) => [id, [0, 0, 0]]));
+    const met = new Map<number, Set<number>>(group.map((id) => [id, new Set<number>()]));
     for (const g of games) {
       if (!members.has(g.homeId) || !members.has(g.awayId)) continue;
       const r = g.result!;
@@ -92,12 +93,16 @@ export function sortTeams(league: League, ids: number[], records: Map<number, Te
       const awayIdx = homeIdx === 2 ? 2 : 1 - homeIdx;
       h2h.get(g.homeId)![homeIdx]++;
       h2h.get(g.awayId)![awayIdx]++;
+      met.get(g.homeId)!.add(g.awayId);
+      met.get(g.awayId)!.add(g.homeId);
     }
+    // Head-to-head only counts when every tied team has played every other one.
+    const allMet = group.every((id) => group.every((other) => other === id || met.get(id)!.has(other)));
     const sameDivision = group.every((id) => league.teams[id].division === league.teams[group[0]].division);
     const keyOf = (id: number): number[] => {
       const r = records.get(id)!;
       return [
-        pctOf(h2h.get(id)!),
+        allMet ? pctOf(h2h.get(id)!) : 0,
         sameDivision ? pctOf(r.div) : 0,
         pctOf(r.conf),
         r.pf - r.pa,

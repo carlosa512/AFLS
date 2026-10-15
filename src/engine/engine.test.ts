@@ -8,8 +8,8 @@ import { ROSTER_TEMPLATE } from './positions';
 import { Rng } from './rng';
 import { payroll, teamPlayers } from './roster';
 import { playoffGames } from './season/playoffs';
-import { computeRecords, conferenceSeeds, divisionStandings } from './season/standings';
-import { ATTRIBUTES, POSITIONS } from './types';
+import { computeRecords, conferenceSeeds, divisionStandings, sortTeams } from './season/standings';
+import { ATTRIBUTES, POSITIONS, type GameResult } from './types';
 
 describe('Rng', () => {
   it('is deterministic for a seed and resumable from state', () => {
@@ -149,6 +149,74 @@ describe('game simulation', () => {
       const r = simulateGame(league, league.games[i], { playoff: true, seed: `po-${i}` });
       expect(r.homeScore).not.toBe(r.awayScore);
     }
+  });
+});
+
+describe('end-of-game rules (regressions)', () => {
+  const league = createLeague({ seed: 'test-rules' });
+  const results = Array.from({ length: 800 }, (_, i) => {
+    const game = league.games[i % league.games.length];
+    return { game, r: simulateGame(league, game, { keepPlays: true, seed: `rules-${i}` }) };
+  });
+
+  it('lets a trailing overtime scorer attempt the try, and never punts away the last OT possession', () => {
+    const ot = results.filter(({ r }) => r.overtime);
+    expect(ot.length).toBeGreaterThan(20);
+    for (const { game, r } of ot) {
+      const plays = r.plays!;
+      const last = plays[plays.length - 1];
+      const prev = plays[plays.length - 2];
+      // A game may end on a touchdown only if the scorer is then ahead.
+      if (last.homeScore - prev.homeScore === 6) expect(last.homeScore).toBeGreaterThan(last.awayScore);
+      if (last.awayScore - prev.awayScore === 6) expect(last.awayScore).toBeGreaterThan(last.homeScore);
+      // A trailing team never ends overtime by punting with time left.
+      if (/punts/.test(last.text) && last.clock > 10) {
+        const puntingIsHome = last.offense === game.homeId;
+        const puntingScore = puntingIsHome ? last.homeScore : last.awayScore;
+        const otherScore = puntingIsHome ? last.awayScore : last.homeScore;
+        expect(puntingScore).toBeGreaterThanOrEqual(otherScore);
+      }
+    }
+  });
+
+  it('never gives up a safety or the ball on a kneel-down', () => {
+    for (const { r } of results) {
+      const plays = r.plays!;
+      plays.forEach((p, i) => {
+        if (!/kneels/.test(p.text)) return;
+        const next = plays[i + 1];
+        if (next) {
+          expect(next.text).not.toMatch(/SAFETY/);
+          expect(next.text).not.toMatch(/Turnover on downs/);
+        }
+      });
+    }
+  });
+
+  it('keeps red-zone touchdowns within red-zone trips and logs both two-minute warnings', () => {
+    for (const { r } of results) {
+      for (const t of [r.home, r.away]) expect(t.redZoneTd).toBeLessThanOrEqual(t.redZoneAtt);
+      const warnings = r.plays!.filter((p) => p.text === 'Two-minute warning.');
+      expect(warnings.map((w) => w.quarter)).toEqual([2, 4]);
+    }
+  });
+});
+
+describe('tiebreakers (regressions)', () => {
+  it('skips head-to-head unless every tied team played every other one', () => {
+    const league = createLeague({ seed: 'test-tiebreak' });
+    const game = (id: number, homeId: number, awayId: number, hs: number, as: number) => ({
+      id,
+      season: league.season,
+      week: id,
+      homeId,
+      awayId,
+      result: { homeScore: hs, awayScore: as } as GameResult,
+    });
+    // A (0), B (4), C (8) are conference-0 teams in different divisions, all 1-1.
+    // Only A and B met (A won). C has the best conference record (1-0).
+    league.games = [game(1, 0, 4, 21, 14), game(2, 12, 0, 24, 10), game(3, 4, 16, 17, 3), game(4, 8, 13, 20, 13), game(5, 20, 8, 27, 20)];
+    expect(sortTeams(league, [0, 4, 8], computeRecords(league))).toEqual([8, 0, 4]);
   });
 });
 

@@ -307,7 +307,8 @@ export function GameViewer({ league, gameId, onBack, onBoxScore }: { league: Lea
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  if (!game?.result || plays.length < 20) {
+  // Pruned games keep only scoring plays; a replay needs the full log.
+  if (!game?.result || !plays.some((p) => !p.scoring)) {
     return (
       <section className="panel">
         <h2>Replay not available</h2>

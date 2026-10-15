@@ -151,7 +151,9 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                 return [
                   <tr className="group-row" key={`g-${pos}`}>
                     <td colSpan={8}>
-                      {POSITION_NAMES[pos]} · {STARTERS[pos]} starter{STARTERS[pos] > 1 ? 's' : ''}
+                      <span className="group-label">
+                        {POSITION_NAMES[pos]} · {STARTERS[pos]} starter{STARTERS[pos] > 1 ? 's' : ''}
+                      </span>
                     </td>
                   </tr>,
                   ...ids.map((id, i) => {

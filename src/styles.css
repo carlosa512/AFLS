@@ -214,8 +214,9 @@ h3 {
   .topbar .actions .btn:only-child {
     grid-column: 1 / -1;
   }
-  main.wrap {
-    padding-bottom: 104px;
+  /* Beats the base main.wrap padding (declared later) so the bar never covers content. */
+  .topbar ~ main.wrap {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 }
 .tabs {
@@ -699,7 +700,8 @@ tr.is-user .sticky-col {
 .bar > i {
   display: block;
   height: 100%;
-  background: var(--c, var(--ink));
+  /* Blend toward the ink colour so very dark team colours still read on a dark track. */
+  background: color-mix(in srgb, var(--c, var(--ink)) 72%, var(--ink));
   border-radius: 4px;
 }
 .scores-grid {
@@ -1252,4 +1254,14 @@ select {
   max-width: 760px;
   width: 100%;
   margin-inline: auto;
+}
+
+/* Focus rings inside clipping containers draw inward so they stay visible. */
+.seg button:focus-visible,
+.tab:focus-visible {
+  outline-offset: -3px;
+}
+.group-label {
+  position: sticky;
+  left: 8px;
 }

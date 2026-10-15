@@ -126,6 +126,8 @@ class GameSim {
   private kickoffBy: Side | null = null;
   private over = false;
   private started = false;
+  /** A play crossed 2:00; announce the warning before the next event. */
+  private pendingWarning = false;
   private steps = 0;
   private otCompleted: [number, number] = [0, 0];
   private driveInRedZone = false;
@@ -169,6 +171,11 @@ class GameSim {
       this.started = true;
       this.openingReceiver = this.rng.chance(0.5) ? 0 : 1;
       this.kickoffBy = (1 - this.openingReceiver) as Side;
+    }
+    if (this.pendingWarning) {
+      this.pendingWarning = false;
+      this.snapshot = null;
+      this.log('Two-minute warning.');
     }
     if (++this.steps > MAX_STEPS) {
       this.over = true;
@@ -312,6 +319,7 @@ class GameSim {
     this.teamStats[this.offense].top += used;
     if (this.inTwoMinutePeriod() && !this.twoMinuteWarned && before > 120 && this.clock <= 120) {
       this.twoMinuteWarned = true;
+      this.pendingWarning = true;
       return true;
     }
     return false;
@@ -409,7 +417,8 @@ class GameSim {
     this.log(text, true);
     this.clockRunning = false;
     if (side === this.offense) this.endPossession();
-    if (this.checkOvertimeEnd()) return;
+    // A walk-off only when the touchdown puts the scorer ahead; a trailing scorer still gets the try.
+    if (this.score[side] > this.score[(1 - side) as Side] && this.checkOvertimeEnd()) return;
     this.conversion(side);
     if (this.checkOvertimeEnd()) return;
     this.kickoffBy = side;
@@ -458,6 +467,7 @@ class GameSim {
     const receivingSide = (1 - kickingSide) as Side;
     const receiving = this.lineups[receivingSide];
     this.offense = kickingSide;
+    this.driveInRedZone = false;
     this.snapshot = null;
     const scoreDiff = this.score[kickingSide] - this.score[receivingSide];
 
@@ -670,9 +680,11 @@ class GameSim {
     const qb = this.lineups[this.offense].qb;
     this.takeSnapshot();
     const buf = new StatBuffer();
+    // At the 1 the snap is taken in place: a kneel must never become a safety.
+    const loss = Math.min(1, this.yardLine - 1);
     buf.add(qb, 'rushAtt');
-    buf.add(qb, 'rushYds', -1);
-    this.resolve({ kind: 'kneel', yards: -1, text: `${short(qb)} kneels.`, duration: 2, clockStops: false, stats: buf });
+    buf.add(qb, 'rushYds', -loss);
+    this.resolve({ kind: 'kneel', yards: -loss, text: `${short(qb)} kneels.`, duration: 2, clockStops: false, stats: buf });
   }
 
   /** Weighted pick of the defender who makes the tackle, based on how far the play went. */
@@ -1125,13 +1137,14 @@ class GameSim {
       if (downBefore === 4) ts.fourthDownConv++;
       this.firstDown();
     } else if (this.down === 4) {
+      // When a half runs out on this play, possession no longer matters (halftime/overtime kickoffs follow).
+      if (this.clock === 0 && (this.quarter === 2 || this.quarter === 4)) return;
       this.log('Turnover on downs.');
       this.changePossession(100 - this.yardLine);
       return;
     } else {
       this.down++;
     }
-    if (warning) this.log('Two-minute warning.');
   }
 
   private markRedZone() {
