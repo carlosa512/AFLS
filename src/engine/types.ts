@@ -143,6 +143,8 @@ export interface Player {
   draft?: { season: number; round: number; pick: number; teamId: number };
   /** Times franchise-tagged (each consecutive tag costs more). */
   tagCount?: number;
+  /** Draft prospects: the scouts' read of overall and ceiling (true ratings stay hidden). */
+  scouting?: { grade: number; ceiling: number };
   /** What the player weighs in a negotiation; 0–1 each. */
   personality: Personality;
   /** Season year → accumulated stats. */
@@ -230,6 +232,20 @@ export interface DraftPick {
   ownerId: number;
   /** Overall slot once the order is known. */
   overall?: number;
+  /** The player taken with it, once used. */
+  playerId?: number;
+}
+
+/** A user negotiation with a player (re-signing or free agency). Asks are derived, not stored. */
+export interface Negotiation {
+  playerId: number;
+  teamId: number;
+  /** Lowball offers left before the agent walks away (insults cost two). */
+  patience: number;
+  status: 'open' | 'broken';
+  /** Talks broken off in this phase reopen in the next one. */
+  brokenPhase?: Phase;
+  message?: string;
 }
 
 export interface Transaction {
@@ -360,4 +376,7 @@ export interface League {
   /** Prospects for the upcoming draft (player ids, teamId null until drafted). */
   draftClass: number[];
   transactions: Transaction[];
+  negotiations: Record<number, Negotiation>;
+  /** Free-agency day within the current offseason (0 before it opens). */
+  faDay: number;
 }

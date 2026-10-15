@@ -53,6 +53,14 @@ function pickJersey(rng: Rng, position: Position, used: Set<number>): number {
   return 0;
 }
 
+/** The first open number in a position's usual ranges (deterministic, for signings and draftees). */
+export function freeJersey(position: Position, used: Set<number>, current?: number): number {
+  if (current !== undefined && !used.has(current)) return current;
+  for (const [lo, hi] of JERSEY_RANGES[position]) for (let n = lo; n <= hi; n++) if (!used.has(n)) return n;
+  for (let n = 1; n < 100; n++) if (!used.has(n)) return n;
+  return current ?? 0;
+}
+
 interface PlayerSpec {
   id: number;
   position: Position;
@@ -274,6 +282,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     nextPickId: 1,
     draftClass: [],
     transactions: [],
+    negotiations: {},
+    faDay: 0,
   };
 
   TEAM_SEEDS.forEach((seedTeam, i) => {

@@ -3,6 +3,7 @@
  * roster's cap hits plus dead money; in the offseason only the 51 largest hits count.
  */
 import { STARTERS } from '../positions';
+import { clamp, type Rng } from '../rng';
 import { teamPlayers } from '../roster';
 import type { League, Phase, Player, Team, Transaction } from '../types';
 import { OFFSEASON_PHASES } from '../types';
@@ -55,7 +56,8 @@ export interface CapSheet {
 export function capSheet(league: League, teamId: number, season = league.season): CapSheet {
   const team = league.teams[teamId];
   const roster = teamPlayers(league, teamId);
-  const top51 = season === league.season && isOffseason(league.phase);
+  // The top-51 rule runs until the final roster is set in training camp.
+  const top51 = season === league.season && (league.phase === 'resign' || league.phase === 'freeAgency' || league.phase === 'draft');
   let hits = roster.map((p) => (p.contract ? capHit(p.contract, season) : 0)).sort((a, b) => b - a);
   if (top51) hits = hits.slice(0, 51);
   const active = hits.reduce((a, b) => a + b, 0);
@@ -174,5 +176,15 @@ export function capProjection(league: League, teamId: number, span = 5) {
     const players = roster.filter((p) => p.contract?.years.some((y) => y.season === season && !y.void)).length;
     return { ...sheet, voidCharges, players };
   });
+}
+
+
+/**
+ * Next league year's cap: usually 6–10% growth, with a rare revenue shock (like 2021's
+ * COVID cut) that stress-tests cap-heavy teams.
+ */
+export function nextCap(rng: Rng, cap: number): number {
+  const growth = rng.chance(0.04) ? -rng.float(0.05, 0.1) : clamp(rng.normal(0.08, 0.012), 0.06, 0.1);
+  return Math.round(cap * (1 + growth));
 }
 

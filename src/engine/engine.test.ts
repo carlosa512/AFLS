@@ -289,7 +289,11 @@ describe('season flow', () => {
     expect(league.season).toBe(2027);
     expect(league.phase).toBe('regular');
     expect(league.games.filter((g) => g.season === 2027)).toHaveLength(272);
-    for (const team of league.teams) expect(teamPlayers(league, team.id).length).toBeGreaterThanOrEqual(53);
+    for (const team of league.teams) {
+      const roster = teamPlayers(league, team.id);
+      expect(roster.length).toBeLessThanOrEqual(53);
+      for (const pos of POSITIONS) expect(roster.filter((p) => p.position === pos).length).toBeGreaterThanOrEqual(1);
+    }
   });
 });
 

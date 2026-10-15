@@ -66,5 +66,7 @@ function toV2(league: League) {
   for (let y = 1; y <= MAX_FUTURE_DRAFT_YEARS; y++) createDraftPicks(league, league.season + y);
   league.draftClass = [];
   league.transactions = [];
+  league.negotiations = {};
+  league.faDay = 0;
   league.version = 2;
 }

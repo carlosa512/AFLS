@@ -7,7 +7,6 @@ import { playerOvr, STARTERS } from '../positions';
 import { clamp } from '../rng';
 import type { League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
-import { capHit } from './contract';
 
 /** 2026 salary cap, in $K. */
 export const BASE_CAP = 301_200;
@@ -58,7 +57,8 @@ export interface Market {
 const marketCache = new WeakMap<League, { key: string; market: Market }>();
 
 export function leagueMarket(league: League): Market {
-  const key = `${league.season}:${league.phase}:${league.nextPlayerId}:${league.transactions.length}`;
+  // Signings and releases move players between teams, not in or out of the pool, so they don't change ranks.
+  const key = `${league.season}:${league.phase}:${league.nextPlayerId}:${league.draftClass.length}`;
   const hit = marketCache.get(league);
   if (hit && hit.key === key) return hit.market;
   const ovrs = Object.fromEntries(POSITIONS.map((p) => [p, [] as number[]])) as Record<Position, number[]>;
@@ -130,42 +130,38 @@ export function rookieBonusShare(overall: number): number {
 
 // ───────── tags & options ─────────
 
-/** Current cap hits at a position, highest first. */
-export function positionCapHits(league: League, position: Position): number[] {
-  const season = league.season;
-  const hits: number[] = [];
-  for (const p of Object.values(league.players)) {
-    if (p.position === position && p.contract && p.teamId !== null) hits.push(capHit(p.contract, season));
-  }
-  return hits.sort((a, b) => b - a);
+/** Average market APY of the players ranked `from`..`to` (0-based) at a position. */
+function rankBandApy(position: Position, cap: number, from: number, to: number): number {
+  let sum = 0;
+  for (let r = from; r <= to; r++) sum += payTier(position, r);
+  return (TOP_APY_PCT[position] * cap * sum) / (to - from + 1);
 }
-
-const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 /**
- * Non-exclusive franchise tag: the average of the five largest cap hits at the position
- * (a one-year stand-in for the five-year formula), never below 120% of the player's prior
- * cap hit. A second tag pays 120% of the prior; a third the greater of 144% or the QB tag.
+ * The real formula averages five years of top cap hits, which lag the market: 2026 tags sit at
+ * roughly 60–65% of top APY (QB 14.6% of the cap vs 21%). This applies that lag to today's market.
  */
-export function franchiseTagValue(league: League, player: Player, priorCapHit: number): number {
-  const top5 = avg(positionCapHits(league, player.position).slice(0, 5));
+const TAG_LAG = 0.65;
+
+/**
+ * Non-exclusive franchise tag, never below 120% of the player's prior salary. A second tag
+ * pays 120% of the prior; a third the greater of 144% or the QB tag.
+ */
+export function franchiseTagValue(league: League, player: Player, priorSalary: number): number {
+  const cap = league.caps[league.season];
+  const tag = TAG_LAG * rankBandApy(player.position, cap, 0, 4);
   const tags = player.tagCount ?? 0;
-  if (tags === 1) return Math.round(Math.max(top5, priorCapHit * 1.2));
-  if (tags >= 2) return Math.round(Math.max(priorCapHit * 1.44, avg(positionCapHits(league, 'QB').slice(0, 5))));
-  return Math.round(Math.max(top5, priorCapHit * 1.2));
+  if (tags >= 2) return Math.round(Math.max(priorSalary * 1.44, TAG_LAG * rankBandApy('QB', cap, 0, 4)));
+  return Math.round(Math.max(tag, priorSalary * 1.2));
 }
 
-/** Fifth-year option salary tier for a first-round pick after three seasons (no Pro Bowls yet: rank stands in). */
+/** Fifth-year option salary for a first-round pick after three seasons. Pro Bowls don't exist yet, so rank stands in. */
 export function fifthYearOptionValue(league: League, player: Player): number {
-  const hits = positionCapHits(league, player.position);
-  const ovr = playerOvr(player);
-  const peers = Object.values(league.players)
-    .filter((p) => p.position === player.position && p.teamId !== null && !p.retired)
-    .map(playerOvr)
-    .sort((a, b) => b - a);
-  const rank = peers.findIndex((v) => v <= ovr);
-  if (rank < 5) return Math.round(avg(hits.slice(0, 5)));
-  if (rank < 12) return Math.round(avg(hits.slice(0, 10)));
-  if (rank < 32) return Math.round(avg(hits.slice(2, 20)));
-  return Math.round(avg(hits.slice(2, 25)));
+  const cap = league.caps[league.season];
+  const rank = positionRank(leagueMarket(league), player);
+  const starters = 32 * STARTERS[player.position];
+  if (rank < Math.max(3, starters * 0.08)) return Math.round(TAG_LAG * rankBandApy(player.position, cap, 0, 4)); // like 2+ Pro Bowls
+  if (rank < Math.max(6, starters * 0.18)) return Math.round(TAG_LAG * 0.87 * rankBandApy(player.position, cap, 0, 9)); // 1 Pro Bowl
+  if (rank < starters) return Math.round(TAG_LAG * rankBandApy(player.position, cap, 2, 19)); // playing-time tier
+  return Math.round(TAG_LAG * rankBandApy(player.position, cap, 2, 24));
 }
