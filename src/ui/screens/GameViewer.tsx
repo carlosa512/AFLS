@@ -27,6 +27,11 @@ const pt = (x: number, y: number) => {
 };
 const quad = (x0: number, x1: number) => `${pt(x0, 0)} ${pt(x1, 0)} ${pt(x1, FIELD_W)} ${pt(x0, FIELD_W)}`;
 
+// NFL hash marks sit 70'9" in from each sideline; the ball is spotted between them.
+const HASH_LO = 23.6;
+const HASH_HI = FIELD_W - 23.6;
+const clampY = (y: number) => Math.max(1.5, Math.min(FIELD_W - 1.5, y));
+
 // ───────── ball paths ─────────
 interface Seg {
   x0: number;
@@ -39,57 +44,66 @@ interface Seg {
 }
 
 function ground(x0: number, y0: number, x1: number, y1: number, pace = 1): Seg {
-  return { x0, y0, x1, y1, peak: 0, dur: (0.3 + Math.min(1.9, Math.abs(x1 - x0) * 0.04)) * pace };
+  return { x0, y0, x1, y1, peak: 0, dur: (0.3 + Math.min(1.9, Math.hypot(x1 - x0, y1 - y0) * 0.04)) * pace };
 }
 function air(x0: number, y0: number, x1: number, y1: number, peak: number, dur?: number): Seg {
   const dist = Math.hypot(x1 - x0, y1 - y0);
   return { x0, y0, x1, y1, peak, dur: dur ?? 0.5 + dist * 0.018 };
 }
 
-function buildPath(e: PlayLogEntry, homeId: number): Seg[] {
+/** Plays snapped from scrimmage start on the hash nearest to where the last play ended. */
+const SNAPPED = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble', 'kneel', 'spike', 'penalty', 'punt', 'fg']);
+
+function buildPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
   if (e.from === undefined || e.to === undefined || !e.kind) return [];
   const { from, to } = e;
   const dir = e.offense === homeId ? 1 : -1;
   // Home drives toward screen-left, so its left hand is the near sideline; away is the reverse.
-  const laneY = MID + (e.lane ?? 0) * dir * 16;
+  const laneY = clampY(snapY + (e.lane ?? 0) * dir * 16);
   const segs: Seg[] = [];
   switch (e.kind) {
     case 'pass':
     case 'incomplete':
     case 'int': {
       const qbX = from - dir * 6;
-      segs.push(ground(from, MID, qbX, MID, 0.8));
+      segs.push(ground(from, snapY, qbX, snapY, 0.8));
       const target = e.air ?? from + dir * 2;
       const targetY = e.air === undefined ? (laneY > MID ? FIELD_W + 2 : -2) : laneY;
-      segs.push(air(qbX, MID, target, targetY, Math.min(14, 2.5 + Math.abs(target - qbX) * 0.3)));
-      if (e.kind !== 'incomplete' && Math.abs(to - target) > 0.5) segs.push(ground(target, targetY, to, laneY + (e.lane ?? 0) * 3));
+      segs.push(air(qbX, snapY, target, targetY, Math.min(14, 2.5 + Math.abs(target - qbX) * 0.3)));
+      if (e.kind !== 'incomplete' && Math.abs(to - target) > 0.5) segs.push(ground(target, targetY, to, clampY(laneY + (e.lane ?? 0) * 3)));
       break;
     }
     case 'run':
     case 'scramble': {
       const handoff = from - dir * 3;
-      segs.push(ground(from, MID, handoff, MID, 0.6));
-      segs.push(ground(handoff, MID, to, laneY));
+      segs.push(ground(from, snapY, handoff, snapY, 0.6));
+      segs.push(ground(handoff, snapY, to, laneY));
       break;
     }
+    case 'spike':
+      segs.push(ground(from, snapY, from - dir, snapY, 0.5));
+      break;
     case 'kickoff':
     case 'punt': {
       const land = e.air ?? to;
       let start = from;
+      const y = e.kind === 'punt' ? snapY : MID;
       if (e.kind === 'punt') {
         start = from - Math.sign(land - from || dir) * 13;
-        segs.push(ground(from, MID, start, MID, 0.5));
+        segs.push(ground(from, y, start, y, 0.5));
       }
-      segs.push(air(start, MID, land, MID, e.kind === 'kickoff' ? 24 : 20, 1.5));
-      if (Math.abs(to - land) > 0.5) segs.push(ground(land, MID, to, MID + 4));
+      segs.push(air(start, y, land, y, e.kind === 'kickoff' ? 24 : 20, 1.5));
+      if (Math.abs(to - land) > 0.5) segs.push(ground(land, y, to, clampY(y + 4)));
       break;
     }
     case 'fg':
+      segs.push(air(from, snapY, e.air ?? to, MID, 13, 1.1));
+      break;
     case 'xp':
       segs.push(air(from, MID, e.air ?? to, MID, 13, 1.1));
       break;
     default:
-      segs.push(ground(from, MID, to, MID, e.kind === 'penalty' ? 1.6 : 1));
+      segs.push(ground(from, snapY, to, snapY, e.kind === 'penalty' ? 1.6 : 1));
   }
   return segs;
 }
@@ -108,26 +122,41 @@ export function restingSpot(plays: PlayLogEntry[], index: number, homeId: number
   return 50;
 }
 
+/** Line of scrimmage and line to gain in field coordinates, or null when no snap is set. */
+function downLines(e: PlayLogEntry | undefined, homeId: number): { los: number | null; gain: number | null } | undefined {
+  if (!e) return undefined;
+  if (e.down) {
+    const home = e.offense === homeId;
+    const los = home ? e.yardLine : 100 - e.yardLine;
+    const goalToGo = e.yardLine + e.distance >= 100;
+    return { los, gain: goalToGo ? null : home ? e.yardLine + e.distance : 100 - e.yardLine - e.distance };
+  }
+  // Kicks clear the lines; timeouts and other announcements leave them where they were.
+  if (e.kind === 'kickoff' || e.kind === 'xp' || e.kind === 'two') return { los: null, gain: null };
+  return undefined;
+}
+
+const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+/** What the field showed when the last animation finished, so the next one can pick up from there. */
+interface FieldMemory {
+  x: number;
+  y: number;
+  los: number | null;
+  gain: number | null;
+}
+
 // ───────── field ─────────
 export function Field({ home, away, entry, restX, animKey, speed, onDone }: { home: Team; away: Team; entry: PlayLogEntry | undefined; restX: number; animKey: string; speed: number; onDone: () => void }) {
   const ballRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
   const trailRef = useRef<SVGPathElement>(null);
+  const losRef = useRef<SVGLineElement>(null);
+  const gainRef = useRef<SVGLineElement>(null);
+  /** Live record of what is on screen, so an interrupted play hands off from where the ball really is. */
+  const memory = useRef<FieldMemory | null>(null);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
-  const segs = useMemo(() => (entry ? buildPath(entry, home.id) : []), [entry, home.id]);
-
-  const trail = useMemo(() => {
-    const pts: string[] = [];
-    for (const seg of segs) {
-      for (let i = 0; i <= 12; i++) {
-        const p = pointAt(seg, i / 12);
-        const q = project(p.x, p.y, p.h);
-        pts.push(`${q.x.toFixed(1)},${q.y.toFixed(1)}`);
-      }
-    }
-    return pts.length ? `M${pts.join('L')}` : '';
-  }, [segs]);
 
   useEffect(() => {
     const place = (x: number, y: number, h: number, opacity = 1) => {
@@ -141,40 +170,114 @@ export function Field({ home, away, entry, restX, animKey, speed, onDone }: { ho
       shadowRef.current?.setAttribute('cx', String(g.x));
       shadowRef.current?.setAttribute('cy', String(g.y + 1));
       shadowRef.current?.setAttribute('rx', String(4.6 * g.scale));
+      shadowRef.current?.setAttribute('opacity', String(opacity));
+      if (memory.current) Object.assign(memory.current, { x, y });
+    };
+    const drawLine = (el: SVGLineElement | null, x: number | null, opacity: number) => {
+      if (!el) return;
+      if (x === null || opacity <= 0) return el.setAttribute('opacity', '0');
+      const a = project(x, 0);
+      const b = project(x, FIELD_W);
+      el.setAttribute('x1', String(a.x));
+      el.setAttribute('y1', String(a.y));
+      el.setAttribute('x2', String(b.x));
+      el.setAttribute('y2', String(b.y));
+      el.setAttribute('opacity', String(opacity));
+    };
+    /** Slide a line from `a` to `b`, fading it in or out when one end is missing. */
+    const lineAt = (el: SVGLineElement | null, a: number | null, b: number | null, t: number) => {
+      if (a === null && b === null) return drawLine(el, null, 0);
+      if (a === null) return drawLine(el, b, t);
+      if (b === null) return drawLine(el, a, 1 - t);
+      // A new series far away (turnover, kick): fade across rather than sweep the field.
+      if (Math.abs(b - a) > 25) return t < 0.5 ? drawLine(el, a, 1 - 2 * t) : drawLine(el, b, 2 * t - 1);
+      drawLine(el, a + (b - a) * ease(t), 1);
+    };
+
+    const prev = memory.current;
+    const lines = downLines(entry, home.id) ?? (prev ? { los: prev.los, gain: prev.gain } : { los: null, gain: null });
+    const from = prev ? { ...prev } : { x: restX, y: MID, ...lines };
+    memory.current = { ...from };
+    const settleLines = () => Object.assign(memory.current!, lines);
+    const snapY = entry?.kind && SNAPPED.has(entry.kind) ? Math.max(HASH_LO, Math.min(HASH_HI, from.y)) : MID;
+    const segs = entry ? buildPath(entry, home.id, snapY) : [];
+    // Plays without a path (timeouts, announcements) leave the ball where it lies.
+    const start = segs.length ? { x: segs[0].x0, y: segs[0].y0 } : Math.abs(from.x - restX) < 0.5 ? { x: from.x, y: from.y } : { x: restX, y: snapY };
+    const last = segs[segs.length - 1];
+    const end = last ? { x: last.x1, y: last.y1 } : start;
+    const endOpacity = entry?.kind === 'incomplete' ? 0.35 : 1;
+
+    // Trail for this play only (not the re-spot).
+    const pts: string[] = [];
+    for (const seg of segs) {
+      for (let i = 0; i <= 12; i++) {
+        const p = pointAt(seg, i / 12);
+        const q = project(p.x, p.y, p.h);
+        pts.push(`${q.x.toFixed(1)},${q.y.toFixed(1)}`);
+      }
+    }
+    trailRef.current?.setAttribute('d', pts.length ? `M${pts.join('L')}` : '');
+    trailRef.current?.setAttribute('stroke', (entry?.offense === home.id ? home : away).colors[1]);
+
+    // Re-spot: carry the ball from where it lay to the new spot, and slide the chains.
+    const gap = Math.hypot(start.x - from.x, start.y - from.y);
+    const linesMove = from.los !== lines.los || from.gain !== lines.gain;
+    const teleport = gap > 40;
+    const respot = teleport ? (linesMove ? 0.25 : 0) : gap > 0.3 ? 0.3 + Math.min(0.35, gap * 0.012) : linesMove ? 0.3 : 0;
+    const playTime = segs.reduce((sum, x) => sum + x.dur, 0);
+
+    const finish = () => {
+      place(end.x, end.y, 0, endOpacity);
+      lineAt(losRef.current, from.los, lines.los, 1);
+      lineAt(gainRef.current, from.gain, lines.gain, 1);
+      trailRef.current?.setAttribute('stroke-dashoffset', '0');
+      settleLines();
     };
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const total = segs.reduce((s, x) => s + x.dur, 0) / speed;
-    const last = segs[segs.length - 1];
-    const finish = () => {
-      if (last) place(last.x1, last.y1, 0, entry?.kind === 'incomplete' ? 0.35 : 1);
-      else place(restX, MID, 0);
-      trailRef.current?.setAttribute('stroke-dashoffset', '0');
-    };
-    if (!segs.length || reduced) {
+    if (reduced || (!segs.length && !respot)) {
       finish();
       const t = setTimeout(() => doneRef.current(), 450 / speed);
       return () => clearTimeout(t);
     }
-    place(segs[0].x0, segs[0].y0, 0);
+
+    const startPos = teleport ? start : from;
+    place(startPos.x, startPos.y, 0);
     trailRef.current?.setAttribute('stroke-dashoffset', '1');
+    lineAt(losRef.current, from.los, lines.los, 0);
+    lineAt(gainRef.current, from.gain, lines.gain, 0);
+
     let raf = 0;
     let startAt = 0;
     const tick = (now: number) => {
       if (!startAt) startAt = now;
       let t = ((now - startAt) / 1000) * speed;
-      if (t >= total * speed) {
+      if (t >= respot + playTime) {
         finish();
         doneRef.current();
         return;
       }
-      trailRef.current?.setAttribute('stroke-dashoffset', String(1 - t / (total * speed)));
-      for (const seg of segs) {
-        if (t <= seg.dur) {
-          const p = pointAt(seg, t / seg.dur);
-          place(p.x, p.y, p.h);
-          break;
+      if (t < respot) {
+        const k = t / respot;
+        lineAt(losRef.current, from.los, lines.los, k);
+        lineAt(gainRef.current, from.gain, lines.gain, k);
+        if (!teleport) {
+          const e = ease(k);
+          place(from.x + (start.x - from.x) * e, from.y + (start.y - from.y) * e, 0);
         }
-        t -= seg.dur;
+      } else {
+        lineAt(losRef.current, from.los, lines.los, 1);
+        lineAt(gainRef.current, from.gain, lines.gain, 1);
+        settleLines();
+        t -= respot;
+        trailRef.current?.setAttribute('stroke-dashoffset', String(1 - t / playTime));
+        for (const seg of segs) {
+          if (t <= seg.dur) {
+            const p = pointAt(seg, t / seg.dur);
+            place(p.x, p.y, p.h);
+            break;
+          }
+          t -= seg.dur;
+        }
       }
       raf = requestAnimationFrame(tick);
     };
@@ -184,14 +287,6 @@ export function Field({ home, away, entry, restX, animKey, speed, onDone }: { ho
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animKey]);
 
-  const offenseIsHome = entry?.offense === home.id;
-  const los = entry?.down ? (offenseIsHome ? entry.yardLine : 100 - entry.yardLine) : null;
-  const toGain = entry?.down && entry.yardLine + entry.distance < 100 ? (offenseIsHome ? entry.yardLine + entry.distance : 100 - entry.yardLine - entry.distance) : null;
-  const line = (x: number, color: string, width: number) => {
-    const a = project(x, 0);
-    const b = project(x, FIELD_W);
-    return <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={width} strokeLinecap="round" />;
-  };
   const endzoneLabel = (x: number, team: Team) => {
     const p = project(x, MID);
     return (
@@ -200,7 +295,29 @@ export function Field({ home, away, entry, restX, animKey, speed, onDone }: { ho
       </text>
     );
   };
-  const trailColor = (offenseIsHome ? home : away).colors[1];
+  const line = (x: number, color: string, width: number) => {
+    const a = project(x, 0);
+    const b = project(x, FIELD_W);
+    return <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={width} strokeLinecap="round" />;
+  };
+  // One-yard ticks along each sideline and on both hashes.
+  const ticks = useMemo(() => {
+    const segs: string[] = [];
+    for (let x = 1; x < 100; x++) {
+      if (x % 5 === 0) continue;
+      for (const [y0, y1] of [
+        [0, 0.9],
+        [FIELD_W - 0.9, FIELD_W],
+        [HASH_LO - 0.45, HASH_LO + 0.45],
+        [HASH_HI - 0.45, HASH_HI + 0.45],
+      ]) {
+        const a = project(x, y0);
+        const b = project(x, y1);
+        segs.push(`M${a.x.toFixed(1)},${a.y.toFixed(1)}L${b.x.toFixed(1)},${b.y.toFixed(1)}`);
+      }
+    }
+    return segs.join('');
+  }, []);
 
   return (
     <svg className="field-scene" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} role="img" aria-label="Field view of the current play">
@@ -226,6 +343,7 @@ export function Field({ home, away, entry, restX, animKey, speed, onDone }: { ho
       {Array.from({ length: 21 }, (_, i) => i * 5).map((x) => (
         <g key={x}>{line(x, 'rgba(255,255,255,0.75)', x % 10 === 0 ? 1.1 : 0.6)}</g>
       ))}
+      <path d={ticks} stroke="rgba(255,255,255,0.55)" strokeWidth="0.5" />
       {Array.from({ length: 9 }, (_, i) => (i + 1) * 10).map((x) =>
         [6, FIELD_W - 7].map((y) => {
           const p = project(x, y);
@@ -237,9 +355,9 @@ export function Field({ home, away, entry, restX, animKey, speed, onDone }: { ho
         }),
       )}
       <polygon points={quad(-10, 110)} fill="none" stroke="#fff" strokeWidth="1.2" />
-      {los !== null && line(los, '#5aa9ff', 2)}
-      {toGain !== null && line(toGain, '#ffd43b', 2.2)}
-      <path ref={trailRef} d={trail} fill="none" stroke={trailColor} strokeWidth="1.6" strokeLinecap="round" pathLength={1} strokeDasharray="1" strokeDashoffset="0" opacity="0.9" />
+      <line ref={losRef} stroke="#5aa9ff" strokeWidth="2" strokeLinecap="round" opacity="0" />
+      <line ref={gainRef} stroke="#ffd43b" strokeWidth="2.2" strokeLinecap="round" opacity="0" />
+      <path ref={trailRef} fill="none" strokeWidth="1.6" strokeLinecap="round" pathLength={1} strokeDasharray="1" strokeDashoffset="0" opacity="0.9" />
       <ellipse ref={shadowRef} rx="4" ry="1.6" fill="rgba(0,0,0,0.35)" />
       <ellipse ref={ballRef} rx="4.4" ry="2.7" fill="#7a3f1d" stroke="#fff" strokeWidth="0.7" />
     </svg>
@@ -278,7 +396,9 @@ export function playLabel(e: PlayLogEntry, homeId: number): string {
     case 'penalty':
       return 'Penalty';
     case 'kneel':
-      return 'Kneel';
+      return /runs out the clock/.test(e.text) ? 'Clock killed' : 'Kneel';
+    case 'spike':
+      return 'Spike';
     default:
       return /Timeout/.test(e.text) ? 'Timeout' : '';
   }
