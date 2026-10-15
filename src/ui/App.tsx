@@ -5,6 +5,7 @@ import type { League } from '../engine/types';
 import { TeamChip } from './components';
 import { recordText, weekLabel } from './format';
 import { BoxScore } from './screens/BoxScore';
+import { GameViewer } from './screens/GameViewer';
 import { Home } from './screens/Home';
 import { Leaders } from './screens/Leaders';
 import { NewGame } from './screens/NewGame';
@@ -22,12 +23,14 @@ export type Route =
   | { view: 'standings' }
   | { view: 'leaders' }
   | { view: 'playoffs' }
-  | { view: 'game'; gameId: number; back: Route };
+  | { view: 'game'; gameId: number; back: Route }
+  | { view: 'watch'; gameId: number; back: Route };
 
 interface Nav {
   route: Route;
   go: (route: Route) => void;
   openGame: (gameId: number) => void;
+  watchGame: (gameId: number) => void;
   openPlayer: (playerId: number) => void;
   openTeam: (teamId: number) => void;
 }
@@ -66,7 +69,8 @@ export function App() {
   const nav: Nav = {
     route,
     go: setRoute,
-    openGame: (gameId) => setRoute({ view: 'game', gameId, back: route.view === 'game' ? route.back : route }),
+    openGame: (gameId) => setRoute({ view: 'game', gameId, back: route.view === 'game' || route.view === 'watch' ? route.back : route }),
+    watchGame: (gameId) => setRoute({ view: 'watch', gameId, back: route.view === 'game' || route.view === 'watch' ? route.back : route }),
     openPlayer: setPlayerId,
     openTeam: (teamId) => setRoute({ view: 'roster', teamId }),
   };
@@ -102,7 +106,7 @@ export function App() {
         : null;
 
   const pendingGames = gamesInWeek(league).filter((g) => !g.result).length;
-  const activeTab = route.view === 'game' ? route.back.view : route.view;
+  const activeTab = route.view === 'game' || route.view === 'watch' ? route.back.view : route.view;
 
   return (
     <NavContext.Provider value={nav}>
@@ -152,6 +156,9 @@ export function App() {
         {route.view === 'leaders' && <Leaders league={league} />}
         {route.view === 'playoffs' && <Playoffs league={league} />}
         {route.view === 'game' && <BoxScore league={league} gameId={route.gameId} onBack={() => setRoute(route.back)} />}
+        {route.view === 'watch' && (
+          <GameViewer league={league} gameId={route.gameId} onBack={() => setRoute(route.back)} onBoxScore={() => nav.openGame(route.gameId)} />
+        )}
       </main>
 
       {playerId !== null && league.players[playerId] && (

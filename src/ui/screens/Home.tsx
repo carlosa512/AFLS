@@ -133,9 +133,14 @@ function LastResult({ league }: { league: League }) {
     <Panel
       title={<span className="eyebrow">Last game · {weekLabel(game.week)}</span>}
       action={
-        <button className="btn btn-sm" onClick={() => nav.openGame(game.id)}>
-          Box score & play-by-play
-        </button>
+        <span className="row" style={{ gap: 8 }}>
+          <button className="btn btn-sm" onClick={() => nav.openGame(game.id)}>
+            Box score
+          </button>
+          <button className="btn btn-sm btn-primary" onClick={() => nav.watchGame(game.id)}>
+            ▶ Watch replay
+          </button>
+        </span>
       }
     >
       <div className="row" style={{ justifyContent: 'space-between' }}>

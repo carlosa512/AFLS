@@ -39,7 +39,7 @@ INT 0.77, 3rd-down 40%, FG 83.5%, home win 56%. Better-rated team wins ~69%.
 
 **✅ Foundation (done)** — 32 teams in the real NFL markets (original nicknames), 53-man rosters, 1–20 ratings, contracts
 under a $301.2M cap, NFL-formula schedule, play-by-play engine, standings + tiebreakers,
-14-team playoffs, box scores, league leaders, depth chart editing, autosave, placeholder
+14-team playoffs, box scores, animated replay viewer, league leaders, depth chart editing, autosave, placeholder
 offseason (aging, retirements, generated rookies).
 
 **Next: Front office core**

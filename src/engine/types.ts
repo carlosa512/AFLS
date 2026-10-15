@@ -156,6 +156,9 @@ export interface TeamGameStats {
   top: number;
 }
 
+/** What the replay viewer animates for a logged play. */
+export type PlayKind = 'run' | 'pass' | 'incomplete' | 'int' | 'sack' | 'scramble' | 'kneel' | 'penalty' | 'kickoff' | 'punt' | 'fg' | 'xp' | 'two';
+
 export interface PlayLogEntry {
   quarter: number;
   clock: number;
@@ -168,6 +171,17 @@ export interface PlayLogEntry {
   homeScore: number;
   awayScore: number;
   scoring?: boolean;
+  /**
+   * Ball path for the replay viewer, in field coordinates: 0 = home goal line,
+   * 100 = away goal line (end zones run to -10 and 110). Home attacks toward 100.
+   */
+  kind?: PlayKind;
+  from?: number;
+  /** Where a pass or kick comes down. */
+  air?: number;
+  to?: number;
+  /** Direction across the field from the offense's view: -1 left … 1 right. */
+  lane?: number;
 }
 
 export interface GameResult {

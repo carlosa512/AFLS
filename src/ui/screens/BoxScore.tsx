@@ -231,6 +231,7 @@ function PlayByPlay({ league, plays }: { league: League; plays: PlayLogEntry[] }
 }
 
 export function BoxScore({ league, gameId, onBack }: { league: League; gameId: number; onBack: () => void }) {
+  const nav = useNav();
   const game = league.games.find((g) => g.id === gameId);
   const [side, setSide] = useState<'away' | 'home'>(() => (game?.homeId === league.userTeamId ? 'home' : 'away'));
   if (!game?.result) {
@@ -250,10 +251,15 @@ export function BoxScore({ league, gameId, onBack }: { league: League; gameId: n
 
   return (
     <>
-      <div>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
         <button className="btn btn-sm btn-ghost" onClick={onBack}>
           ← Back
         </button>
+        {(r.plays?.length ?? 0) > 20 && (
+          <button className="btn btn-sm btn-primary" onClick={() => nav.watchGame(game.id)}>
+            ▶ Watch replay
+          </button>
+        )}
       </div>
       <div className="scorebug">
         <div className="bug-team away" style={{ background: away.colors[0] }}>

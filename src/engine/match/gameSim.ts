@@ -7,7 +7,7 @@
  * better teams win more often without making upsets impossible.
  */
 import { clamp, Rng } from '../rng';
-import type { Game, GameResult, League, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
+import type { Game, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
 import { MAX_STATS } from '../types';
 import * as coach from './coach';
 import type { DefenseCall, PassDepth, Situation } from './coach';
@@ -25,6 +25,11 @@ export interface SimOptions {
 }
 
 const QUARTER_SECONDS = 900;
+const RUN_OUTSIDE: [string, number][] = [['left end', -1], ['right end', 1]];
+const RUN_INSIDE: [string, number][] = [['up the middle', 0], ['left guard', -0.35], ['right tackle', 0.45]];
+const PASS_LANES: [string, number][] = [['left', -0.8], ['middle', 0], ['right', 0.8]];
+
+type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane'>;
 const HOME_FIELD_EDGE = 0.4; // ratings points added to the home side's matchups
 
 /** Collects stat changes for a play so they can be discarded if a penalty wipes the play out. */
@@ -47,6 +52,7 @@ interface PlayResult {
   complete?: boolean;
   airYards?: number;
   depth?: PassDepth;
+  lane?: number;
   turnover?: { kind: 'int' | 'fumble'; spot: number; returnYds: number; by: Player };
 }
 
@@ -104,6 +110,8 @@ class GameSim {
   private plays: PlayLogEntry[] = [];
   private snapshot: Omit<PlayLogEntry, 'text' | 'homeScore' | 'awayScore'> | null = null;
   private homeEdge: number;
+  /** Ball path attached to the next logged play. */
+  private anim: Anim | null = null;
 
   constructor(
     private league: League,
@@ -206,8 +214,20 @@ class GameSim {
       awayScore: this.score[1],
     };
     if (scoring) entry.scoring = true;
+    if (this.anim) Object.assign(entry, this.anim);
+    this.anim = null;
     if (this.options.keepPlays || scoring) this.plays.push(entry);
     this.snapshot = null;
+  }
+
+  /** Convert a yard line from `side`'s point of view to field coordinates. */
+  private fieldX(side: Side, yardLine: number): number {
+    return side === 0 ? yardLine : 100 - yardLine;
+  }
+
+  private setAnim(side: Side, kind: PlayKind, from: number, to: number, air?: number, lane = 0) {
+    this.anim = { kind, from: this.fieldX(side, from), to: this.fieldX(side, to), lane };
+    if (air !== undefined) this.anim.air = this.fieldX(side, air);
   }
 
   private takeSnapshot(down = this.down) {
@@ -362,6 +382,7 @@ class GameSim {
       const q = lineup.qb.ratings;
       const ok = this.rng.chance(clamp(0.47 + 0.01 * (q.throwAccShort - 12), 0.35, 0.6));
       if (ok) this.addPoints(side, 2);
+      this.setAnim(side, 'two', 98, ok ? 102 : 99);
       this.log(`Two-point attempt ${ok ? 'is GOOD' : 'fails'}.`, true);
       return;
     }
@@ -374,6 +395,7 @@ class GameSim {
       this.addPoints(side, 1);
     }
     this.credit(buf);
+    this.setAnim(side, 'xp', 85, 110, 110);
     this.log(`${short(k)} extra point is ${made ? 'GOOD' : 'NO GOOD'}.`, true);
   }
 
@@ -401,6 +423,7 @@ class GameSim {
     if (coach.shouldOnside(scoreDiff, this.quarter, this.clock)) {
       const recovered = this.rng.chance(0.12);
       this.playTime(3);
+      this.setAnim(kickingSide, 'kickoff', 35, 46, 46);
       if (recovered) {
         this.startSeries(46);
         this.log(`${short(kicking.k)} onside kick RECOVERED by ${kicking.team.abbrev} at the ${this.spot()}.`);
@@ -417,6 +440,7 @@ class GameSim {
     const touchback = this.rng.chance(clamp(0.38 + 0.025 * (kp - 12), 0.15, 0.7));
     this.offense = receivingSide;
     if (touchback) {
+      this.setAnim(kickingSide, 'kickoff', 35, 104, 104);
       this.startSeries(35);
       this.log(`${short(kicking.k)} kicks off into the end zone. Touchback.`);
     } else {
@@ -429,6 +453,7 @@ class GameSim {
       buf.add(kr, 'krAtt');
       buf.add(kr, 'krYds', start - 3);
       this.playTime(this.rng.int(5, 8));
+      this.setAnim(kickingSide, 'kickoff', 35, returnTd ? -3 : 100 - start, 97);
       if (returnTd) {
         buf.add(kr, 'krTd');
         this.credit(buf);
@@ -452,6 +477,7 @@ class GameSim {
 
     if (this.rng.chance(0.005)) {
       const ballAt = this.yardLine - 8;
+      this.setAnim(this.offense, 'punt', this.yardLine, ballAt);
       if (ballAt <= 0) {
         this.log(`${short(p)} punt is BLOCKED out of the end zone.`);
         this.safety();
@@ -472,6 +498,7 @@ class GameSim {
     buf.add(p, 'punts');
     buf.add(p, 'puntYds', gross);
     const landing = this.yardLine + gross;
+    this.setAnim(this.offense, 'punt', this.yardLine, Math.min(landing, 105), Math.min(landing, 105));
     if (landing >= 100) {
       this.credit(buf);
       this.log(`${short(p)} punts ${gross} yards into the end zone. Touchback.`);
@@ -489,6 +516,8 @@ class GameSim {
     const skill = (pr.ratings.speed + pr.ratings.elusiveness) / 2 - 12;
     let ret = Math.max(0, Math.round(this.rng.normal(8 + 0.5 * skill, 6)));
     if (this.rng.chance(clamp(0.006 + 0.0015 * skill, 0.002, 0.02))) ret = 100 - receiveAt;
+    // Returns run back toward the punting team's goal line.
+    this.setAnim(this.offense, 'punt', this.yardLine, landing - ret <= 0 ? -3 : landing - ret, landing);
     buf.add(pr, 'prAtt');
     buf.add(pr, 'prYds', ret);
     if (receiveAt + ret >= 100) buf.add(pr, 'prTd');
@@ -513,6 +542,7 @@ class GameSim {
     buf.add(k, 'fgAtt');
     this.playTime(this.rng.int(4, 6));
     const made = this.rng.chance(this.fgProb(distance, k) - 0.01);
+    this.setAnim(this.offense, 'fg', this.yardLine - 7, 110, 110);
     if (made) {
       buf.add(k, 'fgMade');
       buf.add(k, 'fgLong', distance);
@@ -572,6 +602,7 @@ class GameSim {
     if (roll < 0.027) {
       const yards = Math.min(5, Math.floor(this.yardLine / 2));
       this.takeSnapshot();
+      this.setAnim(off, 'penalty', this.yardLine, this.yardLine - yards);
       this.yardLine -= yards;
       this.teamStats[off].penalties++;
       this.teamStats[off].penaltyYds += yards;
@@ -582,6 +613,7 @@ class GameSim {
     if (roll < 0.044) {
       const yards = Math.min(5, Math.floor((100 - this.yardLine) / 2));
       this.takeSnapshot();
+      this.setAnim(off, 'penalty', this.yardLine, this.yardLine + yards);
       this.yardLine += yards;
       this.teamStats[this.def].penalties++;
       this.teamStats[this.def].penaltyYds += yards;
@@ -673,12 +705,12 @@ class GameSim {
     buf.add(rusher, 'rushAtt');
     buf.add(rusher, 'rushYds', yards);
     buf.add(rusher, 'rushLong', yards);
-    const dir = outside ? rng.pick(['left end', 'right end']) : rng.pick(['up the middle', 'left guard', 'right tackle']);
+    const [dir, lane] = outside ? rng.pick(RUN_OUTSIDE) : rng.pick(RUN_INSIDE);
     let text = `${short(rusher)} rush ${dir} for ${yards === 0 ? 'no gain' : `${yards} yard${Math.abs(yards) === 1 ? '' : 's'}`}`;
 
     if (td) {
       buf.add(rusher, 'rushTd');
-      return { kind: 'run', yards, text: `${text}, TOUCHDOWN`, duration: rng.int(4, 7), clockStops: true, stats: buf };
+      return { kind: 'run', yards, text: `${text}, TOUCHDOWN`, duration: rng.int(4, 7), clockStops: true, stats: buf, lane };
     }
 
     const tackler = this.pickTackler(def, yards);
@@ -697,6 +729,7 @@ class GameSim {
         const returnYds = rng.chance(0.1) ? rng.int(5, 40) : rng.int(0, 3);
         return {
           kind: 'run',
+          lane,
           yards,
           text: `${text}. FUMBLE, recovered by ${short(recoverer)}`,
           duration: rng.int(4, 7),
@@ -710,7 +743,7 @@ class GameSim {
     // Ball carriers protecting a lead stay in bounds.
     const oob = rng.chance((outside ? 0.18 : 0.04) * (coach.tempo(s) === 'milk' ? 0.25 : 1));
     if (oob) text += ', out of bounds';
-    return { kind: 'run', yards, text, duration: rng.int(4, 7), clockStops: oob && this.oobStopsClock(), stats: buf };
+    return { kind: 'run', yards, text, duration: rng.int(4, 7), clockStops: oob && this.oobStopsClock(), stats: buf, lane };
   }
 
   private passPlay(s: Situation, defCall: DefenseCall): PlayResult {
@@ -787,11 +820,12 @@ class GameSim {
     air = Math.max(air, 1 - this.yardLine);
     air = Math.min(air, yardsToGoal + 9);
 
-    const depthLabel = `${depth} ${rng.pick(['left', 'middle', 'right'])}`;
+    const [sideLabel, lane] = rng.pick(PASS_LANES);
+    const depthLabel = `${depth} ${sideLabel}`;
     buf.add(qb, 'passAtt');
     buf.add(receiver, 'targets');
     const duration = rng.int(5, 8);
-    const base = { kind: 'pass' as const, passAttempt: true, airYards: air, depth, duration, stats: buf };
+    const base = { kind: 'pass' as const, passAttempt: true, airYards: air, depth, duration, stats: buf, lane };
 
     const roll = rng.next();
     if (roll < pInt) {
@@ -931,7 +965,8 @@ class GameSim {
       text += ` (${short(tackler)})`;
     }
     const slide = !td && this.rng.chance(0.4);
-    return { kind: 'scramble', yards, text: slide ? `${text}, slides` : text, duration: this.rng.int(5, 8), clockStops: false, stats: buf };
+    const lane = this.rng.pick([-0.9, 0.9]);
+    return { kind: 'scramble', yards, text: slide ? `${text}, slides` : text, duration: this.rng.int(5, 8), clockStops: false, stats: buf, lane };
   }
 
   /** Apply a scrimmage play: penalties, clock, stats, and the resulting field state. */
@@ -941,8 +976,10 @@ class GameSim {
     const ts = this.teamStats[offSide];
     if (!this.snapshot) this.takeSnapshot();
     const downBefore = this.down;
+    const startYardLine = this.yardLine;
     if (this.yardLine >= 80) this.markRedZone();
     const text = result.text;
+    const airAt = result.passAttempt && result.airYards ? startYardLine + result.airYards : undefined;
 
     // During-play penalties.
     let penalty: { on: Side; yards: number; text: string; autoFirst: boolean; replayDown: boolean } | null = null;
@@ -973,6 +1010,7 @@ class GameSim {
       this.yardLine += penalty.yards;
       if (penalty.autoFirst) this.firstDown();
       this.clockRunning = false;
+      this.setAnim(offSide, 'penalty', startYardLine, this.yardLine, undefined, result.lane);
       this.log(`${text}. ${penalty.text}`);
       return;
     }
@@ -996,8 +1034,11 @@ class GameSim {
 
     if (result.turnover) {
       ts.turnovers++;
-      this.log(text);
       const { spot, returnYds, by } = result.turnover;
+      const isInt = result.turnover.kind === 'int';
+      const end = isInt && spot >= 100 ? Math.min(spot, 108) : Math.max(-4, spot - returnYds);
+      this.setAnim(offSide, isInt ? 'int' : result.kind, startYardLine, end, isInt ? Math.min(spot, 108) : airAt, result.lane);
+      this.log(text);
       if (spot >= 100 && result.turnover.kind === 'int') {
         this.changePossession(20);
         this.snapshot = null;
@@ -1021,6 +1062,9 @@ class GameSim {
 
     this.yardLine += result.yards;
     this.clockRunning = !(result.clockStops || warning);
+    const kind: PlayKind = result.kind === 'pass' ? (result.complete ? 'pass' : 'incomplete') : result.kind;
+    const end = kind === 'incomplete' ? startYardLine : this.yardLine >= 100 ? 102 : this.yardLine;
+    this.setAnim(offSide, kind, startYardLine, end, airAt, result.lane);
 
     if (this.yardLine >= 100) {
       if (downBefore === 3) ts.thirdDownConv++;
