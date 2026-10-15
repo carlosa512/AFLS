@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { playerOvr, POSITION_NAMES, STARTERS } from '../../engine/positions';
-import { buildAutoDepthChart, payroll, teamPlayers, teamRatings } from '../../engine/roster';
+import { capSheet } from '../../engine/finance/cap';
+import { capHit, lastSeason } from '../../engine/finance/contract';
+import { buildAutoDepthChart, teamPlayers, teamRatings } from '../../engine/roster';
 import { computeRecords } from '../../engine/season/standings';
 import type { League, Player, Position, StatLine } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
@@ -141,7 +143,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
   const isUser = teamId === league.userTeamId;
   const ratings = teamRatings(league, team);
   const record = computeRecords(league).get(teamId)!;
-  const pay = payroll(league, teamId);
+  const cap = capSheet(league, teamId);
   const players = teamPlayers(league, teamId);
   const { drag, start } = useDepthDrag(teamId);
   const [announcement, setAnnouncement] = useState('');
@@ -207,12 +209,14 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
             <b className="num">{ratings.defense.toFixed(1)}</b>
           </span>
           <span className="fact">
-            <span className="eyebrow">Payroll</span>
-            <b className="num">{money(pay)}</b>
+            <span className="eyebrow">Cap used</span>
+            <b className="num">{money(Math.round(cap.used))}</b>
           </span>
           <span className="fact">
             <span className="eyebrow">Cap space</span>
-            <b className="num">{money(league.salaryCap - pay)}</b>
+            <button className="linklike num fact-link" onClick={() => nav.go({ view: 'cap', teamId })}>
+              {money(Math.round(cap.space))}
+            </button>
           </span>
         </div>
       </Panel>
@@ -245,8 +249,8 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                 <th className="num">OVR</th>
                 <th className="num">Age</th>
                 <th>Key ratings</th>
-                <th className="num">Salary</th>
-                <th className="num">Yrs</th>
+                <th className="num">Cap hit</th>
+                <th className="num">Thru</th>
                 <th>{league.season} stats</th>
               </tr>
             </thead>
@@ -364,8 +368,8 @@ function RosterRow({
           ))}
         </span>
       </td>
-      <td className="num">{money(p.contract.salary)}</td>
-      <td className="num">{p.contract.years}</td>
+      <td className="num">{p.contract ? money(Math.round(capHit(p.contract, league.season))) : '–'}</td>
+      <td className="num">{p.contract ? lastSeason(p.contract) : '–'}</td>
       <td className="muted">{statSummary(p.position, p.stats[league.season])}</td>
     </tr>
   );

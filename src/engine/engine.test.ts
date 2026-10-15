@@ -6,7 +6,9 @@ import * as coach from './match/coach';
 import { simulateGame, startGame } from './match/gameSim';
 import { ROSTER_TEMPLATE } from './positions';
 import { Rng } from './rng';
-import { payroll, teamPlayers } from './roster';
+import { capSheet } from './finance/cap';
+import { isExpired } from './finance/contract';
+import { teamPlayers } from './roster';
 import { playoffGames } from './season/playoffs';
 import { computeRecords, conferenceSeeds, divisionStandings, sortTeams } from './season/standings';
 import { ATTRIBUTES, POSITIONS, type GameResult } from './types';
@@ -44,7 +46,8 @@ describe('league generation', () => {
         expect(roster.filter((p) => p.position === pos)).toHaveLength(ROSTER_TEMPLATE[pos]);
         expect(team.depthChart[pos]).toHaveLength(ROSTER_TEMPLATE[pos]);
       }
-      expect(payroll(league, team.id)).toBeLessThanOrEqual(SALARY_CAP);
+      expect(capSheet(league, team.id).used).toBeLessThanOrEqual(SALARY_CAP);
+      for (const p of roster) expect(isExpired(p.contract!, league.season)).toBe(false);
       expect(new Set(roster.map((p) => p.jersey)).size).toBe(53);
     }
   });

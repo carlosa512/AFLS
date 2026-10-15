@@ -1336,3 +1336,231 @@ tr.dragging .grip {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* ───────── dialogs, contracts & cap ───────── */
+:root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --danger: #b3302a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --danger: #ff6f62;
+  }
+}
+:root[data-theme='dark'] {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --danger: #ff6f62;
+}
+.small {
+  font-size: var(--step--1);
+}
+.tone-good {
+  color: var(--win);
+}
+.tone-bad {
+  color: var(--loss);
+}
+.btn-danger {
+  background: var(--danger);
+  border-color: transparent;
+  color: #fff;
+}
+.btn-danger:hover {
+  filter: brightness(1.06);
+}
+.tag-pill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--surface-2);
+  color: var(--muted);
+  vertical-align: 1px;
+}
+tr.void-year td {
+  color: var(--muted);
+}
+.check-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: var(--step--1);
+  cursor: pointer;
+}
+.check-row input {
+  margin-top: 3px;
+}
+.callout {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: var(--step--1);
+}
+.callout-bad {
+  background: color-mix(in srgb, var(--loss) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--loss) 40%, transparent);
+}
+.callout-good {
+  background: color-mix(in srgb, var(--win) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--win) 35%, transparent);
+}
+.fact-link {
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+}
+.dialog-overlay {
+  z-index: 60;
+  place-items: center;
+}
+.dialog {
+  width: min(520px, 100%);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  display: grid;
+}
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 0;
+}
+.dialog-head h2 {
+  font-size: var(--step-2);
+  margin: 0;
+}
+.dialog-x {
+  position: static;
+  color: var(--ink);
+  background: var(--surface-2);
+  flex: none;
+}
+.dialog-body {
+  padding: 14px 18px;
+  display: grid;
+  gap: 14px;
+}
+.dialog-body input[type='range'] {
+  width: 100%;
+}
+.dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--line);
+}
+.moves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  font-size: var(--step--1);
+}
+.moves li {
+  display: grid;
+  gap: 1px;
+}
+
+/* cap chart */
+.cap-chart {
+  display: grid;
+  gap: 10px;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.swatch-line {
+  display: inline-block;
+  width: 16px;
+  height: 2px;
+  background: var(--ink);
+}
+.cap-active {
+  fill: var(--series-1);
+  background: var(--series-1);
+}
+.cap-dead {
+  fill: var(--series-2);
+  background: var(--series-2);
+}
+.cap-void {
+  fill: var(--series-3);
+  background: var(--series-3);
+}
+.chart-wrap {
+  position: relative;
+}
+.chart {
+  display: block;
+  overflow: visible;
+  max-width: 100%;
+}
+.chart .grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.chart .axis {
+  fill: var(--muted);
+  font-size: 11px;
+  font-family: var(--font-data);
+}
+.chart .cap-line {
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.chart .hit {
+  fill: transparent;
+  cursor: default;
+}
+.chart .hit:focus-visible {
+  outline: none;
+  fill: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.chart-tip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 8px 10px;
+  display: grid;
+  gap: 2px;
+  font-size: 0.75rem;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 2;
+}

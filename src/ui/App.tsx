@@ -13,6 +13,7 @@ import { Leaders } from './screens/Leaders';
 import { NewGame } from './screens/NewGame';
 import { PlayerCard } from './screens/PlayerCard';
 import { Playoffs } from './screens/Playoffs';
+import { Finances } from './screens/Finances';
 import { Roster } from './screens/Roster';
 import { Schedule } from './screens/Schedule';
 import { Standings } from './screens/Standings';
@@ -21,6 +22,7 @@ import { store, useLeague } from './store';
 export type Route =
   | { view: 'home' }
   | { view: 'roster'; teamId?: number }
+  | { view: 'cap'; teamId?: number }
   | { view: 'schedule' }
   | { view: 'standings' }
   | { view: 'leaders' }
@@ -44,6 +46,7 @@ export const useNav = () => useContext(NavContext)!;
 const TABS: { view: Route['view']; label: string }[] = [
   { view: 'home', label: 'Home' },
   { view: 'roster', label: 'Roster' },
+  { view: 'cap', label: 'Cap' },
   { view: 'schedule', label: 'Schedule' },
   { view: 'standings', label: 'Standings' },
   { view: 'leaders', label: 'Leaders' },
@@ -162,7 +165,7 @@ export function App() {
               key={t.view}
               className="tab"
               aria-current={activeTab === t.view ? 'page' : undefined}
-              onClick={() => setRoute(t.view === 'roster' ? { view: 'roster', teamId: league.userTeamId } : ({ view: t.view } as Route))}
+              onClick={() => setRoute(t.view === 'roster' || t.view === 'cap' ? { view: t.view, teamId: league.userTeamId } : ({ view: t.view } as Route))}
             >
               {t.label}
             </button>
@@ -173,6 +176,7 @@ export function App() {
       <main className="wrap">
         {route.view === 'home' && <Home league={league} />}
         {route.view === 'roster' && <Roster league={league} teamId={route.teamId ?? league.userTeamId} />}
+        {route.view === 'cap' && <Finances league={league} teamId={route.teamId ?? league.userTeamId} />}
         {route.view === 'schedule' && <Schedule league={league} />}
         {route.view === 'standings' && <Standings league={league} />}
         {route.view === 'leaders' && <Leaders league={league} />}

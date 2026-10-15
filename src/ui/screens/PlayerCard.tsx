@@ -4,7 +4,8 @@ import { passerRating } from '../../engine/stats';
 import type { Attribute, League, Player, StatLine } from '../../engine/types';
 import { useNav } from '../App';
 import { PlayerAvatar, Rating } from '../components';
-import { ATTR_LABELS, band, heightFt, keyAttributes, money } from '../format';
+import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
+import { ATTR_LABELS, band, heightFt, keyAttributes } from '../format';
 
 const GROUPS: [string, Attribute[]][] = [
   ['Physical', ['speed', 'agility', 'strength']],
@@ -169,12 +170,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               <span className="eyebrow">Experience</span>
               <b className="num">{p.experience === 0 ? 'Rookie' : `${p.experience} yr`}</b>
             </span>
-            <span className="fact">
-              <span className="eyebrow">Contract</span>
-              <b className="num">
-                {money(p.contract.salary)} × {p.contract.years}
-              </b>
-            </span>
+
           </div>
 
           <div className="attr-grid">
@@ -197,6 +193,18 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
             Bold attributes drive this player's overall at {p.position}. Scale: 1–5 poor, 6–10 backup, 11–15 starter, 16–20 elite.
           </p>
+
+          <section className="stack" aria-label="Contract">
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ margin: 0 }}>Contract</h3>
+                <span className="muted small">{contractLabel(p)}</span>
+              </div>
+              <ContractActions league={league} player={p} />
+            </div>
+            <ContractSummary league={league} player={p} />
+            <ContractYears player={p} />
+          </section>
 
           {cols.length > 0 && seasons.length > 0 && (
             <div className="table-scroll">

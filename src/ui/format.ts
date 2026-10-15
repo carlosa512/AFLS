@@ -2,8 +2,12 @@ import type { Attribute, Player, Position, Team } from '../engine/types';
 import { OVR_WEIGHTS } from '../engine/positions';
 import type { TeamRecord } from '../engine/season/standings';
 
-export const money = (thousands: number) =>
-  thousands >= 1000 ? `$${(thousands / 1000).toFixed(thousands >= 10_000 ? 1 : 2)}M` : `$${thousands}K`;
+/** $K → "$46.8M", "$885K", "-$2.3M". */
+export const money = (thousands: number): string => {
+  if (thousands < 0) return `-${money(-thousands)}`;
+  if (thousands === 0) return '$0';
+  return thousands >= 1000 ? `$${(thousands / 1000).toFixed(thousands >= 10_000 ? 1 : 2)}M` : `$${Math.round(thousands)}K`;
+};
 
 export const heightFt = (inches: number) => `${Math.floor(inches / 12)}'${inches % 12}"`;
 

@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import type { Player, Team } from '../engine/types';
 import { band } from './format';
 
@@ -101,5 +101,47 @@ export function Panel({ title, action, children, className }: { title?: ReactNod
       )}
       {children}
     </section>
+  );
+}
+
+/**
+ * A small modal: focus moves in, Tab stays inside, Escape closes, focus returns to the opener.
+ * Key events stop here so a dialog opened over the player card doesn't close the card too.
+ */
+export function Dialog({ title, onClose, children, footer }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    ref.current?.querySelector<HTMLElement>('[data-autofocus], button, input, select')?.focus();
+    return () => opener?.focus?.();
+  }, []);
+  const onKey = (e: ReactKeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') return onClose();
+    if (e.key !== 'Tab' || !ref.current) return;
+    const focusable = ref.current.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input, select, [tabindex]:not([tabindex="-1"])');
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  return (
+    <div className="overlay dialog-overlay" onClick={onClose} onKeyDown={onKey}>
+      <div ref={ref} className="dialog" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-head">
+          <h2>{title}</h2>
+          <button className="close-x dialog-x" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div className="dialog-body">{children}</div>
+        {footer && <div className="dialog-foot">{footer}</div>}
+      </div>
+    </div>
   );
 }

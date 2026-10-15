@@ -55,6 +55,3 @@ export function teamRatings(league: League, team: Team) {
   return { overall, qb, offense, defense, special };
 }
 
-export function payroll(league: League, teamId: number): number {
-  return teamPlayers(league, teamId).reduce((sum, p) => sum + p.contract.salary, 0);
-}

@@ -2,7 +2,10 @@
  * Season orchestration: playing weeks, moving into the playoffs, crowning a
  * champion, and rolling the league into the next season.
  */
-import { generatePlayer, marketValue, MIN_SALARY } from './generate';
+import { accelerateVoidYears, capSheet } from './finance/cap';
+import { isExpired, trimPast } from './finance/contract';
+import { leagueMarket, marketApy, preferredYears } from './finance/market';
+import { createDraftPicks, generatePlayer, MAX_FUTURE_DRAFT_YEARS, rookieContract, veteranContract } from './generate';
 import { simulateGame, startGame, type LiveGame } from './match/gameSim';
 import { ATTRIBUTE_PROFILES, playerOvr, ROSTER_TEMPLATE } from './positions';
 import { clamp, Rng } from './rng';
@@ -117,22 +120,39 @@ export function startNextSeason(league: League): void {
   // Next season's schedule depends on this season's division finishes.
   const order = divisionStandings(league).map((d) => d.teams.map((r) => r.teamId));
 
+  // The new league year: cap growth, carryover of unused room.
+  // Unused room (including last year's carryover) rolls into the new league year.
+  const carry = league.teams.map((t) => Math.max(0, capSheet(league, t.id).space));
+  const prevSeason = league.season;
+  league.season++;
+  league.caps[league.season] = nextCap(rng, league.caps[prevSeason]);
+  for (const team of league.teams) {
+    team.carryover = carry[team.id];
+    team.postJune1Used = 0;
+    team.taggedId = null;
+    team.deadMoney = team.deadMoney.filter((d) => d.season >= prevSeason);
+  }
+
   for (const player of Object.values(league.players)) {
-    if (player.teamId === null) continue;
+    if (player.teamId === null || !player.contract) continue;
     developPlayer(rng, player);
     player.age++;
     player.experience++;
-    player.contract.years--;
     const ovr = playerOvr(player);
     const retires = player.age >= 37 || (player.age >= 31 && ovr < 8 && rng.chance(0.5)) || (player.age >= 34 && rng.chance(0.35));
+    if (retires || isExpired(player.contract, league.season)) accelerateVoidYears(league, player, player.teamId);
     if (retires) {
       player.teamId = null;
+      player.contract = null;
+      player.retired = true;
       continue;
     }
-    if (player.contract.years <= 0) {
+    if (isExpired(player.contract, league.season)) {
       // Auto re-sign at market value until free agency exists.
-      player.contract = { salary: Math.round(Math.max(MIN_SALARY, marketValue(player.position, ovr) * rng.float(0.8, 1.1))), years: rng.int(1, 4) };
-    }
+      const team = league.teams[player.teamId];
+      const market = leagueMarket(league);
+      player.contract = veteranContract(rng, market, player, marketApy(market, player) * rng.float(0.85, 1.1), preferredYears(player), league.season, team.gm);
+    } else trimPast(player.contract, league.season);
   }
 
   for (const team of league.teams) {
@@ -150,19 +170,29 @@ export function startNextSeason(league: League): void {
           jerseysUsed,
         });
         rookie.experience = 0;
-        rookie.contract = { salary: MIN_SALARY + rng.int(0, 1500), years: 4 };
+        rookie.contract = rookieContract(rng.int(1, 224), league.season, league.caps[league.season]);
         league.players[rookie.id] = rookie;
       }
     }
     syncDepthChart(league, team);
   }
 
-  league.season++;
+  league.draftPicks = league.draftPicks.filter((p) => p.season > league.season);
+  createDraftPicks(league, league.season + MAX_FUTURE_DRAFT_YEARS);
   league.week = 1;
   league.phase = 'regular';
   league.games = league.games.filter((g) => g.season >= league.season - 1);
   league.games.push(...generateSchedule(league, rng, order));
   league.rngState = rng.getState();
+}
+
+/**
+ * Next league year's cap: usually 6–10% growth, with a rare revenue shock (like 2021's
+ * COVID cut) that stress-tests cap-heavy teams.
+ */
+export function nextCap(rng: Rng, cap: number): number {
+  const growth = rng.chance(0.04) ? -rng.float(0.05, 0.1) : clamp(rng.normal(0.08, 0.012), 0.06, 0.1);
+  return Math.round(cap * (1 + growth));
 }
 
 /** Simple age curve: growth toward potential while young, decline after the prime. */
