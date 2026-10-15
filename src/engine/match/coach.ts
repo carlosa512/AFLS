@@ -58,7 +58,7 @@ export function shouldKneel(s: Situation): boolean {
 export function fourthDown(s: Situation, rng: Rng): FourthDown {
   const yardsToGoal = 100 - s.yardLine;
   const inRange = s.fgMakeProb >= 0.4;
-  const comfortable = s.fgMakeProb >= 0.66;
+  const comfortable = s.fgMakeProb >= 0.7;
   const secondsLeft = gameSecondsLeft(s);
 
   // End of half: take the points if we can.
@@ -91,7 +91,7 @@ export function fourthDown(s: Situation, rng: Rng): FourthDown {
 /** Probability the offense calls a pass (vs. a run). */
 export function passProbability(s: Situation): number {
   let p: number;
-  if (s.down === 1) p = s.distance > 10 ? 0.62 : 0.49;
+  if (s.down === 1) p = s.distance > 10 ? 0.61 : 0.475;
   else if (s.down === 2) p = s.distance >= 8 ? 0.64 : s.distance <= 3 ? 0.42 : 0.57;
   else p = s.distance >= 7 ? 0.88 : s.distance >= 4 ? 0.74 : s.distance <= 1 ? 0.3 : 0.52;
 
