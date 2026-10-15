@@ -8,6 +8,7 @@ import type { Game, League, StatKey, Team } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, TeamChip, TeamLabel } from '../components';
 import { pct, recordText, shortName, weekLabel } from '../format';
+import { live } from '../live';
 import { store } from '../store';
 
 function lastUserGame(league: League): Game | undefined {
@@ -112,8 +113,8 @@ function NextGame({ league }: { league: League }) {
       </div>
       <UnitBars a={user} b={opp} league={league} />
       <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
-        {game.neutral ? 'Neutral site.' : isHome ? 'Home game: a small edge in every matchup.' : `Road game in ${opp.city}.`} Unit ratings are starter averages
-        on the 1–20 scale.
+        {game.neutral ? 'Neutral site.' : isHome ? 'Home game: a small edge in every matchup.' : `Road game in ${opp.city}.`} Press Play to watch it live.
+        Unit ratings are starter averages on the 1–20 scale.
       </p>
     </Panel>
   );
@@ -276,7 +277,13 @@ function StartOver() {
           <button className="btn btn-sm" onClick={() => setConfirming(false)}>
             Keep playing
           </button>
-          <button className="btn btn-sm" onClick={() => store.set(null)}>
+          <button
+            className="btn btn-sm"
+            onClick={() => {
+              live.clear();
+              store.set(null);
+            }}
+          >
             Delete and start over
           </button>
         </>

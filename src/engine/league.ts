@@ -3,14 +3,14 @@
  * champion, and rolling the league into the next season.
  */
 import { generatePlayer, marketValue, MIN_SALARY } from './generate';
-import { simulateGame } from './match/gameSim';
+import { simulateGame, startGame, type LiveGame } from './match/gameSim';
 import { ATTRIBUTE_PROFILES, playerOvr, ROSTER_TEMPLATE } from './positions';
 import { clamp, Rng } from './rng';
 import { syncDepthChart, teamPlayers } from './roster';
 import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { generateSchedule, REGULAR_SEASON_WEEKS } from './season/schedule';
 import { computeRecords, divisionStandings } from './season/standings';
-import type { Game, League, Player, StatLine } from './types';
+import type { Game, GameResult, League, Player, StatLine } from './types';
 import { ATTRIBUTES, MAX_STATS, POSITIONS } from './types';
 
 export function gamesInWeek(league: League, week = league.week): Game[] {
@@ -36,15 +36,31 @@ function prunePlayLogs(league: League) {
   }
 }
 
-export function playGame(league: League, game: Game): void {
+function prepareGame(league: League, game: Game) {
   syncDepthChart(league, league.teams[game.homeId]);
   syncDepthChart(league, league.teams[game.awayId]);
-  game.result = simulateGame(league, game, { keepPlays: true, playoff: !!game.playoffRound });
+}
+
+/** Store a finished game's result and credit regular-season stats. */
+export function recordResult(league: League, game: Game, result: GameResult): void {
+  if (game.result) return;
+  game.result = result;
   if (game.playoffRound) return; // Season stat totals are regular season only.
-  for (const [id, line] of Object.entries(game.result.playerStats)) {
+  for (const [id, line] of Object.entries(result.playerStats)) {
     const player = league.players[Number(id)];
     if (player) addStats((player.stats[game.season] ??= {}), line);
   }
+}
+
+export function playGame(league: League, game: Game): void {
+  prepareGame(league, game);
+  recordResult(league, game, simulateGame(league, game, { keepPlays: true, playoff: !!game.playoffRound }));
+}
+
+/** Begin a game to be watched play by play; finish it with recordResult, then playWeek. */
+export function startLiveGame(league: League, game: Game): LiveGame {
+  prepareGame(league, game);
+  return startGame(league, game, { playoff: !!game.playoffRound });
 }
 
 /** Play every game in the current week, then advance the calendar. Returns the games played. */

@@ -6,6 +6,8 @@ import { TeamChip } from './components';
 import { recordText, weekLabel } from './format';
 import { BoxScore } from './screens/BoxScore';
 import { GameViewer } from './screens/GameViewer';
+import { LiveGame } from './screens/LiveGame';
+import { live, useLive } from './live';
 import { Home } from './screens/Home';
 import { Leaders } from './screens/Leaders';
 import { NewGame } from './screens/NewGame';
@@ -24,7 +26,8 @@ export type Route =
   | { view: 'leaders' }
   | { view: 'playoffs' }
   | { view: 'game'; gameId: number; back: Route }
-  | { view: 'watch'; gameId: number; back: Route };
+  | { view: 'watch'; gameId: number; back: Route }
+  | { view: 'live' };
 
 interface Nav {
   route: Route;
@@ -49,6 +52,7 @@ const TABS: { view: Route['view']; label: string }[] = [
 
 function primaryActionLabel(league: League): string {
   if (league.phase === 'complete') return `Start ${league.season + 1} season`;
+  if (live.inProgress()) return 'Resume live game';
   const label = weekLabel(league.week);
   if (league.phase === 'playoffs') return `Play ${label}`;
   return userGame(league) ? `Play ${label}` : `Play ${label} (bye)`;
@@ -56,6 +60,7 @@ function primaryActionLabel(league: League): string {
 
 export function App() {
   const league = useLeague();
+  useLive();
   const [route, setRoute] = useState<Route>({ view: 'home' });
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -93,6 +98,14 @@ export function App() {
       setRoute({ view: 'home' });
       return;
     }
+    // Your game plays out live; the rest of the week is simulated when it ends.
+    if (live.inProgress()) return setRoute({ view: 'live' });
+    const game = userGame(league);
+    if (game && !game.result) {
+      live.start(league, game);
+      setRoute({ view: 'live' });
+      return;
+    }
     run((l) => {
       playWeek(l);
     });
@@ -106,7 +119,7 @@ export function App() {
         : null;
 
   const pendingGames = gamesInWeek(league).filter((g) => !g.result).length;
-  const activeTab = route.view === 'game' || route.view === 'watch' ? route.back.view : route.view;
+  const activeTab = route.view === 'game' || route.view === 'watch' ? route.back.view : route.view === 'live' ? 'home' : route.view;
 
   return (
     <NavContext.Provider value={nav}>
@@ -125,7 +138,15 @@ export function App() {
           </div>
           <div className="actions">
             {secondary && (
-              <button className="btn" disabled={busy} onClick={() => run(secondary.fn)}>
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() => {
+                  // Finish a game in progress first; the sim then plays everything else.
+                  live.finish(false);
+                  run(secondary.fn);
+                }}
+              >
                 {secondary.label}
               </button>
             )}
@@ -156,6 +177,7 @@ export function App() {
         {route.view === 'leaders' && <Leaders league={league} />}
         {route.view === 'playoffs' && <Playoffs league={league} />}
         {route.view === 'game' && <BoxScore league={league} gameId={route.gameId} onBack={() => setRoute(route.back)} />}
+        {route.view === 'live' && <LiveGame league={league} />}
         {route.view === 'watch' && (
           <GameViewer league={league} gameId={route.gameId} onBack={() => setRoute(route.back)} onBoxScore={() => nav.openGame(route.gameId)} />
         )}

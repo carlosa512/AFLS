@@ -3,7 +3,7 @@ import { RESERVED_NICKNAMES } from './data/teams';
 import { createLeague, SALARY_CAP } from './generate';
 import { playWeek, simToEndOfSeason, startNextSeason } from './league';
 import * as coach from './match/coach';
-import { simulateGame } from './match/gameSim';
+import { simulateGame, startGame } from './match/gameSim';
 import { ROSTER_TEMPLATE } from './positions';
 import { Rng } from './rng';
 import { payroll, teamPlayers } from './roster';
@@ -123,6 +123,24 @@ describe('game simulation', () => {
       const quarterSum = (q: number[]) => q.reduce((a, b) => a + b, 0);
       expect(quarterSum(r.quarters.home)).toBe(r.homeScore);
       expect(quarterSum(r.quarters.away)).toBe(r.awayScore);
+    }
+  });
+
+  it('plays the identical game when advanced one play at a time', () => {
+    for (let i = 0; i < 5; i++) {
+      const g = league.games[i];
+      const whole = simulateGame(league, g, { keepPlays: true });
+      const live = startGame(league, g);
+      const seen = [];
+      while (!live.over) {
+        const batch = live.next();
+        if (!live.over) expect(batch.length).toBeGreaterThan(0);
+        seen.push(...batch);
+      }
+      const stepped = live.result();
+      expect([stepped.homeScore, stepped.awayScore]).toEqual([whole.homeScore, whole.awayScore]);
+      expect(seen).toEqual(whole.plays);
+      expect(stepped.playerStats).toEqual(whole.playerStats);
     }
   });
 

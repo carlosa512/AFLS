@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { createLeague } from '../../engine/generate';
 import { teamRatings } from '../../engine/roster';
 import { Rating, TeamChip } from '../components';
+import { live } from '../live';
 import { store } from '../store';
 
 export function NewGame() {
@@ -14,6 +15,7 @@ export function NewGame() {
   const start = () => {
     if (picked === null) return;
     preview.userTeamId = picked;
+    live.clear();
     store.set(preview);
   };
 

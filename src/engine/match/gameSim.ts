@@ -86,6 +86,28 @@ export function simulateGame(league: League, game: Game, options: SimOptions = {
   return new GameSim(league, game, options).run();
 }
 
+/** A game advanced one play at a time, for watching live. Same seed → same game as simulateGame. */
+export interface LiveGame {
+  /** Advance until at least one new play is logged (or the game ends); returns the new entries. */
+  next(): PlayLogEntry[];
+  readonly over: boolean;
+  result(): GameResult;
+}
+
+export function startGame(league: League, game: Game, options: SimOptions = {}): LiveGame {
+  const sim = new GameSim(league, game, { ...options, keepPlays: true });
+  return {
+    next: () => sim.next(),
+    get over() {
+      return sim.isOver;
+    },
+    result: () => sim.result(),
+  };
+}
+
+/** Hard stop for a runaway loop; a real game is ~170 iterations. */
+const MAX_STEPS = 2000;
+
 class GameSim {
   private rng: Rng;
   private lineups: [Lineup, Lineup];
@@ -103,6 +125,8 @@ class GameSim {
   private openingReceiver: Side = 0;
   private kickoffBy: Side | null = null;
   private over = false;
+  private started = false;
+  private steps = 0;
   private otCompleted: [number, number] = [0, 0];
   private driveInRedZone = false;
   private teamStats: [TeamGameStats, TeamGameStats] = [emptyTeamStats(), emptyTeamStats()];
@@ -125,23 +149,40 @@ class GameSim {
   }
 
   run(): GameResult {
-    this.openingReceiver = this.rng.chance(0.5) ? 0 : 1;
-    this.kickoffBy = (1 - this.openingReceiver) as Side;
-    let guard = 0;
-    while (!this.over && guard++ < 2000) {
-      if (this.clock <= 0) {
-        this.endQuarter();
-        continue;
-      }
-      if (this.kickoffBy !== null) {
-        const kicker = this.kickoffBy;
-        this.kickoffBy = null;
-        this.kickoff(kicker);
-        continue;
-      }
+    while (!this.over) this.step();
+    return this.result();
+  }
+
+  get isOver(): boolean {
+    return this.over;
+  }
+
+  next(): PlayLogEntry[] {
+    const before = this.plays.length;
+    while (!this.over && this.plays.length === before) this.step();
+    return this.plays.slice(before);
+  }
+
+  /** One event: a quarter break, a kickoff, or a scrimmage down. */
+  private step() {
+    if (!this.started) {
+      this.started = true;
+      this.openingReceiver = this.rng.chance(0.5) ? 0 : 1;
+      this.kickoffBy = (1 - this.openingReceiver) as Side;
+    }
+    if (++this.steps > MAX_STEPS) {
+      this.over = true;
+      return;
+    }
+    if (this.clock <= 0) {
+      this.endQuarter();
+    } else if (this.kickoffBy !== null) {
+      const kicker = this.kickoffBy;
+      this.kickoffBy = null;
+      this.kickoff(kicker);
+    } else {
       this.scrimmageDown();
     }
-    return this.result();
   }
 
   // ───────────────────────── helpers ─────────────────────────
@@ -1106,7 +1147,7 @@ class GameSim {
     this.lineToGain = Math.min(100, this.yardLine + 10);
   }
 
-  private result(): GameResult {
+  result(): GameResult {
     const plays = this.plays;
     const playerTeams: Record<number, number> = {};
     for (const l of this.lineups) for (const p of activePlayers(l)) playerTeams[p.id] = l.team.id;

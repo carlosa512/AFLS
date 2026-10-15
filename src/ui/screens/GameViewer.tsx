@@ -99,7 +99,7 @@ function pointAt(seg: Seg, s: number) {
 }
 
 /** Where the ball sits once a play is over (or before it, for plays without a path). */
-function restingSpot(plays: PlayLogEntry[], index: number, homeId: number): number {
+export function restingSpot(plays: PlayLogEntry[], index: number, homeId: number): number {
   for (let i = index; i >= 0; i--) {
     const e = plays[i];
     if (e.to !== undefined) return e.kind === 'incomplete' ? e.from! : e.to;
@@ -109,7 +109,7 @@ function restingSpot(plays: PlayLogEntry[], index: number, homeId: number): numb
 }
 
 // ───────── field ─────────
-function Field({ home, away, entry, restX, animKey, speed, onDone }: { home: Team; away: Team; entry: PlayLogEntry | undefined; restX: number; animKey: string; speed: number; onDone: () => void }) {
+export function Field({ home, away, entry, restX, animKey, speed, onDone }: { home: Team; away: Team; entry: PlayLogEntry | undefined; restX: number; animKey: string; speed: number; onDone: () => void }) {
   const ballRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
   const trailRef = useRef<SVGPathElement>(null);
@@ -247,7 +247,7 @@ function Field({ home, away, entry, restX, animKey, speed, onDone }: { home: Tea
 }
 
 // ───────── viewer screen ─────────
-function playLabel(e: PlayLogEntry, homeId: number): string {
+export function playLabel(e: PlayLogEntry, homeId: number): string {
   if (/TOUCHDOWN/.test(e.text)) return 'Touchdown';
   const dir = e.offense === homeId ? 1 : -1;
   const gain = e.from !== undefined && e.to !== undefined ? Math.round((e.to - e.from) * dir) : 0;
@@ -284,7 +284,7 @@ function playLabel(e: PlayLogEntry, homeId: number): string {
   }
 }
 
-function situation(e: PlayLogEntry, home: Team, away: Team): string {
+export function situation(e: PlayLogEntry, home: Team, away: Team): string {
   if (!e.down) return '';
   const ord = ['', '1st', '2nd', '3rd', '4th'][e.down];
   const goal = e.yardLine + e.distance >= 100;
