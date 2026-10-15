@@ -1,7 +1,7 @@
 import { leaders, LEADER_CATEGORIES } from '../../engine/stats';
 import type { League } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, TeamChip } from '../components';
+import { Panel, PlayerAvatar } from '../components';
 
 export function Leaders({ league }: { league: League }) {
   const nav = useNav();
@@ -33,12 +33,13 @@ export function Leaders({ league }: { league: League }) {
                           {i + 1}
                         </td>
                         <td style={{ whiteSpace: 'normal' }}>
-                          <span className="team-inline">
-                            {team && <TeamChip team={team} />}
-                            <button className="linklike" onClick={() => nav.openPlayer(r.player.id)}>
+                          <button className="linklike player-link" onClick={() => nav.openPlayer(r.player.id)}>
+                            <PlayerAvatar player={r.player} team={team} size={28} />
+                            <span>
                               {r.player.firstName[0]}. {r.player.lastName}
-                            </button>
-                          </span>
+                            </span>
+                          </button>
+                          {team && <small className="muted"> {team.abbrev}</small>}
                         </td>
                         <td className="num" style={{ fontWeight: 700 }}>
                           {cat.format ? cat.format(r.value) : r.value.toLocaleString()}

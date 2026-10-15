@@ -3,7 +3,7 @@ import { playerOvr, POSITION_NAMES } from '../../engine/positions';
 import { passerRating } from '../../engine/stats';
 import type { Attribute, League, Player, StatLine } from '../../engine/types';
 import { useNav } from '../App';
-import { Rating } from '../components';
+import { PlayerAvatar, Rating } from '../components';
 import { ATTR_LABELS, band, heightFt, keyAttributes, money } from '../format';
 
 const GROUPS: [string, Attribute[]][] = [
@@ -126,6 +126,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
     <div className="overlay" onClick={onClose}>
       <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-label={`${p.firstName} ${p.lastName}`} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head" style={{ background: team?.colors[0] ?? '#333', boxShadow: `inset 0 -6px 0 ${team?.colors[1] ?? '#666'}` }}>
+          <PlayerAvatar player={p} team={team} size={64} />
           <span className="jersey">{p.jersey}</span>
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>

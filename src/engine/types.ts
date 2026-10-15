@@ -104,6 +104,8 @@ export interface Player {
   contract: Contract;
   /** Season year → accumulated stats. */
   stats: Record<number, StatLine>;
+  /** Optional picture URL (or data: URI) supplied by a roster mod; the UI shows a placeholder otherwise. */
+  portrait?: string;
 }
 
 export interface Conference {

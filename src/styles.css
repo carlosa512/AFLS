@@ -1265,3 +1265,74 @@ select {
   position: sticky;
   left: 8px;
 }
+
+/* ───────── avatars & depth chart dragging ───────── */
+.avatar {
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+.player-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+.player-link > span {
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+.player-link:hover > span {
+  text-decoration-color: currentColor;
+}
+.grip {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  fill: currentColor;
+  cursor: grab;
+  touch-action: none;
+  flex: none;
+}
+.grip:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+body.is-dragging,
+body.is-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+.depth-row td {
+  padding-block: 4px;
+}
+tr.last-starter td {
+  border-bottom: 2px solid var(--marker);
+}
+tr.dragging {
+  position: relative;
+  z-index: 3;
+}
+tr.dragging td {
+  background: color-mix(in srgb, var(--marker) 14%, var(--surface));
+  border-block: 1px solid var(--marker);
+}
+tr.dragging .grip {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

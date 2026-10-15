@@ -1,6 +1,40 @@
 import type { CSSProperties, ReactNode } from 'react';
-import type { Team } from '../engine/types';
+import type { Player, Team } from '../engine/types';
 import { band } from './format';
+
+/** Black or white, whichever reads better on `hex`. */
+function inkOn(hex: string): string {
+  const n = parseInt(hex.replace('#', '').padEnd(6, '0').slice(0, 6), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? '#121915' : '#ffffff';
+}
+
+/**
+ * A player's picture slot. Until a portrait exists (a roster mod can set `player.portrait`),
+ * it shows a neutral bust in team colours with the jersey number, so faces line up and scan
+ * like a real roster page.
+ */
+export function PlayerAvatar({ player, team, size = 32 }: { player: Player; team: Team | null; size?: number }) {
+  const label = `${player.firstName} ${player.lastName}`;
+  if (player.portrait) {
+    return <img className="avatar" src={player.portrait} alt="" width={size} height={size} loading="lazy" />;
+  }
+  const [c1, c2] = team?.colors ?? ['#4a554e', '#9aa59e'];
+  return (
+    <svg className="avatar" width={size} height={size} viewBox="0 0 40 40" role="img" aria-label={`${label} (no photo)`}>
+      <circle cx="20" cy="20" r="20" fill={c1} />
+      <circle cx="20" cy="20" r="19.25" fill="none" stroke={c2} strokeWidth="1.5" opacity="0.9" />
+      <path d="M5.5 37.5c0-9.6 6.4-14.6 14.5-14.6s14.5 5 14.5 14.6A19.5 19.5 0 0 1 5.5 37.5z" fill={c2} />
+      <circle cx="20" cy="12.6" r="6" fill="#fff" opacity="0.82" />
+      <text x="20" y="36.4" textAnchor="middle" fontSize="12" fontWeight="800" fill={inkOn(c2)} fontFamily="var(--font-display)">
+        {player.jersey}
+      </text>
+    </svg>
+  );
+}
 
 export function TeamChip({ team, large }: { team: Team; large?: boolean }) {
   const style = { '--c1': team.colors[0], '--c2': team.colors[1] } as CSSProperties;
