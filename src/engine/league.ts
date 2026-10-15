@@ -4,7 +4,7 @@
  */
 import { generatePlayer, marketValue, MIN_SALARY } from './generate';
 import { simulateGame } from './match/gameSim';
-import { playerOvr, ROSTER_TEMPLATE } from './positions';
+import { ATTRIBUTE_PROFILES, playerOvr, ROSTER_TEMPLATE } from './positions';
 import { clamp, Rng } from './rng';
 import { syncDepthChart, teamPlayers } from './roster';
 import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
@@ -158,7 +158,10 @@ function developPlayer(rng: Rng, player: Player) {
   if (age < 26) delta = Math.max(0, player.potential - ovr) * rng.float(0.15, 0.5);
   else if (age <= peakEnd) delta = rng.normal(0, 0.4);
   else delta = -rng.float(0.3, 1.4) * (1 + (age - peakEnd) * 0.25);
+  // Only position-relevant skills develop; off-position attributes stay put.
+  const relevant = ATTRIBUTE_PROFILES[player.position];
   for (const attr of ATTRIBUTES) {
+    if (relevant[attr] === undefined) continue;
     const physical = attr === 'speed' || attr === 'agility' || attr === 'strength';
     // Physical tools fade faster than mental ones.
     const d = delta < 0 ? delta * (physical ? 1.4 : attr === 'awareness' ? 0.3 : 1) : delta * (attr === 'awareness' ? 1.2 : 1);

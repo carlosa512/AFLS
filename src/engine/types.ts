@@ -178,6 +178,8 @@ export interface GameResult {
   home: TeamGameStats;
   away: TeamGameStats;
   playerStats: Record<number, StatLine>;
+  /** Player id → team id at kickoff, so box scores survive trades and retirements. */
+  playerTeams: Record<number, number>;
   plays?: PlayLogEntry[];
 }
 

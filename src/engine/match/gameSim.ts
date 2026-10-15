@@ -106,7 +106,7 @@ class GameSim {
   private homeEdge: number;
 
   constructor(
-    league: League,
+    private league: League,
     game: Game,
     private options: SimOptions,
   ) {
@@ -1064,13 +1064,10 @@ class GameSim {
 
   private result(): GameResult {
     const plays = this.plays;
-    const credited = new Set<number>();
-    for (const l of this.lineups) for (const p of activePlayers(l)) credited.add(p.id);
-    for (const id of Object.keys(this.playerStats)) credited.add(Number(id));
-    for (const id of credited) {
-      const line = (this.playerStats[id] ??= {});
-      line.gp = 1;
-    }
+    const playerTeams: Record<number, number> = {};
+    for (const l of this.lineups) for (const p of activePlayers(l)) playerTeams[p.id] = l.team.id;
+    for (const id of Object.keys(this.playerStats)) playerTeams[Number(id)] ??= this.league.players[Number(id)].teamId!;
+    for (const id of Object.keys(playerTeams)) (this.playerStats[Number(id)] ??= {}).gp = 1;
     const [home, away] = this.teamStats;
     home.totalYds = home.passYds + home.rushYds;
     away.totalYds = away.passYds + away.rushYds;
@@ -1082,6 +1079,7 @@ class GameSim {
       home,
       away,
       playerStats: this.playerStats,
+      playerTeams,
       plays,
     };
   }
