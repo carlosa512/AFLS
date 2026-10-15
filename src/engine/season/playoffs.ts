@@ -12,8 +12,8 @@ export const ROUND_NAMES: Record<PlayoffRound, string> = {
 
 export const roundWeek = (round: PlayoffRound) => REGULAR_SEASON_WEEKS + 1 + PLAYOFF_ROUNDS.indexOf(round);
 
-export function playoffGames(league: League, round?: PlayoffRound): Game[] {
-  return league.games.filter((g) => g.season === league.season && g.playoffRound && (!round || g.playoffRound === round));
+export function playoffGames(league: League, round?: PlayoffRound, season = league.season): Game[] {
+  return league.games.filter((g) => g.season === season && g.playoffRound && (!round || g.playoffRound === round));
 }
 
 export function winnerOf(game: Game): number | null {
@@ -26,8 +26,8 @@ function makeGame(league: League, round: PlayoffRound, homeId: number, awayId: n
   return { id: league.nextGameId++, season: league.season, week: roundWeek(round), homeId, awayId, playoffRound: round, ...(neutral ? { neutral } : {}) };
 }
 
-export function allSeeds(league: League): number[][] {
-  const records = computeRecords(league);
+export function allSeeds(league: League, season = league.season): number[][] {
+  const records = computeRecords(league, season);
   return league.conferences.map((_, c) => conferenceSeeds(league, c, records));
 }
 

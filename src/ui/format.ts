@@ -1,4 +1,5 @@
-import type { Attribute, Player, Position, Team } from '../engine/types';
+import type { Attribute, League, Player, Position, Team } from '../engine/types';
+import { OFFSEASON_PHASES } from '../engine/types';
 import { OVR_WEIGHTS } from '../engine/positions';
 import type { TeamRecord } from '../engine/season/standings';
 
@@ -66,6 +67,21 @@ export const ordinal = (n: number) => {
   const s = ['th', 'st', 'nd', 'rd'];
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
+
+/** During the offseason the league year has already rolled over; results screens show the season just played. */
+export const resultsSeason = (league: League) => (OFFSEASON_PHASES.includes(league.phase) ? league.season - 1 : league.season);
+
+export const isOffseasonPhase = (league: League) => OFFSEASON_PHASES.includes(league.phase);
+
+export const PHASE_LABELS: Record<League['phase'], string> = {
+  regular: 'Regular season',
+  playoffs: 'Playoffs',
+  complete: 'Season complete',
+  resign: 'Re-sign window',
+  freeAgency: 'Free agency',
+  draft: 'Draft',
+  preseason: 'Training camp',
 };
 
 export function weekLabel(week: number): string {

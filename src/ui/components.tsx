@@ -110,14 +110,26 @@ export function Panel({ title, action, children, className }: { title?: ReactNod
  */
 export function Dialog({ title, onClose, children, footer }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Escape closes the top-most dialog even if focus has wandered; capture runs before the player card's handler.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      closeRef.current();
+    };
+    document.addEventListener('keydown', onEsc, true);
+    return () => document.removeEventListener('keydown', onEsc, true);
+  }, []);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector<HTMLElement>('[data-autofocus], button, input, select')?.focus();
+    const root = ref.current;
+    (root?.querySelector<HTMLElement>('[data-autofocus]') ?? root?.querySelector<HTMLElement>('.dialog-body input, .dialog-body select, .dialog-body button') ?? root?.querySelector<HTMLElement>('button'))?.focus();
     return () => opener?.focus?.();
   }, []);
   const onKey = (e: ReactKeyboardEvent) => {
     e.stopPropagation();
-    if (e.key === 'Escape') return onClose();
     if (e.key !== 'Tab' || !ref.current) return;
     const focusable = ref.current.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input, select, [tabindex]:not([tabindex="-1"])');
     const first = focusable[0];

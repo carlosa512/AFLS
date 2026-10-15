@@ -2,10 +2,12 @@ import { leaders, LEADER_CATEGORIES } from '../../engine/stats';
 import type { League } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerAvatar } from '../components';
+import { resultsSeason } from '../format';
 
 export function Leaders({ league }: { league: League }) {
   const nav = useNav();
-  const anyStats = Object.values(league.players).some((p) => p.stats[league.season]);
+  const season = resultsSeason(league);
+  const anyStats = Object.values(league.players).some((p) => p.stats[season]);
   if (!anyStats) {
     return (
       <Panel title="League leaders">
@@ -17,10 +19,10 @@ export function Leaders({ league }: { league: League }) {
   }
   return (
     <>
-      <h2>{league.season} league leaders</h2>
+      <h2>{season} league leaders</h2>
       <div className="grid-3">
         {LEADER_CATEGORIES.map((cat) => {
-          const rows = leaders(league, cat, 5);
+          const rows = leaders(league, cat, 5, season);
           return (
             <Panel key={cat.key} title={<h3>{cat.label}</h3>}>
               <table>

@@ -1,13 +1,16 @@
 import { useState, type CSSProperties } from 'react';
 import { champion, gamesInWeek, userGame } from '../../engine/league';
-import { teamRatings } from '../../engine/roster';
+import { capSheet } from '../../engine/finance/cap';
+import { autoCutdown, FA_DAYS } from '../../engine/offseason';
+import { expiringPlayers } from '../../engine/offseason/ai';
+import { teamPlayers, teamRatings } from '../../engine/roster';
 import { allSeeds, ROUND_NAMES, roundWeek } from '../../engine/season/playoffs';
 import { computeRecords, divisionStandings } from '../../engine/season/standings';
 import { teamLeader } from '../../engine/stats';
 import type { Game, League, StatKey, Team } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, TeamChip, TeamLabel } from '../components';
-import { pct, recordText, shortName, weekLabel } from '../format';
+import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, weekLabel } from '../format';
 import { live } from '../live';
 import { store } from '../store';
 
@@ -266,7 +269,8 @@ function ChampionBanner({ league }: { league: League }) {
         {team.city} {team.name}
       </h2>
       <p style={{ margin: 0, opacity: 0.9 }}>
-        {isUser ? 'You won it all. ' : ''}Press “Start {league.season + 1} season” to age the rosters, bring in rookies and build the new schedule.
+        {isUser ? 'You won it all. ' : ''}Press “Begin {league.season + 1} offseason” to open the new league year: re-signings, free agency, the draft and
+        training camp.
       </p>
     </section>
   );
@@ -301,7 +305,127 @@ function StartOver() {
   );
 }
 
+const STEPS: [League['phase'], string][] = [
+  ['resign', 'Re-sign'],
+  ['freeAgency', 'Free agency'],
+  ['draft', 'Draft'],
+  ['preseason', 'Training camp'],
+  ['regular', 'Week 1'],
+];
+
+/** What this step of the offseason is about, with the numbers that matter for it. */
+function OffseasonHome({ league }: { league: League }) {
+  const nav = useNav();
+  const teamId = league.userTeamId;
+  const team = league.teams[teamId];
+  const sheet = capSheet(league, teamId);
+  const roster = teamPlayers(league, teamId);
+  const idx = STEPS.findIndex(([p]) => p === league.phase);
+  const last = league.history[league.history.length - 1];
+  const moves = league.transactions.filter((t) => t.season === league.season && t.kind !== 'release').slice(-14).reverse();
+  const myPick = league.draftPicks.filter((p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined).sort((a, b) => (a.overall ?? 999) - (b.overall ?? 999))[0];
+
+  let title = '';
+  let body = '';
+  let action: { label: string; go: () => void } | null = null;
+  switch (league.phase) {
+    case 'resign': {
+      const n = expiringPlayers(league, teamId).length;
+      title = 'Re-sign window';
+      body = `${n} of your players are out of contract. Re-sign the ones you need, use your franchise tag${team.taggedId ? ' (used)' : ''}, and decide fifth-year options. Everyone else hits free agency when you open it.`;
+      action = { label: 'Expiring contracts', go: () => nav.go({ view: 'office', tab: 'resign' }) };
+      break;
+    }
+    case 'freeAgency':
+      title = `Free agency · day ${league.faDay} of ${FA_DAYS}`;
+      body = `Make offers now: rival teams sign players every time you advance a day, but asks drop as the market cools. You have ${money(Math.round(sheet.space))} of room and ${roster.length} players.`;
+      action = { label: 'Free agents', go: () => nav.go({ view: 'office', tab: 'fa' }) };
+      break;
+    case 'draft':
+      title = 'The draft';
+      body = myPick ? `Your next pick: round ${myPick.round}, No. ${myPick.overall}. Sim to it, then pick from the big board or let your scouts choose.` : 'You have no picks left in this draft.';
+      action = { label: 'Draft room', go: () => nav.go({ view: 'office', tab: 'draft' }) };
+      break;
+    case 'preseason':
+      title = 'Training camp';
+      body = `Cut down to 53 before week 1 (you have ${roster.length}). After June 1, dead money from cuts is split across two years automatically.`;
+      action = { label: 'Cap & cuts', go: () => nav.go({ view: 'cap' }) };
+      break;
+  }
+
+  return (
+    <>
+      <ol className="stepper" aria-label="Offseason steps">
+        {STEPS.map(([phase, label], i) => (
+          <li key={phase} className={i < idx ? 'done' : i === idx ? 'current' : undefined} aria-current={i === idx ? 'step' : undefined}>
+            {label}
+          </li>
+        ))}
+      </ol>
+      <div className="grid-2">
+        <div className="stack">
+          <Panel title={title} action={action && <button className="btn btn-sm btn-primary" onClick={action.go}>{action.label}</button>}>
+            <p style={{ marginTop: 0 }}>{body}</p>
+            <div className="facts">
+              <span className="fact">
+                <span className="eyebrow">Cap space</span>
+                <b className={`num${sheet.space < 0 ? ' tone-bad' : ''}`}>{money(Math.round(sheet.space))}</b>
+              </span>
+              <span className="fact">
+                <span className="eyebrow">Roster</span>
+                <b className="num">{roster.length}</b>
+              </span>
+              <span className="fact">
+                <span className="eyebrow">{league.season} cap</span>
+                <b className="num">{money(league.caps[league.season])}</b>
+              </span>
+              {last && (
+                <span className="fact">
+                  <span className="eyebrow">{last.season} champion</span>
+                  <b>{league.teams[last.championId].name}</b>
+                </span>
+              )}
+            </div>
+            {league.phase === 'preseason' && roster.length > 53 && (
+              <div className="row" style={{ marginTop: 12 }}>
+                <button className="btn btn-sm" onClick={() => store.mutate(autoCutdown)}>
+                  Let the coaches make the cuts
+                </button>
+                <span className="muted small">Keeps the best value at each position, signs minimum fill-ins if a group runs thin.</span>
+              </div>
+            )}
+          </Panel>
+        </div>
+        <Panel title="Around the league">
+          {moves.length === 0 ? (
+            <p className="muted" style={{ margin: 0 }}>
+              Quiet so far.
+            </p>
+          ) : (
+            <ul className="moves">
+              {moves.map((m, i) => (
+                <li key={i}>
+                  <span className="muted small">{PHASE_LABELS[m.phase]}</span>
+                  <span>{m.text}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </div>
+    </>
+  );
+}
+
 export function Home({ league }: { league: League }) {
+  if (isOffseasonPhase(league)) {
+    return (
+      <>
+        <OffseasonHome league={league} />
+        <StartOver />
+      </>
+    );
+  }
   return (
     <>
       <ChampionBanner league={league} />

@@ -18,7 +18,7 @@ import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
 import { aiFreeAgencyDay, aiResignWindow, aiTrainingCamp } from './ai';
-import { draftComplete, finishDraft, generateDraftClass, setDraftOrder, simDraft } from './draft';
+import { aiDraftChoice, draftComplete, draftPlayer, finishDraft, generateDraftClass, nextPick, setDraftOrder, simDraft } from './draft';
 import { ROSTER_MAX } from './negotiation';
 
 export const FA_DAYS = 5;
@@ -151,5 +151,26 @@ export function simOffseason(league: League): void {
   if (league.phase === 'complete') beginOffseason(league);
   for (let guard = 0; guard < 20 && league.phase !== 'regular'; guard++) advanceOffseason(league, { autoUser: true });
 }
+
+/** Run an RNG-using step with the league's own generator, saving its state afterwards. */
+function withRng<T>(league: League, fn: (rng: Rng) => T): T {
+  const rng = new Rng(league.rngState);
+  const out = fn(rng);
+  league.rngState = rng.getState();
+  return out;
+}
+
+/** Draft room controls for the user. */
+export const draftToUserPick = (league: League) => withRng(league, (rng) => simDraft(league, rng, { stopAtUser: true }));
+export const draftToEnd = (league: League) => withRng(league, (rng) => simDraft(league, rng, { stopAtUser: false }));
+export function draftForUser(league: League, playerId?: number): void {
+  const pick = nextPick(league);
+  if (!pick || pick.ownerId !== league.userTeamId) throw new Error('You are not on the clock');
+  const player = playerId !== undefined ? league.players[playerId] : withRng(league, (rng) => aiDraftChoice(league, pick.ownerId, rng, pick.round));
+  draftPlayer(league, pick, player);
+}
+
+/** Training camp shortcut: let the AI make your cuts (and sign fill-ins at the minimum). */
+export const autoCutdown = (league: League) => withRng(league, (rng) => aiTrainingCamp(league, league.teams[league.userTeamId], rng));
 
 export { draftComplete };

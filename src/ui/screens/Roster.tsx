@@ -8,7 +8,7 @@ import type { League, Player, Position, StatLine } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerAvatar, Rating, TeamChip } from '../components';
-import { ATTR_LABELS, band, keyAttributes, money, recordText } from '../format';
+import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
 import { store } from '../store';
 
 export function statSummary(position: Position, s: StatLine | undefined): string {
@@ -251,7 +251,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                 <th>Key ratings</th>
                 <th className="num">Cap hit</th>
                 <th className="num">Thru</th>
-                <th>{league.season} stats</th>
+                <th>{resultsSeason(league)} stats</th>
               </tr>
             </thead>
             <tbody className={drag ? 'drag-active' : undefined}>
@@ -370,7 +370,7 @@ function RosterRow({
       </td>
       <td className="num">{p.contract ? money(Math.round(capHit(p.contract, league.season))) : '–'}</td>
       <td className="num">{p.contract ? lastSeason(p.contract) : '–'}</td>
-      <td className="muted">{statSummary(p.position, p.stats[league.season])}</td>
+      <td className="muted">{statSummary(p.position, p.stats[resultsSeason(league)])}</td>
     </tr>
   );
 }

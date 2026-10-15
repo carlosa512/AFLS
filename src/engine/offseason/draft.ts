@@ -78,7 +78,7 @@ export function availableProspects(league: League): Player[] {
   return league.draftClass.map((id) => league.players[id]).filter((p) => p && p.teamId === null);
 }
 
-const POSITION_PREMIUM: Record<Position, number> = { QB: 1.2, EDGE: 0.6, OL: 0.3, CB: 0.3, WR: 0.3, DT: 0.3, LB: 0, S: 0, TE: 0, RB: -0.1, K: -2.5, P: -2.8 };
+export const POSITION_PREMIUM: Record<Position, number> = { QB: 1.2, EDGE: 0.6, OL: 0.3, CB: 0.3, WR: 0.3, DT: 0.3, LB: 0, S: 0, TE: 0, RB: -0.1, K: -2.5, P: -2.8 };
 
 /** A team's overalls by position, best first. */
 export function positionDepth(league: League, teamId: number): Record<Position, number[]> {
@@ -89,6 +89,9 @@ export function positionDepth(league: League, teamId: number): Record<Position, 
 }
 
 /** An AI front office's board score for a prospect: talent, upside, position value, need. */
+/** Need-blind board value: talent, upside and positional value, as a draft board would rank it. */
+export const boardValue = (p: Player) => 0.6 * p.scouting!.grade + 0.4 * p.scouting!.ceiling + POSITION_PREMIUM[p.position];
+
 export function boardScore(depth: Record<Position, number[]>, p: Player, rng: Rng, round: number): number {
   const s = p.scouting!;
   let score = 0.6 * s.grade + 0.4 * s.ceiling + POSITION_PREMIUM[p.position] + rng.normal(0, 0.6);
