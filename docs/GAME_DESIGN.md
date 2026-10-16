@@ -55,9 +55,29 @@ The engine always plays the true ratings. Every screen shows **what your front o
   well known. Athleticism shows on film more easily than technique; the mental game hides longest.
 - **Draft prospects** are mostly guesswork. Each league year you get 30 **scouting visits**; each one
   removes about a third of the remaining uncertainty on one player. Your grade sits next to the
-  league **consensus** (what AI teams draft from), so a gap is either a sleeper or a bust you avoid.
+  league **consensus**, so a gap is either a sleeper or a bust you avoid.
+- **Who reads him matters.** Every team has a scouting department: a Director of scouting, college
+  scouts (prospects) and pro scouts (everyone in the league), each rated 1–20 on **Evaluation**
+  (today) and **Projection** (ceiling), scouts with a position-group focus. A specialist reads his
+  group best (+3), an off-focus scout poorly (−3), and the Director covers any group nobody
+  specialises in (−1). That read scales both how wrong and how wide a range is (six points of read
+  halve both), so ranges stay honest. Part of the error belongs to the reader, so a new scout brings
+  his own opinions.
 - Errors are seeded per team and player: a report never changes on refresh, and as knowledge grows
   the same error shrinks toward the truth. Nothing per team is stored except your scouting.
+
+**Staff are a budget decision.** They're paid from a staff budget (about 3% of the cap), separate
+from the salary cap, on 1–3 year deals. Hiring and dismissing happen in the re-sign window and free
+agency; dismissing someone under contract costs half a year's salary. Expiring staff re-sign
+automatically unless you let them go. Staff rise into their 30s and decline from their mid-50s;
+part of the unhired market leaves football each year, so the league's average department stays put.
+
+**AI teams act on their own reads.** Draft boards blend the consensus with each team's scouts,
+trusting them as far as they're precise (so no team drafts worse than the consensus, but each
+disagrees with it in its own places); teams look hardest at prospects near their own early picks.
+Free agency, re-signings, cuts and trades use each team's read of other teams' players. In trades
+that misread is half-trusted and capped (±0.35 overall), so shopping a player to 31 teams finds the
+one that likes him most, but not a fantasy price.
 
 On top of that: **0–4 stars** in half steps (vs. every player at the position, or vs. your starters)
 with a shaded ceiling band, a plain-language **scout's report**, **combine** measurables generated
@@ -108,10 +128,14 @@ error, scouting visits, consensus vs. your board in the draft, 0–4 stars with 
 reports, combine, development history, compare view, position-first ratings with tooltips. The
 phased plan behind it is `docs/research/attributes-development-scouting-roadmap.md`.
 
+**✅ Scouting staff & AI perception (done)** — scouting departments with ratings, contracts, a staff
+budget, ageing and a market; reads that depend on who's reading; AI teams drafting, signing, cutting
+and trading on their own reads; the Staff screen. `npm run offseason` now also reports draft quality
+and the staff economy.
+
 **Next: Front office depth**
-- Staff with ratings (scouts' Judging Ability/Potential, position coaches, S&C, medical), so hiring
-  changes how much you know and how fast players grow; AI teams drafting and trading on their own
-  perceived values instead of the truth.
+- Coaching staff with ratings (position coaches, S&C, medical) once development v2 and injuries give
+  them something to drive.
 - NFL-calendar practice: CBA padded-practice budgets, Full/Limited/DNP, veteran rest days.
 - Development v2: position aging curves, playing time, hidden personality, mentoring.
 - Injuries (in-game and practice), injured reserve, depth that matters.
