@@ -136,32 +136,34 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
           <p className="muted small" style={{ marginTop: 0 }}>
             First-round picks after three seasons. Exercising adds a fully guaranteed fifth year at a salary set by how he ranks at his position.
           </p>
-          <table>
-            <tbody>
-              {options.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <PlayerCell league={league} p={p} />
-                  </td>
-                  <td>{p.position}</td>
-                  <td className="num">
-                    <Rating value={playerOvr(p)} decimals={1} />
-                  </td>
-                  <td className="num">{money(fifthYearOptionValue(league, p))} in {league.season + 1}</td>
-                  <td>
-                    <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-                      <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => exerciseFifthYearOption(l, l.players[p.id], true))}>
-                        Exercise
-                      </button>
-                      <button className="btn btn-sm" onClick={() => store.mutate((l) => exerciseFifthYearOption(l, l.players[p.id], false))}>
-                        Decline
-                      </button>
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table>
+              <tbody>
+                {options.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <PlayerCell league={league} p={p} />
+                    </td>
+                    <td>{p.position}</td>
+                    <td className="num">
+                      <Rating value={playerOvr(p)} decimals={1} />
+                    </td>
+                    <td className="num">{money(fifthYearOptionValue(league, p))} in {league.season + 1}</td>
+                    <td>
+                      <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                        <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => exerciseFifthYearOption(l, l.players[p.id], true))}>
+                          Exercise
+                        </button>
+                        <button className="btn btn-sm" onClick={() => store.mutate((l) => exerciseFifthYearOption(l, l.players[p.id], false))}>
+                          Decline
+                        </button>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Panel>
       )}
 
@@ -174,34 +176,36 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
             Nobody is eligible right now.
           </p>
         ) : (
-          <table>
-            <tbody>
-              {extensions.map((p) => {
-                const d = demand(league, p, teamId);
-                return (
-                  <tr key={p.id}>
-                    <td>
-                      <PlayerCell league={league} p={p} />
-                    </td>
-                    <td>{p.position}</td>
-                    <td className="num">{p.age}</td>
-                    <td className="num">
-                      <Rating value={playerOvr(p)} decimals={1} />
-                    </td>
-                    <td className="num muted">thru {lastSeason(p.contract!)}</td>
-                    <td className="num">
-                      ask {money(d.askApy)} × {d.askYears}
-                    </td>
-                    <td>
-                      <button className="btn btn-sm" onClick={() => negotiate(p)}>
-                        Extend
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table>
+              <tbody>
+                {extensions.map((p) => {
+                  const d = demand(league, p, teamId);
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <PlayerCell league={league} p={p} />
+                      </td>
+                      <td>{p.position}</td>
+                      <td className="num">{p.age}</td>
+                      <td className="num">
+                        <Rating value={playerOvr(p)} decimals={1} />
+                      </td>
+                      <td className="num muted">thru {lastSeason(p.contract!)}</td>
+                      <td className="num">
+                        ask {money(d.askApy)} × {d.askYears}
+                      </td>
+                      <td>
+                        <button className="btn btn-sm" onClick={() => negotiate(p)}>
+                          Extend
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </Panel>
     </>
@@ -225,25 +229,27 @@ function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Play
         <p className="muted small" style={{ marginTop: 0 }}>
           Free agency opens when you advance. These players' deals have run out; their teams may still re-sign or tag them first.
         </p>
-        <table>
-          <tbody>
-            {pending.map((p) => (
-              <tr key={p.id}>
-                <td>
-                  <PlayerCell league={league} p={p} />
-                </td>
-                <td>{p.position}</td>
-                <td className="num">{p.age}</td>
-                <td className="num">
-                  <Rating value={playerOvr(p)} decimals={1} />
-                </td>
-                <td>
-                  <TeamChip team={league.teams[p.teamId!]} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <tbody>
+              {pending.map((p) => (
+                <tr key={p.id}>
+                  <td>
+                    <PlayerCell league={league} p={p} />
+                  </td>
+                  <td>{p.position}</td>
+                  <td className="num">{p.age}</td>
+                  <td className="num">
+                    <Rating value={playerOvr(p)} decimals={1} />
+                  </td>
+                  <td>
+                    <TeamChip team={league.teams[p.teamId!]} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Panel>
     );
   }
@@ -450,22 +456,24 @@ function Draft({ league }: { league: League }) {
             You don't own any picks.
           </p>
         ) : (
-          <table>
-            <tbody>
-              {myPicks.map((pk) => {
-                const used = pk.playerId !== undefined ? league.players[pk.playerId] : null;
-                return (
-                  <tr key={pk.id}>
-                    <td className="num">{pk.season}</td>
-                    <td>Round {pk.round}</td>
-                    <td className="num">{pk.overall ? `No. ${pk.overall}` : '–'}</td>
-                    <td>{pk.originalTeamId !== teamId ? <span className="muted small">from {league.teams[pk.originalTeamId].abbrev}</span> : null}</td>
-                    <td>{used ? `${used.position} ${used.firstName} ${used.lastName}` : ''}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table>
+              <tbody>
+                {myPicks.map((pk) => {
+                  const used = pk.playerId !== undefined ? league.players[pk.playerId] : null;
+                  return (
+                    <tr key={pk.id}>
+                      <td className="num">{pk.season}</td>
+                      <td>Round {pk.round}</td>
+                      <td className="num">{pk.overall ? `No. ${pk.overall}` : '–'}</td>
+                      <td>{pk.originalTeamId !== teamId ? <span className="muted small">from {league.teams[pk.originalTeamId].abbrev}</span> : null}</td>
+                      <td>{used ? `${used.position} ${used.firstName} ${used.lastName}` : ''}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </Panel>
     </>

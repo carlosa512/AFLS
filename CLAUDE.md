@@ -18,6 +18,11 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - `npm run typecheck`
 - `npm run sim -- 10` — simulate 10 seasons and compare league stats to NFL averages.
   **Run this after any change to `src/engine/match/` and keep stats inside the target ranges.**
+- `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
+  clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
+- `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
+  health, roster sizes and league talent. Run it after changes to `finance/`, `offseason/` or
+  `trade.ts`; talent, cap space and rosters should stay stable across seasons.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -29,7 +34,12 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula), standings + tiebreakers, playoffs
-  - `league.ts` week/season orchestration and the placeholder offseason
+  - `league.ts` week/season orchestration · `development.ts` age curves
+  - `finance/` contracts as year-by-year ledgers (`contract.ts`: proration, dead money,
+    restructures), team cap sheets and moves (`cap.ts`), the rank-based market, rookie scale and
+    tags (`market.ts`)
+  - `offseason/` the calendar (`index.ts`), negotiation, AI front offices (`ai.ts`), the draft
+  - `trade.ts` pick charts, AI trade valuation and guardrails · `migrate.ts` save upgrades
 - `src/ui/` — React screens. State is one mutable `League` in `ui/store.ts`; call
   `store.mutate(fn)` to change it (triggers re-render + IndexedDB autosave).
 
@@ -37,7 +47,11 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 
 - Ratings are 1–20 (FM-style). Salaries are in **thousands of dollars**.
 - `yardLine` is always yards from the *offense's own* goal line (0–100).
-- `League` must stay plain JSON. If you change its shape, bump `SAVE_VERSION` in `generate.ts`.
+- `League` must stay plain JSON. If you change its shape, bump `SAVE_VERSION` in `generate.ts` and
+  add an upgrade step to `migrate.ts` (old saves are migrated on load, never thrown away).
+- `league.season` is the league year: it ticks over when the offseason begins (like the NFL's March
+  new year). Results screens use `resultsSeason()` to show the season just played.
+- Cap math lives in `finance/contract.ts`; never store a single "salary" number on a contract.
 - Teams use the real NFL markets and divisional alignment with **original nicknames**. Never
   ship NFL nicknames, logos, "Super Bowl" or "AFC/NFC" (see `RESERVED_NICKNAMES`). Real player
   names are a community mod concern.

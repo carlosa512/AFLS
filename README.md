@@ -13,8 +13,10 @@ npm run dev        # open the printed local URL
 ## Develop
 
 ```bash
-npm test           # engine tests
-npm run sim -- 10  # simulate 10 seasons and compare stats to NFL averages
+npm test                 # engine tests
+npm run sim -- 10        # simulate 10 seasons and compare stats to NFL averages
+npm run endings          # audit game endings for nonsensical clock management
+npm run offseason -- 6   # run seasons back to back and summarize front-office health
 npm run build      # production web build in dist/
 ```
 

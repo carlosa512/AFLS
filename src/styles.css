@@ -1686,9 +1686,16 @@ tr.void-year td {
 .cap-strip > span.void {
   border-style: dashed;
 }
+/* Long dialogs scroll their body; the title and the buttons stay in view. */
 .dialog {
-  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+.dialog-body {
   overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .picks-feed {

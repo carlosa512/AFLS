@@ -802,7 +802,7 @@ class GameSim {
     if (yards < 0) buf.add(tackler, 'tfl');
     text += ` (${short(tackler)})`;
 
-    const pFumble = 0.012 * Math.exp(-0.13 * (r.carrying - 12));
+    const pFumble = 0.013 * Math.exp(-0.13 * (r.carrying - 12));
     if (rng.chance(pFumble)) {
       buf.add(rusher, 'fumbles');
       buf.add(tackler, 'forcedFum');
@@ -967,7 +967,7 @@ class GameSim {
     buf.add(tackler!, 'tackles');
     text += ` (${short(tackler!)})`;
 
-    if (rng.chance(0.006 * Math.exp(-0.12 * (r.carrying - 12)))) {
+    if (rng.chance(0.0065 * Math.exp(-0.12 * (r.carrying - 12)))) {
       buf.add(receiver, 'fumbles');
       buf.add(tackler!, 'forcedFum');
       if (this.fumbleRecoveredByDefense()) {
