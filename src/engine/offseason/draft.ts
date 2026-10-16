@@ -9,11 +9,14 @@ import { createDraftPicks, DRAFT_ROUNDS, freeJersey, generatePlayer, MAX_FUTURE_
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { clamp, type Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
+import { perceive } from '../scouting';
 import { computeRecords, winPct } from '../season/standings';
 import type { DraftPick, League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
 
 export const DRAFT_CLASS_SIZE = 260;
+/** How far the league consensus sits from the truth (sd of its grade and of its ceiling). */
+export const CONSENSUS_SD = { grade: 1, ceiling: 1.4 };
 
 /** Share of a draft class at each position (kickers and punters are rare). */
 const CLASS_MIX: [Position, number][] = POSITIONS.map((p) => [p, p === 'K' || p === 'P' ? 0.6 : ROSTER_TEMPLATE[p]]);
@@ -30,7 +33,7 @@ export function generateDraftClass(league: League, rng: Rng): void {
     const growth = Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = Math.round(clamp(playerOvr(p) + growth, playerOvr(p), 20) * 10) / 10;
     // Scouts see a noisy grade and an even noisier ceiling.
-    p.scouting = { grade: Math.round((playerOvr(p) + rng.normal(0, 1)) * 2) / 2, ceiling: Math.round((p.potential + rng.normal(0, 1.4)) * 2) / 2 };
+    p.scouting = { grade: Math.round((playerOvr(p) + rng.normal(0, CONSENSUS_SD.grade)) * 2) / 2, ceiling: Math.round((p.potential + rng.normal(0, CONSENSUS_SD.ceiling)) * 2) / 2 };
     recordRatings(p, league.season);
     league.players[p.id] = p;
     league.draftClass.push(p.id);
@@ -90,28 +93,68 @@ export function positionDepth(league: League, teamId: number): Record<Position, 
   return out;
 }
 
-/** An AI front office's board score for a prospect: talent, upside, position value, need. */
-/** Need-blind board value: talent, upside and positional value, as a draft board would rank it. */
+/** The league consensus's need-blind board value: talent, upside and positional value. */
 export const boardValue = (p: Player) => 0.6 * p.scouting!.grade + 0.4 * p.scouting!.ceiling + POSITION_PREMIUM[p.position];
 
-export function boardScore(depth: Record<Position, number[]>, p: Player, rng: Rng, round: number): number {
-  const s = p.scouting!;
-  let score = 0.6 * s.grade + 0.4 * s.ceiling + POSITION_PREMIUM[p.position] + rng.normal(0, 0.6);
+/** Where the consensus ranks a prospect in his class (1 = best), which is roughly where he'll go. */
+export function consensusRank(league: League, p: Player): number {
+  const mine = boardValue(p);
+  let rank = 1;
+  for (const id of league.draftClass) {
+    const x = league.players[id];
+    if (x?.scouting && x.id !== p.id && boardValue(x) > mine) rank++;
+  }
+  return rank;
+}
+
+export interface Board {
+  grade: number;
+  ceiling: number;
+}
+
+/**
+ * A team's own board entry: the consensus, moved toward its scouts' read by how far it trusts
+ * them. Trust follows precision: a sharp department that watched a prospect closely leans on its
+ * own read, a poor one leans on the consensus. So no front office drafts worse than the consensus
+ * would, but each disagrees with it in its own places, and good scouts find the sleepers.
+ */
+export function boardOf(league: League, teamId: number, p: Player): Board {
+  const v = perceive(league, teamId, p);
+  const c = p.scouting!;
+  const trustGrade = CONSENSUS_SD.grade ** 2 / (CONSENSUS_SD.grade ** 2 + v.ovrSd ** 2);
+  const trustCeiling = CONSENSUS_SD.ceiling ** 2 / (CONSENSUS_SD.ceiling ** 2 + v.potSd ** 2);
+  return { grade: c.grade + trustGrade * (v.ovr - c.grade), ceiling: c.ceiling + trustCeiling * (v.potMid - c.ceiling) };
+}
+
+/** Boards built during one draft, by team then prospect: a view doesn't change while picks are made. */
+export type BoardMemo = Map<number, Map<number, Board>>;
+
+function boardFrom(memo: BoardMemo, league: League, teamId: number, p: Player): Board {
+  let mine = memo.get(teamId);
+  if (!mine) memo.set(teamId, (mine = new Map()));
+  let b = mine.get(p.id);
+  if (!b) mine.set(p.id, (b = boardOf(league, teamId, p)));
+  return b;
+}
+
+/** A front office's board score for a prospect: its read of talent and upside, position value, need. */
+export function boardScore(depth: Record<Position, number[]>, p: Player, board: Board, rng: Rng, round: number): number {
+  let score = 0.6 * board.grade + 0.4 * board.ceiling + POSITION_PREMIUM[p.position] + rng.normal(0, 0.6);
   const mine = depth[p.position];
   if (mine.length < STARTERS[p.position] + 1) score += 1;
-  else if ((mine[STARTERS[p.position] - 1] ?? 0) < Math.min(11, s.grade)) score += 0.8;
+  else if ((mine[STARTERS[p.position] - 1] ?? 0) < Math.min(11, board.grade)) score += 0.8;
   if (mine.length >= ROSTER_TEMPLATE[p.position] + 1) score -= 1.5;
   if ((p.position === 'K' || p.position === 'P') && round < 5) score -= 3;
   return score;
 }
 
-export function aiDraftChoice(league: League, teamId: number, rng: Rng, round: number): Player {
+export function aiDraftChoice(league: League, teamId: number, rng: Rng, round: number, boards: BoardMemo = new Map()): Player {
   const pool = availableProspects(league);
   const depth = positionDepth(league, teamId);
   let best = pool[0];
   let bestScore = -Infinity;
   for (const p of pool) {
-    const score = boardScore(depth, p, rng, round);
+    const score = boardScore(depth, p, boardFrom(boards, league, teamId, p), rng, round);
     if (score > bestScore) {
       best = p;
       bestScore = score;
@@ -124,6 +167,7 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
   if (pick.playerId !== undefined || player.teamId !== null) throw new Error('Pick already used or player taken');
   const team = league.teams[pick.ownerId];
   pick.playerId = player.id;
+  pick.consRank = consensusRank(league, player);
   player.teamId = team.id;
   player.contract = rookieContract(pick.overall!, league.season, league.caps[league.season]);
   player.draft = { season: league.season, round: pick.round, pick: pick.overall!, teamId: team.id };
@@ -135,9 +179,10 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
 /** Make picks until it's the user's turn (or the draft ends). Returns the picks made. */
 export function simDraft(league: League, rng: Rng, opts: { stopAtUser: boolean }): DraftPick[] {
   const made: DraftPick[] = [];
+  const boards: BoardMemo = new Map();
   for (let pick = nextPick(league); pick; pick = nextPick(league)) {
     if (opts.stopAtUser && pick.ownerId === league.userTeamId) break;
-    draftPlayer(league, pick, aiDraftChoice(league, pick.ownerId, rng, pick.round));
+    draftPlayer(league, pick, aiDraftChoice(league, pick.ownerId, rng, pick.round, boards));
     made.push(pick);
   }
   return made;

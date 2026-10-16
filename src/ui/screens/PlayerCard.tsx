@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { POSITION_NAMES } from '../../engine/positions';
-import { isProspect, scoutReport } from '../../engine/scouting';
+import { isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
+import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
 import { passerRating } from '../../engine/stats';
 import type { League, Player, StatLine } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
@@ -70,6 +71,20 @@ function statColumns(p: Player): Col[] {
         ['FF', n('forcedFum')],
       ];
   }
+}
+
+/** Who in your scouting department sized up this player: the name behind the range. */
+function readByText(league: League, view: PlayerView, p: Player): string {
+  const who = (id: number | null) => {
+    const s = id === null ? undefined : league.staff[id];
+    // A scout can be the best reader available for a group he doesn't specialise in; say so.
+    return s ? `${staffName(s)}, ${ROLE_LABEL[s.role].toLowerCase()}${s.focus ? ` (${FOCUS_LABEL[s.focus]}${s.focus === FOCUS_OF[p.position] ? '' : ', off his specialty'})` : ''}` : null;
+  };
+  const reader = who(view.readerId);
+  if (!reader) return 'Nobody reads him: your Director’s chair is empty.';
+  // Only players still growing get a ceiling read; past 25 it's just his overall.
+  const ceiling = p.age < 26 && view.potReaderId !== view.readerId ? who(view.potReaderId) : null;
+  return `Read by ${reader}.${ceiling ? ` Ceiling read by ${ceiling}.` : ''}`;
 }
 
 export function PlayerCard({ league, player: p, onClose }: { league: League; player: Player; onClose: () => void }) {
@@ -170,6 +185,8 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               </span>
             )}
           </div>
+
+          {!view.exact && <p className="muted small read-by">{readByText(league, view, p)}</p>}
 
           <div className="card-actions">
             <StarScaleToggle scale={scale} onChange={setScale} />

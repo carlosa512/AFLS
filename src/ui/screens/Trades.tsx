@@ -88,7 +88,11 @@ export function Trades({ league }: { league: League }) {
   const verdict = anything ? evaluateTrade(league, proposal) : null;
   const impact = anything ? tradeCapImpact(league, proposal) : null;
   const need = verdict ? Math.max(1, verdict.get + verdict.shortfall) : 1;
-  const fill = verdict ? Math.min(1, Math.max(0, verdict.get / need)) : 0;
+  // The fill is coarse on purpose: a smooth bar would let you read the AI's exact valuation off it.
+  // Rounding down means a full bar only ever means "they would accept".
+  // A rule problem (cap, roster, window) isn't about value: the bar stays empty and says so.
+  const fill = !verdict || verdict.problem ? 0 : verdict.accepts ? 1 : Math.floor(Math.min(1, Math.max(0, verdict.get / need)) * 10) / 10;
+  const mood = !verdict ? 'No offer yet' : verdict.problem ? 'Blocked by a rule' : verdict.accepts ? 'They would accept' : fill >= 0.8 ? 'Close' : fill >= 0.4 ? 'Some way off' : 'Far apart';
 
   const propose = () => {
     let text = '';
@@ -150,7 +154,7 @@ export function Trades({ league }: { league: League }) {
         }
       >
         <div className="trade-verdict" aria-live="polite">
-          <div className="meter" role="img" aria-label={verdict ? `Their view: ${Math.round(fill * 100)}% of what they need` : 'No offer yet'}>
+          <div className="meter" role="img" aria-label={`Their view of the offer: ${mood}`}>
             <i style={{ width: `${fill * 100}%` }} className={verdict?.accepts ? 'yes' : ''} />
           </div>
           <span className={verdict?.accepts ? 'tone-good' : 'muted'}>{verdict ? verdict.message : 'Tick players or picks on both sides to build an offer.'}</span>

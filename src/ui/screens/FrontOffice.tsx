@@ -8,6 +8,7 @@ import { availableProspects, boardValue, draftOrder, nextPick, POSITION_PREMIUM,
 import { demand, extensionBlocker, freeAgents } from '../../engine/offseason/negotiation';
 import { POSITION_NAMES } from '../../engine/positions';
 import { teamPlayers } from '../../engine/roster';
+import { resignForecast, staffName } from '../../engine/staff';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
@@ -15,10 +16,11 @@ import { Panel, PlayerAvatar, Rating, TeamChip } from '../components';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
 import { KnowledgeMeter, Ovr, potentialText, ScoutButton, seenOvr, Stars, starsOf, viewOf } from '../scouting';
+import { StaffScreen } from './Staff';
 import { Trades } from './Trades';
 import { store } from '../store';
 
-export type OfficeTab = 'resign' | 'fa' | 'draft' | 'trades';
+export type OfficeTab = 'resign' | 'fa' | 'draft' | 'trades' | 'staff';
 
 export const defaultOfficeTab = (league: League): OfficeTab => (league.phase === 'resign' ? 'resign' : league.phase === 'draft' ? 'draft' : 'fa');
 
@@ -328,7 +330,7 @@ type BoardSort = 'consensus' | 'mine';
 /** Your own board value: the AI's formula, fed your scouts' grades instead of the consensus. */
 const myBoardValue = (league: League, p: Player) => {
   const v = viewOf(league, p);
-  return 0.6 * v.ovr + 0.4 * v.potHi + POSITION_PREMIUM[p.position];
+  return 0.6 * v.ovr + 0.4 * v.potMid + POSITION_PREMIUM[p.position];
 };
 
 function Draft({ league }: { league: League }) {
@@ -393,13 +395,18 @@ function Draft({ league }: { league: League }) {
             <ul className="moves picks-feed">
               {recent.map((pk) => {
                 const p = league.players[pk.playerId!];
+                // Taken a round of the board ahead of his consensus rank is a reach; that far behind it, a steal.
+                const gap = pk.consRank !== undefined && pk.overall !== undefined ? pk.consRank - pk.overall : 0;
                 return (
                   <li key={pk.id}>
                     <span className="muted small">
                       No. {pk.overall} · {league.teams[pk.ownerId].abbrev}
                     </span>
                     <span>
-                      {p.position} {p.firstName} {p.lastName} <span className="muted small">consensus {p.scouting?.grade ?? '–'}</span>
+                      {p.position} {p.firstName} {p.lastName}
+                      {gap >= 12 && <span className="tag-pill tag-warn">reach</span>}
+                      {gap <= -12 && <span className="tag-pill tag-good">steal</span>}{' '}
+                      <span className="muted small">{pk.consRank !== undefined ? `consensus #${pk.consRank}` : `consensus ${p.scouting?.grade ?? '–'}`}</span>
                     </span>
                   </li>
                 );
@@ -428,8 +435,9 @@ function Draft({ league }: { league: League }) {
         >
           <p className="muted small" style={{ marginTop: 0 }}>
             <b>Your grade</b> and <b>ceiling</b> are your scouts' estimates (a dashed grade is a guess). <b>Consensus</b> is how the rest of the league
-            rates him, and roughly where he'll go: other teams draft off it. When your read beats the consensus, you've found a sleeper; when it's
-            worse, let someone else take the bust. Each scouting visit narrows a range:{' '}
+            rates him. Rivals blend it with their own scouts' reads, and trust their scouts more when those scouts are good, so he can go earlier or later than
+            his rank. When your read beats the consensus, you've found a sleeper; when it's worse, let someone else take the bust. Each scouting visit narrows a
+            range:{' '}
             <b>
               {league.scoutPoints} visit{league.scoutPoints === 1 ? '' : 's'} left
             </b>{' '}
@@ -543,11 +551,16 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
     ['fa', 'Free agents'],
     ['draft', 'Draft'],
     ['trades', 'Trades'],
+    ['staff', 'Staff'],
   ];
+  // What the end of the window will do with the staff deals that are up, as the engine will do it.
+  const forecast = league.phase === 'resign' ? [...resignForecast(league, league.userTeamId)] : [];
+  const staffDue = forecast.length;
+  const leaving = forecast.filter(([, o]) => o !== 'stays').map(([id]) => staffName(league.staff[id]));
   return (
     <>
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div className="seg" role="tablist" aria-label="Front office">
+        <div className="seg office-tabs" role="tablist" aria-label="Front office">
           {TABS.map(([key, label]) => (
             <button key={key} role="tab" aria-selected={active === key} aria-pressed={active === key} onClick={() => nav.go({ view: 'office', tab: key })}>
               {label}
@@ -559,10 +572,24 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
           {league.phase === 'freeAgency' ? `, day ${league.faDay} of ${FA_DAYS}` : ''}
         </span>
       </div>
+      {staffDue > 0 && active !== 'staff' && (
+        <div className="notice staff-notice">
+          <span>
+            {staffDue === 1 ? '1 scouting staff deal is up.' : `${staffDue} scouting staff deals are up.`}{' '}
+            {leaving.length === 0
+              ? `${staffDue === 1 ? 'He re-signs' : 'They re-sign'} automatically unless you let ${staffDue === 1 ? 'him' : 'them'} go.`
+              : `${leaving.join(' and ')} will leave (no chair or budget for ${leaving.length === 1 ? 'him' : 'them'}); ${staffDue - leaving.length === 0 ? 'nobody else is up' : 'the rest re-sign automatically'}.`}
+          </span>
+          <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'staff' })}>
+            Review staff
+          </button>
+        </div>
+      )}
       {active === 'resign' && <Resign league={league} negotiate={(p) => setTalking(p.id)} />}
       {active === 'fa' && <FreeAgents league={league} negotiate={(p) => setTalking(p.id)} />}
       {active === 'draft' && <Draft league={league} />}
       {active === 'trades' && <Trades league={league} />}
+      {active === 'staff' && <StaffScreen league={league} />}
       {talking !== null && league.players[talking] && <NegotiationDialog league={league} player={league.players[talking]} onClose={() => setTalking(null)} />}
     </>
   );

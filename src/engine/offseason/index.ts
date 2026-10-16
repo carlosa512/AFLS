@@ -14,6 +14,7 @@ import { playerOvr, STARTERS } from '../positions';
 import { Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
 import { resetScouting } from '../scouting';
+import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
 import { generateSchedule } from '../season/schedule';
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
@@ -71,6 +72,7 @@ export function beginOffseason(league: League): void {
     recordRatings(p, league.season);
   }
   resetScouting(league);
+  developStaff(league);
 
   generateDraftClass(league, rng);
   league.games = league.games.filter((g) => g.season >= last);
@@ -125,6 +127,8 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
         // Undecided options lapse at the deadline.
         for (const p of teamPlayers(league, league.userTeamId)) if (p.contract?.fifthYearOption === 'eligible' && p.contract.years.at(-1)!.season === league.season) p.contract.fifthYearOption = 'declined';
       }
+      // Expiring staff are decided with the players; open chairs are filled from the staff market.
+      staffWindowCloses(league, { autoUser: auto });
       openFreeAgency(league);
       league.phase = 'freeAgency';
       league.faDay = 1;
@@ -141,6 +145,7 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
       break;
     case 'preseason':
       for (const team of ai) aiTrainingCamp(league, team, rng);
+      ensureStaffed(league, { autoUser: auto });
       league.phase = 'regular';
       league.week = 1;
       league.faDay = 0;

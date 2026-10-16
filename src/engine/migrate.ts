@@ -9,6 +9,7 @@ import { recordRatings } from './development';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
+import { generateStaffWorld } from './staff';
 import type { League } from './types';
 
 /** Returns the upgraded league, or null if the save is from a newer (unknown) version. */
@@ -17,6 +18,7 @@ export function migrateLeague(league: League): League | null {
   renameLegacyTeams(league);
   if (league.version < 2) toV2(league);
   if (league.version < 3) toV3(league);
+  if (league.version < 4) toV4(league);
   return league;
 }
 
@@ -83,4 +85,14 @@ function toV3(league: League) {
     if (!p.retired) recordRatings(p, league.season);
   }
   league.version = 3;
+}
+
+/** v3 → v4: scouting departments for every team, and the staff market. */
+function toV4(league: League) {
+  if (!league.staff || !Object.keys(league.staff).length) {
+    league.staff = {};
+    league.nextStaffId = 1;
+    generateStaffWorld(league);
+  }
+  league.version = 4;
 }
