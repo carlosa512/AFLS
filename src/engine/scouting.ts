@@ -4,14 +4,16 @@
  * everyone else that narrows with film (years in the league) and with scouting visits.
  *
  * Nothing per team is stored except the user's scouting. A view is derived from how well the team
- * knows the player plus an error seeded by (league, team, player), so a report never changes when
- * a screen refreshes, and as knowledge grows the same error shrinks toward the truth instead of
- * being re-rolled.
+ * knows the player, how good the staff member reading him is (see staff.ts), and an error seeded by
+ * (league, team, player), so a report never changes when a screen refreshes, and as knowledge grows
+ * the same error shrinks toward the truth instead of being re-rolled. Part of the error belongs to
+ * the reader himself: a new scout brings his own opinions.
  */
 import { ATTRIBUTE_INFO, type AgingFamily } from './attributes';
 import { PEAK_END } from './development';
 import { ATTRIBUTE_PROFILES, overall, OVR_WEIGHTS, POSITION_NAMES, STARTERS } from './positions';
 import { clamp, Rng } from './rng';
+import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
 import type { Attribute, Combine, League, Player, Position, Ratings } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
@@ -37,8 +39,54 @@ export function knowledge(league: League, teamId: number, p: Player): number {
   if (p.teamId === teamId) return 1;
   // Higher-graded prospects get more exposure (bowl games, TV), so start better known.
   const film = isProspect(p) ? 0.2 + 0.15 * clamp((p.scouting!.grade - 6) / 8, 0, 1) : Math.min(0.9, 0.45 + 0.08 * p.experience);
-  const scouted = teamId === league.userTeamId ? (league.knowledge[p.id] ?? 0) : 0;
+  const scouted = teamId === league.userTeamId ? (league.knowledge[p.id] ?? 0) : aiScouted(league, teamId, p, film);
   return Math.max(film, scouted);
+}
+
+/** Where AI teams send their scouts: the prospects likely to be there at their own early picks. */
+interface DraftContext {
+  /** Each prospect's rank in his class by consensus (1 = best). */
+  rank: Map<number, number>;
+  /** Overall slots each team owns in the first two rounds. */
+  slots: Map<number, number[]>;
+}
+
+const draftCache = new WeakMap<League, { key: string; ctx: DraftContext }>();
+
+function draftContext(league: League): DraftContext {
+  const last = league.transactions.at(-1);
+  const key = `${league.season}|${league.draftClass.length}|${league.draftClass[0]}|${league.transactions.length}|${last?.text ?? ''}`;
+  const hit = draftCache.get(league);
+  if (hit && hit.key === key) return hit.ctx;
+  const rank = new Map(
+    league.draftClass
+      .map((id) => league.players[id])
+      .filter((p) => p?.scouting)
+      .sort((a, b) => 0.6 * b.scouting!.grade + 0.4 * b.scouting!.ceiling - (0.6 * a.scouting!.grade + 0.4 * a.scouting!.ceiling))
+      .map((p, i) => [p.id, i + 1]),
+  );
+  const slots = new Map<number, number[]>();
+  for (const pick of league.draftPicks) {
+    if (pick.season !== league.season || pick.round > 2 || pick.overall === undefined) continue;
+    slots.set(pick.ownerId, [...(slots.get(pick.ownerId) ?? []), pick.overall]);
+  }
+  const ctx = { rank, slots };
+  draftCache.set(league, { key, ctx });
+  return ctx;
+}
+
+/**
+ * An AI team's own scouting, derived rather than stored: prospects ranked just above and below its
+ * early picks get about two visits' worth of looks. Different slots mean different teams know
+ * different prospects, so their boards disagree in different places.
+ */
+function aiScouted(league: League, teamId: number, p: Player, film: number): number {
+  if (!isProspect(p)) return 0;
+  const ctx = draftContext(league);
+  const rank = ctx.rank.get(p.id);
+  if (rank === undefined) return 0;
+  const near = (ctx.slots.get(teamId) ?? []).some((slot) => rank >= slot - 4 && rank <= slot + 16);
+  return near ? film + (1 - film) * 0.55 : 0;
 }
 
 export interface RatingView {
@@ -60,52 +108,83 @@ export interface PlayerView {
   /** Projected ceiling, on the overall scale. Collapses to the overall once he's done growing. */
   potLo: number;
   potHi: number;
+  /** Best single guess at the ceiling, and how far off (1 sd) the overall and ceiling guesses tend to be. */
+  potMid: number;
+  ovrSd: number;
+  potSd: number;
+  /** How the readers scale errors and ranges (1 = a typical department) and who they are. */
+  accuracy: number;
+  potAccuracy: number;
+  readerId: number | null;
+  potReaderId: number | null;
 }
 
 /** `teamId`'s view of a player. */
 export function perceive(league: League, teamId: number, p: Player): PlayerView {
   const k = knowledge(league, teamId, p);
   const exact = k >= 1;
+  // Who reads him: prospects are the college scouts' job, everyone else the pro scouts'.
+  const domain: Domain = isProspect(p) ? 'college' : 'pro';
+  const staff = league.teams[teamId] ? teamStaff(league, teamId) : null;
+  const evalRead = staff && readFor(staff, domain, FOCUS_OF[p.position], 'evaluation');
+  const projRead = staff && readFor(staff, domain, FOCUS_OF[p.position], 'projection');
+  const acc = evalRead ? accuracy(evalRead.rating) : 1;
+  const accPot = projRead ? accuracy(projRead.rating) : 1;
+  const readerId = evalRead?.by?.id ?? null;
+  const potReaderId = projRead?.by?.id ?? null;
+  // The team's lasting impression of the player, and the current readers' own take on him.
   const rng = new Rng(`${league.seed}:view:${teamId}:${p.id}`);
+  const own = new Rng(`${league.seed}:view:${teamId}:${p.id}:${readerId ?? 0}-${potReaderId ?? 0}`);
+  const mix = () => 0.8 * rng.normal() + 0.6 * own.normal();
   // A scout who is high on a player tends to be high on all of him; each trait adds its own miss.
-  const zPlayer = rng.normal();
-  const zPot = rng.normal();
+  const zPlayer = mix();
+  const zPot = mix();
   const weights = OVR_WEIGHTS[p.position];
   const ratings = {} as Record<Attribute, RatingView>;
   const centers = {} as Ratings;
   let spread = 0;
   let weightSum = 0;
+  let missSum = 0;
+  let missSq = 0;
   for (const attr of ATTRIBUTES) {
-    const z = rng.normal();
+    const z = mix();
     const truth = p.ratings[attr];
     const miss = exact ? 0 : 1 - clamp(k + VISIBILITY[ATTRIBUTE_INFO[attr].aging], 0, 1);
-    const center = clamp(truth + ERROR * miss * (0.6 * zPlayer + 0.8 * z), 1, 20);
-    const half = SPREAD * miss;
+    // A sharper reader is both closer to the truth and surer of it, so ranges stay honest.
+    const center = clamp(truth + ERROR * miss * acc * (0.6 * zPlayer + 0.8 * z), 1, 20);
+    const half = SPREAD * miss * acc;
     const value = Math.round(center);
     ratings[attr] = half < 0.5 ? { value, lo: value, hi: value } : { value, lo: clamp(Math.round(center - half), 1, 20), hi: clamp(Math.round(center + half), 1, 20) };
     centers[attr] = center;
     const w = weights[attr] ?? 0;
     spread += w * half;
     weightSum += w;
+    missSum += w * miss;
+    missSq += (w * miss) ** 2;
   }
   const ovr = overall(centers, p.position);
   // Misses on different traits partly cancel out in the overall.
   const ovrHalf = (0.6 * spread) / weightSum;
   const ovrLo = Math.max(1, ovr - ovrHalf);
   const ovrHi = Math.min(20, ovr + ovrHalf);
+  const ovrSd = ERROR * acc * Math.sqrt(0.36 * (missSum / weightSum) ** 2 + (0.64 * missSq) / weightSum ** 2);
 
   let potLo = ovrLo;
   let potHi = ovrHi;
+  let potMid = ovr;
+  let potSd = ovrSd;
   if (p.age < 26) {
-    // The younger he is, the more growth is left to guess at; even your own coaches can be wrong.
+    // The younger he is, the more growth is left to guess at; even your own staff can be wrong.
     const room = 26 - p.age;
-    const u = (0.5 + 0.35 * room) * (1 - 0.6 * k);
+    const u = (0.5 + 0.35 * room) * (1 - 0.6 * k) * accPot;
     // Overrate him now and you'll overrate his ceiling too.
     const center = p.potential + (ovr - overall(p.ratings, p.position)) + 0.8 * u * zPot;
     potLo = clamp(Math.max(ovr, center - u), 1, 20);
     potHi = clamp(Math.max(potLo, center + u), 1, 20);
+    potMid = clamp(Math.max(ovr, center), 1, 20);
+    potSd = Math.sqrt(ovrSd ** 2 + (0.8 * u) ** 2);
   }
-  return { knowledge: k, exact, ratings, ovr, ovrLo, ovrHi, potLo, potHi };
+  return { knowledge: k, exact, ratings, ovr, ovrLo, ovrHi, potLo, potHi, potMid, ovrSd, potSd, accuracy: acc, potAccuracy: accPot, readerId, potReaderId };
 }
 
 /** Best-guess overall for a table cell. */
@@ -280,9 +359,11 @@ export function scoutReport(league: League, teamId: number, p: Player): string[]
   } else if (p.age > peak) lines.push(`At ${p.age}, his physical tools are fading.`);
   else if (p.age >= peak - 1) lines.push('At the tail end of his prime.');
 
-  if (view.exact) lines.push(p.age < 26 ? 'We know his game; his ceiling is our coaches’ best guess.' : 'We know exactly what he is.');
-  else if (view.knowledge >= 0.8) lines.push('Plenty of film on him: this read is reliable.');
-  else if (view.knowledge >= 0.55) lines.push('Decent film, but these grades could be a point or two off.');
+  // How sure we are follows the actual width of the read: film, visits and who's doing the reading.
+  const ovrHalf = (view.ovrHi - view.ovrLo) / 2;
+  if (view.exact) lines.push(p.age < 26 ? 'We know his game; his ceiling is our scouts’ best guess.' : 'We know exactly what he is.');
+  else if (ovrHalf <= 0.5) lines.push('Plenty of film on him: this read is reliable.');
+  else if (ovrHalf <= 1.1) lines.push('Decent film, but these grades could be a point or two off.');
   else lines.push(`Limited looks: treat these grades as a rough range.${teamId === league.userTeamId && league.scoutPoints > 0 ? ' A scouting visit would narrow it.' : ''}`);
 
   // Agents and teammates talk: a well-known player's priorities are no secret.

@@ -190,6 +190,36 @@ export interface Personality {
   patience: number;
 }
 
+export type StaffRole = 'director' | 'collegeScout' | 'proScout';
+/** Position groups a scout can specialise in. Kickers and punters are the Director's job. */
+export type ScoutFocus = 'skill' | 'line' | 'front' | 'back';
+
+/** A member of a front office's scouting department (or a candidate on the market). */
+export interface Staff {
+  id: number;
+  firstName: string;
+  lastName: string;
+  role: StaffRole;
+  age: number;
+  /** Reading what a player is today (1–20). */
+  evaluation: number;
+  /** Reading what a player will become (1–20). */
+  projection: number;
+  /** Scouts only: the position group he knows best. */
+  focus?: ScoutFocus;
+  /** null = on the market. */
+  teamId: number | null;
+  /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
+  contract: { salary: number; through: number } | null;
+}
+
+/** Severance owed to a dismissed staff member, charged to that league year's staff budget. */
+export interface StaffSeverance {
+  season: number;
+  amount: number;
+  name: string;
+}
+
 export interface Conference {
   name: string;
   abbrev: string;
@@ -223,6 +253,9 @@ export interface Team {
   taggedId?: number | null;
   /** AI general manager tendencies (the user's team keeps one too, unused). */
   gm: GmTraits;
+  /** Owner's staff budget relative to the league norm (the user's is 1). Staff pay is not on the cap. */
+  staffBudgetMult: number;
+  staffDead: StaffSeverance[];
 }
 
 export interface DeadMoney {
@@ -260,6 +293,8 @@ export interface DraftPick {
   overall?: number;
   /** The player taken with it, once used. */
   playerId?: number;
+  /** Where the league consensus ranked that player in his class: reach or steal. */
+  consRank?: number;
 }
 
 /** A user negotiation with a player (re-signing or free agency). Asks are derived, not stored. */
@@ -279,7 +314,7 @@ export interface Transaction {
   phase: Phase;
   week: number;
   teamIds: number[];
-  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire';
+  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire' | 'staff';
   text: string;
 }
 
@@ -412,4 +447,7 @@ export interface League {
   knowledge: Record<number, number>;
   /** Scouting visits left this league year. */
   scoutPoints: number;
+  /** Every scouting staff member, employed (teamId set) or on the market (teamId null). */
+  staff: Record<number, Staff>;
+  nextStaffId: number;
 }

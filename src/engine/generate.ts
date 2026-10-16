@@ -15,10 +15,11 @@ import { clamp, Rng } from './rng';
 import { buildAutoDepthChart } from './roster';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateSchedule } from './season/schedule';
+import { generateStaffWorld } from './staff';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -291,6 +292,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     faDay: 0,
     knowledge: {},
     scoutPoints: SCOUT_POINTS_PER_YEAR,
+    staff: {},
+    nextStaffId: 1,
   };
 
   TEAM_SEEDS.forEach((seedTeam, i) => {
@@ -310,6 +313,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
       postJune1Used: 0,
       taggedId: null,
       gm: generateGm(rng),
+      staffBudgetMult: 1,
+      staffDead: [],
     };
     league.teams.push(team);
 
@@ -350,5 +355,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   for (let y = 1; y <= MAX_FUTURE_DRAFT_YEARS; y++) createDraftPicks(league, season + y);
   league.games = generateSchedule(league, rng);
   league.rngState = rng.getState();
+  // Scouting departments draw from their own seeded stream: the players and schedule above are unchanged by them.
+  generateStaffWorld(league);
   return league;
 }
