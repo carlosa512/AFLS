@@ -1695,3 +1695,67 @@ tr.void-year td {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   gap: 10px 16px;
 }
+
+/* ───────── trades ───────── */
+.trade-verdict {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.meter {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  background: var(--muted);
+  border-radius: 6px;
+  transition: width 0.2s ease;
+}
+.meter i.yes {
+  background: var(--win);
+}
+.asset-list {
+  display: grid;
+  gap: 2px;
+  max-height: 460px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+}
+.asset-list .eyebrow {
+  margin: 6px 0 2px;
+}
+.asset {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: var(--step--1);
+}
+.asset:has(> .asset-name:nth-child(2)) {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.asset.on {
+  background: color-mix(in srgb, var(--marker) 18%, var(--surface));
+}
+.asset.blocked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.asset-name {
+  display: grid;
+  min-width: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .meter i {
+    transition: none;
+  }
+}

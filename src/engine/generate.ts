@@ -176,7 +176,6 @@ function initialContract(rng: Rng, market: Market, player: Player, season: numbe
   const apyK = marketApy(then, younger) * rng.float(0.85, 1.15);
   const c = veteranContract(rng, then, younger, apyK, years, season - elapsed, gm);
   c.signedSeason = season - elapsed;
-  c.signedWeek = -1; // part of the world as generated: no trade cooldown
   trimPast(c, season);
   return c;
 }
@@ -333,7 +332,10 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   const market = leagueMarket(league);
   for (const team of league.teams) {
     const roster = Object.values(league.players).filter((p) => p.teamId === team.id);
-    for (const p of roster) p.contract = initialContract(rng, market, p, season, team.gm);
+    for (const p of roster) {
+      p.contract = initialContract(rng, market, p, season, team.gm);
+      p.contract.signedWeek = -1; // part of the world as generated: no trade cooldown
+    }
     fitPayroll(roster, season, SALARY_CAP * rng.float(0.86, 0.96));
   }
 

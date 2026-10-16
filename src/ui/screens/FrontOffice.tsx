@@ -14,9 +14,10 @@ import { useNav } from '../App';
 import { Panel, PlayerAvatar, Rating, TeamChip } from '../components';
 import { heightFt, money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
+import { Trades } from './Trades';
 import { store } from '../store';
 
-export type OfficeTab = 'resign' | 'fa' | 'draft';
+export type OfficeTab = 'resign' | 'fa' | 'draft' | 'trades';
 
 export const defaultOfficeTab = (league: League): OfficeTab => (league.phase === 'resign' ? 'resign' : league.phase === 'draft' ? 'draft' : 'fa');
 
@@ -479,6 +480,7 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
     ['resign', 'Re-sign'],
     ['fa', 'Free agents'],
     ['draft', 'Draft'],
+    ['trades', 'Trades'],
   ];
   return (
     <>
@@ -498,6 +500,7 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
       {active === 'resign' && <Resign league={league} negotiate={(p) => setTalking(p.id)} />}
       {active === 'fa' && <FreeAgents league={league} negotiate={(p) => setTalking(p.id)} />}
       {active === 'draft' && <Draft league={league} />}
+      {active === 'trades' && <Trades league={league} />}
       {talking !== null && league.players[talking] && <NegotiationDialog league={league} player={league.players[talking]} onClose={() => setTalking(null)} />}
     </>
   );

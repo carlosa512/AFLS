@@ -195,6 +195,8 @@ export interface TradeVerdict {
   /** How much more the AI needs, in points (0 when it accepts). */
   shortfall: number;
   message: string;
+  /** A rule problem (cap, roster, deadline…) that no amount of value fixes. */
+  problem: string | null;
 }
 
 /** Hard rule problems (either side), independent of value. `rosterCuts`: AI teams waive a backup to make room. */
@@ -248,14 +250,17 @@ export function evaluateTrade(league: League, proposal: TradeProposal, opts: { m
     theirs.picks.reduce((s, id) => s + pickValue(league, league.draftPicks.find((p) => p.id === id)!, ai.gm), 0);
   const margin = opts.margin ?? 1.05 + ai.gm.stubbornness * 0.15;
   const need = Math.max(give * margin, give + (opts.margin ? 0 : 25));
-  if (problem) return { accepts: false, get, give, shortfall: Math.max(0, need - get), message: problem };
+  if (problem) return { accepts: false, get, give, shortfall: Math.max(0, need - get), message: problem, problem };
   // Don't empty the pick cupboard unless a star comes back.
   const star = mine.players.some((id) => playerOvr(league.players[id]) >= 16);
-  if (theirs.picks.length > MAX_AI_PICKS && !star) return { accepts: false, get, give, shortfall: 0, message: `${ai.name} won't send more than ${MAX_AI_PICKS} picks unless a star comes back.` };
-  if (get >= need) return { accepts: true, get, give, shortfall: 0, message: `${ai.name} accept.` };
+  if (theirs.picks.length > MAX_AI_PICKS && !star) {
+    const rule = `${ai.name} won't send more than ${MAX_AI_PICKS} picks unless a star comes back.`;
+    return { accepts: false, get, give, shortfall: 0, message: rule, problem: rule };
+  }
+  if (get >= need) return { accepts: true, get, give, shortfall: 0, message: `The ${ai.name} would accept.`, problem: null };
   const gap = need - get;
   const message = gap < need * 0.12 ? 'Close. Add a little more and they’ll do it.' : gap < need * 0.4 ? 'Not enough value for them yet.' : 'They aren’t interested at that price.';
-  return { accepts: false, get, give, shortfall: gap, message };
+  return { accepts: false, get, give, shortfall: gap, message, problem: null };
 }
 
 /** Move the assets. The sending team books the bonus money still on each traded contract. */
@@ -307,7 +312,7 @@ export function executeTrade(league: League, proposal: TradeProposal): void {
  */
 export function suggestSweetener(league: League, proposal: TradeProposal): { kind: 'player' | 'pick'; id: number } | null {
   const verdict = evaluateTrade(league, proposal);
-  if (verdict.accepts || verdict.shortfall <= 0) return null;
+  if (verdict.accepts || verdict.problem || verdict.shortfall <= 0) return null;
   const [mine, theirs] = proposal.sides;
   const ai = league.teams[theirs.teamId];
   const options: { kind: 'player' | 'pick'; id: number; value: number }[] = [];
@@ -320,9 +325,14 @@ export function suggestSweetener(league: League, proposal: TradeProposal): { kin
     const v = playerValue(league, p, ai);
     if (v > 0) options.push({ kind: 'player', id: p.id, value: v });
   }
-  options.sort((x, y) => x.value - y.value);
-  const enough = options.find((o) => o.value >= verdict.shortfall);
-  const pick = enough ?? options[options.length - 1];
+  // Only additions that keep the deal legal (a player can overflow their roster; a pick can't).
+  const legal = options
+    .filter((o) => {
+      const side = { ...mine, players: o.kind === 'player' ? [...mine.players, o.id] : mine.players, picks: o.kind === 'pick' ? [...mine.picks, o.id] : mine.picks };
+      return !tradeProblem(league, { sides: [side, theirs] });
+    })
+    .sort((x, y) => x.value - y.value);
+  const pick = legal.find((o) => o.value >= verdict.shortfall) ?? legal[legal.length - 1];
   return pick ? { kind: pick.kind, id: pick.id } : null;
 }
 
