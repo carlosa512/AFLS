@@ -882,12 +882,14 @@ tr.is-user .sticky-col {
 }
 .attr-row {
   display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: 0 10px;
   padding: 3px 0;
   border-bottom: 1px dashed var(--line);
 }
-.attr-row.key span:first-child {
+.attr-row.key .attr-name {
   font-weight: 700;
 }
 .facts {
@@ -1765,4 +1767,234 @@ tr.void-year td {
   .meter i {
     transition: none;
   }
+}
+
+/* ───────── scouting: estimates, stars, development, combine, compare ───────── */
+:root {
+  --star: #b07800;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --star: #bd8418;
+  }
+}
+:root[data-theme='dark'] {
+  --star: #bd8418;
+}
+/* A scouted estimate: same colour band, dashed outline instead of a solid chip. */
+.rating.est {
+  background: transparent;
+  outline: 1px dashed currentColor;
+  outline-offset: -1px;
+}
+.attr-num {
+  font-weight: 600;
+}
+.attr-name {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: help;
+  text-decoration: underline dotted var(--line);
+  text-underline-offset: 3px;
+}
+.attr-name:hover,
+.attr-name[aria-expanded='true'] {
+  text-decoration-color: currentColor;
+}
+.attr-val {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.attr-delta {
+  font-family: var(--font-data);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.attr-tip {
+  flex-basis: 100%;
+  margin: 4px 0 4px;
+  font-size: var(--step--1);
+  line-height: 1.45;
+}
+.attr-group {
+  grid-column: 1 / -1;
+  padding-bottom: 0;
+}
+details.more > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: var(--step--1);
+  padding: 8px 0 4px;
+}
+.stars {
+  display: inline-flex;
+  gap: 1px;
+  vertical-align: -3px;
+}
+.star-empty {
+  fill: none;
+  stroke: color-mix(in srgb, var(--star) 55%, var(--line));
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+.star-possible {
+  fill: color-mix(in srgb, var(--star) 24%, var(--surface));
+}
+.star-likely {
+  fill: color-mix(in srgb, var(--star) 52%, var(--surface));
+}
+.star-now {
+  fill: var(--star);
+}
+.seg-sm button {
+  padding: 3px 9px;
+  font-size: 0.75rem;
+}
+.known {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.known-track {
+  width: 56px;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--series-1) 18%, var(--surface));
+  overflow: hidden;
+}
+.known-track i {
+  display: block;
+  height: 100%;
+  background: var(--series-1);
+  border-radius: 3px;
+}
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.report {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  line-height: 1.5;
+}
+.report .eyebrow {
+  display: block;
+  padding-block: 0 4px;
+}
+.stars-fact {
+  display: grid;
+  gap: 2px;
+}
+.dev-chart {
+  position: relative;
+}
+.dev-chart svg {
+  display: block;
+  overflow: visible;
+  touch-action: pan-y;
+}
+.dev-chart svg:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.dev-chart .grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.dev-chart .axis {
+  fill: var(--muted);
+  font-size: 11px;
+  font-family: var(--font-data);
+}
+.dev-chart .line {
+  fill: none;
+  stroke: var(--series-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.dev-chart .dot {
+  fill: var(--series-1);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.dev-chart .crosshair {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+.dev-chart .end-label {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-data);
+}
+.dev-tip b {
+  font-size: 0.9rem;
+}
+.dev-table {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 6px 0 0;
+}
+.combine {
+  display: grid;
+  gap: 10px;
+}
+.compare-tray {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  /* Above the player card's backdrop, so adding a player shows up right away. */
+  z-index: 55;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.compare-table th[scope='row'] {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .compare-table th[scope='row'] {
+    white-space: normal;
+    min-width: 6.5rem;
+  }
+  .compare-head {
+    min-width: 8rem;
+  }
+}
+.compare-table td {
+  vertical-align: top;
+}
+.compare-table td.best {
+  background: color-mix(in srgb, var(--win) 11%, transparent);
+}
+.compare-head {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  min-width: 9.5rem;
+}
+.board-sort {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
 }

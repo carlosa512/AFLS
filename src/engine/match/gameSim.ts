@@ -6,6 +6,7 @@
  * vs. tacklers). Outcomes emerge from ratings plus bounded randomness, so
  * better teams win more often without making upsets impossible.
  */
+import { skill } from '../attributes';
 import { clamp, Rng } from '../rng';
 import type { Game, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
 import { MAX_STATS } from '../types';
@@ -31,6 +32,12 @@ const PASS_LANES: [string, number][] = [['left', -0.8], ['middle', 0], ['right',
 
 type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane'>;
 const HOME_FIELD_EDGE = 0.4; // ratings points added to the home side's matchups
+/** League-typical linemen discipline: penalty rates are scaled around these, so totals stay NFL-like. */
+const OL_DISCIPLINE = 12;
+const DL_DISCIPLINE = 10.8;
+/** League-typical edge contain and safety help: their effects are measured from these. */
+const EDGE_CONTAIN = 11.5;
+const DEEP_HELP = 14;
 
 /** Collects stat changes for a play so they can be discarded if a penalty wipes the play out. */
 class StatBuffer {
@@ -225,8 +232,7 @@ class GameSim {
   }
 
   private fgProb(distance: number, kicker: Player): number {
-    const r = kicker.ratings;
-    const center = 60 + 0.55 * (r.kickAccuracy - 12) + 0.6 * (r.kickPower - 12);
+    const center = 60 + 1.15 * (skill(kicker, 'fieldGoal') - 12);
     const p = 1 / (1 + Math.exp((distance - center) / 6.8));
     return distance > center + 12 ? 0 : p;
   }
@@ -429,8 +435,7 @@ class GameSim {
     const s: Situation = { ...this.situation(), scoreDiff: this.score[side] - this.score[(1 - side) as Side] };
     this.snapshot = null;
     if (coach.goForTwo(s)) {
-      const q = lineup.qb.ratings;
-      const ok = this.rng.chance(clamp(0.47 + 0.01 * (q.throwAccShort - 12), 0.35, 0.6));
+      const ok = this.rng.chance(clamp(0.47 + 0.01 * (skill(lineup.qb, 'shortAccuracy') - 12), 0.35, 0.6));
       if (ok) this.addPoints(side, 2);
       this.setAnim(side, 'two', 98, ok ? 102 : 99);
       this.log(`Two-point attempt ${ok ? 'is GOOD' : 'fails'}.`, true);
@@ -487,7 +492,7 @@ class GameSim {
       return;
     }
 
-    const kp = kicking.k.ratings.kickPower;
+    const kp = skill(kicking.k, 'kickoffDistance');
     const touchback = this.rng.chance(clamp(0.38 + 0.025 * (kp - 12), 0.15, 0.7));
     this.offense = receivingSide;
     if (touchback) {
@@ -496,9 +501,9 @@ class GameSim {
       this.log(`${short(kicking.k)} kicks off into the end zone. Touchback.`);
     } else {
       const kr = receiving.kr;
-      const skill = (kr.ratings.speed + kr.ratings.elusiveness) / 2 - 12;
-      let start = clamp(Math.round(this.rng.normal(28 + 0.6 * skill, 6)), 8, 60);
-      const returnTd = this.rng.chance(clamp(0.004 + 0.001 * skill, 0.001, 0.012));
+      const edge = skill(kr, 'returns') - 12;
+      let start = clamp(Math.round(this.rng.normal(28 + 0.6 * edge, 6)), 8, 60);
+      const returnTd = this.rng.chance(clamp(0.004 + 0.001 * edge, 0.001, 0.012));
       if (returnTd) start = 100;
       const buf = new StatBuffer();
       buf.add(kr, 'krAtt');
@@ -539,11 +544,11 @@ class GameSim {
       return;
     }
 
-    let gross = Math.round(clamp(this.rng.normal(46 + 0.9 * (p.ratings.kickPower - 12), 5.5), 25, 70));
+    let gross = Math.round(clamp(this.rng.normal(46 + 0.9 * (skill(p, 'puntDistance') - 12), 5.5), 25, 70));
     // Pin it deep instead of booting into the end zone from plus territory.
     const room = 100 - this.yardLine;
     if (gross > room - 5 && room < 60) {
-      const accuracy = clamp(0.45 + 0.03 * (p.ratings.kickAccuracy - 12), 0.25, 0.75);
+      const accuracy = clamp(0.45 + 0.03 * (skill(p, 'puntPlacement') - 12), 0.25, 0.75);
       gross = this.rng.chance(accuracy) ? room - this.rng.int(3, 15) : room;
     }
     buf.add(p, 'punts');
@@ -558,15 +563,16 @@ class GameSim {
     }
     const receiveAt = 100 - landing;
     const pr = def.pr;
-    if (receiveAt <= 10 || this.rng.chance(0.42)) {
+    // A well-placed punt (hang time, toward the sideline) leaves the returner no room.
+    if (receiveAt <= 10 || this.rng.chance(clamp(0.42 + 0.02 * (skill(p, 'puntPlacement') - 12), 0.25, 0.6))) {
       this.credit(buf);
       this.log(`${short(p)} punts ${gross} yards. ${receiveAt <= 10 ? 'Downed' : `Fair catch by ${short(pr)}`} at the ${this.spot(receiveAt, this.def)}.`);
       this.changePossession(receiveAt);
       return;
     }
-    const skill = (pr.ratings.speed + pr.ratings.elusiveness) / 2 - 12;
-    let ret = Math.max(0, Math.round(this.rng.normal(8 + 0.5 * skill, 6)));
-    if (this.rng.chance(clamp(0.006 + 0.0015 * skill, 0.002, 0.02))) ret = 100 - receiveAt;
+    const edge = skill(pr, 'returns') - 12;
+    let ret = Math.max(0, Math.round(this.rng.normal(8 + 0.5 * edge, 6)));
+    if (this.rng.chance(clamp(0.006 + 0.0015 * edge, 0.002, 0.02))) ret = 100 - receiveAt;
     // Returns run back toward the punting team's goal line.
     this.setAnim(this.offense, 'punt', this.yardLine, landing - ret <= 0 ? -3 : landing - ret, landing);
     buf.add(pr, 'prAtt');
@@ -661,7 +667,9 @@ class GameSim {
   private preSnapPenalty(): boolean {
     const off = this.offense;
     const roll = this.rng.next();
-    if (roll < 0.027) {
+    const pFalseStart = 0.027 * Math.exp(-0.06 * (this.lineups[off].offenseDiscipline - OL_DISCIPLINE));
+    const pOffside = 0.017 * Math.exp(-0.06 * (this.lineups[this.def].defenseDiscipline - DL_DISCIPLINE));
+    if (roll < pFalseStart) {
       const yards = Math.min(5, Math.floor(this.yardLine / 2));
       this.takeSnapshot();
       this.setAnim(off, 'penalty', this.yardLine, this.yardLine - yards);
@@ -672,7 +680,7 @@ class GameSim {
       this.log(`PENALTY on ${this.abbrev(off)}: False start, ${yards} yards.`);
       return true;
     }
-    if (roll < 0.044) {
+    if (roll < pFalseStart + pOffside) {
       const yards = Math.min(5, Math.floor((100 - this.yardLine) / 2));
       this.takeSnapshot();
       this.setAnim(off, 'penalty', this.yardLine, this.yardLine + yards);
@@ -721,7 +729,7 @@ class GameSim {
   /** Weighted pick of the defender who makes the tackle, based on how far the play went. */
   private pickTackler(def: Lineup, yards: number): Player {
     const pool: [Player, number][] = [];
-    const add = (ps: Player[], w: number) => ps.forEach((p) => pool.push([p, w * (0.5 + p.ratings.tackling / 20)]));
+    const add = (ps: Player[], w: number) => ps.forEach((p) => pool.push([p, w * (0.5 + skill(p, 'tackling') / 20)]));
     if (yards <= 2) {
       add(def.dt, 1.1);
       add(def.edge, 1.2);
@@ -753,7 +761,7 @@ class GameSim {
     const buf = new StatBuffer();
     const yardsToGoal = 100 - this.yardLine;
 
-    const qbRunWeight = Math.max(0, off.qb.ratings.speed - 9) * 0.012;
+    const qbRunWeight = Math.max(0, skill(off.qb, 'scrambling') - 9) * 0.012;
     const rusher = rng.weighted(
       [
         [off.rbs[0], 0.68],
@@ -763,22 +771,23 @@ class GameSim {
       ] as [Player, number][],
       ([, w]) => w,
     )[0];
-    const r = rusher.ratings;
     const outside = rng.chance(0.4);
     const boxAdj = { base: 0, runD: 1.5, passD: -1.5, blitz: 0.6 }[defCall];
     const homeAdj = this.offense === 0 ? this.homeEdge : -this.homeEdge;
     const lineDelta = off.runBlock - (def.runStop + boxAdj) + homeAdj;
-    const rusherSkill = outside
-      ? r.speed * 0.45 + r.agility * 0.3 + r.elusiveness * 0.25
-      : r.strength * 0.35 + r.elusiveness * 0.35 + r.awareness * 0.3;
+    const rusherSkill = skill(rusher, outside ? 'outsideRun' : 'insideRun');
 
-    let yards = rng.normal(3.85 + 0.3 * lineDelta + 0.2 * (rusherSkill - 12), 2.9);
+    // Outside runs also have to get around the edge defenders.
+    const contain = outside ? 0.2 * (def.edgeContain - EDGE_CONTAIN) : 0;
+    let yards = rng.normal(3.97 + 0.3 * lineDelta + 0.2 * (rusherSkill - 12) - contain, 2.9);
     if (yards > 4) {
-      const lb = def.lb.reduce((a, b) => (b.ratings.tackling > a.ratings.tackling ? b : a));
-      const pBreak = clamp(0.2 + 0.025 * (r.elusiveness - lb.ratings.tackling) + 0.02 * (r.speed - def.s[0].ratings.speed), 0.05, 0.5);
+      // Past the line: beat the best linebacker's tackle, then outrun the deep safety.
+      const lbTackle = Math.max(...def.lb.map((p) => skill(p, 'tackling')));
+      const speed = skill(rusher, 'longSpeed');
+      const pBreak = clamp(0.2 + 0.025 * (skill(rusher, 'breakTackles') - lbTackle) + 0.02 * (speed - skill(def.s[0], 'pursuit')), 0.05, 0.5);
       if (rng.chance(pBreak)) {
-        yards += rng.exponential(Math.max(2, 5 + 0.4 * (r.speed - 12)));
-        if (rng.chance(clamp(0.1 + 0.012 * (r.speed - 12), 0.03, 0.25))) yards += rng.exponential(22);
+        yards += rng.exponential(Math.max(2, 5 + 0.4 * (speed - 12)));
+        if (rng.chance(clamp(0.1 + 0.012 * (speed - 12), 0.03, 0.25))) yards += rng.exponential(22);
       }
     }
     yards = Math.round(Math.max(yards, -6));
@@ -802,7 +811,7 @@ class GameSim {
     if (yards < 0) buf.add(tackler, 'tfl');
     text += ` (${short(tackler)})`;
 
-    const pFumble = 0.013 * Math.exp(-0.13 * (r.carrying - 12));
+    const pFumble = 0.013 * Math.exp(-0.13 * (skill(rusher, 'ballSecurity') - 12));
     if (rng.chance(pFumble)) {
       buf.add(rusher, 'fumbles');
       buf.add(tackler, 'forcedFum');
@@ -835,19 +844,21 @@ class GameSim {
     const def = this.lineups[this.def];
     const rng = this.rng;
     const qb = off.qb;
-    const q = qb.ratings;
     const buf = new StatBuffer();
     const yardsToGoal = 100 - this.yardLine;
     const homeAdj = this.offense === 0 ? this.homeEdge : -this.homeEdge;
+    const decisions = skill(qb, 'decisionMaking');
 
     const rushAdj = { base: 0, runD: 0.3, passD: -1, blitz: 2.5 }[defCall];
-    const pressureDelta = def.passRush + rushAdj - off.passBlock - homeAdj;
+    // A back who picks up the blitz buys his quarterback time; one who whiffs gets him hit.
+    const pickup = defCall === 'blitz' ? 0.3 * (skill(off.rbs[0], 'passPro') - 10) : 0;
+    const pressureDelta = def.passRush + rushAdj - off.passBlock - pickup - homeAdj;
     const pressured = rng.chance(clamp(0.3 + 0.035 * pressureDelta, 0.1, 0.65));
 
     if (pressured) {
-      const pSack = clamp(0.21 - 0.012 * (q.awareness - 12) - 0.01 * (q.agility - 12), 0.08, 0.38);
+      const pSack = clamp(0.21 - 0.022 * (skill(qb, 'pocketPresence') - 12), 0.08, 0.38);
       if (rng.chance(pSack)) return this.sack(def, defCall);
-      if (rng.chance(clamp(0.1 + 0.02 * (q.speed - 10), 0.03, 0.35))) return this.scramble(def, s);
+      if (rng.chance(clamp(0.1 + 0.02 * (skill(qb, 'scrambling') - 10), 0.03, 0.35))) return this.scramble(def, s);
       if (rng.chance(0.12)) {
         buf.add(qb, 'passAtt');
         return { kind: 'pass', yards: 0, text: `${short(qb)} under pressure, throws it away`, duration: rng.int(4, 6), clockStops: true, stats: buf, passAttempt: true, complete: false, airYards: 0, depth: 'short' };
@@ -867,33 +878,33 @@ class GameSim {
       [off.tes[1], { short: 0.03, medium: 0.02, deep: 0.01 }, def.lb[0]],
     ];
     const valid = options.filter((o): o is [Player, Record<PassDepth, number>, Player] => !!o[0]);
-    const [receiver, , defender] = rng.weighted(valid, ([p, w]) => {
-      const skill = (p.ratings.catching + p.ratings.routeRunning + p.ratings.speed) / 3;
-      return w[depth] * (0.6 + 0.04 * skill);
-    });
-    const r = receiver.ratings;
-    const d = defender.ratings;
+    const [receiver, , defender] = rng.weighted(valid, ([p, w]) => w[depth] * (0.6 + 0.04 * skill(p, 'targeting')));
     const isBack = receiver.position === 'RB';
 
-    const recvSkill =
-      depth === 'deep'
-        ? r.speed * 0.45 + r.routeRunning * 0.35 + r.agility * 0.2
-        : r.routeRunning * 0.45 + r.speed * 0.25 + r.agility * 0.3;
-    const defSkill = d.coverage * 0.55 + d.speed * 0.3 + d.awareness * 0.15;
-    let sep = recvSkill - defSkill + homeAdj + (isBack && depth === 'short' ? 2.5 : 0);
-    if (depth === 'deep') sep -= 0.15 * (def.s[0].ratings.coverage - 8);
+    const recvSkill = skill(receiver, depth === 'deep' ? 'deepRoutes' : 'shortRoutes');
+    let sep = recvSkill - skill(defender, depth === 'deep' ? 'deepCoverage' : 'coverage') + homeAdj + (isBack && depth === 'short' ? 2.5 : 0);
+    // The deep safety closes windows over the top (deep balls always face some help).
+    const help = skill(def.s[0], 'deepHelp') - DEEP_HELP;
+    if (depth === 'deep') sep -= 0.93 + 0.35 * help;
+    else if (depth === 'medium') sep -= 0.2 * help;
     sep += { base: 0, runD: 0.8, passD: -1.2, blitz: 1.5 }[defCall];
 
-    const acc =
-      depth === 'short' ? q.throwAccShort : depth === 'medium' ? (q.throwAccShort + q.throwAccDeep) / 2 : q.throwAccDeep * 0.7 + q.throwPower * 0.3;
-    let pComplete = { short: 0.79, medium: 0.6, deep: 0.38 }[depth] + 0.018 * (acc - 12) + 0.022 * sep + 0.012 * (r.catching - 12);
-    if (pressured) pComplete -= 0.17 - 0.01 * (q.awareness - 12);
+    const acc = skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy');
+    let pComplete = { short: 0.79, medium: 0.6, deep: 0.38 }[depth] + 0.018 * (acc - 12) + 0.022 * sep + 0.012 * (skill(receiver, 'hands') - 12);
+    if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
     if (yardsToGoal <= 10 && depth !== 'short') pComplete -= 0.06;
     pComplete = clamp(pComplete, 0.05, 0.95);
 
     const pInt =
       { short: 0.0095, medium: 0.023, deep: 0.04 }[depth] *
-      Math.exp(-0.07 * (q.awareness - 12) - 0.05 * (acc - 12) + 0.05 * (d.catching - 8) - 0.05 * sep) *
+      Math.exp(
+        -0.07 * (decisions - 12) -
+          0.05 * (acc - 12) +
+          0.05 * (skill(defender, 'ballSkills') - 8) -
+          0.05 * sep +
+          // A ball-hawking safety lurks over the top.
+          (depth === 'short' ? 0 : 0.05 * (skill(def.s[0], 'ballSkills') - 12)),
+      ) *
       (pressured ? 1.6 : 1);
 
     let air: number;
@@ -945,8 +956,7 @@ class GameSim {
       gain = yardsToGoal;
     } else {
       tackler = rng.chance(0.6) ? defender : this.pickTackler(def, air + 4);
-      const t = tackler.ratings;
-      const yacSkill = r.elusiveness * 0.45 + r.speed * 0.35 + r.strength * 0.2 - (t.tackling * 0.6 + t.speed * 0.4);
+      const yacSkill = skill(receiver, 'afterCatch') - skill(tackler, 'tackling');
       let yac = Math.max(0, rng.normal({ short: 3.6, medium: 2.8, deep: 2.4 }[depth] + 0.3 * yacSkill, 3));
       if (rng.chance(clamp(0.025 + 0.005 * yacSkill, 0.01, 0.07))) yac += rng.exponential(16);
       gain = Math.min(air + Math.round(yac), yardsToGoal);
@@ -967,7 +977,7 @@ class GameSim {
     buf.add(tackler!, 'tackles');
     text += ` (${short(tackler!)})`;
 
-    if (rng.chance(0.0065 * Math.exp(-0.12 * (r.carrying - 12)))) {
+    if (rng.chance(0.0065 * Math.exp(-0.12 * (skill(receiver, 'ballSecurity') - 12)))) {
       buf.add(receiver, 'fumbles');
       buf.add(tackler!, 'forcedFum');
       if (this.fumbleRecoveredByDefense()) {
@@ -995,9 +1005,9 @@ class GameSim {
     const qb = this.lineups[this.offense].qb;
     const buf = new StatBuffer();
     const pool: [Player, number][] = [
-      ...def.edge.map((p): [Player, number] => [p, 3 * p.ratings.passRush]),
-      ...def.dt.map((p): [Player, number] => [p, 1.5 * p.ratings.passRush]),
-      ...def.lb.map((p): [Player, number] => [p, (defCall === 'blitz' ? 1.5 : 0.3) * p.ratings.passRush]),
+      ...def.edge.map((p): [Player, number] => [p, 3 * skill(p, 'edgeRush')]),
+      ...def.dt.map((p): [Player, number] => [p, 1.5 * skill(p, 'interiorRush')]),
+      ...def.lb.map((p): [Player, number] => [p, (defCall === 'blitz' ? 1.5 : 0.3) * skill(p, 'edgeRush')]),
     ];
     const sacker = this.rng.weighted(pool, ([, w]) => w)[0];
     let loss = Math.round(clamp(this.rng.normal(6.5, 2.5), 1, 15));
@@ -1029,9 +1039,9 @@ class GameSim {
   private scramble(def: Lineup, s: Situation): PlayResult {
     const qb = this.lineups[this.offense].qb;
     const buf = new StatBuffer();
-    const q = qb.ratings;
-    let yards = this.rng.normal(4 + 0.35 * (q.speed - 10), 3.5);
-    if (yards > 6 && this.rng.chance(0.15 + 0.015 * (q.speed - 12))) yards += this.rng.exponential(10);
+    const speed = skill(qb, 'scrambling');
+    let yards = this.rng.normal(4 + 0.35 * (speed - 10), 3.5);
+    if (yards > 6 && this.rng.chance(0.15 + 0.015 * (speed - 12))) yards += this.rng.exponential(10);
     yards = Math.round(Math.max(-3, yards));
     const yardsToGoal = 100 - this.yardLine;
     const td = yards >= yardsToGoal;
@@ -1075,15 +1085,16 @@ class GameSim {
     if (result.kind === 'run' || result.kind === 'pass') {
       const roll = this.rng.next();
       const bad = !!result.turnover;
-      if (roll < 0.038 && !bad && result.yards > -8) {
+      const pHold = 0.038 * Math.exp(-0.05 * (this.lineups[offSide].offenseDiscipline - OL_DISCIPLINE));
+      if (roll < pHold && !bad && result.yards > -8) {
         const yards = Math.min(10, Math.floor(this.yardLine / 2));
         penalty = { on: offSide, yards: -yards, text: `PENALTY on ${this.abbrev(offSide)}: Offensive holding, ${yards} yards. No play.`, autoFirst: false, replayDown: true };
       } else if (result.passAttempt && !result.complete && !bad && result.airYards! > 0) {
         const pDpi = { short: 0.008, medium: 0.03, deep: 0.06 }[result.depth!];
-        if (roll < 0.038 + pDpi) {
+        if (roll < pHold + pDpi) {
           const yards = Math.min(Math.max(1, result.airYards!), 99 - this.yardLine);
           penalty = { on: defSide, yards, text: `PENALTY on ${this.abbrev(defSide)}: Pass interference, ${yards} yards.`, autoFirst: true, replayDown: false };
-        } else if (roll < 0.038 + pDpi + 0.02) {
+        } else if (roll < pHold + pDpi + 0.02) {
           const yards = Math.min(5, Math.floor((100 - this.yardLine) / 2));
           penalty = { on: defSide, yards, text: `PENALTY on ${this.abbrev(defSide)}: Defensive holding, ${yards} yards.`, autoFirst: true, replayDown: false };
         }

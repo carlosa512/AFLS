@@ -6,6 +6,7 @@ import type { League } from '../engine/types';
 import { Dialog, TeamChip } from './components';
 import { isOffseasonPhase, PHASE_LABELS, recordText, resultsSeason, weekLabel } from './format';
 import { BoxScore } from './screens/BoxScore';
+import { Compare } from './screens/Compare';
 import { GameViewer } from './screens/GameViewer';
 import { LiveGame } from './screens/LiveGame';
 import { live, useLive } from './live';
@@ -30,6 +31,7 @@ export type Route =
   | { view: 'standings' }
   | { view: 'leaders' }
   | { view: 'playoffs' }
+  | { view: 'compare' }
   | { view: 'game'; gameId: number; back: Route }
   | { view: 'watch'; gameId: number; back: Route }
   | { view: 'live' };
@@ -41,7 +43,13 @@ interface Nav {
   watchGame: (gameId: number) => void;
   openPlayer: (playerId: number) => void;
   openTeam: (teamId: number) => void;
+  /** Players lined up on the comparison screen (at most MAX_COMPARE). */
+  compareIds: number[];
+  toggleCompare: (playerId: number) => void;
+  clearCompare: () => void;
 }
+
+export const MAX_COMPARE = 3;
 
 const NavContext = createContext<Nav | null>(null);
 export const useNav = () => useContext(NavContext)!;
@@ -100,6 +108,7 @@ export function App() {
   useLive();
   const [route, setRoute] = useState<Route>({ view: 'home' });
   const [playerId, setPlayerId] = useState<number | null>(null);
+  const [compareIds, setCompareIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [confirmSim, setConfirmSim] = useState(false);
 
@@ -116,6 +125,9 @@ export function App() {
     watchGame: (gameId) => setRoute({ view: 'watch', gameId, back: route.view === 'game' || route.view === 'watch' ? route.back : route }),
     openPlayer: setPlayerId,
     openTeam: (teamId) => setRoute({ view: 'roster', teamId }),
+    compareIds,
+    toggleCompare: (id) => setCompareIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length >= MAX_COMPARE ? ids : [...ids, id])),
+    clearCompare: () => setCompareIds([]),
   };
 
   const userTeam = league.teams[league.userTeamId];
@@ -262,12 +274,30 @@ export function App() {
         {route.view === 'standings' && <Standings league={league} />}
         {route.view === 'leaders' && <Leaders league={league} />}
         {route.view === 'playoffs' && <Playoffs league={league} />}
+        {route.view === 'compare' && <Compare league={league} />}
         {route.view === 'game' && <BoxScore league={league} gameId={route.gameId} onBack={() => setRoute(route.back)} />}
         {route.view === 'live' && <LiveGame league={league} />}
         {route.view === 'watch' && (
           <GameViewer league={league} gameId={route.gameId} onBack={() => setRoute(route.back)} onBoxScore={() => nav.openGame(route.gameId)} />
         )}
       </main>
+
+      {compareIds.length > 0 && route.view !== 'compare' && (
+        <div className="compare-tray" role="region" aria-label="Comparison">
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={() => {
+              setPlayerId(null);
+              setRoute({ view: 'compare' });
+            }}
+          >
+            Compare {compareIds.length} player{compareIds.length > 1 ? 's' : ''}
+          </button>
+          <button className="btn btn-sm btn-ghost" onClick={() => setCompareIds([])} aria-label="Clear the comparison">
+            ✕
+          </button>
+        </div>
+      )}
 
       {playerId !== null && league.players[playerId] && (
         <PlayerCard league={league} player={league.players[playerId]} onClose={() => setPlayerId(null)} />

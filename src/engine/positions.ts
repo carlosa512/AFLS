@@ -21,7 +21,7 @@ export const OVR_WEIGHTS: Record<Position, Partial<Record<Attribute, number>>> =
   QB: { throwAccShort: 3, throwAccDeep: 2.5, awareness: 3, throwPower: 1.5, agility: 0.5, speed: 0.5 },
   RB: { elusiveness: 2.5, speed: 2, agility: 2, carrying: 1.5, strength: 1, catching: 0.75, awareness: 0.75, passBlock: 0.5 },
   WR: { catching: 2.5, routeRunning: 2.5, speed: 2.5, agility: 1.5, elusiveness: 0.75, awareness: 0.75 },
-  TE: { catching: 2, routeRunning: 1.5, runBlock: 1.5, passBlock: 1, strength: 1, speed: 1, awareness: 0.5 },
+  TE: { catching: 2, routeRunning: 1.5, runBlock: 1.5, passBlock: 1, strength: 1, speed: 1 },
   OL: { passBlock: 3, runBlock: 3, strength: 2, awareness: 1, agility: 0.5 },
   DT: { runStop: 3, strength: 2.5, passRush: 2, tackling: 1, awareness: 0.5, agility: 0.5 },
   EDGE: { passRush: 3, runStop: 1.5, speed: 1.5, strength: 1.5, agility: 1, tackling: 1 },

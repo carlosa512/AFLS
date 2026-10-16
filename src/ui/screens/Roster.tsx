@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import { playerOvr, POSITION_NAMES, STARTERS } from '../../engine/positions';
+import { POSITION_NAMES, STARTERS } from '../../engine/positions';
 import { capSheet } from '../../engine/finance/cap';
 import { capHit } from '../../engine/finance/contract';
 import { buildAutoDepthChart, teamPlayers, teamRatings } from '../../engine/roster';
@@ -7,9 +7,10 @@ import { computeRecords } from '../../engine/season/standings';
 import type { League, Player, Position, StatLine } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, Rating, TeamChip } from '../components';
+import { Panel, PlayerAvatar, TeamChip } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
+import { Ovr, Stars, starsOf, viewOf } from '../scouting';
 import { store } from '../store';
 
 export function statSummary(position: Position, s: StatLine | undefined): string {
@@ -248,6 +249,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                 <th>Depth</th>
                 <th className="sticky-col">Player</th>
                 <th className="num">OVR</th>
+                <th>Stars</th>
                 <th className="num">Age</th>
                 <th>Key ratings</th>
                 <th className="num">Cap hit</th>
@@ -261,7 +263,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                 const ids = drag?.pos === pos ? reorder(team.depthChart[pos], drag.from, drag.over) : team.depthChart[pos];
                 return [
                   <tr className="group-row" key={`g-${pos}`}>
-                    <td colSpan={8}>
+                    <td colSpan={9}>
                       <span className="group-label">
                         {POSITION_NAMES[pos]} · {STARTERS[pos]} starter{STARTERS[pos] > 1 ? 's' : ''}
                       </span>
@@ -315,6 +317,7 @@ function RosterRow({
   onKeyMove: (to: number) => void;
 }) {
   const nav = useNav();
+  const view = viewOf(league, p);
   const starter = index < STARTERS[p.position];
   const lastStarter = index === STARTERS[p.position] - 1 && index < count - 1;
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
@@ -357,14 +360,17 @@ function RosterRow({
         </button>
       </td>
       <td className="num">
-        <Rating value={playerOvr(p)} decimals={1} />
+        <Ovr league={league} player={p} />
+      </td>
+      <td>
+        <Stars s={starsOf(league, p, 'league', view)} size={13} />
       </td>
       <td className="num">{p.age}</td>
       <td>
         <span className="row" style={{ gap: 10, flexWrap: 'nowrap' }}>
           {keyAttributes(p.position).map((a) => (
             <span key={a} className="num" style={{ fontSize: '0.75rem' }}>
-              <span className="muted">{ATTR_LABELS[a][0]}</span> <span className={band(p.ratings[a])}>{p.ratings[a]}</span>
+              <span className="muted">{ATTR_LABELS[a][0]}</span> <span className={band(view.ratings[a].value)}>{view.ratings[a].value}</span>
             </span>
           ))}
         </span>

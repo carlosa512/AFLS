@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "sim": "tsx scripts/calibrate.ts",
     "endings": "tsx scripts/endings.ts",
-    "offseason": "tsx scripts/offseason.ts"
+    "offseason": "tsx scripts/offseason.ts",
+    "audit": "tsx scripts/audit.ts"
   },
   "dependencies": {
     "react": "19.3.1",

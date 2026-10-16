@@ -34,7 +34,6 @@ function snapshot(l: League, label: string) {
 
 for (let s = 0; s < seasons; s++) {
   simToEndOfSeason(league);
-  const before = league.transactions.length;
   beginOffseason(league);
   snapshot(league, `${league.season} new year`);
   while (league.phase !== 'regular') {
@@ -42,7 +41,8 @@ for (let s = 0; s < seasons; s++) {
     advanceOffseason(league, { autoUser: true });
     if (phase !== league.phase) snapshot(league, `${league.season} → ${league.phase}`);
   }
-  const moves = league.transactions.slice(before);
+  // The log is capped, so count this offseason's moves by date rather than by position in it.
+  const moves = league.transactions.filter((m) => m.season === league.season && m.phase !== 'regular' && m.phase !== 'playoffs');
   const count = (k: string) => moves.filter((m) => m.kind === k).length;
   console.log(
     `  moves: re-signed ${count('resign')}, signed ${count('sign')}, released ${count('release')}, restructured ${count('restructure')}, tagged ${count('tag')}, options ${count('option')}, drafted ${count('draft')}, retired(notable) ${count('retire')}\n`,

@@ -7,10 +7,10 @@ import { capSpace } from '../engine/finance/cap';
 import { capHit, isExpired, prorationIn, totalGuaranteed } from '../engine/finance/contract';
 import { minSalary } from '../engine/finance/market';
 import { askOffer, demand, makeOffer, negotiationFor, offerProblem, prospectiveContract, type Offer } from '../engine/offseason/negotiation';
-import { playerOvr } from '../engine/positions';
 import type { League, Player } from '../engine/types';
-import { Dialog, PlayerAvatar, Rating } from './components';
+import { Dialog, PlayerAvatar } from './components';
 import { money } from './format';
+import { Ovr } from './scouting';
 import { liveLock } from './live';
 import { store } from './store';
 
@@ -93,7 +93,7 @@ export function NegotiationDialog({ league, player, onClose }: { league: League;
         <PlayerAvatar player={player} team={player.teamId !== null ? league.teams[player.teamId] : null} size={44} />
         <div>
           <b>
-            {player.position} · age {player.age} · <Rating value={playerOvr(player)} decimals={1} />
+            {player.position} · age {player.age} · <Ovr league={league} player={player} />
           </b>
           <div className="muted small">Market value {money(d.market)}/yr</div>
         </div>

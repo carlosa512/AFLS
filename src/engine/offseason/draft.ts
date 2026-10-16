@@ -3,6 +3,7 @@
  * from last season's standings and playoff exits, AI boards that blend talent, position
  * value and need, and slotted rookie contracts.
  */
+import { recordRatings } from '../development';
 import { logTransaction } from '../finance/cap';
 import { createDraftPicks, DRAFT_ROUNDS, freeJersey, generatePlayer, MAX_FUTURE_DRAFT_YEARS, rookieContract } from '../generate';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
@@ -30,6 +31,7 @@ export function generateDraftClass(league: League, rng: Rng): void {
     p.potential = Math.round(clamp(playerOvr(p) + growth, playerOvr(p), 20) * 10) / 10;
     // Scouts see a noisy grade and an even noisier ceiling.
     p.scouting = { grade: Math.round((playerOvr(p) + rng.normal(0, 1)) * 2) / 2, ceiling: Math.round((p.potential + rng.normal(0, 1.4)) * 2) / 2 };
+    recordRatings(p, league.season);
     league.players[p.id] = p;
     league.draftClass.push(p.id);
   }

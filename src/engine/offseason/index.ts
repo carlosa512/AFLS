@@ -7,12 +7,13 @@
  * AI teams act at each step. The user's team acts through the UI, or is auto-managed by the
  * same AI when simulating straight through (`simOffseason`).
  */
-import { developPlayer } from '../development';
+import { developPlayer, recordRatings } from '../development';
 import { accelerateProration, capSheet, capSpace, logTransaction, nextCap } from '../finance/cap';
 import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
 import { Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
+import { resetScouting } from '../scouting';
 import { generateSchedule } from '../season/schedule';
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
@@ -67,7 +68,9 @@ export function beginOffseason(league: League): void {
     // Deals that just ran out keep their final year (the franchise tag is priced off it) until
     // free agency opens and clears them.
     if (p.contract && !isExpired(p.contract, league.season)) trimPast(p.contract, league.season);
+    recordRatings(p, league.season);
   }
+  resetScouting(league);
 
   generateDraftClass(league, rng);
   league.games = league.games.filter((g) => g.season >= last);

@@ -6,6 +6,7 @@ import { accelerateProration, canRestructure, capFor, capSheet, capSpace, logTra
 import { capHit, isExpired, lastSeason, remainingProration, yearOf } from '../finance/contract';
 import { fifthYearOptionValue, franchiseTagValue, leagueMarket, marketApy, minSalary, payTier, positionRank } from '../finance/market';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
+import { recordRatings } from '../development';
 import { generatePlayer } from '../generate';
 import { clamp, type Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
@@ -37,10 +38,9 @@ function depthOvrs(league: League, teamId: number): Record<Position, number[]> {
 }
 
 /** How much a player would improve a roster: a starter upgrade counts most, needed depth a little. */
-export function needGain(depth: Record<Position, number[]>, player: Player): number {
+export function needGain(depth: Record<Position, number[]>, player: Player, ovr = playerOvr(player)): number {
   const mine = depth[player.position];
   const starters = STARTERS[player.position];
-  const ovr = playerOvr(player);
   if (mine.length < starters) return Math.max(0.5, ovr - 6);
   const weakest = mine[starters - 1];
   if (ovr > weakest) return ovr - weakest + 0.5;
@@ -277,6 +277,7 @@ export function aiCutdown(league: League, team: Team): void {
 /** A replacement-level "street" free agent, for when the pool at a position has run dry. */
 function streetFreeAgent(league: League, position: Position, rng: Rng): Player {
   const p = generatePlayer(rng, { id: league.nextPlayerId++, position, quality: clamp(rng.normal(7.5, 1.2), 4, 10), age: rng.int(24, 30), teamId: null, jerseysUsed: new Set() });
+  recordRatings(p, league.season);
   league.players[p.id] = p;
   return p;
 }

@@ -4,14 +4,14 @@
  */
 import { useState } from 'react';
 import { capHit, isExpired, lastSeason } from '../../engine/finance/contract';
-import { playerOvr } from '../../engine/positions';
 import { teamPlayers } from '../../engine/roster';
 import { evaluateTrade, executeTrade, pickLabel, playerTradeBlocker, suggestSweetener, tradeCapImpact, tradeWindow, type TradeProposal } from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, Rating, TeamChip } from '../components';
+import { Panel, PlayerAvatar, TeamChip } from '../components';
 import { money } from '../format';
+import { Ovr, seenOvr } from '../scouting';
 import { liveLock } from '../live';
 import { store } from '../store';
 
@@ -26,7 +26,7 @@ function AssetList({ league, teamId, picked, onChange }: { league: League; teamI
   const nav = useNav();
   const team = league.teams[teamId];
   // Grouped by position, best first within each group, like a depth chart.
-  const players = teamPlayers(league, teamId).sort((a, b) => POSITIONS.indexOf(a.position) - POSITIONS.indexOf(b.position) || playerOvr(b) - playerOvr(a));
+  const players = teamPlayers(league, teamId).sort((a, b) => POSITIONS.indexOf(a.position) - POSITIONS.indexOf(b.position) || seenOvr(league, b) - seenOvr(league, a));
   const picks = league.draftPicks.filter((p) => p.ownerId === teamId && p.playerId === undefined).sort((a, b) => a.season - b.season || a.round - b.round);
   const row = (p: Player) => {
     const blocked = playerTradeBlocker(league, p);
@@ -43,7 +43,7 @@ function AssetList({ league, teamId, picked, onChange }: { league: League; teamI
             {p.position} · {p.age} · {isExpired(p.contract!, league.season) ? 'expiring' : `thru ${lastSeason(p.contract!)}`}
           </span>
         </span>
-        <Rating value={playerOvr(p)} decimals={1} />
+        <Ovr league={league} player={p} />
         <span className="num small">{money(Math.round(capHit(p.contract!, league.season)))}</span>
       </label>
     );

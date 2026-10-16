@@ -1,5 +1,6 @@
 import type { Attribute, League, Player, Position, Team } from '../engine/types';
-import { OFFSEASON_PHASES } from '../engine/types';
+import { ATTRIBUTES, OFFSEASON_PHASES } from '../engine/types';
+import { ATTRIBUTE_INFO } from '../engine/attributes';
 import { OVR_WEIGHTS } from '../engine/positions';
 import type { TeamRecord } from '../engine/season/standings';
 
@@ -33,27 +34,8 @@ export function band(value: number): 'b1' | 'b2' | 'b3' | 'b4' {
   return 'b1';
 }
 
-export const ATTR_LABELS: Record<Attribute, [short: string, long: string]> = {
-  speed: ['SPD', 'Speed'],
-  strength: ['STR', 'Strength'],
-  agility: ['AGI', 'Agility'],
-  awareness: ['AWR', 'Awareness'],
-  throwPower: ['THP', 'Throw power'],
-  throwAccShort: ['SAC', 'Short accuracy'],
-  throwAccDeep: ['DAC', 'Deep accuracy'],
-  carrying: ['CAR', 'Ball security'],
-  elusiveness: ['ELU', 'Elusiveness'],
-  catching: ['CTH', 'Hands'],
-  routeRunning: ['RTE', 'Route running'],
-  passBlock: ['PBK', 'Pass blocking'],
-  runBlock: ['RBK', 'Run blocking'],
-  tackling: ['TAK', 'Tackling'],
-  passRush: ['PRS', 'Pass rush'],
-  runStop: ['RST', 'Run stopping'],
-  coverage: ['COV', 'Coverage'],
-  kickPower: ['KPW', 'Kick power'],
-  kickAccuracy: ['KAC', 'Kick accuracy'],
-};
+/** [short, long] label for each attribute, from the attribute registry. */
+export const ATTR_LABELS = Object.fromEntries(ATTRIBUTES.map((a) => [a, [ATTRIBUTE_INFO[a].short, ATTRIBUTE_INFO[a].label]])) as Record<Attribute, [short: string, long: string]>;
 
 /** The attributes that matter most at a position, heaviest first. */
 export function keyAttributes(position: Position, count = 4): Attribute[] {

@@ -18,7 +18,12 @@ stories emerge from interlocking systems rather than scripts.
 
 ## How the match engine works
 
-Each play is a discrete event:
+Each play is a discrete event, resolved through named **contests**: pass protection vs. edge and
+interior rush, run blocking vs. holding the point and run fits, short and deep routes vs. short and
+deep coverage, breaking tackles vs. open-field tackling, and so on. Each contest is a weighted blend
+of ratings defined in one registry (`src/engine/attributes.ts`), so every rating that counts toward
+a player's overall has a real job on the field. `npm run audit` proves it: it raises one attribute at
+a time, replays the same games and writes the measured effects to `docs/ATTRIBUTES.md`.
 
 - **Pass:** offensive line pass-block vs. pass rush → pressure, sack, scramble or throwaway.
   Target chosen by depth and receiver quality; receiver route/speed vs. the covering defender's
@@ -37,9 +42,27 @@ Each play is a discrete event:
   timeouts, kick-now field goals, "play for the winning kick" (bleed the clock, last timeout, kick
   at the gun), onside kicks only when kicking deep can't work. `npm run endings` audits them.
 
-Calibration (10 seasons): all 23 stats inside NFL ranges: points 21.5, plays 64, YPA 7.1,
-completion 64.6%, YPC 4.1, sacks 2.4, INT 0.72, 3rd-down 40%, FG 86.5% on 1.9 attempts, home win
+Calibration (10 seasons): all 23 stats inside NFL ranges: points 21.6, plays 64, YPA 7.1,
+completion 64.2%, YPC 4.1, sacks 2.4, INT 0.75, 3rd-down 40%, FG 86.3% on 1.9 attempts, home win
 55%. Better-rated team wins ~68%.
+
+## How scouting works: what you know vs. what is true
+
+The engine always plays the true ratings. Every screen shows **what your front office believes**:
+
+- **Your own players** are known exactly (their potential is still your coaches' best guess).
+- **Everyone else** is a range that narrows with film: rookies are fuzzy, six-year veterans are
+  well known. Athleticism shows on film more easily than technique; the mental game hides longest.
+- **Draft prospects** are mostly guesswork. Each league year you get 30 **scouting visits**; each one
+  removes about a third of the remaining uncertainty on one player. Your grade sits next to the
+  league **consensus** (what AI teams draft from), so a gap is either a sleeper or a bust you avoid.
+- Errors are seeded per team and player: a report never changes on refresh, and as knowledge grows
+  the same error shrinks toward the truth. Nothing per team is stored except your scouting.
+
+On top of that: **0–4 stars** in half steps (vs. every player at the position, or vs. your starters)
+with a shaded ceiling band, a plain-language **scout's report**, **combine** measurables generated
+from true physicals plus noise (evidence, not truth), a **development chart** from yearly ratings
+snapshots, tap-to-explain rating tooltips, and a side-by-side **compare** view.
 
 ## How the front office works
 
@@ -79,8 +102,18 @@ with negotiation; 7-round draft (260 prospects, scouting grades, AI boards, rook
 camp cutdowns; trades with AI valuation and pick charts; AI-to-AI deadline trades; drag-to-reorder
 depth chart and player avatar slots; realistic end-of-game clock management.
 
+**✅ Attributes & scouting foundation (done)** — attribute registry and contest layer (every rating
+the overall counts moves play, `npm run audit`), true vs. perceived ratings with seeded per-team
+error, scouting visits, consensus vs. your board in the draft, 0–4 stars with ceiling bands, scout
+reports, combine, development history, compare view, position-first ratings with tooltips. The
+phased plan behind it is `docs/research/attributes-development-scouting-roadmap.md`.
+
 **Next: Front office depth**
-- Scouting that costs money and narrows the grade ranges; combine measurables.
+- Staff with ratings (scouts' Judging Ability/Potential, position coaches, S&C, medical), so hiring
+  changes how much you know and how fast players grow; AI teams drafting and trading on their own
+  perceived values instead of the truth.
+- NFL-calendar practice: CBA padded-practice budgets, Full/Limited/DNP, veteran rest days.
+- Development v2: position aging curves, playing time, hidden personality, mentoring.
 - Injuries (in-game and practice), injured reserve, depth that matters.
 - Player development tied to playing time and coaching; morale and holdouts (the doc's ladder).
 - Compensatory picks, RFA/ERFA tenders, LTBE/NLTBE incentives, conditional picks.
