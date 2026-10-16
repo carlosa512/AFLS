@@ -8,6 +8,11 @@ import { ATTRIBUTES } from './types';
 /** Last age of a player's prime at each position; decline starts the year after. */
 export const PEAK_END = { RB: 27, WR: 29, CB: 28, S: 29, LB: 29, EDGE: 29, DT: 30, TE: 30, OL: 31, QB: 33, K: 35, P: 35 } as const;
 
+/** Note a player's ratings at the start of a league year, for his development history. */
+export function recordRatings(player: Player, season: number): void {
+  (player.ratingHistory ??= {})[season] = ATTRIBUTES.map((a) => player.ratings[a]);
+}
+
 /** Simple age curve: growth toward potential while young, decline after the prime. */
 export function developPlayer(rng: Rng, player: Player) {
   const age = player.age;

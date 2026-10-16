@@ -5,8 +5,10 @@
 import { DIVISIONS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
 import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
+import { recordRatings } from './development';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
+import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import type { League } from './types';
 
 /** Returns the upgraded league, or null if the save is from a newer (unknown) version. */
@@ -14,6 +16,7 @@ export function migrateLeague(league: League): League | null {
   if (typeof league.version !== 'number' || league.version > SAVE_VERSION) return null;
   renameLegacyTeams(league);
   if (league.version < 2) toV2(league);
+  if (league.version < 3) toV3(league);
   return league;
 }
 
@@ -69,4 +72,15 @@ function toV2(league: League) {
   league.negotiations = {};
   league.faDay = 0;
   league.version = 2;
+}
+
+/** v2 → v3: scouting knowledge and budget, combine results, and a first ratings snapshot. */
+function toV3(league: League) {
+  league.knowledge = {};
+  league.scoutPoints = SCOUT_POINTS_PER_YEAR;
+  for (const p of Object.values(league.players)) {
+    p.combine ??= generateCombine(p);
+    if (!p.retired) recordRatings(p, league.season);
+  }
+  league.version = 3;
 }

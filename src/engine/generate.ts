@@ -8,15 +8,17 @@ import {
   ROSTER_TEMPLATE,
   STARTERS,
 } from './positions';
+import { recordRatings } from './development';
 import { buildContract, capHit, trimPast } from './finance/contract';
 import { BASE_CAP, guaranteeAsk, leagueMarket, marketApy, minSalary, rookieApy, rookieBonusShare, type Market } from './finance/market';
 import { clamp, Rng } from './rng';
 import { buildAutoDepthChart } from './roster';
+import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateSchedule } from './season/schedule';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -88,7 +90,7 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
   const [hMin, hMax, wMin, wMax] = BODY[position];
   const experience = Math.max(0, age - 22 + rng.int(-1, 0));
 
-  return {
+  const player: Player = {
     id: spec.id,
     firstName: rng.pick(FIRST_NAMES),
     lastName: rng.pick(LAST_NAMES),
@@ -105,6 +107,9 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
     personality: generatePersonality(rng),
     stats: {},
   };
+  // Seeded by the player himself: adding measurables never shifts the league's random stream.
+  player.combine = generateCombine(player);
+  return player;
 }
 
 /** A slotted four-year rookie deal for the `overall` pick in the `draftSeason` draft. */
@@ -284,6 +289,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     transactions: [],
     negotiations: {},
     faDay: 0,
+    knowledge: {},
+    scoutPoints: SCOUT_POINTS_PER_YEAR,
   };
 
   TEAM_SEEDS.forEach((seedTeam, i) => {
@@ -321,6 +328,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
           teamId: team.id,
           jerseysUsed,
         });
+        recordRatings(player, season);
         roster.push(player);
         league.players[player.id] = player;
       }

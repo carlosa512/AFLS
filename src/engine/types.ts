@@ -149,14 +149,34 @@ export interface Player {
   draft?: { season: number; round: number; pick: number; teamId: number };
   /** Times franchise-tagged (each consecutive tag costs more). */
   tagCount?: number;
-  /** Draft prospects: the scouts' read of overall and ceiling (true ratings stay hidden). */
+  /** Draft prospects: the league-wide consensus read of overall and ceiling (true ratings stay hidden). AI boards use it. */
   scouting?: { grade: number; ceiling: number };
+  /** Ratings at the start of each league year, in `ATTRIBUTES` order (league year → values). */
+  ratingHistory?: Record<number, number[]>;
+  /** Measurables and combine drills, taken once (as a prospect, or when he entered the league). */
+  combine?: Combine;
   /** What the player weighs in a negotiation; 0–1 each. */
   personality: Personality;
   /** Season year → accumulated stats. */
   stats: Record<number, StatLine>;
   /** Optional picture URL (or data: URI) supplied by a roster mod; the UI shows a placeholder otherwise. */
   portrait?: string;
+}
+
+/** Combine results. A missing drill means he skipped it. */
+export interface Combine {
+  /** Arm length and hand size, inches. */
+  arms: number;
+  hands: number;
+  /** 40-yard dash and the agility drills, seconds. */
+  forty?: number;
+  shuttle?: number;
+  cone?: number;
+  /** 225 lb bench press, reps. */
+  bench?: number;
+  /** Vertical and broad jump, inches. */
+  vertical?: number;
+  broad?: number;
 }
 
 export interface Personality {
@@ -385,4 +405,11 @@ export interface League {
   negotiations: Record<number, Negotiation>;
   /** Free-agency day within the current offseason (0 before it opens). */
   faDay: number;
+  /**
+   * What the user's scouts have learned beyond film, by player id (0–1). Only scouted players
+   * appear; everyone else's knowledge is derived (see `engine/scouting.ts`).
+   */
+  knowledge: Record<number, number>;
+  /** Scouting visits left this league year. */
+  scoutPoints: number;
 }

@@ -6,6 +6,7 @@ import { accelerateProration, canRestructure, capFor, capSheet, capSpace, logTra
 import { capHit, isExpired, lastSeason, remainingProration, yearOf } from '../finance/contract';
 import { fifthYearOptionValue, franchiseTagValue, leagueMarket, marketApy, minSalary, payTier, positionRank } from '../finance/market';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
+import { recordRatings } from '../development';
 import { generatePlayer } from '../generate';
 import { clamp, type Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
@@ -277,6 +278,7 @@ export function aiCutdown(league: League, team: Team): void {
 /** A replacement-level "street" free agent, for when the pool at a position has run dry. */
 function streetFreeAgent(league: League, position: Position, rng: Rng): Player {
   const p = generatePlayer(rng, { id: league.nextPlayerId++, position, quality: clamp(rng.normal(7.5, 1.2), 4, 10), age: rng.int(24, 30), teamId: null, jerseysUsed: new Set() });
+  recordRatings(p, league.season);
   league.players[p.id] = p;
   return p;
 }
