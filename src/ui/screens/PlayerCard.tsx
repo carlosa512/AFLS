@@ -1,21 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { playerOvr, POSITION_NAMES } from '../../engine/positions';
+import { POSITION_NAMES } from '../../engine/positions';
+import { isProspect, scoutReport } from '../../engine/scouting';
 import { passerRating } from '../../engine/stats';
-import type { Attribute, League, Player, StatLine } from '../../engine/types';
-import { useNav } from '../App';
-import { PlayerAvatar, Rating, useBackdropClose } from '../components';
+import type { League, Player, StatLine } from '../../engine/types';
+import { MAX_COMPARE, useNav } from '../App';
+import { PlayerAvatar, useBackdropClose } from '../components';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
-import { ATTR_LABELS, band, heightFt, keyAttributes } from '../format';
-
-const GROUPS: [string, Attribute[]][] = [
-  ['Physical', ['speed', 'agility', 'strength']],
-  ['Mental', ['awareness']],
-  ['Passing', ['throwPower', 'throwAccShort', 'throwAccDeep']],
-  ['Ball skills', ['carrying', 'elusiveness', 'catching', 'routeRunning']],
-  ['Blocking', ['passBlock', 'runBlock']],
-  ['Defense', ['tackling', 'passRush', 'runStop', 'coverage']],
-  ['Kicking', ['kickPower', 'kickAccuracy']],
-];
+import { band, heightFt } from '../format';
+import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, potentialText, ScoutButton, StarScaleToggle, Stars, starsOf, useStarScale, viewOf } from '../scouting';
 
 type Col = [label: string, value: (s: StatLine) => string | number];
 
@@ -83,15 +75,15 @@ function statColumns(p: Player): Col[] {
 export function PlayerCard({ league, player: p, onClose }: { league: League; player: Player; onClose: () => void }) {
   const nav = useNav();
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
-  const ovr = playerOvr(p);
-  const keys = new Set(keyAttributes(p.position, 6));
+  const view = viewOf(league, p);
+  const [scale, setScale] = useStarScale();
+  const stars = starsOf(league, p, scale, view);
+  const report = scoutReport(league, league.userTeamId, p);
+  const comparing = nav.compareIds.includes(p.id);
   const cols = statColumns(p);
   const seasons = Object.keys(p.stats)
     .map(Number)
     .sort((a, b) => b - a);
-  // Scouts see potential as a range, not an exact number.
-  const potLo = Math.max(ovr, Math.floor(p.potential - 1));
-  const potHi = Math.min(20, Math.ceil(p.potential + 1));
 
   const backdrop = useBackdropClose(onClose);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -133,7 +125,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
               {POSITION_NAMES[p.position]}
-              {team ? ` · ${team.city} ${team.name}` : ' · Free agent'}
+              {team ? ` · ${team.city} ${team.name}` : isProspect(p) ? ' · Draft prospect' : ' · Free agent'}
             </span>
             <h2 style={{ fontSize: 'var(--step-3)' }}>
               {p.firstName} {p.lastName}
@@ -146,16 +138,16 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
         <div className="sheet-body">
           <div className="facts">
             <span className="fact">
-              <span className="eyebrow">Overall</span>
-              <b>
-                <Rating value={ovr} decimals={1} />
-              </b>
+              <span className="eyebrow">{view.exact ? 'Overall' : 'Overall (scouted)'}</span>
+              <b className={`num ${band(view.ovr)}`}>{view.exact ? view.ovr.toFixed(1) : `${view.ovrLo.toFixed(1)}–${view.ovrHi.toFixed(1)}`}</b>
+            </span>
+            <span className="fact stars-fact">
+              <span className="eyebrow">Stars · {stars.basis}</span>
+              <Stars s={stars} size={22} />
             </span>
             <span className="fact">
-              <span className="eyebrow">Potential (scouted)</span>
-              <b className="num">
-                {potLo.toFixed(0)}–{potHi}
-              </b>
+              <span className="eyebrow">Potential</span>
+              <b className="num">{potentialText(view)}</b>
             </span>
             <span className="fact">
               <span className="eyebrow">Age</span>
@@ -169,43 +161,66 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             </span>
             <span className="fact">
               <span className="eyebrow">Experience</span>
-              <b className="num">{p.experience === 0 ? 'Rookie' : `${p.experience} yr`}</b>
+              <b className="num">{isProspect(p) ? 'Prospect' : p.experience === 0 ? 'Rookie' : `${p.experience} yr`}</b>
             </span>
-
+            {!view.exact && (
+              <span className="fact">
+                <span className="eyebrow">Known</span>
+                <KnowledgeMeter value={view.knowledge} />
+              </span>
+            )}
           </div>
 
-          <div className="attr-grid">
-            {GROUPS.map(([group, attrs]) => (
-              <div key={group}>
-                <div className="eyebrow" style={{ marginBottom: 2 }}>
-                  {group}
-                </div>
-                {attrs.map((a) => (
-                  <div key={a} className={`attr-row${keys.has(a) ? ' key' : ''}`}>
-                    <span>{ATTR_LABELS[a][1]}</span>
-                    <span className={`num ${band(p.ratings[a])}`} style={{ fontWeight: 600 }}>
-                      {p.ratings[a]}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ))}
+          <div className="card-actions">
+            <StarScaleToggle scale={scale} onChange={setScale} />
+            <button className="btn btn-sm" aria-pressed={comparing} disabled={!comparing && nav.compareIds.length >= MAX_COMPARE} onClick={() => nav.toggleCompare(p.id)}>
+              {comparing ? 'In comparison ✓' : 'Compare'}
+            </button>
+            {!view.exact && (
+              <>
+                <ScoutButton league={league} player={p} label="Send a scout" />
+                <span className="muted small">{league.scoutPoints} visits left this year</span>
+              </>
+            )}
           </div>
-          <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
-            Bold attributes drive this player's overall at {p.position}. Scale: 1–5 poor, 6–10 backup, 11–15 starter, 16–20 elite.
+
+          <p className="report">
+            <span className="eyebrow">Scout's report</span>
+            {report.join(' ')}
           </p>
 
-          <section className="stack" aria-label="Contract">
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <div>
-                <h3 style={{ margin: 0 }}>Contract</h3>
-                <span className="muted small">{contractLabel(league, p)}</span>
-              </div>
-              <ContractActions league={league} player={p} />
-            </div>
-            <ContractSummary league={league} player={p} />
-            <ContractYears player={p} />
+          <section className="stack" aria-label="Ratings">
+            <h3 style={{ margin: 0 }}>Ratings at {p.position}</h3>
+            <AttributeList player={p} view={view} />
+            <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
+              Bold ratings make up his overall at {p.position}; tap any rating to see what it does in a game. Scale: 1–5 poor, 6–10 backup, 11–15 starter, 16–20 elite.
+              {view.exact ? ' Arrows show the change since last season.' : ' Ranges are your scouts’ estimates; film and scouting visits narrow them.'}
+            </p>
           </section>
+
+          <section className="stack" aria-label="Development">
+            <h3 style={{ margin: 0 }}>Development{view.exact ? '' : ' (as your scouts see it)'}</h3>
+            <DevelopmentChart league={league} player={p} />
+          </section>
+
+          <section className="stack" aria-label="Combine">
+            <h3 style={{ margin: 0 }}>Combine</h3>
+            <CombinePanel player={p} />
+          </section>
+
+          {!isProspect(p) && (
+            <section className="stack" aria-label="Contract">
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>Contract</h3>
+                  <span className="muted small">{contractLabel(league, p)}</span>
+                </div>
+                <ContractActions league={league} player={p} />
+              </div>
+              <ContractSummary league={league} player={p} />
+              <ContractYears player={p} />
+            </section>
+          )}
 
           {cols.length > 0 && seasons.length > 0 && (
             <div className="table-scroll">

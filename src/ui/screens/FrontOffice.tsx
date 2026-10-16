@@ -4,16 +4,17 @@ import { lastSeason, yearsLeft } from '../../engine/finance/contract';
 import { fifthYearOptionValue } from '../../engine/finance/market';
 import { draftForUser, draftToEnd, draftToUserPick, FA_DAYS } from '../../engine/offseason';
 import { applyFranchiseTag, exerciseFifthYearOption, expiringPlayers, needGain, tagBlocker, tagValue } from '../../engine/offseason/ai';
-import { availableProspects, boardValue, draftOrder, nextPick, positionDepth } from '../../engine/offseason/draft';
+import { availableProspects, boardValue, draftOrder, nextPick, POSITION_PREMIUM, positionDepth } from '../../engine/offseason/draft';
 import { demand, extensionBlocker, freeAgents } from '../../engine/offseason/negotiation';
-import { playerOvr, POSITION_NAMES } from '../../engine/positions';
+import { POSITION_NAMES } from '../../engine/positions';
 import { teamPlayers } from '../../engine/roster';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerAvatar, Rating, TeamChip } from '../components';
-import { heightFt, money, PHASE_LABELS } from '../format';
+import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
+import { KnowledgeMeter, Ovr, potentialText, ScoutButton, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { Trades } from './Trades';
 import { store } from '../store';
 
@@ -56,8 +57,8 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
   // Worth a call: starters and promising young players, not the bottom of the depth chart.
   const extensions = teamPlayers(league, teamId)
     .filter((p) => p.contract && lastSeason(p.contract) >= league.season && yearsLeft(p.contract, league.season) <= 2 && !extensionBlocker(league, p) && p.contract.kind !== 'tag')
-    .filter((p) => playerOvr(p) >= 11 || (p.age <= 25 && p.potential >= 12))
-    .sort((a, b) => playerOvr(b) - playerOvr(a))
+    .filter((p) => seenOvr(league, p) >= 11 || (p.age <= 25 && viewOf(league, p).potHi >= 12))
+    .sort((a, b) => seenOvr(league, b) - seenOvr(league, a))
     .slice(0, 15);
   const tagged = team.taggedId ? league.players[team.taggedId] : null;
 
@@ -101,7 +102,7 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
                         <td>{p.position}</td>
                         <td className="num">{p.age}</td>
                         <td className="num">
-                          <Rating value={playerOvr(p)} decimals={1} />
+                          <Ovr league={league} player={p} />
                         </td>
                         <td className="num muted">{money(p.contract!.apy)}</td>
                         <td className="num">{money(d.market)}</td>
@@ -146,7 +147,7 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
                     </td>
                     <td>{p.position}</td>
                     <td className="num">
-                      <Rating value={playerOvr(p)} decimals={1} />
+                      <Ovr league={league} player={p} />
                     </td>
                     <td className="num">{money(fifthYearOptionValue(league, p))} in {league.season + 1}</td>
                     <td>
@@ -189,7 +190,7 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
                       <td>{p.position}</td>
                       <td className="num">{p.age}</td>
                       <td className="num">
-                        <Rating value={playerOvr(p)} decimals={1} />
+                        <Ovr league={league} player={p} />
                       </td>
                       <td className="num muted">thru {lastSeason(p.contract!)}</td>
                       <td className="num">
@@ -222,7 +223,7 @@ function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Play
     const pending = league.teams
       .filter((t) => t.id !== teamId)
       .flatMap((t) => expiringPlayers(league, t.id))
-      .sort((a, b) => playerOvr(b) - playerOvr(a))
+      .sort((a, b) => seenOvr(league, b) - seenOvr(league, a))
       .slice(0, 25);
     return (
       <Panel title="Coming to market">
@@ -240,7 +241,7 @@ function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Play
                   <td>{p.position}</td>
                   <td className="num">{p.age}</td>
                   <td className="num">
-                    <Rating value={playerOvr(p)} decimals={1} />
+                    <Ovr league={league} player={p} />
                   </td>
                   <td>
                     <TeamChip team={league.teams[p.teamId!]} />
@@ -289,7 +290,7 @@ function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Play
           </thead>
           <tbody>
             {pool.map(({ p, d }) => {
-              const gain = needGain(depth, p);
+              const gain = needGain(depth, p, seenOvr(league, p));
               return (
                 <tr key={p.id}>
                   <td className="sticky-col">
@@ -298,7 +299,7 @@ function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Play
                   <td>{p.position}</td>
                   <td className="num">{p.age}</td>
                   <td className="num">
-                    <Rating value={playerOvr(p)} decimals={1} />
+                    <Ovr league={league} player={p} />
                   </td>
                   <td>{gain >= 0.5 ? <span className="tag-pill tag-good">Would start</span> : gain > 0 ? <span className="tag-pill">Depth</span> : <span className="muted small">–</span>}</td>
                   <td className="num">{money(d.market)}</td>
@@ -322,14 +323,26 @@ function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Play
 
 // ───────── draft ─────────
 
+type BoardSort = 'consensus' | 'mine';
+
+/** Your own board value: the AI's formula, fed your scouts' grades instead of the consensus. */
+const myBoardValue = (league: League, p: Player) => {
+  const v = viewOf(league, p);
+  return 0.6 * v.ovr + 0.4 * v.potHi + POSITION_PREMIUM[p.position];
+};
+
 function Draft({ league }: { league: League }) {
   const nav = useNav();
   const [pos, setPos] = useState<Position | 'ALL'>('ALL');
+  const [sort, setSort] = useState<BoardSort>('consensus');
   const teamId = league.userTeamId;
   const myPicks = league.draftPicks.filter((p) => p.ownerId === teamId).sort((a, b) => a.season - b.season || (a.overall ?? a.round * 32) - (b.overall ?? b.round * 32));
-  const prospects = availableProspects(league)
+  const all = availableProspects(league);
+  // Consensus rank across the whole class: roughly where the league will take him.
+  const rank = new Map([...all].sort((a, b) => boardValue(b) - boardValue(a)).map((p, i) => [p.id, i + 1]));
+  const prospects = all
     .filter((p) => pos === 'ALL' || p.position === pos)
-    .sort((a, b) => boardValue(b) - boardValue(a));
+    .sort((a, b) => (sort === 'mine' ? myBoardValue(league, b) - myBoardValue(league, a) : rank.get(a.id)! - rank.get(b.id)!));
   const onClock = league.phase === 'draft' ? nextPick(league) : undefined;
   const userUp = onClock?.ownerId === teamId;
   const recent = draftOrder(league)
@@ -386,7 +399,7 @@ function Draft({ league }: { league: League }) {
                       No. {pk.overall} · {league.teams[pk.ownerId].abbrev}
                     </span>
                     <span>
-                      {p.position} {p.firstName} {p.lastName} <span className="muted small">grade {p.scouting?.grade ?? '–'}</span>
+                      {p.position} {p.firstName} {p.lastName} <span className="muted small">consensus {p.scouting?.grade ?? '–'}</span>
                     </span>
                   </li>
                 );
@@ -397,53 +410,94 @@ function Draft({ league }: { league: League }) {
       )}
 
       {prospects.length > 0 && (
-        <Panel title={league.phase === 'draft' ? 'Big board' : `${league.season} draft class`} action={<PositionFilter value={pos} onChange={setPos} />}>
+        <Panel
+          title={league.phase === 'draft' ? 'Big board' : `${league.season} draft class`}
+          action={
+            <span className="board-sort">
+              <div className="seg seg-sm" role="group" aria-label="Rank prospects by">
+                <button aria-pressed={sort === 'consensus'} onClick={() => setSort('consensus')}>
+                  Consensus
+                </button>
+                <button aria-pressed={sort === 'mine'} onClick={() => setSort('mine')}>
+                  Your board
+                </button>
+              </div>
+              <PositionFilter value={pos} onChange={setPos} />
+            </span>
+          }
+        >
           <p className="muted small" style={{ marginTop: 0 }}>
-            Ranked like a draft board: talent, upside and how much the position matters. Grades and ceilings are your scouts' estimates on the
-            1–20 scale, not the truth. Boom and bust both happen.
+            <b>Your grade</b> and <b>ceiling</b> are your scouts' estimates (a dashed grade is a guess). <b>Consensus</b> is how the rest of the league
+            rates him, and roughly where he'll go: other teams draft off it. When your read beats the consensus, you've found a sleeper; when it's
+            worse, let someone else take the bust. Each scouting visit narrows a range:{' '}
+            <b>
+              {league.scoutPoints} visit{league.scoutPoints === 1 ? '' : 's'} left
+            </b>{' '}
+            this year.
           </p>
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
+                  <th className="num">#</th>
                   <th className="sticky-col">Prospect</th>
                   <th>Pos</th>
                   <th className="num">Age</th>
-                  <th className="num">Size</th>
-                  <th className="num">Grade</th>
+                  <th className="num">40</th>
+                  <th className="num">Your grade</th>
                   <th className="num">Ceiling</th>
+                  <th>Stars</th>
+                  <th className="num">Consensus</th>
+                  <th>Known</th>
+                  <th />
                   {userUp && <th />}
                 </tr>
               </thead>
               <tbody>
-                {prospects.slice(0, 150).map((p) => (
-                  <tr key={p.id}>
-                    <td className="sticky-col">
-                      <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
-                        <PlayerAvatar player={p} team={null} size={26} />
-                        <span>
-                          {p.firstName} {p.lastName}
-                        </span>
-                      </button>
-                    </td>
-                    <td>{p.position}</td>
-                    <td className="num">{p.age}</td>
-                    <td className="num muted">
-                      {heightFt(p.heightIn)}, {p.weightLb}
-                    </td>
-                    <td className="num">
-                      <Rating value={p.scouting!.grade} decimals={1} />
-                    </td>
-                    <td className="num">{p.scouting!.ceiling.toFixed(1)}</td>
-                    {userUp && (
-                      <td>
-                        <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => draftForUser(l, p.id))}>
-                          Draft
+                {prospects.slice(0, 150).map((p) => {
+                  const v = viewOf(league, p);
+                  return (
+                    <tr key={p.id}>
+                      <td className="num muted">{rank.get(p.id)}</td>
+                      <td className="sticky-col">
+                        <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
+                          <PlayerAvatar player={p} team={null} size={26} />
+                          <span>
+                            {p.firstName} {p.lastName}
+                          </span>
                         </button>
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td>{p.position}</td>
+                      <td className="num">{p.age}</td>
+                      <td className="num muted">{p.combine?.forty?.toFixed(2) ?? '–'}</td>
+                      <td className="num">
+                        <Ovr league={league} player={p} />
+                      </td>
+                      <td className="num">
+                        {potentialText(v)}
+                      </td>
+                      <td>
+                        <Stars s={starsOf(league, p, 'league', v)} size={13} />
+                      </td>
+                      <td className="num">
+                        <Rating value={p.scouting!.grade} decimals={1} />
+                      </td>
+                      <td>
+                        <KnowledgeMeter value={v.knowledge} />
+                      </td>
+                      <td>
+                        <ScoutButton league={league} player={p} />
+                      </td>
+                      {userUp && (
+                        <td>
+                          <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => draftForUser(l, p.id))}>
+                            Draft
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

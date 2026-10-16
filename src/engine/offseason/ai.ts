@@ -38,10 +38,9 @@ function depthOvrs(league: League, teamId: number): Record<Position, number[]> {
 }
 
 /** How much a player would improve a roster: a starter upgrade counts most, needed depth a little. */
-export function needGain(depth: Record<Position, number[]>, player: Player): number {
+export function needGain(depth: Record<Position, number[]>, player: Player, ovr = playerOvr(player)): number {
   const mine = depth[player.position];
   const starters = STARTERS[player.position];
-  const ovr = playerOvr(player);
   if (mine.length < starters) return Math.max(0.5, ovr - 6);
   const weakest = mine[starters - 1];
   if (ovr > weakest) return ovr - weakest + 0.5;
