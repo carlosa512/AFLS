@@ -38,6 +38,9 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     engine resolves (`skill(player, contest)`). The match engine never reads `player.ratings` directly.
   - `scouting.ts` what a team believes: knowledge, perceived ranges (seeded per team and player),
     stars, scout reports, scouting visits, combine generation
+  - `staff.ts` scouting departments: who reads which player (`readFor`), accuracy, the staff budget,
+    contracts, the market, ageing, AI hiring. All staff changes go through this module (it keeps a
+    per-team index; `teamStaff()` returns a shared read-only list)
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula), standings + tiebreakers, playoffs
@@ -53,8 +56,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 ## Conventions
 
 - Ratings are 1–20 (FM-style). Salaries are in **thousands of dollars**.
-- **True vs. perceived:** the engine and AI use true ratings; the UI shows the user's view only, via
-  `viewOf`/`Ovr`/`RangeValue` in `ui/scouting.tsx`. Never render `player.ratings`, `playerOvr` or
+- **True vs. perceived:** the match engine, development, contracts and agents use true ratings. AI
+  front-office decisions about *other* teams' players (draft, free agency, trades) use that team's
+  own read (`perceive`, `viewCache` for loops); keep it that way. The UI shows the user's view only,
+  via `viewOf`/`Ovr`/`RangeValue` in `ui/scouting.tsx`. Never render `player.ratings`, `playerOvr` or
   `player.potential` in a screen: it leaks the truth past the fog of war.
 - No attribute without an engine hook: anything in `OVR_WEIGHTS` must feed a contest at that
   position (unit-tested) and move outcomes in `npm run audit`.

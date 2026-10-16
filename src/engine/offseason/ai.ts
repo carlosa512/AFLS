@@ -10,6 +10,7 @@ import { recordRatings } from '../development';
 import { generatePlayer } from '../generate';
 import { clamp, type Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
+import { perceive, viewCache } from '../scouting';
 import type { League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
 import { contenderScore, demand, freeAgents, offerValue, rookieReserve, rosterLimit, ROSTER_MAX, signPlayer, type Offer } from './negotiation';
@@ -142,7 +143,8 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const ovr = playerOvr(p);
     const mine = depth[p.position];
     const starterBar = mine[STARTERS[p.position] - 1] ?? 0;
-    const young = p.age <= 25 && p.potential >= 12;
+    // A team knows its own players' games; their ceilings are still its scouts' judgment.
+    const young = p.age <= 25 && perceive(league, team.id, p).potMid >= 12;
     const keeper = (ovr >= starterBar - 0.5 || young || mine.length < KEEP_MIN[p.position]) && p.age <= 33;
     if (!keeper) continue;
     const offer = aiOffer(league, team, p, rng, needGain(depth, p));
@@ -221,12 +223,14 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
   const pool = freeAgents(league)
     .map((p) => ({ p, value: marketApy(market, p) }))
     .sort((a, b) => b.value - a.value);
+  // Each front office bids on what its own scouts see; the player's price is still his real market.
+  const read = viewCache(league);
   let signings = 0;
   for (const { p } of pool) {
     let best: { team: Team; offer: Offer; value: number } | null = null;
     for (const team of teams) {
       if ((room.get(team.id) ?? 0) <= 0 || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
-      const gain = needGain(depth.get(team.id)!, p);
+      const gain = needGain(depth.get(team.id)!, p, read(team.id, p).ovr);
       if (gain < minGain.get(team.id)!) continue;
       const offer = aiOffer(league, team, p, rng, gain);
       // Year-one charge must fit; bonus spreads, so the hit is below the APY for bigger deals.
@@ -253,9 +257,9 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
 
 // ───────── training camp ─────────
 
-/** What a team loses by cutting a player: talent, upside, and any dead money it would eat. */
-function keepScore(league: League, p: Player): number {
-  const youth = p.age <= 24 ? Math.max(0, p.potential - playerOvr(p)) * 0.5 : 0;
+/** What a team loses by cutting a player: talent, upside as its scouts project it, and any dead money it would eat. */
+function keepScore(league: League, p: Player, read = viewCache(league)): number {
+  const youth = p.age <= 24 ? Math.max(0, read(p.teamId!, p).potMid - playerOvr(p)) * 0.5 : 0;
   const pre = releasePreview(league, p);
   const sunk = pre.thisYear + pre.nextYear > Math.max(0, pre.savings) ? 1.5 : 0;
   const draftee = p.draft?.season === league.season && p.draft.round <= 3 ? 2 : 0;
@@ -264,11 +268,15 @@ function keepScore(league: League, p: Player): number {
 
 /** Cut down to 53, never below the positional minimums. */
 export function aiCutdown(league: League, team: Team): void {
+  const read = viewCache(league);
   while (teamPlayers(league, team.id).length > ROSTER_MAX) {
     const roster = teamPlayers(league, team.id);
     const counts = new Map<Position, number>();
     for (const p of roster) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
-    const cut = roster.filter((p) => (counts.get(p.position) ?? 0) > KEEP_MIN[p.position]).sort((a, b) => keepScore(league, a) - keepScore(league, b))[0];
+    const cut = roster
+      .filter((p) => (counts.get(p.position) ?? 0) > KEEP_MIN[p.position])
+      .map((p) => ({ p, score: keepScore(league, p, read) }))
+      .sort((a, b) => a.score - b.score)[0]?.p;
     if (!cut) break;
     releasePlayer(league, cut);
   }
@@ -284,9 +292,11 @@ function streetFreeAgent(league: League, position: Position, rng: Rng): Player {
 
 /** Sign the best available free agent at `position` (any position if undefined) to a one-year minimum deal. */
 function signMinimum(league: League, team: Team, rng: Rng, position?: Position): boolean {
+  // The best available as this front office sees him.
   let pick = freeAgents(league)
     .filter((p) => !position || p.position === position)
-    .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
+    .map((p) => ({ p, ovr: perceive(league, team.id, p).ovr }))
+    .sort((a, b) => b.ovr - a.ovr)[0]?.p;
   if (!pick && position) pick = streetFreeAgent(league, position, rng);
   if (!pick) return false;
   const min = minSalary(pick.experience, league.caps[league.season]);
