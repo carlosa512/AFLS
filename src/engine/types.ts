@@ -32,11 +32,52 @@ export const ATTRIBUTES = [
 export type Attribute = (typeof ATTRIBUTES)[number];
 export type Ratings = Record<Attribute, number>;
 
-export interface Contract {
-  /** Salary per season, in thousands of dollars. */
-  salary: number;
-  /** Seasons remaining including the current one. */
+/** One league year of a contract. Money is in thousands of dollars. */
+export interface ContractYear {
+  season: number;
+  /** Base salary (paid weekly in season; counts on the cap in full for that year). */
+  base: number;
+  /** How much of `base` is owed even if the player is released. */
+  guaranteed: number;
+  /**
+   * Weekly checks of this season already paid (by anyone) when `base` was set. A mid-season
+   * signing or trade resets the base to cover only the weeks left, so the paid share of it is
+   * counted from here, not from week 1.
+   */
+  paidBefore?: number;
+  /** A dummy year that exists only to spread bonus money; it voids before it is played. */
+  void?: true;
+}
+
+/** Bonus money paid up front and spread evenly over at most five league years of cap. */
+export interface Proration {
+  amount: number;
+  /** First league year it counts against. */
+  start: number;
   years: number;
+  source: 'signing' | 'restructure';
+}
+
+export type ContractKind = 'rookie' | 'veteran' | 'tag' | 'minimum';
+
+/**
+ * A contract is a list of league years plus bonus prorations, not a single salary number,
+ * so every cap consequence (dead money, restructures, void years) falls out of simple formulas.
+ */
+export interface Contract {
+  kind: ContractKind;
+  signedSeason: number;
+  /** Regular-season week it was signed in; 0 = offseason, -1 = existed before the league began. Drives the trade cooldown. */
+  signedWeek: number;
+  /** Average per real year of the deal as signed (bonus included), $K. */
+  apy: number;
+  /** Real (non-void) seasons as signed. */
+  length: number;
+  /** Current and future league years (past years are dropped), including any void years. */
+  years: ContractYear[];
+  bonuses: Proration[];
+  /** First-round rookie deals carry a team option for a fifth season. */
+  fifthYearOption?: 'eligible' | 'exercised' | 'declined';
 }
 
 export const STAT_KEYS = [
@@ -100,10 +141,33 @@ export interface Player {
   ratings: Ratings;
   /** Hidden ceiling for overall rating (1–20). Revealed only through scouting. */
   potential: number;
+  /** null for free agents and retired players. */
   teamId: number | null;
-  contract: Contract;
+  /** Free agents have no contract. */
+  contract: Contract | null;
+  retired?: boolean;
+  draft?: { season: number; round: number; pick: number; teamId: number };
+  /** Times franchise-tagged (each consecutive tag costs more). */
+  tagCount?: number;
+  /** Draft prospects: the scouts' read of overall and ceiling (true ratings stay hidden). */
+  scouting?: { grade: number; ceiling: number };
+  /** What the player weighs in a negotiation; 0–1 each. */
+  personality: Personality;
   /** Season year → accumulated stats. */
   stats: Record<number, StatLine>;
+  /** Optional picture URL (or data: URI) supplied by a roster mod; the UI shows a placeholder otherwise. */
+  portrait?: string;
+}
+
+export interface Personality {
+  /** Agent greed: how far above market the opening ask sits. */
+  greed: number;
+  /** Discount for staying with the current team. */
+  loyalty: number;
+  /** How much a contender's pitch matters. */
+  winning: number;
+  /** Agent patience: how many lowball offers before talks break down. */
+  patience: number;
 }
 
 export interface Conference {
@@ -129,6 +193,74 @@ export interface Team {
   depthChart: DepthChart;
   /** If true the depth chart is rebuilt from ratings before every game. */
   autoDepth: boolean;
+  /** Dead money charged to this team, by league year. */
+  deadMoney: DeadMoney[];
+  /** Unused cap rolled over from the previous league year, in $K. */
+  carryover: number;
+  /** Post-June 1 release designations used this league year (max 2). */
+  postJune1Used: number;
+  /** Player franchise-tagged this league year, if any. */
+  taggedId?: number | null;
+  /** AI general manager tendencies (the user's team keeps one too, unused). */
+  gm: GmTraits;
+}
+
+export interface DeadMoney {
+  season: number;
+  amount: number;
+  playerId: number;
+  note: string;
+}
+
+/** Numeric traits rather than scripted behaviour, so AI front offices disagree with each other. */
+export interface GmTraits {
+  archetype: string;
+  /** Contention focus: values veterans now over picks later. */
+  winNow: number;
+  /** Willingness to restructure, push money into void years. */
+  capAggression: number;
+  /** Old-school pick chart (steep) vs analytics chart (flat). */
+  pickChart: 'johnson' | 'analytics';
+  /** Per-year discount on future draft picks (0.15–0.40). */
+  futureDiscount: number;
+  /** Pays its own stars early and is reluctant to trade them. */
+  loyalty: number;
+  /** Wants a bigger win in any trade. */
+  stubbornness: number;
+}
+
+export interface DraftPick {
+  id: number;
+  /** Draft year (the draft held in that league year's offseason). */
+  season: number;
+  round: number;
+  originalTeamId: number;
+  ownerId: number;
+  /** Overall slot once the order is known. */
+  overall?: number;
+  /** The player taken with it, once used. */
+  playerId?: number;
+}
+
+/** A user negotiation with a player (re-signing or free agency). Asks are derived, not stored. */
+export interface Negotiation {
+  playerId: number;
+  teamId: number;
+  /** Lowball offers left before the agent walks away (insults cost two). */
+  patience: number;
+  status: 'open' | 'broken';
+  /** Talks broken off in this phase reopen in the next one. */
+  brokenPhase?: Phase;
+  message?: string;
+}
+
+export interface Transaction {
+  season: number;
+  phase: Phase;
+  week: number;
+  teamIds: number[];
+  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire';
+  text: string;
 }
 
 export type PlayoffRound = 'WC' | 'DIV' | 'CONF' | 'FINAL';
@@ -157,7 +289,7 @@ export interface TeamGameStats {
 }
 
 /** What the replay viewer animates for a logged play. */
-export type PlayKind = 'run' | 'pass' | 'incomplete' | 'int' | 'sack' | 'scramble' | 'kneel' | 'penalty' | 'kickoff' | 'punt' | 'fg' | 'xp' | 'two';
+export type PlayKind = 'run' | 'pass' | 'incomplete' | 'int' | 'sack' | 'scramble' | 'kneel' | 'spike' | 'penalty' | 'kickoff' | 'punt' | 'fg' | 'xp' | 'two';
 
 export interface PlayLogEntry {
   quarter: number;
@@ -209,7 +341,12 @@ export interface Game {
   result?: GameResult;
 }
 
-export type Phase = 'regular' | 'playoffs' | 'complete';
+/**
+ * `complete` is the gap after the title game. The offseason phases belong to the next league
+ * year: `league.season` ticks over when the offseason begins, like the NFL's March new year.
+ */
+export type Phase = 'regular' | 'playoffs' | 'complete' | 'resign' | 'freeAgency' | 'draft' | 'preseason';
+export const OFFSEASON_PHASES: readonly Phase[] = ['resign', 'freeAgency', 'draft', 'preseason'];
 
 export interface SeasonSummary {
   season: number;
@@ -230,7 +367,8 @@ export interface League {
   week: number;
   phase: Phase;
   userTeamId: number;
-  salaryCap: number;
+  /** League-year salary cap, in $K, by season (future years are projections until reached). */
+  caps: Record<number, number>;
   conferences: Conference[];
   divisions: Division[];
   teams: Team[];
@@ -239,4 +377,12 @@ export interface League {
   games: Game[];
   nextGameId: number;
   history: SeasonSummary[];
+  draftPicks: DraftPick[];
+  nextPickId: number;
+  /** Prospects for the upcoming draft (player ids, teamId null until drafted). */
+  draftClass: number[];
+  transactions: Transaction[];
+  negotiations: Record<number, Negotiation>;
+  /** Free-agency day within the current offseason (0 before it opens). */
+  faDay: number;
 }

@@ -66,7 +66,8 @@ export async function loadSave(): Promise<League | null> {
     });
     if (typeof raw !== 'string') return null;
     const parsed = JSON.parse(raw) as League;
-    return parsed.version === SAVE_VERSION ? parsed : null;
+    // Older saves are upgraded by migrateLeague on load; newer ones can't be read.
+    return parsed.version <= SAVE_VERSION ? parsed : null;
   } catch {
     return null;
   }

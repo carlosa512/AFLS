@@ -2,7 +2,7 @@ import { computeRecords, conferenceSeeds, divisionStandings } from '../../engine
 import type { League } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, TeamLabel } from '../components';
-import { pct, recordText } from '../format';
+import { pct, recordText, resultsSeason } from '../format';
 
 export function PlayoffPicture({ league, conference }: { league: League; conference: number }) {
   const nav = useNav();
@@ -39,9 +39,11 @@ export function PlayoffPicture({ league, conference }: { league: League; confere
 
 export function Standings({ league }: { league: League }) {
   const nav = useNav();
-  const divisions = divisionStandings(league);
+  const season = resultsSeason(league);
+  const divisions = divisionStandings(league, computeRecords(league, season));
   return (
     <>
+      {season !== league.season && <div className="notice">Final {season} standings. The {league.season} season starts after training camp.</div>}
       {league.conferences.map((conf, c) => (
         <Panel key={conf.name} title={conf.name}>
           <div className="grid-2">

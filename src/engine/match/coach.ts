@@ -32,7 +32,10 @@ const isLateHalf = (s: Situation, seconds: number) =>
 const gameSecondsLeft = (s: Situation) => (s.quarter >= 4 ? s.clock : Infinity);
 
 export function tempo(s: Situation): Tempo {
+  if (playForFieldGoal(s)) return 'milk';
   if (s.quarter >= 4 && s.scoreDiff < 0 && s.clock <= 300) return 'hurry';
+  // Tied late with the ball in reach of field-goal range: try to win it in regulation.
+  if (s.quarter === 4 && s.scoreDiff === 0 && s.clock <= 120 && s.yardLine >= 35) return 'hurry';
   if (s.overtime && s.scoreDiff === 0 && s.clock <= 360) return 'hurry';
   if (s.quarter === 2 && s.clock <= 120 && s.yardLine >= 25) return 'hurry';
   if (s.quarter >= 4 && s.scoreDiff > 0 && s.clock <= 420) return 'milk';
@@ -40,19 +43,63 @@ export function tempo(s: Situation): Tempo {
   return 'normal';
 }
 
-/** Leading team runs out the clock with kneel-downs when the defense can't stop it. */
+/** Least game clock a "milk" pre-snap runoff burns (the offense lets the play clock run down). */
+export const MILK_RUNOFF_MIN = 36;
+/** A clock-killing fourth-down snap (the quarterback rolls out and runs around) lasts about this long. */
+export const CLOCK_KILL_SECONDS = 8;
+
+/**
+ * Victory formation. The leader kneels when the remaining downs can drain the clock:
+ * each kneel takes ~2s, then the play clock runs ~40s unless the defense calls timeout,
+ * and a fourth-down snap can burn the last few seconds.
+ */
 export function shouldKneel(s: Situation): boolean {
-  if (s.overtime || s.scoreDiff <= 0) return false;
-  if (s.quarter === 4) {
-    // Never kneel on fourth down unless the snap itself ends the game.
-    if (s.down === 4) return s.clock <= 2;
-    // Each kneel takes ~2s, then ~40s of play clock runs unless the defense calls timeout.
+  if (s.overtime) return false;
+  if (s.quarter === 4 && s.scoreDiff > 0) {
+    if (s.down === 4) return s.clock <= CLOCK_KILL_SECONDS;
     const kneels = 4 - s.down;
-    const burnable = kneels * 42 - Math.min(s.defTimeouts, kneels) * 40;
-    return s.clock <= burnable;
+    // The two-minute warning stops the clock once, and so does each timeout the defense will use.
+    const stops = (s.clock > 120 ? 1 : 0) + Math.min(defenseWillStopClock(s) ? s.defTimeouts : 0, kneels);
+    const runoffs = kneels - stops;
+    return s.clock <= kneels * 2 + Math.max(0, runoffs) * MILK_RUNOFF_MIN + CLOCK_KILL_SECONDS;
   }
-  if (s.quarter === 2) return s.clock <= 30 && s.yardLine < 50 && s.down < 4;
+  // Tied, deep in its own end with seconds left: play for overtime rather than risk a turnover.
+  if (s.quarter === 4 && s.scoreDiff === 0) return s.down < 4 && s.clock <= 25 && s.yardLine <= 30;
+  // End of the first half: kneel unless there's a realistic shot at points.
+  if (s.quarter === 2) return s.down < 4 && s.clock <= 30 && (s.yardLine < 30 || (s.scoreDiff > 0 && s.yardLine < 50));
   return false;
+}
+
+/**
+ * Tied or down by one or two and already in comfortable range late: run the clock down,
+ * stop it with the last timeout, and kick at the gun so the opponent never gets the ball back.
+ */
+export function playForFieldGoal(s: Situation): boolean {
+  return s.quarter === 4 && !s.overtime && s.scoreDiff <= 0 && s.scoreDiff >= -2 && s.fgMakeProb >= 0.85 && s.clock <= 100;
+}
+
+/** A field goal now ties or wins, and the clock can't afford another snap first. */
+export function kickNow(s: Situation): boolean {
+  if (s.quarter !== 2 && s.quarter < 4) return false;
+  const helps = s.quarter === 2 || (s.scoreDiff <= 0 && s.scoreDiff >= -3);
+  if (!helps || s.fgMakeProb < 0.25) return false;
+  if (s.clock <= 6) return true;
+  // Overtime has no "end of half" pressure until the very end; regulation does.
+  if (s.overtime) return false;
+  // Already in comfortable range: don't risk a snap that could eat the last seconds.
+  if (s.clock <= 12 && s.fgMakeProb >= 0.8) return true;
+  // Without a timeout, a play that ends in bounds runs out the clock: kick while it is stopped.
+  return s.offTimeouts === 0 && s.clock <= 20;
+}
+
+/** Out of timeouts in a two-minute drill: clock it with a spike rather than snap a play. */
+export function shouldSpike(s: Situation): boolean {
+  if (s.offTimeouts > 0 || s.down >= 4 || s.clock > 35 || s.clock < 3) return false;
+  const needPoints = s.quarter >= 4 ? s.scoreDiff <= 0 && !(s.scoreDiff === 0 && s.yardLine < 40) : s.quarter === 2 && s.yardLine >= 45;
+  if (!needPoints) return false;
+  // On third down a spike only makes sense to set up a field goal that ties or wins.
+  const fgEnough = s.quarter === 2 || s.scoreDiff >= -3;
+  return s.down < 3 || (fgEnough && s.fgMakeProb >= 0.3);
 }
 
 export function fourthDown(s: Situation, rng: Rng): FourthDown {
@@ -78,13 +125,14 @@ export function fourthDown(s: Situation, rng: Rng): FourthDown {
 
   // Analytics-era aggressiveness on short yardage.
   if (s.distance <= 1 && s.yardLine >= 40) return rng.chance(0.7) ? 'go' : inRange ? 'fg' : 'punt';
-  if (s.distance <= 2 && s.yardLine >= 55 && yardsToGoal > 3) return rng.chance(0.45) ? 'go' : inRange ? 'fg' : 'punt';
+  if (s.distance <= 2 && s.yardLine >= 55 && yardsToGoal > 3) return rng.chance(0.6) ? 'go' : inRange ? 'fg' : 'punt';
   if (s.distance <= 1 && s.yardLine >= 30) return rng.chance(0.25) ? 'go' : 'punt';
-  if (yardsToGoal <= 3 && s.distance <= 3) return rng.chance(0.55) ? 'go' : 'fg';
+  if (yardsToGoal <= 3 && s.distance <= 3) return rng.chance(0.6) ? 'go' : 'fg';
+  if (s.distance <= 4 && s.yardLine >= 60 && yardsToGoal > 3) return rng.chance(0.3) ? 'go' : s.fgMakeProb >= 0.55 ? 'fg' : 'punt';
 
   if (comfortable) return 'fg';
-  // No-man's land: a long kick, a short punt, or go for it.
-  if (inRange && s.distance > 4) return rng.chance(0.6) ? 'fg' : 'punt';
+  // No-man's land: a long kick, a short punt, or go for it. Coin-flip kicks are for the end of games.
+  if (s.fgMakeProb >= 0.55 && s.distance > 4) return rng.chance(0.6) ? 'fg' : 'punt';
   if (s.yardLine >= 62 && s.distance <= 4) return 'go';
   if (s.yardLine >= 66 && s.distance <= 7 && rng.chance(0.4)) return 'go';
   return 'punt';
@@ -107,6 +155,10 @@ export function passProbability(s: Situation): number {
   if (s.quarter >= 4 && s.scoreDiff > 0) p -= secondsLeft <= 300 ? 0.3 : 0.12;
   if (s.quarter >= 3 && s.scoreDiff >= 15) p -= 0.12;
   if (s.quarter === 2 && s.clock <= 120) p += 0.25;
+  if (playForFieldGoal(s)) return 0.05;
+  // Inside the last 40 seconds a run that ends in bounds can lose the game: throw.
+  if (s.quarter >= 4 && s.scoreDiff < 0 && secondsLeft <= 40) return 1;
+  if (s.quarter === 4 && s.scoreDiff === 0 && secondsLeft <= 40 && s.yardLine >= 40) return 0.95;
   return clamp(p, 0.08, 0.97);
 }
 
@@ -142,18 +194,31 @@ export function goForTwo(s: Situation): boolean {
   return d === -2 || d === -5 || d === -10 || d === 1 || d === 5 || (d === -1 && s.clock <= 60 && !s.overtime);
 }
 
-export function shouldOnside(scoreDiff: number, quarter: number, clock: number): boolean {
-  return quarter >= 4 && scoreDiff < 0 && scoreDiff >= -16 && clock <= 150;
+/**
+ * Onside only when kicking deep can't work: in a one-score game the defense needs enough clock
+ * stoppages to force a three-and-out and still get the ball back with time to score.
+ */
+export function shouldOnside(scoreDiff: number, quarter: number, clock: number, timeouts: number): boolean {
+  if (quarter < 4 || scoreDiff >= 0 || scoreDiff < -16) return false;
+  if (scoreDiff < -8) return clock <= 240;
+  const stops = Math.min(3, timeouts + (quarter === 4 && clock > 120 ? 1 : 0));
+  // Three snaps (~6s each), ~40s of play clock before each one we can't stop, then the punt.
+  const leftAfterPunt = clock - 18 - (3 - stops) * 40 - 8;
+  return leftAfterPunt < 35;
 }
 
 export function offenseTimeout(s: Situation): boolean {
-  if (s.offTimeouts <= 0) return false;
-  if (s.quarter >= 4 && s.scoreDiff <= 0 && s.clock <= 120) return true;
+  if (s.offTimeouts <= 0 || playForFieldGoal(s)) return false;
+  if (s.quarter >= 4 && s.scoreDiff < 0 && s.clock <= 120) return s.offTimeouts > 1 || s.clock <= 40;
+  // Tied: only worth stopping the clock once the ball is near scoring range.
+  if (s.quarter >= 4 && s.scoreDiff === 0 && s.clock <= 120) return s.yardLine >= 45;
   return s.quarter === 2 && s.clock <= 60 && s.yardLine >= 45;
 }
 
+/** A trailing defense still in the game saves time for one more possession. */
+const defenseWillStopClock = (s: Situation) => s.quarter >= 4 && s.scoreDiff > 0 && s.scoreDiff <= 16;
+
 export function defenseTimeout(s: Situation): boolean {
-  if (s.defTimeouts <= 0 || s.quarter < 4) return false;
-  // Defense is trailing and needs the ball back.
-  return s.scoreDiff > 0 && s.scoreDiff <= 16 && s.clock <= 180 && s.clock > 5;
+  if (s.defTimeouts <= 0) return false;
+  return defenseWillStopClock(s) && s.clock <= 180 && s.clock > 5;
 }

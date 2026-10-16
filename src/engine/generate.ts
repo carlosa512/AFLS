@@ -1,25 +1,27 @@
 import { FIRST_NAMES, LAST_NAMES } from './data/names';
-import { CONFERENCES, DIVISIONS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
+import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
 import {
   ATTRIBUTE_PROFILES,
   BODY,
   JERSEY_RANGES,
   overall,
-  POSITION_VALUE,
   ROSTER_TEMPLATE,
   STARTERS,
 } from './positions';
+import { buildContract, capHit, trimPast } from './finance/contract';
+import { BASE_CAP, guaranteeAsk, leagueMarket, marketApy, minSalary, rookieApy, rookieBonusShare, type Market } from './finance/market';
 import { clamp, Rng } from './rng';
 import { buildAutoDepthChart } from './roster';
 import { generateSchedule } from './season/schedule';
-import type { League, Player, Position, Ratings, Team } from './types';
+import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 /** 2026 salary cap, in thousands of dollars. */
-export const SALARY_CAP = 301_200;
-/** League-minimum salary, in thousands of dollars. */
-export const MIN_SALARY = 885;
+export const SALARY_CAP = BASE_CAP;
+export const DRAFT_ROUNDS = 7;
+/** Picks can be traded this many drafts ahead (current NFL rule; a config constant on purpose). */
+export const MAX_FUTURE_DRAFT_YEARS = 3;
 
 export function generateRatings(rng: Rng, position: Position, quality: number): Ratings {
   const profile = ATTRIBUTE_PROFILES[position];
@@ -30,11 +32,6 @@ export function generateRatings(rng: Rng, position: Position, quality: number): 
     ratings[attr] = Math.round(clamp(value, 1, 20));
   }
   return ratings;
-}
-
-/** Estimated yearly market value in $K for a player of this position and overall. */
-export function marketValue(position: Position, ovr: number): number {
-  return Math.max(MIN_SALARY, POSITION_VALUE[position] * 80_000 * Math.exp((ovr - 19) * 0.24));
 }
 
 function pickJersey(rng: Rng, position: Position, used: Set<number>): number {
@@ -56,6 +53,14 @@ function pickJersey(rng: Rng, position: Position, used: Set<number>): number {
   return 0;
 }
 
+/** The first open number in a position's usual ranges (deterministic, for signings and draftees). */
+export function freeJersey(position: Position, used: Set<number>, current?: number): number {
+  if (current !== undefined && !used.has(current)) return current;
+  for (const [lo, hi] of JERSEY_RANGES[position]) for (let n = lo; n <= hi; n++) if (!used.has(n)) return n;
+  for (let n = 1; n < 100; n++) if (!used.has(n)) return n;
+  return current ?? 0;
+}
+
 interface PlayerSpec {
   id: number;
   position: Position;
@@ -63,6 +68,15 @@ interface PlayerSpec {
   age: number;
   teamId: number | null;
   jerseysUsed: Set<number>;
+}
+
+export function generatePersonality(rng: Rng): Personality {
+  return {
+    greed: rng.float(0, 1),
+    loyalty: clamp(rng.normal(0.5, 0.22), 0, 1),
+    winning: clamp(rng.normal(0.5, 0.22), 0, 1),
+    patience: clamp(rng.normal(0.55, 0.2), 0.1, 1),
+  };
 }
 
 export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
@@ -73,16 +87,6 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
   const potential = clamp(ovr + growthYears * rng.float(0.2, 1.3) + rng.float(0, 0.8), ovr, 20);
   const [hMin, hMax, wMin, wMax] = BODY[position];
   const experience = Math.max(0, age - 22 + rng.int(-1, 0));
-
-  let salary = marketValue(position, ovr) * rng.float(0.8, 1.2);
-  let years: number;
-  if (experience < 4) {
-    // Rookie-scale deals: cheap relative to value.
-    salary *= rng.float(0.12, 0.55);
-    years = 4 - experience;
-  } else {
-    years = ovr >= 14 ? rng.int(2, 5) : rng.int(1, 3);
-  }
 
   return {
     id: spec.id,
@@ -97,9 +101,136 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
     ratings,
     potential: Math.round(potential * 10) / 10,
     teamId: spec.teamId,
-    contract: { salary: Math.round(Math.max(MIN_SALARY, salary)), years },
+    contract: null,
+    personality: generatePersonality(rng),
     stats: {},
   };
+}
+
+/** A slotted four-year rookie deal for the `overall` pick in the `draftSeason` draft. */
+export function rookieContract(overall: number, draftSeason: number, cap: number): Contract {
+  const apy = rookieApy(overall, cap);
+  const total = apy * 4;
+  const round = Math.ceil(overall / 32);
+  const bonus = total * rookieBonusShare(overall);
+  const min = minSalary(0, cap);
+  // First-rounders are fully guaranteed; Day 2 picks get their first year guaranteed.
+  const guaranteedBase = round === 1 ? total : round <= 3 ? min : 0;
+  const c = buildContract({ years: 4, total, signingBonus: bonus, guaranteedBase, voidYears: 0, escalator: 0.08 }, draftSeason, 'rookie', min);
+  if (round === 1) c.fifthYearOption = 'eligible';
+  return c;
+}
+
+/**
+ * Standard veteran structure: bigger deals carry a bigger signing bonus and early guarantees;
+ * cap-aggressive front offices push money into void years.
+ */
+export function veteranContract(rng: Rng, market: Market, player: Player, apyK: number, years: number, start: number, gm: GmTraits, signedWeek = 0): Contract {
+  const cap = market.cap;
+  const total = apyK * years;
+  const share = apyK > 0.04 * cap ? rng.float(0.28, 0.45) : apyK > 0.012 * cap ? rng.float(0.1, 0.28) : rng.float(0, 0.08);
+  const bonus = total * clamp(share + (gm.capAggression - 0.5) * 0.15, 0, 0.6);
+  const gtdShare = guaranteeAsk(market, player) * rng.float(0.8, 1.1);
+  const guaranteedBase = Math.max(0, total * gtdShare - bonus);
+  const voidYears = years < 5 && gm.capAggression > 0.75 && bonus > 0.03 * cap && rng.chance(0.6) ? rng.int(1, Math.min(3, 5 - years)) : 0;
+  const kind = apyK <= minSalary(player.experience, cap) * 1.05 ? 'minimum' : 'veteran';
+  return buildContract({ years, total, signingBonus: bonus, guaranteedBase, voidYears, escalator: rng.float(0.02, 0.07) }, start, kind, minSalary(player.experience, cap), signedWeek);
+}
+
+/** Draft slot implied by a young player's quality when the league is created (history is invented). */
+function syntheticPick(rng: Rng, ovr: number): number {
+  return Math.round(clamp(262 - (ovr - 6) * 26 + rng.normal(0, 22), 1, 262));
+}
+
+/** Contracts for the league's opening rosters: rookie deals for young players, market deals for veterans. */
+function initialContract(rng: Rng, market: Market, player: Player, season: number, gm: GmTraits): Contract {
+  const exp = player.experience;
+  const ovr = overall(player.ratings, player.position);
+  if (exp < 4) {
+    const draftSeason = season - exp;
+    const capThen = Math.round(BASE_CAP / 1.07 ** exp);
+    const pick = syntheticPick(rng, ovr - exp * 0.6);
+    let c: Contract;
+    if (pick <= DRAFT_ROUNDS * 32) {
+      c = rookieContract(pick, draftSeason, capThen);
+      player.draft = { season: draftSeason, round: Math.ceil(pick / 32), pick, teamId: player.teamId! };
+    } else {
+      // Undrafted: minimum salaries and a token bonus.
+      const min = minSalary(0, capThen);
+      c = buildContract({ years: 3, total: min * 3 + rng.int(0, 40), signingBonus: rng.int(0, 40), guaranteedBase: 0, voidYears: 0, escalator: 0.08 }, draftSeason, 'rookie', min);
+    }
+    if (c.fifthYearOption === 'eligible' && exp === 3) c.fifthYearOption = 'declined';
+    trimPast(c, season);
+    if (c.years.some((y) => !y.void)) return c;
+    // An undrafted deal that has run out: he's back on a one- or two-year minimum.
+    const min = minSalary(exp, BASE_CAP);
+    const years = rng.int(1, 2);
+    return buildContract({ years, total: min * years, signingBonus: 0, guaranteedBase: 0, voidYears: 0, escalator: 0 }, season, 'minimum', min);
+  }
+  const remaining = ovr >= 14 ? rng.int(2, 5) : rng.int(1, 3);
+  const elapsed = rng.int(0, Math.min(2, Math.max(0, 5 - remaining)));
+  const years = remaining + elapsed;
+  const capThen = Math.round(BASE_CAP / 1.07 ** elapsed);
+  const younger = { ...player, age: player.age - elapsed, experience: exp - elapsed };
+  const then = { ...market, cap: capThen };
+  const apyK = marketApy(then, younger) * rng.float(0.85, 1.15);
+  const c = veteranContract(rng, then, younger, apyK, years, season - elapsed, gm);
+  c.signedSeason = season - elapsed;
+  trimPast(c, season);
+  return c;
+}
+
+/**
+ * Nudge veteran money so a team's opening payroll lands near `target`. Rookie deals stay
+ * slotted, and the nudge is bounded so the market, not the cap, decides what stars earn.
+ */
+function fitPayroll(players: Player[], season: number, target: number): void {
+  const vets = players.filter((p) => p.contract!.kind !== 'rookie');
+  const fixed = players.filter((p) => p.contract!.kind === 'rookie').reduce((s, p) => s + capHit(p.contract!, season), 0);
+  const floor = vets.reduce((s, p) => s + minSalary(p.experience, BASE_CAP), 0);
+  const current = vets.reduce((s, p) => s + capHit(p.contract!, season), 0);
+  if (current <= floor) return;
+  let factor = clamp((target - fixed - floor) / (current - floor), 0.75, 1.5);
+  // Never open a league over the cap.
+  const ceiling = (BASE_CAP * 0.985 - fixed - floor) / (current - floor);
+  factor = Math.min(factor, ceiling);
+  for (const p of vets) {
+    const c = p.contract!;
+    const min = minSalary(p.experience, BASE_CAP);
+    for (const y of c.years) {
+      if (y.void) continue;
+      y.base = Math.round(min + Math.max(0, y.base - min) * factor);
+      y.guaranteed = Math.min(y.base, Math.round(y.guaranteed * factor));
+    }
+    for (const b of c.bonuses) b.amount = Math.round(b.amount * factor);
+    c.apy = Math.round(min + Math.max(0, c.apy - min) * factor);
+  }
+}
+
+const GM_ARCHETYPES: GmTraits[] = [
+  { archetype: 'Cap Magician', winNow: 0.7, capAggression: 0.9, pickChart: 'analytics', futureDiscount: 0.2, loyalty: 0.8, stubbornness: 0.3 },
+  { archetype: 'All-In', winNow: 0.95, capAggression: 0.7, pickChart: 'johnson', futureDiscount: 0.38, loyalty: 0.4, stubbornness: 0.2 },
+  { archetype: 'Draft and Develop', winNow: 0.35, capAggression: 0.2, pickChart: 'analytics', futureDiscount: 0.18, loyalty: 0.6, stubbornness: 0.5 },
+  { archetype: 'Can-Kicker', winNow: 0.75, capAggression: 0.85, pickChart: 'johnson', futureDiscount: 0.3, loyalty: 0.5, stubbornness: 0.3 },
+  { archetype: 'Hard-Liner', winNow: 0.55, capAggression: 0.3, pickChart: 'johnson', futureDiscount: 0.3, loyalty: 0.2, stubbornness: 0.9 },
+  { archetype: 'Pick Hoarder', winNow: 0.2, capAggression: 0.2, pickChart: 'analytics', futureDiscount: 0.15, loyalty: 0.3, stubbornness: 0.6 },
+  { archetype: 'Balanced', winNow: 0.5, capAggression: 0.5, pickChart: 'johnson', futureDiscount: 0.25, loyalty: 0.5, stubbornness: 0.5 },
+];
+
+export function generateGm(rng: Rng): GmTraits {
+  const a = rng.pick(GM_ARCHETYPES);
+  const j = (v: number) => Math.round(clamp(v + rng.normal(0, 0.08), 0, 1) * 100) / 100;
+  return { ...a, winNow: j(a.winNow), capAggression: j(a.capAggression), loyalty: j(a.loyalty), stubbornness: j(a.stubbornness), futureDiscount: clamp(j(a.futureDiscount), 0.15, 0.4) };
+}
+
+/** Each team's seven picks in the `season` draft. */
+export function createDraftPicks(league: League, season: number): void {
+  for (const team of league.teams) {
+    for (let round = 1; round <= DRAFT_ROUNDS; round++) {
+      const pick: DraftPick = { id: league.nextPickId++, season, round, originalTeamId: team.id, ownerId: team.id };
+      league.draftPicks.push(pick);
+    }
+  }
 }
 
 /** Quality (target overall) for the Nth player on the depth chart at a position. */
@@ -115,30 +246,6 @@ function slotQuality(rng: Rng, position: Position, slot: number, teamTalent: num
 function slotAge(rng: Rng, isStarter: boolean): number {
   if (isStarter) return Math.round(clamp(rng.normal(27, 3), 22, 36));
   return rng.chance(0.55) ? rng.int(22, 25) : rng.int(25, 32);
-}
-
-/** Scale salaries so total payroll lands at `target` without dropping anyone below the minimum. */
-function normalizePayroll(players: Player[], target: number): void {
-  const floor = players.length * MIN_SALARY;
-  const current = players.reduce((s, p) => s + p.contract.salary, 0);
-  if (current <= floor) return;
-  const factor = (target - floor) / (current - floor);
-  for (const p of players) {
-    p.contract.salary = Math.round(MIN_SALARY + (p.contract.salary - MIN_SALARY) * factor);
-  }
-}
-
-/** Rename teams in saves made before the switch to real NFL markets (same ids and divisions). */
-export function migrateLeague(league: League): League {
-  const first = league.teams[0];
-  if (first?.city === LEGACY_FIRST_TEAM.city && first.name === LEGACY_FIRST_TEAM.name) {
-    league.teams.forEach((team, i) => {
-      const seed = TEAM_SEEDS[i];
-      Object.assign(team, { city: seed.city, name: seed.name, abbrev: seed.abbrev, colors: [...seed.colors] });
-    });
-    league.divisions.forEach((d, i) => (d.name = DIVISIONS[i].name));
-  }
-  return league;
 }
 
 export interface NewLeagueOptions {
@@ -162,7 +269,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     week: 1,
     phase: 'regular',
     userTeamId: options.userTeamId ?? 0,
-    salaryCap: SALARY_CAP,
+    caps: { [season]: SALARY_CAP },
     conferences: CONFERENCES.map((c) => ({ ...c })),
     divisions: DIVISIONS.map((d) => ({ ...d })),
     teams: [],
@@ -171,6 +278,12 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     games: [],
     nextGameId: 1,
     history: [],
+    draftPicks: [],
+    nextPickId: 1,
+    draftClass: [],
+    transactions: [],
+    negotiations: {},
+    faDay: 0,
   };
 
   TEAM_SEEDS.forEach((seedTeam, i) => {
@@ -185,6 +298,11 @@ export function createLeague(options: NewLeagueOptions = {}): League {
       division,
       depthChart: buildAutoDepthChart([]),
       autoDepth: true,
+      deadMoney: [],
+      carryover: 0,
+      postJune1Used: 0,
+      taggedId: null,
+      gm: generateGm(rng),
     };
     league.teams.push(team);
 
@@ -207,10 +325,21 @@ export function createLeague(options: NewLeagueOptions = {}): League {
         league.players[player.id] = player;
       }
     }
-    normalizePayroll(roster, SALARY_CAP * rng.float(0.86, 0.97));
     team.depthChart = buildAutoDepthChart(roster);
   });
 
+  // Contracts are priced against the whole league's talent, so they come after every roster exists.
+  const market = leagueMarket(league);
+  for (const team of league.teams) {
+    const roster = Object.values(league.players).filter((p) => p.teamId === team.id);
+    for (const p of roster) {
+      p.contract = initialContract(rng, market, p, season, team.gm);
+      p.contract.signedWeek = -1; // part of the world as generated: no trade cooldown
+    }
+    fitPayroll(roster, season, SALARY_CAP * rng.float(0.86, 0.96));
+  }
+
+  for (let y = 1; y <= MAX_FUTURE_DRAFT_YEARS; y++) createDraftPicks(league, season + y);
   league.games = generateSchedule(league, rng);
   league.rngState = rng.getState();
   return league;

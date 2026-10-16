@@ -1,6 +1,40 @@
-import type { CSSProperties, ReactNode } from 'react';
-import type { Team } from '../engine/types';
+import { useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import type { Player, Team } from '../engine/types';
 import { band } from './format';
+
+/** Black or white, whichever reads better on `hex`. */
+function inkOn(hex: string): string {
+  const n = parseInt(hex.replace('#', '').padEnd(6, '0').slice(0, 6), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? '#121915' : '#ffffff';
+}
+
+/**
+ * A player's picture slot. Until a portrait exists (a roster mod can set `player.portrait`),
+ * it shows a neutral bust in team colours with the jersey number, so faces line up and scan
+ * like a real roster page.
+ */
+export function PlayerAvatar({ player, team, size = 32 }: { player: Player; team: Team | null; size?: number }) {
+  const label = `${player.firstName} ${player.lastName}`;
+  if (player.portrait) {
+    return <img className="avatar" src={player.portrait} alt="" width={size} height={size} loading="lazy" />;
+  }
+  const [c1, c2] = team?.colors ?? ['#4a554e', '#9aa59e'];
+  return (
+    <svg className="avatar" width={size} height={size} viewBox="0 0 40 40" role="img" aria-label={`${label} (no photo)`}>
+      <circle cx="20" cy="20" r="20" fill={c1} />
+      <circle cx="20" cy="20" r="19.25" fill="none" stroke={c2} strokeWidth="1.5" opacity="0.9" />
+      <path d="M5.5 37.5c0-9.6 6.4-14.6 14.5-14.6s14.5 5 14.5 14.6A19.5 19.5 0 0 1 5.5 37.5z" fill={c2} />
+      <circle cx="20" cy="12.6" r="6" fill="#fff" opacity="0.82" />
+      <text x="20" y="36.4" textAnchor="middle" fontSize="12" fontWeight="800" fill={inkOn(c2)} fontFamily="var(--font-display)">
+        {player.jersey}
+      </text>
+    </svg>
+  );
+}
 
 export function TeamChip({ team, large }: { team: Team; large?: boolean }) {
   const style = { '--c1': team.colors[0], '--c2': team.colors[1] } as CSSProperties;
@@ -67,5 +101,75 @@ export function Panel({ title, action, children, className }: { title?: ReactNod
       )}
       {children}
     </section>
+  );
+}
+
+/**
+ * Backdrop handlers for a modal: close only when the press both starts and ends on the backdrop
+ * itself, so a drag that begins inside (a slider, a text selection) and ends outside doesn't close it.
+ */
+export function useBackdropClose(onClose: () => void) {
+  const downOnBackdrop = useRef(false);
+  return {
+    onMouseDown: (e: ReactMouseEvent) => (downOnBackdrop.current = e.target === e.currentTarget),
+    onClick: (e: ReactMouseEvent) => {
+      if (downOnBackdrop.current && e.target === e.currentTarget) onClose();
+      downOnBackdrop.current = false;
+    },
+  };
+}
+
+/**
+ * A small modal: focus moves in, Tab stays inside, Escape closes, focus returns to the opener.
+ * Key events stop here so a dialog opened over the player card doesn't close the card too.
+ */
+export function Dialog({ title, onClose, children, footer }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const backdrop = useBackdropClose(onClose);
+  // Escape closes the top-most dialog even if focus has wandered; capture runs before the player card's handler.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      closeRef.current();
+    };
+    document.addEventListener('keydown', onEsc, true);
+    return () => document.removeEventListener('keydown', onEsc, true);
+  }, []);
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    const root = ref.current;
+    (root?.querySelector<HTMLElement>('[data-autofocus]') ?? root?.querySelector<HTMLElement>('.dialog-body input, .dialog-body select, .dialog-body button') ?? root?.querySelector<HTMLElement>('button'))?.focus();
+    return () => opener?.focus?.();
+  }, []);
+  const onKey = (e: ReactKeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key !== 'Tab' || !ref.current) return;
+    const focusable = ref.current.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input, select, [tabindex]:not([tabindex="-1"])');
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  return (
+    <div className="overlay dialog-overlay" {...backdrop} onKeyDown={onKey}>
+      <div ref={ref} className="dialog" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="dialog-head">
+          <h2>{title}</h2>
+          <button className="close-x dialog-x" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div className="dialog-body">{children}</div>
+        {footer && <div className="dialog-foot">{footer}</div>}
+      </div>
+    </div>
   );
 }

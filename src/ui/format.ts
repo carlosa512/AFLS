@@ -1,9 +1,14 @@
-import type { Attribute, Player, Position, Team } from '../engine/types';
+import type { Attribute, League, Player, Position, Team } from '../engine/types';
+import { OFFSEASON_PHASES } from '../engine/types';
 import { OVR_WEIGHTS } from '../engine/positions';
 import type { TeamRecord } from '../engine/season/standings';
 
-export const money = (thousands: number) =>
-  thousands >= 1000 ? `$${(thousands / 1000).toFixed(thousands >= 10_000 ? 1 : 2)}M` : `$${thousands}K`;
+/** $K → "$46.8M", "$885K", "-$2.3M". */
+export const money = (thousands: number): string => {
+  if (thousands < 0) return `-${money(-thousands)}`;
+  if (thousands === 0) return '$0';
+  return thousands >= 1000 ? `$${(thousands / 1000).toFixed(thousands >= 10_000 ? 1 : 2)}M` : `$${Math.round(thousands)}K`;
+};
 
 export const heightFt = (inches: number) => `${Math.floor(inches / 12)}'${inches % 12}"`;
 
@@ -62,6 +67,21 @@ export const ordinal = (n: number) => {
   const s = ['th', 'st', 'nd', 'rd'];
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
+
+/** During the offseason the league year has already rolled over; results screens show the season just played. */
+export const resultsSeason = (league: League) => (OFFSEASON_PHASES.includes(league.phase) ? league.season - 1 : league.season);
+
+export const isOffseasonPhase = (league: League) => OFFSEASON_PHASES.includes(league.phase);
+
+export const PHASE_LABELS: Record<League['phase'], string> = {
+  regular: 'Regular season',
+  playoffs: 'Playoffs',
+  complete: 'Season complete',
+  resign: 'Re-sign window',
+  freeAgency: 'Free agency',
+  draft: 'Draft',
+  preseason: 'Training camp',
 };
 
 export function weekLabel(week: number): string {

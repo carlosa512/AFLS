@@ -3,8 +3,9 @@ import { playerOvr, POSITION_NAMES } from '../../engine/positions';
 import { passerRating } from '../../engine/stats';
 import type { Attribute, League, Player, StatLine } from '../../engine/types';
 import { useNav } from '../App';
-import { Rating } from '../components';
-import { ATTR_LABELS, band, heightFt, keyAttributes, money } from '../format';
+import { PlayerAvatar, Rating, useBackdropClose } from '../components';
+import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
+import { ATTR_LABELS, band, heightFt, keyAttributes } from '../format';
 
 const GROUPS: [string, Attribute[]][] = [
   ['Physical', ['speed', 'agility', 'strength']],
@@ -92,6 +93,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const potLo = Math.max(ovr, Math.floor(p.potential - 1));
   const potHi = Math.min(20, Math.ceil(p.potential + 1));
 
+  const backdrop = useBackdropClose(onClose);
   const sheetRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -123,9 +125,10 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   }, [onClose]);
 
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="overlay" {...backdrop}>
       <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-label={`${p.firstName} ${p.lastName}`} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head" style={{ background: team?.colors[0] ?? '#333', boxShadow: `inset 0 -6px 0 ${team?.colors[1] ?? '#666'}` }}>
+          <PlayerAvatar player={p} team={team} size={64} />
           <span className="jersey">{p.jersey}</span>
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
@@ -168,12 +171,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               <span className="eyebrow">Experience</span>
               <b className="num">{p.experience === 0 ? 'Rookie' : `${p.experience} yr`}</b>
             </span>
-            <span className="fact">
-              <span className="eyebrow">Contract</span>
-              <b className="num">
-                {money(p.contract.salary)} × {p.contract.years}
-              </b>
-            </span>
+
           </div>
 
           <div className="attr-grid">
@@ -196,6 +194,18 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
             Bold attributes drive this player's overall at {p.position}. Scale: 1–5 poor, 6–10 backup, 11–15 starter, 16–20 elite.
           </p>
+
+          <section className="stack" aria-label="Contract">
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ margin: 0 }}>Contract</h3>
+                <span className="muted small">{contractLabel(league, p)}</span>
+              </div>
+              <ContractActions league={league} player={p} />
+            </div>
+            <ContractSummary league={league} player={p} />
+            <ContractYears player={p} />
+          </section>
 
           {cols.length > 0 && seasons.length > 0 && (
             <div className="table-scroll">

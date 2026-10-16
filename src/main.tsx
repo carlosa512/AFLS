@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { migrateLeague } from './engine/generate';
+import { migrateLeague } from './engine/migrate';
 import type { League } from './engine/types';
 import { App } from './ui/App';
 import { loadSave, store } from './ui/store';
@@ -27,8 +27,9 @@ function leagueFromHot(data: unknown): League | null {
 }
 
 async function start(hotData: unknown) {
-  const league = leagueFromHot(hotData) ?? (await loadSave());
-  if (league) store.set(migrateLeague(league));
+  const saved = leagueFromHot(hotData) ?? (await loadSave());
+  const league = saved && migrateLeague(saved);
+  if (league) store.set(league);
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <App />

@@ -31,28 +31,60 @@ Each play is a discrete event:
   kneel-downs, 2025 overtime rules.
 - **Coaching AI:** run/pass by down, distance, score and time; fourth-down aggressiveness;
   tempo; two-point chart.
+- **End-of-game scripts:** victory formation (kneel math knows the two-minute warning and whether
+  the defense will really use its timeouts), a clock-killing fourth-down snap, two-minute drill
+  (no runs in the last 40 seconds when trailing, scrambles to the sideline), spikes when out of
+  timeouts, kick-now field goals, "play for the winning kick" (bleed the clock, last timeout, kick
+  at the gun), onside kicks only when kicking deep can't work. `npm run endings` audits them.
 
-Calibration (10 seasons): points 22.3, plays 64, YPA 7.2, completion 64.7%, YPC 4.15, sacks 2.5,
-INT 0.77, 3rd-down 40%, FG 83.5%, home win 56%. Better-rated team wins ~69%.
+Calibration (10 seasons): all 23 stats inside NFL ranges: points 21.5, plays 64, YPA 7.1,
+completion 64.6%, YPC 4.1, sacks 2.4, INT 0.72, 3rd-down 40%, FG 86.5% on 1.9 attempts, home win
+55%. Better-rated team wins ~68%.
+
+## How the front office works
+
+Contracts are **year-by-year ledgers**, not a salary number: base salary and guarantees per league
+year, signing bonuses prorated over at most five years, optional void years. Every cap
+consequence falls out of a few formulas (see `src/engine/finance/contract.ts` and the research doc
+`docs/research/`):
+
+- **Cap:** cap hits, the offseason top-51 rule, carryover, 6–10% yearly growth with rare revenue
+  shocks, a five-year projection with void-year money shown as future dead money.
+- **Moves:** releases with dead money (pre-June 1 accelerates, post-June 1 splits; two
+  designations a year), restructures (base → bonus), extensions that keep old proration.
+- **Market:** pay follows a player's rank at his position as a share of the cap (top QB ≈ 21%,
+  elite non-QBs 13–16%); slotted rookie scale; franchise tags and fifth-year options priced off
+  the market with the real formula's lag.
+- **Negotiation:** ask = market + agent greed, a hidden walk-away, offers judged on money,
+  guarantees, term, a contender's pitch and loyalty; lowballs cost patience, insults double;
+  demands never inflate on a counter.
+- **Offseason calendar:** re-sign window → five days of free agency → draft → training camp.
+  AI GMs (Cap Magician, All-In, Draft and Develop, Can-Kicker, Hard-Liner, Pick Hoarder,
+  Balanced) re-sign, tag, bid, draft and cut by numeric traits; rich teams overpay; big deals must
+  fit next year's books. `npm run offseason` checks that talent, rosters and caps stay stable.
+- **Trades:** Jimmy Johnson vs Fitzgerald-Spielberger pick charts blended by GM style, future
+  picks discounted and projected from team strength, players valued as talent × age × term plus
+  contract surplus; the AI wants a small win, stays cap-compliant, honours a signing cooldown and
+  the week-9 deadline. Contenders and rebuilders trade with each other during the season.
 
 ## Roadmap
 
 **✅ Foundation (done)** — 32 teams in the real NFL markets (original nicknames), 53-man rosters, 1–20 ratings, contracts
 under a $301.2M cap, NFL-formula schedule, play-by-play engine, standings + tiebreakers,
-14-team playoffs, box scores, animated replay viewer, league leaders, depth chart editing, autosave, placeholder
-offseason (aging, retirements, generated rookies).
+14-team playoffs, box scores, animated replay viewer, league leaders, depth chart editing, autosave.
 
-**Next: Front office core**
-- Draft: procedurally generated college class (~350 prospects), scouting with confidence ranges
-  that narrow with investment, combine measurables, boom/bust prospects, AI draft boards.
-- Free agency and contract negotiation (asking price, years, guarantees), roster cuts to 53.
+**✅ Front office & cap MVP (done)** — year-by-year contracts, dead money, restructures, void
+years, cap projections; re-sign window, franchise tag, fifth-year options, extensions; free agency
+with negotiation; 7-round draft (260 prospects, scouting grades, AI boards, rookie scale); training
+camp cutdowns; trades with AI valuation and pick charts; AI-to-AI deadline trades; drag-to-reorder
+depth chart and player avatar slots; realistic end-of-game clock management.
+
+**Next: Front office depth**
+- Scouting that costs money and narrows the grade ranges; combine measurables.
 - Injuries (in-game and practice), injured reserve, depth that matters.
-- Player development tied to age curves by position, playing time and coaching.
-
-**Then: The cap**
-- Signing bonus proration (max 5 years), dead money on cuts and trades, restructures,
-  void years, cap projections for future seasons.
-- Trades with AI valuation (players and picks).
+- Player development tied to playing time and coaching; morale and holdouts (the doc's ladder).
+- Compensatory picks, RFA/ERFA tenders, LTBE/NLTBE incentives, conditional picks.
+- AI trade offers to the user; trade-down offers during the draft.
 
 **Then: Game day**
 - Your game plan: run/pass balance, aggressiveness, coverage shell, blitz rate.

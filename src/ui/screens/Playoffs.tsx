@@ -2,6 +2,7 @@ import { allSeeds, PLAYOFF_ROUNDS, playoffGames, ROUND_NAMES, winnerOf } from '.
 import type { Game, League } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, TeamChip } from '../components';
+import { resultsSeason } from '../format';
 import { PlayoffPicture } from './Standings';
 
 function BracketGame({ league, game, seedOf }: { league: League; game: Game; seedOf: (id: number) => number }) {
@@ -35,7 +36,8 @@ function BracketGame({ league, game, seedOf }: { league: League; game: Game; see
 }
 
 export function Playoffs({ league }: { league: League }) {
-  const games = playoffGames(league);
+  const season = resultsSeason(league);
+  const games = playoffGames(league, undefined, season);
   if (league.phase === 'regular') {
     return (
       <>
@@ -53,10 +55,10 @@ export function Playoffs({ league }: { league: League }) {
       </>
     );
   }
-  const seeds = allSeeds(league);
+  const seeds = allSeeds(league, season);
   const seedOf = (id: number) => seeds.flat().indexOf(id) % 7;
   return (
-    <Panel title={`${league.season} playoffs`}>
+    <Panel title={`${season} playoffs`}>
       <div className="table-scroll">
         <div className="bracket">
           {PLAYOFF_ROUNDS.map((round) => (
