@@ -187,6 +187,21 @@ export function perceive(league: League, teamId: number, p: Player): PlayerView 
   return { knowledge: k, exact, ratings, ovr, ovrLo, ovrHi, potLo, potHi, potMid, ovrSd, potSd, accuracy: acc, potAccuracy: accPot, readerId, potReaderId };
 }
 
+/**
+ * Views for one AI decision pass, computed once each. Nothing a pass does changes a view (knowledge
+ * and staff only move between passes), and the cache is thrown away with the pass, so a reloaded
+ * save decides exactly the same way.
+ */
+export function viewCache(league: League): (teamId: number, p: Player) => PlayerView {
+  const memo = new Map<number, PlayerView>();
+  return (teamId, p) => {
+    const key = p.id * 64 + teamId;
+    let v = memo.get(key);
+    if (!v) memo.set(key, (v = perceive(league, teamId, p)));
+    return v;
+  };
+}
+
 /** Best-guess overall for a table cell. */
 export const seenOvr = (league: League, teamId: number, p: Player) => perceive(league, teamId, p).ovr;
 

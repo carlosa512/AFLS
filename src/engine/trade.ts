@@ -18,6 +18,7 @@ import { freeJersey } from './generate';
 import { aiCutdown } from './offseason/ai';
 import { contenderScore, resetContenderCache, rosterLimit } from './offseason/negotiation';
 import { playerOvr, STARTERS } from './positions';
+import { perceive } from './scouting';
 import { clamp, type Rng } from './rng';
 import { syncDepthChart, teamPlayers, teamRatings } from './roster';
 import { computeRecords, winPct } from './season/standings';
@@ -100,6 +101,16 @@ export const pickLabel = (league: League, pick: DraftPick) =>
 const POSITION_TRADE: Record<Position, number> = { QB: 1, EDGE: 0.75, WR: 0.7, CB: 0.65, DT: 0.65, OL: 0.6, LB: 0.45, S: 0.45, TE: 0.45, RB: 0.4, K: 0.1, P: 0.08 };
 /** Pick-chart points per $1K of contract surplus: $30K ≈ one point, so $10M a year for three years ≈ a mid first. */
 const POINTS_PER_K = 1 / 30;
+/**
+ * A front office trusts its read of another team's player halfway, and never by more than this many
+ * overall points either way. Shopping a player to 31 teams finds the one that likes him most, as it
+ * should, but at most for about 20% more value, not a fantasy price.
+ */
+const TRADE_TRUST = 0.5;
+const TRADE_BAND = 0.35;
+
+/** Talent plus half the room left to grow, for a player 25 or younger. */
+const effective = (age: number, ovr: number, pot: number) => ovr + (age <= 25 ? Math.max(0, pot - ovr) * 0.5 : 0);
 
 function ageMultiplier(p: Player): number {
   const shift = p.position === 'QB' || p.position === 'K' || p.position === 'P' ? 3 : 0;
@@ -110,15 +121,20 @@ function ageMultiplier(p: Player): number {
 }
 
 /**
- * What a player is worth to `team` in pick-chart points. `leaving` = the player is currently on
- * this team (so depth is judged without him).
+ * What a player is worth to `team` in pick-chart points, as its front office sees him. `truth`
+ * values him on his real ratings instead (for tests and analysis, never for AI decisions).
  */
-export function playerValue(league: League, player: Player, team: Team): number {
+export function playerValue(league: League, player: Player, team: Team, opts: { truth?: boolean } = {}): number {
   const c = player.contract;
   if (!c) return 0;
-  const ovr = playerOvr(player);
-  const upside = player.age <= 25 ? Math.max(0, player.potential - ovr) * 0.5 : 0;
-  let base = 3000 * Math.exp((ovr + upside - 18.5) * 0.55) * POSITION_TRADE[player.position] * ageMultiplier(player);
+  // What this front office sees: exact for its own players (bar their ceilings), its scouts' read for anyone else.
+  const view = perceive(league, team.id, player);
+  const trust = opts.truth ? 0 : TRADE_TRUST;
+  const truth = effective(player.age, playerOvr(player), player.potential);
+  const misread = clamp(trust * (effective(player.age, view.ovr, view.potMid) - truth), -TRADE_BAND, TRADE_BAND);
+  // His place on their depth chart is judged the same bounded way.
+  const ovr = playerOvr(player) + clamp(trust * (view.ovr - playerOvr(player)), -TRADE_BAND, TRADE_BAND);
+  let base = 3000 * Math.exp((truth + misread - 18.5) * 0.55) * POSITION_TRADE[player.position] * ageMultiplier(player);
   const left = yearsLeft(c, league.season);
   base *= left <= 1 ? 0.6 : left === 2 ? 0.85 : 1;
   // Contenders pay for proven veterans; rebuilders don't.
@@ -252,7 +268,7 @@ export function evaluateTrade(league: League, proposal: TradeProposal, opts: { m
   const need = Math.max(give * margin, give + (opts.margin ? 0 : 25));
   if (problem) return { accepts: false, get, give, shortfall: Math.max(0, need - get), message: problem, problem };
   // Don't empty the pick cupboard unless a star comes back.
-  const star = mine.players.some((id) => playerOvr(league.players[id]) >= 16);
+  const star = mine.players.some((id) => perceive(league, ai.id, league.players[id]).ovr >= 16);
   if (theirs.picks.length > MAX_AI_PICKS && !star) {
     const rule = `${ai.name} won't send more than ${MAX_AI_PICKS} picks unless a star comes back.`;
     return { accepts: false, get, give, shortfall: 0, message: rule, problem: rule };
@@ -366,8 +382,10 @@ function aiTradeAttempt(league: League, rng: Rng): TradeProposal | null {
   const seller = rng.pick(sellers);
   // A veteran starter on a short deal who would start for the buyer.
   const buyerDepth = teamPlayers(league, buyer.id);
-  const wouldStart = (p: Player) => buyerDepth.filter((x) => x.position === p.position && playerOvr(x) >= playerOvr(p)).length < STARTERS[p.position];
-  const targets = teamPlayers(league, seller.id).filter((p) => p.age >= 26 && playerOvr(p) >= 13 && !playerTradeBlocker(league, p) && lastSeason(p.contract!) <= league.season + 1 && wouldStart(p));
+  // The buyer shops on its own scouts' read of the seller's players.
+  const seen = (p: Player) => perceive(league, buyer.id, p).ovr;
+  const wouldStart = (p: Player) => buyerDepth.filter((x) => x.position === p.position && playerOvr(x) >= seen(p)).length < STARTERS[p.position];
+  const targets = teamPlayers(league, seller.id).filter((p) => p.age >= 26 && seen(p) >= 13 && !playerTradeBlocker(league, p) && lastSeason(p.contract!) <= league.season + 1 && wouldStart(p));
   if (!targets.length) return null;
   const target = rng.pick(targets);
   const picks = league.draftPicks.filter((p) => p.ownerId === buyer.id && p.playerId === undefined).sort((a, b) => pickValue(league, b, seller.gm) - pickValue(league, a, seller.gm));

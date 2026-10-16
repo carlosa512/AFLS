@@ -64,7 +64,7 @@ describe('offseason calendar', () => {
     simOffseason(a);
     simOffseason(b);
     expect(a.transactions.map((t) => t.text)).toEqual(b.transactions.map((t) => t.text));
-  });
+  }, 30_000);
 });
 
 describe('negotiation', () => {

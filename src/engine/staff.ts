@@ -49,7 +49,25 @@ const DIRECTOR_PENALTY = 1;
 /** The effective read of a typical department: accuracy 1, i.e. the ranges every save had before staff existed. */
 const TYPICAL_READ = 12.4;
 
-export const teamStaff = (league: League, teamId: number): Staff[] => Object.values(league.staff).filter((s) => s.teamId === teamId);
+/**
+ * Every hire, dismissal, retirement and new candidate goes through this module and bumps `version`,
+ * so the per-team index below can be reused across the thousands of reads an AI pass makes. A
+ * loaded save is a new `league.staff` object and simply builds a fresh index.
+ */
+let version = 0;
+const touch = () => void version++;
+const index = new WeakMap<Record<number, Staff>, { version: number; byTeam: Map<number, Staff[]> }>();
+
+/** A team's staff. The list is shared and cached: copy it before sorting. */
+export function teamStaff(league: League, teamId: number): readonly Staff[] {
+  let hit = index.get(league.staff);
+  if (!hit || hit.version !== version) {
+    const byTeam = new Map<number, Staff[]>();
+    for (const s of Object.values(league.staff)) if (s.teamId !== null) byTeam.set(s.teamId, [...(byTeam.get(s.teamId) ?? []), s]);
+    index.set(league.staff, (hit = { version, byTeam }));
+  }
+  return hit.byTeam.get(teamId) ?? [];
+}
 export const staffMarket = (league: League): Staff[] => Object.values(league.staff).filter((s) => s.teamId === null);
 export const staffName = (s: Staff) => `${s.firstName} ${s.lastName}`;
 
@@ -61,7 +79,7 @@ export interface Read {
 }
 
 /** Who reads a player in `focus` (null for kickers and punters) for this domain and trait. */
-export function readFor(staff: Staff[], domain: Domain, focus: ScoutFocus | null, trait: StaffTrait): Read {
+export function readFor(staff: readonly Staff[], domain: Domain, focus: ScoutFocus | null, trait: StaffTrait): Read {
   const director = staff.find((s) => s.role === 'director') ?? null;
   let best: Read = { rating: (director ? director[trait] : VACANT) - DIRECTOR_PENALTY, by: director };
   if (focus) {
@@ -128,11 +146,12 @@ export type StaffMove = 'hire' | 'extend' | 'release';
 export function staffMoveProblem(league: League, teamId: number, s: Staff, move: StaffMove, years = 2): string | null {
   if (!staffWindowOpen(league)) return 'Staff moves open in the re-sign window and free agency.';
   if (move === 'release') return s.teamId === teamId ? null : 'He doesn’t work for you.';
+  const held = teamStaff(league, teamId).filter((x) => x.role === s.role && !isExpiring(league, x)).length;
   if (move === 'extend') {
     if (s.teamId !== teamId || !isExpiring(league, s)) return 'Only expiring deals can be extended.';
+    if (held >= STAFF_SLOTS[s.role]) return `His chair is taken: all ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
   } else {
     if (s.teamId !== null) return 'He isn’t available.';
-    const held = teamStaff(league, teamId).filter((x) => x.role === s.role && !isExpiring(league, x)).length;
     if (held >= STAFF_SLOTS[s.role]) return s.role === 'director' ? 'You already have a Director. Dismiss him first.' : `All ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
   }
   const over = staffAsk(league, s, years) - staffRoom(league, teamId);
@@ -140,6 +159,7 @@ export function staffMoveProblem(league: League, teamId: number, s: Staff, move:
 }
 
 function signStaff(league: League, teamId: number, s: Staff, years: number): void {
+  touch();
   s.teamId = teamId;
   s.contract = { salary: staffAsk(league, s, years), through: league.season + years - 1 };
 }
@@ -174,6 +194,7 @@ export function releaseStaff(league: League, teamId: number, staffId: number): v
 }
 
 function dismiss(league: League, s: Staff): void {
+  touch();
   const teamId = s.teamId!;
   const owed = severance(league, s);
   if (owed > 0) league.teams[teamId].staffDead.push({ season: league.season, amount: owed, name: staffName(s) });
@@ -202,6 +223,7 @@ function newStaff(league: League, rng: Rng, role: StaffRole, evaluation: number,
   };
   if (role !== 'director') s.focus = focus ?? rng.pick(FOCUSES);
   league.staff[s.id] = s;
+  touch();
   return s;
 }
 
@@ -290,6 +312,7 @@ export const staffTrendLabel = (age: number) => (age < 35 ? 'Rising' : age < 55 
  * candidates arrive. Old severance is forgotten.
  */
 export function developStaff(league: League): void {
+  touch();
   const rng = new Rng(`${league.seed}:staff:dev:${league.season}`);
   for (const s of Object.values(league.staff)) {
     s.age++;
@@ -305,6 +328,33 @@ export function developStaff(league: League): void {
   }
   for (const team of league.teams) team.staffDead = team.staffDead.filter((d) => d.season >= league.season);
   refreshMarket(league, rng);
+  touch();
+}
+
+export type ResignOutlook = 'stays' | 'budget' | 'chair';
+
+/**
+ * What happens to each of the user's expiring deals when the re-sign window closes, if he does
+ * nothing more: best first, each re-signs for two years at his ask while a chair and the budget
+ * allow. The screen and the calendar both use this, so the forecast is the outcome.
+ */
+export function resignForecast(league: League, teamId: number): Map<number, ResignOutlook> {
+  const mine = teamStaff(league, teamId);
+  const taken: Partial<Record<StaffRole, number>> = {};
+  let room = staffRoom(league, teamId);
+  const out = new Map<number, ResignOutlook>();
+  for (const s of mine.filter((x) => isExpiring(league, x)).sort((a, b) => staffValue(b) - staffValue(a))) {
+    const held = mine.filter((x) => x.role === s.role && !isExpiring(league, x)).length + (taken[s.role] ?? 0);
+    const ask = staffAsk(league, s, 2);
+    if (held >= STAFF_SLOTS[s.role]) out.set(s.id, 'chair');
+    else if (ask > room) out.set(s.id, 'budget');
+    else {
+      out.set(s.id, 'stays');
+      taken[s.role] = (taken[s.role] ?? 0) + 1;
+      room -= ask;
+    }
+  }
+  return out;
 }
 
 /**
@@ -316,14 +366,13 @@ export function developStaff(league: League): void {
 export function staffWindowCloses(league: League, opts: { autoUser?: boolean } = {}): void {
   const rng = new Rng(`${league.seed}:staff:window:${league.season}`);
   const user = league.userTeamId;
-  for (const s of teamStaff(league, user).filter((x) => isExpiring(league, x)).sort((a, b) => staffValue(b) - staffValue(a))) {
-    // A replacement hired in the window already holds the chair.
-    const chairFree = teamStaff(league, user).filter((x) => x.role === s.role && !isExpiring(league, x)).length < STAFF_SLOTS[s.role];
-    if (!opts.autoUser && chairFree && staffAsk(league, s, 2) <= staffRoom(league, user)) {
-      signStaff(league, user, s, 2);
-      logStaff(league, user, `${league.teams[user].abbrev} re-signed ${ROLE_LABEL[s.role].toLowerCase()} ${staffName(s)} (2 yr)`);
-    } else if (!opts.autoUser) {
-      dismiss(league, s);
+  if (!opts.autoUser) {
+    for (const [id, outlook] of resignForecast(league, user)) {
+      const s = league.staff[id];
+      if (outlook === 'stays') {
+        signStaff(league, user, s, 2);
+        logStaff(league, user, `${league.teams[user].abbrev} re-signed ${ROLE_LABEL[s.role].toLowerCase()} ${staffName(s)} (2 yr)`);
+      } else dismiss(league, s);
     }
   }
   const teams = rng.shuffle(league.teams.filter((t) => opts.autoUser || t.id !== user));
@@ -437,9 +486,13 @@ export interface ReadChange {
   to: number;
 }
 
-/** What hiring `s` would change in the team's reads (replacing its Director, if he's one). */
+/**
+ * What hiring `s` would change in the team's reads (replacing its Director, if he's one), against
+ * the department as it will stand: expiring staff forecast to re-sign count as staying.
+ */
 export function previewHire(league: League, teamId: number, s: Staff): ReadChange[] {
-  const now = teamStaff(league, teamId).filter((x) => !isExpiring(league, x));
+  const forecast = resignForecast(league, teamId);
+  const now = teamStaff(league, teamId).filter((x) => !isExpiring(league, x) || forecast.get(x.id) === 'stays');
   const after = [...now.filter((x) => s.role !== 'director' || x.role !== 'director'), s];
   const out: ReadChange[] = [];
   for (const g of GROUPS) {

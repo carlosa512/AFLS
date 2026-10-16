@@ -1998,3 +1998,179 @@ details.more > summary {
   gap: 8px 14px;
   align-items: center;
 }
+
+/* ───────── scouting staff ───────── */
+/* Five front-office tabs don't fit a phone side by side: tighten them, and scroll inside the bar as a last resort. */
+.office-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.office-tabs button {
+  flex: none;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .office-tabs button {
+    padding: 6px 9px;
+  }
+}
+.staff-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.tag-warn {
+  background: color-mix(in srgb, var(--tie) 20%, var(--surface));
+  color: var(--tie);
+}
+.staff-bar {
+  height: 8px;
+  margin-top: 12px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.staff-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--series-1);
+}
+.staff-bar.over i {
+  background: var(--loss);
+}
+.staff-lede {
+  margin: 10px 0 0;
+}
+.staff-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  background: var(--surface-2);
+}
+.staff-anchor {
+  scroll-margin-top: 130px;
+}
+.read-table th,
+.read-table td {
+  padding-block: 7px;
+}
+.read-table th[scope='row'] {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--step--1);
+  color: var(--ink);
+  font-weight: 600;
+}
+.read-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+}
+.staff-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.staff-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  min-width: 0;
+}
+.staff-card.expiring {
+  border-color: color-mix(in srgb, var(--marker) 75%, var(--line));
+  background: color-mix(in srgb, var(--marker) 11%, var(--surface));
+}
+.staff-card.vacant {
+  border-style: dashed;
+  background: none;
+}
+.staff-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.staff-head > div {
+  display: grid;
+  min-width: 0;
+}
+.staff-name {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  line-height: 1.2;
+}
+.staff-age {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.staff-age b {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+}
+.staff-note,
+.staff-preview,
+.staff-why {
+  margin: 0;
+}
+.staff-preview {
+  font-weight: 600;
+}
+.staff-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.league-grades tr.me td {
+  background: color-mix(in srgb, var(--marker) 14%, transparent);
+}
+.grade {
+  display: inline-block;
+  min-width: 1.9em;
+  padding: 1px 6px;
+  border-radius: 5px;
+  text-align: center;
+  font-family: var(--font-data);
+  font-weight: 700;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.grade-A,
+.grade-B {
+  background: color-mix(in srgb, var(--win) 16%, var(--surface));
+  color: var(--win);
+}
+.grade-D,
+.grade-F {
+  background: color-mix(in srgb, var(--loss) 14%, var(--surface));
+  color: var(--loss);
+}
+.read-by {
+  margin: -4px 0 0;
+}
+.staff-card .facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+/* A table's screen-reader text is absolutely positioned; without a positioned parent it escapes the scroll box and widens the page. */
+.rating.est {
+  position: relative;
+}
