@@ -8,7 +8,7 @@ import { availableProspects, boardValue, draftOrder, nextPick, POSITION_PREMIUM,
 import { demand, extensionBlocker, freeAgents } from '../../engine/offseason/negotiation';
 import { POSITION_NAMES } from '../../engine/positions';
 import { teamPlayers } from '../../engine/roster';
-import { isExpiring, teamStaff } from '../../engine/staff';
+import { resignForecast, staffName } from '../../engine/staff';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
@@ -553,7 +553,10 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
     ['trades', 'Trades'],
     ['staff', 'Staff'],
   ];
-  const staffDue = league.phase === 'resign' ? teamStaff(league, league.userTeamId).filter((s) => isExpiring(league, s)).length : 0;
+  // What the end of the window will do with the staff deals that are up, as the engine will do it.
+  const forecast = league.phase === 'resign' ? [...resignForecast(league, league.userTeamId)] : [];
+  const staffDue = forecast.length;
+  const leaving = forecast.filter(([, o]) => o !== 'stays').map(([id]) => staffName(league.staff[id]));
   return (
     <>
       <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -572,7 +575,10 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
       {staffDue > 0 && active !== 'staff' && (
         <div className="notice staff-notice">
           <span>
-            {staffDue === 1 ? '1 scouting staff deal is up. He re-signs automatically unless you let him go.' : `${staffDue} scouting staff deals are up. They re-sign automatically unless you let them go.`}
+            {staffDue === 1 ? '1 scouting staff deal is up.' : `${staffDue} scouting staff deals are up.`}{' '}
+            {leaving.length === 0
+              ? `${staffDue === 1 ? 'He re-signs' : 'They re-sign'} automatically unless you let ${staffDue === 1 ? 'him' : 'them'} go.`
+              : `${leaving.join(' and ')} will leave (no chair or budget for ${leaving.length === 1 ? 'him' : 'them'}); ${staffDue - leaving.length === 0 ? 'nobody else is up' : 'the rest re-sign automatically'}.`}
           </span>
           <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'staff' })}>
             Review staff

@@ -3,7 +3,7 @@
  * Staff ratings are public, so they show exactly; what they do to a *player's* ratings stays behind
  * the fog of war (see ui/scouting.tsx).
  */
-import { useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   departmentGrades,
   extendStaff,
@@ -14,6 +14,7 @@ import {
   hireStaff,
   isExpiring,
   previewHire,
+  pushedOutBy,
   readFor,
   releaseStaff,
   resignForecast,
@@ -26,6 +27,7 @@ import {
   staffMoveProblem,
   staffName,
   staffPayroll,
+  staffRoomAfterResigns,
   STAFF_SLOTS,
   staffTrendLabel,
   staffValue,
@@ -55,6 +57,9 @@ const ROLE_TABS: [StaffRole, string][] = [
   ['proScout', 'Pro'],
 ];
 const TERMS = [1, 2, 3];
+
+/** One polite live region for the screen: what the last staff move did. */
+const Announce = createContext<(text: string) => void>(() => {});
 
 const roleLine = (s: Staff) => `${ROLE_LABEL[s.role]}${s.focus ? ` · ${FOCUS_LABEL[s.focus]}` : ''}`;
 const sumDead = (league: League, teamId: number) => league.teams[teamId].staffDead.filter((d) => d.season === league.season).reduce((n, d) => n + d.amount, 0);
@@ -93,6 +98,12 @@ function Member({ league, s, open, outlook }: { league: League; s: Staff; open: 
   const [years, setYears] = useState(2);
   // Dismissing someone under contract costs real money: ask once more.
   const [confirming, setConfirming] = useState(false);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus();
+  }, [confirming]);
+  const announce = useContext(Announce);
+  const name = staffName(s);
   const releaseProblem = staffMoveProblem(league, teamId, s, 'release');
   const extendProblem = expiring ? staffMoveProblem(league, teamId, s, 'extend', years) : null;
   const pay = severance(league, s);
@@ -132,11 +143,29 @@ function Member({ league, s, open, outlook }: { league: League; s: Staff; open: 
                 : `Deal up: re-signs for 2 years at ${money(staffAsk(league, s, 2))} when free agency opens unless you let him go.`}
           </p>
           <div className="staff-actions">
-            <button className="btn btn-sm" disabled={!!releaseProblem} title={releaseProblem ?? undefined} onClick={() => store.mutate((l) => releaseStaff(l, l.userTeamId, s.id))}>
+            <button
+              className="btn btn-sm"
+              aria-label={`Let ${name} go`}
+              disabled={!!releaseProblem}
+              title={releaseProblem ?? undefined}
+              onClick={() => {
+                store.mutate((l) => releaseStaff(l, l.userTeamId, s.id));
+                announce(`Let ${name} go.`);
+              }}
+            >
               Let go
             </button>
-            <Term value={years} onChange={setYears} label={`Extension length for ${staffName(s)}`} />
-            <button className="btn btn-sm btn-primary" disabled={!!extendProblem} title={extendProblem ?? undefined} onClick={() => store.mutate((l) => extendStaff(l, l.userTeamId, s.id, years))}>
+            <Term value={years} onChange={setYears} label={`Extension length for ${name}`} />
+            <button
+              className="btn btn-sm btn-primary"
+              aria-label={`Extend ${name} for ${years} year${years > 1 ? 's' : ''} at ${money(staffAsk(league, s, years))} a year`}
+              disabled={!!extendProblem}
+              title={extendProblem ?? undefined}
+              onClick={() => {
+                store.mutate((l) => extendStaff(l, l.userTeamId, s.id, years));
+                announce(`Extended ${name} for ${years} year${years > 1 ? 's' : ''}.`);
+              }}
+            >
               Extend · {money(staffAsk(league, s, years))}/yr
             </button>
           </div>
@@ -145,15 +174,28 @@ function Member({ league, s, open, outlook }: { league: League; s: Staff; open: 
         <div className="staff-actions">
           {confirming ? (
             <>
-              <button className="btn btn-sm btn-danger" onClick={() => store.mutate((l) => releaseStaff(l, l.userTeamId, s.id))}>
-                Pay {money(pay)} and dismiss
+              <button
+                ref={confirmRef}
+                className="btn btn-sm btn-danger"
+                onClick={() => {
+                  store.mutate((l) => releaseStaff(l, l.userTeamId, s.id));
+                  announce(`Dismissed ${name}; ${money(pay)} severance booked.`);
+                }}
+              >
+                Pay {money(pay)} and dismiss {s.firstName}
               </button>
               <button className="btn btn-sm btn-ghost" onClick={() => setConfirming(false)}>
                 Keep him
               </button>
             </>
           ) : (
-            <button className="btn btn-sm" disabled={!!releaseProblem} title={releaseProblem ?? undefined} onClick={() => (pay > 0 ? setConfirming(true) : store.mutate((l) => releaseStaff(l, l.userTeamId, s.id)))}>
+            <button
+              className="btn btn-sm"
+              aria-label={`Dismiss ${name}${pay > 0 ? `, ${money(pay)} severance` : ''}`}
+              disabled={!!releaseProblem}
+              title={releaseProblem ?? undefined}
+              onClick={() => (pay > 0 ? setConfirming(true) : store.mutate((l) => releaseStaff(l, l.userTeamId, s.id)))}
+            >
               Dismiss{pay > 0 ? ` · ${money(pay)} severance` : ''}
             </button>
           )}
@@ -166,22 +208,28 @@ function Member({ league, s, open, outlook }: { league: League; s: Staff; open: 
 
 // ───────── candidates ─────────
 
-/** The biggest gains a hire brings, evaluation first: "Sharpens prospects on the offensive line: 10 → 14". */
+/**
+ * The biggest gains a hire brings, evaluation first ("Sharpens prospects on the offensive line:
+ * 10 → 14"), and the biggest loss if he pushes someone out or replaces a better Director.
+ */
 function previewText(changes: ReadChange[]): string {
-  const gains = changes
-    .filter((c) => c.to > c.from)
-    .sort((a, b) => (a.trait === b.trait ? 0 : a.trait === 'evaluation' ? -1 : 1) || b.to - b.from - (a.to - a.from))
-    .slice(0, 2);
-  if (!gains.length) return 'No gain over your current staff';
+  const byImpact = (a: ReadChange, b: ReadChange) => (a.trait === b.trait ? 0 : a.trait === 'evaluation' ? -1 : 1) || Math.abs(b.to - b.from) - Math.abs(a.to - a.from);
   const part = (c: ReadChange) => `${c.trait === 'projection' ? 'ceilings of ' : ''}${c.domain === 'college' ? 'prospects' : 'pros'} on ${phrase(c.group)}: ${c.from} → ${c.to}`;
-  return `Sharpens ${gains.map(part).join(', and ')}`;
+  const gains = changes.filter((c) => c.to > c.from).sort(byImpact).slice(0, 2);
+  const loss = changes.filter((c) => c.to < c.from).sort(byImpact)[0];
+  const text = gains.length ? `Sharpens ${gains.map(part).join(', and ')}` : 'No gain over your current staff';
+  return loss ? `${text}. Weakens ${part(loss)}` : text;
 }
 
 function Candidate({ league, s, open }: { league: League; s: Staff; open: boolean }) {
   const teamId = league.userTeamId;
   const [years, setYears] = useState(2);
   const problem = staffMoveProblem(league, teamId, s, 'hire', years);
-  const preview = previewText(previewHire(league, teamId, s));
+  const preview = previewText(previewHire(league, teamId, s, years));
+  // Hiring now can cost an expiring man his re-signing: his chair or his money goes to the new hire.
+  const pushed = problem ? [] : pushedOutBy(league, teamId, s, years);
+  const announce = useContext(Announce);
+  const name = staffName(s);
   return (
     <li className="staff-card">
       <div className="staff-head">
@@ -207,9 +255,19 @@ function Candidate({ league, s, open }: { league: League; s: Staff; open: boolea
         </span>
       </div>
       <p className={`small staff-preview${preview.startsWith('No gain') ? ' muted' : ''}`}>{preview}</p>
+      {pushed.length > 0 && <p className="small tone-bad staff-preview">Hiring him means {pushed.map(staffName).join(' and ')} won’t be re-signed.</p>}
       <div className="staff-actions">
-        <Term value={years} onChange={setYears} label={`Contract length for ${staffName(s)}`} />
-        <button className="btn btn-sm btn-primary" disabled={!!problem} title={problem ?? undefined} onClick={() => store.mutate((l) => hireStaff(l, l.userTeamId, s.id, years))}>
+        <Term value={years} onChange={setYears} label={`Contract length for ${name}`} />
+        <button
+          className="btn btn-sm btn-primary"
+          aria-label={`Hire ${name} for ${years} year${years > 1 ? 's' : ''} at ${money(staffAsk(league, s, years))} a year`}
+          disabled={!!problem}
+          title={problem ?? undefined}
+          onClick={() => {
+            store.mutate((l) => hireStaff(l, l.userTeamId, s.id, years));
+            announce(`Hired ${name}.`);
+          }}
+        >
           Hire · {money(staffAsk(league, s, years))}/yr
         </button>
       </div>
@@ -242,11 +300,15 @@ export function StaffScreen({ league }: { league: League }) {
   const mine = [...teamStaff(league, teamId)].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || staffValue(b) - staffValue(a));
   const [role, setRole] = useState<StaffRole>('collegeScout');
   const [focus, setFocus] = useState<ScoutFocus | 'any'>('any');
+  const [showAll, setShowAll] = useState(false);
+  const [status, setStatus] = useState('');
   const candidatesRef = useRef<HTMLDivElement>(null);
+  const candidatesHeading = useRef<HTMLHeadingElement>(null);
 
   const payroll = staffPayroll(league, teamId);
   const budget = staffBudget(league, teamId);
-  const room = budget - payroll;
+  // What's really left once the deals that are up re-sign, as they will unless let go.
+  const room = staffRoomAfterResigns(league, teamId);
   const dead = sumDead(league, teamId);
   const grades = departmentGrades(league);
   const mineGrade = grades.get(teamId)!;
@@ -256,8 +318,11 @@ export function StaffScreen({ league }: { league: League }) {
   const showCandidates = (r: StaffRole, f: ScoutFocus | 'any') => {
     setRole(r);
     setFocus(f);
+    setShowAll(false);
     const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     candidatesRef.current?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+    // Keyboard and screen-reader users land where the list starts, not back on the button.
+    candidatesHeading.current?.focus({ preventScroll: true });
   };
 
   const spotRole: StaffRole = spot.group === null ? 'director' : SCOUT_ROLE[spot.domain];
@@ -270,8 +335,15 @@ export function StaffScreen({ league }: { league: League }) {
   const expiringCount = mine.filter((s) => isExpiring(league, s)).length;
   const pct = budget > 0 ? Math.min(100, Math.max(0, (payroll / budget) * 100)) : 100;
 
+  const director = mine.find((s) => s.role === 'director');
+  const LIMIT = 6;
+  const shown = showAll ? candidates : candidates.slice(0, LIMIT);
+
   return (
-    <>
+    <Announce.Provider value={setStatus}>
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {status}
+      </p>
       {!open && <div className="notice">Staff moves open in the re-sign window and free agency.</div>}
 
       <Panel title="Scouting staff">
@@ -283,7 +355,7 @@ export function StaffScreen({ league }: { league: League }) {
             </b>
           </span>
           <span className="fact">
-            <span className="eyebrow">Room left</span>
+            <span className="eyebrow">{expiringCount > 0 ? 'Room after re-signs' : 'Room left'}</span>
             <b className={`num${room < 0 ? ' tone-bad' : ''}`}>{money(room)}</b>
           </span>
           <span className="fact">
@@ -317,7 +389,7 @@ export function StaffScreen({ league }: { league: League }) {
 
       <Panel title="How your staff reads players">
         <p className="muted small" style={{ marginTop: 0 }}>
-          The number is who reads each group for you and how well. A scout reads his own group best; the Director covers any group nobody specialises in, a step below his rating.
+          The number is how well each group is read for you, and by whom: whoever scores highest. A scout gets +3 on his own group and −3 on others; the Director reads every group at his rating −1.
         </p>
         <div className="table-scroll">
           <table className="read-table">
@@ -375,12 +447,23 @@ export function StaffScreen({ league }: { league: League }) {
 
       <div ref={candidatesRef} className="staff-anchor">
         <Panel
-          title="Candidates"
+          title={
+            <h2 ref={candidatesHeading} tabIndex={-1}>
+              Candidates
+            </h2>
+          }
           action={
             <span className="board-sort">
               <div className="seg seg-sm" role="group" aria-label="Candidate role">
                 {ROLE_TABS.map(([key, label]) => (
-                  <button key={key} aria-pressed={role === key} onClick={() => setRole(key)}>
+                  <button
+                    key={key}
+                    aria-pressed={role === key}
+                    onClick={() => {
+                      setRole(key);
+                      setShowAll(false);
+                    }}
+                  >
                     {label}
                   </button>
                 ))}
@@ -399,18 +482,31 @@ export function StaffScreen({ league }: { league: League }) {
           }
         >
           <p className="muted small" style={{ marginTop: 0 }}>
-            Best first. {role === 'director' ? 'You can only hold one Director, so dismiss yours before hiring another. ' : ''}Each hire shows how he would change your reads.
+            Best first.{' '}
+            {role === 'director'
+              ? director && isExpiring(league, director)
+                ? 'Hiring one replaces your Director, whose deal is up. '
+                : 'You can only hold one Director, so dismiss yours before hiring another. '
+              : ''}
+            Each hire shows how he would change your reads.
           </p>
           {candidates.length === 0 ? (
             <p className="muted" style={{ margin: 0 }}>
               Nobody on the market fits that filter.
             </p>
           ) : (
-            <ul className="staff-grid">
-              {candidates.map((s) => (
-                <Candidate key={s.id} league={league} s={s} open={open} />
-              ))}
-            </ul>
+            <>
+              <ul className="staff-grid">
+                {shown.map((s) => (
+                  <Candidate key={s.id} league={league} s={s} open={open} />
+                ))}
+              </ul>
+              {candidates.length > LIMIT && (
+                <button className="btn btn-sm btn-ghost" style={{ marginTop: 10 }} onClick={() => setShowAll(!showAll)}>
+                  {showAll ? `Show the best ${LIMIT}` : `Show all ${candidates.length}`}
+                </button>
+              )}
+            </>
           )}
         </Panel>
       </div>
@@ -455,6 +551,6 @@ export function StaffScreen({ league }: { league: League }) {
           </div>
         </details>
       </Panel>
-    </>
+    </Announce.Provider>
   );
 }

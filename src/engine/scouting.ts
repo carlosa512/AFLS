@@ -134,11 +134,13 @@ export function perceive(league: League, teamId: number, p: Player): PlayerView 
   const potReaderId = projRead?.by?.id ?? null;
   // The team's lasting impression of the player, and the current readers' own take on him.
   const rng = new Rng(`${league.seed}:view:${teamId}:${p.id}`);
-  const own = new Rng(`${league.seed}:view:${teamId}:${p.id}:${readerId ?? 0}-${potReaderId ?? 0}`);
-  const mix = () => 0.8 * rng.normal() + 0.6 * own.normal();
+  // The evaluator's own take on today's ratings; the projector's on the ceiling. Changing one
+  // reader leaves the other's opinions alone.
+  const ownEval = new Rng(`${league.seed}:view:${teamId}:${p.id}:${readerId ?? 0}`);
+  const mix = () => 0.8 * rng.normal() + 0.6 * ownEval.normal();
   // A scout who is high on a player tends to be high on all of him; each trait adds its own miss.
   const zPlayer = mix();
-  const zPot = mix();
+  const zPot = 0.8 * rng.normal() + (p.age < 26 ? 0.6 * new Rng(`${league.seed}:view:${teamId}:${p.id}:pot:${potReaderId ?? 0}`).normal() : 0);
   const weights = OVR_WEIGHTS[p.position];
   const ratings = {} as Record<Attribute, RatingView>;
   const centers = {} as Ratings;

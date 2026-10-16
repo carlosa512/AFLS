@@ -80,7 +80,8 @@ export interface Read {
 
 /** Who reads a player in `focus` (null for kickers and punters) for this domain and trait. */
 export function readFor(staff: readonly Staff[], domain: Domain, focus: ScoutFocus | null, trait: StaffTrait): Read {
-  const director = staff.find((s) => s.role === 'director') ?? null;
+  // One Director, except in the re-sign window when a replacement overlaps the man whose deal is up: the better one reads.
+  const director = staff.reduce<Staff | null>((best, s) => (s.role === 'director' && (!best || s[trait] > best[trait]) ? s : best), null);
   let best: Read = { rating: (director ? director[trait] : VACANT) - DIRECTOR_PENALTY, by: director };
   if (focus) {
     for (const s of staff) {
@@ -338,10 +339,11 @@ export type ResignOutlook = 'stays' | 'budget' | 'chair';
  * nothing more: best first, each re-signs for two years at his ask while a chair and the budget
  * allow. The screen and the calendar both use this, so the forecast is the outcome.
  */
-export function resignForecast(league: League, teamId: number): Map<number, ResignOutlook> {
+export function resignForecast(league: League, teamId: number, hire?: { s: Staff; years: number }): Map<number, ResignOutlook> {
   const mine = teamStaff(league, teamId);
-  const taken: Partial<Record<StaffRole, number>> = {};
-  let room = staffRoom(league, teamId);
+  // A hire in the window takes his chair and his salary before the expiring deals are decided.
+  const taken: Partial<Record<StaffRole, number>> = hire ? { [hire.s.role]: 1 } : {};
+  let room = staffRoom(league, teamId) - (hire ? staffAsk(league, hire.s, hire.years) : 0);
   const out = new Map<number, ResignOutlook>();
   for (const s of mine.filter((x) => isExpiring(league, x)).sort((a, b) => staffValue(b) - staffValue(a))) {
     const held = mine.filter((x) => x.role === s.role && !isExpiring(league, x)).length + (taken[s.role] ?? 0);
@@ -355,6 +357,20 @@ export function resignForecast(league: League, teamId: number): Map<number, Resi
     }
   }
   return out;
+}
+
+/** Budget left once the expiring staff forecast to stay have re-signed. */
+export function staffRoomAfterResigns(league: League, teamId: number): number {
+  let room = staffRoom(league, teamId);
+  for (const [id, outlook] of resignForecast(league, teamId)) if (outlook === 'stays') room -= staffAsk(league, league.staff[id], 2);
+  return room;
+}
+
+/** Expiring staff who would re-sign today but not after this hire (it takes their chair or their money). */
+export function pushedOutBy(league: League, teamId: number, s: Staff, years = 2): Staff[] {
+  const before = resignForecast(league, teamId);
+  const after = resignForecast(league, teamId, { s, years });
+  return [...before].filter(([id, outlook]) => outlook === 'stays' && after.get(id) !== 'stays').map(([id]) => league.staff[id]);
 }
 
 /**
@@ -399,12 +415,15 @@ function fillChairs(league: League, team: Team, rng: Rng, goal = staffGoal(leagu
       const mine = teamStaff(league, team.id);
       if (mine.filter((s) => s.role === role).length >= target[role]) break;
       const covered = new Set(mine.filter((s) => s.role === role).map((s) => s.focus));
-      // Leave enough room to fill the other open chairs at the cheapest asks.
+      // Leave room to fill the other open chairs at cheap asks; if that leaves nobody affordable,
+      // hire the best that fits now and leave a later chair open instead.
       const open = ROLES.reduce((n, r) => n + Math.max(0, target[r] - mine.filter((s) => s.role === r).length), 0) - 1;
-      const room = staffRoom(league, team.id) - open * 700;
+      const reserve = open * 700 * (capOf(league) / BASE_CAP);
       const years = rng.int(1, 3);
-      const pick = staffMarket(league)
-        .filter((s) => s.role === role && staffAsk(league, s, years) <= room)
+      const affordable = (room: number) => staffMarket(league).filter((s) => s.role === role && staffAsk(league, s, years) <= room);
+      const room = staffRoom(league, team.id);
+      const pool = affordable(room - reserve).length ? affordable(room - reserve) : affordable(room);
+      const pick = pool
         .map((s) => ({ s, score: Math.abs(staffValue(s) - goal) + rng.normal(0, 0.6) - (s.focus && !covered.has(s.focus) ? 1.5 : 0) }))
         .sort((a, b) => a.score - b.score)[0]?.s;
       if (pick) {
@@ -487,13 +506,14 @@ export interface ReadChange {
 }
 
 /**
- * What hiring `s` would change in the team's reads (replacing its Director, if he's one), against
- * the department as it will stand: expiring staff forecast to re-sign count as staying.
+ * What hiring `s` would change in the team's reads (replacing its Director, if he's one), comparing
+ * the department as it will stand with and without him: expiring staff forecast to re-sign count as
+ * staying, and anyone the hire would push out counts as gone, so losses show as well as gains.
  */
-export function previewHire(league: League, teamId: number, s: Staff): ReadChange[] {
-  const forecast = resignForecast(league, teamId);
-  const now = teamStaff(league, teamId).filter((x) => !isExpiring(league, x) || forecast.get(x.id) === 'stays');
-  const after = [...now.filter((x) => s.role !== 'director' || x.role !== 'director'), s];
+export function previewHire(league: League, teamId: number, s: Staff, years = 2): ReadChange[] {
+  const staying = (forecast: Map<number, ResignOutlook>) => teamStaff(league, teamId).filter((x) => !isExpiring(league, x) || forecast.get(x.id) === 'stays');
+  const now = staying(resignForecast(league, teamId));
+  const after = [...staying(resignForecast(league, teamId, { s, years })).filter((x) => s.role !== 'director' || x.role !== 'director'), s];
   const out: ReadChange[] = [];
   for (const g of GROUPS) {
     for (const domain of ['college', 'pro'] as const) {

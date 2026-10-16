@@ -104,7 +104,8 @@ const POINTS_PER_K = 1 / 30;
 /**
  * A front office trusts its read of another team's player halfway, and never by more than this many
  * overall points either way. Shopping a player to 31 teams finds the one that likes him most, as it
- * should, but at most for about 20% more value, not a fantasy price.
+ * should, but for at most about 20% more value, not a fantasy price. (The one exception is a player
+ * right at a team's starter line, where a small misread can move him across it, either way.)
  */
 const TRADE_TRUST = 0.5;
 const TRADE_BAND = 0.35;

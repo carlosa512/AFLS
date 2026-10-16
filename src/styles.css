@@ -1629,7 +1629,7 @@ tr.void-year td {
 }
 .tag-good {
   background: color-mix(in srgb, var(--win) 18%, var(--surface));
-  color: var(--win);
+  color: color-mix(in srgb, var(--win) 75%, var(--ink));
 }
 .field-row {
   display: grid;
@@ -2024,7 +2024,8 @@ details.more > summary {
 }
 .tag-warn {
   background: color-mix(in srgb, var(--tie) 20%, var(--surface));
-  color: var(--tie);
+  /* Pulled toward the ink so small pill text clears 4.5:1 in both themes. */
+  color: color-mix(in srgb, var(--tie) 62%, var(--ink));
 }
 .staff-bar {
   height: 8px;
@@ -2155,12 +2156,12 @@ details.more > summary {
 .grade-A,
 .grade-B {
   background: color-mix(in srgb, var(--win) 16%, var(--surface));
-  color: var(--win);
+  color: color-mix(in srgb, var(--win) 75%, var(--ink));
 }
 .grade-D,
 .grade-F {
   background: color-mix(in srgb, var(--loss) 14%, var(--surface));
-  color: var(--loss);
+  color: color-mix(in srgb, var(--loss) 80%, var(--ink));
 }
 .read-by {
   margin: -4px 0 0;
@@ -2173,4 +2174,14 @@ details.more > summary {
 /* A table's screen-reader text is absolutely positioned; without a positioned parent it escapes the scroll box and widens the page. */
 .rating.est {
   position: relative;
+}
+
+/* The dark theme's danger red is light: dark text reads on it, white doesn't. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .btn-danger {
+    color: #1d0806;
+  }
+}
+:root[data-theme='dark'] .btn-danger {
+  color: #1d0806;
 }

@@ -90,8 +90,9 @@ export function Trades({ league }: { league: League }) {
   const need = verdict ? Math.max(1, verdict.get + verdict.shortfall) : 1;
   // The fill is coarse on purpose: a smooth bar would let you read the AI's exact valuation off it.
   // Rounding down means a full bar only ever means "they would accept".
-  const fill = verdict ? (verdict.accepts ? 1 : Math.floor(Math.min(1, Math.max(0, verdict.get / need)) * 10) / 10) : 0;
-  const mood = !verdict ? 'No offer yet' : verdict.accepts ? 'They would accept' : fill >= 0.8 ? 'Close' : fill >= 0.4 ? 'Some way off' : 'Far apart';
+  // A rule problem (cap, roster, window) isn't about value: the bar stays empty and says so.
+  const fill = !verdict || verdict.problem ? 0 : verdict.accepts ? 1 : Math.floor(Math.min(1, Math.max(0, verdict.get / need)) * 10) / 10;
+  const mood = !verdict ? 'No offer yet' : verdict.problem ? 'Blocked by a rule' : verdict.accepts ? 'They would accept' : fill >= 0.8 ? 'Close' : fill >= 0.4 ? 'Some way off' : 'Far apart';
 
   const propose = () => {
     let text = '';

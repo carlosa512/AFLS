@@ -4,24 +4,28 @@ import { createLeague, SAVE_VERSION } from './generate';
 import { simToEndOfSeason } from './league';
 import { migrateLeague } from './migrate';
 import { advanceOffseason, beginOffseason, simOffseason } from './offseason';
-import { draftOrder, simDraft } from './offseason/draft';
+import { boardOf, draftOrder, simDraft } from './offseason/draft';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
-import { isProspect, perceive } from './scouting';
+import { isProspect, knowledge, perceive } from './scouting';
 import {
   accuracy,
   departmentScore,
+  ensureStaffed,
   extendStaff,
   hireStaff,
   isExpiring,
   previewHire,
+  pushedOutBy,
   readFor,
   releaseStaff,
+  resignForecast,
   staffAsk,
   staffBudget,
   staffMarket,
   staffMoveProblem,
   staffPayroll,
+  STAFF_SLOTS,
   staffValue,
   teamStaff,
 } from './staff';
@@ -78,11 +82,19 @@ describe('scouting departments', () => {
 
   it('reads a group with its specialist, an off-focus scout poorly, and the Director as fallback', () => {
     const mk = (role: Staff['role'], evaluation: number, focus?: Staff['focus']): Staff => ({ id: 0, firstName: 'A', lastName: 'B', role, age: 40, evaluation, projection: evaluation, focus, teamId: 0, contract: null });
-    const staff = [mk('director', 12), mk('collegeScout', 13, 'line'), mk('collegeScout', 14, 'back')];
-    expect(readFor(staff, 'college', 'line', 'evaluation').rating).toBe(16);
-    expect(readFor(staff, 'college', 'skill', 'evaluation').rating).toBe(11); // Director 12 - 1 beats 14 - 3
-    expect(readFor(staff, 'pro', 'line', 'evaluation').rating).toBe(11); // no pro scouts
-    expect(readFor(staff, 'college', null, 'evaluation').by?.role).toBe('director');
+    const director = mk('director', 12);
+    const line = mk('collegeScout', 13, 'line');
+    const back = mk('collegeScout', 16, 'back');
+    const staff = [director, line, back];
+    expect(readFor(staff, 'college', 'line', 'evaluation')).toEqual({ rating: 16, by: line });
+    // Off his group the back scout reads 16 - 3 = 13, which beats the Director's 12 - 1 = 11.
+    expect(readFor(staff, 'college', 'skill', 'evaluation')).toEqual({ rating: 13, by: back });
+    // No pro scouts: the Director reads every pro group.
+    expect(readFor(staff, 'pro', 'line', 'evaluation')).toEqual({ rating: 11, by: director });
+    expect(readFor(staff, 'college', null, 'evaluation').by).toBe(director);
+    // Two Directors overlap in the re-sign window: the better one reads.
+    const newDirector = mk('director', 15);
+    expect(readFor([director, newDirector], 'pro', 'back', 'evaluation').by).toBe(newDirector);
     expect(readFor([], 'pro', 'back', 'evaluation')).toEqual({ rating: 4, by: null });
     expect(accuracy(18)).toBeLessThan(accuracy(12));
     expect(accuracy(30)).toBeGreaterThanOrEqual(0.45);
@@ -112,6 +124,23 @@ describe('scouting departments', () => {
       expect(inside / total).toBeGreaterThan(0.8);
     }
   }, 30_000);
+
+  it('keeps the evaluator’s opinion when only the ceiling reader changes', () => {
+    const l = offseason('readers');
+    // A young pro (he gets a ceiling read) on another team.
+    const p = Object.values(l.players).find((x) => x.teamId !== null && x.teamId !== l.userTeamId && x.age <= 23)!;
+    const before = perceive(l, l.userTeamId, p);
+    const copy = createLeagueCopy(l);
+    // A projection-only specialist in his group takes the ceiling read and nothing else.
+    const seer: Staff = { id: copy.nextStaffId++, firstName: 'C', lastName: 'Seer', role: 'proScout', age: 40, evaluation: 1, projection: 20, focus: undefined, teamId: copy.userTeamId, contract: { salary: 1, through: copy.season + 1 } };
+    seer.focus = (['skill', 'line', 'front', 'back'] as const).find((f) => f === ({ QB: 'skill', RB: 'skill', WR: 'skill', TE: 'skill', OL: 'line', DT: 'front', EDGE: 'front', LB: 'front', CB: 'back', S: 'back' } as Record<string, string>)[p.position]);
+    copy.staff[seer.id] = seer;
+    const after = perceive(createLeagueCopy(copy), copy.userTeamId, p);
+    if (p.position !== 'K' && p.position !== 'P') expect(after.potReaderId).toBe(seer.id);
+    expect(after.readerId).toBe(before.readerId);
+    expect(after.ovr).toBe(before.ovr);
+    expect(after.ratings).toEqual(before.ratings);
+  });
 
   it('gives a new reader his own opinion instead of just rescaling the old one', () => {
     const l = offseason('opinion');
@@ -195,15 +224,60 @@ describe('staff moves', () => {
     }
   });
 
-  it('previews what a hire would sharpen', () => {
+  it('previews what a hire would change, losses included', () => {
     const l = offseason('preview');
     const user = l.userTeamId;
     const star = staffMarket(l).find((s) => s.role === 'collegeScout')!;
     star.evaluation = 20;
     star.projection = 20;
     const changes = previewHire(l, user, star);
-    expect(changes.length).toBeGreaterThan(0);
-    for (const c of changes) expect(c.to).toBeGreaterThan(c.from);
+    expect(changes.some((c) => c.to > c.from)).toBe(true);
+    // Only someone he pushes out can make a read worse.
+    if (!pushedOutBy(l, user, star).length) for (const c of changes) expect(c.to).toBeGreaterThan(c.from);
+    // A worse Director than the incumbent shows as losses (he would replace him).
+    const weak = staffMarket(l).find((s) => s.role === 'director')!;
+    weak.evaluation = 2;
+    weak.projection = 2;
+    expect(previewHire(l, user, weak).some((c) => c.to < c.from)).toBe(true);
+  });
+
+  it('applies exactly what the re-sign forecast promised', () => {
+    const l = offseason('forecast');
+    const user = l.userTeamId;
+    const expiring = teamStaff(l, user).filter((s) => isExpiring(l, s));
+    const scout = expiring.find((s) => s.role !== 'director')!;
+    expect(scout).toBeDefined();
+    // Fill every chair of his role with hires: his chair is gone, and he can't be extended into it.
+    while (teamStaff(l, user).filter((s) => s.role === scout.role && !isExpiring(l, s)).length < STAFF_SLOTS[scout.role]) {
+      const cheap = staffMarket(l)
+        .filter((s) => s.role === scout.role)
+        .sort((a, b) => staffAsk(l, a) - staffAsk(l, b))[0];
+      l.teams[user].staffBudgetMult = 5; // money is not the question here
+      hireStaff(l, user, cheap.id, 1);
+    }
+    expect(resignForecast(l, user).get(scout.id)).toBe('chair');
+    expect(staffMoveProblem(l, user, scout, 'extend')).toMatch(/chair is taken/);
+    // And a budget too small for anyone's raise.
+    l.teams[user].staffBudgetMult = 0.05;
+    const forecast = resignForecast(l, user);
+    for (const s of expiring) if (s !== scout) expect(forecast.get(s.id)).toBe('budget');
+    advanceOffseason(l); // the window closes
+    for (const [id, outlook] of forecast) {
+      const s = l.staff[id];
+      if (outlook === 'stays') expect(s.teamId).toBe(user);
+      else expect(s?.teamId ?? null).not.toBe(user);
+    }
+    for (const role of ['director', 'collegeScout', 'proScout'] as const) expect(teamStaff(l, user).filter((s) => s.role === role).length).toBeLessThanOrEqual(STAFF_SLOTS[role]);
+  });
+
+  it('fills an AI team’s empty chairs before the season', () => {
+    const l = offseason('chairs');
+    const ai = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const director = teamStaff(l, ai.id).find((s) => s.role === 'director')!;
+    delete l.staff[director.id];
+    const copy = createLeagueCopy(l); // a fresh staff index, as after a reload
+    ensureStaffed(copy);
+    expect(teamStaff(copy, ai.id).some((s) => s.role === 'director')).toBe(true);
   });
 
   it('keeps the staff economy steady over several offseasons', () => {
@@ -254,10 +328,32 @@ describe('AI front offices on their own reads', () => {
     }
     ratios.sort((x, y) => x - y);
     expect(ratios[Math.floor(ratios.length / 2)]).toBeCloseTo(1, 1);
+    // Both tails: underrating is bounded the same way.
+    expect(ratios[Math.floor(ratios.length * 0.01)]).toBeGreaterThan(0.8);
+    expect(ratios[0]).toBeGreaterThan(0.25);
     expect(ratios[Math.floor(ratios.length * 0.95)]).toBeLessThan(1.1);
     expect(ratios[Math.floor(ratios.length * 0.99)]).toBeLessThan(1.25);
     // The rare tail: a misread that tips him over a team's starter line.
     expect(ratios.at(-1)!).toBeLessThan(2);
+  }, 30_000);
+
+  it('build boards no worse than the consensus, and scout prospects near their own picks', () => {
+    const l = offseason('boards');
+    const prospects = l.draftClass.map((id) => l.players[id]).filter(isProspect);
+    const rms = (xs: number[]) => Math.sqrt(xs.reduce((a, x) => a + x * x, 0) / xs.length);
+    const consensus = rms(prospects.map((p) => p.scouting!.grade - playerOvr(p)));
+    for (const team of l.teams.filter((t) => t.id !== l.userTeamId)) {
+      const own = rms(prospects.map((p) => boardOf(l, team.id, p).grade - playerOvr(p)));
+      expect(own, team.abbrev).toBeLessThan(consensus);
+    }
+    // A team knows prospects around its first-round slot better than ones far from any of its picks.
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const slots = l.draftPicks.filter((pk) => pk.season === l.season && pk.ownerId === team.id && pk.round <= 2).map((pk) => pk.overall!);
+    const ranked = [...prospects].sort((a, b) => 0.6 * b.scouting!.grade + 0.4 * b.scouting!.ceiling - (0.6 * a.scouting!.grade + 0.4 * a.scouting!.ceiling));
+    const near = ranked[slots[0] - 1];
+    const far = ranked.find((_, i) => slots.every((s) => i + 1 < s - 10 || i + 1 > s + 30) && i > 60 && i < 200)!;
+    expect(knowledge(l, team.id, near)).toBeGreaterThan(0.45);
+    expect(knowledge(l, team.id, far)).toBeLessThan(0.4);
   }, 30_000);
 
   it('keeps AI-only belief helpers out of the screens', () => {

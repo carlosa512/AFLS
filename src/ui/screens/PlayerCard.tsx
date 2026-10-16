@@ -82,7 +82,8 @@ function readByText(league: League, view: PlayerView, p: Player): string {
   };
   const reader = who(view.readerId);
   if (!reader) return 'Nobody reads him: your Director’s chair is empty.';
-  const ceiling = view.potReaderId !== view.readerId ? who(view.potReaderId) : null;
+  // Only players still growing get a ceiling read; past 25 it's just his overall.
+  const ceiling = p.age < 26 && view.potReaderId !== view.readerId ? who(view.potReaderId) : null;
   return `Read by ${reader}.${ceiling ? ` Ceiling read by ${ceiling}.` : ''}`;
 }
 
