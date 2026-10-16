@@ -84,6 +84,65 @@ with a shaded ceiling band, a plain-language **scout's report**, **combine** mea
 from true physicals plus noise (evidence, not truth), a **development chart** from yearly ratings
 snapshots, tap-to-explain rating tooltips, and a side-by-side **compare** view.
 
+## How players develop and age
+
+Development runs once a year, at the start of the league year, on each player's own random stream
+(so tuning it never reshuffles drafts or schedules). `npm run careers` checks the results against
+the real-world ranges in the research doc.
+
+- **Growth (under 26):** each year a player closes part of the gap to his hidden ceiling. Two things
+  move the pace: his **work ethic**, which spans about ×0.5 to ×1.5, and **reps**. Reps are the
+  share of last season's games he played. At 21 practice carries most of the growth; by 24 games do.
+  A starter grows about 15% faster than average, and a player who never sees the field about 30%
+  slower. Growth lands where it can still happen: physical tools are about done by 25, and late
+  gains are technique and the mental game.
+- **Aging:** one table per position (`aging.ts`) decides when each family of ratings starts to slip:
+  - **Physical tools** go first.
+  - **Technique** holds through the prime.
+  - **The mental game** keeps sharpening for three more years.
+
+  How it plays out by position:
+  - **Backs** peak around 26 and fall hard from 28.
+  - **Receivers, corners and the front seven** start fading at 29–30.
+  - **Linemen and tight ends** hold into their early 30s.
+  - **Quarterbacks** lose their legs from about 30. Their arm, accuracy and reads hold to 34, and
+    they keep improving their technique until 29. A pocket passer therefore lasts and a runner
+    doesn't, with no archetype field.
+  - **Kickers and punters** last to the mid-30s.
+
+  The same table also drives contract asks, contract lengths and trade values, so a 30-year-old back
+  looks old to everyone.
+- **Retirement** follows the same clock. Players under contract hang on until their body tells them
+  to stop: there is no retirement risk until about three years past their position's prime, and
+  then it rises each year. Unsigned veterans and washed-up players walk away sooner.
+
+**Hidden traits** (1–20 each, generated per player, never shown as numbers):
+
+| Trait | What it does |
+|---|---|
+| Work ethic | How much of his ceiling he reaches, and how gently he declines |
+| Durability (body clock) | Starts his decline up to two years early or late, sets how steep it is, and when he retires |
+| Temperament | Linemen only: a hothead jumps early and grabs (false starts, offside, holding), a calm one rarely draws a flag |
+
+Other traits from the research (consistency, big-game play, injury proneness, adaptability,
+versatility) wait for the systems they would drive, such as per-game form, injuries and schemes.
+"No engine hook, no trait" applies to them too.
+
+**Scouts describe makeup in words.** Once a team knows a player well enough (knowledge 0.5, so
+about a year of film for a veteran, or a scouting visit for a prospect), its scouts label what
+stands out:
+- Work ethic: Model pro, Driven, Coasts, Needs a push.
+- Durability: Built to last, Wears down early.
+- Temperament: Hothead, Even-keeled.
+
+The projection scout judges makeup and body; the evaluator sees the flags. Reads carry the same
+seeded, reader-owned error as ratings, and are marked "early word" while they're still loose. The
+player card adds a career outlook ("Prime through about 29; his physical tools start to fade after
+about 28"). It also flags young players of yours who need reps.
+
+AI front offices weigh the work ethic they read: a grinder they've sat down with gets more of his
+ceiling on their draft board, re-sign and cut lists, and trade value.
+
 ## How the front office works
 
 Contracts are **year-by-year ledgers**, not a salary number: base salary and guarantees per league
@@ -133,13 +192,18 @@ budget, ageing and a market; reads that depend on who's reading; AI teams drafti
 and trading on their own reads; the Staff screen. `npm run offseason` now also reports draft quality
 and the staff economy.
 
+**✅ Development v2 & hidden traits (done)** — position aging curves from one table (physical tools
+first, the mental game last; QB legs vs arm), per-player body clocks, growth from reps and work
+ethic, position-aware retirement, temperament on the line's penalties, makeup read in words by your
+scouts, career outlook, "needs reps", AI boards that weigh work ethic, `npm run careers`.
+
 **Next: Front office depth**
-- Coaching staff with ratings (position coaches, S&C, medical) once development v2 and injuries give
-  them something to drive.
+- Coaching staff with ratings (position coaches, S&C, medical): development already takes a coaching
+  `rate`, so they plug straight in.
 - NFL-calendar practice: CBA padded-practice budgets, Full/Limited/DNP, veteran rest days.
-- Development v2: position aging curves, playing time, hidden personality, mentoring.
-- Injuries (in-game and practice), injured reserve, depth that matters.
-- Player development tied to playing time and coaching; morale and holdouts (the doc's ladder).
+- Mentoring in position rooms; morale (playing time, contract, results) and holdouts.
+- Injuries (in-game and practice), injured reserve, depth that matters; injury proneness and
+  per-game form (consistency, big games) with them.
 - Compensatory picks, RFA/ERFA tenders, LTBE/NLTBE incentives, conditional picks.
 - AI trade offers to the user; trade-down offers during the draft.
 

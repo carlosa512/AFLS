@@ -3,6 +3,7 @@
  * minimum salaries and franchise-tag values. Anchored to 2021–2026 NFL deals (see
  * docs/research): elite QBs ≈ 20% of the cap, elite non-QBs 13–17%.
  */
+import { ageShift } from '../aging';
 import { playerOvr, STARTERS } from '../positions';
 import { clamp } from '../rng';
 import type { League, Player, Position } from '../types';
@@ -86,8 +87,7 @@ export function positionRank(market: Market, player: Player): number {
 
 /** Ageing veterans get shorter, cheaper deals; quarterbacks and kickers age later. */
 export function ageFactor(position: Position, age: number): number {
-  const shift = position === 'QB' || position === 'K' || position === 'P' ? 4 : position === 'RB' ? -2 : 0;
-  const a = age - shift;
+  const a = age - ageShift(position);
   if (a <= 29) return 1;
   return Math.max(0.45, 1 - (a - 29) * 0.11);
 }
@@ -101,7 +101,7 @@ export function marketApy(market: Market, player: Player): number {
 
 /** Years a player wants: young players lock in long deals, veterans take what they can get. */
 export function preferredYears(player: Player): number {
-  const a = player.age - (player.position === 'QB' ? 3 : 0);
+  const a = player.age - ageShift(player.position);
   if (a <= 25) return 5;
   if (a <= 27) return 4;
   if (a <= 29) return 3;

@@ -7,7 +7,8 @@
  * AI teams act at each step. The user's team acts through the UI, or is auto-managed by the
  * same AI when simulating straight through (`simOffseason`).
  */
-import { developPlayer, recordRatings } from '../development';
+import { retireChance } from '../aging';
+import { developPlayer, playedShare, recordRatings } from '../development';
 import { accelerateProration, capSheet, capSpace, logTransaction, nextCap } from '../finance/cap';
 import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
@@ -17,19 +18,13 @@ import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
 import { generateSchedule } from '../season/schedule';
 import { divisionStandings } from '../season/standings';
-import type { League, Phase, Player } from '../types';
+import type { League, Phase } from '../types';
 import { POSITIONS } from '../types';
 import { aiFreeAgencyDay, aiResignWindow, aiTrainingCamp } from './ai';
 import { aiDraftChoice, draftComplete, draftPlayer, finishDraft, generateDraftClass, nextPick, setDraftOrder, simDraft } from './draft';
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
 
 export const FA_DAYS = 5;
-
-function retires(rng: Rng, p: Player): boolean {
-  const ovr = playerOvr(p);
-  if (p.teamId === null) return p.age >= 31 || ovr < 8 ? rng.chance(0.6) : rng.chance(0.2);
-  return p.age >= 37 || (p.age >= 31 && ovr < 8 && rng.chance(0.5)) || (p.age >= 34 && rng.chance(0.35));
-}
 
 /** The new league year: cap, carryover, ageing and retirements, the draft order and class, the schedule. */
 export function beginOffseason(league: League): void {
@@ -52,10 +47,13 @@ export function beginOffseason(league: League): void {
 
   for (const p of Object.values(league.players)) {
     if (p.retired) continue;
-    developPlayer(rng, p);
+    // Each player's year runs on his own stream: tuning development never reshuffles drafts or
+    // schedules, and one player's year doesn't depend on who was developed before him.
+    const own = new Rng(`${league.seed}:dev:${league.season}:${p.id}`);
+    developPlayer(own, p, { playedShare: playedShare(p, last) });
     p.age++;
     p.experience++;
-    if (retires(rng, p)) {
+    if (own.chance(retireChance(p, playerOvr(p)))) {
       if (p.teamId !== null) {
         // Retiring under contract: every remaining bonus dollar accelerates.
         accelerateProration(league, p, p.teamId, 'Retired');

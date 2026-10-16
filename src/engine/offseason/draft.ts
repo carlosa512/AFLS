@@ -9,7 +9,7 @@ import { createDraftPicks, DRAFT_ROUNDS, freeJersey, generatePlayer, MAX_FUTURE_
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { clamp, type Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
-import { perceive } from '../scouting';
+import { characterRead, perceive, projectedCeiling } from '../scouting';
 import { computeRecords, winPct } from '../season/standings';
 import type { DraftPick, League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
@@ -123,7 +123,11 @@ export function boardOf(league: League, teamId: number, p: Player): Board {
   const c = p.scouting!;
   const trustGrade = CONSENSUS_SD.grade ** 2 / (CONSENSUS_SD.grade ** 2 + v.ovrSd ** 2);
   const trustCeiling = CONSENSUS_SD.ceiling ** 2 / (CONSENSUS_SD.ceiling ** 2 + v.potSd ** 2);
-  return { grade: c.grade + trustGrade * (v.ovr - c.grade), ceiling: c.ceiling + trustCeiling * (v.potMid - c.ceiling) };
+  const grade = c.grade + trustGrade * (v.ovr - c.grade);
+  const ceiling = c.ceiling + trustCeiling * (v.potMid - c.ceiling);
+  // Makeup is the team's own homework (the consensus doesn't rate it): a grinder it has sat down
+  // with gets more of his ceiling, a coaster less.
+  return { grade, ceiling: projectedCeiling(grade, ceiling, characterRead(league, teamId, p)?.workEthic) };
 }
 
 /** Boards built during one draft, by team then prospect: a view doesn't change while picks are made. */

@@ -23,6 +23,9 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
   rewrites `docs/ATTRIBUTES.md`. **Run it after changing `attributes.ts`, `OVR_WEIGHTS` or how the
   engine reads ratings.** Nothing may be listed under "Needs attention".
+- `npm run careers` — age a cohort of every position and play 8 seasons; checks peaks, declines,
+  retirements and trait effects against the research ranges. Run it after changing `development.ts`,
+  `aging.ts`, `traits.ts` or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes and league talent. Run it after changes to `finance/`, `offseason/` or
   `trade.ts`; talent, cap space and rosters should stay stable across seasons.
@@ -42,9 +45,11 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     contracts, the market, ageing, AI hiring. All staff changes go through this module (it keeps a
     per-team index; `teamStaff()` returns a shared read-only list)
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
+  - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
+    retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula), standings + tiebreakers, playoffs
-  - `league.ts` week/season orchestration · `development.ts` age curves
+  - `league.ts` week/season orchestration
   - `finance/` contracts as year-by-year ledgers (`contract.ts`: proration, dead money,
     restructures), team cap sheets and moves (`cap.ts`), the rank-based market, rookie scale and
     tags (`market.ts`)
@@ -60,7 +65,8 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   front-office decisions about *other* teams' players (draft, free agency, trades) use that team's
   own read (`perceive`, `viewCache` for loops); keep it that way. The UI shows the user's view only,
   via `viewOf`/`Ovr`/`RangeValue` in `ui/scouting.tsx`. Never render `player.ratings`, `playerOvr` or
-  `player.potential` in a screen: it leaks the truth past the fog of war.
+  `player.potential` in a screen: it leaks the truth past the fog of war. Hidden traits are never
+  numbers anywhere: screens use `characterNotes`/`careerOutlook` (words), AI uses `characterRead`.
 - No attribute without an engine hook: anything in `OVR_WEIGHTS` must feed a contest at that
   position (unit-tested) and move outcomes in `npm run audit`.
 - `yardLine` is always yards from the *offense's own* goal line (0–100).

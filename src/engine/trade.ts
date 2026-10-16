@@ -11,6 +11,7 @@
  *   most two picks unless it lands a star, and discounts a third QB.
  * - The trading team keeps the bonus money as dead money; the new team takes the salary.
  */
+import { ageShift } from './aging';
 import { autoPostJune1, capSpace, isOffseason, logTransaction, paidShare, weeksPaid } from './finance/cap';
 import { capHit, deadMoney, isExpired, lastSeason, yearsLeft } from './finance/contract';
 import { leagueMarket, marketApy } from './finance/market';
@@ -18,7 +19,7 @@ import { freeJersey } from './generate';
 import { aiCutdown } from './offseason/ai';
 import { contenderScore, resetContenderCache, rosterLimit } from './offseason/negotiation';
 import { playerOvr, STARTERS } from './positions';
-import { perceive } from './scouting';
+import { characterRead, perceive, projectedCeiling } from './scouting';
 import { clamp, type Rng } from './rng';
 import { syncDepthChart, teamPlayers, teamRatings } from './roster';
 import { computeRecords, winPct } from './season/standings';
@@ -114,8 +115,7 @@ const TRADE_BAND = 0.35;
 const effective = (age: number, ovr: number, pot: number) => ovr + (age <= 25 ? Math.max(0, pot - ovr) * 0.5 : 0);
 
 function ageMultiplier(p: Player): number {
-  const shift = p.position === 'QB' || p.position === 'K' || p.position === 'P' ? 3 : 0;
-  const a = p.age - shift;
+  const a = p.age - ageShift(p.position);
   if (a <= 25) return 1.15;
   if (a <= 28) return 1;
   return Math.max(0.3, 1 - (a - 28) * 0.15);
@@ -131,8 +131,11 @@ export function playerValue(league: League, player: Player, team: Team, opts: { 
   // What this front office sees: exact for its own players (bar their ceilings), its scouts' read for anyone else.
   const view = perceive(league, team.id, player);
   const trust = opts.truth ? 0 : TRADE_TRUST;
-  const truth = effective(player.age, playerOvr(player), player.potential);
-  const misread = clamp(trust * (effective(player.age, view.ovr, view.potMid) - truth), -TRADE_BAND, TRADE_BAND);
+  // A young player's upside depends on his work ethic: the truth for analysis, the club's read otherwise.
+  const young = player.age <= 25;
+  const readWork = young && !opts.truth ? characterRead(league, team.id, player)?.workEthic : undefined;
+  const truth = effective(player.age, playerOvr(player), young ? projectedCeiling(playerOvr(player), player.potential, player.traits.workEthic) : player.potential);
+  const misread = clamp(trust * (effective(player.age, view.ovr, young ? projectedCeiling(view.ovr, view.potMid, readWork) : view.potMid) - truth), -TRADE_BAND, TRADE_BAND);
   // His place on their depth chart is judged the same bounded way.
   const ovr = playerOvr(player) + clamp(trust * (view.ovr - playerOvr(player)), -TRADE_BAND, TRADE_BAND);
   let base = 3000 * Math.exp((truth + misread - 18.5) * 0.55) * POSITION_TRADE[player.position] * ageMultiplier(player);

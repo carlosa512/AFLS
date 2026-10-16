@@ -10,6 +10,7 @@ import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEA
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateStaffWorld } from './staff';
+import { generateTraits } from './traits';
 import type { League } from './types';
 
 /** Returns the upgraded league, or null if the save is from a newer (unknown) version. */
@@ -19,6 +20,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 2) toV2(league);
   if (league.version < 3) toV3(league);
   if (league.version < 4) toV4(league);
+  if (league.version < 5) toV5(league);
   return league;
 }
 
@@ -95,4 +97,10 @@ function toV4(league: League) {
     generateStaffWorld(league);
   }
   league.version = 4;
+}
+
+/** v5: hidden traits (work ethic, durability, temperament), seeded per player so an upgraded save matches a new one. */
+function toV5(league: League) {
+  for (const p of Object.values(league.players)) p.traits ??= generateTraits(p);
+  league.version = 5;
 }
