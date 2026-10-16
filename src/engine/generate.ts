@@ -176,6 +176,7 @@ function initialContract(rng: Rng, market: Market, player: Player, season: numbe
   const apyK = marketApy(then, younger) * rng.float(0.85, 1.15);
   const c = veteranContract(rng, then, younger, apyK, years, season - elapsed, gm);
   c.signedSeason = season - elapsed;
+  c.signedWeek = -1; // part of the world as generated: no trade cooldown
   trimPast(c, season);
   return c;
 }

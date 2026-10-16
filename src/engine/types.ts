@@ -61,7 +61,7 @@ export type ContractKind = 'rookie' | 'veteran' | 'tag' | 'minimum';
 export interface Contract {
   kind: ContractKind;
   signedSeason: number;
-  /** Regular-season week it was signed in; 0 = offseason. Drives the trade cooldown. */
+  /** Regular-season week it was signed in; 0 = offseason, -1 = existed before the league began. Drives the trade cooldown. */
   signedWeek: number;
   /** Average per real year of the deal as signed (bonus included), $K. */
   apy: number;

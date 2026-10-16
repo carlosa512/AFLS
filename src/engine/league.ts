@@ -4,6 +4,8 @@
  */
 import { simulateGame, startGame, type LiveGame } from './match/gameSim';
 import { simOffseason } from './offseason';
+import { Rng } from './rng';
+import { aiTradeWeek } from './trade';
 import { syncDepthChart } from './roster';
 import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
@@ -23,6 +25,13 @@ function addStats(target: StatLine, source: StatLine) {
   for (const [key, value] of Object.entries(source) as [keyof StatLine, number][]) {
     target[key] = MAX_STATS.has(key) ? Math.max(target[key] ?? 0, value) : (target[key] ?? 0) + value;
   }
+}
+
+/** Contenders and rebuilders deal with each other before the deadline (never with the user unasked). */
+function aiTrades(league: League) {
+  const rng = new Rng(league.rngState);
+  aiTradeWeek(league, rng);
+  league.rngState = rng.getState();
 }
 
 /** Keep full play-by-play only for the user's games and the most recent week. */
@@ -66,6 +75,7 @@ export function playWeek(league: League): Game[] {
   if (league.phase === 'complete') return [];
   const games = gamesInWeek(league).filter((g) => !g.result);
   for (const g of games) playGame(league, g);
+  if (league.phase === 'regular') aiTrades(league);
   league.week++;
 
   if (league.phase === 'regular' && league.week > REGULAR_SEASON_WEEKS) {

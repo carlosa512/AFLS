@@ -294,7 +294,7 @@ describe('season flow', () => {
       expect(roster.length).toBeLessThanOrEqual(53);
       for (const pos of POSITIONS) expect(roster.filter((p) => p.position === pos).length).toBeGreaterThanOrEqual(1);
     }
-  });
+  }, 30_000);
 });
 
 describe('coach decisions', () => {
