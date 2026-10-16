@@ -7,6 +7,7 @@ import { capSpace } from '../engine/finance/cap';
 import { capHit, isExpired, prorationIn, totalGuaranteed } from '../engine/finance/contract';
 import { minSalary } from '../engine/finance/market';
 import { askOffer, demand, makeOffer, negotiationFor, offerProblem, prospectiveContract, type Offer } from '../engine/offseason/negotiation';
+import { careerOutlook } from '../engine/scouting';
 import type { League, Player } from '../engine/types';
 import { Dialog, PlayerAvatar } from './components';
 import { money } from './format';
@@ -103,6 +104,10 @@ export function NegotiationDialog({ league, player, onClose }: { league: League;
           ))}
         </div>
       </div>
+      {/* Worth knowing before you pick the years: when your scouts expect him to start fading. */}
+      <p className="muted small" style={{ margin: 0 }}>
+        {careerOutlook(league, teamId, player)}
+      </p>
       <p className="agent-ask">
         <span className="eyebrow">His ask</span>
         <b className="num">

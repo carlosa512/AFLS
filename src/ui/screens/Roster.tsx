@@ -10,7 +10,7 @@ import { useNav } from '../App';
 import { Panel, PlayerAvatar, TeamChip } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
-import { Ovr, Stars, starsOf, viewOf } from '../scouting';
+import { Ovr, repsOf, Stars, starsOf, viewOf } from '../scouting';
 import { store } from '../store';
 
 export function statSummary(position: Position, s: StatLine | undefined): string {
@@ -321,6 +321,8 @@ function RosterRow({
   const starter = index < STARTERS[p.position];
   const lastStarter = index === STARTERS[p.position] - 1 && index < count - 1;
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
+  // Only your own young players: a rival's backups are none of your business.
+  const needsReps = editable && repsOf(league, p)?.needs;
   const onKey = (e: ReactKeyboardEvent) => {
     const to = { ArrowUp: index - 1, ArrowDown: index + 1, Home: 0, End: count - 1 }[e.key];
     if (to === undefined) return;
@@ -358,6 +360,11 @@ function RosterRow({
             {p.firstName} {p.lastName}
           </span>
         </button>
+        {needsReps && (
+          <span className="tag-pill tag-warn name-sub" title="Young and still growing, but he rarely plays: snaps speed up his development.">
+            Needs reps
+          </span>
+        )}
       </td>
       <td className="num">
         <Ovr league={league} player={p} />

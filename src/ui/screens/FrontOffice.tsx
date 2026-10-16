@@ -15,7 +15,7 @@ import { useNav } from '../App';
 import { Panel, PlayerAvatar, Rating, TeamChip } from '../components';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
-import { KnowledgeMeter, Ovr, potentialText, ScoutButton, seenOvr, Stars, starsOf, viewOf } from '../scouting';
+import { KnowledgeMeter, MakeupPills, makeupOf, Ovr, potentialText, ScoutButton, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { StaffScreen } from './Staff';
 import { Trades } from './Trades';
 import { store } from '../store';
@@ -457,6 +457,7 @@ function Draft({ league }: { league: League }) {
                   <th>Stars</th>
                   <th className="num">Consensus</th>
                   <th>Known</th>
+                  <th>Makeup</th>
                   <th />
                   {userUp && <th />}
                 </tr>
@@ -492,6 +493,10 @@ function Draft({ league }: { league: League }) {
                       </td>
                       <td>
                         <KnowledgeMeter value={v.knowledge} />
+                      </td>
+                      <td>
+                        {/* Blank until your scouts know him well enough to say. */}
+                        <MakeupPills notes={makeupOf(league, p).notes} limit={2} oneLine />
                       </td>
                       <td>
                         <ScoutButton league={league} player={p} />

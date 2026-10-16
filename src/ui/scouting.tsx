@@ -14,11 +14,24 @@ import {
 } from 'react';
 import { AGING_TEXT, ATTRIBUTE_INFO, CONTESTS, contestsFor, relevantAttributes, type AttributeGroup } from '../engine/attributes';
 import { overall, OVR_WEIGHTS } from '../engine/positions';
-import { COMBINE_TYPICAL, perceive, scoutPlayer, starRating, type PlayerView, type RatingView, type StarRating, type StarScale } from '../engine/scouting';
+import { repsSoFar } from '../engine/development';
+import {
+  characterNotes,
+  COMBINE_TYPICAL,
+  needsReps,
+  perceive,
+  scoutPlayer,
+  starRating,
+  type CharacterNotes,
+  type PlayerView,
+  type RatingView,
+  type StarRating,
+  type StarScale,
+} from '../engine/scouting';
 import type { Attribute, Combine, League, Player, Position, Ratings } from '../engine/types';
 import { ATTRIBUTES } from '../engine/types';
 import { Rating } from './components';
-import { band, heightFt } from './format';
+import { band, heightFt, resultsSeason } from './format';
 import { store } from './store';
 
 /** The user's view of a player: what every screen should show. */
@@ -150,6 +163,51 @@ export function KnowledgeMeter({ value }: { value: number }) {
       <span className="num">{pct}%</span>
     </span>
   );
+}
+
+// ───────── makeup & playing time ─────────
+
+/** What your scouts say about a player's makeup: words only, and only once they know him well enough. */
+export const makeupOf = (league: League, p: Player): CharacterNotes => characterNotes(league, league.userTeamId, p);
+
+/**
+ * Makeup as pills. The word carries the meaning and the tint only backs it up. Past `limit`, red flags
+ * are kept first and the rest collapse into a "+N" (its labels stay available to hover and to screen readers).
+ */
+export function MakeupPills({ notes, limit, oneLine = false }: { notes: CharacterNotes['notes']; limit?: number; oneLine?: boolean }) {
+  if (notes.length === 0) return null;
+  const ordered = limit !== undefined && notes.length > limit ? [...notes].sort((a, b) => Number(b.tone === 'warn') - Number(a.tone === 'warn')) : notes;
+  const shown = limit === undefined ? ordered : ordered.slice(0, limit);
+  const rest = ordered.slice(shown.length);
+  return (
+    <span className={`pill-row${oneLine ? ' nowrap' : ''}`}>
+      {shown.map((n) => (
+        <span key={n.label} className={`tag-pill ${n.tone === 'good' ? 'tag-good' : 'tag-warn'}`} title={n.line}>
+          {n.label}
+        </span>
+      ))}
+      {rest.length > 0 && (
+        <span className="muted small" title={rest.map((n) => n.label).join(', ')}>
+          +{rest.length}
+          <span className="visually-hidden"> more: {rest.map((n) => n.label).join(', ')}</span>
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Playing time for one of your own young players in the season being reported on, or null when it
+ * doesn't apply (not yours, past 25, too early in the year to say, or not in the league that season yet).
+ */
+export function repsOf(league: League, p: Player): { season: number; share: number; needs: boolean } | null {
+  if (p.teamId !== league.userTeamId || p.age > 25) return null;
+  const season = resultsSeason(league);
+  // A rookie looking back at last season was still in college (the same rule `needsReps` applies).
+  if (season < league.season && p.experience === 0) return null;
+  const share = repsSoFar(league, p, season);
+  if (share === null) return null;
+  return { season, share, needs: needsReps(league, league.userTeamId, p, season) };
 }
 
 export function ScoutButton({ league, player, label = 'Scout' }: { league: League; player: Player; label?: string }) {
