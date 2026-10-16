@@ -1982,6 +1982,8 @@ details.more > summary {
 }
 .compare-table td {
   vertical-align: top;
+  /* Holds the "(best)" screen-reader text, which is absolutely positioned and would otherwise widen the page on a phone. */
+  position: relative;
 }
 .compare-table td.best {
   background: color-mix(in srgb, var(--win) 11%, transparent);
@@ -2026,6 +2028,34 @@ details.more > summary {
   background: color-mix(in srgb, var(--tie) 20%, var(--surface));
   /* Pulled toward the ink so small pill text clears 4.5:1 in both themes. */
   color: color-mix(in srgb, var(--tie) 62%, var(--ink));
+}
+/* Makeup pills stand alone in a cell or a facts strip, so they don't need the inline pill's left margin. */
+.pill-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.pill-row .tag-pill {
+  margin-left: 0;
+}
+/* A note under a player's name in a table, lined up with the name rather than the avatar (30px + 8px gap).
+   Beside the name it would widen the sticky Player column and crowd the rest of the table off a phone. */
+.tag-pill.name-sub {
+  display: block;
+  width: fit-content;
+  margin: -3px 0 0 38px;
+  line-height: 1.5;
+}
+/* Early word on a player's makeup: dashed, like a dashed grade, because it's still a guess. */
+.tag-pill.tag-early {
+  outline: 1px dashed currentColor;
+  outline-offset: -1px;
+}
+/* A table cell should stay one line tall: the draft board shows at most two pills side by side. */
+.pill-row.nowrap {
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 .staff-bar {
   height: 8px;

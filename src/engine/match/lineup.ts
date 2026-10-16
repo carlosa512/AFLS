@@ -1,4 +1,5 @@
 import { skill } from '../attributes';
+import { temperOffset } from '../traits';
 import type { League, Player, Position, Team } from '../types';
 
 /** The 22 starters plus the depth the engine draws on, with unit composites. */
@@ -29,6 +30,9 @@ export interface Lineup {
   offenseDiscipline: number;
   defenseDiscipline: number;
 }
+
+/** A lineman's discipline: his football IQ, plus or minus his temper (a hothead jumps early and grabs). */
+const discipline = (p: Player) => skill(p, 'discipline') + temperOffset(p.traits);
 
 const avg = (players: Player[], f: (p: Player) => number) =>
   players.reduce((sum, p) => sum + f(p), 0) / Math.max(1, players.length);
@@ -85,8 +89,8 @@ export function buildLineup(league: League, team: Team): Lineup {
       avg(lb, (p) => skill(p, 'runFit')) * 0.3 +
       avg(s, (p) => skill(p, 'runFit')) * 0.1,
     edgeContain: avg(edge, (p) => skill(p, 'setEdge')),
-    offenseDiscipline: avg(ol, (p) => skill(p, 'discipline')),
-    defenseDiscipline: avg([...dt, ...edge], (p) => skill(p, 'discipline')),
+    offenseDiscipline: avg(ol, discipline),
+    defenseDiscipline: avg([...dt, ...edge], discipline),
   };
 }
 

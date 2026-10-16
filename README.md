@@ -18,6 +18,7 @@ npm run sim -- 10        # simulate 10 seasons and compare stats to NFL averages
 npm run endings          # audit game endings for nonsensical clock management
 npm run offseason -- 6   # run seasons back to back and summarize front-office health
 npm run audit            # check every rating moves play; rewrites docs/ATTRIBUTES.md
+npm run careers          # check aging curves, retirements and trait effects against real-world ranges
 npm run build      # production web build in dist/
 ```
 

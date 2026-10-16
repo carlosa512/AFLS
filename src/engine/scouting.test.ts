@@ -86,7 +86,7 @@ describe('perceived ratings', () => {
     for (const p of [mine[3], theirs[42], theirs[400]]) {
       const lines = scoutReport(league, league.userTeamId, p);
       expect(lines.length).toBeGreaterThanOrEqual(3);
-      expect(lines.length).toBeLessThanOrEqual(6);
+      expect(lines.length).toBeLessThanOrEqual(7);
       for (const l of lines) expect(l).toMatch(/^[A-Z].*\.$/);
       expect(lines.join(' ')).not.toMatch(/undefined|NaN/);
     }

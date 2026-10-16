@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { POSITION_NAMES } from '../../engine/positions';
-import { isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
+import { careerOutlook, isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
 import { passerRating } from '../../engine/stats';
 import type { League, Player, StatLine } from '../../engine/types';
@@ -8,7 +8,7 @@ import { MAX_COMPARE, useNav } from '../App';
 import { PlayerAvatar, useBackdropClose } from '../components';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
-import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, potentialText, ScoutButton, StarScaleToggle, Stars, starsOf, useStarScale, viewOf } from '../scouting';
+import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, repsOf, ScoutButton, StarScaleToggle, Stars, starsOf, useStarScale, viewOf } from '../scouting';
 
 type Col = [label: string, value: (s: StatLine) => string | number];
 
@@ -94,6 +94,10 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const [scale, setScale] = useStarScale();
   const stars = starsOf(league, p, scale, view);
   const report = scoutReport(league, league.userTeamId, p);
+  const makeup = makeupOf(league, p);
+  const reps = repsOf(league, p);
+  // Film reveals a veteran's makeup over time; for anyone else a scouting visit (a sit-down) is the way.
+  const sitDownHint = !makeup.known && p.teamId !== league.userTeamId && !p.retired && league.scoutPoints > 0;
   const comparing = nav.compareIds.includes(p.id);
   const cols = statColumns(p);
   const seasons = Object.keys(p.stats)
@@ -178,6 +182,16 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               <span className="eyebrow">Experience</span>
               <b className="num">{isProspect(p) ? 'Prospect' : p.experience === 0 ? 'Rookie' : `${p.experience} yr`}</b>
             </span>
+            <span className="fact">
+              <span className="eyebrow">{makeup.known && makeup.hedged ? 'Makeup · early word' : 'Makeup'}</span>
+              {!makeup.known ? (
+                <span className="muted">Unknown</span>
+              ) : makeup.notes.length === 0 ? (
+                <span className="muted">Nothing stands out</span>
+              ) : (
+                <MakeupPills notes={makeup.notes} hedged={makeup.hedged} />
+              )}
+            </span>
             {!view.exact && (
               <span className="fact">
                 <span className="eyebrow">Known</span>
@@ -186,7 +200,12 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             )}
           </div>
 
-          {!view.exact && <p className="muted small read-by">{readByText(league, view, p)}</p>}
+          {!view.exact && (
+            <p className="muted small read-by">
+              {readByText(league, view, p)}
+              {sitDownHint && ' A scouting visit doubles as a sit-down: it can take one or two to learn his makeup.'}
+            </p>
+          )}
 
           <div className="card-actions">
             <StarScaleToggle scale={scale} onChange={setScale} />
@@ -218,6 +237,23 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           <section className="stack" aria-label="Development">
             <h3 style={{ margin: 0 }}>Development{view.exact ? '' : ' (as your scouts see it)'}</h3>
             <DevelopmentChart league={league} player={p} />
+            <p className="muted small" style={{ margin: 0 }}>
+              {careerOutlook(league, league.userTeamId, p)}
+            </p>
+            {reps && (
+              <p className="muted small" style={{ margin: 0 }}>
+                {reps.share > 0 ? `Played in ${Math.round(reps.share * 100)}% of his team’s games in ${reps.season}.` : `Has not played in any of his team’s games in ${reps.season}.`}
+                {reps.needs && (
+                  <>
+                    {' '}
+                    <span className="tag-pill tag-warn" style={{ marginLeft: 0 }}>
+                      Needs reps
+                    </span>{' '}
+                    Young players develop faster with snaps; sitting slows him down.
+                  </>
+                )}
+              </p>
+            )}
           </section>
 
           <section className="stack" aria-label="Combine">

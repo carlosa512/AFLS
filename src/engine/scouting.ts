@@ -10,11 +10,13 @@
  * the reader himself: a new scout brings his own opinions.
  */
 import { ATTRIBUTE_INFO, type AgingFamily } from './attributes';
-import { PEAK_END } from './development';
+import { declineOnset } from './aging';
+import { repsSoFar } from './development';
 import { ATTRIBUTE_PROFILES, overall, OVR_WEIGHTS, POSITION_NAMES, STARTERS } from './positions';
 import { clamp, Rng } from './rng';
 import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
-import type { Attribute, Combine, League, Player, Position, Ratings } from './types';
+import { TEMPER_POSITIONS, TRAIT_MEAN } from './traits';
+import type { Attribute, Combine, League, Player, Position, Ratings, Traits } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
 /** Scouting visits a front office gets per league year. */
@@ -226,6 +228,149 @@ export function resetScouting(league: League): void {
   for (const id of Object.keys(league.knowledge)) if (!league.players[Number(id)] || league.players[Number(id)].retired) delete league.knowledge[Number(id)];
 }
 
+// ───────── character ─────────
+
+/** Below this much knowledge a front office can't say anything about a player's makeup. */
+export const CHARACTER_KNOWLEDGE = 0.5;
+/** Error (sd, trait points) in a makeup read at zero knowledge, for a typical reader. */
+const CHARACTER_ERROR = 4;
+
+/** A front office's read of a player's hidden makeup, on the traits' 1–20 scale. Engine-only: screens get words. */
+export interface CharacterRead extends Traits {
+  /** How far off (1 sd) these guesses tend to be. */
+  sd: number;
+  exact: boolean;
+}
+
+/**
+ * What `teamId` believes about a player's work ethic, body and temper, or null when it hasn't seen
+ * enough of him to say (a scouting visit doubles as the sit-down). The projection scout judges
+ * makeup and body; the evaluator sees the flags. Seeded like `perceive`, so a read never changes
+ * on refresh and sharpens toward the truth as knowledge grows.
+ */
+export function characterRead(league: League, teamId: number, p: Player): CharacterRead | null {
+  const k = knowledge(league, teamId, p);
+  if (k >= 1) return { ...p.traits, sd: 0, exact: true };
+  if (k < CHARACTER_KNOWLEDGE) return null;
+  const domain: Domain = isProspect(p) ? 'college' : 'pro';
+  const staff = league.teams[teamId] ? teamStaff(league, teamId) : null;
+  const proj = staff && readFor(staff, domain, FOCUS_OF[p.position], 'projection');
+  const evalr = staff && readFor(staff, domain, FOCUS_OF[p.position], 'evaluation');
+  // Another club's player is never an open book: even a long career leaves some doubt.
+  const miss = Math.max(1 - k, 0.15);
+  const sdProj = CHARACTER_ERROR * miss * (proj ? accuracy(proj.rating) : 1);
+  const sdEval = CHARACTER_ERROR * miss * (evalr ? accuracy(evalr.rating) : 1);
+  // The club's lasting impression, plus each reader's own take.
+  const team = new Rng(`${league.seed}:view:${teamId}:${p.id}:char`);
+  const projector = new Rng(`${league.seed}:view:${teamId}:${p.id}:char:${proj?.by?.id ?? 0}`);
+  const evaluator = new Rng(`${league.seed}:view:${teamId}:${p.id}:temper:${evalr?.by?.id ?? 0}`);
+  const guess = (truth: number, sd: number, own: Rng) => clamp(truth + sd * (0.8 * team.normal() + 0.6 * own.normal()), 1, 20);
+  return {
+    workEthic: guess(p.traits.workEthic, sdProj, projector),
+    durability: guess(p.traits.durability, sdProj, projector),
+    temperament: guess(p.traits.temperament, sdEval, evaluator),
+    sd: Math.max(sdProj, sdEval),
+    exact: false,
+  };
+}
+
+/**
+ * Where a young player is likely to top out, given the work ethic a front office reads in him: a
+ * grinder gets more of his ceiling, a coaster less (`npm run careers` measures the real gap).
+ */
+export function projectedCeiling(ovr: number, ceiling: number, workEthic?: number): number {
+  if (workEthic === undefined) return ceiling;
+  return ovr + Math.max(0, ceiling - ovr) * clamp(1 + 0.025 * (workEthic - TRAIT_MEAN), 0.75, 1.25);
+}
+
+export interface CharacterNote {
+  label: string;
+  tone: 'good' | 'warn';
+  /** What it means for him, as a sentence. */
+  line: string;
+  /** The same, as a clause for the scout's report. */
+  clause: string;
+}
+
+export interface CharacterNotes {
+  /** False when the team hasn't seen enough of him to judge. */
+  known: boolean;
+  /** True when the read is still early word rather than a settled judgment. */
+  hedged: boolean;
+  notes: CharacterNote[];
+}
+
+const note = (label: string, tone: CharacterNote['tone'], clause: string): CharacterNote => ({ label, tone, clause, line: `${cap(clause)}.` });
+
+/**
+ * Words for a makeup read: only what stands out gets a label; an average player gets none. Work
+ * ethic speaks to growth while he's young and to how he ages once he's done growing.
+ */
+export function characterNotes(league: League, teamId: number, p: Player): CharacterNotes {
+  const read = characterRead(league, teamId, p);
+  if (!read) return { known: false, hedged: false, notes: [] };
+  const notes: CharacterNote[] = [];
+  const young = p.age < 26;
+  const we = read.workEthic;
+  if (we >= 16) notes.push(note('Model pro', 'good', young ? 'a model pro who should reach his ceiling' : 'a model pro who should keep his game longer than most'));
+  else if (we >= 13.5) notes.push(note('Driven', 'good', young ? 'a self-starter who should get the most out of his ability' : 'a self-starter who should age well'));
+  else if (we <= 5) notes.push(note('Needs a push', 'warn', young ? 'rarely puts in extra work, so he is unlikely to reach his ceiling' : 'rarely puts in extra work, so expect him to age badly'));
+  else if (we <= 7.5) notes.push(note('Coasts', 'warn', young ? 'coasts at times, so he may fall short of his ceiling' : 'coasts at times, so the decline may hit him harder'));
+  if (read.durability >= 14) notes.push(note('Built to last', 'good', 'his body is built to last'));
+  else if (read.durability <= 7) notes.push(note('Wears down early', 'warn', 'his body may wear down early'));
+  if (TEMPER_POSITIONS.has(p.position)) {
+    if (read.temperament <= 7) notes.push(note('Hothead', 'warn', 'has a short fuse, so his line draws more flags'));
+    else if (read.temperament >= 14.5) notes.push(note('Even-keeled', 'good', 'even-keeled, so he rarely draws a flag'));
+  }
+  return { known: true, hedged: !read.exact && read.sd > 1.2, notes };
+}
+
+/**
+ * The last age at which a family of a player's ratings is still at its best, for the body `teamId`
+ * reads in him (a typical one when it can't tell). Development runs before his birthday and only
+ * cuts ratings once he is past the onset, so the ratings he carries at the onset year plus one are
+ * still intact; the first drop shows the season after.
+ */
+function lastGoodAge(league: League, teamId: number, p: Player, family: AgingFamily): number {
+  const read = characterRead(league, teamId, p);
+  const body = read ? { workEthic: TRAIT_MEAN, durability: read.durability, temperament: TRAIT_MEAN } : undefined;
+  return Math.floor(declineOnset(p.position, family, body)) + 1;
+}
+
+/** When `teamId` expects a player to start fading, in words. */
+export function careerOutlook(league: League, teamId: number, p: Player): string {
+  const read = characterRead(league, teamId, p);
+  const sure = read && (read.exact || read.sd <= 1.2) ? 'about' : 'roughly';
+  const tech = lastGoodAge(league, teamId, p, 'technical');
+  const phys = lastGoodAge(league, teamId, p, 'physical');
+  const qb = p.position === 'QB';
+  const legs = qb ? 'his legs' : 'his physical tools';
+  const skills = qb ? 'his arm and his reads' : p.position === 'K' || p.position === 'P' ? 'his leg' : 'his technique';
+  if (p.age > tech) return 'Past his prime: expect him to lose a little more every year.';
+  if (p.age > phys) return `${cap(legs)} have started to fade; ${skills} should hold up through ${sure} ${tech}.`;
+  if (phys < tech) return `${cap(legs)} should start to fade after ${sure} ${phys}; ${skills} should hold up through ${sure} ${tech}.`;
+  if (p.age === tech) return 'In the last year of his prime: expect the decline to start next year.';
+  return `Prime through ${sure} ${tech}.`;
+}
+const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+
+/**
+ * A young player of `teamId`'s whom its scouts still see real growth in, but who has barely played
+ * in `season`: snaps would speed his development (and sitting slows it).
+ */
+export function needsReps(league: League, teamId: number, p: Player, season: number): boolean {
+  if (p.teamId !== teamId || p.age > 25) return false;
+  // Already in the starting lineup: the reps are coming.
+  const slot = league.teams[teamId].depthChart[p.position].indexOf(p.id);
+  if (slot >= 0 && slot < STARTERS[p.position]) return false;
+  // A rookie looking back at last season was still in college.
+  if (season < league.season && p.experience === 0) return false;
+  const share = repsSoFar(league, p, season);
+  if (share === null || share >= 0.35) return false;
+  const view = perceive(league, teamId, p);
+  return view.potMid - view.ovr >= 1.5;
+}
+
 // ───────── stars ─────────
 
 interface Reference {
@@ -369,12 +514,21 @@ export function scoutReport(league: League, teamId: number, p: Player): string[]
   if (minus.length) lines.push(`Needs work on his ${list(minus.map((t) => ATTRIBUTE_INFO[t.a].trait))}.`);
   if (!plus.length && !minus.length) lines.push('No standout trait and no glaring hole.');
 
-  const peak = PEAK_END[p.position];
   if (p.age < 26) {
     if (ceiling < now) lines.push(`Still developing: with reps he could become ${TIERS[ceiling].becomes}.`);
     else lines.push('Close to a finished product already.');
-  } else if (p.age > peak) lines.push(`At ${p.age}, his physical tools are fading.`);
-  else if (p.age >= peak - 1) lines.push('At the tail end of his prime.');
+  } else {
+    // His body clock as the scouts read it (a typical one when they can't tell yet).
+    const tech = lastGoodAge(league, teamId, p, 'technical');
+    const phys = lastGoodAge(league, teamId, p, 'physical');
+    if (p.age > tech) lines.push(`At ${p.age}, he is on the downslope.`);
+    else if (p.age > phys) lines.push(p.position === 'QB' ? `At ${p.age}, his legs are fading; his arm and reads still carry him.` : `At ${p.age}, his physical tools are fading; his technique still carries him.`);
+    else if (p.age >= tech - 1) lines.push('At the tail end of his prime.');
+  }
+
+  // Makeup, once the staff has seen enough of him: everything that stands out, in one sentence.
+  const makeup = characterNotes(league, teamId, p);
+  if (makeup.notes.length) lines.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${makeup.notes.map((n) => n.clause).join('; ')}.`);
 
   // How sure we are follows the actual width of the read: film, visits and who's doing the reading.
   const ovrHalf = (view.ovrHi - view.ovrLo) / 2;

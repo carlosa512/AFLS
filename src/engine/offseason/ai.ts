@@ -2,6 +2,7 @@
  * AI front offices. Decisions come from numeric GM traits plus the roster in front of them:
  * who to keep, who to tag, who to chase in free agency, and how to get under the cap.
  */
+import { ageShift } from '../aging';
 import { accelerateProration, canRestructure, capFor, capSheet, capSpace, logTransaction, releasePlayer, releasePreview, restructureOptions, restructurePlayer } from '../finance/cap';
 import { capHit, isExpired, lastSeason, remainingProration, yearOf } from '../finance/contract';
 import { fifthYearOptionValue, franchiseTagValue, leagueMarket, marketApy, minSalary, payTier, positionRank } from '../finance/market';
@@ -10,7 +11,7 @@ import { recordRatings } from '../development';
 import { generatePlayer } from '../generate';
 import { clamp, type Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
-import { perceive, viewCache } from '../scouting';
+import { characterRead, perceive, projectedCeiling, viewCache } from '../scouting';
 import type { League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
 import { contenderScore, demand, freeAgents, offerValue, rookieReserve, rosterLimit, ROSTER_MAX, signPlayer, type Offer } from './negotiation';
@@ -61,7 +62,8 @@ export function aiOffer(league: League, team: Team, player: Player, rng: Rng, ga
   const eager = clamp(0.93 + 0.02 * Math.min(gain, 4) + 0.06 * winNow(league, team) + 0.07 * richness(league, team) + rng.float(-0.04, 0.04), 0.85, 1.12);
   const cap = league.caps[league.season];
   const apy = Math.max(minSalary(player.experience, cap), Math.round(d.market * eager));
-  const years = clamp(d.askYears + (player.age >= 31 && team.gm.winNow < 0.5 ? -1 : 0), 1, 5);
+  // Ages read on the position's clock: a 33-year-old quarterback is a 29-year-old receiver.
+  const years = clamp(d.askYears + (player.age - ageShift(player.position) >= 31 && team.gm.winNow < 0.5 ? -1 : 0), 1, 5);
   const gtdPct = clamp(d.askGtdPct * rng.float(0.85, 1.05), 0, 0.9);
   const bonusPct = gtdPct * (0.45 + 0.4 * team.gm.capAggression);
   const voidYears = team.gm.capAggression > 0.75 && apy > cap * 0.04 && years < 4 ? 1 : 0;
@@ -144,8 +146,9 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const mine = depth[p.position];
     const starterBar = mine[STARTERS[p.position] - 1] ?? 0;
     // A team knows its own players' games; their ceilings are still its scouts' judgment.
-    const young = p.age <= 25 && perceive(league, team.id, p).potMid >= 12;
-    const keeper = (ovr >= starterBar - 0.5 || young || mine.length < KEEP_MIN[p.position]) && p.age <= 33;
+    const view = p.age <= 25 ? perceive(league, team.id, p) : null;
+    const young = !!view && projectedCeiling(ovr, view.potMid, characterRead(league, team.id, p)?.workEthic) >= 12;
+    const keeper = (ovr >= starterBar - 0.5 || young || mine.length < KEEP_MIN[p.position]) && p.age - ageShift(p.position) <= 33;
     if (!keeper) continue;
     const offer = aiOffer(league, team, p, rng, needGain(depth, p));
     offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
@@ -162,7 +165,7 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
       continue;
     }
     const tier = payTier(p.position, positionRank(market, p));
-    if (!team.taggedId && tier >= 0.75 && p.age <= 30 && rng.chance(0.35)) {
+    if (!team.taggedId && tier >= 0.75 && p.age - ageShift(p.position) <= 30 && rng.chance(0.35)) {
       const value = tagValue(league, p);
       if (value <= budget) {
         applyFranchiseTag(league, p);
@@ -259,7 +262,7 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
 
 /** What a team loses by cutting a player: talent, upside as its scouts project it, and any dead money it would eat. */
 function keepScore(league: League, p: Player, read = viewCache(league)): number {
-  const youth = p.age <= 24 ? Math.max(0, read(p.teamId!, p).potMid - playerOvr(p)) * 0.5 : 0;
+  const youth = p.age <= 24 ? Math.max(0, projectedCeiling(playerOvr(p), read(p.teamId!, p).potMid, characterRead(league, p.teamId!, p)?.workEthic) - playerOvr(p)) * 0.5 : 0;
   const pre = releasePreview(league, p);
   const sunk = pre.thisYear + pre.nextYear > Math.max(0, pre.savings) ? 1.5 : 0;
   const draftee = p.draft?.season === league.season && p.draft.round <= 3 ? 2 : 0;

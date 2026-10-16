@@ -157,6 +157,8 @@ export interface Player {
   combine?: Combine;
   /** What the player weighs in a negotiation; 0–1 each. */
   personality: Personality;
+  /** Hidden makeup (1–20 each). Never shown as numbers: scouts describe it in words (`characterRead`). */
+  traits: Traits;
   /** Season year → accumulated stats. */
   stats: Record<number, StatLine>;
   /** Optional picture URL (or data: URI) supplied by a roster mod; the UI shows a placeholder otherwise. */
@@ -188,6 +190,19 @@ export interface Personality {
   winning: number;
   /** Agent patience: how many lowball offers before talks break down. */
   patience: number;
+}
+
+/**
+ * Hidden traits on the ratings scale (1–20, average 10.5). Each one moves something the player does:
+ * see `traits.ts` for the hooks.
+ */
+export interface Traits {
+  /** Work ethic: how much of his ceiling he reaches, and how well he keeps his game as he ages. */
+  workEthic: number;
+  /** Body clock: when the decline starts and how steep it is, and how long he lasts. */
+  durability: number;
+  /** Composure under the whistle (high = calm): linemen with a short fuse draw more flags. */
+  temperament: number;
 }
 
 export type StaffRole = 'director' | 'collegeScout' | 'proScout';
