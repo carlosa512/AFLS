@@ -1,3 +1,4 @@
+import { skill } from '../attributes';
 import type { League, Player, Position, Team } from '../types';
 
 /** The 22 starters plus the depth the engine draws on, with unit composites. */
@@ -22,12 +23,15 @@ export interface Lineup {
   runBlock: number;
   passRush: number;
   runStop: number;
+  /** How well the edge defenders turn outside runs back inside. */
+  edgeContain: number;
+  /** Linemen's discipline: false starts and holding (offense), offside (defense). */
+  offenseDiscipline: number;
+  defenseDiscipline: number;
 }
 
 const avg = (players: Player[], f: (p: Player) => number) =>
   players.reduce((sum, p) => sum + f(p), 0) / Math.max(1, players.length);
-
-const returnSkill = (p: Player) => p.ratings.speed + p.ratings.elusiveness + p.ratings.agility * 0.5;
 
 export function buildLineup(league: League, team: Team): Lineup {
   const depth = (pos: Position, n: number): Player[] => {
@@ -50,7 +54,7 @@ export function buildLineup(league: League, team: Team): Lineup {
   // Returners come from skill-position depth, not the starters' workload.
   const krPool = [rbs[1], wrs[3], wrs[2], cb[2]].filter(Boolean);
   const prPool = [wrs[2], wrs[3], cb[2], rbs[1]].filter(Boolean);
-  const best = (pool: Player[]) => pool.reduce((a, b) => (returnSkill(b) > returnSkill(a) ? b : a));
+  const best = (pool: Player[]) => pool.reduce((a, b) => (skill(b, 'returns') > skill(a, 'returns') ? b : a));
 
   return {
     team,
@@ -68,17 +72,21 @@ export function buildLineup(league: League, team: Team): Lineup {
     p: depth('P', 1)[0],
     kr: best(krPool),
     pr: best(prPool),
-    passBlock: avg(ol, (p) => p.ratings.passBlock) * 0.9 + tes[0].ratings.passBlock * 0.05 + rbs[0].ratings.passBlock * 0.05,
-    runBlock: avg(ol, (p) => p.ratings.runBlock) * 0.85 + tes[0].ratings.runBlock * 0.15,
+    // Unit composites: the line does most of the work, with help from the backs and tight end.
+    passBlock: avg(ol, (p) => skill(p, 'passPro')) * 0.8 + skill(tes[0], 'passPro') * 0.1 + skill(rbs[0], 'passPro') * 0.1,
+    runBlock: avg(ol, (p) => skill(p, 'runBlocking')) * 0.8 + skill(tes[0], 'runBlocking') * 0.2,
     passRush:
-      avg(edge, (p) => p.ratings.passRush) * 0.55 +
-      avg(dt, (p) => p.ratings.passRush) * 0.35 +
-      avg(lb, (p) => p.ratings.passRush) * 0.1,
+      avg(edge, (p) => skill(p, 'edgeRush')) * 0.55 +
+      avg(dt, (p) => skill(p, 'interiorRush')) * 0.35 +
+      avg(lb, (p) => skill(p, 'edgeRush')) * 0.1,
     runStop:
-      avg(dt, (p) => p.ratings.runStop) * 0.4 +
-      avg(edge, (p) => p.ratings.runStop) * 0.25 +
-      avg(lb, (p) => (p.ratings.runStop + p.ratings.tackling) / 2) * 0.25 +
-      avg(s, (p) => p.ratings.runStop) * 0.1,
+      avg(dt, (p) => skill(p, 'runDefense')) * 0.35 +
+      avg(edge, (p) => skill(p, 'runDefense')) * 0.25 +
+      avg(lb, (p) => skill(p, 'runFit')) * 0.3 +
+      avg(s, (p) => skill(p, 'runFit')) * 0.1,
+    edgeContain: avg(edge, (p) => skill(p, 'setEdge')),
+    offenseDiscipline: avg(ol, (p) => skill(p, 'discipline')),
+    defenseDiscipline: avg([...dt, ...edge], (p) => skill(p, 'discipline')),
   };
 }
 
