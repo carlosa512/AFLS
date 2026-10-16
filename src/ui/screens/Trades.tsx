@@ -3,7 +3,7 @@
  * for both teams, and the dead money you'd book, before you ever press propose.
  */
 import { useState } from 'react';
-import { capHit, lastSeason } from '../../engine/finance/contract';
+import { capHit, isExpired, lastSeason } from '../../engine/finance/contract';
 import { playerOvr } from '../../engine/positions';
 import { teamPlayers } from '../../engine/roster';
 import { evaluateTrade, executeTrade, pickLabel, playerTradeBlocker, suggestSweetener, tradeCapImpact, tradeWindow, type TradeProposal } from '../../engine/trade';
@@ -12,6 +12,7 @@ import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerAvatar, Rating, TeamChip } from '../components';
 import { money } from '../format';
+import { liveLock } from '../live';
 import { store } from '../store';
 
 interface Picked {
@@ -39,7 +40,7 @@ function AssetList({ league, teamId, picked, onChange }: { league: League; teamI
             {p.firstName[0]}. {p.lastName}
           </button>
           <span className="muted small">
-            {p.position} · {p.age} · thru {lastSeason(p.contract!)}
+            {p.position} · {p.age} · {isExpired(p.contract!, league.season) ? 'expiring' : `thru ${lastSeason(p.contract!)}`}
           </span>
         </span>
         <Rating value={playerOvr(p)} decimals={1} />
@@ -73,7 +74,7 @@ export function Trades({ league }: { league: League }) {
   const [theirs, setTheirs] = useState<Picked>(empty);
   const [done, setDone] = useState<string | null>(null);
   const partner = league.teams[partnerId];
-  const closed = tradeWindow(league);
+  const closed = tradeWindow(league) ?? liveLock();
 
   // Drop anything that moved since it was ticked (after a trade, a sim or a release).
   const valid = (p: Picked, teamId: number): Picked => ({

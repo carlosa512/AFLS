@@ -39,6 +39,12 @@ export interface ContractYear {
   base: number;
   /** How much of `base` is owed even if the player is released. */
   guaranteed: number;
+  /**
+   * Weekly checks of this season already paid (by anyone) when `base` was set. A mid-season
+   * signing or trade resets the base to cover only the weeks left, so the paid share of it is
+   * counted from here, not from week 1.
+   */
+  paidBefore?: number;
   /** A dummy year that exists only to spread bonus money; it voids before it is played. */
   void?: true;
 }

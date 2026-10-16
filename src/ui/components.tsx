@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import type { Player, Team } from '../engine/types';
 import { band } from './format';
 
@@ -105,11 +105,27 @@ export function Panel({ title, action, children, className }: { title?: ReactNod
 }
 
 /**
+ * Backdrop handlers for a modal: close only when the press both starts and ends on the backdrop
+ * itself, so a drag that begins inside (a slider, a text selection) and ends outside doesn't close it.
+ */
+export function useBackdropClose(onClose: () => void) {
+  const downOnBackdrop = useRef(false);
+  return {
+    onMouseDown: (e: ReactMouseEvent) => (downOnBackdrop.current = e.target === e.currentTarget),
+    onClick: (e: ReactMouseEvent) => {
+      if (downOnBackdrop.current && e.target === e.currentTarget) onClose();
+      downOnBackdrop.current = false;
+    },
+  };
+}
+
+/**
  * A small modal: focus moves in, Tab stays inside, Escape closes, focus returns to the opener.
  * Key events stop here so a dialog opened over the player card doesn't close the card too.
  */
 export function Dialog({ title, onClose, children, footer }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  const backdrop = useBackdropClose(onClose);
   // Escape closes the top-most dialog even if focus has wandered; capture runs before the player card's handler.
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -143,8 +159,8 @@ export function Dialog({ title, onClose, children, footer }: { title: string; on
     }
   };
   return (
-    <div className="overlay dialog-overlay" onClick={onClose} onKeyDown={onKey}>
-      <div ref={ref} className="dialog" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+    <div className="overlay dialog-overlay" {...backdrop} onKeyDown={onKey}>
+      <div ref={ref} className="dialog" role="dialog" aria-modal="true" aria-label={title}>
         <div className="dialog-head">
           <h2>{title}</h2>
           <button className="close-x dialog-x" onClick={onClose} aria-label="Close">

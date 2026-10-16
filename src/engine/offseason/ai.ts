@@ -2,8 +2,8 @@
  * AI front offices. Decisions come from numeric GM traits plus the roster in front of them:
  * who to keep, who to tag, who to chase in free agency, and how to get under the cap.
  */
-import { accelerateVoidYears, canRestructure, capFor, capSheet, capSpace, logTransaction, releasePlayer, releasePreview, restructureOptions, restructurePlayer } from '../finance/cap';
-import { capHit, isExpired, lastSeason, yearOf } from '../finance/contract';
+import { accelerateProration, canRestructure, capFor, capSheet, capSpace, logTransaction, releasePlayer, releasePreview, restructureOptions, restructurePlayer } from '../finance/cap';
+import { capHit, isExpired, lastSeason, remainingProration, yearOf } from '../finance/contract';
 import { fifthYearOptionValue, franchiseTagValue, leagueMarket, marketApy, minSalary, payTier, positionRank } from '../finance/market';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { generatePlayer } from '../generate';
@@ -102,7 +102,9 @@ export function tagBlocker(league: League, player: Player): string | null {
   const team = league.teams[player.teamId!];
   if (team.taggedId) return 'You have already used your franchise tag this year.';
   const value = tagValue(league, player);
-  if (value > capSpace(league, team.id) + capHit(player.contract, league.season)) return 'Not enough cap room for the tag.';
+  // The old deal's charge goes, but its remaining bonus money accelerates as dead money.
+  const freed = capHit(player.contract, league.season) - remainingProration(player.contract, league.season);
+  if (value > capSpace(league, team.id) + freed) return 'Not enough cap room for the tag.';
   return null;
 }
 
@@ -114,8 +116,8 @@ export function tagValue(league: League, player: Player): number {
 export function applyFranchiseTag(league: League, player: Player): void {
   const team = league.teams[player.teamId!];
   const value = tagValue(league, player);
-  // The old deal voids: any bonus parked in void years becomes dead money now.
-  accelerateVoidYears(league, player, team.id);
+  // The old deal voids: its remaining bonus money (void years included) becomes dead money now.
+  accelerateProration(league, player, team.id);
   player.contract = { kind: 'tag', signedSeason: league.season, signedWeek: 0, apy: value, length: 1, years: [{ season: league.season, base: value, guaranteed: value }], bonuses: [] };
   player.tagCount = (player.tagCount ?? 0) + 1;
   team.taggedId = player.id;

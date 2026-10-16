@@ -11,12 +11,12 @@
  *   most two picks unless it lands a star, and discounts a third QB.
  * - The trading team keeps the bonus money as dead money; the new team takes the salary.
  */
-import { autoPostJune1, capSpace, isOffseason, logTransaction, paidFraction } from './finance/cap';
+import { autoPostJune1, capSpace, isOffseason, logTransaction, paidShare, weeksPaid } from './finance/cap';
 import { capHit, deadMoney, isExpired, lastSeason, yearsLeft } from './finance/contract';
 import { leagueMarket, marketApy } from './finance/market';
 import { freeJersey } from './generate';
 import { aiCutdown } from './offseason/ai';
-import { contenderScore, rosterLimit } from './offseason/negotiation';
+import { contenderScore, resetContenderCache, rosterLimit } from './offseason/negotiation';
 import { playerOvr, STARTERS } from './positions';
 import { clamp, type Rng } from './rng';
 import { syncDepthChart, teamPlayers, teamRatings } from './roster';
@@ -166,7 +166,6 @@ export function playerTradeBlocker(league: League, p: Player): string | null {
 
 /** Cap space and dead money each side would have after the trade. */
 export function tradeCapImpact(league: League, proposal: TradeProposal) {
-  const paid = paidFraction(league);
   const post = autoPostJune1(league.phase);
   return proposal.sides.map((side, i) => {
     const other = proposal.sides[1 - i];
@@ -174,14 +173,15 @@ export function tradeCapImpact(league: League, proposal: TradeProposal) {
     let dead = 0;
     for (const id of side.players) {
       const c = league.players[id].contract!;
-      const split = deadMoney(c, league.season, { paid, postJune1: post, trade: true });
+      const split = deadMoney(c, league.season, { paid: paidShare(league, c), postJune1: post, trade: true });
       space += capHit(c, league.season) - split.thisYear;
       dead += split.thisYear + split.nextYear;
     }
     for (const id of other.players) {
       // The new team takes only the unpaid base salary; the bonus stays behind.
-      const base = league.players[id].contract!.years.find((y) => y.season === league.season)?.base ?? 0;
-      space -= base * (1 - paid);
+      const c = league.players[id].contract!;
+      const base = c.years.find((y) => y.season === league.season)?.base ?? 0;
+      space -= base * (1 - paidShare(league, c));
     }
     return { teamId: side.teamId, space, dead };
   });
@@ -265,7 +265,6 @@ export function evaluateTrade(league: League, proposal: TradeProposal, opts: { m
 
 /** Move the assets. The sending team books the bonus money still on each traded contract. */
 export function executeTrade(league: League, proposal: TradeProposal): void {
-  const paid = paidFraction(league);
   const post = autoPostJune1(league.phase);
   const moved: string[][] = [[], []];
   proposal.sides.forEach((side, i) => {
@@ -274,6 +273,8 @@ export function executeTrade(league: League, proposal: TradeProposal): void {
     for (const id of side.players) {
       const p = league.players[id];
       const c = p.contract!;
+      // Measured against this contract's own base: it may already have been cut by an earlier trade or a mid-season signing.
+      const paid = paidShare(league, c);
       const split = deadMoney(c, league.season, { paid, postJune1: post, trade: true });
       const bonusNow = split.thisYear - (c.years.find((y) => y.season === league.season)?.base ?? 0) * paid;
       if (bonusNow > 0) from.deadMoney.push({ season: league.season, amount: Math.round(bonusNow), playerId: id, note: 'Traded' });
@@ -285,6 +286,7 @@ export function executeTrade(league: League, proposal: TradeProposal): void {
           from.deadMoney.push({ season: league.season, amount: Math.round(y.base * paid), playerId: id, note: 'Salary paid before trade' });
           y.base = Math.round(y.base * (1 - paid));
           y.guaranteed = Math.min(y.guaranteed, y.base);
+          y.paidBefore = weeksPaid(league);
         }
       }
       c.bonuses = [];
@@ -292,6 +294,7 @@ export function executeTrade(league: League, proposal: TradeProposal): void {
       p.teamId = to;
       p.jersey = freeJersey(p.position, new Set(teamPlayers(league, to).filter((x) => x.id !== id).map((x) => x.jersey)), p.jersey);
       if (league.teams[side.teamId].taggedId === id) league.teams[side.teamId].taggedId = null;
+      p.tagCount = 0; // a tag by the new team is not a consecutive one
       delete league.negotiations[id];
       moved[i].push(`${p.position} ${p.firstName} ${p.lastName}`);
     }
@@ -345,6 +348,7 @@ export function suggestSweetener(league: League, proposal: TradeProposal): { kin
 export function aiTradeWeek(league: League, rng: Rng): TradeProposal[] {
   const made: TradeProposal[] = [];
   if (tradeWindow(league)) return made;
+  resetContenderCache(league);
   for (let attempt = 0; attempt < 3; attempt++) {
     if (!rng.chance(0.5)) continue;
     const t = aiTradeAttempt(league, rng);

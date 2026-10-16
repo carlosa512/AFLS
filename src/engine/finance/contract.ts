@@ -52,6 +52,11 @@ export function futureProration(c: Contract, season: number): number {
   return sum;
 }
 
+/** Every bonus dollar still to be charged from `season` on (this year's share included). */
+export function remainingProration(c: Contract, season: number): number {
+  return prorationIn(c, season) + futureProration(c, season);
+}
+
 /** Proration parked in void years, which accelerates as dead money when the deal voids. */
 export function voidProration(c: Contract): number {
   return c.years.filter((y) => y.void).reduce((sum, y) => sum + prorationIn(c, y.season), 0);

@@ -1,13 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { playerOvr, POSITION_NAMES, STARTERS } from '../../engine/positions';
 import { capSheet } from '../../engine/finance/cap';
-import { capHit, lastSeason } from '../../engine/finance/contract';
+import { capHit } from '../../engine/finance/contract';
 import { buildAutoDepthChart, teamPlayers, teamRatings } from '../../engine/roster';
 import { computeRecords } from '../../engine/season/standings';
 import type { League, Player, Position, StatLine } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerAvatar, Rating, TeamChip } from '../components';
+import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
 import { store } from '../store';
 
@@ -369,7 +370,7 @@ function RosterRow({
         </span>
       </td>
       <td className="num">{p.contract ? money(Math.round(capHit(p.contract, league.season))) : '–'}</td>
-      <td className="num">{p.contract ? lastSeason(p.contract) : '–'}</td>
+      <td className="num">{p.contract ? thruLabel(league, p.contract) : '–'}</td>
       <td className="muted">{statSummary(p.position, p.stats[resultsSeason(league)])}</td>
     </tr>
   );

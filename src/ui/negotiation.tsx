@@ -11,6 +11,7 @@ import { playerOvr } from '../engine/positions';
 import type { League, Player } from '../engine/types';
 import { Dialog, PlayerAvatar, Rating } from './components';
 import { money } from './format';
+import { liveLock } from './live';
 import { store } from './store';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -47,7 +48,7 @@ export function NegotiationDialog({ league, player, onClose }: { league: League;
     setResult(null);
   };
   const preview = prospectiveContract(league, player, teamId, offer);
-  const problem = offerProblem(league, player, teamId, offer);
+  const problem = liveLock() ?? offerProblem(league, player, teamId, offer);
   const hitNow = capHit(preview, league.season);
   const space = capSpace(league, teamId) + (own && player.contract ? capHit(player.contract, league.season) : 0);
 

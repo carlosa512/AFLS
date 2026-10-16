@@ -8,7 +8,7 @@
  * same AI when simulating straight through (`simOffseason`).
  */
 import { developPlayer } from '../development';
-import { accelerateVoidYears, capSheet, capSpace, logTransaction, nextCap } from '../finance/cap';
+import { accelerateProration, capSheet, capSpace, logTransaction, nextCap } from '../finance/cap';
 import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
 import { Rng } from '../rng';
@@ -19,7 +19,7 @@ import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
 import { aiFreeAgencyDay, aiResignWindow, aiTrainingCamp } from './ai';
 import { aiDraftChoice, draftComplete, draftPlayer, finishDraft, generateDraftClass, nextPick, setDraftOrder, simDraft } from './draft';
-import { ROSTER_MAX } from './negotiation';
+import { resetContenderCache, ROSTER_MAX } from './negotiation';
 
 export const FA_DAYS = 5;
 
@@ -32,6 +32,7 @@ function retires(rng: Rng, p: Player): boolean {
 /** The new league year: cap, carryover, ageing and retirements, the draft order and class, the schedule. */
 export function beginOffseason(league: League): void {
   if (league.phase !== 'complete') throw new Error('The season is not finished');
+  resetContenderCache(league);
   const rng = new Rng(league.rngState);
   const last = league.season;
   const order = divisionStandings(league).map((d) => d.teams.map((r) => r.teamId));
@@ -54,7 +55,8 @@ export function beginOffseason(league: League): void {
     p.experience++;
     if (retires(rng, p)) {
       if (p.teamId !== null) {
-        accelerateVoidYears(league, p, p.teamId);
+        // Retiring under contract: every remaining bonus dollar accelerates.
+        accelerateProration(league, p, p.teamId, 'Retired');
         if (playerOvr(p) >= 14) logTransaction(league, 'retire', [p.teamId], `${league.teams[p.teamId].abbrev} ${p.position} ${p.firstName} ${p.lastName} retired`);
       }
       p.teamId = null;
@@ -62,7 +64,9 @@ export function beginOffseason(league: League): void {
       p.retired = true;
       continue;
     }
-    if (p.contract) trimPast(p.contract, league.season);
+    // Deals that just ran out keep their final year (the franchise tag is priced off it) until
+    // free agency opens and clears them.
+    if (p.contract && !isExpired(p.contract, league.season)) trimPast(p.contract, league.season);
   }
 
   generateDraftClass(league, rng);
@@ -97,7 +101,7 @@ export function offseasonBlockers(league: League): string[] {
 function openFreeAgency(league: League): void {
   for (const p of Object.values(league.players)) {
     if (p.teamId === null || !p.contract || !isExpired(p.contract, league.season)) continue;
-    accelerateVoidYears(league, p, p.teamId);
+    accelerateProration(league, p, p.teamId);
     p.teamId = null;
     p.contract = null;
   }
@@ -107,6 +111,7 @@ function openFreeAgency(league: League): void {
 
 /** Move the offseason one step. With `autoUser`, the user's team is run by the AI too. */
 export function advanceOffseason(league: League, opts: { autoUser?: boolean } = {}): Phase {
+  resetContenderCache(league);
   const rng = new Rng(league.rngState);
   const auto = !!opts.autoUser;
   const ai = league.teams.filter((t) => auto || t.id !== league.userTeamId);

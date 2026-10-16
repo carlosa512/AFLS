@@ -95,6 +95,9 @@ export const live = {
   },
 };
 
+/** Roster moves wait until the live game is over: the players on the field are already set. */
+export const liveLock = (): string | null => (live.inProgress() ? 'Finish your live game first (or sim it to the final).' : null);
+
 export function useLive(): LiveSession | null {
   useSyncExternalStore(live.subscribe, live.version);
   return session;

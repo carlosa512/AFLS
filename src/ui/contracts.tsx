@@ -14,19 +14,24 @@ import {
   restructureOptions,
   restructurePlayer,
 } from '../engine/finance/cap';
-import { capHit, guaranteedFrom, lastSeason, prorationIn, totalGuaranteed } from '../engine/finance/contract';
-import type { League, Player } from '../engine/types';
+import { capHit, guaranteedFrom, isExpired, lastSeason, prorationIn, totalGuaranteed } from '../engine/finance/contract';
+import type { Contract, League, Player } from '../engine/types';
 import { Dialog } from './components';
+import { liveLock } from './live';
 import { money } from './format';
 import { store } from './store';
 
 const name = (p: Player) => `${p.firstName} ${p.lastName}`;
 
-export function contractLabel(p: Player): string {
+/** "2029", or "Expiring" for a deal that has run out (re-sign window, before free agency opens). */
+export const thruLabel = (league: League, c: Contract) => (isExpired(c, league.season) ? 'Expiring' : String(lastSeason(c)));
+
+export function contractLabel(league: League, p: Player): string {
   const c = p.contract;
   if (!c) return p.retired ? 'Retired' : 'Free agent';
   const kind = c.kind === 'rookie' ? 'Rookie deal' : c.kind === 'tag' ? 'Franchise tag' : c.kind === 'minimum' ? 'Minimum deal' : 'Veteran deal';
-  return `${kind} · ${c.length} yr, ${money(c.apy * c.length)} (${money(c.apy)}/yr) · thru ${lastSeason(c)}`;
+  const end = isExpired(c, league.season) ? `expired after ${lastSeason(c)}` : `thru ${lastSeason(c)}`;
+  return `${kind} · ${c.length} yr, ${money(c.apy * c.length)} (${money(c.apy)}/yr) · ${end}`;
 }
 
 /** Year-by-year ledger: what counts on the cap, and what's owed no matter what. */
@@ -230,8 +235,9 @@ export function RestructureDialog({ league, player, onClose }: { league: League;
 export function ContractActions({ league, player }: { league: League; player: Player }) {
   const [open, setOpen] = useState<'release' | 'restructure' | null>(null);
   if (player.teamId !== league.userTeamId || !player.contract) return null;
-  const cut = releaseBlocker(league, player);
-  const rs = restructureBlocker(league, player);
+  const lock = liveLock();
+  const cut = lock ?? releaseBlocker(league, player);
+  const rs = lock ?? restructureBlocker(league, player);
   return (
     <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
       <button className="btn btn-sm" disabled={!!rs} title={rs ?? 'Convert salary to bonus for cap room now'} onClick={() => setOpen('restructure')}>

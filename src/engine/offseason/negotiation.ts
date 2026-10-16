@@ -6,8 +6,8 @@
  * Lessons from Football Manager complaints (see docs/research): demands never inflate just
  * because you countered; patience is the only thing a lowball offer costs.
  */
-import { accelerateVoidYears, capSpace, logTransaction, paidFraction } from '../finance/cap';
-import { buildContract, capHit, isExpired, yearsLeft } from '../finance/contract';
+import { accelerateProration, capSpace, logTransaction, paidFraction, paidShare, weeksPaid } from '../finance/cap';
+import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft } from '../finance/contract';
 import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears, rookieApy } from '../finance/market';
 import { freeJersey } from '../generate';
 import { clamp } from '../rng';
@@ -58,6 +58,13 @@ export function marketPressure(league: League): number {
 }
 
 const contenderCache = new WeakMap<League, { key: string; scores: number[] }>();
+
+/**
+ * Forget cached contender scores. Called at the start of every calendar step so AI decisions
+ * see the rosters as they stand then, whatever the UI happened to read earlier (and the same
+ * after a save is reloaded).
+ */
+export const resetContenderCache = (league: League) => contenderCache.delete(league);
 
 /**
  * Where a team sits among the league's rosters, 0 (worst) to 1 (best). Cached per calendar step:
@@ -129,8 +136,28 @@ export function contractFromOffer(league: League, player: Player, offer: Offer, 
     const left = 1 - paidFraction(league);
     y.base = Math.round(y.base * left);
     y.guaranteed = Math.min(y.guaranteed, y.base);
+    y.paidBefore = weeksPaid(league);
   }
   return c;
+}
+
+/** Salary of the player's current deal already paid this season (it stays on the cap when the deal is replaced). */
+function paidUnderCurrentDeal(league: League, player: Player): number {
+  const c = player.contract;
+  if (!c) return 0;
+  return (yearOf(c, league.season)?.base ?? 0) * paidShare(league, c);
+}
+
+/**
+ * How much of the player's current charge this year disappears when a new deal replaces it.
+ * An extension keeps the salary already paid; a deal that ran out leaves all its remaining bonus
+ * money behind as dead money.
+ */
+function replacedCharge(league: League, player: Player, teamId: number): number {
+  const c = player.teamId === teamId ? player.contract : null;
+  if (!c) return 0;
+  const now = capHit(c, league.season);
+  return isExpired(c, league.season) ? now - remainingProration(c, league.season) : now - paidUnderCurrentDeal(league, player);
 }
 
 /** A player under contract can be extended in the last two years of his deal (rookies after three seasons). */
@@ -170,10 +197,8 @@ export function offerProblem(league: League, player: Player, teamId: number, off
   }
   if (!own && teamPlayers(league, teamId).length >= rosterLimit(league)) return `Your roster is full (${rosterLimit(league)}). Release someone first.`;
   const hit = capHit(prospectiveContract(league, player, teamId, offer), league.season);
-  // Re-signing replaces whatever his current (or expired) deal charges this year.
-  const current = own && player.contract ? capHit(player.contract, league.season) : 0;
   const space = capSpace(league, teamId);
-  if (hit - current > space) return `Not enough cap room: this year's hit is $${(hit / 1000).toFixed(1)}M, you have $${(Math.max(0, space) / 1000).toFixed(1)}M.`;
+  if (hit - replacedCharge(league, player, teamId) > space) return `Not enough cap room: this year's hit is $${(hit / 1000).toFixed(1)}M, you have $${(Math.max(0, space) / 1000).toFixed(1)}M.`;
   return null;
 }
 
@@ -229,10 +254,14 @@ export function makeOffer(league: League, player: Player, teamId: number, offer:
 export function signPlayer(league: League, player: Player, teamId: number, offer: Offer, kind: Contract['kind'] = 'veteran'): void {
   const own = player.teamId === teamId;
   const extension = own && !!player.contract && !isExpired(player.contract, league.season);
-  // Re-signing after a deal ran out: its void years still void, and that money is dead.
-  if (own && !extension) accelerateVoidYears(league, player, teamId);
+  // Re-signing after a deal ran out: its remaining bonus money (void years included) is dead.
+  if (own && !extension) accelerateProration(league, player, teamId);
+  // Extending mid-season: the old salary already paid this year stays on this year's cap.
+  const paid = extension ? Math.round(paidUnderCurrentDeal(league, player)) : 0;
+  if (paid > 0) league.teams[teamId].deadMoney.push({ season: league.season, amount: paid, playerId: player.id, note: 'Salary paid before extension' });
   player.contract = prospectiveContract(league, player, teamId, offer, kind);
   player.teamId = teamId;
+  if (kind !== 'tag') player.tagCount = 0; // a new deal ends any run of consecutive tags
   delete league.negotiations[player.id];
   const team = league.teams[teamId];
   if (!own) player.jersey = freeJersey(player.position, new Set(teamPlayers(league, teamId).filter((p) => p.id !== player.id).map((p) => p.jersey)), player.jersey);

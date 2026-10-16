@@ -5,9 +5,9 @@
 import { STARTERS } from '../positions';
 import { clamp, type Rng } from '../rng';
 import { teamPlayers } from '../roster';
-import type { League, Phase, Player, Team, Transaction } from '../types';
+import type { Contract, League, Phase, Player, Team, Transaction } from '../types';
 import { OFFSEASON_PHASES } from '../types';
-import { capHit, deadMoney, restructure, restructurePreview, voidProration, type DeadMoneySplit, type RestructurePreview } from './contract';
+import { capHit, deadMoney, remainingProration, restructure, restructurePreview, yearOf, type DeadMoneySplit, type RestructurePreview } from './contract';
 import { BASE_CAP, minSalary } from './market';
 
 export const POST_JUNE1_LIMIT = 2;
@@ -28,11 +28,26 @@ export const isOffseason = (phase: Phase) => OFFSEASON_PHASES.includes(phase);
 /** Moves made once training camp opens use post-June 1 accounting automatically. */
 export const autoPostJune1 = (phase: Phase) => phase === 'preseason' || phase === 'regular' || phase === 'playoffs';
 
-/** Share of this season's base salary already paid out (18 weekly checks). */
-export function paidFraction(league: League): number {
-  if (league.phase === 'regular') return Math.min(1, (league.week - 1) / 18);
-  if (league.phase === 'playoffs' || league.phase === 'complete') return 1;
+const SEASON_WEEKS = 18;
+
+/** Weekly salary checks paid so far this league year (18 in a season). */
+export function weeksPaid(league: League): number {
+  if (league.phase === 'regular') return Math.min(SEASON_WEEKS, league.week - 1);
+  if (league.phase === 'playoffs' || league.phase === 'complete') return SEASON_WEEKS;
   return 0;
+}
+
+/** Share of a full season's base already paid out: what a brand-new deal signed today no longer pays. */
+export const paidFraction = (league: League) => weeksPaid(league) / SEASON_WEEKS;
+
+/**
+ * Share of this contract's current-year base already paid. A base set mid-season (a signing or
+ * a trade) only covers the weeks left from then, so it is measured from that point.
+ */
+export function paidShare(league: League, c: Contract): number {
+  const before = yearOf(c, league.season)?.paidBefore ?? 0;
+  if (before >= SEASON_WEEKS) return 1;
+  return clamp((weeksPaid(league) - before) / (SEASON_WEEKS - before), 0, 1);
 }
 
 export function deadMoneyIn(team: Team, season: number): number {
@@ -91,7 +106,7 @@ export function releasePreview(league: League, player: Player, designatePostJune
   const auto = autoPostJune1(league.phase);
   const canDesignate = !auto && team.postJune1Used < POST_JUNE1_LIMIT;
   const postJune1 = auto || (designatePostJune1 && canDesignate);
-  const split = deadMoney(player.contract!, league.season, { paid: paidFraction(league), postJune1 });
+  const split = deadMoney(player.contract!, league.season, { paid: paidShare(league, player.contract!), postJune1 });
   return { ...split, postJune1, canDesignate };
 }
 
@@ -117,6 +132,7 @@ export function releasePlayer(league: League, player: Player, designatePostJune1
   if (preview.postJune1 && !autoPostJune1(league.phase)) team.postJune1Used++;
   team.depthChart[player.position] = team.depthChart[player.position].filter((id) => id !== player.id);
   if (team.taggedId === player.id) team.taggedId = null;
+  player.tagCount = 0; // a later tag elsewhere is not a consecutive one
   logTransaction(league, 'release', [team.id], `${team.abbrev} released ${nameOf(player)}`);
   player.teamId = null;
   player.contract = null;
@@ -153,12 +169,15 @@ export function restructurePlayer(league: League, player: Player, amount = Infin
   return saved;
 }
 
-/** When a contract runs out, proration parked in void years hits the cap all at once. */
-export function accelerateVoidYears(league: League, player: Player, teamId: number): void {
+/**
+ * A deal ends (it ran out, the player re-signed or was tagged, or he retired): every bonus dollar
+ * still scheduled from this league year on, void years included, hits this year's cap at once.
+ */
+export function accelerateProration(league: League, player: Player, teamId: number, note = 'Void years'): void {
   const c = player.contract;
   if (!c) return;
-  const amount = Math.round(voidProration(c));
-  if (amount > 0) league.teams[teamId].deadMoney.push({ season: league.season, amount, playerId: player.id, note: 'Void years' });
+  const amount = Math.round(remainingProration(c, league.season));
+  if (amount > 0) league.teams[teamId].deadMoney.push({ season: league.season, amount, playerId: player.id, note });
 }
 
 /** Five league years of commitments, for the cap projection chart. */

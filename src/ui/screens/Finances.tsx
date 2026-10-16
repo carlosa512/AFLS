@@ -1,10 +1,10 @@
 import { capSheet, deadMoneyIn, isOffseason, POST_JUNE1_LIMIT, releasePreview } from '../../engine/finance/cap';
-import { capHit, guaranteedFrom, lastSeason } from '../../engine/finance/contract';
+import { capHit, guaranteedFrom } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
 import type { League } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerAvatar, TeamChip } from '../components';
-import { CapChart, capPct, ContractActions } from '../contracts';
+import { CapChart, capPct, ContractActions, thruLabel } from '../contracts';
 import { money } from '../format';
 
 export function Finances({ league, teamId }: { league: League; teamId: number }) {
@@ -137,7 +137,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                     <td className="num muted">{capPct(league, hit)}</td>
                     <td className="num">{money(c.apy)}</td>
                     <td className="num">
-                      {lastSeason(c)}
+                      {thruLabel(league, c)}
                       {c.years.some((y) => y.void) && <span className="tag-pill">void</span>}
                     </td>
                     <td className="num">{money(guaranteedFrom(c, season))}</td>
