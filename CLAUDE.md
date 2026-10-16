@@ -20,6 +20,9 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   **Run this after any change to `src/engine/match/` and keep stats inside the target ranges.**
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
+- `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
+  rewrites `docs/ATTRIBUTES.md`. **Run it after changing `attributes.ts`, `OVR_WEIGHTS` or how the
+  engine reads ratings.** Nothing may be listed under "Needs attention".
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes and league talent. Run it after changes to `finance/`, `offseason/` or
   `trade.ts`; talent, cap space and rosters should stay stable across seasons.
@@ -31,6 +34,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - `src/engine/` — pure TypeScript simulation. No DOM, no React, no `Math.random` (all
   randomness goes through the seeded `Rng`, so a league seed reproduces the same world and each
   game is reproducible from `${seed}:${season}:${gameId}`).
+  - `attributes.ts` the attribute registry: labels, aging families, and the named **contests** the
+    engine resolves (`skill(player, contest)`). The match engine never reads `player.ratings` directly.
+  - `scouting.ts` what a team believes: knowledge, perceived ranges (seeded per team and player),
+    stars, scout reports, scouting visits, combine generation
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula), standings + tiebreakers, playoffs
@@ -46,6 +53,11 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 ## Conventions
 
 - Ratings are 1–20 (FM-style). Salaries are in **thousands of dollars**.
+- **True vs. perceived:** the engine and AI use true ratings; the UI shows the user's view only, via
+  `viewOf`/`Ovr`/`RangeValue` in `ui/scouting.tsx`. Never render `player.ratings`, `playerOvr` or
+  `player.potential` in a screen: it leaks the truth past the fog of war.
+- No attribute without an engine hook: anything in `OVR_WEIGHTS` must feed a contest at that
+  position (unit-tested) and move outcomes in `npm run audit`.
 - `yardLine` is always yards from the *offense's own* goal line (0–100).
 - `League` must stay plain JSON. If you change its shape, bump `SAVE_VERSION` in `generate.ts` and
   add an upgrade step to `migrate.ts` (old saves are migrated on load, never thrown away).
