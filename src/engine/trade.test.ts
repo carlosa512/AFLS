@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { capSpace } from './finance/cap';
+import { capHit } from './finance/contract';
 import { createLeague } from './generate';
 import { playWeek } from './league';
 import { playerOvr } from './positions';
@@ -94,15 +95,26 @@ describe('AI trade evaluation', () => {
 
   it('suggests a sweetener that closes the gap', () => {
     const l = fresh();
-    const target = best(l, AI)[2];
+    // A good player whose salary fits; open a roster spot (a full roster is a rule problem).
+    best(l, USER).at(-1)!.teamId = null;
+    const target = best(l, AI).find((p) => playerOvr(p) >= 12 && capHit(p.contract!, l.season) < capSpace(l, USER))!;
     const proposal: TradeProposal = { sides: [{ teamId: USER, players: [], picks: [] }, { teamId: AI, players: [target.id], picks: [] }] };
+    expect(evaluateTrade(l, proposal).problem).toBeNull();
     for (let i = 0; i < 4 && !evaluateTrade(l, proposal).accepts; i++) {
       const add = suggestSweetener(l, proposal);
       expect(add).not.toBeNull();
       if (add!.kind === 'pick') proposal.sides[0].picks.push(add!.id);
       else proposal.sides[0].players.push(add!.id);
     }
-    expect(evaluateTrade(l, proposal).get).toBeGreaterThan(0);
+    expect(evaluateTrade(l, proposal).accepts).toBe(true);
+  });
+
+  it('explains rule problems instead of sweetening them', () => {
+    const l = fresh();
+    const target = best(l, AI)[2];
+    const proposal: TradeProposal = { sides: [{ teamId: USER, players: [], picks: [] }, { teamId: AI, players: [target.id], picks: [] }] };
+    expect(evaluateTrade(l, proposal).problem).toMatch(/too many players|over the cap/);
+    expect(suggestSweetener(l, proposal)).toBeNull();
   });
 });
 
