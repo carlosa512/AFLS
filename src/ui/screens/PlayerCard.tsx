@@ -96,7 +96,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const report = scoutReport(league, league.userTeamId, p);
   const makeup = makeupOf(league, p);
   const reps = repsOf(league, p);
-  // Makeup is only learned by sitting down with a player: a scouting visit does that.
+  // Film reveals a veteran's makeup over time; for anyone else a scouting visit (a sit-down) is the way.
   const sitDownHint = !makeup.known && p.teamId !== league.userTeamId && !p.retired && league.scoutPoints > 0;
   const comparing = nav.compareIds.includes(p.id);
   const cols = statColumns(p);
@@ -189,7 +189,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               ) : makeup.notes.length === 0 ? (
                 <span className="muted">Nothing stands out</span>
               ) : (
-                <MakeupPills notes={makeup.notes} />
+                <MakeupPills notes={makeup.notes} hedged={makeup.hedged} />
               )}
             </span>
             {!view.exact && (
@@ -203,7 +203,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           {!view.exact && (
             <p className="muted small read-by">
               {readByText(league, view, p)}
-              {sitDownHint && ' A scouting visit doubles as a sit-down, which is how you learn his makeup.'}
+              {sitDownHint && ' A scouting visit doubles as a sit-down: it can take one or two to learn his makeup.'}
             </p>
           )}
 

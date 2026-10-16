@@ -45,15 +45,15 @@ export function repsSoFar(league: League, p: Player, season: number): number | n
 
 /**
  * Reps matter more as a player ages: at 21 practice carries most of his growth, by 24 game snaps
- * do (FM testers put it near 50–50 at 18 and match-dominated by 23). A starter grows about 15% faster
- * than average, a player who never sees the field about 30% slower.
+ * do (FM testers put it near 50–50 at 18 and match-dominated by 23). By then a starter grows about
+ * 20% faster than average, a player who never sees the field about 35% slower.
  */
 function reps(age: number, share: number): number {
   const weight = clamp((age - 20) / 4, 0.25, 1);
-  return 1 + weight * (-0.3 + 0.45 * share);
+  return 1 + weight * (-0.35 + 0.55 * share);
 }
 /** Keeps league-wide growth where it was before reps counted (most young players are backups). */
-const GROWTH_NORM = 1.08;
+const GROWTH_NORM = 1.1;
 
 /** Where growth lands: physical tools are about done by 25; late gains are technique and the mental game. */
 function growthShare(family: AgingFamily, age: number): number {
@@ -104,7 +104,6 @@ export function developPlayer(rng: Rng, player: Player, ctx: DevContext): void {
     } else {
       d = delta * Math.min(2, growthShare(family, age) * norm);
       if (family === 'mental' && age >= 26) d += MENTAL_GROWTH;
-      if (family !== 'physical' && age >= 26 && age < 30) d += AGING[pos].bloom ?? 0;
     }
     player.ratings[attr as Attribute] = Math.round(clamp(player.ratings[attr] + d + rng.normal(0, 0.35), 1, 20));
   }

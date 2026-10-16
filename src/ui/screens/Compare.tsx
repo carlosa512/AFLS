@@ -122,7 +122,7 @@ export function Compare({ league }: { league: League }) {
               players.map((p) => {
                 const m = makeupOf(league, p);
                 // The words are the content; "Unknown" and "Nothing stands out" stay plain, muted text.
-                return m.notes.length ? <MakeupPills notes={m.notes} /> : <span className="muted small">{m.known ? 'Nothing stands out' : 'Unknown'}</span>;
+                return m.notes.length ? <MakeupPills notes={m.notes} hedged={m.hedged} /> : <span className="muted small">{!m.known ? 'Unknown' : m.hedged ? 'Nothing yet (early word)' : 'Nothing stands out'}</span>;
               }),
             )}
             {row(

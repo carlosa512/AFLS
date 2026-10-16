@@ -14,7 +14,10 @@ import { bodyShift } from './traits';
 import type { Attribute, Player, Position, Traits } from './types';
 
 export interface AgingCurve {
-  /** Last age of a typical player's prime for technique; it starts to slip the year after. */
+  /**
+   * Technique's turning point for a typical body: development past this age starts to cut it, so
+   * the first drop shows in the ratings he carries two seasons later.
+   */
   peakEnd: number;
   /** Years earlier his physical tools start to fade. */
   physicalLead: number;
@@ -22,8 +25,6 @@ export interface AgingCurve {
   slope: number;
   /** Ratings that age with another family at this position (a quarterback's arm holds like his technique). */
   family?: Partial<Record<Attribute, AgingFamily>>;
-  /** Yearly gain in technique and reads from 26 to 29: quarterbacks keep learning the position. */
-  bloom?: number;
 }
 
 /**
@@ -42,9 +43,9 @@ export const AGING: Record<Position, AgingCurve> = {
   DT: { peakEnd: 30, physicalLead: 0, slope: 1 },
   TE: { peakEnd: 31, physicalLead: 0, slope: 0.8 },
   OL: { peakEnd: 31, physicalLead: 0, slope: 0.9 },
-  QB: { peakEnd: 34, physicalLead: 5, slope: 0.65, family: { throwPower: 'technical' }, bloom: 0.15 },
-  K: { peakEnd: 35, physicalLead: 0, slope: 0.6 },
-  P: { peakEnd: 35, physicalLead: 0, slope: 0.6 },
+  QB: { peakEnd: 34, physicalLead: 5, slope: 0.65, family: { throwPower: 'technical' } },
+  K: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
+  P: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
 };
 
 /** Last age of the prime at each position, for a typical body. */
@@ -77,6 +78,6 @@ export function retireChance(p: Player, ovr: number): number {
   const over = p.age - (AGING[p.position].peakEnd + bodyShift(p.traits));
   if (p.teamId === null) return over >= 2 || ovr < 8 ? 0.6 : 0.2;
   if (over >= 8) return 1;
-  const hazard = over >= 3 ? 0.06 * (over - 2) : 0;
+  const hazard = over >= 2 ? 0.06 * (over - 1) : 0;
   return ovr < 8 && over >= 2 ? Math.max(hazard, 0.5) : hazard;
 }

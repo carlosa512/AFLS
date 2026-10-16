@@ -434,7 +434,7 @@ function Draft({ league }: { league: League }) {
           }
         >
           <p className="muted small" style={{ marginTop: 0 }}>
-            <b>Your grade</b> and <b>ceiling</b> are your scouts' estimates (a dashed grade is a guess). <b>Consensus</b> is how the rest of the league
+            <b>Your grade</b> and <b>ceiling</b> are your scouts' estimates (a dashed grade is a guess). <b>Makeup</b> shows once your scouts know a prospect, usually after a visit or two ("?" means not yet; dashed tags are early word). <b>Consensus</b> is how the rest of the league
             rates him. Rivals blend it with their own scouts' reads, and trust their scouts more when those scouts are good, so he can go earlier or later than
             his rank. When your read beats the consensus, you've found a sleeper; when it's worse, let someone else take the bust. Each scouting visit narrows a
             range:{' '}
@@ -495,8 +495,7 @@ function Draft({ league }: { league: League }) {
                         <KnowledgeMeter value={v.knowledge} />
                       </td>
                       <td>
-                        {/* Blank until your scouts know him well enough to say. */}
-                        <MakeupPills notes={makeupOf(league, p).notes} limit={2} oneLine />
+                        <BoardMakeup league={league} player={p} />
                       </td>
                       <td>
                         <ScoutButton league={league} player={p} />
@@ -545,6 +544,24 @@ function Draft({ league }: { league: League }) {
       </Panel>
     </>
   );
+}
+
+/** A prospect's makeup in a board cell: "?" until your scouts know him, a dash when nothing stands out. */
+function BoardMakeup({ league, player }: { league: League; player: Player }) {
+  const m = makeupOf(league, player);
+  if (!m.known)
+    return (
+      <span className="muted" title="Not known yet: a scouting visit or two">
+        ?<span className="visually-hidden">Makeup unknown</span>
+      </span>
+    );
+  if (!m.notes.length)
+    return (
+      <span className="muted" title="Nothing stands out">
+        –<span className="visually-hidden">Nothing stands out</span>
+      </span>
+    );
+  return <MakeupPills notes={m.notes} hedged={m.hedged} limit={2} oneLine />;
 }
 
 export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }) {

@@ -11,7 +11,7 @@ import { migrateLeague } from './migrate';
 import { beginOffseason } from './offseason';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
-import { careerOutlook, characterNotes, characterRead, CHARACTER_KNOWLEDGE, isProspect, knowledge, needsReps, perceive, projectedCeiling } from './scouting';
+import { careerOutlook, characterNotes, characterRead, CHARACTER_KNOWLEDGE, isProspect, knowledge, needsReps, perceive, projectedCeiling, scoutReport } from './scouting';
 import { generateTraits, TRAIT_MEAN } from './traits';
 import type { League, Player, Position, Traits } from './types';
 
@@ -122,6 +122,11 @@ describe('development', () => {
     expect(sitting).toBeDefined();
     expect(needsReps(league, team.id, sitting!, league.season)).toBe(true);
     expect(needsReps(league, team.id, starter, league.season)).toBe(false);
+    // Promote him and the flag goes: the reps are coming.
+    const chart = team.depthChart[sitting!.position];
+    chart.splice(chart.indexOf(sitting!.id), 1);
+    chart.unshift(sitting!.id);
+    expect(needsReps(league, team.id, sitting!, league.season)).toBe(false);
     expect(mine.some((p) => needsReps(league, team.id, p, league.season + 1))).toBe(false);
 
     // Taking a player out of the league changes nobody else's development.
@@ -144,7 +149,8 @@ describe('retirement and the one aging table', () => {
       return retireChance(p, 13);
     };
     expect(at('RB', 36)).toBe(1);
-    expect(at('K', 36)).toBe(0);
+    expect(at('K', 35)).toBe(0);
+    expect(at('K', 37)).toBeLessThan(at('RB', 33));
     expect(at('QB', 36)).toBeLessThan(at('WR', 36));
     expect(at('WR', 33, 20)).toBeLessThan(at('WR', 33, 1));
     for (let age = 28; age < 40; age++) expect(at('OL', age + 1)).toBeGreaterThanOrEqual(at('OL', age));
@@ -216,12 +222,51 @@ describe('what scouts can say about makeup', () => {
     const err = vets.map((p) => Math.abs(characterRead(league, me, p)!.workEthic - p.traits.workEthic));
     expect(mean(err)).toBeLessThan(1.5);
 
-    // Screens get words, never numbers.
+    // Screens get words, never numbers, and a veteran's makeup is never an open book.
     for (const p of vets) {
       const notes = characterNotes(league, me, p);
       for (const n of notes.notes) expect(n.line + n.label).not.toMatch(/\d/);
       expect(careerOutlook(league, me, p)).toMatch(/prime|fade|Past/i);
+      expect(characterRead(league, me, p)!.sd).toBeGreaterThan(0.3);
+      const report = scoutReport(league, me, p).join(' ');
+      expect(report).not.toMatch(/::|: [a-z][^.]*:/);
     }
+  });
+
+  it('times the outlook to when his ratings actually start to drop', () => {
+    // A receiver with a near-typical body: technique turns at 29.1, so he still carries his best
+    // technique at 30 and the first real drop shows at 31.
+    let at29 = 0;
+    let at30 = 0;
+    let at31 = 0;
+    for (let i = 0; i < 300; i++) {
+      const p = rookie('WR', 26, i, { durability: 11, workEthic: 10 });
+      for (let age = 26; age < 31; age++) {
+        if (age === 29) at29 += p.ratings.routeRunning;
+        if (age === 30) at30 += p.ratings.routeRunning;
+        developPlayer(new Rng(`outlook:${i}:${age}`), p, { playedShare: 1 });
+        p.age++;
+      }
+      at31 += p.ratings.routeRunning;
+    }
+    expect(Math.abs(at30 - at29) / 300).toBeLessThan(0.15);
+    expect((at31 - at30) / 300).toBeLessThan(-0.5);
+
+    const league = createLeague({ seed: 'outlook' });
+    const me = league.userTeamId;
+    const wr = Object.values(league.players).find((p) => p.teamId === me && p.position === 'WR')!;
+    wr.traits.durability = 11;
+    wr.age = 27;
+    expect(careerOutlook(league, me, wr)).toBe('His physical tools should start to fade after about 29; his technique should hold up through about 30.');
+    wr.age = 30;
+    expect(careerOutlook(league, me, wr)).toBe('His physical tools have started to fade; his technique should hold up through about 30.');
+    expect(scoutReport(league, me, wr)).toContain('At 30, his physical tools are fading; his technique still carries him.');
+    wr.age = 31;
+    expect(careerOutlook(league, me, wr)).toMatch(/^Past his prime/);
+    const ol = Object.values(league.players).find((p) => p.teamId === me && p.position === 'OL')!;
+    ol.traits.durability = 11;
+    ol.age = 32;
+    expect(careerOutlook(league, me, ol)).toBe('In the last year of his prime: expect the decline to start next year.');
   });
 
   it('projects a grinder closer to his ceiling than a coaster, within bounds', () => {

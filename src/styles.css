@@ -2047,6 +2047,11 @@ details.more > summary {
   margin: -3px 0 0 38px;
   line-height: 1.5;
 }
+/* Early word on a player's makeup: dashed, like a dashed grade, because it's still a guess. */
+.tag-pill.tag-early {
+  outline: 1px dashed currentColor;
+  outline-offset: -1px;
+}
 /* A table cell should stay one line tall: the draft board shows at most two pills side by side. */
 .pill-row.nowrap {
   flex-wrap: nowrap;

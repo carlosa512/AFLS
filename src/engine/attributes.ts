@@ -47,9 +47,9 @@ export const ATTRIBUTE_INFO: Record<Attribute, AttributeInfo> = {
 };
 
 export const AGING_TEXT: Record<AgingFamily, string> = {
-  physical: 'Physical: peaks in the mid-20s and fades first.',
-  technical: 'Technique: built with reps, holds through the late 20s.',
-  mental: 'Mental: keeps improving into the 30s and fades last.',
+  physical: 'Physical: done growing by about 25 and the first to fade.',
+  technical: 'Technique: built with reps, holds through the prime.',
+  mental: 'Mental: keeps sharpening past the prime and fades last.',
 };
 
 type Weights = Partial<Record<Attribute, number>>;

@@ -31,8 +31,8 @@ export function generateTraits(p: Pick<Player, 'id' | 'firstName' | 'lastName' |
   return { workEthic: roll(work), durability: roll(body), temperament: roll(temper) };
 }
 
-/** Growth multiplier: about ×0.5 for the laziest player, ×1.5 for the hardest worker. Averages 1. */
-export const growthMult = (t: Traits) => 1 + 0.055 * (t.workEthic - TRAIT_MEAN);
+/** Growth multiplier: about ×0.4 for the laziest player, ×1.6 for the hardest worker. Averages 1. */
+export const growthMult = (t: Traits) => 1 + 0.065 * (t.workEthic - TRAIT_MEAN);
 
 /** Decline multiplier: hard workers and durable bodies age more gently. Averages 1. */
 export const declineMult = (t: Traits) => (1 - 0.03 * (t.workEthic - TRAIT_MEAN)) * (1 - 0.02 * (t.durability - TRAIT_MEAN));

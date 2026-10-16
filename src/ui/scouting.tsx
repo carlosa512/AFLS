@@ -12,6 +12,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from 'react';
+import { agingFamily } from '../engine/aging';
 import { AGING_TEXT, ATTRIBUTE_INFO, CONTESTS, contestsFor, relevantAttributes, type AttributeGroup } from '../engine/attributes';
 import { overall, OVR_WEIGHTS } from '../engine/positions';
 import { repsSoFar } from '../engine/development';
@@ -171,10 +172,11 @@ export function KnowledgeMeter({ value }: { value: number }) {
 export const makeupOf = (league: League, p: Player): CharacterNotes => characterNotes(league, league.userTeamId, p);
 
 /**
- * Makeup as pills. The word carries the meaning and the tint only backs it up. Past `limit`, red flags
- * are kept first and the rest collapse into a "+N" (its labels stay available to hover and to screen readers).
+ * Makeup as pills. The word carries the meaning and the tint only backs it up; early word gets a
+ * dashed outline (like a dashed grade, it's a guess). Past `limit`, red flags are kept first and the
+ * rest collapse into a "+N" (its labels stay available to hover and to screen readers).
  */
-export function MakeupPills({ notes, limit, oneLine = false }: { notes: CharacterNotes['notes']; limit?: number; oneLine?: boolean }) {
+export function MakeupPills({ notes, hedged = false, limit, oneLine = false }: { notes: CharacterNotes['notes']; hedged?: boolean; limit?: number; oneLine?: boolean }) {
   if (notes.length === 0) return null;
   const ordered = limit !== undefined && notes.length > limit ? [...notes].sort((a, b) => Number(b.tone === 'warn') - Number(a.tone === 'warn')) : notes;
   const shown = limit === undefined ? ordered : ordered.slice(0, limit);
@@ -182,8 +184,9 @@ export function MakeupPills({ notes, limit, oneLine = false }: { notes: Characte
   return (
     <span className={`pill-row${oneLine ? ' nowrap' : ''}`}>
       {shown.map((n) => (
-        <span key={n.label} className={`tag-pill ${n.tone === 'good' ? 'tag-good' : 'tag-warn'}`} title={n.line}>
+        <span key={n.label} className={`tag-pill ${n.tone === 'good' ? 'tag-good' : 'tag-warn'}${hedged ? ' tag-early' : ''}`} title={hedged ? `Early word: ${n.line}` : n.line}>
           {n.label}
+          {hedged && <span className="visually-hidden"> (early word)</span>}
         </span>
       ))}
       {rest.length > 0 && (
@@ -278,7 +281,7 @@ function AttrRow({ attr, r, position, delta, isKey }: { attr: Attribute; r: Rati
           ) : (
             <>The engine doesn't use it at {position}.</>
           )}{' '}
-          <span className="muted">{AGING_TEXT[info.aging]}</span>
+          <span className="muted">{AGING_TEXT[agingFamily(position, attr)]}</span>
         </p>
       )}
     </div>
