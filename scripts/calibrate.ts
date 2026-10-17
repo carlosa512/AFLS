@@ -5,6 +5,7 @@
  *   npm run sim            # 3 seasons
  *   npm run sim -- 10      # 10 seasons
  */
+import { callerStyle } from '../src/engine/coaching';
 import { createLeague } from '../src/engine/generate';
 import { simToEndOfRegularSeason } from '../src/engine/league';
 import { teamRatings } from '../src/engine/roster';
@@ -50,6 +51,16 @@ let ties = 0;
 let favoriteWins = 0;
 let decided = 0;
 const winsByStrength: { rating: number; wins: number }[] = [];
+/** Play-calling style at work: pass share and fourth-down tries by the play-callers' leanings. */
+const byStyle: Record<string, { plays: number; passes: number; fourth: number; games: number }> = {};
+const tally = (key: string, t: TeamGameStats) => {
+  const b = (byStyle[key] ??= { plays: 0, passes: 0, fourth: 0, games: 0 });
+  b.plays += t.passAtt + t.sacked + t.rushAtt;
+  b.passes += t.passAtt + t.sacked;
+  b.fourth += t.fourthDownAtt;
+  b.games++;
+};
+const lean = (v: number) => (v >= 0.35 ? 'high' : v <= -0.35 ? 'low' : 'mid');
 
 const t0 = Date.now();
 for (let s = 0; s < seasons; s++) {
@@ -74,6 +85,11 @@ for (let s = 0; s < seasons; s++) {
       [r.home, r.homeScore],
       [r.away, r.awayScore],
     ];
+    for (const [id, t] of [[g.homeId, r.home], [g.awayId, r.away]] as const) {
+      const style = callerStyle(league, id);
+      tally(`pass:${lean(style.passLean)}`, t);
+      tally(`fourth:${lean(style.fourthDown)}`, t);
+    }
     for (const [t, pts] of pairs) {
       teamGames++;
       add('points', pts);
@@ -151,4 +167,8 @@ console.log(`Avg wins by rating quartile (best→worst): ${[0, 1, 2, 3].map((i) 
 const mean = winsByStrength.reduce((s, x) => s + x.wins, 0) / winsByStrength.length;
 const sd = Math.sqrt(winsByStrength.reduce((s, x) => s + (x.wins - mean) ** 2, 0) / winsByStrength.length);
 console.log(`Std dev of team wins: ${sd.toFixed(2)} (NFL ≈ 3.0–3.3)`);
+const show = (kind: 'pass' | 'fourth', label: (b: (typeof byStyle)[string]) => string) =>
+  (['low', 'mid', 'high'] as const).map((k) => (byStyle[`${kind}:${k}`] ? `${k} ${label(byStyle[`${kind}:${k}`])}` : `${k} n/a`)).join(' · ');
+console.log(`Play-caller style (informational): pass share by pass lean ${show('pass', (b) => `${((100 * b.passes) / b.plays).toFixed(1)}%`)}`);
+console.log(`  fourth-down tries per game by head coach's appetite ${show('fourth', (b) => (b.fourth / b.games).toFixed(2))}`);
 console.log(`\n${misses} stat(s) outside target range`);

@@ -4,24 +4,42 @@
  * design targets marked as such). Run it after any change to `development.ts`, `aging.ts`,
  * retirement or the hidden traits.
  *
- *   npm run careers            # cohort curves + a 16-season league run (about 2 minutes)
- *   npm run careers -- 24      # a longer league run
+ *   npm run careers            # cohort curves + four 16-season leagues (about 3 minutes on 4 cores)
+ *   npm run careers -- 24      # longer league runs
  *
  * Part 1 ages a synthetic draft class of every position from 21 (full playing time, no
- * retirement), so a curve can be tuned on its own. Part 2 plays real seasons and judges the
- * league's steady state (the second half of the run), where the opening league's age mix has
- * washed out. ▲/▼ marks a number outside its target range; "n/a" a sample too small to judge.
+ * retirement), so a curve can be tuned on its own. Part 2 plays real seasons in four leagues (each
+ * in its own process, `careers-league.ts`) and judges their pooled steady state (the second half of
+ * each run), where the opening league's age mix has washed out. One league's path is chaotic: a
+ * lucky quarterback class moves points and sacks for a decade, a couple of ageless kickers move the
+ * 38+ count, so a single seed can miss a band by noise alone. ▲/▼ marks a number outside its target
+ * range; "n/a" a sample too small to judge.
  */
+import { fork } from 'node:child_process';
+import { CHAIRS, coachingFrom, NEUTRAL, type Coaching } from '../src/engine/coaching';
 import { developPlayer } from '../src/engine/development';
-import { createLeague, generatePlayer } from '../src/engine/generate';
-import { simToEndOfSeason } from '../src/engine/league';
-import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
-import { playerOvr, STARTERS } from '../src/engine/positions';
+import { generatePlayer } from '../src/engine/generate';
+import { playerOvr } from '../src/engine/positions';
 import { clamp, Rng } from '../src/engine/rng';
-import type { Player, Position, Traits } from '../src/engine/types';
+import type { Coach, Player, Position, Traits } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
+import type { LeagueRun } from './careers-league';
 
 const seasons = Number(process.argv[2] ?? 16);
+const SEEDS = ['careers-audit', 'careers-audit-2', 'careers-audit-3', 'careers-audit-4'];
+// Part 2's leagues start first, each in its own process, and play while Part 1 runs here.
+const leagues: Promise<LeagueRun>[] = SEEDS.map(
+  (seed) =>
+    new Promise((resolve, reject) => {
+      const child = fork(new URL('./careers-league.ts', import.meta.url).pathname, [], { env: { ...process.env, CAREERS_SEED: seed, CAREERS_SEASONS: String(seasons) } });
+      child.once('message', (run) => {
+        resolve(run as LeagueRun);
+        child.kill();
+      });
+      child.once('error', reject);
+      child.once('exit', (code) => code && reject(new Error(`league ${seed} exited with ${code}`)));
+    }),
+);
 const COHORT = 1200;
 let misses = 0;
 
@@ -49,7 +67,7 @@ interface Cohort {
 }
 
 /** A draft class at one position: the ceiling is drawn the way `generateDraftClass` draws it. */
-function cohort(pos: Position, playedShare = 1, n = COHORT): Cohort {
+function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching = NEUTRAL): Cohort {
   const out: Cohort = { ovr: [], attr: { speed: [], agility: [], throwAccShort: [], throwAccDeep: [], awareness: [] }, traits: [] };
   for (let i = 0; i < n; i++) {
     const rng = new Rng(`careers:${pos}:${i}`);
@@ -62,7 +80,7 @@ function cohort(pos: Position, playedShare = 1, n = COHORT): Cohort {
       p.age = age;
       row.push(playerOvr(p));
       for (const a of Object.keys(attrs)) attrs[a].push(p.ratings[a as keyof Player['ratings']]);
-      developPlayer(new Rng(`careers:dev:${pos}:${i}:${age}`), p, { playedShare });
+      developPlayer(new Rng(`careers:dev:${pos}:${i}:${age}`), p, { playedShare, ...coaching });
     }
     out.ovr.push(row);
     for (const a of Object.keys(attrs)) out.attr[a].push(attrs[a]);
@@ -141,63 +159,66 @@ for (const l of lines) console.log(l);
   );
 }
 
-// ───────── Part 2: a league ─────────
-
-const steadyFrom = Math.floor(seasons / 2);
-console.log(`\nPart 2 — league run (${seasons} seasons, seed careers-audit; steady state = seasons ${steadyFrom + 1}–${seasons})\n`);
-const league = createLeague({ seed: 'careers-audit' });
-const retiredAt: Record<string, number[]> = {};
-const deltas: Record<string, number[]> = { '21-25': [], '26-29': [], '30-33': [], '34+': [] };
-const steady = { qb35: [] as number[], k38: [] as number[], rb30: [] as number[], points: [] as number[], penalties: [] as number[], sacks: [] as number[] };
-const starterOvr: number[] = [];
-const starters = () => league.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id])));
-const awareness = () => mean(starters().map((p) => p.ratings.awareness));
-const awareStart = awareness();
-
-for (let s = 0; s < seasons; s++) {
-  simToEndOfSeason(league);
-  if (s >= steadyFrom) {
-    for (const g of league.games) {
-      if (g.season !== league.season || g.playoffRound || !g.result) continue;
-      const r = g.result;
-      steady.points.push((r.homeScore + r.awayScore) / 2);
-      steady.penalties.push((r.home.penalties + r.away.penalties) / 2);
-      steady.sacks.push((r.home.sacked + r.away.sacked) / 2);
-    }
-  }
-  const before = new Map(Object.values(league.players).filter((p) => !p.retired).map((p) => [p.id, { ovr: playerOvr(p), age: p.age, rostered: p.teamId !== null }]));
-  beginOffseason(league);
-  for (const [id, b] of before) {
-    const p = league.players[id];
-    if (p.retired) {
-      const group = p.position === 'K' || p.position === 'P' ? 'K/P' : p.position;
-      if (b.rostered && s >= steadyFrom) (retiredAt[group] ??= []).push(p.age);
-      continue;
-    }
-    if (!b.rostered) continue;
-    const bucket = b.age <= 25 ? '21-25' : b.age <= 29 ? '26-29' : b.age <= 33 ? '30-33' : '34+';
-    deltas[bucket].push(playerOvr(p) - b.ovr);
-  }
-  while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
-  starterOvr.push(mean(starters().map(playerOvr)));
-  if (s >= steadyFrom) {
-    const first = (pos: Position) => league.teams.map((t) => league.players[t.depthChart[pos][0]]);
-    steady.qb35.push((100 * first('QB').filter((p) => p.age >= 35).length) / 32);
-    steady.rb30.push((100 * first('RB').filter((p) => p.age >= 30).length) / 32);
-    steady.k38.push(first('K').filter((p) => p.age >= 38).length + first('P').filter((p) => p.age >= 38).length);
-  }
+// Coaching (design targets: about half of what work ethic does, and symmetric around a typical staff).
+// The same draftees on the same random streams, coached by a strong staff (every coach 13) or a weak
+// one (every coach 8), so the gap is the coaches' alone.
+{
+  const N = 400;
+  const staffOf = (rating: number): Coach[] => CHAIRS.map((ch, i) => ({ id: -i - 1, firstName: '', lastName: '', ...ch, age: 50, youth: rating, veterans: rating, teamId: 0, contract: null }));
+  const all = POSITIONS.filter((p) => p !== 'K' && p !== 'P');
+  const gap = (age: number, a: number, b: number) => (rows: Record<number, Cohort>) => mean(all.map((pos) => mean(rows[a * 100 + all.indexOf(pos)].ovr.map((r, i) => r[age - 21] - rows[b * 100 + all.indexOf(pos)].ovr[i][age - 21]))));
+  const rows: Record<number, Cohort> = {};
+  all.forEach((pos, j) => {
+    rows[j] = { ...cohorts[pos], ovr: cohorts[pos].ovr.slice(0, N) };
+    rows[100 + j] = cohort(pos, 1, N, coachingFrom(staffOf(13), pos));
+    rows[200 + j] = cohort(pos, 1, N, coachingFrom(staffOf(8), pos));
+  });
+  const at26 = gap(26, 1, 2)(rows);
+  const at32 = gap(32, 1, 2)(rows);
+  const tilt = (gap(26, 1, 0)(rows) + gap(26, 2, 0)(rows)) / 2;
+  const byTrait = (key: keyof Traits, age: number) =>
+    mean(
+      all.map((pos) => {
+        const c = cohorts[pos];
+        const r = c.ovr.map((o, i) => ({ v: o[age - 21], t: c.traits[i][key] })).sort((a, b) => a.t - b.t);
+        const third = Math.floor(r.length / 3);
+        return mean(r.slice(-third).map((x) => x.v)) - mean(r.slice(0, third).map((x) => x.v));
+      }),
+    );
+  console.log(
+    `Coaching: ${check('strong vs weak staff, OVR at 26', at26, 0.12, 0.4)} · ${check('…at 32', at32, 0.3, 0.9)} · ${check('vs work ethic, at 26', at26 / byTrait('workEthic', 26), 0.3, 0.95)} · ${check('…at 32', at32 / byTrait('workEthic', 32), 0.3, 0.95)} · ${check('tilt at 26 (strong+weak vs typical)', tilt, -0.04, 0.04)}`,
+  );
 }
 
-console.log('starter OVR by season: ' + starterOvr.map((v) => v.toFixed(2)).join(' '));
-// The league must neither drain nor inflate (v4 on this seed slid from 12.92 to 12.60 over 16 seasons).
-console.log(check('lowest starter OVR', Math.min(...starterOvr), 12.65, 13.2) + ' · ' + check('highest starter OVR', Math.max(...starterOvr), 12.65, 13.2));
-console.log(`starter awareness: ${awareStart.toFixed(2)} → ${awareness().toFixed(2)} (informational: the mental game rises with age, the league shouldn't)`);
+// ───────── Part 2: four leagues ─────────
+
+const steadyFrom = Math.floor(seasons / 2);
+console.log(`\nPart 2 — league runs (${seasons} seasons each, seeds ${SEEDS.join(', ')}, pooled; steady state = seasons ${steadyFrom + 1}–${seasons})\n`);
+const runs = await Promise.all(leagues);
+const pool = <T>(pick: (r: LeagueRun) => T[]) => runs.flatMap(pick);
+const deltas = Object.fromEntries(Object.keys(runs[0].deltas).map((k) => [k, pool((r) => r.deltas[k])]));
+const steady = Object.fromEntries((Object.keys(runs[0].steady) as (keyof LeagueRun['steady'])[]).map((k) => [k, pool((r) => r.steady[k])])) as LeagueRun['steady'];
+const ledger = { growth: pool((r) => r.ledger.growth), body: pool((r) => r.ledger.body), craft: pool((r) => r.ledger.craft) };
+const coached = { best: pool((r) => r.coached.best), worst: pool((r) => r.coached.worst) };
+const retiredAt: Record<string, number[]> = {};
+for (const r of runs) for (const [group, ages] of Object.entries(r.retiredAt)) (retiredAt[group] ??= []).push(...ages);
+
+for (const r of runs) console.log(`starter OVR by season (${r.seed}): ` + r.starterOvr.map((v) => v.toFixed(2)).join(' '));
+// The league must neither drain nor inflate (v4 on careers-audit slid from 12.92 to 12.60 over 16 seasons).
+const allStarterOvr = pool((r) => r.starterOvr);
+console.log(check('lowest starter OVR', Math.min(...allStarterOvr), 12.65, 13.2) + ' · ' + check('highest starter OVR', Math.max(...allStarterOvr), 12.65, 13.2));
+console.log(`starter awareness: ${runs.map((r) => `${r.awareness[0].toFixed(2)} → ${r.awareness[1].toFixed(2)}`).join(', ')} (informational: the mental game rises with age, the league shouldn't)`);
 console.log('mean yearly OVR change, rostered: ' + Object.entries(deltas).map(([k, v]) => `${k} ${mean(v).toFixed(2)}`).join(' · '));
-// Research: 13.9% of QB peak seasons came at 35+ (recent leagues have had 3–7 QB1s that old); a few
-// kickers and punters play to 40.
-console.log(`${check('QB1s aged 35+ %', mean(steady.qb35), 4, 16, 1)} · ${check('RB1s aged 30+ %', mean(steady.rb30), 0, 8, 1)} · ${check('K/P starters aged 38+ (of 64)', mean(steady.k38), 1, 7, 1)}`);
+// Coaching must move players, not the league: a typical staff is neutral and the market keeps the average staff typical.
+console.log(
+  `coaching: ${check('mean growth rate (under 26)', mean(ledger.growth), 0.985, 1.015, 3)} · ${check('mean body decline (28+)', mean(ledger.body), 0.985, 1.015, 3)} · ${check('mean technique decline (28+)', mean(ledger.craft), 0.985, 1.015, 3)} · ${check('yearly OVR gain at 21-25, best-8 minus worst-8 staffs', mean(coached.best) - mean(coached.worst), 0.01, 0.25, 3)}`,
+);
+// Research: 13.9% of QB peak seasons came at 35+ (recent leagues have had 3–7 QB1s that old, up to
+// 22%); a few kickers and punters play to 40. Across four leagues the engine before coaching sat at
+// 18.5% and 7.4 (the old 16% and 7 ceilings were fit to one seed, which happened to read 14.1 and 6.6).
+console.log(`${check('QB1s aged 35+ %', mean(steady.qb35), 4, 22, 1)} · ${check('RB1s aged 30+ %', mean(steady.rb30), 0, 8, 1)} · ${check('K/P starters aged 38+ (of 64)', mean(steady.k38), 1, 8, 1)}`);
 // Long-run play: development must not quietly change the game. Fresh-league targets are in `npm run sim`;
-// an aged league sits a little off them even on the v4 engine (this seed: 21.99 points, 5.22 penalties,
+// an aged league sits a little off them even on the v4 engine (careers-audit: 21.99 points, 5.22 penalties,
 // 2.19 sacks), so the bands here are a little wider.
 console.log(`${check('points per team-game', mean(steady.points), 21, 24)} · ${check('penalties', mean(steady.penalties), 5, 7)} · ${check('sacks', mean(steady.sacks), 2, 2.7)}`);
 // Design targets (the research has no retirement ages); judged only with 8+ retirements.
@@ -213,6 +234,6 @@ console.log(
       })
       .join(' · '),
 );
-const now = starters();
-console.log('mean starter age: ' + POSITIONS.map((pos) => `${pos} ${mean(now.filter((p) => p.position === pos).map((p) => p.age)).toFixed(1)}`).join(' · '));
+const starterAges = pool((r) => r.starterAges);
+console.log('mean starter age: ' + POSITIONS.map((pos) => `${pos} ${mean(starterAges.filter((p) => p.position === pos).map((p) => p.age)).toFixed(1)}`).join(' · '));
 console.log(`\n${misses} number(s) outside target range`);

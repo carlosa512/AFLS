@@ -7,6 +7,7 @@
  * better teams win more often without making upsets impossible.
  */
 import { skill } from '../attributes';
+import { callerStyle, type CallerStyle } from '../coaching';
 import { clamp, Rng } from '../rng';
 import type { Game, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
 import { MAX_STATS } from '../types';
@@ -143,6 +144,8 @@ class GameSim {
   private plays: PlayLogEntry[] = [];
   private snapshot: Omit<PlayLogEntry, 'text' | 'homeScore' | 'awayScore'> | null = null;
   private homeEdge: number;
+  /** Each side's play-calling style (its coordinator's and head coach's). */
+  private styles: [CallerStyle, CallerStyle];
   /** Ball path attached to the next logged play. */
   private anim: Anim | null = null;
 
@@ -155,6 +158,7 @@ class GameSim {
     this.homeEdge = game.neutral ? 0 : HOME_FIELD_EDGE;
     const team = (id: number) => league.teams[id];
     this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
+    this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
   }
 
   run(): GameResult {
@@ -250,6 +254,8 @@ class GameSim {
       defTimeouts: this.timeouts[this.def],
       overtime: this.isOvertime(),
       fgMakeProb: this.fgProb(100 - this.yardLine + 17, this.lineups[off].k),
+      passLean: this.styles[off].passLean,
+      fourthDown: this.styles[off].fourthDown,
     };
   }
 

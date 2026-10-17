@@ -1,3 +1,4 @@
+import { generateCoachingWorld } from './coaching';
 import { FIRST_NAMES, LAST_NAMES } from './data/names';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
 import {
@@ -20,7 +21,7 @@ import { generateTraits } from './traits';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -297,6 +298,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     scoutPoints: SCOUT_POINTS_PER_YEAR,
     staff: {},
     nextStaffId: 1,
+    coaches: {},
+    nextCoachId: 1,
   };
 
   TEAM_SEEDS.forEach((seedTeam, i) => {
@@ -318,6 +321,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
       gm: generateGm(rng),
       staffBudgetMult: 1,
       staffDead: [],
+      coachDead: [],
     };
     league.teams.push(team);
 
@@ -358,7 +362,9 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   for (let y = 1; y <= MAX_FUTURE_DRAFT_YEARS; y++) createDraftPicks(league, season + y);
   league.games = generateSchedule(league, rng);
   league.rngState = rng.getState();
-  // Scouting departments draw from their own seeded stream: the players and schedule above are unchanged by them.
+  // Scouting departments and coaching staffs draw from their own seeded streams: the players and
+  // schedule above are unchanged by them.
   generateStaffWorld(league);
+  generateCoachingWorld(league);
   return league;
 }
