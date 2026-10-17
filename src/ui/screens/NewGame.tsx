@@ -3,6 +3,7 @@ import { createLeague } from '../../engine/generate';
 import { teamRatings } from '../../engine/roster';
 import { Rating, TeamChip } from '../components';
 import { live } from '../live';
+import { LoadBackupButton } from '../saves';
 import { store } from '../store';
 
 export function NewGame() {
@@ -72,9 +73,12 @@ export function NewGame() {
               'Choose a team to start your career.'
             )}
           </span>
-          <button className="btn btn-primary" disabled={picked === null} onClick={start}>
-            Start career
-          </button>
+          <div className="row">
+            <LoadBackupButton className="btn" />
+            <button className="btn btn-primary" disabled={picked === null} onClick={start}>
+              Start career
+            </button>
+          </div>
         </div>
       </div>
     </>

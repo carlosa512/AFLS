@@ -1,16 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { POSITION_NAMES, STARTERS } from '../../engine/positions';
 import { capSheet } from '../../engine/finance/cap';
-import { capHit } from '../../engine/finance/contract';
+import { capHit, lastSeason } from '../../engine/finance/contract';
 import { buildAutoDepthChart, teamPlayers, teamRatings } from '../../engine/roster';
 import { computeRecords } from '../../engine/season/standings';
 import type { League, Player, Position, StatLine } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, TeamChip } from '../components';
+import { Panel, PlayerAvatar, SortTh, sortRows, TeamChip, useSort } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
-import { Ovr, repsOf, Stars, starsOf, viewOf } from '../scouting';
+import { Ovr, repsOf, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { store } from '../store';
 
 export function statSummary(position: Position, s: StatLine | undefined): string {
@@ -139,6 +139,28 @@ function useDepthDrag(teamId: number) {
   return { drag, start };
 }
 
+type RosterSort = 'depth' | 'name' | 'ovr' | 'stars' | 'age' | 'cap' | 'thru';
+
+/** What each column sorts by: your scouts' view, never the true ratings. */
+function rosterSortValue(league: League, p: Player, key: RosterSort): number | string {
+  switch (key) {
+    case 'name':
+      return `${p.lastName} ${p.firstName}`.toLowerCase();
+    case 'ovr':
+      return seenOvr(league, p);
+    case 'stars':
+      return starsOf(league, p).ability;
+    case 'age':
+      return p.age;
+    case 'cap':
+      return p.contract ? capHit(p.contract, league.season) : -1;
+    case 'thru':
+      return p.contract ? lastSeason(p.contract) : 0;
+    default:
+      return 0;
+  }
+}
+
 export function Roster({ league, teamId }: { league: League; teamId: number }) {
   const nav = useNav();
   const team = league.teams[teamId];
@@ -149,6 +171,10 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
   const players = teamPlayers(league, teamId);
   const { drag, start } = useDepthDrag(teamId);
   const [announcement, setAnnouncement] = useState('');
+  // The depth chart is the default; any other column shows the whole roster as one sorted list.
+  const [sort, toggleSort, setSort] = useSort<RosterSort>({ key: 'depth', desc: false });
+  const onSort = (key: RosterSort, desc: boolean) => (key === 'depth' ? setSort({ key, desc: false }) : toggleSort(key, desc));
+  const grouped = sort.key === 'depth';
   const refocus = useRef<number | null>(null);
   // Keyboard moves re-render the list; keep focus on the grip that was used.
   useEffect(() => {
@@ -224,7 +250,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
       </Panel>
 
       <Panel
-        title="Depth chart"
+        title={grouped ? 'Depth chart' : 'Roster'}
         action={
           isUser ? (
             <label className="row" style={{ gap: 6, cursor: 'pointer' }}>
@@ -234,7 +260,15 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
           ) : undefined
         }
       >
-        {isUser && (
+        {!grouped && (
+          <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
+            Showing the whole roster sorted by a column.{' '}
+            <button className="linklike" onClick={() => onSort('depth', false)}>
+              Back to the depth chart
+            </button>
+          </p>
+        )}
+        {isUser && grouped && (
           <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
             Starters sit above the yellow line in each group. Drag a player by the <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns auto-sort off for your team.
           </p>
@@ -246,19 +280,41 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
           <table>
             <thead>
               <tr>
-                <th>Depth</th>
-                <th className="sticky-col">Player</th>
-                <th className="num">OVR</th>
-                <th>Stars</th>
-                <th className="num">Age</th>
+                <SortTh label="Depth" k="depth" sort={sort} onSort={onSort} desc={false} />
+                <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
+                <SortTh label="OVR" k="ovr" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="Stars" k="stars" sort={sort} onSort={onSort} />
+                <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
                 <th>Key ratings</th>
-                <th className="num">Cap hit</th>
-                <th className="num">Thru</th>
+                <SortTh label="Cap hit" k="cap" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="Thru" k="thru" sort={sort} onSort={onSort} className="num" />
                 <th>{resultsSeason(league)} stats</th>
               </tr>
             </thead>
             <tbody className={drag ? 'drag-active' : undefined}>
-              {POSITIONS.map((pos) => {
+              {!grouped &&
+                sortRows(
+                  POSITIONS.flatMap((pos) => team.depthChart[pos].map((id) => league.players[id]).filter((p): p is Player => !!p)),
+                  sort,
+                  (p, key) => rosterSortValue(league, p, key),
+                ).map((p) => {
+                  const ids = team.depthChart[p.position];
+                  return (
+                    <RosterRow
+                      key={p.id}
+                      league={league}
+                      player={p}
+                      index={ids.indexOf(p.id)}
+                      count={ids.length}
+                      editable={false}
+                      grouped={false}
+                      dragging={false}
+                      onGrip={() => {}}
+                      onKeyMove={() => {}}
+                    />
+                  );
+                })}
+              {grouped && POSITIONS.map((pos) => {
                 // While dragging, show the order the drop would produce.
                 const ids = drag?.pos === pos ? reorder(team.depthChart[pos], drag.from, drag.over) : team.depthChart[pos];
                 return [
@@ -281,6 +337,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                         index={i}
                         count={ids.length}
                         editable={isUser}
+                        grouped
                         dragging={drag?.id === id}
                         onGrip={(e) => start(pos, committed, id, e)}
                         onKeyMove={(to) => keyMove(p, committed, to)}
@@ -303,6 +360,7 @@ function RosterRow({
   index,
   count,
   editable,
+  grouped,
   dragging,
   onGrip,
   onKeyMove,
@@ -312,6 +370,8 @@ function RosterRow({
   index: number;
   count: number;
   editable: boolean;
+  /** Shown inside its position group, where the starter line means something. */
+  grouped: boolean;
   dragging: boolean;
   onGrip: (e: ReactPointerEvent) => void;
   onKeyMove: (to: number) => void;
@@ -319,10 +379,10 @@ function RosterRow({
   const nav = useNav();
   const view = viewOf(league, p);
   const starter = index < STARTERS[p.position];
-  const lastStarter = index === STARTERS[p.position] - 1 && index < count - 1;
+  const lastStarter = grouped && index === STARTERS[p.position] - 1 && index < count - 1;
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
   // Only your own young players: a rival's backups are none of your business.
-  const needsReps = editable && repsOf(league, p)?.needs;
+  const needsReps = p.teamId === league.userTeamId && repsOf(league, p)?.needs;
   const onKey = (e: ReactKeyboardEvent) => {
     const to = { ArrowUp: index - 1, ArrowDown: index + 1, Home: 0, End: count - 1 }[e.key];
     if (to === undefined) return;

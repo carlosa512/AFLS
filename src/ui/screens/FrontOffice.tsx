@@ -12,7 +12,7 @@ import { resignForecast, staffName, staffWindowOpen } from '../../engine/staff';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, Rating, TeamChip } from '../components';
+import { Panel, PlayerAvatar, Rating, SortTh, sortRows, TeamChip, useSort } from '../components';
 import { attentionText, coachAttention } from '../coaching';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
@@ -219,8 +219,11 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
 
 // ───────── free agents ─────────
 
+type FaSort = 'name' | 'pos' | 'age' | 'ovr' | 'fit' | 'market' | 'ask';
+
 function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Player) => void }) {
   const [pos, setPos] = useState<Position | 'ALL'>('ALL');
+  const [sort, onSort] = useSort<FaSort>({ key: 'market', desc: true });
   const teamId = league.userTeamId;
   const depth = positionDepth(league, teamId);
   if (league.phase === 'resign') {
@@ -258,11 +261,13 @@ function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Play
       </Panel>
     );
   }
-  const pool = freeAgents(league)
+  const rows = freeAgents(league)
     .filter((p) => pos === 'ALL' || p.position === pos)
-    .map((p) => ({ p, d: demand(league, p, teamId) }))
-    .sort((a, b) => b.d.market - a.d.market)
-    .slice(0, 120);
+    .map((p) => ({ p, d: demand(league, p, teamId), gain: needGain(depth, p, seenOvr(league, p)) }));
+  // Sort the whole pool before trimming it, so "youngest" or "cheapest" reaches past the top of the market.
+  const pool = sortRows(rows, sort, ({ p, d, gain }, key) =>
+    key === 'name' ? `${p.lastName} ${p.firstName}`.toLowerCase() : key === 'pos' ? POSITIONS.indexOf(p.position) : key === 'age' ? p.age : key === 'ovr' ? seenOvr(league, p) : key === 'fit' ? gain : key === 'ask' ? d.askApy : d.market,
+  ).slice(0, 120);
   return (
     <Panel
       title="Free agents"
@@ -282,19 +287,18 @@ function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Play
         <table>
           <thead>
             <tr>
-              <th className="sticky-col">Player</th>
-              <th>Pos</th>
-              <th className="num">Age</th>
-              <th className="num">OVR</th>
-              <th>For you</th>
-              <th className="num">Market</th>
-              <th className="num">Ask</th>
+              <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
+              <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
+              <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
+              <SortTh label="OVR" k="ovr" sort={sort} onSort={onSort} className="num" />
+              <SortTh label="For you" k="fit" sort={sort} onSort={onSort} />
+              <SortTh label="Market" k="market" sort={sort} onSort={onSort} className="num" />
+              <SortTh label="Ask" k="ask" sort={sort} onSort={onSort} className="num" />
               <th />
             </tr>
           </thead>
           <tbody>
-            {pool.map(({ p, d }) => {
-              const gain = needGain(depth, p, seenOvr(league, p));
+            {pool.map(({ p, d, gain }) => {
               return (
                 <tr key={p.id}>
                   <td className="sticky-col">
