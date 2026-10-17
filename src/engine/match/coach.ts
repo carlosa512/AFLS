@@ -25,13 +25,6 @@ export interface Situation {
   fourthDown?: number;
 }
 
-/** Pass probability a full-strength lean adds or takes away in an ordinary situation. */
-const PASS_LEAN = 0.06;
-/** How far a full-strength fourth-down appetite scales the odds of going for it on the judgment calls. */
-const FOURTH_LEAN = 0.4;
-/** A judgment-call go-for-it chance, nudged by the head coach's appetite. */
-const goOdds = (s: Situation, base: number) => clamp(base * (1 + FOURTH_LEAN * (s.fourthDown ?? 0)), 0, 0.95);
-
 export type PassDepth = 'short' | 'medium' | 'deep';
 export type DefenseCall = 'base' | 'runD' | 'passD' | 'blitz';
 export type Tempo = 'hurry' | 'normal' | 'milk';
@@ -41,6 +34,18 @@ const isLateHalf = (s: Situation, seconds: number) =>
   (s.quarter === 2 || s.quarter >= 4) && s.clock <= seconds;
 /** Seconds left in the game (regulation fourth quarter or overtime). */
 const gameSecondsLeft = (s: Situation) => (s.quarter >= 4 ? s.clock : Infinity);
+
+/** Pass probability a full-strength lean adds or takes away in an ordinary situation. */
+const PASS_LEAN = 0.06;
+/** How far a full-strength fourth-down appetite scales the odds of going for it on the judgment calls. */
+const FOURTH_LEAN = 0.4;
+/**
+ * Where a coach's taste gets a say: not the end of a half, not the last five minutes, not overtime,
+ * and not when the clock already dictates the tempo. There the scripts decide, the same for everyone.
+ */
+const ordinary = (s: Situation) => !s.overtime && !isLateHalf(s, s.quarter === 2 ? 120 : 300) && tempo(s) === 'normal';
+/** A judgment-call go-for-it chance, nudged by the head coach's appetite in ordinary situations. */
+const goOdds = (s: Situation, base: number) => (ordinary(s) ? clamp(base * (1 + FOURTH_LEAN * (s.fourthDown ?? 0)), 0, 0.95) : base);
 
 export function tempo(s: Situation): Tempo {
   if (playForFieldGoal(s)) return 'milk';
@@ -158,7 +163,7 @@ export function passProbability(s: Situation): number {
 
   if (100 - s.yardLine <= 3) p -= 0.12;
   // The play-caller's taste, in ordinary situations only: the clock and the score decide the end of games.
-  if (tempo(s) === 'normal') p += PASS_LEAN * (s.passLean ?? 0);
+  if (ordinary(s)) p += PASS_LEAN * (s.passLean ?? 0);
   const secondsLeft = gameSecondsLeft(s);
   if (s.quarter >= 4 && s.scoreDiff < 0) {
     if (secondsLeft <= 240) p += 0.35;

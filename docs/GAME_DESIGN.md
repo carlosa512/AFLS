@@ -151,7 +151,7 @@ ceiling on their draft board, re-sign and cut lists, and trade value.
 Every team has 11 coaching chairs: a **head coach**, an **offensive** and a **defensive coordinator**,
 a **strength & conditioning (S&C) coach** and seven **position coaches** (quarterbacks, running backs,
 receivers and tight ends, offensive line, defensive line, linebackers, secondary). Kickers and punters
-train with the head coach and the S&C coach.
+train with the head coach and the S&C coach (the head coach alone keeps their technique).
 
 Each coach has two public 1–20 ratings, and both feed player development (`src/engine/coaching.ts`):
 
@@ -165,21 +165,30 @@ Who counts for a player:
 - **Physical decline:** the S&C coach 40%, his position coach 35%, the head coach 25%.
 - **Technique and mental decline:** his position coach 50%, his coordinator 25%, the head coach 25%.
 
-A point of youth development is worth as much growth as a point of work ethic (6.5%); a point of
-veteran care slows decline by 2.5–3%. An empty chair counts as a weak coach (6). A typical staff
-(every rating 10.5) changes nothing, so league-wide development is calibrated as before; the market
-and the AI's hiring goals keep the average staff typical. `npm run careers` checks the size: the
-same draft class under a strong staff (every coach 13) is about 0.2 OVR better at 26 and 0.5 better
-at 32 than under a weak one (every coach 8), roughly 60% of what work ethic does.
+A point of youth development across the whole staff is worth as much growth as a point of work
+ethic (6.5%); one coach's point counts for his share (a position coach's point is about 2.9% for his
+room, the head coach's 1.3%). A point of veteran care across the staff slows decline by 2.5–3%. The
+combined effect is capped at ±30% growth and ±20% decline: past that, more rating buys nothing. An
+empty chair counts as a weak coach (6). A typical staff (every rating 10.5) changes nothing, so
+league-wide development is calibrated as before; the market and the AI's hiring goals keep the
+average staff typical. `npm run careers` checks the size: the same draft class under a strong staff
+(every coach 13) is about 0.2 OVR better at 26 and 0.5 better at 32 than under a weak one (every
+coach 8), roughly 60% of what work ethic does; in a league, the same young players' years replayed
+with a typical staff and with their own show about +0.1 OVR a year under the best staffs against
+the worst.
 
 Development runs once a year with the coaches a player finished the season with, so a hire takes
 effect at the next league year's development. Free agents have no coaches: their year is neutral.
+A new career starts with a full, typical staff: the first development pass comes before the first
+re-sign window, so an empty chair there would cost a year you couldn't prevent. The first decisions
+are the deals that run out after one season.
 
-**Play-calling style** belongs to the coach and moves with him: the offensive coordinator (or the
-head coach without one) leans to the pass or the run (±6 points of pass rate in ordinary
-situations), and the head coach is more or less aggressive on fourth down (go-for-it odds ×0.6 to
-×1.4 on the judgment calls). Style changes the mix, never the execution, and the end-of-game scripts
-ignore it. In a season a run-first offense passes about 54% of the time and a pass-first one about
+**Play-calling style** belongs to the coach and moves with him: the offensive coordinator leans to
+the pass or the run (±6 points of pass rate), and the head coach is more or less aggressive on
+fourth down (go-for-it odds ×0.6 to ×1.4 on the judgment calls); an empty chair calls a
+league-average game. Style changes the mix, never the execution, and only in ordinary situations:
+the last two minutes of the first half, the last five of the game, overtime and any clock-driven
+tempo belong to the end-of-game scripts, the same for every coach. In a season a run-first offense passes about 54% of the time and a pass-first one about
 59%; an aggressive head coach goes for it about 1.2 times a game and a conservative one 0.9.
 
 **Hiring is like the scouting staff, with its own budget** (about 9.5% of the cap, $28.6M at the
@@ -187,14 +196,16 @@ opening cap; same owner generosity as the scouting budget). Asks scale with qual
 coach costs about $7.5M, a coordinator or S&C coach $2.6M, a position coach $1.1M. Deals run 1–3
 years (head coaches up to 5); dismissing a coach costs half of what's left on his deal, at most a
 year's salary. Moves happen in the re-sign window and free agency; a hire can replace the coach in
-his chair in one move. Expiring coaches re-sign automatically unless you let them go. Coaches keep
+his chair in one move (his salary comes back, less severance, and the forecast counts it). Expiring
+coaches re-sign automatically unless you let them go. Coaches keep
 improving into their 50s and decline from their mid-50s; head coaches and coordinators retire from
 their mid-60s, assistants a few years earlier.
 
 **AI staffs** aim at a seeded quality goal per team (centred, so the league stays typical); win-now
 front offices spend more on the head coach and coordinators, rebuilders on the teachers. After a bad
-season an AI team may fire its head coach (patience runs out after a couple of losing years); head
-coach and coordinator moves around the league show in the news. `npm run offseason` reports the
+season an AI team may fire its head coach (patience runs out after a couple of losing years), and it
+never re-hires a coach it has just let go; head coach and coordinator moves around the league show
+in the news. `npm run offseason` reports the
 coaching economy and young players' growth under the best and worst staffs.
 
 ## How the front office works

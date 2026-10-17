@@ -11,6 +11,7 @@ import {
   coachMoveProblem,
   coachPayroll,
   coachResignForecast,
+  coachRoom,
   coachSeverance,
   coachValue,
   coachWindowCloses,
@@ -26,17 +27,19 @@ import {
   releaseCoach,
   replaceCoach,
   replaceProblem,
+  RATE_RANGE,
+  DECLINE_RANGE,
   roomEffect,
   sameChair,
   chairOf,
   teamCoaches,
   TYPICAL,
-  type Chair,
 } from './coaching';
 import { developPlayer } from './development';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { simToEndOfSeason } from './league';
 import { fourthDown, passProbability, type Situation } from './match/coach';
+import { simulateGame } from './match/gameSim';
 import { migrateLeague } from './migrate';
 import { advanceOffseason, beginOffseason, simOffseason } from './offseason';
 import { playerOvr } from './positions';
@@ -62,12 +65,13 @@ function rookie(pos: Position, age: number, i: number): Player {
   return generatePlayer(new Rng(`coach-test:${pos}:${i}`), { id: 2_000_000 + i, position: pos, quality: 11, age, teamId: null, jerseysUsed: new Set() });
 }
 
-/** Average change in overall over `years` offseasons for the same players under a given staff. */
-function careerUnder(staff: Coach[] | null, pos: Position, age: number, years: number, n = 300): number {
+/** Average change in overall over `years` offseasons for the same players under a given staff (and makeup). */
+function careerUnder(staff: Coach[] | null, pos: Position, age: number, years: number, n = 300, vary?: (p: Player) => void): number {
   const coaching = staff ? coachingFrom(staff, pos) : NEUTRAL;
   const deltas: number[] = [];
   for (let i = 0; i < n; i++) {
     const p = rookie(pos, age, i);
+    vary?.(p);
     const start = playerOvr(p);
     for (let y = 0; y < years; y++) {
       developPlayer(new Rng(`coach-test:year:${i}:${y}`), p, { playedShare: 1, ...coaching });
@@ -125,15 +129,19 @@ describe('what coaches do for players', () => {
     const weak = staffOf(7);
     const youngGap = careerUnder(strong, 'WR', 21, 5) - careerUnder(weak, 'WR', 21, 5);
     expect(youngGap).toBeGreaterThan(0.1);
-    expect(youngGap).toBeLessThan(0.8);
+    // Seven points of staff against nine of work ethic on the same players: the player's own makeup matters more.
+    const grinder = careerUnder(null, 'WR', 21, 5, 300, (p) => (p.traits.workEthic = 15));
+    const coaster = careerUnder(null, 'WR', 21, 5, 300, (p) => (p.traits.workEthic = 6));
+    expect(youngGap).toBeLessThan(grinder - coaster);
     const oldGap = careerUnder(strong, 'RB', 28, 3) - careerUnder(weak, 'RB', 28, 3);
     expect(oldGap).toBeGreaterThan(0.2);
     // A typical staff is exactly today's development.
     expect(careerUnder(staffOf(TYPICAL), 'CB', 22, 4, 60)).toBe(careerUnder(null, 'CB', 22, 4, 60));
-    // Clamped: no staff makes anyone a different player.
+    // Capped: no staff makes anyone a different player, and the parts stop adding up past the caps.
     const best = coachingFrom(staffOf(20), 'WR');
-    expect(best.rate).toBeLessThanOrEqual(1.3);
-    expect(best.decline.physical).toBeGreaterThanOrEqual(0.8);
+    expect(best.rate).toBe(RATE_RANGE[1]);
+    expect(best.decline.physical).toBe(DECLINE_RANGE[0]);
+    expect(1 + coachingParts(staffOf(20), 'WR').reduce((sum, part) => sum + part.growth, 0)).toBeGreaterThan(best.rate);
   });
 
   it('never draws extra random numbers from a player’s stream', () => {
@@ -162,23 +170,26 @@ describe('what coaches do for players', () => {
     // Nobody coaches a free agent: his year is the same either way.
     const fa = Object.values(l.players).find((p) => p.teamId === null && !p.retired)!;
     expect(strong.players[fa.id].ratings).toEqual(weak.players[fa.id].ratings);
+    // Coaching moves players, never the league's own stream: same draft class, same schedule.
+    expect(strong.rngState).toEqual(weak.rngState);
+    expect(strong.draftClass.map((id) => strong.players[id].ratings)).toEqual(weak.draftClass.map((id) => weak.players[id].ratings));
   }, 30_000);
 });
 
 describe('coaching staffs and moves', () => {
-  it('gives every AI team a full staff inside its budget, and the user one open position room', () => {
+  it('gives every team a full staff inside its budget, and the user a typical one', () => {
     const l = createLeague({ seed: 'staffs' });
     for (const team of l.teams) {
       const staff = teamCoaches(l, team.id);
-      const open = CHAIRS.filter((ch) => !chairHolder(staff, ch));
-      if (team.id === l.userTeamId) {
-        expect(open).toHaveLength(1);
-        expect(open[0].role).toBe('positionCoach');
-      } else expect(open).toHaveLength(0);
+      for (const ch of CHAIRS) expect(staff.filter((c) => sameChair(chairOf(c), ch))).toHaveLength(1);
       expect(coachPayroll(l, team.id)).toBeLessThanOrEqual(coachBudget(l, team.id));
-      // One coach per chair.
-      for (const ch of CHAIRS) expect(staff.filter((c) => sameChair(chairOf(c), ch)).length).toBeLessThanOrEqual(1);
     }
+    // Development runs before the first window, so the user starts with nothing he couldn't fix in time.
+    const mine = teamCoaches(l, l.userTeamId);
+    for (const c of mine) expect(Math.abs(coachValue(c) - TYPICAL)).toBeLessThanOrEqual(2);
+    expect(Math.abs(mean(mine.map(coachValue)) - TYPICAL)).toBeLessThan(0.75);
+    // His first decisions: deals that run out after one season.
+    expect(mine.some((c) => c.contract!.through === l.season)).toBe(true);
     for (const c of Object.values(l.coaches)) {
       expect(c.youth).toBeGreaterThanOrEqual(1);
       expect(c.veterans).toBeLessThanOrEqual(20);
@@ -190,9 +201,8 @@ describe('coaching staffs and moves', () => {
   it('gives the opening user staff to the team he picks, without changing anything else', () => {
     const team0 = createLeague({ seed: 'pick' });
     const picked = createLeague({ seed: 'pick', userTeamId: 7 });
-    const openChairs = (l: League, id: number) => CHAIRS.filter((ch) => !chairHolder(teamCoaches(l, id), ch)).length;
-    expect(openChairs(picked, 7)).toBe(1);
-    expect(openChairs(picked, 0)).toBe(0);
+    const typical = (l: League, id: number) => teamCoaches(l, id).every((c) => Math.abs(coachValue(c) - TYPICAL) <= 2);
+    expect(typical(picked, 7)).toBe(true);
     expect(picked.players).toEqual(team0.players);
     expect(picked.games).toEqual(team0.games);
     expect(picked.rngState).toEqual(team0.rngState);
@@ -208,20 +218,29 @@ describe('coaching staffs and moves', () => {
   it('hire within budget and chair, replace in one move, dismiss with severance, extend only expiring deals', () => {
     const l = offseason('coach-moves');
     const user = l.userTeamId;
-    const open = CHAIRS.find((ch) => !chairHolder(teamCoaches(l, user), ch))!;
-    // Fill the open room with the cheapest candidate for it.
+    l.teams[user].staffBudgetMult = 2; // money is tested on its own below
+    // Dismissing a coach under contract books half of what's left, at most a year's salary.
+    const pc = teamCoaches(l, user).find((c) => c.role === 'positionCoach' && !isCoachExpiring(l, c))!;
+    const chair = chairOf(pc);
+    const yearsLeft = pc.contract!.through - l.season + 1;
+    const pcSalary = pc.contract!.salary;
+    expect(coachSeverance(l, pc)).toBe(Math.round(pcSalary * Math.min(1, 0.5 * yearsLeft)));
+    let payroll = coachPayroll(l, user);
+    releaseCoach(l, user, pc.id);
+    expect(coachPayroll(l, user)).toBe(payroll - pcSalary + Math.round(pcSalary * Math.min(1, 0.5 * yearsLeft)));
+    // Hire into the open chair.
     const cheapest = coachMarket(l)
-      .filter((c) => sameChair(chairOf(c), open))
+      .filter((c) => sameChair(chairOf(c), chair))
       .sort((a, b) => coachAsk(l, a) - coachAsk(l, b))[0];
     hireCoach(l, user, cheapest.id, 3);
     expect(cheapest.teamId).toBe(user);
     expect(cheapest.since).toBe(l.season);
     expect(cheapest.contract!.through).toBe(l.season + 2);
     // A second coach for a filled chair needs a replace; the old one's money comes back, less severance.
-    const rival = coachMarket(l).find((c) => sameChair(chairOf(c), open))!;
+    const rival = coachMarket(l).find((c) => sameChair(chairOf(c), chair))!;
     expect(coachMoveProblem(l, user, rival, 'hire')).toMatch(/already have a/);
     expect(replaceProblem(l, user, rival)).toBeNull();
-    const payroll = coachPayroll(l, user);
+    payroll = coachPayroll(l, user);
     const salary = cheapest.contract!.salary;
     const severance = coachSeverance(l, cheapest);
     expect(severance).toBe(salary); // three years left: capped at a year's salary
@@ -232,21 +251,38 @@ describe('coaching staffs and moves', () => {
     expect(rival.teamId).toBe(user);
     expect(coachPayroll(l, user)).toBe(payroll - salary + severance + ask);
     expect(l.teams[user].coachDead.at(-1)!.amount).toBe(severance);
-    // One year left: half a year's salary.
-    const oneYear = teamCoaches(l, user).find((c) => c.contract!.through === l.season)!;
-    if (oneYear) expect(coachSeverance(l, oneYear)).toBe(Math.round(oneYear.contract!.salary * 0.5));
-    // Over budget is refused with the reason; terms are capped by role.
-    l.teams[user].staffBudgetMult = 0.1;
-    expect(coachMoveProblem(l, user, coachMarket(l).find((c) => c.role === 'positionCoach')!, 'hire')).toMatch(/Over your coaching budget|already have/);
-    l.teams[user].staffBudgetMult = 1;
-    const coord = coachMarket(l).find((c) => c.role === 'offCoord')!;
-    expect(coachMoveProblem(l, user, coord, 'hire', 5)).toMatch(/1–3 years/);
-    // Only expiring deals extend.
-    const signed = teamCoaches(l, user).find((c) => !isCoachExpiring(l, c))!;
-    expect(() => extendCoach(l, user, signed.id)).toThrow(/expiring/);
-    // Dismissing someone else's coach is refused.
-    const theirs = teamCoaches(l, (user + 1) % 32)[0];
-    expect(() => releaseCoach(l, user, theirs.id)).toThrow();
+    // Terms are capped by role; only expiring deals extend; nobody dismisses another team's coach.
+    expect(coachMoveProblem(l, user, coachMarket(l).find((c) => c.role === 'offCoord')!, 'hire', 5)).toMatch(/1–3 years/);
+    expect(() => extendCoach(l, user, teamCoaches(l, user).find((c) => !isCoachExpiring(l, c))!.id)).toThrow(/expiring/);
+    expect(() => releaseCoach(l, user, teamCoaches(l, (user + 1) % 32)[0].id)).toThrow();
+  });
+
+  it('refuses what the budget can’t cover, counting what a replacement frees', () => {
+    const l = offseason('coach-budget');
+    const user = l.userTeamId;
+    /** Set the owner's money so the coaching room is exactly `room`. */
+    const setRoom = (room: number) => {
+      l.teams[user].staffBudgetMult = 1;
+      l.teams[user].staffBudgetMult = (coachPayroll(l, user) + room) / coachBudget(l, user);
+    };
+    // A chair whose man's deal is up is open to a hire: the budget decides.
+    const expiring = teamCoaches(l, user).find((c) => isCoachExpiring(l, c))!;
+    const hire = coachMarket(l).find((c) => sameChair(chairOf(c), chairOf(expiring)))!;
+    setRoom(coachAsk(l, hire) - 50);
+    expect(coachMoveProblem(l, user, hire, 'hire')).toMatch(/Over your coaching budget/);
+    setRoom(coachAsk(l, hire) + 50);
+    expect(coachMoveProblem(l, user, hire, 'hire')).toBeNull();
+    // Replacing a man with a year left frees half his salary (the other half is severance).
+    const holder = teamCoaches(l, user).find((c) => !isCoachExpiring(l, c) && c.contract!.through === l.season)!;
+    expect(holder).toBeDefined();
+    const freed = holder.contract!.salary - coachSeverance(l, holder);
+    expect(freed).toBeGreaterThan(100);
+    const incoming = coachMarket(l).find((c) => sameChair(chairOf(c), chairOf(holder)))!;
+    setRoom(coachAsk(l, incoming) - freed / 2);
+    expect(coachRoom(l, user)).toBeLessThan(coachAsk(l, incoming));
+    expect(replaceProblem(l, user, incoming)).toBeNull();
+    setRoom(coachAsk(l, incoming) - freed - 50);
+    expect(replaceProblem(l, user, incoming)).toMatch(/even after dismissing/);
   });
 
   it('re-signs the user’s expiring coaches when the window closes, unless he let them go', () => {
@@ -270,8 +306,8 @@ describe('coaching staffs and moves', () => {
     const l = offseason('coach-forecast');
     const user = l.userTeamId;
     const expiring = teamCoaches(l, user).filter((c) => isCoachExpiring(l, c));
-    const target = expiring[0];
-    expect(target).toBeDefined();
+    expect(expiring.length).toBeGreaterThanOrEqual(3);
+    const [target, ...rest] = expiring;
     // Hire into his chair: he can't be extended into it, and the forecast says so.
     l.teams[user].staffBudgetMult = 5;
     const rival = coachMarket(l).find((c) => sameChair(chairOf(c), chairOf(target)))!;
@@ -279,10 +315,14 @@ describe('coaching staffs and moves', () => {
     hireCoach(l, user, rival.id, 1);
     expect(coachResignForecast(l, user).get(target.id)).toBe('chair');
     expect(coachMoveProblem(l, user, target, 'extend')).toMatch(/chair is taken/);
-    // And a budget too small for anyone's raise.
-    l.teams[user].staffBudgetMult = 0.05;
+    // Money for the best of the rest and not much more: best first stays, the others are priced out.
+    const best = [...rest].sort((a, b) => coachValue(b) - coachValue(a))[0];
+    const room = coachAsk(l, best) + 10;
+    l.teams[user].staffBudgetMult = 1;
+    l.teams[user].staffBudgetMult = (coachPayroll(l, user) + room) / coachBudget(l, user);
     const forecast = coachResignForecast(l, user);
-    for (const c of expiring) if (c !== target) expect(forecast.get(c.id)).toBe('budget');
+    expect(forecast.get(best.id)).toBe('stays');
+    for (const c of rest) if (c !== best) expect(forecast.get(c.id)).toBe('budget');
     advanceOffseason(l); // the window closes
     for (const [id, outlook] of forecast) {
       const c = l.coaches[id];
@@ -292,17 +332,38 @@ describe('coaching staffs and moves', () => {
     for (const ch of CHAIRS) expect(teamCoaches(l, user).filter((c) => sameChair(chairOf(c), ch)).length).toBeLessThanOrEqual(1);
   });
 
+  it('forecasts a replacement with the salary it frees, as replaceCoach does', () => {
+    const l = offseason('coach-replace-forecast');
+    const user = l.userTeamId;
+    const holder = teamCoaches(l, user).find((c) => !isCoachExpiring(l, c) && c.contract!.through === l.season)!;
+    const incoming = coachMarket(l).find((c) => sameChair(chairOf(c), chairOf(holder)))!;
+    const expiring = teamCoaches(l, user).filter((c) => isCoachExpiring(l, c)).sort((a, b) => coachValue(b) - coachValue(a))[0];
+    const freed = holder.contract!.salary - coachSeverance(l, holder);
+    // Room for the hire and the best expiring deal only once the replaced man's salary is counted.
+    const room = coachAsk(l, incoming) + coachAsk(l, expiring) - freed / 2;
+    l.teams[user].staffBudgetMult = 1;
+    l.teams[user].staffBudgetMult = (coachPayroll(l, user) + room) / coachBudget(l, user);
+    const before = coachResignForecast(l, user);
+    const predicted = coachesPushedOutBy(l, user, incoming).map((c) => c.id);
+    expect(predicted).not.toContain(expiring.id);
+    replaceCoach(l, user, incoming.id, 2);
+    const after = coachResignForecast(l, user);
+    const actual = [...before].filter(([id, o]) => o === 'stays' && after.get(id) !== 'stays').map(([id]) => id);
+    expect(predicted.sort()).toEqual(actual.sort());
+  });
+
   it('previews what a hire would change, losses included', () => {
     const l = offseason('coach-preview');
     const user = l.userTeamId;
-    const open = CHAIRS.find((ch) => !chairHolder(teamCoaches(l, user), ch))!;
-    const star = coachMarket(l).find((c) => sameChair(chairOf(c), open))!;
+    l.teams[user].staffBudgetMult = 3; // nobody is pushed out here
+    const pc = teamCoaches(l, user).find((c) => c.role === 'positionCoach' && !isCoachExpiring(l, c) && c.youth < 18)!;
+    const star = coachMarket(l).find((c) => sameChair(chairOf(c), chairOf(pc)))!;
     star.youth = 19;
     star.veterans = 19;
     const changes = previewCoachHire(l, user, star);
     expect(changes.length).toBeGreaterThan(0);
     for (const c of changes) {
-      expect(c.room).toBe(open.room);
+      expect(c.room).toBe(pc.room);
       expect(c.to.growth).toBeGreaterThan(c.from.growth);
     }
     // A worse head coach than the one he'd replace shows as losses everywhere.
@@ -315,11 +376,13 @@ describe('coaching staffs and moves', () => {
     for (const c of losses) expect(c.to.growth).toBeLessThan(c.from.growth);
   });
 
-  it('fills an AI team’s empty chairs before the season, and the window when it closes', () => {
+  it('fills an AI team’s empty chairs before the season and when the window closes, never the user’s', () => {
     const l = offseason('coach-chairs');
     const ai = l.teams.find((t) => t.id !== l.userTeamId)!;
     const hc = chairHolder(teamCoaches(l, ai.id), { role: 'headCoach' })!;
     delete l.coaches[hc.id];
+    const mine = teamCoaches(l, l.userTeamId).find((c) => c.role === 'positionCoach' && !isCoachExpiring(l, c))!;
+    delete l.coaches[mine.id];
     const fresh = copy(l); // a fresh coaching index, as after a reload
     ensureCoached(fresh);
     expect(chairHolder(teamCoaches(fresh, ai.id), { role: 'headCoach' })).not.toBeNull();
@@ -327,7 +390,7 @@ describe('coaching staffs and moves', () => {
     coachWindowCloses(other);
     for (const t of other.teams) if (t.id !== other.userTeamId) for (const ch of CHAIRS) expect(chairHolder(teamCoaches(other, t.id), ch), `${t.abbrev} ${ch.role}`).not.toBeNull();
     // The user's empty chair is his to fill.
-    expect(CHAIRS.some((ch: Chair) => !chairHolder(teamCoaches(other, other.userTeamId), ch))).toBe(true);
+    expect(chairHolder(teamCoaches(other, other.userTeamId), chairOf(mine))).toBeNull();
   });
 
   it('fires head coaches after bad seasons, rarely after one, never after good ones', () => {
@@ -338,13 +401,38 @@ describe('coaching staffs and moves', () => {
     expect(hotSeat({ w: 13, l: 4, t: 0 }, 5)).toBe(0);
   });
 
+  it('puts AI head coaches on the hot seat at the window, and never re-hires the man just let go', () => {
+    const l = offseason('hot-seat');
+    const last = l.history.find((h) => h.season === l.season - 1)!;
+    const ai = l.teams.filter((t) => t.id !== l.userTeamId);
+    const before = new Map(ai.map((t) => [t.id, chairHolder(teamCoaches(l, t.id), { role: 'headCoach' })!]));
+    const [bad, good] = [ai.slice(0, 16), ai.slice(16)];
+    for (const t of bad) {
+      last.records[t.id] = { w: 1, l: 16, t: 0 };
+      before.get(t.id)!.since = l.season - 3;
+    }
+    for (const t of good) last.records[t.id] = { w: 13, l: 4, t: 0 };
+    coachWindowCloses(l);
+    // Three in four of a 1–16 team's veteran head coaches go; a 13–4 team never fires its man.
+    const fired = bad.filter((t) => /after a 1–16 season/.test(before.get(t.id)!.lastJob ?? ''));
+    expect(fired.length).toBeGreaterThan(6);
+    for (const t of good) expect(before.get(t.id)!.lastJob ?? '').not.toMatch(/season/);
+    for (const t of fired) {
+      expect(before.get(t.id)!.teamId).not.toBe(t.id);
+      expect(chairHolder(teamCoaches(l, t.id), { role: 'headCoach' })).not.toBeNull();
+    }
+    // Nobody an AI team let go in this window is back on that team.
+    for (const t of ai) for (const c of teamCoaches(l, t.id)) expect(c.lastJob ?? '').not.toContain(`, ${t.abbrev}`);
+    expect(l.transactions.some((tx) => tx.kind === 'coach' && /dismissed head coach .* after a 1–16 season/.test(tx.text))).toBe(true);
+  });
+
   it('keeps the coaching economy steady over several offseasons, with head coaches changing jobs', () => {
     const l = createLeague({ seed: 'coach-economy' });
     let fired = 0;
     for (let y = 0; y < 4; y++) {
       simToEndOfSeason(l);
       simOffseason(l);
-      fired += l.transactions.filter((t) => t.season === l.season && t.kind === 'staff' && /head coach .* after a/.test(t.text)).length;
+      fired += l.transactions.filter((t) => t.season === l.season && t.kind === 'coach' && /head coach .* after a/.test(t.text)).length;
       const employed = Object.values(l.coaches).filter((c) => c.teamId !== null);
       const meanValue = mean(employed.map(coachValue));
       expect(meanValue).toBeGreaterThan(9.5);
@@ -352,19 +440,14 @@ describe('coaching staffs and moves', () => {
       expect(coachMarket(l).length).toBeLessThan(160);
       for (const team of l.teams) {
         for (const ch of CHAIRS) expect(chairHolder(teamCoaches(l, team.id), ch)).not.toBeNull();
+        // A team with nobody affordable left signs a journeyman on a one-year deal even over budget
+        // (a chair can't stay empty), so a few percent over is allowed.
         expect(coachPayroll(l, team.id)).toBeLessThanOrEqual(coachBudget(l, team.id) * 1.12);
       }
     }
     expect(fired).toBeGreaterThan(0);
   }, 120_000);
 
-  it('never touches the league random stream', () => {
-    const l = offseason('coach-stream');
-    const state = copy(l.rngState);
-    coachWindowCloses(l);
-    ensureCoached(l);
-    expect(l.rngState).toEqual(state);
-  });
 });
 
 describe('play-calling style', () => {
@@ -374,40 +457,89 @@ describe('play-calling style', () => {
     const staff = teamCoaches(l, team.id);
     const hc = chairHolder(staff, { role: 'headCoach' })!;
     const oc = chairHolder(staff, { role: 'offCoord' })!;
-    hc.style = { passLean: -0.8, fourthDown: 0.6 };
+    expect(hc.style?.passLean).toBeUndefined();
+    expect(oc.style?.fourthDown).toBeUndefined();
+    hc.style = { fourthDown: 0.6 };
     oc.style = { passLean: 0.5 };
     expect(callerStyle(l, team.id)).toEqual({ passLean: 0.5, fourthDown: 0.6 });
-    // Without a coordinator, the head coach calls his own plays.
+    // Without a coordinator the offense calls a league-average game.
     delete l.coaches[oc.id];
-    const fresh = copy(l);
-    expect(callerStyle(fresh, team.id)).toEqual({ passLean: -0.8, fourthDown: 0.6 });
+    expect(callerStyle(copy(l), team.id)).toEqual({ passLean: 0, fourthDown: 0.6 });
     expect(chairHolder(teamCoaches(l, team.id), { role: 'defCoord' })!.style).toBeUndefined();
   });
 
-  it('changes the mix in ordinary situations, never the end of a game', () => {
+  it('changes the mix in ordinary situations, never the end of a half or a game', () => {
     const s: Situation = { quarter: 1, clock: 600, down: 1, distance: 10, yardLine: 30, scoreDiff: 0, offTimeouts: 3, defTimeouts: 3, overtime: false, fgMakeProb: 0.2 };
     expect(passProbability({ ...s, passLean: 1 })).toBeGreaterThan(passProbability(s));
     expect(passProbability({ ...s, passLean: -1 })).toBeLessThan(passProbability(s));
-    // Two-minute drill and protecting a lead: the clock and score decide.
-    const late = { ...s, quarter: 4, clock: 100, scoreDiff: -4 };
-    expect(passProbability({ ...late, passLean: -1 })).toBe(passProbability(late));
-    const milk = { ...s, quarter: 4, clock: 200, scoreDiff: 7 };
-    expect(passProbability({ ...milk, passLean: 1 })).toBe(passProbability(milk));
-    // Fourth and one near midfield: an aggressive coach goes more often.
+    // The two-minute drill, protecting a lead, backed up late in a half, overtime: the clock and score decide.
+    const late: Situation[] = [
+      { ...s, quarter: 4, clock: 100, scoreDiff: -4 },
+      { ...s, quarter: 4, clock: 200, scoreDiff: 7 },
+      { ...s, quarter: 2, clock: 100, down: 2, distance: 7, yardLine: 20 },
+      { ...s, quarter: 4, clock: 110, yardLine: 20 },
+      { ...s, quarter: 5, clock: 500, overtime: true },
+    ];
+    for (const x of late) for (const lean of [-1, 1]) expect(passProbability({ ...x, passLean: lean })).toBe(passProbability(x));
+    // Fourth and one near midfield in the first half: an aggressive coach goes more often.
     const fourth = { ...s, down: 4, distance: 1, yardLine: 45 };
-    const goRate = (lean: number) => {
+    const goRate = (x: Situation, lean: number) => {
       const rng = new Rng(`fourth:${lean}`);
       let go = 0;
-      for (let i = 0; i < 4000; i++) if (fourthDown({ ...fourth, fourthDown: lean }, rng) === 'go') go++;
+      for (let i = 0; i < 4000; i++) if (fourthDown({ ...x, fourthDown: lean }, rng) === 'go') go++;
       return go / 4000;
     };
-    expect(goRate(1)).toBeGreaterThan(goRate(0) + 0.15);
-    expect(goRate(-1)).toBeLessThan(goRate(0) - 0.15);
+    expect(goRate(fourth, 1)).toBeGreaterThan(goRate(fourth, 0) + 0.15);
+    expect(goRate(fourth, -1)).toBeLessThan(goRate(fourth, 0) - 0.15);
+    // Tied with ten seconds left, or up three at the two-minute warning: the same odds for every coach.
+    const odds = (x: Situation) => {
+      const seen: number[] = [];
+      fourthDown(x, { chance: (p: number) => (seen.push(p), false) } as unknown as Rng);
+      return seen;
+    };
+    for (const x of [
+      { ...fourth, quarter: 4, clock: 10, yardLine: 50 },
+      { ...fourth, quarter: 4, clock: 150, scoreDiff: 3 },
+      { ...fourth, quarter: 2, clock: 90 },
+    ]) {
+      expect(odds({ ...x, fourthDown: 1 })).toEqual(odds(x));
+      expect(odds({ ...x, fourthDown: -1 })).toEqual(odds(x));
+    }
   });
+
+  it('reaches the field: a pass-first coordinator throws more, an aggressive head coach goes for it more', () => {
+    const base = createLeague({ seed: 'style-games' });
+    const styled = (lean: number) => {
+      const l = copy(base); // a fresh coaching index
+      for (const c of Object.values(l.coaches)) {
+        if (c.role === 'offCoord') c.style = { passLean: lean };
+        if (c.role === 'headCoach') c.style = { fourthDown: lean };
+      }
+      return l;
+    };
+    const tally = (l: League) => {
+      let passes = 0;
+      let plays = 0;
+      let fourth = 0;
+      for (const g of l.games.slice(0, 64)) {
+        const r = simulateGame(l, g);
+        for (const t of [r.home, r.away]) {
+          passes += t.passAtt + t.sacked;
+          plays += t.passAtt + t.sacked + t.rushAtt;
+          fourth += t.fourthDownAtt;
+        }
+      }
+      return { pass: passes / plays, fourth };
+    };
+    const hi = tally(styled(1));
+    const lo = tally(styled(-1));
+    expect(hi.pass).toBeGreaterThan(lo.pass + 0.04);
+    expect(hi.fourth).toBeGreaterThan(lo.fourth);
+  }, 30_000);
 });
 
 describe('save migration to v6', () => {
-  it('adds coaching staffs to an older save that match a new league', () => {
+  it('gives an opening-season save the same staffs a new league has', () => {
     const league = createLeague({ seed: 'migrate-v6' });
     const old = copy(league);
     old.version = 5;
@@ -421,4 +553,22 @@ describe('save migration to v6', () => {
     expect(up.rngState).toEqual(league.rngState);
     expect(migrateLeague(copy(up))).toEqual(up);
   });
+
+  it('gives a mid-career save full staffs inside every budget', () => {
+    const league = createLeague({ seed: 'migrate-v6-later' });
+    simToEndOfSeason(league);
+    simOffseason(league);
+    const old = copy(league);
+    old.version = 5;
+    delete (old as Partial<League>).coaches;
+    delete (old as Partial<League>).nextCoachId;
+    for (const t of old.teams) delete (t as Partial<typeof t>).coachDead;
+    const up = migrateLeague(old)!;
+    for (const t of up.teams) {
+      for (const ch of CHAIRS) expect(chairHolder(teamCoaches(up, t.id), ch)).not.toBeNull();
+      expect(coachPayroll(up, t.id)).toBeLessThanOrEqual(coachBudget(up, t.id));
+      for (const c of teamCoaches(up, t.id)) expect(c.contract!.through).toBeGreaterThanOrEqual(up.season);
+    }
+    expect(up.rngState).toEqual(league.rngState);
+  }, 30_000);
 });

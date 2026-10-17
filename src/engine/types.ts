@@ -244,7 +244,7 @@ export type CoachRoom = 'QB' | 'RB' | 'WR' | 'OL' | 'DL' | 'LB' | 'DB';
  * mix, never the execution. It belongs to the coach, so it moves with him when he changes jobs.
  */
 export interface CoachStyle {
-  /** Passes more (+) or runs more (−) than the situation calls for. Offensive coordinator, or the head coach without one. */
+  /** Passes more (+) or runs more (−) than the situation calls for. Offensive coordinators (they call the plays). */
   passLean?: number;
   /** Goes for it on fourth down more (+) or kicks more (−). Head coach. */
   fourthDown?: number;
@@ -263,7 +263,7 @@ export interface Coach {
   youth: number;
   /** Veteran care (1–20): how gently players past their prime decline. */
   veterans: number;
-  /** Head coaches and offensive coordinators: how they call a game. */
+  /** Head coaches (fourth downs) and offensive coordinators (run/pass): how they call a game. */
   style?: CoachStyle;
   /** null = on the market. */
   teamId: number | null;
@@ -308,7 +308,10 @@ export interface Team {
   taggedId?: number | null;
   /** AI general manager tendencies (the user's team keeps one too, unused). */
   gm: GmTraits;
-  /** Owner's staff budget relative to the league norm (the user's is 1). Staff pay is not on the cap. */
+  /**
+   * Owner's spending on football staff relative to the league norm (the user's is 1): scales both the
+   * scouting and the coaching budget. Staff pay is not on the cap.
+   */
   staffBudgetMult: number;
   staffDead: StaffSeverance[];
   /** Severance owed to dismissed coaches, charged to the coaching budget. */
@@ -371,7 +374,7 @@ export interface Transaction {
   phase: Phase;
   week: number;
   teamIds: number[];
-  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire' | 'staff';
+  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire' | 'staff' | 'coach';
   text: string;
 }
 

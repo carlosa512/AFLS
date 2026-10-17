@@ -84,7 +84,7 @@ for (let s = 0; s < seasons; s++) {
   const pay = league.teams.map((t) => coachPayroll(league, t.id) / coachBudget(league, t.id));
   const teamRate = league.teams.map((t) => avg(rostered.filter((p) => p.teamId === t.id && p.age < 26 && p.position !== 'K' && p.position !== 'P').map((p) => coachingFor(league, t.id, p.position).rate)));
   const filled = league.teams.map((t) => CHAIRS.filter((ch) => chairHolder(teamCoaches(league, t.id), ch)).length);
-  const staffMoves = moves.filter((m) => m.kind === 'staff');
+  const staffMoves = moves.filter((m) => m.kind === 'coach');
   console.log(
     `  coaching: value HC ${roleMean('headCoach')} OC ${roleMean('offCoord')} DC ${roleMean('defCoord')} S&C ${roleMean('strengthCoach')} PC ${roleMean('positionCoach')} · ledger growth x${rate.toFixed(3)} (u26) body x${body.toFixed(3)} craft x${craft.toFixed(3)} (28+) · team growth x${Math.min(...teamRate).toFixed(2)}–x${Math.max(...teamRate).toFixed(2)} · payroll ${(100 * avg(pay)).toFixed(0)}% (${(100 * Math.min(...pay)).toFixed(0)}–${(100 * Math.max(...pay)).toFixed(0)}%) · over budget ${pay.filter((x) => x > 1).length} · chairs ${Math.min(...filled)}–${Math.max(...filled)} · HCs fired ${staffMoves.filter((m) => /head coach .* after a/.test(m.text)).length} hired ${staffMoves.filter((m) => / as head coach$/.test(m.text)).length} · market ${coachMarket(league).length}`,
   );

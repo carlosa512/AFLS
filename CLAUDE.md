@@ -23,9 +23,9 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
   rewrites `docs/ATTRIBUTES.md`. **Run it after changing `attributes.ts`, `OVR_WEIGHTS` or how the
   engine reads ratings.** Nothing may be listed under "Needs attention".
-- `npm run careers` — age a draft class of every position and play two 16-season leagues (about 4
-  minutes); checks peaks, declines, retirements, trait and coaching effects and long-run play against
-  the research ranges. Run it after changing `development.ts`, `aging.ts`, `traits.ts`, `coaching.ts`
+- `npm run careers` — age a draft class of every position and play four 16-season leagues in
+  parallel child processes (about 3 minutes on 4 cores, slower with fewer); checks peaks, declines,
+  retirements, trait and coaching effects and long-run play against the research ranges. Run it after changing `development.ts`, `aging.ts`, `traits.ts`, `coaching.ts`
   or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes, league talent and the scouting and coaching economies. Run it after changes to

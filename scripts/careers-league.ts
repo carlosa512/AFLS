@@ -3,11 +3,13 @@
  * and collect what the audit judges, from the steady state (the second half of the run). The audit
  * runs one of these per seed in its own process and pools them.
  */
-import { coachingFor, staffScore, teamCoaches } from '../src/engine/coaching';
+import { coachingFor, NEUTRAL, staffScore, teamCoaches } from '../src/engine/coaching';
+import { developPlayer, playedShare } from '../src/engine/development';
 import { createLeague } from '../src/engine/generate';
 import { simToEndOfSeason } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { playerOvr, STARTERS } from '../src/engine/positions';
+import { Rng } from '../src/engine/rng';
 import type { Position } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 
@@ -22,10 +24,14 @@ export interface LeagueRun {
   /** Yearly OVR change of rostered players, by age bucket. */
   deltas: Record<string, number[]>;
   steady: { qb35: number[]; k38: number[]; rb30: number[]; points: number[]; penalties: number[]; sacks: number[] };
-  /** What coaching applies league-wide (it must stay neutral). */
-  ledger: { growth: number[]; body: number[]; craft: number[] };
-  /** Young players' yearly OVR change under the best-8 and worst-8 coaching staffs. */
-  coached: { best: number[]; worst: number[] };
+  /** What coaching applies league-wide (it must stay neutral); kickers and punters apart, they have their own blend. */
+  ledger: { growth: number[]; body: number[]; craft: number[]; kpGrowth: number[]; kpCraft: number[] };
+  /**
+   * What coaching did to young players' yearly OVR, paired: each player's year replayed on his own
+   * stream with a typical staff and with his real one, so nothing else (playing time, roster mix)
+   * leaks in. All rostered players under 26, and those on the best-8 and worst-8 staffs.
+   */
+  coached: { all: number[]; best: number[]; worst: number[] };
   /** Final starters' positions and ages. */
   starterAges: { position: Position; age: number }[];
 }
@@ -42,8 +48,8 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     retiredAt: {},
     deltas: { '21-25': [], '26-29': [], '30-33': [], '34+': [] },
     steady: { qb35: [], k38: [], rb30: [], points: [], penalties: [], sacks: [] },
-    ledger: { growth: [], body: [], craft: [] },
-    coached: { best: [], worst: [] },
+    ledger: { growth: [], body: [], craft: [], kpGrowth: [], kpCraft: [] },
+    coached: { all: [], best: [], worst: [] },
     starterAges: [],
   };
   const starters = () => league.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id])));
@@ -61,13 +67,30 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
         out.steady.sacks.push((r.home.sacked + r.away.sacked) / 2);
       }
     }
-    const before = new Map(Object.values(league.players).filter((p) => !p.retired).map((p) => [p.id, { ovr: playerOvr(p), age: p.age, rostered: p.teamId !== null, team: p.teamId }]));
+    const before = new Map(Object.values(league.players).filter((p) => !p.retired).map((p) => [p.id, { ovr: playerOvr(p), age: p.age, rostered: p.teamId !== null }]));
     const ranked = [...league.teams].sort((a, b) => staffScore(teamCoaches(league, b.id)) - staffScore(teamCoaches(league, a.id))).map((t) => t.id);
     if (s >= steadyFrom) {
       for (const p of Object.values(league.players)) {
-        if (p.retired || p.teamId === null || p.position === 'K' || p.position === 'P') continue;
+        if (p.retired || p.teamId === null) continue;
         const c = coachingFor(league, p.teamId, p.position);
-        if (p.age < 26) out.ledger.growth.push(c.rate);
+        if (p.position === 'K' || p.position === 'P') {
+          out.ledger.kpGrowth.push(c.rate);
+          out.ledger.kpCraft.push(c.decline.technical);
+          continue;
+        }
+        if (p.age < 26) {
+          out.ledger.growth.push(c.rate);
+          // The year beginOffseason is about to give him (same stream, same reps), typical staff vs his own.
+          const year = (coaching: typeof NEUTRAL) => {
+            const clone = structuredClone(p);
+            developPlayer(new Rng(`${league.seed}:dev:${league.season + 1}:${p.id}`), clone, { playedShare: playedShare(p, league.season), ...coaching });
+            return playerOvr(clone);
+          };
+          const gain = year(c) - year(NEUTRAL);
+          out.coached.all.push(gain);
+          if (ranked.slice(0, 8).includes(p.teamId)) out.coached.best.push(gain);
+          if (ranked.slice(-8).includes(p.teamId)) out.coached.worst.push(gain);
+        }
         if (p.age >= 28) {
           out.ledger.body.push(c.decline.physical);
           out.ledger.craft.push(c.decline.technical);
@@ -85,10 +108,6 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
       if (!b.rostered) continue;
       const bucket = b.age <= 25 ? '21-25' : b.age <= 29 ? '26-29' : b.age <= 33 ? '30-33' : '34+';
       out.deltas[bucket].push(playerOvr(p) - b.ovr);
-      if (b.age <= 25 && s >= steadyFrom) {
-        if (ranked.slice(0, 8).includes(b.team!)) out.coached.best.push(playerOvr(p) - b.ovr);
-        if (ranked.slice(-8).includes(b.team!)) out.coached.worst.push(playerOvr(p) - b.ovr);
-      }
     }
     while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
     out.starterOvr.push(mean(starters().map(playerOvr)));

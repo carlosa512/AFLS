@@ -107,7 +107,11 @@ function toV5(league: League) {
   league.version = 5;
 }
 
-/** v6: coaching staffs for every team, and the coaching market, from their own seeded streams so an upgraded save matches a new one. */
+/**
+ * v6: coaching staffs for every team, and the coaching market, from their own seeded streams (the
+ * league's stream is untouched). A save still in its opening season gets exactly a new league's
+ * staffs; a later one gets staffs of the same kind, signed from its current league year.
+ */
 function toV6(league: League) {
   if (!league.coaches || !Object.keys(league.coaches).length) {
     league.coaches = {};

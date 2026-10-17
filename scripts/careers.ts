@@ -7,6 +7,8 @@
  *   npm run careers            # cohort curves + four 16-season leagues (about 3 minutes on 4 cores)
  *   npm run careers -- 24      # longer league runs
  *
+ * Run it after changing development.ts, aging.ts, traits.ts, coaching.ts or retirement.
+ *
  * Part 1 ages a synthetic draft class of every position from 21 (full playing time, no
  * retirement), so a curve can be tuned on its own. Part 2 plays real seasons in four leagues (each
  * in its own process, `careers-league.ts`) and judges their pooled steady state (the second half of
@@ -32,12 +34,15 @@ const leagues: Promise<LeagueRun>[] = SEEDS.map(
   (seed) =>
     new Promise((resolve, reject) => {
       const child = fork(new URL('./careers-league.ts', import.meta.url).pathname, [], { env: { ...process.env, CAREERS_SEED: seed, CAREERS_SEASONS: String(seasons) } });
+      let done = false;
       child.once('message', (run) => {
+        done = true;
         resolve(run as LeagueRun);
         child.kill();
       });
       child.once('error', reject);
-      child.once('exit', (code) => code && reject(new Error(`league ${seed} exited with ${code}`)));
+      // A worker that dies before reporting (a crash, or the OOM killer's signal) fails the audit by name.
+      child.once('exit', (code, signal) => done || reject(new Error(`league ${seed} exited (${signal ?? code}) before reporting`)));
     }),
 );
 const COHORT = 1200;
@@ -198,20 +203,27 @@ const runs = await Promise.all(leagues);
 const pool = <T>(pick: (r: LeagueRun) => T[]) => runs.flatMap(pick);
 const deltas = Object.fromEntries(Object.keys(runs[0].deltas).map((k) => [k, pool((r) => r.deltas[k])]));
 const steady = Object.fromEntries((Object.keys(runs[0].steady) as (keyof LeagueRun['steady'])[]).map((k) => [k, pool((r) => r.steady[k])])) as LeagueRun['steady'];
-const ledger = { growth: pool((r) => r.ledger.growth), body: pool((r) => r.ledger.body), craft: pool((r) => r.ledger.craft) };
-const coached = { best: pool((r) => r.coached.best), worst: pool((r) => r.coached.worst) };
+const ledger = { growth: pool((r) => r.ledger.growth), body: pool((r) => r.ledger.body), craft: pool((r) => r.ledger.craft), kpGrowth: pool((r) => r.ledger.kpGrowth), kpCraft: pool((r) => r.ledger.kpCraft) };
+const coached = { all: pool((r) => r.coached.all), best: pool((r) => r.coached.best), worst: pool((r) => r.coached.worst) };
 const retiredAt: Record<string, number[]> = {};
 for (const r of runs) for (const [group, ages] of Object.entries(r.retiredAt)) (retiredAt[group] ??= []).push(...ages);
 
 for (const r of runs) console.log(`starter OVR by season (${r.seed}): ` + r.starterOvr.map((v) => v.toFixed(2)).join(' '));
 // The league must neither drain nor inflate (v4 on careers-audit slid from 12.92 to 12.60 over 16 seasons).
-const allStarterOvr = pool((r) => r.starterOvr);
-console.log(check('lowest starter OVR', Math.min(...allStarterOvr), 12.65, 13.2) + ' · ' + check('highest starter OVR', Math.max(...allStarterOvr), 12.65, 13.2));
+// Judged on the leagues' average path, so one league's luck doesn't decide it.
+const meanPath = runs[0].starterOvr.map((_, i) => mean(runs.map((r) => r.starterOvr[i])));
+console.log(`starter OVR by season (mean): ${meanPath.map((v) => v.toFixed(2)).join(' ')}`);
+console.log(check('lowest starter OVR', Math.min(...meanPath), 12.65, 13.2) + ' · ' + check('highest starter OVR', Math.max(...meanPath), 12.65, 13.2));
 console.log(`starter awareness: ${runs.map((r) => `${r.awareness[0].toFixed(2)} → ${r.awareness[1].toFixed(2)}`).join(', ')} (informational: the mental game rises with age, the league shouldn't)`);
 console.log('mean yearly OVR change, rostered: ' + Object.entries(deltas).map(([k, v]) => `${k} ${mean(v).toFixed(2)}`).join(' · '));
 // Coaching must move players, not the league: a typical staff is neutral and the market keeps the average staff typical.
 console.log(
-  `coaching: ${check('mean growth rate (under 26)', mean(ledger.growth), 0.985, 1.015, 3)} · ${check('mean body decline (28+)', mean(ledger.body), 0.985, 1.015, 3)} · ${check('mean technique decline (28+)', mean(ledger.craft), 0.985, 1.015, 3)} · ${check('yearly OVR gain at 21-25, best-8 minus worst-8 staffs', mean(coached.best) - mean(coached.worst), 0.01, 0.25, 3)}`,
+  `coaching: ${check('mean growth rate (under 26)', mean(ledger.growth), 0.985, 1.015, 3)} · ${check('mean body decline (28+)', mean(ledger.body), 0.985, 1.015, 3)} · ${check('mean technique decline (28+)', mean(ledger.craft), 0.985, 1.015, 3)} · K/P growth x${mean(ledger.kpGrowth).toFixed(3)}, technique decline x${mean(ledger.kpCraft).toFixed(3)} (informational)`,
+);
+// Paired: the same players' same years with a typical staff and with their own. Neutral on average,
+// and worth about a tenth of a point a year more under the best staffs than under the worst.
+console.log(
+  `  ${check('yearly OVR from coaching at 21-25, league mean', mean(coached.all), -0.02, 0.02, 3)} · ${check('…best-8 minus worst-8 staffs', mean(coached.best) - mean(coached.worst), 0.05, 0.2, 3)}`,
 );
 // Research: 13.9% of QB peak seasons came at 35+ (recent leagues have had 3–7 QB1s that old, up to
 // 22%); a few kickers and punters play to 40. Across four leagues the engine before coaching sat at

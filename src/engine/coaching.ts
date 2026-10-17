@@ -9,7 +9,8 @@
  *
  * A position coach weighs most for his room, a coordinator for his side of the ball, the head coach a
  * little for everyone. A typical staff (every rating 10.5) changes nothing, so the league's
- * development calibration holds; the best staffs are worth about half of what work ethic is.
+ * development calibration holds; a strong staff is worth roughly 60% of what work ethic is
+ * (`npm run careers` gates it at 30–95%).
  *
  * Head coaches and offensive coordinators also carry a play-calling style (`CoachStyle`) that the
  * match engine reads: style, not skill, so it changes the mix of calls and never the execution.
@@ -133,7 +134,8 @@ export type Source = 'headCoach' | 'coordinator' | 'positionCoach' | 'strengthCo
 /**
  * How much each coach counts, by what he works on. A position coach teaches his room, a coordinator
  * his side of the ball, the head coach sets the standard for everyone, and the S&C coach owns the
- * body. Kickers and punters have no room or side: the head coach and S&C coach split their weight.
+ * body. Kickers and punters have no room or side: the head coach and S&C coach split their growth
+ * and body, and the head coach alone keeps their technique.
  */
 export const INFLUENCE: Record<'growth' | 'body' | 'craft', Record<Source, number>> = {
   growth: { positionCoach: 0.45, coordinator: 0.2, headCoach: 0.2, strengthCoach: 0.15 },
@@ -181,8 +183,9 @@ export interface Contribution {
 
 /**
  * Who shapes a player at this position, and by how much: each chair's share of the blend times its
- * rating's distance from typical. The same numbers make up `coachingFrom`, so a screen that shows the
- * parts always adds up to what development applies.
+ * rating's distance from typical. The same numbers make up `coachingFrom`, so the parts a screen
+ * shows add up to what development applies, until an extreme staff reaches the caps (`RATE_RANGE`,
+ * `DECLINE_RANGE`): past them, more rating buys nothing.
  */
 export function coachingParts(coaches: readonly Coach[], position: Position): Contribution[] {
   const parts: { source: Source; chair: Chair; coach: Coach | null }[] = [];
@@ -206,12 +209,16 @@ export function coachingParts(coaches: readonly Coach[], position: Position): Co
   });
 }
 
+/** No staff makes anyone a different player: growth within ±30%, decline within ±20% of typical. */
+export const RATE_RANGE: [number, number] = [0.7, 1.3];
+export const DECLINE_RANGE: [number, number] = [0.8, 1.2];
+
 /** What a staff does for a player at this position. Pure: no random numbers, so it never moves a player's stream. */
 export function coachingFrom(coaches: readonly Coach[], position: Position): Coaching {
   const parts = coachingParts(coaches, position);
   const sum = (k: 'growth' | 'body' | 'craft') => parts.reduce((s, p) => s + p[k], 0);
-  const craft = clamp(1 + sum('craft'), 0.8, 1.2);
-  return { rate: clamp(1 + sum('growth'), 0.7, 1.3), decline: { physical: clamp(1 + sum('body'), 0.8, 1.2), technical: craft, mental: craft } };
+  const craft = clamp(1 + sum('craft'), ...DECLINE_RANGE);
+  return { rate: clamp(1 + sum('growth'), ...RATE_RANGE), decline: { physical: clamp(1 + sum('body'), ...DECLINE_RANGE), technical: craft, mental: craft } };
 }
 
 /** What his coaches do for a player this year. Free agents have nobody: neutral, so a release is no development cliff. */
@@ -266,13 +273,17 @@ export interface CallerStyle {
 }
 const NO_STYLE: CallerStyle = { passLean: 0, fourthDown: 0 };
 
-/** The offensive coordinator calls the plays (the head coach without one); the head coach decides fourth downs. */
+/**
+ * The offensive coordinator calls the plays and the head coach decides fourth downs: one owner per
+ * tendency, so what a card says is what the game does. An empty chair calls a league-average game.
+ */
 export function callerStyle(league: League, teamId: number): CallerStyle {
   if (!league.coaches) return NO_STYLE;
   const staff = teamCoaches(league, teamId);
-  const hc = chairHolder(staff, { role: 'headCoach' });
-  const oc = chairHolder(staff, { role: 'offCoord' });
-  return { passLean: (oc ?? hc)?.style?.passLean ?? 0, fourthDown: hc?.style?.fourthDown ?? 0 };
+  return {
+    passLean: chairHolder(staff, { role: 'offCoord' })?.style?.passLean ?? 0,
+    fourthDown: chairHolder(staff, { role: 'headCoach' })?.style?.fourthDown ?? 0,
+  };
 }
 
 /** Plain words for a style, only where it stands out. */
@@ -310,10 +321,13 @@ export function coachAsk(league: League, c: Coach, years = 2): number {
 /** The owner's coaching budget for this league year, $K. The same generosity as his scouting budget. */
 export const coachBudget = (league: League, teamId: number) => Math.round(0.095 * capOf(league) * league.teams[teamId].staffBudgetMult);
 
+/** Severance booked against this league year's coaching budget. */
+export const coachSeverancePaid = (league: League, teamId: number) => league.teams[teamId].coachDead.filter((d) => d.season === league.season).reduce((sum, d) => sum + d.amount, 0);
+
 /** Salaries owed this league year plus severance booked against it. */
 export function coachPayroll(league: League, teamId: number): number {
   const pay = teamCoaches(league, teamId).reduce((sum, c) => sum + (c.contract && c.contract.through >= league.season ? c.contract.salary : 0), 0);
-  return pay + league.teams[teamId].coachDead.filter((d) => d.season === league.season).reduce((sum, d) => sum + d.amount, 0);
+  return pay + coachSeverancePaid(league, teamId);
 }
 
 export const coachRoom = (league: League, teamId: number) => coachBudget(league, teamId) - coachPayroll(league, teamId);
@@ -357,13 +371,15 @@ export function replaceProblem(league: League, teamId: number, c: Coach, years =
   if (years < 1 || years > maxYears(c.role)) return `A ${coachTitle(c).toLowerCase()} signs for 1–${maxYears(c.role)} years.`;
   const holder = sitting(league, teamId, c);
   if (!holder) return 'Nobody sits in that chair: hire him instead.';
-  const freed = (holder.contract?.salary ?? 0) - coachSeverance(league, holder);
-  const over = coachAsk(league, c, years) - (coachRoom(league, teamId) + freed);
+  const over = coachAsk(league, c, years) - (coachRoom(league, teamId) + freedBy(league, holder));
   return over > 0 ? `Over your coaching budget by $${(over / 1000).toFixed(2)}M, even after dismissing ${coachName(holder)}.` : null;
 }
 
 /** Who a hire would replace, if his chair is taken. */
 export const replaces = (league: League, teamId: number, c: Coach) => sitting(league, teamId, c);
+
+/** Budget a replacement frees this league year: the man's salary, less the severance his dismissal books. */
+const freedBy = (league: League, holder: Coach) => (holder.contract?.salary ?? 0) - coachSeverance(league, holder);
 
 function signCoach(league: League, teamId: number, c: Coach, years: number): void {
   touch();
@@ -378,7 +394,7 @@ function signCoach(league: League, teamId: number, c: Coach, years: number): voi
  */
 function logCoach(league: League, teamId: number, c: Coach, text: string, headline = c.role === 'headCoach'): void {
   if (teamId !== league.userTeamId && !headline) return;
-  logTransaction(league, 'staff', [teamId], text);
+  logTransaction(league, 'coach', [teamId], text);
 }
 const titleLower = (c: Coach) => coachTitle(c).toLowerCase();
 const termText = (years: number) => `${years} yr`;
@@ -452,13 +468,13 @@ function experience(age: number): number {
   for (let a = 29; a <= age; a++) sum += trend(a);
   return sum;
 }
-export const coachTrendLabel = (age: number) => (age < 45 ? 'Rising' : age < 55 ? 'Prime' : 'Declining');
+export const coachTrendLabel = (age: number) => (age < 35 ? 'Rising' : age < 55 ? 'Prime' : 'Declining');
 
 /** A play-caller's style: most coaches sit near the middle, a few are known for something. */
 function rollStyle(rng: Rng, role: CoachRole): CoachStyle | undefined {
   // `|| 0` keeps −0 out of saves (a JSON round trip would turn it into 0).
   const roll = () => Math.round(clamp(rng.normal(0, 0.45), -1, 1) * 20) / 20 || 0;
-  if (role === 'headCoach') return { passLean: roll(), fourthDown: roll() };
+  if (role === 'headCoach') return { fourthDown: roll() };
   if (role === 'offCoord') return { passLean: roll() };
   return undefined;
 }
@@ -535,8 +551,10 @@ function roleGoal(league: League, team: Team, role: CoachRole): number {
 }
 
 /**
- * The opening league: AI staffs of varying quality inside their budgets, and a deliberately typical
- * staff for the user with one position room nobody coaches (a first decision).
+ * The opening league: AI staffs of varying quality inside their budgets, and a full, typical staff
+ * for the user. Development runs before the first re-sign window, so an empty chair the user could
+ * not fill would cost his players a year; his first decisions are the deals that run out after one
+ * season (contracts are staggered 1–3 years).
  */
 export function generateCoachingWorld(league: League): void {
   const rng = new Rng(`${league.seed}:coach:init`);
@@ -544,9 +562,7 @@ export function generateCoachingWorld(league: League): void {
     team.coachDead = [];
     const user = team.id === league.userTeamId;
     const hired: Coach[] = [];
-    const open = user ? rng.pick(COACH_ROOMS.filter((r) => r !== 'QB')) : null;
     for (const chair of CHAIRS) {
-      if (chair.room && chair.room === open) continue;
       const [lo, hi] = CANDIDATE_AGE[chair.role];
       const age = rng.int(lo, hi);
       if (user) {
@@ -562,9 +578,11 @@ export function generateCoachingWorld(league: League): void {
     hired.forEach((c, i) => signCoach(league, team.id, c, user ? (i % 3) + 1 : rng.int(1, maxYears(c.role))));
     // Hired before the league's first season: tenure counts from a year or two back.
     for (const c of hired) c.since = league.season - rng.int(0, c.role === 'headCoach' ? 4 : 2);
-    // Fit the budget: the priciest coach is a little worse than he'd otherwise be.
+    // Fit the budget: the coach paid most above his role's going rate is a little worse than he'd
+    // otherwise be (by raw salary it would always be the head coach).
+    const premium = (c: Coach) => c.contract!.salary / BASE_ASK[c.role];
     for (let guard = 0; guard < 80 && coachRoom(league, team.id) < 0; guard++) {
-      const priciest = hired.reduce((a, b) => (b.contract!.salary > a.contract!.salary ? b : a));
+      const priciest = hired.reduce((a, b) => (premium(b) > premium(a) ? b : a));
       priciest.youth = Math.max(1, priciest.youth - 1);
       priciest.veterans = Math.max(1, priciest.veterans - 1);
       priciest.contract!.salary = coachAsk(league, priciest, priciest.contract!.through - league.season + 1);
@@ -611,7 +629,9 @@ export function coachResignForecast(league: League, teamId: number, hire?: { c: 
   const mine = teamCoaches(league, teamId);
   const taken: Chair[] = mine.filter((x) => !isCoachExpiring(league, x)).map(chairOf);
   if (hire) taken.push(chairOf(hire.c));
-  let room = coachRoom(league, teamId) - (hire ? coachAsk(league, hire.c, hire.years) : 0);
+  // A hire into a taken chair is a replacement: the man he replaces frees his salary, less severance.
+  const replaced = hire && sitting(league, teamId, hire.c);
+  let room = coachRoom(league, teamId) - (hire ? coachAsk(league, hire.c, hire.years) - (replaced ? freedBy(league, replaced) : 0) : 0);
   const out = new Map<number, ResignOutlook>();
   for (const c of mine.filter((x) => isCoachExpiring(league, x)).sort((a, b) => coachValue(b) - coachValue(a))) {
     const ask = coachAsk(league, c, 2);
@@ -680,25 +700,31 @@ export function hotSeat(rec: { w: number; l: number; t: number }, tenure: number
 const KEEP: Record<CoachRole, number> = { headCoach: 0.85, offCoord: 0.75, defCoord: 0.75, strengthCoach: 0.75, positionCoach: 0.7 };
 
 function aiCoachMoves(league: League, team: Team, rng: Rng): void {
+  // Whoever the team lets go now is not its candidate for the same chair a minute later.
+  const gone = new Set<number>();
   const hc = chairHolder(teamCoaches(league, team.id), { role: 'headCoach' });
   const rec = lastRecord(league, team.id);
   if (hc && rec && rng.chance(hotSeat(rec, league.season - (hc.since ?? league.season)))) {
     dismiss(league, hc, `after a ${rec.w}–${rec.l}${rec.t ? `–${rec.t}` : ''} season`);
+    gone.add(hc.id);
   }
   for (const c of teamCoaches(league, team.id).filter((x) => isCoachExpiring(league, x))) {
     const years = rng.int(1, maxYears(c.role));
     const keep = coachValue(c) >= roleGoal(league, team, c.role) - 2 && rng.chance(KEEP[c.role]) && coachAsk(league, c, years) <= coachRoom(league, team.id);
     if (keep) signCoach(league, team.id, c, years);
-    else dismiss(league, c);
+    else {
+      dismiss(league, c);
+      gone.add(c.id);
+    }
   }
-  fillChairs(league, team, rng);
+  fillChairs(league, team, rng, gone);
 }
 
 /** A replacement-level ask: what leaving a chair's worth of money aside for it costs. */
 const reserveFor = (league: League, role: CoachRole) => 0.55 * BASE_ASK[role] * (capOf(league) / BASE_CAP);
 
 /** Hire into every empty chair, closest to the team's goal for that role, leaving room for the chairs still open. */
-function fillChairs(league: League, team: Team, rng: Rng): void {
+function fillChairs(league: League, team: Team, rng: Rng, gone: ReadonlySet<number> = new Set()): void {
   const open = () => CHAIRS.filter((ch) => !chairHolder(teamCoaches(league, team.id), ch));
   for (const chair of open()) {
     if (chairHolder(teamCoaches(league, team.id), chair)) continue;
@@ -706,7 +732,7 @@ function fillChairs(league: League, team: Team, rng: Rng): void {
     const reserve = others.reduce((s, ch) => s + reserveFor(league, ch.role), 0);
     const years = rng.int(1, maxYears(chair.role));
     const room = coachRoom(league, team.id);
-    const candidates = coachMarket(league).filter((c) => sameChair(chairOf(c), chair));
+    const candidates = coachMarket(league).filter((c) => sameChair(chairOf(c), chair) && !gone.has(c.id));
     const affordable = (budget: number) => candidates.filter((c) => coachAsk(league, c, years) <= budget);
     const pool = affordable(room - reserve).length ? affordable(room - reserve) : affordable(room);
     const goal = roleGoal(league, team, chair.role);
