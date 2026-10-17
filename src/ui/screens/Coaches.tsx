@@ -20,14 +20,17 @@ import {
   coachResignForecast,
   coachRoomAfterResigns,
   coachSeverance,
+  coachSeverancePaid,
   coachTitle,
   coachTrendLabel,
   coachValue,
+  DECLINE_RANGE,
   extendCoach,
   hireCoach,
   isCoachExpiring,
   maxYears,
   previewCoachHire,
+  RATE_RANGE,
   releaseCoach,
   replaceCoach,
   replaceProblem,
@@ -37,6 +40,7 @@ import {
   sameChair,
   styleNotes,
   teamCoaches,
+  TYPICAL,
   type Chair,
 } from '../../engine/coaching';
 import { staffWindowOpen, type ResignOutlook } from '../../engine/staff';
@@ -58,7 +62,8 @@ import {
   vacancyText,
   withArticle,
   ALL_ROOMS,
-  VETERAN_FROM,
+  PAST_PRIME_WORDS,
+  STYLE_OWNERS,
   YOUNG_UNDER,
   type Room,
   type RoomCount,
@@ -96,11 +101,12 @@ const GROUPS: [string, Chair[]][] = [
   ['Strength & conditioning', CONDITIONING],
 ];
 const LIMIT = 6;
+/** Half a percent: the smallest gap between the chairs' parts and the capped total that shows on a rounded screen. */
+const CAP_SHOWN = 0.005;
 
 /** One polite live region for the screen: what the last coaching move did. Moves that remove a card also say where focus should land. */
 const Announce = createContext<(text: string, jump?: Jump) => void>(() => {});
 
-const sumDead = (league: League, teamId: number) => league.teams[teamId].coachDead.filter((d) => d.season === league.season).reduce((n, d) => n + d.amount, 0);
 /** "Head coach · 2 yrs with you": tenure rides in the subtitle so the card stays short. */
 const subtitle = (league: League, c: Coach) => {
   const t = c.since === undefined ? 0 : league.season - c.since;
@@ -137,14 +143,16 @@ function Rates({ c }: { c: Pick<Coach, 'youth' | 'veterans'> }) {
   );
 }
 
-/** How a head coach or offensive coordinator likes to call a game: only where it stands out. */
+/**
+ * How a head coach (fourth downs) or offensive coordinator (run or pass) likes to call a game: only where it
+ * stands out. Plain text; where a screen shows styles it says once who decides what (`StyleOwners`).
+ */
 function StyleRow({ c }: { c: Coach }) {
   if (c.role !== 'headCoach' && c.role !== 'offCoord') return null;
   const notes = styleNotes(c.style);
-  const why = c.role === 'headCoach' ? 'The head coach decides fourth downs, and calls the plays without an offensive coordinator.' : 'The offensive coordinator calls the plays.';
-  if (!notes.length) return <span className="muted small">Balanced play-calling</span>;
+  if (!notes.length) return <span className="muted small">{c.role === 'headCoach' ? 'Balanced on 4th down' : 'Balanced play-calling'}</span>;
   return (
-    <span className="pill-row" title={why}>
+    <span className="pill-row">
       {notes.map((n) => (
         <span key={n} className="tag-pill">
           {n}
@@ -152,6 +160,11 @@ function StyleRow({ c }: { c: Coach }) {
       ))}
     </span>
   );
+}
+
+/** The one visible line that says who decides what, wherever the style notes appear. */
+function StyleOwners({ className = '' }: { className?: string }) {
+  return <p className={`muted small style-owners ${className}`.trim()}>{STYLE_OWNERS}</p>;
 }
 
 function Term({ value, max, onChange, label }: { value: number; max: number; onChange: (n: number) => void; label: string }) {
@@ -175,8 +188,15 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
   // Dismissing someone under contract costs real money: ask once more.
   const [confirming, setConfirming] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const dismissRef = useRef<HTMLButtonElement>(null);
+  const backToDismiss = useRef(false);
+  // The button that was pressed unmounts either way: follow focus to the confirm step, and back to Dismiss on "Keep him".
   useEffect(() => {
     if (confirming) confirmRef.current?.focus();
+    else if (backToDismiss.current) {
+      backToDismiss.current = false;
+      dismissRef.current?.focus();
+    }
   }, [confirming]);
   const announce = useContext(Announce);
   const name = coachName(c);
@@ -224,7 +244,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
           <div className="staff-actions">
             <button
               className="btn btn-sm"
-              aria-label={`Let ${name} go`}
+              aria-label={`Let go, ${name}`}
               disabled={!!releaseProblem}
               title={releaseProblem ?? undefined}
               onClick={() => {
@@ -237,12 +257,13 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
             <Term value={term} max={maxYears(c.role)} onChange={setTerm} label={`Extension length for ${name}`} />
             <button
               className="btn btn-sm btn-primary"
-              aria-label={`Extend ${name} for ${years(term)} at ${money(coachAsk(league, c, term))} a year`}
+              aria-label={`Extend · ${money(coachAsk(league, c, term))}/yr, ${name} for ${years(term)}`}
               disabled={!!extendProblem}
               title={extendProblem ?? undefined}
               onClick={() => {
                 store.mutate((l) => extendCoach(l, l.userTeamId, c.id, term));
-                announce(`Extended ${name} for ${years(term)}.`);
+                // The Extend button goes away with the deal: land on the section, not on the page.
+                announce(`Extended ${name} for ${years(term)}.`, 'mine');
               }}
             >
               Extend · {money(coachAsk(league, c, term))}/yr
@@ -263,14 +284,21 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
               >
                 Pay {money(pay)} and dismiss {c.firstName}
               </button>
-              <button className="btn btn-sm btn-ghost" onClick={() => setConfirming(false)}>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => {
+                  backToDismiss.current = true;
+                  setConfirming(false);
+                }}
+              >
                 Keep him
               </button>
             </>
           ) : (
             <button
+              ref={dismissRef}
               className="btn btn-sm"
-              aria-label={`Dismiss ${name}${pay > 0 ? `, ${money(pay)} severance` : ''}`}
+              aria-label={`Dismiss${pay > 0 ? ` · ${money(pay)} severance` : ''}, ${name}`}
               disabled={!!releaseProblem}
               title={releaseProblem ?? undefined}
               onClick={() => {
@@ -320,6 +348,13 @@ function RoomRow({ league, room, staying, count, expanded, onToggle }: { league:
   const leaving = room ? teamCoaches(league, league.userTeamId).find((c) => c.role === 'positionCoach' && c.room === room && isCoachExpiring(league, c) && !staying.includes(c)) : undefined;
   const effect = roomEffect(staying, room);
   const parts = roomParts(staying, room);
+  // The engine caps the combined effect; the chairs' parts are uncapped, so an extreme staff's parts can add up to more.
+  const cutGrowth = effect.growth - parts.reduce((n, p) => n + p.growth, 0);
+  const cutAging = effect.aging - parts.reduce((n, p) => n + p.aging, 0);
+  const capped = [
+    Math.abs(cutGrowth) >= CAP_SHOWN ? `${signedPct((cutGrowth < 0 ? RATE_RANGE[1] : RATE_RANGE[0]) - 1)} growth` : '',
+    Math.abs(cutAging) >= CAP_SHOWN ? `${signedPct((cutAging < 0 ? DECLINE_RANGE[1] : DECLINE_RANGE[0]) - 1)} decline` : '',
+  ].filter(Boolean);
   return (
     <li className="room-row">
       <button className="room-toggle" aria-expanded={expanded} aria-controls={id} onClick={onToggle}>
@@ -378,6 +413,16 @@ function RoomRow({ league, room, staying, count, expanded, onToggle }: { league:
                     <td className={`num ${agingTone(p.aging)}`}>{signedPct(p.aging)}</td>
                   </tr>
                 ))}
+                {capped.length > 0 && (
+                  <tr>
+                    <td>
+                      Capped at {capped.join(' / ')}
+                      <span className="muted small part-who">More rating buys nothing past the cap.</span>
+                    </td>
+                    <td className="num muted">{Math.abs(cutGrowth) >= CAP_SHOWN ? signedPct(cutGrowth) : ''}</td>
+                    <td className="num muted">{Math.abs(cutAging) >= CAP_SHOWN ? signedPct(cutAging) : ''}</td>
+                  </tr>
+                )}
               </tbody>
               <tfoot>
                 <tr>
@@ -392,7 +437,7 @@ function RoomRow({ league, room, staying, count, expanded, onToggle }: { league:
             {room === null
               ? 'Kickers and punters have no room of their own, so the head coach and the strength & conditioning coach share them.'
               : 'A position coach counts most for his room, a coordinator for his side of the ball, the head coach a little for everyone, and the S&C coach most for the body.'}{' '}
-            {count.young} of these players {count.young === 1 ? 'is' : 'are'} under {YOUNG_UNDER} (growth) and {count.old} {count.old === 1 ? 'is' : 'are'} {VETERAN_FROM} or older (decline). Percentages are rounded.
+            {count.young} of these players {count.young === 1 ? 'is' : 'are'} under {YOUNG_UNDER} (growth) and {count.old} {count.old === 1 ? 'is' : 'are'} {PAST_PRIME_WORDS} (decline). Percentages are rounded.
           </p>
         </div>
       )}
@@ -407,6 +452,18 @@ function Candidate({ league, c, open, counts }: { league: League; c: Coach; open
   const [term, setTerm] = useState(2);
   const holder = replaces(league, teamId, c);
   const problem = holder ? replaceProblem(league, teamId, c, term) : coachMoveProblem(league, teamId, c, 'hire', term);
+  // Replacing a man under contract dismisses him and books severance: the first tap asks, like Dismiss does.
+  const [confirming, setConfirming] = useState(false);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const replaceRef = useRef<HTMLButtonElement>(null);
+  const backToReplace = useRef(false);
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus();
+    else if (backToReplace.current) {
+      backToReplace.current = false;
+      replaceRef.current?.focus();
+    }
+  }, [confirming]);
   const changes = previewCoachHire(league, teamId, c, term);
   const lines = previewLines(changes);
   const net = gainScore(changes, counts);
@@ -416,6 +473,12 @@ function Candidate({ league, c, open, counts }: { league: League; c: Coach; open
   const name = coachName(c);
   const ask = coachAsk(league, c, term);
   const sev = holder ? coachSeverance(league, holder) : 0;
+  // Only while the move is still allowed: if the money or the chair changes underneath, the question goes with it.
+  const asking = confirming && !!holder && !problem;
+  const doHire = () => {
+    store.mutate((l) => (holder ? replaceCoach(l, l.userTeamId, c.id, term) : hireCoach(l, l.userTeamId, c.id, term)));
+    announce(`${holder ? `Replaced ${coachName(holder)} with` : 'Hired'} ${name}${holder && sev > 0 ? `; ${money(sev)} severance booked` : ''}.`, 'candidates');
+  };
   const notable = net <= -0.05 ? ' tone-bad' : lines[0].startsWith('No change') ? ' muted' : '';
   return (
     <li className="staff-card coach-card">
@@ -437,7 +500,9 @@ function Candidate({ league, c, open, counts }: { league: League; c: Coach; open
         <span className="fact">
           <span className="eyebrow">Asks</span>
           <span className="staff-age">
-            <b className="num">{money(ask)}</b> <span className="muted small">/ yr for {term}</span>
+            <b className="num">{money(ask)}</b> <span className="muted small">
+              / yr for {term} {term === 1 ? 'yr' : 'yrs'}
+            </span>
           </span>
         </span>
       </div>
@@ -458,19 +523,51 @@ function Candidate({ league, c, open, counts }: { league: League; c: Coach; open
       )}
       {pushed.length > 0 && <p className="small tone-bad staff-preview">Hiring him means {pushed.map(coachName).join(' and ')} won’t be re-signed.</p>}
       <div className="staff-actions">
-        <Term value={term} max={maxYears(c.role)} onChange={setTerm} label={`Contract length for ${name}`} />
-        <button
-          className="btn btn-sm btn-primary"
-          aria-label={`${holder ? `Replace ${coachName(holder)} with` : 'Hire'} ${name} for ${years(term)} at ${money(ask)} a year`}
-          disabled={!!problem}
-          title={problem ?? undefined}
-          onClick={() => {
-            store.mutate((l) => (holder ? replaceCoach(l, l.userTeamId, c.id, term) : hireCoach(l, l.userTeamId, c.id, term)));
-            announce(`${holder ? `Replaced ${coachName(holder)} with` : 'Hired'} ${name}.`, 'candidates');
+        <Term
+          value={term}
+          max={maxYears(c.role)}
+          onChange={(n) => {
+            setTerm(n);
+            setConfirming(false);
           }}
-        >
-          {holder ? `Replace ${holder.lastName}` : 'Hire'} · {money(ask)}/yr
-        </button>
+          label={`Contract length for ${name}`}
+        />
+        {asking ? (
+          <>
+            <button
+              ref={confirmRef}
+              className="btn btn-sm btn-danger"
+              aria-label={`Pay ${money(sev)} severance and replace ${holder!.lastName}, hiring ${name} for ${years(term)} at ${money(ask)} a year`}
+              onClick={doHire}
+            >
+              Pay {money(sev)} severance and replace {holder!.lastName}
+            </button>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => {
+                backToReplace.current = true;
+                setConfirming(false);
+              }}
+            >
+              Keep him
+            </button>
+          </>
+        ) : (
+          <button
+            ref={replaceRef}
+            className="btn btn-sm btn-primary"
+            aria-label={
+              holder
+                ? `Replace ${holder.lastName} · ${money(ask)}/yr, hire ${name} for ${years(term)}${sev > 0 ? `, then confirm ${money(sev)} severance for ${coachName(holder)}` : ''}`
+                : `Hire · ${money(ask)}/yr, ${name} for ${years(term)}`
+            }
+            disabled={!!problem}
+            title={problem ?? undefined}
+            onClick={() => (holder && sev > 0 ? setConfirming(true) : doHire())}
+          >
+            {holder ? `Replace ${holder.lastName}` : 'Hire'} · {money(ask)}/yr
+          </button>
+        )}
       </div>
       {open && problem && <p className="small muted staff-why">{problem}</p>}
     </li>
@@ -536,7 +633,7 @@ export function CoachesScreen({ league }: { league: League }) {
   const budget = coachBudget(league, teamId);
   // What's really left once the deals that are up re-sign, as they will unless let go.
   const left = coachRoomAfterResigns(league, teamId);
-  const dead = sumDead(league, teamId);
+  const dead = coachSeverancePaid(league, teamId);
   const grades = coachingGrades(league);
   const mineGrade = grades.get(teamId)!;
   const dueCount = mine.filter((c) => isCoachExpiring(league, c)).length;
@@ -674,7 +771,7 @@ export function CoachesScreen({ league }: { league: League }) {
           </div>
           <p className="muted small staff-lede">
             Coaches are paid from their own budget, not the cap{dead > 0 ? ` (${money(dead)} of this year's is severance)` : ''}. <b>Youth development</b> speeds up players under {YOUNG_UNDER}; <b>Veteran care</b> slows
-            the decline of players past their prime. A typical coach (10 or 11) changes nothing. Development runs once a year, so a new hire takes effect at next year&rsquo;s.
+            the decline of players past their prime. A coach rated {TYPICAL} is typical and changes nothing. Development runs once a year, so a new hire takes effect at next year&rsquo;s.
           </p>
           {step && (
             <div className="callout staff-next">
@@ -712,6 +809,7 @@ export function CoachesScreen({ league }: { league: League }) {
               {GROUPS.map(([title, chairs]) => (
                 <section key={title} aria-label={title}>
                   <h3 className="coach-group-title">{title}</h3>
+                  {title === 'Leadership' && <StyleOwners />}
                   <ul className="staff-grid">
                     {chairs.flatMap((ch) => {
                       const key = `${ch.role}-${ch.room ?? ''}`;
@@ -798,9 +896,10 @@ export function CoachesScreen({ league }: { league: League }) {
             </div>
             <p className="muted small" style={{ marginTop: 0 }}>
               {sort === 'roster'
-                ? `Ranked by what each hire would do for the players you have: faster growth for your ${totals.young} under ${YOUNG_UNDER}, slower decline for your ${totals.old} aged ${VETERAN_FROM} and over. It takes effect at next year’s development.`
+                ? `Ranked by what each hire would do for the players you have: faster growth for your ${totals.young} under ${YOUNG_UNDER}, slower decline for your ${totals.old} ${PAST_PRIME_WORDS}. It takes effect at next year’s development.`
                 : 'Ranked by overall quality in the job: youth development and veteran care, weighted for what the job leans on.'}
             </p>
+            {(tab === 'head' || tab === 'coord') && <StyleOwners />}
             {candidates.length === 0 ? (
               <p className="muted" style={{ margin: 0 }}>
                 Nobody on the market fits that filter.
@@ -832,7 +931,7 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
   const teamId = league.userTeamId;
   // League-wide head coach and coordinator moves this league year (the user's own are in Cap & transactions).
   const moves = league.transactions
-    .filter((t) => t.kind === 'staff' && t.season === league.season && !t.teamIds.includes(teamId))
+    .filter((t) => t.kind === 'coach' && t.season === league.season && !t.teamIds.includes(teamId))
     .slice(-12)
     .reverse();
   return (
@@ -840,6 +939,7 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
       <details className="more">
         <summary>Around the league: how all {league.teams.length} coaching staffs grade</summary>
         <p className="muted small">Ratings are youth development / veteran care.</p>
+        <StyleOwners />
         <div className="table-scroll">
           <table className="league-grades league-coaches">
             <thead>

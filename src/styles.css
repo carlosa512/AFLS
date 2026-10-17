@@ -2384,8 +2384,16 @@ details.more > summary {
   border-top: 1px solid var(--line);
   font-weight: 700;
 }
+.parts-table td:first-child {
+  /* Tables never wrap by default; a long cap row would push Decline off a phone. */
+  white-space: normal;
+}
 .part-who {
   display: block;
+}
+/* One line that says who decides run or pass and fourth downs, wherever the style notes show. */
+.style-owners {
+  margin: 0 0 10px;
 }
 .room-detail-note {
   margin: 8px 0 0;

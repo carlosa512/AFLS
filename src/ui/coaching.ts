@@ -27,6 +27,7 @@ import {
   type RoomChange,
   type Source,
 } from '../engine/coaching';
+import { declineOnset } from '../engine/aging';
 import { ROSTER_TEMPLATE } from '../engine/positions';
 import { teamPlayers } from '../engine/roster';
 import type { Coach, CoachRoom, League, Player, Position } from '../engine/types';
@@ -37,9 +38,18 @@ export const ALL_ROOMS: Room[] = [...COACH_ROOMS, null];
 export const roomLabel = (r: Room) => (r ? ROOM_LABEL[r] : 'Kickers & punters');
 const OFFENSE_ROOMS: ReadonlySet<Room> = new Set<Room>(['QB', 'RB', 'WR', 'OL']);
 
-/** Young players still grow; veterans are the ones coaches keep going. The same cut-offs everywhere on these screens. */
+/** Young players still grow; the old are the ones coaches keep going. The same cut-offs everywhere on these screens. */
 export const YOUNG_UNDER = 26;
-export const VETERAN_FROM = 28;
+/**
+ * Old for his position: at or past the age his body starts to decline. A back is there at 26 and a
+ * quarterback at 29, so one age for everybody would miscount both. Calendar age only (no traits), which
+ * is public knowledge; a player's own durability is hidden.
+ */
+export const isPastPrime = (p: Pick<Player, 'age' | 'position'>) => p.age >= declineOnset(p.position, 'physical');
+/** How the screens say it, after "N players": "...are at or past the age their position starts to decline". */
+export const PAST_PRIME_WORDS = 'at or past the age their position starts to decline';
+/** What decides run or pass and fourth downs: one owner for each, so a screen that shows styles says so once. */
+export const STYLE_OWNERS = 'The offensive coordinator decides run or pass; the head coach decides fourth downs.';
 
 // ───────── who is on the staff ─────────
 
@@ -62,7 +72,7 @@ export interface RoomCount {
   young: number;
   old: number;
 }
-/** How many of the user's players each room coaches, and how many of them are young or veterans (by age only). */
+/** How many of the user's players each room coaches, and how many of them are young or past their prime (by age only). */
 export function roomCounts(league: League, teamId: number): Map<Room, RoomCount> {
   const out = new Map<Room, RoomCount>(ALL_ROOMS.map((r) => [r, { total: 0, young: 0, old: 0 }]));
   for (const p of teamPlayers(league, teamId)) {
@@ -70,7 +80,7 @@ export function roomCounts(league: League, teamId: number): Map<Room, RoomCount>
     const n = out.get(ROOM_OF[p.position])!;
     n.total++;
     if (p.age < YOUNG_UNDER) n.young++;
-    if (p.age >= VETERAN_FROM) n.old++;
+    if (isPastPrime(p)) n.old++;
   }
   return out;
 }
@@ -170,7 +180,8 @@ export const vacancyText = (staying: readonly Coach[], chair: Chair) => `${capit
 
 /**
  * How much a change is worth to the user's actual roster: each room's growth gain counts for its players
- * under 26, its aging gain for its players 28 and over. Ages only; never potential or true ratings.
+ * under 26, its aging gain for its players past their prime (`isPastPrime`). Ages only; never potential
+ * or true ratings.
  */
 export function gainScore(changes: RoomChange[], counts: Map<Room, RoomCount>): number {
   let score = 0;
@@ -210,8 +221,10 @@ export function previewLines(changes: RoomChange[]): string[] {
 const youthVeteran = (c: Coach) => `Youth ${c.youth} · Veteran care ${c.veterans}`;
 
 /**
- * One line for a player card: who coaches him and what that does to how he grows and ages. Under 26 it
- * leads with growth; past that only aging matters, so it says that. Empty chair? It says so.
+ * One line for a player card: his coaches and what the whole staff does to how he grows and ages. The
+ * percentages combine four chairs (his position coach, both coordinators' side, the head coach and the
+ * S&C coach), so the line names who leads rather than implying one man does it all. Under 26 it leads with
+ * growth; past that only aging matters, so it says that. Empty chair? It says so.
  */
 export function playerCoachLine(league: League, p: Player): string {
   const staff = stayingCoaches(league, p.teamId!);
@@ -221,12 +234,12 @@ export function playerCoachLine(league: League, p: Player): string {
   if (room) {
     const chair: Chair = { role: 'positionCoach', room };
     const c = chairHolder(staff, chair);
-    who = c ? `Coached by ${coachName(c)}, ${chairNoun(chair)} (${youthVeteran(c)})` : `Your ${chairNoun(chair)} chair is empty`;
+    who = c ? `led by ${coachName(c)}, ${chairNoun(chair)} · ${youthVeteran(c)}` : `your ${chairNoun(chair)} chair is empty`;
   } else {
     const hc = chairHolder(staff, { role: 'headCoach' });
     const sc = chairHolder(staff, { role: 'strengthCoach' });
-    const named = (c: Coach | null, noun: string) => (c ? `${noun} ${coachName(c)} (${youthVeteran(c)})` : `no ${noun}`);
-    who = `Coached by ${named(hc, 'head coach')} and ${named(sc, 'S&C coach')}, who share the kickers and punters`;
+    const named = (c: Coach | null, noun: string) => (c ? `${noun} ${coachName(c)} · ${youthVeteran(c)}` : `no ${noun}`);
+    who = `${named(hc, 'head coach')}; ${named(sc, 'S&C coach')}; they share the kickers and punters`;
   }
   const e = effectOf(coachingFrom(staff, pos), pos);
   const g = whole(e.growth);
@@ -234,9 +247,9 @@ export function playerCoachLine(league: League, p: Player): string {
   const growth = g === 0 ? '' : `grows about ${Math.abs(g)}% ${g > 0 ? 'faster' : 'slower'}`;
   const aging = a === 0 ? '' : `declines about ${Math.abs(a)}% ${a < 0 ? 'more slowly' : 'faster'}`;
   const clauses = (p.age < YOUNG_UNDER ? [growth, aging] : [aging]).filter(Boolean);
-  if (!clauses.length) return `${who}: develops about as he would with a typical staff.`;
-  clauses[0] += ' than with a typical staff';
-  return `${who}: ${clauses.join('; ')}.`;
+  // "than with a typical staff" closes the whole sentence, so it covers both clauses.
+  const effect = clauses.length ? `he ${clauses.join(' and ')} than with a typical staff` : 'he develops about as he would with a typical staff';
+  return `His coaches (${who}): ${effect}.`;
 }
 
 // ───────── what needs attention ─────────
