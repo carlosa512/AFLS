@@ -51,6 +51,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     shows via `coachingParts`), play-calling style (`callerStyle`), the coaching budget, contracts, the
     market, ageing, AI hiring and the head-coach hot seat. All coach changes go through this module (it
     keeps a per-team index; `teamCoaches()` returns a shared read-only list)
+  - `schemes.ts` what coordinators run: offenses (personnel, run/pass mix, targets, play action), fronts
+    and coverages, the depth-chart spots they name (LT, SLOT, NT…) and scheme fit. The engine reads them
+    through `teamScheme()` in `coaching.ts`; every lean trades something, so league totals stay in range
+  - `records.ts` team, coach and GM records, all looked up from `league.history`
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks

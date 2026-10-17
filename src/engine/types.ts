@@ -104,6 +104,14 @@ export const STAT_KEYS = [
   'tackles',
   'tfl',
   'sacks',
+  /** Rusher who beat his man and got to the quarterback or forced him off his spot (sacks included). */
+  'pressures',
+  /** Rusher who hit the quarterback as or after he threw (sacks included). */
+  'qbHits',
+  /** Blocker beaten on a sack, a pressure or a hit. */
+  'sacksAllowed',
+  'pressuresAllowed',
+  'hitsAllowed',
   'defInt',
   'passDef',
   'forcedFum',
@@ -127,6 +135,8 @@ export type StatKey = (typeof STAT_KEYS)[number];
 export type StatLine = Partial<Record<StatKey, number>>;
 /** Stats where season/career totals take the max rather than the sum. */
 export const MAX_STATS: ReadonlySet<StatKey> = new Set(['rushLong', 'recLong', 'fgLong']);
+
+import type { CoachScheme } from './schemes';
 
 export interface Player {
   id: number;
@@ -281,6 +291,8 @@ export interface Coach {
   veterans: number;
   /** Head coaches (fourth downs) and offensive coordinators (run/pass): how they call a game. */
   style?: CoachStyle;
+  /** Coordinators: the offense, or the front and coverage, they run (see `schemes.ts`). */
+  scheme?: CoachScheme;
   /** null = on the market. */
   teamId: number | null;
   /** League year he joined his current team (tenure). */

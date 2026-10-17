@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import { POSITION_NAMES, STARTERS } from '../../engine/positions';
+import { chairHolder, coachName, teamCoaches, teamScheme } from '../../engine/coaching';
+import { POSITION_NAMES } from '../../engine/positions';
+import { PERSONNEL_LABEL, spotsFor, type TeamScheme } from '../../engine/schemes';
 import { capSheet } from '../../engine/finance/cap';
 import { capHit, lastSeason } from '../../engine/finance/contract';
 import { buildAutoDepthChart, teamPlayers, teamRatings } from '../../engine/roster';
@@ -10,7 +12,7 @@ import { useNav } from '../App';
 import { Panel, PlayerAvatar, SortTh, sortRows, TeamChip, useSort } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
-import { Ovr, repsOf, seenOvr, Stars, starsOf, viewOf } from '../scouting';
+import { Ovr, repsOf, schemeFitOf, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { store } from '../store';
 
 export function statSummary(position: Position, s: StatLine | undefined): string {
@@ -29,10 +31,45 @@ export function statSummary(position: Position, s: StatLine | undefined): string
     case 'P':
       return n('punts') ? `${n('punts')} punts, ${(n('puntYds') / n('punts')).toFixed(1)} avg` : '–';
     case 'OL':
-      return `${n('gp')} GP`;
+      return `${n('gp')} GP · ${n('sacksAllowed')} sacks, ${n('pressuresAllowed')} pressures allowed`;
+    case 'DT':
+    case 'EDGE':
+      return `${n('tackles')} tkl, ${n('sacks')} sk, ${n('pressures')} pressures, ${n('qbHits')} hits`;
     default:
       return `${n('tackles')} tkl, ${n('sacks')} sk, ${n('defInt')} INT`;
   }
+}
+
+/** "5 starters: LT LG C RG RT", or why nobody starts there in this personnel. */
+function groupNote(scheme: TeamScheme, pos: Position): string {
+  const spots = spotsFor(scheme, pos);
+  if (!spots.length) return `No starters in ${scheme.offense.personnel} personnel (he rotates in)`;
+  return `${spots.length} starter${spots.length > 1 ? 's' : ''}${spots.length > 1 || spots[0] !== pos ? `: ${spots.join(' ')}` : ''}`;
+}
+
+/** What the coordinators run: it decides the spots and how many start at each position. */
+function SchemeStrip({ league, teamId, scheme }: { league: League; teamId: number; scheme: TeamScheme }) {
+  const staff = teamCoaches(league, teamId);
+  const oc = chairHolder(staff, { role: 'offCoord' });
+  const dc = chairHolder(staff, { role: 'defCoord' });
+  const defense = [scheme.front.label, scheme.coverage?.label].filter(Boolean).join(' · ');
+  return (
+    <div className="scheme-strip">
+      <div>
+        <span className="eyebrow">Offense{oc ? ` · ${coachName(oc)}` : ' · no coordinator'}</span>
+        <b>{scheme.offense.label}</b>
+        <span className="muted small">{PERSONNEL_LABEL[scheme.offense.personnel]}. {scheme.offense.about}</span>
+      </div>
+      <div>
+        <span className="eyebrow">Defense{dc ? ` · ${coachName(dc)}` : ' · no coordinator'}</span>
+        <b>{defense}</b>
+        <span className="muted small">
+          {scheme.front.about}
+          {scheme.coverage ? ` ${scheme.coverage.about}` : ''}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 /** Move a player within his position group; any manual move turns auto-sort off. */
@@ -170,6 +207,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
   const cap = capSheet(league, teamId);
   const players = teamPlayers(league, teamId);
   const { drag, start } = useDepthDrag(teamId);
+  const scheme = teamScheme(league, teamId);
   const [announcement, setAnnouncement] = useState('');
   // The depth chart is the default; any other column shows the whole roster as one sorted list.
   const [sort, toggleSort, setSort] = useSort<RosterSort>({ key: 'depth', desc: false });
@@ -187,7 +225,8 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
     if (to < 0 || to >= count) return;
     moveInDepth(teamId, p.position, index, to);
     refocus.current = p.id;
-    setAnnouncement(`${p.firstName} ${p.lastName} moved to ${p.position}${to + 1}${to < STARTERS[p.position] ? ', starter' : ''}.`);
+    const spots = spotsFor(scheme, p.position);
+    setAnnouncement(`${p.firstName} ${p.lastName} moved to ${spots[to] ?? `${p.position}${to + 1}`}${to < spots.length ? ', starter' : ''}.`);
   };
 
   return (
@@ -260,6 +299,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
           ) : undefined
         }
       >
+        {grouped && <SchemeStrip league={league} teamId={teamId} scheme={scheme} />}
         {!grouped && (
           <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
             Showing the whole roster sorted by a column.{' '}
@@ -270,7 +310,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
         )}
         {isUser && grouped && (
           <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
-            Starters sit above the yellow line in each group. Drag a player by the <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns auto-sort off for your team.
+            Starters sit above the yellow line, in the spots your coordinators' schemes use. Drag a player by the <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns auto-sort off for your team.
           </p>
         )}
         <span className="visually-hidden" aria-live="polite">
@@ -308,6 +348,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                       count={ids.length}
                       editable={false}
                       grouped={false}
+                      scheme={scheme}
                       dragging={false}
                       onGrip={() => {}}
                       onKeyMove={() => {}}
@@ -321,7 +362,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                   <tr className="group-row" key={`g-${pos}`}>
                     <td colSpan={9}>
                       <span className="group-label">
-                        {POSITION_NAMES[pos]} · {STARTERS[pos]} starter{STARTERS[pos] > 1 ? 's' : ''}
+                        {POSITION_NAMES[pos]} · {groupNote(scheme, pos)}
                       </span>
                     </td>
                   </tr>,
@@ -338,6 +379,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                         count={ids.length}
                         editable={isUser}
                         grouped
+                        scheme={scheme}
                         dragging={drag?.id === id}
                         onGrip={(e) => start(pos, committed, id, e)}
                         onKeyMove={(to) => keyMove(p, committed, to)}
@@ -361,6 +403,7 @@ function RosterRow({
   count,
   editable,
   grouped,
+  scheme,
   dragging,
   onGrip,
   onKeyMove,
@@ -372,14 +415,20 @@ function RosterRow({
   editable: boolean;
   /** Shown inside its position group, where the starter line means something. */
   grouped: boolean;
+  /** The team's schemes: they name the starting spots. */
+  scheme: TeamScheme;
   dragging: boolean;
   onGrip: (e: ReactPointerEvent) => void;
   onKeyMove: (to: number) => void;
 }) {
   const nav = useNav();
   const view = viewOf(league, p);
-  const starter = index < STARTERS[p.position];
-  const lastStarter = grouped && index === STARTERS[p.position] - 1 && index < count - 1;
+  const spots = spotsFor(scheme, p.position);
+  const starter = index < spots.length;
+  const lastStarter = grouped && index === spots.length - 1 && index < count - 1;
+  const spot = spots[index] ?? `${p.position}${index + 1}`;
+  // Your own players only: how a rival's roster suits its scheme is its business.
+  const fit = p.teamId === league.userTeamId && starter ? schemeFitOf(league, p, scheme) : null;
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
   // Only your own young players: a rival's backups are none of your business.
   const needsReps = p.teamId === league.userTeamId && repsOf(league, p)?.needs;
@@ -397,7 +446,7 @@ function RosterRow({
             <button
               className="grip"
               data-grip={p.id}
-              aria-label={`Reorder ${p.firstName} ${p.lastName}, ${p.position}${index + 1}. Drag, or use the up and down arrow keys.`}
+              aria-label={`Reorder ${p.firstName} ${p.lastName}, ${spot}. Drag, or use the up and down arrow keys.`}
               title="Drag to reorder (or use ↑/↓)"
               onPointerDown={onGrip}
               onKeyDown={onKey}
@@ -407,9 +456,8 @@ function RosterRow({
               </svg>
             </button>
           )}
-          <span className="num" style={{ fontWeight: starter ? 700 : 400, minWidth: '2.4em' }}>
-            {p.position}
-            {index + 1}
+          <span className={`num spot${starter ? ' spot-starter' : ''}`} title={starter ? `Starting ${spot}` : 'Depth'}>
+            {spot}
           </span>
         </span>
       </td>
@@ -420,6 +468,11 @@ function RosterRow({
             {p.firstName} {p.lastName}
           </span>
         </button>
+        {fit && (fit.grade === 'Ideal' || fit.grade === 'Poor') && (
+          <span className={`tag-pill name-sub ${fit.grade === 'Poor' ? 'tag-warn' : 'tag-good'}`} title={`The scheme leans on ${fit.skills.join(', ')}.`}>
+            {fit.grade === 'Ideal' ? 'Scheme fit' : 'Poor fit'}
+          </span>
+        )}
         {needsReps && (
           <span className="tag-pill tag-warn name-sub" title="Young and still growing, but he rarely plays: snaps speed up his development.">
             Needs reps

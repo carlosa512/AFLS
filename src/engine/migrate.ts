@@ -13,6 +13,7 @@ import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateStaffWorld } from './staff';
 import { playoffSummary } from './records';
+import { rollScheme } from './schemes';
 import { addStats, statSeasons } from './stats';
 import { generateTraits } from './traits';
 import type { League, StatLine } from './types';
@@ -29,6 +30,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 7) toV7(league);
   if (league.version < 8) toV8(league);
   if (league.version < 9) toV9(league);
+  if (league.version < 10) toV10(league);
   return league;
 }
 
@@ -185,4 +187,13 @@ function toV9(league: League) {
     if (seasons.length) c.career = seasons.map((h) => ({ season: h.season, teamId: c.teamId!, role: c.role, ...(c.room ? { room: c.room } : {}) }));
   }
   league.version = 9;
+}
+
+/** v9 → v10: coordinators get their schemes, the same ones a new league would roll for them. */
+function toV10(league: League) {
+  for (const c of Object.values(league.coaches ?? {})) {
+    const scheme = rollScheme(league.seed, c);
+    if (scheme && !c.scheme) c.scheme = scheme;
+  }
+  league.version = 10;
 }

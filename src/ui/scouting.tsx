@@ -16,6 +16,7 @@ import { agingFamily } from '../engine/aging';
 import { AGING_TEXT, ATTRIBUTE_INFO, CONTESTS, contestsFor, relevantAttributes, type AttributeGroup } from '../engine/attributes';
 import { overall, OVR_WEIGHTS } from '../engine/positions';
 import { repsSoFar } from '../engine/development';
+import { fitContests, fitGrade, spotsFor, type FitGrade, type TeamScheme } from '../engine/schemes';
 import {
   characterNotes,
   COMBINE_TYPICAL,
@@ -580,4 +581,48 @@ export function CombinePanel({ player: p }: { player: Player }) {
       )}
     </div>
   );
+}
+
+// ───────── scheme fit ─────────
+
+export interface SchemeFit {
+  grade: FitGrade;
+  /** The skills the scheme leans on at his position, in words ("outside running"). */
+  skills: string[];
+}
+
+/**
+ * How a player fits a set of schemes, as the user's scouts read him (ranges' best guesses, never his
+ * true ratings). Null where the scheme asks nothing special of his position.
+ */
+export function schemeFitOf(league: League, p: Player, scheme: TeamScheme): SchemeFit | null {
+  const contests = fitContests(scheme, p.position);
+  if (!contests.length) return null;
+  const view = viewOf(league, p);
+  const values = contests.map((c) => {
+    const w: Partial<Record<Attribute, number>> = CONTESTS[c].weights;
+    return (Object.keys(w) as Attribute[]).reduce((sum, a) => sum + view.ratings[a].value * w[a]!, 0);
+  });
+  const grade = fitGrade(values);
+  return grade ? { grade, skills: contests.map((c) => CONTESTS[c].label.toLowerCase()) } : null;
+}
+
+/** How the user's starters would fit a scheme: how many fit well and how many poorly. */
+export function rosterFit(league: League, teamId: number, scheme: TeamScheme, side: 'offense' | 'defense'): { good: number; poor: number; asked: number } {
+  const team = league.teams[teamId];
+  const positions: Position[] = side === 'offense' ? ['QB', 'RB', 'WR', 'TE', 'OL'] : ['DT', 'EDGE', 'LB', 'CB', 'S'];
+  let good = 0;
+  let poor = 0;
+  let asked = 0;
+  for (const pos of positions) {
+    const n = spotsFor(scheme, pos).length;
+    for (const id of team.depthChart[pos].slice(0, n)) {
+      const fit = schemeFitOf(league, league.players[id], scheme);
+      if (!fit) continue;
+      asked++;
+      if (fit.grade === 'Ideal' || fit.grade === 'Good') good++;
+      if (fit.grade === 'Poor') poor++;
+    }
+  }
+  return { good, poor, asked };
 }

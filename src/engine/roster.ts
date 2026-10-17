@@ -1,3 +1,4 @@
+import { skill } from './attributes';
 import { playerOvr, STARTERS } from './positions';
 import type { DepthChart, League, Player, Position, Team } from './types';
 import { POSITIONS } from './types';
@@ -11,7 +12,24 @@ export function buildAutoDepthChart(players: Player[]): DepthChart {
   const chart = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as number[]])) as DepthChart;
   const sorted = [...players].sort((a, b) => playerOvr(b) - playerOvr(a));
   for (const p of sorted) chart[p.position].push(p.id);
+  chart.OL = lineOrder(chart.OL.map((id) => players.find((p) => p.id === id)!)).map((p) => p.id);
   return chart;
+}
+
+/**
+ * The five best linemen in spot order (LT, LG, C, RG, RT; see `schemes.ts`), the rest behind them as
+ * depth: the best pass protectors play tackle, the line's sharpest mind snaps the ball, the guards
+ * are what's left. Who starts is the overall's call; this only says where.
+ */
+export function lineOrder(ol: Player[]): Player[] {
+  const five = ol.slice(0, 5);
+  if (five.length < 5) return ol;
+  const byPass = [...five].sort((a, b) => skill(b, 'passPro') - skill(a, 'passPro'));
+  const [lt, rt] = byPass;
+  const inside = five.filter((p) => p !== lt && p !== rt);
+  const c = inside.reduce((a, b) => (skill(b, 'discipline') > skill(a, 'discipline') ? b : a));
+  const [lg, rg] = inside.filter((p) => p !== c).sort((a, b) => skill(b, 'runBlocking') - skill(a, 'runBlocking'));
+  return [lt, lg, c, rg, rt, ...ol.slice(5)];
 }
 
 /**

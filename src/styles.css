@@ -2531,3 +2531,38 @@ tr.stat-total td {
 .sheet-head.has-edit {
   padding-right: 96px;
 }
+
+/* ───────── schemes: depth chart spots ───────── */
+.scheme-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 10px 18px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.scheme-strip > div {
+  display: grid;
+  gap: 2px;
+}
+.scheme-strip b {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+}
+.spot {
+  min-width: 3.2em;
+  font-weight: 400;
+}
+.spot-starter {
+  font-weight: 700;
+}
+.scheme-pill {
+  font-weight: 700;
+}
+.scheme-row {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}

@@ -40,10 +40,12 @@ import {
   sameChair,
   styleNotes,
   teamCoaches,
+  teamScheme,
   TYPICAL,
   type Chair,
 } from '../../engine/coaching';
 import { coachRecord, formatRecord } from '../../engine/records';
+import { coachSchemeAbout, coachSchemeLabel, PERSONNEL_LABEL, schemeWith } from '../../engine/schemes';
 import { staffWindowOpen, type ResignOutlook } from '../../engine/staff';
 import type { Coach, CoachRole, CoachRoom, League } from '../../engine/types';
 import { Panel, TeamChip } from '../components';
@@ -70,6 +72,7 @@ import {
   type RoomCount,
 } from '../coaching';
 import { band, money, ordinal, PHASE_LABELS } from '../format';
+import { rosterFit } from '../scouting';
 import { store } from '../store';
 
 type RoleTab = 'head' | 'coord' | 'position' | 'sc';
@@ -208,6 +211,33 @@ function CoachRecord({ league, c, compact = false }: { league: League; c: Coach;
   );
 }
 
+/**
+ * A coordinator's scheme: the pill, and (unless compact) what it means and, for someone you could hire,
+ * how your current starters would fit it.
+ */
+function SchemeRow({ league, c, compact = false, preview = false }: { league: League; c: Coach; compact?: boolean; preview?: boolean }) {
+  const label = coachSchemeLabel(c);
+  if (!label) return null;
+  const about = coachSchemeAbout(c);
+  const side = c.role === 'offCoord' ? 'offense' : 'defense';
+  const scheme = schemeWith(teamScheme(league, league.userTeamId), c);
+  const fit = preview ? rosterFit(league, league.userTeamId, scheme, side) : null;
+  return (
+    <span className="scheme-row">
+      <span className="tag-pill scheme-pill" title={about ?? undefined}>
+        {label}
+        {c.role === 'offCoord' && scheme.offense.personnel !== '11' ? ` · ${scheme.offense.personnel} personnel` : ''}
+      </span>
+      {!compact && about && <span className="muted small">{c.role === 'offCoord' ? `${PERSONNEL_LABEL[scheme.offense.personnel]}. ` : ''}{about}</span>}
+      {fit && fit.asked > 0 && (
+        <span className={`small${fit.poor > fit.good ? ' tone-bad' : fit.good > fit.asked / 2 ? ' tone-good' : ''}`}>
+          Your {side}: {fit.good} of {fit.asked} starters fit his scheme well{fit.poor ? `, ${fit.poor} poorly` : ''}.
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** The one visible line that says who decides what, wherever the style notes appear. */
 function StyleOwners({ className = '' }: { className?: string }) {
   return <p className={`muted small style-owners ${className}`.trim()}>{STYLE_OWNERS}</p>;
@@ -277,6 +307,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
           </span>
         </span>
       </div>
+      <SchemeRow league={league} c={c} />
       <StyleRow c={c} />
       <CoachRecord league={league} c={c} />
       {expiring ? (
@@ -553,6 +584,7 @@ function Candidate({ league, c, open, counts }: { league: League; c: Coach; open
           </span>
         </span>
       </div>
+      <SchemeRow league={league} c={c} preview />
       <StyleRow c={c} />
       <CoachRecord league={league} c={c} />
       {c.lastJob && <p className="small muted staff-why">Last job: {c.lastJob}</p>}
@@ -633,6 +665,7 @@ function Rival({ league, c }: { league: League; c: Coach | null }) {
       <span className="small muted num">
         <b className={band(c.youth)}>{c.youth}</b> / <b className={band(c.veterans)}>{c.veterans}</b>
       </span>
+      <SchemeRow league={league} c={c} compact />
       <StyleRow c={c} />
       <CoachRecord league={league} c={c} compact />
     </span>
