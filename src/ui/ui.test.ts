@@ -13,6 +13,8 @@ describe('routes', () => {
       { view: 'cap', teamId: 31 },
       { view: 'office' },
       { view: 'office', tab: 'draft' },
+      { view: 'stats' },
+      { view: 'stats', tab: 'records' },
       { view: 'standings' },
       { view: 'live' },
     ];
@@ -23,9 +25,13 @@ describe('routes', () => {
     expect(hashToRoute(routeToHash({ view: 'game', gameId: 42, back: { view: 'home' } }))).toEqual({ view: 'game', gameId: 42, back: { view: 'schedule' } });
   });
 
+  it('send the old Leaders address to the Stats tab', () => {
+    expect(hashToRoute('#/leaders')).toEqual({ view: 'stats', tab: 'leaders' });
+  });
+
   it('reject anything unrecognised', () => {
     expect(hashToRoute('')).toEqual({ view: 'home' });
-    for (const bad of ['#/nope', '#/office/payroll', '#/roster/abc', '#/game/', '#/roster/-1']) expect(hashToRoute(bad)).toBeNull();
+    for (const bad of ['#/nope', '#/office/payroll', '#/stats/awards', '#/roster/abc', '#/game/', '#/roster/-1']) expect(hashToRoute(bad)).toBeNull();
   });
 });
 

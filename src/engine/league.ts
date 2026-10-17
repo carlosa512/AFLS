@@ -10,8 +10,8 @@ import { syncDepthChart } from './roster';
 import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { computeRecords } from './season/standings';
-import type { Game, GameResult, League, StatLine } from './types';
-import { MAX_STATS } from './types';
+import { addStats } from './stats';
+import type { Game, GameResult, League } from './types';
 
 export function gamesInWeek(league: League, week = league.week): Game[] {
   return league.games.filter((g) => g.season === league.season && g.week === week);
@@ -19,12 +19,6 @@ export function gamesInWeek(league: League, week = league.week): Game[] {
 
 export function userGame(league: League, week = league.week): Game | undefined {
   return gamesInWeek(league, week).find((g) => g.homeId === league.userTeamId || g.awayId === league.userTeamId);
-}
-
-function addStats(target: StatLine, source: StatLine) {
-  for (const [key, value] of Object.entries(source) as [keyof StatLine, number][]) {
-    target[key] = MAX_STATS.has(key) ? Math.max(target[key] ?? 0, value) : (target[key] ?? 0) + value;
-  }
 }
 
 /** Contenders and rebuilders deal with each other before the deadline (never with the user unasked). */

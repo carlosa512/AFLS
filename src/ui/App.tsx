@@ -11,7 +11,6 @@ import { GameViewer } from './screens/GameViewer';
 import { LiveGame } from './screens/LiveGame';
 import { live, useLive } from './live';
 import { Home } from './screens/Home';
-import { Leaders } from './screens/Leaders';
 import { NewGame } from './screens/NewGame';
 import { PlayerCard } from './screens/PlayerCard';
 import { Playoffs } from './screens/Playoffs';
@@ -20,6 +19,7 @@ import { FrontOffice } from './screens/FrontOffice';
 import { Roster } from './screens/Roster';
 import { Schedule } from './screens/Schedule';
 import { Standings } from './screens/Standings';
+import { Stats } from './screens/Stats';
 import { hashToRoute, isHistoryEntry, routeToHash, type HistoryEntry, type Route } from './routes';
 import { store, useLeague } from './store';
 
@@ -50,7 +50,7 @@ const TABS: { view: Route['view']; label: string }[] = [
   { view: 'office', label: 'Front office' },
   { view: 'schedule', label: 'Schedule' },
   { view: 'standings', label: 'Standings' },
-  { view: 'leaders', label: 'Leaders' },
+  { view: 'stats', label: 'Stats' },
   { view: 'playoffs', label: 'Playoffs' },
 ];
 
@@ -305,7 +305,7 @@ export function App() {
         {route.view === 'office' && <FrontOffice league={league} tab={route.tab} />}
         {route.view === 'schedule' && <Schedule league={league} />}
         {route.view === 'standings' && <Standings league={league} />}
-        {route.view === 'leaders' && <Leaders league={league} />}
+        {route.view === 'stats' && <Stats league={league} tab={route.tab} />}
         {route.view === 'playoffs' && <Playoffs league={league} />}
         {route.view === 'compare' && <Compare league={league} />}
         {route.view === 'game' && <BoxScore league={league} gameId={route.gameId} onBack={() => leaveGame(route.back)} />}

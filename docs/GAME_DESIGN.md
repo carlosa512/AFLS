@@ -282,6 +282,9 @@ Coaches screen.
 - Fatigue and rotations, weather, a live play-by-play viewer.
 
 **Later**
+- Awards: player of the week and month, season awards (MVP, rookie and position honours), all-league
+  teams and a hall of fame. Weekly and monthly awards need each week's stats saved as it's played
+  (season totals and the last season's box scores are all that's kept today).
 - Player morale and personality, media and owner goals; coordinators promoted to head coach, coach
   career histories, tempo and two-point tendencies.
 - Modding: league import/export, an in-game editor, real-roster mods.

@@ -2,7 +2,7 @@ import { allSeeds, PLAYOFF_ROUNDS, playoffGames, ROUND_NAMES, winnerOf } from '.
 import type { Game, League } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, TeamChip } from '../components';
-import { resultsSeason } from '../format';
+import { recordText, resultsSeason } from '../format';
 import { PlayoffPicture } from './Standings';
 
 function BracketGame({ league, game, seedOf }: { league: League; game: Game; seedOf: (id: number) => number }) {
@@ -52,29 +52,108 @@ export function Playoffs({ league }: { league: League }) {
             </Panel>
           ))}
         </div>
+        <LeagueHistory league={league} />
       </>
     );
   }
   const seeds = allSeeds(league, season);
   const seedOf = (id: number) => seeds.flat().indexOf(id) % 7;
   return (
-    <Panel title={`${season} playoffs`}>
-      <div className="table-scroll">
-        <div className="bracket">
-          {PLAYOFF_ROUNDS.map((round) => (
-            <div key={round} className="bracket-col">
-              <span className="eyebrow">{ROUND_NAMES[round]}</span>
-              {games
-                .filter((g) => g.playoffRound === round)
-                .sort((a, b) => league.teams[a.homeId].conference - league.teams[b.homeId].conference)
-                .map((g) => (
-                  <BracketGame key={g.id} league={league} game={g} seedOf={seedOf} />
-                ))}
-              {!games.some((g) => g.playoffRound === round) && <span className="muted">To be decided</span>}
-            </div>
-          ))}
+    <>
+      <Panel title={`${season} playoffs`}>
+        <div className="table-scroll">
+          <div className="bracket">
+            {PLAYOFF_ROUNDS.map((round) => (
+              <div key={round} className="bracket-col">
+                <span className="eyebrow">{ROUND_NAMES[round]}</span>
+                {games
+                  .filter((g) => g.playoffRound === round)
+                  .sort((a, b) => league.teams[a.homeId].conference - league.teams[b.homeId].conference)
+                  .map((g) => (
+                    <BracketGame key={g.id} league={league} game={g} seedOf={seedOf} />
+                  ))}
+                {!games.some((g) => g.playoffRound === round) && <span className="muted">To be decided</span>}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </Panel>
+      <LeagueHistory league={league} />
+    </>
+  );
+}
+
+const winPct = (r: { w: number; l: number; t: number }) => (r.w + r.t / 2) / Math.max(1, r.w + r.l + r.t);
+
+/** Every finished season: who won it all, who came closest, the best regular season, and how you did. */
+function LeagueHistory({ league }: { league: League }) {
+  const history = [...league.history].sort((a, b) => b.season - a.season);
+  const user = league.teams[league.userTeamId];
+  const titles = history.filter((h) => h.championId === user.id).length;
+  const finals = history.filter((h) => h.runnerUpId === user.id).length;
+  return (
+    <Panel title="League history">
+      {history.length === 0 ? (
+        <p className="muted" style={{ margin: 0 }}>
+          Champions are listed here once the first season is over.
+        </p>
+      ) : (
+        <>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            {user.city} {user.name}: {titles} title{titles === 1 ? '' : 's'}
+            {finals ? `, ${finals} more championship game${finals === 1 ? '' : 's'}` : ''} in {history.length} season{history.length === 1 ? '' : 's'}.
+          </p>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th className="num">Season</th>
+                  <th>Champion</th>
+                  <th>Runner-up</th>
+                  <th>Best record</th>
+                  <th className="num">Your record</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => {
+                  const best = Object.entries(h.records).sort(([, a], [, b]) => winPct(b) - winPct(a))[0];
+                  const mine = h.records[user.id];
+                  return (
+                    <tr key={h.season} className={h.championId === user.id ? 'is-user' : ''}>
+                      <td className="num">{h.season}</td>
+                      <td>
+                        <HistoryTeam league={league} id={h.championId} />
+                      </td>
+                      <td>
+                        <HistoryTeam league={league} id={h.runnerUpId} />
+                      </td>
+                      <td>
+                        {best && (
+                          <>
+                            <HistoryTeam league={league} id={Number(best[0])} /> <span className="muted num">{recordText(best[1])}</span>
+                          </>
+                        )}
+                      </td>
+                      <td className="num">{mine ? recordText(mine) : '–'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </Panel>
+  );
+}
+
+function HistoryTeam({ league, id }: { league: League; id: number }) {
+  const nav = useNav();
+  const team = league.teams[id];
+  return (
+    <button className="linklike row" style={{ gap: 6, display: 'inline-flex' }} onClick={() => nav.openTeam(id)}>
+      <TeamChip team={team} />
+      {team.city} {team.name}
+    </button>
   );
 }
