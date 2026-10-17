@@ -1,4 +1,4 @@
-import type { SeasonAwards } from './awards';
+import type { SeasonAwards, WeeklyAwards } from './awards';
 /**
  * Core data model. Everything here is plain JSON-serializable data so a League
  * can be saved, loaded, exported and modded without custom (de)serializers.
@@ -495,6 +495,8 @@ export interface League {
   history: SeasonSummary[];
   /** Season awards, oldest first, voted when each regular season ends (see `awards.ts`). */
   awards: SeasonAwards[];
+  /** Players of the week and month, oldest season first (see `awards.ts`). */
+  weeklyAwards: WeeklyAwards[];
   draftPicks: DraftPick[];
   nextPickId: number;
   /** Prospects for the upcoming draft (player ids, teamId null until drafted). */

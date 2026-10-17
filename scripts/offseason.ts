@@ -41,6 +41,9 @@ const gains = { best: [] as number[], worst: [] as number[] };
 
 for (let s = 0; s < seasons; s++) {
   simToEndOfSeason(league);
+  // Saves are one JSON blob in IndexedDB: awards must stay a sliver of it as seasons pile up.
+  const kb = (x: unknown) => (JSON.stringify(x).length / 1024).toFixed(1);
+  console.log(`${league.season} save ${kb(league)} KB · awards ${kb(league.awards)} KB · players of the week/month ${kb(league.weeklyAwards)} KB`);
   // What development is about to apply: the neutrality ledger, and who grows under which staff.
   const rostered = Object.values(league.players).filter((p) => !p.retired && p.teamId !== null);
   const young = rostered.filter((p) => p.age < 26 && p.position !== 'K' && p.position !== 'P');

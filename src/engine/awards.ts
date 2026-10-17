@@ -5,7 +5,7 @@
  */
 import { Rng } from './rng';
 import { regularSeasonGames } from './season/standings';
-import { passerRating } from './stats';
+import { addStats, passerRating } from './stats';
 import type { League, Player, Position, StatLine } from './types';
 
 export type AwardKey = 'mvp' | 'opoy' | 'dpoy' | 'oroy' | 'droy' | 'comeback';
@@ -325,6 +325,116 @@ export function seasonAwards(league: League, season: number): SeasonAwards | und
   return league.awards.find((a) => a.season === season);
 }
 
+// ───────── players of the week and month ─────────
+
+export type MonthKey = 'sep' | 'oct' | 'nov' | 'dec';
+
+/** The regular season by calendar month: weeks 1–4 are September, 14–18 December into January. */
+export const MONTHS: { key: MonthKey; label: string; weeks: [number, number] }[] = [
+  { key: 'sep', label: 'September', weeks: [1, 4] },
+  { key: 'oct', label: 'October', weeks: [5, 8] },
+  { key: 'nov', label: 'November', weeks: [9, 13] },
+  { key: 'dec', label: 'December/January', weeks: [14, 18] },
+];
+
+/**
+ * One season's players of the week and month. Each list holds four winners, in `HONOR_SLOTS`
+ * order (first conference offense, first conference defense, then the second conference's); null
+ * if no one qualified.
+ * Only winners are kept: the box scores they come from are dropped a year later.
+ */
+export interface WeeklyAwards {
+  season: number;
+  weeks: Record<number, (AwardWinner | null)[]>;
+  months: Partial<Record<MonthKey, (AwardWinner | null)[]>>;
+}
+
+export const HONOR_SLOTS: { conference: number; side: 'offense' | 'defense' }[] = [
+  { conference: 0, side: 'offense' },
+  { conference: 0, side: 'defense' },
+  { conference: 1, side: 'offense' },
+  { conference: 1, side: 'defense' },
+];
+
+/** How much more a quarterback's yards and touchdowns count toward a weekly or monthly honor. */
+const QB_WEEKLY = 1.4;
+
+/** The month whose last week this is, if any. */
+export const monthEnding = (week: number) => MONTHS.find((m) => m.weeks[1] === week);
+
+/**
+ * Picks the best offensive and defensive player in each conference over a run of weeks: the most
+ * productive line, a bit more for winning (weekly honors almost always go to winners). Pure.
+ */
+export function pickPeriod(league: League, season: number, weeks: [number, number]): (AwardWinner | null)[] {
+  const games = regularSeasonGames(league, season).filter((g) => g.week >= weeks[0] && g.week <= weeks[1]);
+  const lines = new Map<number, { line: StatLine; teamId: number; won: number; played: number }>();
+  for (const g of games) {
+    const r = g.result!;
+    for (const [id, stat] of Object.entries(r.playerStats)) {
+      const teamId = r.playerTeams[Number(id)];
+      if (teamId === undefined) continue;
+      const own = teamId === g.homeId ? r.homeScore : r.awayScore;
+      const opp = teamId === g.homeId ? r.awayScore : r.homeScore;
+      const e = lines.get(Number(id)) ?? { line: {}, teamId, won: 0, played: 0 };
+      addStats(e.line, stat);
+      e.teamId = teamId;
+      e.won += own > opp ? 1 : own === opp ? 0.5 : 0;
+      e.played++;
+      lines.set(Number(id), e);
+    }
+  }
+  // A week needs its one game; a month all but one of its games (a bye week).
+  const minGames = Math.max(1, weeks[1] - weeks[0]);
+  const tie = (id: number) => new Rng(`${league.seed}:honors:${season}:${weeks[0]}:${id}`).next();
+  return HONOR_SLOTS.map(({ conference, side }) => {
+    let best: { id: number; teamId: number; score: number } | null = null;
+    for (const [id, e] of lines) {
+      const p = league.players[id];
+      if (!p || league.teams[e.teamId].conference !== conference || e.played < minGames) continue;
+      if (!(side === 'offense' ? OFFENSE : DEFENSE).has(p.position)) continue;
+      // A big passing day is the headline: quarterbacks win most offensive weekly honors.
+      const base = side === 'defense' ? defenseScore(e.line) : p.position === 'QB' ? offenseScore(e.line) * QB_WEEKLY + qbBonus(e.line) * 0.5 : offenseScore(e.line);
+      const score = base * (0.8 + 0.4 * (e.won / e.played));
+      if (score <= 0) continue;
+      if (!best || score > best.score || (score === best.score && tie(id) < tie(best.id))) best = { id, teamId: e.teamId, score };
+    }
+    return best ? { playerId: best.id, teamId: best.teamId } : null;
+  });
+}
+
+function weeklyEntry(league: League, season: number): WeeklyAwards {
+  let entry = league.weeklyAwards.find((w) => w.season === season);
+  if (!entry) {
+    entry = { season, weeks: {}, months: {} };
+    league.weeklyAwards.push(entry);
+    league.weeklyAwards.sort((a, b) => a.season - b.season);
+  }
+  return entry;
+}
+
+/** After a regular-season week: names its players of the week and, if a month just ended, of the month. */
+export function awardWeek(league: League, week: number, season = league.season): void {
+  const entry = weeklyEntry(league, season);
+  entry.weeks[week] ??= pickPeriod(league, season, [week, week]);
+  const month = monthEnding(week);
+  if (month) entry.months[month.key] ??= pickPeriod(league, season, month.weeks);
+}
+
+/** A player's totals over a run of weeks, while the box scores are still kept (undefined after). */
+export function periodLine(league: League, season: number, weeks: [number, number], playerId: number): StatLine | undefined {
+  let total: StatLine | undefined;
+  for (const g of regularSeasonGames(league, season)) {
+    const line = g.week >= weeks[0] && g.week <= weeks[1] ? g.result!.playerStats[playerId] : undefined;
+    if (line) addStats((total ??= {}), line);
+  }
+  return total;
+}
+
+export function weeklyAwards(league: League, season: number): WeeklyAwards | undefined {
+  return league.weeklyAwards.find((w) => w.season === season);
+}
+
 export interface PlayerHonor {
   season: number;
   label: string;
@@ -332,13 +442,13 @@ export interface PlayerHonor {
 
 export interface HonorBadge {
   label: string;
-  /** Seasons won, newest first. */
+  /** Seasons won, newest first (a season repeats for each week or month won in it). */
   seasons: number[];
 }
 
 /** The same honor won more than once becomes one badge ("2× MVP"), in order of prestige. */
 export function honorBadges(honors: PlayerHonor[]): HonorBadge[] {
-  const order = [...AWARD_KEYS.map((k) => AWARD_SHORT[k]), 'All-League 1st team', 'All-League 2nd team'];
+  const order = [...AWARD_KEYS.map((k) => AWARD_SHORT[k]), 'All-League 1st team', 'All-League 2nd team', 'Player of the Month', 'Player of the Week'];
   const by = new Map<string, number[]>();
   for (const h of honors) by.set(h.label, [...(by.get(h.label) ?? []), h.season]);
   return [...by]
@@ -346,7 +456,7 @@ export function honorBadges(honors: PlayerHonor[]): HonorBadge[] {
     .map(([label, seasons]) => ({ label, seasons }));
 }
 
-/** Everything a player has won, newest first: awards, then All-League selections. */
+/** Everything a player has won, newest first: awards and All-League selections, then players of the month and week. */
 export function playerHonors(league: League, playerId: number): PlayerHonor[] {
   const out: PlayerHonor[] = [];
   for (const a of [...league.awards].reverse()) {
@@ -354,6 +464,10 @@ export function playerHonors(league: League, playerId: number): PlayerHonor[] {
     a.allLeague.forEach((squad, i) => {
       if (squad.some((w) => w.playerId === playerId)) out.push({ season: a.season, label: i === 0 ? 'All-League 1st team' : 'All-League 2nd team' });
     });
+  }
+  for (const w of [...league.weeklyAwards].reverse()) {
+    for (const winners of Object.values(w.months)) if (winners!.some((x) => x?.playerId === playerId)) out.push({ season: w.season, label: 'Player of the Month' });
+    for (const winners of Object.values(w.weeks)) if (winners.some((x) => x?.playerId === playerId)) out.push({ season: w.season, label: 'Player of the Week' });
   }
   return out;
 }

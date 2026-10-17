@@ -26,6 +26,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 5) toV5(league);
   if (league.version < 6) toV6(league);
   if (league.version < 7) toV7(league);
+  if (league.version < 8) toV8(league);
   return league;
 }
 
@@ -135,4 +136,10 @@ function toV7(league: League) {
   const done = league.phase === 'regular' ? league.season - 1 : league.season;
   for (const season of statSeasons(league).reverse()) if (season <= done) awardSeason(league, season);
   league.version = 7;
+}
+
+/** v8: players of the week and month. Only winners are stored, and older saves simply start without any. */
+function toV8(league: League) {
+  league.weeklyAwards ??= [];
+  league.version = 8;
 }

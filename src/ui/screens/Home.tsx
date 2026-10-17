@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react';
-import { AWARD_SHORT, playerHonors, seasonAwards } from '../../engine/awards';
+import { AWARD_SHORT, HONOR_SLOTS, monthEnding, playerHonors, seasonAwards, weeklyAwards, type AwardWinner } from '../../engine/awards';
 import { champion, gamesInWeek, userGame } from '../../engine/league';
 import { capSheet } from '../../engine/finance/cap';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
@@ -15,6 +15,7 @@ import { attentionText } from '../coaching';
 import { Panel, TeamChip, TeamLabel } from '../components';
 import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, weekLabel } from '../format';
 import { live } from '../live';
+import { WinnerCell } from './Stats';
 import { BackupButton, LoadBackupButton } from '../saves';
 import { store } from '../store';
 
@@ -310,6 +311,45 @@ function AwardsNotice({ league }: { league: League }) {
   );
 }
 
+/** The latest week's players of the week (and of the month, when one just ended). */
+function PlayersOfTheWeek({ league }: { league: League }) {
+  const nav = useNav();
+  const honors = weeklyAwards(league, league.season);
+  const week = Math.max(0, ...Object.keys(honors?.weeks ?? {}).map(Number));
+  if (!honors || !week) return null;
+  const month = monthEnding(week);
+  const list = (winners: (AwardWinner | null)[], weeks: [number, number]) => (
+    <ul className="honor-list">
+      {HONOR_SLOTS.map(({ conference, side }, i) => (
+        <li key={i} className={winners[i] && league.players[winners[i]!.playerId].teamId === league.userTeamId ? 'is-user' : undefined}>
+          <span className="eyebrow">
+            {league.conferences[conference].abbrev} {side}
+          </span>
+          <WinnerCell league={league} winner={winners[i]} season={league.season} weeks={weeks} />
+        </li>
+      ))}
+    </ul>
+  );
+  return (
+    <Panel
+      title={`Players of the week · ${weekLabel(week)}`}
+      action={
+        <button className="btn btn-sm btn-ghost" onClick={() => nav.go({ view: 'stats', tab: 'awards' })}>
+          All awards
+        </button>
+      }
+    >
+      {list(honors.weeks[week], [week, week])}
+      {month && honors.months[month.key] && (
+        <>
+          <h3 style={{ margin: '12px 0 4px' }}>Players of the month · {month.label}</h3>
+          {list(honors.months[month.key]!, month.weeks)}
+        </>
+      )}
+    </Panel>
+  );
+}
+
 function StartOver({ league }: { league: League }) {
   const [confirming, setConfirming] = useState(false);
   return (
@@ -487,6 +527,7 @@ export function Home({ league }: { league: League }) {
         </div>
         <div className="stack">
           <DivisionMini league={league} />
+          <PlayersOfTheWeek league={league} />
         </div>
       </div>
       <AroundTheLeague league={league} />
