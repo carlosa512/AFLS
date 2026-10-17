@@ -23,12 +23,14 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
   rewrites `docs/ATTRIBUTES.md`. **Run it after changing `attributes.ts`, `OVR_WEIGHTS` or how the
   engine reads ratings.** Nothing may be listed under "Needs attention".
-- `npm run careers` — age a draft class of every position and play 16 seasons (about 2 minutes);
-  checks peaks, declines, retirements, trait effects and long-run play against the research ranges. Run it after changing `development.ts`,
-  `aging.ts`, `traits.ts` or retirement. Nothing may be flagged ▲/▼.
+- `npm run careers` — age a draft class of every position and play two 16-season leagues (about 4
+  minutes); checks peaks, declines, retirements, trait and coaching effects and long-run play against
+  the research ranges. Run it after changing `development.ts`, `aging.ts`, `traits.ts`, `coaching.ts`
+  or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
-  health, roster sizes and league talent. Run it after changes to `finance/`, `offseason/` or
-  `trade.ts`; talent, cap space and rosters should stay stable across seasons.
+  health, roster sizes, league talent and the scouting and coaching economies. Run it after changes to
+  `finance/`, `offseason/`, `trade.ts`, `staff.ts` or `coaching.ts`; talent, cap space, rosters and
+  the coaching ledger (growth and decline ×1.00) should stay stable across seasons.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -44,6 +46,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   - `staff.ts` scouting departments: who reads which player (`readFor`), accuracy, the staff budget,
     contracts, the market, ageing, AI hiring. All staff changes go through this module (it keeps a
     per-team index; `teamStaff()` returns a shared read-only list)
+  - `coaching.ts` coaching staffs: what coaches do for development (`coachingFor`, the parts a screen
+    shows via `coachingParts`), play-calling style (`callerStyle`), the coaching budget, contracts, the
+    market, ageing, AI hiring and the head-coach hot seat. All coach changes go through this module (it
+    keeps a per-team index; `teamCoaches()` returns a shared read-only list)
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks

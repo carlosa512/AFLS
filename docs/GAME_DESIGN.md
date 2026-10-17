@@ -35,7 +35,8 @@ a time, replays the same games and writes the measured effects to `docs/ATTRIBUT
   field goals by distance and kicker, false starts/holding/DPI, two-minute warning, timeouts,
   kneel-downs, 2025 overtime rules.
 - **Coaching AI:** run/pass by down, distance, score and time; fourth-down aggressiveness;
-  tempo; two-point chart.
+  tempo; two-point chart. Each team's play-caller shades run/pass and its head coach fourth downs
+  (their style, see "How coaching works").
 - **End-of-game scripts:** victory formation (kneel math knows the two-minute warning and whether
   the defense will really use its timeouts), a clock-killing fourth-down snap, two-minute drill
   (no runs in the last 40 seconds when trailing, scrambles to the sideline), spikes when out of
@@ -90,12 +91,12 @@ Development runs once a year, at the start of the league year, on each player's 
 (so tuning it never reshuffles drafts or schedules). `npm run careers` checks the results against
 the real-world ranges in the research doc.
 
-- **Growth (under 26):** each year a player closes part of the gap to his hidden ceiling. Two things
-  move the pace: his **work ethic**, which spans about ×0.4 to ×1.6, and **reps**. Reps are the
-  share of last season's games he played. At 21 practice carries most of the growth; by 24 games do.
-  A starter grows about 20% faster than average, and a player who never sees the field about 35%
-  slower. Growth lands where it can still happen: physical tools are about done by 25, and late
-  gains are technique and the mental game.
+- **Growth (under 26):** each year a player closes part of the gap to his hidden ceiling. Three things
+  move the pace: his **work ethic**, which spans about ×0.4 to ×1.6, **reps**, and his **coaches**
+  (see below). Reps are the share of last season's games he played. At 21 practice carries most of
+  the growth; by 24 games do. A starter grows about 20% faster than average, and a player who never
+  sees the field about 35% slower. Growth lands where it can still happen: physical tools are about
+  done by 25, and late gains are technique and the mental game.
 - **Aging:** one table per position (`aging.ts`) decides when each family of ratings starts to slip:
   - **Physical tools** go first.
   - **Technique** holds through the prime.
@@ -144,6 +145,57 @@ need reps.
 
 AI front offices weigh the work ethic they read: a grinder they've sat down with gets more of his
 ceiling on their draft board, re-sign and cut lists, and trade value.
+
+## How coaching works
+
+Every team has 11 coaching chairs: a **head coach**, an **offensive** and a **defensive coordinator**,
+a **strength & conditioning (S&C) coach** and seven **position coaches** (quarterbacks, running backs,
+receivers and tight ends, offensive line, defensive line, linebackers, secondary). Kickers and punters
+train with the head coach and the S&C coach.
+
+Each coach has two public 1–20 ratings, and both feed player development (`src/engine/coaching.ts`):
+
+| Rating | What it does |
+|---|---|
+| Youth development | Players under 26 close the gap to their ceiling faster |
+| Veteran care | Players past their prime lose it more slowly. The S&C coach keeps bodies going (physical tools); everyone else keeps technique and the mental game |
+
+Who counts for a player:
+- **Growth:** his position coach 45%, his side's coordinator 20%, the head coach 20%, the S&C coach 15%.
+- **Physical decline:** the S&C coach 40%, his position coach 35%, the head coach 25%.
+- **Technique and mental decline:** his position coach 50%, his coordinator 25%, the head coach 25%.
+
+A point of youth development is worth as much growth as a point of work ethic (6.5%); a point of
+veteran care slows decline by 2.5–3%. An empty chair counts as a weak coach (6). A typical staff
+(every rating 10.5) changes nothing, so league-wide development is calibrated as before; the market
+and the AI's hiring goals keep the average staff typical. `npm run careers` checks the size: the
+same draft class under a strong staff (every coach 13) is about 0.2 OVR better at 26 and 0.5 better
+at 32 than under a weak one (every coach 8), roughly 60% of what work ethic does.
+
+Development runs once a year with the coaches a player finished the season with, so a hire takes
+effect at the next league year's development. Free agents have no coaches: their year is neutral.
+
+**Play-calling style** belongs to the coach and moves with him: the offensive coordinator (or the
+head coach without one) leans to the pass or the run (±6 points of pass rate in ordinary
+situations), and the head coach is more or less aggressive on fourth down (go-for-it odds ×0.6 to
+×1.4 on the judgment calls). Style changes the mix, never the execution, and the end-of-game scripts
+ignore it. In a season a run-first offense passes about 54% of the time and a pass-first one about
+59%; an aggressive head coach goes for it about 1.2 times a game and a conservative one 0.9.
+
+**Hiring is like the scouting staff, with its own budget** (about 9.5% of the cap, $28.6M at the
+opening cap; same owner generosity as the scouting budget). Asks scale with quality: a typical head
+coach costs about $7.5M, a coordinator or S&C coach $2.6M, a position coach $1.1M. Deals run 1–3
+years (head coaches up to 5); dismissing a coach costs half of what's left on his deal, at most a
+year's salary. Moves happen in the re-sign window and free agency; a hire can replace the coach in
+his chair in one move. Expiring coaches re-sign automatically unless you let them go. Coaches keep
+improving into their 50s and decline from their mid-50s; head coaches and coordinators retire from
+their mid-60s, assistants a few years earlier.
+
+**AI staffs** aim at a seeded quality goal per team (centred, so the league stays typical); win-now
+front offices spend more on the head coach and coordinators, rebuilders on the teachers. After a bad
+season an AI team may fire its head coach (patience runs out after a couple of losing years); head
+coach and coordinator moves around the league show in the news. `npm run offseason` reports the
+coaching economy and young players' growth under the best and worst staffs.
 
 ## How the front office works
 
@@ -199,9 +251,14 @@ first, the mental game last; QB legs vs arm), per-player body clocks, growth fro
 ethic, position-aware retirement, temperament on the line's penalties, makeup read in words by your
 scouts, career outlook, "needs reps", AI boards that weigh work ethic, `npm run careers`.
 
+**✅ Coaching staff (done)** — head coach, coordinators, S&C and seven position coaches with youth
+development and veteran care ratings that drive growth and aging; a coaching budget, contracts, a
+market and an ageing cycle; AI hiring by front-office style and head coaches fired after bad
+seasons; play-calling style (pass lean, fourth-down aggression) carried by the coach into games; the
+Coaches screen.
+
 **Next: Front office depth**
-- Coaching staff with ratings (position coaches, S&C, medical): development already takes a coaching
-  `rate`, so they plug straight in.
+- Medical staff, once injuries exist.
 - NFL-calendar practice: CBA padded-practice budgets, Full/Limited/DNP, veteran rest days.
 - Mentoring in position rooms; morale (playing time, contract, results) and holdouts.
 - Injuries (in-game and practice), injured reserve, depth that matters; injury proneness and
@@ -214,7 +271,8 @@ scouts, career outlook, "needs reps", AI boards that weigh work ethic, `npm run 
 - Fatigue and rotations, weather, a live play-by-play viewer.
 
 **Later**
-- Coaching staff and scouting department, player morale and personality, media and owner goals.
+- Player morale and personality, media and owner goals; coordinators promoted to head coach, coach
+  career histories, tempo and two-point tendencies.
 - Modding: league import/export, an in-game editor, real-roster mods.
 - Desktop packaging (Tauri) → itch.io prototype → Steam Early Access.
 
