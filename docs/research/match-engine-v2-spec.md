@@ -29,12 +29,12 @@ The match engine gets rebuilt in layers toward Football Manager's loop. What a t
 
 **Build order**
 
-- **Phase 0:** audit and the golden replay test, add coaches.
+- **Phase 0:** audit and the golden replay test (its fixture includes the coaches).
 - **Layer 1a → 1b:** the call seam, then calls that decide and per-snap randomness.
 - **Layer 2a → 2b:** structured events, then storing them and the stats they unlock.
 - **Layer 3:** individual matchups. **Layer 4:** coverage and the passing game.
 - **Layer 5:** in-game state (form, fatigue, injuries).
-- **Layer 6 (party done by PR 7):** coach tendencies and game plans. It only touches the AI caller, so it can run in parallel with Layers 3-5 once Layers 1 and 2 have merged (the halftime adjustment reads Layer 2 events). It lands with the coaching staff feature.
+- **Layer 6 (partly done by PR #7):** coach tendencies and game plans. It only touches the AI caller, so it can run in parallel with Layers 3-5 once Layers 1 and 2 have merged (the halftime adjustment reads Layer 2 events). PR #7 shipped the OC's run/pass lean and the HC's fourth-down aggression; this layer adds the rest.
 - **Layer 7:** user play calling.
 
 Effort key (same as the roadmap doc): **Low** = days. **Medium** = a new subsystem with modest balancing. **High** = a new simulation loop plus heavy tuning.
@@ -80,6 +80,7 @@ Effort key (same as the roadmap doc): **Low** = days. **Medium** = a new subsyst
 | Attribute audit | `npm run audit` replays the same games with one attribute raised | Per-snap streams should make it less noisy (1b) |
 | Saves | `GameResult.plays` lives in the League JSON; pruned games keep only scoring plays | Event storage (2b) must respect pruning and save size |
 | Viewer | `GameViewer` and `LiveGame` animate from `kind`, `from`, `to`, `air`, `lane` on `PlayLogEntry` | 1b makes `lane` causal; 2a derives these fields from events |
+| Coach tendencies | `passLean` (OC) and `fourthDown` (HC) reach `coach.ts` through `Situation`, set per offense in `GameSim.situation()` from `callerStyle` (coaching.ts). 0 is league average, and they apply in ordinary situations only (not the end of a half, the last five minutes or overtime) | 1a's AI caller passes them through unchanged; Layer 6 adds the rest |
 
 **Confirm in code**
 
@@ -88,13 +89,12 @@ Effort key (same as the roadmap doc): **Low** = days. **Medium** = a new subsyst
 - The play-log pruning policy: which games keep full logs and when the others get pruned.
 - The script behind `npm run sim`: which metrics it reports and their target ranges.
 - The script behind `npm run audit`: how it replays "the same games" and how it measures movement.
-- `coach.ts` on main: whether anything reads per-team tendencies today (for example `Team.gm`).
 - The depth chart: whether OL order means slots (LT, LG, C, RG, RT). Layer 3 needs this.
 - Whether a determinism test already exists, and whether one checks that stepping `startGame` to the end equals `simulateGame`.
 
 **The golden replay test (build in Phase 0)**
 
-- Freeze the input: save the teams and players the games need as a fixture, so a change to `generate.ts` or development doesn't break the engine's test.
+- Freeze the input: save the teams, players and coaches the games need as a fixture (games read each team's play-calling style from its coaches), so a change to `generate.ts`, development or coaching doesn't break the engine's test.
 - Pick about 50 games that cover regular season, playoffs, overtime, neutral site, blowouts and one-score finishes.
 - Sim each with `keepPlays`, and store a hash per play plus the final score. On a mismatch, the test names the game and the first play that changed.
 - Run it as a Vitest test inside `npm test`, with an update script (for example `npm run golden:update`) that behavior steps use to regenerate the fixture.
@@ -333,7 +333,7 @@ In Layer 2 the events record today's draws exactly as they happen. For example, 
 **Goal:** AI teams call different games, shaped by their coaches and their roster.
 
 - **Tendency profile** read by the AI caller: run/pass lean, fourth-down aggression, tempo preference, deep-shot appetite, blitz rate and coverage preference. Center each knob on a neutral value, like the engine's reference values.
-- **Profiles live on the coaches** from the coaching staff feature. Likely mapping: OC for offense, DC for defense, HC for fourth down and clock (see Open questions). This spec defines what the AI caller reads, not how the coaching feature works.
+- **Profiles live on the coaches** from the coaching staff feature (`CoachStyle` in types.ts). Mapping: OC for offense, DC for defense, HC for fourth down and clock. PR #7 shipped the first two knobs, the OC's pass lean and the HC's fourth-down aggression; the rest are added here. This spec defines what the AI caller reads, not how the coaching feature works.
 - **Kickoff game-plan bias:** a lean from the matchup (their pass rush vs. our line, our receivers vs. their corners), not a script.
 - **Halftime adjustment:** re-weight concepts by what worked in the first half (yards per play by concept, from the Layer 2 events).
 
@@ -385,7 +385,7 @@ In Layer 2 the events record today's draws exactly as they happen. For example, 
 - ☐ Event storage: keep events for every unpruned game, only for the user's games, or fold them into stats at game end?
 - ☐ Two user decision points per snap (clock and tempo, then the play): is that the right Layer 7 model?
 - ☐ Personnel and formations (two-tight-end sets, nickel vs. base): fold into Layer 3, or add as their own layer after Layer 4? Today every snap uses the same eleven.
-- ☐(yes) Coaching staff feature: confirm OC holds offensive tendencies, DC defensive, HC fourth down and clock.
+- ☑ Coaching staff feature: confirm OC holds offensive tendencies, DC defensive, HC fourth down and clock. **Answered (PR #7):** yes for OC run/pass and HC fourth downs. DC tendencies and HC clock and tempo are not built yet (Layers 4 and 6).
 - ☐ Should engine snap counts feed development v2's reps once Layer 5 exists?
 - ☐ Two-point tries: keep the single roll, or make them a real snap from the 2 once concepts exist?
 - ☐ Default play-calling mode in Layer 7: every snap, key downs, or game plan only?
@@ -403,4 +403,4 @@ In Layer 2 the events record today's draws exactly as they happen. For example, 
 - Uploaded repo files (not public links): `gameSim.ts`, `coach.ts`, `lineup.ts`, `GameViewer.tsx`, `LiveGame.tsx`, `BoxScore.tsx`, CLAUDE.md, README.md.
 - `docs/research/attributes-development-scouting-roadmap.md` (expanded attributes, hidden traits, injuries, coaching staff).
 - `market-and-blueprint.md` (the per-play probability chain this engine follows).
-- Real-World Start File: Pipeline Spec (OL slot tags, coaching staff scope).
+- [Real-World Start File: Pipeline Spec](real-world-start-file-spec.md) (OL slot tags, coaching staff scope).
