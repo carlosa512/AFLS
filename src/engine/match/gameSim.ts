@@ -31,6 +31,22 @@ const RUN_OUTSIDE: [string, number][] = [['left end', -1], ['right end', 1]];
 const RUN_INSIDE: [string, number][] = [['up the middle', 0], ['left guard', -0.35], ['right tackle', 0.45]];
 const PASS_LANES: [string, number][] = [['left', -0.8], ['middle', 0], ['right', 0.8]];
 
+/** How far from the league's typical starter a quarterback's passing must be for a full lean. */
+const QB_SPREAD = 4;
+/** A quarterback's passing: accuracy at every depth and his decisions. */
+const qbPassing = (qb: Player) => (skill(qb, 'shortAccuracy') + skill(qb, 'midAccuracy') + skill(qb, 'deepAccuracy') + skill(qb, 'decisionMaking')) / 4;
+/**
+ * How much a play-caller leans on his quarterback, −1 (poor) to 1 (elite), judged against the
+ * league's other starters: as a league's quarterbacks mature, the bar rises with them, so an aged
+ * league doesn't drift into throwing more and more.
+ */
+function qbLeans(league: League, qbs: [Player, Player]): [number, number] {
+  const starters = league.teams.map((t) => league.players[t.depthChart.QB[0]]).filter(Boolean);
+  const typical = starters.reduce((sum, p) => sum + qbPassing(p), 0) / Math.max(1, starters.length);
+  const lean = (qb: Player) => clamp((qbPassing(qb) - typical) / QB_SPREAD, -1, 1);
+  return [lean(qbs[0]), lean(qbs[1])];
+}
+
 type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane'>;
 const HOME_FIELD_EDGE = 0.4; // ratings points added to the home side's matchups
 /** League-typical linemen discipline: penalty rates are scaled around these, so totals stay NFL-like. */
@@ -39,6 +55,14 @@ const DL_DISCIPLINE = 10.8;
 /** League-typical edge contain and safety help: their effects are measured from these. */
 const EDGE_CONTAIN = 11.5;
 const DEEP_HELP = 14;
+/** Accuracy beyond which each point does half as much (elite passers stay inside NFL records). */
+const ACC_SOFT_CAP = 16;
+/** Separation beyond which the defense rolls a safety over. */
+const SEP_ROLL = 3;
+/** Carries before a lead back starts handing work to the second back. */
+const LEAD_BACK_CARRIES = 14;
+/** Mean gain on a run between evenly matched units, before breakaways. */
+const RUN_BASE = 3.97;
 
 /** Collects stat changes for a play so they can be discarded if a penalty wipes the play out. */
 class StatBuffer {
@@ -146,6 +170,7 @@ class GameSim {
   private homeEdge: number;
   /** Each side's play-calling style (its coordinator's and head coach's). */
   private styles: [CallerStyle, CallerStyle];
+  private qbLeans: [number, number];
   /** Ball path attached to the next logged play. */
   private anim: Anim | null = null;
 
@@ -159,6 +184,7 @@ class GameSim {
     const team = (id: number) => league.teams[id];
     this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
+    this.qbLeans = qbLeans(league, [this.lineups[0].qb, this.lineups[1].qb]);
   }
 
   run(): GameResult {
@@ -255,6 +281,7 @@ class GameSim {
       overtime: this.isOvertime(),
       fgMakeProb: this.fgProb(100 - this.yardLine + 17, this.lineups[off].k),
       passLean: this.styles[off].passLean,
+      qbLean: this.qbLeans[off],
       fourthDown: this.styles[off].fourthDown,
     };
   }
@@ -767,11 +794,21 @@ class GameSim {
     const buf = new StatBuffer();
     const yardsToGoal = 100 - this.yardLine;
 
-    const qbRunWeight = Math.max(0, skill(off.qb, 'scrambling') - 9) * 0.012;
+    // Read options for every quarterback, designed runs for the mobile ones and sneaks on a yard to go
+    // or at the goal line: NFL quarterbacks take about 15% of their teams' rushing yards (scrambles
+    // included) and score about a fifth of the rushing touchdowns.
+    const sneak = s.distance <= 1 || yardsToGoal <= 2 ? 0.14 : 0;
+    // Even the fastest quarterback is a quarterback: designed runs stop growing past a point.
+    const qbRunWeight = 0.025 + sneak + clamp(skill(off.qb, 'scrambling') - 8, 0, 5) * 0.015;
+    // Lead backs get about 60% of the carries and the second back spells him, more so as the lead
+    // back's carries pile up: on a 35-run day the backup takes a real share (few backs average 22 a game).
+    const leadCarries = this.playerStats[off.rbs[0].id]?.rushAtt ?? 0;
+    const leadLoad = leadCarries <= LEAD_BACK_CARRIES ? 1 : Math.max(0.35, 1 - 0.08 * (leadCarries - LEAD_BACK_CARRIES));
     const rusher = rng.weighted(
       [
-        [off.rbs[0], 0.68],
-        [off.rbs[1] ?? off.rbs[0], 0.24],
+        [off.rbs[0], (yardsToGoal <= 5 ? 0.55 : 0.62) * leadLoad],
+        // Teams spread goal-line work too, so one back rarely scores 18.
+        [off.rbs[1] ?? off.rbs[0], yardsToGoal <= 5 ? 0.4 : 0.3],
         [off.qb, qbRunWeight],
         [off.wrs[0], 0.015],
       ] as [Player, number][],
@@ -785,15 +822,17 @@ class GameSim {
 
     // Outside runs also have to get around the edge defenders.
     const contain = outside ? 0.2 * (def.edgeContain - EDGE_CONTAIN) : 0;
-    let yards = rng.normal(3.97 + 0.3 * lineDelta + 0.2 * (rusherSkill - 12) - contain, 2.9);
+    // The best backs average about a yard a carry more than the league, not three: the line and the
+    // defense decide most of a run, the back the rest (NFL rushing leaders run 4.5–5.5 a carry).
+    let yards = rng.normal(RUN_BASE + 0.25 * lineDelta + 0.1 * (rusherSkill - 12) - contain, 2.9);
     if (yards > 4) {
       // Past the line: beat the best linebacker's tackle, then outrun the deep safety.
       const lbTackle = Math.max(...def.lb.map((p) => skill(p, 'tackling')));
       const speed = skill(rusher, 'longSpeed');
-      const pBreak = clamp(0.2 + 0.025 * (skill(rusher, 'breakTackles') - lbTackle) + 0.02 * (speed - skill(def.s[0], 'pursuit')), 0.05, 0.5);
+      const pBreak = clamp(0.2 + 0.015 * (skill(rusher, 'breakTackles') - lbTackle) + 0.012 * (speed - skill(def.s[0], 'pursuit')), 0.08, 0.36);
       if (rng.chance(pBreak)) {
-        yards += rng.exponential(Math.max(2, 5 + 0.4 * (speed - 12)));
-        if (rng.chance(clamp(0.1 + 0.012 * (speed - 12), 0.03, 0.25))) yards += rng.exponential(22);
+        yards += rng.exponential(Math.max(2.5, 5 + 0.25 * (speed - 12)));
+        if (rng.chance(clamp(0.1 + 0.008 * (speed - 12), 0.05, 0.18))) yards += rng.exponential(22);
       }
     }
     yards = Math.round(Math.max(yards, -6));
@@ -862,29 +901,34 @@ class GameSim {
     const pressured = rng.chance(clamp(0.3 + 0.035 * pressureDelta, 0.1, 0.65));
 
     if (pressured) {
-      const pSack = clamp(0.21 - 0.022 * (skill(qb, 'pocketPresence') - 12), 0.08, 0.38);
+      const pSack = clamp(0.2 - 0.022 * (skill(qb, 'pocketPresence') - 12), 0.08, 0.38);
       if (rng.chance(pSack)) return this.sack(def, defCall);
-      if (rng.chance(clamp(0.1 + 0.02 * (skill(qb, 'scrambling') - 10), 0.03, 0.35))) return this.scramble(def, s);
+      if (rng.chance(clamp(0.16 + 0.02 * (skill(qb, 'scrambling') - 9), 0.06, 0.4))) return this.scramble(def, s);
       if (rng.chance(0.12)) {
         buf.add(qb, 'passAtt');
         return { kind: 'pass', yards: 0, text: `${short(qb)} under pressure, throws it away`, duration: rng.int(4, 6), clockStops: true, stats: buf, passAttempt: true, complete: false, airYards: 0, depth: 'short' };
       }
     }
 
+    // Coverage holds and nothing comes open: a quarterback with legs takes off anyway.
+    if (!pressured && rng.chance(clamp(0.015 + 0.004 * (skill(qb, 'scrambling') - 9), 0.005, 0.05))) return this.scramble(def, s);
+
     const depth = coach.passDepth(s, rng);
     // Targets: [receiver, base weight by depth, coverage defender]
     const lbCover = def.lb[1] ?? def.lb[0];
     const options: [Player | undefined, Record<PassDepth, number>, Player][] = [
-      [off.wrs[0], { short: 0.2, medium: 0.33, deep: 0.42 }, def.cb[0]],
+      [off.wrs[0], { short: 0.19, medium: 0.27, deep: 0.33 }, def.cb[0]],
       [off.wrs[1], { short: 0.17, medium: 0.26, deep: 0.3 }, def.cb[1] ?? def.cb[0]],
       [off.wrs[2], { short: 0.14, medium: 0.15, deep: 0.15 }, def.cb[2] ?? def.cb[0]],
-      [off.tes[0], { short: 0.19, medium: 0.19, deep: 0.1 }, rng.chance(0.5) ? def.s[1] ?? def.s[0] : def.lb[0]],
-      [off.rbs[0], { short: 0.22, medium: 0.04, deep: 0.02 }, lbCover],
-      [off.rbs[1], { short: 0.06, medium: 0.01, deep: 0 }, def.lb[0]],
+      [off.tes[0], { short: 0.2, medium: 0.21, deep: 0.11 }, rng.chance(0.5) ? def.s[1] ?? def.s[0] : def.lb[0]],
+      [off.rbs[0], { short: 0.3, medium: 0.07, deep: 0.02 }, lbCover],
+      [off.rbs[1], { short: 0.09, medium: 0.02, deep: 0 }, def.lb[0]],
       [off.tes[1], { short: 0.03, medium: 0.02, deep: 0.01 }, def.lb[0]],
     ];
     const valid = options.filter((o): o is [Player, Record<PassDepth, number>, Player] => !!o[0]);
-    const [receiver, , defender] = rng.weighted(valid, ([p, w]) => w[depth] * (0.6 + 0.04 * skill(p, 'targeting')));
+    // In tight space defenses bracket the top receiver, so red-zone looks spread to the tight end and backs.
+    const bracket = yardsToGoal <= 10 ? 0.75 : 1;
+    const [receiver, , defender] = rng.weighted(valid, ([p, w]) => w[depth] * (0.6 + 0.04 * skill(p, 'targeting')) * (p === off.wrs[0] ? bracket : 1));
     const isBack = receiver.position === 'RB';
 
     const recvSkill = skill(receiver, depth === 'deep' ? 'deepRoutes' : 'shortRoutes');
@@ -894,9 +938,14 @@ class GameSim {
     if (depth === 'deep') sep -= 0.93 + 0.35 * help;
     else if (depth === 'medium') sep -= 0.2 * help;
     sep += { base: 0, runD: 0.8, passD: -1.2, blitz: 1.5 }[defCall];
+    // Defenses roll coverage toward a mismatch, so a receiver far better than his man still gets open
+    // but not by a mile: big separation pays less and less (keeps elite seasons inside NFL records).
+    if (sep > SEP_ROLL) sep = SEP_ROLL + (sep - SEP_ROLL) * 0.5;
 
-    const acc = skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy');
-    let pComplete = { short: 0.79, medium: 0.6, deep: 0.38 }[depth] + 0.018 * (acc - 12) + 0.022 * sep + 0.012 * (skill(receiver, 'hands') - 12);
+    // Past a point, placement can't beat physics: the best arms complete a few more, not every throw.
+    const rawAcc = skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy');
+    const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
+    let pComplete = { short: 0.79, medium: 0.6, deep: 0.38 }[depth] + 0.018 * (acc - 12) + 0.019 * sep + 0.012 * (skill(receiver, 'hands') - 12);
     if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
     if (yardsToGoal <= 10 && depth !== 'short') pComplete -= 0.06;
     pComplete = clamp(pComplete, 0.05, 0.95);
@@ -964,7 +1013,7 @@ class GameSim {
       tackler = rng.chance(0.6) ? defender : this.pickTackler(def, air + 4);
       const yacSkill = skill(receiver, 'afterCatch') - skill(tackler, 'tackling');
       let yac = Math.max(0, rng.normal({ short: 3.6, medium: 2.8, deep: 2.4 }[depth] + 0.3 * yacSkill, 3));
-      if (rng.chance(clamp(0.025 + 0.005 * yacSkill, 0.01, 0.07))) yac += rng.exponential(16);
+      if (rng.chance(clamp(0.022 + 0.004 * yacSkill, 0.01, 0.055))) yac += rng.exponential(16);
       gain = Math.min(air + Math.round(yac), yardsToGoal);
     }
     const td = gain >= yardsToGoal;
@@ -1010,10 +1059,15 @@ class GameSim {
   private sack(def: Lineup, defCall: DefenseCall): PlayResult {
     const qb = this.lineups[this.offense].qb;
     const buf = new StatBuffer();
+    // Sacks spread like the NFL's: the starting edges get the most, but the rotation, the
+    // linebackers and, on blitzes, the secondary all get home, so one rusher can't take half.
+    const blitz = defCall === 'blitz';
     const pool: [Player, number][] = [
-      ...def.edge.map((p): [Player, number] => [p, 3 * skill(p, 'edgeRush')]),
-      ...def.dt.map((p): [Player, number] => [p, 1.5 * skill(p, 'interiorRush')]),
-      ...def.lb.map((p): [Player, number] => [p, (defCall === 'blitz' ? 1.5 : 0.3) * skill(p, 'edgeRush')]),
+      ...def.edge.map((p): [Player, number] => [p, 1.65 * skill(p, 'edgeRush')]),
+      ...def.dt.map((p): [Player, number] => [p, 1.3 * skill(p, 'interiorRush')]),
+      ...def.rushRotation.map((p): [Player, number] => [p, p.position === 'EDGE' ? 1.1 * skill(p, 'edgeRush') : 0.6 * skill(p, 'interiorRush')]),
+      ...def.lb.map((p): [Player, number] => [p, (blitz ? 1.5 : 0.45) * skill(p, 'edgeRush')]),
+      ...[...def.s, def.cb[2]].filter(Boolean).map((p): [Player, number] => [p, blitz ? 4 : 0.6]),
     ];
     const sacker = this.rng.weighted(pool, ([, w]) => w)[0];
     let loss = Math.round(clamp(this.rng.normal(6.5, 2.5), 1, 15));
@@ -1046,7 +1100,8 @@ class GameSim {
     const qb = this.lineups[this.offense].qb;
     const buf = new StatBuffer();
     const speed = skill(qb, 'scrambling');
-    let yards = this.rng.normal(4 + 0.35 * (speed - 10), 3.5);
+    // Scrambles find open grass: the NFL's average about seven yards.
+    let yards = this.rng.normal(6 + 0.35 * Math.min(speed - 9, 5), 3.5);
     if (yards > 6 && this.rng.chance(0.15 + 0.015 * (speed - 12))) yards += this.rng.exponential(10);
     yards = Math.round(Math.max(-3, yards));
     const yardsToGoal = 100 - this.yardLine;

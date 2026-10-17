@@ -21,6 +21,8 @@ export interface Situation {
   fgMakeProb: number;
   /** The play-caller's lean toward the pass, −1…1 (0 = league average; see `CoachStyle`). */
   passLean?: number;
+  /** How far the play-caller trusts his quarterback's arm, −1…1 (0 = a league-average passer). */
+  qbLean?: number;
   /** The head coach's appetite for going for it on fourth down, −1…1. */
   fourthDown?: number;
 }
@@ -37,6 +39,11 @@ const gameSecondsLeft = (s: Situation) => (s.quarter >= 4 ? s.clock : Infinity);
 
 /** Pass probability a full-strength lean adds or takes away in an ordinary situation. */
 const PASS_LEAN = 0.06;
+/**
+ * Pass probability a top passer adds (a poor one takes it away) in an ordinary situation: callers
+ * keep throwing with a great quarterback even with a lead, so NFL passing leaders throw 600+ times.
+ */
+const QB_LEAN = 0.06;
 /** How far a full-strength fourth-down appetite scales the odds of going for it on the judgment calls. */
 const FOURTH_LEAN = 0.4;
 /**
@@ -157,13 +164,13 @@ export function fourthDown(s: Situation, rng: Rng): FourthDown {
 /** Probability the offense calls a pass (vs. a run). */
 export function passProbability(s: Situation): number {
   let p: number;
-  if (s.down === 1) p = s.distance > 10 ? 0.61 : 0.475;
-  else if (s.down === 2) p = s.distance >= 8 ? 0.64 : s.distance <= 3 ? 0.42 : 0.57;
+  if (s.down === 1) p = s.distance > 10 ? 0.65 : 0.505;
+  else if (s.down === 2) p = s.distance >= 8 ? 0.68 : s.distance <= 3 ? 0.45 : 0.61;
   else p = s.distance >= 7 ? 0.88 : s.distance >= 4 ? 0.74 : s.distance <= 1 ? 0.3 : 0.52;
 
   if (100 - s.yardLine <= 3) p -= 0.12;
   // The play-caller's taste, in ordinary situations only: the clock and the score decide the end of games.
-  if (ordinary(s)) p += PASS_LEAN * (s.passLean ?? 0);
+  if (ordinary(s)) p += PASS_LEAN * (s.passLean ?? 0) + QB_LEAN * (s.qbLean ?? 0);
   const secondsLeft = gameSecondsLeft(s);
   if (s.quarter >= 4 && s.scoreDiff < 0) {
     if (secondsLeft <= 240) p += 0.35;

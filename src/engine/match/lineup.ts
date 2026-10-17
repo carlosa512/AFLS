@@ -15,6 +15,8 @@ export interface Lineup {
   lb: Player[];
   cb: Player[];
   s: Player[];
+  /** The third edge and tackle: defensive lines rotate, so they spell the starters on passing downs. */
+  rushRotation: Player[];
   k: Player;
   p: Player;
   kr: Player;
@@ -72,6 +74,7 @@ export function buildLineup(league: League, team: Team): Lineup {
     lb,
     cb,
     s,
+    rushRotation: [team.depthChart.EDGE[2], team.depthChart.DT[2]].filter((id) => id !== undefined).map((id) => league.players[id]),
     k: depth('K', 1)[0],
     p: depth('P', 1)[0],
     kr: best(krPool),
@@ -96,5 +99,5 @@ export function buildLineup(league: League, team: Team): Lineup {
 
 /** Players credited with a game played when they dress as starters or key reserves. */
 export function activePlayers(l: Lineup): Player[] {
-  return [l.qb, ...l.rbs, ...l.wrs, ...l.tes, ...l.ol, ...l.dt, ...l.edge, ...l.lb, ...l.cb, ...l.s, l.k, l.p, l.kr, l.pr];
+  return [l.qb, ...l.rbs, ...l.wrs, ...l.tes, ...l.ol, ...l.dt, ...l.edge, ...l.lb, ...l.cb, ...l.s, ...l.rushRotation, l.k, l.p, l.kr, l.pr];
 }

@@ -16,7 +16,8 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - `npm run dev` — local dev server (Vite)
 - `npm test` — engine tests (Vitest)
 - `npm run typecheck`
-- `npm run sim -- 10` — simulate 10 seasons and compare league stats to NFL averages.
+- `npm run sim -- 10` — simulate 10 seasons and compare league stats to NFL averages, and each season's
+  top five (yards, TDs, catches, sacks, picks) to NFL leaders and records (`scripts/leaders.ts`).
   **Run this after any change to `src/engine/match/` and keep stats inside the target ranges.**
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
