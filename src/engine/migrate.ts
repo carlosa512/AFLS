@@ -4,7 +4,7 @@
  */
 import { awardSeason } from './awards';
 import { generateCoachingWorld } from './coaching';
-import { DIVISIONS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
+import { DIVISIONS, LEGACY_COLORS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
 import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
 import { recordRatings } from './development';
@@ -12,9 +12,10 @@ import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEA
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateStaffWorld } from './staff';
-import { statSeasons } from './stats';
+import { playoffSummary } from './records';
+import { addStats, statSeasons } from './stats';
 import { generateTraits } from './traits';
-import type { League } from './types';
+import type { League, StatLine } from './types';
 
 /** Returns the upgraded league, or null if the save is from a newer (unknown) version. */
 export function migrateLeague(league: League): League | null {
@@ -27,6 +28,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 6) toV6(league);
   if (league.version < 7) toV7(league);
   if (league.version < 8) toV8(league);
+  if (league.version < 9) toV9(league);
   return league;
 }
 
@@ -142,4 +144,45 @@ function toV7(league: League) {
 function toV8(league: League) {
   league.weeklyAwards ??= [];
   league.version = 8;
+}
+
+/**
+ * v8 → v9: team colours that follow the real clubs (unless a mod set its own), stats by team, playoff runs and coaching careers. Only the seasons whose games are still on
+ * file (the last one or two) can be rebuilt exactly; earlier seasons stay without a team rather than guessing.
+ * Coaches get their current chair back to the year they joined (`since`), the best the old save knows.
+ */
+function toV9(league: League) {
+  for (const team of league.teams) {
+    const legacy = LEGACY_COLORS[team.abbrev];
+    const seed = TEAM_SEEDS.find((t) => t.abbrev === team.abbrev);
+    if (legacy && seed && team.colors[0] === legacy[0] && team.colors[1] === legacy[1]) team.colors = [...seed.colors];
+  }
+  for (const h of league.history) if (!h.playoffs && league.games.some((g) => g.season === h.season && g.playoffRound && g.result)) h.playoffs = playoffSummary(league, h.season);
+
+  const byPlayer = new Map<number, Map<number, Map<number, StatLine>>>();
+  for (const g of [...league.games].sort((a, b) => a.season - b.season || a.week - b.week)) {
+    if (!g.result || g.playoffRound) continue;
+    for (const [id, line] of Object.entries(g.result.playerStats)) {
+      const teamId = g.result.playerTeams[Number(id)];
+      if (teamId === undefined) continue;
+      const seasons = byPlayer.get(Number(id)) ?? byPlayer.set(Number(id), new Map()).get(Number(id))!;
+      const teams = seasons.get(g.season) ?? seasons.set(g.season, new Map()).get(g.season)!;
+      addStats(teams.get(teamId) ?? teams.set(teamId, {}).get(teamId)!, line);
+    }
+  }
+  for (const [id, seasons] of byPlayer) {
+    const p = league.players[id];
+    if (!p) continue;
+    for (const [season, teams] of seasons) {
+      (p.statTeams ??= {})[season] = [...teams.keys()];
+      if (teams.size > 1) (p.splitStats ??= {})[season] = Object.fromEntries(teams);
+    }
+  }
+
+  for (const c of Object.values(league.coaches)) {
+    if (c.teamId === null || c.since === undefined) continue;
+    const seasons = league.history.filter((h) => h.season >= c.since!);
+    if (seasons.length) c.career = seasons.map((h) => ({ season: h.season, teamId: c.teamId!, role: c.role, ...(c.room ? { room: c.room } : {}) }));
+  }
+  league.version = 9;
 }

@@ -2477,3 +2477,57 @@ details.more > summary {
 .honor-list li.is-user {
   background: color-mix(in srgb, var(--marker) 16%, transparent);
 }
+
+/* ───────── player card: editing, stats by team ───────── */
+.edit-x {
+  position: absolute;
+  top: 10px;
+  right: 52px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.25);
+  border: 0;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  font-size: 1.05rem;
+}
+.edit-x[aria-pressed='true'] {
+  background: rgba(0, 0, 0, 0.5);
+}
+.identity-edit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.identity-edit label {
+  display: grid;
+  gap: 2px;
+}
+.text-input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.jersey-input {
+  max-width: 6ch;
+}
+.team-tag {
+  display: inline-block;
+  padding-left: 6px;
+  border-left: 4px solid;
+  font-weight: 600;
+}
+tr.stat-total td {
+  font-weight: 700;
+}
+.sheet-head.has-edit {
+  padding-right: 96px;
+}

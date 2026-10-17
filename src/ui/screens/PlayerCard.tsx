@@ -1,13 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { honorBadges, playerHonors } from '../../engine/awards';
 import { POSITION_NAMES } from '../../engine/positions';
 import { careerOutlook, isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
-import { passerRating } from '../../engine/stats';
+import { editPlayerIdentity, identityProblem } from '../../engine/roster';
+import { careerLine, passerRating } from '../../engine/stats';
 import type { League, Player, StatLine } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
 import { playerCoachLine } from '../coaching';
 import { PlayerAvatar, useBackdropClose } from '../components';
+import { store } from '../store';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
 import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, repsOf, ScoutButton, StarScaleToggle, Stars, starsOf, useStarScale, viewOf } from '../scouting';
@@ -89,6 +91,82 @@ function readByText(league: League, view: PlayerView, p: Player): string {
   return `Read by ${reader}.${ceiling ? ` Ceiling read by ${ceiling}.` : ''}`;
 }
 
+/** Rename or renumber a player. Cosmetic, so any player can be edited (a roster mod does the same in bulk). */
+function IdentityEditor({ league, player: p, onDone }: { league: League; player: Player; onDone: () => void }) {
+  const [firstName, setFirst] = useState(p.firstName);
+  const [lastName, setLast] = useState(p.lastName);
+  const [jersey, setJersey] = useState(String(p.jersey));
+  const edit = { firstName, lastName, jersey: jersey.trim() === '' ? NaN : Number(jersey) };
+  const problem = identityProblem(league, p, edit);
+  const firstRef = useRef<HTMLInputElement>(null);
+  useEffect(() => firstRef.current?.focus(), []);
+  return (
+    <form
+      className="identity-edit"
+      aria-label="Edit name and number"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (problem) return;
+        store.mutate((l) => editPlayerIdentity(l, p.id, edit));
+        onDone();
+      }}
+    >
+      <label>
+        <span className="eyebrow">First name</span>
+        <input ref={firstRef} className="text-input" value={firstName} maxLength={24} onChange={(e) => setFirst(e.target.value)} />
+      </label>
+      <label>
+        <span className="eyebrow">Last name</span>
+        <input className="text-input" value={lastName} maxLength={24} onChange={(e) => setLast(e.target.value)} />
+      </label>
+      <label>
+        <span className="eyebrow">Number</span>
+        <input className="text-input jersey-input" inputMode="numeric" value={jersey} maxLength={2} onChange={(e) => setJersey(e.target.value.replace(/\D/g, ''))} />
+      </label>
+      <div className="row" style={{ gap: 8, alignSelf: 'end' }}>
+        <button type="button" className="btn btn-sm btn-ghost" onClick={onDone}>
+          Cancel
+        </button>
+        <button type="submit" className="btn btn-sm btn-primary" disabled={!!problem} title={problem ?? undefined}>
+          Save
+        </button>
+      </div>
+      {problem && <p className="small muted" style={{ margin: 0, gridColumn: '1 / -1' }}>{problem}</p>}
+    </form>
+  );
+}
+
+/** The teams a season's stats were earned for, in order; empty when an old save doesn't know. */
+function seasonTeams(p: Player, season: number): number[] {
+  return p.statTeams?.[season] ?? [];
+}
+
+/** One stats row; the team shows as its abbreviation, "2 teams" for a split season, or a dash when unknown. */
+function StatRow({ league, label, teamIds, line, cols, total }: { league: League; label: string; teamIds: number[]; line: StatLine; cols: Col[]; total?: boolean }) {
+  const teamText = teamIds.length === 0 ? '–' : teamIds.length === 1 ? league.teams[teamIds[0]].abbrev : `${teamIds.length} teams`;
+  const one = teamIds.length === 1 ? league.teams[teamIds[0]] : null;
+  return (
+    <tr className={total ? 'stat-total' : undefined}>
+      <td className="num">{label}</td>
+      <td>
+        {one ? (
+          <span className="team-tag" style={{ borderColor: one.colors[0] }} title={`${one.city} ${one.name}`}>
+            {teamText}
+          </span>
+        ) : (
+          <span className="muted">{teamText}</span>
+        )}
+      </td>
+      <td className="num">{line.gp ?? 0}</td>
+      {cols.map(([colLabel, f]) => (
+        <td key={colLabel} className="num">
+          {f(line)}
+        </td>
+      ))}
+    </tr>
+  );
+}
+
 export function PlayerCard({ league, player: p, onClose }: { league: League; player: Player; onClose: () => void }) {
   const nav = useNav();
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
@@ -106,6 +184,9 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const seasons = Object.keys(p.stats)
     .map(Number)
     .sort((a, b) => b - a);
+
+  const [editing, setEditing] = useState(false);
+  const careerTeams = [...new Set(seasons.flatMap((s) => seasonTeams(p, s)))];
 
   const backdrop = useBackdropClose(onClose);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -141,7 +222,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   return (
     <div className="overlay" {...backdrop}>
       <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-label={`${p.firstName} ${p.lastName}`} onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-head" style={{ background: team?.colors[0] ?? '#333', boxShadow: `inset 0 -6px 0 ${team?.colors[1] ?? '#666'}` }}>
+        <div className="sheet-head has-edit" style={{ background: team?.colors[0] ?? '#333', boxShadow: `inset 0 -6px 0 ${team?.colors[1] ?? '#666'}` }}>
           <PlayerAvatar player={p} team={team} size={64} />
           <span className="jersey">{p.jersey}</span>
           <div style={{ minWidth: 0 }}>
@@ -153,11 +234,15 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               {p.firstName} {p.lastName}
             </h2>
           </div>
+          <button className="edit-x" onClick={() => setEditing((v) => !v)} aria-label="Edit name and number" aria-pressed={editing} title="Edit name and number">
+            ✎
+          </button>
           <button ref={closeRef} className="close-x" onClick={onClose} aria-label="Close">
             ✕
           </button>
         </div>
         <div className="sheet-body">
+          {editing && <IdentityEditor league={league} player={p} onDone={() => setEditing(false)} />}
           <div className="facts">
             <span className="fact">
               <span className="eyebrow">{view.exact ? 'Overall' : 'Overall (scouted)'}</span>
@@ -299,6 +384,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                 <thead>
                   <tr>
                     <th>Season</th>
+                    <th>Team</th>
                     <th className="num">GP</th>
                     {cols.map(([label]) => (
                       <th key={label} className="num">
@@ -308,17 +394,18 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                   </tr>
                 </thead>
                 <tbody>
-                  {seasons.map((season) => (
-                    <tr key={season}>
-                      <td className="num">{season}</td>
-                      <td className="num">{p.stats[season].gp ?? 0}</td>
-                      {cols.map(([label, f]) => (
-                        <td key={label} className="num">
-                          {f(p.stats[season])}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {seasons.flatMap((season) => {
+                    const teamIds = seasonTeams(p, season);
+                    const split = p.splitStats?.[season];
+                    const row = <StatRow key={season} league={league} label={String(season)} teamIds={teamIds} line={p.stats[season]} cols={cols} total={!!split} />;
+                    if (!split) return [row];
+                    // A season split by a trade: each team's share under the season total.
+                    return [
+                      row,
+                      ...teamIds.map((id) => <StatRow key={`${season}-${id}`} league={league} label="" teamIds={[id]} line={split[id] ?? {}} cols={cols} />),
+                    ];
+                  })}
+                  {seasons.length > 1 && <StatRow league={league} label="Career" teamIds={careerTeams} line={careerLine(p)} cols={cols} total />}
                 </tbody>
               </table>
             </div>

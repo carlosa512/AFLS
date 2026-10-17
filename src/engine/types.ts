@@ -162,6 +162,13 @@ export interface Player {
   traits: Traits;
   /** Season year → accumulated stats. */
   stats: Record<number, StatLine>;
+  /** Season year → the teams he played for that season, in order (regular season). Older saves may lack early years. */
+  statTeams?: Record<number, number[]>;
+  /**
+   * Season year → team id → that team's share of `stats`. Only kept for seasons split between teams
+   * (a trade or a mid-season signing); a one-team season's line is simply `stats[season]`.
+   */
+  splitStats?: Record<number, Record<number, StatLine>>;
   /** Optional picture URL (or data: URI) supplied by a roster mod; the UI shows a placeholder otherwise. */
   portrait?: string;
 }
@@ -251,6 +258,14 @@ export interface CoachStyle {
   fourthDown?: number;
 }
 
+/** One season a coach spent on a staff: the team and the chair he held when it ended. */
+export interface CoachSeason {
+  season: number;
+  teamId: number;
+  role: CoachRole;
+  room?: CoachRoom;
+}
+
 /** A member of a team's coaching staff (or a candidate on the market). */
 export interface Coach {
   id: number;
@@ -272,6 +287,8 @@ export interface Coach {
   since?: number;
   /** His last job, for the market ("Head coach, NYX: fired after 3–14"). */
   lastJob?: string;
+  /** Every season he finished on a staff, oldest first (records come from `league.history`). */
+  career?: CoachSeason[];
   /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
   contract: { salary: number; through: number } | null;
 }
@@ -470,6 +487,8 @@ export interface SeasonSummary {
   runnerUpId: number;
   /** Final regular-season records, by team id. */
   records: Record<number, { w: number; l: number; t: number }>;
+  /** Playoff teams only: their playoff record and the furthest round they played. Missing in older saves. */
+  playoffs?: Record<number, { w: number; l: number; round: PlayoffRound }>;
 }
 
 export interface League {

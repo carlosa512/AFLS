@@ -43,6 +43,7 @@ import {
   TYPICAL,
   type Chair,
 } from '../../engine/coaching';
+import { coachRecord, formatRecord } from '../../engine/records';
 import { staffWindowOpen, type ResignOutlook } from '../../engine/staff';
 import type { Coach, CoachRole, CoachRoom, League } from '../../engine/types';
 import { Panel, TeamChip } from '../components';
@@ -162,6 +163,51 @@ function StyleRow({ c }: { c: Coach }) {
   );
 }
 
+/**
+ * A coach's record: his teams' results in the seasons he finished on their staff, with the head-coaching
+ * seasons counted on their own (that's the record people quote). Compact shows one line; otherwise the
+ * seasons open underneath.
+ */
+function CoachRecord({ league, c, compact = false }: { league: League; c: Coach; compact?: boolean }) {
+  const all = coachRecord(league, c);
+  if (!all.seasons.length) return null;
+  const head = coachRecord(league, c, ['headCoach']);
+  const main = head.seasons.length ? head : all;
+  const yrs = main.seasons.length;
+  const extras = [main.playoffTrips ? `${main.playoffTrips} playoff trip${main.playoffTrips > 1 ? 's' : ''}` : '', main.titles ? `${main.titles} title${main.titles > 1 ? 's' : ''}` : ''].filter(Boolean);
+  const summary = `${head.seasons.length ? 'As head coach' : 'His teams'}: ${formatRecord(main.regular)} (${yrs} season${yrs > 1 ? 's' : ''})${main.playoffs.w + main.playoffs.l ? `, ${main.playoffs.w}–${main.playoffs.l} playoffs` : ''}${extras.length ? ` · ${extras.join(', ')}` : ''}`;
+  if (compact) return <span className="small muted">{summary}</span>;
+  return (
+    <details className="more coach-record">
+      <summary className="small">{summary}</summary>
+      <div className="table-scroll">
+        <table className="small">
+          <thead>
+            <tr>
+              <th className="num">Season</th>
+              <th>Team</th>
+              <th>Job</th>
+              <th className="num">Record</th>
+              <th>Playoffs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {all.seasons.map((s) => (
+              <tr key={s.season}>
+                <td className="num">{s.season}</td>
+                <td>{league.teams[s.teamId].abbrev}</td>
+                <td>{coachTitle(s)}</td>
+                <td className="num">{formatRecord(s.regular)}</td>
+                <td className={s.champion ? 'tone-good' : 'muted'}>{s.playoffs ? `${s.finish} (${s.playoffs.w}–${s.playoffs.l})` : s.finish || '–'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
 /** The one visible line that says who decides what, wherever the style notes appear. */
 function StyleOwners({ className = '' }: { className?: string }) {
   return <p className={`muted small style-owners ${className}`.trim()}>{STYLE_OWNERS}</p>;
@@ -232,6 +278,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
         </span>
       </div>
       <StyleRow c={c} />
+      <CoachRecord league={league} c={c} />
       {expiring ? (
         <>
           <p className="small staff-note">
@@ -507,6 +554,7 @@ function Candidate({ league, c, open, counts }: { league: League; c: Coach; open
         </span>
       </div>
       <StyleRow c={c} />
+      <CoachRecord league={league} c={c} />
       {c.lastJob && <p className="small muted staff-why">Last job: {c.lastJob}</p>}
       <p className={`small staff-preview${notable}`}>
         {lines.map((l) => (
@@ -577,7 +625,7 @@ function Candidate({ league, c, open, counts }: { league: League; c: Coach; open
 
 // ───────── around the league ─────────
 
-function Rival({ c }: { c: Coach | null }) {
+function Rival({ league, c }: { league: League; c: Coach | null }) {
   if (!c) return <span className="tone-bad small">Vacant</span>;
   return (
     <span className="lc-cell">
@@ -586,6 +634,7 @@ function Rival({ c }: { c: Coach | null }) {
         <b className={band(c.youth)}>{c.youth}</b> / <b className={band(c.veterans)}>{c.veterans}</b>
       </span>
       <StyleRow c={c} />
+      <CoachRecord league={league} c={c} compact />
     </span>
   );
 }
@@ -975,13 +1024,13 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
                         <span className={`grade grade-${g.grade}`}>{g.grade}</span>
                       </td>
                       <td>
-                        <Rival c={chairHolder(staff, { role: 'headCoach' })} />
+                        <Rival league={league} c={chairHolder(staff, { role: 'headCoach' })} />
                       </td>
                       <td>
-                        <Rival c={chairHolder(staff, { role: 'offCoord' })} />
+                        <Rival league={league} c={chairHolder(staff, { role: 'offCoord' })} />
                       </td>
                       <td>
-                        <Rival c={chairHolder(staff, { role: 'defCoord' })} />
+                        <Rival league={league} c={chairHolder(staff, { role: 'defCoord' })} />
                       </td>
                     </tr>
                   );

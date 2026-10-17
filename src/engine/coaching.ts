@@ -446,6 +446,18 @@ function dismiss(league: League, c: Coach, why?: string): void {
   delete c.since;
 }
 
+// ───────── careers ─────────
+
+/** When a season ends, every coach on a staff is credited with it, in the chair he holds now. */
+export function recordCoachSeasons(league: League): void {
+  for (const c of Object.values(league.coaches)) {
+    if (c.teamId === null) continue;
+    const career = (c.career ??= []);
+    if (career.some((s) => s.season === league.season)) continue;
+    career.push({ season: league.season, teamId: c.teamId, role: c.role, ...(c.room ? { room: c.room } : {}) });
+  }
+}
+
 // ───────── generation ─────────
 
 /** Candidates kept on the market for each chair. */

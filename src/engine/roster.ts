@@ -55,3 +55,31 @@ export function teamRatings(league: League, team: Team) {
   return { overall, qb, offense, defense, special };
 }
 
+
+export interface PlayerIdentity {
+  firstName: string;
+  lastName: string;
+  jersey: number;
+}
+
+/** Why a name or number edit can't go through, or null. Teammates can't share a number; anyone else can. */
+export function identityProblem(league: League, p: Player, edit: PlayerIdentity): string | null {
+  if (!edit.firstName.trim() || !edit.lastName.trim()) return 'Both names are needed.';
+  if (edit.firstName.trim().length > 24 || edit.lastName.trim().length > 24) return 'Names are 24 letters at most.';
+  if (!Number.isInteger(edit.jersey) || edit.jersey < 0 || edit.jersey > 99) return 'Numbers run 0–99.';
+  if (p.teamId !== null) {
+    const holder = teamPlayers(league, p.teamId).find((x) => x.id !== p.id && x.jersey === edit.jersey);
+    if (holder) return `#${edit.jersey} belongs to ${holder.firstName} ${holder.lastName}.`;
+  }
+  return null;
+}
+
+/** Renames or renumbers a player (a cosmetic edit: nothing in the sim reads names or numbers). */
+export function editPlayerIdentity(league: League, playerId: number, edit: PlayerIdentity): void {
+  const p = league.players[playerId];
+  const problem = identityProblem(league, p, edit);
+  if (problem) throw new Error(problem);
+  p.firstName = edit.firstName.trim();
+  p.lastName = edit.lastName.trim();
+  p.jersey = edit.jersey;
+}
