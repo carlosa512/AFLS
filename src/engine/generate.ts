@@ -21,7 +21,7 @@ import { generateTraits } from './traits';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 8;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -288,6 +288,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     games: [],
     nextGameId: 1,
     history: [],
+    awards: [],
+    weeklyAwards: [],
     draftPicks: [],
     nextPickId: 1,
     draftClass: [],

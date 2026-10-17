@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { honorBadges, playerHonors } from '../../engine/awards';
 import { POSITION_NAMES } from '../../engine/positions';
 import { careerOutlook, isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
@@ -101,6 +102,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const sitDownHint = !makeup.known && p.teamId !== league.userTeamId && !p.retired && league.scoutPoints > 0;
   const comparing = nav.compareIds.includes(p.id);
   const cols = statColumns(p);
+  const honors = honorBadges(playerHonors(league, p.id));
   const seasons = Object.keys(p.stats)
     .map(Number)
     .sort((a, b) => b - a);
@@ -200,6 +202,16 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               </span>
             )}
           </div>
+
+          {honors.length > 0 && (
+            <div className="pill-row" aria-label="Honors">
+              {honors.map((h) => (
+                <span key={h.label} className="tag-pill tag-good" title={`${h.label}: ${h.seasons.join(', ')}`}>
+                  {h.seasons.length > 1 ? `${h.seasons.length}× ${h.label}` : `${h.seasons[0]} ${h.label}`}
+                </span>
+              ))}
+            </div>
+          )}
 
           {!view.exact && (
             <p className="muted small read-by">

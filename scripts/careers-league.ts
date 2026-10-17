@@ -12,6 +12,7 @@ import { playerOvr, STARTERS } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
 import type { Position } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
+import { seasonTops } from './leaders';
 
 export interface LeagueRun {
   seed: string;
@@ -32,6 +33,8 @@ export interface LeagueRun {
    * leaks in. All rostered players under 26, and those on the best-8 and worst-8 staffs.
    */
   coached: { all: number[]; best: number[]; worst: number[] };
+  /** Each steady-state season's league leader, by stat. */
+  leaders: Record<string, number[]>;
   /** Final starters' positions and ages. */
   starterAges: { position: Position; age: number }[];
 }
@@ -50,6 +53,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     steady: { qb35: [], k38: [], rb30: [], points: [], penalties: [], sacks: [] },
     ledger: { growth: [], body: [], craft: [], kpGrowth: [], kpCraft: [] },
     coached: { all: [], best: [], worst: [] },
+    leaders: {},
     starterAges: [],
   };
   const starters = () => league.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id])));
@@ -59,6 +63,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
   for (let s = 0; s < seasons; s++) {
     simToEndOfSeason(league);
     if (s >= steadyFrom) {
+      for (const [key, top] of Object.entries(seasonTops(league, league.season))) (out.leaders[key] ??= []).push(top[0]);
       for (const g of league.games) {
         if (g.season !== league.season || g.playoffRound || !g.result) continue;
         const r = g.result;

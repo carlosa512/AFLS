@@ -26,6 +26,7 @@ import { clamp, Rng } from '../src/engine/rng';
 import type { Coach, Player, Position, Traits } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import type { LeagueRun } from './careers-league';
+import { LEADER_TARGETS, overRecordAllowed } from './leaders';
 
 const seasons = Number(process.argv[2] ?? 16);
 const SEEDS = ['careers-audit', 'careers-audit-2', 'careers-audit-3', 'careers-audit-4'];
@@ -233,6 +234,16 @@ console.log(`${check('QB1s aged 35+ %', mean(steady.qb35), 4, 22, 1)} · ${check
 // an aged league sits a little off them even on the v4 engine (careers-audit: 21.99 points, 5.22 penalties,
 // 2.19 sacks), so the bands here are a little wider.
 console.log(`${check('points per team-game', mean(steady.points), 21, 24)} · ${check('penalties', mean(steady.penalties), 5, 7)} · ${check('sacks', mean(steady.sacks), 2, 2.7)}`);
+// Grown-up stars mustn't break records every year either: past the NFL record at most one season in fifteen.
+const leaderSeasons = runs.reduce((n, r) => n + (Object.values(r.leaders)[0]?.length ?? 0), 0);
+console.log(
+  `seasons with a leader past the record (of ${leaderSeasons}, max ${overRecordAllowed(leaderSeasons)}): ` +
+    LEADER_TARGETS.map(({ label, ceiling }) => {
+      const tops = pool((r) => r.leaders[label] ?? []);
+      const over = tops.filter((v) => v > ceiling).length;
+      return `${check(label, over, 0, overRecordAllowed(leaderSeasons), 0)} [#1 avg ${mean(tops).toFixed(tops.some((v) => v >= 100) ? 0 : 1)}]`;
+    }).join(' · '),
+);
 // Design targets (the research has no retirement ages); judged only with 8+ retirements.
 const RETIRE: Record<string, [number, number]> = { RB: [29, 33], WR: [31, 35], CB: [30, 34], OL: [32, 36], TE: [32, 36], QB: [35, 40], 'K/P': [36, 42] };
 console.log(

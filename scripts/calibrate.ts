@@ -11,6 +11,7 @@ import { simToEndOfRegularSeason } from '../src/engine/league';
 import { teamRatings } from '../src/engine/roster';
 import { regularSeasonGames } from '../src/engine/season/standings';
 import type { GameResult, TeamGameStats } from '../src/engine/types';
+import { LEADER_TARGETS, overRecordAllowed, seasonTops } from './leaders';
 
 const seasons = Number(process.argv[2] ?? 3);
 
@@ -40,6 +41,9 @@ const TARGETS: Record<string, [number, number]> = {
   otPct: [4, 7],
   tiePct: [0, 0.6],
 };
+
+/** Each season's top five, per stat. */
+const tops: Record<string, number[][]> = {};
 
 const sum: Record<string, number> = {};
 const add = (k: string, v: number) => (sum[k] = (sum[k] ?? 0) + v);
@@ -119,6 +123,7 @@ for (let s = 0; s < seasons; s++) {
       add('sackYds', line.sackYds ?? 0);
     }
   }
+  for (const [key, top] of Object.entries(seasonTops(league, league.season))) (tops[key] ??= []).push(top);
   for (const t of league.teams) winsByStrength.push({ rating: ratings.get(t.id)!, wins: wins.get(t.id) ?? 0 });
 }
 
@@ -171,4 +176,23 @@ const show = (kind: 'pass' | 'fourth', label: (b: (typeof byStyle)[string]) => s
   (['low', 'mid', 'high'] as const).map((k) => (byStyle[`${kind}:${k}`] ? `${k} ${label(byStyle[`${kind}:${k}`])}` : `${k} n/a`)).join(' · ');
 console.log(`Play-caller style (informational): pass share by pass lean ${show('pass', (b) => `${((100 * b.passes) / b.plays).toFixed(1)}%`)}`);
 console.log(`  fourth-down tries per game by head coach's appetite ${show('fourth', (b) => (b.fourth / b.games).toFixed(2))}`);
+
+console.log('\nSeason leaders: average of each rank, and the best season seen');
+console.log('stat'.padEnd(14), ...['#1', '#2', '#3', '#4', '#5', 'best'].map((h) => h.padStart(7)), '  NFL #1 / #5 / record');
+const maxOver = overRecordAllowed(seasons);
+for (const { label, first, fifth, ceiling } of LEADER_TARGETS) {
+  const rows = tops[label];
+  const rank = (i: number) => rows.reduce((s, r) => s + (r[i] ?? 0), 0) / rows.length;
+  const best = Math.max(...rows.map((r) => r[0]));
+  const over = rows.filter((r) => r[0] > ceiling).length;
+  const flags = [
+    rank(0) < first[0] ? '#1 ▼ LOW' : rank(0) > first[1] ? '#1 ▲ HIGH' : '',
+    rank(4) < fifth[0] ? '#5 ▼ LOW' : rank(4) > fifth[1] ? '#5 ▲ HIGH' : '',
+    over > maxOver ? `▲ ${over} seasons past the record` : '',
+  ].filter(Boolean);
+  misses += flags.length;
+  const fmt = (v: number) => (v < 100 ? v.toFixed(1) : Math.round(v).toString()).padStart(7);
+  console.log(label.padEnd(14), ...[0, 1, 2, 3, 4].map((i) => fmt(rank(i))), fmt(best), `  ${first.join('–')} / ${fifth.join('–')} / ${ceiling}`, flags.join('  '));
+}
+
 console.log(`\n${misses} stat(s) outside target range`);

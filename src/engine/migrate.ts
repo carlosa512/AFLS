@@ -2,6 +2,7 @@
  * Save upgrades. Each step takes a league saved by an older build and reshapes it in place,
  * so careers survive engine changes instead of being thrown away.
  */
+import { awardSeason } from './awards';
 import { generateCoachingWorld } from './coaching';
 import { DIVISIONS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
 import { buildContract } from './finance/contract';
@@ -11,6 +12,7 @@ import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEA
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateStaffWorld } from './staff';
+import { statSeasons } from './stats';
 import { generateTraits } from './traits';
 import type { League } from './types';
 
@@ -23,6 +25,8 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 4) toV4(league);
   if (league.version < 5) toV5(league);
   if (league.version < 6) toV6(league);
+  if (league.version < 7) toV7(league);
+  if (league.version < 8) toV8(league);
   return league;
 }
 
@@ -120,4 +124,22 @@ function toV6(league: League) {
   }
   for (const team of league.teams) team.coachDead ??= [];
   league.version = 6;
+}
+
+/**
+ * v7: season awards. Every finished regular season is voted from the stats the save already keeps;
+ * clubs come from the box scores where they survive (the last two seasons), else a player's current
+ * team if he was signed by then.
+ */
+function toV7(league: League) {
+  league.awards ??= [];
+  const done = league.phase === 'regular' ? league.season - 1 : league.season;
+  for (const season of statSeasons(league).reverse()) if (season <= done) awardSeason(league, season);
+  league.version = 7;
+}
+
+/** v8: players of the week and month. Only winners are stored, and older saves simply start without any. */
+function toV8(league: League) {
+  league.weeklyAwards ??= [];
+  league.version = 8;
 }
