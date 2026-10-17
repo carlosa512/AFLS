@@ -518,7 +518,8 @@ function Candidate({ league, c, open, counts }: { league: League; c: Coach; open
       </p>
       {holder && (
         <p className="small staff-why muted">
-          Replaces {coachName(holder)} (<Rates c={holder} />): {sev > 0 ? `${money(sev)} severance books against this year’s coaching budget.` : 'no severance.'}
+          {/* The ratings box wraps as a unit, so no bracket is left dangling at the end of a line. */}
+          Replaces {coachName(holder)} — <Rates c={holder} />. {sev > 0 ? `${money(sev)} severance books against this year’s coaching budget.` : 'No severance.'}
         </p>
       )}
       {pushed.length > 0 && <p className="small tone-bad staff-preview">Hiring him means {pushed.map(coachName).join(' and ')} won’t be re-signed.</p>}

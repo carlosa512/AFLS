@@ -15,7 +15,7 @@ export function NewGame() {
   const start = () => {
     if (picked === null) return;
     // The same seed rebuilds the same league; building it for the picked team gives his club the
-    // user's opening scouting and coaching staffs (typical, with a first decision) instead of team 0.
+    // user's opening scouting and coaching staffs (deliberately typical) instead of team 0.
     live.clear();
     store.set(createLeague({ seed, userTeamId: picked }));
   };
