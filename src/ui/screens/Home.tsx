@@ -4,6 +4,7 @@ import { champion, gamesInWeek, userGame } from '../../engine/league';
 import { capSheet } from '../../engine/finance/cap';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
 import { expiringPlayers } from '../../engine/offseason/ai';
+import { formatRecord, gmRecord } from '../../engine/records';
 import { teamPlayers, teamRatings } from '../../engine/roster';
 import { staffWindowOpen } from '../../engine/staff';
 import { allSeeds, ROUND_NAMES, roundWeek } from '../../engine/season/playoffs';
@@ -260,6 +261,47 @@ function AroundTheLeague({ league }: { league: League }) {
   );
 }
 
+/** The user's record as general manager, season by season (shown once a season has been finished). */
+function GmRecord({ league }: { league: League }) {
+  const rec = gmRecord(league);
+  if (!rec.seasons.length) return null;
+  const n = rec.seasons.length;
+  const parts = [
+    `${formatRecord(rec.regular)} in ${n} season${n > 1 ? 's' : ''}`,
+    rec.playoffs.w + rec.playoffs.l ? `${rec.playoffs.w}–${rec.playoffs.l} in the playoffs` : '',
+    rec.playoffTrips ? `${rec.playoffTrips} playoff trip${rec.playoffTrips > 1 ? 's' : ''}` : '',
+    rec.titles ? `${rec.titles} title${rec.titles > 1 ? 's' : ''}` : '',
+  ].filter(Boolean);
+  return (
+    <Panel title="Your record as GM">
+      <p style={{ margin: 0 }}>{parts.join(' · ')}</p>
+      <details className="more">
+        <summary className="small">Season by season</summary>
+        <div className="table-scroll">
+          <table className="small">
+            <thead>
+              <tr>
+                <th className="num">Season</th>
+                <th className="num">Record</th>
+                <th>Playoffs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rec.seasons.map((s) => (
+                <tr key={s.season}>
+                  <td className="num">{s.season}</td>
+                  <td className="num">{formatRecord(s.regular)}</td>
+                  <td className={s.champion ? 'tone-good' : 'muted'}>{s.playoffs ? `${s.finish} (${s.playoffs.w}–${s.playoffs.l})` : s.finish || '–'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </Panel>
+  );
+}
+
 function ChampionBanner({ league }: { league: League }) {
   const summary = champion(league);
   if (!summary) return null;
@@ -511,6 +553,7 @@ export function Home({ league }: { league: League }) {
     return (
       <>
         <OffseasonHome league={league} />
+        <GmRecord league={league} />
         <StartOver league={league} />
       </>
     );
@@ -528,6 +571,7 @@ export function Home({ league }: { league: League }) {
         <div className="stack">
           <DivisionMini league={league} />
           <PlayersOfTheWeek league={league} />
+          <GmRecord league={league} />
         </div>
       </div>
       <AroundTheLeague league={league} />

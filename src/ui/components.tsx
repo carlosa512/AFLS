@@ -37,7 +37,7 @@ export function PlayerAvatar({ player, team, size = 32 }: { player: Player; team
 }
 
 export function TeamChip({ team, large }: { team: Team; large?: boolean }) {
-  const style = { '--c1': team.colors[0], '--c2': team.colors[1] } as CSSProperties;
+  const style = { '--c1': team.colors[0], '--c2': team.colors[1], color: inkOn(team.colors[0]) } as CSSProperties;
   return (
     <span className={`chip${large ? ' chip-lg' : ''}`} style={style} aria-hidden="true">
       {team.abbrev}

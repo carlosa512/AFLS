@@ -12,7 +12,9 @@ import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { computeRecords } from './season/standings';
 import { addStats } from './stats';
-import type { Game, GameResult, League } from './types';
+import { recordCoachSeasons } from './coaching';
+import { playoffSummary } from './records';
+import type { Game, GameResult, League, Player } from './types';
 
 export function gamesInWeek(league: League, week = league.week): Game[] {
   return league.games.filter((g) => g.season === league.season && g.week === week);
@@ -50,8 +52,26 @@ export function recordResult(league: League, game: Game, result: GameResult): vo
   if (game.playoffRound) return; // Season stat totals are regular season only.
   for (const [id, line] of Object.entries(result.playerStats)) {
     const player = league.players[Number(id)];
-    if (player) addStats((player.stats[game.season] ??= {}), line);
+    if (!player) continue;
+    const teamId = result.playerTeams[Number(id)] ?? player.teamId;
+    if (teamId !== null && teamId !== undefined) creditTeam(player, game.season, teamId);
+    addStats((player.stats[game.season] ??= {}), line);
+    const split = player.splitStats?.[game.season];
+    if (split && teamId !== null && teamId !== undefined) addStats((split[teamId] ??= {}), line);
   }
+}
+
+/**
+ * Notes which team a player's stats were earned for. The first time a season is split between teams,
+ * everything so far belongs to the earlier team: that becomes its line, and each team keeps its own from then on.
+ */
+function creditTeam(player: Player, season: number, teamId: number) {
+  const teams = ((player.statTeams ??= {})[season] ??= []);
+  if (teams.includes(teamId)) return;
+  if (teams.length && !player.splitStats?.[season]) {
+    (player.splitStats ??= {})[season] = { [teams[teams.length - 1]]: { ...(player.stats[season] ?? {}) } };
+  }
+  teams.push(teamId);
 }
 
 export function playGame(league: League, game: Game): void {
@@ -96,7 +116,9 @@ function finishSeason(league: League) {
     championId,
     runnerUpId: championId === final.homeId ? final.awayId : final.homeId,
     records: Object.fromEntries([...records].map(([id, r]) => [id, { w: r.w, l: r.l, t: r.t }])),
+    playoffs: playoffSummary(league, league.season),
   });
+  recordCoachSeasons(league);
   league.phase = 'complete';
 }
 
