@@ -235,6 +235,46 @@ export interface StaffSeverance {
   name: string;
 }
 
+export type CoachRole = 'headCoach' | 'offCoord' | 'defCoord' | 'positionCoach' | 'strengthCoach';
+/** Position rooms, each with its own coach. Kickers and punters have none. */
+export type CoachRoom = 'QB' | 'RB' | 'WR' | 'OL' | 'DL' | 'LB' | 'DB';
+
+/**
+ * How a play-caller likes to call a game, −1…1 (0 = league average). Style, not skill: it changes the
+ * mix, never the execution. It belongs to the coach, so it moves with him when he changes jobs.
+ */
+export interface CoachStyle {
+  /** Passes more (+) or runs more (−) than the situation calls for. Offensive coordinators (they call the plays). */
+  passLean?: number;
+  /** Goes for it on fourth down more (+) or kicks more (−). Head coach. */
+  fourthDown?: number;
+}
+
+/** A member of a team's coaching staff (or a candidate on the market). */
+export interface Coach {
+  id: number;
+  firstName: string;
+  lastName: string;
+  role: CoachRole;
+  /** Position coaches only: the room he runs. */
+  room?: CoachRoom;
+  age: number;
+  /** Youth development (1–20): how fast players under 26 grow toward their ceiling. */
+  youth: number;
+  /** Veteran care (1–20): how gently players past their prime decline. */
+  veterans: number;
+  /** Head coaches (fourth downs) and offensive coordinators (run/pass): how they call a game. */
+  style?: CoachStyle;
+  /** null = on the market. */
+  teamId: number | null;
+  /** League year he joined his current team (tenure). */
+  since?: number;
+  /** His last job, for the market ("Head coach, NYX: fired after 3–14"). */
+  lastJob?: string;
+  /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
+  contract: { salary: number; through: number } | null;
+}
+
 export interface Conference {
   name: string;
   abbrev: string;
@@ -268,9 +308,14 @@ export interface Team {
   taggedId?: number | null;
   /** AI general manager tendencies (the user's team keeps one too, unused). */
   gm: GmTraits;
-  /** Owner's staff budget relative to the league norm (the user's is 1). Staff pay is not on the cap. */
+  /**
+   * Owner's spending on football staff relative to the league norm (the user's is 1): scales both the
+   * scouting and the coaching budget. Staff pay is not on the cap.
+   */
   staffBudgetMult: number;
   staffDead: StaffSeverance[];
+  /** Severance owed to dismissed coaches, charged to the coaching budget. */
+  coachDead: StaffSeverance[];
 }
 
 export interface DeadMoney {
@@ -329,7 +374,7 @@ export interface Transaction {
   phase: Phase;
   week: number;
   teamIds: number[];
-  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire' | 'staff';
+  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire' | 'staff' | 'coach';
   text: string;
 }
 
@@ -465,4 +510,7 @@ export interface League {
   /** Every scouting staff member, employed (teamId set) or on the market (teamId null). */
   staff: Record<number, Staff>;
   nextStaffId: number;
+  /** Every coach, employed (teamId set) or on the market (teamId null). */
+  coaches: Record<number, Coach>;
+  nextCoachId: number;
 }

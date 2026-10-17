@@ -8,6 +8,7 @@
  * same AI when simulating straight through (`simOffseason`).
  */
 import { retireChance } from '../aging';
+import { coachingFor, coachWindowCloses, developCoaches, ensureCoached } from '../coaching';
 import { developPlayer, playedShare, recordRatings } from '../development';
 import { accelerateProration, capSheet, capSpace, logTransaction, nextCap } from '../finance/cap';
 import { isExpired, trimPast } from '../finance/contract';
@@ -48,9 +49,10 @@ export function beginOffseason(league: League): void {
   for (const p of Object.values(league.players)) {
     if (p.retired) continue;
     // Each player's year runs on his own stream: tuning development never reshuffles drafts or
-    // schedules, and one player's year doesn't depend on who was developed before him.
+    // schedules, and one player's year doesn't depend on who was developed before him. His coaches
+    // are the ones he finished the season with (their deals may be up, but they coached him).
     const own = new Rng(`${league.seed}:dev:${league.season}:${p.id}`);
-    developPlayer(own, p, { playedShare: playedShare(p, last) });
+    developPlayer(own, p, { playedShare: playedShare(p, last), ...coachingFor(league, p.teamId, p.position) });
     p.age++;
     p.experience++;
     if (own.chance(retireChance(p, playerOvr(p)))) {
@@ -71,6 +73,7 @@ export function beginOffseason(league: League): void {
   }
   resetScouting(league);
   developStaff(league);
+  developCoaches(league);
 
   generateDraftClass(league, rng);
   league.games = league.games.filter((g) => g.season >= last);
@@ -125,8 +128,9 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
         // Undecided options lapse at the deadline.
         for (const p of teamPlayers(league, league.userTeamId)) if (p.contract?.fifthYearOption === 'eligible' && p.contract.years.at(-1)!.season === league.season) p.contract.fifthYearOption = 'declined';
       }
-      // Expiring staff are decided with the players; open chairs are filled from the staff market.
+      // Expiring staff and coaches are decided with the players; open chairs are filled from the markets.
       staffWindowCloses(league, { autoUser: auto });
+      coachWindowCloses(league, { autoUser: auto });
       openFreeAgency(league);
       league.phase = 'freeAgency';
       league.faDay = 1;
@@ -144,6 +148,7 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
     case 'preseason':
       for (const team of ai) aiTrainingCamp(league, team, rng);
       ensureStaffed(league, { autoUser: auto });
+      ensureCoached(league, { autoUser: auto });
       league.phase = 'regular';
       league.week = 1;
       league.faDay = 0;

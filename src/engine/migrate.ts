@@ -2,6 +2,7 @@
  * Save upgrades. Each step takes a league saved by an older build and reshapes it in place,
  * so careers survive engine changes instead of being thrown away.
  */
+import { generateCoachingWorld } from './coaching';
 import { DIVISIONS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
 import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
@@ -21,6 +22,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 3) toV3(league);
   if (league.version < 4) toV4(league);
   if (league.version < 5) toV5(league);
+  if (league.version < 6) toV6(league);
   return league;
 }
 
@@ -103,4 +105,19 @@ function toV4(league: League) {
 function toV5(league: League) {
   for (const p of Object.values(league.players)) p.traits ??= generateTraits(p);
   league.version = 5;
+}
+
+/**
+ * v6: coaching staffs for every team, and the coaching market, from their own seeded streams (the
+ * league's stream is untouched). A save still in its opening season gets exactly a new league's
+ * staffs; a later one gets staffs of the same kind, signed from its current league year.
+ */
+function toV6(league: League) {
+  if (!league.coaches || !Object.keys(league.coaches).length) {
+    league.coaches = {};
+    league.nextCoachId = 1;
+    generateCoachingWorld(league);
+  }
+  for (const team of league.teams) team.coachDead ??= [];
+  league.version = 6;
 }

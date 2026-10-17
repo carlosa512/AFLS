@@ -19,6 +19,10 @@ export interface Situation {
   overtime: boolean;
   /** Probability the kicker makes a field goal from the current spot. */
   fgMakeProb: number;
+  /** The play-caller's lean toward the pass, −1…1 (0 = league average; see `CoachStyle`). */
+  passLean?: number;
+  /** The head coach's appetite for going for it on fourth down, −1…1. */
+  fourthDown?: number;
 }
 
 export type PassDepth = 'short' | 'medium' | 'deep';
@@ -30,6 +34,18 @@ const isLateHalf = (s: Situation, seconds: number) =>
   (s.quarter === 2 || s.quarter >= 4) && s.clock <= seconds;
 /** Seconds left in the game (regulation fourth quarter or overtime). */
 const gameSecondsLeft = (s: Situation) => (s.quarter >= 4 ? s.clock : Infinity);
+
+/** Pass probability a full-strength lean adds or takes away in an ordinary situation. */
+const PASS_LEAN = 0.06;
+/** How far a full-strength fourth-down appetite scales the odds of going for it on the judgment calls. */
+const FOURTH_LEAN = 0.4;
+/**
+ * Where a coach's taste gets a say: not the end of a half, not the last five minutes, not overtime,
+ * and not when the clock already dictates the tempo. There the scripts decide, the same for everyone.
+ */
+const ordinary = (s: Situation) => !s.overtime && !isLateHalf(s, s.quarter === 2 ? 120 : 300) && tempo(s) === 'normal';
+/** A judgment-call go-for-it chance, nudged by the head coach's appetite in ordinary situations. */
+const goOdds = (s: Situation, base: number) => (ordinary(s) ? clamp(base * (1 + FOURTH_LEAN * (s.fourthDown ?? 0)), 0, 0.95) : base);
 
 export function tempo(s: Situation): Tempo {
   if (playForFieldGoal(s)) return 'milk';
@@ -123,18 +139,18 @@ export function fourthDown(s: Situation, rng: Rng): FourthDown {
     if (s.overtime && behind === 0 && inRange && s.fgMakeProb >= 0.6) return 'fg';
   }
 
-  // Analytics-era aggressiveness on short yardage.
-  if (s.distance <= 1 && s.yardLine >= 40) return rng.chance(0.7) ? 'go' : inRange ? 'fg' : 'punt';
-  if (s.distance <= 2 && s.yardLine >= 55 && yardsToGoal > 3) return rng.chance(0.6) ? 'go' : inRange ? 'fg' : 'punt';
-  if (s.distance <= 1 && s.yardLine >= 30) return rng.chance(0.25) ? 'go' : 'punt';
-  if (yardsToGoal <= 3 && s.distance <= 3) return rng.chance(0.6) ? 'go' : 'fg';
-  if (s.distance <= 4 && s.yardLine >= 60 && yardsToGoal > 3) return rng.chance(0.3) ? 'go' : s.fgMakeProb >= 0.55 ? 'fg' : 'punt';
+  // Analytics-era aggressiveness on short yardage; how far a coach takes it is his call.
+  if (s.distance <= 1 && s.yardLine >= 40) return rng.chance(goOdds(s, 0.7)) ? 'go' : inRange ? 'fg' : 'punt';
+  if (s.distance <= 2 && s.yardLine >= 55 && yardsToGoal > 3) return rng.chance(goOdds(s, 0.6)) ? 'go' : inRange ? 'fg' : 'punt';
+  if (s.distance <= 1 && s.yardLine >= 30) return rng.chance(goOdds(s, 0.25)) ? 'go' : 'punt';
+  if (yardsToGoal <= 3 && s.distance <= 3) return rng.chance(goOdds(s, 0.6)) ? 'go' : 'fg';
+  if (s.distance <= 4 && s.yardLine >= 60 && yardsToGoal > 3) return rng.chance(goOdds(s, 0.3)) ? 'go' : s.fgMakeProb >= 0.55 ? 'fg' : 'punt';
 
   if (comfortable) return 'fg';
   // No-man's land: a long kick, a short punt, or go for it. Coin-flip kicks are for the end of games.
   if (s.fgMakeProb >= 0.55 && s.distance > 4) return rng.chance(0.6) ? 'fg' : 'punt';
   if (s.yardLine >= 62 && s.distance <= 4) return 'go';
-  if (s.yardLine >= 66 && s.distance <= 7 && rng.chance(0.4)) return 'go';
+  if (s.yardLine >= 66 && s.distance <= 7 && rng.chance(goOdds(s, 0.4))) return 'go';
   return 'punt';
 }
 
@@ -146,6 +162,8 @@ export function passProbability(s: Situation): number {
   else p = s.distance >= 7 ? 0.88 : s.distance >= 4 ? 0.74 : s.distance <= 1 ? 0.3 : 0.52;
 
   if (100 - s.yardLine <= 3) p -= 0.12;
+  // The play-caller's taste, in ordinary situations only: the clock and the score decide the end of games.
+  if (ordinary(s)) p += PASS_LEAN * (s.passLean ?? 0);
   const secondsLeft = gameSecondsLeft(s);
   if (s.quarter >= 4 && s.scoreDiff < 0) {
     if (secondsLeft <= 240) p += 0.35;

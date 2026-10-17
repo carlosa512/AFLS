@@ -21,8 +21,10 @@ export function recordRatings(player: Player, season: number): void {
 export interface DevContext {
   /** Share of last season's games he played in (0–1). Young players grow with reps. */
   playedShare: number;
-  /** Growth multiplier from coaching and facilities (1 = typical). */
+  /** Growth multiplier from his coaches (1 = typical; `coachingFor` in coaching.ts). */
   rate?: number;
+  /** Decline multiplier per family of ratings from his coaches (1 = typical, below 1 ages more gently). */
+  decline?: Partial<Record<AgingFamily, number>>;
 }
 
 /** Regular-season games: a full season of reps. */
@@ -100,7 +102,8 @@ export function developPlayer(rng: Rng, player: Player, ctx: DevContext): void {
     let d: number;
     if (past > 0) {
       // Within a year of the turn the decline phases in; after that it speeds up every season.
-      d = -year * fade * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25);
+      const coached = ctx.decline?.[family] ?? 1;
+      d = -year * fade * coached * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25);
     } else {
       d = delta * Math.min(2, growthShare(family, age) * norm);
       if (family === 'mental' && age >= 26) d += MENTAL_GROWTH;

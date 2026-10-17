@@ -4,11 +4,13 @@ import { capSheet } from '../../engine/finance/cap';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
 import { expiringPlayers } from '../../engine/offseason/ai';
 import { teamPlayers, teamRatings } from '../../engine/roster';
+import { staffWindowOpen } from '../../engine/staff';
 import { allSeeds, ROUND_NAMES, roundWeek } from '../../engine/season/playoffs';
 import { computeRecords, divisionStandings } from '../../engine/season/standings';
 import { teamLeader } from '../../engine/stats';
 import type { Game, League, StatKey, Team } from '../../engine/types';
 import { useNav } from '../App';
+import { attentionText } from '../coaching';
 import { Panel, TeamChip, TeamLabel } from '../components';
 import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, weekLabel } from '../format';
 import { live } from '../live';
@@ -323,6 +325,8 @@ function OffseasonHome({ league }: { league: League }) {
   const idx = STEPS.findIndex(([p]) => p === league.phase);
   const last = league.history[league.history.length - 1];
   const moves = league.transactions.filter((t) => t.season === league.season && t.kind !== 'release').slice(-14).reverse();
+  // A calm nudge, not a second primary action: an empty coaching chair or deals that are up, while moves are open.
+  const coachNote = staffWindowOpen(league) ? attentionText(league, teamId) : '';
   const myPick = league.draftPicks.filter((p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined).sort((a, b) => (a.overall ?? 999) - (b.overall ?? 999))[0];
 
   let title = '';
@@ -395,6 +399,14 @@ function OffseasonHome({ league }: { league: League }) {
               </div>
             )}
           </Panel>
+          {coachNote && (
+            <div className="notice staff-notice">
+              <span>{coachNote}</span>
+              <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'coaches' })}>
+                Review coaches
+              </button>
+            </div>
+          )}
         </div>
         <Panel title="Around the league">
           {moves.length === 0 ? (

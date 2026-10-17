@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { capSpace } from '../../engine/finance/cap';
 import { lastSeason, yearsLeft } from '../../engine/finance/contract';
 import { fifthYearOptionValue } from '../../engine/finance/market';
@@ -8,19 +8,21 @@ import { availableProspects, boardValue, draftOrder, nextPick, POSITION_PREMIUM,
 import { demand, extensionBlocker, freeAgents } from '../../engine/offseason/negotiation';
 import { POSITION_NAMES } from '../../engine/positions';
 import { teamPlayers } from '../../engine/roster';
-import { resignForecast, staffName } from '../../engine/staff';
+import { resignForecast, staffName, staffWindowOpen } from '../../engine/staff';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerAvatar, Rating, TeamChip } from '../components';
+import { attentionText, coachAttention } from '../coaching';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
 import { KnowledgeMeter, MakeupPills, makeupOf, Ovr, potentialText, ScoutButton, seenOvr, Stars, starsOf, viewOf } from '../scouting';
+import { CoachesScreen } from './Coaches';
 import { StaffScreen } from './Staff';
 import { Trades } from './Trades';
 import { store } from '../store';
 
-export type OfficeTab = 'resign' | 'fa' | 'draft' | 'trades' | 'staff';
+export type OfficeTab = 'resign' | 'fa' | 'draft' | 'trades' | 'coaches' | 'staff';
 
 export const defaultOfficeTab = (league: League): OfficeTab => (league.phase === 'resign' ? 'resign' : league.phase === 'draft' ? 'draft' : 'fa');
 
@@ -573,16 +575,26 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
     ['fa', 'Free agents'],
     ['draft', 'Draft'],
     ['trades', 'Trades'],
-    ['staff', 'Staff'],
+    ['coaches', 'Coaches'],
+    ['staff', 'Scouts'],
   ];
+  // Six tabs scroll on a phone: keep the one you're on (or were sent to) in view.
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    bar.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [active]);
   // What the end of the window will do with the staff deals that are up, as the engine will do it.
   const forecast = league.phase === 'resign' ? [...resignForecast(league, league.userTeamId)] : [];
   const staffDue = forecast.length;
   const leaving = forecast.filter(([, o]) => o !== 'stays').map(([id]) => staffName(league.staff[id]));
+  const showStaffNotice = staffDue > 0 && active !== 'staff';
+  // The same for the coaching staff, plus any chair that is empty while moves are still open.
+  const coaching = staffWindowOpen(league) ? coachAttention(league, league.userTeamId) : null;
+  const showCoachNotice = active !== 'coaches' && !!coaching && (coaching.due.length > 0 || coaching.empty.length > 0);
   return (
     <>
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div className="seg office-tabs" role="tablist" aria-label="Front office">
+      <div className="row office-bar" style={{ justifyContent: 'space-between' }}>
+        <div ref={bar} className="seg office-tabs" role="tablist" aria-label="Front office">
           {TABS.map(([key, label]) => (
             <button key={key} role="tab" aria-selected={active === key} aria-pressed={active === key} onClick={() => nav.go({ view: 'office', tab: key })}>
               {label}
@@ -594,23 +606,36 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
           {league.phase === 'freeAgency' ? `, day ${league.faDay} of ${FA_DAYS}` : ''}
         </span>
       </div>
-      {staffDue > 0 && active !== 'staff' && (
-        <div className="notice staff-notice">
-          <span>
-            {staffDue === 1 ? '1 scouting staff deal is up.' : `${staffDue} scouting staff deals are up.`}{' '}
-            {leaving.length === 0
-              ? `${staffDue === 1 ? 'He re-signs' : 'They re-sign'} automatically unless you let ${staffDue === 1 ? 'him' : 'them'} go.`
-              : `${leaving.join(' and ')} will leave (no chair or budget for ${leaving.length === 1 ? 'him' : 'them'}); ${staffDue - leaving.length === 0 ? 'nobody else is up' : 'the rest re-sign automatically'}.`}
-          </span>
-          <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'staff' })}>
-            Review staff
-          </button>
+      {(showStaffNotice || showCoachNotice) && (
+        <div className="notice staff-notices">
+          {showStaffNotice && (
+            <div className="staff-notice">
+              <span>
+                {staffDue === 1 ? '1 scouting staff deal is up.' : `${staffDue} scouting staff deals are up.`}{' '}
+                {leaving.length === 0
+                  ? `${staffDue === 1 ? 'He re-signs' : 'They re-sign'} automatically unless you let ${staffDue === 1 ? 'him' : 'them'} go.`
+                  : `${leaving.join(' and ')} will leave (no chair or budget for ${leaving.length === 1 ? 'him' : 'them'}); ${staffDue - leaving.length === 0 ? 'nobody else is up' : 'the rest re-sign automatically'}.`}
+              </span>
+              <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'staff' })}>
+                Review scouts
+              </button>
+            </div>
+          )}
+          {showCoachNotice && (
+            <div className="staff-notice">
+              <span>{attentionText(league, league.userTeamId, coaching!)}</span>
+              <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'coaches' })}>
+                Review coaches
+              </button>
+            </div>
+          )}
         </div>
       )}
       {active === 'resign' && <Resign league={league} negotiate={(p) => setTalking(p.id)} />}
       {active === 'fa' && <FreeAgents league={league} negotiate={(p) => setTalking(p.id)} />}
       {active === 'draft' && <Draft league={league} />}
       {active === 'trades' && <Trades league={league} />}
+      {active === 'coaches' && <CoachesScreen league={league} />}
       {active === 'staff' && <StaffScreen league={league} />}
       {talking !== null && league.players[talking] && <NegotiationDialog league={league} player={league.players[talking]} onClose={() => setTalking(null)} />}
     </>

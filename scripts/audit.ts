@@ -9,7 +9,7 @@
  * A full run (no position filter) also rewrites docs/ATTRIBUTES.md: the registry's attributes and
  * contests plus these measurements, so the attribute-to-engine map never goes stale.
  *
- *   npm run audit              # 3 seasons per pair (9 for close calls), ~3 minutes
+ *   npm run audit              # 3 seasons per pair (9 for close calls, 27 before a flag), ~3 minutes
  *   npm run audit -- 5         # more seasons per pair (less noise)
  *   npm run audit -- 3 --all   # every attribute at every position (doesn't touch the doc)
  *   npm run audit -- 3 QB      # one position only (doesn't touch the doc)
@@ -110,6 +110,7 @@ const t0 = Date.now();
 const baseLeague = createLeague({ seed: 'audit' });
 const base = run(baseLeague);
 let extraBase: Sample | null = null;
+let deepBase: Sample | null = null;
 
 /** Each metric's change against the untouched league, biggest z first. */
 function compare(test: Sample, against: Sample) {
@@ -123,7 +124,7 @@ function compare(test: Sample, against: Sample) {
 
 const merge = (a: Sample, b: Sample): Sample => ({ rows: a.rows.map((r, i) => [...r, ...b.rows[i]]) });
 
-console.log(`\nAttribute audit: +${BUMP} to every player at the position, ${seasons} season(s) per pair (${seasons * 3} for close calls)\n`);
+console.log(`\nAttribute audit: +${BUMP} to every player at the position, ${seasons} season(s) per pair (${seasons * 3} for close calls, ${seasons * 9} before a flag)\n`);
 console.log('pos  attribute        weight  verdict      biggest moves (Δ, z)');
 
 const flagged: string[] = [];
@@ -142,9 +143,17 @@ for (const pos of POSITIONS) {
       test = merge(test, run(league, seasons, seasons * 3));
       moves = compare(test, extraBase);
     }
+    const w = weights[attr] ?? 0;
+    // And before a pair is flagged it gets three times as many again: a small hook (a 10% share of one
+    // contest) can read as nothing in nine seasons when the league's play mix shifts a little.
+    const wouldFlag = (z: number) => w > 0 && (z < 2 || (z < 3 && w >= 1.5));
+    if (wouldFlag(Math.abs(moves[0].z))) {
+      deepBase ??= merge(extraBase!, run(baseLeague, seasons * 3, seasons * 9));
+      test = merge(test, run(league, seasons * 3, seasons * 9));
+      moves = compare(test, deepBase);
+    }
     const top = Math.abs(moves[0].z);
     const verdict = top >= 3 ? 'moves play' : top >= 2 ? 'weak' : 'NO EFFECT';
-    const w = weights[attr] ?? 0;
     // Cosmetic: the overall counts it but play doesn't. Underpowered: it counts a lot but barely moves play.
     if (w > 0 && (verdict === 'NO EFFECT' || (verdict === 'weak' && w >= 1.5))) flagged.push(`${pos} ${attr} (${verdict.toLowerCase()})`);
     const detail = moves
@@ -198,7 +207,8 @@ if (!only && !all) {
     '## Sensitivity audit',
     '',
     `Each row raises one attribute by ${BUMP} for every player at the position, replays ${seasons} seasons with the same game seeds`,
-    `(${seasons * 3} for close calls) and lists the league-wide outcomes that moved (z = change / standard error). "Weak" with a`,
+    `(${seasons * 3} for close calls, ${seasons * 9} before it is flagged) and lists the league-wide outcomes that moved (z = change /`,
+    'standard error). "Weak" with a',
     'small overall weight is expected; "no effect" on an attribute the overall counts is a bug.',
     '',
     '| Pos | Attribute | Overall weight | Verdict | Biggest moves |',
