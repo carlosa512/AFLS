@@ -29,12 +29,12 @@ The match engine gets rebuilt in layers toward Football Manager's loop. What a t
 
 **Build order**
 
-- **Phase 0:** audit and the golden replay test.
+- **Phase 0:** audit and the golden replay test, add coaches.
 - **Layer 1a → 1b:** the call seam, then calls that decide and per-snap randomness.
 - **Layer 2a → 2b:** structured events, then storing them and the stats they unlock.
 - **Layer 3:** individual matchups. **Layer 4:** coverage and the passing game.
 - **Layer 5:** in-game state (form, fatigue, injuries).
-- **Layer 6:** coach tendencies and game plans. It only touches the AI caller, so it can run in parallel with Layers 3-5 once Layers 1 and 2 have merged (the halftime adjustment reads Layer 2 events). It lands with the coaching staff feature.
+- **Layer 6 (party done by PR 7):** coach tendencies and game plans. It only touches the AI caller, so it can run in parallel with Layers 3-5 once Layers 1 and 2 have merged (the halftime adjustment reads Layer 2 events). It lands with the coaching staff feature.
 - **Layer 7:** user play calling.
 
 Effort key (same as the roadmap doc): **Low** = days. **Medium** = a new subsystem with modest balancing. **High** = a new simulation loop plus heavy tuning.
@@ -385,7 +385,7 @@ In Layer 2 the events record today's draws exactly as they happen. For example, 
 - ☐ Event storage: keep events for every unpruned game, only for the user's games, or fold them into stats at game end?
 - ☐ Two user decision points per snap (clock and tempo, then the play): is that the right Layer 7 model?
 - ☐ Personnel and formations (two-tight-end sets, nickel vs. base): fold into Layer 3, or add as their own layer after Layer 4? Today every snap uses the same eleven.
-- ☐ Coaching staff feature: confirm OC holds offensive tendencies, DC defensive, HC fourth down and clock.
+- ☐(yes) Coaching staff feature: confirm OC holds offensive tendencies, DC defensive, HC fourth down and clock.
 - ☐ Should engine snap counts feed development v2's reps once Layer 5 exists?
 - ☐ Two-point tries: keep the single roll, or make them a real snap from the 2 once concepts exist?
 - ☐ Default play-calling mode in Layer 7: every snap, key downs, or game plan only?
