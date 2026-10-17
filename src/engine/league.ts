@@ -2,6 +2,7 @@
  * Season orchestration: playing weeks, moving into the playoffs, crowning a
  * champion, and rolling the league into the next season.
  */
+import { awardSeason } from './awards';
 import { simulateGame, startGame, type LiveGame } from './match/gameSim';
 import { simOffseason } from './offseason';
 import { Rng } from './rng';
@@ -73,6 +74,7 @@ export function playWeek(league: League): Game[] {
   league.week++;
 
   if (league.phase === 'regular' && league.week > REGULAR_SEASON_WEEKS) {
+    awardSeason(league);
     league.phase = 'playoffs';
     scheduleNextRound(league);
   } else if (league.phase === 'playoffs') {

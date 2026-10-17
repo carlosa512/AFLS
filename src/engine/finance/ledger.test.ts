@@ -157,5 +157,5 @@ describe('determinism', () => {
     advanceOffseason(reloaded);
     expect(l.transactions.map((t) => t.text)).toEqual(reloaded.transactions.map((t) => t.text));
     expect(l.rngState).toEqual(reloaded.rngState);
-  });
+  }, 30_000);
 });

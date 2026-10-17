@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react';
+import { AWARD_SHORT, playerHonors, seasonAwards } from '../../engine/awards';
 import { champion, gamesInWeek, userGame } from '../../engine/league';
 import { capSheet } from '../../engine/finance/cap';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
@@ -279,6 +280,36 @@ function ChampionBanner({ league }: { league: League }) {
   );
 }
 
+/** The season's awards, announced once the regular season ends (and kept up through the playoffs). */
+function AwardsNotice({ league }: { league: League }) {
+  const nav = useNav();
+  const awards = league.phase === 'regular' ? undefined : seasonAwards(league, league.season);
+  if (!awards) return null;
+  const name = (id: number) => {
+    const p = league.players[id];
+    return `${p.firstName[0]}. ${p.lastName}`;
+  };
+  const headline = (['mvp', 'opoy', 'dpoy'] as const)
+    .filter((k) => awards.winners[k])
+    .map((k) => {
+      const w = awards.winners[k]!;
+      return `${AWARD_SHORT[k]} ${name(w.playerId)}${w.teamId !== null ? ` (${league.teams[w.teamId].abbrev})` : ''}`;
+    })
+    .join(' · ');
+  const mine = Object.values(league.players).filter((p) => p.teamId === league.userTeamId && playerHonors(league, p.id).some((h) => h.season === awards.season));
+  return (
+    <div className="notice staff-notice">
+      <span>
+        <b>The {awards.season} awards are in.</b> {headline}.
+        {mine.length > 0 && ` ${mine.length} of your players ${mine.length === 1 ? 'is' : 'are'} honored.`}
+      </span>
+      <button className="btn btn-sm" onClick={() => nav.go({ view: 'stats', tab: 'awards' })}>
+        All awards
+      </button>
+    </div>
+  );
+}
+
 function StartOver({ league }: { league: League }) {
   const [confirming, setConfirming] = useState(false);
   return (
@@ -447,6 +478,7 @@ export function Home({ league }: { league: League }) {
   return (
     <>
       <ChampionBanner league={league} />
+      <AwardsNotice league={league} />
       <div className="grid-2">
         <div className="stack">
           <NextGame league={league} />

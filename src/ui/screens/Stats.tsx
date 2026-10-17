@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ALL_LEAGUE_SLOTS, AWARD_KEYS, AWARD_NAMES, lineStats, seasonAwards, type AwardWinner } from '../../engine/awards';
 import { leaders, LEADER_CATEGORIES, passerRating, seasonRecords, statLine, statSeasons, type StatScope } from '../../engine/stats';
 import type { League, Player, StatLine } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
@@ -6,12 +7,13 @@ import { useNav } from '../App';
 import { Panel, PlayerAvatar, SortTh, sortRows, useSort } from '../components';
 import { resultsSeason } from '../format';
 
-export type StatsTab = 'leaders' | 'players' | 'records';
+export type StatsTab = 'leaders' | 'players' | 'records' | 'awards';
 
 const TABS: [StatsTab, string][] = [
   ['leaders', 'Leaders'],
   ['players', 'Player stats'],
   ['records', 'Records'],
+  ['awards', 'Awards'],
 ];
 
 /** Stats are regular season only, so a season is "on record" once its first week is played. */
@@ -32,7 +34,7 @@ export function Stats({ league, tab = 'leaders' }: { league: League; tab?: Stats
             </button>
           ))}
         </div>
-        {tab !== 'records' && seasons.length > 0 && <ScopeSelect seasons={seasons} value={scope} onChange={setPicked} />}
+        {tab !== 'records' && tab !== 'awards' && seasons.length > 0 && <ScopeSelect seasons={seasons} value={scope} onChange={setPicked} />}
       </div>
       {seasons.length === 0 ? (
         <Panel title="Stats">
@@ -44,6 +46,8 @@ export function Stats({ league, tab = 'leaders' }: { league: League; tab?: Stats
         <PlayerStats league={league} scope={scope} />
       ) : tab === 'records' ? (
         <Records league={league} />
+      ) : tab === 'awards' ? (
+        <Awards league={league} />
       ) : (
         <Leaders league={league} scope={scope} />
       )}
@@ -120,6 +124,142 @@ function Leaders({ league, scope }: { league: League; scope: StatScope }) {
             </Panel>
           );
         })}
+      </div>
+    </>
+  );
+}
+
+// ───────── awards ─────────
+
+const num = (v: number | undefined) => (v ?? 0).toLocaleString();
+
+/** The numbers behind an award or an All-League pick, in a few words. */
+export function honorLine(p: Player, s: StatLine | undefined): string {
+  if (!s) return '';
+  const parts = (...xs: (string | false)[]) => xs.filter(Boolean).join(' · ');
+  switch (p.position) {
+    case 'QB':
+      return parts(`${num(s.passYds)} yds`, `${num(s.passTd)} TD`, `${num(s.passInt)} INT`, (s.rushYds ?? 0) >= 300 && `${num(s.rushYds)} rush`);
+    case 'RB':
+      return parts(`${num(s.rushYds)} rush yds`, `${num((s.rushTd ?? 0) + (s.recTd ?? 0))} TD`, (s.recYds ?? 0) >= 200 && `${num(s.recYds)} rec yds`);
+    case 'WR':
+    case 'TE':
+      return parts(`${num(s.rec)} rec`, `${num(s.recYds)} yds`, `${num(s.recTd)} TD`);
+    case 'DT':
+    case 'EDGE':
+      return parts(`${num(s.sacks)} sacks`, `${num(s.tfl)} TFL`, !!s.forcedFum && `${s.forcedFum} FF`);
+    case 'LB':
+      return parts(`${num(s.tackles)} tkl`, `${num(s.sacks)} sacks`, !!s.defInt && `${s.defInt} INT`);
+    case 'CB':
+    case 'S':
+      return parts(`${num(s.defInt)} INT`, `${num(s.passDef)} PD`, `${num(s.tackles)} tkl`);
+    case 'K':
+      return parts(`${num(s.fgMade)}/${num(s.fgAtt)} FG`, !!s.fgLong && `long ${s.fgLong}`);
+    case 'P':
+      return s.punts ? `${((s.puntYds ?? 0) / s.punts).toFixed(1)} avg` : '';
+    default:
+      return `${num(s.gp)} games`;
+  }
+}
+
+/** The club a winner played for that season (or, if that's lost, where he is now). */
+function clubThen(league: League, w: AwardWinner): string {
+  return w.teamId !== null ? league.teams[w.teamId].abbrev : teamTag(league, league.players[w.playerId]);
+}
+
+function WinnerCell({ league, winner: w, season }: { league: League; winner: AwardWinner | undefined; season: number }) {
+  if (!w) return <span className="muted">—</span>;
+  const p = league.players[w.playerId];
+  // Linemen have no stats of their own: show what their line did.
+  const line = p.position === 'OL' && w.teamId !== null ? lineStats(league, season, w.teamId) : null;
+  const numbers = line ? `line: ${line.ypc.toFixed(1)} yds/carry · ${line.sacked} sacks allowed` : honorLine(p, p.stats[season]);
+  return (
+    <span className="stack" style={{ gap: 2 }}>
+      <PlayerLink league={league} player={p} short />
+      <small className="muted">
+        {p.position} · {clubThen(league, w)}
+        {numbers && ` · ${numbers}`}
+      </small>
+    </span>
+  );
+}
+
+/** One row per All-League spot, in the order the teams are stored. */
+const SLOT_ROWS = ALL_LEAGUE_SLOTS.flatMap(([pos, count]) => Array.from({ length: count }, (_, i) => ({ pos, firstOfPos: i === 0 })));
+
+function Awards({ league }: { league: League }) {
+  const seasons = league.awards.map((a) => a.season).reverse();
+  const [picked, setPicked] = useState<number | undefined>(seasons[0]);
+  if (seasons.length === 0) {
+    return (
+      <Panel title="Awards">
+        <p className="muted" style={{ margin: 0 }}>
+          The season's awards are voted when the regular season ends.
+        </p>
+      </Panel>
+    );
+  }
+  const season = picked !== undefined && seasons.includes(picked) ? picked : seasons[0];
+  const awards = seasonAwards(league, season)!;
+  const userRow = (w: AwardWinner | undefined) => (w && league.players[w.playerId].teamId === league.userTeamId ? 'is-user' : '');
+  return (
+    <>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <h2>{season} awards</h2>
+        <select aria-label="Awards season" value={season} onChange={(e) => setPicked(Number(e.target.value))}>
+          {seasons.map((s) => (
+            <option key={s} value={s}>
+              {s} season
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        Voted at the end of the regular season on the numbers and the standings, the way the press votes. Clubs are where each player
+        played that year.
+      </p>
+      <div className="grid-2">
+        <Panel title={<h3>Season awards</h3>}>
+          <table>
+            <tbody>
+              {AWARD_KEYS.map((k) => (
+                <tr key={k} className={userRow(awards.winners[k])}>
+                  <th scope="row" style={{ whiteSpace: 'normal' }}>
+                    {AWARD_NAMES[k]}
+                  </th>
+                  <td style={{ whiteSpace: 'normal' }}>
+                    <WinnerCell league={league} winner={awards.winners[k]} season={season} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Panel>
+        <Panel title={<h3>All-League teams</h3>}>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Pos</th>
+                  <th>First team</th>
+                  <th>Second team</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SLOT_ROWS.map(({ pos, firstOfPos }, at) => (
+                  <tr key={at}>
+                    <td className="muted">{firstOfPos ? pos : ''}</td>
+                    {awards.allLeague.map((squad, t) => (
+                      <td key={t} className={userRow(squad[at])} style={{ whiteSpace: 'normal' }}>
+                        <WinnerCell league={league} winner={squad[at]} season={season} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
       </div>
     </>
   );

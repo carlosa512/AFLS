@@ -15,6 +15,7 @@ describe('routes', () => {
       { view: 'office', tab: 'draft' },
       { view: 'stats' },
       { view: 'stats', tab: 'records' },
+      { view: 'stats', tab: 'awards' },
       { view: 'standings' },
       { view: 'live' },
     ];
@@ -31,7 +32,7 @@ describe('routes', () => {
 
   it('reject anything unrecognised', () => {
     expect(hashToRoute('')).toEqual({ view: 'home' });
-    for (const bad of ['#/nope', '#/office/payroll', '#/stats/awards', '#/roster/abc', '#/game/', '#/roster/-1']) expect(hashToRoute(bad)).toBeNull();
+    for (const bad of ['#/nope', '#/office/payroll', '#/stats/trophies', '#/roster/abc', '#/game/', '#/roster/-1']) expect(hashToRoute(bad)).toBeNull();
   });
 });
 
