@@ -2003,7 +2003,11 @@ details.more > summary {
 
 /* ───────── scouting staff ───────── */
 /* Five front-office tabs don't fit a phone side by side: tighten them, and scroll inside the bar as a last resort. */
+.office-bar {
+  min-width: 0;
+}
 .office-tabs {
+  min-width: 0;
   max-width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
@@ -2011,6 +2015,7 @@ details.more > summary {
 .office-tabs button {
   flex: none;
   white-space: nowrap;
+  min-height: 40px;
 }
 @media (max-width: 480px) {
   .office-tabs button {
@@ -2214,4 +2219,208 @@ details.more > summary {
 }
 :root[data-theme='dark'] .btn-danger {
   color: #1d0806;
+}
+
+/* ───────── coaching staff ───────── */
+/* The scouts' and the coaches' notices share one bar: a line each, divided. */
+.staff-notices {
+  display: grid;
+  gap: 10px;
+}
+.staff-notices .staff-notice + .staff-notice {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.coaches {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+/* Everything you press on this screen is at least 40px tall, on a phone and off it. */
+.coaches .btn,
+.coaches .seg button,
+.coaches select,
+.coaches details.more > summary {
+  min-height: 40px;
+}
+.coaches .seg-sm button {
+  padding-block: 3px;
+  font-size: var(--step--1);
+}
+.coaches details.more > summary {
+  padding-block: 11px;
+}
+.coach-group-title {
+  margin: 0 0 8px;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.coach-groups {
+  gap: 20px;
+}
+.coach-card .facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+/* "Youth development" has to fit one line in half a phone-width card. */
+.coach-card .eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+.coach-rates {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+.candidate-sort {
+  margin-bottom: 10px;
+}
+.preview-line {
+  display: block;
+}
+.preview-line.muted {
+  font-weight: 400;
+}
+
+/* who coaches your players: one tappable row per room */
+.room-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.room-row {
+  border-top: 1px solid var(--line);
+}
+.room-row:first-child {
+  border-top: 0;
+}
+/* Phone: the room and its head count, then the coach, then what he does. */
+.room-toggle {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name chev'
+    'coach chev'
+    'fx chev';
+  align-items: center;
+  gap: 3px 12px;
+  min-height: 48px;
+  padding: 10px 4px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.room-toggle:hover {
+  background: var(--surface-2);
+}
+.room-name {
+  grid-area: name;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 10px;
+}
+.room-name b {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  line-height: 1.25;
+}
+.room-coach {
+  grid-area: coach;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 10px;
+  min-width: 0;
+}
+.room-fx {
+  grid-area: fx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 18px;
+}
+.fx {
+  white-space: nowrap;
+}
+.room-chev {
+  grid-area: chev;
+  color: var(--muted);
+}
+@media (min-width: 760px) {
+  .room-toggle {
+    grid-template-columns: minmax(170px, 1.1fr) minmax(0, 1.8fr) minmax(200px, auto) 20px;
+    grid-template-areas: 'name coach fx chev';
+    gap: 12px;
+  }
+  .room-name,
+  .room-coach {
+    display: grid;
+    gap: 0;
+  }
+}
+.room-detail {
+  padding: 2px 4px 14px;
+}
+.parts-table {
+  max-width: 520px;
+}
+.parts-table td,
+.parts-table th {
+  padding-block: 6px;
+}
+.parts-table tfoot th,
+.parts-table tfoot td {
+  border-top: 1px solid var(--line);
+  font-weight: 700;
+}
+.part-who {
+  display: block;
+}
+.room-detail-note {
+  margin: 8px 0 0;
+}
+
+/* around the league */
+.league-coaches th,
+.league-coaches td {
+  vertical-align: top;
+}
+.league-coaches td {
+  padding-block: 6px;
+}
+.league-coaches .team-inline {
+  white-space: nowrap;
+}
+.league-coaches tr.me .sticky-col {
+  background: color-mix(in srgb, var(--marker) 14%, var(--surface));
+}
+/* On a phone the chip says which team it is, and the coaches get the room. */
+@media (max-width: 560px) {
+  .league-coaches .team-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .league-coaches .tag-pill {
+    margin-left: 0;
+  }
+}
+.lc-cell {
+  display: grid;
+  gap: 1px;
+  min-width: 9.5rem;
 }

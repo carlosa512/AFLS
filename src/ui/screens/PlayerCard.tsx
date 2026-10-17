@@ -5,6 +5,7 @@ import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff
 import { passerRating } from '../../engine/stats';
 import type { League, Player, StatLine } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
+import { playerCoachLine } from '../coaching';
 import { PlayerAvatar, useBackdropClose } from '../components';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
@@ -240,6 +241,11 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             <p className="muted small" style={{ margin: 0 }}>
               {careerOutlook(league, league.userTeamId, p)}
             </p>
+            {p.teamId === league.userTeamId && !p.retired && (
+              <p className="muted small" style={{ margin: 0 }}>
+                {playerCoachLine(league, p)}
+              </p>
+            )}
             {reps && (
               <p className="muted small" style={{ margin: 0 }}>
                 {reps.share > 0 ? `Played in ${Math.round(reps.share * 100)}% of his team’s games in ${reps.season}.` : `Has not played in any of his team’s games in ${reps.season}.`}
