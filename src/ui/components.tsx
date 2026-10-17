@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import type { Player, Team } from '../engine/types';
 import { band } from './format';
 
@@ -171,5 +171,58 @@ export function Dialog({ title, onClose, children, footer }: { title: string; on
         {footer && <div className="dialog-foot">{footer}</div>}
       </div>
     </div>
+  );
+}
+
+// ───────── sortable tables ─────────
+
+export interface SortState<K extends string> {
+  key: K;
+  /** Descending puts the biggest value (best OVR, oldest, priciest) first. */
+  desc: boolean;
+}
+
+/** Column sort: clicking a new column uses its natural order, clicking it again flips it. */
+export function useSort<K extends string>(initial: SortState<K>) {
+  const [sort, setSort] = useState(initial);
+  const toggle = (key: K, desc: boolean) => setSort((s) => (s.key === key ? { key, desc: !s.desc } : { key, desc }));
+  return [sort, toggle, setSort] as const;
+}
+
+/** Sorts a copy of `rows` by the value each one gives for the active column (ties keep their order). */
+export function sortRows<T, K extends string>(rows: T[], sort: SortState<K>, value: (row: T, key: K) => number | string): T[] {
+  const dir = sort.desc ? -1 : 1;
+  return rows
+    .map((row, i) => ({ row, i, v: value(row, sort.key) }))
+    .sort((a, b) => (a.v < b.v ? -dir : a.v > b.v ? dir : a.i - b.i))
+    .map((x) => x.row);
+}
+
+/** A header cell that sorts its column. `desc` is the order the first click uses. */
+export function SortTh<K extends string>({
+  label,
+  k,
+  sort,
+  onSort,
+  desc = true,
+  className,
+}: {
+  label: ReactNode;
+  k: K;
+  sort: SortState<K>;
+  onSort: (key: K, desc: boolean) => void;
+  desc?: boolean;
+  className?: string;
+}) {
+  const active = sort.key === k;
+  return (
+    <th className={className} aria-sort={active ? (sort.desc ? 'descending' : 'ascending') : undefined}>
+      <button className="th-sort" onClick={() => onSort(k, desc)}>
+        {label}
+        <span className="th-arrow" aria-hidden="true">
+          {active ? (sort.desc ? '▼' : '▲') : ''}
+        </span>
+      </button>
+    </th>
   );
 }

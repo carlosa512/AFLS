@@ -14,6 +14,7 @@ import { attentionText } from '../coaching';
 import { Panel, TeamChip, TeamLabel } from '../components';
 import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, weekLabel } from '../format';
 import { live } from '../live';
+import { BackupButton, LoadBackupButton } from '../saves';
 import { store } from '../store';
 
 function lastUserGame(league: League): Game | undefined {
@@ -278,7 +279,7 @@ function ChampionBanner({ league }: { league: League }) {
   );
 }
 
-function StartOver() {
+function StartOver({ league }: { league: League }) {
   const [confirming, setConfirming] = useState(false);
   return (
     <div className="row" style={{ justifyContent: 'flex-end' }}>
@@ -288,6 +289,7 @@ function StartOver() {
           <button className="btn btn-sm" onClick={() => setConfirming(false)}>
             Keep playing
           </button>
+          <BackupButton league={league} />
           <button
             className="btn btn-sm"
             onClick={() => {
@@ -299,9 +301,13 @@ function StartOver() {
           </button>
         </>
       ) : (
-        <button className="btn btn-sm btn-ghost" onClick={() => setConfirming(true)}>
-          Start a new career
-        </button>
+        <>
+          <BackupButton league={league} />
+          <LoadBackupButton />
+          <button className="btn btn-sm btn-ghost" onClick={() => setConfirming(true)}>
+            Start a new career
+          </button>
+        </>
       )}
     </div>
   );
@@ -434,7 +440,7 @@ export function Home({ league }: { league: League }) {
     return (
       <>
         <OffseasonHome league={league} />
-        <StartOver />
+        <StartOver league={league} />
       </>
     );
   }
@@ -452,7 +458,7 @@ export function Home({ league }: { league: League }) {
         </div>
       </div>
       <AroundTheLeague league={league} />
-      <StartOver />
+      <StartOver league={league} />
     </>
   );
 }

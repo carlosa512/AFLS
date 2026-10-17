@@ -11,30 +11,19 @@ import { GameViewer } from './screens/GameViewer';
 import { LiveGame } from './screens/LiveGame';
 import { live, useLive } from './live';
 import { Home } from './screens/Home';
-import { Leaders } from './screens/Leaders';
 import { NewGame } from './screens/NewGame';
 import { PlayerCard } from './screens/PlayerCard';
 import { Playoffs } from './screens/Playoffs';
 import { Finances } from './screens/Finances';
-import { FrontOffice, type OfficeTab } from './screens/FrontOffice';
+import { FrontOffice } from './screens/FrontOffice';
 import { Roster } from './screens/Roster';
 import { Schedule } from './screens/Schedule';
 import { Standings } from './screens/Standings';
+import { Stats } from './screens/Stats';
+import { hashToRoute, isHistoryEntry, routeToHash, type HistoryEntry, type Route } from './routes';
 import { store, useLeague } from './store';
 
-export type Route =
-  | { view: 'home' }
-  | { view: 'roster'; teamId?: number }
-  | { view: 'cap'; teamId?: number }
-  | { view: 'office'; tab?: OfficeTab }
-  | { view: 'schedule' }
-  | { view: 'standings' }
-  | { view: 'leaders' }
-  | { view: 'playoffs' }
-  | { view: 'compare' }
-  | { view: 'game'; gameId: number; back: Route }
-  | { view: 'watch'; gameId: number; back: Route }
-  | { view: 'live' };
+export type { Route };
 
 interface Nav {
   route: Route;
@@ -61,7 +50,7 @@ const TABS: { view: Route['view']; label: string }[] = [
   { view: 'office', label: 'Front office' },
   { view: 'schedule', label: 'Schedule' },
   { view: 'standings', label: 'Standings' },
-  { view: 'leaders', label: 'Leaders' },
+  { view: 'stats', label: 'Stats' },
   { view: 'playoffs', label: 'Playoffs' },
 ];
 
@@ -103,10 +92,31 @@ function primaryActionLabel(league: League): string {
   return userGame(league) ? `Play ${label}` : `Play ${label} (bye)`;
 }
 
+function currentDepth(): number {
+  return isHistoryEntry(history.state) ? history.state.depth : 0;
+}
+
+function writeHistory(entry: HistoryEntry, replace: boolean) {
+  try {
+    if (replace) history.replaceState(entry, '', routeToHash(entry.route));
+    else history.pushState(entry, '', routeToHash(entry.route));
+  } catch {
+    // Some sandboxed hosts block history changes; the screen still changes, only Back and refresh don't follow.
+  }
+}
+
+/** The screen to open on load: the history entry being restored, else the address bar, else Home. */
+function initialRoute(): Route {
+  const entry = isHistoryEntry(history.state) ? history.state : null;
+  const route = entry?.route ?? hashToRoute(location.hash) ?? { view: 'home' };
+  writeHistory({ route, depth: entry?.depth ?? 0 }, true);
+  return route;
+}
+
 export function App() {
   const league = useLeague();
   useLive();
-  const [route, setRoute] = useState<Route>({ view: 'home' });
+  const [route, setRoute] = useState<Route>(initialRoute);
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [compareIds, setCompareIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
@@ -116,21 +126,44 @@ export function App() {
     window.scrollTo({ top: 0 });
   }, [route]);
 
+  // Browser Back/Forward restore the screen that history entry was showing (and close the player card over it).
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      setPlayerId(null);
+      setRoute(isHistoryEntry(e.state) ? e.state.route : (hashToRoute(location.hash) ?? { view: 'home' }));
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  /** Show a screen and record it in browser history (replace: swap the current entry instead of adding one). */
+  const navigate = (next: Route, replace = false) => {
+    const depth = currentDepth();
+    writeHistory({ route: next, depth: replace ? depth : depth + 1 }, replace);
+    setRoute(next);
+  };
+  // Leaving a game: step back through history when we came here in-app, so Back doesn't bounce into the game again.
+  const leaveGame = (back: Route) => (currentDepth() > 0 ? history.back() : navigate(back, true));
+
   if (!league) return <NewGame />;
 
+  const inGame = route.view === 'game' || route.view === 'watch';
   const nav: Nav = {
     route,
-    go: setRoute,
-    openGame: (gameId) => setRoute({ view: 'game', gameId, back: route.view === 'game' || route.view === 'watch' ? route.back : route }),
-    watchGame: (gameId) => setRoute({ view: 'watch', gameId, back: route.view === 'game' || route.view === 'watch' ? route.back : route }),
+    go: (r) => navigate(r),
+    // Switching between a game's viewer and box score replaces the entry, so Back returns to where the game was opened.
+    openGame: (gameId) => (inGame ? navigate({ view: 'game', gameId, back: route.back }, true) : navigate({ view: 'game', gameId, back: route })),
+    watchGame: (gameId) => (inGame ? navigate({ view: 'watch', gameId, back: route.back }, true) : navigate({ view: 'watch', gameId, back: route })),
     openPlayer: setPlayerId,
-    openTeam: (teamId) => setRoute({ view: 'roster', teamId }),
+    openTeam: (teamId) => navigate({ view: 'roster', teamId }),
     compareIds,
     toggleCompare: (id) => setCompareIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length >= MAX_COMPARE ? ids : [...ids, id])),
     clearCompare: () => setCompareIds([]),
   };
 
   const userTeam = league.teams[league.userTeamId];
+  // A team id typed into the address bar may not exist.
+  const teamOr = (teamId: number | undefined) => (teamId !== undefined && league.teams[teamId] ? teamId : league.userTeamId);
   const record = computeRecords(league, resultsSeason(league)).get(userTeam.id)!;
   const blockers = offseasonBlockers(league);
   const step = offseasonStep(league);
@@ -147,15 +180,15 @@ export function App() {
   const primary = () => {
     if (step) {
       run(step.run);
-      if (step.then) setRoute(step.then);
+      if (step.then) navigate(step.then);
       return;
     }
     // Your game plays out live; the rest of the week is simulated when it ends.
-    if (live.inProgress()) return setRoute({ view: 'live' });
+    if (live.inProgress()) return navigate({ view: 'live' });
     const game = userGame(league);
     if (game && !game.result) {
       live.start(league, game);
-      setRoute({ view: 'live' });
+      navigate({ view: 'live' });
       return;
     }
     run((l) => {
@@ -224,7 +257,7 @@ export function App() {
               key={t.view}
               className="tab"
               aria-current={activeTab === t.view ? 'page' : undefined}
-              onClick={() => setRoute(t.view === 'roster' || t.view === 'cap' ? { view: t.view, teamId: league.userTeamId } : ({ view: t.view } as Route))}
+              onClick={() => navigate(t.view === 'roster' || t.view === 'cap' ? { view: t.view, teamId: league.userTeamId } : ({ view: t.view } as Route))}
             >
               {t.label}
             </button>
@@ -250,7 +283,7 @@ export function App() {
                 onClick={() => {
                   setConfirmSim(false);
                   run(simOffseason);
-                  setRoute({ view: 'home' });
+                  navigate({ view: 'home' });
                 }}
               >
                 Sim to week 1
@@ -267,18 +300,18 @@ export function App() {
 
       <main className="wrap">
         {route.view === 'home' && <Home league={league} />}
-        {route.view === 'roster' && <Roster league={league} teamId={route.teamId ?? league.userTeamId} />}
-        {route.view === 'cap' && <Finances league={league} teamId={route.teamId ?? league.userTeamId} />}
+        {route.view === 'roster' && <Roster league={league} teamId={teamOr(route.teamId)} />}
+        {route.view === 'cap' && <Finances league={league} teamId={teamOr(route.teamId)} />}
         {route.view === 'office' && <FrontOffice league={league} tab={route.tab} />}
         {route.view === 'schedule' && <Schedule league={league} />}
         {route.view === 'standings' && <Standings league={league} />}
-        {route.view === 'leaders' && <Leaders league={league} />}
+        {route.view === 'stats' && <Stats league={league} tab={route.tab} />}
         {route.view === 'playoffs' && <Playoffs league={league} />}
         {route.view === 'compare' && <Compare league={league} />}
-        {route.view === 'game' && <BoxScore league={league} gameId={route.gameId} onBack={() => setRoute(route.back)} />}
+        {route.view === 'game' && <BoxScore league={league} gameId={route.gameId} onBack={() => leaveGame(route.back)} />}
         {route.view === 'live' && <LiveGame league={league} />}
         {route.view === 'watch' && (
-          <GameViewer league={league} gameId={route.gameId} onBack={() => setRoute(route.back)} onBoxScore={() => nav.openGame(route.gameId)} />
+          <GameViewer league={league} gameId={route.gameId} onBack={() => leaveGame(route.back)} onBoxScore={() => nav.openGame(route.gameId)} />
         )}
       </main>
 
@@ -288,7 +321,7 @@ export function App() {
             className="btn btn-sm btn-primary"
             onClick={() => {
               setPlayerId(null);
-              setRoute({ view: 'compare' });
+              navigate({ view: 'compare' });
             }}
           >
             Compare {compareIds.length} player{compareIds.length > 1 ? 's' : ''}

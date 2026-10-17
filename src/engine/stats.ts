@@ -1,4 +1,34 @@
 import type { League, Player, StatKey, StatLine } from './types';
+import { MAX_STATS } from './types';
+
+/** One season's regular-season totals, or a whole career's. */
+export type StatScope = number | 'career';
+
+/** Adds one stat line into another: counts sum, longest plays keep the max. */
+export function addStats(target: StatLine, source: StatLine) {
+  for (const [key, value] of Object.entries(source) as [keyof StatLine, number][]) {
+    target[key] = MAX_STATS.has(key) ? Math.max(target[key] ?? 0, value) : (target[key] ?? 0) + value;
+  }
+}
+
+/** A player's regular-season totals across every season he played. */
+export function careerLine(p: Player): StatLine {
+  const total: StatLine = {};
+  for (const line of Object.values(p.stats)) addStats(total, line);
+  return total;
+}
+
+export function statLine(p: Player, scope: StatScope): StatLine | undefined {
+  if (scope !== 'career') return p.stats[scope];
+  return Object.keys(p.stats).length ? careerLine(p) : undefined;
+}
+
+/** Seasons with any recorded stats, newest first. Players are never deleted, so this reaches back to the first season. */
+export function statSeasons(league: League): number[] {
+  const seasons = new Set<number>();
+  for (const p of Object.values(league.players)) for (const s of Object.keys(p.stats)) seasons.add(Number(s));
+  return [...seasons].sort((a, b) => b - a);
+}
 
 /** NFL passer rating (0–158.3). */
 export function passerRating(s: StatLine): number {
@@ -42,16 +72,33 @@ export const LEADER_CATEGORIES: LeaderCategory[] = [
   { key: 'fgMade', label: 'Field goals', stat: (s) => s.fgMade ?? 0 },
 ];
 
-export function leaders(league: League, category: LeaderCategory, limit = 10, season = league.season): LeaderRow[] {
+export function leaders(league: League, category: LeaderCategory, limit = 10, scope: StatScope = league.season): LeaderRow[] {
   const rows: LeaderRow[] = [];
   for (const player of Object.values(league.players)) {
-    const line = player.stats[season];
+    const line = statLine(player, scope);
     if (!line) continue;
     if (category.qualifies && !category.qualifies(line)) continue;
     const value = category.stat(line);
     if (value > 0) rows.push({ player, value, line });
   }
   return rows.sort((a, b) => b.value - a.value).slice(0, limit);
+}
+
+export interface RecordRow extends LeaderRow {
+  season: number;
+}
+
+/** The best single seasons ever recorded in a category. */
+export function seasonRecords(league: League, category: LeaderCategory, limit = 10): RecordRow[] {
+  const rows: RecordRow[] = [];
+  for (const player of Object.values(league.players)) {
+    for (const [season, line] of Object.entries(player.stats)) {
+      if (category.qualifies && !category.qualifies(line)) continue;
+      const value = category.stat(line);
+      if (value > 0) rows.push({ player, value, line, season: Number(season) });
+    }
+  }
+  return rows.sort((a, b) => b.value - a.value || a.season - b.season).slice(0, limit);
 }
 
 /** Team's leader in a stat this season (players currently on the team). */
