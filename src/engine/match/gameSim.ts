@@ -57,6 +57,52 @@ const EDGE_CONTAIN = 11.5;
 const DEEP_HELP = 14;
 /** Accuracy beyond which each point does half as much (elite passers stay inside NFL records). */
 const ACC_SOFT_CAP = 16;
+/** How much more (man) or less (zone) the covering defender's skill counts, away from a typical 12. */
+const MAN_ISLAND = 0.25;
+const ZONE_ISLAND = -0.15;
+/** Share of non-sack pressures where the rusher hits the quarterback (NFL: about five hits a game, sacks included). */
+const QB_HIT_SHARE = 0.35;
+/** Sacks and pressures charged to no blocker: the coverage held, or the quarterback held the ball. */
+const UNBLAMED_SACK = 0.35;
+const UNBLAMED_PRESSURE = 0.15;
+
+/**
+ * Who gets home on a pass rush: the starting edges the most, then the rotation and the linebackers,
+ * and on blitzes the secondary too, so one rusher can't take half the sacks.
+ */
+function rushers(def: Lineup, blitz: boolean): [Player, number][] {
+  return [
+    ...def.edge.map((p): [Player, number] => [p, 1.65 * skill(p, 'edgeRush')]),
+    ...def.dt.map((p): [Player, number] => [p, 1.3 * skill(p, 'interiorRush')]),
+    ...def.rushRotation.map((p): [Player, number] => [p, p.position === 'EDGE' ? 1.1 * skill(p, 'edgeRush') : 0.6 * skill(p, 'interiorRush')]),
+    ...def.lb.map((p): [Player, number] => [p, (blitz ? 1.5 : 0.45) * skill(p, 'edgeRush')]),
+    ...[...def.s, def.cb[2]].filter(Boolean).map((p): [Player, number] => [p, blitz ? 4 : 0.6]),
+  ];
+}
+
+/**
+ * The blocker charged when `rusher` gets home. Line spots follow the depth chart (LT, LG, C, RG, RT);
+ * among the men who could have had him, the weaker pass protector is more often the one who lost.
+ */
+function blockerFor(off: Lineup, def: Lineup, rusher: Player, blitz: boolean, rng: Rng): Player | null {
+  const ol = off.ol;
+  if (!ol.length) return null;
+  const at = (i: number) => ol[Math.min(i, ol.length - 1)];
+  const [lt, lg, c, rg, rt] = [at(0), at(1), at(2), at(3), at(4)];
+  const te = off.scheme.offense.personnel === '10' ? null : off.tes[0];
+  const back = off.rbs[0];
+  let candidates: Player[];
+  if (rusher === def.edge[0]) candidates = te && rng.chance(0.12) ? [te] : [lt];
+  else if (rusher === def.edge[1]) candidates = te && rng.chance(0.12) ? [te] : [rt];
+  // The center helps both ways, so he is the man beaten less often than the guard he slides to.
+  else if (rusher === def.dt[0]) candidates = [lg, lg, c];
+  else if (rusher === def.dt[1]) candidates = [rg, rg, c];
+  else if (rusher.position === 'EDGE') candidates = [lt, rt];
+  else if (rusher.position === 'DT') candidates = [lg, rg];
+  // Linebackers and defensive backs: the back's to pick up on a blitz, otherwise a lineman sliding late.
+  else candidates = blitz && rng.chance(0.6) ? [back] : [lg, c, rg];
+  return rng.weighted(candidates, (p) => Math.max(1, 22 - skill(p, 'passPro')));
+}
 /** Separation beyond which the defense rolls a safety over. */
 const SEP_ROLL = 3;
 /** Carries before a lead back starts handing work to the second back. */
@@ -173,6 +219,13 @@ class GameSim {
   private qbLeans: [number, number];
   /** Ball path attached to the next logged play. */
   private anim: Anim | null = null;
+  /**
+   * Who beat whom on a pressure is bookkeeping, not outcome: it draws from its own stream so crediting
+   * a rusher and a blocker never changes how a game plays out.
+   */
+  private creditRng: Rng;
+  /** The rusher who got home on the current snap without a sack, credited once the play resolves. */
+  private pressureBy: Player | null = null;
 
   constructor(
     private league: League,
@@ -180,6 +233,7 @@ class GameSim {
     private options: SimOptions,
   ) {
     this.rng = new Rng(options.seed ?? `${league.seed}:${game.season}:${game.id}`);
+    this.creditRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:credit`);
     this.homeEdge = game.neutral ? 0 : HOME_FIELD_EDGE;
     const team = (id: number) => league.teams[id];
     this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
@@ -283,6 +337,8 @@ class GameSim {
       passLean: this.styles[off].passLean,
       qbLean: this.qbLeans[off],
       fourthDown: this.styles[off].fourthDown,
+      depthLean: this.lineups[off].scheme.offense.depth,
+      blitz: this.lineups[this.def].scheme.front.blitz * (this.lineups[this.def].scheme.coverage?.blitz ?? 1),
     };
   }
 
@@ -693,7 +749,9 @@ class GameSim {
     if (this.preSnapPenalty()) return;
 
     const defCall = coach.defenseCall(s, this.rng);
+    this.pressureBy = null;
     const result = this.rng.chance(coach.passProbability(s)) ? this.passPlay(s, defCall) : this.runPlay(s, defCall);
+    if (this.pressureBy) this.creditPressure(result.stats, this.pressureBy, defCall, false);
     this.resolve(result);
   }
 
@@ -799,7 +857,7 @@ class GameSim {
     // included) and score about a fifth of the rushing touchdowns.
     const sneak = s.distance <= 1 || yardsToGoal <= 2 ? 0.14 : 0;
     // Even the fastest quarterback is a quarterback: designed runs stop growing past a point.
-    const qbRunWeight = 0.025 + sneak + clamp(skill(off.qb, 'scrambling') - 8, 0, 5) * 0.015;
+    const qbRunWeight = 0.025 + sneak + clamp(skill(off.qb, 'scrambling') - 8, 0, 5) * 0.015 + off.scheme.offense.qbRun;
     // Lead backs get about 60% of the carries and the second back spells him, more so as the lead
     // back's carries pile up: on a 35-run day the backup takes a real share (few backs average 22 a game).
     const leadCarries = this.playerStats[off.rbs[0].id]?.rushAtt ?? 0;
@@ -814,7 +872,8 @@ class GameSim {
       ] as [Player, number][],
       ([, w]) => w,
     )[0];
-    const outside = rng.chance(0.4);
+    // Zone schemes stretch to the edge, gap schemes hit it downhill.
+    const outside = rng.chance(off.scheme.offense.outside);
     const boxAdj = { base: 0, runD: 1.5, passD: -1.5, blitz: 0.6 }[defCall];
     const homeAdj = this.offense === 0 ? this.homeEdge : -this.homeEdge;
     const lineDelta = off.runBlock - (def.runStop + boxAdj) + homeAdj;
@@ -897,12 +956,13 @@ class GameSim {
     const rushAdj = { base: 0, runD: 0.3, passD: -1, blitz: 2.5 }[defCall];
     // A back who picks up the blitz buys his quarterback time; one who whiffs gets him hit.
     const pickup = defCall === 'blitz' ? 0.3 * (skill(off.rbs[0], 'passPro') - 10) : 0;
-    const pressureDelta = def.passRush + rushAdj - off.passBlock - pickup - homeAdj;
+    const pressureDelta = def.passRush + rushAdj - off.passBlock - pickup - homeAdj - off.scheme.offense.release;
     const pressured = rng.chance(clamp(0.3 + 0.035 * pressureDelta, 0.1, 0.65));
 
     if (pressured) {
       const pSack = clamp(0.2 - 0.022 * (skill(qb, 'pocketPresence') - 12), 0.08, 0.38);
       if (rng.chance(pSack)) return this.sack(def, defCall);
+      this.pressureBy = this.creditRng.weighted(rushers(def, defCall === 'blitz'), ([, w]) => w)[0];
       if (rng.chance(clamp(0.16 + 0.02 * (skill(qb, 'scrambling') - 9), 0.06, 0.4))) return this.scramble(def, s);
       if (rng.chance(0.12)) {
         buf.add(qb, 'passAtt');
@@ -916,14 +976,23 @@ class GameSim {
     const depth = coach.passDepth(s, rng);
     // Targets: [receiver, base weight by depth, coverage defender]
     const lbCover = def.lb[1] ?? def.lb[0];
+    const scheme = off.scheme.offense;
+    const tw = scheme.targets;
+    const times = (w: Record<PassDepth, number>, m: number) => ({ short: w.short * m, medium: w.medium * m, deep: w.deep * m });
+    const teCover = rng.chance(0.5) ? def.s[1] ?? def.s[0] : def.lb[0];
+    // Personnel decides who runs routes: 12 swaps the slot receiver for a second tight end, 10 the tight end for a fourth receiver.
     const options: [Player | undefined, Record<PassDepth, number>, Player][] = [
-      [off.wrs[0], { short: 0.19, medium: 0.27, deep: 0.33 }, def.cb[0]],
-      [off.wrs[1], { short: 0.17, medium: 0.26, deep: 0.3 }, def.cb[1] ?? def.cb[0]],
-      [off.wrs[2], { short: 0.14, medium: 0.15, deep: 0.15 }, def.cb[2] ?? def.cb[0]],
-      [off.tes[0], { short: 0.2, medium: 0.21, deep: 0.11 }, rng.chance(0.5) ? def.s[1] ?? def.s[0] : def.lb[0]],
-      [off.rbs[0], { short: 0.3, medium: 0.07, deep: 0.02 }, lbCover],
-      [off.rbs[1], { short: 0.09, medium: 0.02, deep: 0 }, def.lb[0]],
-      [off.tes[1], { short: 0.03, medium: 0.02, deep: 0.01 }, def.lb[0]],
+      [off.wrs[0], times({ short: 0.19, medium: 0.27, deep: 0.33 }, tw.wr), def.cb[0]],
+      [off.wrs[1], times({ short: 0.17, medium: 0.26, deep: 0.3 }, tw.wr), def.cb[1] ?? def.cb[0]],
+      [scheme.personnel === '12' ? undefined : off.wrs[2], times({ short: 0.14, medium: 0.15, deep: 0.15 }, tw.slot), def.cb[2] ?? def.cb[0]],
+      scheme.personnel === '10'
+        ? [off.wr4, times({ short: 0.14, medium: 0.15, deep: 0.1 }, tw.slot), def.s[1] ?? def.s[0]]
+        : [off.tes[0], times({ short: 0.2, medium: 0.21, deep: 0.11 }, tw.te), teCover],
+      [off.rbs[0], times({ short: 0.3, medium: 0.07, deep: 0.02 }, tw.rb), lbCover],
+      [off.rbs[1], times({ short: 0.09, medium: 0.02, deep: 0 }, tw.rb), def.lb[0]],
+      scheme.personnel === '12'
+        ? [off.tes[1], times({ short: 0.12, medium: 0.12, deep: 0.08 }, tw.te), def.cb[2] ?? def.lb[0]]
+        : [scheme.personnel === '10' ? undefined : off.tes[1], times({ short: 0.03, medium: 0.02, deep: 0.01 }, tw.te), def.lb[0]],
     ];
     const valid = options.filter((o): o is [Player, Record<PassDepth, number>, Player] => !!o[0]);
     // In tight space defenses bracket the top receiver, so red-zone looks spread to the tight end and backs.
@@ -932,7 +1001,15 @@ class GameSim {
     const isBack = receiver.position === 'RB';
 
     const recvSkill = skill(receiver, depth === 'deep' ? 'deepRoutes' : 'shortRoutes');
-    let sep = recvSkill - skill(defender, depth === 'deep' ? 'deepCoverage' : 'coverage') + homeAdj + (isBack && depth === 'short' ? 2.5 : 0);
+    const coverage = def.scheme.coverage;
+    // Man coverage puts the matchup on an island (the defender's skill counts for more); zone spreads it.
+    const covSkill = skill(defender, depth === 'deep' ? 'deepCoverage' : 'coverage');
+    const island = coverage ? (coverage.man ? MAN_ISLAND : ZONE_ISLAND) : 0;
+    let sep = recvSkill - covSkill - island * (covSkill - 12) + homeAdj + (isBack && depth === 'short' ? 2.5 : 0);
+    if (coverage) sep += coverage.sep[depth === 'short' ? 0 : depth === 'medium' ? 1 : 2];
+    if (depth === 'short') sep += scheme.quick;
+    // Play action off a run game the defense respects: the linebackers bite and the windows behind them open.
+    if (scheme.playAction && s.down <= 2 && depth !== 'short' && coach.tempo(s) === 'normal') sep += scheme.playAction * clamp((off.runBlock - 8) / 4, 0, 1.5);
     // The deep safety closes windows over the top (deep balls always face some help).
     const help = skill(def.s[0], 'deepHelp') - DEEP_HELP;
     if (depth === 'deep') sep -= 0.93 + 0.35 * help;
@@ -960,7 +1037,8 @@ class GameSim {
           // A ball-hawking safety lurks over the top.
           (depth === 'short' ? 0 : 0.05 * (skill(def.s[0], 'ballSkills') - 12)),
       ) *
-      (pressured ? 1.6 : 1);
+      (pressured ? 1.6 : 1) *
+      (coverage?.ints ?? 1);
 
     let air: number;
     if (isBack && depth === 'short') air = rng.int(-3, 4);
@@ -1013,7 +1091,7 @@ class GameSim {
       tackler = rng.chance(0.6) ? defender : this.pickTackler(def, air + 4);
       const yacSkill = skill(receiver, 'afterCatch') - skill(tackler, 'tackling');
       let yac = Math.max(0, rng.normal({ short: 3.6, medium: 2.8, deep: 2.4 }[depth] + 0.3 * yacSkill, 3));
-      if (rng.chance(clamp(0.022 + 0.004 * yacSkill, 0.01, 0.055))) yac += rng.exponential(16);
+      if (rng.chance(clamp((0.022 + 0.004 * yacSkill) * (coverage?.yac ?? 1), 0.01, 0.06))) yac += rng.exponential(16);
       gain = Math.min(air + Math.round(yac), yardsToGoal);
     }
     const td = gain >= yardsToGoal;
@@ -1061,15 +1139,7 @@ class GameSim {
     const buf = new StatBuffer();
     // Sacks spread like the NFL's: the starting edges get the most, but the rotation, the
     // linebackers and, on blitzes, the secondary all get home, so one rusher can't take half.
-    const blitz = defCall === 'blitz';
-    const pool: [Player, number][] = [
-      ...def.edge.map((p): [Player, number] => [p, 1.65 * skill(p, 'edgeRush')]),
-      ...def.dt.map((p): [Player, number] => [p, 1.3 * skill(p, 'interiorRush')]),
-      ...def.rushRotation.map((p): [Player, number] => [p, p.position === 'EDGE' ? 1.1 * skill(p, 'edgeRush') : 0.6 * skill(p, 'interiorRush')]),
-      ...def.lb.map((p): [Player, number] => [p, (blitz ? 1.5 : 0.45) * skill(p, 'edgeRush')]),
-      ...[...def.s, def.cb[2]].filter(Boolean).map((p): [Player, number] => [p, blitz ? 4 : 0.6]),
-    ];
-    const sacker = this.rng.weighted(pool, ([, w]) => w)[0];
+    const sacker = this.rng.weighted(rushers(def, defCall === 'blitz'), ([, w]) => w)[0];
     let loss = Math.round(clamp(this.rng.normal(6.5, 2.5), 1, 15));
     if (this.yardLine - loss < 0) loss = this.yardLine;
     buf.add(qb, 'sacked');
@@ -1077,6 +1147,7 @@ class GameSim {
     buf.add(sacker, 'sacks');
     buf.add(sacker, 'tackles');
     buf.add(sacker, 'tfl');
+    this.creditPressure(buf, sacker, defCall, true);
     const text = `${short(qb)} SACKED by ${short(sacker)} for -${loss} yards`;
     const result: PlayResult = { kind: 'sack', yards: -loss, text, duration: this.rng.int(4, 6), clockStops: false, stats: buf };
     if (this.rng.chance(0.1)) {
@@ -1094,6 +1165,27 @@ class GameSim {
       }
     }
     return result;
+  }
+
+  /**
+   * A rusher got home: credit him, and charge the blocker across from him (spots from `schemes.ts`:
+   * the right end rushes the left tackle, the tackles take on the guards and center, an unblocked
+   * blitzer is the back's to pick up). A sack is also a pressure and a hit.
+   */
+  private creditPressure(buf: StatBuffer, rusher: Player, defCall: DefenseCall, sack: boolean) {
+    const off = this.lineups[this.offense];
+    const def = this.lineups[this.def];
+    const rng = this.creditRng;
+    const hit = sack || rng.chance(QB_HIT_SHARE);
+    buf.add(rusher, 'pressures');
+    if (hit) buf.add(rusher, 'qbHits');
+    // Coverage sacks and a quarterback holding the ball: nobody up front lost (charting services blame no blocker on about a third of sacks).
+    if (rng.chance(sack ? UNBLAMED_SACK : UNBLAMED_PRESSURE)) return;
+    const blocker = blockerFor(off, def, rusher, defCall === 'blitz', rng);
+    if (!blocker) return;
+    buf.add(blocker, 'pressuresAllowed');
+    if (hit) buf.add(blocker, 'hitsAllowed');
+    if (sack) buf.add(blocker, 'sacksAllowed');
   }
 
   private scramble(def: Lineup, s: Situation): PlayResult {

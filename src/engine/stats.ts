@@ -67,6 +67,7 @@ export const LEADER_CATEGORIES: LeaderCategory[] = [
   { key: 'rec', label: 'Receptions', stat: (s) => s.rec ?? 0 },
   { key: 'recTd', label: 'Receiving TD', stat: (s) => s.recTd ?? 0 },
   { key: 'sacks', label: 'Sacks', stat: (s) => s.sacks ?? 0 },
+  { key: 'pressures', label: 'Pressures', stat: (s) => s.pressures ?? 0 },
   { key: 'tackles', label: 'Tackles', stat: (s) => s.tackles ?? 0 },
   { key: 'defInt', label: 'Interceptions', stat: (s) => s.defInt ?? 0 },
   { key: 'fgMade', label: 'Field goals', stat: (s) => s.fgMade ?? 0 },

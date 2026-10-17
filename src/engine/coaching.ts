@@ -27,6 +27,7 @@ import { logTransaction } from './finance/cap';
 import { BASE_CAP } from './finance/market';
 import { OVR_WEIGHTS, ROSTER_TEMPLATE } from './positions';
 import { clamp, Rng } from './rng';
+import { BASE_OFFENSE, COVERAGES, FRONTS, OFF_SCHEMES, rollScheme, type TeamScheme } from './schemes';
 import { staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
 import type { Attribute, Coach, CoachRole, CoachRoom, CoachStyle, League, Position, Team } from './types';
 import { POSITIONS } from './types';
@@ -286,6 +287,21 @@ export function callerStyle(league: League, teamId: number): CallerStyle {
   };
 }
 
+/**
+ * A team's schemes: the offensive coordinator's offense, the defensive coordinator's front and coverage.
+ * An empty chair runs the league-average base (Pro Style, a 4-3 with no coverage lean).
+ */
+export function teamScheme(league: League, teamId: number): TeamScheme {
+  const staff = league.coaches ? teamCoaches(league, teamId) : [];
+  const oc = chairHolder(staff, { role: 'offCoord' })?.scheme;
+  const dc = chairHolder(staff, { role: 'defCoord' })?.scheme;
+  return {
+    offense: oc?.offense ? OFF_SCHEMES[oc.offense] : BASE_OFFENSE,
+    front: FRONTS[dc?.front ?? 'fourThree'],
+    coverage: dc?.coverage ? COVERAGES[dc.coverage] : null,
+  };
+}
+
 /** Plain words for a style, only where it stands out. */
 export function styleNotes(style: CoachStyle | undefined): string[] {
   const out: string[] = [];
@@ -506,6 +522,8 @@ function newCoach(league: League, rng: Rng, chair: Chair, youth: number, veteran
   if (chair.room) c.room = chair.room;
   const style = rollStyle(rng, chair.role);
   if (style) c.style = style;
+  const scheme = rollScheme(league.seed, c);
+  if (scheme) c.scheme = scheme;
   league.coaches[c.id] = c;
   touch();
   return c;

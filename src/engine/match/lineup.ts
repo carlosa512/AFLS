@@ -1,10 +1,16 @@
 import { skill } from '../attributes';
+import { teamScheme } from '../coaching';
+import type { TeamScheme } from '../schemes';
 import { temperOffset } from '../traits';
 import type { League, Player, Position, Team } from '../types';
 
 /** The 22 starters plus the depth the engine draws on, with unit composites. */
 export interface Lineup {
   team: Team;
+  /** What its coordinators run: personnel, play mix, front and coverage (see `schemes.ts`). */
+  scheme: TeamScheme;
+  /** Fourth receiver: on the field in 10 personnel, depth otherwise. */
+  wr4?: Player;
   qb: Player;
   rbs: Player[];
   wrs: Player[];
@@ -46,6 +52,9 @@ export function buildLineup(league: League, team: Team): Lineup {
     return players;
   };
 
+  const scheme = teamScheme(league, team.id);
+  const personnel = scheme.offense.personnel;
+  const front = scheme.front;
   const qb = depth('QB', 1)[0];
   const rbs = depth('RB', 2);
   const wrs = depth('WR', 4);
@@ -62,8 +71,29 @@ export function buildLineup(league: League, team: Team): Lineup {
   const prPool = [wrs[2], wrs[3], cb[2], rbs[1]].filter(Boolean);
   const best = (pool: Player[]) => pool.reduce((a, b) => (skill(b, 'returns') > skill(a, 'returns') ? b : a));
 
+  // Who blocks besides the line depends on who is on the field: a second tight end helps, a fourth receiver doesn't.
+  const olPass = avg(ol, (p) => skill(p, 'passPro'));
+  const olRun = avg(ol, (p) => skill(p, 'runBlocking'));
+  const te2 = tes[1] ?? tes[0];
+  const slot = wrs[3] ?? wrs[2];
+  const passBlock =
+    personnel === '12'
+      ? olPass * 0.78 + skill(tes[0], 'passPro') * 0.07 + skill(te2, 'passPro') * 0.05 + skill(rbs[0], 'passPro') * 0.1
+      : personnel === '10'
+        ? olPass * 0.88 + skill(rbs[0], 'passPro') * 0.12
+        : olPass * 0.8 + skill(tes[0], 'passPro') * 0.1 + skill(rbs[0], 'passPro') * 0.1;
+  const runBlock =
+    personnel === '12'
+      ? olRun * 0.74 + skill(tes[0], 'runBlocking') * 0.14 + skill(te2, 'runBlocking') * 0.12
+      : personnel === '10'
+        ? olRun * 0.9 + skill(slot, 'runBlocking') * 0.1
+        : olRun * 0.8 + skill(tes[0], 'runBlocking') * 0.2;
+  const coverRun = scheme.coverage?.runAdj ?? 0;
+
   return {
     team,
+    scheme,
+    wr4: wrs[3],
     qb,
     rbs,
     wrs: wrs.slice(0, 3),
@@ -79,19 +109,23 @@ export function buildLineup(league: League, team: Team): Lineup {
     p: depth('P', 1)[0],
     kr: best(krPool),
     pr: best(prPool),
-    // Unit composites: the line does most of the work, with help from the backs and tight end.
-    passBlock: avg(ol, (p) => skill(p, 'passPro')) * 0.8 + skill(tes[0], 'passPro') * 0.1 + skill(rbs[0], 'passPro') * 0.1,
-    runBlock: avg(ol, (p) => skill(p, 'runBlocking')) * 0.8 + skill(tes[0], 'runBlocking') * 0.2,
+    // Unit composites: the line does most of the work, with help from the backs and tight ends.
+    passBlock,
+    runBlock,
+    // The front decides who the rush and the run defense lean on, and what it trades for its strength.
     passRush:
-      avg(edge, (p) => skill(p, 'edgeRush')) * 0.55 +
-      avg(dt, (p) => skill(p, 'interiorRush')) * 0.35 +
-      avg(lb, (p) => skill(p, 'edgeRush')) * 0.1,
+      avg(edge, (p) => skill(p, 'edgeRush')) * front.rush.edge +
+      avg(dt, (p) => skill(p, 'interiorRush')) * front.rush.dt +
+      avg(lb, (p) => skill(p, 'edgeRush')) * front.rush.lb +
+      front.rushAdj,
     runStop:
-      avg(dt, (p) => skill(p, 'runDefense')) * 0.35 +
-      avg(edge, (p) => skill(p, 'runDefense')) * 0.25 +
-      avg(lb, (p) => skill(p, 'runFit')) * 0.3 +
-      avg(s, (p) => skill(p, 'runFit')) * 0.1,
-    edgeContain: avg(edge, (p) => skill(p, 'setEdge')),
+      avg(dt, (p) => skill(p, 'runDefense')) * front.run.dt +
+      avg(edge, (p) => skill(p, 'runDefense')) * front.run.edge +
+      avg(lb, (p) => skill(p, 'runFit')) * front.run.lb +
+      avg(s, (p) => skill(p, 'runFit')) * front.run.s +
+      front.runAdj +
+      coverRun,
+    edgeContain: avg(edge, (p) => skill(p, 'setEdge')) + front.containAdj,
     offenseDiscipline: avg(ol, discipline),
     defenseDiscipline: avg([...dt, ...edge], discipline),
   };
@@ -99,5 +133,5 @@ export function buildLineup(league: League, team: Team): Lineup {
 
 /** Players credited with a game played when they dress as starters or key reserves. */
 export function activePlayers(l: Lineup): Player[] {
-  return [l.qb, ...l.rbs, ...l.wrs, ...l.tes, ...l.ol, ...l.dt, ...l.edge, ...l.lb, ...l.cb, ...l.s, ...l.rushRotation, l.k, l.p, l.kr, l.pr];
+  return [l.qb, ...l.rbs, ...l.wrs, ...(l.scheme.offense.personnel === '10' && l.wr4 ? [l.wr4] : []), ...l.tes, ...l.ol, ...l.dt, ...l.edge, ...l.lb, ...l.cb, ...l.s, ...l.rushRotation, l.k, l.p, l.kr, l.pr];
 }

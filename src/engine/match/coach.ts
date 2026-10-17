@@ -3,6 +3,7 @@
  * unit-tested and, later, swapped for user-defined game plans.
  */
 import { clamp, type Rng } from '../rng';
+import { shiftMix } from '../schemes';
 
 export interface Situation {
   quarter: number;
@@ -25,6 +26,10 @@ export interface Situation {
   qbLean?: number;
   /** The head coach's appetite for going for it on fourth down, −1…1. */
   fourthDown?: number;
+  /** The offense's scheme: shift to the short / medium / deep mix of ordinary throws. */
+  depthLean?: [number, number, number];
+  /** The defense's scheme: blitz-rate multiplier (1 = league average). */
+  blitz?: number;
 }
 
 export type PassDepth = 'short' | 'medium' | 'deep';
@@ -194,6 +199,8 @@ export function passDepth(s: Situation, rng: Rng): PassDepth {
   else if (s.distance >= 7) mix = [0.5, 0.36, 0.14];
   else if (s.distance <= 3) mix = [0.72, 0.2, 0.08];
   else mix = [0.6, 0.29, 0.11];
+  // The scheme's taste (West Coast underneath, Air Coryell deep) only where the situation doesn't dictate.
+  if (s.depthLean && ordinary(s)) mix = shiftMix(mix, s.depthLean);
   if (tempo(s) === 'hurry') mix = [mix[0] - 0.1, mix[1] + 0.06, mix[2] + 0.04];
   // Hail Mary at the end of a half.
   if ((s.quarter === 2 || s.quarter >= 4) && s.clock <= 8 && s.scoreDiff <= 0) mix = [0, 0.1, 0.9];
@@ -204,12 +211,14 @@ export function passDepth(s: Situation, rng: Rng): PassDepth {
 }
 
 export function defenseCall(s: Situation, rng: Rng): DefenseCall {
+  // A fire-zone coordinator sends more pressure, a Tampa 2 one sits back: same situations, scaled odds.
+  const b = (p: number) => clamp(p * (s.blitz ?? 1), 0, 0.6);
   const late = s.quarter >= 4 && s.scoreDiff < 0 && s.clock <= 240; // offense trailing late
   if (late && s.distance >= 5) return rng.chance(0.75) ? 'passD' : 'base';
   if (s.distance <= 2 && s.down >= 3) return rng.chance(0.7) ? 'runD' : 'blitz';
-  if (s.down >= 3 && s.distance >= 7) return rng.chance(0.3) ? 'blitz' : rng.chance(0.55) ? 'passD' : 'base';
-  if (s.down === 2 && s.distance >= 8) return rng.chance(0.15) ? 'blitz' : 'base';
-  return rng.chance(0.08) ? 'blitz' : rng.chance(0.12) ? 'runD' : 'base';
+  if (s.down >= 3 && s.distance >= 7) return rng.chance(b(0.3)) ? 'blitz' : rng.chance(0.55) ? 'passD' : 'base';
+  if (s.down === 2 && s.distance >= 8) return rng.chance(b(0.15)) ? 'blitz' : 'base';
+  return rng.chance(b(0.08)) ? 'blitz' : rng.chance(0.12) ? 'runD' : 'base';
 }
 
 /** After a touchdown: kick the extra point or go for two? `scoreDiff` excludes the PAT. */

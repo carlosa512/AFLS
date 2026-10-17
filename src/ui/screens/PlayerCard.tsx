@@ -12,7 +12,9 @@ import { PlayerAvatar, useBackdropClose } from '../components';
 import { store } from '../store';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
-import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, repsOf, ScoutButton, StarScaleToggle, Stars, starsOf, useStarScale, viewOf } from '../scouting';
+import { teamScheme } from '../../engine/coaching';
+import { spotsFor } from '../../engine/schemes';
+import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, repsOf, ScoutButton, StarScaleToggle, Stars, schemeFitOf, starsOf, useStarScale, viewOf } from '../scouting';
 
 type Col = [label: string, value: (s: StatLine) => string | number];
 
@@ -64,7 +66,21 @@ function statColumns(p: Player): Col[] {
         ['Avg', (s) => (s.punts ? ((s.puntYds ?? 0) / s.punts).toFixed(1) : '–')],
       ];
     case 'OL':
-      return [];
+      return [
+        ['Sacks alw', n('sacksAllowed')],
+        ['Press alw', n('pressuresAllowed')],
+        ['Hits alw', n('hitsAllowed')],
+      ];
+    case 'DT':
+    case 'EDGE':
+      return [
+        ['Tkl', n('tackles')],
+        ['TFL', n('tfl')],
+        ['Sacks', n('sacks')],
+        ['Press', n('pressures')],
+        ['QB hits', n('qbHits')],
+        ['FF', n('forcedFum')],
+      ];
     default:
       return [
         ['Tkl', n('tackles')],
@@ -186,6 +202,13 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
     .sort((a, b) => b - a);
 
   const [editing, setEditing] = useState(false);
+  // His starting spot in his team's schemes (LT, SLOT, NT…), if he starts.
+  const spot = team ? spotsFor(teamScheme(league, team.id), p.position)[team.depthChart[p.position].indexOf(p.id)] : undefined;
+  // How he'd fit what your coordinators run (a free agent, a prospect or a rival's player alike).
+  const myScheme = teamScheme(league, league.userTeamId);
+  const fit = p.retired ? null : schemeFitOf(league, p, myScheme);
+  const fitSide = ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p.position) ? 'offense' : 'defense';
+  const fitScheme = fitSide === 'offense' ? myScheme.offense.label : [myScheme.front.label, myScheme.coverage?.label].filter(Boolean).join(' · ');
   const careerTeams = [...new Set(seasons.flatMap((s) => seasonTeams(p, s)))];
 
   const backdrop = useBackdropClose(onClose);
@@ -227,6 +250,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           <span className="jersey">{p.jersey}</span>
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
+              {spot ? `${spot} · ` : ''}
               {POSITION_NAMES[p.position]}
               {team ? ` · ${team.city} ${team.name}` : isProspect(p) ? ' · Draft prospect' : ' · Free agent'}
             </span>
@@ -280,6 +304,15 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                 <MakeupPills notes={makeup.notes} hedged={makeup.hedged} />
               )}
             </span>
+            {fit && (
+              <span className="fact" title={`Your ${fitSide} leans on ${fit.skills.join(', ')}${view.exact ? '' : ' (as your scouts read him)'}.`}>
+                <span className="eyebrow">Fit · {fitScheme}</span>
+                <span className={fit.grade === 'Poor' ? 'tone-bad' : fit.grade === 'Ideal' ? 'tone-good' : undefined}>
+                  {fit.grade}
+                  <span className="muted small"> · {fit.skills.join(', ')}</span>
+                </span>
+              </span>
+            )}
             {!view.exact && (
               <span className="fact">
                 <span className="eyebrow">Known</span>

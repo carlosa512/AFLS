@@ -5,7 +5,7 @@
  *   npm run sim            # 3 seasons
  *   npm run sim -- 10      # 10 seasons
  */
-import { callerStyle } from '../src/engine/coaching';
+import { callerStyle, teamScheme } from '../src/engine/coaching';
 import { createLeague } from '../src/engine/generate';
 import { simToEndOfRegularSeason } from '../src/engine/league';
 import { teamRatings } from '../src/engine/roster';
@@ -64,6 +64,21 @@ const tally = (key: string, t: TeamGameStats) => {
   b.fourth += t.fourthDownAtt;
   b.games++;
 };
+/** Schemes at work: what each offense gains and each front and coverage allows, per team-game. */
+const byScheme: Record<string, { games: number; pts: number; plays: number; passes: number; yds: number; passAtt: number; passYds: number; rushAtt: number; rushYds: number; sacks: number }> = {};
+const schemeTally = (key: string, t: TeamGameStats, pts: number) => {
+  const b = (byScheme[key] ??= { games: 0, pts: 0, plays: 0, passes: 0, yds: 0, passAtt: 0, passYds: 0, rushAtt: 0, rushYds: 0, sacks: 0 });
+  b.games++;
+  b.pts += pts;
+  b.plays += t.plays;
+  b.passes += t.passAtt + t.sacked;
+  b.yds += t.totalYds;
+  b.passAtt += t.passAtt;
+  b.passYds += t.passYds;
+  b.rushAtt += t.rushAtt;
+  b.rushYds += t.rushYds;
+  b.sacks += t.sacked;
+};
 const lean = (v: number) => (v >= 0.35 ? 'high' : v <= -0.35 ? 'low' : 'mid');
 
 const t0 = Date.now();
@@ -89,7 +104,12 @@ for (let s = 0; s < seasons; s++) {
       [r.home, r.homeScore],
       [r.away, r.awayScore],
     ];
-    for (const [id, t] of [[g.homeId, r.home], [g.awayId, r.away]] as const) {
+    for (const [id, t, pts, oppId] of [[g.homeId, r.home, r.homeScore, g.awayId], [g.awayId, r.away, r.awayScore, g.homeId]] as const) {
+      const off = teamScheme(league, id);
+      const def = teamScheme(league, oppId);
+      schemeTally(`off:${off.offense.label}`, t, pts);
+      schemeTally(`front:${def.front.label}`, t, pts);
+      schemeTally(`cov:${def.coverage?.label ?? 'none'}`, t, pts);
       const style = callerStyle(league, id);
       tally(`pass:${lean(style.passLean)}`, t);
       tally(`fourth:${lean(style.fourthDown)}`, t);
@@ -196,3 +216,19 @@ for (const { label, first, fifth, ceiling } of LEADER_TARGETS) {
 }
 
 console.log(`\n${misses} stat(s) outside target range`);
+
+console.log('\nSchemes (informational, per team-game): offense gains, defense allows');
+console.log('scheme'.padEnd(22), 'games'.padStart(6), 'pts'.padStart(6), 'yds'.padStart(6), 'pass%'.padStart(6), 'ypa'.padStart(6), 'ypc'.padStart(6), 'sacks'.padStart(6));
+for (const [key, b] of Object.entries(byScheme).sort()) {
+  const f = (v: number, d = 1) => v.toFixed(d).padStart(6);
+  console.log(
+    key.padEnd(22),
+    String(b.games).padStart(6),
+    f(b.pts / b.games),
+    f(b.yds / b.games, 0),
+    f((100 * b.passes) / b.plays),
+    f(b.passYds / b.passAtt, 2),
+    f(b.rushYds / b.rushAtt, 2),
+    f(b.sacks / b.games, 2),
+  );
+}
