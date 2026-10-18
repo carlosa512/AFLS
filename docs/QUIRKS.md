@@ -1,6 +1,7 @@
 # Quirks — design sketch
 
-Status: **proposal**, nothing built yet. Goal: FM-style player habits ("Stares down his first read",
+Status: **step 1 built** (§7): the bag, grip, 25 quirks (two or three per position group), the engine
+hooks, scouting and the player card. Goal: FM-style player habits ("Stares down his first read",
 "Ice-water veins") that make players feel alive. A player can carry several, and gains and loses
 them across a career and within a season, driven by a seeded **marble bag**.
 
@@ -80,14 +81,21 @@ Refilled each league year. Counts are per player, with a handful of each:
   marbles; a game-winning kick adds *Ice-Water Veins*. Events shift the odds; the draw decides.
 
 ### Limits and targets (tune with a script, below)
-- At most **3** quirks at grip ≥2. A 4th that reaches grip 2 bumps out his weakest.
-- **The 4th slot is for special players**: elite at his position (top 5% by overall) or 8+ seasons
-  in the league. Only an *ingrained* quirk (grip 3) can fill it, so it's earned. The bag doesn't
+- At most **3** quirks at grip ≥2 are applied, strongest grip first. One past the cap stays held but
+  dormant (shown as "starting to show") until another fades. He holds at most 5 at any grip.
+- **The 4th slot is for special players**: elite at his position (overall 15.5+, about the top 5%)
+  or 10+ seasons in the league. Only an *ingrained* quirk (grip 3) can fill it, so it's earned. The bag doesn't
   change at all, only the cap does. Losing special status removes nothing; he just can't fill an
   empty 4th slot again. Target: 3–5% of the league carries four.
 - Rookies start with 0–2, rolled from their own seed (like traits and the combine).
-- League-wide targets: about 60% of players with at least one quirk; a veteran averages 1.5;
-  each season about 15% of players gain one and 10% lose one.
+- Targets are **per quirk**, so they hold however many quirks a position has (`npm run quirks`
+  checks them): each quirk carried by 6–12% of the players who can draw it, gained by 0.8–1.8% and
+  lost by 0.5–1.5% of them each season. With the full list (twelve a position) that puts about 60%
+  of players on at least one quirk. With step 1's two or three a position, it's about 20%.
+- Tuned numbers (`quirks.ts`): blanks per quirk 40 / 64 / 100 (age ≤24 / 25–29 / 30+); fix marbles
+  11 against a bad habit (±1 for the position coach, +1 for a hard worker), 8 against a good or
+  style one. Fix marbles far outnumber a quirk's own 2–3, so a habit lasts a few seasons, not a
+  career, unless it gets ingrained.
 
 ## 3. Engine rule: every quirk is a situational lean
 
@@ -273,8 +281,18 @@ weather/injuries exist (each of those systems then unlocks its quirks for free).
 
 ## 7. Build order
 
-1. **Data + bag + 3 quirks per position (all Tier A) + UI pills.** Proves the loop end to end.
-   Then run `npm run sim`, `npm run audit`, `npm run careers`, `npm run endings`.
+1. ✅ **Data + bag + 2–3 quirks per position group (all Tier A) + UI pills.** Built:
+   - QB: Navigates Muddy Pockets, Stares Down Hot Route, Gunslinger
+   - RB: Finishes Forward, Loose Carriage, Dwells in the Hole
+   - WR/TE: YAC Slasher, Goes Up and Gets It, Hears Footsteps
+   - OL: Anchor Monster, Loses Hand Placement, Pancake Preacher
+   - DT/EDGE: First-Step Flash, Bites on Play-Action, Bull-Rush Primary
+   - LB: Zone Hawk, Man-Coverage Deficit, Gap-Shooter
+   - CB/S: Fluid Hip-Turn, Bites on Double-Moves, Plays the Ball
+   - K: Ice-Water Veins, Boomer Leg · P: Coffin-Corner Specialist, Out-Kicks His Coverage
+
+   Not yet: scheme and last-season marbles in the bag, AI front offices valuing quirks, the
+   "seems to have fixed…" note for a lost quirk, the draft-board column.
 2. **The rest of Tier A**, a position at a time, re-running `sim`/`audit` each time.
 3. **States** (Rattled, Yips slump) and **event marbles**.
 4. **Tier B engine events** (batted passes, strip-sacks, OPI, sideline catches, decoys, WR run blocking).

@@ -5,6 +5,7 @@
 import { awardSeason, awardWeek } from './awards';
 import { simulateGame, startGame, type LiveGame } from './match/gameSim';
 import { simOffseason } from './offseason';
+import { quirkWeek } from './quirks';
 import { Rng } from './rng';
 import { aiTradeWeek } from './trade';
 import { syncDepthChart } from './roster';
@@ -93,6 +94,7 @@ export function playWeek(league: League): Game[] {
   if (league.phase === 'regular') {
     awardWeek(league, league.week);
     aiTrades(league);
+    quirkWeek(league);
   }
   league.week++;
 

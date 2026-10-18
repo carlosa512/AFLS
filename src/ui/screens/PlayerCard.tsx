@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { honorBadges, playerHonors } from '../../engine/awards';
 import { POSITION_NAMES } from '../../engine/positions';
 import { careerOutlook, isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
+import { quirkInfo } from '../../engine/quirks';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
 import { editPlayerIdentity, identityProblem } from '../../engine/roster';
 import { careerLine, passerRating } from '../../engine/stats';
@@ -14,7 +15,7 @@ import { ContractActions, ContractSummary, ContractYears, contractLabel } from '
 import { band, heightFt } from '../format';
 import { teamScheme } from '../../engine/coaching';
 import { spotsFor } from '../../engine/schemes';
-import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, repsOf, ScoutButton, StarScaleToggle, Stars, schemeFitOf, starsOf, useStarScale, viewOf } from '../scouting';
+import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, QuirkPills, quirksOf, repsOf, ScoutButton, StarScaleToggle, Stars, schemeFitOf, starsOf, useStarScale, viewOf } from '../scouting';
 
 type Col = [label: string, value: (s: StatLine) => string | number];
 
@@ -191,6 +192,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const stars = starsOf(league, p, scale, view);
   const report = scoutReport(league, league.userTeamId, p);
   const makeup = makeupOf(league, p);
+  const habits = quirksOf(league, p);
   const reps = repsOf(league, p);
   // Film reveals a veteran's makeup over time; for anyone else a scouting visit (a sit-down) is the way.
   const sitDownHint = !makeup.known && p.teamId !== league.userTeamId && !p.retired && league.scoutPoints > 0;
@@ -304,6 +306,16 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                 <MakeupPills notes={makeup.notes} hedged={makeup.hedged} />
               )}
             </span>
+            <span className="fact">
+              <span className="eyebrow">Habits</span>
+              {!habits.known ? (
+                <span className="muted">Unknown</span>
+              ) : habits.notes.length === 0 ? (
+                <span className="muted">None on film</span>
+              ) : (
+                <QuirkPills notes={habits.notes} />
+              )}
+            </span>
             {fit && (
               <span className="fact" title={`Your ${fitSide} leans on ${fit.skills.join(', ')}${view.exact ? '' : ' (as your scouts read him)'}.`}>
                 <span className="eyebrow">Fit · {fitScheme}</span>
@@ -329,6 +341,18 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                 </span>
               ))}
             </div>
+          )}
+
+          {p.teamId === league.userTeamId && p.quirkLog && p.quirkLog.length > 0 && (
+            <p className="muted small">
+              Habits lately:{' '}
+              {p.quirkLog
+                .slice(-3)
+                .reverse()
+                .map((e) => `${e.change === 'gained' ? 'picked up' : 'shook off'} ${quirkInfo(e.id).label} (${e.season}${e.week ? `, week ${e.week}` : ' offseason'})`)
+                .join('; ')}
+              .
+            </p>
           )}
 
           {!view.exact && (

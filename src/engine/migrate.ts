@@ -15,6 +15,7 @@ import { generateStaffWorld } from './staff';
 import { playoffSummary } from './records';
 import { rollScheme } from './schemes';
 import { addStats, statSeasons } from './stats';
+import { generateQuirks } from './quirks';
 import { generateTraits } from './traits';
 import type { League, StatLine } from './types';
 
@@ -31,6 +32,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 8) toV8(league);
   if (league.version < 9) toV9(league);
   if (league.version < 10) toV10(league);
+  if (league.version < 11) toV11(league);
   return league;
 }
 
@@ -196,4 +198,10 @@ function toV10(league: League) {
     if (scheme && !c.scheme) c.scheme = scheme;
   }
   league.version = 10;
+}
+
+/** v10 → v11: quirks, rolled from each player's own seed, the same history a new league would give him. */
+function toV11(league: League) {
+  for (const p of Object.values(league.players)) if (!p.retired && !p.quirkBag) generateQuirks(p);
+  league.version = 11;
 }

@@ -13,6 +13,7 @@ import { ATTRIBUTE_INFO, type AgingFamily } from './attributes';
 import { declineOnset } from './aging';
 import { repsSoFar } from './development';
 import { ATTRIBUTE_PROFILES, overall, OVR_WEIGHTS, POSITION_NAMES, STARTERS } from './positions';
+import { activeQuirks, formingQuirks, QUIRKS, type QuirkId, type QuirkTone } from './quirks';
 import { clamp, Rng } from './rng';
 import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
 import { TEMPER_POSITIONS, TRAIT_MEAN } from './traits';
@@ -325,6 +326,50 @@ export function characterNotes(league: League, teamId: number, p: Player): Chara
   return { known: true, hedged: !read.exact && read.sd > 1.2, notes };
 }
 
+// ───────── quirks ─────────
+
+/** Habits show on film, so they come out sooner than makeup: below this, a team can't name any. */
+export const QUIRK_KNOWLEDGE = 0.35;
+/** A habit only starting to show takes a closer look before anyone mentions it. */
+const FORMING_KNOWLEDGE = 0.7;
+
+export interface QuirkNote {
+  id: QuirkId;
+  label: string;
+  tone: QuirkTone;
+  /** What it means for him, as a sentence. */
+  line: string;
+  /** Starting to show (or established but crowded out by stronger habits): early word, not a settled one. */
+  forming: boolean;
+}
+
+export interface QuirkNotes {
+  /** False when the team hasn't seen enough of him to name any habit. */
+  known: boolean;
+  notes: QuirkNote[];
+}
+
+/**
+ * The habits `teamId` has spotted in a player. Each one surfaces at its own knowledge level (seeded
+ * per team, player and quirk, so it never flickers on refresh), anywhere from the film threshold to
+ * a fifth above it; one that is only starting to show needs a closer look. Your own players hide
+ * nothing.
+ */
+export function quirkNotes(league: League, teamId: number, p: Player): QuirkNotes {
+  const k = knowledge(league, teamId, p);
+  if (k < QUIRK_KNOWLEDGE) return { known: false, notes: [] };
+  const seen = (id: QuirkId, at: number) => k >= 1 || k >= at + 0.2 * new Rng(`${league.seed}:view:${teamId}:${p.id}:quirk:${id}`).next();
+  const note = (id: QuirkId, forming: boolean): QuirkNote => {
+    const q = QUIRKS[id];
+    return { id, label: q.label, tone: q.tone, line: `${cap(q.clause)}. ${q.effect}`, forming };
+  };
+  const notes = [
+    ...activeQuirks(p).filter((id) => seen(id, QUIRK_KNOWLEDGE)).map((id) => note(id, false)),
+    ...formingQuirks(p).filter((id) => seen(id, FORMING_KNOWLEDGE)).map((id) => note(id, true)),
+  ];
+  return { known: true, notes };
+}
+
 /**
  * The last age at which a family of a player's ratings is still at its best, for the body `teamId`
  * reads in him (a typical one when it can't tell). Development runs before his birthday and only
@@ -529,6 +574,12 @@ export function scoutReport(league: League, teamId: number, p: Player): string[]
   // Makeup, once the staff has seen enough of him: everything that stands out, in one sentence.
   const makeup = characterNotes(league, teamId, p);
   if (makeup.notes.length) lines.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${makeup.notes.map((n) => n.clause).join('; ')}.`);
+  // His habits on film: the settled ones, then the ones starting to show.
+  const habits = quirkNotes(league, teamId, p).notes;
+  const settled = habits.filter((n) => !n.forming);
+  const forming = habits.filter((n) => n.forming);
+  if (settled.length) lines.push(`On film he ${list(settled.map((n) => QUIRKS[n.id].clause))}.`);
+  if (forming.length) lines.push(`Starting to show: he ${list(forming.map((n) => QUIRKS[n.id].clause))}.`);
 
   // How sure we are follows the actual width of the read: film, visits and who's doing the reading.
   const ovrHalf = (view.ovrHi - view.ovrLo) / 2;

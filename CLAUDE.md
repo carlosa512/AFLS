@@ -32,6 +32,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   health, roster sizes, league talent and the scouting and coaching economies. Run it after changes to
   `finance/`, `offseason/`, `trade.ts`, `staff.ts` or `coaching.ts`; talent, cap space, rosters and
   the coaching ledger (growth and decline ×1.00) should stay stable across seasons.
+- `npm run quirks` — run the quirk marble bag for 10 seasons and check how often each quirk is carried,
+  gained and lost; `npm run quirks -- --effects` also gives each quirk to every player at its positions
+  and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in
+  `match/gameSim.ts`. Nothing may be flagged.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -56,6 +60,9 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     through `teamScheme()` in `coaching.ts`; every lean trades something, so league totals stay in range
   - `records.ts` team, coach and GM records, all looked up from `league.history`
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
+  - `quirks.ts` on-field habits (registry, the marble bag, grip, `activeQuirks`): they change with
+    weekly and offseason draws; the engine reads them through `has()` in `match/gameSim.ts`, screens
+    through `quirkNotes` in `scouting.ts` (seen on film, so the fog of war applies)
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)

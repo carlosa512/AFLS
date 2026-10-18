@@ -22,10 +22,12 @@ import {
   COMBINE_TYPICAL,
   needsReps,
   perceive,
+  quirkNotes,
   scoutPlayer,
   starRating,
   type CharacterNotes,
   type PlayerView,
+  type QuirkNotes,
   type RatingView,
   type StarRating,
   type StarScale,
@@ -196,6 +198,27 @@ export function MakeupPills({ notes, hedged = false, limit, oneLine = false }: {
           <span className="visually-hidden"> more: {rest.map((n) => n.label).join(', ')}</span>
         </span>
       )}
+    </span>
+  );
+}
+
+/** The habits your scouts have spotted in a player on film (all of them, for your own players). */
+export const quirksOf = (league: League, p: Player): QuirkNotes => quirkNotes(league, league.userTeamId, p);
+
+/**
+ * Quirks as pills: green for a plus, amber for a minus, plain for a style that trades one thing for
+ * another. A habit only starting to show is dashed, like early word on makeup.
+ */
+export function QuirkPills({ notes }: { notes: QuirkNotes['notes'] }) {
+  if (notes.length === 0) return null;
+  return (
+    <span className="pill-row">
+      {notes.map((n) => (
+        <span key={n.id} className={`tag-pill${n.tone === 'good' ? ' tag-good' : n.tone === 'bad' ? ' tag-warn' : ''}${n.forming ? ' tag-early' : ''}`} title={n.forming ? `Starting to show: ${n.line}` : n.line}>
+          {n.label}
+          {n.forming && <span className="visually-hidden"> (starting to show)</span>}
+        </span>
+      ))}
     </span>
   );
 }
