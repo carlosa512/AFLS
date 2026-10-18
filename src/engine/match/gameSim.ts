@@ -1127,7 +1127,9 @@ class GameSim {
     const valid = options.filter((o): o is [Player, Record<PassDepth, number>, Player] => !!o[0]);
     // In tight space defenses bracket the top receiver, so red-zone looks spread to the tight end and backs.
     const bracket = yardsToGoal <= 10 ? 0.75 : 1;
-    const [receiver, , defender] = rng.weighted(valid, ([p, w]) => w[depth] * (0.6 + 0.04 * skill(p, 'targeting')) * (p === off.wrs[0] ? bracket : 1));
+    // Better receivers draw more looks, but not so many more that the top five outrun NFL leaders
+    // (dome teams' receivers already get a lift from the weather).
+    const [receiver, , defender] = rng.weighted(valid, ([p, w]) => w[depth] * (0.6 + 0.03 * skill(p, 'targeting')) * (p === off.wrs[0] ? bracket : 1));
     const isBack = receiver.position === 'RB';
 
     const recvSkill = skill(receiver, depth === 'deep' ? 'deepRoutes' : 'shortRoutes');
