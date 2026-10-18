@@ -8,10 +8,8 @@ import { teamPlayers } from './roster';
 import {
   generateCombine,
   isProspect,
-  coachReads,
   knowledge,
   perceive,
-  seenCoach,
   SCOUT_POINTS_PER_YEAR,
   scoutPlayer,
   scoutReport,
@@ -168,47 +166,5 @@ describe('save migration to v3', () => {
     expect(p.combine).toEqual(league.players[p.id].combine);
     expect(p.ratingHistory![up.season]).toEqual(ATTRIBUTES.map((a) => p.ratings[a]));
     expect(overall(p.ratings, p.position)).toBeCloseTo(playerOvr(league.players[p.id]), 6);
-  });
-});
-
-describe('staff reads', () => {
-  const league = createLeague({ seed: 'staff-reads' });
-  const user = league.userTeamId;
-  const coaches = Object.values(league.coaches);
-  const theirs = coaches.filter((c) => c.teamId !== user && !c.career?.some((s) => s.teamId === user));
-
-  it('knows its own coaches exactly and keeps the true rating out of anyone else\'s', () => {
-    for (const c of coaches.filter((x) => x.teamId === user)) {
-      expect(coachReads(league, user, c).youth.exact).toBe(true);
-      expect(seenCoach(league, user, c)).toBe(c);
-    }
-    for (const c of theirs) {
-      const { youth, veterans } = coachReads(league, user, c);
-      expect(youth.exact).toBe(false);
-      for (const [r, truth] of [[youth, c.youth], [veterans, c.veterans]] as const) {
-        expect(r.lo).toBeLessThanOrEqual(truth);
-        expect(r.hi).toBeGreaterThanOrEqual(truth);
-        expect(r.lo).toBeGreaterThanOrEqual(1);
-        expect(r.hi).toBeLessThanOrEqual(20);
-        expect(r.hi - r.lo).toBeGreaterThanOrEqual(2);
-      }
-      // The same read every time it's asked for.
-      expect(coachReads(league, user, c)).toEqual({ youth, veterans });
-    }
-    // Where the truth sits in the range varies, so the middle of a read isn't the answer.
-    expect(new Set(theirs.map((c) => c.youth - coachReads(league, user, c).youth.lo)).size).toBeGreaterThan(2);
-  });
-
-  it('narrows with a coach\'s record and knows anyone who coached for you', () => {
-    const c = theirs[0];
-    const width = (x: typeof c) => {
-      const r = coachReads(league, user, x).youth;
-      return r.hi - r.lo;
-    };
-    const rookie = { ...c, career: [] };
-    const veteran = { ...c, career: Array.from({ length: 9 }, (_, i) => ({ season: 2000 + i, teamId: (user + 1) % 32, role: c.role })) };
-    expect(width(veteran)).toBeLessThan(width(rookie));
-    const former = { ...c, career: [{ season: 2000, teamId: user, role: c.role }] };
-    expect(coachReads(league, user, former).youth.exact).toBe(true);
   });
 });

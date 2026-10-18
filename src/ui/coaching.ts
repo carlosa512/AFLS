@@ -1,8 +1,8 @@
 /**
  * What the coaching screens say about a staff, in plain words: the UI side of engine/coaching.ts.
- * Your own coaches' ratings show exactly; anyone else's are your read of him (`coachReads`). What a staff
- * does for players is said in words on one scale (`verdict`), with the percentages against a typical staff
- * one tap away; never as a player's ratings, potential or traits (see ui/scouting.tsx for what the fog allows).
+ * Coach ratings are public, as staff ratings are in Football Manager. What a staff does for players is said in
+ * words on one scale (`verdict`), with the percentages against a typical staff one tap away; never as a
+ * player's ratings, potential or traits (see ui/scouting.tsx for what the fog allows).
  */
 import {
   CHAIRS,
@@ -33,7 +33,6 @@ import {
 import { declineOnset } from '../engine/aging';
 import { ROSTER_TEMPLATE } from '../engine/positions';
 import { teamPlayers } from '../engine/roster';
-import type { StaffRead } from '../engine/scouting';
 import type { Coach, CoachRole, CoachRoom, League, Player, Position } from '../engine/types';
 import { verdict, type Verdict } from './format';
 
@@ -71,19 +70,16 @@ export interface RepNote {
   tone: 'good' | 'warn';
   line: string;
 }
-/**
- * The word around the league on a coach as a teacher, from your read of him. Only the ends of the scale
- * earn a tag; `hedged` when it's a read of another club's man rather than someone you've worked with.
- */
-export function coachRep(reads: { youth: StaffRead; veterans: StaffRead }): { notes: RepNote[]; hedged: boolean } {
+/** The word around the league on a coach as a teacher: only the ends of the scale earn a tag. */
+export function coachRep(c: Pick<Coach, 'youth' | 'veterans'>): RepNote[] {
   const notes: RepNote[] = [];
-  const y = reads.youth.value;
-  const v = reads.veterans.value;
+  const y = c.youth;
+  const v = c.veterans;
   if (y >= 15) notes.push({ label: 'Teacher', tone: 'good', line: 'Young players grow under him.' });
   else if (y <= 6) notes.push({ label: 'Not a teacher', tone: 'warn', line: 'Young players stall under him.' });
   if (v >= 15) notes.push({ label: 'Keeps vets going', tone: 'good', line: 'Veterans hold up longer under him.' });
   else if (v <= 6) notes.push({ label: 'Hard on vets', tone: 'warn', line: 'Veterans fade sooner under him.' });
-  return { notes, hedged: !reads.youth.exact };
+  return notes;
 }
 
 // ───────── who is on the staff ─────────

@@ -77,8 +77,7 @@ import {
   type RoomCount,
 } from '../coaching';
 import { band, money, ordinal, PHASE_LABELS } from '../format';
-import { rosterFit, StaffSkill } from '../scouting';
-import { coachReads, seenCoach, type StaffRead } from '../../engine/scouting';
+import { rosterFit, StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
 import { moveIndex, MoveText } from '../moves';
 
@@ -130,9 +129,6 @@ function Trend({ age }: { age: number }) {
   return <span className={t === 'Rising' ? 'tone-good' : t === 'Declining' ? 'tone-bad' : 'muted'}>{t}</span>;
 }
 
-/** What hiring him would do, worked out from your read of him, never his true ratings. */
-const previewHire = (league: League, teamId: number, c: Coach, years: number) => previewCoachHire(league, teamId, c, years, seenCoach(league, teamId, c));
-
 /** Both public ratings as a phrase: "Youth 15 · Veteran care 9", banded like every other rating. */
 function Rates({ c }: { c: Pick<Coach, 'youth' | 'veterans'> }) {
   return (
@@ -165,21 +161,20 @@ const STYLE_TIP: Record<string, string> = {
 const BALANCED: Partial<Record<CoachRole, string>> = { headCoach: 'Balanced on 4th down', offCoord: 'Balanced play-calling', defCoord: 'Balanced defense' };
 
 /**
- * A coach in a few tags: the word around the league on him as a teacher (from your read of him, dashed while
- * it's only a read), then how he calls or builds a game where it stands out: the head coach's fourth downs,
- * the offensive coordinator's run or pass, the defensive coordinator's pressure and coverage.
+ * A coach in a few tags: the word around the league on him as a teacher, then how he calls or builds a game
+ * where it stands out: the head coach's fourth downs, the offensive coordinator's run or pass, the defensive
+ * coordinator's pressure and coverage.
  */
-function CoachTags({ league, c }: { league: League; c: Coach }) {
-  const rep = coachRep(coachReads(league, league.userTeamId, c));
+function CoachTags({ c }: { c: Coach }) {
+  const rep = coachRep(c);
   const style = c.role === 'defCoord' ? defenseNotes(c) : c.role === 'headCoach' || c.role === 'offCoord' ? styleNotes(c.style) : [];
   const balanced = !style.length ? BALANCED[c.role] : undefined;
-  if (!rep.notes.length && !style.length && !balanced) return null;
+  if (!rep.length && !style.length && !balanced) return null;
   return (
     <span className="pill-row">
-      {rep.notes.map((n) => (
-        <TipPill key={n.label} className={`${n.tone === 'good' ? 'tag-good' : 'tag-warn'}${rep.hedged ? ' tag-early' : ''}`} tip={rep.hedged ? `Word around the league: ${n.line}` : n.line}>
+      {rep.map((n) => (
+        <TipPill key={n.label} className={n.tone === 'good' ? 'tag-good' : 'tag-warn'} tip={n.line}>
           {n.label}
-          {rep.hedged && <span className="visually-hidden"> (word around the league)</span>}
         </TipPill>
       ))}
       {style.map((n) => (
@@ -270,7 +265,6 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
   const nav = useNav();
   const team = c.teamId !== null ? league.teams[c.teamId] : null;
   const coached = coachRecord(league, c).seasons.length > 0;
-  const reads = coachReads(league, league.userTeamId, c);
   return (
     <Sheet
       label={coachName(c)}
@@ -290,8 +284,8 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
       }
     >
       <div className="facts">
-        <StaffSkill label="Youth development" value={reads.youth} />
-        <StaffSkill label="Veteran care" value={reads.veterans} />
+        <StaffSkill label="Youth development" value={c.youth} />
+        <StaffSkill label="Veteran care" value={c.veterans} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -316,7 +310,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
         )}
       </div>
       <SchemeRow league={league} c={c} preview={c.teamId === null} />
-      <CoachTags league={league} c={c} />
+      <CoachTags c={c} />
       <p className="muted small" style={{ margin: 0 }}>
         {ROLE_LINE[c.role]}
       </p>
@@ -340,7 +334,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
       {c.teamId === null && (
         <Section id="staff-hire" title="If you hire him">
           <div className="small staff-preview">
-            {previewLines(previewHire(league, league.userTeamId, c, 2)).map((l) => (
+            {previewLines(previewCoachHire(league, league.userTeamId, c, 2)).map((l) => (
               <span key={l.words} className="preview-line">
                 {l.numbers ? <Exact numbers={l.numbers}>{l.words}</Exact> : l.words}
               </span>
@@ -430,7 +424,6 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
   const extendProblem = expiring ? coachMoveProblem(league, teamId, c, 'extend', term) : null;
   const pay = coachSeverance(league, c);
   const why = expiring ? extendProblem : releaseProblem;
-  const reads = coachReads(league, teamId, c);
   const taker = expiring ? replaces(league, teamId, c) : null;
   const ask2 = coachAsk(league, c, 2);
   return (
@@ -443,8 +436,8 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
         {expiring && <span className="tag-pill tag-warn">Deal up</span>}
       </div>
       <div className="facts">
-        <StaffSkill label="Youth development" value={reads.youth} />
-        <StaffSkill label="Veteran care" value={reads.veterans} />
+        <StaffSkill label="Youth development" value={c.youth} />
+        <StaffSkill label="Veteran care" value={c.veterans} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -459,7 +452,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
         </span>
       </div>
       <SchemeRow league={league} c={c} compact />
-      <CoachTags league={league} c={c} />
+      <CoachTags c={c} />
       {expiring ? (
         <>
           <p className="small staff-note">
@@ -692,7 +685,6 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
       replaceRef.current?.focus();
     }
   }, [confirming]);
-  const reads = coachReads(league, teamId, c);
   // Hiring now can cost an expiring man his re-signing: his chair or his money goes to the new hire.
   const pushed = problem ? [] : coachesPushedOutBy(league, teamId, c, term);
   const announce = useContext(Announce);
@@ -714,8 +706,8 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
         </div>
       </div>
       <div className="facts">
-        <StaffSkill label="Youth development" value={reads.youth} />
-        <StaffSkill label="Veteran care" value={reads.veterans} />
+        <StaffSkill label="Youth development" value={c.youth} />
+        <StaffSkill label="Veteran care" value={c.veterans} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -732,7 +724,7 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
         </span>
       </div>
       <SchemeRow league={league} c={c} compact />
-      <CoachTags league={league} c={c} />
+      <CoachTags c={c} />
       {holder && (
         <p className="small staff-why muted">
           {/* The ratings box wraps as a unit, so no bracket is left dangling at the end of a line. */}
@@ -794,12 +786,11 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
 
 // ───────── around the league ─────────
 
-/** "12 / 9", or "9–13 / 7–11" when it's your read of another club's man. */
-function ReadPair({ reads }: { reads: ReturnType<typeof coachReads> }) {
-  const one = (r: StaffRead) => <b className={band(r.value)}>{r.exact ? r.value : `${r.lo}–${r.hi}`}</b>;
+/** "12 / 9": youth development / veteran care, for a table. */
+function RatePair({ c }: { c: Coach }) {
   return (
     <span className="small muted num">
-      {one(reads.youth)} / {one(reads.veterans)}
+      <StaffNum value={c.youth} /> / <StaffNum value={c.veterans} />
     </span>
   );
 }
@@ -809,9 +800,9 @@ function Rival({ league, c }: { league: League; c: Coach | null }) {
   return (
     <span className="lc-cell">
       <CoachLink c={c} />
-      <ReadPair reads={coachReads(league, league.userTeamId, c)} />
+      <RatePair c={c} />
       <SchemeRow league={league} c={c} compact />
-      <CoachTags league={league} c={c} />
+      <CoachTags c={c} />
     </span>
   );
 }
@@ -861,7 +852,7 @@ export function CoachesScreen({ league }: { league: League }) {
   // What's really left once the deals that are up re-sign, as they will unless let go.
   const left = coachRoomAfterResigns(league, teamId);
   const dead = coachSeverancePaid(league, teamId);
-  const grades = coachingGrades(league, (c) => seenCoach(league, teamId, c));
+  const grades = coachingGrades(league);
   const mineGrade = grades.get(teamId)!;
   const dueCount = mine.filter((c) => isCoachExpiring(league, c)).length;
   const pct = budget > 0 ? Math.min(100, Math.max(0, (payroll / budget) * 100)) : 100;
@@ -921,7 +912,7 @@ export function CoachesScreen({ league }: { league: League }) {
           return { c, holder, problem: holder ? replaceProblem(league, teamId, c, 2) : coachMoveProblem(league, teamId, c, 'hire', 2) };
         })
         .filter((x) => !x.problem)
-        .map((x) => ({ ...x, changes: previewHire(league, teamId, x.c, 2) }))
+        .map((x) => ({ ...x, changes: previewCoachHire(league, teamId, x.c, 2) }))
         .map((x) => ({ ...x, score: gainScore(x.changes, counts) }))
         .sort((a, b) => b.score - a.score)[0];
       step =
@@ -942,7 +933,7 @@ export function CoachesScreen({ league }: { league: League }) {
   // ── candidates ──
   const wanted = coachMarket(league).filter((c) => ROLES_OF[tab].includes(c.role) && (tab !== 'position' || room === 'any' || c.room === room) && (tab !== 'coord' || side === 'both' || c.role === side));
   const ranked = wanted
-    .map((c) => ({ c, score: sort === 'roster' ? gainScore(previewHire(league, teamId, c, 2), counts) : 0, value: coachValue(seenCoach(league, teamId, c)) }))
+    .map((c) => ({ c, score: sort === 'roster' ? gainScore(previewCoachHire(league, teamId, c, 2), counts) : 0, value: coachValue(c) }))
     .sort((a, b) => b.score - a.score || b.value - a.value);
   const candidates = sort === 'roster' ? ranked : [...ranked].sort((a, b) => b.value - a.value);
   const shown = showAll ? candidates : candidates.slice(0, LIMIT);
@@ -1162,11 +1153,12 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
     .slice(-12)
     .reverse();
   const names = moveIndex(league);
+  const [open, setOpen] = useState<number | null>(null);
   return (
     <Panel>
       <details className="more">
         <summary>Around the league: how all {league.teams.length} coaching staffs grade</summary>
-        <p className="muted small">Ratings are youth development / veteran care: exact for anyone who has coached for you, otherwise your read of him.</p>
+        <p className="muted small">Ratings are youth development / veteran care.</p>
         <RoleGuide roles={['headCoach', 'offCoord', 'defCoord']} />
         <div className="table-scroll">
           <table className="league-grades league-coaches">
@@ -1183,20 +1175,24 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
             <tbody>
               {[...grades]
                 .sort((a, b) => a[1].rank - b[1].rank)
-                .map(([id, g]) => {
+                .flatMap(([id, g]) => {
                   const t = league.teams[id];
                   const staff = teamCoaches(league, id);
-                  return (
+                  const row = (
                     <tr key={id} className={id === teamId ? 'me' : undefined}>
                       <td className="num">{g.rank}</td>
                       <td className="sticky-col">
-                        <span className="team-inline">
+                        {/* Tap a team for the rest of its staff: position coaches and S&C. */}
+                        <button className="linklike team-inline" aria-expanded={open === id} onClick={() => setOpen(open === id ? null : id)}>
                           <TeamChip team={t} />
                           <span>
                             <span className="team-name">{t.name}</span>
                             {id === teamId && <span className="tag-pill">You</span>}
                           </span>
-                        </span>
+                          <span className="muted" aria-hidden="true">
+                            {open === id ? '▴' : '▾'}
+                          </span>
+                        </button>
                       </td>
                       <td>
                         <span className={`grade grade-${g.grade}`}>{g.grade}</span>
@@ -1212,6 +1208,27 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
                       </td>
                     </tr>
                   );
+                  if (open !== id) return [row];
+                  const rest = CHAIRS.filter((ch) => !LEADERSHIP.some((l) => sameChair(l, ch)));
+                  return [
+                    row,
+                    <tr key={`${id}-staff`} className="team-staff-row">
+                      <td colSpan={6}>
+                        <ul className="team-staff">
+                          {rest.map((ch) => {
+                            const c = chairHolder(staff, ch);
+                            return (
+                              <li key={`${ch.role}-${ch.room ?? ''}`}>
+                                {c ? <CoachLink c={c} /> : <span className="tone-bad">Vacant</span>}
+                                <span className="muted small">{coachTitle(ch)}</span>
+                                {c && <RatePair c={c} />}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </td>
+                    </tr>,
+                  ];
                 })}
             </tbody>
           </table>

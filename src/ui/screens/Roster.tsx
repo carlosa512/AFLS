@@ -6,7 +6,7 @@ import { capSheet } from '../../engine/finance/cap';
 import { capHit, lastSeason } from '../../engine/finance/contract';
 import { buildAutoDepthChart, isAvailable, teamPlayers, teamRatings } from '../../engine/roster';
 import { computeRecords } from '../../engine/season/standings';
-import type { Coach, League, Player, Position, StatLine } from '../../engine/types';
+import type { Coach, League, Player, Position, StatLine, Team } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerAvatar, SortTh, sortRows, TeamChip, useSort } from '../components';
@@ -86,11 +86,23 @@ function SchemeStrip({ league, teamId, scheme }: { league: League; teamId: numbe
   );
 }
 
-/** Move a player within his position group; any manual move turns auto-sort off. */
+/**
+ * A position's depth as the screen shows it. An auto-sorted chart puts the hurt behind the healthy, keeping
+ * their order: that's who the lineup plays, since it skips anyone unavailable. The chart itself is left as it
+ * is (the line's spots are given out from it), so the view changes no game.
+ */
+function shownDepth(league: League, team: Team, pos: Position): number[] {
+  const ids = team.depthChart[pos];
+  if (!team.autoDepth) return ids;
+  const ok = (id: number) => !league.players[id] || isAvailable(league.players[id]);
+  return [...ids.filter(ok), ...ids.filter((id) => !ok(id))];
+}
+
+/** Move a player within his position group as the screen shows it; any manual move turns auto-sort off. */
 function moveInDepth(teamId: number, pos: Position, from: number, to: number) {
   store.mutate((l) => {
     const team = l.teams[teamId];
-    const list = team.depthChart[pos];
+    const list = shownDepth(l, team, pos);
     if (to < 0 || to >= list.length || to === from) return;
     team.autoDepth = false;
     team.depthChart[pos] = reorder(list, from, to);
@@ -244,7 +256,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
     refocus.current = null;
   });
   const keyMove = (p: Player, index: number, to: number) => {
-    const count = team.depthChart[p.position].length;
+    const count = shownDepth(league, team, p.position).length;
     if (to < 0 || to >= count) return;
     moveInDepth(teamId, p.position, index, to);
     refocus.current = p.id;
@@ -368,7 +380,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                   sort,
                   (p, key) => rosterSortValue(league, p, key),
                 ).map((p) => {
-                  const ids = team.depthChart[p.position];
+                  const ids = shownDepth(league, team, p.position);
                   return (
                     <RosterRow
                       key={p.id}
@@ -387,7 +399,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                 })}
               {grouped && POSITIONS.map((pos) => {
                 // While dragging, show the order the drop would produce.
-                const ids = drag?.pos === pos ? reorder(team.depthChart[pos], drag.from, drag.over) : team.depthChart[pos];
+                const ids = drag?.pos === pos ? reorder(shownDepth(league, team, pos), drag.from, drag.over) : shownDepth(league, team, pos);
                 return [
                   <tr className="group-row" key={`g-${pos}`}>
                     <td colSpan={10}>
@@ -399,7 +411,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                   ...ids.map((id, i) => {
                     const p = league.players[id] ?? players.find((x) => x.id === id);
                     if (!p) return null;
-                    const committed = team.depthChart[pos].indexOf(id);
+                    const committed = shownDepth(league, team, pos).indexOf(id);
                     return (
                       <RosterRow
                         key={id}

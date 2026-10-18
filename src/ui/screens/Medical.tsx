@@ -4,7 +4,7 @@
  * player's injury proneness stays a word (see ui/injuries.tsx).
  */
 import { useState } from 'react';
-import { injuryLabel, estimateText, weeksLeft } from '../../engine/injuries';
+import { injuryLabel, estimateText, SEVERITY_LABEL, weeksLeft } from '../../engine/injuries';
 import {
   conditionBonus,
   departmentFor,
@@ -35,13 +35,12 @@ import {
 } from '../../engine/medical';
 import { teamPlayers } from '../../engine/roster';
 import { staffWindowOpen } from '../../engine/staff';
-import type { League, Medic, MedicRole } from '../../engine/types';
+import type { InjuryRecord, League, Medic, MedicRole, Player } from '../../engine/types';
 import { useNav } from '../App';
-import { Exact, Panel, PlayerAvatar, Section, Sheet, TeamChip } from '../components';
-import { money, ordinal, verdict, type Verdict } from '../format';
+import { Exact, GradesTable, Panel, PlayerAvatar, Section, Sheet, TeamChip } from '../components';
+import { money, ordinal, resultsSeason, verdict, type Verdict } from '../format';
 import { conditionTone, InjuryTag } from '../injuries';
-import { StaffSkill } from '../scouting';
-import { medicReads, seenMedic } from '../../engine/scouting';
+import { StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
 
 const TERMS = [1, 2, 3];
@@ -157,10 +156,9 @@ const MEDIC_ROLE_LINE: Record<MedicRole, string> = {
   scientist: 'Runs load management: the biggest say in soft-tissue injuries and how fast players get their legs back.',
 };
 
-/** What hiring `m` would do to your department, from your read of him, in words with the ratings for the tap. */
+/** What hiring `m` would do to your department, in words with the ratings for the tap. */
 function hirePreview(league: League, teamId: number, m: Medic): { words: string; numbers: string } | null {
-  // His true ratings stay his old club's secret.
-  const { from, to } = previewMedicHire(league, teamId, seenMedic(league, teamId, m));
+  const { from, to } = previewMedicHire(league, teamId, m);
   const change = (label: string, a: number, b: number) => (Math.abs(b - a) >= 0.05 ? `${label} ${a.toFixed(1)} → ${b.toFixed(1)}` : null);
   const numbers = [change('physiotherapy', from.physio, to.physio), change('sports science', from.science, to.science)].filter(Boolean).join(', ');
   if (!numbers) return null;
@@ -173,11 +171,10 @@ function hirePreview(league: League, teamId: number, m: Medic): { words: string;
   return { words: `Your department: ${words.join(', ')}.`, numbers: `Department ${numbers}` };
 }
 
-/** A medic's full card: your read of him, what his chair does, his last job, and for one on the market, what hiring him would change. */
+/** A medic's full card: his ratings, what his chair does, his last job, and for one on the market, what hiring him would change. */
 export function MedicCard({ league, medic: m, onClose }: { league: League; medic: Medic; onClose: () => void }) {
   const teamId = league.userTeamId;
   const team = m.teamId !== null ? league.teams[m.teamId] : null;
-  const reads = medicReads(league, teamId, m);
   const preview = m.teamId === null ? hirePreview(league, teamId, m) : undefined;
   return (
     <Sheet
@@ -198,8 +195,8 @@ export function MedicCard({ league, medic: m, onClose }: { league: League; medic
       }
     >
       <div className="facts">
-        <StaffSkill label="Physiotherapy" value={reads.physio} />
-        <StaffSkill label="Sports science" value={reads.science} />
+        <StaffSkill label="Physiotherapy" value={m.physio} />
+        <StaffSkill label="Sports science" value={m.science} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -234,7 +231,6 @@ function Candidate({ league, m, open }: { league: League; m: Medic; open: boolea
   const teamId = league.userTeamId;
   const [years, setYears] = useState(2);
   const problem = medicMoveProblem(league, teamId, m, 'hire', years);
-  const reads = medicReads(league, teamId, m);
   return (
     <li className="staff-card">
       <div className="staff-head">
@@ -244,8 +240,8 @@ function Candidate({ league, m, open }: { league: League; m: Medic; open: boolea
         </div>
       </div>
       <div className="facts">
-        <StaffSkill label="Physiotherapy" value={reads.physio} />
-        <StaffSkill label="Sports science" value={reads.science} />
+        <StaffSkill label="Physiotherapy" value={m.physio} />
+        <StaffSkill label="Sports science" value={m.science} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -341,7 +337,181 @@ function InjuryReport({ league }: { league: League }) {
   );
 }
 
+/**
+ * Injuries around the league. An injury, its estimate and a player's history are public, so every club's
+ * hurt players show, with the doctor's estimate and never the real layoff (the longest are ranked by the
+ * estimate too). Who's banged up, then everyone out now, then the season's log.
+ */
+function LeagueInjuries({ league }: { league: League }) {
+  const nav = useNav();
+  const [only, setOnly] = useState<number | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const season = resultsSeason(league);
+  const players = Object.values(league.players).filter((p) => !p.retired);
+  const out = players.filter((p) => p.teamId !== null && (p.injury || p.ir));
+  const log = players
+    .flatMap((p) => (p.injuries ?? []).filter((r) => r.season === season).map((r) => ({ p, r })))
+    .sort((a, b) => b.r.week - a.r.week);
+  const byTeam = league.teams
+    .map((t) => ({
+      t,
+      out: out.filter((p) => p.teamId === t.id && !(p.injury?.injected ?? false)).length,
+      ir: out.filter((p) => p.teamId === t.id && p.ir).length,
+      season: log.filter((x) => x.p.teamId === t.id).length,
+    }))
+    .sort((a, b) => b.out - a.out || b.season - a.season);
+  const shown = out
+    .filter((p) => only === null || p.teamId === only)
+    .sort((a, b) => (b.injury?.estimate[1] ?? 0) - (a.injury?.estimate[1] ?? 0));
+  const LIMIT = 15;
+  const name = (p: Player) => (
+    <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
+      <PlayerAvatar player={p} team={p.teamId !== null ? league.teams[p.teamId] : null} size={26} />
+      <span>
+        {p.position} {p.firstName} {p.lastName}
+      </span>
+    </button>
+  );
+  const when = (r: InjuryRecord) => (r.week ? `Week ${r.week}` : 'Offseason');
+  return (
+    <>
+      <Panel title="Who's banged up">
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Players out now (playing through it on injections doesn't count), on injured reserve, and hurt this {season} season. Tap a team to see its injuries.
+        </p>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th className="sticky-col">Team</th>
+                <th className="num">Out now</th>
+                <th className="num">On IR</th>
+                <th className="num">Season</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byTeam.map(({ t, out: n, ir, season: total }) => (
+                <tr key={t.id} className={`clickable${t.id === league.userTeamId ? ' is-user' : ''}`} onClick={() => setOnly(only === t.id ? null : t.id)}>
+                  <td className="sticky-col">
+                    <span className="team-inline">
+                      <TeamChip team={t} />
+                      <span>{t.name}</span>
+                    </span>
+                  </td>
+                  <td className={`num${n >= 6 ? ' tone-bad' : ''}`}>{n}</td>
+                  <td className="num">{ir}</td>
+                  <td className="num">{total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      <Panel
+        title={only === null ? 'Out around the league' : `Out: ${league.teams[only].city} ${league.teams[only].name}`}
+        action={
+          only !== null ? (
+            <button className="btn btn-sm btn-ghost" onClick={() => setOnly(null)}>
+              Every team
+            </button>
+          ) : undefined
+        }
+      >
+        {shown.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>
+            Nobody is hurt.
+          </p>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th className="sticky-col">Player</th>
+                  {only === null && <th>Team</th>}
+                  <th>Injury</th>
+                  <th>Outlook</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(showAll ? shown : shown.slice(0, LIMIT)).map((p) => (
+                  <tr key={p.id}>
+                    <td className="sticky-col">{name(p)}</td>
+                    {only === null && <td>{league.teams[p.teamId!].abbrev}</td>}
+                    <td>
+                      {p.injury ? injuryLabel(p.injury.type) : 'Healed'}
+                      <InjuryTag league={league} p={p} />
+                    </td>
+                    <td className="muted small">{p.injury ? (p.injury.injected ? 'Playing through it' : estimateText(p.injury, weeksLeft(league))) : 'Ready to come off reserve'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {shown.length > LIMIT && (
+          <button className="btn btn-sm btn-ghost" style={{ marginTop: 10 }} onClick={() => setShowAll(!showAll)}>
+            {showAll ? `Show the longest ${LIMIT}` : `Show all ${shown.length}`}
+          </button>
+        )}
+      </Panel>
+
+      <Panel title={`${season} injury log`}>
+        <details className="more">
+          <summary>
+            {log.length} injur{log.length === 1 ? 'y' : 'ies'} this season, newest first
+          </summary>
+          <div className="table-scroll">
+            <table className="injury-history">
+              <thead>
+                <tr>
+                  <th className="sticky-col">Player</th>
+                  <th>When</th>
+                  <th>Injury</th>
+                  <th className="num">Out</th>
+                </tr>
+              </thead>
+              <tbody>
+                {log.slice(0, 200).map(({ p, r }, i) => (
+                  <tr key={`${p.id}-${i}`}>
+                    <td className="sticky-col">{name(p)}</td>
+                    <td className="num">{when(r)}</td>
+                    <td>
+                      {injuryLabel(r.type)} <span className="muted small">· {SEVERITY_LABEL[r.severity]}</span>
+                    </td>
+                    <td className="num">{r.weeks >= 30 ? 'season+' : `${r.weeks} wk`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {log.length > 200 && <p className="muted small">The 200 most recent are shown.</p>}
+        </details>
+      </Panel>
+    </>
+  );
+}
+
 export function MedicalScreen({ league }: { league: League }) {
+  const [view, setView] = useState<'team' | 'league'>('team');
+  return (
+    <>
+      <div>
+        <div className="seg" role="group" aria-label="Medical view">
+          <button aria-pressed={view === 'team'} onClick={() => setView('team')}>
+            Your department
+          </button>
+          <button aria-pressed={view === 'league'} onClick={() => setView('league')}>
+            League injuries
+          </button>
+        </div>
+      </div>
+      {view === 'team' ? <Department league={league} /> : <LeagueInjuries league={league} />}
+    </>
+  );
+}
+
+function Department({ league }: { league: League }) {
   const teamId = league.userTeamId;
   const open = staffWindowOpen(league);
   const mine = [...teamMedics(league, teamId)].sort((a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role) || medicValue(b) - medicValue(a));
@@ -349,7 +519,23 @@ export function MedicalScreen({ league }: { league: League }) {
   const [showAll, setShowAll] = useState(false);
   const dept = departmentFor(league, teamId);
   const e = effects(dept);
-  const grades = medicalGrades(league, (m) => seenMedic(league, teamId, m));
+  const grades = medicalGrades(league);
+  // Another club's department.
+  const staffOf = (id: number) => (
+    <ul className="team-staff">
+      {[...teamMedics(league, id)]
+        .sort((a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role))
+        .map((m) => (
+          <li key={m.id}>
+            <MedicLink m={m} />
+            <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
+            <span className="small">
+              Physiotherapy <StaffNum value={m.physio} /> · Sports science <StaffNum value={m.science} />
+            </span>
+          </li>
+        ))}
+    </ul>
+  );
   const mineGrade = grades.get(teamId)!;
   const payroll = medicalPayroll(league, teamId);
   const budget = medicalBudget(league, teamId);
@@ -358,9 +544,7 @@ export function MedicalScreen({ league }: { league: League }) {
   const vacancies = MEDIC_ROLES.flatMap((r) => Array.from({ length: Math.max(0, MEDIC_SLOTS[r] - mine.filter((m) => m.role === r).length) }, () => r));
   const candidates = medicMarket(league)
     .filter((m) => m.role === role)
-    .map((m) => ({ m, value: medicValue(seenMedic(league, teamId, m)) }))
-    .sort((a, b) => b.value - a.value)
-    .map((x) => x.m);
+    .sort((a, b) => medicValue(b) - medicValue(a));
   const LIMIT = 6;
   const shown = showAll ? candidates : candidates.slice(0, LIMIT);
 
@@ -460,7 +644,7 @@ export function MedicalScreen({ league }: { league: League }) {
         }
       >
         <p className="muted small" style={{ marginTop: 0 }}>
-          Best first, by your read of each. Physios carry most of the rehab, the sports scientist most of the prevention, the head doctor both and the diagnosis. Tap a name to see what he would change in your department.
+          Best first. Physios carry most of the rehab, the sports scientist most of the prevention, the head doctor both and the diagnosis. Tap a name to see what he would change in your department.
         </p>
         {candidates.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
@@ -485,41 +669,7 @@ export function MedicalScreen({ league }: { league: League }) {
       <Panel>
         <details className="more">
           <summary>Around the league: how all {league.teams.length} medical staffs grade</summary>
-          <div className="table-scroll">
-            <table className="league-grades">
-              <thead>
-                <tr>
-                  <th className="num">Rank</th>
-                  <th>Team</th>
-                  <th>Grade</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...grades]
-                  .sort((a, b) => a[1].rank - b[1].rank)
-                  .map(([id, g]) => {
-                    const t = league.teams[id];
-                    return (
-                      <tr key={id} className={id === teamId ? 'me' : undefined}>
-                        <td className="num">{g.rank}</td>
-                        <td>
-                          <span className="team-inline">
-                            <TeamChip team={t} />
-                            <span>
-                              {t.city} {t.name}
-                              {id === teamId && <span className="tag-pill">You</span>}
-                            </span>
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`grade grade-${g.grade}`}>{g.grade}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
+          <GradesTable league={league} grades={grades} staffOf={staffOf} />
         </details>
       </Panel>
     </>

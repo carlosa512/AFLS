@@ -453,9 +453,8 @@ export function ensureMedical(league: League, opts: { autoUser?: boolean } = {})
 export const departmentScore = (d: Department) => 0.5 * d.physio + 0.5 * d.science;
 
 /** Letter grade by rank among the 32 departments: A top 3, B next 6, C middle 14, D next 6, F bottom 3. */
-/** `see` is how a screen's team reads other clubs' medics (`seenMedic`), so a ranking never leaks their true ratings. */
-export function medicalGrades(league: League, see: (m: Medic) => Medic = (m) => m): Map<number, { rank: number; grade: string }> {
-  const ranked = league.teams.map((t) => ({ id: t.id, score: departmentScore(departmentOf(teamMedics(league, t.id).map(see))) })).sort((a, b) => b.score - a.score);
+export function medicalGrades(league: League): Map<number, { rank: number; grade: string }> {
+  const ranked = league.teams.map((t) => ({ id: t.id, score: departmentScore(departmentFor(league, t.id)) })).sort((a, b) => b.score - a.score);
   return new Map(ranked.map((x, i) => [x.id, { rank: i + 1, grade: i < 3 ? 'A' : i < 9 ? 'B' : i < 23 ? 'C' : i < 29 ? 'D' : 'F' }]));
 }
 

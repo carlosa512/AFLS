@@ -17,7 +17,7 @@ import { activeQuirks, formingQuirks, QUIRKS, type QuirkId, type QuirkTone } fro
 import { clamp, Rng } from './rng';
 import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
 import { TEMPER_POSITIONS, TRAIT_MEAN } from './traits';
-import type { Attribute, Coach, Combine, League, Medic, Player, Position, Ratings, Staff, Traits } from './types';
+import type { Attribute, Combine, League, Player, Position, Ratings, Traits } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
 /** Scouting visits a front office gets per league year. */
@@ -770,59 +770,4 @@ export function generateCombine(p: Player): Combine {
   if (!skips[4]) c.shuttle = round(clamp(shuttle - 0.025 * da + 0.05 * noise[6], 3.85, 5.1), 0.01);
   if (!skips[5]) c.cone = round(clamp(cone - 0.04 * da + 0.08 * noise[7], 6.4, 8.4), 0.01);
   return c;
-}
-
-// ───────── staff reads ─────────
-
-/** What a team believes one of a staff member's 1–20 ratings is: exact, or a range that holds the truth. */
-export interface StaffRead extends RatingView {
-  exact: boolean;
-}
-
-/**
- * A team's read of one staff rating. Its own people are exact (it works with them every day), and so is
- * anyone who has coached for it. Anyone else is a range that always holds the truth, at a spot seeded per
- * team and person so it never moves between screens; `seasons` of public record (a coach's career) narrow it.
- */
-export function readStaff(league: League, teamId: number, kind: 'coach' | 'scout' | 'medic', id: number, key: string, value: number, known: boolean, seasons = 0): StaffRead {
-  if (known) return { value, lo: value, hi: value, exact: true };
-  // Three seasons of results take a point off each side: ±3 for an unknown, ±1 for a long career.
-  const half = Math.max(1, 3 - Math.floor(seasons / 3));
-  const span = 2 * half;
-  let lo = value - Math.floor(new Rng(`${league.seed}:staff:${teamId}:${kind}:${id}:${key}`).next() * (span + 1));
-  lo = clamp(lo, 1, 20 - span);
-  return { value: Math.round(lo + half), lo, hi: lo + span, exact: false };
-}
-
-const coachKnown = (teamId: number, c: Coach) => c.teamId === teamId || !!c.career?.some((s) => s.teamId === teamId);
-
-export const coachReads = (league: League, teamId: number, c: Coach) => ({
-  youth: readStaff(league, teamId, 'coach', c.id, 'youth', c.youth, coachKnown(teamId, c), c.career?.length),
-  veterans: readStaff(league, teamId, 'coach', c.id, 'veterans', c.veterans, coachKnown(teamId, c), c.career?.length),
-});
-export const scoutReads = (league: League, teamId: number, s: Staff) => ({
-  evaluation: readStaff(league, teamId, 'scout', s.id, 'evaluation', s.evaluation, s.teamId === teamId),
-  projection: readStaff(league, teamId, 'scout', s.id, 'projection', s.projection, s.teamId === teamId),
-});
-export const medicReads = (league: League, teamId: number, m: Medic) => ({
-  physio: readStaff(league, teamId, 'medic', m.id, 'physio', m.physio, m.teamId === teamId),
-  science: readStaff(league, teamId, 'medic', m.id, 'science', m.science, m.teamId === teamId),
-});
-
-/**
- * The staff member as `teamId` sees him: his ratings swapped for the middle of its reads. Everything a screen
- * works out about someone else's people (a hire preview, a ranking, a sort) goes through these, so the true
- * rating never reaches it. The engine's own decisions keep the real man.
- */
-export function seenCoach(league: League, teamId: number, c: Coach): Coach {
-  const r = coachReads(league, teamId, c);
-  return r.youth.exact ? c : { ...c, youth: (r.youth.lo + r.youth.hi) / 2, veterans: (r.veterans.lo + r.veterans.hi) / 2 };
-}
-export function seenScout(league: League, teamId: number, s: Staff): Staff {
-  const r = scoutReads(league, teamId, s);
-  return r.evaluation.exact ? s : { ...s, evaluation: (r.evaluation.lo + r.evaluation.hi) / 2, projection: (r.projection.lo + r.projection.hi) / 2 };
-}
-export function seenMedic(league: League, teamId: number, m: Medic): Medic {
-  const r = medicReads(league, teamId, m);
-  return r.physio.exact ? m : { ...m, physio: (r.physio.lo + r.physio.hi) / 2, science: (r.science.lo + r.science.hi) / 2 };
 }
