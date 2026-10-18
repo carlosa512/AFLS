@@ -47,6 +47,7 @@ describe('weather', () => {
     expect(severity(day({ windMph: 18 }))).toBe('moderate');
     expect(severity(day({ windMph: 20 }))).toBe('heavy');
     expect(severity(day({ tempF: 15 }))).toBe('moderate');
+    expect(severity(day({ windMph: 22, altitudeFt: 5280 }))).toBe('heavy');
     expect(severity(day({ tempF: 40, precip: 'rain' }))).toBe('moderate');
   });
 

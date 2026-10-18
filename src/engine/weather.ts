@@ -215,7 +215,8 @@ const SEVERITIES: Severity[] = ['none', 'light', 'moderate', 'heavy'];
  */
 export function severity(w: Weather): Severity {
   const level = (x: Weather) => {
-    const { pass, kick } = weatherCost(x);
+    // Thin air helps kicks; it doesn't make a gale any milder.
+    const { pass, kick } = weatherCost({ ...x, altitudeFt: 0 });
     return pass >= 0.199 || kick >= 7.5 ? 3 : pass >= 0.079 ? 2 : pass >= 0.029 ? 1 : 0;
   };
   return SEVERITIES[Math.max(level(weatherAt(w, 1)), level(weatherAt(w, 4)))];

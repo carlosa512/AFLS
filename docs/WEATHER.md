@@ -12,7 +12,7 @@
 > 1991–2020 normals; Newark and San Jose wind still approximate). Checked by `npm run weather`.
 >
 > Stamina: this branch has no per-player energy, so the toll only shortens how long a defensive front
-> lasts on a drive (it shows through the gassed and high-motor quirks). The injury system's per-snap
+> lasts on a drive (it shows only through the gassed quirk). The injury system's per-snap
 > energy cost should multiply by `staminaDrain(weather, home)`; heat then reaches the condition-based
 > injury risk as §7F intends.
 >

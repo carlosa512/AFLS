@@ -123,7 +123,8 @@ for (const [chance, b] of [...buckets].sort((a, b) => a[0] - b[0])) {
 }
 info('true temp inside the shown range %', ((100 * inTemp) / shown).toFixed(1));
 check('outdoor games under a storm front %', (100 * fronts.storm[0]) / (fronts.storm[0] + fronts.quiet[0]), [20, 30], 1);
-info('wet games, storm / quiet weeks %', `${((100 * fronts.storm[1]) / fronts.storm[0]).toFixed(1)} / ${((100 * fronts.quiet[1]) / fronts.quiet[0]).toFixed(1)}`);
+// By construction a front makes a wet game STORM_WET / calm(STORM_WET) = 3 times as likely as a quiet week.
+check('wet games, storm ÷ quiet weeks', fronts.storm[1] / fronts.storm[0] / (fronts.quiet[1] / fronts.quiet[0]), [2.5, 3.5]);
 
 // ───────── effects ─────────
 

@@ -83,10 +83,9 @@ export function weatherText(w: Weather): string {
   if (w.roof === 'dome') return 'Indoors';
   if (w.roof === 'closed') return 'Roof closed';
   const fall = w.heavy ? `Heavy ${PRECIP[w.precip].toLowerCase()}` : PRECIP[w.precip];
-  const when = w.onset ? ` in the ${ordinal(w.onset)} quarter` : '';
   // An open roof shuts when rain comes, so the rain itself never reaches the field.
-  const sky = w.precip === 'none' ? [] : w.roof === 'open' ? [] : [w.onset ? `${fall} from the ${ordinal(w.onset)} quarter` : fall];
-  const roof = w.roof !== 'open' ? [] : w.onset ? [`roof closed for ${PRECIP[w.precip].toLowerCase()}${when}`] : ['roof open'];
+  const sky = w.precip === 'none' || w.roof === 'open' ? [] : [w.onset ? `${fall} from the ${ordinal(w.onset)} quarter` : fall];
+  const roof = w.roof !== 'open' ? [] : [w.onset ? `roof closed for ${PRECIP[w.precip].toLowerCase()} in the ${ordinal(w.onset)} quarter` : 'roof open'];
   return [...(w.night ? ['Night'] : []), ...sky, `${w.tempF}°F`, `wind ${w.windMph} mph`, ...(w.altitudeFt ? [`${w.altitudeFt.toLocaleString()} ft up`] : []), ...roof].join(' · ');
 }
 

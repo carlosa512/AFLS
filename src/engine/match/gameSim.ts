@@ -538,7 +538,6 @@ class GameSim {
     if (this.over || this.quarter !== w.onset) return;
     this.wx = weatherEffects(weatherAt(w, this.quarter));
     const fall = { none: '', rain: 'Rain', mixed: 'Sleet', snow: 'Snow' }[w.precip];
-    this.snapshot = null;
     this.log(w.roof === 'open' ? `${fall} moves in, and the roof closes.` : `${w.heavy ? `Heavy ${fall.toLowerCase()}` : fall} starts to fall.`);
   }
 
