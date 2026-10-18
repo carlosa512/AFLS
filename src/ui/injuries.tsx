@@ -24,6 +24,7 @@ import {
 } from '../engine/injuries';
 import { ATTRIBUTE_INFO } from '../engine/attributes';
 import type { Attribute, League, Player } from '../engine/types';
+import { Section, TipPill } from './components';
 import { store } from './store';
 
 /** What `league`'s user believes about a player's injury risk. */
@@ -32,12 +33,12 @@ export const riskOf = (league: League, p: Player): InjuryRiskRead => injuryRisk(
 /** A pill for a hurt player: on reserve, out for a while, or playing through it. Nothing when healthy. */
 export function InjuryTag({ league, p, sub = false }: { league: League; p: Player; sub?: boolean }) {
   const tag = injuryTag(p);
-  if (!tag || !p.injury) return tag === 'IR' ? <span className={`tag-pill tag-bad${sub ? ' name-sub' : ''}`} title="On injured reserve">IR</span> : null;
+  if (!tag || !p.injury) return tag === 'IR' ? <TipPill className={`tag-bad${sub ? ' name-sub' : ''}`} tip="On injured reserve: off the 53 for at least four weeks.">IR</TipPill> : null;
   const title = `${injuryLabel(p.injury.type)}: ${p.injury.injected ? 'playing through it on injections' : estimateText(p.injury, weeksLeft(league))}${p.ir ? ' · on injured reserve' : ''}`;
   return (
-    <span className={`tag-pill ${p.injury.injected ? 'tag-warn' : 'tag-bad'}${sub ? ' name-sub' : ''}`} title={title}>
+    <TipPill className={`${p.injury.injected ? 'tag-warn' : 'tag-bad'}${sub ? ' name-sub' : ''}`} tip={`${title}.`}>
       {tag}
-    </span>
+    </TipPill>
   );
 }
 
@@ -84,8 +85,7 @@ export function HealthSection({ league, player: p }: { league: League; player: P
   const injectBlock = mine ? injectProblem(p) : 'not yours';
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
   return (
-    <section className="stack health" aria-label="Health">
-      <h3 style={{ margin: 0 }}>Health</h3>
+    <Section id="health" title="Health" className="health">
       <div className="facts">
         <span className="fact">
           <span className="eyebrow">Status</span>
@@ -154,6 +154,12 @@ export function HealthSection({ league, player: p }: { league: League; player: P
             </button>
           )}
           {team && <span className="muted small">{IR_RETURNS - irReturnsUsed(league, team.id)} of {IR_RETURNS} return designations left this season</span>}
+          {/* Why a button is greyed out, on screen: its title tooltip never shows on a phone. */}
+          {[!p.ir && irBlock, p.ir && activateBlock, inj && !p.ir && !inj.injected && injectBlock].filter((why): why is string => !!why).map((why) => (
+            <p key={why} className="muted small" style={{ margin: 0, flexBasis: '100%' }}>
+              {why}
+            </p>
+          ))}
         </div>
       )}
       {history.length > 0 ? (
@@ -187,6 +193,6 @@ export function HealthSection({ league, player: p }: { league: League; player: P
           No injuries on file.
         </p>
       )}
-    </section>
+    </Section>
   );
 }

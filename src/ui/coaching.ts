@@ -1,7 +1,8 @@
 /**
  * What the coaching screens say about a staff, in plain words: the UI side of engine/coaching.ts.
- * Coach ratings are public. What they do for players is shown only as percentages against a typical
- * staff, never as a player's ratings, potential or traits (see ui/scouting.tsx for what the fog allows).
+ * Your own coaches' ratings show exactly; anyone else's are your read of him (`coachReads`). What a staff
+ * does for players is said in words on one scale (`verdict`), with the percentages against a typical staff
+ * one tap away; never as a player's ratings, potential or traits (see ui/scouting.tsx for what the fog allows).
  */
 import {
   CHAIRS,
@@ -9,6 +10,7 @@ import {
   chairOf,
   COACH_ROOMS,
   coachingFrom,
+  DECLINE_RANGE,
   coachingParts,
   coachName,
   coachResignForecast,
@@ -18,6 +20,7 @@ import {
   ROOM_LABEL,
   ROOM_OF,
   ROOM_POSITIONS,
+  RATE_RANGE,
   roomEffect,
   sameChair,
   teamCoaches,
@@ -30,7 +33,9 @@ import {
 import { declineOnset } from '../engine/aging';
 import { ROSTER_TEMPLATE } from '../engine/positions';
 import { teamPlayers } from '../engine/roster';
-import type { Coach, CoachRoom, League, Player, Position } from '../engine/types';
+import type { StaffRead } from '../engine/scouting';
+import type { Coach, CoachRole, CoachRoom, League, Player, Position } from '../engine/types';
+import { verdict, type Verdict } from './format';
 
 /** A position room, or null for kickers and punters (nobody coaches them but the head coach and S&C coach). */
 export type Room = CoachRoom | null;
@@ -48,8 +53,38 @@ export const YOUNG_UNDER = 26;
 export const isPastPrime = (p: Pick<Player, 'age' | 'position'>) => p.age >= declineOnset(p.position, 'physical');
 /** How the screens say it, after "N players": "...are at or past the age their position starts to decline". */
 export const PAST_PRIME_WORDS = 'at or past the age their position starts to decline';
-/** What decides run or pass and fourth downs: one owner for each, so a screen that shows styles says so once. */
-export const STYLE_OWNERS = 'The offensive coordinator decides run or pass; the head coach decides fourth downs.';
+/**
+ * What each chair does, true to the engine: every coach has a hand in development (the position coach
+ * most in his room, a coordinator for his side, the head coach a little for everyone, the S&C coach
+ * most for the body), and the leadership chairs each own a call.
+ */
+export const ROLE_LINE: Record<CoachRole, string> = {
+  headCoach: 'Sets the tone for the whole roster: a hand in how every player develops and holds up, and the call on fourth downs. Around the league, a bad season can cost him his job.',
+  offCoord: 'Runs the offense: the scheme and personnel, the call on run or pass, and how the offensive players develop.',
+  defCoord: 'Runs the defense: the front, the coverage, how often he sends extra rushers, and how the defensive players develop.',
+  positionCoach: 'Does most of the teaching in his room: the biggest say in how its players grow and keep their technique.',
+  strengthCoach: 'Keeps bodies going: the biggest say in how slowly speed and strength fade, in every room.',
+};
+
+export interface RepNote {
+  label: string;
+  tone: 'good' | 'warn';
+  line: string;
+}
+/**
+ * The word around the league on a coach as a teacher, from your read of him. Only the ends of the scale
+ * earn a tag; `hedged` when it's a read of another club's man rather than someone you've worked with.
+ */
+export function coachRep(reads: { youth: StaffRead; veterans: StaffRead }): { notes: RepNote[]; hedged: boolean } {
+  const notes: RepNote[] = [];
+  const y = reads.youth.value;
+  const v = reads.veterans.value;
+  if (y >= 15) notes.push({ label: 'Teacher', tone: 'good', line: 'Young players grow under him.' });
+  else if (y <= 6) notes.push({ label: 'Not a teacher', tone: 'warn', line: 'Young players stall under him.' });
+  if (v >= 15) notes.push({ label: 'Keeps vets going', tone: 'good', line: 'Veterans hold up longer under him.' });
+  else if (v <= 6) notes.push({ label: 'Hard on vets', tone: 'warn', line: 'Veterans fade sooner under him.' });
+  return { notes, hedged: !reads.youth.exact };
+}
 
 // ───────── who is on the staff ─────────
 
@@ -94,6 +129,12 @@ export const signedPct = (x: number) => signedWhole(whole(x));
 /** Growth up is good; decline (aging) down is good. */
 export const growthTone = (x: number) => (whole(x) > 0 ? 'tone-good' : whole(x) < 0 ? 'tone-bad' : 'muted');
 export const agingTone = (x: number) => (whole(x) < 0 ? 'tone-good' : whole(x) > 0 ? 'tone-bad' : 'muted');
+
+/** How a staff does by young players (growth) and by veterans (decline), on the shared scale. */
+export const growthVerdict = (growth: number): Verdict => verdict(growth, RATE_RANGE[1] - 1);
+export const agingVerdict = (aging: number): Verdict => verdict(-aging, DECLINE_RANGE[1] - 1);
+/** The exact figures behind the words, for the tap: "growth +4%, decline −2% against a typical staff". */
+export const effectNumbers = (e: Effect) => `growth ${signedPct(e.growth)}, decline ${signedPct(e.aging)} against a typical staff`;
 
 // ───────── how a room's effect adds up ─────────
 
@@ -164,13 +205,14 @@ const ROOM_SUBJECT: Record<CoachRoom, string> = {
 };
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** "receivers and tight ends grow 13% slower and decline 4% faster than with a typical coach" */
+/** "receivers and tight ends develop noticeably slower and fade a little sooner than with a typical coach" */
 export function vacancyClause(staying: readonly Coach[], chair: Chair): string {
   const cost = vacancyCost(staying, chair);
   const subject = chair.role === 'positionCoach' && chair.room ? ROOM_SUBJECT[chair.room] : chair.role === 'offCoord' ? 'your offensive players' : chair.role === 'defCoord' ? 'your defensive players' : 'your players';
-  const g = whole(cost.growth);
-  const a = whole(cost.aging);
-  const bits = [g > 0 ? `grow ${g}% slower` : '', a > 0 ? `decline ${a}% faster` : ''].filter(Boolean);
+  // The cost is positive when it hurts: flip it onto the shared scale.
+  const g = growthVerdict(-cost.growth).much;
+  const a = agingVerdict(cost.aging).much;
+  const bits = [g ? `develop ${g} slower` : '', a ? `fade ${a} sooner` : ''].filter(Boolean);
   return bits.length ? `${subject} ${bits.join(' and ')} than with a typical coach` : `${subject} lose almost nothing without him`;
 }
 /** The same as a sentence. */
@@ -195,61 +237,75 @@ export function gainScore(changes: RoomChange[], counts: Map<Room, RoomCount>): 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const avgEffect = (xs: Effect[]): Effect => ({ growth: mean(xs.map((e) => e.growth)), aging: mean(xs.map((e) => e.aging)) });
 
+export interface PreviewLine {
+  /** "Receivers & tight ends: young players Average → Strong, veterans a touch better." */
+  words: string;
+  /** "growth +4% → +16%, decline −1% → −3%" */
+  numbers: string;
+}
+
 /**
- * "Receivers & tight ends: growth +4% → +16%, decline −1% → −3%." Up to three rooms get a line each; a
- * hire who changes more (a head coach, a coordinator) is summed up by the average over those rooms.
- * Whole percents only, and a number that doesn't move is left out.
+ * What a hire does to each room, in words on the shared scale with the percentages alongside. Up to three
+ * rooms get a line each; a hire who changes more (a head coach, a coordinator) is summed up by the average
+ * over those rooms. A figure that doesn't move is left out.
  */
-export function previewLines(changes: RoomChange[]): string[] {
-  const moves = changes
-    .map((ch) => ({ room: ch.room, from: ch.from, to: ch.to, g: [whole(ch.from.growth), whole(ch.to.growth)], a: [whole(ch.from.aging), whole(ch.to.aging)] }))
-    .filter((m) => m.g[0] !== m.g[1] || m.a[0] !== m.a[1]);
-  if (!moves.length) return ['No change to how your players develop.'];
-  const line = (label: string, g: number[], a: number[]) => {
-    const bits = [g[0] !== g[1] ? `growth ${signedWhole(g[0])} → ${signedWhole(g[1])}` : '', a[0] !== a[1] ? `decline ${signedWhole(a[0])} → ${signedWhole(a[1])}` : ''].filter(Boolean);
-    return `${label}: ${bits.join(', ')}.`;
+export function previewLines(changes: RoomChange[]): PreviewLine[] {
+  const moves = changes.filter((ch) => whole(ch.from.growth) !== whole(ch.to.growth) || whole(ch.from.aging) !== whole(ch.to.aging));
+  if (!moves.length) return [{ words: 'No change to how your players develop.', numbers: '' }];
+  // Same word both sides: say which way it went rather than "Average → Average".
+  const step = (who: string, a: Verdict, b: Verdict, up: boolean) => (a.word === b.word ? `${who} a touch ${up ? 'better' : 'worse'}` : `${who} ${a.word} → ${b.word}`);
+  const line = (label: string, from: Effect, to: Effect): PreviewLine => {
+    const g = whole(from.growth) !== whole(to.growth);
+    const a = whole(from.aging) !== whole(to.aging);
+    const words = [
+      g ? step('young players', growthVerdict(from.growth), growthVerdict(to.growth), to.growth > from.growth) : '',
+      a ? step('veterans', agingVerdict(from.aging), agingVerdict(to.aging), to.aging < from.aging) : '',
+    ].filter(Boolean);
+    const numbers = [g ? `growth ${signedPct(from.growth)} → ${signedPct(to.growth)}` : '', a ? `decline ${signedPct(from.aging)} → ${signedPct(to.aging)}` : ''].filter(Boolean);
+    return { words: `${label}: ${words.join(', ')}.`, numbers: numbers.join(', ') };
   };
-  if (moves.length <= 3) return moves.map((m) => line(roomLabel(m.room), m.g, m.a));
-  const from = avgEffect(moves.map((m) => m.from));
-  const to = avgEffect(moves.map((m) => m.to));
+  if (moves.length <= 3) return moves.map((m) => line(roomLabel(m.room), m.from, m.to));
   const side = moves.every((m) => OFFENSE_ROOMS.has(m.room)) ? 'Offensive rooms' : moves.every((m) => m.room !== null && !OFFENSE_ROOMS.has(m.room)) ? 'Defensive rooms' : 'Every room';
-  return [line(`${side} (average)`, [whole(from.growth), whole(to.growth)], [whole(from.aging), whole(to.aging)])];
+  return [line(`${side} (average)`, avgEffect(moves.map((m) => m.from)), avgEffect(moves.map((m) => m.to)))];
 }
 
 // ───────── a player's own coaches ─────────
 
-const youthVeteran = (c: Coach) => `Youth ${c.youth} · Veteran care ${c.veterans}`;
+const youthVeteran = (c: Coach) => `${coachName(c)}: youth ${c.youth}, veteran care ${c.veterans}`;
 
 /**
- * One line for a player card: his coaches and what the whole staff does to how he grows and ages. The
- * percentages combine four chairs (his position coach, both coordinators' side, the head coach and the
- * S&C coach), so the line names who leads rather than implying one man does it all. Under 26 it leads with
- * growth; past that only aging matters, so it says that. Empty chair? It says so.
+ * One line for a player card: his coaches and what the whole staff does to how he grows and ages, in words,
+ * with the percentages and his coaches' ratings for the tap. The effect combines four chairs (his position
+ * coach, his side's coordinator, the head coach and the S&C coach), so the line names who leads rather than
+ * implying one man does it all. Under 26 it leads with growth; past that only aging matters. Empty chair?
+ * It says so.
  */
-export function playerCoachLine(league: League, p: Player): string {
+export function playerCoachLine(league: League, p: Player): { text: string; numbers: string } {
   const staff = stayingCoaches(league, p.teamId!);
   const pos = p.position;
   const room = ROOM_OF[pos];
   let who: string;
+  let named: Coach[];
   if (room) {
     const chair: Chair = { role: 'positionCoach', room };
     const c = chairHolder(staff, chair);
-    who = c ? `led by ${coachName(c)}, ${chairNoun(chair)} · ${youthVeteran(c)}` : `your ${chairNoun(chair)} chair is empty`;
+    who = c ? `led by ${coachName(c)}, his ${chairNoun(chair)}` : `your ${chairNoun(chair)} chair is empty`;
+    named = c ? [c] : [];
   } else {
     const hc = chairHolder(staff, { role: 'headCoach' });
     const sc = chairHolder(staff, { role: 'strengthCoach' });
-    const named = (c: Coach | null, noun: string) => (c ? `${noun} ${coachName(c)} · ${youthVeteran(c)}` : `no ${noun}`);
-    who = `${named(hc, 'head coach')}; ${named(sc, 'S&C coach')}; they share the kickers and punters`;
+    who = 'the head coach and the S&C coach, who share the kickers and punters';
+    named = [hc, sc].filter((c): c is Coach => !!c);
   }
   const e = effectOf(coachingFrom(staff, pos), pos);
-  const g = whole(e.growth);
-  const a = whole(e.aging);
-  const growth = g === 0 ? '' : `grows about ${Math.abs(g)}% ${g > 0 ? 'faster' : 'slower'}`;
-  const aging = a === 0 ? '' : `declines about ${Math.abs(a)}% ${a < 0 ? 'more slowly' : 'faster'}`;
+  const g = growthVerdict(e.growth).much;
+  const a = agingVerdict(e.aging).much;
+  const growth = g ? `develop ${g} ${e.growth > 0 ? 'faster' : 'slower'}` : '';
+  const aging = a ? (e.aging < 0 ? `hold up ${a} longer` : `fade ${a} sooner`) : '';
   const clauses = (p.age < YOUNG_UNDER ? [growth, aging] : [aging]).filter(Boolean);
   // "than with a typical staff" closes the whole sentence, so it covers both clauses.
-  const effect = clauses.length ? `he ${clauses.join(' and ')} than with a typical staff` : 'he develops about as he would with a typical staff';
-  return `His coaches (${who}): ${effect}.`;
+  const effect = clauses.length ? `he should ${clauses.join(' and ')} than with a typical staff` : `he should ${p.age < YOUNG_UNDER ? 'develop' : 'hold up'} about as he would with a typical staff`;
+  return { text: `His coaches (${who}): ${effect}.`, numbers: [effectNumbers(e), ...named.map(youthVeteran)].join(' · ') };
 }
 
 // ───────── what needs attention ─────────

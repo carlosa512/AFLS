@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { Player, Team } from '../engine/types';
 import type { Forecast, Weather } from '../engine/weather';
 import { band, gameWeatherText, severityText } from './format';
@@ -183,6 +184,164 @@ export function Dialog({ title, onClose, children, footer }: { title: string; on
         {footer && <div className="dialog-foot">{footer}</div>}
       </div>
     </div>
+  );
+}
+
+/**
+ * A full card over the page (a player, a coach): a head in team colours, then the body. Focus moves in,
+ * Tab stays inside, Escape or the backdrop closes it, and focus returns to the opener.
+ */
+export function Sheet({ label, team, head, actions, onClose, children }: { label: string; team: Team | null; head: ReactNode; actions?: ReactNode; onClose: () => void; children: ReactNode }) {
+  const backdrop = useBackdropClose(onClose);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    return () => opener?.focus?.();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return onClose();
+      if (e.key !== 'Tab' || !sheetRef.current) return;
+      const focusable = sheetRef.current.querySelectorAll<HTMLElement>('button, [href], input, select, summary, [tabindex]:not([tabindex="-1"])');
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first) return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="overlay" {...backdrop}>
+      <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.stopPropagation()}>
+        <div className={`sheet-head${actions ? ' has-edit' : ''}`} style={{ background: team?.colors[0] ?? '#333', boxShadow: `inset 0 -6px 0 ${team?.colors[1] ?? '#666'}` }}>
+          {head}
+          {actions}
+          <button ref={closeRef} className="close-x" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div className="sheet-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A pill that says what it means: hover it with a mouse, tap it on a phone (a title tooltip never shows on
+ * touch). The note floats over the page from <body>, so a table's scroll box can't clip it; scrolling, a tap
+ * elsewhere or Escape puts it away.
+ */
+export function TipPill({ className = '', tip, children }: { className?: string; tip: ReactNode; children: ReactNode }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+  const id = useId();
+  const show = () => {
+    const r = ref.current!.getBoundingClientRect();
+    // 280px wide at most: keep it on screen at the right edge.
+    setAt({ left: Math.max(8, Math.min(r.left, window.innerWidth - 288)), top: r.bottom + 6 });
+  };
+  useEffect(() => {
+    if (!at) return;
+    const hide = () => setAt(null);
+    const away = (e: Event) => !ref.current?.contains(e.target as Node) && hide();
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && hide();
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('resize', hide);
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      window.removeEventListener('scroll', hide, true);
+      window.removeEventListener('resize', hide);
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [at]);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={`tag-pill tip-pill ${className}`.trim()}
+      aria-expanded={!!at}
+      aria-describedby={at ? id : undefined}
+      // A tap inside a clickable row explains the pill; it doesn't open the row. It only ever opens the
+      // note: a mouse has already opened it by hovering, and a click mustn't snap it shut again.
+      onClick={(e) => {
+        e.stopPropagation();
+        show();
+      }}
+      onPointerEnter={(e) => e.pointerType === 'mouse' && show()}
+      onPointerLeave={(e) => e.pointerType === 'mouse' && setAt(null)}
+    >
+      {children}
+      {at &&
+        createPortal(
+          <span id={id} role="tooltip" className="tip-body" style={{ left: at.left, top: at.top }}>
+            {tip}
+          </span>,
+          document.body,
+        )}
+    </button>
+  );
+}
+
+/** Words first, the exact figures one tap away: the verdict is the line you read, the numbers open under it. */
+export function Exact({ numbers, children }: { numbers: ReactNode; children: ReactNode }) {
+  return (
+    <details className="exact">
+      <summary>{children}</summary>
+      <span className="exact-numbers">{numbers}</span>
+    </details>
+  );
+}
+
+const SECTIONS_KEY = 'afls-sections';
+
+function savedSections(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(SECTIONS_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * A card section that folds away under its heading. Folding one remembers it (per device) for every card,
+ * so a section you never read stays out of the way on the next player too.
+ */
+export function Section({ id, title, defaultOpen = true, className = '', children }: { id: string; title: ReactNode; defaultOpen?: boolean; className?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(() => savedSections()[id] ?? defaultOpen);
+  return (
+    <details
+      className={`card-section ${className}`.trim()}
+      open={open}
+      onToggle={(e) => {
+        const now = e.currentTarget.open;
+        if (now === open) return;
+        setOpen(now);
+        try {
+          localStorage.setItem(SECTIONS_KEY, JSON.stringify({ ...savedSections(), [id]: now }));
+        } catch {
+          // Storage blocked: the fold lasts until the card closes.
+        }
+      }}
+    >
+      <summary>
+        <h3>{title}</h3>
+      </summary>
+      <div className="stack">{children}</div>
+    </details>
   );
 }
 

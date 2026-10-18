@@ -9,7 +9,7 @@ import { careerLine, passerRating } from '../../engine/stats';
 import type { League, Player, StatLine } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
 import { playerCoachLine } from '../coaching';
-import { PlayerAvatar, useBackdropClose } from '../components';
+import { Exact, PlayerAvatar, Section, Sheet } from '../components';
 import { store } from '../store';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
@@ -96,6 +96,9 @@ function statColumns(p: Player): Col[] {
 }
 
 /** Who in your scouting department sized up this player: the name behind the range. */
+/** "every one of", "most of", "about half of", "a few of": playing time in words. */
+const shareWords = (share: number) => (share >= 0.99 ? 'every one of' : share >= 0.75 ? 'most of' : share >= 0.4 ? 'about half of' : 'a few of');
+
 function readByText(league: League, view: PlayerView, p: Player): string {
   const who = (id: number | null) => {
     const s = id === null ? undefined : league.staff[id];
@@ -217,41 +220,13 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const fitScheme = fitSide === 'offense' ? myScheme.offense.label : [myScheme.front.label, myScheme.coverage?.label].filter(Boolean).join(' · ');
   const careerTeams = [...new Set(seasons.flatMap((s) => seasonTeams(p, s)))];
 
-  const backdrop = useBackdropClose(onClose);
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  // Modal behaviour: focus moves into the card, Tab stays inside it, and focus returns on close.
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
-    return () => opener?.focus?.();
-  }, []);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') return onClose();
-      if (e.key !== 'Tab' || !sheetRef.current) return;
-      const focusable = sheetRef.current.querySelectorAll<HTMLElement>('button, [href], input, select, [tabindex]:not([tabindex="-1"])');
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (!first) return;
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   return (
-    <div className="overlay" {...backdrop}>
-      <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-label={`${p.firstName} ${p.lastName}`} onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-head has-edit" style={{ background: team?.colors[0] ?? '#333', boxShadow: `inset 0 -6px 0 ${team?.colors[1] ?? '#666'}` }}>
+    <Sheet
+      label={`${p.firstName} ${p.lastName}`}
+      team={team}
+      onClose={onClose}
+      head={
+        <>
           <PlayerAvatar player={p} team={team} size={64} />
           <span className="jersey">{p.jersey}</span>
           <div style={{ minWidth: 0 }}>
@@ -264,14 +239,14 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               {p.firstName} {p.lastName}
             </h2>
           </div>
-          <button className="edit-x" onClick={() => setEditing((v) => !v)} aria-label="Edit name and number" aria-pressed={editing} title="Edit name and number">
-            ✎
-          </button>
-          <button ref={closeRef} className="close-x" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-        <div className="sheet-body">
+        </>
+      }
+      actions={
+        <button className="edit-x" onClick={() => setEditing((v) => !v)} aria-label="Edit name and number" aria-pressed={editing} title="Edit name and number">
+          ✎
+        </button>
+      }
+    >
           {editing && <IdentityEditor league={league} player={p} onDone={() => setEditing(false)} />}
           <div className="facts">
             <span className="fact">
@@ -364,8 +339,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           )}
 
           {timeline.length > 0 && (
-            <div className="muted small">
-              <span className="eyebrow">Habits over time</span>
+            <Section id="habits" title="Habits over time" defaultOpen={false} className="muted small">
               <ul className="habit-timeline">
                 {timeline.map((e) => (
                   <li key={`${e.id}-${e.season}-${e.week}-${e.change}`}>
@@ -378,7 +352,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                   </li>
                 ))}
               </ul>
-            </div>
+            </Section>
           )}
 
           {!view.exact && (
@@ -408,29 +382,27 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
 
           {!isProspect(p) && <HealthSection league={league} player={p} />}
 
-          <section className="stack" aria-label="Ratings">
-            <h3 style={{ margin: 0 }}>Ratings at {p.position}</h3>
+          <Section id="ratings" title={`Ratings at ${p.position}`}>
             <AttributeList player={p} view={view} />
             <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
               Bold ratings make up his overall at {p.position}; tap any rating to see what it does in a game. Scale: 1–5 poor, 6–10 backup, 11–15 starter, 16–20 elite.
               {view.exact ? ' Arrows show the change since last season.' : ' Ranges are your scouts’ estimates; film and scouting visits narrow them.'}
             </p>
-          </section>
+          </Section>
 
-          <section className="stack" aria-label="Development">
-            <h3 style={{ margin: 0 }}>Development{view.exact ? '' : ' (as your scouts see it)'}</h3>
+          <Section id="development" title={`Development${view.exact ? '' : ' (as your scouts see it)'}`}>
             <DevelopmentChart league={league} player={p} />
             <p className="muted small" style={{ margin: 0 }}>
               {careerOutlook(league, league.userTeamId, p)}
             </p>
             {p.teamId === league.userTeamId && !p.retired && (
-              <p className="muted small" style={{ margin: 0 }}>
-                {playerCoachLine(league, p)}
-              </p>
+              <div className="muted small">
+                <Exact numbers={playerCoachLine(league, p).numbers}>{playerCoachLine(league, p).text}</Exact>
+              </div>
             )}
             {reps && (
               <p className="muted small" style={{ margin: 0 }}>
-                {reps.share > 0 ? `Played in ${Math.round(reps.share * 100)}% of his team’s games in ${reps.season}.` : `Has not played in any of his team’s games in ${reps.season}.`}
+                {reps.share > 0 ? `Played in ${shareWords(reps.share)} his team’s games in ${reps.season}.` : `Has not played in any of his team’s games in ${reps.season}.`}
                 {reps.needs && (
                   <>
                     {' '}
@@ -442,28 +414,25 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                 )}
               </p>
             )}
-          </section>
+          </Section>
 
-          <section className="stack" aria-label="Combine">
-            <h3 style={{ margin: 0 }}>Combine</h3>
+          <Section id="combine" title="Combine" defaultOpen={false}>
             <CombinePanel player={p} />
-          </section>
+          </Section>
 
           {!isProspect(p) && (
-            <section className="stack" aria-label="Contract">
+            <Section id="contract" title="Contract">
               <div className="row" style={{ justifyContent: 'space-between' }}>
-                <div>
-                  <h3 style={{ margin: 0 }}>Contract</h3>
-                  <span className="muted small">{contractLabel(league, p)}</span>
-                </div>
+                <span className="muted small">{contractLabel(league, p)}</span>
                 <ContractActions league={league} player={p} />
               </div>
               <ContractSummary league={league} player={p} />
               <ContractYears player={p} />
-            </section>
+            </Section>
           )}
 
           {cols.length > 0 && seasons.length > 0 && (
+            <Section id="stats" title="Stats">
             <div className="table-scroll">
               <table>
                 <thead>
@@ -494,6 +463,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                 </tbody>
               </table>
             </div>
+            </Section>
           )}
           {team && (
             <div>
@@ -508,8 +478,6 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               </button>
             </div>
           )}
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

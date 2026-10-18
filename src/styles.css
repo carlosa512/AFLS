@@ -15,8 +15,8 @@
   --loss: #b3302a;
   --tie: #8a7416;
   --b1: #a3483f;
-  --b2: #8a7a2e;
-  --b3: #2f7a4b;
+  --b2: #74661c;
+  --b3: #2b6f44;
   --b4: #136f8f;
   --focus: #1f6fd1;
   --shadow: 0 1px 2px rgba(18, 25, 21, 0.08), 0 4px 16px rgba(18, 25, 21, 0.06);
@@ -190,10 +190,27 @@ h3 {
   gap: 8px;
   flex-wrap: wrap;
 }
-/* Phones: the header scrolls away and the week's actions sit in a bottom bar within thumb reach. */
+/* Phones: the team line scrolls away, the tabs stay pinned so every section is one tap from anywhere,
+   and the week's actions sit in a bottom bar within thumb reach. */
 @media (max-width: 640px) {
   .topbar {
-    position: static;
+    /* Sticks once the brand row (its fixed height below) has scrolled off. */
+    top: calc(env(safe-area-inset-top, 0px) - 62px);
+  }
+  .topbar-inner {
+    height: 62px;
+  }
+  .brand-text span {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Not every tab fits: faded edges say more scroll in from that side. */
+  .tabs {
+    mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 28px), transparent);
+    /* ...and a tab scrolled into view stops clear of it. */
+    scroll-padding-inline: 32px;
   }
   .topbar .actions {
     position: fixed;
@@ -1991,6 +2008,12 @@ details.more > summary {
   border-radius: 12px;
   box-shadow: var(--shadow);
 }
+/* Phones: clear the bottom action bar (about 67px tall). */
+@media (max-width: 640px) {
+  .compare-tray {
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+}
 .compare-table th[scope='row'] {
   text-align: left;
   color: var(--muted);
@@ -2046,6 +2069,15 @@ details.more > summary {
 @media (max-width: 480px) {
   .office-tabs button {
     padding: 6px 9px;
+  }
+}
+/* Phones: two rows instead of a strip that hides the last tabs off to the right. */
+@media (max-width: 640px) {
+  .office-tabs {
+    flex-wrap: wrap;
+  }
+  .office-tabs button {
+    flex: 1 1 auto;
   }
 }
 .staff-notice {
@@ -2597,9 +2629,12 @@ tr.stat-total td {
 }
 .risk-medium {
   background: var(--tie);
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
 }
 .risk-high {
   background: var(--loss);
+  border-radius: 1px;
 }
 .risk-dot.risk-early {
   background: transparent;
@@ -2628,4 +2663,124 @@ tr.stat-total td {
 .box-injuries {
   margin: 0;
   padding-left: 18px;
+}
+
+/* ───────── theme picker (Home) ───────── */
+.theme-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--step--1);
+  font-weight: 700;
+}
+
+/* ───────── folding card sections (player and coach cards) ───────── */
+.card-section {
+  border-top: 1px solid var(--line);
+}
+.card-section > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+.card-section > summary::-webkit-details-marker {
+  display: none;
+}
+.card-section > summary::after {
+  content: '▾';
+  color: var(--muted);
+}
+.card-section:not([open]) > summary::after {
+  transform: rotate(-90deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .card-section > summary::after {
+    transition: transform 0.15s;
+  }
+}
+.card-section > summary:hover h3 {
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+.card-section[open] > .stack {
+  padding-bottom: 4px;
+}
+/* A coach's name opens his card; it keeps the look of the bold name it replaced. */
+.staff-name.linklike {
+  justify-self: start;
+  font-weight: 700;
+}
+
+/* ───────── words first, numbers on tap ───────── */
+.exact > summary {
+  cursor: pointer;
+  list-style: none;
+  text-decoration: underline dotted var(--muted);
+  text-underline-offset: 3px;
+}
+.exact > summary::-webkit-details-marker {
+  display: none;
+}
+.exact-numbers {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: var(--step--1);
+  font-family: var(--font-data);
+}
+
+/* ───────── pills that explain themselves ───────── */
+/* A button that looks exactly like the pill it replaced. Positioned, so its screen-reader text stays inside a
+   table's scroll box instead of widening the page (see .rating.est). */
+button.tip-pill {
+  position: relative;
+  border: 0;
+  font-family: inherit;
+  line-height: inherit;
+  cursor: help;
+}
+.tip-body {
+  position: fixed;
+  z-index: 70;
+  display: grid;
+  gap: 4px;
+  max-width: 280px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--bg);
+  box-shadow: var(--shadow);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  font-weight: 400;
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: normal;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+.tip-effect {
+  font-weight: 700;
+}
+.role-guide {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+.role-guide li + li {
+  margin-top: 2px;
+}
+
+/* ───────── a game's plays so far ───────── */
+/* Every play back to the kickoff, newest on top, in a box of its own so the page stays short. */
+.play-log {
+  display: grid;
+  max-height: min(60vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }

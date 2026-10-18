@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../engine/generate';
 import { sortRows } from './components';
+import { moveSegments, type MoveIndex } from './moves';
 import { hashToRoute, routeToHash, type Route } from './routes';
 import { backupFileName, parseBackup } from './saves';
 
@@ -61,5 +62,26 @@ describe('sortRows', () => {
     ];
     expect(sortRows(rows, { key: 'v', desc: true }, (r) => r.v).map((r) => r.n)).toEqual(['a', 'c', 'b']);
     expect(sortRows(rows, { key: 'v', desc: false }, (r) => r.v).map((r) => r.n)).toEqual(['b', 'a', 'c']);
+  });
+});
+
+describe('transaction links', () => {
+  const index: MoveIndex = new Map([
+    ['WR John Smith', { kind: 'player', id: 1 }],
+    ['John Smith', { kind: 'coach', id: 7 }],
+    ['CB Joe Bloggs', { kind: 'player', id: 2 }],
+    ['Sam Lee', null],
+  ]);
+  const linked = (text: string) => moveSegments(text, [index]).map((s) => (typeof s === 'string' ? s : `[${s.who.kind}:${s.who.id}]`)).join('');
+
+  it('links every name, the longest where they overlap', () => {
+    expect(linked('CIN traded WR John Smith, CB Joe Bloggs to PIT for 2027 R1')).toBe('CIN traded [player:1], [player:2] to PIT for 2027 R1');
+    expect(linked('CIN hired quarterbacks coach John Smith (2 yrs)')).toBe('CIN hired quarterbacks coach [coach:7] (2 yrs)');
+    expect(linked("CIN exercised WR John Smith's fifth-year option")).toBe("CIN exercised [player:1]'s fifth-year option");
+  });
+
+  it('leaves partial and shared names alone', () => {
+    expect(linked('CIN released WR John Smithers')).toBe('CIN released WR John Smithers');
+    expect(linked('CIN hired physiotherapist Sam Lee (2 yr)')).toBe('CIN hired physiotherapist Sam Lee (2 yr)');
   });
 });

@@ -6,7 +6,7 @@ import { capSheet } from '../../engine/finance/cap';
 import { capHit, lastSeason } from '../../engine/finance/contract';
 import { buildAutoDepthChart, isAvailable, teamPlayers, teamRatings } from '../../engine/roster';
 import { computeRecords } from '../../engine/season/standings';
-import type { League, Player, Position, StatLine } from '../../engine/types';
+import type { Coach, League, Player, Position, StatLine } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerAvatar, SortTh, sortRows, TeamChip, useSort } from '../components';
@@ -48,6 +48,15 @@ function groupNote(scheme: TeamScheme, pos: Position): string {
   return `${spots.length} starter${spots.length > 1 ? 's' : ''}${spots.length > 1 || spots[0] !== pos ? `: ${spots.join(' ')}` : ''}`;
 }
 
+function CoordinatorLink({ c }: { c: Coach }) {
+  const nav = useNav();
+  return (
+    <button className="linklike" onClick={() => nav.openStaff('coach', c.id)}>
+      {coachName(c)}
+    </button>
+  );
+}
+
 /** What the coordinators run: it decides the spots and how many start at each position. */
 function SchemeStrip({ league, teamId, scheme }: { league: League; teamId: number; scheme: TeamScheme }) {
   const staff = teamCoaches(league, teamId);
@@ -57,12 +66,16 @@ function SchemeStrip({ league, teamId, scheme }: { league: League; teamId: numbe
   return (
     <div className="scheme-strip">
       <div>
-        <span className="eyebrow">Offense{oc ? ` · ${coachName(oc)}` : ' · no coordinator'}</span>
+        <span className="eyebrow">
+          Offense · {oc ? <CoordinatorLink c={oc} /> : 'no coordinator'}
+        </span>
         <b>{scheme.offense.label}</b>
         <span className="muted small">{PERSONNEL_LABEL[scheme.offense.personnel]}. {scheme.offense.about}</span>
       </div>
       <div>
-        <span className="eyebrow">Defense{dc ? ` · ${coachName(dc)}` : ' · no coordinator'}</span>
+        <span className="eyebrow">
+          Defense · {dc ? <CoordinatorLink c={dc} /> : 'no coordinator'}
+        </span>
         <b>{defense}</b>
         <span className="muted small">
           {scheme.front.about}

@@ -6,6 +6,7 @@ import { useNav } from '../App';
 import { Panel, PlayerAvatar, TeamChip } from '../components';
 import { CapChart, capPct, ContractActions, thruLabel } from '../contracts';
 import { money } from '../format';
+import { moveIndex, MoveText } from '../moves';
 
 export function Finances({ league, teamId }: { league: League; teamId: number }) {
   const nav = useNav();
@@ -18,6 +19,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
     .sort((a, b) => capHit(b.contract!, season) - capHit(a.contract!, season));
   const dead = team.deadMoney.filter((d) => d.season >= season).sort((a, b) => a.season - b.season || b.amount - a.amount);
   const moves = league.transactions.filter((t) => t.teamIds.includes(teamId)).slice(-12).reverse();
+  const names = moveIndex(league);
 
   return (
     <>
@@ -171,7 +173,14 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                     <tr key={i}>
                       <td className="num">{d.season}</td>
                       <td>
-                        {p ? `${p.firstName} ${p.lastName}` : 'Former player'} <span className="muted small">{d.note}</span>
+                        {p ? (
+                          <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
+                            {p.firstName} {p.lastName}
+                          </button>
+                        ) : (
+                          'Former player'
+                        )}{' '}
+                        <span className="muted small">{d.note}</span>
                       </td>
                       <td className="num">{money(d.amount)}</td>
                     </tr>
@@ -202,7 +211,9 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                   <span className="muted small">
                     {m.season} · {m.phase === 'regular' ? `Week ${m.week}` : m.phase}
                   </span>
-                  <span>{m.text}</span>
+                  <span>
+                    <MoveText move={m} index={names} />
+                  </span>
                 </li>
               ))}
             </ul>

@@ -19,7 +19,9 @@ import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, week
 import { live } from '../live';
 import { WinnerCell } from './Stats';
 import { BackupButton, LoadBackupButton } from '../saves';
+import { ThemeSelect } from '../theme';
 import { store } from '../store';
+import { moveIndex, MoveText } from '../moves';
 
 function lastUserGame(league: League): Game | undefined {
   return league.games
@@ -419,6 +421,7 @@ function StartOver({ league }: { league: League }) {
         </>
       ) : (
         <>
+          <ThemeSelect />
           <BackupButton league={league} />
           <LoadBackupButton />
           <button className="btn btn-sm btn-ghost" onClick={() => setConfirming(true)}>
@@ -450,6 +453,7 @@ function OffseasonHome({ league }: { league: League }) {
   const idx = STEPS.findIndex(([p]) => p === league.phase);
   const last = league.history[league.history.length - 1];
   const moves = league.transactions.filter((t) => t.season === league.season && t.kind !== 'release').slice(-14).reverse();
+  const names = moveIndex(league);
   // A calm nudge, not a second primary action: an empty coaching chair or deals that are up, while moves are open.
   const coachNote = staffWindowOpen(league) ? attentionText(league, teamId) : '';
   const myPick = league.draftPicks.filter((p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined).sort((a, b) => (a.overall ?? 999) - (b.overall ?? 999))[0];
@@ -543,7 +547,9 @@ function OffseasonHome({ league }: { league: League }) {
               {moves.map((m, i) => (
                 <li key={i}>
                   <span className="muted small">{PHASE_LABELS[m.phase]}</span>
-                  <span>{m.text}</span>
+                  <span>
+                    <MoveText move={m} index={names} />
+                  </span>
                 </li>
               ))}
             </ul>

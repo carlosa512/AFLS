@@ -441,3 +441,24 @@ export function coachSchemeAbout(c: Pick<Coach, 'role' | 'scheme'>): string | nu
   if (c.role === 'defCoord' && c.scheme?.front) return `${FRONTS[c.scheme.front].about}${c.scheme.coverage ? ` ${COVERAGES[c.scheme.coverage].about}` : ''}`;
   return null;
 }
+
+/**
+ * A defensive coordinator's identity in a tag or two, read off what his front and coverage do in a game
+ * (blitz rate, man or zone, safeties deep, the lean against the run): the defense's answer to an offensive
+ * coordinator's "Pass-first". Empty for a balanced defense.
+ */
+export function defenseNotes(c: Pick<Coach, 'role' | 'scheme'>): string[] {
+  if (c.role !== 'defCoord' || !c.scheme?.front) return [];
+  const front = FRONTS[c.scheme.front];
+  const cov = c.scheme.coverage ? COVERAGES[c.scheme.coverage] : null;
+  const blitz = front.blitz * (cov?.blitz ?? 1);
+  const run = front.runAdj + (cov?.runAdj ?? 0);
+  const out: string[] = [];
+  if (blitz >= 1.3) out.push('Blitz-happy');
+  else if (blitz <= 0.75) out.push('Rushes four');
+  if (cov?.man) out.push('Press man');
+  else if (cov?.twoHigh) out.push('Two-high shell');
+  if (out.length < 2 && run >= 0.5) out.push('Stops the run first');
+  else if (out.length < 2 && run <= -0.5) out.push('Built for the pass');
+  return out;
+}
