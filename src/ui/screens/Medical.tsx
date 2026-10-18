@@ -4,7 +4,9 @@
  * player's injury proneness stays a word (see ui/injuries.tsx).
  */
 import { useState } from 'react';
-import { injuryLabel, estimateText, weeksLeft } from '../../engine/injuries';
+import { injuryLabel, estimateText, SEVERITY_LABEL, weeksLeft } from '../../engine/injuries';
+import { teamScheme } from '../../engine/coaching';
+import { spotsFor } from '../../engine/schemes';
 import {
   conditionBonus,
   departmentFor,
@@ -39,7 +41,7 @@ import type { League, Medic, MedicRole, Player } from '../../engine/types';
 import { useNav } from '../App';
 import { Exact, GradesTable, Panel, PlayerAvatar, Section, Sheet, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
 import { money, ordinal, resultsSeason, verdict, type Verdict } from '../format';
-import { conditionTone, FitnessCell, fitnessSort, InjuryTag } from '../injuries';
+import { conditionTone, FitnessCell, InjuryTag } from '../injuries';
 import { Ovr, seenOvr, StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
 
@@ -322,8 +324,7 @@ function InjuryReport({ league }: { league: League }) {
                     <FitnessCell league={league} p={p} />
                   </td>
                   <td>
-                    {p.injury ? injuryLabel(p.injury.type) : 'Healed'}
-                    <InjuryTag league={league} p={p} />
+                    <InjuryCell league={league} p={p} />
                   </td>
                   <td className="muted small">{p.injury ? (p.injury.injected ? 'Playing through it' : estimateText(p.injury, weeksLeft(league))) : 'Ready to come off reserve'}</td>
                 </tr>
@@ -352,7 +353,32 @@ function InjuryReport({ league }: { league: League }) {
 }
 
 type TeamSort = 'team' | 'out' | 'ir' | 'season';
-type OutSort = 'name' | 'team' | 'age' | 'ovr' | 'fitness' | 'injury' | 'outlook';
+type OutSort = 'name' | 'team' | 'age' | 'ovr' | 'role' | 'injury' | 'outlook';
+
+const SEVERITY_ORDER = ['minor', 'moderate', 'severe', 'career-threatening'];
+
+/**
+ * A hurt player's job on his team: his place on its depth chart, which an injury doesn't change (lineups
+ * skip the unavailable on game day), so it's the job he goes back to. Read live, nothing stored.
+ */
+function roleOf(league: League, p: Player): { label: string; rank: number } {
+  const ids = league.teams[p.teamId!].depthChart[p.position];
+  const slot = ids.indexOf(p.id);
+  const spot = spotsFor(teamScheme(league, p.teamId!), p.position)[slot];
+  if (slot < 0 || !spot) return { label: 'Backup', rank: 100 + Math.max(0, slot) };
+  return { label: spot === p.position ? 'Starter' : `Starter · ${spot}`, rank: slot };
+}
+
+/** The doctor's grade next to the injury: "Torn ACL · Severe". */
+function InjuryCell({ league, p }: { league: League; p: Player }) {
+  return (
+    <>
+      {p.injury ? injuryLabel(p.injury.type) : 'Healed'}
+      {p.injury && <span className="muted small"> · {SEVERITY_LABEL[p.injury.severity]}</span>}
+      <InjuryTag league={league} p={p} />
+    </>
+  );
+}
 
 /**
  * Injuries around the league this season. An injury, its estimate and a player's history are public, so
@@ -391,12 +417,10 @@ function LeagueInjuries({ league }: { league: League }) {
             ? p.age
             : key === 'ovr'
               ? seenOvr(league, p)
-              : key === 'fitness'
-                ? fitnessSort(league, p)
+              : key === 'role'
+                ? roleOf(league, p).rank
                 : key === 'injury'
-                  ? p.injury
-                    ? injuryLabel(p.injury.type)
-                    : ''
+                  ? SEVERITY_ORDER.indexOf(p.injury?.severity ?? '')
                   : (p.injury?.estimate[1] ?? 0),
   );
   const LIMIT = 15;
@@ -466,8 +490,8 @@ function LeagueInjuries({ league }: { league: League }) {
                   {only === null && <SortTh label="Team" k="team" sort={outSort} onSort={onOutSort} desc={false} />}
                   <SortTh label="Age" k="age" sort={outSort} onSort={onOutSort} desc={false} className="num" />
                   <SortTh label="OVR" k="ovr" sort={outSort} onSort={onOutSort} className="num" />
-                  <SortTh label="Fitness" k="fitness" sort={outSort} onSort={onOutSort} />
-                  <SortTh label="Injury" k="injury" sort={outSort} onSort={onOutSort} desc={false} />
+                  <SortTh label="Role" k="role" sort={outSort} onSort={onOutSort} desc={false} />
+                  <SortTh label="Injury" k="injury" sort={outSort} onSort={onOutSort} />
                   <SortTh label="Outlook" k="outlook" sort={outSort} onSort={onOutSort} />
                 </tr>
               </thead>
@@ -480,12 +504,9 @@ function LeagueInjuries({ league }: { league: League }) {
                     <td className="num">
                       <Ovr league={league} player={p} />
                     </td>
+                    <td className={roleOf(league, p).rank < 100 ? undefined : 'muted'}>{roleOf(league, p).label}</td>
                     <td>
-                      <FitnessCell league={league} p={p} />
-                    </td>
-                    <td>
-                      {p.injury ? injuryLabel(p.injury.type) : 'Healed'}
-                      <InjuryTag league={league} p={p} />
+                      <InjuryCell league={league} p={p} />
                     </td>
                     <td className="muted small">{p.injury ? (p.injury.injected ? 'Playing through it' : estimateText(p.injury, weeksLeft(league))) : 'Ready to come off reserve'}</td>
                   </tr>
