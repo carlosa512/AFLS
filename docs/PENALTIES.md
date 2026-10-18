@@ -6,7 +6,7 @@
 > special-teams units (backups first) and the user's own returners; holds and blocks in the back on
 > returns, kickoffs out of bounds or short and lined up wrong, kick-catch interference, running into and
 > roughing the punter; kick units tire and face injury risk; a goal-line stack for runs. Next: Phase 3b,
-> the special-teams coordinator.
+> the special-teams coordinator and a field goal and extra point unit (decision 6).
 > Numbers from the NFL's 2023–2025 seasons (below), tuned to their average (decision 5).
 
 ## The NFL, by the numbers
@@ -237,7 +237,25 @@ for a kicker short on accuracy), a kicking team lined up wrong (5 more yards), k
 (15 from the catch), running into the punter (taken when it moves the chains) and roughing him (15 and a
 first down). Returns run 1.5 yards longer on kickoffs and 1 on punts before flags, so drives still
 start at the 31.0 after kickoffs and the 23.3 after punts (30.9 and 23.5 before). Not yet: punts' own formation fouls, fouls on
-field goals and extra points, personal fouls on kicks, a re-kick after a kicking team's foul.
+field goals and extra points (Phase 3b), personal fouls on kicks, a re-kick after a kicking team's foul.
+
+**3b plan.** Two parts, one PR:
+
+- **Special-teams coordinator** (`coaching.ts`): a new chair on the coaching staff, with a hand in the
+  units' discipline (their flags) and in return and coverage yards. Like every chair: budget, contracts,
+  the market, ageing, AI hiring, the Coaches screen, and a save migration.
+- **Field goal and extra point unit**: the units that put linemen on special teams. The kicking side is
+  the starting line (a backup lineman or tight end on the wings, a backup in for anyone out), so a
+  false start or a hold on a kick comes from a lineman like on any snap; the blocking side is the
+  defense's front. New flags: false start and holding on kicks, offside on the defense, running into
+  or roughing the kicker or holder. The coach's choice: take the points or take the penalty (`takesPenalty`
+  on a made kick against the first down). These snaps are low-contact, so they count lightly toward
+  wear and injury risk. Field goal and extra point rates, and field goal tries (1.97, top 2.0), must stay
+  in range.
+
+Punt and kickoff units stay as they are: in the NFL their front men (snapper, guards, tackles on a punt)
+are linebackers, tight ends and backs who block, then cover 40 yards, so offensive linemen rarely play
+there.
 
 **The balance.** With the special-teams share taken back from the line fouls (holding 0.0362 → 0.0306,
 false start 0.0257 → 0.0226, offside 0.0158 → 0.0137), offenses got some of their point back, and
@@ -348,6 +366,9 @@ fouls in the last minute bring a 10-second runoff. `npm run endings` must check 
 5. **Tune to the 2023–2025 average**: 12.3 accepted a game (6.15 per team-game), 1.74 declined and 0.53
    offsetting. Flags are rising in the real league; crews and their yearly drift let a long career
    wander around that average on its own.
+6. **Field goals and extra points get their own unit in Phase 3b** (owner, after 3a): special teams
+   is a key part of the game, so the kicking unit that puts linemen on special teams comes with the
+   special-teams coordinator rather than waiting for Phase 4.
 
 **Three-year averages per game** (both teams, accepted), the targets each phase tunes to: false start
 2.37, offensive holding 2.30, pass interference 1.03, defensive holding 0.65, unnecessary roughness
