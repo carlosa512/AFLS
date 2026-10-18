@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check": "tsx scripts/check.ts",
     "sim": "tsx scripts/calibrate.ts",
     "endings": "tsx scripts/endings.ts",
     "offseason": "tsx scripts/offseason.ts",

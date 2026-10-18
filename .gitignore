@@ -2,4 +2,6 @@ node_modules/
 dist/
 dist-single/
 *.log
+.check/
+.claude/worktrees/
 .DS_Store
