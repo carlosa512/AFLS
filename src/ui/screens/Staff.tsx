@@ -42,8 +42,7 @@ import type { League, ScoutFocus, Staff, StaffRole } from '../../engine/types';
 import { useNav } from '../App';
 import { Exact, GradesTable, Panel, Section, Sheet, TeamChip } from '../components';
 import { band, money, ordinal } from '../format';
-import { ReadNum, StaffSkill } from '../scouting';
-import { scoutReads, seenScout } from '../../engine/scouting';
+import { StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
 
 type Group = ScoutFocus | null;
@@ -242,13 +241,11 @@ const SCOUT_ROLE_LINE: Record<StaffRole, string> = {
   proScout: 'Reads players already in the league in his position group: free agents and trade targets.',
 };
 
-/** A scout's full card: your read of him, what his chair does, and for one on the market, what hiring him would sharpen. */
+/** A scout's full card: his ratings, what his chair does, and for one on the market, what hiring him would sharpen. */
 export function ScoutCard({ league, scout: s, onClose }: { league: League; scout: Staff; onClose: () => void }) {
   const teamId = league.userTeamId;
   const team = s.teamId !== null ? league.teams[s.teamId] : null;
-  const reads = scoutReads(league, teamId, s);
-  // What he'd sharpen, from your read of him: his true ratings stay his old club's secret.
-  const preview = s.teamId === null ? previewText(previewHire(league, teamId, s, 2, seenScout(league, teamId, s))) : null;
+  const preview = s.teamId === null ? previewText(previewHire(league, teamId, s, 2)) : null;
   return (
     <Sheet
       label={staffName(s)}
@@ -268,8 +265,8 @@ export function ScoutCard({ league, scout: s, onClose }: { league: League; scout
       }
     >
       <div className="facts">
-        <StaffSkill label="Evaluation" value={reads.evaluation} />
-        <StaffSkill label="Projection" value={reads.projection} />
+        <StaffSkill label="Evaluation" value={s.evaluation} />
+        <StaffSkill label="Projection" value={s.projection} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -299,7 +296,6 @@ function Candidate({ league, s, open }: { league: League; s: Staff; open: boolea
   const teamId = league.userTeamId;
   const [years, setYears] = useState(2);
   const problem = staffMoveProblem(league, teamId, s, 'hire', years);
-  const reads = scoutReads(league, teamId, s);
   // Hiring now can cost an expiring man his re-signing: his chair or his money goes to the new hire.
   const pushed = problem ? [] : pushedOutBy(league, teamId, s, years);
   const announce = useContext(Announce);
@@ -313,8 +309,8 @@ function Candidate({ league, s, open }: { league: League; s: Staff; open: boolea
         </div>
       </div>
       <div className="facts">
-        <StaffSkill label="Evaluation" value={reads.evaluation} />
-        <StaffSkill label="Projection" value={reads.projection} />
+        <StaffSkill label="Evaluation" value={s.evaluation} />
+        <StaffSkill label="Projection" value={s.projection} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -383,24 +379,21 @@ export function StaffScreen({ league }: { league: League }) {
   // What's really left once the deals that are up re-sign, as they will unless let go.
   const room = staffRoomAfterResigns(league, teamId);
   const dead = sumDead(league, teamId);
-  const grades = departmentGrades(league, (s) => seenScout(league, teamId, s));
-  // Another club's department, as your read of each man.
+  const grades = departmentGrades(league);
+  // Another club's department.
   const staffOf = (id: number) => (
     <ul className="team-staff">
       {[...teamStaff(league, id)]
         .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role))
-        .map((s) => {
-          const r = scoutReads(league, teamId, s);
-          return (
-            <li key={s.id}>
-              <ScoutLink s={s} />
-              <span className="muted small">{roleLine(s)}</span>
-              <span className="small">
-                Evaluation <ReadNum r={r.evaluation} /> · Projection <ReadNum r={r.projection} />
-              </span>
-            </li>
-          );
-        })}
+        .map((s) => (
+          <li key={s.id}>
+            <ScoutLink s={s} />
+            <span className="muted small">{roleLine(s)}</span>
+            <span className="small">
+              Evaluation <StaffNum value={s.evaluation} /> · Projection <StaffNum value={s.projection} />
+            </span>
+          </li>
+        ))}
     </ul>
   );
   const mineGrade = grades.get(teamId)!;
@@ -423,9 +416,7 @@ export function StaffScreen({ league }: { league: League }) {
 
   const candidates = staffMarket(league)
     .filter((s) => s.role === role && (role === 'director' || focus === 'any' || s.focus === focus))
-    .map((s) => ({ s, value: staffValue(seenScout(league, teamId, s)) }))
-    .sort((a, b) => b.value - a.value)
-    .map((x) => x.s);
+    .sort((a, b) => staffValue(b) - staffValue(a));
   const expiringCount = mine.filter((s) => isExpiring(league, s)).length;
   const pct = budget > 0 ? Math.min(100, Math.max(0, (payroll / budget) * 100)) : 100;
 

@@ -307,8 +307,8 @@ export function Exact({ numbers, children }: { numbers: ReactNode; children: Rea
 }
 
 /**
- * Every club's department by grade. Tap a team to open its staff underneath (`staffOf` says who, with your
- * read of each), so the league isn't just a rank: you can see who's behind it.
+ * Every club's department by grade. Tap a team to open its staff underneath (`staffOf` says who, and how
+ * good), so the league isn't just a rank: you can see who's behind it.
  */
 export function GradesTable({ league, grades, staffOf }: { league: League; grades: Map<number, { rank: number; grade: string }>; staffOf: (teamId: number) => ReactNode }) {
   const [open, setOpen] = useState<number | null>(null);

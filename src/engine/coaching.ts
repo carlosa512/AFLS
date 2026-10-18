@@ -795,9 +795,8 @@ export function staffScore(coaches: readonly Coach[]): number {
 }
 
 /** Letter grade by rank among the 32 staffs: A top 3, B next 6, C middle 14, D next 6, F bottom 3. */
-/** `see` is how a screen's team reads other clubs' coaches (`seenCoach`), so a ranking never leaks their true ratings. */
-export function coachingGrades(league: League, see: (c: Coach) => Coach = (c) => c): Map<number, { rank: number; grade: string }> {
-  const ranked = league.teams.map((t) => ({ id: t.id, score: staffScore(teamCoaches(league, t.id).map(see)) })).sort((a, b) => b.score - a.score);
+export function coachingGrades(league: League): Map<number, { rank: number; grade: string }> {
+  const ranked = league.teams.map((t) => ({ id: t.id, score: staffScore(teamCoaches(league, t.id)) })).sort((a, b) => b.score - a.score);
   return new Map(ranked.map((x, i) => [x.id, { rank: i + 1, grade: i < 3 ? 'A' : i < 9 ? 'B' : i < 23 ? 'C' : i < 29 ? 'D' : 'F' }]));
 }
 
@@ -813,11 +812,10 @@ export interface RoomChange {
  * him: expiring coaches forecast to re-sign count as staying, anyone the hire would push out (or the
  * man he replaces) counts as gone, so losses show as well as gains.
  */
-export function previewCoachHire(league: League, teamId: number, c: Coach, years = 2, seen: Coach = c): RoomChange[] {
+export function previewCoachHire(league: League, teamId: number, c: Coach, years = 2): RoomChange[] {
   const staying = (forecast: Map<number, ResignOutlook>) => teamCoaches(league, teamId).filter((x) => !isCoachExpiring(league, x) || forecast.get(x.id) === 'stays');
   const now = staying(coachResignForecast(league, teamId));
-  // His ask (and so the budget) is the real man's; what he'd do for the rooms is the team's read of him (`seen`).
-  const after = [...staying(coachResignForecast(league, teamId, { c, years })).filter((x) => !sameChair(chairOf(x), chairOf(c))), seen];
+  const after = [...staying(coachResignForecast(league, teamId, { c, years })).filter((x) => !sameChair(chairOf(x), chairOf(c))), c];
   const out: RoomChange[] = [];
   for (const room of [...COACH_ROOMS, null]) {
     const from = roomEffect(now, room);

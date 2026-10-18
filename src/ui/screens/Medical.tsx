@@ -40,8 +40,7 @@ import { useNav } from '../App';
 import { Exact, GradesTable, Panel, PlayerAvatar, Section, Sheet, TeamChip } from '../components';
 import { money, ordinal, resultsSeason, verdict, type Verdict } from '../format';
 import { conditionTone, InjuryTag } from '../injuries';
-import { ReadNum, StaffSkill } from '../scouting';
-import { medicReads, seenMedic } from '../../engine/scouting';
+import { StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
 
 const TERMS = [1, 2, 3];
@@ -157,10 +156,9 @@ const MEDIC_ROLE_LINE: Record<MedicRole, string> = {
   scientist: 'Runs load management: the biggest say in soft-tissue injuries and how fast players get their legs back.',
 };
 
-/** What hiring `m` would do to your department, from your read of him, in words with the ratings for the tap. */
+/** What hiring `m` would do to your department, in words with the ratings for the tap. */
 function hirePreview(league: League, teamId: number, m: Medic): { words: string; numbers: string } | null {
-  // His true ratings stay his old club's secret.
-  const { from, to } = previewMedicHire(league, teamId, seenMedic(league, teamId, m));
+  const { from, to } = previewMedicHire(league, teamId, m);
   const change = (label: string, a: number, b: number) => (Math.abs(b - a) >= 0.05 ? `${label} ${a.toFixed(1)} → ${b.toFixed(1)}` : null);
   const numbers = [change('physiotherapy', from.physio, to.physio), change('sports science', from.science, to.science)].filter(Boolean).join(', ');
   if (!numbers) return null;
@@ -173,11 +171,10 @@ function hirePreview(league: League, teamId: number, m: Medic): { words: string;
   return { words: `Your department: ${words.join(', ')}.`, numbers: `Department ${numbers}` };
 }
 
-/** A medic's full card: your read of him, what his chair does, his last job, and for one on the market, what hiring him would change. */
+/** A medic's full card: his ratings, what his chair does, his last job, and for one on the market, what hiring him would change. */
 export function MedicCard({ league, medic: m, onClose }: { league: League; medic: Medic; onClose: () => void }) {
   const teamId = league.userTeamId;
   const team = m.teamId !== null ? league.teams[m.teamId] : null;
-  const reads = medicReads(league, teamId, m);
   const preview = m.teamId === null ? hirePreview(league, teamId, m) : undefined;
   return (
     <Sheet
@@ -198,8 +195,8 @@ export function MedicCard({ league, medic: m, onClose }: { league: League; medic
       }
     >
       <div className="facts">
-        <StaffSkill label="Physiotherapy" value={reads.physio} />
-        <StaffSkill label="Sports science" value={reads.science} />
+        <StaffSkill label="Physiotherapy" value={m.physio} />
+        <StaffSkill label="Sports science" value={m.science} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -234,7 +231,6 @@ function Candidate({ league, m, open }: { league: League; m: Medic; open: boolea
   const teamId = league.userTeamId;
   const [years, setYears] = useState(2);
   const problem = medicMoveProblem(league, teamId, m, 'hire', years);
-  const reads = medicReads(league, teamId, m);
   return (
     <li className="staff-card">
       <div className="staff-head">
@@ -244,8 +240,8 @@ function Candidate({ league, m, open }: { league: League; m: Medic; open: boolea
         </div>
       </div>
       <div className="facts">
-        <StaffSkill label="Physiotherapy" value={reads.physio} />
-        <StaffSkill label="Sports science" value={reads.science} />
+        <StaffSkill label="Physiotherapy" value={m.physio} />
+        <StaffSkill label="Sports science" value={m.science} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -523,24 +519,21 @@ function Department({ league }: { league: League }) {
   const [showAll, setShowAll] = useState(false);
   const dept = departmentFor(league, teamId);
   const e = effects(dept);
-  const grades = medicalGrades(league, (m) => seenMedic(league, teamId, m));
-  // Another club's department, as your read of each man.
+  const grades = medicalGrades(league);
+  // Another club's department.
   const staffOf = (id: number) => (
     <ul className="team-staff">
       {[...teamMedics(league, id)]
         .sort((a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role))
-        .map((m) => {
-          const r = medicReads(league, teamId, m);
-          return (
-            <li key={m.id}>
-              <MedicLink m={m} />
-              <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
-              <span className="small">
-                Physiotherapy <ReadNum r={r.physio} /> · Sports science <ReadNum r={r.science} />
-              </span>
-            </li>
-          );
-        })}
+        .map((m) => (
+          <li key={m.id}>
+            <MedicLink m={m} />
+            <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
+            <span className="small">
+              Physiotherapy <StaffNum value={m.physio} /> · Sports science <StaffNum value={m.science} />
+            </span>
+          </li>
+        ))}
     </ul>
   );
   const mineGrade = grades.get(teamId)!;
@@ -551,9 +544,7 @@ function Department({ league }: { league: League }) {
   const vacancies = MEDIC_ROLES.flatMap((r) => Array.from({ length: Math.max(0, MEDIC_SLOTS[r] - mine.filter((m) => m.role === r).length) }, () => r));
   const candidates = medicMarket(league)
     .filter((m) => m.role === role)
-    .map((m) => ({ m, value: medicValue(seenMedic(league, teamId, m)) }))
-    .sort((a, b) => b.value - a.value)
-    .map((x) => x.m);
+    .sort((a, b) => medicValue(b) - medicValue(a));
   const LIMIT = 6;
   const shown = showAll ? candidates : candidates.slice(0, LIMIT);
 
@@ -653,7 +644,7 @@ function Department({ league }: { league: League }) {
         }
       >
         <p className="muted small" style={{ marginTop: 0 }}>
-          Best first, by your read of each. Physios carry most of the rehab, the sports scientist most of the prevention, the head doctor both and the diagnosis. Tap a name to see what he would change in your department.
+          Best first. Physios carry most of the rehab, the sports scientist most of the prevention, the head doctor both and the diagnosis. Tap a name to see what he would change in your department.
         </p>
         {candidates.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
