@@ -39,8 +39,8 @@ import type { League, Medic, MedicRole, Player } from '../../engine/types';
 import { useNav } from '../App';
 import { Exact, GradesTable, Panel, PlayerAvatar, Section, Sheet, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
 import { money, ordinal, resultsSeason, verdict, type Verdict } from '../format';
-import { conditionTone, InjuryTag } from '../injuries';
-import { StaffNum, StaffSkill } from '../scouting';
+import { conditionTone, FitnessCell, fitnessSort, InjuryTag } from '../injuries';
+import { Ovr, seenOvr, StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
 
 const TERMS = [1, 2, 3];
@@ -296,6 +296,9 @@ function InjuryReport({ league }: { league: League }) {
             <thead>
               <tr>
                 <th className="sticky-col">Player</th>
+                <th className="num">Age</th>
+                <th className="num">OVR</th>
+                <th>Fitness</th>
                 <th>Injury</th>
                 <th>Outlook</th>
               </tr>
@@ -310,6 +313,13 @@ function InjuryReport({ league }: { league: League }) {
                         {p.position} {p.firstName} {p.lastName}
                       </span>
                     </button>
+                  </td>
+                  <td className="num">{p.age}</td>
+                  <td className="num">
+                    <Ovr league={league} player={p} />
+                  </td>
+                  <td>
+                    <FitnessCell league={league} p={p} />
                   </td>
                   <td>
                     {p.injury ? injuryLabel(p.injury.type) : 'Healed'}
@@ -342,7 +352,7 @@ function InjuryReport({ league }: { league: League }) {
 }
 
 type TeamSort = 'team' | 'out' | 'ir' | 'season';
-type OutSort = 'name' | 'team' | 'injury' | 'outlook';
+type OutSort = 'name' | 'team' | 'age' | 'ovr' | 'fitness' | 'injury' | 'outlook';
 
 /**
  * Injuries around the league this season. An injury, its estimate and a player's history are public, so
@@ -373,7 +383,21 @@ function LeagueInjuries({ league }: { league: League }) {
     out.filter((p) => only === null || p.teamId === only),
     outSort,
     (p, key) =>
-      key === 'name' ? `${p.lastName} ${p.firstName}` : key === 'team' ? league.teams[p.teamId!].abbrev : key === 'injury' ? (p.injury ? injuryLabel(p.injury.type) : '') : (p.injury?.estimate[1] ?? 0),
+      key === 'name'
+        ? `${p.lastName} ${p.firstName}`
+        : key === 'team'
+          ? league.teams[p.teamId!].abbrev
+          : key === 'age'
+            ? p.age
+            : key === 'ovr'
+              ? seenOvr(league, p)
+              : key === 'fitness'
+                ? fitnessSort(league, p)
+                : key === 'injury'
+                  ? p.injury
+                    ? injuryLabel(p.injury.type)
+                    : ''
+                  : (p.injury?.estimate[1] ?? 0),
   );
   const LIMIT = 15;
   const name = (p: Player) => (
@@ -440,6 +464,9 @@ function LeagueInjuries({ league }: { league: League }) {
                 <tr>
                   <SortTh label="Player" k="name" sort={outSort} onSort={onOutSort} desc={false} className="sticky-col" />
                   {only === null && <SortTh label="Team" k="team" sort={outSort} onSort={onOutSort} desc={false} />}
+                  <SortTh label="Age" k="age" sort={outSort} onSort={onOutSort} desc={false} className="num" />
+                  <SortTh label="OVR" k="ovr" sort={outSort} onSort={onOutSort} className="num" />
+                  <SortTh label="Fitness" k="fitness" sort={outSort} onSort={onOutSort} />
                   <SortTh label="Injury" k="injury" sort={outSort} onSort={onOutSort} desc={false} />
                   <SortTh label="Outlook" k="outlook" sort={outSort} onSort={onOutSort} />
                 </tr>
@@ -449,6 +476,13 @@ function LeagueInjuries({ league }: { league: League }) {
                   <tr key={p.id}>
                     <td className="sticky-col">{name(p)}</td>
                     {only === null && <td>{league.teams[p.teamId!].abbrev}</td>}
+                    <td className="num">{p.age}</td>
+                    <td className="num">
+                      <Ovr league={league} player={p} />
+                    </td>
+                    <td>
+                      <FitnessCell league={league} p={p} />
+                    </td>
                     <td>
                       {p.injury ? injuryLabel(p.injury.type) : 'Healed'}
                       <InjuryTag league={league} p={p} />

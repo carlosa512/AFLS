@@ -23,6 +23,7 @@ import {
   type InjuryRiskRead,
 } from '../engine/injuries';
 import { ATTRIBUTE_INFO } from '../engine/attributes';
+import { isAvailable } from '../engine/roster';
 import type { Attribute, League, Player } from '../engine/types';
 import { Section, TipPill } from './components';
 import { store } from './store';
@@ -51,6 +52,13 @@ export function RiskDot({ read }: { read: InjuryRiskRead }) {
 
 /** Condition band: fresh, a little worn, worn down. */
 export const conditionTone = (c: number) => (c >= 90 ? 'tone-good' : c < 78 ? 'tone-bad' : undefined);
+
+/**
+ * What a fitness column sorts by: your players by condition, anyone's by how injury-prone your read says he
+ * is (never the hidden trait), the unavailable sinking to the bottom.
+ */
+export const fitnessSort = (league: League, p: Player) =>
+  (isAvailable(p) ? 0 : -1000) + (p.teamId === league.userTeamId ? (p.condition ?? 100) : 0) - { Low: 0, Medium: 1, High: 2 }[riskOf(league, p).tier];
 
 /** The roster's fitness cell: condition (your own players) and the injury-risk dot. */
 export function FitnessCell({ league, p }: { league: League; p: Player }) {
