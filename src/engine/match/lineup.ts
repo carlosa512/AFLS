@@ -30,6 +30,13 @@ export interface Lineup {
   p: Player;
   kr: Player;
   pr: Player;
+  /**
+   * The ten men around the kicker, punter or returner on a kick, both ways: backups first (linebackers,
+   * safeties, corners, tight ends, receivers, backs), so starters don't pile up snaps and injuries.
+   */
+  st: Player[];
+  /** The kick units' discipline: blocks in the back, holding on returns, a kickoff lined up wrong. */
+  specialDiscipline: number;
   /** Unit composites on the 1–20 scale. */
   passBlock: number;
   runBlock: number;
@@ -40,6 +47,36 @@ export interface Lineup {
   /** Linemen's discipline: false starts and holding (offense), offside (defense). */
   offenseDiscipline: number;
   defenseDiscipline: number;
+}
+
+/** Where special-teams units come from, in the order they're filled, after each position's starters. */
+const ST_POOL: [Position, number][] = [
+  ['LB', 2],
+  ['S', 2],
+  ['CB', 2],
+  ['TE', 1],
+  ['WR', 3],
+  ['RB', 1],
+  ['EDGE', 2],
+  ['DT', 2],
+];
+const ST_SIZE = 10;
+
+/**
+ * A kick unit: one backup from each position in turn (a linebacker, a safety, a corner, a tight end…)
+ * until there are ten, so the unit mixes like an NFL one; starters only when the backups run out.
+ */
+function coverUnit(league: League, team: Team, out: ReadonlySet<number>): Player[] {
+  const ok = (id: number) => !out.has(id) && !!league.players[id] && isAvailable(league.players[id]);
+  const lanes = ST_POOL.map(([pos, starters]) => team.depthChart[pos].filter(ok).slice(starters));
+  const unit: Player[] = [];
+  for (let round = 0; unit.length < ST_SIZE && lanes.some((l) => l.length > round); round++) {
+    for (const lane of lanes) if (round < lane.length && unit.length < ST_SIZE) unit.push(league.players[lane[round]]);
+  }
+  for (const [pos, starters] of ST_POOL) {
+    for (const id of team.depthChart[pos].filter(ok).slice(0, starters)) if (unit.length < ST_SIZE) unit.push(league.players[id]);
+  }
+  return unit;
 }
 
 /** A lineman's discipline: his football IQ, plus or minus his temper (a hothead jumps early and grabs). */
@@ -130,10 +167,15 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
   const kicker = at.K[0];
   const punter = at.P[0];
 
-  // Returners come from skill-position depth, not the starters' workload.
+  // Returners come from skill-position depth, not the starters' workload, unless the user picked them.
   const krPool = [rbs[1], wrs[3], wrs[2], cb[2]].filter(Boolean);
   const prPool = [wrs[2], wrs[3], cb[2], rbs[1]].filter(Boolean);
   const best = (pool: Player[]) => pool.reduce((a, b) => (skill(b, 'returns') > skill(a, 'returns') ? b : a));
+  const picked = (id: number | undefined) => {
+    const p = id === undefined ? undefined : league.players[id];
+    return p && p.teamId === team.id && !out.has(p.id) && isAvailable(p) ? p : undefined;
+  };
+  const st = coverUnit(league, team, out);
 
   // Who blocks besides the line depends on who is on the field: a second tight end helps, a fourth receiver doesn't.
   const olPass = avg(ol, (p) => skill(p, 'passPro'));
@@ -171,8 +213,10 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     rushRotation: (['EDGE', 'DT'] as const).map((pos) => team.depthChart[pos].find(fit)).filter((id) => id !== undefined).map((id) => league.players[id]),
     k: kicker,
     p: punter,
-    kr: best(krPool),
-    pr: best(prPool),
+    kr: picked(team.returners?.kr) ?? best(krPool),
+    pr: picked(team.returners?.pr) ?? best(prPool),
+    st,
+    specialDiscipline: avg(st, discipline),
     // Unit composites: the line does most of the work, with help from the backs and tight ends.
     passBlock,
     runBlock,

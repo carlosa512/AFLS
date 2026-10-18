@@ -48,6 +48,10 @@ const TARGETS: Record<string, [number, number]> = {
   // and the offense's share are set aside), and roughing the passer alone (0.17).
   personal: [0.45, 0.8],
   roughing: [0.12, 0.22],
+  // Special-teams flags the engine calls (blocks on returns, kickoff misses and alignment, kick-catch
+  // interference, fouls on the punter): NFL 2023–25 special teams drew 0.88 per team-game in all, about
+  // 0.6 of it these kinds.
+  special: [0.45, 0.8],
   homeWinPct: [53, 57],
   otPct: [4, 7],
   tiePct: [0, 0.6],
@@ -168,6 +172,7 @@ for (let s = 0; s < seasons; s++) {
       add('offsetting', Object.values(t.offset ?? {}).reduce((a, b) => a + b, 0));
       add('personal', FOUL_KINDS.filter((f) => FOULS[f].personal).reduce((a, f) => a + (t.flags?.[f] ?? 0), 0));
       add('roughing', t.flags?.roughingPasser ?? 0);
+      add('special', FOUL_KINDS.filter((f) => FOULS[f].special).reduce((a, f) => a + (t.flags?.[f] ?? 0), 0));
       add('top', t.top);
     }
     for (const line of Object.values(r.playerStats)) {
@@ -225,6 +230,7 @@ const results: Record<string, number> = {
   offsetting: per('offsetting'),
   personal: per('personal'),
   roughing: per('roughing'),
+  special: per('special'),
   homeWinPct: (100 * homeWins) / (games - ties),
   otPct: (100 * ot) / games,
   tiePct: (100 * ties) / games,

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { downValue, takesPenalty } from './match/coach';
 import { simulateGame } from './match/gameSim';
-import { enforce, FOUL_KINDS } from './penalties';
+import { buildLineup } from './match/lineup';
+import { enforce, FOUL_KINDS, FOULS } from './penalties';
 
 const at = (yardLine: number, down = 1, toGo = 10) => ({ yardLine, down, lineToGain: Math.min(100, yardLine + toGo) });
 const value = (s: { yardLine: number; down: number; lineToGain: number }) => downValue(s.yardLine, s.down, s.lineToGain - s.yardLine);
@@ -124,5 +125,37 @@ describe('personal fouls', () => {
       });
     }
     expect(seen).toBeGreaterThan(0);
+  });
+});
+
+describe('special teams', () => {
+  it('covers kicks with backups, never a starter while a backup is free, and takes the returners the user picks', () => {
+    const league = createLeague({ seed: 'special-teams' });
+    const team = league.teams[0];
+    const starters = new Set([...team.depthChart.LB.slice(0, 2), ...team.depthChart.S.slice(0, 2), ...team.depthChart.CB.slice(0, 2), ...team.depthChart.QB, ...team.depthChart.OL]);
+    const lineup = buildLineup(league, team);
+    expect(lineup.st).toHaveLength(10);
+    expect(new Set(lineup.st.map((p) => p.id)).size).toBe(10);
+    for (const p of lineup.st) expect(starters.has(p.id)).toBe(false);
+    const wr1 = league.players[team.depthChart.WR[0]];
+    team.returners = { kr: wr1.id };
+    expect(buildLineup(league, team).kr).toBe(wr1);
+    // A pick who's out sits like anyone else.
+    expect(buildLineup(league, team, new Set([wr1.id])).kr).not.toBe(wr1);
+  });
+
+  it('flags returns, kickoffs and punts, and charges the kick units', () => {
+    const league = createLeague({ seed: 'special-flags' });
+    const seen = new Set<string>();
+    for (const g of league.games.filter((g) => g.week <= 8)) {
+      const r = simulateGame(league, g, { keepPlays: true });
+      for (const side of [r.home, r.away]) for (const f of FOUL_KINDS) if (FOULS[f].special && side.flags?.[f]) seen.add(f);
+      // A flagged return goes 10 yards back from the spot of the foul (half the distance near the goal).
+      for (const p of r.plays!) {
+        const m = p.text.match(/returns to the (\w+) (\d+)\. PENALTY on \w+ \([^)]*\): (?:Holding on a return|Illegal block in the back), (\d+) yards\. Ball at the (\w+) (\d+)\./);
+        if (m && m[1] === m[4]) expect(Number(m[2]) - Number(m[3])).toBe(Number(m[5]));
+      }
+    }
+    for (const f of ['returnHolding', 'blockInBack', 'kickoffMiss', 'kickoffFormation']) expect(seen.has(f)).toBe(true);
   });
 });

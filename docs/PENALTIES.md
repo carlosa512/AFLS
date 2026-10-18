@@ -1,12 +1,12 @@
 # Penalties
 
-> **Status.** Phases 1 and 2 built. Phase 1: the foul registry and enforcement (`penalties.ts`),
-> accept or decline (`coach.takesPenalty` on `coach.downValue`), offsetting fouls, live-ball offside,
-> untimed downs, every accepted flag charged to a player. Phase 2: roughing the passer, unnecessary
-> roughness, face mask, horse collar and unsportsmanlike conduct (the defense's, on scrimmage plays),
-> enforced from where the play ended when it gained ground; the crews' fourth tendency, QB Protection;
-> star protection for decorated passers (`starLean`); and a retune of the offense so scoring holds
-> (see Phase 2). Next: Phase 3 (special teams).
+> **Status.** Phases 1, 2 and 3a built. Phase 1: the foul registry and enforcement, accept or decline,
+> offsetting fouls, live-ball offside, untimed downs, every accepted flag charged to a player. Phase 2:
+> the defense's personal fouls, the crews' QB Protection, star protection, an offense retune. Phase 3a:
+> special-teams units (backups first) and the user's own returners; holds and blocks in the back on
+> returns, kickoffs out of bounds or short and lined up wrong, kick-catch interference, running into and
+> roughing the punter; kick units tire and face injury risk; a goal-line stack for runs. Next: Phase 3b,
+> the special-teams coordinator.
 > Numbers from the NFL's 2023–2025 seasons (below), tuned to their average (decision 5).
 
 ## The NFL, by the numbers
@@ -225,6 +225,28 @@ penalties modeled") is this phase. It gets a column on the crews page, keeping t
 every hidden tendency shows up in a stat a player can read.
 
 ## Phase 3: special teams
+
+**3a built.** Units: `Lineup.st`, ten men a kick both ways, one backup from each position in turn
+(linebacker, safety, corner, tight end, receiver, back, edge, tackle), starters only when the backups run
+out; they tire and face a scrimmage snap's injury risk on every kick (×1.5 on a return, ×0.4 on a
+touchback or a fair catch). Returners: the user picks them on the depth chart (`Team.returners`, save
+v18), or Auto. Flags, per team-game in `npm run sim -- 10` (special 0.6 in all): holds and blocks in
+the back on returns (10 yards from a spot behind the returner, half the distance near the goal; a
+return touchdown called back), kickoffs out of bounds or short (the receivers' ball at their 40, more
+for a kicker short on accuracy), a kicking team lined up wrong (5 more yards), kick-catch interference
+(15 from the catch), running into the punter (taken when it moves the chains) and roughing him (15 and a
+first down). Returns run 1.5 yards longer on kickoffs and 1 on punts before flags, so drives still
+start at the 31.0 after kickoffs and the 23.3 after punts (30.9 and 23.5 before). Not yet: punts' own formation fouls, fouls on
+field goals and extra points, personal fouls on kicks, a re-kick after a kicking team's foul.
+
+**The balance.** With the special-teams share taken back from the line fouls (holding 0.0362 → 0.0306,
+false start 0.0257 → 0.0226, offside 0.0158 → 0.0137), offenses got some of their point back, and
+the engine still scored too easily at the goal line: 67% of red-zone trips ended in touchdowns (the NFL:
+about 55–60%) and 78% of runs from inside the 3 (about half in the NFL). So defenses now stack the box
+at the goal line (up to 1.75 yards off a run's mean at the 1, none by the 6) and short throws inside
+the 10 complete 3 points less often (medium and deep already lost 6); yards after the catch give back
+0.15 of Phase 2's cut so the season's top passers stay in range. `npm run sim -- 10`: 22.98 points,
+passing touchdowns 1.59 (the band's top is 1.6: watch it in Phase 4), field goal tries 1.97 (top 2.0).
 
 Returns today are one draw for the yards; nobody blocks. Fouls need the men around the returner.
 

@@ -7,8 +7,8 @@ import type { Foul } from './types';
 
 export interface FoulInfo {
   label: string;
-  /** The team that commits it. */
-  side: 'offense' | 'defense';
+  /** The team that commits it: on a kick, the kicking or the receiving team. */
+  side: 'offense' | 'defense' | 'kicking' | 'receiving';
   /** Yards it costs; 'spot' puts the ball where the foul happened (pass interference). */
   yards: number | 'spot';
   /** A defensive foul that moves the chains whatever the yardage. */
@@ -25,6 +25,8 @@ export interface FoulInfo {
    * incompletion, a sack or a turnover, it goes from the previous spot and wipes the play out).
    */
   late?: 'always' | 'pastLine';
+  /** A special-teams foul: rolled and enforced on the kick itself (`kickoff`, `punt` in the engine), never by `enforce`. */
+  special?: boolean;
 }
 
 export const FOULS: Record<Foul, FoulInfo> = {
@@ -38,6 +40,16 @@ export const FOULS: Record<Foul, FoulInfo> = {
   faceMask: { label: 'Face mask', side: 'defense', yards: 15, autoFirst: true, tendency: null, personal: true, late: 'pastLine' },
   horseCollar: { label: 'Horse collar', side: 'defense', yards: 15, autoFirst: true, tendency: null, personal: true, late: 'pastLine' },
   unsportsmanlike: { label: 'Unsportsmanlike conduct', side: 'defense', yards: 15, autoFirst: true, tendency: null, personal: true, late: 'always' },
+  // Special teams: 10 yards from the spot of a block on a return; the receiving team's ball at its 40 on a
+  // kickoff out of bounds or short of the landing zone; 5 for a kicking team lined up wrong; 15 from the
+  // catch for interfering with it; 5 for running into a punter, 15 and the ball for roughing him.
+  returnHolding: { label: 'Holding on a return', side: 'receiving', yards: 10, tendency: null, special: true },
+  blockInBack: { label: 'Illegal block in the back', side: 'receiving', yards: 10, tendency: null, special: true },
+  kickoffMiss: { label: 'Kickoff out of bounds or short', side: 'kicking', yards: 0, tendency: null, special: true },
+  kickoffFormation: { label: 'Kickoff offside or formation', side: 'kicking', yards: 5, tendency: null, special: true },
+  kickCatch: { label: 'Kick-catch interference', side: 'kicking', yards: 15, tendency: null, special: true },
+  runningIntoKicker: { label: 'Running into the kicker', side: 'receiving', yards: 5, tendency: null, special: true },
+  roughingKicker: { label: 'Roughing the kicker', side: 'receiving', yards: 15, autoFirst: true, tendency: null, personal: true, special: true },
 };
 export const FOUL_KINDS = Object.keys(FOULS) as Foul[];
 

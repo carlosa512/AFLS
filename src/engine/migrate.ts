@@ -41,6 +41,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 15) toV15(league);
   if (league.version < 16) league.version = 16; // v16: declined and offsetting flags, players' penalties: optional, nothing to fill in
   if (league.version < 17) toV17(league);
+  if (league.version < 18) league.version = 18; // v18: optional `returners` on teams and special-teams flags, nothing to fill in
   return league;
 }
 
