@@ -5,7 +5,7 @@
 > a player, and none on kicks, sacks or scrambles (see "Today's baseline"). This plan grows that into
 > the NFL's full rulebook of common fouls in five phases, starting with the two the officiating spec
 > already points at: roughing the passer (its "QB protection" later phase) and special-teams holding.
-> Numbers from the NFL's 2023–2025 seasons (below); which era to tune to is decision 5.
+> Numbers from the NFL's 2023–2025 seasons (below), tuned to their average (decision 5).
 
 ## The NFL, by the numbers
 
@@ -285,18 +285,31 @@ in the last minute bring a 10-second runoff. `npm run endings` must check both.
 | 4. Other scrimmage fouls | 1 | Medium | Many entries, few new hooks |
 | 5. Crews, screens, checks | 2–4 | Medium | Grows with each phase; listed last but done alongside |
 
-## Decisions for the owner
+## Decisions (owner, Oct 18 2026)
 
-1. **Declined penalties:** show them (box score and play-by-play), or keep them silent and only count
-   accepted ones like most stat sites?
-2. **Special-teams units:** picked automatically from the depth chart, or a special-teams depth chart
-   you set (more management, FM-style)? And is a special-teams coach worth adding to the staff?
-3. **QB Protection:** a fourth crew tendency now (Phase 2), or keep three and let roughing ride on Flag
-   Volume?
-4. **Star treatment:** never give star quarterbacks extra protection from crews (it would feel rigged,
-   like the home lean the officiating spec already holds back). Agreed?
-5. **Which era:** calibrate to 2024–2025 (12.5–13 accepted a game), or follow 2026's record pace (about
-   15 so far, partial season)?
+1. **Declined penalties show**, beside the accepted ones: in the box score and in the play-by-play
+   ("declined", "offsetting").
+2. **Special-teams units are picked automatically**, from the backups first, so starters don't pile up
+   extra snaps and injuries across the league (kick coverage is a real injury risk, so these snaps
+   count toward fatigue and injury exposure, and `npm run sim`'s injury targets still have to hold).
+   **You pick your own kick and punt returners** (today they're automatic). A **special-teams
+   coordinator** joins the coaching staff, with a hand in the units' discipline and returns.
+3. **QB Protection** becomes the crews' fourth tendency in Phase 2.
+4. **Stars get some protection.** Roughing calls lean toward the league's most decorated passers, up to
+   about +30% for a Mahomes- or Brady-level résumé. It reads their public record (MVPs, all-league
+   selections, seasons as a starter), never hidden ratings, so it stays explainable, and the
+   quarterback's card shows the roughing calls he draws. The crew's QB Protection scales it.
+5. **Tune to the 2023–2025 average**: 12.3 accepted a game (6.15 per team-game), 1.74 declined and 0.53
+   offsetting. Flags are rising in the real league; crews and their yearly drift let a long career
+   wander around that average on its own.
+
+**Three-year averages per game** (both teams, accepted), the targets each phase tunes to: false start
+2.37, offensive holding 2.30, pass interference 1.03, defensive holding 0.65, unnecessary roughness
+0.63, delay of game 0.60, defensive offside 0.54, illegal formation 0.35, roughing the passer 0.34,
+face mask 0.33, neutral zone infraction 0.31, illegal contact 0.28, offensive pass interference about
+0.25, illegal use of hands 0.23, ineligible man downfield 0.20, intentional grounding 0.18, illegal
+block 0.17, illegal shift 0.17, encroachment 0.14, too many men 0.18, unsportsmanlike conduct 0.12,
+taunting 0.07; special teams 1.76 in all.
 
 ## Sources
 
