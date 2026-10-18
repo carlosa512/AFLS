@@ -926,7 +926,7 @@ class GameSim {
     const pancakes = this.count(off.ol, 'pancakePreacher');
     const shooters = this.count(def.lb, 'gapShooter');
     const spread = 2.9 + 0.8 * dwells + 0.25 * pancakes + 0.4 * shooters;
-    const swing = 0.4 * dwells + 0.08 * pancakes + 0.2 * shooters;
+    const swing = 0.25 * dwells + 0.05 * pancakes + 0.1 * shooters;
     let yards = rng.normal(RUN_BASE + 0.25 * lineDelta + 0.1 * (rusherSkill - 12) - contain - swing, spread);
     if (yards > 4) {
       // Past the line: beat the best linebacker's tackle, then outrun the deep safety.
@@ -1009,7 +1009,7 @@ class GameSim {
     const pressured = rng.chance(clamp(0.3 + 0.035 * pressureDelta, 0.1, 0.65));
 
     if (pressured) {
-      const pocket = skill(qb, 'pocketPresence') + (this.has(qb, 'muddyPockets') ? 2 : 0);
+      const pocket = skill(qb, 'pocketPresence') + (this.has(qb, 'muddyPockets') ? 1.5 : 0);
       // A bull rush collapses the pocket rather than finishing: more hurries, fewer of them sacks.
       const pSack = clamp(0.2 - 0.022 * (pocket - 12), 0.08, 0.38) * (1 - 0.08 * this.count(front, 'bullRush'));
       if (rng.chance(pSack)) return this.sack(def, defCall);
@@ -1086,6 +1086,8 @@ class GameSim {
     const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
     let pComplete = { short: 0.79, medium: 0.6, deep: 0.38 }[depth] + 0.018 * (acc - 12) + 0.019 * sep + 0.012 * (skill(receiver, 'hands') - 12);
     if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
+    // A gunslinger who won't throw it away forces it into coverage instead.
+    if (pressured && this.has(qb, 'gunslinger')) pComplete -= 0.1;
     if (yardsToGoal <= 10 && depth !== 'short') pComplete -= 0.06;
     if (depth === 'deep' && this.has(receiver, 'goesUpForIt')) pComplete += 0.03;
     else if (depth !== 'deep' && this.has(receiver, 'hearsFootsteps')) pComplete -= 0.04;

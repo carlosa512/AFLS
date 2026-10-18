@@ -43,7 +43,7 @@ export const QUIRKS = {
   // ── QB ──
   muddyPockets: { label: 'Navigates Muddy Pockets', positions: ['QB'], tone: 'good', clause: 'slides into open gaps when the pocket collapses', effect: 'Pressure turns into fewer sacks.' },
   staresDown: { label: 'Stares Down Hot Route', positions: ['QB'], tone: 'bad', clause: 'locks onto his first read, so linebackers jump short throws', effect: 'More interceptions on short throws against zone.' },
-  gunslinger: { label: 'Gunslinger', positions: ['QB'], tone: 'style', clause: 'never throws it away, even when the play breaks down', effect: 'No throwaways under pressure: a few more big plays, more interceptions.' },
+  gunslinger: { label: 'Gunslinger', positions: ['QB'], tone: 'style', clause: 'never throws it away, even when the play breaks down', effect: 'No throwaways: under pressure he forces it into coverage, so fewer completions and more interceptions.' },
   // ── RB ──
   finishesForward: { label: 'Finishes Forward', positions: ['RB'], tone: 'good', clause: 'always falls forward for an extra yard', effect: 'A yard more on short runs.' },
   looseCarriage: { label: 'Loose Carriage', positions: ['RB'], tone: 'bad', clause: 'carries the ball away from his body in traffic', effect: 'More fumbles on carries and catches.' },
