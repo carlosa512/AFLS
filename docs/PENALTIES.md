@@ -422,6 +422,16 @@ and `offseason` back to green. Only `quirks` is red: four borderline quirks re-r
 All four move their stat the right way with the larger sample: the check's three seasons (nine for close
 calls) leave borderline quirks to luck. Handled with the other borderline checks, outside this work.
 
+## Checks when Phase 3a landed
+
+`npm run check` on a4598c0: 9 of 11 pass. `quirks`: the same borderline three re-rolled under the bar
+(Pat-The-Rock z 1.9, Thumping Tackler −1.0, Spot Drop −1.6); Thumping Tackler reads z −3.4, moves play,
+over 6 + 18 seasons. `careers`: long-run points 24.54 (band 21–24) and sacks #5 11.7 (11.9–16.3). Aged
+leagues score about 1.5 points more than fresh ones (the known creep: 23.64 against 22.47 on `main`
+before crews), so 3a's fresh 22.98 (Phase 2: 22.84) put the long run back over 24. Both go with the
+borderline-checks work on its own branch; trimming fresh scoring toward the NFL's 22.5 would also bring
+the long run back.
+
 ## Sources
 
 Search extracts only; the pages themselves couldn't be fetched from the research sandbox.
