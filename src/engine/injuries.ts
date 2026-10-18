@@ -27,6 +27,7 @@ import { conditionBonus, departmentFor, diagnosisSpread, preventionMultiplier, r
 import { aiCutdown, KEEP_MIN, signMinimum } from './offseason/ai';
 import { ROSTER_MAX } from './offseason/negotiation';
 import { overall, playerOvr, STARTERS } from './positions';
+import { activeQuirks, addMarbles, type QuirkId } from './quirks';
 import { clamp, Rng } from './rng';
 import { activeRoster, isAvailable, syncDepthChart, teamPlayers } from './roster';
 import { characterRead } from './scouting';
@@ -165,13 +166,36 @@ export interface RiskFactors {
   /** Multipliers on a contact and a soft-tissue event's base chance, before fatigue. */
   contact: number;
   soft: number;
+  /** On top of `contact`, when he is brought down with the ball: how his running habits take a tackle. */
+  carrier: number;
 }
 
 /** What makes this player likelier (or less likely) to get hurt this week, apart from his energy. */
 export function riskFactors(league: League, p: Player, dept: Department = departmentFor(league, p.teamId)): RiskFactors {
   const base = resistanceMult(effectiveResistance(p)) * (1 + 0.07 * Math.min(5, recentInjuries(p, league.season))) * (p.injury?.injected ? 2.5 : 1);
-  return { contact: base, soft: base * preventionMultiplier(dept.science) * (freshlyHealed(league, p) ? 1.5 : 1) };
+  return { contact: base, soft: base * preventionMultiplier(dept.science) * (freshlyHealed(league, p) ? 1.5 : 1), carrier: carrierHabit(activeQuirks(p)) };
 }
+
+// ───────── habits (the injury side of quirks) ─────────
+
+/**
+ * A back's running style decides what a tackle does to him. High-Knee Stride runs upright: ankle
+ * tackles slide off, but he takes the big hits square, so more of them hurt and they land up top.
+ * Contact Averse goes down before the hit arrives: fewer yards, fewer injuries.
+ */
+const carrierHabit = (quirks: readonly QuirkId[]) => (quirks.includes('highKnee') ? 1.25 : 1) * (quirks.includes('contactAverse') ? 0.7 : 1);
+const LOWER_BODY: ReadonlySet<BodyPart> = new Set(['ankle', 'knee', 'foot', 'leg', 'achilles', 'calf']);
+const UPPER_BODY: ReadonlySet<BodyPart> = new Set(['head', 'neck', 'shoulder', 'ribs', 'chest']);
+/** Where an upright runner's contact injuries land: up top more, the legs less. */
+const partLean = (quirks: readonly QuirkId[], mechanism: Mechanism, part: BodyPart) =>
+  mechanism === 'contact' && quirks.includes('highKnee') ? (LOWER_BODY.has(part) ? 0.6 : UPPER_BODY.has(part) ? 1.6 : 1) : 1;
+
+/**
+ * The habit a serious hit can leave behind: a quarterback starts seeing ghosts, a back starts going
+ * down early, a receiver starts hearing footsteps. One marble in his bag: it shifts the odds, the
+ * draws still decide.
+ */
+const HIT_SHY: Partial<Record<Position, QuirkId>> = { QB: 'seesGhosts', RB: 'contactAverse', WR: 'hearsFootsteps', TE: 'hearsFootsteps' };
 
 // ───────── in a game ─────────
 
@@ -209,7 +233,9 @@ export const HELD_SHARE = 0.55;
 
 /** What a snap costs him: natural fitness about ±25%, and a little more each year past 28. */
 export function snapCost(p: Player): number {
-  return SNAP_COST[p.position] * (1 - 0.025 * (p.traits.naturalFitness - TRAIT_MEAN)) * (1 + 0.015 * Math.max(0, p.age - 28));
+  // A lineman who is Gassed in High-Tempo really does run out of gas: his energy goes faster too.
+  const gassed = activeQuirks(p).includes('gassed') ? 1.15 : 1;
+  return SNAP_COST[p.position] * (1 - 0.025 * (p.traits.naturalFitness - TRAIT_MEAN)) * (1 + 0.015 * Math.max(0, p.age - 28)) * gassed;
 }
 
 /** Share of lost condition a week of rest gives back: fitness, sports science and age decide it. */
@@ -246,9 +272,10 @@ export function rollInjury(
   } else {
     // Recent injuries to a part make it the likeliest to go again.
     const recent = new Set((p.injuries ?? []).filter((r) => weeksSince(league, r.season, r.week) < YEAR_WEEKS).map((r) => injuryType(r.type).part));
+    const quirks = activeQuirks(p);
     id = rng.weighted(POOLS[mechanism], (t) => {
       const type: InjuryType = INJURY_TYPES[t];
-      return type.freq * (type.pos?.[p.position] ?? 1) * (recent.has(type.part) ? (mechanism === 'soft' ? 2.5 : 1.5) : 1);
+      return type.freq * (type.pos?.[p.position] ?? 1) * (recent.has(type.part) ? (mechanism === 'soft' ? 2.5 : 1.5) : 1) * partLean(quirks, mechanism, type.part);
     });
     weeks = rollWeeks(rng, p, injuryType(id), dept);
   }
@@ -308,6 +335,10 @@ export function applyInjury(league: League, p: Player, injury: Injury, scar?: Pa
     if (Object.keys(taken).length) record.scar = taken;
   }
   (p.injuries ??= []).push(record);
+  // A serious hit in a game can leave a habit behind (not a strain, not the practice field).
+  const type = injuryType(injury.type);
+  const shy = HIT_SHY[p.position];
+  if (shy && injury.where === 'game' && type.mechanism !== 'soft' && (injury.severity !== 'minor' || type.part === 'head')) addMarbles(league, p, [shy]);
   if (p.teamId === null) return;
   // News: everything about the user's players; around the league, only the big ones to good players.
   const team = league.teams[p.teamId];

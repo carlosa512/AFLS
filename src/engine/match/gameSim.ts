@@ -455,7 +455,7 @@ class GameSim {
 
   private collide(p: Player, event: ContactEvent) {
     const [chance, contact] = CONTACT_RISK[event];
-    this.expose(p, chance, contact);
+    this.expose(p, event === 'carrier' ? chance * this.body(p).risk.carrier : chance, contact);
   }
 
   /** Roll for an injury: the event's chance, split into contact and soft tissue, times his risk and his fatigue. */

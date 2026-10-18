@@ -132,7 +132,7 @@ YAC, broken tackles, false starts/offside/holding/DPI, touchbacks, returns, bloc
 | 1 | Navigates Muddy Pockets | Fewer sacks from pressure (pocket presence) | A |
 | 2 | Manipulates Safety Eyes | Less safety help vs. zone/two-high | A |
 | 3 | Pitches Layered Balls | Batted passes don't exist yet | B |
-| 4 | Protects the Reader *(rename: Protects His Receivers)* | Needs injuries | C |
+| 4 | Protects the Reader *(rename: Protects His Receivers)* | Injuries exist: a lower `carrier` risk on his completions (`collide` in `gameSim.ts`) | B |
 | 5 | Thrives in No-Huddle | Better decisions/accuracy in hurry tempo | A |
 | 6 | Sees Ghosts | Rattled state (2+ sacks): worse decisions, more ints | A + state |
 | 7 | Bails Early | More scrambles under pressure, fewer deep throws | A |
@@ -154,8 +154,8 @@ YAC, broken tackles, false starts/offside/holding/DPI, touchbacks, returns, bloc
 | 7 | Loose Carriage | Fumbles in traffic (not flat: ball security is a rating) | A |
 | 8 | Dwells in the Hole | Lower floor, higher ceiling on runs | A |
 | 9 | Short-Arm Catcher | More drops when covered | A |
-| 10 | Contact Averse | Fewer yards after contact, fewer fumbles | A |
-| 11 | High-Knee Stride | More broken tackles, more fumbles on big hits (injury side is C) | A |
+| 10 | Contact Averse | Fewer yards after contact, fewer fumbles, fewer injuries when tackled (`injuries.ts`) | A |
+| 11 | High-Knee Stride | More broken tackles, more fumbles on big hits; more injuries when tackled, landing up top (`injuries.ts`) | A |
 | 12 | Jump-Cutter | Open-field elusiveness up, more TFL variance | A |
 
 ### WR / TE

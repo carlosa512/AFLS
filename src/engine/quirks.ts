@@ -18,6 +18,7 @@
  */
 import { coachingFor, teamScheme } from './coaching';
 import { playerOvr } from './positions';
+import { isAvailable } from './roster';
 import { clamp, Rng } from './rng';
 import { TRAIT_MEAN } from './traits';
 import type { League, Player, Position, StatKey, StatLine } from './types';
@@ -305,10 +306,11 @@ export function quirkOffseason(league: League, p: Player): void {
   draw(rng, p, OFFSEASON_DRAWS, { season: league.season, week: 0 });
 }
 
-/** In season: each rostered player has a small chance of drawing a marble every week. */
+/** In season: each rostered player (unless he is out injured) has a small chance of drawing a marble every week. */
 export function quirkWeek(league: League): void {
   for (const p of Object.values(league.players)) {
-    if (p.retired || p.teamId === null) continue;
+    // Habits form and fade on the field: a player out injured sits the week's draw out too.
+    if (p.retired || p.teamId === null || !isAvailable(p)) continue;
     const rng = new Rng(`${league.seed}:quirks:${league.season}:${league.week}:${p.id}`);
     if (!rng.chance(WEEKLY_DRAW_CHANCE)) continue;
     p.quirkBag ??= fillBag(p, coachingFor(league, p.teamId, p.position).rate);

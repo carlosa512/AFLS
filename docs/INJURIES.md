@@ -90,6 +90,21 @@ back. The player card shows exact points for your own players and words for anyo
 - **Development:** fewer games played means fewer reps for a young player, through the existing
   `playedShare` hook.
 
+## Quirks
+
+Habits and bodies meet in `injuries.ts`:
+
+| Link | What it does |
+|---|---|
+| **High-Knee Stride** (RB) | Brought down with the ball: injury chance ×1.25. His contact injuries land up top (head, neck, shoulder, ribs, chest ×1.6) and spare the legs (×0.6). |
+| **Contact Averse** (RB) | Brought down with the ball: injury chance ×0.7. |
+| **Gassed in High-Tempo** (DL) | Each snap costs 15% more energy, so the late-game risk climbs sooner. |
+| **A serious hit** | A game injury from contact, moderate or worse (or any concussion), drops one marble in his bag: *Sees Ghosts* (QB), *Contact Averse* (RB), *Hears Footsteps* (WR, TE). It shifts the odds; the draws decide. |
+| **Out injured** | No weekly habit draw: habits form and fade on the field. |
+
+A new habit with an injury side plugs into the same places: `riskFactors` (who gets hurt),
+`partLean` (where), `snapCost` (how fast he tires), `HIT_SHY` (what a hit leaves behind).
+
 ## Scouting the risk
 
 An injury-risk tier is a read, not the truth:

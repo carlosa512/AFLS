@@ -9,6 +9,7 @@ import {
   injectProblem,
   injuryRetireChance,
   injuryRisk,
+  injuryType,
   injuryWeek,
   IR_MIN_WEEKS,
   IR_RETURNS,
@@ -16,7 +17,9 @@ import {
   placeOnIr,
   playThrough,
   resistanceMult,
+  riskFactors,
   rollInjury,
+  snapCost,
   type Mechanism,
 } from './injuries';
 import { playWeek, simToEndOfRegularSeason } from './league';
@@ -27,6 +30,7 @@ import { migrateLeague } from './migrate';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
 import { activeRoster, isAvailable, teamPlayers } from './roster';
+import { quirkWeek } from './quirks';
 import { generateTraits } from './traits';
 import type { Injury, League, Medic, Player } from './types';
 
@@ -342,5 +346,59 @@ describe('saves', () => {
     expect(teamMedics(up, 0).length).toBe(4);
     expect(departmentFor(up, 0).physio).toBeGreaterThan(1);
     expect(up.teams.every((t) => Array.isArray(t.medicalDead))).toBe(true);
+  });
+});
+
+describe('quirks and injuries', () => {
+  it('lets a back\'s running habits change what a tackle does to him', () => {
+    const league = fresh();
+    const rb = Object.values(league.players).find((p) => p.teamId === 0 && p.position === 'RB')!;
+    rb.quirks = {};
+    expect(riskFactors(league, rb).carrier).toBe(1);
+    rb.quirks = { highKnee: 2 };
+    expect(riskFactors(league, rb).carrier).toBeGreaterThan(1);
+    rb.quirks = { contactAverse: 2 };
+    expect(riskFactors(league, rb).carrier).toBeLessThan(1);
+    // An upright runner's contact injuries land up top more and on the legs less.
+    const lowerShare = () => {
+      let low = 0;
+      for (let i = 0; i < 1500; i++) if (['ankle', 'knee', 'foot', 'leg', 'achilles'].includes(injuryType(rollInjury(new Rng(`lean:${i}`), league, rb, 'contact', 'game').injury.type).part)) low++;
+      return low / 1500;
+    };
+    rb.quirks = {};
+    const plain = lowerShare();
+    rb.quirks = { highKnee: 2 };
+    expect(lowerShare()).toBeLessThan(plain - 0.05);
+  });
+
+  it('drains a gassed lineman faster', () => {
+    const dt = Object.values(base.players).find((p) => p.position === 'DT')!;
+    const fresh = { ...dt, quirks: {} };
+    const gassed = { ...dt, quirks: { gassed: 2 } };
+    expect(snapCost(gassed)).toBeCloseTo(snapCost(fresh) * 1.15, 5);
+  });
+
+  it('leaves a hit-shy marble after a serious hit in a game, not after a strain or practice', () => {
+    const league = fresh();
+    const wr = Object.values(league.players).find((p) => p.teamId === 0 && p.position === 'WR')!;
+    wr.quirkBag = { blank: 5 };
+    const at = (type: string, where: Injury['where']): Injury => ({ type, severity: 'moderate', weeksRemaining: 3, estimate: [3, 3], season: league.season, week: 2, where });
+    applyInjury(league, wr, at('hamstring', 'game'));
+    applyInjury(league, wr, at('mcl', 'practice'));
+    expect(wr.quirkBag.hearsFootsteps ?? 0).toBe(0);
+    applyInjury(league, wr, at('mcl', 'game'));
+    expect(wr.quirkBag.hearsFootsteps).toBe(1);
+  });
+
+  it('skips the weekly habit draw for a player who is out injured', () => {
+    const league = fresh();
+    const out = Object.values(league.players).find((p) => p.teamId === 0 && p.position === 'LB')!;
+    hurt(league, out, 20);
+    const bag = JSON.stringify(out.quirkBag);
+    for (let w = 1; w <= 18; w++) {
+      league.week = w;
+      quirkWeek(league);
+    }
+    expect(JSON.stringify(out.quirkBag)).toBe(bag);
   });
 });
