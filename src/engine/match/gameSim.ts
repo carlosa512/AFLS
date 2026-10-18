@@ -12,7 +12,7 @@ import { activeQuirks, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
 import type { Game, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
 import { MAX_STATS } from '../types';
-import { gameWeather, weatherEffects, type Weather, type WeatherCost } from '../weather';
+import { gameWeather, staminaDrain, weatherAt, weatherEffects, type Weather, type WeatherCost } from '../weather';
 import * as coach from './coach';
 import type { DefenseCall, PassDepth, Situation } from './coach';
 import { activePlayers, buildLineup, type Lineup } from './lineup';
@@ -259,8 +259,10 @@ class GameSim {
   /** What this game did to players' form, for `recordForm` once it's recorded. */
   private formOut: NonNullable<GameResult['form']> = {};
   private weather: Weather;
-  /** What the weather does, against a typical day (a dome plays a little better). */
+  /** What this quarter's weather does, against a typical day (a dome plays a little better). */
   private wx: WeatherCost;
+  /** Each side's stamina toll per snap: heat wears on both, thin air on the visitors. */
+  private drain: [number, number];
 
   constructor(
     private league: League,
@@ -271,7 +273,8 @@ class GameSim {
     this.creditRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:credit`);
     this.homeEdge = game.neutral ? 0 : HOME_FIELD_EDGE;
     this.weather = options.weather ?? gameWeather(league, game);
-    this.wx = weatherEffects(this.weather);
+    this.wx = weatherEffects(weatherAt(this.weather, 1));
+    this.drain = [staminaDrain(this.weather, true), staminaDrain(this.weather, false)];
     const team = (id: number) => league.teams[id];
     this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
@@ -316,6 +319,7 @@ class GameSim {
     }
     if (this.clock <= 0) {
       this.endQuarter();
+      this.weatherTurns();
     } else if (this.kickoffBy !== null) {
       const kicker = this.kickoffBy;
       this.kickoffBy = null;
@@ -526,6 +530,16 @@ class GameSim {
       return;
     }
     this.over = true; // regular-season tie
+  }
+
+  /** Rain or snow that comes after kickoff changes the game from the start of its quarter. */
+  private weatherTurns() {
+    const w = this.weather;
+    if (this.over || this.quarter !== w.onset) return;
+    this.wx = weatherEffects(weatherAt(w, this.quarter));
+    const fall = { none: '', rain: 'Rain', mixed: 'Sleet', snow: 'Snow' }[w.precip];
+    this.snapshot = null;
+    this.log(w.roof === 'open' ? `${fall} moves in, and the roof closes.` : `${w.heavy ? `Heavy ${fall.toLowerCase()}` : fall} starts to fall.`);
   }
 
   /** In overtime, the game ends once the trailing team has had its possession. */
@@ -1334,7 +1348,8 @@ class GameSim {
 
   /** A defensive line tires on long drives and against the hurry-up. */
   private tired(s: Situation): boolean {
-    return coach.tempo(s) === 'hurry' || this.driveSnaps >= LONG_DRIVE;
+    // Heat and thin air wear a front down a snap or so sooner.
+    return coach.tempo(s) === 'hurry' || this.driveSnaps >= Math.round(LONG_DRIVE / this.drain[this.def]);
   }
 
   /**

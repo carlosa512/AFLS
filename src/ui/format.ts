@@ -78,12 +78,16 @@ const SEVERITY: Record<Severity, string> = { none: '', light: 'Light weather', m
 /** How hard the conditions hit play, in words ('' when they don't). */
 export const severityText = (s: Severity) => SEVERITY[s];
 
-/** What a game was played in: "Heavy snow · 28°F · wind 14 mph", "Indoors", "Roof closed". */
+/** What a game was played in: "Night · Heavy snow from the 3rd quarter · 28°F · wind 14 mph", "Indoors", "Roof closed". */
 export function weatherText(w: Weather): string {
   if (w.roof === 'dome') return 'Indoors';
   if (w.roof === 'closed') return 'Roof closed';
-  const sky = w.precip === 'none' ? [] : [w.heavy ? `Heavy ${PRECIP[w.precip].toLowerCase()}` : PRECIP[w.precip]];
-  return [...sky, `${w.tempF}°F`, `wind ${w.windMph} mph`, ...(w.roof === 'open' ? ['roof open'] : [])].join(' · ');
+  const fall = w.heavy ? `Heavy ${PRECIP[w.precip].toLowerCase()}` : PRECIP[w.precip];
+  const when = w.onset ? ` in the ${ordinal(w.onset)} quarter` : '';
+  // An open roof shuts when rain comes, so the rain itself never reaches the field.
+  const sky = w.precip === 'none' ? [] : w.roof === 'open' ? [] : [w.onset ? `${fall} from the ${ordinal(w.onset)} quarter` : fall];
+  const roof = w.roof !== 'open' ? [] : w.onset ? [`roof closed for ${PRECIP[w.precip].toLowerCase()}${when}`] : ['roof open'];
+  return [...(w.night ? ['Night'] : []), ...sky, `${w.tempF}°F`, `wind ${w.windMph} mph`, ...(w.altitudeFt ? [`${w.altitudeFt.toLocaleString()} ft up`] : []), ...roof].join(' · ');
 }
 
 /** The weather line for a game: what it was played in, or what the forecast says. */
@@ -93,7 +97,8 @@ export function gameWeatherText(w: Weather | undefined, f: Forecast | null): { t
   if (f.roof === 'closed') return { text: 'Roof closed', severity: 'none' };
   const sky = f.chance ? `${PRECIP[f.precip]} ${f.chance}%` : 'Dry';
   const roof = f.roof === 'tbd' ? ['roof TBD'] : f.roof === 'open' ? ['roof open'] : [];
-  if (f.stage === 'outlook') return { text: [`Avg ${f.tempF[0]}°F`, sky, ...roof].join(' · '), severity: 'none', outlook: true };
+  const lead = [...(f.night ? ['Night'] : []), ...(f.storm ? ['Storm front'] : [])];
+  if (f.stage === 'outlook') return { text: [...lead, `Avg ${f.tempF[0]}°F`, sky, ...roof].join(' · '), severity: 'none', outlook: true };
   const range = ([lo, hi]: [number, number]) => (lo === hi ? `${lo}` : `${lo}–${hi}`);
-  return { text: [sky, `${range(f.tempF)}°F`, `wind ${range(f.windMph)} mph`, ...roof].join(' · '), severity: f.severity };
+  return { text: [...lead, sky, `${range(f.tempF)}°F`, `wind ${range(f.windMph)} mph`, ...roof].join(' · '), severity: f.severity };
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { simulateGame } from './match/gameSim';
 import type { Game } from './types';
-import { forecast, gameWeather, severity, weatherCost, type Weather } from './weather';
+import { forecast, gameWeather, isNight, severity, staminaDrain, weatherAt, weatherCost, type Weather } from './weather';
 
 const league = createLeague({ seed: 'test-weather' });
 const teamId = (abbrev: string) => league.teams.find((t) => t.abbrev === abbrev)!.id;
@@ -79,5 +79,35 @@ describe('weather', () => {
     const atl = game('ATL', 6);
     expect(forecast({ ...league, week: 3 }, atl)!.roof).toBe('tbd');
     expect(['open', 'closed']).toContain(forecast({ ...league, week: 6 }, atl)!.roof);
+  });
+
+  it('plays three regular-season games a week at night', () => {
+    for (const week of [1, 9, 17]) expect(league.games.filter((g) => g.week === week && isNight(league, g))).toHaveLength(3);
+  });
+
+  it('sends a storm front over every city in a region the same week', () => {
+    const northeast = ['BUF', 'NE', 'NYK', 'NYE'].map(teamId);
+    for (let week = 2; week <= 18; week++) {
+      const home = league.games.filter((g) => g.week === week && northeast.includes(g.homeId));
+      const fronts = new Set(home.map((g) => !!forecast({ ...league, week: week - 1 }, g)!.storm));
+      expect(fronts.size).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('keeps a quarter dry until the rain starts, and shuts an open roof when it does', () => {
+    const late = day({ precip: 'rain', onset: 3 });
+    expect(weatherAt(late, 2).precip).toBe('none');
+    expect(weatherAt(late, 3).precip).toBe('rain');
+    expect(weatherAt({ ...late, roof: 'open' }, 3).roof).toBe('closed');
+    const plays = simulateGame(league, league.games[0], { weather: late, keepPlays: true }).plays!;
+    expect(plays.find((p) => p.text === 'Rain starts to fall.')?.quarter).toBe(3);
+  });
+
+  it('carries kicks in thin air and tires visitors there, and drains both sides in the heat', () => {
+    expect(weatherCost(day({ altitudeFt: 5280 })).kick).toBeLessThan(-3);
+    expect(staminaDrain(day({ altitudeFt: 5280 }), false)).toBeGreaterThan(staminaDrain(day({ altitudeFt: 5280 }), true));
+    expect(staminaDrain(day({ altitudeFt: 5280 }), true)).toBe(1);
+    expect(staminaDrain(day({ tempF: 95 }), true)).toBeGreaterThan(1.1);
+    expect(staminaDrain({ ...day({ tempF: 95 }), roof: 'closed' }, true)).toBe(1);
   });
 });

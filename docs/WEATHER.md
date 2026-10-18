@@ -1,19 +1,26 @@
 # Weather
 
-> **Status (first slice).** Built: roof types and announced changes by season (`data/stadiums.ts`),
-> climate for 25 cities (Sep–Jan), a seeded roll per game, retractable roofs declared on the
-> short-range forecast, the cost table from §2 applied as passing, kicking, punting and fumble levers
-> plus AI play mix and field-goal range (`weather.ts`, `match/gameSim.ts`, `match/coach.ts`), forecasts
-> at three stages with calibrated rain chances, and weather on the schedule, the next-game card and the
-> box score. Checked by `npm run weather`.
+> **Status.** Built: roof types and announced changes by season (`data/stadiums.ts`), climate for 25
+> cities (Sep–Jan), a seeded roll per game, retractable roofs declared on the short-range forecast,
+> the cost table from §2 applied as passing, kicking, punting and fumble levers plus AI play mix and
+> field-goal range (`weather.ts`, `match/gameSim.ts`, `match/coach.ts`), forecasts at three stages
+> with calibrated rain chances, and weather on the schedule, the next-game card and the box score.
+> Second pass: regional storm fronts by week (§4C), night kickoffs (three a week, half of each playoff
+> round, 8°F colder), rain or snow starting after kickoff with an open roof shutting when it does
+> (§6B, by quarter), altitude in Denver (kicks carry about four yards; visitors tire sooner) and a
+> stamina toll for heat and thin air (`staminaDrain`). Climate is sourced for all 25 cities (NOAA
+> 1991–2020 normals; Newark and San Jose wind still approximate). Checked by `npm run weather`.
 >
-> Not yet: regional storm systems (§4C), gusts, night games, precipitation starting mid-game and
-> in-game roof closing (§6B), postseason roof rules and player roof override (§6C–D), footing, heat
-> stamina and altitude (no fatigue system yet), `weatherToughness` and climate familiarity (§7E),
-> injury hooks (§7F), impact notes and staff advice on the preview card, forecast trend arrows (the
-> calendar has weeks, not days), °C/km/h and "simple weather" settings, international games. Climate
-> for DAL, HOU, ARI, SEA and SF is approximate until checked against NOAA. Weather quirks (Tier C in
-> `QUIRKS.md`) can now be built on this.
+> Stamina: this branch has no per-player energy, so the toll only shortens how long a defensive front
+> lasts on a drive (it shows through the gassed and high-motor quirks). The injury system's per-snap
+> energy cost should multiply by `staminaDrain(weather, home)`; heat then reaches the condition-based
+> injury risk as §7F intends.
+>
+> Not yet: gusts, the 4th-quarter 5:00 roof rule (a late shower closes it), postseason roof rules and
+> player roof override (§6C–D), footing, `weatherToughness` and climate familiarity (§7E), turf injury
+> multipliers (§7F), impact notes and staff advice on the preview card, forecast trend arrows (the
+> calendar has weeks, not days), °C/km/h and "simple weather" settings, international games. Weather
+> quirks (Tier C in `QUIRKS.md`) can now be built on this.
 
 # Weather System Specification
 

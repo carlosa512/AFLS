@@ -2,9 +2,10 @@
  * Weather audit, three parts.
  *
  * 1. Climate: roll every game of many seasons and check the league's weather looks like the NFL's
- *    (wind, how often it rains or snows, roofs), and that TYPICAL in weather.ts is still the season's
- *    average cost (the engine measures every game against it, so league totals hold).
- * 2. Forecasts: shown rain chances come true about as often as they say.
+ *    (wind, how often it rains or snows, roofs, night games, storm fronts), and that TYPICAL in
+ *    weather.ts is still the season's average cost by quarter (the engine measures every quarter
+ *    against it, so league totals hold).
+ * 2. Forecasts: shown rain chances come true about as often as they say, storm fronts included.
  * 3. Effects: replay the same games under one condition at a time and check passing production falls
  *    by the condition's cost (Covers' splits, see `weatherCost`) and kicks by the research's share.
  *
@@ -13,7 +14,7 @@
 import { createLeague } from '../src/engine/generate';
 import { simulateGame } from '../src/engine/match/gameSim';
 import type { League } from '../src/engine/types';
-import { forecast, gameWeather, TYPICAL, weatherCost, type Weather } from '../src/engine/weather';
+import { forecast, gameWeather, TYPICAL, weatherAt, weatherCost, type Weather } from '../src/engine/weather';
 
 let misses = 0;
 const check = (label: string, value: number, [lo, hi]: [number, number], digits = 2) => {
@@ -29,16 +30,21 @@ const games = league.games.filter((g) => !g.playoffRound);
 // ───────── climate ─────────
 
 const ROLLS = 200;
-const sum = { kept: 0, kick: 0, fumble: 0, games: 0, outdoor: 0, wind: 0, windy: 0, wet: 0, snow: 0, heavySnow: 0, retract: 0, open: 0 };
+const sum = { kept: 0, kick: 0, fumble: 0, games: 0, outdoor: 0, wind: 0, windy: 0, wet: 0, late: 0, snow: 0, heavySnow: 0, retract: 0, open: 0, night: 0 };
 const gbDec: number[] = [];
+const decTemps = { day: [0, 0], night: [0, 0] };
+/** A game's cost averaged over its four quarters (rain that starts late costs only the quarters it falls in). */
+const QUARTERS = [1, 2, 3, 4];
+const byQuarter = (w: Weather) => QUARTERS.map((q) => weatherCost(weatherAt(w, q)));
 for (let i = 0; i < ROLLS; i++) {
   league.seed = `weather-${i}`;
   for (const g of games) {
     const w = gameWeather(league, g);
-    const c = weatherCost(w);
-    sum.kept += Math.log(1 - c.pass);
-    sum.kick += c.kick;
-    sum.fumble += c.fumble;
+    for (const c of byQuarter(w)) {
+      sum.kept += Math.log(1 - c.pass) / 4;
+      sum.kick += c.kick / 4;
+      sum.fumble += c.fumble / 4;
+    }
     sum.games++;
     const abbrev = league.teams[g.homeId].abbrev;
     if (['HOU', 'IND', 'DAL', 'ATL', 'ARI'].includes(abbrev)) {
@@ -47,9 +53,16 @@ for (let i = 0; i < ROLLS; i++) {
     }
     if (w.roof !== 'outdoors') continue;
     sum.outdoor++;
+    if (w.night) sum.night++;
+    if (g.week >= 13 && g.week <= 17) {
+      const t = decTemps[w.night ? 'night' : 'day'];
+      t[0] += w.tempF;
+      t[1]++;
+    }
     sum.wind += w.windMph;
     if (w.windMph >= 20) sum.windy++;
     if (w.precip !== 'none') sum.wet++;
+    if (w.onset) sum.late++;
     if (w.precip === 'snow') sum.snow++;
     if (w.precip === 'snow' && w.heavy) sum.heavySnow++;
     if (abbrev === 'GB' && g.week >= 13 && g.week <= 17) gbDec.push(w.tempF);
@@ -61,6 +74,9 @@ check('avg outdoor wind (mph)', sum.wind / sum.outdoor, [6.5, 9]);
 check('outdoor games with 20+ mph wind %', (100 * sum.windy) / sum.outdoor, [2, 7], 1);
 check('outdoor games with rain or snow %', (100 * sum.wet) / sum.outdoor, [8, 16], 1);
 info('  of which snow %', ((100 * sum.snow) / sum.wet).toFixed(1));
+info('  of which start after kickoff %', ((100 * sum.late) / sum.wet).toFixed(1));
+check('outdoor games at night %', (100 * sum.night) / sum.outdoor, [15, 25], 1);
+info('December kickoff, day / night (°F)', `${(decTemps.day[0] / decTemps.day[1]).toFixed(1)} / ${(decTemps.night[0] / decTemps.night[1]).toFixed(1)}`);
 info('heavy-snow games per season', (sum.heavySnow / ROLLS).toFixed(2));
 // Roofs open only in mild, calm, dry weather, which costs nothing either way: the share is for show.
 info('retractable roofs open %', ((100 * sum.open) / sum.retract).toFixed(1));
@@ -75,6 +91,8 @@ check('TYPICAL.fumble − season average', TYPICAL.fumble - sum.fumble / sum.gam
 const buckets = new Map<number, { n: number; wet: number }>();
 let inTemp = 0;
 let shown = 0;
+/** Outdoor games and wet ones, in weeks with a storm front over the region and without. */
+const fronts = { storm: [0, 0], quiet: [0, 0] };
 for (let i = 0; i < ROLLS; i++) {
   league.seed = `weather-${i}`;
   for (const g of games) {
@@ -89,6 +107,11 @@ for (let i = 0; i < ROLLS; i++) {
       buckets.set(f.chance, b);
       shown++;
       if (w.tempF >= f.tempF[0] && w.tempF <= f.tempF[1]) inTemp++;
+      if (out === 1) {
+        const t = fronts[f.storm ? 'storm' : 'quiet'];
+        t[0]++;
+        if (w.precip !== 'none') t[1]++;
+      }
     }
   }
 }
@@ -99,6 +122,8 @@ for (const [chance, b] of [...buckets].sort((a, b) => a[0] - b[0])) {
   check(`  shown ${chance}% (${b.n})`, (100 * b.wet) / b.n, [chance - 8, chance + 8], 1);
 }
 info('true temp inside the shown range %', ((100 * inTemp) / shown).toFixed(1));
+check('outdoor games under a storm front %', (100 * fronts.storm[0]) / (fronts.storm[0] + fronts.quiet[0]), [20, 30], 1);
+info('wet games, storm / quiet weeks %', `${((100 * fronts.storm[1]) / fronts.storm[0]).toFixed(1)} / ${((100 * fronts.quiet[1]) / fronts.quiet[0]).toFixed(1)}`);
 
 // ───────── effects ─────────
 
@@ -114,6 +139,8 @@ const CONDITIONS: [string, Weather, string][] = [
   ['cold 15°F', day({ tempF: 15 }), '−8%'],
   ['heat 92°F', day({ tempF: 92 }), '−8%'],
   ['blizzard (capped)', day({ tempF: 20, windMph: 25, precip: 'snow', heavy: true }), '−40% cap'],
+  ['rain from the 3rd', day({ tempF: 60, precip: 'rain', onset: 3 }), 'half of rain'],
+  ['mile-high air', day({ altitudeFt: 5280 }), 'kicks carry'],
 ];
 const leagues: League[] = [0, 1, 2].map((i) => createLeague({ seed: `weather-fx-${i}` }));
 
@@ -171,18 +198,20 @@ function kickRatio(t: Tally, calm: Tally): number {
 const calm = play(day({}));
 const per = (t: Tally) => t.passYds / t.teamGames;
 console.log(`\nEffects: ${calm.teamGames / 2} games replayed per condition. Passing yards against a calm 70°F day,`);
-console.log('target = 1 − weatherCost(w).pass ± 0.03; field goals made against calm-day rates from the same distances\n');
+console.log('target = 1 − weatherCost(w).pass (by quarter) ± 0.03; field goals made against calm-day rates from the same distances\n');
 console.log(`${'condition'.padEnd(20)} ${'research'.padEnd(17)} ${'pass'.padStart(6)}  ${'target'.padStart(11)}   ${'rush ypc'.padStart(8)}  ${'kicks'.padStart(6)}`);
 const KICK_TARGETS: Record<string, [number, number]> = {
   // 77% made on kicks expected at ~89%, 76% at ~88%, ~2% below expected in rain; the coaches' shorter tries fold in.
   'wind 23 mph': [0.82, 0.92],
   'heavy snow': [0.82, 0.92],
   rain: [0.95, 1.0],
+  // A mile up kicks carry about four yards: more of them go in from the same spots.
+  'mile-high air': [1.01, 1.08],
 };
 for (const [label, w, research] of CONDITIONS) {
   const t = play(w);
   const ratio = per(t) / per(calm);
-  const target = 1 - weatherCost(w).pass;
+  const target = Math.exp(byQuarter(w).reduce((a, c) => a + Math.log(1 - c.pass), 0) / 4);
   const lo = target - 0.03;
   const hi = target + 0.03;
   const ok = ratio >= lo && ratio <= hi;

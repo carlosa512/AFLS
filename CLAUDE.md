@@ -79,9 +79,11 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     value them through `quirkWorth` (only what their own scouts have seen); game states (Rattled, Shaken, a kicker's
     slump) and event marbles go through `recordForm`, called from `recordResult` in `league.ts`
   - `weather.ts` each game's weather (a pure function of seed, season and game id: nothing stored until
-    it's played), its cost to play and the engine's levers (measured against a typical day, so league
-    totals hold), severity and forecasts; `data/stadiums.ts` roofs, climates and stadium changes by
-    season. Spec and what's built so far: `docs/WEATHER.md`
+    it's played): night kickoffs, regional storm fronts, rain that starts mid-game (`weatherAt` gives a
+    quarter's conditions), its cost to play and the engine's levers (measured against a typical day, so
+    league totals hold), the stamina toll of heat and altitude (`staminaDrain`), severity and forecasts;
+    `data/stadiums.ts` roofs, altitude, climates, regions and stadium changes by season. Spec and what's
+    built so far: `docs/WEATHER.md`
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
