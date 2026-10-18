@@ -5,7 +5,7 @@
 > a player, and none on kicks, sacks or scrambles (see "Today's baseline"). This plan grows that into
 > the NFL's full rulebook of common fouls in five phases, starting with the two the officiating spec
 > already points at: roughing the passer (its "QB protection" later phase) and special-teams holding.
-> Calibrated to the NFL's 2023–2025 full seasons (below).
+> Numbers from the NFL's 2023–2025 seasons (below); which era to tune to is decision 5.
 
 ## The NFL, by the numbers
 
