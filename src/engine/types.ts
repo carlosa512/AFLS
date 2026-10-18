@@ -557,8 +557,13 @@ export interface GameResult {
   /** Player id → team id at kickoff, so box scores survive trades and retirements. */
   playerTeams: Record<number, number>;
   plays?: PlayLogEntry[];
-  /** Players hurt in the game, in the order it happened. */
+  /** Players hurt in the game, in the order it happened, with the doctor's word at the time. */
   injuries?: GameInjury[];
+  /**
+   * The truth behind `injuries` (player id → diagnosis and any scar). Applied when the result is
+   * recorded, then dropped like `condition`: the box score keeps only what the doctor said.
+   */
+  diagnoses?: Record<number, { injury: Injury; scar?: Partial<Record<Attribute, number>> }>;
   /**
    * Each player's condition at the final whistle. Applied when the result is recorded, then dropped:
    * the game itself doesn't keep it.
@@ -568,14 +573,16 @@ export interface GameResult {
   form?: Record<number, { shaken?: true; slump?: 'start' | 'end'; clutch?: true }>;
 }
 
+/** An injury as a box score keeps it: who, when, what, and the estimate as it was made then. */
 export interface GameInjury {
   playerId: number;
   teamId: number;
   quarter: number;
   clock: number;
-  injury: Injury;
-  /** Physical ratings it costs him for good (severe injuries only). */
-  scar?: Partial<Record<Attribute, number>>;
+  /** Key into `INJURY_TYPES` (injuries.ts). */
+  type: string;
+  /** The medical staff's estimate in weeks, frozen at the time (the player's own counts down). */
+  estimate: [number, number];
 }
 
 export interface Game {

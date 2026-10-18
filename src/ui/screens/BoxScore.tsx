@@ -369,7 +369,7 @@ function GameInjuries({ league, result }: { league: League; result: GameResult }
               <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
                 {p.position} {shortName(p)}
               </button>
-              : {injuryLabel(i.injury.type).toLowerCase()}, {estimateText(i.injury)} <span className="muted small">({i.quarter >= 5 ? 'OT' : `Q${i.quarter}`} {gameClock(i.clock)})</span>
+              : {injuryLabel(i.type).toLowerCase()}, {estimateText(i)} <span className="muted small">({i.quarter >= 5 ? 'OT' : `Q${i.quarter}`} {gameClock(i.clock)})</span>
             </li>
           );
         })}

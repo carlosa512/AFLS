@@ -299,10 +299,18 @@ function rollWeeks(rng: Rng, p: Player, type: InjuryType, dept: Department): num
   return Math.max(1, Math.round(base * recoveryMultiplier(dept.physio) * fitness * age));
 }
 
-/** What a severe injury takes for good: natural fitness decides how much of his athleticism comes back. */
+/** From this age a scar's lost points are lost for good, ceiling included (younger players still grow back). */
+const SCAR_REGROW_AGE = 26;
+
+/**
+ * What a severe injury takes for good: natural fitness and age decide how much of his athleticism
+ * comes back. A young body rebuilds most of it, a veteran's doesn't (it also keeps a league from
+ * slowly draining: a scar at 23 would otherwise be carried for a decade).
+ */
 function rollScar(rng: Rng, p: Player, type: InjuryType): Partial<Record<Attribute, number>> | undefined {
   if (!type.scar) return undefined;
-  const keep = clamp(1.1 - 0.05 * (p.traits.naturalFitness - TRAIT_MEAN), 0.6, 1.6);
+  const age = clamp(0.1 + 0.1 * (p.age - 23), 0.1, 1.2);
+  const keep = clamp(1.1 - 0.05 * (p.traits.naturalFitness - TRAIT_MEAN), 0.6, 1.6) * age;
   const out: Partial<Record<Attribute, number>> = {};
   for (const [attr, pts] of Object.entries(type.scar) as [Attribute, number][]) {
     const raw = pts * keep * rng.float(0.6, 1.4);
@@ -314,7 +322,7 @@ function rollScar(rng: Rng, p: Player, type: InjuryType): Partial<Record<Attribu
 
 /**
  * Put an injury on a player: it replaces any he was playing through, goes in his history, and a
- * severe one costs its scar, ceiling included (a step lost is lost for the rest of his career).
+ * severe one costs its scar (from 26, ceiling included: a step lost is lost for the rest of his career).
  */
 export function applyInjury(league: League, p: Player, injury: Injury, scar?: Partial<Record<Attribute, number>>): void {
   const aggravated = !!p.injury?.injected;
@@ -330,8 +338,9 @@ export function applyInjury(league: League, p: Player, injury: Injury, scar?: Pa
       p.ratings[attr] -= lost;
       taken[attr] = lost;
     }
+    // A veteran's ceiling drops with it; a player still growing keeps his and can win the points back.
     const drop = before - playerOvr(p);
-    if (drop > 0) p.potential = Math.max(playerOvr(p), Math.round((p.potential - drop) * 10) / 10);
+    if (drop > 0 && p.age >= SCAR_REGROW_AGE) p.potential = Math.max(playerOvr(p), Math.round((p.potential - drop) * 10) / 10);
     if (Object.keys(taken).length) record.scar = taken;
   }
   (p.injuries ??= []).push(record);
@@ -351,7 +360,7 @@ export function applyInjury(league: League, p: Player, injury: Injury, scar?: Pa
 // ───────── what screens say ─────────
 
 /** "out 2–3 weeks", "out for the season", from the medical staff's estimate. */
-export function estimateText(injury: Injury, weeksLeftInSeason?: number): string {
+export function estimateText(injury: Pick<Injury, 'estimate'>, weeksLeftInSeason?: number): string {
   const [lo, hi] = injury.estimate;
   if (weeksLeftInSeason !== undefined && lo >= weeksLeftInSeason) return 'out for the season';
   if (hi <= 1) return 'out about a week';
@@ -664,7 +673,7 @@ export function injuryRetireChance(p: Player, season: number): number {
   const chronic = recent.filter((r) => r.weeks >= 2).length >= 3 || missed >= 16;
   if (threatened && p.age >= 33) return 0.6;
   if (threatened && p.age >= 30) return 0.25;
-  if (chronic && p.age >= 33) return 0.35;
+  if (chronic && p.age >= 33) return 0.25;
   return 0;
 }
 

@@ -50,16 +50,17 @@ function prepareGame(league: League, game: Game) {
 /** Store a finished game's result, apply what it did to bodies, and credit regular-season stats. */
 export function recordResult(league: League, game: Game, result: GameResult): void {
   if (game.result) return;
-  // Condition is carried by the players, not the game record.
-  const { condition, ...kept } = result;
+  // Condition and diagnoses are carried by the players, not the game record.
+  const { condition, diagnoses, ...kept } = result;
   game.result = kept;
   for (const [id, c] of Object.entries(condition ?? {})) {
     const p = league.players[Number(id)];
     if (p && c < (p.condition ?? 100)) p.condition = c;
   }
-  for (const hurt of result.injuries ?? []) {
-    const p = league.players[hurt.playerId];
-    if (p) applyInjury(league, p, hurt.injury, hurt.scar);
+  for (const { playerId } of result.injuries ?? []) {
+    const p = league.players[playerId];
+    const hurt = diagnoses?.[playerId];
+    if (p && hurt) applyInjury(league, p, hurt.injury, hurt.scar);
   }
   // Form and the marbles a game drops in a player's bag (playoffs too: a big game leaves a mark).
   for (const [id, line] of Object.entries(result.playerStats)) {

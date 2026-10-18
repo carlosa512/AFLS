@@ -59,11 +59,15 @@ Each injury type has a range of weeks (short end likelier), shaped by:
 Severity follows the layoff: minor (1–2 weeks), moderate (3–6), severe (longer, and every torn ACL,
 Achilles or worse). The worst kinds (multi-ligament knee, spinal) are career-threatening, and so is a
 torn ACL or Achilles at 32 or older. The head doctor's estimate brackets the truth unevenly, tight
-for a great doctor, a month wide for a poor one; it counts down with the injury.
+for a great doctor, a month wide for a poor one; it counts down with the injury. A box score keeps
+the estimate as it was made that day.
 
 **Scars.** A severe injury with a scar (ACL, Achilles, broken leg, Lisfranc, labrum, pectoral) takes
-physical points for good, and his ceiling drops with them. Natural fitness decides how much comes
-back. The player card shows exact points for your own players and words for anyone else's.
+physical points. Natural fitness and age decide how many: a 23-year-old rebuilds nearly all of it,
+from 32 he takes the full scar. From 26 they are gone for good and his ceiling drops with them; a
+player still growing keeps his ceiling and can win them back. (Scars sized by fitness alone drained
+the league: a scar at 23 is carried for a decade.) The player card shows exact points for your own
+players and words for anyone else's.
 
 **The offseason** heals 30 weeks: an ACL from midseason still costs him the start of the next one.
 
@@ -81,11 +85,13 @@ back. The player card shows exact points for your own players and words for anyo
   call: the staff never takes that gamble for you.
 - A player on reserve can't be traded, and neither can one the doctor expects to miss two weeks or
   more (he'd fail the physical).
+- Reserve salaries still count against the cap. AI cap cuts count only the active roster toward a
+  position's minimum, and camp gets legal before it tops up to 53, then signs only deals that fit.
 
 ## Careers
 
 - **Retirement:** on top of age, a veteran of 33+ with a long file (three injuries of two weeks or
-  more, or 16 weeks missed, in the last three years) retires with 35% more probability. Anyone 30+
+  more, or 16 weeks missed, in the last three years) retires with 25% more probability. Anyone 30+
   coming off a career-threatening injury retires with 25%, and 60% at 33+.
 - **Development:** fewer games played means fewer reps for a young player, through the existing
   `playedShare` hook.
@@ -148,22 +154,31 @@ Availability lands near the NFL's: about half of Week 1 starting quarterbacks an
 backs and top receivers play all 17 games.
 
 The match engine was tuned with every starter healthy. With injuries on, backups take about a tenth
-of the snaps, as they do in the NFL. A few base rates moved to keep league totals and season leaders
-on NFL numbers:
+of the snaps and stars miss games, as in the NFL. To keep league totals and season leaders on NFL
+numbers:
 
-- completion odds +1.3 points short, +1.1 medium, +0.3 deep;
-- run base 3.97 → 4.03;
-- short-pass YAC +0.25;
-- normal-tempo runoff 28–39 s → 28–38 s;
-- the lead back's carry share 0.62 → 0.625;
-- target share per point of a receiver's targeting 0.04 → 0.042 (healthy stars see more of the ball,
-  as the NFL's do).
+- league totals: completion odds +1.3 points short, +1.1 medium, +0.3 deep; short-pass YAC +0.25;
+  normal-tempo runoff 28–39 s → 28–38 s;
+- leaders, without moving totals (a star who stays healthy gets the ball like the NFL's do): the lead
+  back's weight on carries 0.62 → 0.665 and the second back's 0.30 → 0.255 (the backs' total holds, so
+  quarterback runs do too); target share per point of a receiver's targeting 0.04 → 0.042; the
+  top receiver's weight on short throws 0.19 → 0.21, the lead back's 0.30 → 0.28; the starting edge
+  rushers' weight for sacks 1.65 → 1.8; ball skills count 0.065 a point toward an interception (was
+  0.05), with the base odds 6% lower so the league total holds, and the safety who makes one is
+  likelier the better ball-hawk.
 
-Season-leader record counts are noisy: any change reshuffles every game, and a count near its
-allowance flips. Over 60 seasons the original engine and this one each flag one. `npm run sim -- 10`
-passes clean; `npm run careers` flags receiving touchdowns (5 seasons past the record in 32, 4
-allowed), where the original flagged passing and receiving yards. League talent holds as before
-(lowest starter OVR 12.72, original 12.73).
+The run base stays at 3.97: the quirks rebalance already covers it, and a lift there pushed long-run
+scoring past 24.
+
+Over 60 seasons (seeds 0–29 and 30–59) nothing is outside its range: points 22.3 and 22.7, rushing
+leader 1619 and 1686, receptions leader 125 and 127, fifth passer 4329 and 4390. Leader averages over
+`npm run sim -- 10` are noisy (any change reshuffles every game), so check a change near an edge with
+`-- 30`.
+
+Scars and injury retirements drain league talent over the years. Sized by fitness alone, scars took
+the careers leagues' lowest season from 12.73 (injuries off) to 12.60, under the 12.65 floor; scaled by
+age, with a young player's ceiling kept and the chronic-injury retirement bonus at 25%, it is 12.69
+(main without injuries: 12.72), and every long-run number in `npm run careers` is inside its band.
 
 ### Sources
 

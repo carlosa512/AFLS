@@ -195,8 +195,9 @@ export function aiCapCompliance(league: League, team: Team, target = 0): void {
         continue;
       }
     }
+    // The floor counts who can play: a player on injured reserve still costs cap but fills no spot.
     const counts = new Map<Position, number>();
-    for (const p of roster) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
+    for (const p of roster) if (!p.ir) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
     const floor = (pos: Position) => (desperate ? STARTERS[pos] : KEEP_MIN[pos]);
     const cut = roster
       .filter((p) => (counts.get(p.position) ?? 0) > floor(p.position))
@@ -300,16 +301,20 @@ function streetFreeAgent(league: League, position: Position, rng: Rng): Player {
   return p;
 }
 
-/** Sign the best available healthy free agent at `position` (any position if undefined) to a one-year minimum deal. */
-export function signMinimum(league: League, team: Team, rng: Rng, position?: Position): boolean {
+/**
+ * Sign the best available healthy free agent at `position` (any position if undefined) to a one-year
+ * minimum deal. `budget` ($K) skips anyone whose minimum (it rises with experience) wouldn't fit.
+ */
+export function signMinimum(league: League, team: Team, rng: Rng, position?: Position, budget = Infinity): boolean {
+  const cap = league.caps[league.season];
   // The best available as this front office sees him.
   let pick = freeAgents(league)
-    .filter((p) => (!position || p.position === position) && !p.injury)
+    .filter((p) => (!position || p.position === position) && !p.injury && minSalary(p.experience, cap) <= budget)
     .map((p) => ({ p, ovr: perceive(league, team.id, p).ovr + quirkWorth(league, team.id, p) }))
     .sort((a, b) => b.ovr - a.ovr)[0]?.p;
   if (!pick && position) pick = streetFreeAgent(league, position, rng);
   if (!pick) return false;
-  const min = minSalary(pick.experience, league.caps[league.season]);
+  const min = minSalary(pick.experience, cap);
   signPlayer(league, pick, team.id, { years: 1, apy: min, bonusPct: 0, gtdPct: 0, voidYears: 0 }, 'minimum');
   return true;
 }
@@ -325,7 +330,9 @@ export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
   aiCutdown(league, team);
   const missing = ROSTER_MAX - activeRoster(league, team.id).length;
   if (missing > 0) aiCapCompliance(league, team, missing * minSalary(1, league.caps[league.season]));
-  while (activeRoster(league, team.id).length < ROSTER_MAX && capSpace(league, team.id) >= minSalary(1, league.caps[league.season])) if (!signMinimum(league, team, rng)) break;
+  // Get legal before topping up (the minimums above can tip a team over, and the cut that fixes it opens a spot),
+  // then sign only deals that fit, so the 53 fills without going back over.
   aiCapCompliance(league, team);
+  while (activeRoster(league, team.id).length < ROSTER_MAX && capSpace(league, team.id) >= minSalary(1, league.caps[league.season])) if (!signMinimum(league, team, rng, undefined, capSpace(league, team.id))) break;
   syncDepthChart(league, team);
 }

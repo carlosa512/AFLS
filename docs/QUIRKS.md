@@ -242,7 +242,7 @@ YAC, broken tackles, false starts/offside/holding/DPI, touchbacks, returns, bloc
 | # | Quirk | Hook | Tier |
 |---|---|---|---|
 | 1 | Ice-Water Veins | Late, close-game kicks | A |
-| 2 | Coffin-Corner Specialist | Punt placement from plus territory | A |
+| 2 | Coffin-Corner Specialist | Punt placement from plus territory; a well-placed one dies inside the 10 (anyone else's can carry to the 15, where it gets returned) | A |
 | 3 | Boomer Leg | 50+ yard range and touchbacks only | A |
 | 4 | Low-Trajectory Line-Drive | Needs weather | C |
 | 5 | Quick-Release Operation | Blocked punts (blocked FGs would be B) | A |

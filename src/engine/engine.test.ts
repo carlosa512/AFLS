@@ -332,6 +332,8 @@ describe('coach decisions', () => {
     expect(coach.tempo(inRange)).toBe('milk');
     expect(coach.offenseTimeout(inRange)).toBe(false);
     expect(coach.kickNow({ ...inRange, clock: 4 })).toBe(true);
+    // Seven seconds and a timeout left from 52 yards: a deep shot can take all seven, so kick.
+    expect(coach.kickNow({ ...inRange, fgMakeProb: 0.55, offTimeouts: 1, clock: 7 })).toBe(true);
     // Out of timeouts with the clock stopped: kick now rather than risk an in-bounds snap.
     expect(coach.kickNow({ ...inRange, fgMakeProb: 0.6, offTimeouts: 0, clock: 18 })).toBe(true);
     expect(coach.kickNow({ ...inRange, scoreDiff: -4, clock: 4 })).toBe(false);

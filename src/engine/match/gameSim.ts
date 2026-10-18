@@ -84,7 +84,7 @@ const LONG_DRIVE = 5;
  */
 function rushers(def: Lineup, blitz: boolean): [Player, number][] {
   return [
-    ...def.edge.map((p): [Player, number] => [p, 1.65 * skill(p, 'edgeRush')]),
+    ...def.edge.map((p): [Player, number] => [p, 1.8 * skill(p, 'edgeRush')]),
     ...def.dt.map((p): [Player, number] => [p, 1.3 * skill(p, 'interiorRush')]),
     ...def.rushRotation.map((p): [Player, number] => [p, p.position === 'EDGE' ? 1.1 * skill(p, 'edgeRush') : 0.6 * skill(p, 'interiorRush')]),
     ...def.lb.map((p): [Player, number] => [p, (blitz ? 1.5 : 0.45) * skill(p, 'edgeRush')]),
@@ -119,11 +119,8 @@ function blockerFor(off: Lineup, def: Lineup, rusher: Player, blitz: boolean, rn
 const SEP_ROLL = 3;
 /** Carries before a lead back starts handing work to the second back. */
 const LEAD_BACK_CARRIES = 14;
-/**
- * Mean gain on a run between evenly matched units, before breakaways. Like the completion odds in
- * `passPlay`, it is tuned with injuries on: backups play about a tenth of the snaps, as in the NFL.
- */
-const RUN_BASE = 4.03;
+/** Mean gain on a run between evenly matched units, before breakaways. */
+const RUN_BASE = 3.97;
 
 /** Collects stat changes for a play so they can be discarded if a penalty wipes the play out. */
 class StatBuffer {
@@ -271,6 +268,7 @@ class GameSim {
   /** Hurt earlier in the game: out for the rest of it. */
   private out = new Set<number>();
   private injuries: GameInjury[] = [];
+  private diagnoses: NonNullable<GameResult['diagnoses']> = {};
   /** Each player's established quirks, read once per game (they only change between weeks). */
   private quirkSets = new Map<number, ReadonlySet<QuirkId>>();
   /** Scrimmage snaps in the current possession: long drives wear a defensive line down. */
@@ -475,7 +473,8 @@ class GameSim {
       const side: Side = this.lineups[0].team.id === p.teamId ? 0 : 1;
       this.out.add(p.id);
       const { injury, scar } = rollInjury(this.injuryRng, this.league, p, mechanism, 'game', this.dept(p), { season: this.game.season, week: this.game.week });
-      this.injuries.push({ playerId: p.id, teamId: this.lineups[side].team.id, quarter: this.quarter, clock: this.clock, injury, ...(scar ? { scar } : {}) });
+      this.injuries.push({ playerId: p.id, teamId: this.lineups[side].team.id, quarter: this.quarter, clock: this.clock, type: injury.type, estimate: [...injury.estimate] });
+      this.diagnoses[p.id] = { injury, ...(scar ? { scar } : {}) };
       this.snapshot = null;
       this.log(`Injury: ${this.abbrev(side)} ${p.position} ${short(p)} (${injuryLabel(injury.type).toLowerCase()}) is out for the game.`);
       const qb = this.lineups[side].qb;
@@ -832,7 +831,8 @@ class GameSim {
     const room = 100 - this.yardLine;
     if (gross > room - 5 && room < 60) {
       const accuracy = clamp(0.45 + 0.03 * (skill(p, 'puntPlacement') - 12) + (coffin ? 0.2 : 0), 0.25, 0.85);
-      gross = this.rng.chance(accuracy) ? room - this.rng.int(3, 15) : room;
+      // A coffin-corner man's good one dies inside the 10; anyone else's can carry to the 15.
+      gross = this.rng.chance(accuracy) ? room - this.rng.int(3, coffin ? 10 : 15) : room;
     }
     buf.add(p, 'punts');
     buf.add(p, 'puntYds', gross);
@@ -1094,9 +1094,9 @@ class GameSim {
     const leadLoad = leadCarries <= LEAD_BACK_CARRIES ? 1 : Math.max(0.35, 1 - 0.08 * (leadCarries - LEAD_BACK_CARRIES));
     const rusher = rng.weighted(
       [
-        [off.rbs[0], (yardsToGoal <= 5 ? 0.55 : 0.625) * leadLoad],
+        [off.rbs[0], (yardsToGoal <= 5 ? 0.55 : 0.665) * leadLoad],
         // Teams spread goal-line work too, so one back rarely scores 18.
-        [off.rbs[1] ?? off.rbs[0], yardsToGoal <= 5 ? 0.4 : 0.3],
+        [off.rbs[1] ?? off.rbs[0], yardsToGoal <= 5 ? 0.4 : 0.255],
         [off.qb, qbRunWeight],
         [off.wrs[0], 0.015],
       ] as [Player, number][],
@@ -1237,13 +1237,13 @@ class GameSim {
     const teCover = rng.chance(0.5) ? def.s[1] ?? def.s[0] : def.lb[0];
     // Personnel decides who runs routes: 12 swaps the slot receiver for a second tight end, 10 the tight end for a fourth receiver.
     const options: [Player | undefined, Record<PassDepth, number>, Player][] = [
-      [off.wrs[0], times({ short: 0.19, medium: 0.27, deep: 0.33 }, tw.wr), def.cb[0]],
+      [off.wrs[0], times({ short: 0.21, medium: 0.27, deep: 0.33 }, tw.wr), def.cb[0]],
       [off.wrs[1], times({ short: 0.17, medium: 0.26, deep: 0.3 }, tw.wr), def.cb[1] ?? def.cb[0]],
       [scheme.personnel === '12' ? undefined : off.wrs[2], times({ short: 0.14, medium: 0.15, deep: 0.15 }, tw.slot), def.cb[2] ?? def.cb[0]],
       scheme.personnel === '10'
         ? [off.wr4, times({ short: 0.14, medium: 0.15, deep: 0.1 }, tw.slot), def.s[1] ?? def.s[0]]
         : [off.tes[0], times({ short: 0.2, medium: 0.21, deep: 0.11 }, tw.te), teCover],
-      [off.rbs[0], times({ short: 0.3, medium: 0.07, deep: 0.02 }, tw.rb), lbCover],
+      [off.rbs[0], times({ short: 0.28, medium: 0.07, deep: 0.02 }, tw.rb), lbCover],
       [off.rbs[1], times({ short: 0.09, medium: 0.02, deep: 0 }, tw.rb), def.lb[0]],
       scheme.personnel === '12'
         ? [off.tes[1], times({ short: 0.12, medium: 0.12, deep: 0.08 }, tw.te), def.cb[2] ?? def.lb[0]]
@@ -1293,6 +1293,7 @@ class GameSim {
     // Past a point, placement can't beat physics: the best arms complete a few more, not every throw.
     const rawAcc = skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy') + fast - 1.5 * ghosts;
     const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
+    // Base odds are tuned with injuries on: backups throw and catch about a tenth of the passes, as in the NFL.
     let pComplete = { short: 0.803, medium: 0.611, deep: 0.383 }[depth] + 0.018 * (acc - 12) + 0.019 * sep + 0.012 * (skill(receiver, 'hands') - 12);
     if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
     // A gunslinger who won't throw it away forces it into coverage instead.
@@ -1305,11 +1306,11 @@ class GameSim {
     pComplete = clamp(pComplete, 0.05, 0.95);
 
     const pInt =
-      { short: 0.0095, medium: 0.023, deep: 0.04 }[depth] *
+      { short: 0.0089, medium: 0.0216, deep: 0.0375 }[depth] *
       Math.exp(
         -0.07 * (decisions - 12) -
           0.05 * (acc - 12) +
-          0.05 * (skill(defender, 'ballSkills') + this.ballHawk(defender, !coverage?.man, depth) - 8) -
+          0.065 * (skill(defender, 'ballSkills') + this.ballHawk(defender, !coverage?.man, depth) - 8) -
           0.05 * sep +
           // A ball-hawking safety lurks over the top.
           (depth === 'short' ? 0 : 0.05 * (skill(def.s[0], 'ballSkills') - 12)),
@@ -1336,7 +1337,8 @@ class GameSim {
 
     const roll = rng.next();
     if (roll < pInt) {
-      const catcher = rng.chance(0.65) ? defender : rng.pick(def.s);
+      // The man in coverage, or a safety over the top: the one with the better hands, more often.
+      const catcher = rng.chance(0.65) ? defender : rng.weighted(def.s, (p) => skill(p, 'ballSkills'));
       buf.add(qb, 'passInt');
       buf.add(catcher, 'defInt');
       buf.add(catcher, 'passDef');
@@ -1839,7 +1841,7 @@ class GameSim {
       playerStats: this.playerStats,
       playerTeams,
       plays,
-      ...(this.injuries.length ? { injuries: this.injuries } : {}),
+      ...(this.injuries.length ? { injuries: this.injuries, diagnoses: this.diagnoses } : {}),
       condition,
     };
   }

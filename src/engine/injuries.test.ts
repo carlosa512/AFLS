@@ -150,17 +150,24 @@ describe('diagnosis', () => {
     }
   });
 
-  it('scars a severe injury: physical ratings and the ceiling drop for good', () => {
+  it('scars a severe injury: physical ratings drop, and from 26 the ceiling with them', () => {
     const league = fresh();
-    const p = Object.values(league.players).find((x) => x.position === 'RB' && x.teamId === 0)!;
+    const acl = (): Injury => ({ type: 'acl', severity: 'severe', weeksRemaining: 40, estimate: [36, 44], season: league.season, week: 1, where: 'game' });
+    const p = Object.values(league.players).find((x) => x.position === 'RB' && x.age >= 26)!;
     const before = { speed: p.ratings.speed, agility: p.ratings.agility, ovr: playerOvr(p), pot: p.potential };
-    const injury: Injury = { type: 'acl', severity: 'severe', weeksRemaining: 40, estimate: [36, 44], season: league.season, week: 1, where: 'game' };
-    applyInjury(league, p, injury, { speed: 2, agility: 1 });
+    applyInjury(league, p, acl(), { speed: 2, agility: 1 });
     expect(p.ratings.speed).toBe(before.speed - 2);
     expect(p.ratings.agility).toBe(before.agility - 1);
     expect(playerOvr(p)).toBeLessThan(before.ovr);
     expect(p.potential).toBeLessThan(before.pot);
     expect(p.injuries!.at(-1)!.scar).toEqual({ speed: 2, agility: 1 });
+    // A player still growing loses the points but keeps his ceiling: he can win them back.
+    const young = Object.values(league.players).find((x) => x.position === 'RB' && x.age <= 23)!;
+    const ceiling = young.potential;
+    const speed = young.ratings.speed;
+    applyInjury(league, young, acl(), { speed: 2 });
+    expect(young.ratings.speed).toBe(speed - 2);
+    expect(young.potential).toBe(ceiling);
   });
 
   it('makes a played-through injury worse instead of adding a new one', () => {
@@ -221,8 +228,10 @@ describe('lineups', () => {
     const b = simulateGame(league, game);
     expect(b).toEqual(a);
     for (const i of a.injuries ?? []) {
-      expect(a.playerTeams[i.playerId]).toBe(i.teamId);
-      expect(i.injury.weeksRemaining).toBeGreaterThanOrEqual(1);
+      // Not `playerTeams`: a man hurt before he touched the ball has no stat line.
+      expect([game.homeId, game.awayId]).toContain(i.teamId);
+      expect(league.players[i.playerId].teamId).toBe(i.teamId);
+      expect(a.diagnoses?.[i.playerId]?.injury.weeksRemaining).toBeGreaterThanOrEqual(1);
     }
     // Everyone who played left with less condition than he started with.
     expect(Object.values(a.condition ?? {}).every((c) => c < 100)).toBe(true);
@@ -255,6 +264,11 @@ describe('the weekly cycle', () => {
       expect(activeRoster(league, team.id).length).toBeLessThanOrEqual(53);
       expect(() => buildLineup(league, team)).not.toThrow();
     }
+    // Box scores keep the doctor's word from the day, not the truth, and not his countdown since.
+    const results = league.games.flatMap((g) => (g.result ? [g.result] : []));
+    expect(results.every((r) => r.diagnoses === undefined && r.condition === undefined)).toBe(true);
+    const healed = results.flatMap((r) => r.injuries ?? []).filter((i) => !league.players[i.playerId].injury);
+    expect(healed.some((i) => i.estimate[1] >= 2)).toBe(true);
   }, 60_000);
 });
 

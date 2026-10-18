@@ -340,9 +340,15 @@ for (let s = 0; s < seasons; s++) {
   // The growth is the players blob (+430 KB a season, 76 → 887 retired kept; band 650 / 320 a season, 1.5x baseline)
   // because retired players are never pruned; that leak is a known issue. Awards stay a sliver: +1.55 KB and +2.7 KB a
   // season (bands 2.5 and 4.5), 0.25% of the save at season 6 (band 0.5%).
+  // Quirks then took it to 5296 after the first season and 11084 at the end (players growth 477-546 a season).
+  // Injuries (save v13) add their own share, and the bands moved by exactly that: 5778 after the first season (a new
+  // league has no free-agent pool, so its ~85 injury replacements are generated players; every player carries two
+  // more traits; injury histories and the backups' stat lines), games 5.5-5.6 MB (box scores keep each injury's
+  // estimate), players growth 584-653 a season, snapshot growth up to 916, 12194 at the end. Ceilings: first season
+  // 6300, final 13500, snapshot growth 1100, players growth 800 (the same headroom over the observed as before).
   const dSave = prevSave && { total: save.total - prevSave.total, players: save.players - prevSave.players, retired: save.retired - prevSave.retired, awards: save.awards - prevSave.awards, weekly: save.weekly - prevSave.weekly };
   console.log(
-    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? 5700 : 12500, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, 900, 0)}` : ''} · ${check('games KB', save.games, 0, 6500, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 650, 0)} · ${check('retired added', dSave.retired, 0, 320, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
+    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? 6300 : 13500, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, 1100, 0)}` : ''} · ${check('games KB', save.games, 0, 6500, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800, 0)} · ${check('retired added', dSave.retired, 0, 320, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
   if (dSave) playerGrowth.push(dSave.players);
   prevSave = save;
@@ -366,12 +372,17 @@ for (let s = 0; s < seasons; s++) {
     `  checks ${year} scouting: ${check('accuracy mean', 2 ** avg(scores), 0.85, 1.15)} · ${check('best', 2 ** Math.min(...scores), 0.5, Infinity)} · ${check('worst', 2 ** Math.max(...scores), 0, 1.7)} · ${check('scouts/team min', Math.min(...scouts), 4, SCOUT_MAX, 0)} · ${check('max', Math.max(...scouts), 0, SCOUT_MAX, 0)} · ${check('value', staffVal, 9, 11.5)} · ${check('over budget', staffOver, 0, 2, 0)} · ${check('market', staffMkt, 25, 60, 0)}`,
   );
 
-  // Draft. 7 rounds x 32 teams = 224 picks every year. Worth (0.6 OVR + 0.4 potential): round 1 12.82-13.29 (all seeds
-  // 12.61-13.33), rounds 2-3 10.70-11.09, so round 1 beats 2-3 by 1.7-2.5; teams reach 11.6-15.1 slots off the consensus
-  // board (all seeds 11.5-15.3). Best- vs worst-staffed teams is NOT banded: the gap swings from -0.35 to +0.6.
+  // Injuries and medical staffs. Per team over the season just played: 24.0-26.4 injuries (the regular season's 20-36
+  // plus the playoffs), 1.5-2.1 severe, 111-125 weeks lost (an ACL's year counts in full). Department means: physio
+  // 11.16-11.28, science 10.69-10.94 (band 9.5-12.5: a drift either way means hiring or ageing has tilted). Payroll
+  // 72-74% of the medical budget, 0-1 teams over; every team keeps its four chairs; market 32-34 medics.
   console.log(
     `  checks ${year} medical: ${check('injuries/team', hurtPerTeam, 18, 34, 1)} · ${check('severe/team', severePerTeam, 0.5, 3.5, 1)} · ${check('weeks lost/team', weeksPerTeam, 60, 180, 0)} · ${check('physio mean', avg(depts.map((d) => d.physio)), 9.5, 12.5)} · ${check('science mean', avg(depts.map((d) => d.science)), 9.5, 12.5)} · ${check('payroll mean %', 100 * avg(medPay), 55, 95, 0)} · ${check('over budget', medOver, 0, 2, 0)} · ${check('staff/team min', Math.min(...medics), MEDIC_MAX, MEDIC_MAX, 0)} · ${check('market', medMkt, 20, 50, 0)}`,
   );
+
+  // Draft. 7 rounds x 32 teams = 224 picks every year. Worth (0.6 OVR + 0.4 potential): round 1 12.82-13.29 (all seeds
+  // 12.61-13.33), rounds 2-3 10.70-11.09, so round 1 beats 2-3 by 1.7-2.5; teams reach 11.6-15.1 slots off the consensus
+  // board (all seeds 11.5-15.3). Best- vs worst-staffed teams is NOT banded: the gap swings from -0.35 to +0.6.
   console.log(
     `  checks ${year} draft: ${check('picks', drafted, 7 * league.teams.length, 7 * league.teams.length, 0)} · ${check('R1 worth', r1, 11.8, 14.5)} · ${check('R2-3', r23, 9.8, 12)} · ${check('R1 − R2-3', r1 - r23, 1, Infinity)} · ${check('|slot − consensus|', reach, 8, 20, 1)}\n`,
   );
