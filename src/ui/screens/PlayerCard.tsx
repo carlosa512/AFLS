@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { honorBadges, playerHonors } from '../../engine/awards';
 import { POSITION_NAMES } from '../../engine/positions';
-import { careerOutlook, isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
+import { careerOutlook, FIXED_HEADING, fixedHabits, habitChangeText, habitTimeline, isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
+import { formNote } from '../../engine/quirks';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
 import { editPlayerIdentity, identityProblem } from '../../engine/roster';
 import { careerLine, passerRating } from '../../engine/stats';
@@ -14,7 +15,7 @@ import { ContractActions, ContractSummary, ContractYears, contractLabel } from '
 import { band, heightFt } from '../format';
 import { teamScheme } from '../../engine/coaching';
 import { spotsFor } from '../../engine/schemes';
-import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, repsOf, ScoutButton, StarScaleToggle, Stars, schemeFitOf, starsOf, useStarScale, viewOf } from '../scouting';
+import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, QuirkPills, quirksOf, repsOf, ScoutButton, StarScaleToggle, Stars, schemeFitOf, starsOf, useStarScale, viewOf } from '../scouting';
 
 type Col = [label: string, value: (s: StatLine) => string | number];
 
@@ -191,6 +192,10 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const stars = starsOf(league, p, scale, view);
   const report = scoutReport(league, league.userTeamId, p);
   const makeup = makeupOf(league, p);
+  const habits = quirksOf(league, p);
+  const form = formNote(league, p);
+  const fixed = fixedHabits(league, league.userTeamId, p);
+  const timeline = habitTimeline(league, league.userTeamId, p).slice(0, 5);
   const reps = repsOf(league, p);
   // Film reveals a veteran's makeup over time; for anyone else a scouting visit (a sit-down) is the way.
   const sitDownHint = !makeup.known && p.teamId !== league.userTeamId && !p.retired && league.scoutPoints > 0;
@@ -304,6 +309,32 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                 <MakeupPills notes={makeup.notes} hedged={makeup.hedged} />
               )}
             </span>
+            <span className="fact">
+              <span className="eyebrow">Habits</span>
+              {!habits.known ? (
+                <span className="muted">Unknown</span>
+              ) : habits.notes.length === 0 ? (
+                <span className="muted">None on film</span>
+              ) : (
+                <QuirkPills notes={habits.notes} />
+              )}
+              {(['bad', 'good', 'style'] as const).map((tone) => {
+                const left = fixed.filter((f) => f.tone === tone);
+                // Your own players hide nothing: no "seems" about it.
+                const heading = view.exact && tone === 'bad' ? 'Has fixed' : FIXED_HEADING[tone];
+                return left.length ? (
+                  <span key={tone} className="muted small">
+                    {heading}: {left.map((f) => f.label).join(', ')}
+                  </span>
+                ) : null;
+              })}
+            </span>
+            {form && (
+              <span className="fact">
+                <span className="eyebrow">Form</span>
+                <span className="tone-bad">{form}</span>
+              </span>
+            )}
             {fit && (
               <span className="fact" title={`Your ${fitSide} leans on ${fit.skills.join(', ')}${view.exact ? '' : ' (as your scouts read him)'}.`}>
                 <span className="eyebrow">Fit · {fitScheme}</span>
@@ -328,6 +359,24 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                   {h.seasons.length > 1 ? `${h.seasons.length}× ${h.label}` : `${h.seasons[0]} ${h.label}`}
                 </span>
               ))}
+            </div>
+          )}
+
+          {timeline.length > 0 && (
+            <div className="muted small">
+              <span className="eyebrow">Habits over time</span>
+              <ul className="habit-timeline">
+                {timeline.map((e) => (
+                  <li key={`${e.id}-${e.season}-${e.week}-${e.change}`}>
+                    <span className="num">
+                      {e.season}
+                      {e.week ? `, wk ${e.week}` : ', offseason'}
+                    </span>
+                    {' · '}
+                    {habitChangeText(e)}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

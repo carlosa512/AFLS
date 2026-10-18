@@ -17,11 +17,12 @@ import { buildAutoDepthChart } from './roster';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateSchedule } from './season/schedule';
 import { generateStaffWorld } from './staff';
+import { generateQuirks } from './quirks';
 import { generateTraits } from './traits';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 12;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -112,6 +113,7 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
     stats: {},
   };
   player.traits = generateTraits(player);
+  generateQuirks(player);
   // Seeded by the player himself: adding measurables never shifts the league's random stream.
   player.combine = generateCombine(player);
   return player;
