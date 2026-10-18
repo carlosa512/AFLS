@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Player, Team } from '../engine/types';
-import { band } from './format';
+import type { Forecast, Weather } from '../engine/weather';
+import { band, gameWeatherText, severityText } from './format';
 
 /** Black or white, whichever reads better on `hex`. */
 function inkOn(hex: string): string {
@@ -61,6 +62,17 @@ export function TeamLabel({ team, full, onClick, sub }: { team: Team; full?: boo
         )}
         {sub && <small className="muted" style={{ display: 'block', lineHeight: 1.2 }}>{sub}</small>}
       </span>
+    </span>
+  );
+}
+
+/** A game's weather: what it was played in, or its forecast (muted while it's only the city's averages). */
+export function WeatherNote({ weather, forecast }: { weather?: Weather; forecast: Forecast | null }) {
+  const w = gameWeatherText(weather, forecast);
+  return (
+    <span className={w.outlook ? 'muted' : undefined}>
+      {w.text}
+      {w.severity !== 'none' && <strong> · {severityText(w.severity)}</strong>}
     </span>
   );
 }

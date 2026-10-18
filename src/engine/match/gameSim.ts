@@ -14,6 +14,7 @@ import { activeQuirks, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
 import type { Game, GameInjury, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
 import { MAX_STATS } from '../types';
+import { gameWeather, staminaDrain, turfRisk, weatherAt, weatherEffects, type Weather, type WeatherCost } from '../weather';
 import * as coach from './coach';
 import type { DefenseCall, PassDepth, Situation } from './coach';
 import { activePlayers, buildLineup, type Lineup } from './lineup';
@@ -27,6 +28,8 @@ export interface SimOptions {
   playoff?: boolean;
   /** Override the RNG seed (defaults to a per-game seed derived from the league). */
   seed?: string;
+  /** Override the day's weather (defaults to the game's own, see `weather.ts`). */
+  weather?: Weather;
 }
 
 const QUARTER_SECONDS = 900;
@@ -77,6 +80,8 @@ const unitAvg = (players: readonly Player[], contest: Parameters<typeof skill>[1
 const STACK = 0.6;
 /** Snaps into a drive after which a defensive line starts to tire. */
 const LONG_DRIVE = 5;
+/** Completion chance a full unit of weather cost takes off a throw: wind and wet balls hurt the deep ones most. */
+const WEATHER_PASS: Record<PassDepth, number> = { short: 0.25, medium: 0.42, deep: 0.67 };
 
 /**
  * Who gets home on a pass rush: the starting edges the most, then the rotation and the linebackers,
@@ -284,6 +289,13 @@ class GameSim {
   private misses = new Map<number, number>();
   /** What this game did to players' form, for `recordForm` once it's recorded. */
   private formOut: NonNullable<GameResult['form']> = {};
+  private weather: Weather;
+  /** What this quarter's weather does, against a typical day (a dome plays a little better). */
+  private wx: WeatherCost;
+  /** Each side's energy cost per snap, by the weather: heat wears on both, thin air on the visitors. */
+  private drain: [number, number];
+  /** This quarter's injury odds from the turf (frozen or waterlogged). */
+  private turf: number;
 
   constructor(
     private league: League,
@@ -294,6 +306,10 @@ class GameSim {
     this.creditRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:credit`);
     this.injuryRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:injury`);
     this.homeEdge = game.neutral ? 0 : HOME_FIELD_EDGE;
+    this.weather = options.weather ?? gameWeather(league, game);
+    this.wx = weatherEffects(weatherAt(this.weather, 1));
+    this.turf = turfRisk(weatherAt(this.weather, 1));
+    this.drain = [staminaDrain(this.weather, true), staminaDrain(this.weather, false)];
     const team = (id: number) => league.teams[id];
     this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
@@ -340,6 +356,7 @@ class GameSim {
     }
     if (this.clock <= 0) {
       this.endQuarter();
+      this.weatherTurns();
     } else if (this.kickoffBy !== null) {
       const kicker = this.kickoffBy;
       this.kickoffBy = null;
@@ -427,7 +444,8 @@ class GameSim {
 
   private body(p: Player) {
     let b = this.bodies.get(p.id);
-    if (!b) this.bodies.set(p.id, (b = { energy: p.condition ?? 100, spent: 0, cost: snapCost(p), risk: riskFactors(this.league, p, this.dept(p)) }));
+    const side = this.lineups[0].team.id === p.teamId ? 0 : 1;
+    if (!b) this.bodies.set(p.id, (b = { energy: p.condition ?? 100, spent: 0, cost: snapCost(p) * this.drain[side], risk: riskFactors(this.league, p, this.dept(p)) }));
     return b;
   }
 
@@ -460,7 +478,7 @@ class GameSim {
   private expose(p: Player, chance: number, contactShare: number) {
     if (this.out.has(p.id) || (this.hurt.length && this.hurt.some(([h]) => h === p))) return;
     const b = this.body(p);
-    const tired = fatigueMult(b.energy);
+    const tired = fatigueMult(b.energy) * this.turf;
     const contact = chance * contactShare * b.risk.contact * tired;
     const soft = chance * (1 - contactShare) * b.risk.soft * tired;
     const roll = this.injuryRng.next();
@@ -486,6 +504,8 @@ class GameSim {
   }
 
   private fgProb(distance: number, kicker: Player): number {
+    // Wind, snow and cold make every kick play longer; coaches see it in their range too.
+    distance += this.wx.kick;
     const center = 60 + 1.15 * (skill(kicker, 'fieldGoal') - 12);
     const p = 1 / (1 + Math.exp((distance - center) / 6.8));
     return distance > center + 12 ? 0 : p;
@@ -522,6 +542,7 @@ class GameSim {
       fourthDown: this.styles[off].fourthDown,
       depthLean: this.lineups[off].scheme.offense.depth,
       blitz: this.lineups[this.def].scheme.front.blitz * (this.lineups[this.def].scheme.coverage?.blitz ?? 1),
+      weather: this.wx.pass,
     };
   }
 
@@ -653,6 +674,16 @@ class GameSim {
     this.over = true; // regular-season tie
   }
 
+  /** Rain or snow that comes after kickoff changes the game from the start of its quarter. */
+  private weatherTurns() {
+    const w = this.weather;
+    if (this.over || this.quarter !== w.onset) return;
+    this.wx = weatherEffects(weatherAt(w, this.quarter));
+    this.turf = turfRisk(weatherAt(w, this.quarter));
+    const fall = { none: '', rain: 'Rain', mixed: 'Sleet', snow: 'Snow' }[w.precip];
+    this.log(w.roof === 'open' ? `${fall} moves in, and the roof closes.` : `${w.heavy ? `Heavy ${fall.toLowerCase()}` : fall} starts to fall.`);
+  }
+
   /** In overtime, the game ends once the trailing team has had its possession. */
   private checkOvertimeEnd(): boolean {
     if (!this.isOvertime() || this.score[0] === this.score[1]) return false;
@@ -769,7 +800,7 @@ class GameSim {
     }
 
     const kp = skill(kicking.k, 'kickoffDistance');
-    const touchback = this.rng.chance(clamp(0.38 + 0.025 * (kp - 12) + (this.has(kicking.k, 'boomerLeg') ? 0.12 : 0), 0.15, 0.8));
+    const touchback = this.rng.chance(clamp(0.38 + 0.025 * (kp - 12) + (this.has(kicking.k, 'boomerLeg') ? 0.12 : 0) - 0.02 * this.wx.kick, 0.15, 0.8));
     this.offense = receivingSide;
     if (touchback) {
       this.setAnim(kickingSide, 'kickoff', 35, 104, 104);
@@ -826,7 +857,8 @@ class GameSim {
     const outkicks = this.has(p, 'outkicksCoverage');
     const coffin = this.has(p, 'coffinCorner');
     const arc = this.has(p, 'highArc');
-    let gross = Math.round(clamp(this.rng.normal(46 + 0.9 * (skill(p, 'puntDistance') - 12) + (outkicks ? 3 : 0) - (arc ? 3 : 0), 5.5), 25, 70));
+    // Weather shortens punts, and wind scatters them.
+    let gross = Math.round(clamp(this.rng.normal(46 + 0.9 * (skill(p, 'puntDistance') - 12) + (outkicks ? 3 : 0) - (arc ? 3 : 0) - 0.5 * this.wx.kick, 5.5 + 0.3 * Math.max(0, this.wx.kick)), 25, 70));
     // Pin it deep instead of booting into the end zone from plus territory.
     const room = 100 - this.yardLine;
     if (gross > room - 5 && room < 60) {
@@ -1252,7 +1284,9 @@ class GameSim {
     const valid = options.filter((o): o is [Player, Record<PassDepth, number>, Player] => !!o[0]);
     // In tight space defenses bracket the top receiver, so red-zone looks spread to the tight end and backs.
     const bracket = yardsToGoal <= 10 ? 0.75 : 1;
-    const [receiver, , defender] = rng.weighted(valid, ([p, w]) => w[depth] * (0.6 + 0.042 * skill(p, 'targeting')) * (p === off.wrs[0] ? bracket : 1));
+    // Better receivers draw more looks, but not so many more that the top five outrun NFL leaders
+    // (dome teams' receivers already get a lift from the weather).
+    const [receiver, , defender] = rng.weighted(valid, ([p, w]) => w[depth] * (0.6 + 0.032 * skill(p, 'targeting')) * (p === off.wrs[0] ? bracket : 1));
     const isBack = receiver.position === 'RB';
 
     const recvSkill = skill(receiver, depth === 'deep' ? 'deepRoutes' : 'shortRoutes');
@@ -1303,6 +1337,7 @@ class GameSim {
     else if (depth !== 'deep' && this.has(receiver, 'hearsFootsteps')) pComplete -= 0.04;
     // Contested balls: hands shown late win them, hands that trap against the body don't.
     if (sep < 1) pComplete += this.contested(receiver, defender);
+    pComplete -= WEATHER_PASS[depth] * this.wx.pass;
     pComplete = clamp(pComplete, 0.05, 0.95);
 
     const pInt =
@@ -1555,7 +1590,7 @@ class GameSim {
 
   /** Fumble odds from the ball carrier's and tackler's quirks. */
   private fumbleOdds(carrier: Player, tackler: Player, run: boolean): number {
-    let m = this.has(carrier, 'looseCarriage') ? LOOSE_CARRIAGE : 1;
+    let m = (this.has(carrier, 'looseCarriage') ? LOOSE_CARRIAGE : 1) * this.wx.fumble;
     if (run && this.has(carrier, 'highKnee')) m *= 1.3;
     if (run && this.has(carrier, 'contactAverse')) m *= 0.7;
     if (this.has(tackler, 'ballStripper')) m *= 1.5;
@@ -1843,6 +1878,7 @@ class GameSim {
       plays,
       ...(this.injuries.length ? { injuries: this.injuries, diagnoses: this.diagnoses } : {}),
       condition,
+      weather: this.weather,
     };
   }
 }

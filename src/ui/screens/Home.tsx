@@ -11,9 +11,10 @@ import { allSeeds, ROUND_NAMES, roundWeek } from '../../engine/season/playoffs';
 import { computeRecords, divisionStandings } from '../../engine/season/standings';
 import { teamLeader } from '../../engine/stats';
 import type { Game, League, StatKey, Team } from '../../engine/types';
+import { forecast } from '../../engine/weather';
 import { useNav } from '../App';
 import { attentionText } from '../coaching';
-import { Panel, TeamChip, TeamLabel } from '../components';
+import { Panel, TeamChip, TeamLabel, WeatherNote } from '../components';
 import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, weekLabel } from '../format';
 import { live } from '../live';
 import { WinnerCell } from './Stats';
@@ -127,6 +128,9 @@ function NextGame({ league }: { league: League }) {
         </div>
       </div>
       <UnitBars a={user} b={opp} league={league} />
+      <p style={{ margin: 0 }}>
+        Forecast: <WeatherNote forecast={forecast(league, game)} />
+      </p>
       <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
         {game.neutral ? 'Neutral site.' : isHome ? 'Home game: a small edge in every matchup.' : `Road game in ${opp.city}.`} Press Play to watch it live.
         Unit ratings are starter averages on the 1–20 scale.

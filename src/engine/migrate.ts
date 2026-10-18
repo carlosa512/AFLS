@@ -36,6 +36,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 11) toV11(league);
   if (league.version < 12) league.version = 12; // v12: optional `form` on players and game results, nothing to fill in
   if (league.version < 13) toV13(league);
+  if (league.version < 14) league.version = 14; // v14: optional `weather` on game results, nothing to fill in
   return league;
 }
 

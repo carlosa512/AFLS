@@ -30,6 +30,8 @@ export interface Situation {
   depthLean?: [number, number, number];
   /** The defense's scheme: blitz-rate multiplier (1 = league average). */
   blitz?: number;
+  /** How much worse than a typical day the weather makes passing (negative indoors; see `weather.ts`). */
+  weather?: number;
 }
 
 export type PassDepth = 'short' | 'medium' | 'deep';
@@ -49,6 +51,8 @@ const PASS_LEAN = 0.06;
  * keep throwing with a great quarterback even with a lead, so NFL passing leaders throw 600+ times.
  */
 const QB_LEAN = 0.06;
+/** Pass probability a full unit of weather cost takes away in an ordinary situation: coaches run in the slop. */
+const WEATHER_LEAN = 0.15;
 /** How far a full-strength fourth-down appetite scales the odds of going for it on the judgment calls. */
 const FOURTH_LEAN = 0.4;
 /**
@@ -176,7 +180,7 @@ export function passProbability(s: Situation): number {
 
   if (100 - s.yardLine <= 3) p -= 0.12;
   // The play-caller's taste, in ordinary situations only: the clock and the score decide the end of games.
-  if (ordinary(s)) p += PASS_LEAN * (s.passLean ?? 0) + QB_LEAN * (s.qbLean ?? 0);
+  if (ordinary(s)) p += PASS_LEAN * (s.passLean ?? 0) + QB_LEAN * (s.qbLean ?? 0) - WEATHER_LEAN * (s.weather ?? 0);
   const secondsLeft = gameSecondsLeft(s);
   if (s.quarter >= 4 && s.scoreDiff < 0) {
     if (secondsLeft <= 240) p += 0.35;
@@ -202,6 +206,8 @@ export function passDepth(s: Situation, rng: Rng): PassDepth {
   else mix = [0.6, 0.29, 0.11];
   // The scheme's taste (West Coast underneath, Air Coryell deep) only where the situation doesn't dictate.
   if (s.depthLean && ordinary(s)) mix = shiftMix(mix, s.depthLean);
+  // Wind and slop take the deep ball away; a dome gives a little back.
+  if (s.weather && ordinary(s)) mix = [mix[0], mix[1], mix[2] * Math.exp(-2 * s.weather)];
   if (tempo(s) === 'hurry') mix = [mix[0] - 0.1, mix[1] + 0.06, mix[2] + 0.04];
   // Hail Mary at the end of a half.
   if ((s.quarter === 2 || s.quarter >= 4) && s.clock <= 8 && s.scoreDiff <= 0) mix = [0, 0.1, 0.9];

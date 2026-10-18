@@ -4,7 +4,7 @@ import { ROUND_NAMES } from '../../engine/season/playoffs';
 import { passerRating } from '../../engine/stats';
 import type { GameResult, League, Player, PlayLogEntry, StatLine, Team, TeamGameStats } from '../../engine/types';
 import { useNav } from '../App';
-import { FieldStrip, Panel, TeamChip } from '../components';
+import { FieldStrip, Panel, TeamChip, WeatherNote } from '../components';
 import { PlayText, usePlayNames, type PlayNames } from './GameViewer';
 import { gameClock, shortName, weekLabel } from '../format';
 
@@ -285,6 +285,11 @@ export function BoxScore({ league, gameId, onBack }: { league: League; gameId: n
           </span>
         </div>
       </div>
+      {r.weather && (
+        <p style={{ margin: 0, textAlign: 'center' }}>
+          <WeatherNote weather={r.weather} forecast={null} />
+        </p>
+      )}
 
       <div className="grid-2">
         <Panel title="Line score">

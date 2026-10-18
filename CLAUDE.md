@@ -48,6 +48,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in
   `match/gameSim.ts`. Nothing may be flagged. `npm run check` runs it (with `--effects`) when the
   quirks module, the match engine or what builds a league changes.
+- `npm run weather` — roll many seasons of weather and check it looks like the NFL's (wind, rain and snow,
+  roofs), that shown rain chances come true as often as they say, that `TYPICAL` in `weather.ts` is still
+  the season's average, and that each condition, replayed on the same games, cuts passing and kicking by
+  its research share. Run it after changing `weather.ts`, `data/stadiums.ts` or the match engine.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -82,6 +86,13 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     through `quirkNotes` in `scouting.ts` (seen on film, so the fog of war applies); AI front offices
     value them through `quirkWorth` (only what their own scouts have seen); game states (Rattled, Shaken, a kicker's
     slump) and event marbles go through `recordForm`, called from `recordResult` in `league.ts`
+  - `weather.ts` each game's weather (a pure function of seed, season and game id: nothing stored until
+    it's played): night kickoffs, regional storm fronts, rain that starts mid-game (`weatherAt` gives a
+    quarter's conditions), its cost to play and the engine's levers (measured against a typical day, so
+    league totals hold), its injury hooks (`staminaDrain` scales a snap's energy cost, `turfRisk` the injury
+    odds), severity and forecasts;
+    `data/stadiums.ts` roofs, altitude, climates, regions and stadium changes by season. Spec and what's
+    built so far: `docs/WEATHER.md`
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
