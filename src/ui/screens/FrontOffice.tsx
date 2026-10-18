@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { capSpace } from '../../engine/finance/cap';
 import { lastSeason, yearsLeft } from '../../engine/finance/contract';
 import { fifthYearOptionValue } from '../../engine/finance/market';
-import { draftForUser, draftToEnd, draftToUserPick, FA_DAYS } from '../../engine/offseason';
+import { draftForUser, draftNextPick, draftToEnd, draftToUserPick, FA_DAYS } from '../../engine/offseason';
 import { applyFranchiseTag, exerciseFifthYearOption, expiringPlayers, needGain, tagBlocker, tagValue } from '../../engine/offseason/ai';
-import { availableProspects, boardValue, draftOrder, nextPick, POSITION_PREMIUM, positionDepth } from '../../engine/offseason/draft';
+import { availableProspects, boardValue, draftOrder, nextPick, POSITION_PREMIUM, positionDepth, ROUNDS } from '../../engine/offseason/draft';
 import { demand, extensionBlocker, freeAgents } from '../../engine/offseason/negotiation';
 import { POSITION_NAMES } from '../../engine/positions';
 import { teamPlayers } from '../../engine/roster';
@@ -12,11 +12,11 @@ import { resignForecast, staffName, staffWindowOpen } from '../../engine/staff';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, Rating, SortTh, sortRows, TeamChip, useSort } from '../components';
+import { Panel, PlayerAvatar, Rating, Section, SortTh, sortRows, TeamChip, useSort } from '../components';
 import { attentionText, coachAttention } from '../coaching';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
-import { KnowledgeMeter, MakeupPills, makeupOf, Ovr, QuirkPills, quirksOf, potentialText, ScoutButton, seenOvr, Stars, starsOf, viewOf } from '../scouting';
+import { combineRows, drillVerdict, KnowledgeMeter, MakeupPills, makeupOf, Ovr, QuirkPills, quirksOf, potentialText, ScoutButton, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { CoachesScreen } from './Coaches';
 import { MedicalScreen } from './Medical';
 import { StaffScreen } from './Staff';
@@ -332,7 +332,21 @@ function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Play
 
 // ───────── draft ─────────
 
-type BoardSort = 'consensus' | 'mine';
+type BoardSort = 'rank' | 'mine' | 'pos' | 'age' | 'drill' | 'grade' | 'ceiling' | 'stars' | 'consensus' | 'known';
+
+/** The combine drills the board's drill column can show, with their short headers. */
+const BOARD_DRILLS = [
+  ['forty', '40', '40-yard dash'],
+  ['shuttle', 'Shuttle', '20-yard shuttle'],
+  ['cone', '3-cone', '3-cone drill'],
+  ['vertical', 'Vertical', 'Vertical jump'],
+  ['broad', 'Broad', 'Broad jump'],
+  ['bench', 'Bench', 'Bench press'],
+] as const;
+type BoardDrill = (typeof BOARD_DRILLS)[number][0];
+
+/** Board rows shown at a time: a round's worth, so the board stays a screen or two tall. */
+const BOARD_PAGE = 32;
 
 /** Your own board value: the AI's formula, fed your scouts' grades instead of the consensus. */
 const myBoardValue = (league: League, p: Player) => {
@@ -343,21 +357,31 @@ const myBoardValue = (league: League, p: Player) => {
 function Draft({ league }: { league: League }) {
   const nav = useNav();
   const [pos, setPos] = useState<Position | 'ALL'>('ALL');
-  const [sort, setSort] = useState<BoardSort>('consensus');
+  const [sort, onSort, setSort] = useSort<BoardSort>({ key: 'rank', desc: false });
+  const [drill, setDrill] = useState<BoardDrill>('forty');
+  const [shown, setShown] = useState(BOARD_PAGE);
+  // A new filter or ranking starts back at the top of the board.
+  useEffect(() => setShown(BOARD_PAGE), [pos, sort]);
   const teamId = league.userTeamId;
   const myPicks = league.draftPicks.filter((p) => p.ownerId === teamId).sort((a, b) => a.season - b.season || (a.overall ?? a.round * 32) - (b.overall ?? b.round * 32));
   const all = availableProspects(league);
   // Consensus rank across the whole class: roughly where the league will take him.
   const rank = new Map([...all].sort((a, b) => boardValue(b) - boardValue(a)).map((p, i) => [p.id, i + 1]));
-  const prospects = all
-    .filter((p) => pos === 'ALL' || p.position === pos)
-    .sort((a, b) => (sort === 'mine' ? myBoardValue(league, b) - myBoardValue(league, a) : rank.get(a.id)! - rank.get(b.id)!));
+  // Sort the whole class before paging it, so "fastest" or "best ceiling" reaches past the first page.
+  const prospects = sortRows(
+    all.filter((p) => pos === 'ALL' || p.position === pos),
+    sort,
+    (p, key) => {
+      const v = viewOf(league, p);
+      return key === 'mine' ? myBoardValue(league, p) : key === 'pos' ? POSITIONS.indexOf(p.position) : key === 'age' ? p.age : key === 'drill' ? (p.combine?.[drill] ?? (sort.desc ? -Infinity : Infinity)) : key === 'grade' ? v.ovr : key === 'ceiling' ? v.potMid : key === 'stars' ? starsOf(league, p, 'league', v).ability : key === 'consensus' ? p.scouting!.grade : key === 'known' ? v.knowledge : rank.get(p.id)!;
+    },
+  );
   const onClock = league.phase === 'draft' ? nextPick(league) : undefined;
   const userUp = onClock?.ownerId === teamId;
-  const recent = draftOrder(league)
-    .filter((p) => p.playerId !== undefined)
-    .slice(-8)
-    .reverse();
+  const order = draftOrder(league);
+  const myNext = onClock && order.find((pk) => pk.ownerId === teamId && pk.playerId === undefined);
+  const last = order.filter((pk) => pk.playerId !== undefined).at(-1);
+  const lastP = last && league.players[last.playerId!];
 
   return (
     <>
@@ -382,9 +406,14 @@ function Draft({ league }: { league: League }) {
             onClock && (
               <span className="row" style={{ gap: 8 }}>
                 {!userUp && (
-                  <button className="btn" onClick={() => store.mutate(draftToUserPick)}>
-                    Sim to my pick
-                  </button>
+                  <>
+                    <button className="btn" onClick={() => store.mutate(draftNextPick)}>
+                      Next pick
+                    </button>
+                    <button className="btn" onClick={() => store.mutate(draftToUserPick)}>
+                      Sim to my pick
+                    </button>
+                  </>
                 )}
                 {userUp && (
                   <button className="btn" onClick={() => store.mutate((l) => draftForUser(l))}>
@@ -398,28 +427,10 @@ function Draft({ league }: { league: League }) {
             )
           }
         >
-          {recent.length > 0 && (
-            <ul className="moves picks-feed">
-              {recent.map((pk) => {
-                const p = league.players[pk.playerId!];
-                // Taken a round of the board ahead of his consensus rank is a reach; that far behind it, a steal.
-                const gap = pk.consRank !== undefined && pk.overall !== undefined ? pk.consRank - pk.overall : 0;
-                return (
-                  <li key={pk.id}>
-                    <span className="muted small">
-                      No. {pk.overall} · {league.teams[pk.ownerId].abbrev}
-                    </span>
-                    <span>
-                      {p.position} {p.firstName} {p.lastName}
-                      {gap >= 12 && <span className="tag-pill tag-warn">reach</span>}
-                      {gap <= -12 && <span className="tag-pill tag-good">steal</span>}{' '}
-                      <span className="muted small">{pk.consRank !== undefined ? `consensus #${pk.consRank}` : `consensus ${p.scouting?.grade ?? '–'}`}</span>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <p className="muted small" style={{ margin: 0 }}>
+            {last && lastP && `Last pick: No. ${last.overall} ${league.teams[last.ownerId].abbrev}, ${lastP.position} ${lastP.firstName} ${lastP.lastName} (consensus #${last.consRank}). `}
+            {!onClock ? 'Every pick is in.' : userUp ? 'Pick from the board below, or let your staff choose.' : myNext ? `Your next pick: round ${myNext.round}, No. ${myNext.overall} (${myNext.overall! - onClock.overall!} picks away).` : 'You have no picks left in this draft.'}
+          </p>
         </Panel>
       )}
 
@@ -429,54 +440,74 @@ function Draft({ league }: { league: League }) {
           action={
             <span className="board-sort">
               <div className="seg seg-sm" role="group" aria-label="Rank prospects by">
-                <button aria-pressed={sort === 'consensus'} onClick={() => setSort('consensus')}>
+                <button aria-pressed={sort.key === 'rank'} onClick={() => setSort({ key: 'rank', desc: false })}>
                   Consensus
                 </button>
-                <button aria-pressed={sort === 'mine'} onClick={() => setSort('mine')}>
+                <button aria-pressed={sort.key === 'mine'} onClick={() => setSort({ key: 'mine', desc: true })}>
                   Your board
                 </button>
               </div>
+              <select
+                aria-label="Combine drill to show"
+                value={drill}
+                onChange={(e) => {
+                  const next = e.target.value as BoardDrill;
+                  setDrill(next);
+                  // Sorted by the drill: keep sorting by it, best first (times low, reps and jumps high).
+                  if (sort.key === 'drill') setSort({ key: 'drill', desc: !isTimed(next) });
+                }}
+              >
+                {BOARD_DRILLS.map(([k, , label]) => (
+                  <option key={k} value={k}>
+                    {label}
+                  </option>
+                ))}
+              </select>
               <PositionFilter value={pos} onChange={setPos} />
             </span>
           }
         >
           <p className="muted small" style={{ marginTop: 0 }}>
-            <b>Your grade</b> and <b>ceiling</b> are your scouts' estimates (a dashed grade is a guess). <b>Makeup</b> shows once your scouts know a prospect, usually after a visit or two ("?" means not yet; dashed tags are early word). <b>Habits</b> are what shows on film: a few in the tape, more with visits. <b>Consensus</b> is how the rest of the league
-            rates him. Rivals blend it with their own scouts' reads, and trust their scouts more when those scouts are good, so he can go earlier or later than
-            his rank. When your read beats the consensus, you've found a sleeper; when it's worse, let someone else take the bust. Each scouting visit narrows a
-            range:{' '}
+            Each scouting visit narrows a range:{' '}
             <b>
               {league.scoutPoints} visit{league.scoutPoints === 1 ? '' : 's'} left
             </b>{' '}
             this year.
           </p>
+          <details className="more">
+            <summary>How to read the board</summary>
+            <p className="muted small">
+            <b>Your grade</b> and <b>ceiling</b> are your scouts' estimates (a dashed grade is a guess). <b>Makeup</b> shows once your scouts know a prospect, usually after a visit or two ("?" means not yet; dashed tags are early word). <b>Habits</b> are what shows on film: a few in the tape, more with visits. <b>Consensus</b> is how the rest of the league
+            rates him. Rivals blend it with their own scouts' reads, and trust their scouts more when those scouts are good, so he can go earlier or later than
+            his rank. When your read beats the consensus, you've found a sleeper; when it's worse, let someone else take the bust.
+            </p>
+          </details>
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th className="num">#</th>
-                  <th className="sticky-col">Prospect</th>
-                  <th>Pos</th>
-                  <th className="num">Age</th>
-                  <th className="num">40</th>
-                  <th className="num">Your grade</th>
-                  <th className="num">Ceiling</th>
-                  <th>Stars</th>
-                  <th className="num">Consensus</th>
-                  <th>Known</th>
+                  <SortTh label="# Prospect" k="rank" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
+                  <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
+                  <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
+                  <SortTh label={BOARD_DRILLS.find(([k]) => k === drill)![1]} k="drill" sort={sort} onSort={onSort} desc={!isTimed(drill)} className="num" />
+                  <SortTh label="Your grade" k="grade" sort={sort} onSort={onSort} className="num" />
+                  <SortTh label="Ceiling" k="ceiling" sort={sort} onSort={onSort} className="num" />
+                  <SortTh label="Stars" k="stars" sort={sort} onSort={onSort} />
+                  <SortTh label="Consensus" k="consensus" sort={sort} onSort={onSort} className="num" />
+                  <SortTh label="Known" k="known" sort={sort} onSort={onSort} />
                   <th>Makeup</th>
                   <th>Habits</th>
-                  <th />
-                  {userUp && <th />}
+                  <th className="sticky-end" />
                 </tr>
               </thead>
               <tbody>
-                {prospects.slice(0, 150).map((p) => {
+                {prospects.slice(0, shown).map((p) => {
                   const v = viewOf(league, p);
                   return (
                     <tr key={p.id}>
-                      <td className="num muted">{rank.get(p.id)}</td>
                       <td className="sticky-col">
+                        {/* The rank rides in the sticky cell: as a column of its own, the name would slide over it. */}
+                        <span className="board-rank muted small">{rank.get(p.id)}</span>
                         <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
                           <PlayerAvatar player={p} team={null} size={26} />
                           <span>
@@ -486,7 +517,7 @@ function Draft({ league }: { league: League }) {
                       </td>
                       <td>{p.position}</td>
                       <td className="num">{p.age}</td>
-                      <td className="num muted">{p.combine?.forty?.toFixed(2) ?? '–'}</td>
+                      <BoardDrillCell player={p} drill={drill} />
                       <td className="num">
                         <Ovr league={league} player={p} />
                       </td>
@@ -508,24 +539,35 @@ function Draft({ league }: { league: League }) {
                       <td>
                         <BoardHabits league={league} player={p} />
                       </td>
-                      <td>
-                        <ScoutButton league={league} player={p} />
-                      </td>
-                      {userUp && (
-                        <td>
+                      {/* Pinned right, so Scout and Draft stay in reach on a phone without scrolling the table. */}
+                      <td className="sticky-end">
+                        <ScoutButton league={league} player={p} />{' '}
+                        {userUp && (
                           <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => draftForUser(l, p.id))}>
                             Draft
                           </button>
-                        </td>
-                      )}
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+          {prospects.length > shown && (
+            <div className="row" style={{ justifyContent: 'center', marginTop: 10 }}>
+              <button className="btn btn-sm" onClick={() => setShown((n) => n + BOARD_PAGE)}>
+                Show {Math.min(BOARD_PAGE, prospects.length - shown)} more
+              </button>
+              <span className="muted small">
+                {shown} of {prospects.length}
+              </span>
+            </div>
+          )}
         </Panel>
       )}
+
+      <DraftHistory league={league} live={onClock?.round} />
 
       <Panel title="Your picks">
         {myPicks.length === 0 ? (
@@ -565,6 +607,118 @@ function Draft({ league }: { league: League }) {
   );
 }
 
+/**
+ * Every draft this league has held, a year and a round at a time: who went where, and where the
+ * consensus had him then. Built from the players (their `draft` stays; old picks are pruned).
+ * `live` is the round on the clock, which the table follows (newest pick first) until you choose a round.
+ */
+function DraftHistory({ league, live }: { league: League; live?: number }) {
+  const nav = useNav();
+  // Drafts this league held: those players keep the consensus read. A new league's veterans come with made-up draft lines.
+  const drafted = Object.values(league.players).filter((p) => p.draft && p.scouting);
+  const years = [...new Set(drafted.map((p) => p.draft!.season))].sort((a, b) => b - a);
+  const [pickedYear, setYear] = useState<number | null>(null);
+  const [pickedRound, setRound] = useState<number | 'all' | null>(null);
+  if (!years.length) return null;
+  const year = pickedYear ?? years[0];
+  const following = live !== undefined && year === league.season;
+  const round = pickedRound ?? (following ? live : 1);
+  const rows = drafted
+    .filter((p) => p.draft!.season === year && (round === 'all' || p.draft!.round === round))
+    .sort((a, b) => (following ? b.draft!.pick - a.draft!.pick : a.draft!.pick - b.draft!.pick));
+  return (
+    <Panel className="draft-history">
+      <Section id="draft-history" title="Draft history">
+        <span className="row" style={{ gap: 8 }}>
+          <select aria-label="Draft year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y} draft
+              </option>
+            ))}
+          </select>
+          <select aria-label="Round" value={round} onChange={(e) => setRound(e.target.value === 'all' ? 'all' : Number(e.target.value))}>
+            <option value="all">All rounds</option>
+            {Array.from({ length: ROUNDS }, (_, i) => (
+              <option key={i + 1} value={i + 1}>
+                Round {i + 1}
+              </option>
+            ))}
+          </select>
+        </span>
+        {rows.length === 0 ? (
+          <p className="muted small" style={{ margin: 0 }}>
+            No picks made in this round yet.
+          </p>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th className="num">Pick</th>
+                  <th className="sticky-col">Player</th>
+                  <th>Pos</th>
+                  <th>Team</th>
+                  <th className="num" title="Where the league consensus ranked him in his class when he was taken">
+                    Consensus
+                  </th>
+                  <th className="num" title="The consensus grade and ceiling when he was taken">
+                    Grade
+                  </th>
+                  <th className="num">Ceiling</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((p) => {
+                  const d = p.draft!;
+                  // Taken a round of the board ahead of his consensus rank is a reach; that far behind it, a steal.
+                  const gap = d.rank !== undefined ? d.rank - d.pick : 0;
+                  return (
+                    <tr key={p.id} className={d.teamId === league.userTeamId ? 'is-user' : undefined}>
+                      <td className="num muted">
+                        {d.round}.{d.pick - (d.round - 1) * 32} <span className="small">(No. {d.pick})</span>
+                      </td>
+                      <td className="sticky-col">
+                        <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
+                          {p.firstName} {p.lastName}
+                        </button>
+                        {gap >= 12 && <span className="tag-pill tag-warn">reach</span>}
+                        {gap <= -12 && <span className="tag-pill tag-good">steal</span>}
+                      </td>
+                      <td>{p.position}</td>
+                      <td>
+                        <TeamChip team={league.teams[d.teamId]} />
+                      </td>
+                      <td className="num">{d.rank !== undefined ? `#${d.rank}` : '–'}</td>
+                      <td className="num">{p.scouting ? <Rating value={p.scouting.grade} decimals={1} /> : '–'}</td>
+                      <td className="num muted">{p.scouting?.ceiling.toFixed(1) ?? '–'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+    </Panel>
+  );
+}
+
+const isTimed = (d: BoardDrill) => d === 'forty' || d === 'shuttle' || d === 'cone';
+
+/** A drill result on the board, coloured against a typical starter at his position (a 4.6 is slow for a corner, fast for a guard). */
+function BoardDrillCell({ player: p, drill }: { player: Player; drill: BoardDrill }) {
+  const v = p.combine?.[drill];
+  const d = combineRows(p).find((r) => r.key === drill)!;
+  if (v === undefined) return <td className="num muted">–</td>;
+  const verdict = drillVerdict(d, v);
+  return (
+    <td className={`num ${verdict ? `tone-${verdict}` : 'muted'}`} title={d.typical !== undefined ? `Typical ${p.position}: ${d.fmt(d.typical)}` : undefined}>
+      {d.fmt(v)}
+    </td>
+  );
+}
+
 /** A prospect's makeup in a board cell: "?" until your scouts know him, a dash when nothing stands out. */
 function BoardMakeup({ league, player }: { league: League; player: Player }) {
   const m = makeupOf(league, player);
@@ -580,7 +734,7 @@ function BoardMakeup({ league, player }: { league: League; player: Player }) {
         –<span className="visually-hidden">Nothing stands out</span>
       </span>
     );
-  return <MakeupPills notes={m.notes} hedged={m.hedged} limit={2} oneLine />;
+  return <MakeupPills notes={m.notes} hedged={m.hedged} limit={1} oneLine />;
 }
 
 /** A prospect's habits on film in a board cell: "?" until your scouts have seen enough, a dash when none show. */
@@ -598,7 +752,7 @@ function BoardHabits({ league, player }: { league: League; player: Player }) {
         –<span className="visually-hidden">None on film</span>
       </span>
     );
-  return <QuirkPills notes={h.notes} limit={2} oneLine />;
+  return <QuirkPills notes={h.notes} limit={1} oneLine />;
 }
 
 export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }) {

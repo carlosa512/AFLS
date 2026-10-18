@@ -196,6 +196,7 @@ function withRng<T>(league: League, fn: (rng: Rng) => T): T {
 }
 
 /** Draft room controls for the user. */
+export const draftNextPick = (league: League) => withRng(league, (rng) => simDraft(league, rng, { stopAtUser: true, limit: 1 }));
 export const draftToUserPick = (league: League) => withRng(league, (rng) => simDraft(league, rng, { stopAtUser: true }));
 export const draftToEnd = (league: League) => withRng(league, (rng) => simDraft(league, rng, { stopAtUser: false }));
 export function draftForUser(league: League, playerId?: number): void {

@@ -175,18 +175,19 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
   pick.consRank = consensusRank(league, player);
   player.teamId = team.id;
   player.contract = rookieContract(pick.overall!, league.season, league.caps[league.season]);
-  player.draft = { season: league.season, round: pick.round, pick: pick.overall!, teamId: team.id };
+  player.draft = { season: league.season, round: pick.round, pick: pick.overall!, teamId: team.id, rank: pick.consRank };
   player.jersey = freeJersey(player.position, new Set(teamPlayers(league, team.id).filter((p) => p.id !== player.id).map((p) => p.jersey)), player.jersey);
   syncDepthChart(league, team);
   logTransaction(league, 'draft', [team.id], `${team.abbrev} drafted ${player.position} ${player.firstName} ${player.lastName} (round ${pick.round}, No. ${pick.overall})`);
 }
 
-/** Make picks until it's the user's turn (or the draft ends). Returns the picks made. */
-export function simDraft(league: League, rng: Rng, opts: { stopAtUser: boolean }): DraftPick[] {
+/** Make picks until it's the user's turn, `limit` picks are made, or the draft ends. Returns the picks made. */
+export function simDraft(league: League, rng: Rng, opts: { stopAtUser: boolean; limit?: number }): DraftPick[] {
   const made: DraftPick[] = [];
   const boards: BoardMemo = new Map();
   for (let pick = nextPick(league); pick; pick = nextPick(league)) {
     if (opts.stopAtUser && pick.ownerId === league.userTeamId) break;
+    if (made.length === opts.limit) break;
     draftPlayer(league, pick, aiDraftChoice(league, pick.ownerId, rng, pick.round, boards));
     made.push(pick);
   }

@@ -45,6 +45,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 19) toV19(league);
   if (league.version < 20) league.version = 20; // v20: optional `inbox`, filled (already read) on the first delivery
   if (league.version < 21) toV21(league);
+  if (league.version < 22) toV22(league);
   return league;
 }
 
@@ -259,13 +260,22 @@ function toV19(league: League) {
   league.version = 19;
 }
 
+/** v20 → v21: a drafted player keeps his consensus rank; fill it in from the picks not yet pruned. */
+function toV21(league: League) {
+  for (const pk of league.draftPicks) {
+    const d = pk.playerId !== undefined ? league.players[pk.playerId]?.draft : undefined;
+    if (d && pk.consRank !== undefined) d.rank = pk.consRank;
+  }
+  league.version = 21;
+}
+
 /**
- * v20 → v21: an archive for coaches leaving football (those who left before this build are already gone), and owners
+ * v21 → v22: an archive for coaches leaving football (those who left before this build are already gone), and owners
  * who spend what their markets earn (`ownerBudgets`), the user's own included, where older saves rolled them at
  * random. Coaches may now carry a `playerId` (former players) and teams a `coachOverspent` year: nothing to fill in.
  */
-function toV21(league: League) {
+function toV22(league: League) {
   league.retiredCoaches ??= {};
   setOwnerBudgets(league);
-  league.version = 21;
+  league.version = 22;
 }
