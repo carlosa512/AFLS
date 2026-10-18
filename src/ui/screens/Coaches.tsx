@@ -50,7 +50,7 @@ import { coachSchemeAbout, coachSchemeLabel, defenseNotes, PERSONNEL_LABEL, sche
 import { staffWindowOpen, type ResignOutlook } from '../../engine/staff';
 import type { Coach, CoachRole, CoachRoom, League } from '../../engine/types';
 import { useNav } from '../App';
-import { Exact, Panel, Section, Sheet, TeamChip, TipPill } from '../components';
+import { Exact, Panel, Section, Sheet, TeamChip, TeamPicker, TipPill } from '../components';
 import {
   agingTone,
   chairNoun,
@@ -120,7 +120,8 @@ const Announce = createContext<(text: string, jump?: Jump) => void>(() => {});
 /** "Head coach · 2 yrs with you": tenure rides in the subtitle so the card stays short. */
 const subtitle = (league: League, c: Coach) => {
   const t = c.since === undefined ? 0 : league.season - c.since;
-  return `${coachTitle(c)}${c.since === undefined ? '' : t <= 0 ? ' · new hire' : ` · ${t} yr${t > 1 ? 's' : ''} with you`}`;
+  const where = c.teamId === league.userTeamId || c.teamId === null ? 'you' : league.teams[c.teamId].abbrev;
+  return `${coachTitle(c)}${c.since === undefined ? '' : t <= 0 ? ' · new hire' : ` · ${t} yr${t > 1 ? 's' : ''} with ${where}`}`;
 };
 const years = (n: number) => `${n} year${n > 1 ? 's' : ''}`;
 
@@ -403,7 +404,9 @@ function Term({ value, max, onChange, label }: { value: number; max: number; onC
 
 function Member({ league, c, open, outlook }: { league: League; c: Coach; open: boolean; outlook?: ResignOutlook }) {
   const teamId = league.userTeamId;
-  const expiring = isCoachExpiring(league, c);
+  // Another club's coach: the same card to read, without the deal notes and buttons (those are his club's).
+  const theirs = c.teamId !== league.userTeamId;
+  const expiring = !theirs && isCoachExpiring(league, c);
   const [term, setTerm] = useState(2);
   // Dismissing someone under contract costs real money: ask once more.
   const [confirming, setConfirming] = useState(false);
@@ -453,7 +456,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
       </div>
       <SchemeRow league={league} c={c} compact />
       <CoachTags c={c} />
-      {expiring ? (
+      {theirs ? null : expiring ? (
         <>
           <p className="small staff-note">
             {outlook === 'budget'
@@ -533,7 +536,21 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
           )}
         </div>
       )}
-      {open && why && <p className="small muted staff-why">{why}</p>}
+      {!theirs && open && why && <p className="small muted staff-why">{why}</p>}
+    </li>
+  );
+}
+
+/** An empty chair at another club: just that it's empty. */
+function TheirOpenChair({ chair }: { chair: Chair }) {
+  return (
+    <li className="staff-card vacant coach-card">
+      <div className="staff-head">
+        <div>
+          <b className="staff-name">Open chair</b>
+          <span className="muted small">{coachTitle(chair)}</span>
+        </div>
+      </div>
     </li>
   );
 }
@@ -823,6 +840,8 @@ export function CoachesScreen({ league }: { league: League }) {
   const [showAll, setShowAll] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('');
+  // Whose staff the staff panel shows: yours, or any club's to look at.
+  const [viewTeam, setViewTeam] = useState(league.userTeamId);
   const candidatesRef = useRef<HTMLDivElement>(null);
   const candidatesHeading = useRef<HTMLHeadingElement>(null);
   const mineRef = useRef<HTMLDivElement>(null);
@@ -1019,9 +1038,10 @@ export function CoachesScreen({ league }: { league: League }) {
           <Panel
             title={
               <h2 ref={mineHeading} tabIndex={-1}>
-                Your coaches
+                {viewTeam === teamId ? 'Your coaches' : `${league.teams[viewTeam].city} ${league.teams[viewTeam].name} coaches`}
               </h2>
             }
+            action={<TeamPicker league={league} value={viewTeam} onChange={setViewTeam} />}
           >
             <div className="stack coach-groups">
               {GROUPS.map(([title, chairs]) => (
@@ -1031,6 +1051,10 @@ export function CoachesScreen({ league }: { league: League }) {
                   <ul className="staff-grid">
                     {chairs.flatMap((ch) => {
                       const key = `${ch.role}-${ch.room ?? ''}`;
+                      if (viewTeam !== teamId) {
+                        const holder = chairHolder(teamCoaches(league, viewTeam), ch);
+                        return holder ? [<Member key={holder.id} league={league} c={holder} open={false} />] : [<TheirOpenChair key={`open-${key}`} chair={ch} />];
+                      }
                       const cards = seated(ch).map((c) => <Member key={c.id} league={league} c={c} open={open} outlook={forecast.get(c.id)} />);
                       if (!chairHolder(staying, ch)) {
                         const gone = leavers.find((c) => sameChair(chairOf(c), ch));

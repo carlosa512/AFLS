@@ -2,14 +2,14 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as Rea
 import { chairHolder, coachName, teamCoaches, teamScheme } from '../../engine/coaching';
 import { POSITION_NAMES } from '../../engine/positions';
 import { PERSONNEL_LABEL, spotsFor, type TeamScheme } from '../../engine/schemes';
-import { capSheet } from '../../engine/finance/cap';
+import { capSheet, isOffseason } from '../../engine/finance/cap';
 import { capHit, lastSeason } from '../../engine/finance/contract';
 import { buildAutoDepthChart, isAvailable, teamPlayers, teamRatings } from '../../engine/roster';
 import { computeRecords } from '../../engine/season/standings';
 import type { Coach, League, Player, Position, StatLine, Team } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, SortTh, sortRows, TeamChip, useSort } from '../components';
+import { Panel, PlayerAvatar, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
 import { FitnessCell, InjuryTag, riskOf } from '../injuries';
@@ -281,16 +281,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
           </div>
         }
         action={
-          <select aria-label="Choose team" id="roster-team" value={teamId} onChange={(e) => nav.openTeam(Number(e.target.value))}>
-            {[...league.teams]
-              .sort((a, b) => a.city.localeCompare(b.city))
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.city} {t.name}
-                  {t.id === league.userTeamId ? ' (you)' : ''}
-                </option>
-              ))}
-          </select>
+          <TeamPicker league={league} value={teamId} onChange={nav.openTeam} id="roster-team" />
         }
       >
         <div className="facts">
@@ -319,6 +310,16 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
             <button className="linklike num fact-link" onClick={() => nav.go({ view: 'cap', teamId })}>
               {money(Math.round(cap.space))}
             </button>
+          </span>
+          <span className="fact">
+            <span className="eyebrow">Roster</span>
+            {/* As the Cap screen counts it: injured reserve is off the 53 (90 in the offseason). */}
+            <span className="staff-age">
+              <b className="num">
+                {cap.rosterSize}/{isOffseason(league.phase) ? 90 : 53}
+              </b>
+              {players.some((p) => p.ir) && <span className="muted small">+{players.filter((p) => p.ir).length} on IR</span>}
+            </span>
           </span>
         </div>
       </Panel>

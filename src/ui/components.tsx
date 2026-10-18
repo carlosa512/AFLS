@@ -306,6 +306,22 @@ export function Exact({ numbers, children }: { numbers: ReactNode; children: Rea
   );
 }
 
+/** Pick a club, yours marked: the same list wherever a screen can show another team. */
+export function TeamPicker({ league, value, onChange, id }: { league: League; value: number; onChange: (teamId: number) => void; id?: string }) {
+  return (
+    <select aria-label="Choose team" id={id} value={value} onChange={(e) => onChange(Number(e.target.value))}>
+      {[...league.teams]
+        .sort((a, b) => a.city.localeCompare(b.city))
+        .map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.city} {t.name}
+            {t.id === league.userTeamId ? ' (you)' : ''}
+          </option>
+        ))}
+    </select>
+  );
+}
+
 /**
  * Every club's department by grade. Tap a team to open its staff underneath (`staffOf` says who, and how
  * good), so the league isn't just a rank: you can see who's behind it.
