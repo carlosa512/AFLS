@@ -171,7 +171,14 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                     <tr key={i}>
                       <td className="num">{d.season}</td>
                       <td>
-                        {p ? `${p.firstName} ${p.lastName}` : 'Former player'} <span className="muted small">{d.note}</span>
+                        {p ? (
+                          <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
+                            {p.firstName} {p.lastName}
+                          </button>
+                        ) : (
+                          'Former player'
+                        )}{' '}
+                        <span className="muted small">{d.note}</span>
                       </td>
                       <td className="num">{money(d.amount)}</td>
                     </tr>

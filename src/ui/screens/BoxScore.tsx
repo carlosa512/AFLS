@@ -5,6 +5,7 @@ import { passerRating } from '../../engine/stats';
 import type { GameResult, League, Player, PlayLogEntry, StatLine, Team, TeamGameStats } from '../../engine/types';
 import { useNav } from '../App';
 import { FieldStrip, Panel, TeamChip } from '../components';
+import { PlayText, usePlayNames, type PlayNames } from './GameViewer';
 import { gameClock, shortName, weekLabel } from '../format';
 
 type Row = [Player, StatLine];
@@ -178,7 +179,7 @@ function downText(p: PlayLogEntry) {
   return `${ord} & ${p.yardLine + p.distance >= 100 ? 'Goal' : p.distance}`;
 }
 
-function PlayByPlay({ league, plays }: { league: League; plays: PlayLogEntry[] }) {
+function PlayByPlay({ league, plays, names }: { league: League; plays: PlayLogEntry[]; names: PlayNames }) {
   const [filter, setFilter] = useState<'all' | 'scoring'>('all');
   const shown = filter === 'all' ? plays : plays.filter((p) => p.scoring);
   const quarters = [...new Set(shown.map((p) => p.quarter))];
@@ -215,7 +216,7 @@ function PlayByPlay({ league, plays }: { league: League; plays: PlayLogEntry[] }
                   {p.down ? <FieldStrip small yardLine={p.yardLine} toGain={p.yardLine + p.distance} /> : <span className="field" aria-hidden="true" style={{ visibility: 'hidden' }} />}
                   <span className="txt">
                     {p.down ? <b className="num" style={{ marginRight: 8 }}>{downText(p)}</b> : null}
-                    {p.text}
+                    <PlayText text={p.text} names={names} />
                     {p.scoring && (
                       <span className="num muted" style={{ marginLeft: 8 }}>
                         {p.awayScore}–{p.homeScore}
@@ -235,6 +236,7 @@ export function BoxScore({ league, gameId, onBack }: { league: League; gameId: n
   const nav = useNav();
   const game = league.games.find((g) => g.id === gameId);
   const [side, setSide] = useState<'away' | 'home'>(() => (game?.homeId === league.userTeamId ? 'home' : 'away'));
+  const names = usePlayNames(league, game);
   if (!game?.result) {
     return (
       <Panel title="Game not found">
@@ -349,7 +351,7 @@ export function BoxScore({ league, gameId, onBack }: { league: League; gameId: n
 
       {r.injuries && r.injuries.length > 0 && <GameInjuries league={league} result={r} />}
 
-      {r.plays && r.plays.length > 0 && <PlayByPlay league={league} plays={r.plays} />}
+      {r.plays && r.plays.length > 0 && <PlayByPlay league={league} plays={r.plays} names={names} />}
     </>
   );
 }

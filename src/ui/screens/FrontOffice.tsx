@@ -544,7 +544,15 @@ function Draft({ league }: { league: League }) {
                       <td>Round {pk.round}</td>
                       <td className="num">{pk.overall ? `No. ${pk.overall}` : '–'}</td>
                       <td>{pk.originalTeamId !== teamId ? <span className="muted small">from {league.teams[pk.originalTeamId].abbrev}</span> : null}</td>
-                      <td>{used ? `${used.position} ${used.firstName} ${used.lastName}` : ''}</td>
+                      <td>
+                        {used ? (
+                          <button className="linklike" onClick={() => nav.openPlayer(used.id)}>
+                            {used.position} {used.firstName} {used.lastName}
+                          </button>
+                        ) : (
+                          ''
+                        )}
+                      </td>
                     </tr>
                   );
                 })}

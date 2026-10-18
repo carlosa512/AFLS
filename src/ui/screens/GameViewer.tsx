@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { League, PlayLogEntry, Team } from '../../engine/types';
+import type { Game, League, Player, PlayLogEntry, Team } from '../../engine/types';
+import { teamPlayers } from '../../engine/roster';
+import { useNav } from '../App';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import { TeamChip } from '../components';
 import { gameClock, weekLabel } from '../format';
@@ -416,6 +418,67 @@ export function situation(e: PlayLogEntry, home: Team, away: Team): string {
 
 const SPEEDS = [1, 2, 4];
 
+/** "K.Snyder": how the engine writes a player into a play. */
+const playName = (p: Player) => `${p.firstName[0]}.${p.lastName}`;
+
+export interface PlayNames {
+  /** Every linkable name, longest first so "A.Macken" wins over "A.Mack". Null when there are none. */
+  re: RegExp | null;
+  ids: Map<string, number>;
+}
+
+/**
+ * The players a game's plays can name, by how the play text writes them: everyone who suited up (a finished
+ * game keeps them, so a replay still links after a trade or a retirement) or, while it's live, both
+ * rosters. A name two of them share stays plain text rather than guess.
+ */
+export function usePlayNames(league: League, game: Game | undefined): PlayNames {
+  const done = !!game?.result;
+  return useMemo(() => {
+    if (!game) return { re: null, ids: new Map() };
+    const ids = game.result ? Object.keys(game.result.playerTeams).map(Number) : [...teamPlayers(league, game.homeId), ...teamPlayers(league, game.awayId)].map((p) => p.id);
+    const byName = new Map<string, number | null>();
+    for (const id of ids) {
+      const p = league.players[id];
+      if (!p) continue;
+      const key = playName(p);
+      byName.set(key, byName.has(key) ? null : id);
+    }
+    const names = new Map([...byName].filter((e): e is [string, number] => e[1] !== null));
+    if (!names.size) return { re: null, ids: names };
+    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const alternatives = [...names.keys()].sort((a, b) => b.length - a.length).map(escape);
+    return { re: new RegExp(`(${alternatives.join('|')})(?![A-Za-z])`, 'g'), ids: names };
+    // The rosters only matter until the final whistle; after that the game keeps its own list.
+  }, [game?.id, done]);
+}
+
+/** A play's text with every player in it a link to his card. A tap on a name doesn't also jump the replay. */
+export function PlayText({ text, names }: { text: string; names: PlayNames }) {
+  const nav = useNav();
+  if (!names.re) return <>{text}</>;
+  return (
+    <>
+      {text.split(names.re).map((part, i) =>
+        i % 2 ? (
+          <button
+            key={i}
+            className="linklike"
+            onClick={(e) => {
+              e.stopPropagation();
+              nav.openPlayer(names.ids.get(part)!);
+            }}
+          >
+            {part}
+          </button>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
 export function GameViewer({ league, gameId, onBack, onBoxScore }: { league: League; gameId: number; onBack: () => void; onBoxScore: () => void }) {
   const game = league.games.find((g) => g.id === gameId);
   const plays = game?.result?.plays ?? [];
@@ -424,6 +487,7 @@ export function GameViewer({ league, gameId, onBack, onBoxScore }: { league: Lea
   const [speed, setSpeed] = useState(1);
   const [run, setRun] = useState(0); // bumps to replay the current play
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const names = usePlayNames(league, game);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -466,7 +530,8 @@ export function GameViewer({ league, gameId, onBack, onBoxScore }: { league: Lea
       go(atEnd ? 0 : index + 1, true);
     }
   };
-  const recent = plays.slice(Math.max(0, index - 7), index + 1).reverse();
+  // Every play up to this one, newest first: nothing past the current play, so the log never spoils it.
+  const recent = plays.slice(0, index + 1).reverse();
   const quarterLabel = entry.quarter <= 4 ? `Q${entry.quarter}` : 'OT';
   const final = atEnd && !playing;
 
@@ -532,24 +597,27 @@ export function GameViewer({ league, gameId, onBack, onBoxScore }: { league: Lea
       </section>
 
       <section className="panel">
-        <div className="stack" style={{ gap: 0 }}>
+        <div className="play-log" aria-label="Plays so far">
           {recent.map((p, i) => {
             const idx = index - i;
             const team = p.offense === home.id ? home : away;
             return (
-              <button key={idx} className={`play-card${i === 0 ? ' current' : ''}${p.scoring ? ' scoring' : ''}`} onClick={() => go(idx)}>
+              // The whole card jumps to its play (the clock is the keyboard way in); a name opens the player.
+              <div key={idx} className={`play-card${i === 0 ? ' current' : ''}${p.scoring ? ' scoring' : ''}`} onClick={() => go(idx)}>
                 <span className="pc-meta">
                   <TeamChip team={team} />
-                  <span className="num muted">
+                  <button className="linklike num muted" onClick={() => go(idx)} aria-label={`Jump to the play at ${p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} ${gameClock(p.clock)}`}>
                     {p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} {gameClock(p.clock)}
-                  </span>
+                  </button>
                 </span>
                 <span className="pc-body">
                   <span className="pc-sit">{situation(p, home, away)}</span>
-                  <span>{p.text}</span>
+                  <span>
+                    <PlayText text={p.text} names={names} />
+                  </span>
                 </span>
                 <span className="pc-tag">{playLabel(p, home.id)}</span>
-              </button>
+              </div>
             );
           })}
         </div>

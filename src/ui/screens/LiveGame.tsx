@@ -5,7 +5,7 @@ import { useNav } from '../App';
 import { TeamChip } from '../components';
 import { gameClock, weekLabel } from '../format';
 import { live, useLive } from '../live';
-import { Field, playLabel, restingSpot, situation } from './GameViewer';
+import { Field, playLabel, PlayText, restingSpot, situation, usePlayNames } from './GameViewer';
 
 const SPEEDS = [1, 2, 4, 8];
 /** Pause between plays at 1×, so each snap can be read. */
@@ -18,6 +18,7 @@ export function LiveGame({ league }: { league: League }) {
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const game = s ? league.games.find((g) => g.id === s.gameId) : undefined;
+  const names = usePlayNames(league, game);
   if (!s || !game) {
     return (
       <section className="panel stack">
@@ -63,7 +64,8 @@ export function LiveGame({ league }: { league: League }) {
   const us = result ? (userIsHome ? result.homeScore : result.awayScore) : 0;
   const them = result ? (userIsHome ? result.awayScore : result.homeScore) : 0;
   const verdict = us > them ? 'W' : us < them ? 'L' : 'T';
-  const recent = s.plays.slice(Math.max(0, s.current - 7), s.current + 1).reverse();
+  // Every play so far, newest first, in a box that scrolls back to the kickoff.
+  const recent = s.plays.slice(0, s.current + 1).reverse();
 
   return (
     <>
@@ -146,7 +148,7 @@ export function LiveGame({ league }: { league: League }) {
       )}
 
       <section className="panel">
-        <div className="stack" style={{ gap: 0 }}>
+        <div className="play-log" aria-label="Plays so far">
           {recent.map((p, i) => {
             const team = p.offense === home.id ? home : away;
             return (
@@ -159,7 +161,9 @@ export function LiveGame({ league }: { league: League }) {
                 </span>
                 <span className="pc-body">
                   <span className="pc-sit">{situation(p, home, away)}</span>
-                  <span>{p.text}</span>
+                  <span>
+                    <PlayText text={p.text} names={names} />
+                  </span>
                 </span>
                 <span className="pc-tag">{playLabel(p, home.id)}</span>
               </div>

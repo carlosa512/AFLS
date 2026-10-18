@@ -2773,3 +2773,12 @@ button.tip-pill {
 .role-guide li + li {
   margin-top: 2px;
 }
+
+/* ───────── a game's plays so far ───────── */
+/* Every play back to the kickoff, newest on top, in a box of its own so the page stays short. */
+.play-log {
+  display: grid;
+  max-height: min(60vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
