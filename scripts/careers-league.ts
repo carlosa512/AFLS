@@ -33,8 +33,8 @@ export interface LeagueRun {
    * leaks in. All rostered players under 26, and those on the best-8 and worst-8 staffs.
    */
   coached: { all: number[]; best: number[]; worst: number[] };
-  /** Each steady-state season's league leader, by stat. */
-  leaders: Record<string, number[]>;
+  /** Each steady-state season's top five, by stat. */
+  leaders: Record<string, number[][]>;
   /** Final starters' positions and ages. */
   starterAges: { position: Position; age: number }[];
 }
@@ -63,7 +63,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
   for (let s = 0; s < seasons; s++) {
     simToEndOfSeason(league);
     if (s >= steadyFrom) {
-      for (const [key, top] of Object.entries(seasonTops(league, league.season))) (out.leaders[key] ??= []).push(top[0]);
+      for (const [key, top] of Object.entries(seasonTops(league, league.season))) (out.leaders[key] ??= []).push(top);
       for (const g of league.games) {
         if (g.season !== league.season || g.playoffRound || !g.result) continue;
         const r = g.result;

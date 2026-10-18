@@ -50,3 +50,8 @@ for (const [k, v] of Object.entries(flags).sort((a, b) => b[1] - a[1])) {
   console.log(`\n${k}: ${v}`);
   for (const ex of examples[k]) console.log(ex + '\n   ---');
 }
+// Games are seeded, so a clean run stays clean until the coaching code changes: every flagged
+// ending is a regression to look at (5000 games came back clean when this gate went in).
+const total = Object.values(flags).reduce((a, b) => a + b, 0);
+console.log(`\n${total} flagged ending(s)`);
+if (total) process.exitCode = 1;

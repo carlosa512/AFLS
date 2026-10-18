@@ -1,0 +1,84 @@
+# Every pull request runs the checks its changes call for (`node scripts/check.ts --plan` decides, from
+# the same rules a local `npm run check` uses), one job per check so they run side by side and the PR
+# shows which one failed. Pushes to main run all of them. To require CI in branch protection, require
+# "CI result": the per-check jobs change with every PR.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push to a pull request cancels the run it replaces; every commit on main keeps its own run.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      checks: ${{ steps.plan.outputs.checks }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the planner diffs against the merge base
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      # The planner only needs git and Node (which runs TypeScript as is), so no install here.
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            checks=$(node scripts/check.ts --plan --base "origin/$BASE")
+          else
+            checks=$(node scripts/check.ts --plan --all)
+          fi
+          echo "checks=$checks" >> "$GITHUB_OUTPUT"
+          echo "Checks for this change: \`$checks\`" >> "$GITHUB_STEP_SUMMARY"
+
+  check:
+    needs: plan
+    if: needs.plan.outputs.checks != '[]'
+    name: ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false # one red check shouldn't hide the others' results
+      matrix:
+        check: ${{ fromJSON(needs.plan.outputs.checks) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsx scripts/check.ts ${{ matrix.check }}
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ matrix.check }}
+          path: .check/
+          include-hidden-files: true
+
+  # One stable name to require, whatever the plan was: red if any check failed or was cancelled.
+  result:
+    name: CI result
+    needs: [plan, check]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          PLAN: ${{ needs.plan.result }}
+          CHECKS: ${{ needs.check.result }}
+        run: |
+          echo "plan: $PLAN, checks: $CHECKS"
+          [ "$PLAN" = success ] && { [ "$CHECKS" = success ] || [ "$CHECKS" = skipped ]; }
