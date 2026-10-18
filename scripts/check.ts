@@ -1,7 +1,6 @@
 /**
- * One command for every engine check. It picks the checks a change needs (the rules below are the
- * ones CLAUDE.md lists, widened where a file reaches further than its folder), runs them side by
- * side, prints one line each and exits non-zero if any fails. CI runs the same plan, one job per
+ * One command for every engine check. It picks the checks a change needs (see RULES), runs them side
+ * by side, prints one line each and exits non-zero if any fails. CI runs the same plan, one job per
  * check, so local runs and pull requests agree.
  *
  *   npm run check                  # what changed vs origin/main: commits, edits and new files
@@ -9,9 +8,9 @@
  *   npm run check -- --all         # every check
  *   npm run check -- sim careers   # just these
  *   npm run check -- --base HEAD~3 # changes since another ref
- *   npm run check -- --plan        # print the plan as JSON and run nothing (CI uses this)
  *
- * Full logs go to .check/<name>.log; a failure prints the lines that flagged it.
+ * CI calls `node scripts/check.ts --plan` for the plan as JSON (through npm, the banner would get in
+ * the way). Full logs go to .check/<name>.log; a failure prints the lines that flagged it.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -21,47 +20,57 @@ interface Check {
   cmd: string[];
   /** CPU cores it keeps busy, so a local run doesn't oversubscribe the machine. */
   cores: number;
+  /** Rough wall time on 4 cores: the longest start first. */
+  secs: number;
   /** Too slow for `--quick`. */
   slow?: boolean;
   /** The line that sums the run up (the last match wins). */
   summary?: RegExp;
+  /** Lines worth showing when it fails; without it, the flagged lines or the end of the log. */
+  detail?: RegExp;
 }
 
 const CORES = availableParallelism();
 
 const CHECKS = {
-  typecheck: { cmd: ['npm', 'run', 'typecheck'], cores: 1, summary: /error TS\d+.*/ },
-  test: { cmd: ['npm', 'test'], cores: CORES, summary: /Tests\s+.*/ },
-  build: { cmd: ['npx', 'vite', 'build', '--logLevel', 'error'], cores: 1 },
-  sim: { cmd: ['npm', 'run', 'sim', '--', '10'], cores: 1, summary: /\d+ stat\(s\) outside target range/ },
-  endings: { cmd: ['npm', 'run', 'endings', '--', '5000'], cores: 1, summary: /\d+ flagged ending\(s\)/ },
-  offseason: { cmd: ['npm', 'run', 'offseason', '--', '6'], cores: 1, summary: /\d+ number\(s\) outside target range/ },
+  typecheck: { cmd: ['npm', 'run', 'typecheck'], cores: 1, secs: 10, summary: /error TS\d+.*/ },
+  test: { cmd: ['npm', 'test'], cores: CORES, secs: 55, summary: /Tests\s+.*/, detail: /FAIL|Error|Expected|Received/ },
+  build: { cmd: ['npx', 'vite', 'build', '--logLevel', 'error'], cores: 1, secs: 15 },
+  sim: { cmd: ['npm', 'run', 'sim', '--', '10'], cores: 1, secs: 20, summary: /\d+ stat\(s\) outside target range/ },
+  endings: { cmd: ['npm', 'run', 'endings', '--', '5000'], cores: 1, secs: 10, summary: /\d+ flagged ending\(s\)/, detail: /^\S.*: \d+$/ },
+  offseason: { cmd: ['npm', 'run', 'offseason', '--', '6'], cores: 1, secs: 35, summary: /\d+ number\(s\) outside target range/ },
   // Four leagues in child processes plus the cohort curves in the parent.
-  careers: { cmd: ['npm', 'run', 'careers'], cores: 4, slow: true, summary: /\d+ number\(s\) outside target range/ },
-  audit: { cmd: ['npm', 'run', 'audit'], cores: 1, slow: true, summary: /Needs attention.*|Every attribute.*/ },
+  careers: { cmd: ['npm', 'run', 'careers'], cores: 4, secs: 180, slow: true, summary: /\d+ number\(s\) outside target range/ },
+  audit: { cmd: ['npm', 'run', 'audit'], cores: 1, secs: 170, slow: true, summary: /Needs attention.*|Every attribute.*/ },
 } satisfies Record<string, Check>;
 
 type Name = keyof typeof CHECKS;
 const NAMES = Object.keys(CHECKS) as Name[];
-const ENGINE: Name[] = ['typecheck', 'test', 'sim', 'endings', 'offseason', 'careers'];
 
 /**
- * Which checks a changed file calls for; a file collects every rule it matches. Any change to how
- * the engine plays runs the cheap league checks and `careers`, whose long-run leaders and scoring
- * read the match engine and schemes as much as aging (a schemes change once broke its passing
- * records with nobody the wiser). `audit` follows whatever decides who plays and how ratings count.
+ * Which checks a changed file calls for; a file collects every rule it matches. CLAUDE.md's
+ * per-command "run it after" lists are the minimum. Any engine file runs every league check, since
+ * leagues reach nearly all of it and a module touches more than its folder suggests (a schemes change
+ * once broke the career audit's passing records with nobody the wiser). `audit` skips only the files
+ * its own code can't import, because anything that builds its league or decides play moves the
+ * numbers in docs/ATTRIBUTES.md. Deliberately not covered: `build:single` (scripts/artifact.mjs).
  */
 const RULES: [RegExp, Name[]][] = [
-  [/^src\/engine\/.*\.test\.ts$/, ['typecheck', 'test']],
-  [/^src\/engine\/(?!.*\.test\.ts$)/, ENGINE],
-  [/^src\/engine\/(match\/|attributes\.ts|positions\.ts|schemes\.ts|roster\.ts|generate\.ts|rng\.ts|types\.ts)/, ['audit']],
-  [/^src\/(?!engine\/)|^index\.html$|^vite\.config\.ts$/, ['typecheck', 'build']],
+  [/^src\/.*\.test\.ts$/, ['typecheck', 'test']],
+  [/^src\/engine\/(?!.*\.test\.ts$|migrate\.ts$)/, ['typecheck', 'test', 'sim', 'endings', 'offseason', 'careers']],
+  [/^src\/engine\/(?!.*\.test\.ts$|migrate\.ts$|awards\.ts$|league\.ts$|records\.ts$|stats\.ts$|trade\.ts$|offseason\/|season\/(playoffs|standings)\.ts$)/, ['audit']],
+  // Saves: only the UI and the tests load it.
+  [/^src\/engine\/migrate\.ts$/, ['typecheck', 'test']],
+  // The UI has tests too (src/ui/ui.test.ts), and vite.config.ts is also vitest's config.
+  [/^src\/(?!engine\/)|^index\.html$|^vite\.config\.ts$/, ['typecheck', 'test', 'build']],
+  // tsconfig covers scripts/ too, and tsx runs them without checking types.
+  [/^scripts\/.*\.ts$/, ['typecheck']],
   [/^scripts\/calibrate\.ts$/, ['sim']],
   [/^scripts\/leaders\.ts$/, ['sim', 'careers']],
   [/^scripts\/endings\.ts$/, ['endings']],
   [/^scripts\/offseason\.ts$/, ['offseason']],
   [/^scripts\/careers(-league)?\.ts$/, ['careers']],
-  [/^scripts\/audit\.ts$/, ['audit']],
+  [/^scripts\/audit\.ts$|^docs\/ATTRIBUTES\.md$/, ['audit']],
   // The harness itself, dependencies and compiler settings can break anything.
   [/^scripts\/check\.ts$|^package(-lock)?\.json$|^tsconfig\.json$|^\.github\/workflows\//, NAMES],
 ];
@@ -81,29 +90,31 @@ const git = (...args: string[]) => {
 function changedFiles(base: string): string[] | null {
   const fork = git('merge-base', 'HEAD', base);
   if (!fork) return null;
-  const tracked = git('diff', '--name-only', fork) ?? '';
+  // Without --no-renames a file moved out of src/engine/ would only list its new home.
+  const tracked = git('diff', '--name-only', '--no-renames', fork) ?? '';
   const untracked = git('ls-files', '--others', '--exclude-standard') ?? '';
   return [...new Set([...tracked.split('\n'), ...untracked.split('\n')].filter(Boolean))];
 }
 
 // ───────── Arguments ─────────
 
-const argv = process.argv.slice(2);
+const FLAGS = ['--all', '--quick', '--plan', '--base', '--help', '-h'];
+const argv = process.argv.slice(2).flatMap((a) => (a.startsWith('--base=') ? ['--base', a.slice(7)] : [a]));
 const flag = (f: string) => argv.includes(f);
 const baseAt = argv.indexOf('--base');
-const base = baseAt >= 0 ? argv[baseAt + 1] : git('rev-parse', '--verify', '--quiet', 'origin/main') ? 'origin/main' : 'main';
-const asked = argv.filter((a, i) => !a.startsWith('--') && argv[i - 1] !== '--base');
+const asked = [...new Set(argv.filter((a, i) => !a.startsWith('-') && argv[i - 1] !== '--base'))];
 
 if (flag('--help') || flag('-h')) {
   console.log(readFileSync(new URL(import.meta.url), 'utf8').split('*/')[0].replace(/^\/\*\*\n/, '').replace(/^ \* ?/gm, ''));
   console.log('Checks: ' + NAMES.join(', '));
   process.exit(0);
 }
-const unknown = asked.filter((a) => !(NAMES as string[]).includes(a));
-if (unknown.length) {
-  console.error(`Unknown check(s): ${unknown.join(', ')}. Checks: ${NAMES.join(', ')}`);
+const bad = [...argv.filter((a) => a.startsWith('-') && !FLAGS.includes(a)), ...asked.filter((a) => !(NAMES as string[]).includes(a))];
+if (bad.length || (baseAt >= 0 && !argv[baseAt + 1])) {
+  console.error(`Unknown or incomplete: ${bad.join(', ') || '--base needs a ref'}. Checks: ${NAMES.join(', ')}. Flags: ${FLAGS.join(' ')}`);
   process.exit(2);
 }
+const base = baseAt >= 0 ? argv[baseAt + 1] : git('rev-parse', '--verify', '--quiet', 'origin/main') ? 'origin/main' : 'main';
 
 let names: Name[];
 let why: string;
@@ -130,46 +141,60 @@ interface Result {
   secs: number;
   summary: string;
   detail: string[];
-  /** A full run of `audit` rewrote docs/ATTRIBUTES.md. */
-  docChanged?: boolean;
 }
 
 const LOGS = '.check';
 const DOC = 'docs/ATTRIBUTES.md';
-const FLAGGED = /▲|▼|Needs attention|FAIL|Error|error TS|flagged|known issue|✗|×/;
+const FLAGGED = /▲|▼|Needs attention|FAIL|Error|error TS|known issue/;
+const MAX_DETAIL = 40;
+const inCI = !!process.env.CI;
 
 async function run(name: Name): Promise<Result> {
   const check: Check = CHECKS[name];
   const docBefore = name === 'audit' && existsSync(DOC) ? readFileSync(DOC, 'utf8') : null;
   const t0 = Date.now();
-  const log = createWriteStream(`${LOGS}/${name}.log`);
+  const log = createWriteStream(`${LOGS}/${name}.log`).on('error', () => {}); // a log we can't write mustn't sink the run
   let out = '';
   const code = await new Promise<number>((resolve) => {
+    // NO_COLOR, not FORCE_COLOR=0: vitest and vite read any FORCE_COLOR as "on".
+    const env: NodeJS.ProcessEnv = { ...process.env, NO_COLOR: '1' };
+    delete env.FORCE_COLOR;
     // npm and npx are .cmd shims on Windows, which only a shell can start.
-    const child = spawn(check.cmd[0], check.cmd.slice(1), { shell: process.platform === 'win32', env: { ...process.env, FORCE_COLOR: '0' } });
-    const take = (b: Buffer) => {
-      out += b;
-      log.write(b);
+    const child = spawn(check.cmd[0], check.cmd.slice(1), { shell: process.platform === 'win32', env });
+    const take = (s: string) => {
+      out += s;
+      log.write(s);
     };
-    child.stdout.on('data', take);
-    child.stderr.on('data', take);
-    child.on('error', (e) => (take(Buffer.from(String(e))), resolve(1)));
+    // Decode as text per stream, so a ▲ split across two chunks stays a ▲.
+    child.stdout.setEncoding('utf8').on('data', take);
+    child.stderr.setEncoding('utf8').on('data', take);
+    child.on('error', (e) => (take(String(e)), resolve(1)));
     child.on('close', (c) => resolve(c ?? 1));
   });
   log.end();
-  const lines = out.split('\n').map((l) => l.trimEnd());
+  const lines = out.replace(/\x1b\[[0-9;]*m/g, '').split('\n').map((l) => l.trimEnd());
   const hits = check.summary ? lines.filter((l) => check.summary!.test(l)) : [];
-  const summary = (hits.at(-1)?.match(check.summary!)?.[0] ?? (code ? `exit code ${code}` : 'ok')).trim();
-  const flagged = lines.filter((l) => FLAGGED.test(l));
-  const detail = code ? (flagged.length ? flagged : lines.filter(Boolean).slice(-30)).slice(0, 40) : flagged.filter((l) => /known issue/.test(l));
-  const docChanged = docBefore !== null && existsSync(DOC) && readFileSync(DOC, 'utf8') !== docBefore;
-  return { name, ok: code === 0, secs: (Date.now() - t0) / 1000, summary, detail, docChanged };
+  let summary = (hits.at(-1)?.match(check.summary!)?.[0] ?? (code ? `exit code ${code}` : 'ok')).trim();
+  let ok = code === 0;
+  // A full audit regenerates the attribute doc; in CI the committed copy must match what the engine does.
+  if (docBefore !== null && existsSync(DOC) && readFileSync(DOC, 'utf8') !== docBefore) {
+    if (inCI) [ok, summary] = [false, `${summary}; ${DOC} is out of date: run \`npm run audit\` and commit it`];
+    else summary += `; it rewrote ${DOC}: commit it with your change`;
+  }
+  const notSummary = (l: string) => !hits.includes(l);
+  let detail: string[];
+  if (ok) detail = lines.filter((l) => /known issue/.test(l));
+  else {
+    const picked = lines.filter((l) => l && notSummary(l) && (check.detail ?? FLAGGED).test(l));
+    detail = picked.length ? picked : lines.filter((l) => l && notSummary(l)).slice(-30);
+  }
+  if (detail.length > MAX_DETAIL) detail = [...detail.slice(0, MAX_DETAIL), `… ${detail.length - MAX_DETAIL} more in ${LOGS}/${name}.log`];
+  return { name, ok, secs: (Date.now() - t0) / 1000, summary, detail };
 }
 
 /** Longest first, starting each check once enough cores are free (a big one takes the whole machine). */
 async function runAll(list: Name[]): Promise<Result[]> {
-  const ORDER: Name[] = ['careers', 'audit', 'test', 'offseason', 'sim', 'build', 'typecheck', 'endings'];
-  const queue = [...list].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
+  const queue = [...list].sort((a, b) => (CHECKS[b] as Check).secs - (CHECKS[a] as Check).secs);
   const results: Result[] = [];
   let free = CORES;
   return new Promise((resolve) => {
@@ -182,13 +207,15 @@ async function runAll(list: Name[]): Promise<Result[]> {
         queue.splice(i--, 1);
         free -= cores;
         console.log(`▶ ${name}`);
-        run(name).then((r) => {
-          free += cores;
-          results.push(r);
-          report(r);
-          if (results.length === list.length) resolve(results);
-          else pump();
-        });
+        run(name)
+          .catch((e): Result => ({ name, ok: false, secs: 0, summary: `harness error: ${e}`, detail: [] }))
+          .then((r) => {
+            free += cores;
+            results.push(r);
+            report(r);
+            if (results.length === list.length) resolve(results);
+            else pump();
+          });
       }
     };
     if (!list.length) resolve(results);
@@ -196,7 +223,10 @@ async function runAll(list: Name[]): Promise<Result[]> {
   });
 }
 
-const fmt = (s: number) => (s < 60 ? `${s.toFixed(0)}s` : `${Math.floor(s / 60)}m${String(Math.round(s % 60)).padStart(2, '0')}s`);
+const fmt = (secs: number) => {
+  const s = Math.round(secs);
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s`;
+};
 
 function report(r: Result) {
   console.log(`${r.ok ? '✓' : '✗'} ${r.name.padEnd(10)} ${fmt(r.secs).padStart(6)}  ${r.summary}`);
@@ -206,18 +236,11 @@ function report(r: Result) {
 
 console.log(`AFLS checks: ${names.length ? names.join(', ') : 'none needed'} (${why})`);
 if (skipped.length) console.log(`Skipped by --quick: ${skipped.join(', ')} (CI runs them)`);
+if (asked.length && !names.length) console.log('Every check asked for was skipped: drop --quick to run them.');
 mkdirSync(LOGS, { recursive: true });
 const t0 = Date.now();
 const results = await runAll(names);
 const failed = results.filter((r) => !r.ok);
-const inCI = !!process.env.CI;
-
-// A full audit regenerates the attribute doc; the committed copy must match what the engine does.
-const staleDoc = results.some((r) => r.docChanged);
-if (staleDoc) {
-  if (inCI) console.log(`\n✗ ${DOC} is out of date: run \`npm run audit\` and commit the file.`);
-  else console.log(`\nnpm run audit rewrote ${DOC}: commit it with your change.`);
-}
 
 console.log(`\n${failed.length ? `${failed.length} of ${results.length} check(s) failed: ${failed.map((r) => r.name).join(', ')}` : `All ${results.length} check(s) passed`} in ${fmt((Date.now() - t0) / 1000)}`);
 
@@ -226,12 +249,11 @@ if (process.env.GITHUB_STEP_SUMMARY) {
     '| Check | Result | Time | Summary |',
     '|---|---|---|---|',
     ...results.map((r) => `| ${r.name} | ${r.ok ? '✅' : '❌'} | ${fmt(r.secs)} | ${r.summary.replace(/\|/g, '\\|')} |`),
-    ...(staleDoc && inCI ? ['', `❌ \`${DOC}\` is out of date: run \`npm run audit\` and commit it.`] : []),
     ...results
       .filter((r) => r.detail.length)
-      .map((r) => `\n<details${r.ok ? '' : ' open'}><summary>${r.name}${r.ok ? ' notes' : ': flagged lines'}</summary>\n\n\`\`\`\n${r.detail.join('\n')}\n\`\`\`\n</details>`),
+      .map((r) => `\n<details${r.ok ? '' : ' open'}><summary>${r.name}${r.ok ? ': notes' : ': flagged lines'}</summary>\n\n\`\`\`\n${r.detail.join('\n')}\n\`\`\`\n</details>`),
   ];
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, md.join('\n') + '\n');
 }
 
-if (failed.length || (staleDoc && inCI)) process.exitCode = 1;
+if (failed.length) process.exitCode = 1;

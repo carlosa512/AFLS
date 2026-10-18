@@ -1,6 +1,7 @@
-# Every pull request runs the checks its changes call for (`npm run check -- --plan` decides, from the
-# same rules a local `npm run check` uses), one job per check so they run side by side and the PR
-# shows which one failed. Pushes to main run all of them.
+# Every pull request runs the checks its changes call for (`node scripts/check.ts --plan` decides, from
+# the same rules a local `npm run check` uses), one job per check so they run side by side and the PR
+# shows which one failed. Pushes to main run all of them. To require CI in branch protection, require
+# "CI result": the per-check jobs change with every PR.
 name: CI
 
 on:
@@ -9,10 +10,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# A new push to the same branch cancels the run it replaces.
+# A new push to a pull request cancels the run it replaces; every commit on main keeps its own run.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -67,3 +68,17 @@ jobs:
           name: log-${{ matrix.check }}
           path: .check/
           include-hidden-files: true
+
+  # One stable name to require, whatever the plan was: red if any check failed or was cancelled.
+  result:
+    name: CI result
+    needs: [plan, check]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          PLAN: ${{ needs.plan.result }}
+          CHECKS: ${{ needs.check.result }}
+        run: |
+          echo "plan: $PLAN, checks: $CHECKS"
+          [ "$PLAN" = success ] && { [ "$CHECKS" = success ] || [ "$CHECKS" = skipped ]; }

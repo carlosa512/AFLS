@@ -37,7 +37,9 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes, league talent and the scouting and coaching economies. Run it after changes to
   `finance/`, `offseason/`, `trade.ts`, `staff.ts` or `coaching.ts`; talent, cap space, rosters and
-  the coaching ledger (growth and decline ×1.00) should stay stable across seasons.
+  the coaching ledger (growth and decline ×1.00) should stay stable across seasons. It judges those numbers
+  against bands (per season, and first season vs last) and fails on any ▲/▼; `⚠ known issue` lines are
+  real engine weaknesses printed without failing, each removed when its fix lands.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
