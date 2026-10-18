@@ -1,12 +1,13 @@
 # Penalties
 
-> **Status.** Phases 1, 2 and 3a built. Phase 1: the foul registry and enforcement, accept or decline,
+> **Status.** Phases 1, 2, 3a and 3b built. Phase 1: the foul registry and enforcement, accept or decline,
 > offsetting fouls, live-ball offside, untimed downs, every accepted flag charged to a player. Phase 2:
 > the defense's personal fouls, the crews' QB Protection, star protection, an offense retune. Phase 3a:
 > special-teams units (backups first) and the user's own returners; holds and blocks in the back on
 > returns, kickoffs out of bounds or short and lined up wrong, kick-catch interference, running into and
-> roughing the punter; kick units tire and face injury risk; a goal-line stack for runs. Next: Phase 3b,
-> the special-teams coordinator and a field goal and extra point unit (decision 6).
+> roughing the punter; kick units tire and face injury risk; a goal-line stack for runs. Phase 3b: the
+> special teams coordinator (fewer flags and better returns from a good one) and a field goal and extra
+> point unit with its own flags (decision 6). Next: Phase 4.
 > Numbers from the NFL's 2023–2025 seasons (below), tuned to their average (decision 5).
 
 ## The NFL, by the numbers
@@ -236,22 +237,40 @@ return touchdown called back), kickoffs out of bounds or short (the receivers' b
 for a kicker short on accuracy), a kicking team lined up wrong (5 more yards), kick-catch interference
 (15 from the catch), running into the punter (taken when it moves the chains) and roughing him (15 and a
 first down). Returns run 1.5 yards longer on kickoffs and 1 on punts before flags, so drives still
-start at the 31.0 after kickoffs and the 23.3 after punts (30.9 and 23.5 before). Not yet: punts' own formation fouls, fouls on
-field goals and extra points (Phase 3b), personal fouls on kicks, a re-kick after a kicking team's foul.
+start at the 31.0 after kickoffs and the 23.3 after punts (30.9 and 23.5 before). Not yet: punts' own formation fouls, personal fouls on
+kicks, a re-kick after a kicking team's foul (field goals and extra points came with 3b).
 
-**3b plan.** Two parts, one PR:
+**3b built.** Two parts:
 
-- **Special-teams coordinator** (`coaching.ts`): a new chair on the coaching staff, with a hand in the
-  units' discipline (their flags) and in return and coverage yards. Like every chair: budget, contracts,
-  the market, ageing, AI hiring, the Coaches screen, and a save migration.
-- **Field goal and extra point unit**: the units that put linemen on special teams. The kicking side is
-  the starting line (a backup lineman or tight end on the wings, a backup in for anyone out), so a
-  false start or a hold on a kick comes from a lineman like on any snap; the blocking side is the
-  defense's front. New flags: false start and holding on kicks, offside on the defense, running into
-  or roughing the kicker or holder. The coach's choice: take the points or take the penalty (`takesPenalty`
-  on a made kick against the first down). These snaps are low-contact, so they count lightly toward
-  wear and injury risk. Field goal and extra point rates, and field goal tries (1.97, top 2.0), must stay
-  in range.
+- **Special teams coordinator** (`coaching.ts`, save v19): a twelfth chair on every staff, with the
+  budget, contracts, market, ageing and AI hiring every chair has, his own tab on the Coaches screen,
+  and a migration that hires one for every team in an old save. He is the kickers' and punters'
+  position coach (they had only the head coach and the S&C coach before), and the one coach whose
+  quality shows on game day (`specialTeamsEdge`, his overall quality against a typical coach): each
+  point is half a point of discipline for every kick unit (a +4 coach: about 11% fewer flags on kicks
+  and returns), and a quarter of a yard on each kickoff return and 0.15 on each punt return, his returners
+  against the other coach's coverage. A typical coach changes nothing, so league totals hold. His card
+  shows both (`kickCoaching` in `match/lineup.ts`, the engine's own numbers). The coaching budget grew
+  from 0.095 to 0.102 of the cap, his chair's share of the going rates.
+- **Field goal and extra point unit** (`Lineup.fg`): the starting line with a backup lineman and the
+  second tight end on the wings; the block unit is the defense's front and linebackers. One roll a kick:
+  a false start (no kick, 5 yards back, and the coach decides again: a long try may become a punt) or a
+  hold on the kick unit; offside, running into or roughing the kicker on the block unit. A hold costs a
+  good kick (10 yards back and kick again) and is declined on a miss; the block unit's fouls give a
+  missed kick another go, closer, or the chains. Over a good field goal the offense keeps its points
+  unless the flag brings a first down inside the 10 with more than two minutes left in the half; over a
+  good extra point it keeps the point (the NFL would let it carry the foul to the kickoff, which the
+  engine doesn't). A flag on a kick at the gun gives an untimed down, the NFL's rule for a kick. Only a
+  kick that stands counts in the box score. About 0.1 accepted flags a game, and as many declined; the
+  kick unit and the block unit spend half a snap's energy and half a quiet kick's injury risk on each
+  try (the NFL injury rates the engine is tuned to already include the men hurt on kicks).
+
+**3b balance.** The new flags put `npm run sim -- 10` at 6.18 penalties per team-game (target 6.15).
+Passing touchdowns sat at the band's top (1.60) with the season's top passers near the floor of their
+yards, and red-zone trips still ended in touchdowns 67% of the time: too many short scores near the
+goal line. Short throws inside the 10 now complete 5 points less often (3 before), the same squeeze
+medium and deep throws get there. `npm run sim -- 10`: 22.81 points, passing touchdowns 1.57, field
+goal tries 1.98, completions 63.7%, every stat in range.
 
 Punt and kickoff units stay as they are: in the NFL their front men (snapper, guards, tackles on a punt)
 are linebackers, tight ends and backs who block, then cover 40 yards, so offensive linemen rarely play

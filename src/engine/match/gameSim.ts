@@ -19,7 +19,7 @@ import { MAX_STATS } from '../types';
 import { gameWeather, staminaDrain, turfRisk, weatherAt, weatherEffects, type Weather, type WeatherCost } from '../weather';
 import * as coach from './coach';
 import type { DefenseCall, PassDepth, Situation } from './coach';
-import { activePlayers, buildLineup, discipline, type Lineup } from './lineup';
+import { activePlayers, buildLineup, discipline, KICK_FLAG_PER_POINT, RETURN_COACH, type Lineup } from './lineup';
 
 type Side = 0 | 1; // 0 = home, 1 = away
 
@@ -88,9 +88,21 @@ const KICKOFF_MISS = 0.016;
 const KICKOFF_FORMATION = 0.013;
 /** Per punt caught: the coverage gets there before the ball. */
 const KICK_CATCH = 0.003;
-/** Per punt: a rusher who runs into the punter, or roughs him. */
+/** Per punt, field goal or extra point: a rusher who runs into the kicker, or roughs him (or the holder). */
 const RUNNING_INTO_KICKER = 0.002;
 const ROUGHING_KICKER = 0.0025;
+/**
+ * Per field goal or extra point: a false start or a hold on the kick unit, an offside on the block unit.
+ * Rare in the NFL (a few a season each team); scaled by each unit's discipline like the scrimmage fouls.
+ */
+const KICK_FALSE_START = 0.006;
+const KICK_HOLDING = 0.003;
+const KICK_OFFSIDE = 0.006;
+/**
+ * A field goal or extra point is a short snap: half a scrimmage snap's energy and half a quiet kick's risk
+ * (the NFL's injury rates the engine is tuned to already count the men hurt on kicks, so this stays small).
+ */
+const KICK_SNAP_COST = 0.5;
 /** League-typical discipline of a kick unit (backups, mostly): special-teams odds are scaled around it. */
 const ST_DISCIPLINE = 10.5;
 /** A kick play's injury risk against a scrimmage snap's: a return is a collision at full speed; a touchback or a fair catch is mostly running. */
@@ -821,16 +833,48 @@ class GameSim {
       return;
     }
     const k = lineup.k;
-    const made = this.rng.chance(Math.min(0.985, this.fgProb(33, k) + 0.01));
-    const buf = new StatBuffer();
-    buf.add(k, 'xpAtt');
-    if (made) {
-      buf.add(k, 'xpMade');
-      this.addPoints(side, 1);
+    const blocking = this.lineups[(1 - side) as Side];
+    // The try is snapped from the 15; a flag can move it, and a kick a flag wipes out is tried again.
+    let at: Spot = { yardLine: 85, down: 1, lineToGain: 100 };
+    let note = '';
+    for (let tries = 0; ; tries++) {
+      const flag = tries < 3 ? this.kickFoul(lineup, blocking) : null;
+      // A 33-yarder from the 15, a yard longer for every yard the ball moves back.
+      const distance = 33 + 85 - at.yardLine;
+      if (flag?.foul === 'falseStart') {
+        const back = enforce('falseStart', at);
+        at = back;
+        this.flag(side, 'falseStart', flag.by, 'accepted', back.yards);
+        note += `PENALTY on ${this.flagged(side, flag.by)}: False start, ${back.yards} yards. `;
+        continue;
+      }
+      const made = this.rng.chance(Math.min(0.985, this.fgProb(distance, k) + 0.01));
+      this.fgWear(lineup, blocking);
+      if (flag) {
+        // The kick unit's hold costs a good kick; the block unit's fouls give a missed one another go, closer.
+        const kickers = flag.foul === 'holding';
+        const fouler = kickers ? side : ((1 - side) as Side);
+        if (kickers === made) {
+          const moved = enforce(flag.foul, at);
+          at = moved;
+          this.flag(fouler, flag.foul, flag.by, 'accepted', moved.yards);
+          note += `${short(k)} extra point is ${made ? 'good' : 'no good'}. PENALTY on ${this.flagged(fouler, flag.by)}: ${FOULS[flag.foul].label}, ${moved.yards} yards. `;
+          continue;
+        }
+        this.flag(fouler, flag.foul, flag.by, 'declined');
+        note += `${FOULS[flag.foul].label} on ${this.flagged(fouler, flag.by)}, declined. `;
+      }
+      const buf = new StatBuffer();
+      buf.add(k, 'xpAtt');
+      if (made) {
+        buf.add(k, 'xpMade');
+        this.addPoints(side, 1);
+      }
+      this.credit(buf);
+      this.setAnim(side, 'xp', at.yardLine, 110, 110);
+      this.log(`${note}${short(k)} ${distance === 33 ? 'extra point' : `${distance}-yard extra point`} is ${made ? 'GOOD' : 'NO GOOD'}.`, true);
+      return;
     }
-    this.credit(buf);
-    this.setAnim(side, 'xp', 85, 110, 110);
-    this.log(`${short(k)} extra point is ${made ? 'GOOD' : 'NO GOOD'}.`, true);
   }
 
   private safety() {
@@ -900,7 +944,7 @@ class GameSim {
     } else {
       const kr = receiving.kr;
       const edge = skill(kr, 'returns') - 12;
-      start = clamp(Math.round(this.rng.normal(KICK_RETURN + 0.6 * edge, 6)), 8, 60);
+      start = clamp(Math.round(this.rng.normal(KICK_RETURN + 0.6 * edge + RETURN_COACH.kick * (receiving.stCoach - kicking.stCoach), 6)), 8, 60);
       const returnTd = this.rng.chance(clamp(0.004 + 0.001 * edge, 0.001, 0.012));
       if (returnTd) start = 100;
       let block = this.rng.chance(RETURN_FOUL * this.unitLoose(receiving) * all) ? this.blockSpot(1, start, receiving) : null;
@@ -956,7 +1000,7 @@ class GameSim {
 
   /** How loose a kick unit is against a typical one: the odds of its flags scale with it. */
   private unitLoose(unit: Lineup): number {
-    return Math.exp(-0.06 * (unit.specialDiscipline - ST_DISCIPLINE));
+    return Math.exp(-KICK_FLAG_PER_POINT * (unit.specialDiscipline - ST_DISCIPLINE));
   }
 
   /** Who on a kick unit drew the flag, leaning on the least disciplined; the kicker if there's no unit. */
@@ -1072,7 +1116,7 @@ class GameSim {
       return;
     }
     const edge = skill(pr, 'returns') - 12;
-    let ret = Math.max(0, Math.round(this.rng.normal(PUNT_RETURN + 0.5 * edge + (outkicks ? 3 : 0) - (arc ? 1.5 : 0), 6)));
+    let ret = Math.max(0, Math.round(this.rng.normal(PUNT_RETURN + 0.5 * edge + RETURN_COACH.punt * (def.stCoach - off.stCoach) + (outkicks ? 3 : 0) - (arc ? 1.5 : 0), 6)));
     if (this.rng.chance(clamp(0.006 + 0.0015 * edge, 0.002, 0.02))) ret = 100 - receiveAt;
     const block = this.rng.chance(RETURN_FOUL * this.unitLoose(def) * all) ? this.blockSpot(receiveAt, receiveAt + ret, def) : null;
     const end = block ? block.spot : receiveAt + ret;
@@ -1101,13 +1145,30 @@ class GameSim {
 
   private fieldGoal() {
     const off = this.lineups[this.offense];
+    const def = this.lineups[this.def];
     const k = off.k;
     this.takeSnapshot();
+    const flag = this.kickFoul(off, def);
+    // A false start: no kick, five yards back, and the coach decides again on the next snap.
+    if (flag?.foul === 'falseStart') {
+      const spot = enforce('falseStart', this.spotNow());
+      this.setAnim(this.offense, 'penalty', this.yardLine, spot.yardLine);
+      this.flag(this.offense, 'falseStart', flag.by, 'accepted', spot.yards);
+      this.yardLine = spot.yardLine;
+      this.clockRunning = false;
+      // A dead ball on the last snap of a half: the down was never played.
+      if (this.clock <= 0) this.untimed = true;
+      this.log(`Field goal try. PENALTY on ${this.flagged(this.offense, flag.by)}: False start, ${spot.yards} yards.`);
+      return;
+    }
     const distance = 100 - this.yardLine + 17;
-    const buf = new StatBuffer();
-    buf.add(k, 'fgAtt');
     this.playTime(this.rng.int(4, 6));
     const made = this.rng.chance(this.kickMakes(distance, k));
+    this.fgWear(off, def);
+    if (flag && this.fgPenalty(flag, made, distance)) return;
+    const note = flag ? `. ${FOULS[flag.foul].label} on ${this.flagged(flag.foul === 'holding' ? this.offense : this.def, flag.by)}, declined` : '';
+    const buf = new StatBuffer();
+    buf.add(k, 'fgAtt');
     this.kickForm(k, made);
     this.setAnim(this.offense, 'fg', this.yardLine - 7, 110, 110);
     if (made) {
@@ -1115,7 +1176,7 @@ class GameSim {
       buf.add(k, 'fgLong', distance);
       this.credit(buf);
       this.addPoints(this.offense, 3);
-      this.log(`${short(k)} ${distance}-yard field goal is GOOD.`, true);
+      this.log(`${short(k)} ${distance}-yard field goal is GOOD${note}.`, true);
       this.endPossession();
       this.clockRunning = false;
       if (this.checkOvertimeEnd()) return;
@@ -1123,9 +1184,78 @@ class GameSim {
       return;
     }
     this.credit(buf);
-    this.log(`${short(k)} ${distance}-yard field goal is NO GOOD.`);
+    this.log(`${short(k)} ${distance}-yard field goal is NO GOOD${note}.`);
     // Defense takes over at the spot of the kick (or the 20, whichever is better).
     this.changePossession(Math.max(20, 100 - (this.yardLine - 7)));
+  }
+
+  /**
+   * The flags on a field goal or extra point, one roll: a false start or a hold on the kick unit (the line
+   * and its wings), offside, running into or roughing the kicker on the block unit (the defense's front).
+   */
+  private kickFoul(kicking: Lineup, blocking: Lineup): { foul: Foul; by: Player | undefined } | null {
+    const { all, holding } = this.calls;
+    const kickers = Math.exp(-0.06 * (kicking.fgDiscipline - OL_DISCIPLINE)) * all;
+    const blockers = Math.exp(-0.06 * (blocking.blockDiscipline - DL_DISCIPLINE)) * all;
+    const odds: [Foul, number][] = [
+      ['falseStart', KICK_FALSE_START * kickers],
+      ['holding', KICK_HOLDING * kickers * holding],
+      ['offside', KICK_OFFSIDE * blockers],
+      ['runningIntoKicker', RUNNING_INTO_KICKER * all],
+      ['roughingKicker', ROUGHING_KICKER * all],
+    ];
+    let roll = this.rng.next();
+    for (const [foul, p] of odds) {
+      if (roll < p) {
+        const players = foul === 'falseStart' || foul === 'holding' ? kicking.fg : [...blocking.dt, ...blocking.edge, ...blocking.lb];
+        const by = players.length ? this.flagRng.weighted(players, (x) => Math.max(1, 24 - discipline(x)) * (x.position === 'LB' ? 0.3 : 1)) : undefined;
+        return { foul, by };
+      }
+      roll -= p;
+    }
+    return null;
+  }
+
+  /** A field goal or extra point: the kick unit and the block unit tire a little and face a quiet kick's risk. */
+  private fgWear(kicking: Lineup, blocking: Lineup) {
+    for (const p of [...kicking.fg, ...blocking.dt, ...blocking.edge, ...blocking.lb]) {
+      const b = this.body(p);
+      b.energy -= KICK_SNAP_COST * b.cost;
+      b.spent += KICK_SNAP_COST * b.cost;
+      this.expose(p, SNAP_RISK * SNAP_EXPOSURE[p.position] * KICK_RISK.quiet * KICK_SNAP_COST, SNAP_CONTACT);
+    }
+  }
+
+  /**
+   * A live-ball flag on a field goal, once the kick is known. A hold on the kick unit costs a good kick (the
+   * defense takes the 10 yards and the kick again); the block unit's fouls give a missed kick another go, or
+   * the chains. Over a good kick the offense keeps its points, unless the flag brings a first down inside
+   * the 10 with time to use it. Returns true when the penalty is taken: the kick is wiped, the down replayed.
+   */
+  private fgPenalty(flag: { foul: Foul; by: Player | undefined }, made: boolean, distance: number): boolean {
+    const kickers = flag.foul === 'holding';
+    const side = kickers ? this.offense : this.def;
+    const at = this.spotNow();
+    const spot = enforce(flag.foul, at);
+    const firstDown = spot.down === 1 && (at.down !== 1 || spot.lineToGain !== at.lineToGain);
+    const late = (this.quarter === 2 || this.quarter >= 4) && this.clock < 120;
+    // In overtime the points are worth more than any first down.
+    const take = kickers ? made : !made || (firstDown && 100 - spot.yardLine <= 10 && !late && this.quarter <= 4);
+    if (!take) {
+      this.flag(side, flag.foul, flag.by, 'declined');
+      return false;
+    }
+    this.flag(side, flag.foul, flag.by, 'accepted', spot.yards);
+    this.setAnim(this.offense, 'penalty', at.yardLine, spot.yardLine);
+    this.yardLine = spot.yardLine;
+    if (firstDown) this.firstDown();
+    this.clockRunning = false;
+    // A flag on a kick at the gun: the half can't end on it, so the down is played again.
+    if (this.clock <= 0 && (this.quarter === 2 || this.quarter >= 4)) this.untimed = true;
+    this.log(
+      `${short(this.lineups[this.offense].k)} ${distance}-yard field goal is ${made ? 'good' : 'no good'}. PENALTY on ${this.flagged(side, flag.by)}: ${FOULS[flag.foul].label}, ${spot.yards} yards. No play.${this.untimed ? ' Untimed down.' : ''}`,
+    );
+    return true;
   }
 
   // ───────────────────────── scrimmage ─────────────────────────
@@ -1522,7 +1652,7 @@ class GameSim {
     // A gunslinger who won't throw it away forces it into coverage instead.
     if (pressured && this.has(qb, 'gunslinger')) pComplete -= 0.1;
     // Inside the 10 the field shrinks: no room behind the coverage, and less underneath.
-    if (yardsToGoal <= 10) pComplete -= depth === 'short' ? 0.03 : 0.06;
+    if (yardsToGoal <= 10) pComplete -= depth === 'short' ? 0.05 : 0.06;
     if (depth === 'deep' && this.has(receiver, 'goesUpForIt')) pComplete += 0.04;
     else if (depth !== 'deep' && this.has(receiver, 'hearsFootsteps')) pComplete -= 0.04;
     // Contested balls: hands shown late win them, hands that trap against the body don't.

@@ -150,10 +150,12 @@ ceiling on their draft board, re-sign and cut lists, and trade value.
 
 ## How coaching works
 
-Every team has 11 coaching chairs: a **head coach**, an **offensive** and a **defensive coordinator**,
-a **strength & conditioning (S&C) coach** and seven **position coaches** (quarterbacks, running backs,
-receivers and tight ends, offensive line, defensive line, linebackers, secondary). Kickers and punters
-train with the head coach and the S&C coach (the head coach alone keeps their technique).
+Every team has 12 coaching chairs: a **head coach**, an **offensive** and a **defensive coordinator**,
+a **strength & conditioning (S&C) coach**, a **special teams coordinator** and seven **position
+coaches** (quarterbacks, running backs, receivers and tight ends, offensive line, defensive line,
+linebackers, secondary). The special teams coordinator is the kickers' and punters' position coach,
+and the one coach whose quality shows on game day: his kick units draw fewer flags and win a little
+field position on returns and in coverage.
 
 Each coach has two public 1–20 ratings, and both feed player development (`src/engine/coaching.ts`):
 
