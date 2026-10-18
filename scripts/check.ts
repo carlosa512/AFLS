@@ -145,7 +145,7 @@ interface Result {
 
 const LOGS = '.check';
 const DOC = 'docs/ATTRIBUTES.md';
-const FLAGGED = /▲|▼|Needs attention|FAIL|Error|error TS|known issue/;
+const FLAGGED = /▲|▼|⚠|Needs attention|FAIL|Error|error TS/;
 const MAX_DETAIL = 40;
 const inCI = !!process.env.CI;
 
@@ -183,7 +183,8 @@ async function run(name: Name): Promise<Result> {
   }
   const notSummary = (l: string) => !hits.includes(l);
   let detail: string[];
-  if (ok) detail = lines.filter((l) => /known issue/.test(l));
+  // Warnings (⚠) show on a pass too: outliers and known engine issues that don't fail a run.
+  if (ok) detail = lines.filter((l) => l.includes('⚠'));
   else {
     const picked = lines.filter((l) => l && notSummary(l) && (check.detail ?? FLAGGED).test(l));
     detail = picked.length ? picked : lines.filter((l) => l && notSummary(l)).slice(-30);

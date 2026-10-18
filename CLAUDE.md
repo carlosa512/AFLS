@@ -18,7 +18,9 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   full logs land in `.check/`. `--quick` skips the slow two (careers, audit), `--all` runs everything,
   `npm run check -- sim endings` runs just those. CI runs the same plan on every pull request, one job
   per check (`.github/workflows/ci.yml`), so a red ✗ here is a red PR there. Every check fails on its
-  own (non-zero exit) when a number leaves its range: never loosen a range to get green.
+  own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
+  season and first vs last): never loosen a range to get green. `⚠` lines are warnings that don't fail
+  a run: outlier record seasons (luck in small samples) and known engine issues, each gone once fixed.
 - `npm run dev` — local dev server (Vite)
 - `npm test` — engine tests (Vitest)
 - `npm run typecheck`
@@ -37,9 +39,7 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes, league talent and the scouting and coaching economies. Run it after changes to
   `finance/`, `offseason/`, `trade.ts`, `staff.ts` or `coaching.ts`; talent, cap space, rosters and
-  the coaching ledger (growth and decline ×1.00) should stay stable across seasons. It judges those numbers
-  against bands (per season, and first season vs last) and fails on any ▲/▼; `⚠ known issue` lines are
-  real engine weaknesses printed without failing, each removed when its fix lands.
+  the coaching ledger (growth and decline ×1.00) should stay stable across seasons.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
