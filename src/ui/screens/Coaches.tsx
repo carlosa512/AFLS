@@ -80,6 +80,7 @@ import { band, money, ordinal, PHASE_LABELS } from '../format';
 import { rosterFit, StaffSkill } from '../scouting';
 import { coachReads, seenCoach, type StaffRead } from '../../engine/scouting';
 import { store } from '../store';
+import { moveIndex, MoveText } from '../moves';
 
 type RoleTab = 'head' | 'coord' | 'position' | 'sc';
 type Side = 'both' | 'offCoord' | 'defCoord';
@@ -1160,6 +1161,7 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
     .filter((t) => t.kind === 'coach' && t.season === league.season && !t.teamIds.includes(teamId))
     .slice(-12)
     .reverse();
+  const names = moveIndex(league);
   return (
     <Panel>
       <details className="more">
@@ -1224,7 +1226,9 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
             {moves.map((m, i) => (
               <li key={i}>
                 <span className="muted small">{PHASE_LABELS[m.phase]}</span>
-                <span>{m.text}</span>
+                <span>
+                  <MoveText move={m} index={names} />
+                </span>
               </li>
             ))}
           </ul>

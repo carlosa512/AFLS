@@ -2735,8 +2735,10 @@ tr.stat-total td {
 }
 
 /* ───────── pills that explain themselves ───────── */
-/* A button that looks exactly like the pill it replaced. */
+/* A button that looks exactly like the pill it replaced. Positioned, so its screen-reader text stays inside a
+   table's scroll box instead of widening the page (see .rating.est). */
 button.tip-pill {
+  position: relative;
   border: 0;
   font-family: inherit;
   line-height: inherit;
