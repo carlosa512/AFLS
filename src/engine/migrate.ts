@@ -43,6 +43,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 17) toV17(league);
   if (league.version < 18) league.version = 18; // v18: optional `returners` on teams and special-teams flags, nothing to fill in
   if (league.version < 19) toV19(league);
+  if (league.version < 20) league.version = 20; // v20: optional `inbox`, filled (already read) on the first delivery
   return league;
 }
 
