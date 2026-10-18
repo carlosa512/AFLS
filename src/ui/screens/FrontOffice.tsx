@@ -334,6 +334,9 @@ function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Play
 
 type BoardSort = 'consensus' | 'mine';
 
+/** Board rows shown at a time: a round's worth, so the board stays a screen or two tall. */
+const BOARD_PAGE = 32;
+
 /** Your own board value: the AI's formula, fed your scouts' grades instead of the consensus. */
 const myBoardValue = (league: League, p: Player) => {
   const v = viewOf(league, p);
@@ -344,6 +347,9 @@ function Draft({ league }: { league: League }) {
   const nav = useNav();
   const [pos, setPos] = useState<Position | 'ALL'>('ALL');
   const [sort, setSort] = useState<BoardSort>('consensus');
+  const [shown, setShown] = useState(BOARD_PAGE);
+  // A new filter or ranking starts back at the top of the board.
+  useEffect(() => setShown(BOARD_PAGE), [pos, sort]);
   const teamId = league.userTeamId;
   const myPicks = league.draftPicks.filter((p) => p.ownerId === teamId).sort((a, b) => a.season - b.season || (a.overall ?? a.round * 32) - (b.overall ?? b.round * 32));
   const all = availableProspects(league);
@@ -441,20 +447,24 @@ function Draft({ league }: { league: League }) {
           }
         >
           <p className="muted small" style={{ marginTop: 0 }}>
-            <b>Your grade</b> and <b>ceiling</b> are your scouts' estimates (a dashed grade is a guess). <b>Makeup</b> shows once your scouts know a prospect, usually after a visit or two ("?" means not yet; dashed tags are early word). <b>Habits</b> are what shows on film: a few in the tape, more with visits. <b>Consensus</b> is how the rest of the league
-            rates him. Rivals blend it with their own scouts' reads, and trust their scouts more when those scouts are good, so he can go earlier or later than
-            his rank. When your read beats the consensus, you've found a sleeper; when it's worse, let someone else take the bust. Each scouting visit narrows a
-            range:{' '}
+            Each scouting visit narrows a range:{' '}
             <b>
               {league.scoutPoints} visit{league.scoutPoints === 1 ? '' : 's'} left
             </b>{' '}
             this year.
           </p>
+          <details className="more">
+            <summary>How to read the board</summary>
+            <p className="muted small">
+            <b>Your grade</b> and <b>ceiling</b> are your scouts' estimates (a dashed grade is a guess). <b>Makeup</b> shows once your scouts know a prospect, usually after a visit or two ("?" means not yet; dashed tags are early word). <b>Habits</b> are what shows on film: a few in the tape, more with visits. <b>Consensus</b> is how the rest of the league
+            rates him. Rivals blend it with their own scouts' reads, and trust their scouts more when those scouts are good, so he can go earlier or later than
+            his rank. When your read beats the consensus, you've found a sleeper; when it's worse, let someone else take the bust.
+            </p>
+          </details>
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th className="num">#</th>
                   <th className="sticky-col">Prospect</th>
                   <th>Pos</th>
                   <th className="num">Age</th>
@@ -466,17 +476,17 @@ function Draft({ league }: { league: League }) {
                   <th>Known</th>
                   <th>Makeup</th>
                   <th>Habits</th>
-                  <th />
-                  {userUp && <th />}
+                  <th className="sticky-end" />
                 </tr>
               </thead>
               <tbody>
-                {prospects.slice(0, 150).map((p) => {
+                {prospects.slice(0, shown).map((p) => {
                   const v = viewOf(league, p);
                   return (
                     <tr key={p.id}>
-                      <td className="num muted">{rank.get(p.id)}</td>
                       <td className="sticky-col">
+                        {/* The rank rides in the sticky cell: as a column of its own, the name would slide over it. */}
+                        <span className="board-rank muted small">{rank.get(p.id)}</span>
                         <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
                           <PlayerAvatar player={p} team={null} size={26} />
                           <span>
@@ -508,22 +518,31 @@ function Draft({ league }: { league: League }) {
                       <td>
                         <BoardHabits league={league} player={p} />
                       </td>
-                      <td>
-                        <ScoutButton league={league} player={p} />
-                      </td>
-                      {userUp && (
-                        <td>
+                      {/* Pinned right, so Scout and Draft stay in reach on a phone without scrolling the table. */}
+                      <td className="sticky-end">
+                        <ScoutButton league={league} player={p} />{' '}
+                        {userUp && (
                           <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => draftForUser(l, p.id))}>
                             Draft
                           </button>
-                        </td>
-                      )}
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+          {prospects.length > shown && (
+            <div className="row" style={{ justifyContent: 'center', marginTop: 10 }}>
+              <button className="btn btn-sm" onClick={() => setShown((n) => n + BOARD_PAGE)}>
+                Show {Math.min(BOARD_PAGE, prospects.length - shown)} more
+              </button>
+              <span className="muted small">
+                {shown} of {prospects.length}
+              </span>
+            </div>
+          )}
         </Panel>
       )}
 
@@ -580,7 +599,7 @@ function BoardMakeup({ league, player }: { league: League; player: Player }) {
         –<span className="visually-hidden">Nothing stands out</span>
       </span>
     );
-  return <MakeupPills notes={m.notes} hedged={m.hedged} limit={2} oneLine />;
+  return <MakeupPills notes={m.notes} hedged={m.hedged} limit={1} oneLine />;
 }
 
 /** A prospect's habits on film in a board cell: "?" until your scouts have seen enough, a dash when none show. */
@@ -598,7 +617,7 @@ function BoardHabits({ league, player }: { league: League; player: Player }) {
         –<span className="visually-hidden">None on film</span>
       </span>
     );
-  return <QuirkPills notes={h.notes} limit={2} oneLine />;
+  return <QuirkPills notes={h.notes} limit={1} oneLine />;
 }
 
 export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }) {

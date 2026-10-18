@@ -2043,6 +2043,29 @@ details.more > summary {
   justify-items: start;
   min-width: 9.5rem;
 }
+/* The board's Scout/Draft cell, pinned to the right edge the way a name is pinned to the left. */
+.sticky-end {
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  z-index: 1;
+  white-space: nowrap;
+  text-align: right;
+}
+.board-rank {
+  display: inline-block;
+  min-width: 3ch;
+}
+.board-rank,
+.board-rank + .player-link {
+  vertical-align: middle;
+}
+/* Phones: drop the board's avatars so a stat column shows between the pinned name and buttons. */
+@media (max-width: 560px) {
+  .board-rank + .player-link .avatar {
+    display: none;
+  }
+}
 .board-sort {
   display: flex;
   flex-wrap: wrap;
