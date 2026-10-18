@@ -24,7 +24,17 @@ marbles, a hothead draws more "Jump-Happy" ones.
   quirks "fire". *Sees Ghosts* only matters while the QB is Rattled, and a kicker with *Yips
   Susceptibility* enters a slump after a high-profile miss.
 
-States are game- or week-scoped and never saved past the season.
+States are game- or week-scoped and never saved past the season. Only players with the matching
+quirk get a state: an ordinary QB who takes three sacks just had a bad day.
+
+| State | Starts | Lasts | Ends early |
+|---|---|---|---|
+| **Rattled** (*Sees Ghosts*) | His 2nd sack in a game | The rest of **that game** | Halftime, or three straight completions, each a coin flip |
+| **Shaken** (hangover) | A game with 5+ sacks while Rattled | The **next game**, at half strength | Never early |
+| **Yips slump** (*Yips Susceptibility*) | A miss late in a close game, or two misses in one game | Up to 3 weeks | Making a kick in a close fourth quarter |
+
+On top of the state, the game also drops event marbles in the bag: a Rattled game adds a *Sees
+Ghosts* marble, so a QB who keeps getting hit is more likely to keep the habit.
 
 ## 2. The marble bag
 
@@ -71,6 +81,10 @@ Refilled each league year. Counts are per player, with a handful of each:
 
 ### Limits and targets (tune with a script, below)
 - At most **3** quirks at grip ≥2. A 4th that reaches grip 2 bumps out his weakest.
+- **The 4th slot is for special players**: elite at his position (top 5% by overall) or 8+ seasons
+  in the league. Only an *ingrained* quirk (grip 3) can fill it, so it's earned. The bag doesn't
+  change at all, only the cap does. Losing special status removes nothing; he just can't fill an
+  empty 4th slot again. Target: 3–5% of the league carries four.
 - Rookies start with 0–2, rolled from their own seed (like traits and the combine).
 - League-wide targets: about 60% of players with at least one quirk; a veteran averages 1.5;
   each season about 15% of players gain one and 10% lose one.
@@ -176,7 +190,7 @@ YAC, broken tackles, false starts/offside/holding/DPI, touchbacks, returns, bloc
 | 7 | Loses Edge Containment | Scramble yards allowed | A |
 | 8 | Arm Tackler in Traffic | Weaker run stops | A |
 | 9 | Gassed in High-Tempo | Worse vs. hurry tempo | A |
-| 10 | Jump-Happy | Offside. **Overlaps the existing Hothead tag**: merge or make it the visible face of low temperament | A |
+| 10 | Jump-Happy | Offside, but only against hard counts and pump fakes (pairs with QB *Hard-Count Fiend*). Kept apart from *Hothead*: see below | A |
 | 11 | Bends the Arc | Edge sacks up, softer vs. inside runs | A |
 | 12 | Bull-Rush Primary | Interior pressure up, sack share down | A |
 
@@ -266,9 +280,23 @@ weather/injuries exist (each of those systems then unlocks its quirks for free).
 4. **Tier B engine events** (batted passes, strip-sacks, OPI, sideline catches, decoys, WR run blocking).
 5. **Tier C** after weather and injury systems exist.
 
-## Open questions
+### Hothead vs. Jump-Happy
+Both stay, because they're different things:
 
-1. Max active quirks: 3 (recommended), or more for veterans?
-2. Should the user's coaches be able to **target** a habit (spend coaching focus to add fix
-   marbles), FM-style "work on…"? Recommended for a later step.
-3. Merge *Jump-Happy* into the existing *Hothead* tag, or keep both?
+| | Hothead | Jump-Happy |
+|---|---|---|
+| Is | Personality (low temperament) | A habit |
+| Flags | All of them: false starts, holding, offside | Offside only, against hard counts and pump fakes |
+| Changes? | Never | Can be gained and fixed |
+| How common | ~15% of linemen | ~5% of linemen, **rarer** |
+
+A hothead gets extra *Jump-Happy* marbles, so the two often go together (that's the worst case: a
+short fuse who also bites on the count). But a calm player can pick up the habit too, and a
+hothead can stay clean of it.
+
+## Decisions
+
+1. Max active quirks: **3**, plus a 4th slot for special players (§2).
+2. Coaches targeting a habit ("work on…", adding fix marbles): **yes, later**, alongside the
+   weather and injury systems.
+3. *Hothead* and *Jump-Happy*: **keep both**; Jump-Happy is the rarer one (above).
