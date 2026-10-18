@@ -77,8 +77,8 @@ import {
   type RoomCount,
 } from '../coaching';
 import { band, money, ordinal, PHASE_LABELS } from '../format';
-import { rosterFit, StaffSkill } from '../scouting';
-import { coachReads, seenCoach, type StaffRead } from '../../engine/scouting';
+import { ReadNum, rosterFit, StaffSkill } from '../scouting';
+import { coachReads, seenCoach } from '../../engine/scouting';
 import { store } from '../store';
 import { moveIndex, MoveText } from '../moves';
 
@@ -796,10 +796,9 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
 
 /** "12 / 9", or "9–13 / 7–11" when it's your read of another club's man. */
 function ReadPair({ reads }: { reads: ReturnType<typeof coachReads> }) {
-  const one = (r: StaffRead) => <b className={band(r.value)}>{r.exact ? r.value : `${r.lo}–${r.hi}`}</b>;
   return (
     <span className="small muted num">
-      {one(reads.youth)} / {one(reads.veterans)}
+      <ReadNum r={reads.youth} /> / <ReadNum r={reads.veterans} />
     </span>
   );
 }
@@ -1162,6 +1161,7 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
     .slice(-12)
     .reverse();
   const names = moveIndex(league);
+  const [open, setOpen] = useState<number | null>(null);
   return (
     <Panel>
       <details className="more">
@@ -1183,20 +1183,24 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
             <tbody>
               {[...grades]
                 .sort((a, b) => a[1].rank - b[1].rank)
-                .map(([id, g]) => {
+                .flatMap(([id, g]) => {
                   const t = league.teams[id];
                   const staff = teamCoaches(league, id);
-                  return (
+                  const row = (
                     <tr key={id} className={id === teamId ? 'me' : undefined}>
                       <td className="num">{g.rank}</td>
                       <td className="sticky-col">
-                        <span className="team-inline">
+                        {/* Tap a team for the rest of its staff: position coaches and S&C. */}
+                        <button className="linklike team-inline" aria-expanded={open === id} onClick={() => setOpen(open === id ? null : id)}>
                           <TeamChip team={t} />
                           <span>
                             <span className="team-name">{t.name}</span>
                             {id === teamId && <span className="tag-pill">You</span>}
                           </span>
-                        </span>
+                          <span className="muted" aria-hidden="true">
+                            {open === id ? '▴' : '▾'}
+                          </span>
+                        </button>
                       </td>
                       <td>
                         <span className={`grade grade-${g.grade}`}>{g.grade}</span>
@@ -1212,6 +1216,27 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
                       </td>
                     </tr>
                   );
+                  if (open !== id) return [row];
+                  const rest = CHAIRS.filter((ch) => !LEADERSHIP.some((l) => sameChair(l, ch)));
+                  return [
+                    row,
+                    <tr key={`${id}-staff`} className="team-staff-row">
+                      <td colSpan={6}>
+                        <ul className="team-staff">
+                          {rest.map((ch) => {
+                            const c = chairHolder(staff, ch);
+                            return (
+                              <li key={`${ch.role}-${ch.room ?? ''}`}>
+                                {c ? <CoachLink c={c} /> : <span className="tone-bad">Vacant</span>}
+                                <span className="muted small">{coachTitle(ch)}</span>
+                                {c && <ReadPair reads={coachReads(league, teamId, c)} />}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </td>
+                    </tr>,
+                  ];
                 })}
             </tbody>
           </table>

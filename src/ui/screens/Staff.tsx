@@ -40,9 +40,9 @@ import {
 } from '../../engine/staff';
 import type { League, ScoutFocus, Staff, StaffRole } from '../../engine/types';
 import { useNav } from '../App';
-import { Exact, Panel, Section, Sheet, TeamChip } from '../components';
+import { Exact, GradesTable, Panel, Section, Sheet, TeamChip } from '../components';
 import { band, money, ordinal } from '../format';
-import { StaffSkill } from '../scouting';
+import { ReadNum, StaffSkill } from '../scouting';
 import { scoutReads, seenScout } from '../../engine/scouting';
 import { store } from '../store';
 
@@ -384,6 +384,25 @@ export function StaffScreen({ league }: { league: League }) {
   const room = staffRoomAfterResigns(league, teamId);
   const dead = sumDead(league, teamId);
   const grades = departmentGrades(league, (s) => seenScout(league, teamId, s));
+  // Another club's department, as your read of each man.
+  const staffOf = (id: number) => (
+    <ul className="team-staff">
+      {[...teamStaff(league, id)]
+        .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role))
+        .map((s) => {
+          const r = scoutReads(league, teamId, s);
+          return (
+            <li key={s.id}>
+              <ScoutLink s={s} />
+              <span className="muted small">{roleLine(s)}</span>
+              <span className="small">
+                Evaluation <ReadNum r={r.evaluation} /> · Projection <ReadNum r={r.projection} />
+              </span>
+            </li>
+          );
+        })}
+    </ul>
+  );
   const mineGrade = grades.get(teamId)!;
   const spot = weakestSpot(league, teamId);
   const forecast = resignForecast(league, teamId);
@@ -589,41 +608,7 @@ export function StaffScreen({ league }: { league: League }) {
       <Panel>
         <details className="more">
           <summary>Around the league: how all {league.teams.length} departments grade</summary>
-          <div className="table-scroll">
-            <table className="league-grades">
-              <thead>
-                <tr>
-                  <th className="num">Rank</th>
-                  <th>Team</th>
-                  <th>Grade</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...grades]
-                  .sort((a, b) => a[1].rank - b[1].rank)
-                  .map(([id, g]) => {
-                    const t = league.teams[id];
-                    return (
-                      <tr key={id} className={id === teamId ? 'me' : undefined}>
-                        <td className="num">{g.rank}</td>
-                        <td>
-                          <span className="team-inline">
-                            <TeamChip team={t} />
-                            <span>
-                              {t.city} {t.name}
-                              {id === teamId && <span className="tag-pill">You</span>}
-                            </span>
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`grade grade-${g.grade}`}>{g.grade}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
+          <GradesTable league={league} grades={grades} staffOf={staffOf} />
         </details>
       </Panel>
     </Announce.Provider>

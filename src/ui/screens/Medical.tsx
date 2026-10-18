@@ -4,7 +4,7 @@
  * player's injury proneness stays a word (see ui/injuries.tsx).
  */
 import { useState } from 'react';
-import { injuryLabel, estimateText, weeksLeft } from '../../engine/injuries';
+import { injuryLabel, estimateText, SEVERITY_LABEL, weeksLeft } from '../../engine/injuries';
 import {
   conditionBonus,
   departmentFor,
@@ -35,12 +35,12 @@ import {
 } from '../../engine/medical';
 import { teamPlayers } from '../../engine/roster';
 import { staffWindowOpen } from '../../engine/staff';
-import type { League, Medic, MedicRole } from '../../engine/types';
+import type { InjuryRecord, League, Medic, MedicRole, Player } from '../../engine/types';
 import { useNav } from '../App';
-import { Exact, Panel, PlayerAvatar, Section, Sheet, TeamChip } from '../components';
-import { money, ordinal, verdict, type Verdict } from '../format';
+import { Exact, GradesTable, Panel, PlayerAvatar, Section, Sheet, TeamChip } from '../components';
+import { money, ordinal, resultsSeason, verdict, type Verdict } from '../format';
 import { conditionTone, InjuryTag } from '../injuries';
-import { StaffSkill } from '../scouting';
+import { ReadNum, StaffSkill } from '../scouting';
 import { medicReads, seenMedic } from '../../engine/scouting';
 import { store } from '../store';
 
@@ -341,7 +341,181 @@ function InjuryReport({ league }: { league: League }) {
   );
 }
 
+/**
+ * Injuries around the league. An injury, its estimate and a player's history are public, so every club's
+ * hurt players show, with the doctor's estimate and never the real layoff (the longest are ranked by the
+ * estimate too). Who's banged up, then everyone out now, then the season's log.
+ */
+function LeagueInjuries({ league }: { league: League }) {
+  const nav = useNav();
+  const [only, setOnly] = useState<number | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const season = resultsSeason(league);
+  const players = Object.values(league.players).filter((p) => !p.retired);
+  const out = players.filter((p) => p.teamId !== null && (p.injury || p.ir));
+  const log = players
+    .flatMap((p) => (p.injuries ?? []).filter((r) => r.season === season).map((r) => ({ p, r })))
+    .sort((a, b) => b.r.week - a.r.week);
+  const byTeam = league.teams
+    .map((t) => ({
+      t,
+      out: out.filter((p) => p.teamId === t.id && !(p.injury?.injected ?? false)).length,
+      ir: out.filter((p) => p.teamId === t.id && p.ir).length,
+      season: log.filter((x) => x.p.teamId === t.id).length,
+    }))
+    .sort((a, b) => b.out - a.out || b.season - a.season);
+  const shown = out
+    .filter((p) => only === null || p.teamId === only)
+    .sort((a, b) => (b.injury?.estimate[1] ?? 0) - (a.injury?.estimate[1] ?? 0));
+  const LIMIT = 15;
+  const name = (p: Player) => (
+    <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
+      <PlayerAvatar player={p} team={p.teamId !== null ? league.teams[p.teamId] : null} size={26} />
+      <span>
+        {p.position} {p.firstName} {p.lastName}
+      </span>
+    </button>
+  );
+  const when = (r: InjuryRecord) => (r.week ? `Week ${r.week}` : 'Offseason');
+  return (
+    <>
+      <Panel title="Who's banged up">
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Players out now (playing through it on injections doesn't count), on injured reserve, and hurt this {season} season. Tap a team to see its injuries.
+        </p>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th className="sticky-col">Team</th>
+                <th className="num">Out now</th>
+                <th className="num">On IR</th>
+                <th className="num">Season</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byTeam.map(({ t, out: n, ir, season: total }) => (
+                <tr key={t.id} className={`clickable${t.id === league.userTeamId ? ' is-user' : ''}`} onClick={() => setOnly(only === t.id ? null : t.id)}>
+                  <td className="sticky-col">
+                    <span className="team-inline">
+                      <TeamChip team={t} />
+                      <span>{t.name}</span>
+                    </span>
+                  </td>
+                  <td className={`num${n >= 6 ? ' tone-bad' : ''}`}>{n}</td>
+                  <td className="num">{ir}</td>
+                  <td className="num">{total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      <Panel
+        title={only === null ? 'Out around the league' : `Out: ${league.teams[only].city} ${league.teams[only].name}`}
+        action={
+          only !== null ? (
+            <button className="btn btn-sm btn-ghost" onClick={() => setOnly(null)}>
+              Every team
+            </button>
+          ) : undefined
+        }
+      >
+        {shown.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>
+            Nobody is hurt.
+          </p>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th className="sticky-col">Player</th>
+                  {only === null && <th>Team</th>}
+                  <th>Injury</th>
+                  <th>Outlook</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(showAll ? shown : shown.slice(0, LIMIT)).map((p) => (
+                  <tr key={p.id}>
+                    <td className="sticky-col">{name(p)}</td>
+                    {only === null && <td>{league.teams[p.teamId!].abbrev}</td>}
+                    <td>
+                      {p.injury ? injuryLabel(p.injury.type) : 'Healed'}
+                      <InjuryTag league={league} p={p} />
+                    </td>
+                    <td className="muted small">{p.injury ? (p.injury.injected ? 'Playing through it' : estimateText(p.injury, weeksLeft(league))) : 'Ready to come off reserve'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {shown.length > LIMIT && (
+          <button className="btn btn-sm btn-ghost" style={{ marginTop: 10 }} onClick={() => setShowAll(!showAll)}>
+            {showAll ? `Show the longest ${LIMIT}` : `Show all ${shown.length}`}
+          </button>
+        )}
+      </Panel>
+
+      <Panel title={`${season} injury log`}>
+        <details className="more">
+          <summary>
+            {log.length} injur{log.length === 1 ? 'y' : 'ies'} this season, newest first
+          </summary>
+          <div className="table-scroll">
+            <table className="injury-history">
+              <thead>
+                <tr>
+                  <th className="sticky-col">Player</th>
+                  <th>When</th>
+                  <th>Injury</th>
+                  <th className="num">Out</th>
+                </tr>
+              </thead>
+              <tbody>
+                {log.slice(0, 200).map(({ p, r }, i) => (
+                  <tr key={`${p.id}-${i}`}>
+                    <td className="sticky-col">{name(p)}</td>
+                    <td className="num">{when(r)}</td>
+                    <td>
+                      {injuryLabel(r.type)} <span className="muted small">· {SEVERITY_LABEL[r.severity]}</span>
+                    </td>
+                    <td className="num">{r.weeks >= 30 ? 'season+' : `${r.weeks} wk`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {log.length > 200 && <p className="muted small">The 200 most recent are shown.</p>}
+        </details>
+      </Panel>
+    </>
+  );
+}
+
 export function MedicalScreen({ league }: { league: League }) {
+  const [view, setView] = useState<'team' | 'league'>('team');
+  return (
+    <>
+      <div>
+        <div className="seg" role="group" aria-label="Medical view">
+          <button aria-pressed={view === 'team'} onClick={() => setView('team')}>
+            Your department
+          </button>
+          <button aria-pressed={view === 'league'} onClick={() => setView('league')}>
+            League injuries
+          </button>
+        </div>
+      </div>
+      {view === 'team' ? <Department league={league} /> : <LeagueInjuries league={league} />}
+    </>
+  );
+}
+
+function Department({ league }: { league: League }) {
   const teamId = league.userTeamId;
   const open = staffWindowOpen(league);
   const mine = [...teamMedics(league, teamId)].sort((a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role) || medicValue(b) - medicValue(a));
@@ -350,6 +524,25 @@ export function MedicalScreen({ league }: { league: League }) {
   const dept = departmentFor(league, teamId);
   const e = effects(dept);
   const grades = medicalGrades(league, (m) => seenMedic(league, teamId, m));
+  // Another club's department, as your read of each man.
+  const staffOf = (id: number) => (
+    <ul className="team-staff">
+      {[...teamMedics(league, id)]
+        .sort((a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role))
+        .map((m) => {
+          const r = medicReads(league, teamId, m);
+          return (
+            <li key={m.id}>
+              <MedicLink m={m} />
+              <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
+              <span className="small">
+                Physiotherapy <ReadNum r={r.physio} /> · Sports science <ReadNum r={r.science} />
+              </span>
+            </li>
+          );
+        })}
+    </ul>
+  );
   const mineGrade = grades.get(teamId)!;
   const payroll = medicalPayroll(league, teamId);
   const budget = medicalBudget(league, teamId);
@@ -485,41 +678,7 @@ export function MedicalScreen({ league }: { league: League }) {
       <Panel>
         <details className="more">
           <summary>Around the league: how all {league.teams.length} medical staffs grade</summary>
-          <div className="table-scroll">
-            <table className="league-grades">
-              <thead>
-                <tr>
-                  <th className="num">Rank</th>
-                  <th>Team</th>
-                  <th>Grade</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...grades]
-                  .sort((a, b) => a[1].rank - b[1].rank)
-                  .map(([id, g]) => {
-                    const t = league.teams[id];
-                    return (
-                      <tr key={id} className={id === teamId ? 'me' : undefined}>
-                        <td className="num">{g.rank}</td>
-                        <td>
-                          <span className="team-inline">
-                            <TeamChip team={t} />
-                            <span>
-                              {t.city} {t.name}
-                              {id === teamId && <span className="tag-pill">You</span>}
-                            </span>
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`grade grade-${g.grade}`}>{g.grade}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
+          <GradesTable league={league} grades={grades} staffOf={staffOf} />
         </details>
       </Panel>
     </>

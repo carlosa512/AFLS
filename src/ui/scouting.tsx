@@ -69,6 +69,11 @@ export function RangeValue({ r }: { r: RatingView }) {
   );
 }
 
+/** A staff rating in a list or table: the number for your own people, your read ("9–13") for anyone else's. */
+export function ReadNum({ r }: { r: StaffRead }) {
+  return <b className={`num ${band(r.value)}`}>{r.exact ? r.value : `${r.lo}–${r.hi}`}</b>;
+}
+
 /** A staff rating as a fact: the number for your own people, your read ("9–13") for anyone else's. */
 export function StaffSkill({ label, value }: { label: string; value: number | StaffRead }) {
   const r = typeof value === 'number' ? { value, lo: value, hi: value, exact: true } : value;

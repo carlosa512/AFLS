@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { Player, Team } from '../engine/types';
+import type { League, Player, Team } from '../engine/types';
 import type { Forecast, Weather } from '../engine/weather';
 import { band, gameWeatherText, severityText } from './format';
 
@@ -303,6 +303,62 @@ export function Exact({ numbers, children }: { numbers: ReactNode; children: Rea
       <summary>{children}</summary>
       <span className="exact-numbers">{numbers}</span>
     </details>
+  );
+}
+
+/**
+ * Every club's department by grade. Tap a team to open its staff underneath (`staffOf` says who, with your
+ * read of each), so the league isn't just a rank: you can see who's behind it.
+ */
+export function GradesTable({ league, grades, staffOf }: { league: League; grades: Map<number, { rank: number; grade: string }>; staffOf: (teamId: number) => ReactNode }) {
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <div className="table-scroll">
+      <table className="league-grades">
+        <thead>
+          <tr>
+            <th className="num">Rank</th>
+            <th>Team</th>
+            <th>Grade</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...grades]
+            .sort((a, b) => a[1].rank - b[1].rank)
+            .flatMap(([id, g]) => {
+              const t = league.teams[id];
+              const row = (
+                <tr key={id} className={id === league.userTeamId ? 'me' : undefined}>
+                  <td className="num">{g.rank}</td>
+                  <td>
+                    <button className="linklike team-inline" aria-expanded={open === id} onClick={() => setOpen(open === id ? null : id)}>
+                      <TeamChip team={t} />
+                      <span>
+                        {t.city} {t.name}
+                        {id === league.userTeamId && <span className="tag-pill">You</span>}
+                      </span>
+                      <span className="muted" aria-hidden="true">
+                        {open === id ? '▴' : '▾'}
+                      </span>
+                    </button>
+                  </td>
+                  <td>
+                    <span className={`grade grade-${g.grade}`}>{g.grade}</span>
+                  </td>
+                </tr>
+              );
+              return open === id
+                ? [
+                    row,
+                    <tr key={`${id}-staff`} className="team-staff-row">
+                      <td colSpan={3}>{staffOf(id)}</td>
+                    </tr>,
+                  ]
+                : [row];
+            })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

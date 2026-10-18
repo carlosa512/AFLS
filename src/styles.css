@@ -2784,3 +2784,34 @@ button.tip-pill {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+/* ───────── another team's staff, opened under its row in a league table ───────── */
+.linklike.team-inline {
+  text-decoration: none;
+}
+.team-staff-row td {
+  background: var(--surface-2);
+  white-space: normal;
+}
+.team-staff {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  /* A wide table (the coaches') scrolls sideways on a phone: keep the list in the part you can see. */
+  position: sticky;
+  left: 8px;
+  max-width: calc(100vw - 72px);
+}
+.team-staff li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+/* A name in a list, not a card's heading. */
+.team-staff .staff-name {
+  font-family: inherit;
+  font-size: inherit;
+}
