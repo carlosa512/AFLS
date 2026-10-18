@@ -86,3 +86,43 @@ describe('flags in a game', () => {
     expect(offset).toBeGreaterThan(0);
   });
 });
+
+describe('personal fouls', () => {
+  const league = createLeague({ seed: 'personal-fouls' });
+  const games = league.games.filter((g) => g.week <= 6).map((g) => ({ g, r: simulateGame(league, g, { keepPlays: true }) }));
+
+  it('credits the quarterback with every roughing call his defense drew', () => {
+    let calls = 0;
+    for (const { g, r } of games) {
+      for (const [side, teamId] of [
+        [r.home, g.awayId],
+        [r.away, g.homeId],
+      ] as const) {
+        const drawn = Object.entries(r.playerStats)
+          .filter(([id]) => r.playerTeams[Number(id)] === teamId)
+          .reduce((s, [, line]) => s + (line.roughingDrawn ?? 0), 0);
+        expect(drawn).toBe(side.flags?.roughingPasser ?? 0);
+        calls += drawn;
+      }
+    }
+    expect(calls).toBeGreaterThan(0);
+  });
+
+  it('goes on from where a run or a catch ended, with a first down, and the play stands', () => {
+    const late = /for (-?\d+) yards?.*PENALTY on \w+ \([^)]*\): (Roughing the passer|Unnecessary roughness|Face mask|Horse collar), (\d+) yards\.$/;
+    let seen = 0;
+    for (const { r } of games) {
+      const plays = r.plays!;
+      plays.forEach((p, i) => {
+        const m = p.text.match(late);
+        if (!m || p.scoring) return;
+        const next = plays.slice(i + 1).find((q) => q.down > 0);
+        if (!next || next.quarter !== p.quarter || next.offense !== p.offense) return;
+        expect(next.down).toBe(1);
+        expect(next.yardLine).toBe(p.yardLine + Number(m[1]) + Number(m[3]));
+        seen++;
+      });
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+});

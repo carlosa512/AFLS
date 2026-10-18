@@ -11,6 +11,7 @@ import { simToEndOfRegularSeason } from '../src/engine/league';
 import { teamRatings } from '../src/engine/roster';
 import { REGULAR_SEASON_WEEKS } from '../src/engine/season/schedule';
 import { regularSeasonGames } from '../src/engine/season/standings';
+import { FOUL_KINDS, FOULS } from '../src/engine/penalties';
 import type { GameResult, TeamGameStats } from '../src/engine/types';
 import { LEADER_TARGETS, overRecordAllowed, seasonTops } from './leaders';
 
@@ -43,6 +44,10 @@ const TARGETS: Record<string, [number, number]> = {
   // a little more until the rest are modeled; see docs/PENALTIES.md).
   declined: [0.45, 1],
   offsetting: [0.05, 0.4],
+  // Personal fouls by the defense on scrimmage plays (NFL 2023–25: about 0.6 per team-game once kicks
+  // and the offense's share are set aside), and roughing the passer alone (0.17).
+  personal: [0.45, 0.8],
+  roughing: [0.12, 0.22],
   homeWinPct: [53, 57],
   otPct: [4, 7],
   tiePct: [0, 0.6],
@@ -161,6 +166,8 @@ for (let s = 0; s < seasons; s++) {
       add('penalties', t.penalties);
       add('declined', Object.values(t.declined ?? {}).reduce((a, b) => a + b, 0));
       add('offsetting', Object.values(t.offset ?? {}).reduce((a, b) => a + b, 0));
+      add('personal', FOUL_KINDS.filter((f) => FOULS[f].personal).reduce((a, f) => a + (t.flags?.[f] ?? 0), 0));
+      add('roughing', t.flags?.roughingPasser ?? 0);
       add('top', t.top);
     }
     for (const line of Object.values(r.playerStats)) {
@@ -216,6 +223,8 @@ const results: Record<string, number> = {
   penalties: per('penalties'),
   declined: per('declined'),
   offsetting: per('offsetting'),
+  personal: per('personal'),
+  roughing: per('roughing'),
   homeWinPct: (100 * homeWins) / (games - ties),
   otPct: (100 * ot) / games,
   tiePct: (100 * ties) / games,

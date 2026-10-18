@@ -30,7 +30,7 @@ const check = (label: string, value: number, [lo, hi]: [number, number], digits 
 };
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-const TENDENCIES = ['flagVolume', 'holding', 'coverage'] as const;
+const TENDENCIES = ['flagVolume', 'holding', 'coverage', 'qbProtection'] as const;
 const tendencyMeans = (league: League) => TENDENCIES.map((t) => mean(league.crews.map((c) => c[t])));
 
 const total = { flags: 0, base: 0, games: 0 };

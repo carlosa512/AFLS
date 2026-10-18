@@ -16,7 +16,15 @@ export interface FoulInfo {
   /** No play happens: the whistle blows before the snap. */
   deadBall?: boolean;
   /** The crew tendency, besides Flag Volume, that scales it (see `officials.ts`). */
-  tendency: 'holding' | 'coverage' | null;
+  tendency: 'holding' | 'coverage' | 'qbProtection' | null;
+  /** A personal foul: 15 yards, and the man's temper shows in it. */
+  personal?: boolean;
+  /**
+   * Enforced where the play ended, the play standing: 'always' for a foul after the whistle,
+   * 'pastLine' for one at the end of a run or a catch past the line (behind it, or on an
+   * incompletion, a sack or a turnover, it goes from the previous spot and wipes the play out).
+   */
+  late?: 'always' | 'pastLine';
 }
 
 export const FOULS: Record<Foul, FoulInfo> = {
@@ -25,6 +33,11 @@ export const FOULS: Record<Foul, FoulInfo> = {
   holding: { label: 'Offensive holding', side: 'offense', yards: 10, tendency: 'holding' },
   passInterference: { label: 'Pass interference', side: 'defense', yards: 'spot', autoFirst: true, tendency: 'coverage' },
   defHolding: { label: 'Defensive holding', side: 'defense', yards: 5, autoFirst: true, tendency: 'coverage' },
+  roughingPasser: { label: 'Roughing the passer', side: 'defense', yards: 15, autoFirst: true, tendency: 'qbProtection', personal: true, late: 'pastLine' },
+  unnecessaryRoughness: { label: 'Unnecessary roughness', side: 'defense', yards: 15, autoFirst: true, tendency: null, personal: true, late: 'pastLine' },
+  faceMask: { label: 'Face mask', side: 'defense', yards: 15, autoFirst: true, tendency: null, personal: true, late: 'pastLine' },
+  horseCollar: { label: 'Horse collar', side: 'defense', yards: 15, autoFirst: true, tendency: null, personal: true, late: 'pastLine' },
+  unsportsmanlike: { label: 'Unsportsmanlike conduct', side: 'defense', yards: 15, autoFirst: true, tendency: null, personal: true, late: 'always' },
 };
 export const FOUL_KINDS = Object.keys(FOULS) as Foul[];
 

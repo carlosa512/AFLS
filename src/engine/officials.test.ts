@@ -3,11 +3,12 @@ import { createLeague, SAVE_VERSION } from './generate';
 import { gamesInWeek, playWeek } from './league';
 import { simulateGame } from './match/gameSim';
 import { migrateLeague } from './migrate';
-import { CREW_COUNT, crewAssignments, crewMult, crewsNewYear, crewStanding, crewTable, gameCrew, MAX_DRIFT, RANK_MIN_GAMES } from './officials';
+import type { AwardWinner } from './awards';
+import { CREW_COUNT, crewAssignments, crewMult, crewsNewYear, crewStanding, crewTable, gameCrew, MAX_DRIFT, RANK_MIN_GAMES, STAR_LEAN, starLean } from './officials';
 import { FOUL_KINDS } from './penalties';
 import type { Crew, League } from './types';
 
-const TENDENCIES = ['flagVolume', 'holding', 'coverage'] as const;
+const TENDENCIES = ['flagVolume', 'holding', 'coverage', 'qbProtection'] as const;
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 describe('officiating crews', () => {
@@ -73,7 +74,7 @@ describe('officiating crews', () => {
   it('records the crew and every flag by kind, and a strict crew calls more than a lenient one', () => {
     const league = createLeague({ seed: 'crews-sim' });
     const games = league.games.filter((g) => g.week <= 3);
-    const crew = (n: number): Crew => ({ id: 0, firstName: 'Test', lastName: 'Crew', flagVolume: n, holding: n, coverage: n });
+    const crew = (n: number): Crew => ({ id: 0, firstName: 'Test', lastName: 'Crew', flagVolume: n, holding: n, coverage: n, qbProtection: n });
     let strict = 0;
     let lenient = 0;
     for (const g of games) {
@@ -108,6 +109,34 @@ describe('officiating crews', () => {
     const first = rows.find((r) => r.ranks?.flags === 1)!;
     expect(first.perGame.flags).toBe(Math.max(...rows.filter((r) => r.ranks).map((r) => r.perGame.flags)));
     expect(crewStanding(league, first.crew, league.season)).toEqual({ rank: 1, of: ranked, season: league.season });
+  });
+
+  it('leans toward the most decorated quarterbacks, from their public record only', () => {
+    const league = createLeague({ seed: 'crews-stars' });
+    const qb = league.teams[0].depthChart.QB[0];
+    expect(starLean(league, qb)).toBe(1);
+    const season = (mvp: boolean, team: 0 | 1 | null) => ({
+      season: 2000 + league.awards.length,
+      winners: mvp ? { mvp: { playerId: qb, teamId: 0 } } : {},
+      allLeague: [team === 0 ? [{ playerId: qb, teamId: 0 }] : [], team === 1 ? [{ playerId: qb, teamId: 0 }] : []] as [AwardWinner[], AwardWinner[]],
+    });
+    league.awards.push(season(false, 1));
+    expect(starLean(league, qb)).toBeCloseTo(1 + STAR_LEAN / 10, 9);
+    // Two MVPs with first-team nods: a Mahomes, as protected as anyone gets.
+    league.awards.push(season(true, 0), season(true, 0));
+    expect(starLean(league, qb)).toBeCloseTo(1 + STAR_LEAN, 9);
+    league.awards.push(season(true, 0));
+    expect(starLean(league, qb)).toBeCloseTo(1 + STAR_LEAN, 9);
+  });
+
+  it('gives a v16 save QB Protection as a new league from its seed would roll it', () => {
+    const league = createLeague({ seed: 'crews-qb-protection' });
+    const v16 = JSON.parse(JSON.stringify(league)) as League;
+    v16.version = 16;
+    for (const c of v16.crews) delete (c as Partial<Crew>).qbProtection;
+    const up = migrateLeague(v16)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    expect(up.crews).toEqual(league.crews);
   });
 
   it('gives an old save the crews a new league would get, starting with its next game', () => {
