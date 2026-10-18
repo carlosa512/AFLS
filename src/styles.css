@@ -2044,6 +2044,36 @@ details.more > summary {
   justify-items: start;
   min-width: 9.5rem;
 }
+/* The board's Scout/Draft cell, pinned to the right edge the way a name is pinned to the left. */
+.sticky-end {
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  z-index: 1;
+  white-space: nowrap;
+  text-align: right;
+}
+.board-rank {
+  display: inline-block;
+  min-width: 3ch;
+}
+.board-rank,
+.board-rank + .player-link {
+  vertical-align: middle;
+}
+/* Phones: drop the board's avatars so a stat column shows between the pinned name and buttons. */
+@media (max-width: 560px) {
+  .board-rank + .player-link .avatar {
+    display: none;
+  }
+}
+/* The history is a fold inside its panel: no rule above it, and the heading reads as the panel's. */
+.draft-history .card-section {
+  border-top: 0;
+}
+.draft-history .card-section > summary h3 {
+  font-size: var(--step-1);
+}
 .board-sort {
   display: flex;
   flex-wrap: wrap;

@@ -166,7 +166,8 @@ export interface Player {
   /** Free agents have no contract. */
   contract: Contract | null;
   retired?: boolean;
-  draft?: { season: number; round: number; pick: number; teamId: number };
+  /** `rank`: where the consensus ranked him in his class when he was taken (kept here because old picks are pruned). */
+  draft?: { season: number; round: number; pick: number; teamId: number; rank?: number };
   /** Times franchise-tagged (each consecutive tag costs more). */
   tagCount?: number;
   /** Draft prospects: the league-wide consensus read of overall and ceiling (true ratings stay hidden). AI boards use it. */
