@@ -159,18 +159,22 @@ export const WEEKLY_DRAW_CHANCE = 0.25;
 const COLLEGE_DRAWS = 3;
 const PRO_DRAWS = OFFSEASON_DRAWS + 4;
 
-/** Elite at his position, or a long career: room for a fourth quirk, if it's ingrained. */
-export const isSpecial = (p: Player) => p.experience >= 10 || playerOvr(p) >= 15.5;
+/**
+ * A special player: a rare ceiling, elite now, or a long career (about one in ten). He has room for a
+ * fourth established quirk, and his bag holds fewer blanks: the players people remember have habits.
+ */
+export const isSpecial = (p: Player) => p.potential >= 17 || p.experience >= 10 || playerOvr(p) >= 15.5;
+/** A special player's blanks, against everyone else's. */
+const SPECIAL_BLANKS = 0.75;
 
 /**
  * The quirks the engine applies, strongest grip first: up to three, and a fourth for a special
- * player when it's ingrained. A quirk past the cap is held but dormant until another fades.
+ * player. A quirk past the cap is held but dormant until another fades.
  */
 export function activeQuirks(p: Player): QuirkId[] {
   const held = (Object.entries(p.quirks ?? {}) as [QuirkId, number][]).filter(([, g]) => g >= GRIP_ACTIVE).sort((a, b) => b[1] - a[1]);
   const out = held.slice(0, MAX_ACTIVE).map(([id]) => id);
-  const fourth = held[MAX_ACTIVE];
-  if (fourth && fourth[1] >= GRIP_MAX && isSpecial(p)) out.push(fourth[0]);
+  if (held.length > MAX_ACTIVE && isSpecial(p)) out.push(held[MAX_ACTIVE][0]);
   return out;
 }
 
@@ -196,7 +200,7 @@ export const BLANKS: [number, number, number] = [96, 154, 240];
  * position coach (`coachRate`, his staff's growth rate) and a hard worker.
  */
 export function fillBag(p: Player, coachRate = 1): Record<string, number> {
-  const bag: Record<string, number> = { blank: blanksFor(p.age) };
+  const bag: Record<string, number> = { blank: Math.round(blanksFor(p.age) * (isSpecial(p) ? SPECIAL_BLANKS : 1)) };
   const work = p.traits.workEthic - TRAIT_MEAN;
   const coach = clamp(Math.round((coachRate - 1) * 8), -1, 2);
   for (const id of QUIRKS_FOR[p.position]) {

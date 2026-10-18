@@ -1,6 +1,6 @@
 # Quirks — design sketch
 
-Status: **steps 1–3 built** (§7): the bag, grip, 83 quirks (every Tier A quirk), the engine hooks,
+Status: **steps 1–3 built, plus a fine-tuning pass** (§7): the bag, grip, 83 quirks (every Tier A quirk), the engine hooks,
 scouting, the player card, AI front offices valuing what their scouts see, game states (Rattled,
 Shaken, kicking slumps) and event, season and scheme marbles. Goal: FM-style player habits ("Stares down his first read",
 "Ice-water veins") that make players feel alive. A player can carry several, and gains and loses
@@ -84,10 +84,10 @@ Refilled each league year. Counts are per player, with a handful of each:
 ### Limits and targets (tune with a script, below)
 - At most **3** quirks at grip ≥2 are applied, strongest grip first. One past the cap stays held but
   dormant (shown as "starting to show") until another fades. He holds at most 5 at any grip.
-- **The 4th slot is for special players**: elite at his position (overall 15.5+, about the top 5%)
-  or 10+ seasons in the league. Only an *ingrained* quirk (grip 3) can fill it, so it's earned. The bag doesn't
-  change at all, only the cap does. Losing special status removes nothing; he just can't fill an
-  empty 4th slot again. Target: 3–5% of the league carries four.
+- **The 4th slot is for special players**: a rare ceiling (potential 17+, about the top 4%),
+  elite now (overall 15.5+) or 10+ seasons in the league, about one player in ten. Any
+  established quirk can fill it, and a special player's bag holds a quarter fewer blanks, so the
+  players people remember have more habits. About 0.5% of the league carries four.
 - Rookies start with 0–2, rolled from their own seed (like traits and the combine).
 - Targets are **per quirk**, so they hold however many quirks a position has (`npm run quirks`
   checks them): each quirk carried by 6–12% of the players who can draw it, gained by 0.8–1.8% and
@@ -318,6 +318,19 @@ weather/injuries exist (each of those systems then unlocks its quirks for free).
    Not yet: scheme and last-season marbles in the bag, the "seems to have fixed…" note for a lost
    quirk, the draft-board column, Long-Range Gambler for kickers. The 4th slot is possible now but
    very rare (an ingrained fourth quirk); tuning it is part of the fine-tuning pass.
+3a. ✅ **Fine-tuning pass.**
+   - **Stacking**: a unit's shared quirk has diminishing returns (`stack` in `gameSim.ts`): each
+     teammate adds 60% of the one before, so five anchors are worth about 2.3, never 5. Flags
+     (holding, offside) stay per man.
+   - Weak quirks tuned up (Safety Eyes, No-Huddle, Ice-Water, Coffin-Corner, Spot-Drop, Stems DB,
+     Gets Jammed, Physical Jammer, Misreads Keys, Baits the QB, Green-Dog, Short-Arm, Man-Coverage
+     Deficit, Business Decision); the run game rebalanced so quirks don't tilt it (style costs and
+     run-defense quirks were net negative, which also inflated receiving leaders).
+   - **Fog over time**: a team keeps believing in a habit a player has shaken until its scouts
+     notice (at once for its own players, most of a year for one it barely knows); then the card
+     says "Seems to have fixed…". AI valuations see the same stale belief.
+   - **Habits over time** on the player card and a "Lately…" line in the scout's report, both
+     limited to what your scouts know. The draft board has a Habits column.
 3. ✅ **States and event marbles.**
    - Two new quirks: **Sees Ghosts** (QB) and **Yips Susceptibility** (K).
    - **Rattled**: a QB who sees ghosts is rattled after his 2nd sack (−3 decisions, −1.5

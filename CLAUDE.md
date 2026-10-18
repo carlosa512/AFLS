@@ -43,7 +43,8 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - `npm run quirks` — run the quirk marble bag for 10 seasons and check how often each quirk is carried,
   gained and lost; `npm run quirks -- --effects` also gives each quirk to every player at its positions
   and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in
-  `match/gameSim.ts`. Nothing may be flagged.
+  `match/gameSim.ts`. Nothing may be flagged. `npm run check` runs it (with `--effects`) when the
+  quirks module, the match engine or what builds a league changes.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 

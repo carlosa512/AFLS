@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { honorBadges, playerHonors } from '../../engine/awards';
 import { POSITION_NAMES } from '../../engine/positions';
-import { careerOutlook, isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
-import { formNote, quirkInfo } from '../../engine/quirks';
+import { careerOutlook, FIXED_HEADING, fixedHabits, habitChangeText, habitTimeline, isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
+import { formNote } from '../../engine/quirks';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
 import { editPlayerIdentity, identityProblem } from '../../engine/roster';
 import { careerLine, passerRating } from '../../engine/stats';
@@ -194,6 +194,8 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const makeup = makeupOf(league, p);
   const habits = quirksOf(league, p);
   const form = formNote(league, p);
+  const fixed = fixedHabits(league, league.userTeamId, p);
+  const timeline = habitTimeline(league, league.userTeamId, p).slice(0, 5);
   const reps = repsOf(league, p);
   // Film reveals a veteran's makeup over time; for anyone else a scouting visit (a sit-down) is the way.
   const sitDownHint = !makeup.known && p.teamId !== league.userTeamId && !p.retired && league.scoutPoints > 0;
@@ -316,6 +318,16 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               ) : (
                 <QuirkPills notes={habits.notes} />
               )}
+              {(['bad', 'good', 'style'] as const).map((tone) => {
+                const left = fixed.filter((f) => f.tone === tone);
+                // Your own players hide nothing: no "seems" about it.
+                const heading = view.exact && tone === 'bad' ? 'Has fixed' : FIXED_HEADING[tone];
+                return left.length ? (
+                  <span key={tone} className="muted small">
+                    {heading}: {left.map((f) => f.label).join(', ')}
+                  </span>
+                ) : null;
+              })}
             </span>
             {form && (
               <span className="fact">
@@ -350,16 +362,22 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             </div>
           )}
 
-          {p.teamId === league.userTeamId && p.quirkLog && p.quirkLog.length > 0 && (
-            <p className="muted small">
-              Habits lately:{' '}
-              {p.quirkLog
-                .slice(-3)
-                .reverse()
-                .map((e) => `${e.change === 'gained' ? 'picked up' : 'shook off'} ${quirkInfo(e.id).label} (${e.season}${e.week ? `, week ${e.week}` : ' offseason'})`)
-                .join('; ')}
-              .
-            </p>
+          {timeline.length > 0 && (
+            <div className="muted small">
+              <span className="eyebrow">Habits over time</span>
+              <ul className="habit-timeline">
+                {timeline.map((e) => (
+                  <li key={`${e.id}-${e.season}-${e.week}-${e.change}`}>
+                    <span className="num">
+                      {e.season}
+                      {e.week ? `, wk ${e.week}` : ', offseason'}
+                    </span>
+                    {' · '}
+                    {habitChangeText(e)}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           {!view.exact && (

@@ -5,7 +5,7 @@ import { activeQuirks, eventQuirks, fillBag, formFor, formingQuirks, generateQui
 import { simulateGame } from './match/gameSim';
 import { teamScheme } from './coaching';
 import { Rng } from './rng';
-import { knowledge, QUIRK_KNOWLEDGE, quirkNotes, quirkWorth, trueQuirkWorth } from './scouting';
+import { fixedHabits, habitChangeText, habitTimeline, knowledge, QUIRK_KNOWLEDGE, quirkNotes, quirkWorth, scoutReport, trueQuirkWorth } from './scouting';
 import type { Player } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
@@ -31,19 +31,24 @@ describe('quirks', () => {
     expect(a.quirkBag).toEqual(fillBag(a));
   });
 
-  it('applies three at most, and a fourth only for a special player whose fourth is ingrained', () => {
+  it('applies three at most, and a fourth established one for a special player', () => {
     const p = player(2, 30, 3);
-    p.quirks = { muddyPockets: 3, staresDown: 3, gunslinger: 3 };
-    expect(activeQuirks(p)).toHaveLength(3);
-    // QB has three quirks so far: borrow a receiver's to test the cap.
-    p.quirks = { ...p.quirks, yacSlasher: 3 };
-    p.experience = 3;
-    if (!isSpecial(p)) expect(activeQuirks(p)).toHaveLength(3);
+    p.potential = 12;
+    p.quirks = { muddyPockets: 3, staresDown: 3, gunslinger: 3, safetyEyes: 2 };
+    if (!isSpecial(p)) {
+      expect(activeQuirks(p)).toHaveLength(3);
+      expect(formingQuirks(p)).toEqual(['safetyEyes']);
+    }
+    // A rare ceiling or a long career makes room for the fourth.
+    p.potential = 18;
+    expect(activeQuirks(p)).toHaveLength(4);
+    p.potential = 12;
     p.experience = 12;
     expect(activeQuirks(p)).toHaveLength(4);
-    p.quirks.yacSlasher = 2;
-    expect(activeQuirks(p)).toHaveLength(3);
-    expect(formingQuirks(p)).toEqual(['yacSlasher']);
+    // Never a fifth, and a habit only starting to show doesn't count.
+    p.quirks = { ...p.quirks, noHuddle: 2, bailsEarly: 1 };
+    expect(activeQuirks(p)).toHaveLength(4);
+    expect(formingQuirks(p).sort()).toEqual(['bailsEarly', 'noHuddle']);
   });
 
   it('change through the season and the offseason, and log what was gained and lost', () => {
@@ -148,6 +153,44 @@ describe('quirks', () => {
     expect(schemeQuirks(league, lb)).toEqual(expect.arrayContaining(['zoneHawk', 'spotDrop']));
     // Every scheme marble is one his position can draw.
     for (const p of Object.values(league.players).slice(0, 500)) for (const q of schemeQuirks(league, p)) expect(QUIRKS_FOR[p.position]).toContain(q);
+  });
+
+  it('linger in other teams\' eyes after he shakes them, until their scouts notice', () => {
+    const league = createLeague({ seed: 'quirk-linger' });
+    const me = league.userTeamId;
+    // A veteran on another team: well known from film, not an open book.
+    const vet = Object.values(league.players).find(
+      (p) => p.teamId !== null && p.teamId !== me && p.position === 'QB' && knowledge(league, me, p) < 0.9 && quirkNotes(league, me, { ...p, quirks: { staresDown: 2 } }).notes.some((n) => n.id === 'staresDown'),
+    )!;
+    vet.quirks = {};
+    vet.quirkLog = [
+      { id: 'staresDown', change: 'gained', season: league.season - 1, week: 4 },
+      { id: 'staresDown', change: 'lost', season: league.season, week: league.week },
+    ];
+    {
+      expect(quirkNotes(league, me, vet).notes.map((n) => n.id)).toContain('staresDown');
+      expect(fixedHabits(league, me, vet)).toEqual([]);
+      expect(habitTimeline(league, me, vet).map((e) => e.change)).toEqual(['gained']);
+      // Most of a season later, they've noticed.
+      league.week += 17;
+      expect(quirkNotes(league, me, vet).notes.map((n) => n.id)).not.toContain('staresDown');
+      expect(fixedHabits(league, me, vet).map((f) => f.id)).toEqual(['staresDown']);
+      expect(habitTimeline(league, me, vet).map((e) => e.change)).toEqual(['lost', 'gained']);
+      expect(scoutReport(league, me, vet).join(' ')).toMatch(/seems to have shaken Stares Down Hot Route/);
+    }
+    // His own team knows at once.
+    const team = vet.teamId!;
+    league.week -= 17;
+    expect(quirkNotes(league, team, vet).notes).toEqual([]);
+    expect(fixedHabits(league, team, vet).map((f) => f.id)).toEqual(['staresDown']);
+  });
+
+  it('describe a change in words that fit the habit', () => {
+    expect(habitChangeText({ label: 'Patient Presser', tone: 'good', change: 'gained' })).toBe('Added Patient Presser to his game');
+    expect(habitChangeText({ label: 'Short-Arm Catcher', tone: 'bad', change: 'gained' })).toBe('Picked up a bad habit: Short-Arm Catcher');
+    expect(habitChangeText({ label: 'Gunslinger', tone: 'style', change: 'lost' })).toBe('Moved away from Gunslinger');
+    expect(habitChangeText({ label: 'Loose Carriage', tone: 'bad', change: 'lost' }, false)).toBe('shaken Loose Carriage');
+    expect(habitChangeText({ label: 'Zone Hawk', tone: 'good', change: 'lost' }, false)).toBe('stopped showing Zone Hawk');
   });
 
   it('upgrade a v10 save with the same quirks a new league would roll', () => {
