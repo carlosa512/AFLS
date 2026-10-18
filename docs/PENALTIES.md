@@ -432,6 +432,31 @@ before crews), so 3a's fresh 22.98 (Phase 2: 22.84) put the long run back over 2
 borderline-checks work on its own branch; trimming fresh scoring toward the NFL's 22.5 would also bring
 the long run back.
 
+Looked at again from the logs (no new runs), it's partly noise and partly a real drift:
+
+- **Noise:** about half a point a run. The crews change gave 23.64 and then 24.15 on an engine that
+  plays the same on average (a paired replay put the crews at +0.05 ± 0.08); the readings since are 24.35,
+  24.23 and 24.54. So the true long-run level sits around 24.2–24.4, right on the band's edge, and the
+  check will flip from run to run.
+- **Drift:** the two red numbers share a cause. Aged leagues sack and pick the quarterback less than
+  fresh ones, and score more:
+
+  | | Fresh (`sim`) | Aged (`careers`) |
+  | --- | --- | --- |
+  | Points per team-game | 22.98 | 24.54 |
+  | Sacks per team-game | 2.32 | 2.12 |
+  | Sacks, #5 | 13.5 | 11.7 (floor 11.9) |
+  | Interceptions, #5 | 6.1 | 4.8 (floor 4.8) |
+
+- **Likely cause (not yet tested):** starter Awareness climbs from about 11.2 to 12.3 over sixteen
+  seasons (`careers` prints it as informational). It is most of a QB's `pocketPresence` (whether pressure
+  becomes a sack) and all of his `decisionMaking` (interceptions), but only a small share of any
+  defender's contest, so the mental game's growth with age helps offenses.
+
+Decision: leave the engine as it is here. The fix belongs to an attribute-scaling pass on its own
+branch (how each attribute ages and what it feeds, now that penalties, special teams and schemes read
+them too), listed under "Next" in `docs/GAME_DESIGN.md`.
+
 ## Sources
 
 Search extracts only; the pages themselves couldn't be fetched from the research sandbox.
