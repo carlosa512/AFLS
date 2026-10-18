@@ -40,7 +40,7 @@ import {
 } from '../../engine/staff';
 import type { League, ScoutFocus, Staff, StaffRole } from '../../engine/types';
 import { useNav } from '../App';
-import { Exact, GradesTable, Panel, Section, Sheet, TeamChip } from '../components';
+import { Exact, GradesTable, Panel, Section, Sheet, TeamChip, TeamPicker } from '../components';
 import { band, money, ordinal } from '../format';
 import { StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
@@ -87,7 +87,9 @@ function Term({ value, onChange, label }: { value: number; onChange: (n: number)
 
 function Member({ league, s, open, outlook }: { league: League; s: Staff; open: boolean; outlook?: ResignOutlook }) {
   const teamId = league.userTeamId;
-  const expiring = isExpiring(league, s);
+  // Another club's scout: the same card to read, without the deal notes and buttons (those are his club's).
+  const theirs = s.teamId !== league.userTeamId;
+  const expiring = !theirs && isExpiring(league, s);
   const [years, setYears] = useState(2);
   // Dismissing someone under contract costs real money: ask once more.
   const [confirming, setConfirming] = useState(false);
@@ -126,7 +128,7 @@ function Member({ league, s, open, outlook }: { league: League; s: Staff; open: 
           </span>
         </span>
       </div>
-      {expiring ? (
+      {theirs ? null : expiring ? (
         <>
           <p className="small staff-note">
             {outlook === 'budget'
@@ -194,7 +196,7 @@ function Member({ league, s, open, outlook }: { league: League; s: Staff; open: 
           )}
         </div>
       )}
-      {open && why && <p className="small muted staff-why">{why}</p>}
+      {!theirs && open && why && <p className="small muted staff-why">{why}</p>}
     </li>
   );
 }
@@ -371,6 +373,8 @@ export function StaffScreen({ league }: { league: League }) {
   const [focus, setFocus] = useState<ScoutFocus | 'any'>('any');
   const [showAll, setShowAll] = useState(false);
   const [status, setStatus] = useState('');
+  // Whose department the staff panel shows: yours, or any club's to look at.
+  const [viewTeam, setViewTeam] = useState(league.userTeamId);
   const candidatesRef = useRef<HTMLDivElement>(null);
   const candidatesHeading = useRef<HTMLHeadingElement>(null);
 
@@ -507,12 +511,15 @@ export function StaffScreen({ league }: { league: League }) {
         )}
       </Panel>
 
-      <Panel title="Your staff">
+      <Panel
+        title={viewTeam === teamId ? 'Your staff' : `${league.teams[viewTeam].city} ${league.teams[viewTeam].name} staff`}
+        action={<TeamPicker league={league} value={viewTeam} onChange={setViewTeam} />}
+      >
         <ul className="staff-grid">
-          {mine.map((s) => (
+          {(viewTeam === teamId ? mine : [...teamStaff(league, viewTeam)].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || staffValue(b) - staffValue(a))).map((s) => (
             <Member key={s.id} league={league} s={s} open={open} outlook={forecast.get(s.id)} />
           ))}
-          {vacancies.map((r, i) => (
+          {viewTeam === teamId && vacancies.map((r, i) => (
             <li key={`${r}-${i}`} className="staff-card vacant">
               <b className="staff-name">Open chair</b>
               <span className="muted small">

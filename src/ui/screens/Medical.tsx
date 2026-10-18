@@ -4,7 +4,7 @@
  * player's injury proneness stays a word (see ui/injuries.tsx).
  */
 import { useState } from 'react';
-import { injuryLabel, estimateText, SEVERITY_LABEL, weeksLeft } from '../../engine/injuries';
+import { injuryLabel, estimateText, weeksLeft } from '../../engine/injuries';
 import {
   conditionBonus,
   departmentFor,
@@ -35,9 +35,9 @@ import {
 } from '../../engine/medical';
 import { teamPlayers } from '../../engine/roster';
 import { staffWindowOpen } from '../../engine/staff';
-import type { InjuryRecord, League, Medic, MedicRole, Player } from '../../engine/types';
+import type { League, Medic, MedicRole, Player } from '../../engine/types';
 import { useNav } from '../App';
-import { Exact, GradesTable, Panel, PlayerAvatar, Section, Sheet, TeamChip } from '../components';
+import { Exact, GradesTable, Panel, PlayerAvatar, Section, Sheet, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
 import { money, ordinal, resultsSeason, verdict, type Verdict } from '../format';
 import { conditionTone, InjuryTag } from '../injuries';
 import { StaffNum, StaffSkill } from '../scouting';
@@ -81,7 +81,9 @@ function Term({ value, onChange, label }: { value: number; onChange: (n: number)
 
 function Member({ league, m, open }: { league: League; m: Medic; open: boolean }) {
   const teamId = league.userTeamId;
-  const expiring = isMedicExpiring(league, m);
+  // Another club's medic: the same card to read, without the deal notes and buttons (those are his club's).
+  const theirs = m.teamId !== league.userTeamId;
+  const expiring = !theirs && isMedicExpiring(league, m);
   const [years, setYears] = useState(2);
   const outlook = expiring ? medicResignForecast(league, teamId).get(m.id) : undefined;
   const releaseProblem = medicMoveProblem(league, teamId, m, 'release');
@@ -121,6 +123,7 @@ function Member({ league, m, open }: { league: League; m: Medic; open: boolean }
               : 'Deal up: he leaves when free agency opens. His chair is taken.'}
         </p>
       )}
+      {!theirs && (
       <div className="staff-actions">
         <button className="btn btn-sm" disabled={!!releaseProblem} title={releaseProblem ?? undefined} onClick={() => store.mutate((l) => releaseMedic(l, l.userTeamId, m.id))}>
           {expiring ? 'Let go' : `Dismiss${pay > 0 ? ` · ${money(pay)} severance` : ''}`}
@@ -134,7 +137,8 @@ function Member({ league, m, open }: { league: League; m: Medic; open: boolean }
           </>
         )}
       </div>
-      {open && (expiring ? extendProblem : releaseProblem) && <p className="small muted staff-why">{expiring ? extendProblem : releaseProblem}</p>}
+      )}
+      {!theirs && open && (expiring ? extendProblem : releaseProblem) && <p className="small muted staff-why">{expiring ? extendProblem : releaseProblem}</p>}
     </li>
   );
 }
@@ -337,32 +341,40 @@ function InjuryReport({ league }: { league: League }) {
   );
 }
 
+type TeamSort = 'team' | 'out' | 'ir' | 'season';
+type OutSort = 'name' | 'team' | 'injury' | 'outlook';
+
 /**
- * Injuries around the league. An injury, its estimate and a player's history are public, so every club's
- * hurt players show, with the doctor's estimate and never the real layoff (the longest are ranked by the
- * estimate too). Who's banged up, then everyone out now, then the season's log.
+ * Injuries around the league this season. An injury, its estimate and a player's history are public, so
+ * every club's hurt players show, with the doctor's estimate and never the real layoff (the outlook column
+ * sorts by the estimate too). Who's banged up by team, then everyone out now.
  */
 function LeagueInjuries({ league }: { league: League }) {
   const nav = useNav();
   const [only, setOnly] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [teamSort, onTeamSort] = useSort<TeamSort>({ key: 'out', desc: true });
+  const [outSort, onOutSort] = useSort<OutSort>({ key: 'outlook', desc: true });
   const season = resultsSeason(league);
   const players = Object.values(league.players).filter((p) => !p.retired);
   const out = players.filter((p) => p.teamId !== null && (p.injury || p.ir));
-  const log = players
-    .flatMap((p) => (p.injuries ?? []).filter((r) => r.season === season).map((r) => ({ p, r })))
-    .sort((a, b) => b.r.week - a.r.week);
-  const byTeam = league.teams
-    .map((t) => ({
+  const hurtThisSeason = (teamId: number) => players.reduce((n, p) => n + (p.teamId === teamId ? (p.injuries ?? []).filter((r) => r.season === season).length : 0), 0);
+  const byTeam = sortRows(
+    league.teams.map((t) => ({
       t,
       out: out.filter((p) => p.teamId === t.id && !(p.injury?.injected ?? false)).length,
       ir: out.filter((p) => p.teamId === t.id && p.ir).length,
-      season: log.filter((x) => x.p.teamId === t.id).length,
-    }))
-    .sort((a, b) => b.out - a.out || b.season - a.season);
-  const shown = out
-    .filter((p) => only === null || p.teamId === only)
-    .sort((a, b) => (b.injury?.estimate[1] ?? 0) - (a.injury?.estimate[1] ?? 0));
+      season: hurtThisSeason(t.id),
+    })),
+    teamSort,
+    (r, key) => (key === 'team' ? r.t.name : r[key]),
+  );
+  const shown = sortRows(
+    out.filter((p) => only === null || p.teamId === only),
+    outSort,
+    (p, key) =>
+      key === 'name' ? `${p.lastName} ${p.firstName}` : key === 'team' ? league.teams[p.teamId!].abbrev : key === 'injury' ? (p.injury ? injuryLabel(p.injury.type) : '') : (p.injury?.estimate[1] ?? 0),
+  );
   const LIMIT = 15;
   const name = (p: Player) => (
     <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
@@ -372,7 +384,6 @@ function LeagueInjuries({ league }: { league: League }) {
       </span>
     </button>
   );
-  const when = (r: InjuryRecord) => (r.week ? `Week ${r.week}` : 'Offseason');
   return (
     <>
       <Panel title="Who's banged up">
@@ -383,10 +394,10 @@ function LeagueInjuries({ league }: { league: League }) {
           <table>
             <thead>
               <tr>
-                <th className="sticky-col">Team</th>
-                <th className="num">Out now</th>
-                <th className="num">On IR</th>
-                <th className="num">Season</th>
+                <SortTh label="Team" k="team" sort={teamSort} onSort={onTeamSort} desc={false} className="sticky-col" />
+                <SortTh label="Out now" k="out" sort={teamSort} onSort={onTeamSort} className="num" />
+                <SortTh label="On IR" k="ir" sort={teamSort} onSort={onTeamSort} className="num" />
+                <SortTh label="Season" k="season" sort={teamSort} onSort={onTeamSort} className="num" />
               </tr>
             </thead>
             <tbody>
@@ -427,10 +438,10 @@ function LeagueInjuries({ league }: { league: League }) {
             <table>
               <thead>
                 <tr>
-                  <th className="sticky-col">Player</th>
-                  {only === null && <th>Team</th>}
-                  <th>Injury</th>
-                  <th>Outlook</th>
+                  <SortTh label="Player" k="name" sort={outSort} onSort={onOutSort} desc={false} className="sticky-col" />
+                  {only === null && <SortTh label="Team" k="team" sort={outSort} onSort={onOutSort} desc={false} />}
+                  <SortTh label="Injury" k="injury" sort={outSort} onSort={onOutSort} desc={false} />
+                  <SortTh label="Outlook" k="outlook" sort={outSort} onSort={onOutSort} />
                 </tr>
               </thead>
               <tbody>
@@ -451,42 +462,9 @@ function LeagueInjuries({ league }: { league: League }) {
         )}
         {shown.length > LIMIT && (
           <button className="btn btn-sm btn-ghost" style={{ marginTop: 10 }} onClick={() => setShowAll(!showAll)}>
-            {showAll ? `Show the longest ${LIMIT}` : `Show all ${shown.length}`}
+            {showAll ? `Show the first ${LIMIT}` : `Show all ${shown.length}`}
           </button>
         )}
-      </Panel>
-
-      <Panel title={`${season} injury log`}>
-        <details className="more">
-          <summary>
-            {log.length} injur{log.length === 1 ? 'y' : 'ies'} this season, newest first
-          </summary>
-          <div className="table-scroll">
-            <table className="injury-history">
-              <thead>
-                <tr>
-                  <th className="sticky-col">Player</th>
-                  <th>When</th>
-                  <th>Injury</th>
-                  <th className="num">Out</th>
-                </tr>
-              </thead>
-              <tbody>
-                {log.slice(0, 200).map(({ p, r }, i) => (
-                  <tr key={`${p.id}-${i}`}>
-                    <td className="sticky-col">{name(p)}</td>
-                    <td className="num">{when(r)}</td>
-                    <td>
-                      {injuryLabel(r.type)} <span className="muted small">· {SEVERITY_LABEL[r.severity]}</span>
-                    </td>
-                    <td className="num">{r.weeks >= 30 ? 'season+' : `${r.weeks} wk`}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {log.length > 200 && <p className="muted small">The 200 most recent are shown.</p>}
-        </details>
       </Panel>
     </>
   );
@@ -517,6 +495,8 @@ function Department({ league }: { league: League }) {
   const mine = [...teamMedics(league, teamId)].sort((a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role) || medicValue(b) - medicValue(a));
   const [role, setRole] = useState<MedicRole>('physio');
   const [showAll, setShowAll] = useState(false);
+  // Whose department the staff panel shows: yours, or any club's to look at.
+  const [viewTeam, setViewTeam] = useState(league.userTeamId);
   const dept = departmentFor(league, teamId);
   const e = effects(dept);
   const grades = medicalGrades(league);
@@ -605,12 +585,15 @@ function Department({ league }: { league: League }) {
 
       <InjuryReport league={league} />
 
-      <Panel title="Your staff">
+      <Panel
+        title={viewTeam === teamId ? 'Your staff' : `${league.teams[viewTeam].city} ${league.teams[viewTeam].name} staff`}
+        action={<TeamPicker league={league} value={viewTeam} onChange={setViewTeam} />}
+      >
         <ul className="staff-grid">
-          {mine.map((m) => (
+          {(viewTeam === teamId ? mine : [...teamMedics(league, viewTeam)].sort((a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role) || medicValue(b) - medicValue(a))).map((m) => (
             <Member key={m.id} league={league} m={m} open={open} />
           ))}
-          {vacancies.map((r, i) => (
+          {viewTeam === teamId && vacancies.map((r, i) => (
             <li key={`${r}-${i}`} className="staff-card vacant">
               <b className="staff-name">Open chair</b>
               <span className="muted small">An empty {MEDIC_ROLE_LABEL[r].toLowerCase()} chair works like a replacement-level clinician (6).</span>
