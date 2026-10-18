@@ -3,7 +3,7 @@ import { createLeague, generatePlayer } from './generate';
 import { migrateLeague } from './migrate';
 import { activeQuirks, fillBag, formingQuirks, generateQuirks, isSpecial, QUIRK_IDS, QUIRKS, QUIRKS_FOR, quirkOffseason, quirkWeek } from './quirks';
 import { Rng } from './rng';
-import { knowledge, QUIRK_KNOWLEDGE, quirkNotes } from './scouting';
+import { knowledge, QUIRK_KNOWLEDGE, quirkNotes, quirkWorth, trueQuirkWorth } from './scouting';
 import type { Player } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
@@ -73,6 +73,27 @@ describe('quirks', () => {
     expect(knowledge(league, me, unseen)).toBeLessThan(QUIRK_KNOWLEDGE);
     expect(quirkNotes(league, me, unseen)).toEqual({ known: false, notes: [] });
     for (const p of Object.values(league.players).slice(0, 400)) for (const n of quirkNotes(league, me, p).notes) expect(n.label).not.toMatch(/\d/);
+  });
+
+  it('are worth a little to AI front offices, and only the habits their scouts have seen', () => {
+    const league = createLeague({ seed: 'quirk-worth' });
+    const me = league.userTeamId;
+    const mine = Object.values(league.players).find((p) => p.teamId === me)!;
+    mine.quirks = { muddyPockets: 2, safetyEyes: 2 };
+    mine.position = 'QB';
+    expect(quirkWorth(league, me, mine)).toBeCloseTo(0.6);
+    mine.quirks = { staresDown: 3, gunslinger: 3, bailsEarly: 1 };
+    // A minus, a style (worth nothing) and a minus starting to show at half.
+    expect(quirkWorth(league, me, mine)).toBeCloseTo(-0.45);
+    expect(trueQuirkWorth(mine)).toBeCloseTo(-0.45);
+    // Never more than a fraction of a point either way.
+    mine.quirks = { staresDown: 3, bailsEarly: 3, patsTheBall: 3, muddyPockets: 1, safetyEyes: 1 };
+    expect(quirkWorth(league, me, mine)).toBeGreaterThanOrEqual(-0.9);
+    // A prospect nobody has scouted: his habits count for nothing yet.
+    const unseen = { ...player(4, 21, 0), scouting: { grade: 6, ceiling: 8 }, quirks: { staresDown: 3 } };
+    league.players[unseen.id] = unseen;
+    expect(quirkWorth(league, me, unseen)).toBe(0);
+    expect(trueQuirkWorth(unseen)).toBeLessThan(0);
   });
 
   it('upgrade a v10 save with the same quirks a new league would roll', () => {

@@ -11,7 +11,7 @@ import { recordRatings } from '../development';
 import { generatePlayer } from '../generate';
 import { clamp, type Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
-import { characterRead, perceive, projectedCeiling, viewCache } from '../scouting';
+import { characterRead, perceive, projectedCeiling, quirkWorth, viewCache } from '../scouting';
 import type { League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
 import { contenderScore, demand, freeAgents, offerValue, rookieReserve, rosterLimit, ROSTER_MAX, signPlayer, type Offer } from './negotiation';
@@ -150,7 +150,7 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const young = !!view && projectedCeiling(ovr, view.potMid, characterRead(league, team.id, p)?.workEthic) >= 12;
     const keeper = (ovr >= starterBar - 0.5 || young || mine.length < KEEP_MIN[p.position]) && p.age - ageShift(p.position) <= 33;
     if (!keeper) continue;
-    const offer = aiOffer(league, team, p, rng, needGain(depth, p));
+    const offer = aiOffer(league, team, p, rng, needGain(depth, p, ovr + quirkWorth(league, team.id, p)));
     offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
     const d = demand(league, p, team.id);
     // Some players want to see what the market will pay, however loyal the club.
@@ -233,7 +233,8 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
     let best: { team: Team; offer: Offer; value: number } | null = null;
     for (const team of teams) {
       if ((room.get(team.id) ?? 0) <= 0 || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
-      const gain = needGain(depth.get(team.id)!, p, read(team.id, p).ovr);
+      // Bid on what its own scouts see: his game, plus or minus the habits they've caught on film.
+      const gain = needGain(depth.get(team.id)!, p, read(team.id, p).ovr + quirkWorth(league, team.id, p));
       if (gain < minGain.get(team.id)!) continue;
       const offer = aiOffer(league, team, p, rng, gain);
       // Year-one charge must fit; bonus spreads, so the hit is below the APY for bigger deals.
@@ -266,7 +267,7 @@ function keepScore(league: League, p: Player, read = viewCache(league)): number 
   const pre = releasePreview(league, p);
   const sunk = pre.thisYear + pre.nextYear > Math.max(0, pre.savings) ? 1.5 : 0;
   const draftee = p.draft?.season === league.season && p.draft.round <= 3 ? 2 : 0;
-  return playerOvr(p) + youth + sunk + draftee;
+  return playerOvr(p) + quirkWorth(league, p.teamId!, p) + youth + sunk + draftee;
 }
 
 /** Cut down to 53, never below the positional minimums. */
@@ -298,7 +299,7 @@ function signMinimum(league: League, team: Team, rng: Rng, position?: Position):
   // The best available as this front office sees him.
   let pick = freeAgents(league)
     .filter((p) => !position || p.position === position)
-    .map((p) => ({ p, ovr: perceive(league, team.id, p).ovr }))
+    .map((p) => ({ p, ovr: perceive(league, team.id, p).ovr + quirkWorth(league, team.id, p) }))
     .sort((a, b) => b.ovr - a.ovr)[0]?.p;
   if (!pick && position) pick = streetFreeAgent(league, position, rng);
   if (!pick) return false;

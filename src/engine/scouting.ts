@@ -328,6 +328,22 @@ export function characterNotes(league: League, teamId: number, p: Player): Chara
 
 // ───────── quirks ─────────
 
+/**
+ * What habits are worth to a front office, in overall points: a plus habit adds a little, a bad one
+ * costs a little, a style trades one thing for another and counts for nothing. Early word counts
+ * half. Capped, so a player is never bought or cut for his habits alone.
+ */
+const QUIRK_WORTH: Record<QuirkTone, number> = { good: 0.3, bad: -0.3, style: 0 };
+const QUIRK_WORTH_CAP = 0.9;
+const worthOf = (habits: { tone: QuirkTone; forming: boolean }[]) => clamp(habits.reduce((a, h) => a + QUIRK_WORTH[h.tone] * (h.forming ? 0.5 : 1), 0), -QUIRK_WORTH_CAP, QUIRK_WORTH_CAP);
+
+/** The habits `teamId` has spotted, as overall points (the AI's read: unseen habits count for nothing). */
+export const quirkWorth = (league: League, teamId: number, p: Player): number => worthOf(quirkNotes(league, teamId, p).notes);
+
+/** The same from every habit he really has (analysis and tests, never an AI decision about another club's player). */
+export const trueQuirkWorth = (p: Player): number =>
+  worthOf([...activeQuirks(p).map((id) => ({ tone: QUIRKS[id].tone, forming: false })), ...formingQuirks(p).map((id) => ({ tone: QUIRKS[id].tone, forming: true }))]);
+
 /** Habits show on film, so they come out sooner than makeup: below this, a team can't name any. */
 export const QUIRK_KNOWLEDGE = 0.35;
 /** A habit only starting to show takes a closer look before anyone mentions it. */

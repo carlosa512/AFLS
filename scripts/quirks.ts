@@ -92,7 +92,9 @@ function churn() {
   // Every quirk shows up somewhere.
   const counts = Object.fromEntries(QUIRK_IDS.map((q) => [q, 0])) as Record<QuirkId, number>;
   for (const p of rostered()) for (const q of activeQuirks(p)) counts[q]++;
-  const missing = QUIRK_IDS.filter((q) => !counts[q]);
+  // Kickers and punters are 32 a side: one of their quirks can sit at zero by luck alone.
+  const eligible = (q: QuirkId) => rostered().filter((p) => (QUIRKS[q].positions as readonly string[]).includes(p.position)).length;
+  const missing = QUIRK_IDS.filter((q) => !counts[q] && eligible(q) >= 100);
   if (missing.length) failed = true;
   console.log('\nCarried at the end: ' + QUIRK_IDS.map((q) => `${q} ${counts[q]}`).join(', ') + (missing.length ? `\n▼ Nobody carries: ${missing.join(', ')}` : ''));
 }
@@ -115,6 +117,11 @@ function effectAudit() {
   const team = (r: GameResult, side: 0 | 1) => (side === 0 ? r.home : r.away);
   const st = (r: GameResult, side: 0 | 1, key: StatKey) => ps(r, side, key, league, teams);
   const other = (s: 0 | 1) => (1 - s) as 0 | 1;
+  const qbStat = (r: GameResult, side: 0 | 1, key: StatKey) => {
+    let n = 0;
+    for (const [id, line] of Object.entries(r.playerStats)) if (r.playerTeams[Number(id)] === teams[side] && league.players[Number(id)]?.position === 'QB') n += line[key] ?? 0;
+    return n;
+  };
   const posStat = (r: GameResult, side: 0 | 1, key: StatKey) => {
     let n = 0;
     for (const [id, line] of Object.entries(r.playerStats)) {
@@ -141,6 +148,10 @@ function effectAudit() {
     'opp kr/g': { label: 'opp kr/g', take: (r, s) => [st(r, other(s), 'krAtt'), 1] },
     'punt avg': { label: 'punt avg', take: (r, s) => [st(r, s, 'puntYds'), st(r, s, 'punts')] },
     'ret yds/punt': { label: 'ret yds/punt', take: (r, s) => [st(r, other(s), 'prYds'), st(r, s, 'punts')] },
+    'blocked%': { label: 'blocked%', take: (r, s) => [st(r, s, 'puntsBlocked') * 100, st(r, s, 'punts') + st(r, s, 'puntsBlocked')] },
+    // Quarterback runs (designed runs and scrambles): how often, and how far.
+    'QB runs/g': { label: 'QB runs/g', take: (r, s) => [qbStat(r, s, 'rushAtt'), 1] },
+    'QB ypc': { label: 'QB ypc', take: (r, s) => [qbStat(r, s, 'rushYds'), qbStat(r, s, 'rushAtt')] },
   };
   /** Each quirk's stat and which way it should move. Defensive quirks move the other side's offense, so league totals carry them either way. */
   const EXPECT: Record<QuirkId, [string, 1 | -1]> = {
@@ -152,6 +163,20 @@ function effectAudit() {
     zoneHawk: ['int%', 1], manDeficit: ['RB+TE yds/tgt', 1], gapShooter: ['stuff%', 1],
     fluidHips: ['yds/att', -1], bitesOnDoubleMoves: ['yds/rec', 1], playsTheBall: ['int%', 1],
     iceWater: ['fg%', 1], boomerLeg: ['opp kr/g', -1], coffinCorner: ['ret yds/punt', -1], outkicksCoverage: ['ret yds/punt', 1],
+    // Step 2.
+    safetyEyes: ['yds/att', 1], noHuddle: ['yds/att', 1], bailsEarly: ['QB runs/g', 1], patsTheBall: ['sack%', 1], hardCount: ['penalties', 1],
+    patientPresser: ['yds/carry', 1], blitzPickup: ['sack%', -1], softHands: ['RB+TE yds/tgt', 1], highKnee: ['fumbles%', 1],
+    jumpCutter: ['stuff%', 1], bouncesExternal: ['stuff%', 1], shortArm: ['cmp%', -1], contactAverse: ['yds/carry', -1],
+    lateHands: ['cmp%', 1], stemsDB: ['yds/att', 1], getsJammed: ['yds/att', -1], bodyCatcher: ['cmp%', -1], runsEastWest: ['yds/rec', -1],
+    secondLevel: ['yds/carry', 1], finishedToDirt: ['yds/carry', 1], heavyPunch: ['sack%', -1], stuntCommunicator: ['pressure%', -1],
+    waistBender: ['pressure%', 1], heavyFeet: ['pressure%', 1], lungesAtStunts: ['pressure%', 1], pullsSoft: ['yds/carry', -1], twoTapSet: ['pressure%', -1],
+    planAdjuster: ['pressure%', 1], unblockable: ['yds/carry', -1], highMotor: ['yds/carry', -1], battenDown: ['yds/carry', -1],
+    losesContainment: ['QB ypc', 1], armTackler: ['yds/carry', 1], gassed: ['pressure%', -1], jumpHappy: ['penalties', 1], bendsArc: ['sack%', 1],
+    diagnoses: ['yds/carry', -1], scraper: ['yds/carry', -1], thumper: ['yds/carry', -1], greenDog: ['pressure%', 1],
+    stuckOnBlocks: ['yds/carry', 1], slowFlow: ['yds/carry', 1], misreadsKeys: ['yds/att', 1], spotDrop: ['cmp%', -1],
+    baitsQB: ['int%', 1], physicalJammer: ['yds/att', -1], alleyCrusher: ['yds/carry', -1], ballStripper: ['fumbles%', 1],
+    handsy: ['penalties', 1], businessDecision: ['yds/rec', 1], peeks: ['yds/att', 1], catchPoint: ['cmp%', 1], offMan: ['yds/rec', -1],
+    quickRelease: ['blocked%', -1], slingFoot: ['blocked%', 1], highArc: ['ret yds/punt', -1],
   };
 
   const make = (q: QuirkId | null) => {

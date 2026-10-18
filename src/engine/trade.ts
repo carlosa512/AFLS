@@ -19,7 +19,7 @@ import { freeJersey } from './generate';
 import { aiCutdown } from './offseason/ai';
 import { contenderScore, resetContenderCache, rosterLimit } from './offseason/negotiation';
 import { playerOvr, STARTERS } from './positions';
-import { characterRead, perceive, projectedCeiling } from './scouting';
+import { characterRead, perceive, projectedCeiling, quirkWorth, trueQuirkWorth } from './scouting';
 import { clamp, type Rng } from './rng';
 import { syncDepthChart, teamPlayers, teamRatings } from './roster';
 import { computeRecords, winPct } from './season/standings';
@@ -134,8 +134,11 @@ export function playerValue(league: League, player: Player, team: Team, opts: { 
   // A young player's upside depends on his work ethic: the truth for analysis, the club's read otherwise.
   const young = player.age <= 25;
   const readWork = young && !opts.truth ? characterRead(league, team.id, player)?.workEthic : undefined;
-  const truth = effective(player.age, playerOvr(player), young ? projectedCeiling(playerOvr(player), player.potential, player.traits.workEthic) : player.potential);
-  const misread = clamp(trust * (effective(player.age, view.ovr, young ? projectedCeiling(view.ovr, view.potMid, readWork) : view.potMid) - truth), -TRADE_BAND, TRADE_BAND);
+  // Habits count like a few tenths of overall: the real ones in the truth, the ones its scouts have seen in the read.
+  const habits = trueQuirkWorth(player);
+  const seenHabits = opts.truth ? habits : quirkWorth(league, team.id, player);
+  const truth = effective(player.age, playerOvr(player), young ? projectedCeiling(playerOvr(player), player.potential, player.traits.workEthic) : player.potential) + habits;
+  const misread = clamp(trust * (effective(player.age, view.ovr, young ? projectedCeiling(view.ovr, view.potMid, readWork) : view.potMid) + seenHabits - truth), -TRADE_BAND, TRADE_BAND);
   // His place on their depth chart is judged the same bounded way.
   const ovr = playerOvr(player) + clamp(trust * (view.ovr - playerOvr(player)), -TRADE_BAND, TRADE_BAND);
   let base = 3000 * Math.exp((truth + misread - 18.5) * 0.55) * POSITION_TRADE[player.position] * ageMultiplier(player);

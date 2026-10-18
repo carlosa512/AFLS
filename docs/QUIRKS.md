@@ -1,7 +1,7 @@
 # Quirks — design sketch
 
-Status: **step 1 built** (§7): the bag, grip, 25 quirks (two or three per position group), the engine
-hooks, scouting and the player card. Goal: FM-style player habits ("Stares down his first read",
+Status: **steps 1 and 2 built** (§7): the bag, grip, 81 quirks (every Tier A quirk), the engine
+hooks, scouting, the player card and AI front offices valuing what their scouts see. Goal: FM-style player habits ("Stares down his first read",
 "Ice-water veins") that make players feel alive. A player can carry several, and gains and loses
 them across a career and within a season, driven by a seeded **marble bag**.
 
@@ -91,8 +91,9 @@ Refilled each league year. Counts are per player, with a handful of each:
 - Targets are **per quirk**, so they hold however many quirks a position has (`npm run quirks`
   checks them): each quirk carried by 6–12% of the players who can draw it, gained by 0.8–1.8% and
   lost by 0.5–1.5% of them each season. With the full list (twelve a position) that puts about 60%
-  of players on at least one quirk. With step 1's two or three a position, it's about 20%.
-- Tuned numbers (`quirks.ts`): blanks per quirk 40 / 64 / 100 (age ≤24 / 25–29 / 30+); fix marbles
+  of players on at least one quirk (about 50–55% in `npm run quirks` today).
+- Tuned numbers (`quirks.ts`): blanks 120 / 192 / 300 (age ≤24 / 25–29 / 30+), a fixed count so
+  a position with more quirks doesn't dilute each one; fix marbles
   11 against a bad habit (±1 for the position coach, +1 for a hard worker), 8 against a good or
   style one. Fix marbles far outnumber a quirk's own 2–3, so a habit lasts a few seasons, not a
   career, unless it gets ingrained.
@@ -260,8 +261,10 @@ weather/injuries exist (each of those systems then unlocks its quirks for free).
   lower than makeup's 0.5. A veteran's quirks are mostly known; a prospect's need tape or visits.
 - Grip 1 shows as "early word" (dashed pill); a lost quirk lingers on the card as "seems to have
   fixed…" until your scouts notice.
-- AI front offices value quirks through their own read (a `quirkRead`, like `characterRead`),
-  with small weights, so teams disagree.
+- AI front offices value the habits **their own** scouts have spotted (`quirkWorth` in
+  `scouting.ts`): +0.3 overall for a good one, −0.3 for a bad one, 0 for a style, half for early
+  word, capped at ±0.9. Draft boards, free-agent bids, re-signings, cuts and trade values all read
+  it, so teams disagree, and a habit nobody has seen on film counts for nothing.
 
 ## 6. Where it lands in the code
 
@@ -291,9 +294,28 @@ weather/injuries exist (each of those systems then unlocks its quirks for free).
    - CB/S: Fluid Hip-Turn, Bites on Double-Moves, Plays the Ball
    - K: Ice-Water Veins, Boomer Leg · P: Coffin-Corner Specialist, Out-Kicks His Coverage
 
-   Not yet: scheme and last-season marbles in the bag, AI front offices valuing quirks, the
-   "seems to have fixed…" note for a lost quirk, the draft-board column.
-2. **The rest of Tier A**, a position at a time, re-running `sim`/`audit` each time.
+2. ✅ **The rest of Tier A** (56 more, 81 in all), plus **AI front offices valuing quirks**:
+   - QB: Manipulates Safety Eyes, Thrives in No-Huddle, Bails Early, Pat-The-Rock, Hard-Count Fiend
+   - RB: Patient Presser, Elite Blitz Pickup, Soft-Hands Outlet, High-Knee Stride, Jump-Cutter,
+     Bounces External, Short-Arm Catcher, Contact Averse
+   - WR/TE: Late-Hands Specialist, Stems DB In-Break, Gets Jammed at Line, Body-Catcher, Runs East-West
+   - OL: Second-Level Hunter, Finished to the Dirt, Heavy Snapping Punch, Stunt Communicator
+     (reworked: against the blitz), Waist-Bender, Heavy Feet, Lunges at Stunts (against the blitz),
+     Pulls Soft, Two-Tapped Set
+   - DT/EDGE: Pass-Rush Plan Adjuster, Unblockable Disruption, High-Motor Chaser, Batten-Down the
+     Hatches, Loses Edge Containment, Arm Tackler in Traffic, Gassed in High-Tempo (tires after five
+     snaps in a drive or in the hurry-up), Jump-Happy (rarer; hotheads draw more), Bends the Arc
+   - LB: Diagnoses Before Snap, Sideline-to-Sideline Scraper, Thumping Tackler, Green-Dog Blitz
+     Specialist, Stuck on Blocks, Slow Flow, Misreads Keys, Spot-Drop Coverer
+   - CB/S: Baits the Quarterback, Physical Jammer, Alley Crusher, Ball-Stripper, Handsy in the Route
+     (hotheads draw more), Tackling Business Decision, Peeks in the Backfield, Struggles at the
+     Catch Point, Off-Man Specialist
+   - P: Quick-Release Operation, Sling-Foot Starter, High-Arc Boot (blocked punts are now a stat)
+
+   Not yet: scheme and last-season marbles in the bag, the "seems to have fixed…" note for a lost
+   quirk, the draft-board column, Long-Range Gambler for kickers. The 4th slot is possible now but
+   very rare (an ingrained fourth quirk); tuning it is part of the fine-tuning pass. Sees Ghosts and
+   Yips wait for step 3.
 3. **States** (Rattled, Yips slump) and **event marbles**.
 4. **Tier B engine events** (batted passes, strip-sacks, OPI, sideline catches, decoys, WR run blocking).
 5. **Tier C** after weather and injury systems exist.

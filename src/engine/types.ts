@@ -131,6 +131,8 @@ export const STAT_KEYS = [
   'prAtt',
   'prYds',
   'prTd',
+  /** Punter whose punt was blocked. */
+  'puntsBlocked',
 ] as const;
 export type StatKey = (typeof STAT_KEYS)[number];
 export type StatLine = Partial<Record<StatKey, number>>;
