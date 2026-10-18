@@ -333,7 +333,7 @@ Borderline on `main` too. One part may be real: accepted holding now wipes out t
 defense keeps a stuffed run and takes the flag on a long one, as in the NFL), which are the runs
 Thumper shortens, so its measured effect shrinks a little. Pat-The-Rock passed this time (z 2.8).
 
-**2. `npm run weather`: rain's kicking ratio 1.000 (shown 1.002 in the pass column), target 0.95–1.0.**
+**2. `npm run weather`: rain's kicking ratio 1.000, target 0.95–1.0.**
 Field goals made in rain against calm-day rates from the same distances:
 
 | Leagues | `main` | Phase 1 |
@@ -354,8 +354,8 @@ Points: the known long-run creep (23.64 on `main` before crews, 24.15 with crews
 4.8 (4.8–6.8), against 7.1 and 5.1 on `main`. Fresh leagues (`npm run sim -- 10`) went the other way
 (#1 8.0 → 9.2, inside 7–10.5), and interceptions per team-game went 0.79 → 0.73 (band 0.65–0.85).
 Flags now wipe out 3.3% of interceptions (a defense's offside gives the offense a free play, 76 of
-123 in a 2,176-game replay; defensive holding the other 46), as they do in the NFL; the rest of the
-drop is the leagues taking different paths.
+123 in a 2,176-game replay; defensive holding 46; the last one was a defense taking holding over its own
+pick, fixed since), as they do in the NFL; the rest of the drop is the leagues taking different paths.
 
 ## Sources
 
