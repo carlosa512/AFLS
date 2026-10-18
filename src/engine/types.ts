@@ -509,6 +509,8 @@ export interface TeamGameStats {
   turnovers: number;
   penalties: number;
   penaltyYds: number;
+  /** Penalties by kind, what the officiating crew pages read (games before v15 have none). */
+  flags?: Partial<Record<Foul, number>>;
   thirdDownAtt: number;
   thirdDownConv: number;
   fourthDownAtt: number;
@@ -517,6 +519,25 @@ export interface TeamGameStats {
   redZoneTd: number;
   /** Seconds of possession. */
   top: number;
+}
+
+/** The fouls the engine calls (see `FOULS` in `officials.ts`). */
+export type Foul = 'falseStart' | 'offside' | 'holding' | 'passInterference' | 'defHolding';
+
+/**
+ * An officiating crew, known by its head referee (see `officials.ts`). Its tendencies are 1–20 like
+ * ratings and just as hidden: screens show only what the crew calls, never these numbers.
+ */
+export interface Crew {
+  id: number;
+  firstName: string;
+  lastName: string;
+  /** How many flags of every kind it throws. */
+  flagVolume: number;
+  /** How often it calls offensive holding. */
+  holding: number;
+  /** How often it calls pass interference and defensive holding. */
+  coverage: number;
 }
 
 /** What the replay viewer animates for a logged play. */
@@ -574,6 +595,8 @@ export interface GameResult {
   form?: Record<number, { shaken?: true; slump?: 'start' | 'end'; clutch?: true }>;
   /** The conditions it was played in (games before v14 have none). */
   weather?: Weather;
+  /** The officiating crew that worked it (games before v15 have none). */
+  crewId?: number;
 }
 
 /** An injury as a box score keeps it: who, when, what, and the estimate as it was made then. */
@@ -666,4 +689,6 @@ export interface League {
   /** Every member of a medical staff, employed or on the market (see `medical.ts`). */
   medics: Record<number, Medic>;
   nextMedicId: number;
+  /** The league's officiating crews, by id (see `officials.ts`). */
+  crews: Crew[];
 }

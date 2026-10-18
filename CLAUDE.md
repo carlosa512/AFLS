@@ -52,6 +52,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   roofs), that shown rain chances come true as often as they say, that `TYPICAL` in `weather.ts` is still
   the season's average, and that each condition, replayed on the same games, cuts passing and kicking by
   its research share. Run it after changing `weather.ts`, `data/stadiums.ts` or the match engine.
+- `npm run crews` — play four leagues for a season and check the officiating crews: league flags per
+  game within 5% of a league-average crew's, the busiest crew 1.3–1.7× the quietest, the weekly
+  rotation, and thirty years of offseason drift. Run it after changing `officials.ts` or the penalty
+  rolls in `match/gameSim.ts`.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -93,6 +97,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     odds), severity and forecasts;
     `data/stadiums.ts` roofs, altitude, climates, regions and stadium changes by season. Spec and what's
     built so far: `docs/WEATHER.md`
+  - `officials.ts` officiating crews: hidden tendencies (generated centred, nudged each offseason), the
+    weekly rotation (`crewAssignments`, a pure function like weather; the result keeps `crewId`), the
+    multipliers on the engine's penalty rolls (`crewCalls`), and crew stats read from the box scores'
+    penalties by kind (`crewTable`). Screens never show the tendencies. Spec: `docs/OFFICIALS.md`
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
