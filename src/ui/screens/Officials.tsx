@@ -27,6 +27,7 @@ const COLUMNS: [CrewStat, string, string][] = [
   ['flags', 'Flags/g', 'Every accepted penalty, both teams'],
   ['holding', 'Holding/g', 'Offensive holding'],
   ['coverage', 'Coverage/g', 'Pass interference and defensive holding'],
+  ['roughing', 'Roughing/g', 'Roughing the passer'],
 ];
 
 /**
@@ -60,7 +61,8 @@ export function Officials({ league }: { league: League }) {
     >
       <p className="muted" style={{ marginTop: 0 }}>
         Each game gets one of {rows.length} crews. Some throw flags all day, some let the linemen hold. You can't see their habits, only what they call.
-        Holding is offensive holding; coverage is pass interference and defensive holding. Ranks show once a crew has worked {RANK_MIN_GAMES} games.
+        Holding is offensive holding; coverage is pass interference and defensive holding; roughing is roughing the passer. Ranks show once a crew has worked{' '}
+        {RANK_MIN_GAMES} games.
       </p>
       {seasons.length === 0 ? (
         <p className="muted" style={{ margin: 0 }}>
@@ -116,7 +118,10 @@ export function GameOfficials({ league, game, away, home }: { league: League; ga
   if (!r || !crew || !r.home.flags || !r.away.flags) return null;
   const line = crewSeason(league, game.season).get(crew.id);
   const avg = (n: number) => (line ? (n / line.games).toFixed(1) : '–');
-  const rows = FOUL_KINDS.map((f) => [FOULS[f].label, r.away.flags![f] ?? 0, r.home.flags![f] ?? 0, avg(line?.fouls[f] ?? 0)] as const);
+  // The fouls this game saw, or that this crew calls: a row for every kind in the book would bury them.
+  const rows = FOUL_KINDS.filter((f) => (r.away.flags![f] ?? 0) + (r.home.flags![f] ?? 0) > 0 || (line?.fouls[f] ?? 0) > 0).map(
+    (f) => [FOULS[f].label, r.away.flags![f] ?? 0, r.home.flags![f] ?? 0, avg(line?.fouls[f] ?? 0)] as const,
+  );
   const total = line ? FOUL_KINDS.reduce((s, f) => s + line.fouls[f], 0) : 0;
   const count = (fouls?: Partial<Record<Foul, number>>) => Object.values(fouls ?? {}).reduce((s, n) => s + n, 0);
   return (

@@ -14,8 +14,9 @@ import { clamp, Rng } from './rng';
 import type { Crew, Foul, Game, League } from './types';
 
 export const CREW_COUNT = 17;
-type Tendency = 'flagVolume' | 'holding' | 'coverage';
-const TENDENCIES: readonly Tendency[] = ['flagVolume', 'holding', 'coverage'];
+type Tendency = 'flagVolume' | 'holding' | 'coverage' | 'qbProtection';
+/** In the order they're rolled: a tendency added later goes last, so the ones before it don't change. */
+const TENDENCIES: readonly Tendency[] = ['flagVolume', 'holding', 'coverage', 'qbProtection'];
 /** The tendency that multiplies a penalty roll by exactly 1: the crews average it. */
 const CENTRE = 10.5;
 /** Most a tendency moves in an offseason. */
@@ -45,11 +46,34 @@ export interface CrewCalls {
   holding: number;
   /** Pass interference and defensive holding, on top of `all`. */
   coverage: number;
+  /** Roughing the passer, on top of `all`. */
+  qbProtection: number;
 }
 
 export function crewCalls(crew: Crew | undefined): CrewCalls {
-  if (!crew) return { all: 1, holding: 1, coverage: 1 };
-  return { all: crewMult(crew.flagVolume), holding: crewMult(crew.holding), coverage: crewMult(crew.coverage) };
+  if (!crew) return { all: 1, holding: 1, coverage: 1, qbProtection: 1 };
+  return { all: crewMult(crew.flagVolume), holding: crewMult(crew.holding), coverage: crewMult(crew.coverage), qbProtection: crewMult(crew.qbProtection) };
+}
+
+/** What a quarterback's public record is worth with the officials: MVPs, OPOYs and All-League teams. */
+const STAR_POINTS = { mvp: 3, opoy: 2, firstTeam: 2, secondTeam: 1 };
+/** A Mahomes or a Brady (two MVPs and a couple of first-team nods): the most protection there is. */
+const STAR_FULL = 10;
+export const STAR_LEAN = 0.3;
+
+/**
+ * How much more readily crews flag a hit on this quarterback: 1 for most, up to 1 + STAR_LEAN for the
+ * most decorated. It reads only his public record, never his ratings, so it can be seen and explained.
+ */
+export function starLean(league: League, playerId: number): number {
+  let points = 0;
+  for (const a of league.awards ?? []) {
+    if (a.winners.mvp?.playerId === playerId) points += STAR_POINTS.mvp;
+    if (a.winners.opoy?.playerId === playerId) points += STAR_POINTS.opoy;
+    if (a.allLeague[0].some((w) => w.playerId === playerId)) points += STAR_POINTS.firstTeam;
+    else if (a.allLeague[1].some((w) => w.playerId === playerId)) points += STAR_POINTS.secondTeam;
+  }
+  return 1 + STAR_LEAN * Math.min(1, points / STAR_FULL);
 }
 
 /** "R. Halvorsen", or the full name. */
@@ -66,7 +90,7 @@ export function generateCrews(league: League): void {
     let lastName = rng.pick(LAST_NAMES);
     while (used.has(lastName)) lastName = rng.pick(LAST_NAMES);
     used.add(lastName);
-    crews.push({ id, firstName: rng.pick(FIRST_NAMES), lastName, flagVolume: 0, holding: 0, coverage: 0 });
+    crews.push({ id, firstName: rng.pick(FIRST_NAMES), lastName, flagVolume: 0, holding: 0, coverage: 0, qbProtection: 0 });
   }
   for (const t of TENDENCIES) {
     const [lo, hi] = SPREAD;
@@ -75,6 +99,16 @@ export function generateCrews(league: League): void {
     centre(crews, t, rng);
   }
   league.crews = crews;
+}
+
+/**
+ * Saves from before QB Protection (v17): each crew gets the one a new league from this seed would give
+ * it (rolled after the other tendencies, so those don't move). Its yearly drift starts from there.
+ */
+export function addQbProtection(league: League): void {
+  const fresh = { seed: league.seed } as League;
+  generateCrews(fresh);
+  for (const c of league.crews ?? []) c.qbProtection ??= fresh.crews[c.id]?.qbProtection ?? Math.round(CENTRE);
 }
 
 /**
@@ -151,9 +185,9 @@ export interface CrewLine {
   fouls: Record<Foul, number>;
 }
 
-/** The three numbers a crew is known by, per game: every flag, offensive holding, coverage fouls. */
-export type CrewStat = 'flags' | 'holding' | 'coverage';
-export const CREW_STATS: readonly CrewStat[] = ['flags', 'holding', 'coverage'];
+/** The numbers a crew is known by, per game: every flag, then one for each tendency besides Flag Volume. */
+export type CrewStat = 'flags' | 'holding' | 'coverage' | 'roughing';
+export const CREW_STATS: readonly CrewStat[] = ['flags', 'holding', 'coverage', 'roughing'];
 
 /** Seasons with games a crew worked, newest first (box scores older than last season are gone). */
 export function crewSeasons(league: League): number[] {
@@ -181,6 +215,7 @@ export function perGame(line: CrewLine): Record<CrewStat, number> {
     flags: sum(FOUL_KINDS),
     holding: sum(FOUL_KINDS.filter((f) => FOULS[f].tendency === 'holding')),
     coverage: sum(FOUL_KINDS.filter((f) => FOULS[f].tendency === 'coverage')),
+    roughing: sum(FOUL_KINDS.filter((f) => FOULS[f].tendency === 'qbProtection')),
   };
 }
 
@@ -197,7 +232,7 @@ export function crewTable(league: League, season: number): { rows: CrewRow[]; ra
   const lines = crewSeason(league, season);
   const rows: CrewRow[] = (league.crews ?? []).map((crew) => {
     const line = lines.get(crew.id);
-    return { crew, games: line?.games ?? 0, perGame: line ? perGame(line) : { flags: 0, holding: 0, coverage: 0 }, ranks: null };
+    return { crew, games: line?.games ?? 0, perGame: line ? perGame(line) : { flags: 0, holding: 0, coverage: 0, roughing: 0 }, ranks: null };
   });
   const ranked = rows.filter((r) => r.games >= RANK_MIN_GAMES);
   for (const row of ranked) {

@@ -32,6 +32,7 @@ function statColumns(p: Player): Col[] {
         ['INT', n('passInt')],
         ['Rate', (s) => passerRating(s).toFixed(1)],
         ['Rush', n('rushYds')],
+        ['Roughed', n('roughingDrawn')],
       ];
     case 'RB':
       return [

@@ -137,6 +137,8 @@ export const STAT_KEYS = [
   /** Accepted penalties charged to the player, and the yards they cost. */
   'penalties',
   'penaltyYds',
+  /** Quarterback hit late, low or high, and the flag accepted. */
+  'roughingDrawn',
 ] as const;
 export type StatKey = (typeof STAT_KEYS)[number];
 export type StatLine = Partial<Record<StatKey, number>>;
@@ -529,7 +531,7 @@ export interface TeamGameStats {
 }
 
 /** The fouls the engine calls (see `FOULS` in `officials.ts`). */
-export type Foul = 'falseStart' | 'offside' | 'holding' | 'passInterference' | 'defHolding';
+export type Foul = 'falseStart' | 'offside' | 'holding' | 'passInterference' | 'defHolding' | 'roughingPasser' | 'unnecessaryRoughness' | 'faceMask' | 'horseCollar' | 'unsportsmanlike';
 
 /**
  * An officiating crew, known by its head referee (see `officials.ts`). Its tendencies are 1–20 like
@@ -545,6 +547,8 @@ export interface Crew {
   holding: number;
   /** How often it calls pass interference and defensive holding. */
   coverage: number;
+  /** How closely it protects the quarterback: roughing the passer (saves before v17 get it on load). */
+  qbProtection: number;
 }
 
 /** What the replay viewer animates for a logged play. */

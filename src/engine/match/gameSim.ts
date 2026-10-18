@@ -10,7 +10,7 @@ import { skill } from '../attributes';
 import { callerStyle, type CallerStyle } from '../coaching';
 import { CONTACT_RISK, fatigueMult, HELD_SHARE, injuryLabel, riskFactors, rollInjury, SIDELINE_REST, SNAP_CONTACT, SNAP_EXPOSURE, SNAP_RISK, snapCost, type ContactEvent, type Mechanism, type RiskFactors } from '../injuries';
 import { departmentFor, type Department } from '../medical';
-import { crewCalls, gameCrew, type CrewCalls } from '../officials';
+import { crewCalls, gameCrew, starLean, type CrewCalls } from '../officials';
 import { enforce, FOULS, type Spot } from '../penalties';
 import { activeQuirks, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
@@ -63,14 +63,24 @@ const HOME_FIELD_EDGE = 0.4; // ratings points added to the home side's matchups
 const OL_DISCIPLINE = 12;
 const DL_DISCIPLINE = 10.8;
 /** Base odds of each foul per chance at it (see docs/PENALTIES.md for the NFL rates they're tuned to). */
-const FALSE_START = 0.027;
-const OFFSIDE = 0.017;
+const FALSE_START = 0.0257;
+const OFFSIDE = 0.0158;
 /** Offensive holding, per run, pass, sack or scramble: declined when the play was worse for the offense anyway. */
-const HOLDING = 0.039;
+const HOLDING = 0.0362;
 /** Pass interference by depth, on incompletions thrown past the line. */
 const DPI: Record<PassDepth, number> = { short: 0.012, medium: 0.045, deep: 0.09 };
 /** Defensive holding, per dropback: declined when the play beat 5 yards and a first down. */
 const DEF_HOLDING = 0.0134;
+/** Roughing the passer, per sack or pressured throw (the NFL flags about 3% of hits on the passer). */
+const ROUGHING = 0.0158;
+/** Personal fouls finishing a tackle, per tackled play: a late shot, a face mask, a horse collar. */
+const UNNECESSARY_ROUGHNESS = 0.0055;
+const FACE_MASK = 0.0029;
+const HORSE_COLLAR = 0.0005;
+/** A sack celebrated in someone's face. */
+const UNSPORTSMANLIKE = 0.02;
+/** League-typical discipline of the men making tackles: personal-foul odds are scaled around it. */
+const TACKLER_DISCIPLINE = 11;
 /** League-typical edge contain and safety help: their effects are measured from these. */
 const EDGE_CONTAIN = 11.5;
 const DEEP_HELP = 14;
@@ -137,8 +147,12 @@ function blockerFor(off: Lineup, def: Lineup, rusher: Player, blitz: boolean, rn
 const SEP_ROLL = 3;
 /** Carries before a lead back starts handing work to the second back. */
 const LEAD_BACK_CARRIES = 14;
-/** Mean gain on a run between evenly matched units, before breakaways. */
-const RUN_BASE = 3.97;
+/**
+ * Mean gain on a run between evenly matched units, before breakaways. Trimmed (with completions and
+ * yards after the catch) when personal fouls came in at NFL rates: they hand offenses about a point a
+ * game, so the plays themselves give it back and league scoring holds (docs/PENALTIES.md, Phase 2).
+ */
+const RUN_BASE = 3.86;
 
 /** A flag thrown during a play: the foul, who drew it, and how far downfield a spot foul happened. */
 interface LiveFoul {
@@ -169,6 +183,8 @@ interface PlayResult {
   depth?: PassDepth;
   /** The man in coverage on a pass: flags for grabbing are his. */
   defender?: Player;
+  /** Who got home on a sack: a late hit or a celebration is his. */
+  rusher?: Player;
   lane?: number;
   turnover?: { kind: 'int' | 'fumble'; spot: number; returnYds: number; by: Player };
 }
@@ -326,6 +342,8 @@ class GameSim {
   private offsideFlag = false;
   /** The defense fouled on the half's last play: one more snap with no time on the clock. */
   private untimed = false;
+  /** How readily crews protect each quarterback, from his public record (`starLean`), read once a game. */
+  private stars = new Map<number, number>();
 
   constructor(
     private league: League,
@@ -1357,7 +1375,7 @@ class GameSim {
     const rawAcc = skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy') + fast - 1.5 * ghosts;
     const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
     // Base odds are tuned with injuries on: backups throw and catch about a tenth of the passes, as in the NFL.
-    let pComplete = { short: 0.803, medium: 0.611, deep: 0.383 }[depth] + 0.018 * (acc - 12) + 0.019 * sep + 0.012 * (skill(receiver, 'hands') - 12);
+    let pComplete = { short: 0.788, medium: 0.596, deep: 0.371 }[depth] + 0.018 * (acc - 12) + 0.019 * sep + 0.012 * (skill(receiver, 'hands') - 12);
     if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
     // A gunslinger who won't throw it away forces it into coverage instead.
     if (pressured && this.has(qb, 'gunslinger')) pComplete -= 0.1;
@@ -1435,7 +1453,7 @@ class GameSim {
     } else {
       tackler = rng.chance(0.6) ? defender : this.pickTackler(def, air + 4);
       const yacSkill = skill(receiver, 'afterCatch') - skill(tackler, 'tackling');
-      let yac = Math.max(0, rng.normal({ short: 3.85, medium: 2.8, deep: 2.4 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth), 3));
+      let yac = Math.max(0, rng.normal({ short: 3.55, medium: 2.5, deep: 2.1 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth), 3));
       if (rng.chance(clamp((0.022 + 0.004 * yacSkill) * (coverage?.yac ?? 1), 0.01, 0.06))) yac += rng.exponential(16);
       gain = Math.min(air + Math.round(yac), yardsToGoal);
     }
@@ -1662,7 +1680,7 @@ class GameSim {
       this.streak.set(qb.id, 0);
       text += `. ${short(qb)} looks rattled`;
     }
-    const result: PlayResult = { kind: 'sack', yards: -loss, text, duration: this.rng.int(4, 6), clockStops: false, stats: buf };
+    const result: PlayResult = { kind: 'sack', yards: -loss, text, duration: this.rng.int(4, 6), clockStops: false, stats: buf, rusher: sacker };
     // A quarterback who pats the ball before he throws gives the rusher a swipe at it.
     if (this.rng.chance(this.has(qb, 'patsTheBall') ? 0.18 : 0.1)) {
       buf.add(qb, 'fumbles');
@@ -1753,11 +1771,13 @@ class GameSim {
     const warning = this.playTime(result.duration);
     this.driveSnaps++;
 
+    let late: { yardLine: number; text: string } | undefined;
     if (fouls.length) {
       const call = this.callFouls(result, fouls);
       // Taken (or offsetting): the play never happened, though the snap still wore the defense down.
       if (call === true) return;
-      text += call;
+      text += call.note;
+      late = call.late;
     }
     ts.plays++;
 
@@ -1825,6 +1845,19 @@ class GameSim {
       this.safety();
       return;
     }
+    if (late) {
+      // The play stands, and the 15 yards go on from where it ended, with a first down.
+      if (this.yardLine >= this.lineToGain) {
+        if (downBefore === 3) ts.thirdDownConv++;
+        if (downBefore === 4) ts.fourthDownConv++;
+      }
+      this.yardLine = late.yardLine;
+      this.firstDown();
+      this.clockRunning = false;
+      if (this.clock <= 0 && (this.quarter === 2 || this.quarter >= 4)) this.untimed = true;
+      this.log(`${text}. ${late.text}${this.untimed ? ' Untimed down.' : ''}`);
+      return;
+    }
     this.log(text);
     if (this.yardLine >= this.lineToGain) {
       if (downBefore === 3) ts.thirdDownConv++;
@@ -1867,17 +1900,55 @@ class GameSim {
     const { all, holding, coverage } = this.calls;
     const pHold = HOLDING * Math.exp(-0.05 * (off.offenseDiscipline - OL_DISCIPLINE)) * (1 + 0.15 * this.count(off.ol, 'handPlacement')) * all * holding;
     if (this.rng.chance(pHold)) fouls.push({ foul: 'holding' });
-    if (result.kind === 'run') return fouls;
-    // A handsy defender grabs more (on a sack or a scramble, any of them might be the one), and a crew
-    // that watches coverage closely sees more of it.
-    const dbs = [...def.cb, ...def.s];
-    const handsy = result.defender ? (this.has(result.defender, 'handsy') ? 1 : 0) : this.count(dbs, 'handsy') / Math.max(1, dbs.length);
-    const grabby = (1 + 0.6 * handsy) * all * coverage;
-    const pDpi = result.kind === 'pass' && !result.complete && !result.turnover && result.airYards! > 0 ? DPI[result.depth!] * grabby : 0;
-    const roll = this.rng.next();
-    if (roll < pDpi) fouls.push({ foul: 'passInterference', spotYards: result.airYards });
-    else if (roll < pDpi + DEF_HOLDING * grabby) fouls.push({ foul: 'defHolding' });
+    if (result.kind !== 'run') {
+      // A handsy defender grabs more (on a sack or a scramble, any of them might be the one), and a crew
+      // that watches coverage closely sees more of it.
+      const dbs = [...def.cb, ...def.s];
+      const handsy = result.defender ? (this.has(result.defender, 'handsy') ? 1 : 0) : this.count(dbs, 'handsy') / Math.max(1, dbs.length);
+      const grabby = (1 + 0.6 * handsy) * all * coverage;
+      const pDpi = result.kind === 'pass' && !result.complete && !result.turnover && result.airYards! > 0 ? DPI[result.depth!] * grabby : 0;
+      const roll = this.rng.next();
+      if (roll < pDpi) fouls.push({ foul: 'passInterference', spotYards: result.airYards });
+      else if (roll < pDpi + DEF_HOLDING * grabby) fouls.push({ foul: 'defHolding' });
+    }
+    this.personalFouls(result, fouls);
     return fouls;
+  }
+
+  /**
+   * Personal fouls: a hit on the passer late, low or high; a tackle finished with a late shot, a face
+   * mask or a horse collar; a sack celebrated in someone's face. Each leans on the temper and the
+   * Awareness of the man who did it (`discipline`), and roughing on how closely the crew protects the
+   * passer and how decorated he is (`starLean`).
+   */
+  private personalFouls(result: PlayResult, fouls: LiveFoul[]) {
+    const { all, qbProtection } = this.calls;
+    const loose = (p: Player, typical: number) => Math.exp(-0.06 * (discipline(p) - typical));
+    const rusher = result.kind === 'sack' ? result.rusher : result.kind === 'pass' ? this.pressureBy : null;
+    if (rusher && this.rng.chance(ROUGHING * loose(rusher, DL_DISCIPLINE) * all * qbProtection * this.star(this.lineups[this.offense].qb))) {
+      fouls.push({ foul: 'roughingPasser', by: rusher });
+    }
+    if (result.turnover) return;
+    const tacklers = result.stats.entries.filter(([, key]) => key === 'tackles').map(([p]) => p);
+    if (tacklers.length) {
+      const temper = tacklers.reduce((sum, p) => sum + loose(p, TACKLER_DISCIPLINE), 0) / tacklers.length;
+      const pRough = UNNECESSARY_ROUGHNESS * temper * all;
+      const pMask = FACE_MASK * temper * all;
+      const roll = this.rng.next();
+      const foul: Foul | null = roll < pRough ? 'unnecessaryRoughness' : roll < pRough + pMask ? 'faceMask' : roll < pRough + pMask + HORSE_COLLAR * all ? 'horseCollar' : null;
+      if (foul) fouls.push({ foul, by: this.flagRng.pick(tacklers) });
+    }
+    // After the whistle: apart from whatever was flagged during the play.
+    if (result.kind === 'sack' && result.rusher && !fouls.length && this.rng.chance(UNSPORTSMANLIKE * loose(result.rusher, DL_DISCIPLINE) * all)) {
+      fouls.push({ foul: 'unsportsmanlike', by: result.rusher });
+    }
+  }
+
+  /** How readily the crews protect this quarterback, from his public record. */
+  private star(qb: Player): number {
+    let lean = this.stars.get(qb.id);
+    if (lean === undefined) this.stars.set(qb.id, (lean = starLean(this.league, qb.id)));
+    return lean;
   }
 
   /**
@@ -1886,11 +1957,11 @@ class GameSim {
    * flag it doesn't take is declined. Returns true when the play is wiped out, or else the note on the
    * declined flags to add to its text.
    */
-  private callFouls(result: PlayResult, fouls: LiveFoul[]): true | string {
+  private callFouls(result: PlayResult, fouls: LiveFoul[]): true | { note: string; late?: { yardLine: number; text: string } } {
     const offSide = this.offense;
     const defSide = this.def;
     const sideOf = (f: LiveFoul): Side => (FOULS[f.foul].side === 'offense' ? offSide : defSide);
-    for (const f of fouls) f.by = this.committer(f.foul, result);
+    for (const f of fouls) f.by ??= this.committer(f.foul, result);
     const named = (f: LiveFoul) => `${FOULS[f.foul].label.toLowerCase()} on ${this.flagged(sideOf(f), f.by)}`;
     const at = this.spotNow();
 
@@ -1905,19 +1976,38 @@ class GameSim {
 
     const fouled = FOULS[fouls[0].foul].side === 'offense' ? 'defense' : 'offense';
     const worth = (s: Spot) => coach.downValue(s.yardLine, s.down, Math.min(s.lineToGain, 100) - s.yardLine);
-    const options = fouls.map((f) => ({ f, spot: enforce(f.foul, at, f.spotYards) }));
-    options.sort((a, b) => (fouled === 'offense' ? worth(b.spot) - worth(a.spot) : worth(a.spot) - worth(b.spot)));
-    const [best] = options;
-    const take = coach.takesPenalty(fouled, this.playValue(result), worth(best.spot), !!result.turnover);
+    // A foul at the end of a run or a catch past the line (or after the whistle) goes on from where the
+    // play ended, and the play stands; one that ended in the end zone can't (the NFL would carry it to
+    // the kickoff or the try, which the engine doesn't), so it's declined.
+    const end = at.yardLine + result.yards;
+    const lateOn = (f: LiveFoul) => {
+      const late = FOULS[f.foul].late;
+      return late === 'always' || (late === 'pastLine' && !result.turnover && result.yards > 0 && (result.kind !== 'pass' || !!result.complete));
+    };
+    const options = fouls.map((f) => {
+      const late = lateOn(f);
+      return { f, late, spot: enforce(f.foul, late ? { ...at, yardLine: end } : at, f.spotYards) };
+    });
+    const usable = options.filter((o) => !(o.late && (end >= 100 || end <= 0)));
+    usable.sort((a, b) => (fouled === 'offense' ? worth(b.spot) - worth(a.spot) : worth(a.spot) - worth(b.spot)));
+    const [best] = usable;
+    const take = !!best && coach.takesPenalty(fouled, this.playValue(result), worth(best.spot), !!result.turnover);
     let note = '';
-    for (const { f } of take ? options.slice(1) : options) {
+    for (const { f } of options.filter((o) => !take || o !== best)) {
       this.flag(sideOf(f), f.foul, f.by, 'declined');
       note += `. ${FOULS[f.foul].label} on ${this.flagged(sideOf(f), f.by)}, declined`;
     }
-    if (!take) return note;
+    if (!take) return { note };
 
     const { f, spot } = best;
     const side = sideOf(f);
+    const called = `PENALTY on ${this.flagged(side, f.by)}: ${FOULS[f.foul].label}, ${spot.yards} yards.`;
+    if (best.late) {
+      // The rusher who drew it hit the passer, whatever the credit stream said.
+      if (f.foul === 'roughingPasser' && f.by && !result.stats.entries.some(([p, key]) => p === f.by && key === 'qbHits')) result.stats.add(f.by, 'qbHits');
+      this.flag(side, f.foul, f.by, 'accepted', spot.yards);
+      return { note, late: { yardLine: spot.yardLine, text: called } };
+    }
     this.wipe(result);
     this.flag(side, f.foul, f.by, 'accepted', spot.yards);
     this.yardLine = spot.yardLine;
@@ -1928,7 +2018,7 @@ class GameSim {
     if (side === defSide && this.clock <= 0 && (this.quarter === 2 || this.quarter >= 4)) this.untimed = true;
     this.setAnim(offSide, 'penalty', at.yardLine, this.yardLine, undefined, result.lane);
     const what = FOULS[f.foul].yards === 'spot' ? '' : ' No play.';
-    this.log(`${result.text}${note}. PENALTY on ${this.flagged(side, f.by)}: ${FOULS[f.foul].label}, ${spot.yards} yards.${what}${this.untimed ? ' Untimed down.' : ''}`);
+    this.log(`${result.text}${note}. ${called}${what}${this.untimed ? ' Untimed down.' : ''}`);
     return true;
   }
 
@@ -1975,6 +2065,9 @@ class GameSim {
       case 'passInterference':
       case 'defHolding':
         return result?.defender ?? pick([...def.cb, ...def.s], (p) => (this.has(p, 'handsy') ? 2 : 1));
+      // Personal fouls name their man when they're rolled; this is only the fallback.
+      default:
+        return pick([...def.dt, ...def.edge, ...def.lb, ...def.cb, ...def.s], () => 1);
     }
   }
 
@@ -1989,6 +2082,10 @@ class GameSim {
     ts.penalties++;
     ts.penaltyYds += yards;
     ts.flags![foul] = (ts.flags![foul] ?? 0) + 1;
+    if (foul === 'roughingPasser') {
+      const qb = (this.playerStats[this.lineups[this.offense].qb.id] ??= {});
+      qb.roughingDrawn = (qb.roughingDrawn ?? 0) + 1;
+    }
     if (!by) return;
     const line = (this.playerStats[by.id] ??= {});
     line.penalties = (line.penalties ?? 0) + 1;

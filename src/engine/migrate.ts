@@ -9,7 +9,7 @@ import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
-import { generateCrews } from './officials';
+import { addQbProtection, generateCrews } from './officials';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
@@ -40,6 +40,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 14) league.version = 14; // v14: optional `weather` on game results, nothing to fill in
   if (league.version < 15) toV15(league);
   if (league.version < 16) league.version = 16; // v16: declined and offsetting flags, players' penalties: optional, nothing to fill in
+  if (league.version < 17) toV17(league);
   return league;
 }
 
@@ -240,4 +241,10 @@ function toV13(league: League) {
 function toV15(league: League) {
   if (!league.crews?.length) generateCrews(league);
   league.version = 15;
+}
+
+/** v16 → v17: the crews' fourth tendency, QB Protection, as a new league from this seed would roll it. */
+function toV17(league: League) {
+  addQbProtection(league);
+  league.version = 17;
 }

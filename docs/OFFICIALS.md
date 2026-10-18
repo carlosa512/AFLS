@@ -9,7 +9,10 @@
 > every crew on flags, holding and coverage calls per game; the box score breaks a game's penalties
 > down by team and kind beside the crew's season average. Checked by `npm run crews`.
 >
-> Not yet: everything under Later phases.
+> Since then: QB Protection, the fourth tendency (roughing the passer), and star protection for decorated
+> quarterbacks came with the penalties' Phase 2 (`docs/PENALTIES.md`); the crews page ranks roughing too.
+>
+> Not yet: the rest of Later phases.
 
 # AFLS Referee Crew System Spec
 

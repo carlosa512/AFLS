@@ -1,13 +1,12 @@
 # Penalties
 
-> **Status.** Phase 1 built: the foul registry and enforcement (`penalties.ts`), accept or decline
-> (`coach.takesPenalty` on `coach.downValue`), offsetting fouls, live-ball offside (a free play),
-> holding rolled on sacks and scrambles too and defensive holding on every dropback (declined when the
-> play was better), untimed downs after a defensive foul on a half's last play, and every accepted flag
-> charged to a player (`penalties`, `penaltyYds`). Pass interference and defensive holding are at their
-> NFL rates; holding, false start and offside stay high until the fouls they stand in for arrive. The
-> box score lists declined and offsetting flags and a Penalties table; player cards show penalties.
-> Next: Phase 2 (roughing the passer, personal fouls, QB Protection, star protection).
+> **Status.** Phases 1 and 2 built. Phase 1: the foul registry and enforcement (`penalties.ts`),
+> accept or decline (`coach.takesPenalty` on `coach.downValue`), offsetting fouls, live-ball offside,
+> untimed downs, every accepted flag charged to a player. Phase 2: roughing the passer, unnecessary
+> roughness, face mask, horse collar and unsportsmanlike conduct (the defense's, on scrimmage plays),
+> enforced from where the play ended when it gained ground; the crews' fourth tendency, QB Protection;
+> star protection for decorated passers (`starLean`); and a retune of the offense so scoring holds
+> (see Phase 2). Next: Phase 3 (special teams).
 > Numbers from the NFL's 2023–2025 seasons (below), tuned to their average (decision 5).
 
 ## The NFL, by the numbers
@@ -172,6 +171,24 @@ bump with nothing to fill in. Results played before it simply have fewer kinds.
 
 ## Phase 2: roughing the passer and other personal fouls
 
+**Built.** All five are the defense's, on scrimmage plays (the offense's personal fouls come with Phase
+4, kicks with Phase 3). A foul at the end of a run or a catch past the line goes on from where the play
+ended and the play stands; behind the line, on an incompletion, a sack or a turnover it goes from the
+previous spot and the play is wiped out (roughing wipes out an interception: the foul came first). One
+on a touchdown is declined for now (the NFL carries it to the try or the kickoff). Rates per team-game
+in `npm run sim -- 10`: roughing 0.17, personal fouls in all 0.61, accepted flags 6.20 (NFL 6.15); the
+line fouls gave back their share (holding 0.039 → 0.0362, false start 0.027 → 0.0257, offside 0.017 →
+0.0158).
+
+**The retune.** NFL-rate personal fouls hand offenses about a point a game (15 yards and a first down,
+0.6 times a game): `npm run sim -- 10` read 23.93 points with every foul in, against 22.66 before. The
+engine's offense had been tuned with a penalty mix too hard on offenses (too much holding, too few
+defensive fouls), so the plays give the point back: runs average 3.86 yards before breakaways (was
+3.97), completions are 1.5 points less likely at every depth, and yards after the catch 0.3 shorter.
+Result: 22.84 points, 6.94 yards an attempt, 4.22 a carry, 63.8% completions, 20.1 first downs, every
+`npm run sim` target in range. Later phases move the mix again (more offensive fouls in Phase 4), so
+each one re-checks scoring.
+
 **Roughing the passer.** The hook is the pass rush: a rusher who gets home (a sack, or a pressure that
 reaches the quarterback) can hit him late, low or high. The roll lives on the main stream, after the
 pass resolves, so it can change the play.
@@ -200,7 +217,10 @@ pass resolves, so it can change the play.
 Together that's about 1.6 personal fouls a game, roughing included.
 
 **Crews:** a fourth tendency, **QB Protection** (1–20, same 0.8–1.2 multiplier), scales roughing the
-passer. That's the officiating spec's "QB protection" later phase; its blocker ("needs pass-rush
+passer. Built; saves from before it (v17) get the one a new league from their seed would roll, and the
+crews page has a Roughing/g column. **Star protection** (decision 4) is built too: `starLean` scores a
+quarterback's MVPs (3), OPOYs (2) and All-League teams (2 first, 1 second) and adds up to +30% to the
+roughing odds at 10 points; his card shows the roughing calls he draws. That's the officiating spec's "QB protection" later phase; its blocker ("needs pass-rush
 penalties modeled") is this phase. It gets a column on the crews page, keeping the spec's rule that
 every hidden tendency shows up in a stat a player can read.
 
