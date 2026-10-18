@@ -13,7 +13,7 @@ import { addQbProtection, generateCrews } from './officials';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
-import { generateStaffWorld } from './staff';
+import { generateStaffWorld, setOwnerBudgets } from './staff';
 import { playoffSummary } from './records';
 import { rollScheme } from './schemes';
 import { addStats, statSeasons } from './stats';
@@ -45,6 +45,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 19) toV19(league);
   if (league.version < 20) league.version = 20; // v20: optional `inbox`, filled (already read) on the first delivery
   if (league.version < 21) toV21(league);
+  if (league.version < 22) toV22(league);
   return league;
 }
 
@@ -266,4 +267,15 @@ function toV21(league: League) {
     if (d && pk.consRank !== undefined) d.rank = pk.consRank;
   }
   league.version = 21;
+}
+
+/**
+ * v21 → v22: an archive for coaches leaving football (those who left before this build are already gone), and owners
+ * who spend what their markets earn (`ownerBudgets`), the user's own included, where older saves rolled them at
+ * random. Coaches may now carry a `playerId` (former players) and teams a `coachOverspent` year: nothing to fill in.
+ */
+function toV22(league: League) {
+  league.retiredCoaches ??= {};
+  setOwnerBudgets(league);
+  league.version = 22;
 }

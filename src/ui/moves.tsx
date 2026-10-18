@@ -30,7 +30,7 @@ export function moveIndex(league: League): MoveIndexes {
   };
   return {
     player: build(Object.values(league.players), 'player'),
-    coach: build(Object.values(league.coaches), 'coach'),
+    coach: build([...Object.values(league.coaches), ...Object.values(league.retiredCoaches)], 'coach'),
     scout: build(Object.values(league.staff), 'scout'),
     medic: build(Object.values(league.medics), 'medic'),
   };

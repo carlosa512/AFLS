@@ -196,21 +196,68 @@ tempo belong to the end-of-game scripts, the same for every coach. In a season a
 59%; an aggressive head coach goes for it about 1.2 times a game and a conservative one 0.9.
 
 **Hiring is like the scouting staff, with its own budget** (about 9.5% of the cap, $28.6M at the
-opening cap; same owner generosity as the scouting budget). Asks scale with quality: a typical head
+opening cap, scaled by the owner: see "Owners" below). Asks scale with quality: a typical head
 coach costs about $7.5M, a coordinator or S&C coach $2.6M, a position coach $1.1M. Deals run 1–3
 years (head coaches up to 5); dismissing a coach costs half of what's left on his deal, at most a
 year's salary. Moves happen in the re-sign window and free agency; a hire can replace the coach in
 his chair in one move (his salary comes back, less severance, and the forecast counts it). Expiring
-coaches re-sign automatically unless you let them go. Coaches keep
+coaches re-sign automatically unless you let them go. A coach off a winning staff asks more (about a fifth
+more after 13–4, a fifth less after 4–13): winners get raises and offers. Coaches keep
 improving into their 50s and decline from their mid-50s; head coaches and coordinators retire from
 their mid-60s, assistants a few years earlier.
 
 **AI staffs** aim at a seeded quality goal per team (centred, so the league stays typical); win-now
-front offices spend more on the head coach and coordinators, rebuilders on the teachers. After a bad
-season an AI team may fire its head coach (patience runs out after a couple of losing years), and it
-never re-hires a coach it has just let go; head coach and coordinator moves around the league show
-in the news. `npm run offseason` reports the
-coaching economy and young players' growth under the best and worst staffs.
+front offices spend more on the head coach and coordinators, rebuilders on the teachers, and big-spending
+owners aim higher. An AI team never
+re-hires a coach it has just let go; head coach and coordinator moves around the league show in the
+news. `npm run offseason` reports the coaching economy, the carousel and young players' growth under
+the best and worst staffs.
+
+**The coaching carousel** follows the NFL's (2015–2025: 7.0 new head coaches a year, range 5–10; about
+12.5 new offensive and 11 new defensive coordinators; position coaches assumed 25–35%). When the
+re-sign window closes:
+
+- **The hot seat:** after a losing season an AI owner may fire his head coach (an 8–9 year sometimes,
+  a 4–13 one usually; a first-year coach only after a disaster; 9–8 and up never). Each owner has his
+  own streak, rolled per save: patient ones fire half as often, quick-trigger ones half again as often.
+  Firing a coach with years left means paying two, so an owner who can't afford a real replacement keeps
+  him. A head coach who survives a bad year often loses a coordinator for it instead.
+- **Promotions:** a head coach or coordinator chair can go to a man one rung below, a coordinator for
+  head coach and a position coach for his side's coordinator: from the team's own staff, the market or
+  another team's staff, and as in the NFL (since 2020 for coordinator jobs) no team can block a
+  promotion, the user's included. A winning staff gets raided most. The chair he leaves opens in turn,
+  which is the carousel. Proven men in the chair (about a third of new head coaches are retreads) and
+  insiders get a little preference; outsiders who never held a chair have more to prove.
+- **A new head coach brings his own people:** he keeps a coordinator about one time in five (more if
+  the man fits his vision) and half the teachers; whoever stays and is out of contract re-signs.
+- **Vision:** every head coach wants something from his coordinators. A new one brings his own: an
+  aggressive one a pass-first offense, a conservative one a run-first one, a former play-caller his own
+  offense, and a defense of his own (a front and coverage, which reads as pressure or coverage). One who
+  stays keeps his system: a coordinator he hires runs what the last one ran. AI teams hire coordinators
+  who fit, so a new head coach changes how a team plays. Tastes come from the same mix coordinators do and
+  defenses are matched by name, so fit decides who goes where without thinning out any kind of offense or
+  defense. The Coaches screen shows each head coach's vision and how coordinators fit.
+- **Teachers first:** hiring a head coach or coordinator, a GM keeps a typical teacher's pay aside for
+  every open position-coach chair; the big names can't starve the rooms (promotions already skim the best
+  teachers), and each role's new candidates are drawn toward a typical coach for that role.
+- **You** can promote one of your own coaches into the open chair above his (Promote, in the window).
+  Other teams can hire your assistants away for a promotion; the chair opens for you to fill.
+
+**Former players** go into coaching: about one veteran in twenty who retires after four or more seasons,
+more often a sharp, hard-working one, nearly always coaching the room he played in (a few cross to
+another room on their side). His playing years count like a career coach's years on the sidelines, so he
+starts level with a coach his age (better with a sharp football mind) and some work their way up. Their card switches between the coaching and playing careers, and the player
+card links to the coach. Coaches who leave football keep their careers on file
+(`league.retiredCoaches`) for records and a future hall of fame.
+
+**Owners** spend what their markets earn: each owner's budgets (scouting, coaching, medical) follow
+his market's real revenue (Forbes, 2024 season) on a square-root scale, centred on the average owner,
+yours included: the biggest market spends about a third more, the leanest about a tenth less. The
+coaching budget is the owner's comfort zone, not a league rule (the NFL caps players' pay, never
+coaches'): he'll go past it, for a head coach or a coordinator only, when the team is going somewhere
+(more after a playoff season), his market can carry it, or a new head coach is worth it after a losing
+year, never two years running. AI teams weigh going over (it has to buy a clearly better man); for
+you, a move past the budget asks the owner, who approves or blocks it and says why.
 
 ## How the front office works
 
@@ -270,7 +317,9 @@ scouts, career outlook, "needs reps", AI boards that weigh work ethic, `npm run 
 development and veteran care ratings that drive growth and aging; a coaching budget, contracts, a
 market and an ageing cycle; AI hiring by front-office style and head coaches fired after bad
 seasons; play-calling style (pass lean, fourth-down aggression) carried by the coach into games; the
-Coaches screen.
+Coaches screen. Then the carousel at NFL turnover rates (promotions, poaching, new head coaches'
+staffs, vision and fit), former players going into coaching, retired coaches' careers kept, and
+owners with market budgets, patience and a soft coaching budget.
 
 **✅ Injuries & medical staff (done)** — in-game and practice injuries from snaps and collisions,
 scaled by hidden injury resistance (fading with age, buffered by a durable body), energy late in
@@ -316,8 +365,8 @@ average in the box score. Spec and later phases: `docs/OFFICIALS.md`.
 - Awards: player of the week and month, season awards (MVP, rookie and position honours), all-league
   teams and a hall of fame. Weekly and monthly awards need each week's stats saved as it's played
   (season totals and the last season's box scores are all that's kept today).
-- Player morale and personality, media and owner goals; coordinators promoted to head coach, coach
-  career histories, tempo and two-point tendencies.
+- Player morale and personality, media and owner goals; a coaching hall of fame and coaching trees,
+  tempo and two-point tendencies.
 - Modding: league import/export, an in-game editor, real-roster mods.
 - Desktop packaging (Tauri) → itch.io prototype → Steam Early Access.
 

@@ -9,6 +9,11 @@ export interface TeamSeed {
   name: string;
   abbrev: string;
   colors: [string, string];
+  /**
+   * The market's yearly revenue, $M: the real club's (Forbes, "The NFL's Most Valuable Teams 2025", the 2024
+   * season). It sets how much the owner spends on his staffs (`ownerBudgets` in staff.ts); a mod can leave it out.
+   */
+  revenue?: number;
 }
 
 export const CONFERENCES = [
@@ -31,45 +36,45 @@ export const DIVISIONS = [
 /** 32 teams, four per division in DIVISIONS order. */
 export const TEAM_SEEDS: TeamSeed[] = [
   // Liberty East
-  { city: 'Buffalo', name: 'Blizzard', abbrev: 'BUF', colors: ['#00338d', '#c60c30'] },
-  { city: 'Miami', name: 'Barracudas', abbrev: 'MIA', colors: ['#008e97', '#fc4c02'] },
-  { city: 'New England', name: 'Admirals', abbrev: 'NE', colors: ['#002244', '#c60c30'] },
-  { city: 'New York', name: 'Knights', abbrev: 'NYK', colors: ['#125740', '#ffffff'] },
+  { city: 'Buffalo', name: 'Blizzard', abbrev: 'BUF', colors: ['#00338d', '#c60c30'], revenue: 585 },
+  { city: 'Miami', name: 'Barracudas', abbrev: 'MIA', colors: ['#008e97', '#fc4c02'], revenue: 656 },
+  { city: 'New England', name: 'Admirals', abbrev: 'NE', colors: ['#002244', '#c60c30'], revenue: 762 },
+  { city: 'New York', name: 'Knights', abbrev: 'NYK', colors: ['#125740', '#ffffff'], revenue: 663 },
   // Liberty North
-  { city: 'Baltimore', name: 'Clippers', abbrev: 'BAL', colors: ['#241773', '#9e7c0c'] },
-  { city: 'Cincinnati', name: 'Steamers', abbrev: 'CIN', colors: ['#fb4f14', '#000000'] },
-  { city: 'Cleveland', name: 'Hammers', abbrev: 'CLE', colors: ['#311d00', '#ff3c00'] },
-  { city: 'Pittsburgh', name: 'Forge', abbrev: 'PIT', colors: ['#101820', '#ffb612'] },
+  { city: 'Baltimore', name: 'Clippers', abbrev: 'BAL', colors: ['#241773', '#9e7c0c'], revenue: 621 },
+  { city: 'Cincinnati', name: 'Steamers', abbrev: 'CIN', colors: ['#fb4f14', '#000000'], revenue: 573 },
+  { city: 'Cleveland', name: 'Hammers', abbrev: 'CLE', colors: ['#311d00', '#ff3c00'], revenue: 685 },
+  { city: 'Pittsburgh', name: 'Forge', abbrev: 'PIT', colors: ['#101820', '#ffb612'], revenue: 619 },
   // Liberty South
-  { city: 'Houston', name: 'Wildcatters', abbrev: 'HOU', colors: ['#03202f', '#a71930'] },
-  { city: 'Indianapolis', name: 'Racers', abbrev: 'IND', colors: ['#002c5f', '#a2aaad'] },
-  { city: 'Jacksonville', name: 'Tarpons', abbrev: 'JAX', colors: ['#006778', '#d7a22a'] },
-  { city: 'Tennessee', name: 'Outlaws', abbrev: 'TEN', colors: ['#0c2340', '#4b92db'] },
+  { city: 'Houston', name: 'Wildcatters', abbrev: 'HOU', colors: ['#03202f', '#a71930'], revenue: 687 },
+  { city: 'Indianapolis', name: 'Racers', abbrev: 'IND', colors: ['#002c5f', '#a2aaad'], revenue: 593 },
+  { city: 'Jacksonville', name: 'Tarpons', abbrev: 'JAX', colors: ['#006778', '#d7a22a'], revenue: 522 },
+  { city: 'Tennessee', name: 'Outlaws', abbrev: 'TEN', colors: ['#0c2340', '#4b92db'], revenue: 582 },
   // Liberty West
-  { city: 'Denver', name: 'Summit', abbrev: 'DEN', colors: ['#fb4f14', '#002244'] },
-  { city: 'Kansas City', name: 'Marshals', abbrev: 'KC', colors: ['#e31837', '#ffb81c'] },
-  { city: 'Las Vegas', name: 'Mirage', abbrev: 'LV', colors: ['#000000', '#a5acaf'] },
-  { city: 'Los Angeles', name: 'Condors', abbrev: 'LAC', colors: ['#0080c6', '#ffc20e'] },
+  { city: 'Denver', name: 'Summit', abbrev: 'DEN', colors: ['#fb4f14', '#002244'], revenue: 645 },
+  { city: 'Kansas City', name: 'Marshals', abbrev: 'KC', colors: ['#e31837', '#ffb81c'], revenue: 610 },
+  { city: 'Las Vegas', name: 'Mirage', abbrev: 'LV', colors: ['#000000', '#a5acaf'], revenue: 832 },
+  { city: 'Los Angeles', name: 'Condors', abbrev: 'LAC', colors: ['#0080c6', '#ffc20e'], revenue: 593 },
   // Frontier East
-  { city: 'Dallas', name: 'Stampede', abbrev: 'DAL', colors: ['#003594', '#869397'] },
-  { city: 'New York', name: 'Empire', abbrev: 'NYE', colors: ['#0b2265', '#a71930'] },
-  { city: 'Philadelphia', name: 'Founders', abbrev: 'PHI', colors: ['#004c54', '#a5acaf'] },
-  { city: 'Washington', name: 'Sentinels', abbrev: 'WAS', colors: ['#5a1414', '#ffb612'] },
+  { city: 'Dallas', name: 'Stampede', abbrev: 'DAL', colors: ['#003594', '#869397'], revenue: 1234 },
+  { city: 'New York', name: 'Empire', abbrev: 'NYE', colors: ['#0b2265', '#a71930'], revenue: 707 },
+  { city: 'Philadelphia', name: 'Founders', abbrev: 'PHI', colors: ['#004c54', '#a5acaf'], revenue: 688 },
+  { city: 'Washington', name: 'Sentinels', abbrev: 'WAS', colors: ['#5a1414', '#ffb612'], revenue: 644 },
   // Frontier North
-  { city: 'Chicago', name: 'Gale', abbrev: 'CHI', colors: ['#0b162a', '#c83803'] },
-  { city: 'Detroit', name: 'Gears', abbrev: 'DET', colors: ['#0076b6', '#b0b7bc'] },
-  { city: 'Green Bay', name: 'Lumberjacks', abbrev: 'GB', colors: ['#203731', '#ffb612'] },
-  { city: 'Minnesota', name: 'Voyageurs', abbrev: 'MIN', colors: ['#4f2683', '#ffc62f'] },
+  { city: 'Chicago', name: 'Gale', abbrev: 'CHI', colors: ['#0b162a', '#c83803'], revenue: 629 },
+  { city: 'Detroit', name: 'Gears', abbrev: 'DET', colors: ['#0076b6', '#b0b7bc'], revenue: 585 },
+  { city: 'Green Bay', name: 'Lumberjacks', abbrev: 'GB', colors: ['#203731', '#ffb612'], revenue: 719 },
+  { city: 'Minnesota', name: 'Voyageurs', abbrev: 'MIN', colors: ['#4f2683', '#ffc62f'], revenue: 609 },
   // Frontier South
-  { city: 'Atlanta', name: 'Firebirds', abbrev: 'ATL', colors: ['#a71930', '#000000'] },
-  { city: 'Carolina', name: 'Monarchs', abbrev: 'CAR', colors: ['#0085ca', '#101820'] },
-  { city: 'New Orleans', name: 'Krewe', abbrev: 'NO', colors: ['#101820', '#d3bc8d'] },
-  { city: 'Tampa Bay', name: 'Corsairs', abbrev: 'TB', colors: ['#d50a0a', '#34302b'] },
+  { city: 'Atlanta', name: 'Firebirds', abbrev: 'ATL', colors: ['#a71930', '#000000'], revenue: 612 },
+  { city: 'Carolina', name: 'Monarchs', abbrev: 'CAR', colors: ['#0085ca', '#101820'], revenue: 588 },
+  { city: 'New Orleans', name: 'Krewe', abbrev: 'NO', colors: ['#101820', '#d3bc8d'], revenue: 607 },
+  { city: 'Tampa Bay', name: 'Corsairs', abbrev: 'TB', colors: ['#d50a0a', '#34302b'], revenue: 629 },
   // Frontier West
-  { city: 'Arizona', name: 'Scorpions', abbrev: 'ARI', colors: ['#97233f', '#000000'] },
-  { city: 'Los Angeles', name: 'Stars', abbrev: 'LAS', colors: ['#003594', '#ffd100'] },
-  { city: 'San Francisco', name: 'Fog', abbrev: 'SF', colors: ['#aa0000', '#b3995d'] },
-  { city: 'Seattle', name: 'Squall', abbrev: 'SEA', colors: ['#002244', '#69be28'] },
+  { city: 'Arizona', name: 'Scorpions', abbrev: 'ARI', colors: ['#97233f', '#000000'], revenue: 571 },
+  { city: 'Los Angeles', name: 'Stars', abbrev: 'LAS', colors: ['#003594', '#ffd100'], revenue: 764 },
+  { city: 'San Francisco', name: 'Fog', abbrev: 'SF', colors: ['#aa0000', '#b3995d'], revenue: 723 },
+  { city: 'Seattle', name: 'Squall', abbrev: 'SEA', colors: ['#002244', '#69be28'], revenue: 624 },
 ];
 
 /** Nicknames we must never ship (licensed marks), used by tests to guard mod-free defaults. */

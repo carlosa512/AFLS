@@ -10,6 +10,7 @@
  * uses its own seeded Rngs, so it never shifts the league's main random stream.
  */
 import { FIRST_NAMES, LAST_NAMES } from './data/names';
+import { TEAM_SEEDS } from './data/teams';
 import { BASE_CAP } from './finance/market';
 import { ROSTER_TEMPLATE } from './positions';
 import { clamp, Rng } from './rng';
@@ -243,7 +244,32 @@ function refreshMarket(league: League, rng: Rng): void {
 }
 
 /** A goal for each AI front office's staff quality: some invest in scouting, some don't. A persistent trait, not stored. */
-const staffGoal = (league: League, team: Team) => 10 + 1.4 * new Rng(`${league.seed}:staff-goal:${team.id}`).normal();
+const staffGoal = (league: League, team: Team) => 10 + 1.4 * new Rng(`${league.seed}:staff-goal:${team.id}`).normal() + ownerTilt(team);
+
+/**
+ * What each owner spends on his staffs (scouting, coaching, medical), ×1 being the league's average owner:
+ * his market's revenue on a square-root scale (the richest market about a third over, the leanest about a
+ * tenth under), centred on ×1 so the league's staffs stay where they were. A market without a figure (a mod's) is ×1.
+ */
+export function ownerBudgets(revenues: readonly (number | undefined)[]): number[] {
+  const known = revenues.filter((r): r is number => !!r);
+  const mean = known.reduce((a, b) => a + b, 0) / (known.length || 1);
+  const raw = revenues.map((r) => (r ? Math.sqrt(r / mean) : 1));
+  const avg = raw.reduce((a, b) => a + b, 0) / (raw.length || 1);
+  return raw.map((x) => Math.round(clamp(x / avg, 0.75, 1.35) * 100) / 100);
+}
+
+/** Every team's owner budget from its market (`TEAM_SEEDS`, by abbreviation). */
+export function setOwnerBudgets(league: League): void {
+  const budgets = ownerBudgets(league.teams.map((t) => TEAM_SEEDS.find((s) => s.abbrev === t.abbrev)?.revenue));
+  league.teams.forEach((t, i) => (t.staffBudgetMult = budgets[i]));
+}
+
+/** A free-spending owner aims higher when he hires, a frugal one lower (rating points; zero on average). */
+export const ownerTilt = (team: Team) => 4 * (team.staffBudgetMult - 1);
+
+/** The owner's spending in words, where it stands out. */
+export const ownerBudgetNote = (mult: number) => (mult >= 1.08 ? 'Big-spending owner' : mult <= 0.94 ? 'Tight-budget owner' : null);
 
 /** How many scouts an AI team carries: rebuilders lean on college scouts, contenders on pro scouts. */
 function aiTarget(team: Team): Record<StaffRole, number> {
@@ -256,10 +282,10 @@ function aiTarget(team: Team): Record<StaffRole, number> {
  */
 export function generateStaffWorld(league: League): void {
   const rng = new Rng(`${league.seed}:staff:init`);
+  setOwnerBudgets(league);
   for (const team of league.teams) {
     team.staffDead = [];
     const user = team.id === league.userTeamId;
-    team.staffBudgetMult = user ? 1 : Math.round(clamp(rng.normal(1, 0.1), 0.8, 1.2) * 100) / 100;
     const hired: Staff[] = [];
     if (user) {
       const foci = rng.shuffle([...FOCUSES]);
@@ -398,7 +424,10 @@ export function staffWindowCloses(league: League, opts: { autoUser?: boolean } =
 
 function aiStaffMoves(league: League, team: Team, rng: Rng): void {
   const goal = staffGoal(league, team);
-  for (const s of teamStaff(league, team.id).filter((x) => isExpiring(league, x))) {
+  // The Director's deal first: scouts re-signed before him could leave no money for the one chair that can't stay empty.
+  for (const s of teamStaff(league, team.id)
+    .filter((x) => isExpiring(league, x))
+    .sort((a, b) => Number(b.role === 'director') - Number(a.role === 'director'))) {
     const years = rng.int(1, 3);
     const keep = staffValue(s) >= goal - 2 && rng.chance(0.75) && staffAsk(league, s, years) <= staffRoom(league, team.id);
     if (keep) signStaff(league, team.id, s, years);

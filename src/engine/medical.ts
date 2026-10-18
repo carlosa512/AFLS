@@ -20,7 +20,7 @@
 import { FIRST_NAMES, LAST_NAMES } from './data/names';
 import { BASE_CAP } from './finance/market';
 import { clamp, Rng } from './rng';
-import { staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
+import { ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
 import type { League, Medic, MedicRole, Team } from './types';
 
 export const MEDIC_ROLES: MedicRole[] = ['doctor', 'physio', 'scientist'];
@@ -279,7 +279,7 @@ function teamGoal(league: League, teamId: number): number {
     goals = new Map(league.teams.map((t, i) => [t.id, TYPICAL + 1.3 * (z[i] - mean)]));
     goalCache.set(league.seed, goals);
   }
-  return goals.get(teamId) ?? TYPICAL;
+  return (goals.get(teamId) ?? TYPICAL) + ownerTilt(league.teams[teamId]);
 }
 
 /** Chairs in the order an AI team fills them. */

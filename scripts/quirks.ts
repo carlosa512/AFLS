@@ -8,7 +8,7 @@
  *    anything else), replay the same games, and check its stat moves the way the registry says.
  *
  *   npm run quirks                        # churn, 10 seasons
- *   npm run quirks -- --effects           # also the effects, 3 seasons per quirk (9 for close calls)
+ *   npm run quirks -- --effects           # also the effects, 3 seasons per quirk (9 for close calls, 18 for the closest)
  *   npm run quirks -- --effects --only=gunslinger,anchor
  */
 import { createLeague } from '../src/engine/generate';
@@ -217,10 +217,11 @@ function effectAudit() {
   };
 
   const merge = (a: Rows, b: Rows): Rows => Object.fromEntries(Object.entries(a).map(([k, v]) => [k, [...v, ...b[k]]]));
-  console.log(`\nQuirk effects: each quirk on every player at its positions, ${seasons} season(s) (${seasons * 3} for close calls)\n`);
+  console.log(`\nQuirk effects: each quirk on every player at its positions, ${seasons} season(s) (${seasons * 3} for close calls, ${seasons * 6} for the closest)\n`);
   const baseLeague = make(null);
   const base = run(baseLeague, 0, seasons);
   let wideBase: Rows | null = null;
+  let widerBase: Rows | null = null;
   const flagged: string[] = [];
   for (const q of QUIRK_IDS.filter((id) => !only || only.includes(id))) {
     const [metric, dir] = EXPECT[q];
@@ -231,6 +232,12 @@ function effectAudit() {
       wideBase ??= merge(base, run(baseLeague, seasons, seasons * 3));
       test = merge(test, run(l, seasons, seasons * 3));
       m = z(test[metric], wideBase[metric]);
+    }
+    // Still short of "weak": a rare trigger (Sees Ghosts needs two sacks in a game) needs more games to show, not a lower bar.
+    if (m.z * dir < 2) {
+      widerBase ??= merge(wideBase!, run(baseLeague, seasons * 3, seasons * 6));
+      test = merge(test, run(l, seasons * 3, seasons * 6));
+      m = z(test[metric], widerBase[metric]);
     }
     const verdict = m.z * dir >= 3 ? 'moves play' : m.z * dir >= 2 ? 'weak' : m.z * dir <= -2 ? 'WRONG WAY' : 'NO EFFECT';
     if (verdict === 'NO EFFECT' || verdict === 'WRONG WAY') flagged.push(q);

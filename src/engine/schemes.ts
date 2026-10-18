@@ -443,6 +443,16 @@ export function coachSchemeAbout(c: Pick<Coach, 'role' | 'scheme'>): string | nu
 }
 
 /**
+ * How much pressure a defense brings, about −1 (rushes four, sits in coverage) … 1.8 (a fire zone in man): its blitz
+ * rate on a log scale, so "Blitz-happy" (×1.3) reads about 0.65 and "Rushes four" (×0.75) about −0.7. Not capped: a
+ * head coach who wants a fire zone can tell one from a milder 3-4 man scheme.
+ */
+export function pressureOf(s: CoachScheme): number {
+  const blitz = (s.front ? FRONTS[s.front].blitz : 1) * (s.coverage ? COVERAGES[s.coverage].blitz : 1);
+  return Math.log(blitz) / Math.log(1.5);
+}
+
+/**
  * A defensive coordinator's identity in a tag or two, read off what his front and coverage do in a game
  * (blitz rate, man or zone, safeties deep, the lean against the run): the defense's answer to an offensive
  * coordinator's "Pass-first". Empty for a balanced defense.

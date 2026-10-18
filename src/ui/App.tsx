@@ -383,7 +383,9 @@ export function App() {
       {playerId !== null && league.players[playerId] && (
         <PlayerCard league={league} player={league.players[playerId]} onClose={() => setPlayerId(null)} />
       )}
-      {staffCard?.kind === 'coach' && league.coaches[staffCard.id] && <CoachCard league={league} coach={league.coaches[staffCard.id]} onClose={() => setStaffCard(null)} />}
+      {staffCard?.kind === 'coach' && (league.coaches[staffCard.id] ?? league.retiredCoaches[staffCard.id]) && (
+        <CoachCard league={league} coach={league.coaches[staffCard.id] ?? league.retiredCoaches[staffCard.id]} onClose={() => setStaffCard(null)} />
+      )}
       {staffCard?.kind === 'scout' && league.staff[staffCard.id] && <ScoutCard league={league} scout={league.staff[staffCard.id]} onClose={() => setStaffCard(null)} />}
       {staffCard?.kind === 'medic' && league.medics[staffCard.id] && <MedicCard league={league} medic={league.medics[staffCard.id]} onClose={() => setStaffCard(null)} />}
     </NavContext.Provider>

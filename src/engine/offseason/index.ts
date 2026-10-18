@@ -8,7 +8,7 @@
  * same AI when simulating straight through (`simOffseason`).
  */
 import { retireChance } from '../aging';
-import { coachingFor, coachWindowCloses, developCoaches, ensureCoached } from '../coaching';
+import { coachingFor, coachWindowCloses, developCoaches, ensureCoached, noteCoachOverspend } from '../coaching';
 import { developPlayer, playedShare, recordRatings } from '../development';
 import { delegates, injuriesNewYear, injuryRetireChance, manageInjuries } from '../injuries';
 import { developMedics, ensureMedical, medicalWindowCloses } from '../medical';
@@ -23,7 +23,7 @@ import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
 import { generateSchedule } from '../season/schedule';
 import { divisionStandings } from '../season/standings';
-import type { League, Phase } from '../types';
+import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
 import { aiFreeAgencyDay, aiResignWindow, aiTrainingCamp } from './ai';
 import { aiDraftChoice, draftComplete, draftPlayer, finishDraft, generateDraftClass, nextPick, setDraftOrder, simDraft } from './draft';
@@ -49,7 +49,9 @@ export function beginOffseason(league: League): void {
     team.deadMoney = team.deadMoney.filter((d) => d.season >= last);
   }
   setDraftOrder(league, last);
+  noteCoachOverspend(league);
 
+  const retirees: Player[] = [];
   for (const p of Object.values(league.players)) {
     if (p.retired) continue;
     // Each player's year runs on his own stream: tuning development never reshuffles drafts or
@@ -71,6 +73,7 @@ export function beginOffseason(league: League): void {
       p.contract = null;
       p.retired = true;
       delete p.quirkBag;
+      retirees.push(p);
       continue;
     }
     // Deals that just ran out keep their final year (the franchise tag is priced off it) until
@@ -82,7 +85,7 @@ export function beginOffseason(league: League): void {
   injuriesNewYear(league);
   resetScouting(league);
   developStaff(league);
-  developCoaches(league);
+  developCoaches(league, retirees);
   developMedics(league);
   crewsNewYear(league);
 

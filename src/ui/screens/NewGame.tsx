@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { createLeague } from '../../engine/generate';
 import { teamRatings } from '../../engine/roster';
+import { ownerBudgetNote } from '../../engine/staff';
 import { Rating, TeamChip } from '../components';
 import { live } from '../live';
 import { LoadBackupButton } from '../saves';
@@ -52,6 +53,7 @@ export function NewGame() {
                         {team.city} {team.name}
                         <small>
                           QB {r.qb.toFixed(1)} · OFF {r.offense.toFixed(1)} · DEF {r.defense.toFixed(1)}
+                          {ownerBudgetNote(team.staffBudgetMult) ? ` · ${ownerBudgetNote(team.staffBudgetMult)}` : ''}
                         </small>
                       </span>
                       <Rating value={r.overall} decimals={1} />
