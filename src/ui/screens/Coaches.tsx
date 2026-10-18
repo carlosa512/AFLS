@@ -48,7 +48,8 @@ import { coachRecord, formatRecord } from '../../engine/records';
 import { coachSchemeAbout, coachSchemeLabel, PERSONNEL_LABEL, schemeWith } from '../../engine/schemes';
 import { staffWindowOpen, type ResignOutlook } from '../../engine/staff';
 import type { Coach, CoachRole, CoachRoom, League } from '../../engine/types';
-import { Panel, TeamChip } from '../components';
+import { useNav } from '../App';
+import { Panel, Section, Sheet, TeamChip } from '../components';
 import {
   agingTone,
   chairNoun,
@@ -183,31 +184,134 @@ function CoachRecord({ league, c, compact = false }: { league: League; c: Coach;
   return (
     <details className="more coach-record">
       <summary className="small">{summary}</summary>
-      <div className="table-scroll">
-        <table className="small">
-          <thead>
-            <tr>
-              <th className="num">Season</th>
-              <th>Team</th>
-              <th>Job</th>
-              <th className="num">Record</th>
-              <th>Playoffs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {all.seasons.map((s) => (
-              <tr key={s.season}>
-                <td className="num">{s.season}</td>
-                <td>{league.teams[s.teamId].abbrev}</td>
-                <td>{coachTitle(s)}</td>
-                <td className="num">{formatRecord(s.regular)}</td>
-                <td className={s.champion ? 'tone-good' : 'muted'}>{s.playoffs ? `${s.finish} (${s.playoffs.w}–${s.playoffs.l})` : s.finish || '–'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <CareerTable league={league} c={c} />
     </details>
+  );
+}
+
+/** Every season a coach finished on a staff, newest first, with his team's record. */
+function CareerTable({ league, c }: { league: League; c: Coach }) {
+  return (
+    <div className="table-scroll">
+      <table className="small">
+        <thead>
+          <tr>
+            <th className="num">Season</th>
+            <th>Team</th>
+            <th>Job</th>
+            <th className="num">Record</th>
+            <th>Playoffs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {coachRecord(league, c).seasons.map((s) => (
+            <tr key={s.season}>
+              <td className="num">{s.season}</td>
+              <td>{league.teams[s.teamId].abbrev}</td>
+              <td>{coachTitle(s)}</td>
+              <td className="num">{formatRecord(s.regular)}</td>
+              <td className={s.champion ? 'tone-good' : 'muted'}>{s.playoffs ? `${s.finish} (${s.playoffs.w}–${s.playoffs.l})` : s.finish || '–'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** A coach's name that opens his card. */
+function CoachLink({ c, className }: { c: Coach; className?: string }) {
+  const nav = useNav();
+  return (
+    <button className={`linklike ${className ?? ''}`.trim()} onClick={() => nav.openCoach(c.id)}>
+      {coachName(c)}
+    </button>
+  );
+}
+
+/** A coach's full card, like a player's: his ratings, what he runs, his deal and every season he has coached. */
+export function CoachCard({ league, coach: c, onClose }: { league: League; coach: Coach; onClose: () => void }) {
+  const nav = useNav();
+  const team = c.teamId !== null ? league.teams[c.teamId] : null;
+  const coached = coachRecord(league, c).seasons.length > 0;
+  return (
+    <Sheet
+      label={coachName(c)}
+      team={team}
+      onClose={onClose}
+      head={
+        <>
+          {team && <TeamChip team={team} large />}
+          <div style={{ minWidth: 0 }}>
+            <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
+              {coachTitle(c)}
+              {team ? ` · ${team.city} ${team.name}` : ' · On the market'}
+            </span>
+            <h2 style={{ fontSize: 'var(--step-3)' }}>{coachName(c)}</h2>
+          </div>
+        </>
+      }
+    >
+      <div className="facts">
+        <Skill label="Youth development" value={c.youth} />
+        <Skill label="Veteran care" value={c.veterans} />
+        <span className="fact">
+          <span className="eyebrow">Age</span>
+          <span className="staff-age">
+            <b className="num">{c.age}</b> <Trend age={c.age} />
+          </span>
+        </span>
+        <span className="fact">
+          <span className="eyebrow">{c.contract ? 'Salary' : 'Status'}</span>
+          {c.contract ? (
+            <span className="staff-age">
+              <b className="num">{money(c.contract.salary)}</b> <span className="muted small">thru {c.contract.through}</span>
+            </span>
+          ) : (
+            <span>Free agent</span>
+          )}
+        </span>
+        {team && c.since !== undefined && (
+          <span className="fact">
+            <span className="eyebrow">With {team.abbrev} since</span>
+            <b className="num">{c.since}</b>
+          </span>
+        )}
+      </div>
+      <SchemeRow league={league} c={c} />
+      <StyleRow c={c} />
+      {(c.role === 'headCoach' || c.role === 'offCoord') && <StyleOwners />}
+      {c.lastJob && (
+        <p className="muted small" style={{ margin: 0 }}>
+          Last job: {c.lastJob}
+        </p>
+      )}
+      <Section id="coach-career" title="Career">
+        {coached ? (
+          <>
+            <CoachRecord league={league} c={c} compact />
+            <CareerTable league={league} c={c} />
+          </>
+        ) : (
+          <p className="muted small" style={{ margin: 0 }}>
+            No finished seasons on a staff yet.
+          </p>
+        )}
+      </Section>
+      {team && (
+        <div>
+          <button
+            className="btn btn-sm"
+            onClick={() => {
+              onClose();
+              nav.openTeam(team.id);
+            }}
+          >
+            View {team.name} roster
+          </button>
+        </div>
+      )}
+    </Sheet>
   );
 }
 
@@ -286,7 +390,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
     <li className={`staff-card coach-card${expiring ? ' expiring' : ''}`}>
       <div className="staff-head">
         <div>
-          <b className="staff-name">{name}</b>
+          <CoachLink c={c} className="staff-name" />
           <span className="muted small">{subtitle(league, c)}</span>
         </div>
         {expiring && <span className="tag-pill tag-warn">Deal up</span>}
@@ -562,7 +666,7 @@ function Candidate({ league, c, open, counts }: { league: League; c: Coach; open
     <li className="staff-card coach-card">
       <div className="staff-head">
         <div>
-          <b className="staff-name">{name}</b>
+          <CoachLink c={c} className="staff-name" />
           <span className="muted small">{coachTitle(c)}</span>
         </div>
       </div>
@@ -661,7 +765,7 @@ function Rival({ league, c }: { league: League; c: Coach | null }) {
   if (!c) return <span className="tone-bad small">Vacant</span>;
   return (
     <span className="lc-cell">
-      <span>{coachName(c)}</span>
+      <CoachLink c={c} />
       <span className="small muted num">
         <b className={band(c.youth)}>{c.youth}</b> / <b className={band(c.veterans)}>{c.veterans}</b>
       </span>

@@ -174,6 +174,96 @@ export function Dialog({ title, onClose, children, footer }: { title: string; on
   );
 }
 
+/**
+ * A full card over the page (a player, a coach): a head in team colours, then the body. Focus moves in,
+ * Tab stays inside, Escape or the backdrop closes it, and focus returns to the opener.
+ */
+export function Sheet({ label, team, head, actions, onClose, children }: { label: string; team: Team | null; head: ReactNode; actions?: ReactNode; onClose: () => void; children: ReactNode }) {
+  const backdrop = useBackdropClose(onClose);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    return () => opener?.focus?.();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return onClose();
+      if (e.key !== 'Tab' || !sheetRef.current) return;
+      const focusable = sheetRef.current.querySelectorAll<HTMLElement>('button, [href], input, select, summary, [tabindex]:not([tabindex="-1"])');
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first) return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="overlay" {...backdrop}>
+      <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.stopPropagation()}>
+        <div className={`sheet-head${actions ? ' has-edit' : ''}`} style={{ background: team?.colors[0] ?? '#333', boxShadow: `inset 0 -6px 0 ${team?.colors[1] ?? '#666'}` }}>
+          {head}
+          {actions}
+          <button ref={closeRef} className="close-x" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div className="sheet-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+const SECTIONS_KEY = 'afls-sections';
+
+function savedSections(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(SECTIONS_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * A card section that folds away under its heading. Folding one remembers it (per device) for every card,
+ * so a section you never read stays out of the way on the next player too.
+ */
+export function Section({ id, title, defaultOpen = true, className = '', children }: { id: string; title: ReactNode; defaultOpen?: boolean; className?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(() => savedSections()[id] ?? defaultOpen);
+  return (
+    <details
+      className={`card-section ${className}`.trim()}
+      open={open}
+      onToggle={(e) => {
+        const now = e.currentTarget.open;
+        if (now === open) return;
+        setOpen(now);
+        try {
+          localStorage.setItem(SECTIONS_KEY, JSON.stringify({ ...savedSections(), [id]: now }));
+        } catch {
+          // Storage blocked: the fold lasts until the card closes.
+        }
+      }}
+    >
+      <summary>
+        <h3>{title}</h3>
+      </summary>
+      <div className="stack">{children}</div>
+    </details>
+  );
+}
+
 // ───────── sortable tables ─────────
 
 export interface SortState<K extends string> {

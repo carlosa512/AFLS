@@ -6,6 +6,7 @@ import type { League } from '../engine/types';
 import { Dialog, TeamChip } from './components';
 import { isOffseasonPhase, PHASE_LABELS, recordText, resultsSeason, weekLabel } from './format';
 import { BoxScore } from './screens/BoxScore';
+import { CoachCard } from './screens/Coaches';
 import { Compare } from './screens/Compare';
 import { GameViewer } from './screens/GameViewer';
 import { LiveGame } from './screens/LiveGame';
@@ -31,6 +32,7 @@ interface Nav {
   openGame: (gameId: number) => void;
   watchGame: (gameId: number) => void;
   openPlayer: (playerId: number) => void;
+  openCoach: (coachId: number) => void;
   openTeam: (teamId: number) => void;
   /** Players lined up on the comparison screen (at most MAX_COMPARE). */
   compareIds: number[];
@@ -129,6 +131,7 @@ export function App() {
   useLive();
   const [route, setRoute] = useState<Route>(initialRoute);
   const [playerId, setPlayerId] = useState<number | null>(null);
+  const [coachId, setCoachId] = useState<number | null>(null);
   const [compareIds, setCompareIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [confirmSim, setConfirmSim] = useState(false);
@@ -143,6 +146,7 @@ export function App() {
   useEffect(() => {
     const onPop = (e: PopStateEvent) => {
       setPlayerId(null);
+      setCoachId(null);
       setRoute(isHistoryEntry(e.state) ? e.state.route : (hashToRoute(location.hash) ?? { view: 'home' }));
     };
     window.addEventListener('popstate', onPop);
@@ -168,6 +172,10 @@ export function App() {
     openGame: (gameId) => (inGame ? navigate({ view: 'game', gameId, back: route.back }, true) : navigate({ view: 'game', gameId, back: route })),
     watchGame: (gameId) => (inGame ? navigate({ view: 'watch', gameId, back: route.back }, true) : navigate({ view: 'watch', gameId, back: route })),
     openPlayer: setPlayerId,
+    openCoach: (id) => {
+      setPlayerId(null);
+      setCoachId(id);
+    },
     openTeam: (teamId) => navigate({ view: 'roster', teamId }),
     compareIds,
     toggleCompare: (id) => setCompareIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length >= MAX_COMPARE ? ids : [...ids, id])),
@@ -364,6 +372,7 @@ export function App() {
       {playerId !== null && league.players[playerId] && (
         <PlayerCard league={league} player={league.players[playerId]} onClose={() => setPlayerId(null)} />
       )}
+      {coachId !== null && league.coaches[coachId] && <CoachCard league={league} coach={league.coaches[coachId]} onClose={() => setCoachId(null)} />}
     </NavContext.Provider>
   );
 }

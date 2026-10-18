@@ -24,6 +24,7 @@ import {
 } from '../engine/injuries';
 import { ATTRIBUTE_INFO } from '../engine/attributes';
 import type { Attribute, League, Player } from '../engine/types';
+import { Section } from './components';
 import { store } from './store';
 
 /** What `league`'s user believes about a player's injury risk. */
@@ -84,8 +85,7 @@ export function HealthSection({ league, player: p }: { league: League; player: P
   const injectBlock = mine ? injectProblem(p) : 'not yours';
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
   return (
-    <section className="stack health" aria-label="Health">
-      <h3 style={{ margin: 0 }}>Health</h3>
+    <Section id="health" title="Health" className="health">
       <div className="facts">
         <span className="fact">
           <span className="eyebrow">Status</span>
@@ -193,6 +193,6 @@ export function HealthSection({ league, player: p }: { league: League; player: P
           No injuries on file.
         </p>
       )}
-    </section>
+    </Section>
   );
 }

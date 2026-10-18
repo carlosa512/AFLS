@@ -2673,3 +2673,45 @@ tr.stat-total td {
   font-size: var(--step--1);
   font-weight: 700;
 }
+
+/* ───────── folding card sections (player and coach cards) ───────── */
+.card-section {
+  border-top: 1px solid var(--line);
+}
+.card-section > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+.card-section > summary::-webkit-details-marker {
+  display: none;
+}
+.card-section > summary::after {
+  content: '▾';
+  color: var(--muted);
+}
+.card-section:not([open]) > summary::after {
+  transform: rotate(-90deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .card-section > summary::after {
+    transition: transform 0.15s;
+  }
+}
+.card-section > summary:hover h3 {
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+.card-section[open] > .stack {
+  padding-bottom: 4px;
+}
+/* A coach's name opens his card; it keeps the look of the bold name it replaced. */
+.staff-name.linklike {
+  justify-self: start;
+  font-weight: 700;
+}
