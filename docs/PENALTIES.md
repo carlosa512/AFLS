@@ -260,8 +260,9 @@ Returns today are one draw for the yards; nobody blocks. Fouls need the men arou
 play is a run, so fouls are spotted where they happened, or at the end of the run if it's beyond it.
 Half the distance caps any penalty longer than half the way to the goal, except spot fouls.
 
-**End-of-half rules:** a defensive foul on the last play gives an untimed down, and some offensive fouls
-in the last minute bring a 10-second runoff. `npm run endings` must check both.
+**End-of-half rules:** a defensive foul on the last play gives an untimed down (built in Phase 1),
+offsetting fouls on the last play extend the half too (not yet: Phase 1 ends it), and some offensive
+fouls in the last minute bring a 10-second runoff. `npm run endings` must check all three.
 
 ## Phase 5: crews, screens and checks
 
