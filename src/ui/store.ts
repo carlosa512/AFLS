@@ -4,6 +4,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { SAVE_VERSION } from '../engine/generate';
+import { deliverMail } from '../engine/inbox';
 import type { League } from '../engine/types';
 
 let league: League | null = null;
@@ -22,10 +23,11 @@ export const store = {
     emit();
     scheduleSave();
   },
-  /** Run an engine mutation against the current league, then re-render and autosave. */
+  /** Run an engine mutation against the current league, file any new mail, then re-render and autosave. */
   mutate(fn: (l: League) => void) {
     if (!league) return;
     fn(league);
+    deliverMail(league);
     emit();
     scheduleSave();
   },

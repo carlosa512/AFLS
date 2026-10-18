@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { gamesInWeek, playWeek, simToEndOfRegularSeason, simToEndOfSeason, userGame } from '../engine/league';
 import { advanceOffseason, beginOffseason, draftComplete, FA_DAYS, offseasonBlockers, simOffseason } from '../engine/offseason';
+import { unreadCount } from '../engine/inbox';
 import { computeRecords } from '../engine/season/standings';
 import type { League } from '../engine/types';
 import { Dialog, TeamChip } from './components';
@@ -14,6 +15,7 @@ import { GameViewer } from './screens/GameViewer';
 import { LiveGame } from './screens/LiveGame';
 import { live, useLive } from './live';
 import { Home } from './screens/Home';
+import { Inbox } from './screens/Inbox';
 import { NewGame } from './screens/NewGame';
 import { PlayerCard } from './screens/PlayerCard';
 import { Playoffs } from './screens/Playoffs';
@@ -54,6 +56,7 @@ const TABS: { view: Route['view']; label: string }[] = [
   { view: 'home', label: 'Home' },
   { view: 'roster', label: 'Roster' },
   { view: 'cap', label: 'Cap' },
+  { view: 'inbox', label: 'Inbox' },
   { view: 'office', label: 'Front office' },
   { view: 'schedule', label: 'Schedule' },
   { view: 'standings', label: 'Standings' },
@@ -193,6 +196,7 @@ export function App() {
   const record = computeRecords(league, resultsSeason(league)).get(userTeam.id)!;
   const blockers = offseasonBlockers(league);
   const step = offseasonStep(league);
+  const unread = unreadCount(league);
 
   // Run long sims after a paint so the button can show its busy state.
   const run = (fn: (l: League) => void) => {
@@ -303,6 +307,7 @@ export function App() {
               onClick={() => navigate(t.view === 'roster' || t.view === 'cap' ? { view: t.view, teamId: league.userTeamId } : ({ view: t.view } as Route))}
             >
               {t.label}
+              {t.view === 'inbox' && unread > 0 && <span className="tab-badge"> ({unread})</span>}
             </button>
           ))}
         </nav>
@@ -344,6 +349,7 @@ export function App() {
         {route.view === 'home' && <Home league={league} />}
         {route.view === 'roster' && <Roster league={league} teamId={teamOr(route.teamId)} />}
         {route.view === 'cap' && <Finances league={league} teamId={teamOr(route.teamId)} />}
+        {route.view === 'inbox' && <Inbox league={league} />}
         {route.view === 'office' && <FrontOffice league={league} tab={route.tab} />}
         {route.view === 'schedule' && <Schedule league={league} />}
         {route.view === 'standings' && <Standings league={league} />}

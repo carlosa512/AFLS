@@ -1303,7 +1303,8 @@ select {
 
 /* Focus rings inside clipping containers draw inward so they stay visible. */
 .seg button:focus-visible,
-.tab:focus-visible {
+.tab:focus-visible,
+.inbox-row:focus-visible {
   outline-offset: -3px;
 }
 .group-label {
@@ -2844,4 +2845,58 @@ button.tip-pill {
 .team-staff .staff-name {
   font-family: inherit;
   font-size: inherit;
+}
+
+/* inbox */
+.inbox .seg {
+  flex-wrap: wrap;
+}
+.inbox-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 16px;
+  align-items: start;
+}
+.inbox-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.inbox-row {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid transparent;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.inbox-row.is-unread {
+  border-left-color: var(--marker);
+  font-weight: 700;
+}
+.inbox-row[aria-current='true'] {
+  background: var(--line);
+}
+.inbox-message h3 {
+  margin: 4px 0 8px;
+}
+.inbox-message p {
+  margin: 0 0 12px;
+}
+@media (max-width: 640px) {
+  .inbox-panes {
+    grid-template-columns: 1fr;
+  }
+  /* The open message sits above the list on phones, so tapping one shows it without scrolling. */
+  .inbox-message {
+    order: -1;
+  }
 }

@@ -43,7 +43,8 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 17) toV17(league);
   if (league.version < 18) league.version = 18; // v18: optional `returners` on teams and special-teams flags, nothing to fill in
   if (league.version < 19) toV19(league);
-  if (league.version < 20) toV20(league);
+  if (league.version < 20) league.version = 20; // v20: optional `inbox`, filled (already read) on the first delivery
+  if (league.version < 21) toV21(league);
   return league;
 }
 
@@ -258,11 +259,11 @@ function toV19(league: League) {
   league.version = 19;
 }
 
-/** v19 → v20: a drafted player keeps his consensus rank; fill it in from the picks not yet pruned. */
-function toV20(league: League) {
+/** v20 → v21: a drafted player keeps his consensus rank; fill it in from the picks not yet pruned. */
+function toV21(league: League) {
   for (const pk of league.draftPicks) {
     const d = pk.playerId !== undefined ? league.players[pk.playerId]?.draft : undefined;
     if (d && pk.consRank !== undefined) d.rank = pk.consRank;
   }
-  league.version = 20;
+  league.version = 21;
 }

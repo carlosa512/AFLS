@@ -502,6 +502,28 @@ export interface Transaction {
   text: string;
 }
 
+export type InboxCategory = 'awards' | 'contracts' | 'retirement' | 'medical' | 'scouting' | 'matchup' | 'trades';
+
+/** Where a message's buttons go: a player's card, a team's roster, or a front-office tab. */
+export type InboxAction = { kind: 'player'; playerId: number } | { kind: 'team'; teamId: number } | { kind: 'resign' } | { kind: 'draft' } | { kind: 'medical' };
+
+export interface InboxMessage {
+  /** Built from what the message is about, so delivering twice can't duplicate it. */
+  id: string;
+  season: number;
+  phase: Phase;
+  /** The week it's dated (0 in the offseason). */
+  week: number;
+  from: string;
+  /** The sender's staff card, when one of the club's own staff signs it. */
+  fromCard?: { kind: 'coach' | 'scout' | 'medic'; id: number };
+  category: InboxCategory;
+  subject: string;
+  body: string;
+  read: boolean;
+  actions: InboxAction[];
+}
+
 export type PlayoffRound = 'WC' | 'DIV' | 'CONF' | 'FINAL';
 
 export interface TeamGameStats {
@@ -701,6 +723,8 @@ export interface League {
   /** Prospects for the upcoming draft (player ids, teamId null until drafted). */
   draftClass: number[];
   transactions: Transaction[];
+  /** The user's mail, oldest first (see `inbox.ts`). Unset until the first delivery. */
+  inbox?: InboxMessage[];
   negotiations: Record<number, Negotiation>;
   /** Free-agency day within the current offseason (0 before it opens). */
   faDay: number;
