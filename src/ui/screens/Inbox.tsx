@@ -10,12 +10,26 @@ const FILTERS: [InboxCategory | 'all', string][] = [
   ['awards', 'Awards'],
   ['contracts', 'Contracts'],
   ['retirement', 'Retirement'],
+  ['medical', 'Medical'],
   ['scouting', 'Scouting'],
   ['matchup', 'Matchups'],
   ['trades', 'Trades'],
 ];
 
-const ACTION_LABEL: Record<InboxAction['kind'], string> = { player: 'View player', resign: 'Expiring contracts', draft: 'Draft room', trades: 'Trades' };
+function actionLabel(league: League, a: InboxAction): string {
+  switch (a.kind) {
+    case 'player':
+      return `${league.players[a.playerId].lastName}'s player card`;
+    case 'team':
+      return a.teamId === league.userTeamId ? 'Your roster' : `${league.teams[a.teamId].name} roster`;
+    case 'resign':
+      return 'Expiring contracts';
+    case 'draft':
+      return 'Draft room';
+    case 'medical':
+      return 'Medical';
+  }
+}
 
 const dateLabel = (m: InboxMessage) => `${m.season} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
 
@@ -33,6 +47,7 @@ export function Inbox({ league }: { league: League }) {
   };
   const act = (a: InboxAction) => {
     if (a.kind === 'player') nav.openPlayer(a.playerId);
+    else if (a.kind === 'team') nav.openTeam(a.teamId);
     else nav.go({ view: 'office', tab: a.kind });
   };
 
@@ -68,14 +83,25 @@ export function Inbox({ league }: { league: League }) {
           {open ? (
             <>
               <span className="eyebrow">
-                {open.from} · {dateLabel(open)}
+                {open.fromCard ? (
+                  <button className="linklike" onClick={() => nav.openStaff(open.fromCard!.kind, open.fromCard!.id)}>
+                    {open.from}
+                  </button>
+                ) : (
+                  open.from
+                )}{' '}
+                · {dateLabel(open)}
               </span>
               <h3>{open.subject}</h3>
               <p>{open.body}</p>
-              {open.action && (
-                <button className="btn btn-sm btn-primary" onClick={() => act(open.action!)}>
-                  {ACTION_LABEL[open.action.kind]}
-                </button>
+              {open.actions.length > 0 && (
+                <div className="row">
+                  {open.actions.map((a, i) => (
+                    <button key={i} className={`btn btn-sm${i === 0 ? ' btn-primary' : ''}`} onClick={() => act(a)}>
+                      {actionLabel(league, a)}
+                    </button>
+                  ))}
+                </div>
               )}
             </>
           ) : (

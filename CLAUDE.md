@@ -84,7 +84,7 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     and coverages, the depth-chart spots they name (LT, SLOT, NT…) and scheme fit. The engine reads them
     through `teamScheme()` in `coaching.ts`; every lean trades something, so league totals stay in range
   - `records.ts` team, coach and GM records, all looked up from `league.history`
-  - `inbox.ts` the user's mail (awards, expiring deals, retirements, scouting, opposition reports, trades):
+  - `inbox.ts` the user's mail (awards, injuries, expiring deals, retirements, scouting, opposition reports, trades):
     `deliverMail` runs after every `store.mutate` and files what's new, each message keyed by what it's
     about so nothing doubles up. The sim never sends mail itself
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings

@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react';
-import { AWARD_SHORT, HONOR_SLOTS, monthEnding, playerHonors, seasonAwards, weeklyAwards, type AwardWinner } from '../../engine/awards';
+import { AWARD_SHORT, HONOR_SLOTS, monthEnding, seasonAwards, weeklyAwards, type AwardWinner } from '../../engine/awards';
 import { champion, gamesInWeek, userGame } from '../../engine/league';
 import { capSheet } from '../../engine/finance/cap';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
@@ -349,12 +349,11 @@ function AwardsNotice({ league }: { league: League }) {
       return `${AWARD_SHORT[k]} ${name(w.playerId)}${w.teamId !== null ? ` (${league.teams[w.teamId].abbrev})` : ''}`;
     })
     .join(' · ');
-  const mine = Object.values(league.players).filter((p) => p.teamId === league.userTeamId && playerHonors(league, p.id).some((h) => h.season === awards.season));
+  // Your own winners hear about it in the inbox; the banner is the league's news.
   return (
     <div className="notice staff-notice">
       <span>
-        <b>The {awards.season} awards are in.</b> {headline}.
-        {mine.length > 0 && ` ${mine.length} of your players ${mine.length === 1 ? 'is' : 'are'} honored.`}
+        <b>Awards week: the {awards.season} awards are in.</b> {headline}.
       </span>
       <button className="btn btn-sm" onClick={() => nav.go({ view: 'stats', tab: 'awards' })}>
         All awards
@@ -456,7 +455,12 @@ function OffseasonHome({ league }: { league: League }) {
   const reserve = teamPlayers(league, teamId).length - roster.length;
   const idx = STEPS.findIndex(([p]) => p === league.phase);
   const last = league.history[league.history.length - 1];
-  const moves = league.transactions.filter((t) => t.season === league.season && t.kind !== 'release').slice(-14).reverse();
+  // Your own trades, retirements and injuries come to the inbox instead.
+  const inboxed = new Set(['trade', 'retire', 'injury']);
+  const moves = league.transactions
+    .filter((t) => t.season === league.season && t.kind !== 'release' && !(inboxed.has(t.kind) && t.teamIds.includes(teamId)))
+    .slice(-14)
+    .reverse();
   const names = moveIndex(league);
   // A calm nudge, not a second primary action: an empty coaching chair or deals that are up, while moves are open.
   const coachNote = staffWindowOpen(league) ? attentionText(league, teamId) : '';
