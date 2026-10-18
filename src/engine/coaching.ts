@@ -27,9 +27,9 @@ import { logTransaction } from './finance/cap';
 import { BASE_CAP } from './finance/market';
 import { OVR_WEIGHTS, ROSTER_TEMPLATE } from './positions';
 import { clamp, Rng } from './rng';
-import { BASE_OFFENSE, COVERAGES, FRONTS, OFF_SCHEMES, rollScheme, type TeamScheme } from './schemes';
-import { staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
-import type { Attribute, Coach, CoachRole, CoachRoom, CoachStyle, League, Position, Team } from './types';
+import { BASE_OFFENSE, COVERAGES, FRONTS, OFF_SCHEMES, pressureOf, rollScheme, type CoachScheme, type TeamScheme } from './schemes';
+import { ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
+import type { Attribute, Coach, CoachRole, CoachRoom, CoachStyle, League, Player, Position, Team } from './types';
 import { POSITIONS } from './types';
 
 export const COACH_ROOMS: CoachRoom[] = ['QB', 'RB', 'WR', 'OL', 'DL', 'LB', 'DB'];
@@ -314,6 +314,65 @@ export function styleNotes(style: CoachStyle | undefined): string[] {
   return out;
 }
 
+// ───────── what a head coach wants ─────────
+
+/** A head coach's vision for his staff: how much his offense throws (−1…1), and the defense he wants run. */
+export interface Vision {
+  pass: number;
+  /** His defense, front and coverage: what he looks for in a defensive coordinator. */
+  defense: CoachScheme;
+  /** How much pressure that defense brings (`pressureOf`), for words. */
+  pressure: number;
+}
+
+/**
+ * What a head coach wants from his coordinators. One who coached the team last season keeps his system: what his
+ * coordinators ran then (a new coordinator runs it on, so the best men moving up never empty the league of a scheme).
+ * A new one brings his own: a former play-caller the offense he called, a former defensive coordinator the pressure
+ * his defense brought; otherwise an aggressive head coach leans to the pass, a conservative one to the run, and his
+ * taste on defense is his own. Tastes come from the same spread coordinators do (play-callers' leans, defensive
+ * coordinators' schemes), so hiring for fit pairs men up without thinning out any kind of offense or defense. Rolled
+ * from his id: nothing stored, and the league's random stream never moves.
+ */
+export function headCoachVision(league: League, hc: Coach): Vision {
+  const lean = new Rng(`${league.seed}:vision:${hc.id}`).normal(0, 0.27);
+  const taste = rollScheme(`${league.seed}:taste`, { id: hc.id, role: 'defCoord' })!;
+  const stayed = hc.teamId !== null && hc.since !== undefined && hc.since < league.season;
+  const oc = stayed ? lastSeasonHolder(league, hc.teamId!, 'offCoord') : undefined;
+  const dc = stayed ? lastSeasonHolder(league, hc.teamId!, 'defCoord') : undefined;
+  const defense = dc?.scheme?.front ? dc.scheme : hc.scheme?.front ? hc.scheme : taste;
+  return {
+    pass: oc?.style?.passLean ?? hc.style?.passLean ?? clamp(0.8 * (hc.style?.fourthDown ?? 0) + lean, -1, 1),
+    defense: { front: defense.front, coverage: defense.coverage },
+    pressure: pressureOf(defense),
+  };
+}
+
+/** Who held a chair on a team at the end of last season, read off careers (he may have moved on, or retired). */
+function lastSeasonHolder(league: League, teamId: number, role: CoachRole): Coach | undefined {
+  const last = league.season - 1;
+  const held = (c: Coach) => !!c.career?.some((cs) => cs.season === last && cs.teamId === teamId && cs.role === role);
+  return Object.values(league.coaches).find(held) ?? Object.values(league.retiredCoaches).find(held);
+}
+
+/** How a coordinator fits his head coach's vision: 1 is what he wants, 0 the opposite. Null for other chairs, or with no head coach. */
+export function visionFit(league: League, hc: Coach | null, c: Coach, vision?: Vision): number | null {
+  if (!hc || (c.role !== 'offCoord' && c.role !== 'defCoord')) return null;
+  const v = vision ?? headCoachVision(league, hc);
+  if (c.role === 'offCoord') return 1 - Math.min(1, Math.abs((c.style?.passLean ?? 0) - v.pass) / 1.2);
+  // The defense he wants by name, front first: matched on a single pressure scale, the rarest fronts would lose every
+  // close call to a near enough one and fade from the league.
+  return (c.scheme?.front === v.defense.front ? 0.6 : 0) + (c.scheme?.coverage === v.defense.coverage ? 0.4 : 0);
+}
+
+/** A vision in plain words, side by side: "a pass-first offense", "a defense that brings pressure", "balance". */
+export function visionNotes(v: Vision): { offense: string; defense: string } {
+  return {
+    offense: v.pass >= 0.3 ? 'a pass-first offense' : v.pass <= -0.3 ? 'a run-first offense' : 'a balanced offense',
+    defense: v.pressure >= 0.3 ? 'a defense that brings pressure' : v.pressure <= -0.3 ? 'a defense that rushes four and covers' : 'a balanced defense',
+  };
+}
+
 // ───────── money ─────────
 
 const BASE_ASK: Record<CoachRole, number> = { headCoach: 7000, offCoord: 2400, defCoord: 2400, strengthCoach: 2400, positionCoach: 1000 };
@@ -327,23 +386,99 @@ const YOUTH_SHARE: Record<CoachRole, number> = { headCoach: 0.5, offCoord: 0.6, 
 /** One number for a coach's quality in his role. */
 export const coachValue = (c: Pick<Coach, 'role' | 'youth' | 'veterans'>) => YOUTH_SHARE[c.role] * c.youth + (1 - YOUTH_SHARE[c.role]) * c.veterans;
 
-const capOf = (league: League) => league.caps[league.season] ?? BASE_CAP;
+const capOf = (league: League, season = league.season) => league.caps[season] ?? BASE_CAP;
 
-/** Salary he asks for, $K per year: convex in quality, scaled with the cap. */
+/** Salary he asks for, $K per year: convex in quality, scaled with the cap, and dearer off a winning staff (`pedigree`). */
 export function coachAsk(league: League, c: Coach, years = 2): number {
-  return Math.round(BASE_ASK[c.role] * (capOf(league) / BASE_CAP) * 1.16 ** (coachValue(c) - 10) * TERM[years]);
+  return Math.round(BASE_ASK[c.role] * (capOf(league) / BASE_CAP) * 1.16 ** (coachValue(c) - 10) * TERM[years] * (1 + PEDIGREE * pedigree(league, c)));
+}
+/** How much more a coach asks per unit of his staff's last win share over .500: off a 13–4 staff about a fifth more, off 4–13 a fifth less. */
+const PEDIGREE = 0.8;
+/** Last season's win share of the staff he finished it on, less .500 (0 if he wasn't on one): winners get raises and offers. */
+function pedigree(league: League, c: Coach): number {
+  const last = c.career?.at(-1);
+  if (!last || last.season !== league.season - 1) return 0;
+  const rec = league.history.find((h) => h.season === last.season)?.records[last.teamId];
+  const games = rec ? rec.w + rec.l + rec.t : 0;
+  return rec && games ? (rec.w + 0.5 * rec.t) / games - 0.5 : 0;
 }
 
 /** The owner's coaching budget for this league year, $K. The same generosity as his scouting budget. */
-export const coachBudget = (league: League, teamId: number) => Math.round(0.095 * capOf(league) * league.teams[teamId].staffBudgetMult);
+export const coachBudget = (league: League, teamId: number, season = league.season) => Math.round(0.095 * capOf(league, season) * league.teams[teamId].staffBudgetMult);
 
-/** Severance booked against this league year's coaching budget. */
-export const coachSeverancePaid = (league: League, teamId: number) => league.teams[teamId].coachDead.filter((d) => d.season === league.season).reduce((sum, d) => sum + d.amount, 0);
+/** Severance booked against a league year's coaching budget. */
+export const coachSeverancePaid = (league: League, teamId: number, season = league.season) =>
+  league.teams[teamId].coachDead.filter((d) => d.season === season).reduce((sum, d) => sum + d.amount, 0);
 
-/** Salaries owed this league year plus severance booked against it. */
-export function coachPayroll(league: League, teamId: number): number {
-  const pay = teamCoaches(league, teamId).reduce((sum, c) => sum + (c.contract && c.contract.through >= league.season ? c.contract.salary : 0), 0);
-  return pay + coachSeverancePaid(league, teamId);
+/** Salaries owed in a league year plus severance booked against it. */
+export function coachPayroll(league: League, teamId: number, season = league.season): number {
+  const pay = teamCoaches(league, teamId).reduce((sum, c) => sum + (c.contract && c.contract.through >= season ? c.contract.salary : 0), 0);
+  return pay + coachSeverancePaid(league, teamId, season);
+}
+
+/**
+ * New league year: an owner remembers finishing last year over his coaching budget, and won't go over again this year
+ * (`ownerLeeway`). Call it once the year has ticked over, before old severance is forgotten (`developCoaches`).
+ */
+export function noteCoachOverspend(league: League): void {
+  const last = league.season - 1;
+  for (const team of league.teams) if (coachPayroll(league, team.id, last) > coachBudget(league, team.id, last)) team.coachOverspent = last;
+}
+
+/** Why an owner will or won't go past the coaching budget: a screen turns it into his words. */
+export type OwnerReason = 'assistant' | 'lastYear' | 'losing' | 'tight' | 'playoffs' | 'winNow' | 'newCoach' | 'bigMarket' | 'stretch';
+
+/** What an owner will add past the coaching budget for one chair this year ($K), and why. */
+export interface OwnerStance {
+  amount: number;
+  reason: OwnerReason;
+  /** The reason in a few plain words. */
+  why: string;
+}
+
+/**
+ * How far past the coaching budget an owner will go for this chair this year. The budget is his comfort zone, not a
+ * league rule (the NFL caps players' pay, never coaches'): he'll stretch for a head coach or a coordinator when the
+ * team is going somewhere (last season) and his market can carry it, for a new head coach even after a losing year,
+ * never for an assistant and never two years running. AI owners and yours answer alike.
+ */
+export function ownerLeeway(league: League, teamId: number, chair: Chair): OwnerStance {
+  const team = league.teams[teamId];
+  const no = (reason: OwnerReason, why: string): OwnerStance => ({ amount: 0, reason, why });
+  if (!LEADERSHIP.has(chair.role)) return no('assistant', 'he only goes over budget for a head coach or a coordinator');
+  if (team.coachOverspent === league.season - 1) return no('lastYear', 'he went over budget last year and wants it kept this year');
+  const rec = lastRecord(league, teamId);
+  const share = winShare(league, teamId);
+  const playoffs = madePlayoffs(league, teamId);
+  const contending = playoffs || share >= 0.6;
+  const losing = !!rec && share < 0.4;
+  if (losing && chair.role !== 'headCoach') return no('losing', `not after a ${recordText(rec!)} season`);
+  const amount = Math.round(clamp(LEEWAY.base + LEEWAY.market * (team.staffBudgetMult - 1) + (contending ? LEEWAY.contending : 0), 0, LEEWAY.max) * coachBudget(league, teamId));
+  if (amount <= 0) return no('tight', 'his market can’t carry more than the budget');
+  if (playoffs) return { amount, reason: 'playoffs', why: 'the team made the playoffs and he wants a title' };
+  if (contending) return { amount, reason: 'winNow', why: `after a ${recordText(rec!)} season he wants to win now` };
+  if (losing) return { amount, reason: 'newCoach', why: 'a new head coach is worth it after a losing season' };
+  if (team.staffBudgetMult >= 1.08) return { amount, reason: 'bigMarket', why: 'a big market can carry it' };
+  return { amount, reason: 'stretch', why: 'he’ll stretch a little for the right man' };
+}
+/** Leeway as a share of the budget: anyone's, per unit of owner budget over average, a contender's extra, the most. */
+const LEEWAY = { base: 0.03, market: 0.25, contending: 0.05, max: 0.12 };
+
+/** How far past the coaching budget one of your moves would take you ($K; zero or less: within it). */
+export function moveOverspend(league: League, teamId: number, c: Coach, years: number, move: StaffMove | 'replace' | 'promote'): number {
+  if (move === 'promote') return coachAsk(league, asPromoted(league, c, promotionFor(c)!), years) - owedNow(league, c) - coachRoom(league, teamId);
+  const holder = move === 'replace' ? sitting(league, teamId, c) : null;
+  return coachAsk(league, c, years) - coachRoom(league, teamId) - (holder ? freedBy(league, holder) : 0);
+}
+
+/** Null if the move fits the budget, or the owner covers the overspend; otherwise what's wrong, with the owner's answer. */
+function budgetProblem(league: League, teamId: number, chair: Chair, over: number, replacing?: Coach | null): string | null {
+  if (over <= 0) return null;
+  const owner = ownerLeeway(league, teamId, chair);
+  if (over <= owner.amount) return null;
+  const m = (k: number) => `$${(k / 1000).toFixed(2)}M`;
+  const by = `Over your coaching budget by ${m(over)}${replacing ? `, even after dismissing ${coachName(replacing)}` : ''}`;
+  return owner.amount > 0 ? `${by}; your owner will add ${m(owner.amount)} (${owner.why}), no more.` : `${by}, and your owner won’t go over: ${owner.why}.`;
 }
 
 export const coachRoom = (league: League, teamId: number) => coachBudget(league, teamId) - coachPayroll(league, teamId);
@@ -363,8 +498,8 @@ export function coachSeverance(league: League, c: Coach): number {
 /** The man in this coach's chair on a team, other than him and not on his way out. */
 const sitting = (league: League, teamId: number, c: Coach) => teamCoaches(league, teamId).find((x) => x !== c && sameChair(chairOf(x), chairOf(c)) && !isCoachExpiring(league, x)) ?? null;
 
-/** Why a move can't happen right now, or null. */
-export function coachMoveProblem(league: League, teamId: number, c: Coach, move: StaffMove, years = 2): string | null {
+/** Why a move can't happen right now, or null. With `budget` false, only what the owner can't wave through (`ownerLeeway`). */
+export function coachMoveProblem(league: League, teamId: number, c: Coach, move: StaffMove, years = 2, budget = true): string | null {
   if (!staffWindowOpen(league)) return 'Coaching moves open in the re-sign window and free agency.';
   if (move === 'release') return c.teamId === teamId ? null : 'He doesn’t work for you.';
   if (years < 1 || years > maxYears(c.role)) return `A ${coachTitle(c).toLowerCase()} signs for 1–${maxYears(c.role)} years.`;
@@ -376,19 +511,17 @@ export function coachMoveProblem(league: League, teamId: number, c: Coach, move:
     if (c.teamId !== null) return 'He isn’t available.';
     if (holder) return `You already have a ${coachTitle(c).toLowerCase()}: replace ${coachName(holder)} or dismiss him first.`;
   }
-  const over = coachAsk(league, c, years) - coachRoom(league, teamId);
-  return over > 0 ? `Over your coaching budget by $${(over / 1000).toFixed(2)}M.` : null;
+  return budget ? budgetProblem(league, teamId, chairOf(c), moveOverspend(league, teamId, c, years, move)) : null;
 }
 
-/** Why `c` can't replace the man in his chair right now, or null. Dismissing him frees his salary but books severance. */
-export function replaceProblem(league: League, teamId: number, c: Coach, years = 2): string | null {
+/** Why `c` can't replace the man in his chair right now, or null (`budget` as in `coachMoveProblem`). Dismissing him frees his salary but books severance. */
+export function replaceProblem(league: League, teamId: number, c: Coach, years = 2, budget = true): string | null {
   if (!staffWindowOpen(league)) return 'Coaching moves open in the re-sign window and free agency.';
   if (c.teamId !== null) return 'He isn’t available.';
   if (years < 1 || years > maxYears(c.role)) return `A ${coachTitle(c).toLowerCase()} signs for 1–${maxYears(c.role)} years.`;
   const holder = sitting(league, teamId, c);
   if (!holder) return 'Nobody sits in that chair: hire him instead.';
-  const over = coachAsk(league, c, years) - (coachRoom(league, teamId) + freedBy(league, holder));
-  return over > 0 ? `Over your coaching budget by $${(over / 1000).toFixed(2)}M, even after dismissing ${coachName(holder)}.` : null;
+  return budget ? budgetProblem(league, teamId, chairOf(c), moveOverspend(league, teamId, c, years, 'replace'), holder) : null;
 }
 
 /** Who a hire would replace, if his chair is taken. */
@@ -462,7 +595,92 @@ function dismiss(league: League, c: Coach, why?: string): void {
   delete c.since;
 }
 
+// ───────── promotions ─────────
+
+const OFFENSE_ROOMS: ReadonlySet<CoachRoom> = new Set(['QB', 'RB', 'WR', 'OL']);
+
+/** The chair one rung up: a position coach becomes his side's coordinator, a coordinator a head coach. */
+export function promotionFor(c: Pick<Coach, 'role' | 'room'>): Chair | null {
+  if (c.role === 'offCoord' || c.role === 'defCoord') return { role: 'headCoach' };
+  if (c.role === 'positionCoach' && c.room) return { role: OFFENSE_ROOMS.has(c.room) ? 'offCoord' : 'defCoord' };
+  return null;
+}
+
+/**
+ * A coach as he'd be one rung up: the same man and ratings in the new chair, with the play-calling style
+ * and scheme it needs rolled once from his id (so a preview is what the promotion gives). What he had
+ * stays with him: a head coach who called plays keeps his pass lean, and wants that offense.
+ */
+export function asPromoted(league: League, c: Coach, chair: Chair): Coach {
+  const rng = new Rng(`${league.seed}:promote:${c.id}:${chair.role}`);
+  const up: Coach = { ...c, role: chair.role };
+  delete up.room;
+  const style = { ...rollStyle(rng, chair.role), ...c.style };
+  if (Object.keys(style).length) up.style = style;
+  const scheme = rollScheme(league.seed, up);
+  if (scheme && !(chair.role === 'offCoord' ? c.scheme?.offense : c.scheme?.front)) up.scheme = { ...c.scheme, ...scheme };
+  return up;
+}
+
+/** Coaches one rung below a chair who could step up into it for this team: its own, the market's and, with `poach`, other staffs' (a team can't block a promotion). */
+function risers(league: League, teamId: number, chair: Chair, poach: boolean): Coach[] {
+  return Object.values(league.coaches).filter((c) => {
+    const up = promotionFor(c);
+    if (!up || !sameChair(up, chair) || !c.career?.length) return false;
+    return c.teamId === null || c.teamId === teamId || (poach && c.since !== league.season);
+  });
+}
+
+/** Salary he's owed this league year (nothing once his deal has run out). */
+const owedNow = (league: League, c: Coach) => (c.contract && c.contract.through >= league.season ? c.contract.salary : 0);
+
+/** He steps up into the chair above his own on `teamId`'s staff: off another staff with no severance (he chose to go), or within his own. */
+function promoteInto(league: League, teamId: number, c: Coach, years: number): void {
+  touch();
+  const chair = promotionFor(c)!;
+  const from = c.teamId;
+  const was = titleLower(c);
+  const team = league.teams[teamId];
+  Object.assign(c, asPromoted(league, c, chair));
+  delete c.room;
+  if (from !== teamId) {
+    c.teamId = null;
+    delete c.since;
+  }
+  signCoach(league, teamId, c, years);
+  const text =
+    from === teamId
+      ? `${team.abbrev} promoted ${was} ${coachName(c)} to ${titleLower(c)}`
+      : `${team.abbrev} hired ${from !== null ? `${league.teams[from].abbrev} ` : ''}${was} ${coachName(c)} as ${titleLower(c)}`;
+  logTransaction(league, 'coach', from !== null && from !== teamId ? [teamId, from] : [teamId], text);
+}
+
+/** Why your coach can't step up into the chair above his right now, or null (`budget` as in `coachMoveProblem`). */
+export function promotionProblem(league: League, teamId: number, c: Coach, years = 2, budget = true): string | null {
+  if (!staffWindowOpen(league)) return 'Coaching moves open in the re-sign window and free agency.';
+  if (c.teamId !== teamId) return 'He doesn’t work for you.';
+  const chair = promotionFor(c);
+  if (!chair) return 'There is no chair above his.';
+  if (!c.career?.length) return 'He needs a season in his chair first.';
+  if (years < 1 || years > maxYears(chair.role)) return `A ${COACH_ROLE_LABEL[chair.role].toLowerCase()} signs for 1–${maxYears(chair.role)} years.`;
+  const holder = teamCoaches(league, teamId).find((x) => sameChair(chairOf(x), chair) && !isCoachExpiring(league, x));
+  if (holder) return `${coachName(holder)} holds that chair: dismiss him first.`;
+  return budget ? budgetProblem(league, teamId, chair, moveOverspend(league, teamId, c, years, 'promote')) : null;
+}
+
+/** Promote one of your coaches into the open chair above his: a new deal at that chair's going rate, and his old chair opens. */
+export function promoteCoach(league: League, teamId: number, coachId: number, years = 2): void {
+  const c = league.coaches[coachId];
+  const problem = promotionProblem(league, teamId, c, years);
+  if (problem) throw new Error(problem);
+  promoteInto(league, teamId, c, years);
+}
+
 // ───────── careers ─────────
+
+/** The coach a former player became, on a staff, on the market or retired, if he went into coaching. */
+export const coachOfPlayer = (league: League, playerId: number): Coach | undefined =>
+  Object.values(league.coaches).find((c) => c.playerId === playerId) ?? Object.values(league.retiredCoaches).find((c) => c.playerId === playerId);
 
 /** When a season ends, every coach on a staff is credited with it, in the chair he holds now. */
 export function recordCoachSeasons(league: League): void {
@@ -529,13 +747,17 @@ function newCoach(league: League, rng: Rng, chair: Chair, youth: number, veteran
   return c;
 }
 
-/** Entry quality of new candidates: drawn toward the typical coach if the employed league drifts away from it. */
+/**
+ * Entry quality of new candidates for a role: drawn toward the typical coach if the league's employed men in that
+ * role drift away from it. Each role keeps its own level because promotions skim the best teachers off the top:
+ * left to one league-wide pull, position coaches (who shape development most) would sink while the chairs above rise.
+ */
 const ENTRY = 8.6;
-function entryBase(league: League): number {
-  const employed = Object.values(league.coaches).filter((c) => c.teamId !== null);
-  if (employed.length < 100) return ENTRY;
+function entryBase(league: League, role: CoachRole): number {
+  const employed = Object.values(league.coaches).filter((c) => c.teamId !== null && c.role === role);
+  if (employed.length < 25) return ENTRY;
   const mean = employed.reduce((s, c) => s + coachValue(c), 0) / employed.length;
-  return ENTRY + clamp(0.5 * (TYPICAL - mean), -1, 1);
+  return ENTRY + clamp(TYPICAL - mean, -1.5, 1.5);
 }
 
 /** A market candidate: experience buys skill; some lean toward developing youth, others toward keeping veterans going. */
@@ -551,10 +773,10 @@ function candidate(league: League, rng: Rng, chair: Chair, base: number): Coach 
 /** Top the market back up to its usual size. */
 function refreshMarket(league: League, rng: Rng): void {
   const market = coachMarket(league);
-  const base = entryBase(league);
+  const bases = new Map(Object.keys(MARKET_SIZE).map((role) => [role, entryBase(league, role as CoachRole)]));
   for (const chair of CHAIRS) {
     const size = MARKET_SIZE[chair.role];
-    for (let n = market.filter((c) => sameChair(chairOf(c), chair)).length; n < size; n++) candidate(league, rng, chair, base);
+    for (let n = market.filter((c) => sameChair(chairOf(c), chair)).length; n < size; n++) candidate(league, rng, chair, bases.get(chair.role)!);
   }
 }
 
@@ -577,8 +799,13 @@ function teamGoal(league: League, teamId: number): number {
 function roleGoal(league: League, team: Team, role: CoachRole): number {
   const winNow = league.teams.reduce((s, t) => s + t.gm.winNow, 0) / league.teams.length;
   const tilt = (LEADERSHIP.has(role) ? 3 : -2.5) * (team.gm.winNow - winNow);
-  return teamGoal(league, team.id) + tilt;
+  // A contender going for it all aims higher for the men who run the team: that's when budgets get stretched.
+  const push = LEADERSHIP.has(role) && madePlayoffs(league, team.id) ? CONTENDER_PUSH : 0;
+  return teamGoal(league, team.id) + tilt + ownerTilt(team) + push;
 }
+/** Rating points a playoff team adds to what it wants in a head coach or coordinator. */
+const CONTENDER_PUSH = 1;
+const madePlayoffs = (league: League, teamId: number) => !!league.history.find((h) => h.season === league.season - 1)?.playoffs?.[teamId];
 
 /**
  * The opening league: AI staffs of varying quality inside their budgets, and a full, typical staff
@@ -624,11 +851,35 @@ export function generateCoachingWorld(league: League): void {
 
 // ───────── the yearly cycle ─────────
 
+/** Base chance a retiring veteran (four seasons or more) goes into coaching, before his football IQ and work ethic. */
+const TO_COACH = 0.08;
+
+/**
+ * Some players pick up a whistle when they retire: sharp, hard-working veterans most often, nearly always
+ * in the room they played in (a few cross to another room on their side of the ball; kickers and punters
+ * have none). A first-time coach starts a little below a typical candidate, nearer it for a sharp football
+ * mind, and grows from there like any young coach.
+ */
+function exPlayerCoach(league: League, p: Player, base: number): void {
+  const room = ROOM_OF[p.position];
+  if (!room || p.experience < 4) return;
+  const rng = new Rng(`${league.seed}:to-coach:${p.id}`);
+  const iq = p.ratings.awareness - 10;
+  const work = p.traits.workEthic - 10;
+  if (!rng.chance(clamp(TO_COACH + 0.006 * iq + 0.006 * work, 0.01, 0.15))) return;
+  const sameSide = COACH_ROOMS.filter((r) => r !== room && OFFENSE_ROOMS.has(r) === OFFENSE_ROOMS.has(room));
+  const level = base - 0.5 + 0.12 * iq + 0.08 * work;
+  const lean = rng.normal(0, 1.3);
+  const c = newCoach(league, rng, { role: 'positionCoach', room: rng.chance(0.85) ? room : rng.pick(sameSide) }, rng.normal(level + lean, 2.3), rng.normal(level - lean, 2.3), p.age);
+  Object.assign(c, { firstName: p.firstName, lastName: p.lastName, playerId: p.id });
+}
+
 /**
  * New league year: coaches age and develop, the old retire, part of the unhired market drifts out
- * of football, and fresh candidates arrive. Old severance is forgotten.
+ * of football, some of the players who just retired join it, and fresh candidates fill it back up.
+ * Old severance is forgotten.
  */
-export function developCoaches(league: League): void {
+export function developCoaches(league: League, retirees: readonly Player[] = []): void {
   touch();
   const rng = new Rng(`${league.seed}:coach:dev:${league.season}`);
   for (const c of Object.values(league.coaches)) {
@@ -653,6 +904,8 @@ export function developCoaches(league: League): void {
     }
   }
   for (const team of league.teams) team.coachDead = team.coachDead.filter((d) => d.season >= league.season);
+  const base = entryBase(league, 'positionCoach');
+  for (const p of retirees) exPlayerCoach(league, p, base);
   touch();
   refreshMarket(league, rng);
 }
@@ -721,7 +974,16 @@ export function coachWindowCloses(league: League, opts: { autoUser?: boolean } =
     }
   }
   const teams = rng.shuffle(league.teams.filter((t) => opts.autoUser || t.id !== user));
-  for (const team of teams) aiCoachMoves(league, team, rng);
+  // The market is topped up after each team: with this much turnover a thin pool would leave the last teams journeymen.
+  const gone = new Map(
+    teams.map((team) => {
+      const out = aiCoachMoves(league, team, rng);
+      refreshMarket(league, rng);
+      return [team.id, out];
+    }),
+  );
+  // Teams that moved early lost men to later teams' promotions: they fill those chairs now, without raiding anyone.
+  for (const team of teams) fillChairs(league, team, rng, gone.get(team.id));
   refreshMarket(league, rng);
 }
 
@@ -731,53 +993,198 @@ export function hotSeat(rec: { w: number; l: number; t: number }, tenure: number
   if (!games) return 0;
   const pct = (rec.w + 0.5 * rec.t) / games;
   if (tenure < 2) return pct <= 0.15 ? 0.35 : 0;
-  return clamp((0.4 - pct) * 3, 0, 0.75);
+  // A winning season (9–8 and up) is always safe.
+  return clamp((0.525 - pct) * 3, 0, 0.85);
 }
 
-const KEEP: Record<CoachRole, number> = { headCoach: 0.85, offCoord: 0.75, defCoord: 0.75, strengthCoach: 0.75, positionCoach: 0.7 };
+/**
+ * How quick an owner is to fire his head coach, ×0.5 (patient) … ×1.5 (quick trigger) on the hot seat. Each
+ * owner's own, rolled from the league seed (not stored, never the real club's), centred so the league's
+ * firings stay where they are.
+ */
+export function ownerTrigger(league: League, teamId: number): number {
+  return clamp(1 + new Rng(`${league.seed}:owner-trigger:${teamId}`).normal(0, 0.3), 0.5, 1.5);
+}
+/** The owner's streak in words, where it stands out. */
+export const ownerTriggerNote = (trigger: number) => (trigger >= 1.25 ? 'Quick trigger with head coaches' : trigger <= 0.75 ? 'Patient with head coaches' : null);
 
-function aiCoachMoves(league: League, team: Team, rng: Rng): void {
+// Offensive coordinators turn over faster than defensive ones (NFL tenure 2.3 years against 2.6).
+const KEEP: Record<CoachRole, number> = { headCoach: 0.95, offCoord: 0.6, defCoord: 0.7, strengthCoach: 0.75, positionCoach: 0.7 };
+
+const recordText = (rec: { w: number; l: number; t: number }) => `${rec.w}–${rec.l}${rec.t ? `–${rec.t}` : ''}`;
+/** Last season's win share (0.5 with no record): a winning staff is the one others raid. */
+function winShare(league: League, teamId: number | null): number {
+  const rec = teamId === null ? null : lastRecord(league, teamId);
+  const games = rec ? rec.w + rec.l + rec.t : 0;
+  return rec && games ? (rec.w + 0.5 * rec.t) / games : 0.5;
+}
+
+/** Chance a head coach who survives a bad season loses a coordinator for it. */
+export function scapegoat(rec: { w: number; l: number; t: number }): number {
+  const games = rec.w + rec.l + rec.t;
+  return games ? clamp((0.5 - (rec.w + 0.5 * rec.t) / games) * 1.5, 0, 0.45) : 0;
+}
+
+/** One AI team's window: the hot seat, expiring deals and every open chair. Returns who it let go, so it won't hire them back. */
+function aiCoachMoves(league: League, team: Team, rng: Rng): Set<number> {
   // Whoever the team lets go now is not its candidate for the same chair a minute later.
   const gone = new Set<number>();
-  const hc = chairHolder(teamCoaches(league, team.id), { role: 'headCoach' });
-  const rec = lastRecord(league, team.id);
-  if (hc && rec && rng.chance(hotSeat(rec, league.season - (hc.since ?? league.season)))) {
-    dismiss(league, hc, `after a ${rec.w}–${rec.l}${rec.t ? `–${rec.t}` : ''} season`);
-    gone.add(hc.id);
-  }
-  for (const c of teamCoaches(league, team.id).filter((x) => isCoachExpiring(league, x))) {
+  const staff = () => teamCoaches(league, team.id);
+  const decide = (c: Coach) => {
     const years = rng.int(1, maxYears(c.role));
-    const keep = coachValue(c) >= roleGoal(league, team, c.role) - 2 && rng.chance(KEEP[c.role]) && coachAsk(league, c, years) <= coachRoom(league, team.id);
+    const keep = coachValue(c) >= roleGoal(league, team, c.role) - 2 && rng.chance(KEEP[c.role]) && coachAsk(league, c, years) <= spare(league, team.id, chairOf(c));
     if (keep) signCoach(league, team.id, c, years);
     else {
       dismiss(league, c);
       gone.add(c.id);
     }
+  };
+  const hc = chairHolder(staff(), { role: 'headCoach' });
+  const rec = lastRecord(league, team.id);
+  // Firing him is paying two head coaches this year: an owner who can't afford a real replacement keeps him.
+  const affordable = hc && spare(league, team.id, chairOf(hc)) + owedNow(league, hc) - coachSeverance(league, hc) >= 0.6 * coachAsk(league, hc, 2);
+  if (hc && rec && affordable && rng.chance(ownerTrigger(league, team.id) * hotSeat(rec, league.season - (hc.since ?? league.season)))) {
+    dismiss(league, hc, `after a ${recordText(rec)} season`);
+    gone.add(hc.id);
+  } else if (hc && rec && rng.chance(scapegoat(rec))) {
+    const coordinator = chairHolder(staff(), { role: rng.chance(0.6) ? 'offCoord' : 'defCoord' });
+    if (coordinator && canLetGo(league, team.id, coordinator)) {
+      dismiss(league, coordinator, `after a ${recordText(rec)} season`);
+      gone.add(coordinator.id);
+    }
   }
-  fillChairs(league, team, rng, gone);
+  // The head coach's deal first: a new one picks his staff (`cleanHouse`) before anyone else's is decided.
+  const head = chairHolder(staff(), { role: 'headCoach' });
+  if (head && isCoachExpiring(league, head)) decide(head);
+  if (!chairHolder(staff(), { role: 'headCoach' })) fillChairs(league, team, rng, gone, true);
+  for (const c of staff().filter((x) => isCoachExpiring(league, x))) decide(c);
+  fillChairs(league, team, rng, gone, true);
+  return gone;
 }
 
-/** A replacement-level ask: what leaving a chair's worth of money aside for it costs. */
-const reserveFor = (league: League, role: CoachRole) => 0.55 * BASE_ASK[role] * (capOf(league) / BASE_CAP);
+/** Who a new head coach keeps, before fit: a coordinator who fits what he wants is worth up to +0.3 (the NFL keeps about one in five). */
+const KEEP_FOR_NEW: Record<CoachRole, number> = { headCoach: 1, offCoord: 0.05, defCoord: 0.05, strengthCoach: 0.4, positionCoach: 0.5 };
 
-/** Hire into every empty chair, closest to the team's goal for that role, leaving room for the chairs still open. */
-function fillChairs(league: League, team: Team, rng: Rng, gone: ReadonlySet<number> = new Set()): void {
+/** The owner pays a coach off only if what's left covers a typical man in his chair and keeps money aside for every chair not yet paid for (`spare`). */
+const canLetGo = (league: League, teamId: number, c: Coach) =>
+  spare(league, teamId, chairOf(c)) + owedNow(league, c) - coachSeverance(league, c) >= BASE_ASK[c.role] * (capOf(league) / BASE_CAP);
+
+/**
+ * A new head coach brings his own people: a coordinator who fits his vision sometimes stays, one who
+ * doesn't almost always goes, and half the teachers stay; the money decides the rest (`canLetGo`). Anyone
+ * he keeps whose deal is up re-signs.
+ */
+function cleanHouse(league: League, team: Team, hc: Coach, rng: Rng, gone: Set<number>): void {
+  for (const c of [...teamCoaches(league, team.id)]) {
+    if (c === hc || c.since === league.season) continue;
+    const years = rng.int(1, maxYears(c.role));
+    const expiring = isCoachExpiring(league, c);
+    const wanted = rng.chance(KEEP_FOR_NEW[c.role] + 0.3 * (visionFit(league, hc, c) ?? 0));
+    const keep = expiring ? wanted && coachAsk(league, c, years) <= spare(league, team.id, chairOf(c)) : wanted || !canLetGo(league, team.id, c);
+    if (!keep) {
+      dismiss(league, c, 'when a new head coach arrived');
+      gone.add(c.id);
+    } else if (expiring) signCoach(league, team.id, c, years);
+  }
+}
+
+/** What leaving a chair's worth of money aside costs: what the one-year journeyman (rated about 6) a team falls back on can ask. */
+const reserveFor = (league: League, role: CoachRole) => 0.66 * BASE_ASK[role] * (capOf(league) / BASE_CAP);
+
+/**
+ * What an AI team can spend on one chair: its budget room plus what the owner will add for it (`ownerLeeway`, unless
+ * `withOwner` is false), less money set aside for every other chair not yet paid for this year (empty, or its man's
+ * deal is up). Every AI money decision reads it.
+ */
+function spare(league: League, teamId: number, except: Chair, withOwner = true, teachersFirst = false): number {
+  const staff = teamCoaches(league, teamId);
+  const unpaid = CHAIRS.filter((ch) => {
+    if (sameChair(ch, except)) return false;
+    const holder = chairHolder(staff, ch);
+    return !holder || isCoachExpiring(league, holder);
+  });
+  // Hiring a head coach or coordinator, a GM keeps a typical teacher's pay aside for every open teaching chair: the
+  // big names don't get to starve the rooms (going past the budget for them is the owner's call, `ownerLeeway`).
+  const aside = (role: CoachRole) => (teachersFirst && !LEADERSHIP.has(role) ? BASE_ASK[role] * (capOf(league) / BASE_CAP) : reserveFor(league, role));
+  return coachRoom(league, teamId) + (withOwner ? ownerLeeway(league, teamId, except).amount : 0) - unpaid.reduce((sum, ch) => sum + aside(ch.role), 0);
+}
+
+/** How much a coordinator's fit with the head coach weighs in an AI hire, in rating points (none at all to the opposite of what he wants). */
+const VISION_WEIGHT = 1.5;
+/** A promotion has to look this much better than a man who has held the chair (rating points)… */
+const RISER_COST = 0.5;
+/** …less this much per unit of his team's last win share over .500: a winning staff is the one that gets raided… */
+const HOT = 2;
+/** …and less this for the team's own man, who knows the building. */
+const INSIDER = 0.6;
+/** A leadership candidate who has never held a chair in the league (a college coach, an outsider) has this much to prove… */
+const OUTSIDER = 0.8;
+/** …and one who has held this very chair before (a former head coach, most often) this much less: about a third of the NFL's new head coaches are retreads. */
+const PROVEN = 0.35;
+
+/** Score points per typical salary an AI hire would take the team past its budget. */
+const OVERSPEND = 1.5;
+
+interface Hire {
+  c: Coach;
+  /** Him in the chair: himself, or as he'd be promoted into it. */
+  as: Coach;
+}
+
+/**
+ * Hire into every empty chair, closest to the team's goal for that role, leaving room for the chairs still
+ * open; a coordinator is judged on fit with the head coach as well. Head coach and coordinator chairs can go
+ * to a man one rung below: the team's own, the market's or, with `poach` (the window), another staff's. The
+ * chair he leaves opens in turn, and a new head coach then picks his staff (`cleanHouse`).
+ */
+function fillChairs(league: League, team: Team, rng: Rng, gone: Set<number> = new Set(), poach = false): void {
   const open = () => CHAIRS.filter((ch) => !chairHolder(teamCoaches(league, team.id), ch));
-  for (const chair of open()) {
-    if (chairHolder(teamCoaches(league, team.id), chair)) continue;
-    const others = open().filter((ch) => !sameChair(ch, chair));
-    const reserve = others.reduce((s, ch) => s + reserveFor(league, ch.role), 0);
+  // A chair is tried once: a promotion only ever opens chairs further down the list.
+  const tried: Chair[] = [];
+  for (let chair: Chair | undefined = open()[0]; chair; chair = open().find((ch) => !tried.some((t) => sameChair(t, ch)))) {
+    tried.push(chair);
     const years = rng.int(1, maxYears(chair.role));
-    const room = coachRoom(league, team.id);
-    const candidates = coachMarket(league).filter((c) => sameChair(chairOf(c), chair) && !gone.has(c.id));
-    const affordable = (budget: number) => candidates.filter((c) => coachAsk(league, c, years) <= budget);
-    const pool = affordable(room - reserve).length ? affordable(room - reserve) : affordable(room);
+    const hc = chairHolder(teamCoaches(league, team.id), { role: 'headCoach' });
+    const vision = hc && (chair.role === 'offCoord' || chair.role === 'defCoord') ? headCoachVision(league, hc) : undefined;
+    const candidates: Hire[] = [
+      ...coachMarket(league)
+        .filter((c) => sameChair(chairOf(c), chair))
+        .map((c) => ({ c, as: c })),
+      ...risers(league, team.id, chair, poach).map((c) => ({ c, as: asPromoted(league, c, chair) })),
+    ].filter((x) => !gone.has(x.c.id));
+    // Promoting his own man frees what he's paid now, and opens his chair to fill.
+    const cost = (x: Hire) => coachAsk(league, x.as, years) - (x.c.teamId === team.id ? owedNow(league, x.c) - reserveFor(league, x.c.role) : 0);
+    // Only what leaves the money set aside for the other chairs: overspend here and the last chair can't be paid.
+    const leading = LEADERSHIP.has(chair.role);
+    const pool = candidates.filter((x) => cost(x) <= spare(league, team.id, chair, true, leading));
+    // Going past the budget (on the owner's word) has to buy a clearly better man: a typical salary over costs OVERSPEND points.
+    const within = spare(league, team.id, chair, false, leading);
+    const overspend = (x: Hire) => (OVERSPEND * Math.max(0, cost(x) - within)) / (BASE_ASK[chair.role] * (capOf(league) / BASE_CAP));
     const goal = roleGoal(league, team, chair.role);
-    const pick = pool.map((c) => ({ c, score: Math.abs(coachValue(c) - goal) + rng.normal(0, 0.6) })).sort((a, b) => a.score - b.score)[0]?.c;
-    const hire = pick ?? newCoach(league, rng, chair, rng.normal(6.5, 1), rng.normal(6.5, 1), rng.int(30, 45));
-    // Nobody affordable: a journeyman takes the job on a one-year deal, so no chair stays empty.
-    signCoach(league, team.id, hire, pick ? years : 1);
-    logCoach(league, team.id, hire, `${team.abbrev} hired ${coachName(hire)} as ${titleLower(hire)}`, LEADERSHIP.has(chair.role));
+    const score = (x: Hire) =>
+      Math.abs(coachValue(x.as) - goal) +
+      VISION_WEIGHT * (1 - (visionFit(league, hc, x.as, vision) ?? 1)) +
+      overspend(x) +
+      (x.as !== x.c
+        ? RISER_COST - HOT * (winShare(league, x.c.teamId) - 0.5) - (x.c.teamId === team.id ? INSIDER : 0)
+        : !LEADERSHIP.has(chair.role)
+          ? 0
+          : !x.c.career?.length
+            ? OUTSIDER
+            : x.c.career.some((cs) => cs.role === chair.role)
+              ? -PROVEN
+              : 0) +
+      rng.normal(0, 0.6);
+    const pick = pool.map((x) => ({ x, s: score(x) })).sort((a, b) => a.s - b.s)[0]?.x;
+    if (pick && pick.as !== pick.c) promoteInto(league, team.id, pick.c, years);
+    else {
+      // Nobody affordable: a journeyman takes the job on a one-year deal, so no chair stays empty. Rated about 6, he
+      // costs no more than the money a chair has set aside (`reserveFor`).
+      const hire = pick?.c ?? newCoach(league, rng, chair, rng.normal(6, 0.8), rng.normal(6, 0.8), rng.int(30, 45));
+      signCoach(league, team.id, hire, pick ? years : 1);
+      logCoach(league, team.id, hire, `${team.abbrev} hired ${coachName(hire)} as ${titleLower(hire)}`, LEADERSHIP.has(chair.role));
+    }
+    if (chair.role === 'headCoach' && poach) cleanHouse(league, team, chairHolder(teamCoaches(league, team.id), chair)!, rng, gone);
   }
 }
 

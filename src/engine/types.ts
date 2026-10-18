@@ -359,6 +359,8 @@ export interface Coach {
   lastJob?: string;
   /** Every season he finished on a staff, oldest first (records come from `league.history`). */
   career?: CoachSeason[];
+  /** A former player: his playing career is that player's record in `league.players`. */
+  playerId?: number;
   /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
   contract: { salary: number; through: number } | null;
 }
@@ -424,6 +426,8 @@ export interface Team {
    */
   staffBudgetMult: number;
   staffDead: StaffSeverance[];
+  /** League year the team last finished over its coaching budget: the owner won't go over again the year after. */
+  coachOverspent?: number;
   /** Severance owed to dismissed coaches, charged to the coaching budget. */
   coachDead: StaffSeverance[];
   /** Severance owed to dismissed medical staff, charged to the medical budget. */

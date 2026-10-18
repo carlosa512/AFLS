@@ -41,7 +41,7 @@ import { playerOvr, STARTERS } from '../src/engine/positions';
 import { departmentFor, medicalBudget, medicalPayroll, medicMarket, MEDIC_SLOTS, teamMedics } from '../src/engine/medical';
 import { activeRoster, teamPlayers } from '../src/engine/roster';
 import { departmentScore, STAFF_SLOTS, staffBudget, staffMarket, staffPayroll, staffValue, teamStaff } from '../src/engine/staff';
-import type { League, Phase } from '../src/engine/types';
+import type { Coach, League, Phase } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 
 const seasons = Number(process.argv[2] ?? 3);
@@ -183,7 +183,16 @@ interface Row {
   hcFired: number;
   coachOver: number;
   staffOver: number;
+  /** Chairs with a new man at kickoff, by role; position coaches as a share of their chairs. */
+  turnover: { hc: number; oc: number; dc: number; pcShare: number };
+  /** Where this year's new head coaches came from. */
+  hcFrom: { retread: number; coordinator: number; other: number };
 }
+
+/** Who sits in every chair at kickoff, by team: the carousel is read off two of these. */
+const chairKey = (ch: (typeof CHAIRS)[number]) => `${ch.role}${ch.room ?? ''}`;
+const chairSnap = (l: League) => new Map(l.teams.map((t) => [t.id, new Map(CHAIRS.map((ch) => [chairKey(ch), chairHolder(teamCoaches(l, t.id), ch)?.id ?? -1]))]));
+let chairsBefore = chairSnap(league);
 
 const KEEP_TOTAL = Object.values(KEEP_MIN).reduce((a, b) => a + b, 0); // 42: the roster floor nobody can be cut below
 const SCOUT_MAX = Object.values(STAFF_SLOTS).reduce((a, b) => a + b, 0); // 8
@@ -271,11 +280,35 @@ for (let s = 0; s < seasons; s++) {
   const filled = league.teams.map((t) => CHAIRS.filter((ch) => chairHolder(teamCoaches(league, t.id), ch)).length);
   const staffMoves = moves.filter((m) => m.kind === 'coach');
   const hcFired = staffMoves.filter((m) => /head coach .* after a/.test(m.text)).length;
-  const hcHired = staffMoves.filter((m) => / as head coach$/.test(m.text)).length;
+  // The carousel: every chair with a new man since last kickoff, and where the new head coaches came from.
+  const chairsNow = chairSnap(league);
+  const changed = { headCoach: 0, offCoord: 0, defCoord: 0, strengthCoach: 0, positionCoach: 0 };
+  const hcFrom = { retread: 0, coordinator: 0, other: 0 };
+  for (const t of league.teams) {
+    for (const ch of CHAIRS) {
+      const id = chairsNow.get(t.id)!.get(chairKey(ch))!;
+      if (id === chairsBefore.get(t.id)!.get(chairKey(ch))) continue;
+      changed[ch.role]++;
+      if (ch.role !== 'headCoach') continue;
+      const past = (league.coaches[id]?.career ?? []).filter((cs) => cs.season < league.season);
+      if (past.some((cs) => cs.role === 'headCoach')) hcFrom.retread++;
+      else if (past.at(-1)?.role === 'offCoord' || past.at(-1)?.role === 'defCoord') hcFrom.coordinator++;
+      else hcFrom.other++;
+    }
+  }
+  chairsBefore = chairsNow;
+  const hcHired = changed.headCoach;
+  const turnover = { hc: changed.headCoach, oc: changed.offCoord, dc: changed.defCoord, pcShare: changed.positionCoach / (league.teams.length * CHAIRS.filter((ch) => ch.role === 'positionCoach').length) };
+  const exPlayers = coaches.filter((c: Coach) => c.playerId !== undefined);
+  const promoted = staffMoves.filter((m) => / promoted /.test(m.text)).length;
+  const poached = staffMoves.filter((m) => m.teamIds.length > 1).length;
   const coachOver = pay.filter((x) => x > 1).length;
   const coachMkt = coachMarket(league).length;
   console.log(
     `  coaching: value ${ROLE_NAMES.map((n, i) => `${n} ${roles[i].toFixed(1)}`).join(' ')} · ledger growth x${rate.toFixed(3)} (u26) body x${body.toFixed(3)} craft x${craft.toFixed(3)} (28+) · team growth x${Math.min(...teamRate).toFixed(2)}–x${Math.max(...teamRate).toFixed(2)} · payroll ${(100 * avg(pay)).toFixed(0)}% (${(100 * Math.min(...pay)).toFixed(0)}–${(100 * Math.max(...pay)).toFixed(0)}%) · over budget ${coachOver} · chairs ${Math.min(...filled)}–${Math.max(...filled)} · HCs fired ${hcFired} hired ${hcHired} · market ${coachMkt}`,
+  );
+  console.log(
+    `  carousel: new HC ${turnover.hc} (${hcFrom.coordinator} coordinators, ${hcFrom.retread} retreads, ${hcFrom.other} other) · new OC ${turnover.oc} · new DC ${turnover.dc} · new S&C ${changed.strengthCoach} · position coaches ${(100 * turnover.pcShare).toFixed(0)}% new · promoted from within ${promoted} · hired off another staff ${poached} · ex-players coaching ${exPlayers.length} (${exPlayers.filter((c) => c.role !== 'positionCoach').length} above position coach)`,
   );
   const drafted = count('draft');
   console.log(
@@ -357,11 +390,12 @@ for (let s = 0; s < seasons; s++) {
   // craft x0.993-1.000 for 28+ (all seeds 0.984-1.005): the ledger is meant to be neutral, so [0.94, 1.06] and [0.96, 1.04].
   // Team spread x0.77-0.79 to x1.11-1.21 (all seeds 0.75-0.90 and 1.09-1.21): if it collapses coaching stops mattering,
   // if it explodes a staff decides careers. Payroll 77-80% of budget (all seeds 74-87), cheapest 46-58% (37-61), dearest
-  // 100-103% (96-119), 0-2 teams over (run totals 4-6). Role values 10.0-11.3. Chairs 11 of 11 always; fired 0-5 a year
-  // and hired never fewer; market 104-110 coaches (floor 80: a drained market means no replacements).
+  // 100-103% (96-119), 0-2 teams over (run totals 4-6). Role values 10.0-11.3. Chairs 11 of 11 always; fired 2-10 a year
+  // (the NFL's record is 10 new head coaches) and hired never fewer; market 104-125 coaches (floor 80: a drained market
+  // means no replacements).
   const [hc, oc, dc, sc, pc] = roles;
   console.log(
-    `  checks ${year} coaching: ${check('growth', rate, 0.94, 1.06, 3)} · ${check('body', body, 0.96, 1.04, 3)} · ${check('craft', craft, 0.96, 1.04, 3)} · ${check('team growth min', Math.min(...teamRate), 0.6, 0.95)} · ${check('max', Math.max(...teamRate), 1.03, 1.4)} · ${check('payroll mean %', 100 * avg(pay), 65, 95, 0)} · ${check('min %', 100 * Math.min(...pay), 25, Infinity, 0)} · ${check('max %', 100 * Math.max(...pay), 0, 130, 0)} · ${check('over budget', coachOver, 0, 4, 0)} · ${check('chairs filled', Math.min(...filled), CHAIRS.length, CHAIRS.length, 0)} · ${check('HCs fired', hcFired, 0, 8, 0)} · ${check('hired − fired', hcHired - hcFired, 0, league.teams.length, 0)} · ${check('market', coachMkt, 80, 135, 0)} · ${[hc, oc, dc, sc, pc].map((v, i) => check(`${ROLE_NAMES[i]} value`, v, 9, 12, 1)).join(' · ')}`,
+    `  checks ${year} coaching: ${check('growth', rate, 0.94, 1.06, 3)} · ${check('body', body, 0.96, 1.04, 3)} · ${check('craft', craft, 0.96, 1.04, 3)} · ${check('team growth min', Math.min(...teamRate), 0.6, 0.95)} · ${check('max', Math.max(...teamRate), 1.03, 1.4)} · ${check('payroll mean %', 100 * avg(pay), 65, 95, 0)} · ${check('min %', 100 * Math.min(...pay), 25, Infinity, 0)} · ${check('max %', 100 * Math.max(...pay), 0, 130, 0)} · ${check('over budget', coachOver, 0, 4, 0)} · ${check('chairs filled', Math.min(...filled), CHAIRS.length, CHAIRS.length, 0)} · ${check('HCs fired', hcFired, 0, 11, 0)} · ${check('hired − fired', hcHired - hcFired, 0, league.teams.length, 0)} · ${check('market', coachMkt, 80, 135, 0)} · ${[hc, oc, dc, sc, pc].map((v, i) => check(`${ROLE_NAMES[i]} value`, v, 9, 12, 1)).join(' · ')}`,
   );
 
   // Scouting staffs. Accuracy multiplier: mean x1.01-1.03 (all seeds 0.94-1.04), best x0.76-0.81 (0.59-0.83), worst
@@ -387,7 +421,14 @@ for (let s = 0; s < seasons; s++) {
     `  checks ${year} draft: ${check('picks', drafted, 7 * league.teams.length, 7 * league.teams.length, 0)} · ${check('R1 worth', r1, 11.8, 14.5)} · ${check('R2-3', r23, 9.8, 12)} · ${check('R1 − R2-3', r1 - r23, 1, Infinity)} · ${check('|slot − consensus|', reach, 8, 20, 1)}\n`,
   );
 
-  rows.push({ year, k, growth: rate, body, craft, roles, staffVal, hcFired, coachOver, staffOver });
+  // The coaching carousel against the NFL (docs/GAME_DESIGN.md, "How coaching works"): 7.0 new head coaches a year over
+  // 2015-2025 (5-10), 12.5 new offensive coordinators (7-21) and 11 defensive (10-17). Observed here 3-10, 8-17, 5-18 a
+  // season across seeds; position coaches 25-32% new (no NFL figure: 25-35% is the working assumption).
+  console.log(
+    `  checks ${year} carousel: ${check('new HCs', turnover.hc, 2, 12, 0)} · ${check('new OCs', turnover.oc, 4, 22, 0)} · ${check('new DCs', turnover.dc, 4, 22, 0)} · ${check('position coaches new %', 100 * turnover.pcShare, 15, 45, 0)}`,
+  );
+
+  rows.push({ year, k, growth: rate, body, craft, roles, staffVal, hcFired, coachOver, staffOver, turnover, hcFrom });
 }
 
 console.log(`young players' yearly OVR gain under the best-8 coaching staffs ${avg(gains.best).toFixed(3)} (n=${gains.best.length}) vs worst-8 ${avg(gains.worst).toFixed(3)} (n=${gains.worst.length})`);
@@ -402,11 +443,29 @@ if (playerGrowth.some((g) => g > 100)) {
 // error near 0.024 at n ~ 1100 an arm, so one seed cannot band it tightly. This is a sanity band (coaching neither hurts
 // nor decides careers); `npm run careers` is where the effect is judged properly.
 console.log(`\ngains: ${check('best-8 minus worst-8 staffs', avg(gains.best) - avg(gains.worst), -0.05, 0.35, 3)}`);
-// Run totals, scaled from a 6-season run. Teams over the coaching budget 1, 1, 1, 2, 1, 0 = 6 (all seeds 4-6); head
-// coaches fired 12 (all seeds 11-18); scouting departments over budget 0 (all seeds 0-1 a season).
+// Run totals, scaled from a 6-season run. Teams over the coaching budget 0-1 a season (all seeds 1-3 a run); scouting
+// departments over budget 0 (all seeds 0-1 a season). Head coaches fired: the carousel follows the NFL's, 7.0 new head
+// coaches a year over 2015-2025 (5-10, nearly all firings), so 5-6.5 a season here (observed 36-38 a run) against 3-9.
 console.log(
-  `run: ${check('teams over coaching budget', rows.reduce((a, r) => a + r.coachOver, 0), 0, perRun(10), 0)} · ${check('head coaches fired', rows.reduce((a, r) => a + r.hcFired, 0), Math.floor((4 * seasons) / 6), 6 * seasons, 0)} · ${check('scouting departments over budget', rows.reduce((a, r) => a + r.staffOver, 0), 0, perRun(4), 0)}`,
+  `run: ${carouselRun()} · ${check('teams over coaching budget', rows.reduce((a, r) => a + r.coachOver, 0), 0, perRun(10), 0)} · ${check('head coaches fired', rows.reduce((a, r) => a + r.hcFired, 0), 3 * seasons, 9 * seasons, 0)} · ${check('scouting departments over budget', rows.reduce((a, r) => a + r.staffOver, 0), 0, perRun(4), 0)}`,
 );
+
+/**
+ * The carousel over the run, per season, against the NFL: 7.0 new head coaches (observed 5.6-6.6 across seeds), 12.5 new
+ * offensive coordinators (10.4-11.9) and 11 defensive (10.6-12.1). Of the NFL's new head coaches 32% were retreads and 54%
+ * coordinators (observed 15-35% and 50-75%).
+ */
+function carouselRun(): string {
+  const per = (f: (r: Row) => number) => avg(rows.map(f));
+  const hires = rows.reduce((a, r) => a + r.turnover.hc, 0) || 1;
+  return [
+    check('new HCs/season', per((r) => r.turnover.hc), 4.5, 9.5, 1),
+    check('new OCs/season', per((r) => r.turnover.oc), 8.5, 16, 1),
+    check('new DCs/season', per((r) => r.turnover.dc), 8, 15, 1),
+    check('HC hires retreads %', (100 * rows.reduce((a, r) => a + r.hcFrom.retread, 0)) / hires, 10, 50, 0),
+    check('…coordinators %', (100 * rows.reduce((a, r) => a + r.hcFrom.coordinator, 0)) / hires, 35, 85, 0),
+  ].join(' · ');
+}
 
 // Drift: the first kickoff against the last. Needs enough seasons for the league to settle.
 if (rows.length >= 5) {

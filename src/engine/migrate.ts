@@ -12,7 +12,7 @@ import { generateMedicalWorld } from './medical';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
-import { generateStaffWorld } from './staff';
+import { generateStaffWorld, setOwnerBudgets } from './staff';
 import { playoffSummary } from './records';
 import { rollScheme } from './schemes';
 import { addStats, statSeasons } from './stats';
@@ -38,6 +38,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 13) toV13(league);
   if (league.version < 14) league.version = 14; // v14: optional `weather` on game results, nothing to fill in
   if (league.version < 15) toV15(league);
+  if (league.version < 16) toV16(league);
   return league;
 }
 
@@ -235,4 +236,14 @@ function toV13(league: League) {
 function toV15(league: League) {
   league.retiredCoaches ??= {};
   league.version = 15;
+}
+
+/**
+ * v15 → v16: owners spend what their markets earn (`ownerBudgets`), the user's own included, where the old
+ * save rolled them at random. Coaches may now carry a `playerId` (former players) and teams a `coachOverspent` year:
+ * nothing to fill in.
+ */
+function toV16(league: League) {
+  setOwnerBudgets(league);
+  league.version = 16;
 }

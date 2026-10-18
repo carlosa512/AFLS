@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  asPromoted,
+  coachOfPlayer,
+  developCoaches,
+  headCoachVision,
+  ownerLeeway,
+  promoteCoach,
+  promotionFor,
+  promotionProblem,
+  ROOM_OF,
+  visionFit,
   CHAIRS,
   chairHolder,
   coachAsk,
@@ -42,6 +52,7 @@ import { fourthDown, passProbability, type Situation } from './match/coach';
 import { simulateGame } from './match/gameSim';
 import { migrateLeague } from './migrate';
 import { coachRecord } from './records';
+import { ownerBudgets } from './staff';
 import { advanceOffseason, beginOffseason, simOffseason } from './offseason';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
@@ -449,6 +460,126 @@ describe('coaching staffs and moves', () => {
     expect(fired).toBeGreaterThan(0);
   }, 120_000);
 
+});
+
+describe('the coaching carousel', () => {
+  it('moves a coach one rung up: a position coach to his side’s coordinator, a coordinator to head coach', () => {
+    expect(promotionFor({ role: 'positionCoach', room: 'QB' })).toEqual({ role: 'offCoord' });
+    expect(promotionFor({ role: 'positionCoach', room: 'DB' })).toEqual({ role: 'defCoord' });
+    expect(promotionFor({ role: 'defCoord' })).toEqual({ role: 'headCoach' });
+    expect(promotionFor({ role: 'strengthCoach' })).toBeNull();
+    expect(promotionFor({ role: 'headCoach' })).toBeNull();
+  });
+
+  it('lets the user promote from within: same man and ratings, the scheme a preview showed, his old chair open', () => {
+    const l = offseason('promote');
+    const user = l.userTeamId;
+    l.teams[user].staffBudgetMult = 2; // money is tested on its own
+    releaseCoach(l, user, chairHolder(teamCoaches(l, user), { role: 'offCoord' })!.id);
+    const qb = chairHolder(teamCoaches(l, user), { role: 'positionCoach', room: 'QB' })!;
+    const ratings = { youth: qb.youth, veterans: qb.veterans };
+    const preview = asPromoted(l, qb, { role: 'offCoord' });
+    expect(promotionProblem(l, user, qb)).toBeNull();
+    promoteCoach(l, user, qb.id);
+    expect(qb).toMatchObject({ role: 'offCoord', teamId: user, ...ratings, scheme: preview.scheme, style: preview.style });
+    expect(qb.room).toBeUndefined();
+    expect(chairHolder(teamCoaches(l, user), { role: 'positionCoach', room: 'QB' })).toBeNull();
+    // The chair above a defensive line coach is taken.
+    expect(promotionProblem(l, user, chairHolder(teamCoaches(l, user), { role: 'positionCoach', room: 'DL' })!)).toMatch(/holds that chair/);
+  });
+
+  it('lets AI teams promote off other staffs (nobody can block a promotion) and still fills every AI chair', () => {
+    const l = offseason('poach');
+    for (const t of l.teams.filter((x) => x.id !== l.userTeamId).slice(0, 10)) delete l.coaches[chairHolder(teamCoaches(l, t.id), { role: 'headCoach' })!.id];
+    const fresh = copy(l); // a fresh coaching index, as after a reload
+    coachWindowCloses(fresh);
+    expect(fresh.transactions.some((tx) => tx.season === fresh.season && tx.kind === 'coach' && tx.teamIds.length > 1)).toBe(true);
+    for (const t of fresh.teams) if (t.id !== fresh.userTeamId) for (const ch of CHAIRS) expect(chairHolder(teamCoaches(fresh, t.id), ch), `${t.abbrev} ${ch.role}`).not.toBeNull();
+  });
+
+  it('gives a head coach a vision: an aggressive one wants to throw, a former play-caller his own offense', () => {
+    const l = createLeague({ seed: 'vision' });
+    const hc = chairHolder(teamCoaches(l, 0), { role: 'headCoach' })!;
+    const oc = chairHolder(teamCoaches(l, 0), { role: 'offCoord' })!;
+    const bold = { ...hc, style: { fourthDown: 0.8 } };
+    expect(headCoachVision(l, bold).pass).toBeGreaterThan(headCoachVision(l, { ...hc, style: { fourthDown: -0.8 } }).pass);
+    expect(headCoachVision(l, { ...hc, style: { fourthDown: 0, passLean: -0.6 } }).pass).toBe(-0.6);
+    expect(visionFit(l, bold, { ...oc, style: { passLean: 0.7 } })!).toBeGreaterThan(visionFit(l, bold, { ...oc, style: { passLean: -0.7 } })!);
+    expect(visionFit(l, bold, hc)).toBeNull();
+  });
+
+  it('sends some retiring veterans into coaching, nearly always in their own room, linked to their playing record', () => {
+    const l = createLeague({ seed: 'to-coach' });
+    const vets = Object.values(l.players).filter((p) => p.teamId !== null).slice(0, 800);
+    for (const p of vets) p.experience = 10;
+    developCoaches(l, vets);
+    const ex = Object.values(l.coaches).filter((c) => c.playerId !== undefined);
+    expect(ex.length).toBeGreaterThan(25);
+    expect(ex.length).toBeLessThan(150);
+    for (const c of ex) {
+      const p = l.players[c.playerId!];
+      expect(c).toMatchObject({ role: 'positionCoach', teamId: null, firstName: p.firstName, lastName: p.lastName, age: p.age });
+      expect(ROOM_OF[p.position]).not.toBeNull(); // kickers and punters have no room to coach
+      expect(coachOfPlayer(l, p.id)).toBe(c);
+    }
+    expect(ex.filter((c) => c.room === ROOM_OF[l.players[c.playerId!].position]).length / ex.length).toBeGreaterThan(0.7);
+  });
+});
+
+describe('owners', () => {
+  it('spend what their markets earn: centred on the average owner, the biggest market most, the user’s owner too', () => {
+    const l = createLeague({ seed: 'owners', userTeamId: 16 });
+    const mults = l.teams.map((t) => t.staffBudgetMult);
+    expect(mean(mults)).toBeCloseTo(1, 1);
+    expect(l.teams[16].abbrev).toBe('DAL');
+    expect(l.teams[16].staffBudgetMult).toBe(Math.max(...mults));
+    expect(l.teams.find((t) => t.abbrev === 'JAX')!.staffBudgetMult).toBe(Math.min(...mults));
+    // A market without a revenue figure (a mod's) gets the average owner.
+    expect(ownerBudgets([600, 600, undefined])).toEqual([1, 1, 1]);
+  });
+
+  it('go past the coaching budget only for the men who run the team, when it makes sense, and never two years running', () => {
+    const l = offseason('owner-leeway');
+    const user = l.userTeamId;
+    l.teams[user].staffBudgetMult = 1;
+    const last = l.history.find((h) => h.season === l.season - 1)!;
+    expect(ownerLeeway(l, user, { role: 'positionCoach', room: 'QB' })).toMatchObject({ amount: 0, reason: 'assistant' });
+    last.records[user] = { w: 4, l: 13, t: 0 };
+    if (last.playoffs) delete last.playoffs[user];
+    expect(ownerLeeway(l, user, { role: 'offCoord' })).toMatchObject({ amount: 0, reason: 'losing' });
+    expect(ownerLeeway(l, user, { role: 'headCoach' }).reason).toBe('newCoach');
+    last.records[user] = { w: 12, l: 5, t: 0 };
+    (last.playoffs ??= {})[user] = { w: 1, l: 1, round: 'DIV' };
+    expect(ownerLeeway(l, user, { role: 'offCoord' }).reason).toBe('playoffs');
+    // A hire past the budget by less than he'll add goes through; by more, it's blocked with his answer.
+    releaseCoach(l, user, chairHolder(teamCoaches(l, user), { role: 'offCoord' })!.id);
+    const pick = coachMarket(l).find((c) => c.role === 'offCoord')!;
+    // Room is set with a ledger entry, not the owner's money: his leeway is a share of his budget.
+    const setRoom = (room: number) => {
+      const team = l.teams[user];
+      team.coachDead = team.coachDead.filter((d) => d.name !== 'test');
+      team.coachDead.push({ season: l.season, amount: coachRoom(l, user) - room, name: 'test' });
+    };
+    setRoom(coachAsk(l, pick) - 100);
+    expect(ownerLeeway(l, user, { role: 'offCoord' }).amount).toBeGreaterThan(100);
+    expect(coachMoveProblem(l, user, pick, 'hire')).toBeNull();
+    setRoom(coachAsk(l, pick) - ownerLeeway(l, user, { role: 'offCoord' }).amount - 500);
+    expect(coachMoveProblem(l, user, pick, 'hire')).toMatch(/your owner will add/);
+    l.teams[user].coachOverspent = l.season - 1;
+    expect(ownerLeeway(l, user, { role: 'headCoach' })).toMatchObject({ amount: 0, reason: 'lastYear' });
+  });
+
+  it('upgrades older saves: owners from their markets, and an empty archive of retired coaches', () => {
+    const l = createLeague({ seed: 'owners-v14' });
+    const old = copy(l);
+    old.version = 14;
+    for (const t of old.teams) t.staffBudgetMult = 1;
+    delete (old as Partial<League>).retiredCoaches;
+    const up = migrateLeague(old)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    expect(up.retiredCoaches).toEqual({});
+    expect(up.teams.map((t) => t.staffBudgetMult)).toEqual(l.teams.map((t) => t.staffBudgetMult));
+  });
 });
 
 describe('coaches who leave football', () => {

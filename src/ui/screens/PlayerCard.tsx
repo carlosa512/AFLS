@@ -14,7 +14,7 @@ import { store } from '../store';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
 import { HealthSection } from '../injuries';
-import { teamScheme } from '../../engine/coaching';
+import { coachOfPlayer, coachTitle, teamScheme } from '../../engine/coaching';
 import { spotsFor } from '../../engine/schemes';
 import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, QuirkPills, quirksOf, repsOf, ScoutButton, StarScaleToggle, Stars, schemeFitOf, starsOf, useStarScale, viewOf } from '../scouting';
 
@@ -188,6 +188,48 @@ function StatRow({ league, label, teamIds, line, cols, total }: { league: League
   );
 }
 
+/** A player's stats by season (a season split by a trade shows each team's share under it) and his career line. */
+export function StatsTable({ league, player: p }: { league: League; player: Player }) {
+  const cols = statColumns(p);
+  const seasons = Object.keys(p.stats)
+    .map(Number)
+    .sort((a, b) => b - a);
+  if (!cols.length || !seasons.length) return null;
+  const careerTeams = [...new Set(seasons.flatMap((s) => seasonTeams(p, s)))];
+  return (
+    <div className="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Season</th>
+            <th>Team</th>
+            <th className="num">GP</th>
+            {cols.map(([label]) => (
+              <th key={label} className="num">
+                {label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {seasons.flatMap((season) => {
+            const teamIds = seasonTeams(p, season);
+            const split = p.splitStats?.[season];
+            const row = <StatRow key={season} league={league} label={String(season)} teamIds={teamIds} line={p.stats[season]} cols={cols} total={!!split} />;
+            if (!split) return [row];
+            // A season split by a trade: each team's share under the season total.
+            return [
+              row,
+              ...teamIds.map((id) => <StatRow key={`${season}-${id}`} league={league} label="" teamIds={[id]} line={split[id] ?? {}} cols={cols} />),
+            ];
+          })}
+          {seasons.length > 1 && <StatRow league={league} label="Career" teamIds={careerTeams} line={careerLine(p)} cols={cols} total />}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function PlayerCard({ league, player: p, onClose }: { league: League; player: Player; onClose: () => void }) {
   const nav = useNav();
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
@@ -206,6 +248,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const comparing = nav.compareIds.includes(p.id);
   const cols = statColumns(p);
   const honors = honorBadges(playerHonors(league, p.id));
+  const coach = p.retired ? coachOfPlayer(league, p.id) : undefined;
   const seasons = Object.keys(p.stats)
     .map(Number)
     .sort((a, b) => b - a);
@@ -218,7 +261,6 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const fit = p.retired ? null : schemeFitOf(league, p, myScheme);
   const fitSide = ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p.position) ? 'offense' : 'defense';
   const fitScheme = fitSide === 'offense' ? myScheme.offense.label : [myScheme.front.label, myScheme.coverage?.label].filter(Boolean).join(' · ');
-  const careerTeams = [...new Set(seasons.flatMap((s) => seasonTeams(p, s)))];
 
   return (
     <Sheet
@@ -233,7 +275,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
               {spot ? `${spot} · ` : ''}
               {POSITION_NAMES[p.position]}
-              {team ? ` · ${team.city} ${team.name}` : isProspect(p) ? ' · Draft prospect' : ' · Free agent'}
+              {team ? ` · ${team.city} ${team.name}` : isProspect(p) ? ' · Draft prospect' : p.retired ? ' · Retired' : ' · Free agent'}
             </span>
             <h2 style={{ fontSize: 'var(--step-3)' }}>
               {p.firstName} {p.lastName}
@@ -328,6 +370,15 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             )}
           </div>
 
+          {coach && (
+            <p className="small" style={{ margin: 0 }}>
+              {league.coaches[coach.id] ? 'Now coaching: ' : 'Went on to coach: '}
+              <button className="linklike" onClick={() => nav.openStaff('coach', coach.id)}>
+                {coachTitle(coach)}
+                {coach.teamId !== null ? `, ${league.teams[coach.teamId].abbrev}` : league.coaches[coach.id] ? ', on the market' : ' (retired)'}
+              </button>
+            </p>
+          )}
           {honors.length > 0 && (
             <div className="pill-row" aria-label="Honors">
               {honors.map((h) => (
@@ -433,36 +484,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
 
           {cols.length > 0 && seasons.length > 0 && (
             <Section id="stats" title="Stats">
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Season</th>
-                    <th>Team</th>
-                    <th className="num">GP</th>
-                    {cols.map(([label]) => (
-                      <th key={label} className="num">
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {seasons.flatMap((season) => {
-                    const teamIds = seasonTeams(p, season);
-                    const split = p.splitStats?.[season];
-                    const row = <StatRow key={season} league={league} label={String(season)} teamIds={teamIds} line={p.stats[season]} cols={cols} total={!!split} />;
-                    if (!split) return [row];
-                    // A season split by a trade: each team's share under the season total.
-                    return [
-                      row,
-                      ...teamIds.map((id) => <StatRow key={`${season}-${id}`} league={league} label="" teamIds={[id]} line={split[id] ?? {}} cols={cols} />),
-                    ];
-                  })}
-                  {seasons.length > 1 && <StatRow league={league} label="Career" teamIds={careerTeams} line={careerLine(p)} cols={cols} total />}
-                </tbody>
-              </table>
-            </div>
+              <StatsTable league={league} player={p} />
             </Section>
           )}
           {team && (

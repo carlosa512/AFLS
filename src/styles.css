@@ -2473,6 +2473,10 @@ details.more > summary {
 .league-coaches .team-inline {
   white-space: nowrap;
 }
+.owner-notes {
+  display: block;
+  font-size: var(--step--1);
+}
 .league-coaches tr.me .sticky-col {
   background: color-mix(in srgb, var(--marker) 14%, var(--surface));
 }
