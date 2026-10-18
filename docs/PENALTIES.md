@@ -314,6 +314,49 @@ face mask 0.33, neutral zone infraction 0.31, illegal contact 0.28, offensive pa
 block 0.17, illegal shift 0.17, encroachment 0.14, too many men 0.18, unsportsmanlike conduct 0.12,
 taunting 0.07; special teams 1.76 in all.
 
+## Checks left red when Phase 1 landed (handle separately)
+
+Phase 1 changes how every game plays out (new flags, declines, free plays), so every league is a new
+draw. Three checks that sit near their edges went over; none traces to a mechanism that's wrong. Left
+as they are on purpose, like the crews' (`docs/OFFICIALS.md`). Numbers from `npm run check` on c4dd6a6;
+the "a defense keeps its takeaway" fix came after it and touches about one play in two thousand games.
+
+**1. `npm run quirks -- --effects`: Thumping Tackler (`thumper`, yards per carry) flagged NO EFFECT.**
+
+| Run | yds/carry | z | Verdict |
+| --- | --- | --- | --- |
+| `main`, 3 + 9 seasons | −0.04 | −2.2 | weak (passes) |
+| Phase 1, 3 + 9 seasons | −0.02 | −1.2 | NO EFFECT (fails) |
+| Phase 1, 6 + 18 seasons | −0.03 | −2.3 | weak (passes) |
+
+Borderline on `main` too. One part may be real: accepted holding now wipes out the best runs (the
+defense keeps a stuffed run and takes the flag on a long one, as in the NFL), which are the runs
+Thumper shortens, so its measured effect shrinks a little. Pat-The-Rock passed this time (z 2.8).
+
+**2. `npm run weather`: rain's kicking ratio 1.000 (shown 1.002 in the pass column), target 0.95–1.0.**
+Field goals made in rain against calm-day rates from the same distances:
+
+| Leagues | `main` | Phase 1 |
+| --- | --- | --- |
+| 0–2 (the check's) | 0.980 | 1.000 |
+| 3–5 | 0.989 | 1.003 |
+| 6–8 | 0.978 | 0.985 |
+| 9–11 | 0.989 | 0.986 |
+| All 12 (about 12,700 rain kicks each) | 0.985 | 0.993 |
+
+Kicking is unchanged (rain still adds `wx.kick` yards to every kick in `fgProb`); the games around the
+kicks are new. Each three-league sample swings about ±0.01, the 0.008 gap over twelve is about 1.4
+standard errors, and this check has no larger sample for close calls.
+
+**3. `npm run careers`: points per team-game 24.35 (band 21–24) and the interception leaders.**
+Points: the known long-run creep (23.64 on `main` before crews, 24.15 with crews; see
+`docs/OFFICIALS.md`). Interception leaders, average #1 and #5 over 32 seasons: 6.4 (band 6.6–11) and
+4.8 (4.8–6.8), against 7.1 and 5.1 on `main`. Fresh leagues (`npm run sim -- 10`) went the other way
+(#1 8.0 → 9.2, inside 7–10.5), and interceptions per team-game went 0.79 → 0.73 (band 0.65–0.85).
+Flags now wipe out 3.3% of interceptions (a defense's offside gives the offense a free play, 76 of
+123 in a 2,176-game replay; defensive holding the other 46), as they do in the NFL; the rest of the
+drop is the leagues taking different paths.
+
 ## Sources
 
 Search extracts only; the pages themselves couldn't be fetched from the research sandbox.
