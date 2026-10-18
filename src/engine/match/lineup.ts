@@ -1,8 +1,11 @@
 import { skill } from '../attributes';
 import { teamScheme } from '../coaching';
 import type { TeamScheme } from '../schemes';
+import { overall } from '../positions';
+import { isAvailable } from '../roster';
 import { temperOffset } from '../traits';
 import type { League, Player, Position, Team } from '../types';
+import { POSITIONS } from '../types';
 
 /** The 22 starters plus the depth the engine draws on, with unit composites. */
 export interface Lineup {
@@ -45,26 +48,87 @@ const discipline = (p: Player) => skill(p, 'discipline') + temperOffset(p.traits
 const avg = (players: Player[], f: (p: Player) => number) =>
   players.reduce((sum, p) => sum + f(p), 0) / Math.max(1, players.length);
 
-export function buildLineup(league: League, team: Team): Lineup {
-  const depth = (pos: Position, n: number): Player[] => {
-    const players = team.depthChart[pos].slice(0, n).map((id) => league.players[id]);
-    if (players.length === 0) throw new Error(`${team.abbrev} has no ${pos} on the depth chart`);
-    return players;
-  };
+/**
+ * Who fills in when a position runs out of healthy players, best fit first: a safety covers at
+ * corner, a defensive tackle lines up at guard, the punter kicks. Out of position he plays at what
+ * his ratings are worth there.
+ */
+const FILL_IN: Record<Position, Position[]> = {
+  QB: ['RB', 'WR', 'TE'],
+  RB: ['WR', 'TE', 'S', 'LB'],
+  WR: ['TE', 'RB', 'CB', 'S'],
+  TE: ['OL', 'WR', 'DT', 'LB'],
+  OL: ['DT', 'TE', 'EDGE'],
+  DT: ['EDGE', 'OL', 'LB'],
+  EDGE: ['DT', 'LB', 'TE'],
+  LB: ['EDGE', 'S', 'DT'],
+  CB: ['S', 'WR', 'LB'],
+  S: ['CB', 'LB', 'WR'],
+  K: ['P'],
+  P: ['K'],
+};
 
+/**
+ * The lineup for a game. Players on injured reserve, hurt (unless playing through it) or in `out`
+ * (hurt earlier in this game) sit; the next man on the depth chart steps in, and a position with too
+ * few healthy players borrows from its neighbours (`FILL_IN`), never using anyone twice, except that
+ * one healthy specialist can both kick and punt.
+ */
+export function buildLineup(league: League, team: Team, out: ReadonlySet<number> = new Set()): Lineup {
   const scheme = teamScheme(league, team.id);
   const personnel = scheme.offense.personnel;
   const front = scheme.front;
-  const qb = depth('QB', 1)[0];
-  const rbs = depth('RB', 2);
-  const wrs = depth('WR', 4);
-  const tes = depth('TE', 2);
-  const ol = depth('OL', 5);
-  const dt = depth('DT', 2);
-  const edge = depth('EDGE', 2);
-  const lb = depth('LB', 2);
-  const cb = depth('CB', 3);
-  const s = depth('S', 2);
+  // How many each position dresses for the engine, and how many it can't do without.
+  const want: Record<Position, [number, number]> = {
+    QB: [1, 1],
+    RB: [2, 1],
+    WR: [4, personnel === '10' ? 4 : 3],
+    TE: [2, personnel === '12' ? 2 : 1],
+    OL: [5, 5],
+    DT: [2, 2],
+    EDGE: [2, 2],
+    LB: [2, 2],
+    CB: [3, 3],
+    S: [2, 2],
+    K: [1, 1],
+    P: [1, 1],
+  };
+  const used = new Set<number>();
+  const fit = (id: number) => !out.has(id) && !used.has(id) && !!league.players[id] && isAvailable(league.players[id]);
+  const take = (players: Player[]) => players.forEach((p) => used.add(p.id));
+  // First every position's own healthy players, so a fill-in never takes another position's starter.
+  const at = {} as Record<Position, Player[]>;
+  for (const pos of POSITIONS) take((at[pos] = team.depthChart[pos].filter(fit).slice(0, want[pos][0]).map((id) => league.players[id])));
+  for (const pos of POSITIONS) {
+    const list = at[pos];
+    const need = want[pos][1];
+    for (const from of FILL_IN[pos]) {
+      if (list.length >= need) break;
+      const extra = team.depthChart[from].filter(fit).map((id) => league.players[id]);
+      const picked = extra.sort((a, b) => overall(b.ratings, pos) - overall(a.ratings, pos)).slice(0, need - list.length);
+      take(picked);
+      list.push(...picked);
+    }
+    // Nobody healthy anywhere close: one specialist kicks and punts, and otherwise someone plays hurt.
+    if (!list.length && (pos === 'K' || pos === 'P')) list.push(...at[pos === 'K' ? 'P' : 'K'].slice(0, 1));
+    if (list.length < need) {
+      const hurt = team.depthChart[pos].filter((id) => !out.has(id) && !used.has(id) && !league.players[id]?.ir).slice(0, need - list.length).map((id) => league.players[id]);
+      take(hurt);
+      list.push(...hurt);
+    }
+    // Still nobody (both specialists hurt in the same game): whoever on the roster does it best,
+    // even a man already on the field.
+    if (list.length === 0) {
+      const anyone = POSITIONS.flatMap((from) => team.depthChart[from]).filter((id) => !out.has(id) && league.players[id] && !league.players[id].ir);
+      const best = anyone.map((id) => league.players[id]).sort((a, b) => overall(b.ratings, pos) - overall(a.ratings, pos))[0];
+      if (best) list.push(best);
+    }
+    if (list.length === 0) throw new Error(`${team.abbrev} has no ${pos} on the depth chart`);
+  }
+  const qb = at.QB[0];
+  const { RB: rbs, WR: wrs, TE: tes, OL: ol, DT: dt, EDGE: edge, LB: lb, CB: cb, S: s } = at;
+  const kicker = at.K[0];
+  const punter = at.P[0];
 
   // Returners come from skill-position depth, not the starters' workload.
   const krPool = [rbs[1], wrs[3], wrs[2], cb[2]].filter(Boolean);
@@ -104,9 +168,9 @@ export function buildLineup(league: League, team: Team): Lineup {
     lb,
     cb,
     s,
-    rushRotation: [team.depthChart.EDGE[2], team.depthChart.DT[2]].filter((id) => id !== undefined).map((id) => league.players[id]),
-    k: depth('K', 1)[0],
-    p: depth('P', 1)[0],
+    rushRotation: (['EDGE', 'DT'] as const).map((pos) => team.depthChart[pos].find(fit)).filter((id) => id !== undefined).map((id) => league.players[id]),
+    k: kicker,
+    p: punter,
     kr: best(krPool),
     pr: best(prPool),
     // Unit composites: the line does most of the work, with help from the backs and tight ends.

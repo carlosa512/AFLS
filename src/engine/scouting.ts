@@ -235,6 +235,11 @@ export function resetScouting(league: League): void {
 export const CHARACTER_KNOWLEDGE = 0.5;
 /** Error (sd, trait points) in a makeup read at zero knowledge, for a typical reader. */
 const CHARACTER_ERROR = 4;
+/**
+ * The same for injury resistance: a typical department reads a veteran within about two points, a
+ * poor one can miss by five (an injury-prone bust who scouts as an ironman), an elite one by one.
+ */
+export const INJURY_ERROR = 6;
 
 /** A front office's read of a player's hidden makeup, on the traits' 1–20 scale. Engine-only: screens get words. */
 export interface CharacterRead extends Traits {
@@ -266,10 +271,17 @@ export function characterRead(league: League, teamId: number, p: Player): Charac
   const projector = new Rng(`${league.seed}:view:${teamId}:${p.id}:char:${proj?.by?.id ?? 0}`);
   const evaluator = new Rng(`${league.seed}:view:${teamId}:${p.id}:temper:${evalr?.by?.id ?? 0}`);
   const guess = (truth: number, sd: number, own: Rng) => clamp(truth + sd * (0.8 * team.normal() + 0.6 * own.normal()), 1, 20);
+  const workEthic = guess(p.traits.workEthic, sdProj, projector);
+  const durability = guess(p.traits.durability, sdProj, projector);
+  const temperament = guess(p.traits.temperament, sdEval, evaluator);
+  // Another club's medical file stays closed: how often a body breaks is the hardest thing to see.
+  const sdBody = INJURY_ERROR * Math.max(1 - k, 0.3) * (proj ? accuracy(proj.rating) : 1);
   return {
-    workEthic: guess(p.traits.workEthic, sdProj, projector),
-    durability: guess(p.traits.durability, sdProj, projector),
-    temperament: guess(p.traits.temperament, sdEval, evaluator),
+    workEthic,
+    durability,
+    temperament,
+    injuryResistance: guess(p.traits.injuryResistance, sdBody, projector),
+    naturalFitness: guess(p.traits.naturalFitness, sdEval, evaluator),
     sd: Math.max(sdProj, sdEval),
     exact: false,
   };
@@ -480,7 +492,7 @@ export function fixedHabits(league: League, teamId: number, p: Player): { id: Qu
  */
 function lastGoodAge(league: League, teamId: number, p: Player, family: AgingFamily): number {
   const read = characterRead(league, teamId, p);
-  const body = read ? { workEthic: TRAIT_MEAN, durability: read.durability, temperament: TRAIT_MEAN } : undefined;
+  const body = read ? { durability: read.durability } : undefined;
   return Math.floor(declineOnset(p.position, family, body)) + 1;
 }
 

@@ -124,10 +124,12 @@ the real-world ranges in the research doc.
 | Work ethic | How much of his ceiling he reaches, and how gently he declines |
 | Durability (body clock) | Starts his decline up to two years early or late, sets how steep it is, and when he retires |
 | Temperament | Linemen only: a hothead jumps early and grabs (false starts, offside, holding), a calm one rarely draws a flag |
+| Injury resistance | How often his body breaks; it fades past his physical prime, slower for a durable body (`docs/INJURIES.md`) |
+| Natural fitness | How much condition a game costs and how fast it comes back, how fast he heals, and how much a severe injury takes for good |
 
-Other traits from the research (consistency, big-game play, injury proneness, adaptability,
-versatility) wait for the systems they would drive, such as per-game form, injuries and schemes.
-"No engine hook, no trait" applies to them too.
+Other traits from the research (consistency, big-game play, adaptability, versatility) wait for the
+systems they would drive, such as per-game form and schemes. "No engine hook, no trait" applies to
+them too.
 
 **Scouts describe makeup in words.** Once a team knows a player well enough (knowledge 0.5, so
 about a year of film for a veteran, or a visit or two for a prospect), its scouts label what
@@ -268,18 +270,29 @@ market and an ageing cycle; AI hiring by front-office style and head coaches fir
 seasons; play-calling style (pass lean, fourth-down aggression) carried by the coach into games; the
 Coaches screen.
 
+**✅ Injuries & medical staff (done)** — in-game and practice injuries from snaps and collisions,
+scaled by hidden injury resistance (fading with age, buffered by a durable body), energy late in
+games, condition carried week to week (natural fitness), history and injections. Twenty-seven injury
+types with layoffs, a doctor's estimate and permanent scars for the severe ones. Injured reserve (4
+weeks, 8 return designations) with AI and optional automatic management. Injury-forced retirements. A
+medical staff (doctor, physios, sports scientist) whose physiotherapy shortens layoffs on the spec's
+curve and whose sports science prevents strains and restores condition. An injury-risk read in words
+from your medical staff or scouts plus public injury reports. The Medical tab, the roster's Fitness
+column, the player card's Health section, injuries in box scores. Details and sources:
+`docs/INJURIES.md`.
+
 **Next: Front office depth**
-- Medical staff, once injuries exist.
-- NFL-calendar practice: CBA padded-practice budgets, Full/Limited/DNP, veteran rest days.
+- NFL-calendar practice: CBA padded-practice budgets, Full/Limited/DNP, veteran rest days (the
+  weekly practice injury roll is the hook).
 - Mentoring in position rooms; morale (playing time, contract, results) and holdouts.
-- Injuries (in-game and practice), injured reserve, depth that matters; injury proneness and
-  per-game form (consistency, big games) with them.
+- Per-game form (consistency, big games); training camp injuries and the PUP list.
 - Compensatory picks, RFA/ERFA tenders, LTBE/NLTBE incentives, conditional picks.
 - AI trade offers to the user; trade-down offers during the draft.
 
 **Then: Game day**
 - Your game plan: run/pass balance, aggressiveness, coverage shell, blitz rate.
-- Fatigue and rotations, weather, a live play-by-play viewer.
+- Rotations by fatigue (energy already drains per snap and drives injury risk), weather, a live
+  play-by-play viewer.
 
 **Later**
 - Awards: player of the week and month, season awards (MVP, rookie and position honours), all-league

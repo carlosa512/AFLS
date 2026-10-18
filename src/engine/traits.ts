@@ -8,6 +8,9 @@
  *   (development and retirement).
  * - **Temperament**: composure under the whistle. A lineman with a short fuse jumps early and grabs
  *   more (false starts, offside, holding).
+ * - **Injury resistance**: how often his body breaks, and how that holds up with age (`injuries.ts`).
+ * - **Natural fitness**: how much condition a game costs him, how fast it comes back, and how well he
+ *   heals from an injury (`injuries.ts`).
  *
  * The truth drives the engine; teams only ever see their scouts' words for it (`characterRead`).
  */
@@ -28,7 +31,11 @@ export function generateTraits(p: Pick<Player, 'id' | 'firstName' | 'lastName' |
   const body = rng.normal();
   // Pros tend to keep their cool: temperament leans a little toward work ethic.
   const temper = 0.3 * work + 0.954 * rng.normal();
-  return { workEthic: roll(work), durability: roll(body), temperament: roll(temper) };
+  // Drawn after the others, so adding them left every player's earlier traits as they were. A body
+  // that ages well tends to hold together; the fit ones tend to be the ones who put in the work.
+  const resist = 0.35 * body + 0.937 * rng.normal();
+  const fitness = 0.25 * work + 0.2 * body + 0.947 * rng.normal();
+  return { workEthic: roll(work), durability: roll(body), temperament: roll(temper), injuryResistance: roll(resist), naturalFitness: roll(fitness) };
 }
 
 /** Growth multiplier: about ×0.4 for the laziest player, ×1.6 for the hardest worker. Averages 1. */
@@ -38,7 +45,7 @@ export const growthMult = (t: Traits) => 1 + 0.065 * (t.workEthic - TRAIT_MEAN);
 export const declineMult = (t: Traits) => (1 - 0.03 * (t.workEthic - TRAIT_MEAN)) * (1 - 0.02 * (t.durability - TRAIT_MEAN));
 
 /** Years his body clock runs ahead (−) or behind (+) his position's: up to about ±2. */
-export const bodyShift = (t: Traits) => clamp(0.2 * (t.durability - TRAIT_MEAN), -2, 2);
+export const bodyShift = (t: Pick<Traits, 'durability'>) => clamp(0.2 * (t.durability - TRAIT_MEAN), -2, 2);
 
 /** Positions whose discipline the engine reads (the `discipline` contest): the lines. */
 export const TEMPER_POSITIONS: ReadonlySet<Position> = new Set(['OL', 'DT', 'EDGE']);

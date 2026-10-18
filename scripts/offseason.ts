@@ -1,7 +1,8 @@
 /**
  * Offseason audit: run seasons back to back and summarize what the AI front offices did
- * (signings, tags, cuts, cap health, roster sizes, league talent), how well they drafted, and the
- * health of the scouting-staff and coaching economies, so drift is easy to spot.
+ * (signings, tags, cuts, cap health, roster sizes, league talent), how well they drafted, the
+ * season's injuries, and the health of the scouting-staff, coaching and medical economies, so drift
+ * is easy to spot. Roster sizes count the 53 (injured reserve is off it, and shown as "+N IR").
  *
  *   npm run offseason            # 3 seasons
  *   npm run offseason -- 6       # what CI and `npm run check` run
@@ -37,7 +38,8 @@ import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { KEEP_MIN } from '../src/engine/offseason/ai';
 import { freeAgents, ROSTER_MAX } from '../src/engine/offseason/negotiation';
 import { playerOvr, STARTERS } from '../src/engine/positions';
-import { teamPlayers } from '../src/engine/roster';
+import { departmentFor, medicalBudget, medicalPayroll, medicMarket, MEDIC_SLOTS, teamMedics } from '../src/engine/medical';
+import { activeRoster, teamPlayers } from '../src/engine/roster';
 import { departmentScore, STAFF_SLOTS, staffBudget, staffMarket, staffPayroll, staffValue, teamStaff } from '../src/engine/staff';
 import type { League, Phase } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
@@ -119,11 +121,14 @@ interface Snap {
   badDepth: number;
   /** Teams under a full roster, smallest first. */
   short: { abbrev: string; size: number; space: number }[];
+  /** Players on injured reserve, league-wide (off the 53, so not in the roster sizes). */
+  ir: number;
 }
 
 function snapshot(l: League, label: string): Snap {
   const sheets = l.teams.map((t) => capSheet(l, t.id));
-  const rosters = l.teams.map((t) => teamPlayers(l, t.id));
+  // Injured reserve doesn't count toward the 53.
+  const rosters = l.teams.map((t) => activeRoster(l, t.id));
   const sizes = rosters.map((r) => r.length);
   const space = sheets.map((s) => s.space).sort((a, b) => a - b);
   const dead = sheets.map((s) => s.dead).sort((a, b) => a - b);
@@ -158,9 +163,10 @@ function snapshot(l: League, label: string): Snap {
       .map((t, i) => ({ abbrev: t.abbrev, size: sizes[i], space: sheets[i].space }))
       .filter((t) => t.size < ROSTER_MAX)
       .sort((a, b) => a.size - b.size),
+    ir: l.teams.reduce((n, t) => n + teamPlayers(l, t.id).length, 0) - sizes.reduce((a, b) => a + b, 0),
   };
   console.log(
-    `${label.padEnd(22)} roster ${snap.rosterMin}–${snap.rosterMax} · space ${M(space[0])} / median ${M(space[mid])} / ${M(space[space.length - 1])} · over cap ${snap.overCap} · dead median ${M(dead[mid])} max ${M(dead[dead.length - 1])} · starter OVR ${avgStarter.toFixed(2)} · FAs ${snap.fas}`,
+    `${label.padEnd(22)} roster ${snap.rosterMin}–${snap.rosterMax}${snap.ir ? ` (+${snap.ir} IR)` : ''} · space ${M(space[0])} / median ${M(space[mid])} / ${M(space[space.length - 1])} · over cap ${snap.overCap} · dead median ${M(dead[mid])} max ${M(dead[dead.length - 1])} · starter OVR ${avgStarter.toFixed(2)} · FAs ${snap.fas}`,
   );
   return snap;
 }
@@ -193,9 +199,16 @@ const rows: Row[] = [];
 const playerGrowth: number[] = [];
 let prevSave: { total: number; players: number; retired: number; awards: number; weekly: number } | undefined;
 
+const MEDIC_MAX = Object.values(MEDIC_SLOTS).reduce((a, b) => a + b, 0); // 4
+
 for (let s = 0; s < seasons; s++) {
   const steady = s >= 3;
   simToEndOfSeason(league);
+  // The season's injuries, before the new year clears the reserve list.
+  const hurt = Object.values(league.players).flatMap((p) => (p.injuries ?? []).filter((r) => r.season === league.season));
+  const hurtPerTeam = hurt.length / league.teams.length;
+  const severePerTeam = hurt.filter((r) => r.severity === 'severe' || r.severity === 'career-threatening').length / league.teams.length;
+  const weeksPerTeam = hurt.reduce((n, r) => n + r.weeks, 0) / league.teams.length;
   // Saves are one JSON blob in IndexedDB: awards must stay a sliver of it as seasons pile up.
   const all = Object.values(league.players);
   const save = { total: sizeKb(league), games: sizeKb(league.games), players: sizeKb(league.players), awards: sizeKb(league.awards), weekly: sizeKb(league.weeklyAwards), retired: all.filter((p) => p.retired).length };
@@ -266,7 +279,15 @@ for (let s = 0; s < seasons; s++) {
   );
   const drafted = count('draft');
   console.log(
-    `  moves: re-signed ${count('resign')}, signed ${count('sign')}, released ${count('release')}, restructured ${count('restructure')}, tagged ${count('tag')}, options ${count('option')}, drafted ${drafted}, retired(notable) ${count('retire')}`,
+    `  moves: re-signed ${count('resign')}, signed ${count('sign')}, released ${count('release')}, restructured ${count('restructure')}, tagged ${count('tag')}, options ${count('option')}, drafted ${drafted}, retired(notable) ${count('retire')} (injuries ${moves.filter((m) => m.kind === 'retire' && /injuries/.test(m.text)).length})`,
+  );
+  const depts = league.teams.map((t) => departmentFor(league, t.id));
+  const medPay = league.teams.map((t) => medicalPayroll(league, t.id) / medicalBudget(league, t.id));
+  const medics = league.teams.map((t) => teamMedics(league, t.id).length);
+  const medOver = medPay.filter((x) => x > 1).length;
+  const medMkt = medicMarket(league).length;
+  console.log(
+    `  injuries ${year - 1}: ${hurtPerTeam.toFixed(1)} per team (${severePerTeam.toFixed(1)} severe) · weeks lost ${weeksPerTeam.toFixed(0)} per team · medical physio ${avg(depts.map((d) => d.physio)).toFixed(2)} (${Math.min(...depts.map((d) => d.physio)).toFixed(1)}–${Math.max(...depts.map((d) => d.physio)).toFixed(1)}) science ${avg(depts.map((d) => d.science)).toFixed(2)} · payroll ${(100 * avg(medPay)).toFixed(0)}% · over budget ${medOver} · staff ${Math.min(...medics)}–${Math.max(...medics)} · market ${medMkt}`,
   );
 
   // ───────── This season's checks ─────────
@@ -319,9 +340,15 @@ for (let s = 0; s < seasons; s++) {
   // The growth is the players blob (+430 KB a season, 76 → 887 retired kept; band 650 / 320 a season, 1.5x baseline)
   // because retired players are never pruned; that leak is a known issue. Awards stay a sliver: +1.55 KB and +2.7 KB a
   // season (bands 2.5 and 4.5), 0.25% of the save at season 6 (band 0.5%).
+  // Quirks then took it to 5296 after the first season and 11084 at the end (players growth 477-546 a season).
+  // Injuries (save v13) add their own share, and the bands moved by exactly that: 5778 after the first season (a new
+  // league has no free-agent pool, so its ~85 injury replacements are generated players; every player carries two
+  // more traits; injury histories and the backups' stat lines), games 5.5-5.6 MB (box scores keep each injury's
+  // estimate), players growth 584-653 a season, snapshot growth up to 916, 12194 at the end. Ceilings: first season
+  // 6300, final 13500, snapshot growth 1100, players growth 800 (the same headroom over the observed as before).
   const dSave = prevSave && { total: save.total - prevSave.total, players: save.players - prevSave.players, retired: save.retired - prevSave.retired, awards: save.awards - prevSave.awards, weekly: save.weekly - prevSave.weekly };
   console.log(
-    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? 5700 : 12500, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, 900, 0)}` : ''} · ${check('games KB', save.games, 0, 6500, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 650, 0)} · ${check('retired added', dSave.retired, 0, 320, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
+    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? 6300 : 13500, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, 1100, 0)}` : ''} · ${check('games KB', save.games, 0, 6500, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800, 0)} · ${check('retired added', dSave.retired, 0, 320, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
   if (dSave) playerGrowth.push(dSave.players);
   prevSave = save;
@@ -343,6 +370,14 @@ for (let s = 0; s < seasons; s++) {
   // 10.30 → 10.00 (band 9.0-11.5). No team over budget (all seeds 0-1; market 36-41).
   console.log(
     `  checks ${year} scouting: ${check('accuracy mean', 2 ** avg(scores), 0.85, 1.15)} · ${check('best', 2 ** Math.min(...scores), 0.5, Infinity)} · ${check('worst', 2 ** Math.max(...scores), 0, 1.7)} · ${check('scouts/team min', Math.min(...scouts), 4, SCOUT_MAX, 0)} · ${check('max', Math.max(...scouts), 0, SCOUT_MAX, 0)} · ${check('value', staffVal, 9, 11.5)} · ${check('over budget', staffOver, 0, 2, 0)} · ${check('market', staffMkt, 25, 60, 0)}`,
+  );
+
+  // Injuries and medical staffs. Per team over the season just played: 24.0-26.4 injuries (the regular season's 20-36
+  // plus the playoffs), 1.5-2.1 severe, 111-125 weeks lost (an ACL's year counts in full). Department means: physio
+  // 11.16-11.28, science 10.69-10.94 (band 9.5-12.5: a drift either way means hiring or ageing has tilted). Payroll
+  // 72-74% of the medical budget, 0-1 teams over; every team keeps its four chairs; market 32-34 medics.
+  console.log(
+    `  checks ${year} medical: ${check('injuries/team', hurtPerTeam, 18, 34, 1)} · ${check('severe/team', severePerTeam, 0.5, 3.5, 1)} · ${check('weeks lost/team', weeksPerTeam, 60, 180, 0)} · ${check('physio mean', avg(depts.map((d) => d.physio)), 9.5, 12.5)} · ${check('science mean', avg(depts.map((d) => d.science)), 9.5, 12.5)} · ${check('payroll mean %', 100 * avg(medPay), 55, 95, 0)} · ${check('over budget', medOver, 0, 2, 0)} · ${check('staff/team min', Math.min(...medics), MEDIC_MAX, MEDIC_MAX, 0)} · ${check('market', medMkt, 20, 50, 0)}`,
   );
 
   // Draft. 7 rounds x 32 teams = 224 picks every year. Worth (0.6 OVR + 0.4 potential): round 1 12.82-13.29 (all seeds

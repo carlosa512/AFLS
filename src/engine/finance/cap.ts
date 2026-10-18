@@ -80,7 +80,8 @@ export function capSheet(league: League, teamId: number, season = league.season)
   const carryover = season === league.season ? team.carryover : 0;
   const cap = capFor(league, season);
   const used = active + dead;
-  return { season, cap, carryover, active, dead, used, space: cap + carryover - used, rosterSize: roster.length, top51 };
+  // Injured reserve still counts on the cap, but not toward the roster limit.
+  return { season, cap, carryover, active, dead, used, space: cap + carryover - used, rosterSize: roster.filter((p) => !p.ir).length, top51 };
 }
 
 export const capSpace = (league: League, teamId: number, season = league.season) => capSheet(league, teamId, season).space;

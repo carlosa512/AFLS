@@ -2571,3 +2571,61 @@ tr.stat-total td {
   gap: 2px;
   justify-items: start;
 }
+
+/* ───────── injuries ───────── */
+.tag-bad {
+  background: color-mix(in srgb, var(--loss) 18%, var(--surface));
+  /* Pulled toward the ink so small pill text clears 4.5:1 in both themes. */
+  color: color-mix(in srgb, var(--loss) 65%, var(--ink));
+}
+.fitness-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+/* Injury risk: a dot, so the column stays narrow; hollow while it's early word. */
+.risk-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+.risk-low {
+  background: var(--win);
+}
+.risk-medium {
+  background: var(--tie);
+}
+.risk-high {
+  background: var(--loss);
+}
+.risk-dot.risk-early {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+.risk-dot.risk-early.risk-low {
+  color: var(--win);
+}
+.risk-dot.risk-early.risk-medium {
+  color: var(--tie);
+}
+.risk-dot.risk-early.risk-high {
+  color: var(--loss);
+}
+.medical-effects {
+  margin: 12px 0 0;
+  padding-left: 18px;
+}
+.medical-effects li + li {
+  margin-top: 4px;
+}
+.injury-history td,
+.injury-history th {
+  font-size: var(--step--1);
+}
+.box-injuries {
+  margin: 0;
+  padding-left: 18px;
+}

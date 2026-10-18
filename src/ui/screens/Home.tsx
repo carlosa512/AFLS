@@ -5,7 +5,7 @@ import { capSheet } from '../../engine/finance/cap';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
 import { expiringPlayers } from '../../engine/offseason/ai';
 import { formatRecord, gmRecord } from '../../engine/records';
-import { teamPlayers, teamRatings } from '../../engine/roster';
+import { activeRoster, teamPlayers, teamRatings } from '../../engine/roster';
 import { staffWindowOpen } from '../../engine/staff';
 import { allSeeds, ROUND_NAMES, roundWeek } from '../../engine/season/playoffs';
 import { computeRecords, divisionStandings } from '../../engine/season/standings';
@@ -440,7 +440,9 @@ function OffseasonHome({ league }: { league: League }) {
   const teamId = league.userTeamId;
   const team = league.teams[teamId];
   const sheet = capSheet(league, teamId);
-  const roster = teamPlayers(league, teamId);
+  // Injured reserve doesn't count toward the 53.
+  const roster = activeRoster(league, teamId);
+  const reserve = teamPlayers(league, teamId).length - roster.length;
   const idx = STEPS.findIndex(([p]) => p === league.phase);
   const last = league.history[league.history.length - 1];
   const moves = league.transactions.filter((t) => t.season === league.season && t.kind !== 'release').slice(-14).reverse();
@@ -471,7 +473,7 @@ function OffseasonHome({ league }: { league: League }) {
       break;
     case 'preseason':
       title = 'Training camp';
-      body = `Cut down to 53 before week 1 (you have ${roster.length}). After June 1, dead money from cuts is split across two years automatically.`;
+      body = `Cut down to 53 before week 1 (you have ${roster.length}${reserve ? `, plus ${reserve} on injured reserve` : ''}). After June 1, dead money from cuts is split across two years automatically.`;
       action = { label: 'Cap & cuts', go: () => nav.go({ view: 'cap' }) };
       break;
   }

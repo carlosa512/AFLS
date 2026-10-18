@@ -15,7 +15,7 @@ npm run dev        # open the printed local URL
 ```bash
 npm run check            # run every check your change needs (CI runs the same on pull requests)
 npm test                 # engine tests
-npm run sim -- 10        # simulate 10 seasons and compare stats to NFL averages
+npm run sim -- 10        # simulate 10 seasons and compare stats and injury rates to the NFL
 npm run endings          # audit game endings for nonsensical clock management
 npm run offseason -- 6   # run seasons back to back and summarize front-office health
 npm run audit            # check every rating moves play; rewrites docs/ATTRIBUTES.md

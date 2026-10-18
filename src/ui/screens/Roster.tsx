@@ -4,7 +4,7 @@ import { POSITION_NAMES } from '../../engine/positions';
 import { PERSONNEL_LABEL, spotsFor, type TeamScheme } from '../../engine/schemes';
 import { capSheet } from '../../engine/finance/cap';
 import { capHit, lastSeason } from '../../engine/finance/contract';
-import { buildAutoDepthChart, teamPlayers, teamRatings } from '../../engine/roster';
+import { buildAutoDepthChart, isAvailable, teamPlayers, teamRatings } from '../../engine/roster';
 import { computeRecords } from '../../engine/season/standings';
 import type { League, Player, Position, StatLine } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
@@ -12,6 +12,7 @@ import { useNav } from '../App';
 import { Panel, PlayerAvatar, SortTh, sortRows, TeamChip, useSort } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
+import { FitnessCell, InjuryTag, riskOf } from '../injuries';
 import { Ovr, repsOf, schemeFitOf, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { store } from '../store';
 
@@ -88,6 +89,12 @@ function reorder<T>(list: T[], from: number, to: number): T[] {
   const [item] = next.splice(from, 1);
   next.splice(to, 0, item);
   return next;
+}
+
+function setAutoInjuries(teamId: number, auto: boolean) {
+  store.mutate((l) => {
+    l.teams[teamId].autoInjuries = auto;
+  });
 }
 
 function setAuto(teamId: number, auto: boolean) {
@@ -176,7 +183,7 @@ function useDepthDrag(teamId: number) {
   return { drag, start };
 }
 
-type RosterSort = 'depth' | 'name' | 'ovr' | 'stars' | 'age' | 'cap' | 'thru';
+type RosterSort = 'depth' | 'name' | 'ovr' | 'stars' | 'age' | 'fitness' | 'cap' | 'thru';
 
 /** What each column sorts by: your scouts' view, never the true ratings. */
 function rosterSortValue(league: League, p: Player, key: RosterSort): number | string {
@@ -189,6 +196,9 @@ function rosterSortValue(league: League, p: Player, key: RosterSort): number | s
       return starsOf(league, p).ability;
     case 'age':
       return p.age;
+    case 'fitness':
+      // Your players by condition; anyone's by how injury-prone your read says he is. The hurt sink to the bottom.
+      return (isAvailable(p) ? 0 : -1000) + (p.teamId === league.userTeamId ? (p.condition ?? 100) : 0) - { Low: 0, Medium: 1, High: 2 }[riskOf(league, p).tier];
     case 'cap':
       return p.contract ? capHit(p.contract, league.season) : -1;
     case 'thru':
@@ -292,10 +302,16 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
         title={grouped ? 'Depth chart' : 'Roster'}
         action={
           isUser ? (
-            <label className="row" style={{ gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" id="auto-depth" checked={team.autoDepth} onChange={(e) => setAuto(teamId, e.target.checked)} />
-              Auto-sort by rating
-            </label>
+            <span className="row" style={{ gap: 14 }}>
+              <label className="row" style={{ gap: 6, cursor: 'pointer' }} title="Your medical staff moves long injuries to injured reserve, brings players back, and signs a minimum-deal replacement when a position runs short.">
+                <input type="checkbox" id="auto-injuries" checked={team.autoInjuries !== false} onChange={(e) => setAutoInjuries(teamId, e.target.checked)} />
+                Staff handles injuries
+              </label>
+              <label className="row" style={{ gap: 6, cursor: 'pointer' }}>
+                <input type="checkbox" id="auto-depth" checked={team.autoDepth} onChange={(e) => setAuto(teamId, e.target.checked)} />
+                Auto-sort by rating
+              </label>
+            </span>
           ) : undefined
         }
       >
@@ -325,6 +341,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                 <SortTh label="OVR" k="ovr" sort={sort} onSort={onSort} className="num" />
                 <SortTh label="Stars" k="stars" sort={sort} onSort={onSort} />
                 <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
+                <SortTh label="Fitness" k="fitness" sort={sort} onSort={onSort} />
                 <th>Key ratings</th>
                 <SortTh label="Cap hit" k="cap" sort={sort} onSort={onSort} className="num" />
                 <SortTh label="Thru" k="thru" sort={sort} onSort={onSort} className="num" />
@@ -360,7 +377,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                 const ids = drag?.pos === pos ? reorder(team.depthChart[pos], drag.from, drag.over) : team.depthChart[pos];
                 return [
                   <tr className="group-row" key={`g-${pos}`}>
-                    <td colSpan={9}>
+                    <td colSpan={10}>
                       <span className="group-label">
                         {POSITION_NAMES[pos]} · {groupNote(scheme, pos)}
                       </span>
@@ -478,6 +495,7 @@ function RosterRow({
             Needs reps
           </span>
         )}
+        <InjuryTag league={league} p={p} sub />
       </td>
       <td className="num">
         <Ovr league={league} player={p} />
@@ -486,6 +504,9 @@ function RosterRow({
         <Stars s={starsOf(league, p, 'league', view)} size={13} />
       </td>
       <td className="num">{p.age}</td>
+      <td>
+        <FitnessCell league={league} p={p} />
+      </td>
       <td>
         <span className="row" style={{ gap: 10, flexWrap: 'nowrap' }}>
           {keyAttributes(p.position).map((a) => (

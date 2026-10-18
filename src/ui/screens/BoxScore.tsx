@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { estimateText, injuryLabel } from '../../engine/injuries';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import { passerRating } from '../../engine/stats';
 import type { GameResult, League, Player, PlayLogEntry, StatLine, Team, TeamGameStats } from '../../engine/types';
@@ -346,7 +347,33 @@ export function BoxScore({ league, gameId, onBack }: { league: League; gameId: n
         <PlayerStats league={league} result={r} teamId={side === 'away' ? away.id : home.id} />
       </Panel>
 
+      {r.injuries && r.injuries.length > 0 && <GameInjuries league={league} result={r} />}
+
       {r.plays && r.plays.length > 0 && <PlayByPlay league={league} plays={r.plays} />}
     </>
+  );
+}
+
+/** Who got hurt and when, with the diagnosis as it was made at the time. */
+function GameInjuries({ league, result }: { league: League; result: GameResult }) {
+  const nav = useNav();
+  return (
+    <Panel title="Injuries">
+      <ul className="box-injuries">
+        {result.injuries!.map((i) => {
+          const p = league.players[i.playerId];
+          if (!p) return null;
+          return (
+            <li key={i.playerId}>
+              <b>{league.teams[i.teamId].abbrev}</b>{' '}
+              <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
+                {p.position} {shortName(p)}
+              </button>
+              : {injuryLabel(i.type).toLowerCase()}, {estimateText(i)} <span className="muted small">({i.quarter >= 5 ? 'OT' : `Q${i.quarter}`} {gameClock(i.clock)})</span>
+            </li>
+          );
+        })}
+      </ul>
+    </Panel>
   );
 }

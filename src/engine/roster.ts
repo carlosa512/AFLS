@@ -7,6 +7,14 @@ export function teamPlayers(league: League, teamId: number): Player[] {
   return Object.values(league.players).filter((p) => p.teamId === teamId);
 }
 
+/** The players who count toward the 53: everyone but those on injured reserve. */
+export function activeRoster(league: League, teamId: number): Player[] {
+  return Object.values(league.players).filter((p) => p.teamId === teamId && !p.ir);
+}
+
+/** Can he play this week? Not on reserve, and healthy or playing through it. */
+export const isAvailable = (p: Player) => !p.ir && (!p.injury || !!p.injury.injected);
+
 /** Depth chart ordered purely by overall rating at each position. */
 export function buildAutoDepthChart(players: Player[]): DepthChart {
   const chart = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as number[]])) as DepthChart;
@@ -53,9 +61,16 @@ export function syncDepthChart(league: League, team: Team): void {
   }
 }
 
-/** Starters at a position per the depth chart (may be fewer if the roster is short). */
+/** Starters at a position per the depth chart, skipping anyone hurt (may be fewer if the roster is short). */
 export function starters(league: League, team: Team, pos: Position): Player[] {
-  return team.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]);
+  const out: Player[] = [];
+  for (const id of team.depthChart[pos]) {
+    const p = league.players[id];
+    if (p && isAvailable(p)) out.push(p);
+    if (out.length === STARTERS[pos]) return out;
+  }
+  // Nobody healthy at all: the depth chart as it stands.
+  return out.length ? out : team.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]);
 }
 
 /** Team strength summary: average starter overall per unit, on the 1–20 scale. */

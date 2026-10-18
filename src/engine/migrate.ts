@@ -8,6 +8,7 @@ import { DIVISIONS, LEGACY_COLORS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/
 import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
 import { recordRatings } from './development';
+import { generateMedicalWorld } from './medical';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
@@ -34,6 +35,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 10) toV10(league);
   if (league.version < 11) toV11(league);
   if (league.version < 12) league.version = 12; // v12: optional `form` on players and game results, nothing to fill in
+  if (league.version < 13) toV13(league);
   return league;
 }
 
@@ -205,4 +207,24 @@ function toV10(league: League) {
 function toV11(league: League) {
   for (const p of Object.values(league.players)) if (!p.retired && !p.quirkBag) generateQuirks(p);
   league.version = 11;
+}
+
+/**
+ * v12 → v13: injuries. Two more hidden traits, rolled from each player's own seed after the old ones
+ * (so those don't move and he gets what a new league would give him), and a medical staff for every
+ * team from its own stream. Everyone starts healthy and fresh.
+ */
+function toV13(league: League) {
+  for (const p of Object.values(league.players)) {
+    if (p.traits.injuryResistance !== undefined) continue;
+    const t = generateTraits(p);
+    p.traits.injuryResistance = t.injuryResistance;
+    p.traits.naturalFitness = t.naturalFitness;
+  }
+  if (!league.medics) {
+    league.medics = {};
+    league.nextMedicId = 1;
+    generateMedicalWorld(league);
+  }
+  league.version = 13;
 }

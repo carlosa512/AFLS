@@ -24,9 +24,11 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - `npm run dev` — local dev server (Vite)
 - `npm test` — engine tests (Vitest)
 - `npm run typecheck`
-- `npm run sim -- 10` — simulate 10 seasons and compare league stats to NFL averages, and each season's
-  top five (yards, TDs, catches, sacks, picks) to NFL leaders and records (`scripts/leaders.ts`).
-  **Run this after any change to `src/engine/match/` and keep stats inside the target ranges.**
+- `npm run sim -- 10` — simulate 10 seasons and compare league stats to NFL averages, each season's
+  top five (yards, TDs, catches, sacks, picks) to NFL leaders and records (`scripts/leaders.ts`), and
+  injury rates to the NFL's (`docs/INJURIES.md`). **Run this after any change to `src/engine/match/`
+  or `injuries.ts` and keep stats inside the target ranges.** Leaders are noisy over 10 seasons:
+  check a change near an edge with `-- 30` or more.
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
@@ -37,9 +39,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   retirements, trait and coaching effects and long-run play against the research ranges. Run it after changing `development.ts`, `aging.ts`, `traits.ts`, `coaching.ts`
   or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
-  health, roster sizes, league talent and the scouting and coaching economies. Run it after changes to
-  `finance/`, `offseason/`, `trade.ts`, `staff.ts` or `coaching.ts`; talent, cap space, rosters and
-  the coaching ledger (growth and decline ×1.00) should stay stable across seasons.
+  health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
+  it after changes to `finance/`, `offseason/`, `trade.ts`, `staff.ts`, `coaching.ts`, `medical.ts`
+  or `injuries.ts`; talent, cap space, rosters and the coaching ledger (growth and decline ×1.00)
+  should stay stable across seasons.
 - `npm run quirks` — run the quirk marble bag for 10 seasons and check how often each quirk is carried,
   gained and lost; `npm run quirks -- --effects` also gives each quirk to every player at its positions
   and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in
@@ -64,6 +67,11 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     shows via `coachingParts`), play-calling style (`callerStyle`), the coaching budget, contracts, the
     market, ageing, AI hiring and the head-coach hot seat. All coach changes go through this module (it
     keeps a per-team index; `teamCoaches()` returns a shared read-only list)
+  - `injuries.ts` who gets hurt (snap and collision risk, resistance, energy, condition), layoffs,
+    scars, injured reserve, the weekly cycle (healing, practice, AI injury moves), the injury-risk
+    read and injury retirements. All randomness on its own streams (per game, per practice week)
+  - `medical.ts` medical staffs: department ratings (`departmentFor`), the recovery curve, the
+    medical budget, contracts, the market, ageing and AI hiring (same shape as `staff.ts`)
   - `schemes.ts` what coordinators run: offenses (personnel, run/pass mix, targets, play action), fronts
     and coverages, the depth-chart spots they name (LT, SLOT, NT…) and scheme fit. The engine reads them
     through `teamScheme()` in `coaching.ts`; every lean trades something, so league totals stay in range
@@ -90,6 +98,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 ## Conventions
 
 - Ratings are 1–20 (FM-style). Salaries are in **thousands of dollars**.
+- **Injuries are public, proneness isn't:** an injury, its estimate and a player's history show for
+  everyone (screens show the doctor's estimate, never `weeksRemaining`); condition shows for your own
+  players; injury resistance and natural fitness are hidden traits, shown only as `injuryRisk` tiers.
+  Lineups skip unavailable players (`isAvailable`); the 53 counts `activeRoster` (IR excluded).
 - **True vs. perceived:** the match engine, development, contracts and agents use true ratings. AI
   front-office decisions about *other* teams' players (draft, free agency, trades) use that team's
   own read (`perceive`, `viewCache` for loops); keep it that way. The UI shows the user's view only,
