@@ -5,6 +5,7 @@ import type { SeasonAwards, WeeklyAwards } from './awards';
  */
 import type { QuirkId } from './quirks';
 import type { RngState } from './rng';
+import type { Weather } from './weather';
 
 export const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE', 'LB', 'CB', 'S', 'K', 'P'] as const;
 export type Position = (typeof POSITIONS)[number];
@@ -485,6 +486,8 @@ export interface GameResult {
   plays?: PlayLogEntry[];
   /** What the game did to players' form (player id → change): see `recordForm` in `quirks.ts`. */
   form?: Record<number, { shaken?: true; slump?: 'start' | 'end'; clutch?: true }>;
+  /** The conditions it was played in (games before v13 have none). */
+  weather?: Weather;
 }
 
 export interface Game {

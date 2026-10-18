@@ -44,6 +44,8 @@ const CHECKS = {
   audit: { cmd: ['npm', 'run', 'audit'], cores: 1, secs: 170, slow: true, summary: /Needs attention.*|Every attribute.*/ },
   // The marble bag's churn and every quirk's effect, replayed on the same games.
   quirks: { cmd: ['npm', 'run', 'quirks', '--', '--effects'], cores: 1, secs: 290, slow: true, summary: /Needs attention.*|Every quirk.*|▼ Nobody carries.*/, detail: /^[▲▼]|NO EFFECT|WRONG WAY/ },
+  // League weather, forecast calibration, and each condition's effect replayed on the same games.
+  weather: { cmd: ['npm', 'run', 'weather'], cores: 1, secs: 25, summary: /\d+ number\(s\) outside target range/, detail: /[▲▼✗]/ },
 } satisfies Record<string, Check>;
 
 type Name = keyof typeof CHECKS;
@@ -76,6 +78,9 @@ const RULES: [RegExp, Name[]][] = [
   // Quirks: the bag and its hooks, and what builds the leagues they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(quirks|match\/|generate|coaching|schemes|attributes|positions|traits)/, ['quirks']],
   [/^scripts\/quirks\.ts$/, ['quirks']],
+  // Weather: the rolls and their effects, and what builds the leagues and schedules they're measured in.
+  [/^src\/engine\/(?!.*\.test\.ts$)(weather|data\/stadiums|match\/|generate|season\/schedule)/, ['weather']],
+  [/^scripts\/weather\.ts$/, ['weather']],
   // The harness itself, dependencies and compiler settings can break anything.
   [/^scripts\/check\.ts$|^package(-lock)?\.json$|^tsconfig\.json$|^\.github\/workflows\//, NAMES],
 ];

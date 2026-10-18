@@ -54,6 +54,8 @@ let ot = 0;
 let ties = 0;
 let favoriteWins = 0;
 let decided = 0;
+/** Total points in games under a roof and in the open air (NFL: indoor games score almost 4 more). */
+const byRoof = { indoor: [0, 0], outdoor: [0, 0] };
 const winsByStrength: { rating: number; wins: number }[] = [];
 /** Play-calling style at work: pass share and fourth-down tries by the play-callers' leanings. */
 const byStyle: Record<string, { plays: number; passes: number; fourth: number; games: number }> = {};
@@ -90,6 +92,9 @@ for (let s = 0; s < seasons; s++) {
   for (const g of regularSeasonGames(league)) {
     const r = g.result as GameResult;
     games++;
+    const roof = byRoof[r.weather?.roof === 'dome' || r.weather?.roof === 'closed' ? 'indoor' : 'outdoor'];
+    roof[0] += r.homeScore + r.awayScore;
+    roof[1]++;
     if (r.overtime) ot++;
     if (r.homeScore === r.awayScore) ties++;
     else {
@@ -184,6 +189,7 @@ for (const [k, v] of Object.entries(results)) {
   console.log(k.padEnd(14), v.toFixed(2).padStart(8), `  ${lo}–${hi}`, ok ? '' : v < lo ? '  ▼ LOW' : '  ▲ HIGH');
 }
 console.log(`\nTime of possession check: ${(per('top') / 60).toFixed(1)} min per team-game (target 30)`);
+console.log(`Indoor games score ${(byRoof.indoor[0] / byRoof.indoor[1] - byRoof.outdoor[0] / byRoof.outdoor[1]).toFixed(1)} more points than outdoor ones (NFL ≈ 4)`);
 console.log(`Better-rated team wins ${((100 * favoriteWins) / decided).toFixed(1)}% of decided games`);
 winsByStrength.sort((a, b) => b.rating - a.rating);
 const q = Math.floor(winsByStrength.length / 4);

@@ -18,7 +18,8 @@
     "offseason": "tsx scripts/offseason.ts",
     "audit": "tsx scripts/audit.ts",
     "careers": "tsx scripts/careers.ts",
-    "quirks": "tsx scripts/quirks.ts"
+    "quirks": "tsx scripts/quirks.ts",
+    "weather": "tsx scripts/weather.ts"
   },
   "dependencies": {
     "react": "19.3.1",

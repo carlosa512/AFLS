@@ -4,8 +4,9 @@ import { ROUND_NAMES } from '../../engine/season/playoffs';
 import { REGULAR_SEASON_WEEKS } from '../../engine/season/schedule';
 import { computeRecords } from '../../engine/season/standings';
 import type { League } from '../../engine/types';
+import { forecast } from '../../engine/weather';
 import { useNav } from '../App';
-import { Panel, TeamLabel } from '../components';
+import { Panel, TeamLabel, WeatherNote } from '../components';
 import { recordText, weekLabel } from '../format';
 import { ScoreLine } from './Home';
 
@@ -26,6 +27,7 @@ function MySchedule({ league }: { league: League }) {
             <th>Opponent</th>
             <th>Result</th>
             <th className="num">Score</th>
+            <th>Weather</th>
           </tr>
         </thead>
         <tbody>
@@ -35,7 +37,7 @@ function MySchedule({ league }: { league: League }) {
               return (
                 <tr key={week}>
                   <td>{weekLabel(week)}</td>
-                  <td className="muted" colSpan={3}>
+                  <td className="muted" colSpan={4}>
                     Bye
                   </td>
                 </tr>
@@ -70,6 +72,7 @@ function MySchedule({ league }: { league: League }) {
                 </td>
                 <td>{res ? <span className={`res-${res}`}>{res}</span> : <span className="muted">{week === league.week ? 'Next' : '–'}</span>}</td>
                 <td className="num">{r ? `${us}–${them}${r.overtime ? ' OT' : ''}` : ''}</td>
+                <td>{r ? r.weather && <WeatherNote weather={r.weather} forecast={null} /> : <WeatherNote forecast={forecast(league, game)} />}</td>
               </tr>
             );
           })}

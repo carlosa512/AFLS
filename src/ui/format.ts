@@ -3,6 +3,7 @@ import { ATTRIBUTES, OFFSEASON_PHASES } from '../engine/types';
 import { ATTRIBUTE_INFO } from '../engine/attributes';
 import { OVR_WEIGHTS } from '../engine/positions';
 import type { TeamRecord } from '../engine/season/standings';
+import { severity, type Forecast, type Severity, type Weather } from '../engine/weather';
 
 /** $K → "$46.8M", "$885K", "-$2.3M". */
 export const money = (thousands: number): string => {
@@ -69,4 +70,30 @@ export const PHASE_LABELS: Record<League['phase'], string> = {
 export function weekLabel(week: number): string {
   if (week <= 18) return `Week ${week}`;
   return ['Wild Card', 'Divisional', 'Conference', 'Championship'][week - 19] ?? `Week ${week}`;
+}
+
+const PRECIP = { none: 'Dry', rain: 'Rain', mixed: 'Sleet', snow: 'Snow' } as const;
+const SEVERITY: Record<Severity, string> = { none: '', light: 'Light weather', moderate: 'Moderate weather', heavy: 'Heavy weather' };
+
+/** How hard the conditions hit play, in words ('' when they don't). */
+export const severityText = (s: Severity) => SEVERITY[s];
+
+/** What a game was played in: "Heavy snow · 28°F · wind 14 mph", "Indoors", "Roof closed". */
+export function weatherText(w: Weather): string {
+  if (w.roof === 'dome') return 'Indoors';
+  if (w.roof === 'closed') return 'Roof closed';
+  const sky = w.precip === 'none' ? [] : [w.heavy ? `Heavy ${PRECIP[w.precip].toLowerCase()}` : PRECIP[w.precip]];
+  return [...sky, `${w.tempF}°F`, `wind ${w.windMph} mph`, ...(w.roof === 'open' ? ['roof open'] : [])].join(' · ');
+}
+
+/** The weather line for a game: what it was played in, or what the forecast says. */
+export function gameWeatherText(w: Weather | undefined, f: Forecast | null): { text: string; severity: Severity; outlook?: boolean } {
+  if (w) return { text: weatherText(w), severity: severity(w) };
+  if (!f) return { text: 'Indoors', severity: 'none' };
+  if (f.roof === 'closed') return { text: 'Roof closed', severity: 'none' };
+  const sky = f.chance ? `${PRECIP[f.precip]} ${f.chance}%` : 'Dry';
+  const roof = f.roof === 'tbd' ? ['roof TBD'] : f.roof === 'open' ? ['roof open'] : [];
+  if (f.stage === 'outlook') return { text: [`Avg ${f.tempF[0]}°F`, sky, ...roof].join(' · '), severity: 'none', outlook: true };
+  const range = ([lo, hi]: [number, number]) => (lo === hi ? `${lo}` : `${lo}–${hi}`);
+  return { text: [sky, `${range(f.tempF)}°F`, `wind ${range(f.windMph)} mph`, ...roof].join(' · '), severity: f.severity };
 }
