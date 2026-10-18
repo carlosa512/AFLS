@@ -45,6 +45,7 @@ import {
   TYPICAL,
   type Chair,
 } from '../../engine/coaching';
+import { kickCoaching } from '../../engine/match/lineup';
 import { coachRecord, formatRecord } from '../../engine/records';
 import { coachSchemeAbout, coachSchemeLabel, defenseNotes, PERSONNEL_LABEL, schemeWith } from '../../engine/schemes';
 import { staffWindowOpen, type ResignOutlook } from '../../engine/staff';
@@ -81,7 +82,7 @@ import { rosterFit, StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
 import { moveIndex, MoveText } from '../moves';
 
-type RoleTab = 'head' | 'coord' | 'position' | 'sc';
+type RoleTab = 'head' | 'coord' | 'position' | 'sc' | 'st';
 type Side = 'both' | 'offCoord' | 'defCoord';
 type Sort = 'roster' | 'rated';
 type Jump = 'mine' | 'candidates';
@@ -97,18 +98,29 @@ const ROLE_TABS: [RoleTab, string][] = [
   ['coord', 'Coordinators'],
   ['position', 'Position'],
   ['sc', 'S&C'],
+  ['st', 'Special teams'],
 ];
-const ROLES_OF: Record<RoleTab, CoachRole[]> = { head: ['headCoach'], coord: ['offCoord', 'defCoord'], position: ['positionCoach'], sc: ['strengthCoach'] };
+const ROLES_OF: Record<RoleTab, CoachRole[]> = { head: ['headCoach'], coord: ['offCoord', 'defCoord'], position: ['positionCoach'], sc: ['strengthCoach'], st: ['stCoord'] };
 const targetOf = (ch: Chair): Target =>
-  ch.role === 'headCoach' ? { tab: 'head' } : ch.role === 'strengthCoach' ? { tab: 'sc' } : ch.role === 'positionCoach' ? { tab: 'position', room: ch.room } : { tab: 'coord', side: ch.role };
+  ch.role === 'headCoach'
+    ? { tab: 'head' }
+    : ch.role === 'strengthCoach'
+      ? { tab: 'sc' }
+      : ch.role === 'stCoord'
+        ? { tab: 'st' }
+        : ch.role === 'positionCoach'
+          ? { tab: 'position', room: ch.room }
+          : { tab: 'coord', side: ch.role };
 
 const LEADERSHIP: Chair[] = [{ role: 'headCoach' }, { role: 'offCoord' }, { role: 'defCoord' }];
 const POSITION_ROOMS: Chair[] = COACH_ROOMS.map((room) => ({ role: 'positionCoach' as const, room }));
 const CONDITIONING: Chair[] = [{ role: 'strengthCoach' }];
+const SPECIAL_TEAMS: Chair[] = [{ role: 'stCoord' }];
 const GROUPS: [string, Chair[]][] = [
   ['Leadership', LEADERSHIP],
   ['Position rooms', POSITION_ROOMS],
   ['Strength & conditioning', CONDITIONING],
+  ['Special teams', SPECIAL_TEAMS],
 ];
 const LIMIT = 6;
 /** Half a percent: the smallest gap between the chairs' parts and the capped total that shows on a rounded screen. */
@@ -366,6 +378,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
  * how your current starters would fit it.
  */
 function SchemeRow({ league, c, compact = false, preview = false }: { league: League; c: Coach; compact?: boolean; preview?: boolean }) {
+  if (c.role === 'stCoord') return <KickRow c={c} compact={compact} />;
   const label = coachSchemeLabel(c);
   if (!label) return null;
   const about = coachSchemeAbout(c);
@@ -577,13 +590,36 @@ function OpenChair({ chair, staying, leaving, onFind }: { chair: Chair; staying:
   );
 }
 
+/**
+ * A special teams coordinator on game day, against a typical one: his kick units' flags and the yards they
+ * win on returns and in coverage. The engine's own numbers (`kickCoaching`), rounded.
+ */
+function KickRow({ c, compact }: { c: Coach; compact: boolean }) {
+  const fx = kickCoaching(coachValue(c) - TYPICAL);
+  const flags = Math.round(100 * (1 - fx.flags));
+  const yards = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1)}`;
+  const flagText = flags === 0 ? 'as many flags as most' : `${Math.abs(flags)}% ${flags > 0 ? 'fewer' : 'more'} flags`;
+  return (
+    <span className="scheme-row">
+      <TipPill className="scheme-pill" tip="Against a typical special teams coordinator: his kick units' flags, and the yards they win on each return and give up on each kick they cover.">
+        Kick units: {flagText}
+      </TipPill>
+      <span className="muted small">
+        {yards(fx.kickoff)} yds a kickoff{compact ? '' : ' return'}, {yards(fx.punt)} a punt{compact ? '' : ' return; as much again in coverage'}
+      </span>
+    </span>
+  );
+}
+
 // ───────── who coaches your players ─────────
 
 function RoomRow({ league, room, staying, count, expanded, onToggle }: { league: League; room: Room; staying: readonly Coach[]; count: RoomCount; expanded: boolean; onToggle: () => void }) {
   const id = useId();
-  const coach = room ? chairHolder(staying, { role: 'positionCoach', room }) : null;
+  // Kickers and punters are the special teams coordinator's room.
+  const chair: Chair = room ? { role: 'positionCoach', room } : { role: 'stCoord' };
+  const coach = chairHolder(staying, chair);
   // His deal is up and he doesn't stay: the room is empty come next year.
-  const leaving = room ? teamCoaches(league, league.userTeamId).find((c) => c.role === 'positionCoach' && c.room === room && isCoachExpiring(league, c) && !staying.includes(c)) : undefined;
+  const leaving = teamCoaches(league, league.userTeamId).find((c) => sameChair(chairOf(c), chair) && isCoachExpiring(league, c) && !staying.includes(c));
   const effect = roomEffect(staying, room);
   const parts = roomParts(staying, room);
   // The engine caps the combined effect; the chairs' parts are uncapped, so an extreme staff's parts can add up to more.
@@ -603,9 +639,7 @@ function RoomRow({ league, room, staying, count, expanded, onToggle }: { league:
           </span>
         </span>
         <span className="room-coach">
-          {room === null ? (
-            <span className="muted">Head coach and S&C coach</span>
-          ) : coach ? (
+          {coach ? (
             <>
               <b>{coachName(coach)}</b>
               <Rates c={coach} />
@@ -673,7 +707,7 @@ function RoomRow({ league, room, staying, count, expanded, onToggle }: { league:
           </div>
           <p className="muted small room-detail-note">
             {room === null
-              ? 'Kickers and punters have no room of their own, so the head coach and the strength & conditioning coach share them.'
+              ? 'The special teams coordinator coaches the kickers and punters, with the head coach and the S&C coach beside him.'
               : 'A position coach counts most for his room, a coordinator for his side of the ball, the head coach a little for everyone, and the S&C coach most for the body.'}{' '}
             {count.young} of these players {count.young === 1 ? 'is' : 'are'} under {YOUNG_UNDER} (growth) and {count.old} {count.old === 1 ? 'is' : 'are'} {PAST_PRIME_WORDS} (decline). The exact figures, against a typical staff, rounded.
           </p>

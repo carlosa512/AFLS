@@ -32,6 +32,7 @@ import {
   roomEffect,
   sameChair,
   chairOf,
+  specialTeamsEdge,
   teamCoaches,
   TYPICAL,
 } from './coaching';
@@ -40,6 +41,7 @@ import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { simToEndOfSeason } from './league';
 import { fourthDown, passProbability, type Situation } from './match/coach';
 import { simulateGame } from './match/gameSim';
+import { buildLineup } from './match/lineup';
 import { migrateLeague } from './migrate';
 import { advanceOffseason, beginOffseason, simOffseason } from './offseason';
 import { playerOvr } from './positions';
@@ -106,8 +108,9 @@ describe('what coaches do for players', () => {
     // The S&C coach keeps bodies going, not technique; a defensive coordinator does nothing for a receiver.
     expect(sc.decline.technical).toBe(1);
     expect(star('defCoord')).toEqual(NEUTRAL);
-    // Kickers and punters have no room or side: the head coach and S&C coach carry them.
-    expect(coachingFrom(staffOf(TYPICAL, { headCoach: { youth: 18 } }), 'K').rate).toBeGreaterThan(star('headCoach').rate);
+    // Kickers and punters have no room or side: the special teams coordinator is their position coach.
+    expect(coachingFrom(staffOf(TYPICAL, { headCoach: { youth: 18 } }), 'K').rate).toBeGreaterThan(1);
+    expect(coachingFrom(staffOf(TYPICAL, { stCoord: { youth: 18 } }), 'K').rate).toBeGreaterThan(coachingFrom(staffOf(TYPICAL, { headCoach: { youth: 18 } }), 'K').rate);
   });
 
   it('adds up the parts a screen shows to exactly what development applies', () => {
@@ -571,4 +574,38 @@ describe('save migration to v6', () => {
     }
     expect(up.rngState).toEqual(league.rngState);
   }, 30_000);
+});
+
+describe('special teams coordinator', () => {
+  it('coaches the kickers and punters, and his quality shows in his kick units on game day', () => {
+    const league = createLeague({ seed: 'st-coord' });
+    const team = league.teams[0];
+    const staff = teamCoaches(league, team.id);
+    const st = chairHolder(staff, { role: 'stCoord' })!;
+    expect(st).not.toBeNull();
+    for (const pos of ['K', 'P'] as const) expect(coachingParts(staff, pos).find((p) => p.coach === st)?.source).toBe('positionCoach');
+    expect(specialTeamsEdge(league, team.id)).toBeCloseTo(coachValue(st) - TYPICAL, 9);
+    const before = buildLineup(league, team);
+    st.youth = 18;
+    st.veterans = 18;
+    const after = buildLineup(league, team);
+    expect(after.stCoach).toBeCloseTo(18 - TYPICAL, 9);
+    // Half a point of discipline per point of his quality, on every kick unit.
+    for (const k of ['specialDiscipline', 'fgDiscipline', 'blockDiscipline'] as const) expect(after[k] - before[k]).toBeCloseTo(0.5 * (after.stCoach - before.stCoach), 9);
+  });
+
+  it('gives a v18 save a special teams coordinator on every team, inside the budget, and candidates on the market', () => {
+    const league = createLeague({ seed: 'st-migrate' });
+    const old = copy(league);
+    old.version = 18;
+    for (const c of Object.values(old.coaches)) if (c.role === 'stCoord') delete old.coaches[c.id];
+    const up = migrateLeague(old)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    for (const t of up.teams) {
+      expect(chairHolder(teamCoaches(up, t.id), { role: 'stCoord' })).not.toBeNull();
+      expect(coachPayroll(up, t.id)).toBeLessThanOrEqual(coachBudget(up, t.id));
+    }
+    expect(coachMarket(up).some((c) => c.role === 'stCoord')).toBe(true);
+    expect(migrateLeague(copy(up))).toEqual(up);
+  });
 });

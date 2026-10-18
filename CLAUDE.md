@@ -72,8 +72,9 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     contracts, the market, ageing, AI hiring. All staff changes go through this module (it keeps a
     per-team index; `teamStaff()` returns a shared read-only list)
   - `coaching.ts` coaching staffs: what coaches do for development (`coachingFor`, the parts a screen
-    shows via `coachingParts`), play-calling style (`callerStyle`), the coaching budget, contracts, the
-    market, ageing, AI hiring and the head-coach hot seat. All coach changes go through this module (it
+    shows via `coachingParts`), play-calling style (`callerStyle`), the special teams coordinator's
+    game-day edge on the kick units (`specialTeamsEdge`), the coaching budget, contracts, the market,
+    ageing, AI hiring and the head-coach hot seat. All coach changes go through this module (it
     keeps a per-team index; `teamCoaches()` returns a shared read-only list)
   - `injuries.ts` who gets hurt (snap and collision risk, resistance, energy, condition), layoffs,
     scars, injured reserve, the weekly cycle (healing, practice, AI injury moves), the injury-risk
