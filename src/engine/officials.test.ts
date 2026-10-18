@@ -3,7 +3,8 @@ import { createLeague, SAVE_VERSION } from './generate';
 import { gamesInWeek, playWeek } from './league';
 import { simulateGame } from './match/gameSim';
 import { migrateLeague } from './migrate';
-import { CREW_COUNT, crewAssignments, crewMult, crewsNewYear, crewStanding, crewTable, FOUL_KINDS, gameCrew, MAX_DRIFT, RANK_MIN_GAMES } from './officials';
+import { CREW_COUNT, crewAssignments, crewMult, crewsNewYear, crewStanding, crewTable, gameCrew, MAX_DRIFT, RANK_MIN_GAMES } from './officials';
+import { FOUL_KINDS } from './penalties';
 import type { Crew, League } from './types';
 
 const TENDENCIES = ['flagVolume', 'holding', 'coverage'] as const;

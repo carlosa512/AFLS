@@ -1,10 +1,13 @@
 # Penalties
 
-> **Status.** Plan, not built. Today the engine calls five fouls (false start, offside, offensive
-> holding, pass interference, defensive holding), every one accepted, charged to a team and never to
-> a player, and none on kicks, sacks or scrambles (see "Today's baseline"). This plan grows that into
-> the NFL's full rulebook of common fouls in five phases, starting with the two the officiating spec
-> already points at: roughing the passer (its "QB protection" later phase) and special-teams holding.
+> **Status.** Phase 1 built: the foul registry and enforcement (`penalties.ts`), accept or decline
+> (`coach.takesPenalty` on `coach.downValue`), offsetting fouls, live-ball offside (a free play),
+> holding rolled on sacks and scrambles too and defensive holding on every dropback (declined when the
+> play was better), untimed downs after a defensive foul on a half's last play, and every accepted flag
+> charged to a player (`penalties`, `penaltyYds`). Pass interference and defensive holding are at their
+> NFL rates; holding, false start and offside stay high until the fouls they stand in for arrive. The
+> box score lists declined and offsetting flags and a Penalties table; player cards show penalties.
+> Next: Phase 2 (roughing the passer, personal fouls, QB Protection, star protection).
 > Numbers from the NFL's 2023–2025 seasons (below), tuned to their average (decision 5).
 
 ## The NFL, by the numbers

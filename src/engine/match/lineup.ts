@@ -43,7 +43,7 @@ export interface Lineup {
 }
 
 /** A lineman's discipline: his football IQ, plus or minus his temper (a hothead jumps early and grabs). */
-const discipline = (p: Player) => skill(p, 'discipline') + temperOffset(p.traits);
+export const discipline = (p: Player) => skill(p, 'discipline') + temperOffset(p.traits);
 
 const avg = (players: Player[], f: (p: Player) => number) =>
   players.reduce((sum, p) => sum + f(p), 0) / Math.max(1, players.length);
