@@ -497,6 +497,18 @@ Decision: leave the engine as it is here. The fix belongs to an attribute-scalin
 branch (how each attribute ages and what it feeds, now that penalties, special teams and schemes read
 them too), listed under "Next" in `docs/GAME_DESIGN.md`.
 
+## Checks when Phase 3b landed
+
+`npm run check` on 5569f91: 9 of 11 pass (`sim` with every stat in range: 22.81 points, passing
+touchdowns 1.57, field goal tries 1.98, 6.18 penalties per team-game). The same two as before are red,
+both with the borderline-checks work on its own branch:
+
+- `quirks`: Thumping Tackler (z −1.5) and Spot Drop (z −1.4) under the bar at the check's sample;
+  Pat-The-Rock passed this time (z 3.0). Both read "weak" or better over 6 + 18 seasons in Phases 2
+  and 3a.
+- `careers`: long-run points 24.45 (band 21–24) and sacks #5 11.8 (floor 11.9), the drift traced to
+  Awareness aging under "Checks when Phase 3a landed" (fresh leagues: 22.81).
+
 ## Sources
 
 Search extracts only; the pages themselves couldn't be fetched from the research sandbox.
