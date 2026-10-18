@@ -58,7 +58,7 @@ import {
   type Chair,
 } from '../../engine/coaching';
 import { coachRecord, formatRecord } from '../../engine/records';
-import { coachSchemeAbout, coachSchemeLabel, defenseNotes, PERSONNEL_LABEL, schemeWith } from '../../engine/schemes';
+import { coachSchemeAbout, coachSchemeLabel, defenseLabel, defenseNotes, PERSONNEL_LABEL, schemeWith } from '../../engine/schemes';
 import { staffWindowOpen, type ResignOutlook } from '../../engine/staff';
 import type { Coach, CoachRole, CoachRoom, League } from '../../engine/types';
 import { useNav } from '../App';
@@ -211,10 +211,11 @@ function CoachTags({ league, c }: { league: League; c: Coach }) {
 /** A head coach's vision for his staff, in a line: what he wants his coordinators to run. */
 function VisionLine({ league, c }: { league: League; c: Coach }) {
   if (c.role !== 'headCoach') return null;
-  const v = visionNotes(headCoachVision(league, c));
+  const vision = headCoachVision(league, c);
+  const v = visionNotes(vision);
   return (
     <p className="small staff-note" style={{ margin: 0 }}>
-      Wants {v.offense} and {v.defense}.
+      Wants {v.offense}, and {v.defense}: {defenseLabel(vision.defense.front, vision.defense.coverage)}.
     </p>
   );
 }
@@ -226,7 +227,7 @@ function FitLine({ league, c, hc, whose }: { league: League; c: Coach; hc: Coach
   const words = fit >= 0.7 ? `Fits what ${whose} head coach wants` : fit <= 0.35 ? `Not what ${whose} head coach wants` : `A fair fit for ${whose} head coach`;
   return (
     <p className={`small staff-note${fit >= 0.7 ? ' tone-good' : fit <= 0.35 ? ' tone-bad' : ''}`} style={{ margin: 0 }}>
-      {words}: {coachName(hc)} wants {visionNotes(headCoachVision(league, hc))[c.role === 'offCoord' ? 'offense' : 'defense']}.
+      {words}: {coachName(hc)} wants {c.role === 'offCoord' ? visionNotes(headCoachVision(league, hc)).offense : `a ${defenseLabel(headCoachVision(league, hc).defense.front, headCoachVision(league, hc).defense.coverage)} defense`}.
     </p>
   );
 }

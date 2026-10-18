@@ -205,8 +205,8 @@ improving into their 50s and decline from their mid-50s; head coaches and coordi
 their mid-60s, assistants a few years earlier.
 
 **AI staffs** aim at a seeded quality goal per team (centred, so the league stays typical); win-now
-front offices spend more on the head coach and coordinators, rebuilders on the teachers, big-spending
-owners aim higher, and a playoff team aims higher still for the men who run it. An AI team never
+front offices spend more on the head coach and coordinators, rebuilders on the teachers, and big-spending
+owners aim higher. An AI team never
 re-hires a coach it has just let go; head coach and coordinator moves around the league show in the
 news. `npm run offseason` reports the coaching economy, the carousel and young players' growth under
 the best and worst staffs.
@@ -228,22 +228,23 @@ re-sign window closes:
   insiders get a little preference; outsiders who never held a chair have more to prove.
 - **A new head coach brings his own people:** he keeps a coordinator about one time in five (more if
   the man fits his vision) and half the teachers; whoever stays and is out of contract re-signs.
-- **Vision:** every head coach wants something from his coordinators: an aggressive one a pass-first
-  offense, a conservative one a run-first one, a former play-caller his own offense, and a taste of his
-  own on defense (pressure or coverage). AI teams hire coordinators who fit it, so a new head coach
-  changes how a team plays. Tastes are drawn from the same spread coordinators come from, so fit decides
-  who goes where without thinning out any kind of offense or defense (league scoring holds). The Coaches
-  screen shows each head coach's vision and how coordinators fit.
+- **Vision:** every head coach wants something from his coordinators. A new one brings his own: an
+  aggressive one a pass-first offense, a conservative one a run-first one, a former play-caller his own
+  offense, and a defense of his own (a front and coverage, which reads as pressure or coverage). One who
+  stays keeps his system: a coordinator he hires runs what the last one ran. AI teams hire coordinators
+  who fit, so a new head coach changes how a team plays. Tastes come from the same mix coordinators do and
+  defenses are matched by name, so fit decides who goes where without thinning out any kind of offense or
+  defense. The Coaches screen shows each head coach's vision and how coordinators fit.
 - **Teachers first:** hiring a head coach or coordinator, a GM keeps a typical teacher's pay aside for
   every open position-coach chair; the big names can't starve the rooms (promotions already skim the best
   teachers), and each role's new candidates are drawn toward a typical coach for that role.
 - **You** can promote one of your own coaches into the open chair above his (Promote, in the window).
   Other teams can hire your assistants away for a promotion; the chair opens for you to fill.
 
-**Former players** go into coaching: about one veteran in twelve who retires after four or more seasons,
+**Former players** go into coaching: about one veteran in twenty who retires after four or more seasons,
 more often a sharp, hard-working one, nearly always coaching the room he played in (a few cross to
-another room on their side). They start a little below a typical coach and grow like any young one, so
-some work their way up. Their card switches between the coaching and playing careers, and the player
+another room on their side). His playing years count like a career coach's years on the sidelines, so he
+starts level with a coach his age (better with a sharp football mind) and some work their way up. Their card switches between the coaching and playing careers, and the player
 card links to the coach. Coaches who leave football keep their careers on file
 (`league.retiredCoaches`) for records and a future hall of fame.
 

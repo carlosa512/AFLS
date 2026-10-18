@@ -799,12 +799,8 @@ function teamGoal(league: League, teamId: number): number {
 function roleGoal(league: League, team: Team, role: CoachRole): number {
   const winNow = league.teams.reduce((s, t) => s + t.gm.winNow, 0) / league.teams.length;
   const tilt = (LEADERSHIP.has(role) ? 3 : -2.5) * (team.gm.winNow - winNow);
-  // A contender going for it all aims higher for the men who run the team: that's when budgets get stretched.
-  const push = LEADERSHIP.has(role) && madePlayoffs(league, team.id) ? CONTENDER_PUSH : 0;
-  return teamGoal(league, team.id) + tilt + ownerTilt(team) + push;
+  return teamGoal(league, team.id) + tilt + ownerTilt(team);
 }
-/** Rating points a playoff team adds to what it wants in a head coach or coordinator. */
-const CONTENDER_PUSH = 1;
 const madePlayoffs = (league: League, teamId: number) => !!league.history.find((h) => h.season === league.season - 1)?.playoffs?.[teamId];
 
 /**
@@ -852,13 +848,13 @@ export function generateCoachingWorld(league: League): void {
 // ───────── the yearly cycle ─────────
 
 /** Base chance a retiring veteran (four seasons or more) goes into coaching, before his football IQ and work ethic. */
-const TO_COACH = 0.08;
+const TO_COACH = 0.05;
 
 /**
  * Some players pick up a whistle when they retire: sharp, hard-working veterans most often, nearly always
  * in the room they played in (a few cross to another room on their side of the ball; kickers and punters
- * have none). A first-time coach starts a little below a typical candidate, nearer it for a sharp football
- * mind, and grows from there like any young coach.
+ * have none). He starts level with a career coach his age, better for a sharp football mind and a work ethic, and
+ * grows from there like any coach.
  */
 function exPlayerCoach(league: League, p: Player, base: number): void {
   const room = ROOM_OF[p.position];
@@ -868,7 +864,8 @@ function exPlayerCoach(league: League, p: Player, base: number): void {
   const work = p.traits.workEthic - 10;
   if (!rng.chance(clamp(TO_COACH + 0.006 * iq + 0.006 * work, 0.01, 0.15))) return;
   const sameSide = COACH_ROOMS.filter((r) => r !== room && OFFENSE_ROOMS.has(r) === OFFENSE_ROOMS.has(room));
-  const level = base - 0.5 + 0.12 * iq + 0.08 * work;
+  // His playing years teach what a coach his age has learned on the sidelines.
+  const level = base + experience(p.age) + 0.12 * iq + 0.08 * work;
   const lean = rng.normal(0, 1.3);
   const c = newCoach(league, rng, { role: 'positionCoach', room: rng.chance(0.85) ? room : rng.pick(sameSide) }, rng.normal(level + lean, 2.3), rng.normal(level - lean, 2.3), p.age);
   Object.assign(c, { firstName: p.firstName, lastName: p.lastName, playerId: p.id });
