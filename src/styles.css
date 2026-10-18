@@ -15,8 +15,8 @@
   --loss: #b3302a;
   --tie: #8a7416;
   --b1: #a3483f;
-  --b2: #8a7a2e;
-  --b3: #2f7a4b;
+  --b2: #74661c;
+  --b3: #2b6f44;
   --b4: #136f8f;
   --focus: #1f6fd1;
   --shadow: 0 1px 2px rgba(18, 25, 21, 0.08), 0 4px 16px rgba(18, 25, 21, 0.06);
@@ -190,10 +190,27 @@ h3 {
   gap: 8px;
   flex-wrap: wrap;
 }
-/* Phones: the header scrolls away and the week's actions sit in a bottom bar within thumb reach. */
+/* Phones: the team line scrolls away, the tabs stay pinned so every section is one tap from anywhere,
+   and the week's actions sit in a bottom bar within thumb reach. */
 @media (max-width: 640px) {
   .topbar {
-    position: static;
+    /* Sticks once the brand row (its fixed height below) has scrolled off. */
+    top: calc(env(safe-area-inset-top, 0px) - 62px);
+  }
+  .topbar-inner {
+    height: 62px;
+  }
+  .brand-text span {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Not every tab fits: the fade says more scroll in from the right. */
+  .tabs {
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    /* ...and a tab scrolled into view stops clear of it. */
+    scroll-padding-inline: 32px;
   }
   .topbar .actions {
     position: fixed;
@@ -1991,6 +2008,12 @@ details.more > summary {
   border-radius: 12px;
   box-shadow: var(--shadow);
 }
+/* Phones: clear the bottom action bar (about 67px tall). */
+@media (max-width: 640px) {
+  .compare-tray {
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+}
 .compare-table th[scope='row'] {
   text-align: left;
   color: var(--muted);
@@ -2628,4 +2651,13 @@ tr.stat-total td {
 .box-injuries {
   margin: 0;
   padding-left: 18px;
+}
+
+/* ───────── theme picker (Home) ───────── */
+.theme-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--step--1);
+  font-weight: 700;
 }

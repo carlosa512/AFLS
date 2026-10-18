@@ -54,6 +54,17 @@ const TABS: { view: Route['view']; label: string }[] = [
   { view: 'playoffs', label: 'Playoffs' },
 ];
 
+interface SimAction {
+  label: string;
+  fn: (l: League) => void;
+  /** The confirmation dialog. */
+  title: string;
+  body: string;
+  ok: string;
+  cancel: string;
+  then?: Route;
+}
+
 interface Step {
   label: string;
   run: (l: League) => void;
@@ -124,6 +135,8 @@ export function App() {
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
+    // Phones show only some tabs; bring the current one into view (e.g. after "All standings" on Home).
+    document.querySelector('.tab[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [route]);
 
   // Browser Back/Forward restore the screen that history entry was showing (and close the player card over it).
@@ -196,13 +209,36 @@ export function App() {
     });
   };
 
-  const secondary =
+  // Every multi-week sim asks first: on phones it sits under the thumb, and it can't be undone.
+  const secondary: SimAction | null =
     league.phase === 'regular'
-      ? { label: 'Sim to playoffs', fn: simToEndOfRegularSeason }
+      ? {
+          label: 'Sim to playoffs',
+          fn: simToEndOfRegularSeason,
+          title: 'Sim the rest of the regular season?',
+          body: "Every remaining regular-season game is simulated, yours included, and you won't watch them. This can't be undone.",
+          ok: 'Sim to playoffs',
+          cancel: 'Keep playing',
+        }
       : league.phase === 'playoffs'
-        ? { label: 'Sim to the title', fn: simToEndOfSeason }
+        ? {
+            label: 'Sim to the title',
+            fn: simToEndOfSeason,
+            title: 'Sim the rest of the playoffs?',
+            body: "Every remaining playoff game is simulated, yours included, and you won't watch them. This can't be undone.",
+            ok: 'Sim to the title',
+            cancel: 'Keep playing',
+          }
         : step
-          ? { label: 'Sim offseason…', fn: simOffseason, confirm: true }
+          ? {
+              label: 'Sim offseason…',
+              fn: simOffseason,
+              title: 'Let the AI run your offseason?',
+              body: 'Your front office makes every call through to week 1: re-signings, tags, free agency, the draft and cuts. You can review every move on the Cap screen afterwards.',
+              ok: 'Sim to week 1',
+              cancel: "I'll do it myself",
+              then: { view: 'home' },
+            }
           : null;
 
   const pendingGames = gamesInWeek(league).filter((g) => !g.result).length;
@@ -226,30 +262,24 @@ export function App() {
               </span>
             </div>
           </div>
-          <div className="actions">
-            {secondary && (
+          {/* The live game has its own controls; Resume and a season sim would only be stray taps there. */}
+          {route.view !== 'live' && (
+            <div className="actions">
+              {secondary && (
+                <button className="btn" disabled={busy} onClick={() => setConfirmSim(true)}>
+                  {secondary.label}
+                </button>
+              )}
               <button
-                className="btn"
-                disabled={busy}
-                onClick={() => {
-                  if ('confirm' in secondary) return setConfirmSim(true);
-                  // Finish a game in progress first; the sim then plays everything else.
-                  live.finish(false);
-                  run(secondary.fn);
-                }}
+                className="btn btn-primary"
+                disabled={busy || (!step && pendingGames === 0) || blockers.length > 0}
+                title={blockers[0]}
+                onClick={primary}
               >
-                {secondary.label}
+                {busy ? 'Simulating…' : primaryActionLabel(league)}
               </button>
-            )}
-            <button
-              className="btn btn-primary"
-              disabled={busy || (!step && pendingGames === 0) || blockers.length > 0}
-              title={blockers[0]}
-              onClick={primary}
-            >
-              {busy ? 'Simulating…' : primaryActionLabel(league)}
-            </button>
-          </div>
+            </div>
+          )}
         </div>
         <nav className="wrap tabs" aria-label="Sections">
           {TABS.map((t) => (
@@ -269,32 +299,31 @@ export function App() {
           </div>
         )}
       </header>
-      {confirmSim && (
+      {confirmSim && secondary && (
         <Dialog
-          title="Let the AI run your offseason?"
+          title={secondary.title}
           onClose={() => setConfirmSim(false)}
           footer={
             <>
               <button className="btn" onClick={() => setConfirmSim(false)} data-autofocus>
-                I'll do it myself
+                {secondary.cancel}
               </button>
               <button
                 className="btn btn-primary"
                 onClick={() => {
                   setConfirmSim(false);
-                  run(simOffseason);
-                  navigate({ view: 'home' });
+                  // Finish a game in progress first; the sim then plays everything else.
+                  live.finish(false);
+                  run(secondary.fn);
+                  if (secondary.then) navigate(secondary.then);
                 }}
               >
-                Sim to week 1
+                {secondary.ok}
               </button>
             </>
           }
         >
-          <p style={{ margin: 0 }}>
-            Your front office makes every call through to week 1: re-signings, tags, free agency, the draft and cuts. You can review every move on the Cap
-            screen afterwards.
-          </p>
+          <p style={{ margin: 0 }}>{secondary.body}</p>
         </Dialog>
       )}
 

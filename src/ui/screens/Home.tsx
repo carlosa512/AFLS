@@ -18,6 +18,7 @@ import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, week
 import { live } from '../live';
 import { WinnerCell } from './Stats';
 import { BackupButton, LoadBackupButton } from '../saves';
+import { ThemeSelect } from '../theme';
 import { store } from '../store';
 
 function lastUserGame(league: League): Game | undefined {
@@ -415,6 +416,7 @@ function StartOver({ league }: { league: League }) {
         </>
       ) : (
         <>
+          <ThemeSelect />
           <BackupButton league={league} />
           <LoadBackupButton />
           <button className="btn btn-sm btn-ghost" onClick={() => setConfirming(true)}>
