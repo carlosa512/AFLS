@@ -216,6 +216,8 @@ for (const { label, first, fifth, ceiling } of LEADER_TARGETS) {
 }
 
 console.log(`\n${misses} stat(s) outside target range`);
+// The tables below are informational; a stat outside its range fails the run (and CI).
+if (misses) process.exitCode = 1;
 
 console.log('\nSchemes (informational, per team-game): offense gains, defense allows');
 console.log('scheme'.padEnd(22), 'games'.padStart(6), 'pts'.padStart(6), 'yds'.padStart(6), 'pass%'.padStart(6), 'ypa'.padStart(6), 'ypc'.padStart(6), 'sacks'.padStart(6));

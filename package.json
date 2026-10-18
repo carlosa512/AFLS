@@ -16,7 +16,8 @@
     "endings": "tsx scripts/endings.ts",
     "offseason": "tsx scripts/offseason.ts",
     "audit": "tsx scripts/audit.ts",
-    "careers": "tsx scripts/careers.ts"
+    "careers": "tsx scripts/careers.ts",
+    "check": "tsx scripts/check.ts"
   },
   "dependencies": {
     "react": "19.3.1",

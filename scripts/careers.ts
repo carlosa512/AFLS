@@ -260,3 +260,4 @@ console.log(
 const starterAges = pool((r) => r.starterAges);
 console.log('mean starter age: ' + POSITIONS.map((pos) => `${pos} ${mean(starterAges.filter((p) => p.position === pos).map((p) => p.age)).toFixed(1)}`).join(' · '));
 console.log(`\n${misses} number(s) outside target range`);
+if (misses) process.exitCode = 1;

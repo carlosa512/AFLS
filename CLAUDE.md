@@ -13,6 +13,12 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 
 ## Commands
 
+- **`npm run check` — run before every push.** It reads what changed (vs `origin/main`, committed or
+  not), runs the checks below that the change calls for side by side, and prints one ✓/✗ line each;
+  full logs land in `.check/`. `--quick` skips the slow two (careers, audit), `--all` runs everything,
+  `npm run check -- sim endings` runs just those. CI runs the same plan on every pull request, one job
+  per check (`.github/workflows/ci.yml`), so a red ✗ here is a red PR there. Every check fails on its
+  own (non-zero exit) when a number leaves its range: never loosen a range to get green.
 - `npm run dev` — local dev server (Vite)
 - `npm test` — engine tests (Vitest)
 - `npm run typecheck`
