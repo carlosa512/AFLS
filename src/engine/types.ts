@@ -193,6 +193,48 @@ export interface Player {
   splitStats?: Record<number, Record<number, StatLine>>;
   /** Optional picture URL (or data: URI) supplied by a roster mod; the UI shows a placeholder otherwise. */
   portrait?: string;
+  /** What he is hurt with right now, if anything (see `injuries.ts`). */
+  injury?: Injury;
+  /** Every injury that cost him time, oldest first. Public: the league's injury reports. */
+  injuries?: InjuryRecord[];
+  /** Match condition, 0–100 (100 = fresh, the default): each game takes some, each week gives some back. */
+  condition?: number;
+  /** On injured reserve: off the 53, and out at least `IR_MIN_WEEKS`. Weeks counts the weeks he has served. */
+  ir?: { season: number; week: number; weeks: number };
+}
+
+export type InjurySeverity = 'minor' | 'moderate' | 'severe' | 'career-threatening';
+
+/** A current injury. The engine knows `weeksRemaining`; screens show the medical staff's estimate. */
+export interface Injury {
+  /** Key into `INJURY_TYPES` (injuries.ts). */
+  type: string;
+  severity: InjurySeverity;
+  /** Weeks he will still miss (each week of the calendar takes one off, games or not). */
+  weeksRemaining: number;
+  /** The medical staff's estimate of `weeksRemaining`, low to high; it counts down with it. */
+  estimate: [number, number];
+  /** When it happened (week 0 = the offseason). */
+  season: number;
+  week: number;
+  /** In a game or on the practice field. */
+  where: 'game' | 'practice';
+  /** Playing through it on injections: available, but far likelier to make it worse. */
+  injected?: boolean;
+}
+
+/** One injury in a player's history. */
+export interface InjuryRecord {
+  type: string;
+  severity: InjurySeverity;
+  season: number;
+  week: number;
+  /** Weeks it was expected to cost when it happened. */
+  weeks: number;
+  /** Physical ratings it cost him for good, if any. */
+  scar?: Partial<Record<Attribute, number>>;
+  /** An old injury made worse by playing through it. */
+  aggravated?: true;
 }
 
 /** Combine results. A missing drill means he skipped it. */
@@ -233,6 +275,10 @@ export interface Traits {
   durability: number;
   /** Composure under the whistle (high = calm): linemen with a short fuse draw more flags. */
   temperament: number;
+  /** Injury resistance (high = rarely hurt): soft tissue and bone that hold up to a season of hits. */
+  injuryResistance: number;
+  /** Natural fitness: how much condition a game takes, how fast it comes back, and how well he heals. */
+  naturalFitness: number;
 }
 
 export type StaffRole = 'director' | 'collegeScout' | 'proScout';
@@ -317,6 +363,28 @@ export interface Coach {
   contract: { salary: number; through: number } | null;
 }
 
+export type MedicRole = 'doctor' | 'physio' | 'scientist';
+
+/** A member of a team's medical staff (or a candidate on the market). Ratings are public, like coaches'. */
+export interface Medic {
+  id: number;
+  firstName: string;
+  lastName: string;
+  role: MedicRole;
+  age: number;
+  /** Physiotherapy (1–20): rehab that gets injured players back sooner. */
+  physio: number;
+  /** Sports science (1–20): load management that keeps players fresh and off the table. */
+  science: number;
+  /** null = on the market. */
+  teamId: number | null;
+  /** League year he joined his current team (tenure). */
+  since?: number;
+  lastJob?: string;
+  /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
+  contract: { salary: number; through: number } | null;
+}
+
 export interface Conference {
   name: string;
   abbrev: string;
@@ -358,6 +426,12 @@ export interface Team {
   staffDead: StaffSeverance[];
   /** Severance owed to dismissed coaches, charged to the coaching budget. */
   coachDead: StaffSeverance[];
+  /** Severance owed to dismissed medical staff, charged to the medical budget. */
+  medicalDead: StaffSeverance[];
+  /** False when the user manages injuries by hand (IR moves, replacements). AI teams always delegate. */
+  autoInjuries?: boolean;
+  /** Injured-reserve return designations used, by league year (`IR_RETURNS` per season). */
+  irReturns?: Record<number, number>;
 }
 
 export interface DeadMoney {
@@ -416,7 +490,7 @@ export interface Transaction {
   phase: Phase;
   week: number;
   teamIds: number[];
-  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire' | 'staff' | 'coach';
+  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire' | 'staff' | 'coach' | 'injury' | 'medical';
   text: string;
 }
 
@@ -484,10 +558,34 @@ export interface GameResult {
   /** Player id → team id at kickoff, so box scores survive trades and retirements. */
   playerTeams: Record<number, number>;
   plays?: PlayLogEntry[];
+  /** Players hurt in the game, in the order it happened, with the doctor's word at the time. */
+  injuries?: GameInjury[];
+  /**
+   * The truth behind `injuries` (player id → diagnosis and any scar). Applied when the result is
+   * recorded, then dropped like `condition`: the box score keeps only what the doctor said.
+   */
+  diagnoses?: Record<number, { injury: Injury; scar?: Partial<Record<Attribute, number>> }>;
+  /**
+   * Each player's condition at the final whistle. Applied when the result is recorded, then dropped:
+   * the game itself doesn't keep it.
+   */
+  condition?: Record<number, number>;
   /** What the game did to players' form (player id → change): see `recordForm` in `quirks.ts`. */
   form?: Record<number, { shaken?: true; slump?: 'start' | 'end'; clutch?: true }>;
-  /** The conditions it was played in (games before v13 have none). */
+  /** The conditions it was played in (games before v14 have none). */
   weather?: Weather;
+}
+
+/** An injury as a box score keeps it: who, when, what, and the estimate as it was made then. */
+export interface GameInjury {
+  playerId: number;
+  teamId: number;
+  quarter: number;
+  clock: number;
+  /** Key into `INJURY_TYPES` (injuries.ts). */
+  type: string;
+  /** The medical staff's estimate in weeks, frozen at the time (the player's own counts down). */
+  estimate: [number, number];
 }
 
 export interface Game {
@@ -565,4 +663,7 @@ export interface League {
   /** Every coach, employed (teamId set) or on the market (teamId null). */
   coaches: Record<number, Coach>;
   nextCoachId: number;
+  /** Every member of a medical staff, employed or on the market (see `medical.ts`). */
+  medics: Record<number, Medic>;
+  nextMedicId: number;
 }

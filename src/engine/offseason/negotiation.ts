@@ -11,7 +11,7 @@ import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft
 import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears, rookieApy } from '../finance/market';
 import { freeJersey } from '../generate';
 import { clamp } from '../rng';
-import { syncDepthChart, teamPlayers, teamRatings } from '../roster';
+import { activeRoster, syncDepthChart, teamPlayers, teamRatings } from '../roster';
 import type { Contract, League, Negotiation, Player } from '../types';
 import { OFFSEASON_PHASES } from '../types';
 
@@ -195,7 +195,7 @@ export function offerProblem(league: League, player: Player, teamId: number, off
     const ext = extensionBlocker(league, player);
     if (ext) return ext;
   }
-  if (!own && teamPlayers(league, teamId).length >= rosterLimit(league)) return `Your roster is full (${rosterLimit(league)}). Release someone first.`;
+  if (!own && activeRoster(league, teamId).length >= rosterLimit(league)) return `Your roster is full (${rosterLimit(league)}). Release someone first.`;
   const hit = capHit(prospectiveContract(league, player, teamId, offer), league.season);
   const space = capSpace(league, teamId);
   if (hit - replacedCharge(league, player, teamId) > space) return `Not enough cap room: this year's hit is $${(hit / 1000).toFixed(1)}M, you have $${(Math.max(0, space) / 1000).toFixed(1)}M.`;

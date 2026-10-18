@@ -115,7 +115,8 @@ export function kickNow(s: Situation): boolean {
   if (s.quarter !== 2 && s.quarter < 4) return false;
   const helps = s.quarter === 2 || (s.scoreDiff <= 0 && s.scoreDiff >= -3);
   if (!helps || s.fgMakeProb < 0.25) return false;
-  if (s.clock <= 6) return true;
+  // A snap takes up to 8 seconds: inside that, there is no play to run before the kick.
+  if (s.clock <= 8) return true;
   // Overtime has no "end of half" pressure until the very end; regulation does.
   if (s.overtime) return false;
   // Already in comfortable range: don't risk a snap that could eat the last seconds.

@@ -10,7 +10,7 @@ import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
 import { generatePlayer } from '../generate';
 import { clamp, type Rng } from '../rng';
-import { syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth, viewCache } from '../scouting';
 import type { League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
@@ -24,7 +24,7 @@ const cushion = (league: League) => league.caps[league.season] * 0.025;
 /** Room to keep for minimum deals that bring the roster to 53 once the draft class is in. */
 function fillReserve(league: League, teamId: number): number {
   const picks = league.draftPicks.filter((p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined).length;
-  const missing = Math.max(0, ROSTER_MAX - teamPlayers(league, teamId).length - picks);
+  const missing = Math.max(0, ROSTER_MAX - activeRoster(league, teamId).length - picks);
   return missing * minSalary(1, league.caps[league.season]);
 }
 
@@ -195,8 +195,9 @@ export function aiCapCompliance(league: League, team: Team, target = 0): void {
         continue;
       }
     }
+    // The floor counts who can play: a player on injured reserve still costs cap but fills no spot.
     const counts = new Map<Position, number>();
-    for (const p of roster) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
+    for (const p of roster) if (!p.ir) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
     const floor = (pos: Position) => (desperate ? STARTERS[pos] : KEEP_MIN[pos]);
     const cut = roster
       .filter((p) => (counts.get(p.position) ?? 0) > floor(p.position))
@@ -215,7 +216,7 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
   const teams = league.teams.filter((t) => opts.includeUser || t.id !== league.userTeamId);
   const depth = new Map(teams.map((t) => [t.id, depthOvrs(league, t.id)]));
   const budget = new Map(teams.map((t) => [t.id, spendable(league, t.id)]));
-  const room = new Map(teams.map((t) => [t.id, rosterLimit(league) - teamPlayers(league, t.id).length]));
+  const room = new Map(teams.map((t) => [t.id, rosterLimit(league) - activeRoster(league, t.id).length]));
   // Cap planning: big deals must also fit next year's books, not just this year's.
   const nextCap = capFor(league, league.season + 1) * 0.92;
   const committedNext = new Map(teams.map((t) => [t.id, capSheet(league, t.id, league.season + 1).used]));
@@ -230,6 +231,8 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
   const read = viewCache(league);
   let signings = 0;
   for (const { p } of pool) {
+    // Injury reports are public: nobody pays market price for a player who'll miss the start of the season.
+    if (p.injury && p.injury.estimate[0] >= 4) continue;
     let best: { team: Team; offer: Offer; value: number } | null = null;
     for (const team of teams) {
       if ((room.get(team.id) ?? 0) <= 0 || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
@@ -270,15 +273,19 @@ function keepScore(league: League, p: Player, read = viewCache(league)): number 
   return playerOvr(p) + quirkWorth(league, p.teamId!, p) + youth + sunk + draftee;
 }
 
-/** Cut down to 53, never below the positional minimums. */
-export function aiCutdown(league: League, team: Team): void {
+/**
+ * Cut down to `limit` (53), never below the positional minimums. Players on injured reserve don't
+ * count and can't be cut here; `pool` limits who may go (an in-season cut to make room for a signing).
+ */
+export function aiCutdown(league: League, team: Team, limit = ROSTER_MAX, pool?: readonly Player[]): void {
   const read = viewCache(league);
-  while (teamPlayers(league, team.id).length > ROSTER_MAX) {
-    const roster = teamPlayers(league, team.id);
+  const allowed = pool && new Set(pool.map((p) => p.id));
+  while (activeRoster(league, team.id).length > limit) {
+    const roster = activeRoster(league, team.id);
     const counts = new Map<Position, number>();
     for (const p of roster) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
     const cut = roster
-      .filter((p) => (counts.get(p.position) ?? 0) > KEEP_MIN[p.position])
+      .filter((p) => (counts.get(p.position) ?? 0) > KEEP_MIN[p.position] && (!allowed || allowed.has(p.id)))
       .map((p) => ({ p, score: keepScore(league, p, read) }))
       .sort((a, b) => a.score - b.score)[0]?.p;
     if (!cut) break;
@@ -294,16 +301,20 @@ function streetFreeAgent(league: League, position: Position, rng: Rng): Player {
   return p;
 }
 
-/** Sign the best available free agent at `position` (any position if undefined) to a one-year minimum deal. */
-function signMinimum(league: League, team: Team, rng: Rng, position?: Position): boolean {
+/**
+ * Sign the best available healthy free agent at `position` (any position if undefined) to a one-year
+ * minimum deal. `budget` ($K) skips anyone whose minimum (it rises with experience) wouldn't fit.
+ */
+export function signMinimum(league: League, team: Team, rng: Rng, position?: Position, budget = Infinity): boolean {
+  const cap = league.caps[league.season];
   // The best available as this front office sees him.
   let pick = freeAgents(league)
-    .filter((p) => !position || p.position === position)
+    .filter((p) => (!position || p.position === position) && !p.injury && minSalary(p.experience, cap) <= budget)
     .map((p) => ({ p, ovr: perceive(league, team.id, p).ovr + quirkWorth(league, team.id, p) }))
     .sort((a, b) => b.ovr - a.ovr)[0]?.p;
   if (!pick && position) pick = streetFreeAgent(league, position, rng);
   if (!pick) return false;
-  const min = minSalary(pick.experience, league.caps[league.season]);
+  const min = minSalary(pick.experience, cap);
   signPlayer(league, pick, team.id, { years: 1, apy: min, bonusPct: 0, gtdPct: 0, voidYears: 0 }, 'minimum');
   return true;
 }
@@ -314,12 +325,14 @@ function signMinimum(league: League, team: Team, rng: Rng, position?: Position):
  */
 export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
   for (const pos of POSITIONS) {
-    while (teamPlayers(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos]) if (!signMinimum(league, team, rng, pos)) break;
+    while (activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos]) if (!signMinimum(league, team, rng, pos)) break;
   }
   aiCutdown(league, team);
-  const missing = ROSTER_MAX - teamPlayers(league, team.id).length;
+  const missing = ROSTER_MAX - activeRoster(league, team.id).length;
   if (missing > 0) aiCapCompliance(league, team, missing * minSalary(1, league.caps[league.season]));
-  while (teamPlayers(league, team.id).length < ROSTER_MAX && capSpace(league, team.id) >= minSalary(1, league.caps[league.season])) if (!signMinimum(league, team, rng)) break;
+  // Get legal before topping up (the minimums above can tip a team over, and the cut that fixes it opens a spot),
+  // then sign only deals that fit, so the 53 fills without going back over.
   aiCapCompliance(league, team);
+  while (activeRoster(league, team.id).length < ROSTER_MAX && capSpace(league, team.id) >= minSalary(1, league.caps[league.season])) if (!signMinimum(league, team, rng, undefined, capSpace(league, team.id))) break;
   syncDepthChart(league, team);
 }

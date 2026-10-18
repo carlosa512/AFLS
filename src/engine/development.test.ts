@@ -105,7 +105,7 @@ describe('development', () => {
     const pro = growth('WR', 31, 2, (p) => (p.traits.workEthic = 18));
     const lazy = growth('WR', 31, 2, (p) => (p.traits.workEthic = 3));
     expect(pro - lazy).toBeGreaterThan(0.4);
-    expect(declineOnset('RB', 'technical', { workEthic: 10, durability: 20, temperament: 10 })).toBeGreaterThan(declineOnset('RB', 'technical'));
+    expect(declineOnset('RB', 'technical', { durability: 20 })).toBeGreaterThan(declineOnset('RB', 'technical'));
   });
 
   it('counts reps from games played and runs each player on his own stream', () => {
@@ -114,8 +114,11 @@ describe('development', () => {
     const team = league.teams[league.userTeamId];
     const starter = league.players[team.depthChart.QB[0]];
     const third = league.players[team.depthChart.QB[2]];
-    expect(playedShare(starter, league.season)).toBe(1);
-    expect(playedShare(third, league.season)).toBe(0);
+    // A starter suits up every week he's healthy; an injury can cost him a few.
+    const gp = starter.stats[league.season]?.gp ?? 0;
+    expect(gp).toBeGreaterThanOrEqual(10);
+    expect(playedShare(starter, league.season)).toBe(Math.min(1, gp / 17));
+    expect(playedShare(third, league.season)).toBeLessThan(0.3);
     // "Needs reps": young, still growing in your scouts' eyes, and not playing.
     const mine = Object.values(league.players).filter((p) => p.teamId === team.id);
     const sitting = mine.find((p) => p.age <= 25 && !p.stats[league.season]?.gp && perceive(league, team.id, p).potMid - playerOvr(p) >= 1.5);

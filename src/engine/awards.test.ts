@@ -65,10 +65,12 @@ describe('comeback player', () => {
     const s = league.season;
     const back = league.players[league.teams[3].depthChart.RB[0]];
     const line = back.stats[s];
+    line.gp = 16; // he may have missed time this season too: the award wants a regular
     line.rushYds = 1900;
     line.rushTd = 16;
     back.stats[s - 1] = { gp: 3, rushAtt: 20, rushYds: 70 };
-    back.stats[s - 2] = { gp: 17, rushAtt: 320, rushYds: 1800, rushTd: 14 };
+    // Two years ago: the same season (catches included, so the peak doesn't hinge on how many he had this year).
+    back.stats[s - 2] = { ...line, gp: 17, rushYds: 1800, rushTd: 14 };
     back.experience = 4;
     delete back.draft;
     expect(pickAwards(league, s).winners.comeback?.playerId).toBe(back.id);

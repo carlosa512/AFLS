@@ -11,16 +11,15 @@
 > stamina toll for heat and thin air (`staminaDrain`). Climate is sourced for all 25 cities (NOAA
 > 1991–2020 normals; Newark and San Jose wind still approximate). Checked by `npm run weather`.
 >
-> Stamina: this branch has no per-player energy, so the toll only shortens how long a defensive front
-> lasts on a drive (it shows only through the gassed quirk). The injury system's per-snap
-> energy cost should multiply by `staminaDrain(weather, home)`; heat then reaches the condition-based
-> injury risk as §7F intends.
+> Injuries (§7F): heat and thin air scale each player's per-snap energy cost (`staminaDrain`), so a
+> hot game wears bodies down, raises fatigue-driven injury odds and leaves less condition for next
+> week; frozen or waterlogged turf raises every snap's and hit's injury odds by 10% (`turfRisk`).
 >
 > Not yet: gusts, the 4th-quarter 5:00 roof rule (a late shower closes it), postseason roof rules and
-> player roof override (§6C–D), footing, `weatherToughness` and climate familiarity (§7E), turf injury
-> multipliers (§7F), impact notes and staff advice on the preview card, forecast trend arrows (the
-> calendar has weeks, not days), °C/km/h and "simple weather" settings, international games. Weather
-> quirks (Tier C in `QUIRKS.md`) can now be built on this.
+> player roof override (§6C–D), footing, `weatherToughness` and climate familiarity (§7E), impact
+> notes and staff advice on the preview card, forecast trend arrows (the calendar has weeks, not
+> days), °C/km/h and "simple weather" settings, international games. Weather quirks (Tier C in
+> `QUIRKS.md`) can now be built on this.
 
 # Weather System Specification
 

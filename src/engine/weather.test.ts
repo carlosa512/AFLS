@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { simulateGame } from './match/gameSim';
 import type { Game } from './types';
-import { forecast, gameWeather, isNight, severity, staminaDrain, weatherAt, weatherCost, type Weather } from './weather';
+import { forecast, gameWeather, isNight, severity, staminaDrain, turfRisk, weatherAt, weatherCost, type Weather } from './weather';
 
 const league = createLeague({ seed: 'test-weather' });
 const teamId = (abbrev: string) => league.teams.find((t) => t.abbrev === abbrev)!.id;
@@ -110,5 +110,18 @@ describe('weather', () => {
     expect(staminaDrain(day({ altitudeFt: 5280 }), true)).toBe(1);
     expect(staminaDrain(day({ tempF: 95 }), true)).toBeGreaterThan(1.1);
     expect(staminaDrain({ ...day({ tempF: 95 }), roof: 'closed' }, true)).toBe(1);
+    // Heat costs energy on every snap, so players leave a hot game more worn down.
+    const worn = (w: Weather) => {
+      const left = league.games.slice(0, 8).flatMap((g) => Object.values(simulateGame(league, g, { weather: w }).condition ?? {}));
+      return left.reduce((a, b) => a + b, 0) / left.length;
+    };
+    expect(worn(day({ tempF: 100 }))).toBeLessThan(worn(day({})) - 1);
+  });
+
+  it('makes frozen or waterlogged turf a little riskier', () => {
+    expect(turfRisk(day({ tempF: 20 }))).toBeGreaterThan(1);
+    expect(turfRisk(day({ precip: 'rain', heavy: true }))).toBeGreaterThan(1);
+    expect(turfRisk(day({ precip: 'rain' }))).toBe(1);
+    expect(turfRisk({ ...day({ tempF: 20 }), roof: 'closed' })).toBe(1);
   });
 });

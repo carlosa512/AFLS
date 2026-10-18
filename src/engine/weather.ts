@@ -200,12 +200,18 @@ export function weatherEffects(w: Weather): WeatherCost {
 }
 
 /**
- * Each snap's toll on stamina (1 = normal): heat past 85°F drains both sides, thin air the visitors
- * (the home side lives in it). A per-player energy model scales its snap cost by this.
+ * Each snap's energy cost (1 = normal): heat past 85°F drains both sides, thin air the visitors (the
+ * home side lives in it). Tired bodies get hurt more, so heat reaches injuries through fatigue.
  */
 export function staminaDrain(w: Weather, home: boolean): number {
   const open = w.roof === 'outdoors' || w.roof === 'open';
   return 1 + (open ? 0.02 * Math.max(0, w.tempF - 85) : 0) + (home ? 0 : (w.altitudeFt ?? 0) / 33_000);
+}
+
+/** Injury odds on every snap and hit: a little higher on frozen (below 25°F) or waterlogged (heavy rain or snow) turf. */
+export function turfRisk(w: Weather): number {
+  const open = w.roof === 'outdoors' || w.roof === 'open';
+  return open && (w.tempF < 25 || (w.heavy && w.precip !== 'none')) ? 1.1 : 1;
 }
 
 const SEVERITIES: Severity[] = ['none', 'light', 'moderate', 'heavy'];

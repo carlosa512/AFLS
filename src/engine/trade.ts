@@ -21,7 +21,7 @@ import { contenderScore, resetContenderCache, rosterLimit } from './offseason/ne
 import { playerOvr, STARTERS } from './positions';
 import { characterRead, perceive, projectedCeiling, quirkWorth, trueQuirkWorth } from './scouting';
 import { clamp, type Rng } from './rng';
-import { syncDepthChart, teamPlayers, teamRatings } from './roster';
+import { activeRoster, syncDepthChart, teamPlayers, teamRatings } from './roster';
 import { computeRecords, winPct } from './season/standings';
 import type { DraftPick, GmTraits, League, Player, Position, Team } from './types';
 
@@ -68,8 +68,23 @@ export function nextDraftSeason(league: League): number {
   return before ? league.season : league.season + 1;
 }
 
+/**
+ * Projected slots while one AI trade attempt weighs its offers: nothing changes until a trade goes
+ * through, and the comparisons ask for the same slot hundreds of times.
+ */
+let slotMemo: Map<string, number> | null = null;
+
 /** Where a team's pick is expected to land in each round (1 = first), from record and roster strength. */
 export function projectedSlot(league: League, teamId: number, draftSeason: number): number {
+  const key = `${teamId}:${draftSeason}`;
+  const memo = slotMemo?.get(key);
+  if (memo !== undefined) return memo;
+  const slot = slotFor(league, teamId, draftSeason);
+  slotMemo?.set(key, slot);
+  return slot;
+}
+
+function slotFor(league: League, teamId: number, draftSeason: number): number {
   const strength = new Map(league.teams.map((t) => [t.id, teamRatings(league, t).overall]));
   const records = computeRecords(league);
   const played = [...records.values()].some((r) => r.w + r.l + r.t > 0);
@@ -184,6 +199,9 @@ export function playerTradeBlocker(league: League, p: Player): string | null {
   const signedThisYear = c.signedSeason === league.season && c.signedWeek >= 0 && c.kind !== 'rookie' && c.kind !== 'tag';
   const weeks = league.phase === 'regular' ? league.week - 1 - c.signedWeek : -1;
   if (signedThisYear && weeks < TRADE_COOLDOWN_WEEKS) return `Signed this year: tradable after week ${c.signedWeek + TRADE_COOLDOWN_WEEKS}.`;
+  if (p.ir) return 'On injured reserve.';
+  // A trade waits on a physical, and a player who will miss weeks fails it.
+  if (p.injury && p.injury.estimate[0] >= 2) return 'Injured: he would fail the physical.';
   return null;
 }
 
@@ -245,7 +263,7 @@ export function tradeProblem(league: League, proposal: TradeProposal, opts: { ro
     const other = proposal.sides[1 - i];
     const team = league.teams[side.teamId];
     if (impact[i].space < 0) return `${team.name} would be over the cap after this trade.`;
-    const size = teamPlayers(league, side.teamId).length - side.players.length + other.players.length;
+    const size = activeRoster(league, side.teamId).length - side.players.length + other.players.length;
     if (size > rosterLimit(league) && !opts.rosterCuts) return `${team.name} would have too many players (${size}/${rosterLimit(league)}). Release someone first.`;
     if (league.phase === 'regular') {
       const roster = teamPlayers(league, side.teamId).filter((p) => !side.players.includes(p.id)).concat(other.players.map((id) => league.players[id]));
@@ -381,6 +399,15 @@ export function aiTradeWeek(league: League, rng: Rng): TradeProposal[] {
 }
 
 function aiTradeAttempt(league: League, rng: Rng): TradeProposal | null {
+  slotMemo = new Map();
+  try {
+    return tradeAttempt(league, rng);
+  } finally {
+    slotMemo = null;
+  }
+}
+
+function tradeAttempt(league: League, rng: Rng): TradeProposal | null {
   const teams = league.teams.filter((t) => t.id !== league.userTeamId);
   const buyers = teams.filter((t) => contenderScore(league, t.id) >= 0.6 && t.gm.winNow >= 0.45 && capSpace(league, t.id) > 0.02 * league.caps[league.season]);
   const sellers = teams.filter((t) => contenderScore(league, t.id) <= 0.4);
@@ -408,6 +435,7 @@ function aiTradeAttempt(league: League, rng: Rng): TradeProposal | null {
     // The buyer must like it too.
     const mirrored: TradeProposal = { sides: [proposal.sides[1], proposal.sides[0]] };
     if (!evaluateTrade(league, mirrored, { margin: 1, rosterCuts: true }).accepts) continue;
+    slotMemo = null;
     executeTrade(league, proposal);
     aiCutdown(league, buyer);
     return proposal;
