@@ -317,8 +317,8 @@ export interface StaffSeverance {
   name: string;
 }
 
-export type CoachRole = 'headCoach' | 'offCoord' | 'defCoord' | 'positionCoach' | 'strengthCoach';
-/** Position rooms, each with its own coach. Kickers and punters have none. */
+export type CoachRole = 'headCoach' | 'offCoord' | 'defCoord' | 'positionCoach' | 'strengthCoach' | 'stCoord';
+/** Position rooms, each with its own coach. Kickers and punters have none: the special teams coordinator coaches them. */
 export type CoachRoom = 'QB' | 'RB' | 'WR' | 'OL' | 'DL' | 'LB' | 'DB';
 
 /**

@@ -36,7 +36,7 @@ import { teamPlayers } from '../engine/roster';
 import type { Coach, CoachRole, CoachRoom, League, Player, Position } from '../engine/types';
 import { verdict, type Verdict } from './format';
 
-/** A position room, or null for kickers and punters (nobody coaches them but the head coach and S&C coach). */
+/** A position room, or null for kickers and punters (the special teams coordinator's room). */
 export type Room = CoachRoom | null;
 export const ALL_ROOMS: Room[] = [...COACH_ROOMS, null];
 export const roomLabel = (r: Room) => (r ? ROOM_LABEL[r] : 'Kickers & punters');
@@ -63,6 +63,7 @@ export const ROLE_LINE: Record<CoachRole, string> = {
   defCoord: 'Runs the defense: the front, the coverage, how often he sends extra rushers, and how the defensive players develop.',
   positionCoach: 'Does most of the teaching in his room: the biggest say in how its players grow and keep their technique.',
   strengthCoach: 'Keeps bodies going: the biggest say in how slowly speed and strength fade, in every room.',
+  stCoord: 'Runs the kick units and coaches the kickers and punters: a good one draws fewer flags on kicks and wins a few yards on every return and every kick his units cover.',
 };
 
 export interface RepNote {
@@ -288,10 +289,10 @@ export function playerCoachLine(league: League, p: Player): { text: string; numb
     who = c ? `led by ${coachName(c)}, his ${chairNoun(chair)}` : `your ${chairNoun(chair)} chair is empty`;
     named = c ? [c] : [];
   } else {
-    const hc = chairHolder(staff, { role: 'headCoach' });
-    const sc = chairHolder(staff, { role: 'strengthCoach' });
-    who = 'the head coach and the S&C coach, who share the kickers and punters';
-    named = [hc, sc].filter((c): c is Coach => !!c);
+    const chair: Chair = { role: 'stCoord' };
+    const c = chairHolder(staff, chair);
+    who = c ? `led by ${coachName(c)}, his ${chairNoun(chair)}` : `your ${chairNoun(chair)} chair is empty`;
+    named = c ? [c] : [];
   }
   const e = effectOf(coachingFrom(staff, pos), pos);
   const g = growthVerdict(e.growth).much;

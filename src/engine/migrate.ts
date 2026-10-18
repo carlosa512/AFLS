@@ -3,7 +3,7 @@
  * so careers survive engine changes instead of being thrown away.
  */
 import { awardSeason } from './awards';
-import { generateCoachingWorld } from './coaching';
+import { addSpecialTeamsCoordinators, generateCoachingWorld } from './coaching';
 import { DIVISIONS, LEGACY_COLORS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
 import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
@@ -43,6 +43,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 17) toV17(league);
   if (league.version < 18) league.version = 18; // v18: optional `returners` on teams and special-teams flags, nothing to fill in
   if (league.version < 19) toV19(league);
+  if (league.version < 20) toV20(league);
   return league;
 }
 
@@ -251,11 +252,17 @@ function toV17(league: League) {
   league.version = 17;
 }
 
-/** v18 → v19: a drafted player keeps his consensus rank; fill it in from the picks not yet pruned. */
+/** v18 → v19: the special teams coordinator, a new chair: every team hires one, and the market gets candidates. */
 function toV19(league: League) {
+  addSpecialTeamsCoordinators(league);
+  league.version = 19;
+}
+
+/** v19 → v20: a drafted player keeps his consensus rank; fill it in from the picks not yet pruned. */
+function toV20(league: League) {
   for (const pk of league.draftPicks) {
     const d = pk.playerId !== undefined ? league.players[pk.playerId]?.draft : undefined;
     if (d && pk.consRank !== undefined) d.rank = pk.consRank;
   }
-  league.version = 19;
+  league.version = 20;
 }

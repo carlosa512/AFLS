@@ -1,5 +1,5 @@
 import { skill } from '../attributes';
-import { teamScheme } from '../coaching';
+import { specialTeamsEdge, teamScheme } from '../coaching';
 import type { TeamScheme } from '../schemes';
 import { overall } from '../positions';
 import { isAvailable } from '../roster';
@@ -37,6 +37,16 @@ export interface Lineup {
   st: Player[];
   /** The kick units' discipline: blocks in the back, holding on returns, a kickoff lined up wrong. */
   specialDiscipline: number;
+  /**
+   * The field goal and extra point unit's blockers: the starting line, with a backup lineman and a tight end
+   * on the wings (`fgDiscipline`: false starts and holds on kicks). Its block unit is the defense's front
+   * (`blockDiscipline`: offside on kicks).
+   */
+  fg: Player[];
+  fgDiscipline: number;
+  blockDiscipline: number;
+  /** The special teams coordinator's edge, in rating points against a typical coach (`specialTeamsEdge`). */
+  stCoach: number;
   /** Unit composites on the 1–20 scale. */
   passBlock: number;
   runBlock: number;
@@ -61,6 +71,20 @@ const ST_POOL: [Position, number][] = [
   ['DT', 2],
 ];
 const ST_SIZE = 10;
+/** A point of the special teams coordinator's quality is worth half a point of his units' discipline. */
+const COACH_DISCIPLINE = 0.5;
+/** A kick unit's flags get this much less likely per point of its discipline (`unitLoose` in `gameSim.ts`). */
+export const KICK_FLAG_PER_POINT = 0.06;
+/** Return yards per point of special teams coordinator edge, the returning team's against the covering team's. */
+export const RETURN_COACH = { kick: 0.25, punt: 0.15 };
+
+/**
+ * What a special teams coordinator does on game day against a typical one, for a screen: his kick units'
+ * flags (a multiplier) and the yards his returners gain, or his coverage saves, on each kickoff and punt.
+ */
+export function kickCoaching(edge: number): { flags: number; kickoff: number; punt: number } {
+  return { flags: Math.exp(-KICK_FLAG_PER_POINT * COACH_DISCIPLINE * edge), kickoff: RETURN_COACH.kick * edge, punt: RETURN_COACH.punt * edge };
+}
 
 /**
  * A kick unit: one backup from each position in turn (a linebacker, a safety, a corner, a tight end…)
@@ -176,6 +200,11 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     return p && p.teamId === team.id && !out.has(p.id) && isAvailable(p) ? p : undefined;
   };
   const st = coverUnit(league, team, out);
+  const stCoach = specialTeamsEdge(league, team.id);
+  // The kick unit's wings: the first healthy backup lineman and the second tight end (the first, if not).
+  const backupOl = team.depthChart.OL.map((id) => league.players[id]).find((p) => p && fit(p.id));
+  const wings = [...new Set([backupOl ?? tes[0], tes[1] ?? tes[0]])].filter((p): p is Player => !!p);
+  const fg = [...ol, ...wings];
 
   // Who blocks besides the line depends on who is on the field: a second tight end helps, a fourth receiver doesn't.
   const olPass = avg(ol, (p) => skill(p, 'passPro'));
@@ -216,7 +245,11 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     kr: picked(team.returners?.kr) ?? best(krPool),
     pr: picked(team.returners?.pr) ?? best(prPool),
     st,
-    specialDiscipline: avg(st, discipline),
+    specialDiscipline: avg(st, discipline) + COACH_DISCIPLINE * stCoach,
+    fg,
+    fgDiscipline: avg(fg, discipline) + COACH_DISCIPLINE * stCoach,
+    blockDiscipline: avg([...dt, ...edge], discipline) + COACH_DISCIPLINE * stCoach,
+    stCoach,
     // Unit composites: the line does most of the work, with help from the backs and tight ends.
     passBlock,
     runBlock,
