@@ -523,7 +523,7 @@ export interface InboxMessage {
   actions: InboxAction[];
 }
 
-export type PlayoffRound ='WC' | 'DIV' | 'CONF' | 'FINAL';
+export type PlayoffRound = 'WC' | 'DIV' | 'CONF' | 'FINAL';
 
 export interface TeamGameStats {
   firstDowns: number;
