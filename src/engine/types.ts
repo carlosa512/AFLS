@@ -411,6 +411,8 @@ export interface Team {
   division: number;
   colors: [string, string];
   depthChart: DepthChart;
+  /** The kick and punt returners the user picked (player ids); unset, the lineup picks the best backup. */
+  returners?: { kr?: number; pr?: number };
   /** If true the depth chart is rebuilt from ratings before every game. */
   autoDepth: boolean;
   /** Dead money charged to this team, by league year. */
@@ -531,7 +533,24 @@ export interface TeamGameStats {
 }
 
 /** The fouls the engine calls (see `FOULS` in `officials.ts`). */
-export type Foul = 'falseStart' | 'offside' | 'holding' | 'passInterference' | 'defHolding' | 'roughingPasser' | 'unnecessaryRoughness' | 'faceMask' | 'horseCollar' | 'unsportsmanlike';
+export type Foul =
+  | 'falseStart'
+  | 'offside'
+  | 'holding'
+  | 'passInterference'
+  | 'defHolding'
+  | 'roughingPasser'
+  | 'unnecessaryRoughness'
+  | 'faceMask'
+  | 'horseCollar'
+  | 'unsportsmanlike'
+  | 'returnHolding'
+  | 'blockInBack'
+  | 'kickoffMiss'
+  | 'kickoffFormation'
+  | 'kickCatch'
+  | 'runningIntoKicker'
+  | 'roughingKicker';
 
 /**
  * An officiating crew, known by its head referee (see `officials.ts`). Its tendencies are 1–20 like

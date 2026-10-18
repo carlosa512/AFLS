@@ -63,10 +63,10 @@ const HOME_FIELD_EDGE = 0.4; // ratings points added to the home side's matchups
 const OL_DISCIPLINE = 12;
 const DL_DISCIPLINE = 10.8;
 /** Base odds of each foul per chance at it (see docs/PENALTIES.md for the NFL rates they're tuned to). */
-const FALSE_START = 0.0257;
-const OFFSIDE = 0.0158;
+const FALSE_START = 0.0226;
+const OFFSIDE = 0.0137;
 /** Offensive holding, per run, pass, sack or scramble: declined when the play was worse for the offense anyway. */
-const HOLDING = 0.0362;
+const HOLDING = 0.0306;
 /** Pass interference by depth, on incompletions thrown past the line. */
 const DPI: Record<PassDepth, number> = { short: 0.012, medium: 0.045, deep: 0.09 };
 /** Defensive holding, per dropback: declined when the play beat 5 yards and a first down. */
@@ -81,6 +81,28 @@ const HORSE_COLLAR = 0.0005;
 const UNSPORTSMANLIKE = 0.02;
 /** League-typical discipline of the men making tackles: personal-foul odds are scaled around it. */
 const TACKLER_DISCIPLINE = 11;
+/** A hold or a block in the back somewhere behind the returner, per kick or punt return. */
+const RETURN_FOUL = 0.087;
+/** A kickoff out of bounds or short of the landing zone, and a kicking team lined up wrong, per kickoff. */
+const KICKOFF_MISS = 0.016;
+const KICKOFF_FORMATION = 0.013;
+/** Per punt caught: the coverage gets there before the ball. */
+const KICK_CATCH = 0.003;
+/** Per punt: a rusher who runs into the punter, or roughs him. */
+const RUNNING_INTO_KICKER = 0.002;
+const ROUGHING_KICKER = 0.0025;
+/** League-typical discipline of a kick unit (backups, mostly): special-teams odds are scaled around it. */
+const ST_DISCIPLINE = 10.5;
+/** A kick play's injury risk against a scrimmage snap's: a return is a collision at full speed; a touchback or a fair catch is mostly running. */
+const KICK_RISK = { returned: 1.5, quiet: 0.4 };
+/**
+ * At the goal line the defense stacks the box and there's no room to run: up to this many yards off a
+ * carry's mean at the 1, tapering to none at the 6 (inside the 3 the NFL scores on about half its runs).
+ */
+const GOAL_LINE_STACK = 1.75;
+/** Mean kickoff and punt returns before flags (the flags on returns bring the averages back to where they were). */
+const KICK_RETURN = 29.5;
+const PUNT_RETURN = 9;
 /** League-typical edge contain and safety help: their effects are measured from these. */
 const EDGE_CONTAIN = 11.5;
 const DEEP_HELP = 14;
@@ -851,34 +873,110 @@ class GameSim {
     }
 
     const kp = skill(kicking.k, 'kickoffDistance');
+    const { all } = this.calls;
+    // Out of bounds or short of the landing zone: the receiving team's ball at its 40. A kicker who can't
+    // place the ball misses more.
+    if (this.rng.chance(KICKOFF_MISS * Math.exp(-0.08 * (skill(kicking.k, 'fieldGoal') - 12)))) {
+      this.offense = receivingSide;
+      this.kickWear(false);
+      this.flag(kickingSide, 'kickoffMiss', kicking.k, 'accepted');
+      this.setAnim(kickingSide, 'kickoff', 35, 60, 60);
+      this.startSeries(40);
+      this.clockRunning = false;
+      this.log(`${short(kicking.k)} kicks off out of bounds. PENALTY on ${this.flagged(kickingSide, kicking.k)}: ${FOULS.kickoffMiss.label}. Ball at the ${this.spot()}.`);
+      return;
+    }
     const touchback = this.rng.chance(clamp(0.38 + 0.025 * (kp - 12) + (this.has(kicking.k, 'boomerLeg') ? 0.12 : 0) - 0.02 * this.wx.kick, 0.15, 0.8));
+    // A kicking team lined up wrong (offside, or out of its setup zone): 5 more yards for the receivers.
+    let lined = this.rng.chance(KICKOFF_FORMATION * this.unitLoose(kicking) * all) ? this.stCommitter(kicking) : null;
     this.offense = receivingSide;
+    let start: number;
+    let text: string;
     if (touchback) {
+      this.kickWear(false);
       this.setAnim(kickingSide, 'kickoff', 35, 104, 104);
-      this.startSeries(35);
-      this.log(`${short(kicking.k)} kicks off into the end zone. Touchback.`);
+      start = 35;
+      text = `${short(kicking.k)} kicks off into the end zone. Touchback`;
     } else {
       const kr = receiving.kr;
       const edge = skill(kr, 'returns') - 12;
-      let start = clamp(Math.round(this.rng.normal(28 + 0.6 * edge, 6)), 8, 60);
+      start = clamp(Math.round(this.rng.normal(KICK_RETURN + 0.6 * edge, 6)), 8, 60);
       const returnTd = this.rng.chance(clamp(0.004 + 0.001 * edge, 0.001, 0.012));
       if (returnTd) start = 100;
+      let block = this.rng.chance(RETURN_FOUL * this.unitLoose(receiving) * all) ? this.blockSpot(1, start, receiving) : null;
+      // Both teams flagged: they offset, and the return stands.
+      if (block && lined) {
+        this.flag(receivingSide, block.foul, block.by, 'offset');
+        this.flag(kickingSide, 'kickoffFormation', lined, 'offset');
+        [block, lined] = [null, null];
+      }
       const buf = new StatBuffer();
       buf.add(kr, 'krAtt');
-      buf.add(kr, 'krYds', start - 3);
+      buf.add(kr, 'krYds', (block ? block.at : start) - 3);
       this.playTime(this.rng.int(5, 8));
-      this.setAnim(kickingSide, 'kickoff', 35, returnTd ? -3 : 100 - start, 97);
-      if (returnTd) {
+      this.kickWear(true);
+      this.setAnim(kickingSide, 'kickoff', 35, returnTd && !block ? -3 : 100 - (block ? block.spot : start), 97);
+      if (returnTd && !block) {
         buf.add(kr, 'krTd');
         this.credit(buf);
+        // On a touchdown the receivers decline a kicking team's formation foul.
+        if (lined) this.flag(kickingSide, 'kickoffFormation', lined, 'declined');
         this.touchdown(receivingSide, `${short(kr)} returns the kickoff ${start - 3} yards for a TOUCHDOWN!`);
         return;
       }
       this.credit(buf);
-      this.startSeries(start);
-      this.log(`${short(kicking.k)} kicks off. ${short(kr)} returns to the ${this.spot()}.`);
+      text = `${short(kicking.k)} kicks off. ${short(kr)} returns to the ${this.spot(block ? block.at : start, receivingSide)}`;
+      if (block) {
+        this.flag(receivingSide, block.foul, block.by, 'accepted', block.yards);
+        text += `. PENALTY on ${this.flagged(receivingSide, block.by)}: ${FOULS[block.foul].label}, ${block.yards} yards`;
+        start = block.spot;
+      }
     }
+    if (lined) {
+      this.flag(kickingSide, 'kickoffFormation', lined, 'accepted', 5);
+      text += `. PENALTY on ${this.flagged(kickingSide, lined)}: ${FOULS.kickoffFormation.label}, 5 yards`;
+      start += 5;
+    }
+    this.startSeries(start);
+    this.log(`${text}. Ball at the ${this.spot()}.`);
     this.clockRunning = false;
+  }
+
+  /**
+   * A flag on a return: a hold or a block in the back somewhere behind the returner, between where he
+   * caught it (`from`) and where he got to; the ball goes 10 yards back from that spot (half the distance
+   * near his goal line), and the return yards stop there.
+   */
+  private blockSpot(from: number, to: number, unit: Lineup): { at: number; spot: number; yards: number; foul: Foul; by: Player | undefined } {
+    const at = Math.max(1, Math.round(from + this.rng.float(0.1, 1) * (Math.min(to, 99) - from)));
+    const yards = Math.min(10, Math.floor(at / 2));
+    const foul: Foul = this.flagRng.chance(0.5) ? 'returnHolding' : 'blockInBack';
+    return { at, spot: at - yards, yards, foul, by: this.stCommitter(unit) };
+  }
+
+  /** How loose a kick unit is against a typical one: the odds of its flags scale with it. */
+  private unitLoose(unit: Lineup): number {
+    return Math.exp(-0.06 * (unit.specialDiscipline - ST_DISCIPLINE));
+  }
+
+  /** Who on a kick unit drew the flag, leaning on the least disciplined; the kicker if there's no unit. */
+  private stCommitter(unit: Lineup): Player | undefined {
+    return unit.st.length ? this.flagRng.weighted(unit.st, (p) => Math.max(1, 24 - discipline(p))) : unit.k;
+  }
+
+  /**
+   * A kick play: both kick units run, tire and face the play's risk, the backups who cover kicks most of
+   * all (a return is a full-speed collision; a touchback or a fair catch mostly running).
+   */
+  private kickWear(returned: boolean) {
+    for (const l of this.lineups) {
+      for (const p of l.st) {
+        const b = this.body(p);
+        b.energy -= b.cost;
+        b.spent += b.cost;
+        this.expose(p, SNAP_RISK * SNAP_EXPOSURE[p.position] * (returned ? KICK_RISK.returned : KICK_RISK.quiet), SNAP_CONTACT);
+      }
+    }
   }
 
   private punt() {
@@ -905,6 +1003,28 @@ class GameSim {
       return;
     }
 
+    // A rusher into the punter: 5 yards for running into him (taken only when it moves the chains), 15 and
+    // a first down for roughing him. Either way the punting team keeps the ball.
+    const { all } = this.calls;
+    const rush = this.rng.next();
+    let note = '';
+    if (rush < (RUNNING_INTO_KICKER + ROUGHING_KICKER) * all) {
+      const foul: Foul = rush < RUNNING_INTO_KICKER * all ? 'runningIntoKicker' : 'roughingKicker';
+      const by = this.stCommitter(def);
+      const yards = Math.min(FOULS[foul].yards as number, Math.floor((100 - this.yardLine) / 2));
+      if (foul === 'roughingKicker' || this.yardLine + yards >= this.lineToGain) {
+        this.flag(this.def, foul, by, 'accepted', yards);
+        this.setAnim(this.offense, 'penalty', this.yardLine, this.yardLine + yards);
+        this.yardLine += yards;
+        this.firstDown();
+        this.clockRunning = false;
+        this.log(`${short(p)} punts. PENALTY on ${this.flagged(this.def, by)}: ${FOULS[foul].label}, ${yards} yards. No play.`);
+        return;
+      }
+      this.flag(this.def, foul, by, 'declined');
+      note = `. ${FOULS[foul].label} on ${this.flagged(this.def, by)}, declined`;
+    }
+
     const outkicks = this.has(p, 'outkicksCoverage');
     const coffin = this.has(p, 'coffinCorner');
     const arc = this.has(p, 'highArc');
@@ -923,39 +1043,60 @@ class GameSim {
     this.setAnim(this.offense, 'punt', this.yardLine, Math.min(landing, 105), Math.min(landing, 105));
     if (landing >= 100) {
       this.credit(buf);
-      this.log(`${short(p)} punts ${gross} yards into the end zone. Touchback.`);
+      this.kickWear(false);
+      this.log(`${short(p)} punts ${gross} yards into the end zone. Touchback${note}.`);
       this.changePossession(20);
       return;
     }
     const receiveAt = 100 - landing;
     const pr = def.pr;
+    // The coverage gets there before the ball (downed punts have nobody to interfere with): 15 yards from the catch.
+    if (receiveAt > 10 && this.rng.chance(KICK_CATCH * all)) {
+      const by = this.stCommitter(off);
+      const spot = Math.min(99, receiveAt + 15);
+      this.credit(buf);
+      this.kickWear(false);
+      this.flag(this.offense, 'kickCatch', by, 'accepted', spot - receiveAt);
+      this.log(`${short(p)} punts ${gross} yards${note}. PENALTY on ${this.flagged(this.offense, by)}: ${FOULS.kickCatch.label}, ${spot - receiveAt} yards. Ball at the ${this.spot(spot, this.def)}.`);
+      this.changePossession(spot);
+      return;
+    }
     // A well-placed punt (hang time, toward the sideline) leaves the returner no room.
     // No hang time means no fair catches; a coffin-corner man from plus territory leaves no room.
     const hang = (outkicks ? -0.15 : 0) + (coffin && room < 60 ? 0.2 : 0) + (arc ? 0.12 : 0);
     if (receiveAt <= 10 || this.rng.chance(clamp(0.42 + 0.02 * (skill(p, 'puntPlacement') - 12) + hang, 0.2, 0.65))) {
       this.credit(buf);
-      this.log(`${short(p)} punts ${gross} yards. ${receiveAt <= 10 ? 'Downed' : `Fair catch by ${short(pr)}`} at the ${this.spot(receiveAt, this.def)}.`);
+      this.kickWear(false);
+      this.log(`${short(p)} punts ${gross} yards${note}. ${receiveAt <= 10 ? 'Downed' : `Fair catch by ${short(pr)}`} at the ${this.spot(receiveAt, this.def)}.`);
       this.changePossession(receiveAt);
       return;
     }
     const edge = skill(pr, 'returns') - 12;
-    let ret = Math.max(0, Math.round(this.rng.normal(8 + 0.5 * edge + (outkicks ? 3 : 0) - (arc ? 1.5 : 0), 6)));
+    let ret = Math.max(0, Math.round(this.rng.normal(PUNT_RETURN + 0.5 * edge + (outkicks ? 3 : 0) - (arc ? 1.5 : 0), 6)));
     if (this.rng.chance(clamp(0.006 + 0.0015 * edge, 0.002, 0.02))) ret = 100 - receiveAt;
+    const block = this.rng.chance(RETURN_FOUL * this.unitLoose(def) * all) ? this.blockSpot(receiveAt, receiveAt + ret, def) : null;
+    const end = block ? block.spot : receiveAt + ret;
     // Returns run back toward the punting team's goal line.
-    this.setAnim(this.offense, 'punt', this.yardLine, landing - ret <= 0 ? -3 : landing - ret, landing);
+    this.setAnim(this.offense, 'punt', this.yardLine, end >= 100 ? -3 : 100 - end, landing);
     buf.add(pr, 'prAtt');
-    buf.add(pr, 'prYds', ret);
-    if (receiveAt + ret >= 100) buf.add(pr, 'prTd');
+    buf.add(pr, 'prYds', (block ? block.at : receiveAt + ret) - receiveAt);
+    if (!block && receiveAt + ret >= 100) buf.add(pr, 'prTd');
     this.credit(buf);
-    if (receiveAt + ret >= 100) {
-      this.log(`${short(p)} punts ${gross} yards.`);
+    this.kickWear(true);
+    if (!block && receiveAt + ret >= 100) {
+      this.log(`${short(p)} punts ${gross} yards${note}.`);
       this.endPossession();
       this.offense = this.def;
       this.touchdown(this.offense, `${short(pr)} returns the punt ${ret} yards for a TOUCHDOWN!`);
       return;
     }
-    this.log(`${short(p)} punts ${gross} yards. ${short(pr)} returns ${ret} yards to the ${this.spot(receiveAt + ret, this.def)}.`);
-    this.changePossession(receiveAt + ret);
+    if (block) {
+      this.flag(this.def, block.foul, block.by, 'accepted', block.yards);
+      this.log(
+        `${short(p)} punts ${gross} yards${note}. ${short(pr)} returns to the ${this.spot(block.at, this.def)}. PENALTY on ${this.flagged(this.def, block.by)}: ${FOULS[block.foul].label}, ${block.yards} yards. Ball at the ${this.spot(end, this.def)}.`,
+      );
+    } else this.log(`${short(p)} punts ${gross} yards${note}. ${short(pr)} returns ${ret} yards to the ${this.spot(end, this.def)}.`);
+    this.changePossession(end);
   }
 
   private fieldGoal() {
@@ -1196,7 +1337,8 @@ class GameSim {
     // The best backs average about a yard a carry more than the league, not three: the line and the
     // defense decide most of a run, the back the rest (NFL rushing leaders run 4.5–5.5 a carry).
     const lean = this.runQuirks(off, def, rusher, outside, bounce, lineDelta, this.tired(s));
-    let yards = rng.normal(RUN_BASE + 0.25 * lineDelta + 0.1 * (rusherSkill - 12) - contain + lean.mean, 2.9 + lean.spread);
+    const stacked = GOAL_LINE_STACK * clamp((6 - yardsToGoal) / 5, 0, 1);
+    let yards = rng.normal(RUN_BASE + 0.25 * lineDelta + 0.1 * (rusherSkill - 12) - contain + lean.mean - stacked, 2.9 + lean.spread);
     if (yards > 4) {
       // Past the line: beat the best linebacker's tackle, then outrun the deep safety.
       const lbTackle = Math.max(...def.lb.map((p) => skill(p, 'tackling')));
@@ -1379,7 +1521,8 @@ class GameSim {
     if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
     // A gunslinger who won't throw it away forces it into coverage instead.
     if (pressured && this.has(qb, 'gunslinger')) pComplete -= 0.1;
-    if (yardsToGoal <= 10 && depth !== 'short') pComplete -= 0.06;
+    // Inside the 10 the field shrinks: no room behind the coverage, and less underneath.
+    if (yardsToGoal <= 10) pComplete -= depth === 'short' ? 0.03 : 0.06;
     if (depth === 'deep' && this.has(receiver, 'goesUpForIt')) pComplete += 0.04;
     else if (depth !== 'deep' && this.has(receiver, 'hearsFootsteps')) pComplete -= 0.04;
     // Contested balls: hands shown late win them, hands that trap against the body don't.
@@ -1453,7 +1596,7 @@ class GameSim {
     } else {
       tackler = rng.chance(0.6) ? defender : this.pickTackler(def, air + 4);
       const yacSkill = skill(receiver, 'afterCatch') - skill(tackler, 'tackling');
-      let yac = Math.max(0, rng.normal({ short: 3.55, medium: 2.5, deep: 2.1 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth), 3));
+      let yac = Math.max(0, rng.normal({ short: 3.7, medium: 2.65, deep: 2.25 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth), 3));
       if (rng.chance(clamp((0.022 + 0.004 * yacSkill) * (coverage?.yac ?? 1), 0.01, 0.06))) yac += rng.exponential(16);
       gain = Math.min(air + Math.round(yac), yardsToGoal);
     }

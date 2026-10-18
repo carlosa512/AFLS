@@ -122,6 +122,43 @@ function setAutoInjuries(teamId: number, auto: boolean) {
   });
 }
 
+const RETURNER_POSITIONS: readonly Position[] = ['RB', 'WR', 'CB', 'S'];
+
+/** Who returns kicks and punts: the user's pick, or Auto (the best backup, as the AI does). A pick who's hurt sits like anyone else. */
+function Returners({ league, team }: { league: League; team: Team }) {
+  const choices = RETURNER_POSITIONS.flatMap((pos) => team.depthChart[pos].map((id) => league.players[id]).filter((p): p is Player => !!p));
+  const pick = (role: 'kr' | 'pr', value: string) =>
+    store.mutate((l) => {
+      const t = l.teams[team.id];
+      const next = { ...t.returners, [role]: value === '' ? undefined : Number(value) };
+      if (next.kr === undefined && next.pr === undefined) delete t.returners;
+      else t.returners = next;
+    });
+  return (
+    <div className="row" style={{ gap: 14, marginBottom: 10, fontSize: 'var(--step--1)' }}>
+      {(
+        [
+          ['kr', 'Kick returner'],
+          ['pr', 'Punt returner'],
+        ] as const
+      ).map(([role, label]) => (
+        <label key={role} className="row" style={{ gap: 6 }}>
+          {label}
+          <select aria-label={label} value={team.returners?.[role] ?? ''} onChange={(e) => pick(role, e.target.value)}>
+            <option value="">Auto</option>
+            {choices.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.position} {p.firstName[0]}. {p.lastName}
+                {isAvailable(p) ? '' : ' (hurt)'}
+              </option>
+            ))}
+          </select>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function setAuto(teamId: number, auto: boolean) {
   store.mutate((l) => {
     const team = l.teams[teamId];
@@ -341,6 +378,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
         }
       >
         {grouped && <SchemeStrip league={league} teamId={teamId} scheme={scheme} />}
+        {grouped && isUser && <Returners league={league} team={team} />}
         {!grouped && (
           <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
             Showing the whole roster sorted by a column.{' '}

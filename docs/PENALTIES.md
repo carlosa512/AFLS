@@ -1,12 +1,12 @@
 # Penalties
 
-> **Status.** Phases 1 and 2 built. Phase 1: the foul registry and enforcement (`penalties.ts`),
-> accept or decline (`coach.takesPenalty` on `coach.downValue`), offsetting fouls, live-ball offside,
-> untimed downs, every accepted flag charged to a player. Phase 2: roughing the passer, unnecessary
-> roughness, face mask, horse collar and unsportsmanlike conduct (the defense's, on scrimmage plays),
-> enforced from where the play ended when it gained ground; the crews' fourth tendency, QB Protection;
-> star protection for decorated passers (`starLean`); and a retune of the offense so scoring holds
-> (see Phase 2). Next: Phase 3 (special teams).
+> **Status.** Phases 1, 2 and 3a built. Phase 1: the foul registry and enforcement, accept or decline,
+> offsetting fouls, live-ball offside, untimed downs, every accepted flag charged to a player. Phase 2:
+> the defense's personal fouls, the crews' QB Protection, star protection, an offense retune. Phase 3a:
+> special-teams units (backups first) and the user's own returners; holds and blocks in the back on
+> returns, kickoffs out of bounds or short and lined up wrong, kick-catch interference, running into and
+> roughing the punter; kick units tire and face injury risk; a goal-line stack for runs. Next: Phase 3b,
+> the special-teams coordinator and a field goal and extra point unit (decision 6).
 > Numbers from the NFL's 2023–2025 seasons (below), tuned to their average (decision 5).
 
 ## The NFL, by the numbers
@@ -226,6 +226,46 @@ every hidden tendency shows up in a stat a player can read.
 
 ## Phase 3: special teams
 
+**3a built.** Units: `Lineup.st`, ten men a kick both ways, one backup from each position in turn
+(linebacker, safety, corner, tight end, receiver, back, edge, tackle), starters only when the backups run
+out; they tire and face a scrimmage snap's injury risk on every kick (×1.5 on a return, ×0.4 on a
+touchback or a fair catch). Returners: the user picks them on the depth chart (`Team.returners`, save
+v18), or Auto. Flags, per team-game in `npm run sim -- 10` (special 0.6 in all): holds and blocks in
+the back on returns (10 yards from a spot behind the returner, half the distance near the goal; a
+return touchdown called back), kickoffs out of bounds or short (the receivers' ball at their 40, more
+for a kicker short on accuracy), a kicking team lined up wrong (5 more yards), kick-catch interference
+(15 from the catch), running into the punter (taken when it moves the chains) and roughing him (15 and a
+first down). Returns run 1.5 yards longer on kickoffs and 1 on punts before flags, so drives still
+start at the 31.0 after kickoffs and the 23.3 after punts (30.9 and 23.5 before). Not yet: punts' own formation fouls, fouls on
+field goals and extra points (Phase 3b), personal fouls on kicks, a re-kick after a kicking team's foul.
+
+**3b plan.** Two parts, one PR:
+
+- **Special-teams coordinator** (`coaching.ts`): a new chair on the coaching staff, with a hand in the
+  units' discipline (their flags) and in return and coverage yards. Like every chair: budget, contracts,
+  the market, ageing, AI hiring, the Coaches screen, and a save migration.
+- **Field goal and extra point unit**: the units that put linemen on special teams. The kicking side is
+  the starting line (a backup lineman or tight end on the wings, a backup in for anyone out), so a
+  false start or a hold on a kick comes from a lineman like on any snap; the blocking side is the
+  defense's front. New flags: false start and holding on kicks, offside on the defense, running into
+  or roughing the kicker or holder. The coach's choice: take the points or take the penalty (`takesPenalty`
+  on a made kick against the first down). These snaps are low-contact, so they count lightly toward
+  wear and injury risk. Field goal and extra point rates, and field goal tries (1.97, top 2.0), must stay
+  in range.
+
+Punt and kickoff units stay as they are: in the NFL their front men (snapper, guards, tackles on a punt)
+are linebackers, tight ends and backs who block, then cover 40 yards, so offensive linemen rarely play
+there.
+
+**The balance.** With the special-teams share taken back from the line fouls (holding 0.0362 → 0.0306,
+false start 0.0257 → 0.0226, offside 0.0158 → 0.0137), offenses got some of their point back, and
+the engine still scored too easily at the goal line: 67% of red-zone trips ended in touchdowns (the NFL:
+about 55–60%) and 78% of runs from inside the 3 (about half in the NFL). So defenses now stack the box
+at the goal line (up to 1.75 yards off a run's mean at the 1, none by the 6) and short throws inside
+the 10 complete 3 points less often (medium and deep already lost 6); yards after the catch give back
+0.15 of Phase 2's cut so the season's top passers stay in range. `npm run sim -- 10`: 22.98 points,
+passing touchdowns 1.59 (the band's top is 1.6: watch it in Phase 4), field goal tries 1.97 (top 2.0).
+
 Returns today are one draw for the yards; nobody blocks. Fouls need the men around the returner.
 
 - **Return and coverage units** (`Lineup.st`): the ten men on a kick besides the kicker, punter and
@@ -326,6 +366,9 @@ fouls in the last minute bring a 10-second runoff. `npm run endings` must check 
 5. **Tune to the 2023–2025 average**: 12.3 accepted a game (6.15 per team-game), 1.74 declined and 0.53
    offsetting. Flags are rising in the real league; crews and their yearly drift let a long career
    wander around that average on its own.
+6. **Field goals and extra points get their own unit in Phase 3b** (owner, after 3a): special teams
+   is a key part of the game, so the kicking unit that puts linemen on special teams comes with the
+   special-teams coordinator rather than waiting for Phase 4.
 
 **Three-year averages per game** (both teams, accepted), the targets each phase tunes to: false start
 2.37, offensive holding 2.30, pass interference 1.03, defensive holding 0.65, unnecessary roughness
@@ -399,6 +442,41 @@ and `offseason` back to green. Only `quirks` is red: four borderline quirks re-r
 
 All four move their stat the right way with the larger sample: the check's three seasons (nine for close
 calls) leave borderline quirks to luck. Handled with the other borderline checks, outside this work.
+
+## Checks when Phase 3a landed
+
+`npm run check` on a4598c0: 9 of 11 pass. `quirks`: the same borderline three re-rolled under the bar
+(Pat-The-Rock z 1.9, Thumping Tackler −1.0, Spot Drop −1.6); Thumping Tackler reads z −3.4, moves play,
+over 6 + 18 seasons. `careers`: long-run points 24.54 (band 21–24) and sacks #5 11.7 (11.9–16.3). Aged
+leagues score about 1.5 points more than fresh ones (the known creep: 23.64 against 22.47 on `main`
+before crews), so 3a's fresh 22.98 (Phase 2: 22.84) put the long run back over 24. Both go with the
+borderline-checks work on its own branch; trimming fresh scoring toward the NFL's 22.5 would also bring
+the long run back.
+
+Looked at again from the logs (no new runs), it's partly noise and partly a real drift:
+
+- **Noise:** about half a point a run. The crews change gave 23.64 and then 24.15 on an engine that
+  plays the same on average (a paired replay put the crews at +0.05 ± 0.08); the readings since are 24.35,
+  24.23 and 24.54. So the true long-run level sits around 24.2–24.4, right on the band's edge, and the
+  check will flip from run to run.
+- **Drift:** the two red numbers share a cause. Aged leagues sack and pick the quarterback less than
+  fresh ones, and score more:
+
+  | | Fresh (`sim`) | Aged (`careers`) |
+  | --- | --- | --- |
+  | Points per team-game | 22.98 | 24.54 |
+  | Sacks per team-game | 2.32 | 2.12 |
+  | Sacks, #5 | 13.5 | 11.7 (floor 11.9) |
+  | Interceptions, #5 | 6.1 | 4.8 (floor 4.8) |
+
+- **Likely cause (not yet tested):** starter Awareness climbs from about 11.2 to 12.3 over sixteen
+  seasons (`careers` prints it as informational). It is most of a QB's `pocketPresence` (whether pressure
+  becomes a sack) and all of his `decisionMaking` (interceptions), but only a small share of any
+  defender's contest, so the mental game's growth with age helps offenses.
+
+Decision: leave the engine as it is here. The fix belongs to an attribute-scaling pass on its own
+branch (how each attribute ages and what it feeds, now that penalties, special teams and schemes read
+them too), listed under "Next" in `docs/GAME_DESIGN.md`.
 
 ## Sources
 
