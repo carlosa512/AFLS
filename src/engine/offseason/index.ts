@@ -10,11 +10,13 @@
 import { retireChance } from '../aging';
 import { coachingFor, coachWindowCloses, developCoaches, ensureCoached } from '../coaching';
 import { developPlayer, playedShare, recordRatings } from '../development';
+import { delegates, injuriesNewYear, injuryRetireChance, manageInjuries } from '../injuries';
+import { developMedics, ensureMedical, medicalWindowCloses } from '../medical';
 import { accelerateProration, capSheet, capSpace, logTransaction, nextCap } from '../finance/cap';
 import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
 import { Rng } from '../rng';
-import { syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
 import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
 import { generateSchedule } from '../season/schedule';
@@ -55,11 +57,13 @@ export function beginOffseason(league: League): void {
     developPlayer(own, p, { playedShare: playedShare(p, last), ...coachingFor(league, p.teamId, p.position) });
     p.age++;
     p.experience++;
-    if (own.chance(retireChance(p, playerOvr(p)))) {
+    // Age and form, or a body that can't take any more (`injuryRetireChance`), in one roll.
+    const worn = injuryRetireChance(p, league.season);
+    if (own.chance(1 - (1 - retireChance(p, playerOvr(p))) * (1 - worn))) {
       if (p.teamId !== null) {
         // Retiring under contract: every remaining bonus dollar accelerates.
         accelerateProration(league, p, p.teamId, 'Retired');
-        if (playerOvr(p) >= 14) logTransaction(league, 'retire', [p.teamId], `${league.teams[p.teamId].abbrev} ${p.position} ${p.firstName} ${p.lastName} retired`);
+        if (playerOvr(p) >= 14 || (worn > 0 && p.teamId === league.userTeamId)) logTransaction(league, 'retire', [p.teamId], `${league.teams[p.teamId].abbrev} ${p.position} ${p.firstName} ${p.lastName} retired${worn > 0 ? ' (injuries)' : ''}`);
       }
       p.teamId = null;
       p.contract = null;
@@ -71,9 +75,11 @@ export function beginOffseason(league: League): void {
     if (p.contract && !isExpired(p.contract, league.season)) trimPast(p.contract, league.season);
     recordRatings(p, league.season);
   }
+  injuriesNewYear(league);
   resetScouting(league);
   developStaff(league);
   developCoaches(league);
+  developMedics(league);
 
   generateDraftClass(league, rng);
   league.games = league.games.filter((g) => g.season >= last);
@@ -92,7 +98,8 @@ export function offseasonBlockers(league: League): string[] {
   const teamId = league.userTeamId;
   if (league.phase === 'resign' && capSpace(league, teamId) < 0) issues.push('Get under the cap before free agency opens: release, restructure or trade.');
   if (league.phase === 'preseason') {
-    const roster = teamPlayers(league, teamId);
+    // Injured reserve doesn't count toward the 53.
+    const roster = activeRoster(league, teamId);
     if (roster.length > ROSTER_MAX) issues.push(`Cut down to ${ROSTER_MAX} players (you have ${roster.length}).`);
     for (const pos of POSITIONS) {
       const n = roster.filter((p) => p.position === pos).length;
@@ -131,6 +138,7 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
       // Expiring staff and coaches are decided with the players; open chairs are filled from the markets.
       staffWindowCloses(league, { autoUser: auto });
       coachWindowCloses(league, { autoUser: auto });
+      medicalWindowCloses(league, { autoUser: auto });
       openFreeAgency(league);
       league.phase = 'freeAgency';
       league.faDay = 1;
@@ -144,11 +152,14 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
       simDraft(league, rng, { stopAtUser: false });
       finishDraft(league);
       league.phase = 'preseason';
+      // Camp opens: anyone still hurt going into week 1 can go on reserve, off the 53 (yours too, unless you manage injuries).
+      for (const team of league.teams) if (delegates(league, team)) manageInjuries(league, team, rng);
       break;
     case 'preseason':
       for (const team of ai) aiTrainingCamp(league, team, rng);
       ensureStaffed(league, { autoUser: auto });
       ensureCoached(league, { autoUser: auto });
+      ensureMedical(league, { autoUser: auto });
       league.phase = 'regular';
       league.week = 1;
       league.faDay = 0;

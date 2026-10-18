@@ -9,6 +9,7 @@ import { callerStyle, teamScheme } from '../src/engine/coaching';
 import { createLeague } from '../src/engine/generate';
 import { simToEndOfRegularSeason } from '../src/engine/league';
 import { teamRatings } from '../src/engine/roster';
+import { REGULAR_SEASON_WEEKS } from '../src/engine/season/schedule';
 import { regularSeasonGames } from '../src/engine/season/standings';
 import type { GameResult, TeamGameStats } from '../src/engine/types';
 import { LEADER_TARGETS, overRecordAllowed, seasonTops } from './leaders';
@@ -41,6 +42,24 @@ const TARGETS: Record<string, [number, number]> = {
   otPct: [4, 7],
   tiePct: [0, 0.6],
 };
+
+/**
+ * Injuries per team over a 17-game regular season, against the NFL's injury surveillance and
+ * return-to-play studies (sources: docs/INJURIES.md). Only time-loss injuries count (a week or more).
+ */
+const INJURY_TARGETS: Record<string, [number, number]> = {
+  'in games / team-game': [1.0, 1.6],
+  'practice share %': [15, 30],
+  'per team-season': [20, 36],
+  'weeks missed / team': [55, 130],
+  'concussions / team': [2, 5],
+  'torn ACLs / team': [0.6, 1.5],
+  'hamstrings / team': [3.5, 7],
+};
+const inj: Record<string, number> = {};
+const injAdd = (k: string, v = 1) => (inj[k] = (inj[k] ?? 0) + v);
+const bySeverity: Record<string, number> = {};
+const byPosition: Record<string, { hurt: number; players: number }> = {};
 
 /** Each season's top five, per stat. */
 const tops: Record<string, number[][]> = {};
@@ -144,6 +163,20 @@ for (let s = 0; s < seasons; s++) {
     }
   }
   for (const [key, top] of Object.entries(seasonTops(league, league.season))) (tops[key] ??= []).push(top);
+  for (const g of regularSeasonGames(league)) injAdd('game', g.result?.injuries?.length ?? 0);
+  for (const p of Object.values(league.players)) {
+    if (p.teamId !== null) (byPosition[p.position] ??= { hurt: 0, players: 0 }).players++;
+    for (const r of p.injuries ?? []) {
+      if (r.season !== league.season || r.week > REGULAR_SEASON_WEEKS) continue;
+      injAdd('all');
+      injAdd('weeks', Math.min(r.weeks, REGULAR_SEASON_WEEKS - r.week));
+      injAdd(r.type);
+      bySeverity[r.severity] = (bySeverity[r.severity] ?? 0) + 1;
+      (byPosition[p.position] ??= { hurt: 0, players: 0 }).hurt++;
+    }
+  }
+  injAdd('irReturns', league.teams.reduce((n, t) => n + (t.irReturns?.[league.season] ?? 0), 0));
+  injAdd('irNow', Object.values(league.players).filter((p) => p.ir).length);
   for (const t of league.teams) winsByStrength.push({ rating: ratings.get(t.id)!, wins: wins.get(t.id) ?? 0 });
 }
 
@@ -214,6 +247,29 @@ for (const { label, first, fifth, ceiling } of LEADER_TARGETS) {
   const fmt = (v: number) => (v < 100 ? v.toFixed(1) : Math.round(v).toString()).padStart(7);
   console.log(label.padEnd(14), ...[0, 1, 2, 3, 4].map((i) => fmt(rank(i))), fmt(best), `  ${first.join('–')} / ${fifth.join('–')} / ${ceiling}`, flags.join('  '));
 }
+
+const teamSeasons = seasons * 32;
+const injuryResults: Record<string, number> = {
+  'in games / team-game': inj.game / teamGames,
+  'practice share %': (100 * (inj.all - inj.game)) / inj.all,
+  'per team-season': inj.all / teamSeasons,
+  'weeks missed / team': inj.weeks / teamSeasons,
+  'concussions / team': (inj.concussion ?? 0) / teamSeasons,
+  'torn ACLs / team': (inj.acl ?? 0) / teamSeasons,
+  'hamstrings / team': (inj.hamstring ?? 0) / teamSeasons,
+};
+console.log('\nInjuries (time-loss, regular season)');
+console.log('stat'.padEnd(22), 'sim'.padStart(8), '  NFL range');
+for (const [k, v] of Object.entries(injuryResults)) {
+  const [lo, hi] = INJURY_TARGETS[k];
+  const ok = v >= lo && v <= hi;
+  if (!ok) misses++;
+  console.log(k.padEnd(22), v.toFixed(2).padStart(8), `  ${lo}–${hi}`, ok ? '' : v < lo ? '  ▼ LOW' : '  ▲ HIGH');
+}
+const sevTotal = Object.values(bySeverity).reduce((a, b) => a + b, 0);
+console.log(`Severity (informational): ${Object.entries(bySeverity).map(([k, v]) => `${k} ${((100 * v) / sevTotal).toFixed(0)}%`).join(' · ')}`);
+console.log(`Injured reserve (informational): ${(inj.irNow / teamSeasons).toFixed(1)} per team still on it after week 18, ${(inj.irReturns / teamSeasons).toFixed(1)} brought back`);
+console.log(`Injuries per rostered player-season by position (informational): ${Object.entries(byPosition).map(([pos, b]) => `${pos} ${(b.hurt / b.players).toFixed(2)}`).join(' · ')}`);
 
 console.log(`\n${misses} stat(s) outside target range`);
 

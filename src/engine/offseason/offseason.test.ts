@@ -5,7 +5,7 @@ import { rookieApy } from '../finance/market';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { STARTERS } from '../positions';
-import { teamPlayers } from '../roster';
+import { activeRoster, teamPlayers } from '../roster';
 import type { League } from '../types';
 import { POSITIONS } from '../types';
 import { advanceOffseason, beginOffseason, FA_DAYS, offseasonBlockers, simOffseason } from '.';
@@ -47,7 +47,8 @@ describe('offseason calendar', () => {
     }
     expect(seen).toEqual(['resign', ...Array(FA_DAYS).fill('freeAgency'), 'draft', 'preseason']);
     for (const team of league.teams) {
-      const roster = teamPlayers(league, team.id);
+      // Injured reserve doesn't count toward the 53.
+      const roster = activeRoster(league, team.id);
       expect(roster.length).toBeLessThanOrEqual(53);
       expect(roster.length).toBeGreaterThanOrEqual(46);
       for (const pos of POSITIONS) expect(roster.filter((p) => p.position === pos).length).toBeGreaterThanOrEqual(STARTERS[pos]);

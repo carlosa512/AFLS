@@ -13,7 +13,8 @@ import { simToEndOfSeason } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { freeAgents } from '../src/engine/offseason/negotiation';
 import { playerOvr, STARTERS } from '../src/engine/positions';
-import { teamPlayers } from '../src/engine/roster';
+import { departmentFor, medicalBudget, medicalPayroll, medicMarket, teamMedics } from '../src/engine/medical';
+import { activeRoster, teamPlayers } from '../src/engine/roster';
 import { departmentScore, staffBudget, staffMarket, staffPayroll, staffValue, teamStaff } from '../src/engine/staff';
 import type { League } from '../src/engine/types';
 
@@ -23,7 +24,9 @@ const M = (k: number) => `$${(k / 1000).toFixed(1)}M`;
 
 function snapshot(l: League, label: string) {
   const sheets = l.teams.map((t) => capSheet(l, t.id));
-  const sizes = l.teams.map((t) => teamPlayers(l, t.id).length);
+  // Injured reserve doesn't count toward the roster limit.
+  const sizes = l.teams.map((t) => activeRoster(l, t.id).length);
+  const reserve = l.teams.reduce((n, t) => n + teamPlayers(l, t.id).length - activeRoster(l, t.id).length, 0);
   const space = sheets.map((s) => s.space).sort((a, b) => a - b);
   const dead = sheets.map((s) => s.dead).sort((a, b) => a - b);
   const starters = l.teams.flatMap((t) =>
@@ -31,7 +34,7 @@ function snapshot(l: League, label: string) {
   );
   const avgStarter = starters.reduce((a, b) => a + b, 0) / starters.length;
   console.log(
-    `${label.padEnd(22)} roster ${Math.min(...sizes)}–${Math.max(...sizes)} · space ${M(space[0])} / median ${M(space[16])} / ${M(space[31])} · over cap ${space.filter((s) => s < 0).length} · dead median ${M(dead[16])} max ${M(dead[31])} · starter OVR ${avgStarter.toFixed(2)} · FAs ${freeAgents(l).length}`,
+    `${label.padEnd(22)} roster ${Math.min(...sizes)}–${Math.max(...sizes)}${reserve ? ` (+${reserve} IR)` : ''} · space ${M(space[0])} / median ${M(space[16])} / ${M(space[31])} · over cap ${space.filter((s) => s < 0).length} · dead median ${M(dead[16])} max ${M(dead[31])} · starter OVR ${avgStarter.toFixed(2)} · FAs ${freeAgents(l).length}`,
   );
 }
 
@@ -41,6 +44,14 @@ const gains = { best: [] as number[], worst: [] as number[] };
 
 for (let s = 0; s < seasons; s++) {
   simToEndOfSeason(league);
+  // Injuries this season and the medical economy behind the layoffs.
+  const hurt = Object.values(league.players).flatMap((p) => (p.injuries ?? []).filter((r) => r.season === league.season));
+  const severe = hurt.filter((r) => r.severity === 'severe' || r.severity === 'career-threatening').length;
+  const depts = league.teams.map((t) => departmentFor(league, t.id));
+  const medPay = league.teams.map((t) => medicalPayroll(league, t.id) / medicalBudget(league, t.id));
+  console.log(
+    `${league.season} injuries ${(hurt.length / 32).toFixed(1)} per team (${(severe / 32).toFixed(1)} severe) · weeks lost ${(hurt.reduce((n, r) => n + r.weeks, 0) / 32).toFixed(0)} per team · medical physio ${avg(depts.map((d) => d.physio)).toFixed(2)} (${Math.min(...depts.map((d) => d.physio)).toFixed(1)}–${Math.max(...depts.map((d) => d.physio)).toFixed(1)}) science ${avg(depts.map((d) => d.science)).toFixed(2)} · payroll ${(100 * avg(medPay)).toFixed(0)}% · over budget ${medPay.filter((x) => x > 1).length} · staff ${Math.min(...league.teams.map((t) => teamMedics(league, t.id).length))}–${Math.max(...league.teams.map((t) => teamMedics(league, t.id).length))} · market ${medicMarket(league).length}`,
+  );
   // Saves are one JSON blob in IndexedDB: awards must stay a sliver of it as seasons pile up.
   const kb = (x: unknown) => (JSON.stringify(x).length / 1024).toFixed(1);
   console.log(`${league.season} save ${kb(league)} KB · awards ${kb(league.awards)} KB · players of the week/month ${kb(league.weeklyAwards)} KB`);
@@ -92,7 +103,7 @@ for (let s = 0; s < seasons; s++) {
     `  coaching: value HC ${roleMean('headCoach')} OC ${roleMean('offCoord')} DC ${roleMean('defCoord')} S&C ${roleMean('strengthCoach')} PC ${roleMean('positionCoach')} · ledger growth x${rate.toFixed(3)} (u26) body x${body.toFixed(3)} craft x${craft.toFixed(3)} (28+) · team growth x${Math.min(...teamRate).toFixed(2)}–x${Math.max(...teamRate).toFixed(2)} · payroll ${(100 * avg(pay)).toFixed(0)}% (${(100 * Math.min(...pay)).toFixed(0)}–${(100 * Math.max(...pay)).toFixed(0)}%) · over budget ${pay.filter((x) => x > 1).length} · chairs ${Math.min(...filled)}–${Math.max(...filled)} · HCs fired ${staffMoves.filter((m) => /head coach .* after a/.test(m.text)).length} hired ${staffMoves.filter((m) => / as head coach$/.test(m.text)).length} · market ${coachMarket(league).length}`,
   );
   console.log(
-    `  moves: re-signed ${count('resign')}, signed ${count('sign')}, released ${count('release')}, restructured ${count('restructure')}, tagged ${count('tag')}, options ${count('option')}, drafted ${count('draft')}, retired(notable) ${count('retire')}\n`,
+    `  moves: re-signed ${count('resign')}, signed ${count('sign')}, released ${count('release')}, restructured ${count('restructure')}, tagged ${count('tag')}, options ${count('option')}, drafted ${count('draft')}, retired(notable) ${count('retire')} (injuries ${moves.filter((m) => m.kind === 'retire' && /injuries/.test(m.text)).length})\n`,
   );
 }
 console.log(`young players' yearly OVR gain under the best-8 coaching staffs ${avg(gains.best).toFixed(3)} (n=${gains.best.length}) vs worst-8 ${avg(gains.worst).toFixed(3)} (n=${gains.worst.length})`);

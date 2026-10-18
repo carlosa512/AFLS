@@ -10,6 +10,7 @@ import {
   STARTERS,
 } from './positions';
 import { recordRatings } from './development';
+import { generateMedicalWorld } from './medical';
 import { buildContract, capHit, trimPast } from './finance/contract';
 import { BASE_CAP, guaranteeAsk, leagueMarket, marketApy, minSalary, rookieApy, rookieBonusShare, type Market } from './finance/market';
 import { clamp, Rng } from './rng';
@@ -21,7 +22,7 @@ import { generateTraits } from './traits';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 12;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -108,7 +109,7 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
     teamId: spec.teamId,
     contract: null,
     personality: generatePersonality(rng),
-    traits: { workEthic: 0, durability: 0, temperament: 0 },
+    traits: { workEthic: 0, durability: 0, temperament: 0, injuryResistance: 0, naturalFitness: 0 },
     stats: {},
   };
   player.traits = generateTraits(player);
@@ -302,6 +303,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     nextStaffId: 1,
     coaches: {},
     nextCoachId: 1,
+    medics: {},
+    nextMedicId: 1,
   };
 
   TEAM_SEEDS.forEach((seedTeam, i) => {
@@ -324,6 +327,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
       staffBudgetMult: 1,
       staffDead: [],
       coachDead: [],
+      medicalDead: [],
     };
     league.teams.push(team);
 
@@ -364,9 +368,10 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   for (let y = 1; y <= MAX_FUTURE_DRAFT_YEARS; y++) createDraftPicks(league, season + y);
   league.games = generateSchedule(league, rng);
   league.rngState = rng.getState();
-  // Scouting departments and coaching staffs draw from their own seeded streams: the players and
-  // schedule above are unchanged by them.
+  // Scouting departments, coaching and medical staffs draw from their own seeded streams: the players
+  // and schedule above are unchanged by them.
   generateStaffWorld(league);
   generateCoachingWorld(league);
+  generateMedicalWorld(league);
   return league;
 }

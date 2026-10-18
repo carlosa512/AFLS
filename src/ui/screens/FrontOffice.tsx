@@ -18,11 +18,12 @@ import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
 import { KnowledgeMeter, MakeupPills, makeupOf, Ovr, potentialText, ScoutButton, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { CoachesScreen } from './Coaches';
+import { MedicalScreen } from './Medical';
 import { StaffScreen } from './Staff';
 import { Trades } from './Trades';
 import { store } from '../store';
 
-export type OfficeTab = 'resign' | 'fa' | 'draft' | 'trades' | 'coaches' | 'staff';
+export type OfficeTab = 'resign' | 'fa' | 'draft' | 'trades' | 'coaches' | 'staff' | 'medical';
 
 export const defaultOfficeTab = (league: League): OfficeTab => (league.phase === 'resign' ? 'resign' : league.phase === 'draft' ? 'draft' : 'fa');
 
@@ -581,8 +582,9 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
     ['trades', 'Trades'],
     ['coaches', 'Coaches'],
     ['staff', 'Scouts'],
+    ['medical', 'Medical'],
   ];
-  // Six tabs scroll on a phone: keep the one you're on (or were sent to) in view.
+  // Seven tabs scroll on a phone: keep the one you're on (or were sent to) in view.
   const bar = useRef<HTMLDivElement>(null);
   useEffect(() => {
     bar.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -641,6 +643,7 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
       {active === 'trades' && <Trades league={league} />}
       {active === 'coaches' && <CoachesScreen league={league} />}
       {active === 'staff' && <StaffScreen league={league} />}
+      {active === 'medical' && <MedicalScreen league={league} />}
       {talking !== null && league.players[talking] && <NegotiationDialog league={league} player={league.players[talking]} onClose={() => setTalking(null)} />}
     </>
   );

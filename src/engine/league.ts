@@ -4,6 +4,7 @@
  */
 import { awardSeason, awardWeek } from './awards';
 import { simulateGame, startGame, type LiveGame } from './match/gameSim';
+import { applyInjury, injuryWeek } from './injuries';
 import { simOffseason } from './offseason';
 import { Rng } from './rng';
 import { aiTradeWeek } from './trade';
@@ -45,10 +46,20 @@ function prepareGame(league: League, game: Game) {
   syncDepthChart(league, league.teams[game.awayId]);
 }
 
-/** Store a finished game's result and credit regular-season stats. */
+/** Store a finished game's result, apply what it did to bodies, and credit regular-season stats. */
 export function recordResult(league: League, game: Game, result: GameResult): void {
   if (game.result) return;
-  game.result = result;
+  // Condition is carried by the players, not the game record.
+  const { condition, ...kept } = result;
+  game.result = kept;
+  for (const [id, c] of Object.entries(condition ?? {})) {
+    const p = league.players[Number(id)];
+    if (p && c < (p.condition ?? 100)) p.condition = c;
+  }
+  for (const hurt of result.injuries ?? []) {
+    const p = league.players[hurt.playerId];
+    if (p) applyInjury(league, p, hurt.injury, hurt.scar);
+  }
   if (game.playoffRound) return; // Season stat totals are regular season only.
   for (const [id, line] of Object.entries(result.playerStats)) {
     const player = league.players[Number(id)];
@@ -90,6 +101,7 @@ export function playWeek(league: League): Game[] {
   if (league.phase === 'complete') return [];
   const games = gamesInWeek(league).filter((g) => !g.result);
   for (const g of games) playGame(league, g);
+  injuryWeek(league);
   if (league.phase === 'regular') {
     awardWeek(league, league.week);
     aiTrades(league);

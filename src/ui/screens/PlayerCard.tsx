@@ -12,6 +12,7 @@ import { PlayerAvatar, useBackdropClose } from '../components';
 import { store } from '../store';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
+import { HealthSection } from '../injuries';
 import { teamScheme } from '../../engine/coaching';
 import { spotsFor } from '../../engine/schemes';
 import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, repsOf, ScoutButton, StarScaleToggle, Stars, schemeFitOf, starsOf, useStarScale, viewOf } from '../scouting';
@@ -355,6 +356,8 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             <span className="eyebrow">Scout's report</span>
             {report.join(' ')}
           </p>
+
+          {!isProspect(p) && <HealthSection league={league} player={p} />}
 
           <section className="stack" aria-label="Ratings">
             <h3 style={{ margin: 0 }}>Ratings at {p.position}</h3>

@@ -8,8 +8,10 @@
  */
 import { skill } from '../attributes';
 import { callerStyle, type CallerStyle } from '../coaching';
+import { CONTACT_RISK, fatigueMult, HELD_SHARE, injuryLabel, riskFactors, rollInjury, SIDELINE_REST, SNAP_CONTACT, SNAP_EXPOSURE, SNAP_RISK, snapCost, type ContactEvent, type Mechanism, type RiskFactors } from '../injuries';
+import { departmentFor, type Department } from '../medical';
 import { clamp, Rng } from '../rng';
-import type { Game, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
+import type { Game, GameInjury, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
 import { MAX_STATS } from '../types';
 import * as coach from './coach';
 import type { DefenseCall, PassDepth, Situation } from './coach';
@@ -107,8 +109,11 @@ function blockerFor(off: Lineup, def: Lineup, rusher: Player, blitz: boolean, rn
 const SEP_ROLL = 3;
 /** Carries before a lead back starts handing work to the second back. */
 const LEAD_BACK_CARRIES = 14;
-/** Mean gain on a run between evenly matched units, before breakaways. */
-const RUN_BASE = 3.97;
+/**
+ * Mean gain on a run between evenly matched units, before breakaways. Like the completion odds in
+ * `passPlay`, it is tuned with injuries on: backups play about a tenth of the snaps, as in the NFL.
+ */
+const RUN_BASE = 4.03;
 
 /** Collects stat changes for a play so they can be discarded if a penalty wipes the play out. */
 class StatBuffer {
@@ -186,6 +191,16 @@ export function startGame(league: League, game: Game, options: SimOptions = {}):
 /** Hard stop for a runaway loop; a real game is ~170 iterations. */
 const MAX_STEPS = 2000;
 
+/** Who is on the field for a snap: the offense's eleven (by personnel) and the defense's. */
+function units(l: Lineup): [offense: Player[], defense: Player[]] {
+  const personnel = l.scheme.offense.personnel;
+  const receivers = personnel === '12' ? [...l.wrs.slice(0, 2), ...l.tes.slice(0, 2)] : personnel === '10' ? [...l.wrs, ...(l.wr4 ? [l.wr4] : [])] : [...l.wrs, l.tes[0]];
+  return [
+    [l.qb, ...l.ol, l.rbs[0], ...receivers],
+    [...l.dt, ...l.edge, ...l.lb, ...l.cb, ...l.s],
+  ];
+}
+
 class GameSim {
   private rng: Rng;
   private lineups: [Lineup, Lineup];
@@ -226,19 +241,39 @@ class GameSim {
   private creditRng: Rng;
   /** The rusher who got home on the current snap without a sack, credited once the play resolves. */
   private pressureBy: Player | null = null;
+  /**
+   * Injuries draw from their own stream, like credit: a game where nobody gets hurt plays out exactly
+   * as it would with no injury model at all.
+   */
+  private injuryRng: Rng;
+  /**
+   * Each player's body this game, by id: energy starts at his condition, drains on the field and
+   * partly comes back on the sideline; `spent` is what the field took, `cost` a snap's price.
+   */
+  private bodies = new Map<number, { energy: number; spent: number; cost: number; risk: RiskFactors }>();
+  private depts = new Map<number | null, Department>();
+  /** Each side's units on the field (offense, defense), rebuilt with the lineup. */
+  private fields: [[Player[], Player[]], [Player[], Player[]]];
+  /** Hurt on the last play: they leave before the next one. */
+  private hurt: [Player, Mechanism][] = [];
+  /** Hurt earlier in the game: out for the rest of it. */
+  private out = new Set<number>();
+  private injuries: GameInjury[] = [];
 
   constructor(
     private league: League,
-    game: Game,
+    private game: Game,
     private options: SimOptions,
   ) {
     this.rng = new Rng(options.seed ?? `${league.seed}:${game.season}:${game.id}`);
     this.creditRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:credit`);
+    this.injuryRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:injury`);
     this.homeEdge = game.neutral ? 0 : HOME_FIELD_EDGE;
     const team = (id: number) => league.teams[id];
     this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
     this.qbLeans = qbLeans(league, [this.lineups[0].qb, this.lineups[1].qb]);
+    this.fields = [units(this.lineups[0]), units(this.lineups[1])];
   }
 
   run(): GameResult {
@@ -268,6 +303,7 @@ class GameSim {
       this.snapshot = null;
       this.log('Two-minute warning.');
     }
+    if (this.hurt.length) this.injuryStoppage();
     if (++this.steps > MAX_STEPS) {
       this.over = true;
       return;
@@ -313,6 +349,109 @@ class GameSim {
       if (MAX_STATS.has(key)) line[key] = Math.max(line[key] ?? 0, value);
       else line[key] = (line[key] ?? 0) + value;
     }
+    this.wear(buf);
+  }
+
+  // ───────────────────────── wear and injuries ─────────────────────────
+
+  /**
+   * What a play that counted did to bodies, read from its stat line: a scrimmage snap tires everyone
+   * on the field (and rests everyone off it) and carries the snap's injury risk, and each collision
+   * it records (a ball carrier brought down, a sack, a hit on the quarterback, a return) adds its own.
+   */
+  private wear(buf: StatBuffer) {
+    const rb2 = this.lineups[this.offense].rbs[1];
+    let scrimmage = false;
+    let tackled = false;
+    let sacked = false;
+    let spell = false;
+    for (const [p, key] of buf.entries) {
+      if (key === 'passAtt' || key === 'rushAtt') scrimmage = true;
+      else if (key === 'sacked') scrimmage = sacked = true;
+      else if (key === 'tackles') tackled = true;
+      // The second back is on the field for the plays he's part of, spelling the lead back.
+      if (p === rb2) spell = true;
+    }
+    if (scrimmage) this.snap(spell);
+    for (const [p, key] of buf.entries) {
+      if (key === 'rushAtt' || key === 'rec') {
+        if (tackled) this.collide(p, 'carrier');
+        else if (this.gained(buf, p)) this.collide(p, 'free');
+      } else if (key === 'tackles') this.collide(p, 'tackler');
+      else if (key === 'sacked') this.collide(p, 'sacked');
+      else if (key === 'qbHits' && !sacked) this.collide(this.lineups[this.offense].qb, 'hit');
+      else if (key === 'krAtt' || key === 'prAtt') this.collide(p, 'returner');
+      else if (key === 'punts' || key === 'fgAtt' || key === 'xpAtt') this.collide(p, 'kick');
+    }
+  }
+
+  /** Did he gain ground on the play (a carry or catch nobody tackled him on: a score or out of bounds)? */
+  private gained(buf: StatBuffer, p: Player): boolean {
+    for (const [x, k, v] of buf.entries) if (x === p && (k === 'rushYds' || k === 'recYds') && v > 0) return true;
+    return false;
+  }
+
+  private dept(p: Player): Department {
+    return this.depts.get(p.teamId) ?? this.depts.set(p.teamId, departmentFor(this.league, p.teamId)).get(p.teamId)!;
+  }
+
+  private body(p: Player) {
+    let b = this.bodies.get(p.id);
+    if (!b) this.bodies.set(p.id, (b = { energy: p.condition ?? 100, spent: 0, cost: snapCost(p), risk: riskFactors(this.league, p, this.dept(p)) }));
+    return b;
+  }
+
+  /** One scrimmage snap: the units on the field tire and face the snap's risk; the units off it rest. */
+  private snap(spell: boolean) {
+    for (let side: Side = 0; side <= 1; side++) {
+      const [off, def] = this.fields[side];
+      const offense = side === this.offense;
+      const lead = spell && offense ? this.lineups[side].rbs[0] : null;
+      for (const p0 of offense ? off : def) {
+        const p = p0 === lead ? this.lineups[side].rbs[1] : p0;
+        const b = this.body(p);
+        b.energy -= b.cost;
+        b.spent += b.cost;
+        this.expose(p, SNAP_RISK * SNAP_EXPOSURE[p.position], SNAP_CONTACT);
+      }
+      for (const p of offense ? def : off) {
+        const b = this.body(p);
+        b.energy = Math.min((p.condition ?? 100) - HELD_SHARE * b.spent, b.energy + SIDELINE_REST);
+      }
+    }
+  }
+
+  private collide(p: Player, event: ContactEvent) {
+    const [chance, contact] = CONTACT_RISK[event];
+    this.expose(p, chance, contact);
+  }
+
+  /** Roll for an injury: the event's chance, split into contact and soft tissue, times his risk and his fatigue. */
+  private expose(p: Player, chance: number, contactShare: number) {
+    if (this.out.has(p.id) || (this.hurt.length && this.hurt.some(([h]) => h === p))) return;
+    const b = this.body(p);
+    const tired = fatigueMult(b.energy);
+    const contact = chance * contactShare * b.risk.contact * tired;
+    const soft = chance * (1 - contactShare) * b.risk.soft * tired;
+    const roll = this.injuryRng.next();
+    if (roll < contact + soft) this.hurt.push([p, roll < contact ? 'contact' : 'soft']);
+  }
+
+  /** Between plays: the injured leave for good and the next man steps in. */
+  private injuryStoppage() {
+    for (const [p, mechanism] of this.hurt) {
+      const side: Side = this.lineups[0].team.id === p.teamId ? 0 : 1;
+      this.out.add(p.id);
+      const { injury, scar } = rollInjury(this.injuryRng, this.league, p, mechanism, 'game', this.dept(p), { season: this.game.season, week: this.game.week });
+      this.injuries.push({ playerId: p.id, teamId: this.lineups[side].team.id, quarter: this.quarter, clock: this.clock, injury, ...(scar ? { scar } : {}) });
+      this.snapshot = null;
+      this.log(`Injury: ${this.abbrev(side)} ${p.position} ${short(p)} (${injuryLabel(injury.type).toLowerCase()}) is out for the game.`);
+      const qb = this.lineups[side].qb;
+      this.lineups[side] = buildLineup(this.league, this.lineups[side].team, this.out);
+      this.fields[side] = units(this.lineups[side]);
+      if (this.lineups[side].qb !== qb) this.qbLeans = qbLeans(this.league, [this.lineups[0].qb, this.lineups[1].qb]);
+    }
+    this.hurt = [];
   }
 
   private fgProb(distance: number, kicker: Player): number {
@@ -732,7 +871,7 @@ class GameSim {
     }
     if (this.clockRunning) {
       const t = coach.tempo(this.situation());
-      this.preSnapRunoff(t === 'hurry' ? this.rng.int(8, 16) : t === 'milk' ? this.rng.int(coach.MILK_RUNOFF_MIN, 41) : this.rng.int(28, 39));
+      this.preSnapRunoff(t === 'hurry' ? this.rng.int(8, 16) : t === 'milk' ? this.rng.int(coach.MILK_RUNOFF_MIN, 41) : this.rng.int(28, 38));
     }
     if (this.clock <= 0) return;
 
@@ -864,7 +1003,7 @@ class GameSim {
     const leadLoad = leadCarries <= LEAD_BACK_CARRIES ? 1 : Math.max(0.35, 1 - 0.08 * (leadCarries - LEAD_BACK_CARRIES));
     const rusher = rng.weighted(
       [
-        [off.rbs[0], (yardsToGoal <= 5 ? 0.55 : 0.62) * leadLoad],
+        [off.rbs[0], (yardsToGoal <= 5 ? 0.55 : 0.625) * leadLoad],
         // Teams spread goal-line work too, so one back rarely scores 18.
         [off.rbs[1] ?? off.rbs[0], yardsToGoal <= 5 ? 0.4 : 0.3],
         [off.qb, qbRunWeight],
@@ -997,7 +1136,7 @@ class GameSim {
     const valid = options.filter((o): o is [Player, Record<PassDepth, number>, Player] => !!o[0]);
     // In tight space defenses bracket the top receiver, so red-zone looks spread to the tight end and backs.
     const bracket = yardsToGoal <= 10 ? 0.75 : 1;
-    const [receiver, , defender] = rng.weighted(valid, ([p, w]) => w[depth] * (0.6 + 0.04 * skill(p, 'targeting')) * (p === off.wrs[0] ? bracket : 1));
+    const [receiver, , defender] = rng.weighted(valid, ([p, w]) => w[depth] * (0.6 + 0.042 * skill(p, 'targeting')) * (p === off.wrs[0] ? bracket : 1));
     const isBack = receiver.position === 'RB';
 
     const recvSkill = skill(receiver, depth === 'deep' ? 'deepRoutes' : 'shortRoutes');
@@ -1022,7 +1161,7 @@ class GameSim {
     // Past a point, placement can't beat physics: the best arms complete a few more, not every throw.
     const rawAcc = skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy');
     const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
-    let pComplete = { short: 0.79, medium: 0.6, deep: 0.38 }[depth] + 0.018 * (acc - 12) + 0.019 * sep + 0.012 * (skill(receiver, 'hands') - 12);
+    let pComplete = { short: 0.803, medium: 0.611, deep: 0.383 }[depth] + 0.018 * (acc - 12) + 0.019 * sep + 0.012 * (skill(receiver, 'hands') - 12);
     if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
     if (yardsToGoal <= 10 && depth !== 'short') pComplete -= 0.06;
     pComplete = clamp(pComplete, 0.05, 0.95);
@@ -1090,7 +1229,7 @@ class GameSim {
     } else {
       tackler = rng.chance(0.6) ? defender : this.pickTackler(def, air + 4);
       const yacSkill = skill(receiver, 'afterCatch') - skill(tackler, 'tackling');
-      let yac = Math.max(0, rng.normal({ short: 3.6, medium: 2.8, deep: 2.4 }[depth] + 0.3 * yacSkill, 3));
+      let yac = Math.max(0, rng.normal({ short: 3.85, medium: 2.8, deep: 2.4 }[depth] + 0.3 * yacSkill, 3));
       if (rng.chance(clamp((0.022 + 0.004 * yacSkill) * (coverage?.yac ?? 1), 0.01, 0.06))) yac += rng.exponential(16);
       gain = Math.min(air + Math.round(yac), yardsToGoal);
     }
@@ -1369,6 +1508,9 @@ class GameSim {
     const [home, away] = this.teamStats;
     home.totalYds = home.passYds + home.rushYds;
     away.totalYds = away.passYds + away.rushYds;
+    // What the game took out of everyone who played.
+    const condition: Record<number, number> = {};
+    for (const [id, b] of this.bodies) if (b.spent > 0) condition[id] = Math.round(b.energy * 10) / 10;
     return {
       homeScore: this.score[0],
       awayScore: this.score[1],
@@ -1379,6 +1521,8 @@ class GameSim {
       playerStats: this.playerStats,
       playerTeams,
       plays,
+      ...(this.injuries.length ? { injuries: this.injuries } : {}),
+      condition,
     };
   }
 }

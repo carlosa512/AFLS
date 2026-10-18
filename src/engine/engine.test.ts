@@ -8,7 +8,7 @@ import { ROSTER_TEMPLATE } from './positions';
 import { Rng } from './rng';
 import { capSheet } from './finance/cap';
 import { isExpired } from './finance/contract';
-import { teamPlayers } from './roster';
+import { activeRoster, teamPlayers } from './roster';
 import { playoffGames } from './season/playoffs';
 import { computeRecords, conferenceSeeds, divisionStandings, sortTeams } from './season/standings';
 import { ATTRIBUTES, POSITIONS, type GameResult } from './types';
@@ -290,7 +290,8 @@ describe('season flow', () => {
     expect(league.phase).toBe('regular');
     expect(league.games.filter((g) => g.season === 2027)).toHaveLength(272);
     for (const team of league.teams) {
-      const roster = teamPlayers(league, team.id);
+      // Injured reserve doesn't count toward the 53.
+      const roster = activeRoster(league, team.id);
       expect(roster.length).toBeLessThanOrEqual(53);
       for (const pos of POSITIONS) expect(roster.filter((p) => p.position === pos).length).toBeGreaterThanOrEqual(1);
     }
