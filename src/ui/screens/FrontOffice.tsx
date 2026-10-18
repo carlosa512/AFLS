@@ -363,7 +363,6 @@ function Draft({ league }: { league: League }) {
   // A new filter or ranking starts back at the top of the board.
   useEffect(() => setShown(BOARD_PAGE), [pos, sort]);
   const teamId = league.userTeamId;
-  const myPicks = league.draftPicks.filter((p) => p.ownerId === teamId).sort((a, b) => a.season - b.season || (a.overall ?? a.round * 32) - (b.overall ?? b.round * 32));
   const all = availableProspects(league);
   // Consensus rank across the whole class: roughly where the league will take him.
   const rank = new Map([...all].sort((a, b) => boardValue(b) - boardValue(a)).map((p, i) => [p.id, i + 1]));
@@ -569,68 +568,122 @@ function Draft({ league }: { league: League }) {
 
       <DraftHistory league={league} live={onClock?.round} />
 
-      <Panel title="Your picks">
-        {myPicks.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>
-            You don't own any picks.
-          </p>
-        ) : (
-          <div className="table-scroll">
-            <table>
-              <tbody>
-                {myPicks.map((pk) => {
-                  const used = pk.playerId !== undefined ? league.players[pk.playerId] : null;
-                  return (
-                    <tr key={pk.id}>
-                      <td className="num">{pk.season}</td>
-                      <td>Round {pk.round}</td>
-                      <td className="num">{pk.overall ? `No. ${pk.overall}` : '–'}</td>
-                      <td>{pk.originalTeamId !== teamId ? <span className="muted small">from {league.teams[pk.originalTeamId].abbrev}</span> : null}</td>
-                      <td>
-                        {used ? (
-                          <button className="linklike" onClick={() => nav.openPlayer(used.id)}>
-                            {used.position} {used.firstName} {used.lastName}
-                          </button>
-                        ) : (
-                          ''
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Panel>
+      <YourPicks league={league} />
     </>
+  );
+}
+
+/**
+ * Your picks in the next draft (or the one under way), with the later years folded away. Picks you
+ * traded off stay listed, so a missing round reads as "traded to", not as a gap.
+ */
+function YourPicks({ league }: { league: League }) {
+  const nav = useNav();
+  const teamId = league.userTeamId;
+  const next = league.phase === 'resign' || league.phase === 'freeAgency' || league.phase === 'draft' ? league.season : league.season + 1;
+  const picks = league.draftPicks
+    .filter((pk) => pk.season >= next && (pk.ownerId === teamId || pk.originalTeamId === teamId))
+    .sort((a, b) => a.season - b.season || (a.overall ?? a.round * 32) - (b.overall ?? b.round * 32));
+  const now = picks.filter((pk) => pk.season === next);
+  const later = picks.filter((pk) => pk.season > next);
+  const gained = later.filter((pk) => pk.originalTeamId !== teamId).length;
+  const lost = later.filter((pk) => pk.ownerId !== teamId).length;
+  const table = (rows: typeof picks) => (
+    <div className="table-scroll">
+      <table>
+        <tbody>
+          {rows.map((pk) => {
+            const used = pk.playerId !== undefined ? league.players[pk.playerId] : null;
+            const gone = pk.ownerId !== teamId;
+            return (
+              <tr key={pk.id} className={gone ? 'muted' : undefined}>
+                <td className="num">{pk.season}</td>
+                <td>Round {pk.round}</td>
+                <td className="num">{pk.overall ? `No. ${pk.overall}` : '–'}</td>
+                <td>
+                  {gone ? (
+                    <span className="tag-pill tag-warn">traded to {league.teams[pk.ownerId].abbrev}</span>
+                  ) : pk.originalTeamId !== teamId ? (
+                    <span className="tag-pill tag-good">from {league.teams[pk.originalTeamId].abbrev}</span>
+                  ) : null}
+                </td>
+                <td>
+                  {used && !gone && (
+                    <button className="linklike" onClick={() => nav.openPlayer(used.id)}>
+                      {used.position} {used.firstName} {used.lastName}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+  return (
+    <Panel title="Your picks">
+      {now.length ? (
+        table(now)
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>
+          No picks in the {next} draft.
+        </p>
+      )}
+      {later.length > 0 && (
+        <details className="more">
+          <summary>
+            Future picks ({later[0].season}–{later.at(-1)!.season}): {later.length - lost} yours
+            {gained > 0 && `, ${gained} acquired`}
+            {lost > 0 && `, ${lost} traded away`}
+          </summary>
+          {table(later)}
+        </details>
+      )}
+    </Panel>
   );
 }
 
 /**
  * Every draft this league has held, a year and a round at a time: who went where, and where the
  * consensus had him then. Built from the players (their `draft` stays; old picks are pruned).
- * `live` is the round on the clock, which the table follows (newest pick first) until you choose a round.
+ * `live` is the round on the clock, which the league-wide table follows (newest pick first) until you choose a
+ * round. It opens on your own team: every year and round of your drafting at a glance.
  */
 function DraftHistory({ league, live }: { league: League; live?: number }) {
   const nav = useNav();
   // Drafts this league held: those players keep the consensus read. A new league's veterans come with made-up draft lines.
   const drafted = Object.values(league.players).filter((p) => p.draft && p.scouting);
   const years = [...new Set(drafted.map((p) => p.draft!.season))].sort((a, b) => b - a);
-  const [pickedYear, setYear] = useState<number | null>(null);
+  const [team, setTeam] = useState<number | 'all'>(league.userTeamId);
+  const [pickedYear, setYear] = useState<number | 'all' | null>(null);
   const [pickedRound, setRound] = useState<number | 'all' | null>(null);
   if (!years.length) return null;
-  const year = pickedYear ?? years[0];
+  // One team's history is short enough to show whole; the league's goes a year and a round at a time.
+  const year = pickedYear ?? (team === 'all' ? years[0] : 'all');
   const following = live !== undefined && year === league.season;
-  const round = pickedRound ?? (following ? live : 1);
+  const round = pickedRound ?? (team !== 'all' ? 'all' : following ? live : 1);
   const rows = drafted
-    .filter((p) => p.draft!.season === year && (round === 'all' || p.draft!.round === round))
-    .sort((a, b) => (following ? b.draft!.pick - a.draft!.pick : a.draft!.pick - b.draft!.pick));
+    .filter((p) => (team === 'all' || p.draft!.teamId === team) && (year === 'all' || p.draft!.season === year) && (round === 'all' || p.draft!.round === round))
+    .sort((a, b) => b.draft!.season - a.draft!.season || (following ? b.draft!.pick - a.draft!.pick : a.draft!.pick - b.draft!.pick));
   return (
     <Panel className="draft-history">
       <Section id="draft-history" title="Draft history">
         <span className="row" style={{ gap: 8 }}>
-          <select aria-label="Draft year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          <select aria-label="Team" value={team} onChange={(e) => setTeam(e.target.value === 'all' ? 'all' : Number(e.target.value))}>
+            <option value={league.userTeamId}>Your team</option>
+            <option value="all">League-wide</option>
+            {[...league.teams]
+              .filter((t) => t.id !== league.userTeamId)
+              .sort((a, b) => a.city.localeCompare(b.city))
+              .map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.city} {t.name}
+                </option>
+              ))}
+          </select>
+          <select aria-label="Draft year" value={year} onChange={(e) => setYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}>
+            <option value="all">All years</option>
             {years.map((y) => (
               <option key={y} value={y}>
                 {y} draft
@@ -648,13 +701,14 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
         </span>
         {rows.length === 0 ? (
           <p className="muted small" style={{ margin: 0 }}>
-            No picks made in this round yet.
+            {team === league.userTeamId ? 'You have no picks here yet.' : 'No picks here yet.'}
           </p>
         ) : (
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
+                  {year === 'all' && <th className="num">Year</th>}
                   <th className="num">Pick</th>
                   <th className="sticky-col">Player</th>
                   <th>Pos</th>
@@ -674,7 +728,8 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
                   // Taken a round of the board ahead of his consensus rank is a reach; that far behind it, a steal.
                   const gap = d.rank !== undefined ? d.rank - d.pick : 0;
                   return (
-                    <tr key={p.id} className={d.teamId === league.userTeamId ? 'is-user' : undefined}>
+                    <tr key={p.id} className={d.teamId === league.userTeamId && team === 'all' ? 'is-user' : undefined}>
+                      {year === 'all' && <td className="num">{d.season}</td>}
                       <td className="num muted">
                         {d.round}.{d.pick - (d.round - 1) * 32} <span className="small">(No. {d.pick})</span>
                       </td>
