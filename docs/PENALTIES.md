@@ -5,11 +5,67 @@
 > a player, and none on kicks, sacks or scrambles (see "Today's baseline"). This plan grows that into
 > the NFL's full rulebook of common fouls in five phases, starting with the two the officiating spec
 > already points at: roughing the passer (its "QB protection" later phase) and special-teams holding.
+> Calibrated to the NFL's 2023–2025 full seasons (below).
+
+## The NFL, by the numbers
+
+From nflpenalties.com (accepted penalties, playoffs included) and Pro Football Reference (regular
+season), 2023–2025. The research could only read search extracts of these pages, not the pages
+themselves, so treat the numbers as checked against two sources where both are given, not audited.
+Sources at the end.
+
+**The league** (both teams together, per game):
+
+| Season | Accepted | Declined | Offsetting | Penalty yards | Special teams share |
+| --- | --- | --- | --- | --- | --- |
+| 2023 | 11.3–11.4 | 1.66 | 0.44 | 93.5 | 12.0% (1.36 a game) |
+| 2024 | 12.8–12.9 | 1.69 | 0.62 | 103.7 | 13.5% (1.73) |
+| 2025 | 12.5–13.1 | 1.88 | 0.52 | 100.6 | 17.4% (2.18) |
+
+About 14.9 flags a game in all (2025). Offense and defense fouls held flat from 2023 to 2025; the rise
+is special teams, after the 2024 kickoff rules took kickoff returns from 22% of kickoffs to 75%. The
+2026 season so far is running near 15 accepted a game, a record pace (partial season, one source).
+
+**By foul** (2025, both teams, accepted per game; the engine's status in the last column):
+
+| Foul | Per game | Enforcement | In the engine |
+| --- | --- | --- | --- |
+| Offensive holding | 2.40 (+0.43 declined) | 10 yards from the previous spot | Built |
+| False start | 2.39 | 5 yards | Built |
+| Defensive pass interference | 1.01 | Spot of the foul, automatic first down | Built |
+| Defensive holding | 0.64 (+0.33 declined or offset) | 5 yards, automatic first down | Built |
+| Defensive offside | 0.51 (+0.33 declined) | 5 yards | Built (as "offside") |
+| Neutral zone infraction / encroachment | 0.27 / about 0.12 | 5 yards | Phase 4 (split from offside) |
+| Delay of game | 0.64 | 5 yards | Phase 4 |
+| Unnecessary roughness | 0.64 | 15 yards (+ first down on the defense) | Phase 2 |
+| Illegal formation | 0.39 (doubled in 2024, likely kickoff alignment) | 5 yards | Phase 3–4 |
+| Face mask | 0.34 | 15 yards | Phase 2 |
+| Illegal contact | 0.34 | 5 yards, automatic first down | Phase 4 |
+| Roughing the passer | 0.33 | 15 yards, automatic first down | Phase 2 |
+| Offensive pass interference | about 0.2–0.26 | 10 yards from the previous spot | Phase 4 |
+| Illegal use of hands | 0.21 (mostly defense) | 5 + first down (defense), 10 (offense) | Phase 4 |
+| Intentional grounding | 0.21 | Loss of down, 10 yards or the spot, whichever is worse; safety from the end zone | Phase 4 |
+| Illegal block above the waist / in the back | 0.20 | 10 yards from the spot of the foul | Phase 3 |
+| Illegal shift / motion | 0.18 / about 0.06 | 5 yards | Phase 4 |
+| Ineligible man downfield | 0.16 (+0.18 declined) | 5 yards | Phase 4 |
+| Too many men (both sides) | 0.14 | 5 yards | Phase 4 |
+| Unsportsmanlike conduct / taunting | 0.14 / 0.09 | 15 yards | Phase 2 |
+| Kickoff short of the landing zone / out of bounds | 0.16 / 0.14 | Ball at the receiving team's 40 | Phase 3 |
+| Offensive offside, tripping | 0.08, 0.06 | 5, 10 yards | Phase 4 |
+| Rare (under 0.05): horse collar, kick-catch interference, roughing or running into the kicker, chop block, illegal forward pass, clipping | – | 15 (5 for running into the kicker; 5 and loss of down for an illegal forward pass) | Phases 2–4 |
+
+These per-foul counts cover every phase of the game, so special-teams holding and blocks sit inside
+the holding and illegal-block rows; no source splits them by kickoff, punt and return.
+
+**Crews** (2025, 13–18 games each): 10.1 to 16.1 accepted a game (busiest ÷ quietest 1.59, inside the
+officiating spec's 1.3–1.7); offensive holding 1.72 to 3.20 a game; roughing the passer 3 to 8 calls a
+season (0 to 4 in 2022).
 
 ## Opportunities in the engine today
 
-Per team-game, three leagues of `createLeague` + a regular season. NFL per-game rates (research table,
-to come) divide by these to give each foul's odds per opportunity.
+Per team-game, three leagues of `createLeague` + a regular season. Halve an NFL per-game rate (both
+teams) and divide by these to get each foul's odds per opportunity: roughing the passer, for one, is
+0.33 ÷ 2 ÷ 5.5 hits, or about 3% of hits on the passer.
 
 | Opportunity | Per team-game | Opportunity | Per team-game |
 | --- | --- | --- | --- |
@@ -36,6 +92,21 @@ defensive holding 0.21; 5.93 in all.
 Discipline is the line's average of Awareness (the `discipline` contest) plus or minus each player's
 hidden temperament (`temperOffset`, about ±3 at the extremes). League total: 5.89 penalties per
 team-game (`npm run sim`, target 5.5–7). Every flag is accepted; nothing is declined or offset.
+
+**The total is right for the wrong reasons.** Per team-game against the NFL's 2025 rates:
+
+| Foul | Engine | NFL | Engine ÷ NFL |
+| --- | --- | --- | --- |
+| Offensive holding | 2.37 | 1.20 | 2.0× |
+| False start | 1.85 | 1.20 | 1.5× |
+| Offside (with neutral zone and encroachment) | 1.19 | 0.45 | 2.6× |
+| Pass interference | 0.30 | 0.51 | 0.6× |
+| Defensive holding | 0.21 | 0.32 | 0.7× |
+| **All penalties** | **5.93** | **6.3–6.5** | **0.93×** |
+
+The three line fouls are inflated to stand in for the twenty-odd fouls that don't exist yet, and the
+coverage fouls run short. Each new foul has to take its share back from them, or the league's flag
+count climbs past the NFL's.
 
 ## What the plan changes, in one line each
 
@@ -86,8 +157,12 @@ leaning on the men with the worst discipline). New stat keys `penalties` and `pe
 `creditRng`, so who gets charged never changes how a game plays out.
 
 **Keep the league at baseline.** Adding fouls adds flags, so every foul's base odds, old ones included,
-are re-anchored to its research share; `npm run sim` gets one target per family (pre-snap, holding,
-coverage, personal, special teams, declined) instead of today's single "penalties" line.
+are re-anchored to its research rate: holding roughly halves, offside drops to about 40%, pass
+interference and defensive holding rise by half. The league target becomes 12.5–13 accepted a game
+(6.25–6.5 per team-game), 1.7–1.9 declined and about 0.5 offsetting. `npm run sim` gets one target per
+family (pre-snap, holding, coverage, personal, special teams, declined) instead of today's single
+"penalties" line. Fewer holding calls and more pass interference move scoring and drive success too,
+so the rest of `npm run sim` is re-checked with each phase.
 
 **Save:** new optional fields only (`StatLine` keys, more `flags` keys, `declined`), so a version
 bump with nothing to fill in. Results played before it simply have fewer kinds.
@@ -98,8 +173,11 @@ bump with nothing to fill in. Results played before it simply have fewer kinds.
 reaches the quarterback) can hit him late, low or high. The roll lives on the main stream, after the
 pass resolves, so it can change the play.
 
-- **Odds:** base rate per hit on the passer (research), raised by the rusher's temperament (a hothead
-  lands more late shots) and lowered by his Awareness; scaled by the crew.
+- **Odds:** 0.33–0.37 calls a game, steady at 93–100 a season since the 2022 clarifications (which cut
+  flags for incidental contact and for a rusher blocked into the passer's legs). That's about 3% of hits
+  on the passer, or one per 13 sacks. Raised by the rusher's temperament (a hothead lands more late
+  shots), lowered by his Awareness, scaled by the crew. Averages 13.5 yards, not 15: half the
+  distance applies near the goal line.
 - **Enforcement:** 15 yards and an automatic first down. On a completion past the line it's added to the
   end of the play; on an incompletion or a sack, from the previous spot. On an interception the offense
   keeps the ball (the foul came before the change of possession), so the pick is wiped out.
@@ -109,12 +187,14 @@ pass resolves, so it can change the play.
 
 **The other personal fouls**, on the same rules (15 yards, automatic first down when on the defense):
 
-| Foul | Hook | Odds lean on |
-| --- | --- | --- |
-| Unnecessary roughness | Tackles near the sideline or after the whistle, hits on a receiver just as the ball arrives | Tackler temperament, crew |
-| Face mask | Any tackle | Tackling, temperament |
-| Horse collar | Tackles from behind, mostly by defensive backs and linebackers | Tackling, pursuit angle |
-| Taunting / unsportsmanlike conduct | After sacks, big hits and touchdowns | Temperament |
+| Foul | Per game (NFL) | Hook | Odds lean on |
+| --- | --- | --- | --- |
+| Unnecessary roughness | 0.64 | Tackles near the sideline or after the whistle, hits on a receiver just as the ball arrives | Tackler temperament, crew |
+| Face mask | 0.34 | Any tackle (about 1 in 270) | Tackling, temperament |
+| Horse collar | about 0.05 | Tackles from behind, mostly by defensive backs and linebackers | Tackling, pursuit angle |
+| Unsportsmanlike conduct / taunting | 0.14 / 0.09 | After sacks, big hits and touchdowns | Temperament |
+
+Together that's about 1.6 personal fouls a game, roughing included.
 
 **Crews:** a fourth tendency, **QB Protection** (1–20, same 0.8–1.2 multiplier), scales roughing the
 passer. That's the officiating spec's "QB protection" later phase; its blocker ("needs pass-rush
@@ -139,31 +219,43 @@ Returns today are one draw for the yards; nobody blocks. Fouls need the men arou
   holder (15 yards, automatic first down) on punts and field goals, plus offside on field goals. These
   bring a real coaching choice: take the points or take the penalty and the first down
   (`coach.acceptPenalty` again).
-- **Calibration:** flags per return and per kick from the research table, while average starting field
-  position after kickoffs and punts stays where it is now.
+- **Calibration:** special teams drew 1.36 accepted flags a game in 2023 and 2.18 in 2025, the jump
+  coming with the 2024 kickoff (returns went from 22% of kickoffs to 75%; touchbacks now come out to the
+  35, which the engine already uses). No source gives flags per return, so the odds per return come
+  from that share and the engine's return counts (2.9 kickoff and 1.5 punt returns per team-game),
+  scaled to how often the engine's kickoffs are returned. Average starting field position after
+  kickoffs and punts must stay where it is now.
+- **New kickoff rules:** a kickoff out of bounds or short of the landing zone gives the receiving team
+  the ball at its 40 (0.14 and 0.16 a game in 2025). Both are kicker misses rather than fouls, so they
+  hang off kickoff distance and accuracy.
 
 ## Phase 4: the rest of the scrimmage fouls
 
 **Before the snap** (one roll, as today, with more outcomes):
 
-| Foul | Side | Odds lean on | Enforcement |
-| --- | --- | --- | --- |
-| Delay of game | Offense | Tempo (the hurry-up and the two-minute drill), a young quarterback's Awareness, road crowd noise | 5 yards |
-| Illegal formation / shift / motion | Offense | How much motion the coordinator's scheme uses (`schemes.ts`), receivers' Awareness | 5 yards |
-| Neutral zone infraction, encroachment | Defense | Split out of today's offside, same drivers | 5 yards |
-| Too many men on the field | Either | Substitution: the hurry-up, rotations | 5 yards |
+| Foul | Per game (NFL) | Side | Odds lean on | Enforcement |
+| --- | --- | --- | --- | --- |
+| Delay of game | 0.64 | Offense | Tempo (the hurry-up and the two-minute drill), a young quarterback's Awareness, road crowd noise | 5 yards |
+| Illegal formation / shift / motion | 0.39 / 0.18 / 0.06 | Offense | How much motion the coordinator's scheme uses (`schemes.ts`), receivers' Awareness | 5 yards |
+| Neutral zone infraction, encroachment | 0.27, 0.12 | Defense | Split out of today's offside, same drivers | 5 yards |
+| Too many men on the field | 0.14 (mostly defense) | Either | Substitution: the hurry-up, rotations | 5 yards |
+| Offensive offside | 0.08 | Offense | Line discipline | 5 yards |
 
 **During the play:**
 
-| Foul | Hook | Enforcement |
-| --- | --- | --- |
-| Offensive pass interference | Any target, more on contested and deep balls; a physical receiver more | 10 yards from the previous spot |
-| Illegal contact | Pass plays, against press coverage | 5 yards, automatic first down |
-| Illegal use of hands | Pass blocking (offense) and pass rush (defense) | 10 (offense) or 5 and a first down (defense) |
-| Intentional grounding | Today's "throws it away under pressure", when no receiver is near and he's still in the pocket | Loss of down, from the spot of the pass (a safety from his own end zone) |
-| Ineligible man downfield | Screens and quick passes | 5 yards |
-| Illegal forward pass | A scramble that crosses the line and then throws | 5 yards, loss of down |
-| Defensive holding on runs, holding on sacks and scrambles | The run, sack and scramble results that roll nothing today | As their kind; holding on a sack is almost always declined |
+| Foul | Per game (NFL) | Hook | Enforcement |
+| --- | --- | --- | --- |
+| Offensive pass interference | about 0.2–0.26 | Any target, more on contested and deep balls; a physical receiver more | 10 yards from the previous spot |
+| Illegal contact | 0.34 | Pass plays, against press coverage | 5 yards, automatic first down |
+| Illegal use of hands | 0.21 | Pass rush (defense, most of them) and pass blocking (offense) | 5 and a first down (defense) or 10 (offense) |
+| Intentional grounding | 0.21 | Today's "throws it away under pressure", when no receiver is near and he's still in the pocket | Loss of down and 10 yards from the previous spot, or the spot of the pass if that's worse; a safety from his own end zone |
+| Ineligible man downfield | 0.16 | Screens, quick passes and run-pass options | 5 yards |
+| Illegal forward pass | under 0.05 | A scramble that crosses the line and then throws | 5 yards, loss of down |
+| Defensive holding on runs, holding on sacks and scrambles | (inside the holding rows) | The run, sack and scramble results that roll nothing today | As their kind; holding on a sack is almost always declined |
+
+**Enforcement spots:** an offensive foul before a catch goes from the previous spot; after a catch the
+play is a run, so fouls are spotted where they happened, or at the end of the run if it's beyond it.
+Half the distance caps any penalty longer than half the way to the goal, except spot fouls.
 
 **End-of-half rules:** a defensive foul on the last play gives an untimed down, and some offensive fouls
 in the last minute bring a 10-second runoff. `npm run endings` must check both.
@@ -171,7 +263,8 @@ in the last minute bring a 10-second runoff. `npm run endings` must check both.
 ## Phase 5: crews, screens and checks
 
 - **Crews:** four tendencies (Flag Volume, Holding, Coverage, QB Protection). The crews page shows a
-  column for each, plus a per-foul breakdown when you open a crew.
+  column for each, plus a per-foul breakdown when you open a crew. `npm run crews` keeps today's 1.3–1.7
+  busiest-to-quietest band (the NFL's 2025 crews: 1.59) and adds one for holding (2025: 1.86).
 - **Box score:** every foul by team, declined ones listed apart; the play-by-play says "declined" and
   "offsetting".
 - **Player card:** penalties and penalty yards by season; the scouting notes on temperament already
@@ -202,3 +295,17 @@ in the last minute bring a 10-second runoff. `npm run endings` must check both.
    Volume?
 4. **Star treatment:** never give star quarterbacks extra protection from crews (it would feel rigged,
    like the home lean the officiating spec already holds back). Agreed?
+5. **Which era:** calibrate to 2024–2025 (12.5–13 accepted a game), or follow 2026's record pace (about
+   15 so far, partial season)?
+
+## Sources
+
+Search extracts only; the pages themselves couldn't be fetched from the research sandbox.
+
+- nflpenalties.com: season totals ([2025](https://www.nflpenalties.com/index.php?year=2025&view=total), [2024](https://nflpenalties.com/index.php?year=2024&view=total)), by phase ([2023](https://nflpenalties.com/phase.php?year=2023&view=total), [2024](https://www.nflpenalties.com/phase.php?year=2024&view=total), [2025](https://www.nflpenalties.com/phase.php?year=2025&view=total)), [special teams 2025](https://www.nflpenalties.com/position/special-teams?year=2025&view=penalties), [referees 2025](https://nflpenalties.com/all-referees.php?year=2025&view=total), and each foul's season view (`/penalty/<foul>?view=season`)
+- Pro Football Reference penalties: [2024](https://www.pro-football-reference.com/years/2024/penalties.htm), [2023](https://www.pro-football-reference.com/years/2023/penalties.htm)
+- [StatMuse: league penalties per game by year](https://www.statmuse.com/nfl/ask/nfl-league-average-penalties-per-game-by-year-2001-to-2025)
+- [Deseret News, Oct 2026](https://www.deseret.com/sports/2026/10/10/its-time-for-nfl-officials-to-be-flagged/); [Yahoo: officials calling more penalties](https://sports.yahoo.com/articles/nfl-officials-calling-more-penalties-173817924.html)
+- Roughing the passer: [Pro Football Network](https://www.profootballnetwork.com/what-is-roughing-the-passer-in-the-nfl-breaking-down-the-often-controversial-penalty/), [CBS Sports on the 2022 emphasis](https://www.cbssports.com/nfl/news/nfl-will-yet-again-crack-down-on-roughing-the-passer-calls-but-it-should-result-in-fewer-penalties-in-2022/)
+- Kickoffs: [NFL.com, 2024 dynamic kickoff](https://www.nfl.com/news/2024-nfl-season-explaining-rules-for-new-dynamic-kickoff), [NFL.com, touchbacks to the 35](https://www.nfl.com/news/nfl-owners-vote-to-make-dynamic-kickoff-permanent-adjust-ball-spot-on-touchbacks-to-35-yard-line), [Yahoo: 74.5% returned](https://sports.yahoo.com/articles/nfl-had-74-5-percent-154754180.html)
+- Enforcement: Football Zebras on [spot fouls on pass plays](https://www.footballzebras.com/2025/12/why-a-spot-foul-on-a-pass-play/) and [fouls around a change of possession](https://www.footballzebras.com/2024/08/competition-committee-refines-penalty-enforcement-when-there-is-a-possession-change/); [NFL rulebook](https://operations.nfl.com/rules-officiating/2026-nfl-rulebook)
