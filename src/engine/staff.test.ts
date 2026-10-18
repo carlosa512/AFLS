@@ -33,6 +33,7 @@ import { playerValue } from './trade';
 import type { League, Player, Staff } from './types';
 import { ATTRIBUTES } from './types';
 
+/** A league one season in. Playing that season takes a couple of seconds, so suites that use it allow 30. */
 const offseason = (seed: string) => {
   const league = createLeague({ seed });
   simToEndOfSeason(league);
@@ -59,7 +60,7 @@ const errorAndWidth = (league: League, players: Player[]) => {
   return { err: err / players.length, width: width / players.length };
 };
 
-describe('scouting departments', () => {
+describe('scouting departments', { timeout: 30_000 }, () => {
   const league = createLeague({ seed: 'staff' });
 
   it('gives every team a Director and scouts, inside its budget', () => {
@@ -167,7 +168,7 @@ describe('scouting departments', () => {
 /** JSON round trip: what a save and reload produces (and a fresh staff index). */
 const createLeagueCopy = (l: League): League => JSON.parse(JSON.stringify(l)) as League;
 
-describe('staff moves', () => {
+describe('staff moves', { timeout: 30_000 }, () => {
   it('only happen in the re-sign window and free agency', () => {
     const l = createLeague({ seed: 'window' });
     const candidate = staffMarket(l)[0];

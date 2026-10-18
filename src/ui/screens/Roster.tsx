@@ -12,7 +12,7 @@ import { useNav } from '../App';
 import { Panel, PlayerAvatar, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
-import { FitnessCell, InjuryTag, riskOf } from '../injuries';
+import { FitnessCell, fitnessSort, InjuryTag } from '../injuries';
 import { Ovr, repsOf, schemeFitOf, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { store } from '../store';
 
@@ -222,8 +222,7 @@ function rosterSortValue(league: League, p: Player, key: RosterSort): number | s
     case 'age':
       return p.age;
     case 'fitness':
-      // Your players by condition; anyone's by how injury-prone your read says he is. The hurt sink to the bottom.
-      return (isAvailable(p) ? 0 : -1000) + (p.teamId === league.userTeamId ? (p.condition ?? 100) : 0) - { Low: 0, Medium: 1, High: 2 }[riskOf(league, p).tier];
+      return fitnessSort(league, p);
     case 'cap':
       return p.contract ? capHit(p.contract, league.season) : -1;
     case 'thru':
