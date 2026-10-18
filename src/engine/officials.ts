@@ -9,6 +9,7 @@
  * never as a number. Spec and what's built: docs/OFFICIALS.md.
  */
 import { FIRST_NAMES, LAST_NAMES } from './data/names';
+import { FOUL_KINDS, FOULS } from './penalties';
 import { clamp, Rng } from './rng';
 import type { Crew, Foul, Game, League } from './types';
 
@@ -32,16 +33,6 @@ const SPREAD: [number, number] = [4, 17];
 const REVERT = 1 / 12;
 /** Games a crew must work before screens rank it: fewer is mostly luck. */
 export const RANK_MIN_GAMES = 3;
-
-/** Every foul the engine calls, and the tendency besides Flag Volume that moves it. */
-export const FOULS: Record<Foul, { label: string; tendency: 'holding' | 'coverage' | null }> = {
-  falseStart: { label: 'False start', tendency: null },
-  offside: { label: 'Offside', tendency: null },
-  holding: { label: 'Offensive holding', tendency: 'holding' },
-  passInterference: { label: 'Pass interference', tendency: 'coverage' },
-  defHolding: { label: 'Defensive holding', tendency: 'coverage' },
-};
-export const FOUL_KINDS = Object.keys(FOULS) as Foul[];
 
 /** A tendency as a multiplier on penalty rolls: 0.8 at 1, 1.2 at 20, 1 at the centre. */
 export const crewMult = (rating: number) => 0.8 + (0.4 * (rating - 1)) / 19;

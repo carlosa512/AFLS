@@ -134,6 +134,9 @@ export const STAT_KEYS = [
   'prTd',
   /** Punter whose punt was blocked. */
   'puntsBlocked',
+  /** Accepted penalties charged to the player, and the yards they cost. */
+  'penalties',
+  'penaltyYds',
 ] as const;
 export type StatKey = (typeof STAT_KEYS)[number];
 export type StatLine = Partial<Record<StatKey, number>>;
@@ -498,6 +501,7 @@ export type PlayoffRound = 'WC' | 'DIV' | 'CONF' | 'FINAL';
 
 export interface TeamGameStats {
   firstDowns: number;
+  /** Plays that counted: runs, passes and sacks. A play a flag wipes out isn't one, as in the NFL's count. */
   plays: number;
   totalYds: number;
   passYds: number;
@@ -509,8 +513,11 @@ export interface TeamGameStats {
   turnovers: number;
   penalties: number;
   penaltyYds: number;
-  /** Penalties by kind, what the officiating crew pages read (games before v15 have none). */
+  /** Accepted penalties by kind, what the officiating crew pages read (games before v15 have none). */
   flags?: Partial<Record<Foul, number>>;
+  /** Flags the other side declined, and flags that offset one of theirs (games before v16 have none). */
+  declined?: Partial<Record<Foul, number>>;
+  offset?: Partial<Record<Foul, number>>;
   thirdDownAtt: number;
   thirdDownConv: number;
   fourthDownAtt: number;

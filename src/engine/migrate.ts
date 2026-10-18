@@ -39,6 +39,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 13) toV13(league);
   if (league.version < 14) league.version = 14; // v14: optional `weather` on game results, nothing to fill in
   if (league.version < 15) toV15(league);
+  if (league.version < 16) league.version = 16; // v16: declined and offsetting flags, players' penalties: optional, nothing to fill in
   return league;
 }
 

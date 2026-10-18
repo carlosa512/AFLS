@@ -288,6 +288,10 @@ next-game card, an Officials tab ranking every crew, and each game's penalties a
 average in the box score. Spec and later phases: `docs/OFFICIALS.md`.
 
 **Next: Front office depth**
+- **Bug, its own PR:** an AI front office can kick off a season over the cap with a short roster.
+  `npm run offseason -- 6` on the penalties branch (b02412e) had Atlanta $1.2M over the cap with 42
+  players in 2030; the check already warns about short rosters as a known issue. Look at how the AI
+  trims payroll and fills the 53 before kickoff (`offseason/ai.ts`, `finance/cap.ts`).
 - NFL-calendar practice: CBA padded-practice budgets, Full/Limited/DNP, veteran rest days (the
   weekly practice injury roll is the hook).
 - Mentoring in position rooms; morale (playing time, contract, results) and holdouts.

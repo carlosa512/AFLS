@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { userGame } from '../../engine/league';
-import { crewSeason, crewSeasons, crewStanding, crewTable, FOUL_KINDS, FOULS, gameCrew, RANK_MIN_GAMES, refName, type CrewStat } from '../../engine/officials';
-import type { Game, League, Team } from '../../engine/types';
+import { crewSeason, crewSeasons, crewStanding, crewTable, gameCrew, RANK_MIN_GAMES, refName, type CrewStat } from '../../engine/officials';
+import { FOUL_KINDS, FOULS } from '../../engine/penalties';
+import type { Foul, Game, League, Team } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, SortTh, sortRows, useSort } from '../components';
 import { crewStandingText, ordinal, resultsSeason } from '../format';
@@ -117,6 +118,7 @@ export function GameOfficials({ league, game, away, home }: { league: League; ga
   const avg = (n: number) => (line ? (n / line.games).toFixed(1) : '–');
   const rows = FOUL_KINDS.map((f) => [FOULS[f].label, r.away.flags![f] ?? 0, r.home.flags![f] ?? 0, avg(line?.fouls[f] ?? 0)] as const);
   const total = line ? FOUL_KINDS.reduce((s, f) => s + line.fouls[f], 0) : 0;
+  const count = (fouls?: Partial<Record<Foul, number>>) => Object.values(fouls ?? {}).reduce((s, n) => s + n, 0);
   return (
     <Panel title="Officials">
       <p style={{ marginTop: 0 }}>
@@ -158,12 +160,24 @@ export function GameOfficials({ league, game, away, home }: { league: League; ga
               </td>
               <td className="num muted">{avg(total)}</td>
             </tr>
+            {(['declined', 'offset'] as const).map((key) => {
+              const [a, h] = [count(r.away[key]), count(r.home[key])];
+              return a + h > 0 ? (
+                <tr key={key} className="muted">
+                  <td>{key === 'declined' ? 'Declined' : 'Offsetting'}</td>
+                  <td className="num">{a}</td>
+                  <td className="num">{h}</td>
+                  <td />
+                </tr>
+              ) : null;
+            })}
           </tbody>
         </table>
       </div>
       {line && (
         <p className="muted small" style={{ marginBottom: 0 }}>
-          Crew avg: per game, both teams, over the {line.games} game{line.games === 1 ? '' : 's'} it has worked this season.
+          Accepted penalties; declined and offsetting flags are counted apart. Crew avg: per game, both teams, over the {line.games} game{line.games === 1 ? '' : 's'} it has
+          worked this season.
         </p>
       )}
     </Panel>

@@ -160,6 +160,14 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
         ]}
       />
       <StatTable
+        title="Penalties"
+        rows={by((s) => !!s.penalties, n('penaltyYds'))}
+        cols={[
+          ['Flags', n('penalties')],
+          ['Yds', n('penaltyYds')],
+        ]}
+      />
+      <StatTable
         title="Returns"
         rows={by((s) => !!(s.krAtt || s.prAtt), (s) => (s.krYds ?? 0) + (s.prYds ?? 0))}
         cols={[

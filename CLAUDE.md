@@ -97,6 +97,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     odds), severity and forecasts;
     `data/stadiums.ts` roofs, altitude, climates, regions and stadium changes by season. Spec and what's
     built so far: `docs/WEATHER.md`
+  - `penalties.ts` the foul registry (side, yards, enforcement, crew tendency) and `enforce` (half the
+    distance, spot fouls, first downs). The engine rolls fouls in `match/gameSim.ts` (`playFouls`), charges
+    a player on its own stream, and `match/coach.ts` decides accept or decline (`takesPenalty` on
+    `downValue`). Spec, NFL rates and phases: `docs/PENALTIES.md`
   - `officials.ts` officiating crews: hidden tendencies (generated centred, nudged each offseason), the
     weekly rotation (`crewAssignments`, a pure function like weather; the result keeps `crewId`), the
     multipliers on the engine's penalty rolls (`crewCalls`), and crew stats read from the box scores'

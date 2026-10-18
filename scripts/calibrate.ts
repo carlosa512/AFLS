@@ -38,6 +38,11 @@ const TARGETS: Record<string, [number, number]> = {
   fgPct: [83, 88],
   punts: [3.6, 4.4],
   penalties: [5.5, 7],
+  // Flags the other side declined, and flags that offset (NFL 2023–25: 0.87 and about 0.27 per team-game
+  // across every foul; the five the engine calls so far draw about 0.55 declines, its inflated line fouls
+  // a little more until the rest are modeled; see docs/PENALTIES.md).
+  declined: [0.45, 1],
+  offsetting: [0.05, 0.4],
   homeWinPct: [53, 57],
   otPct: [4, 7],
   tiePct: [0, 0.6],
@@ -154,6 +159,8 @@ for (let s = 0; s < seasons; s++) {
       add('thirdAtt', t.thirdDownAtt);
       add('thirdConv', t.thirdDownConv);
       add('penalties', t.penalties);
+      add('declined', Object.values(t.declined ?? {}).reduce((a, b) => a + b, 0));
+      add('offsetting', Object.values(t.offset ?? {}).reduce((a, b) => a + b, 0));
       add('top', t.top);
     }
     for (const line of Object.values(r.playerStats)) {
@@ -207,6 +214,8 @@ const results: Record<string, number> = {
   fgPct: (100 * sum.fgMade) / sum.fgAtt,
   punts: per('punts'),
   penalties: per('penalties'),
+  declined: per('declined'),
+  offsetting: per('offsetting'),
   homeWinPct: (100 * homeWins) / (games - ties),
   otPct: (100 * ot) / games,
   tiePct: (100 * ties) / games,
