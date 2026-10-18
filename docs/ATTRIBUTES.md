@@ -80,68 +80,68 @@ small overall weight is expected; "no effect" on an attribute the overall counts
 
 | Pos | Attribute | Overall weight | Verdict | Biggest moves |
 |---|---|---|---|---|
-| QB | Short accuracy | 3 | moves play | cmp% +4.0 (z 11.5), yds/att +0.31 (z 5.6), RB yds/tgt +0.35 (z 4.1) |
-| QB | Awareness | 3 | moves play | sack% -1.94 (z -13.1), int% -0.65 (z -7.4), fumbles% -0.23 (z -3.7) |
-| QB | Deep accuracy | 2.5 | moves play | yds/att +0.33 (z 5.8), WR yds/tgt +0.42 (z 5.0), cmp% +1.5 (z 4.3) |
-| QB | Throw power | 1.5 | moves play | yds/att +0.18 (z 5.4), WR yds/tgt +0.25 (z 5.2), yac/rec +0.15 (z 3.9) |
-| QB | Agility | 0.5 | moves play | sack% -1.69 (z -11.5), fumbles% -0.19 (z -3.0) |
-| QB | Speed | 0.5 | moves play | yds/carry +0.33 (z 9.7) |
-| RB | Elusiveness | 2.5 | moves play | yds/carry +0.24 (z 7.0), RB yds/tgt +0.53 (z 5.9), points +1.00 (z 3.0) |
-| RB | Speed | 2 | moves play | yds/carry +0.31 (z 8.7), RB yds/tgt +0.63 (z 7.1), points +1.36 (z 4.2) |
-| RB | Agility | 2 | moves play | RB yds/tgt +0.27 (z 3.1), yds/carry +0.07 (z 2.1) |
-| RB | Ball security | 1.5 | moves play | fumbles% -0.30 (z -4.9) |
-| RB | Strength | 1 | moves play | RB yds/tgt +0.33 (z 3.8), yds/carry +0.09 (z 2.7) |
-| RB | Hands | 0.75 | moves play | RB yds/tgt +0.53 (z 6.0), cmp% +1.3 (z 3.6) |
-| RB | Awareness | 0.75 | moves play | yds/carry +0.08 (z 4.1) |
-| RB | Pass blocking | 0.5 | moves play | sack% -0.53 (z -3.4) |
-| WR | Hands | 2.5 | moves play | cmp% +3.3 (z 9.3), WR yds/tgt +0.68 (z 8.2), yds/att +0.45 (z 7.9) |
-| WR | Route running | 2.5 | moves play | cmp% +1.3 (z 3.8), yds/att +0.21 (z 3.6), WR yds/tgt +0.28 (z 3.4) |
-| WR | Speed | 2.5 | moves play | kr avg +1.3 (z 7.3), WR yds/tgt +0.49 (z 5.9), yds/att +0.31 (z 5.4) |
-| WR | Agility | 1.5 | moves play | WR yds/tgt +0.24 (z 5.2), cmp% +1.0 (z 4.7), yds/att +0.13 (z 4.1) |
-| WR | Elusiveness | 0.75 | moves play | kr avg +1.2 (z 6.8), yac/rec +0.35 (z 5.1), WR yds/tgt +0.35 (z 4.2) |
-| WR | Awareness | 0.75 | weak | cmp% +0.6 (z 3.0), WR yds/tgt +0.13 (z 2.8), yds/att +0.07 (z 2.1) |
-| TE | Hands | 2 | moves play | TE yds/tgt +0.66 (z 5.8), cmp% +1.0 (z 2.7) |
-| TE | Route running | 1.5 | moves play | TE yds/tgt +0.42 (z 3.7) |
+| QB | Short accuracy | 3 | moves play | cmp% +4.0 (z 11.1), yds/att +0.39 (z 6.9), WR yds/tgt +0.42 (z 5.4) |
+| QB | Awareness | 3 | moves play | sack% -1.92 (z -13.0), int% -0.69 (z -8.0), points +1.34 (z 4.1) |
+| QB | Deep accuracy | 2.5 | moves play | yds/att +0.32 (z 5.5), WR yds/tgt +0.41 (z 5.1), cmp% +1.4 (z 3.9) |
+| QB | Throw power | 1.5 | moves play | yds/att +0.17 (z 5.1), WR yds/tgt +0.21 (z 4.5), cmp% +0.9 (z 4.1) |
+| QB | Agility | 0.5 | moves play | sack% -1.65 (z -11.0), yac/rec +0.22 (z 3.3) |
+| QB | Speed | 0.5 | moves play | yds/carry +0.36 (z 10.6), points +0.89 (z 2.6) |
+| RB | Elusiveness | 2.5 | moves play | yds/carry +0.23 (z 6.6), RB yds/tgt +0.49 (z 5.2), kr avg +0.7 (z 4.3) |
+| RB | Speed | 2 | moves play | yds/carry +0.33 (z 9.1), RB yds/tgt +0.47 (z 5.1), points +1.47 (z 4.4) |
+| RB | Agility | 2 | moves play | yds/carry +0.06 (z 4.8), RB yds/tgt +0.13 (z 4.2), cmp% +0.4 (z 3.3) |
+| RB | Ball security | 1.5 | moves play | fumbles% -0.32 (z -5.1) |
+| RB | Strength | 1 | moves play | yds/carry +0.14 (z 6.7), points +0.74 (z 3.8), RB yds/tgt +0.17 (z 3.2) |
+| RB | Hands | 0.75 | moves play | RB yds/tgt +0.39 (z 4.3), cmp% +1.0 (z 2.8) |
+| RB | Awareness | 0.75 | moves play | yds/carry +0.06 (z 3.3) |
+| RB | Pass blocking | 0.5 | moves play | sack% -0.51 (z -3.3) |
+| WR | Hands | 2.5 | moves play | WR yds/tgt +0.79 (z 9.8), yds/att +0.54 (z 9.2), cmp% +3.3 (z 9.0) |
+| WR | Route running | 2.5 | moves play | WR yds/tgt +0.43 (z 5.5), yds/att +0.30 (z 5.3), cmp% +1.7 (z 4.6) |
+| WR | Speed | 2.5 | moves play | WR yds/tgt +0.65 (z 8.3), yds/att +0.47 (z 8.2), yac/rec +0.55 (z 8.1) |
+| WR | Agility | 1.5 | moves play | WR yds/tgt +0.34 (z 4.3), yds/att +0.24 (z 4.2), yac/rec +0.20 (z 3.0) |
+| WR | Elusiveness | 0.75 | moves play | yac/rec +0.45 (z 6.7), kr avg +1.1 (z 5.9), WR yds/tgt +0.38 (z 4.7) |
+| WR | Awareness | 0.75 | moves play | cmp% +0.7 (z 3.0), WR yds/tgt +0.13 (z 2.7), yds/att +0.08 (z 2.4) |
+| TE | Hands | 2 | moves play | TE yds/tgt +0.66 (z 5.6), cmp% +1.2 (z 3.2), yds/att +0.14 (z 2.4) |
+| TE | Route running | 1.5 | moves play | TE yds/tgt +0.35 (z 5.0), cmp% +0.6 (z 2.9), yds/att +0.07 (z 2.2) |
 | TE | Run blocking | 1.5 | moves play | yds/carry +0.12 (z 3.5) |
-| TE | Pass blocking | 1 | moves play | sack% -0.29 (z -3.2) |
-| TE | Strength | 1 | moves play | TE yds/tgt +0.21 (z 3.2), yds/carry +0.05 (z 2.4) |
-| TE | Speed | 1 | moves play | TE yds/tgt +0.61 (z 5.2) |
-| OL | Pass blocking | 3 | moves play | sack% -2.15 (z -14.9), cmp% +1.9 (z 5.2), yac/rec +0.22 (z 3.4) |
-| OL | Run blocking | 3 | moves play | yds/carry +0.63 (z 18.4), points +1.78 (z 5.2) |
-| OL | Strength | 2 | moves play | yds/carry +0.15 (z 4.5), sack% -0.45 (z -2.9), RB yds/tgt +0.19 (z 2.2) |
-| OL | Awareness | 1 | moves play | penalties -0.77 (z -8.5), yds/carry +0.07 (z 2.1) |
-| OL | Agility | 0.5 | moves play | sack% -0.49 (z -3.2) |
-| DT | Run stopping | 3 | moves play | yds/carry -0.25 (z -7.4) |
-| DT | Strength | 2.5 | moves play | yds/carry -0.10 (z -3.0) |
-| DT | Pass rush | 2 | moves play | sack% +0.56 (z 3.5), WR yds/tgt -0.17 (z -2.1) |
-| DT | Tackling | 1 | weak | yds/carry -0.04 (z -2.3) |
-| DT | Awareness | 0.5 | weak | penalties -0.11 (z -2.0) |
-| DT | Agility | 0.5 | weak | sack% +0.15 (z 2.8) |
-| EDGE | Pass rush | 3 | moves play | sack% +1.09 (z 6.6), points -1.15 (z -3.5), cmp% -1.2 (z -3.3) |
-| EDGE | Run stopping | 1.5 | moves play | yds/carry -0.18 (z -5.3) |
-| EDGE | Speed | 1.5 | moves play | yds/carry -0.12 (z -3.4) |
-| EDGE | Strength | 1.5 | moves play | yds/carry -0.07 (z -3.5) |
-| EDGE | Agility | 1 | weak | sack% +0.22 (z 2.4) |
-| EDGE | Tackling | 1 | moves play | yds/carry -0.20 (z -6.0), points -0.71 (z -2.2) |
-| LB | Tackling | 2.5 | moves play | yds/carry -0.15 (z -4.7), points -1.29 (z -3.9), RB yds/tgt -0.32 (z -3.8) |
-| LB | Run stopping | 2 | moves play | yds/carry -0.15 (z -4.5) |
-| LB | Awareness | 2 | moves play | yds/carry -0.09 (z -4.4), points -0.41 (z -2.1) |
-| LB | Coverage | 1.5 | moves play | cmp% -1.1 (z -3.0), RB yds/tgt -0.23 (z -2.7), TE yds/tgt -0.25 (z -2.1) |
-| LB | Speed | 1.5 | moves play | points -1.17 (z -3.6), yds/carry -0.10 (z -3.2), yds/att -0.18 (z -3.1) |
-| LB | Pass rush | 0.5 | moves play | sack% +0.31 (z 3.4) |
-| CB | Coverage | 3 | moves play | cmp% -2.6 (z -7.0), WR yds/tgt -0.58 (z -7.0), yds/att -0.32 (z -5.7) |
-| CB | Speed | 2.5 | moves play | WR yds/tgt -0.53 (z -6.5), yac/rec -0.40 (z -5.9), yds/att -0.32 (z -5.6) |
-| CB | Agility | 1.5 | moves play | cmp% -1.0 (z -4.7), WR yds/tgt -0.19 (z -4.0), yds/att -0.12 (z -3.5) |
-| CB | Hands | 1 | moves play | int% +0.63 (z 6.1) |
-| CB | Awareness | 1 | moves play | WR yds/tgt -0.17 (z -3.5), cmp% -0.7 (z -3.5), yds/att -0.10 (z -3.2) |
-| CB | Tackling | 0.5 | moves play | yac/rec -0.45 (z -6.7), WR yds/tgt -0.46 (z -5.7), yds/att -0.27 (z -4.8) |
-| S | Coverage | 2.5 | moves play | TE yds/tgt -0.37 (z -3.2), yds/att -0.14 (z -2.5), cmp% -0.8 (z -2.2) |
-| S | Awareness | 2 | moves play | yds/carry -0.05 (z -4.0), cmp% -0.4 (z -3.0), TE yds/tgt -0.09 (z -2.3) |
-| S | Tackling | 1.5 | moves play | yac/rec -0.12 (z -3.0), yds/carry -0.06 (z -2.9), points -0.47 (z -2.5) |
-| S | Speed | 1.5 | moves play | yds/carry -0.06 (z -3.4), points -0.64 (z -3.3), yds/att -0.09 (z -2.8) |
-| S | Hands | 0.75 | moves play | int% +0.52 (z 5.1) |
-| S | Run stopping | 0.5 | weak | yds/carry -0.05 (z -2.4) |
-| K | Kick accuracy | 3 | moves play | fg+xp pts +0.50 (z 3.9) |
-| K | Kick power | 2 | moves play | fg+xp pts +0.57 (z 4.4), points +1.00 (z 3.0) |
-| P | Kick power | 3 | moves play | punt avg +3.3 (z 20.6), ret yds/punt -0.36 (z -3.2) |
-| P | Kick accuracy | 2 | moves play | ret yds/punt -0.54 (z -5.0) |
+| TE | Pass blocking | 1 | weak | sack% -0.27 (z -2.9) |
+| TE | Strength | 1 | weak | TE yds/tgt +0.16 (z 2.2) |
+| TE | Speed | 1 | moves play | TE yds/tgt +0.40 (z 3.4) |
+| OL | Pass blocking | 3 | moves play | sack% -2.07 (z -14.0), points +1.57 (z 4.7), yac/rec +0.28 (z 4.4) |
+| OL | Run blocking | 3 | moves play | yds/carry +0.68 (z 19.8), points +2.13 (z 6.3) |
+| OL | Strength | 2 | moves play | yds/carry +0.18 (z 5.3), points +0.91 (z 2.7), sack% -0.39 (z -2.5) |
+| OL | Awareness | 1 | moves play | penalties -0.67 (z -7.7), yds/carry +0.10 (z 2.8), points +0.78 (z 2.3) |
+| OL | Agility | 0.5 | moves play | sack% -0.34 (z -3.7) |
+| DT | Run stopping | 3 | moves play | yds/carry -0.26 (z -7.9), yac/rec +0.14 (z 2.1) |
+| DT | Strength | 2.5 | moves play | yds/carry -0.09 (z -4.5), sack% +0.29 (z 3.1) |
+| DT | Pass rush | 2 | moves play | sack% +0.86 (z 5.2) |
+| DT | Tackling | 1 | moves play | yds/carry -0.04 (z -3.2), points -0.26 (z -2.3) |
+| DT | Awareness | 0.5 | weak | penalties -0.15 (z -2.8) |
+| DT | Agility | 0.5 | weak | sack% +0.24 (z 2.6) |
+| EDGE | Pass rush | 3 | moves play | sack% +1.48 (z 8.7), cmp% -0.9 (z -2.3), fumbles% +0.15 (z 2.2) |
+| EDGE | Run stopping | 1.5 | moves play | yds/carry -0.16 (z -4.8) |
+| EDGE | Speed | 1.5 | moves play | yds/carry -0.11 (z -3.1), sack% +0.37 (z 2.3) |
+| EDGE | Strength | 1.5 | moves play | yds/carry -0.06 (z -5.1), sack% +0.17 (z 3.1), points -0.24 (z -2.2) |
+| EDGE | Agility | 1 | weak | sack% +0.27 (z 2.9) |
+| EDGE | Tackling | 1 | moves play | yds/carry -0.16 (z -4.9), penalties +0.19 (z 2.0) |
+| LB | Tackling | 2.5 | moves play | RB yds/tgt -0.49 (z -5.6), yds/carry -0.15 (z -4.4), yac/rec -0.14 (z -2.1) |
+| LB | Run stopping | 2 | moves play | yds/carry -0.11 (z -3.2) |
+| LB | Awareness | 2 | moves play | yds/carry -0.07 (z -3.5), RB yds/tgt -0.11 (z -2.1) |
+| LB | Coverage | 1.5 | moves play | RB yds/tgt -0.28 (z -5.4), cmp% -1.0 (z -4.5), TE yds/tgt -0.21 (z -3.0) |
+| LB | Speed | 1.5 | moves play | RB yds/tgt -0.35 (z -4.0), penalties +0.20 (z 2.2) |
+| LB | Pass rush | 0.5 | moves play | sack% +0.45 (z 4.8) |
+| CB | Coverage | 3 | moves play | cmp% -2.5 (z -6.7), WR yds/tgt -0.50 (z -6.5), yds/att -0.29 (z -5.2) |
+| CB | Speed | 2.5 | moves play | WR yds/tgt -0.39 (z -4.9), yac/rec -0.30 (z -4.5), yds/att -0.25 (z -4.4) |
+| CB | Agility | 1.5 | moves play | cmp% -0.9 (z -4.1), WR yds/tgt -0.15 (z -3.2), yds/att -0.09 (z -2.7) |
+| CB | Hands | 1 | moves play | int% +0.71 (z 6.8) |
+| CB | Awareness | 1 | moves play | WR yds/tgt -0.15 (z -3.3), cmp% -0.6 (z -2.8), yds/att -0.09 (z -2.7) |
+| CB | Tackling | 0.5 | moves play | yac/rec -0.33 (z -5.1), WR yds/tgt -0.35 (z -4.5), yds/att -0.22 (z -3.8) |
+| S | Coverage | 2.5 | moves play | yds/att -0.13 (z -3.9), TE yds/tgt -0.26 (z -3.8), cmp% -0.8 (z -3.6) |
+| S | Awareness | 2 | moves play | yds/carry -0.05 (z -3.9), cmp% -0.4 (z -3.3), TE yds/tgt -0.13 (z -3.2) |
+| S | Tackling | 1.5 | moves play | yac/rec -0.12 (z -3.3), yds/att -0.09 (z -2.7), yds/carry -0.05 (z -2.6) |
+| S | Speed | 1.5 | moves play | yds/att -0.11 (z -3.3), yds/carry -0.05 (z -2.8), TE yds/tgt -0.19 (z -2.8) |
+| S | Hands | 0.75 | moves play | int% +0.62 (z 6.1) |
+| S | Run stopping | 0.5 | weak | yds/carry -0.06 (z -2.8) |
+| K | Kick accuracy | 3 | moves play | fg+xp pts +0.41 (z 5.6), points +0.55 (z 2.9), punt avg +0.3 (z 2.7) |
+| K | Kick power | 2 | moves play | fg+xp pts +0.70 (z 5.5), points +0.84 (z 2.5) |
+| P | Kick power | 3 | moves play | punt avg +3.3 (z 19.5), ret yds/punt -0.48 (z -4.5) |
+| P | Kick accuracy | 2 | moves play | ret yds/punt -0.50 (z -4.5) |

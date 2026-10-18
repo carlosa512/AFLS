@@ -3,7 +3,7 @@
  * so careers survive engine changes instead of being thrown away.
  */
 import { awardSeason } from './awards';
-import { generateCoachingWorld } from './coaching';
+import { addSpecialTeamsCoordinators, generateCoachingWorld } from './coaching';
 import { DIVISIONS, LEGACY_COLORS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
 import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
@@ -42,7 +42,8 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 16) league.version = 16; // v16: declined and offsetting flags, players' penalties: optional, nothing to fill in
   if (league.version < 17) toV17(league);
   if (league.version < 18) league.version = 18; // v18: optional `returners` on teams and special-teams flags, nothing to fill in
-  if (league.version < 19) league.version = 19; // v19: optional `inbox`, filled (already read) on the first delivery
+  if (league.version < 19) toV19(league);
+  if (league.version < 20) league.version = 20; // v20: optional `inbox`, filled (already read) on the first delivery
   return league;
 }
 
@@ -249,4 +250,10 @@ function toV15(league: League) {
 function toV17(league: League) {
   addQbProtection(league);
   league.version = 17;
+}
+
+/** v18 → v19: the special teams coordinator, a new chair: every team hires one, and the market gets candidates. */
+function toV19(league: League) {
+  addSpecialTeamsCoordinators(league);
+  league.version = 19;
 }
