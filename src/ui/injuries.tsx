@@ -154,6 +154,12 @@ export function HealthSection({ league, player: p }: { league: League; player: P
             </button>
           )}
           {team && <span className="muted small">{IR_RETURNS - irReturnsUsed(league, team.id)} of {IR_RETURNS} return designations left this season</span>}
+          {/* Why a button is greyed out, on screen: its title tooltip never shows on a phone. */}
+          {[!p.ir && irBlock, p.ir && activateBlock, inj && !p.ir && !inj.injected && injectBlock].filter((why): why is string => !!why).map((why) => (
+            <p key={why} className="muted small" style={{ margin: 0, flexBasis: '100%' }}>
+              {why}
+            </p>
+          ))}
         </div>
       )}
       {history.length > 0 ? (

@@ -206,9 +206,9 @@ h3 {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* Not every tab fits: the fade says more scroll in from the right. */
+  /* Not every tab fits: faded edges say more scroll in from that side. */
   .tabs {
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 28px), transparent);
     /* ...and a tab scrolled into view stops clear of it. */
     scroll-padding-inline: 32px;
   }
@@ -2071,6 +2071,15 @@ details.more > summary {
     padding: 6px 9px;
   }
 }
+/* Phones: two rows instead of a strip that hides the last tabs off to the right. */
+@media (max-width: 640px) {
+  .office-tabs {
+    flex-wrap: wrap;
+  }
+  .office-tabs button {
+    flex: 1 1 auto;
+  }
+}
 .staff-notice {
   display: flex;
   flex-wrap: wrap;
@@ -2620,9 +2629,12 @@ tr.stat-total td {
 }
 .risk-medium {
   background: var(--tie);
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
 }
 .risk-high {
   background: var(--loss);
+  border-radius: 1px;
 }
 .risk-dot.risk-early {
   background: transparent;
