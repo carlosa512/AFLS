@@ -179,6 +179,8 @@ export interface Player {
   quirkBag?: Record<string, number>;
   /** Recent quirks gained and lost (week 0 = the offseason), oldest first. */
   quirkLog?: { id: QuirkId; change: 'gained' | 'lost'; season: number; week: number }[];
+  /** Between games, from his quirks: shaken for his next game (a beaten QB), a kicker's slump. */
+  form?: { shaken?: boolean; slump?: { season: number; untilWeek: number } };
   /** Season year → accumulated stats. */
   stats: Record<number, StatLine>;
   /** Season year → the teams he played for that season, in order (regular season). Older saves may lack early years. */
@@ -481,6 +483,8 @@ export interface GameResult {
   /** Player id → team id at kickoff, so box scores survive trades and retirements. */
   playerTeams: Record<number, number>;
   plays?: PlayLogEntry[];
+  /** What the game did to players' form (player id → change): see `recordForm` in `quirks.ts`. */
+  form?: Record<number, { shaken?: true; slump?: 'start' | 'end'; clutch?: true }>;
 }
 
 export interface Game {

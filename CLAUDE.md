@@ -63,7 +63,8 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   - `quirks.ts` on-field habits (registry, the marble bag, grip, `activeQuirks`): they change with
     weekly and offseason draws; the engine reads them through `has()` in `match/gameSim.ts`, screens
     through `quirkNotes` in `scouting.ts` (seen on film, so the fog of war applies); AI front offices
-    value them through `quirkWorth` (only what their own scouts have seen)
+    value them through `quirkWorth` (only what their own scouts have seen); game states (Rattled, Shaken, a kicker's
+    slump) and event marbles go through `recordForm`, called from `recordResult` in `league.ts`
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)

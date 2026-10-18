@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createLeague, generatePlayer } from './generate';
+import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
-import { activeQuirks, fillBag, formingQuirks, generateQuirks, isSpecial, QUIRK_IDS, QUIRKS, QUIRKS_FOR, quirkOffseason, quirkWeek } from './quirks';
+import { activeQuirks, eventQuirks, fillBag, formFor, formingQuirks, generateQuirks, isSpecial, QUIRK_IDS, QUIRKS, QUIRKS_FOR, quirkOffseason, quirkWeek, recordForm, schemeQuirks, SLUMP_WEEKS } from './quirks';
+import { simulateGame } from './match/gameSim';
+import { teamScheme } from './coaching';
 import { Rng } from './rng';
 import { knowledge, QUIRK_KNOWLEDGE, quirkNotes, quirkWorth, trueQuirkWorth } from './scouting';
 import type { Player } from './types';
@@ -96,6 +98,58 @@ describe('quirks', () => {
     expect(trueQuirkWorth(unseen)).toBeLessThan(0);
   });
 
+  it('drop marbles for big games and big seasons, at his position only', () => {
+    const qb = player(5);
+    expect(eventQuirks(qb, { sacked: 5, passInt: 3 })).toEqual(['seesGhosts', 'staresDown']);
+    expect(eventQuirks(qb, { sacked: 4 })).toEqual([]);
+    expect(eventQuirks(qb, { sacked: 45 }, true)).toEqual(['seesGhosts']);
+    // A sack-happy stat line on a quarterback earns nothing a pass rusher would.
+    expect(eventQuirks(qb, { sacks: 3 })).toEqual([]);
+  });
+
+  it('carry form between games: shaken for one game, a slump for up to three weeks', () => {
+    const league = createLeague({ seed: 'quirk-form' });
+    const qb = Object.values(league.players).find((p) => p.position === 'QB' && p.teamId !== null)!;
+    const k = Object.values(league.players).find((p) => p.position === 'K' && p.teamId !== null)!;
+    recordForm(league, qb, 3, { sacked: 6 }, { shaken: true });
+    expect(formFor(league, qb, 4).shaken).toBe(true);
+    // The next game uses it up.
+    recordForm(league, qb, 4, {}, undefined);
+    expect(formFor(league, qb, 5).shaken).toBe(false);
+    const yipsBefore = k.quirkBag?.yips ?? 0;
+    recordForm(league, k, 5, {}, { slump: 'start' });
+    expect(k.quirkBag!.yips).toBe(yipsBefore + 1);
+    expect(formFor(league, k, 5 + SLUMP_WEEKS).slump).toBe(true);
+    expect(formFor(league, k, 6 + SLUMP_WEEKS).slump).toBe(false);
+    recordForm(league, k, 6, {}, { slump: 'end' });
+    expect(formFor(league, k, 7).slump).toBe(false);
+    expect(k.form).toBeUndefined();
+  });
+
+  it('rattle a quarterback who sees ghosts once he has been sacked twice', () => {
+    const league = createLeague({ seed: 'quirk-ghosts' });
+    for (const p of Object.values(league.players)) p.quirks = p.position === 'QB' ? { seesGhosts: 3 } : undefined;
+    const games = league.games.filter((g) => g.week <= 4);
+    const results = games.map((g) => simulateGame(league, g, { keepPlays: true }));
+    const rattled = results.flatMap((r) => r.plays!.filter((p) => p.text.includes('looks rattled')));
+    expect(rattled.length).toBeGreaterThan(0);
+    // A beating (five sacks) leaves him shaken for next week.
+    const beaten = results.filter((r) => Object.values(r.form ?? {}).some((f) => f.shaken));
+    for (const r of beaten) for (const [id, f] of Object.entries(r.form!)) if (f.shaken) expect(r.playerStats[Number(id)].sacked).toBeGreaterThanOrEqual(5);
+  });
+
+  it('teach a scheme\'s habits in the offseason refill', () => {
+    const league = createLeague({ seed: 'quirk-scheme' });
+    const team = league.teams.find((t) => teamScheme(league, t.id).coverage?.man)!;
+    const cb = Object.values(league.players).find((p) => p.teamId === team.id && p.position === 'CB')!;
+    expect(schemeQuirks(league, cb)).toContain('physicalJammer');
+    const zone = league.teams.find((t) => teamScheme(league, t.id).coverage && !teamScheme(league, t.id).coverage!.man)!;
+    const lb = Object.values(league.players).find((p) => p.teamId === zone.id && p.position === 'LB')!;
+    expect(schemeQuirks(league, lb)).toEqual(expect.arrayContaining(['zoneHawk', 'spotDrop']));
+    // Every scheme marble is one his position can draw.
+    for (const p of Object.values(league.players).slice(0, 500)) for (const q of schemeQuirks(league, p)) expect(QUIRKS_FOR[p.position]).toContain(q);
+  });
+
   it('upgrade a v10 save with the same quirks a new league would roll', () => {
     const league = createLeague({ seed: 'quirk-migrate' });
     const fresh = copy(league);
@@ -106,7 +160,7 @@ describe('quirks', () => {
       delete p.quirkBag;
     }
     const up = migrateLeague(old)!;
-    expect(up.version).toBe(11);
+    expect(up.version).toBe(SAVE_VERSION);
     for (const p of Object.values(up.players)) if (!p.retired) expect(p.quirks).toEqual(fresh.players[p.id].quirks);
   });
 });

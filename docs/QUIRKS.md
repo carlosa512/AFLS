@@ -1,7 +1,8 @@
 # Quirks — design sketch
 
-Status: **steps 1 and 2 built** (§7): the bag, grip, 81 quirks (every Tier A quirk), the engine
-hooks, scouting, the player card and AI front offices valuing what their scouts see. Goal: FM-style player habits ("Stares down his first read",
+Status: **steps 1–3 built** (§7): the bag, grip, 83 quirks (every Tier A quirk), the engine hooks,
+scouting, the player card, AI front offices valuing what their scouts see, game states (Rattled,
+Shaken, kicking slumps) and event, season and scheme marbles. Goal: FM-style player habits ("Stares down his first read",
 "Ice-water veins") that make players feel alive. A player can carry several, and gains and loses
 them across a career and within a season, driven by a seeded **marble bag**.
 
@@ -91,8 +92,10 @@ Refilled each league year. Counts are per player, with a handful of each:
 - Targets are **per quirk**, so they hold however many quirks a position has (`npm run quirks`
   checks them): each quirk carried by 6–12% of the players who can draw it, gained by 0.8–1.8% and
   lost by 0.5–1.5% of them each season. With the full list (twelve a position) that puts about 60%
-  of players on at least one quirk (about 50–55% in `npm run quirks` today).
-- Tuned numbers (`quirks.ts`): blanks 120 / 192 / 300 (age ≤24 / 25–29 / 30+), a fixed count so
+  of players on at least one quirk. Today: about 7% a quirk in `npm run quirks` (no turnover, so
+  the league ages) and about 5.5% in a real league with drafts and retirements (45% of players on
+  at least one).
+- Tuned numbers (`quirks.ts`): blanks 96 / 154 / 240 (age ≤24 / 25–29 / 30+), a fixed count so
   a position with more quirks doesn't dilute each one; fix marbles
   11 against a bad habit (±1 for the position coach, +1 for a hard worker), 8 against a good or
   style one. Fix marbles far outnumber a quirk's own 2–3, so a habit lasts a few seasons, not a
@@ -314,9 +317,25 @@ weather/injuries exist (each of those systems then unlocks its quirks for free).
 
    Not yet: scheme and last-season marbles in the bag, the "seems to have fixed…" note for a lost
    quirk, the draft-board column, Long-Range Gambler for kickers. The 4th slot is possible now but
-   very rare (an ingrained fourth quirk); tuning it is part of the fine-tuning pass. Sees Ghosts and
-   Yips wait for step 3.
-3. **States** (Rattled, Yips slump) and **event marbles**.
+   very rare (an ingrained fourth quirk); tuning it is part of the fine-tuning pass.
+3. ✅ **States and event marbles.**
+   - Two new quirks: **Sees Ghosts** (QB) and **Yips Susceptibility** (K).
+   - **Rattled**: a QB who sees ghosts is rattled after his 2nd sack (−3 decisions, −1.5
+     accuracy) until halftime or three straight completions (a coin flip each). Five sacks while
+     rattled leave him **Shaken** for his next game (half strength from the start).
+   - **Kicking slump**: a kicker with the yips is shakier for the rest of a game after any miss
+     (misses ×1.8); a miss in a close fourth quarter, or a second miss, starts a slump of up to
+     3 weeks; a clutch make ends it. Form lives on `Player.form`, is shown on the player card and
+     clears each new league year.
+   - **Event marbles** (`EVENTS` in `quirks.ts`): a game past a threshold drops one marble in his
+     bag (5 sacks taken → Sees Ghosts, 3 picks thrown → Stares Down, 2 fumbles → Loose Carriage,
+     2 sacks allowed → Heavy Feet, 2 sacks → First-Step Flash, 3 TFLs → Gap-Shooter, 2 picks →
+     Plays the Ball, 2 forced fumbles → Ball-Stripper, a blocked punt → Sling-Foot); a clutch
+     make → Ice-Water, a slump → Yips.
+   - **Season marbles**: the same table on last season's totals adds two each to the refill.
+   - **Scheme marbles**: zone runs → Patient Presser, Second-Level Hunter; gap runs → Pancake
+     Preacher; heavy play action → Manipulates Safety Eyes; press man → Physical Jammer; zone
+     coverage → Zone Hawk, Spot-Drop Coverer; a blitz-happy front → Green-Dog.
 4. **Tier B engine events** (batted passes, strip-sacks, OPI, sideline catches, decoys, WR run blocking).
 5. **Tier C** after weather and injury systems exist.
 

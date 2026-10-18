@@ -16,11 +16,11 @@
  * to show. Grip 2: established (the engine applies it). Grip 3: ingrained, and only half of the fix
  * marbles drawn against it stick. So habits form and fade over weeks and seasons, never overnight.
  */
-import { coachingFor } from './coaching';
+import { coachingFor, teamScheme } from './coaching';
 import { playerOvr } from './positions';
 import { clamp, Rng } from './rng';
 import { TRAIT_MEAN } from './traits';
-import type { League, Player, Position } from './types';
+import type { League, Player, Position, StatKey, StatLine } from './types';
 
 export type QuirkTone = 'good' | 'bad' | 'style';
 
@@ -52,6 +52,7 @@ export const QUIRKS = {
   noHuddle: { label: 'Thrives in No-Huddle', positions: ['QB'], tone: 'good', clause: 'is at his sharpest when the offense goes fast', effect: 'More accurate, better decisions in hurry-up.' },
   bailsEarly: { label: 'Bails Early', positions: ['QB'], tone: 'bad', clause: 'leaves the pocket at the first sign of pressure', effect: 'Scrambles more, and cuts deep throws short.' },
   patsTheBall: { label: 'Pat-The-Rock', positions: ['QB'], tone: 'bad', clause: 'pats the ball before he throws, giving the rush an extra beat', effect: 'More pressure, and more strip-sacks.' },
+  seesGhosts: { label: 'Sees Ghosts', positions: ['QB'], tone: 'bad', clause: 'gets rattled once he has been hit, and forces throws after that', effect: 'After his second sack in a game: worse decisions and accuracy, more interceptions. A beating carries into the next game.' },
   hardCount: { label: 'Hard-Count Fiend', positions: ['QB'], tone: 'style', clause: 'lives on the hard count', effect: 'Draws more offsides, and his own line jumps now and then.' },
   // ── RB ──
   finishesForward: { label: 'Finishes Forward', positions: ['RB'], tone: 'good', clause: 'always falls forward for an extra yard', effect: 'A yard more on short runs.' },
@@ -127,6 +128,7 @@ export const QUIRKS = {
   offMan: { label: 'Off-Man Specialist', positions: DBS, tone: 'style', clause: 'plays off and keeps everything in front', effect: 'Fewer deep completions, more short ones.' },
   // ── K / P ──
   iceWater: { label: 'Ice-Water Veins', positions: ['K'], tone: 'good', clause: 'is at his best when the game is on the line', effect: 'More accurate on fourth-quarter kicks in close games.' },
+  yips: { label: 'Yips Susceptibility', positions: ['K'], tone: 'bad', clause: 'loses his nerve after a big miss', effect: 'Shakier for the rest of a game after a miss; a miss late in a close game starts a slump of up to three weeks.' },
   boomerLeg: { label: 'Boomer Leg', positions: ['K'], tone: 'style', clause: 'has a cannon, but sprays the short ones', effect: 'Longer range and more touchbacks, a little shakier inside 40 yards.' },
   coffinCorner: { label: 'Coffin-Corner Specialist', positions: ['P'], tone: 'good', clause: 'pins teams inside the 10', effect: 'Better placement from plus territory.' },
   outkicksCoverage: { label: 'Out-Kicks His Coverage', positions: ['P'], tone: 'bad', clause: 'booms it with no hang time, and returners feast', effect: 'Longer punts, much longer returns.' },
@@ -185,7 +187,7 @@ export function formingQuirks(p: Player): QuirkId[] {
  */
 const blanksFor = (age: number) => (age <= 24 ? BLANKS[0] : age <= 29 ? BLANKS[1] : BLANKS[2]);
 export const FIX: [number, number] = [11, 8];
-export const BLANKS: [number, number, number] = [120, 192, 300];
+export const BLANKS: [number, number, number] = [96, 154, 240];
 
 /**
  * A fresh bag for the league year. Every quirk his position can draw gets a few marbles (style ones a
@@ -293,6 +295,9 @@ export function generateQuirks(p: Player): void {
 export function quirkOffseason(league: League, p: Player): void {
   const rng = new Rng(`${league.seed}:quirks:${league.season}:${p.id}`);
   p.quirkBag = fillBag(p, coachingFor(league, p.teamId, p.position).rate);
+  seasonMarbles(league, p);
+  // A new year: last season's slump and beating are behind him.
+  delete p.form;
   draw(rng, p, OFFSEASON_DRAWS, { season: league.season, week: 0 });
 }
 
@@ -305,4 +310,92 @@ export function quirkWeek(league: League): void {
     p.quirkBag ??= fillBag(p, coachingFor(league, p.teamId, p.position).rate);
     draw(rng, p, 1, { season: league.season, week: league.week });
   }
+}
+
+// ───────── events: what happens on the field feeds the bag ─────────
+
+/**
+ * Games that leave a mark: a stat line past `game` in one game drops one marble for the quirk in his
+ * bag; a season past `season` adds two to next year's refill. The draw still decides: a beating makes
+ * a habit likelier, never certain.
+ */
+const EVENTS: { quirk: QuirkId; stat: StatKey; game: number; season: number }[] = [
+  { quirk: 'seesGhosts', stat: 'sacked', game: 5, season: 45 },
+  { quirk: 'staresDown', stat: 'passInt', game: 3, season: 15 },
+  { quirk: 'looseCarriage', stat: 'fumbles', game: 2, season: 5 },
+  { quirk: 'heavyFeet', stat: 'sacksAllowed', game: 2, season: 8 },
+  { quirk: 'firstStep', stat: 'sacks', game: 2, season: 10 },
+  { quirk: 'gapShooter', stat: 'tfl', game: 3, season: 15 },
+  { quirk: 'playsTheBall', stat: 'defInt', game: 2, season: 5 },
+  { quirk: 'ballStripper', stat: 'forcedFum', game: 2, season: 4 },
+  { quirk: 'slingFoot', stat: 'puntsBlocked', game: 1, season: 2 },
+];
+
+/** The quirks one stat line (a game, or a season with `season`) earns marbles for, at his position. */
+export function eventQuirks(p: Player, line: StatLine | undefined, season = false): QuirkId[] {
+  if (!line) return [];
+  return EVENTS.filter((e) => QUIRKS_FOR[p.position].includes(e.quirk) && (line[e.stat] ?? 0) >= (season ? e.season : e.game)).map((e) => e.quirk);
+}
+
+/** Drop marbles into a player's bag (no draw: the odds change, the dice still decide). */
+export function addMarbles(league: League, p: Player, quirks: readonly QuirkId[], n = 1): void {
+  if (!quirks.length || p.retired) return;
+  const bag = (p.quirkBag ??= fillBag(p, coachingFor(league, p.teamId, p.position).rate));
+  for (const q of quirks) if (QUIRKS_FOR[p.position].includes(q)) bag[q] = (bag[q] ?? 0) + n;
+}
+
+/**
+ * What a player's scheme teaches him: a season in it adds a marble for the habit it builds (zone
+ * runs teach patience, press man teaches the jam, a blitz-happy front teaches the green dog).
+ */
+export function schemeQuirks(league: League, p: Player): QuirkId[] {
+  if (p.teamId === null) return [];
+  const { offense, front, coverage } = teamScheme(league, p.teamId);
+  const out: QuirkId[] = [];
+  if (offense.outside >= 0.55) out.push('patientPresser', 'secondLevel');
+  if (offense.outside <= 0.3) out.push('pancakePreacher');
+  if (offense.playAction >= 0.25) out.push('safetyEyes');
+  if (coverage?.man) out.push('physicalJammer');
+  else if (coverage) out.push('zoneHawk', 'spotDrop');
+  if (front.blitz >= 1.5) out.push('greenDog');
+  return out.filter((q) => QUIRKS_FOR[p.position].includes(q));
+}
+
+/** The refill's extra marbles: last season's numbers (two each) and his scheme (one each). */
+function seasonMarbles(league: League, p: Player): void {
+  addMarbles(league, p, eventQuirks(p, p.stats[league.season - 1], true), 2);
+  addMarbles(league, p, schemeQuirks(league, p));
+}
+
+// ───────── form: states that carry from one game to the next ─────────
+
+/** Weeks a kicker's slump can last. */
+export const SLUMP_WEEKS = 3;
+
+/** A player's form going into a game in `week`: shaken (a QB after a beating) and slumping (a kicker). */
+export function formFor(league: League, p: Player, week: number): { shaken: boolean; slump: boolean } {
+  const f = p.form;
+  return { shaken: !!f?.shaken, slump: !!f?.slump && f.slump.season === league.season && week <= f.slump.untilWeek };
+}
+
+/** Apply what a game did to a player's form, and the marbles it earned. */
+export function recordForm(league: League, p: Player, week: number, line: StatLine, form: { shaken?: true; slump?: 'start' | 'end'; clutch?: true } | undefined): void {
+  // Shaken lasts one game: the one just played used it up.
+  if (form?.shaken) (p.form ??= {}).shaken = true;
+  else if (p.form?.shaken) delete p.form.shaken;
+  if (form?.slump === 'start') {
+    (p.form ??= {}).slump = { season: league.season, untilWeek: week + SLUMP_WEEKS };
+    addMarbles(league, p, ['yips']);
+  } else if (form?.slump === 'end' && p.form?.slump) delete p.form.slump;
+  if (form?.clutch) addMarbles(league, p, ['iceWater']);
+  if (p.form && !p.form.shaken && !p.form.slump) delete p.form;
+  addMarbles(league, p, eventQuirks(p, line));
+}
+
+/** Form in words, for a screen (public: the press sees a slump and a beating as well as you do). */
+export function formNote(league: League, p: Player): string | null {
+  const f = formFor(league, p, league.week);
+  if (f.slump) return 'In a kicking slump';
+  if (f.shaken) return 'Shaken after a beating';
+  return null;
 }

@@ -5,7 +5,7 @@
 import { awardSeason, awardWeek } from './awards';
 import { simulateGame, startGame, type LiveGame } from './match/gameSim';
 import { simOffseason } from './offseason';
-import { quirkWeek } from './quirks';
+import { quirkWeek, recordForm } from './quirks';
 import { Rng } from './rng';
 import { aiTradeWeek } from './trade';
 import { syncDepthChart } from './roster';
@@ -50,6 +50,11 @@ function prepareGame(league: League, game: Game) {
 export function recordResult(league: League, game: Game, result: GameResult): void {
   if (game.result) return;
   game.result = result;
+  // Form and the marbles a game drops in a player's bag (playoffs too: a big game leaves a mark).
+  for (const [id, line] of Object.entries(result.playerStats)) {
+    const player = league.players[Number(id)];
+    if (player) recordForm(league, player, game.week, line, result.form?.[Number(id)]);
+  }
   if (game.playoffRound) return; // Season stat totals are regular season only.
   for (const [id, line] of Object.entries(result.playerStats)) {
     const player = league.players[Number(id)];

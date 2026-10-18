@@ -13,7 +13,7 @@
  */
 import { createLeague } from '../src/engine/generate';
 import { simulateGame } from '../src/engine/match/gameSim';
-import { activeQuirks, QUIRK_IDS, QUIRKS, QUIRKS_FOR, quirkOffseason, quirkWeek, type QuirkId } from '../src/engine/quirks';
+import { activeQuirks, QUIRK_IDS, QUIRKS, QUIRKS_FOR, quirkOffseason, recordForm, quirkWeek, type QuirkId } from '../src/engine/quirks';
 import { REGULAR_SEASON_WEEKS } from '../src/engine/season/schedule';
 import type { GameResult, League, StatKey } from '../src/engine/types';
 
@@ -164,7 +164,7 @@ function effectAudit() {
     fluidHips: ['yds/att', -1], bitesOnDoubleMoves: ['yds/rec', 1], playsTheBall: ['int%', 1],
     iceWater: ['fg%', 1], boomerLeg: ['opp kr/g', -1], coffinCorner: ['ret yds/punt', -1], outkicksCoverage: ['ret yds/punt', 1],
     // Step 2.
-    safetyEyes: ['yds/att', 1], noHuddle: ['yds/att', 1], bailsEarly: ['QB runs/g', 1], patsTheBall: ['sack%', 1], hardCount: ['penalties', 1],
+    seesGhosts: ['int%', 1], yips: ['fg%', -1], safetyEyes: ['yds/att', 1], noHuddle: ['yds/att', 1], bailsEarly: ['QB runs/g', 1], patsTheBall: ['sack%', 1], hardCount: ['penalties', 1],
     patientPresser: ['yds/carry', 1], blitzPickup: ['sack%', -1], softHands: ['RB+TE yds/tgt', 1], highKnee: ['fumbles%', 1],
     jumpCutter: ['stuff%', 1], bouncesExternal: ['stuff%', 1], shortArm: ['cmp%', -1], contactAverse: ['yds/carry', -1],
     lateHands: ['cmp%', 1], stemsDB: ['yds/att', 1], getsJammed: ['yds/att', -1], bodyCatcher: ['cmp%', -1], runsEastWest: ['yds/rec', -1],
@@ -191,12 +191,16 @@ function effectAudit() {
   const run = (l: League, from: number, to: number): Rows => {
     league = l;
     const rows: Rows = Object.fromEntries(Object.keys(METRICS).map((k) => [k, []]));
-    for (let s = from; s < to; s++)
-      for (const g of l.games.filter((g) => !g.playoffRound)) {
+    for (let s = from; s < to; s++) {
+      // Form carries from game to game (a slump, a beating), as in a real season; each replay starts fresh.
+      for (const p of Object.values(l.players)) delete p.form;
+      for (const g of l.games.filter((g) => !g.playoffRound).sort((a, b) => a.week - b.week)) {
         const r = simulateGame(l, g, { seed: `audit:${s}:${g.id}` });
+        for (const [id, line] of Object.entries(r.playerStats)) recordForm(l, l.players[Number(id)], g.week, line, r.form?.[Number(id)]);
         teams = [g.homeId, g.awayId];
         for (const side of [0, 1] as const) for (const [k, m] of Object.entries(METRICS)) rows[k].push(m.take(r, side));
       }
+    }
     return rows;
   };
   const ratio = (rows: [number, number][]): [number, number] => {

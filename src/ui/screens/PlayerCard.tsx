@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { honorBadges, playerHonors } from '../../engine/awards';
 import { POSITION_NAMES } from '../../engine/positions';
 import { careerOutlook, isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
-import { quirkInfo } from '../../engine/quirks';
+import { formNote, quirkInfo } from '../../engine/quirks';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
 import { editPlayerIdentity, identityProblem } from '../../engine/roster';
 import { careerLine, passerRating } from '../../engine/stats';
@@ -193,6 +193,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const report = scoutReport(league, league.userTeamId, p);
   const makeup = makeupOf(league, p);
   const habits = quirksOf(league, p);
+  const form = formNote(league, p);
   const reps = repsOf(league, p);
   // Film reveals a veteran's makeup over time; for anyone else a scouting visit (a sit-down) is the way.
   const sitDownHint = !makeup.known && p.teamId !== league.userTeamId && !p.retired && league.scoutPoints > 0;
@@ -316,6 +317,12 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                 <QuirkPills notes={habits.notes} />
               )}
             </span>
+            {form && (
+              <span className="fact">
+                <span className="eyebrow">Form</span>
+                <span className="tone-bad">{form}</span>
+              </span>
+            )}
             {fit && (
               <span className="fact" title={`Your ${fitSide} leans on ${fit.skills.join(', ')}${view.exact ? '' : ' (as your scouts read him)'}.`}>
                 <span className="eyebrow">Fit · {fitScheme}</span>

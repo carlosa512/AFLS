@@ -8,7 +8,7 @@
  */
 import { skill } from '../attributes';
 import { callerStyle, type CallerStyle } from '../coaching';
-import { activeQuirks, type QuirkId } from '../quirks';
+import { activeQuirks, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
 import type { Game, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
 import { MAX_STATS } from '../types';
@@ -240,6 +240,17 @@ class GameSim {
   private quirkSets = new Map<number, ReadonlySet<QuirkId>>();
   /** Scrimmage snaps in the current possession: long drives wear a defensive line down. */
   private driveSnaps = 0;
+  /** Quarterbacks who see ghosts, by player id: 1 rattled, 0.5 still shaken from last week. */
+  private rattled = new Map<number, number>();
+  private everRattled = new Set<number>();
+  private sacksTaken = new Map<number, number>();
+  /** Straight completions by a rattled quarterback: three in a row can settle him. */
+  private streak = new Map<number, number>();
+  /** Kickers with the yips who have lost their nerve, and their misses so far. */
+  private slumping = new Set<number>();
+  private misses = new Map<number, number>();
+  /** What this game did to players' form, for `recordForm` once it's recorded. */
+  private formOut: NonNullable<GameResult['form']> = {};
 
   constructor(
     private league: League,
@@ -253,6 +264,11 @@ class GameSim {
     this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
     this.qbLeans = qbLeans(league, [this.lineups[0].qb, this.lineups[1].qb]);
+    // Form carried in from last week: a quarterback still shaken, a kicker in a slump.
+    for (const l of this.lineups) {
+      if (this.has(l.qb, 'seesGhosts') && formFor(league, l.qb, game.week).shaken) this.rattled.set(l.qb.id, 0.5);
+      if (this.has(l.k, 'yips') && formFor(league, l.k, game.week).slump) this.slumping.add(l.k.id);
+    }
   }
 
   run(): GameResult {
@@ -343,7 +359,8 @@ class GameSim {
   private kickMakes(distance: number, k: Player): number {
     let p = this.fgProb(distance, k) - 0.01;
     if (this.has(k, 'boomerLeg')) p = distance >= 50 ? this.fgProb(distance - 4, k) - 0.01 : distance < 40 ? 1 - (1 - p) * 1.3 : p;
-    if (this.has(k, 'iceWater') && this.quarter >= 4 && Math.abs(this.score[this.offense] - this.score[this.def]) <= 8) p = 1 - (1 - p) * 0.5;
+    if (this.has(k, 'iceWater') && this.clutch()) p = 1 - (1 - p) * 0.5;
+    if (this.slumping.has(k.id)) p = 1 - (1 - p) * 1.8;
     return clamp(p, 0, 1);
   }
 
@@ -466,6 +483,8 @@ class GameSim {
       return;
     }
     if (q === 2) {
+      // Halftime: a rattled quarterback gets a coin flip's chance to clear his head.
+      for (const id of [...this.rattled.keys()]) if (this.rng.chance(0.5)) this.rattled.delete(id);
       this.quarter = 3;
       this.clock = QUARTER_SECONDS;
       this.timeouts = [3, 3];
@@ -724,6 +743,7 @@ class GameSim {
     buf.add(k, 'fgAtt');
     this.playTime(this.rng.int(4, 6));
     const made = this.rng.chance(this.kickMakes(distance, k));
+    this.kickForm(k, made);
     this.setAnim(this.offense, 'fg', this.yardLine - 7, 110, 110);
     if (made) {
       buf.add(k, 'fgMade');
@@ -1019,7 +1039,9 @@ class GameSim {
     const homeAdj = this.offense === 0 ? this.homeEdge : -this.homeEdge;
     // A quarterback who thrives in the hurry-up is sharper in it.
     const fast = coach.tempo(s) === 'hurry' && this.has(qb, 'noHuddle') ? 1.5 : 0;
-    const decisions = skill(qb, 'decisionMaking') + fast;
+    // A rattled quarterback rushes his reads and forces throws into covered windows.
+    const ghosts = this.rattled.get(qb.id) ?? 0;
+    const decisions = skill(qb, 'decisionMaking') + fast - 3 * ghosts;
 
     const rushAdj = { base: 0, runD: 0.3, passD: -1, blitz: 2.5 }[defCall];
     // A back who picks up the blitz buys his quarterback time; one who whiffs gets him hit.
@@ -1119,7 +1141,7 @@ class GameSim {
     if (sep > SEP_ROLL) sep = SEP_ROLL + (sep - SEP_ROLL) * 0.5;
 
     // Past a point, placement can't beat physics: the best arms complete a few more, not every throw.
-    const rawAcc = skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy') + fast;
+    const rawAcc = skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy') + fast - 1.5 * ghosts;
     const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
     let pComplete = { short: 0.79, medium: 0.6, deep: 0.38 }[depth] + 0.018 * (acc - 12) + 0.019 * sep + 0.012 * (skill(receiver, 'hands') - 12);
     if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
@@ -1244,6 +1266,42 @@ class GameSim {
   /** Ball-skill points a defender's quirks add: a zone hawk in zone, a ball hawk anywhere, a baiter on short throws. */
   private ballHawk(defender: Player, zone: boolean, depth: PassDepth): number {
     return (zone && this.has(defender, 'zoneHawk') ? 5 : 0) + (this.has(defender, 'playsTheBall') ? 4 : 0) + (depth === 'short' && this.has(defender, 'baitsQB') ? 7 : 0);
+  }
+
+  /** A kick that counts: fourth quarter or overtime, within one score. */
+  private clutch(): boolean {
+    return this.quarter >= 4 && Math.abs(this.score[this.offense] - this.score[this.def]) <= 8;
+  }
+
+  /**
+   * A field goal's mark on a kicker's form. A clutch make earns an ice-water marble and ends a slump;
+   * a kicker with the yips loses his nerve for the game on any miss, and a clutch miss (or a second
+   * miss) starts a slump that carries into the coming weeks.
+   */
+  private kickForm(k: Player, made: boolean) {
+    const out = (this.formOut[k.id] ??= {});
+    if (made) {
+      if (!this.clutch()) return;
+      out.clutch = true;
+      if (this.slumping.delete(k.id)) out.slump = 'end';
+      return;
+    }
+    if (!this.has(k, 'yips')) return;
+    this.slumping.add(k.id);
+    const misses = (this.misses.get(k.id) ?? 0) + 1;
+    this.misses.set(k.id, misses);
+    if (this.clutch() || misses >= 2) out.slump = 'start';
+  }
+
+  /** A rattled quarterback settles after three straight completions, about half the time. */
+  private settle(qb: Player, complete: boolean) {
+    if (!this.rattled.has(qb.id)) return;
+    const run = complete ? (this.streak.get(qb.id) ?? 0) + 1 : 0;
+    this.streak.set(qb.id, run);
+    if (run >= 3) {
+      this.streak.set(qb.id, 0);
+      if (this.rng.chance(0.5)) this.rattled.delete(qb.id);
+    }
   }
 
   /** A defensive line tires on long drives and against the hurry-up. */
@@ -1379,7 +1437,15 @@ class GameSim {
     buf.add(sacker, 'tackles');
     buf.add(sacker, 'tfl');
     this.creditPressure(buf, sacker, defCall, true);
-    const text = `${short(qb)} SACKED by ${short(sacker)} for -${loss} yards`;
+    let text = `${short(qb)} SACKED by ${short(sacker)} for -${loss} yards`;
+    const taken = (this.sacksTaken.get(qb.id) ?? 0) + 1;
+    this.sacksTaken.set(qb.id, taken);
+    if (taken >= 2 && (this.rattled.get(qb.id) ?? 0) < 1 && this.has(qb, 'seesGhosts')) {
+      this.rattled.set(qb.id, 1);
+      this.everRattled.add(qb.id);
+      this.streak.set(qb.id, 0);
+      text += `. ${short(qb)} looks rattled`;
+    }
     const result: PlayResult = { kind: 'sack', yards: -loss, text, duration: this.rng.int(4, 6), clockStops: false, stats: buf };
     // A quarterback who pats the ball before he throws gives the rusher a swipe at it.
     if (this.rng.chance(this.has(qb, 'patsTheBall') ? 0.18 : 0.1)) {
@@ -1511,6 +1577,7 @@ class GameSim {
         ts.passCmp++;
         ts.passYds += result.yards;
       }
+      if (result.kind === 'pass') this.settle(this.lineups[offSide].qb, !!result.complete);
     } else if (result.kind === 'sack') {
       ts.sacked++;
       ts.passYds += result.yards;
@@ -1605,7 +1672,11 @@ class GameSim {
     const [home, away] = this.teamStats;
     home.totalYds = home.passYds + home.rushYds;
     away.totalYds = away.passYds + away.rushYds;
+    // A quarterback who saw ghosts and took a beating carries it into his next game.
+    for (const id of this.everRattled) if ((this.sacksTaken.get(id) ?? 0) >= 5) (this.formOut[id] ??= {}).shaken = true;
+    for (const [id, f] of Object.entries(this.formOut)) if (!Object.keys(f).length) delete this.formOut[Number(id)];
     return {
+      ...(Object.keys(this.formOut).length ? { form: this.formOut } : {}),
       homeScore: this.score[0],
       awayScore: this.score[1],
       overtime: this.quarter >= 5,
