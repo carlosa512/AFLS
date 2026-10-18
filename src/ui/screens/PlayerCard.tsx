@@ -6,6 +6,7 @@ import { formNote } from '../../engine/quirks';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
 import { editPlayerIdentity, identityProblem } from '../../engine/roster';
 import { careerLine, passerRating } from '../../engine/stats';
+import { consensusRank } from '../../engine/offseason/draft';
 import type { League, Player, StatLine } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
 import { playerCoachLine } from '../coaching';
@@ -19,6 +20,26 @@ import { spotsFor } from '../../engine/schemes';
 import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, QuirkPills, quirksOf, repsOf, ScoutButton, StarScaleToggle, Stars, schemeFitOf, starsOf, useStarScale, viewOf } from '../scouting';
 
 type Col = [label: string, value: (s: StatLine) => string | number];
+
+/** Where he went in the draft and how the consensus read him then (or now, for a prospect). */
+function DraftLine({ league, player: p }: { league: League; player: Player }) {
+  const c = p.scouting;
+  const read = c ? `grade ${c.grade.toFixed(1)}, ceiling ${c.ceiling.toFixed(1)}` : '';
+  if (isProspect(p))
+    return (
+      <p className="muted small" style={{ margin: 0 }}>
+        {league.season} draft class: consensus #{consensusRank(league, p)} ({read}).
+      </p>
+    );
+  const d = p.draft;
+  if (!d) return null;
+  return (
+    <p className="muted small" style={{ margin: 0 }}>
+      Drafted {d.season}: round {d.round}, No. {d.pick} by {league.teams[d.teamId].abbrev}.
+      {c && ` Consensus${d.rank !== undefined ? ` #${d.rank}` : ''} at the time: ${read}.`}
+    </p>
+  );
+}
 
 function statColumns(p: Player): Col[] {
   const n = (k: keyof StatLine) => (s: StatLine) => s[k] ?? 0;
@@ -197,6 +218,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const nav = useNav();
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
   const view = viewOf(league, p);
+  const draftDay = isProspect(p) || (league.phase === 'draft' && p.draft?.season === league.season);
   const [scale, setScale] = useStarScale();
   const stars = starsOf(league, p, scale, view);
   const report = scoutReport(league, league.userTeamId, p);
@@ -421,7 +443,9 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             )}
           </Section>
 
-          <Section id="combine" title="Combine" defaultOpen={false}>
+          {/* Open while he's on the board (or just off it); a settled pro's draft day folds away. Each keeps its own fold. */}
+          <Section key={draftDay ? 'draft-open' : 'draft'} id={draftDay ? 'draft-open' : 'draft'} title="Draft & combine" defaultOpen={draftDay}>
+            <DraftLine league={league} player={p} />
             <CombinePanel player={p} />
           </Section>
 

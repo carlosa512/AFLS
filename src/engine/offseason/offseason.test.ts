@@ -8,7 +8,7 @@ import { STARTERS } from '../positions';
 import { activeRoster, teamPlayers } from '../roster';
 import type { League } from '../types';
 import { POSITIONS } from '../types';
-import { advanceOffseason, beginOffseason, FA_DAYS, offseasonBlockers, simOffseason } from '.';
+import { advanceOffseason, beginOffseason, draftNextPick, FA_DAYS, offseasonBlockers, simOffseason } from '.';
 import { applyFranchiseTag, expiringPlayers, tagBlocker } from './ai';
 import { availableProspects, draftOrder, draftPlayer, nextPick, simDraft } from './draft';
 import { askOffer, demand, freeAgents, makeOffer } from './negotiation';
@@ -136,7 +136,22 @@ describe('draft', () => {
     expect(prospect.teamId).toBe(league.userTeamId);
     expect(prospect.contract!.kind).toBe('rookie');
     expect(prospect.contract!.apy).toBeCloseTo(rookieApy(pick.overall!, league.caps[league.season]), -2);
-    expect(prospect.draft).toMatchObject({ round: pick.round, pick: pick.overall });
+    expect(prospect.draft).toMatchObject({ round: pick.round, pick: pick.overall, rank: pick.consRank });
+  });
+
+  it('steps one pick at a time and waits on the user', () => {
+    const league = fresh();
+    beginOffseason(league);
+    while (league.phase !== 'draft') advanceOffseason(league);
+    const first = nextPick(league)!;
+    if (first.ownerId === league.userTeamId) draftPlayer(league, first, availableProspects(league)[0]);
+    const before = nextPick(league)!.overall!;
+    draftNextPick(league);
+    expect(nextPick(league)!.overall).toBe(before + 1);
+    while (nextPick(league)!.ownerId !== league.userTeamId) draftNextPick(league);
+    const waiting = nextPick(league)!.overall;
+    draftNextPick(league);
+    expect(nextPick(league)!.overall).toBe(waiting);
   });
 
   it('blocks the season until the user cuts down to 53', () => {

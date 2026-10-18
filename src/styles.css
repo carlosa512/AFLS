@@ -2066,6 +2066,13 @@ details.more > summary {
     display: none;
   }
 }
+/* The history is a fold inside its panel: no rule above it, and the heading reads as the panel's. */
+.draft-history .card-section {
+  border-top: 0;
+}
+.draft-history .card-section > summary h3 {
+  font-size: var(--step-1);
+}
 .board-sort {
   display: flex;
   flex-wrap: wrap;

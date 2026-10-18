@@ -42,6 +42,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 16) league.version = 16; // v16: declined and offsetting flags, players' penalties: optional, nothing to fill in
   if (league.version < 17) toV17(league);
   if (league.version < 18) league.version = 18; // v18: optional `returners` on teams and special-teams flags, nothing to fill in
+  if (league.version < 19) toV19(league);
   return league;
 }
 
@@ -248,4 +249,13 @@ function toV15(league: League) {
 function toV17(league: League) {
   addQbProtection(league);
   league.version = 17;
+}
+
+/** v18 → v19: a drafted player keeps his consensus rank; fill it in from the picks not yet pruned. */
+function toV19(league: League) {
+  for (const pk of league.draftPicks) {
+    const d = pk.playerId !== undefined ? league.players[pk.playerId]?.draft : undefined;
+    if (d && pk.consRank !== undefined) d.rank = pk.consRank;
+  }
+  league.version = 19;
 }
