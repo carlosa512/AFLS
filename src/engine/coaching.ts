@@ -642,6 +642,13 @@ export function developCoaches(league: League): void {
     const drifts = c.teamId === null && rng.chance(0.4);
     if (retires || drifts) {
       if (retires && c.teamId !== null) logCoach(league, c.teamId, c, `${league.teams[c.teamId].abbrev} ${titleLower(c)} ${coachName(c)} retired`);
+      // Anyone who coached a season stays on file, so his record outlives him; the rest are forgotten.
+      if (c.career?.length) {
+        c.teamId = null;
+        c.contract = null;
+        delete c.since;
+        league.retiredCoaches[c.id] = c;
+      }
       delete league.coaches[c.id];
     }
   }

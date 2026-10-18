@@ -663,6 +663,8 @@ export interface League {
   /** Every coach, employed (teamId set) or on the market (teamId null). */
   coaches: Record<number, Coach>;
   nextCoachId: number;
+  /** Coaches who left football (retired, or never hired again) after coaching a season: kept for records. */
+  retiredCoaches: Record<number, Coach>;
   /** Every member of a medical staff, employed or on the market (see `medical.ts`). */
   medics: Record<number, Medic>;
   nextMedicId: number;

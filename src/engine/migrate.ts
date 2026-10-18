@@ -37,6 +37,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 12) league.version = 12; // v12: optional `form` on players and game results, nothing to fill in
   if (league.version < 13) toV13(league);
   if (league.version < 14) league.version = 14; // v14: optional `weather` on game results, nothing to fill in
+  if (league.version < 15) toV15(league);
   return league;
 }
 
@@ -228,4 +229,10 @@ function toV13(league: League) {
     generateMedicalWorld(league);
   }
   league.version = 13;
+}
+
+/** v14 → v15: an archive for coaches leaving football. Those who left before this build are already gone. */
+function toV15(league: League) {
+  league.retiredCoaches ??= {};
+  league.version = 15;
 }

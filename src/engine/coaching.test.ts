@@ -41,6 +41,7 @@ import { simToEndOfSeason } from './league';
 import { fourthDown, passProbability, type Situation } from './match/coach';
 import { simulateGame } from './match/gameSim';
 import { migrateLeague } from './migrate';
+import { coachRecord } from './records';
 import { advanceOffseason, beginOffseason, simOffseason } from './offseason';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
@@ -448,6 +449,24 @@ describe('coaching staffs and moves', () => {
     expect(fired).toBeGreaterThan(0);
   }, 120_000);
 
+});
+
+describe('coaches who leave football', () => {
+  it('keep their career on file, so their record outlives them; candidates who never coached are forgotten', () => {
+    const l = createLeague({ seed: 'coach-archive' });
+    simToEndOfSeason(l);
+    const hc = chairHolder(teamCoaches(l, 3), { role: 'headCoach' })!;
+    const unknown = coachMarket(l).find((c) => !c.career?.length)!;
+    hc.age = unknown.age = 80; // past any retirement age
+    const record = coachRecord(l, hc);
+    beginOffseason(l);
+    for (const c of [hc, unknown]) expect(l.coaches[c.id]).toBeUndefined();
+    const kept = l.retiredCoaches[hc.id];
+    expect(kept).toMatchObject({ teamId: null, contract: null, career: [{ season: l.season - 1, teamId: 3, role: 'headCoach' }] });
+    expect(kept.since).toBeUndefined();
+    expect(coachRecord(l, kept)).toEqual(record);
+    expect(l.retiredCoaches[unknown.id]).toBeUndefined();
+  }, 30_000);
 });
 
 describe('play-calling style', () => {
