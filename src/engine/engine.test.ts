@@ -282,8 +282,13 @@ describe('season flow', () => {
     const champ = league.history[0].championId;
     const final = playoffGames(league, 'FINAL')[0];
     expect([final.homeId, final.awayId]).toContain(champ);
-    const starterQb = league.players[league.teams[0].depthChart.QB[0]];
-    expect(starterQb.stats[league.season]?.gp).toBeGreaterThan(10);
+    // Starters start: every QB1 who stayed healthy played most of the season (an injury, a
+    // matter of the seed's luck, can end anyone's year early).
+    for (const t of league.teams) {
+      const starterQb = league.players[t.depthChart.QB[0]];
+      if (starterQb.injury?.season === league.season) continue;
+      expect(starterQb.stats[league.season]?.gp).toBeGreaterThan(10);
+    }
 
     startNextSeason(league);
     expect(league.season).toBe(2027);

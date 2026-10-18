@@ -57,12 +57,13 @@ import {
   TYPICAL,
   type Chair,
 } from '../../engine/coaching';
+import { kickCoaching } from '../../engine/match/lineup';
 import { coachRecord, formatRecord } from '../../engine/records';
 import { coachSchemeAbout, coachSchemeLabel, defenseLabel, defenseNotes, PERSONNEL_LABEL, schemeWith } from '../../engine/schemes';
 import { staffWindowOpen, type ResignOutlook } from '../../engine/staff';
 import type { Coach, CoachRole, CoachRoom, League } from '../../engine/types';
 import { useNav } from '../App';
-import { Dialog, Exact, Panel, Section, Sheet, TeamChip, TipPill } from '../components';
+import { Dialog, Exact, Panel, Section, Sheet, TeamChip, TeamPicker, TipPill } from '../components';
 import { POSITION_NAMES } from '../../engine/positions';
 import { ownerBudgetNote } from '../../engine/staff';
 import { StatsTable } from './PlayerCard';
@@ -92,12 +93,11 @@ import {
   type RoomCount,
 } from '../coaching';
 import { band, money, ordinal, PHASE_LABELS } from '../format';
-import { rosterFit, StaffSkill } from '../scouting';
-import { coachReads, seenCoach, type StaffRead } from '../../engine/scouting';
+import { rosterFit, StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
 import { moveIndex, MoveText } from '../moves';
 
-type RoleTab = 'head' | 'coord' | 'position' | 'sc';
+type RoleTab = 'head' | 'coord' | 'position' | 'sc' | 'st';
 type Side = 'both' | 'offCoord' | 'defCoord';
 type Sort = 'roster' | 'rated';
 type Jump = 'mine' | 'candidates';
@@ -113,18 +113,29 @@ const ROLE_TABS: [RoleTab, string][] = [
   ['coord', 'Coordinators'],
   ['position', 'Position'],
   ['sc', 'S&C'],
+  ['st', 'Special teams'],
 ];
-const ROLES_OF: Record<RoleTab, CoachRole[]> = { head: ['headCoach'], coord: ['offCoord', 'defCoord'], position: ['positionCoach'], sc: ['strengthCoach'] };
+const ROLES_OF: Record<RoleTab, CoachRole[]> = { head: ['headCoach'], coord: ['offCoord', 'defCoord'], position: ['positionCoach'], sc: ['strengthCoach'], st: ['stCoord'] };
 const targetOf = (ch: Chair): Target =>
-  ch.role === 'headCoach' ? { tab: 'head' } : ch.role === 'strengthCoach' ? { tab: 'sc' } : ch.role === 'positionCoach' ? { tab: 'position', room: ch.room } : { tab: 'coord', side: ch.role };
+  ch.role === 'headCoach'
+    ? { tab: 'head' }
+    : ch.role === 'strengthCoach'
+      ? { tab: 'sc' }
+      : ch.role === 'stCoord'
+        ? { tab: 'st' }
+        : ch.role === 'positionCoach'
+          ? { tab: 'position', room: ch.room }
+          : { tab: 'coord', side: ch.role };
 
 const LEADERSHIP: Chair[] = [{ role: 'headCoach' }, { role: 'offCoord' }, { role: 'defCoord' }];
 const POSITION_ROOMS: Chair[] = COACH_ROOMS.map((room) => ({ role: 'positionCoach' as const, room }));
 const CONDITIONING: Chair[] = [{ role: 'strengthCoach' }];
+const SPECIAL_TEAMS: Chair[] = [{ role: 'stCoord' }];
 const GROUPS: [string, Chair[]][] = [
   ['Leadership', LEADERSHIP],
   ['Position rooms', POSITION_ROOMS],
   ['Strength & conditioning', CONDITIONING],
+  ['Special teams', SPECIAL_TEAMS],
 ];
 const LIMIT = 6;
 /** Half a percent: the smallest gap between the chairs' parts and the capped total that shows on a rounded screen. */
@@ -136,7 +147,8 @@ const Announce = createContext<(text: string, jump?: Jump) => void>(() => {});
 /** "Head coach · 2 yrs with you": tenure rides in the subtitle so the card stays short. */
 const subtitle = (league: League, c: Coach) => {
   const t = c.since === undefined ? 0 : league.season - c.since;
-  return `${coachTitle(c)}${c.since === undefined ? '' : t <= 0 ? ' · new hire' : ` · ${t} yr${t > 1 ? 's' : ''} with you`}`;
+  const where = c.teamId === league.userTeamId || c.teamId === null ? 'you' : league.teams[c.teamId].abbrev;
+  return `${coachTitle(c)}${c.since === undefined ? '' : t <= 0 ? ' · new hire' : ` · ${t} yr${t > 1 ? 's' : ''} with ${where}`}`;
 };
 const years = (n: number) => `${n} year${n > 1 ? 's' : ''}`;
 
@@ -144,9 +156,6 @@ function Trend({ age }: { age: number }) {
   const t = coachTrendLabel(age);
   return <span className={t === 'Rising' ? 'tone-good' : t === 'Declining' ? 'tone-bad' : 'muted'}>{t}</span>;
 }
-
-/** What hiring him would do, worked out from your read of him, never his true ratings. */
-const previewHire = (league: League, teamId: number, c: Coach, years: number) => previewCoachHire(league, teamId, c, years, seenCoach(league, teamId, c));
 
 /** Both public ratings as a phrase: "Youth 15 · Veteran care 9", banded like every other rating. */
 function Rates({ c }: { c: Pick<Coach, 'youth' | 'veterans'> }) {
@@ -180,22 +189,21 @@ const STYLE_TIP: Record<string, string> = {
 const BALANCED: Partial<Record<CoachRole, string>> = { headCoach: 'Balanced on 4th down', offCoord: 'Balanced play-calling', defCoord: 'Balanced defense' };
 
 /**
- * A coach in a few tags: the word around the league on him as a teacher (from your read of him, dashed while
- * it's only a read), then how he calls or builds a game where it stands out: the head coach's fourth downs,
- * the offensive coordinator's run or pass, the defensive coordinator's pressure and coverage.
+ * A coach in a few tags: the word around the league on him as a teacher, then how he calls or builds a game
+ * where it stands out: the head coach's fourth downs, the offensive coordinator's run or pass, the defensive
+ * coordinator's pressure and coverage.
  */
-function CoachTags({ league, c }: { league: League; c: Coach }) {
-  const rep = coachRep(coachReads(league, league.userTeamId, c));
+function CoachTags({ c }: { c: Coach }) {
+  const rep = coachRep(c);
   // Only the tendency his chair owns: a head coach who used to call plays keeps his pass lean, but doesn't call them now.
   const style = c.role === 'defCoord' ? defenseNotes(c) : c.role === 'headCoach' ? styleNotes({ fourthDown: c.style?.fourthDown }) : c.role === 'offCoord' ? styleNotes({ passLean: c.style?.passLean }) : [];
   const balanced = !style.length ? BALANCED[c.role] : undefined;
-  if (!rep.notes.length && !style.length && !balanced) return null;
+  if (!rep.length && !style.length && !balanced) return null;
   return (
     <span className="pill-row">
-      {rep.notes.map((n) => (
-        <TipPill key={n.label} className={`${n.tone === 'good' ? 'tag-good' : 'tag-warn'}${rep.hedged ? ' tag-early' : ''}`} tip={rep.hedged ? `Word around the league: ${n.line}` : n.line}>
+      {rep.map((n) => (
+        <TipPill key={n.label} className={n.tone === 'good' ? 'tag-good' : 'tag-warn'} tip={n.line}>
           {n.label}
-          {rep.hedged && <span className="visually-hidden"> (word around the league)</span>}
         </TipPill>
       ))}
       {style.map((n) => (
@@ -242,7 +250,7 @@ const OWNER_YES: Partial<Record<OwnerReason, string[]>> = {
   stretch: ['“Fine, I’ll stretch it this once.”', '“Just this once. Don’t make it a habit.”'],
 };
 const OWNER_NO: Record<OwnerReason | 'limit', string[]> = {
-  assistant: ['“I’ll go over for a head coach or a coordinator. Not for an assistant.”', '“Find a position coach who fits the budget.”'],
+  assistant: ['“I’ll go over for the men who run the team. Not for this chair.”', '“Find someone for that job who fits the budget.”'],
   lastYear: ['“We blew the budget last year. Not again.”', '“I’m still paying for last year. No.”'],
   losing: ['“After that season? I’m not paying more for a coordinator.”', '“Win first. Then we’ll talk money.”'],
   tight: ['“This market can’t carry it. Find someone cheaper.”', '“The budget is the budget.”'],
@@ -382,7 +390,6 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
   const nav = useNav();
   const team = c.teamId !== null ? league.teams[c.teamId] : null;
   const coached = coachRecord(league, c).seasons.length > 0;
-  const reads = coachReads(league, league.userTeamId, c);
   // Out of football: kept on file for his record (`league.retiredCoaches`).
   const retired = !league.coaches[c.id];
   // A former player: his playing career, a tap away from his coaching one.
@@ -408,8 +415,8 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
       }
     >
       <div className="facts">
-        <StaffSkill label="Youth development" value={reads.youth} />
-        <StaffSkill label="Veteran care" value={reads.veterans} />
+        <StaffSkill label="Youth development" value={c.youth} />
+        <StaffSkill label="Veteran care" value={c.veterans} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -443,7 +450,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
         )}
       </div>
       <SchemeRow league={league} c={c} preview={c.teamId === null && !retired} />
-      <CoachTags league={league} c={c} />
+      <CoachTags c={c} />
       <VisionLine league={league} c={c} />
       {!retired && <FitLine league={league} c={c} hc={hc} whose={c.teamId === league.userTeamId || c.teamId === null ? 'your' : 'his'} />}
       <p className="muted small" style={{ margin: 0 }}>
@@ -500,7 +507,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
       {c.teamId === null && !retired && (
         <Section id="staff-hire" title="If you hire him">
           <div className="small staff-preview">
-            {previewLines(previewHire(league, league.userTeamId, c, 2)).map((l) => (
+            {previewLines(previewCoachHire(league, league.userTeamId, c, 2)).map((l) => (
               <span key={l.words} className="preview-line">
                 {l.numbers ? <Exact numbers={l.numbers}>{l.words}</Exact> : l.words}
               </span>
@@ -531,6 +538,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
  * how your current starters would fit it.
  */
 function SchemeRow({ league, c, compact = false, preview = false }: { league: League; c: Coach; compact?: boolean; preview?: boolean }) {
+  if (c.role === 'stCoord') return <KickRow c={c} compact={compact} />;
   const label = coachSchemeLabel(c);
   if (!label) return null;
   const about = coachSchemeAbout(c);
@@ -569,7 +577,9 @@ function Term({ value, max, onChange, label }: { value: number; max: number; onC
 
 function Member({ league, c, open, outlook }: { league: League; c: Coach; open: boolean; outlook?: ResignOutlook }) {
   const teamId = league.userTeamId;
-  const expiring = isCoachExpiring(league, c);
+  // Another club's coach: the same card to read, without the deal notes and buttons (those are his club's).
+  const theirs = c.teamId !== league.userTeamId;
+  const expiring = !theirs && isCoachExpiring(league, c);
   const [term, setTerm] = useState(2);
   // Dismissing someone under contract costs real money: ask once more.
   const [confirming, setConfirming] = useState(false);
@@ -608,7 +618,6 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
   };
   const pay = coachSeverance(league, c);
   const why = expiring ? extendProblem : releaseProblem;
-  const reads = coachReads(league, teamId, c);
   const taker = expiring ? replaces(league, teamId, c) : null;
   const ask2 = coachAsk(league, c, 2);
   return (
@@ -621,8 +630,8 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
         {expiring && <span className="tag-pill tag-warn">Deal up</span>}
       </div>
       <div className="facts">
-        <StaffSkill label="Youth development" value={reads.youth} />
-        <StaffSkill label="Veteran care" value={reads.veterans} />
+        <StaffSkill label="Youth development" value={c.youth} />
+        <StaffSkill label="Veteran care" value={c.veterans} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -637,10 +646,12 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
         </span>
       </div>
       <SchemeRow league={league} c={c} compact />
-      <CoachTags league={league} c={c} />
+      <CoachTags c={c} />
       <VisionLine league={league} c={c} />
-      {c.role !== 'headCoach' && <FitLine league={league} c={c} hc={yourHeadCoach(league)} whose="your" />}
-      {expiring ? (
+      {c.role !== 'headCoach' && (
+        <FitLine league={league} c={c} hc={theirs ? chairHolder(teamCoaches(league, c.teamId!), { role: 'headCoach' }) : yourHeadCoach(league)} whose={theirs ? 'his' : 'your'} />
+      )}
+      {theirs ? null : expiring ? (
         <>
           <p className="small staff-note">
             {outlook === 'budget'
@@ -716,7 +727,8 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
           )}
         </div>
       )}
-      {up && !aboveHeld && (
+      {!theirs && open && why && <p className="small muted staff-why">{why}</p>}
+      {!theirs && up && !aboveHeld && (
         <div className="staff-actions">
           <button
             className="btn btn-sm"
@@ -732,9 +744,22 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
       {(extendOver > 0 || promoOver > 0) && (
         <p className="small muted staff-why">{extendOver > 0 ? 'Extending him' : 'Promoting him'} goes past your coaching budget: the owner decides.</p>
       )}
-      {open && why && <p className="small muted staff-why">{why}</p>}
-      {open && up && !aboveHeld && promoProblem && <p className="small muted staff-why">{promoProblem}</p>}
+      {!theirs && open && up && !aboveHeld && promoProblem && <p className="small muted staff-why">{promoProblem}</p>}
       {ask && <OwnerDialog league={league} chair={ask.chair} over={ask.over} seed={c.id + league.season} action={ask.action} onApprove={ask.go} onClose={() => setAsk(null)} />}
+    </li>
+  );
+}
+
+/** An empty chair at another club: just that it's empty. */
+function TheirOpenChair({ chair }: { chair: Chair }) {
+  return (
+    <li className="staff-card vacant coach-card">
+      <div className="staff-head">
+        <div>
+          <b className="staff-name">Open chair</b>
+          <span className="muted small">{coachTitle(chair)}</span>
+        </div>
+      </div>
     </li>
   );
 }
@@ -762,13 +787,36 @@ function OpenChair({ chair, staying, leaving, onFind }: { chair: Chair; staying:
   );
 }
 
+/**
+ * A special teams coordinator on game day, against a typical one: his kick units' flags and the yards they
+ * win on returns and in coverage. The engine's own numbers (`kickCoaching`), rounded.
+ */
+function KickRow({ c, compact }: { c: Coach; compact: boolean }) {
+  const fx = kickCoaching(coachValue(c) - TYPICAL);
+  const flags = Math.round(100 * (1 - fx.flags));
+  const yards = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1)}`;
+  const flagText = flags === 0 ? 'as many flags as most' : `${Math.abs(flags)}% ${flags > 0 ? 'fewer' : 'more'} flags`;
+  return (
+    <span className="scheme-row">
+      <TipPill className="scheme-pill" tip="Against a typical special teams coordinator: his kick units' flags, and the yards they win on each return and give up on each kick they cover.">
+        Kick units: {flagText}
+      </TipPill>
+      <span className="muted small">
+        {yards(fx.kickoff)} yds a kickoff{compact ? '' : ' return'}, {yards(fx.punt)} a punt{compact ? '' : ' return; as much again in coverage'}
+      </span>
+    </span>
+  );
+}
+
 // ───────── who coaches your players ─────────
 
 function RoomRow({ league, room, staying, count, expanded, onToggle }: { league: League; room: Room; staying: readonly Coach[]; count: RoomCount; expanded: boolean; onToggle: () => void }) {
   const id = useId();
-  const coach = room ? chairHolder(staying, { role: 'positionCoach', room }) : null;
+  // Kickers and punters are the special teams coordinator's room.
+  const chair: Chair = room ? { role: 'positionCoach', room } : { role: 'stCoord' };
+  const coach = chairHolder(staying, chair);
   // His deal is up and he doesn't stay: the room is empty come next year.
-  const leaving = room ? teamCoaches(league, league.userTeamId).find((c) => c.role === 'positionCoach' && c.room === room && isCoachExpiring(league, c) && !staying.includes(c)) : undefined;
+  const leaving = teamCoaches(league, league.userTeamId).find((c) => sameChair(chairOf(c), chair) && isCoachExpiring(league, c) && !staying.includes(c));
   const effect = roomEffect(staying, room);
   const parts = roomParts(staying, room);
   // The engine caps the combined effect; the chairs' parts are uncapped, so an extreme staff's parts can add up to more.
@@ -788,9 +836,7 @@ function RoomRow({ league, room, staying, count, expanded, onToggle }: { league:
           </span>
         </span>
         <span className="room-coach">
-          {room === null ? (
-            <span className="muted">Head coach and S&C coach</span>
-          ) : coach ? (
+          {coach ? (
             <>
               <b>{coachName(coach)}</b>
               <Rates c={coach} />
@@ -858,7 +904,7 @@ function RoomRow({ league, room, staying, count, expanded, onToggle }: { league:
           </div>
           <p className="muted small room-detail-note">
             {room === null
-              ? 'Kickers and punters have no room of their own, so the head coach and the strength & conditioning coach share them.'
+              ? 'The special teams coordinator coaches the kickers and punters, with the head coach and the S&C coach beside him.'
               : 'A position coach counts most for his room, a coordinator for his side of the ball, the head coach a little for everyone, and the S&C coach most for the body.'}{' '}
             {count.young} of these players {count.young === 1 ? 'is' : 'are'} under {YOUNG_UNDER} (growth) and {count.old} {count.old === 1 ? 'is' : 'are'} {PAST_PRIME_WORDS} (decline). The exact figures, against a typical staff, rounded.
           </p>
@@ -890,7 +936,6 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
       replaceRef.current?.focus();
     }
   }, [confirming]);
-  const reads = coachReads(league, teamId, c);
   // Hiring now can cost an expiring man his re-signing: his chair or his money goes to the new hire.
   const pushed = problem ? [] : coachesPushedOutBy(league, teamId, c, term);
   const announce = useContext(Announce);
@@ -912,8 +957,8 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
         </div>
       </div>
       <div className="facts">
-        <StaffSkill label="Youth development" value={reads.youth} />
-        <StaffSkill label="Veteran care" value={reads.veterans} />
+        <StaffSkill label="Youth development" value={c.youth} />
+        <StaffSkill label="Veteran care" value={c.veterans} />
         <span className="fact">
           <span className="eyebrow">Age</span>
           <span className="staff-age">
@@ -930,7 +975,7 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
         </span>
       </div>
       <SchemeRow league={league} c={c} compact />
-      <CoachTags league={league} c={c} />
+      <CoachTags c={c} />
       <VisionLine league={league} c={c} />
       {c.role !== 'headCoach' && <FitLine league={league} c={c} hc={yourHeadCoach(league)} whose="your" />}
       {holder && (
@@ -1010,7 +1055,7 @@ function OwnerLine({ league }: { league: League }) {
   const head = ownerLeeway(league, teamId, { role: 'headCoach' });
   const coord = ownerLeeway(league, teamId, { role: 'offCoord' });
   const spend = ownerBudgetNote(league.teams[teamId].staffBudgetMult);
-  const chairs = coord.amount > 0 ? 'a head coach or a coordinator' : 'a new head coach';
+  const chairs = coord.amount > 0 ? 'a head coach or an offensive or defensive coordinator' : 'a new head coach';
   return (
     <p className="muted small staff-lede">
       <b>Owner:</b> {spend === 'Big-spending owner' ? 'a big spender. ' : spend ? 'on a tight budget. ' : ''}
@@ -1021,12 +1066,11 @@ function OwnerLine({ league }: { league: League }) {
 
 // ───────── around the league ─────────
 
-/** "12 / 9", or "9–13 / 7–11" when it's your read of another club's man. */
-function ReadPair({ reads }: { reads: ReturnType<typeof coachReads> }) {
-  const one = (r: StaffRead) => <b className={band(r.value)}>{r.exact ? r.value : `${r.lo}–${r.hi}`}</b>;
+/** "12 / 9": youth development / veteran care, for a table. */
+function RatePair({ c }: { c: Coach }) {
   return (
     <span className="small muted num">
-      {one(reads.youth)} / {one(reads.veterans)}
+      <StaffNum value={c.youth} /> / <StaffNum value={c.veterans} />
     </span>
   );
 }
@@ -1036,9 +1080,9 @@ function Rival({ league, c }: { league: League; c: Coach | null }) {
   return (
     <span className="lc-cell">
       <CoachLink c={c} />
-      <ReadPair reads={coachReads(league, league.userTeamId, c)} />
+      <RatePair c={c} />
       <SchemeRow league={league} c={c} compact />
-      <CoachTags league={league} c={c} />
+      <CoachTags c={c} />
     </span>
   );
 }
@@ -1059,6 +1103,8 @@ export function CoachesScreen({ league }: { league: League }) {
   const [showAll, setShowAll] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('');
+  // Whose staff the staff panel shows: yours, or any club's to look at.
+  const [viewTeam, setViewTeam] = useState(league.userTeamId);
   const candidatesRef = useRef<HTMLDivElement>(null);
   const candidatesHeading = useRef<HTMLHeadingElement>(null);
   const mineRef = useRef<HTMLDivElement>(null);
@@ -1088,7 +1134,7 @@ export function CoachesScreen({ league }: { league: League }) {
   // What's really left once the deals that are up re-sign, as they will unless let go.
   const left = coachRoomAfterResigns(league, teamId);
   const dead = coachSeverancePaid(league, teamId);
-  const grades = coachingGrades(league, (c) => seenCoach(league, teamId, c));
+  const grades = coachingGrades(league);
   const mineGrade = grades.get(teamId)!;
   const dueCount = mine.filter((c) => isCoachExpiring(league, c)).length;
   const pct = budget > 0 ? Math.min(100, Math.max(0, (payroll / budget) * 100)) : 100;
@@ -1148,7 +1194,7 @@ export function CoachesScreen({ league }: { league: League }) {
           return { c, holder, problem: holder ? replaceProblem(league, teamId, c, 2) : coachMoveProblem(league, teamId, c, 'hire', 2) };
         })
         .filter((x) => !x.problem)
-        .map((x) => ({ ...x, changes: previewHire(league, teamId, x.c, 2) }))
+        .map((x) => ({ ...x, changes: previewCoachHire(league, teamId, x.c, 2) }))
         .map((x) => ({ ...x, score: gainScore(x.changes, counts) }))
         .sort((a, b) => b.score - a.score)[0];
       step =
@@ -1169,7 +1215,7 @@ export function CoachesScreen({ league }: { league: League }) {
   // ── candidates ──
   const wanted = coachMarket(league).filter((c) => ROLES_OF[tab].includes(c.role) && (tab !== 'position' || room === 'any' || c.room === room) && (tab !== 'coord' || side === 'both' || c.role === side));
   const ranked = wanted
-    .map((c) => ({ c, score: sort === 'roster' ? gainScore(previewHire(league, teamId, c, 2), counts) : 0, value: coachValue(seenCoach(league, teamId, c)) }))
+    .map((c) => ({ c, score: sort === 'roster' ? gainScore(previewCoachHire(league, teamId, c, 2), counts) : 0, value: coachValue(c) }))
     .sort((a, b) => b.score - a.score || b.value - a.value);
   const candidates = sort === 'roster' ? ranked : [...ranked].sort((a, b) => b.value - a.value);
   const shown = showAll ? candidates : candidates.slice(0, LIMIT);
@@ -1256,9 +1302,10 @@ export function CoachesScreen({ league }: { league: League }) {
           <Panel
             title={
               <h2 ref={mineHeading} tabIndex={-1}>
-                Your coaches
+                {viewTeam === teamId ? 'Your coaches' : `${league.teams[viewTeam].city} ${league.teams[viewTeam].name} coaches`}
               </h2>
             }
+            action={<TeamPicker league={league} value={viewTeam} onChange={setViewTeam} />}
           >
             <div className="stack coach-groups">
               {GROUPS.map(([title, chairs]) => (
@@ -1268,6 +1315,10 @@ export function CoachesScreen({ league }: { league: League }) {
                   <ul className="staff-grid">
                     {chairs.flatMap((ch) => {
                       const key = `${ch.role}-${ch.room ?? ''}`;
+                      if (viewTeam !== teamId) {
+                        const holder = chairHolder(teamCoaches(league, viewTeam), ch);
+                        return holder ? [<Member key={holder.id} league={league} c={holder} open={false} />] : [<TheirOpenChair key={`open-${key}`} chair={ch} />];
+                      }
                       const cards = seated(ch).map((c) => <Member key={c.id} league={league} c={c} open={open} outlook={forecast.get(c.id)} />);
                       if (!chairHolder(staying, ch)) {
                         const gone = leavers.find((c) => sameChair(chairOf(c), ch));
@@ -1396,11 +1447,12 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
     .slice(-20)
     .reverse();
   const names = moveIndex(league);
+  const [open, setOpen] = useState<number | null>(null);
   return (
     <Panel>
       <details className="more">
         <summary>Around the league: how all {league.teams.length} coaching staffs grade</summary>
-        <p className="muted small">Ratings are youth development / veteran care: exact for anyone who has coached for you, otherwise your read of him.</p>
+        <p className="muted small">Ratings are youth development / veteran care.</p>
         <RoleGuide roles={['headCoach', 'offCoord', 'defCoord']} />
         <div className="table-scroll">
           <table className="league-grades league-coaches">
@@ -1417,21 +1469,25 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
             <tbody>
               {[...grades]
                 .sort((a, b) => a[1].rank - b[1].rank)
-                .map(([id, g]) => {
+                .flatMap(([id, g]) => {
                   const t = league.teams[id];
                   const staff = teamCoaches(league, id);
-                  return (
+                  const row = (
                     <tr key={id} className={id === teamId ? 'me' : undefined}>
                       <td className="num">{g.rank}</td>
                       <td className="sticky-col">
-                        <span className="team-inline">
+                        {/* Tap a team for the rest of its staff: position coaches and S&C. */}
+                        <button className="linklike team-inline" aria-expanded={open === id} onClick={() => setOpen(open === id ? null : id)}>
                           <TeamChip team={t} />
                           <span>
                             <span className="team-name">{t.name}</span>
                             {id === teamId && <span className="tag-pill">You</span>}
                             <OwnerNotes league={league} teamId={id} />
                           </span>
-                        </span>
+                          <span className="muted" aria-hidden="true">
+                            {open === id ? '▴' : '▾'}
+                          </span>
+                        </button>
                       </td>
                       <td>
                         <span className={`grade grade-${g.grade}`}>{g.grade}</span>
@@ -1447,6 +1503,27 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
                       </td>
                     </tr>
                   );
+                  if (open !== id) return [row];
+                  const rest = CHAIRS.filter((ch) => !LEADERSHIP.some((l) => sameChair(l, ch)));
+                  return [
+                    row,
+                    <tr key={`${id}-staff`} className="team-staff-row">
+                      <td colSpan={6}>
+                        <ul className="team-staff">
+                          {rest.map((ch) => {
+                            const c = chairHolder(staff, ch);
+                            return (
+                              <li key={`${ch.role}-${ch.room ?? ''}`}>
+                                {c ? <CoachLink c={c} /> : <span className="tone-bad">Vacant</span>}
+                                <span className="muted small">{coachTitle(ch)}</span>
+                                {c && <RatePair c={c} />}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </td>
+                    </tr>,
+                  ];
                 })}
             </tbody>
           </table>

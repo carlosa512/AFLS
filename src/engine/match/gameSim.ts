@@ -10,14 +10,16 @@ import { skill } from '../attributes';
 import { callerStyle, type CallerStyle } from '../coaching';
 import { CONTACT_RISK, fatigueMult, HELD_SHARE, injuryLabel, riskFactors, rollInjury, SIDELINE_REST, SNAP_CONTACT, SNAP_EXPOSURE, SNAP_RISK, snapCost, type ContactEvent, type Mechanism, type RiskFactors } from '../injuries';
 import { departmentFor, type Department } from '../medical';
+import { crewCalls, gameCrew, starLean, type CrewCalls } from '../officials';
+import { enforce, FOULS, type Spot } from '../penalties';
 import { activeQuirks, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
-import type { Game, GameInjury, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
+import type { Crew, Foul, Game, GameInjury, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
 import { MAX_STATS } from '../types';
 import { gameWeather, staminaDrain, turfRisk, weatherAt, weatherEffects, type Weather, type WeatherCost } from '../weather';
 import * as coach from './coach';
 import type { DefenseCall, PassDepth, Situation } from './coach';
-import { activePlayers, buildLineup, type Lineup } from './lineup';
+import { activePlayers, buildLineup, discipline, KICK_FLAG_PER_POINT, RETURN_COACH, type Lineup } from './lineup';
 
 type Side = 0 | 1; // 0 = home, 1 = away
 
@@ -30,6 +32,8 @@ export interface SimOptions {
   seed?: string;
   /** Override the day's weather (defaults to the game's own, see `weather.ts`). */
   weather?: Weather;
+  /** Override the officiating crew (defaults to the game's own, see `officials.ts`); null is a league-average crew. */
+  crew?: Crew | null;
 }
 
 const QUARTER_SECONDS = 900;
@@ -58,6 +62,59 @@ const HOME_FIELD_EDGE = 0.4; // ratings points added to the home side's matchups
 /** League-typical linemen discipline: penalty rates are scaled around these, so totals stay NFL-like. */
 const OL_DISCIPLINE = 12;
 const DL_DISCIPLINE = 10.8;
+/** Base odds of each foul per chance at it (see docs/PENALTIES.md for the NFL rates they're tuned to). */
+const FALSE_START = 0.0226;
+const OFFSIDE = 0.0137;
+/** Offensive holding, per run, pass, sack or scramble: declined when the play was worse for the offense anyway. */
+const HOLDING = 0.0306;
+/** Pass interference by depth, on incompletions thrown past the line. */
+const DPI: Record<PassDepth, number> = { short: 0.012, medium: 0.045, deep: 0.09 };
+/** Defensive holding, per dropback: declined when the play beat 5 yards and a first down. */
+const DEF_HOLDING = 0.0134;
+/** Roughing the passer, per sack or pressured throw (the NFL flags about 3% of hits on the passer). */
+const ROUGHING = 0.0158;
+/** Personal fouls finishing a tackle, per tackled play: a late shot, a face mask, a horse collar. */
+const UNNECESSARY_ROUGHNESS = 0.0055;
+const FACE_MASK = 0.0029;
+const HORSE_COLLAR = 0.0005;
+/** A sack celebrated in someone's face. */
+const UNSPORTSMANLIKE = 0.02;
+/** League-typical discipline of the men making tackles: personal-foul odds are scaled around it. */
+const TACKLER_DISCIPLINE = 11;
+/** A hold or a block in the back somewhere behind the returner, per kick or punt return. */
+const RETURN_FOUL = 0.087;
+/** A kickoff out of bounds or short of the landing zone, and a kicking team lined up wrong, per kickoff. */
+const KICKOFF_MISS = 0.016;
+const KICKOFF_FORMATION = 0.013;
+/** Per punt caught: the coverage gets there before the ball. */
+const KICK_CATCH = 0.003;
+/** Per punt, field goal or extra point: a rusher who runs into the kicker, or roughs him (or the holder). */
+const RUNNING_INTO_KICKER = 0.002;
+const ROUGHING_KICKER = 0.0025;
+/**
+ * Per field goal or extra point: a false start or a hold on the kick unit, an offside on the block unit.
+ * Rare in the NFL (a few a season each team); scaled by each unit's discipline like the scrimmage fouls.
+ */
+const KICK_FALSE_START = 0.006;
+const KICK_HOLDING = 0.003;
+const KICK_OFFSIDE = 0.006;
+/**
+ * A field goal or extra point is a short snap: half a scrimmage snap's energy and half a quiet kick's risk
+ * (the NFL's injury rates the engine is tuned to already count the men hurt on kicks, so this stays small).
+ */
+const KICK_SNAP_COST = 0.5;
+/** League-typical discipline of a kick unit (backups, mostly): special-teams odds are scaled around it. */
+const ST_DISCIPLINE = 10.5;
+/** A kick play's injury risk against a scrimmage snap's: a return is a collision at full speed; a touchback or a fair catch is mostly running. */
+const KICK_RISK = { returned: 1.5, quiet: 0.4 };
+/**
+ * At the goal line the defense stacks the box and there's no room to run: up to this many yards off a
+ * carry's mean at the 1, tapering to none at the 6 (inside the 3 the NFL scores on about half its runs).
+ */
+const GOAL_LINE_STACK = 1.75;
+/** Mean kickoff and punt returns before flags (the flags on returns bring the averages back to where they were). */
+const KICK_RETURN = 29.5;
+const PUNT_RETURN = 9;
 /** League-typical edge contain and safety help: their effects are measured from these. */
 const EDGE_CONTAIN = 11.5;
 const DEEP_HELP = 14;
@@ -124,8 +181,19 @@ function blockerFor(off: Lineup, def: Lineup, rusher: Player, blitz: boolean, rn
 const SEP_ROLL = 3;
 /** Carries before a lead back starts handing work to the second back. */
 const LEAD_BACK_CARRIES = 14;
-/** Mean gain on a run between evenly matched units, before breakaways. */
-const RUN_BASE = 3.97;
+/**
+ * Mean gain on a run between evenly matched units, before breakaways. Trimmed (with completions and
+ * yards after the catch) when personal fouls came in at NFL rates: they hand offenses about a point a
+ * game, so the plays themselves give it back and league scoring holds (docs/PENALTIES.md, Phase 2).
+ */
+const RUN_BASE = 3.86;
+
+/** A flag thrown during a play: the foul, who drew it, and how far downfield a spot foul happened. */
+interface LiveFoul {
+  foul: Foul;
+  by?: Player;
+  spotYards?: number;
+}
 
 /** Collects stat changes for a play so they can be discarded if a penalty wipes the play out. */
 class StatBuffer {
@@ -149,6 +217,8 @@ interface PlayResult {
   depth?: PassDepth;
   /** The man in coverage on a pass: flags for grabbing are his. */
   defender?: Player;
+  /** Who got home on a sack: a late hit or a celebration is his. */
+  rusher?: Player;
   lane?: number;
   turnover?: { kind: 'int' | 'fumble'; spot: number; returnYds: number; by: Player };
 }
@@ -167,6 +237,7 @@ function emptyTeamStats(): TeamGameStats {
     turnovers: 0,
     penalties: 0,
     penaltyYds: 0,
+    flags: {},
     thirdDownAtt: 0,
     thirdDownConv: 0,
     fourthDownAtt: 0,
@@ -296,6 +367,17 @@ class GameSim {
   private drain: [number, number];
   /** This quarter's injury odds from the turf (frozen or waterlogged). */
   private turf: number;
+  private crew: Crew | undefined;
+  /** What the crew does to every penalty roll: the same for both teams. */
+  private calls: CrewCalls;
+  /** Who drew a flag is bookkeeping, like credit: its own stream, so it never changes the game. */
+  private flagRng: Rng;
+  /** A defender jumped offside at the snap: the play runs, and the offense picks it or the 5 yards. */
+  private offsideFlag = false;
+  /** The defense fouled on the half's last play: one more snap with no time on the clock. */
+  private untimed = false;
+  /** How readily crews protect each quarterback, from his public record (`starLean`), read once a game. */
+  private stars = new Map<number, number>();
 
   constructor(
     private league: League,
@@ -305,11 +387,14 @@ class GameSim {
     this.rng = new Rng(options.seed ?? `${league.seed}:${game.season}:${game.id}`);
     this.creditRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:credit`);
     this.injuryRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:injury`);
+    this.flagRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:flags`);
     this.homeEdge = game.neutral ? 0 : HOME_FIELD_EDGE;
     this.weather = options.weather ?? gameWeather(league, game);
     this.wx = weatherEffects(weatherAt(this.weather, 1));
     this.turf = turfRisk(weatherAt(this.weather, 1));
     this.drain = [staminaDrain(this.weather, true), staminaDrain(this.weather, false)];
+    this.crew = options.crew === undefined ? gameCrew(league, game) : (options.crew ?? undefined);
+    this.calls = crewCalls(this.crew);
     const team = (id: number) => league.teams[id];
     this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
@@ -354,7 +439,7 @@ class GameSim {
       this.over = true;
       return;
     }
-    if (this.clock <= 0) {
+    if (this.clock <= 0 && !this.untimed) {
       this.endQuarter();
       this.weatherTurns();
     } else if (this.kickoffBy !== null) {
@@ -748,16 +833,48 @@ class GameSim {
       return;
     }
     const k = lineup.k;
-    const made = this.rng.chance(Math.min(0.985, this.fgProb(33, k) + 0.01));
-    const buf = new StatBuffer();
-    buf.add(k, 'xpAtt');
-    if (made) {
-      buf.add(k, 'xpMade');
-      this.addPoints(side, 1);
+    const blocking = this.lineups[(1 - side) as Side];
+    // The try is snapped from the 15; a flag can move it, and a kick a flag wipes out is tried again.
+    let at: Spot = { yardLine: 85, down: 1, lineToGain: 100 };
+    let note = '';
+    for (let tries = 0; ; tries++) {
+      const flag = tries < 3 ? this.kickFoul(lineup, blocking) : null;
+      // A 33-yarder from the 15, a yard longer for every yard the ball moves back.
+      const distance = 33 + 85 - at.yardLine;
+      if (flag?.foul === 'falseStart') {
+        const back = enforce('falseStart', at);
+        at = back;
+        this.flag(side, 'falseStart', flag.by, 'accepted', back.yards);
+        note += `PENALTY on ${this.flagged(side, flag.by)}: False start, ${back.yards} yards. `;
+        continue;
+      }
+      const made = this.rng.chance(Math.min(0.985, this.fgProb(distance, k) + 0.01));
+      this.fgWear(lineup, blocking);
+      if (flag) {
+        // The kick unit's hold costs a good kick; the block unit's fouls give a missed one another go, closer.
+        const kickers = flag.foul === 'holding';
+        const fouler = kickers ? side : ((1 - side) as Side);
+        if (kickers === made) {
+          const moved = enforce(flag.foul, at);
+          at = moved;
+          this.flag(fouler, flag.foul, flag.by, 'accepted', moved.yards);
+          note += `${short(k)} extra point is ${made ? 'good' : 'no good'}. PENALTY on ${this.flagged(fouler, flag.by)}: ${FOULS[flag.foul].label}, ${moved.yards} yards. `;
+          continue;
+        }
+        this.flag(fouler, flag.foul, flag.by, 'declined');
+        note += `${FOULS[flag.foul].label} on ${this.flagged(fouler, flag.by)}, declined. `;
+      }
+      const buf = new StatBuffer();
+      buf.add(k, 'xpAtt');
+      if (made) {
+        buf.add(k, 'xpMade');
+        this.addPoints(side, 1);
+      }
+      this.credit(buf);
+      this.setAnim(side, 'xp', at.yardLine, 110, 110);
+      this.log(`${note}${short(k)} ${distance === 33 ? 'extra point' : `${distance}-yard extra point`} is ${made ? 'GOOD' : 'NO GOOD'}.`, true);
+      return;
     }
-    this.credit(buf);
-    this.setAnim(side, 'xp', 85, 110, 110);
-    this.log(`${short(k)} extra point is ${made ? 'GOOD' : 'NO GOOD'}.`, true);
   }
 
   private safety() {
@@ -800,34 +917,110 @@ class GameSim {
     }
 
     const kp = skill(kicking.k, 'kickoffDistance');
+    const { all } = this.calls;
+    // Out of bounds or short of the landing zone: the receiving team's ball at its 40. A kicker who can't
+    // place the ball misses more.
+    if (this.rng.chance(KICKOFF_MISS * Math.exp(-0.08 * (skill(kicking.k, 'fieldGoal') - 12)))) {
+      this.offense = receivingSide;
+      this.kickWear(false);
+      this.flag(kickingSide, 'kickoffMiss', kicking.k, 'accepted');
+      this.setAnim(kickingSide, 'kickoff', 35, 60, 60);
+      this.startSeries(40);
+      this.clockRunning = false;
+      this.log(`${short(kicking.k)} kicks off out of bounds. PENALTY on ${this.flagged(kickingSide, kicking.k)}: ${FOULS.kickoffMiss.label}. Ball at the ${this.spot()}.`);
+      return;
+    }
     const touchback = this.rng.chance(clamp(0.38 + 0.025 * (kp - 12) + (this.has(kicking.k, 'boomerLeg') ? 0.12 : 0) - 0.02 * this.wx.kick, 0.15, 0.8));
+    // A kicking team lined up wrong (offside, or out of its setup zone): 5 more yards for the receivers.
+    let lined = this.rng.chance(KICKOFF_FORMATION * this.unitLoose(kicking) * all) ? this.stCommitter(kicking) : null;
     this.offense = receivingSide;
+    let start: number;
+    let text: string;
     if (touchback) {
+      this.kickWear(false);
       this.setAnim(kickingSide, 'kickoff', 35, 104, 104);
-      this.startSeries(35);
-      this.log(`${short(kicking.k)} kicks off into the end zone. Touchback.`);
+      start = 35;
+      text = `${short(kicking.k)} kicks off into the end zone. Touchback`;
     } else {
       const kr = receiving.kr;
       const edge = skill(kr, 'returns') - 12;
-      let start = clamp(Math.round(this.rng.normal(28 + 0.6 * edge, 6)), 8, 60);
+      start = clamp(Math.round(this.rng.normal(KICK_RETURN + 0.6 * edge + RETURN_COACH.kick * (receiving.stCoach - kicking.stCoach), 6)), 8, 60);
       const returnTd = this.rng.chance(clamp(0.004 + 0.001 * edge, 0.001, 0.012));
       if (returnTd) start = 100;
+      let block = this.rng.chance(RETURN_FOUL * this.unitLoose(receiving) * all) ? this.blockSpot(1, start, receiving) : null;
+      // Both teams flagged: they offset, and the return stands.
+      if (block && lined) {
+        this.flag(receivingSide, block.foul, block.by, 'offset');
+        this.flag(kickingSide, 'kickoffFormation', lined, 'offset');
+        [block, lined] = [null, null];
+      }
       const buf = new StatBuffer();
       buf.add(kr, 'krAtt');
-      buf.add(kr, 'krYds', start - 3);
+      buf.add(kr, 'krYds', (block ? block.at : start) - 3);
       this.playTime(this.rng.int(5, 8));
-      this.setAnim(kickingSide, 'kickoff', 35, returnTd ? -3 : 100 - start, 97);
-      if (returnTd) {
+      this.kickWear(true);
+      this.setAnim(kickingSide, 'kickoff', 35, returnTd && !block ? -3 : 100 - (block ? block.spot : start), 97);
+      if (returnTd && !block) {
         buf.add(kr, 'krTd');
         this.credit(buf);
+        // On a touchdown the receivers decline a kicking team's formation foul.
+        if (lined) this.flag(kickingSide, 'kickoffFormation', lined, 'declined');
         this.touchdown(receivingSide, `${short(kr)} returns the kickoff ${start - 3} yards for a TOUCHDOWN!`);
         return;
       }
       this.credit(buf);
-      this.startSeries(start);
-      this.log(`${short(kicking.k)} kicks off. ${short(kr)} returns to the ${this.spot()}.`);
+      text = `${short(kicking.k)} kicks off. ${short(kr)} returns to the ${this.spot(block ? block.at : start, receivingSide)}`;
+      if (block) {
+        this.flag(receivingSide, block.foul, block.by, 'accepted', block.yards);
+        text += `. PENALTY on ${this.flagged(receivingSide, block.by)}: ${FOULS[block.foul].label}, ${block.yards} yards`;
+        start = block.spot;
+      }
     }
+    if (lined) {
+      this.flag(kickingSide, 'kickoffFormation', lined, 'accepted', 5);
+      text += `. PENALTY on ${this.flagged(kickingSide, lined)}: ${FOULS.kickoffFormation.label}, 5 yards`;
+      start += 5;
+    }
+    this.startSeries(start);
+    this.log(`${text}. Ball at the ${this.spot()}.`);
     this.clockRunning = false;
+  }
+
+  /**
+   * A flag on a return: a hold or a block in the back somewhere behind the returner, between where he
+   * caught it (`from`) and where he got to; the ball goes 10 yards back from that spot (half the distance
+   * near his goal line), and the return yards stop there.
+   */
+  private blockSpot(from: number, to: number, unit: Lineup): { at: number; spot: number; yards: number; foul: Foul; by: Player | undefined } {
+    const at = Math.max(1, Math.round(from + this.rng.float(0.1, 1) * (Math.min(to, 99) - from)));
+    const yards = Math.min(10, Math.floor(at / 2));
+    const foul: Foul = this.flagRng.chance(0.5) ? 'returnHolding' : 'blockInBack';
+    return { at, spot: at - yards, yards, foul, by: this.stCommitter(unit) };
+  }
+
+  /** How loose a kick unit is against a typical one: the odds of its flags scale with it. */
+  private unitLoose(unit: Lineup): number {
+    return Math.exp(-KICK_FLAG_PER_POINT * (unit.specialDiscipline - ST_DISCIPLINE));
+  }
+
+  /** Who on a kick unit drew the flag, leaning on the least disciplined; the kicker if there's no unit. */
+  private stCommitter(unit: Lineup): Player | undefined {
+    return unit.st.length ? this.flagRng.weighted(unit.st, (p) => Math.max(1, 24 - discipline(p))) : unit.k;
+  }
+
+  /**
+   * A kick play: both kick units run, tire and face the play's risk, the backups who cover kicks most of
+   * all (a return is a full-speed collision; a touchback or a fair catch mostly running).
+   */
+  private kickWear(returned: boolean) {
+    for (const l of this.lineups) {
+      for (const p of l.st) {
+        const b = this.body(p);
+        b.energy -= b.cost;
+        b.spent += b.cost;
+        this.expose(p, SNAP_RISK * SNAP_EXPOSURE[p.position] * (returned ? KICK_RISK.returned : KICK_RISK.quiet), SNAP_CONTACT);
+      }
+    }
   }
 
   private punt() {
@@ -854,6 +1047,28 @@ class GameSim {
       return;
     }
 
+    // A rusher into the punter: 5 yards for running into him (taken only when it moves the chains), 15 and
+    // a first down for roughing him. Either way the punting team keeps the ball.
+    const { all } = this.calls;
+    const rush = this.rng.next();
+    let note = '';
+    if (rush < (RUNNING_INTO_KICKER + ROUGHING_KICKER) * all) {
+      const foul: Foul = rush < RUNNING_INTO_KICKER * all ? 'runningIntoKicker' : 'roughingKicker';
+      const by = this.stCommitter(def);
+      const yards = Math.min(FOULS[foul].yards as number, Math.floor((100 - this.yardLine) / 2));
+      if (foul === 'roughingKicker' || this.yardLine + yards >= this.lineToGain) {
+        this.flag(this.def, foul, by, 'accepted', yards);
+        this.setAnim(this.offense, 'penalty', this.yardLine, this.yardLine + yards);
+        this.yardLine += yards;
+        this.firstDown();
+        this.clockRunning = false;
+        this.log(`${short(p)} punts. PENALTY on ${this.flagged(this.def, by)}: ${FOULS[foul].label}, ${yards} yards. No play.`);
+        return;
+      }
+      this.flag(this.def, foul, by, 'declined');
+      note = `. ${FOULS[foul].label} on ${this.flagged(this.def, by)}, declined`;
+    }
+
     const outkicks = this.has(p, 'outkicksCoverage');
     const coffin = this.has(p, 'coffinCorner');
     const arc = this.has(p, 'highArc');
@@ -872,50 +1087,88 @@ class GameSim {
     this.setAnim(this.offense, 'punt', this.yardLine, Math.min(landing, 105), Math.min(landing, 105));
     if (landing >= 100) {
       this.credit(buf);
-      this.log(`${short(p)} punts ${gross} yards into the end zone. Touchback.`);
+      this.kickWear(false);
+      this.log(`${short(p)} punts ${gross} yards into the end zone. Touchback${note}.`);
       this.changePossession(20);
       return;
     }
     const receiveAt = 100 - landing;
     const pr = def.pr;
+    // The coverage gets there before the ball (downed punts have nobody to interfere with): 15 yards from the catch.
+    if (receiveAt > 10 && this.rng.chance(KICK_CATCH * all)) {
+      const by = this.stCommitter(off);
+      const spot = Math.min(99, receiveAt + 15);
+      this.credit(buf);
+      this.kickWear(false);
+      this.flag(this.offense, 'kickCatch', by, 'accepted', spot - receiveAt);
+      this.log(`${short(p)} punts ${gross} yards${note}. PENALTY on ${this.flagged(this.offense, by)}: ${FOULS.kickCatch.label}, ${spot - receiveAt} yards. Ball at the ${this.spot(spot, this.def)}.`);
+      this.changePossession(spot);
+      return;
+    }
     // A well-placed punt (hang time, toward the sideline) leaves the returner no room.
     // No hang time means no fair catches; a coffin-corner man from plus territory leaves no room.
     const hang = (outkicks ? -0.15 : 0) + (coffin && room < 60 ? 0.2 : 0) + (arc ? 0.12 : 0);
     if (receiveAt <= 10 || this.rng.chance(clamp(0.42 + 0.02 * (skill(p, 'puntPlacement') - 12) + hang, 0.2, 0.65))) {
       this.credit(buf);
-      this.log(`${short(p)} punts ${gross} yards. ${receiveAt <= 10 ? 'Downed' : `Fair catch by ${short(pr)}`} at the ${this.spot(receiveAt, this.def)}.`);
+      this.kickWear(false);
+      this.log(`${short(p)} punts ${gross} yards${note}. ${receiveAt <= 10 ? 'Downed' : `Fair catch by ${short(pr)}`} at the ${this.spot(receiveAt, this.def)}.`);
       this.changePossession(receiveAt);
       return;
     }
     const edge = skill(pr, 'returns') - 12;
-    let ret = Math.max(0, Math.round(this.rng.normal(8 + 0.5 * edge + (outkicks ? 3 : 0) - (arc ? 1.5 : 0), 6)));
+    let ret = Math.max(0, Math.round(this.rng.normal(PUNT_RETURN + 0.5 * edge + RETURN_COACH.punt * (def.stCoach - off.stCoach) + (outkicks ? 3 : 0) - (arc ? 1.5 : 0), 6)));
     if (this.rng.chance(clamp(0.006 + 0.0015 * edge, 0.002, 0.02))) ret = 100 - receiveAt;
+    const block = this.rng.chance(RETURN_FOUL * this.unitLoose(def) * all) ? this.blockSpot(receiveAt, receiveAt + ret, def) : null;
+    const end = block ? block.spot : receiveAt + ret;
     // Returns run back toward the punting team's goal line.
-    this.setAnim(this.offense, 'punt', this.yardLine, landing - ret <= 0 ? -3 : landing - ret, landing);
+    this.setAnim(this.offense, 'punt', this.yardLine, end >= 100 ? -3 : 100 - end, landing);
     buf.add(pr, 'prAtt');
-    buf.add(pr, 'prYds', ret);
-    if (receiveAt + ret >= 100) buf.add(pr, 'prTd');
+    buf.add(pr, 'prYds', (block ? block.at : receiveAt + ret) - receiveAt);
+    if (!block && receiveAt + ret >= 100) buf.add(pr, 'prTd');
     this.credit(buf);
-    if (receiveAt + ret >= 100) {
-      this.log(`${short(p)} punts ${gross} yards.`);
+    this.kickWear(true);
+    if (!block && receiveAt + ret >= 100) {
+      this.log(`${short(p)} punts ${gross} yards${note}.`);
       this.endPossession();
       this.offense = this.def;
       this.touchdown(this.offense, `${short(pr)} returns the punt ${ret} yards for a TOUCHDOWN!`);
       return;
     }
-    this.log(`${short(p)} punts ${gross} yards. ${short(pr)} returns ${ret} yards to the ${this.spot(receiveAt + ret, this.def)}.`);
-    this.changePossession(receiveAt + ret);
+    if (block) {
+      this.flag(this.def, block.foul, block.by, 'accepted', block.yards);
+      this.log(
+        `${short(p)} punts ${gross} yards${note}. ${short(pr)} returns to the ${this.spot(block.at, this.def)}. PENALTY on ${this.flagged(this.def, block.by)}: ${FOULS[block.foul].label}, ${block.yards} yards. Ball at the ${this.spot(end, this.def)}.`,
+      );
+    } else this.log(`${short(p)} punts ${gross} yards${note}. ${short(pr)} returns ${ret} yards to the ${this.spot(end, this.def)}.`);
+    this.changePossession(end);
   }
 
   private fieldGoal() {
     const off = this.lineups[this.offense];
+    const def = this.lineups[this.def];
     const k = off.k;
     this.takeSnapshot();
+    const flag = this.kickFoul(off, def);
+    // A false start: no kick, five yards back, and the coach decides again on the next snap.
+    if (flag?.foul === 'falseStart') {
+      const spot = enforce('falseStart', this.spotNow());
+      this.setAnim(this.offense, 'penalty', this.yardLine, spot.yardLine);
+      this.flag(this.offense, 'falseStart', flag.by, 'accepted', spot.yards);
+      this.yardLine = spot.yardLine;
+      this.clockRunning = false;
+      // A dead ball on the last snap of a half: the down was never played.
+      if (this.clock <= 0) this.untimed = true;
+      this.log(`Field goal try. PENALTY on ${this.flagged(this.offense, flag.by)}: False start, ${spot.yards} yards.`);
+      return;
+    }
     const distance = 100 - this.yardLine + 17;
-    const buf = new StatBuffer();
-    buf.add(k, 'fgAtt');
     this.playTime(this.rng.int(4, 6));
     const made = this.rng.chance(this.kickMakes(distance, k));
+    this.fgWear(off, def);
+    if (flag && this.fgPenalty(flag, made, distance)) return;
+    const note = flag ? `. ${FOULS[flag.foul].label} on ${this.flagged(flag.foul === 'holding' ? this.offense : this.def, flag.by)}, declined` : '';
+    const buf = new StatBuffer();
+    buf.add(k, 'fgAtt');
     this.kickForm(k, made);
     this.setAnim(this.offense, 'fg', this.yardLine - 7, 110, 110);
     if (made) {
@@ -923,7 +1176,7 @@ class GameSim {
       buf.add(k, 'fgLong', distance);
       this.credit(buf);
       this.addPoints(this.offense, 3);
-      this.log(`${short(k)} ${distance}-yard field goal is GOOD.`, true);
+      this.log(`${short(k)} ${distance}-yard field goal is GOOD${note}.`, true);
       this.endPossession();
       this.clockRunning = false;
       if (this.checkOvertimeEnd()) return;
@@ -931,9 +1184,78 @@ class GameSim {
       return;
     }
     this.credit(buf);
-    this.log(`${short(k)} ${distance}-yard field goal is NO GOOD.`);
+    this.log(`${short(k)} ${distance}-yard field goal is NO GOOD${note}.`);
     // Defense takes over at the spot of the kick (or the 20, whichever is better).
     this.changePossession(Math.max(20, 100 - (this.yardLine - 7)));
+  }
+
+  /**
+   * The flags on a field goal or extra point, one roll: a false start or a hold on the kick unit (the line
+   * and its wings), offside, running into or roughing the kicker on the block unit (the defense's front).
+   */
+  private kickFoul(kicking: Lineup, blocking: Lineup): { foul: Foul; by: Player | undefined } | null {
+    const { all, holding } = this.calls;
+    const kickers = Math.exp(-0.06 * (kicking.fgDiscipline - OL_DISCIPLINE)) * all;
+    const blockers = Math.exp(-0.06 * (blocking.blockDiscipline - DL_DISCIPLINE)) * all;
+    const odds: [Foul, number][] = [
+      ['falseStart', KICK_FALSE_START * kickers],
+      ['holding', KICK_HOLDING * kickers * holding],
+      ['offside', KICK_OFFSIDE * blockers],
+      ['runningIntoKicker', RUNNING_INTO_KICKER * all],
+      ['roughingKicker', ROUGHING_KICKER * all],
+    ];
+    let roll = this.rng.next();
+    for (const [foul, p] of odds) {
+      if (roll < p) {
+        const players = foul === 'falseStart' || foul === 'holding' ? kicking.fg : [...blocking.dt, ...blocking.edge, ...blocking.lb];
+        const by = players.length ? this.flagRng.weighted(players, (x) => Math.max(1, 24 - discipline(x)) * (x.position === 'LB' ? 0.3 : 1)) : undefined;
+        return { foul, by };
+      }
+      roll -= p;
+    }
+    return null;
+  }
+
+  /** A field goal or extra point: the kick unit and the block unit tire a little and face a quiet kick's risk. */
+  private fgWear(kicking: Lineup, blocking: Lineup) {
+    for (const p of [...kicking.fg, ...blocking.dt, ...blocking.edge, ...blocking.lb]) {
+      const b = this.body(p);
+      b.energy -= KICK_SNAP_COST * b.cost;
+      b.spent += KICK_SNAP_COST * b.cost;
+      this.expose(p, SNAP_RISK * SNAP_EXPOSURE[p.position] * KICK_RISK.quiet * KICK_SNAP_COST, SNAP_CONTACT);
+    }
+  }
+
+  /**
+   * A live-ball flag on a field goal, once the kick is known. A hold on the kick unit costs a good kick (the
+   * defense takes the 10 yards and the kick again); the block unit's fouls give a missed kick another go, or
+   * the chains. Over a good kick the offense keeps its points, unless the flag brings a first down inside
+   * the 10 with time to use it. Returns true when the penalty is taken: the kick is wiped, the down replayed.
+   */
+  private fgPenalty(flag: { foul: Foul; by: Player | undefined }, made: boolean, distance: number): boolean {
+    const kickers = flag.foul === 'holding';
+    const side = kickers ? this.offense : this.def;
+    const at = this.spotNow();
+    const spot = enforce(flag.foul, at);
+    const firstDown = spot.down === 1 && (at.down !== 1 || spot.lineToGain !== at.lineToGain);
+    const late = (this.quarter === 2 || this.quarter >= 4) && this.clock < 120;
+    // In overtime the points are worth more than any first down.
+    const take = kickers ? made : !made || (firstDown && 100 - spot.yardLine <= 10 && !late && this.quarter <= 4);
+    if (!take) {
+      this.flag(side, flag.foul, flag.by, 'declined');
+      return false;
+    }
+    this.flag(side, flag.foul, flag.by, 'accepted', spot.yards);
+    this.setAnim(this.offense, 'penalty', at.yardLine, spot.yardLine);
+    this.yardLine = spot.yardLine;
+    if (firstDown) this.firstDown();
+    this.clockRunning = false;
+    // A flag on a kick at the gun: the half can't end on it, so the down is played again.
+    if (this.clock <= 0 && (this.quarter === 2 || this.quarter >= 4)) this.untimed = true;
+    this.log(
+      `${short(this.lineups[this.offense].k)} ${distance}-yard field goal is ${made ? 'good' : 'no good'}. PENALTY on ${this.flagged(side, flag.by)}: ${FOULS[flag.foul].label}, ${spot.yards} yards. No play.${this.untimed ? ' Untimed down.' : ''}`,
+    );
+    return true;
   }
 
   // ───────────────────────── scrimmage ─────────────────────────
@@ -963,7 +1285,9 @@ class GameSim {
       const t = coach.tempo(this.situation());
       this.preSnapRunoff(t === 'hurry' ? this.rng.int(8, 16) : t === 'milk' ? this.rng.int(coach.MILK_RUNOFF_MIN, 41) : this.rng.int(28, 38));
     }
-    if (this.clock <= 0) return;
+    if (this.clock <= 0 && !this.untimed) return;
+    // The untimed down is this one: whatever happens on it, the half ends after (unless the defense fouls again).
+    this.untimed = false;
 
     const s = this.situation();
     if (coach.shouldKneel(s)) return this.kneel();
@@ -984,43 +1308,37 @@ class GameSim {
     this.resolve(result);
   }
 
+  /**
+   * Before the snap: a false start kills the play; a defender offside lets it run (a free play), and
+   * the offense picks the result or the 5 yards once it's over (`callFouls`).
+   */
   private preSnapPenalty(): boolean {
     const off = this.offense;
     const roll = this.rng.next();
     // A hard count draws the defense offside (a jumpy lineman most of all), and now and then his own line.
     const hardCount = this.has(this.lineups[off].qb, 'hardCount');
-    const pFalseStart = 0.027 * Math.exp(-0.06 * (this.lineups[off].offenseDiscipline - OL_DISCIPLINE)) * (hardCount ? 1.15 : 1);
+    const pFalseStart = FALSE_START * Math.exp(-0.06 * (this.lineups[off].offenseDiscipline - OL_DISCIPLINE)) * (hardCount ? 1.15 : 1) * this.calls.all;
     const dl = this.lineups[this.def];
     const dlFront = [...dl.dt, ...dl.edge];
     const pOffside =
-      0.017 *
+      OFFSIDE *
       Math.exp(-0.06 * (dl.defenseDiscipline - DL_DISCIPLINE)) *
       (1 + 0.1 * this.count(dlFront, 'firstStep')) *
       (hardCount ? 1.3 : 1) *
-      (1 + (hardCount ? 0.3 : 0.08) * this.count(dlFront, 'jumpHappy'));
+      (1 + (hardCount ? 0.3 : 0.08) * this.count(dlFront, 'jumpHappy')) *
+      this.calls.all;
     if (roll < pFalseStart) {
-      const yards = Math.min(5, Math.floor(this.yardLine / 2));
+      const by = this.committer('falseStart', null);
+      const spot = enforce('falseStart', this.spotNow());
       this.takeSnapshot();
-      this.setAnim(off, 'penalty', this.yardLine, this.yardLine - yards);
-      this.yardLine -= yards;
-      this.teamStats[off].penalties++;
-      this.teamStats[off].penaltyYds += yards;
+      this.setAnim(off, 'penalty', this.yardLine, spot.yardLine);
+      this.yardLine = spot.yardLine;
+      this.flag(off, 'falseStart', by, 'accepted', spot.yards);
       this.clockRunning = false;
-      this.log(`PENALTY on ${this.abbrev(off)}: False start, ${yards} yards.`);
+      this.log(`PENALTY on ${this.flagged(off, by)}: False start, ${spot.yards} yards.`);
       return true;
     }
-    if (roll < pFalseStart + pOffside) {
-      const yards = Math.min(5, Math.floor((100 - this.yardLine) / 2));
-      this.takeSnapshot();
-      this.setAnim(off, 'penalty', this.yardLine, this.yardLine + yards);
-      this.yardLine += yards;
-      this.teamStats[this.def].penalties++;
-      this.teamStats[this.def].penaltyYds += yards;
-      if (this.yardLine >= this.lineToGain) this.firstDown();
-      this.clockRunning = false;
-      this.log(`PENALTY on ${this.abbrev(this.def)}: Offside, ${yards} yards.`);
-      return true;
-    }
+    this.offsideFlag = roll < pFalseStart + pOffside;
     return false;
   }
 
@@ -1149,7 +1467,8 @@ class GameSim {
     // The best backs average about a yard a carry more than the league, not three: the line and the
     // defense decide most of a run, the back the rest (NFL rushing leaders run 4.5–5.5 a carry).
     const lean = this.runQuirks(off, def, rusher, outside, bounce, lineDelta, this.tired(s));
-    let yards = rng.normal(RUN_BASE + 0.25 * lineDelta + 0.1 * (rusherSkill - 12) - contain + lean.mean, 2.9 + lean.spread);
+    const stacked = GOAL_LINE_STACK * clamp((6 - yardsToGoal) / 5, 0, 1);
+    let yards = rng.normal(RUN_BASE + 0.25 * lineDelta + 0.1 * (rusherSkill - 12) - contain + lean.mean - stacked, 2.9 + lean.spread);
     if (yards > 4) {
       // Past the line: beat the best linebacker's tackle, then outrun the deep safety.
       const lbTackle = Math.max(...def.lb.map((p) => skill(p, 'tackling')));
@@ -1328,11 +1647,12 @@ class GameSim {
     const rawAcc = skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy') + fast - 1.5 * ghosts;
     const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
     // Base odds are tuned with injuries on: backups throw and catch about a tenth of the passes, as in the NFL.
-    let pComplete = { short: 0.803, medium: 0.611, deep: 0.383 }[depth] + 0.018 * (acc - 12) + 0.019 * sep + 0.012 * (skill(receiver, 'hands') - 12);
+    let pComplete = { short: 0.788, medium: 0.596, deep: 0.371 }[depth] + 0.018 * (acc - 12) + 0.019 * sep + 0.012 * (skill(receiver, 'hands') - 12);
     if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
     // A gunslinger who won't throw it away forces it into coverage instead.
     if (pressured && this.has(qb, 'gunslinger')) pComplete -= 0.1;
-    if (yardsToGoal <= 10 && depth !== 'short') pComplete -= 0.06;
+    // Inside the 10 the field shrinks: no room behind the coverage, and less underneath.
+    if (yardsToGoal <= 10) pComplete -= depth === 'short' ? 0.05 : 0.06;
     if (depth === 'deep' && this.has(receiver, 'goesUpForIt')) pComplete += 0.04;
     else if (depth !== 'deep' && this.has(receiver, 'hearsFootsteps')) pComplete -= 0.04;
     // Contested balls: hands shown late win them, hands that trap against the body don't.
@@ -1406,7 +1726,7 @@ class GameSim {
     } else {
       tackler = rng.chance(0.6) ? defender : this.pickTackler(def, air + 4);
       const yacSkill = skill(receiver, 'afterCatch') - skill(tackler, 'tackling');
-      let yac = Math.max(0, rng.normal({ short: 3.85, medium: 2.8, deep: 2.4 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth), 3));
+      let yac = Math.max(0, rng.normal({ short: 3.7, medium: 2.65, deep: 2.25 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth), 3));
       if (rng.chance(clamp((0.022 + 0.004 * yacSkill) * (coverage?.yac ?? 1), 0.01, 0.06))) yac += rng.exponential(16);
       gain = Math.min(air + Math.round(yac), yardsToGoal);
     }
@@ -1633,7 +1953,7 @@ class GameSim {
       this.streak.set(qb.id, 0);
       text += `. ${short(qb)} looks rattled`;
     }
-    const result: PlayResult = { kind: 'sack', yards: -loss, text, duration: this.rng.int(4, 6), clockStops: false, stats: buf };
+    const result: PlayResult = { kind: 'sack', yards: -loss, text, duration: this.rng.int(4, 6), clockStops: false, stats: buf, rusher: sacker };
     // A quarterback who pats the ball before he throws gives the rusher a swipe at it.
     if (this.rng.chance(this.has(qb, 'patsTheBall') ? 0.18 : 0.1)) {
       buf.add(qb, 'fumbles');
@@ -1717,45 +2037,22 @@ class GameSim {
     const downBefore = this.down;
     const startYardLine = this.yardLine;
     if (this.yardLine >= 80) this.markRedZone();
-    const text = result.text;
+    let text = result.text;
     const airAt = result.passAttempt && result.airYards ? startYardLine + result.airYards : undefined;
 
-    // During-play penalties.
-    let penalty: { on: Side; yards: number; text: string; autoFirst: boolean; replayDown: boolean } | null = null;
-    if (result.kind === 'run' || result.kind === 'pass') {
-      const roll = this.rng.next();
-      const bad = !!result.turnover;
-      const pHold = 0.038 * Math.exp(-0.05 * (this.lineups[offSide].offenseDiscipline - OL_DISCIPLINE)) * (1 + 0.15 * this.count(this.lineups[offSide].ol, 'handPlacement'));
-      if (roll < pHold && !bad && result.yards > -8) {
-        const yards = Math.min(10, Math.floor(this.yardLine / 2));
-        penalty = { on: offSide, yards: -yards, text: `PENALTY on ${this.abbrev(offSide)}: Offensive holding, ${yards} yards. No play.`, autoFirst: false, replayDown: true };
-      } else if (result.passAttempt && !result.complete && !bad && result.airYards! > 0) {
-        const grabby = result.defender && this.has(result.defender, 'handsy') ? 1.6 : 1;
-        const pDpi = { short: 0.008, medium: 0.03, deep: 0.06 }[result.depth!] * grabby;
-        if (roll < pHold + pDpi) {
-          const yards = Math.min(Math.max(1, result.airYards!), 99 - this.yardLine);
-          penalty = { on: defSide, yards, text: `PENALTY on ${this.abbrev(defSide)}: Pass interference, ${yards} yards.`, autoFirst: true, replayDown: false };
-        } else if (roll < pHold + pDpi + 0.02 * grabby) {
-          const yards = Math.min(5, Math.floor((100 - this.yardLine) / 2));
-          penalty = { on: defSide, yards, text: `PENALTY on ${this.abbrev(defSide)}: Defensive holding, ${yards} yards.`, autoFirst: true, replayDown: false };
-        }
-      }
-    }
-
+    const fouls = this.playFouls(result);
     const warning = this.playTime(result.duration);
-    ts.plays++;
     this.driveSnaps++;
 
-    if (penalty) {
-      this.teamStats[penalty.on].penalties++;
-      this.teamStats[penalty.on].penaltyYds += Math.abs(penalty.yards);
-      this.yardLine += penalty.yards;
-      if (penalty.autoFirst) this.firstDown();
-      this.clockRunning = false;
-      this.setAnim(offSide, 'penalty', startYardLine, this.yardLine, undefined, result.lane);
-      this.log(`${text}. ${penalty.text}`);
-      return;
+    let late: { yardLine: number; text: string } | undefined;
+    if (fouls.length) {
+      const call = this.callFouls(result, fouls);
+      // Taken (or offsetting): the play never happened, though the snap still wore the defense down.
+      if (call === true) return;
+      text += call.note;
+      late = call.late;
     }
+    ts.plays++;
 
     this.credit(result.stats);
     if (result.kind === 'pass' || result.kind === 'spike') {
@@ -1821,6 +2118,19 @@ class GameSim {
       this.safety();
       return;
     }
+    if (late) {
+      // The play stands, and the 15 yards go on from where it ended, with a first down.
+      if (this.yardLine >= this.lineToGain) {
+        if (downBefore === 3) ts.thirdDownConv++;
+        if (downBefore === 4) ts.fourthDownConv++;
+      }
+      this.yardLine = late.yardLine;
+      this.firstDown();
+      this.clockRunning = false;
+      if (this.clock <= 0 && (this.quarter === 2 || this.quarter >= 4)) this.untimed = true;
+      this.log(`${text}. ${late.text}${this.untimed ? ' Untimed down.' : ''}`);
+      return;
+    }
     this.log(text);
     if (this.yardLine >= this.lineToGain) {
       if (downBefore === 3) ts.thirdDownConv++;
@@ -1835,6 +2145,224 @@ class GameSim {
     } else {
       this.down++;
     }
+  }
+
+  // ───────────────────────── penalties ─────────────────────────
+
+  private spotNow(): Spot {
+    return { yardLine: this.yardLine, down: this.down, lineToGain: this.lineToGain };
+  }
+
+  /** "BUF (J.Allen)": the team flagged, and the man who drew it. */
+  private flagged(side: Side, by: Player | undefined): string {
+    return by ? `${this.abbrev(side)} (${short(by)})` : this.abbrev(side);
+  }
+
+  /**
+   * The flags on a scrimmage play: an offside from the snap, then one roll for the offense (holding, on
+   * any run or dropback) and one for the coverage (on dropbacks). Whether a flag counts comes after,
+   * once the play is known (`callFouls`).
+   */
+  private playFouls(result: PlayResult): LiveFoul[] {
+    const fouls: LiveFoul[] = [];
+    if (this.offsideFlag) fouls.push({ foul: 'offside' });
+    this.offsideFlag = false;
+    if (result.kind === 'kneel' || result.kind === 'spike') return fouls;
+    const off = this.lineups[this.offense];
+    const def = this.lineups[this.def];
+    const { all, holding, coverage } = this.calls;
+    const pHold = HOLDING * Math.exp(-0.05 * (off.offenseDiscipline - OL_DISCIPLINE)) * (1 + 0.15 * this.count(off.ol, 'handPlacement')) * all * holding;
+    if (this.rng.chance(pHold)) fouls.push({ foul: 'holding' });
+    if (result.kind !== 'run') {
+      // A handsy defender grabs more (on a sack or a scramble, any of them might be the one), and a crew
+      // that watches coverage closely sees more of it.
+      const dbs = [...def.cb, ...def.s];
+      const handsy = result.defender ? (this.has(result.defender, 'handsy') ? 1 : 0) : this.count(dbs, 'handsy') / Math.max(1, dbs.length);
+      const grabby = (1 + 0.6 * handsy) * all * coverage;
+      const pDpi = result.kind === 'pass' && !result.complete && !result.turnover && result.airYards! > 0 ? DPI[result.depth!] * grabby : 0;
+      const roll = this.rng.next();
+      if (roll < pDpi) fouls.push({ foul: 'passInterference', spotYards: result.airYards });
+      else if (roll < pDpi + DEF_HOLDING * grabby) fouls.push({ foul: 'defHolding' });
+    }
+    this.personalFouls(result, fouls);
+    return fouls;
+  }
+
+  /**
+   * Personal fouls: a hit on the passer late, low or high; a tackle finished with a late shot, a face
+   * mask or a horse collar; a sack celebrated in someone's face. Each leans on the temper and the
+   * Awareness of the man who did it (`discipline`), and roughing on how closely the crew protects the
+   * passer and how decorated he is (`starLean`).
+   */
+  private personalFouls(result: PlayResult, fouls: LiveFoul[]) {
+    const { all, qbProtection } = this.calls;
+    const loose = (p: Player, typical: number) => Math.exp(-0.06 * (discipline(p) - typical));
+    const rusher = result.kind === 'sack' ? result.rusher : result.kind === 'pass' ? this.pressureBy : null;
+    if (rusher && this.rng.chance(ROUGHING * loose(rusher, DL_DISCIPLINE) * all * qbProtection * this.star(this.lineups[this.offense].qb))) {
+      fouls.push({ foul: 'roughingPasser', by: rusher });
+    }
+    if (result.turnover) return;
+    const tacklers = result.stats.entries.filter(([, key]) => key === 'tackles').map(([p]) => p);
+    if (tacklers.length) {
+      const temper = tacklers.reduce((sum, p) => sum + loose(p, TACKLER_DISCIPLINE), 0) / tacklers.length;
+      const pRough = UNNECESSARY_ROUGHNESS * temper * all;
+      const pMask = FACE_MASK * temper * all;
+      const roll = this.rng.next();
+      const foul: Foul | null = roll < pRough ? 'unnecessaryRoughness' : roll < pRough + pMask ? 'faceMask' : roll < pRough + pMask + HORSE_COLLAR * all ? 'horseCollar' : null;
+      if (foul) fouls.push({ foul, by: this.flagRng.pick(tacklers) });
+    }
+    // After the whistle: apart from whatever was flagged during the play.
+    if (result.kind === 'sack' && result.rusher && !fouls.length && this.rng.chance(UNSPORTSMANLIKE * loose(result.rusher, DL_DISCIPLINE) * all)) {
+      fouls.push({ foul: 'unsportsmanlike', by: result.rusher });
+    }
+  }
+
+  /** How readily the crews protect this quarterback, from his public record. */
+  private star(qb: Player): number {
+    let lean = this.stars.get(qb.id);
+    if (lean === undefined) this.stars.set(qb.id, (lean = starLean(this.league, qb.id)));
+    return lean;
+  }
+
+  /**
+   * Judge a play's flags. Both teams flagged: they offset and the down is replayed. Otherwise the side
+   * fouled against takes whichever suits it best, the play or a penalty (`coach.takesPenalty`), and any
+   * flag it doesn't take is declined. Returns true when the play is wiped out, or else the note on the
+   * declined flags to add to its text.
+   */
+  private callFouls(result: PlayResult, fouls: LiveFoul[]): true | { note: string; late?: { yardLine: number; text: string } } {
+    const offSide = this.offense;
+    const defSide = this.def;
+    const sideOf = (f: LiveFoul): Side => (FOULS[f.foul].side === 'offense' ? offSide : defSide);
+    for (const f of fouls) f.by ??= this.committer(f.foul, result);
+    const named = (f: LiveFoul) => `${FOULS[f.foul].label.toLowerCase()} on ${this.flagged(sideOf(f), f.by)}`;
+    const at = this.spotNow();
+
+    if (new Set(fouls.map(sideOf)).size === 2) {
+      this.wipe(result);
+      for (const f of fouls) this.flag(sideOf(f), f.foul, f.by, 'offset');
+      this.clockRunning = false;
+      this.setAnim(offSide, 'penalty', at.yardLine, at.yardLine, undefined, result.lane);
+      this.log(`${result.text}. Offsetting penalties: ${fouls.map(named).join(', ')}. Replay the down.`);
+      return true;
+    }
+
+    const fouled = FOULS[fouls[0].foul].side === 'offense' ? 'defense' : 'offense';
+    const worth = (s: Spot) => coach.downValue(s.yardLine, s.down, Math.min(s.lineToGain, 100) - s.yardLine);
+    // A foul at the end of a run or a catch past the line (or after the whistle) goes on from where the
+    // play ended, and the play stands; one that ended in the end zone can't (the NFL would carry it to
+    // the kickoff or the try, which the engine doesn't), so it's declined.
+    const end = at.yardLine + result.yards;
+    const lateOn = (f: LiveFoul) => {
+      const late = FOULS[f.foul].late;
+      return late === 'always' || (late === 'pastLine' && !result.turnover && result.yards > 0 && (result.kind !== 'pass' || !!result.complete));
+    };
+    const options = fouls.map((f) => {
+      const late = lateOn(f);
+      return { f, late, spot: enforce(f.foul, late ? { ...at, yardLine: end } : at, f.spotYards) };
+    });
+    const usable = options.filter((o) => !(o.late && (end >= 100 || end <= 0)));
+    usable.sort((a, b) => (fouled === 'offense' ? worth(b.spot) - worth(a.spot) : worth(a.spot) - worth(b.spot)));
+    const [best] = usable;
+    const take = !!best && coach.takesPenalty(fouled, this.playValue(result), worth(best.spot), !!result.turnover);
+    let note = '';
+    for (const { f } of options.filter((o) => !take || o !== best)) {
+      this.flag(sideOf(f), f.foul, f.by, 'declined');
+      note += `. ${FOULS[f.foul].label} on ${this.flagged(sideOf(f), f.by)}, declined`;
+    }
+    if (!take) return { note };
+
+    const { f, spot } = best;
+    const side = sideOf(f);
+    const called = `PENALTY on ${this.flagged(side, f.by)}: ${FOULS[f.foul].label}, ${spot.yards} yards.`;
+    if (best.late) {
+      // The rusher who drew it hit the passer, whatever the credit stream said.
+      if (f.foul === 'roughingPasser' && f.by && !result.stats.entries.some(([p, key]) => p === f.by && key === 'qbHits')) result.stats.add(f.by, 'qbHits');
+      this.flag(side, f.foul, f.by, 'accepted', spot.yards);
+      return { note, late: { yardLine: spot.yardLine, text: called } };
+    }
+    this.wipe(result);
+    this.flag(side, f.foul, f.by, 'accepted', spot.yards);
+    this.yardLine = spot.yardLine;
+    // An automatic first down (or a foul that reaches the line) moves the chains; anything else replays the down.
+    if (spot.down === 1 && (at.down !== 1 || spot.lineToGain !== at.lineToGain)) this.firstDown();
+    this.clockRunning = false;
+    // A defensive foul on the last play of a half: the offense gets one more snap.
+    if (side === defSide && this.clock <= 0 && (this.quarter === 2 || this.quarter >= 4)) this.untimed = true;
+    this.setAnim(offSide, 'penalty', at.yardLine, this.yardLine, undefined, result.lane);
+    const what = FOULS[f.foul].yards === 'spot' ? '' : ' No play.';
+    this.log(`${result.text}${note}. ${called}${what}${this.untimed ? ' Untimed down.' : ''}`);
+    return true;
+  }
+
+  /** A play a flag wipes out: its stats are never credited, and a sack doesn't count toward a beating. */
+  private wipe(result: PlayResult) {
+    if (result.kind !== 'sack') return;
+    const qb = this.lineups[this.offense].qb;
+    this.sacksTaken.set(qb.id, (this.sacksTaken.get(qb.id) ?? 1) - 1);
+  }
+
+  /** A play as it stands, valued for the offense like a penalty's spot (`coach.downValue`). */
+  private playValue(result: PlayResult): number {
+    if (result.turnover) {
+      const { kind, spot, returnYds } = result.turnover;
+      if (kind === 'int' && spot >= 100) return -coach.downValue(20, 1, 10);
+      const theirs = 100 - spot + returnYds;
+      return theirs >= 100 ? -coach.TOUCHDOWN_VALUE : -coach.downValue(theirs, 1, 10);
+    }
+    const yardLine = this.yardLine + result.yards;
+    if (yardLine >= 100) return coach.TOUCHDOWN_VALUE;
+    // A safety: two points and a free kick from the 20.
+    if (yardLine <= 0) return -2 - coach.downValue(40, 1, 10);
+    if (yardLine >= this.lineToGain) return coach.downValue(yardLine, 1, Math.min(10, 100 - yardLine));
+    if (this.down === 4) return -coach.downValue(100 - yardLine, 1, 10);
+    return coach.downValue(yardLine, this.down + 1, this.lineToGain - yardLine);
+  }
+
+  /**
+   * Who drew a flag, leaning on the men with the least discipline: linemen most of all for false starts,
+   * holding and offside (a tight end or a receiver now and then), and the man in coverage for grabbing.
+   */
+  private committer(foul: Foul, result: PlayResult | null): Player | undefined {
+    const off = this.lineups[this.offense];
+    const def = this.lineups[this.def];
+    const loose = (p: Player) => Math.max(1, 24 - discipline(p));
+    const pick = (players: Player[], weight: (p: Player) => number) => (players.length ? this.flagRng.weighted(players, (p) => loose(p) * weight(p)) : undefined);
+    switch (foul) {
+      case 'falseStart':
+        return pick([...off.ol, ...off.tes.slice(0, 1), ...off.wrs], (p) => (p.position === 'OL' ? 1 : p.position === 'TE' ? 0.35 : 0.12));
+      case 'holding':
+        return pick([...off.ol, ...off.tes.slice(0, 1), ...off.rbs.slice(0, 1)], (p) => (p.position === 'OL' ? (this.has(p, 'handPlacement') ? 1.5 : 1) : p.position === 'TE' ? 0.3 : 0.1));
+      case 'offside':
+        return pick([...def.dt, ...def.edge, ...def.lb], (p) => (p.position === 'LB' ? 0.15 : 1) * (this.has(p, 'jumpHappy') ? 2 : 1));
+      case 'passInterference':
+      case 'defHolding':
+        return result?.defender ?? pick([...def.cb, ...def.s], (p) => (this.has(p, 'handsy') ? 2 : 1));
+      // Personal fouls name their man when they're rolled; this is only the fallback.
+      default:
+        return pick([...def.dt, ...def.edge, ...def.lb, ...def.cb, ...def.s], () => 1);
+    }
+  }
+
+  /** A flag on `side`: accepted ones cost yards and count as penalties (the team's and the man's); declined and offsetting ones are only counted. */
+  private flag(side: Side, foul: Foul, by: Player | undefined, outcome: 'accepted' | 'declined' | 'offset', yards = 0) {
+    const ts = this.teamStats[side];
+    if (outcome !== 'accepted') {
+      const tally = outcome === 'declined' ? (ts.declined ??= {}) : (ts.offset ??= {});
+      tally[foul] = (tally[foul] ?? 0) + 1;
+      return;
+    }
+    ts.penalties++;
+    ts.penaltyYds += yards;
+    ts.flags![foul] = (ts.flags![foul] ?? 0) + 1;
+    if (foul === 'roughingPasser') {
+      const qb = (this.playerStats[this.lineups[this.offense].qb.id] ??= {});
+      qb.roughingDrawn = (qb.roughingDrawn ?? 0) + 1;
+    }
+    if (!by) return;
+    const line = (this.playerStats[by.id] ??= {});
+    line.penalties = (line.penalties ?? 0) + 1;
+    line.penaltyYds = (line.penaltyYds ?? 0) + yards;
   }
 
   private markRedZone() {
@@ -1879,6 +2407,7 @@ class GameSim {
       ...(this.injuries.length ? { injuries: this.injuries, diagnoses: this.diagnoses } : {}),
       condition,
       weather: this.weather,
+      ...(this.crew ? { crewId: this.crew.id } : {}),
     };
   }
 }

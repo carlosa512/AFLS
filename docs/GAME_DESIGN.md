@@ -150,10 +150,12 @@ ceiling on their draft board, re-sign and cut lists, and trade value.
 
 ## How coaching works
 
-Every team has 11 coaching chairs: a **head coach**, an **offensive** and a **defensive coordinator**,
-a **strength & conditioning (S&C) coach** and seven **position coaches** (quarterbacks, running backs,
-receivers and tight ends, offensive line, defensive line, linebackers, secondary). Kickers and punters
-train with the head coach and the S&C coach (the head coach alone keeps their technique).
+Every team has 12 coaching chairs: a **head coach**, an **offensive** and a **defensive coordinator**,
+a **strength & conditioning (S&C) coach**, a **special teams coordinator** and seven **position
+coaches** (quarterbacks, running backs, receivers and tight ends, offensive line, defensive line,
+linebackers, secondary). The special teams coordinator is the kickers' and punters' position coach,
+and the one coach whose quality shows on game day: his kick units draw fewer flags and win a little
+field position on returns and in coverage.
 
 Each coach has two public 1–20 ratings, and both feed player development (`src/engine/coaching.ts`):
 
@@ -330,7 +332,23 @@ from your medical staff or scouts plus public injury reports. The Medical tab, t
 column, the player card's Health section, injuries in box scores. Details and sources:
 `docs/INJURIES.md`.
 
+**✅ Officiating crews (MVP, done)** — seventeen crews with hidden Flag Volume, Holding and Coverage
+tendencies that multiply the engine's penalty rolls for both teams, centred so the league stays at
+baseline and nudged each offseason; a weekly rotation, penalties logged by kind, the crew on the
+next-game card, an Officials tab ranking every crew, and each game's penalties against the crew's
+average in the box score. Spec and later phases: `docs/OFFICIALS.md`.
+
 **Next: Front office depth**
+- **Bug, its own PR:** an AI front office can kick off a season over the cap with a short roster.
+  `npm run offseason -- 6` on the penalties branch (b02412e) had Atlanta $1.2M over the cap with 42
+  players in 2030; the check already warns about short rosters as a known issue. Look at how the AI
+  trims payroll and fills the 53 before kickoff (`offseason/ai.ts`, `finance/cap.ts`).
+- **Attribute scaling, its own PR:** aged leagues score 1.2–1.6 points a team-game more than fresh
+  ones and sack and pick the quarterback less, enough to leave `npm run careers` red on points, sacks
+  #5 and (at the floor) interceptions #5. Likely cause: starter Awareness rises about a point over
+  sixteen seasons and feeds the QB's pocket presence and decision making far more than any defender's
+  contest. Review how each attribute ages and what it feeds, now that penalties, special teams and
+  schemes read them too. Numbers: `docs/PENALTIES.md`, "Checks when Phase 3a landed".
 - NFL-calendar practice: CBA padded-practice budgets, Full/Limited/DNP, veteran rest days (the
   weekly practice injury roll is the hook).
 - Mentoring in position rooms; morale (playing time, contract, results) and holdouts.

@@ -77,17 +77,18 @@ describe('bonus money when a deal ends', () => {
     const l = createLeague({ seed: 'ledger-retire' });
     simToEndOfSeason(l);
     const next = l.season + 1;
-    // What each rostered player's bonuses still owe from next season on.
+    // What each rostered player's bonuses still owe from next season on, and what next season already
+    // carries for him (a team that released him earlier and signed him back still owes that deal's money).
     const owed = new Map(
       Object.values(l.players)
         .filter((p) => p.teamId !== null && p.contract)
-        .map((p) => [p.id, { team: p.teamId!, amount: remainingProration(p.contract!, next) }]),
+        .map((p) => [p.id, { team: p.teamId!, amount: remainingProration(p.contract!, next), booked: deadFor(l, p.teamId!, p.id, next) }]),
     );
     const deadBefore = l.teams.map((t) => t.deadMoney.length);
     beginOffseason(l);
-    for (const [id, { team, amount }] of owed) {
+    for (const [id, { team, amount, booked }] of owed) {
       const p = l.players[id];
-      if (p.retired) expect(deadFor(l, team, id, l.season)).toBeCloseTo(amount, -1);
+      if (p.retired) expect(deadFor(l, team, id, l.season) - booked).toBeCloseTo(amount, -1);
     }
     expect(l.teams.some((t, i) => t.deadMoney.length > deadBefore[i])).toBe(true);
   });

@@ -501,9 +501,8 @@ export function departmentScore(league: League, teamId: number, staff = teamStaf
 }
 
 /** Letter grade by rank among the 32 departments: A top 3, B next 6, C middle 14, D next 6, F bottom 3. */
-/** `see` is how a screen's team reads other clubs' scouts (`seenScout`), so a ranking never leaks their true ratings. */
-export function departmentGrades(league: League, see: (s: Staff) => Staff = (s) => s): Map<number, { rank: number; grade: string }> {
-  const ranked = league.teams.map((t) => ({ id: t.id, score: departmentScore(league, t.id, teamStaff(league, t.id).map(see)) })).sort((a, b) => a.score - b.score);
+export function departmentGrades(league: League): Map<number, { rank: number; grade: string }> {
+  const ranked = league.teams.map((t) => ({ id: t.id, score: departmentScore(league, t.id) })).sort((a, b) => a.score - b.score);
   return new Map(ranked.map((x, i) => [x.id, { rank: i + 1, grade: i < 3 ? 'A' : i < 9 ? 'B' : i < 23 ? 'C' : i < 29 ? 'D' : 'F' }]));
 }
 
@@ -540,11 +539,10 @@ export interface ReadChange {
  * the department as it will stand with and without him: expiring staff forecast to re-sign count as
  * staying, and anyone the hire would push out counts as gone, so losses show as well as gains.
  */
-export function previewHire(league: League, teamId: number, s: Staff, years = 2, seen: Staff = s): ReadChange[] {
+export function previewHire(league: League, teamId: number, s: Staff, years = 2): ReadChange[] {
   const staying = (forecast: Map<number, ResignOutlook>) => teamStaff(league, teamId).filter((x) => !isExpiring(league, x) || forecast.get(x.id) === 'stays');
   const now = staying(resignForecast(league, teamId));
-  // His ask (and so the budget) is the real man's; the reads he'd give are the team's read of him (`seen`).
-  const after = [...staying(resignForecast(league, teamId, { s, years })).filter((x) => s.role !== 'director' || x.role !== 'director'), seen];
+  const after = [...staying(resignForecast(league, teamId, { s, years })).filter((x) => s.role !== 'director' || x.role !== 'director'), s];
   const out: ReadChange[] = [];
   for (const g of GROUPS) {
     for (const domain of ['college', 'pro'] as const) {

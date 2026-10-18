@@ -134,6 +134,11 @@ export const STAT_KEYS = [
   'prTd',
   /** Punter whose punt was blocked. */
   'puntsBlocked',
+  /** Accepted penalties charged to the player, and the yards they cost. */
+  'penalties',
+  'penaltyYds',
+  /** Quarterback hit late, low or high, and the flag accepted. */
+  'roughingDrawn',
 ] as const;
 export type StatKey = (typeof STAT_KEYS)[number];
 export type StatLine = Partial<Record<StatKey, number>>;
@@ -311,8 +316,8 @@ export interface StaffSeverance {
   name: string;
 }
 
-export type CoachRole = 'headCoach' | 'offCoord' | 'defCoord' | 'positionCoach' | 'strengthCoach';
-/** Position rooms, each with its own coach. Kickers and punters have none. */
+export type CoachRole = 'headCoach' | 'offCoord' | 'defCoord' | 'positionCoach' | 'strengthCoach' | 'stCoord';
+/** Position rooms, each with its own coach. Kickers and punters have none: the special teams coordinator coaches them. */
 export type CoachRoom = 'QB' | 'RB' | 'WR' | 'OL' | 'DL' | 'LB' | 'DB';
 
 /**
@@ -408,6 +413,8 @@ export interface Team {
   division: number;
   colors: [string, string];
   depthChart: DepthChart;
+  /** The kick and punt returners the user picked (player ids); unset, the lineup picks the best backup. */
+  returners?: { kr?: number; pr?: number };
   /** If true the depth chart is rebuilt from ratings before every game. */
   autoDepth: boolean;
   /** Dead money charged to this team, by league year. */
@@ -498,10 +505,33 @@ export interface Transaction {
   text: string;
 }
 
+export type InboxCategory = 'awards' | 'contracts' | 'retirement' | 'medical' | 'scouting' | 'matchup' | 'trades';
+
+/** Where a message's buttons go: a player's card, a team's roster, or a front-office tab. */
+export type InboxAction = { kind: 'player'; playerId: number } | { kind: 'team'; teamId: number } | { kind: 'resign' } | { kind: 'draft' } | { kind: 'medical' };
+
+export interface InboxMessage {
+  /** Built from what the message is about, so delivering twice can't duplicate it. */
+  id: string;
+  season: number;
+  phase: Phase;
+  /** The week it's dated (0 in the offseason). */
+  week: number;
+  from: string;
+  /** The sender's staff card, when one of the club's own staff signs it. */
+  fromCard?: { kind: 'coach' | 'scout' | 'medic'; id: number };
+  category: InboxCategory;
+  subject: string;
+  body: string;
+  read: boolean;
+  actions: InboxAction[];
+}
+
 export type PlayoffRound = 'WC' | 'DIV' | 'CONF' | 'FINAL';
 
 export interface TeamGameStats {
   firstDowns: number;
+  /** Plays that counted: runs, passes and sacks. A play a flag wipes out isn't one, as in the NFL's count. */
   plays: number;
   totalYds: number;
   passYds: number;
@@ -513,6 +543,11 @@ export interface TeamGameStats {
   turnovers: number;
   penalties: number;
   penaltyYds: number;
+  /** Accepted penalties by kind, what the officiating crew pages read (games before v15 have none). */
+  flags?: Partial<Record<Foul, number>>;
+  /** Flags the other side declined, and flags that offset one of theirs (games before v16 have none). */
+  declined?: Partial<Record<Foul, number>>;
+  offset?: Partial<Record<Foul, number>>;
   thirdDownAtt: number;
   thirdDownConv: number;
   fourthDownAtt: number;
@@ -521,6 +556,44 @@ export interface TeamGameStats {
   redZoneTd: number;
   /** Seconds of possession. */
   top: number;
+}
+
+/** The fouls the engine calls (see `FOULS` in `officials.ts`). */
+export type Foul =
+  | 'falseStart'
+  | 'offside'
+  | 'holding'
+  | 'passInterference'
+  | 'defHolding'
+  | 'roughingPasser'
+  | 'unnecessaryRoughness'
+  | 'faceMask'
+  | 'horseCollar'
+  | 'unsportsmanlike'
+  | 'returnHolding'
+  | 'blockInBack'
+  | 'kickoffMiss'
+  | 'kickoffFormation'
+  | 'kickCatch'
+  | 'runningIntoKicker'
+  | 'roughingKicker';
+
+/**
+ * An officiating crew, known by its head referee (see `officials.ts`). Its tendencies are 1–20 like
+ * ratings and just as hidden: screens show only what the crew calls, never these numbers.
+ */
+export interface Crew {
+  id: number;
+  firstName: string;
+  lastName: string;
+  /** How many flags of every kind it throws. */
+  flagVolume: number;
+  /** How often it calls offensive holding. */
+  holding: number;
+  /** How often it calls pass interference and defensive holding. */
+  coverage: number;
+  /** How closely it protects the quarterback: roughing the passer (saves before v17 get it on load). */
+  qbProtection: number;
 }
 
 /** What the replay viewer animates for a logged play. */
@@ -578,6 +651,8 @@ export interface GameResult {
   form?: Record<number, { shaken?: true; slump?: 'start' | 'end'; clutch?: true }>;
   /** The conditions it was played in (games before v14 have none). */
   weather?: Weather;
+  /** The officiating crew that worked it (games before v15 have none). */
+  crewId?: number;
 }
 
 /** An injury as a box score keeps it: who, when, what, and the estimate as it was made then. */
@@ -651,6 +726,8 @@ export interface League {
   /** Prospects for the upcoming draft (player ids, teamId null until drafted). */
   draftClass: number[];
   transactions: Transaction[];
+  /** The user's mail, oldest first (see `inbox.ts`). Unset until the first delivery. */
+  inbox?: InboxMessage[];
   negotiations: Record<number, Negotiation>;
   /** Free-agency day within the current offseason (0 before it opens). */
   faDay: number;
@@ -672,4 +749,6 @@ export interface League {
   /** Every member of a medical staff, employed or on the market (see `medical.ts`). */
   medics: Record<number, Medic>;
   nextMedicId: number;
+  /** The league's officiating crews, by id (see `officials.ts`). */
+  crews: Crew[];
 }

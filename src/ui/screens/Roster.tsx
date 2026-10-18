@@ -2,17 +2,17 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as Rea
 import { chairHolder, coachName, teamCoaches, teamScheme } from '../../engine/coaching';
 import { POSITION_NAMES } from '../../engine/positions';
 import { PERSONNEL_LABEL, spotsFor, type TeamScheme } from '../../engine/schemes';
-import { capSheet } from '../../engine/finance/cap';
+import { capSheet, isOffseason } from '../../engine/finance/cap';
 import { capHit, lastSeason } from '../../engine/finance/contract';
 import { buildAutoDepthChart, isAvailable, teamPlayers, teamRatings } from '../../engine/roster';
 import { computeRecords } from '../../engine/season/standings';
-import type { Coach, League, Player, Position, StatLine } from '../../engine/types';
+import type { Coach, League, Player, Position, StatLine, Team } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, SortTh, sortRows, TeamChip, useSort } from '../components';
+import { Panel, PlayerAvatar, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
-import { FitnessCell, InjuryTag, riskOf } from '../injuries';
+import { FitnessCell, fitnessSort, InjuryTag } from '../injuries';
 import { Ovr, repsOf, schemeFitOf, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { store } from '../store';
 
@@ -86,11 +86,23 @@ function SchemeStrip({ league, teamId, scheme }: { league: League; teamId: numbe
   );
 }
 
-/** Move a player within his position group; any manual move turns auto-sort off. */
+/**
+ * A position's depth as the screen shows it. An auto-sorted chart puts the hurt behind the healthy, keeping
+ * their order: that's who the lineup plays, since it skips anyone unavailable. The chart itself is left as it
+ * is (the line's spots are given out from it), so the view changes no game.
+ */
+function shownDepth(league: League, team: Team, pos: Position): number[] {
+  const ids = team.depthChart[pos];
+  if (!team.autoDepth) return ids;
+  const ok = (id: number) => !league.players[id] || isAvailable(league.players[id]);
+  return [...ids.filter(ok), ...ids.filter((id) => !ok(id))];
+}
+
+/** Move a player within his position group as the screen shows it; any manual move turns auto-sort off. */
 function moveInDepth(teamId: number, pos: Position, from: number, to: number) {
   store.mutate((l) => {
     const team = l.teams[teamId];
-    const list = team.depthChart[pos];
+    const list = shownDepth(l, team, pos);
     if (to < 0 || to >= list.length || to === from) return;
     team.autoDepth = false;
     team.depthChart[pos] = reorder(list, from, to);
@@ -108,6 +120,43 @@ function setAutoInjuries(teamId: number, auto: boolean) {
   store.mutate((l) => {
     l.teams[teamId].autoInjuries = auto;
   });
+}
+
+const RETURNER_POSITIONS: readonly Position[] = ['RB', 'WR', 'CB', 'S'];
+
+/** Who returns kicks and punts: the user's pick, or Auto (the best backup, as the AI does). A pick who's hurt sits like anyone else. */
+function Returners({ league, team }: { league: League; team: Team }) {
+  const choices = RETURNER_POSITIONS.flatMap((pos) => team.depthChart[pos].map((id) => league.players[id]).filter((p): p is Player => !!p));
+  const pick = (role: 'kr' | 'pr', value: string) =>
+    store.mutate((l) => {
+      const t = l.teams[team.id];
+      const next = { ...t.returners, [role]: value === '' ? undefined : Number(value) };
+      if (next.kr === undefined && next.pr === undefined) delete t.returners;
+      else t.returners = next;
+    });
+  return (
+    <div className="row" style={{ gap: 14, marginBottom: 10, fontSize: 'var(--step--1)' }}>
+      {(
+        [
+          ['kr', 'Kick returner'],
+          ['pr', 'Punt returner'],
+        ] as const
+      ).map(([role, label]) => (
+        <label key={role} className="row" style={{ gap: 6 }}>
+          {label}
+          <select aria-label={label} value={team.returners?.[role] ?? ''} onChange={(e) => pick(role, e.target.value)}>
+            <option value="">Auto</option>
+            {choices.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.position} {p.firstName[0]}. {p.lastName}
+                {isAvailable(p) ? '' : ' (hurt)'}
+              </option>
+            ))}
+          </select>
+        </label>
+      ))}
+    </div>
+  );
 }
 
 function setAuto(teamId: number, auto: boolean) {
@@ -210,8 +259,7 @@ function rosterSortValue(league: League, p: Player, key: RosterSort): number | s
     case 'age':
       return p.age;
     case 'fitness':
-      // Your players by condition; anyone's by how injury-prone your read says he is. The hurt sink to the bottom.
-      return (isAvailable(p) ? 0 : -1000) + (p.teamId === league.userTeamId ? (p.condition ?? 100) : 0) - { Low: 0, Medium: 1, High: 2 }[riskOf(league, p).tier];
+      return fitnessSort(league, p);
     case 'cap':
       return p.contract ? capHit(p.contract, league.season) : -1;
     case 'thru':
@@ -244,7 +292,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
     refocus.current = null;
   });
   const keyMove = (p: Player, index: number, to: number) => {
-    const count = team.depthChart[p.position].length;
+    const count = shownDepth(league, team, p.position).length;
     if (to < 0 || to >= count) return;
     moveInDepth(teamId, p.position, index, to);
     refocus.current = p.id;
@@ -269,16 +317,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
           </div>
         }
         action={
-          <select aria-label="Choose team" id="roster-team" value={teamId} onChange={(e) => nav.openTeam(Number(e.target.value))}>
-            {[...league.teams]
-              .sort((a, b) => a.city.localeCompare(b.city))
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.city} {t.name}
-                  {t.id === league.userTeamId ? ' (you)' : ''}
-                </option>
-              ))}
-          </select>
+          <TeamPicker league={league} value={teamId} onChange={nav.openTeam} id="roster-team" />
         }
       >
         <div className="facts">
@@ -308,6 +347,16 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
               {money(Math.round(cap.space))}
             </button>
           </span>
+          <span className="fact">
+            <span className="eyebrow">Roster</span>
+            {/* As the Cap screen counts it: injured reserve is off the 53 (90 in the offseason). */}
+            <span className="staff-age">
+              <b className="num">
+                {cap.rosterSize}/{isOffseason(league.phase) ? 90 : 53}
+              </b>
+              {players.some((p) => p.ir) && <span className="muted small">+{players.filter((p) => p.ir).length} on IR</span>}
+            </span>
+          </span>
         </div>
       </Panel>
 
@@ -329,6 +378,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
         }
       >
         {grouped && <SchemeStrip league={league} teamId={teamId} scheme={scheme} />}
+        {grouped && isUser && <Returners league={league} team={team} />}
         {!grouped && (
           <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
             Showing the whole roster sorted by a column.{' '}
@@ -368,7 +418,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                   sort,
                   (p, key) => rosterSortValue(league, p, key),
                 ).map((p) => {
-                  const ids = team.depthChart[p.position];
+                  const ids = shownDepth(league, team, p.position);
                   return (
                     <RosterRow
                       key={p.id}
@@ -387,7 +437,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                 })}
               {grouped && POSITIONS.map((pos) => {
                 // While dragging, show the order the drop would produce.
-                const ids = drag?.pos === pos ? reorder(team.depthChart[pos], drag.from, drag.over) : team.depthChart[pos];
+                const ids = drag?.pos === pos ? reorder(shownDepth(league, team, pos), drag.from, drag.over) : shownDepth(league, team, pos);
                 return [
                   <tr className="group-row" key={`g-${pos}`}>
                     <td colSpan={10}>
@@ -399,7 +449,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                   ...ids.map((id, i) => {
                     const p = league.players[id] ?? players.find((x) => x.id === id);
                     if (!p) return null;
-                    const committed = team.depthChart[pos].indexOf(id);
+                    const committed = shownDepth(league, team, pos).indexOf(id);
                     return (
                       <RosterRow
                         key={id}

@@ -263,3 +263,41 @@ export function defenseTimeout(s: Situation): boolean {
   if (s.defTimeouts <= 0) return false;
   return defenseWillStopClock(s) && s.clock <= 180 && s.clock > 5;
 }
+
+// ───────── penalties: take it or decline it ─────────
+
+/** Rough expected points of a first-and-ten here: about 0.85 at your own 25, 4.35 at the other 25. */
+const firstDownValue = (yardLine: number) => 0.07 * yardLine - 0.9;
+/** A touchdown and its try, less the field position the kickoff hands back. */
+export const TOUCHDOWN_VALUE = 6.3;
+/** How often a series moves the chains from each down at 10 to go, and how much each extra yard costs. */
+const CONVERT = [0, 0.7, 0.55, 0.38];
+const CONVERT_PER_YARD = [0, 0.02, 0.025, 0.03];
+
+/**
+ * What a down is worth to the offense, in rough expected points: the chance of moving the chains
+ * (falling with the down and the yards to go) times the next first down, and otherwise what a punt or
+ * a field goal leaves. Fourth down is the better of kicking and going for it (70% at 4th and 1, a
+ * quarter at 4th and 10, the ball turned over at the spot when it fails). Only comparisons matter: it
+ * decides which of two outcomes a team would rather have.
+ */
+export function downValue(yardLine: number, down: number, toGo: number): number {
+  const kick = yardLine >= 63 ? 1.5 : -firstDownValue(Math.max(20, 60 - yardLine));
+  const next = firstDownValue(Math.min(99, yardLine + toGo));
+  if (down >= 4) {
+    const convert = clamp(0.7 - 0.05 * (toGo - 1), 0.1, 0.75);
+    return Math.max(kick, convert * next - (1 - convert) * firstDownValue(100 - yardLine));
+  }
+  const convert = clamp(CONVERT[down] - CONVERT_PER_YARD[down] * (toGo - 10), 0.03, 0.97);
+  return convert * next + (1 - convert) * kick;
+}
+
+/**
+ * Take the penalty or the play? The side fouled against picks whichever leaves it better off, both
+ * valued for the offense (`downValue`): the offense wants the higher, the defense the lower. A tie
+ * takes the penalty, and a defense never hands back a takeaway, whatever the field position says.
+ */
+export function takesPenalty(fouled: 'offense' | 'defense', play: number, penalty: number, turnover = false): boolean {
+  if (turnover && fouled === 'defense') return false;
+  return fouled === 'offense' ? penalty >= play : penalty <= play;
+}

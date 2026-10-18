@@ -196,8 +196,8 @@ let chairsBefore = chairSnap(league);
 
 const KEEP_TOTAL = Object.values(KEEP_MIN).reduce((a, b) => a + b, 0); // 42: the roster floor nobody can be cut below
 const SCOUT_MAX = Object.values(STAFF_SLOTS).reduce((a, b) => a + b, 0); // 8
-const ROLES = ['headCoach', 'offCoord', 'defCoord', 'strengthCoach', 'positionCoach'];
-const ROLE_NAMES = ['HC', 'OC', 'DC', 'S&C', 'PC'];
+const ROLES = ['headCoach', 'offCoord', 'defCoord', 'strengthCoach', 'stCoord', 'positionCoach'];
+const ROLE_NAMES = ['HC', 'OC', 'DC', 'S&C', 'ST', 'PC'];
 const sizeKb = (x: unknown) => JSON.stringify(x).length / 1024;
 /** A per-run allowance given for a 6-season run, scaled to this run's length. */
 const perRun = (n6: number) => Math.ceil((n6 * seasons) / 6);
@@ -282,7 +282,7 @@ for (let s = 0; s < seasons; s++) {
   const hcFired = staffMoves.filter((m) => /head coach .* after a/.test(m.text)).length;
   // The carousel: every chair with a new man since last kickoff, and where the new head coaches came from.
   const chairsNow = chairSnap(league);
-  const changed = { headCoach: 0, offCoord: 0, defCoord: 0, strengthCoach: 0, positionCoach: 0 };
+  const changed = { headCoach: 0, offCoord: 0, defCoord: 0, strengthCoach: 0, stCoord: 0, positionCoach: 0 };
   const hcFrom = { retread: 0, coordinator: 0, other: 0 };
   for (const t of league.teams) {
     for (const ch of CHAIRS) {
@@ -390,12 +390,12 @@ for (let s = 0; s < seasons; s++) {
   // craft x0.993-1.000 for 28+ (all seeds 0.984-1.005): the ledger is meant to be neutral, so [0.94, 1.06] and [0.96, 1.04].
   // Team spread x0.77-0.79 to x1.11-1.21 (all seeds 0.75-0.90 and 1.09-1.21): if it collapses coaching stops mattering,
   // if it explodes a staff decides careers. Payroll 77-80% of budget (all seeds 74-87), cheapest 46-58% (37-61), dearest
-  // 100-103% (96-119), 0-2 teams over (run totals 4-6). Role values 10.0-11.3. Chairs 11 of 11 always; fired 2-10 a year
+  // 100-103% (96-119), 0-2 teams over (run totals 4-6). Role values 10.0-11.3. Chairs 12 of 12 always; fired 2-10 a year
   // (the NFL's record is 10 new head coaches) and hired never fewer; market 104-125 coaches (floor 80: a drained market
   // means no replacements).
-  const [hc, oc, dc, sc, pc] = roles;
+  const [hc, oc, dc, sc, st, pc] = roles;
   console.log(
-    `  checks ${year} coaching: ${check('growth', rate, 0.94, 1.06, 3)} · ${check('body', body, 0.96, 1.04, 3)} · ${check('craft', craft, 0.96, 1.04, 3)} · ${check('team growth min', Math.min(...teamRate), 0.6, 0.95)} · ${check('max', Math.max(...teamRate), 1.03, 1.4)} · ${check('payroll mean %', 100 * avg(pay), 65, 95, 0)} · ${check('min %', 100 * Math.min(...pay), 25, Infinity, 0)} · ${check('max %', 100 * Math.max(...pay), 0, 130, 0)} · ${check('over budget', coachOver, 0, 4, 0)} · ${check('chairs filled', Math.min(...filled), CHAIRS.length, CHAIRS.length, 0)} · ${check('HCs fired', hcFired, 0, 11, 0)} · ${check('hired − fired', hcHired - hcFired, 0, league.teams.length, 0)} · ${check('market', coachMkt, 80, 135, 0)} · ${[hc, oc, dc, sc, pc].map((v, i) => check(`${ROLE_NAMES[i]} value`, v, 9, 12, 1)).join(' · ')}`,
+    `  checks ${year} coaching: ${check('growth', rate, 0.94, 1.06, 3)} · ${check('body', body, 0.96, 1.04, 3)} · ${check('craft', craft, 0.96, 1.04, 3)} · ${check('team growth min', Math.min(...teamRate), 0.6, 0.95)} · ${check('max', Math.max(...teamRate), 1.03, 1.4)} · ${check('payroll mean %', 100 * avg(pay), 65, 95, 0)} · ${check('min %', 100 * Math.min(...pay), 25, Infinity, 0)} · ${check('max %', 100 * Math.max(...pay), 0, 130, 0)} · ${check('over budget', coachOver, 0, 4, 0)} · ${check('chairs filled', Math.min(...filled), CHAIRS.length, CHAIRS.length, 0)} · ${check('HCs fired', hcFired, 0, 11, 0)} · ${check('hired − fired', hcHired - hcFired, 0, league.teams.length, 0)} · ${check('market', coachMkt, 80, 135, 0)} · ${[hc, oc, dc, sc, st, pc].map((v, i) => check(`${ROLE_NAMES[i]} value`, v, 9, 12, 1)).join(' · ')}`,
   );
 
   // Scouting staffs. Accuracy multiplier: mean x1.01-1.03 (all seeds 0.94-1.04), best x0.76-0.81 (0.59-0.83), worst

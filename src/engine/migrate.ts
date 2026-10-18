@@ -3,12 +3,13 @@
  * so careers survive engine changes instead of being thrown away.
  */
 import { awardSeason } from './awards';
-import { generateCoachingWorld } from './coaching';
+import { addSpecialTeamsCoordinators, generateCoachingWorld } from './coaching';
 import { DIVISIONS, LEGACY_COLORS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
 import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
+import { addQbProtection, generateCrews } from './officials';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
@@ -38,7 +39,12 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 13) toV13(league);
   if (league.version < 14) league.version = 14; // v14: optional `weather` on game results, nothing to fill in
   if (league.version < 15) toV15(league);
-  if (league.version < 16) toV16(league);
+  if (league.version < 16) league.version = 16; // v16: declined and offsetting flags, players' penalties: optional, nothing to fill in
+  if (league.version < 17) toV17(league);
+  if (league.version < 18) league.version = 18; // v18: optional `returners` on teams and special-teams flags, nothing to fill in
+  if (league.version < 19) toV19(league);
+  if (league.version < 20) league.version = 20; // v20: optional `inbox`, filled (already read) on the first delivery
+  if (league.version < 21) toV21(league);
   return league;
 }
 
@@ -232,18 +238,34 @@ function toV13(league: League) {
   league.version = 13;
 }
 
-/** v14 → v15: an archive for coaches leaving football. Those who left before this build are already gone. */
+/**
+ * v14 → v15: officiating crews, the same ones a new league would get from this seed. Games already
+ * played keep no crew and no penalties by kind, so the crews' numbers start with the next game.
+ */
 function toV15(league: League) {
-  league.retiredCoaches ??= {};
+  if (!league.crews?.length) generateCrews(league);
   league.version = 15;
 }
 
+/** v16 → v17: the crews' fourth tendency, QB Protection, as a new league from this seed would roll it. */
+function toV17(league: League) {
+  addQbProtection(league);
+  league.version = 17;
+}
+
+/** v18 → v19: the special teams coordinator, a new chair: every team hires one, and the market gets candidates. */
+function toV19(league: League) {
+  addSpecialTeamsCoordinators(league);
+  league.version = 19;
+}
+
 /**
- * v15 → v16: owners spend what their markets earn (`ownerBudgets`), the user's own included, where the old
- * save rolled them at random. Coaches may now carry a `playerId` (former players) and teams a `coachOverspent` year:
- * nothing to fill in.
+ * v20 → v21: an archive for coaches leaving football (those who left before this build are already gone), and owners
+ * who spend what their markets earn (`ownerBudgets`), the user's own included, where older saves rolled them at
+ * random. Coaches may now carry a `playerId` (former players) and teams a `coachOverspent` year: nothing to fill in.
  */
-function toV16(league: League) {
+function toV21(league: League) {
+  league.retiredCoaches ??= {};
   setOwnerBudgets(league);
-  league.version = 16;
+  league.version = 21;
 }

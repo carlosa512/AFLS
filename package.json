@@ -19,7 +19,8 @@
     "audit": "tsx scripts/audit.ts",
     "careers": "tsx scripts/careers.ts",
     "quirks": "tsx scripts/quirks.ts",
-    "weather": "tsx scripts/weather.ts"
+    "weather": "tsx scripts/weather.ts",
+    "crews": "tsx scripts/crews.ts"
   },
   "dependencies": {
     "react": "19.3.1",

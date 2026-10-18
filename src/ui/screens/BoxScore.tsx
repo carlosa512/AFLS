@@ -6,6 +6,7 @@ import type { GameResult, League, Player, PlayLogEntry, StatLine, Team, TeamGame
 import { useNav } from '../App';
 import { FieldStrip, Panel, TeamChip, WeatherNote } from '../components';
 import { PlayText, usePlayNames, type PlayNames } from './GameViewer';
+import { GameOfficials } from './Officials';
 import { gameClock, shortName, weekLabel } from '../format';
 
 type Row = [Player, StatLine];
@@ -156,6 +157,14 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
         cols={[
           ['Punts', n('punts')],
           ['Avg', (s) => ((s.puntYds ?? 0) / (s.punts || 1)).toFixed(1)],
+        ]}
+      />
+      <StatTable
+        title="Penalties"
+        rows={by((s) => !!s.penalties, n('penaltyYds'))}
+        cols={[
+          ['Flags', n('penalties')],
+          ['Yds', n('penaltyYds')],
         ]}
       />
       <StatTable
@@ -336,6 +345,7 @@ export function BoxScore({ league, gameId, onBack }: { league: League; gameId: n
         <Panel title="Team stats">
           <TeamStatsTable away={away} home={home} a={r.away} h={r.home} />
         </Panel>
+        <GameOfficials league={league} game={game} away={away} home={home} />
       </div>
 
       <Panel

@@ -32,6 +32,7 @@ function statColumns(p: Player): Col[] {
         ['INT', n('passInt')],
         ['Rate', (s) => passerRating(s).toFixed(1)],
         ['Rush', n('rushYds')],
+        ['Roughed', n('roughingDrawn')],
       ];
     case 'RB':
       return [
@@ -52,6 +53,7 @@ function statColumns(p: Player): Col[] {
         ['Avg', (s) => (s.rec ? ((s.recYds ?? 0) / s.rec).toFixed(1) : '–')],
         ['TD', n('recTd')],
         ['Long', n('recLong')],
+        ['Pen', n('penalties')],
       ];
     case 'K':
       return [
@@ -72,6 +74,7 @@ function statColumns(p: Player): Col[] {
         ['Sacks alw', n('sacksAllowed')],
         ['Press alw', n('pressuresAllowed')],
         ['Hits alw', n('hitsAllowed')],
+        ['Pen', n('penalties')],
       ];
     case 'DT':
     case 'EDGE':
@@ -82,6 +85,7 @@ function statColumns(p: Player): Col[] {
         ['Press', n('pressures')],
         ['QB hits', n('qbHits')],
         ['FF', n('forcedFum')],
+        ['Pen', n('penalties')],
       ];
     default:
       return [
@@ -91,6 +95,7 @@ function statColumns(p: Player): Col[] {
         ['INT', n('defInt')],
         ['PD', n('passDef')],
         ['FF', n('forcedFum')],
+        ['Pen', n('penalties')],
       ];
   }
 }

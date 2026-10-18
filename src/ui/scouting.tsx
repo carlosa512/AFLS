@@ -29,7 +29,6 @@ import {
   type PlayerView,
   type QuirkNotes,
   type RatingView,
-  type StaffRead,
   type StarRating,
   type StarScale,
 } from '../engine/scouting';
@@ -69,16 +68,17 @@ export function RangeValue({ r }: { r: RatingView }) {
   );
 }
 
-/** A staff rating as a fact: the number for your own people, your read ("9–13") for anyone else's. */
-export function StaffSkill({ label, value }: { label: string; value: number | StaffRead }) {
-  const r = typeof value === 'number' ? { value, lo: value, hi: value, exact: true } : value;
+/** A staff rating in a list or table, banded like every rating. Staff ratings are public, as in Football Manager. */
+export function StaffNum({ value }: { value: number }) {
+  return <b className={`num ${band(value)}`}>{value}</b>;
+}
+
+/** A staff rating as a fact. */
+export function StaffSkill({ label, value }: { label: string; value: number }) {
   return (
     <span className="fact">
       <span className="eyebrow">{label}</span>
-      <b className={`num ${band(r.value)}`}>
-        {r.exact ? r.value : `${r.lo}–${r.hi}`}
-        {!r.exact && <span className="visually-hidden"> (your read)</span>}
-      </b>
+      <StaffNum value={value} />
     </span>
   );
 }

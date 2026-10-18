@@ -52,6 +52,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   roofs), that shown rain chances come true as often as they say, that `TYPICAL` in `weather.ts` is still
   the season's average, and that each condition, replayed on the same games, cuts passing and kicking by
   its research share. Run it after changing `weather.ts`, `data/stadiums.ts` or the match engine.
+- `npm run crews` — play four leagues for a season and check the officiating crews: league flags per
+  game within 5% of a league-average crew's, the busiest crew 1.3–1.7× the quietest, the weekly
+  rotation, and thirty years of offseason drift. Run it after changing `officials.ts` or the penalty
+  rolls in `match/gameSim.ts`.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -69,11 +73,12 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     `TeamSeed.revenue`). All staff changes go through this module (it keeps a
     per-team index; `teamStaff()` returns a shared read-only list)
   - `coaching.ts` coaching staffs: what coaches do for development (`coachingFor`, the parts a screen
-    shows via `coachingParts`), play-calling style (`callerStyle`), the coaching budget, contracts, the
-    market, ageing, AI hiring, the head-coach hot seat and the carousel (promotions, poaching, a new head
-    coach's staff, his vision for his coordinators), former players going into coaching, the archive of
-    retired coaches (`league.retiredCoaches`) and the owner's leeway past the budget (`ownerLeeway`). All
-    coach changes go through this module (it keeps a per-team index; `teamCoaches()` returns a shared
+    shows via `coachingParts`), play-calling style (`callerStyle`), the special teams coordinator's
+    game-day edge on the kick units (`specialTeamsEdge`), the coaching budget, contracts, the market,
+    ageing, AI hiring, the head-coach hot seat and the carousel (promotions, poaching, a new head coach's
+    staff, his vision for his coordinators), former players going into coaching, the archive of retired
+    coaches (`league.retiredCoaches`) and the owner's leeway past the budget (`ownerLeeway`). All coach
+    changes go through this module (it keeps a per-team index; `teamCoaches()` returns a shared
     read-only list)
   - `injuries.ts` who gets hurt (snap and collision risk, resistance, energy, condition), layoffs,
     scars, injured reserve, the weekly cycle (healing, practice, AI injury moves), the injury-risk
@@ -84,6 +89,9 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     and coverages, the depth-chart spots they name (LT, SLOT, NT…) and scheme fit. The engine reads them
     through `teamScheme()` in `coaching.ts`; every lean trades something, so league totals stay in range
   - `records.ts` team, coach and GM records, all looked up from `league.history`
+  - `inbox.ts` the user's mail (awards, injuries, expiring deals, retirements, scouting, opposition reports, trades):
+    `deliverMail` runs after every `store.mutate` and files what's new, each message keyed by what it's
+    about so nothing doubles up. The sim never sends mail itself
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
   - `quirks.ts` on-field habits (registry, the marble bag, grip, `activeQuirks`): they change with
     weekly and offseason draws; the engine reads them through `has()` in `match/gameSim.ts`, screens
@@ -97,6 +105,15 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     odds), severity and forecasts;
     `data/stadiums.ts` roofs, altitude, climates, regions and stadium changes by season. Spec and what's
     built so far: `docs/WEATHER.md`
+  - `penalties.ts` the foul registry (side, yards, enforcement, crew tendency) and `enforce` (half the
+    distance, spot fouls, first downs). The engine rolls fouls in `match/gameSim.ts` (`playFouls`), charges
+    a player on its own stream, and `match/coach.ts` decides accept or decline (`takesPenalty` on
+    `downValue`). Spec, NFL rates and phases: `docs/PENALTIES.md`
+  - `officials.ts` officiating crews: hidden tendencies (Flag Volume, Holding, Coverage, QB Protection;
+    generated centred, nudged each offseason), star protection for decorated passers (`starLean`), the
+    weekly rotation (`crewAssignments`, a pure function like weather; the result keeps `crewId`), the
+    multipliers on the engine's penalty rolls (`crewCalls`), and crew stats read from the box scores'
+    penalties by kind (`crewTable`). Screens never show the tendencies. Spec: `docs/OFFICIALS.md`
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)

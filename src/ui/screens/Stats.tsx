@@ -6,14 +6,16 @@ import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerAvatar, SortTh, sortRows, useSort } from '../components';
 import { resultsSeason } from '../format';
+import { Officials } from './Officials';
 
-export type StatsTab = 'leaders' | 'players' | 'records' | 'awards';
+export type StatsTab = 'leaders' | 'players' | 'records' | 'awards' | 'officials';
 
 const TABS: [StatsTab, string][] = [
   ['leaders', 'Leaders'],
   ['players', 'Player stats'],
   ['records', 'Records'],
   ['awards', 'Awards'],
+  ['officials', 'Officials'],
 ];
 
 /** Stats are regular season only, so a season is "on record" once its first week is played. */
@@ -34,7 +36,7 @@ export function Stats({ league, tab = 'leaders' }: { league: League; tab?: Stats
             </button>
           ))}
         </div>
-        {tab !== 'records' && tab !== 'awards' && seasons.length > 0 && <ScopeSelect seasons={seasons} value={scope} onChange={setPicked} />}
+        {tab !== 'records' && tab !== 'awards' && tab !== 'officials' && seasons.length > 0 && <ScopeSelect seasons={seasons} value={scope} onChange={setPicked} />}
       </div>
       {seasons.length === 0 ? (
         <Panel title="Stats">
@@ -48,6 +50,8 @@ export function Stats({ league, tab = 'leaders' }: { league: League; tab?: Stats
         <Records league={league} />
       ) : tab === 'awards' ? (
         <Awards league={league} />
+      ) : tab === 'officials' ? (
+        <Officials league={league} />
       ) : (
         <Leaders league={league} scope={scope} />
       )}

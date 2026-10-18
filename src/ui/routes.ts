@@ -9,6 +9,7 @@ export type Route =
   | { view: 'home' }
   | { view: 'roster'; teamId?: number }
   | { view: 'cap'; teamId?: number }
+  | { view: 'inbox' }
   | { view: 'office'; tab?: OfficeTab }
   | { view: 'schedule' }
   | { view: 'standings' }
@@ -20,8 +21,8 @@ export type Route =
   | { view: 'live' };
 
 const OFFICE_TABS: readonly OfficeTab[] = ['resign', 'fa', 'draft', 'trades', 'coaches', 'staff', 'medical'];
-const STATS_TABS: readonly StatsTab[] = ['leaders', 'players', 'records', 'awards'];
-const PLAIN = ['home', 'schedule', 'standings', 'playoffs', 'compare', 'live'] as const;
+const STATS_TABS: readonly StatsTab[] = ['leaders', 'players', 'records', 'awards', 'officials'];
+const PLAIN = ['home', 'inbox', 'schedule', 'standings', 'playoffs', 'compare', 'live'] as const;
 
 export function routeToHash(route: Route): string {
   switch (route.view) {

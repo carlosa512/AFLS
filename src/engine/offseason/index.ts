@@ -12,6 +12,7 @@ import { coachingFor, coachWindowCloses, developCoaches, ensureCoached, noteCoac
 import { developPlayer, playedShare, recordRatings } from '../development';
 import { delegates, injuriesNewYear, injuryRetireChance, manageInjuries } from '../injuries';
 import { developMedics, ensureMedical, medicalWindowCloses } from '../medical';
+import { crewsNewYear } from '../officials';
 import { accelerateProration, capSheet, capSpace, logTransaction, nextCap } from '../finance/cap';
 import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
@@ -86,6 +87,7 @@ export function beginOffseason(league: League): void {
   developStaff(league);
   developCoaches(league, retirees);
   developMedics(league);
+  crewsNewYear(league);
 
   generateDraftClass(league, rng);
   league.games = league.games.filter((g) => g.season >= last);
