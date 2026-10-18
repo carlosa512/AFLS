@@ -348,14 +348,21 @@ Kicking is unchanged (rain still adds `wx.kick` yards to every kick in `fgProb`)
 kicks are new. Each three-league sample swings about ±0.01, the 0.008 gap over twelve is about 1.4
 standard errors, and this check has no larger sample for close calls.
 
-**3. `npm run careers`: points per team-game 24.35 (band 21–24) and the interception leaders.**
-Points: the known long-run creep (23.64 on `main` before crews, 24.15 with crews; see
-`docs/OFFICIALS.md`). Interception leaders, average #1 and #5 over 32 seasons: 6.4 (band 6.6–11) and
-4.8 (4.8–6.8), against 7.1 and 5.1 on `main`. Fresh leagues (`npm run sim -- 10`) went the other way
-(#1 8.0 → 9.2, inside 7–10.5), and interceptions per team-game went 0.79 → 0.73 (band 0.65–0.85).
-Flags now wipe out 3.3% of interceptions (a defense's offside gives the offense a free play, 76 of
-123 in a 2,176-game replay; defensive holding 46; the last one was a defense taking holding over its own
-pick, fixed since), as they do in the NFL; the rest of the drop is the leagues taking different paths.
+**3. `npm run careers`: points per team-game and two leaders.** CI on b02412e: points 24.23 (band
+21–24), sacks #5 11.6 (band 11.9–16.3), interceptions #5 4.6 (band 4.8–6.8); interceptions #1 6.8 is
+back in range. Locally before the takeaway fix: points 24.35, interceptions #1 6.4 and #5 4.8. Points
+are the known long-run creep (23.64 on `main` before crews, 24.15 with crews; see `docs/OFFICIALS.md`).
+The leaders swing between runs of the same engine; fresh leagues (`npm run sim -- 10`) went the other
+way (interceptions #1 8.0 → 9.2, inside 7–10.5), and interceptions per team-game went 0.79 → 0.73 (band
+0.65–0.85). Flags now wipe out 3.3% of interceptions (a defense's offside gives the offense a free
+play, 76 of 123 in a 2,176-game replay; defensive holding 46; the last one was a defense taking holding
+over its own pick, fixed since), as they do in the NFL; the rest is the leagues taking different paths.
+
+**4. `npm run offseason -- 6`: one team over the cap (2030, band 0).** Atlanta kicks off 2030 $1.2M
+over the cap with 42 players; the check already lists short rosters at kickoff as a known engine issue
+(⚠), and this league's path also broke the hard cap rule. It passed before the takeaway fix, which
+re-rolled every league: the front office's cap and roster logic (`offseason/ai.ts`, `finance/`) is
+untouched here.
 
 ## Sources
 
