@@ -34,6 +34,32 @@ export function band(value: number): 'b1' | 'b2' | 'b3' | 'b4' {
   return 'b1';
 }
 
+/**
+ * One scale for every "better or worse than typical" effect (coaching, medical, a hire), measured as a share
+ * of how big that effect can get, so "Strong" means the same thing on every screen. `much` is the adverb a
+ * sentence uses ("develop noticeably faster"); empty for Average, which a sentence says as "the usual".
+ */
+const VERDICTS: [at: number, word: string, much: string][] = [
+  [0.5, 'Elite', 'much'],
+  [0.2, 'Strong', 'noticeably'],
+  [0.07, 'Above average', 'a little'],
+  [-0.07, 'Average', ''],
+  [-0.2, 'Below average', 'a little'],
+  [-0.5, 'Weak', 'noticeably'],
+  [-Infinity, 'Liability', 'much'],
+];
+export interface Verdict {
+  word: string;
+  much: string;
+  tone: 'tone-good' | 'tone-bad' | 'muted';
+}
+/** `good` is the effect signed so that positive helps; `max` is the biggest it can get. */
+export function verdict(good: number, max: number): Verdict {
+  const i = VERDICTS.findIndex(([at]) => good / max >= at);
+  const [, word, much] = VERDICTS[i];
+  return { word, much, tone: i < 3 ? 'tone-good' : i > 3 ? 'tone-bad' : 'muted' };
+}
+
 /** [short, long] label for each attribute, from the attribute registry. */
 export const ATTR_LABELS = Object.fromEntries(ATTRIBUTES.map((a) => [a, [ATTRIBUTE_INFO[a].short, ATTRIBUTE_INFO[a].label]])) as Record<Attribute, [short: string, long: string]>;
 

@@ -7,6 +7,8 @@ import { Dialog, TeamChip } from './components';
 import { isOffseasonPhase, PHASE_LABELS, recordText, resultsSeason, weekLabel } from './format';
 import { BoxScore } from './screens/BoxScore';
 import { CoachCard } from './screens/Coaches';
+import { MedicCard } from './screens/Medical';
+import { ScoutCard } from './screens/Staff';
 import { Compare } from './screens/Compare';
 import { GameViewer } from './screens/GameViewer';
 import { LiveGame } from './screens/LiveGame';
@@ -32,7 +34,8 @@ interface Nav {
   openGame: (gameId: number) => void;
   watchGame: (gameId: number) => void;
   openPlayer: (playerId: number) => void;
-  openCoach: (coachId: number) => void;
+  /** A coach's, scout's or medic's card. */
+  openStaff: (kind: StaffKind, id: number) => void;
   openTeam: (teamId: number) => void;
   /** Players lined up on the comparison screen (at most MAX_COMPARE). */
   compareIds: number[];
@@ -41,6 +44,8 @@ interface Nav {
 }
 
 export const MAX_COMPARE = 3;
+
+export type StaffKind = 'coach' | 'scout' | 'medic';
 
 const NavContext = createContext<Nav | null>(null);
 export const useNav = () => useContext(NavContext)!;
@@ -131,7 +136,7 @@ export function App() {
   useLive();
   const [route, setRoute] = useState<Route>(initialRoute);
   const [playerId, setPlayerId] = useState<number | null>(null);
-  const [coachId, setCoachId] = useState<number | null>(null);
+  const [staffCard, setStaffCard] = useState<{ kind: StaffKind; id: number } | null>(null);
   const [compareIds, setCompareIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [confirmSim, setConfirmSim] = useState(false);
@@ -146,7 +151,7 @@ export function App() {
   useEffect(() => {
     const onPop = (e: PopStateEvent) => {
       setPlayerId(null);
-      setCoachId(null);
+      setStaffCard(null);
       setRoute(isHistoryEntry(e.state) ? e.state.route : (hashToRoute(location.hash) ?? { view: 'home' }));
     };
     window.addEventListener('popstate', onPop);
@@ -172,9 +177,9 @@ export function App() {
     openGame: (gameId) => (inGame ? navigate({ view: 'game', gameId, back: route.back }, true) : navigate({ view: 'game', gameId, back: route })),
     watchGame: (gameId) => (inGame ? navigate({ view: 'watch', gameId, back: route.back }, true) : navigate({ view: 'watch', gameId, back: route })),
     openPlayer: setPlayerId,
-    openCoach: (id) => {
+    openStaff: (kind, id) => {
       setPlayerId(null);
-      setCoachId(id);
+      setStaffCard({ kind, id });
     },
     openTeam: (teamId) => navigate({ view: 'roster', teamId }),
     compareIds,
@@ -372,7 +377,9 @@ export function App() {
       {playerId !== null && league.players[playerId] && (
         <PlayerCard league={league} player={league.players[playerId]} onClose={() => setPlayerId(null)} />
       )}
-      {coachId !== null && league.coaches[coachId] && <CoachCard league={league} coach={league.coaches[coachId]} onClose={() => setCoachId(null)} />}
+      {staffCard?.kind === 'coach' && league.coaches[staffCard.id] && <CoachCard league={league} coach={league.coaches[staffCard.id]} onClose={() => setStaffCard(null)} />}
+      {staffCard?.kind === 'scout' && league.staff[staffCard.id] && <ScoutCard league={league} scout={league.staff[staffCard.id]} onClose={() => setStaffCard(null)} />}
+      {staffCard?.kind === 'medic' && league.medics[staffCard.id] && <MedicCard league={league} medic={league.medics[staffCard.id]} onClose={() => setStaffCard(null)} />}
     </NavContext.Provider>
   );
 }

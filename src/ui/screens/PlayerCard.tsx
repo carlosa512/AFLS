@@ -9,7 +9,7 @@ import { careerLine, passerRating } from '../../engine/stats';
 import type { League, Player, StatLine } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
 import { playerCoachLine } from '../coaching';
-import { PlayerAvatar, Section, Sheet } from '../components';
+import { Exact, PlayerAvatar, Section, Sheet } from '../components';
 import { store } from '../store';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
@@ -96,6 +96,9 @@ function statColumns(p: Player): Col[] {
 }
 
 /** Who in your scouting department sized up this player: the name behind the range. */
+/** "every one of", "most of", "about half of", "a few of": playing time in words. */
+const shareWords = (share: number) => (share >= 0.99 ? 'every one of' : share >= 0.75 ? 'most of' : share >= 0.4 ? 'about half of' : 'a few of');
+
 function readByText(league: League, view: PlayerView, p: Player): string {
   const who = (id: number | null) => {
     const s = id === null ? undefined : league.staff[id];
@@ -393,13 +396,13 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               {careerOutlook(league, league.userTeamId, p)}
             </p>
             {p.teamId === league.userTeamId && !p.retired && (
-              <p className="muted small" style={{ margin: 0 }}>
-                {playerCoachLine(league, p)}
-              </p>
+              <div className="muted small">
+                <Exact numbers={playerCoachLine(league, p).numbers}>{playerCoachLine(league, p).text}</Exact>
+              </div>
             )}
             {reps && (
               <p className="muted small" style={{ margin: 0 }}>
-                {reps.share > 0 ? `Played in ${Math.round(reps.share * 100)}% of his team’s games in ${reps.season}.` : `Has not played in any of his team’s games in ${reps.season}.`}
+                {reps.share > 0 ? `Played in ${shareWords(reps.share)} his team’s games in ${reps.season}.` : `Has not played in any of his team’s games in ${reps.season}.`}
                 {reps.needs && (
                   <>
                     {' '}

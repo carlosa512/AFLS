@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { Player, Team } from '../engine/types';
 import { band } from './format';
 
@@ -222,6 +223,74 @@ export function Sheet({ label, team, head, actions, onClose, children }: { label
         <div className="sheet-body">{children}</div>
       </div>
     </div>
+  );
+}
+
+/**
+ * A pill that says what it means: hover it with a mouse, tap it on a phone (a title tooltip never shows on
+ * touch). The note floats over the page from <body>, so a table's scroll box can't clip it; scrolling, a tap
+ * elsewhere or Escape puts it away.
+ */
+export function TipPill({ className = '', tip, children }: { className?: string; tip: ReactNode; children: ReactNode }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+  const id = useId();
+  const show = () => {
+    const r = ref.current!.getBoundingClientRect();
+    // 280px wide at most: keep it on screen at the right edge.
+    setAt({ left: Math.max(8, Math.min(r.left, window.innerWidth - 288)), top: r.bottom + 6 });
+  };
+  useEffect(() => {
+    if (!at) return;
+    const hide = () => setAt(null);
+    const away = (e: Event) => !ref.current?.contains(e.target as Node) && hide();
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && hide();
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('resize', hide);
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      window.removeEventListener('scroll', hide, true);
+      window.removeEventListener('resize', hide);
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [at]);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={`tag-pill tip-pill ${className}`.trim()}
+      aria-expanded={!!at}
+      aria-describedby={at ? id : undefined}
+      // A tap inside a clickable row explains the pill; it doesn't open the row. It only ever opens the
+      // note: a mouse has already opened it by hovering, and a click mustn't snap it shut again.
+      onClick={(e) => {
+        e.stopPropagation();
+        show();
+      }}
+      onPointerEnter={(e) => e.pointerType === 'mouse' && show()}
+      onPointerLeave={(e) => e.pointerType === 'mouse' && setAt(null)}
+    >
+      {children}
+      {at &&
+        createPortal(
+          <span id={id} role="tooltip" className="tip-body" style={{ left: at.left, top: at.top }}>
+            {tip}
+          </span>,
+          document.body,
+        )}
+    </button>
+  );
+}
+
+/** Words first, the exact figures one tap away: the verdict is the line you read, the numbers open under it. */
+export function Exact({ numbers, children }: { numbers: ReactNode; children: ReactNode }) {
+  return (
+    <details className="exact">
+      <summary>{children}</summary>
+      <span className="exact-numbers">{numbers}</span>
+    </details>
   );
 }
 

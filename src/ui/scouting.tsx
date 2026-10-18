@@ -29,12 +29,14 @@ import {
   type PlayerView,
   type QuirkNotes,
   type RatingView,
+  type StaffRead,
   type StarRating,
   type StarScale,
 } from '../engine/scouting';
 import type { Attribute, Combine, League, Player, Position, Ratings } from '../engine/types';
 import { ATTRIBUTES } from '../engine/types';
-import { Rating } from './components';
+import { Rating, TipPill } from './components';
+import { QUIRKS } from '../engine/quirks';
 import { band, heightFt, resultsSeason } from './format';
 import { store } from './store';
 
@@ -63,6 +65,20 @@ export function RangeValue({ r }: { r: RatingView }) {
   return (
     <span className={`num attr-num range ${band(r.value)}`}>
       {r.lo}–{r.hi}
+    </span>
+  );
+}
+
+/** A staff rating as a fact: the number for your own people, your read ("9–13") for anyone else's. */
+export function StaffSkill({ label, value }: { label: string; value: number | StaffRead }) {
+  const r = typeof value === 'number' ? { value, lo: value, hi: value, exact: true } : value;
+  return (
+    <span className="fact">
+      <span className="eyebrow">{label}</span>
+      <b className={`num ${band(r.value)}`}>
+        {r.exact ? r.value : `${r.lo}–${r.hi}`}
+        {!r.exact && <span className="visually-hidden"> (your read)</span>}
+      </b>
     </span>
   );
 }
@@ -157,6 +173,9 @@ export function StarScaleToggle({ scale, onChange }: { scale: StarScale; onChang
 
 // ───────── knowledge & scouting ─────────
 
+/** How well your staff knows a player, in a word: the bar shows the rest. */
+const knownWord = (k: number) => (k >= 0.95 ? 'Well' : k >= 0.7 ? 'Good' : k >= 0.45 ? 'Fair' : k >= 0.2 ? 'Thin' : 'Barely');
+
 export function KnowledgeMeter({ value }: { value: number }) {
   const pct = Math.round(value * 100);
   return (
@@ -164,7 +183,7 @@ export function KnowledgeMeter({ value }: { value: number }) {
       <span className="known-track" aria-hidden="true">
         <i style={{ width: `${pct}%` }} />
       </span>
-      <span className="num">{pct}%</span>
+      <span className="small">{knownWord(value)}</span>
     </span>
   );
 }
@@ -187,10 +206,10 @@ export function MakeupPills({ notes, hedged = false, limit, oneLine = false }: {
   return (
     <span className={`pill-row${oneLine ? ' nowrap' : ''}`}>
       {shown.map((n) => (
-        <span key={n.label} className={`tag-pill ${n.tone === 'good' ? 'tag-good' : 'tag-warn'}${hedged ? ' tag-early' : ''}`} title={hedged ? `Early word: ${n.line}` : n.line}>
+        <TipPill key={n.label} className={`${n.tone === 'good' ? 'tag-good' : 'tag-warn'}${hedged ? ' tag-early' : ''}`} tip={hedged ? `Early word: ${n.line}` : n.line}>
           {n.label}
           {hedged && <span className="visually-hidden"> (early word)</span>}
-        </span>
+        </TipPill>
       ))}
       {rest.length > 0 && (
         <span className="muted small" title={rest.map((n) => n.label).join(', ')}>
@@ -218,10 +237,20 @@ export function QuirkPills({ notes, limit, oneLine = false }: { notes: QuirkNote
   return (
     <span className={`pill-row${oneLine ? ' nowrap' : ''}`}>
       {shown.map((n) => (
-        <span key={n.id} className={`tag-pill${n.tone === 'good' ? ' tag-good' : n.tone === 'bad' ? ' tag-warn' : ''}${n.forming ? ' tag-early' : ''}`} title={n.forming ? `Starting to show: ${n.line}` : n.line}>
+        <TipPill
+          key={n.id}
+          className={`${n.tone === 'good' ? 'tag-good' : n.tone === 'bad' ? 'tag-warn' : ''}${n.forming ? ' tag-early' : ''}`}
+          tip={
+            <>
+              {/* What the scouts see, then what it does on the field. */}
+              {n.forming ? 'Starting to show: h' : 'H'}e {QUIRKS[n.id].clause}.
+              <b className="tip-effect">In a game: {QUIRKS[n.id].effect}</b>
+            </>
+          }
+        >
           {n.label}
           {n.forming && <span className="visually-hidden"> (starting to show)</span>}
-        </span>
+        </TipPill>
       ))}
       {rest.length > 0 && (
         <span className="muted small" title={rest.map((n) => n.label).join(', ')}>

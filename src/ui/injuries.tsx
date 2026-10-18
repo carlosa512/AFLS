@@ -24,7 +24,7 @@ import {
 } from '../engine/injuries';
 import { ATTRIBUTE_INFO } from '../engine/attributes';
 import type { Attribute, League, Player } from '../engine/types';
-import { Section } from './components';
+import { Section, TipPill } from './components';
 import { store } from './store';
 
 /** What `league`'s user believes about a player's injury risk. */
@@ -33,12 +33,12 @@ export const riskOf = (league: League, p: Player): InjuryRiskRead => injuryRisk(
 /** A pill for a hurt player: on reserve, out for a while, or playing through it. Nothing when healthy. */
 export function InjuryTag({ league, p, sub = false }: { league: League; p: Player; sub?: boolean }) {
   const tag = injuryTag(p);
-  if (!tag || !p.injury) return tag === 'IR' ? <span className={`tag-pill tag-bad${sub ? ' name-sub' : ''}`} title="On injured reserve">IR</span> : null;
+  if (!tag || !p.injury) return tag === 'IR' ? <TipPill className={`tag-bad${sub ? ' name-sub' : ''}`} tip="On injured reserve: off the 53 for at least four weeks.">IR</TipPill> : null;
   const title = `${injuryLabel(p.injury.type)}: ${p.injury.injected ? 'playing through it on injections' : estimateText(p.injury, weeksLeft(league))}${p.ir ? ' · on injured reserve' : ''}`;
   return (
-    <span className={`tag-pill ${p.injury.injected ? 'tag-warn' : 'tag-bad'}${sub ? ' name-sub' : ''}`} title={title}>
+    <TipPill className={`${p.injury.injected ? 'tag-warn' : 'tag-bad'}${sub ? ' name-sub' : ''}`} tip={`${title}.`}>
       {tag}
-    </span>
+    </TipPill>
   );
 }
 

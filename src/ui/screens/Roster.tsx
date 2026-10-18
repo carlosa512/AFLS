@@ -51,7 +51,7 @@ function groupNote(scheme: TeamScheme, pos: Position): string {
 function CoordinatorLink({ c }: { c: Coach }) {
   const nav = useNav();
   return (
-    <button className="linklike" onClick={() => nav.openCoach(c.id)}>
+    <button className="linklike" onClick={() => nav.openStaff('coach', c.id)}>
       {coachName(c)}
     </button>
   );
