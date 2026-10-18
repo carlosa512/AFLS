@@ -385,6 +385,21 @@ over the cap with 42 players; the check already lists short rosters at kickoff a
 re-rolled every league: the front office's cap and roster logic (`offseason/ai.ts`, `finance/`) is
 untouched here.
 
+## Checks when Phase 2 landed
+
+`npm run check` on 9ff314b: 10 of 11 pass. The offense retune brought `careers` (long-run points), `weather`
+and `offseason` back to green. Only `quirks` is red: four borderline quirks re-rolled under the bar.
+
+| Quirk (stat) | 3 + 9 seasons | 6 + 18 seasons |
+| --- | --- | --- |
+| Pat-The-Rock (sack%) | +0.12, z 1.4 | +0.14, z 2.2, weak |
+| Plan Adjuster (pressure%) | +0.41, z 2.0 | +0.52, z 3.6, moves play |
+| Thumping Tackler (yds/carry) | −0.03, z −1.5 | −0.03, z −2.3, weak |
+| Spot Drop (cmp%) | −0.40, z −1.9 | −0.36, z −2.5, weak |
+
+All four move their stat the right way with the larger sample: the check's three seasons (nine for close
+calls) leave borderline quirks to luck. Handled with the other borderline checks, outside this work.
+
 ## Sources
 
 Search extracts only; the pages themselves couldn't be fetched from the research sandbox.
