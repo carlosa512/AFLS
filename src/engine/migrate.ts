@@ -9,6 +9,7 @@ import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
+import { generateCrews } from './officials';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
@@ -37,6 +38,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 12) league.version = 12; // v12: optional `form` on players and game results, nothing to fill in
   if (league.version < 13) toV13(league);
   if (league.version < 14) league.version = 14; // v14: optional `weather` on game results, nothing to fill in
+  if (league.version < 15) toV15(league);
   return league;
 }
 
@@ -228,4 +230,13 @@ function toV13(league: League) {
     generateMedicalWorld(league);
   }
   league.version = 13;
+}
+
+/**
+ * v14 → v15: officiating crews, the same ones a new league would get from this seed. Games already
+ * played keep no crew and no penalties by kind, so the crews' numbers start with the next game.
+ */
+function toV15(league: League) {
+  if (!league.crews?.length) generateCrews(league);
+  league.version = 15;
 }

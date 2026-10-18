@@ -78,6 +78,13 @@ export const ordinal = (n: number) => {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 };
 
+/** Where a crew ranks in flags per game, in words: "4th most flags per game", "fewest flags per game last season". */
+export function crewStandingText(st: { rank: number; of: number; season: number }, season: number): string {
+  const most = st.rank <= Math.ceil(st.of / 2);
+  const n = most ? st.rank : st.of - st.rank + 1;
+  return `${n === 1 ? '' : `${ordinal(n)} `}${most ? 'most' : 'fewest'} flags per game${st.season < season ? ' last season' : ''}`;
+}
+
 /** During the offseason the league year has already rolled over; results screens show the season just played. */
 export const resultsSeason = (league: League) => (OFFSEASON_PHASES.includes(league.phase) ? league.season - 1 : league.season);
 

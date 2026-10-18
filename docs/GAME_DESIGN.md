@@ -281,6 +281,12 @@ from your medical staff or scouts plus public injury reports. The Medical tab, t
 column, the player card's Health section, injuries in box scores. Details and sources:
 `docs/INJURIES.md`.
 
+**✅ Officiating crews (MVP, done)** — seventeen crews with hidden Flag Volume, Holding and Coverage
+tendencies that multiply the engine's penalty rolls for both teams, centred so the league stays at
+baseline and nudged each offseason; a weekly rotation, penalties logged by kind, the crew on the
+next-game card, an Officials tab ranking every crew, and each game's penalties against the crew's
+average in the box score. Spec and later phases: `docs/OFFICIALS.md`.
+
 **Next: Front office depth**
 - NFL-calendar practice: CBA padded-practice budgets, Full/Limited/DNP, veteran rest days (the
   weekly practice injury roll is the hook).

@@ -18,6 +18,7 @@ import { Panel, TeamChip, TeamLabel, WeatherNote } from '../components';
 import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, weekLabel } from '../format';
 import { live } from '../live';
 import { WinnerCell } from './Stats';
+import { CrewNote } from './Officials';
 import { BackupButton, LoadBackupButton } from '../saves';
 import { ThemeSelect } from '../theme';
 import { store } from '../store';
@@ -131,6 +132,9 @@ function NextGame({ league }: { league: League }) {
       <UnitBars a={user} b={opp} league={league} />
       <p style={{ margin: 0 }}>
         Forecast: <WeatherNote forecast={forecast(league, game)} />
+      </p>
+      <p style={{ margin: 0 }}>
+        Crew: <CrewNote league={league} game={game} />
       </p>
       <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
         {game.neutral ? 'Neutral site.' : isHome ? 'Home game: a small edge in every matchup.' : `Road game in ${opp.city}.`} Press Play to watch it live.

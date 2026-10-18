@@ -10,9 +10,10 @@ import { skill } from '../attributes';
 import { callerStyle, type CallerStyle } from '../coaching';
 import { CONTACT_RISK, fatigueMult, HELD_SHARE, injuryLabel, riskFactors, rollInjury, SIDELINE_REST, SNAP_CONTACT, SNAP_EXPOSURE, SNAP_RISK, snapCost, type ContactEvent, type Mechanism, type RiskFactors } from '../injuries';
 import { departmentFor, type Department } from '../medical';
+import { crewCalls, gameCrew, type CrewCalls } from '../officials';
 import { activeQuirks, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
-import type { Game, GameInjury, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
+import type { Crew, Foul, Game, GameInjury, GameResult, League, PlayKind, PlayLogEntry, Player, StatKey, StatLine, TeamGameStats } from '../types';
 import { MAX_STATS } from '../types';
 import { gameWeather, staminaDrain, turfRisk, weatherAt, weatherEffects, type Weather, type WeatherCost } from '../weather';
 import * as coach from './coach';
@@ -30,6 +31,8 @@ export interface SimOptions {
   seed?: string;
   /** Override the day's weather (defaults to the game's own, see `weather.ts`). */
   weather?: Weather;
+  /** Override the officiating crew (defaults to the game's own, see `officials.ts`); null is a league-average crew. */
+  crew?: Crew | null;
 }
 
 const QUARTER_SECONDS = 900;
@@ -167,6 +170,7 @@ function emptyTeamStats(): TeamGameStats {
     turnovers: 0,
     penalties: 0,
     penaltyYds: 0,
+    flags: {},
     thirdDownAtt: 0,
     thirdDownConv: 0,
     fourthDownAtt: 0,
@@ -296,6 +300,9 @@ class GameSim {
   private drain: [number, number];
   /** This quarter's injury odds from the turf (frozen or waterlogged). */
   private turf: number;
+  private crew: Crew | undefined;
+  /** What the crew does to every penalty roll: the same for both teams. */
+  private calls: CrewCalls;
 
   constructor(
     private league: League,
@@ -310,6 +317,8 @@ class GameSim {
     this.wx = weatherEffects(weatherAt(this.weather, 1));
     this.turf = turfRisk(weatherAt(this.weather, 1));
     this.drain = [staminaDrain(this.weather, true), staminaDrain(this.weather, false)];
+    this.crew = options.crew === undefined ? gameCrew(league, game) : (options.crew ?? undefined);
+    this.calls = crewCalls(this.crew);
     const team = (id: number) => league.teams[id];
     this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
@@ -989,7 +998,7 @@ class GameSim {
     const roll = this.rng.next();
     // A hard count draws the defense offside (a jumpy lineman most of all), and now and then his own line.
     const hardCount = this.has(this.lineups[off].qb, 'hardCount');
-    const pFalseStart = 0.027 * Math.exp(-0.06 * (this.lineups[off].offenseDiscipline - OL_DISCIPLINE)) * (hardCount ? 1.15 : 1);
+    const pFalseStart = 0.027 * Math.exp(-0.06 * (this.lineups[off].offenseDiscipline - OL_DISCIPLINE)) * (hardCount ? 1.15 : 1) * this.calls.all;
     const dl = this.lineups[this.def];
     const dlFront = [...dl.dt, ...dl.edge];
     const pOffside =
@@ -997,14 +1006,14 @@ class GameSim {
       Math.exp(-0.06 * (dl.defenseDiscipline - DL_DISCIPLINE)) *
       (1 + 0.1 * this.count(dlFront, 'firstStep')) *
       (hardCount ? 1.3 : 1) *
-      (1 + (hardCount ? 0.3 : 0.08) * this.count(dlFront, 'jumpHappy'));
+      (1 + (hardCount ? 0.3 : 0.08) * this.count(dlFront, 'jumpHappy')) *
+      this.calls.all;
     if (roll < pFalseStart) {
       const yards = Math.min(5, Math.floor(this.yardLine / 2));
       this.takeSnapshot();
       this.setAnim(off, 'penalty', this.yardLine, this.yardLine - yards);
       this.yardLine -= yards;
-      this.teamStats[off].penalties++;
-      this.teamStats[off].penaltyYds += yards;
+      this.flag(off, 'falseStart', yards);
       this.clockRunning = false;
       this.log(`PENALTY on ${this.abbrev(off)}: False start, ${yards} yards.`);
       return true;
@@ -1014,8 +1023,7 @@ class GameSim {
       this.takeSnapshot();
       this.setAnim(off, 'penalty', this.yardLine, this.yardLine + yards);
       this.yardLine += yards;
-      this.teamStats[this.def].penalties++;
-      this.teamStats[this.def].penaltyYds += yards;
+      this.flag(this.def, 'offside', yards);
       if (this.yardLine >= this.lineToGain) this.firstDown();
       this.clockRunning = false;
       this.log(`PENALTY on ${this.abbrev(this.def)}: Offside, ${yards} yards.`);
@@ -1721,23 +1729,25 @@ class GameSim {
     const airAt = result.passAttempt && result.airYards ? startYardLine + result.airYards : undefined;
 
     // During-play penalties.
-    let penalty: { on: Side; yards: number; text: string; autoFirst: boolean; replayDown: boolean } | null = null;
+    let penalty: { on: Side; foul: Foul; yards: number; text: string; autoFirst: boolean; replayDown: boolean } | null = null;
     if (result.kind === 'run' || result.kind === 'pass') {
       const roll = this.rng.next();
       const bad = !!result.turnover;
-      const pHold = 0.038 * Math.exp(-0.05 * (this.lineups[offSide].offenseDiscipline - OL_DISCIPLINE)) * (1 + 0.15 * this.count(this.lineups[offSide].ol, 'handPlacement'));
+      const { all, holding, coverage } = this.calls;
+      const pHold = 0.038 * Math.exp(-0.05 * (this.lineups[offSide].offenseDiscipline - OL_DISCIPLINE)) * (1 + 0.15 * this.count(this.lineups[offSide].ol, 'handPlacement')) * all * holding;
       if (roll < pHold && !bad && result.yards > -8) {
         const yards = Math.min(10, Math.floor(this.yardLine / 2));
-        penalty = { on: offSide, yards: -yards, text: `PENALTY on ${this.abbrev(offSide)}: Offensive holding, ${yards} yards. No play.`, autoFirst: false, replayDown: true };
+        penalty = { on: offSide, foul: 'holding', yards: -yards, text: `PENALTY on ${this.abbrev(offSide)}: Offensive holding, ${yards} yards. No play.`, autoFirst: false, replayDown: true };
       } else if (result.passAttempt && !result.complete && !bad && result.airYards! > 0) {
-        const grabby = result.defender && this.has(result.defender, 'handsy') ? 1.6 : 1;
+        // A handsy defender grabs more, and a crew that watches coverage closely sees more of it.
+        const grabby = (result.defender && this.has(result.defender, 'handsy') ? 1.6 : 1) * all * coverage;
         const pDpi = { short: 0.008, medium: 0.03, deep: 0.06 }[result.depth!] * grabby;
         if (roll < pHold + pDpi) {
           const yards = Math.min(Math.max(1, result.airYards!), 99 - this.yardLine);
-          penalty = { on: defSide, yards, text: `PENALTY on ${this.abbrev(defSide)}: Pass interference, ${yards} yards.`, autoFirst: true, replayDown: false };
+          penalty = { on: defSide, foul: 'passInterference', yards, text: `PENALTY on ${this.abbrev(defSide)}: Pass interference, ${yards} yards.`, autoFirst: true, replayDown: false };
         } else if (roll < pHold + pDpi + 0.02 * grabby) {
           const yards = Math.min(5, Math.floor((100 - this.yardLine) / 2));
-          penalty = { on: defSide, yards, text: `PENALTY on ${this.abbrev(defSide)}: Defensive holding, ${yards} yards.`, autoFirst: true, replayDown: false };
+          penalty = { on: defSide, foul: 'defHolding', yards, text: `PENALTY on ${this.abbrev(defSide)}: Defensive holding, ${yards} yards.`, autoFirst: true, replayDown: false };
         }
       }
     }
@@ -1747,8 +1757,7 @@ class GameSim {
     this.driveSnaps++;
 
     if (penalty) {
-      this.teamStats[penalty.on].penalties++;
-      this.teamStats[penalty.on].penaltyYds += Math.abs(penalty.yards);
+      this.flag(penalty.on, penalty.foul, Math.abs(penalty.yards));
       this.yardLine += penalty.yards;
       if (penalty.autoFirst) this.firstDown();
       this.clockRunning = false;
@@ -1837,6 +1846,14 @@ class GameSim {
     }
   }
 
+  /** A penalty enforced against `side`: its yards, and its kind for the crews' ledger. */
+  private flag(side: Side, foul: Foul, yards: number) {
+    const ts = this.teamStats[side];
+    ts.penalties++;
+    ts.penaltyYds += yards;
+    ts.flags![foul] = (ts.flags![foul] ?? 0) + 1;
+  }
+
   private markRedZone() {
     if (!this.driveInRedZone) {
       this.driveInRedZone = true;
@@ -1879,6 +1896,7 @@ class GameSim {
       ...(this.injuries.length ? { injuries: this.injuries, diagnoses: this.diagnoses } : {}),
       condition,
       weather: this.weather,
+      ...(this.crew ? { crewId: this.crew.id } : {}),
     };
   }
 }
