@@ -151,3 +151,32 @@ them in the same rotation for now).
   screen's next-game card, beside the forecast.
 - [x] Real ref names in the private mirror layer, or fictional in both layers? Fictional, drawn from
   the moddable name pools (`data/names.ts`); real names are a community mod concern, like players'.
+
+## Checks left red when crews landed (handle separately)
+
+Crews change each game's random path, so every league plays out differently from before. Two numbers
+that already sat near their limits on `main` (a713be0) went over. Neither is caused by the crews
+themselves; both were left as they are on purpose, to be handled on their own.
+
+**1. `npm run quirks -- --effects`: Pat-The-Rock (`patsTheBall`) flagged NO EFFECT.**
+
+| Run | sack% change | z | Verdict |
+| --- | --- | --- | --- |
+| `main`, 3 + 9 seasons | +0.25 | 2.6 | weak (passes) |
+| crews, 3 + 9 seasons | +0.16 | 1.8 | NO EFFECT (fails) |
+| crews switched off (`league.crews = []`), 3 + 9 seasons | +0.25 | 2.6 | identical to `main` |
+| crews, 6 + 18 seasons | +0.23 | 3.5 | moves play |
+
+The effect is real. At the check's sample its expected z is about 2.5 against a bar of 2, so it fails
+roughly 30% of the time whenever the engine's games change. Ideas: give an inconclusive quirk a bigger
+sample before flagging it (same bar, more evidence), or make the quirk a little stronger (`d += 0.3` on
+pressure in `match/gameSim.ts`).
+
+**2. `npm run careers`: long-run points per team-game 24.15, band 21–24.**
+
+`main` reads 23.64 (penalties 5.43, sacks 2.17); with crews it's 24.15 (penalties 5.47, sacks 2.24).
+Replaying 4,896 fresh-league games with each game's crew and with a league-average crew (same seed,
+same rosters) gives 22.50 against 22.45 points, a difference of +0.05 ± 0.08: crews add nothing
+measurable. The 16-season leagues simply took different paths. Fresh leagues (`npm run sim -- 10`)
+went 22.47 → 22.68, inside 21.5–23.5. The long-run number has crept up over time (21.99 when the
+careers band was set, 23.64 on `main`), so a small scoring tune for aged leagues may be the real fix.
