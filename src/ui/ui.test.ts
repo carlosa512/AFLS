@@ -12,6 +12,7 @@ describe('routes', () => {
       { view: 'roster' },
       { view: 'roster', teamId: 0 },
       { view: 'cap', teamId: 31 },
+      { view: 'inbox' },
       { view: 'office' },
       { view: 'office', tab: 'draft' },
       { view: 'stats' },
