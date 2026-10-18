@@ -3,6 +3,7 @@ import type { SeasonAwards, WeeklyAwards } from './awards';
  * Core data model. Everything here is plain JSON-serializable data so a League
  * can be saved, loaded, exported and modded without custom (de)serializers.
  */
+import type { QuirkId } from './quirks';
 import type { RngState } from './rng';
 
 export const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE', 'LB', 'CB', 'S', 'K', 'P'] as const;
@@ -130,6 +131,8 @@ export const STAT_KEYS = [
   'prAtt',
   'prYds',
   'prTd',
+  /** Punter whose punt was blocked. */
+  'puntsBlocked',
 ] as const;
 export type StatKey = (typeof STAT_KEYS)[number];
 export type StatLine = Partial<Record<StatKey, number>>;
@@ -170,6 +173,14 @@ export interface Player {
   personality: Personality;
   /** Hidden makeup (1–20 each). Never shown as numbers: scouts describe it in words (`characterRead`). */
   traits: Traits;
+  /** On-field habits and their grip (1 = starting to show, 2 = established, 3 = ingrained): see `quirks.ts`. */
+  quirks?: Partial<Record<QuirkId, number>>;
+  /** Marbles left in his quirk bag this league year (quirk ids, `fix:<id>`, `blank`). */
+  quirkBag?: Record<string, number>;
+  /** Recent quirks gained and lost (week 0 = the offseason), oldest first. */
+  quirkLog?: { id: QuirkId; change: 'gained' | 'lost'; season: number; week: number }[];
+  /** Between games, from his quirks: shaken for his next game (a beaten QB), a kicker's slump. */
+  form?: { shaken?: boolean; slump?: { season: number; untilWeek: number } };
   /** Season year → accumulated stats. */
   stats: Record<number, StatLine>;
   /** Season year → the teams he played for that season, in order (regular season). Older saves may lack early years. */
@@ -553,6 +564,8 @@ export interface GameResult {
    * the game itself doesn't keep it.
    */
   condition?: Record<number, number>;
+  /** What the game did to players' form (player id → change): see `recordForm` in `quirks.ts`. */
+  form?: Record<number, { shaken?: true; slump?: 'start' | 'end'; clutch?: true }>;
 }
 
 export interface GameInjury {

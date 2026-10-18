@@ -13,6 +13,7 @@ import { ATTRIBUTE_INFO, type AgingFamily } from './attributes';
 import { declineOnset } from './aging';
 import { repsSoFar } from './development';
 import { ATTRIBUTE_PROFILES, overall, OVR_WEIGHTS, POSITION_NAMES, STARTERS } from './positions';
+import { activeQuirks, formingQuirks, QUIRKS, type QuirkId, type QuirkTone } from './quirks';
 import { clamp, Rng } from './rng';
 import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
 import { TEMPER_POSITIONS, TRAIT_MEAN } from './traits';
@@ -337,6 +338,152 @@ export function characterNotes(league: League, teamId: number, p: Player): Chara
   return { known: true, hedged: !read.exact && read.sd > 1.2, notes };
 }
 
+// ───────── quirks ─────────
+
+/**
+ * What habits are worth to a front office, in overall points: a plus habit adds a little, a bad one
+ * costs a little, a style trades one thing for another and counts for nothing. Early word counts
+ * half. Capped, so a player is never bought or cut for his habits alone.
+ */
+const QUIRK_WORTH: Record<QuirkTone, number> = { good: 0.3, bad: -0.3, style: 0 };
+const QUIRK_WORTH_CAP = 0.9;
+const worthOf = (habits: { tone: QuirkTone; forming: boolean }[]) => clamp(habits.reduce((a, h) => a + QUIRK_WORTH[h.tone] * (h.forming ? 0.5 : 1), 0), -QUIRK_WORTH_CAP, QUIRK_WORTH_CAP);
+
+/** The habits `teamId` has spotted, as overall points (the AI's read: unseen habits count for nothing). */
+export const quirkWorth = (league: League, teamId: number, p: Player): number => worthOf(quirkNotes(league, teamId, p).notes);
+
+/** The same from every habit he really has (analysis and tests, never an AI decision about another club's player). */
+export const trueQuirkWorth = (p: Player): number =>
+  worthOf([...activeQuirks(p).map((id) => ({ tone: QUIRKS[id].tone, forming: false })), ...formingQuirks(p).map((id) => ({ tone: QUIRKS[id].tone, forming: true }))]);
+
+/** Habits show on film, so they come out sooner than makeup: below this, a team can't name any. */
+export const QUIRK_KNOWLEDGE = 0.35;
+/** A habit only starting to show takes a closer look before anyone mentions it. */
+const FORMING_KNOWLEDGE = 0.7;
+
+export interface QuirkNote {
+  id: QuirkId;
+  label: string;
+  tone: QuirkTone;
+  /** What it means for him, as a sentence. */
+  line: string;
+  /** Starting to show (or established but crowded out by stronger habits): early word, not a settled one. */
+  forming: boolean;
+}
+
+export interface QuirkNotes {
+  /** False when the team hasn't seen enough of him to name any habit. */
+  known: boolean;
+  notes: QuirkNote[];
+}
+
+/**
+ * The habits `teamId` has spotted in a player. Each one surfaces at its own knowledge level (seeded
+ * per team, player and quirk, so it never flickers on refresh), anywhere from the film threshold to
+ * a fifth above it; one that is only starting to show needs a closer look. Your own players hide
+ * nothing.
+ */
+export function quirkNotes(league: League, teamId: number, p: Player): QuirkNotes {
+  const k = knowledge(league, teamId, p);
+  if (k < QUIRK_KNOWLEDGE) return { known: false, notes: [] };
+  const note = (id: QuirkId, forming: boolean): QuirkNote => {
+    const q = QUIRKS[id];
+    return { id, label: q.label, tone: q.tone, line: `${cap(q.clause)}. ${q.effect}`, forming };
+  };
+  const active = activeQuirks(p);
+  const forming = formingQuirks(p);
+  // A habit he has shaken still shows until this team notices: its scouts go on what they last saw.
+  const stale = shakenHabits(league, teamId, p, k).filter((h) => !h.noticed && !active.includes(h.id) && !forming.includes(h.id));
+  const notes = [
+    ...active.filter((id) => spotted(league, teamId, p, id, k, QUIRK_KNOWLEDGE)).map((id) => note(id, false)),
+    ...stale.map((h) => note(h.id, false)),
+    ...forming.filter((id) => spotted(league, teamId, p, id, k, FORMING_KNOWLEDGE)).map((id) => note(id, true)),
+  ];
+  return { known: true, notes };
+}
+
+/** Whether `teamId` has caught a habit on film: each one surfaces at its own seeded knowledge level, from `at` to a fifth above it. */
+function spotted(league: League, teamId: number, p: Player, id: QuirkId, k: number, at: number): boolean {
+  return k >= 1 || k >= at + 0.2 * new Rng(`${league.seed}:view:${teamId}:${p.id}:quirk:${id}`).next();
+}
+
+/** Weeks in a league year, near enough (regular season and playoffs; the offseason counts as week 0). */
+const WEEKS_PER_YEAR = 22;
+/** Weeks a team that barely knows a player goes on believing in a habit he has shaken. */
+const LINGER_WEEKS = 30;
+const weeksSince = (league: League, e: { season: number; week: number }) => (league.season - e.season) * WEEKS_PER_YEAR + league.week - e.week;
+
+/**
+ * Habits a player has shaken that `teamId` had seen, latest first: `noticed` once its scouts have
+ * caught on (at once for its own players, within weeks for one it watches closely, most of a year
+ * for one it barely knows).
+ */
+function shakenHabits(league: League, teamId: number, p: Player, k = knowledge(league, teamId, p)) {
+  const linger = Math.round(LINGER_WEEKS * (1 - Math.min(1, k)));
+  const latest = new Map<QuirkId, { season: number; week: number; change: 'gained' | 'lost' }>();
+  for (const e of p.quirkLog ?? []) latest.set(e.id, e);
+  return [...latest.entries()]
+    .filter(([id, e]) => e.change === 'lost' && spotted(league, teamId, p, id, k, QUIRK_KNOWLEDGE))
+    .map(([id, e]) => ({ id, season: e.season, week: e.week, noticed: weeksSince(league, e) >= linger }))
+    .sort((a, b) => b.season - a.season || b.week - a.week);
+}
+
+export interface HabitChange {
+  id: QuirkId;
+  label: string;
+  tone: QuirkTone;
+  change: 'gained' | 'lost';
+  season: number;
+  /** 0 for the offseason. */
+  week: number;
+}
+
+/**
+ * A player's habits over time as `teamId` knows them, newest first: everything for its own players;
+ * for anyone else, the habits its scouts have seen him pick up, and the ones they've noticed he shook.
+ */
+export function habitTimeline(league: League, teamId: number, p: Player): HabitChange[] {
+  const k = knowledge(league, teamId, p);
+  if (k < QUIRK_KNOWLEDGE) return [];
+  const linger = Math.round(LINGER_WEEKS * (1 - Math.min(1, k)));
+  return (p.quirkLog ?? [])
+    .filter((e) => spotted(league, teamId, p, e.id, k, QUIRK_KNOWLEDGE) && (e.change === 'gained' || weeksSince(league, e) >= linger))
+    .map((e) => ({ id: e.id, label: QUIRKS[e.id].label, tone: QUIRKS[e.id].tone, change: e.change, season: e.season, week: e.week }))
+    .reverse();
+}
+
+/**
+ * A change in words that fit the habit: a plus is added to his game or stops showing, a bad habit is
+ * picked up or shaken, a style is taken on or moved away from. `past` for a dated list ("Added Late-Hands
+ * Specialist to his game"), otherwise the perfect for a sentence ("has added …").
+ */
+export function habitChangeText(e: Pick<HabitChange, 'label' | 'tone' | 'change'>, past = true): string {
+  const [pastText, perfect] = {
+    gained: {
+      good: [`Added ${e.label} to his game`, `added ${e.label} to his game`],
+      bad: [`Picked up a bad habit: ${e.label}`, `picked up a bad habit (${e.label})`],
+      style: [`Took on a new style: ${e.label}`, `taken on a new style (${e.label})`],
+    },
+    lost: {
+      good: [`Stopped showing ${e.label}`, `stopped showing ${e.label}`],
+      bad: [`Shook off ${e.label}`, `shaken ${e.label}`],
+      style: [`Moved away from ${e.label}`, `moved away from ${e.label}`],
+    },
+  }[e.change][e.tone];
+  return past ? pastText : perfect;
+}
+
+/** How a card names habits he has left behind, by kind: a bad one fixed, a plus gone quiet, a style dropped. */
+export const FIXED_HEADING: Record<QuirkTone, string> = { bad: 'Seems to have fixed', good: 'No longer shows', style: 'Has moved away from' };
+
+/** Habits `teamId` has noticed he shook in the last year: "seems to have fixed…". */
+export function fixedHabits(league: League, teamId: number, p: Player): { id: QuirkId; label: string; tone: QuirkTone }[] {
+  const now = new Set([...activeQuirks(p), ...formingQuirks(p)]);
+  return shakenHabits(league, teamId, p)
+    .filter((h) => h.noticed && !now.has(h.id) && weeksSince(league, h) < WEEKS_PER_YEAR)
+    .map((h) => ({ id: h.id, label: QUIRKS[h.id].label, tone: QUIRKS[h.id].tone }));
+}
+
 /**
  * The last age at which a family of a player's ratings is still at its best, for the body `teamId`
  * reads in him (a typical one when it can't tell). Development runs before his birthday and only
@@ -502,6 +649,8 @@ function tierOf(league: League, pos: Position, ovr: number): number {
   return bp >= 0.5 ? 4 : bp >= 0.15 ? 5 : 6;
 }
 
+/** Habits as one sentence: commas inside a clause ("runs upright, shrugging off…") call for semicolons between them. */
+const clauses = (items: string[]) => (items.some((c) => c.includes(',')) && items.length > 1 ? `${items.slice(0, -1).join('; ')}; and ${items.at(-1)}` : list(items));
 const list = (items: string[]) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 
 /**
@@ -541,6 +690,22 @@ export function scoutReport(league: League, teamId: number, p: Player): string[]
   // Makeup, once the staff has seen enough of him: everything that stands out, in one sentence.
   const makeup = characterNotes(league, teamId, p);
   if (makeup.notes.length) lines.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${makeup.notes.map((n) => n.clause).join('; ')}.`);
+  // His habits on film: the settled ones, then the ones starting to show.
+  const habits = quirkNotes(league, teamId, p).notes;
+  const settled = habits.filter((n) => !n.forming);
+  const forming = habits.filter((n) => n.forming);
+  if (settled.length) lines.push(`On film he ${clauses(settled.map((n) => QUIRKS[n.id].clause))}.`);
+  if (forming.length) lines.push(`Starting to show: he ${clauses(forming.map((n) => QUIRKS[n.id].clause))}.`);
+  // What has changed lately, as far as we know: this year's habits picked up and shaken.
+  // Gains first, then what he has left behind (hedged unless it's our own player: we only think so).
+  const lately = habitTimeline(league, teamId, p).filter((e) => weeksSince(league, e) < WEEKS_PER_YEAR);
+  const gained = lately.filter((e) => e.change === 'gained').map((e) => habitChangeText(e, false));
+  const lost = lately.filter((e) => e.change === 'lost').map((e) => habitChangeText(e, false));
+  const sure = knowledge(league, teamId, p) >= 1;
+  if (gained.length || lost.length) {
+    const parts = [gained.length ? `has ${list(gained)}` : '', lost.length ? `${sure ? 'has' : 'seems to have'} ${list(lost)}` : ''].filter(Boolean);
+    lines.push(`Lately he ${parts.join(', and ')}.`);
+  }
 
   // How sure we are follows the actual width of the read: film, visits and who's doing the reading.
   const ovrHalf = (view.ovrHi - view.ovrLo) / 2;

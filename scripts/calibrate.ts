@@ -241,9 +241,12 @@ for (const { label, first, fifth, ceiling } of LEADER_TARGETS) {
   const flags = [
     rank(0) < first[0] ? '#1 ▼ LOW' : rank(0) > first[1] ? '#1 ▲ HIGH' : '',
     rank(4) < fifth[0] ? '#5 ▼ LOW' : rank(4) > fifth[1] ? '#5 ▲ HIGH' : '',
-    over > maxOver ? `▲ ${over} seasons past the record` : '',
   ].filter(Boolean);
   misses += flags.length;
+  // Seasons past the record are a warning, not a miss: allowing one in ten seasons, a league right on
+  // the NFL's rate of one in fifteen still shows two about one run in seven, so the count is mostly luck.
+  // The average #1 and #5 above are what's judged.
+  if (over > maxOver) flags.push(`⚠ ${over} seasons past the record (warning only)`);
   const fmt = (v: number) => (v < 100 ? v.toFixed(1) : Math.round(v).toString()).padStart(7);
   console.log(label.padEnd(14), ...[0, 1, 2, 3, 4].map((i) => fmt(rank(i))), fmt(best), `  ${first.join('–')} / ${fifth.join('–')} / ${ceiling}`, flags.join('  '));
 }
@@ -272,6 +275,8 @@ console.log(`Injured reserve (informational): ${(inj.irNow / teamSeasons).toFixe
 console.log(`Injuries per rostered player-season by position (informational): ${Object.entries(byPosition).map(([pos, b]) => `${pos} ${(b.hurt / b.players).toFixed(2)}`).join(' · ')}`);
 
 console.log(`\n${misses} stat(s) outside target range`);
+// The tables below are informational; a stat outside its range fails the run (and CI).
+if (misses) process.exitCode = 1;
 
 console.log('\nSchemes (informational, per team-game): offense gains, defense allows');
 console.log('scheme'.padEnd(22), 'games'.padStart(6), 'pts'.padStart(6), 'yds'.padStart(6), 'pass%'.padStart(6), 'ypa'.padStart(6), 'ypc'.padStart(6), 'sacks'.padStart(6));

@@ -16,7 +16,7 @@ import { Panel, PlayerAvatar, Rating, SortTh, sortRows, TeamChip, useSort } from
 import { attentionText, coachAttention } from '../coaching';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
-import { KnowledgeMeter, MakeupPills, makeupOf, Ovr, potentialText, ScoutButton, seenOvr, Stars, starsOf, viewOf } from '../scouting';
+import { KnowledgeMeter, MakeupPills, makeupOf, Ovr, QuirkPills, quirksOf, potentialText, ScoutButton, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { CoachesScreen } from './Coaches';
 import { MedicalScreen } from './Medical';
 import { StaffScreen } from './Staff';
@@ -441,7 +441,7 @@ function Draft({ league }: { league: League }) {
           }
         >
           <p className="muted small" style={{ marginTop: 0 }}>
-            <b>Your grade</b> and <b>ceiling</b> are your scouts' estimates (a dashed grade is a guess). <b>Makeup</b> shows once your scouts know a prospect, usually after a visit or two ("?" means not yet; dashed tags are early word). <b>Consensus</b> is how the rest of the league
+            <b>Your grade</b> and <b>ceiling</b> are your scouts' estimates (a dashed grade is a guess). <b>Makeup</b> shows once your scouts know a prospect, usually after a visit or two ("?" means not yet; dashed tags are early word). <b>Habits</b> are what shows on film: a few in the tape, more with visits. <b>Consensus</b> is how the rest of the league
             rates him. Rivals blend it with their own scouts' reads, and trust their scouts more when those scouts are good, so he can go earlier or later than
             his rank. When your read beats the consensus, you've found a sleeper; when it's worse, let someone else take the bust. Each scouting visit narrows a
             range:{' '}
@@ -465,6 +465,7 @@ function Draft({ league }: { league: League }) {
                   <th className="num">Consensus</th>
                   <th>Known</th>
                   <th>Makeup</th>
+                  <th>Habits</th>
                   <th />
                   {userUp && <th />}
                 </tr>
@@ -503,6 +504,9 @@ function Draft({ league }: { league: League }) {
                       </td>
                       <td>
                         <BoardMakeup league={league} player={p} />
+                      </td>
+                      <td>
+                        <BoardHabits league={league} player={p} />
                       </td>
                       <td>
                         <ScoutButton league={league} player={p} />
@@ -569,6 +573,24 @@ function BoardMakeup({ league, player }: { league: League; player: Player }) {
       </span>
     );
   return <MakeupPills notes={m.notes} hedged={m.hedged} limit={2} oneLine />;
+}
+
+/** A prospect's habits on film in a board cell: "?" until your scouts have seen enough, a dash when none show. */
+function BoardHabits({ league, player }: { league: League; player: Player }) {
+  const h = quirksOf(league, player);
+  if (!h.known)
+    return (
+      <span className="muted" title="Not seen enough of him yet">
+        ?<span className="visually-hidden">Habits unknown</span>
+      </span>
+    );
+  if (!h.notes.length)
+    return (
+      <span className="muted" title="None on film">
+        –<span className="visually-hidden">None on film</span>
+      </span>
+    );
+  return <QuirkPills notes={h.notes} limit={2} oneLine />;
 }
 
 export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }) {

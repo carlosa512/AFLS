@@ -6,7 +6,7 @@ import { useNav } from '../App';
 import { Panel, PlayerAvatar } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, money } from '../format';
-import { combineRows, drillVerdict, inches, KnowledgeMeter, MakeupPills, makeupOf, Ovr, potentialText, RangeValue, Stars, starsOf, viewOf } from '../scouting';
+import { combineRows, drillVerdict, inches, KnowledgeMeter, MakeupPills, makeupOf, Ovr, QuirkPills, quirksOf, potentialText, RangeValue, Stars, starsOf, viewOf } from '../scouting';
 
 /** Side by side, with the same fog as everywhere else: you compare what your scouts believe. */
 export function Compare({ league }: { league: League }) {
@@ -123,6 +123,13 @@ export function Compare({ league }: { league: League }) {
                 const m = makeupOf(league, p);
                 // The words are the content; "Unknown" and "Nothing stands out" stay plain, muted text.
                 return m.notes.length ? <MakeupPills notes={m.notes} hedged={m.hedged} /> : <span className="muted small">{!m.known ? 'Unknown' : m.hedged ? 'Nothing yet (early word)' : 'Nothing stands out'}</span>;
+              }),
+            )}
+            {row(
+              'Habits',
+              players.map((p) => {
+                const h = quirksOf(league, p);
+                return h.notes.length ? <QuirkPills notes={h.notes} /> : <span className="muted small">{h.known ? 'None on film' : 'Unknown'}</span>;
               }),
             )}
             {row(

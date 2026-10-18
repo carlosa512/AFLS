@@ -2083,6 +2083,11 @@ details.more > summary {
   outline: 1px dashed currentColor;
   outline-offset: -1px;
 }
+/* A player's habits over time: a short dated list under the facts. */
+.habit-timeline {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
 /* A table cell should stay one line tall: the draft board shows at most two pills side by side. */
 .pill-row.nowrap {
   flex-wrap: nowrap;

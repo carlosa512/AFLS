@@ -13,6 +13,14 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 
 ## Commands
 
+- **`npm run check` — run before every push.** It reads what changed (vs `origin/main`, committed or
+  not), runs the checks below that the change calls for side by side, and prints one ✓/✗ line each;
+  full logs land in `.check/`. `--quick` skips the slow two (careers, audit), `--all` runs everything,
+  `npm run check -- sim endings` runs just those. CI runs the same plan on every pull request, one job
+  per check (`.github/workflows/ci.yml`), so a red ✗ here is a red PR there. Every check fails on its
+  own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
+  season and first vs last): never loosen a range to get green. `⚠` lines are warnings that don't fail
+  a run: outlier record seasons (luck in small samples) and known engine issues, each gone once fixed.
 - `npm run dev` — local dev server (Vite)
 - `npm test` — engine tests (Vitest)
 - `npm run typecheck`
@@ -35,6 +43,11 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   it after changes to `finance/`, `offseason/`, `trade.ts`, `staff.ts`, `coaching.ts`, `medical.ts`
   or `injuries.ts`; talent, cap space, rosters and the coaching ledger (growth and decline ×1.00)
   should stay stable across seasons.
+- `npm run quirks` — run the quirk marble bag for 10 seasons and check how often each quirk is carried,
+  gained and lost; `npm run quirks -- --effects` also gives each quirk to every player at its positions
+  and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in
+  `match/gameSim.ts`. Nothing may be flagged. `npm run check` runs it (with `--effects`) when the
+  quirks module, the match engine or what builds a league changes.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -64,6 +77,11 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     through `teamScheme()` in `coaching.ts`; every lean trades something, so league totals stay in range
   - `records.ts` team, coach and GM records, all looked up from `league.history`
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
+  - `quirks.ts` on-field habits (registry, the marble bag, grip, `activeQuirks`): they change with
+    weekly and offseason draws; the engine reads them through `has()` in `match/gameSim.ts`, screens
+    through `quirkNotes` in `scouting.ts` (seen on film, so the fog of war applies); AI front offices
+    value them through `quirkWorth` (only what their own scouts have seen); game states (Rattled, Shaken, a kicker's
+    slump) and event marbles go through `recordForm`, called from `recordResult` in `league.ts`
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)

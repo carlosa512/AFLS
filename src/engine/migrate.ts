@@ -16,6 +16,7 @@ import { generateStaffWorld } from './staff';
 import { playoffSummary } from './records';
 import { rollScheme } from './schemes';
 import { addStats, statSeasons } from './stats';
+import { generateQuirks } from './quirks';
 import { generateTraits } from './traits';
 import type { League, StatLine } from './types';
 
@@ -32,7 +33,9 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 8) toV8(league);
   if (league.version < 9) toV9(league);
   if (league.version < 10) toV10(league);
-  if (league.version < 12) toV12(league);
+  if (league.version < 11) toV11(league);
+  if (league.version < 12) league.version = 12; // v12: optional `form` on players and game results, nothing to fill in
+  if (league.version < 13) toV13(league);
   return league;
 }
 
@@ -200,12 +203,18 @@ function toV10(league: League) {
   league.version = 10;
 }
 
+/** v10 → v11: quirks, rolled from each player's own seed, the same history a new league would give him. */
+function toV11(league: League) {
+  for (const p of Object.values(league.players)) if (!p.retired && !p.quirkBag) generateQuirks(p);
+  league.version = 11;
+}
+
 /**
- * → v12: injuries. Two more hidden traits, rolled from each player's own seed after the old ones (so
- * those don't move and he gets what a new league would give him), and a medical staff for every team
- * from its own stream. Everyone starts healthy and fresh.
+ * v12 → v13: injuries. Two more hidden traits, rolled from each player's own seed after the old ones
+ * (so those don't move and he gets what a new league would give him), and a medical staff for every
+ * team from its own stream. Everyone starts healthy and fresh.
  */
-function toV12(league: League) {
+function toV13(league: League) {
   for (const p of Object.values(league.players)) {
     if (p.traits.injuryResistance !== undefined) continue;
     const t = generateTraits(p);
@@ -217,5 +226,5 @@ function toV12(league: League) {
     league.nextMedicId = 1;
     generateMedicalWorld(league);
   }
-  league.version = 12;
+  league.version = 13;
 }

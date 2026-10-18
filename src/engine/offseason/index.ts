@@ -17,6 +17,7 @@ import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
 import { Rng } from '../rng';
 import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
+import { quirkOffseason } from '../quirks';
 import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
 import { generateSchedule } from '../season/schedule';
@@ -68,12 +69,14 @@ export function beginOffseason(league: League): void {
       p.teamId = null;
       p.contract = null;
       p.retired = true;
+      delete p.quirkBag;
       continue;
     }
     // Deals that just ran out keep their final year (the franchise tag is priced off it) until
     // free agency opens and clears them.
     if (p.contract && !isExpired(p.contract, league.season)) trimPast(p.contract, league.season);
     recordRatings(p, league.season);
+    quirkOffseason(league, p);
   }
   injuriesNewYear(league);
   resetScouting(league);
