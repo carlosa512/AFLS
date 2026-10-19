@@ -232,8 +232,10 @@ console.log(
 console.log(`${check('QB1s aged 35+ %', mean(steady.qb35), 4, 22, 1)} · ${check('RB1s aged 30+ %', mean(steady.rb30), 0, 8, 1)} · ${check('K/P starters aged 38+ (of 64)', mean(steady.k38), 1, 8, 1)}`);
 // Long-run play: development must not quietly change the game. Fresh-league targets are in `npm run sim`;
 // an aged league sits a little off them even on the v4 engine (careers-audit: 21.99 points, 5.22 penalties,
-// 2.19 sacks), so the bands here are a little wider.
-console.log(`${check('points per team-game', mean(steady.points), 21, 24)} · ${check('penalties', mean(steady.penalties), 5, 7)} · ${check('sacks', mean(steady.sacks), 2, 2.7)}`);
+// 2.19 sacks), so the bands here are a little wider. Points run to the NFL's record season (24.8 a team-game
+// in 2020): an aged league scores about 24.3 (its veterans' Awareness, docs/PENALTIES.md), a run swings
+// about half a point either way, and the old ceiling of 24 flipped from run to run (owner's call, Oct 19 2026).
+console.log(`${check('points per team-game', mean(steady.points), 21, 25)} · ${check('penalties', mean(steady.penalties), 5, 7)} · ${check('sacks', mean(steady.sacks), 2, 2.7)}`);
 // Grown-up stars must still lead the league like the NFL's do: the average #1 and #5 are held to the
 // ranges `npm run sim` uses for a fresh league. How often a leader passes the record is printed but not
 // judged: four leagues hold a handful of star careers, one elite quarterback and receiver can break it
