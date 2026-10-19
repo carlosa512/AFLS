@@ -1,8 +1,8 @@
 # Player avatars
 
 > **Status.** Built: `PlayerAvatar` in `src/ui/components.tsx` draws every player from behind in his
-> team's jersey (pure SVG, no images, no new dependencies), with the colour rules and kit in
-> `src/ui/color.ts`. Tested in `src/ui/avatar.test.tsx`. A roster mod's
+> team's jersey (pure SVG, no images, no new dependencies), the colour rules and kits in `src/ui/color.ts`,
+> and home and away jerseys by the league's rule. Tested in `src/ui/avatar.test.tsx`. A roster mod's
 > `player.portrait` still replaces the drawing.
 
 ## 1. Why a back view
@@ -53,15 +53,33 @@ It is decorative (`aria-hidden`): every placement shows the player's name next t
   primaries under 2:1 against the dark surface (navies, blacks, browns) sink into it.
 - **Free agents and prospects** wear the app's grey-green (`#4a554e` / `#9aa59e`).
 
-## 5. Tunables
+## 5. Home and away
+
+The league's rule: **the home team picks, and the visitors wear the other jersey**, so colour never
+meets colour. Home teams wear their colours and the visitors wear **white**, lettered in their primary
+with the secondary as trim.
+
+- **White at home on a hot day.** Open air (outdoors, or a retractable roof left open) at **85°F or
+  hotter at kickoff**, the home team takes white and leaves the visitors the dark jerseys in the sun, as
+  heat-belt clubs do. It reads the game's own weather (`gameWeather`), so it is a pure function of the
+  game like everything else. Over 40 seasons that's about 2% of games (5 a season): Miami about 2.2 home
+  games a year, Tampa 1.6, Jacksonville 0.6, nearly all in September, and a hot day somewhere else now
+  and then. Never under a dome; night kickoffs run cooler, so mostly day games.
+- The kit follows **this week's game** (`wearsWhite`), regular season and playoffs alike. A bye, a team
+  that's out, and the whole offseason are home colours. The title game is on a neutral site, so the
+  designated home team is in colours.
+- A game that's already been played shows the kit worn that day (the player of the game passes `game`).
+
+## 6. Tunables
 
 All in `src/ui/components.tsx` and `src/ui/color.ts`: `NUMBER_MIN_PX` (32), `NAMEPLATE_MIN_PX` (96),
-`NAMEPLATE_MAX` (40 viewBox units), `PLATE_EM` (re-measure if the display font changes), and `MIN_CONTRAST`
-(4.5).
+`NAMEPLATE_MAX` (40 viewBox units), `PLATE_EM` (re-measure if the display font changes), `MIN_CONTRAST`
+(4.5) and `HOT_KICKOFF_F` (85).
 
-## 6. Not yet
+## 7. Not yet
 
-- Away (white) jerseys, alternate and throwback uniforms.
+- Alternate and throwback uniforms, colour-on-colour specials, and club traditions (a team that always
+  wears white at home).
 - Gear and builds by position (neck rolls, wider linemen). Several were drawn during design.
 - Ring text ("QB · Dallas Stampede"): the card header already shows that line, and curved text is
   unreadable at these sizes. Dropped.

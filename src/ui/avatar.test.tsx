@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { TEAM_SEEDS } from '../engine/data/teams';
-import type { Player, Team } from '../engine/types';
+import { createLeague } from '../engine/generate';
+import { gamesInWeek } from '../engine/league';
+import type { League, Player, Team } from '../engine/types';
 import { contrast, kitFor, mix, readableOn } from './color';
-import { PlayerAvatar } from './components';
+import { PlayerAvatar, wearsWhite } from './components';
 
 const BLUE = { id: 0, colors: ['#1D4ED8', '#FFFFFF'] } as Team;
 const pearson = { firstName: 'Mario', lastName: 'Pearson', jersey: 7 } as Player;
@@ -34,10 +36,12 @@ describe('color', () => {
 });
 
 describe('kits', () => {
-  it('letters every team readably', () => {
+  it('letters every team readably, home and away', () => {
     for (const t of seeds) {
-      const kit = kitFor(t);
-      expect(contrast(kit.jersey, kit.ink), t.abbrev).toBeGreaterThanOrEqual(4);
+      for (const away of [false, true]) {
+        const kit = kitFor(t, away);
+        expect(contrast(kit.jersey, kit.ink), `${t.abbrev} ${away ? 'away' : 'home'}`).toBeGreaterThanOrEqual(4);
+      }
     }
   });
   it('keeps a secondary that cannot carry the number as its twill and stripe', () => {
@@ -46,6 +50,52 @@ describe('kits', () => {
     const jets = kitFor({ primary: '#125740', secondary: '#ffffff' }); // white reads on green: no twill colour needed
     expect(jets.ink).toBe('#ffffff');
     expect(jets.trim).not.toBe('#ffffff');
+  });
+  it('letters the white jersey in the primary', () => {
+    const kit = kitFor({ primary: '#00338d', secondary: '#c60c30' }, true);
+    expect(kit.jersey).toBe('#FFFFFF');
+    expect(kit.ink).toBe('#00338d');
+  });
+});
+
+describe('wearsWhite', () => {
+  let league: League;
+  beforeAll(() => {
+    league = createLeague({ seed: 'kits' });
+  });
+  const team = (id: number) => league.teams[id].abbrev;
+
+  it('dresses the visitors in the other jersey, every game', () => {
+    for (const g of league.games) expect(wearsWhite(league, g.homeId, g)).not.toBe(wearsWhite(league, g.awayId, g));
+  });
+  it('keeps the home team in colours but for the odd hot open-air day', () => {
+    // ten seasons of the same schedule: weather rolls fresh each season
+    let games = 0;
+    const white: string[] = [];
+    for (let season = league.season; season < league.season + 10; season++) {
+      for (const g of league.games) {
+        games++;
+        if (wearsWhite(league, g.homeId, { ...g, season })) white.push(team(g.homeId));
+      }
+    }
+    expect(white.length / games).toBeGreaterThan(0.005);
+    expect(white.length / games).toBeLessThan(0.04);
+    expect(white).toContain('MIA');
+    for (const dome of ['LV', 'LAC', 'DET', 'MIN', 'NO', 'LAS']) expect(white).not.toContain(dome);
+  });
+  it("follows this week's game, and is home colours without one", () => {
+    const g = gamesInWeek(league)[0];
+    expect(wearsWhite(league, g.awayId)).toBe(wearsWhite(league, g.awayId, g));
+    const byeWeek = [...Array(18).keys()].map((w) => w + 1).find((w) => gamesInWeek(league, w).length < 16)!;
+    const playing = new Set(gamesInWeek(league, byeWeek).flatMap((x) => [x.homeId, x.awayId]));
+    const bye = league.teams.find((t) => !playing.has(t.id))!;
+    expect(wearsWhite({ ...league, week: byeWeek }, bye.id)).toBe(false);
+    expect(wearsWhite({ ...league, phase: 'freeAgency' }, g.awayId)).toBe(false);
+    expect(wearsWhite(null, g.awayId)).toBe(false);
+  });
+  it('dresses a played game as it was played, even in the offseason', () => {
+    const g = league.games.find((x) => team(x.homeId) === 'NO')!; // a dome: the visitors are in white
+    expect(wearsWhite({ ...league, phase: 'draft' }, g.awayId, g)).toBe(true);
   });
 });
 

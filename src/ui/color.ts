@@ -1,4 +1,4 @@
-/** Colour helpers for "#RRGGBB" strings: WCAG 2.x contrast, blends, and the jersey kit avatars draw. */
+/** Colour helpers for "#RRGGBB" strings: WCAG 2.x contrast, blends, and the jersey kits avatars draw. */
 const LIGHT = '#F8FAFC';
 const DARK = '#0F172A';
 /** WCAG's bar for text under 24px: the avatar's number is that small in every list it appears in. */
@@ -59,12 +59,12 @@ export interface Kit {
 }
 
 /**
- * The primary jersey lettered in the secondary. Lettering that doesn't read swaps to light or dark, and
- * the secondary it replaced stays on as the twill and a stripe.
+ * Home is the primary jersey lettered in the secondary; away is white lettered in the primary. Lettering
+ * that doesn't read swaps to light or dark, and the colour it replaced stays on as the twill and a stripe.
  */
-export function kitFor({ primary, secondary }: TeamColors): Kit {
-  const jersey = primary;
-  const ink = readableOn(jersey, secondary);
+export function kitFor({ primary, secondary }: TeamColors, away = false): Kit {
+  const jersey = away ? '#FFFFFF' : primary;
+  const ink = readableOn(jersey, away ? primary : secondary);
   const trim = secondary !== ink && contrast(ink, secondary) >= 3 ? secondary : shade(jersey, 0.45);
   return { jersey, ink, trim, accent: secondary };
 }

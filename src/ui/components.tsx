@@ -1,9 +1,11 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { League, Player, Team } from '../engine/types';
-import type { Forecast, Weather } from '../engine/weather';
+import { gamesInWeek } from '../engine/league';
+import type { Game, League, Player, Team } from '../engine/types';
+import { gameWeather, type Forecast, type Weather } from '../engine/weather';
 import { inkOn, kitFor, shade, tint, type TeamColors } from './color';
 import { band, gameWeatherText, severityText } from './format';
+import { store } from './store';
 
 const FREE_AGENT: TeamColors = { primary: '#4a554e', secondary: '#9aa59e' };
 const NUMBER_MIN_PX = 32; // below this the digits turn to mush, and every list shows the name beside him anyway
@@ -11,6 +13,8 @@ const NAMEPLATE_MIN_PX = 96; // below this the surname is too small to read
 const NAMEPLATE_MAX = 40; // widest the surname may run, in viewBox units
 const PLATE_EM = 0.52; // width of a capital per unit of font size: Big Shoulders Display 800, measured, spacing included
 const SKIN = '#3E4A59'; // neutral mannequin: no faces or skin tones to generate
+/** Kickoff this hot in the open air, the home team takes white and leaves the visitors the dark jerseys (tune). */
+const HOT_KICKOFF_F = 85;
 
 // Paths share one 100x100 box. The player faces straight away from the viewer.
 // Football cues: tall, wide pads that overhang the arms; the pads lift the collar, so the head sits low.
@@ -37,11 +41,27 @@ const PAD_SHELF = 'M20 60.4 C34 64.6 66 64.6 80 60.4 L80 63.6 C66 67.8 34 67.8 2
 const FOLDS = 'M76.6 68 C74.6 78 73.6 88 74 100 L68 100 C69 88 71 78 76.6 68 Z M23.4 68 C25.4 78 26.4 88 26 100 L32 100 C31 88 29 78 23.4 68 Z';
 
 /**
+ * Whether a team takes the field in white. The league's rule: the home team picks, the visitors wear the
+ * other jersey. Home teams wear their colours, except on a hot open-air day (Miami, Tampa and Jacksonville
+ * in September, mostly), about one game in fifty. It follows this week's game, or `game` for one already
+ * played (weather is a pure function of the game, so it comes out the same); with no game (a bye, the
+ * offseason) everyone is in home colours.
+ */
+export function wearsWhite(league: League | null, teamId: number, game?: Game): boolean {
+  const inSeason = league?.phase === 'regular' || league?.phase === 'playoffs';
+  const g = game ?? (league && inSeason ? gamesInWeek(league).find((x) => x.homeId === teamId || x.awayId === teamId) : undefined);
+  if (!league || !g || (g.homeId !== teamId && g.awayId !== teamId)) return false;
+  const w = gameWeather(league, g);
+  const homeInWhite = (w.roof === 'outdoors' || w.roof === 'open') && w.tempF >= HOT_KICKOFF_F;
+  return (g.homeId === teamId) === homeInWhite;
+}
+
+/**
  * A player's picture slot. Until a portrait exists (a roster mod can set `player.portrait`), it draws him
  * from behind in his team's jersey: just the figure in lists, the number from 32px, the surname from 96px.
- * Decorative: the name is always shown beside it.
+ * Decorative: the name is always shown beside it. Pass `game` to dress him for that game instead of this week's.
  */
-export function PlayerAvatar({ player, team, size = 32 }: { player: Player; team: Team | null; size?: number }) {
+export function PlayerAvatar({ player, team, size = 32, game }: { player: Player; team: Team | null; size?: number; game?: Game }) {
   const id = useId();
   if (player.portrait) {
     return <img className="avatar" src={player.portrait} alt="" width={size} height={size} loading="lazy" />;
@@ -49,7 +69,7 @@ export function PlayerAvatar({ player, team, size = 32 }: { player: Player; team
   const url = (part: string) => `url(#${id}${part})`;
   const colors = team ? { primary: team.colors[0], secondary: team.colors[1] } : FREE_AGENT;
   const { primary } = colors;
-  const { jersey, ink, trim, accent } = kitFor(colors);
+  const { jersey, ink, trim, accent } = kitFor(colors, team !== null && wearsWhite(store.get(), team.id, game));
   const plate = player.lastName.toUpperCase();
   // long names shrink, and textLength holds the estimate even if the font hasn't loaded and a wider one stands in
   const plateSize = Math.min(9.5, NAMEPLATE_MAX / (plate.length * PLATE_EM));
