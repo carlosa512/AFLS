@@ -404,15 +404,21 @@ function timeJudge(league: League) {
 const volume = { inSeason: [] as number[], deadline: 0, offseason: [] as number[], all: [] as TradeRecord[], seasons: 0, startingQbs: 0 };
 const speedOff: number[] = [];
 
-/** Every trade a step made: value it in the truth, and check both teams after. */
-function audit(after: League, label: string, from: number) {
-  for (const record of (after.market?.history ?? []).slice(from)) {
+/**
+ * Every trade a step made: value it in the truth, and check both teams after. New trades are told
+ * apart by identity, not position: the history keeps five seasons, so older ones drop off its front.
+ */
+const audited = new WeakSet<TradeRecord>();
+function audit(after: League, label: string): TradeRecord[] {
+  const fresh = (after.market?.history ?? []).filter((r) => !audited.has(r));
+  for (const record of fresh) {
+    audited.add(record);
     volume.all.push(record);
     judgeFairness(after, { sides: record.sides }, label);
     checkHealth(after, record.sides.map((x) => x.teamId));
   }
+  return fresh;
 }
-const historyLength = (l: League) => l.market?.history.length ?? 0;
 
 // ───────── run ─────────
 
@@ -429,7 +435,7 @@ for (let i = 0; i < LEAGUES; i++) {
     fair.seasons++;
     volume.seasons++;
     const timing = i === 0 && s === 0;
-    const startSeason = historyLength(league);
+    const season: TradeRecord[] = [];
     while (league.phase === 'regular' && (league.week <= TRADE_DEADLINE_WEEK + 1 || isDeadlineDay(league))) {
       if (s === 0 && isDeadlineDay(league)) probePrices(league, 'deadline', i === 0);
       if (timing && isDeadlineDay(league)) {
@@ -441,35 +447,31 @@ for (let i = 0; i < LEAGUES; i++) {
         const copy = clone(league);
         speed.week.push(cpuMs(() => marketMoment(copy, weekMoment(copy))));
       }
-      const from = historyLength(league);
       const starters = new Set(league.teams.map((t) => t.depthChart.QB[0]));
       playWeek(league);
-      audit(league, label, from);
-      volume.startingQbs += (league.market?.history ?? []).slice(from).filter((r) => r.phase === 'regular' && r.sides.some((x) => x.players.some((id) => starters.has(id)))).length;
+      const week = audit(league, label).filter((r) => r.phase === 'regular');
+      season.push(...week);
+      volume.startingQbs += week.filter((r) => r.sides.some((x) => x.players.some((id) => starters.has(id)))).length;
     }
-    const season = (league.market?.history ?? []).slice(startSeason).filter((r) => r.phase === 'regular');
     volume.inSeason.push(season.length);
     volume.deadline += season.filter((r) => r.week === TRADE_DEADLINE_WEEK).length;
     simToEndOfSeason(league);
     // The offseason, step by step, each step's trades audited as it goes.
-    const startOff = historyLength(league);
-    let from = historyLength(league);
     beginOffseason(league);
-    audit(league, label, from);
+    let offseason = audit(league, label).length;
     if (timing) {
       const copy = clone(league);
       speedOff.push(cpuMs(() => marketMoment(copy, 'leagueYear')));
     }
     for (let guard = 0; guard < 20 && league.phase !== 'regular'; guard++) {
-      from = historyLength(league);
       if (timing && (league.phase === 'freeAgency' || league.phase === 'preseason')) {
         const copy = clone(league);
         speedOff.push(cpuMs(() => marketMoment(copy, league.phase === 'freeAgency' ? 'faDay' : 'camp')));
       }
       advanceOffseason(league, { autoUser: true });
-      audit(league, label, from);
+      offseason += audit(league, label).length;
     }
-    volume.offseason.push(historyLength(league) - startOff);
+    volume.offseason.push(offseason);
   }
 }
 
