@@ -113,3 +113,72 @@ export function teamLeader(league: League, teamId: number, key: StatKey, season 
   }
   return best;
 }
+
+export interface Rec {
+  w: number;
+  l: number;
+  t: number;
+}
+
+/** A team's regular season from its box scores: what it scored, gained and turned over, what it gave up, and its splits. */
+export interface TeamSeasonLine {
+  games: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  yards: number;
+  yardsAllowed: number;
+  /** Its own turnovers, and the other side's. */
+  giveaways: number;
+  takeaways: number;
+  thirdDownAtt: number;
+  thirdDownConv: number;
+  /** Times its defense sacked the quarterback. */
+  sacks: number;
+  home: Rec;
+  road: Rec;
+  division: Rec;
+}
+
+const emptyLine = (): TeamSeasonLine => ({
+  games: 0,
+  pointsFor: 0,
+  pointsAgainst: 0,
+  yards: 0,
+  yardsAllowed: 0,
+  giveaways: 0,
+  takeaways: 0,
+  thirdDownAtt: 0,
+  thirdDownConv: 0,
+  sacks: 0,
+  home: { w: 0, l: 0, t: 0 },
+  road: { w: 0, l: 0, t: 0 },
+  division: { w: 0, l: 0, t: 0 },
+});
+
+/** Every team's regular-season line, summed from the box scores (kept for the last two seasons). */
+export function teamSeasonStats(league: League, season = league.season): Map<number, TeamSeasonLine> {
+  const out = new Map(league.teams.map((t) => [t.id, emptyLine()]));
+  for (const g of league.games) {
+    if (g.season !== season || g.playoffRound || !g.result) continue;
+    const r = g.result;
+    const sameDivision = league.teams[g.homeId].division === league.teams[g.awayId].division;
+    for (const home of [true, false]) {
+      const line = out.get(home ? g.homeId : g.awayId)!;
+      const [us, them] = home ? [r.homeScore, r.awayScore] : [r.awayScore, r.homeScore];
+      const [ours, theirs] = home ? [r.home, r.away] : [r.away, r.home];
+      line.games++;
+      line.pointsFor += us;
+      line.pointsAgainst += them;
+      line.yards += ours.totalYds;
+      line.yardsAllowed += theirs.totalYds;
+      line.giveaways += ours.turnovers;
+      line.takeaways += theirs.turnovers;
+      line.thirdDownAtt += ours.thirdDownAtt;
+      line.thirdDownConv += ours.thirdDownConv;
+      line.sacks += theirs.sacked;
+      const result = us > them ? 'w' : us < them ? 'l' : 't';
+      for (const split of [home ? line.home : line.road, ...(sameDivision ? [line.division] : [])]) split[result]++;
+    }
+  }
+  return out;
+}

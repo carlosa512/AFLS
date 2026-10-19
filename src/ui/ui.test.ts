@@ -8,7 +8,9 @@ import { moveSegments, type MoveIndex } from './moves';
 import { hashToRoute, routeToHash, type Route } from './routes';
 import { backupFileName, parseBackup } from './saves';
 import { byeTeams, resultsWeek, stripGames } from './strip';
-import { hurtList, outlookPill, waitingMail, wornDown } from './widgets';
+import { hurtList, wornDown } from './injuries';
+import { gameStory } from './game';
+import { outlookPill, SEASON_DEFAULT, seasonFacts, waitingMail } from './widgets';
 
 describe('routes', () => {
   it('round-trip through the address bar', () => {
@@ -150,6 +152,29 @@ describe('home widgets', () => {
     }
     for (const p of hurt) expect(outlookPill(league, p)).toMatch(/^(IR · (season|ready|\d+(–\d+)? wk)|Out (for season|\d+(–\d+)? wk)|Playing hurt)$/);
     for (const p of wornDown(league, league.userTeamId)) expect(p.injury || p.ir).toBeFalsy();
+  });
+
+  it('tells our last game in a line, from our side', () => {
+    const user = league.userTeamId;
+    const g = league.games.filter((x) => x.result && (x.homeId === user || x.awayId === user)).at(-1)!;
+    const story = gameStory(g, user);
+    expect(story).toMatch(/^(Led|Trailed|Tied) \d+–\d+ at the half; (won|lost) the second half \d+–\d+|^(Led|Trailed|Tied) \d+–\d+ at the half; played the second half even/);
+    // The halves add up to the final score (before overtime).
+    const nums = story.match(/\d+/g)!.map(Number);
+    const r = g.result!;
+    const [us, them] = g.homeId === user ? [r.homeScore, r.awayScore] : [r.awayScore, r.homeScore];
+    if (!r.overtime) expect([nums[0] + nums[2], nums[1] + nums[3]]).toEqual([us, them]);
+  });
+
+  it('offers every season fact, the defaults among them, with ranks in words', () => {
+    const facts = seasonFacts(league);
+    const keys = facts.map((f) => f.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const k of SEASON_DEFAULT) expect(keys).toContain(k);
+    for (const f of facts) expect(f.value).not.toMatch(/NaN|undefined/);
+    expect(facts.find((f) => f.key === 'ppg')!.sub).toMatch(/^\d+(st|nd|rd|th) in the league$/);
+    expect(facts.find((f) => f.key === 'papg')!.sub).toMatch(/^(Fewest in the league|\d+(st|nd|rd|th) fewest)$/);
+    expect(facts.find((f) => f.key === 'left')!.sub).toBe('of 17');
   });
 
   it('puts what needs you first, then the unread, newest first', () => {

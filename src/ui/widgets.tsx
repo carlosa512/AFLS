@@ -1,27 +1,23 @@
 /**
- * Home's small panels: our injuries, the opponent's injury report and the mail waiting for us. Each is
- * a few rows deep, the rest a click away (the Medical screen, their roster, the inbox). Injuries show
+ * Home's small panels: our injuries, the opponent's injury report, the mail waiting for us and the season
+ * so far. Each is a few rows deep, the rest a click away (the Medical screen, their roster, the inbox). Injuries show
  * the doctor's estimate, never the true layoff, and condition only for our own players.
  */
+import { useState } from 'react';
+import { capSheet } from '../engine/finance/cap';
 import { injuryLabel, weeksLeft } from '../engine/injuries';
 import { needsYou } from '../engine/inbox';
 import { teamPlayers } from '../engine/roster';
+import { computeRecords, conferenceSeeds, divisionStandings } from '../engine/season/standings';
+import { teamSeasonStats, type TeamSeasonLine } from '../engine/stats';
 import type { Game, InboxMessage, League, Player, Team } from '../engine/types';
 import { useNav } from './App';
 import { Panel } from './components';
-import { PHASE_LABELS, shortName, weekLabel } from './format';
-import { WORN_DOWN } from './injuries';
+import { money, ordinal, PHASE_LABELS, recordText, shortName, weekLabel } from './format';
+import { hurtList, wornDown } from './injuries';
 
 /** How many rows a widget shows before "See all". */
 const SHOW = 3;
-
-/** A team's hurt players, longest layoff first by the doctor's estimate; a healed man still on reserve last. */
-export function hurtList(league: League, teamId: number): Player[] {
-  const est = (p: Player) => (p.injury ? p.injury.estimate[1] * 100 + p.injury.estimate[0] : -1);
-  return teamPlayers(league, teamId)
-    .filter((p) => p.injury || p.ir)
-    .sort((a, b) => est(b) - est(a));
-}
 
 /** A hurt player's outlook in a pill's words: "IR · season", "Out 2–3 wk", "Playing hurt", "IR · ready". */
 export function outlookPill(league: League, p: Player): string {
@@ -31,13 +27,6 @@ export function outlookPill(league: League, p: Player): string {
   const [lo, hi] = i.estimate;
   const out = lo >= weeksLeft(league) ? 'season' : hi <= 1 ? '1 wk' : lo === hi ? `${lo} wk` : `${lo}–${hi} wk`;
   return p.ir ? `IR · ${out}` : out === 'season' ? 'Out for season' : `Out ${out}`;
-}
-
-/** Our healthy players running low on condition, the most tired first. */
-export function wornDown(league: League, teamId: number): Player[] {
-  return teamPlayers(league, teamId)
-    .filter((p) => !p.injury && !p.ir && (p.condition ?? 100) < WORN_DOWN)
-    .sort((a, b) => (a.condition ?? 100) - (b.condition ?? 100));
 }
 
 function PlayerRow({ p, note, pill, tone }: { p: Player; note: string; pill: string; tone: 'bad' | 'warn' }) {
@@ -196,6 +185,133 @@ export function WaitingForYou({ league }: { league: League }) {
         </div>
       )}
       {rest > 0 && <More rest={rest} label={rows.slice(SHOW).every((m) => !m.read) ? 'more unread' : 'more waiting'} link="See all in Inbox" go={inbox} />}
+    </Panel>
+  );
+}
+
+export interface SeasonFact {
+  key: string;
+  label: string;
+  value: string;
+  sub: string;
+}
+
+/** What Season so far shows until you pick: where you'd be seeded, the point and turnover margins, what's left. */
+export const SEASON_DEFAULT = ['seed', 'diff', 'to', 'left'];
+const SEASON_KEY = 'afls.season-facts';
+const SEASON_PICKS = 4;
+
+const signed = (n: number) => `${n > 0 ? '+' : ''}${n}`;
+
+/** Every fact Season so far can show, from the box scores and standings as they are now. Ranks are among all 32 teams. */
+export function seasonFacts(league: League): SeasonFact[] {
+  const user = league.userTeamId;
+  const team = league.teams[user];
+  const records = computeRecords(league);
+  const stats = teamSeasonStats(league);
+  const mine = stats.get(user)!;
+  const played = mine.games > 0;
+  const per = (n: number) => (played ? (n / mine.games).toFixed(1) : '–');
+  // 1 = best: one more than the teams better at it (fewest: lower is better).
+  const rank = (value: (l: TeamSeasonLine) => number, fewest = false) => {
+    if (!played) return 'No games yet';
+    const v = value(mine);
+    const n = 1 + [...stats.values()].filter((l) => l.games && (fewest ? value(l) < v : value(l) > v)).length;
+    return fewest ? (n === 1 ? 'Fewest in the league' : `${ordinal(n)} fewest`) : `${ordinal(n)} in the league`;
+  };
+  const perGame = (n: (l: TeamSeasonLine) => number) => (l: TeamSeasonLine) => (l.games ? n(l) / l.games : 0);
+  const seed = conferenceSeeds(league, team.conference, records).indexOf(user);
+  const div = divisionStandings(league, records).find((d) => d.index === team.division)!;
+  const left = league.games.filter((g) => g.season === league.season && !g.playoffRound && !g.result && (g.homeId === user || g.awayId === user)).length;
+  const total = league.games.filter((g) => g.season === league.season && !g.playoffRound && (g.homeId === user || g.awayId === user)).length;
+  const hurt = teamPlayers(league, user).reduce((n, p) => n + (p.injuries ?? []).filter((i) => i.season === league.season).length, 0);
+  const third = (l: TeamSeasonLine) => (l.thirdDownAtt ? l.thirdDownConv / l.thirdDownAtt : 0);
+  return [
+    { key: 'record', label: 'Record', value: recordText(records.get(user)!), sub: `Home ${recordText(mine.home)} · Road ${recordText(mine.road)}` },
+    { key: 'seed', label: 'Playoff seed', value: seed >= 0 ? ordinal(seed + 1) : 'Out', sub: league.phase === 'regular' ? (seed >= 0 ? 'If the season ended today' : 'Outside the seven today') : 'Final seeding' },
+    { key: 'div', label: 'Division', value: ordinal(div.teams.findIndex((r) => r.teamId === user) + 1), sub: `${div.division.name} · ${recordText(mine.division)} in it` },
+    { key: 'diff', label: 'Point diff', value: signed(mine.pointsFor - mine.pointsAgainst), sub: rank(perGame((l) => l.pointsFor - l.pointsAgainst)) },
+    { key: 'ppg', label: 'Points per game', value: per(mine.pointsFor), sub: rank(perGame((l) => l.pointsFor)) },
+    { key: 'papg', label: 'Points allowed', value: per(mine.pointsAgainst), sub: rank(perGame((l) => l.pointsAgainst), true) },
+    { key: 'ypg', label: 'Yards per game', value: per(mine.yards), sub: rank(perGame((l) => l.yards)) },
+    { key: 'ya', label: 'Yards allowed', value: per(mine.yardsAllowed), sub: rank(perGame((l) => l.yardsAllowed), true) },
+    { key: 'to', label: 'Turnover margin', value: signed(mine.takeaways - mine.giveaways), sub: rank((l) => l.takeaways - l.giveaways) },
+    { key: 'third', label: 'Third-down rate', value: mine.thirdDownAtt ? `${(third(mine) * 100).toFixed(1)}%` : '–', sub: rank(third) },
+    { key: 'left', label: 'Games left', value: String(left), sub: `of ${total}` },
+    { key: 'inj', label: 'Injuries', value: String(hurt), sub: 'this season' },
+    { key: 'cap', label: 'Cap space', value: money(Math.round(capSheet(league, user).space)), sub: `${league.season} league year` },
+  ];
+}
+
+/** Your picks, kept in this browser (a view preference, not part of the save). */
+function savedPicks(): string[] {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(SEASON_KEY) ?? 'null');
+    return Array.isArray(v) ? v.filter((k): k is string => typeof k === 'string').slice(0, SEASON_PICKS) : SEASON_DEFAULT;
+  } catch {
+    return SEASON_DEFAULT;
+  }
+}
+
+/** Four facts about the season, yours to pick. */
+export function SeasonSoFar({ league }: { league: League }) {
+  const [picks, setPicks] = useState(savedPicks);
+  const [editing, setEditing] = useState(false);
+  const facts = seasonFacts(league);
+  const byKey = new Map(facts.map((f) => [f.key, f]));
+  const shown = picks.map((k) => byKey.get(k)).filter((f): f is SeasonFact => !!f);
+  const toggle = (key: string) => {
+    const next = picks.includes(key) ? picks.filter((k) => k !== key) : picks.length >= SEASON_PICKS ? picks : [...picks, key];
+    setPicks(next);
+    try {
+      localStorage.setItem(SEASON_KEY, JSON.stringify(next));
+    } catch {
+      // Private windows and blocked storage: the picks last until the page closes.
+    }
+  };
+  return (
+    <Panel
+      className="widget"
+      title="Season so far"
+      action={
+        <button className="btn btn-sm" aria-expanded={editing} onClick={() => setEditing(!editing)}>
+          {editing ? 'Done' : 'Edit'}
+        </button>
+      }
+    >
+      {editing ? (
+        <>
+          <p className="small muted" style={{ margin: 0 }}>
+            Pick up to {SEASON_PICKS}. {picks.length} of {SEASON_PICKS} picked.
+          </p>
+          <div className="season-options">
+            {facts.map((f) => {
+              const on = picks.includes(f.key);
+              return (
+                <label key={f.key} className="season-option">
+                  <input type="checkbox" checked={on} disabled={!on && picks.length >= SEASON_PICKS} onChange={() => toggle(f.key)} />
+                  <span>{f.label}</span>
+                  <span className="muted small num">{f.value}</span>
+                </label>
+              );
+            })}
+          </div>
+        </>
+      ) : shown.length ? (
+        <div className="season-facts">
+          {shown.map((f) => (
+            <div className="season-fact" key={f.key}>
+              <span className="eyebrow">{f.label}</span>
+              <b>{f.value}</b>
+              <span className="small muted">{f.sub}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="muted small" style={{ margin: 0 }}>
+          Nothing picked yet: choose up to {SEASON_PICKS} with Edit.
+        </p>
+      )}
     </Panel>
   );
 }

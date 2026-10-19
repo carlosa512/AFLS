@@ -23,7 +23,7 @@ import {
   type InjuryRiskRead,
 } from '../engine/injuries';
 import { ATTRIBUTE_INFO } from '../engine/attributes';
-import { isAvailable } from '../engine/roster';
+import { isAvailable, teamPlayers } from '../engine/roster';
 import type { Attribute, League, Player } from '../engine/types';
 import { Section, TipPill } from './components';
 import { store } from './store';
@@ -52,6 +52,24 @@ export function RiskDot({ read }: { read: InjuryRiskRead }) {
 
 /** Below this condition a healthy player is worn down: a week off brings most of it back. */
 export const WORN_DOWN = 80;
+
+/**
+ * A team's hurt players, longest layoff first by the doctor's estimate (never the true weeks: even the order would
+ * give the real layoff away); a healed man still on reserve last.
+ */
+export function hurtList(league: League, teamId: number): Player[] {
+  const est = (p: Player) => (p.injury ? p.injury.estimate[1] * 100 + p.injury.estimate[0] : -1);
+  return teamPlayers(league, teamId)
+    .filter((p) => p.injury || p.ir)
+    .sort((a, b) => est(b) - est(a));
+}
+
+/** A team's healthy players running low on condition, the most tired first. */
+export function wornDown(league: League, teamId: number): Player[] {
+  return teamPlayers(league, teamId)
+    .filter((p) => !p.injury && !p.ir && (p.condition ?? 100) < WORN_DOWN)
+    .sort((a, b) => (a.condition ?? 100) - (b.condition ?? 100));
+}
 
 /** Condition band: fresh, a little worn, worn down. */
 export const conditionTone = (c: number) => (c >= 90 ? 'tone-good' : c < 78 ? 'tone-bad' : undefined);

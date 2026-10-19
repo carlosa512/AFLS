@@ -24,7 +24,8 @@ import { ThemeSelect } from '../theme';
 import { store } from '../store';
 import { moveIndex, MoveText } from '../moves';
 import { ScoreStrip } from '../strip';
-import { TheirInjuries, WaitingForYou, YourInjuries } from '../widgets';
+import { SeasonSoFar, TheirInjuries, WaitingForYou, YourInjuries } from '../widgets';
+import { GameStar, gameStory, KeyStats, LineScore, standouts, Standouts } from '../game';
 
 function lastUserGame(league: League): Game | undefined {
   return league.games
@@ -147,19 +148,29 @@ function NextGame({ league }: { league: League }) {
   );
 }
 
-function LastResult({ league }: { league: League }) {
+/** Our last game: the score and how it went, the line score and key stats, the player of the game and our best. */
+function LastGame({ league }: { league: League }) {
   const nav = useNav();
   const game = lastUserGame(league);
   if (!game) return null;
   const r = game.result!;
-  const userHome = game.homeId === league.userTeamId;
+  const user = league.userTeamId;
+  const userHome = game.homeId === user;
   const us = userHome ? r.homeScore : r.awayScore;
   const them = userHome ? r.awayScore : r.homeScore;
   const res = us > them ? 'W' : us < them ? 'L' : 'T';
   const opp = league.teams[userHome ? game.awayId : game.homeId];
+  const when = game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(game.week);
+  const where = game.neutral ? 'neutral site' : userHome ? 'at home' : `at ${opp.city}`;
+  const best = standouts(league, game, user, 3);
   return (
     <Panel
-      title={<span className="eyebrow">Last game · {weekLabel(game.week)}</span>}
+      className="last-game"
+      title={
+        <span className="eyebrow">
+          Last game · {when} · {where}
+        </span>
+      }
       action={
         <span className="row" style={{ gap: 8 }}>
           <button className="btn btn-sm" onClick={() => nav.openGame(game.id)}>
@@ -171,16 +182,33 @@ function LastResult({ league }: { league: League }) {
         </span>
       }
     >
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="row">
-          <span className={`res-${res}`} style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--step-3)', lineHeight: 1 }}>
-            {res}
-          </span>
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--step-3)', fontWeight: 800, lineHeight: 1 }}>
-            {us}–{them}
-          </span>
+      <div className="last-result">
+        <span className={`res-${res}`}>{res}</span>
+        <span>
+          {us}–{them}
         </span>
-        <TeamLabel team={opp} full sub={userHome ? 'at home' : 'on the road'} />
+        <span className="small muted">
+          {userHome || game.neutral ? 'vs' : 'at'}{' '}
+          <button className="linklike" onClick={() => nav.openTeam(opp.id)}>
+            {opp.city} {opp.name}
+          </button>
+        </span>
+      </div>
+      <p className="small" style={{ margin: 0 }}>
+        {gameStory(game, user)}
+      </p>
+      <div className="split-2">
+        <LineScore league={league} game={game} teamId={user} />
+        <KeyStats league={league} game={game} teamId={user} />
+      </div>
+      <div className="split-2">
+        <GameStar league={league} game={game} />
+        {best.length > 0 && (
+          <div>
+            <div className="eyebrow">Your top performers</div>
+            <Standouts rows={best} />
+          </div>
+        )}
       </div>
     </Panel>
   );
@@ -353,10 +381,13 @@ function AwardsNotice({ league }: { league: League }) {
 /** The latest week's players of the week (and of the month, when one just ended). */
 function PlayersOfTheWeek({ league }: { league: League }) {
   const nav = useNav();
+  const [period, setPeriod] = useState<'week' | 'month'>('week');
   const honors = weeklyAwards(league, league.season);
   const week = Math.max(0, ...Object.keys(honors?.weeks ?? {}).map(Number));
   if (!honors || !week) return null;
   const month = monthEnding(week);
+  const monthly = month && honors.months[month.key];
+  const showMonth = period === 'month' && !!monthly;
   const list = (winners: (AwardWinner | null)[], weeks: [number, number]) => (
     <ul className="honor-list">
       {HONOR_SLOTS.map(({ conference, side }, i) => (
@@ -371,20 +402,26 @@ function PlayersOfTheWeek({ league }: { league: League }) {
   );
   return (
     <Panel
-      title={`Players of the week · ${weekLabel(week)}`}
+      title={showMonth ? `Players of the month · ${month!.label}` : `Players of the week · ${weekLabel(week)}`}
       action={
-        <button className="btn btn-sm btn-ghost" onClick={() => nav.go({ view: 'stats', tab: 'awards' })}>
-          All awards
-        </button>
+        <span className="row" style={{ gap: 8 }}>
+          {monthly && (
+            <span className="seg" role="group" aria-label="Week or month">
+              <button aria-pressed={!showMonth} onClick={() => setPeriod('week')}>
+                {weekLabel(week)}
+              </button>
+              <button aria-pressed={showMonth} onClick={() => setPeriod('month')}>
+                {month!.label}
+              </button>
+            </span>
+          )}
+          <button className="btn btn-sm btn-ghost" onClick={() => nav.go({ view: 'stats', tab: 'awards' })}>
+            All awards
+          </button>
+        </span>
       }
     >
-      {list(honors.weeks[week], [week, week])}
-      {month && honors.months[month.key] && (
-        <>
-          <h3 style={{ margin: '12px 0 4px' }}>Players of the month · {month.label}</h3>
-          {list(honors.months[month.key]!, month.weeks)}
-        </>
-      )}
+      {showMonth ? list(monthly!, month!.weeks) : list(honors.weeks[week], [week, week])}
     </Panel>
   );
 }
@@ -567,24 +604,54 @@ export function Home({ league }: { league: League }) {
       </>
     );
   }
+  const last = !!lastUserGame(league);
+  const next = league.phase !== 'complete';
+  const honors = weeklyAwards(league, league.season);
+  const pow = !!honors && Object.keys(honors.weeks).length > 0;
+  const gm = gmRecord(league).seasons.length > 0;
+  // One grid, row by row: the games, then the week's business, the season, the leaders. A row's panels line up;
+  // a panel with no partner takes the whole row.
   return (
     <>
       <ScoreStrip league={league} />
       <ChampionBanner league={league} />
       <AwardsNotice league={league} />
-      <div className="grid-2">
-        <div className="stack">
-          <NextGame league={league} />
-          <LastResult league={league} />
+      <div className="home-grid">
+        {next && (
+          <div className={`home-cell ${last ? 'span-6' : 'span-12'}`}>
+            <NextGame league={league} />
+          </div>
+        )}
+        {last && (
+          <div className={`home-cell ${next ? 'span-6' : 'span-12'}`}>
+            <LastGame league={league} />
+          </div>
+        )}
+        <div className="home-cell span-4">
+          <DivisionMini league={league} />
+        </div>
+        <div className="home-cell span-4">
+          <YourInjuries league={league} />
+        </div>
+        <div className="home-cell span-4">
+          <WaitingForYou league={league} />
+        </div>
+        <div className={`home-cell ${pow ? 'span-4' : 'span-12'}`}>
+          <SeasonSoFar league={league} />
+        </div>
+        {pow && (
+          <div className="home-cell span-8">
+            <PlayersOfTheWeek league={league} />
+          </div>
+        )}
+        <div className={`home-cell ${gm ? 'span-6' : 'span-12'}`}>
           <TeamLeaders league={league} />
         </div>
-        <div className="stack">
-          <DivisionMini league={league} />
-          <YourInjuries league={league} />
-          <WaitingForYou league={league} />
-          <PlayersOfTheWeek league={league} />
-          <GmRecord league={league} />
-        </div>
+        {gm && (
+          <div className="home-cell span-6">
+            <GmRecord league={league} />
+          </div>
+        )}
       </div>
       <StartOver league={league} />
     </>
