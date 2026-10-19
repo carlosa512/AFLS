@@ -424,6 +424,10 @@ export function staffWindowCloses(league: League, opts: { autoUser?: boolean } =
   refreshMarket(league, rng);
 }
 
+/** A journeyman Director's one-year ask, a little above the usual (`fillChairs`'s last resort). */
+const JOURNEYMAN = 7.5;
+const journeymanAsk = (league: League) => Math.round(BASE_ASK.director * (capOf(league) / BASE_CAP) * 1.2 ** (JOURNEYMAN - 10) * TERM[1]);
+
 function aiStaffMoves(league: League, team: Team, rng: Rng): void {
   const goal = staffGoal(league, team);
   // The Director's deal first: scouts re-signed before him could leave no money for the one chair that can't stay empty.
@@ -431,7 +435,11 @@ function aiStaffMoves(league: League, team: Team, rng: Rng): void {
     .filter((x) => isExpiring(league, x))
     .sort((a, b) => Number(b.role === 'director') - Number(a.role === 'director'))) {
     const years = rng.int(1, 3);
-    const keep = staffValue(s) >= goal - 2 && rng.chance(0.75) && staffAsk(league, s, years) <= staffRoom(league, team.id);
+    // With the Director's chair empty, a Director's money stays aside: scouts re-signed first could otherwise
+    // leave only the journeyman fallback (`fillChairs`), hired whatever the budget says.
+    const noDirector = !teamStaff(league, team.id).some((x) => x.role === 'director' && !isExpiring(league, x));
+    const reserve = s.role !== 'director' && noDirector ? journeymanAsk(league) : 0;
+    const keep = staffValue(s) >= goal - 2 && rng.chance(0.75) && staffAsk(league, s, years) <= staffRoom(league, team.id) - reserve;
     if (keep) signStaff(league, team.id, s, years);
     else dismiss(league, s);
   }

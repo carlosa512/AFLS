@@ -30,7 +30,7 @@ import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
 import { clamp, Rng } from './rng';
 import { activeRoster, isAvailable, syncDepthChart, teamPlayers } from './roster';
-import { characterRead } from './scouting';
+import { characterRead, type CharacterRead } from './scouting';
 import { TRAIT_MEAN } from './traits';
 import type { Attribute, Injury, InjurySeverity, League, Player, Position, Team } from './types';
 import { POSITIONS } from './types';
@@ -403,7 +403,7 @@ const RISK_LINE: Record<RiskTier, string> = {
  * by a mile, plus what the league's injury reports say about him: a long list of injuries outweighs
  * any scout. Age is public, so everyone sees the fade.
  */
-export function injuryRisk(league: League, teamId: number, p: Player): InjuryRiskRead {
+export function injuryRisk(league: League, teamId: number, p: Player, character?: CharacterRead | null): InjuryRiskRead {
   const history = (p.injuries ?? []).filter((r) => r.season >= league.season - 2 && !r.aggravated).length;
   // What his snaps would predict: about one time-loss injury a full season, plus the practice field.
   let played = 0;
@@ -424,7 +424,8 @@ export function injuryRisk(league: League, teamId: number, p: Player): InjuryRis
     read = clamp(p.traits.injuryResistance + sd * own.normal(), 1, 20);
     durability = p.traits.durability;
   } else {
-    const c = characterRead(league, teamId, p);
+    // A caller that already has the scouts' read passes it (`character`): it costs three seeded streams.
+    const c = character === undefined ? characterRead(league, teamId, p) : character;
     if (!c && !history) return { known: false, tier: 'Medium', hedged: true, line: '', read: TRAIT_MEAN };
     read = c?.injuryResistance ?? TRAIT_MEAN;
     durability = c?.durability ?? TRAIT_MEAN;

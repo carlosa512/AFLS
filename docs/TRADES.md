@@ -888,6 +888,15 @@ Where the build departed from the plan, and why:
   costs about a second to move (Osweiler).
 - **Depth-chart rank is soft** (0.75 OVR, "a camp battle"). Two near-equal players share the job in
   proportion, so a misread of a few tenths never pushes a player across a cliff.
+- **Rank is on outlook, not today's overall** (`outlook.ts`). A room ranks players by the overall the
+  club expects from each over the next three seasons: a young one climbing toward the ceiling its
+  scouts read, a veteran fading on his position's aging curve, a body that breaks down marked down
+  (its doctors' read for its own, the injury reports for anyone else's). An All-In GM weighs the
+  years ahead a little less. The trade block and a contender's untouchable quarterback use the same
+  order. An expiring player's re-sign window (`RIGHTS`) is worth nothing to a club with no room for
+  his ask next year: it would rather move him now (Mack). Free agency and fifth-year options read the
+  same outlook (`offseason/ai.ts`): a big contract has to buy a real step on where the room is headed
+  (`upgradeBar`), and an option is exercised for a starter here, or a player the club can carry.
 - **The scouting test's misread band** (`staff.test.ts`) is now measured against a player's stakes
   (his play and its market price, before his salary), not as a ratio of his value to one team. With
   marginal fit a small upgrade's value is small, so ratios of it swing on nothing. The bounds stayed

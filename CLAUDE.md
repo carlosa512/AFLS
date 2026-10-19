@@ -137,6 +137,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     weekly rotation (`crewAssignments`, a pure function like weather; the result keeps `crewId`), the
     multipliers on the engine's penalty rolls (`crewCalls`), and crew stats read from the box scores'
     penalties by kind (`crewTable`). Screens never show the tendencies. Spec: `docs/OFFICIALS.md`
+  - `outlook.ts` where a player is headed: the overall a club expects from him over the next three
+    seasons (growth toward its scouts' ceiling, the aging curve's fade via `expectedAging`, its read of
+    his injury risk, the GM's win-now). Trade rooms, the trade block, free agency (`upgradeBar`),
+    re-signing and fifth-year options plan on it; lineups still use today's play
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
