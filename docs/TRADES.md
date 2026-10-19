@@ -1099,7 +1099,15 @@ uncounted once old ones dropped off. It now tells them apart by identity.
 
 **Checks when Phase 1 landed.**
 
-CHECKS_TABLE
+`npm run check` (all 11) passed typecheck, sim, weather, crews, endings, audit and trades. Test failed
+on one timeout, now fixed. The other three reds are the same ones `main` has:
+
+| Check | This branch | `main` | Reading |
+| --- | --- | --- | --- |
+| `test` | 284 of 285: a coaching test timed out at Vitest's 5 s default | green | The market adds about a second to a simulated season. The test plays one, so it now has 30 s like the file's other season tests, and passes |
+| `offseason` | coaching market 136–141 (≤ 135) | red: 137, 141, 141 | The coaching carousel's (PR #29). Cap health holds: no team over the cap, dead money at most 21% |
+| `quirks` | Spot Drop z −1.9 | red | The documented borderline quirk |
+| `careers` | points 24.16 (≤ 24) | red: 24.43 | The long-run scoring drift (`docs/PENALTIES.md`, Phase 3a) |
 
 ### Phase 2: offers to you
 
