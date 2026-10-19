@@ -114,8 +114,8 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
     return s + (worth > 0 ? worth * floorShare(league, team, p) : worth);
   }, pickOut);
   const base = Math.max(give, floor);
-  // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want more.
-  const rival = league.teams[theirs.teamId].division === team.division ? 0.06 : 0;
+  // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want a lot more.
+  const rival = league.teams[theirs.teamId].division === team.division ? 0.2 : 0;
   const margin = opts.margin ?? (opts.vsUser ? 1.05 + team.gm.stubbornness * 0.15 : 1 + team.gm.stubbornness * 0.05) + rival;
   // The margin is a share of the stakes, so it asks for more back whether the stakes are positive or not.
   let need = base + Math.abs(base) * (margin - 1);

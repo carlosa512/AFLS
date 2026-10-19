@@ -112,10 +112,18 @@ export function pickOverall(league: League, pick: DraftPick, ctx?: TradeContext)
   return pick.overall ?? (pick.round - 1) * 32 + projectedSlot(league, pick.originalTeamId, pick.season, ctx);
 }
 
-/** A pick's value to `gm`: chart value at its (projected) slot, discounted per year out. */
+/** A pick's value to `gm`: chart value at its (projected) slot, discounted per year out. Memoized per GM in a context. */
 export function pickValue(league: League, pick: DraftPick, gm: GmTraits, ctx?: TradeContext): number {
+  const memo = ctx && (ctx.pickValues ??= new Map()).get(gm);
+  const hit = memo?.get(pick.id);
+  if (hit !== undefined) return hit;
   const yearsOut = Math.max(0, pick.season - nextDraftSeason(league));
-  return pickChartValue(pickOverall(league, pick, ctx), gm) * (1 - gm.futureDiscount) ** yearsOut;
+  const value = pickChartValue(pickOverall(league, pick, ctx), gm) * (1 - gm.futureDiscount) ** yearsOut;
+  if (ctx) {
+    if (memo) memo.set(pick.id, value);
+    else ctx.pickValues!.set(gm, new Map([[pick.id, value]]));
+  }
+  return value;
 }
 
 export const pickLabel = (league: League, pick: DraftPick) =>

@@ -202,28 +202,34 @@ function neutralPick(league: League, pk: DraftPick, ctx: TradeContext): number {
 
 const fair = { gaps: [] as number[], lopsided: 0, trades: 0, seasons: 0, balance: new Map<string, number>(), health: 0, healthy: 0, kinds: new Map<string, number>() };
 
-function judgeFairness(before: League, proposal: TradeProposal, label: string) {
-  const ctx = tradeContext(before);
-  // What each side sends, on one neutral scale: the players' true market value, picks on a neutral chart.
-  const worth = proposal.sides.map((side) => {
-    const team = before.teams[side.teamId];
-    const players = side.players.reduce((s, id) => s + marketValue(ctx, team, before.players[id], true), 0);
-    const picks = side.picks.reduce((s, id) => s + neutralPick(before, before.draftPicks.find((x) => x.id === id)!, ctx), 0);
-    return Math.max(1, players + picks);
+/**
+ * A trade's fairness on one neutral, true scale: what each side sends at its players' true market
+ * value and its picks on a chart midway between the GM styles. Market value doesn't depend on which
+ * team a player is on, so the league as it stands after the step will do. The gap is measured
+ * against everything that moved (a dump's bad contract counts), so 0.5 is a 3:1 trade.
+ */
+function judgeFairness(league: League, proposal: TradeProposal, label: string) {
+  const ctx = tradeContext(league);
+  const parts = proposal.sides.map((side) => {
+    const players = side.players.map((id) => marketValue(ctx, league.teams[side.teamId], league.players[id], true));
+    const picks = side.picks.map((id) => neutralPick(league, league.draftPicks.find((x) => x.id === id)!, ctx));
+    return [...players, ...picks];
   });
+  const worth = parts.map((xs) => xs.reduce((a, b) => a + b, 0));
+  const stakes = parts.flat().reduce((a, b) => a + Math.abs(b), 0);
   const [a, b] = worth;
   fair.trades++;
-  fair.gaps.push(Math.abs(a - b) / Math.max(a, b));
-  if (Math.max(a, b) / Math.min(a, b) >= 3) fair.lopsided++;
+  const gap = Math.abs(a - b) / Math.max(stakes, 100);
+  fair.gaps.push(gap);
+  if (gap >= 0.5 && stakes >= 100) {
+    fair.lopsided++;
+    if (VERBOSE) console.log(`  LOPSIDED ${a.toFixed(0)} vs ${b.toFixed(0)}: ${proposal.sides.map((side) => `${league.teams[side.teamId].abbrev} (${league.teams[side.teamId].stance?.mode ?? '?'}, ${league.teams[side.teamId].gm.archetype}) sends ${[...side.players.map((id) => `${name(league.players[id])} ${playerOvr(league.players[id]).toFixed(1)} age ${league.players[id].age}`), ...side.picks.map((id) => { const pk = league.draftPicks.find((x) => x.id === id)!; return `${pk.season} R${pk.round}`; })].join(' + ') || 'nothing'}`).join(' · ')} [${league.phase} wk${league.week}]`);
+  }
   proposal.sides.forEach((side, i) => {
-    const key = `${label}:${side.teamId}`;
+    const key = `${label}:${league.teams[side.teamId].abbrev}:${league.teams[side.teamId].gm.archetype}`;
     fair.balance.set(key, (fair.balance.get(key) ?? 0) + worth[1 - i] - worth[i]);
   });
   const kind = proposal.sides.some((s) => s.players.length) && proposal.sides.some((s) => s.picks.length) ? 'picks for players' : proposal.sides.every((s) => s.players.length) ? 'player swaps' : proposal.sides.some((s) => s.players.length) ? 'players for nothing' : 'picks only';
-  if (VERBOSE) {
-    const what = (side: TradeProposal['sides'][number]) => [...side.players.map((id) => `${name(before.players[id])} ${playerOvr(before.players[id]).toFixed(1)} (${before.players[id].age}, ${yearsLeft(before.players[id].contract!, before.season)} yr)`), ...side.picks.map((id) => { const pk = before.draftPicks.find((x) => x.id === id)!; return `${pk.season} R${pk.round}`; })].join(' + ') || 'nothing';
-    console.log(`  ${before.season} wk${before.week} ${before.teams[proposal.sides[0].teamId].abbrev} sends ${what(proposal.sides[0])} · ${before.teams[proposal.sides[1].teamId].abbrev} sends ${what(proposal.sides[1])} · truth ${worth[0].toFixed(0)} vs ${worth[1].toFixed(0)}`);
-  }
   fair.kinds.set(kind, (fair.kinds.get(kind) ?? 0) + 1);
 }
 
@@ -362,11 +368,11 @@ function timeJudge(league: League) {
 const volume = { inSeason: [] as number[], deadline: 0, offseason: [] as number[], all: [] as TradeRecord[], seasons: 0 };
 const speedOff: number[] = [];
 
-/** Every trade a step made: value it in the truth on the league as it stood before, and check both teams after. */
-function audit(before: League, after: League, label: string, from: number) {
+/** Every trade a step made: value it in the truth, and check both teams after. */
+function audit(after: League, label: string, from: number) {
   for (const record of (after.market?.history ?? []).slice(from)) {
     volume.all.push(record);
-    judgeFairness(before, { sides: record.sides }, label);
+    judgeFairness(after, { sides: record.sides }, label);
     checkHealth(after, record.sides.map((x) => x.teamId));
   }
 }
@@ -393,7 +399,6 @@ for (let i = 0; i < LEAGUES; i++) {
         const ctx = tradeContext(league);
         futureSlots.push(...league.teams.map((t) => futureFirstSlot(league, t.gm, ctx)));
       }
-      const before = clone(league);
       // The market alone, timed on a copy (the real week runs it again inside playWeek).
       if (timing && gamesInWeek(league).length) {
         const copy = clone(league);
@@ -403,18 +408,17 @@ for (let i = 0; i < LEAGUES; i++) {
       }
       const from = historyLength(league);
       playWeek(league);
-      audit(before, league, label, from);
+      audit(league, label, from);
     }
     const season = (league.market?.history ?? []).slice(startSeason).filter((r) => r.phase === 'regular');
     volume.inSeason.push(season.length);
     volume.deadline += season.filter((r) => r.week === TRADE_DEADLINE_WEEK).length;
     simToEndOfSeason(league);
-    // The offseason, step by step: each one's trades audited against the league before it.
+    // The offseason, step by step, each step's trades audited as it goes.
     const startOff = historyLength(league);
-    let before = clone(league);
     let from = historyLength(league);
     beginOffseason(league);
-    audit(before, league, label, from);
+    audit(league, label, from);
     if (timing) {
       const copy = clone(league);
       const t0 = performance.now();
@@ -422,7 +426,6 @@ for (let i = 0; i < LEAGUES; i++) {
       speedOff.push(performance.now() - t0);
     }
     for (let guard = 0; guard < 20 && league.phase !== 'regular'; guard++) {
-      before = clone(league);
       from = historyLength(league);
       if (timing && (league.phase === 'freeAgency' || league.phase === 'preseason')) {
         const copy = clone(league);
@@ -431,7 +434,7 @@ for (let i = 0; i < LEAGUES; i++) {
         speedOff.push(performance.now() - t0);
       }
       advanceOffseason(league, { autoUser: true });
-      audit(before, league, label, from);
+      audit(league, label, from);
     }
     volume.offseason.push(historyLength(league) - startOff);
   }
@@ -452,8 +455,9 @@ console.log('\nFuture picks');
 check("next year's first, as a current pick (median over GMs)", median(futureSlots), [22, 45]);
 
 console.log(`\nFairness and health (${fair.trades} AI trades over ${fair.seasons} seasons: ${[...fair.kinds].map(([k, n]) => `${n} ${k}`).join(', ')})`);
-check('median truth gap between the sides (%)', median(fair.gaps) * 100, [0, 35]);
+check('median truth gap between the sides (% of the stakes)', median(fair.gaps) * 100, [0, 35]);
 check('trades over 3:1 in truth, a season', fair.lopsided / fair.seasons, [0, 1], 2);
+if (VERBOSE) for (const [key, v] of [...fair.balance].sort((x, y) => x[1] - y[1]).slice(0, 4)) console.log(`  balance ${key} ${v.toFixed(0)}`);
 check("any team's truth balance over its league's run (|points|)", Math.max(0, ...[...fair.balance.values()].map(Math.abs)), [0, 1000]);
 check('teams over the cap or short after a trade', fair.health, [0, 0]);
 

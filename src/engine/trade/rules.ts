@@ -55,8 +55,13 @@ export function playerTradeBlocker(league: League, p: Player): string | null {
  * so signing a free agent to flip him can't be gamed.
  */
 export function signingWait(league: League, teamId: number): number {
-  return 4 + Math.floor(new Rng(`${league.seed}:gm-cooldown:${teamId}`).float(0, 5));
+  const key = `${league.seed}:gm-cooldown:${teamId}`;
+  let weeks = waits.get(key);
+  if (weeks === undefined) waits.set(key, (weeks = 4 + Math.floor(new Rng(key).float(0, 5))));
+  return weeks;
 }
+/** A pure function of the league seed and the team, so it's safe to remember across leagues and saves. */
+const waits = new Map<string, number>();
 
 /** Weeks since a player's deal was signed this league year (-1 for an offseason signing before the season), or null if it wasn't. */
 function weeksSinceSigning(league: League, p: Player): number | null {

@@ -78,7 +78,9 @@ function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Mo
       }
     }
   }
-  if (salaryWeight(ctx, team.id) >= 1.5) {
+  // Cap dumps are an offseason business; in season only deadline day sees one, from a team truly squeezed.
+  const squeezed = salaryWeight(ctx, team.id) >= (league.phase === 'regular' ? 1.6 : 1.5);
+  if (squeezed && (league.phase !== 'regular' || moment === 'deadline')) {
     for (const entry of tradeBlock(ctx, team).filter((e) => e.reason === 'overpaid').slice(0, 2)) {
       const deal = dumpFor(ctx, team, league.players[entry.playerId], ai);
       if (deal) return deal;

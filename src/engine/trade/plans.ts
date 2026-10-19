@@ -8,12 +8,12 @@ import { ageShift } from '../aging';
 import { chairHolder, hotSeat, ownerTrigger, teamCoaches } from '../coaching';
 import { isExpired, yearsLeft } from '../finance/contract';
 import { contenderScore } from '../offseason/negotiation';
-import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
+import { ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { clamp } from '../rng';
 import { computeRecords, conferenceSeeds, winPct, type TeamRecord } from '../season/standings';
 import type { League, Player, Position, Stance, Team, TradeMarket } from '../types';
 import { POSITIONS } from '../types';
-import { capRoom, rosterOf, type TradeContext } from './context';
+import { capRoom, ovrOf, rosterOf, type TradeContext } from './context';
 import { freshlySigned, playerTradeBlocker, salaryToTake } from './rules';
 import { POSITION_TRADE, readPlayer, salaryWeight, TRADE_BAND } from './value';
 
@@ -55,8 +55,16 @@ function race(ctx: TradeContext, team: Team): number {
   return share * standing + (1 - share) * roster;
 }
 
-/** The stance score, −1 (tear it down) … 1 (all in). */
+/** The stance score, −1 (tear it down) … 1 (all in), worked out once per pass. */
 export function stanceScore(ctx: TradeContext, team: Team): number {
+  const memo = (ctx.stanceScores ??= new Map()).get(team.id);
+  if (memo !== undefined) return memo;
+  const score = scoreOf(ctx, team);
+  ctx.stanceScores.set(team.id, score);
+  return score;
+}
+
+function scoreOf(ctx: TradeContext, team: Team): number {
   const { league } = ctx;
   const r = race(ctx, team);
   let s = 0.4 * (2 * contenderScore(league, team.id) - 1) + 0.4 * r + 0.2 * (2 * team.gm.winNow - 1);
@@ -76,7 +84,7 @@ export function stanceScore(ctx: TradeContext, team: Team): number {
   const age = starters.reduce((a, p) => a + p.age, 0) / Math.max(1, starters.length);
   if (age >= 28.5 && s < 0) s -= 0.1;
   // Without a quarterback there's nothing to push for.
-  const qb = Math.max(0, ...roster.filter((p) => p.position === 'QB').map(playerOvr));
+  const qb = Math.max(0, ...roster.filter((p) => p.position === 'QB').map((p) => ovrOf(ctx, p)));
   if (qb < 12) s -= 0.1;
   return clamp(s, -1, 1);
 }
@@ -120,17 +128,16 @@ const healthy = (league: League, p: Player) => !p.ir && !(league.phase === 'regu
 /** The league's median starter at each position: the bar a team's weakest starter is measured against. */
 export function starterLine(ctx: TradeContext): Record<Position, number> {
   if (ctx.starterLine) return ctx.starterLine;
+  const all = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as number[]])) as Record<Position, number[]>;
+  for (const t of ctx.league.teams) {
+    const mine = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as number[]])) as Record<Position, number[]>;
+    for (const p of rosterOf(ctx, t.id)) mine[p.position].push(ovrOf(ctx, p));
+    for (const pos of POSITIONS) all[pos].push(...mine[pos].sort((a, b) => b - a).slice(0, STARTERS[pos]));
+  }
   const line = {} as Record<Position, number>;
   for (const pos of POSITIONS) {
-    const all = ctx.league.teams.flatMap((t) =>
-      rosterOf(ctx, t.id)
-        .filter((p) => p.position === pos)
-        .map(playerOvr)
-        .sort((a, b) => b - a)
-        .slice(0, STARTERS[pos]),
-    );
-    all.sort((a, b) => a - b);
-    line[pos] = all[all.length >> 1] ?? 10;
+    const xs = all[pos].sort((a, b) => a - b);
+    line[pos] = xs[xs.length >> 1] ?? 10;
   }
   return (ctx.starterLine = line);
 }
@@ -147,12 +154,12 @@ export function teamNeeds(ctx: TradeContext, team: Team): Need[] {
   const lookAhead = league.phase !== 'regular' || league.week >= 6;
   for (const pos of POSITIONS) {
     const room = rosterOf(ctx, team.id).filter((p) => p.position === pos && underContract(league, p));
-    const fit = room.filter((p) => healthy(league, p)).sort((a, b) => playerOvr(b) - playerOvr(a));
+    const fit = room.filter((p) => healthy(league, p)).sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a));
     const S = STARTERS[pos];
     let need: Need | null = null;
     if (fit.length < S) need = { position: pos, urgency: 1, reason: 'hole' };
     else {
-      const gap = line[pos] + 0.5 - playerOvr(fit[S - 1]);
+      const gap = line[pos] + 0.5 - ovrOf(ctx, fit[S - 1]);
       if (gap > 0) need = { position: pos, urgency: clamp(gap / 3, 0, 1) * NEED_WEIGHT[pos], reason: 'upgrade' };
     }
     // Starters whose deals end this year are next year's holes.
@@ -184,12 +191,12 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
   const { league } = ctx;
   const roster = rosterOf(ctx, team.id);
   const out = new Set<number>();
-  const qbs = roster.filter((p) => p.position === 'QB').sort((a, b) => playerOvr(b) - playerOvr(a));
-  if (qbs[0] && isBuyer(team) && playerOvr(qbs[0]) >= 14) out.add(qbs[0].id);
+  const qbs = roster.filter((p) => p.position === 'QB').sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a));
+  if (qbs[0] && isBuyer(team) && ovrOf(ctx, qbs[0]) >= 14) out.add(qbs[0].id);
   if (team.gm.loyalty >= 0.5) {
     roster
       .filter((q) => q.age <= 25 && underContract(league, q))
-      .map((q) => ({ q, v: playerOvr(q) }))
+      .map((q) => ({ q, v: ovrOf(ctx, q) }))
       .sort((a, b) => b.v - a.v)
       .slice(0, Math.round(1 + 3 * team.gm.loyalty))
       .forEach((x) => out.add(x.q.id));
@@ -211,7 +218,7 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
   const tight = salaryWeight(ctx, team.id) >= 1.15;
   const roster = rosterOf(ctx, team.id).filter((p) => underContract(league, p) && !playerTradeBlocker(league, p) && !freshlySigned(league, p, team.id));
   const rank = new Map<number, number>();
-  for (const pos of POSITIONS) roster.filter((p) => p.position === pos).sort((a, b) => playerOvr(b) - playerOvr(a)).forEach((p, i) => rank.set(p.id, i));
+  for (const pos of POSITIONS) roster.filter((p) => p.position === pos).sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a)).forEach((p, i) => rank.set(p.id, i));
   const out: BlockEntry[] = [];
   const keep = untouchables(ctx, team);
   for (const p of roster) {
@@ -224,10 +231,12 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
       if (!had) out.push({ playerId: p.id, reason, keenness });
       else if (keenness > had.keenness) Object.assign(had, { reason, keenness });
     };
-    if (left <= 1 && p.age >= 26 && (mode === 'retool' || mode === 'rebuild')) add('expiring', inSeason ? 0.8 : 0.45);
-    if (mode === 'rebuild' && p.age - ageShift(p.position) >= 28) add('veteran', 0.6);
+    // A seller shops the veterans another team would start: nobody trades for an expiring backup.
+    const starterGrade = ovrOf(ctx, p) >= line[p.position] - 1.5;
+    if (starterGrade && left <= 1 && p.age >= 26 && (mode === 'retool' || mode === 'rebuild')) add('expiring', inSeason ? 0.8 : 0.45);
+    if (starterGrade && mode === 'rebuild' && p.age - ageShift(p.position) >= 28) add('veteran', 0.6);
     if (r >= ROSTER_TEMPLATE[p.position] || (p.position === 'QB' && r >= 2)) add('surplus', 0.4);
-    else if (r >= S && playerOvr(p) >= line[p.position]) add('surplus', 0.5);
+    else if (r >= S && ovrOf(ctx, p) >= line[p.position]) add('surplus', 0.5);
     // Only a big salary can be a burden worth paying to move: one well above what the market pays a player of his rank.
     if (tight && salaryToTake(league, p) > 0.015 * league.caps[league.season]) {
       const read = readPlayer(ctx, team, p);
@@ -258,7 +267,24 @@ export interface Wanted {
  * on its own bounded read, known well enough to judge (its pro scouts have film on him) and a salary
  * it can take on.
  */
-export function wanted(ctx: TradeContext, team: Team, from: readonly { team: Team; entry: BlockEntry }[], opts: { memo?: boolean } = {}): Wanted[] {
+type Listing = { team: Team; entry: BlockEntry };
+
+/** Listings grouped by position, once per list (a list is rebuilt after every trade). */
+const byPositionCache = new WeakMap<readonly Listing[], Map<Position, Listing[]>>();
+function byPosition(league: League, from: readonly Listing[]): Map<Position, Listing[]> {
+  let map = byPositionCache.get(from);
+  if (!map) {
+    map = new Map();
+    for (const l of from) {
+      const pos = league.players[l.entry.playerId].position;
+      map.set(pos, [...(map.get(pos) ?? []), l]);
+    }
+    byPositionCache.set(from, map);
+  }
+  return map;
+}
+
+export function wanted(ctx: TradeContext, team: Team, from: readonly Listing[], opts: { memo?: boolean } = {}): Wanted[] {
   if (opts.memo) {
     const hit = (ctx.wanted ??= new Map()).get(team.id);
     if (hit) return hit;
@@ -270,16 +296,16 @@ export function wanted(ctx: TradeContext, team: Team, from: readonly { team: Tea
   for (const need of opts.memo ? needs.slice(0, 2) : needs) {
     const mine = rosterOf(ctx, team.id)
       .filter((p) => p.position === need.position && healthy(league, p))
-      .map(playerOvr)
+      .map((p) => ovrOf(ctx, p))
       .sort((a, b) => b - a);
     const bar = mine[STARTERS[need.position] - 1] ?? 0;
-    for (const { team: seller, entry } of from) {
+    for (const { team: seller, entry } of byPosition(league, from).get(need.position) ?? []) {
       if (seller.id === team.id || (opts.memo && entry.keenness <= 0.4)) continue;
       const p = league.players[entry.playerId];
       if (p.position !== need.position || salaryToTake(league, p) > room) continue;
       // Its read of him is bounded within TRADE_BAND of the truth (`readPlayer`): no read can make an
       // upgrade of a player this far short of the bar, so skip the scouting pass.
-      if (playerOvr(p) + TRADE_BAND - bar < 0.5) continue;
+      if (ovrOf(ctx, p) + TRADE_BAND - bar < 0.5) continue;
       if (ctx.view(team.id, p).knowledge < 0.35) continue;
       const gain = readPlayer(ctx, team, p).ovr - bar;
       if (gain < 0.5) continue;
