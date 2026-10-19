@@ -27,6 +27,12 @@
 - **Offers to you, FM style.** Bids, pitches and enquiries arrive in the inbox with an expiry. You can
   accept, decline or counter. Each AI GM has limited patience and remembers how you treated him. You
   can mark players Untouchable or put them on the block, and shop a player to the whole league.
+- **Physicals.** Every trade involving a player waits on the buyer's medical: pass, fail (the deal is
+  off) or "we found something" (the price reopens). A good doctor catches damaged goods; a poor one
+  gets fooled, or scares you off a healthy player.
+- **Mind games.** Rival GMs plant rumors to work on you: fake bidding wars, draft smokescreens, "we
+  have another offer." Each rumor has a source, the truth comes out later, and your director's
+  judgment decides how well you see through it.
 - **One evaluator for every deal** (AI↔AI, AI→you, you→AI), with guardrails kept out of the value
   formula, so tuning can't reopen an exploit.
 - **A new check, `npm run trades`**, holds volume, prices, fairness, offers and the exploit probes to
@@ -37,9 +43,9 @@
 | 0. Foundation | Value v2 (fair prices), one evaluator, a fast per-pass cache, deadline day, `npm run trades` | M |
 | 1. The AI market | Stances, needs, trade blocks, deal templates, NFL cadence, rumors, coach and GM hooks | L |
 | 2. Offers to you | Offers, enquiries, counters, statuses, Shop a player, the new Trades screens, staff advice | L |
-| 3. Offseason and cap moves | League-year dumps, retained salary, tag-and-trade, trade-and-extend, cutdown and rehab trades | M |
+| 3. Physicals, offseason and cap moves | Physicals with pass/fail drama, league-year dumps, retained salary, tag-and-trade, trade-and-extend, cutdown and rehab trades | M |
 | 4. Draft day | AI trade-ups and trade-downs, offers while you're on the clock, Shop this pick | M |
-| 5. Memory and media | GM trust, a weekly market digest, rumor noise, trade tags in the news | S |
+| 5. Memory, media and mind games | GM trust, planted rumors and bluffs, draft smokescreens, the director's digest, trade tags in the news | M |
 | 6. Later | Conditional picks, compensatory picks, no-trade clauses, waivers, trade requests | – |
 
 ---
@@ -98,10 +104,10 @@ Stars are traded with an extension signed at once (Mack, Hill, Adams, A.J. Brown
 | Cash or cap space for picks | Not allowed (the league blocked the Saints' 2020 Clowney plan) | n/a | Never |
 | Paying part of a salary | Allowed the NFL way: the sender turns base salary into a bonus before the trade and books it as dead money (Tannehill 2019, Clowney 2019, Mayfield 2022, Quinn 2022, L. Williams 2023) | None | Phase 3 |
 | Franchise tag | Tradable once the tender is signed (Clowney 2019, Ngakoue 2020) | A tag is a signed one-year deal, so it's tradable | AI tag-and-trade (Phase 3) |
-| Physical | Every trade waits on one; failed physicals void deals (Crosby 2026, Shaheen 2022) | Blocked when the doctor's estimate is 2+ weeks | Keep in season; offseason rehab trades if the buyer's doctor clears him (Revis 2013) |
+| Physical | Every trade waits on one; failed physicals void deals (Crosby 2026, Shaheen 2022); rarely, a pick is added to finish one (Duane Brown 2017) | Blocked when the doctor's estimate is 2+ weeks; no physical otherwise | The buyer's physical on every player trade: pass, fail or renegotiate (section 7); in season a player out 2+ weeks still can't go; offseason rehab trades go through it (Revis 2013) |
 | Injured reserve | No rule or example found | Blocked | Keep blocked |
 | No-trade clause | Rare (Wilson, Watson, Garrett waived theirs) | None | Phase 6 |
-| Recently signed free agents | No NFL rule | 6-week cooldown for everyone | Decision 1 |
+| Recently signed free agents | No NFL rule (rare in practice) | A 6-week cooldown, shown on the trade table | Hidden GM policy: 4–8 weeks per GM, never shown (decision 1) |
 | Reacquiring a player | Allowed (McFadden, Atwell) | Allowed | AI policy: won't take back from you within the league year (anti-flip) |
 | Roster limit | Make room first | You release first; AI auto-cuts | Accept dialog offers the release |
 
@@ -444,6 +450,44 @@ down several offers in a row, pull a counter, or fleece him (truth value two to 
 after a season so a bust he chose doesn't count). It rises after deals both sides came out fine on. It
 adds up to ±0.06 to his margin with you.
 
+#### Rumors and mind games
+
+Rival front offices use the press to work on you, the way NFL teams do before the draft and the
+deadline. Rumors and bluffs never change how an AI values a player: AI teams act on their own needs
+and reads, and they never read rumors. The bluff works only on you, through what you decide to pay,
+hold or chase.
+
+**Each GM has a hidden candor**, rolled from the league seed like `ownerTrigger` (not stored, never
+shown, centred). A low-candor GM plants rumors and bluffs often; a straight shooter rarely does.
+
+| Play | Who runs it | What you see | The truth |
+| --- | --- | --- | --- |
+| Bidding war | A seller whose player you've asked about or offered for | "Several teams have called about EDGE Webb." | Sometimes real: the market has another live package. Sometimes nobody else is in |
+| "We have another offer" | A seller countering you | His counter asks for more and says so | True: the other deal really exists, and if you walk, it happens (an AI↔AI trade). Bluff: hold firm and a GM who would have taken your last offer comes back ("Fine, let's do it"), patience allowing |
+| Talking down the price | A buyer after you put a player on the block | "Teams aren't paying a first for him." | Often spin: his real need may be urgent |
+| Fishing at the deadline | A bubble team that isn't really selling | "The Bears are listening on everyone." | Calls get you nowhere unless the price is silly |
+| Draft smokescreen | Teams just ahead of or behind your pick | "The Hawks love QB Ellis." | Some teams truly covet him (their board says so), some are drawing you into a trade-up |
+
+**Sources tell you how far to trust it.** Each rumor carries one:
+- **League sources:** almost always true.
+- **A rival front office:** spin as often as not, depending on that GM's candor.
+- **The player's agent:** self-serving, aimed at a bigger contract or a move.
+- **Our pro scouts:** what your staff actually saw, as true as their read.
+
+**You can learn who bluffs.**
+- Every rumor resolves: once the deal happens, falls through or the window closes, the Market tab
+  marks it *happened* or *didn't happen*. A GM's record of leaks that never panned out builds up in
+  front of you.
+- Your director of scouting weighs the big ones in his digest ("I'd take the Bears' interest with a
+  grain of salt"). How often he's right follows his rating: a sharp director calls about 75% of bluffs
+  correctly, a weak one barely better than a coin flip.
+
+**Limits:**
+- Rumors never invent your own team's moves.
+- Your own staff never lies: they can only be wrong.
+- Rumors from rival front offices and agents are at most about half spin.
+- Planted rumors stay under about a quarter of all rumors.
+
 ### 6. Draft day
 
 The draft runs pick by pick (`simDraft`), so the market gets a moment before each pick.
@@ -479,18 +523,64 @@ pick. Target: under 3 ms a pick.
   (`capFor(next) × 0.92`, the free-agency rule).
 - **Roster:** 90 in the offseason, 53 from camp. In season, never below `STARTERS` at a position.
   The AI cuts to fit; you choose who goes.
-- **Physical:**
-  - in season, a player out 2+ weeks or on IR can't be traded;
-  - in the offseason, a rehabbing player can go if the buyer's doctor clears him (Phase 3): the
-    buyer's diagnosis rating against the injury's severity, and his value is priced for the time he'll
-    miss.
+- **Physical:** every player trade waits on the buyer's medical (below). In season, a player out 2+
+  weeks or on IR still can't be traded at all.
 - **Cooldowns:**
-  - a newly signed player waits 6 weeks (decision 1);
+  - **New signings are hidden GM policy** (decision 1). Each GM waits his own 4–8 weeks (seeded, never
+    shown) before he'll move a player he just signed or take one you just signed. The trade table no
+    longer greys these players out or names a week, and its footnote stops mentioning six weeks. A GM
+    says it in words, with no number: "He just signed here; we're not moving him," or "We're not
+    looking to take on a player you just signed." It stays a rule outside value, so no package buys
+    past it, and the sign-and-flip probe still has to fail;
   - a player you traded away can't come back from that team in the same league year;
   - an AI won't flip a player it got within 4 weeks.
 - **Division rivals:** allowed but rarer (higher margin). No star to a division rival in season.
 - **Tagged players** are tradable (in AFLS the tag is signed when applied).
 - **Never** cash, cap space or "future considerations" as an asset.
+
+#### Physicals
+
+As in the NFL (and FM), a deal is agreed first and becomes official only once the player passes the
+buyer's physical. Picks have no physical.
+
+**Who fails.** The buyer's doctor examines every incoming player:
+- A healthy player with a clean history passes almost always (fails under 1%).
+- The odds climb with:
+  - a current injury (the doctor's estimate);
+  - severe injuries in his history and the scars they left;
+  - age past his position's prime;
+  - his hidden injury resistance.
+- **The doctor's diagnosis rating sets how well he reads that body:**
+  - A sharp doctor fails the truly fragile and passes the truly durable.
+  - A weak one misses real problems, and now and then fails a healthy player (`diagnosisSpread`).
+- Each exam draws from its own stream (`${seed}:physical:${season}:${phase}:${week}:${playerId}`), so
+  a reloaded save examines the same way.
+
+**What a physical can say:**
+
+| Result | What happens |
+| --- | --- |
+| Passed | The trade becomes official |
+| Failed | The deal is off and every asset stays where it was. The doctor says why in words ("the knee hasn't healed"), never as a number. That's public news, like any injury report |
+| Concerns | The doctor found something but won't block it. The buyer asks for a lower price: a pick dropped, or a pick added the other way (Duane Brown 2017). The seller takes it or walks |
+| Cleared to rehab | Offseason only: a player still hurt passes on a recovery plan. His value is priced for the time he'll miss, and the buyer's physio rating sets how much of it it trusts (`recoveryMultiplier`) |
+
+**Your side:**
+- Your doctor fails a player you're buying: you choose to walk away, ask for a lower price, or
+  *take him anyway* (you sign off, and the risk is yours).
+- Their doctor fails your player: you get their reduced offer, or keep him.
+- AI buyers decide the same way: a team that needs him badly, or has a strong physio, can take a
+  player with concerns at the lower price.
+
+**Timing and drama:**
+- In the offseason, a player trade agreed at one calendar step is announced *pending a physical* and
+  resolves at the next. Your inbox gets "Trade agreed, pending a physical", then the result.
+- In season and on deadline day it resolves within the same market moment (nobody sits in limbo
+  through a game), still told as agreed → physical → result.
+- AI↔AI failed physicals make the news ("The Ravens' trade for Maxx Okoro is off after a failed
+  physical").
+- Target: 1–4 deals voided or renegotiated a season league-wide (*assumed*: voids are rare but real),
+  and under 1% of healthy players failing.
 
 ### 8. Coaches, scouts, doctors and owners in the deal
 
@@ -504,7 +594,8 @@ functions:
 | Coordinators | Scheme fit: a deep-passing offense pays more for a deep threat, a 3-4 front for an edge who sets the edge (±8%) | `teamScheme`, `fitContests`, `fitGrade` |
 | Position and S&C coaches | Young players are worth more to a staff that develops them (±10% from the youth-development effect); veterans to one that keeps them going (±5% from veteran care) | `coachingFor` |
 | Pro scouts | Every read of another team's player (already); interest needs knowledge, so a team with poor pro scouts finds fewer targets and misprices more | `perceive`, `knowledge` |
-| Medical staff | Clearing rehab trades in the offseason; the injury-risk read on incoming players | `departmentFor`, `injuryRisk` |
+| Medical staff | The physical on every incoming player: the doctor's diagnosis decides how well he reads a body, the physios how far a rehab can be trusted; the injury-risk read on incoming players | `departmentFor`, `diagnosisSpread`, `recoveryMultiplier`, `injuryRisk` |
+| Director of scouting | How often his digest calls a rival's bluff right | His rating |
 | Owner | Big markets carry salary more easily (their salary weight leans lower); a quick-trigger owner turns a bad half-season into a sell-off sooner | `ownerBudgets`, `ownerTrigger` |
 
 All of these change price or urgency, never the rules. AI decisions about other teams' players stay
@@ -517,10 +608,10 @@ market keeps it.
 
 | Tab | What's on it |
 | --- | --- |
-| **Offers** (badge) | Incoming and outgoing offers, each with the GM's message, both sides on your view, cap impact, your staff's notes, the expiry, and *Accept* · *Counter* · *Decline* |
+| **Offers** (badge) | Incoming and outgoing offers, each with the GM's message, both sides on your view, cap impact, your staff's notes, the expiry, and *Accept* · *Counter* · *Decline*; deals pending a physical, and the physical's result with your choices |
 | **Build** | Today's trade table, plus their counter when you're close, *Ask for their price*, and (Phase 3) an *eat salary* control for players you send |
 | **Block** | Your roster with status pills (Untouchable / Available / On the block), *Shop*, and the interest your staff has picked up |
-| **Market** | A deadline countdown, this season's trades league-wide with reason tags, rumors, and who's buying and selling in words |
+| **Market** | A deadline countdown, this season's trades league-wide with reason tags, rumors with their source and (once known) *happened* / *didn't happen*, each rival GM's record of leaks that panned out, and who's buying and selling in words |
 | **History** | Your trades and the league's by season, and a player's trade trail |
 
 Elsewhere:
@@ -568,7 +659,13 @@ export interface TradeOffer {
 }
 
 /** A completed trade with its assets, for history, the anti-flip rule and trade trails (the log keeps only text). */
-export interface TradeRecord { season: number; phase: Phase; week: number; kind: DealKind; sides: [TradeSide, TradeSide]; tag: string }
+export interface TradeRecord { season: number; phase: Phase; week: number; kind: DealKind; sides: [TradeSide, TradeSide]; tag: string; physicals?: Physical[] }
+
+/** One player's exam by the buyer's doctor; `note` is the doctor's words. */
+export interface Physical { playerId: number; result: 'passed' | 'failed' | 'concerns' | 'rehab'; note: string }
+
+/** An offseason deal agreed at one calendar step and waiting on its physicals at the next. */
+export interface PendingTrade { id: number; sides: [TradeSide, TradeSide]; kind: DealKind; tag: string; agreed: { season: number; phase: Phase; faDay: number } }
 
 export interface TradeMarket {
   nextOfferId: number;
@@ -580,8 +677,16 @@ export interface TradeMarket {
   status: Record<number, TradeStatus>;
   /** Who is watching whom, capped at 300 and fading. */
   interest: { teamId: number; playerId: number; level: 1 | 2 | 3; season: number; week: number }[];
-  /** The last ~80 rumors: public talk, generated from real blocks and interest (a few are noise). */
-  rumors: { id: string; season: number; phase: Phase; week: number; teamIds: number[]; playerId?: number; text: string }[];
+  /** Offseason deals waiting on a physical. */
+  pending: PendingTrade[];
+  /**
+   * The last ~80 rumors. `planted` is the hidden truth (a rival's spin): never rendered. `outcome` is
+   * public once it's known, and it's how you learn which GMs bluff.
+   */
+  rumors: {
+    id: string; season: number; phase: Phase; week: number; teamIds: number[]; playerId?: number; text: string;
+    source: 'league' | 'rival' | 'agent' | 'staff'; planted?: true; outcome?: 'happened' | 'didnt';
+  }[];
   /** Per AI team: your proposals this moment, cooldowns, and trust (−1…1). */
   talks: Record<number, { moment: string; asks: number; until?: string; trust: number }>;
   /** Season whose deadline day has been closed. */
@@ -592,6 +697,10 @@ export interface TradeMarket {
 // Team:      stance?: { mode: Stance; since: number }
 // GmTraits:  activity: number
 ```
+
+Derived, not stored, like `ownerTrigger`: each GM's hidden cooldown (`${seed}:gm-cooldown:${teamId}`,
+4–8 weeks) and candor (`${seed}:gm-candor:${teamId}`). Hidden truths in the save (`planted`, true
+ratings) follow the existing rule: screens never render them.
 
 - `League` stays plain JSON. `SAVE_VERSION` goes 22 → 23, and `toV23` in `migrate.ts`:
   - creates an empty `market`;
@@ -684,6 +793,12 @@ autopilot, and flag every number outside its range ▲/▼ (non-zero exit), like
 | | A week | ≤ 2 (4 in deadline week) |
 | | After the deadline, or for an Untouchable | 0 |
 | | Listing a player draws an offer within 2 market moments | If any team needs his position |
+| Physicals | Deals voided or renegotiated, league-wide | 1–4 a season |
+| | Healthy players (no current injury, no severe history) failing | < 1% |
+| | Strong doctors (diagnosis ≥ 15) vs weak (≤ 8): fragile players bought who miss 4+ weeks the next season | Strong clearly lower |
+| Rumors | Planted share overall / from league sources | ≤ 25% / ≤ 5% |
+| | "Another offer" claims that were real | 40–70% |
+| | Director's bluff calls right: rating ≥ 15 / ≤ 8 | ≥ 70% / 50–60% |
 
 Exploit probes, each must fail to profit:
 - junk for a star;
@@ -692,8 +807,9 @@ Exploit probes, each must fail to profit:
 - A→B→A flips;
 - stacking firsts;
 - probing one GM 20 times in a week;
-- signing a free agent and flipping him;
-- trading for an injured star in season.
+- signing a free agent and flipping him (whatever the GM's hidden wait);
+- trading for an injured star in season;
+- reading the hidden cooldown or a GM's candor off any screen or message (no week counts, no numbers).
 
 Plus the performance budgets above.
 
@@ -708,7 +824,9 @@ market on.
 | Module | Tests |
 | --- | --- |
 | Value | A rental loses value week by week; a starter is worth more to a team with a hole than to one with a good starter; the seller's floor holds; rich rebuilders weigh salary less; the third first costs more; the existing chart tests pass |
-| Rules | Deadline day opens and closes; the cooldowns and anti-flip rule; physicals (in season vs. a cleared offseason rehab); roster and cap for both sides |
+| Rules | Deadline day opens and closes; the hidden cooldown varies by GM and never shows a number; the anti-flip rule; roster and cap for both sides |
+| Physicals | The same seed gives the same exams; a healthy player almost always passes; a fail leaves every asset where it was; concerns reopen the price; an offseason deal waits a step; a sharp doctor's results follow the truth more closely than a weak one's |
+| Rumors | Planted rumors come only from rival GMs and agents, more from low-candor GMs; every rumor resolves; a "we have another offer" claim that was real becomes a trade if you walk; nothing invents your own moves |
 | Plans | Stance bands and hysteresis; needs from injuries and holes; untouchables never on a block |
 | Market | The same seed gives the same trades; no illegal roster or cap after any AI deal; deadline day is the busiest in-season moment |
 | Offers | Expiry; re-check at accept; throttles; Untouchable respected; decline cooldown; counter patience; nothing auto-accepted by a sim |
@@ -731,8 +849,10 @@ Nothing new to click, but every later phase stands on it, and prices get sane.
 3. `judge` as the one evaluator; `evaluateTrade`, `suggestSweetener` and today's AI market call it.
 4. Deadline day: the window stays open after week 9's games until week 10 is played, for everyone;
    the primary button says so.
-5. The market's own RNG stream.
-6. `npm run trades` with the price, fairness, health and performance sections (volume comes with
+5. The hidden signing cooldown: a per-GM wait (4–8 weeks) in words, without the trade table's greyed
+   rows, its week text or the footnote.
+6. The market's own RNG stream.
+7. `npm run trades` with the price, fairness, health and performance sections (volume comes with
    Phase 1); check plan rules; the CLAUDE.md entry.
 
 **Done when:** price buckets are in range on today's (still small) market; no starter goes for a 7th
@@ -767,21 +887,24 @@ health hold; the market budget holds.
 **Done when:** the offers section of `trades` is in range; UI tests pass; a played season shows a
 believable inbox (a few offers a month, a burst at the deadline, nothing after it).
 
-### Phase 3: offseason and cap moves
+### Phase 3: physicals, offseason and cap moves
 
-1. The league-year market: cap casualties as dumps before the AI releases (`aiCapCompliance` tries a
+1. Physicals on every player trade (section 7): the buyer's doctor, pass / fail / concerns / cleared
+   to rehab; your choices on either side; offseason deals pending a physical until the next step; the
+   inbox and news lines; the physicals section of `trades`.
+2. The league-year market: cap casualties as dumps before the AI releases (`aiCapCompliance` tries a
    dump first, then cuts), absorbers charging picks.
-2. Retained salary (`TradeSide.retain`): the sender books it as dead money, the buyer's base falls
+3. Retained salary (`TradeSide.retain`): the sender books it as dead money, the buyer's base falls
    (never below the minimum); the AI uses it when the buyer can't fit him; your *eat salary* control.
-3. Tag-and-trade in the re-sign window and free agency.
-4. Trade-and-extend: the buyer signs the star at once when his agent's ask (`demand`) fits; he may
+4. Tag-and-trade in the re-sign window and free agency.
+5. Trade-and-extend: the buyer signs the star at once when his agent's ask (`demand`) fits; he may
    refuse (personality), which lowers the price.
-5. Camp cutdown trades (depth for a 6th or 7th before `aiCutdown` releases him).
-6. Rehab trades with the buyer's doctor clearing the physical.
-7. Future-for-current pick swaps in the league-year window.
+6. Camp cutdown trades (depth for a 6th or 7th before `aiCutdown` releases him).
+7. Rehab trades through the physical's *cleared to rehab* result.
+8. Future-for-current pick swaps in the league-year window.
 
-**Done when:** offseason volume is in range, dumps per season are in range, and `offseason` shows no
-new short rosters or teams over the cap (it already warns about some: those stay warnings, not new
+**Done when:** offseason volume, dumps and the physicals numbers are in range, and `offseason` shows
+no new short rosters or teams over the cap (it already warns about some: those stay warnings, not new
 failures).
 
 ### Phase 4: draft day
@@ -794,12 +917,19 @@ failures).
 **Done when:** 35–45 trades a draft, 3–9 with a first-round pick; under 3 ms a pick; draft quality in
 `offseason` unchanged.
 
-### Phase 5: memory and media
+### Phase 5: memory, media and mind games
 
 1. GM trust in you (section 5), drifting back to neutral.
-2. The director's weekly market digest (week 5 → the deadline, and the league year).
-3. Rumor noise: about 10% of interest rumors are false, never about your own players (decision 6).
+2. Rumors and mind games (section 5): hidden GM candor; the plays (bidding war, "we have another
+   offer" with a real or bluffed rival deal, talking down the price, fishing, draft smokescreens);
+   sources; outcomes on the Market tab; each GM's record of leaks.
+3. The director's weekly market digest (week 5 → the deadline, and the league year), weighing the big
+   rumors with an accuracy that follows his rating.
 4. Reason tags in the Home news and on team pages ("selling", "buying").
+5. The rumors section of `trades`.
+
+**Done when:** the rumor numbers are in range, and a played season shows a few bluffs you could have
+seen through: a GM with a record of leaks that didn't pan out, or a digest that called it.
 
 ### Phase 6: later
 
@@ -820,27 +950,32 @@ failures).
 | 0. Foundation | – | M | Fair prices, one evaluator and the speed everything else needs |
 | 1. AI market | 0 | L | The living world; offers to you reuse its deal search |
 | 2. Offers to you | 1 | L | The feature you asked for most, built on the market's search and plans |
-| 3. Offseason and cap moves | 1 (2 for your side) | M | The strategies that need the league-year calendar |
+| 3. Physicals, offseason and cap moves | 1 (2 for your side) | M | Physicals touch every player trade; the strategies need the league-year calendar |
 | 4. Draft day | 0 (2 for offers to you) | M | Its own engine; could go before 3 |
-| 5. Memory and media | 2 | S | Polish once offers exist |
+| 5. Memory, media and mind games | 2 (4 for smokescreens) | M | Bluffs need offers and counters to bite, and the draft for smokescreens |
 | 6. Later | various | – | Each waits on another system |
 
 Each phase is its own PR, with `npm run check` green and `npm run trades` in range.
 
-## Decisions for you (my recommendation first)
+## Decisions (owner, Oct 19 2026)
 
-1. **The 6-week cooldown on new signings.** The NFL has no such rule.
-   - **Keep it for everyone** (recommended): it's simple, it blocks "sign a free agent and flip him
-     to the AI", and NFL teams rarely trade new signings anyway.
-   - Or keep it only for players *you* sign, so the AI is free to.
-2. **Offer volume.** Start with *normal* (about 10–25 a season). Add a *fewer / normal / more*
+1. **The cooldown on new signings stays, hidden, to prevent cheese.** It's rare in the real NFL
+   anyway. Each GM has his own wait (4–8 weeks, seeded) and says it in words; no screen shows a week or
+   a number (section 7).
+2. **Injured players can be traded in the offseason** through the physical, with FM-style pass/fail
+   drama. Every player trade waits on the buyer's physical, which can pass, fail or reopen the price
+   (section 7, Physicals). In season, a player out 2+ weeks still can't be traded.
+3. **Rumors include deliberate manipulation of you**: planted bidding wars, "we have another offer"
+   bluffs, talking down your price, fishing and draft smokescreens. It stays learnable through
+   sources, outcomes, each GM's record and your director's read (section 5, Rumors and mind games).
+
+**Defaults, unless you say otherwise:**
+
+4. **Offer volume.** Start with *normal* (about 10–25 a season). Add a *fewer / normal / more*
    setting only if it feels off.
-3. **Sims never accept offers for you.** They expire.
-4. **Injured players.** Keep the in-season block. Allow offseason rehab trades when the buyer's doctor
-   clears him.
-5. **Eating salary.** Yes, the NFL way (a pre-trade bonus booked as your dead money), with a control
+5. **Sims never accept offers for you.** They expire.
+6. **Eating salary.** Yes, the NFL way (a pre-trade bonus booked as your dead money), with a control
    on the Build tab.
-6. **False rumors.** A little noise (about 10%), never about your players. Or none at all.
 7. **Division rivals.** Allowed but rarer, and no stars to a rival in season.
 8. **Deals in the `complete` gap.** Later (Phase 6). The league-year opening moment carries that burst
    instead.
@@ -855,7 +990,13 @@ Each phase is its own PR, with `npm run check` green and `npm run trades` in ran
 - **Spam:** throttles, cooldowns and one open offer per team and player, measured per week.
 - **Exploits:** the probe list in `trades`; the guardrails sit outside value.
 - **The fog of war leaking:** offers and rumors use your read and words, never AI numbers or
-  `player.ratings`. The coarse meter stays.
+  `player.ratings`. The coarse meter stays. The hidden cooldown and GM candor never appear as numbers.
+- **Mind games feeling like cheating:** bluffs never touch how the AI values anything, your own staff
+  never lies, every rumor resolves in the open, and a GM's record of leaks builds up in front of you.
+  Getting fooled should feel like your mistake, not the game's.
+- **Physicals feeling random:** a healthy player almost never fails. The odds come from things you
+  can see (injury history, age, the injury report), and your doctor's quality shows in the results
+  over a career.
 - **Speed:** `TradeContext` and the budgets are in Phase 0, before any feature leans on them.
 - **Reproducibility:** the market's own stream; the context is thrown away after each moment.
 
