@@ -435,7 +435,7 @@ function aiStaffMoves(league: League, team: Team, rng: Rng): void {
     .filter((x) => isExpiring(league, x))
     .sort((a, b) => Number(b.role === 'director') - Number(a.role === 'director'))) {
     const years = rng.int(1, 3);
-    // With the Director's chair empty, his money stays aside: scouts re-signed first could otherwise
+    // With the Director's chair empty, a Director's money stays aside: scouts re-signed first could otherwise
     // leave only the journeyman fallback (`fillChairs`), hired whatever the budget says.
     const noDirector = !teamStaff(league, team.id).some((x) => x.role === 'director' && !isExpiring(league, x));
     const reserve = s.role !== 'director' && noDirector ? journeymanAsk(league) : 0;
