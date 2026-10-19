@@ -15,6 +15,7 @@ import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateStaffWorld, setOwnerBudgets } from './staff';
 import { playoffSummary } from './records';
+import { renamePeople } from './rename';
 import { rollScheme } from './schemes';
 import { addStats, statSeasons } from './stats';
 import { generateQuirks } from './quirks';
@@ -50,6 +51,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 24) league.version = 24; // v24: optional `archived` and `deleted` on inbox messages, set by the user
   if (league.version < 25) toV25(league);
   if (league.version < 26) league.version = 26; // v26: optional `woman` on scouts and medics, set at creation (absent = a man)
+  if (league.version < 27) toV27(league); // last: the earlier steps seed new fields from the old names
   return league;
 }
 
@@ -289,4 +291,10 @@ function toV25(league: League): void {
   const market = league.market as (Partial<TradeMarket> & Pick<TradeMarket, 'moment'>) | undefined;
   if (market) Object.assign(market, { nextOfferId: market.nextOfferId ?? 1, offers: market.offers ?? [], status: market.status ?? {}, talks: market.talks ?? {}, shopped: market.shopped ?? {} });
   league.version = 25;
+}
+
+/** v27: the names pass. Everyone the old pools named is renamed from the heritage pools, the stored text with them. */
+function toV27(league: League): void {
+  renamePeople(league);
+  league.version = 27;
 }

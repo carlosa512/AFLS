@@ -3,6 +3,7 @@ import { honorBadges, playerHonors } from '../../engine/awards';
 import { POSITION_NAMES } from '../../engine/positions';
 import { careerOutlook, FIXED_HEADING, fixedHabits, habitChangeText, habitTimeline, isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
 import { formNote } from '../../engine/quirks';
+import { pron } from '../../engine/pronouns';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
 import { editPlayerIdentity, identityProblem } from '../../engine/roster';
 import { careerLine, passerRating } from '../../engine/stats';
@@ -138,7 +139,7 @@ function ReadBy({ league, view, p }: { league: League; view: PlayerView; p: Play
           {staffName(s)}
         </button>
         , {ROLE_LABEL[s.role].toLowerCase()}
-        {s.focus ? ` (${FOCUS_LABEL[s.focus]}${s.focus === FOCUS_OF[p.position] ? '' : ', off his specialty'})` : ''}
+        {s.focus ? ` (${FOCUS_LABEL[s.focus]}${s.focus === FOCUS_OF[p.position] ? '' : `, off ${pron(s).his} specialty`})` : ''}
       </>
     ) : null;
   };

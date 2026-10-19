@@ -9,10 +9,11 @@
  * and can only be hired or dismissed in the re-sign window and free agency. All staff randomness
  * uses its own seeded Rngs, so it never shifts the league's main random stream.
  */
-import { FIRST_NAMES, LAST_NAMES, WOMEN_SHARE } from './data/names';
 import { TEAM_SEEDS } from './data/teams';
 import { BASE_CAP } from './finance/market';
 import { ROSTER_TEMPLATE } from './positions';
+import { newIdentity } from './identity';
+import { pron } from './pronouns';
 import { clamp, Rng } from './rng';
 import type { League, Position, ScoutFocus, Staff, StaffRole, Team } from './types';
 import { POSITIONS } from './types';
@@ -147,14 +148,15 @@ export type StaffMove = 'hire' | 'extend' | 'release';
 /** Why a move can't happen right now, or null. */
 export function staffMoveProblem(league: League, teamId: number, s: Staff, move: StaffMove, years = 2): string | null {
   if (!staffWindowOpen(league)) return 'Staff moves open in the re-sign window and free agency.';
-  if (move === 'release') return s.teamId === teamId ? null : 'He doesn’t work for you.';
+  const { He, His, him } = pron(s);
+  if (move === 'release') return s.teamId === teamId ? null : `${He} doesn’t work for you.`;
   const held = teamStaff(league, teamId).filter((x) => x.role === s.role && !isExpiring(league, x)).length;
   if (move === 'extend') {
     if (s.teamId !== teamId || !isExpiring(league, s)) return 'Only expiring deals can be extended.';
-    if (held >= STAFF_SLOTS[s.role]) return `His chair is taken: all ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
+    if (held >= STAFF_SLOTS[s.role]) return `${His} chair is taken: all ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
   } else {
-    if (s.teamId !== null) return 'He isn’t available.';
-    if (held >= STAFF_SLOTS[s.role]) return s.role === 'director' ? 'You already have a Director. Dismiss him first.' : `All ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
+    if (s.teamId !== null) return `${He} isn’t available.`;
+    if (held >= STAFF_SLOTS[s.role]) return s.role === 'director' ? `You already have a Director. Dismiss ${him} first.` : `All ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
   }
   const over = staffAsk(league, s, years) - staffRoom(league, teamId);
   return over > 0 ? `Over your staff budget by $${(over / 1000).toFixed(2)}M.` : null;
@@ -211,19 +213,11 @@ const ROLES: StaffRole[] = ['director', 'collegeScout', 'proScout'];
 /** Candidates kept on the market for each role. */
 const MARKET_SIZE: Record<StaffRole, number> = { director: 8, collegeScout: 16, proScout: 12 };
 
-/**
- * Whether a new scout or medic is a woman, set once where the name is picked. No draw at all while the
- * share is 0, so every seeded league stays exactly as it was until the women's names pass turns it on.
- */
-export const rollWoman = (rng: Rng): boolean => WOMEN_SHARE > 0 && rng.chance(WOMEN_SHARE);
-
 function newStaff(league: League, rng: Rng, role: StaffRole, evaluation: number, projection: number, age: number, focus?: ScoutFocus): Staff {
-  const woman = rollWoman(rng);
   const s: Staff = {
     id: league.nextStaffId++,
-    ...(woman && { woman: true }),
-    firstName: rng.pick(FIRST_NAMES),
-    lastName: rng.pick(LAST_NAMES),
+    // the name and whether she's a woman are drawn together, so they always agree
+    ...newIdentity(rng, { kind: 'scout', role }),
     role,
     age,
     evaluation: Math.round(clamp(evaluation, 1, 20)),

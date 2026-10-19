@@ -1206,9 +1206,9 @@ function OwnerCards({ league, s }: { league: League; s: Extract<MailSubject, { k
 }
 
 const OUTLOOK: Record<ResignOutlook, { label: string; tone: string; tip: string }> = {
-  stays: { label: 'Re-signs', tone: 'tag-good', tip: 'Re-signs for 2 years at his ask when free agency opens, unless you let him go.' },
-  budget: { label: 'Leaves: budget', tone: 'tag-warn', tip: 'Leaves when free agency opens: the budget can’t cover his ask.' },
-  chair: { label: 'Leaves: chair taken', tone: 'tag-warn', tip: 'Leaves when free agency opens: someone else now holds his chair.' },
+  stays: { label: 'Re-signs', tone: 'tag-good', tip: 'Re-signs for 2 years at the ask when free agency opens, unless you let them go.' },
+  budget: { label: 'Leaves: budget', tone: 'tag-warn', tip: 'Leaves when free agency opens: the budget can’t cover the ask.' },
+  chair: { label: 'Leaves: chair taken', tone: 'tag-warn', tip: 'Leaves when free agency opens: someone else now holds the chair.' },
 };
 
 interface PersonRow {

@@ -110,6 +110,12 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     `needsYou` works out from the league as it is now whether a message still asks something (nothing
     stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
+  - `identity.ts` names for new people (players by position, staff by chair, referees): a heritage drawn
+    from `data/heritage.ts`, then names from `data/names.ts` for that heritage and generation; scouts and
+    medics can be women (drawn with the name). Costs the caller's stream exactly two draws. Heritage is
+    never stored or read by the sim. `rename.ts` is the v27 pass for older saves (keeps typed names,
+    `Player.nameEdited`, and rewrites stored text). `pronouns.ts` (`pron`) for any text about one scout or
+    medic. Spec and sources: `docs/NAMES.md`
   - `quirks.ts` on-field habits (registry, the marble bag, grip, `activeQuirks`): they change with
     weekly and offseason draws; the engine reads them through `has()` in `match/gameSim.ts`, screens
     through `quirkNotes` in `scouting.ts` (seen on film, so the fog of war applies); AI front offices
