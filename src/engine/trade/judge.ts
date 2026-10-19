@@ -13,10 +13,10 @@
 import { capFor, deadMoneyIn } from '../finance/cap';
 import { yearsLeft } from '../finance/contract';
 import { contenderScore, rosterLimit } from '../offseason/negotiation';
-import type { League, Player, Team } from '../types';
+import type { DraftPick, League, Player, Team } from '../types';
 import { rosterOf, tradeContext, type TradeContext } from './context';
 import { freshSigningRefusal, playerTradeBlocker, tradeDeadMoney, tradeProblem, type TradeProposal, type TradeSide } from './rules';
-import { goingRate, marketValue, pickValue, playerSwing } from './value';
+import { goingRate, marketValue, nextDraftSeason, pickOverall, pickValue, playerSwing } from './value';
 
 /** Each player a deal leaves past the roster limit costs about a sixth-round pick: someone has to be cut. */
 const ROSTER_SPOT = 15;
@@ -120,6 +120,21 @@ const QB_PREMIUM = 1;
 
 const startsAtQb = (league: League, team: Team, mine: TradeSide) => league.phase === 'regular' && mine.players.includes(team.depthChart.QB[0]);
 
+/** A first-round pick projected this high in the next draft is kept through the season. */
+const HOLD_SLOT = 10;
+
+/**
+ * In season no team gives up a first projected in the top ten: it waits to see who's there on draft
+ * day, and can trade down then.
+ */
+export const heldPick = (ctx: TradeContext, pk: DraftPick) =>
+  ctx.league.phase === 'regular' && pk.round === 1 && pk.season === nextDraftSeason(ctx.league) && pickOverall(ctx.league, pk, ctx) <= HOLD_SLOT;
+
+function pickHoldRefusal(ctx: TradeContext, mine: TradeSide): string | null {
+  const held = mine.picks.map((id) => pickById(ctx.league, id)).find((pk) => heldPick(ctx, pk));
+  return held ? `They're keeping their ${held.season} first-round pick until draft day.` : null;
+}
+
 /** The margin a GM wants over what he gives: a small win against the user, merely not losing to another AI. */
 export function marginFor(team: Team, other: Team, vsUser = false): number {
   // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want a lot more.
@@ -134,7 +149,7 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const mine = proposal.sides.find((s) => s.teamId === teamId)!;
   const theirs = proposal.sides.find((s) => s.teamId !== teamId)!;
   const problem = tradeProblem(league, proposal, { rosterCuts: opts.rosterCuts, ctx });
-  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal) ?? rivalRefusal(ctx, team, proposal) ?? deadRefusal(league, team, mine);
+  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal) ?? rivalRefusal(ctx, team, proposal) ?? deadRefusal(league, team, mine) ?? pickHoldRefusal(ctx, mine);
 
   const { loss, gain } = playerSwing(ctx, team, mine.players, theirs.players);
   const pickIn = theirs.picks.reduce((s, id) => s + pickValue(league, pickById(league, id), team.gm, ctx), 0);

@@ -6,7 +6,8 @@ import { migrateLeague } from '../migrate';
 import { rosterLimit } from '../offseason/negotiation';
 import { activeRoster } from '../roster';
 import type { League } from '../types';
-import { marginFor, marketMoment, stanceFor, stanceOf, teamNeeds, tradeBlock, tradeContext, untouchables, updateStances } from '.';
+import type { TradeProposal } from './rules';
+import { heldPick, judge, marginFor, marketMoment, reloading, stanceFor, stanceOf, teamNeeds, tradeBlock, tradeContext, untouchables, updateStances } from '.';
 
 const base = JSON.stringify(createLeague({ seed: 'market-tests' }));
 const fresh = (): League => JSON.parse(base);
@@ -56,6 +57,29 @@ describe('team plans', () => {
         .filter((p) => p.teamId === contender.id && p.position === 'QB')
         .sort((a, b) => ctx.view(contender.id, b).ovr - ctx.view(contender.id, a).ovr)[0];
       if (qb && ctx.view(contender.id, qb).ovr >= 14) expect(untouchables(ctx, contender).has(qb.id)).toBe(true);
+    }
+  });
+
+  it('keeps a first projected in the top ten through the season', () => {
+    const l = fresh();
+    const ctx = tradeContext(l);
+    const pick = l.draftPicks.find((pk) => pk.ownerId !== l.userTeamId && heldPick(ctx, pk))!;
+    expect(pick).toBeDefined();
+    const buyer = l.teams.find((t) => t.id !== pick.ownerId && t.id !== l.userTeamId)!;
+    const star = Object.values(l.players).find((p) => p.teamId === buyer.id && p.contract)!;
+    const proposal: TradeProposal = { sides: [{ teamId: pick.ownerId, players: [], picks: [pick.id] }, { teamId: buyer.id, players: [star.id], picks: [] }] };
+    expect(judge(ctx, pick.ownerId, proposal).refusal).toMatch(/keeping their .* first-round pick/);
+  });
+
+  it('lets a talented team out of the race hold its core instead of selling off', () => {
+    const l = fresh();
+    const ctx = tradeContext(l);
+    for (const t of l.teams) if (t.id !== l.userTeamId) t.stance = { mode: 'retool', since: l.season };
+    const team = l.teams.find((t) => t.id !== l.userTeamId && reloading(ctx, t))!;
+    expect(team).toBeDefined();
+    for (const e of tradeBlock(ctx, team)) {
+      expect(e.reason).not.toBe('veteran');
+      if (e.reason === 'expiring') expect(l.players[e.playerId].age).toBeGreaterThanOrEqual(30);
     }
   });
 

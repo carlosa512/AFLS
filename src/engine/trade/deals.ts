@@ -9,7 +9,7 @@ import { isExpired, yearsLeft } from '../finance/contract';
 import { STARTERS } from '../positions';
 import type { DealKind, DraftPick, GmTraits, Player, Team } from '../types';
 import { ovrOf, rosterOf, spendable, type TradeContext } from './context';
-import { judge, marginFor, STAR, type Judgement } from './judge';
+import { heldPick, judge, marginFor, STAR, type Judgement } from './judge';
 import { isSeller, stanceOf, starterLine, teamNeeds, untouchables } from './plans';
 import { freshlySigned, playerTradeBlocker, salaryToTake, type TradeProposal, type TradeSide } from './rules';
 import { goingRate, marketValue, pickValue, salaryWeight } from './value';
@@ -31,11 +31,11 @@ const SWAP_WORTH = 70;
 /** How much better (points, in his own eyes) a swap must leave the buyer than his best pick package. */
 const SWAP_EDGE = 25;
 
-/** A team's unused picks, the most valuable to `valuer` first. */
+/** A team's unused picks it would trade (not a first it's holding for draft day), the most valuable to `valuer` first. */
 function picksOf(ctx: TradeContext, teamId: number, valuer: Team): DraftPick[] {
   const { league } = ctx;
   return league.draftPicks
-    .filter((p) => p.ownerId === teamId && p.playerId === undefined)
+    .filter((p) => p.ownerId === teamId && p.playerId === undefined && !heldPick(ctx, p))
     .sort((a, b) => pickValue(league, b, valuer.gm, ctx) - pickValue(league, a, valuer.gm, ctx));
 }
 
@@ -125,10 +125,10 @@ const PER_BIDDER = 0.1;
 const MAX_PREMIUM = 0.2;
 /**
  * The most a GM pays for a player, against what the league would pay: about 1.3 times for most, up
- * to 1.6 for an All-In GM who has to have him (Ramsey, Mack). Bounded, so a desperate buyer can't be
+ * to 1.5 for an All-In GM who has to have him (Ramsey, Mack). Bounded, so a desperate buyer can't be
  * milked for firsts every deadline.
  */
-export const maxOver = (gm: GmTraits) => 1.3 + 0.6 * Math.max(0, gm.winNow - 0.45);
+export const maxOver = (gm: GmTraits) => 1.3 + 0.4 * Math.max(0, gm.winNow - 0.45);
 
 type Tried = { proposal: TradeProposal; sells: Judgement; buys: Judgement };
 

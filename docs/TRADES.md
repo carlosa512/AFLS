@@ -982,9 +982,17 @@ Where the build departed from the plan, and why:
   "several clubs are interested"). He never takes less than his floor, and never gets more than the
   buyer would pay. Competition raises a price; one buyer's desperation doesn't.
 - **Each GM has a most he'll pay** (`maxOver`): about 1.3 times what the league would pay, rising
-  with his win-now trait to about 1.6 for an All-In GM (Ramsey, Mack). That's the archetype's flavor,
+  with his win-now trait to 1.5 for an All-In GM (Ramsey, Mack). That's the archetype's flavor,
   bounded so a desperate buyer can't be milked for firsts every deadline. A seller who wants more than
   that isn't really selling.
+- **By midseason the record is the race** (`RECORD_GAMES`, 8 games). Blending in the roster all
+  season had a 1–7 team with an elite roster on paper reading as a bubble team, and it sent its own
+  first, projected second, for a 28-year-old receiver.
+- **A talented team out of the race reloads** (`reloading`): a seller in season with a top-30% roster
+  that isn't old keeps its core. It doesn't shop its veterans, and it lets go only the expiring
+  starters it won't re-sign (30 and up).
+- **In season nobody trades a first projected in the top ten** (`heldPick`). A team waits to see who's
+  there on draft day, and can trade down then (Phase 4). This applies to offers from you too.
 - **Sellers' floors count picks at the league's going rate** (`goingRate`: midway between the two
   chart styles, 25% off a year). On his own chart a Pick Hoarder prizes Day 2 and future picks, so he
   happily took a third less than the league would pay for a player. Every GM still prices what a pick
@@ -1005,8 +1013,8 @@ Where the build departed from the plan, and why:
   the minimum deals it still needs to reach 53. One team had spent it on a free-agency trade and reached
   kickoff short-handed and $0.2M over.
 - **Dumps are short and modest.** Only a contract with a year or two left can be dumped (Osweiler had
-  one), never one more than about a late first under water, and only when the league year opens, in
-  camp, or once on deadline day. Longer busts get cut.
+  one), never one more than about a late first under water, one a team a league year, and only when
+  the league year opens, in camp, or once on deadline day. Longer busts get cut.
 - **Picks are the currency; a swap needs an edge.** A buyer sends a player only when that's clearly
   cheaper for him than his best pick package (by 25 points). A swap piece must be worth at least a late
   fourth to the seller, so no throw-ins pad the count.
@@ -1053,37 +1061,39 @@ Measured (`npm run trades`, three leagues, three seasons):
 
 | Area | Number | Result | Band |
 | --- | --- | --- | --- |
-| Prices | Star, preseason / deadline | 1,592 / 1,156 | 1,000–3,500 |
-| | Quality starter, preseason / deadline | 711 / 531 | 400–1,300 |
-| | Deadline rental | 105 (about a 4th) | 35–150 |
+| Prices | Star, preseason / deadline | 1,549 / 1,424 | 1,000–3,500 |
+| | Quality starter, preseason / deadline | 711 / 498 | 400–1,300 |
+| | Deadline rental | 101 (about a 4th) | 35–150 |
 | | Depth | 0 | ≤ 40 |
 | | A future first, as a current pick | No. 26 | 22–45 |
 | | Good starters in their prime for 7ths only | 0 | 0 |
-| Fairness | Median truth gap | 7% | ≤ 35% |
-| | Trades over 3:1, a season | 0.22 | ≤ 1 |
-| | Worst team balance over its run | 951 | ≤ 1,000 |
+| Fairness | Median truth gap | 6% | ≤ 35% |
+| | Trades over 3:1, a season | 0.11 | ≤ 1 |
+| | Worst team balance over its run | 926 | ≤ 1,000 |
 | | Teams over the cap or short after a trade | 0 | 0 |
-| Volume | In season (week 1 to deadline day) | 17.4 | 15–25 |
-| | On deadline day | 41% | 30–50% |
-| | Offseason (league year to camp) | 17.9 | 15–35 |
-| Mix | Picks for players | 78% | 55–80% |
-| | Swaps | 11% | 5–15% |
-| | Dumps, a season | 3.8 | 1–4 |
-| | A pick each way | 14% | 10–25% |
+| Volume | In season (week 1 to deadline day) | 16.4 | 15–25 |
+| | On deadline day | 35% | 30–50% |
+| | Offseason (league year to camp) | 16.1 | 15–35 |
+| Mix | Picks for players | 77% | 55–80% |
+| | Swaps | 10% | 5–15% |
+| | Dumps, a season | 4.0 | 1–4 |
+| | A pick each way | 10% | 10–25% |
 | | Starting QBs traded in season, a season | 0 | ≤ 0.5 |
 | | Division rivals | 2% | ≤ 5% |
 | Probes | Exploits that worked | 0 of 8 | 0 |
-| Speed | A verdict / a market week / an offseason moment | 0.05 / 62 / 70 ms | 0.6 / 120 / 300 |
+| Speed | A market week / an offseason moment | 84 / 71 ms | 120 / 300 |
 
-Over six seasons (`npm run trades -- --seasons 6`, the plan's "done when"), all but two numbers hold:
-- **Trades in season: 14.4 a season** (15–25), against 17.4 over three seasons. Later seasons are
+Over six seasons (`npm run trades -- --seasons 6`, the plan's "done when"), all but two numbers hold.
+Both are follow-ups:
+- **Trades in season: 14.3 a season** (15–25), against 16.4 over three seasons. Later seasons are
   tighter against the cap (the `offseason` check's steady state: median space about 2% of the cap),
   and nobody can eat salary yet. Phase 3's retained salary is the planned way to free those deals.
-- **Worst team balance: 1,715** (≤ 1,000). Most of it is one deal: a bubble team (a Pick Hoarder) sent
-  its own first, projected No. 2, in season for a 28-year-old receiver (+891 for the seller). Without
-  it the worst team sits near 820.
+- **Worst team balance: 1,188** (≤ 1,000): a Can-Kicker's 14 trades, its win-now ceiling adding up
+  over a long run. All-In GMs stay within it at 1.5×. The owner's call (Oct 19 2026) was to keep
+  the flavor at 1.5× and expect roster churn to offset it over time; if it doesn't, the ceiling is
+  the knob.
 
-Offseason volume over six seasons is 16.3 a year. The six-season run first read 6.6: the script was
+Offseason volume over six seasons is 15.8 a year. The six-season run first read 6.6: the script was
 counting new trades by their position in the history, which keeps five seasons, so trades went
 uncounted once old ones dropped off. It now tells them apart by identity.
 

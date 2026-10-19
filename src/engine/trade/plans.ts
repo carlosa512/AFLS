@@ -86,13 +86,31 @@ function scoreOf(ctx: TradeContext, team: Team): number {
     if (hc.since === league.season) s -= 0.05;
   }
   const roster = rosterOf(ctx, team.id);
-  const starters = POSITIONS.flatMap((pos) => team.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]).filter((p) => p && p.teamId === team.id));
-  const age = starters.reduce((a, p) => a + p.age, 0) / Math.max(1, starters.length);
-  if (age >= 28.5 && s < 0) s -= 0.1;
+  if (starterAge(league, team) >= OLD_ROSTER && s < 0) s -= 0.1;
   // Without a quarterback there's nothing to push for.
   const qb = Math.max(0, ...roster.filter((p) => p.position === 'QB').map((p) => ovrOf(ctx, p)));
   if (qb < 12) s -= 0.1;
   return clamp(s, -1, 1);
+}
+
+/** Starters' mean age at or past which a roster is old: a losing team with one tears it down. */
+const OLD_ROSTER = 28.5;
+
+function starterAge(league: League, team: Team): number {
+  const starters = POSITIONS.flatMap((pos) => team.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]).filter((p) => p && p.teamId === team.id));
+  return starters.reduce((a, p) => a + p.age, 0) / Math.max(1, starters.length);
+}
+
+/** A roster in the league's top 30% on paper. */
+const RELOAD_ROSTER = 0.7;
+
+/**
+ * A team out of this year's race with a roster built to win next year (top 30% on paper, not old)
+ * holds its cards: it keeps its core and its pick and reloads, instead of selling off.
+ */
+export function reloading(ctx: TradeContext, team: Team): boolean {
+  const { league } = ctx;
+  return league.phase === 'regular' && isSeller(team) && contenderScore(league, team.id) >= RELOAD_ROSTER && starterAge(league, team) < OLD_ROSTER;
 }
 
 /** Bands with a dead zone: a contender stays one until it slips below 0.2, a rebuilder until it climbs above −0.2. */
@@ -222,6 +240,7 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
   if (memo) return memo;
   const { league } = ctx;
   const mode = stanceOf(team);
+  const reload = reloading(ctx, team);
   const inSeason = league.phase === 'regular';
   const line = starterLine(ctx);
   const tight = salaryWeight(ctx, team.id) >= 1.15;
@@ -242,8 +261,9 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
     };
     // A seller shops the veterans another team would start: nobody trades for an expiring backup.
     const starterGrade = ovrOf(ctx, p) >= line[p.position] - 1.5;
-    if (starterGrade && left <= 1 && p.age >= 26 && (mode === 'retool' || mode === 'rebuild')) add('expiring', inSeason ? 0.8 : 0.45);
-    if (starterGrade && mode === 'rebuild' && p.age - ageShift(p.position) >= 28) add('veteran', 0.6);
+    // A reloading team keeps its core: it lets go only the expiring starters it won't re-sign.
+    if (starterGrade && left <= 1 && p.age >= (reload ? 30 : 26) && (mode === 'retool' || mode === 'rebuild')) add('expiring', inSeason ? 0.8 : 0.45);
+    if (starterGrade && mode === 'rebuild' && !reload && p.age - ageShift(p.position) >= 28) add('veteran', 0.6);
     if (r >= ROSTER_TEMPLATE[p.position] || (p.position === 'QB' && r >= 2)) add('surplus', 0.4);
     else if (r >= S && ovrOf(ctx, p) >= line[p.position]) add('surplus', 0.5);
     // Only a big salary can be a burden worth paying to move: one well above what the market pays a
