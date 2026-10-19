@@ -11,6 +11,7 @@ import { isExpired } from './finance/contract';
 import { activeRoster, teamPlayers } from './roster';
 import { playoffGames } from './season/playoffs';
 import { computeRecords, conferenceSeeds, divisionStandings, playoffRace, sortTeams } from './season/standings';
+import { teamSeasonStats } from './stats';
 import { ATTRIBUTES, POSITIONS, type GameResult } from './types';
 
 describe('Rng', () => {
@@ -396,5 +397,28 @@ describe('playoff race', () => {
     }
     // A season of 17 games settles plenty of teams with games to spare.
     expect(early).toBeGreaterThan(8);
+  }, 30_000);
+});
+
+describe('team season stats', () => {
+  it('add up across the league and match the standings', () => {
+    const league = createLeague({ seed: 'team-stats' });
+    for (let w = 0; w < 6; w++) playWeek(league);
+    const stats = teamSeasonStats(league);
+    const all = [...stats.values()];
+    const sum = (f: (l: (typeof all)[number]) => number) => all.reduce((n, l) => n + f(l), 0);
+    // Every point, yard and turnover is one team's for and the other's against.
+    expect(sum((l) => l.pointsFor)).toBe(sum((l) => l.pointsAgainst));
+    expect(sum((l) => l.yards)).toBe(sum((l) => l.yardsAllowed));
+    expect(sum((l) => l.giveaways)).toBe(sum((l) => l.takeaways));
+    const records = computeRecords(league);
+    for (const t of league.teams) {
+      const l = stats.get(t.id)!;
+      const r = records.get(t.id)!;
+      expect(l.home.w + l.road.w).toBe(r.w);
+      expect(l.home.l + l.road.l).toBe(r.l);
+      expect(l.games).toBe(r.w + r.l + r.t);
+      expect(l.division.w + l.division.l + l.division.t).toBeLessThanOrEqual(l.games);
+    }
   }, 30_000);
 });

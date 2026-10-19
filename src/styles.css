@@ -938,6 +938,107 @@ button.strip-line:hover .ab {
     min-height: 44px;
   }
 }
+/* Home in season: one 12-column grid, row by row. A cell's panel fills it, so a row's panels line up. */
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 20px;
+}
+.home-cell {
+  display: grid;
+  min-width: 0;
+}
+.span-4 {
+  grid-column: span 4;
+}
+.span-6 {
+  grid-column: span 6;
+}
+.span-8 {
+  grid-column: span 8;
+}
+.span-12 {
+  grid-column: span 12;
+}
+@media (max-width: 960px) {
+  .home-cell {
+    grid-column: 1 / -1;
+  }
+}
+.last-game {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.last-game > .panel-head {
+  margin-bottom: 0;
+}
+.last-result {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.last-result > :nth-child(-n + 2) {
+  font-family: var(--font-display);
+  font-size: var(--step-3);
+  font-weight: 800;
+  line-height: 1;
+}
+/* Two side by side, one over the other on a phone. */
+.split-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 20px;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .split-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.standout {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--step--1);
+}
+.standout:first-of-type {
+  border-top: 0;
+}
+.season-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 14px 18px;
+}
+.season-fact {
+  display: grid;
+  gap: 2px;
+}
+.season-fact b {
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  line-height: 1.1;
+}
+.season-options {
+  display: grid;
+}
+.season-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 36px;
+  border-top: 1px solid var(--line);
+  font-size: var(--step--1);
+  cursor: pointer;
+}
+.season-option:first-child {
+  border-top: 0;
+}
 /* Home's widgets: a few rows each, the rest a click away. */
 .widget {
   display: grid;
@@ -2781,7 +2882,8 @@ details.more > summary {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14em, 1fr));
+  /* Four honors: one row where there's room, two by two where there isn't (never three and one). */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px 16px;
 }
 .honor-list li {
@@ -2789,6 +2891,11 @@ details.more > summary {
   gap: 2px;
   padding: 4px 6px;
   border-radius: 6px;
+}
+@media (max-width: 760px) {
+  .honor-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .honor-list li.is-user {
   background: color-mix(in srgb, var(--marker) 16%, transparent);
@@ -3515,7 +3622,7 @@ button.tip-pill {
 .is-user-text {
   font-weight: 700;
 }
-.mail-kstat {
+.key-stat {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr) 56px;
   align-items: center;
@@ -3523,32 +3630,36 @@ button.tip-pill {
   border-top: 1px solid var(--line);
   font-size: var(--step--1);
 }
-.mail-kstat-head {
+.key-stat-head {
   border-top: 0;
   padding-top: 0;
 }
-.mail-kstat > :first-child,
-.mail-kstat > :last-child {
+.key-stat > :first-child,
+.key-stat > :last-child {
   font-family: var(--font-data);
 }
-.mail-kstat > :nth-child(2) {
+.key-stat > :nth-child(2) {
   text-align: center;
 }
-.mail-kstat > :last-child {
+.key-stat > :last-child {
   text-align: right;
 }
-.mail-kstat .best {
+.key-stat .best {
   font-weight: 700;
 }
-.mail-line td,
-.mail-line th {
+.line-score {
+  width: 100%;
+}
+.line-score td,
+.line-score th {
+  padding: 5px 6px;
   text-align: center;
 }
-.mail-line td:first-child,
-.mail-line th:first-child {
+.line-score td:first-child,
+.line-score th:first-child {
   text-align: left;
 }
-.mail-potg {
+.potg {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -3557,7 +3668,7 @@ button.tip-pill {
   border: 1px solid color-mix(in srgb, var(--marker) 55%, var(--line));
   background: color-mix(in srgb, var(--marker) 14%, var(--surface));
 }
-.mail-potg > span {
+.potg > span {
   display: grid;
   gap: 2px;
 }
