@@ -6,7 +6,7 @@
 import { useState, type ReactNode } from 'react';
 import { capSheet } from '../engine/finance/cap';
 import { injuryLabel, weeksLeft } from '../engine/injuries';
-import { needsYou } from '../engine/inbox';
+import { inInbox, needsYou, threadLabel, threads, type MailThread } from '../engine/inbox';
 import { teamPlayers } from '../engine/roster';
 import { computeRecords, conferenceSeeds, divisionStandings } from '../engine/season/standings';
 import { leaders, LEADER_CATEGORIES, teamSeasonStats, type TeamSeasonLine } from '../engine/stats';
@@ -142,13 +142,18 @@ export function TheirInjuries({ league, opp, game }: { league: League; opp: Team
 }
 
 /** "Head coach · Week 9", "Kyle James's agent · Re-sign window": who it's from and when, in a line. */
-const fromLine = (m: InboxMessage) => `${m.from.split(', ')[1] ?? m.from} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
+const fromLine = (from: string, m: InboxMessage) => `${from.split(', ')[1] ?? from} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
 
-/** What's waiting in the inbox: messages that still need you first, then the unread, newest first. */
-export function waitingMail(league: League): { needs: Set<string>; rows: InboxMessage[] } {
-  const all = [...(league.inbox ?? [])].reverse();
+/**
+ * What's waiting in the inbox (archived and deleted mail aside): what still needs you first, then the unread, newest
+ * first, a day's letters of one kind folded as the inbox folds them.
+ */
+export function waitingMail(league: League): { needs: Set<string>; rows: MailThread[] } {
+  const all = [...(league.inbox ?? [])].reverse().filter(inInbox);
   const needs = new Set(all.filter((m) => needsYou(league, m)).map((m) => m.id));
-  return { needs, rows: [...all.filter((m) => needs.has(m.id)), ...all.filter((m) => !m.read && !needs.has(m.id))] };
+  const waiting = threads(all.filter((m) => needs.has(m.id) || !m.read));
+  const needy = (t: MailThread) => t.messages.some((m) => needs.has(m.id));
+  return { needs, rows: [...waiting.filter(needy), ...waiting.filter((t) => !needy(t))] };
 }
 
 export function WaitingForYou({ league }: { league: League }) {
@@ -172,20 +177,25 @@ export function WaitingForYou({ league }: { league: League }) {
         </p>
       ) : (
         <div>
-          {rows.slice(0, SHOW).map((m) => (
-            <button key={m.id} className={`widget-mail${m.read ? '' : ' is-unread'}`} onClick={() => nav.go({ view: 'inbox', messageId: m.id })}>
-              <span className={`widget-dot cat-${m.category}`} aria-hidden="true" />
-              <span style={{ minWidth: 0 }}>
-                {!m.read && <span className="visually-hidden">Unread: </span>}
-                <span className="widget-mail-subject">{m.subject}</span>
-                <span className="muted small">{fromLine(m)}</span>
-              </span>
-              {needs.has(m.id) && <span className="needs-pill">Needs you</span>}
-            </button>
-          ))}
+          {rows.slice(0, SHOW).map((t) => {
+            const lead = t.messages[0];
+            const label = threadLabel(t);
+            const unread = t.messages.some((m) => !m.read);
+            return (
+              <button key={t.key} className={`widget-mail${unread ? ' is-unread' : ''}`} onClick={() => nav.go({ view: 'inbox', messageId: lead.id })}>
+                <span className={`widget-dot cat-${lead.category}`} aria-hidden="true" />
+                <span style={{ minWidth: 0 }}>
+                  {unread && <span className="visually-hidden">Unread: </span>}
+                  <span className="widget-mail-subject">{label.subject}</span>
+                  <span className="muted small">{fromLine(label.from, lead)}</span>
+                </span>
+                {t.messages.some((m) => needs.has(m.id)) && <span className="needs-pill">Needs you</span>}
+              </button>
+            );
+          })}
         </div>
       )}
-      {rest > 0 && <More rest={rest} label={rows.slice(SHOW).every((m) => !m.read) ? 'more unread' : 'more waiting'} link="See all in Inbox" go={inbox} />}
+      {rest > 0 && <More rest={rest} label={rows.slice(SHOW).every((t) => t.messages.every((m) => !m.read)) ? 'more unread' : 'more waiting'} link="See all in Inbox" go={inbox} />}
     </Panel>
   );
 }

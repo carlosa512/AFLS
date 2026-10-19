@@ -3418,9 +3418,79 @@ button.tip-pill {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .inbox-back {
   margin-right: auto;
+}
+/* Archive and Delete sit on the left of the nav, the arrows on the right. */
+.inbox-file {
+  margin-right: auto;
+}
+.inbox-undo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: var(--step--1);
+}
+.fold-list {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.fold-item + .fold-item {
+  border-top: 1px solid var(--line);
+}
+.fold-item.is-open {
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+}
+.fold-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+}
+.fold-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fold-toggle:hover .fold-title {
+  text-decoration: underline;
+}
+.fold-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.fold-side {
+  flex-direction: row;
+  align-items: center;
+}
+.fold-side .tag-pill {
+  margin-left: 0;
+}
+.fold-body {
+  display: grid;
+  gap: 12px;
+  padding: 4px 12px 14px;
 }
 .inbox-head {
   display: grid;

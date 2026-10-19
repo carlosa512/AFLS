@@ -858,4 +858,102 @@ export function deliverMail(league: League): void {
   if (inbox.length > KEEP) inbox.splice(0, inbox.length - KEEP);
 }
 
-export const unreadCount = (league: League) => league.inbox?.reduce((n, m) => n + (m.read ? 0 : 1), 0) ?? 0;
+/** Messages still in the inbox: not filed away, not deleted. */
+export const inInbox = (m: InboxMessage) => !m.archived && !m.deleted;
+
+/** Unread in the inbox, as it lists them: a folded day of letters counts once. */
+export const unreadCount = (league: League) => new Set((league.inbox ?? []).filter((m) => !m.read && inInbox(m)).map(threadKey)).size;
+
+/** File messages away (they're read by then), or bring them back. */
+export function archiveMail(league: League, ids: readonly string[], archived = true): void {
+  const pick = new Set(ids);
+  for (const m of league.inbox ?? []) {
+    if (!pick.has(m.id)) continue;
+    if (archived) {
+      m.archived = true;
+      m.read = true;
+    } else delete m.archived;
+  }
+}
+
+/** Delete messages, or bring them back. A deleted message stays on file, hidden, so delivery never files it again. */
+export function deleteMail(league: League, ids: readonly string[], deleted = true): void {
+  const pick = new Set(ids);
+  for (const m of league.inbox ?? []) {
+    if (!pick.has(m.id)) continue;
+    if (deleted) {
+      m.deleted = true;
+      m.read = true;
+    } else delete m.deleted;
+  }
+}
+
+/** File away everything read that no longer asks anything of you. */
+export function archiveRead(league: League): void {
+  archiveMail(
+    league,
+    (league.inbox ?? []).filter((m) => m.read && inInbox(m) && !needsYou(league, m)).map((m) => m.id),
+  );
+}
+
+/**
+ * Kinds whose messages from the same day fold into one: a stack of agents' letters as the league year opens, a
+ * week's injuries, the all-clears, retirements, our players' honors.
+ */
+const FOLDED = new Set<MailSubject['kind']>(['contract', 'retirement', 'injury', 'cleared', 'award']);
+
+/** A message, or the same day's messages of one kind folded together, newest first. */
+export interface MailThread {
+  key: string;
+  kind: MailSubject['kind'] | null;
+  messages: InboxMessage[];
+}
+
+/** What a message folds under: its kind and day, or (for kinds that don't fold) itself. */
+export function threadKey(m: InboxMessage): string {
+  const kind = mailSubject(m)?.kind;
+  return kind && FOLDED.has(kind) ? `${kind}:${m.season}:${m.phase}:${m.week}` : m.id;
+}
+
+/** Who a thread is from and what it's about: a folded day of mail gets its own line ("9 contracts are up"). */
+export function threadLabel(t: MailThread): { from: string; subject: string } {
+  const [lead] = t.messages;
+  const n = t.messages.length;
+  if (n === 1) return { from: lead.from, subject: lead.subject };
+  switch (t.kind) {
+    case 'contract':
+      return { from: "Players' agents", subject: `${n} contracts are up` };
+    case 'injury':
+      return { from: lead.from, subject: `Injury report: ${n} players hurt` };
+    case 'cleared':
+      return { from: lead.from, subject: `${n} players cleared to play` };
+    case 'retirement':
+      return { from: 'Your players', subject: `${n} players retire` };
+    case 'award':
+      return { from: 'League office', subject: `${n} of our players honored` };
+    default:
+      return { from: lead.from, subject: `${lead.subject} and ${n - 1} more` };
+  }
+}
+
+/** One person's line inside a folded thread: the subject without what the thread already says. */
+export function memberTitle(m: InboxMessage): string {
+  return m.subject.replace(/'s contract is up$/, '').replace(/ is cleared to play$/, '').replace(/ retires$/, '');
+}
+
+/** Fold messages (newest first) into threads, each where its newest message is. */
+export function threads(messages: readonly InboxMessage[]): MailThread[] {
+  const byKey = new Map<string, MailThread>();
+  const out: MailThread[] = [];
+  for (const m of messages) {
+    const key = threadKey(m);
+    let t = byKey.get(key);
+    if (!t) {
+      t = { key, kind: mailSubject(m)?.kind ?? null, messages: [] };
+      byKey.set(key, t);
+      out.push(t);
+    }
+    t.messages.push(m);
+  }
+  return out;
+}

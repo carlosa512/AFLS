@@ -215,11 +215,12 @@ describe('home widgets', () => {
   it('puts what needs you first, then the unread, newest first', () => {
     const { needs, rows } = waitingMail(league);
     expect(rows.length).toBeGreaterThan(0);
-    const firstOther = rows.findIndex((m) => !needs.has(m.id));
-    if (firstOther >= 0) for (const m of rows.slice(firstOther)) expect(needs.has(m.id)).toBe(false);
-    for (const m of rows) expect(needs.has(m.id) === needsYou(league, m) && (needs.has(m.id) || !m.read)).toBe(true);
+    const needy = (t: (typeof rows)[number]) => t.messages.some((m) => needs.has(m.id));
+    const firstOther = rows.findIndex((t) => !needy(t));
+    if (firstOther >= 0) for (const t of rows.slice(firstOther)) expect(needy(t)).toBe(false);
+    for (const m of rows.flatMap((t) => t.messages)) expect(needs.has(m.id) === needsYou(league, m) && (needs.has(m.id) || !m.read)).toBe(true);
     const order = league.inbox!.map((m) => m.id);
-    const unread = rows.filter((m) => !needs.has(m.id)).map((m) => order.indexOf(m.id));
+    const unread = rows.filter((t) => !needy(t)).map((t) => order.indexOf(t.messages[0].id));
     expect(unread).toEqual([...unread].sort((a, b) => b - a));
   });
 });

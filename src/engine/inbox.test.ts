@@ -3,7 +3,7 @@ import { seasonAwards } from './awards';
 import { coachTitle, isCoachExpiring, teamCoaches } from './coaching';
 import { logTransaction } from './finance/cap';
 import { createLeague } from './generate';
-import { deliverMail, draftClassOf, freeAgencyMoves, headCoachChanges, mailSubject, markAllRead, needsYou, unreadCount } from './inbox';
+import { archiveMail, archiveRead, deleteMail, deliverMail, draftClassOf, freeAgencyMoves, headCoachChanges, mailSubject, markAllRead, needsYou, threadLabel, threads, unreadCount } from './inbox';
 import { isMedicExpiring, teamMedics } from './medical';
 import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
@@ -102,6 +102,40 @@ describe('inbox', () => {
     deliverMail(league);
     expect(league.inbox!.filter((m) => m.id.startsWith('owner:') || m.id.startsWith('staff:'))).toHaveLength(1 + deals.length);
   }, 30_000);
+
+  it('folds a day of agents\' letters into one, and leaves other mail as it is', () => {
+    const all = [...league.inbox!].reverse();
+    const letters = all.filter((m) => m.id.startsWith(`contracts:${league.season}:`));
+    const list = threads(all);
+    const folded = list.find((t) => t.kind === 'contract')!;
+    expect(folded.messages).toEqual(letters);
+    if (letters.length > 1) expect(threadLabel(folded).subject).toBe(`${letters.length} contracts are up`);
+    // Every message is in exactly one thread, and kinds that don't fold stand alone.
+    expect(list.flatMap((t) => t.messages)).toHaveLength(all.length);
+    for (const t of list) if (t.kind === 'owner' || t.kind === 'matchup' || t.kind === 'recap') expect(t.messages).toHaveLength(1);
+  });
+
+  it('archives and deletes, with an undo, and never files a deleted message again', () => {
+    const l = copy(league);
+    const [first, second] = l.inbox!.filter((m) => m.id.startsWith(`contracts:${l.season}:`));
+    archiveMail(l, [first.id]);
+    expect(l.inbox!.find((m) => m.id === first.id)).toMatchObject({ archived: true, read: true });
+    // Archived mail is out of the inbox's unread count.
+    archiveMail(l, l.inbox!.map((m) => m.id));
+    expect(unreadCount(l)).toBe(0);
+    archiveMail(l, l.inbox!.map((m) => m.id).filter((id) => id !== first.id), false);
+    archiveMail(l, [first.id], false);
+    expect(l.inbox!.find((m) => m.id === first.id)!.archived).toBeUndefined();
+    deleteMail(l, [second.id]);
+    const before = l.inbox!.length;
+    deliverMail(l);
+    expect(l.inbox!.length).toBe(before);
+    expect(l.inbox!.find((m) => m.id === second.id)!.deleted).toBe(true);
+    // Archive read files away only what's read and no longer asks anything.
+    markAllRead(l);
+    archiveRead(l);
+    for (const m of l.inbox!) if (!m.deleted) expect(!!m.archived).toBe(!needsYou(l, m));
+  });
 
   it('opens the league year with expiring deals and retirements, and the combine with free agency', () => {
     const year = league.inbox!.filter((m) => m.season === league.season && m.phase === 'resign');
