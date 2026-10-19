@@ -363,6 +363,8 @@ export function signMinimum(league: League, team: Team, rng: Rng, position?: Pos
   if (!pick && position) pick = streetFreeAgent(league, position, rng);
   if (!pick) return false;
   const min = minSalary(pick.experience, cap);
+  // A street free agent's minimum can run past the room left: he stays on the market.
+  if (min > budget) return false;
   signPlayer(league, pick, team.id, { years: 1, apy: min, bonusPct: 0, gtdPct: 0, voidYears: 0 }, 'minimum');
   return true;
 }
@@ -381,6 +383,9 @@ export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
   // Get legal before topping up (the minimums above can tip a team over, and the cut that fixes it opens a spot),
   // then sign only deals that fit, so the 53 fills without going back over.
   aiCapCompliance(league, team);
+  // A position a cap cut left short fills first, then the 53 fills with whoever's best.
+  const short = (pos: Position) => activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos];
+  for (const pos of POSITIONS) while (short(pos) && activeRoster(league, team.id).length < ROSTER_MAX) if (!signMinimum(league, team, rng, pos, capSpace(league, team.id))) break;
   while (activeRoster(league, team.id).length < ROSTER_MAX && capSpace(league, team.id) >= minSalary(1, league.caps[league.season])) if (!signMinimum(league, team, rng, undefined, capSpace(league, team.id))) break;
   syncDepthChart(league, team);
 }

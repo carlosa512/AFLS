@@ -206,7 +206,9 @@ describe('end-of-game rules (regressions)', () => {
       const i = plays.indexOf(last);
       const before = plays[i - 1];
       const diff = last.offense === game.homeId ? before.homeScore - before.awayScore : before.awayScore - before.homeScore;
-      if (diff < 0) expect(last.kind).not.toBe('run');
+      // A run that scores (a go-ahead touchdown with seconds left) isn't one that lets the clock die.
+      const scored = (last.offense === game.homeId ? last.homeScore - before.homeScore : last.awayScore - before.awayScore) > 0;
+      if (diff < 0 && !scored) expect(last.kind).not.toBe('run');
     }
   });
 
