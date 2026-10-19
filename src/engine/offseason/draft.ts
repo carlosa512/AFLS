@@ -25,7 +25,10 @@ export function generateDraftClass(league: League, rng: Rng): void {
   league.draftClass = [];
   for (let i = 0; i < DRAFT_CLASS_SIZE; i++) {
     // A steep top, a long flat middle: a few day-one starters, many projects.
-    const quality = clamp(13.5 - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** 0.6 + rng.normal(0, 0.9), 4, 16);
+    // A class a little stronger than a new league's roster would need on its own (13.7 at the top): once the
+    // generated veterans have retired, the draft alone carries the league, and at 13.5 it settled starters about
+    // 0.3 below where a new league starts (`npm run careers`, starter OVR by season).
+    const quality = clamp(13.7 - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** 0.6 + rng.normal(0, 0.9), 4, 16);
     const position = rng.weighted(CLASS_MIX, ([, w]) => w)[0];
     const p = generatePlayer(rng, { id: league.nextPlayerId++, position, quality, age: rng.int(21, 23), teamId: null, jerseysUsed: new Set() });
     p.experience = 0;

@@ -57,7 +57,9 @@ describe('trade and extend', { timeout: 30_000 }, () => {
     const pick = l.draftPicks.find((x) => x.ownerId === buyer.id && x.playerId === undefined)!;
     const record = executeTrade(l, { sides: [{ teamId: p.teamId!, players: [p.id], picks: [] }, { teamId: buyer.id, players: [], picks: [pick.id] }] }, { kind: 'sale' });
     expect(record.extended).toEqual([{ playerId: p.id, tradedOn: was }]);
-    expect(yearsLeft(l.players[p.id].contract!, l.season)).toBeGreaterThan(1);
+    // A new deal with his new team (its length is his ask: a veteran may take one year).
+    expect(l.players[p.id].contract).not.toBe(was);
+    expect(l.players[p.id].contract!.signedSeason).toBe(l.season);
   });
 
   it('never extends a player for you', () => {

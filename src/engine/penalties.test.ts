@@ -150,10 +150,11 @@ describe('special teams', () => {
     for (const g of league.games.filter((g) => g.week <= 8)) {
       const r = simulateGame(league, g, { keepPlays: true });
       for (const side of [r.home, r.away]) for (const f of FOUL_KINDS) if (FOULS[f].special && side.flags?.[f]) seen.add(f);
-      // A flagged return goes 10 yards back from the spot of the foul (half the distance near the goal).
+      // A flagged return goes 10 yards back from the spot of the foul (half the distance near the goal): toward
+      // the returning team's own goal, so down the yard lines on its side of the field and up them on the other.
       for (const p of r.plays!) {
-        const m = p.text.match(/returns to the (\w+) (\d+)\. PENALTY on \w+ \([^)]*\): (?:Holding on a return|Illegal block in the back), (\d+) yards\. Ball at the (\w+) (\d+)\./);
-        if (m && m[1] === m[4]) expect(Number(m[2]) - Number(m[3])).toBe(Number(m[5]));
+        const m = p.text.match(/returns to the (\w+) (\d+)\. PENALTY on (\w+) \([^)]*\): (?:Holding on a return|Illegal block in the back), (\d+) yards\. Ball at the (\w+) (\d+)\./);
+        if (m && m[1] === m[5]) expect(Number(m[2]) + (m[1] === m[3] ? -1 : 1) * Number(m[4])).toBe(Number(m[6]));
       }
     }
     for (const f of ['returnHolding', 'blockInBack', 'kickoffMiss', 'kickoffFormation']) expect(seen.has(f)).toBe(true);
