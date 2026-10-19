@@ -363,6 +363,25 @@ function runProbes(base: League) {
 
 const speed = { judge: NaN, week: [] as number[] };
 
+/**
+ * Milliseconds of the main thread's CPU a call takes. Wall time doubles when `npm run check` runs
+ * other checks beside this one, so a busy machine could fail the budget on its own; the process's CPU
+ * time counts V8's helper threads (garbage collection, compiling) as well. The main thread's is what
+ * the player waits for on an idle machine. Wall time where Node has no thread timer.
+ */
+const threadCpu = (process as { threadCpuUsage?: (prev?: NodeJS.CpuUsage) => NodeJS.CpuUsage }).threadCpuUsage?.bind(process);
+function cpuMs(fn: () => unknown): number {
+  if (!threadCpu) {
+    const t0 = performance.now();
+    fn();
+    return performance.now() - t0;
+  }
+  const t0 = threadCpu();
+  fn();
+  const t = threadCpu(t0);
+  return (t.user + t.system) / 1000;
+}
+
 function timeJudge(league: League) {
   const ctx = tradeContext(league);
   const rng = new Rng('judge-timing');
@@ -377,14 +396,12 @@ function timeJudge(league: League) {
   }
   // Warm the reads the way a market pass would, then time the verdicts.
   for (const [id, pr] of proposals) judge(ctx, id, pr);
-  const t0 = performance.now();
-  for (const [id, pr] of proposals) judge(ctx, id, pr);
-  speed.judge = (performance.now() - t0) / proposals.length;
+  speed.judge = cpuMs(() => proposals.forEach(([id, pr]) => judge(ctx, id, pr))) / proposals.length;
 }
 
 // ───────── 6. Volume and mix ─────────
 
-const volume = { inSeason: [] as number[], deadline: 0, offseason: [] as number[], all: [] as TradeRecord[], seasons: 0 };
+const volume = { inSeason: [] as number[], deadline: 0, offseason: [] as number[], all: [] as TradeRecord[], seasons: 0, startingQbs: 0 };
 const speedOff: number[] = [];
 
 /** Every trade a step made: value it in the truth, and check both teams after. */
@@ -422,13 +439,13 @@ for (let i = 0; i < LEAGUES; i++) {
       // The market alone, timed on a copy (the real week runs it again inside playWeek).
       if (timing && gamesInWeek(league).length) {
         const copy = clone(league);
-        const t0 = performance.now();
-        marketMoment(copy, weekMoment(copy));
-        speed.week.push(performance.now() - t0);
+        speed.week.push(cpuMs(() => marketMoment(copy, weekMoment(copy))));
       }
       const from = historyLength(league);
+      const starters = new Set(league.teams.map((t) => t.depthChart.QB[0]));
       playWeek(league);
       audit(league, label, from);
+      volume.startingQbs += (league.market?.history ?? []).slice(from).filter((r) => r.phase === 'regular' && r.sides.some((x) => x.players.some((id) => starters.has(id)))).length;
     }
     const season = (league.market?.history ?? []).slice(startSeason).filter((r) => r.phase === 'regular');
     volume.inSeason.push(season.length);
@@ -441,17 +458,13 @@ for (let i = 0; i < LEAGUES; i++) {
     audit(league, label, from);
     if (timing) {
       const copy = clone(league);
-      const t0 = performance.now();
-      marketMoment(copy, 'leagueYear');
-      speedOff.push(performance.now() - t0);
+      speedOff.push(cpuMs(() => marketMoment(copy, 'leagueYear')));
     }
     for (let guard = 0; guard < 20 && league.phase !== 'regular'; guard++) {
       from = historyLength(league);
       if (timing && (league.phase === 'freeAgency' || league.phase === 'preseason')) {
         const copy = clone(league);
-        const t0 = performance.now();
-        marketMoment(copy, league.phase === 'freeAgency' ? 'faDay' : 'camp');
-        speedOff.push(performance.now() - t0);
+        speedOff.push(cpuMs(() => marketMoment(copy, league.phase === 'freeAgency' ? 'faDay' : 'camp')));
       }
       advanceOffseason(league, { autoUser: true });
       audit(league, label, from);
@@ -500,6 +513,8 @@ check('picks for players (%)', share((r) => r.kind !== 'swap' && r.kind !== 'dum
 check('player swaps (%)', share((r) => r.kind === 'swap'), [5, 15]);
 check('cap dumps, a season', volume.all.filter((r) => r.kind === 'dump').length / Math.max(1, volume.seasons), [1, 4], 1);
 check('a pick going each way, a late one riding back (%)', share((r) => r.sides.every((x) => x.picks.length > 0)), [10, 25]);
+// Palmer (2011), Dobbs (2023) and Flacco (2025): a starting quarterback moves in season once every few years.
+check('starting quarterbacks traded in season, a season', volume.startingQbs / Math.max(1, volume.seasons), [0, 0.5], 2);
 check('division rivals (%)', share((r) => {
   const [a, b] = r.sides.map((x) => x.teamId);
   return a < 32 && b < 32 && DIVISION_OF[a] === DIVISION_OF[b];

@@ -7,7 +7,7 @@
  *
  * - buyers (contenders, bubble teams) go after the block players they've been watching;
  * - sellers (retoolers, rebuilders) shop their block to the teams that need each player;
- * - a team squeezed against the cap pays to move a bad contract.
+ * - a team squeezed against the cap pays to move a bad contract (in season only on deadline day).
  *
  * Every deal is judged by both GMs with `judge`; nothing here touches the user's team (offers to the
  * user come in Phase 2). The market draws from its own stream, like injuries and weather.
@@ -19,17 +19,17 @@ import type { League, Rumor, Team, TradeMarket, TradeRecord } from '../types';
 import { refreshAfterTrade, tradeContext, type TradeContext } from './context';
 import { dealFor, dumpFor, type Deal } from './deals';
 import { emptyMarket, executeTrade } from './execute';
-import { interestIn, isBuyer, stanceScore, teamNeeds, tradeBlock, updateInterest, updateStances, wanted, type BlockEntry } from './plans';
+import { interestIn, isBuyer, stanceOf, stanceScore, teamNeeds, tradeBlock, updateInterest, updateStances, wanted, type BlockEntry } from './plans';
 import { tradeWindow, TRADE_DEADLINE_WEEK } from './rules';
 import { marketValue, salaryWeight } from './value';
 
 export type Moment = 'leagueYear' | 'faDay' | 'camp' | 'week' | 'deadline';
 
 /** How busy each moment is against an ordinary early-season week (weeks 7–8 run at twice it). */
-const MOMENT_ACTIVITY: Record<Moment, number> = { leagueYear: 1.4, faDay: 0.4, camp: 0.9, week: 0.35, deadline: 4.5 };
+const MOMENT_ACTIVITY: Record<Moment, number> = { leagueYear: 2, faDay: 0.5, camp: 1.2, week: 0.35, deadline: 4.5 };
 
 /** The one league-wide knob, tuned so the market lands on the NFL's volumes (`npm run trades`). */
-export const TRADE_VOLUME = 0.25;
+export const TRADE_VOLUME = 0.28;
 
 /** A GM's appetite for dealing, by archetype: deal-makers call, hard-liners sit tight. */
 const ARCHETYPE_ACTIVITY: Record<string, number> = { 'All-In': 0.85, 'Pick Hoarder': 0.7, 'Cap Magician': 0.6, 'Can-Kicker': 0.6, Balanced: 0.5, 'Draft and Develop': 0.4, 'Hard-Liner': 0.25 };
@@ -52,7 +52,7 @@ function capped(league: League, market: TradeMarket, team: Team): boolean {
 type Listing = { team: Team; entry: BlockEntry };
 
 /** One GM's call: what he buys, sells or dumps, or nothing that both sides take. */
-function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Moment, listings: readonly Listing[], open: (t: Team) => boolean): Deal | null {
+function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Moment, listings: readonly Listing[], open: (t: Team) => boolean, firstCall: boolean): Deal | null {
   const { league } = ctx;
   const ai = league.teams.filter((t) => t.id !== league.userTeamId && t.id !== team.id && open(t));
   if (isBuyer(team)) {
@@ -64,10 +64,11 @@ function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Mo
       if (deal) return deal;
     }
   } else {
-    // A seller calls the teams that would want each of his players.
+    // A seller calls the teams that would want each of his players: buyers, and retoolers for a young one.
     for (const entry of tradeBlock(ctx, team).slice(0, 3)) {
       const player = league.players[entry.playerId];
       const buyers = ai
+        .filter((b) => isBuyer(b) || (stanceOf(b) === 'retool' && player.age <= 25))
         .map((b) => ({ b, w: wanted(ctx, b, [{ team, entry }])[0] }))
         .filter((x) => x.w)
         // Teams that have been asking first, division rivals last.
@@ -79,9 +80,10 @@ function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Mo
       }
     }
   }
-  // Cap dumps are an offseason business; in season only deadline day sees one, from a team truly squeezed.
-  const squeezed = salaryWeight(ctx, team.id) >= (league.phase === 'regular' ? 1.6 : 1.5);
-  if (squeezed && (league.phase !== 'regular' || moment === 'deadline')) {
+  // A team truly squeezed moves a bad contract when the league year opens (before the money's
+  // guaranteed), in camp before the cuts, or (rarely) on deadline day.
+  const squeezed = salaryWeight(ctx, team.id) >= 1.6;
+  if (squeezed && (moment === 'leagueYear' || moment === 'camp' || (moment === 'deadline' && firstCall))) {
     for (const entry of tradeBlock(ctx, team).filter((e) => e.reason === 'overpaid').slice(0, 2)) {
       const deal = dumpFor(ctx, team, league.players[entry.playerId], ai);
       if (deal) return deal;
@@ -90,9 +92,12 @@ function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Mo
   return null;
 }
 
-/** A team the market can still deal with this moment: not the user's, not one that's already traded, not at its limit. */
-function opener(league: League, market: TradeMarket, busy: ReadonlySet<number>) {
-  return (t: Team) => t.id !== league.userTeamId && !busy.has(t.id) && !capped(league, market, t);
+/** Trades a team makes in one moment: on deadline day a seller moves a second player. */
+const perMoment = (moment: Moment) => (moment === 'deadline' ? 2 : 1);
+
+/** A team the market can still deal with this moment: not the user's, not one done for the moment, not at its limit. */
+function opener(league: League, market: TradeMarket, busy: ReadonlyMap<number, number>, moment: Moment) {
+  return (t: Team) => t.id !== league.userTeamId && (busy.get(t.id) ?? 0) < perMoment(moment) && !capped(league, market, t);
 }
 
 /** Run one market moment: stances, plans, interest, the calls, rumors. Returns the trades made. */
@@ -110,20 +115,22 @@ export function marketMoment(league: League, moment: Moment): TradeRecord[] {
   updateInterest(ctx, market, ai, listings);
 
   const made: TradeRecord[] = [];
-  const busy = new Set<number>();
-  const open = opener(league, market, busy);
+  const busy = new Map<number, number>();
+  const open = opener(league, market, busy, moment);
   const pace = MOMENT_ACTIVITY[moment] * (moment === 'week' && league.week >= 7 ? 2 : 1);
-  for (const team of rng.shuffle([...ai])) {
+  // Deadline day is a day of calls: every GM gets a second round.
+  const calls = Array.from({ length: perMoment(moment) }, () => rng.shuffle([...ai])).flat();
+  for (const [i, team] of calls.entries()) {
     if (!open(team)) continue;
     const urgency = teamNeeds(ctx, team)[0]?.urgency ?? 0;
     const sure = Math.abs(stanceScore(ctx, team));
     const p = TRADE_VOLUME * pace * (0.4 + 0.9 * gmActivity(league, team)) * (0.6 + 0.8 * sure) * (0.5 + urgency);
     if (!rng.chance(Math.min(1, p))) continue;
-    const deal = initiate(ctx, market, team, moment, listings, open);
+    const deal = initiate(ctx, market, team, moment, listings, open, i < ai.length);
     if (!deal) continue;
     made.push(executeTrade(league, deal.proposal, { kind: deal.kind, tag: deal.tag }));
     for (const side of deal.proposal.sides) {
-      busy.add(side.teamId);
+      busy.set(side.teamId, (busy.get(side.teamId) ?? 0) + 1);
       // A team over the limit waives a backup, as `judge` priced in (`rosterCuts`).
       aiCutdown(league, league.teams[side.teamId], rosterLimit(league));
     }

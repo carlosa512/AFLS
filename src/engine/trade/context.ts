@@ -6,7 +6,8 @@
  */
 import type { Coaching } from '../coaching';
 import { capSheet } from '../finance/cap';
-import { leagueMarket, type Market } from '../finance/market';
+import { leagueMarket, minSalary, type Market } from '../finance/market';
+import { ROSTER_MAX } from '../offseason/negotiation';
 import { playerOvr } from '../positions';
 import { perceive, type PlayerView } from '../scouting';
 import type { TeamScheme } from '../schemes';
@@ -114,6 +115,18 @@ export function refreshAfterTrade(ctx: TradeContext, teamIds: readonly number[],
 }
 
 export const rosterOf = (ctx: TradeContext, teamId: number): Player[] => ctx.rosters.get(teamId) ?? [];
+
+/**
+ * What an AI front office will spend on a trade: its cap space, less, in the offseason, minimum deals
+ * for every spot it still has to fill to 53. A team that spent that money on a trade in free agency
+ * reached kickoff short-handed and over the cap.
+ */
+export function spendable(ctx: TradeContext, teamId: number): number {
+  const { league } = ctx;
+  if (league.phase === 'regular' || league.phase === 'playoffs') return capRoom(ctx, teamId);
+  const open = Math.max(0, ROSTER_MAX - rosterOf(ctx, teamId).filter((p) => !p.ir).length);
+  return capRoom(ctx, teamId) - open * minSalary(0, ctx.market.cap);
+}
 
 /** A player's true overall, worked out once per pass: rosters are ranked and lined up against it again and again. */
 export function ovrOf(ctx: TradeContext, p: Player): number {

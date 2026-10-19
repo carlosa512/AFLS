@@ -96,23 +96,30 @@ export function freshSigningRefusal(league: League, teamId: number, proposal: Tr
 /** Cap space and dead money each side would have after the trade. */
 export function tradeCapImpact(league: League, proposal: TradeProposal, ctx: TradeContext = tradeContext(league)) {
   const post = autoPostJune1(league.phase);
+  // Until camp only the 51 biggest cap hits count (`capSheet`): sending one away lets the 52nd in.
+  const top51 = league.phase === 'resign' || league.phase === 'freeAgency' || league.phase === 'draft';
   return proposal.sides.map((side, i) => {
     const other = proposal.sides[1 - i];
-    let space = capRoom(ctx, side.teamId);
+    const roster = rosterOf(ctx, side.teamId);
+    const gone = new Set(side.players);
     let dead = 0;
+    let deadNow = 0;
     for (const id of side.players) {
       const c = league.players[id].contract!;
       const split = deadMoney(c, league.season, { paid: paidShare(league, c), postJune1: post, trade: true });
-      space += capHit(c, league.season) - split.thisYear;
+      deadNow += split.thisYear;
       dead += split.thisYear + split.nextYear;
     }
-    for (const id of other.players) {
-      // The new team takes only the unpaid base salary; the bonus stays behind.
+    // The new team takes only the unpaid base salary; the bonus stays behind.
+    const arriving = other.players.map((id) => {
       const c = league.players[id].contract!;
-      const base = c.years.find((y) => y.season === league.season)?.base ?? 0;
-      space -= base * (1 - paidShare(league, c));
-    }
-    return { teamId: side.teamId, space, dead };
+      return (c.years.find((y) => y.season === league.season)?.base ?? 0) * (1 - paidShare(league, c));
+    });
+    const hit = (p: Player) => (p.contract ? capHit(p.contract, league.season) : 0);
+    const counted = (hits: number[]) => (top51 ? hits.sort((a, b) => b - a).slice(0, 51) : hits).reduce((a, b) => a + b, 0);
+    const before = counted(roster.map(hit));
+    const after = counted([...roster.filter((p) => !gone.has(p.id)).map(hit), ...arriving]);
+    return { teamId: side.teamId, space: capRoom(ctx, side.teamId) + before - after - deadNow, dead };
   });
 }
 

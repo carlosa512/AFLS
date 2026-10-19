@@ -13,7 +13,7 @@ import { clamp } from '../rng';
 import { computeRecords, conferenceSeeds, winPct, type TeamRecord } from '../season/standings';
 import type { League, Player, Position, Stance, Team, TradeMarket } from '../types';
 import { POSITIONS } from '../types';
-import { capRoom, ovrOf, rosterOf, type TradeContext } from './context';
+import { ovrOf, rosterOf, spendable, type TradeContext } from './context';
 import { freshlySigned, playerTradeBlocker, salaryToTake } from './rules';
 import { POSITION_TRADE, readPlayer, salaryWeight, TRADE_BAND } from './value';
 
@@ -181,7 +181,7 @@ export interface BlockEntry {
 }
 
 /**
- * Players a team won't discuss: a buyer's starting quarterback (anyone's in season), and its best young players (by
+ * Players a team won't discuss: a contender's starting quarterback, and its best young players (by
  * the overall it knows exactly) for a loyal GM, the most loyal keeping four, the least one. Worked
  * out once per team and pass.
  */
@@ -192,9 +192,7 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
   const roster = rosterOf(ctx, team.id);
   const out = new Set<number>();
   const qbs = roster.filter((p) => p.position === 'QB').sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a));
-  // A buyer keeps a good starting quarterback, and in season nobody trades the one it starts (Palmer to
-  // Oakland in 2011 is the rare exception): the Stafford and Wilson trades were made in the offseason.
-  if (qbs[0] && ((isBuyer(team) && ovrOf(ctx, qbs[0]) >= 14) || league.phase === 'regular')) out.add(qbs[0].id);
+  if (qbs[0] && isBuyer(team) && ovrOf(ctx, qbs[0]) >= 14) out.add(qbs[0].id);
   if (team.gm.loyalty >= 0.5) {
     roster
       .filter((q) => q.age <= 25 && underContract(league, q))
@@ -242,8 +240,9 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
     if (starterGrade && mode === 'rebuild' && p.age - ageShift(p.position) >= 28) add('veteran', 0.6);
     if (r >= ROSTER_TEMPLATE[p.position] || (p.position === 'QB' && r >= 2)) add('surplus', 0.4);
     else if (r >= S && ovrOf(ctx, p) >= line[p.position]) add('surplus', 0.5);
-    // Only a big salary can be a burden worth paying to move: one well above what the market pays a player of his rank.
-    if (tight && salaryToTake(league, p) > 0.015 * league.caps[league.season]) {
+    // Only a big salary can be a burden worth paying to move: one well above what the market pays a
+    // player of his rank, and with a year or two left (Osweiler had one). A longer bust gets cut, not traded.
+    if (tight && left <= 2 && salaryToTake(league, p) > 0.015 * league.caps[league.season]) {
       const read = readPlayer(ctx, team, p);
       if (salaryWeight(ctx, team.id) * (read.pay - read.cost) < -OVERPAID) add('overpaid', 0.75);
     }
@@ -298,7 +297,7 @@ export function wanted(ctx: TradeContext, team: Team, from: readonly Listing[], 
     if (hit) return hit;
   }
   const { league } = ctx;
-  const room = capRoom(ctx, team.id);
+  const room = spendable(ctx, team.id);
   const out: Wanted[] = [];
   const needs = teamNeeds(ctx, team);
   const listed = byPosition(league, from);

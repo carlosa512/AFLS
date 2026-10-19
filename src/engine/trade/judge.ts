@@ -111,6 +111,15 @@ function deadRefusal(league: League, team: Team, mine: TradeSide): string | null
   return over(league.season, added.thisYear) || over(league.season + 1, added.nextYear) ? "They can't take on any more dead money this year." : null;
 }
 
+/**
+ * What a team wants on top for its starting quarterback in the middle of a season: twice its usual
+ * ask. It happens only for an offer too good to refuse (Palmer to Oakland in 2011, a first and a
+ * second): the Stafford and Wilson trades were made in the offseason.
+ */
+const QB_PREMIUM = 1;
+
+const startsAtQb = (league: League, team: Team, mine: TradeSide) => league.phase === 'regular' && mine.players.includes(team.depthChart.QB[0]);
+
 /** The margin a GM wants over what he gives: a small win against the user, merely not losing to another AI. */
 export function marginFor(team: Team, other: Team, vsUser = false): number {
   // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want a lot more.
@@ -133,7 +142,7 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const size = rosterOf(ctx, teamId).filter((p) => !p.ir).length - mine.players.length + theirs.players.length;
   const get = pickIn + gain - Math.max(0, size - rosterLimit(league)) * ROSTER_SPOT;
   const give = pickOut + loss;
-  const margin = opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser);
+  const margin = (opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser)) + (startsAtQb(league, team, mine) ? QB_PREMIUM : 0);
   // The margin is a share of the stakes, so it asks for more back whether the stakes are positive or not.
   const lift = (x: number) => x + Math.abs(x) * (margin - 1);
   let base = give;

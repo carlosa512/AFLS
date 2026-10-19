@@ -8,7 +8,7 @@
 import { isExpired, yearsLeft } from '../finance/contract';
 import { STARTERS } from '../positions';
 import type { DealKind, DraftPick, Player, Team } from '../types';
-import { capRoom, ovrOf, rosterOf, type TradeContext } from './context';
+import { ovrOf, rosterOf, spendable, type TradeContext } from './context';
 import { judge, marginFor, STAR, type Judgement } from './judge';
 import { isSeller, stanceOf, starterLine, teamNeeds, untouchables } from './plans';
 import { freshlySigned, playerTradeBlocker, salaryToTake, type TradeProposal, type TradeSide } from './rules';
@@ -27,7 +27,9 @@ const SWAP_TRIES = 3;
 /** A seller left this far ahead (about a fifth-round pick) hands back a late pick to even it out. */
 const BALANCE = 40;
 /** A player worth sending in a swap: about a late fourth-round pick's worth to the seller or more, not a throw-in to fill a roster spot. */
-const SWAP_WORTH = 75;
+const SWAP_WORTH = 70;
+/** How much better (points, in his own eyes) a swap must leave the buyer than his best pick package. */
+const SWAP_EDGE = 25;
 
 /** A team's unused picks, the most valuable to `valuer` first. */
 function picksOf(ctx: TradeContext, teamId: number, valuer: Team): DraftPick[] {
@@ -76,6 +78,9 @@ function findSwapPieces(ctx: TradeContext, buyer: Team, seller: Team): Player[] 
   return roster
     .filter((p) => !keep.has(p.id) && rank.get(p.id)! >= STARTERS[p.position])
     .filter((p) => (needs.has(p.position) && ovrOf(ctx, p) >= line[p.position] - 1) || (stanceOf(seller) === 'rebuild' && p.age <= 24))
+    // The six best on the buyer's own exact read before the seller scouts them: each read costs.
+    .sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a))
+    .slice(0, 6)
     .map((p) => ({ p, v: marketValue(ctx, seller, p) }))
     .filter((x) => x.v >= SWAP_WORTH)
     .sort((a, b) => b.v - a.v)
@@ -102,12 +107,12 @@ export const TAGS: Record<DealKind, string> = {
   user: '',
 };
 
-/** A late pick back from a seller the package leaves well ahead, if both still say yes. */
+/** A pick back from a seller the package leaves well ahead: the biggest that evens it out, if both still say yes. */
 function balance(ctx: TradeContext, proposal: TradeProposal, ahead: number): TradeProposal {
   if (ahead < BALANCE) return proposal;
   const [buys, sells] = proposal.sides;
   const seller = ctx.league.teams[sells.teamId];
-  const back = picksOf(ctx, seller.id, seller).reverse().slice(0, 6);
+  const back = picksOf(ctx, seller.id, seller).filter((pk) => goingRate(ctx.league, pk, ctx) <= ahead);
   for (const pk of back) {
     const tried: TradeProposal = { sides: [buys, { ...sells, picks: [...sells.picks, pk.id] }] };
     if (judge(ctx, seller.id, tried, { rosterCuts: true }).accepts && judge(ctx, buys.teamId, tried, { rosterCuts: true }).accepts) return tried;
@@ -115,37 +120,45 @@ function balance(ctx: TradeContext, proposal: TradeProposal, ahead: number): Tra
   return proposal;
 }
 
-/** A seller with nobody else asking settles for this share of what the buyer could pay above his floor; each rival bidder adds to it. */
-const LEVERAGE = 0.2;
+/** What each other team asking about a player adds to his price, and the most that competition adds. */
 const PER_BIDDER = 0.1;
-const MAX_LEVERAGE = 0.4;
+const MAX_PREMIUM = 0.2;
+/** The most any GM pays for a player: about a third over what the league would pay (Ramsey, Mack). */
+const MAX_OVER = 1.35;
 
 type Tried = { proposal: TradeProposal; sells: Judgement; buys: Judgement };
 
 /**
- * The package for `target` that his team and `buyer` both accept, or null. The price lands between
- * the seller's floor and what the buyer could pay, nearer the top the more teams are asking about
- * him; and the buyer sends whichever of picks or a player costs him less in his own eyes.
+ * The package for `target` that his team and `buyer` both accept, or null. The seller asks what the
+ * league would pay for him, more when other teams are asking too, never less than his floor nor more
+ * than the buyer could pay: a desperate buyer's need is his own business, competition is what raises
+ * a price. The buyer sends whichever of picks or a player costs him less in his own eyes.
  */
 export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | null {
   const { league } = ctx;
   const seller = league.teams[target.teamId!];
-  if (salaryToTake(league, target) > capRoom(ctx, buyer.id)) return null;
+  if (salaryToTake(league, target) > spendable(ctx, buyer.id)) return null;
   const theirs: TradeSide = { teamId: seller.id, players: [target.id], picks: [] };
   const nothing: TradeProposal = { sides: [{ teamId: buyer.id, players: [], picks: [] }, theirs] };
   const ask = judge(ctx, seller.id, nothing).need;
   const most = judge(ctx, buyer.id, nothing, { rosterCuts: true }).get / marginFor(buyer, seller);
   const bidders = (league.market?.interest ?? []).filter((x) => x.playerId === target.id && x.teamId !== buyer.id).length;
-  const price = ask + Math.min(MAX_LEVERAGE, LEVERAGE + PER_BIDDER * bidders) * Math.max(0, most - ask);
+  const worth = marketValue(ctx, seller, target);
+  const asking = worth * (1 + Math.min(MAX_PREMIUM, PER_BIDDER * bidders));
+  const price = Math.max(ask, Math.min(asking, most));
+  // A seller who wants more than that for him isn't really selling.
+  const ceiling = Math.max(MAX_OVER * worth, 0);
   // A quick read of a package at the league's prices (the going rate, market value), before the full verdicts.
   const quick = (side: TradeSide) =>
     side.picks.reduce((s, id) => s + goingRate(league, league.draftPicks.find((x) => x.id === id)!, ctx), 0) +
     side.players.reduce((s, id) => s + marketValue(ctx, seller, league.players[id]), 0);
   const all = packages(ctx, buyer, seller);
-  const picks = search(ctx, buyer, seller, theirs, all.filter((x) => !x.players.length), quick, ask, price, TRIES);
-  const swap = search(ctx, buyer, seller, theirs, all.filter((x) => x.players.length), quick, ask, price, SWAP_TRIES);
+  const affordable = all.filter((x) => quick(x) <= ceiling);
+  const picks = search(ctx, buyer, seller, theirs, affordable.filter((x) => !x.players.length), quick, ask, price, TRIES);
+  const swap = search(ctx, buyer, seller, theirs, affordable.filter((x) => x.players.length), quick, ask, price, SWAP_TRIES);
+  // Picks are the NFL's currency: a player goes the other way only when that's clearly cheaper.
   const net = (t: Tried | null) => (t ? t.buys.get - t.buys.give : -Infinity);
-  const best = net(swap) > net(picks) ? swap : picks;
+  const best = net(swap) > net(picks) + SWAP_EDGE ? swap : picks;
   if (!best) return null;
   const kind = kindOf(ctx, seller, target, best.proposal.sides[0]);
   return { proposal: balance(ctx, best.proposal, quick(best.proposal.sides[0]) - price), kind, tag: TAGS[kind] };
@@ -178,6 +191,9 @@ function search(ctx: TradeContext, buyer: Team, seller: Team, theirs: TradeSide,
   return null;
 }
 
+/** The worst contract a team takes on in a dump, in points under water: about a late first (Osweiler's was a second's worth). Bigger busts get cut. */
+const DUMP_LIMIT = 600;
+
 /**
  * A cap-strapped team pays to move a bad contract: to a team with room (a low salary weight) that
  * takes it on for the cheapest pick it will, or for nothing if the contract isn't that bad.
@@ -185,10 +201,11 @@ function search(ctx: TradeContext, buyer: Team, seller: Team, theirs: TradeSide,
 export function dumpFor(ctx: TradeContext, sender: Team, player: Player, among: readonly Team[]): Deal | null {
   const { league } = ctx;
   const absorbers = among
-    .filter((t) => t.id !== sender.id && salaryWeight(ctx, t.id) <= 0.85 && capRoom(ctx, t.id) >= 1.1 * salaryToTake(league, player))
+    .filter((t) => t.id !== sender.id && salaryWeight(ctx, t.id) <= 0.85 && spendable(ctx, t.id) >= 1.1 * salaryToTake(league, player))
     .sort((a, b) => salaryWeight(ctx, a.id) - salaryWeight(ctx, b.id))
     .slice(0, 4);
   for (const absorber of absorbers) {
+    if (marketValue(ctx, absorber, player) < -DUMP_LIMIT) continue;
     const sweeteners = [null, ...picksOf(ctx, sender.id, absorber).reverse().slice(0, 14)];
     for (const pk of sweeteners) {
       const proposal: TradeProposal = { sides: [{ teamId: sender.id, players: [player.id], picks: pk ? [pk.id] : [] }, { teamId: absorber.id, players: [], picks: [] }] };
