@@ -21,7 +21,7 @@ export type Route =
   | { view: 'live' };
 
 const OFFICE_TABS: readonly OfficeTab[] = ['resign', 'fa', 'draft', 'trades', 'coaches', 'staff', 'medical'];
-const STATS_TABS: readonly StatsTab[] = ['leaders', 'players', 'records', 'awards', 'officials'];
+const STATS_TABS: readonly StatsTab[] = ['leaders', 'players', 'teams', 'records', 'awards', 'officials'];
 const PLAIN = ['home', 'schedule', 'standings', 'playoffs', 'compare', 'live'] as const;
 
 export function routeToHash(route: Route): string {

@@ -9,13 +9,12 @@ import { activeRoster, teamPlayers, teamRatings } from '../../engine/roster';
 import { staffWindowOpen } from '../../engine/staff';
 import { allSeeds, ROUND_NAMES, roundWeek } from '../../engine/season/playoffs';
 import { computeRecords, divisionStandings } from '../../engine/season/standings';
-import { teamLeader } from '../../engine/stats';
-import type { Game, League, StatKey, Team } from '../../engine/types';
+import type { Game, League, Team } from '../../engine/types';
 import { forecast } from '../../engine/weather';
 import { useNav } from '../App';
 import { attentionText } from '../coaching';
 import { Panel, TeamChip, TeamLabel, WeatherNote } from '../components';
-import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, weekLabel } from '../format';
+import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, weekLabel } from '../format';
 import { live } from '../live';
 import { WinnerCell } from './Stats';
 import { CrewNote } from './Officials';
@@ -24,7 +23,7 @@ import { ThemeSelect } from '../theme';
 import { store } from '../store';
 import { moveIndex, MoveText } from '../moves';
 import { ScoreStrip } from '../strip';
-import { SeasonSoFar, TheirInjuries, WaitingForYou, YourInjuries } from '../widgets';
+import { LeagueLeaders, SeasonSoFar, TeamStatsWidget, TheirInjuries, WaitingForYou, YourInjuries } from '../widgets';
 import { GameStar, gameStory, KeyStats, LineScore, standouts, Standouts } from '../game';
 
 function lastUserGame(league: League): Game | undefined {
@@ -249,40 +248,6 @@ function DivisionMini({ league }: { league: League }) {
           </tbody>
         </table>
       </div>
-    </Panel>
-  );
-}
-
-function TeamLeaders({ league }: { league: League }) {
-  const nav = useNav();
-  const cats: [StatKey, string][] = [
-    ['passYds', 'Pass yds'],
-    ['rushYds', 'Rush yds'],
-    ['recYds', 'Rec yds'],
-    ['tackles', 'Tackles'],
-    ['sacks', 'Sacks'],
-    ['defInt', 'INT'],
-  ];
-  const rows = cats.map(([k, label]) => [label, teamLeader(league, league.userTeamId, k)] as const).filter(([, r]) => r);
-  return (
-    <Panel title="Team leaders">
-      {rows.length === 0 ? (
-        <p className="muted" style={{ margin: 0 }}>
-          Stats appear after your first game.
-        </p>
-      ) : (
-        <div className="leaders-mini">
-          {rows.map(([label, r]) => (
-            <div className="leader-card" key={label}>
-              <span className="eyebrow">{label}</span>
-              <span className="v">{r!.value}</span>
-              <button className="linklike" onClick={() => nav.openPlayer(r!.player.id)}>
-                {shortName(r!.player)}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
     </Panel>
   );
 }
@@ -609,7 +574,7 @@ export function Home({ league }: { league: League }) {
   const honors = weeklyAwards(league, league.season);
   const pow = !!honors && Object.keys(honors.weeks).length > 0;
   const gm = gmRecord(league).seasons.length > 0;
-  // One grid, row by row: the games, then the week's business, the season, the leaders. A row's panels line up;
+  // One grid, row by row: the games, the week's business, the league's leaders, the season. A row's panels line up;
   // a panel with no partner takes the whole row.
   return (
     <>
@@ -636,6 +601,12 @@ export function Home({ league }: { league: League }) {
         <div className="home-cell span-4">
           <WaitingForYou league={league} />
         </div>
+        <div className="home-cell span-6">
+          <LeagueLeaders league={league} />
+        </div>
+        <div className="home-cell span-6">
+          <TeamStatsWidget league={league} />
+        </div>
         <div className={`home-cell ${pow ? 'span-4' : 'span-12'}`}>
           <SeasonSoFar league={league} />
         </div>
@@ -644,11 +615,8 @@ export function Home({ league }: { league: League }) {
             <PlayersOfTheWeek league={league} />
           </div>
         )}
-        <div className={`home-cell ${gm ? 'span-6' : 'span-12'}`}>
-          <TeamLeaders league={league} />
-        </div>
         {gm && (
-          <div className="home-cell span-6">
+          <div className="home-cell span-12">
             <GmRecord league={league} />
           </div>
         )}

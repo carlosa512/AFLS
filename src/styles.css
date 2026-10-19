@@ -1130,21 +1130,59 @@ button.strip-line:hover .ab {
   border-radius: 50%;
   background: var(--cat);
 }
-.leaders-mini {
+/* Home's leader boards: three across, two on a narrow screen; each its top three and where we stand. */
+.boards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 20px;
 }
-.leader-card {
+@media (max-width: 640px) {
+  .boards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.board {
   display: grid;
+  align-content: start;
   gap: 2px;
   min-width: 0;
 }
-.leader-card .v {
-  font-family: var(--font-display);
-  font-size: var(--step-2);
-  font-weight: 800;
-  line-height: 1;
+.board .eyebrow {
+  margin-bottom: 2px;
+}
+.board-row,
+.board-you {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 4px;
+  border-radius: 4px;
+  font-size: var(--step--1);
+}
+.board-row > :nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.board-row .chip {
+  font-size: 0.65rem;
+}
+.board-row.is-user {
+  background: color-mix(in srgb, var(--marker) 16%, transparent);
+}
+.board-you {
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-top: 2px;
+  border-top: 1px dashed var(--line);
+  border-radius: 0;
+  color: var(--muted);
+}
+.board-row .num,
+.board-you .num {
+  font-family: var(--font-data);
+  font-weight: 600;
 }
 
 /* ───────── new game ───────── */

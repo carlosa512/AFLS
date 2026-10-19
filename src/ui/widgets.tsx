@@ -3,18 +3,19 @@
  * so far. Each is a few rows deep, the rest a click away (the Medical screen, their roster, the inbox). Injuries show
  * the doctor's estimate, never the true layoff, and condition only for our own players.
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { capSheet } from '../engine/finance/cap';
 import { injuryLabel, weeksLeft } from '../engine/injuries';
 import { needsYou } from '../engine/inbox';
 import { teamPlayers } from '../engine/roster';
 import { computeRecords, conferenceSeeds, divisionStandings } from '../engine/season/standings';
-import { teamSeasonStats, type TeamSeasonLine } from '../engine/stats';
+import { leaders, LEADER_CATEGORIES, teamSeasonStats, type TeamSeasonLine } from '../engine/stats';
 import type { Game, InboxMessage, League, Player, Team } from '../engine/types';
 import { useNav } from './App';
-import { Panel } from './components';
+import { Panel, TeamChip } from './components';
 import { money, ordinal, PHASE_LABELS, recordText, shortName, weekLabel } from './format';
 import { hurtList, wornDown } from './injuries';
+import { TEAM_COLS, teamRank } from './screens/TeamStats';
 
 /** How many rows a widget shows before "See all". */
 const SHOW = 3;
@@ -311,6 +312,150 @@ export function SeasonSoFar({ league }: { league: League }) {
         <p className="muted small" style={{ margin: 0 }}>
           Nothing picked yet: choose up to {SEASON_PICKS} with Edit.
         </p>
+      )}
+    </Panel>
+  );
+}
+
+/** The six leader boards Home shows, by key in `LEADER_CATEGORIES`. */
+const HOME_LEADERS = ['passYds', 'rushYds', 'recYds', 'sacks', 'defInt', 'tackles'];
+/** The six team boards, by key in `TEAM_COLS`. */
+const HOME_TEAM_STATS = ['ppg', 'ypg', 'yapg', 'to', 'third', 'sacks'];
+
+/** One board: its top three, then ours with the rank when we aren't among them. */
+function Board({ label, rows, you }: { label: string; rows: ReactNode[]; you: ReactNode | null }) {
+  return (
+    <div className="board">
+      <div className="eyebrow">{label}</div>
+      {rows}
+      {you}
+    </div>
+  );
+}
+
+/** The league's top three in six categories, and where our best stands in each. */
+export function LeagueLeaders({ league }: { league: League }) {
+  const nav = useNav();
+  const user = league.userTeamId;
+  const team = league.teams[user];
+  const boards = HOME_LEADERS.map((key) => LEADER_CATEGORIES.find((c) => c.key === key)!).map((cat) => {
+    const all = leaders(league, cat, Infinity, league.season);
+    const best = all.find((r) => r.player.teamId === user);
+    return { cat, top: all.slice(0, SHOW), best, rank: best ? 1 + all.filter((r) => r.value > best.value).length : 0 };
+  });
+  const any = boards.some((b) => b.top.length);
+  const fmt = (cat: (typeof boards)[number]['cat'], v: number) => (cat.format ? cat.format(v) : v.toLocaleString());
+  return (
+    <Panel
+      className="widget"
+      title="League leaders"
+      action={
+        <button className="btn btn-sm btn-ghost" onClick={() => nav.go({ view: 'stats', tab: 'leaders' })}>
+          All leaders
+        </button>
+      }
+    >
+      {!any ? (
+        <p className="muted small" style={{ margin: 0 }}>
+          Leaders appear once the first week is played.
+        </p>
+      ) : (
+        <div className="boards">
+          {boards.map(({ cat, top, best, rank }) => (
+            <Board
+              key={cat.key}
+              label={cat.label}
+              rows={top.map((r) => (
+                <div key={r.player.id} className={`board-row${r.player.teamId === user ? ' is-user' : ''}`}>
+                  {/* Ties share a place. */}
+                  <span className="muted">{1 + top.filter((x) => x.value > r.value).length}</span>
+                  <span style={{ minWidth: 0 }}>
+                    <button className="linklike" onClick={() => nav.openPlayer(r.player.id)}>
+                      {shortName(r.player)}
+                    </button>{' '}
+                    <span className="muted small">{r.player.teamId !== null ? league.teams[r.player.teamId].abbrev : 'FA'}</span>
+                  </span>
+                  <span className="num">{fmt(cat, r.value)}</span>
+                </div>
+              ))}
+              you={
+                best && !top.includes(best) ? (
+                  <div className="board-you">
+                    <span>
+                      {team.abbrev} ·{' '}
+                      <button className="linklike" onClick={() => nav.openPlayer(best.player.id)}>
+                        {shortName(best.player)}
+                      </button>{' '}
+                      <span className="muted">({ordinal(rank)})</span>
+                    </span>
+                    <span className="num">{fmt(cat, best.value)}</span>
+                  </div>
+                ) : null
+              }
+            />
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/** The league's top three teams in six categories, and our rank in each. */
+export function TeamStatsWidget({ league }: { league: League }) {
+  const nav = useNav();
+  const user = league.userTeamId;
+  const stats = teamSeasonStats(league);
+  const played = [...stats.values()].some((l) => l.games > 0);
+  return (
+    <Panel
+      className="widget"
+      title="Team stats"
+      action={
+        <button className="btn btn-sm btn-ghost" onClick={() => nav.go({ view: 'stats', tab: 'teams' })}>
+          All team stats
+        </button>
+      }
+    >
+      {!played ? (
+        <p className="muted small" style={{ margin: 0 }}>
+          Team stats appear once the first week is played.
+        </p>
+      ) : (
+        <div className="boards">
+          {HOME_TEAM_STATS.map((key) => TEAM_COLS.find((c) => c.key === key)!).map((col) => {
+            const ranked = league.teams
+              .filter((t) => stats.get(t.id)!.games > 0)
+              .map((t) => ({ t, rank: teamRank(stats, col, t.id), v: col.value(stats.get(t.id)!) }))
+              .sort((a, b) => a.rank - b.rank);
+            const top = ranked.slice(0, SHOW);
+            const mine = ranked.find((x) => x.t.id === user);
+            return (
+              <Board
+                key={col.key}
+                label={col.label}
+                rows={top.map((x) => (
+                  <div key={x.t.id} className={`board-row${x.t.id === user ? ' is-user' : ''}`}>
+                    <span className="muted">{x.rank}</span>
+                    <button className="linklike team-inline" onClick={() => nav.openTeam(x.t.id)}>
+                      <TeamChip team={x.t} /> {x.t.name}
+                    </button>
+                    <span className="num">{col.format(x.v)}</span>
+                  </div>
+                ))}
+                you={
+                  mine && !top.includes(mine) ? (
+                    <div className="board-you">
+                      <span>
+                        {mine.t.name} <span className="muted">({ordinal(mine.rank)})</span>
+                      </span>
+                      <span className="num">{col.format(mine.v)}</span>
+                    </div>
+                  ) : null
+                }
+              />
+            );
+          })}
+        </div>
       )}
     </Panel>
   );
