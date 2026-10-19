@@ -14,7 +14,7 @@ import { forecast } from '../../engine/weather';
 import { useNav } from '../App';
 import { attentionText } from '../coaching';
 import { Panel, TeamChip, TeamLabel, WeatherNote } from '../components';
-import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, weekLabel } from '../format';
+import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, weekLabel } from '../format';
 import { live } from '../live';
 import { WinnerCell } from './Stats';
 import { CrewNote } from './Officials';
@@ -319,22 +319,23 @@ function AwardsNotice({ league }: { league: League }) {
   const nav = useNav();
   const awards = league.phase === 'regular' ? undefined : seasonAwards(league, league.season);
   if (!awards) return null;
-  const name = (id: number) => {
-    const p = league.players[id];
-    return `${p.firstName[0]}. ${p.lastName}`;
-  };
-  const headline = (['mvp', 'opoy', 'dpoy'] as const)
-    .filter((k) => awards.winners[k])
-    .map((k) => {
-      const w = awards.winners[k]!;
-      return `${AWARD_SHORT[k]} ${name(w.playerId)}${w.teamId !== null ? ` (${league.teams[w.teamId].abbrev})` : ''}`;
-    })
-    .join(' · ');
+  const winners = (['mvp', 'opoy', 'dpoy'] as const).filter((k) => awards.winners[k]).map((k) => ({ k, w: awards.winners[k]! }));
   // Your own winners hear about it in the inbox; the banner is the league's news.
   return (
     <div className="notice staff-notice">
       <span>
-        <b>Awards week: the {awards.season} awards are in.</b> {headline}.
+        <b>Awards week: the {awards.season} awards are in.</b>{' '}
+        {winners.map(({ k, w }, i) => (
+          <span key={k}>
+            {i > 0 && ' · '}
+            {AWARD_SHORT[k]}{' '}
+            <button className="linklike" onClick={() => nav.openPlayer(w.playerId)}>
+              {shortName(league.players[w.playerId])}
+            </button>
+            {w.teamId !== null ? ` (${league.teams[w.teamId].abbrev})` : ''}
+          </span>
+        ))}
+        .
       </span>
       <button className="btn btn-sm" onClick={() => nav.go({ view: 'stats', tab: 'awards' })}>
         All awards
