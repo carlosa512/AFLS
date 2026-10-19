@@ -444,6 +444,66 @@ export interface Team {
   autoInjuries?: boolean;
   /** Injured-reserve return designations used, by league year (`IR_RETURNS` per season). */
   irReturns?: Record<number, number>;
+  /**
+   * Where the front office sees itself (`trade/plans.ts`) and the league year it got there: kept so
+   * a team on the line doesn't flip between buying and selling from one week to the next.
+   */
+  stance?: { mode: Stance; since: number };
+}
+
+/** Contend, bubble, retool or rebuild: it decides who buys and who sells. */
+export type Stance = 'contend' | 'bubble' | 'retool' | 'rebuild';
+
+/** What one side of a trade sends. */
+export interface TradeSide {
+  teamId: number;
+  players: number[];
+  picks: number[];
+}
+
+/** What a trade was, for the news: a contender's rental, a rebuilder's sale, a star, a swap, a cap dump. */
+export type DealKind = 'rental' | 'buy' | 'sale' | 'star' | 'swap' | 'dump' | 'user';
+
+/** A trade with its assets, kept for trade trails and the market's memory (the transaction log keeps only text). */
+export interface TradeRecord {
+  season: number;
+  phase: Phase;
+  week: number;
+  sides: [TradeSide, TradeSide];
+  kind: DealKind;
+}
+
+/** A front office watching another team's player: interest builds over market moments and fades when nothing comes of it. */
+export interface TradeInterest {
+  teamId: number;
+  playerId: number;
+  /** 1 watching, 2 asking around, 3 ready to deal. */
+  level: number;
+  /** The market moment it was last raised (`TradeMarket.moment`). */
+  at: number;
+}
+
+/** Public talk about the market, from what front offices are really doing (see `trade/market.ts`). */
+export interface Rumor {
+  id: string;
+  season: number;
+  phase: Phase;
+  week: number;
+  kind: 'shopping' | 'interest';
+  teamIds: number[];
+  playerId: number;
+  text: string;
+}
+
+/** The trade market's memory (`trade/market.ts`): what was traded, who is watching whom, what's being said. */
+export interface TradeMarket {
+  /** Market moments so far (a week up to the deadline, an offseason step): interest fades by them. */
+  moment: number;
+  /** The last five league years of trades. */
+  history: TradeRecord[];
+  interest: TradeInterest[];
+  /** The latest rumors, oldest first. */
+  rumors: Rumor[];
 }
 
 export interface DeadMoney {
@@ -764,4 +824,6 @@ export interface League {
   nextMedicId: number;
   /** The league's officiating crews, by id (see `officials.ts`). */
   crews: Crew[];
+  /** The trade market's memory (`trade/market.ts`). Unset until the first market moment. */
+  market?: TradeMarket;
 }

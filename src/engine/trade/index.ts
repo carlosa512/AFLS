@@ -6,13 +6,18 @@
  * - `rules.ts`: the window and deadline day, blockers, the hidden wait on new signings, cap and rosters
  * - `judge.ts`: the evaluator every deal goes through, the trade table's verdict, "what would make it work?"
  * - `execute.ts`: moving the assets and the money
- * - `market.ts`: AI-to-AI trades
+ * - `plans.ts`: each front office's stance, needs, trade block and interest
+ * - `deals.ts`: the deal search (picks, swaps, a player and a pick, cap dumps)
+ * - `market.ts`: the AI market at the NFL's moments, its history and rumors
  * - `context.ts`: one decision pass's cache
  */
 export { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
 export { executeTrade } from './execute';
-export { evaluateTrade, judge, suggestSweetener, type JudgeOpts, type Judgement, type TradeVerdict } from './judge';
-export { aiTradeWeek } from './market';
+export { evaluateTrade, heldPick, judge, marginFor, suggestSweetener, type JudgeOpts, type Judgement, type TradeVerdict } from './judge';
+export { dealFor, dumpFor, TAGS, type Deal } from './deals';
+export { emptyMarket } from './execute';
+export { gmActivity, marketMoment, TRADE_VOLUME, weekMoment, type Moment } from './market';
+export { isBuyer, isSeller, reloading, stanceFor, stanceOf, stanceScore, teamNeeds, tradeBlock, untouchable, untouchables, updateStances, wanted, type BlockEntry, type Need } from './plans';
 export {
   freshlySigned,
   isDeadlineDay,
@@ -30,6 +35,7 @@ export {
 export {
   control,
   fitzgeraldSpielberger,
+  goingRate,
   grossWorth,
   jimmyJohnson,
   marketValue,

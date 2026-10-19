@@ -8,7 +8,9 @@ import { capHit, deadMoney, isExpired } from '../finance/contract';
 import { rosterLimit } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
 import { Rng } from '../rng';
-import type { League, Player, Position } from '../types';
+import type { League, Player, Position, TradeSide } from '../types';
+
+export type { TradeSide };
 import { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
 
 /**
@@ -16,12 +18,6 @@ import { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
  * Tuesday after week 9), which lasts until week 10 is played.
  */
 export const TRADE_DEADLINE_WEEK = 9;
-
-export interface TradeSide {
-  teamId: number;
-  players: number[];
-  picks: number[];
-}
 
 export interface TradeProposal {
   /** sides[0] is the proposer (usually the user), sides[1] the AI partner. Each lists what that team sends. */
@@ -59,8 +55,13 @@ export function playerTradeBlocker(league: League, p: Player): string | null {
  * so signing a free agent to flip him can't be gamed.
  */
 export function signingWait(league: League, teamId: number): number {
-  return 4 + Math.floor(new Rng(`${league.seed}:gm-cooldown:${teamId}`).float(0, 5));
+  const key = `${league.seed}:gm-cooldown:${teamId}`;
+  let weeks = waits.get(key);
+  if (weeks === undefined) waits.set(key, (weeks = 4 + Math.floor(new Rng(key).float(0, 5))));
+  return weeks;
 }
+/** A pure function of the league seed and the team, so it's safe to remember across leagues and saves. */
+const waits = new Map<string, number>();
 
 /** Weeks since a player's deal was signed this league year (-1 for an offseason signing before the season), or null if it wasn't. */
 function weeksSinceSigning(league: League, p: Player): number | null {
@@ -95,24 +96,45 @@ export function freshSigningRefusal(league: League, teamId: number, proposal: Tr
 /** Cap space and dead money each side would have after the trade. */
 export function tradeCapImpact(league: League, proposal: TradeProposal, ctx: TradeContext = tradeContext(league)) {
   const post = autoPostJune1(league.phase);
+  // Until camp only the 51 biggest cap hits count (`capSheet`): sending one away lets the 52nd in.
+  const top51 = league.phase === 'resign' || league.phase === 'freeAgency' || league.phase === 'draft';
   return proposal.sides.map((side, i) => {
     const other = proposal.sides[1 - i];
-    let space = capRoom(ctx, side.teamId);
+    const roster = rosterOf(ctx, side.teamId);
+    const gone = new Set(side.players);
     let dead = 0;
+    let deadNow = 0;
     for (const id of side.players) {
       const c = league.players[id].contract!;
       const split = deadMoney(c, league.season, { paid: paidShare(league, c), postJune1: post, trade: true });
-      space += capHit(c, league.season) - split.thisYear;
+      deadNow += split.thisYear;
       dead += split.thisYear + split.nextYear;
     }
-    for (const id of other.players) {
-      // The new team takes only the unpaid base salary; the bonus stays behind.
+    // The new team takes only the unpaid base salary; the bonus stays behind.
+    const arriving = other.players.map((id) => {
       const c = league.players[id].contract!;
-      const base = c.years.find((y) => y.season === league.season)?.base ?? 0;
-      space -= base * (1 - paidShare(league, c));
-    }
-    return { teamId: side.teamId, space, dead };
+      return (c.years.find((y) => y.season === league.season)?.base ?? 0) * (1 - paidShare(league, c));
+    });
+    const hit = (p: Player) => (p.contract ? capHit(p.contract, league.season) : 0);
+    const counted = (hits: number[]) => (top51 ? hits.sort((a, b) => b - a).slice(0, 51) : hits).reduce((a, b) => a + b, 0);
+    const before = counted(roster.map(hit));
+    const after = counted([...roster.filter((p) => !gone.has(p.id)).map(hit), ...arriving]);
+    return { teamId: side.teamId, space: capRoom(ctx, side.teamId) + before - after - deadNow, dead };
   });
+}
+
+/** The dead money a team's outgoing players leave behind: the bonus still to be counted lands at once (after June 1, partly next year). */
+export function tradeDeadMoney(league: League, side: TradeSide): { thisYear: number; nextYear: number } {
+  const post = autoPostJune1(league.phase);
+  let thisYear = 0;
+  let nextYear = 0;
+  for (const id of side.players) {
+    const c = league.players[id].contract!;
+    const split = deadMoney(c, league.season, { paid: paidShare(league, c), postJune1: post, trade: true });
+    thisYear += split.thisYear;
+    nextYear += split.nextYear;
+  }
+  return { thisYear, nextYear };
 }
 
 /** The base salary a team would take on with a player: what's left of this season's. */

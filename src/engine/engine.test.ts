@@ -284,10 +284,15 @@ describe('season flow', () => {
     const final = playoffGames(league, 'FINAL')[0];
     expect([final.homeId, final.awayId]).toContain(champ);
     // Starters start: every QB1 who stayed healthy played most of the season (an injury, a
-    // matter of the seed's luck, can end anyone's year early).
+    // matter of the seed's luck, can end anyone's year early, and a trade can change who starts).
+    const qbTrades = new Set(
+      (league.market?.history ?? [])
+        .filter((r) => r.season === league.season && r.sides.some((s) => s.players.some((id) => league.players[id].position === 'QB')))
+        .flatMap((r) => r.sides.map((s) => s.teamId)),
+    );
     for (const t of league.teams) {
       const starterQb = league.players[t.depthChart.QB[0]];
-      if (starterQb.injury?.season === league.season) continue;
+      if (starterQb.injury?.season === league.season || qbTrades.has(t.id)) continue;
       expect(starterQb.stats[league.season]?.gp).toBeGreaterThan(10);
     }
 

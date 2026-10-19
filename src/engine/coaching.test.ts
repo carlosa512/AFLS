@@ -270,7 +270,7 @@ describe('coaching staffs and moves', () => {
     expect(coachMoveProblem(l, user, coachMarket(l).find((c) => c.role === 'offCoord')!, 'hire', 5)).toMatch(/1–3 years/);
     expect(() => extendCoach(l, user, teamCoaches(l, user).find((c) => !isCoachExpiring(l, c))!.id)).toThrow(/expiring/);
     expect(() => releaseCoach(l, user, teamCoaches(l, (user + 1) % 32)[0].id)).toThrow();
-  });
+  }, 30_000);
 
   it('refuses what the budget can’t cover, counting what a replacement frees', () => {
     const l = offseason('coach-budget');

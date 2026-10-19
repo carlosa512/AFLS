@@ -10,17 +10,18 @@
  * - Each first-round pick an AI sends past the second costs it more: a price, not a hard cap.
  * - A star only goes for a centrepiece: quantity never buys quality.
  */
+import { capFor, deadMoneyIn } from '../finance/cap';
 import { yearsLeft } from '../finance/contract';
 import { contenderScore, rosterLimit } from '../offseason/negotiation';
-import type { League, Player, Team } from '../types';
+import type { DraftPick, League, Player, Team } from '../types';
 import { rosterOf, tradeContext, type TradeContext } from './context';
-import { freshSigningRefusal, playerTradeBlocker, tradeProblem, type TradeProposal } from './rules';
-import { marketValue, pickValue, playerSwing } from './value';
+import { freshSigningRefusal, playerTradeBlocker, tradeDeadMoney, tradeProblem, type TradeProposal, type TradeSide } from './rules';
+import { goingRate, marketValue, nextDraftSeason, pickOverall, pickValue, playerSwing } from './value';
 
 /** Each player a deal leaves past the roster limit costs about a sixth-round pick: someone has to be cut. */
 const ROSTER_SPOT = 15;
 /** A player the league values at about a mid first or more is a star... */
-const STAR = 1000;
+export const STAR = 1000;
 /** ...and only goes for a first-round pick or an asset worth at least this share of him. */
 const CENTREPIECE = 0.45;
 
@@ -56,6 +57,9 @@ function floorShare(league: League, team: Team, p: Player): number {
   return selling ? 0.65 : 0.8;
 }
 
+/** Picks at the league's going rate. */
+const going = (ctx: TradeContext, ids: readonly number[]) => ids.reduce((s, id) => s + goingRate(ctx.league, pickById(ctx.league, id), ctx), 0);
+
 /** A team's own outgoing picks: each first-round pick past the second costs it more (ZenGM's price in place of a hard cap). */
 function picksOut(ctx: TradeContext, team: Team, ids: readonly number[]): number {
   const picks = ids.map((id) => pickById(ctx.league, id)).map((p) => ({ value: pickValue(ctx.league, p, team.gm, ctx), first: p.round === 1 }));
@@ -82,6 +86,62 @@ function centrepieceRefusal(ctx: TradeContext, team: Team, proposal: TradePropos
   return null;
 }
 
+/** No GM hands a division rival a star in the middle of a season. */
+function rivalRefusal(ctx: TradeContext, team: Team, proposal: TradeProposal): string | null {
+  const { league } = ctx;
+  const mine = proposal.sides.find((s) => s.teamId === team.id)!;
+  const theirs = proposal.sides.find((s) => s.teamId !== team.id)!;
+  if (league.phase !== 'regular' || league.teams[theirs.teamId].division !== team.division) return null;
+  const star = mine.players.map((id) => league.players[id]).find((p) => marketValue(ctx, team, p) >= STAR);
+  return star ? `They won't hand a division rival ${star.firstName} ${star.lastName} in the middle of a season.` : null;
+}
+
+/**
+ * The most dead money a GM will carry in a season: a quarter of the cap. The NFL's record is about a
+ * third (Denver in 2024, after releasing Wilson), so a rebuilder clears its books over a few sales,
+ * not all at once.
+ */
+const DEAD_LIMIT = 0.25;
+
+/** A GM won't sell players whose bonuses would bury his cap in dead money. */
+function deadRefusal(league: League, team: Team, mine: TradeSide): string | null {
+  if (!mine.players.length) return null;
+  const added = tradeDeadMoney(league, mine);
+  const over = (season: number, amount: number) => amount > 0 && deadMoneyIn(team, season) + amount > DEAD_LIMIT * capFor(league, season);
+  return over(league.season, added.thisYear) || over(league.season + 1, added.nextYear) ? "They can't take on any more dead money this year." : null;
+}
+
+/**
+ * What a team wants on top for its starting quarterback in the middle of a season: twice its usual
+ * ask. It happens only for an offer too good to refuse (Palmer to Oakland in 2011, a first and a
+ * second): the Stafford and Wilson trades were made in the offseason.
+ */
+const QB_PREMIUM = 1;
+
+const startsAtQb = (league: League, team: Team, mine: TradeSide) => league.phase === 'regular' && mine.players.includes(team.depthChart.QB[0]);
+
+/** A first-round pick projected this high in the next draft is kept through the season. */
+const HOLD_SLOT = 10;
+
+/**
+ * In season no team gives up a first projected in the top ten: it waits to see who's there on draft
+ * day, and can trade down then.
+ */
+export const heldPick = (ctx: TradeContext, pk: DraftPick) =>
+  ctx.league.phase === 'regular' && pk.round === 1 && pk.season === nextDraftSeason(ctx.league) && pickOverall(ctx.league, pk, ctx) <= HOLD_SLOT;
+
+function pickHoldRefusal(ctx: TradeContext, mine: TradeSide): string | null {
+  const held = mine.picks.map((id) => pickById(ctx.league, id)).find((pk) => heldPick(ctx, pk));
+  return held ? `They're keeping their ${held.season} first-round pick until draft day.` : null;
+}
+
+/** The margin a GM wants over what he gives: a small win against the user, merely not losing to another AI. */
+export function marginFor(team: Team, other: Team, vsUser = false): number {
+  // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want a lot more.
+  const rival = other.division === team.division ? 0.2 : 0;
+  return (vsUser ? 1.05 + team.gm.stubbornness * 0.15 : 1 + team.gm.stubbornness * 0.05) + rival;
+}
+
 /** `teamId`'s verdict on a proposal, in its own eyes. */
 export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal, opts: JudgeOpts = {}): Judgement {
   const { league } = ctx;
@@ -89,7 +149,7 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const mine = proposal.sides.find((s) => s.teamId === teamId)!;
   const theirs = proposal.sides.find((s) => s.teamId !== teamId)!;
   const problem = tradeProblem(league, proposal, { rosterCuts: opts.rosterCuts, ctx });
-  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal);
+  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal) ?? rivalRefusal(ctx, team, proposal) ?? deadRefusal(league, team, mine) ?? pickHoldRefusal(ctx, mine);
 
   const { loss, gain } = playerSwing(ctx, team, mine.players, theirs.players);
   const pickIn = theirs.picks.reduce((s, id) => s + pickValue(league, pickById(league, id), team.gm, ctx), 0);
@@ -97,16 +157,24 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const size = rosterOf(ctx, teamId).filter((p) => !p.ir).length - mine.players.length + theirs.players.length;
   const get = pickIn + gain - Math.max(0, size - rosterLimit(league)) * ROSTER_SPOT;
   const give = pickOut + loss;
-  // Whatever it thinks of a player itself, a seller holds out for most of what the league would pay.
-  const floor = mine.players.reduce((s, id) => {
-    const p = league.players[id];
-    const worth = marketValue(ctx, team, p);
-    return s + (worth > 0 ? worth * floorShare(league, team, p) : worth);
-  }, pickOut);
-  const base = Math.max(give, floor);
-  const margin = opts.margin ?? (opts.vsUser ? 1.05 + team.gm.stubbornness * 0.15 : 1 + team.gm.stubbornness * 0.05);
+  const margin = (opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser)) + (startsAtQb(league, team, mine) ? QB_PREMIUM : 0);
   // The margin is a share of the stakes, so it asks for more back whether the stakes are positive or not.
-  let need = base + Math.abs(base) * (margin - 1);
+  const lift = (x: number) => x + Math.abs(x) * (margin - 1);
+  let base = give;
+  let need = lift(give);
+  if (mine.players.length) {
+    // Whatever it thinks of a player itself, a seller holds out for most of what the league would pay,
+    // and counts the picks against that at the going rate, not its own chart: what comes back must
+    // clear the floor at the league's prices.
+    const floor = mine.players.reduce((s, id) => {
+      const p = league.players[id];
+      const worth = marketValue(ctx, team, p);
+      return s + (worth > 0 ? worth * floorShare(league, team, p) : worth);
+    }, going(ctx, mine.picks));
+    const rate = pickIn - going(ctx, theirs.picks);
+    base = Math.max(base, floor + rate);
+    need = Math.max(need, lift(floor) + rate);
+  }
   if (opts.vsUser) need = Math.max(need, base + 25);
   return { teamId, get, give, need, accepts: !problem && !refusal && get >= need, problem, refusal };
 }

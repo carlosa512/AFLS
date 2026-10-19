@@ -290,9 +290,19 @@ consequence falls out of a few formulas (see `src/engine/finance/contract.ts` an
   - each first-round pick past the second costs more, and a star only goes for a centrepiece;
   - each GM waits his own few weeks (never shown) before dealing a new signing.
 
-  Trades run through deadline day, after week 9. Contenders and rebuilders trade with each other
-  during the season. `npm run trades` checks prices against the NFL's, fairness and the exploit
-  probes.
+  Trades run through deadline day, after week 9. An AI market works the NFL's calendar:
+  - when the league year opens, through free agency and camp, after each week's games, and busiest
+    on deadline day;
+  - each front office has a stance (contend, bubble, retool, rebuild), needs and a trade block, and
+    watches other teams' players before it calls;
+  - deals are picks for a player, swaps, a late pick riding back, and cap dumps;
+  - sellers ask what the league would pay, more when several teams are asking, and each GM has a most
+    he'll pay (an All-In GM the most);
+  - every deal goes in a history with its reason, and rumors follow what front offices are really
+    doing.
+
+  `npm run trades` checks prices, volume and mix against the NFL's, fairness, the exploit probes and
+  speed.
 
 ## Roadmap
 

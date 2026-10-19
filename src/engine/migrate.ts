@@ -46,6 +46,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 20) league.version = 20; // v20: optional `inbox`, filled (already read) on the first delivery
   if (league.version < 21) toV21(league);
   if (league.version < 22) toV22(league);
+  if (league.version < 23) league.version = 23; // v23: optional `market` on the league and `stance` on teams, filled by the first market moment
   return league;
 }
 

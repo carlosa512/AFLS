@@ -22,6 +22,7 @@ import { quirkOffseason } from '../quirks';
 import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
 import { generateSchedule } from '../season/schedule';
+import { marketMoment } from '../trade';
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
@@ -98,6 +99,8 @@ export function beginOffseason(league: League): void {
   league.negotiations = {};
   for (const team of league.teams) syncDepthChart(league, team);
   league.rngState = rng.getState();
+  // The new league year opens the trade market: deals agreed over the winter, cap casualties, stars on the move.
+  marketMoment(league, 'leagueYear');
 }
 
 /** Problems the user must fix before the calendar can move on. */
@@ -153,6 +156,7 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
       break;
     case 'freeAgency':
       aiFreeAgencyDay(league, rng, { includeUser: auto });
+      marketMoment(league, 'faDay');
       if (league.faDay < FA_DAYS) league.faDay++;
       else league.phase = 'draft';
       break;
@@ -164,6 +168,8 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
       for (const team of league.teams) if (delegates(league, team)) manageInjuries(league, team, rng);
       break;
     case 'preseason':
+      // Camp: teams with surplus deal it before the cut to 53.
+      marketMoment(league, 'camp');
       for (const team of ai) aiTrainingCamp(league, team, rng);
       ensureStaffed(league, { autoUser: auto });
       ensureCoached(league, { autoUser: auto });
