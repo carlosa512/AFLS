@@ -15,7 +15,7 @@ import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateStaffWorld, setOwnerBudgets } from './staff';
 import { playoffSummary } from './records';
-import { renamePeople } from './rename';
+import { peopleAtLoad, renamePeople, type PeopleAtLoad } from './rename';
 import { rollScheme } from './schemes';
 import { addStats, statSeasons } from './stats';
 import { generateQuirks } from './quirks';
@@ -26,6 +26,8 @@ import type { League, StatLine, TradeMarket } from './types';
 export function migrateLeague(league: League): League | null {
   if (typeof league.version !== 'number' || league.version > SAVE_VERSION) return null;
   renameLegacyTeams(league);
+  // who the save held as it loaded, before the steps below add anyone (the names pass, v27, reads it)
+  const atLoad = league.version < 27 ? peopleAtLoad(league) : null;
   if (league.version < 2) toV2(league);
   if (league.version < 3) toV3(league);
   if (league.version < 4) toV4(league);
@@ -51,7 +53,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 24) league.version = 24; // v24: optional `archived` and `deleted` on inbox messages, set by the user
   if (league.version < 25) toV25(league);
   if (league.version < 26) league.version = 26; // v26: optional `woman` on scouts and medics, set at creation (absent = a man)
-  if (league.version < 27) toV27(league); // last: the earlier steps seed new fields from the old names
+  if (atLoad) toV27(league, atLoad); // last: the earlier steps seed new fields from the old names
   return league;
 }
 
@@ -294,7 +296,7 @@ function toV25(league: League): void {
 }
 
 /** v27: the names pass. Everyone the old pools named is renamed from the heritage pools, the stored text with them. */
-function toV27(league: League): void {
-  renamePeople(league);
+function toV27(league: League, atLoad: PeopleAtLoad): void {
+  renamePeople(league, atLoad);
   league.version = 27;
 }

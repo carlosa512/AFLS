@@ -74,7 +74,40 @@ function rewritePlays(text: string, names: Map<string, string>): string {
 
 type Named = { firstName: string; lastName: string; woman?: true };
 
-export function renamePeople(league: League): void {
+/** Who an older save held when it loaded, and whether the old pools named it. */
+export interface PeopleAtLoad {
+  legacy: boolean;
+  players: ReadonlySet<number>;
+  coaches: ReadonlySet<number>;
+  staff: ReadonlySet<number>;
+  medics: ReadonlySet<number>;
+  crews: ReadonlySet<number>;
+}
+
+/**
+ * Taken before any upgrade step runs: the steps for older versions add people (staffs, crews) and name them
+ * the new way, and those keep their names. A save counts as the old pools' when its staff and referees,
+ * which nobody can rename, all carry old-pool names (or, before there were staffs, nearly all its players
+ * do); one the new pools named already has nothing to redo.
+ */
+export function peopleAtLoad(league: League): PeopleAtLoad {
+  const ids = (r: Record<number, unknown> | undefined) => new Set(Object.keys(r ?? {}).map(Number));
+  const coaches = [...Object.values(league.coaches ?? {}), ...Object.values(league.retiredCoaches ?? {})];
+  const unedited = [...coaches.filter((c) => c.playerId === undefined), ...Object.values(league.staff ?? {}), ...Object.values(league.medics ?? {}), ...(league.crews ?? [])];
+  const players = Object.values(league.players);
+  const share = (xs: { firstName: string; lastName: string }[]) => xs.filter(generated).length / xs.length;
+  return {
+    legacy: unedited.length ? share(unedited) >= 0.95 : players.length > 0 && share(players) >= 0.9,
+    players: ids(league.players),
+    coaches: new Set(coaches.map((c) => c.id)),
+    staff: ids(league.staff),
+    medics: ids(league.medics),
+    crews: new Set((league.crews ?? []).map((c) => c.id)),
+  };
+}
+
+export function renamePeople(league: League, before: PeopleAtLoad): void {
+  if (!before.legacy) return;
   const fullNames = new NameMap();
   const playMaps = new Map<number, string>(); // player id -> new short name, for the plays
   const oldShort = new Map<number, string>();
@@ -88,6 +121,7 @@ export function renamePeople(league: League): void {
   };
 
   for (const p of Object.values(league.players)) {
+    if (!before.players.has(p.id)) continue;
     if (!nameUntouched(p)) {
       p.nameEdited = true;
       continue;
@@ -97,6 +131,7 @@ export function renamePeople(league: League): void {
     playMaps.set(p.id, short(p));
   }
   for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)]) {
+    if (!before.coaches.has(c.id)) continue;
     if (c.playerId !== undefined) {
       // a former player keeps his playing name, the new one if it changed
       const p = league.players[c.playerId];
@@ -108,11 +143,12 @@ export function renamePeople(league: League): void {
     }
     if (generated(c)) rename(c, 'coach', c.id, { kind: 'coach', role: c.role });
   }
-  for (const s of Object.values(league.staff)) if (generated(s)) rename(s, 'scout', s.id, { kind: 'scout', role: s.role });
-  for (const m of Object.values(league.medics)) if (generated(m)) rename(m, 'medic', m.id, { kind: 'medic', role: m.role });
-  const crewSurnames = new Set(league.crews.filter((c) => !generated(c)).map((c) => c.lastName));
+  for (const s of Object.values(league.staff)) if (before.staff.has(s.id) && generated(s)) rename(s, 'scout', s.id, { kind: 'scout', role: s.role });
+  for (const m of Object.values(league.medics)) if (before.medics.has(m.id) && generated(m)) rename(m, 'medic', m.id, { kind: 'medic', role: m.role });
+  const renames = (c: { id: number; firstName: string; lastName: string }) => before.crews.has(c.id) && generated(c);
+  const crewSurnames = new Set(league.crews.filter((c) => !renames(c)).map((c) => c.lastName));
   for (const c of league.crews) {
-    if (!generated(c)) continue;
+    if (!renames(c)) continue;
     rename(c, 'crew', c.id, { kind: 'official' }, crewSurnames);
     crewSurnames.add(c.lastName);
   }

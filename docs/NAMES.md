@@ -101,7 +101,9 @@ uses her pronouns (`engine/pronouns.ts`). Coaches stay 0 for now.
   is kept: his traits are seeded by the name he was generated with, so a renamed player no longer matches
   them; a name outside the old pools is kept too. Kept names are flagged (`nameEdited`), and the editor
   sets the flag from now on, so no later pass touches them.
-- **Same draws as a new league:** scouts and medics can come out women, at the same shares.
+- **Same draws as a new league:** scouts and medics can come out women, at the same shares. People an
+  older upgrade step adds (staffs, crews for very old saves) are named the new way already and keep it,
+  and a save the new pools named has nothing to redo.
 - **History follows:** transactions, mail (subject, body, sender, and the trade mail keyed by its
   transaction), rumors, physicals, severance and play-by-play are rewritten to the new names in one
   pass, so names still link to the right card. A name two people shared stays as it was (it never
