@@ -14,6 +14,7 @@ import { Panel, PlayerAvatar, TeamChip } from '../components';
 import { money } from '../format';
 import { Ovr, seenOvr } from '../scouting';
 import { liveLock } from '../live';
+import { LinkedText } from '../moves';
 import { BlockPanel, ExamPanel, HistoryPanel, MarketPanel, OffersPanel } from '../offers';
 import { store } from '../store';
 import { tradeDesk, type Picked } from '../tradeDesk';
@@ -185,6 +186,9 @@ function TradeTable({ league }: { league: League }) {
         accepted = r.accepted;
         message = r.message;
       }
+      // The deal itself, names and all (the AI side may have cut a backup after it).
+      const deal = accepted && [...l.transactions].reverse().find((t) => t.kind === 'trade');
+      if (deal) message = `Trade complete: ${deal.text}.`;
     });
     setDone(message);
     if (accepted || counterTo !== undefined) {
@@ -206,7 +210,7 @@ function TradeTable({ league }: { league: League }) {
       {counterTo !== undefined && <div className="notice">Countering the {partner.name}' offer: change the deal and propose it.</div>}
       {done && (
         <p className="callout" role="status">
-          {done}
+          <LinkedText league={league} text={done} />
         </p>
       )}
       <Panel
@@ -246,7 +250,7 @@ function TradeTable({ league }: { league: League }) {
           <div className="meter" role="img" aria-label={`Their view of the offer: ${mood}`}>
             <i style={{ width: `${fill * 100}%` }} className={verdict?.accepts ? 'yes' : ''} />
           </div>
-          <span className={verdict?.accepts ? 'tone-good' : 'muted'}>{verdict ? verdict.message : 'Tick players or picks on both sides to build an offer.'}</span>
+          <span className={verdict?.accepts ? 'tone-good' : 'muted'}>{verdict ? <LinkedText league={league} text={verdict.message} /> : 'Tick players or picks on both sides to build an offer.'}</span>
           {impact && (
             <span className="muted small">
               Your cap room after: <b className={impact[0].space < 0 ? 'tone-bad' : ''}>{money(Math.round(impact[0].space))}</b>

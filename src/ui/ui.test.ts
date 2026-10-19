@@ -5,7 +5,7 @@ import { gamesInWeek, playWeek } from '../engine/league';
 import { computeRecords } from '../engine/season/standings';
 import { teamSeasonStats } from '../engine/stats';
 import { sortRows } from './components';
-import { moveSegments, type MoveIndex } from './moves';
+import { linkedSegments, moveSegments, nameIndex, type MoveIndex } from './moves';
 import { hashToRoute, routeToHash, type Route } from './routes';
 import { backupFileName, parseBackup } from './saves';
 import { byeTeams, resultsWeek, stripGames } from './strip';
@@ -195,14 +195,32 @@ describe('home widgets', () => {
     }
   });
 
+  it('links everyone by full name, and the people a message is about even when a name is shared', () => {
+    const index = nameIndex(league);
+    const players = Object.values(league.players);
+    const unique = players.find((p) => index.get(`${p.firstName} ${p.lastName}`)?.id === p.id)!;
+    const links = (text: string, about = [] as { kind: 'player'; id: number }[]) => linkedSegments(league, text, about, index).filter((x) => typeof x !== 'string');
+    expect(links(`${unique.firstName} ${unique.lastName}'s contract is up`)).toEqual([{ text: `${unique.firstName} ${unique.lastName}`, who: { kind: 'player', id: unique.id } }]);
+    expect(links(`Starting with ${unique.position} ${unique.firstName} ${unique.lastName} at No. 3.`)).toHaveLength(1);
+    // A shared name stays plain, unless it's the message's own player.
+    const twin = { ...unique, id: -1 };
+    league.players[-1] = twin;
+    const shared = nameIndex(league);
+    delete league.players[-1];
+    expect(shared.get(`${unique.firstName} ${unique.lastName}`)).toBeNull();
+    expect(linkedSegments(league, `${unique.firstName} ${unique.lastName} is hurt`, [], shared).filter((x) => typeof x !== 'string')).toHaveLength(0);
+    expect(linkedSegments(league, `${unique.firstName} ${unique.lastName} is hurt`, [{ kind: 'player', id: unique.id }], shared).filter((x) => typeof x !== 'string')).toHaveLength(1);
+  });
+
   it('puts what needs you first, then the unread, newest first', () => {
     const { needs, rows } = waitingMail(league);
     expect(rows.length).toBeGreaterThan(0);
-    const firstOther = rows.findIndex((m) => !needs.has(m.id));
-    if (firstOther >= 0) for (const m of rows.slice(firstOther)) expect(needs.has(m.id)).toBe(false);
-    for (const m of rows) expect(needs.has(m.id) === needsYou(league, m) && (needs.has(m.id) || !m.read)).toBe(true);
+    const needy = (t: (typeof rows)[number]) => t.messages.some((m) => needs.has(m.id));
+    const firstOther = rows.findIndex((t) => !needy(t));
+    if (firstOther >= 0) for (const t of rows.slice(firstOther)) expect(needy(t)).toBe(false);
+    for (const m of rows.flatMap((t) => t.messages)) expect(needs.has(m.id) === needsYou(league, m) && (needs.has(m.id) || !m.read)).toBe(true);
     const order = league.inbox!.map((m) => m.id);
-    const unread = rows.filter((m) => !needs.has(m.id)).map((m) => order.indexOf(m.id));
+    const unread = rows.filter((t) => !needy(t)).map((t) => order.indexOf(t.messages[0].id));
     expect(unread).toEqual([...unread].sort((a, b) => b - a));
   });
 });

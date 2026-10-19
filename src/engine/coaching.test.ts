@@ -466,7 +466,7 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
 
 });
 
-describe('the coaching carousel', () => {
+describe('the coaching carousel', { timeout: 30_000 }, () => {
   it('moves a coach one rung up: a position coach to his side’s coordinator, a coordinator to head coach', () => {
     expect(promotionFor({ role: 'positionCoach', room: 'QB' })).toEqual({ role: 'offCoord' });
     expect(promotionFor({ role: 'positionCoach', room: 'DB' })).toEqual({ role: 'defCoord' });

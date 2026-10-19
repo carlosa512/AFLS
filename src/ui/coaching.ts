@@ -277,7 +277,7 @@ const youthVeteran = (c: Coach) => `${coachName(c)}: youth ${c.youth}, veteran c
  * implying one man does it all. Under 26 it leads with growth; past that only aging matters. Empty chair?
  * It says so.
  */
-export function playerCoachLine(league: League, p: Player): { text: string; numbers: string } {
+export function playerCoachLine(league: League, p: Player): { text: string; numbers: string; coaches: Coach[] } {
   const staff = stayingCoaches(league, p.teamId!);
   const pos = p.position;
   const room = ROOM_OF[pos];
@@ -302,7 +302,7 @@ export function playerCoachLine(league: League, p: Player): { text: string; numb
   const clauses = (p.age < YOUNG_UNDER ? [growth, aging] : [aging]).filter(Boolean);
   // "than with a typical staff" closes the whole sentence, so it covers both clauses.
   const effect = clauses.length ? `he should ${clauses.join(' and ')} than with a typical staff` : `he should ${p.age < YOUNG_UNDER ? 'develop' : 'hold up'} about as he would with a typical staff`;
-  return { text: `His coaches (${who}): ${effect}.`, numbers: [effectNumbers(e), ...named.map(youthVeteran)].join(' · ') };
+  return { text: `His coaches (${who}): ${effect}.`, numbers: [effectNumbers(e), ...named.map(youthVeteran)].join(' · '), coaches: named };
 }
 
 // ───────── what needs attention ─────────

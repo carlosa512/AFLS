@@ -686,6 +686,10 @@ export interface InboxMessage {
   body: string;
   read: boolean;
   actions: InboxAction[];
+  /** Filed away by the user: out of the inbox, under Archived. */
+  archived?: true;
+  /** Deleted by the user: hidden everywhere, but kept so the same news is never filed again. */
+  deleted?: true;
 }
 
 export type PlayoffRound = 'WC' | 'DIV' | 'CONF' | 'FINAL';

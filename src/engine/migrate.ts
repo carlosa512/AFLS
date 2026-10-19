@@ -47,7 +47,8 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 21) toV21(league);
   if (league.version < 22) toV22(league);
   if (league.version < 23) league.version = 23; // v23: optional `market` on the league and `stance` on teams, filled by the first market moment
-  if (league.version < 24) toV24(league);
+  if (league.version < 24) league.version = 24; // v24: optional `archived` and `deleted` on inbox messages, set by the user
+  if (league.version < 25) toV25(league);
   return league;
 }
 
@@ -282,9 +283,9 @@ function toV22(league: League) {
   league.version = 22;
 }
 
-/** v24: offers to you, your players' statuses and your dealings with each GM join the market (empty to start). */
-function toV24(league: League): void {
+/** v25: offers to you, your players' statuses and your dealings with each GM join the market (empty to start). */
+function toV25(league: League): void {
   const market = league.market as (Partial<TradeMarket> & Pick<TradeMarket, 'moment'>) | undefined;
   if (market) Object.assign(market, { nextOfferId: market.nextOfferId ?? 1, offers: market.offers ?? [], status: market.status ?? {}, talks: market.talks ?? {}, shopped: market.shopped ?? {} });
-  league.version = 24;
+  league.version = 25;
 }

@@ -69,12 +69,12 @@ export function moveSegments(text: string, indexes: MoveIndex[]): (string | { te
   return out;
 }
 
-/** A transaction's text with every player, coach, scout and medic in it a link to his card. */
-export function MoveText({ move, index }: { move: Transaction; index: MoveIndexes }) {
+/** Plain runs and named people, each person a link to his card. */
+function Segments({ segments }: { segments: ReturnType<typeof moveSegments> }) {
   const nav = useNav();
   return (
     <>
-      {moveSegments(move.text, indexesFor(index, move.kind)).map((s, i) =>
+      {segments.map((s, i) =>
         typeof s === 'string' ? (
           s
         ) : (
@@ -85,4 +85,53 @@ export function MoveText({ move, index }: { move: Transaction; index: MoveIndexe
       )}
     </>
   );
+}
+
+/** A transaction's text with every player, coach, scout and medic in it a link to his card. */
+export function MoveText({ move, index }: { move: Transaction; index: MoveIndexes }) {
+  return <Segments segments={moveSegments(move.text, indexesFor(index, move.kind))} />;
+}
+
+const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
+
+/**
+ * Everyone by full name, the way mail writes them ("Tim Bell was the player of the game"): players, coaches
+ * (retired too), scouts and medics in one index, a name two people share left out.
+ */
+export function nameIndex(league: League): MoveIndex {
+  const index: MoveIndex = new Map();
+  const add = (people: { id: number; firstName: string; lastName: string }[], kind: Who['kind']) => {
+    for (const p of people) {
+      const key = fullName(p);
+      index.set(key, index.has(key) ? null : { kind, id: p.id });
+    }
+  };
+  add(Object.values(league.players), 'player');
+  add([...Object.values(league.coaches), ...Object.values(league.retiredCoaches)], 'coach');
+  add(Object.values(league.staff), 'scout');
+  add(Object.values(league.medics), 'medic');
+  return index;
+}
+
+/** The person a `Who` points at, if he's still on file. */
+function personOf(league: League, w: Who): { firstName: string; lastName: string } | undefined {
+  return w.kind === 'player' ? league.players[w.id] : w.kind === 'coach' ? (league.coaches[w.id] ?? league.retiredCoaches[w.id]) : w.kind === 'scout' ? league.staff[w.id] : league.medics[w.id];
+}
+
+/**
+ * Text with everyone in it a link to his card. `about` names the people it's about (a message's player, its
+ * sender): their names link even when someone else shares them. Pass `index` to share one across a screen.
+ */
+export function LinkedText({ league, text, about = [], index }: { league: League; text: string; about?: Who[]; index?: MoveIndex }) {
+  return <Segments segments={linkedSegments(league, text, about, index)} />;
+}
+
+/** `LinkedText`'s cut: plain runs and named people, the people it's about first. */
+export function linkedSegments(league: League, text: string, about: Who[] = [], index = nameIndex(league)) {
+  const names = new Map(index);
+  for (const w of about) {
+    const p = personOf(league, w);
+    if (p) names.set(fullName(p), w);
+  }
+  return moveSegments(text, [names]);
 }
