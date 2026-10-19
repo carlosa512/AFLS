@@ -532,23 +532,29 @@ squad (the real home of bench youngsters' reps).
 
 ## 13. Open questions for the owner
 
-1. **Order:** position moves first (safer, ships the headline feature) or weekly development first?
-2. **Weekly release split:** start at half at the new league year, a tenth in program and camp, the
+**Decided (owner):**
+- **Order:** position moves first, then weekly development.
+- **Veterans:** a mover carries the skills that make sense at the new spot and gains no new ones.
+  This is what the engine already does: ratings belong to the player, the new position's weights
+  decide what counts (a corner's coverage and hands carry to safety), and skills the new position
+  never uses simply stop changing. No technique retraining at 26+.
+
+**Still open:**
+
+1. **Weekly release split:** start at half at the new league year, a tenth in program and camp, the
    rest in season? (100/0/0 = today.)
-3. **Pairs:** six to start; add LB→EDGE, TE→OL, RB→WR later behind the economics probe?
-4. **Veterans:** no skill retraining at 26+ (a vet's move rests on his skills already fitting). OK,
-   or retrain technique for a price (a 20% "tax" ledger, needs a careers re-baseline)?
-5. **One flip window,** cut-down day: a vet ready in week 12 becomes a safety next camp. OK?
-6. **AI moves:** ornamental (about 2 a year, no retune) or a real market (about 5 a year, with a
+2. **Pairs:** six to start; add LB→EDGE, TE→OL, RB→WR later behind the economics probe?
+3. **One flip window,** cut-down day: a vet ready in week 12 becomes a safety next camp. OK?
+4. **AI moves:** ornamental (about 2 a year, no retune) or a real market (about 5 a year, with a
    growth retune)?
-7. **Practice plan (§5):** build it as designed, or leave practice to the coaches for good? Both
+5. **Practice plan (§5):** build it as designed, or leave practice to the coaches for good? Both
    design reviews leaned "leave it".
-8. **Camp grain:** 3 preseason steps (default) or 7 (each camp week its own step)?
-9. **Camp injuries:** wanted? They redefine what `npm run sim` counts as the season.
-10. **"Coaches may start position moves"** off by default. Right?
-11. **Suggestion bar:** your current Dallas roster would get no suggestion this year (its best
+6. **Camp grain:** 3 preseason steps (default) or 7 (each camp week its own step)?
+7. **Camp injuries:** wanted? They redefine what `npm run sim` counts as the season.
+8. **"Coaches may start position moves"** off by default. Right?
+9. **Suggestion bar:** your current Dallas roster would get no suggestion this year (its best
     need scores 0.42 against a 1.0 bar). Lower it so the coaches speak up more?
-12. **Mentoring:** a stored, bounded work-ethic offset behind `workEthicOf`, or change the trait
+10. **Mentoring:** a stored, bounded work-ethic offset behind `workEthicOf`, or change the trait
     itself?
 
 ## Sources
