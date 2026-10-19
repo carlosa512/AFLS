@@ -955,6 +955,68 @@ same. Left as they are on purpose, with the borderline-checks work.
 **Done when:** every `trades` number is in range over 3 seeds × 6 seasons; `offseason` parity and cap
 health hold; the market budget holds.
 
+#### Phase 1: what landed
+
+Built as planned:
+- `plans.ts`:
+  - stance with the dead band, stored on the team, with the hot seat, a first-year head coach, an old
+    roster and no quarterback;
+  - needs (hole, upgrade, next year);
+  - the trade block and untouchables;
+  - interest at levels 1–3, fading after three quiet moments.
+- `deals.ts`: picks for a player, swaps and a player plus a pick, a late pick riding back, and cap
+  dumps.
+- `market.ts`: the moments (league year, FA days, camp, each week, deadline day), `TRADE_VOLUME`, and
+  per-team caps (3 in season, All-In 4).
+- The scheme-fit and coaching lenses (`readPlayer`).
+- Structured history (`league.market.history`), reason tags in the log ("deadline rental", "cap
+  dump"…), and rumors (who's shopping whom, who's been asking).
+- `npm run trades`: the volume and mix sections.
+- Save v23: an optional `league.market` and `team.stance`. Nothing to fill in, so old saves just load.
+
+Where the build departed from the plan, and why:
+- **The price is negotiated.** The first build sold every player at the seller's floor, the cheapest
+  package he'd take. So sellers lost on every deal, and over three seasons the busiest rebuilders were
+  down two firsts in truth. Now the price lands between the seller's floor and the most the buyer would
+  pay. The seller gets a fifth of the difference, plus a tenth for each other team that has been asking
+  about the player, up to two fifths (FM's "several clubs are interested").
+- **Sellers' floors count picks at the league's going rate** (`goingRate`: midway between the two
+  chart styles, 25% off a year). A Pick Hoarder's own chart prizes Day 2 and future picks, so on it he
+  happily took a third of a player's worth less than the league would pay. Every GM still prices what a
+  pick does for *him* on his own chart: that's the gain from trade, and draft day will lean on it. But
+  a player is never sold for less than most of what the league pays.
+- **A GM won't carry more than a quarter of the cap in dead money.** He refuses a sale whose bonuses
+  would push this season's dead money, or next season's, past that. A rebuilding Can-Kicker (bonuses
+  and void years everywhere) had sold four players in one offseason and carried 43% of the cap dead,
+  past the NFL's record (about a third, Denver after Wilson).
+- **The buyer picks picks or a swap by what each costs him.** Before, picks always came first, so
+  swaps were rare. A swap piece must be worth at least a late fourth to the seller, so no throw-ins
+  pad the count.
+- **Division rivals are the last call.** On top of the higher margin, a rival's player sits far down
+  a buyer's list, and a seller calls rivals last.
+- **Activity is derived, not stored.** `gmActivity` comes from the archetype with a jitter seeded per
+  team, like the owner's trigger, so v23 has nothing to roll.
+- **Interest decides when a buyer moves.** In an ordinary week he needs level 2 ("asked around")
+  before dealing. On deadline day and in the offseason level 1 will do.
+- **Moment weights:** weeks 0.35 (weeks 7–8 twice that) and deadline day 4.5, against the plan's
+  0.5, 1.0 and 2.5. Those land the deadline day's share of in-season trades on the NFL's. A team also
+  makes at most 5 trades in a league year.
+- **Not built yet:** the scheme "fit" need (scheme fit lives in the lens instead), the "blocked
+  youngster" block entry, and untouchable extensions (the hidden wait covers new signings). None is
+  needed for the numbers.
+- **`npm run trades` measures more.** Fairness counts picks at the going rate, the scale sellers'
+  floors use. Prices are probed in every league's first season: one league's deadline has only about
+  ten rentals, and their median swung from 41 to 160 between runs. `--verbose` prints each team's
+  ledger (picks and players) and its trades; `--seasons N` plays longer leagues.
+
+Measured (`npm run trades`, three leagues, three seasons):
+
+MEASURED_TABLE
+
+**Checks when Phase 1 landed.**
+
+CHECKS_TABLE
+
 ### Phase 2: offers to you
 
 1. `league.market`: offers, statuses, interest, talks, trust; mail for offers, enquiries and digests.

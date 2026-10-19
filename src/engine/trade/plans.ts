@@ -181,7 +181,7 @@ export interface BlockEntry {
 }
 
 /**
- * Players a team won't discuss: a contender's starting quarterback, and its best young players (by
+ * Players a team won't discuss: a buyer's starting quarterback (anyone's in season), and its best young players (by
  * the overall it knows exactly) for a loyal GM, the most loyal keeping four, the least one. Worked
  * out once per team and pass.
  */
@@ -192,7 +192,9 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
   const roster = rosterOf(ctx, team.id);
   const out = new Set<number>();
   const qbs = roster.filter((p) => p.position === 'QB').sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a));
-  if (qbs[0] && isBuyer(team) && ovrOf(ctx, qbs[0]) >= 14) out.add(qbs[0].id);
+  // A buyer keeps a good starting quarterback, and in season nobody trades the one it starts (Palmer to
+  // Oakland in 2011 is the rare exception): the Stafford and Wilson trades were made in the offseason.
+  if (qbs[0] && ((isBuyer(team) && ovrOf(ctx, qbs[0]) >= 14) || league.phase === 'regular')) out.add(qbs[0].id);
   if (team.gm.loyalty >= 0.5) {
     roster
       .filter((q) => q.age <= 25 && underContract(league, q))
@@ -299,13 +301,16 @@ export function wanted(ctx: TradeContext, team: Team, from: readonly Listing[], 
   const room = capRoom(ctx, team.id);
   const out: Wanted[] = [];
   const needs = teamNeeds(ctx, team);
+  const listed = byPosition(league, from);
   for (const need of opts.memo ? needs.slice(0, 2) : needs) {
+    const here = listed.get(need.position);
+    if (!here) continue;
     const mine = rosterOf(ctx, team.id)
       .filter((p) => p.position === need.position && healthy(league, p))
       .map((p) => ovrOf(ctx, p))
       .sort((a, b) => b - a);
     const bar = mine[STARTERS[need.position] - 1] ?? 0;
-    for (const { team: seller, entry } of byPosition(league, from).get(need.position) ?? []) {
+    for (const { team: seller, entry } of here) {
       if (seller.id === team.id || (opts.memo && entry.keenness <= 0.4)) continue;
       const p = league.players[entry.playerId];
       if (p.position !== need.position || salaryToTake(league, p) > room) continue;

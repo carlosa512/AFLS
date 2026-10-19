@@ -31,6 +31,8 @@ export interface TradeContext {
   slotScores?: number[];
   /** Pick values by GM and pick (`pickValue`): they depend on the slot and the GM, not on who owns the pick. */
   pickValues?: Map<GmTraits, Map<number, number>>;
+  /** Each pick at the league's going rate, by pick id. */
+  goingRates?: Map<number, number>;
   /** Salary weights by team, filled on first use. */
   salaryWeights?: number[];
   /** Each front office's read of each player it has looked at (see `readPlayer`). */
@@ -45,6 +47,8 @@ export interface TradeContext {
   untouchables?: Map<number, Set<number>>;
   /** Each team's wish list from the current blocks (`wanted` over every listing), dropped when a trade changes them. */
   wanted?: Map<number, Wanted[]>;
+  /** What each buyer could send each seller in a swap (`swapPieces`), by buyer × 64 + seller. */
+  swapPieces?: Map<number, Player[]>;
   /** True overalls by player (`ovrOf`): they don't change in a pass, trades or not. */
   ovrs?: Map<number, number>;
   /** Cap space by team and league year (`capRoom`). */
@@ -106,6 +110,7 @@ export function refreshAfterTrade(ctx: TradeContext, teamIds: readonly number[],
     }
   }
   delete ctx.wanted;
+  delete ctx.swapPieces;
 }
 
 export const rosterOf = (ctx: TradeContext, teamId: number): Player[] => ctx.rosters.get(teamId) ?? [];

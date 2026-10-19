@@ -128,14 +128,18 @@ export function pickValue(league: League, pick: DraftPick, gm: GmTraits, ctx?: T
 
 /**
  * The league's going rate for a pick: a chart midway between the two GM styles' and a quarter off a
- * year (the NFL's "a round later"). A GM prices what a pick does for *him* on his own chart, but he
+ * year (the NFL's "a round later"), memoized per pass like `pickValue`. A GM prices what a pick does for *him* on his own chart, but he
  * knows what the league pays for one: a seller's floor is counted in this, so a GM whose chart prizes
  * picks can't be talked into taking less than the league would pay for his player.
  */
 export function goingRate(league: League, pick: DraftPick, ctx?: TradeContext): number {
+  const hit = ctx?.goingRates?.get(pick.id);
+  if (hit !== undefined) return hit;
   const slot = pickOverall(league, pick, ctx);
   const yearsOut = Math.max(0, pick.season - nextDraftSeason(league));
-  return Math.exp(0.75 * Math.log(jimmyJohnson(slot)) + 0.25 * Math.log(fitzgeraldSpielberger(slot))) * 0.75 ** yearsOut;
+  const value = Math.exp(0.75 * Math.log(jimmyJohnson(slot)) + 0.25 * Math.log(fitzgeraldSpielberger(slot))) * 0.75 ** yearsOut;
+  if (ctx) (ctx.goingRates ??= new Map()).set(pick.id, value);
+  return value;
 }
 
 export const pickLabel = (league: League, pick: DraftPick) =>
@@ -415,6 +419,18 @@ export function playerSwing(ctx: TradeContext, team: Team, out: readonly number[
   return { loss: before - kept, gain: after - kept };
 }
 
+/** How many of a list sorted high to low are above `x` (a binary search: market value ranks every player against the league). */
+function countAbove(sorted: readonly number[], x: number): number {
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid] > x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 /**
  * What the league would pay for a player, on `team`'s read of him (`truth`: on his real ratings): no
  * need, no contender's premium, a typical team's cap. A player good enough to start for most teams
@@ -424,7 +440,7 @@ export function marketValue(ctx: TradeContext, team: Team, p: Player, truth = fa
   if (!p.contract || isExpired(p.contract, ctx.league.season)) return 0;
   const read = readPlayer(ctx, team, p, truth);
   const S = STARTERS[p.position];
-  const rank = ctx.market.ovrs[p.position].filter((o) => o > read.ovr + 1e-9).length;
+  const rank = countAbove(ctx.market.ovrs[p.position], read.ovr + 1e-9);
   const role = BACKUP + (1 - BACKUP) * clamp((40 * S - rank) / (16 * S), 0, 1);
   return role * (read.base + read.pay) - read.cost;
 }

@@ -54,9 +54,18 @@ function packages(ctx: TradeContext, buyer: Team, seller: Team): TradeSide[] {
 /**
  * Players a buyer could send in a swap: a backup of his who would start for the seller at a
  * position it needs, or a young one for a rebuilder; never a starter of his own or an untouchable.
- * The four the seller would value most, if they're worth a swap.
+ * The four the seller would value most, if they're worth a swap. Worked out once per pair and pass.
  */
 function swapPieces(ctx: TradeContext, buyer: Team, seller: Team): Player[] {
+  const key = buyer.id * 64 + seller.id;
+  const hit = ctx.swapPieces?.get(key);
+  if (hit) return hit;
+  const pieces = findSwapPieces(ctx, buyer, seller);
+  (ctx.swapPieces ??= new Map()).set(key, pieces);
+  return pieces;
+}
+
+function findSwapPieces(ctx: TradeContext, buyer: Team, seller: Team): Player[] {
   const { league } = ctx;
   const needs = new Set(teamNeeds(ctx, seller).map((n) => n.position));
   const keep = untouchables(ctx, buyer);

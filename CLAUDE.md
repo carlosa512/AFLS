@@ -58,10 +58,12 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   rolls in `match/gameSim.ts`.
 - `npm run trades` — the trade market (`docs/TRADES.md`): what buyers pay for stars, quality starters,
   deadline rentals and depth against the NFL's prices, what a future first is worth, every AI trade
-  valued in the truth (fair, and legal on cap and rosters afterwards), the exploit probes (junk for a
-  star, stacked firsts, dumps, sign and flip, buying straight back) and speed. Run it after changing
-  `trade/` or what it values players with (`scouting.ts`, `finance/`, `aging.ts`, `coaching.ts`).
-  `--verbose` lists every price and trade. Nothing may be flagged.
+  valued in the truth (fair, and legal on cap and rosters afterwards), the AI market's volume and mix
+  (in season, deadline day, offseason, swaps, dumps, division rivals) against the NFL's, the exploit
+  probes (junk for a star, stacked firsts, dumps, sign and flip, buying straight back) and speed. Run
+  it after changing `trade/` or what it values players with (`scouting.ts`, `finance/`, `aging.ts`,
+  `coaching.ts`). `--verbose` lists every price and trade and each team's ledger; `--seasons 6` plays
+  longer leagues. Nothing may be flagged.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -133,10 +135,15 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   - `offseason/` the calendar (`index.ts`), negotiation, AI front offices (`ai.ts`), the draft
   - `trade/` trades (`docs/TRADES.md`): pick charts and player value (talent × control by the role he'd
     have on the buyer's depth chart, his contract against the market weighed by cap room) in
-    `value.ts`; the window, deadline day and blockers in `rules.ts`, with the hidden wait on new
-    signings (each GM's own, never shown); `judge` in `judge.ts`, the one evaluator every deal goes
-    through (seller floors, soft first-round pricing, a centrepiece for a star); `executeTrade`; the
-    AI market (`market.ts`, its own RNG stream); `TradeContext`, one decision pass's cache ·
+    `value.ts`, with the league's going rate for a pick (`goingRate`); the window, deadline day and
+    blockers in `rules.ts`, with the hidden wait on new signings (each GM's own, never shown); `judge`
+    in `judge.ts`, the one evaluator every deal goes through (seller floors at the going rate, soft
+    first-round pricing, a centrepiece for a star, division rivals); `executeTrade`; each front
+    office's stance, needs, trade block and interest in `plans.ts` (on its own read); the deal search
+    in `deals.ts` (a price between the seller's floor and the buyer's most, picks or a swap, dumps);
+    the AI market at the NFL's moments (`marketMoment` in `market.ts`, its own RNG stream: league year,
+    FA days, camp, weeks, deadline day), its history and rumors in `league.market`; `TradeContext`,
+    one decision pass's cache ·
     `migrate.ts` save upgrades
 - `src/ui/` — React screens. State is one mutable `League` in `ui/store.ts`; call
   `store.mutate(fn)` to change it (triggers re-render + IndexedDB autosave).

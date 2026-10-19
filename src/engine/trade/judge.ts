@@ -10,11 +10,12 @@
  * - Each first-round pick an AI sends past the second costs it more: a price, not a hard cap.
  * - A star only goes for a centrepiece: quantity never buys quality.
  */
+import { capFor, deadMoneyIn } from '../finance/cap';
 import { yearsLeft } from '../finance/contract';
 import { contenderScore, rosterLimit } from '../offseason/negotiation';
 import type { League, Player, Team } from '../types';
 import { rosterOf, tradeContext, type TradeContext } from './context';
-import { freshSigningRefusal, playerTradeBlocker, tradeProblem, type TradeProposal } from './rules';
+import { freshSigningRefusal, playerTradeBlocker, tradeDeadMoney, tradeProblem, type TradeProposal, type TradeSide } from './rules';
 import { goingRate, marketValue, pickValue, playerSwing } from './value';
 
 /** Each player a deal leaves past the roster limit costs about a sixth-round pick: someone has to be cut. */
@@ -95,6 +96,21 @@ function rivalRefusal(ctx: TradeContext, team: Team, proposal: TradeProposal): s
   return star ? `They won't hand a division rival ${star.firstName} ${star.lastName} in the middle of a season.` : null;
 }
 
+/**
+ * The most dead money a GM will carry in a season: a quarter of the cap. The NFL's record is about a
+ * third (Denver in 2024, after releasing Wilson), so a rebuilder clears its books over a few sales,
+ * not all at once.
+ */
+const DEAD_LIMIT = 0.25;
+
+/** A GM won't sell players whose bonuses would bury his cap in dead money. */
+function deadRefusal(league: League, team: Team, mine: TradeSide): string | null {
+  if (!mine.players.length) return null;
+  const added = tradeDeadMoney(league, mine);
+  const over = (season: number, amount: number) => amount > 0 && deadMoneyIn(team, season) + amount > DEAD_LIMIT * capFor(league, season);
+  return over(league.season, added.thisYear) || over(league.season + 1, added.nextYear) ? "They can't take on any more dead money this year." : null;
+}
+
 /** The margin a GM wants over what he gives: a small win against the user, merely not losing to another AI. */
 export function marginFor(team: Team, other: Team, vsUser = false): number {
   // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want a lot more.
@@ -109,7 +125,7 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const mine = proposal.sides.find((s) => s.teamId === teamId)!;
   const theirs = proposal.sides.find((s) => s.teamId !== teamId)!;
   const problem = tradeProblem(league, proposal, { rosterCuts: opts.rosterCuts, ctx });
-  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal) ?? rivalRefusal(ctx, team, proposal);
+  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal) ?? rivalRefusal(ctx, team, proposal) ?? deadRefusal(league, team, mine);
 
   const { loss, gain } = playerSwing(ctx, team, mine.players, theirs.players);
   const pickIn = theirs.picks.reduce((s, id) => s + pickValue(league, pickById(league, id), team.gm, ctx), 0);

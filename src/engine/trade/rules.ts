@@ -116,6 +116,20 @@ export function tradeCapImpact(league: League, proposal: TradeProposal, ctx: Tra
   });
 }
 
+/** The dead money a team's outgoing players leave behind: the bonus still to be counted lands at once (after June 1, partly next year). */
+export function tradeDeadMoney(league: League, side: TradeSide): { thisYear: number; nextYear: number } {
+  const post = autoPostJune1(league.phase);
+  let thisYear = 0;
+  let nextYear = 0;
+  for (const id of side.players) {
+    const c = league.players[id].contract!;
+    const split = deadMoney(c, league.season, { paid: paidShare(league, c), postJune1: post, trade: true });
+    thisYear += split.thisYear;
+    nextYear += split.nextYear;
+  }
+  return { thisYear, nextYear };
+}
+
 /** The base salary a team would take on with a player: what's left of this season's. */
 export function salaryToTake(league: League, p: Player): number {
   const c = p.contract;

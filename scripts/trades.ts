@@ -19,6 +19,7 @@
  *
  *   npm run trades          # 3 leagues, 3 seasons each
  *   npm run trades -- 4
+ *   npm run trades -- --seasons 6
  *
  * ▲/▼ marks a number outside its band; the last line counts them and the process exits 1 if any are.
  */
@@ -59,10 +60,11 @@ import {
 import type { DraftPick, GmTraits, League, Player, Position, TradeRecord } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 
-const LEAGUES = Number(process.argv.slice(2).find((a) => !a.startsWith('-')) ?? 3);
+const LEAGUES = Number(process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seasons') ?? 3);
 /** `--verbose`: every priced player and every AI trade, not just one example per bucket. */
 const VERBOSE = process.argv.includes('--verbose');
-const SEASONS = 3;
+const flag = (name: string) => process.argv[process.argv.indexOf(name) + 1];
+const SEASONS = process.argv.includes('--seasons') ? Number(flag('--seasons')) : 3;
 /** Each team's division (every league uses the real alignment). */
 const DIVISION_OF = createLeague({ seed: 'divisions' }).teams.map((t) => t.division);
 
@@ -193,14 +195,19 @@ function futureFirstSlot(league: League, gm: GmTraits, ctx: TradeContext): numbe
 
 // ───────── 3. Fairness and health ─────────
 
-/** A pick at the league's going rate (between the two GM styles' charts, 25% off a year), the scale sellers' floors use. */
-const neutralPick = (league: League, pk: DraftPick, ctx: TradeContext) => goingRate(league, pk, ctx);
-
-const fair = { gaps: [] as number[], lopsided: 0, trades: 0, seasons: 0, balance: new Map<string, number>(), parts: new Map<string, { picks: number; players: number; n: number; lines: string[] }>(), health: 0, healthy: 0, kinds: new Map<string, number>() };
+/** Each team's run of trades: its truth balance in picks and in players, and (`--verbose`) each trade. */
+interface Ledger {
+  picks: number;
+  players: number;
+  lines: string[];
+}
+const fair = { gaps: [] as number[], lopsided: 0, trades: 0, seasons: 0, ledgers: new Map<string, Ledger>(), health: 0, healthy: 0, kinds: new Map<string, number>() };
+const balanceOf = (l: Ledger) => l.picks + l.players;
 
 /**
  * A trade's fairness on one neutral, true scale: what each side sends at its players' true market
- * value and its picks on a chart midway between the GM styles. Market value doesn't depend on which
+ * value and its picks at the league's going rate (`goingRate`: a chart midway between the GM styles',
+ * 25% off a year, the scale sellers' floors use). Market value doesn't depend on which
  * team a player is on, so the league as it stands after the step will do. The gap is measured
  * against everything that moved (a dump's bad contract counts), so 0.5 is a 3:1 trade.
  */
@@ -208,7 +215,7 @@ function judgeFairness(league: League, proposal: TradeProposal, label: string) {
   const ctx = tradeContext(league);
   const parts = proposal.sides.map((side) => {
     const players = side.players.map((id) => marketValue(ctx, league.teams[side.teamId], league.players[id], true));
-    const picks = side.picks.map((id) => neutralPick(league, league.draftPicks.find((x) => x.id === id)!, ctx));
+    const picks = side.picks.map((id) => goingRate(league, league.draftPicks.find((x) => x.id === id)!, ctx));
     return [...players, ...picks];
   });
   const worth = parts.map((xs) => xs.reduce((a, b) => a + b, 0));
@@ -221,19 +228,25 @@ function judgeFairness(league: League, proposal: TradeProposal, label: string) {
     fair.lopsided++;
     if (VERBOSE) console.log(`  LOPSIDED ${a.toFixed(0)} vs ${b.toFixed(0)}: ${proposal.sides.map((side) => `${league.teams[side.teamId].abbrev} (${league.teams[side.teamId].stance?.mode ?? '?'}, ${league.teams[side.teamId].gm.archetype}) sends ${[...side.players.map((id) => `${name(league.players[id])} ${playerOvr(league.players[id]).toFixed(1)} age ${league.players[id].age}`), ...side.picks.map((id) => { const pk = league.draftPicks.find((x) => x.id === id)!; return `${pk.season} R${pk.round}`; })].join(' + ') || 'nothing'}`).join(' · ')} [${league.phase} wk${league.week}]`);
   }
+  const sum = (xs: number[]) => xs.reduce((x, y) => x + y, 0);
+  const describe = (side: TradeProposal['sides'][number], xs: number[]) =>
+    [
+      ...side.players.map((id, j) => `${league.players[id].position} ${playerOvr(league.players[id]).toFixed(1)}/${league.players[id].age} (${xs[j].toFixed(0)})`),
+      ...side.picks.map((id, j) => {
+        const pk = league.draftPicks.find((x) => x.id === id)!;
+        return `${pk.season} R${pk.round} (${xs[side.players.length + j].toFixed(0)})`;
+      }),
+    ].join(' + ') || 'nothing';
   proposal.sides.forEach((side, i) => {
-    const key = `${label}:${league.teams[side.teamId].abbrev}:${league.teams[side.teamId].gm.archetype}`;
-    fair.balance.set(key, (fair.balance.get(key) ?? 0) + worth[1 - i] - worth[i]);
-    const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
-    const np = side.players.length, op = proposal.sides[1 - i].players.length;
-    const part = fair.parts.get(key) ?? { picks: 0, players: 0, n: 0, lines: [] };
-    part.players += sum(parts[1 - i].slice(0, op)) - sum(parts[i].slice(0, np));
-    part.picks += sum(parts[1 - i].slice(op)) - sum(parts[i].slice(np));
-    part.n++;
-    const other = league.teams[proposal.sides[1 - i].teamId];
-    const desc = (sd: TradeProposal['sides'][number], xs: number[]) => [...sd.players.map((id, j) => `${league.players[id].position} ${playerOvr(league.players[id]).toFixed(1)}/${league.players[id].age} (${xs[j].toFixed(0)})`), ...sd.picks.map((id, j) => { const pk = league.draftPicks.find((x) => x.id === id)!; return `${pk.season} R${pk.round} (${xs[sd.players.length + j].toFixed(0)})`; })].join(' + ') || 'nothing';
-    part.lines.push(`${(worth[1 - i] - worth[i]).toFixed(0).padStart(5)} [${league.phase} wk${league.week}] sends ${desc(side, parts[i])} for ${desc(proposal.sides[1 - i], parts[1 - i])} with ${other.abbrev} ${other.gm.archetype} (${other.stance?.mode})`);
-    fair.parts.set(key, part);
+    const team = league.teams[side.teamId];
+    const other = proposal.sides[1 - i];
+    const key = `${label}:${team.abbrev}:${team.gm.archetype}`;
+    const ledger = fair.ledgers.get(key) ?? { picks: 0, players: 0, lines: [] };
+    ledger.players += sum(parts[1 - i].slice(0, other.players.length)) - sum(parts[i].slice(0, side.players.length));
+    ledger.picks += sum(parts[1 - i].slice(other.players.length)) - sum(parts[i].slice(side.players.length));
+    const them = league.teams[other.teamId];
+    if (VERBOSE) ledger.lines.push(`${(worth[1 - i] - worth[i]).toFixed(0).padStart(5)} [${league.phase} wk${league.week}] sends ${describe(side, parts[i])} for ${describe(other, parts[1 - i])} to ${them.abbrev} (${them.gm.archetype}, ${them.stance?.mode})`);
+    fair.ledgers.set(key, ledger);
   });
   const kind = proposal.sides.some((s) => s.players.length) && proposal.sides.some((s) => s.picks.length) ? 'picks for players' : proposal.sides.every((s) => s.players.length) ? 'player swaps' : proposal.sides.some((s) => s.players.length) ? 'players for nothing' : 'picks only';
   fair.kinds.set(kind, (fair.kinds.get(kind) ?? 0) + 1);
@@ -464,8 +477,15 @@ check("next year's first, as a current pick (median over GMs)", median(futureSlo
 console.log(`\nFairness and health (${fair.trades} AI trades over ${fair.seasons} seasons: ${[...fair.kinds].map(([k, n]) => `${n} ${k}`).join(', ')})`);
 check('median truth gap between the sides (% of the stakes)', median(fair.gaps) * 100, [0, 35]);
 check('trades over 3:1 in truth, a season', fair.lopsided / fair.seasons, [0, 1], 2);
-if (VERBOSE) for (const [key, v] of [...fair.balance].sort((x, y) => x[1] - y[1]).filter((_, i, a) => i < 6 || i >= a.length - 3)) { const pt = fair.parts.get(key)!; console.log(`  balance ${key} ${v.toFixed(0)} (picks ${pt.picks.toFixed(0)}, players ${pt.players.toFixed(0)}, ${pt.n} trades)`); if (Math.abs(v) > 1000) for (const l of pt.lines) console.log(`      ${l}`); }
-check("any team's truth balance over its league's run (|points|)", Math.max(0, ...[...fair.balance.values()].map(Math.abs)), [0, 1000]);
+const ledgers = [...fair.ledgers].sort((x, y) => balanceOf(x[1]) - balanceOf(y[1]));
+if (VERBOSE) {
+  // The biggest losers and winners, and every trade of a team past the band.
+  for (const [key, l] of ledgers.filter((_, i, all) => i < 5 || i >= all.length - 3)) {
+    console.log(`  balance ${key} ${balanceOf(l).toFixed(0)} (picks ${l.picks.toFixed(0)}, players ${l.players.toFixed(0)}, ${l.lines.length} trades)`);
+    if (Math.abs(balanceOf(l)) > 1000) for (const line of l.lines) console.log(`      ${line}`);
+  }
+}
+check("any team's truth balance over its league's run (|points|)", Math.max(0, ...ledgers.map(([, l]) => Math.abs(balanceOf(l)))), [0, 1000]);
 check('teams over the cap or short after a trade', fair.health, [0, 0]);
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
