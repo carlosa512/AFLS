@@ -6,7 +6,7 @@
 import { Rng } from './rng';
 import { regularSeasonGames } from './season/standings';
 import { addStats, passerRating } from './stats';
-import type { League, Player, Position, StatLine } from './types';
+import type { Game, League, Player, Position, StatLine } from './types';
 
 export type AwardKey = 'mvp' | 'opoy' | 'dpoy' | 'oroy' | 'droy' | 'comeback';
 
@@ -102,11 +102,23 @@ function positionScore(pos: Position, s: StatLine): number {
   }
 }
 
-/** What a season meant, on one scale: offense as is, defense stretched to match. */
-function impact(p: Player, s: StatLine): number {
+/** What a season (or a game) meant, on one scale: offense as is, defense stretched to match. */
+export function impact(p: Player, s: StatLine): number {
   if (OFFENSE.has(p.position)) return offenseScore(s);
   if (DEFENSE.has(p.position)) return defenseScore(s) * DEFENSE_SCALE;
   return 0;
+}
+
+/** A game's best performer, either side, on the ballot's scale: who a recap names. Null if nobody put up a number. */
+export function playerOfTheGame(league: League, g: Game): number | null {
+  let best: number | null = null;
+  let top = 0;
+  for (const [id, s] of Object.entries(g.result?.playerStats ?? {})) {
+    const p = league.players[Number(id)];
+    const v = p ? impact(p, s) : 0;
+    if (v > top) [best, top] = [Number(id), v];
+  }
+  return best;
 }
 
 /** The league year a player was a rookie: his draft year, or for undrafted players the year he had no experience. */

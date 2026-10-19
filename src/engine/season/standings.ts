@@ -128,6 +128,44 @@ export function divisionStandings(league: League, records = computeRecords(leagu
   });
 }
 
+export interface RaceStatus {
+  /** Sure of a playoff place. */
+  spot: boolean;
+  /** Sure of the division title. */
+  division: boolean;
+  /** Sure of the top seed, the conference's only first-round bye. */
+  bye: boolean;
+  /** Out of the race. */
+  out: boolean;
+}
+
+/**
+ * Where a team stands in the playoff race, only once it's certain. It works on wins alone (a tie is
+ * half) with every tie on the line going against the team, so a clinch can come a week later than the
+ * real tiebreakers would allow, never earlier. Each division sends its winner and three wild cards
+ * follow, so of `n` rivals from `d` divisions at least `n - d` are wild-card hopefuls.
+ */
+export function playoffRace(league: League, teamId: number, season = league.season): RaceStatus {
+  const records = computeRecords(league, season);
+  const left = new Map(league.teams.map((t) => [t.id, 0]));
+  for (const g of league.games) {
+    if (g.season !== season || g.playoffRound || g.result) continue;
+    left.set(g.homeId, left.get(g.homeId)! + 1);
+    left.set(g.awayId, left.get(g.awayId)! + 1);
+  }
+  const now = (id: number) => records.get(id)!.w + records.get(id)!.t / 2;
+  const best = (id: number) => now(id) + left.get(id)!;
+  const team = league.teams[teamId];
+  const others = league.teams.filter((t) => t.conference === team.conference && t.id !== teamId);
+  // Who could still finish level with us or above, and who is already sure to finish above our best.
+  const level = others.filter((t) => best(t.id) >= now(teamId));
+  const above = others.filter((t) => now(t.id) > best(teamId));
+  const hopefuls = (ts: typeof others) => ts.length - new Set(ts.map((t) => t.division)).size;
+  const rival = (ts: typeof others) => ts.some((t) => t.division === team.division);
+  const division = !rival(level);
+  return { spot: division || hopefuls(level) < 3, division, bye: level.length === 0, out: rival(above) && hopefuls(above) >= 3 };
+}
+
 /** Seven playoff seeds for a conference: four division winners, then three wild cards. */
 export function conferenceSeeds(league: League, conference: number, records = computeRecords(league)): number[] {
   const divisions = divisionStandings(league, records).filter((d) => d.division.conference === conference);

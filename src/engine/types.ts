@@ -506,10 +506,18 @@ export interface Transaction {
   text: string;
 }
 
-export type InboxCategory = 'awards' | 'contracts' | 'retirement' | 'medical' | 'scouting' | 'matchup' | 'trades';
+export type InboxCategory = 'awards' | 'contracts' | 'retirement' | 'medical' | 'scouting' | 'matchup' | 'trades' | 'league';
 
-/** Where a message's buttons go: a player's card, a team's roster, or a front-office tab. */
-export type InboxAction = { kind: 'player'; playerId: number } | { kind: 'team'; teamId: number } | { kind: 'resign' } | { kind: 'draft' } | { kind: 'medical' };
+/** Where a message's buttons go: a player's card, a team's roster, a game's box score, a front-office tab, or the standings. */
+export type InboxAction =
+  | { kind: 'player'; playerId: number }
+  | { kind: 'team'; teamId: number }
+  | { kind: 'game'; gameId: number }
+  | { kind: 'resign' }
+  | { kind: 'draft' }
+  | { kind: 'medical' }
+  | { kind: 'trades' }
+  | { kind: 'standings' };
 
 export interface InboxMessage {
   /** Built from what the message is about, so delivering twice can't duplicate it. */

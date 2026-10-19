@@ -17,6 +17,7 @@ const TYPES: [InboxCategory | 'all', string][] = [
   ['scouting', 'Scouting'],
   ['trades', 'Trades'],
   ['retirement', 'Retirement'],
+  ['league', 'League news'],
 ];
 
 const TAGS: Record<InboxCategory, string> = {
@@ -27,7 +28,14 @@ const TAGS: Record<InboxCategory, string> = {
   scouting: 'Scouting',
   trades: 'Trade',
   retirement: 'Retirement',
+  league: 'League',
 };
+
+/** A tag says what kind of message it is: a recap or the playoff race reads as such, whatever its category. */
+function tagOf(m: InboxMessage): string {
+  const kind = mailSubject(m)?.kind;
+  return kind === 'recap' ? 'Recap' : kind === 'race' ? 'Playoff race' : kind === 'deadline' ? 'Trade deadline' : TAGS[m.category];
+}
 
 function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
   switch (a.kind) {
@@ -42,6 +50,12 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
       return mailSubject(m)?.kind === 'draftClass' ? 'Draft history' : 'Draft room';
     case 'medical':
       return 'Medical';
+    case 'game':
+      return 'Box score';
+    case 'trades':
+      return 'Trades';
+    case 'standings':
+      return 'Standings';
   }
 }
 
@@ -102,6 +116,8 @@ export function Inbox({ league }: { league: League }) {
   const act = (a: InboxAction) => {
     if (a.kind === 'player') nav.openPlayer(a.playerId);
     else if (a.kind === 'team') nav.openTeam(a.teamId);
+    else if (a.kind === 'game') nav.openGame(a.gameId);
+    else if (a.kind === 'standings') nav.go({ view: 'standings' });
     else nav.go({ view: 'office', tab: a.kind });
   };
   const filters: [Show, string, number][] = [
@@ -168,7 +184,7 @@ export function Inbox({ league }: { league: League }) {
                         <span className="inbox-subject">{m.subject}</span>
                       </span>
                       <span className="inbox-tags">
-                        <span className={`mail-tag cat-${m.category}`}>{TAGS[m.category]}</span>
+                        <span className={`mail-tag cat-${m.category}`}>{tagOf(m)}</span>
                         {needs.has(m.id) && <span className="needs-pill">Needs you</span>}
                       </span>
                     </button>
@@ -248,7 +264,7 @@ function MessageHead({ m, needs }: { m: InboxMessage; needs: boolean }) {
         <h3>{m.subject}</h3>
       </div>
       <span className="inbox-tags">
-        <span className={`mail-tag cat-${m.category}`}>{TAGS[m.category]}</span>
+        <span className={`mail-tag cat-${m.category}`}>{tagOf(m)}</span>
         {needs && <span className="needs-pill">Needs you</span>}
       </span>
     </header>
