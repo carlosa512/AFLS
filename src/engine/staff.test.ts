@@ -29,7 +29,7 @@ import {
   staffValue,
   teamStaff,
 } from './staff';
-import { playerValue } from './trade';
+import { grossWorth, playerValue, tradeContext } from './trade';
 import type { League, Player, Staff } from './types';
 import { ATTRIBUTES } from './types';
 
@@ -319,23 +319,30 @@ describe('AI front offices on their own reads', () => {
 
   it("misjudge other teams' players in trades only within a narrow band", () => {
     const l = createLeague({ seed: 'band' });
-    const ratios: number[] = [];
+    const ctx = tradeContext(l);
+    // A team's misread as a share of the player's stakes (his play and its market price, before his
+    // salary). What he adds to a roster depends on who's already there (a small upgrade adds little,
+    // a fairly paid backup about nothing), so a ratio of that would say little.
+    const errors: number[] = [];
     for (const p of Object.values(l.players).filter((x) => x.teamId === l.userTeamId)) {
       for (const t of l.teams) {
         if (t.id === l.userTeamId) continue;
-        const truth = playerValue(l, p, t, { truth: true });
-        if (truth > 50) ratios.push(playerValue(l, p, t) / truth);
+        const stakes = grossWorth(ctx, t, p, true);
+        if (stakes > 50) errors.push((playerValue(l, p, t, { ctx }) - playerValue(l, p, t, { truth: true, ctx })) / stakes);
       }
     }
-    ratios.sort((x, y) => x - y);
-    expect(ratios[Math.floor(ratios.length / 2)]).toBeCloseTo(1, 1);
+    errors.sort((x, y) => x - y);
+    const at = (q: number) => errors[Math.min(errors.length - 1, Math.floor(errors.length * q))];
+    expect(Math.abs(at(0.5))).toBeLessThan(0.02);
     // Both tails: underrating is bounded the same way.
-    expect(ratios[Math.floor(ratios.length * 0.01)]).toBeGreaterThan(0.8);
-    expect(ratios[0]).toBeGreaterThan(0.25);
-    expect(ratios[Math.floor(ratios.length * 0.95)]).toBeLessThan(1.1);
-    expect(ratios[Math.floor(ratios.length * 0.99)]).toBeLessThan(1.25);
-    // The rare tail: a misread that tips him over a team's starter line.
-    expect(ratios.at(-1)!).toBeLessThan(2);
+    expect(at(0.05)).toBeGreaterThan(-0.12);
+    expect(at(0.95)).toBeLessThan(0.12);
+    expect(at(0.01)).toBeGreaterThan(-0.25);
+    expect(at(0.99)).toBeLessThan(0.25);
+    // The rare tail: a misread that tips him over a team's starter line. Shopping him to 31 teams finds
+    // the one that likes him most, as it should, but for at most half his stakes again, not a fantasy price.
+    expect(errors.at(-1)!).toBeLessThan(0.5);
+    expect(errors[0]).toBeGreaterThan(-1);
   }, 30_000);
 
   it('build boards no worse than the consensus, and scout prospects near their own picks', () => {

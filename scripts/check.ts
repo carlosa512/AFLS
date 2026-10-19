@@ -48,6 +48,8 @@ const CHECKS = {
   weather: { cmd: ['npm', 'run', 'weather'], cores: 1, secs: 25, summary: /\d+ number\(s\) outside target range/, detail: /[▲▼✗]/ },
   // Officiating crews: the league stays at baseline, the crews spread like the NFL's, the rotation and drift hold.
   crews: { cmd: ['npm', 'run', 'crews'], cores: 1, secs: 15, summary: /\d+ number\(s\) outside target range/, detail: /[▲▼]/ },
+  // The trade market: prices against the NFL's, fair and legal AI trades, the exploit probes, speed.
+  trades: { cmd: ['npm', 'run', 'trades'], cores: 1, secs: 110, summary: /\d+ number\(s\) outside target range/, detail: /[▲▼✗]/ },
 } satisfies Record<string, Check>;
 
 type Name = keyof typeof CHECKS;
@@ -64,7 +66,7 @@ const NAMES = Object.keys(CHECKS) as Name[];
 const RULES: [RegExp, Name[]][] = [
   [/^src\/.*\.test\.ts$/, ['typecheck', 'test']],
   [/^src\/engine\/(?!.*\.test\.ts$|migrate\.ts$)/, ['typecheck', 'test', 'sim', 'endings', 'offseason', 'careers']],
-  [/^src\/engine\/(?!.*\.test\.ts$|migrate\.ts$|awards\.ts$|league\.ts$|records\.ts$|stats\.ts$|trade\.ts$|offseason\/|season\/(playoffs|standings)\.ts$)/, ['audit']],
+  [/^src\/engine\/(?!.*\.test\.ts$|migrate\.ts$|awards\.ts$|league\.ts$|records\.ts$|stats\.ts$|trade\/|offseason\/|season\/(playoffs|standings)\.ts$)/, ['audit']],
   // Saves: only the UI and the tests load it.
   [/^src\/engine\/migrate\.ts$/, ['typecheck', 'test']],
   // The UI has tests too (src/ui/ui.test.ts), and vite.config.ts is also vitest's config.
@@ -86,6 +88,9 @@ const RULES: [RegExp, Name[]][] = [
   // Crews: their tendencies and rotation, the penalty rolls they multiply, and what builds the leagues and schedules.
   [/^src\/engine\/(?!.*\.test\.ts$)(officials|match\/|generate|season\/schedule|offseason\/index)/, ['crews']],
   [/^scripts\/crews\.ts$/, ['crews']],
+  // Trades: the market and what it values players with (scouting reads, contracts, the cap, rosters, aging, coaches).
+  [/^src\/engine\/(?!.*\.test\.ts$)(trade\/|offseason\/|finance\/|coaching|scouting|staff|aging|positions|roster|league\.ts|generate)/, ['trades']],
+  [/^scripts\/trades\.ts$/, ['trades']],
   // The harness itself, dependencies and compiler settings can break anything.
   [/^scripts\/check\.ts$|^package(-lock)?\.json$|^tsconfig\.json$|^\.github\/workflows\//, NAMES],
 ];

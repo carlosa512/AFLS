@@ -67,10 +67,12 @@ export interface CapSheet {
   top51: boolean;
 }
 
-/** League year cap position. For the current year pass `phase` to apply the top-51 rule. */
-export function capSheet(league: League, teamId: number, season = league.season): CapSheet {
+/**
+ * League year cap position (the top-51 rule applies to the current year until camp). `roster` saves
+ * a scan of the league when the caller already holds the team's players (the trade market does).
+ */
+export function capSheet(league: League, teamId: number, season = league.season, roster: readonly Player[] = teamPlayers(league, teamId)): CapSheet {
   const team = league.teams[teamId];
-  const roster = teamPlayers(league, teamId);
   // The top-51 rule runs until the final roster is set in training camp.
   const top51 = season === league.season && (league.phase === 'resign' || league.phase === 'freeAgency' || league.phase === 'draft');
   let hits = roster.map((p) => (p.contract ? capHit(p.contract, season) : 0)).sort((a, b) => b - a);
@@ -84,7 +86,7 @@ export function capSheet(league: League, teamId: number, season = league.season)
   return { season, cap, carryover, active, dead, used, space: cap + carryover - used, rosterSize: roster.filter((p) => !p.ir).length, top51 };
 }
 
-export const capSpace = (league: League, teamId: number, season = league.season) => capSheet(league, teamId, season).space;
+export const capSpace = (league: League, teamId: number, season = league.season, roster?: readonly Player[]) => capSheet(league, teamId, season, roster).space;
 
 export function logTransaction(league: League, kind: Transaction['kind'], teamIds: number[], text: string): void {
   league.transactions.push({ season: league.season, phase: league.phase, week: league.week, teamIds, kind, text });

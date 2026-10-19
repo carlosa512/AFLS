@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { capHit, isExpired, lastSeason } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
-import { evaluateTrade, executeTrade, pickLabel, playerTradeBlocker, suggestSweetener, tradeCapImpact, tradeWindow, type TradeProposal } from '../../engine/trade';
+import { evaluateTrade, executeTrade, isDeadlineDay, pickLabel, playerTradeBlocker, suggestSweetener, tradeCapImpact, tradeWindow, type TradeProposal } from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
@@ -90,9 +90,9 @@ export function Trades({ league }: { league: League }) {
   const need = verdict ? Math.max(1, verdict.get + verdict.shortfall) : 1;
   // The fill is coarse on purpose: a smooth bar would let you read the AI's exact valuation off it.
   // Rounding down means a full bar only ever means "they would accept".
-  // A rule problem (cap, roster, window) isn't about value: the bar stays empty and says so.
+  // A rule problem (cap, roster, window) or the GM's own line isn't about value: the bar stays empty and says so.
   const fill = !verdict || verdict.problem ? 0 : verdict.accepts ? 1 : Math.floor(Math.min(1, Math.max(0, verdict.get / need)) * 10) / 10;
-  const mood = !verdict ? 'No offer yet' : verdict.problem ? 'Blocked by a rule' : verdict.accepts ? 'They would accept' : fill >= 0.8 ? 'Close' : fill >= 0.4 ? 'Some way off' : 'Far apart';
+  const mood = !verdict ? 'No offer yet' : verdict.problem ? (verdict.policy ? 'Not interested' : 'Blocked by a rule') : verdict.accepts ? 'They would accept' : fill >= 0.8 ? 'Close' : fill >= 0.4 ? 'Some way off' : 'Far apart';
 
   const propose = () => {
     let text = '';
@@ -116,6 +116,7 @@ export function Trades({ league }: { league: League }) {
   return (
     <>
       {closed && <div className="notice">{closed}</div>}
+      {!closed && isDeadlineDay(league) && <div className="notice">Deadline day: trades close when you play week {league.week}.</div>}
       {done && (
         <p className="callout callout-good" role="status">
           Trade complete: {done}.
@@ -194,8 +195,7 @@ export function Trades({ league }: { league: League }) {
           </div>
         </div>
         <p className="muted small" style={{ marginBottom: 0 }}>
-          Traded players take their salary with them; any bonus money stays on your cap as dead money. Players signed this year can't be dealt for six
-          weeks, and teams want a small win in their own eyes.
+          Traded players take their salary with them; any bonus money stays on your cap as dead money. Teams want a small win in their own eyes.
         </p>
       </Panel>
     </>

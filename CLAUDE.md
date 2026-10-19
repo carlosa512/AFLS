@@ -40,7 +40,7 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
-  it after changes to `finance/`, `offseason/`, `trade.ts`, `staff.ts`, `coaching.ts`, `medical.ts`
+  it after changes to `finance/`, `offseason/`, `trade/`, `staff.ts`, `coaching.ts`, `medical.ts`
   or `injuries.ts`; talent, cap space, rosters and the coaching ledger (growth and decline ×1.00)
   should stay stable across seasons.
 - `npm run quirks` — run the quirk marble bag for 10 seasons and check how often each quirk is carried,
@@ -56,6 +56,12 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   game within 5% of a league-average crew's, the busiest crew 1.3–1.7× the quietest, the weekly
   rotation, and thirty years of offseason drift. Run it after changing `officials.ts` or the penalty
   rolls in `match/gameSim.ts`.
+- `npm run trades` — the trade market (`docs/TRADES.md`): what buyers pay for stars, quality starters,
+  deadline rentals and depth against the NFL's prices, what a future first is worth, every AI trade
+  valued in the truth (fair, and legal on cap and rosters afterwards), the exploit probes (junk for a
+  star, stacked firsts, dumps, sign and flip, buying straight back) and speed. Run it after changing
+  `trade/` or what it values players with (`scouting.ts`, `finance/`, `aging.ts`, `coaching.ts`).
+  `--verbose` lists every price and trade. Nothing may be flagged.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -125,7 +131,13 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     restructures), team cap sheets and moves (`cap.ts`), the rank-based market, rookie scale and
     tags (`market.ts`)
   - `offseason/` the calendar (`index.ts`), negotiation, AI front offices (`ai.ts`), the draft
-  - `trade.ts` pick charts, AI trade valuation and guardrails · `migrate.ts` save upgrades
+  - `trade/` trades (`docs/TRADES.md`): pick charts and player value (talent × control by the role he'd
+    have on the buyer's depth chart, his contract against the market weighed by cap room) in
+    `value.ts`; the window, deadline day and blockers in `rules.ts`, with the hidden wait on new
+    signings (each GM's own, never shown); `judge` in `judge.ts`, the one evaluator every deal goes
+    through (seller floors, soft first-round pricing, a centrepiece for a star); `executeTrade`; the
+    AI market (`market.ts`, its own RNG stream); `TradeContext`, one decision pass's cache ·
+    `migrate.ts` save upgrades
 - `src/ui/` — React screens. State is one mutable `League` in `ui/store.ts`; call
   `store.mutate(fn)` to change it (triggers re-render + IndexedDB autosave).
 
