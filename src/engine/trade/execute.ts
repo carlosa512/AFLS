@@ -3,10 +3,19 @@ import { autoPostJune1, logTransaction, paidShare, weeksPaid } from '../finance/
 import { deadMoney } from '../finance/contract';
 import { freeJersey } from '../generate';
 import { syncDepthChart, teamPlayers } from '../roster';
-import type { League } from '../types';
+import type { DealKind, League, TradeMarket, TradeRecord } from '../types';
 import type { TradeProposal } from './rules';
 
-export function executeTrade(league: League, proposal: TradeProposal): void {
+/** Trades kept for trade trails and the market's memory: the last five league years. */
+const HISTORY_YEARS = 5;
+
+export const emptyMarket = (): TradeMarket => ({ moment: 0, history: [], interest: [], rumors: [] });
+
+/**
+ * Move the assets and log the trade. `kind` and `tag` say what it was for the news ("deadline
+ * rental"); the user's own trades go in untagged.
+ */
+export function executeTrade(league: League, proposal: TradeProposal, meta: { kind: DealKind; tag?: string } = { kind: 'user' }): TradeRecord {
   const post = autoPostJune1(league.phase);
   const moved: string[][] = [[], []];
   proposal.sides.forEach((side, i) => {
@@ -48,5 +57,15 @@ export function executeTrade(league: League, proposal: TradeProposal): void {
   });
   for (const side of proposal.sides) syncDepthChart(league, league.teams[side.teamId]);
   const [a, b] = proposal.sides.map((s) => league.teams[s.teamId]);
-  logTransaction(league, 'trade', [a.id, b.id], `${a.abbrev} traded ${moved[0].join(', ') || 'nothing'} to ${b.abbrev} for ${moved[1].join(', ') || 'nothing'}`);
+  logTransaction(league, 'trade', [a.id, b.id], `${a.abbrev} traded ${moved[0].join(', ') || 'nothing'} to ${b.abbrev} for ${moved[1].join(', ') || 'nothing'}${meta.tag ? ` (${meta.tag})` : ''}`);
+  const record: TradeRecord = {
+    season: league.season,
+    phase: league.phase,
+    week: league.week,
+    sides: [proposal.sides[0], proposal.sides[1]].map((s) => ({ teamId: s.teamId, players: [...s.players], picks: [...s.picks] })) as TradeRecord['sides'],
+    kind: meta.kind,
+  };
+  const market = (league.market ??= emptyMarket());
+  market.history = [...market.history.filter((r) => r.season > league.season - HISTORY_YEARS), record];
+  return record;
 }

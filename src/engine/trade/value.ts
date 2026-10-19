@@ -13,16 +13,20 @@
  *   out for most of it, so a starter never goes for a seventh-round pick.
  */
 import { ageShift } from '../aging';
+import { CONTESTS } from '../attributes';
+import { coachingFor, effectOf, teamScheme, type Coaching } from '../coaching';
 import { paidShare, weeksPaid } from '../finance/cap';
 import { isExpired, yearsLeft } from '../finance/contract';
 import { marketApy, minSalary } from '../finance/market';
 import { contenderScore } from '../offseason/negotiation';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
+import { fitContests } from '../schemes';
 import { characterRead, projectedCeiling, quirkWorth, trueQuirkWorth } from '../scouting';
 import { clamp } from '../rng';
 import { teamRatings } from '../roster';
 import { computeRecords, winPct } from '../season/standings';
-import type { DraftPick, GmTraits, League, Player, Position, Team } from '../types';
+import type { Attribute, DraftPick, GmTraits, League, Player, Position, Team } from '../types';
+import { POSITIONS } from '../types';
 import { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
 
 // ───────── pick value ─────────
@@ -119,7 +123,8 @@ export const pickLabel = (league: League, pick: DraftPick) =>
 
 // ───────── player value ─────────
 
-const POSITION_TRADE: Record<Position, number> = { QB: 1, EDGE: 0.75, WR: 0.7, CB: 0.65, DT: 0.65, OL: 0.6, LB: 0.45, S: 0.45, TE: 0.45, RB: 0.4, K: 0.1, P: 0.08 };
+/** How much a position counts in a trade, before the player: quarterbacks most, specialists least. */
+export const POSITION_TRADE: Record<Position, number> = { QB: 1, EDGE: 0.75, WR: 0.7, CB: 0.65, DT: 0.65, OL: 0.6, LB: 0.45, S: 0.45, TE: 0.45, RB: 0.4, K: 0.1, P: 0.08 };
 /**
  * Pick-chart points per $1K of contract surplus: $40K ≈ one point, so a dead $16M contract costs about
  * a second-round pick to move (the Texans paid one, plus a sixth, to send Brock Osweiler to Cleveland).
@@ -131,7 +136,7 @@ const POINTS_PER_K = 1 / 40;
  * should, but for at most about 20% more value, not a fantasy price.
  */
 const TRADE_TRUST = 0.5;
-const TRADE_BAND = 0.35;
+export const TRADE_BAND = 0.35;
 /** Seasons of control, weighted: next year counts less than this one, the year after less again. */
 const CONTROL = [1, 0.75, 0.55];
 const CONTROL_FULL = CONTROL.reduce((a, b) => a + b, 0);
@@ -205,7 +210,9 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
   const real = effective(p.age, own, young ? projectedCeiling(own, p.potential, p.traits.workEthic) : p.potential) + trueQuirkWorth(p);
   let seen = real;
   let ovr = own;
-  if (!truth) {
+  // A club knows its own veterans exactly: past 25 there's no ceiling left to guess and no habit it
+  // hasn't seen, so its read is the truth and the scouting pass can be skipped.
+  if (!truth && !(p.teamId === team.id && p.age > 25)) {
     // What this front office sees: exact for its own players (bar their ceilings), its scouts' read for anyone else.
     const view = ctx.view(team.id, p);
     const readWork = young ? characterRead(league, team.id, p)?.workEthic : undefined;
@@ -216,10 +223,47 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
   }
   const base = 3000 * Math.exp((seen - 18.5) * 0.55) * POSITION_TRADE[p.position] * ageMultiplier(p) * control(league, p);
   // Contenders pay for proven veterans; rebuilders don't.
-  const lens = p.age >= 27 ? 1 + 0.4 * (winNowOf(league, team) - 0.5) : 1;
+  let lens = p.age >= 27 ? 1 + 0.4 * (winNowOf(league, team) - 0.5) : 1;
+  lens *= 1 + 0.08 * schemeFit(ctx, team, p, truth);
+  // What his coaches here would make of him: a staff that develops youth gets more of a young
+  // player's ceiling, one that keeps veterans going gets more years from an old one.
+  const coaching = coachingOf(ctx, team.id, p.position);
+  if (p.age <= 25) lens *= 1 + 0.33 * (coaching.rate - 1);
+  else if (p.age - ageShift(p.position) >= 29) lens *= 1 - 0.25 * effectOf(coaching, p.position).aging;
   const read = { id: p.id, ovr, base, lens, ...contractTerms(ctx, p) };
   ctx.reads.set(key, read);
   return read;
+}
+
+/** Each team's coaching for a position, read once per pass. */
+function coachingOf(ctx: TradeContext, teamId: number, pos: Position): Coaching {
+  const key = teamId * 16 + POSITIONS.indexOf(pos);
+  const memo = (ctx.coaching ??= new Map()).get(key);
+  if (memo) return memo;
+  const c = coachingFor(ctx.league, teamId, pos);
+  ctx.coaching.set(key, c);
+  return c;
+}
+
+/**
+ * How well a player's game suits what the team's coordinators run: −1 … 1, his read of the skills
+ * the scheme leans on at his position against his overall (three points either way is the most it
+ * counts). A deep-passing offense pays more for a deep threat, a 3-4 front for an edge who sets the edge.
+ */
+function schemeFit(ctx: TradeContext, team: Team, p: Player, truth: boolean): number {
+  const scheme = (ctx.schemes ??= new Map()).get(team.id) ?? teamScheme(ctx.league, team.id);
+  ctx.schemes.set(team.id, scheme);
+  const contests = fitContests(scheme, p.position);
+  if (!contests.length) return 0;
+  const exact = truth || p.teamId === team.id;
+  const view = exact ? null : ctx.view(team.id, p);
+  const rating = (a: Attribute) => (view ? view.ratings[a].value : p.ratings[a]);
+  const values = contests.map((c) => {
+    const w: Partial<Record<Attribute, number>> = CONTESTS[c].weights;
+    return (Object.keys(w) as Attribute[]).reduce((sum, a) => sum + rating(a) * w[a]!, 0);
+  });
+  const ovr = view ? view.ovr : playerOvr(p);
+  return clamp((values.reduce((a, b) => a + b, 0) / values.length - ovr) / 3, -1, 1);
 }
 
 /** How a room counts a player at a (fractional) depth-chart rank: in full as a starter, 0.35 as the top backup, 0.2 deeper in a normal room, barely past it. */

@@ -8,7 +8,9 @@ import { capHit, deadMoney, isExpired } from '../finance/contract';
 import { rosterLimit } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
 import { Rng } from '../rng';
-import type { League, Player, Position } from '../types';
+import type { League, Player, Position, TradeSide } from '../types';
+
+export type { TradeSide };
 import { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
 
 /**
@@ -16,12 +18,6 @@ import { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
  * Tuesday after week 9), which lasts until week 10 is played.
  */
 export const TRADE_DEADLINE_WEEK = 9;
-
-export interface TradeSide {
-  teamId: number;
-  players: number[];
-  picks: number[];
-}
 
 export interface TradeProposal {
   /** sides[0] is the proposer (usually the user), sides[1] the AI partner. Each lists what that team sends. */

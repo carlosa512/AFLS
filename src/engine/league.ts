@@ -7,8 +7,7 @@ import { simulateGame, startGame, type LiveGame } from './match/gameSim';
 import { applyInjury, injuryWeek } from './injuries';
 import { simOffseason } from './offseason';
 import { quirkWeek, recordForm } from './quirks';
-import { Rng } from './rng';
-import { aiTradeWeek } from './trade';
+import { marketMoment, weekMoment } from './trade';
 import { syncDepthChart } from './roster';
 import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
@@ -27,12 +26,11 @@ export function userGame(league: League, week = league.week): Game | undefined {
 }
 
 /**
- * Contenders and rebuilders deal with each other before the deadline (never with the user unasked).
- * The market draws from its own stream, like injuries and weather: a seed replays the same market,
- * and tuning it never reshuffles anything else.
+ * The trade market after the week's games, up to deadline day after week 9 (never with the user
+ * unasked). It draws from its own stream, like injuries and weather (`trade/market.ts`).
  */
 function aiTrades(league: League) {
-  aiTradeWeek(league, new Rng(`${league.seed}:market:${league.season}:${league.phase}:${league.week}`));
+  marketMoment(league, weekMoment(league));
 }
 
 /** Keep full play-by-play only for the user's games and the most recent week. */

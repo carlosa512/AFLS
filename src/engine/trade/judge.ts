@@ -20,7 +20,7 @@ import { marketValue, pickValue, playerSwing } from './value';
 /** Each player a deal leaves past the roster limit costs about a sixth-round pick: someone has to be cut. */
 const ROSTER_SPOT = 15;
 /** A player the league values at about a mid first or more is a star... */
-const STAR = 1000;
+export const STAR = 1000;
 /** ...and only goes for a first-round pick or an asset worth at least this share of him. */
 const CENTREPIECE = 0.45;
 
@@ -82,6 +82,16 @@ function centrepieceRefusal(ctx: TradeContext, team: Team, proposal: TradePropos
   return null;
 }
 
+/** No GM hands a division rival a star in the middle of a season. */
+function rivalRefusal(ctx: TradeContext, team: Team, proposal: TradeProposal): string | null {
+  const { league } = ctx;
+  const mine = proposal.sides.find((s) => s.teamId === team.id)!;
+  const theirs = proposal.sides.find((s) => s.teamId !== team.id)!;
+  if (league.phase !== 'regular' || league.teams[theirs.teamId].division !== team.division) return null;
+  const star = mine.players.map((id) => league.players[id]).find((p) => marketValue(ctx, team, p) >= STAR);
+  return star ? `They won't hand a division rival ${star.firstName} ${star.lastName} in the middle of a season.` : null;
+}
+
 /** `teamId`'s verdict on a proposal, in its own eyes. */
 export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal, opts: JudgeOpts = {}): Judgement {
   const { league } = ctx;
@@ -89,7 +99,7 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const mine = proposal.sides.find((s) => s.teamId === teamId)!;
   const theirs = proposal.sides.find((s) => s.teamId !== teamId)!;
   const problem = tradeProblem(league, proposal, { rosterCuts: opts.rosterCuts, ctx });
-  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal);
+  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal) ?? rivalRefusal(ctx, team, proposal);
 
   const { loss, gain } = playerSwing(ctx, team, mine.players, theirs.players);
   const pickIn = theirs.picks.reduce((s, id) => s + pickValue(league, pickById(league, id), team.gm, ctx), 0);
@@ -104,7 +114,9 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
     return s + (worth > 0 ? worth * floorShare(league, team, p) : worth);
   }, pickOut);
   const base = Math.max(give, floor);
-  const margin = opts.margin ?? (opts.vsUser ? 1.05 + team.gm.stubbornness * 0.15 : 1 + team.gm.stubbornness * 0.05);
+  // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want more.
+  const rival = league.teams[theirs.teamId].division === team.division ? 0.06 : 0;
+  const margin = opts.margin ?? (opts.vsUser ? 1.05 + team.gm.stubbornness * 0.15 : 1 + team.gm.stubbornness * 0.05) + rival;
   // The margin is a share of the stakes, so it asks for more back whether the stakes are positive or not.
   let need = base + Math.abs(base) * (margin - 1);
   if (opts.vsUser) need = Math.max(need, base + 25);

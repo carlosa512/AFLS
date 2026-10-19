@@ -14,7 +14,10 @@
  *    sign and flip, buying straight back), each of which must fail.
  * 5. Speed: one verdict with a warm cache, one week of the market.
  *
- *   npm run trades          # 2 leagues, 3 seasons each
+ * 6. Volume and mix: trades in season, the share on deadline day, the offseason's, what kinds, and
+ *    how few go between division rivals, against the NFL's.
+ *
+ *   npm run trades          # 3 leagues, 3 seasons each
  *   npm run trades -- 4
  *
  * ▲/▼ marks a number outside its band; the last line counts them and the process exits 1 if any are.
@@ -24,19 +27,19 @@ import { capSpace } from '../src/engine/finance/cap';
 import { yearsLeft } from '../src/engine/finance/contract';
 import { createLeague } from '../src/engine/generate';
 import { gamesInWeek, playWeek, simToEndOfSeason } from '../src/engine/league';
-import { simOffseason } from '../src/engine/offseason';
+import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { freeAgents, signPlayer } from '../src/engine/offseason/negotiation';
 import { playerOvr, STARTERS } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
 import { teamPlayers } from '../src/engine/roster';
 import {
-  aiTradeWeek,
   evaluateTrade,
   executeTrade,
   fitzgeraldSpielberger,
   isDeadlineDay,
   jimmyJohnson,
   judge,
+  marketMoment,
   marketValue,
   nextDraftSeason,
   pickChartValue,
@@ -49,15 +52,19 @@ import {
   capRoom,
   tradeContext,
   type TradeContext,
+  TRADE_DEADLINE_WEEK,
   type TradeProposal,
+  weekMoment,
 } from '../src/engine/trade';
-import type { DraftPick, GmTraits, League, Player, Position } from '../src/engine/types';
+import type { DraftPick, GmTraits, League, Player, Position, TradeRecord } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 
-const LEAGUES = Number(process.argv.slice(2).find((a) => !a.startsWith('-')) ?? 2);
+const LEAGUES = Number(process.argv.slice(2).find((a) => !a.startsWith('-')) ?? 3);
 /** `--verbose`: every priced player and every AI trade, not just one example per bucket. */
 const VERBOSE = process.argv.includes('--verbose');
 const SEASONS = 3;
+/** Each team's division (every league uses the real alignment). */
+const DIVISION_OF = createLeague({ seed: 'divisions' }).teams.map((t) => t.division);
 
 let misses = 0;
 const check = (label: string, value: number, [lo, hi]: [number, number], digits = 0) => {
@@ -191,30 +198,6 @@ function neutralPick(league: League, pk: DraftPick, ctx: TradeContext): number {
   const slot = pickOverall(league, pk, ctx);
   const years = Math.max(0, pk.season - nextDraftSeason(league));
   return Math.exp(0.75 * Math.log(jimmyJohnson(slot)) + 0.25 * Math.log(fitzgeraldSpielberger(slot))) * 0.75 ** years;
-}
-
-/** The trades made between two snapshots, read off where players and picks went. */
-function tradesBetween(before: League, after: League): TradeProposal[] {
-  const deals = new Map<string, TradeProposal>();
-  const deal = (a: number, b: number) => {
-    const [x, y] = a < b ? [a, b] : [b, a];
-    const key = `${x}:${y}`;
-    if (!deals.has(key)) deals.set(key, { sides: [{ teamId: x, players: [], picks: [] }, { teamId: y, players: [], picks: [] }] });
-    const d = deals.get(key)!;
-    return d.sides[0].teamId === a ? d.sides[0] : d.sides[1];
-  };
-  for (const p of Object.values(before.players)) {
-    const later = after.players[p.id];
-    const now = later?.teamId;
-    // A traded player keeps his deal; one released and signed elsewhere in the same week has a new one.
-    const same = !!p.contract && !!later?.contract && later.contract.signedSeason === p.contract.signedSeason && later.contract.signedWeek === p.contract.signedWeek && later.contract.apy === p.contract.apy;
-    if (p.teamId !== null && now !== null && now !== undefined && now !== p.teamId && same) deal(p.teamId, now).players.push(p.id);
-  }
-  for (const pk of before.draftPicks) {
-    const now = after.draftPicks.find((x) => x.id === pk.id);
-    if (now && now.ownerId !== pk.ownerId && pk.playerId === undefined) deal(pk.ownerId, now.ownerId).picks.push(pk.id);
-  }
-  return [...deals.values()];
 }
 
 const fair = { gaps: [] as number[], lopsided: 0, trades: 0, seasons: 0, balance: new Map<string, number>(), health: 0, healthy: 0, kinds: new Map<string, number>() };
@@ -374,6 +357,21 @@ function timeJudge(league: League) {
   speed.judge = (performance.now() - t0) / proposals.length;
 }
 
+// ───────── 6. Volume and mix ─────────
+
+const volume = { inSeason: [] as number[], deadline: 0, offseason: [] as number[], all: [] as TradeRecord[], seasons: 0 };
+const speedOff: number[] = [];
+
+/** Every trade a step made: value it in the truth on the league as it stood before, and check both teams after. */
+function audit(before: League, after: League, label: string, from: number) {
+  for (const record of (after.market?.history ?? []).slice(from)) {
+    volume.all.push(record);
+    judgeFairness(before, { sides: record.sides }, label);
+    checkHealth(after, record.sides.map((x) => x.teamId));
+  }
+}
+const historyLength = (l: League) => l.market?.history.length ?? 0;
+
 // ───────── run ─────────
 
 for (let i = 0; i < LEAGUES; i++) {
@@ -386,29 +384,56 @@ for (let i = 0; i < LEAGUES; i++) {
   }
   for (let s = 0; s < SEASONS; s++) {
     fair.seasons++;
-    while (league.phase === 'regular' && (league.week <= 10 || isDeadlineDay(league))) {
-      if (i === 0 && s === 0 && isDeadlineDay(league)) {
+    volume.seasons++;
+    const timing = i === 0 && s === 0;
+    const startSeason = historyLength(league);
+    while (league.phase === 'regular' && (league.week <= TRADE_DEADLINE_WEEK + 1 || isDeadlineDay(league))) {
+      if (timing && isDeadlineDay(league)) {
         probePrices(league, 'deadline');
         const ctx = tradeContext(league);
         futureSlots.push(...league.teams.map((t) => futureFirstSlot(league, t.gm, ctx)));
       }
       const before = clone(league);
       // The market alone, timed on a copy (the real week runs it again inside playWeek).
-      if (gamesInWeek(league).length) {
+      if (timing && gamesInWeek(league).length) {
         const copy = clone(league);
         const t0 = performance.now();
-        aiTradeWeek(copy, new Rng(`${copy.seed}:market:${copy.season}:${copy.phase}:${copy.week}`));
+        marketMoment(copy, weekMoment(copy));
         speed.week.push(performance.now() - t0);
       }
+      const from = historyLength(league);
       playWeek(league);
-      const logged = league.transactions.filter((t) => t.kind === 'trade' && t.season === before.season && t.week === before.week).map((t) => [...t.teamIds].sort((a, b) => a - b).join(':'));
-      for (const proposal of tradesBetween(before, league).filter((d) => logged.includes(d.sides.map((x) => x.teamId).sort((a, b) => a - b).join(':')))) {
-        judgeFairness(before, proposal, label);
-        checkHealth(league, proposal.sides.map((x) => x.teamId));
-      }
+      audit(before, league, label, from);
     }
+    const season = (league.market?.history ?? []).slice(startSeason).filter((r) => r.phase === 'regular');
+    volume.inSeason.push(season.length);
+    volume.deadline += season.filter((r) => r.week === TRADE_DEADLINE_WEEK).length;
     simToEndOfSeason(league);
-    simOffseason(league);
+    // The offseason, step by step: each one's trades audited against the league before it.
+    const startOff = historyLength(league);
+    let before = clone(league);
+    let from = historyLength(league);
+    beginOffseason(league);
+    audit(before, league, label, from);
+    if (timing) {
+      const copy = clone(league);
+      const t0 = performance.now();
+      marketMoment(copy, 'leagueYear');
+      speedOff.push(performance.now() - t0);
+    }
+    for (let guard = 0; guard < 20 && league.phase !== 'regular'; guard++) {
+      before = clone(league);
+      from = historyLength(league);
+      if (timing && (league.phase === 'freeAgency' || league.phase === 'preseason')) {
+        const copy = clone(league);
+        const t0 = performance.now();
+        marketMoment(copy, league.phase === 'freeAgency' ? 'faDay' : 'camp');
+        speedOff.push(performance.now() - t0);
+      }
+      advanceOffseason(league, { autoUser: true });
+      audit(before, league, label, from);
+    }
+    volume.offseason.push(historyLength(league) - startOff);
   }
 }
 
@@ -432,6 +457,23 @@ check('trades over 3:1 in truth, a season', fair.lopsided / fair.seasons, [0, 1]
 check("any team's truth balance over its league's run (|points|)", Math.max(0, ...[...fair.balance.values()].map(Math.abs)), [0, 1000]);
 check('teams over the cap or short after a trade', fair.health, [0, 0]);
 
+const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+const share = (f: (r: TradeRecord) => boolean) => (100 * volume.all.filter(f).length) / Math.max(1, volume.all.length);
+const kinds = new Map<string, number>();
+for (const r of volume.all) kinds.set(r.kind, (kinds.get(r.kind) ?? 0) + 1);
+console.log(`\nVolume and mix (${volume.all.length} AI trades over ${volume.seasons} seasons: ${[...kinds].map(([k, n]) => `${n} ${k}`).join(', ')})`);
+check('trades in season (week 1 to deadline day), a season', mean(volume.inSeason), [15, 25], 1);
+check('share of them on deadline day (%)', (100 * volume.deadline) / Math.max(1, volume.inSeason.reduce((a, b) => a + b, 0)), [30, 50]);
+check('trades in the offseason (league year to camp), a year', mean(volume.offseason), [15, 35], 1);
+check('picks for players (%)', share((r) => r.kind !== 'swap' && r.kind !== 'dump'), [55, 80]);
+check('player swaps (%)', share((r) => r.kind === 'swap'), [5, 15]);
+check('cap dumps, a season', volume.all.filter((r) => r.kind === 'dump').length / Math.max(1, volume.seasons), [1, 4], 1);
+check('a pick going each way, a late one riding back (%)', share((r) => r.sides.every((x) => x.picks.length > 0)), [10, 25]);
+check('division rivals (%)', share((r) => {
+  const [a, b] = r.sides.map((x) => x.teamId);
+  return a < 32 && b < 32 && DIVISION_OF[a] === DIVISION_OF[b];
+}), [0, 5]);
+
 console.log('\nProbes (each must fail)');
 for (const p of probes) console.log(`  ${p.worked ? '✗ WORKED' : '✓ failed'}  ${p.label}`);
 check('exploits that worked', probes.filter((p) => p.worked).length, [0, 0]);
@@ -439,6 +481,7 @@ check('exploits that worked', probes.filter((p) => p.worked).length, [0, 0]);
 console.log('\nSpeed');
 check('one verdict, warm cache (ms)', speed.judge, [0, 0.6], 3);
 check('one week of the market (ms, median)', median(speed.week), [0, 120], 1);
+check('one offseason market moment (ms, median)', median(speedOff), [0, 300], 1);
 
 console.log(`\n${misses} number(s) outside target range`);
 process.exit(misses ? 1 : 0);
