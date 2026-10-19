@@ -21,6 +21,7 @@ import { CoachesScreen } from './Coaches';
 import { MedicalScreen } from './Medical';
 import { StaffScreen } from './Staff';
 import { Trades } from './Trades';
+import { LinkedText, type Who } from '../moves';
 import { store } from '../store';
 
 export type OfficeTab = 'resign' | 'fa' | 'draft' | 'trades' | 'coaches' | 'staff' | 'medical';
@@ -35,6 +36,16 @@ function PlayerCell({ league, p }: { league: League; p: Player }) {
       <span>
         {p.firstName} {p.lastName}
       </span>
+    </button>
+  );
+}
+
+/** A player's name in a sentence: opens his card. */
+function PlayerName({ p }: { p: Player }) {
+  const nav = useNav();
+  return (
+    <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
+      {p.firstName} {p.lastName}
     </button>
   );
 }
@@ -73,7 +84,14 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
         <Panel title="Expiring contracts">
           <p className="muted small" style={{ marginTop: 0 }}>
             Anyone you don't re-sign or tag becomes a free agent when free agency opens. Asks are market value plus his agent's appetite.
-            {tagged ? ` You tagged ${tagged.firstName} ${tagged.lastName} this year.` : ' You have one franchise tag: a fully guaranteed one-year deal.'}
+            {tagged ? (
+              <>
+                {' '}
+                You tagged <PlayerName p={tagged} /> this year.
+              </>
+            ) : (
+              ' You have one franchise tag: a fully guaranteed one-year deal.'
+            )}
           </p>
           {expiring.length === 0 ? (
             <p className="muted">No expiring contracts this year.</p>
@@ -427,7 +445,11 @@ function Draft({ league }: { league: League }) {
           }
         >
           <p className="muted small" style={{ margin: 0 }}>
-            {last && lastP && `Last pick: No. ${last.overall} ${league.teams[last.ownerId].abbrev}, ${lastP.position} ${lastP.firstName} ${lastP.lastName} (consensus #${last.consRank}). `}
+            {last && lastP && (
+              <>
+                Last pick: No. {last.overall} {league.teams[last.ownerId].abbrev}, {lastP.position} <PlayerName p={lastP} /> (consensus #{last.consRank}).{' '}
+              </>
+            )}
             {!onClock ? 'Every pick is in.' : userUp ? 'Pick from the board below, or let your staff choose.' : myNext ? `Your next pick: round ${myNext.round}, No. ${myNext.overall} (${myNext.overall! - onClock.overall!} picks away).` : 'You have no picks left in this draft.'}
           </p>
         </Panel>
@@ -830,7 +852,8 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
   // What the end of the window will do with the staff deals that are up, as the engine will do it.
   const forecast = league.phase === 'resign' ? [...resignForecast(league, league.userTeamId)] : [];
   const staffDue = forecast.length;
-  const leaving = forecast.filter(([, o]) => o !== 'stays').map(([id]) => staffName(league.staff[id]));
+  const leavingStaff = forecast.filter(([, o]) => o !== 'stays').map(([id]) => league.staff[id]);
+  const leaving = leavingStaff.map(staffName);
   const showStaffNotice = staffDue > 0 && active !== 'staff';
   // The same for the coaching staff, plus any chair that is empty while moves are still open.
   const coaching = staffWindowOpen(league) ? coachAttention(league, league.userTeamId) : null;
@@ -856,9 +879,15 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
             <div className="staff-notice">
               <span>
                 {staffDue === 1 ? '1 scouting staff deal is up.' : `${staffDue} scouting staff deals are up.`}{' '}
-                {leaving.length === 0
-                  ? `${staffDue === 1 ? 'He re-signs' : 'They re-sign'} automatically unless you let ${staffDue === 1 ? 'him' : 'them'} go.`
-                  : `${leaving.join(' and ')} will leave (no chair or budget for ${leaving.length === 1 ? 'him' : 'them'}); ${staffDue - leaving.length === 0 ? 'nobody else is up' : 'the rest re-sign automatically'}.`}
+                {leaving.length === 0 ? (
+                  `${staffDue === 1 ? 'He re-signs' : 'They re-sign'} automatically unless you let ${staffDue === 1 ? 'him' : 'them'} go.`
+                ) : (
+                  <LinkedText
+                    league={league}
+                    text={`${leaving.join(' and ')} will leave (no chair or budget for ${leaving.length === 1 ? 'him' : 'them'}); ${staffDue - leaving.length === 0 ? 'nobody else is up' : 'the rest re-sign automatically'}.`}
+                    about={leavingStaff.map((s): Who => ({ kind: 'scout', id: s.id }))}
+                  />
+                )}
               </span>
               <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'staff' })}>
                 Review scouts
@@ -867,7 +896,9 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
           )}
           {showCoachNotice && (
             <div className="staff-notice">
-              <span>{attentionText(league, league.userTeamId, coaching!)}</span>
+              <span>
+                <LinkedText league={league} text={attentionText(league, league.userTeamId, coaching!)} about={coaching!.leaving.map((c): Who => ({ kind: 'coach', id: c.id }))} />
+              </span>
               <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'coaches' })}>
                 Review coaches
               </button>

@@ -18,7 +18,7 @@ import { starters, teamPlayers } from './roster';
 import { ROUND_NAMES } from './season/playoffs';
 import { playoffRace } from './season/standings';
 import { isExpiring, ownerBudgetNote, resignForecast, ROLE_LABEL, staffWindowOpen, teamStaff } from './staff';
-import { TRADE_DEADLINE_WEEK } from './trade';
+import { isDeadlineDay, TRADE_DEADLINE_WEEK } from './trade';
 import type { Coach, CoachRole, CoachRoom, InboxMessage, League, Phase, Player, Position, Team } from './types';
 
 /** Saves keep the latest messages only, like the transaction log. */
@@ -253,7 +253,7 @@ export type MailSubject =
   | { kind: 'trade'; season: number; text: string }
   | { kind: 'recap'; season: number; gameId: number }
   | { kind: 'cleared'; season: number; week: number; playerId: number; type: string }
-  | { kind: 'deadline'; season: number; weeksLeft: number }
+  | { kind: 'deadline'; season: number; weeksLeft: number | 'day' }
   | { kind: 'race'; season: number; level: 'spot' | 'division' | 'bye' | 'out' }
   | { kind: 'owner'; season: number }
   | { kind: 'staffDeals'; season: number; people: StaffRef[] }
@@ -301,7 +301,7 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
     case 'cleared':
       return { kind: 'cleared', season, week: Number(a), playerId: Number(b), type: rest.join(':') };
     case 'deadline':
-      return { kind: 'deadline', season, weeksLeft: Number(a) };
+      return { kind: 'deadline', season, weeksLeft: a === 'day' ? 'day' : Number(a) };
     case 'race':
       return { kind: 'race', season, level: a as 'spot' | 'division' | 'bye' | 'out' };
     case 'owner':
@@ -345,7 +345,7 @@ export function needsYou(league: League, m: InboxMessage): boolean {
     case 'draftDay':
       return league.phase === 'draft' && league.draftPicks.some((p) => p.season === league.season && p.ownerId === user && p.playerId === undefined);
     case 'deadline':
-      return league.phase === 'regular' && league.week <= TRADE_DEADLINE_WEEK;
+      return league.phase === 'regular' && (league.week <= TRADE_DEADLINE_WEEK || isDeadlineDay(league));
     case 'cleared': {
       const p = league.players[s.playerId];
       return !!p && p.teamId === user && !!p.ir && !p.injury && !delegates(league, league.teams[user]);
@@ -488,26 +488,31 @@ function clearedMail(league: League, have: Set<string>): Draft[] {
   return out;
 }
 
-/** The league office's reminder the week before the trade deadline, and the week of it. */
+/** Trades around the league on deadline day: the market's last round runs as the deadline week's games end. */
+export const deadlineDayTrades = (league: League, season = league.season) =>
+  league.transactions.filter((t) => t.kind === 'trade' && t.season === season && t.phase === 'regular' && (t.week === TRADE_DEADLINE_WEEK || t.week === TRADE_DEADLINE_WEEK + 1));
+
+/**
+ * The league office's word on the trade deadline: the week before, the week of, and deadline day itself (the
+ * day after the deadline week, as in the NFL: the last day to deal, and the market's busiest).
+ */
 function deadlineMail(league: League, have: Set<string>): Draft[] {
   const weeks = TRADE_DEADLINE_WEEK - league.week;
-  const id = `deadline:${league.season}:${weeks}`;
-  if ((weeks !== 0 && weeks !== 1) || have.has(id)) return [];
-  return [
-    {
-      id,
-      season: league.season,
-      phase: 'regular',
-      week: league.week,
-      from: 'League office',
-      category: 'trades',
-      subject: weeks ? 'Trade deadline: one week to go' : 'Trade deadline: this week',
-      body: weeks
-        ? `Trades are open through week ${TRADE_DEADLINE_WEEK}. After that, rosters are set until the new league year.`
-        : `This is the last week to make a trade. The deadline passes when week ${TRADE_DEADLINE_WEEK} is played.`,
-      actions: [{ kind: 'trades' }],
-    },
-  ];
+  const key = isDeadlineDay(league) ? 'day' : weeks === 0 || weeks === 1 ? String(weeks) : null;
+  const id = `deadline:${league.season}:${key}`;
+  if (!key || have.has(id)) return [];
+  const w = TRADE_DEADLINE_WEEK;
+  const done = deadlineDayTrades(league).length;
+  const text: Record<string, [string, string]> = {
+    1: ['Trade deadline: one week to go', `The trade deadline is the day after week ${w}. After that, rosters are set until the new league year.`],
+    0: ['Trade deadline: this week', `Week ${w} is the last week of games before the deadline. Trades stay open through deadline day, the day after it, then rosters are set until the new league year.`],
+    day: [
+      'Deadline day',
+      `It's deadline day, the last day to make a trade this season. ${done ? `${count(done)} trade${done === 1 ? ' has' : 's have'} gone through around the league so far.` : 'The league has been quiet so far.'} Once week ${w + 1} is played, rosters are set until the new league year.`,
+    ],
+  };
+  const [subject, body] = text[key];
+  return [{ id, season: league.season, phase: 'regular', week: league.week, from: 'League office', category: 'trades', subject, body, actions: [{ kind: 'trades' }] }];
 }
 
 const RACE = ['bye', 'division', 'spot'] as const;
@@ -696,8 +701,11 @@ function poachedMail(league: League, have: Set<string>): Draft[] {
 export interface HeadCoachChange {
   teamId: number;
   coach: Coach;
-  /** Last season's chair: "Offensive coordinator, KC", "Head coach, DEN" (and that team's record), or new to the league. */
-  from: { title: string; teamId: number; record: { w: number; l: number; t: number } | null } | null;
+  /**
+   * His latest chair before this season: "Offensive coordinator, KC", "Head coach, DEN" (and that team's record),
+   * from a season or more back for a man who sat a year out. Null for one who has never coached in the league.
+   */
+  from: { title: string; teamId: number; season: number; record: { w: number; l: number; t: number } | null } | null;
   /** Last season's head coach, and the team's record under him. */
   replaced: Coach | null;
   record: { w: number; l: number; t: number } | null;
@@ -716,11 +724,12 @@ export function headCoachChanges(league: League, season = league.season): HeadCo
     const coach = after.get(team.id);
     const replaced = before.get(team.id) ?? null;
     if (!coach || coach === replaced) continue;
-    const last = coach.career?.find((x) => x.season === season - 1);
+    // Not just last season: a head coach fired a year ago and hired back now sat that season out.
+    const last = (coach.career ?? []).filter((x) => x.season < season).sort((a, b) => b.season - a.season)[0];
     out.push({
       teamId: team.id,
       coach,
-      from: last ? { title: coachTitle(last), teamId: last.teamId, record: last.role === 'headCoach' ? recordIn(league, season - 1, last.teamId) : null } : null,
+      from: last ? { title: coachTitle(last), teamId: last.teamId, season: last.season, record: last.role === 'headCoach' ? recordIn(league, last.season, last.teamId) : null } : null,
       replaced,
       record: recordIn(league, season - 1, team.id),
     });

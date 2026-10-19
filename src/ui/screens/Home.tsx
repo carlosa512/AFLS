@@ -12,16 +12,16 @@ import { computeRecords, divisionStandings } from '../../engine/season/standings
 import type { Game, League, Team } from '../../engine/types';
 import { forecast } from '../../engine/weather';
 import { useNav } from '../App';
-import { attentionText } from '../coaching';
+import { attentionText, coachAttention } from '../coaching';
 import { Panel, TeamChip, TeamLabel, WeatherNote } from '../components';
-import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, weekLabel } from '../format';
+import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, weekLabel } from '../format';
 import { live } from '../live';
 import { WinnerCell } from './Stats';
 import { CrewNote } from './Officials';
 import { BackupButton, LoadBackupButton } from '../saves';
 import { ThemeSelect } from '../theme';
 import { store } from '../store';
-import { moveIndex, MoveText } from '../moves';
+import { LinkedText, moveIndex, MoveText, type Who } from '../moves';
 import { ScoreStrip } from '../strip';
 import { LeagueLeaders, SeasonSoFar, TeamStatsWidget, TheirInjuries, WaitingForYou, YourInjuries } from '../widgets';
 import { GameStar, gameStory, KeyStats, LineScore, standouts, Standouts } from '../game';
@@ -319,22 +319,23 @@ function AwardsNotice({ league }: { league: League }) {
   const nav = useNav();
   const awards = league.phase === 'regular' ? undefined : seasonAwards(league, league.season);
   if (!awards) return null;
-  const name = (id: number) => {
-    const p = league.players[id];
-    return `${p.firstName[0]}. ${p.lastName}`;
-  };
-  const headline = (['mvp', 'opoy', 'dpoy'] as const)
-    .filter((k) => awards.winners[k])
-    .map((k) => {
-      const w = awards.winners[k]!;
-      return `${AWARD_SHORT[k]} ${name(w.playerId)}${w.teamId !== null ? ` (${league.teams[w.teamId].abbrev})` : ''}`;
-    })
-    .join(' · ');
+  const winners = (['mvp', 'opoy', 'dpoy'] as const).filter((k) => awards.winners[k]).map((k) => ({ k, w: awards.winners[k]! }));
   // Your own winners hear about it in the inbox; the banner is the league's news.
   return (
     <div className="notice staff-notice">
       <span>
-        <b>Awards week: the {awards.season} awards are in.</b> {headline}.
+        <b>Awards week: the {awards.season} awards are in.</b>{' '}
+        {winners.map(({ k, w }, i) => (
+          <span key={k}>
+            {i > 0 && ' · '}
+            {AWARD_SHORT[k]}{' '}
+            <button className="linklike" onClick={() => nav.openPlayer(w.playerId)}>
+              {shortName(league.players[w.playerId])}
+            </button>
+            {w.teamId !== null ? ` (${league.teams[w.teamId].abbrev})` : ''}
+          </span>
+        ))}
+        .
       </span>
       <button className="btn btn-sm" onClick={() => nav.go({ view: 'stats', tab: 'awards' })}>
         All awards
@@ -453,7 +454,8 @@ function OffseasonHome({ league }: { league: League }) {
     .reverse();
   const names = moveIndex(league);
   // A calm nudge, not a second primary action: an empty coaching chair or deals that are up, while moves are open.
-  const coachNote = staffWindowOpen(league) ? attentionText(league, teamId) : '';
+  const attention = staffWindowOpen(league) ? coachAttention(league, teamId) : null;
+  const coachNote = attention ? attentionText(league, teamId, attention) : '';
   const myPick = league.draftPicks.filter((p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined).sort((a, b) => (a.overall ?? 999) - (b.overall ?? 999))[0];
 
   let title = '';
@@ -528,7 +530,9 @@ function OffseasonHome({ league }: { league: League }) {
           </Panel>
           {coachNote && (
             <div className="notice staff-notice">
-              <span>{coachNote}</span>
+              <span>
+                <LinkedText league={league} text={coachNote} about={attention!.leaving.map((c): Who => ({ kind: 'coach', id: c.id }))} />
+              </span>
               <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'coaches' })}>
                 Review coaches
               </button>

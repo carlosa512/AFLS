@@ -149,6 +149,13 @@ describe('inbox', () => {
     // A new man in the chair answers it.
     Object.values(world.coaches).find((c) => c.teamId === null && c.role === chair.role)!.teamId = user;
     expect(needsYou(copy(world), gone)).toBe(false);
+    // A head coach who sat last season out: his last chair is two seasons back, not "new to the league".
+    const rested = copy(league);
+    const hc = Object.values(rested.coaches).find((c) => c.teamId !== null && c.role === 'headCoach' && c.career?.some((x) => x.season === rested.season - 1 && x.teamId === c.teamId))!;
+    const elsewhere = (hc.teamId! + 1) % rested.teams.length;
+    hc.career = [{ season: rested.season - 2, teamId: elsewhere, role: 'headCoach' }];
+    const change = headCoachChanges(copy(rested)).find((x) => x.coach.id === hc.id)!;
+    expect(change.from).toMatchObject({ season: rested.season - 2, teamId: elsewhere, title: 'Head coach' });
   }, 30_000);
 
   it('reports our draft class once the draft is done', () => {
@@ -230,14 +237,22 @@ describe('mail through a season', () => {
     }
   }, 30_000);
 
-  it('reminds us of the trade deadline the week before and the week of, until it passes', () => {
+  it('reminds us of the trade deadline the week before, the week of and on deadline day, until it passes', () => {
     const before = league.inbox!.find((m) => m.id === `deadline:${league.season}:1`)!;
     const now = league.inbox!.find((m) => m.id === `deadline:${league.season}:0`)!;
+    const day = league.inbox!.find((m) => m.id === `deadline:${league.season}:day`)!;
     expect(before.week).toBe(TRADE_DEADLINE_WEEK - 1);
     expect(now.week).toBe(TRADE_DEADLINE_WEEK);
-    // It needs you the week it lands, and no longer once the deadline week is played.
-    expect(needsAt.get(now.id)![0]).toBe(true);
-    expect(needsAt.get(now.id)!.at(-1)).toBe(false);
+    // Deadline day is the day after the deadline week: trades are still open.
+    expect(day.week).toBe(TRADE_DEADLINE_WEEK + 1);
+    expect(mailSubject(day)).toEqual({ kind: 'deadline', season: league.season, weeksLeft: 'day' });
+    expect(day.body).toContain(`Once week ${TRADE_DEADLINE_WEEK + 1} is played`);
+    // Each needs you until deadline day has gone by: the week-of reminder still does on deadline day.
+    for (const m of [now, day]) {
+      expect(needsAt.get(m.id)![0]).toBe(true);
+      expect(needsAt.get(m.id)!.at(-1)).toBe(false);
+    }
+    expect(needsAt.get(now.id)!.filter(Boolean)).toHaveLength(2);
   });
 
   it('clears a player we wrote about once he is healthy, and only him', () => {

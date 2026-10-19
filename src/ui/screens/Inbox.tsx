@@ -4,6 +4,7 @@ import type { InboxAction, InboxCategory, InboxMessage, League } from '../../eng
 import { useNav } from '../App';
 import { PHASE_LABELS, weekLabel } from '../format';
 import { MailCards } from '../mail';
+import { LinkedText, nameIndex, type MoveIndex, type Who } from '../moves';
 import { store } from '../store';
 
 type Show = 'all' | 'unread' | 'needs';
@@ -88,6 +89,15 @@ function sender(m: InboxMessage): { name: string; role: string; initials: string
   return { name, role: role.join(', '), initials: (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase() };
 }
 
+/** Who a message is about: its players, the staff member who signs it, the coach it reports gone. Their names link first. */
+function aboutOf(m: InboxMessage): Who[] {
+  const out: Who[] = m.actions.flatMap((a): Who[] => (a.kind === 'player' ? [{ kind: 'player', id: a.playerId }] : []));
+  if (m.fromCard) out.push(m.fromCard);
+  const s = mailSubject(m);
+  if (s?.kind === 'poached') out.push({ kind: 'coach', id: s.coachId });
+  return out;
+}
+
 /** A week (or offseason step) of mail under one heading, newest first. */
 function groupByDate(messages: InboxMessage[]): { label: string; messages: InboxMessage[] }[] {
   const groups: { label: string; messages: InboxMessage[] }[] = [];
@@ -118,6 +128,8 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
       (!q || `${m.subject} ${m.from} ${m.body}`.toLowerCase().includes(q)),
   );
   const open = all.find((m) => m.id === openId);
+  // Everyone by name, once per render, for the open message's links.
+  const names = open ? nameIndex(league) : null;
   const at = open ? shown.findIndex((m) => m.id === open.id) : -1;
 
   const read = (m: InboxMessage) => {
@@ -240,8 +252,10 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                   </span>
                 )}
               </div>
-              <MessageHead m={open} needs={needs.has(open.id)} />
-              <p className="inbox-body">{open.body}</p>
+              <MessageHead league={league} m={open} needs={needs.has(open.id)} index={names!} />
+              <p className="inbox-body">
+                <LinkedText league={league} text={open.body} about={aboutOf(open)} index={names!} />
+              </p>
               <MailCards league={league} message={open} />
               {open.actions.length > 0 && (
                 <div className="row">
@@ -264,7 +278,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
   );
 }
 
-function MessageHead({ m, needs }: { m: InboxMessage; needs: boolean }) {
+function MessageHead({ league, m, needs, index }: { league: League; m: InboxMessage; needs: boolean; index: MoveIndex }) {
   const nav = useNav();
   const who = sender(m);
   return (
@@ -279,13 +293,18 @@ function MessageHead({ m, needs }: { m: InboxMessage; needs: boolean }) {
               {who.name}
             </button>
           ) : (
-            <b>{who.name}</b>
+            // An agent writes for his client, a retiring player for himself: either name opens the player.
+            <b>
+              <LinkedText league={league} text={who.name} about={aboutOf(m)} index={index} />
+            </b>
           )}
           <span className="muted">
             {who.role && ` · ${who.role}`} · {dateLabel(m)}
           </span>
         </div>
-        <h3>{m.subject}</h3>
+        <h3>
+          <LinkedText league={league} text={m.subject} about={aboutOf(m)} index={index} />
+        </h3>
       </div>
       <span className="inbox-tags">
         <span className={`mail-tag cat-${m.category}`}>{tagOf(m)}</span>

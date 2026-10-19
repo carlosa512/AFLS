@@ -5,7 +5,7 @@ import { gamesInWeek, playWeek } from '../engine/league';
 import { computeRecords } from '../engine/season/standings';
 import { teamSeasonStats } from '../engine/stats';
 import { sortRows } from './components';
-import { moveSegments, type MoveIndex } from './moves';
+import { linkedSegments, moveSegments, nameIndex, type MoveIndex } from './moves';
 import { hashToRoute, routeToHash, type Route } from './routes';
 import { backupFileName, parseBackup } from './saves';
 import { byeTeams, resultsWeek, stripGames } from './strip';
@@ -193,6 +193,23 @@ describe('home widgets', () => {
       }
       for (const r of ranked) expect(col.format(r.v)).not.toMatch(/NaN|Infinity/);
     }
+  });
+
+  it('links everyone by full name, and the people a message is about even when a name is shared', () => {
+    const index = nameIndex(league);
+    const players = Object.values(league.players);
+    const unique = players.find((p) => index.get(`${p.firstName} ${p.lastName}`)?.id === p.id)!;
+    const links = (text: string, about = [] as { kind: 'player'; id: number }[]) => linkedSegments(league, text, about, index).filter((x) => typeof x !== 'string');
+    expect(links(`${unique.firstName} ${unique.lastName}'s contract is up`)).toEqual([{ text: `${unique.firstName} ${unique.lastName}`, who: { kind: 'player', id: unique.id } }]);
+    expect(links(`Starting with ${unique.position} ${unique.firstName} ${unique.lastName} at No. 3.`)).toHaveLength(1);
+    // A shared name stays plain, unless it's the message's own player.
+    const twin = { ...unique, id: -1 };
+    league.players[-1] = twin;
+    const shared = nameIndex(league);
+    delete league.players[-1];
+    expect(shared.get(`${unique.firstName} ${unique.lastName}`)).toBeNull();
+    expect(linkedSegments(league, `${unique.firstName} ${unique.lastName} is hurt`, [], shared).filter((x) => typeof x !== 'string')).toHaveLength(0);
+    expect(linkedSegments(league, `${unique.firstName} ${unique.lastName} is hurt`, [{ kind: 'player', id: unique.id }], shared).filter((x) => typeof x !== 'string')).toHaveLength(1);
   });
 
   it('puts what needs you first, then the unread, newest first', () => {
