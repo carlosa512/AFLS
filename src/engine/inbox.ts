@@ -796,7 +796,7 @@ function staffDealsMail(league: League, have: Set<string>): Draft[] {
       from: 'Front office',
       category: 'staff',
       subject: n === 1 ? 'A staff contract is up' : `${count(n)} staff contracts are up`,
-      body: `${capital(list(groups))} ${n === 1 ? 'is' : 'are'} out of contract. Unless you extend them or let them go first, each re-signs for two years at his ask when free agency opens, as long as his chair is free and the budget covers him. ${outlook}`,
+      body: `${capital(list(groups))} ${n === 1 ? 'is' : 'are'} out of contract. Unless you extend them or let them go first, each re-signs for two years at the ask when free agency opens, as long as the chair is free and the budget covers the ask. ${outlook}`,
       actions: [{ kind: 'coaches' }, { kind: 'staff' }, { kind: 'medical' }],
     },
   ];
@@ -1003,9 +1003,13 @@ export function deliverMail(league: League): void {
   if (league.phase === 'regular') fresh.push(...deadlineMail(league, have));
   if (league.phase === 'regular' || league.phase === 'resign') fresh.push(...marketMail(league, have));
   if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...marketRecapMail(league, have));
-  if (!fresh.length) return;
-  fresh.sort((a, b) => order(a) - order(b));
-  inbox.push(...fresh.map((m) => ({ ...m, read: first })));
+  // A full inbox lets its oldest mail go from the front, so anything not newer than the front was filed once
+  // already: a look-back (last season's trades) would otherwise file it again as new mail, deleted or not.
+  const floor = inbox.length >= KEEP ? order(inbox[0]) : -Infinity;
+  const due = fresh.filter((m) => order(m) > floor);
+  if (!due.length) return;
+  due.sort((a, b) => order(a) - order(b));
+  inbox.push(...due.map((m) => ({ ...m, read: first })));
   if (inbox.length > KEEP) inbox.splice(0, inbox.length - KEEP);
 }
 

@@ -45,10 +45,11 @@ import { userGame } from '../engine/league';
 import { allSeeds, PLAYOFF_ROUNDS, ROUND_NAMES } from '../engine/season/playoffs';
 import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { statLine } from '../engine/stats';
-import type { Coach, DealKind, Game, InboxMessage, League, Player, Position, Team } from '../engine/types';
+import type { Coach, DealKind, Game, InboxMessage, League, Medic, Player, Position, Staff, Team } from '../engine/types';
 import { stanceOf } from '../engine/trade';
 import { useNav, type StaffKind } from './App';
 import { PlayerAvatar, TeamChip } from './components';
+import { StaffAvatar } from './staffAvatar';
 import { band, money, ordinal, playerName, recordText, shortName, teamName, weekLabel } from './format';
 import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
@@ -1205,15 +1206,17 @@ function OwnerCards({ league, s }: { league: League; s: Extract<MailSubject, { k
 }
 
 const OUTLOOK: Record<ResignOutlook, { label: string; tone: string; tip: string }> = {
-  stays: { label: 'Re-signs', tone: 'tag-good', tip: 'Re-signs for 2 years at his ask when free agency opens, unless you let him go.' },
-  budget: { label: 'Leaves: budget', tone: 'tag-warn', tip: 'Leaves when free agency opens: the budget can’t cover his ask.' },
-  chair: { label: 'Leaves: chair taken', tone: 'tag-warn', tip: 'Leaves when free agency opens: someone else now holds his chair.' },
+  stays: { label: 'Re-signs', tone: 'tag-good', tip: 'Re-signs for 2 years at the ask when free agency opens, unless you let them go.' },
+  budget: { label: 'Leaves: budget', tone: 'tag-warn', tip: 'Leaves when free agency opens: the budget can’t cover the ask.' },
+  chair: { label: 'Leaves: chair taken', tone: 'tag-warn', tip: 'Leaves when free agency opens: someone else now holds the chair.' },
 };
 
 interface PersonRow {
   key: string;
   kind: StaffKind;
   id: number;
+  /** The record itself, for the picture. */
+  person: Coach | Staff | Medic;
   name: string;
   title: string;
   age: number;
@@ -1233,12 +1236,15 @@ function Person({ row }: { row: PersonRow }) {
   const o = row.outlook && OUTLOOK[row.outlook];
   return (
     <div className="mail-person mail-person-line">
-      <span style={{ minWidth: 0 }}>
-        <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openStaff(row.kind, row.id)}>
-          {row.name}
-        </button>
-        <span className="muted small" style={{ display: 'block' }}>
-          {row.title} · age {row.age}
+      <span className="staff-who">
+        <StaffAvatar person={row.person} size={28} />
+        <span style={{ minWidth: 0 }}>
+          <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openStaff(row.kind, row.id)}>
+            {row.name}
+          </button>
+          <span className="muted small" style={{ display: 'block' }}>
+            {row.title} · age {row.age}
+          </span>
         </span>
       </span>
       <span className="small mail-ratings">
@@ -1300,6 +1306,7 @@ function StaffDealsCards({ league, s, live }: { league: League; s: Extract<MailS
           key: `c${c.id}`,
           kind: 'coach',
           id: c.id,
+          person: c,
           name: coachName(c),
           title: coachTitle(c),
           age: c.age,
@@ -1324,6 +1331,7 @@ function StaffDealsCards({ league, s, live }: { league: League; s: Extract<MailS
           key: `s${x.id}`,
           kind: 'scout',
           id: x.id,
+          person: x,
           name: staffName(x),
           title: ROLE_LABEL[x.role],
           age: x.age,
@@ -1347,6 +1355,7 @@ function StaffDealsCards({ league, s, live }: { league: League; s: Extract<MailS
         key: `m${m.id}`,
         kind: 'medic',
         id: m.id,
+        person: m,
         name: medicName(m),
         title: MEDIC_ROLE_LABEL[m.role],
         age: m.age,
@@ -1403,12 +1412,15 @@ function Option({ league, c, as, action, problem, go }: { league: League; c: Coa
   const scheme = coachSchemeLabel(as);
   return (
     <div className="mail-person">
-      <span style={{ minWidth: 0 }}>
-        <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openStaff('coach', c.id)}>
-          {coachName(c)}
-        </button>
-        <span className="muted small" style={{ display: 'block' }}>
-          {c.teamId === league.userTeamId ? `Our ${coachTitle(c).toLowerCase()}` : c.lastJob ?? 'On the market'} · age {c.age}
+      <span className="staff-who">
+        <StaffAvatar person={c} size={28} />
+        <span style={{ minWidth: 0 }}>
+          <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openStaff('coach', c.id)}>
+            {coachName(c)}
+          </button>
+          <span className="muted small" style={{ display: 'block' }}>
+            {c.teamId === league.userTeamId ? `Our ${coachTitle(c).toLowerCase()}` : c.lastJob ?? 'On the market'} · age {c.age}
+          </span>
         </span>
       </span>
       <span className="small mail-ratings">
@@ -1535,21 +1547,29 @@ function CarouselCards({ league, s }: { league: League; s: Extract<MailSubject, 
                   )}
                 </td>
                 <td>
-                  <button className="linklike" onClick={() => nav.openStaff('coach', x.coach.id)}>
-                    {coachName(x.coach)}
-                  </button>
-                  <span className="muted small" style={{ display: 'block' }}>
-                    {from(x)}
+                  <span className="staff-who">
+                    <StaffAvatar person={x.coach} size={28} />
+                    <span style={{ minWidth: 0 }}>
+                      <button className="linklike" onClick={() => nav.openStaff('coach', x.coach.id)}>
+                        {coachName(x.coach)}
+                      </button>
+                      <span className="muted small" style={{ display: 'block' }}>
+                        {from(x)}
+                      </span>
+                    </span>
                   </span>
                 </td>
                 <td>
                   {x.replaced ? (
-                    <>
-                      <button className="linklike" onClick={() => nav.openStaff('coach', x.replaced!.id)}>
-                        {coachName(x.replaced)}
-                      </button>
-                      {x.record && <span className="muted small" style={{ display: 'block' }}>{recordText(x.record)}</span>}
-                    </>
+                    <span className="staff-who">
+                      <StaffAvatar person={x.replaced} size={28} />
+                      <span style={{ minWidth: 0 }}>
+                        <button className="linklike" onClick={() => nav.openStaff('coach', x.replaced!.id)}>
+                          {coachName(x.replaced)}
+                        </button>
+                        {x.record && <span className="muted small" style={{ display: 'block' }}>{recordText(x.record)}</span>}
+                      </span>
+                    </span>
                   ) : (
                     <span className="muted">–</span>
                   )}

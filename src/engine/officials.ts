@@ -8,7 +8,7 @@
  * Hidden inputs, readable outcomes: every tendency shows up in a stat a player can see (`crewTable`),
  * never as a number. Spec and what's built: docs/OFFICIALS.md.
  */
-import { FIRST_NAMES, LAST_NAMES } from './data/names';
+import { newIdentity } from './identity';
 import { FOUL_KINDS, FOULS } from './penalties';
 import { clamp, Rng } from './rng';
 import type { Crew, Foul, Game, League } from './types';
@@ -87,10 +87,10 @@ export function generateCrews(league: League): void {
   const used = new Set<string>();
   const crews: Crew[] = [];
   for (let id = 0; id < CREW_COUNT; id++) {
-    let lastName = rng.pick(LAST_NAMES);
-    while (used.has(lastName)) lastName = rng.pick(LAST_NAMES);
+    // a crew goes by its referee's surname, so no two may share one
+    const { firstName, lastName } = newIdentity(rng, { kind: 'official' }, used);
     used.add(lastName);
-    crews.push({ id, firstName: rng.pick(FIRST_NAMES), lastName, flagVolume: 0, holding: 0, coverage: 0, qbProtection: 0 });
+    crews.push({ id, firstName, lastName, flagVolume: 0, holding: 0, coverage: 0, qbProtection: 0 });
   }
   for (const t of TENDENCIES) {
     const [lo, hi] = SPREAD;

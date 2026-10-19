@@ -14,7 +14,11 @@ stories emerge from interlocking systems rather than scripts.
 3. **Readable, calm UI.** One obvious next action, numbers that explain themselves, works on a
    phone.
 4. **Open data.** Real NFL markets and divisions with original nicknames and fictional players;
-   everything is JSON so the community can mod in real rosters.
+   everything is JSON so the community can mod in real rosters. A new league starts with the real
+   league's pecking order: each franchise's 2015–2024 regular-season win share (nflverse results)
+   tilts its opening roster, so Kansas City opens strong and Cleveland weak. Its team ratings follow
+   those records at about 0.7, so a surprise is still possible. A mod that leaves the records out
+   starts at random.
 
 ## How the match engine works
 

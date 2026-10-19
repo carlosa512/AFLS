@@ -64,6 +64,7 @@ import { staffWindowOpen, type ResignOutlook } from '../../engine/staff';
 import type { Coach, CoachRole, CoachRoom, League } from '../../engine/types';
 import { useNav } from '../App';
 import { Dialog, Exact, Panel, Section, Sheet, TeamChip, TeamPicker, TipPill } from '../components';
+import { StaffAvatar } from '../staffAvatar';
 import { POSITION_NAMES } from '../../engine/positions';
 import { ownerBudgetNote } from '../../engine/staff';
 import { StatsTable } from './PlayerCard';
@@ -385,12 +386,19 @@ function CareerTable({ league, c }: { league: League; c: Coach }) {
   );
 }
 
-/** A coach's name that opens his card. */
-function CoachLink({ c, className }: { c: Coach; className?: string }) {
+/** A coach's name that opens his card; `avatar` puts his picture beside it, as in a list. */
+function CoachLink({ c, className, avatar }: { c: Coach; className?: string; avatar?: boolean }) {
   const nav = useNav();
   return (
-    <button className={`linklike ${className ?? ''}`.trim()} onClick={() => nav.openStaff('coach', c.id)}>
-      {coachName(c)}
+    <button className={`linklike ${avatar ? 'staff-link ' : ''}${className ?? ''}`.trim()} onClick={() => nav.openStaff('coach', c.id)}>
+      {avatar ? (
+        <>
+          <StaffAvatar person={c} size={28} />
+          <span>{coachName(c)}</span>
+        </>
+      ) : (
+        coachName(c)
+      )}
     </button>
   );
 }
@@ -418,7 +426,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
       onClose={onClose}
       head={
         <>
-          {team && <TeamChip team={team} large />}
+          <StaffAvatar person={c} size={128} />
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
               {coachTitle(c)}
@@ -638,9 +646,12 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
   return (
     <li className={`staff-card coach-card${expiring ? ' expiring' : ''}`}>
       <div className="staff-head">
-        <div>
-          <CoachLink c={c} className="staff-name" />
-          <span className="muted small">{subtitle(league, c)}</span>
+        <div className="staff-who">
+          <StaffAvatar person={c} size={56} />
+          <div>
+            <CoachLink c={c} className="staff-name" />
+            <span className="muted small">{subtitle(league, c)}</span>
+          </div>
         </div>
         {expiring && <span className="tag-pill tag-warn">Deal up</span>}
       </div>
@@ -870,7 +881,10 @@ function RoomRow({ league, room, staying, count, expanded, onToggle }: { league:
         <span className="room-coach">
           {coach ? (
             <>
-              <b>{coachName(coach)}</b>
+              <span className="staff-who">
+                <StaffAvatar person={coach} size={28} />
+                <b>{coachName(coach)}</b>
+              </span>
               <Rates c={coach} />
             </>
           ) : (
@@ -983,9 +997,12 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
   return (
     <li className="staff-card coach-card">
       <div className="staff-head">
-        <div>
-          <CoachLink c={c} className="staff-name" />
-          <span className="muted small">{coachTitle(c)}</span>
+        <div className="staff-who">
+          <StaffAvatar person={c} size={56} />
+          <div>
+            <CoachLink c={c} className="staff-name" />
+            <span className="muted small">{coachTitle(c)}</span>
+          </div>
         </div>
       </div>
       <div className="facts">
@@ -1126,7 +1143,7 @@ function Rival({ league, c }: { league: League; c: Coach | null }) {
   if (!c) return <span className="tone-bad small">Vacant</span>;
   return (
     <span className="lc-cell">
-      <CoachLink c={c} />
+      <CoachLink c={c} avatar />
       <RatePair c={c} />
       <SchemeRow league={league} c={c} compact />
       <CoachTags c={c} />
@@ -1566,7 +1583,7 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
                             const c = chairHolder(staff, ch);
                             return (
                               <li key={`${ch.role}-${ch.room ?? ''}`}>
-                                {c ? <CoachLink c={c} /> : <span className="tone-bad">Vacant</span>}
+                                {c ? <CoachLink c={c} avatar /> : <span className="tone-bad">Vacant</span>}
                                 <span className="muted small">{coachTitle(ch)}</span>
                                 {c && <RatePair c={c} />}
                               </li>

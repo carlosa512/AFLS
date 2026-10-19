@@ -1,5 +1,4 @@
 import { generateCoachingWorld } from './coaching';
-import { FIRST_NAMES, LAST_NAMES } from './data/names';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
 import {
   ATTRIBUTE_PROFILES,
@@ -16,6 +15,7 @@ import { buildContract, capHit, trimPast } from './finance/contract';
 import { BASE_CAP, guaranteeAsk, leagueMarket, marketApy, minSalary, rookieApy, rookieBonusShare, type Market } from './finance/market';
 import { clamp, Rng } from './rng';
 import { buildAutoDepthChart } from './roster';
+import { newIdentity } from './identity';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateSchedule } from './season/schedule';
 import { generateStaffWorld } from './staff';
@@ -24,7 +24,7 @@ import { generateTraits } from './traits';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 25;
+export const SAVE_VERSION = 27;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -96,10 +96,11 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
   const [hMin, hMax, wMin, wMax] = BODY[position];
   const experience = Math.max(0, age - 22 + rng.int(-1, 0));
 
+  const { firstName, lastName } = newIdentity(rng, { kind: 'player', position });
   const player: Player = {
     id: spec.id,
-    firstName: rng.pick(FIRST_NAMES),
-    lastName: rng.pick(LAST_NAMES),
+    firstName,
+    lastName,
     position,
     age,
     heightIn: rng.int(hMin, hMax),
@@ -248,6 +249,14 @@ export function createDraftPicks(league: League, season: number): void {
 }
 
 /** Quality (target overall) for the Nth player on the depth chart at a position. */
+/**
+ * Quality per point of a franchise's recent win share, above or below .500 (`TeamSeed.winPct`). The real
+ * league's spread (.335 to .750 over 2015–2024) then spans about 1.65 points of starter quality, on top of
+ * the luck of each player's roll (about half a point between teams): a new league's team ratings follow the
+ * real records at about 0.7 (0.6–0.75 by seed), so the old pecking order shows in year one without deciding it.
+ */
+const PEDIGREE = 4;
+
 function slotQuality(rng: Rng, position: Position, slot: number, teamTalent: number): number {
   const starters = STARTERS[position];
   let q: number;
@@ -337,8 +346,10 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     };
     league.teams.push(team);
 
-    // Talent varies between franchises, which creates contenders and rebuilders.
-    const teamTalent = rng.normal(0, 0.2);
+    // Talent varies between franchises, which creates contenders and rebuilders: the real franchise's last ten
+    // seasons set where it starts (Kansas City's .750 about +1.0 on every starter's quality, Jacksonville's .335
+    // about −0.66), with a little luck on top; a team without a record (a mod's) starts at random.
+    const teamTalent = seedTeam.winPct === undefined ? rng.normal(0, 0.2) : PEDIGREE * (seedTeam.winPct - 0.5) + rng.normal(0, 0.1);
     const jerseysUsed = new Set<number>();
     const roster: Player[] = [];
     for (const position of POSITIONS) {

@@ -17,8 +17,9 @@
  * help a little. All medical randomness uses its own seeded Rngs, so it never shifts the league's
  * main random stream and a migrated save gets the same staffs as a new league.
  */
-import { FIRST_NAMES, LAST_NAMES } from './data/names';
 import { BASE_CAP } from './finance/market';
+import { newIdentity } from './identity';
+import { pron } from './pronouns';
 import { clamp, Rng } from './rng';
 import { ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
 import type { League, Medic, MedicRole, Team } from './types';
@@ -165,16 +166,17 @@ export const medicSeverance = (league: League, m: Medic) => (m.contract && m.con
 /** Why a move can't happen right now, or null. */
 export function medicMoveProblem(league: League, teamId: number, m: Medic, move: StaffMove, years = 2): string | null {
   if (!staffWindowOpen(league)) return 'Medical staff moves open in the re-sign window and free agency.';
-  if (move === 'release') return m.teamId === teamId ? null : 'He doesn’t work for you.';
+  const { He, His, him } = pron(m);
+  if (move === 'release') return m.teamId === teamId ? null : `${He} doesn’t work for you.`;
   if (years < 1 || years > MEDIC_MAX_YEARS) return `Medical staff sign for 1–${MEDIC_MAX_YEARS} years.`;
   const held = teamMedics(league, teamId).filter((x) => x.role === m.role && x !== m && !isMedicExpiring(league, x)).length;
   const label = MEDIC_ROLE_LABEL[m.role].toLowerCase();
   if (move === 'extend') {
     if (m.teamId !== teamId || !isMedicExpiring(league, m)) return 'Only expiring deals can be extended.';
-    if (held >= MEDIC_SLOTS[m.role]) return `His chair is taken: your ${label} job${MEDIC_SLOTS[m.role] > 1 ? 's are' : ' is'} filled.`;
+    if (held >= MEDIC_SLOTS[m.role]) return `${His} chair is taken: your ${label} job${MEDIC_SLOTS[m.role] > 1 ? 's are' : ' is'} filled.`;
   } else {
-    if (m.teamId !== null) return 'He isn’t available.';
-    if (held >= MEDIC_SLOTS[m.role]) return MEDIC_SLOTS[m.role] > 1 ? `Both ${label} jobs are filled. Dismiss one first.` : `You already have a ${label}. Dismiss him first.`;
+    if (m.teamId !== null) return `${He} isn’t available.`;
+    if (held >= MEDIC_SLOTS[m.role]) return MEDIC_SLOTS[m.role] > 1 ? `Both ${label} jobs are filled. Dismiss one first.` : `You already have a ${label}. Dismiss ${him} first.`;
   }
   const over = medicAsk(league, m, years) - medicalRoom(league, teamId);
   return over > 0 ? `Over your medical budget by $${(over / 1000).toFixed(2)}M.` : null;
@@ -238,8 +240,8 @@ const MARKET_SIZE: Record<MedicRole, number> = { doctor: 8, physio: 14, scientis
 function newMedic(league: League, rng: Rng, role: MedicRole, physio: number, science: number, age: number): Medic {
   const m: Medic = {
     id: league.nextMedicId++,
-    firstName: rng.pick(FIRST_NAMES),
-    lastName: rng.pick(LAST_NAMES),
+    // the name and whether she's a woman are drawn together, so they always agree
+    ...newIdentity(rng, { kind: 'medic', role }),
     role,
     age,
     physio: Math.round(clamp(physio, 1, 20)),

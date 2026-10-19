@@ -138,6 +138,27 @@ describe('inbox', () => {
     for (const m of l.inbox!) if (!m.deleted) expect(!!m.archived).toBe(!needsYou(l, m));
   });
 
+  it('never files mail again once a full inbox has let it go', () => {
+    const l = copy(league);
+    const user = l.userTeamId;
+    logTransaction(l, 'trade', [user, (user + 1) % 32], 'AAA traded QB A to BBB for QB B');
+    Object.assign(l.transactions[l.transactions.length - 1], { season: l.season - 1, phase: 'regular', week: 3 });
+    l.inbox = [];
+    deliverMail(l);
+    const old = l.inbox.find((m) => m.id.endsWith(':AAA traded QB A to BBB for QB B'))!;
+    deleteMail(l, [old.id]);
+    // Fill the inbox with later mail, the old trade at the front, then a new deal pushes it off.
+    const filler = (i: number) => ({ ...old, id: `filler:${i}`, phase: 'complete' as const, week: 0, deleted: undefined });
+    l.inbox = [old, ...Array.from({ length: 299 }, (_, i) => filler(i))];
+    logTransaction(l, 'trade', [user, (user + 1) % 32], 'AAA traded QB C to BBB for QB D');
+    deliverMail(l);
+    expect(l.inbox).toHaveLength(300);
+    expect(l.inbox.some((m) => m.id === old.id)).toBe(false);
+    expect(l.inbox.some((m) => m.id.endsWith(':AAA traded QB C to BBB for QB D'))).toBe(true);
+    deliverMail(l);
+    expect(l.inbox.some((m) => m.id === old.id)).toBe(false);
+  });
+
   it('opens the league year with expiring deals and retirements, and the combine with free agency', () => {
     const year = league.inbox!.filter((m) => m.season === league.season && m.phase === 'resign');
     const deals = year.filter((m) => m.category === 'contracts');

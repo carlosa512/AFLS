@@ -1706,19 +1706,36 @@ select {
     height: 96px;
   }
 }
-.player-link {
+.player-link,
+.staff-link {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   text-decoration: none;
 }
-.player-link > span {
+.player-link > span,
+.staff-link > span {
   text-decoration: underline;
   text-decoration-color: var(--line);
   text-underline-offset: 3px;
 }
-.player-link:hover > span {
+.player-link:hover > span,
+.staff-link:hover > span {
   text-decoration-color: currentColor;
+}
+/* A staff member's picture beside his name and the line under it (cards, mail rows, table cells). */
+.staff-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.staff-head > .staff-who {
+  display: flex;
+}
+.staff-who > div {
+  display: grid;
+  min-width: 0;
 }
 .grip {
   display: inline-grid;
@@ -2829,7 +2846,7 @@ details.more > summary {
   grid-area: coach;
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 0 10px;
   min-width: 0;
 }
@@ -3243,7 +3260,7 @@ button.tip-pill {
 .team-staff li {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 2px 10px;
 }
 /* A name in a list, not a card's heading. */

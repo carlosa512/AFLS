@@ -35,10 +35,12 @@ import {
   teamMedics,
   type Department,
 } from '../../engine/medical';
+import { pron } from '../../engine/pronouns';
 import { staffWindowOpen } from '../../engine/staff';
 import type { League, Medic, MedicRole, Player } from '../../engine/types';
 import { useNav } from '../App';
 import { Exact, GradesTable, Panel, PlayerAvatar, Section, Sheet, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
+import { StaffAvatar } from '../staffAvatar';
 import { money, ordinal, resultsSeason, verdict, type Verdict } from '../format';
 import { conditionTone, FitnessCell, hurtList, InjuryTag, wornDown } from '../injuries';
 import { Ovr, seenOvr, StaffNum, StaffSkill } from '../scouting';
@@ -82,6 +84,7 @@ function Term({ value, onChange, label }: { value: number; onChange: (n: number)
 
 function Member({ league, m, open }: { league: League; m: Medic; open: boolean }) {
   const teamId = league.userTeamId;
+  const { he, His, his, him } = pron(m);
   // Another club's medic: the same card to read, without the deal notes and buttons (those are his club's).
   const theirs = m.teamId !== league.userTeamId;
   const expiring = !theirs && isMedicExpiring(league, m);
@@ -93,9 +96,12 @@ function Member({ league, m, open }: { league: League; m: Medic; open: boolean }
   return (
     <li className={`staff-card${expiring ? ' expiring' : ''}`}>
       <div className="staff-head">
-        <div>
-          <MedicLink m={m} />
-          <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
+        <div className="staff-who">
+          <StaffAvatar person={m} size={56} />
+          <div>
+            <MedicLink m={m} />
+            <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
+          </div>
         </div>
         {expiring && <span className="tag-pill tag-warn">Deal up</span>}
       </div>
@@ -118,10 +124,10 @@ function Member({ league, m, open }: { league: League; m: Medic; open: boolean }
       {expiring && (
         <p className="small staff-note">
           {outlook === 'stays'
-            ? `Deal up: re-signs for 2 years at ${money(medicAsk(league, m, 2))} when free agency opens unless you let him go.`
+            ? `Deal up: re-signs for 2 years at ${money(medicAsk(league, m, 2))} when free agency opens unless you let ${him} go.`
             : outlook === 'budget'
-              ? `Deal up: he leaves when free agency opens. Your medical budget can't cover his ask of ${money(medicAsk(league, m, 2))}.`
-              : 'Deal up: he leaves when free agency opens. His chair is taken.'}
+              ? `Deal up: ${he} leaves when free agency opens. Your medical budget can't cover ${his} ask of ${money(medicAsk(league, m, 2))}.`
+              : `Deal up: ${he} leaves when free agency opens. ${His} chair is taken.`}
         </p>
       )}
       {!theirs && (
@@ -144,12 +150,19 @@ function Member({ league, m, open }: { league: League; m: Medic; open: boolean }
   );
 }
 
-/** A medic's name: opens his card. */
-function MedicLink({ m }: { m: Medic }) {
+/** A medic's name: opens his card. `avatar` puts his picture beside it, as in a list. */
+function MedicLink({ m, avatar = false }: { m: Medic; avatar?: boolean }) {
   const nav = useNav();
   return (
-    <button className="linklike staff-name" onClick={() => nav.openStaff('medic', m.id)}>
-      {medicName(m)}
+    <button className={`linklike ${avatar ? 'staff-link ' : ''}staff-name`} onClick={() => nav.openStaff('medic', m.id)}>
+      {avatar ? (
+        <>
+          <StaffAvatar person={m} size={28} />
+          <span>{medicName(m)}</span>
+        </>
+      ) : (
+        medicName(m)
+      )}
     </button>
   );
 }
@@ -179,6 +192,7 @@ function hirePreview(league: League, teamId: number, m: Medic): { words: string;
 /** A medic's full card: his ratings, what his chair does, his last job, and for one on the market, what hiring him would change. */
 export function MedicCard({ league, medic: m, onClose }: { league: League; medic: Medic; onClose: () => void }) {
   const teamId = league.userTeamId;
+  const { him } = pron(m);
   const team = m.teamId !== null ? league.teams[m.teamId] : null;
   const preview = m.teamId === null ? hirePreview(league, teamId, m) : undefined;
   return (
@@ -188,7 +202,7 @@ export function MedicCard({ league, medic: m, onClose }: { league: League; medic
       onClose={onClose}
       head={
         <>
-          {team && <TeamChip team={team} large />}
+          <StaffAvatar person={m} size={128} />
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
               {MEDIC_ROLE_LABEL[m.role]}
@@ -224,7 +238,7 @@ export function MedicCard({ league, medic: m, onClose }: { league: League; medic
         </p>
       )}
       {preview !== undefined && (
-        <Section id="staff-hire" title="If you hire him">
+        <Section id="staff-hire" title={`If you hire ${him}`}>
           <div className={`small${preview ? '' : ' muted'}`}>{preview ? <Exact numbers={preview.numbers}>{preview.words}</Exact> : 'No gain over your current staff.'}</div>
         </Section>
       )}
@@ -239,9 +253,12 @@ function Candidate({ league, m, open }: { league: League; m: Medic; open: boolea
   return (
     <li className="staff-card">
       <div className="staff-head">
-        <div>
-          <MedicLink m={m} />
-          <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
+        <div className="staff-who">
+          <StaffAvatar person={m} size={56} />
+          <div>
+            <MedicLink m={m} />
+            <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
+          </div>
         </div>
       </div>
       <div className="facts">
@@ -557,7 +574,7 @@ function Department({ league }: { league: League }) {
         .sort((a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role))
         .map((m) => (
           <li key={m.id}>
-            <MedicLink m={m} />
+            <MedicLink m={m} avatar />
             <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
             <span className="small">
               Physiotherapy <StaffNum value={m.physio} /> · Sports science <StaffNum value={m.science} />
@@ -677,7 +694,7 @@ function Department({ league }: { league: League }) {
         }
       >
         <p className="muted small" style={{ marginTop: 0 }}>
-          Best first. Physios carry most of the rehab, the sports scientist most of the prevention, the head doctor both and the diagnosis. Tap a name to see what he would change in your department.
+          Best first. Physios carry most of the rehab, the sports scientist most of the prevention, the head doctor both and the diagnosis. Tap a name to see what hiring them would change in your department.
         </p>
         {candidates.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>

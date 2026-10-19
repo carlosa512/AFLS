@@ -7,14 +7,15 @@ import { inkOn, kitFor, shade, tint, type TeamColors } from './color';
 import { band, gameWeatherText, severityText } from './format';
 import { store } from './store';
 
-const FREE_AGENT: TeamColors = { primary: '#4a554e', secondary: '#9aa59e' };
+/** Free agents, prospects and staff on the market: the app's grey-green. */
+export const FREE_AGENT: TeamColors = { primary: '#4a554e', secondary: '#9aa59e' };
 const NUMBER_MIN_PX = 32; // below this the digits turn to mush, and every list shows the name beside him anyway
 const NAMEPLATE_MIN_PX = 96; // below this the surname is too small to read
 const NAMEPLATE_MAX = 40; // widest the surname may run, in viewBox units
 const PLATE_EM = 0.52; // width of a capital per unit of font size: Big Shoulders Display 800, measured, spacing included
-const SKIN = '#3E4A59'; // neutral mannequin: no faces or skin tones to generate
+export const SKIN = '#3E4A59'; // neutral mannequin: no faces or skin tones to generate
 /** Kickoff this hot in the open air, the home team takes white and leaves the visitors the dark jerseys (tune). */
-const HOT_KICKOFF_F = 85;
+export const HOT_KICKOFF_F = 85;
 
 // Paths share one 100x100 box. The player faces straight away from the viewer.
 // Football cues: tall, wide pads that overhang the arms; the pads lift the collar, so the head sits low.

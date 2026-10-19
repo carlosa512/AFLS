@@ -4,6 +4,7 @@ import { simToEndOfSeason } from '../league';
 import { beginOffseason } from '../offseason';
 import { cutChoice } from '../offseason/ai';
 import { ROSTER_MAX } from '../offseason/negotiation';
+import { playerOvr } from '../positions';
 import { activeRoster } from '../roster';
 import type { League } from '../types';
 import { judge, tradeContext } from '.';
@@ -38,12 +39,15 @@ describe('trades before a cut', () => {
     const q = activeRoster(l, 4).find((x) => x.position === 'WR')!;
     const swap: TradeProposal = { sides: [{ teamId: 9, players: [p.id], picks: [] }, { teamId: 4, players: [q.id], picks: [] }] };
     const before = judge(ctx, 4, swap, { rosterCuts: true }).get;
-    // Twenty more bodies in camp (no contracts, so the cap and the rooms don't move): a one-for-one swap forces no extra cut.
-    for (const x of activeRoster(l, 2).filter((y) => y.position !== 'WR').slice(0, 20)) {
+    // Twenty more bodies in camp, the weakest another team has (no contracts, so the cap and the rooms don't move,
+    // and too weak to change how good the team is): a one-for-one swap forces no extra cut.
+    for (const x of activeRoster(l, 2).filter((y) => y.position !== 'WR').sort((a, b) => playerOvr(a) - playerOvr(b)).slice(0, 20)) {
       x.teamId = 4;
       x.contract = null;
     }
-    expect(judge(tradeContext(l), 4, swap, { rosterCuts: true }).get).toBeCloseTo(before, 0);
+    // The old charge was a roster spot (15 points) for every body over 53: 300 here. The extra bodies can still
+    // move the team's cap picture a little, and with it how it weighs salary.
+    expect(judge(tradeContext(l), 4, swap, { rosterCuts: true }).get).toBeGreaterThan(before - 15);
   });
 });
 
@@ -52,9 +56,9 @@ describe('future-for-current pick swaps', { timeout: 30_000 }, () => {
     const l = fresh();
     simToEndOfSeason(l);
     beginOffseason(l);
-    for (const t of l.teams) t.gm.futureDiscount = t.id === 6 ? 0.38 : 0.18;
+    for (const t of l.teams) t.gm.futureDiscount = t.id === 1 ? 0.38 : 0.18;
     const ctx = tradeContext(l);
-    const deal = pickSwapFor(ctx, l.teams[6], l.teams.filter((t) => t.id !== l.userTeamId));
+    const deal = pickSwapFor(ctx, l.teams[1], l.teams.filter((t) => t.id !== l.userTeamId));
     expect(deal).not.toBeNull();
     const [mine, theirs] = deal!.proposal.sides.map((s) => l.draftPicks.find((p) => p.id === s.picks[0])!);
     expect(mine.season).toBe(nextDraftSeason(l) + 1);
@@ -62,6 +66,6 @@ describe('future-for-current pick swaps', { timeout: 30_000 }, () => {
     expect(theirs.round).toBe(mine.round + 1);
     // In season nobody swaps like this.
     l.phase = 'regular';
-    expect(pickSwapFor(tradeContext(l), l.teams[6], l.teams)).toBeNull();
+    expect(pickSwapFor(tradeContext(l), l.teams[1], l.teams)).toBeNull();
   });
 });

@@ -1,9 +1,10 @@
-# Player avatars
+# Player and staff avatars
 
 > **Status.** Built: `PlayerAvatar` in `src/ui/components.tsx` draws every player from behind in his
 > team's jersey (pure SVG, no images, no new dependencies), the colour rules and kits in `src/ui/color.ts`,
 > and home and away jerseys by the league's rule. Tested in `src/ui/avatar.test.tsx`. A roster mod's
-> `player.portrait` still replaces the drawing.
+> `player.portrait` still replaces the drawing. Staff (coaches, scouts, medical staff) have their own
+> avatar facing you, dressed for the job and the week: see [section 8](#8-staff-avatars).
 
 ## 1. Why a back view
 
@@ -84,3 +85,99 @@ All in `src/ui/components.tsx` and `src/ui/color.ts`: `NUMBER_MIN_PX` (32), `NAM
 - Ring text ("QB · Dallas Stampede"): the card header already shows that line, and curved text is
   unreadable at these sizes. Dropped.
 - Validating mod-supplied colours (arrives with league import).
+
+## 8. Staff avatars
+
+> **Status.** Built: `StaffAvatar` in `src/ui/staffAvatar.tsx` (with the drawing, `StaffFigure`, and the
+> week's dress code, `staffDay`), the outfit picker `staffLook` in `src/ui/staffLook.ts`. Tested in
+> `src/ui/avatar.test.tsx` and `src/engine/women.test.ts`.
+
+The same family as the player avatar (ring, spotlight, lighting, grey mannequin), but **staff face you**:
+the props (headset, credential, stethoscope, whistle) read far better from the front, and the facing
+direction tells staff from players at a glance in a mixed list. Nothing is saved: a look is a pure
+function of the person's id, his chair and the week. It reads no ratings.
+
+### The figure
+
+Each choice was picked from rendered options; don't undo one without a reason.
+
+- **One line for a face:** level brows and a nose, from 32px. Arched brows read as closed eyes, dipped
+  ones as angry.
+- **Classic head shapes**, picked per person: square, round, oval, heart or oblong for men; round, oval or
+  heart for women, a little narrower. Hats, hair and the headset are fitted to each head.
+- **Hats sit low**, the brim shading the eyes.
+- **Women** have a slimmer neck and an 8% narrower build, and one solid grey hair shape (bun, ponytail,
+  bob or long; always long with a blazer, which takes an open collar instead of a tie).
+- **The medical cross is white or team-coloured, never red** (the Red Cross emblem is protected).
+- **The neck runs on under the clothes**, so no neckline leaves a sliver of backdrop, and it meets the
+  neckline's corners without flaring past them, so every collar wraps around it. The polo's collar
+  stands behind the neck; its points and the open placket are in front.
+
+### Wardrobe
+
+Each person's outfit is picked from his id (`coaches:12`, `staff:12`, `medics:12`: ids only repeat
+across the three records), so it's his for life, and it changes with his chair (a promotion, a new job).
+
+| Chair | Outfits | Gear |
+| --- | --- | --- |
+| Coaches (head coach, coordinators, position, special teams) | hoodie, quarter-zip, polo with cap, two-tone jacket | headset |
+| Strength & conditioning coach | tee, tee with cap, quarter-zip, hoodie | whistle (no headset: he runs warm-ups, not the play sheet) |
+| College and pro scouts | polo with cap, quarter-zip, jacket, polo | credential |
+| Director of scouting | blazer, always | credential |
+| Medical staff (doctor, physios, sports scientist) | polo with chest cross, scrubs, quarter-zip, lab coat | the cross on a polo or jacket, otherwise a stethoscope |
+
+### The day
+
+`staffDay` reads the same inputs as the kit rule (`gameWeather` for this week's game), so a team's whole
+staff dresses alike and it's a pure function of the week.
+
+| Day | What changes |
+| --- | --- |
+| Game week (also byes, a team that's out, the market, domes, closed roofs and mild days) | nothing: his own outfit |
+| Cold: open air, `COLD_KICKOFF_F` (40°F) or colder at kickoff | jacket and beanie |
+| Hot: open air, `HOT_KICKOFF_F` (85°F) or hotter | polo and visor (the strength coach keeps his tee) |
+| Offseason, and the gap after the title game | coaches a quarter-zip, no headset; the strength coach his tee and whistle (it's his busiest stretch); scouts and the Director a blazer; medical staff a lab coat |
+| Retired (a coach kept on file for his record) | the offseason look, for good |
+
+Scouts follow game-day weather too, for simplicity.
+
+### Colours
+
+- The ring, spotlight, caps and beanies come from the team's primary.
+- Trim (drawstrings, zips, piping, the cross, the whistle's cord) is **ink**: the secondary when it
+  reaches 4.5:1 against the clothing, otherwise light or dark (`readableOn`, the player rule).
+- The stethoscope turns silver on dark clothes; the Director's tie is in the primary.
+- Staff on the market, and retired coaches, wear the app's grey-green.
+
+### Detail by size and placements
+
+| Size | Shows | Used in |
+| --- | --- | --- |
+| under 32px | ring, mannequin, garment, hats, headset band and cups | list rows (28): each club's staff under Around the league (coaches, scouts, medical), who coaches each room, the staff-deals and hiring mail, the head-coach carousel |
+| 32px and up | adds the face line, zips, plackets, drawstrings, lanyard and badge, stethoscope, cross, whistle, mic boom and beanie ribs | staff cards on the Coaches, Scouts and Medical screens, candidates included (56); the staff card header (128; 96 on phones), where it replaces the team chip |
+
+A staff name inside a sentence (a note, a transaction, a fit line) gets no avatar, as with players.
+Decorative (`aria-hidden`): every placement shows the name beside it.
+
+### Women on staff
+
+- **The flag lives on the record** (`woman?: true` on scouts and medics), drawn with the name
+  (`newIdentity` in `identity.ts`), so a name and a face can never disagree. The avatar only reads it.
+  Coaches never roll.
+- **The share is by chair** (`WOMEN_SHARE` in `engine/data/heritage.ts`): 7% of scouts, 3% of Directors and
+  head doctors, 15% of physiotherapists, 25% of sports scientists, with women's names. See
+  [NAMES.md](NAMES.md).
+- Old saves: v26 adds the optional field (absent means a man); the v27 names pass rolls it for existing
+  scouts and medics as it renames them.
+
+### Tunables
+
+`DETAIL_MIN_PX` (32) and `COLD_KICKOFF_F` (40) in `staffAvatar.tsx`, `HOT_KICKOFF_F` (85) shared with the
+kit rule in `components.tsx`, the wardrobes in `staffLook.ts`, `WOMEN_SHARE` in `engine/data/names.ts`.
+
+### Not yet
+
+- Inbox sender avatars for staff (one line each: `fromCard` already names the person).
+- Mod-supplied staff portraits, like `player.portrait`.
+- Women coaches (their share stays 0).
+
