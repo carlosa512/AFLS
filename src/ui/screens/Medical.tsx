@@ -39,6 +39,7 @@ import { staffWindowOpen } from '../../engine/staff';
 import type { League, Medic, MedicRole, Player } from '../../engine/types';
 import { useNav } from '../App';
 import { Exact, GradesTable, Panel, PlayerAvatar, Section, Sheet, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
+import { StaffAvatar } from '../staffAvatar';
 import { money, ordinal, resultsSeason, verdict, type Verdict } from '../format';
 import { conditionTone, FitnessCell, hurtList, InjuryTag, wornDown } from '../injuries';
 import { Ovr, seenOvr, StaffNum, StaffSkill } from '../scouting';
@@ -93,9 +94,12 @@ function Member({ league, m, open }: { league: League; m: Medic; open: boolean }
   return (
     <li className={`staff-card${expiring ? ' expiring' : ''}`}>
       <div className="staff-head">
-        <div>
-          <MedicLink m={m} />
-          <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
+        <div className="staff-who">
+          <StaffAvatar person={m} size={56} />
+          <div>
+            <MedicLink m={m} />
+            <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
+          </div>
         </div>
         {expiring && <span className="tag-pill tag-warn">Deal up</span>}
       </div>
@@ -144,12 +148,19 @@ function Member({ league, m, open }: { league: League; m: Medic; open: boolean }
   );
 }
 
-/** A medic's name: opens his card. */
-function MedicLink({ m }: { m: Medic }) {
+/** A medic's name: opens his card. `avatar` puts his picture beside it, as in a list. */
+function MedicLink({ m, avatar = false }: { m: Medic; avatar?: boolean }) {
   const nav = useNav();
   return (
-    <button className="linklike staff-name" onClick={() => nav.openStaff('medic', m.id)}>
-      {medicName(m)}
+    <button className={`linklike ${avatar ? 'staff-link ' : ''}staff-name`} onClick={() => nav.openStaff('medic', m.id)}>
+      {avatar ? (
+        <>
+          <StaffAvatar person={m} size={28} />
+          <span>{medicName(m)}</span>
+        </>
+      ) : (
+        medicName(m)
+      )}
     </button>
   );
 }
@@ -188,7 +199,7 @@ export function MedicCard({ league, medic: m, onClose }: { league: League; medic
       onClose={onClose}
       head={
         <>
-          {team && <TeamChip team={team} large />}
+          <StaffAvatar person={m} size={128} />
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
               {MEDIC_ROLE_LABEL[m.role]}
@@ -239,9 +250,12 @@ function Candidate({ league, m, open }: { league: League; m: Medic; open: boolea
   return (
     <li className="staff-card">
       <div className="staff-head">
-        <div>
-          <MedicLink m={m} />
-          <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
+        <div className="staff-who">
+          <StaffAvatar person={m} size={56} />
+          <div>
+            <MedicLink m={m} />
+            <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
+          </div>
         </div>
       </div>
       <div className="facts">
@@ -557,7 +571,7 @@ function Department({ league }: { league: League }) {
         .sort((a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role))
         .map((m) => (
           <li key={m.id}>
-            <MedicLink m={m} />
+            <MedicLink m={m} avatar />
             <span className="muted small">{MEDIC_ROLE_LABEL[m.role]}</span>
             <span className="small">
               Physiotherapy <StaffNum value={m.physio} /> · Sports science <StaffNum value={m.science} />

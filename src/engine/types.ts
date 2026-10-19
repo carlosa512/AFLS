@@ -297,6 +297,8 @@ export interface Staff {
   firstName: string;
   lastName: string;
   role: StaffRole;
+  /** Set once at creation (`rollWoman`), so the name and the avatar agree. Absent = a man. */
+  woman?: true;
   age: number;
   /** Reading what a player is today (1–20). */
   evaluation: number;
@@ -379,6 +381,8 @@ export interface Medic {
   firstName: string;
   lastName: string;
   role: MedicRole;
+  /** Set once at creation (`rollWoman`), so the name and the avatar agree. Absent = a man. */
+  woman?: true;
   age: number;
   /** Physiotherapy (1–20): rehab that gets injured players back sooner. */
   physio: number;

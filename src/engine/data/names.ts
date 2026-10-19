@@ -47,3 +47,9 @@ export const LAST_NAMES = [
   'Young', 'Zimmerman', 'Okafor', 'Nwosu', 'Tuilagi', 'Mauga', 'Fonoti', 'Kowalski', 'Novak', 'Lindqvist',
   'Delgado', 'Navarro', 'Ortega', 'Salazar', 'Vargas', 'Kim', 'Nguyen', 'Patel', 'O\'Brien', 'McAllister',
 ];
+
+/**
+ * Share of new scouts and medical staff who are women (coaches stay 0). 0.02 once women's first names
+ * land here, so a scout's name and face agree; until then nobody is flagged. Read through `rollWoman`.
+ */
+export const WOMEN_SHARE = 0;

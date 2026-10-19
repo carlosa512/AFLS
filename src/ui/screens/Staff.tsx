@@ -40,7 +40,8 @@ import {
 } from '../../engine/staff';
 import type { League, ScoutFocus, Staff, StaffRole } from '../../engine/types';
 import { useNav } from '../App';
-import { Exact, GradesTable, Panel, Section, Sheet, TeamChip, TeamPicker } from '../components';
+import { Exact, GradesTable, Panel, Section, Sheet, TeamPicker } from '../components';
+import { StaffAvatar } from '../staffAvatar';
 import { band, money, ordinal } from '../format';
 import { StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
@@ -106,9 +107,12 @@ function Member({ league, s, open, outlook }: { league: League; s: Staff; open: 
   return (
     <li className={`staff-card${expiring ? ' expiring' : ''}`}>
       <div className="staff-head">
-        <div>
-          <ScoutLink s={s} />
-          <span className="muted small">{roleLine(s)}</span>
+        <div className="staff-who">
+          <StaffAvatar person={s} size={56} />
+          <div>
+            <ScoutLink s={s} />
+            <span className="muted small">{roleLine(s)}</span>
+          </div>
         </div>
         {expiring && <span className="tag-pill tag-warn">Deal up</span>}
       </div>
@@ -226,12 +230,20 @@ function previewText(changes: ReadChange[]): { words: string; numbers: string } 
   return { words: say(words), numbers: gains.length || loss ? `Read ratings, 1–20: ${say(numbers)}` : '' };
 }
 
-/** A scout's name: opens his card. `className` swaps the card-heading look for a plain inline link. */
-function ScoutLink({ s, className = 'staff-name', last = false }: { s: Staff; className?: string; last?: boolean }) {
+/** A scout's name: opens his card. `className` swaps the card-heading look for a plain inline link; `avatar` puts his picture beside it, as in a list. */
+function ScoutLink({ s, className = 'staff-name', last = false, avatar = false }: { s: Staff; className?: string; last?: boolean; avatar?: boolean }) {
   const nav = useNav();
+  const name = last ? s.lastName : staffName(s);
   return (
-    <button className={`linklike ${className}`.trim()} onClick={() => nav.openStaff('scout', s.id)}>
-      {last ? s.lastName : staffName(s)}
+    <button className={`linklike ${avatar ? 'staff-link ' : ''}${className}`.trim()} onClick={() => nav.openStaff('scout', s.id)}>
+      {avatar ? (
+        <>
+          <StaffAvatar person={s} size={28} />
+          <span>{name}</span>
+        </>
+      ) : (
+        name
+      )}
     </button>
   );
 }
@@ -255,7 +267,7 @@ export function ScoutCard({ league, scout: s, onClose }: { league: League; scout
       onClose={onClose}
       head={
         <>
-          {team && <TeamChip team={team} large />}
+          <StaffAvatar person={s} size={128} />
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
               {roleLine(s)}
@@ -305,9 +317,12 @@ function Candidate({ league, s, open }: { league: League; s: Staff; open: boolea
   return (
     <li className="staff-card">
       <div className="staff-head">
-        <div>
-          <ScoutLink s={s} />
-          <span className="muted small">{roleLine(s)}</span>
+        <div className="staff-who">
+          <StaffAvatar person={s} size={56} />
+          <div>
+            <ScoutLink s={s} />
+            <span className="muted small">{roleLine(s)}</span>
+          </div>
         </div>
       </div>
       <div className="facts">
@@ -402,7 +417,7 @@ export function StaffScreen({ league }: { league: League }) {
         .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role))
         .map((s) => (
           <li key={s.id}>
-            <ScoutLink s={s} />
+            <ScoutLink s={s} avatar />
             <span className="muted small">{roleLine(s)}</span>
             <span className="small">
               Evaluation <StaffNum value={s.evaluation} /> · Projection <StaffNum value={s.projection} />
