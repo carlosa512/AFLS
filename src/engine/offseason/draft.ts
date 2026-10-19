@@ -196,6 +196,13 @@ export function simDraft(league: League, rng: Rng, opts: { stopAtUser: boolean; 
 
 export const draftComplete = (league: League) => !nextPick(league);
 
+/** Taken a round of the board ahead of his consensus rank is a reach; that far behind it, a steal. */
+export function reachOrSteal(d: { pick: number; rank?: number }): 'reach' | 'steal' | null {
+  if (d.rank === undefined) return null;
+  const gap = d.rank - d.pick;
+  return gap >= 12 ? 'reach' : gap <= -12 ? 'steal' : null;
+}
+
 /** Undrafted prospects join the free-agent pool; the next far-future draft's picks are created. */
 export function finishDraft(league: League): void {
   for (const id of league.draftClass) {

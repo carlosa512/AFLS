@@ -4,7 +4,7 @@ import { lastSeason, yearsLeft } from '../../engine/finance/contract';
 import { fifthYearOptionValue } from '../../engine/finance/market';
 import { draftForUser, draftNextPick, draftToEnd, draftToUserPick, FA_DAYS } from '../../engine/offseason';
 import { applyFranchiseTag, exerciseFifthYearOption, expiringPlayers, needGain, tagBlocker, tagValue } from '../../engine/offseason/ai';
-import { availableProspects, boardValue, draftOrder, nextPick, POSITION_PREMIUM, positionDepth, ROUNDS } from '../../engine/offseason/draft';
+import { availableProspects, boardValue, draftOrder, nextPick, POSITION_PREMIUM, positionDepth, reachOrSteal, ROUNDS } from '../../engine/offseason/draft';
 import { demand, extensionBlocker, freeAgents } from '../../engine/offseason/negotiation';
 import { POSITION_NAMES } from '../../engine/positions';
 import { teamPlayers } from '../../engine/roster';
@@ -725,8 +725,7 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
               <tbody>
                 {rows.map((p) => {
                   const d = p.draft!;
-                  // Taken a round of the board ahead of his consensus rank is a reach; that far behind it, a steal.
-                  const gap = d.rank !== undefined ? d.rank - d.pick : 0;
+                  const value = reachOrSteal(d);
                   return (
                     <tr key={p.id} className={d.teamId === league.userTeamId && team === 'all' ? 'is-user' : undefined}>
                       {year === 'all' && <td className="num">{d.season}</td>}
@@ -737,8 +736,8 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
                         <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
                           {p.firstName} {p.lastName}
                         </button>
-                        {gap >= 12 && <span className="tag-pill tag-warn">reach</span>}
-                        {gap <= -12 && <span className="tag-pill tag-good">steal</span>}
+                        {value === 'reach' && <span className="tag-pill tag-warn">reach</span>}
+                        {value === 'steal' && <span className="tag-pill tag-good">steal</span>}
                       </td>
                       <td>{p.position}</td>
                       <td>
