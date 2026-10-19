@@ -2,38 +2,118 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEv
 import { createPortal } from 'react-dom';
 import type { League, Player, Team } from '../engine/types';
 import type { Forecast, Weather } from '../engine/weather';
+import { inkOn, kitFor, shade, tint, type TeamColors } from './color';
 import { band, gameWeatherText, severityText } from './format';
 
-/** Black or white, whichever reads better on `hex`. */
-function inkOn(hex: string): string {
-  const n = parseInt(hex.replace('#', '').padEnd(6, '0').slice(0, 6), 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
-    const v = c / 255;
-    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? '#121915' : '#ffffff';
-}
+const FREE_AGENT: TeamColors = { primary: '#4a554e', secondary: '#9aa59e' };
+const NUMBER_MIN_PX = 32; // below this the digits turn to mush, and every list shows the name beside him anyway
+const NAMEPLATE_MIN_PX = 96; // below this the surname is too small to read
+const NAMEPLATE_MAX = 40; // widest the surname may run, in viewBox units
+const PLATE_EM = 0.52; // width of a capital per unit of font size: Big Shoulders Display 800, measured, spacing included
+const SKIN = '#3E4A59'; // neutral mannequin: no faces or skin tones to generate
+
+// Paths share one 100x100 box. The player faces straight away from the viewer.
+// Football cues: tall, wide pads that overhang the arms; the pads lift the collar, so the head sits low.
+const HEAD = 'M50 10.4 C57.5 10.4 61.9 13.9 62.3 20.5 L62.5 32.4 C62.4 35.7 61.2 38.1 58.6 39.5 L57 40.3 L43 40.3 L41.4 39.5 C38.8 38.1 37.6 35.7 37.5 32.4 L37.7 20.5 C38.1 13.9 42.5 10.4 50 10.4 Z';
+const EARS = 'M62.1 23.8 C65 23.2 66.1 26 65.6 29.3 C65.2 32.2 63.6 33.5 62.3 33.1 Z M37.9 23.8 C35 23.2 33.9 26 34.4 29.3 C34.8 32.2 36.4 33.5 37.7 33.1 Z';
+const NECK = 'M41.6 34 C41.8 39.6 41 43.8 38 47.8 L62 47.8 C59 43.8 58.2 39.6 58.4 34 Z';
+// thick neck, as wide as the jaw; soft shade under the skull and down each side
+const NECK_SIDES = 'M41.8 37 C42 40.6 41.4 44 38.8 47.6 L41.4 47.6 C42.8 44 43 40.6 42.8 37 Z M58.2 37 C58 40.6 58.6 44 61.2 47.6 L58.6 47.6 C57.2 44 57 40.6 57.2 37 Z';
+const NECK_SHADE = 'M42 39.2 C46.6 42 53.4 42 58 39.2 L57.9 41.6 C53.4 43.8 46.6 43.8 42.1 41.6 Z';
+// arms tuck under the pads and angle slightly away from the torso, so a sliver of background shows at the waist
+const ARM_L = 'M10.6 61.6 C8.2 68.4 8.6 76 11.6 83 C13.6 88 15.6 94 16.4 100 L22.6 100 C22 94 21.6 88 21.6 82 C21.8 76 23.4 70 25.4 65.6 Z';
+const ARM_R = 'M89.4 61.6 C91.8 68.4 91.4 76 88.4 83 C86.4 88 84.4 94 83.6 100 L77.4 100 C78 94 78.4 88 78.4 82 C78.2 76 76.6 70 74.6 65.6 Z';
+// the arm sits in shade under each pad's overhang
+const SLEEVE_SHADOW = 'M93.4 57.8 C90 59.8 84 60.6 78 60.2 L77.2 64.8 C83.6 65.2 89.6 63.8 92.4 61.4 Z M6.6 57.8 C10 59.8 16 60.6 22 60.2 L22.8 64.8 C16.4 65.2 10.4 63.8 7.6 61.4 Z';
+// pads: a tall shelf whose outer edges stick out past the arms
+const JERSEY = 'M40.6 44.6 C44 47.8 56 47.8 59.4 44.6 C62.4 44.4 65.6 42.4 70 42 L82 42.2 C90 42.6 93.6 46.6 93.8 51.4 L93.8 57.8 C90 59.8 84 60.6 78 60.2 C77.4 64 77 66 76.6 68 C75.6 78 74.8 88 74 100 L26 100 C25.2 88 24.4 78 23.4 68 C23 66 22.6 64 22 60.2 C16 60.6 10 59.8 6.2 57.8 L6.2 51.4 C6.4 46.6 10 42.6 18 42.2 L30 42 C34.4 42.4 37.6 44.4 40.6 44.6 Z';
+const COLLAR = 'M40.6 44.6 C44 47.8 56 47.8 59.4 44.6';
+const PAD_GLOSS = 'M69.4 43.4 C75 42.4 83.4 42.6 89 44.6 M30.6 43.4 C25 42.4 16.6 42.6 11 44.6';
+// two bands on each pad's outer face, the classic NFL sleeve stripe
+const BANDS_UPPER = 'M79.8 53.4 C85.2 54.4 90.6 53.8 93.4 52 M20.2 53.4 C14.8 54.4 9.4 53.8 6.6 52';
+const BANDS_LOWER = 'M79.6 56.6 C85 57.6 90.4 57 93.4 55.2 M20.4 56.6 C15 57.6 9.6 57 6.6 55.2';
+// the jersey hangs off the bottom edge of the shoulder pads' back plate
+const PAD_SHELF = 'M20 60.4 C34 64.6 66 64.6 80 60.4 L80 63.6 C66 67.8 34 67.8 20 63.6 Z';
+const FOLDS = 'M76.6 68 C74.6 78 73.6 88 74 100 L68 100 C69 88 71 78 76.6 68 Z M23.4 68 C25.4 78 26.4 88 26 100 L32 100 C31 88 29 78 23.4 68 Z';
 
 /**
- * A player's picture slot. Until a portrait exists (a roster mod can set `player.portrait`),
- * it shows a neutral bust in team colours with the jersey number, so faces line up and scan
- * like a real roster page.
+ * A player's picture slot. Until a portrait exists (a roster mod can set `player.portrait`), it draws him
+ * from behind in his team's jersey: just the figure in lists, the number from 32px, the surname from 96px.
+ * Decorative: the name is always shown beside it.
  */
 export function PlayerAvatar({ player, team, size = 32 }: { player: Player; team: Team | null; size?: number }) {
-  const label = `${player.firstName} ${player.lastName}`;
+  const id = useId();
   if (player.portrait) {
     return <img className="avatar" src={player.portrait} alt="" width={size} height={size} loading="lazy" />;
   }
-  const [c1, c2] = team?.colors ?? ['#4a554e', '#9aa59e'];
+  const url = (part: string) => `url(#${id}${part})`;
+  const colors = team ? { primary: team.colors[0], secondary: team.colors[1] } : FREE_AGENT;
+  const { primary } = colors;
+  const { jersey, ink, trim, accent } = kitFor(colors);
+  const plate = player.lastName.toUpperCase();
+  // long names shrink, and textLength holds the estimate even if the font hasn't loaded and a wider one stands in
+  const plateSize = Math.min(9.5, NAMEPLATE_MAX / (plate.length * PLATE_EM));
   return (
-    <svg className="avatar" width={size} height={size} viewBox="0 0 40 40" role="img" aria-label={`${label} (no photo)`}>
-      <circle cx="20" cy="20" r="20" fill={c1} />
-      <circle cx="20" cy="20" r="19.25" fill="none" stroke={c2} strokeWidth="1.5" opacity="0.9" />
-      <path d="M5.5 37.5c0-9.6 6.4-14.6 14.5-14.6s14.5 5 14.5 14.6A19.5 19.5 0 0 1 5.5 37.5z" fill={c2} />
-      <circle cx="20" cy="12.6" r="6" fill="#fff" opacity="0.82" />
-      <text x="20" y="36.4" textAnchor="middle" fontSize="12" fontWeight="800" fill={inkOn(c2)} fontFamily="var(--font-display)">
-        {player.jersey}
-      </text>
+    <svg className="avatar" width={size} height={size} viewBox="0 0 100 100" fontFamily="var(--font-display)" aria-hidden="true">
+      <defs>
+        <clipPath id={`${id}c`}>
+          <circle cx="50" cy="50" r="45" />
+        </clipPath>
+        <radialGradient id={`${id}bg`} cx="50" cy="38" r="56" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor={tint(primary, 0.82)} />
+          <stop offset="1" stopColor={tint(primary, 0.5)} />
+        </radialGradient>
+        <radialGradient id={`${id}sk`} cx="44" cy="20" r="34" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor={tint(SKIN, 0.18)} />
+          <stop offset="1" stopColor={shade(SKIN, 0.35)} />
+        </radialGradient>
+        <radialGradient id={`${id}arm`} cx="0.45" cy="0.3" r="0.75">
+          <stop offset="0" stopColor={tint(SKIN, 0.16)} />
+          <stop offset="1" stopColor={shade(SKIN, 0.4)} />
+        </radialGradient>
+        <linearGradient id={`${id}j`} x1="0" y1="44" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor={tint(jersey, 0.14)} />
+          <stop offset="1" stopColor={shade(jersey, 0.22)} />
+        </linearGradient>
+      </defs>
+      <circle cx="50" cy="50" r="45" fill={url('bg')} />
+      <g clipPath={url('c')}>
+        <path d={ARM_L} fill={url('arm')} />
+        <path d={ARM_R} fill={url('arm')} />
+        <path d={NECK} fill={url('sk')} />
+        <path d={NECK_SIDES} fill="#000" fillOpacity={0.08} />
+        <path d={NECK_SHADE} fill="#000" fillOpacity={0.16} />
+        <path d={EARS} fill={url('sk')} />
+        <path d={HEAD} fill={url('sk')} />
+        {/* a soft outline keeps a white jersey off a pale backdrop */}
+        <path d={JERSEY} fill={url('j')} stroke="#0F172A" strokeOpacity={0.35} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        {/* the head's shadow below the collar, the pad shelf, the folds where the body turns away, gloss on the pads */}
+        <ellipse cx="50" cy="48.6" rx="11" ry="2.4" fill="#000" fillOpacity={0.16} />
+        <path d={PAD_SHELF} fill="#000" fillOpacity={0.1} />
+        <path d={FOLDS} fill="#000" fillOpacity={0.14} />
+        <path d={PAD_GLOSS} stroke="#FFFFFF" strokeOpacity={0.35} strokeWidth={1.3} strokeLinecap="round" fill="none" />
+        <path d={SLEEVE_SHADOW} fill="#000" fillOpacity={0.28} />
+        <path d={COLLAR} stroke={ink} strokeWidth={2.4} fill="none" />
+        {size >= NUMBER_MIN_PX && (
+          <>
+            <path d={BANDS_UPPER} stroke={ink} strokeWidth={2} fill="none" />
+            <path d={BANDS_LOWER} stroke={accent} strokeWidth={2} fill="none" />
+            {/* 15% wider around x = 50: the condensed display face is narrower than block jersey numerals */}
+            <text x="50" y="78" transform="translate(-7.5 0) scale(1.15 1)" textAnchor="middle" dominantBaseline="central" fontSize={32} fontWeight={900}
+              fill={ink} stroke={trim} strokeWidth={1.4} paintOrder="stroke" strokeLinejoin="round">
+              {player.jersey}
+            </text>
+          </>
+        )}
+        {size >= NAMEPLATE_MIN_PX && (
+          <text x="50" y="56.2" textAnchor="middle" dominantBaseline="central" fontSize={plateSize} fontWeight={800} letterSpacing={0.3} fill={ink}
+            textLength={plate.length * PLATE_EM * plateSize} lengthAdjust="spacingAndGlyphs">
+            {plate}
+          </text>
+        )}
+      </g>
+      <circle cx="50" cy="50" r="46.5" fill="none" stroke={shade(primary, 0.35)} strokeWidth={5} />
+      <circle cx="50" cy="50" r="43.6" fill="none" stroke={tint(primary, 0.45)} strokeWidth={0.6} strokeOpacity={0.8} />
     </svg>
   );
 }
