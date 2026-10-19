@@ -11,7 +11,7 @@
  * - A star only goes for a centrepiece: quantity never buys quality.
  */
 import { capFor, deadMoneyIn } from '../finance/cap';
-import { yearsLeft } from '../finance/contract';
+import { isExpired, remainingProration, yearsLeft } from '../finance/contract';
 import { contenderScore, rosterLimit } from '../offseason/negotiation';
 import type { DraftPick, League, Player, Team } from '../types';
 import { rosterOf, tradeContext, type TradeContext } from './context';
@@ -111,11 +111,19 @@ function rivalRefusal(ctx: TradeContext, team: Team, proposal: TradeProposal): s
  */
 const DEAD_LIMIT = 0.25;
 
+/**
+ * Bonus money from deals that have run out (their void years), booked as dead money when free agency
+ * opens: in the re-sign window it's still on the expired contracts, but the GM knows it's coming.
+ */
+const voidsComing = (ctx: TradeContext, teamId: number) =>
+  rosterOf(ctx, teamId).reduce((s, p) => s + (p.contract && isExpired(p.contract, ctx.league.season) ? remainingProration(p.contract, ctx.league.season) : 0), 0);
+
 /** A GM won't sell players whose bonuses would bury his cap in dead money. */
-function deadRefusal(league: League, team: Team, mine: TradeSide): string | null {
+function deadRefusal(ctx: TradeContext, team: Team, mine: TradeSide): string | null {
   if (!mine.players.length) return null;
+  const { league } = ctx;
   const added = tradeDeadMoney(league, mine);
-  added.thisYear += retainedBy(mine);
+  added.thisYear += retainedBy(mine) + voidsComing(ctx, team.id);
   const over = (season: number, amount: number) => amount > 0 && deadMoneyIn(team, season) + amount > DEAD_LIMIT * capFor(league, season);
   return over(league.season, added.thisYear) || over(league.season + 1, added.nextYear) ? "They can't take on any more dead money this year." : null;
 }
@@ -159,7 +167,7 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const mine = proposal.sides.find((s) => s.teamId === teamId)!;
   const theirs = proposal.sides.find((s) => s.teamId !== teamId)!;
   const problem = tradeProblem(league, proposal, { rosterCuts: opts.rosterCuts, ctx });
-  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal) ?? rivalRefusal(ctx, team, proposal) ?? (opts.releasing ? null : deadRefusal(league, team, mine)) ?? pickHoldRefusal(ctx, mine);
+  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal) ?? rivalRefusal(ctx, team, proposal) ?? (opts.releasing ? null : deadRefusal(ctx, team, mine)) ?? pickHoldRefusal(ctx, mine);
 
   const w = salaryWeight(ctx, teamId);
   const swing = playerSwing(ctx, team, mine.players, theirs.players);

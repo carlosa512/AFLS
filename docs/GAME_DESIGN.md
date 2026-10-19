@@ -295,7 +295,13 @@ consequence falls out of a few formulas (see `src/engine/finance/contract.ts` an
     on deadline day;
   - each front office has a stance (contend, bubble, retool, rebuild), needs and a trade block, and
     watches other teams' players before it calls;
-  - deals are picks for a player, swaps, a late pick riding back, and cap dumps;
+  - deals are picks for a player, swaps, a late pick riding back, cap dumps when the league year
+    opens, next year's pick for this year's, tag and trade, and late picks for players a team would
+    otherwise cut (cap casualties, the cut to 53);
+  - a seller can keep paying part of a player's salary in season, and a buyer extends a player with a
+    year left on arrival when he's willing (which the buyer prices in);
+  - every player in a deal passes the buyer's doctor first: a failure calls it off, concerns reopen
+    the price, and a hurt player can be cleared to rehab in the offseason;
   - sellers ask what the league would pay, more when several teams are asking, and each GM has a most
     he'll pay (an All-In GM the most);
   - every deal goes in a history with its reason, and rumors follow what front offices are really
@@ -305,8 +311,8 @@ consequence falls out of a few formulas (see `src/engine/finance/contract.ts` an
     put them on the block, shop a player to every team that needs him, or ask a GM his price. Each GM
     hears only a few proposals from you a week, and remembers how you deal.
 
-  `npm run trades` checks prices, volume and mix against the NFL's, fairness, the exploit probes and
-  speed.
+  `npm run trades` checks prices, volume and mix against the NFL's, fairness, offers to you,
+  physicals, the exploit probes and speed.
 
 ## Roadmap
 

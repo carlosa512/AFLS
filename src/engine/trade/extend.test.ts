@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { capSpace } from '../finance/cap';
+import { capFor, capSpace } from '../finance/cap';
 import { yearsLeft } from '../finance/contract';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
@@ -9,7 +9,8 @@ import { willExtend } from '../offseason/negotiation';
 import { playerOvr, STARTERS } from '../positions';
 import { activeRoster } from '../roster';
 import type { League, Player, Team } from '../types';
-import { executeTrade, marketValue, tradeBlock, tradeContext } from '.';
+import { executeTrade, judge, marketValue, tradeBlock, tradeContext } from '.';
+import { tradeDeadMoney, type TradeProposal } from './rules';
 import { readPlayer } from './value';
 
 const base = (() => {
@@ -77,5 +78,25 @@ describe('tag and trade', { timeout: 30_000 }, () => {
     applyFranchiseTag(l, star);
     const entry = tradeBlock(tradeContext(l), seller).find((e) => e.playerId === star.id);
     expect(entry?.reason).toBe('tagged');
+  });
+});
+
+describe('dead money in the re-sign window', { timeout: 30_000 }, () => {
+  it('counts the void years about to land when free agency opens', () => {
+    const l = fresh();
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const seller = activeRoster(l, team.id).find((p) => p.contract && yearsLeft(p.contract, l.season) >= 2)!;
+    seller.contract!.bonuses.push({ amount: 8000, start: l.season, years: 2, source: 'signing' });
+    const dead = tradeDeadMoney(l, { teamId: team.id, players: [seller.id], picks: [] }).thisYear;
+    // A hair under a quarter of the cap with the sale...
+    team.deadMoney = [{ season: l.season, amount: Math.round(0.25 * capFor(l, l.season) - dead - 1000), note: 'Released', playerId: seller.id }];
+    const buyer = l.teams.find((t) => t.id !== team.id && t.id !== l.userTeamId)!;
+    const pick = l.draftPicks.find((x) => x.ownerId === buyer.id && x.playerId === undefined)!;
+    const deal: TradeProposal = { sides: [{ teamId: team.id, players: [seller.id], picks: [] }, { teamId: buyer.id, players: [], picks: [pick.id] }] };
+    expect(judge(tradeContext(l), team.id, deal).refusal ?? '').not.toMatch(/dead money/);
+    // ...and over it once a deal that ran out drops its void years on the books.
+    const gone = activeRoster(l, team.id).find((p) => p.id !== seller.id)!;
+    gone.contract = { ...gone.contract!, years: [{ season: l.season, base: 0, guaranteed: 0, void: true }], bonuses: [{ amount: 4000, start: l.season - 1, years: 2, source: 'signing' }] };
+    expect(judge(tradeContext(l), team.id, deal).refusal).toMatch(/dead money/);
   });
 });

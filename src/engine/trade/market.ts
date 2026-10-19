@@ -51,8 +51,11 @@ export function gmActivity(league: League, team: Team): number {
 const SEASON_CAP = 3;
 const YEAR_CAP = 5;
 
+/** Deals too small to count against a front office's limits: a pick swap, a late pick for a player it was cutting. */
+const MINOR = new Set<TradeRecord['kind']>(['futureSwap', 'cutdown', 'casualty']);
+
 function capped(league: League, market: TradeMarket, team: Team): boolean {
-  const mine = market.history.filter((r) => r.season === league.season && r.sides.some((s) => s.teamId === team.id));
+  const mine = market.history.filter((r) => r.season === league.season && !MINOR.has(r.kind) && r.sides.some((s) => s.teamId === team.id));
   const inSeason = mine.filter((r) => r.phase === 'regular').length;
   return mine.length >= YEAR_CAP || (league.phase === 'regular' && inSeason >= SEASON_CAP + (team.gm.archetype === 'All-In' ? 1 : 0));
 }

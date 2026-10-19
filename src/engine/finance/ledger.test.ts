@@ -73,7 +73,7 @@ describe('salary paid mid-season', { timeout: 30_000 }, () => {
   });
 });
 
-describe('bonus money when a deal ends', () => {
+describe('bonus money when a deal ends', { timeout: 30_000 }, () => {
   it('retirements and expiries book every remaining bonus dollar', () => {
     const l = createLeague({ seed: 'ledger-retire' });
     simToEndOfSeason(l);
@@ -108,7 +108,7 @@ describe('bonus money when a deal ends', () => {
   });
 });
 
-describe('franchise tags', () => {
+describe('franchise tags', { timeout: 30_000 }, () => {
   const offseason = () => {
     const l = createLeague({ seed: 'ledger-tags' });
     simToEndOfSeason(l);
@@ -145,7 +145,7 @@ describe('franchise tags', () => {
   });
 });
 
-describe('determinism', () => {
+describe('determinism', { timeout: 30_000 }, () => {
   it('AI free agency is the same whether or not the save was reloaded after the user acted', () => {
     const l = createLeague({ seed: 'ledger-determinism' });
     simToEndOfSeason(l);

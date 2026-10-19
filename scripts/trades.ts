@@ -647,6 +647,7 @@ const perYear = (kind: string) => (volume.all.filter((r) => r.kind === kind).len
 console.log(`  next year's pick for this year's, a league year: ${perYear('futureSwap')}`);
 console.log(`  cap casualties sold for a late pick instead of cut, a league year: ${perYear('casualty')}; cut-down deals in camp: ${perYear('cutdown')}`);
 const extended = volume.all.filter((r) => r.extended?.length).length / Math.max(1, volume.seasons);
+console.log(`  salary retained, a season: ${(volume.all.filter((r) => r.sides.some((x) => x.retain)).length / Math.max(1, volume.seasons)).toFixed(1)}`);
 console.log(`  tag and trade, a league year: ${(volume.tagTrades / Math.max(1, volume.seasons)).toFixed(1)}; traded and extended on arrival: ${extended.toFixed(1)}`);
 check('player swaps (%)', share((r) => r.kind === 'swap'), [5, 15]);
 check('cap dumps, a season', volume.all.filter((r) => r.kind === 'dump').length / Math.max(1, volume.seasons), [1, 4], 1);

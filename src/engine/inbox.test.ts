@@ -47,7 +47,8 @@ describe('inbox', () => {
     const award = league.inbox!.find((m) => m.id === `awards:${league.season}:year:${mvp.playerId}`)!;
     expect(award.subject).toContain('Most Valuable Player');
     expect(award.actions).toEqual([{ kind: 'player', playerId: mvp.playerId }]);
-    expect(league.inbox!.filter((m) => m.category === 'trades')).toHaveLength(1);
+    // Once for the trade above (as an AI team, the MVP's may have traded in season too).
+    expect(league.inbox!.filter((m) => m.category === 'trades' && m.id.endsWith(':AAA traded QB A to BBB for QB B'))).toHaveLength(1);
     // Every award message is about the user's team.
     for (const m of league.inbox!.filter((x) => x.category === 'awards')) expect(m.actions[0].kind).toBe('player');
     // One year-end message per player, however many season honors he won.
@@ -75,7 +76,7 @@ describe('inbox', () => {
       expect(s.season).toBe(m.season);
       if (s.kind === 'award') expect(m.actions).toContainEqual({ kind: 'player', playerId: s.playerId });
     }
-    const trade = league.inbox!.find((m) => m.category === 'trades')!;
+    const trade = league.inbox!.find((m) => m.category === 'trades' && m.id.endsWith(':AAA traded QB A to BBB for QB B'))!;
     expect(mailSubject(trade)).toMatchObject({ kind: 'trade', text: 'AAA traded QB A to BBB for QB B' });
   });
 
