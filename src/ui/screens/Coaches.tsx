@@ -3,7 +3,7 @@
  * Coach ratings are public, so they show exactly; what they do for players is shown as percentages
  * against a typical staff, never as anyone's ratings (see ui/scouting.tsx for the fog of war).
  */
-import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { createContext, Fragment, useContext, useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   CHAIRS,
   chairHolder,
@@ -95,7 +95,7 @@ import {
 import { band, money, ordinal, PHASE_LABELS } from '../format';
 import { rosterFit, StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
-import { moveIndex, MoveText } from '../moves';
+import { LinkedText, moveIndex, MoveText, type Who } from '../moves';
 
 type RoleTab = 'head' | 'coord' | 'position' | 'sc' | 'st';
 type Side = 'both' | 'offCoord' | 'defCoord';
@@ -245,7 +245,7 @@ function FitLine({ league, c, hc, whose, promoted = false }: { league: League; c
         : `A fair fit for ${whose} head coach`;
   return (
     <p className={`small staff-note${fit >= 0.7 ? ' tone-good' : fit <= 0.35 ? ' tone-bad' : ''}`} style={{ margin: 0 }}>
-      {words}: {coachName(hc)} wants {c.role === 'offCoord' ? visionNotes(headCoachVision(league, hc)).offense : `a ${defenseLabel(headCoachVision(league, hc).defense.front, headCoachVision(league, hc).defense.coverage)} defense`}.
+      {words}: <CoachLink c={hc} /> wants {c.role === 'offCoord' ? visionNotes(headCoachVision(league, hc)).offense : `a ${defenseLabel(headCoachVision(league, hc).defense.front, headCoachVision(league, hc).defense.coverage)} defense`}.
     </p>
   );
 }
@@ -393,6 +393,11 @@ function CoachLink({ c, className }: { c: Coach; className?: string }) {
       {coachName(c)}
     </button>
   );
+}
+
+/** What the engine says about a coaching move, with the coaches it names linked. Your own staff first, so a name a player happens to share still means the coach. */
+function CoachNote({ league, text }: { league: League; text: string }) {
+  return <LinkedText league={league} text={text} about={teamCoaches(league, league.userTeamId).map((c): Who => ({ kind: 'coach', id: c.id }))} />;
 }
 
 /** A coach's full card, like a player's: his ratings, what he runs, his deal and every season he has coached. */
@@ -667,7 +672,11 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
             {outlook === 'budget'
               ? `Deal up: he leaves when free agency opens. Your coaching budget can't cover his ask of ${money(ask2)} a year for 2 years.`
               : outlook === 'chair'
-                ? `Deal up: he leaves when free agency opens. ${taker ? `${coachName(taker)} now holds` : 'Someone else now holds'} the ${coachTitle(c).toLowerCase()} chair.`
+                ? (
+                    <>
+                      Deal up: he leaves when free agency opens. {taker ? <CoachLink c={taker} /> : 'Someone else'} now holds the {coachTitle(c).toLowerCase()} chair.
+                    </>
+                  )
                 : `Deal up: re-signs for 2 years at ${money(ask2)} a year when free agency opens unless you let him go.`}
           </p>
           <div className="staff-actions">
@@ -737,7 +746,11 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
           )}
         </div>
       )}
-      {!theirs && open && why && <p className="small muted staff-why">{why}</p>}
+      {!theirs && open && why && (
+        <p className="small muted staff-why">
+          <CoachNote league={league} text={why} />
+        </p>
+      )}
       {!theirs && up && !aboveHeld && (
         <div className="staff-actions">
           <button
@@ -755,7 +768,11 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
       {(extendOver > 0 || promoOver > 0) && (
         <p className="small muted staff-why">{extendOver > 0 ? 'Extending him' : 'Promoting him'} goes past your coaching budget: the owner decides.</p>
       )}
-      {!theirs && open && up && !aboveHeld && promoProblem && <p className="small muted staff-why">{promoProblem}</p>}
+      {!theirs && open && up && !aboveHeld && promoProblem && (
+        <p className="small muted staff-why">
+          <CoachNote league={league} text={promoProblem} />
+        </p>
+      )}
       {ask && <OwnerDialog league={league} chair={ask.chair} over={ask.over} seed={c.id + league.season} action={ask.action} onApprove={ask.go} onClose={() => setAsk(null)} />}
     </li>
   );
@@ -786,7 +803,11 @@ function OpenChair({ chair, staying, leaving, onFind }: { chair: Chair; staying:
         </div>
       </div>
       <p className="small staff-note">
-        {leaving ? `${coachName(leaving)} leaves. ` : ''}
+        {leaving && (
+          <>
+            <CoachLink c={leaving} /> leaves.{' '}
+          </>
+        )}
         {vacancyText(staying, chair)}
       </p>
       <div className="staff-actions">
@@ -887,7 +908,7 @@ function RoomRow({ league, room, staying, count, expanded, onToggle }: { league:
                   <tr key={p.source}>
                     <td>
                       {partLabel(p)}
-                      <span className="muted small part-who">{p.coach ? coachName(p.coach) : 'Vacant'}</span>
+                      <span className="muted small part-who">{p.coach ? <CoachLink c={p.coach} /> : 'Vacant'}</span>
                     </td>
                     <td className={`num ${growthTone(p.growth)}`}>{signedPct(p.growth)}</td>
                     <td className={`num ${agingTone(p.aging)}`}>{signedPct(p.aging)}</td>
@@ -992,10 +1013,21 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
       {holder && (
         <p className="small staff-why muted">
           {/* The ratings box wraps as a unit, so no bracket is left dangling at the end of a line. */}
-          Replaces {coachName(holder)} — <Rates c={holder} />. {sev > 0 ? `${money(sev)} severance books against this year’s coaching budget.` : 'No severance.'}
+          Replaces <CoachLink c={holder} /> — <Rates c={holder} />. {sev > 0 ? `${money(sev)} severance books against this year’s coaching budget.` : 'No severance.'}
         </p>
       )}
-      {pushed.length > 0 && <p className="small tone-bad staff-preview">Hiring him means {pushed.map(coachName).join(' and ')} won’t be re-signed.</p>}
+      {pushed.length > 0 && (
+        <p className="small tone-bad staff-preview">
+          Hiring him means{' '}
+          {pushed.map((x, i) => (
+            <Fragment key={x.id}>
+              {i > 0 && ' and '}
+              <CoachLink c={x} />
+            </Fragment>
+          ))}{' '}
+          won’t be re-signed.
+        </p>
+      )}
       <div className="staff-actions">
         <Term
           value={term}
@@ -1044,7 +1076,11 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
         )}
       </div>
       {over > 0 && <p className="small muted staff-why">Hiring him goes {money(over)} past your coaching budget: the owner decides.</p>}
-      {open && problem && <p className="small muted staff-why">{problem}</p>}
+      {open && problem && (
+        <p className="small muted staff-why">
+          <CoachNote league={league} text={problem} />
+        </p>
+      )}
       {askOwner && (
         <OwnerDialog
           league={league}
@@ -1180,7 +1216,7 @@ export function CoachesScreen({ league }: { league: League }) {
       step = {
         text: (
           <>
-            <b>Deal up:</b> {coachName(lostCoach)}, your {chairNoun(lostToBudget)}, leaves when free agency opens: your coaching budget can&rsquo;t cover his ask of {money(coachAsk(league, lostCoach, 2))} a year.{' '}
+            <b>Deal up:</b> <CoachLink c={lostCoach} />, your {chairNoun(lostToBudget)}, leaves when free agency opens: your coaching budget can&rsquo;t cover his ask of {money(coachAsk(league, lostCoach, 2))} a year.{' '}
             {vacancyText(staying, lostToBudget)}
           </>
         ),
@@ -1213,8 +1249,13 @@ export function CoachesScreen({ league }: { league: League }) {
           ? {
               text: (
                 <>
-                  <b>Biggest upgrade:</b> {coachName(best.c)} as {chairNoun(chairOf(best.c))}
-                  {best.holder ? `, instead of ${coachName(best.holder)}` : ''}. {previewLines(best.changes)[0].words}
+                  <b>Biggest upgrade:</b> <CoachLink c={best.c} /> as {chairNoun(chairOf(best.c))}
+                  {best.holder && (
+                    <>
+                      , instead of <CoachLink c={best.holder} />
+                    </>
+                  )}
+                  . {previewLines(best.changes)[0].words}
                 </>
               ),
               button: { label: 'Show him', go: () => showCandidates(targetOf(chairOf(best.c))) },

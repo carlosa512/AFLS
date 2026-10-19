@@ -11,6 +11,7 @@ import type { League, Player, StatLine } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
 import { playerCoachLine } from '../coaching';
 import { Exact, PlayerAvatar, Section, Sheet } from '../components';
+import { LinkedText, type Who } from '../moves';
 import { store } from '../store';
 import { TradeActions } from '../offers';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
@@ -122,21 +123,34 @@ function statColumns(p: Player): Col[] {
   }
 }
 
-/** Who in your scouting department sized up this player: the name behind the range. */
 /** "every one of", "most of", "about half of", "a few of": playing time in words. */
 const shareWords = (share: number) => (share >= 0.99 ? 'every one of' : share >= 0.75 ? 'most of' : share >= 0.4 ? 'about half of' : 'a few of');
 
-function readByText(league: League, view: PlayerView, p: Player): string {
+/** Who in your scouting department sized up this player: the name behind the range, a link to his card. */
+function ReadBy({ league, view, p }: { league: League; view: PlayerView; p: Player }) {
+  const nav = useNav();
   const who = (id: number | null) => {
     const s = id === null ? undefined : league.staff[id];
     // A scout can be the best reader available for a group he doesn't specialise in; say so.
-    return s ? `${staffName(s)}, ${ROLE_LABEL[s.role].toLowerCase()}${s.focus ? ` (${FOCUS_LABEL[s.focus]}${s.focus === FOCUS_OF[p.position] ? '' : ', off his specialty'})` : ''}` : null;
+    return s ? (
+      <>
+        <button className="linklike" onClick={() => nav.openStaff('scout', s.id)}>
+          {staffName(s)}
+        </button>
+        , {ROLE_LABEL[s.role].toLowerCase()}
+        {s.focus ? ` (${FOCUS_LABEL[s.focus]}${s.focus === FOCUS_OF[p.position] ? '' : ', off his specialty'})` : ''}
+      </>
+    ) : null;
   };
   const reader = who(view.readerId);
-  if (!reader) return 'Nobody reads him: your Director’s chair is empty.';
+  if (!reader) return <>Nobody reads him: your Director’s chair is empty.</>;
   // Only players still growing get a ceiling read; past 25 it's just his overall.
   const ceiling = p.age < 26 && view.potReaderId !== view.readerId ? who(view.potReaderId) : null;
-  return `Read by ${reader}.${ceiling ? ` Ceiling read by ${ceiling}.` : ''}`;
+  return (
+    <>
+      Read by {reader}.{ceiling && <> Ceiling read by {ceiling}.</>}
+    </>
+  );
 }
 
 /** Rename or renumber a player. Cosmetic, so any player can be edited (a roster mod does the same in bulk). */
@@ -287,6 +301,9 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   // How he'd fit what your coordinators run (a free agent, a prospect or a rival's player alike).
   const myScheme = teamScheme(league, league.userTeamId);
   const fit = p.retired ? null : schemeFitOf(league, p, myScheme);
+  // His coaches' line shows for your own players; the coaches named in it open their cards.
+  const coachLine = p.teamId === league.userTeamId && !p.retired ? playerCoachLine(league, p) : null;
+  const coachWho = coachLine?.coaches.map((c): Who => ({ kind: 'coach', id: c.id }));
   const fitSide = ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p.position) ? 'offense' : 'defense';
   const fitScheme = fitSide === 'offense' ? myScheme.offense.label : [myScheme.front.label, myScheme.coverage?.label].filter(Boolean).join(' · ');
 
@@ -436,7 +453,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
 
           {!view.exact && (
             <p className="muted small read-by">
-              {readByText(league, view, p)}
+              <ReadBy league={league} view={view} p={p} />
               {sitDownHint && ' A scouting visit doubles as a sit-down: it can take one or two to learn his makeup.'}
             </p>
           )}
@@ -475,9 +492,11 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             <p className="muted small" style={{ margin: 0 }}>
               {careerOutlook(league, league.userTeamId, p)}
             </p>
-            {p.teamId === league.userTeamId && !p.retired && (
+            {coachLine && (
               <div className="muted small">
-                <Exact numbers={playerCoachLine(league, p).numbers}>{playerCoachLine(league, p).text}</Exact>
+                <Exact numbers={<LinkedText league={league} text={coachLine.numbers} about={coachWho} />}>
+                  <LinkedText league={league} text={coachLine.text} about={coachWho} />
+                </Exact>
               </div>
             )}
             {reps && (

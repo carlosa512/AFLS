@@ -148,7 +148,7 @@ describe('offers to you', () => {
 
   it('loads a save from before offers', () => {
     const old = copy(fresh()) as League;
-    old.version = 23;
+    old.version = 24;
     const m = old.market as Partial<NonNullable<League['market']>>;
     delete m.offers;
     delete m.status;
