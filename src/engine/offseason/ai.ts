@@ -208,7 +208,10 @@ export function aiCapCompliance(league: League, team: Team, target = 0): void {
   for (let guard = 0; guard < 40 && capSpace(league, team.id) < target; guard++) {
     const roster = teamPlayers(league, team.id).filter((p) => p.contract && !isExpired(p.contract, league.season));
     const desperate = capSpace(league, team.id) < target - league.caps[league.season] * 0.04;
-    if (team.gm.capAggression >= 0.35 || desperate) {
+    // With no gentler move left (every position at its minimum, say, after camp's fills), any GM restructures,
+    // then cuts down to his starters: no team opens a season over the cap.
+    const gentle = capCut(league, team, desperate);
+    if (team.gm.capAggression >= 0.35 || desperate || !gentle) {
       const candidate = roster
         .filter((p) => canRestructure(league, p) && restructureOptions(league, p).savings > 1_000)
         .sort((a, b) => restructureOptions(league, b).savings - restructureOptions(league, a).savings)[0];
@@ -217,7 +220,7 @@ export function aiCapCompliance(league: League, team: Team, target = 0): void {
         continue;
       }
     }
-    const cut = capCut(league, team, desperate);
+    const cut = gentle ?? capCut(league, team, true);
     if (!cut) break;
     releasePlayer(league, cut);
   }

@@ -208,7 +208,13 @@ their mid-60s, assistants a few years earlier.
 
 **AI staffs** aim at a seeded quality goal per team (centred, so the league stays typical); win-now
 front offices spend more on the head coach and coordinators, rebuilders on the teachers, and big-spending
-owners aim higher. An AI team never
+owners aim higher. An AI team hires the coach nearest its goal, not the best available, and budgets pull
+the ambitious short, so every front office aims higher for a role while the league's coaches in it run
+under typical (lower while they run over). New candidates are steered the same way, Youth and Veterans
+each on its own, so the men are there to hire. The league's growth under coaching holds at about ×1.00
+over a long save. Coaches nobody hires
+by camp partly drift out of football for the season (a fifth of them), and more at the new league year
+(two in five). An AI team never
 re-hires a coach it has just let go; head coach and coordinator moves around the league show in the
 news. `npm run offseason` reports the coaching economy, the carousel and young players' growth under
 the best and worst staffs.
