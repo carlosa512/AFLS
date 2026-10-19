@@ -99,8 +99,8 @@ function groupByDate(messages: InboxMessage[]): { label: string; messages: Inbox
   return groups;
 }
 
-/** Mail from the league office, agents and your own staff, newest first: a list to sort through and a message to act on. */
-export function Inbox({ league }: { league: League }) {
+/** Mail from the league office, agents and your own staff, newest first: a list to sort through and a message to act on (`messageId`, when sent to one). */
+export function Inbox({ league, messageId }: { league: League; messageId?: string }) {
   const nav = useNav();
   const [show, setShow] = useState<Show>('all');
   const [type, setType] = useState<InboxCategory | 'all'>('all');
@@ -126,8 +126,11 @@ export function Inbox({ league }: { league: League }) {
     window.scrollTo({ top: 0 });
     if (!m.read) store.mutate((l) => void (l.inbox!.find((x) => x.id === m.id)!.read = true));
   };
-  // A wide screen opens the first message that needs you (else the newest), like a mail app's reading pane; a phone starts on the list.
+  // Sent to a message (from Home), open it. Otherwise a wide screen opens the first message that needs you (else the
+  // newest), like a mail app's reading pane; a phone starts on the list.
   useEffect(() => {
+    const sent = all.find((m) => m.id === messageId);
+    if (sent) return read(sent);
     const first = all.find((m) => needs.has(m.id)) ?? all[0];
     if (first && window.matchMedia('(min-width: 641px)').matches) read(first);
     // Once, on arrival: after that the user picks.
