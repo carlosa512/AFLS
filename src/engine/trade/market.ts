@@ -9,8 +9,9 @@
  * - sellers (retoolers, rebuilders) shop their block to the teams that need each player;
  * - a team squeezed against the cap pays to move a bad contract (in season only on deadline day).
  *
- * Every deal is judged by both GMs with `judge`; nothing here touches the user's team (offers to the
- * user come in Phase 2). The market draws from its own stream, like injuries and weather.
+ * Every deal is judged by both GMs with `judge`; AI teams never trade with you here: what they want
+ * from you comes as offers to your desk (`offers.ts`). The market draws from its own stream, like
+ * injuries and weather.
  */
 import { aiCutdown } from '../offseason/ai';
 import { resetContenderCache, rosterLimit } from '../offseason/negotiation';
@@ -19,6 +20,8 @@ import type { League, Rumor, Team, TradeMarket, TradeRecord } from '../types';
 import { refreshAfterTrade, tradeContext, type TradeContext } from './context';
 import { dealFor, dumpFor, type Deal } from './deals';
 import { emptyMarket, executeTrade } from './execute';
+import { offersMoment, yourListings } from './offers';
+import { settleTalks } from './talks';
 import { interestIn, isBuyer, stanceOf, stanceScore, teamNeeds, tradeBlock, updateInterest, updateStances, wanted, type BlockEntry } from './plans';
 import { tradeWindow, TRADE_DEADLINE_WEEK } from './rules';
 import { marketValue, salaryWeight } from './value';
@@ -113,7 +116,8 @@ export function marketMoment(league: League, moment: Moment): TradeRecord[] {
   updateStances(ctx);
   const listingsOf = (c: TradeContext) => ai.flatMap((t) => tradeBlock(c, t).map((entry) => ({ team: t, entry })));
   let listings = listingsOf(ctx);
-  updateInterest(ctx, market, ai, listings);
+  settleTalks(market);
+  updateInterest(ctx, market, ai, listings, yourListings(ctx));
 
   const made: TradeRecord[] = [];
   const busy = new Map<number, number>();
@@ -139,6 +143,8 @@ export function marketMoment(league: League, moment: Moment): TradeRecord[] {
     refreshAfterTrade(ctx, deal.proposal.sides.map((x) => x.teamId), deal.proposal.sides.flatMap((x) => x.players));
     listings = listingsOf(ctx);
   }
+  // Then the calls to you, on what's left after the AI market's deals.
+  offersMoment(ctx, market, moment, listings);
   writeRumors(ctx, market, listings);
   return made;
 }

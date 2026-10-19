@@ -278,19 +278,30 @@ function keepScore(league: League, p: Player, read = viewCache(league)): number 
  * count and can't be cut here; `pool` limits who may go (an in-season cut to make room for a signing).
  */
 export function aiCutdown(league: League, team: Team, limit = ROSTER_MAX, pool?: readonly Player[]): void {
+  for (const p of cutChoice(league, activeRoster(league, team.id), limit, pool)) releasePlayer(league, p);
+}
+
+/**
+ * Who `aiCutdown` would let go to bring `roster` down to `limit`: the least valuable players at
+ * positions it can spare, one at a time (only from `pool` if given). Nothing is released.
+ */
+export function cutChoice(league: League, roster: readonly Player[], limit: number, pool?: readonly Player[]): Player[] {
   const read = viewCache(league);
   const allowed = pool && new Set(pool.map((p) => p.id));
-  while (activeRoster(league, team.id).length > limit) {
-    const roster = activeRoster(league, team.id);
+  const left = [...roster];
+  const out: Player[] = [];
+  while (left.length > limit) {
     const counts = new Map<Position, number>();
-    for (const p of roster) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
-    const cut = roster
+    for (const p of left) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
+    const cut = left
       .filter((p) => (counts.get(p.position) ?? 0) > KEEP_MIN[p.position] && (!allowed || allowed.has(p.id)))
       .map((p) => ({ p, score: keepScore(league, p, read) }))
       .sort((a, b) => a.score - b.score)[0]?.p;
     if (!cut) break;
-    releasePlayer(league, cut);
+    out.push(cut);
+    left.splice(left.indexOf(cut), 1);
   }
+  return out;
 }
 
 /** A replacement-level "street" free agent, for when the pool at a position has run dry. */

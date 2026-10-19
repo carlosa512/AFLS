@@ -32,7 +32,7 @@ const SWAP_WORTH = 70;
 const SWAP_EDGE = 25;
 
 /** A team's unused picks it would trade (not a first it's holding for draft day), the most valuable to `valuer` first. */
-function picksOf(ctx: TradeContext, teamId: number, valuer: Team): DraftPick[] {
+export function picksOf(ctx: TradeContext, teamId: number, valuer: Team): DraftPick[] {
   const { league } = ctx;
   return league.draftPicks
     .filter((p) => p.ownerId === teamId && p.playerId === undefined && !heldPick(ctx, p))
@@ -40,7 +40,7 @@ function picksOf(ctx: TradeContext, teamId: number, valuer: Team): DraftPick[] {
 }
 
 /** What a buyer could send: single picks, pairs and triples of its best, or a player from its block the seller needs, alone or with a pick. */
-function packages(ctx: TradeContext, buyer: Team, seller: Team): TradeSide[] {
+export function packages(ctx: TradeContext, buyer: Team, seller: Team): TradeSide[] {
   const picks = picksOf(ctx, buyer.id, seller);
   const top = picks.slice(0, 8);
   const side = (players: number[], ps: DraftPick[]): TradeSide => ({ teamId: buyer.id, players, picks: ps.map((p) => p.id) });
@@ -89,7 +89,7 @@ function findSwapPieces(ctx: TradeContext, buyer: Team, seller: Team): Player[] 
 }
 
 /** What the news calls a deal. */
-function kindOf(ctx: TradeContext, seller: Team, target: Player, sent: TradeSide): DealKind {
+export function kindOf(ctx: TradeContext, seller: Team, target: Player, sent: TradeSide): DealKind {
   const { league } = ctx;
   if (sent.players.length) return 'swap';
   if (marketValue(ctx, seller, target) >= STAR) return 'star';
@@ -121,8 +121,8 @@ function balance(ctx: TradeContext, proposal: TradeProposal, ahead: number): Tra
 }
 
 /** What each other team asking about a player adds to his price, and the most that competition adds. */
-const PER_BIDDER = 0.1;
-const MAX_PREMIUM = 0.2;
+export const PER_BIDDER = 0.1;
+export const MAX_PREMIUM = 0.2;
 /**
  * The most a GM pays for a player, against what the league would pay: about 1.3 times for most, up
  * to 1.5 for an All-In GM who has to have him (Ramsey, Mack). Bounded, so a desperate buyer can't be
@@ -131,6 +131,15 @@ const MAX_PREMIUM = 0.2;
 export const maxOver = (gm: GmTraits) => 1.3 + 0.4 * Math.max(0, gm.winNow - 0.45);
 
 type Tried = { proposal: TradeProposal; sells: Judgement; buys: Judgement };
+
+/** A quick read of a package at the league's prices (the going rate, market value on `valuer`'s read), before the full verdicts. */
+export function quickValue(ctx: TradeContext, valuer: Team, side: TradeSide): number {
+  const { league } = ctx;
+  return (
+    side.picks.reduce((s, id) => s + goingRate(league, league.draftPicks.find((x) => x.id === id)!, ctx), 0) +
+    side.players.reduce((s, id) => s + marketValue(ctx, valuer, league.players[id]), 0)
+  );
+}
 
 /**
  * The package for `target` that his team and `buyer` both accept, or null. The seller asks what the
@@ -152,10 +161,7 @@ export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | 
   const price = Math.max(ask, Math.min(asking, most));
   // A seller who wants more than that for him isn't really selling.
   const ceiling = Math.max(maxOver(buyer.gm) * worth, 0);
-  // A quick read of a package at the league's prices (the going rate, market value), before the full verdicts.
-  const quick = (side: TradeSide) =>
-    side.picks.reduce((s, id) => s + goingRate(league, league.draftPicks.find((x) => x.id === id)!, ctx), 0) +
-    side.players.reduce((s, id) => s + marketValue(ctx, seller, league.players[id]), 0);
+  const quick = (side: TradeSide) => quickValue(ctx, seller, side);
   const all = packages(ctx, buyer, seller);
   const affordable = all.filter((x) => quick(x) <= ceiling);
   const picks = search(ctx, buyer, seller, theirs, affordable.filter((x) => !x.players.length), quick, ask, price, TRIES);
@@ -196,7 +202,7 @@ function search(ctx: TradeContext, buyer: Team, seller: Team, theirs: TradeSide,
 }
 
 /** The worst contract a team takes on in a dump, in points under water: about a late first (Osweiler's was a second's worth). Bigger busts get cut. */
-const DUMP_LIMIT = 600;
+export const DUMP_LIMIT = 600;
 
 /**
  * A cap-strapped team pays to move a bad contract: to a team with room (a low salary weight) that

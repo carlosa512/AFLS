@@ -15,6 +15,8 @@ import { yearsLeft } from '../finance/contract';
 import { contenderScore, rosterLimit } from '../offseason/negotiation';
 import type { DraftPick, League, Player, Team } from '../types';
 import { rosterOf, tradeContext, type TradeContext } from './context';
+import { untouchables } from './plans';
+import { peekTalks, talkRefusal, TRUST_MARGIN } from './talks';
 import { freshSigningRefusal, playerTradeBlocker, tradeDeadMoney, tradeProblem, type TradeProposal, type TradeSide } from './rules';
 import { goingRate, marketValue, nextDraftSeason, pickOverall, pickValue, playerSwing } from './value';
 
@@ -136,10 +138,11 @@ function pickHoldRefusal(ctx: TradeContext, mine: TradeSide): string | null {
 }
 
 /** The margin a GM wants over what he gives: a small win against the user, merely not losing to another AI. */
-export function marginFor(team: Team, other: Team, vsUser = false): number {
+export function marginFor(team: Team, other: Team, vsUser = false, trust = 0): number {
   // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want a lot more.
   const rival = other.division === team.division ? 0.2 : 0;
-  return (vsUser ? 1.05 + team.gm.stubbornness * 0.15 : 1 + team.gm.stubbornness * 0.05) + rival;
+  // With you, how far he trusts you moves it a little either way.
+  return (vsUser ? 1.05 + team.gm.stubbornness * 0.15 - TRUST_MARGIN * trust : 1 + team.gm.stubbornness * 0.05) + rival;
 }
 
 /** `teamId`'s verdict on a proposal, in its own eyes. */
@@ -157,7 +160,8 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const size = rosterOf(ctx, teamId).filter((p) => !p.ir).length - mine.players.length + theirs.players.length;
   const get = pickIn + gain - Math.max(0, size - rosterLimit(league)) * ROSTER_SPOT;
   const give = pickOut + loss;
-  const margin = (opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser)) + (startsAtQb(league, team, mine) ? QB_PREMIUM : 0);
+  const trust = opts.vsUser ? peekTalks(league.market, teamId).trust : 0;
+  const margin = (opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser, trust)) + (startsAtQb(league, team, mine) ? QB_PREMIUM : 0);
   // The margin is a share of the stakes, so it asks for more back whether the stakes are positive or not.
   const lift = (x: number) => x + Math.abs(x) * (margin - 1);
   let base = give;
@@ -204,7 +208,7 @@ export function evaluateTrade(league: League, proposal: TradeProposal, opts: { m
   const ai = league.teams[proposal.sides[1].teamId];
   const j = judge(ctx, ai.id, proposal, { vsUser: opts.margin === undefined, margin: opts.margin, rosterCuts: opts.rosterCuts });
   const shortfall = Math.max(0, j.need - j.get);
-  const blocked = j.problem ?? j.refusal;
+  const blocked = j.problem ?? j.refusal ?? (opts.margin === undefined ? talkRefusal(league.market, ai.id) : null);
   if (blocked) return { accepts: false, get: j.get, give: j.give, shortfall, message: blocked, problem: blocked, policy: !j.problem };
   if (j.accepts) return { accepts: true, get: j.get, give: j.give, shortfall: 0, message: `The ${ai.name} would accept.`, problem: null, policy: false };
   const scale = Math.max(Math.abs(j.need), 50);
@@ -224,7 +228,9 @@ export function suggestSweetener(league: League, proposal: TradeProposal): { kin
   const [mine, theirs] = proposal.sides;
   const options: { kind: 'player' | 'pick'; id: number }[] = [
     ...league.draftPicks.filter((p) => p.ownerId === mine.teamId && p.playerId === undefined && !mine.picks.includes(p.id)).map((p) => ({ kind: 'pick' as const, id: p.id })),
-    ...rosterOf(ctx, mine.teamId).filter((p) => !mine.players.includes(p.id) && !playerTradeBlocker(league, p)).map((p) => ({ kind: 'player' as const, id: p.id })),
+    ...rosterOf(ctx, mine.teamId)
+      .filter((p) => !mine.players.includes(p.id) && !playerTradeBlocker(league, p) && !untouchables(ctx, league.teams[mine.teamId]).has(p.id))
+      .map((p) => ({ kind: 'player' as const, id: p.id })),
   ];
   const tried = options.flatMap((o) => {
     const side = { ...mine, players: o.kind === 'player' ? [...mine.players, o.id] : mine.players, picks: o.kind === 'pick' ? [...mine.picks, o.id] : mine.picks };

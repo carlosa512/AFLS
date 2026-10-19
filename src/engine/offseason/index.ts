@@ -22,7 +22,7 @@ import { quirkOffseason } from '../quirks';
 import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
 import { generateSchedule } from '../season/schedule';
-import { marketMoment } from '../trade';
+import { expireOffers, marketMoment } from '../trade';
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
@@ -35,6 +35,7 @@ export const FA_DAYS = 5;
 /** The new league year: cap, carryover, ageing and retirements, the draft order and class, the schedule. */
 export function beginOffseason(league: League): void {
   if (league.phase !== 'complete') throw new Error('The season is not finished');
+  expireOffers(league);
   resetContenderCache(league);
   const rng = new Rng(league.rngState);
   const last = league.season;
@@ -135,6 +136,8 @@ function openFreeAgency(league: League): void {
 
 /** Move the offseason one step. With `autoUser`, the user's team is run by the AI too. */
 export function advanceOffseason(league: League, opts: { autoUser?: boolean } = {}): Phase {
+  // Offers you didn't answer lapse at the next calendar step.
+  expireOffers(league);
   resetContenderCache(league);
   const rng = new Rng(league.rngState);
   const auto = !!opts.autoUser;

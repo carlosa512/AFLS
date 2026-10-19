@@ -9,7 +9,7 @@ import type { TradeProposal } from './rules';
 /** Trades kept for trade trails and the market's memory: the last five league years. */
 const HISTORY_YEARS = 5;
 
-export const emptyMarket = (): TradeMarket => ({ moment: 0, history: [], interest: [], rumors: [] });
+export const emptyMarket = (): TradeMarket => ({ moment: 0, history: [], interest: [], rumors: [], nextOfferId: 1, offers: [], status: {}, talks: {}, shopped: {} });
 
 /**
  * Move the assets and log the trade. `kind` and `tag` say what it was for the news ("deadline

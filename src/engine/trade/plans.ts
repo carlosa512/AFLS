@@ -199,13 +199,15 @@ export function teamNeeds(ctx: TradeContext, team: Team): Need[] {
 
 export interface BlockEntry {
   playerId: number;
-  reason: 'surplus' | 'expiring' | 'veteran' | 'overpaid';
+  /** Why: an AI team's own reasons, or (for yours) whether you've put him on the block. */
+  reason: 'surplus' | 'expiring' | 'veteran' | 'overpaid' | 'listed' | 'available';
   /** 0 … 1: how keen the team is to move him. */
   keenness: number;
 }
 
 /**
- * Players a team won't discuss: a contender's starting quarterback, and its best young players (by
+ * Players a team won't discuss: yours are the ones you've marked Untouchable; an AI team's are a
+ * contender's starting quarterback, and its best young players (by
  * the overall it knows exactly) for a loyal GM, the most loyal keeping four, the least one. Worked
  * out once per team and pass.
  */
@@ -215,6 +217,12 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
   const { league } = ctx;
   const roster = rosterOf(ctx, team.id);
   const out = new Set<number>();
+  // Yours are the ones you've marked.
+  if (team.id === league.userTeamId) {
+    for (const p of roster) if (league.market?.status[p.id] === 'untouchable') out.add(p.id);
+    ctx.untouchables.set(team.id, out);
+    return out;
+  }
   const qbs = roster.filter((p) => p.position === 'QB').sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a));
   if (qbs[0] && isBuyer(team) && ovrOf(ctx, qbs[0]) >= 14) out.add(qbs[0].id);
   if (team.gm.loyalty >= 0.5) {
@@ -355,14 +363,21 @@ export function wanted(ctx: TradeContext, team: Team, from: readonly Listing[], 
   return out;
 }
 
-/** Raise buyers' interest in what each wants most this moment; let the rest fade (sellers do their selling by calling buyers). */
-export function updateInterest(ctx: TradeContext, market: TradeMarket, teams: readonly Team[], from: readonly { team: Team; entry: BlockEntry }[]): void {
+/**
+ * Raise buyers' interest in what each wants most this moment; let the rest fade (sellers do their
+ * selling by calling buyers). Each buyer also watches the one of your players (`yours`) it wants
+ * most, without crowding out its own market; interest in a player you've put on the block grows fast.
+ */
+export function updateInterest(ctx: TradeContext, market: TradeMarket, teams: readonly Team[], from: readonly { team: Team; entry: BlockEntry }[], yours: readonly { team: Team; entry: BlockEntry }[] = []): void {
+  const raise = (team: Team, player: Player, by = 1) => {
+    const had = market.interest.find((x) => x.teamId === team.id && x.playerId === player.id);
+    if (had) Object.assign(had, { level: Math.min(3, had.level + by), at: market.moment });
+    else market.interest.push({ teamId: team.id, playerId: player.id, level: Math.min(3, by), at: market.moment });
+  };
   for (const team of teams.filter(isBuyer)) {
-    for (const { player } of wanted(ctx, team, from, { memo: true }).slice(0, WATCH)) {
-      const had = market.interest.find((x) => x.teamId === team.id && x.playerId === player.id);
-      if (had) Object.assign(had, { level: Math.min(3, had.level + 1), at: market.moment });
-      else market.interest.push({ teamId: team.id, playerId: player.id, level: 1, at: market.moment });
-    }
+    for (const { player } of wanted(ctx, team, from, { memo: true }).slice(0, WATCH)) raise(team, player);
+    const mine = yours.length ? wanted(ctx, team, yours)[0] : undefined;
+    if (mine) raise(team, mine.player, market.status[mine.player.id] === 'listed' ? 2 : 1);
   }
   for (const x of market.interest) if (market.moment - x.at >= FADE) Object.assign(x, { level: x.level - 1, at: market.moment });
   market.interest = market.interest.filter((x) => x.level > 0 && ctx.league.players[x.playerId]?.teamId !== x.teamId).slice(-300);

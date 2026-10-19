@@ -495,7 +495,51 @@ export interface Rumor {
   text: string;
 }
 
-/** The trade market's memory (`trade/market.ts`): what was traded, who is watching whom, what's being said. */
+/** Your say on one of your players: never asked about, or on the block (absent: available). */
+export type TradeStatus = 'untouchable' | 'listed';
+
+/**
+ * An AI team's offer to the user (`trade/offers.ts`). `sides[0]` is the AI team's, `sides[1]` yours.
+ * It stays open until you next advance the calendar (play a week, take an offseason step).
+ */
+export interface TradeOffer {
+  id: number;
+  teamId: number;
+  sides: [TradeSide, TradeSide];
+  /** What the deal is; an enquiry carries no package ("Is your CB available?"). */
+  kind: DealKind | 'enquiry';
+  /** Why he called: he wants your player, he's selling one you need, he needs cap room, he's answering your shop or your counter. */
+  reason: 'bid' | 'pitch' | 'dump' | 'enquiry' | 'shop' | 'counter';
+  season: number;
+  phase: Phase;
+  week: number;
+  /** The market moment it was made at (`TradeMarket.moment`). */
+  moment: number;
+  status: 'pending' | 'accepted' | 'declined' | 'expired' | 'withdrawn';
+  /** Counters he'll still hear before he walks away; at 0 his counter is his final offer. */
+  patience: number;
+  final?: boolean;
+  /** What he gives up in it, at the league's prices: an offer after a decline must beat it by 10%. */
+  worth: number;
+  /** The offer this counter answers. */
+  replyTo?: number;
+}
+
+/** Your dealings with one AI GM: proposals this moment, who he won't ask about, the decline cooldowns, and his trust in you. */
+export interface TradeTalks {
+  /** The market moment `asks` counts for. */
+  moment: number;
+  /** Your proposals to him this moment (about four, then he's done talking). */
+  asks: number;
+  /** Talks are off until this moment passes (a final offer turned down). */
+  offUntil?: number;
+  /** −1 … 1: he trusts you more after fair deals, less after rejections and pulled counters; drifts back to 0. */
+  trust: number;
+  /** Players he won't ask about until a moment ("Not for sale", a declined offer), and the offer he'd have to beat. */
+  cooldowns: Record<number, { until: number; worth: number }>;
+}
+
+/** The trade market's memory (`trade/market.ts`): what was traded, who is watching whom, what's being said, what's on your desk. */
 export interface TradeMarket {
   /** Market moments so far (a week up to the deadline, an offseason step): interest fades by them. */
   moment: number;
@@ -504,6 +548,15 @@ export interface TradeMarket {
   interest: TradeInterest[];
   /** The latest rumors, oldest first. */
   rumors: Rumor[];
+  nextOfferId: number;
+  /** Offers to you: the pending ones and the last 60 resolved. */
+  offers: TradeOffer[];
+  /** Your players' statuses (absent: available). */
+  status: Record<number, TradeStatus>;
+  /** Your dealings with each AI GM, by team id. */
+  talks: Record<number, TradeTalks>;
+  /** The moment each of your players was last shopped (once a moment). */
+  shopped: Record<number, number>;
 }
 
 export interface DeadMoney {
