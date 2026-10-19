@@ -3428,6 +3428,19 @@ button.tip-pill {
 .inbox-file {
   margin-right: auto;
 }
+.market-side {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+}
+.market-teams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: var(--step--1);
+}
 .inbox-undo {
   display: flex;
   justify-content: space-between;

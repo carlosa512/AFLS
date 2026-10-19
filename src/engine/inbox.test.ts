@@ -3,7 +3,7 @@ import { seasonAwards } from './awards';
 import { coachTitle, isCoachExpiring, teamCoaches } from './coaching';
 import { logTransaction } from './finance/cap';
 import { createLeague } from './generate';
-import { archiveMail, archiveRead, deleteMail, deliverMail, draftClassOf, freeAgencyMoves, headCoachChanges, mailSubject, markAllRead, needsYou, threadLabel, threads, unreadCount } from './inbox';
+import { archiveMail, archiveRead, deadlineDayTrades, deleteMail, deliverMail, draftClassOf, freeAgencyMoves, headCoachChanges, mailSubject, marketRumors, marketTrades, markAllRead, needsYou, threadLabel, threads, unreadCount } from './inbox';
 import { isMedicExpiring, teamMedics } from './medical';
 import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
@@ -47,7 +47,7 @@ describe('inbox', () => {
     const award = league.inbox!.find((m) => m.id === `awards:${league.season}:year:${mvp.playerId}`)!;
     expect(award.subject).toContain('Most Valuable Player');
     expect(award.actions).toEqual([{ kind: 'player', playerId: mvp.playerId }]);
-    expect(league.inbox!.filter((m) => m.category === 'trades')).toHaveLength(1);
+    expect(league.inbox!.filter((m) => m.id.startsWith('trades:'))).toHaveLength(1);
     // Every award message is about the user's team.
     for (const m of league.inbox!.filter((x) => x.category === 'awards')) expect(m.actions[0].kind).toBe('player');
     // One year-end message per player, however many season honors he won.
@@ -68,14 +68,14 @@ describe('inbox', () => {
   });
 
   it('reads back what every message is about', () => {
-    const kinds: Record<string, string[]> = { matchup: ['matchup', 'recap'], medical: ['injury', 'cleared'], awards: ['award'], trades: ['trade', 'deadline'], league: ['race'] };
+    const kinds: Record<string, string[]> = { matchup: ['matchup', 'recap'], medical: ['injury', 'cleared'], awards: ['award'], trades: ['trade', 'deadline', 'market', 'marketRecap'], league: ['race'] };
     for (const m of league.inbox!) {
       const s = mailSubject(m)!;
       expect(kinds[m.category]).toContain(s.kind);
       expect(s.season).toBe(m.season);
       if (s.kind === 'award') expect(m.actions).toContainEqual({ kind: 'player', playerId: s.playerId });
     }
-    const trade = league.inbox!.find((m) => m.category === 'trades')!;
+    const trade = league.inbox!.find((m) => m.id.startsWith('trades:'))!;
     expect(mailSubject(trade)).toMatchObject({ kind: 'trade', text: 'AAA traded QB A to BBB for QB B' });
   });
 
@@ -287,6 +287,29 @@ describe('mail through a season', () => {
       expect(needsAt.get(m.id)!.at(-1)).toBe(false);
     }
     expect(needsAt.get(now.id)!.filter(Boolean)).toHaveLength(2);
+  });
+
+  it('sends the director\'s market report weekly up to the deadline, then a recap once it has passed', () => {
+    const reports = league.inbox!.filter((m) => m.id.startsWith(`market:${league.season}:regular:`));
+    expect(reports.length).toBeGreaterThan(0);
+    for (const m of reports) {
+      const s = mailSubject(m)!;
+      if (s.kind !== 'market') throw new Error(m.id);
+      expect(s.week).toBeGreaterThanOrEqual(5);
+      expect(s.week).toBeLessThanOrEqual(TRADE_DEADLINE_WEEK);
+      // It reports what the market did the week before, never our own trades.
+      const trades = marketTrades(league, s.season, s.phase, s.week);
+      expect(trades.length + marketRumors(league, s.season, s.phase, s.week).length).toBeGreaterThan(0);
+      for (const t of trades) expect(t.teamIds).not.toContain(user);
+      expect(m.from).toContain('Director of scouting');
+    }
+    const recap = league.inbox!.find((m) => m.id === `market:${league.season}:recap`)!;
+    expect(recap.week).toBeGreaterThan(TRADE_DEADLINE_WEEK + 1);
+    expect(mailSubject(recap)).toEqual({ kind: 'marketRecap', season: league.season });
+    const all = league.transactions.filter((t) => t.kind === 'trade' && t.season === league.season && t.phase === 'regular').length;
+    expect(recap.body).toContain(`went through this season`);
+    expect(recap.body.toLowerCase()).toContain(all < 10 ? ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'][all] : String(all));
+    expect(deadlineDayTrades(league).length).toBeLessThanOrEqual(all);
   });
 
   it('clears a player we wrote about once he is healthy, and only him', () => {

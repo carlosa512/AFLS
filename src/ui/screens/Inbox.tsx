@@ -40,6 +40,8 @@ const KIND_TAGS: Partial<Record<NonNullable<ReturnType<typeof mailSubject>>['kin
   recap: 'Recap',
   race: 'Playoff race',
   deadline: 'Trade deadline',
+  market: 'Market',
+  marketRecap: 'Deadline recap',
   owner: 'Owner',
   carousel: 'Coaching',
   faWrap: 'Free agency',

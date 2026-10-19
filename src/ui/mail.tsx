@@ -36,7 +36,7 @@ import { extendStaff, isExpiring, resignForecast, ROLE_LABEL, staffAsk, staffBud
 import { boardValue, reachOrSteal } from '../engine/offseason/draft';
 import { GameStar, KeyStats, LineScore, standouts, Standouts } from './game';
 import { LinkedText, moveIndex, MoveText } from './moves';
-import { deadlineDayTrades, draftClassOf, freeAgencyMoves, headCoachChanges, mailSubject, needsYou, promotionCandidates, unitReads, type HeadCoachChange, type MailSubject, type Signing } from '../engine/inbox';
+import { deadlineDayTrades, draftClassOf, freeAgencyMoves, marketRumors, marketTrades, seasonDeals, headCoachChanges, mailSubject, needsYou, promotionCandidates, unitReads, type HeadCoachChange, type MailSubject, type Signing } from '../engine/inbox';
 import { activateFromIr, activateProblem, delegates, estimateText, injuryLabel, IR_MIN_WEEKS, IR_RETURNS, irProblem, irReturnsUsed, placeOnIr, SEVERITY_LABEL, weeksLeft } from '../engine/injuries';
 import { lastSeason } from '../engine/finance/contract';
 import { activeRoster, starters, teamPlayers } from '../engine/roster';
@@ -45,7 +45,8 @@ import { userGame } from '../engine/league';
 import { allSeeds, PLAYOFF_ROUNDS, ROUND_NAMES } from '../engine/season/playoffs';
 import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { statLine } from '../engine/stats';
-import type { Coach, Game, InboxMessage, League, Player, Position, Team } from '../engine/types';
+import type { Coach, DealKind, Game, InboxMessage, League, Player, Position, Team } from '../engine/types';
+import { stanceOf } from '../engine/trade';
 import { useNav, type StaffKind } from './App';
 import { PlayerAvatar, TeamChip } from './components';
 import { band, money, ordinal, playerName, recordText, shortName, teamName, weekLabel } from './format';
@@ -98,6 +99,10 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <CarouselCards league={league} s={s} />;
     case 'faWrap':
       return <FaWrapCards league={league} s={s} />;
+    case 'market':
+      return <MarketCards league={league} s={s} />;
+    case 'marketRecap':
+      return <MarketRecapCards league={league} s={s} />;
     default:
       return null;
   }
@@ -939,6 +944,146 @@ function DeadlineCards({ league, s, live }: { league: League; s: Extract<MailSub
         </Card>
       )}
       {day}
+    </>
+  );
+}
+
+// ───────── the trade market ─────────
+
+/** Who's buying and who's selling right now, from each front office's stance (`trade/plans.ts`): words, never numbers. */
+function BuyersSellers({ league }: { league: League }) {
+  const nav = useNav();
+  const others = league.teams.filter((t) => t.id !== league.userTeamId);
+  const rows: [string, Team[]][] = [
+    ['Buying', others.filter((t) => stanceOf(t) === 'contend')],
+    ['Selling', others.filter((t) => stanceOf(t) === 'rebuild')],
+  ];
+  if (rows.every(([, teams]) => !teams.length)) return null;
+  return (
+    <Card title="Who's buying, who's selling">
+      {rows.map(
+        ([label, teams]) =>
+          teams.length > 0 && (
+            <div className="market-side" key={label}>
+              <span className="eyebrow">{label}</span>
+              <span className="market-teams">
+                {teams.map((t) => (
+                  <button key={t.id} className="linklike team-inline" onClick={() => nav.openTeam(t.id)}>
+                    <TeamChip team={t} /> {t.name}
+                  </button>
+                ))}
+              </span>
+            </div>
+          ),
+      )}
+    </Card>
+  );
+}
+
+/** The director's digest: the moment's trades with their reasons, what his people are hearing, who's buying and selling. */
+function MarketCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'market' }> }) {
+  const trades = marketTrades(league, s.season, s.phase, s.week);
+  const rumors = marketRumors(league, s.season, s.phase, s.week);
+  const moves = moveIndex(league);
+  // Stances move every market moment: only the latest digest can say who's buying now.
+  const now = s.season === league.season && s.phase === league.phase && (s.phase !== 'regular' || s.week === league.week);
+  return (
+    <>
+      {trades.length > 0 && (
+        <Card title={s.phase === 'resign' ? 'Trades as the league year opened' : 'Trades this week'}>
+          {trades.map((t, i) => (
+            <p key={i} className="small" style={{ margin: '4px 0' }}>
+              <MoveText move={t} index={moves} />
+            </p>
+          ))}
+        </Card>
+      )}
+      {rumors.length > 0 && (
+        <Card title="What we're hearing">
+          {rumors.map((r) => (
+            <p key={r.id} className="small" style={{ margin: '4px 0' }}>
+              <LinkedText league={league} text={r.text} about={[{ kind: 'player', id: r.playerId }]} />
+            </p>
+          ))}
+        </Card>
+      )}
+      {now && <BuyersSellers league={league} />}
+    </>
+  );
+}
+
+const DEAL_WORDS: [DealKind, string][] = [
+  ['rental', 'Rentals'],
+  ['buy', 'Contender adds'],
+  ['sale', 'Sell-offs'],
+  ['star', 'Star trades'],
+  ['swap', 'Swaps'],
+  ['dump', 'Cap dumps'],
+];
+
+/** The trade season in numbers, the busiest teams, our division's moves and deadline day's deals. */
+function MarketRecapCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'marketRecap' }> }) {
+  const nav = useNav();
+  const all = league.transactions.filter((t) => t.kind === 'trade' && t.season === s.season && t.phase === 'regular');
+  const deals = seasonDeals(league, s.season);
+  const day = deadlineDayTrades(league, s.season);
+  const division = league.teams[league.userTeamId].division;
+  const rivals = all.filter((t) => t.teamIds.some((id) => id !== league.userTeamId && league.teams[id].division === division));
+  const busiest = league.teams
+    .map((t) => ({ t, n: all.filter((x) => x.teamIds.includes(t.id)).length }))
+    .filter((x) => x.n > 1)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 3);
+  const moves = moveIndex(league);
+  return (
+    <>
+      <Card title={`${s.season} trade season`}>
+        <div className="mail-tiles">
+          <span className="mail-tile">
+            <b>{all.length}</b>
+            <span className="eyebrow">Trades</span>
+          </span>
+          <span className="mail-tile">
+            <b>{day.length}</b>
+            <span className="eyebrow">On deadline day</span>
+          </span>
+          {DEAL_WORDS.map(([kind, label]) => {
+            const n = deals.filter((d) => d.kind === kind).length;
+            return (
+              n > 0 && (
+                <span className="mail-tile" key={kind}>
+                  <b>{n}</b>
+                  <span className="eyebrow">{label}</span>
+                </span>
+              )
+            );
+          })}
+        </div>
+        {busiest.length > 0 && (
+          <p className="small" style={{ margin: '10px 0 0' }}>
+            Busiest:{' '}
+            {busiest.map(({ t, n }, i) => (
+              <span key={t.id}>
+                {i > 0 && ', '}
+                <button className="linklike" onClick={() => nav.openTeam(t.id)}>
+                  {t.name}
+                </button>{' '}
+                ({n})
+              </span>
+            ))}
+          </p>
+        )}
+      </Card>
+      {rivals.length > 0 && (
+        <Card title="In our division">
+          {rivals.map((t, i) => (
+            <p key={i} className="small" style={{ margin: '4px 0' }}>
+              <MoveText move={t} index={moves} />
+            </p>
+          ))}
+        </Card>
+      )}
+      <DeadlineDayTrades league={league} season={s.season} />
     </>
   );
 }
