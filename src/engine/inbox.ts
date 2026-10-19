@@ -19,6 +19,7 @@ import { ROUND_NAMES } from './season/playoffs';
 import { playoffRace } from './season/standings';
 import { isExpiring, ownerBudgetNote, resignForecast, ROLE_LABEL, staffWindowOpen, teamStaff } from './staff';
 import { isDeadlineDay, openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './trade';
+import { formerPositions } from './training';
 import type { Coach, CoachRole, CoachRoom, InboxMessage, League, Phase, Player, Position, Team, TradeOffer, TradeSide } from './types';
 
 /** Saves keep the latest messages only, like the transaction log. */
@@ -925,8 +926,11 @@ export function freeAgencyMoves(league: League, season = league.season) {
   const user = league.userTeamId;
   const byName = new Map<string, Player[]>();
   for (const p of Object.values(league.players)) {
-    const key = `${p.position} ${p.firstName} ${p.lastName}`;
-    byName.set(key, [...(byName.get(key) ?? []), p]);
+    // Transactions name a player by the position he had then: a later move mustn't hide him.
+    for (const pos of new Set([p.position, ...formerPositions(p)])) {
+      const key = `${pos} ${p.firstName} ${p.lastName}`;
+      byName.set(key, [...(byName.get(key) ?? []), p]);
+    }
   }
   const abbrevs = new Map(league.teams.map((t) => [t.abbrev, t.id]));
   const deals: Signing[] = [];

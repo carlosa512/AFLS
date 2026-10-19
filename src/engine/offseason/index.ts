@@ -22,6 +22,7 @@ import { quirkOffseason } from '../quirks';
 import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
 import { generateSchedule } from '../season/schedule';
+import { bodyAs, completeMoves, learnBlock, planMoves } from '../training';
 import { expireOffers, marketMoment } from '../trade';
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
@@ -60,7 +61,7 @@ export function beginOffseason(league: League): void {
     // schedules, and one player's year doesn't depend on who was developed before him. His coaches
     // are the ones he finished the season with (their deals may be up, but they coached him).
     const own = new Rng(`${league.seed}:dev:${league.season}:${p.id}`);
-    developPlayer(own, p, { playedShare: playedShare(p, last), ...coachingFor(league, p.teamId, p.position) });
+    developPlayer(own, p, { playedShare: playedShare(p, last), ...coachingFor(league, p.teamId, p.position), bodyAs: bodyAs(p) });
     p.age++;
     p.experience++;
     // Age and form, or a body that can't take any more (`injuryRetireChance`), in one roll.
@@ -75,6 +76,7 @@ export function beginOffseason(league: League): void {
       p.contract = null;
       p.retired = true;
       delete p.quirkBag;
+      delete p.learning;
       retirees.push(p);
       continue;
     }
@@ -169,8 +171,14 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
       league.phase = 'preseason';
       // Camp opens: anyone still hurt going into week 1 can go on reserve, off the 53 (yours too, unless you manage injuries).
       for (const team of league.teams) if (delegates(league, team)) manageInjuries(league, team, rng);
+      // Coaches pick the position moves they'll teach, then the spring program's learning (docs/TRAINING.md §4).
+      planMoves(league);
+      learnBlock(league, 'program');
       break;
     case 'preseason':
+      // Camp's learning, then cut-down day's position changes, before any camp deal or cut sees the rosters.
+      learnBlock(league, 'camp');
+      completeMoves(league);
       // Camp: teams with surplus deal it before the cut to 53.
       marketMoment(league, 'camp');
       for (const team of ai) aiTrainingCamp(league, team, rng);

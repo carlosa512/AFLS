@@ -38,6 +38,12 @@ export function generateTraits(p: Pick<Player, 'id' | 'firstName' | 'lastName' |
   return { workEthic: roll(work), durability: roll(body), temperament: roll(temper), injuryResistance: roll(resist), naturalFitness: roll(fitness) };
 }
 
+/**
+ * A player's work ethic as the game reads it. Today it is the trait itself; mentoring (docs/TRAINING.md §8)
+ * will add a small, bounded offset here, so new readers go through this rather than `traits.workEthic`.
+ */
+export const workEthicOf = (p: Pick<Player, 'traits'>) => p.traits.workEthic;
+
 /** Growth multiplier: about ×0.4 for the laziest player, ×1.6 for the hardest worker. Averages 1. */
 export const growthMult = (t: Traits) => 1 + 0.065 * (t.workEthic - TRAIT_MEAN);
 

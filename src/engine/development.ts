@@ -8,7 +8,7 @@ import type { AgingFamily } from './attributes';
 import { ATTRIBUTE_PROFILES, OVR_WEIGHTS, playerOvr } from './positions';
 import { clamp, type Rng } from './rng';
 import { declineMult, growthMult } from './traits';
-import type { Attribute, League, Player } from './types';
+import type { Attribute, League, Player, Position } from './types';
 import { ATTRIBUTES } from './types';
 
 export { PEAK_END } from './aging';
@@ -25,6 +25,11 @@ export interface DevContext {
   rate?: number;
   /** Decline multiplier per family of ratings from his coaches (1 = typical, below 1 ages more gently). */
   decline?: Partial<Record<AgingFamily, number>>;
+  /**
+   * The position his body ages as, when he has changed positions (`bodyPosition` in training.ts): his
+   * physical tools keep that position's clock, so a move can't buy a younger body.
+   */
+  bodyAs?: Position;
 }
 
 /** Regular-season games: a full season of reps. */
@@ -95,14 +100,16 @@ export function developPlayer(rng: Rng, player: Player, ctx: DevContext): void {
 
   // A good or bad year for the body, shared by everything that is declining.
   const year = rng.float(0.3, 1.4);
-  const fade = AGING[pos].slope * declineMult(traits);
   for (const attr of attrs) {
     const family = agingFamily(pos, attr);
-    const past = age - declineOnset(pos, family, traits);
+    // Technique and the mental game age with the job; the body keeps the clock of the position it grew up in.
+    const clock = family === 'physical' && ctx.bodyAs ? ctx.bodyAs : pos;
+    const past = age - declineOnset(clock, family, traits);
     let d: number;
     if (past > 0) {
       // Within a year of the turn the decline phases in; after that it speeds up every season.
       const coached = ctx.decline?.[family] ?? 1;
+      const fade = AGING[clock].slope * declineMult(traits);
       d = -year * fade * coached * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25);
     } else {
       d = delta * Math.min(2, growthShare(family, age) * norm);

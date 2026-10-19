@@ -20,11 +20,16 @@ export type MoveIndexes = Record<Who['kind'], MoveIndex>;
  * never stale.
  */
 export function moveIndex(league: League): MoveIndexes {
-  const build = (people: { id: number; firstName: string; lastName: string; position?: string }[], kind: Who['kind']) => {
+  const build = (people: { id: number; firstName: string; lastName: string; position?: string; moves?: { from: string }[] }[], kind: Who['kind']) => {
     const index: MoveIndex = new Map();
     for (const p of people) {
-      const key = `${p.position ? `${p.position} ` : ''}${p.firstName} ${p.lastName}`;
-      index.set(key, index.has(key) ? null : { kind, id: p.id });
+      // A player who changed position is named in older lines by the one he had then.
+      const labels = p.position ? new Set([p.position, ...(p.moves ?? []).map((m) => m.from)]) : new Set(['']);
+      for (const label of labels) {
+        const key = `${label ? `${label} ` : ''}${p.firstName} ${p.lastName}`;
+        const prev = index.get(key);
+        index.set(key, prev === undefined || prev?.id === p.id ? { kind, id: p.id } : null);
+      }
     }
     return index;
   };

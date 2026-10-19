@@ -10,6 +10,7 @@ import { simToEndOfSeason } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { playerOvr, STARTERS } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
+import { bodyAs } from '../src/engine/training';
 import type { Position } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import { seasonTops } from './leaders';
@@ -88,7 +89,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
           // The year beginOffseason is about to give him (same stream, same reps), typical staff vs his own.
           const year = (coaching: typeof NEUTRAL) => {
             const clone = structuredClone(p);
-            developPlayer(new Rng(`${league.seed}:dev:${league.season + 1}:${p.id}`), clone, { playedShare: playedShare(p, league.season), ...coaching });
+            developPlayer(new Rng(`${league.seed}:dev:${league.season + 1}:${p.id}`), clone, { playedShare: playedShare(p, league.season), ...coaching, bodyAs: bodyAs(p) });
             return playerOvr(clone);
           };
           const gain = year(c) - year(NEUTRAL);

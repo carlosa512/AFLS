@@ -9,6 +9,7 @@ import { simOffseason } from './offseason';
 import { quirkWeek, recordForm } from './quirks';
 import { expireOffers, marketMoment, weekMoment } from './trade';
 import { syncDepthChart } from './roster';
+import { trainingWeek } from './training';
 import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { computeRecords } from './season/standings';
@@ -115,6 +116,7 @@ export function playWeek(league: League): Game[] {
     awardWeek(league, league.week);
     aiTrades(league);
     quirkWeek(league);
+    trainingWeek(league);
   }
   league.week++;
 
