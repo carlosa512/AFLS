@@ -13,11 +13,11 @@
  */
 export { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
 export { executeTrade } from './execute';
-export { evaluateTrade, judge, suggestSweetener, type JudgeOpts, type Judgement, type TradeVerdict } from './judge';
+export { evaluateTrade, judge, marginFor, suggestSweetener, type JudgeOpts, type Judgement, type TradeVerdict } from './judge';
 export { dealFor, dumpFor, TAGS, type Deal } from './deals';
 export { emptyMarket } from './execute';
 export { gmActivity, marketMoment, TRADE_VOLUME, weekMoment, type Moment } from './market';
-export { isBuyer, isSeller, stanceFor, stanceOf, stanceScore, teamNeeds, tradeBlock, untouchable, wanted, type BlockEntry, type Need } from './plans';
+export { isBuyer, isSeller, stanceFor, stanceOf, stanceScore, teamNeeds, tradeBlock, untouchable, untouchables, updateStances, wanted, type BlockEntry, type Need } from './plans';
 export {
   freshlySigned,
   isDeadlineDay,
@@ -35,6 +35,7 @@ export {
 export {
   control,
   fitzgeraldSpielberger,
+  goingRate,
   grossWorth,
   jimmyJohnson,
   marketValue,

@@ -35,7 +35,7 @@ import { teamPlayers } from '../src/engine/roster';
 import {
   evaluateTrade,
   executeTrade,
-  fitzgeraldSpielberger,
+  goingRate,
   isDeadlineDay,
   jimmyJohnson,
   judge,
@@ -150,7 +150,7 @@ const prices: Record<string, Record<Bucket, number[]>> = {};
 const examples: string[] = [];
 let starterForSeventh = 0;
 
-function probePrices(league: League, moment: string) {
+function probePrices(league: League, moment: string, show: boolean) {
   const ctx = tradeContext(league);
   const rank = ranks(league);
   const out = (prices[moment] ??= { star: [], quality: [], rental: [], depth: [] });
@@ -173,7 +173,7 @@ function probePrices(league: League, moment: string) {
       // A good starter in his prime: the top half of the league's starters, not past his position's decline.
       const good = (rank.get(p.id) ?? 999) < 16 * STARTERS[p.position] && p.age - ageShift(p.position) <= 29;
       if (good && got.picks.every((pk) => pk.round === 7)) starterForSeventh++;
-      if (VERBOSE || i === 0) examples.push(`${moment.padEnd(10)} ${b.padEnd(8)} ${name(p).padEnd(22)} ${playerOvr(p).toFixed(1)} age ${p.age}, ${yearsLeft(p.contract!, league.season)} yr → ${got.picks.map((pk) => `${pk.season} R${pk.round}`).join(' + ')} (${got.points.toFixed(0)} pts)`);
+      if (VERBOSE || (show && i === 0)) examples.push(`${moment.padEnd(10)} ${b.padEnd(8)} ${name(p).padEnd(22)} ${playerOvr(p).toFixed(1)} age ${p.age}, ${yearsLeft(p.contract!, league.season)} yr → ${got.picks.map((pk) => `${pk.season} R${pk.round}`).join(' + ')} (${got.points.toFixed(0)} pts)`);
     }
   }
 }
@@ -193,14 +193,10 @@ function futureFirstSlot(league: League, gm: GmTraits, ctx: TradeContext): numbe
 
 // ───────── 3. Fairness and health ─────────
 
-/** A pick on a neutral chart, between the two GM styles' (a quarter of the way to the flat one) and discounted 25% a year. */
-function neutralPick(league: League, pk: DraftPick, ctx: TradeContext): number {
-  const slot = pickOverall(league, pk, ctx);
-  const years = Math.max(0, pk.season - nextDraftSeason(league));
-  return Math.exp(0.75 * Math.log(jimmyJohnson(slot)) + 0.25 * Math.log(fitzgeraldSpielberger(slot))) * 0.75 ** years;
-}
+/** A pick at the league's going rate (between the two GM styles' charts, 25% off a year), the scale sellers' floors use. */
+const neutralPick = (league: League, pk: DraftPick, ctx: TradeContext) => goingRate(league, pk, ctx);
 
-const fair = { gaps: [] as number[], lopsided: 0, trades: 0, seasons: 0, balance: new Map<string, number>(), health: 0, healthy: 0, kinds: new Map<string, number>() };
+const fair = { gaps: [] as number[], lopsided: 0, trades: 0, seasons: 0, balance: new Map<string, number>(), parts: new Map<string, { picks: number; players: number; n: number; lines: string[] }>(), health: 0, healthy: 0, kinds: new Map<string, number>() };
 
 /**
  * A trade's fairness on one neutral, true scale: what each side sends at its players' true market
@@ -228,6 +224,16 @@ function judgeFairness(league: League, proposal: TradeProposal, label: string) {
   proposal.sides.forEach((side, i) => {
     const key = `${label}:${league.teams[side.teamId].abbrev}:${league.teams[side.teamId].gm.archetype}`;
     fair.balance.set(key, (fair.balance.get(key) ?? 0) + worth[1 - i] - worth[i]);
+    const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+    const np = side.players.length, op = proposal.sides[1 - i].players.length;
+    const part = fair.parts.get(key) ?? { picks: 0, players: 0, n: 0, lines: [] };
+    part.players += sum(parts[1 - i].slice(0, op)) - sum(parts[i].slice(0, np));
+    part.picks += sum(parts[1 - i].slice(op)) - sum(parts[i].slice(np));
+    part.n++;
+    const other = league.teams[proposal.sides[1 - i].teamId];
+    const desc = (sd: TradeProposal['sides'][number], xs: number[]) => [...sd.players.map((id, j) => `${league.players[id].position} ${playerOvr(league.players[id]).toFixed(1)}/${league.players[id].age} (${xs[j].toFixed(0)})`), ...sd.picks.map((id, j) => { const pk = league.draftPicks.find((x) => x.id === id)!; return `${pk.season} R${pk.round} (${xs[sd.players.length + j].toFixed(0)})`; })].join(' + ') || 'nothing';
+    part.lines.push(`${(worth[1 - i] - worth[i]).toFixed(0).padStart(5)} [${league.phase} wk${league.week}] sends ${desc(side, parts[i])} for ${desc(proposal.sides[1 - i], parts[1 - i])} with ${other.abbrev} ${other.gm.archetype} (${other.stance?.mode})`);
+    fair.parts.set(key, part);
   });
   const kind = proposal.sides.some((s) => s.players.length) && proposal.sides.some((s) => s.picks.length) ? 'picks for players' : proposal.sides.every((s) => s.players.length) ? 'player swaps' : proposal.sides.some((s) => s.players.length) ? 'players for nothing' : 'picks only';
   fair.kinds.set(kind, (fair.kinds.get(kind) ?? 0) + 1);
@@ -383,8 +389,9 @@ const historyLength = (l: League) => l.market?.history.length ?? 0;
 for (let i = 0; i < LEAGUES; i++) {
   const league = createLeague({ seed: `trades-${i}` });
   const label = `L${i}`;
+  // Prices in every league's first season: a bucket like deadline rentals has only a handful of players in one league.
+  probePrices(league, 'preseason', i === 0);
   if (i === 0) {
-    probePrices(league, 'preseason');
     runProbes(league);
     timeJudge(league);
   }
@@ -394,8 +401,8 @@ for (let i = 0; i < LEAGUES; i++) {
     const timing = i === 0 && s === 0;
     const startSeason = historyLength(league);
     while (league.phase === 'regular' && (league.week <= TRADE_DEADLINE_WEEK + 1 || isDeadlineDay(league))) {
+      if (s === 0 && isDeadlineDay(league)) probePrices(league, 'deadline', i === 0);
       if (timing && isDeadlineDay(league)) {
-        probePrices(league, 'deadline');
         const ctx = tradeContext(league);
         futureSlots.push(...league.teams.map((t) => futureFirstSlot(league, t.gm, ctx)));
       }
@@ -457,7 +464,7 @@ check("next year's first, as a current pick (median over GMs)", median(futureSlo
 console.log(`\nFairness and health (${fair.trades} AI trades over ${fair.seasons} seasons: ${[...fair.kinds].map(([k, n]) => `${n} ${k}`).join(', ')})`);
 check('median truth gap between the sides (% of the stakes)', median(fair.gaps) * 100, [0, 35]);
 check('trades over 3:1 in truth, a season', fair.lopsided / fair.seasons, [0, 1], 2);
-if (VERBOSE) for (const [key, v] of [...fair.balance].sort((x, y) => x[1] - y[1]).slice(0, 4)) console.log(`  balance ${key} ${v.toFixed(0)}`);
+if (VERBOSE) for (const [key, v] of [...fair.balance].sort((x, y) => x[1] - y[1]).filter((_, i, a) => i < 6 || i >= a.length - 3)) { const pt = fair.parts.get(key)!; console.log(`  balance ${key} ${v.toFixed(0)} (picks ${pt.picks.toFixed(0)}, players ${pt.players.toFixed(0)}, ${pt.n} trades)`); if (Math.abs(v) > 1000) for (const l of pt.lines) console.log(`      ${l}`); }
 check("any team's truth balance over its league's run (|points|)", Math.max(0, ...[...fair.balance.values()].map(Math.abs)), [0, 1000]);
 check('teams over the cap or short after a trade', fair.health, [0, 0]);
 

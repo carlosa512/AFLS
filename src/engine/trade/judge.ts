@@ -15,7 +15,7 @@ import { contenderScore, rosterLimit } from '../offseason/negotiation';
 import type { League, Player, Team } from '../types';
 import { rosterOf, tradeContext, type TradeContext } from './context';
 import { freshSigningRefusal, playerTradeBlocker, tradeProblem, type TradeProposal } from './rules';
-import { marketValue, pickValue, playerSwing } from './value';
+import { goingRate, marketValue, pickValue, playerSwing } from './value';
 
 /** Each player a deal leaves past the roster limit costs about a sixth-round pick: someone has to be cut. */
 const ROSTER_SPOT = 15;
@@ -56,6 +56,9 @@ function floorShare(league: League, team: Team, p: Player): number {
   return selling ? 0.65 : 0.8;
 }
 
+/** Picks at the league's going rate. */
+const going = (ctx: TradeContext, ids: readonly number[]) => ids.reduce((s, id) => s + goingRate(ctx.league, pickById(ctx.league, id), ctx), 0);
+
 /** A team's own outgoing picks: each first-round pick past the second costs it more (ZenGM's price in place of a hard cap). */
 function picksOut(ctx: TradeContext, team: Team, ids: readonly number[]): number {
   const picks = ids.map((id) => pickById(ctx.league, id)).map((p) => ({ value: pickValue(ctx.league, p, team.gm, ctx), first: p.round === 1 }));
@@ -92,6 +95,13 @@ function rivalRefusal(ctx: TradeContext, team: Team, proposal: TradeProposal): s
   return star ? `They won't hand a division rival ${star.firstName} ${star.lastName} in the middle of a season.` : null;
 }
 
+/** The margin a GM wants over what he gives: a small win against the user, merely not losing to another AI. */
+export function marginFor(team: Team, other: Team, vsUser = false): number {
+  // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want a lot more.
+  const rival = other.division === team.division ? 0.2 : 0;
+  return (vsUser ? 1.05 + team.gm.stubbornness * 0.15 : 1 + team.gm.stubbornness * 0.05) + rival;
+}
+
 /** `teamId`'s verdict on a proposal, in its own eyes. */
 export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal, opts: JudgeOpts = {}): Judgement {
   const { league } = ctx;
@@ -107,18 +117,24 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const size = rosterOf(ctx, teamId).filter((p) => !p.ir).length - mine.players.length + theirs.players.length;
   const get = pickIn + gain - Math.max(0, size - rosterLimit(league)) * ROSTER_SPOT;
   const give = pickOut + loss;
-  // Whatever it thinks of a player itself, a seller holds out for most of what the league would pay.
-  const floor = mine.players.reduce((s, id) => {
-    const p = league.players[id];
-    const worth = marketValue(ctx, team, p);
-    return s + (worth > 0 ? worth * floorShare(league, team, p) : worth);
-  }, pickOut);
-  const base = Math.max(give, floor);
-  // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want a lot more.
-  const rival = league.teams[theirs.teamId].division === team.division ? 0.2 : 0;
-  const margin = opts.margin ?? (opts.vsUser ? 1.05 + team.gm.stubbornness * 0.15 : 1 + team.gm.stubbornness * 0.05) + rival;
+  const margin = opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser);
   // The margin is a share of the stakes, so it asks for more back whether the stakes are positive or not.
-  let need = base + Math.abs(base) * (margin - 1);
+  const lift = (x: number) => x + Math.abs(x) * (margin - 1);
+  let base = give;
+  let need = lift(give);
+  if (mine.players.length) {
+    // Whatever it thinks of a player itself, a seller holds out for most of what the league would pay,
+    // and counts the picks against that at the going rate, not its own chart: what comes back must
+    // clear the floor at the league's prices.
+    const floor = mine.players.reduce((s, id) => {
+      const p = league.players[id];
+      const worth = marketValue(ctx, team, p);
+      return s + (worth > 0 ? worth * floorShare(league, team, p) : worth);
+    }, going(ctx, mine.picks));
+    const rate = pickIn - going(ctx, theirs.picks);
+    base = Math.max(base, floor + rate);
+    need = Math.max(need, lift(floor) + rate);
+  }
   if (opts.vsUser) need = Math.max(need, base + 25);
   return { teamId, get, give, need, accepts: !problem && !refusal && get >= need, problem, refusal };
 }

@@ -70,7 +70,8 @@ function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Mo
       const buyers = ai
         .map((b) => ({ b, w: wanted(ctx, b, [{ team, entry }])[0] }))
         .filter((x) => x.w)
-        .sort((x, y) => interestIn(market, y.b.id, player.id) - interestIn(market, x.b.id, player.id) || y.w.score - x.w.score)
+        // Teams that have been asking first, division rivals last.
+        .sort((x, y) => Number(x.b.division === team.division) - Number(y.b.division === team.division) || interestIn(market, y.b.id, player.id) - interestIn(market, x.b.id, player.id) || y.w.score - x.w.score)
         .slice(0, 3);
       for (const { b } of buyers) {
         const deal = dealFor(ctx, b, player);

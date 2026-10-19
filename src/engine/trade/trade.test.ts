@@ -111,8 +111,9 @@ describe('AI trade evaluation', () => {
   it('moves a star only for a first-round pick or a front-line player', () => {
     const l = fresh();
     const ctx = tradeContext(l);
+    // Not a division rival: no star goes to one in season, whatever comes back.
     const [teamId, star] = l.teams
-      .filter((t) => t.id !== USER)
+      .filter((t) => t.id !== USER && t.division !== l.teams[USER].division)
       .flatMap((t) => teamPlayers(l, t.id).map((p) => [t.id, p] as const))
       .filter(([t, p]) => !playerTradeBlocker(l, p) && marketValue(ctx, l.teams[t], p) >= 1000)[0];
     const day2 = [...picksOf(l, USER, 2), ...picksOf(l, USER, 3)].map((p) => p.id);

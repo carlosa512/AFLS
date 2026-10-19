@@ -207,6 +207,9 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
 
 export const untouchable = (ctx: TradeContext, team: Team, p: Player) => untouchables(ctx, team).has(p.id);
 
+/** A contract this far under water (points, weighed by cap room: about a third-round pick) is a burden worth paying to move. */
+const OVERPAID = 100;
+
 /** Who a team would move and how keenly, on its own exact read of its roster. */
 export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
   const memo = (ctx.blocks ??= new Map()).get(team.id);
@@ -240,7 +243,7 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
     // Only a big salary can be a burden worth paying to move: one well above what the market pays a player of his rank.
     if (tight && salaryToTake(league, p) > 0.015 * league.caps[league.season]) {
       const read = readPlayer(ctx, team, p);
-      if (salaryWeight(ctx, team.id) * (read.pay - read.cost) < -80) add('overpaid', 0.75);
+      if (salaryWeight(ctx, team.id) * (read.pay - read.cost) < -OVERPAID) add('overpaid', 0.75);
     }
   }
   out.sort((a, b) => b.keenness - a.keenness);
@@ -284,6 +287,9 @@ function byPosition(league: League, from: readonly Listing[]): Map<Position, Lis
   return map;
 }
 
+/** How far down a team's list a division rival's player goes. */
+const RIVAL_CALL = 0.3;
+
 export function wanted(ctx: TradeContext, team: Team, from: readonly Listing[], opts: { memo?: boolean } = {}): Wanted[] {
   if (opts.memo) {
     const hit = (ctx.wanted ??= new Map()).get(team.id);
@@ -309,7 +315,9 @@ export function wanted(ctx: TradeContext, team: Team, from: readonly Listing[], 
       if (ctx.view(team.id, p).knowledge < 0.35) continue;
       const gain = readPlayer(ctx, team, p).ovr - bar;
       if (gain < 0.5) continue;
-      out.push({ team: seller, player: p, score: need.urgency * Math.min(gain, 4) * (0.5 + entry.keenness) });
+      // A division rival's player is the last call: neither GM wants to face what he hands over twice a year.
+      const rival = seller.division === team.division ? RIVAL_CALL : 1;
+      out.push({ team: seller, player: p, score: need.urgency * Math.min(gain, 4) * (0.5 + entry.keenness) * rival });
     }
   }
   out.sort((a, b) => b.score - a.score);

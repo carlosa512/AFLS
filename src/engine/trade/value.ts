@@ -126,6 +126,18 @@ export function pickValue(league: League, pick: DraftPick, gm: GmTraits, ctx?: T
   return value;
 }
 
+/**
+ * The league's going rate for a pick: a chart midway between the two GM styles' and a quarter off a
+ * year (the NFL's "a round later"). A GM prices what a pick does for *him* on his own chart, but he
+ * knows what the league pays for one: a seller's floor is counted in this, so a GM whose chart prizes
+ * picks can't be talked into taking less than the league would pay for his player.
+ */
+export function goingRate(league: League, pick: DraftPick, ctx?: TradeContext): number {
+  const slot = pickOverall(league, pick, ctx);
+  const yearsOut = Math.max(0, pick.season - nextDraftSeason(league));
+  return Math.exp(0.75 * Math.log(jimmyJohnson(slot)) + 0.25 * Math.log(fitzgeraldSpielberger(slot))) * 0.75 ** yearsOut;
+}
+
 export const pickLabel = (league: League, pick: DraftPick) =>
   `${pick.season} round ${pick.round}${pick.overall ? ` (No. ${pick.overall})` : ` (proj. No. ${pickOverall(league, pick)})`}${pick.originalTeamId !== pick.ownerId ? ` · via ${league.teams[pick.originalTeamId].abbrev}` : ''}`;
 
