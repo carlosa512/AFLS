@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from 'react';
 import { AWARD_SHORT, HONOR_SLOTS, monthEnding, seasonAwards, weeklyAwards, type AwardWinner } from '../../engine/awards';
-import { champion, gamesInWeek, userGame } from '../../engine/league';
+import { champion, userGame } from '../../engine/league';
 import { capSheet } from '../../engine/finance/cap';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
 import { expiringPlayers } from '../../engine/offseason/ai';
@@ -23,6 +23,7 @@ import { BackupButton, LoadBackupButton } from '../saves';
 import { ThemeSelect } from '../theme';
 import { store } from '../store';
 import { moveIndex, MoveText } from '../moves';
+import { ScoreStrip } from '../strip';
 
 function lastUserGame(league: League): Game | undefined {
   return league.games
@@ -252,21 +253,6 @@ function TeamLeaders({ league }: { league: League }) {
           ))}
         </div>
       )}
-    </Panel>
-  );
-}
-
-function AroundTheLeague({ league }: { league: League }) {
-  const week = league.phase === 'complete' ? league.week - 1 : league.week - 1;
-  const games = week >= 1 ? gamesInWeek(league, week).filter((g) => g.result) : [];
-  if (!games.length) return null;
-  return (
-    <Panel title={`${weekLabel(week)} scores`}>
-      <div className="scores-grid">
-        {games.map((g) => (
-          <ScoreLine key={g.id} league={league} game={g} />
-        ))}
-      </div>
     </Panel>
   );
 }
@@ -580,6 +566,7 @@ export function Home({ league }: { league: League }) {
   }
   return (
     <>
+      <ScoreStrip league={league} />
       <ChampionBanner league={league} />
       <AwardsNotice league={league} />
       <div className="grid-2">
@@ -594,7 +581,6 @@ export function Home({ league }: { league: League }) {
           <GmRecord league={league} />
         </div>
       </div>
-      <AroundTheLeague league={league} />
       <StartOver league={league} />
     </>
   );
