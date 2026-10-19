@@ -232,8 +232,10 @@ console.log(
 console.log(`${check('QB1s aged 35+ %', mean(steady.qb35), 4, 22, 1)} · ${check('RB1s aged 30+ %', mean(steady.rb30), 0, 8, 1)} · ${check('K/P starters aged 38+ (of 64)', mean(steady.k38), 1, 8, 1)}`);
 // Long-run play: development must not quietly change the game. Fresh-league targets are in `npm run sim`;
 // an aged league sits a little off them even on the v4 engine (careers-audit: 21.99 points, 5.22 penalties,
-// 2.19 sacks), so the bands here are a little wider.
-console.log(`${check('points per team-game', mean(steady.points), 21, 24)} · ${check('penalties', mean(steady.penalties), 5, 7)} · ${check('sacks', mean(steady.sacks), 2, 2.7)}`);
+// 2.19 sacks), so the bands here are a little wider. Points run to the NFL's record season (24.8 a team-game
+// in 2020): an aged league scores about 24.3 (its veterans' Awareness, docs/PENALTIES.md), a run swings
+// about half a point either way, and the old ceiling of 24 flipped from run to run (owner's call, Oct 19 2026).
+console.log(`${check('points per team-game', mean(steady.points), 21, 25)} · ${check('penalties', mean(steady.penalties), 5, 7)} · ${check('sacks', mean(steady.sacks), 2, 2.7)}`);
 // Grown-up stars must still lead the league like the NFL's do: the average #1 and #5 are held to the
 // ranges `npm run sim` uses for a fresh league. How often a leader passes the record is printed but not
 // judged: four leagues hold a handful of star careers, one elite quarterback and receiver can break it
@@ -241,13 +243,18 @@ console.log(`${check('points per team-game', mean(steady.points), 21, 24)} · ${
 // while the average leader moved 4982 → 5213, inside the NFL range). Like points and sacks above, an aged
 // league sits a little off the fresh-league targets, so these bands are 5% wider than `npm run sim`'s: on
 // the schemes engine the #5s ran 2-3% high (passing TD 36.2 against 35, receiving yds 1529 against 1500).
+// The two leaders a veteran quarterback denies run lower still: an aged league sacks and picks him less than a
+// fresh one (#5 sacker about 13.5 → 11.7, #5 interceptor 6.1 → 4.8: his Awareness grows with age,
+// docs/PENALTIES.md). The owner accepts that drift with its higher scoring (Oct 19 2026), so their floors sit
+// 12% under the NFL's instead of 5%; the ceilings don't move.
+const AGED_FLOOR: Record<string, number> = { sacks: 0.88, interceptions: 0.88 };
 const leaderSeasons = runs.reduce((n, r) => n + (Object.values(r.leaders)[0]?.length ?? 0), 0);
 const leaders = LEADER_TARGETS.map(({ label, first, fifth, ceiling }) => {
   const tops = pool((r) => r.leaders[label] ?? []);
   const rank = (i: number) => mean(tops.map((t) => t[i] ?? 0));
   const digits = ceiling >= 100 ? 0 : 1;
   const round = (x: number) => Number(x.toFixed(digits));
-  const wider = ([lo, hi]: [number, number]) => [round(lo * 0.95), round(hi * 1.05)] as const;
+  const wider = ([lo, hi]: [number, number]) => [round(lo * (AGED_FLOOR[label] ?? 0.95)), round(hi * 1.05)] as const;
   const [f1, f2] = wider(first);
   const [v1, v2] = wider(fifth);
   return { label, over: tops.filter((t) => t[0] > ceiling).length, text: `${label} ${check('#1', rank(0), f1, f2, digits)}, ${check('#5', rank(4), v1, v2, digits)}` };

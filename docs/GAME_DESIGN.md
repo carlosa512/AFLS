@@ -303,7 +303,8 @@ consequence falls out of a few formulas (see `src/engine/finance/contract.ts` an
   - every player in a deal passes the buyer's doctor first: a failure calls it off, concerns reopen
     the price, and a hurt player can be cleared to rehab in the offseason;
   - sellers ask what the league would pay, more when several teams are asking, and each GM has a most
-    he'll pay (an All-In GM the most);
+    he'll pay (an All-In GM the most); a non-contender takes less for an expiring veteran as the
+    deadline nears;
   - every deal goes in a history with its reason, and rumors follow what front offices are really
     doing;
   - AI teams bring you offers (bids for your players, pitches for theirs, cap dumps, enquiries) that
@@ -311,8 +312,9 @@ consequence falls out of a few formulas (see `src/engine/finance/contract.ts` an
     put them on the block, shop a player to every team that needs him, or ask a GM his price. Each GM
     hears only a few proposals from you a week, and remembers how you deal.
 
-  `npm run trades` checks prices, volume and mix against the NFL's, fairness, offers to you,
-  physicals, the exploit probes and speed.
+  `npm run trades` checks prices, volume and mix against the NFL's, offers to you, physicals and
+  speed. Its main control is no cheese: no exploit works and no AI deal loses in its own eyes; a
+  deal that's just bad business is shown with what explains it.
 
 ## Roadmap
 

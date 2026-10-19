@@ -19,7 +19,7 @@ export { executeTrade } from './execute';
 export { evaluateTrade, heldPick, judge, marginFor, suggestSweetener, type JudgeOpts, type Judgement, type TradeVerdict } from './judge';
 export { dealFor, dumpFor, keepToFit, TAGS, type Deal } from './deals';
 export { emptyMarket } from './execute';
-export { gmActivity, marketMoment, TRADE_VOLUME, weekMoment, type Moment } from './market';
+export { dealWatch, gmActivity, marketMoment, TRADE_VOLUME, weekMoment, type Moment } from './market';
 export {
   acceptOffer,
   answerEnquiry,

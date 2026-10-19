@@ -21,6 +21,8 @@ export interface Deal {
   kind: DealKind;
   /** The plain-English reason the news gives it ("deadline rental", "cap dump"). */
   tag: string;
+  /** The sender weighed it against cutting the player (`judge`'s `releasing`): a cap casualty or a camp cut. */
+  releasing?: boolean;
 }
 
 /** Packages tried with a full verdict each way from the price: pick packages, then ones with a player. */
@@ -244,7 +246,7 @@ export function dumpFor(ctx: TradeContext, sender: Team, player: Player, among: 
     for (const pk of sweeteners) {
       const proposal: TradeProposal = { sides: [{ teamId: sender.id, players: [player.id], picks: pk ? [pk.id] : [] }, { teamId: absorber.id, players: [], picks: [] }] };
       if (judge(ctx, absorber.id, proposal, { rosterCuts: true }).accepts && judge(ctx, sender.id, proposal, { rosterCuts: true, releasing: opts.releasing }).accepts)
-        return { proposal, kind: 'dump', tag: TAGS.dump };
+        return { proposal, kind: 'dump', tag: TAGS.dump, ...(opts.releasing ? { releasing: true } : {}) };
     }
   }
   return null;
@@ -282,7 +284,7 @@ export function lateSale(ctx: TradeContext, seller: Team, p: Player, among: read
   for (const { b } of bars) {
     for (const pk of picksOf(ctx, b.id, seller).filter((x) => x.round >= LATE_ROUND).reverse().slice(0, 2)) {
       const proposal: TradeProposal = { sides: [{ teamId: seller.id, players: [p.id], picks: [] }, { teamId: b.id, players: [], picks: [pk.id] }] };
-      if (judge(ctx, seller.id, proposal, { rosterCuts: true, releasing: true }).accepts && judge(ctx, b.id, proposal, { rosterCuts: true }).accepts && keeps(b)) return { proposal, kind, tag: TAGS[kind] };
+      if (judge(ctx, seller.id, proposal, { rosterCuts: true, releasing: true }).accepts && judge(ctx, b.id, proposal, { rosterCuts: true }).accepts && keeps(b)) return { proposal, kind, tag: TAGS[kind], releasing: true };
     }
   }
   return null;

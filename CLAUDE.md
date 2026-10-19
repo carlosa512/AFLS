@@ -57,8 +57,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   rotation, and thirty years of offseason drift. Run it after changing `officials.ts` or the penalty
   rolls in `match/gameSim.ts`.
 - `npm run trades` — the trade market (`docs/TRADES.md`): what buyers pay for stars, quality starters,
-  deadline rentals and depth against the NFL's prices, what a future first is worth, every AI trade
-  valued in the truth (fair, and legal on cap and rosters afterwards), the AI market's volume and mix
+  deadline rentals and depth against the NFL's prices, what a future first is worth, every AI deal
+  read as it closes (no cheese: no side may lose in its own eyes, both teams legal on cap and rosters
+  afterwards; bad business, like a lopsided deal or a team's ledger, is shown with what explains it,
+  its scouts' misreads or its own situation, never failed), the AI market's volume and mix
   (in season, deadline day, offseason, swaps, dumps, division rivals) against the NFL's, offers to you
   (how many, a week's most, none after the deadline or for an Untouchable, listing draws a call),
   physicals (deals voided or through with concerns, sound players failing, a sharp doctor against a
@@ -150,7 +152,8 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     in `deals.ts` (a price between the seller's floor and the buyer's most, picks or a swap, dumps,
     salary kept to fit a buyer in season, late-pick sales before a cut, future-for-current pick swaps);
     the AI market at the NFL's moments (`marketMoment` in `market.ts`, its own RNG stream: league year,
-    FA days, camp, weeks, deadline day; cap casualties and camp cuts go to the phone first), its
+    FA days, camp, weeks, deadline day; cap casualties and camp cuts go to the phone first; `dealWatch`
+    lets the trades check read each deal as it closes), its
     history and rumors in `league.market`; the buyer's doctor in `physicals.ts` (pass, concerns,
     failed, cleared to rehab; the public file a team reads before it calls); offers to you in
     `offers.ts` (bids, pitches, dumps, enquiries on their own stream; accept, decline, counter, your
