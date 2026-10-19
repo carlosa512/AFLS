@@ -483,6 +483,8 @@ export interface TradeRecord {
   week: number;
   sides: [TradeSide, TradeSide];
   kind: DealKind;
+  /** Players their new team extended on arrival (the trade-and-extend), with the deal each was traded on. */
+  extended?: { playerId: number; tradedOn: Contract }[];
   /** The players' physicals, when any were flagged. */
   physicals?: Physical[];
 }

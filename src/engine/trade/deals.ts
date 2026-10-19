@@ -11,6 +11,7 @@ import type { DealKind, DraftPick, GmTraits, League, Player, Team } from '../typ
 import { KEEP_MIN } from '../offseason/ai';
 import { capRoom, ovrOf, rosterOf, spendable, type TradeContext } from './context';
 import { heldPick, judge, marginFor, STAR, type Judgement } from './judge';
+import { CONCERNS, onFile } from './physicals';
 import { isSeller, stanceOf, starterLine, teamNeeds, untouchables } from './plans';
 import { freshlySigned, maxRetain, playerTradeBlocker, salaryToTake, type TradeProposal, type TradeSide } from './rules';
 import { goingRate, marketValue, nextDraftSeason, pickValue, salaryWeight } from './value';
@@ -177,7 +178,8 @@ export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | 
   const best = net(swap) > net(picks) + SWAP_EDGE ? swap : picks;
   if (!best) return null;
   const kind = kindOf(ctx, seller, target, best.proposal.sides[0]);
-  return { proposal: balance(ctx, best.proposal, quick(best.proposal.sides[0]) - price), kind, tag: retain ? `${TAGS[kind]}, salary retained` : TAGS[kind] };
+  const label = target.contract?.kind === 'tag' ? 'tag and trade' : TAGS[kind];
+  return { proposal: balance(ctx, best.proposal, quick(best.proposal.sides[0]) - price), kind, tag: retain ? `${label}, salary retained` : label };
 }
 
 /**
@@ -231,6 +233,7 @@ export function dumpFor(ctx: TradeContext, sender: Team, player: Player, among: 
   const { league } = ctx;
   // A player it would cut anyway that a team takes for nothing is a late-pick sale's (`lateSale`), not a dump.
   const first = opts.releasing ? 1 : 0;
+  if (onFile(league, player) >= CONCERNS) return null;
   const absorbers = among
     .filter((t) => t.id !== sender.id && salaryWeight(ctx, t.id) <= 0.85 && spendable(ctx, t.id) >= 1.1 * salaryToTake(league, player))
     .sort((a, b) => salaryWeight(ctx, a.id) - salaryWeight(ctx, b.id))
@@ -260,6 +263,7 @@ const LATE_CALLS = 6;
  */
 export function lateSale(ctx: TradeContext, seller: Team, p: Player, among: readonly Team[], kind: 'cutdown' | 'casualty', keeps: (buyer: Team) => boolean = () => true): Deal | null {
   const { league } = ctx;
+  if (onFile(league, p) >= CONCERNS) return null;
   const owed = salaryToTake(league, p);
   const ovr = ovrOf(ctx, p);
   const bars = among

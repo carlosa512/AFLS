@@ -200,7 +200,7 @@ export function teamNeeds(ctx: TradeContext, team: Team): Need[] {
 export interface BlockEntry {
   playerId: number;
   /** Why: an AI team's own reasons, or (for yours) whether you've put him on the block. */
-  reason: 'surplus' | 'expiring' | 'veteran' | 'overpaid' | 'listed' | 'available';
+  reason: 'surplus' | 'expiring' | 'veteran' | 'overpaid' | 'tagged' | 'listed' | 'available';
   /** 0 … 1: how keen the team is to move him. */
   keenness: number;
 }
@@ -272,6 +272,8 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
     // A reloading team keeps its core: it lets go only the expiring starters it won't re-sign.
     if (starterGrade && left <= 1 && p.age >= (reload ? 30 : 26) && (mode === 'retool' || mode === 'rebuild')) add('expiring', inSeason ? 0.8 : 0.45);
     if (starterGrade && mode === 'rebuild' && !reload && p.age - ageShift(p.position) >= 28) add('veteran', 0.6);
+    // Tagged and not worth his price to this team long-term (a seller, or a cap it can't fit him under): tag and trade (Ngakoue, Clowney).
+    if (p.contract!.kind === 'tag' && !inSeason && (mode === 'retool' || mode === 'rebuild' || tight)) add('tagged', 0.7);
     if (r >= ROSTER_TEMPLATE[p.position] || (p.position === 'QB' && r >= 2)) add('surplus', 0.4);
     else if (r >= S && ovrOf(ctx, p) >= line[p.position]) add('surplus', 0.5);
     // Only a big salary can be a burden worth paying to move: one well above what the market pays a

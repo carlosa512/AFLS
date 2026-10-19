@@ -36,6 +36,24 @@ interface Findings {
 
 /** What's really wrong with a player's body, whatever a doctor makes of it. */
 export function findings(league: League, p: Player): Findings {
+  const parts = bodyParts(league, p);
+  const score = parts.reduce((s, [, v]) => s + v, 0);
+  const cause = parts.filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'durability';
+  return { score, cause };
+}
+
+/**
+ * What any front office can read in his file before it calls, in the doctor's units: his injury now,
+ * his recent history and his age, not the hidden durability only an exam gets at. A team taking on a
+ * bad contract or a late-pick flyer doesn't call about a file that already worries a doctor.
+ */
+export function onFile(league: League, p: Player): number {
+  return bodyParts(league, p)
+    .filter(([cause]) => cause !== 'durability')
+    .reduce((s, [, v]) => s + v, 0);
+}
+
+function bodyParts(league: League, p: Player): [Findings['cause'], number][] {
   const parts: [Findings['cause'], number][] = [];
   // Out now: a month and a half of rehab is about a failed physical on its own.
   if (p.injury) parts.push(['injury', p.injury.weeksRemaining / 4]);
@@ -44,9 +62,7 @@ export function findings(league: League, p: Player): Findings {
   parts.push(['history', history]);
   parts.push(['age', 0.15 * Math.max(0, p.age - declineOnset(p.position, 'physical', p.traits))]);
   parts.push(['durability', 0.12 * (TRAIT_MEAN - effectiveResistance(p))]);
-  const score = parts.reduce((s, [, v]) => s + v, 0);
-  const cause = parts.filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'durability';
-  return { score, cause };
+  return parts;
 }
 
 const name = (p: Player) => `${p.firstName} ${p.lastName}`;

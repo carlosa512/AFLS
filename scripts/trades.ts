@@ -229,12 +229,17 @@ const balanceOf = (l: Ledger) => l.picks + l.players;
  * team a player is on, so the league as it stands after the step will do. The gap is measured
  * against everything that moved (a dump's bad contract counts), so 0.5 is a 3:1 trade.
  */
-function judgeFairness(league: League, proposal: TradeProposal, label: string) {
+function judgeFairness(league: League, proposal: TradeProposal, label: string, extended?: TradeRecord['extended']) {
   const ctx = tradeContext(league);
   // A player whose old team keeps paying part of his salary is valued on his new, cheaper contract:
   // that's what the salary kept is worth, so it isn't counted again.
+  // A player his new team extended on arrival is valued on the deal he was traded on: the extension is a deal of its own.
+  const asTraded = (id: number) => {
+    const was = extended?.find((x) => x.playerId === id);
+    return was ? { ...league.players[id], contract: was.tradedOn } : league.players[id];
+  };
   const parts = proposal.sides.map((side) => {
-    const players = side.players.map((id) => marketValue(ctx, league.teams[side.teamId], league.players[id], true));
+    const players = side.players.map((id) => marketValue(ctx, league.teams[side.teamId], asTraded(id), true));
     const picks = side.picks.map((id) => goingRate(league, league.draftPicks.find((x) => x.id === id)!, ctx));
     return [...players, ...picks];
   });
@@ -429,7 +434,7 @@ function timeJudge(league: League) {
 
 // ───────── 6. Volume and mix ─────────
 
-const volume = { inSeason: [] as number[], deadline: 0, offseason: [] as number[], all: [] as TradeRecord[], seasons: 0, startingQbs: 0 };
+const volume = { inSeason: [] as number[], deadline: 0, offseason: [] as number[], all: [] as TradeRecord[], seasons: 0, startingQbs: 0, tagTrades: 0 };
 const speedOff: number[] = [];
 
 /**
@@ -437,14 +442,21 @@ const speedOff: number[] = [];
  * apart by identity, not position: the history keeps five seasons, so older ones drop off its front.
  */
 const audited = new WeakSet<TradeRecord>();
+const readNews = new WeakSet<object>();
 function audit(after: League, label: string): TradeRecord[] {
   physicalNews(after);
+  // The deal's tag is in the news line, not the record.
+  for (const t of after.transactions) {
+    if (readNews.has(t)) continue;
+    readNews.add(t);
+    if (t.kind === 'trade' && t.text.includes('(tag and trade')) volume.tagTrades++;
+  }
   const fresh = (after.market?.history ?? []).filter((r) => !audited.has(r));
   for (const record of fresh) {
     audited.add(record);
     if (record.physicals?.some((x) => x.result === 'concerns')) phys.flagged++;
     volume.all.push(record);
-    judgeFairness(after, { sides: record.sides }, label);
+    judgeFairness(after, { sides: record.sides }, label, record.extended);
     checkHealth(after, record.sides.map((x) => x.teamId));
   }
   return fresh;
@@ -634,6 +646,8 @@ check('picks for players (%)', share((r) => r.kind !== 'swap' && r.kind !== 'dum
 const perYear = (kind: string) => (volume.all.filter((r) => r.kind === kind).length / Math.max(1, volume.seasons)).toFixed(1);
 console.log(`  next year's pick for this year's, a league year: ${perYear('futureSwap')}`);
 console.log(`  cap casualties sold for a late pick instead of cut, a league year: ${perYear('casualty')}; cut-down deals in camp: ${perYear('cutdown')}`);
+const extended = volume.all.filter((r) => r.extended?.length).length / Math.max(1, volume.seasons);
+console.log(`  tag and trade, a league year: ${(volume.tagTrades / Math.max(1, volume.seasons)).toFixed(1)}; traded and extended on arrival: ${extended.toFixed(1)}`);
 check('player swaps (%)', share((r) => r.kind === 'swap'), [5, 15]);
 check('cap dumps, a season', volume.all.filter((r) => r.kind === 'dump').length / Math.max(1, volume.seasons), [1, 4], 1);
 check('a pick going each way, a late one riding back (%)', share((r) => r.kind !== 'futureSwap' && r.sides.every((x) => x.picks.length > 0)), [10, 25]);

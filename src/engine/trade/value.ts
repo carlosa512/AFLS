@@ -18,7 +18,7 @@ import { coachingFor, effectOf, teamScheme, type Coaching } from '../coaching';
 import { paidShare, weeksPaid } from '../finance/cap';
 import { isExpired, yearsLeft } from '../finance/contract';
 import { marketApy, minSalary } from '../finance/market';
-import { contenderScore } from '../offseason/negotiation';
+import { contenderScore, willExtend } from '../offseason/negotiation';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { fitContests } from '../schemes';
 import { characterRead, projectedCeiling, quirkWorth, trueQuirkWorth } from '../scouting';
@@ -166,6 +166,11 @@ const CONTROL = [1, 0.75, 0.55];
 const CONTROL_FULL = CONTROL.reduce((a, b) => a + b, 0);
 /** The exclusive re-sign window on a deal that ends this league year, in shares of full control. */
 const RIGHTS = 0.15;
+/**
+ * The years an offseason buyer adds by extending him on arrival (`willExtend`), in shares of full
+ * control: about a second season's, at the market's pay. A player who'd rather test the market goes for less.
+ */
+const EXTENSION = 0.25;
 /** How a room counts its players, best first: starters in full, the top backup at 0.35, the rest of a normal room at 0.2, extras barely. */
 const BACKUP = 0.35;
 const DEPTH = 0.2;
@@ -212,6 +217,11 @@ export interface PlayerRead {
   ovr: number;
   /** Talent × control: what his play is worth over the seasons it would hold him. */
   base: number;
+  /**
+   * The seasons this buyer would add by extending him on arrival (`EXTENSION`): his own deal with the
+   * player, so it counts in his rooms but not in what the league would pay (`marketValue`).
+   */
+  extension: number;
   /** The contender's premium on a veteran, or the rebuilder's discount. */
   lens: number;
   /** His contract (`contractTerms`): the market's pay for a player of his rank, and the salary still owed. */
@@ -245,7 +255,10 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
     // His place on its depth chart is judged the same bounded way.
     ovr = own + clamp(TRADE_TRUST * (view.ovr - own), -TRADE_BAND, TRADE_BAND);
   }
-  const base = 3000 * Math.exp((seen - 18.5) * 0.55) * POSITION_TRADE[p.position] * ageMultiplier(p) * control(league, p);
+  const talent = 3000 * Math.exp((seen - 18.5) * 0.55) * POSITION_TRADE[p.position] * ageMultiplier(p);
+  const base = talent * control(league, p);
+  // A buyer's read only: his own team re-signs him through the window (`RIGHTS`).
+  const extension = p.teamId !== team.id && willExtend(league, p, team.id) ? talent * EXTENSION : 0;
   // Contenders pay for proven veterans; rebuilders don't.
   let lens = p.age >= 27 ? 1 + 0.4 * (winNowOf(league, team) - 0.5) : 1;
   lens *= 1 + 0.08 * schemeFit(ctx, team, p, truth);
@@ -254,7 +267,7 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
   const coaching = coachingOf(ctx, team.id, p.position);
   if (p.age <= 25) lens *= 1 + 0.33 * (coaching.rate - 1);
   else if (p.age - ageShift(p.position) >= 29) lens *= 1 - 0.25 * effectOf(coaching, p.position).aging;
-  const read = { id: p.id, ovr, base, lens, ...contractTerms(ctx, p) };
+  const read = { id: p.id, ovr, base, extension, lens, ...contractTerms(ctx, p) };
   ctx.reads.set(key, read);
   return read;
 }
@@ -315,7 +328,7 @@ function roomValue(reads: readonly PlayerRead[], pos: Position, w: number): numb
   for (const r of reads) {
     let rank = 0;
     for (const o of reads) if (o !== r) rank += 1 / (1 + Math.exp((r.ovr - o.ovr) / RANK_SPREAD));
-    value += roleAt(rank, pos) * (r.base * r.lens + w * r.pay) - w * r.cost;
+    value += roleAt(rank, pos) * ((r.base + r.extension) * r.lens + w * r.pay) - w * r.cost;
   }
   return value;
 }

@@ -9,12 +9,12 @@ import { fifthYearOptionValue, franchiseTagValue, leagueMarket, marketApy, minSa
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
 import { generatePlayer } from '../generate';
-import { clamp, type Rng } from '../rng';
+import { clamp, Rng } from '../rng';
 import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth, viewCache } from '../scouting';
 import type { League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
-import { contenderScore, demand, freeAgents, offerValue, rookieReserve, rosterLimit, ROSTER_MAX, signPlayer, type Offer } from './negotiation';
+import { contenderScore, demand, freeAgents, offerProblem, offerValue, rookieReserve, rosterLimit, ROSTER_MAX, signPlayer, willExtend, type Offer } from './negotiation';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
 export const KEEP_MIN: Record<Position, number> = { QB: 2, RB: 3, WR: 5, TE: 2, OL: 8, DT: 4, EDGE: 4, LB: 4, CB: 5, S: 3, K: 1, P: 1 };
@@ -174,6 +174,28 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     }
   }
   aiCapCompliance(league, team);
+}
+
+/**
+ * The trade-and-extend: an AI team extends a player it just traded for, with a year or less left,
+ * when he's willing (`willExtend`, as the buyer priced him), he'd start for it and its offer meets
+ * his ask and fits under the cap. Returns whether he signed.
+ */
+export function aiExtendArrival(league: League, team: Team, p: Player): boolean {
+  if (p.teamId !== team.id || team.id === league.userTeamId) return false;
+  const depth = depthOvrs(league, team.id);
+  const ovr = playerOvr(p);
+  // The room he joined, without him.
+  const others = [...depth[p.position]];
+  others.splice(others.indexOf(ovr), 1);
+  if (ovr < (others[STARTERS[p.position] - 1] ?? 0) - 0.5) return false;
+  if (!willExtend(league, p, team.id)) return false;
+  const rng = new Rng(`${league.seed}:extend-offer:${league.season}:${p.id}:${team.id}`);
+  const offer = aiOffer(league, team, p, rng, needGain({ ...depth, [p.position]: others }, p, ovr));
+  const d = demand(league, p, team.id);
+  if (offerValue(league, p, team.id, offer, d) < d.walkAway || offerProblem(league, p, team.id, offer)) return false;
+  signPlayer(league, p, team.id, offer);
+  return true;
 }
 
 // ───────── cap compliance ─────────

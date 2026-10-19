@@ -10,7 +10,7 @@ import { accelerateProration, capSpace, logTransaction, paidFraction, paidShare,
 import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft } from '../finance/contract';
 import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears, rookieApy } from '../finance/market';
 import { freeJersey } from '../generate';
-import { clamp } from '../rng';
+import { clamp, Rng } from '../rng';
 import { activeRoster, syncDepthChart, teamPlayers, teamRatings } from '../roster';
 import type { Contract, League, Negotiation, Player } from '../types';
 import { OFFSEASON_PHASES } from '../types';
@@ -158,6 +158,19 @@ function replacedCharge(league: League, player: Player, teamId: number): number 
   if (!c) return 0;
   const now = capHit(c, league.season);
   return isExpired(c, league.season) ? now - remainingProration(c, league.season) : now - paidUnderCurrentDeal(league, player);
+}
+
+/**
+ * Whether a player traded to `teamId` in the offseason, with a year or less left, would sign an
+ * extension with it at once (the trade-and-extend: Adams, Hill and Brown in 2022). Some want to see
+ * the market first, the less loyal the likelier, as in the re-sign window. It's settled per player,
+ * team and league year, so the buying GM knows it from the agent before he trades and prices it in.
+ */
+export function willExtend(league: League, p: Player, teamId: number): boolean {
+  const c = p.contract;
+  if (!OFFSEASON_PHASES.includes(league.phase) || !c || isExpired(c, league.season) || yearsLeft(c, league.season) > 1) return false;
+  if (c.kind === 'rookie' && p.experience < 3) return false;
+  return !new Rng(`${league.seed}:extend:${league.season}:${p.id}:${teamId}`).chance(0.3 * (1 - p.personality.loyalty));
 }
 
 /** A player under contract can be extended in the last two years of his deal (rookies after three seasons). */

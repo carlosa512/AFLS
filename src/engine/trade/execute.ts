@@ -1,6 +1,7 @@
 /** Moving the assets. The sending team books the bonus money still on each traded contract; the new team takes the salary. */
 import { autoPostJune1, logTransaction, paidShare, weeksPaid } from '../finance/cap';
 import { deadMoney } from '../finance/contract';
+import { aiExtendArrival } from '../offseason/ai';
 import { freeJersey } from '../generate';
 import { syncDepthChart, teamPlayers } from '../roster';
 import type { DealKind, League, TradeMarket, TradeRecord, Physical } from '../types';
@@ -66,12 +67,21 @@ export function executeTrade(league: League, proposal: TradeProposal, meta: { ki
   for (const side of proposal.sides) syncDepthChart(league, league.teams[side.teamId]);
   const [a, b] = proposal.sides.map((s) => league.teams[s.teamId]);
   logTransaction(league, 'trade', [a.id, b.id], `${a.abbrev} traded ${moved[0].join(', ') || 'nothing'} to ${b.abbrev} for ${moved[1].join(', ') || 'nothing'}${meta.tag ? ` (${meta.tag})` : ''}`);
+  // In the offseason an AI buyer extends a starter it priced as willing to sign (the trade-and-extend).
+  const extended = proposal.sides.flatMap((side, i) =>
+    side.players.flatMap((id) => {
+      // A new deal replaces the contract object; the one he was traded on is kept as it was.
+      const tradedOn = league.players[id].contract!;
+      return aiExtendArrival(league, league.teams[proposal.sides[1 - i].teamId], league.players[id]) ? [{ playerId: id, tradedOn }] : [];
+    }),
+  );
   const record: TradeRecord = {
     season: league.season,
     phase: league.phase,
     week: league.week,
     sides: [proposal.sides[0], proposal.sides[1]].map((s) => ({ teamId: s.teamId, players: [...s.players], picks: [...s.picks], ...(s.retain ? { retain: { ...s.retain } } : {}) })) as TradeRecord['sides'],
     kind: meta.kind,
+    ...(extended.length ? { extended } : {}),
     ...(meta.physicals?.some((x) => x.result !== 'passed') ? { physicals: meta.physicals.filter((x) => x.result !== 'passed') } : {}),
   };
   const market = (league.market ??= emptyMarket());
