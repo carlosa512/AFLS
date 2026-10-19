@@ -9,7 +9,7 @@ export type Route =
   | { view: 'home' }
   | { view: 'roster'; teamId?: number }
   | { view: 'cap'; teamId?: number }
-  | { view: 'inbox' }
+  | { view: 'inbox'; messageId?: string }
   | { view: 'office'; tab?: OfficeTab }
   | { view: 'schedule' }
   | { view: 'standings' }
@@ -22,7 +22,7 @@ export type Route =
 
 const OFFICE_TABS: readonly OfficeTab[] = ['resign', 'fa', 'draft', 'trades', 'coaches', 'staff', 'medical'];
 const STATS_TABS: readonly StatsTab[] = ['leaders', 'players', 'records', 'awards', 'officials'];
-const PLAIN = ['home', 'inbox', 'schedule', 'standings', 'playoffs', 'compare', 'live'] as const;
+const PLAIN = ['home', 'schedule', 'standings', 'playoffs', 'compare', 'live'] as const;
 
 export function routeToHash(route: Route): string {
   switch (route.view) {
@@ -34,6 +34,9 @@ export function routeToHash(route: Route): string {
     case 'office':
     case 'stats':
       return route.tab ? `#/${route.view}/${route.tab}` : `#/${route.view}`;
+    case 'inbox':
+      // Message ids hold colons and spaces (a trade's text): encoded, they stay one path segment.
+      return route.messageId ? `#/inbox/${encodeURIComponent(route.messageId)}` : '#/inbox';
     case 'game':
     case 'watch':
       return `#/${route.view}/${route.gameId}`;
@@ -49,6 +52,14 @@ export function hashToRoute(hash: string): Route | null {
   const [view, arg] = hash.replace(/^#\/?/, '').split('/');
   if (!view) return { view: 'home' };
   if ((PLAIN as readonly string[]).includes(view)) return { view } as Route;
+  if (view === 'inbox') {
+    if (arg === undefined) return { view };
+    try {
+      return { view, messageId: decodeURIComponent(arg) };
+    } catch {
+      return null;
+    }
+  }
   if (view === 'roster' || view === 'cap') return arg === undefined ? { view } : id(arg) !== undefined ? { view, teamId: id(arg) } : null;
   if (view === 'office') return arg === undefined ? { view } : (OFFICE_TABS as readonly string[]).includes(arg) ? { view, tab: arg as OfficeTab } : null;
   if (view === 'stats') return arg === undefined ? { view } : (STATS_TABS as readonly string[]).includes(arg) ? { view, tab: arg as StatsTab } : null;

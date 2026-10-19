@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../engine/generate';
+import { deliverMail, needsYou } from '../engine/inbox';
 import { gamesInWeek, playWeek } from '../engine/league';
 import { computeRecords } from '../engine/season/standings';
 import { sortRows } from './components';
@@ -7,6 +8,7 @@ import { moveSegments, type MoveIndex } from './moves';
 import { hashToRoute, routeToHash, type Route } from './routes';
 import { backupFileName, parseBackup } from './saves';
 import { byeTeams, resultsWeek, stripGames } from './strip';
+import { hurtList, outlookPill, waitingMail, wornDown } from './widgets';
 
 describe('routes', () => {
   it('round-trip through the address bar', () => {
@@ -16,6 +18,8 @@ describe('routes', () => {
       { view: 'roster', teamId: 0 },
       { view: 'cap', teamId: 31 },
       { view: 'inbox' },
+      // A trade's message id: colons, spaces and a slash all survive the address bar.
+      { view: 'inbox', messageId: 'trades:2026:regular:5:BUF traded QB A. Smith to LV for 2027 R1/R2' },
       { view: 'office' },
       { view: 'office', tab: 'draft' },
       { view: 'stats' },
@@ -37,7 +41,7 @@ describe('routes', () => {
 
   it('reject anything unrecognised', () => {
     expect(hashToRoute('')).toEqual({ view: 'home' });
-    for (const bad of ['#/nope', '#/office/payroll', '#/stats/trophies', '#/roster/abc', '#/game/', '#/roster/-1']) expect(hashToRoute(bad)).toBeNull();
+    for (const bad of ['#/nope', '#/office/payroll', '#/stats/trophies', '#/roster/abc', '#/game/', '#/roster/-1', '#/inbox/%E0%A4%A']) expect(hashToRoute(bad)).toBeNull();
   });
 });
 
@@ -124,4 +128,38 @@ describe('score strip', () => {
     expect(resultsWeek(league)).toBe(league.week - 1);
     for (const x of stripGames(league, league.week - 1, records)) expect(x.tag).toMatch(ours(x.game) ? /^Your game · Final/ : /^Final/);
   }, 30_000);
+});
+
+describe('home widgets', () => {
+  const league = createLeague({ seed: 'widgets' });
+  beforeAll(() => {
+    deliverMail(league);
+    for (let w = 0; w < 6; w++) {
+      playWeek(league);
+      deliverMail(league);
+    }
+  }, 30_000);
+
+  it('lists the hurt longest layoff first by the doctor\'s estimate, in a pill\'s words', () => {
+    const hurt = league.teams.flatMap((t) => hurtList(league, t.id));
+    expect(hurt.length).toBeGreaterThan(0);
+    for (const t of league.teams) {
+      const list = hurtList(league, t.id);
+      const est = list.map((p) => (p.injury ? p.injury.estimate[1] : -1));
+      expect(est).toEqual([...est].sort((a, b) => b - a));
+    }
+    for (const p of hurt) expect(outlookPill(league, p)).toMatch(/^(IR · (season|ready|\d+(–\d+)? wk)|Out (for season|\d+(–\d+)? wk)|Playing hurt)$/);
+    for (const p of wornDown(league, league.userTeamId)) expect(p.injury || p.ir).toBeFalsy();
+  });
+
+  it('puts what needs you first, then the unread, newest first', () => {
+    const { needs, rows } = waitingMail(league);
+    expect(rows.length).toBeGreaterThan(0);
+    const firstOther = rows.findIndex((m) => !needs.has(m.id));
+    if (firstOther >= 0) for (const m of rows.slice(firstOther)) expect(needs.has(m.id)).toBe(false);
+    for (const m of rows) expect(needs.has(m.id) === needsYou(league, m) && (needs.has(m.id) || !m.read)).toBe(true);
+    const order = league.inbox!.map((m) => m.id);
+    const unread = rows.filter((m) => !needs.has(m.id)).map((m) => order.indexOf(m.id));
+    expect(unread).toEqual([...unread].sort((a, b) => b - a));
+  });
 });

@@ -50,6 +50,9 @@ export function RiskDot({ read }: { read: InjuryRiskRead }) {
   return <span className={`risk-dot risk-${read.tier.toLowerCase()}${read.hedged ? ' risk-early' : ''}`} role="img" aria-label={label} title={label} />;
 }
 
+/** Below this condition a healthy player is worn down: a week off brings most of it back. */
+export const WORN_DOWN = 80;
+
 /** Condition band: fresh, a little worn, worn down. */
 export const conditionTone = (c: number) => (c >= 90 ? 'tone-good' : c < 78 ? 'tone-bad' : undefined);
 

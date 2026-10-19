@@ -41,7 +41,7 @@ import type { League, Medic, MedicRole, Player } from '../../engine/types';
 import { useNav } from '../App';
 import { Exact, GradesTable, Panel, PlayerAvatar, Section, Sheet, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
 import { money, ordinal, resultsSeason, verdict, type Verdict } from '../format';
-import { conditionTone, FitnessCell, InjuryTag } from '../injuries';
+import { conditionTone, FitnessCell, InjuryTag, WORN_DOWN } from '../injuries';
 import { Ovr, seenOvr, StaffNum, StaffSkill } from '../scouting';
 import { store } from '../store';
 
@@ -281,7 +281,7 @@ function InjuryReport({ league }: { league: League }) {
     .filter((p) => p.injury || p.ir)
     .sort((a, b) => (b.injury?.weeksRemaining ?? 0) - (a.injury?.weeksRemaining ?? 0));
   const tired = teamPlayers(league, teamId)
-    .filter((p) => !p.injury && !p.ir && (p.condition ?? 100) < 80)
+    .filter((p) => !p.injury && !p.ir && (p.condition ?? 100) < WORN_DOWN)
     .sort((a, b) => (a.condition ?? 100) - (b.condition ?? 100));
   return (
     <Panel title="Injury report">

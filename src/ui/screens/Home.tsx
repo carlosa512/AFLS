@@ -24,6 +24,7 @@ import { ThemeSelect } from '../theme';
 import { store } from '../store';
 import { moveIndex, MoveText } from '../moves';
 import { ScoreStrip } from '../strip';
+import { TheirInjuries, WaitingForYou, YourInjuries } from '../widgets';
 
 function lastUserGame(league: League): Game | undefined {
   return league.games
@@ -137,6 +138,7 @@ function NextGame({ league }: { league: League }) {
       <p style={{ margin: 0 }}>
         Crew: <CrewNote league={league} game={game} />
       </p>
+      <TheirInjuries league={league} opp={opp} game={game} />
       <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
         {game.neutral ? 'Neutral site.' : isHome ? 'Home game: a small edge in every matchup.' : `Road game in ${opp.city}.`} Press Play to watch it live.
         Unit ratings are starter averages on the 1–20 scale.
@@ -530,6 +532,7 @@ function OffseasonHome({ league }: { league: League }) {
               </button>
             </div>
           )}
+          <WaitingForYou league={league} />
         </div>
         <Panel title="Around the league">
           {moves.length === 0 ? (
@@ -577,6 +580,8 @@ export function Home({ league }: { league: League }) {
         </div>
         <div className="stack">
           <DivisionMini league={league} />
+          <YourInjuries league={league} />
+          <WaitingForYou league={league} />
           <PlayersOfTheWeek league={league} />
           <GmRecord league={league} />
         </div>
