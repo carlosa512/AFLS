@@ -1,23 +1,25 @@
 /**
- * The user's inbox: mail from the league office, agents and the club's own staff, the way a
+ * The user's inbox: mail from the league office, agents and the team's own staff, the way a
  * manager's desk fills up in Football Manager. Nothing in the sim sends mail. `deliverMail` looks
  * at the league after each change and files whatever is new, each message keyed by what it's about,
  * so delivering twice (or after a long sim) never duplicates one.
  */
 import { AWARD_KEYS, AWARD_NAMES, HONOR_SLOTS, MONTHS, playerOfTheGame, seasonAwards, weeklyAwards, type AwardWinner } from './awards';
-import { teamCoaches } from './coaching';
+import { CHAIRS, chairHolder, coachName, coachResignForecast, coachTitle, isCoachExpiring, ownerLeeway, ownerTrigger, ownerTriggerNote, promotionFor, sameChair, teamCoaches, type Chair } from './coaching';
+import { capSpace } from './finance/cap';
 import { delegates, estimateText, injuryLabel, weeksLeft } from './injuries';
 import { userGame } from './league';
-import { teamMedics } from './medical';
+import { isMedicExpiring, MEDIC_ROLE_LABEL, medicResignForecast, teamMedics } from './medical';
 import { expiringPlayers } from './offseason/ai';
 import { draftComplete, reachOrSteal } from './offseason/draft';
+import { rookieCost } from './offseason/negotiation';
 import { leaguePercentile, perceive } from './scouting';
 import { starters, teamPlayers } from './roster';
 import { ROUND_NAMES } from './season/playoffs';
 import { playoffRace } from './season/standings';
-import { teamStaff } from './staff';
+import { isExpiring, ownerBudgetNote, resignForecast, ROLE_LABEL, staffWindowOpen, teamStaff } from './staff';
 import { TRADE_DEADLINE_WEEK } from './trade';
-import type { InboxMessage, League, Phase, Player, Position, Team } from './types';
+import type { Coach, CoachRole, CoachRoom, InboxMessage, League, Phase, Player, Position, Team } from './types';
 
 /** Saves keep the latest messages only, like the transaction log. */
 const KEEP = 300;
@@ -43,6 +45,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 /** A small count in words, the way a sentence starts with one ("Two of them…"). */
 const count = (n: number) => ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'][n] ?? String(n);
 const list = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 // The staff member who signs a message, with a link to their card (a department name when the chair is empty).
 function headCoach(league: League): Sender {
@@ -251,7 +254,21 @@ export type MailSubject =
   | { kind: 'recap'; season: number; gameId: number }
   | { kind: 'cleared'; season: number; week: number; playerId: number; type: string }
   | { kind: 'deadline'; season: number; weeksLeft: number }
-  | { kind: 'race'; season: number; level: 'spot' | 'division' | 'bye' | 'out' };
+  | { kind: 'race'; season: number; level: 'spot' | 'division' | 'bye' | 'out' }
+  | { kind: 'owner'; season: number }
+  | { kind: 'staffDeals'; season: number; people: StaffRef[] }
+  | { kind: 'poached'; season: number; coachId: number; chair: Chair }
+  | { kind: 'carousel'; season: number }
+  | { kind: 'faWrap'; season: number };
+
+/** One of our coaches, scouts or medical staff, as a staff message names him. */
+export interface StaffRef {
+  kind: 'coach' | 'scout' | 'medic';
+  id: number;
+}
+const REF_KEY = { coach: 'c', scout: 's', medic: 'm' } as const;
+const refKey = (r: StaffRef) => `${REF_KEY[r.kind]}${r.id}`;
+const refOf = (key: string): StaffRef => ({ kind: key[0] === 'c' ? 'coach' : key[0] === 's' ? 'scout' : 'medic', id: Number(key.slice(1)) });
 
 export function mailSubject(m: InboxMessage): MailSubject | null {
   const [category, s, a, b, ...rest] = m.id.split(':');
@@ -287,6 +304,15 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'deadline', season, weeksLeft: Number(a) };
     case 'race':
       return { kind: 'race', season, level: a as 'spot' | 'division' | 'bye' | 'out' };
+    case 'owner':
+      return { kind: 'owner', season };
+    case 'staff':
+      if (a === 'deals') return { kind: 'staffDeals', season, people: b ? b.split('.').map(refOf) : [] };
+      return { kind: 'poached', season, coachId: Number(b), chair: rest[0] === 'positionCoach' ? { role: 'positionCoach', room: rest[1] as CoachRoom } : { role: rest[0] as CoachRole } };
+    case 'league':
+      return { kind: 'carousel', season };
+    case 'fa':
+      return { kind: 'faWrap', season };
     default:
       return null;
   }
@@ -296,7 +322,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
  * Whether a message still asks something of the user, worked out from the league as it is now (nothing
  * stored): a report until the game is played, an injury while he's out and off reserve, an expiring deal
  * through the re-sign window, the combine while visits are left before the draft, draft day until our picks
- * are in, the trade deadline until it passes, an all-clear while he waits on reserve for you to activate him.
+ * are in, the trade deadline until it passes, an all-clear while he waits on reserve for you to activate him,
+ * staff deals through the re-sign window, a coach hired away until his chair is filled (or the window shuts).
  */
 export function needsYou(league: League, m: InboxMessage): boolean {
   const s = mailSubject(m);
@@ -323,6 +350,10 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       const p = league.players[s.playerId];
       return !!p && p.teamId === user && !!p.ir && !p.injury && !delegates(league, league.teams[user]);
     }
+    case 'staffDeals':
+      return league.phase === 'resign' && s.people.some((r) => stillExpiring(league, r));
+    case 'poached':
+      return staffWindowOpen(league) && !chairHolder(teamCoaches(league, user), s.chair);
     default:
       return false;
   }
@@ -513,6 +544,283 @@ function raceMail(league: League, have: Set<string>): Draft[] {
   ];
 }
 
+// ───────── the front office ─────────
+
+const millions = (k: number) => `$${(k / 1000).toFixed(1)}M`;
+const recordWords = (r: { w: number; l: number; t: number }) => `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;
+const recordIn = (league: League, season: number, teamId: number) => league.history.find((h) => h.season === season)?.records[teamId] ?? null;
+
+/**
+ * The owner's letter as the league year opens: the budgets (on the card), and how far past the coaching
+ * budget he'll go, in his words rather than a number (`ownerLeeway`): a sharp reader can tell a contender's
+ * owner who wants a title from one who wants the budget kept.
+ */
+function ownerMail(league: League, have: Set<string>): Draft[] {
+  const { season } = league;
+  const id = `owner:${season}`;
+  if (have.has(id)) return [];
+  const team = league.teams[league.userTeamId];
+  const market = ownerBudgetNote(team.staffBudgetMult);
+  const marketLine =
+    market === 'Big-spending owner'
+      ? `${team.city} can carry a bigger staff than most, and I expect us to have one.`
+      : market
+        ? `${team.city} isn't a big market, and I won't pretend we can spend like the teams that are.`
+        : 'Our budgets sit about where the rest of the league’s do. Spend them well.';
+  const stance = ownerLeeway(league, team.id, { role: 'headCoach' });
+  const last = recordIn(league, season - 1, team.id);
+  const rec = last ? recordWords(last) : '';
+  const over = 'If the right head coach or coordinator costs a little more than the coaching budget';
+  const leeway = {
+    playoffs: `We made the playoffs last year, and I want a title. ${over}, make the case and I'll listen.`,
+    winNow: `After a ${rec} season, I want to win now. ${over}, make the case.`,
+    newCoach: `Not after a ${rec} season: stay inside the coaching budget, unless it's for the right head coach.`,
+    bigMarket: `${over}, I'll find it.`,
+    stretch: `For the right head coach or coordinator I'll stretch a little past the coaching budget, but only a little.`,
+    lastYear: 'We went past the coaching budget last year. This year I want it kept.',
+    tight: "This market can't carry a dollar more than the budgets below.",
+    losing: `Not after a ${rec} season: stay inside the coaching budget.`,
+    assistant: '',
+  }[stance.reason];
+  const trigger = ownerTriggerNote(ownerTrigger(league, team.id));
+  const patience = trigger === 'Quick trigger with head coaches' ? ' I expect results, and I expect them soon.' : trigger ? ' I believe in giving good people time to build something.' : '';
+  return [
+    {
+      id,
+      season,
+      phase: 'resign',
+      week: 0,
+      from: 'The owner',
+      category: 'staff',
+      subject: 'A letter from the owner',
+      body: `A new league year starts today, and the budgets for ${season} are below. ${marketLine} ${leeway}${patience}`,
+      actions: [{ kind: 'coaches' }, { kind: 'cap' }],
+    },
+  ];
+}
+
+/** Whether one of the people a staff message names still has a deal that ran out, with us. */
+function stillExpiring(league: League, r: StaffRef): boolean {
+  const user = league.userTeamId;
+  if (r.kind === 'coach') {
+    const c = league.coaches[r.id];
+    return !!c && c.teamId === user && isCoachExpiring(league, c);
+  }
+  if (r.kind === 'scout') {
+    const s = league.staff[r.id];
+    return !!s && s.teamId === user && isExpiring(league, s);
+  }
+  const m = league.medics[r.id];
+  return !!m && m.teamId === user && isMedicExpiring(league, m);
+}
+
+/** Our coaches, scouts and medical staff whose deals ran out, and how each one's re-sign window ends if nothing changes. */
+function staffDealsMail(league: League, have: Set<string>): Draft[] {
+  const { season } = league;
+  const user = league.userTeamId;
+  if ([...have].some((id) => id.startsWith(`staff:${season}:deals`))) return [];
+  const coaches = teamCoaches(league, user).filter((c) => isCoachExpiring(league, c));
+  const scouts = teamStaff(league, user).filter((s) => isExpiring(league, s));
+  const medics = teamMedics(league, user).filter((m) => isMedicExpiring(league, m));
+  const people: StaffRef[] = [...coaches.map((c) => ({ kind: 'coach' as const, id: c.id })), ...scouts.map((s) => ({ kind: 'scout' as const, id: s.id })), ...medics.map((m) => ({ kind: 'medic' as const, id: m.id }))];
+  if (!people.length) return [];
+  const group = (n: number, one: string, many: string) => (n === 1 ? `our ${one}` : `${count(n).toLowerCase()} ${many}`);
+  const groups = [
+    coaches.length ? group(coaches.length, coachTitle(coaches[0]).toLowerCase(), 'coaches') : '',
+    scouts.length ? group(scouts.length, ROLE_LABEL[scouts[0].role].toLowerCase(), 'scouts') : '',
+    medics.length ? group(medics.length, MEDIC_ROLE_LABEL[medics[0].role].toLowerCase(), 'of the medical staff') : '',
+  ].filter(Boolean);
+  const leaving = [coachResignForecast(league, user), resignForecast(league, user), medicResignForecast(league, user)].reduce((n, f) => n + [...f.values()].filter((o) => o !== 'stays').length, 0);
+  const n = people.length;
+  const outlook = !leaving ? 'As things stand, every one of them stays.' : leaving === n ? 'As things stand, none of them stays.' : `As things stand, ${count(leaving).toLowerCase()} of them would leave.`;
+  return [
+    {
+      id: `staff:${season}:deals:${people.map(refKey).join('.')}`,
+      season,
+      phase: 'resign',
+      week: 0,
+      from: 'Front office',
+      category: 'staff',
+      subject: n === 1 ? 'A staff contract is up' : `${count(n)} staff contracts are up`,
+      body: `${capital(list(groups))} ${n === 1 ? 'is' : 'are'} out of contract. Unless you extend them or let them go first, each re-signs for two years at his ask when free agency opens, as long as his chair is free and the budget covers him. ${outlook}`,
+      actions: [{ kind: 'coaches' }, { kind: 'staff' }, { kind: 'medical' }],
+    },
+  ];
+}
+/** The chair a coach title names ("quarterbacks coach" → the QB room), as the transaction log writes it. */
+const chairTitled = (title: string): Chair | undefined => CHAIRS.find((ch) => coachTitle(ch).toLowerCase() === title);
+
+/** Our people one rung below a chair who could step into it (`promotionFor`): a coach needs a season in his chair first. */
+export function promotionCandidates(league: League, chair: Chair): Coach[] {
+  return teamCoaches(league, league.userTeamId).filter((c) => {
+    const up = promotionFor(c);
+    return !!up && sameChair(up, chair) && !!c.career?.length;
+  });
+}
+
+/**
+ * The head coach's word when another team hires one of our coaches into a bigger chair (`fillChairs` can
+ * raid a staff for a promotion, and the NFL lets no team block one). His chair stays open until we fill it.
+ */
+function poachedMail(league: League, have: Set<string>): Draft[] {
+  const user = league.userTeamId;
+  const out: Draft[] = [];
+  for (const t of league.transactions) {
+    if (t.kind !== 'coach' || t.season !== league.season || t.teamIds.length !== 2 || t.teamIds[1] !== user || t.teamIds[0] === user) continue;
+    const hirer = league.teams[t.teamIds[0]];
+    const c = teamCoaches(league, hirer.id).find((x) => t.text.includes(` ${coachName(x)} as `));
+    // "LV hired BUF quarterbacks coach Sam Reed as offensive coordinator": the chair he held with us.
+    const was = c && t.text.split(` ${league.teams[user].abbrev} `)[1]?.split(` ${coachName(c)} as `)[0];
+    const chair = was ? chairTitled(was) : undefined;
+    if (!c || !was || !chair) continue;
+    const id = `staff:${league.season}:gone:${c.id}:${chair.role}${chair.role === 'positionCoach' ? `:${chair.room}` : ''}`;
+    if (have.has(id)) continue;
+    const now = coachTitle(c).toLowerCase();
+    const fill = promotionCandidates(league, chair).length ? 'promote from within or go to the market' : 'go to the market';
+    out.push({
+      id,
+      season: league.season,
+      phase: 'freeAgency',
+      week: 0,
+      ...headCoach(league),
+      category: 'staff',
+      subject: `${coachName(c)} leaves for the ${hirer.name}`,
+      body: `The ${teamName(hirer)} have hired ${coachName(c)}, our ${was}, as their ${now}. It's a promotion, not a lateral move, so we couldn't block it. That leaves our ${was} chair open: ${fill} before free agency ends.`,
+      actions: [{ kind: 'coaches' }],
+    });
+  }
+  return out;
+}
+
+/** A head coaching change this league year: who took over a team, where he was last season, and the man he replaced. */
+export interface HeadCoachChange {
+  teamId: number;
+  coach: Coach;
+  /** Last season's chair: "Offensive coordinator, KC", "Head coach, DEN" (and that team's record), or new to the league. */
+  from: { title: string; teamId: number; record: { w: number; l: number; t: number } | null } | null;
+  /** Last season's head coach, and the team's record under him. */
+  replaced: Coach | null;
+  record: { w: number; l: number; t: number } | null;
+}
+
+/** Every team whose head coach for `season` isn't the one who finished `season - 1`, the user's division first. */
+export function headCoachChanges(league: League, season = league.season): HeadCoachChange[] {
+  const everyone = [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)];
+  const headed = (s: number) => new Map(everyone.flatMap((c) => (c.career ?? []).filter((x) => x.season === s && x.role === 'headCoach').map((x) => [x.teamId, c] as const)));
+  const before = headed(season - 1);
+  // This league year: the chair as it stands now; a past one: whoever finished it.
+  const after = season === league.season ? new Map(league.teams.map((t) => [t.id, chairHolder(teamCoaches(league, t.id), { role: 'headCoach' })] as const)) : headed(season);
+  const division = league.teams[league.userTeamId].division;
+  const out: HeadCoachChange[] = [];
+  for (const team of league.teams) {
+    const coach = after.get(team.id);
+    const replaced = before.get(team.id) ?? null;
+    if (!coach || coach === replaced) continue;
+    const last = coach.career?.find((x) => x.season === season - 1);
+    out.push({
+      teamId: team.id,
+      coach,
+      from: last ? { title: coachTitle(last), teamId: last.teamId, record: last.role === 'headCoach' ? recordIn(league, season - 1, last.teamId) : null } : null,
+      replaced,
+      record: recordIn(league, season - 1, team.id),
+    });
+  }
+  return out.sort((a, b) => Number(league.teams[b.teamId].division === division) - Number(league.teams[a.teamId].division === division));
+}
+
+/** The league office's note once the window's hirings are done: every team with a new head coach. */
+function carouselMail(league: League, have: Set<string>): Draft[] {
+  const id = `league:${league.season}:carousel`;
+  if (have.has(id)) return [];
+  const changes = headCoachChanges(league);
+  if (!changes.length) return [];
+  const team = league.teams[league.userTeamId];
+  const near = changes.filter((x) => league.teams[x.teamId].division === team.division && x.teamId !== team.id).length;
+  const ours = changes.some((x) => x.teamId === team.id);
+  const n = changes.length;
+  return [
+    {
+      id,
+      season: league.season,
+      phase: 'freeAgency',
+      week: 0,
+      from: 'League office',
+      category: 'league',
+      subject: `Coaching carousel: ${n} new head coach${n === 1 ? '' : 'es'}`,
+      body: `${count(n)} team${n === 1 ? ' has a' : 's have'} new head coach${n === 1 ? '' : 'es'} for ${league.season}${ours ? ', ours among them' : ''}.${near ? ` ${near === 1 ? 'One is' : `${count(near)} are`} in the ${league.divisions[team.division].name}.` : ''}`,
+      actions: [{ kind: 'coaches' }],
+    },
+  ];
+}
+
+/** One free-agent signing, read back from the transaction log ("LV signed WR Sam Reed (3 yr, $24.0M)"). */
+export interface Signing {
+  teamId: number;
+  player: Player;
+  years: number;
+  /** The whole deal, $K. */
+  total: number;
+}
+
+/** What free agency did: our signings, our players who signed elsewhere (and those still unsigned), and the league's biggest deals. */
+export function freeAgencyMoves(league: League, season = league.season) {
+  const user = league.userTeamId;
+  const byName = new Map<string, Player[]>();
+  for (const p of Object.values(league.players)) {
+    const key = `${p.position} ${p.firstName} ${p.lastName}`;
+    byName.set(key, [...(byName.get(key) ?? []), p]);
+  }
+  const abbrevs = new Map(league.teams.map((t) => [t.abbrev, t.id]));
+  const deals: Signing[] = [];
+  for (const t of league.transactions) {
+    if (t.kind !== 'sign' || t.season !== season || t.phase !== 'freeAgency') continue;
+    const m = /^(\w+) signed (\w+ .+) \((\d+) yr, \$([\d.]+)M\)$/.exec(t.text);
+    const teamId = m ? abbrevs.get(m[1]) : undefined;
+    if (!m || teamId === undefined) continue;
+    const named = byName.get(m[2]) ?? [];
+    const player = named.find((p) => p.teamId === teamId) ?? named[0];
+    if (player) deals.push({ teamId, player, years: Number(m[3]), total: Math.round(Number(m[4]) * 1000) });
+  }
+  // A player can sign twice (cut, then signed again): his last deal is the one that stands.
+  const last = new Map(deals.map((d) => [d.player.id, d]));
+  const standing = [...last.values()];
+  const ours = (p: Player) => p.statTeams?.[season - 1]?.at(-1) === user;
+  const left = Object.values(league.players).filter((p) => ours(p) && !p.retired && p.teamId !== user);
+  return {
+    signed: standing.filter((d) => d.teamId === user).sort((a, b) => b.total - a.total),
+    walked: standing.filter((d) => d.teamId !== user && ours(d.player)).sort((a, b) => b.total - a.total),
+    unsigned: left.filter((p) => p.teamId === null),
+    resigned: league.transactions.filter((t) => t.kind === 'resign' && t.season === season && t.phase === 'resign' && t.teamIds.includes(user)).length,
+    biggest: [...standing].sort((a, b) => b.total - a.total).slice(0, 3),
+  };
+}
+
+/** The front office's summary once free agency closes: who we signed, who signed elsewhere, and the cap the draft has to fit in. */
+function faWrapMail(league: League, have: Set<string>): Draft[] {
+  const id = `fa:${league.season}`;
+  if (have.has(id)) return [];
+  const fa = freeAgencyMoves(league);
+  const space = capSpace(league, league.userTeamId);
+  const rookies = rookieCost(league, league.userTeamId);
+  const signed = fa.signed.length ? `We signed ${plural(fa.signed.length, 'free agent')}` : 'We signed no free agents';
+  const kept = fa.resigned ? ` and re-signed ${fa.resigned} of our own` : '';
+  const walked = fa.walked.length ? `; ${count(fa.walked.length).toLowerCase()} of last season's players signed elsewhere` : '';
+  const cap = rookies > 0 ? ` We have ${millions(space)} of cap space going into the draft, and our rookie class will need about ${millions(rookies)} of it.` : ` We have ${millions(space)} of cap space.`;
+  return [
+    {
+      id,
+      season: league.season,
+      phase: 'draft',
+      week: 0,
+      from: 'Front office',
+      category: 'contracts',
+      subject: 'Free agency wrap-up',
+      body: `Free agency is over. ${signed}${kept}${walked}.${cap}`,
+      actions: [{ kind: 'cap' }, { kind: 'fa' }],
+    },
+  ];
+}
+
 const order = (m: Draft) => m.season * 1000 + PHASE_ORDER.indexOf(m.phase) * 100 + m.week;
 
 /**
@@ -524,8 +832,11 @@ export function deliverMail(league: League): void {
   const inbox = (league.inbox ??= []);
   const have = new Set(inbox.map((m) => m.id));
   const fresh = [...awardMail(league, have), ...injuryMail(league, have), ...tradeMail(league, have)];
-  if (league.phase === 'resign') fresh.push(...newYearMail(league, have));
-  if (league.phase === 'freeAgency') fresh.push(...combineMail(league, have));
+  if (league.phase === 'resign') fresh.push(...ownerMail(league, have), ...staffDealsMail(league, have), ...newYearMail(league, have));
+  // Free agency's first day: the window's coaching moves are done.
+  if (league.phase === 'freeAgency') fresh.push(...combineMail(league, have), ...poachedMail(league, have), ...carouselMail(league, have));
+  // Free agency is over by the draft (or by camp, if a sim ran straight through it).
+  if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...faWrapMail(league, have));
   if (league.phase === 'draft') fresh.push(...draftDayMail(league, have));
   if ((league.phase === 'draft' && draftComplete(league)) || league.phase === 'preseason') fresh.push(...draftClassMail(league, have));
   if (league.phase === 'regular' || league.phase === 'playoffs') {

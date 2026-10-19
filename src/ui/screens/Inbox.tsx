@@ -16,6 +16,7 @@ const TYPES: [InboxCategory | 'all', string][] = [
   ['contracts', 'Contracts'],
   ['scouting', 'Scouting'],
   ['trades', 'Trades'],
+  ['staff', 'Staff'],
   ['retirement', 'Retirement'],
   ['league', 'League news'],
 ];
@@ -27,14 +28,25 @@ const TAGS: Record<InboxCategory, string> = {
   contracts: 'Contract',
   scouting: 'Scouting',
   trades: 'Trade',
+  staff: 'Staff',
   retirement: 'Retirement',
   league: 'League',
+};
+
+/** Messages whose tag says what they are, whatever their category. */
+const KIND_TAGS: Partial<Record<NonNullable<ReturnType<typeof mailSubject>>['kind'], string>> = {
+  recap: 'Recap',
+  race: 'Playoff race',
+  deadline: 'Trade deadline',
+  owner: 'Owner',
+  carousel: 'Coaching',
+  faWrap: 'Free agency',
 };
 
 /** A tag says what kind of message it is: a recap or the playoff race reads as such, whatever its category. */
 function tagOf(m: InboxMessage): string {
   const kind = mailSubject(m)?.kind;
-  return kind === 'recap' ? 'Recap' : kind === 'race' ? 'Playoff race' : kind === 'deadline' ? 'Trade deadline' : TAGS[m.category];
+  return (kind && KIND_TAGS[kind]) ?? TAGS[m.category];
 }
 
 function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
@@ -45,6 +57,14 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
       return a.teamId === league.userTeamId ? 'Your roster' : `${league.teams[a.teamId].name} roster`;
     case 'resign':
       return 'Expiring contracts';
+    case 'fa':
+      return 'Free agency';
+    case 'coaches':
+      return 'Coaches';
+    case 'staff':
+      return 'Scouting staff';
+    case 'cap':
+      return 'Cap sheet';
     case 'draft':
       // The draft room keeps the draft history, every team's, under the board.
       return mailSubject(m)?.kind === 'draftClass' ? 'Draft history' : 'Draft room';
@@ -61,10 +81,10 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
 
 const dateLabel = (m: InboxMessage) => `${m.season} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
 
-/** "Sean Evans, Head coach" → name and role; "Kyle James's agent" → the agent. */
+/** "Sean Evans, Head coach" → name and role; "Kyle James's agent" → the agent; "The owner" → O. */
 function sender(m: InboxMessage): { name: string; role: string; initials: string } {
   const [name, ...role] = m.from.split(', ');
-  const words = name.replace(/'s agent$/, '').split(' ');
+  const words = name.replace(/'s agent$/, '').replace(/^The /, '').split(' ');
   return { name, role: role.join(', '), initials: (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase() };
 }
 
@@ -118,6 +138,7 @@ export function Inbox({ league }: { league: League }) {
     else if (a.kind === 'team') nav.openTeam(a.teamId);
     else if (a.kind === 'game') nav.openGame(a.gameId);
     else if (a.kind === 'standings') nav.go({ view: 'standings' });
+    else if (a.kind === 'cap') nav.go({ view: 'cap' });
     else nav.go({ view: 'office', tab: a.kind });
   };
   const filters: [Show, string, number][] = [

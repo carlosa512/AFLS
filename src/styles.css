@@ -2877,6 +2877,9 @@ button.tip-pill {
 .cat-league {
   --cat: #5b6fa8;
 }
+.cat-staff {
+  --cat: #2f8f8a;
+}
 .inbox-panes {
   display: grid;
   grid-template-columns: minmax(300px, 2fr) minmax(0, 3fr);
@@ -3314,6 +3317,77 @@ button.tip-pill {
   display: grid;
   gap: 2px;
 }
+.mail-tile .small {
+  font-size: var(--step--1);
+}
+/* One of our staff, or a coach we could hire: who, the ratings, the money, and what happens next. */
+.mail-person {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: 'who rate pay' 'act act act';
+  gap: 6px 14px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.mail-person:first-of-type {
+  border-top: 0;
+}
+.mail-person > :nth-child(1) {
+  grid-area: who;
+}
+.mail-ratings {
+  grid-area: rate;
+  display: flex;
+  gap: 10px;
+  white-space: nowrap;
+}
+.mail-money {
+  grid-area: pay;
+  text-align: right;
+  white-space: nowrap;
+}
+.mail-person-act {
+  grid-area: act;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.mail-person-act .tag-pill {
+  margin-left: 0;
+}
+.mail-person-act .btn {
+  margin-left: auto;
+}
+/* A staff deal fits on one line where there's room: the outlook and the button at the end. */
+@media (min-width: 641px) {
+  .mail-person-line {
+    grid-template-columns: minmax(0, 1fr) auto auto minmax(150px, auto);
+    grid-template-areas: 'who rate pay act';
+  }
+  .mail-person-line .mail-person-act {
+    justify-content: flex-end;
+  }
+  .mail-person-line .mail-person-act .btn {
+    margin-left: 0;
+  }
+}
+/* A signing: the player, and the deal on the right. */
+.mail-deal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+.mail-deal:first-of-type {
+  border-top: 0;
+}
+.mail-deal > :last-child {
+  white-space: nowrap;
+}
 /* The back link only matters where the message replaces the list. */
 @media (min-width: 641px) {
   .inbox-back {
@@ -3361,5 +3435,9 @@ button.tip-pill {
   .mail-form-game {
     min-width: 0;
     padding: 5px 2px;
+  }
+  .mail-person {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'who pay' 'rate rate' 'act act';
   }
 }

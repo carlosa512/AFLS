@@ -506,17 +506,21 @@ export interface Transaction {
   text: string;
 }
 
-export type InboxCategory = 'awards' | 'contracts' | 'retirement' | 'medical' | 'scouting' | 'matchup' | 'trades' | 'league';
+export type InboxCategory = 'awards' | 'contracts' | 'retirement' | 'medical' | 'scouting' | 'matchup' | 'trades' | 'staff' | 'league';
 
-/** Where a message's buttons go: a player's card, a team's roster, a game's box score, a front-office tab, or the standings. */
+/** Where a message's buttons go: a player's card, a team's roster, a game's box score, a front-office tab, the cap sheet or the standings. */
 export type InboxAction =
   | { kind: 'player'; playerId: number }
   | { kind: 'team'; teamId: number }
   | { kind: 'game'; gameId: number }
   | { kind: 'resign' }
+  | { kind: 'fa' }
   | { kind: 'draft' }
+  | { kind: 'coaches' }
+  | { kind: 'staff' }
   | { kind: 'medical' }
   | { kind: 'trades' }
+  | { kind: 'cap' }
   | { kind: 'standings' };
 
 export interface InboxMessage {
@@ -527,7 +531,7 @@ export interface InboxMessage {
   /** The week it's dated (0 in the offseason). */
   week: number;
   from: string;
-  /** The sender's staff card, when one of the club's own staff signs it. */
+  /** The sender's staff card, when one of the team's own staff signs it. */
   fromCard?: { kind: 'coach' | 'scout' | 'medic'; id: number };
   category: InboxCategory;
   subject: string;

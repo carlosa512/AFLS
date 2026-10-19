@@ -4,11 +4,37 @@
  * now, from what the message is about (`mailSubject`); nothing extra is stored with the mail. Screens show
  * the user's view only: our scouts' reads, the doctor's estimate, the public consensus.
  */
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { impact, periodLine, playerOfTheGame } from '../engine/awards';
-import { demand, ROSTER_MAX } from '../engine/offseason/negotiation';
+import {
+  asPromoted,
+  chairHolder,
+  chairOf,
+  coachAsk,
+  coachBudget,
+  coachMarket,
+  coachMoveProblem,
+  coachName,
+  coachPayroll,
+  coachResignForecast,
+  coachTitle,
+  coachValue,
+  extendCoach,
+  hireCoach,
+  isCoachExpiring,
+  moveOverspend,
+  promoteCoach,
+  promotionProblem,
+  sameChair,
+  teamCoaches,
+  visionFit,
+} from '../engine/coaching';
+import { extendMedic, isMedicExpiring, MEDIC_ROLE_LABEL, medicalBudget, medicalPayroll, medicAsk, medicMoveProblem, medicName, medicResignForecast } from '../engine/medical';
+import { demand, rookieCost, ROSTER_MAX } from '../engine/offseason/negotiation';
+import { coachSchemeLabel } from '../engine/schemes';
+import { extendStaff, isExpiring, resignForecast, ROLE_LABEL, staffAsk, staffBudget, staffMoveProblem, staffName, staffPayroll, type ResignOutlook } from '../engine/staff';
 import { boardValue, reachOrSteal } from '../engine/offseason/draft';
-import { draftClassOf, mailSubject, needsYou, unitReads, type MailSubject } from '../engine/inbox';
+import { draftClassOf, freeAgencyMoves, headCoachChanges, mailSubject, needsYou, promotionCandidates, unitReads, type HeadCoachChange, type MailSubject, type Signing } from '../engine/inbox';
 import { activateFromIr, activateProblem, delegates, estimateText, injuryLabel, IR_MIN_WEEKS, IR_RETURNS, irProblem, irReturnsUsed, placeOnIr, SEVERITY_LABEL, weeksLeft } from '../engine/injuries';
 import { lastSeason } from '../engine/finance/contract';
 import { activeRoster, starters, teamPlayers } from '../engine/roster';
@@ -17,10 +43,10 @@ import { userGame } from '../engine/league';
 import { allSeeds, PLAYOFF_ROUNDS, ROUND_NAMES } from '../engine/season/playoffs';
 import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { statLine } from '../engine/stats';
-import type { Game, InboxMessage, League, Player, Position, Team } from '../engine/types';
-import { useNav } from './App';
+import type { Coach, Game, InboxMessage, League, Player, Position, Team } from '../engine/types';
+import { useNav, type StaffKind } from './App';
 import { PlayerAvatar, TeamChip } from './components';
-import { gameClock, money, ordinal, playerName, recordText, shortName, teamName, weekLabel } from './format';
+import { band, gameClock, money, ordinal, playerName, recordText, shortName, teamName, weekLabel } from './format';
 import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
@@ -60,6 +86,16 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <DeadlineCards league={league} live={needsYou(league, message)} />;
     case 'race':
       return <RaceCards league={league} s={s} />;
+    case 'owner':
+      return <OwnerCards league={league} s={s} />;
+    case 'staffDeals':
+      return <StaffDealsCards league={league} s={s} live={needsYou(league, message)} />;
+    case 'poached':
+      return <PoachedCards league={league} s={s} live={needsYou(league, message)} />;
+    case 'carousel':
+      return <CarouselCards league={league} s={s} />;
+    case 'faWrap':
+      return <FaWrapCards league={league} s={s} />;
     default:
       return null;
   }
@@ -1012,6 +1048,514 @@ function RaceCards({ league, s }: { league: League; s: Extract<MailSubject, { ki
             Contracts for next year
           </button>
         </div>
+      )}
+    </>
+  );
+}
+
+// ───────── the front office ─────────
+
+/** A budget as a tile: what the owner gives, and how much of it is spoken for. */
+function BudgetTile({ label, budget, used, note }: { label: string; budget: number; used?: number; note?: string }) {
+  return (
+    <span className="mail-tile">
+      <b>{money(budget)}</b>
+      <span className="eyebrow">{label}</span>
+      <span className="muted small">{note ?? `${money(used ?? 0)} committed`}</span>
+    </span>
+  );
+}
+
+/** The year's budgets, as they stand now. The letter itself says how far past them the owner will go. */
+function OwnerCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'owner' }> }) {
+  if (s.season !== league.season) return null;
+  const user = league.userTeamId;
+  return (
+    <Card title={`${s.season} budgets`}>
+      <div className="mail-tiles">
+        <BudgetTile label="Coaching" budget={coachBudget(league, user)} used={coachPayroll(league, user)} />
+        <BudgetTile label="Scouting staff" budget={staffBudget(league, user)} used={staffPayroll(league, user)} />
+        <BudgetTile label="Medical staff" budget={medicalBudget(league, user)} used={medicalPayroll(league, user)} />
+        <BudgetTile label="Salary cap" budget={league.caps[s.season]} note={`${money(Math.round(capSheet(league, user).space))} space`} />
+      </div>
+    </Card>
+  );
+}
+
+const OUTLOOK: Record<ResignOutlook, { label: string; tone: string; tip: string }> = {
+  stays: { label: 'Re-signs', tone: 'tag-good', tip: 'Re-signs for 2 years at his ask when free agency opens, unless you let him go.' },
+  budget: { label: 'Leaves: budget', tone: 'tag-warn', tip: 'Leaves when free agency opens: the budget can’t cover his ask.' },
+  chair: { label: 'Leaves: chair taken', tone: 'tag-warn', tip: 'Leaves when free agency opens: someone else now holds his chair.' },
+};
+
+interface PersonRow {
+  key: string;
+  kind: StaffKind;
+  id: number;
+  name: string;
+  title: string;
+  age: number;
+  ratings: [string, number][];
+  /** This year's pay, then what he asks for two more. */
+  salary: number;
+  ask: number;
+  outlook?: ResignOutlook;
+  /** After the window: where he went. */
+  outcome?: string;
+  extend?: { problem: string | null; go: () => void };
+}
+
+/** One of our people: who he is, his public ratings, the money, and what happens to him. */
+function Person({ row }: { row: PersonRow }) {
+  const nav = useNav();
+  const o = row.outlook && OUTLOOK[row.outlook];
+  return (
+    <div className="mail-person mail-person-line">
+      <span style={{ minWidth: 0 }}>
+        <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openStaff(row.kind, row.id)}>
+          {row.name}
+        </button>
+        <span className="muted small" style={{ display: 'block' }}>
+          {row.title} · age {row.age}
+        </span>
+      </span>
+      <span className="small mail-ratings">
+        {row.ratings.map(([label, v]) => (
+          <span key={label}>
+            {label} <b className={`num ${band(v)}`}>{v}</b>
+          </span>
+        ))}
+      </span>
+      <span className="small mail-money">
+        <b className="num">{money(row.ask)}</b>/yr
+        <span className="muted" style={{ display: 'block' }}>
+          now {money(row.salary)}
+        </span>
+      </span>
+      <span className="mail-person-act">
+        {o ? (
+          <span className={`tag-pill ${o.tone}`} title={o.tip}>
+            {o.label}
+          </span>
+        ) : (
+          row.outcome && <span className="tag-pill">{row.outcome}</span>
+        )}
+        {row.extend && (
+          <button className="btn btn-sm" disabled={!!row.extend.problem} title={row.extend.problem ?? undefined} onClick={row.extend.go}>
+            Extend 2 yr
+          </button>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/** Where a staff member stands once his deal is no longer up: kept, gone to another team, or gone. */
+function outcomeOf(league: League, who: { teamId: number | null; contract: { through: number } | null } | undefined, season: number): string {
+  if (!who) return 'Retired';
+  if (who.teamId === league.userTeamId && who.contract && who.contract.through >= season) return `Signed thru ${who.contract.through}`;
+  return who.teamId !== null ? `Joined ${league.teams[who.teamId].abbrev}` : 'Left';
+}
+
+const COACH_OVER = 'Goes past your coaching budget: ask the owner on the Coaches screen.';
+
+/** Every expiring deal on our staffs, by department, each with his ask and what happens to him if you do nothing. */
+function StaffDealsCards({ league, s, live }: { league: League; s: Extract<MailSubject, { kind: 'staffDeals' }>; live: boolean }) {
+  const nav = useNav();
+  const user = league.userTeamId;
+  const now = s.season === league.season;
+  const coachOutlook = coachResignForecast(league, user);
+  const staffOutlook = resignForecast(league, user);
+  const medicOutlook = medicResignForecast(league, user);
+  const rows: PersonRow[] = s.people.flatMap((r): PersonRow[] => {
+    if (r.kind === 'coach') {
+      const c = league.coaches[r.id] ?? league.retiredCoaches[r.id];
+      if (!c) return [];
+      const up = now && live && c.teamId === user && isCoachExpiring(league, c);
+      const problem = up ? (coachMoveProblem(league, user, c, 'extend', 2, false) ?? (moveOverspend(league, user, c, 2, 'extend') > 0 ? COACH_OVER : null)) : null;
+      return [
+        {
+          key: `c${c.id}`,
+          kind: 'coach',
+          id: c.id,
+          name: coachName(c),
+          title: coachTitle(c),
+          age: c.age,
+          ratings: [
+            ['Youth', c.youth],
+            ['Vets', c.veterans],
+          ],
+          salary: c.contract?.salary ?? 0,
+          ask: coachAsk(league, c, 2),
+          outlook: up ? coachOutlook.get(c.id) : undefined,
+          outcome: up ? undefined : outcomeOf(league, league.coaches[c.id], s.season),
+          extend: up ? { problem, go: () => store.mutate((l) => extendCoach(l, l.userTeamId, c.id, 2)) } : undefined,
+        },
+      ];
+    }
+    if (r.kind === 'scout') {
+      const x = league.staff[r.id];
+      if (!x) return [];
+      const up = now && live && x.teamId === user && isExpiring(league, x);
+      return [
+        {
+          key: `s${x.id}`,
+          kind: 'scout',
+          id: x.id,
+          name: staffName(x),
+          title: ROLE_LABEL[x.role],
+          age: x.age,
+          ratings: [
+            ['Eval', x.evaluation],
+            ['Proj', x.projection],
+          ],
+          salary: x.contract?.salary ?? 0,
+          ask: staffAsk(league, x, 2),
+          outlook: up ? staffOutlook.get(x.id) : undefined,
+          outcome: up ? undefined : outcomeOf(league, x, s.season),
+          extend: up ? { problem: staffMoveProblem(league, user, x, 'extend', 2), go: () => store.mutate((l) => extendStaff(l, l.userTeamId, x.id, 2)) } : undefined,
+        },
+      ];
+    }
+    const m = league.medics[r.id];
+    if (!m) return [];
+    const up = now && live && m.teamId === user && isMedicExpiring(league, m);
+    return [
+      {
+        key: `m${m.id}`,
+        kind: 'medic',
+        id: m.id,
+        name: medicName(m),
+        title: MEDIC_ROLE_LABEL[m.role],
+        age: m.age,
+        ratings: [
+          ['Physio', m.physio],
+          ['Science', m.science],
+        ],
+        salary: m.contract?.salary ?? 0,
+        ask: medicAsk(league, m, 2),
+        outlook: up ? medicOutlook.get(m.id) : undefined,
+        outcome: up ? undefined : outcomeOf(league, m, s.season),
+        extend: up ? { problem: medicMoveProblem(league, user, m, 'extend', 2), go: () => store.mutate((l) => extendMedic(l, l.userTeamId, m.id, 2)) } : undefined,
+      },
+    ];
+  });
+  const groups: [StaffKind, string, 'coaches' | 'staff' | 'medical', string][] = [
+    ['coach', 'Coaches', 'coaches', 'Coaches'],
+    ['scout', 'Scouts', 'staff', 'Scouting staff'],
+    ['medic', 'Medical staff', 'medical', 'Medical'],
+  ];
+  return (
+    <>
+      {groups.map(([kind, title, tab, link]) => {
+        const mine = rows.filter((r) => r.kind === kind);
+        if (!mine.length) return null;
+        return (
+          <Card key={kind} title={title}>
+            {mine.map((r) => (
+              <Person key={r.key} row={r} />
+            ))}
+            <div className="mail-more">
+              <span className="muted">{live ? 'Asks are for 2 years.' : 'The re-sign window has closed.'}</span>
+              <button className="linklike" onClick={() => nav.go({ view: 'office', tab })}>
+                {link}
+              </button>
+            </div>
+          </Card>
+        );
+      })}
+    </>
+  );
+}
+
+/** "Fits" / "Fair fit" / "Not a fit": how a coordinator matches what our head coach wants. */
+function FitPill({ fit }: { fit: number | null }) {
+  if (fit === null) return null;
+  return fit >= 0.7 ? <span className="tag-pill tag-good">Fits</span> : fit <= 0.35 ? <span className="tag-pill tag-warn">Not a fit</span> : <span className="tag-pill">Fair fit</span>;
+}
+
+/** A coach we could put in the open chair: the man as he'd be in it, his ratings, scheme and fit, the ask and the button. */
+function Option({ league, c, as, action, problem, go }: { league: League; c: Coach; as: Coach; action: string; problem: string | null; go: () => void }) {
+  const nav = useNav();
+  const hc = chairHolder(teamCoaches(league, league.userTeamId), { role: 'headCoach' });
+  const scheme = coachSchemeLabel(as);
+  return (
+    <div className="mail-person">
+      <span style={{ minWidth: 0 }}>
+        <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openStaff('coach', c.id)}>
+          {coachName(c)}
+        </button>
+        <span className="muted small" style={{ display: 'block' }}>
+          {c.teamId === league.userTeamId ? `Our ${coachTitle(c).toLowerCase()}` : c.lastJob ?? 'On the market'} · age {c.age}
+        </span>
+      </span>
+      <span className="small mail-ratings">
+        <span>
+          Youth <b className={`num ${band(c.youth)}`}>{c.youth}</b>
+        </span>
+        <span>
+          Vets <b className={`num ${band(c.veterans)}`}>{c.veterans}</b>
+        </span>
+      </span>
+      <span className="small mail-money">
+        <b className="num">{money(coachAsk(league, as, 2))}</b>/yr
+        <span className="muted" style={{ display: 'block' }}>
+          2 years
+        </span>
+      </span>
+      <span className="mail-person-act">
+        {scheme && <span className="tag-pill scheme-pill">{scheme}</span>}
+        <FitPill fit={visionFit(league, hc, as)} />
+        <button className="btn btn-sm" disabled={!!problem} title={problem ?? undefined} onClick={go}>
+          {action}
+        </button>
+      </span>
+    </div>
+  );
+}
+
+/** Ways to fill the chair a coach left: our own men one rung below it, and the best of the market. */
+function PoachedCards({ league, s, live }: { league: League; s: Extract<MailSubject, { kind: 'poached' }>; live: boolean }) {
+  const nav = useNav();
+  const user = league.userTeamId;
+  const title = coachTitle(s.chair).toLowerCase();
+  if (!live) {
+    const holder = s.season === league.season ? chairHolder(teamCoaches(league, user), s.chair) : null;
+    return <p className="muted small" style={{ margin: 0 }}>{holder ? `Filled: ${coachName(holder)} is our ${title} now.` : 'Coaching moves are closed until the next re-sign window.'}</p>;
+  }
+  const inside = promotionCandidates(league, s.chair);
+  // The best the budget covers first; past it, the owner has his say on the Coaches screen.
+  const market = coachMarket(league)
+    .filter((c) => sameChair(chairOf(c), s.chair))
+    .map((c) => ({ c, over: moveOverspend(league, user, c, 2, 'hire') > 0 }))
+    .sort((a, b) => Number(a.over) - Number(b.over) || coachValue(b.c) - coachValue(a.c));
+  return (
+    <>
+      {inside.length > 0 && (
+        <Card title="Promote from within">
+          {inside.map((c) => {
+            const problem = promotionProblem(league, user, c, 2, false) ?? (moveOverspend(league, user, c, 2, 'promote') > 0 ? COACH_OVER : null);
+            return <Option key={c.id} league={league} c={c} as={asPromoted(league, c, s.chair)} action="Promote" problem={problem} go={() => store.mutate((l) => promoteCoach(l, l.userTeamId, c.id, 2))} />;
+          })}
+        </Card>
+      )}
+      {market.length > 0 && (
+        <Card title={`On the market: ${title}s`}>
+          {market.slice(0, SHOW).map(({ c, over }) => (
+            <Option key={c.id} league={league} c={c} as={c} action="Hire" problem={coachMoveProblem(league, user, c, 'hire', 2, false) ?? (over ? COACH_OVER : null)} go={() => store.mutate((l) => hireCoach(l, l.userTeamId, c.id, 2))} />
+          ))}
+          <div className="mail-more">
+            <span className="muted">The best your budget covers come first.</span>
+            <button className="linklike" onClick={() => nav.go({ view: 'office', tab: 'coaches' })}>
+              See all {market.length} on the Coaches screen
+            </button>
+          </div>
+        </Card>
+      )}
+    </>
+  );
+}
+
+/** Every new head coach: where he was last season, and the man he replaced with that team's record. */
+function CarouselCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'carousel' }> }) {
+  const nav = useNav();
+  const [all, setAll] = useState(false);
+  const changes = headCoachChanges(league, s.season);
+  if (!changes.length) return null;
+  const division = league.teams[league.userTeamId].division;
+  const shown = all ? changes : changes.slice(0, 5);
+  const from = (x: HeadCoachChange) =>
+    !x.from
+      ? 'New to the league'
+      : x.from.teamId === x.teamId
+        ? `Promoted from ${x.from.title.toLowerCase()}`
+        : `${x.from.title}, ${league.teams[x.from.teamId].abbrev}${x.from.record ? ` (${recordText(x.from.record)})` : ''}`;
+  return (
+    <Card>
+      <div className="table-scroll">
+        <table className="mail-table">
+          <thead>
+            <tr>
+              <th>Team</th>
+              <th>New head coach</th>
+              <th>Out</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((x) => (
+              <tr key={x.teamId} className={x.teamId === league.userTeamId ? 'is-user' : undefined}>
+                <td>
+                  <span className="team-inline">
+                    <TeamChip team={league.teams[x.teamId]} /> {league.teams[x.teamId].name}
+                  </span>
+                  {league.teams[x.teamId].division === division && x.teamId !== league.userTeamId && (
+                    <span className="muted small" style={{ display: 'block' }}>
+                      Your division
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <button className="linklike" onClick={() => nav.openStaff('coach', x.coach.id)}>
+                    {coachName(x.coach)}
+                  </button>
+                  <span className="muted small" style={{ display: 'block' }}>
+                    {from(x)}
+                  </span>
+                </td>
+                <td>
+                  {x.replaced ? (
+                    <>
+                      {coachName(x.replaced)}
+                      {x.record && <span className="muted small" style={{ display: 'block' }}>{recordText(x.record)}</span>}
+                    </>
+                  ) : (
+                    <span className="muted">–</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {changes.length > 5 && (
+        <div className="mail-more">
+          <span className="muted">{changes.length} new head coaches</span>
+          <button className="linklike" onClick={() => setAll(!all)}>
+            {all ? 'Show fewer' : `See all ${changes.length}`}
+          </button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+const dealText = (d: Signing) => `${d.years} yr, ${money(d.total)}`;
+
+/** A list that shows a few rows, with the rest a click away. */
+function Expandable<T>({ items, limit, render, label }: { items: T[]; limit: number; render: (x: T) => ReactNode; label: string }) {
+  const [all, setAll] = useState(false);
+  return (
+    <>
+      {(all ? items : items.slice(0, limit)).map(render)}
+      {items.length > limit && (
+        <div className="mail-more">
+          <span className="muted">
+            {items.length} {label}
+          </span>
+          <button className="linklike" onClick={() => setAll(!all)}>
+            {all ? 'Show fewer' : `See all ${items.length}`}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Free agency in short: who came, who left and for how much, the league's biggest deals, and the cap the draft fits in. */
+function FaWrapCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'faWrap' }> }) {
+  const nav = useNav();
+  const fa = freeAgencyMoves(league, s.season);
+  const user = league.userTeamId;
+  const name = (p: Player) => (
+    <span>
+      <span className="pos">{p.position}</span>{' '}
+      <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
+        {playerName(p)}
+      </button>
+    </span>
+  );
+  const space = Math.round(capSheet(league, user).space);
+  const rookies = s.season === league.season ? Math.round(rookieCost(league, user)) : 0;
+  return (
+    <>
+      <div className="mail-split">
+        <Card title="Signed">
+          {fa.signed.length ? (
+            <Expandable
+              items={fa.signed}
+              limit={5}
+              label="signings"
+              render={(d) => (
+                <div className="mail-deal" key={d.player.id}>
+                  {name(d.player)}
+                  <span className="num small">{dealText(d)}</span>
+                </div>
+              )}
+            />
+          ) : (
+            <p className="muted small" style={{ margin: 0 }}>
+              No free-agent signings.
+            </p>
+          )}
+          {fa.resigned > 0 && (
+            <p className="muted small" style={{ margin: '8px 0 0' }}>
+              Plus {fa.resigned} of our own re-signed before free agency opened.
+            </p>
+          )}
+        </Card>
+        <Card title="Walked">
+          {fa.walked.length || fa.unsigned.length ? (
+            <>
+              <Expandable
+                items={fa.walked}
+                limit={5}
+                label="signed elsewhere"
+                render={(d) => (
+                  <div className="mail-deal" key={d.player.id}>
+                    {name(d.player)}
+                    <span className="small">
+                      <TeamChip team={league.teams[d.teamId]} /> <span className="num">{dealText(d)}</span>
+                    </span>
+                  </div>
+                )}
+              />
+              {fa.unsigned.length > 0 && (
+                <p className="muted small" style={{ margin: '8px 0 0' }}>
+                  Still unsigned: {fa.unsigned.slice(0, 5).map((p) => `${p.position} ${playerName(p)}`).join(', ')}
+                  {fa.unsigned.length > 5 ? ` and ${fa.unsigned.length - 5} more` : ''}.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="muted small" style={{ margin: 0 }}>
+              Nobody left.
+            </p>
+          )}
+        </Card>
+      </div>
+      {fa.biggest.length > 0 && (
+        <Card title="Biggest deals in the league">
+          {fa.biggest.map((d) => (
+            <div className="mail-deal" key={d.player.id}>
+              <span className="team-inline">
+                <TeamChip team={league.teams[d.teamId]} /> {name(d.player)}
+              </span>
+              <span className="num small">{dealText(d)}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+      {s.season === league.season && (
+        <Card title="The cap">
+          <div className="mail-tiles">
+            <span className="mail-tile">
+              <b>{money(space)}</b>
+              <span className="eyebrow">Cap space</span>
+            </span>
+            {rookies > 0 && (
+              <>
+                <span className="mail-tile">
+                  <b>{money(rookies)}</b>
+                  <span className="eyebrow">Rookies, about</span>
+                </span>
+                <span className="mail-tile">
+                  <b className={space - rookies < 0 ? 'tone-bad' : undefined}>{money(space - rookies)}</b>
+                  <span className="eyebrow">After rookies</span>
+                </span>
+              </>
+            )}
+          </div>
+        </Card>
       )}
     </>
   );

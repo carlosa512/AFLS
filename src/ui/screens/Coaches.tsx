@@ -228,11 +228,21 @@ function VisionLine({ league, c }: { league: League; c: Coach }) {
   );
 }
 
-/** How a coordinator fits a head coach's vision: his own team's man, or yours for someone you could hire. */
-function FitLine({ league, c, hc, whose }: { league: League; c: Coach; hc: Coach | null; whose: string }) {
+/** How a coordinator fits a head coach's vision: his own team's man, yours for someone you could hire, or one of yours as he'd be promoted. */
+function FitLine({ league, c, hc, whose, promoted = false }: { league: League; c: Coach; hc: Coach | null; whose: string; promoted?: boolean }) {
   const fit = visionFit(league, hc, c);
   if (fit === null || !hc) return null;
-  const words = fit >= 0.7 ? `Fits what ${whose} head coach wants` : fit <= 0.35 ? `Not what ${whose} head coach wants` : `A fair fit for ${whose} head coach`;
+  const words = promoted
+    ? fit >= 0.7
+      ? `Promoted, he'd fit what ${whose} head coach wants`
+      : fit <= 0.35
+        ? `Promoted, he isn't what ${whose} head coach wants`
+        : `Promoted, he'd be a fair fit for ${whose} head coach`
+    : fit >= 0.7
+      ? `Fits what ${whose} head coach wants`
+      : fit <= 0.35
+        ? `Not what ${whose} head coach wants`
+        : `A fair fit for ${whose} head coach`;
   return (
     <p className={`small staff-note${fit >= 0.7 ? ' tone-good' : fit <= 0.35 ? ' tone-bad' : ''}`} style={{ margin: 0 }}>
       {words}: {coachName(hc)} wants {c.role === 'offCoord' ? visionNotes(headCoachVision(league, hc)).offense : `a ${defenseLabel(headCoachVision(league, hc).defense.front, headCoachVision(league, hc).defense.coverage)} defense`}.
@@ -741,6 +751,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
           </button>
         </div>
       )}
+      {!theirs && up && !aboveHeld && up.role !== 'headCoach' && <FitLine league={league} c={asPromoted(league, c, up)} hc={yourHeadCoach(league)} whose="your" promoted />}
       {(extendOver > 0 || promoOver > 0) && (
         <p className="small muted staff-why">{extendOver > 0 ? 'Extending him' : 'Promoting him'} goes past your coaching budget: the owner decides.</p>
       )}

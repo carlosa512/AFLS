@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { seasonAwards } from './awards';
+import { coachTitle, isCoachExpiring, teamCoaches } from './coaching';
 import { logTransaction } from './finance/cap';
 import { createLeague } from './generate';
-import { deliverMail, draftClassOf, mailSubject, markAllRead, needsYou, unreadCount } from './inbox';
+import { deliverMail, draftClassOf, freeAgencyMoves, headCoachChanges, mailSubject, markAllRead, needsYou, unreadCount } from './inbox';
+import { isMedicExpiring, teamMedics } from './medical';
 import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { expiringPlayers } from './offseason/ai';
 import { teamPlayers } from './roster';
 import { computeRecords, conferenceSeeds } from './season/standings';
+import { isExpiring, teamStaff } from './staff';
 import { TRADE_DEADLINE_WEEK } from './trade';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -33,7 +36,7 @@ describe('inbox', () => {
 
   it('tells the user about their own award winners and trades, once', () => {
     simToEndOfRegularSeason(league);
-    // Make the MVP's club the user's, so there is an award to announce.
+    // Make the MVP's team the user's, so there is an award to announce.
     const mvp = seasonAwards(league, league.season)!.winners.mvp!;
     league.userTeamId = mvp.teamId!;
     logTransaction(league, 'trade', [league.userTeamId, (league.userTeamId + 1) % 32], 'AAA traded QB A to BBB for QB B');
@@ -45,7 +48,7 @@ describe('inbox', () => {
     expect(award.subject).toContain('Most Valuable Player');
     expect(award.actions).toEqual([{ kind: 'player', playerId: mvp.playerId }]);
     expect(league.inbox!.filter((m) => m.category === 'trades')).toHaveLength(1);
-    // Every award message is about the user's club.
+    // Every award message is about the user's team.
     for (const m of league.inbox!.filter((x) => x.category === 'awards')) expect(m.actions[0].kind).toBe('player');
     // One year-end message per player, however many season honors he won.
     const yearEnd = league.inbox!.filter((m) => m.id.startsWith(`awards:${league.season}:year:`)).map((m) => m.id);
@@ -76,10 +79,31 @@ describe('inbox', () => {
     expect(mailSubject(trade)).toMatchObject({ kind: 'trade', text: 'AAA traded QB A to BBB for QB B' });
   });
 
-  it('opens the league year with expiring deals and retirements, and the combine with free agency', () => {
+  it("opens the league year with the owner's letter and our staff deals", () => {
     simToEndOfSeason(league);
     beginOffseason(league);
     deliverMail(league);
+    const owner = league.inbox!.find((m) => m.id === `owner:${league.season}`)!;
+    expect(owner.category).toBe('staff');
+    expect(owner.body).toContain(`budgets for ${league.season}`);
+    expect(mailSubject(owner)).toEqual({ kind: 'owner', season: league.season });
+    const user = league.userTeamId;
+    const people = [
+      ...teamCoaches(league, user).filter((c) => isCoachExpiring(league, c)).map((c) => ({ kind: 'coach', id: c.id })),
+      ...teamStaff(league, user).filter((x) => isExpiring(league, x)).map((x) => ({ kind: 'scout', id: x.id })),
+      ...teamMedics(league, user).filter((m) => isMedicExpiring(league, m)).map((m) => ({ kind: 'medic', id: m.id })),
+    ];
+    const deals = league.inbox!.filter((m) => m.id.startsWith(`staff:${league.season}:deals`));
+    expect(deals).toHaveLength(people.length ? 1 : 0);
+    for (const m of deals) {
+      expect(mailSubject(m)).toEqual({ kind: 'staffDeals', season: league.season, people });
+      expect(needsYou(league, m)).toBe(true);
+    }
+    deliverMail(league);
+    expect(league.inbox!.filter((m) => m.id.startsWith('owner:') || m.id.startsWith('staff:'))).toHaveLength(1 + deals.length);
+  }, 30_000);
+
+  it('opens the league year with expiring deals and retirements, and the combine with free agency', () => {
     const year = league.inbox!.filter((m) => m.season === league.season && m.phase === 'resign');
     const deals = year.filter((m) => m.category === 'contracts');
     expect(deals).toHaveLength(expiringPlayers(league, league.userTeamId).length);
@@ -97,6 +121,36 @@ describe('inbox', () => {
     for (const m of deals) expect(needsYou(league, m)).toBe(false);
   }, 30_000);
 
+  it('reports the coaching carousel, and a coach hired away until his chair is filled', () => {
+    const changes = headCoachChanges(league);
+    expect(league.inbox!.some((m) => m.id === `league:${league.season}:carousel`)).toBe(changes.length > 0);
+    for (const x of changes) {
+      expect(x.coach.role).toBe('headCoach');
+      expect(x.coach.teamId).toBe(x.teamId);
+      expect(x.replaced).not.toBe(x.coach);
+    }
+    // Staged: another team promotes our coordinator to head coach (copies rebuild the coach index).
+    const staged = copy(league);
+    const user = staged.userTeamId;
+    const coordinator = Object.values(staged.coaches).find((c) => c.teamId === user && (c.role === 'offCoord' || c.role === 'defCoord'))!;
+    const chair = { role: coordinator.role };
+    const was = coachTitle(coordinator).toLowerCase();
+    const hirer = staged.teams.find((t) => t.id !== user)!;
+    for (const c of Object.values(staged.coaches)) if (c.teamId === hirer.id && c.role === 'headCoach') c.teamId = null;
+    Object.assign(coordinator, { teamId: hirer.id, role: 'headCoach' });
+    logTransaction(staged, 'coach', [hirer.id, user], `${hirer.abbrev} hired ${staged.teams[user].abbrev} ${was} ${coordinator.firstName} ${coordinator.lastName} as head coach`);
+    const world = copy(staged);
+    deliverMail(world);
+    const gone = world.inbox!.find((m) => m.id.startsWith(`staff:${world.season}:gone:${coordinator.id}:`))!;
+    expect(mailSubject(gone)).toEqual({ kind: 'poached', season: world.season, coachId: coordinator.id, chair });
+    expect(gone.body).toContain(`our ${was}, as their head coach`);
+    expect(gone.body).toContain('promote from within');
+    expect(needsYou(world, gone)).toBe(true);
+    // A new man in the chair answers it.
+    Object.values(world.coaches).find((c) => c.teamId === null && c.role === chair.role)!.teamId = user;
+    expect(needsYou(copy(world), gone)).toBe(false);
+  }, 30_000);
+
   it('reports our draft class once the draft is done', () => {
     while (league.phase === 'freeAgency') advanceOffseason(league);
     deliverMail(league);
@@ -112,6 +166,21 @@ describe('inbox', () => {
     expect(report.body).toContain(`We made ${picks.length} pick`);
     expect(mailSubject(report)).toEqual({ kind: 'draftClass', season: league.season });
   }, 30_000);
+
+  it('sums up free agency once it closes, with our signings and the players who left', () => {
+    const wrap = league.inbox!.find((m) => m.id === `fa:${league.season}`)!;
+    expect(wrap.phase).toBe('draft');
+    expect(wrap.body).toMatch(/^Free agency is over\. /);
+    expect(mailSubject(wrap)).toEqual({ kind: 'faWrap', season: league.season });
+    const fa = freeAgencyMoves(league);
+    for (const d of fa.signed) expect(d.teamId).toBe(league.userTeamId);
+    for (const d of fa.walked) {
+      expect(d.teamId).not.toBe(league.userTeamId);
+      expect(d.player.statTeams?.[league.season - 1]?.at(-1)).toBe(league.userTeamId);
+    }
+    expect(fa.biggest.length).toBeGreaterThan(0);
+    for (const m of league.inbox!) expect(needsYou(league, m) && m.category === 'staff').toBe(false);
+  });
 
   it('marks everything read in one go', () => {
     const all = copy(league);
