@@ -243,13 +243,18 @@ console.log(`${check('points per team-game', mean(steady.points), 21, 25)} · ${
 // while the average leader moved 4982 → 5213, inside the NFL range). Like points and sacks above, an aged
 // league sits a little off the fresh-league targets, so these bands are 5% wider than `npm run sim`'s: on
 // the schemes engine the #5s ran 2-3% high (passing TD 36.2 against 35, receiving yds 1529 against 1500).
+// The two leaders a veteran quarterback denies run lower still: an aged league sacks and picks him less than a
+// fresh one (#5 sacker about 13.5 → 11.7, #5 interceptor 6.1 → 4.8: his Awareness grows with age,
+// docs/PENALTIES.md). The owner accepts that drift with its higher scoring (Oct 19 2026), so their floors sit
+// 12% under the NFL's instead of 5%; the ceilings don't move.
+const AGED_FLOOR: Record<string, number> = { sacks: 0.88, interceptions: 0.88 };
 const leaderSeasons = runs.reduce((n, r) => n + (Object.values(r.leaders)[0]?.length ?? 0), 0);
 const leaders = LEADER_TARGETS.map(({ label, first, fifth, ceiling }) => {
   const tops = pool((r) => r.leaders[label] ?? []);
   const rank = (i: number) => mean(tops.map((t) => t[i] ?? 0));
   const digits = ceiling >= 100 ? 0 : 1;
   const round = (x: number) => Number(x.toFixed(digits));
-  const wider = ([lo, hi]: [number, number]) => [round(lo * 0.95), round(hi * 1.05)] as const;
+  const wider = ([lo, hi]: [number, number]) => [round(lo * (AGED_FLOOR[label] ?? 0.95)), round(hi * 1.05)] as const;
   const [f1, f2] = wider(first);
   const [v1, v2] = wider(fifth);
   return { label, over: tops.filter((t) => t[0] > ceiling).length, text: `${label} ${check('#1', rank(0), f1, f2, digits)}, ${check('#5', rank(4), v1, v2, digits)}` };

@@ -497,9 +497,11 @@ Decision: leave the engine as it is here. The fix belongs to an attribute-scalin
 branch (how each attribute ages and what it feeds, now that penalties, special teams and schemes read
 them too), listed under "Next" in `docs/GAME_DESIGN.md`.
 
-Later decision (owner, Oct 19 2026): the higher scoring of an aged league is welcome. `careers` now
-holds long-run points to 21–25, up to the NFL's record season (24.8 a team-game in 2020), so its
-half-point swings no longer flip the check. The sacks and interceptions leaders keep their bands.
+Later decision (owner, Oct 19 2026): the higher scoring of an aged league is welcome, and so is the drift
+behind it. `careers` now holds long-run points to 21–25, up to the NFL's record season (24.8 a team-game
+in 2020), so its half-point swings no longer flip the check. The sacks and interceptions leaders, #1 and
+#5, get floors 12% under the NFL's ranges instead of 5% (#5 sacks 11.0, #5 interceptions 4.4), where an
+aged league's veterans put them (11.5–12.1 and 4.6–5.0 so far). Their ceilings don't move.
 
 ## Checks when Phase 3b landed
 
