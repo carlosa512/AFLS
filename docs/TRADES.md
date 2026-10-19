@@ -786,9 +786,9 @@ autopilot, and flag every number outside its range ▲/▼ (non-zero exit), like
 | | Deadline rental (expiring, 12–14 OVR) | 35–150 (R3–R6) |
 | | Depth | ≤ 40 |
 | | A future 1st, in current-pick terms | Late 1st to early 2nd (the one-round rule) |
-| Fairness (truth) | Median truth gap between the sides | ≤ 35% of the deal |
-| | Trades over 3:1 in truth | ≤ 1 a season |
-| | Any team's cumulative truth balance over the run | Within ± a mid first |
+| No cheese | AI deals a side lost in its own eyes (each read as it closes) | 0 |
+| | Exploit probes that worked (section 7) | 0 |
+| Bad business (shown, never failed: the owner's call, Oct 19 2026) | Median truth gap; trades over 3:1 in truth; a team's truth balance over its run; good starters sold for 7ths only | Each shown with what explains it: the side's scouts' misreads or its own situation |
 | Health | Teams over the cap or under `STARTERS` after any trade | 0 |
 | | League parity (the `offseason` sd) | Unchanged ±10% vs trades off |
 | Offers to you (autopilot, nothing listed) | A season | 10–25 |
@@ -1360,6 +1360,88 @@ and trades. Test failed on three cases, now fixed. The other two reds are the sa
 | `test` | 327 of 330 | green | Two inbox cases counted every trade mail. The test hands you the MVP's team after the season, and as an AI team it had now traded in season too. They now look for their own message. One ledger season test timed out at 5 s with the other checks running; the file's season groups now get 30 s. 330 of 330 pass |
 | `offseason` | coaching market 136–140 (≤ 135) | red: 137–141 | The coaching carousel's (PR #29) |
 | `quirks` | Spot Drop | red | The documented borderline quirk |
+
+#### After Phase 3: in-season volume and no cheese
+
+Two follow-ups from Phase 3's review, owner's calls (Oct 19 2026): dig into why later seasons have
+fewer in-season trades, and make "no cheese" the main control.
+
+**Why later seasons traded less.**
+
+The drop is a league settling, not a decline. Trades in season by year of a six-season run, three
+leagues:
+
+| Code | Y1 | Y2 | Y3 | Y4 | Y5 | Y6 | Mean |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Phase 1 and Phase 2 | 20.3 | 14.7 | 14.3 | 14.0 | 13.0 | 9.3 | 14.3 |
+| Phase 3 | 19.7 | 16.0 | 10.7 | 8.3 | 8.0 | 9.0 | 11.9 |
+| This change | 23.0 | 16.7 | 13.7 | 10.7 | 14.7 | 12.3 | 15.2 |
+
+- A generated league starts loose and runs about 20 in year 1, in every version. It then settles. The
+  three-season check passed partly on that first year.
+- Between versions, later years swing by ±3: three leagues is noise. The one clear Phase 3 cost is that
+  dumps no longer happen in season.
+- **In a settled league, calls hold steady but fewer close** (42% of the feasible pairs in year 1,
+  13–16% by years 5–6). Two measurements said why:
+  - **What didn't change:** the number of buyers dips only a little (17 → 14 at the deadline);
+    sellers' blocks grow; no team is at a trade limit; and buyers' pick stocks hold steady.
+  - **What fails:** nearly every failed call is a seller's ask above the buyer's most, and most are
+    rentals. In about half the buyer values the rental at nothing (too dear for a capped contender, or no
+    better than his own starter). In about 90 calls a league-year **the seller's own valuation was below
+    the buyer's most, and only the floor stopped it**. A rebuilder held out for 65% of the league's price
+    for a veteran it would lose in the spring.
+- Keeping salary to bridge the gap would have closed about 18 calls a year; the floor about 90.
+
+**What changed.**
+
+- **The rental floor slides toward the deadline.** A non-contender's floor on an expiring veteran
+  starts high and slides to deadline day (`RENTAL_FLOOR` in `judge.ts`):
+  - against you: 65% → 40% of his market value;
+  - against another AI team: 50% → 20% (`AI_RENTAL_FLOOR`).
+
+  The floor exists to stop anyone fleecing a seller. Between two AI teams nobody is fishing, and the
+  seller's real alternative is losing him for nothing. Your deals keep the higher floor and the AI's
+  small win against you.
+- **No cheese is the main control** (the owner's rule: "if the deal is just bad business, maybe that's
+  on the AI owner, or coaches' influences, or the scouts"). `npm run trades` now reads every AI deal as
+  it closes, through `dealWatch` in `market.ts`, a hook only the check sets. For each side it measures:
+  - **own eyes:** what `judge` weighed (its scouts' read, its lens, its cap room);
+  - **its scouts' part:** the same deal on the true ratings; the difference is what its scouts got
+    wrong;
+  - **the truth:** what it came out with on the league's scale (true market value, picks at the going
+    rate).
+
+  What's left between own eyes and the truth is **its own situation**: stance, need, cap room, its pick
+  chart, its coaches.
+- **What fails now:**
+  - an AI deal a side lost in its own eyes (a deal that skipped the evaluator);
+  - the exploit probes;
+  - a team over the cap or short.
+- **What's shown with its cause instead of failing:**
+  - the median truth gap;
+  - trades over 3:1 in truth;
+  - the worst team's ledger;
+  - good starters sold for 7ths. The one left is a rebuilding Pick Hoarder's expiring CB on deadline
+    day.
+- The check prints trades in season by year of the run.
+
+Measured, six seasons (three seasons in brackets):
+- trades in season: 15.2 (17.8); deadline day: 37%;
+- offseason: 21.7 (22.4);
+- deadline rental median: 77 points;
+- AI deals lost in their own eyes: 0; exploits: 0; teams over the cap or short: 0;
+- bad business: median gap 6% (5%); 0.61 trades a season over 3:1, 11 of 11 by the losing side's own
+  situation; worst ledger −1,459 (a Pick Hoarder; 99% its situation: it rates picks above the league's
+  going rate and sold players for them);
+- a market week 110 ms (≤ 120).
+
+**A finding for later: AI scouting barely moves AI trades.** In the ledgers, the scouts' part explains
+1–2% of the gap between a team's own eyes and the truth. The trade read (`readPlayer`) is anchored on
+the truth: it takes only `TRADE_TRUST` of the scouts' error and caps it at `TRADE_BAND` (Phase 0's
+"half-trusted, bounded read", so a misread can't fleece a GM). By the no-cheese rule, that anchor is the
+AI seeing past its scouts. Reading trades through the scouts' view alone would make bad scouting cost
+real trades, for the AI and through your scouts for you. It's the owner's call, and the price check
+would need recalibrating.
 
 ### Phase 4: draft day
 

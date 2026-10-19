@@ -172,6 +172,7 @@ function close(ctx: TradeContext, deal: Deal, busy: Map<number, number>): TradeR
   const proposal = afterPhysicals(ctx, deal.proposal, exams);
   for (const side of deal.proposal.sides) busy.set(side.teamId, (busy.get(side.teamId) ?? 0) + 1);
   if (!proposal) return null;
+  dealWatch.onClose?.(ctx, deal, proposal);
   const record = executeTrade(league, proposal, { kind: deal.kind, tag: deal.tag, physicals: exams });
   // A team over the limit waives a backup, as `judge` priced in (`rosterCuts`).
   for (const side of proposal.sides) aiCutdown(league, league.teams[side.teamId], rosterLimit(league));
@@ -179,6 +180,12 @@ function close(ctx: TradeContext, deal: Deal, busy: Map<number, number>): TradeR
   refreshAfterTrade(ctx, proposal.sides.map((x) => x.teamId), proposal.sides.flatMap((x) => x.players));
   return record;
 }
+
+/**
+ * A window on every AI deal as it closes, in the market's own pass and before anything moves: the
+ * trades check reads both GMs' eyes here (`npm run trades`, "No cheese"). Nothing in the game sets it.
+ */
+export const dealWatch: { onClose?: (ctx: TradeContext, deal: Deal, proposal: TradeProposal) => void } = {};
 
 // ───────── before the cuts ─────────
 
