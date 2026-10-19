@@ -11,7 +11,7 @@ about it. Engine: `src/engine/injuries.ts` (the model, injured reserve, the week
 | `traits.injuryResistance` (1–20) | How often his body breaks. Hidden, like every trait | Words only: an injury-risk tier (Low / Medium / High) |
 | `traits.naturalFitness` (1–20) | How much condition a game costs, how fast it comes back, how well he heals and how much a severe injury takes for good | Never shown; it shows in his condition |
 | `condition` (0–100) | Match fitness carried between games | Your own players (roster *Fitness* column, player card) |
-| `injury` | Type, severity, weeks remaining, the doctor's estimate, playing through it or not | Everyone (the league's injury report); screens show the estimate, the engine knows the truth |
+| `injury` | Type, severity, weeks remaining, the doctor's estimate, the treatment he's on | Everyone (the league's injury report); screens show the estimate, the engine knows the truth |
 | `injuries` | History: type, severity, when, weeks, any scar | Everyone |
 | `ir` | On injured reserve, and weeks served | Everyone |
 
@@ -34,8 +34,10 @@ down, a sack, a hit on the quarterback, a tackle, a return. Each risk is split i
 - **Energy late in a game.** Energy starts at his condition, drains with every snap he plays and
   partly comes back on the sideline. Below 65 the risk climbs exponentially (about ×2.5 at 55).
 - **History.** Each injury in the last two years adds 7%. A soft-tissue injury he came back from in
-  the last six weeks is half again as likely to go (hamstrings above all).
-- **Playing through it** on injections: ×2.5, and if it goes, the old injury comes back worse.
+  the last six weeks is half again as likely to go (hamstrings above all); one he was fast-tracked
+  back from, ×2.5, whatever it was.
+- **Playing through it** (see *Treatments*): ×2.5 on injections, ×1.6 in protective gear, and if
+  anything goes, the old injury comes back worse.
 - **Sports science** (soft tissue only): up to 25% fewer strains behind an elite department.
 
 Injuries draw from their own random stream per game, so a game where nobody gets hurt plays out
@@ -71,6 +73,46 @@ players and words for anyone else's.
 
 **The offseason** heals 30 weeks: an ACL from midseason still costs him the start of the next one.
 
+## Treatments
+
+Rest is the default. Where an injury allows it, there are three other ways to handle it, each with a
+cost (`INJURY_TYPES` in `injuries.ts` says which injury allows which):
+
+| Treatment | For | What it does |
+|---|---|---|
+| **Pain injection** | Minor joint, bone and bruise injuries: ankle, knee, shoulder, ribs, hand, wrist, elbow, turf toe, hip pointer, back spasms. Never a strained muscle (no needle lets one sprint), the head or the neck | Plays now at full strength. Injury risk ×2.5, and if anything goes, this injury comes back half again as long on top of what was left |
+| **Protective gear** | Shoulder sprain and torn labrum (a harness; the labrum gets its surgery after the season, and a QB can't throw in one), ribs (a flak jacket), broken hand (a club cast, not for a QB), wrist and elbow (a brace), turf toe (a carbon plate) | Sits a share of the doctor's estimate (half for most, 30% for a hand, 12% for a labrum), then plays in it until it heals: 1–3 points down on what the injury touches, injury risk ×1.6, aggravation as above. Only offered when it gets him back before the estimate's short end |
+| **Fast-track** | Strains (hamstring, groin, calf, quad, hip flexor): rehab. High ankle sprain: TightRope surgery | Takes 25% off the layoff behind a typical physiotherapy department (15–35% from poor to elite), times how much of the program he does: a hard worker all of it, a coaster half (work ethic, never shown). In his first six weeks back that injury is ×2.5 as likely to go again, against ×1.5 after rest |
+
+The cost of gear lands where the ratings say it should: the engine reads it in `skill()`
+(`attributes.ts`), the one place the match engine reads ratings, so a club cast costs a receiver his
+hands and a cornerback his interceptions and barely touches a lineman's blocking.
+
+MCL sprains, knee sprains and ankle sprains come back in a brace or tape on the normal timeline. The
+card says so, and nothing changes: healed is healed. Severe injuries (ACL, Achilles, Lisfranc, broken
+leg, pectoral, meniscus) and anything to the head or neck heal only with rest. On injured reserve a
+player can still be fast-tracked; the needle and the gear are for playing.
+
+**The player has his say.** Each treatment is put to him once per injury and he answers on his own
+seeded roll, so asking again gets the same answer; it changes only when his situation does:
+
+- willing to start with: 80% for an injection, 88% for gear, 90% for a fast-track;
+- a competitor (`personality.winning`) plays hurt: up to ±20 points for injections and gear, ±10 for a
+  fast-track;
+- the playoffs: +10 for injections and gear;
+- a contract year: up to −35 for injections and gear with an agent who drives a hard bargain
+  (`personality.greed`: he protects his next deal), +10 for a fast-track;
+- a needle that once made one worse: −30 for injections.
+
+The card shows his answer and the reason that weighed most, in words.
+
+**Who decides.** Your players' treatments are always your call (*Staff handles injuries* covers
+reserve and roster moves only). AI teams treat their own starters: in the playoffs, a needle for a
+minor injury he'd otherwise miss a game or two with; and for a win-now GM (0.6 and up, about two
+teams in five), or anyone in the playoffs, gear to get him back early or a fast-track. A starter back
+early in gear doesn't go on reserve unless the wait itself is long. Players can turn AI teams down
+too.
+
 ## Injured reserve
 
 - Only an injured player can go on it. He is off the 53 and out at least **4 weeks**.
@@ -81,8 +123,8 @@ players and words for anyone else's.
   - bring players back when they heal;
   - sign a minimum-deal replacement when a position runs short (cutting a spare player if the roster
     is full).
-- In the playoffs AI teams let a starter play through a minor injury. Injections are always your
-  call: the staff never takes that gamble for you.
+- Treatments (injections, gear, a fast-track) are never the staff's call for your team: see
+  *Treatments*.
 - A player on reserve can't be traded, and neither can one the doctor expects to miss two weeks or
   more (he'd fail the physical).
 - Reserve salaries still count against the cap. AI cap cuts count only the active roster toward a
@@ -197,6 +239,11 @@ Most figures come from abstracts and summaries rather than full papers, so they 
 at, not exact targets.
 
 ## Not yet
+
+- **Concussion protocol** (next): a marble bag per concussion instead of a fixed layoff, worse with
+  each one, and the offseason retirement it can lead to.
+- **Surgery choices**: a torn meniscus trimmed (back in weeks, a little of the knee for good) or
+  repaired (months out, the knee as it was).
 
 - **Practice schedule.** The weekly practice roll is the hook for padded and light days, rest days
   and Full / Limited / DNP. Load per week can feed it directly.

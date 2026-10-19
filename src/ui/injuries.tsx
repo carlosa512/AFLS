@@ -4,27 +4,34 @@
  * your own staff's number, so it shows for your players only; injury risk is a read in words (your
  * medical staff's for your players, your scouts' for everyone else), never the hidden trait.
  */
+import { useState } from 'react';
 import {
   activateFromIr,
   activateProblem,
-  estimateText,
-  injectProblem,
+  braceWait,
   injuryLabel,
   injuryRisk,
   injuryTag,
+  injuryType,
   IR_MIN_WEEKS,
   IR_RETURNS,
   irProblem,
   irReturnsUsed,
+  outlookText,
   placeOnIr,
-  playThrough,
+  proposeTreatment,
   SEVERITY_LABEL,
+  stopTreatment,
+  treatmentLabel,
+  treatmentProblem,
+  treatmentsFor,
   weeksLeft,
   type InjuryRiskRead,
+  type TreatmentAnswer,
 } from '../engine/injuries';
-import { ATTRIBUTE_INFO } from '../engine/attributes';
-import { isAvailable, teamPlayers } from '../engine/roster';
-import type { Attribute, League, Player } from '../engine/types';
+import { ATTRIBUTE_INFO, contestsFor } from '../engine/attributes';
+import { isAvailable, playingHurt, teamPlayers } from '../engine/roster';
+import type { Attribute, League, Player, TreatmentId } from '../engine/types';
 import { Section, TipPill } from './components';
 import { store } from './store';
 
@@ -35,9 +42,9 @@ export const riskOf = (league: League, p: Player): InjuryRiskRead => injuryRisk(
 export function InjuryTag({ league, p, sub = false }: { league: League; p: Player; sub?: boolean }) {
   const tag = injuryTag(p);
   if (!tag || !p.injury) return tag === 'IR' ? <TipPill className={`tag-bad${sub ? ' name-sub' : ''}`} tip="On injured reserve: off the 53 for at least four weeks.">IR</TipPill> : null;
-  const title = `${injuryLabel(p.injury.type)}: ${p.injury.injected ? 'playing through it on injections' : estimateText(p.injury, weeksLeft(league))}${p.ir ? ' · on injured reserve' : ''}`;
+  const title = `${injuryLabel(p.injury.type)}: ${outlookText(p.injury, weeksLeft(league))}${p.ir ? ' · on injured reserve' : ''}`;
   return (
-    <TipPill className={`${p.injury.injected ? 'tag-warn' : 'tag-bad'}${sub ? ' name-sub' : ''}`} tip={`${title}.`}>
+    <TipPill className={`${playingHurt(p.injury) ? 'tag-warn' : 'tag-bad'}${sub ? ' name-sub' : ''}`} tip={`${title}.`}>
       {tag}
     </TipPill>
   );
@@ -103,16 +110,54 @@ function scarText(scar: Partial<Record<Attribute, number>>, exact: boolean): str
   return `cost him ${parts.join(' and ')} for good`;
 }
 
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** "catching and carrying": the ratings a brace costs him that his position actually uses. */
+function costWords(p: Player, cost: Partial<Record<Attribute, number>>): string {
+  const words = (Object.keys(cost) as Attribute[]).filter((a) => contestsFor(a, p.position).length).map((a) => ATTRIBUTE_INFO[a].label.toLowerCase());
+  return words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}` : (words[0] ?? 'nothing he uses');
+}
+
+/** What a treatment means for him, for its button. */
+function treatmentTip(p: Player, id: TreatmentId): string {
+  const inj = p.injury!;
+  const type = injuryType(inj.type);
+  if (id === 'injection') return 'Available now, but far likelier to get hurt, and an aggravated injury lasts much longer.';
+  if (id === 'brace' && type.brace) {
+    const wait = braceWait(inj, type.brace);
+    const when = wait <= 0 ? 'Available now' : `Back in about ${wait === 1 ? 'a week' : `${wait} weeks`}`;
+    return `${when} in ${type.brace.gear}${type.brace.note ? `, ${type.brace.note}` : ''}: a step down on ${costWords(p, type.brace.cost)} until it heals, and likelier to make it worse.`;
+  }
+  return 'Back sooner, but far likelier to go again in his first weeks back.';
+}
+
+/** His answer, in a sentence. */
+const answerText = (a: TreatmentAnswer) => (a.yes ? `He’s in${a.why ? `: ${a.why}` : ''}.` : `He won’t: ${a.why}.`);
+
 /** The health section of a player card: what he has, how long, his risk, his history, and your moves. */
 export function HealthSection({ league, player: p }: { league: League; player: Player }) {
   const mine = p.teamId === league.userTeamId;
   const risk = riskOf(league, p);
   const inj = p.injury;
+  const type = inj ? injuryType(inj.type) : null;
   const history = [...(p.injuries ?? [])].reverse();
   const irBlock = mine ? irProblem(league, p) : 'not yours';
   const activateBlock = mine && p.ir ? activateProblem(league, p) : null;
-  const injectBlock = mine ? injectProblem(p) : 'not yours';
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
+  // His last answer, for this injury only (asking again gets the same one).
+  const injKey = inj ? `${p.id}:${inj.season}:${inj.week}:${inj.type}` : '';
+  const [asked, setAsked] = useState<{ key: string; id: TreatmentId; answer: TreatmentAnswer } | null>(null);
+  const answer = asked?.key === injKey ? asked : null;
+  // On reserve he can only rehab: the gear and the needle are for playing.
+  const options = inj && type && !inj.treatment ? treatmentsFor(type).filter((id) => !p.ir || id === 'fastTrack') : [];
+  const blocks = options.map((id) => ({ id, why: treatmentProblem(p, id) ?? (answer?.id === id && !answer.answer.yes ? 'He said no.' : null) }));
+  const ask = (id: TreatmentId) => {
+    let reply: TreatmentAnswer | null = null;
+    store.mutate((l) => {
+      reply = proposeTreatment(l, l.players[p.id], id);
+    });
+    if (reply) setAsked({ key: injKey, id, answer: reply });
+  };
   return (
     <Section id="health" title="Health" className="health">
       <div className="facts">
@@ -131,7 +176,10 @@ export function HealthSection({ league, player: p }: { league: League; player: P
         {inj && (
           <span className="fact">
             <span className="eyebrow">Outlook</span>
-            <span>{inj.injected ? 'Playing through it on injections' : estimateText(inj, weeksLeft(league))}</span>
+            <span>
+              {capital(outlookText(inj, weeksLeft(league)))}
+              {type?.gear && !inj.treatment && <span className="muted small"> · back in {type.gear}</span>}
+            </span>
           </span>
         )}
         {p.ir && (
@@ -172,19 +220,25 @@ export function HealthSection({ league, player: p }: { league: League; player: P
               Activate from reserve
             </button>
           )}
-          {inj && !p.ir && (
-            <button
-              className="btn btn-sm"
-              disabled={!inj.injected && !!injectBlock}
-              title={inj.injected ? 'Rest him until it heals.' : injectBlock ?? 'Available now, but far likelier to get hurt, and an aggravated injury lasts much longer.'}
-              onClick={() => store.mutate((l) => playThrough(l, l.players[p.id], !inj.injected))}
-            >
-              {inj.injected ? 'Stop the injections' : 'Play through it (injections)'}
+          {inj && type && (inj.treatment === 'injection' || inj.treatment === 'brace') && (
+            <button className="btn btn-sm" title="Back to resting it until it heals." onClick={() => store.mutate((l) => stopTreatment(l, l.players[p.id]))}>
+              {inj.treatment === 'injection' ? 'Stop the injections' : 'Rest him instead'}
             </button>
           )}
+          {type &&
+            blocks.map(({ id, why }) => (
+              <button key={id} className="btn btn-sm" disabled={!!why} title={why ?? treatmentTip(p, id)} onClick={() => ask(id)}>
+                {treatmentLabel(id, type)}
+              </button>
+            ))}
           {team && <span className="muted small">{IR_RETURNS - irReturnsUsed(league, team.id)} of {IR_RETURNS} return designations left this season</span>}
+          {answer && (
+            <p className={`small ${answer.answer.yes ? 'tone-good' : 'tone-bad'}`} style={{ margin: 0, flexBasis: '100%' }}>
+              {answerText(answer.answer)}
+            </p>
+          )}
           {/* Why a button is greyed out, on screen: its title tooltip never shows on a phone. */}
-          {[!p.ir && irBlock, p.ir && activateBlock, inj && !p.ir && !inj.injected && injectBlock].filter((why): why is string => !!why).map((why) => (
+          {[!p.ir && irBlock, p.ir && activateBlock, ...blocks.filter((b) => b.why !== 'He said no.').map((b) => b.why && `${treatmentLabel(b.id, type!)}: ${b.why}`)].filter((why): why is string => !!why).map((why) => (
             <p key={why} className="muted small" style={{ margin: 0, flexBasis: '100%' }}>
               {why}
             </p>
@@ -211,7 +265,7 @@ export function HealthSection({ league, player: p }: { league: League; player: P
                   </td>
                   <td>{injuryLabel(r.type)}</td>
                   <td className="num">{r.weeks >= 30 ? 'season+' : `${r.weeks} wk`}</td>
-                  <td className="muted small">{[SEVERITY_LABEL[r.severity], r.aggravated ? 'aggravated by playing through it' : '', r.scar ? scarText(r.scar, mine) : ''].filter(Boolean).join(' · ')}</td>
+                  <td className="muted small">{[SEVERITY_LABEL[r.severity], r.aggravated ? 'aggravated by playing through it' : '', r.fastTracked ? 'fast-tracked' : '', r.scar ? scarText(r.scar, mine) : ''].filter(Boolean).join(' · ')}</td>
                 </tr>
               ))}
             </tbody>

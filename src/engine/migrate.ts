@@ -20,7 +20,7 @@ import { rollScheme } from './schemes';
 import { addStats, statSeasons } from './stats';
 import { generateQuirks } from './quirks';
 import { generateTraits } from './traits';
-import type { League, StatLine, TradeMarket } from './types';
+import type { Injury, League, StatLine, TradeMarket } from './types';
 
 /** Returns the upgraded league, or null if the save is from a newer (unknown) version. */
 export function migrateLeague(league: League): League | null {
@@ -54,6 +54,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 25) toV25(league);
   if (league.version < 26) league.version = 26; // v26: optional `woman` on scouts and medics, set at creation (absent = a man)
   if (atLoad) toV27(league, atLoad); // last: the earlier steps seed new fields from the old names
+  if (league.version < 28) toV28(league);
   return league;
 }
 
@@ -299,4 +300,15 @@ function toV25(league: League): void {
 function toV27(league: League, atLoad: PeopleAtLoad): void {
   renamePeople(league, atLoad);
   league.version = 27;
+}
+
+/** v28: treatments. Playing through an injury on injections was a flag; it is now one treatment of three. */
+function toV28(league: League): void {
+  for (const p of Object.values(league.players)) {
+    const inj = p.injury as (Injury & { injected?: boolean }) | undefined;
+    if (!inj || !('injected' in inj)) continue;
+    if (inj.injected) inj.treatment = 'injection';
+    delete inj.injected;
+  }
+  league.version = 28;
 }

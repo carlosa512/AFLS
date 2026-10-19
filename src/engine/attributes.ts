@@ -120,6 +120,9 @@ export function skill(p: Player, contest: ContestName): number {
   const w: Weights = CONTESTS[contest].weights;
   let s = 0;
   for (const attr in w) s += p.ratings[attr as Attribute] * w[attr as Attribute]!;
+  // Back early in a harness or a cast: a step down on what the injury touches until it heals.
+  const cost = p.injury?.braceCost;
+  if (cost) for (const attr in cost) s -= Math.min(cost[attr as Attribute]!, p.ratings[attr as Attribute] - 1) * (w[attr as Attribute] ?? 0);
   return s;
 }
 
