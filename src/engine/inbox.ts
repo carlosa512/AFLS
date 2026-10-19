@@ -18,8 +18,8 @@ import { starters, teamPlayers } from './roster';
 import { ROUND_NAMES } from './season/playoffs';
 import { playoffRace } from './season/standings';
 import { isExpiring, ownerBudgetNote, resignForecast, ROLE_LABEL, staffWindowOpen, teamStaff } from './staff';
-import { TRADE_DEADLINE_WEEK } from './trade';
-import type { Coach, CoachRole, CoachRoom, InboxMessage, League, Phase, Player, Position, Team } from './types';
+import { openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './trade';
+import type { Coach, CoachRole, CoachRoom, InboxMessage, League, Phase, Player, Position, Team, TradeOffer, TradeSide } from './types';
 
 /** Saves keep the latest messages only, like the transaction log. */
 const KEEP = 300;
@@ -251,6 +251,7 @@ export type MailSubject =
   | { kind: 'draftDay'; season: number }
   | { kind: 'draftClass'; season: number }
   | { kind: 'trade'; season: number; text: string }
+  | { kind: 'offer'; season: number; offerId: number }
   | { kind: 'recap'; season: number; gameId: number }
   | { kind: 'cleared'; season: number; week: number; playerId: number; type: string }
   | { kind: 'deadline'; season: number; weeksLeft: number }
@@ -296,6 +297,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return a === 'draft' ? { kind: 'draftDay', season } : { kind: 'draftClass', season };
     case 'trades':
       return { kind: 'trade', season, text: rest.join(':') };
+    case 'offer':
+      return { kind: 'offer', season, offerId: Number(a) };
     case 'recap':
       return { kind: 'recap', season, gameId: Number(a) };
     case 'cleared':
@@ -354,6 +357,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       return league.phase === 'resign' && s.people.some((r) => stillExpiring(league, r));
     case 'poached':
       return staffWindowOpen(league) && !chairHolder(teamCoaches(league, user), s.chair);
+    case 'offer':
+      return openOffers(league).some((o) => o.id === s.offerId);
     default:
       return false;
   }
@@ -413,6 +418,61 @@ function tradeMail(league: League, have: Set<string>): Draft[] {
       subject: `Trade with the ${partner.name} is done`,
       body: `Pleasure doing business. ${t.text}. The players have passed their physicals and the league has approved the deal.`,
       actions: [{ kind: 'team', teamId: league.userTeamId }, { kind: 'team', teamId: partner.id }],
+    });
+  }
+  return out;
+}
+
+/** A side of a deal in words: "WR Riley Wright, a 2027 3rd and a 2028 6th". */
+export function packageWords(league: League, side: TradeSide): string {
+  const players = side.players.map((id) => `${league.players[id].position} ${fullName(league.players[id])}`);
+  const picks = side.picks.map((id) => league.draftPicks.find((p) => p.id === id)).filter((p) => !!p).map((p) => pickLabel(league, p!));
+  return list([...players, ...picks]) || 'nothing';
+}
+
+/** The offer's subject and opening line, in the GM's words (never a number from his valuation). */
+export function offerWords(league: League, offer: TradeOffer): { subject: string; body: string } {
+  const team = league.teams[offer.teamId];
+  const [his, yours] = offer.sides;
+  const yourMan = yours.players[0] !== undefined ? league.players[yours.players[0]] : null;
+  const hisMan = his.players[0] !== undefined ? league.players[his.players[0]] : null;
+  const name = (p: Player) => `${p.position} ${fullName(p)}`;
+  const close = offer.final ? ' That is our final offer.' : '';
+  switch (offer.reason) {
+    case 'enquiry':
+      return { subject: `The ${team.name} ask about ${name(yourMan!)}`, body: `Is ${name(yourMan!)} available? We'd be interested if you're willing to listen.` };
+    case 'pitch':
+      return { subject: `The ${team.name} are listening on ${name(hisMan!)}`, body: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours)} get it done?${close}` };
+    case 'dump':
+      return { subject: `The ${team.name} want to move ${name(hisMan!)}'s deal`, body: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] })} is yours.${close}` };
+    case 'counter':
+      return { subject: `The ${team.name} come back with a counter`, body: `We've looked at your counter. ${packageWords(league, his)} for ${packageWords(league, yours)}, and we have a deal.${close}` };
+    case 'shop':
+      return { subject: `The ${team.name} answer your call about ${name(yourMan!)}`, body: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his)}.${close}` };
+    default:
+      return { subject: `The ${team.name} make an offer for ${name(yourMan!)}`, body: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his))}, if you're open to it.${close}` };
+  }
+}
+
+/** Every offer on your desk files a message: it asks something of you while the offer is open. */
+function offerMail(league: League, have: Set<string>): Draft[] {
+  const out: Draft[] = [];
+  for (const offer of league.market?.offers ?? []) {
+    const id = `offer:${offer.season}:${offer.id}`;
+    if (have.has(id) || offer.status !== 'pending') continue;
+    const team = league.teams[offer.teamId];
+    const { subject, body } = offerWords(league, offer);
+    const about = [...offer.sides[1].players, ...offer.sides[0].players][0];
+    out.push({
+      id,
+      season: offer.season,
+      phase: offer.phase,
+      week: offer.phase === 'regular' ? league.week : 0,
+      from: `${teamName(team)} front office`,
+      category: 'trades',
+      subject,
+      body,
+      actions: [{ kind: 'trades' }, ...(about !== undefined ? [{ kind: 'player' as const, playerId: about }] : []), { kind: 'team', teamId: team.id }],
     });
   }
   return out;
@@ -831,7 +891,7 @@ export function deliverMail(league: League): void {
   const first = !league.inbox;
   const inbox = (league.inbox ??= []);
   const have = new Set(inbox.map((m) => m.id));
-  const fresh = [...awardMail(league, have), ...injuryMail(league, have), ...tradeMail(league, have)];
+  const fresh = [...awardMail(league, have), ...injuryMail(league, have), ...tradeMail(league, have), ...offerMail(league, have)];
   if (league.phase === 'resign') fresh.push(...ownerMail(league, have), ...staffDealsMail(league, have), ...newYearMail(league, have));
   // Free agency's first day: the window's coaching moves are done.
   if (league.phase === 'freeAgency') fresh.push(...combineMail(league, have), ...poachedMail(league, have), ...carouselMail(league, have));

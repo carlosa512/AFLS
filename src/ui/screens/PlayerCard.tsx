@@ -12,6 +12,7 @@ import { MAX_COMPARE, useNav } from '../App';
 import { playerCoachLine } from '../coaching';
 import { Exact, PlayerAvatar, Section, Sheet } from '../components';
 import { store } from '../store';
+import { TradeActions } from '../offers';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
 import { HealthSection } from '../injuries';
@@ -452,6 +453,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               </>
             )}
           </div>
+          <TradeActions league={league} player={p} onClose={onClose} />
 
           <p className="report">
             <span className="eyebrow">Scout's report</span>

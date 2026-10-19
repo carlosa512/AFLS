@@ -1,0 +1,369 @@
+/**
+ * Offers to you and your side of the market (docs/TRADES.md, "Offers to you"): the offer card the
+ * Offers tab and the inbox share, your trade block, the market's talk and the trade history. Every
+ * action goes through the engine (`acceptOffer`, `counterOffer`, `shopPlayer`…) inside `store.mutate`.
+ */
+import { useState } from 'react';
+import { capHit, isExpired, lastSeason } from '../engine/finance/contract';
+import { offerWords } from '../engine/inbox';
+import { teamPlayers } from '../engine/roster';
+import { acceptOffer, answerEnquiry, askPrice, dealAdvice, declineOffer, openOffers, pickLabel, playerTradeBlocker, setTradeStatus, shopPlayer, stanceOf, tradeWindow, type Advice } from '../engine/trade';
+import type { League, Player, Stance, TradeOffer, TradeRecord, TradeSide, TradeStatus } from '../engine/types';
+import { POSITIONS } from '../engine/types';
+import { useNav } from './App';
+import { Panel, PlayerAvatar, TeamChip } from './components';
+import { money } from './format';
+import { Ovr, seenOvr } from './scouting';
+import { store } from './store';
+import { tradeDesk } from './tradeDesk';
+
+const WHO: Record<Advice['who'], string> = { coach: 'Head coach', scouts: 'Pro scouts', medical: 'Medical', cap: 'Cap' };
+
+/** One side of a deal, player by player and pick by pick. */
+function SideList({ league, side }: { league: League; side: TradeSide }) {
+  const nav = useNav();
+  const team = league.teams[side.teamId];
+  if (!side.players.length && !side.picks.length) return <p className="muted small">Nothing</p>;
+  return (
+    <ul className="plain-list">
+      {side.players.map((id) => {
+        const p = league.players[id];
+        return (
+          <li key={id} className="row" style={{ gap: 8 }}>
+            <PlayerAvatar player={p} team={team} size={24} />
+            <button type="button" className="linklike" onClick={() => nav.openPlayer(id)}>
+              {p.position} {p.firstName} {p.lastName}
+            </button>
+            <Ovr league={league} player={p} />
+            <span className="muted small">{p.contract ? `${money(Math.round(capHit(p.contract, league.season)))} · thru ${lastSeason(p.contract)}` : ''}</span>
+          </li>
+        );
+      })}
+      {side.picks.map((id) => {
+        const pk = league.draftPicks.find((x) => x.id === id);
+        return pk ? <li key={id}>{pickLabel(league, pk)}</li> : null;
+      })}
+    </ul>
+  );
+}
+
+/** When an offer lapses, in words. */
+const lapse = (league: League) => (league.phase === 'regular' ? `Open until you play week ${league.week}.` : 'Open until your next step.');
+
+/** An offer on your desk: what he sends and wants, your staff's word, and your answer. */
+export function OfferCard({ league, offer }: { league: League; offer: TradeOffer }) {
+  const nav = useNav();
+  const [note, setNote] = useState<string | null>(null);
+  const [release, setRelease] = useState<number[] | null>(null);
+  const team = league.teams[offer.teamId];
+  const { subject, body } = offerWords(league, offer);
+  const open = openOffers(league).some((o) => o.id === offer.id);
+  const enquiry = offer.kind === 'enquiry';
+  const advice = enquiry ? [] : dealAdvice(league, offer.sides);
+
+  const accept = (ids: number[] = []) => {
+    let result = { ok: false, message: '', release: undefined as Player[] | undefined };
+    store.mutate((l) => {
+      result = { release: undefined, ...acceptOffer(l, offer.id, ids) };
+    });
+    setNote(result.message);
+    setRelease(result.release ? result.release.map((p) => p.id) : null);
+  };
+  const counter = () => {
+    tradeDesk.put({ partnerId: offer.teamId, mine: { players: [...offer.sides[1].players], picks: [...offer.sides[1].picks] }, theirs: { players: [...offer.sides[0].players], picks: [...offer.sides[0].picks] }, counterTo: offer.id });
+    nav.go({ view: 'office', tab: 'trades' });
+  };
+
+  return (
+    <Panel
+      title={
+        <div className="row">
+          <TeamChip team={team} />
+          <div>
+            <h3 style={{ margin: 0 }}>{subject}</h3>
+            <span className="muted small">{open ? lapse(league) : `This offer is ${offer.status === 'pending' ? 'no longer open' : offer.status}.`}</span>
+          </div>
+        </div>
+      }
+    >
+      <p>{body}</p>
+      {!enquiry && (
+        <div className="grid-2">
+          <div>
+            <div className="eyebrow">You get</div>
+            <SideList league={league} side={offer.sides[0]} />
+          </div>
+          <div>
+            <div className="eyebrow">You send</div>
+            <SideList league={league} side={offer.sides[1]} />
+          </div>
+        </div>
+      )}
+      {advice.length > 0 && (
+        <ul className="plain-list small">
+          {advice.map((a, i) => (
+            <li key={i}>
+              <b>{WHO[a.who]}:</b> {a.line}
+            </li>
+          ))}
+        </ul>
+      )}
+      {release && (
+        <div className="notice">
+          <p style={{ marginTop: 0 }}>To make room, release:</p>
+          {teamPlayers(league, league.userTeamId)
+            .filter((p) => !p.ir && !offer.sides[1].players.includes(p.id))
+            .sort((a, b) => seenOvr(league, a) - seenOvr(league, b))
+            .slice(0, 12)
+            .map((p) => (
+              <label key={p.id} className="row" style={{ gap: 6 }}>
+                <input type="checkbox" checked={release.includes(p.id)} onChange={() => setRelease(release.includes(p.id) ? release.filter((x) => x !== p.id) : [...release, p.id])} />
+                {p.position} {p.firstName} {p.lastName} <Ovr league={league} player={p} />
+              </label>
+            ))}
+          <button className="btn btn-primary" onClick={() => accept(release)}>
+            Release and accept
+          </button>
+        </div>
+      )}
+      {note && (
+        <p className="callout" role="status">
+          {note}
+        </p>
+      )}
+      {open && (
+        <span className="row" style={{ gap: 8 }}>
+          {enquiry ? (
+            <>
+              <button className="btn btn-primary" onClick={() => store.mutate((l) => void answerEnquiry(l, offer.id, 'offer'))}>
+                Make me an offer
+              </button>
+              <button className="btn" onClick={() => store.mutate((l) => void answerEnquiry(l, offer.id, 'notForSale'))}>
+                Not for sale
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-primary" onClick={() => accept()}>
+                Accept
+              </button>
+              <button className="btn" onClick={counter}>
+                Counter
+              </button>
+              <button className="btn btn-ghost" onClick={() => store.mutate((l) => declineOffer(l, offer.id))}>
+                Decline
+              </button>
+            </>
+          )}
+        </span>
+      )}
+    </Panel>
+  );
+}
+
+export function OffersPanel({ league }: { league: League }) {
+  const offers = openOffers(league).sort((a, b) => b.id - a.id);
+  if (!offers.length)
+    return (
+      <Panel title={<h2>Offers</h2>}>
+        <p className="muted">No offers on your desk. Teams call about players they've been watching; put one on the block or shop him to draw calls.</p>
+      </Panel>
+    );
+  return (
+    <>
+      {offers.map((o) => (
+        <OfferCard key={o.id} league={league} offer={o} />
+      ))}
+    </>
+  );
+}
+
+const STATUS: [TradeStatus | null, string][] = [
+  [null, 'Available'],
+  ['listed', 'On the block'],
+  ['untouchable', 'Untouchable'],
+];
+
+/** Your status picker for one player: Available, On the block, Untouchable. */
+export function StatusPicker({ league, player }: { league: League; player: Player }) {
+  const status = league.market?.status[player.id] ?? null;
+  return (
+    <div className="seg seg-sm" role="group" aria-label={`Trade status for ${player.firstName} ${player.lastName}`}>
+      {STATUS.map(([s, label]) => (
+        <button key={label} aria-pressed={status === s} onClick={() => store.mutate((l) => setTradeStatus(l, player.id, s))}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Your trade block: every player's status, and *Shop* to call every team that needs him. */
+export function BlockPanel({ league }: { league: League }) {
+  const nav = useNav();
+  const [note, setNote] = useState<string | null>(null);
+  const players = teamPlayers(league, league.userTeamId)
+    .filter((p) => p.contract && !isExpired(p.contract, league.season))
+    .sort((a, b) => POSITIONS.indexOf(a.position) - POSITIONS.indexOf(b.position) || seenOvr(league, b) - seenOvr(league, a));
+  const shop = (p: Player) => {
+    let message = '';
+    store.mutate((l) => {
+      message = shopPlayer(l, p.id).message;
+    });
+    setNote(message);
+  };
+  return (
+    <Panel title={<h2>Your block</h2>}>
+      <p className="muted small">
+        On the block, interest grows fast and teams call sooner; they also know you want to sell. Untouchable, nobody asks. <b>Shop</b> calls every team that needs him now.
+      </p>
+      {note && (
+        <p className="callout" role="status">
+          {note}
+        </p>
+      )}
+      <ul className="plain-list">
+        {players.map((p) => {
+          const blocked = playerTradeBlocker(league, p);
+          return (
+            <li key={p.id} className="row" style={{ gap: 8, justifyContent: 'space-between' }}>
+              <span className="row" style={{ gap: 8 }}>
+                <button type="button" className="linklike" onClick={() => nav.openPlayer(p.id)}>
+                  {p.position} {p.firstName} {p.lastName}
+                </button>
+                <Ovr league={league} player={p} />
+              </span>
+              <span className="row" style={{ gap: 8 }}>
+                <StatusPicker league={league} player={p} />
+                <button className="btn btn-sm" disabled={!!blocked || league.market?.shopped[p.id] === league.market?.moment} title={blocked ?? undefined} onClick={() => shop(p)}>
+                  Shop
+                </button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </Panel>
+  );
+}
+
+const STANCE: Record<Stance, string> = { contend: 'Buying', bubble: 'Listening', retool: 'Selling veterans', rebuild: 'Selling' };
+
+/** What the league is saying, and who's buying and selling (in words). */
+export function MarketPanel({ league }: { league: League }) {
+  const rumors = [...(league.market?.rumors ?? [])].reverse().slice(0, 20);
+  const ai = league.teams.filter((t) => t.id !== league.userTeamId && t.stance);
+  return (
+    <div className="grid-2">
+      <Panel title={<h2>Around the league</h2>}>
+        {rumors.length ? (
+          <ul className="plain-list">
+            {rumors.map((r) => (
+              <li key={r.id}>
+                {r.text} <span className="muted small">{r.phase === 'regular' ? `Week ${r.week}` : r.season}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">Quiet so far.</p>
+        )}
+      </Panel>
+      <Panel title={<h2>Who's dealing</h2>}>
+        {(['contend', 'bubble', 'retool', 'rebuild'] as Stance[]).map((mode) => {
+          const teams = ai.filter((t) => stanceOf(t) === mode);
+          return teams.length ? (
+            <p key={mode}>
+              <b>{STANCE[mode]}:</b> {teams.map((t) => t.name).join(', ')}
+            </p>
+          ) : null;
+        })}
+      </Panel>
+    </div>
+  );
+}
+
+const sideText = (league: League, side: TradeSide) =>
+  [...side.players.map((id) => `${league.players[id].position} ${league.players[id].firstName[0]}. ${league.players[id].lastName}`), ...side.picks.map((id) => league.draftPicks.find((p) => p.id === id)).filter((p) => !!p).map((p) => `${p!.season} R${p!.round}`)].join(', ') || 'nothing';
+
+/** The league's trades, newest first: yours only, or everyone's. */
+export function HistoryPanel({ league }: { league: League }) {
+  const [yours, setYours] = useState(false);
+  const all = [...(league.market?.history ?? [])].reverse();
+  const shown = (yours ? all.filter((r) => r.sides.some((s) => s.teamId === league.userTeamId)) : all).slice(0, 60);
+  const when = (r: TradeRecord) => `${r.season} ${r.phase === 'regular' ? `week ${r.week}` : r.phase === 'resign' ? 'league year' : r.phase === 'freeAgency' ? 'free agency' : r.phase === 'preseason' ? 'camp' : r.phase}`;
+  return (
+    <Panel
+      title={<h2>Trade history</h2>}
+      action={
+        <div className="seg seg-sm" role="group" aria-label="Whose trades">
+          <button aria-pressed={!yours} onClick={() => setYours(false)}>
+            League
+          </button>
+          <button aria-pressed={yours} onClick={() => setYours(true)}>
+            Yours
+          </button>
+        </div>
+      }
+    >
+      {shown.length ? (
+        <ul className="plain-list">
+          {shown.map((r, i) => {
+            const [a, b] = r.sides.map((s) => league.teams[s.teamId]);
+            return (
+              <li key={i}>
+                <b>{a.abbrev}</b> sent {sideText(league, r.sides[0])} to <b>{b.abbrev}</b> for {sideText(league, r.sides[1])}{' '}
+                <span className="muted small">
+                  {when(r)}
+                  {r.kind !== 'user' ? ` · ${r.kind}` : ''}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="muted">No trades yet.</p>
+      )}
+    </Panel>
+  );
+}
+
+/** On a player card: your status picker and *Shop* for your players, *Ask their price* for anyone else's. */
+export function TradeActions({ league, player, onClose }: { league: League; player: Player; onClose: () => void }) {
+  const nav = useNav();
+  const [note, setNote] = useState<string | null>(null);
+  if (player.teamId === null || player.retired || !player.contract || isExpired(player.contract, league.season)) return null;
+  const closed = tradeWindow(league);
+  if (player.teamId === league.userTeamId) {
+    const shop = () => {
+      let message = '';
+      store.mutate((l) => {
+        message = shopPlayer(l, player.id).message;
+      });
+      setNote(message);
+    };
+    return (
+      <div className="card-actions">
+        <StatusPicker league={league} player={player} />
+        <button className="btn btn-sm" disabled={!!closed || league.market?.shopped[player.id] === league.market?.moment} title={closed ?? undefined} onClick={shop}>
+          Shop him
+        </button>
+        {note && <span className="muted small">{note}</span>}
+      </div>
+    );
+  }
+  const ask = () => {
+    const { proposal, message } = askPrice(league, player.id);
+    if (!proposal) return setNote(message);
+    tradeDesk.put({ partnerId: player.teamId!, mine: { players: [...proposal.sides[0].players], picks: [...proposal.sides[0].picks] }, theirs: { players: [...proposal.sides[1].players], picks: [...proposal.sides[1].picks] } });
+    onClose();
+    nav.go({ view: 'office', tab: 'trades' });
+  };
+  return (
+    <div className="card-actions">
+      <button className="btn btn-sm" disabled={!!closed} title={closed ?? undefined} onClick={ask}>
+        Ask their price
+      </button>
+      {note && <span className="muted small">{note}</span>}
+    </div>
+  );
+}

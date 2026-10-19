@@ -1,11 +1,12 @@
 /**
- * The trade table: tick what goes each way and watch the other GM's reaction, the cap impact
- * for both teams, and the dead money you'd book, before you ever press propose.
+ * The trades tab: offers on your desk, the trade table (tick what goes each way and watch the other
+ * GM's reaction, the cap impact for both teams and the dead money you'd book before you propose),
+ * your block, the market's talk and the history.
  */
-import { useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { capHit, isExpired, lastSeason } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
-import { evaluateTrade, executeTrade, isDeadlineDay, pickLabel, playerTradeBlocker, suggestSweetener, tradeCapImpact, tradeWindow, type TradeProposal } from '../../engine/trade';
+import { counterOffer, evaluateTrade, isDeadlineDay, openOffers, pickLabel, playerTradeBlocker, proposeTrade, suggestSweetener, tradeCapImpact, tradeWindow, type TradeProposal } from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
@@ -13,12 +14,10 @@ import { Panel, PlayerAvatar, TeamChip } from '../components';
 import { money } from '../format';
 import { Ovr, seenOvr } from '../scouting';
 import { liveLock } from '../live';
+import { BlockPanel, HistoryPanel, MarketPanel, OffersPanel } from '../offers';
 import { store } from '../store';
+import { tradeDesk, type Picked } from '../tradeDesk';
 
-interface Picked {
-  players: number[];
-  picks: number[];
-}
 const empty = (): Picked => ({ players: [], picks: [] });
 const toggle = (list: number[], id: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
@@ -66,13 +65,59 @@ function AssetList({ league, teamId, picked, onChange }: { league: League; teamI
   );
 }
 
+type View = 'offers' | 'table' | 'block' | 'market' | 'history';
+
 export function Trades({ league }: { league: League }) {
+  const pending = openOffers(league).length;
+  const [view, setView] = useState<View>(() => (tradeDesk.pending() ? 'table' : pending ? 'offers' : 'table'));
+  // A deal handed over from elsewhere (a counter, "Ask their price") opens the table.
+  const version = useSyncExternalStore(tradeDesk.subscribe, tradeDesk.version);
+  useEffect(() => {
+    if (tradeDesk.pending()) setView('table');
+  }, [version]);
+  const views: [View, string][] = [
+    ['offers', pending ? `Offers (${pending})` : 'Offers'],
+    ['table', 'Trade table'],
+    ['block', 'Your block'],
+    ['market', 'Market'],
+    ['history', 'History'],
+  ];
+  return (
+    <>
+      <div className="seg" role="group" aria-label="Trades" style={{ marginBottom: 12 }}>
+        {views.map(([v, label]) => (
+          <button key={v} aria-pressed={view === v} onClick={() => setView(v)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === 'offers' && <OffersPanel league={league} />}
+      {view === 'table' && <TradeTable league={league} />}
+      {view === 'block' && <BlockPanel league={league} />}
+      {view === 'market' && <MarketPanel league={league} />}
+      {view === 'history' && <HistoryPanel league={league} />}
+    </>
+  );
+}
+
+function TradeTable({ league }: { league: League }) {
   const userId = league.userTeamId;
   const others = league.teams.filter((t) => t.id !== userId).sort((a, b) => a.city.localeCompare(b.city));
   const [partnerId, setPartnerId] = useState(others[0].id);
   const [mine, setMine] = useState<Picked>(empty);
   const [theirs, setTheirs] = useState<Picked>(empty);
+  const [counterTo, setCounterTo] = useState<number | undefined>();
   const [done, setDone] = useState<string | null>(null);
+  const version = useSyncExternalStore(tradeDesk.subscribe, tradeDesk.version);
+  useEffect(() => {
+    const draft = tradeDesk.take();
+    if (!draft) return;
+    setPartnerId(draft.partnerId);
+    setMine(draft.mine);
+    setTheirs(draft.theirs);
+    setCounterTo(draft.counterTo);
+    setDone(null);
+  }, [version]);
   const partner = league.teams[partnerId];
   const closed = tradeWindow(league) ?? liveLock();
 
@@ -94,17 +139,27 @@ export function Trades({ league }: { league: League }) {
   const fill = !verdict || verdict.problem ? 0 : verdict.accepts ? 1 : Math.floor(Math.min(1, Math.max(0, verdict.get / need)) * 10) / 10;
   const mood = !verdict ? 'No offer yet' : verdict.problem ? (verdict.policy ? 'Not interested' : 'Blocked by a rule') : verdict.accepts ? 'They would accept' : fill >= 0.8 ? 'Close' : fill >= 0.4 ? 'Some way off' : 'Far apart';
 
+  // Every proposal is heard (about four a week per GM): a turned-down one costs a little of his patience.
   const propose = () => {
-    let text = '';
+    let accepted = false;
+    let message = '';
     store.mutate((l) => {
-      if (!evaluateTrade(l, proposal).accepts) return;
-      executeTrade(l, proposal);
-      text = l.transactions[l.transactions.length - 1].text;
+      if (counterTo !== undefined) {
+        const r = counterOffer(l, counterTo, proposal);
+        accepted = r.result === 'accepted';
+        message = r.message;
+        if (r.offer) message += ' See Offers.';
+      } else {
+        const r = proposeTrade(l, proposal);
+        accepted = r.accepted;
+        message = r.message;
+      }
     });
-    if (text) {
-      setDone(text);
+    setDone(message);
+    if (accepted || counterTo !== undefined) {
       setMine(empty());
       setTheirs(empty());
+      setCounterTo(undefined);
     }
   };
   const sweeten = () => {
@@ -117,9 +172,10 @@ export function Trades({ league }: { league: League }) {
     <>
       {closed && <div className="notice">{closed}</div>}
       {!closed && isDeadlineDay(league) && <div className="notice">Deadline day: trades close when you play week {league.week}.</div>}
+      {counterTo !== undefined && <div className="notice">Countering the {partner.name}' offer: change the deal and propose it.</div>}
       {done && (
-        <p className="callout callout-good" role="status">
-          Trade complete: {done}.
+        <p className="callout" role="status">
+          {done}
         </p>
       )}
       <Panel
@@ -143,6 +199,7 @@ export function Trades({ league }: { league: League }) {
             onChange={(e) => {
               setPartnerId(Number(e.target.value));
               setTheirs(empty());
+              setCounterTo(undefined);
               setDone(null);
             }}
           >
@@ -166,8 +223,8 @@ export function Trades({ league }: { league: League }) {
             </span>
           )}
           <span className="row" style={{ gap: 8 }}>
-            <button className="btn btn-primary" disabled={!verdict?.accepts || !!closed} onClick={propose}>
-              Propose trade
+            <button className="btn btn-primary" disabled={!verdict || (!!verdict.problem && !verdict.policy) || !!closed} onClick={propose}>
+              {counterTo !== undefined ? 'Send counter' : 'Propose trade'}
             </button>
             <button className="btn" disabled={!verdict || verdict.accepts || !!verdict.problem || !!closed} onClick={sweeten}>
               What would make it work?
@@ -178,6 +235,7 @@ export function Trades({ league }: { league: League }) {
               onClick={() => {
                 setMine(empty());
                 setTheirs(empty());
+                setCounterTo(undefined);
               }}
             >
               Clear
@@ -195,7 +253,7 @@ export function Trades({ league }: { league: League }) {
           </div>
         </div>
         <p className="muted small" style={{ marginBottom: 0 }}>
-          Traded players take their salary with them; any bonus money stays on your cap as dead money. Teams want a small win in their own eyes.
+          Traded players take their salary with them; any bonus money stays on your cap as dead money. Teams want a small win in their own eyes, and each GM hears only a few proposals from you a week.
         </p>
       </Panel>
     </>
