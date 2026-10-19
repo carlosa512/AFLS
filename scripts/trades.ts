@@ -156,9 +156,13 @@ function price(ctx: TradeContext, p: Player, starter: boolean): { points: number
   return null;
 }
 
+/** What a 6th-round pick in the next draft goes for (the median of the round, at the league's going rate). */
+const sixth = (ctx: TradeContext) => median(ctx.league.draftPicks.filter((pk) => pk.round === 6 && pk.season === nextDraftSeason(ctx.league)).map((pk) => goingRate(ctx.league, pk, ctx)));
+
 const prices: Record<string, Record<Bucket, number[]>> = {};
 const examples: string[] = [];
 let starterForSeventh = 0;
+const seventhExamples: string[] = [];
 
 function probePrices(league: League, moment: string, show: boolean) {
   const ctx = tradeContext(league);
@@ -182,8 +186,14 @@ function probePrices(league: League, moment: string, show: boolean) {
       out[b].push(got.points);
       // A good starter in his prime: the top half of the league's starters, not past his position's decline.
       const good = (rank.get(p.id) ?? 999) < 16 * STARTERS[p.position] && p.age - ageShift(p.position) <= 29;
-      if (good && got.picks.every((pk) => pk.round === 7)) starterForSeventh++;
-      if (VERBOSE || (show && i === 0)) examples.push(`${moment.padEnd(10)} ${b.padEnd(8)} ${name(p).padEnd(22)} ${playerOvr(p).toFixed(1)} age ${p.age}, ${yearsLeft(p.contract!, league.season)} yr → ${got.picks.map((pk) => `${pk.season} R${pk.round}`).join(' + ')} (${got.points.toFixed(0)} pts)`);
+      // ...that the league itself prices at a 6th or more: an overpaid veteran's salary can eat his worth down to a 7th's, fairly.
+      const underpriced = good && marketValue(ctx, league.teams[p.teamId!], p, true) >= sixth(ctx);
+      const line = `${moment.padEnd(10)} ${b.padEnd(8)} ${name(p).padEnd(22)} ${playerOvr(p).toFixed(1)} age ${p.age}, ${yearsLeft(p.contract!, league.season)} yr → ${got.picks.map((pk) => `${pk.season} R${pk.round}`).join(' + ')} (${got.points.toFixed(0)} pts)`;
+      if (underpriced && got.picks.every((pk) => pk.round === 7)) {
+        starterForSeventh++;
+        seventhExamples.push(line);
+      }
+      if (VERBOSE || (show && i === 0)) examples.push(line);
     }
   }
 }
@@ -221,6 +231,8 @@ const balanceOf = (l: Ledger) => l.picks + l.players;
  */
 function judgeFairness(league: League, proposal: TradeProposal, label: string) {
   const ctx = tradeContext(league);
+  // A player whose old team keeps paying part of his salary is valued on his new, cheaper contract:
+  // that's what the salary kept is worth, so it isn't counted again.
   const parts = proposal.sides.map((side) => {
     const players = side.players.map((id) => marketValue(ctx, league.teams[side.teamId], league.players[id], true));
     const picks = side.picks.map((id) => goingRate(league, league.draftPicks.find((x) => x.id === id)!, ctx));
@@ -589,7 +601,8 @@ for (const [moment, buckets] of Object.entries(prices)) {
   if (moment === 'deadline') check(`deadline rental (expiring starter) n=${buckets.rental.length}`, median(buckets.rental), [35, 150]);
   check(`depth n=${buckets.depth.length}`, median(buckets.depth), [0, 40]);
 }
-check('good starters in their prime sold for 7th-round picks only', starterForSeventh, [0, 0]);
+check('good starters in their prime, worth a 6th or more, sold for 7th-round picks only', starterForSeventh, [0, 0]);
+for (const e of seventhExamples) console.log(`    ✗ ${e}`);
 for (const e of examples) console.log(`    ${e}`);
 
 console.log('\nFuture picks');
@@ -617,10 +630,13 @@ console.log(`\nVolume and mix (${volume.all.length} AI trades over ${volume.seas
 check('trades in season (week 1 to deadline day), a season', mean(volume.inSeason), [15, 25], 1);
 check('share of them on deadline day (%)', (100 * volume.deadline) / Math.max(1, volume.inSeason.reduce((a, b) => a + b, 0)), [30, 50]);
 check('trades in the offseason (league year to camp), a year', mean(volume.offseason), [15, 35], 1);
-check('picks for players (%)', share((r) => r.kind !== 'swap' && r.kind !== 'dump'), [55, 80]);
+check('picks for players (%)', share((r) => r.kind !== 'swap' && r.kind !== 'dump' && r.kind !== 'futureSwap'), [55, 80]);
+const perYear = (kind: string) => (volume.all.filter((r) => r.kind === kind).length / Math.max(1, volume.seasons)).toFixed(1);
+console.log(`  next year's pick for this year's, a league year: ${perYear('futureSwap')}`);
+console.log(`  cap casualties sold for a late pick instead of cut, a league year: ${perYear('casualty')}; cut-down deals in camp: ${perYear('cutdown')}`);
 check('player swaps (%)', share((r) => r.kind === 'swap'), [5, 15]);
 check('cap dumps, a season', volume.all.filter((r) => r.kind === 'dump').length / Math.max(1, volume.seasons), [1, 4], 1);
-check('a pick going each way, a late one riding back (%)', share((r) => r.sides.every((x) => x.picks.length > 0)), [10, 25]);
+check('a pick going each way, a late one riding back (%)', share((r) => r.kind !== 'futureSwap' && r.sides.every((x) => x.picks.length > 0)), [10, 25]);
 // Palmer (2011), Dobbs (2023) and Flacco (2025): a starting quarterback moves in season once every few years.
 check('starting quarterbacks traded in season, a season', volume.startingQbs / Math.max(1, volume.seasons), [0, 0.5], 2);
 check('division rivals (%)', share((r) => {

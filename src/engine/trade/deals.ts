@@ -7,12 +7,13 @@
  */
 import { isExpired, yearsLeft } from '../finance/contract';
 import { STARTERS } from '../positions';
-import type { DealKind, DraftPick, GmTraits, Player, Team } from '../types';
-import { ovrOf, rosterOf, spendable, type TradeContext } from './context';
+import type { DealKind, DraftPick, GmTraits, League, Player, Team } from '../types';
+import { KEEP_MIN } from '../offseason/ai';
+import { capRoom, ovrOf, rosterOf, spendable, type TradeContext } from './context';
 import { heldPick, judge, marginFor, STAR, type Judgement } from './judge';
 import { isSeller, stanceOf, starterLine, teamNeeds, untouchables } from './plans';
-import { freshlySigned, playerTradeBlocker, salaryToTake, type TradeProposal, type TradeSide } from './rules';
-import { goingRate, marketValue, pickValue, salaryWeight } from './value';
+import { freshlySigned, maxRetain, playerTradeBlocker, salaryToTake, type TradeProposal, type TradeSide } from './rules';
+import { goingRate, marketValue, nextDraftSeason, pickValue, salaryWeight } from './value';
 
 export interface Deal {
   proposal: TradeProposal;
@@ -104,6 +105,9 @@ export const TAGS: Record<DealKind, string> = {
   star: 'star trade',
   swap: 'player swap',
   dump: 'cap dump',
+  futureSwap: 'future pick swap',
+  cutdown: 'cut-down deal',
+  casualty: 'cap casualty',
   user: '',
 };
 
@@ -150,8 +154,10 @@ export function quickValue(ctx: TradeContext, valuer: Team, side: TradeSide): nu
 export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | null {
   const { league } = ctx;
   const seller = league.teams[target.teamId!];
-  if (salaryToTake(league, target) > spendable(ctx, buyer.id)) return null;
-  const theirs: TradeSide = { teamId: seller.id, players: [target.id], picks: [] };
+  // A buyer who can't fit his salary gets him only if the seller keeps paying the difference (and asks more for it).
+  const retain = keepToFit(league, target, spendable(ctx, buyer.id));
+  if (retain === null) return null;
+  const theirs: TradeSide = { teamId: seller.id, players: [target.id], picks: [], ...(retain ? { retain: { [target.id]: retain } } : {}) };
   const nothing: TradeProposal = { sides: [{ teamId: buyer.id, players: [], picks: [] }, theirs] };
   const ask = judge(ctx, seller.id, nothing).need;
   const most = judge(ctx, buyer.id, nothing, { rosterCuts: true }).get / marginFor(buyer, seller);
@@ -171,7 +177,20 @@ export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | 
   const best = net(swap) > net(picks) + SWAP_EDGE ? swap : picks;
   if (!best) return null;
   const kind = kindOf(ctx, seller, target, best.proposal.sides[0]);
-  return { proposal: balance(ctx, best.proposal, quick(best.proposal.sides[0]) - price), kind, tag: TAGS[kind] };
+  return { proposal: balance(ctx, best.proposal, quick(best.proposal.sides[0]) - price), kind, tag: retain ? `${TAGS[kind]}, salary retained` : TAGS[kind] };
+}
+
+/**
+ * What a seller must keep paying for a buyer with `room` to fit `p`'s salary: 0 if he fits, a round
+ * amount a little over the gap if the seller can cover it (in season only), null if not even that does.
+ */
+export function keepToFit(league: League, p: Player, room: number): number | null {
+  const gap = salaryToTake(league, p) - room;
+  if (gap <= 0) return 0;
+  // A season's trade, when buyers have spent their room: in the offseason there's room to make, not salary to keep.
+  if (league.phase !== 'regular') return null;
+  const keep = Math.ceil((gap + 100) / 50) * 50;
+  return keep <= maxRetain(league, p) ? keep : null;
 }
 
 /**
@@ -208,18 +227,84 @@ export const DUMP_LIMIT = 600;
  * A cap-strapped team pays to move a bad contract: to a team with room (a low salary weight) that
  * takes it on for the cheapest pick it will, or for nothing if the contract isn't that bad.
  */
-export function dumpFor(ctx: TradeContext, sender: Team, player: Player, among: readonly Team[]): Deal | null {
+export function dumpFor(ctx: TradeContext, sender: Team, player: Player, among: readonly Team[], opts: { releasing?: boolean } = {}): Deal | null {
   const { league } = ctx;
+  // A player it would cut anyway that a team takes for nothing is a late-pick sale's (`lateSale`), not a dump.
+  const first = opts.releasing ? 1 : 0;
   const absorbers = among
     .filter((t) => t.id !== sender.id && salaryWeight(ctx, t.id) <= 0.85 && spendable(ctx, t.id) >= 1.1 * salaryToTake(league, player))
     .sort((a, b) => salaryWeight(ctx, a.id) - salaryWeight(ctx, b.id))
     .slice(0, 4);
   for (const absorber of absorbers) {
     if (marketValue(ctx, absorber, player) < -DUMP_LIMIT) continue;
-    const sweeteners = [null, ...picksOf(ctx, sender.id, absorber).reverse().slice(0, 14)];
+    const sweeteners = [null, ...picksOf(ctx, sender.id, absorber).reverse().slice(0, 14)].slice(first);
     for (const pk of sweeteners) {
       const proposal: TradeProposal = { sides: [{ teamId: sender.id, players: [player.id], picks: pk ? [pk.id] : [] }, { teamId: absorber.id, players: [], picks: [] }] };
-      if (judge(ctx, absorber.id, proposal, { rosterCuts: true }).accepts && judge(ctx, sender.id, proposal, { rosterCuts: true }).accepts) return { proposal, kind: 'dump', tag: TAGS.dump };
+      if (judge(ctx, absorber.id, proposal, { rosterCuts: true }).accepts && judge(ctx, sender.id, proposal, { rosterCuts: true, releasing: opts.releasing }).accepts)
+        return { proposal, kind: 'dump', tag: TAGS.dump };
+    }
+  }
+  return null;
+}
+
+/** The rounds a team gives for another's surplus player: "depth for a 6th or 7th". */
+const LATE_ROUND = 6;
+/** How many teams a front office calls about a player it's about to cut. */
+const LATE_CALLS = 6;
+
+/**
+ * A player his team is about to cut (a cap casualty, the cut to 53), sold for a 6th or 7th to a team
+ * that would keep him: one where he'd be among the players it can't go below at his position, with
+ * the room to pay him. His team takes any pick over the release (`releasing`); the buyer judges him
+ * like any player. `keeps` is the buyer's last word (in camp: would he survive its own cut to 53?).
+ */
+export function lateSale(ctx: TradeContext, seller: Team, p: Player, among: readonly Team[], kind: 'cutdown' | 'casualty', keeps: (buyer: Team) => boolean = () => true): Deal | null {
+  const { league } = ctx;
+  const owed = salaryToTake(league, p);
+  const ovr = ovrOf(ctx, p);
+  const bars = among
+    .filter((b) => b.id !== seller.id && capRoom(ctx, b.id) >= owed)
+    .map((b) => {
+      const room = rosterOf(ctx, b.id)
+        .filter((x) => x.position === p.position && !x.ir && !x.injury)
+        .map((x) => ovrOf(ctx, x))
+        .sort((x, y) => y - x);
+      return { b, bar: room[KEEP_MIN[p.position] - 1] ?? 0 };
+    })
+    .filter((x) => ovr > x.bar)
+    // The thinnest rooms call first.
+    .sort((x, y) => x.bar - y.bar)
+    .slice(0, LATE_CALLS);
+  for (const { b } of bars) {
+    for (const pk of picksOf(ctx, b.id, seller).filter((x) => x.round >= LATE_ROUND).reverse().slice(0, 2)) {
+      const proposal: TradeProposal = { sides: [{ teamId: seller.id, players: [p.id], picks: [] }, { teamId: b.id, players: [], picks: [pk.id] }] };
+      if (judge(ctx, seller.id, proposal, { rosterCuts: true, releasing: true }).accepts && judge(ctx, b.id, proposal, { rosterCuts: true }).accepts && keeps(b)) return { proposal, kind, tag: TAGS[kind] };
+    }
+  }
+  return null;
+}
+
+/** GMs who want help now (they discount the future steeply) and patient ones (they barely do). */
+const NOW_GM = 0.3;
+const PATIENT_GM = 0.22;
+
+/**
+ * Next year's pick for this year's, a round later (the NFL's "a round a year"): a GM who wants help
+ * now trades his future pick to a patient one before the draft. Each prices the pair on his own
+ * future discount, so both can come out ahead in their own eyes.
+ */
+export function pickSwapFor(ctx: TradeContext, team: Team, among: readonly Team[]): Deal | null {
+  const { league } = ctx;
+  if (team.gm.futureDiscount < NOW_GM || (league.phase !== 'resign' && league.phase !== 'freeAgency')) return null;
+  const draft = nextDraftSeason(league);
+  const future = picksOf(ctx, team.id, team).filter((p) => p.season === draft + 1 && p.round >= 2 && p.round <= 5);
+  for (const partner of among.filter((t) => t.id !== team.id && t.gm.futureDiscount <= PATIENT_GM)) {
+    const now = picksOf(ctx, partner.id, partner).filter((p) => p.season === draft);
+    for (const f of future) {
+      const c = now.find((p) => p.round === f.round + 1);
+      if (!c) continue;
+      const proposal: TradeProposal = { sides: [{ teamId: team.id, players: [], picks: [f.id] }, { teamId: partner.id, players: [], picks: [c.id] }] };
+      if (judge(ctx, team.id, proposal).accepts && judge(ctx, partner.id, proposal).accepts) return { proposal, kind: 'futureSwap', tag: TAGS.futureSwap };
     }
   }
   return null;

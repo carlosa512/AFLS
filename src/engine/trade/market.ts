@@ -13,20 +13,21 @@
  * from you comes as offers to your desk (`offers.ts`). The market draws from its own stream, like
  * injuries and weather.
  */
-import { logTransaction } from '../finance/cap';
+import { capSpace, logTransaction } from '../finance/cap';
 import { departmentFor } from '../medical';
-import { aiCutdown } from '../offseason/ai';
-import { resetContenderCache, rosterLimit } from '../offseason/negotiation';
+import { aiCutdown, capCut, cutChoice } from '../offseason/ai';
+import { resetContenderCache, rosterLimit, ROSTER_MAX } from '../offseason/negotiation';
 import { clamp, Rng } from '../rng';
-import type { League, Physical, Rumor, Team, TradeMarket, TradeRecord } from '../types';
-import { refreshAfterTrade, tradeContext, type TradeContext } from './context';
-import { dealFor, dumpFor, type Deal } from './deals';
+import { activeRoster } from '../roster';
+import type { League, Physical, Player, Rumor, Team, TradeMarket, TradeRecord } from '../types';
+import { ovrOf, refreshAfterTrade, tradeContext, type TradeContext } from './context';
+import { dealFor, dumpFor, lateSale, pickSwapFor, type Deal } from './deals';
 import { emptyMarket, executeTrade } from './execute';
 import { judge } from './judge';
 import { offersMoment, yourListings } from './offers';
 import { lowerPrice, physicals, worstResult } from './physicals';
 import { interestIn, isBuyer, stanceOf, stanceScore, teamNeeds, tradeBlock, updateInterest, updateStances, wanted, type BlockEntry } from './plans';
-import { tradeWindow, TRADE_DEADLINE_WEEK, type TradeProposal } from './rules';
+import { playerTradeBlocker, tradeWindow, TRADE_DEADLINE_WEEK, type TradeProposal } from './rules';
 import { settleTalks } from './talks';
 import { marketValue, salaryWeight } from './value';
 
@@ -87,6 +88,11 @@ function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Mo
       }
     }
   }
+  // Before the draft a GM who wants help now trades next year's pick for this year's.
+  if (moment === 'leagueYear' || moment === 'faDay') {
+    const swap = pickSwapFor(ctx, team, ai);
+    if (swap) return swap;
+  }
   // A team truly squeezed moves a bad contract when the league year opens, before the money's
   // guaranteed. After that the rest are cut, not traded, and in season it lives with them.
   // One a league year: a front office clears its worst contract, not its whole cap sheet.
@@ -137,23 +143,75 @@ export function marketMoment(league: League, moment: Moment): TradeRecord[] {
     if (!rng.chance(Math.min(1, p))) continue;
     const deal = initiate(ctx, market, team, moment, listings, open);
     if (!deal) continue;
-    // Agreed; now the physicals. A failure calls it off, concerns reopen the price.
-    const exams = physicals(league, deal.proposal);
-    const proposal = afterPhysicals(ctx, deal.proposal, exams);
-    for (const side of deal.proposal.sides) busy.set(side.teamId, (busy.get(side.teamId) ?? 0) + 1);
-    if (!proposal) continue;
-    made.push(executeTrade(league, proposal, { kind: deal.kind, tag: deal.tag, physicals: exams }));
-    for (const side of proposal.sides) {
-      // A team over the limit waives a backup, as `judge` priced in (`rosterCuts`).
-      aiCutdown(league, league.teams[side.teamId], rosterLimit(league));
-    }
-    // A trade changes the two teams' rosters, needs and blocks; everyone else's reads still hold.
-    refreshAfterTrade(ctx, proposal.sides.map((x) => x.teamId), proposal.sides.flatMap((x) => x.players));
+    const record = close(ctx, deal, busy);
+    if (!record) continue;
+    made.push(record);
+    listings = listingsOf(ctx);
+  }
+  // Before the AI lets players go, it calls around about the best of them.
+  if (moment === 'leagueYear' || moment === 'camp') {
+    made.push(...beforeCuts(ctx, moment, rng.shuffle([...ai]), open, busy));
     listings = listingsOf(ctx);
   }
   // Then the calls to you, on what's left after the AI market's deals.
   offersMoment(ctx, market, moment, listings);
   writeRumors(ctx, market, listings);
+  return made;
+}
+
+/**
+ * An agreed deal through its physicals (a failure calls it off, concerns reopen the price) and into
+ * the books. Both teams have dealt this moment either way. Null if the physicals called it off.
+ */
+function close(ctx: TradeContext, deal: Deal, busy: Map<number, number>): TradeRecord | null {
+  const { league } = ctx;
+  const exams = physicals(league, deal.proposal);
+  const proposal = afterPhysicals(ctx, deal.proposal, exams);
+  for (const side of deal.proposal.sides) busy.set(side.teamId, (busy.get(side.teamId) ?? 0) + 1);
+  if (!proposal) return null;
+  const record = executeTrade(league, proposal, { kind: deal.kind, tag: deal.tag, physicals: exams });
+  // A team over the limit waives a backup, as `judge` priced in (`rosterCuts`).
+  for (const side of proposal.sides) aiCutdown(league, league.teams[side.teamId], rosterLimit(league));
+  // A trade changes the two teams' rosters, needs and blocks; everyone else's reads still hold.
+  refreshAfterTrade(ctx, proposal.sides.map((x) => x.teamId), proposal.sides.flatMap((x) => x.players));
+  return record;
+}
+
+// ───────── before the cuts ─────────
+
+/** The players a team calls around about before the cut to 53: the best few it's letting go. */
+const CUT_CALLS = 3;
+
+/**
+ * Before an AI front office lets a player go, it calls around: about its cap casualties when the
+ * league year opens (before `aiCapCompliance` releases them in the re-sign window), and about the
+ * best of its cuts in camp (before `aiCutdown` takes the roster to 53). A team that would keep him
+ * gives a 6th or 7th; a cap casualty nobody wants goes as a dump when the guarantees a release would
+ * leave on the books are worth more to his team than the pick it pays. One such deal a team.
+ */
+function beforeCuts(ctx: TradeContext, moment: 'leagueYear' | 'camp', order: readonly Team[], open: (t: Team) => boolean, busy: Map<number, number>): TradeRecord[] {
+  const { league } = ctx;
+  const made: TradeRecord[] = [];
+  for (const team of order) {
+    if (!open(team)) continue;
+    const buyers = order.filter((t) => t.id !== team.id && open(t));
+    let deal: Deal | null = null;
+    if (moment === 'leagueYear') {
+      const room = capSpace(league, team.id);
+      const p = room < 0 ? capCut(league, team, room < -league.caps[league.season] * 0.04) : null;
+      if (p && !playerTradeBlocker(league, p)) deal = lateSale(ctx, team, p, buyers, 'casualty') ?? dumpFor(ctx, team, p, buyers, { releasing: true });
+    } else {
+      const cuts = cutChoice(league, activeRoster(league, team.id), ROSTER_MAX)
+        .filter((p) => p.contract && !p.injury && !playerTradeBlocker(league, p))
+        .sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a))
+        .slice(0, CUT_CALLS);
+      // He has to make the buyer's own 53, or it would only be passing on the cut.
+      const keeps = (p: Player) => (b: Team) => !cutChoice(league, [...activeRoster(league, b.id), p], ROSTER_MAX).includes(p);
+      for (const p of cuts) if ((deal = lateSale(ctx, team, p, buyers, 'cutdown', keeps(p)))) break;
+    }
+    const record = deal && close(ctx, deal, busy);
+    if (record) made.push(record);
+  }
   return made;
 }
 

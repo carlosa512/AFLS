@@ -459,10 +459,15 @@ export interface TradeSide {
   teamId: number;
   players: number[];
   picks: number[];
+  /**
+   * Salary it keeps paying ($K of this season's base still owed, by player): booked as its dead
+   * money, taken off the buyer's base. Never below the minimum the player is owed.
+   */
+  retain?: Record<number, number>;
 }
 
-/** What a trade was, for the news: a contender's rental, a rebuilder's sale, a star, a swap, a cap dump. */
-export type DealKind = 'rental' | 'buy' | 'sale' | 'star' | 'swap' | 'dump' | 'user';
+/** What a trade was, for the news: a contender's rental, a rebuilder's sale, a star, a swap, a cap dump, next year's pick for this year's. */
+export type DealKind = 'rental' | 'buy' | 'sale' | 'star' | 'swap' | 'dump' | 'futureSwap' | 'cutdown' | 'casualty' | 'user';
 
 /** One player's exam by the buyer's doctor (`trade/physicals.ts`); `note` is the doctor's words. */
 export interface Physical {

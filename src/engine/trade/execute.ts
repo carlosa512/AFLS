@@ -40,6 +40,14 @@ export function executeTrade(league: League, proposal: TradeProposal, meta: { ki
           y.paidBefore = weeksPaid(league);
         }
       }
+      // Salary the old team keeps paying: its dead money, off the new team's base.
+      const kept = Math.round(side.retain?.[id] ?? 0);
+      const now = c.years.find((x) => x.season === league.season);
+      if (kept > 0 && now) {
+        from.deadMoney.push({ season: league.season, amount: kept, playerId: id, note: 'Retained salary' });
+        now.base -= kept;
+        now.guaranteed = Math.min(now.guaranteed, now.base);
+      }
       c.bonuses = [];
       c.years = c.years.filter((y) => !y.void);
       p.teamId = to;
@@ -62,7 +70,7 @@ export function executeTrade(league: League, proposal: TradeProposal, meta: { ki
     season: league.season,
     phase: league.phase,
     week: league.week,
-    sides: [proposal.sides[0], proposal.sides[1]].map((s) => ({ teamId: s.teamId, players: [...s.players], picks: [...s.picks] })) as TradeRecord['sides'],
+    sides: [proposal.sides[0], proposal.sides[1]].map((s) => ({ teamId: s.teamId, players: [...s.players], picks: [...s.picks], ...(s.retain ? { retain: { ...s.retain } } : {}) })) as TradeRecord['sides'],
     kind: meta.kind,
     ...(meta.physicals?.some((x) => x.result !== 'passed') ? { physicals: meta.physicals.filter((x) => x.result !== 'passed') } : {}),
   };

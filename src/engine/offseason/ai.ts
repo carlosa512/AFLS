@@ -195,18 +195,30 @@ export function aiCapCompliance(league: League, team: Team, target = 0): void {
         continue;
       }
     }
-    // The floor counts who can play: a player on injured reserve still costs cap but fills no spot.
-    const counts = new Map<Position, number>();
-    for (const p of roster) if (!p.ir) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
-    const floor = (pos: Position) => (desperate ? STARTERS[pos] : KEEP_MIN[pos]);
-    const cut = roster
+    const cut = capCut(league, team, desperate);
+    if (!cut) break;
+    releasePlayer(league, cut);
+  }
+}
+
+/**
+ * The player `aiCapCompliance` cuts next for room: the least play per dollar saved, at a position it
+ * can spare him (only starters are protected when it's `desperate`). Nothing is released; the trade
+ * market calls around about him first when the league year opens.
+ */
+export function capCut(league: League, team: Team, desperate = false): Player | null {
+  const roster = teamPlayers(league, team.id).filter((p) => p.contract && !isExpired(p.contract, league.season));
+  // The floor counts who can play: a player on injured reserve still costs cap but fills no spot.
+  const counts = new Map<Position, number>();
+  for (const p of roster) if (!p.ir) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
+  const floor = (pos: Position) => (desperate ? STARTERS[pos] : KEEP_MIN[pos]);
+  return (
+    roster
       .filter((p) => (counts.get(p.position) ?? 0) > floor(p.position))
       .map((p) => ({ p, savings: releasePreview(league, p).savings }))
       .filter((x) => x.savings > 200)
-      .sort((a, b) => playerOvr(a.p) / a.savings - playerOvr(b.p) / b.savings)[0];
-    if (!cut) break;
-    releasePlayer(league, cut.p);
-  }
+      .sort((a, b) => playerOvr(a.p) / a.savings - playerOvr(b.p) / b.savings)[0]?.p ?? null
+  );
 }
 
 // ───────── free agency ─────────

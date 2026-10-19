@@ -14,7 +14,7 @@ import { computeRecords, conferenceSeeds, winPct, type TeamRecord } from '../sea
 import type { League, Player, Position, Stance, Team, TradeMarket } from '../types';
 import { POSITIONS } from '../types';
 import { ovrOf, rosterOf, spendable, type TradeContext } from './context';
-import { freshlySigned, playerTradeBlocker, salaryToTake } from './rules';
+import { freshlySigned, maxRetain, playerTradeBlocker, salaryToTake } from './rules';
 import { POSITION_TRADE, readPlayer, salaryWeight, TRADE_BAND } from './value';
 
 // ───────── stance ─────────
@@ -346,7 +346,8 @@ export function wanted(ctx: TradeContext, team: Team, from: readonly Listing[], 
     for (const { team: seller, entry } of here) {
       if (seller.id === team.id || (opts.memo && entry.keenness <= 0.4)) continue;
       const p = league.players[entry.playerId];
-      if (p.position !== need.position || salaryToTake(league, p) > room) continue;
+      // In season a salary he can't fit is still in play if his team could keep paying the difference.
+      if (p.position !== need.position || salaryToTake(league, p) - (league.phase === 'regular' ? maxRetain(league, p) : 0) > room) continue;
       // Its read of him is bounded within TRADE_BAND of the truth (`readPlayer`): no read can make an
       // upgrade of a player this far short of the bar, so skip the scouting pass.
       if (ovrOf(ctx, p) + TRADE_BAND - bar < 0.5) continue;

@@ -19,6 +19,9 @@ import { tradeDesk } from './tradeDesk';
 
 const WHO: Record<Advice['who'], string> = { coach: 'Head coach', scouts: 'Pro scouts', medical: 'Medical', cap: 'Cap' };
 
+/** A deal's side as the trade table holds it. */
+const picked = (side: TradeSide) => ({ players: [...side.players], picks: [...side.picks], ...(side.retain ? { retain: { ...side.retain } } : {}) });
+
 /** One side of a deal, player by player and pick by pick. */
 function SideList({ league, side }: { league: League; side: TradeSide }) {
   const nav = useNav();
@@ -35,7 +38,10 @@ function SideList({ league, side }: { league: League; side: TradeSide }) {
               {p.position} {p.firstName} {p.lastName}
             </button>
             <Ovr league={league} player={p} />
-            <span className="muted small">{p.contract ? `${money(Math.round(capHit(p.contract, league.season)))} · thru ${lastSeason(p.contract)}` : ''}</span>
+            <span className="muted small">
+              {p.contract ? `${money(Math.round(capHit(p.contract, league.season)))} · thru ${lastSeason(p.contract)}` : ''}
+              {side.retain?.[id] ? ` · ${team.name} keep paying ${money(side.retain[id])}` : ''}
+            </span>
           </li>
         );
       })}
@@ -144,7 +150,7 @@ export function OfferCard({ league, offer, compact, onDone }: { league: League; 
     if (result.ok) onDone?.(result.message);
   };
   const counter = () => {
-    tradeDesk.put({ partnerId: offer.teamId, mine: { players: [...offer.sides[1].players], picks: [...offer.sides[1].picks] }, theirs: { players: [...offer.sides[0].players], picks: [...offer.sides[0].picks] }, counterTo: offer.id });
+    tradeDesk.put({ partnerId: offer.teamId, mine: picked(offer.sides[1]), theirs: picked(offer.sides[0]), counterTo: offer.id });
     nav.go({ view: 'office', tab: 'trades' });
   };
 
@@ -438,7 +444,7 @@ export function TradeActions({ league, player, onClose }: { league: League; play
   const ask = () => {
     const { proposal, message } = askPrice(league, player.id);
     if (!proposal) return setNote(message);
-    tradeDesk.put({ partnerId: player.teamId!, mine: { players: [...proposal.sides[0].players], picks: [...proposal.sides[0].picks] }, theirs: { players: [...proposal.sides[1].players], picks: [...proposal.sides[1].picks] } });
+    tradeDesk.put({ partnerId: player.teamId!, mine: picked(proposal.sides[0]), theirs: picked(proposal.sides[1]) });
     onClose();
     nav.go({ view: 'office', tab: 'trades' });
   };

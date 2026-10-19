@@ -20,7 +20,7 @@ import { Rng } from '../rng';
 import { activeRoster } from '../roster';
 import type { DealKind, League, Physical, Player, Team, TradeExam, TradeMarket, TradeOffer, TradeSide } from '../types';
 import { capRoom, rosterOf, spendable, tradeContext, type TradeContext } from './context';
-import { DUMP_LIMIT, kindOf, MAX_PREMIUM, maxOver, packages, PER_BIDDER, picksOf, quickValue, TAGS } from './deals';
+import { DUMP_LIMIT, keepToFit, kindOf, MAX_PREMIUM, maxOver, packages, PER_BIDDER, picksOf, quickValue, TAGS } from './deals';
 import { emptyMarket, executeTrade } from './execute';
 import { evaluateTrade, judge, marginFor, suggestSweetener } from './judge';
 import { teamNeeds, tradeBlock, untouchables, wanted, type BlockEntry } from './plans';
@@ -105,7 +105,10 @@ export function bidFor(ctx: TradeContext, buyer: Team, target: Player): TradePro
 export function askFor(ctx: TradeContext, seller: Team, target: Player): TradeProposal | null {
   const { league } = ctx;
   const user = userTeam(league);
-  const his: TradeSide = { teamId: seller.id, players: [target.id], picks: [] };
+  // If you can't fit his salary, he keeps paying the difference (and asks more for it).
+  const retain = keepToFit(league, target, capRoom(ctx, user.id));
+  if (retain === null) return null;
+  const his: TradeSide = { teamId: seller.id, players: [target.id], picks: [], ...(retain ? { retain: { [target.id]: retain } } : {}) };
   const need = judge(ctx, seller.id, { sides: [{ teamId: user.id, players: [], picks: [] }, his] }, { vsUser: true }).need;
   const worth = Math.max(marketValue(ctx, seller, target), 1);
   const ranked = packages(ctx, user, seller)

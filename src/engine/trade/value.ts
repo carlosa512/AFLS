@@ -153,7 +153,7 @@ export const POSITION_TRADE: Record<Position, number> = { QB: 1, EDGE: 0.75, WR:
  * Pick-chart points per $1K of contract surplus: $40K ≈ one point, so a dead $16M contract costs about
  * a second-round pick to move (the Texans paid one, plus a sixth, to send Brock Osweiler to Cleveland).
  */
-const POINTS_PER_K = 1 / 40;
+export const POINTS_PER_K = 1 / 40;
 /**
  * A front office trusts its read of another team's player halfway, and never by more than this many
  * overall points either way. Shopping a player to 31 teams finds the one that likes him most, as it

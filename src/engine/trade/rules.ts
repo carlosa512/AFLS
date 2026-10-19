@@ -4,6 +4,7 @@
  * signed isn't moved, and isn't taken from a team that just signed him.
  */
 import { autoPostJune1, isOffseason, paidShare } from '../finance/cap';
+import { minSalary } from '../finance/market';
 import { capHit, deadMoney, isExpired } from '../finance/contract';
 import { rosterLimit } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
@@ -102,8 +103,9 @@ export function tradeCapImpact(league: League, proposal: TradeProposal, ctx: Tra
     const other = proposal.sides[1 - i];
     const roster = rosterOf(ctx, side.teamId);
     const gone = new Set(side.players);
-    let dead = 0;
-    let deadNow = 0;
+    // What it keeps paying is dead money on its books this season.
+    let dead = retainedBy(side);
+    let deadNow = retainedBy(side);
     for (const id of side.players) {
       const c = league.players[id].contract!;
       const split = deadMoney(c, league.season, { paid: paidShare(league, c), postJune1: post, trade: true });
@@ -111,10 +113,7 @@ export function tradeCapImpact(league: League, proposal: TradeProposal, ctx: Tra
       dead += split.thisYear + split.nextYear;
     }
     // The new team takes only the unpaid base salary; the bonus stays behind.
-    const arriving = other.players.map((id) => {
-      const c = league.players[id].contract!;
-      return (c.years.find((y) => y.season === league.season)?.base ?? 0) * (1 - paidShare(league, c));
-    });
+    const arriving = other.players.map((id) => salaryToTake(league, league.players[id], other.retain?.[id] ?? 0));
     const hit = (p: Player) => (p.contract ? capHit(p.contract, league.season) : 0);
     const counted = (hits: number[]) => (top51 ? hits.sort((a, b) => b - a).slice(0, 51) : hits).reduce((a, b) => a + b, 0);
     const before = counted(roster.map(hit));
@@ -137,12 +136,35 @@ export function tradeDeadMoney(league: League, side: TradeSide): { thisYear: num
   return { thisYear, nextYear };
 }
 
-/** The base salary a team would take on with a player: what's left of this season's. */
-export function salaryToTake(league: League, p: Player): number {
+/** The guaranteed money a release of the side's players would leave on the books that trading them moves off (`judge`'s `releasing`). */
+export function guaranteesShed(league: League, side: TradeSide): number {
+  const post = autoPostJune1(league.phase);
+  const traded = tradeDeadMoney(league, side);
+  const released = side.players.reduce((s, id) => {
+    const c = league.players[id].contract!;
+    const split = deadMoney(c, league.season, { paid: paidShare(league, c), postJune1: post });
+    return s + split.thisYear + split.nextYear;
+  }, 0);
+  return Math.max(0, released - traded.thisYear - traded.nextYear);
+}
+
+/** The base salary a team would take on with a player: what's left of this season's, less what the sender keeps paying. */
+export function salaryToTake(league: League, p: Player, retained = 0): number {
   const c = p.contract;
   if (!c) return 0;
-  return (c.years.find((y) => y.season === league.season)?.base ?? 0) * (1 - paidShare(league, c));
+  return (c.years.find((y) => y.season === league.season)?.base ?? 0) * (1 - paidShare(league, c)) - retained;
 }
+
+/** The most of a player's salary his team can keep paying in a trade: what's left of this season's base, down to the minimum he's owed. */
+export function maxRetain(league: League, p: Player): number {
+  const c = p.contract;
+  if (!c) return 0;
+  const left = 1 - paidShare(league, c);
+  return Math.max(0, Math.floor(salaryToTake(league, p) - minSalary(p.experience, league.caps[league.season]) * left));
+}
+
+/** What a side keeps paying in all. */
+export const retainedBy = (side: TradeSide) => Object.values(side.retain ?? {}).reduce((a, b) => a + b, 0);
 
 /**
  * Hard rule problems (either side), independent of value. An AI team over the roster limit waives a
@@ -164,6 +186,11 @@ export function tradeProblem(league: League, proposal: TradeProposal, opts: { ro
     for (const id of side.picks) {
       const pick = league.draftPicks.find((x) => x.id === id);
       if (!pick || pick.ownerId !== side.teamId || pick.playerId !== undefined) return 'That pick is no longer available.';
+    }
+    for (const [id, amount] of Object.entries(side.retain ?? {})) {
+      const p = league.players[Number(id)];
+      if (!side.players.includes(Number(id)) || amount < 0) return 'Only a player you send can have salary kept.';
+      if (amount > maxRetain(league, p)) return `${league.teams[side.teamId].name} can't keep paying more of ${p.firstName} ${p.lastName}'s salary than he's owed this season.`;
     }
   }
   const ctx = opts.ctx ?? tradeContext(league);
