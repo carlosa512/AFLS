@@ -1187,7 +1187,17 @@ Measured (`npm run trades`, three leagues, three seasons, your two best players 
 
 The AI market's own numbers are unchanged from Phase 1: offers have their own random stream.
 
-CHECKS_PHASE2
+**Checks when Phase 2 landed.**
+
+`npm run check` (all 12) passed typecheck, build, sim, weather, crews, endings, audit and trades. Test
+failed on four timeouts, now fixed. The other three reds are the same ones `main` has:
+
+| Check | This branch | `main` | Reading |
+| --- | --- | --- | --- |
+| `test` | 309 of 313: four tests that play a season timed out at Vitest's 5 s with the other checks running (5.2–5.8 s) | green | Their groups now get 30 s, like the files' other season tests, and pass |
+| `offseason` | coaching market 136–141 (≤ 135) | red: 137, 141, 141 | The coaching carousel's (PR #29) |
+| `quirks` | Spot Drop z −1.9 | red | The documented borderline quirk |
+| `careers` | points 24.16 (≤ 24) | red: 24.43 | The long-run scoring drift (`docs/PENALTIES.md`, Phase 3a) |
 
 ### Phase 3: physicals, offseason and cap moves
 

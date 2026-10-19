@@ -21,7 +21,8 @@ const toWeek = (l: League, week: number) => {
 };
 const plain = (years: number, apy: number): Offer => ({ years, apy, bonusPct: 0, gtdPct: 0, voidYears: 0 });
 
-describe('salary paid mid-season', () => {
+// These play into the season: 30 s, so a busy machine doesn't time them out.
+describe('salary paid mid-season', { timeout: 30_000 }, () => {
   it('a player signed in week 10 and cut in week 12 only books the checks he was paid', () => {
     const l = createLeague({ seed: 'ledger-sign' });
     toWeek(l, 10);
