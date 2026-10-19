@@ -917,6 +917,24 @@ Other numbers:
 - All eight exploit probes fail.
 - Speed: a verdict takes 0.07 ms and a market week 16 ms.
 
+**Checks when Phase 0 landed.**
+
+`npm run check` passed 8 of 12: typecheck, test (269), build, trades, weather, crews, endings and audit
+(`docs/ATTRIBUTES.md` regenerated). The market's own RNG stream gives every league a new path after
+its first offseason, so checks that sit near their edges re-roll. None of the four red ones traces to
+the trade engine:
+
+| Check | This branch | `main` (3185158) | Reading |
+| --- | --- | --- | --- |
+| `careers` | points 24.43, sacks #5 11.5 | red, the same two | Known long-run drift from Awareness aging (`docs/PENALTIES.md`, "Checks when Phase 3a landed"): the attribute-scaling pass |
+| `quirks` | Spot Drop z −1.9 | red | The documented borderline quirks; Spot Drop reads "weak" over 6 + 18 seasons (Phase 2) |
+| `offseason` | coaching market 136 (≤ 135), one season | red: 137, 141, 141 in three seasons | The coaching carousel's (PR #29), slightly better here |
+| `sim` | hamstrings 7.03 (≤ 7) | green, 6.73 | Over 30 seasons: 6.78 here against 6.67 on `main`, both in range, injury rates by position the same |
+
+The 30-season `sim` run also put the #5 passer at 4,295 yards (floor 4,300; `main` 4,326) while the #1 rose
+4,799 → 4,858. That's leader noise: points (22.74 against 22.66) and sacks (2.31 against 2.32) are the
+same. Left as they are on purpose, with the borderline-checks work.
+
 **Left for Phase 1:**
 - Stricter sellers mean fewer AI trades: about 3 a season against about 4 before, all picks for a
   veteran. Volume, mix and the market's moments are Phase 1's job.
