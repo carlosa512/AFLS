@@ -112,7 +112,10 @@ export function editPlayerIdentity(league: League, playerId: number, edit: Playe
   const p = league.players[playerId];
   const problem = identityProblem(league, p, edit);
   if (problem) throw new Error(problem);
-  p.firstName = edit.firstName.trim();
-  p.lastName = edit.lastName.trim();
+  const firstName = edit.firstName.trim();
+  const lastName = edit.lastName.trim();
+  if (firstName !== p.firstName || lastName !== p.lastName) p.nameEdited = true;
+  p.firstName = firstName;
+  p.lastName = lastName;
   p.jersey = edit.jersey;
 }

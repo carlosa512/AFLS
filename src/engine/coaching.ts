@@ -24,10 +24,10 @@
  */
 import type { AgingFamily } from './attributes';
 import { agingFamily } from './aging';
-import { FIRST_NAMES, LAST_NAMES } from './data/names';
 import { logTransaction } from './finance/cap';
 import { BASE_CAP } from './finance/market';
 import { OVR_WEIGHTS, ROSTER_TEMPLATE } from './positions';
+import { newIdentity } from './identity';
 import { clamp, Rng } from './rng';
 import { BASE_OFFENSE, COVERAGES, FRONTS, OFF_SCHEMES, pressureOf, rollScheme, type CoachScheme, type TeamScheme } from './schemes';
 import { ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
@@ -747,10 +747,11 @@ function rollStyle(rng: Rng, role: CoachRole): CoachStyle | undefined {
 }
 
 function newCoach(league: League, rng: Rng, chair: Chair, youth: number, veterans: number, age: number): Coach {
+  const { firstName, lastName } = newIdentity(rng, { kind: 'coach', role: chair.role });
   const c: Coach = {
     id: league.nextCoachId++,
-    firstName: rng.pick(FIRST_NAMES),
-    lastName: rng.pick(LAST_NAMES),
+    firstName,
+    lastName,
     role: chair.role,
     age,
     youth: Math.round(clamp(youth, 1, 20)),

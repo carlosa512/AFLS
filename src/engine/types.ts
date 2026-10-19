@@ -151,6 +151,8 @@ export interface Player {
   id: number;
   firstName: string;
   lastName: string;
+  /** A name the user (or a mod) chose: no names pass ever replaces it. */
+  nameEdited?: true;
   position: Position;
   age: number;
   heightIn: number;
@@ -297,7 +299,7 @@ export interface Staff {
   firstName: string;
   lastName: string;
   role: StaffRole;
-  /** Set once at creation (`rollWoman`), so the name and the avatar agree. Absent = a man. */
+  /** Set once at creation with the name (`newIdentity`), so the name, the avatar and the text agree. Absent = a man. */
   woman?: true;
   age: number;
   /** Reading what a player is today (1–20). */
@@ -381,7 +383,7 @@ export interface Medic {
   firstName: string;
   lastName: string;
   role: MedicRole;
-  /** Set once at creation (`rollWoman`), so the name and the avatar agree. Absent = a man. */
+  /** Set once at creation with the name (`newIdentity`), so the name, the avatar and the text agree. Absent = a man. */
   woman?: true;
   age: number;
   /** Physiotherapy (1–20): rehab that gets injured players back sooner. */

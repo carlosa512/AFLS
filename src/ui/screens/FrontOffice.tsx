@@ -8,6 +8,7 @@ import { availableProspects, boardValue, draftOrder, nextPick, POSITION_PREMIUM,
 import { demand, extensionBlocker, freeAgents } from '../../engine/offseason/negotiation';
 import { POSITION_NAMES } from '../../engine/positions';
 import { teamPlayers } from '../../engine/roster';
+import { pron } from '../../engine/pronouns';
 import { resignForecast, staffName, staffWindowOpen } from '../../engine/staff';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
@@ -854,6 +855,9 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
   const staffDue = forecast.length;
   const leavingStaff = forecast.filter(([, o]) => o !== 'stays').map(([id]) => league.staff[id]);
   const leaving = leavingStaff.map(staffName);
+  // With one person up, or one leaving, the notice names the pronoun that person goes by.
+  const soleDue = staffDue === 1 ? pron(league.staff[forecast[0][0]]) : null;
+  const soleLeaving = leaving.length === 1 ? pron(leavingStaff[0]) : null;
   const showStaffNotice = staffDue > 0 && active !== 'staff';
   // The same for the coaching staff, plus any chair that is empty while moves are still open.
   const coaching = staffWindowOpen(league) ? coachAttention(league, league.userTeamId) : null;
@@ -880,11 +884,11 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
               <span>
                 {staffDue === 1 ? '1 scouting staff deal is up.' : `${staffDue} scouting staff deals are up.`}{' '}
                 {leaving.length === 0 ? (
-                  `${staffDue === 1 ? 'He re-signs' : 'They re-sign'} automatically unless you let ${staffDue === 1 ? 'him' : 'them'} go.`
+                  `${soleDue ? `${soleDue.He} re-signs` : 'They re-sign'} automatically unless you let ${soleDue ? soleDue.him : 'them'} go.`
                 ) : (
                   <LinkedText
                     league={league}
-                    text={`${leaving.join(' and ')} will leave (no chair or budget for ${leaving.length === 1 ? 'him' : 'them'}); ${staffDue - leaving.length === 0 ? 'nobody else is up' : 'the rest re-sign automatically'}.`}
+                    text={`${leaving.join(' and ')} will leave (no chair or budget for ${soleLeaving ? soleLeaving.him : 'them'}); ${staffDue - leaving.length === 0 ? 'nobody else is up' : 'the rest re-sign automatically'}.`}
                     about={leavingStaff.map((s): Who => ({ kind: 'scout', id: s.id }))}
                   />
                 )}

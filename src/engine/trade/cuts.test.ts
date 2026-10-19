@@ -56,9 +56,9 @@ describe('future-for-current pick swaps', { timeout: 30_000 }, () => {
     const l = fresh();
     simToEndOfSeason(l);
     beginOffseason(l);
-    for (const t of l.teams) t.gm.futureDiscount = t.id === 6 ? 0.38 : 0.18;
+    for (const t of l.teams) t.gm.futureDiscount = t.id === 1 ? 0.38 : 0.18;
     const ctx = tradeContext(l);
-    const deal = pickSwapFor(ctx, l.teams[6], l.teams.filter((t) => t.id !== l.userTeamId));
+    const deal = pickSwapFor(ctx, l.teams[1], l.teams.filter((t) => t.id !== l.userTeamId));
     expect(deal).not.toBeNull();
     const [mine, theirs] = deal!.proposal.sides.map((s) => l.draftPicks.find((p) => p.id === s.picks[0])!);
     expect(mine.season).toBe(nextDraftSeason(l) + 1);
@@ -66,6 +66,6 @@ describe('future-for-current pick swaps', { timeout: 30_000 }, () => {
     expect(theirs.round).toBe(mine.round + 1);
     // In season nobody swaps like this.
     l.phase = 'regular';
-    expect(pickSwapFor(tradeContext(l), l.teams[6], l.teams)).toBeNull();
+    expect(pickSwapFor(tradeContext(l), l.teams[1], l.teams)).toBeNull();
   });
 });
