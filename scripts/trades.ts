@@ -640,6 +640,9 @@ const kinds = new Map<string, number>();
 for (const r of volume.all) kinds.set(r.kind, (kinds.get(r.kind) ?? 0) + 1);
 console.log(`\nVolume and mix (${volume.all.length} AI trades over ${volume.seasons} seasons: ${[...kinds].map(([k, n]) => `${n} ${k}`).join(', ')})`);
 check('trades in season (week 1 to deadline day), a season', mean(volume.inSeason), [15, 25], 1);
+// The leagues' seasons in order, so a drift over a long run shows (league by league, season by season).
+const byYear = Array.from({ length: SEASONS }, (_, y) => mean(volume.inSeason.filter((_, k) => k % SEASONS === y)));
+console.log(`  in season, by year of the run: ${byYear.map((x) => x.toFixed(1)).join(' · ')}`);
 check('share of them on deadline day (%)', (100 * volume.deadline) / Math.max(1, volume.inSeason.reduce((a, b) => a + b, 0)), [30, 50]);
 check('trades in the offseason (league year to camp), a year', mean(volume.offseason), [15, 35], 1);
 check('picks for players (%)', share((r) => r.kind !== 'swap' && r.kind !== 'dump' && r.kind !== 'futureSwap'), [55, 80]);

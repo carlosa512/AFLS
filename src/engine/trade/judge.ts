@@ -13,11 +13,12 @@
 import { capFor, deadMoneyIn } from '../finance/cap';
 import { isExpired, remainingProration, yearsLeft } from '../finance/contract';
 import { contenderScore, rosterLimit } from '../offseason/negotiation';
+import { clamp } from '../rng';
 import type { DraftPick, League, Player, Team } from '../types';
 import { rosterOf, tradeContext, type TradeContext } from './context';
 import { untouchables } from './plans';
 import { peekTalks, talkRefusal, TRUST_MARGIN } from './talks';
-import { freshSigningRefusal, guaranteesShed, playerTradeBlocker, retainedBy, tradeDeadMoney, tradeProblem, type TradeProposal, type TradeSide } from './rules';
+import { freshSigningRefusal, guaranteesShed, playerTradeBlocker, retainedBy, tradeDeadMoney, tradeProblem, TRADE_DEADLINE_WEEK, type TradeProposal, type TradeSide } from './rules';
 import { goingRate, marketValue, nextDraftSeason, pickOverall, pickValue, playerSwing, POINTS_PER_K, salaryWeight } from './value';
 
 /** Each player a deal leaves past the roster limit costs about a sixth-round pick: someone has to be cut. */
@@ -58,11 +59,22 @@ export interface Judgement {
 
 const pickById = (league: League, id: number) => league.draftPicks.find((x) => x.id === id)!;
 
+/**
+ * What a non-contender holds out for on an expiring veteran in season, as a share of his market value:
+ * most of it in week 1, less each week to deadline day. He's gone in the spring either way, so the
+ * longer it waits the more it's choosing between a late pick and nothing.
+ */
+const RENTAL_FLOOR = { first: 0.65, deadline: 0.4 };
+/** Between two AI teams it holds out for less: the floor guards against being fleeced, and another GM isn't fishing. */
+const AI_RENTAL_FLOOR = { first: 0.5, deadline: 0.2 };
+
 /** Share of a player's market value a team holds out for when it sends him. */
-function floorShare(league: League, team: Team, p: Player): number {
-  // A seller in season moves an expiring veteran for less: he's gone in the spring anyway.
+function floorShare(league: League, team: Team, p: Player, vsUser: boolean): number {
   const selling = league.phase === 'regular' && contenderScore(league, team.id) <= 0.4 && yearsLeft(p.contract!, league.season) <= 1;
-  return selling ? 0.65 : 0.8;
+  if (!selling) return 0.8;
+  const floor = vsUser ? RENTAL_FLOOR : AI_RENTAL_FLOOR;
+  const late = clamp((league.week - 1) / (TRADE_DEADLINE_WEEK - 1), 0, 1);
+  return floor.first + (floor.deadline - floor.first) * late;
 }
 
 /** Picks at the league's going rate. */
@@ -198,7 +210,7 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
     const floor = mine.players.reduce((s, id) => {
       const p = league.players[id];
       const worth = marketValue(ctx, team, p);
-      return s + (worth > 0 ? worth * floorShare(league, team, p) : worth);
+      return s + (worth > 0 ? worth * floorShare(league, team, p, !!opts.vsUser || theirs.teamId === league.userTeamId) : worth);
     }, going(ctx, mine.picks) + POINTS_PER_K * retainedBy(mine));
     const rate = pickIn - going(ctx, theirs.picks);
     base = Math.max(base, floor + rate);
