@@ -769,26 +769,35 @@ function newCoach(league: League, rng: Rng, chair: Chair, youth: number, veteran
 }
 
 /**
- * Entry quality of new candidates for a role: drawn toward the typical coach if the league's employed men in that
- * role drift away from it. Each role keeps its own level because promotions skim the best teachers off the top:
- * left to one league-wide pull, position coaches (who shape development most) would sink while the chairs above rise.
+ * Entry quality of new candidates for a role: drawn toward the typical coach while the league's employed men in
+ * that role sit off it. Each role keeps its own level because promotions skim the best teachers off the top:
+ * left to one league-wide pull, position coaches (who shape development most) would sink while the chairs above
+ * rise. Youth (what development reads) and Veterans (what aging reads) are steered on their own: steering their
+ * blend let a role sit under typical on the rating that counts. The pull is twice the gap: the skim and coaches
+ * fading from 55 drain every year, and a pull of the gap alone let a long league settle about 1.5% under
+ * typical growth (`npm run careers`, the coaching ledger).
  */
 const ENTRY = 8.6;
-function entryBase(league: League, role: CoachRole): number {
+const PULL = 2;
+interface Entry {
+  youth: number;
+  veterans: number;
+}
+function entryBase(league: League, role: CoachRole): Entry {
   const employed = Object.values(league.coaches).filter((c) => c.teamId !== null && c.role === role);
-  if (employed.length < 25) return ENTRY;
-  const mean = employed.reduce((s, c) => s + coachValue(c), 0) / employed.length;
-  return ENTRY + clamp(TYPICAL - mean, -1.5, 1.5);
+  if (employed.length < 25) return { youth: ENTRY, veterans: ENTRY };
+  const pull = (rating: 'youth' | 'veterans') => ENTRY + clamp(PULL * (TYPICAL - employed.reduce((s, c) => s + c[rating], 0) / employed.length), -2, 2);
+  return { youth: pull('youth'), veterans: pull('veterans') };
 }
 
 /** A market candidate: experience buys skill; some lean toward developing youth, others toward keeping veterans going. */
-function candidate(league: League, rng: Rng, chair: Chair, base: number): Coach {
+function candidate(league: League, rng: Rng, chair: Chair, base: Entry): Coach {
   const [lo, hi] = CANDIDATE_AGE[chair.role];
   const age = rng.int(lo, hi);
-  const level = base + experience(age);
+  const learned = experience(age);
   const lean = rng.normal(0, 1.3);
   const sd = chair.role === 'headCoach' ? 2 : 2.3;
-  return newCoach(league, rng, chair, rng.normal(level + lean, sd), rng.normal(level - lean, sd), age);
+  return newCoach(league, rng, chair, rng.normal(base.youth + learned + lean, sd), rng.normal(base.veterans + learned - lean, sd), age);
 }
 
 /** Top the market back up to its usual size. */
@@ -820,7 +829,20 @@ function teamGoal(league: League, teamId: number): number {
 function roleGoal(league: League, team: Team, role: CoachRole): number {
   const winNow = league.teams.reduce((s, t) => s + t.gm.winNow, 0) / league.teams.length;
   const tilt = (LEADERSHIP.has(role) ? 3 : -2.5) * (team.gm.winNow - winNow);
-  return teamGoal(league, team.id) + tilt + ownerTilt(team);
+  return teamGoal(league, team.id) + tilt + ownerTilt(team) + leagueGap(league, role);
+}
+
+/**
+ * How far every front office aims off its own goal for a role, read from the league: higher while the role's
+ * employed coaches run under the typical one, lower while they run over it (twice the gap, like `entryBase`).
+ * AI teams hire the man nearest their goal, not the best available, and budgets pull the ambitious ones
+ * short, so goals centred on typical alone left the league's staffs a few tenths under it and young players
+ * growing about 1.5% slower (`npm run careers`, the coaching ledger).
+ */
+function leagueGap(league: League, role: CoachRole): number {
+  const employed = Object.values(league.coaches).filter((c) => c.teamId !== null && c.role === role);
+  if (employed.length < 25) return 0;
+  return clamp(PULL * (TYPICAL - employed.reduce((s, c) => s + coachValue(c), 0) / employed.length), -1.5, 1.5);
 }
 const madePlayoffs = (league: League, teamId: number) => !!league.history.find((h) => h.season === league.season - 1)?.playoffs?.[teamId];
 
@@ -907,7 +929,7 @@ const TO_COACH = 0.05;
  * have none). He starts level with a career coach his age, better for a sharp football mind and a work ethic, and
  * grows from there like any coach.
  */
-function exPlayerCoach(league: League, p: Player, base: number): void {
+function exPlayerCoach(league: League, p: Player, base: Entry): void {
   const room = ROOM_OF[p.position];
   if (!room || p.experience < 4) return;
   const rng = new Rng(`${league.seed}:to-coach:${p.id}`);
@@ -916,10 +938,30 @@ function exPlayerCoach(league: League, p: Player, base: number): void {
   if (!rng.chance(clamp(TO_COACH + 0.006 * iq + 0.006 * work, 0.01, 0.15))) return;
   const sameSide = COACH_ROOMS.filter((r) => r !== room && OFFENSE_ROOMS.has(r) === OFFENSE_ROOMS.has(room));
   // His playing years teach what a coach his age has learned on the sidelines.
-  const level = base + experience(p.age) + 0.12 * iq + 0.08 * work;
+  const learned = experience(p.age) + 0.12 * iq + 0.08 * work;
   const lean = rng.normal(0, 1.3);
-  const c = newCoach(league, rng, { role: 'positionCoach', room: rng.chance(0.85) ? room : rng.pick(sameSide) }, rng.normal(level + lean, 2.3), rng.normal(level - lean, 2.3), p.age);
+  const c = newCoach(league, rng, { role: 'positionCoach', room: rng.chance(0.85) ? room : rng.pick(sameSide) }, rng.normal(base.youth + learned + lean, 2.3), rng.normal(base.veterans + learned - lean, 2.3), p.age);
   Object.assign(c, { firstName: p.firstName, lastName: p.lastName, playerId: p.id });
+}
+
+/** Share of the unhired market that drifts out of football at the new league year. */
+const DRIFT = 0.4;
+/**
+ * Share of the coaches still unhired when camp opens who take other work for the season (TV, college, a year
+ * off). The carousel lands its fired and let-go men on the market after the new year's refresh; without this they
+ * all waited a year, and the market ran past its usual size (`npm run offseason`).
+ */
+const CAMP_DRIFT = 0.2;
+
+/** A coach out of the game: anyone who coached a season stays on file, so his record outlives him; the rest are forgotten. */
+function leaveFootball(league: League, c: Coach): void {
+  if (c.career?.length) {
+    c.teamId = null;
+    c.contract = null;
+    delete c.since;
+    league.retiredCoaches[c.id] = c;
+  }
+  delete league.coaches[c.id];
 }
 
 /**
@@ -938,17 +980,10 @@ export function developCoaches(league: League, retirees: readonly Player[] = [])
     // Head coaches and coordinators work into their late 60s; assistants retire a few years sooner.
     const [from, forced, step] = LEADERSHIP.has(c.role) ? [64, 74, 0.1] : [61, 68, 0.15];
     const retires = c.age >= forced || (c.age > from && rng.chance((c.age - from) * step));
-    const drifts = c.teamId === null && rng.chance(0.4);
+    const drifts = c.teamId === null && rng.chance(DRIFT);
     if (retires || drifts) {
       if (retires && c.teamId !== null) logCoach(league, c.teamId, c, `${league.teams[c.teamId].abbrev} ${titleLower(c)} ${coachName(c)} retired`);
-      // Anyone who coached a season stays on file, so his record outlives him; the rest are forgotten.
-      if (c.career?.length) {
-        c.teamId = null;
-        c.contract = null;
-        delete c.since;
-        league.retiredCoaches[c.id] = c;
-      }
-      delete league.coaches[c.id];
+      leaveFootball(league, c);
     }
   }
   for (const team of league.teams) team.coachDead = team.coachDead.filter((d) => d.season >= league.season);
@@ -1240,6 +1275,9 @@ function fillChairs(league: League, team: Team, rng: Rng, gone: Set<number> = ne
 export function ensureCoached(league: League, opts: { autoUser?: boolean } = {}): void {
   const rng = new Rng(`${league.seed}:coach:camp:${league.season}`);
   for (const team of league.teams) if (opts.autoUser || team.id !== league.userTeamId) fillChairs(league, team, rng);
+  // Camp closes the hiring season: some of the men nobody hired move on until next year.
+  for (const c of coachMarket(league)) if (rng.chance(CAMP_DRIFT)) leaveFootball(league, c);
+  touch();
 }
 
 // ───────── reporting ─────────
