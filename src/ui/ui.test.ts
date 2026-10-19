@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../engine/generate';
+import { gamesInWeek, playWeek } from '../engine/league';
+import { computeRecords } from '../engine/season/standings';
 import { sortRows } from './components';
 import { moveSegments, type MoveIndex } from './moves';
 import { hashToRoute, routeToHash, type Route } from './routes';
 import { backupFileName, parseBackup } from './saves';
+import { byeTeams, resultsWeek, stripGames } from './strip';
 
 describe('routes', () => {
   it('round-trip through the address bar', () => {
@@ -85,4 +88,40 @@ describe('transaction links', () => {
     expect(linked('CIN released WR John Smithers')).toBe('CIN released WR John Smithers');
     expect(linked('CIN hired physiotherapist Sam Lee (2 yr)')).toBe('CIN hired physiotherapist Sam Lee (2 yr)');
   });
+});
+
+describe('score strip', () => {
+  const league = createLeague({ seed: 'strip' });
+  const user = league.userTeamId;
+  const ours = (g: { homeId: number; awayId: number }) => g.homeId === user || g.awayId === user;
+
+  it('shows the week ahead with our game first, and no game of the week before anyone has a record', () => {
+    expect(resultsWeek(league)).toBeNull();
+    const games = stripGames(league, 1);
+    expect(games.map((x) => x.game.id).sort()).toEqual(gamesInWeek(league, 1).map((g) => g.id).sort());
+    expect(ours(games[0].game)).toBe(true);
+    expect(games[0].tag).toBe('Your game');
+    expect(games.some((x) => x.gameOfWeek)).toBe(false);
+  });
+
+  it('names the best two records meeting the game of the week, lists every team off, and keeps last week as finals', () => {
+    while (league.week < 8) playWeek(league);
+    const records = computeRecords(league);
+    const share = (id: number) => {
+      const r = records.get(id)!;
+      return (r.w + 0.5 * r.t) / (r.w + r.l + r.t);
+    };
+    const games = stripGames(league, league.week, records);
+    const best = games.filter((x) => x.gameOfWeek);
+    expect(best).toHaveLength(1);
+    expect(best[0].tag).toBe('Game of the week');
+    expect(ours(best[0].game)).toBe(false);
+    const rate = (g: { homeId: number; awayId: number }) => share(g.homeId) + share(g.awayId);
+    for (const x of games) if (!ours(x.game)) expect(rate(x.game)).toBeLessThanOrEqual(rate(best[0].game));
+    // Our game, then the game of the week, then everything else.
+    expect(games.findIndex((x) => x.gameOfWeek)).toBe(games.some((x) => ours(x.game)) ? 1 : 0);
+    expect(games.length * 2 + byeTeams(league, league.week).length).toBe(league.teams.length);
+    expect(resultsWeek(league)).toBe(league.week - 1);
+    for (const x of stripGames(league, league.week - 1, records)) expect(x.tag).toMatch(ours(x.game) ? /^Your game · Final/ : /^Final/);
+  }, 30_000);
 });

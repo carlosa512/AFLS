@@ -785,6 +785,159 @@ tr.is-user .sticky-col {
   font-weight: 600;
   text-align: right;
 }
+/* Around the league: the week's games in a strip along the top of Home, yours first. */
+.score-strip {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.strip-head,
+.strip-pick,
+.strip-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+.strip-head {
+  justify-content: space-between;
+}
+.strip-title {
+  margin: 0;
+  font-size: var(--step-1);
+}
+.strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding: 2px 0 8px;
+  scrollbar-width: thin;
+}
+.strip-card,
+.strip-bye {
+  flex: 0 0 168px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.strip-card {
+  cursor: pointer;
+}
+button.strip-card:hover {
+  border-color: var(--muted);
+}
+.strip-card.is-user {
+  border-color: var(--marker);
+  box-shadow: inset 0 0 0 1px var(--marker);
+  background: color-mix(in srgb, var(--marker) 12%, var(--surface));
+}
+.strip-bye {
+  justify-content: center;
+  border-style: dashed;
+  background: none;
+}
+.strip-tag {
+  min-height: 13px;
+  font-family: var(--font-data);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.strip-tag.hot {
+  color: var(--tie);
+  font-weight: 700;
+}
+.strip-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.strip-line {
+  cursor: pointer;
+}
+button.strip-line:hover .ab {
+  text-decoration: underline;
+}
+.strip-line .chip {
+  font-size: 0.7rem;
+}
+.strip-line .ab {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: var(--step--1);
+}
+.strip-line .v {
+  font-family: var(--font-data);
+  font-size: var(--step--1);
+}
+.strip-line.lost {
+  color: var(--muted);
+}
+.strip-line.lost .ab {
+  font-weight: 400;
+}
+.strip-line.won .v {
+  font-weight: 700;
+}
+.strip-arrow {
+  min-width: 32px;
+  font-size: var(--step-1);
+  line-height: 1;
+}
+@media (max-width: 640px) {
+  /* Touch scrolls the strip: no arrows, and a card snaps into place. */
+  .strip-arrow {
+    display: none;
+  }
+  .strip {
+    scroll-snap-type: x mandatory;
+  }
+  .strip-card,
+  .strip-bye {
+    flex-basis: 160px;
+  }
+  /* The week picker across the top; the count and Full schedule share the line under it. */
+  .strip-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .strip-pick {
+    display: contents;
+  }
+  .score-strip .seg,
+  .strip-title {
+    grid-column: 1 / -1;
+  }
+  .score-strip .seg {
+    display: flex;
+    width: 100%;
+  }
+  .score-strip .seg button {
+    flex: 1;
+    min-height: 44px;
+  }
+}
 .leaders-mini {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
