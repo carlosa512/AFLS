@@ -50,8 +50,8 @@ function SideList({ league, side }: { league: League; side: TradeSide }) {
 /** When an offer lapses, in words. */
 const lapse = (league: League) => (league.phase === 'regular' ? `Open until you play week ${league.week}.` : 'Open until your next step.');
 
-/** An offer on your desk: what he sends and wants, your staff's word, and your answer. */
-export function OfferCard({ league, offer }: { league: League; offer: TradeOffer }) {
+/** An offer on your desk: what he sends and wants, your staff's word, and your answer. `compact` drops the heading and his words (the inbox message already says them). */
+export function OfferCard({ league, offer, compact, onDone }: { league: League; offer: TradeOffer; compact?: boolean; onDone?: (message: string) => void }) {
   const nav = useNav();
   const [note, setNote] = useState<string | null>(null);
   const [release, setRelease] = useState<number[] | null>(null);
@@ -68,25 +68,31 @@ export function OfferCard({ league, offer }: { league: League; offer: TradeOffer
     });
     setNote(result.message);
     setRelease(result.release ? result.release.map((p) => p.id) : null);
+    if (result.ok) onDone?.(result.message);
   };
   const counter = () => {
     tradeDesk.put({ partnerId: offer.teamId, mine: { players: [...offer.sides[1].players], picks: [...offer.sides[1].picks] }, theirs: { players: [...offer.sides[0].players], picks: [...offer.sides[0].picks] }, counterTo: offer.id });
     nav.go({ view: 'office', tab: 'trades' });
   };
 
+  const when = <span className="muted small">{open ? lapse(league) : `This offer is ${offer.status === 'pending' ? 'no longer open' : offer.status}.`}</span>;
   return (
     <Panel
       title={
-        <div className="row">
-          <TeamChip team={team} />
-          <div>
-            <h3 style={{ margin: 0 }}>{subject}</h3>
-            <span className="muted small">{open ? lapse(league) : `This offer is ${offer.status === 'pending' ? 'no longer open' : offer.status}.`}</span>
+        compact ? (
+          when
+        ) : (
+          <div className="row">
+            <TeamChip team={team} />
+            <div>
+              <h3 style={{ margin: 0 }}>{subject}</h3>
+              {when}
+            </div>
           </div>
-        </div>
+        )
       }
     >
-      <p>{body}</p>
+      {!compact && <p>{body}</p>}
       {!enquiry && (
         <div className="grid-2">
           <div>
@@ -162,18 +168,22 @@ export function OfferCard({ league, offer }: { league: League; offer: TradeOffer
 }
 
 export function OffersPanel({ league }: { league: League }) {
+  const [done, setDone] = useState<string | null>(null);
   const offers = openOffers(league).sort((a, b) => b.id - a.id);
-  if (!offers.length)
-    return (
-      <Panel title={<h2>Offers</h2>}>
-        <p className="muted">No offers on your desk. Teams call about players they've been watching; put one on the block or shop him to draw calls.</p>
-      </Panel>
-    );
   return (
     <>
-      {offers.map((o) => (
-        <OfferCard key={o.id} league={league} offer={o} />
-      ))}
+      {done && (
+        <p className="callout callout-good" role="status">
+          {done}
+        </p>
+      )}
+      {offers.length ? (
+        offers.map((o) => <OfferCard key={o.id} league={league} offer={o} onDone={setDone} />)
+      ) : (
+        <Panel title={<h2>Offers</h2>}>
+          <p className="muted">No offers on your desk. Teams call about players they've been watching; put one on the block or shop him to draw calls.</p>
+        </Panel>
+      )}
     </>
   );
 }

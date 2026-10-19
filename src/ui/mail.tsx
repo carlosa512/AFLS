@@ -83,7 +83,7 @@ export function MailCards({ league, message }: { league: League; message: InboxM
     case 'offer': {
       // The offer itself, live: its answers work from the inbox as on the Offers tab.
       const offer = league.market?.offers.find((o) => o.id === s.offerId);
-      return offer ? <OfferCard league={league} offer={offer} /> : null;
+      return offer ? <OfferCard league={league} offer={offer} compact /> : null;
     }
     case 'recap':
       return <RecapCards league={league} s={s} />;

@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../generate';
 import { playWeek } from '../league';
+import { deliverMail, needsYou } from '../inbox';
 import { migrateLeague } from '../migrate';
 import { rosterLimit } from '../offseason/negotiation';
 import { playerOvr } from '../positions';
@@ -132,6 +133,18 @@ describe('offers to you', () => {
     const pid = enquiry.sides[1].players[0];
     expect(l.market!.talks[enquiry.teamId].cooldowns[pid].until).toBe(l.market!.moment + 6);
   }, 60_000);
+
+  it('files a message for each open offer that needs you until it lapses', () => {
+    const l = fresh();
+    deliverMail(l);
+    const offer = packaged(l)[0];
+    const mail = l.inbox!.find((m) => m.id === `offer:${offer.season}:${offer.id}`)!;
+    expect(mail).toBeDefined();
+    expect(needsYou(l, mail)).toBe(true);
+    expect(mail.body).not.toMatch(/\d+\.\d/);
+    playWeek(l);
+    expect(needsYou(l, mail)).toBe(false);
+  }, 30_000);
 
   it('loads a save from before offers', () => {
     const old = copy(fresh()) as League;
