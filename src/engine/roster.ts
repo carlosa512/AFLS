@@ -1,6 +1,6 @@
 import { skill } from './attributes';
 import { playerOvr, STARTERS } from './positions';
-import type { DepthChart, League, Player, Position, Team } from './types';
+import type { DepthChart, Injury, League, Player, Position, Team } from './types';
 import { POSITIONS } from './types';
 
 export function teamPlayers(league: League, teamId: number): Player[] {
@@ -12,8 +12,11 @@ export function activeRoster(league: League, teamId: number): Player[] {
   return Object.values(league.players).filter((p) => p.teamId === teamId && !p.ir);
 }
 
+/** Playing through an injury: on injections, or back early in protective gear once his wait is over. */
+export const playingHurt = (i: Injury | undefined) => !!i && (i.treatment === 'injection' || (i.treatment === 'brace' && !i.braceWait));
+
 /** Can he play this week? Not on reserve, and healthy or playing through it. */
-export const isAvailable = (p: Player) => !p.ir && (!p.injury || !!p.injury.injected);
+export const isAvailable = (p: Player) => !p.ir && (!p.injury || playingHurt(p.injury));
 
 /** Depth chart ordered purely by overall rating at each position. */
 export function buildAutoDepthChart(players: Player[]): DepthChart {

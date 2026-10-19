@@ -4,9 +4,10 @@
  * player's injury proneness stays a word (see ui/injuries.tsx).
  */
 import { useState } from 'react';
-import { injuryLabel, estimateText, SEVERITY_LABEL, weeksLeft } from '../../engine/injuries';
+import { injuryLabel, outlookText, SEVERITY_LABEL, weeksLeft } from '../../engine/injuries';
 import { teamScheme } from '../../engine/coaching';
 import { spotsFor } from '../../engine/schemes';
+import { playingHurt } from '../../engine/roster';
 import {
   conditionBonus,
   departmentFor,
@@ -338,7 +339,7 @@ function InjuryReport({ league }: { league: League }) {
                   <td>
                     <InjuryCell league={league} p={p} />
                   </td>
-                  <td className="muted small">{p.injury ? (p.injury.injected ? 'Playing through it' : estimateText(p.injury, weeksLeft(league))) : 'Ready to come off reserve'}</td>
+                  <td className="muted small">{p.injury ? outlookText(p.injury, weeksLeft(league)) : 'Ready to come off reserve'}</td>
                 </tr>
               ))}
             </tbody>
@@ -410,7 +411,7 @@ function LeagueInjuries({ league }: { league: League }) {
   const byTeam = sortRows(
     league.teams.map((t) => ({
       t,
-      out: out.filter((p) => p.teamId === t.id && !(p.injury?.injected ?? false)).length,
+      out: out.filter((p) => p.teamId === t.id && !playingHurt(p.injury)).length,
       ir: out.filter((p) => p.teamId === t.id && p.ir).length,
       season: hurtThisSeason(t.id),
     })),
@@ -520,7 +521,7 @@ function LeagueInjuries({ league }: { league: League }) {
                     <td>
                       <InjuryCell league={league} p={p} />
                     </td>
-                    <td className="muted small">{p.injury ? (p.injury.injected ? 'Playing through it' : estimateText(p.injury, weeksLeft(league))) : 'Ready to come off reserve'}</td>
+                    <td className="muted small">{p.injury ? outlookText(p.injury, weeksLeft(league)) : 'Ready to come off reserve'}</td>
                   </tr>
                 ))}
               </tbody>

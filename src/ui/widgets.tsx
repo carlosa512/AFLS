@@ -7,7 +7,7 @@ import { useState, type ReactNode } from 'react';
 import { capSheet } from '../engine/finance/cap';
 import { injuryLabel, weeksLeft } from '../engine/injuries';
 import { inInbox, needsYou, threadLabel, threads, type MailThread } from '../engine/inbox';
-import { teamPlayers } from '../engine/roster';
+import { playingHurt, teamPlayers } from '../engine/roster';
 import { computeRecords, conferenceSeeds, divisionStandings } from '../engine/season/standings';
 import { leaders, LEADER_CATEGORIES, teamSeasonStats, type TeamSeasonLine } from '../engine/stats';
 import type { Game, InboxMessage, League, Player, Team } from '../engine/types';
@@ -24,7 +24,8 @@ const SHOW = 3;
 export function outlookPill(league: League, p: Player): string {
   const i = p.injury;
   if (!i) return 'IR · ready';
-  if (i.injected) return 'Playing hurt';
+  if (playingHurt(i)) return 'Playing hurt';
+  if (i.braceWait) return `Out ${i.braceWait} wk`;
   const [lo, hi] = i.estimate;
   const out = lo >= weeksLeft(league) ? 'season' : hi <= 1 ? '1 wk' : lo === hi ? `${lo} wk` : `${lo}–${hi} wk`;
   return p.ir ? `IR · ${out}` : out === 'season' ? 'Out for season' : `Out ${out}`;
@@ -65,13 +66,13 @@ export function YourInjuries({ league }: { league: League }) {
   const hurt = hurtList(league, user);
   const worn = wornDown(league, user);
   const rows = [
-    ...hurt.map((p) => ({ p, note: p.injury ? injuryLabel(p.injury.type) : 'Healed', pill: outlookPill(league, p), tone: p.injury?.injected ? ('warn' as const) : ('bad' as const) })),
+    ...hurt.map((p) => ({ p, note: p.injury ? injuryLabel(p.injury.type) : 'Healed', pill: outlookPill(league, p), tone: playingHurt(p.injury) ? ('warn' as const) : ('bad' as const) })),
     ...worn.map((p) => ({ p, note: `Condition ${Math.round(p.condition ?? 100)}%`, pill: 'Worn', tone: 'warn' as const })),
   ];
   const medical = () => nav.go({ view: 'office', tab: 'medical' });
   const rest = rows.length - SHOW;
   const facts: [string, number][] = [
-    ['Out', hurt.filter((p) => p.injury && !p.ir && !p.injury.injected).length],
+    ['Out', hurt.filter((p) => p.injury && !p.ir && !playingHurt(p.injury)).length],
     ['On IR', hurt.filter((p) => p.ir).length],
     ['Worn down', worn.length],
   ];
@@ -132,7 +133,7 @@ export function TheirInjuries({ league, opp, game }: { league: League; opp: Team
       ) : (
         <div>
           {hurt.slice(0, SHOW).map((p) => (
-            <PlayerRow key={p.id} p={p} note={p.injury ? injuryLabel(p.injury.type) : 'Healed'} pill={outlookPill(league, p)} tone={p.injury?.injected ? 'warn' : 'bad'} />
+            <PlayerRow key={p.id} p={p} note={p.injury ? injuryLabel(p.injury.type) : 'Healed'} pill={outlookPill(league, p)} tone={playingHurt(p.injury) ? 'warn' : 'bad'} />
           ))}
         </div>
       )}

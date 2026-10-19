@@ -95,8 +95,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     changes go through this module (it keeps a per-team index; `teamCoaches()` returns a shared
     read-only list)
   - `injuries.ts` who gets hurt (snap and collision risk, resistance, energy, condition), layoffs,
-    scars, injured reserve, the weekly cycle (healing, practice, AI injury moves), the injury-risk
-    read and injury retirements. All randomness on its own streams (per game, per practice week)
+    scars, treatments (pain injections, protective gear, fast-tracks; the player's say on each, AI
+    teams' calls for their starters), injured reserve, the weekly cycle (healing, practice, AI injury
+    moves), the injury-risk read and injury retirements. All randomness on its own streams (per game,
+    per practice week, per player's answer)
   - `medical.ts` medical staffs: department ratings (`departmentFor`), the recovery curve, the
     medical budget, contracts, the market, ageing and AI hiring (same shape as `staff.ts`)
   - `schemes.ts` what coordinators run: offenses (personnel, run/pass mix, targets, play action), fronts

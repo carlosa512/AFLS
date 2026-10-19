@@ -6,14 +6,18 @@
  *   and collide most) and from contact (ball carriers brought down, sacked quarterbacks, tacklers,
  *   returners). It is scaled by the player's hidden injury resistance, which fades once his body is
  *   past its physical prime (a body built to last fades slower), by his energy late in a game
- *   (below 65 the risk climbs fast), by a history of recent injuries, by playing through one on
- *   injections, and, for soft tissue, by the medical staff's sports science.
+ *   (below 65 the risk climbs fast), by a history of recent injuries, by playing through one (on
+ *   injections or in protective gear), and, for soft tissue, by the medical staff's sports science.
  * - **Condition** (0–100) is match fitness carried between games: a game costs some, a week gives
  *   most of it back (natural fitness and sports science decide how much). Playing every snap for
  *   weeks builds a debt; a rested player starts fresh. Energy in a game starts at his condition.
  * - **Layoffs** come from the injury type, rolled within its range, then shaped by rehab (the
  *   staff's physiotherapy), natural fitness and age. The medical staff names an estimate; the
  *   engine knows the truth. Severe injuries can take physical ratings for good.
+ * - **Treatments** besides rest, where an injury allows them: a pain injection to play through a minor
+ *   one, protective gear to come back early at a cost on the field, a fast-track to heal sooner and
+ *   risk it going again. The player has his say: a competitor plays hurt, a contract year protects
+ *   his next deal. Your players' treatments are always your call; AI teams choose their own.
  * - **Injured reserve** takes a player off the 53 for at least four weeks; eight can come back each
  *   season. AI teams (and the user's, unless he takes over) place and activate players and sign
  *   replacements so every position stays covered.
@@ -23,16 +27,17 @@
  */
 import { declineOnset } from './aging';
 import { logTransaction } from './finance/cap';
-import { conditionBonus, departmentFor, diagnosisSpread, preventionMultiplier, recoveryMultiplier, type Department } from './medical';
+import { lastSeason } from './finance/contract';
+import { conditionBonus, departmentFor, diagnosisSpread, preventionMultiplier, recoveryMultiplier, TYPICAL, type Department } from './medical';
 import { aiCutdown, KEEP_MIN, signMinimum } from './offseason/ai';
 import { ROSTER_MAX } from './offseason/negotiation';
 import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
 import { clamp, Rng } from './rng';
-import { activeRoster, isAvailable, syncDepthChart, teamPlayers } from './roster';
+import { activeRoster, isAvailable, playingHurt, syncDepthChart, teamPlayers } from './roster';
 import { characterRead, type CharacterRead } from './scouting';
 import { TRAIT_MEAN } from './traits';
-import type { Attribute, Injury, InjurySeverity, League, Player, Position, Team } from './types';
+import type { Attribute, Injury, InjurySeverity, League, Player, Position, Team, TreatmentId } from './types';
 import { POSITIONS } from './types';
 
 /** Fewest weeks a player placed on injured reserve sits out. */
@@ -64,11 +69,35 @@ export interface InjuryType {
   major?: true;
   /** Always career-threatening. */
   threatening?: true;
+  /** A pain injection masks it when it's minor: joints, bones and bruises, never a muscle, the head or the neck. */
+  inject?: true;
+  /** Protective gear that gets him back before it has healed. */
+  brace?: Brace;
+  /** A faster way back than rest (rehab for a strain, surgery for a high ankle): its name. */
+  fastTrack?: string;
+  /** What he comes back in anyway on the normal timeline (a knee brace after an MCL): words for the card. */
+  gear?: string;
+}
+
+/** Playing before it has healed, protected: a harness on a shoulder, a club on a broken hand. */
+export interface Brace {
+  /** What he plays in ("a club cast"). */
+  gear: string;
+  /** Share of the doctor's estimate he still sits before he can play in it. */
+  wait: number;
+  /** Rating points he plays down on while he wears it (contests his position doesn't run never read them). */
+  cost: Partial<Record<Attribute, number>>;
+  /** Positions that can't play in it: a quarterback can't throw in a club. */
+  not?: readonly Position[];
+  /** What else the choice means, for the card. */
+  note?: string;
 }
 
 const SKILL_SPRINT: Partial<Record<Position, number>> = { WR: 1.5, CB: 1.5, S: 1.3, RB: 1.3, LB: 1, TE: 1, EDGE: 0.8, DT: 0.5, OL: 0.4, QB: 0.4, K: 0.8, P: 0.4 };
 const TRENCH: Partial<Record<Position, number>> = { OL: 1.4, DT: 1.4, EDGE: 1.2, LB: 1.1, TE: 1.1, RB: 0.9, WR: 0.6, CB: 0.6, S: 0.7, QB: 0.5, K: 0.1, P: 0.1 };
 const COLLISION: Partial<Record<Position, number>> = { CB: 1.3, S: 1.5, WR: 1.3, RB: 1.2, TE: 1.3, LB: 1.3, QB: 1, OL: 0.6, DT: 0.6, EDGE: 0.9, K: 0.3, P: 0.3 };
+const REHAB = 'Fast-track rehab';
+const HARNESS = 'a shoulder harness';
 
 /**
  * The injuries the game knows. Frequencies follow the NFL's injury surveillance (hamstrings first,
@@ -77,31 +106,54 @@ const COLLISION: Partial<Record<Position, number>> = { CB: 1.3, S: 1.5, WR: 1.3,
  */
 export const INJURY_TYPES = {
   // ── soft tissue: the body giving out on its own ──
-  hamstring: { label: 'Hamstring strain', part: 'hamstring', mechanism: 'soft', weeks: [1, 5], freq: 30, pos: SKILL_SPRINT },
-  groin: { label: 'Groin strain', part: 'groin', mechanism: 'soft', weeks: [1, 4], freq: 13, pos: { ...SKILL_SPRINT, K: 1.8, P: 1.4 } },
-  calf: { label: 'Calf strain', part: 'calf', mechanism: 'soft', weeks: [1, 3], freq: 9 },
-  quad: { label: 'Quad strain', part: 'quad', mechanism: 'soft', weeks: [1, 3], freq: 6, pos: { K: 2.5, P: 1.8 } },
-  hipFlexor: { label: 'Hip flexor strain', part: 'hip', mechanism: 'soft', weeks: [1, 3], freq: 4 },
-  back: { label: 'Back spasms', part: 'back', mechanism: 'both', weeks: [1, 2], freq: 6, pos: { OL: 1.5, DT: 1.4, QB: 1.2, K: 0.8, P: 1 } },
+  hamstring: { label: 'Hamstring strain', part: 'hamstring', mechanism: 'soft', weeks: [1, 5], freq: 30, pos: SKILL_SPRINT, fastTrack: REHAB },
+  groin: { label: 'Groin strain', part: 'groin', mechanism: 'soft', weeks: [1, 4], freq: 13, pos: { ...SKILL_SPRINT, K: 1.8, P: 1.4 }, fastTrack: REHAB },
+  calf: { label: 'Calf strain', part: 'calf', mechanism: 'soft', weeks: [1, 3], freq: 9, fastTrack: REHAB },
+  quad: { label: 'Quad strain', part: 'quad', mechanism: 'soft', weeks: [1, 3], freq: 6, pos: { K: 2.5, P: 1.8 }, fastTrack: REHAB },
+  hipFlexor: { label: 'Hip flexor strain', part: 'hip', mechanism: 'soft', weeks: [1, 3], freq: 4, fastTrack: REHAB },
+  back: { label: 'Back spasms', part: 'back', mechanism: 'both', weeks: [1, 2], freq: 6, pos: { OL: 1.5, DT: 1.4, QB: 1.2, K: 0.8, P: 1 }, inject: true },
   achilles: { label: 'Torn Achilles', part: 'achilles', mechanism: 'soft', weeks: [40, 52], freq: 1.4, scar: { speed: 1.6, agility: 0.8 }, major: true, pos: { RB: 1.2, LB: 1.2, CB: 1.2, WR: 1.1, DT: 0.8, OL: 0.7, QB: 0.6, K: 0.2, P: 0.2 } },
   // Most torn ACLs are non-contact (a plant and a cut), the rest come in traffic.
   acl: { label: 'Torn ACL', part: 'knee', mechanism: 'both', weeks: [36, 50], freq: 3.5, scar: { speed: 1.1, agility: 1.1 }, major: true, pos: { WR: 1.3, TE: 1.2, RB: 1.3, LB: 1.3, CB: 1.2, S: 1.1, OL: 0.9, DT: 1, EDGE: 0.8, QB: 0.7, K: 0.2, P: 0.2 } },
   pectoral: { label: 'Torn pectoral', part: 'chest', mechanism: 'both', weeks: [12, 18], freq: 0.5, scar: { strength: 0.8 }, pos: { OL: 1.8, DT: 1.8, EDGE: 1.4, LB: 1.3, TE: 1, RB: 0.5, WR: 0.3, CB: 0.3, S: 0.4, QB: 0.2, K: 0, P: 0 } },
   // ── contact ──
-  ankle: { label: 'Ankle sprain', part: 'ankle', mechanism: 'contact', weeks: [1, 2], freq: 17, pos: TRENCH },
-  highAnkle: { label: 'High ankle sprain', part: 'ankle', mechanism: 'contact', weeks: [2, 6], freq: 11, pos: TRENCH },
-  mcl: { label: 'MCL sprain', part: 'knee', mechanism: 'contact', weeks: [2, 6], freq: 10, pos: TRENCH },
-  knee: { label: 'Knee sprain', part: 'knee', mechanism: 'contact', weeks: [1, 3], freq: 7, pos: TRENCH },
+  ankle: { label: 'Ankle sprain', part: 'ankle', mechanism: 'contact', weeks: [1, 2], freq: 17, pos: TRENCH, inject: true, gear: 'an ankle brace' },
+  // TightRope surgery ties the two leg bones back together: back weeks sooner, at a price.
+  highAnkle: { label: 'High ankle sprain', part: 'ankle', mechanism: 'contact', weeks: [2, 6], freq: 11, pos: TRENCH, fastTrack: 'TightRope surgery' },
+  mcl: { label: 'MCL sprain', part: 'knee', mechanism: 'contact', weeks: [2, 6], freq: 10, pos: TRENCH, gear: 'a knee brace' },
+  knee: { label: 'Knee sprain', part: 'knee', mechanism: 'contact', weeks: [1, 3], freq: 7, pos: TRENCH, inject: true, gear: 'a knee brace' },
   meniscus: { label: 'Torn meniscus', part: 'knee', mechanism: 'contact', weeks: [3, 8], freq: 3, pos: TRENCH },
   concussion: { label: 'Concussion', part: 'head', mechanism: 'contact', weeks: [1, 3], freq: 28, pos: COLLISION },
-  shoulder: { label: 'Shoulder sprain', part: 'shoulder', mechanism: 'contact', weeks: [1, 3], freq: 8, pos: { QB: 1.3, LB: 1.2, S: 1.2, OL: 0.9 } },
-  labrum: { label: 'Torn labrum', part: 'shoulder', mechanism: 'contact', weeks: [12, 24], freq: 0.7, scar: { strength: 0.8, throwPower: 0.8 }, pos: { QB: 1.3, LB: 1.2, S: 1.2, OL: 1.1 } },
-  ribs: { label: 'Rib injury', part: 'ribs', mechanism: 'contact', weeks: [1, 3], freq: 4, pos: { QB: 2.2, RB: 1.2, WR: 1.1 } },
-  hand: { label: 'Broken hand', part: 'hand', mechanism: 'contact', weeks: [2, 5], freq: 3.5, pos: { OL: 1.3, DT: 1.3, WR: 1.1, CB: 1.1 } },
-  wrist: { label: 'Wrist injury', part: 'arm', mechanism: 'contact', weeks: [2, 6], freq: 2 },
-  elbow: { label: 'Elbow sprain', part: 'arm', mechanism: 'contact', weeks: [1, 4], freq: 2.5, pos: { OL: 1.5, DT: 1.4, EDGE: 1.2 } },
-  turfToe: { label: 'Turf toe', part: 'foot', mechanism: 'contact', weeks: [2, 7], freq: 2.5, pos: { OL: 1.2, DT: 1.2, RB: 1.3, WR: 1.1 } },
-  hipPointer: { label: 'Hip pointer', part: 'hip', mechanism: 'contact', weeks: [1, 2], freq: 3 },
+  shoulder: {
+    label: 'Shoulder sprain', part: 'shoulder', mechanism: 'contact', weeks: [1, 3], freq: 8, pos: { QB: 1.3, LB: 1.2, S: 1.2, OL: 0.9 }, inject: true,
+    brace: { gear: HARNESS, wait: 0.5, cost: { strength: 1, tackling: 2, passBlock: 1, runBlock: 1, throwPower: 2 } },
+  },
+  // Played through in a harness all season, fixed once it's over (the offseason covers the surgery).
+  labrum: {
+    label: 'Torn labrum', part: 'shoulder', mechanism: 'contact', weeks: [12, 24], freq: 0.7, scar: { strength: 0.8, throwPower: 0.8 }, pos: { QB: 1.3, LB: 1.2, S: 1.2, OL: 1.1 },
+    brace: { gear: HARNESS, wait: 0.12, cost: { strength: 2, tackling: 2, passBlock: 2, runBlock: 2, passRush: 1 }, not: ['QB'], note: 'surgery once the season is over' },
+  },
+  ribs: {
+    label: 'Rib injury', part: 'ribs', mechanism: 'contact', weeks: [1, 3], freq: 4, pos: { QB: 2.2, RB: 1.2, WR: 1.1 }, inject: true,
+    brace: { gear: 'a flak jacket', wait: 0.5, cost: { throwPower: 2, throwAccDeep: 1, carrying: 1, strength: 1 } },
+  },
+  hand: {
+    label: 'Broken hand', part: 'hand', mechanism: 'contact', weeks: [2, 5], freq: 3.5, pos: { OL: 1.3, DT: 1.3, WR: 1.1, CB: 1.1 }, inject: true,
+    brace: { gear: 'a club cast', wait: 0.3, cost: { catching: 3, carrying: 2, passBlock: 1, runBlock: 1, tackling: 1 }, not: ['QB'] },
+  },
+  wrist: {
+    label: 'Wrist injury', part: 'arm', mechanism: 'contact', weeks: [2, 6], freq: 2, inject: true,
+    brace: { gear: 'a wrist brace', wait: 0.5, cost: { catching: 2, carrying: 1, passBlock: 1, runBlock: 1, tackling: 1, throwAccShort: 1, throwAccDeep: 1 } },
+  },
+  elbow: {
+    label: 'Elbow sprain', part: 'arm', mechanism: 'contact', weeks: [1, 4], freq: 2.5, pos: { OL: 1.5, DT: 1.4, EDGE: 1.2 }, inject: true,
+    brace: { gear: 'an elbow brace', wait: 0.5, cost: { passBlock: 1, runBlock: 1, tackling: 1, throwPower: 2, throwAccDeep: 1 } },
+  },
+  turfToe: {
+    label: 'Turf toe', part: 'foot', mechanism: 'contact', weeks: [2, 7], freq: 2.5, pos: { OL: 1.2, DT: 1.2, RB: 1.3, WR: 1.1 }, inject: true,
+    brace: { gear: 'a carbon plate in his shoe', wait: 0.5, cost: { speed: 2, agility: 2 } },
+  },
+  hipPointer: { label: 'Hip pointer', part: 'hip', mechanism: 'contact', weeks: [1, 2], freq: 3, inject: true },
   neck: { label: 'Neck strain', part: 'neck', mechanism: 'contact', weeks: [1, 3], freq: 4, pos: { LB: 1.4, S: 1.3, OL: 1.2, DT: 1.2, EDGE: 1.1 } },
   lisfranc: { label: 'Lisfranc sprain', part: 'foot', mechanism: 'contact', weeks: [12, 28], freq: 0.5, scar: { agility: 0.8, speed: 0.8 } },
   brokenLeg: { label: 'Broken leg', part: 'leg', mechanism: 'contact', weeks: [8, 16], freq: 0.8, scar: { speed: 0.8 } },
@@ -155,12 +207,25 @@ function recentInjuries(p: Player, season: number): number {
 /** Weeks since an injury (or any season/week stamp), approximately across league years. */
 const weeksSince = (league: League, season: number, week: number) => (league.season - season) * YEAR_WEEKS + (league.week - week);
 
-/** A soft-tissue injury he just came back from is the likeliest thing to go again (hamstrings above all). */
-function freshlyHealed(league: League, p: Player): boolean {
+/** Risk multiplier on the injury he came back from, in his first six weeks back. */
+const BACK_SOON = 1.5;
+/** The same, when he rushed back on a fast-track. */
+const FAST_TRACK_RECUR = 2.5;
+
+/**
+ * Just back from an injury: a strain is the likeliest thing to go again (hamstrings above all), and
+ * anything he rushed back from on a fast-track likelier still, a high ankle included.
+ */
+function backTooSoon(league: League, p: Player): { contact: number; soft: number } {
   const last = p.injuries?.at(-1);
-  if (!last || injuryType(last.type).mechanism === 'contact' || p.injury) return false;
-  return weeksSince(league, last.season, last.week) - last.weeks < 6;
+  if (!last || p.injury || weeksSince(league, last.season, last.week) - last.weeks >= 6) return { contact: 1, soft: 1 };
+  const m = last.fastTracked ? FAST_TRACK_RECUR : BACK_SOON;
+  if (injuryType(last.type).mechanism !== 'contact') return { contact: 1, soft: m };
+  return { contact: last.fastTracked ? m : 1, soft: 1 };
 }
+
+/** Playing through an injury: on injections the pain is masked; in protective gear it's guarded. */
+const PLAYING_HURT_RISK: Record<TreatmentId, number> = { injection: 2.5, brace: 1.6, fastTrack: 1 };
 
 export interface RiskFactors {
   /** Multipliers on a contact and a soft-tissue event's base chance, before fatigue. */
@@ -172,8 +237,10 @@ export interface RiskFactors {
 
 /** What makes this player likelier (or less likely) to get hurt this week, apart from his energy. */
 export function riskFactors(league: League, p: Player, dept: Department = departmentFor(league, p.teamId)): RiskFactors {
-  const base = resistanceMult(effectiveResistance(p)) * (1 + 0.07 * Math.min(5, recentInjuries(p, league.season))) * (p.injury?.injected ? 2.5 : 1);
-  return { contact: base, soft: base * preventionMultiplier(dept.science) * (freshlyHealed(league, p) ? 1.5 : 1), carrier: carrierHabit(activeQuirks(p)) };
+  const hurt = p.injury?.treatment && playingHurt(p.injury) ? PLAYING_HURT_RISK[p.injury.treatment] : 1;
+  const base = resistanceMult(effectiveResistance(p)) * (1 + 0.07 * Math.min(5, recentInjuries(p, league.season))) * hurt;
+  const back = backTooSoon(league, p);
+  return { contact: base * back.contact, soft: base * preventionMultiplier(dept.science) * back.soft, carrier: carrierHabit(activeQuirks(p)) };
 }
 
 // ───────── habits (the injury side of quirks) ─────────
@@ -251,8 +318,9 @@ export interface RolledInjury {
 }
 
 /**
- * Diagnose an injury. A player playing through one on injections makes that one worse instead of
- * picking up something new: the same injury, half again as long on top of what was left.
+ * Diagnose an injury. A player playing through one (on injections or in protective gear) makes that
+ * one worse instead of picking up something new: the same injury, half again as long on top of what
+ * was left.
  */
 export function rollInjury(
   rng: Rng,
@@ -266,7 +334,7 @@ export function rollInjury(
   const prior = p.injury;
   let id: string;
   let weeks: number;
-  if (prior?.injected) {
+  if (prior && playingHurt(prior)) {
     id = prior.type;
     weeks = Math.round((prior.weeksRemaining + rollWeeks(rng, p, injuryType(id), dept)) * 1.5);
   } else {
@@ -325,7 +393,7 @@ function rollScar(rng: Rng, p: Player, type: InjuryType): Partial<Record<Attribu
  * severe one costs its scar (from 26, ceiling included: a step lost is lost for the rest of his career).
  */
 export function applyInjury(league: League, p: Player, injury: Injury, scar?: Partial<Record<Attribute, number>>): void {
-  const aggravated = !!p.injury?.injected;
+  const aggravated = playingHurt(p.injury);
   p.injury = injury;
   const record: NonNullable<Player['injuries']>[number] = { type: injury.type, severity: injury.severity, season: injury.season, week: injury.week, weeks: injury.weeksRemaining };
   if (aggravated) record.aggravated = true;
@@ -372,9 +440,24 @@ export function estimateText(injury: Pick<Injury, 'estimate'>, weeksLeftInSeason
 export function injuryTag(p: Player): string | null {
   if (p.ir) return 'IR';
   if (!p.injury) return null;
-  if (p.injury.injected) return 'Playing hurt';
+  if (playingHurt(p.injury)) return 'Playing hurt';
+  if (p.injury.braceWait) return `Out ${p.injury.braceWait} wk`;
   const [lo, hi] = p.injury.estimate;
   return hi <= 1 ? 'Out 1 wk' : lo === hi ? `Out ${lo} wk` : `Out ${lo}–${hi} wk`;
+}
+
+const weeksText = (n: number) => (n === 1 ? 'a week' : `${n} weeks`);
+
+/**
+ * His outlook in words, treatment included: "out 2–3 weeks", "playing through it on injections",
+ * "back in a club cast in a week", "out 1–2 weeks, after TightRope surgery".
+ */
+export function outlookText(injury: Injury, weeksLeftInSeason?: number): string {
+  const type = injuryType(injury.type);
+  if (injury.treatment === 'injection') return 'playing through it on injections';
+  if (injury.treatment === 'brace' && type.brace) return injury.braceWait ? `back in ${type.brace.gear} in ${weeksText(injury.braceWait)}` : `playing in ${type.brace.gear}`;
+  const out = estimateText(injury, weeksLeftInSeason);
+  return injury.treatment === 'fastTrack' && type.fastTrack ? `${out}, after ${type.fastTrack === REHAB ? 'fast-track rehab' : type.fastTrack}` : out;
 }
 
 export type RiskTier = 'Low' | 'Medium' | 'High';
@@ -460,7 +543,7 @@ export function irProblem(league: League, p: Player): string | null {
 export function placeOnIr(league: League, p: Player, first = nextWeek(league)): void {
   const problem = irProblem(league, p);
   if (problem) throw new Error(problem);
-  if (p.injury?.injected) delete p.injury.injected;
+  if (p.injury) restIt(p.injury);
   p.ir = { season: league.season, week: first, weeks: 0 };
   syncDepthChart(league, league.teams[p.teamId!]);
   const team = league.teams[p.teamId!];
@@ -469,7 +552,7 @@ export function placeOnIr(league: League, p: Player, first = nextWeek(league)): 
 
 export function activateProblem(league: League, p: Player): string | null {
   if (!p.ir || p.teamId === null) return 'He isn’t on injured reserve.';
-  if (p.injury && !p.injury.injected) return 'He is still hurt.';
+  if (p.injury && !playingHurt(p.injury)) return 'He is still hurt.';
   const team = league.teams[p.teamId];
   // In the offseason the reserve list clears on its own; in season the four-week minimum and the return limit apply.
   if (inSeason(league)) {
@@ -490,24 +573,135 @@ export function activateFromIr(league: League, p: Player): void {
   if (p.teamId === league.userTeamId || playerOvr(p) >= 13) logTransaction(league, 'injury', [team.id], `${team.abbrev} activated ${p.position} ${p.firstName} ${p.lastName} from injured reserve`);
 }
 
-/** Injections only mask the minor ones. */
-export function injectProblem(p: Player): string | null {
-  if (!p.injury) return 'He isn’t hurt.';
-  if (p.injury.injected) return 'He is already playing through it.';
-  if (p.ir) return 'He is on injured reserve.';
-  if (p.injury.severity !== 'minor') return 'Only a minor injury can be played through.';
+// ───────── treatments ─────────
+
+export const TREATMENT_IDS: readonly TreatmentId[] = ['injection', 'brace', 'fastTrack'];
+
+/** What a treatment is called for this injury: "Play through it (injections)", "Back early in a club cast", "TightRope surgery". */
+export function treatmentLabel(id: TreatmentId, type: InjuryType): string {
+  if (id === 'injection') return 'Play through it (injections)';
+  if (id === 'brace') return `Back early in ${type.brace?.gear ?? 'a brace'}`;
+  return type.fastTrack ?? REHAB;
+}
+
+/** The treatments this injury allows at all (whether he can take one now is `treatmentProblem`). */
+export const treatmentsFor = (type: InjuryType): TreatmentId[] => TREATMENT_IDS.filter((id) => (id === 'injection' ? type.inject : id === 'brace' ? type.brace : type.fastTrack));
+
+/** Why he can't start a treatment now, or null. */
+export function treatmentProblem(p: Player, id: TreatmentId): string | null {
+  const inj = p.injury;
+  if (!inj) return 'He isn’t hurt.';
+  const type = injuryType(inj.type);
+  if (inj.treatment) return inj.treatment === id ? 'He is already on it.' : 'Stop his current treatment first.';
+  if (id === 'injection') {
+    if (!type.inject) return type.part === 'head' || type.part === 'neck' ? 'Never with his head or his neck.' : type.mechanism === 'soft' ? 'No needle lets a strained muscle sprint.' : 'An injection can’t mask this one.';
+    if (p.ir) return 'He is on injured reserve.';
+    if (inj.severity !== 'minor') return 'Only a minor injury can be played through on injections.';
+  } else if (id === 'brace') {
+    if (!type.brace) return 'No brace gets him back early from this.';
+    if (type.brace.not?.includes(p.position)) return `A ${p.position} can’t play in ${type.brace.gear}.`;
+    if (p.ir) return 'He is on injured reserve.';
+    if (braceWait(inj, type.brace) >= inj.estimate[0]) return `He’d be healed before he could play in ${type.brace.gear}.`;
+  } else {
+    if (!type.fastTrack) return 'There’s no faster way back from this.';
+    if (inj.estimate[1] < 2) return 'He’s back within the week anyway.';
+  }
   return null;
 }
 
-/** Play through a minor injury on injections: available now, far likelier to make it much worse. */
-export function playThrough(league: League, p: Player, on = true): void {
-  if (!on) {
-    if (p.injury) delete p.injury.injected;
-    return;
+/** Weeks he sits before he can play in protective gear: a share of the doctor's estimate. */
+export const braceWait = (inj: Injury, brace: Brace) => Math.round(((inj.estimate[0] + inj.estimate[1]) / 2) * brace.wait);
+
+/** Share of the layoff a fast-track takes off at a typical department; better physios take more. */
+export const fastTrackCut = (physio: number) => clamp(0.25 + 0.01 * (physio - TYPICAL), 0.15, 0.35);
+/** How much of the program he really does: a hard worker all of it, a coaster about half (the risk stays the same). */
+const commitment = (p: Player) => clamp(0.75 + 0.06 * (p.traits.workEthic - TRAIT_MEAN), 0.5, 1);
+
+export interface TreatmentAnswer {
+  yes: boolean;
+  /** His reason, in words ("a competitor, he wants to be out there"); empty when he simply agrees. */
+  why: string;
+}
+
+const isContractYear = (league: League, p: Player) => !!p.contract && lastSeason(p.contract) === league.season;
+
+/**
+ * Whether he'll go along with a treatment, and why. The roll is his own, fixed for this injury and
+ * this treatment, so asking twice gets the same answer; it changes only when his situation does (the
+ * playoffs, his contract). A competitor plays hurt; a contract year, with an agent who drives a hard
+ * bargain, protects the next deal; a needle that once made it worse isn't forgotten. A fast-track is
+ * an easier sell: nearly everyone wants back sooner.
+ */
+export function treatmentAnswer(league: League, p: Player, id: TreatmentId): TreatmentAnswer {
+  const inj = p.injury!;
+  const roll = new Rng(`${league.seed}:treat:${p.id}:${inj.season}:${inj.week}:${inj.type}:${id}`).next();
+  const reasons: [number, string][] = [];
+  const winning = p.personality.winning - 0.5;
+  if (id === 'fastTrack') {
+    reasons.push([0.9, '']);
+    reasons.push([0.2 * winning, winning > 0 ? 'he wants back on the field' : 'he’d rather take his time']);
+    if (isContractYear(league, p)) reasons.push([0.1, 'he wants to be back for his contract year']);
+  } else {
+    reasons.push([id === 'injection' ? 0.8 : 0.88, '']);
+    reasons.push([0.4 * winning, winning > 0 ? 'a competitor, he wants to be out there' : 'he isn’t one to play through pain']);
+    if (league.phase === 'playoffs') reasons.push([0.1, 'it’s the playoffs']);
+    if (isContractYear(league, p)) reasons.push([-0.35 * p.personality.greed, 'he’s protecting his next deal in a contract year']);
+    if (id === 'injection' && p.injuries?.some((r) => r.aggravated)) reasons.push([-0.3, 'he made one worse on injections before']);
   }
-  const problem = injectProblem(p);
+  const willing = clamp(reasons.reduce((a, [v]) => a + v, 0), 0.05, 0.98);
+  const yes = roll < willing;
+  // His reason: whatever pushed hardest the way he went.
+  const said = reasons.filter(([v, why]) => why && (yes ? v > 0.02 : v < -0.02)).sort((a, b) => (yes ? b[0] - a[0] : a[0] - b[0]))[0];
+  return { yes, why: said?.[1] ?? (yes ? '' : 'he’d rather let it heal') };
+}
+
+/** Start a treatment he has agreed to. A fast-track takes its weeks off now; gear makes him wait a little first. */
+function startTreatment(league: League, p: Player, id: TreatmentId): void {
+  const inj = p.injury!;
+  const type = injuryType(inj.type);
+  inj.treatment = id;
+  if (id === 'brace' && type.brace) {
+    const wait = braceWait(inj, type.brace);
+    if (wait > 0) inj.braceWait = wait;
+    inj.braceCost = { ...type.brace.cost };
+  }
+  if (id === 'fastTrack') {
+    const cut = fastTrackCut(departmentFor(league, p.teamId).physio);
+    const before = inj.weeksRemaining;
+    inj.weeksRemaining = Math.max(1, Math.round(before * (1 - cut * commitment(p))));
+    // The doctor plans on the program as written; how much of it he does is up to him. The estimate
+    // still brackets the truth.
+    const planned = 1 - cut * 0.75;
+    inj.estimate = [Math.min(inj.weeksRemaining, Math.max(1, Math.round(inj.estimate[0] * planned))), Math.max(inj.weeksRemaining, Math.round(inj.estimate[1] * planned))];
+    const record = p.injuries?.at(-1);
+    if (record && record.type === inj.type && record.season === inj.season && record.week === inj.week) {
+      record.weeks = Math.max(1, record.weeks - (before - inj.weeksRemaining));
+      record.fastTracked = true;
+    }
+  }
+  if (p.teamId !== null) syncDepthChart(league, league.teams[p.teamId]);
+}
+
+/** Put a treatment to him: if he agrees it starts now. Throws if he can't take it at all. */
+export function proposeTreatment(league: League, p: Player, id: TreatmentId): TreatmentAnswer {
+  const problem = treatmentProblem(p, id);
   if (problem) throw new Error(problem);
-  p.injury!.injected = true;
+  const answer = treatmentAnswer(league, p, id);
+  if (answer.yes) startTreatment(league, p, id);
+  return answer;
+}
+
+/** Back to resting it: off the injections, out of the gear. A fast-track can't be undone. */
+function restIt(inj: Injury): void {
+  if (inj.treatment !== 'injection' && inj.treatment !== 'brace') return;
+  delete inj.treatment;
+  delete inj.braceWait;
+  delete inj.braceCost;
+}
+
+export function stopTreatment(league: League, p: Player): void {
+  if (!p.injury) return;
+  restIt(p.injury);
   if (p.teamId !== null) syncDepthChart(league, league.teams[p.teamId]);
 }
 
@@ -534,6 +728,7 @@ export function injuryWeek(league: League): void {
     if (inj && (inj.season < season || inj.week < week)) {
       inj.weeksRemaining--;
       inj.estimate = [Math.max(0, inj.estimate[0] - 1), Math.max(0, inj.estimate[1] - 1)];
+      if (inj.braceWait && --inj.braceWait <= 0) delete inj.braceWait;
       if (inj.weeksRemaining <= 0) delete p.injury;
     }
     if (p.ir && (p.ir.season < season || p.ir.week <= week)) p.ir.weeks++;
@@ -582,30 +777,53 @@ function practicingTeams(league: League): Set<number> {
 export const delegates = (league: League, team: Team) => team.id !== league.userTeamId || team.autoInjuries !== false;
 
 /**
- * A front office's injury moves: long injuries go on reserve, healed players come back while there
- * are return designations left, a thin position gets a replacement on a minimum deal (cutting the
- * least valuable man if the roster is full), and in the playoffs a starter with a minor injury plays
- * through it. Only AI teams take the injections: that gamble is the user's to make.
+ * A front office's injury moves: its starters' treatments (AI teams only: the user's players are
+ * always his call), long injuries on reserve, healed players back while there are return designations
+ * left, and a replacement on a minimum deal where a position runs thin (cutting the least valuable man
+ * if the roster is full).
  */
 export function manageInjuries(league: League, team: Team, rng: Rng, roster = teamPlayers(league, team.id)): void {
   const season = inSeason(league);
-  const left = weeksLeft(league);
   for (const p of roster) {
     // A cut to make room for a returning player may have released him already.
     if (p.teamId !== team.id) continue;
     const inj = p.injury;
-    if (inj && !p.ir && !inj.injected && (inj.estimate[0] + inj.estimate[1]) / 2 >= IR_MIN_WEEKS + 0.5 && (season || league.phase === 'preseason')) placeOnIr(league, p, season ? league.week + 1 : 1);
+    if (inj && !p.ir && !inj.treatment && season && team.id !== league.userTeamId) aiTreatment(league, team, p);
+    if (inj && !p.ir && !playingHurt(inj) && weeksOut(inj) >= IR_MIN_WEEKS + 0.5 && (season || league.phase === 'preseason')) placeOnIr(league, p, season ? league.week + 1 : 1);
     else if (p.ir && !p.injury && (!season || (p.ir.weeks >= IR_MIN_WEEKS && irReturnsUsed(league, team.id) < IR_RETURNS))) {
       if (inSeason(league)) (team.irReturns ??= {})[league.season] = irReturnsUsed(league, team.id) + 1;
       delete p.ir;
       if (activeRoster(league, team.id).length > ROSTER_MAX) aiCutdown(league, team);
       syncDepthChart(league, team);
-    } else if (inj && !p.ir && !inj.injected && team.id !== league.userTeamId && league.phase === 'playoffs' && inj.severity === 'minor' && inj.weeksRemaining <= Math.min(2, left)) {
-      const slot = team.depthChart[p.position].indexOf(p.id);
-      if (slot >= 0 && slot < STARTERS[p.position]) inj.injected = true;
     }
   }
   if (season) coverPositions(league, team, rng, roster);
+}
+
+/** Weeks the doctor expects him to miss: the estimate's middle, or the wait before he plays in gear. */
+const weeksOut = (inj: Injury) => (inj.treatment === 'brace' ? (inj.braceWait ?? 0) : (inj.estimate[0] + inj.estimate[1]) / 2);
+
+/** A GM this keen on winning now pushes his starters back early all season; everyone does in the playoffs. */
+const AI_PUSH = 0.6;
+
+/**
+ * An AI front office's call on a hurt starter: in the playoffs a needle for a minor injury he'd miss
+ * a game or two with, and for a win-now GM (everyone, in the playoffs) gear to get him back early or a
+ * fast-track to get him back sooner. The player can say no.
+ */
+function aiTreatment(league: League, team: Team, p: Player): void {
+  const slot = team.depthChart[p.position].indexOf(p.id);
+  if (slot < 0 || slot >= STARTERS[p.position]) return;
+  const playoffs = league.phase === 'playoffs';
+  if (!playoffs && team.gm.winNow < AI_PUSH) return;
+  const inj = p.injury!;
+  for (const id of TREATMENT_IDS) {
+    if (id === 'injection' && !(playoffs && inj.weeksRemaining <= Math.min(2, weeksLeft(league)))) continue;
+    if (id === 'brace' && weeksOut(inj) < 2) continue;
+    if (treatmentProblem(p, id) || !treatmentAnswer(league, p, id).yes) continue;
+    startTreatment(league, p, id);
+    return;
+  }
 }
 
 /** Fewest healthy players a team needs at each position to field a lineup without emergencies. */
@@ -658,7 +876,9 @@ export function injuriesNewYear(league: League): void {
     }
     inj.weeksRemaining -= OFFSEASON_WEEKS;
     inj.estimate = [Math.max(1, inj.estimate[0] - OFFSEASON_WEEKS), Math.max(1, inj.estimate[1] - OFFSEASON_WEEKS)];
-    delete inj.injected;
+    delete inj.treatment;
+    delete inj.braceWait;
+    delete inj.braceCost;
   }
 }
 
