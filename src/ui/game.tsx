@@ -100,7 +100,7 @@ export function GameStar({ league, game }: { league: League; game: Game }) {
   const team = league.teams[r.playerTeams[p.id]];
   return (
     <div className="potg">
-      <PlayerAvatar player={p} team={team ?? null} size={36} />
+      <PlayerAvatar player={p} team={team ?? null} size={36} game={game} />
       <span>
         <span className="eyebrow">Player of the game</span>
         <span style={{ display: 'block' }}>

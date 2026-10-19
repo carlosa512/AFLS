@@ -314,8 +314,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
       onClose={onClose}
       head={
         <>
-          <PlayerAvatar player={p} team={team} size={64} />
-          <span className="jersey">{p.jersey}</span>
+          <PlayerAvatar player={p} team={team} size={128} />
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
               {spot ? `${spot} · ` : ''}

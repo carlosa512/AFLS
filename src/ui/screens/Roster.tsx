@@ -543,7 +543,7 @@ function RosterRow({
       </td>
       <td className="sticky-col">
         <button className="linklike player-link" style={{ fontWeight: starter ? 700 : 400 }} onClick={() => nav.openPlayer(p.id)}>
-          <PlayerAvatar player={p} team={team} size={30} />
+          <PlayerAvatar player={p} team={team} size={32} />
           <span>
             {p.firstName} {p.lastName}
           </span>

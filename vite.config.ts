@@ -8,5 +8,5 @@ export default defineConfig(({ mode }) => ({
   plugins: mode === 'single' ? [react(), viteSingleFile()] : [react()],
   base: './',
   build: { outDir: mode === 'single' ? 'dist-single' : 'dist' },
-  test: { include: ['src/**/*.test.ts'], setupFiles: ['src/vitest.setup.ts'] },
+  test: { include: ['src/**/*.test.{ts,tsx}'], setupFiles: ['src/vitest.setup.ts'] },
 }));
