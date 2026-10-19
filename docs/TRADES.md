@@ -1123,6 +1123,72 @@ on one timeout, now fixed. The other three reds are the same ones `main` has:
 **Done when:** the offers section of `trades` is in range; UI tests pass; a played season shows a
 believable inbox (a few offers a month, a burst at the deadline, nothing after it).
 
+#### Phase 2: what landed
+
+Built as planned:
+- `trade/offers.ts`: bids, pitches, dumps and enquiries from the same deal search, made at each market
+  moment after the AI teams' own calls, on their own random stream (the AI market plays out the same
+  whatever lands on your desk).
+- The lifecycle: accept, re-checked then, with the release picker when your roster is full; decline,
+  with a cooldown unless he comes back 10% better; counter, with patience of one to three rounds by
+  stubbornness, the last marked "final offer"; *Make me an offer* and *Not for sale* on enquiries.
+- Your side: Available / On the block / Untouchable, *Shop a player* and *Ask for their price*.
+- `trade/talks.ts`: about four proposals a GM a moment, then "We're done talking this week".
+- `trade/advice.ts`: your staff's word on every deal (head coach, pro scouts, medical, cap). Your view
+  only.
+- Screens:
+  - the Trades tab's Offers, Trade table, Your block, Market and History views;
+  - offer mail with the same card and buttons, tagged Offer and marked Needs you while it's open;
+  - *Counter* and *Ask their price* opening the trade table filled in;
+  - the status picker and *Shop him* on your players' cards, *Ask their price* on everyone else's.
+- Save v24: offers, statuses, talks and the shop log join `league.market`, empty to start.
+
+Where the build departed from the plan, and why:
+- **Offers lapse when you advance the calendar** (`expireOffers` at the start of a week or an
+  offseason step), not on a stored expiry: the market runs after the week's games, before the week
+  number moves on, so "until you play the next week" is exactly the next advance.
+- **An offer you ignore cools that team off for two moments**, like a soft decline. Without it the
+  same seller pitched the same player every week.
+- **Pitches need a keen seller and a real need**: block entries he's keen to move (a rental at the
+  deadline, an overpaid deal), at a position where you'd gain, at most two a moment. They were most
+  of the first build's 40 offers a year.
+- **A call about a player on your block is always made**, and interest in him grows two levels a
+  moment: listing draws an offer within two moments whenever a team needs him. The buyer opens 5%
+  lower: he knows you want to sell.
+- **Enquiries come at half the call rate.** At the full rate they filled the inbox (18 a year).
+- **Trust moves by small steps:** +0.03 for a deal, −0.01 for a proposal he turns down, −0.02 for a
+  declined offer, −0.05 when he walks away; it drifts back by 0.025 a moment and moves his margin with
+  you by up to 0.06. The plan's fleece check, judged a season later, waits for Phase 5's memory.
+- **Every proposal is heard.** *Propose* no longer waits for the meter to read "would accept"; a
+  turned-down proposal costs a little patience and trust. A league-rule problem (your roster, the
+  cap) costs nothing: he never heard an offer.
+- **AI teams cut to fit in any trade.** The rule check used to stop a proposal that left the AI team
+  over 53, though it waives a backup after every trade anyway; now only your roster must fit (or you
+  pick who goes when you accept).
+- **No separate Home chip.** Open offers are needs-you mail, so they head Home's *Waiting for you*,
+  and the Trades tab says *Offers (N)*.
+- **UI tests are logic tests** (the repo has no render tests): offers arrive, lapse, never ask for an
+  Untouchable, accept, withdraw, cool down, run out of patience, file needs-you mail.
+- **Not built here:** draft-day offers (Phase 4); rumors with a source, bluffs and the director's
+  digest (Phase 5).
+
+Measured (`npm run trades`, three leagues, three seasons, your two best players Untouchable):
+
+| Number | Result | Band |
+| --- | --- | --- |
+| Offers a league year | 17.1 | 10–25 |
+| Enquiries a league year | 13.1 | – |
+| Most in an ordinary week / on deadline day | 2 / 3 | ≤ 2 / ≤ 4 |
+| After the deadline | 0 | 0 |
+| Asking for an Untouchable | 0 | 0 |
+| Listing draws an offer within two moments | yes | yes |
+| Probing one GM 20 times in a week | fails | fails |
+| A market week | 88 ms | ≤ 120 |
+
+The AI market's own numbers are unchanged from Phase 1: offers have their own random stream.
+
+CHECKS_PHASE2
+
 ### Phase 3: physicals, offseason and cap moves
 
 1. Physicals on every player trade (section 7): the buyer's doctor, pass / fail / concerns / cleared

@@ -299,7 +299,11 @@ consequence falls out of a few formulas (see `src/engine/finance/contract.ts` an
   - sellers ask what the league would pay, more when several teams are asking, and each GM has a most
     he'll pay (an All-In GM the most);
   - every deal goes in a history with its reason, and rumors follow what front offices are really
-    doing.
+    doing;
+  - AI teams bring you offers (bids for your players, pitches for theirs, cap dumps, enquiries) that
+    you accept, decline or counter, with your staff's word on each; you mark players Untouchable or
+    put them on the block, shop a player to every team that needs him, or ask a GM his price. Each GM
+    hears only a few proposals from you a week, and remembers how you deal.
 
   `npm run trades` checks prices, volume and mix against the NFL's, fairness, the exploit probes and
   speed.
@@ -373,7 +377,7 @@ average in the box score. Spec and later phases: `docs/OFFICIALS.md`.
 - Mentoring in position rooms; morale (playing time, contract, results) and holdouts.
 - Per-game form (consistency, big games); training camp injuries and the PUP list.
 - Compensatory picks, RFA/ERFA tenders, LTBE/NLTBE incentives, conditional picks.
-- AI trade offers to the user; trade-down offers during the draft.
+- Trade-down offers during the draft (offers to you landed with the trade market's Phase 2).
 
 **Then: Game day**
 - Your game plan: run/pass balance, aggressiveness, coverage shell, blitz rate.

@@ -199,14 +199,16 @@ export function offersMoment(ctx: TradeContext, market: TradeMarket, moment: Mom
   const user = userTeam(league);
   if (!user || tradeWindow(league)) return [];
   const rng = new Rng(`${league.seed}:offers:${league.season}:${league.phase}:${league.week}:${league.faDay}`);
-  const calls: { team: Team; score: number; make: () => TradeOffer | null }[] = [];
+  // A call about a player you've put on the block is always made: you've told the league he's available.
+  const calls: { team: Team; score: number; sure?: boolean; rate?: number; make: () => TradeOffer | null }[] = [];
   for (const x of market.interest) {
     const p = league.players[x.playerId];
     if (!p || p.teamId !== user.id || market.status[p.id] === 'untouchable') continue;
     const team = league.teams[x.teamId];
     const listed = market.status[p.id] === 'listed';
-    if (x.level >= 3 || (listed && x.level >= 2)) calls.push({ team, score: x.level + (listed ? 1 : 0), make: () => file(ctx, market, team, 'bid', bidFor(ctx, team, p)) });
-    else if (x.level === 2) calls.push({ team, score: 1, make: () => enquiry(ctx, market, team, p) });
+    if (x.level >= 3 || (listed && x.level >= 2)) calls.push({ team, score: x.level + (listed ? 1 : 0), sure: listed, make: () => file(ctx, market, team, 'bid', bidFor(ctx, team, p)) });
+    // Most teams that are only asking around never call: an enquiry now and then, not every week.
+    else if (x.level === 2) calls.push({ team, score: 1, rate: OFFER_RATE / 2, make: () => enquiry(ctx, market, team, p) });
   }
   // Sellers pitch only what they're keen to move, and only where you have a real need.
   for (const w of wanted(ctx, user, aiListings.filter((l) => l.entry.keenness >= 0.75)).filter((w) => w.score >= 0.5).slice(0, 2)) {
@@ -223,7 +225,7 @@ export function offersMoment(ctx: TradeContext, market: TradeMarket, moment: Mom
   // Shuffled first, so calls of equal weight come in any order.
   for (const c of rng.shuffle(calls).sort((a, b) => b.score - a.score)) {
     if (made.length >= BUDGET[moment]) break;
-    if (called.has(c.team.id) || !rng.chance(OFFER_RATE)) continue;
+    if (called.has(c.team.id) || (!c.sure && !rng.chance(c.rate ?? OFFER_RATE))) continue;
     const offer = c.make();
     if (!offer) continue;
     made.push(offer);

@@ -59,8 +59,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 - `npm run trades` — the trade market (`docs/TRADES.md`): what buyers pay for stars, quality starters,
   deadline rentals and depth against the NFL's prices, what a future first is worth, every AI trade
   valued in the truth (fair, and legal on cap and rosters afterwards), the AI market's volume and mix
-  (in season, deadline day, offseason, swaps, dumps, division rivals) against the NFL's, the exploit
-  probes (junk for a star, stacked firsts, dumps, sign and flip, buying straight back) and speed. Run
+  (in season, deadline day, offseason, swaps, dumps, division rivals) against the NFL's, offers to you
+  (how many, a week's most, none after the deadline or for an Untouchable, listing draws a call), the
+  exploit probes (junk for a star, stacked firsts, dumps, sign and flip, buying straight back, probing
+  one GM all week) and speed. Run
   it after changing `trade/` or what it values players with (`scouting.ts`, `finance/`, `aging.ts`,
   `coaching.ts`). `--verbose` lists every price and trade and each team's ledger; `--seasons 6` plays
   longer leagues. Nothing may be flagged.
@@ -143,8 +145,11 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     office's stance, needs, trade block and interest in `plans.ts` (on its own read); the deal search
     in `deals.ts` (a price between the seller's floor and the buyer's most, picks or a swap, dumps);
     the AI market at the NFL's moments (`marketMoment` in `market.ts`, its own RNG stream: league year,
-    FA days, camp, weeks, deadline day), its history and rumors in `league.market`; `TradeContext`,
-    one decision pass's cache ·
+    FA days, camp, weeks, deadline day), its history and rumors in `league.market`; offers to you in
+    `offers.ts` (bids, pitches, dumps, enquiries on their own stream; accept, decline, counter, your
+    players' statuses, shop, ask a price; they lapse when you advance the calendar), your dealings with
+    each GM in `talks.ts` (about four proposals a moment, cooldowns, trust), your staff's word on a
+    deal in `advice.ts` (your view only); `TradeContext`, one decision pass's cache ·
     `migrate.ts` save upgrades
 - `src/ui/` — React screens. State is one mutable `League` in `ui/store.ts`; call
   `store.mutate(fn)` to change it (triggers re-render + IndexedDB autosave).
