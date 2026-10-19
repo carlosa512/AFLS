@@ -21,6 +21,12 @@ import { POSITION_TRADE, readPlayer, salaryWeight, TRADE_BAND } from './value';
 
 /** Regular-season games: how far into the race a team is. */
 const GAMES = 17;
+/**
+ * Games after which the record is the race, whatever the roster looks like on paper: by midseason a
+ * 1–7 team's playoff odds are a few percent. Blending the roster in for the whole season had a
+ * talented 1–7 team buying a veteran with its own pick, projected second.
+ */
+const RECORD_GAMES = 8;
 
 const recordsOf = (ctx: TradeContext): Map<number, TeamRecord> => (ctx.records ??= computeRecords(ctx.league));
 
@@ -31,7 +37,7 @@ function lastRecord(league: League, teamId: number) {
 
 /**
  * The playoff race, −1 (out of it) … 1 (in comfortably): games ahead of or behind the conference's
- * last seed against the games left, blended with the roster's strength while few games are played.
+ * last seed against the games left, blended with the roster's strength over the first half of the season.
  */
 function race(ctx: TradeContext, team: Team): number {
   const { league } = ctx;
@@ -51,7 +57,7 @@ function race(ctx: TradeContext, team: Team): number {
   const outside = league.teams.filter((t) => t.conference === team.conference && !seeds.includes(t.id)).map((t) => net(t.id));
   const edge = seeds.includes(team.id) ? (net(team.id) - Math.max(...outside)) / 2 : (net(team.id) - net(seeds[seeds.length - 1])) / 2;
   const standing = clamp(edge / (1 + 0.25 * (GAMES - played)), -1, 1);
-  const share = Math.min(1, played / GAMES);
+  const share = Math.min(1, played / RECORD_GAMES);
   return share * standing + (1 - share) * roster;
 }
 

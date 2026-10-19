@@ -82,7 +82,8 @@ function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Mo
   }
   // A team truly squeezed moves a bad contract when the league year opens (before the money's
   // guaranteed), in camp before the cuts, or (rarely) on deadline day.
-  const squeezed = salaryWeight(ctx, team.id) >= 1.6;
+  // One a league year: a front office clears its worst contract, not its whole cap sheet.
+  const squeezed = salaryWeight(ctx, team.id) >= 1.6 && !market.history.some((r) => r.kind === 'dump' && r.season === league.season && r.sides[0].teamId === team.id);
   if (squeezed && (moment === 'leagueYear' || moment === 'camp' || (moment === 'deadline' && firstCall))) {
     for (const entry of tradeBlock(ctx, team).filter((e) => e.reason === 'overpaid').slice(0, 2)) {
       const deal = dumpFor(ctx, team, league.players[entry.playerId], ai);
