@@ -280,10 +280,19 @@ consequence falls out of a few formulas (see `src/engine/finance/contract.ts` an
   AI GMs (Cap Magician, All-In, Draft and Develop, Can-Kicker, Hard-Liner, Pick Hoarder,
   Balanced) re-sign, tag, bid, draft and cut by numeric traits; rich teams overpay; big deals must
   fit next year's books. `npm run offseason` checks that talent, rosters and caps stay stable.
-- **Trades:** Jimmy Johnson vs Fitzgerald-Spielberger pick charts blended by GM style, future
-  picks discounted and projected from team strength, players valued as talent × age × term plus
-  contract surplus; the AI wants a small win, stays cap-compliant, honours a signing cooldown and
-  the week-9 deadline. Contenders and rebuilders trade with each other during the season.
+- **Trades** (`docs/TRADES.md`): Jimmy Johnson vs Fitzgerald-Spielberger pick charts blended by GM
+  style, future picks discounted and projected from team strength. Players are valued by what they'd
+  add to the buyer's depth chart over the seasons it holds them, plus their contract against the
+  market (a bargain only in the role he'd play), weighed by the club's cap room. One evaluator judges
+  every deal:
+  - the AI wants a small win and stays cap-compliant;
+  - sellers hold out for most of a player's market value;
+  - each first-round pick past the second costs more, and a star only goes for a centrepiece;
+  - each GM waits his own few weeks (never shown) before dealing a new signing.
+
+  Trades run through deadline day, after week 9. Contenders and rebuilders trade with each other
+  during the season. `npm run trades` checks prices against the NFL's, fairness and the exploit
+  probes.
 
 ## Roadmap
 

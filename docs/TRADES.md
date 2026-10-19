@@ -1,11 +1,10 @@
 # Trades
 
-> **Status.** Plan, nothing built yet (owner's request, Oct 19 2026). Today's trade engine
-> (`src/engine/trade.ts`) is the starting point: pick charts, player value, cap impact, rules, the
-> user's trade table and a small AI-to-AI deadline market. This plan turns it into a living market
-> like Football Manager's transfer window. AI teams trade with each other all year, make offers to you
-> through the inbox and on draft day, and run the real NFL playbook. Every GM, coach, scout and doctor
-> involved shapes the deals, and the NFL calendar and rules are enforced.
+> **Status.** Phase 0 built (Oct 19 2026): see "Phase 0: what landed" below. Phases 1–6 are plans.
+> The trade engine lives in `src/engine/trade/`. This plan turns it into a living market like Football
+> Manager's transfer window. AI teams trade with each other all year, make offers to you through the
+> inbox and on draft day, and run the real NFL playbook. Every GM, coach, scout and doctor involved
+> shapes the deals, and the NFL calendar and rules are enforced.
 
 ## In one minute
 
@@ -857,6 +856,71 @@ Nothing new to click, but every later phase stands on it, and prices get sane.
 
 **Done when:** price buckets are in range on today's (still small) market; no starter goes for a 7th
 unless he's at the end of the line; `offseason`, `careers` and `test` are green.
+
+#### Phase 0: what landed
+
+Built as planned:
+- `trade.ts` became `src/engine/trade/` (value, rules, judge, execute, market, context), re-exported
+  so importers still write `from './trade'`.
+- `TradeContext`.
+- Value v2: control by season share, the re-sign window, role on the buyer's depth chart, market
+  value and seller floors, salary weight, the roster-spot cost.
+- Soft first-round pricing (the `MAX_AI_PICKS` hard stop is gone) and the centrepiece rule for stars.
+- `judge` for every deal.
+- Deadline day: the window stays open after week 9's games until week 10 is played; the primary
+  button and the trade table say so.
+- The hidden signing wait: 4–8 weeks per GM, in words; no greyed rows or footnote.
+- The market on its own RNG stream.
+- `npm run trades`, in `npm run check` and CI.
+
+Where the build departed from the plan, and why:
+- **The pick charts blend geometrically.** The old arithmetic blend made a seventh-round pick worth
+  about 220 points to an analytics GM (60 to an old-school one): as much as a 14 OVR starter on the
+  player scale. That was the root of the baseline's "starters for 7ths". Now a seventh is worth about
+  11 and 33. An analytics GM still values No. 48 about 1.5 times as highly as an old-school GM does.
+- **A contract counts by role.** The market's pay for a player counts only in the role he'd have, and
+  the salary owed counts in full. A starter on a cheap deal is a bargain; the same deal on the bench
+  is a cost. A starter-priced backup QB had been worth 3,800 points to a team that would bench him;
+  now he's a liability. Points per $1K of surplus went from 1/30 to 1/40, so a dead $16M contract
+  costs about a second to move (Osweiler).
+- **Depth-chart rank is soft** (0.75 OVR, "a camp battle"). Two near-equal players share the job in
+  proportion, so a misread of a few tenths never pushes a player across a cliff.
+- **The scouting test's misread band** (`staff.test.ts`) is now measured against a player's stakes
+  (his play and its market price, before his salary), not as a ratio of his value to one team. With
+  marginal fit a small upgrade's value is small, so ratios of it swing on nothing. The bounds stayed
+  as strict:
+
+  | Percentiles | Bound | Measured |
+  | --- | --- | --- |
+  | 5th–95th | ±12% | −6% to +8% |
+  | 1st–99th | ±25% | −13% to +17% |
+  | Worst | +50% | +34% |
+
+- **`npm run trades` prices** are measured in today's terms (future picks 25% off a year). The star
+  band is "1–2 firsts" (1,000–3,500), as the plan's table says; depth players nobody will take count
+  as 0. Fairness compares both sides on one neutral, true scale (market value, a chart midway between
+  the GM styles).
+
+Measured (`npm run trades -- 1`, one league, three seasons):
+
+| Number | Preseason | Deadline day | Band |
+| --- | --- | --- | --- |
+| Star (top 3 at a premium position) | 1,347 | 1,268 | 1,000–3,500 |
+| Quality starter (top quarter, 1–2 years) | 866 | 599 | 400–1,300 |
+| Deadline rental (12–14 OVR, expiring) | – | 90 (about a 4th) | 35–150 |
+| Depth | 0 | 0 | ≤ 40 |
+
+Other numbers:
+- A future first is worth pick 26 now.
+- Good starters in their prime sold for 7ths only: 0.
+- AI trades: a median truth gap of 23%, none over 3:1, no team over the cap or short afterwards.
+- All eight exploit probes fail.
+- Speed: a verdict takes 0.07 ms and a market week 16 ms.
+
+**Left for Phase 1:**
+- Stricter sellers mean fewer AI trades: about 3 a season against about 4 before, all picks for a
+  veteran. Volume, mix and the market's moments are Phase 1's job.
+- The probe for 20 proposals to one GM in a week needs Phase 2's talks.
 
 ### Phase 1: the AI market
 

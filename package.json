@@ -20,7 +20,8 @@
     "careers": "tsx scripts/careers.ts",
     "quirks": "tsx scripts/quirks.ts",
     "weather": "tsx scripts/weather.ts",
-    "crews": "tsx scripts/crews.ts"
+    "crews": "tsx scripts/crews.ts",
+    "trades": "tsx scripts/trades.ts"
   },
   "dependencies": {
     "react": "19.3.1",
