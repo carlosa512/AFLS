@@ -7,7 +7,7 @@
  */
 import { isExpired, yearsLeft } from '../finance/contract';
 import { STARTERS } from '../positions';
-import type { DealKind, DraftPick, Player, Team } from '../types';
+import type { DealKind, DraftPick, GmTraits, Player, Team } from '../types';
 import { ovrOf, rosterOf, spendable, type TradeContext } from './context';
 import { judge, marginFor, STAR, type Judgement } from './judge';
 import { isSeller, stanceOf, starterLine, teamNeeds, untouchables } from './plans';
@@ -123,8 +123,12 @@ function balance(ctx: TradeContext, proposal: TradeProposal, ahead: number): Tra
 /** What each other team asking about a player adds to his price, and the most that competition adds. */
 const PER_BIDDER = 0.1;
 const MAX_PREMIUM = 0.2;
-/** The most any GM pays for a player: about a third over what the league would pay (Ramsey, Mack). */
-const MAX_OVER = 1.35;
+/**
+ * The most a GM pays for a player, against what the league would pay: about 1.3 times for most, up
+ * to 1.6 for an All-In GM who has to have him (Ramsey, Mack). Bounded, so a desperate buyer can't be
+ * milked for firsts every deadline.
+ */
+export const maxOver = (gm: GmTraits) => 1.3 + 0.6 * Math.max(0, gm.winNow - 0.45);
 
 type Tried = { proposal: TradeProposal; sells: Judgement; buys: Judgement };
 
@@ -147,7 +151,7 @@ export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | 
   const asking = worth * (1 + Math.min(MAX_PREMIUM, PER_BIDDER * bidders));
   const price = Math.max(ask, Math.min(asking, most));
   // A seller who wants more than that for him isn't really selling.
-  const ceiling = Math.max(MAX_OVER * worth, 0);
+  const ceiling = Math.max(maxOver(buyer.gm) * worth, 0);
   // A quick read of a package at the league's prices (the going rate, market value), before the full verdicts.
   const quick = (side: TradeSide) =>
     side.picks.reduce((s, id) => s + goingRate(league, league.draftPicks.find((x) => x.id === id)!, ctx), 0) +
