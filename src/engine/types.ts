@@ -464,6 +464,13 @@ export interface TradeSide {
 /** What a trade was, for the news: a contender's rental, a rebuilder's sale, a star, a swap, a cap dump. */
 export type DealKind = 'rental' | 'buy' | 'sale' | 'star' | 'swap' | 'dump' | 'user';
 
+/** One player's exam by the buyer's doctor (`trade/physicals.ts`); `note` is the doctor's words. */
+export interface Physical {
+  playerId: number;
+  result: 'passed' | 'failed' | 'concerns' | 'rehab';
+  note: string;
+}
+
 /** A trade with its assets, kept for trade trails and the market's memory (the transaction log keeps only text). */
 export interface TradeRecord {
   season: number;
@@ -471,6 +478,8 @@ export interface TradeRecord {
   week: number;
   sides: [TradeSide, TradeSide];
   kind: DealKind;
+  /** The players' physicals, when any were flagged. */
+  physicals?: Physical[];
 }
 
 /** A front office watching another team's player: interest builds over market moments and fades when nothing comes of it. */
@@ -539,6 +548,23 @@ export interface TradeTalks {
   cooldowns: Record<number, { until: number; worth: number }>;
 }
 
+/**
+ * A deal of yours waiting on your decision after a physical flagged a player: your doctor's (you're
+ * buying) or theirs (they're buying yours, and come back with `reduced`). It lapses when you advance.
+ */
+export interface TradeExam {
+  sides: [TradeSide, TradeSide];
+  aiId: number;
+  kind: DealKind;
+  tag?: string;
+  exams: Physical[];
+  by: 'yours' | 'theirs';
+  reduced?: [TradeSide, TradeSide];
+  /** The offer it came from, and the players you chose to release to make room. */
+  offerId?: number;
+  release?: number[];
+}
+
 /** The trade market's memory (`trade/market.ts`): what was traded, who is watching whom, what's being said, what's on your desk. */
 export interface TradeMarket {
   /** Market moments so far (a week up to the deadline, an offseason step): interest fades by them. */
@@ -557,6 +583,8 @@ export interface TradeMarket {
   talks: Record<number, TradeTalks>;
   /** The moment each of your players was last shopped (once a moment). */
   shopped: Record<number, number>;
+  /** A deal of yours waiting on your call after its physical. */
+  exam?: TradeExam;
 }
 
 export interface DeadMoney {

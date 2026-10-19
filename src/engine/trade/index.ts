@@ -30,12 +30,14 @@ export {
   OFFER_RATE,
   openOffers,
   proposeTrade,
+  resolveExam,
   setTradeStatus,
   shopPlayer,
   type AcceptResult,
   type CounterResult,
 } from './offers';
 export { ASKS, peekTalks } from './talks';
+export { CONCERNS, examine, FAIL, findings, physicals, worstResult } from './physicals';
 export { isBuyer, isSeller, reloading, stanceFor, stanceOf, stanceScore, teamNeeds, tradeBlock, untouchable, untouchables, updateStances, wanted, type BlockEntry, type Need } from './plans';
 export {
   freshlySigned,

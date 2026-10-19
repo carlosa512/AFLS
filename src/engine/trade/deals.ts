@@ -29,7 +29,7 @@ const BALANCE = 40;
 /** A player worth sending in a swap: about a late fourth-round pick's worth to the seller or more, not a throw-in to fill a roster spot. */
 const SWAP_WORTH = 70;
 /** How much better (points, in his own eyes) a swap must leave the buyer than his best pick package. */
-const SWAP_EDGE = 25;
+const SWAP_EDGE = 5;
 
 /** A team's unused picks it would trade (not a first it's holding for draft day), the most valuable to `valuer` first. */
 export function picksOf(ctx: TradeContext, teamId: number, valuer: Team): DraftPick[] {

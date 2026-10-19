@@ -51,6 +51,10 @@ import {
   setTradeStatus,
   teamNeeds,
   ASKS,
+  CONCERNS,
+  examine,
+  FAIL,
+  findings,
   playerValue,
   rosterOf,
   salaryToTake,
@@ -422,9 +426,11 @@ const speedOff: number[] = [];
  */
 const audited = new WeakSet<TradeRecord>();
 function audit(after: League, label: string): TradeRecord[] {
+  physicalNews(after);
   const fresh = (after.market?.history ?? []).filter((r) => !audited.has(r));
   for (const record of fresh) {
     audited.add(record);
+    if (record.physicals?.some((x) => x.result === 'concerns')) phys.flagged++;
     volume.all.push(record);
     judgeFairness(after, { sides: record.sides }, label);
     checkHealth(after, record.sides.map((x) => x.teamId));
@@ -463,6 +469,48 @@ function listingDraws(base: League): boolean | null {
   return (l.market?.offers ?? []).some((o) => o.id >= before && o.sides[1].players.includes(p.id));
 }
 
+// ───────── 8. Physicals ─────────
+
+const phys = { off: 0, flagged: 0, healthy: { failed: 0, n: 0 }, borderline: { strong: [0, 0], weak: [0, 0] } };
+const seenNews = new WeakSet<object>();
+
+/** Deals the physicals called off since the last look (the medical news line). */
+function physicalNews(league: League): void {
+  for (const t of league.transactions) {
+    if (seenNews.has(t)) continue;
+    seenNews.add(t);
+    if (t.kind === 'medical' && / is off after /.test(t.text)) phys.off++;
+  }
+}
+
+/**
+ * Exams on demand: sound players examined by every doctor (they should almost never fail), and
+ * borderline bodies by the league's sharpest and weakest doctors (the sharp ones should pass fewer).
+ */
+function probePhysicals(league: League): void {
+  const players = Object.values(league.players).filter((p) => p.teamId !== null && !p.retired);
+  const sound = players.filter((p) => !p.injury && !(p.injuries ?? []).some((r) => r.season > league.season - 3 && (r.severity === 'severe' || r.severity === 'career-threatening')));
+  for (const p of sound) {
+    for (const t of league.teams) {
+      if (t.id === p.teamId) continue;
+      phys.healthy.n++;
+      if (examine(league, t.id, p).result === 'failed') phys.healthy.failed++;
+    }
+  }
+  // Players a doctor should flag (between the concerns line and the fail line): passing one is a
+  // miss. The same exams by a sharp doctor (15) and a weak one (7), as the plan compares them.
+  const borderline = players.filter((p) => findings(league, p).score >= CONCERNS && findings(league, p).score < FAIL);
+  for (const [group, diagnosis] of [['weak', 7], ['strong', 15]] as const) {
+    for (const p of borderline) {
+      for (const t of league.teams) {
+        if (t.id === p.teamId) continue;
+        phys.borderline[group][1]++;
+        if (examine(league, t.id, p, diagnosis).result === 'passed') phys.borderline[group][0]++;
+      }
+    }
+  }
+}
+
 // ───────── run ─────────
 
 for (let i = 0; i < LEAGUES; i++) {
@@ -479,6 +527,8 @@ for (let i = 0; i < LEAGUES; i++) {
   for (let s = 0; s < SEASONS; s++) {
     fair.seasons++;
     volume.seasons++;
+    // Exams on demand once the league has some injury history.
+    if (s === 1) probePhysicals(league);
     const timing = i === 0 && s === 0;
     const season: TradeRecord[] = [];
     let offers = 0;
@@ -585,6 +635,12 @@ check('most on deadline day', desk.maxDeadline, [0, 4]);
 check('after the deadline', desk.afterDeadline, [0, 0]);
 check('asking for an Untouchable', desk.untouchable, [0, 0]);
 check('listing a player draws an offer within two moments (1 = yes)', desk.listing === false ? 0 : 1, [1, 1]);
+
+const rate = ([pass, n]: number[]) => (n ? pass / n : NaN);
+console.log(`\nPhysicals (${phys.off} deals off, ${phys.flagged} through with concerns; bodies a doctor should flag: ${phys.borderline.strong[1]} exams by sharp doctors, ${phys.borderline.weak[1]} by weak)`);
+check('deals voided or through with concerns, league-wide, a season', (phys.off + phys.flagged) / Math.max(1, volume.seasons), [1, 4], 1);
+check('sound players failing (%)', (100 * phys.healthy.failed) / Math.max(1, phys.healthy.n), [0, 1], 2);
+check('bodies a doctor should flag, passed: a sharp doctor (15) against a weak one (7), ratio', rate(phys.borderline.strong) / rate(phys.borderline.weak), [0, 0.85], 2);
 
 console.log('\nProbes (each must fail)');
 for (const p of probes) console.log(`  ${p.worked ? '✗ WORKED' : '✓ failed'}  ${p.label}`);

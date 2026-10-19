@@ -14,7 +14,7 @@ import { Panel, PlayerAvatar, TeamChip } from '../components';
 import { money } from '../format';
 import { Ovr, seenOvr } from '../scouting';
 import { liveLock } from '../live';
-import { BlockPanel, HistoryPanel, MarketPanel, OffersPanel } from '../offers';
+import { BlockPanel, ExamPanel, HistoryPanel, MarketPanel, OffersPanel } from '../offers';
 import { store } from '../store';
 import { tradeDesk, type Picked } from '../tradeDesk';
 
@@ -91,6 +91,7 @@ export function Trades({ league }: { league: League }) {
           </button>
         ))}
       </div>
+      {league.market?.exam && league.market.exam.offerId === undefined && <ExamPanel league={league} />}
       {view === 'offers' && <OffersPanel league={league} />}
       {view === 'table' && <TradeTable league={league} />}
       {view === 'block' && <BlockPanel league={league} />}

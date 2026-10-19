@@ -12,13 +12,13 @@
  * (his patience runs one to three rounds, the last his final offer). You also set your players'
  * statuses, shop a player, and ask a GM his price. Verdicts are always the GM's own (`judge`).
  */
-import { releasePlayer } from '../finance/cap';
+import { logTransaction, releasePlayer } from '../finance/cap';
 import { isExpired } from '../finance/contract';
 import { aiCutdown, cutChoice } from '../offseason/ai';
 import { rosterLimit } from '../offseason/negotiation';
 import { Rng } from '../rng';
 import { activeRoster } from '../roster';
-import type { DealKind, League, Player, Team, TradeMarket, TradeOffer, TradeSide } from '../types';
+import type { DealKind, League, Physical, Player, Team, TradeExam, TradeMarket, TradeOffer, TradeSide } from '../types';
 import { capRoom, rosterOf, spendable, tradeContext, type TradeContext } from './context';
 import { DUMP_LIMIT, kindOf, MAX_PREMIUM, maxOver, packages, PER_BIDDER, picksOf, quickValue, TAGS } from './deals';
 import { emptyMarket, executeTrade } from './execute';
@@ -26,6 +26,7 @@ import { evaluateTrade, judge, marginFor, suggestSweetener } from './judge';
 import { teamNeeds, tradeBlock, untouchables, wanted, type BlockEntry } from './plans';
 import { freshlySigned, playerTradeBlocker, salaryToTake, tradeProblem, tradeWindow, type TradeProposal } from './rules';
 import type { Moment } from './market';
+import { lowerPrice, physicals, worstResult } from './physicals';
 import { nudgeTrust, talkRefusal, talksOf } from './talks';
 import { marketValue, salaryWeight } from './value';
 
@@ -214,7 +215,7 @@ export function offersMoment(ctx: TradeContext, market: TradeMarket, moment: Mom
   for (const w of wanted(ctx, user, aiListings.filter((l) => l.entry.keenness >= 0.75)).filter((w) => w.score >= 0.5).slice(0, 2)) {
     calls.push({ team: w.team, score: 1 + w.score, make: () => file(ctx, market, w.team, 'pitch', flip(askFor(ctx, w.team, w.player))) });
   }
-  if (moment === 'leagueYear' || moment === 'camp') {
+  if (moment === 'leagueYear') {
     for (const team of league.teams.filter((t) => t.id !== user.id && salaryWeight(ctx, t.id) >= 1.6)) {
       const entry = tradeBlock(ctx, team).find((e) => e.reason === 'overpaid');
       if (entry) calls.push({ team, score: 1, make: () => file(ctx, market, team, 'dump', dumpToYou(ctx, team, league.players[entry.playerId])) });
@@ -247,6 +248,8 @@ const flip = (p: TradeProposal | null): TradeProposal | null => (p ? { sides: [p
 export function expireOffers(league: League): void {
   const market = league.market;
   if (!market) return;
+  // A deal still waiting on your call after its physical lapses too.
+  delete market.exam;
   for (const o of market.offers.filter((x) => x.status === 'pending')) {
     o.status = 'expired';
     // You didn't bite: he doesn't call about the same players next week.
@@ -272,6 +275,8 @@ export interface AcceptResult {
   message: string;
   /** Your roster would be over the limit: who `aiCutdown` would let go, to start the release picker with. */
   release?: Player[];
+  /** A physical flagged a player: the deal waits on your call (`resolveExam`). */
+  exam?: boolean;
 }
 
 const tagFor = (offer: TradeOffer) => (offer.kind === 'enquiry' || offer.kind === 'user' ? 'trade' : TAGS[offer.kind]);
@@ -281,9 +286,10 @@ const tagFor = (offer: TradeOffer) => (offer.kind === 'enquiry' || offer.kind ==
  * would be over the limit, nothing happens until you name who goes (`release`; we suggest who).
  */
 export function acceptOffer(league: League, id: number, release: readonly number[] = []): AcceptResult {
-  const market = (league.market ??= emptyMarket());
+  league.market ??= emptyMarket();
   const offer = offerById(league, id);
   if (!offer || offer.status !== 'pending' || offer.kind === 'enquiry') return { ok: false, message: 'That offer is no longer on the table.' };
+  if (league.market.exam?.offerId === id) return { ok: false, exam: true, message: 'This deal is waiting on your call after the physical.' };
   const window = tradeWindow(league);
   if (window) {
     offer.status = 'expired';
@@ -305,17 +311,99 @@ export function acceptOffer(league: League, id: number, release: readonly number
   const incoming = offer.sides[0].players;
   const after = [...activeRoster(league, user.id).filter((p) => !offer.sides[1].players.includes(p.id)), ...incoming.map((pid) => league.players[pid])];
   const over = after.length - rosterLimit(league);
+  let cut: number[] = [];
   if (over > 0) {
     const yours = after.filter((p) => !incoming.includes(p.id));
     const chosen = release.map((pid) => league.players[pid]).filter((p) => p && yours.includes(p));
     if (chosen.length < over) return { ok: false, message: `You'd be ${over} over the roster limit: choose who to release.`, release: cutChoice(league, after, rosterLimit(league), yours) };
-    for (const p of chosen.slice(0, over)) releasePlayer(league, p);
+    cut = chosen.slice(0, over).map((p) => p.id);
   }
-  executeTrade(league, proposal, { kind: offer.kind, tag: tagFor(offer) });
+  return finish(league, proposal, { kind: offer.kind, tag: tagFor(offer) }, ai.id, { offerId: offer.id, release: cut });
+}
+
+// ───────── physicals on your deals ─────────
+
+/**
+ * An agreed deal of yours goes to the physicals. Their doctor examines your players first (it's
+ * their money): a failure calls it off, concerns bring a lower offer you take or refuse. Then yours
+ * examines theirs: a failure or concerns put the call to you (walk, ask for less, take him anyway).
+ * Clean physicals make it official.
+ */
+function finish(league: League, proposal: TradeProposal, meta: { kind: DealKind; tag?: string }, aiId: number, opts: { offerId?: number; release?: number[] } = {}): AcceptResult {
+  const market = (league.market ??= emptyMarket());
+  const ai = league.teams[aiId];
+  const exams = physicals(league, proposal);
+  const yours = proposal.sides.find((s) => s.teamId === league.userTeamId)!;
+  const theirs = exams.filter((e) => yours.players.includes(e.playerId));
+  const mine = exams.filter((e) => !yours.players.includes(e.playerId));
+  const flagged = (list: Physical[], result: Physical['result']) => league.players[list.find((e) => e.result === result)!.playerId];
+  const pending = (by: TradeExam['by'], reduced?: TradeProposal | null): TradeExam => {
+    market.exam = { sides: proposal.sides, aiId, ...meta, exams, by, ...(reduced ? { reduced: reduced.sides } : {}), ...(opts.offerId !== undefined ? { offerId: opts.offerId } : {}), ...(opts.release?.length ? { release: opts.release } : {}) };
+    return market.exam;
+  };
+  const theirCall = worstResult(theirs);
+  if (theirCall === 'failed') {
+    const p = flagged(theirs, 'failed');
+    const offer = opts.offerId !== undefined ? offerById(league, opts.offerId) : undefined;
+    if (offer) offer.status = 'withdrawn';
+    logTransaction(league, 'medical', [ai.id, league.userTeamId], `The ${ai.name}' trade for ${p.position} ${p.firstName} ${p.lastName} is off after a failed physical.`);
+    return { ok: false, message: `${theirs.find((e) => e.result === 'failed')!.note} The ${ai.name} have called the deal off.` };
+  }
+  if (theirCall === 'concerns') {
+    const p = flagged(theirs, 'concerns');
+    const reduced = lowerPrice(tradeContext(league), proposal, ai.id);
+    pending('theirs', reduced);
+    return { ok: false, exam: true, message: `The ${ai.name}' doctor has concerns about ${p.firstName} ${p.lastName}. ${reduced ? 'They come back with a lower offer.' : 'They want to talk price.'}` };
+  }
+  const myCall = worstResult(mine);
+  if (myCall === 'failed' || myCall === 'concerns') {
+    const e = mine.find((x) => x.result === myCall)!;
+    pending('yours');
+    return { ok: false, exam: true, message: `${e.note} Your call: walk away, ask for less, or take him anyway.` };
+  }
+  return settle(league, proposal.sides, meta, aiId, exams, opts);
+}
+
+/** Make a deal of yours official: your releases, the trade, his cut to fit, a little trust. */
+function settle(league: League, sides: TradeOffer['sides'], meta: { kind: DealKind; tag?: string }, aiId: number, exams: Physical[], opts: { offerId?: number; release?: number[] } = {}): AcceptResult {
+  const market = (league.market ??= emptyMarket());
+  const ai = league.teams[aiId];
+  for (const id of opts.release ?? []) if (league.players[id]?.teamId === league.userTeamId) releasePlayer(league, league.players[id]);
+  executeTrade(league, { sides }, { ...meta, physicals: exams });
   aiCutdown(league, ai, rosterLimit(league));
-  offer.status = 'accepted';
+  const offer = opts.offerId !== undefined ? offerById(league, opts.offerId) : undefined;
+  if (offer) offer.status = 'accepted';
+  delete market.exam;
   nudgeTrust(market, ai.id, 0.03);
-  return { ok: true, message: `Done: the trade with the ${ai.name} is official.` };
+  const rehab = exams.filter((e) => e.result === 'rehab').map((e) => ` ${e.note}`).join('');
+  return { ok: true, message: `Done: the trade with the ${ai.name} is official.${rehab}` };
+}
+
+/**
+ * Your answer to a flagged physical. Your doctor's flag: `walk`, `lower` (he takes a notch less or
+ * says no), or `anyway` (the risk is yours). Theirs: `reduced` (their lower offer) or `keep` him.
+ */
+export function resolveExam(league: League, choice: 'walk' | 'lower' | 'anyway' | 'reduced' | 'keep'): AcceptResult {
+  const market = league.market;
+  const exam = market?.exam;
+  if (!market || !exam) return { ok: false, message: 'There is nothing waiting on a physical.' };
+  const ai = league.teams[exam.aiId];
+  const opts = { offerId: exam.offerId, release: exam.release };
+  const off = (message: string) => {
+    delete market.exam;
+    const offer = exam.offerId !== undefined ? offerById(league, exam.offerId) : undefined;
+    if (offer) offer.status = 'declined';
+    return { ok: false, message };
+  };
+  const proposal: TradeProposal = { sides: exam.sides };
+  if (tradeWindow(league) || tradeProblem(league, proposal, { rosterCuts: true })) return off('The deal can no longer go through.');
+  if (choice === 'walk' || choice === 'keep') return off(`The deal with the ${ai.name} is off.`);
+  if (choice === 'anyway') return settle(league, exam.sides, exam, exam.aiId, exam.exams, opts);
+  if (choice === 'reduced') return exam.reduced ? settle(league, exam.reduced, exam, exam.aiId, exam.exams, opts) : off(`The ${ai.name} have walked away.`);
+  const ctx = tradeContext(league);
+  const lower = lowerPrice(ctx, proposal, league.userTeamId);
+  if (lower && judge(ctx, ai.id, lower, { rosterCuts: true }).accepts) return settle(league, lower.sides, exam, exam.aiId, exam.exams, opts);
+  return { ok: false, message: `The ${ai.name} won't go lower. Walk away, or take him anyway.` };
 }
 
 /** Turn an offer down: that team won't come back for those players for a few weeks unless it's 10% better. */
@@ -363,11 +451,8 @@ export function counterOffer(league: League, id: number, proposal: TradeProposal
   const verdict = evaluateTrade(league, proposal);
   if (verdict.problem && !verdict.policy) return { result: 'refused', message: verdict.problem };
   if (verdict.accepts) {
-    executeTrade(league, proposal, { kind: offer.kind === 'enquiry' ? 'user' : offer.kind, tag: tagFor(offer) });
-    aiCutdown(league, ai, rosterLimit(league));
-    offer.status = 'accepted';
-    nudgeTrust(market, ai.id, 0.03);
-    return { result: 'accepted', message: `The ${ai.name} accepted your counter.` };
+    const done = finish(league, proposal, { kind: offer.kind === 'enquiry' ? 'user' : offer.kind, tag: tagFor(offer) }, ai.id, { offerId: offer.id });
+    return { result: done.ok ? 'accepted' : 'refused', message: done.ok ? `The ${ai.name} accepted your counter.` : done.message };
   }
   offer.status = 'declined';
   if (offer.final || offer.patience <= 0) {
@@ -402,10 +487,8 @@ export function proposeTrade(league: League, proposal: TradeProposal): { accepte
     nudgeTrust(market, ai.id, -0.01);
     return { accepted: false, message: verdict.message };
   }
-  executeTrade(league, proposal, { kind: 'user' });
-  aiCutdown(league, ai, rosterLimit(league));
-  nudgeTrust(market, ai.id, 0.03);
-  return { accepted: true, message: `The ${ai.name} accepted.` };
+  const done = finish(league, proposal, { kind: 'user' }, ai.id);
+  return { accepted: done.ok, message: done.ok ? `The ${ai.name} accepted.` : done.message };
 }
 
 // ───────── your side ─────────

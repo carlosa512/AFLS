@@ -7,23 +7,27 @@
  *
  * - buyers (contenders, bubble teams) go after the block players they've been watching;
  * - sellers (retoolers, rebuilders) shop their block to the teams that need each player;
- * - a team squeezed against the cap pays to move a bad contract (in season only on deadline day).
+ * - a team squeezed against the cap pays to move a bad contract when the league year opens.
  *
  * Every deal is judged by both GMs with `judge`; AI teams never trade with you here: what they want
  * from you comes as offers to your desk (`offers.ts`). The market draws from its own stream, like
  * injuries and weather.
  */
+import { logTransaction } from '../finance/cap';
+import { departmentFor } from '../medical';
 import { aiCutdown } from '../offseason/ai';
 import { resetContenderCache, rosterLimit } from '../offseason/negotiation';
 import { clamp, Rng } from '../rng';
-import type { League, Rumor, Team, TradeMarket, TradeRecord } from '../types';
+import type { League, Physical, Rumor, Team, TradeMarket, TradeRecord } from '../types';
 import { refreshAfterTrade, tradeContext, type TradeContext } from './context';
 import { dealFor, dumpFor, type Deal } from './deals';
 import { emptyMarket, executeTrade } from './execute';
+import { judge } from './judge';
 import { offersMoment, yourListings } from './offers';
-import { settleTalks } from './talks';
+import { lowerPrice, physicals, worstResult } from './physicals';
 import { interestIn, isBuyer, stanceOf, stanceScore, teamNeeds, tradeBlock, updateInterest, updateStances, wanted, type BlockEntry } from './plans';
-import { tradeWindow, TRADE_DEADLINE_WEEK } from './rules';
+import { tradeWindow, TRADE_DEADLINE_WEEK, type TradeProposal } from './rules';
+import { settleTalks } from './talks';
 import { marketValue, salaryWeight } from './value';
 
 export type Moment = 'leagueYear' | 'faDay' | 'camp' | 'week' | 'deadline';
@@ -55,7 +59,7 @@ function capped(league: League, market: TradeMarket, team: Team): boolean {
 type Listing = { team: Team; entry: BlockEntry };
 
 /** One GM's call: what he buys, sells or dumps, or nothing that both sides take. */
-function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Moment, listings: readonly Listing[], open: (t: Team) => boolean, firstCall: boolean): Deal | null {
+function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Moment, listings: readonly Listing[], open: (t: Team) => boolean): Deal | null {
   const { league } = ctx;
   const ai = league.teams.filter((t) => t.id !== league.userTeamId && t.id !== team.id && open(t));
   if (isBuyer(team)) {
@@ -83,11 +87,11 @@ function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Mo
       }
     }
   }
-  // A team truly squeezed moves a bad contract when the league year opens (before the money's
-  // guaranteed), in camp before the cuts, or (rarely) on deadline day.
+  // A team truly squeezed moves a bad contract when the league year opens, before the money's
+  // guaranteed. After that the rest are cut, not traded, and in season it lives with them.
   // One a league year: a front office clears its worst contract, not its whole cap sheet.
   const squeezed = salaryWeight(ctx, team.id) >= 1.6 && !market.history.some((r) => r.kind === 'dump' && r.season === league.season && r.sides[0].teamId === team.id);
-  if (squeezed && (moment === 'leagueYear' || moment === 'camp' || (moment === 'deadline' && firstCall))) {
+  if (squeezed && (moment === 'leagueYear')) {
     for (const entry of tradeBlock(ctx, team).filter((e) => e.reason === 'overpaid').slice(0, 2)) {
       const deal = dumpFor(ctx, team, league.players[entry.playerId], ai);
       if (deal) return deal;
@@ -125,28 +129,63 @@ export function marketMoment(league: League, moment: Moment): TradeRecord[] {
   const pace = MOMENT_ACTIVITY[moment] * (moment === 'week' && league.week >= 7 ? 2 : 1);
   // Deadline day is a day of calls: every GM gets a second round.
   const calls = Array.from({ length: perMoment(moment) }, () => rng.shuffle([...ai])).flat();
-  for (const [i, team] of calls.entries()) {
+  for (const team of calls) {
     if (!open(team)) continue;
     const urgency = teamNeeds(ctx, team)[0]?.urgency ?? 0;
     const sure = Math.abs(stanceScore(ctx, team));
     const p = TRADE_VOLUME * pace * (0.4 + 0.9 * gmActivity(league, team)) * (0.6 + 0.8 * sure) * (0.5 + urgency);
     if (!rng.chance(Math.min(1, p))) continue;
-    const deal = initiate(ctx, market, team, moment, listings, open, i < ai.length);
+    const deal = initiate(ctx, market, team, moment, listings, open);
     if (!deal) continue;
-    made.push(executeTrade(league, deal.proposal, { kind: deal.kind, tag: deal.tag }));
-    for (const side of deal.proposal.sides) {
-      busy.set(side.teamId, (busy.get(side.teamId) ?? 0) + 1);
+    // Agreed; now the physicals. A failure calls it off, concerns reopen the price.
+    const exams = physicals(league, deal.proposal);
+    const proposal = afterPhysicals(ctx, deal.proposal, exams);
+    for (const side of deal.proposal.sides) busy.set(side.teamId, (busy.get(side.teamId) ?? 0) + 1);
+    if (!proposal) continue;
+    made.push(executeTrade(league, proposal, { kind: deal.kind, tag: deal.tag, physicals: exams }));
+    for (const side of proposal.sides) {
       // A team over the limit waives a backup, as `judge` priced in (`rosterCuts`).
       aiCutdown(league, league.teams[side.teamId], rosterLimit(league));
     }
     // A trade changes the two teams' rosters, needs and blocks; everyone else's reads still hold.
-    refreshAfterTrade(ctx, deal.proposal.sides.map((x) => x.teamId), deal.proposal.sides.flatMap((x) => x.players));
+    refreshAfterTrade(ctx, proposal.sides.map((x) => x.teamId), proposal.sides.flatMap((x) => x.players));
     listings = listingsOf(ctx);
   }
   // Then the calls to you, on what's left after the AI market's deals.
   offersMoment(ctx, market, moment, listings);
   writeRumors(ctx, market, listings);
   return made;
+}
+
+// ───────── physicals ─────────
+
+/** A buyer with a strong physio, or one that badly needs the player, takes him with concerns at the old price. */
+const BRAVE_PHYSIO = 14;
+const BRAVE_NEED = 0.6;
+
+/**
+ * What happens to an AI deal after its physicals: the deal as agreed, a lower price after concerns,
+ * or null when it's off (a failed physical, or concerns nobody would live with), told in the news.
+ */
+function afterPhysicals(ctx: TradeContext, proposal: TradeProposal, exams: readonly Physical[]): TradeProposal | null {
+  const { league } = ctx;
+  const result = worstResult(exams);
+  if (result === 'passed' || result === 'rehab') return proposal;
+  const flagged = exams.find((e) => e.result === result)!;
+  const p = league.players[flagged.playerId];
+  const sellerSide = proposal.sides.find((s) => s.players.includes(p.id))!;
+  const buyer = league.teams[proposal.sides.find((s) => s !== sellerSide)!.teamId];
+  const off = (why: string) => {
+    logTransaction(league, 'medical', proposal.sides.map((s) => s.teamId), `The ${buyer.name}' trade for ${p.position} ${p.firstName} ${p.lastName} is off ${why}.`);
+    return null;
+  };
+  if (result === 'failed') return off('after a failed physical');
+  // Concerns: the buyer asks for a lower price (Duane Brown, 2017): a pick of his dropped, or a late one of the seller's back.
+  const lower = lowerPrice(ctx, proposal, buyer.id);
+  if (lower && judge(ctx, sellerSide.teamId, lower, { rosterCuts: true }).accepts) return lower;
+  const urgent = teamNeeds(ctx, buyer).find((n) => n.position === p.position)?.urgency ?? 0;
+  if (departmentFor(league, buyer.id).physio >= BRAVE_PHYSIO || urgent >= BRAVE_NEED) return proposal;
+  return off('after the physical raised concerns');
 }
 
 // ───────── rumors ─────────

@@ -3,7 +3,7 @@ import { autoPostJune1, logTransaction, paidShare, weeksPaid } from '../finance/
 import { deadMoney } from '../finance/contract';
 import { freeJersey } from '../generate';
 import { syncDepthChart, teamPlayers } from '../roster';
-import type { DealKind, League, TradeMarket, TradeRecord } from '../types';
+import type { DealKind, League, TradeMarket, TradeRecord, Physical } from '../types';
 import type { TradeProposal } from './rules';
 
 /** Trades kept for trade trails and the market's memory: the last five league years. */
@@ -15,7 +15,7 @@ export const emptyMarket = (): TradeMarket => ({ moment: 0, history: [], interes
  * Move the assets and log the trade. `kind` and `tag` say what it was for the news ("deadline
  * rental"); the user's own trades go in untagged.
  */
-export function executeTrade(league: League, proposal: TradeProposal, meta: { kind: DealKind; tag?: string } = { kind: 'user' }): TradeRecord {
+export function executeTrade(league: League, proposal: TradeProposal, meta: { kind: DealKind; tag?: string; physicals?: Physical[] } = { kind: 'user' }): TradeRecord {
   const post = autoPostJune1(league.phase);
   const moved: string[][] = [[], []];
   proposal.sides.forEach((side, i) => {
@@ -64,6 +64,7 @@ export function executeTrade(league: League, proposal: TradeProposal, meta: { ki
     week: league.week,
     sides: [proposal.sides[0], proposal.sides[1]].map((s) => ({ teamId: s.teamId, players: [...s.players], picks: [...s.picks] })) as TradeRecord['sides'],
     kind: meta.kind,
+    ...(meta.physicals?.some((x) => x.result !== 'passed') ? { physicals: meta.physicals.filter((x) => x.result !== 'passed') } : {}),
   };
   const market = (league.market ??= emptyMarket());
   market.history = [...market.history.filter((r) => r.season > league.season - HISTORY_YEARS), record];
