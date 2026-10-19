@@ -3,7 +3,7 @@
  * Staff ratings are public, so they show exactly; what they do to a *player's* ratings stays behind
  * the fog of war (see ui/scouting.tsx).
  */
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, Fragment, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   departmentGrades,
   extendStaff,
@@ -226,12 +226,12 @@ function previewText(changes: ReadChange[]): { words: string; numbers: string } 
   return { words: say(words), numbers: gains.length || loss ? `Read ratings, 1–20: ${say(numbers)}` : '' };
 }
 
-/** A scout's name: opens his card. */
-function ScoutLink({ s }: { s: Staff }) {
+/** A scout's name: opens his card. `className` swaps the card-heading look for a plain inline link. */
+function ScoutLink({ s, className = 'staff-name', last = false }: { s: Staff; className?: string; last?: boolean }) {
   const nav = useNav();
   return (
-    <button className="linklike staff-name" onClick={() => nav.openStaff('scout', s.id)}>
-      {staffName(s)}
+    <button className={`linklike ${className}`.trim()} onClick={() => nav.openStaff('scout', s.id)}>
+      {last ? s.lastName : staffName(s)}
     </button>
   );
 }
@@ -326,7 +326,18 @@ function Candidate({ league, s, open }: { league: League; s: Staff; open: boolea
           </span>
         </span>
       </div>
-      {pushed.length > 0 && <p className="small tone-bad staff-preview">Hiring him means {pushed.map(staffName).join(' and ')} won’t be re-signed.</p>}
+      {pushed.length > 0 && (
+        <p className="small tone-bad staff-preview">
+          Hiring him means{' '}
+          {pushed.map((p, i) => (
+            <Fragment key={p.id}>
+              {i > 0 && ' and '}
+              <ScoutLink s={p} className="" />
+            </Fragment>
+          ))}{' '}
+          won’t be re-signed.
+        </p>
+      )}
       <div className="staff-actions">
         <Term value={years} onChange={setYears} label={`Contract length for ${name}`} />
         <button
@@ -355,7 +366,7 @@ function ReadCell({ league, staff, domain, group }: { league: League; staff: Sta
     <span className="read-cell">
       <span className={`rating ${band(r.rating)}`}>{r.rating}</span>
       <span className={r.by ? 'small' : 'small tone-bad'}>
-        {r.by === null ? 'Vacant' : r.by.role === 'director' ? 'Director' : r.by.lastName}
+        {r.by === null ? 'Vacant' : r.by.role === 'director' ? 'Director' : <ScoutLink s={r.by} className="" last />}
         {r.by && isExpiring(league, r.by) && <span title="His deal is up"> *</span>}
       </span>
     </span>
@@ -415,7 +426,7 @@ export function StaffScreen({ league }: { league: League }) {
   };
 
   const spotRole: StaffRole = spot.group === null ? 'director' : SCOUT_ROLE[spot.domain];
-  const spotWho = spot.read.by === null ? 'Director’s chair empty' : spot.read.by.role === 'director' ? 'your Director' : staffName(spot.read.by);
+  const spotWho: ReactNode = spot.read.by === null ? 'Director’s chair empty' : spot.read.by.role === 'director' ? 'your Director' : <ScoutLink s={spot.read.by} className="" />;
   const vacancies = ROLE_ORDER.flatMap((r) => Array.from({ length: Math.max(0, STAFF_SLOTS[r] - mine.filter((s) => s.role === r).length) }, () => r));
 
   const candidates = staffMarket(league)

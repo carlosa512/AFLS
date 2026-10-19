@@ -13,6 +13,7 @@ import { Panel, PlayerAvatar, TeamChip } from '../components';
 import { money } from '../format';
 import { Ovr, seenOvr } from '../scouting';
 import { liveLock } from '../live';
+import { LinkedText } from '../moves';
 import { store } from '../store';
 
 interface Picked {
@@ -119,7 +120,7 @@ export function Trades({ league }: { league: League }) {
       {!closed && isDeadlineDay(league) && <div className="notice">Deadline day: trades close when you play week {league.week}.</div>}
       {done && (
         <p className="callout callout-good" role="status">
-          Trade complete: {done}.
+          Trade complete: <LinkedText league={league} text={done} />.
         </p>
       )}
       <Panel
@@ -158,7 +159,7 @@ export function Trades({ league }: { league: League }) {
           <div className="meter" role="img" aria-label={`Their view of the offer: ${mood}`}>
             <i style={{ width: `${fill * 100}%` }} className={verdict?.accepts ? 'yes' : ''} />
           </div>
-          <span className={verdict?.accepts ? 'tone-good' : 'muted'}>{verdict ? verdict.message : 'Tick players or picks on both sides to build an offer.'}</span>
+          <span className={verdict?.accepts ? 'tone-good' : 'muted'}>{verdict ? <LinkedText league={league} text={verdict.message} /> : 'Tick players or picks on both sides to build an offer.'}</span>
           {impact && (
             <span className="muted small">
               Your cap room after: <b className={impact[0].space < 0 ? 'tone-bad' : ''}>{money(Math.round(impact[0].space))}</b>

@@ -12,7 +12,7 @@ import { computeRecords, divisionStandings } from '../../engine/season/standings
 import type { Game, League, Team } from '../../engine/types';
 import { forecast } from '../../engine/weather';
 import { useNav } from '../App';
-import { attentionText } from '../coaching';
+import { attentionText, coachAttention } from '../coaching';
 import { Panel, TeamChip, TeamLabel, WeatherNote } from '../components';
 import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, weekLabel } from '../format';
 import { live } from '../live';
@@ -21,7 +21,7 @@ import { CrewNote } from './Officials';
 import { BackupButton, LoadBackupButton } from '../saves';
 import { ThemeSelect } from '../theme';
 import { store } from '../store';
-import { moveIndex, MoveText } from '../moves';
+import { LinkedText, moveIndex, MoveText, type Who } from '../moves';
 import { ScoreStrip } from '../strip';
 import { LeagueLeaders, SeasonSoFar, TeamStatsWidget, TheirInjuries, WaitingForYou, YourInjuries } from '../widgets';
 import { GameStar, gameStory, KeyStats, LineScore, standouts, Standouts } from '../game';
@@ -454,7 +454,8 @@ function OffseasonHome({ league }: { league: League }) {
     .reverse();
   const names = moveIndex(league);
   // A calm nudge, not a second primary action: an empty coaching chair or deals that are up, while moves are open.
-  const coachNote = staffWindowOpen(league) ? attentionText(league, teamId) : '';
+  const attention = staffWindowOpen(league) ? coachAttention(league, teamId) : null;
+  const coachNote = attention ? attentionText(league, teamId, attention) : '';
   const myPick = league.draftPicks.filter((p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined).sort((a, b) => (a.overall ?? 999) - (b.overall ?? 999))[0];
 
   let title = '';
@@ -529,7 +530,9 @@ function OffseasonHome({ league }: { league: League }) {
           </Panel>
           {coachNote && (
             <div className="notice staff-notice">
-              <span>{coachNote}</span>
+              <span>
+                <LinkedText league={league} text={coachNote} about={attention!.leaving.map((c): Who => ({ kind: 'coach', id: c.id }))} />
+              </span>
               <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'coaches' })}>
                 Review coaches
               </button>
