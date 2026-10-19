@@ -248,6 +248,14 @@ export function createDraftPicks(league: League, season: number): void {
 }
 
 /** Quality (target overall) for the Nth player on the depth chart at a position. */
+/**
+ * Quality per point of a franchise's recent win share, above or below .500 (`TeamSeed.winPct`). The real
+ * league's spread (.335 to .750 over 2015–2024) then spans about 1.65 points of starter quality, on top of
+ * the luck of each player's roll (about half a point between teams): a new league's team ratings follow the
+ * real records at about 0.7 (0.6–0.75 by seed), so the old pecking order shows in year one without deciding it.
+ */
+const PEDIGREE = 4;
+
 function slotQuality(rng: Rng, position: Position, slot: number, teamTalent: number): number {
   const starters = STARTERS[position];
   let q: number;
@@ -337,8 +345,10 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     };
     league.teams.push(team);
 
-    // Talent varies between franchises, which creates contenders and rebuilders.
-    const teamTalent = rng.normal(0, 0.2);
+    // Talent varies between franchises, which creates contenders and rebuilders: the real franchise's last ten
+    // seasons set where it starts (Kansas City's .750 about +1.0 on every starter's quality, Jacksonville's .335
+    // about −0.66), with a little luck on top; a team without a record (a mod's) starts at random.
+    const teamTalent = seedTeam.winPct === undefined ? rng.normal(0, 0.2) : PEDIGREE * (seedTeam.winPct - 0.5) + rng.normal(0, 0.1);
     const jerseysUsed = new Set<number>();
     const roster: Player[] = [];
     for (const position of POSITIONS) {
