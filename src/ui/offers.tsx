@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { capHit, isExpired, lastSeason } from '../engine/finance/contract';
 import { offerWords } from '../engine/inbox';
 import { teamPlayers } from '../engine/roster';
-import { acceptOffer, answerEnquiry, askPrice, dealAdvice, declineOffer, openOffers, pickLabel, playerTradeBlocker, setTradeStatus, shopPlayer, stanceOf, tradeWindow, type Advice } from '../engine/trade';
+import { acceptOffer, answerEnquiry, askPrice, dealAdvice, declineOffer, openOffers, pickLabel, playerTradeBlocker, resolveExam, setTradeStatus, shopPlayer, stanceOf, tradeWindow, type Advice } from '../engine/trade';
 import type { League, Player, Stance, TradeOffer, TradeRecord, TradeSide, TradeStatus } from '../engine/types';
 import { POSITIONS } from '../engine/types';
 import { useNav } from './App';
@@ -18,6 +18,9 @@ import { store } from './store';
 import { tradeDesk } from './tradeDesk';
 
 const WHO: Record<Advice['who'], string> = { coach: 'Head coach', scouts: 'Pro scouts', medical: 'Medical', cap: 'Cap' };
+
+/** A deal's side as the trade table holds it. */
+const picked = (side: TradeSide) => ({ players: [...side.players], picks: [...side.picks], ...(side.retain ? { retain: { ...side.retain } } : {}) });
 
 /** One side of a deal, player by player and pick by pick. */
 function SideList({ league, side }: { league: League; side: TradeSide }) {
@@ -35,7 +38,10 @@ function SideList({ league, side }: { league: League; side: TradeSide }) {
               {p.position} {p.firstName} {p.lastName}
             </button>
             <Ovr league={league} player={p} />
-            <span className="muted small">{p.contract ? `${money(Math.round(capHit(p.contract, league.season)))} · thru ${lastSeason(p.contract)}` : ''}</span>
+            <span className="muted small">
+              {p.contract ? `${money(Math.round(capHit(p.contract, league.season)))} · thru ${lastSeason(p.contract)}` : ''}
+              {side.retain?.[id] ? ` · ${team.name} keep paying ${money(side.retain[id])}` : ''}
+            </span>
           </li>
         );
       })}
@@ -44,6 +50,79 @@ function SideList({ league, side }: { league: League; side: TradeSide }) {
         return pk ? <li key={id}>{pickLabel(league, pk)}</li> : null;
       })}
     </ul>
+  );
+}
+
+/**
+ * A deal of yours waiting on your call after a physical flagged a player: the doctors' words, the
+ * deal (or their lower offer), and your choices.
+ */
+export function ExamPanel({ league }: { league: League }) {
+  const [note, setNote] = useState<string | null>(null);
+  const exam = league.market?.exam;
+  if (!exam) return note ? <p className="callout" role="status">{note}</p> : null;
+  const ai = league.teams[exam.aiId];
+  const sides = exam.by === 'theirs' && exam.reduced ? exam.reduced : exam.sides;
+  const [theirs, yours] = sides[0].teamId === exam.aiId ? sides : [sides[1], sides[0]];
+  const answer = (choice: Parameters<typeof resolveExam>[1]) => {
+    let message = '';
+    store.mutate((l) => {
+      message = resolveExam(l, choice).message;
+    });
+    setNote(message);
+  };
+  return (
+    <Panel title={<h2>The physical: your deal with the {ai.name}</h2>}>
+      <ul className="plain-list">
+        {exam.exams
+          .filter((e) => e.result !== 'passed')
+          .map((e) => (
+            <li key={e.playerId}>{e.note}</li>
+          ))}
+      </ul>
+      <p className="muted small">{exam.by === 'theirs' ? (exam.reduced ? 'Their lower offer:' : 'They want to talk price.') : 'The deal as agreed:'}</p>
+      <div className="grid-2">
+        <div>
+          <div className="eyebrow">You get</div>
+          <SideList league={league} side={theirs} />
+        </div>
+        <div>
+          <div className="eyebrow">You send</div>
+          <SideList league={league} side={yours} />
+        </div>
+      </div>
+      {note && (
+        <p className="callout" role="status">
+          {note}
+        </p>
+      )}
+      <span className="row" style={{ gap: 8 }}>
+        {exam.by === 'yours' ? (
+          <>
+            <button className="btn" onClick={() => answer('lower')}>
+              Ask for a lower price
+            </button>
+            <button className="btn" onClick={() => answer('anyway')}>
+              Take him anyway
+            </button>
+            <button className="btn btn-ghost" onClick={() => answer('walk')}>
+              Walk away
+            </button>
+          </>
+        ) : (
+          <>
+            {exam.reduced && (
+              <button className="btn btn-primary" onClick={() => answer('reduced')}>
+                Take their lower offer
+              </button>
+            )}
+            <button className="btn btn-ghost" onClick={() => answer('keep')}>
+              Keep him
+            </button>
+          </>
+        )}
+      </span>
+    </Panel>
   );
 }
 
@@ -71,7 +150,7 @@ export function OfferCard({ league, offer, compact, onDone }: { league: League; 
     if (result.ok) onDone?.(result.message);
   };
   const counter = () => {
-    tradeDesk.put({ partnerId: offer.teamId, mine: { players: [...offer.sides[1].players], picks: [...offer.sides[1].picks] }, theirs: { players: [...offer.sides[0].players], picks: [...offer.sides[0].picks] }, counterTo: offer.id });
+    tradeDesk.put({ partnerId: offer.teamId, mine: picked(offer.sides[1]), theirs: picked(offer.sides[0]), counterTo: offer.id });
     nav.go({ view: 'office', tab: 'trades' });
   };
 
@@ -137,7 +216,8 @@ export function OfferCard({ league, offer, compact, onDone }: { league: League; 
           {note}
         </p>
       )}
-      {open && (
+      {league.market?.exam?.offerId === offer.id && <ExamPanel league={league} />}
+      {open && league.market?.exam?.offerId !== offer.id && (
         <span className="row" style={{ gap: 8 }}>
           {enquiry ? (
             <>
@@ -364,7 +444,7 @@ export function TradeActions({ league, player, onClose }: { league: League; play
   const ask = () => {
     const { proposal, message } = askPrice(league, player.id);
     if (!proposal) return setNote(message);
-    tradeDesk.put({ partnerId: player.teamId!, mine: { players: [...proposal.sides[0].players], picks: [...proposal.sides[0].picks] }, theirs: { players: [...proposal.sides[1].players], picks: [...proposal.sides[1].picks] } });
+    tradeDesk.put({ partnerId: player.teamId!, mine: picked(proposal.sides[0]), theirs: picked(proposal.sides[1]) });
     onClose();
     nav.go({ view: 'office', tab: 'trades' });
   };

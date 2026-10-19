@@ -1,6 +1,6 @@
 # Trades
 
-> **Status.** Phase 0 built (Oct 19 2026): see "Phase 0: what landed" below. Phases 1–6 are plans.
+> **Status.** Phases 0–3 built (Oct 19 2026): see each phase's "what landed" below. Phases 4–6 are plans.
 > The trade engine lives in `src/engine/trade/`. This plan turns it into a living market like Football
 > Manager's transfer window. AI teams trade with each other all year, make offers to you through the
 > inbox and on draft day, and run the real NFL playbook. Every GM, coach, scout and doctor involved
@@ -730,6 +730,9 @@ ratings) follow the existing rule: screens never render them.
 | `trade/deals.ts` | The templates and `findDeal` |
 | `trade/market.ts` | `marketMoment(league, moment)`: initiators, AI↔AI deals, offers to you, rumors, expiry |
 | `trade/offers.ts` | The offer lifecycle: accept, decline, counter, enquiry replies, shop a player |
+| `trade/talks.ts` | How many proposals a GM hears a moment, and his trust in you |
+| `trade/advice.ts` | Your staff's word on a deal (head coach, pro scouts, medical, cap) |
+| `trade/physicals.ts` | The buyer's doctor: findings, the exam, a lower price after concerns, the public file |
 | `trade/draftDay.ts` | Trade-ups and trade-downs before each pick |
 
 **`TradeContext`** is built once per market moment and dropped after it, like `viewCache`. A
@@ -1218,6 +1221,145 @@ failed on four timeouts, now fixed. The other three reds are the same ones `main
 **Done when:** offseason volume, dumps and the physicals numbers are in range, and `offseason` shows
 no new short rosters or teams over the cap (it already warns about some: those stay warnings, not new
 failures).
+
+#### Phase 3: what landed
+
+Built as planned:
+- **Physicals** (`trade/physicals.ts`): every player in a deal is examined by the buyer's doctor.
+  - The result is a pass, concerns or a failure. In the offseason a player who's hurt but otherwise
+    sound is cleared to rehab instead.
+  - The doctor reads the body's real problems:
+    - an injury now;
+    - severe injuries and the scars they left, over three seasons;
+    - years past his position's physical prime;
+    - his hidden durability.
+  - The noise on that read shrinks with the doctor's diagnosis. Each exam draws on its own stream, and
+    the verdict comes in words.
+  - In AI deals a failure calls the deal off, told in the medical news. Concerns reopen the price:
+    the buyer's cheapest pick comes out, or the seller's latest goes back. A buyer with a strong
+    physio (14+) or an urgent need takes him as agreed; otherwise the deal is off.
+  - In your deals, your doctor's verdict on a player you're buying, or theirs on one of yours, stops
+    the deal at an exam panel. You choose: walk away, ask for less, or go ahead.
+- **Retained salary** (`TradeSide.retain`): the sender keeps paying part of this year's base salary.
+  - It's booked as the sender's dead money ("Retained salary"). The buyer's base salary falls, never
+    below the minimum (`maxRetain`).
+  - `judge` counts it as a cost to the sender and a saving to the buyer. The seller's floor rises by it
+    in full.
+  - In season the AI keeps just enough salary to fit a buyer that's short of room (`keepToFit`). You get
+    a *Keep paying* slider on the trade table.
+- **The league-year market: cap casualties go to the phone before the AI releases them.** `capCut` names
+  the player `aiCapCompliance` would cut next.
+  - A team that would keep him gives a 6th or 7th.
+  - If nobody would, he goes as a dump, when the guarantees a release would leave cost his team more
+    than the pick it pays.
+- **Tag and trade:** a seller, or a team tight on the cap, shops the player it tagged (block reason
+  `tagged`). The news calls it a tag and trade.
+- **Trade and extend:** whether a player with a year left would sign with his new team is settled per
+  player, team and league year (`willExtend`).
+  - 0–30% refuse by loyalty, as in the re-sign window. The agent tells the buyer before the deal.
+  - So the buyer prices it in (`PlayerRead.extension`): a quarter of full control at the market's pay.
+    It counts in the buyer's rooms but not in market value. A player who'd rather test the market goes
+    for less.
+  - On arrival the buyer extends him when he'd start for it and its offer meets his ask
+    (`aiExtendArrival`). The trade record keeps the deal he was traded on. The AI never extends a
+    player for you.
+- **Camp cutdown trades:** before the cut to 53, each AI team calls about the best three of its cuts. A
+  team gives a 6th or 7th if he'd make its own 53, checked with its own cut.
+- **Rehab trades:** a deal in the offseason goes through when the doctor clears a player to rehab.
+- **Future-for-current pick swaps** (`pickSwapFor`): before the draft (league year and free agency), a
+  win-now GM (future discount 0.3 or more) trades next year's pick for a patient GM's (0.22 or less)
+  this year's, a round later.
+
+Where the build departed from the plan, and why:
+- **Physicals settle at once**, instead of pending until the next calendar step. The AI market's deals
+  resolve in their moment (a failure is that day's news), and yours stop at the exam panel until you
+  choose. That's one less piece of state carried through the calendar.
+- **Dumps happen only when the league year opens**, one a team a year, at most two years left. That's
+  when the money is about to be guaranteed; after it a team cuts or lives with the contract. In-season
+  dumps had pushed the count to the top of its band (4.0 a season).
+- **Retention is in season only.** In the offseason the buyer has the whole year to make room, so a
+  seller doesn't pay to fit him.
+- **`judge` charges a roster spot only for the cuts a deal adds.** It used to charge for every player
+  over the limit. In camp every roster is over 53 before the cut, so any incoming player cost 15 points
+  per extra body.
+- **`judge`'s `releasing` option:** for a player it's cutting anyway, a team weighs the trade against
+  the release.
+  - Anything that comes back is a gain, and so are the guarantees a release would have left.
+  - There's no floor and no dead-money refusal, since a trade leaves less dead money than the cut.
+- **A dump's absorber and a late-pick buyer read the public file first:** his injury now, his recent
+  history and his age, never his durability. They pass on a file that already worries a doctor.
+  Without this, a quarter of the flagged physicals were dumps of broken-down veterans, and the
+  physicals number ran over its band.
+- **The dead-money refusal counts void years about to land.** In the re-sign window, a deal that ran
+  out still carries its void-year bonus money as a cap charge; it only becomes dead money when free
+  agency opens. A seller who couldn't see it sold past a quarter of the cap: one team reached 30% in
+  `offseason`.
+- **Pick swaps and late-pick deals before a cut don't count against a team's yearly trade limit.**
+  The limit is for real deals.
+- **Trading a cap casualty is rare (about 0.2 a year).** AI teams cut only when over the cap
+  (`aiCapCompliance` with no room target), and the league year rarely finds one there. The squeezed
+  team's dump (salary weight 1.6 or more) covers the rest.
+- **The trades check:**
+  - Pick swaps no longer count as "a pick riding back". The research's "deals with a late-pick swap
+    riding along" are player deals.
+  - The 7th-round probe flags only starters the league prices at a 6th or more. An overpaid veteran's
+    salary can fairly eat his value down to a 7th's, as in this doc's own example, "OL 13.4 for a 2027
+    7th".
+  - The fairness audit values an extended player on the deal he was traded on. The extension is a deal
+    of its own.
+- **Not built here:** draft-day trades (Phase 4). A player you trade for stays yours to extend, as
+  with any of your players.
+
+Measured (`npm run trades`, three leagues, three seasons):
+
+| Number | Result | Band |
+| --- | --- | --- |
+| Trades in season / in the offseason | 15.4 / 23.7 | 15–25 / 15–35 |
+| Picks for players / swaps / a pick each way | 75% / 11% / 13% | 55–80% / 5–15% / 10–25% |
+| Cap dumps a season | 1.4 | 1–4 |
+| Deals voided or through with concerns, a season | 3.0 | 1–4 |
+| Sound players failing a physical | 0.8% | ≤ 1% |
+| Flagged bodies passed: sharp doctor against weak | 0.67 | ≤ 0.85 |
+| Median truth gap / over 3:1 a season / worst team balance | 5% / 0.56 / 808 | ≤ 35% / ≤ 1 / ≤ 1,000 |
+| Good starters worth a 6th or more, sold for 7ths only | 0 | 0 |
+| A market week / an offseason moment | 86 / 51 ms | 120 / 300 |
+
+Information lines (no band yet), a league year:
+- next year's pick for this year's: 3.9 (the NFL: 5–6);
+- cut-down deals in camp: 2.4;
+- cap casualties traded instead of cut: 0.3;
+- tag and trade: 0.3;
+- players traded and extended on arrival: 7.1;
+- deals with salary retained: 2.7 a season.
+
+`offseason` (six seasons) shows nothing new against `main`:
+- no team over the cap at any step;
+- dead money at most 22% of the cap;
+- two short-roster warnings at kickoff (45 and 47), where `main` has two (46 and 45).
+
+Its only red is the coaching market, as on `main`.
+
+**Over six seasons**, every number holds but one: **trades in season, 11.9 a season** (15–25). Phase 1
+measured 14.3 there.
+- **Not caused by Phase 3's features.** A six-season run gives 11.3 without trade-and-extend and 13.2
+  without pick swaps. Pick swaps keep the worst team balance in range (2,084 without them) and picks
+  for players under 80%.
+- **Retained salary frees about three deals a season, but not enough.** In later seasons there are
+  fewer buyers (16 contenders and bubble teams in year one, 11–13 by year five). Sellers call more and
+  close less: in one league, 21 of 41 calls in the first season and 6 of 55 in the sixth. Almost
+  every failed call is a seller's ask above the buyer's most.
+- **Still a follow-up**, now with that diagnosis. The 3-season check holds at 15.4.
+
+**Checks when Phase 3 landed.**
+
+`npm run check -- --all` (all 12) passed typecheck, build, sim, weather, crews, endings, audit, careers
+and trades. Test failed on three cases, now fixed. The other two reds are the same ones `main` has:
+
+| Check | This branch | `main` | Reading |
+| --- | --- | --- | --- |
+| `test` | 327 of 330 | green | Two inbox cases counted every trade mail. The test hands you the MVP's team after the season, and as an AI team it had now traded in season too. They now look for their own message. One ledger season test timed out at 5 s with the other checks running; the file's season groups now get 30 s. 330 of 330 pass |
+| `offseason` | coaching market 136–140 (≤ 135) | red: 137–141 | The coaching carousel's (PR #29) |
+| `quirks` | Spot Drop | red | The documented borderline quirk |
 
 ### Phase 4: draft day
 

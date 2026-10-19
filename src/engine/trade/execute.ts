@@ -1,9 +1,10 @@
 /** Moving the assets. The sending team books the bonus money still on each traded contract; the new team takes the salary. */
 import { autoPostJune1, logTransaction, paidShare, weeksPaid } from '../finance/cap';
 import { deadMoney } from '../finance/contract';
+import { aiExtendArrival } from '../offseason/ai';
 import { freeJersey } from '../generate';
 import { syncDepthChart, teamPlayers } from '../roster';
-import type { DealKind, League, TradeMarket, TradeRecord } from '../types';
+import type { DealKind, League, TradeMarket, TradeRecord, Physical } from '../types';
 import type { TradeProposal } from './rules';
 
 /** Trades kept for trade trails and the market's memory: the last five league years. */
@@ -15,7 +16,7 @@ export const emptyMarket = (): TradeMarket => ({ moment: 0, history: [], interes
  * Move the assets and log the trade. `kind` and `tag` say what it was for the news ("deadline
  * rental"); the user's own trades go in untagged.
  */
-export function executeTrade(league: League, proposal: TradeProposal, meta: { kind: DealKind; tag?: string } = { kind: 'user' }): TradeRecord {
+export function executeTrade(league: League, proposal: TradeProposal, meta: { kind: DealKind; tag?: string; physicals?: Physical[] } = { kind: 'user' }): TradeRecord {
   const post = autoPostJune1(league.phase);
   const moved: string[][] = [[], []];
   proposal.sides.forEach((side, i) => {
@@ -40,6 +41,14 @@ export function executeTrade(league: League, proposal: TradeProposal, meta: { ki
           y.paidBefore = weeksPaid(league);
         }
       }
+      // Salary the old team keeps paying: its dead money, off the new team's base.
+      const kept = Math.round(side.retain?.[id] ?? 0);
+      const now = c.years.find((x) => x.season === league.season);
+      if (kept > 0 && now) {
+        from.deadMoney.push({ season: league.season, amount: kept, playerId: id, note: 'Retained salary' });
+        now.base -= kept;
+        now.guaranteed = Math.min(now.guaranteed, now.base);
+      }
       c.bonuses = [];
       c.years = c.years.filter((y) => !y.void);
       p.teamId = to;
@@ -58,12 +67,22 @@ export function executeTrade(league: League, proposal: TradeProposal, meta: { ki
   for (const side of proposal.sides) syncDepthChart(league, league.teams[side.teamId]);
   const [a, b] = proposal.sides.map((s) => league.teams[s.teamId]);
   logTransaction(league, 'trade', [a.id, b.id], `${a.abbrev} traded ${moved[0].join(', ') || 'nothing'} to ${b.abbrev} for ${moved[1].join(', ') || 'nothing'}${meta.tag ? ` (${meta.tag})` : ''}`);
+  // In the offseason an AI buyer extends a starter it priced as willing to sign (the trade-and-extend).
+  const extended = proposal.sides.flatMap((side, i) =>
+    side.players.flatMap((id) => {
+      // A new deal replaces the contract object; the one he was traded on is kept as it was.
+      const tradedOn = league.players[id].contract!;
+      return aiExtendArrival(league, league.teams[proposal.sides[1 - i].teamId], league.players[id]) ? [{ playerId: id, tradedOn }] : [];
+    }),
+  );
   const record: TradeRecord = {
     season: league.season,
     phase: league.phase,
     week: league.week,
-    sides: [proposal.sides[0], proposal.sides[1]].map((s) => ({ teamId: s.teamId, players: [...s.players], picks: [...s.picks] })) as TradeRecord['sides'],
+    sides: [proposal.sides[0], proposal.sides[1]].map((s) => ({ teamId: s.teamId, players: [...s.players], picks: [...s.picks], ...(s.retain ? { retain: { ...s.retain } } : {}) })) as TradeRecord['sides'],
     kind: meta.kind,
+    ...(extended.length ? { extended } : {}),
+    ...(meta.physicals?.some((x) => x.result !== 'passed') ? { physicals: meta.physicals.filter((x) => x.result !== 'passed') } : {}),
   };
   const market = (league.market ??= emptyMarket());
   market.history = [...market.history.filter((r) => r.season > league.season - HISTORY_YEARS), record];

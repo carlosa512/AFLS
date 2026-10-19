@@ -60,7 +60,9 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   deadline rentals and depth against the NFL's prices, what a future first is worth, every AI trade
   valued in the truth (fair, and legal on cap and rosters afterwards), the AI market's volume and mix
   (in season, deadline day, offseason, swaps, dumps, division rivals) against the NFL's, offers to you
-  (how many, a week's most, none after the deadline or for an Untouchable, listing draws a call), the
+  (how many, a week's most, none after the deadline or for an Untouchable, listing draws a call),
+  physicals (deals voided or through with concerns, sound players failing, a sharp doctor against a
+  weak one), the
   exploit probes (junk for a star, stacked firsts, dumps, sign and flip, buying straight back, probing
   one GM all week) and speed. Run
   it after changing `trade/` or what it values players with (`scouting.ts`, `finance/`, `aging.ts`,
@@ -141,11 +143,16 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     `value.ts`, with the league's going rate for a pick (`goingRate`); the window, deadline day and
     blockers in `rules.ts`, with the hidden wait on new signings (each GM's own, never shown); `judge`
     in `judge.ts`, the one evaluator every deal goes through (seller floors at the going rate, soft
-    first-round pricing, a centrepiece for a star, division rivals); `executeTrade`; each front
+    first-round pricing, a centrepiece for a star, division rivals; `releasing` weighs a deal against
+    a cut); `executeTrade` (retained salary as the sender's dead money, the AI buyer's trade-and-extend
+    on arrival, `willExtend` priced in by the buyer only); each front
     office's stance, needs, trade block and interest in `plans.ts` (on its own read); the deal search
-    in `deals.ts` (a price between the seller's floor and the buyer's most, picks or a swap, dumps);
+    in `deals.ts` (a price between the seller's floor and the buyer's most, picks or a swap, dumps,
+    salary kept to fit a buyer in season, late-pick sales before a cut, future-for-current pick swaps);
     the AI market at the NFL's moments (`marketMoment` in `market.ts`, its own RNG stream: league year,
-    FA days, camp, weeks, deadline day), its history and rumors in `league.market`; offers to you in
+    FA days, camp, weeks, deadline day; cap casualties and camp cuts go to the phone first), its
+    history and rumors in `league.market`; the buyer's doctor in `physicals.ts` (pass, concerns,
+    failed, cleared to rehab; the public file a team reads before it calls); offers to you in
     `offers.ts` (bids, pitches, dumps, enquiries on their own stream; accept, decline, counter, your
     players' statuses, shop, ask a price; they lapse when you advance the calendar), your dealings with
     each GM in `talks.ts` (about four proposals a moment, cooldowns, trust), your staff's word on a

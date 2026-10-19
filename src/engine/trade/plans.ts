@@ -14,7 +14,7 @@ import { computeRecords, conferenceSeeds, winPct, type TeamRecord } from '../sea
 import type { League, Player, Position, Stance, Team, TradeMarket } from '../types';
 import { POSITIONS } from '../types';
 import { ovrOf, rosterOf, spendable, type TradeContext } from './context';
-import { freshlySigned, playerTradeBlocker, salaryToTake } from './rules';
+import { freshlySigned, maxRetain, playerTradeBlocker, salaryToTake } from './rules';
 import { POSITION_TRADE, readPlayer, salaryWeight, TRADE_BAND } from './value';
 
 // ───────── stance ─────────
@@ -200,7 +200,7 @@ export function teamNeeds(ctx: TradeContext, team: Team): Need[] {
 export interface BlockEntry {
   playerId: number;
   /** Why: an AI team's own reasons, or (for yours) whether you've put him on the block. */
-  reason: 'surplus' | 'expiring' | 'veteran' | 'overpaid' | 'listed' | 'available';
+  reason: 'surplus' | 'expiring' | 'veteran' | 'overpaid' | 'tagged' | 'listed' | 'available';
   /** 0 … 1: how keen the team is to move him. */
   keenness: number;
 }
@@ -272,6 +272,8 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
     // A reloading team keeps its core: it lets go only the expiring starters it won't re-sign.
     if (starterGrade && left <= 1 && p.age >= (reload ? 30 : 26) && (mode === 'retool' || mode === 'rebuild')) add('expiring', inSeason ? 0.8 : 0.45);
     if (starterGrade && mode === 'rebuild' && !reload && p.age - ageShift(p.position) >= 28) add('veteran', 0.6);
+    // Tagged and not worth his price to this team long-term (a seller, or a cap it can't fit him under): tag and trade (Ngakoue, Clowney).
+    if (p.contract!.kind === 'tag' && !inSeason && (mode === 'retool' || mode === 'rebuild' || tight)) add('tagged', 0.7);
     if (r >= ROSTER_TEMPLATE[p.position] || (p.position === 'QB' && r >= 2)) add('surplus', 0.4);
     else if (r >= S && ovrOf(ctx, p) >= line[p.position]) add('surplus', 0.5);
     // Only a big salary can be a burden worth paying to move: one well above what the market pays a
@@ -346,7 +348,8 @@ export function wanted(ctx: TradeContext, team: Team, from: readonly Listing[], 
     for (const { team: seller, entry } of here) {
       if (seller.id === team.id || (opts.memo && entry.keenness <= 0.4)) continue;
       const p = league.players[entry.playerId];
-      if (p.position !== need.position || salaryToTake(league, p) > room) continue;
+      // In season a salary he can't fit is still in play if his team could keep paying the difference.
+      if (p.position !== need.position || salaryToTake(league, p) - (league.phase === 'regular' ? maxRetain(league, p) : 0) > room) continue;
       // Its read of him is bounded within TRADE_BAND of the truth (`readPlayer`): no read can make an
       // upgrade of a player this far short of the bar, so skip the scouting pass.
       if (ovrOf(ctx, p) + TRADE_BAND - bar < 0.5) continue;

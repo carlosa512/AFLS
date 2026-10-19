@@ -6,7 +6,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { capHit, isExpired, lastSeason } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
-import { counterOffer, evaluateTrade, isDeadlineDay, openOffers, pickLabel, playerTradeBlocker, proposeTrade, suggestSweetener, tradeCapImpact, tradeWindow, type TradeProposal } from '../../engine/trade';
+import { counterOffer, evaluateTrade, isDeadlineDay, maxRetain, openOffers, pickLabel, playerTradeBlocker, proposeTrade, suggestSweetener, tradeCapImpact, tradeWindow, type TradeProposal } from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
@@ -15,7 +15,7 @@ import { money } from '../format';
 import { Ovr, seenOvr } from '../scouting';
 import { liveLock } from '../live';
 import { LinkedText } from '../moves';
-import { BlockPanel, HistoryPanel, MarketPanel, OffersPanel } from '../offers';
+import { BlockPanel, ExamPanel, HistoryPanel, MarketPanel, OffersPanel } from '../offers';
 import { store } from '../store';
 import { tradeDesk, type Picked } from '../tradeDesk';
 
@@ -66,6 +66,31 @@ function AssetList({ league, teamId, picked, onChange }: { league: League; teamI
   );
 }
 
+/**
+ * Salary you keep paying for each player you send (*eat salary*): it lands on your cap as dead money
+ * this season and comes off his new team's base, so a team that couldn't fit him can, and pays more.
+ */
+function KeepPaying({ league, picked, onChange }: { league: League; picked: Picked; onChange: (p: Picked) => void }) {
+  const players = picked.players.map((id) => league.players[id]).filter((p) => maxRetain(league, p) >= 50);
+  if (!players.length) return null;
+  return (
+    <div className="notice" style={{ marginBottom: 8 }}>
+      <div className="eyebrow">Salary you keep paying this season</div>
+      {players.map((p) => {
+        const max = maxRetain(league, p);
+        const v = Math.min(picked.retain?.[p.id] ?? 0, max);
+        return (
+          <label key={p.id} className="row" style={{ gap: 8 }}>
+            <span style={{ minWidth: 120 }}>{p.lastName}</span>
+            <input type="range" min={0} max={max} step={50} value={v} aria-label={`Salary you keep paying for ${p.firstName} ${p.lastName}`} onChange={(e) => onChange({ ...picked, retain: { ...picked.retain, [p.id]: Number(e.target.value) } })} />
+            <span className="num small">{money(v)}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 type View = 'offers' | 'table' | 'block' | 'market' | 'history';
 
 export function Trades({ league }: { league: League }) {
@@ -92,6 +117,7 @@ export function Trades({ league }: { league: League }) {
           </button>
         ))}
       </div>
+      {league.market?.exam && league.market.exam.offerId === undefined && <ExamPanel league={league} />}
       {view === 'offers' && <OffersPanel league={league} />}
       {view === 'table' && <TradeTable league={league} />}
       {view === 'block' && <BlockPanel league={league} />}
@@ -122,11 +148,16 @@ function TradeTable({ league }: { league: League }) {
   const partner = league.teams[partnerId];
   const closed = tradeWindow(league) ?? liveLock();
 
-  // Drop anything that moved since it was ticked (after a trade, a sim or a release).
-  const valid = (p: Picked, teamId: number): Picked => ({
-    players: p.players.filter((id) => league.players[id]?.teamId === teamId),
-    picks: p.picks.filter((id) => league.draftPicks.some((x) => x.id === id && x.ownerId === teamId && x.playerId === undefined)),
-  });
+  // Drop anything that moved since it was ticked (after a trade, a sim or a release), and salary kept for a player no longer in it.
+  const valid = (p: Picked, teamId: number): Picked => {
+    const players = p.players.filter((id) => league.players[id]?.teamId === teamId);
+    const retain = Object.fromEntries(Object.entries(p.retain ?? {}).filter(([id, v]) => v > 0 && players.includes(Number(id))));
+    return {
+      players,
+      picks: p.picks.filter((id) => league.draftPicks.some((x) => x.id === id && x.ownerId === teamId && x.playerId === undefined)),
+      ...(Object.keys(retain).length ? { retain } : {}),
+    };
+  };
   const a = valid(mine, userId);
   const b = valid(theirs, partnerId);
   const proposal: TradeProposal = { sides: [{ teamId: userId, ...a }, { teamId: partnerId, ...b }] };
@@ -249,10 +280,16 @@ function TradeTable({ league }: { league: League }) {
         <div className="grid-2">
           <div>
             <h3>You send</h3>
+            <KeepPaying league={league} picked={a} onChange={setMine} />
             <AssetList league={league} teamId={userId} picked={a} onChange={setMine} />
           </div>
           <div>
             <h3>You get</h3>
+            {Object.entries(b.retain ?? {}).map(([id, v]) => (
+              <p key={id} className="muted small">
+                The {partner.name} keep paying {money(v)} of {league.players[Number(id)].lastName}'s salary this season.
+              </p>
+            ))}
             <AssetList league={league} teamId={partnerId} picked={b} onChange={setTheirs} />
           </div>
         </div>

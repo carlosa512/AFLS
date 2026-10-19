@@ -6,6 +6,8 @@
 export interface Picked {
   players: number[];
   picks: number[];
+  /** Salary this side keeps paying, $K by player (`TradeSide.retain`). */
+  retain?: Record<number, number>;
 }
 
 export interface DeskDraft {

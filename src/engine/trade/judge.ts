@@ -11,14 +11,14 @@
  * - A star only goes for a centrepiece: quantity never buys quality.
  */
 import { capFor, deadMoneyIn } from '../finance/cap';
-import { yearsLeft } from '../finance/contract';
+import { isExpired, remainingProration, yearsLeft } from '../finance/contract';
 import { contenderScore, rosterLimit } from '../offseason/negotiation';
 import type { DraftPick, League, Player, Team } from '../types';
 import { rosterOf, tradeContext, type TradeContext } from './context';
 import { untouchables } from './plans';
 import { peekTalks, talkRefusal, TRUST_MARGIN } from './talks';
-import { freshSigningRefusal, playerTradeBlocker, tradeDeadMoney, tradeProblem, type TradeProposal, type TradeSide } from './rules';
-import { goingRate, marketValue, nextDraftSeason, pickOverall, pickValue, playerSwing } from './value';
+import { freshSigningRefusal, guaranteesShed, playerTradeBlocker, retainedBy, tradeDeadMoney, tradeProblem, type TradeProposal, type TradeSide } from './rules';
+import { goingRate, marketValue, nextDraftSeason, pickOverall, pickValue, playerSwing, POINTS_PER_K, salaryWeight } from './value';
 
 /** Each player a deal leaves past the roster limit costs about a sixth-round pick: someone has to be cut. */
 const ROSTER_SPOT = 15;
@@ -34,6 +34,12 @@ export interface JudgeOpts {
   margin?: number;
   /** The team would waive a backup to make room. */
   rosterCuts?: boolean;
+  /**
+   * The players it sends are ones it would cut anyway (a cap casualty, the cut to 53): it weighs the
+   * trade against the release, so anything coming back is a gain, and so is the guaranteed money a
+   * release would have left on its books.
+   */
+  releasing?: boolean;
 }
 
 export interface Judgement {
@@ -105,10 +111,19 @@ function rivalRefusal(ctx: TradeContext, team: Team, proposal: TradeProposal): s
  */
 const DEAD_LIMIT = 0.25;
 
+/**
+ * Bonus money from deals that have run out (their void years), booked as dead money when free agency
+ * opens: in the re-sign window it's still on the expired contracts, but the GM knows it's coming.
+ */
+const voidsComing = (ctx: TradeContext, teamId: number) =>
+  rosterOf(ctx, teamId).reduce((s, p) => s + (p.contract && isExpired(p.contract, ctx.league.season) ? remainingProration(p.contract, ctx.league.season) : 0), 0);
+
 /** A GM won't sell players whose bonuses would bury his cap in dead money. */
-function deadRefusal(league: League, team: Team, mine: TradeSide): string | null {
+function deadRefusal(ctx: TradeContext, team: Team, mine: TradeSide): string | null {
   if (!mine.players.length) return null;
+  const { league } = ctx;
   const added = tradeDeadMoney(league, mine);
+  added.thisYear += retainedBy(mine) + voidsComing(ctx, team.id);
   const over = (season: number, amount: number) => amount > 0 && deadMoneyIn(team, season) + amount > DEAD_LIMIT * capFor(league, season);
   return over(league.season, added.thisYear) || over(league.season + 1, added.nextYear) ? "They can't take on any more dead money this year." : null;
 }
@@ -152,29 +167,39 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const mine = proposal.sides.find((s) => s.teamId === teamId)!;
   const theirs = proposal.sides.find((s) => s.teamId !== teamId)!;
   const problem = tradeProblem(league, proposal, { rosterCuts: opts.rosterCuts, ctx });
-  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal) ?? rivalRefusal(ctx, team, proposal) ?? deadRefusal(league, team, mine) ?? pickHoldRefusal(ctx, mine);
+  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal) ?? rivalRefusal(ctx, team, proposal) ?? (opts.releasing ? null : deadRefusal(ctx, team, mine)) ?? pickHoldRefusal(ctx, mine);
 
-  const { loss, gain } = playerSwing(ctx, team, mine.players, theirs.players);
+  const w = salaryWeight(ctx, teamId);
+  const swing = playerSwing(ctx, team, mine.players, theirs.players);
+  // Against a release he's gone either way: the trade saves the guarantees a cut would leave behind.
+  const loss = opts.releasing ? -w * POINTS_PER_K * guaranteesShed(league, mine) : swing.loss;
+  const gain = swing.gain;
   const pickIn = theirs.picks.reduce((s, id) => s + pickValue(league, pickById(league, id), team.gm, ctx), 0);
   const pickOut = picksOut(ctx, team, mine.picks);
-  const size = rosterOf(ctx, teamId).filter((p) => !p.ir).length - mine.players.length + theirs.players.length;
-  const get = pickIn + gain - Math.max(0, size - rosterLimit(league)) * ROSTER_SPOT;
-  const give = pickOut + loss;
+  // Each cut the deal forces costs a roster spot: only the ones it adds (in camp every roster is over 53 before the cut).
+  const now = rosterOf(ctx, teamId).filter((p) => !p.ir).length;
+  const over = (n: number) => Math.max(0, n - rosterLimit(league));
+  const cuts = Math.max(0, over(now - mine.players.length + theirs.players.length) - over(now));
+  // Salary kept by the sender: a cost to it, a saving to the buyer, weighed by cap room like any salary.
+  const get = pickIn + gain - cuts * ROSTER_SPOT + w * POINTS_PER_K * retainedBy(theirs);
+  const give = pickOut + loss + w * POINTS_PER_K * retainedBy(mine);
   const trust = opts.vsUser ? peekTalks(league.market, teamId).trust : 0;
   const margin = (opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser, trust)) + (startsAtQb(league, team, mine) ? QB_PREMIUM : 0);
   // The margin is a share of the stakes, so it asks for more back whether the stakes are positive or not.
   const lift = (x: number) => x + Math.abs(x) * (margin - 1);
   let base = give;
   let need = lift(give);
-  if (mine.players.length) {
+  if (mine.players.length && !opts.releasing) {
     // Whatever it thinks of a player itself, a seller holds out for most of what the league would pay,
     // and counts the picks against that at the going rate, not its own chart: what comes back must
     // clear the floor at the league's prices.
+    // Salary it keeps paying makes the player that much cheaper to his new team: the league would
+    // pay that much more for him, so it counts in full, whatever a rich team thinks a dollar is worth.
     const floor = mine.players.reduce((s, id) => {
       const p = league.players[id];
       const worth = marketValue(ctx, team, p);
       return s + (worth > 0 ? worth * floorShare(league, team, p) : worth);
-    }, going(ctx, mine.picks));
+    }, going(ctx, mine.picks) + POINTS_PER_K * retainedBy(mine));
     const rate = pickIn - going(ctx, theirs.picks);
     base = Math.max(base, floor + rate);
     need = Math.max(need, lift(floor) + rate);

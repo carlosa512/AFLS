@@ -9,12 +9,12 @@ import { fifthYearOptionValue, franchiseTagValue, leagueMarket, marketApy, minSa
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
 import { generatePlayer } from '../generate';
-import { clamp, type Rng } from '../rng';
+import { clamp, Rng } from '../rng';
 import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth, viewCache } from '../scouting';
 import type { League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
-import { contenderScore, demand, freeAgents, offerValue, rookieReserve, rosterLimit, ROSTER_MAX, signPlayer, type Offer } from './negotiation';
+import { contenderScore, demand, freeAgents, offerProblem, offerValue, rookieReserve, rosterLimit, ROSTER_MAX, signPlayer, willExtend, type Offer } from './negotiation';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
 export const KEEP_MIN: Record<Position, number> = { QB: 2, RB: 3, WR: 5, TE: 2, OL: 8, DT: 4, EDGE: 4, LB: 4, CB: 5, S: 3, K: 1, P: 1 };
@@ -176,6 +176,28 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
   aiCapCompliance(league, team);
 }
 
+/**
+ * The trade-and-extend: an AI team extends a player it just traded for, with a year or less left,
+ * when he's willing (`willExtend`, as the buyer priced him), he'd start for it and its offer meets
+ * his ask and fits under the cap. Returns whether he signed.
+ */
+export function aiExtendArrival(league: League, team: Team, p: Player): boolean {
+  if (p.teamId !== team.id || team.id === league.userTeamId) return false;
+  const depth = depthOvrs(league, team.id);
+  const ovr = playerOvr(p);
+  // The room he joined, without him.
+  const others = [...depth[p.position]];
+  others.splice(others.indexOf(ovr), 1);
+  if (ovr < (others[STARTERS[p.position] - 1] ?? 0) - 0.5) return false;
+  if (!willExtend(league, p, team.id)) return false;
+  const rng = new Rng(`${league.seed}:extend-offer:${league.season}:${p.id}:${team.id}`);
+  const offer = aiOffer(league, team, p, rng, needGain({ ...depth, [p.position]: others }, p, ovr));
+  const d = demand(league, p, team.id);
+  if (offerValue(league, p, team.id, offer, d) < d.walkAway || offerProblem(league, p, team.id, offer)) return false;
+  signPlayer(league, p, team.id, offer);
+  return true;
+}
+
 // ───────── cap compliance ─────────
 
 /**
@@ -195,18 +217,30 @@ export function aiCapCompliance(league: League, team: Team, target = 0): void {
         continue;
       }
     }
-    // The floor counts who can play: a player on injured reserve still costs cap but fills no spot.
-    const counts = new Map<Position, number>();
-    for (const p of roster) if (!p.ir) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
-    const floor = (pos: Position) => (desperate ? STARTERS[pos] : KEEP_MIN[pos]);
-    const cut = roster
+    const cut = capCut(league, team, desperate);
+    if (!cut) break;
+    releasePlayer(league, cut);
+  }
+}
+
+/**
+ * The player `aiCapCompliance` cuts next for room: the least play per dollar saved, at a position it
+ * can spare him (only starters are protected when it's `desperate`). Nothing is released; the trade
+ * market calls around about him first when the league year opens.
+ */
+export function capCut(league: League, team: Team, desperate = false): Player | null {
+  const roster = teamPlayers(league, team.id).filter((p) => p.contract && !isExpired(p.contract, league.season));
+  // The floor counts who can play: a player on injured reserve still costs cap but fills no spot.
+  const counts = new Map<Position, number>();
+  for (const p of roster) if (!p.ir) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
+  const floor = (pos: Position) => (desperate ? STARTERS[pos] : KEEP_MIN[pos]);
+  return (
+    roster
       .filter((p) => (counts.get(p.position) ?? 0) > floor(p.position))
       .map((p) => ({ p, savings: releasePreview(league, p).savings }))
       .filter((x) => x.savings > 200)
-      .sort((a, b) => playerOvr(a.p) / a.savings - playerOvr(b.p) / b.savings)[0];
-    if (!cut) break;
-    releasePlayer(league, cut.p);
-  }
+      .sort((a, b) => playerOvr(a.p) / a.savings - playerOvr(b.p) / b.savings)[0]?.p ?? null
+  );
 }
 
 // ───────── free agency ─────────

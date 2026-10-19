@@ -17,7 +17,7 @@ export { dealAdvice, type Advice } from './advice';
 export { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
 export { executeTrade } from './execute';
 export { evaluateTrade, heldPick, judge, marginFor, suggestSweetener, type JudgeOpts, type Judgement, type TradeVerdict } from './judge';
-export { dealFor, dumpFor, TAGS, type Deal } from './deals';
+export { dealFor, dumpFor, keepToFit, TAGS, type Deal } from './deals';
 export { emptyMarket } from './execute';
 export { gmActivity, marketMoment, TRADE_VOLUME, weekMoment, type Moment } from './market';
 export {
@@ -30,16 +30,20 @@ export {
   OFFER_RATE,
   openOffers,
   proposeTrade,
+  resolveExam,
   setTradeStatus,
   shopPlayer,
   type AcceptResult,
   type CounterResult,
 } from './offers';
 export { ASKS, peekTalks } from './talks';
+export { CONCERNS, examine, FAIL, findings, physicals, worstResult } from './physicals';
 export { isBuyer, isSeller, reloading, stanceFor, stanceOf, stanceScore, teamNeeds, tradeBlock, untouchable, untouchables, updateStances, wanted, type BlockEntry, type Need } from './plans';
 export {
   freshlySigned,
   isDeadlineDay,
+  maxRetain,
+  retainedBy,
   isTradeSeason,
   playerTradeBlocker,
   salaryToTake,
@@ -65,6 +69,7 @@ export {
   pickValue,
   playerSwing,
   playerValue,
+  POINTS_PER_K,
   projectedSlot,
   salaryWeight,
   seasonShare,
