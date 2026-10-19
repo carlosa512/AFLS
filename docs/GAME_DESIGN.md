@@ -390,9 +390,11 @@ average in the box score. Spec and later phases: `docs/OFFICIALS.md`.
   sixteen seasons and feeds the QB's pocket presence and decision making far more than any defender's
   contest. Review how each attribute ages and what it feeds, now that penalties, special teams and
   schemes read them too. Numbers: `docs/PENALTIES.md`, "Checks when Phase 3a landed".
-- NFL-calendar practice: CBA padded-practice budgets, Full/Limited/DNP, veteran rest days (the
-  weekly practice injury roll is the hook).
-- Mentoring in position rooms; morale (playing time, contract, results) and holdouts.
+- Training, practice and position moves (plan: `docs/TRAINING.md`): an offseason program and
+  training camp as calendar steps, development released week by week, coaches teaching a player a
+  new position over time (no instant switch), an optional weekly practice plan on the CBA's padded
+  budget, then mentoring.
+- Morale (playing time, contract, results) and holdouts.
 - Per-game form (consistency, big games); training camp injuries and the PUP list.
 - Compensatory picks, RFA/ERFA tenders, LTBE/NLTBE incentives, conditional picks.
 - Trade-down offers during the draft (offers to you landed with the trade market's Phase 2).
