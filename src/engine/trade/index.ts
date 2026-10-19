@@ -9,14 +9,33 @@
  * - `plans.ts`: each front office's stance, needs, trade block and interest
  * - `deals.ts`: the deal search (picks, swaps, a player and a pick, cap dumps)
  * - `market.ts`: the AI market at the NFL's moments, its history and rumors
+ * - `offers.ts`: offers to you and what you do with them: accept, decline, counter, statuses, shop, ask a price
+ * - `talks.ts`: your dealings with each GM (proposals a moment, cooldowns, trust)
  * - `context.ts`: one decision pass's cache
  */
+export { dealAdvice, type Advice } from './advice';
 export { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
 export { executeTrade } from './execute';
 export { evaluateTrade, heldPick, judge, marginFor, suggestSweetener, type JudgeOpts, type Judgement, type TradeVerdict } from './judge';
 export { dealFor, dumpFor, TAGS, type Deal } from './deals';
 export { emptyMarket } from './execute';
 export { gmActivity, marketMoment, TRADE_VOLUME, weekMoment, type Moment } from './market';
+export {
+  acceptOffer,
+  answerEnquiry,
+  askPrice,
+  counterOffer,
+  declineOffer,
+  expireOffers,
+  OFFER_RATE,
+  openOffers,
+  proposeTrade,
+  setTradeStatus,
+  shopPlayer,
+  type AcceptResult,
+  type CounterResult,
+} from './offers';
+export { ASKS, peekTalks } from './talks';
 export { isBuyer, isSeller, reloading, stanceFor, stanceOf, stanceScore, teamNeeds, tradeBlock, untouchable, untouchables, updateStances, wanted, type BlockEntry, type Need } from './plans';
 export {
   freshlySigned,

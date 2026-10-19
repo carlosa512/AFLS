@@ -47,6 +47,10 @@ import {
   pickOverall,
   pickValue,
   playerTradeBlocker,
+  proposeTrade,
+  setTradeStatus,
+  teamNeeds,
+  ASKS,
   playerValue,
   rosterOf,
   salaryToTake,
@@ -57,7 +61,7 @@ import {
   type TradeProposal,
   weekMoment,
 } from '../src/engine/trade';
-import type { DraftPick, GmTraits, League, Player, Position, TradeRecord } from '../src/engine/types';
+import type { DraftPick, GmTraits, League, Player, Position, TradeOffer, TradeRecord } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 
 const LEAGUES = Number(process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seasons') ?? 3);
@@ -352,6 +356,14 @@ function runProbes(base: League) {
     probes.push({ label: 'sell a player, then buy him straight back for the same pick', worked });
   }
   {
+    // Proposing to one GM over and over: he hears about four a week, then he's done talking.
+    const l = fresh();
+    room(l);
+    const proposal: TradeProposal = { sides: [{ teamId: USER, players: best(l, USER).slice(-1).map((p) => p.id), picks: [] }, { teamId: ai, players: [best(l, ai)[0].id], picks: [] }] };
+    const answers = Array.from({ length: 20 }, () => proposeTrade(l, proposal).message);
+    probes.push({ label: 'probing one GM 20 times in a week', worked: answers.slice(ASKS).some((m) => m !== "We're done talking this week.") });
+  }
+  {
     const l = fresh();
     const star = best(l, ai)[0];
     star.injury = { type: 'hamstring', severity: 'moderate', weeksRemaining: 4, estimate: [3, 5], season: l.season, week: l.week, where: 'game' };
@@ -420,6 +432,37 @@ function audit(after: League, label: string): TradeRecord[] {
   return fresh;
 }
 
+// ───────── 7. Offers to you ─────────
+
+const desk = { perYear: [] as number[], enquiries: 0, maxWeek: 0, maxDeadline: 0, afterDeadline: 0, untouchable: 0, listing: null as boolean | null };
+const seenOffers = new Set<string>();
+
+/** Offers that landed on your desk since the last look (offer ids are per league). */
+function freshOffers(league: League, label: string): TradeOffer[] {
+  const out = (league.market?.offers ?? []).filter((o) => !seenOffers.has(`${label}:${o.id}`));
+  for (const o of out) {
+    seenOffers.add(`${label}:${o.id}`);
+    desk.untouchable += o.sides[1].players.filter((id) => league.market?.status[id] === 'untouchable').length;
+    if (o.kind === 'enquiry') desk.enquiries++;
+  }
+  return out.filter((o) => o.kind !== 'enquiry');
+}
+
+/** Put your best player at a position some team needs on the block: does an offer come within two market moments? */
+function listingDraws(base: League): boolean | null {
+  const l = clone(base);
+  const ctx = tradeContext(l);
+  const needed = new Set(l.teams.filter((t) => t.id !== l.userTeamId).flatMap((t) => teamNeeds(ctx, t).map((n) => n.position)));
+  const p = teamPlayers(l, l.userTeamId)
+    .filter((x) => needed.has(x.position) && x.contract && yearsLeft(x.contract, l.season) >= 2 && !playerTradeBlocker(l, x) && l.market?.status[x.id] !== 'untouchable')
+    .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
+  if (!p) return null;
+  setTradeStatus(l, p.id, 'listed');
+  const before = l.market?.nextOfferId ?? 1;
+  for (let w = 0; w < 2; w++) playWeek(l);
+  return (l.market?.offers ?? []).some((o) => o.id >= before && o.sides[1].players.includes(p.id));
+}
+
 // ───────── run ─────────
 
 for (let i = 0; i < LEAGUES; i++) {
@@ -431,11 +474,14 @@ for (let i = 0; i < LEAGUES; i++) {
     runProbes(league);
     timeJudge(league);
   }
+  // Like most users, mark the two best players Untouchable: no offer may ask for them.
+  for (const p of teamPlayers(league, league.userTeamId).sort((a, b) => playerOvr(b) - playerOvr(a)).slice(0, 2)) setTradeStatus(league, p.id, 'untouchable');
   for (let s = 0; s < SEASONS; s++) {
     fair.seasons++;
     volume.seasons++;
     const timing = i === 0 && s === 0;
     const season: TradeRecord[] = [];
+    let offers = 0;
     while (league.phase === 'regular' && (league.week <= TRADE_DEADLINE_WEEK + 1 || isDeadlineDay(league))) {
       if (s === 0 && isDeadlineDay(league)) probePrices(league, 'deadline', i === 0);
       if (timing && isDeadlineDay(league)) {
@@ -447,8 +493,14 @@ for (let i = 0; i < LEAGUES; i++) {
         const copy = clone(league);
         speed.week.push(cpuMs(() => marketMoment(copy, weekMoment(copy))));
       }
+      if (i === 0 && s === 0 && league.week === 4) desk.listing = listingDraws(league);
       const starters = new Set(league.teams.map((t) => t.depthChart.QB[0]));
+      const weekOf = league.week;
       playWeek(league);
+      const landed = freshOffers(league, label).length;
+      offers += landed;
+      if (weekOf === TRADE_DEADLINE_WEEK) desk.maxDeadline = Math.max(desk.maxDeadline, landed);
+      else desk.maxWeek = Math.max(desk.maxWeek, landed);
       const week = audit(league, label).filter((r) => r.phase === 'regular');
       season.push(...week);
       volume.startingQbs += week.filter((r) => r.sides.some((x) => x.players.some((id) => starters.has(id)))).length;
@@ -456,9 +508,11 @@ for (let i = 0; i < LEAGUES; i++) {
     volume.inSeason.push(season.length);
     volume.deadline += season.filter((r) => r.week === TRADE_DEADLINE_WEEK).length;
     simToEndOfSeason(league);
+    desk.afterDeadline += freshOffers(league, label).length;
     // The offseason, step by step, each step's trades audited as it goes.
     beginOffseason(league);
     let offseason = audit(league, label).length;
+    offers += freshOffers(league, label).length;
     if (timing) {
       const copy = clone(league);
       speedOff.push(cpuMs(() => marketMoment(copy, 'leagueYear')));
@@ -470,8 +524,10 @@ for (let i = 0; i < LEAGUES; i++) {
       }
       advanceOffseason(league, { autoUser: true });
       offseason += audit(league, label).length;
+      offers += freshOffers(league, label).length;
     }
     volume.offseason.push(offseason);
+    desk.perYear.push(offers);
   }
 }
 
@@ -521,6 +577,14 @@ check('division rivals (%)', share((r) => {
   const [a, b] = r.sides.map((x) => x.teamId);
   return a < 32 && b < 32 && DIVISION_OF[a] === DIVISION_OF[b];
 }), [0, 5]);
+
+console.log(`\nOffers to you (autopilot, nothing listed, your two best Untouchable; ${(desk.enquiries / Math.max(1, desk.perYear.length)).toFixed(1)} enquiries a year besides)`);
+check('offers, a league year', mean(desk.perYear), [10, 25], 1);
+check('most in an ordinary week', desk.maxWeek, [0, 2]);
+check('most on deadline day', desk.maxDeadline, [0, 4]);
+check('after the deadline', desk.afterDeadline, [0, 0]);
+check('asking for an Untouchable', desk.untouchable, [0, 0]);
+check('listing a player draws an offer within two moments (1 = yes)', desk.listing === false ? 0 : 1, [1, 1]);
 
 console.log('\nProbes (each must fail)');
 for (const p of probes) console.log(`  ${p.worked ? '✗ WORKED' : '✓ failed'}  ${p.label}`);

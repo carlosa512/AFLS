@@ -7,7 +7,7 @@ import { simulateGame, startGame, type LiveGame } from './match/gameSim';
 import { applyInjury, injuryWeek } from './injuries';
 import { simOffseason } from './offseason';
 import { quirkWeek, recordForm } from './quirks';
-import { marketMoment, weekMoment } from './trade';
+import { expireOffers, marketMoment, weekMoment } from './trade';
 import { syncDepthChart } from './roster';
 import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
@@ -106,6 +106,8 @@ export function startLiveGame(league: League, game: Game): LiveGame {
 /** Play every game in the current week, then advance the calendar. Returns the games played. */
 export function playWeek(league: League): Game[] {
   if (league.phase === 'complete') return [];
+  // Offers you didn't answer lapse when you play on.
+  expireOffers(league);
   const games = gamesInWeek(league).filter((g) => !g.result);
   for (const g of games) playGame(league, g);
   injuryWeek(league);

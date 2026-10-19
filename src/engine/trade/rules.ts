@@ -144,7 +144,11 @@ export function salaryToTake(league: League, p: Player): number {
   return (c.years.find((y) => y.season === league.season)?.base ?? 0) * (1 - paidShare(league, c));
 }
 
-/** Hard rule problems (either side), independent of value. `rosterCuts`: AI teams waive a backup to make room. */
+/**
+ * Hard rule problems (either side), independent of value. An AI team over the roster limit waives a
+ * backup to make room (`aiCutdown` runs after every trade); yours must fit unless `rosterCuts` (you
+ * name who goes when you accept an offer).
+ */
 export function tradeProblem(league: League, proposal: TradeProposal, opts: { rosterCuts?: boolean; ctx?: TradeContext } = {}): string | null {
   const window = tradeWindow(league);
   if (window) return window;
@@ -170,7 +174,7 @@ export function tradeProblem(league: League, proposal: TradeProposal, opts: { ro
     if (impact[i].space < 0) return `${team.name} would be over the cap after this trade.`;
     const roster = rosterOf(ctx, side.teamId);
     const size = roster.filter((p) => !p.ir).length - side.players.length + other.players.length;
-    if (size > rosterLimit(league) && !opts.rosterCuts) return `${team.name} would have too many players (${size}/${rosterLimit(league)}). Release someone first.`;
+    if (size > rosterLimit(league) && !opts.rosterCuts && side.teamId === league.userTeamId) return `${team.name} would have too many players (${size}/${rosterLimit(league)}). Release someone first.`;
     if (league.phase === 'regular') {
       const after = roster.filter((p) => !side.players.includes(p.id)).concat(other.players.map((id) => league.players[id]));
       for (const pos of Object.keys(STARTERS) as Position[]) {

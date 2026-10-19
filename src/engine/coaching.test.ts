@@ -191,7 +191,8 @@ describe('what coaches do for players', () => {
   }, 30_000);
 });
 
-describe('coaching staffs and moves', () => {
+// These play a season first (`offseason`): 30 s, like the file's other season tests, so a busy machine doesn't time them out.
+describe('coaching staffs and moves', { timeout: 30_000 }, () => {
   it('gives every team a full staff inside its budget, and the user a typical one', () => {
     const l = createLeague({ seed: 'staffs' });
     for (const team of l.teams) {

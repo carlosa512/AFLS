@@ -1905,6 +1905,14 @@ tr.void-year td {
   display: grid;
   gap: 1px;
 }
+/* a bare list: offers, advice, the trade block and history */
+.plain-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
 
 /* cap chart */
 .cap-chart {

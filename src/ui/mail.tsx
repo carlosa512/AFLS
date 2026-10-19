@@ -53,6 +53,7 @@ import { band, money, ordinal, playerName, recordText, shortName, teamName, week
 import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
+import { OfferCard } from './offers';
 import { store } from './store';
 
 /** How many rows a list in a card shows before "See all". */
@@ -81,6 +82,11 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <DraftClassCards league={league} s={s} />;
     case 'trade':
       return <TradeCards league={league} s={s} />;
+    case 'offer': {
+      // The offer itself, live: its answers work from the inbox as on the Offers tab.
+      const offer = league.market?.offers.find((o) => o.id === s.offerId);
+      return offer ? <OfferCard league={league} offer={offer} compact /> : null;
+    }
     case 'recap':
       return <RecapCards league={league} s={s} />;
     case 'cleared':
