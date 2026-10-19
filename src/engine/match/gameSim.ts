@@ -6,7 +6,7 @@
  * vs. tacklers). Outcomes emerge from ratings plus bounded randomness, so
  * better teams win more often without making upsets impossible.
  */
-import { skill } from '../attributes';
+import { skill, useKnocks } from '../attributes';
 import { callerStyle, type CallerStyle } from '../coaching';
 import { CONTACT_RISK, fatigueMult, HELD_SHARE, injuryLabel, riskFactors, rollInjury, SIDELINE_REST, SNAP_CONTACT, SNAP_EXPOSURE, SNAP_RISK, snapCost, type ContactEvent, type Mechanism, type RiskFactors } from '../injuries';
 import { departmentFor, type Department } from '../medical';
@@ -397,6 +397,7 @@ class GameSim {
     this.calls = crewCalls(this.crew);
     const team = (id: number) => league.teams[id];
     this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
+    this.syncKnocks();
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
     this.qbLeans = qbLeans(league, [this.lineups[0].qb, this.lineups[1].qb]);
     this.fields = [units(this.lineups[0]), units(this.lineups[1])];
@@ -422,8 +423,25 @@ class GameSim {
     return this.plays.slice(before);
   }
 
-  /** One event: a quarter break, a kickoff, or a scrimmage down. */
+  /** Both lineups' out-of-position knocks, kept in one map that every step reads through `skill`. */
+  private knocks = new Map<number, number>();
+  private syncKnocks() {
+    this.knocks.clear();
+    for (const l of this.lineups) for (const [id, k] of l.knocks) this.knocks.set(id, k);
+  }
+
+  /** One event, with this game's out-of-position knocks on (a live game interleaves with other code). */
   private step() {
+    const prev = useKnocks(this.knocks);
+    try {
+      this.event();
+    } finally {
+      useKnocks(prev);
+    }
+  }
+
+  /** One event: a quarter break, a kickoff, or a scrimmage down. */
+  private event() {
     if (!this.started) {
       this.started = true;
       this.openingReceiver = this.rng.chance(0.5) ? 0 : 1;
@@ -582,6 +600,7 @@ class GameSim {
       this.log(`Injury: ${this.abbrev(side)} ${p.position} ${short(p)} (${injuryLabel(injury.type).toLowerCase()}) is out for the game.`);
       const qb = this.lineups[side].qb;
       this.lineups[side] = buildLineup(this.league, this.lineups[side].team, this.out);
+      this.syncKnocks();
       this.fields[side] = units(this.lineups[side]);
       if (this.lineups[side].qb !== qb) this.qbLeans = qbLeans(this.league, [this.lineups[0].qb, this.lineups[1].qb]);
     }

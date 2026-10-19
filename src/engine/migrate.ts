@@ -50,7 +50,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 24) league.version = 24; // v24: optional `archived` and `deleted` on inbox messages, set by the user
   if (league.version < 25) toV25(league);
   if (league.version < 26) league.version = 26; // v26: optional `woman` on scouts and medics, set at creation (absent = a man)
-  if (league.version < 27) league.version = 27; // v27: optional `learning` and `moves` on players and `training` on teams, nothing to fill in
+  if (league.version < 27) toV27(league);
   return league;
 }
 
@@ -222,6 +222,16 @@ function toV10(league: League) {
 function toV11(league: League) {
   for (const p of Object.values(league.players)) if (!p.retired && !p.quirkBag) generateQuirks(p);
   league.version = 11;
+}
+
+/**
+ * v26 → v27: position moves (`learning`, `moves`, `training`: optional, nothing to fill in) and the
+ * versatility trait, rolled from each player's own seed after the others, so he gets what a new league
+ * would give him.
+ */
+function toV27(league: League) {
+  for (const p of Object.values(league.players)) if (p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
+  league.version = 27;
 }
 
 /**

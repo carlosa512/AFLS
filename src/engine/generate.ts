@@ -111,7 +111,7 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
     teamId: spec.teamId,
     contract: null,
     personality: generatePersonality(rng),
-    traits: { workEthic: 0, durability: 0, temperament: 0, injuryResistance: 0, naturalFitness: 0 },
+    traits: { workEthic: 0, durability: 0, temperament: 0, injuryResistance: 0, naturalFitness: 0, versatility: 0 },
     stats: {},
   };
   player.traits = generateTraits(player);

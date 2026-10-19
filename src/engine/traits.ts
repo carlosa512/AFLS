@@ -11,6 +11,8 @@
  * - **Injury resistance**: how often his body breaks, and how that holds up with age (`injuries.ts`).
  * - **Natural fitness**: how much condition a game costs him, how fast it comes back, and how well he
  *   heals from an injury (`injuries.ts`).
+ * - **Versatility**: how big a knock he takes lining up away from his own position, and how fast he
+ *   learns a new one (`familiarity.ts`, `training.ts`).
  *
  * The truth drives the engine; teams only ever see their scouts' words for it (`characterRead`).
  */
@@ -35,7 +37,9 @@ export function generateTraits(p: Pick<Player, 'id' | 'firstName' | 'lastName' |
   // that ages well tends to hold together; the fit ones tend to be the ones who put in the work.
   const resist = 0.35 * body + 0.937 * rng.normal();
   const fitness = 0.25 * work + 0.2 * body + 0.947 * rng.normal();
-  return { workEthic: roll(work), durability: roll(body), temperament: roll(temper), injuryResistance: roll(resist), naturalFitness: roll(fitness) };
+  // Drawn last for the same reason. Versatility is its own gift: a football mind that picks up a new job.
+  const versatile = rng.normal();
+  return { workEthic: roll(work), durability: roll(body), temperament: roll(temper), injuryResistance: roll(resist), naturalFitness: roll(fitness), versatility: roll(versatile) };
 }
 
 /**
@@ -52,6 +56,12 @@ export const declineMult = (t: Traits) => (1 - 0.03 * (t.workEthic - TRAIT_MEAN)
 
 /** Years his body clock runs ahead (−) or behind (+) his position's: up to about ±2. */
 export const bodyShift = (t: Pick<Traits, 'durability'>) => clamp(0.2 * (t.durability - TRAIT_MEAN), -2, 2);
+
+/** Share of the out-of-position knock he takes: about ×0.45 for the most versatile, ×1.55 for the least. Averages 1. */
+export const knockMult = (t: Pick<Traits, 'versatility'>) => clamp(1 - 0.06 * (t.versatility - TRAIT_MEAN), 0.4, 1.6);
+
+/** Learning-speed multiplier for a new position: a versatile player picks it up faster. Averages 1. */
+export const learnMult = (t: Pick<Traits, 'versatility'>) => clamp(1 + 0.03 * (t.versatility - TRAIT_MEAN), 0.75, 1.25);
 
 /** Positions whose discipline the engine reads (the `discipline` contest): the lines. */
 export const TEMPER_POSITIONS: ReadonlySet<Position> = new Set(['OL', 'DT', 'EDGE']);

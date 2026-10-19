@@ -6,7 +6,7 @@ import { STARTERS } from '../positions';
 import { clamp, type Rng } from '../rng';
 import { teamPlayers } from '../roster';
 import type { Contract, League, Phase, Player, Team, Transaction } from '../types';
-import { OFFSEASON_PHASES } from '../types';
+import { OFFSEASON_PHASES, POSITIONS } from '../types';
 import { capHit, deadMoney, remainingProration, restructure, restructurePreview, yearOf, type DeadMoneySplit, type RestructurePreview } from './contract';
 import { BASE_CAP, minSalary } from './market';
 
@@ -133,7 +133,8 @@ export function releasePlayer(league: League, player: Player, designatePostJune1
   if (preview.thisYear > 0) team.deadMoney.push({ season: league.season, amount: Math.round(preview.thisYear), playerId: player.id, note });
   if (preview.nextYear > 0) team.deadMoney.push({ season: league.season + 1, amount: Math.round(preview.nextYear), playerId: player.id, note });
   if (preview.postJune1 && !autoPostJune1(league.phase)) team.postJune1Used++;
-  team.depthChart[player.position] = team.depthChart[player.position].filter((id) => id !== player.id);
+  // Wherever he was lined up (a player can be at another position on a hand-sorted chart).
+  for (const pos of POSITIONS) team.depthChart[pos] = team.depthChart[pos].filter((id) => id !== player.id);
   if (team.taggedId === player.id) team.taggedId = null;
   player.tagCount = 0; // a later tag elsewhere is not a consecutive one
   logTransaction(league, 'release', [team.id], `${team.abbrev} released ${nameOf(player)}`);

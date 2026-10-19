@@ -224,9 +224,17 @@ export interface Learning {
   since: number;
   /** The team teaching him: a trade or release ends the plan. */
   teamId: number;
+  /** Why his team started it (`training.ts`), shown in the news when he moves. */
+  why?: MoveReason;
   /** Reserved for mentoring (docs/TRAINING.md §8): the veteran helping him learn. Unused. */
   mentor?: number;
 }
+
+/**
+ * Why a team teaches a player a new position. A move needs one: "he's a little better there" isn't a
+ * reason to spend a year teaching him (`training.ts`, `motivesFor`).
+ */
+export type MoveReason = 'hole' | 'nextYear' | 'scheme' | 'upside' | 'reps' | 'age' | 'upgrade';
 
 /** A position change, made on cut-down day of league year `season`. */
 export interface PositionMove {
@@ -311,6 +319,8 @@ export interface Traits {
   injuryResistance: number;
   /** Natural fitness: how much condition a game takes, how fast it comes back, and how well he heals. */
   naturalFitness: number;
+  /** Versatility: how well he plays away from his own position, and how fast he learns a new one (`familiarity.ts`). */
+  versatility: number;
 }
 
 export type StaffRole = 'director' | 'collegeScout' | 'proScout';
