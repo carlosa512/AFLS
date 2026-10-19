@@ -26,11 +26,13 @@ export function userGame(league: League, week = league.week): Game | undefined {
   return gamesInWeek(league, week).find((g) => g.homeId === league.userTeamId || g.awayId === league.userTeamId);
 }
 
-/** Contenders and rebuilders deal with each other before the deadline (never with the user unasked). */
+/**
+ * Contenders and rebuilders deal with each other before the deadline (never with the user unasked).
+ * The market draws from its own stream, like injuries and weather: a seed replays the same market,
+ * and tuning it never reshuffles anything else.
+ */
 function aiTrades(league: League) {
-  const rng = new Rng(league.rngState);
-  aiTradeWeek(league, rng);
-  league.rngState = rng.getState();
+  aiTradeWeek(league, new Rng(`${league.seed}:market:${league.season}:${league.phase}:${league.week}`));
 }
 
 /** Keep full play-by-play only for the user's games and the most recent week. */

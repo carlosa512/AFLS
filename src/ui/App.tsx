@@ -3,6 +3,7 @@ import { gamesInWeek, playWeek, simToEndOfRegularSeason, simToEndOfSeason, userG
 import { advanceOffseason, beginOffseason, draftComplete, FA_DAYS, offseasonBlockers, simOffseason } from '../engine/offseason';
 import { unreadCount } from '../engine/inbox';
 import { computeRecords } from '../engine/season/standings';
+import { isDeadlineDay } from '../engine/trade';
 import type { League } from '../engine/types';
 import { Dialog, TeamChip } from './components';
 import { isOffseasonPhase, PHASE_LABELS, recordText, resultsSeason, weekLabel } from './format';
@@ -110,6 +111,8 @@ function primaryActionLabel(league: League): string {
   if (live.inProgress()) return 'Resume live game';
   const label = weekLabel(league.week);
   if (league.phase === 'playoffs') return `Play ${label}`;
+  // Playing on ends deadline day: say so, it's the last chance to trade until the new league year.
+  if (isDeadlineDay(league)) return `Play ${label} (closes the trade deadline)`;
   return userGame(league) ? `Play ${label}` : `Play ${label} (bye)`;
 }
 

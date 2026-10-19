@@ -1,0 +1,46 @@
+/**
+ * Trades (docs/TRADES.md): one value scale (draft-chart points) for players and picks, judged by
+ * each AI GM's own lens with one evaluator, under the NFL's rules and calendar.
+ *
+ * - `value.ts`: pick charts and slots, player value (talent × control × role × lens + contract), market value
+ * - `rules.ts`: the window and deadline day, blockers, the hidden wait on new signings, cap and rosters
+ * - `judge.ts`: the evaluator every deal goes through, the trade table's verdict, "what would make it work?"
+ * - `execute.ts`: moving the assets and the money
+ * - `market.ts`: AI-to-AI trades
+ * - `context.ts`: one decision pass's cache
+ */
+export { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
+export { executeTrade } from './execute';
+export { evaluateTrade, judge, suggestSweetener, type JudgeOpts, type Judgement, type TradeVerdict } from './judge';
+export { aiTradeWeek } from './market';
+export {
+  freshlySigned,
+  isDeadlineDay,
+  isTradeSeason,
+  playerTradeBlocker,
+  salaryToTake,
+  signingWait,
+  TRADE_DEADLINE_WEEK,
+  tradeCapImpact,
+  tradeProblem,
+  tradeWindow,
+  type TradeProposal,
+  type TradeSide,
+} from './rules';
+export {
+  control,
+  fitzgeraldSpielberger,
+  grossWorth,
+  jimmyJohnson,
+  marketValue,
+  nextDraftSeason,
+  pickChartValue,
+  pickLabel,
+  pickOverall,
+  pickValue,
+  playerSwing,
+  playerValue,
+  projectedSlot,
+  salaryWeight,
+  seasonShare,
+} from './value';
