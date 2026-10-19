@@ -49,6 +49,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 23) league.version = 23; // v23: optional `market` on the league and `stance` on teams, filled by the first market moment
   if (league.version < 24) league.version = 24; // v24: optional `archived` and `deleted` on inbox messages, set by the user
   if (league.version < 25) toV25(league);
+  if (league.version < 26) league.version = 26; // v26: optional `woman` on scouts and medics, set at creation (absent = a man)
   return league;
 }
 

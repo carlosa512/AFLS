@@ -20,7 +20,7 @@
 import { FIRST_NAMES, LAST_NAMES } from './data/names';
 import { BASE_CAP } from './finance/market';
 import { clamp, Rng } from './rng';
-import { ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
+import { ownerTilt, rollWoman, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
 import type { League, Medic, MedicRole, Team } from './types';
 
 export const MEDIC_ROLES: MedicRole[] = ['doctor', 'physio', 'scientist'];
@@ -236,8 +236,10 @@ function dismiss(league: League, m: Medic): void {
 const MARKET_SIZE: Record<MedicRole, number> = { doctor: 8, physio: 14, scientist: 10 };
 
 function newMedic(league: League, rng: Rng, role: MedicRole, physio: number, science: number, age: number): Medic {
+  const woman = rollWoman(rng);
   const m: Medic = {
     id: league.nextMedicId++,
+    ...(woman && { woman: true }),
     firstName: rng.pick(FIRST_NAMES),
     lastName: rng.pick(LAST_NAMES),
     role,
