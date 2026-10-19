@@ -277,10 +277,15 @@ export function freeAgents(league: League): Player[] {
   return Object.values(league.players).filter((p) => p.teamId === null && !p.retired && !prospects.has(p.id));
 }
 
-/** Cap room a team has after this offseason's rookie class is signed. */
-export function rookieReserve(league: League, teamId: number): number {
-  if (league.phase !== 'resign' && league.phase !== 'freeAgency') return 0;
+/** What this year's picks a team still holds will take of its cap once they're signed, about ($K). */
+export function rookieCost(league: League, teamId: number): number {
   return league.draftPicks
     .filter((p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined)
     .reduce((s, p) => s + rookieApy(p.overall ?? 100, league.caps[league.season]) * 0.8, 0);
+}
+
+/** Cap room a team keeps aside before the draft for this offseason's rookie class. */
+export function rookieReserve(league: League, teamId: number): number {
+  if (league.phase !== 'resign' && league.phase !== 'freeAgency') return 0;
+  return rookieCost(league, teamId);
 }
