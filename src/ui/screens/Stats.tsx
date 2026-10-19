@@ -266,7 +266,7 @@ function Awards({ league }: { league: League }) {
       </div>
       <p className="muted small" style={{ marginTop: 0 }}>
         Voted on the numbers and the standings, the way the press votes: players of the week and month as the season goes, the
-        season's awards when the regular season ends. Clubs are where each player played at the time.
+        season's awards when the regular season ends. Teams are where each player played at the time.
       </p>
       {awards ? (
         <div className="grid-2">
@@ -573,7 +573,7 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
     >
       <p className="muted small" style={{ marginTop: 0 }}>
         Regular season. Click a column to sort.{hasRates ? ' Averages and percentages rank qualified players first (enough attempts per game).' : ''} Team is
-        each player's current club.
+        each player's current team.
       </p>
       <div className="table-scroll">
         <table>
