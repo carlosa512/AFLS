@@ -2874,6 +2874,9 @@ button.tip-pill {
 .cat-retirement {
   --cat: var(--muted);
 }
+.cat-league {
+  --cat: #5b6fa8;
+}
 .inbox-panes {
   display: grid;
   grid-template-columns: minmax(300px, 2fr) minmax(0, 3fr);
@@ -3264,6 +3267,52 @@ button.tip-pill {
 }
 .is-user-text {
   font-weight: 700;
+}
+.mail-kstat {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
+  align-items: center;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--step--1);
+}
+.mail-kstat-head {
+  border-top: 0;
+  padding-top: 0;
+}
+.mail-kstat > :first-child,
+.mail-kstat > :last-child {
+  font-family: var(--font-data);
+}
+.mail-kstat > :nth-child(2) {
+  text-align: center;
+}
+.mail-kstat > :last-child {
+  text-align: right;
+}
+.mail-kstat .best {
+  font-weight: 700;
+}
+.mail-line td,
+.mail-line th {
+  text-align: center;
+}
+.mail-line td:first-child,
+.mail-line th:first-child {
+  text-align: left;
+}
+.mail-potg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--marker) 55%, var(--line));
+  background: color-mix(in srgb, var(--marker) 14%, var(--surface));
+}
+.mail-potg > span {
+  display: grid;
+  gap: 2px;
 }
 /* The back link only matters where the message replaces the list. */
 @media (min-width: 641px) {

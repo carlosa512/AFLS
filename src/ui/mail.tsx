@@ -5,20 +5,22 @@
  * the user's view only: our scouts' reads, the doctor's estimate, the public consensus.
  */
 import type { ReactNode } from 'react';
-import { periodLine } from '../engine/awards';
-import { demand } from '../engine/offseason/negotiation';
+import { impact, periodLine, playerOfTheGame } from '../engine/awards';
+import { demand, ROSTER_MAX } from '../engine/offseason/negotiation';
 import { boardValue, reachOrSteal } from '../engine/offseason/draft';
 import { draftClassOf, mailSubject, needsYou, unitReads, type MailSubject } from '../engine/inbox';
-import { estimateText, injuryLabel, IR_MIN_WEEKS, irProblem, placeOnIr, SEVERITY_LABEL, weeksLeft } from '../engine/injuries';
+import { activateFromIr, activateProblem, delegates, estimateText, injuryLabel, IR_MIN_WEEKS, IR_RETURNS, irProblem, irReturnsUsed, placeOnIr, SEVERITY_LABEL, weeksLeft } from '../engine/injuries';
 import { lastSeason } from '../engine/finance/contract';
-import { starters, teamPlayers } from '../engine/roster';
+import { activeRoster, starters, teamPlayers } from '../engine/roster';
+import { capSheet } from '../engine/finance/cap';
+import { userGame } from '../engine/league';
 import { allSeeds, PLAYOFF_ROUNDS, ROUND_NAMES } from '../engine/season/playoffs';
-import { computeRecords } from '../engine/season/standings';
+import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { statLine } from '../engine/stats';
 import type { Game, InboxMessage, League, Player, Position, Team } from '../engine/types';
 import { useNav } from './App';
 import { PlayerAvatar, TeamChip } from './components';
-import { money, ordinal, playerName, recordText, shortName, teamName, weekLabel } from './format';
+import { gameClock, money, ordinal, playerName, recordText, shortName, teamName, weekLabel } from './format';
 import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
@@ -50,6 +52,14 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <DraftClassCards league={league} s={s} />;
     case 'trade':
       return <TradeCards league={league} s={s} />;
+    case 'recap':
+      return <RecapCards league={league} s={s} />;
+    case 'cleared':
+      return <ClearedCards league={league} s={s} at={message.week} />;
+    case 'deadline':
+      return <DeadlineCards league={league} live={needsYou(league, message)} />;
+    case 'race':
+      return <RaceCards league={league} s={s} />;
     default:
       return null;
   }
@@ -687,5 +697,322 @@ function TradeCards({ league, s }: { league: League; s: Extract<MailSubject, { k
         <p style={{ margin: '6px 0 0' }}>{got}</p>
       </Card>
     </div>
+  );
+}
+
+// ───────── game week ─────────
+
+/** One key stat, ours against theirs, the better side bold. */
+function KeyStat({ label, ours, theirs, better }: { label: string; ours: string; theirs: string; better: 'us' | 'them' | null }) {
+  return (
+    <div className="mail-kstat">
+      <span className={better === 'us' ? 'best' : undefined}>{ours}</span>
+      <span className="muted">{label}</span>
+      <span className={better === 'them' ? 'best' : undefined}>{theirs}</span>
+    </div>
+  );
+}
+
+const side = (a: number, b: number, more = true): 'us' | 'them' | null => (a === b ? null : a > b === more ? 'us' : 'them');
+
+function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'recap' }> }) {
+  const nav = useNav();
+  const g = league.games.find((x) => x.id === s.gameId && x.season === s.season);
+  if (!g?.result) return null;
+  const r = g.result;
+  const user = league.userTeamId;
+  const home = g.homeId === user;
+  const [ours, theirs] = home ? [r.home, r.away] : [r.away, r.home];
+  const opp = league.teams[home ? g.awayId : g.homeId];
+  const star = playerOfTheGame(league, g);
+  const potg = star !== null ? league.players[star] : undefined;
+  // Our next best two, on the same scale as the player of the game.
+  const stood = Object.entries(r.playerStats)
+    .filter(([id]) => r.playerTeams[Number(id)] === user && Number(id) !== star && league.players[Number(id)])
+    .map(([id, line]) => ({ p: league.players[Number(id)], line, v: impact(league.players[Number(id)], line) }))
+    .filter((x) => x.v > 0)
+    .sort((a, b) => b.v - a.v)
+    .slice(0, 2);
+  const hurt = (r.injuries ?? []).filter((i) => i.teamId === user && league.players[i.playerId]);
+  const rec = computeRecords(league, g.season).get(user);
+  const next = g.season === league.season ? userGame(league) : undefined;
+  const nextOpp = next && !next.result ? league.teams[next.homeId === user ? next.awayId : next.homeId] : null;
+  const rate = (c: number, a: number) => (a ? c / a : 0);
+  return (
+    <>
+      <div className="mail-split">
+        <Card>
+          <table className="mail-table mail-line">
+            <thead>
+              <tr>
+                <th>Team</th>
+                {r.quarters.home.map((_, i) => (
+                  <th key={i} className="num">
+                    {i < 4 ? i + 1 : 'OT'}
+                  </th>
+                ))}
+                <th className="num">T</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(['away', 'home'] as const).map((k) => (
+                <tr key={k} className={(k === 'home') === home ? 'is-user' : undefined}>
+                  <td>
+                    <TeamChip team={league.teams[k === 'home' ? g.homeId : g.awayId]} />
+                  </td>
+                  {r.quarters[k].map((q, i) => (
+                    <td key={i} className="num">
+                      {q}
+                    </td>
+                  ))}
+                  <td className="num" style={{ fontWeight: 700 }}>
+                    {k === 'home' ? r.homeScore : r.awayScore}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+        <Card>
+          <div className="mail-kstat mail-kstat-head">
+            <span className="eyebrow">{league.teams[user].abbrev}</span>
+            <span />
+            <span className="eyebrow">{opp.abbrev}</span>
+          </div>
+          <KeyStat label="Total yards" ours={String(ours.totalYds)} theirs={String(theirs.totalYds)} better={side(ours.totalYds, theirs.totalYds)} />
+          <KeyStat label="Turnovers" ours={String(ours.turnovers)} theirs={String(theirs.turnovers)} better={side(ours.turnovers, theirs.turnovers, false)} />
+          <KeyStat
+            label="Third down"
+            ours={`${ours.thirdDownConv}/${ours.thirdDownAtt}`}
+            theirs={`${theirs.thirdDownConv}/${theirs.thirdDownAtt}`}
+            better={side(rate(ours.thirdDownConv, ours.thirdDownAtt), rate(theirs.thirdDownConv, theirs.thirdDownAtt))}
+          />
+          <KeyStat label="Possession" ours={gameClock(ours.top)} theirs={gameClock(theirs.top)} better={side(ours.top, theirs.top)} />
+          <KeyStat label="Penalties" ours={`${ours.penalties}-${ours.penaltyYds}`} theirs={`${theirs.penalties}-${theirs.penaltyYds}`} better={side(ours.penaltyYds, theirs.penaltyYds, false)} />
+        </Card>
+      </div>
+      <div className="mail-split">
+        {potg && (
+          <div className="mail-potg">
+            <PlayerAvatar player={potg} team={league.teams[r.playerTeams[potg.id]] ?? null} size={36} />
+            <span>
+              <span className="eyebrow">Player of the game</span>
+              <span style={{ display: 'block' }}>
+                <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openPlayer(potg.id)}>
+                  {shortName(potg)}
+                </button>{' '}
+                <span className="muted small">
+                  {potg.position} · {league.teams[r.playerTeams[potg.id]]?.abbrev}
+                </span>
+              </span>
+              <span className="small">{honorLine(potg, r.playerStats[potg.id])}</span>
+            </span>
+          </div>
+        )}
+        {stood.length > 0 && (
+          <Card title={potg && r.playerTeams[potg.id] === user ? 'Also stood out' : 'Our best'}>
+            {stood.map(({ p, line }) => (
+              <div className="mail-row" key={p.id}>
+                <span className="pos">{p.position}</span>
+                <span>
+                  <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
+                    {shortName(p)}
+                  </button>
+                  <span className="muted small" style={{ display: 'block' }}>
+                    {honorLine(p, line)}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </Card>
+        )}
+      </div>
+      <Card className="mail-fact-card">
+        <span className="small">
+          {rec && <b>{recordText(rec)}</b>} on the season ·{' '}
+          {hurt.length ? `${hurt.map((i) => `${shortName(league.players[i.playerId])} hurt (${injuryLabel(i.type).toLowerCase()})`).join(', ')}` : 'nobody hurt'}
+        </span>
+        {nextOpp && next && (
+          <span className="small">
+            Next: <b>{nextOpp.name}</b>, {next.neutral ? 'neutral site' : next.homeId === user ? 'at home' : 'on the road'}
+          </span>
+        )}
+      </Card>
+      {r.plays && r.plays.length > 0 && (
+        <div className="row">
+          <button className="btn btn-sm" onClick={() => nav.watchGame(g.id)}>
+            ▶ Watch replay
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ClearedCards({ league, s, at }: { league: League; s: Extract<MailSubject, { kind: 'cleared' }>; at: number }) {
+  const p = league.players[s.playerId];
+  const record = p?.injuries?.find((r) => r.season === s.season && r.week === s.week && r.type === s.type);
+  if (!p || !record) return null;
+  const team = p.teamId !== null ? league.teams[p.teamId] : null;
+  const ours = p.teamId === league.userTeamId;
+  const canActivate = ours && p.ir && team && !delegates(league, team) && !activateProblem(league, p);
+  return (
+    <>
+      <Card>
+        <Who
+          league={league}
+          p={p}
+          sub={`${p.position} · age ${p.age}`}
+          side={p.injury ? <InjuryTag league={league} p={p} /> : p.ir ? <span className="tag-pill tag-warn">On IR</span> : <span className="tag-pill tag-good">Cleared</span>}
+        />
+        <div className="mail-kv">
+          <span>
+            <span className="eyebrow">Coming back from</span>
+            <b>{injuryLabel(record.type)}</b>
+            <span className="muted small">{SEVERITY_LABEL[record.severity]}</span>
+          </span>
+          <span>
+            <span className="eyebrow">Hurt</span>
+            <b>{s.week ? weekLabel(s.week) : 'The offseason'}</b>
+          </span>
+          <span>
+            <span className="eyebrow">Time out</span>
+            <b>{Math.max(1, at - s.week)} wk</b>
+            <span className="muted small">Expected {record.weeks} at the time</span>
+          </span>
+        </div>
+      </Card>
+      {ours && p.ir && team && (
+        <Card className="mail-fact-card">
+          <span className="small">
+            On injured reserve for {p.ir.weeks} wk · {irReturnsUsed(league, team.id)} of {IR_RETURNS} returns used this season
+          </span>
+          {canActivate && (
+            <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => activateFromIr(l, l.players[p.id]))}>
+              Activate from IR
+            </button>
+          )}
+        </Card>
+      )}
+    </>
+  );
+}
+
+/** Where we stand as the deadline nears: the numbers a buyer or a seller looks at first. */
+function DeadlineCards({ league, live }: { league: League; live: boolean }) {
+  const nav = useNav();
+  if (!live) return <p className="muted small" style={{ margin: 0 }}>The trade deadline has passed: rosters are set until the new league year.</p>;
+  const user = league.userTeamId;
+  const team = league.teams[user];
+  const records = computeRecords(league);
+  const rec = records.get(user)!;
+  const div = divisionStandings(league, records).find((d) => d.index === team.division)!;
+  const place = div.teams.findIndex((r) => r.teamId === user) + 1;
+  const players = teamPlayers(league, user);
+  const hurt = players.filter((p) => p.injury && !p.injury.injected);
+  const expiring = players.filter((p) => p.contract && lastSeason(p.contract) === league.season).sort((a, b) => seenOvr(league, b) - seenOvr(league, a));
+  return (
+    <>
+      <Card title="Where you stand">
+        <div className="mail-tiles">
+          <span className="mail-tile">
+            <b>{recordText(rec)}</b>
+            <span className="eyebrow">
+              {ordinal(place)} in the {div.division.name}
+            </span>
+          </span>
+          <span className="mail-tile">
+            <b>{money(Math.round(capSheet(league, user).space))}</b>
+            <span className="eyebrow">Cap space</span>
+          </span>
+          <span className="mail-tile">
+            <b>{activeRoster(league, user).length}</b>
+            <span className="eyebrow">of {ROSTER_MAX} on the roster</span>
+          </span>
+          <span className="mail-tile">
+            <b>{hurt.length}</b>
+            <span className="eyebrow">Out hurt</span>
+          </span>
+        </div>
+      </Card>
+      {expiring.length > 0 && (
+        <Card title="Deals that run out after this season">
+          <p className="small" style={{ margin: 0 }}>
+            {expiring.length} player{expiring.length === 1 ? '' : 's'}, including{' '}
+            {expiring
+              .slice(0, SHOW)
+              .map((p) => `${p.position} ${playerName(p)}`)
+              .join(', ')}
+            . Re-sign them in the spring, or move one now while he still has trade value.
+          </p>
+          <div className="mail-more">
+            <span />
+            <button className="linklike" onClick={() => nav.go({ view: 'cap', teamId: user })}>
+              Cap and contracts
+            </button>
+          </div>
+        </Card>
+      )}
+    </>
+  );
+}
+
+function RaceCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'race' }> }) {
+  const nav = useNav();
+  const user = league.userTeamId;
+  const team = league.teams[user];
+  const records = computeRecords(league, s.season);
+  const div = divisionStandings(league, records).find((d) => d.index === team.division)!;
+  const lead = div.teams[0];
+  const left = league.games
+    .filter((g) => g.season === s.season && !g.playoffRound && !g.result && (g.homeId === user || g.awayId === user))
+    .sort((a, b) => a.week - b.week);
+  return (
+    <>
+      <Card title={div.division.name}>
+        <table className="mail-table">
+          <thead>
+            <tr>
+              <th>Team</th>
+              <th className="num">W-L</th>
+              <th className="num">Back</th>
+            </tr>
+          </thead>
+          <tbody>
+            {div.teams.map((r) => {
+              const back = (lead.w - r.w + (r.l - lead.l)) / 2;
+              return (
+                <tr key={r.teamId} className={r.teamId === user ? 'is-user' : undefined}>
+                  <td>
+                    <span className="team-inline">
+                      <TeamChip team={league.teams[r.teamId]} /> {league.teams[r.teamId].name}
+                    </span>
+                  </td>
+                  <td className="num">{recordText(r)}</td>
+                  <td className="num">{back > 0 ? back : '–'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Card>
+      <Card title="Still to play">
+        <p className="small" style={{ margin: 0 }}>
+          {left.length
+            ? left.map((g) => `${weekLabel(g.week)} ${g.homeId === user ? 'vs' : 'at'} ${league.teams[g.homeId === user ? g.awayId : g.homeId].abbrev}`).join(' · ')
+            : 'The regular season is over.'}
+        </p>
+      </Card>
+      {s.level === 'out' && (
+        <div className="row">
+          <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'draft' })}>
+            Draft order
+          </button>
+          <button className="btn btn-sm" onClick={() => nav.go({ view: 'cap', teamId: user })}>
+            Contracts for next year
+          </button>
+        </div>
+      )}
+    </>
   );
 }

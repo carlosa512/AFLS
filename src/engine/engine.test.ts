@@ -10,7 +10,7 @@ import { capSheet } from './finance/cap';
 import { isExpired } from './finance/contract';
 import { activeRoster, teamPlayers } from './roster';
 import { playoffGames } from './season/playoffs';
-import { computeRecords, conferenceSeeds, divisionStandings, sortTeams } from './season/standings';
+import { computeRecords, conferenceSeeds, divisionStandings, playoffRace, sortTeams } from './season/standings';
 import { ATTRIBUTES, POSITIONS, type GameResult } from './types';
 
 describe('Rng', () => {
@@ -364,4 +364,37 @@ describe('coach decisions', () => {
     expect(coach.fourthDown({ ...base, scoreDiff: -10, clock: 200, down: 4, distance: 8 }, rng)).toBe('go');
     expect(coach.passProbability({ ...base, scoreDiff: -10, clock: 120 })).toBeGreaterThan(0.8);
   });
+});
+
+describe('playoff race', () => {
+  it('only calls a clinch or an elimination the final standings bear out, and calls them before the end', () => {
+    const league = createLeague({ seed: 'race' });
+    const called = new Map<number, { spot?: number; division?: number; bye?: number; out?: number }>();
+    while (league.phase === 'regular') {
+      playWeek(league);
+      for (const t of league.teams) {
+        const race = playoffRace(league, t.id);
+        const first = called.get(t.id) ?? {};
+        for (const k of ['spot', 'division', 'bye', 'out'] as const) if (race[k]) first[k] ??= league.week;
+        called.set(t.id, first);
+      }
+    }
+    const records = computeRecords(league);
+    let early = 0;
+    for (let c = 0; c < 2; c++) {
+      const seeds = conferenceSeeds(league, c, records);
+      for (const t of league.teams.filter((x) => x.conference === c)) {
+        const first = called.get(t.id)!;
+        const seed = seeds.indexOf(t.id);
+        if (first.spot) expect(seed).toBeGreaterThanOrEqual(0);
+        if (first.division) expect(seed).toBeLessThan(4);
+        if (first.bye) expect(seed).toBe(0);
+        if (first.out) expect(seed).toBe(-1);
+        if (first.spot && first.spot < league.week) early++;
+        if (first.out && first.out < league.week) early++;
+      }
+    }
+    // A season of 17 games settles plenty of teams with games to spare.
+    expect(early).toBeGreaterThan(8);
+  }, 30_000);
 });

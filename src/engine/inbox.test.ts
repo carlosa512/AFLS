@@ -7,6 +7,8 @@ import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { expiringPlayers } from './offseason/ai';
 import { teamPlayers } from './roster';
+import { computeRecords, conferenceSeeds } from './season/standings';
+import { TRADE_DEADLINE_WEEK } from './trade';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
@@ -63,7 +65,7 @@ describe('inbox', () => {
   });
 
   it('reads back what every message is about', () => {
-    const kinds: Record<string, string[]> = { matchup: ['matchup'], medical: ['injury'], awards: ['award'], trades: ['trade'] };
+    const kinds: Record<string, string[]> = { matchup: ['matchup', 'recap'], medical: ['injury', 'cleared'], awards: ['award'], trades: ['trade', 'deadline'], league: ['race'] };
     for (const m of league.inbox!) {
       const s = mailSubject(m)!;
       expect(kinds[m.category]).toContain(s.kind);
@@ -131,5 +133,62 @@ describe('inbox', () => {
     deliverMail(old);
     expect(old.inbox!.length).toBeGreaterThan(0);
     expect(unreadCount(old)).toBe(0);
+  });
+});
+
+describe('mail through a season', () => {
+  const league = createLeague({ seed: 'inbox-season' });
+  const user = league.userTeamId;
+  const needsAt = new Map<string, boolean[]>();
+
+  it('files a recap after each of our games, naming the player of the game', () => {
+    deliverMail(league);
+    while (league.phase === 'regular' || league.phase === 'playoffs') {
+      playWeek(league);
+      deliverMail(league);
+      for (const m of league.inbox!) if (m.id.startsWith('deadline:')) needsAt.set(m.id, [...(needsAt.get(m.id) ?? []), needsYou(league, m)]);
+    }
+    const ours = league.games.filter((g) => g.season === league.season && g.result && (g.homeId === user || g.awayId === user));
+    const recaps = league.inbox!.filter((m) => m.id.startsWith('recap:'));
+    expect(recaps).toHaveLength(ours.length);
+    for (const m of recaps) {
+      const s = mailSubject(m)!;
+      expect(s.kind).toBe('recap');
+      expect(m.body).toMatch(/^We (beat|lost to|tied) the /);
+      expect(m.body).toContain('was the player of the game');
+      expect(m.actions).toEqual([{ kind: 'game', gameId: s.kind === 'recap' ? s.gameId : -1 }]);
+      expect(needsYou(league, m)).toBe(false);
+    }
+  }, 30_000);
+
+  it('reminds us of the trade deadline the week before and the week of, until it passes', () => {
+    const before = league.inbox!.find((m) => m.id === `deadline:${league.season}:1`)!;
+    const now = league.inbox!.find((m) => m.id === `deadline:${league.season}:0`)!;
+    expect(before.week).toBe(TRADE_DEADLINE_WEEK - 1);
+    expect(now.week).toBe(TRADE_DEADLINE_WEEK);
+    // It needs you the week it lands, and no longer once the deadline week is played.
+    expect(needsAt.get(now.id)![0]).toBe(true);
+    expect(needsAt.get(now.id)!.at(-1)).toBe(false);
+  });
+
+  it('clears a player we wrote about once he is healthy, and only him', () => {
+    const cleared = league.inbox!.filter((m) => m.id.startsWith('cleared:'));
+    expect(cleared.length).toBeGreaterThan(0);
+    for (const m of cleared) expect(league.inbox!.some((x) => x.id === m.id.replace('cleared:', 'medical:'))).toBe(true);
+  });
+
+  it('calls our playoff fate the way the final standings bear out, once per level', () => {
+    const seed = conferenceSeeds(league, league.teams[user].conference, computeRecords(league)).indexOf(user);
+    const race = league.inbox!.filter((m) => m.category === 'league' && m.id.startsWith('race:'));
+    expect(race.length).toBeGreaterThan(0);
+    expect(new Set(race.map((m) => m.id)).size).toBe(race.length);
+    for (const m of race) {
+      const s = mailSubject(m)!;
+      if (s.kind !== 'race') throw new Error(m.id);
+      if (s.level === 'out') expect(seed).toBe(-1);
+      else expect(seed).toBeGreaterThanOrEqual(0);
+      if (s.level === 'division') expect(seed).toBeLessThan(4);
+      if (s.level === 'bye') expect(seed).toBe(0);
+    }
   });
 });

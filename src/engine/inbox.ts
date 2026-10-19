@@ -4,9 +4,9 @@
  * at the league after each change and files whatever is new, each message keyed by what it's about,
  * so delivering twice (or after a long sim) never duplicates one.
  */
-import { AWARD_KEYS, AWARD_NAMES, HONOR_SLOTS, MONTHS, seasonAwards, weeklyAwards, type AwardWinner } from './awards';
+import { AWARD_KEYS, AWARD_NAMES, HONOR_SLOTS, MONTHS, playerOfTheGame, seasonAwards, weeklyAwards, type AwardWinner } from './awards';
 import { teamCoaches } from './coaching';
-import { estimateText, injuryLabel, weeksLeft } from './injuries';
+import { delegates, estimateText, injuryLabel, weeksLeft } from './injuries';
 import { userGame } from './league';
 import { teamMedics } from './medical';
 import { expiringPlayers } from './offseason/ai';
@@ -14,7 +14,9 @@ import { draftComplete, reachOrSteal } from './offseason/draft';
 import { leaguePercentile, perceive } from './scouting';
 import { starters, teamPlayers } from './roster';
 import { ROUND_NAMES } from './season/playoffs';
+import { playoffRace } from './season/standings';
 import { teamStaff } from './staff';
+import { TRADE_DEADLINE_WEEK } from './trade';
 import type { InboxMessage, League, Phase, Player, Position, Team } from './types';
 
 /** Saves keep the latest messages only, like the transaction log. */
@@ -245,7 +247,11 @@ export type MailSubject =
   | { kind: 'combine'; season: number }
   | { kind: 'draftDay'; season: number }
   | { kind: 'draftClass'; season: number }
-  | { kind: 'trade'; season: number; text: string };
+  | { kind: 'trade'; season: number; text: string }
+  | { kind: 'recap'; season: number; gameId: number }
+  | { kind: 'cleared'; season: number; week: number; playerId: number; type: string }
+  | { kind: 'deadline'; season: number; weeksLeft: number }
+  | { kind: 'race'; season: number; level: 'spot' | 'division' | 'bye' | 'out' };
 
 export function mailSubject(m: InboxMessage): MailSubject | null {
   const [category, s, a, b, ...rest] = m.id.split(':');
@@ -273,6 +279,14 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return a === 'draft' ? { kind: 'draftDay', season } : { kind: 'draftClass', season };
     case 'trades':
       return { kind: 'trade', season, text: rest.join(':') };
+    case 'recap':
+      return { kind: 'recap', season, gameId: Number(a) };
+    case 'cleared':
+      return { kind: 'cleared', season, week: Number(a), playerId: Number(b), type: rest.join(':') };
+    case 'deadline':
+      return { kind: 'deadline', season, weeksLeft: Number(a) };
+    case 'race':
+      return { kind: 'race', season, level: a as 'spot' | 'division' | 'bye' | 'out' };
     default:
       return null;
   }
@@ -281,7 +295,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
 /**
  * Whether a message still asks something of the user, worked out from the league as it is now (nothing
  * stored): a report until the game is played, an injury while he's out and off reserve, an expiring deal
- * through the re-sign window, the combine while visits are left before the draft, draft day until our picks are in.
+ * through the re-sign window, the combine while visits are left before the draft, draft day until our picks
+ * are in, the trade deadline until it passes, an all-clear while he waits on reserve for you to activate him.
  */
 export function needsYou(league: League, m: InboxMessage): boolean {
   const s = mailSubject(m);
@@ -302,6 +317,12 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       return league.phase === 'freeAgency' && league.scoutPoints > 0;
     case 'draftDay':
       return league.phase === 'draft' && league.draftPicks.some((p) => p.season === league.season && p.ownerId === user && p.playerId === undefined);
+    case 'deadline':
+      return league.phase === 'regular' && league.week <= TRADE_DEADLINE_WEEK;
+    case 'cleared': {
+      const p = league.players[s.playerId];
+      return !!p && p.teamId === user && !!p.ir && !p.injury && !delegates(league, league.teams[user]);
+    }
     default:
       return false;
   }
@@ -366,6 +387,132 @@ function tradeMail(league: League, have: Set<string>): Draft[] {
   return out;
 }
 
+/** "Hip flexor strain" → "hip flexor strain" inside a sentence; "MCL sprain" and "ACL" stay as they are. */
+const lower = (s: string) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
+const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+
+/** The head coach's word after our latest game: the score, the yards, the player of the game. One game only, so a long sim doesn't bury the inbox. */
+function recapMail(league: League, have: Set<string>): Draft[] {
+  const user = league.userTeamId;
+  const game = league.games
+    .filter((g) => g.season === league.season && g.result && (g.homeId === user || g.awayId === user))
+    .sort((a, b) => b.week - a.week)[0];
+  if (!game || have.has(`recap:${game.season}:${game.id}`)) return [];
+  const r = game.result!;
+  const home = game.homeId === user;
+  const [us, them] = home ? [r.homeScore, r.awayScore] : [r.awayScore, r.homeScore];
+  const [ours, theirs] = home ? [r.home, r.away] : [r.away, r.home];
+  const me = league.teams[user];
+  const opp = league.teams[home ? game.awayId : game.homeId];
+  const where = game.neutral ? 'on a neutral field' : home ? 'at home' : 'on the road';
+  const when = `${where}${game.playoffRound ? ` in the ${ROUND_NAMES[game.playoffRound]}` : ''}${r.overtime ? ' in overtime' : ''}`;
+  const score = `${Math.max(us, them)}–${Math.min(us, them)}`;
+  const result = us > them ? `We beat the ${teamName(opp)} ${score} ${when}.` : us < them ? `We lost to the ${teamName(opp)} ${score} ${when}.` : `We tied the ${teamName(opp)} ${score} ${when}.`;
+  const yards =
+    ours.totalYds >= theirs.totalYds
+      ? ` We outgained them ${ours.totalYds} yards to ${theirs.totalYds}${ours.top >= 33 * 60 ? ` and held the ball for ${clock(ours.top)}` : ''}.`
+      : ` They outgained us ${theirs.totalYds} yards to ${ours.totalYds}.`;
+  const star = playerOfTheGame(league, game);
+  const p = star !== null ? league.players[star] : undefined;
+  const potg = !p ? '' : r.playerTeams[p.id] === user ? ` ${fullName(p)} was the player of the game.` : ` Their ${p.position} ${fullName(p)} was the player of the game.`;
+  const [win, lose] = us >= them ? [{ team: me, pts: us }, { team: opp, pts: them }] : [{ team: opp, pts: them }, { team: me, pts: us }];
+  return [
+    {
+      id: `recap:${game.season}:${game.id}`,
+      season: game.season,
+      phase: game.playoffRound ? 'playoffs' : 'regular',
+      week: game.week,
+      ...headCoach(league),
+      category: 'matchup',
+      subject: `Game recap: ${win.team.name} ${win.pts}, ${lose.team.name} ${lose.pts}`,
+      body: `${result}${yards}${potg}`,
+      actions: [{ kind: 'game', gameId: game.id }],
+    },
+  ];
+}
+
+/** The doctor's all-clear for a player whose injury we wrote about, once he's healthy again (in season: the offseason heals everyone at once). */
+function clearedMail(league: League, have: Set<string>): Draft[] {
+  const out: Draft[] = [];
+  const team = league.teams[league.userTeamId];
+  for (const p of teamPlayers(league, team.id)) {
+    const was = p.injuries?.at(-1);
+    if (p.injury || !was || was.season !== league.season) continue;
+    const key = `${was.season}:${was.week}:${p.id}:${was.type}`;
+    if (!have.has(`medical:${key}`) || have.has(`cleared:${key}`)) continue;
+    const what = lower(injuryLabel(was.type));
+    const ir = !p.ir ? " He's back in his spot on the depth chart." : delegates(league, team) ? " He's still on injured reserve: the staff will bring him back once his four weeks are up." : " He's still on injured reserve: activate him when you want him back.";
+    out.push({
+      id: `cleared:${key}`,
+      season: league.season,
+      phase: league.phase,
+      week: league.week,
+      ...doctor(league),
+      category: 'medical',
+      subject: `${fullName(p)} is cleared to play`,
+      body: `${fullName(p)} is over his ${what} and cleared for full practice.${ir}`,
+      actions: [{ kind: 'player', playerId: p.id }, { kind: 'team', teamId: team.id }],
+    });
+  }
+  return out;
+}
+
+/** The league office's reminder the week before the trade deadline, and the week of it. */
+function deadlineMail(league: League, have: Set<string>): Draft[] {
+  const weeks = TRADE_DEADLINE_WEEK - league.week;
+  const id = `deadline:${league.season}:${weeks}`;
+  if ((weeks !== 0 && weeks !== 1) || have.has(id)) return [];
+  return [
+    {
+      id,
+      season: league.season,
+      phase: 'regular',
+      week: league.week,
+      from: 'League office',
+      category: 'trades',
+      subject: weeks ? 'Trade deadline: one week to go' : 'Trade deadline: this week',
+      body: weeks
+        ? `Trades are open through week ${TRADE_DEADLINE_WEEK}. After that, rosters are set until the new league year.`
+        : `This is the last week to make a trade. The deadline passes when week ${TRADE_DEADLINE_WEEK} is played.`,
+      actions: [{ kind: 'trades' }],
+    },
+  ];
+}
+
+const RACE = ['bye', 'division', 'spot'] as const;
+
+/** The league office's word when our playoff fate is certain: the best clinch so far (a bye implies the rest), or elimination. */
+function raceMail(league: League, have: Set<string>): Draft[] {
+  const team = league.teams[league.userTeamId];
+  const race = playoffRace(league, team.id);
+  const sent = (level: string) => have.has(`race:${league.season}:${level}`);
+  const best = RACE.find((level) => race[level]);
+  const level = race.out ? 'out' : best && !RACE.slice(0, RACE.indexOf(best) + 1).some(sent) ? best : null;
+  if (!level || sent(level)) return [];
+  const left = league.games.filter((g) => g.season === league.season && !g.playoffRound && !g.result && (g.homeId === team.id || g.awayId === team.id)).length;
+  const still = left ? ` with ${count(left).toLowerCase()} game${left === 1 ? '' : 's'} to play` : '';
+  const name = teamName(team);
+  const text = {
+    bye: [`Top seed clinched`, `The ${name} have clinched the top seed in the ${league.conferences[team.conference].abbrev}, and with it the only first-round bye${still}.`],
+    division: [`${league.divisions[team.division].name} title clinched`, `The ${name} have clinched the ${league.divisions[team.division].name} title${still}.`],
+    spot: [`Playoff spot clinched`, `The ${name} have clinched a place in the ${league.season} playoffs${still}.`],
+    out: [`Out of the playoff race`, `The ${name} can no longer reach the ${league.season} playoffs.`],
+  }[level];
+  return [
+    {
+      id: `race:${league.season}:${level}`,
+      season: league.season,
+      phase: league.phase,
+      week: league.week,
+      from: 'League office',
+      category: 'league',
+      subject: text[0],
+      body: text[1],
+      actions: [{ kind: 'standings' }],
+    },
+  ];
+}
+
 const order = (m: Draft) => m.season * 1000 + PHASE_ORDER.indexOf(m.phase) * 100 + m.week;
 
 /**
@@ -381,7 +528,10 @@ export function deliverMail(league: League): void {
   if (league.phase === 'freeAgency') fresh.push(...combineMail(league, have));
   if (league.phase === 'draft') fresh.push(...draftDayMail(league, have));
   if ((league.phase === 'draft' && draftComplete(league)) || league.phase === 'preseason') fresh.push(...draftClassMail(league, have));
-  if (league.phase === 'regular' || league.phase === 'playoffs') fresh.push(...matchupMail(league, have));
+  if (league.phase === 'regular' || league.phase === 'playoffs') {
+    fresh.push(...recapMail(league, have), ...clearedMail(league, have), ...raceMail(league, have), ...matchupMail(league, have));
+  }
+  if (league.phase === 'regular') fresh.push(...deadlineMail(league, have));
   if (!fresh.length) return;
   fresh.sort((a, b) => order(a) - order(b));
   inbox.push(...fresh.map((m) => ({ ...m, read: first })));
