@@ -91,7 +91,9 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
   - `records.ts` team, coach and GM records, all looked up from `league.history`
   - `inbox.ts` the user's mail (awards, injuries, expiring deals, retirements, scouting, opposition reports, trades):
     `deliverMail` runs after every `store.mutate` and files what's new, each message keyed by what it's
-    about so nothing doubles up. The sim never sends mail itself
+    about so nothing doubles up. The sim never sends mail itself. `mailSubject` reads that key back, and
+    `needsYou` works out from the league as it is now whether a message still asks something (nothing
+    stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
   - `quirks.ts` on-field habits (registry, the marble bag, grip, `activeQuirks`): they change with
     weekly and offseason draws; the engine reads them through `has()` in `match/gameSim.ts`, screens

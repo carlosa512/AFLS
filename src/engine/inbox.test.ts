@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { seasonAwards } from './awards';
 import { logTransaction } from './finance/cap';
 import { createLeague } from './generate';
-import { deliverMail, unreadCount } from './inbox';
-import { simToEndOfRegularSeason, simToEndOfSeason } from './league';
-import { beginOffseason } from './offseason';
+import { deliverMail, draftClassOf, mailSubject, markAllRead, needsYou, unreadCount } from './inbox';
+import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
+import { advanceOffseason, beginOffseason } from './offseason';
 import { expiringPlayers } from './offseason/ai';
 import { teamPlayers } from './roster';
 
@@ -18,6 +18,15 @@ describe('inbox', () => {
     deliverMail(league);
     expect(league.inbox!.map((m) => m.id)).toEqual([`matchup:${league.season}:1`]);
     expect(unreadCount(league)).toBe(1);
+  });
+
+  it('needs you for the report until the game is played', () => {
+    const report = league.inbox![0];
+    expect(mailSubject(report)).toEqual({ kind: 'matchup', season: league.season, week: 1 });
+    expect(needsYou(league, report)).toBe(true);
+    const played = copy(league);
+    playWeek(played);
+    expect(needsYou(played, report)).toBe(false);
   });
 
   it('tells the user about their own award winners and trades, once', () => {
@@ -39,7 +48,7 @@ describe('inbox', () => {
     // One year-end message per player, however many season honors he won.
     const yearEnd = league.inbox!.filter((m) => m.id.startsWith(`awards:${league.season}:year:`)).map((m) => m.id);
     expect(new Set(yearEnd).size).toBe(yearEnd.length);
-  });
+  }, 30_000);
 
   it('passes on the doctor\'s word about our injured players, with his estimate', () => {
     const hurt = league.inbox!.filter((m) => m.category === 'medical');
@@ -49,15 +58,63 @@ describe('inbox', () => {
     for (const m of hurt) expect(m.actions.map((a) => a.kind)).toEqual(['player', 'medical']);
   });
 
-  it('opens the league year with expiring deals, retirements and the combine', () => {
+  it('says "are" for the units that are plural', () => {
+    for (const m of league.inbox!.filter((x) => x.category === 'matchup')) expect(m.body).not.toMatch(/linebackers is/);
+  });
+
+  it('reads back what every message is about', () => {
+    const kinds: Record<string, string[]> = { matchup: ['matchup'], medical: ['injury'], awards: ['award'], trades: ['trade'] };
+    for (const m of league.inbox!) {
+      const s = mailSubject(m)!;
+      expect(kinds[m.category]).toContain(s.kind);
+      expect(s.season).toBe(m.season);
+      if (s.kind === 'award') expect(m.actions).toContainEqual({ kind: 'player', playerId: s.playerId });
+    }
+    const trade = league.inbox!.find((m) => m.category === 'trades')!;
+    expect(mailSubject(trade)).toMatchObject({ kind: 'trade', text: 'AAA traded QB A to BBB for QB B' });
+  });
+
+  it('opens the league year with expiring deals and retirements, and the combine with free agency', () => {
     simToEndOfSeason(league);
     beginOffseason(league);
     deliverMail(league);
     const year = league.inbox!.filter((m) => m.season === league.season && m.phase === 'resign');
-    expect(year.filter((m) => m.category === 'contracts')).toHaveLength(expiringPlayers(league, league.userTeamId).length);
-    expect(year.some((m) => m.id === `scouting:${league.season}:combine`)).toBe(true);
+    const deals = year.filter((m) => m.category === 'contracts');
+    expect(deals).toHaveLength(expiringPlayers(league, league.userTeamId).length);
+    for (const m of deals) expect(needsYou(league, m)).toBe(true);
     const retired = Object.values(league.players).filter((p) => p.retired && p.statTeams?.[league.season - 1]?.at(-1) === league.userTeamId);
     expect(year.filter((m) => m.category === 'retirement')).toHaveLength(retired.length);
+    // The NFL's combine wraps up just before free agency opens: not yet.
+    expect(league.inbox!.some((m) => m.id === `scouting:${league.season}:combine`)).toBe(false);
+    advanceOffseason(league);
+    deliverMail(league);
+    const combine = league.inbox!.find((m) => m.id === `scouting:${league.season}:combine`)!;
+    expect(combine.phase).toBe('freeAgency');
+    expect(needsYou(league, combine)).toBe(league.scoutPoints > 0);
+    // Free agency closes the re-sign window: the agents' letters no longer ask anything.
+    for (const m of deals) expect(needsYou(league, m)).toBe(false);
+  }, 30_000);
+
+  it('reports our draft class once the draft is done', () => {
+    while (league.phase === 'freeAgency') advanceOffseason(league);
+    deliverMail(league);
+    const day = league.inbox!.find((m) => m.id === `scouting:${league.season}:draft`)!;
+    expect(needsYou(league, day)).toBe(true);
+    expect(league.inbox!.some((m) => m.id === `scouting:${league.season}:class`)).toBe(false);
+    advanceOffseason(league);
+    deliverMail(league);
+    expect(needsYou(league, day)).toBe(false);
+    const picks = draftClassOf(league, league.season);
+    expect(picks.length).toBeGreaterThan(0);
+    const report = league.inbox!.find((m) => m.id === `scouting:${league.season}:class`)!;
+    expect(report.body).toContain(`We made ${picks.length} pick`);
+    expect(mailSubject(report)).toEqual({ kind: 'draftClass', season: league.season });
+  }, 30_000);
+
+  it('marks everything read in one go', () => {
+    const all = copy(league);
+    markAllRead(all);
+    expect(unreadCount(all)).toBe(0);
   });
 
   it('keeps read state through save and load', () => {

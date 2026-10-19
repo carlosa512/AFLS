@@ -10,6 +10,7 @@ import { estimateText, injuryLabel, weeksLeft } from './injuries';
 import { userGame } from './league';
 import { teamMedics } from './medical';
 import { expiringPlayers } from './offseason/ai';
+import { draftComplete, reachOrSteal } from './offseason/draft';
 import { leaguePercentile, perceive } from './scouting';
 import { starters, teamPlayers } from './roster';
 import { ROUND_NAMES } from './season/playoffs';
@@ -20,15 +21,15 @@ import type { InboxMessage, League, Phase, Player, Position, Team } from './type
 const KEEP = 300;
 const PHASE_ORDER: Phase[] = ['resign', 'freeAgency', 'draft', 'preseason', 'regular', 'playoffs', 'complete'];
 
-/** Position groups an opposition report talks about, in the staff's words. */
-const GROUPS: [string, Position[]][] = [
-  ['quarterback play', ['QB']],
-  ['backfield', ['RB']],
-  ['receiving corps', ['WR', 'TE']],
-  ['offensive line', ['OL']],
-  ['defensive front', ['DT', 'EDGE']],
-  ['linebackers', ['LB']],
-  ['secondary', ['CB', 'S']],
+/** Position groups an opposition report talks about: in the staff's words, and as the report's card titles them. */
+const GROUPS: { phrase: string; title: string; positions: Position[]; plural?: true }[] = [
+  { phrase: 'quarterback play', title: 'Quarterback', positions: ['QB'] },
+  { phrase: 'backfield', title: 'Backfield', positions: ['RB'] },
+  { phrase: 'receiving corps', title: 'Receivers', positions: ['WR', 'TE'] },
+  { phrase: 'offensive line', title: 'Offensive line', positions: ['OL'] },
+  { phrase: 'defensive front', title: 'Defensive front', positions: ['DT', 'EDGE'] },
+  { phrase: 'linebackers', title: 'Linebackers', positions: ['LB'], plural: true },
+  { phrase: 'secondary', title: 'Secondary', positions: ['CB', 'S'] },
 ];
 
 type Draft = Omit<InboxMessage, 'read'>;
@@ -37,6 +38,8 @@ type Sender = Pick<InboxMessage, 'from' | 'fromCard'>;
 const fullName = (p: Player) => `${p.firstName} ${p.lastName}`;
 const teamName = (t: Team) => `${t.city} ${t.name}`;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+/** A small count in words, the way a sentence starts with one ("Two of them…"). */
+const count = (n: number) => ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'][n] ?? String(n);
 const list = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
 // The staff member who signs a message, with a link to their card (a department name when the chair is empty).
@@ -124,7 +127,7 @@ function injuryMail(league: League, have: Set<string>): Draft[] {
   return out;
 }
 
-/** The start of the league year: deals that are up, players who retired, the combine. */
+/** The start of the league year: deals that are up and players who retired. */
 function newYearMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
   const { season } = league;
@@ -162,21 +165,27 @@ function newYearMail(league: League, have: Set<string>): Draft[] {
       actions: [{ kind: 'player', playerId: p.id }],
     });
   }
-  const combine = `scouting:${season}:combine`;
-  if (!have.has(combine) && league.draftClass.length) {
-    out.push({
-      id: combine,
+  return out;
+}
+
+/** The combine report, the day free agency opens: as in the NFL, the combine wraps up just before it. */
+function combineMail(league: League, have: Set<string>): Draft[] {
+  const { season } = league;
+  const id = `scouting:${season}:combine`;
+  if (have.has(id) || !league.draftClass.length) return [];
+  return [
+    {
+      id,
       season,
-      phase: 'resign',
+      phase: 'freeAgency',
       week: 0,
       ...director(league),
       category: 'scouting',
       subject: `The ${season} combine is done`,
       body: `${plural(league.draftClass.length, 'prospect')} worked out for the ${season} draft, and the numbers are on the big board. We have ${plural(league.scoutPoints, 'scouting visit')} to spend this year: send them to the players you're serious about before draft day.`,
       actions: [{ kind: 'draft' }],
-    });
-  }
-  return out;
+    },
+  ];
 }
 
 function draftDayMail(league: League, have: Set<string>): Draft[] {
@@ -189,6 +198,117 @@ function draftDayMail(league: League, have: Set<string>): Draft[] {
     ? `Draft day. Our first pick is round ${pick.round}, No. ${pick.overall}. The big board is ready, and I'll make the call for you if you'd rather leave it to the scouts.`
     : `Draft day. We don't hold a pick in this draft, but the big board is there if you want to see where the class goes.`;
   return [{ id, season: league.season, phase: 'draft', week: 0, ...director(league), category: 'scouting', subject: 'The draft board is ready', body, actions: [{ kind: 'draft' }] }];
+}
+
+/** Our draftees this year, in pick order. Only players from drafts this league held: a new league's veterans have made-up draft lines. */
+export function draftClassOf(league: League, season: number, teamId = league.userTeamId): Player[] {
+  return Object.values(league.players)
+    .filter((p) => p.scouting && p.draft?.season === season && p.draft.teamId === teamId)
+    .sort((a, b) => a.draft!.pick - b.draft!.pick);
+}
+
+/** The director's word on our class once the draft is done: the picks, and how they compare with the consensus. */
+function draftClassMail(league: League, have: Set<string>): Draft[] {
+  const id = `scouting:${league.season}:class`;
+  const picks = draftClassOf(league, league.season);
+  if (have.has(id) || !picks.length) return [];
+  const first = picks[0];
+  const steals = picks.filter((p) => reachOrSteal(p.draft!) === 'steal').length;
+  const value = !steals ? '' : steals === 1 ? ' One of them came well after where the consensus had him.' : ` ${count(steals)} of them came well after where the consensus had them.`;
+  return [
+    {
+      id,
+      season: league.season,
+      phase: 'draft',
+      week: 0,
+      ...director(league),
+      category: 'scouting',
+      subject: `Our ${league.season} draft class`,
+      body: `We made ${plural(picks.length, 'pick')}, starting with ${first.position} ${fullName(first)} at No. ${first.draft!.pick}.${value}`,
+      actions: [{ kind: 'draft' }],
+    },
+  ];
+}
+
+/** Each position group's starters as our scouts read them, as a league percentile (0–1): what the opposition report's card shows. */
+export function unitReads(league: League, teamId: number): { title: string; score: number }[] {
+  return GROUPS.map((g) => ({ title: g.title, score: groupScore(league, league.teams[teamId], g.positions) }));
+}
+
+/** What a message is about, read back from its id. The ids are built here, so this is the one place that knows their shape. */
+export type MailSubject =
+  | { kind: 'matchup'; season: number; week: number }
+  | { kind: 'injury'; season: number; week: number; playerId: number; type: string }
+  | { kind: 'award'; season: number; playerId: number; period: 'week' | 'month' | 'year'; weeks: [number, number] }
+  | { kind: 'contract'; season: number; playerId: number }
+  | { kind: 'retirement'; season: number; playerId: number }
+  | { kind: 'combine'; season: number }
+  | { kind: 'draftDay'; season: number }
+  | { kind: 'draftClass'; season: number }
+  | { kind: 'trade'; season: number; text: string };
+
+export function mailSubject(m: InboxMessage): MailSubject | null {
+  const [category, s, a, b, ...rest] = m.id.split(':');
+  const season = Number(s);
+  const player = m.actions.find((x) => x.kind === 'player');
+  const playerId = player?.kind === 'player' ? player.playerId : -1;
+  switch (category) {
+    case 'matchup':
+      return { kind: 'matchup', season, week: Number(a) };
+    case 'medical':
+      return { kind: 'injury', season, week: Number(a), playerId: Number(b), type: rest.join(':') };
+    case 'awards': {
+      if (a === 'year') return { kind: 'award', season, playerId: Number(b), period: 'year', weeks: [1, 18] };
+      const month = MONTHS.find((x) => `m${x.key}` === a);
+      if (month) return { kind: 'award', season, playerId, period: 'month', weeks: month.weeks };
+      const week = Number(a.slice(1));
+      return { kind: 'award', season, playerId, period: 'week', weeks: [week, week] };
+    }
+    case 'contracts':
+      return { kind: 'contract', season, playerId: Number(a) };
+    case 'retirement':
+      return { kind: 'retirement', season, playerId: Number(a) };
+    case 'scouting':
+      if (a === 'combine') return { kind: 'combine', season };
+      return a === 'draft' ? { kind: 'draftDay', season } : { kind: 'draftClass', season };
+    case 'trades':
+      return { kind: 'trade', season, text: rest.join(':') };
+    default:
+      return null;
+  }
+}
+
+/**
+ * Whether a message still asks something of the user, worked out from the league as it is now (nothing
+ * stored): a report until the game is played, an injury while he's out and off reserve, an expiring deal
+ * through the re-sign window, the combine while visits are left before the draft, draft day until our picks are in.
+ */
+export function needsYou(league: League, m: InboxMessage): boolean {
+  const s = mailSubject(m);
+  if (!s || s.season !== league.season) return false;
+  const user = league.userTeamId;
+  switch (s.kind) {
+    case 'matchup': {
+      const game = userGame(league, s.week);
+      return !!game && !game.result;
+    }
+    case 'injury': {
+      const p = league.players[s.playerId];
+      return !!p && p.teamId === user && !p.ir && p.injury?.season === s.season && p.injury.week === s.week && p.injury.type === s.type;
+    }
+    case 'contract':
+      return league.phase === 'resign' && expiringPlayers(league, user).some((p) => p.id === s.playerId);
+    case 'combine':
+      return league.phase === 'freeAgency' && league.scoutPoints > 0;
+    case 'draftDay':
+      return league.phase === 'draft' && league.draftPicks.some((p) => p.season === league.season && p.ownerId === user && p.playerId === undefined);
+    default:
+      return false;
+  }
+}
+
+export function markAllRead(league: League): void {
+  for (const m of league.inbox ?? []) m.read = true;
 }
 
 /** Our read of a team's starters in a position group, as a league percentile (0–1). */
@@ -204,9 +324,9 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
   if (!game || game.result || have.has(id)) return [];
   const home = game.homeId === league.userTeamId;
   const opp = league.teams[home ? game.awayId : game.homeId];
-  const ranked = GROUPS.map(([label, positions]) => ({ label, score: groupScore(league, opp, positions) })).sort((a, b) => a.score - b.score);
-  const weak = ranked[0].label;
-  const strong = ranked[ranked.length - 1].label;
+  const ranked = GROUPS.map((g) => ({ g, score: groupScore(league, opp, g.positions) })).sort((a, b) => a.score - b.score);
+  const weak = ranked[0].g;
+  const strong = ranked[ranked.length - 1].g.phrase;
   const occasion = game.playoffRound ? `the ${ROUND_NAMES[game.playoffRound]}` : `week ${league.week}`;
   const where = game.neutral ? 'on a neutral field' : home ? 'at home' : 'on the road';
   return [
@@ -218,7 +338,7 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
       ...headCoach(league),
       category: 'matchup',
       subject: `Opposition report: ${teamName(opp)}`,
-      body: `We face the ${teamName(opp)} ${where} in ${occasion}. Their ${weak} is the soft spot, and that's where we'll go after them. Respect their ${strong}: it's the best unit they have.`,
+      body: `We face the ${teamName(opp)} ${where} in ${occasion}. Their ${weak.phrase} ${weak.plural ? 'are' : 'is'} the soft spot, and that's where we'll go after them. Respect their ${strong}: it's the best unit they have.`,
       actions: [{ kind: 'team', teamId: opp.id }],
     },
   ];
@@ -258,7 +378,9 @@ export function deliverMail(league: League): void {
   const have = new Set(inbox.map((m) => m.id));
   const fresh = [...awardMail(league, have), ...injuryMail(league, have), ...tradeMail(league, have)];
   if (league.phase === 'resign') fresh.push(...newYearMail(league, have));
+  if (league.phase === 'freeAgency') fresh.push(...combineMail(league, have));
   if (league.phase === 'draft') fresh.push(...draftDayMail(league, have));
+  if ((league.phase === 'draft' && draftComplete(league)) || league.phase === 'preseason') fresh.push(...draftClassMail(league, have));
   if (league.phase === 'regular' || league.phase === 'playoffs') fresh.push(...matchupMail(league, have));
   if (!fresh.length) return;
   fresh.sort((a, b) => order(a) - order(b));
