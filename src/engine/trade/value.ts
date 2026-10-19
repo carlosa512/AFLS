@@ -23,13 +23,13 @@ import { contenderScore, willExtend } from '../offseason/negotiation';
 import { futureWeight, outlookOf } from '../outlook';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { fitContests } from '../schemes';
-import { characterRead, projectedCeiling, quirkWorth, trueQuirkWorth } from '../scouting';
+import { characterRead, projectedCeiling, quirkWorth, trueQuirkWorth, type CharacterRead } from '../scouting';
 import { clamp } from '../rng';
 import { teamRatings } from '../roster';
 import { computeRecords, winPct } from '../season/standings';
 import type { Attribute, DraftPick, GmTraits, League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
-import { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
+import { capRoom, ovrOf, rosterOf, tradeContext, type TradeContext } from './context';
 
 // ───────── pick value ─────────
 
@@ -257,24 +257,19 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
   const real = effective(p.age, own, ceiling) + trueQuirkWorth(p);
   let seen = real;
   let ovr = own;
-  // The room he has left to grow, for his outlook.
-  const realGap = young ? Math.max(0, ceiling - own) : 0;
-  let gap = realGap;
+  let character: CharacterRead | null | undefined;
   // A club knows its own veterans exactly: past 25 there's no ceiling left to guess and no habit it
   // hasn't seen, so its read is the truth and the scouting pass can be skipped.
   if (!truth && !(p.teamId === team.id && p.age > 25)) {
     // What this front office sees: exact for its own players (bar their ceilings), its scouts' read for anyone else.
     const view = ctx.view(team.id, p);
-    const readWork = young ? characterRead(league, team.id, p)?.workEthic : undefined;
+    character = young ? characterRead(league, team.id, p) : undefined;
+    const readWork = young ? character?.workEthic : undefined;
     const misread = effective(p.age, view.ovr, young ? projectedCeiling(view.ovr, view.potMid, readWork) : view.potMid) + quirkWorth(league, team.id, p) - real;
     seen = real + clamp(TRADE_TRUST * misread, -TRADE_BAND, TRADE_BAND);
-    // His place on its depth chart is judged the same bounded way, and his room to grow (counted at
-    // half in his talent, so twice the band here).
+    // His place on its depth chart is judged the same bounded way.
     ovr = own + clamp(TRADE_TRUST * (view.ovr - own), -TRADE_BAND, TRADE_BAND);
-    const viewGap = young ? Math.max(0, projectedCeiling(view.ovr, view.potMid, readWork) - view.ovr) : 0;
-    gap = realGap + clamp(TRADE_TRUST * (viewGap - realGap), -2 * TRADE_BAND, 2 * TRADE_BAND);
   }
-  const outlook = outlookOf(p.position, p.age, ovr, gap, injuryRisk(league, team.id, p).tier, futureWeight(winNowOf(league, team)));
   const talent = 3000 * Math.exp((seen - 18.5) * 0.55) * POSITION_TRADE[p.position] * ageMultiplier(p);
   let base = talent * control(league, p);
   // His club's re-sign window is worth something only if it can pay him: one with no room next year
@@ -290,9 +285,54 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
   const coaching = coachingOf(ctx, team.id, p.position);
   if (p.age <= 25) lens *= 1 + 0.33 * (coaching.rate - 1);
   else if (p.age - ageShift(p.position) >= 29) lens *= 1 - 0.25 * effectOf(coaching, p.position).aging;
-  const read = { id: p.id, ovr, outlook, base, extension, lens, ...contractTerms(ctx, p) };
+  // The outlook only when a room ranks him: pricing him against the league never needs it.
+  const read = {
+    id: p.id,
+    ovr,
+    get outlook() {
+      return outlookFor(ctx, team, p, truth, character);
+    },
+    base,
+    extension,
+    lens,
+    ...contractTerms(ctx, p),
+  };
   ctx.reads.set(key, read);
   return read;
+}
+
+/**
+ * `team`'s outlook for a player (`outlook.ts`), on the same bounded read as the rest of `readPlayer`:
+ * his overall, his room to grow (counted at half in his talent, so twice the band here), its read of
+ * his body. Kept apart from the full read because a trade block sorts whole rosters by it. Memoized.
+ */
+export function outlookFor(ctx: TradeContext, team: Team, p: Player, truth = false, character?: CharacterRead | null): number {
+  const key = p.id * 128 + team.id * 2 + (truth ? 1 : 0);
+  const memo = (ctx.outlooks ??= new Map()).get(key);
+  if (memo !== undefined) return memo;
+  const { league } = ctx;
+  const own = ovrOf(ctx, p);
+  const young = p.age <= 25;
+  const realGap = young ? Math.max(0, projectedCeiling(own, p.potential, p.traits.workEthic) - own) : 0;
+  let ovr = own;
+  let gap = realGap;
+  // The scouts' read of his character (work ethic, body), once: the full read may have it already.
+  const char = () => (character !== undefined ? character : (character = characterRead(league, team.id, p)));
+  if (!truth && !(p.teamId === team.id && p.age > 25)) {
+    const view = ctx.view(team.id, p);
+    ovr = own + clamp(TRADE_TRUST * (view.ovr - own), -TRADE_BAND, TRADE_BAND);
+    const viewGap = young ? Math.max(0, projectedCeiling(view.ovr, view.potMid, char()?.workEthic) - view.ovr) : 0;
+    gap = realGap + clamp(TRADE_TRUST * (viewGap - realGap), -2 * TRADE_BAND, 2 * TRADE_BAND);
+  }
+  // His own club's doctors read his body themselves. Anyone else goes on the injury reports, plus its
+  // scouts' read for a young player it is reading anyway (a veteran's body shows in his history).
+  const risk = injuryRisk(league, team.id, p, p.teamId === team.id ? undefined : young ? char() : null).tier;
+  const futures = (ctx.futures ??= new Map());
+  let future = futures.get(team.id);
+  if (future === undefined) futures.set(team.id, (future = futureWeight(winNowOf(league, team))));
+  const out = outlookOf(p.position, p.age, ovr, gap, risk, future);
+  ctx.outlooks.set(key, out);
+  return out;
 }
 
 /** Each team's coaching for a position, read once per pass. */
@@ -348,10 +388,12 @@ const RANK_SPREAD = 0.75;
  */
 function roomValue(reads: readonly PlayerRead[], pos: Position, w: number): number {
   let value = 0;
-  for (const r of reads) {
+  // The role it plans for him: where he's headed, not just where he is (a climbing 15 starts over a fading one).
+  const ahead = reads.map((r) => r.outlook);
+  for (let i = 0; i < reads.length; i++) {
+    const r = reads[i];
     let rank = 0;
-    // The role it plans for him: where he's headed, not just where he is (a climbing 15 starts over a fading one).
-    for (const o of reads) if (o !== r) rank += 1 / (1 + Math.exp((r.outlook - o.outlook) / RANK_SPREAD));
+    for (let j = 0; j < reads.length; j++) if (j !== i) rank += 1 / (1 + Math.exp((ahead[i] - ahead[j]) / RANK_SPREAD));
     value += roleAt(rank, pos) * ((r.base + r.extension) * r.lens + w * r.pay) - w * r.cost;
   }
   return value;

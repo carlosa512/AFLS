@@ -114,7 +114,7 @@ export function developPlayer(rng: Rng, player: Player, ctx: DevContext): void {
 
 /** The average body's year (`year` above runs 0.3–1.4). */
 const TYPICAL_YEAR = 0.85;
-const agingMemo = new Map<string, number>();
+const agingMemo = new Map<Position, number[]>();
 
 /**
  * The overall a typical body gains or loses, on average, in the offseason he spends at `age` once
@@ -123,8 +123,9 @@ const agingMemo = new Map<string, number>();
  * coming (`outlook.ts`), whatever his body clock really says.
  */
 export function expectedAging(pos: Position, age: number): number {
-  const key = `${pos}:${age}`;
-  const memo = agingMemo.get(key);
+  let table = agingMemo.get(pos);
+  if (!table) agingMemo.set(pos, (table = []));
+  const memo = table[age];
   if (memo !== undefined) return memo;
   const weights = OVR_WEIGHTS[pos];
   const fade = AGING[pos].slope;
@@ -145,6 +146,6 @@ export function expectedAging(pos: Position, age: number): number {
     total += w;
   }
   const out = total ? sum / total : 0;
-  agingMemo.set(key, out);
+  table[age] = out;
   return out;
 }
