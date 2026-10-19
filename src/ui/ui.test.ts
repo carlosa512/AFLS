@@ -3,6 +3,7 @@ import { createLeague, SAVE_VERSION } from '../engine/generate';
 import { deliverMail, needsYou } from '../engine/inbox';
 import { gamesInWeek, playWeek } from '../engine/league';
 import { computeRecords } from '../engine/season/standings';
+import { teamSeasonStats } from '../engine/stats';
 import { sortRows } from './components';
 import { moveSegments, type MoveIndex } from './moves';
 import { hashToRoute, routeToHash, type Route } from './routes';
@@ -10,6 +11,7 @@ import { backupFileName, parseBackup } from './saves';
 import { byeTeams, resultsWeek, stripGames } from './strip';
 import { hurtList, wornDown } from './injuries';
 import { gameStory } from './game';
+import { TEAM_COLS, teamRank, teamStatSeasons } from './screens/TeamStats';
 import { outlookPill, SEASON_DEFAULT, seasonFacts, waitingMail } from './widgets';
 
 describe('routes', () => {
@@ -26,6 +28,7 @@ describe('routes', () => {
       { view: 'office', tab: 'draft' },
       { view: 'stats' },
       { view: 'stats', tab: 'records' },
+      { view: 'stats', tab: 'teams' },
       { view: 'stats', tab: 'awards' },
       { view: 'standings' },
       { view: 'live' },
@@ -175,6 +178,21 @@ describe('home widgets', () => {
     expect(facts.find((f) => f.key === 'ppg')!.sub).toMatch(/^\d+(st|nd|rd|th) in the league$/);
     expect(facts.find((f) => f.key === 'papg')!.sub).toMatch(/^(Fewest in the league|\d+(st|nd|rd|th) fewest)$/);
     expect(facts.find((f) => f.key === 'left')!.sub).toBe('of 17');
+  });
+
+  it('ranks teams in every column the right way round, ties sharing a place', () => {
+    expect(teamStatSeasons(league)).toEqual([league.season]);
+    const stats = teamSeasonStats(league);
+    for (const col of TEAM_COLS) {
+      const ranked = league.teams.map((t) => ({ v: col.value(stats.get(t.id)!), rank: teamRank(stats, col, t.id) })).sort((a, b) => a.rank - b.rank);
+      expect(ranked[0].rank).toBe(1);
+      for (let i = 1; i < ranked.length; i++) {
+        const [a, b] = [ranked[i - 1], ranked[i]];
+        if (a.v === b.v) expect(b.rank).toBe(a.rank);
+        else expect(col.fewest ? a.v < b.v : a.v > b.v).toBe(true);
+      }
+      for (const r of ranked) expect(col.format(r.v)).not.toMatch(/NaN|Infinity/);
+    }
   });
 
   it('puts what needs you first, then the unread, newest first', () => {

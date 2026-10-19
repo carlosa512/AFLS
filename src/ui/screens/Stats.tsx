@@ -7,12 +7,14 @@ import { useNav } from '../App';
 import { Panel, PlayerAvatar, SortTh, sortRows, useSort } from '../components';
 import { resultsSeason } from '../format';
 import { Officials } from './Officials';
+import { TeamStats } from './TeamStats';
 
-export type StatsTab = 'leaders' | 'players' | 'records' | 'awards' | 'officials';
+export type StatsTab = 'leaders' | 'players' | 'teams' | 'records' | 'awards' | 'officials';
 
 const TABS: [StatsTab, string][] = [
   ['leaders', 'Leaders'],
   ['players', 'Player stats'],
+  ['teams', 'Team stats'],
   ['records', 'Records'],
   ['awards', 'Awards'],
   ['officials', 'Officials'],
@@ -36,7 +38,7 @@ export function Stats({ league, tab = 'leaders' }: { league: League; tab?: Stats
             </button>
           ))}
         </div>
-        {tab !== 'records' && tab !== 'awards' && tab !== 'officials' && seasons.length > 0 && <ScopeSelect seasons={seasons} value={scope} onChange={setPicked} />}
+        {(tab === 'leaders' || tab === 'players') && seasons.length > 0 && <ScopeSelect seasons={seasons} value={scope} onChange={setPicked} />}
       </div>
       {seasons.length === 0 ? (
         <Panel title="Stats">
@@ -46,6 +48,8 @@ export function Stats({ league, tab = 'leaders' }: { league: League; tab?: Stats
         </Panel>
       ) : tab === 'players' ? (
         <PlayerStats league={league} scope={scope} />
+      ) : tab === 'teams' ? (
+        <TeamStats league={league} />
       ) : tab === 'records' ? (
         <Records league={league} />
       ) : tab === 'awards' ? (
