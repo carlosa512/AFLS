@@ -8,6 +8,7 @@ import { capHit, isExpired, lastSeason, remainingProration, yearOf } from '../fi
 import { fifthYearOptionValue, franchiseTagValue, leagueMarket, marketApy, minSalary, payTier, positionRank } from '../finance/market';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
+import { teamOutlook } from '../outlook';
 import { generatePlayer } from '../generate';
 import { clamp, Rng } from '../rng';
 import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
@@ -31,15 +32,22 @@ function fillReserve(league: League, teamId: number): number {
 /** What an AI team can spend right now without starving the draft class or the bottom of the roster. */
 const spendable = (league: League, teamId: number) => capSpace(league, teamId) - rookieReserve(league, teamId) - fillReserve(league, teamId) - cushion(league);
 
-/** Overalls at each position for a team (best first), ignoring players whose deals have run out. */
-function depthOvrs(league: League, teamId: number): Record<Position, number[]> {
+/**
+ * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
+ * run out: where its room is headed, so a signing has to beat that, not just this year's overall.
+ */
+function depthOutlooks(league: League, team: Team): Record<Position, number[]> {
   const out = Object.fromEntries(POSITIONS.map((p) => [p, [] as number[]])) as Record<Position, number[]>;
-  for (const p of teamPlayers(league, teamId)) if (p.contract && !isExpired(p.contract, league.season)) out[p.position].push(playerOvr(p));
+  const wn = winNow(league, team);
+  for (const p of teamPlayers(league, team.id)) if (p.contract && !isExpired(p.contract, league.season)) out[p.position].push(teamOutlook(league, team.id, p, wn));
   for (const list of Object.values(out)) list.sort((a, b) => b - a);
   return out;
 }
 
-/** How much a player would improve a roster: a starter upgrade counts most, needed depth a little. */
+/**
+ * How much a player would improve a roster: a starter upgrade counts most, needed depth a little.
+ * `depth` and `ovr` are outlooks (`depthOutlooks`), so it's an upgrade on where the room is headed.
+ */
 export function needGain(depth: Record<Position, number[]>, player: Player, ovr = playerOvr(player)): number {
   const mine = depth[player.position];
   const starters = STARTERS[player.position];
@@ -72,13 +80,33 @@ export function aiOffer(league: League, team: Team, player: Player, rng: Rng, ga
 
 // ───────── re-sign window ─────────
 
-/** Fifth-year options: exercise for players worth an above-average starter's salary. */
+/** How far below the room's last starter (outlook) a player can sit and still be planned as one: a job battle. */
+const BATTLE = 0.25;
+
+/**
+ * Fifth-year options: exercise for players worth an above-average starter's salary who will start
+ * here, or whom the club can carry next year anyway (an asset to trade). A guaranteed starter's
+ * salary for a backup on a full cap is how a club ends up selling him for what it can get.
+ */
 export function aiFifthYearOptions(league: League, team: Team): void {
+  const wn = winNow(league, team);
   for (const p of teamPlayers(league, team.id)) {
     const c = p.contract;
     if (!c || c.fifthYearOption !== 'eligible' || lastSeason(c) !== league.season) continue;
     const tier = payTier(p.position, positionRank(leagueMarket(league), p));
-    exerciseFifthYearOption(league, p, tier >= 0.45);
+    if (tier < 0.45) {
+      exerciseFifthYearOption(league, p, false);
+      continue;
+    }
+    // Who else is signed through the option year at his position, by where they're headed.
+    const others = teamPlayers(league, team.id)
+      .filter((q) => q !== p && q.position === p.position && q.contract && lastSeason(q.contract) > league.season)
+      .map((q) => teamOutlook(league, team.id, q, wn))
+      .sort((a, b) => b - a);
+    const bar = others[STARTERS[p.position] - 1] ?? -Infinity;
+    const starts = teamOutlook(league, team.id, p, wn) >= bar - BATTLE;
+    const room = capSheet(league, team.id, league.season + 1).space - fifthYearOptionValue(league, p);
+    exerciseFifthYearOption(league, p, starts || room >= 0.05 * capFor(league, league.season + 1));
   }
 }
 
@@ -138,19 +166,22 @@ export function expiringPlayers(league: League, teamId: number): Player[] {
 /** The AI's re-sign window: options, extensions for keepers, a tag for a star who won't sign. */
 export function aiResignWindow(league: League, team: Team, rng: Rng): void {
   aiFifthYearOptions(league, team);
-  const depth = depthOvrs(league, team.id);
+  const depth = depthOutlooks(league, team);
+  const wn = winNow(league, team);
   let budget = spendable(league, team.id);
   const market = leagueMarket(league);
   for (const p of expiringPlayers(league, team.id)) {
     const ovr = playerOvr(p);
+    // Kept on where he's headed: a fading veteran has to beat the room's future, a climbing one is worth his raise.
+    const ahead = teamOutlook(league, team.id, p, wn);
     const mine = depth[p.position];
     const starterBar = mine[STARTERS[p.position] - 1] ?? 0;
     // A team knows its own players' games; their ceilings are still its scouts' judgment.
     const view = p.age <= 25 ? perceive(league, team.id, p) : null;
     const young = !!view && projectedCeiling(ovr, view.potMid, characterRead(league, team.id, p)?.workEthic) >= 12;
-    const keeper = (ovr >= starterBar - 0.5 || young || mine.length < KEEP_MIN[p.position]) && p.age - ageShift(p.position) <= 33;
+    const keeper = (ahead >= starterBar - 0.5 || young || mine.length < KEEP_MIN[p.position]) && p.age - ageShift(p.position) <= 33;
     if (!keeper) continue;
-    const offer = aiOffer(league, team, p, rng, needGain(depth, p, ovr + quirkWorth(league, team.id, p)));
+    const offer = aiOffer(league, team, p, rng, needGain(depth, p, ahead + quirkWorth(league, team.id, p)));
     offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
     const d = demand(league, p, team.id);
     // Some players want to see what the market will pay, however loyal the club.
@@ -160,7 +191,7 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     if (!testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway && cost <= budget) {
       signPlayer(league, p, team.id, offer);
       budget -= cost;
-      mine.push(ovr);
+      mine.push(ahead);
       mine.sort((a, b) => b - a);
       continue;
     }
@@ -183,8 +214,8 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
  */
 export function aiExtendArrival(league: League, team: Team, p: Player): boolean {
   if (p.teamId !== team.id || team.id === league.userTeamId) return false;
-  const depth = depthOvrs(league, team.id);
-  const ovr = playerOvr(p);
+  const depth = depthOutlooks(league, team);
+  const ovr = teamOutlook(league, team.id, p, winNow(league, team));
   // The room he joined, without him.
   const others = [...depth[p.position]];
   others.splice(others.indexOf(ovr), 1);
@@ -248,10 +279,24 @@ export function capCut(league: League, team: Team, desperate = false): Player | 
 
 // ───────── free agency ─────────
 
+/** A free agent's deal past this share of the cap needs a bigger upgrade, `PRICE_GAIN` outlook points per share over it (a $60M quarterback on a $300M cap: about 1). */
+const PRICEY = 0.03;
+const PRICE_GAIN = 6;
+
+/** The least upgrade (`needGain`) a team bids for at all: a rich one takes a flyer on depth. */
+const minGainFor = (league: League, team: Team) => 0.3 - richness(league, team) * 0.2;
+
+/**
+ * The upgrade a free agent at `apy` has to buy: a big contract is an investment, not a swap of
+ * numbers, so the more of the cap it takes, the bigger the step it must be on where the room is
+ * headed (no $80M a year for a quarterback level with the young one already there).
+ */
+export const upgradeBar = (league: League, team: Team, apy: number) => minGainFor(league, team) + PRICE_GAIN * Math.max(0, apy / league.caps[league.season] - PRICEY);
+
 /** One day of free agency: every AI team bids on the players it needs; each player takes his best offer if it's good enough. */
 export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: boolean } = {}): number {
   const teams = league.teams.filter((t) => opts.includeUser || t.id !== league.userTeamId);
-  const depth = new Map(teams.map((t) => [t.id, depthOvrs(league, t.id)]));
+  const depth = new Map(teams.map((t) => [t.id, depthOutlooks(league, t)]));
   const budget = new Map(teams.map((t) => [t.id, spendable(league, t.id)]));
   const room = new Map(teams.map((t) => [t.id, rosterLimit(league) - activeRoster(league, t.id).length]));
   // Cap planning: big deals must also fit next year's books, not just this year's.
@@ -259,7 +304,7 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
   const committedNext = new Map(teams.map((t) => [t.id, capSheet(league, t.id, league.season + 1).used]));
   const signedToday = new Map<number, number>();
   const dailyLimit = new Map(teams.map((t) => [t.id, 4 + Math.round(richness(league, t) * 5)]));
-  const minGain = new Map(teams.map((t) => [t.id, 0.3 - richness(league, t) * 0.2]));
+  const minGain = new Map(teams.map((t) => [t.id, minGainFor(league, t)]));
   const market = leagueMarket(league);
   const pool = freeAgents(league)
     .map((p) => ({ p, value: marketApy(market, p) }))
@@ -274,9 +319,11 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
     for (const team of teams) {
       if ((room.get(team.id) ?? 0) <= 0 || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
       // Bid on what its own scouts see: his game, plus or minus the habits they've caught on film.
-      const gain = needGain(depth.get(team.id)!, p, read(team.id, p).ovr + quirkWorth(league, team.id, p));
+      const ahead = teamOutlook(league, team.id, p, winNow(league, team), read(team.id, p));
+      const gain = needGain(depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p));
       if (gain < minGain.get(team.id)!) continue;
       const offer = aiOffer(league, team, p, rng, gain);
+      if (gain < upgradeBar(league, team, offer.apy)) continue;
       // Year-one charge must fit; bonus spreads, so the hit is below the APY for bigger deals.
       const yearOne = offer.apy * (1 - offer.bonusPct) + (offer.apy * offer.years * offer.bonusPct) / Math.min(5, offer.years + offer.voidYears);
       if (yearOne > budget.get(team.id)!) continue;
@@ -293,7 +340,7 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
     if (best.offer.years > 1) committedNext.set(best.team.id, committedNext.get(best.team.id)! + best.offer.apy);
     signedToday.set(best.team.id, (signedToday.get(best.team.id) ?? 0) + 1);
     const d = depth.get(best.team.id)![p.position];
-    d.push(playerOvr(p));
+    d.push(teamOutlook(league, best.team.id, p, winNow(league, best.team)));
     d.sort((a, b) => b - a);
   }
   return signings;

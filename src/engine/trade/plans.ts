@@ -223,7 +223,8 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
     ctx.untouchables.set(team.id, out);
     return out;
   }
-  const qbs = roster.filter((p) => p.position === 'QB').sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a));
+  // The quarterback it builds around: the one it sees leading it over the next few years, not just this week.
+  const qbs = roster.filter((p) => p.position === 'QB').sort((a, b) => readPlayer(ctx, team, b).outlook - readPlayer(ctx, team, a).outlook);
   if (qbs[0] && isBuyer(team) && ovrOf(ctx, qbs[0]) >= 14) out.add(qbs[0].id);
   if (team.gm.loyalty >= 0.5) {
     roster
@@ -254,7 +255,9 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
   const tight = salaryWeight(ctx, team.id) >= 1.15;
   const roster = rosterOf(ctx, team.id).filter((p) => underContract(league, p) && !playerTradeBlocker(league, p) && !freshlySigned(league, p, team.id));
   const rank = new Map<number, number>();
-  for (const pos of POSITIONS) roster.filter((p) => p.position === pos).sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a)).forEach((p, i) => rank.set(p.id, i));
+  // Who's surplus is judged on where each player is headed: a climbing backup isn't the one to move.
+  const ahead = (p: Player) => readPlayer(ctx, team, p).outlook;
+  for (const pos of POSITIONS) roster.filter((p) => p.position === pos).sort((a, b) => ahead(b) - ahead(a)).forEach((p, i) => rank.set(p.id, i));
   const out: BlockEntry[] = [];
   const keep = untouchables(ctx, team);
   for (const p of roster) {

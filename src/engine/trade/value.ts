@@ -18,7 +18,9 @@ import { coachingFor, effectOf, teamScheme, type Coaching } from '../coaching';
 import { paidShare, weeksPaid } from '../finance/cap';
 import { isExpired, yearsLeft } from '../finance/contract';
 import { marketApy, minSalary } from '../finance/market';
+import { injuryRisk } from '../injuries';
 import { contenderScore, willExtend } from '../offseason/negotiation';
+import { futureWeight, outlookOf } from '../outlook';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { fitContests } from '../schemes';
 import { characterRead, projectedCeiling, quirkWorth, trueQuirkWorth } from '../scouting';
@@ -207,6 +209,14 @@ export function control(league: League, p: Player): number {
   return w / CONTROL_FULL + (left <= 1 ? RIGHTS : 0);
 }
 
+/** Share of a new deal's APY that lands on next year's cap (the bonus is spread). */
+const YEAR_ONE = 0.85;
+
+/** Whether a team has the room next league year to re-sign a player at the market's price for him. */
+export function canAfford(ctx: TradeContext, teamId: number, p: Player): boolean {
+  return capRoom(ctx, teamId, ctx.league.season + 1) >= YEAR_ONE * marketApy(ctx.market, p);
+}
+
 /** Effective contention focus: the GM's temperament nudged by where the roster actually is. */
 const winNowOf = (league: League, team: Team) => clamp(team.gm.winNow * 0.6 + contenderScore(league, team.id) * 0.4, 0, 1);
 
@@ -215,6 +225,8 @@ export interface PlayerRead {
   id: number;
   /** The overall it ranks him at: exact for its own players, its bounded read of anyone else's. */
   ovr: number;
+  /** Where it sees him headed over the next three seasons (`outlook.ts`): who starts in its plans. */
+  outlook: number;
   /** Talent × control: what his play is worth over the seasons it would hold him. */
   base: number;
   /**
@@ -241,9 +253,13 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
   const own = playerOvr(p);
   const young = p.age <= 25;
   // His real game: today's overall, half the growth his work ethic will really get out of him, his habits.
-  const real = effective(p.age, own, young ? projectedCeiling(own, p.potential, p.traits.workEthic) : p.potential) + trueQuirkWorth(p);
+  const ceiling = young ? projectedCeiling(own, p.potential, p.traits.workEthic) : p.potential;
+  const real = effective(p.age, own, ceiling) + trueQuirkWorth(p);
   let seen = real;
   let ovr = own;
+  // The room he has left to grow, for his outlook.
+  const realGap = young ? Math.max(0, ceiling - own) : 0;
+  let gap = realGap;
   // A club knows its own veterans exactly: past 25 there's no ceiling left to guess and no habit it
   // hasn't seen, so its read is the truth and the scouting pass can be skipped.
   if (!truth && !(p.teamId === team.id && p.age > 25)) {
@@ -252,11 +268,18 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
     const readWork = young ? characterRead(league, team.id, p)?.workEthic : undefined;
     const misread = effective(p.age, view.ovr, young ? projectedCeiling(view.ovr, view.potMid, readWork) : view.potMid) + quirkWorth(league, team.id, p) - real;
     seen = real + clamp(TRADE_TRUST * misread, -TRADE_BAND, TRADE_BAND);
-    // His place on its depth chart is judged the same bounded way.
+    // His place on its depth chart is judged the same bounded way, and his room to grow (counted at
+    // half in his talent, so twice the band here).
     ovr = own + clamp(TRADE_TRUST * (view.ovr - own), -TRADE_BAND, TRADE_BAND);
+    const viewGap = young ? Math.max(0, projectedCeiling(view.ovr, view.potMid, readWork) - view.ovr) : 0;
+    gap = realGap + clamp(TRADE_TRUST * (viewGap - realGap), -2 * TRADE_BAND, 2 * TRADE_BAND);
   }
+  const outlook = outlookOf(p.position, p.age, ovr, gap, injuryRisk(league, team.id, p).tier, futureWeight(winNowOf(league, team)));
   const talent = 3000 * Math.exp((seen - 18.5) * 0.55) * POSITION_TRADE[p.position] * ageMultiplier(p);
-  const base = talent * control(league, p);
+  let base = talent * control(league, p);
+  // His club's re-sign window is worth something only if it can pay him: one with no room next year
+  // for his ask sees him walk, so it would rather move him now (Mack to Chicago).
+  if (p.teamId === team.id && !truth && yearsLeft(p.contract!, league.season) <= 1 && !canAfford(ctx, team.id, p)) base -= talent * RIGHTS;
   // A buyer's read only: his own team re-signs him through the window (`RIGHTS`).
   const extension = p.teamId !== team.id && willExtend(league, p, team.id) ? talent * EXTENSION : 0;
   // Contenders pay for proven veterans; rebuilders don't.
@@ -267,7 +290,7 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
   const coaching = coachingOf(ctx, team.id, p.position);
   if (p.age <= 25) lens *= 1 + 0.33 * (coaching.rate - 1);
   else if (p.age - ageShift(p.position) >= 29) lens *= 1 - 0.25 * effectOf(coaching, p.position).aging;
-  const read = { id: p.id, ovr, base, extension, lens, ...contractTerms(ctx, p) };
+  const read = { id: p.id, ovr, outlook, base, extension, lens, ...contractTerms(ctx, p) };
   ctx.reads.set(key, read);
   return read;
 }
@@ -327,7 +350,8 @@ function roomValue(reads: readonly PlayerRead[], pos: Position, w: number): numb
   let value = 0;
   for (const r of reads) {
     let rank = 0;
-    for (const o of reads) if (o !== r) rank += 1 / (1 + Math.exp((r.ovr - o.ovr) / RANK_SPREAD));
+    // The role it plans for him: where he's headed, not just where he is (a climbing 15 starts over a fading one).
+    for (const o of reads) if (o !== r) rank += 1 / (1 + Math.exp((r.outlook - o.outlook) / RANK_SPREAD));
     value += roleAt(rank, pos) * ((r.base + r.extension) * r.lens + w * r.pay) - w * r.cost;
   }
   return value;
