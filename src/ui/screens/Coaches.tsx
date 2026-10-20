@@ -62,6 +62,9 @@ import { coachRecord, formatRecord } from '../../engine/records';
 import { coachSchemeAbout, coachSchemeLabel, defenseLabel, defenseNotes, PERSONNEL_LABEL, schemeWith } from '../../engine/schemes';
 import { staffWindowOpen, type ResignOutlook } from '../../engine/staff';
 import type { Coach, CoachRole, CoachRoom, League } from '../../engine/types';
+import { OFFSEASON_PHASES } from '../../engine/types';
+import { activeLearning, campsToReady, familiarity, holdReason, isReady, learners, MAX_LEARNERS, passMove, setCoachesDecide, startMove, suggestMove } from '../../engine/training';
+import { familiarityTone, learnLine, planReason, readyText, reasonText, roleText, verdictText, verdictTone } from '../training';
 import { useNav } from '../App';
 import { Dialog, Exact, Panel, Section, Sheet, TeamChip, TeamPicker, TipPill } from '../components';
 import { StaffAvatar } from '../staffAvatar';
@@ -1367,6 +1370,8 @@ export function CoachesScreen({ league }: { league: League }) {
           </ul>
         </Panel>
 
+        <PositionWork league={league} />
+
         <div ref={mineRef} className="staff-anchor">
           <Panel
             title={
@@ -1503,6 +1508,78 @@ export function CoachesScreen({ league }: { league: League }) {
 }
 
 /** An owner's streaks, where they stand out: his spending and his patience with head coaches. */
+/**
+ * Position work: who is learning a new position and how far along, the coaches' suggestion while a plan can
+ * still start (the offseason), and your one setting, whether the coaches may start their own.
+ */
+function PositionWork({ league }: { league: League }) {
+  const nav = useNav();
+  const team = league.teams[league.userTeamId];
+  const decide = !!team.training?.coachesDecide;
+  const now = learners(league, team.id);
+  // The suggestion only while a plan can start, and only when you decide: otherwise the coaches start it themselves.
+  const pick = OFFSEASON_PHASES.includes(league.phase) && !decide ? suggestMove(league, team.id) : null;
+  return (
+    <Panel
+      title="Position work"
+      action={
+        <label className="row" style={{ gap: 6, cursor: 'pointer' }} title="Your coaches start their own suggestion as the draft closes, as every AI staff does.">
+          <input type="checkbox" checked={decide} onChange={(e) => store.mutate((l) => setCoachesDecide(l, e.target.checked))} />
+          Coaches may start position moves
+        </label>
+      }
+    >
+      <p className="muted small" style={{ marginTop: 0 }}>
+        Teaching a player a new position takes the spring program, camp and practice weeks; he keeps playing his own until he&rsquo;s ready, and moves on cut-down day. Up to {MAX_LEARNERS} at a time. Start
+        one from a player&rsquo;s card.
+      </p>
+      {now.length > 0 ? (
+        <ul className="move-list">
+          {now.map((p) => {
+            const l = activeLearning(p)!;
+            const f = familiarity(p);
+            const held = isReady(p) ? holdReason(league, p) : null;
+            const why = planReason(league, p);
+            return (
+              <li key={p.id} className="move-head">
+                <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openPlayer(p.id)}>
+                  {p.position} {p.firstName} {p.lastName}
+                </button>
+                <span className={`tag-pill ${familiarityTone(f)}`}>{learnLine(p.position, l.to, f)}</span>
+                <span className="muted small">
+                  {why ? `${why} · ` : ''}
+                  {held ?? (isReady(p) ? 'Moves on cut-down day' : readyText(campsToReady(league, p, l.to), league.phase))}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="muted small">No one is learning a new position.</p>
+      )}
+      {pick && (
+        <div className="callout staff-next">
+          <span>
+            The coaches suggest teaching{' '}
+            <button className="linklike" onClick={() => nav.openPlayer(pick.player.id)}>
+              {pick.player.position} {pick.player.firstName} {pick.player.lastName}
+            </button>{' '}
+            to play {pick.read.to}: {reasonText({ ...pick.read, reason: pick.why })}. {roleText(pick.read)}. <span className={`tag-pill ${verdictTone(pick.read.verdict)}`}>{verdictText(pick.read.verdict)}</span>
+          </span>
+          <span className="row" style={{ gap: 8 }}>
+            <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => startMove(l, pick.player.id, pick.read.to, pick.why))}>
+              Start
+            </button>
+            <button className="btn btn-sm" onClick={() => store.mutate((l) => passMove(l, pick.player.id))}>
+              Not now
+            </button>
+          </span>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 function OwnerNotes({ league, teamId }: { league: League; teamId: number }) {
   const notes = [ownerBudgetNote(league.teams[teamId].staffBudgetMult), ownerTriggerNote(ownerTrigger(league, teamId))].filter(Boolean);
   return notes.length ? <small className="muted owner-notes">{notes.join(' · ')}</small> : null;

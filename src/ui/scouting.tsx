@@ -679,7 +679,10 @@ export function rosterFit(league: League, teamId: number, scheme: TeamScheme, si
   for (const pos of positions) {
     const n = spotsFor(scheme, pos).length;
     for (const id of team.depthChart[pos].slice(0, n)) {
-      const fit = schemeFitOf(league, league.players[id], scheme);
+      // A player lined up away from his own position isn't graded against this one's asks.
+      const q = league.players[id];
+      if (!q || q.position !== pos) continue;
+      const fit = schemeFitOf(league, q, scheme);
       if (!fit) continue;
       asked++;
       if (fit.grade === 'Ideal' || fit.grade === 'Good') good++;

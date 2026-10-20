@@ -115,6 +115,20 @@ export const CONTESTS = {
 
 export type ContestName = keyof typeof CONTESTS;
 
+/**
+ * Players lined up away from their own position, and the rating points each loses on every skill there
+ * (`knockFor` in familiarity.ts). The match engine sets it around each step of a game and the lineup while
+ * it adds up its units; everywhere else (screens, valuations, development) it is unset.
+ */
+let knocks: ReadonlyMap<number, number> | null = null;
+
+/** Make `next` the knocks `skill` applies; returns the ones it replaces, to put back. */
+export function useKnocks(next: ReadonlyMap<number, number> | null): ReadonlyMap<number, number> | null {
+  const prev = knocks;
+  knocks = next;
+  return prev;
+}
+
 /** A player's rating for one contest: a weighted blend of his attributes on the 1–20 scale. */
 export function skill(p: Player, contest: ContestName): number {
   const w: Weights = CONTESTS[contest].weights;
@@ -123,7 +137,7 @@ export function skill(p: Player, contest: ContestName): number {
   // Back early in a harness or a cast: a step down on what the injury touches until it heals.
   const cost = p.injury?.braceCost;
   if (cost) for (const attr in cost) s -= Math.min(cost[attr as Attribute]!, p.ratings[attr as Attribute] - 1) * (w[attr as Attribute] ?? 0);
-  return s;
+  return knocks ? s - (knocks.get(p.id) ?? 0) : s;
 }
 
 /** Contests that read `attr` for a player at `position`, heaviest first. */

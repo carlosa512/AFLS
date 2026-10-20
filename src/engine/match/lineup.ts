@@ -1,7 +1,7 @@
-import { skill } from '../attributes';
+import { skill, useKnocks } from '../attributes';
 import { specialTeamsEdge, teamScheme } from '../coaching';
 import type { TeamScheme } from '../schemes';
-import { overall } from '../positions';
+import { knockFor, slotOvr } from '../familiarity';
 import { isAvailable } from '../roster';
 import { temperOffset } from '../traits';
 import type { League, Player, Position, Team } from '../types';
@@ -47,6 +47,8 @@ export interface Lineup {
   blockDiscipline: number;
   /** The special teams coordinator's edge, in rating points against a typical coach (`specialTeamsEdge`). */
   stCoach: number;
+  /** Players lined up away from their own position, and the knock each takes on every skill (`knockFor`). */
+  knocks: ReadonlyMap<number, number>;
   /** Unit composites on the 1–20 scale. */
   passBlock: number;
   runBlock: number;
@@ -138,7 +140,6 @@ const FILL_IN: Record<Position, Position[]> = {
 export function buildLineup(league: League, team: Team, out: ReadonlySet<number> = new Set()): Lineup {
   const scheme = teamScheme(league, team.id);
   const personnel = scheme.offense.personnel;
-  const front = scheme.front;
   // How many each position dresses for the engine, and how many it can't do without.
   const want: Record<Position, [number, number]> = {
     QB: [1, 1],
@@ -166,7 +167,8 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     for (const from of FILL_IN[pos]) {
       if (list.length >= need) break;
       const extra = team.depthChart[from].filter(fit).map((id) => league.players[id]);
-      const picked = extra.sort((a, b) => overall(b.ratings, pos) - overall(a.ratings, pos)).slice(0, need - list.length);
+      // Best at the job knock included: a versatile backup, or one learning it, gets the call first.
+      const picked = extra.sort((a, b) => slotOvr(b, pos) - slotOvr(a, pos)).slice(0, need - list.length);
       take(picked);
       list.push(...picked);
     }
@@ -181,11 +183,45 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     // even a man already on the field.
     if (list.length === 0) {
       const anyone = POSITIONS.flatMap((from) => team.depthChart[from]).filter((id) => !out.has(id) && league.players[id] && !league.players[id].ir);
-      const best = anyone.map((id) => league.players[id]).sort((a, b) => overall(b.ratings, pos) - overall(a.ratings, pos))[0];
+      const best = anyone.map((id) => league.players[id]).sort((a, b) => slotOvr(b, pos) - slotOvr(a, pos))[0];
       if (best) list.push(best);
     }
     if (list.length === 0) throw new Error(`${team.abbrev} has no ${pos} on the depth chart`);
   }
+  // Who lines up away from his own position (a fill-in, or one the user put there), and what it costs him.
+  // A man with two jobs keeps his full game if one is his own: the specialist who kicks and punts, say.
+  // The third edge and tackle who rotate in count too: a hand-sorted chart can list anyone there.
+  const rotation = (['EDGE', 'DT'] as const).flatMap((pos) => {
+    const id = team.depthChart[pos].find(fit);
+    return id === undefined ? [] : [{ p: league.players[id], pos }];
+  });
+  const slots = new Map<Player, Position[]>();
+  for (const pos of POSITIONS) for (const p of at[pos]) slots.set(p, [...(slots.get(p) ?? []), pos]);
+  for (const { p, pos } of rotation) slots.set(p, [...(slots.get(p) ?? []), pos]);
+  const knocks = new Map<number, number>();
+  for (const [p, mine] of slots) if (!mine.includes(p.position)) knocks.set(p.id, Math.max(...mine.map((pos) => knockFor(p, pos))));
+  // The unit composites below are read with the knocks on.
+  const prev = useKnocks(knocks);
+  try {
+    return assemble(league, team, out, scheme, at, rotation.map((r) => r.p), fit, knocks);
+  } finally {
+    useKnocks(prev);
+  }
+}
+
+/** The lineup from each position's players: returners, kick units and the composites the engine reads. */
+function assemble(
+  league: League,
+  team: Team,
+  out: ReadonlySet<number>,
+  scheme: TeamScheme,
+  at: Record<Position, Player[]>,
+  rushRotation: Player[],
+  fit: (id: number) => boolean,
+  knocks: ReadonlyMap<number, number>,
+): Lineup {
+  const personnel = scheme.offense.personnel;
+  const front = scheme.front;
   const qb = at.QB[0];
   const { RB: rbs, WR: wrs, TE: tes, OL: ol, DT: dt, EDGE: edge, LB: lb, CB: cb, S: s } = at;
   const kicker = at.K[0];
@@ -239,7 +275,7 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     lb,
     cb,
     s,
-    rushRotation: (['EDGE', 'DT'] as const).map((pos) => team.depthChart[pos].find(fit)).filter((id) => id !== undefined).map((id) => league.players[id]),
+    rushRotation,
     k: kicker,
     p: punter,
     kr: picked(team.returners?.kr) ?? best(krPool),
@@ -250,6 +286,7 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     fgDiscipline: avg(fg, discipline) + COACH_DISCIPLINE * stCoach,
     blockDiscipline: avg([...dt, ...edge], discipline) + COACH_DISCIPLINE * stCoach,
     stCoach,
+    knocks,
     // Unit composites: the line does most of the work, with help from the backs and tight ends.
     passBlock,
     runBlock,

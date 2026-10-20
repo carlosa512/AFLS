@@ -286,7 +286,7 @@ export function App() {
           {route.view !== 'live' && (
             <div className="actions">
               {secondary && (
-                <button className="btn" disabled={busy} onClick={() => setConfirmSim(true)}>
+                <button className="btn" disabled={busy || (!step && blockers.length > 0)} title={!step ? blockers[0] : undefined} onClick={() => setConfirmSim(true)}>
                   {secondary.label}
                 </button>
               )}

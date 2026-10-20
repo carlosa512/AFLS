@@ -515,19 +515,31 @@ function freshOffers(league: League, label: string): TradeOffer[] {
   return out.filter((o) => o.kind !== 'enquiry');
 }
 
-/** Put your best player at a position some team needs on the block: does an offer come within two market moments? */
+/**
+ * Put your best player at a position some team needs on the block: does an offer come within two market moments?
+ * A player hurt in those two weeks fails any physical, so no bid for him can be built and he can't answer the
+ * question: the next best is listed instead (up to three), on a fresh copy of the league.
+ */
 function listingDraws(base: League): boolean | null {
-  const l = clone(base);
-  const ctx = tradeContext(l);
-  const needed = new Set(l.teams.filter((t) => t.id !== l.userTeamId).flatMap((t) => teamNeeds(ctx, t).map((n) => n.position)));
-  const p = teamPlayers(l, l.userTeamId)
-    .filter((x) => needed.has(x.position) && x.contract && yearsLeft(x.contract, l.season) >= 2 && !playerTradeBlocker(l, x) && l.market?.status[x.id] !== 'untouchable')
-    .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
-  if (!p) return null;
-  setTradeStatus(l, p.id, 'listed');
-  const before = l.market?.nextOfferId ?? 1;
-  for (let w = 0; w < 2; w++) playWeek(l);
-  return (l.market?.offers ?? []).some((o) => o.id >= before && o.sides[1].players.includes(p.id));
+  const ctx = tradeContext(base);
+  const needed = new Set(base.teams.filter((t) => t.id !== base.userTeamId).flatMap((t) => teamNeeds(ctx, t).map((n) => n.position)));
+  const shop = teamPlayers(base, base.userTeamId)
+    .filter((x) => needed.has(x.position) && x.contract && yearsLeft(x.contract, base.season) >= 2 && !playerTradeBlocker(base, x) && base.market?.status[x.id] !== 'untouchable')
+    .sort((a, b) => playerOvr(b) - playerOvr(a))
+    .slice(0, 3);
+  for (const p of shop) {
+    const l = clone(base);
+    setTradeStatus(l, p.id, 'listed');
+    const before = l.market?.nextOfferId ?? 1;
+    let hurt = false;
+    for (let w = 0; w < 2; w++) {
+      playWeek(l);
+      hurt ||= playerTradeBlocker(l, l.players[p.id]) !== null;
+    }
+    const drew = (l.market?.offers ?? []).some((o) => o.id >= before && o.sides[1].players.includes(p.id));
+    if (drew || !hurt) return drew;
+  }
+  return null;
 }
 
 // ───────── 8. Physicals ─────────

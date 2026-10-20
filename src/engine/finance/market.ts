@@ -37,6 +37,9 @@ export function minSalary(experience: number, cap: number): number {
   return Math.round((base * cap) / BASE_CAP);
 }
 
+/** The highest league minimum, a long-time veteran's: room for it covers any minimum deal. */
+export const topMinimum = (cap: number): number => minSalary(MIN_BY_EXPERIENCE.length - 1, cap);
+
 /**
  * The market is relative: pay follows where a player ranks among everyone at his position,
  * measured in "starting jobs" (rank / number of starters league-wide). It is flat at the top
@@ -70,6 +73,9 @@ export function leagueMarket(league: League): Market {
   marketCache.set(league, { key, market });
   return market;
 }
+
+/** Forget the pay comps: a position change moves a player between lists, which the cache key can't see. */
+export const resetLeagueMarket = (league: League) => marketCache.delete(league);
 
 /** How many players at the position are better (0 = the best). */
 export function positionRank(market: Market, player: Player): number {
@@ -149,7 +155,7 @@ const TAG_LAG = 0.65;
  */
 export function franchiseTagValue(league: League, player: Player, priorSalary: number): number {
   const cap = league.caps[league.season];
-  const tag = TAG_LAG * rankBandApy(player.position, cap, 0, 4);
+  const tag = Math.max(...pricedAs(league, player).map((pos) => TAG_LAG * rankBandApy(pos, cap, 0, 4)));
   const tags = player.tagCount ?? 0;
   if (tags >= 2) return Math.round(Math.max(priorSalary * 1.44, TAG_LAG * rankBandApy('QB', cap, 0, 4)));
   return Math.round(Math.max(tag, priorSalary * 1.2));
@@ -157,6 +163,19 @@ export function franchiseTagValue(league: League, player: Player, priorSalary: n
 
 /** Fifth-year option salary for a first-round pick after three seasons. Pro Bowls don't exist yet, so rank stands in. */
 export function fifthYearOptionValue(league: League, player: Player): number {
+  return Math.max(...pricedAs(league, player).map((position) => optionAt(league, { ...player, position })));
+}
+
+/**
+ * The positions a tag or option is priced at: his own, and for two league years after a position change
+ * the one he left too, the higher price winning. A move to a cheaper position can't be timed to tag him cheaply.
+ */
+function pricedAs(league: League, player: Player): Position[] {
+  const left = (player.moves ?? []).filter((m) => m.season >= league.season - 2).map((m) => m.from);
+  return [...new Set([player.position, ...left])];
+}
+
+function optionAt(league: League, player: Player): number {
   const cap = league.caps[league.season];
   const rank = positionRank(leagueMarket(league), player);
   const starters = 32 * STARTERS[player.position];

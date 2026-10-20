@@ -22,7 +22,8 @@ import { quirkOffseason } from '../quirks';
 import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
 import { generateSchedule } from '../season/schedule';
-import { expireOffers, marketMoment } from '../trade';
+import { bodyAs, completeMoves, learnBlock, planMoves } from '../training';
+import { expireOffers, marketMoment, TRADE_DEADLINE_WEEK } from '../trade';
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
@@ -60,7 +61,7 @@ export function beginOffseason(league: League): void {
     // schedules, and one player's year doesn't depend on who was developed before him. His coaches
     // are the ones he finished the season with (their deals may be up, but they coached him).
     const own = new Rng(`${league.seed}:dev:${league.season}:${p.id}`);
-    developPlayer(own, p, { playedShare: playedShare(p, last), ...coachingFor(league, p.teamId, p.position) });
+    developPlayer(own, p, { playedShare: playedShare(p, last), ...coachingFor(league, p.teamId, p.position), bodyAs: bodyAs(p) });
     p.age++;
     p.experience++;
     // Age and form, or a body (`injuryRetireChance`) or a head (`concussionRetireChance`) that can't take any more, in one roll.
@@ -77,6 +78,7 @@ export function beginOffseason(league: League): void {
       p.contract = null;
       p.retired = true;
       delete p.quirkBag;
+      delete p.learning;
       retirees.push(p);
       continue;
     }
@@ -106,10 +108,17 @@ export function beginOffseason(league: League): void {
   marketMoment(league, 'leagueYear');
 }
 
-/** Problems the user must fix before the calendar can move on. */
+/** Problems the user must fix before the calendar can move on (the season's weeks included). */
 export function offseasonBlockers(league: League): string[] {
   const issues: string[] = [];
   const teamId = league.userTeamId;
+  // A team must be under the cap every week of the season, not just at kickoff. (The playoffs pay nothing more
+  // and sign nobody, so a team that got there under the cap isn't stopped there.) Restructures wait for the
+  // offseason; a release frees what's left of a deal that isn't guaranteed.
+  if (league.phase === 'regular' && capSpace(league, teamId) < 0) {
+    const fix = league.week <= TRADE_DEADLINE_WEEK ? 'release or trade a player' : 'release a player (the trade deadline has passed)';
+    issues.push(`You're $${(-capSpace(league, teamId) / 1000).toFixed(1)}M over the cap: ${fix} before playing on.`);
+  }
   if (league.phase === 'resign' && capSpace(league, teamId) < 0) issues.push('Get under the cap before free agency opens: release, restructure or trade.');
   if (league.phase === 'preseason') {
     // Injured reserve doesn't count toward the 53.
@@ -171,8 +180,14 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
       league.phase = 'preseason';
       // Camp opens: anyone still hurt going into week 1 can go on reserve, off the 53 (yours too, unless you manage injuries).
       for (const team of league.teams) if (delegates(league, team)) manageInjuries(league, team, rng);
+      // Coaches pick the position moves they'll teach, then the spring program's learning (docs/TRAINING.md §4).
+      planMoves(league);
+      learnBlock(league, 'program');
       break;
     case 'preseason':
+      // Camp's learning, then cut-down day's position changes, before any camp deal or cut sees the rosters.
+      learnBlock(league, 'camp');
+      completeMoves(league);
       // Camp: teams with surplus deal it before the cut to 53.
       marketMoment(league, 'camp');
       for (const team of ai) aiTrainingCamp(league, team, rng);

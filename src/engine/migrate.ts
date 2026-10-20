@@ -59,6 +59,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 28) toV28(league);
   if (league.version < 29) league.version = 29; // v29: optional `protocol` on concussions and `held` on records, nothing to fill in
   if (league.version < 30) toV30(league);
+  if (league.version < 31) toV31(league);
   return league;
 }
 
@@ -230,6 +231,16 @@ function toV10(league: League) {
 function toV11(league: League) {
   for (const p of Object.values(league.players)) if (!p.retired && !p.quirkBag) generateQuirks(p);
   league.version = 11;
+}
+
+/**
+ * v30 → v31: position moves (`learning`, `moves`, `training`: optional, nothing to fill in) and the
+ * versatility trait, rolled from each player's own seed after the others, so he gets what a new league
+ * would give him.
+ */
+function toV31(league: League) {
+  for (const p of Object.values(league.players)) if (p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
+  league.version = 31;
 }
 
 /**

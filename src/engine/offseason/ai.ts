@@ -5,7 +5,7 @@
 import { ageShift } from '../aging';
 import { accelerateProration, canRestructure, capFor, capSheet, capSpace, logTransaction, releasePlayer, releasePreview, restructureOptions, restructurePlayer } from '../finance/cap';
 import { capHit, isExpired, lastSeason, remainingProration, yearOf } from '../finance/contract';
-import { fifthYearOptionValue, franchiseTagValue, leagueMarket, marketApy, minSalary, payTier, positionRank } from '../finance/market';
+import { fifthYearOptionValue, franchiseTagValue, leagueMarket, marketApy, minSalary, payTier, positionRank, topMinimum } from '../finance/market';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
 import { teamOutlook } from '../outlook';
@@ -394,6 +394,15 @@ function streetFreeAgent(league: League, position: Position, rng: Rng): Player {
   recordRatings(p, league.season);
   league.players[p.id] = p;
   return p;
+}
+
+/**
+ * Whether `signMinimum` at `position` can sign someone within `budget`: a healthy free agent whose minimum
+ * fits, or room for any minimum (a street free agent's rises with his years).
+ */
+export function minimumFits(league: League, position: Position, budget: number): boolean {
+  const cap = league.caps[league.season];
+  return budget >= topMinimum(cap) || freeAgents(league).some((p) => p.position === position && !p.injury && minSalary(p.experience, cap) <= budget);
 }
 
 /**

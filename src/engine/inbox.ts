@@ -14,6 +14,7 @@ import { expiringPlayers } from './offseason/ai';
 import { draftComplete, reachOrSteal } from './offseason/draft';
 import { rookieCost } from './offseason/negotiation';
 import { knowledge, leaguePercentile, perceive, scoutReportParts } from './scouting';
+import { POSITION_NAMES } from './positions';
 import { starters, teamPlayers } from './roster';
 import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { ROUND_NAMES } from './season/playoffs';
@@ -22,7 +23,8 @@ import { computeRecords, conferenceSeeds, playoffRace, type RaceStatus } from '.
 import { isExpiring, ownerBudgetNote, resignForecast, ROLE_LABEL, staffWindowOpen, teamStaff } from './staff';
 import { careerLine } from './stats';
 import { isDeadlineDay, openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './trade';
-import type { Coach, CoachRole, CoachRoom, GameResult, InboxMessage, League, Phase, Player, Position, StatLine, Team, TeamGameStats, TradeOffer, TradeSide } from './types';
+import { activeLearning, formerPositions, moveProblem, reasonWords, suggestMove } from './training';
+import type { Coach, CoachRole, CoachRoom, GameResult, InboxMessage, League, MoveReason, Phase, Player, Position, StatLine, Team, TeamGameStats, TradeOffer, TradeSide } from './types';
 
 /** Saves keep the latest messages only, like the transaction log. */
 const KEEP = 300;
@@ -339,7 +341,9 @@ export type MailSubject =
   | { kind: 'carousel'; season: number }
   | { kind: 'faWrap'; season: number }
   | { kind: 'market'; season: number; phase: Phase; week: number }
-  | { kind: 'marketRecap'; season: number };
+  | { kind: 'marketRecap'; season: number }
+  | { kind: 'positionOffer'; season: number; playerId: number; to: Position }
+  | { kind: 'positionMoved'; season: number; playerId: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -401,6 +405,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'faWrap', season };
     case 'market':
       return a === 'recap' ? { kind: 'marketRecap', season } : { kind: 'market', season, phase: a as Phase, week: Number(b) };
+    case 'position':
+      return a === 'offer' ? { kind: 'positionOffer', season, playerId: Number(b), to: rest[0] as Position } : { kind: 'positionMoved', season, playerId: Number(b) };
     default:
       return null;
   }
@@ -411,7 +417,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
  * stored): a report until the game is played, an injury while he's out and off reserve, an expiring deal
  * through the re-sign window, the combine while visits are left before the draft, draft day until our picks
  * are in, the trade deadline until it passes, an all-clear while he waits on reserve for you to activate him,
- * staff deals through the re-sign window, a coach hired away until his chair is filled (or the window shuts).
+ * staff deals through the re-sign window, a coach hired away until his chair is filled (or the window shuts), the
+ * coaches' position suggestion until you start it, turn it down or the draft and camp are over.
  */
 export function needsYou(league: League, m: InboxMessage): boolean {
   const s = mailSubject(m);
@@ -444,6 +451,11 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       return staffWindowOpen(league) && !chairHolder(teamCoaches(league, user), s.chair);
     case 'offer':
       return openOffers(league).some((o) => o.id === s.offerId);
+    case 'positionOffer': {
+      const p = league.players[s.playerId];
+      const passed = league.teams[user].training?.passed?.[s.playerId];
+      return (league.phase === 'draft' || league.phase === 'preseason') && !!p && p.teamId === user && !activeLearning(p) && !moveProblem(league, p, s.to) && passed !== league.season;
+    }
     default:
       return false;
   }
@@ -1181,8 +1193,11 @@ export function freeAgencyMoves(league: League, season = league.season) {
   const user = league.userTeamId;
   const byName = new Map<string, Player[]>();
   for (const p of Object.values(league.players)) {
-    const key = `${p.position} ${p.firstName} ${p.lastName}`;
-    byName.set(key, [...(byName.get(key) ?? []), p]);
+    // Transactions name a player by the position he had then: a later move mustn't hide him.
+    for (const pos of new Set([p.position, ...formerPositions(p)])) {
+      const key = `${pos} ${p.firstName} ${p.lastName}`;
+      byName.set(key, [...(byName.get(key) ?? []), p]);
+    }
   }
   const abbrevs = new Map(league.teams.map((t) => [t.abbrev, t.id]));
   const deals: Signing[] = [];
@@ -1242,6 +1257,124 @@ function faWrapMail(league: League, have: Set<string>): Draft[] {
   ];
 }
 
+// ───────── position moves ─────────
+
+/** A position as a noun: "safety", "edge rusher". */
+const posWord = (pos: Position) => (pos === 'OL' ? 'offensive lineman' : POSITION_NAMES[pos].toLowerCase());
+/** With its article: "a safety", "an edge rusher". */
+export const aPosition = (pos: Position) => `${/^[aeiou]/.test(posWord(pos)) ? 'an' : 'a'} ${posWord(pos)}`;
+
+/**
+ * The case for a move in the coaches' words, for the suggestion and anywhere else a reason is shown. A
+ * scheme reason names the coordinator whose scheme it is, and says so when he is new this year.
+ */
+export function reasonLine(reason: MoveReason, to: Position, coordinator?: { coach: Coach; isNew: boolean }): string {
+  switch (reason) {
+    case 'hole':
+      return `Fills a hole at ${to}`;
+    case 'nextYear':
+      return `Takes over at ${to} next year`;
+    case 'scheme':
+      if (!coordinator) return `The coordinator's scheme wants him at ${to}`;
+      return `${coachName(coordinator.coach)}'s scheme wants him at ${to}${coordinator.isNew ? `: he is the new ${coachTitle(coordinator.coach).toLowerCase()}` : ''}`;
+    case 'upside':
+      return `His game fits ${to} better`;
+    case 'reps':
+      return 'Gets him on the field';
+    case 'age':
+      return `Extends his career: ${to} asks less of his legs`;
+    case 'upgrade':
+      return `A clear upgrade at ${to}`;
+  }
+}
+
+/** The cut-down day a move should be done by, as the camps in the coaches' estimate count it (0 is the coming one). */
+const readyBy = (season: number, camps: number) => (camps === 0 ? "this year's cut-down day" : camps === 1 ? "next year's cut-down day" : `the ${season + camps} cut-down day`);
+
+/**
+ * The coaches' suggestion, once a league year, while a plan can still start before cut-down day (the draft and
+ * camp): their best move for us, and the case for it. Nothing is sent to a team that has let the coaches decide.
+ * Starting it, turning it down or the end of camp answers it (`needsYou`).
+ */
+function positionOfferMail(league: League, have: Set<string>): Draft[] {
+  const { season, phase } = league;
+  const team = league.teams[league.userTeamId];
+  if (team.training?.coachesDecide || [...have].some((id) => id.startsWith(`position:${season}:offer:`))) return [];
+  const pick = suggestMove(league, team.id);
+  if (!pick) return [];
+  const { player: p, read, why } = pick;
+  const from = p.position;
+  const reason = `${reasonLine(why, read.to, read.coordinator)}. `;
+  const ahead = read.ahead ? `, ahead of ${fullName(read.ahead)}` : '';
+  const role = read.role === 'starter' ? `he would start at ${read.to}${ahead}` : `he would be depth at ${read.to}`;
+  return [
+    {
+      id: `position:${season}:offer:${p.id}:${read.to}`,
+      season,
+      phase,
+      week: 0,
+      ...headCoach(league),
+      category: 'staff',
+      subject: `Move ${fullName(p)} to ${posWord(read.to)}?`,
+      body:
+        `We'd like to teach ${fullName(p)}, our ${p.age}-year-old ${posWord(from)}, to play ${posWord(read.to)}. ${reason}` +
+        `We think it's worth it: ${role}, and that leaves ${read.left} at ${from}. ` +
+        // The estimate counts the spring program while the draft is on: started later, he learns at camp only.
+        `He should be ready by ${readyBy(season, read.camps)}${phase === 'draft' ? ' if we start before the draft closes' : ''}. ` +
+        `Until then he keeps playing ${from}. Say "Not now" below and we won't raise it again until ${season + 2}.`,
+      actions: [{ kind: 'player', playerId: p.id }, { kind: 'coaches' }],
+    },
+  ];
+}
+
+const MOVE_REASONS: MoveReason[] = ['hole', 'nextYear', 'scheme', 'upside', 'reps', 'age', 'upgrade'];
+
+/**
+ * The news line of a player's latest move and the reason it gave: his plan is gone once he has moved, but the
+ * transaction log kept why ("KC moved LB Sam Reed to S: they were short at S"). Null when it was another team's
+ * move: a player who came to us already moved.
+ */
+function moveNews(league: League, p: Player): { when: Pick<Draft, 'phase' | 'week'>; reason?: MoveReason } | null {
+  const move = p.moves!.at(-1)!;
+  const said = `moved ${move.from} ${p.firstName} ${p.lastName} to ${move.to}`;
+  const news = [...league.transactions].reverse().find((t) => t.kind === 'position' && t.season === move.season && p.teamId !== null && t.teamIds.includes(p.teamId) && t.text.includes(said));
+  if (!news) return null;
+  const why = news.text.split(said)[1]?.replace(/^: /, '');
+  return { when: { phase: news.phase, week: news.phase === 'regular' ? news.week : 0 }, reason: MOVE_REASONS.find((r) => reasonWords(r, move.to) === why) };
+}
+
+/**
+ * One note for each of our players who changed position this league year (cut-down day is the only day anyone
+ * does), the head coach's word that it is done: what changed, why, where he stands on the chart and the lock.
+ */
+function positionMovedMail(league: League, have: Set<string>): Draft[] {
+  const { season } = league;
+  const team = league.teams[league.userTeamId];
+  const out: Draft[] = [];
+  for (const p of teamPlayers(league, team.id)) {
+    const move = p.moves?.at(-1);
+    const id = `position:${season}:moved:${p.id}`;
+    if (!move || move.season !== season || p.retired || have.has(id)) continue;
+    const news = moveNews(league, p);
+    if (!news) continue;
+    const { when, reason } = news;
+    out.push({
+      id,
+      season,
+      ...when,
+      ...headCoach(league),
+      category: 'staff',
+      subject: `${fullName(p)} is now ${aPosition(move.to)}`,
+      body:
+        `${fullName(p)} moved from ${posWord(move.from)} to ${posWord(move.to)} on cut-down day. ${reason ? `${reasonLine(reason, move.to)}. ` : ''}` +
+        `${team.autoDepth ? '' : `He is placed by rating on your ${move.to} depth chart. `}` +
+        "He can't be traded until the new league year.",
+      actions: [{ kind: 'player', playerId: p.id }, { kind: 'team', teamId: team.id }],
+    });
+  }
+  return out;
+}
+
 const order = (m: Draft) => m.season * 1000 + PHASE_ORDER.indexOf(m.phase) * 100 + m.week;
 
 /**
@@ -1259,6 +1392,9 @@ export function deliverMail(league: League): void {
   // Free agency is over by the draft (or by camp, if a sim ran straight through it).
   if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...faWrapMail(league, have));
   if (league.phase === 'draft') fresh.push(...draftDayMail(league, have));
+  // The coaches' position suggestion while a plan can still start; the note once cut-down day has made the move.
+  if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...positionOfferMail(league, have));
+  if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...positionMovedMail(league, have));
   if ((league.phase === 'draft' && draftComplete(league)) || league.phase === 'preseason') fresh.push(...draftClassMail(league, have));
   if (league.phase === 'regular' || league.phase === 'playoffs') {
     fresh.push(...recapMail(league, have), ...clearedMail(league, have), ...raceMail(league, have), ...matchupMail(league, have), ...flexMail(league, have));
@@ -1318,7 +1454,7 @@ export function archiveRead(league: League): void {
  * Kinds whose messages from the same day fold into one: a stack of agents' letters as the league year opens, a
  * week's injuries, the all-clears, retirements, our players' honors.
  */
-const FOLDED = new Set<MailSubject['kind']>(['contract', 'retirement', 'injury', 'cleared', 'award']);
+const FOLDED = new Set<MailSubject['kind']>(['contract', 'retirement', 'injury', 'cleared', 'award', 'positionMoved']);
 
 /** A message, or the same day's messages of one kind folded together, newest first. */
 export interface MailThread {
@@ -1349,6 +1485,8 @@ export function threadLabel(t: MailThread): { from: string; subject: string } {
       return { from: 'Your players', subject: `${n} players retire` };
     case 'award':
       return { from: 'League office', subject: `${n} of our players honored` };
+    case 'positionMoved':
+      return { from: lead.from, subject: `${n} players change position` };
     default:
       return { from: lead.from, subject: `${lead.subject} and ${n - 1} more` };
   }
@@ -1356,7 +1494,7 @@ export function threadLabel(t: MailThread): { from: string; subject: string } {
 
 /** One person's line inside a folded thread: the subject without what the thread already says. */
 export function memberTitle(m: InboxMessage): string {
-  return m.subject.replace(/'s contract is up$/, '').replace(/ is cleared to play$/, '').replace(/ retires$/, '');
+  return m.subject.replace(/'s contract is up$/, '').replace(/ is cleared to play$/, '').replace(/ retires$/, '').replace(/ is now an? [a-z ]+$/, '');
 }
 
 /** Fold messages (newest first) into threads, each where its newest message is. */

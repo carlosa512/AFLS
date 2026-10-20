@@ -9,6 +9,12 @@ import type { Game, InboxMessage, League, Player } from './types';
 
 const full = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
 
+/** A player's traits as a v26 save kept them: Versatility only arrives with v31. */
+function v26Traits(p: Player): Player['traits'] {
+  const { versatility: _, ...traits } = generateTraits(p);
+  return traits as Player['traits'];
+}
+
 /** A v26 save as the old uniform pools named it: traits seeded by those names, no women, no flags. */
 function oldSave(seed: string): League {
   const l = createLeague({ seed });
@@ -19,7 +25,7 @@ function oldSave(seed: string): League {
   };
   for (const p of Object.values(l.players)) {
     name(p);
-    p.traits = generateTraits(p);
+    p.traits = v26Traits(p);
   }
   for (const x of [...Object.values(l.coaches), ...Object.values(l.staff), ...Object.values(l.medics)]) {
     name(x);
@@ -58,7 +64,7 @@ describe('the v27 names pass on an old save', () => {
   typed.lastName = 'Bee';
   twinB.firstName = twinA.firstName;
   twinB.lastName = twinA.lastName;
-  twinB.traits = generateTraits(twinB);
+  twinB.traits = v26Traits(twinB);
   const scout = Object.values(old.staff)[0];
   const before = {
     kept: full(kept),

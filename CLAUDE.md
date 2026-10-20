@@ -41,7 +41,8 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
   top five (yards, TDs, catches, sacks, picks) to NFL leaders and records (`scripts/leaders.ts`), and
   injury rates to the NFL's (`docs/INJURIES.md`). **Run this after any change to `src/engine/match/`
   or `injuries.ts` and keep stats inside the target ranges.** Leaders are noisy over 10 seasons:
-  check a change near an edge with `-- 30` or more.
+  check a change near an edge with `-- 30` or more. `npm run check` (and CI) runs 30: over 10, the
+  #1 and #5 passing rows sit close enough to their floors that main itself misses one block in four.
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
@@ -166,6 +167,12 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
     seasons (growth toward its scouts' ceiling, the aging curve's fade via `expectedAging`, its read of
     his injury risk, the GM's win-now). Trade rooms, the trade block, free agency (`upgradeBar`),
     re-signing and fifth-year options plan on it; lineups still use today's play
+  - `training.ts` position moves (`docs/TRAINING.md`): the pairs coaches teach and the knock for playing
+    out of position live in `familiarity.ts` (`knockFor`, read by the engine through `skill()`'s overlay,
+    `useKnocks`); plans and the learning clock (offseason program, camp, practice weeks), cut-down-day flips
+    (`changePosition`, the one writer of `player.position`), the coaches' read with its reason
+    (`conversionRead`: no move without a `MoveReason`), and the same planner for your suggestion and AI teams
+    (`suggestMove`, `planMoves`). A mover's body keeps aging as his first position (`DevContext.bodyAs`)
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)

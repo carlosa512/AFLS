@@ -209,6 +209,40 @@ export interface Player {
   condition?: number;
   /** On injured reserve: off the 53, and out at least `IR_MIN_WEEKS`. Weeks counts the weeks he has served. */
   ir?: { season: number; week: number; weeks: number };
+  /** A new position his coaches are teaching him (`training.ts`). He plays his old one until it's done. */
+  learning?: Learning;
+  /** Every position change, oldest first. The first `from` is the body's position: its physical aging stays his. */
+  moves?: PositionMove[];
+}
+
+/** A position-learning plan. Nothing here is ever shown for another team's player. */
+export interface Learning {
+  to: Position;
+  /** Learning-weeks banked (`training.ts`); ready when it reaches the move's weeks. */
+  done: number;
+  /** Hidden pace, 0.85–1.15, rolled once when the plan starts. */
+  pace: number;
+  /** League year it started. */
+  since: number;
+  /** The team teaching him: a trade or release ends the plan. */
+  teamId: number;
+  /** Why his team started it (`training.ts`), shown in the news when he moves. */
+  why?: MoveReason;
+  /** Reserved for mentoring (docs/TRAINING.md §8): the veteran helping him learn. Unused. */
+  mentor?: number;
+}
+
+/**
+ * Why a team teaches a player a new position. A move needs one: "he's a little better there" isn't a
+ * reason to spend a year teaching him (`training.ts`, `motivesFor`).
+ */
+export type MoveReason = 'hole' | 'nextYear' | 'scheme' | 'upside' | 'reps' | 'age' | 'upgrade';
+
+/** A position change, made on cut-down day of league year `season`. */
+export interface PositionMove {
+  season: number;
+  from: Position;
+  to: Position;
 }
 
 export type InjurySeverity = 'minor' | 'moderate' | 'severe' | 'career-threatening';
@@ -321,6 +355,8 @@ export interface Traits {
   injuryResistance: number;
   /** Natural fitness: how much condition a game takes, how fast it comes back, and how well he heals. */
   naturalFitness: number;
+  /** Versatility: how well he plays away from his own position, and how fast he learns a new one (`familiarity.ts`). */
+  versatility: number;
 }
 
 export type StaffRole = 'director' | 'collegeScout' | 'proScout';
@@ -484,6 +520,11 @@ export interface Team {
   autoInjuries?: boolean;
   /** Injured-reserve return designations used, by league year (`IR_RETURNS` per season). */
   irReturns?: Record<number, number>;
+  /**
+   * Position moves (`training.ts`). `coachesDecide`: the coaches start their own suggestion (the user's
+   * team only; AI teams always do). `passed`: suggestions turned down, player id → league year.
+   */
+  training?: { coachesDecide?: boolean; passed?: Record<number, number> };
   /**
    * Where the front office sees itself (`trade/plans.ts`) and the league year it got there: kept so
    * a team on the line doesn't flip between buying and selling from one week to the next.
@@ -690,7 +731,7 @@ export interface Transaction {
   phase: Phase;
   week: number;
   teamIds: number[];
-  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire' | 'staff' | 'coach' | 'injury' | 'medical';
+  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire' | 'staff' | 'coach' | 'injury' | 'medical' | 'position';
   text: string;
 }
 

@@ -130,8 +130,9 @@ the real-world ranges in the research doc.
 | Temperament | Linemen only: a hothead jumps early and grabs (false starts, offside, holding), a calm one rarely draws a flag |
 | Injury resistance | How often his body breaks; it fades past his physical prime, slower for a durable body (`docs/INJURIES.md`) |
 | Natural fitness | How much condition a game costs and how fast it comes back, how fast he heals, and how much a severe injury takes for good |
+| Versatility | How big a knock he takes lined up out of position, and a little of how fast he learns a new one (`docs/TRAINING.md` §4.8) |
 
-Other traits from the research (consistency, big-game play, adaptability, versatility) wait for the
+Other traits from the research (consistency, big-game play, adaptability) wait for the
 systems they would drive, such as per-game form and schemes. "No engine hook, no trait" applies to
 them too.
 
@@ -394,9 +395,11 @@ average in the box score. Spec and later phases: `docs/OFFICIALS.md`.
   sixteen seasons and feeds the QB's pocket presence and decision making far more than any defender's
   contest. Review how each attribute ages and what it feeds, now that penalties, special teams and
   schemes read them too. Numbers: `docs/PENALTIES.md`, "Checks when Phase 3a landed".
-- NFL-calendar practice: CBA padded-practice budgets, Full/Limited/DNP, veteran rest days (the
-  weekly practice injury roll is the hook).
-- Mentoring in position rooms; morale (playing time, contract, results) and holdouts.
+- Training, practice and position moves (plan: `docs/TRAINING.md`): an offseason program and
+  training camp as calendar steps, development released week by week, coaches teaching a player a
+  new position over time (no instant switch), an optional weekly practice plan on the CBA's padded
+  budget, then mentoring.
+- Morale (playing time, contract, results) and holdouts.
 - Per-game form (consistency, big games); training camp injuries and the PUP list.
 - Compensatory picks, RFA/ERFA tenders, LTBE/NLTBE incentives, conditional picks.
 - Trade-down offers during the draft (offers to you landed with the trade market's Phase 2).

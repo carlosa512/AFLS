@@ -15,6 +15,7 @@ import { repsSoFar } from './development';
 import { ATTRIBUTE_PROFILES, overall, OVR_WEIGHTS, POSITION_NAMES, STARTERS } from './positions';
 import { activeQuirks, formingQuirks, QUIRKS, type QuirkId, type QuirkTone } from './quirks';
 import { clamp, Rng } from './rng';
+import { slotOf } from './roster';
 import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
 import { TEMPER_POSITIONS, TRAIT_MEAN } from './traits';
 import type { Attribute, Combine, League, Player, Position, Ratings, Traits } from './types';
@@ -282,6 +283,8 @@ export function characterRead(league: League, teamId: number, p: Player): Charac
     temperament,
     injuryResistance: guess(p.traits.injuryResistance, sdBody, projector),
     naturalFitness: guess(p.traits.naturalFitness, sdEval, evaluator),
+    // Seen in practice and on film when he lines up somewhere new: the evaluator's call.
+    versatility: guess(p.traits.versatility, sdEval, evaluator),
     sd: Math.max(sdProj, sdEval),
     exact: false,
   };
@@ -297,6 +300,8 @@ export function projectedCeiling(ovr: number, ceiling: number, workEthic?: numbe
 }
 
 export interface CharacterNote {
+  /** What it reads: his makeup (most notes), or how he travels between positions (a football trait, not character). */
+  about?: 'versatility';
   label: string;
   tone: 'good' | 'warn';
   /** What it means for him, as a sentence. */
@@ -335,6 +340,8 @@ export function characterNotes(league: League, teamId: number, p: Player): Chara
     if (read.temperament <= 7) notes.push(note('Hothead', 'warn', 'has a short fuse, so his line draws more flags'));
     else if (read.temperament >= 14.5) notes.push(note('Even-keeled', 'good', 'even-keeled, so he rarely draws a flag'));
   }
+  if (read.versatility >= 15) notes.push({ ...note('Plays anywhere', 'good', 'versatile enough to cover another position in a pinch, and quick to learn a new one'), about: 'versatility' });
+  else if (read.versatility <= 6) notes.push({ ...note('One-position player', 'warn', 'struggles away from his own position and is slow to learn a new one'), about: 'versatility' });
   return { known: true, hedged: !read.exact && read.sd > 1.2, notes };
 }
 
@@ -546,8 +553,10 @@ function bodyWords(pos: Position): { legs: string; skills: string; plural: boole
 export function needsReps(league: League, teamId: number, p: Player, season: number): boolean {
   if (p.teamId !== teamId || p.age > 25) return false;
   // Already in the starting lineup: the reps are coming.
-  const slot = league.teams[teamId].depthChart[p.position].indexOf(p.id);
-  if (slot >= 0 && slot < STARTERS[p.position]) return false;
+  // (Wherever he's lined up: a youngster starting out of position is getting his snaps.)
+  const at = slotOf(league, p);
+  const slot = league.teams[teamId].depthChart[at].indexOf(p.id);
+  if (slot >= 0 && slot < STARTERS[at]) return false;
   // A rookie looking back at last season was still in college.
   if (season < league.season && p.experience === 0) return false;
   const share = repsSoFar(league, p, season);
@@ -579,7 +588,8 @@ function reference(league: League): Reference {
   const [curves, starterCurves, backups] = [empty(), empty(), empty()];
   const starterAvg = {} as Record<Position, Ratings>;
   for (const pos of POSITIONS) {
-    const starters = league.teams.flatMap((t) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]).filter(Boolean));
+    // The position's own starters: a man lined up there out of position doesn't set its bar.
+    const starters = league.teams.flatMap((t) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]).filter((x) => x && x.position === pos));
     starterAvg[pos] = Object.fromEntries(ATTRIBUTES.map((a) => [a, starters.reduce((s, p) => s + p.ratings[a], 0) / Math.max(1, starters.length)])) as Ratings;
     for (const p of starters) starterCurves[pos].push(overall(p.ratings, pos));
   }
@@ -636,7 +646,7 @@ export function starRating(league: League, teamId: number, p: Player, view: Play
   const pos = p.position;
   if (scale === 'roster') {
     const team = league.teams[teamId];
-    const mine = team.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]).filter(Boolean);
+    const mine = team.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]).filter((x) => x && x.position === pos);
     const avg = mine.length ? mine.reduce((s, x) => s + overall(x.ratings, pos), 0) / mine.length : 10;
     const rel = (v: number) => toStars(3 + 0.5 * (v - avg));
     return { ability: rel(view.ovr), potLo: rel(view.potLo), potHi: rel(view.potHi), basis: `vs your starting ${pos}${STARTERS[pos] > 1 ? 's' : ''}` };
@@ -799,9 +809,12 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
     const parts = [gained.length ? `has ${list(gained)}` : '', lost.length ? `${exact ? 'has' : 'seems to have'} ${list(lost)}` : ''].filter(Boolean);
     notes.push(`Lately he ${parts.join(', and ')}.`);
   } else if (!settled.length && forming) notes.push(`Starting to show: he ${QUIRKS[forming.id].clause}.`);
-  // Makeup, once the staff has seen enough of him, unless his habits already fill the report.
+  // Makeup, once the staff has seen enough of him, unless his habits already fill the report. Versatility is
+  // a football trait: it is said with what he is (the verdict), not with his makeup.
   const makeup = characterNotes(league, teamId, p);
-  if (makeup.notes.length && notes.length < 2) notes.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${makeup.notes.map((n) => n.clause).join('; ')}.`);
+  const character = makeup.notes.filter((n) => !n.about);
+  const versatile = makeup.notes.find((n) => n.about === 'versatility');
+  if (character.length && notes.length < 2) notes.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${character.map((n) => n.clause).join('; ')}.`);
 
   // How far to trust the grades, when that is in question: film, visits and who's doing the reading.
   if (view.exact) {
@@ -816,7 +829,8 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
     const top = Math.max(greed, loyalty, winning);
     if (top > 0.8) notes.push(top === greed ? 'His agent drives a hard bargain.' : top === loyalty ? 'Values loyalty: open to a hometown discount.' : 'Wants to play for a contender.');
   }
-  return { verdict, game, notes };
+  const said = versatile ? `${verdict.slice(0, -1)}, ${versatile.tone === 'good' ? 'who can play anywhere' : 'at his best at his own position'}.` : verdict;
+  return { verdict: said, game, notes };
 }
 
 /** The report as a list of sentences, verdict first. */
