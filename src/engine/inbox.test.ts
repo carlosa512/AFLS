@@ -20,6 +20,7 @@ import {
   markAllRead,
   memberTitle,
   needsYou,
+  offerMailId,
   reasonLine,
   statBlurb,
   threadLabel,
@@ -30,10 +31,12 @@ import { isMedicExpiring, teamMedics } from './medical';
 import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { expiringPlayers } from './offseason/ai';
-import { teamPlayers } from './roster';
+import { activeRoster, teamPlayers } from './roster';
 import { computeRecords, conferenceSeeds } from './season/standings';
 import { isExpiring, teamStaff } from './staff';
-import { TRADE_DEADLINE_WEEK } from './trade';
+import { playerOvr } from './positions';
+import { answerEnquiry, counterOffer, openOffers, TRADE_DEADLINE_WEEK } from './trade';
+import type { TradeProposal } from './trade/rules';
 import { changePosition, passMove, setCoachesDecide, startMove, suggestMove } from './training';
 import type { GameResult, League, MoveReason, Position, TeamGameStats } from './types';
 
@@ -800,5 +803,68 @@ describe('the story of a game', () => {
     expect(statBlurb(p('CB'), { defInt: 2, tackles: 5, forcedFum: 1 })).toBe('2 interceptions and 1 forced fumble');
     expect(statBlurb(p('K'), { fgAtt: 4, fgMade: 4 })).toBe('4 of 4 field goals');
     expect(statBlurb(p('OL'), { penalties: 1 })).toBe('');
+  });
+});
+
+describe('a trade conversation in the inbox', () => {
+  /** An enquiry, the bid it drew and a counter to that bid, found by trying seeds until one goes all the way. */
+  function chain() {
+    for (let i = 0; i < 6; i++) {
+      const l = createLeague({ seed: `trades-${i}` });
+      let enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+      for (let w = 0; w < 9 && !enquiry; w++) {
+        playWeek(l);
+        enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+      }
+      if (!enquiry) continue;
+      deliverMail(l);
+      const { offer: bid } = answerEnquiry(l, enquiry.id, 'offer');
+      if (!bid) continue;
+      deliverMail(l);
+      // A counter he is to throw in every pick he owns for: legal, never worth it to him.
+      const filler = activeRoster(l, l.userTeamId)
+        .filter((p) => !bid.sides[1].players.includes(p.id))
+        .sort((a, b) => playerOvr(a) - playerOvr(b))
+        .slice(0, bid.sides[0].players.length)
+        .map((p) => p.id);
+      const greedy: TradeProposal = {
+        sides: [
+          { ...bid.sides[1], players: [...bid.sides[1].players, ...filler] },
+          { ...bid.sides[0], picks: l.draftPicks.filter((p) => p.ownerId === bid.teamId).map((p) => p.id) },
+        ],
+      };
+      const r = counterOffer(l, bid.id, greedy);
+      if (r.result !== 'countered') continue;
+      deliverMail(l);
+      return { l, enquiry, bid, counter: r.offer! };
+    }
+    throw new Error('no seed gave an enquiry, a bid and a counter');
+  }
+
+  it('folds an enquiry, its bid and the counter into one thread', () => {
+    const { l, enquiry, bid, counter } = chain();
+    const offerMessages = l.inbox!.filter((m) => m.id.startsWith('offer:'));
+    expect(offerMessages.length).toBeGreaterThanOrEqual(3);
+    for (const o of [enquiry, bid, counter]) {
+      const m = l.inbox!.find((x) => x.id === `offer:${o.season}:${o.id}:${enquiry.id}`);
+      expect(m, `mail for offer ${o.id}`).toBeDefined();
+    }
+    // Other teams' offers on the desk keep their own threads.
+    const found = threads(l.inbox!).filter((t) => t.messages.some((m) => m.id === offerMailId(l, enquiry)));
+    expect(found).toHaveLength(1);
+    const [thread] = found;
+    expect(thread.messages).toHaveLength(3);
+    expect(thread.messages.map((m) => m.id).sort()).toEqual(
+      [enquiry, bid, counter].map((o) => offerMailId(l, o)).sort(),
+    );
+    expect(thread.kind).toBe('offer');
+    expect(thread.messages.every((m) => mailSubject(m)?.kind === 'offer')).toBe(true);
+    expect(threadLabel(thread).subject).toBe(`${thread.messages[0].subject} (${thread.messages.length} messages)`);
+  });
+
+  it('reads the root off an offer mail id, and an old id without one is its own root', () => {
+    const msg = (id: string) => ({ id, actions: [] }) as unknown as Parameters<typeof mailSubject>[0];
+    expect(mailSubject(msg('offer:2026:7'))).toEqual({ kind: 'offer', season: 2026, offerId: 7, root: 7 });
+    expect(mailSubject(msg('offer:2026:9:7'))).toEqual({ kind: 'offer', season: 2026, offerId: 9, root: 7 });
   });
 });

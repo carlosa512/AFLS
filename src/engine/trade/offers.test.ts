@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../generate';
 import { playWeek } from '../league';
-import { deliverMail, needsYou } from '../inbox';
+import { deliverMail, needsYou, offerMailId } from '../inbox';
 import { migrateLeague } from '../migrate';
 import { rosterLimit } from '../offseason/negotiation';
 import { playerOvr } from '../positions';
@@ -313,7 +313,7 @@ describe('offers to you', () => {
     const l = fresh();
     deliverMail(l);
     const offer = packaged(l)[0];
-    const mail = l.inbox!.find((m) => m.id === `offer:${offer.season}:${offer.id}`)!;
+    const mail = l.inbox!.find((m) => m.id === offerMailId(l, offer))!;
     expect(mail).toBeDefined();
     expect(needsYou(l, mail)).toBe(true);
     expect(mail.body).not.toMatch(/\d+\.\d/);

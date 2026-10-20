@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { offerMailId } from '../engine/inbox';
 import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
@@ -39,6 +40,8 @@ describe('the offer card', () => {
     expect(card(league, enquiry)).toMatch(/see their offer/i);
     // The reply itself is open, so it has no link back.
     expect(card(league, bid)).not.toMatch(/see their offer/i);
+    // The button opens the bid's message, filed in the enquiry's thread.
+    expect(offerMailId(league, bid)).toBe(`offer:${bid.season}:${bid.id}:${enquiry.id}`);
   });
 
   it('words a closed offer from an old save that never kept an outcome', () => {

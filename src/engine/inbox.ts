@@ -470,7 +470,7 @@ export type MailSubject =
   | { kind: 'draftDay'; season: number }
   | { kind: 'draftClass'; season: number }
   | { kind: 'trade'; season: number; text: string }
-  | { kind: 'offer'; season: number; offerId: number }
+  | { kind: 'offer'; season: number; offerId: number; root: number }
   | { kind: 'recap'; season: number; gameId: number }
   | { kind: 'cleared'; season: number; week: number; playerId: number; type: string }
   | { kind: 'deadline'; season: number; weeksLeft: number | 'day' }
@@ -527,7 +527,7 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
     case 'trades':
       return { kind: 'trade', season, text: rest.join(':') };
     case 'offer':
-      return { kind: 'offer', season, offerId: Number(a) };
+      return { kind: 'offer', season, offerId: Number(a), root: b === undefined ? Number(a) : Number(b) };
     case 'recap':
       return { kind: 'recap', season, gameId: Number(a) };
     case 'cleared':
@@ -802,12 +802,34 @@ export function offerWords(league: League, offer: TradeOffer): { subject: string
   }
 }
 
+/** The offer that opened a conversation: walk `replyTo` back (pruned offers end the walk early). */
+function offerRoot(league: League, offer: TradeOffer): number {
+  const offers = league.market?.offers ?? [];
+  const seen = new Set<number>([offer.id]);
+  let root = offer;
+  while (root.replyTo !== undefined && !seen.has(root.replyTo)) {
+    const prev = offers.find((o) => o.id === root.replyTo);
+    if (!prev) return root.replyTo;
+    seen.add(prev.id);
+    root = prev;
+  }
+  return root.id;
+}
+
+/** An offer's mail id: its last segment is the conversation's root, so replies fold into one thread. */
+export function offerMailId(league: League, offer: TradeOffer): string {
+  return `offer:${offer.season}:${offer.id}:${offerRoot(league, offer)}`;
+}
+
 /** Every offer on your desk files a message: it asks something of you while the offer is open. */
 function offerMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
+  // Filed under the offer's own prefix, so pruning an ancestor (which moves the root) never files it twice.
+  const filed = new Set<string>();
+  for (const id of have) if (id.startsWith('offer:')) filed.add(id.split(':').slice(0, 3).join(':'));
   for (const offer of league.market?.offers ?? []) {
-    const id = `offer:${offer.season}:${offer.id}`;
-    if (have.has(id) || offer.status !== 'pending') continue;
+    const id = offerMailId(league, offer);
+    if (filed.has(`offer:${offer.season}:${offer.id}`) || offer.status !== 'pending') continue;
     const team = league.teams[offer.teamId];
     const { subject, body } = offerWords(league, offer);
     const about = [...offer.sides[1].players, ...offer.sides[0].players][0];
@@ -1886,7 +1908,9 @@ export interface MailThread {
 
 /** What a message folds under: its kind and day, or (for kinds that don't fold) itself. */
 export function threadKey(m: InboxMessage): string {
-  const kind = mailSubject(m)?.kind;
+  const subject = mailSubject(m);
+  if (subject?.kind === 'offer') return `offer:${subject.season}:${subject.root}`;
+  const kind = subject?.kind;
   return kind && FOLDED.has(kind) ? `${kind}:${m.season}:${m.phase}:${m.week}` : m.id;
 }
 
@@ -1908,6 +1932,8 @@ export function threadLabel(t: MailThread): { from: string; subject: string } {
       return { from: 'League office', subject: `${n} of our players honored` };
     case 'positionMoved':
       return { from: lead.from, subject: `${n} players change position` };
+    case 'offer':
+      return { from: lead.from, subject: `${lead.subject} (${n} messages)` };
     default:
       return { from: lead.from, subject: `${lead.subject} and ${n - 1} more` };
   }
