@@ -53,7 +53,9 @@ export function beginOffseason(league: League): void {
   const carry = league.teams.map((t) => Math.max(0, capSheet(league, t.id).space));
 
   league.season++;
-  league.caps[league.season] = nextCap(rng, league.caps[last]);
+  // The cap's path is drawn on its own stream: on the shared one, any change in what a season draws
+  // reshuffled every later cap (a revenue shock landing or not), and the offseason audit's numbers with it.
+  league.caps[league.season] = nextCap(new Rng(`${league.seed}:cap:${league.season}`), league.caps[last]);
   for (const team of league.teams) {
     team.carryover = carry[team.id];
     team.postJune1Used = 0;
