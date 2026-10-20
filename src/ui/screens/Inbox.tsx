@@ -116,11 +116,16 @@ function sender(from: string): { name: string; role: string; initials: string } 
 }
 
 /** Who a message is about: its players, the staff member who signs it, the coach it reports gone. Their names link first. */
-function aboutOf(m: InboxMessage): Who[] {
+export function aboutOf(league: League, m: InboxMessage): Who[] {
   const out: Who[] = m.actions.flatMap((a): Who[] => (a.kind === 'player' ? [{ kind: 'player', id: a.playerId }] : []));
   if (m.fromCard) out.push(m.fromCard);
   const s = mailSubject(m);
   if (s?.kind === 'poached') out.push({ kind: 'coach', id: s.coachId });
+  // Every player in the deal, both sides, while the offer is still on file (a pruned one has no sides to read).
+  if (s?.kind === 'offer') {
+    const offer = league.market?.offers.find((o) => o.id === s.offerId);
+    for (const side of offer?.sides ?? []) for (const id of side.players) out.push({ kind: 'player', id });
+  }
   return out;
 }
 
@@ -455,7 +460,7 @@ function MessageBody({
   return (
     <>
       <p className="inbox-body">
-        <LinkedText league={league} text={m.body} about={aboutOf(m)} index={index} />
+        <LinkedText league={league} text={m.body} about={aboutOf(league, m)} index={index} />
       </p>
       <MailCards league={league} message={m} />
       {actions.length > 0 && (
@@ -619,14 +624,16 @@ function MessageHead({
           ) : (
             // An agent writes for his client, a retiring player for himself: either name opens the player.
             <b>
-              <LinkedText league={league} text={who.name} about={aboutOf(m)} index={index} />
+              <LinkedText league={league} text={who.name} about={aboutOf(league, m)} index={index} />
             </b>
           )}
           <span className="muted">
             {who.role && ` · ${who.role}`} · {dateLabel(m)}
           </span>
         </div>
-        <h3>{folded ? subject : <LinkedText league={league} text={subject} about={aboutOf(m)} index={index} />}</h3>
+        <h3>
+          {folded ? subject : <LinkedText league={league} text={subject} about={aboutOf(league, m)} index={index} />}
+        </h3>
       </div>
       <span className="inbox-tags">
         <span className={`mail-tag cat-${m.category}`}>{tagOf(m)}</span>

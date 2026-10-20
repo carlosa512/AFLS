@@ -157,7 +157,14 @@ export function MailCards({ league, message }: { league: League; message: InboxM
     case 'offer': {
       // The offer itself, live: its answers work from the inbox as on the Offers tab.
       const offer = league.market?.offers.find((o) => o.id === s.offerId);
-      return offer ? <OfferCard league={league} offer={offer} compact /> : null;
+      // A pruned offer still reads: the message stands, the live card is gone.
+      return offer ? (
+        <OfferCard league={league} offer={offer} compact />
+      ) : (
+        <Card>
+          <span className="muted small">This offer is closed and no longer on file.</span>
+        </Card>
+      );
     }
     case 'recap':
       return <RecapCards league={league} s={s} />;

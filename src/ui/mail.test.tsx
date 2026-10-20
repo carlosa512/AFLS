@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { deliverMail, offerMailId, threads } from '../engine/inbox';
+import { deliverMail, mailForOffer, offerMailId, threads } from '../engine/inbox';
 import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
 import type { League, TradeOffer } from '../engine/types';
 import { OfferCard } from './offers';
 import { nameIndex } from './moves';
-import { Folded } from './screens/Inbox';
+import { aboutOf, Folded } from './screens/Inbox';
+import { MailCards } from './mail';
 
 const SEEDS = ['trades-0', 'trades-1', 'trades-2', 'trades-3', 'trades-4', 'trades-5'];
 
@@ -76,5 +77,42 @@ describe('the offer card', () => {
     expect(html).not.toMatch(/age \d/);
     expect(html).not.toContain('class="pos"');
     expect(html).not.toMatch(/letters in one/);
+  });
+});
+
+/** A league with a filed offer message, found by playing on; `want` picks the offer. */
+function withFiledOffer(want: (o: TradeOffer) => boolean, seed = SEEDS[0]): { league: League; offer: TradeOffer } {
+  const league = createLeague({ seed });
+  for (let w = 0; w < 9; w++) {
+    deliverMail(league);
+    const offer = openOffers(league).find((o) => want(o) && mailForOffer(league, o));
+    if (offer) return { league, offer };
+    playWeek(league);
+  }
+  return withFiledOffer(want, SEEDS[SEEDS.indexOf(seed) + 1]);
+}
+
+describe('offer mail', () => {
+  it('still reads after the offer is pruned from the market', () => {
+    const { league, offer } = withFiledOffer(() => true);
+    const message = mailForOffer(league, offer)!;
+    league.market!.offers = league.market!.offers.filter((o) => o.id !== offer.id);
+    let html = '';
+    expect(() => {
+      html = renderToStaticMarkup(<MailCards league={league} message={message} />);
+    }).not.toThrow();
+    expect(html).toMatch(/no longer on file/i);
+  });
+
+  it('links every player on both sides of the offer', () => {
+    const { league, offer } = withFiledOffer((o) => o.sides[0].players.length > 0 && o.sides[1].players.length > 0);
+    const message = mailForOffer(league, offer)!;
+    const about = aboutOf(league, message);
+    for (const id of [...offer.sides[0].players, ...offer.sides[1].players]) {
+      expect(about, `player ${id}`).toContainEqual({ kind: 'player', id });
+    }
+    // Once the offer is gone there is nothing to read the players from, and it still answers.
+    league.market!.offers = league.market!.offers.filter((o) => o.id !== offer.id);
+    expect(() => aboutOf(league, message)).not.toThrow();
   });
 });
