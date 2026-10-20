@@ -1,9 +1,9 @@
 # AFLS
 
-A deep American football management simulation: run a franchise in a fictional 32-team league,
-build the roster and the staff, and watch every snap play out from real player-vs-player matchups.
+A deep American football management simulation: run a franchise in a fictional 32-team league, complete with divisions/conferences, weather, authentic kickoff times, and more.
+Build the roster and the coaching staff along with back office staff, and watch every snap play out from real player-vs-player matchups.
 Everything your front office knows is what its scouts have seen, so the game lives in the gap
-between what you believe and what is true.
+between what you believe and what is true. Think you know ball?
 
 ![A week in the front office: the home screen, then the roster and depth chart](docs/media/demo.gif)
 
