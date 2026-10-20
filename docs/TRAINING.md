@@ -3,8 +3,11 @@
 > **Status.** Position moves are built (phase 2 below, with AI moves from phase 6): the pairs and
 > learning clock, cut-down-day flips, the coaches' read with a **reason** for every move (§4.7), AI
 > front offices on the same planner, playing a player out of position in a pinch with the hidden
-> **Versatility** trait (§4.8), the player card, Coaches and Roster screens and two kinds of mail. The
-> calendar split, weekly development, practice, focus and mentoring are still plan only.
+> **Versatility** trait (§4.8), the player card, Coaches and Roster screens (where the grip also drags a
+> player into another position group) and two kinds of mail. Weekly development is built (phase 3, §3):
+> the year is rolled once and released in steps through March, the program, camp and the season's weeks,
+> with `npm run training` (§12 B, E, J) guarding it. The calendar split, practice, focus and mentoring
+> are still plan only.
 >
 > This is the spec for an FM-style training layer: an
 > offseason program and training camp as calendar steps, player development that moves week by
@@ -192,15 +195,22 @@ yearly step but would make about 15% of ratings jitter ±1 every week.
 5. **True-up.** At the next new league year any unreleased remainder lands, then the next year is
    rolled.
 
-**Starting split (T):** half at the new league year, a tenth across program and camp, the rest
-over the season. **100/0/0 reproduces today's game byte for byte**, so the PR ships at 100/0/0
-(golden hash green), then moves the split in measured steps. If the starter-overall path rises
-(young players now improve during the season instead of after it), `GROWTH_NORM` (1.1,
-`development.ts:58`) is retuned in the same PR; a band is never loosened.
+**The split (built):** `RELEASE` in `development.ts`: half at the new league year, a twentieth each
+over the program (as the draft closes) and camp (cut-down day), the rest across the 18 weeks. At
+1/0/0/0 the code path is the old one-jump `developPlayer`, nothing is stored and the league is
+identical; the PR shipped there first (green), then moved the dial. A week he played releases a full
+week's share; a week he sat (benched, hurt, unsigned) releases the bench's reps against a starter's
+(about half by 24), so playing time moves *when* his year lands, never how much: what a benched
+player doesn't release in season lands at the true-up. His team's bye counts as a week played.
+`GROWTH_NORM` stays 1.1: the yearly totals are unchanged by construction, and `careers` held.
 
-**State.** Nearly none: the year's targets can be recomputed from the seed at any time. Per
-player, only the integer amounts already applied this year (sparse; scars from injuries subtract
-on top, as today). Deleted at the true-up.
+**State.** `Player.dev` (save v32): the roll's inputs (the league year and his age at the roll, last
+season's playing share, his coaches' growth and decline effects, his body's position), the share
+released so far, and the integer amounts applied to each rating this year. The targets are never
+stored: they come back from the seed and those inputs, on the ratings he had at the roll (today's less
+what was applied), so a scar from an injury subtracts on top, as before. Deleted at the true-up: the
+next new league year, or a position change (`changePosition` trues up before the label changes, so
+the new label starts clean next year). Retirement deletes it too.
 
 **What it touches.** Mid-season ratings now change, so the trade-value and scouting caches must
 key on the week (they already do); `ratingHistory` stays the league-year snapshot
@@ -464,7 +474,7 @@ Hooks that land with the earlier phases, so mentoring is a small change later:
 | Coaches tab, "Position work" panel | Learners and the one suggestion; the single setting **"Coaches may start position moves on their own"**, off by default (you keep the big calls; *Sim offseason* never moves anyone otherwise). | 2 |
 | Roster | Pills "Learning LB" (own players) and "Out of position (RB)"; "Play at…" on each of your rows lines him up elsewhere (it hand-sorts the chart, as a drag does) with the knock in words per choice. | 2 |
 | Mail (2 kinds) | **Suggestion** (Needs you; at most one a year; lapses quietly when you advance; "Not now" is remembered two seasons) and **"Howard is now a linebacker"** (folded, with "placed by rating on your depth chart"). Category `staff`, tag "Training". | 2 |
-| PlayerCard, "This season" line | Weekly arrows ("+1 coverage since camp") and the development chart, own players only. | 3 |
+| PlayerCard, attribute list | A green or red arrow for this season's direction on each rating that has moved since the league year opened (next to the yearly change), own players only; no number, no words. | 3 |
 | PlayerCard, focus row | "Focus: Coaches choose / Tackling / …", styled like the returner picker. | 4 |
 | Front office, Training tab | Only when the practice plan ships: this week's setting, the padded meter, position work, focus list. | 5 |
 
@@ -485,7 +495,9 @@ Player.learning?: {                          // §4: at most 2 per team
   mentor?: number;                           // reserved for §8
 };
 Player.moves?: { season: number; from: Position; to: Position }[];  // newest last, keep 4
-Player.devApplied?: Partial<Record<Attribute, number>>;            // §3: this year's released ints
+Player.dev?: { season: number; age: number; share: number; rate?: number;   // §3 (built, v32): the roll's inputs,
+              decline?: Partial<Record<AgingFamily, number>>; bodyAs?: Position;   // the share released so far and
+              done: number; applied: number[] };                                // the ints applied, ATTRIBUTES order
 Player.focus?: { attr: Attribute; weeks: number };                 // §6
 Team.training?: { coachesDecide?: boolean; passed?: Record<number, number>;
                   week?: 'light' | 'normal' | 'hard'; saved?: number };  // §4, §5
@@ -536,7 +548,7 @@ careers and more); treat each as `--all`. A range is never loosened.
 |---|---|---|---|
 | 1 | **Calendar.** `calendar.ts` with the CBA table and registry, `League.stage`, the preseason split with the old body as cut-down day, `calendarKey`, step-aware blockers and roster limit, the guard in two places, `calendarLabel` and button strings, "Run camp for me…", migration | **identical** (golden hash vs main) | `check --all` logs equal main's; `offseason.test.ts` updated on purpose; determinism tests untouched; `training` §A |
 | 2 | **Position moves for your team.** `training.ts` (pairs, clock, read, start/stop, tick, `changePosition`), `suggestMove`, body clock in `DevContext`, locks, tag rule, text-lookup fix, PlayerCard and Coaches panels, Roster pill, 2 mail kinds | identical unless you start a plan | `careers` unchanged to the digit; `training` §B-D, I, J; manual run at phone width |
-| 3 | **Weekly development.** Roll once, release in shares, weekly reps inputs, true-up, PlayerCard "this season" | identical at 100/0/0, then changes on purpose | golden at 100/0/0; then `careers`, `sim -- 30`, `offseason -- 6`, `trades` at the chosen split; retune `GROWTH_NORM` in the same PR if needed |
+| 3 | **Weekly development** (built). Roll once, release in shares, weekly reps inputs, true-up, this season's arrows on the player card | identical at 1/0/0/0, then changes on purpose | golden at 1/0/0/0 (`release.test.ts`, `training` E); then `careers`, `sim -- 30`, `offseason -- 6`, `trades` at the chosen split; `GROWTH_NORM` unchanged |
 | 4 | **Focus.** Zero-sum pin, `workEthicOf` accessor | only pinned players | `careers` Part 1 identical; focus cohort overall at 26 within ±0.05; `audit` |
 | 5 | **Practice plan** (+ camp injuries, optional). Weekly setting, padded bank, load rule, Training tab | AI identical; user changes | `sim` bands for AI-only leagues unchanged; `training` §G extremes |
 | 6 | **AI position moves.** Same planner, dial, twin leagues | changes on purpose | `training -- --twins 12`: starter overall within ±0.005, holes / below keep-min / bad depth all 0; `offseason -- 6`; `careers` |
@@ -551,19 +563,23 @@ squad (the real home of bench youngsters' reps).
 "N number(s) outside target range" summary):
 - **A Calendar:** CBA legality; stepping block by block equals running at once; golden hash vs main;
   `rngState` untouched by early steps.
-- **B Invariants:** position written only on cut-down day; no flip in season; slots, cooldown and
-  locks hold; quirks valid for the new position; the ceiling never rises at a flip; ratings unchanged
-  by learning calls for 26+.
+- **B Invariants** (built): position written only on cut-down day; no flip in season; slots and the
+  cooldown hold; quirks valid for the new position; the ceiling never rises at a flip; ratings unchanged
+  by learning calls.
 - **C Pair table:** readiness by pair and age against the table in §4.2; convert-minus-stay at +1,
   +3, +5 years; every 2-hop path refused.
 - **D Economics probe:** pay, tag and a trade-value proxy before and after; flip profit at most 10%
   of trade value for every pair (this decides the "next pairs").
-- **E Weekly development:** 100/0/0 bit-identical; at the chosen split, `careers`-style cohorts in band.
+- **E Weekly development** (built): the dial sums to 1; a year released in steps lands exactly where one
+  jump would, for every player whose label, ceiling and injury file were left alone that year; ratings on
+  the integer scale every week; the share of young rostered players whose ratings moved in season (0 at
+  1/0/0/0, 0.3 or more at the split; a scar doesn't count).
 - **F Focus cohort.**
 - **G Practice extremes:** all-Light worse than Normal; Hard bounded by the bank; camp band.
 - **H Twin leagues** (AI moves on vs off).
 - **I Fog:** static scan of `src/ui`.
-- **J Size and speed:** under 25 KB added; the weekly tick under 2 ms league-wide.
+- **J Size and speed** (built): the weekly tick under 25 ms league-wide (it rebuilds each landing year's
+  targets from the seed); the years still landing under 400 KB in a mid-season save.
 - **K Mentoring guard:** work ethic unchanged for every player until phase 7.
 
 ## 13. Open questions for the owner
@@ -581,8 +597,10 @@ squad (the real home of bench youngsters' reps).
 
 **Still open:**
 
-1. **Weekly release split:** start at half at the new league year, a tenth in program and camp, the
-   rest in season? (100/0/0 = today.)
+1. ~~**Weekly release split**~~ **Decided:** half at the new league year, a twentieth each in the program
+   and camp, the rest in season; playing time decides when a week's share lands, not how much. Stat
+   lines stay out of development (they come from the ratings). A heavy-snap season adding a little, a
+   lost season taking a little, is a later tuning step inside the `careers` bands.
 2. **Pairs:** six to start; add LB→EDGE, TE→OL, RB→WR later behind the economics probe?
 3. **One flip window,** cut-down day: a vet ready in week 12 becomes a safety next camp. OK?
 4. **AI moves volume:** about six a year now; the twin-league test decides whether that stays.
