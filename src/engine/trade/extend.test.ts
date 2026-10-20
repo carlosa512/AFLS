@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { capFor, capSpace } from '../finance/cap';
-import { yearsLeft } from '../finance/contract';
+import { isExpired, yearsLeft } from '../finance/contract';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { beginOffseason } from '../offseason';
 import { applyFranchiseTag } from '../offseason/ai';
 import { willExtend } from '../offseason/negotiation';
+import { teamOutlook } from '../outlook';
 import { playerOvr, STARTERS } from '../positions';
-import { activeRoster } from '../roster';
+import { activeRoster, teamPlayers } from '../roster';
 import type { League, Player, Team } from '../types';
 import { executeTrade, judge, marketValue, tradeBlock, tradeContext } from '.';
 import { tradeDeadMoney, type TradeProposal } from './rules';
@@ -21,11 +22,16 @@ const base = (() => {
 })();
 const fresh = (): League => JSON.parse(base);
 
-/** A starter with a year left, and a team with room he'd start for and would sign with. */
+/**
+ * A starter with a year left, and a team with room he'd start for and would sign with. "Start" on the
+ * buyer's outlooks, as the extension itself reads them (`aiExtendArrival`): today's overall would take
+ * a fading veteran who wouldn't start over a climbing youngster there.
+ */
 function arrival(l: League): { p: Player; buyer: Team } {
   const starts = (t: Team, p: Player) => {
-    const room = activeRoster(l, t.id).filter((x) => x.position === p.position).map(playerOvr).sort((a, b) => b - a);
-    return playerOvr(p) >= (room[STARTERS[p.position] - 1] ?? 0);
+    const outlook = (x: Player) => teamOutlook(l, t.id, x, t.gm.winNow);
+    const room = teamPlayers(l, t.id).filter((x) => x.position === p.position && x.contract && !isExpired(x.contract, l.season)).map(outlook).sort((a, b) => b - a);
+    return outlook(p) >= (room[STARTERS[p.position] - 1] ?? 0);
   };
   const ai = l.teams.filter((t) => t.id !== l.userTeamId);
   for (const p of Object.values(l.players).filter((x) => x.teamId !== null && x.teamId !== l.userTeamId && x.contract && yearsLeft(x.contract, l.season) === 1 && x.contract.kind !== 'rookie' && !x.injury)) {

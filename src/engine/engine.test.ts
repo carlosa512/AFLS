@@ -10,6 +10,8 @@ import { capSheet } from './finance/cap';
 import { isExpired } from './finance/contract';
 import { activeRoster, teamPlayers } from './roster';
 import { playoffGames } from './season/playoffs';
+import { generateSchedule } from './season/schedule';
+import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { computeRecords, conferenceSeeds, divisionStandings, playoffRace, sortTeams } from './season/standings';
 import { teamSeasonStats } from './stats';
 import { ATTRIBUTES, POSITIONS, type GameResult } from './types';
@@ -84,9 +86,62 @@ describe('league generation', () => {
       expect(home === 8 || home === 9).toBe(true);
       const rivals = league.teams.filter((t) => t.division === team.division && t.id !== team.id);
       for (const rival of rivals) {
-        expect(games.filter((g) => g.homeId === rival.id || g.awayId === rival.id)).toHaveLength(2);
+        const twice = games.filter((g) => g.homeId === rival.id || g.awayId === rival.id);
+        expect(twice).toHaveLength(2);
+        // Never back to back: the rematch is at least three weeks on.
+        expect(Math.abs(twice[0].week - twice[1].week)).toBeGreaterThanOrEqual(3);
       }
     }
+    // The last week is all division games.
+    for (const g of league.games.filter((x) => x.week === 18)) expect(league.teams[g.homeId].division).toBe(league.teams[g.awayId].division);
+  });
+
+  it('keeps the NFL’s scheduling rules whatever the season and last year’s finish', () => {
+    for (const seed of ['rules-a', 'rules-b', 'rules-c']) {
+      const l = createLeague({ seed });
+      for (const season of [l.season, l.season + 1]) {
+        const rng = new Rng(`${seed}:${season}`);
+        // The order beginOffseason passes: each division's teams by last season's finish.
+        const order = l.divisions.map((_, d) => rng.shuffle(l.teams.filter((t) => t.division === d).map((t) => t.id)));
+        const games = generateSchedule({ ...l, season }, rng, order);
+        expect(games).toHaveLength(272);
+        for (let week = 1; week <= 18; week++) {
+          const off = 32 - 2 * games.filter((g) => g.week === week).length;
+          // Byes in weeks 5–14 only, two to six teams a week.
+          if (week >= 5 && week <= 14) expect([2, 4, 6]).toContain(off);
+          else expect(off).toBe(0);
+        }
+        for (const team of l.teams) {
+          const mine = games.filter((g) => g.homeId === team.id || g.awayId === team.id).sort((a, b) => a.week - b.week);
+          expect(mine).toHaveLength(17);
+          // Never a third road game in a row, a bye in between or not.
+          let road = 0;
+          for (const g of mine) {
+            road = g.awayId === team.id ? road + 1 : 0;
+            expect(road).toBeLessThan(3);
+          }
+        }
+      }
+    }
+  });
+
+  it('gives every game a kickoff: a Thursday, Sunday and Monday night game a week, western hosts never at 1:00', () => {
+    for (let week = 1; week <= 17; week++) {
+      const games = league.games.filter((g) => g.week === week);
+      expect(games.filter((g) => g.kickoff!.day === 'thu')).toHaveLength(1);
+      expect(games.filter((g) => g.kickoff!.day === 'mon')).toHaveLength(1);
+      expect(games.filter((g) => g.kickoff!.day === 'sun' && isPrimeTime(g.kickoff!))).toHaveLength(1);
+      // Monday night's teams don't turn around for Thursday.
+      const monday = league.games.filter((g) => g.week === week - 1 && g.kickoff!.day === 'mon').flatMap((g) => [g.homeId, g.awayId]);
+      const thursday = games.find((g) => g.kickoff!.day === 'thu')!;
+      expect(monday).not.toContain(thursday.homeId);
+      expect(monday).not.toContain(thursday.awayId);
+    }
+    for (const g of league.games) {
+      if (['SEA', 'SF', 'LV', 'LAC', 'LAS', 'DEN', 'ARI'].includes(league.teams[g.homeId].abbrev)) expect(g.kickoff).not.toEqual({ day: 'sun', et: 13 * 60 });
+    }
+    expect(kickoffLabel({ day: 'sun', et: 13 * 60 })).toBe('Sun 1:00 PM ET');
+    expect(kickoffLabel({ day: 'mon', et: 20 * 60 + 15 })).toBe('Mon 8:15 PM ET');
   });
 });
 
@@ -286,7 +341,8 @@ describe('season flow', () => {
     const final = playoffGames(league, 'FINAL')[0];
     expect([final.homeId, final.awayId]).toContain(champ);
     // Starters start: every QB1 who stayed healthy played most of the season (an injury, a
-    // matter of the seed's luck, can end anyone's year early, and a trade can change who starts).
+    // matter of the seed's luck, can end anyone's year early or cost him weeks he's since come back
+    // from, and a trade can change who starts).
     const qbTrades = new Set(
       (league.market?.history ?? [])
         .filter((r) => r.season === league.season && r.sides.some((s) => s.players.some((id) => league.players[id].position === 'QB')))
@@ -294,7 +350,8 @@ describe('season flow', () => {
     );
     for (const t of league.teams) {
       const starterQb = league.players[t.depthChart.QB[0]];
-      if (starterQb.injury?.season === league.season || qbTrades.has(t.id)) continue;
+      const hurt = starterQb.injury?.season === league.season || (starterQb.injuries ?? []).some((r) => r.season === league.season);
+      if (hurt || qbTrades.has(t.id)) continue;
       expect(starterQb.stats[league.season]?.gp).toBeGreaterThan(10);
     }
 
@@ -349,6 +406,9 @@ describe('coach decisions', () => {
     expect(coach.kickNow({ ...inRange, fgMakeProb: 0.55, offTimeouts: 1, clock: 7 })).toBe(true);
     // Out of timeouts with the clock stopped: kick now rather than risk an in-bounds snap.
     expect(coach.kickNow({ ...inRange, fgMakeProb: 0.6, offTimeouts: 0, clock: 18 })).toBe(true);
+    // Third down, 21 seconds, no timeouts: no spike after an in-bounds catch, so kick on third.
+    expect(coach.kickNow({ ...inRange, offTimeouts: 0, clock: 21, down: 3 })).toBe(true);
+    expect(coach.kickNow({ ...inRange, offTimeouts: 0, clock: 21, down: 2 })).toBe(false);
     expect(coach.kickNow({ ...inRange, scoreDiff: -4, clock: 4 })).toBe(false);
   });
 

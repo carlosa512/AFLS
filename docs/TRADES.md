@@ -897,6 +897,11 @@ Where the build departed from the plan, and why:
   his ask next year: it would rather move him now (Mack). Free agency and fifth-year options read the
   same outlook (`offseason/ai.ts`): a big contract has to buy a real step on where the room is headed
   (`upgradeBar`), and an option is exercised for a starter here, or a player the club can carry.
+- **A newcomer never costs his room more than a spot at the bottom** (`roomWith`). Ranked on outlook
+  alone, a climbing backup on a minimum deal could push a fairly paid veteran down and bring none of
+  the veteran's market pay, so the more growth a club read in him, the less he was worth (a PHI read
+  of a 22-year-old LB: a lower ceiling than the truth, yet valued higher). A club can always keep
+  him at the bottom of the depth chart, so his room counts whichever is worth more.
 - **The scouting test's misread band** (`staff.test.ts`) is now measured against a player's stakes
   (his play and its market price, before his salary), not as a ratio of his value to one team. With
   marginal fit a small upgrade's value is small, so ratios of it swing on nothing. The bounds stayed

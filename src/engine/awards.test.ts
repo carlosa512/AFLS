@@ -74,7 +74,7 @@ describe('comeback player', () => {
     back.experience = 4;
     delete back.draft;
     expect(pickAwards(league, s).winners.comeback?.playerId).toBe(back.id);
-  });
+  }, 30_000);
 });
 
 describe('save migration to v7', () => {

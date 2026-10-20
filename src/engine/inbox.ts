@@ -15,8 +15,10 @@ import { draftComplete, reachOrSteal } from './offseason/draft';
 import { rookieCost } from './offseason/negotiation';
 import { knowledge, leaguePercentile, perceive, scoutReportParts } from './scouting';
 import { starters, teamPlayers } from './roster';
+import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { ROUND_NAMES } from './season/playoffs';
-import { playoffRace } from './season/standings';
+import { REGULAR_SEASON_WEEKS } from './season/schedule';
+import { computeRecords, conferenceSeeds, playoffRace, type RaceStatus } from './season/standings';
 import { isExpiring, ownerBudgetNote, resignForecast, ROLE_LABEL, staffWindowOpen, teamStaff } from './staff';
 import { careerLine } from './stats';
 import { isDeadlineDay, openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './trade';
@@ -330,6 +332,7 @@ export type MailSubject =
   | { kind: 'cleared'; season: number; week: number; playerId: number; type: string }
   | { kind: 'deadline'; season: number; weeksLeft: number | 'day' }
   | { kind: 'race'; season: number; level: 'spot' | 'division' | 'bye' | 'out' }
+  | { kind: 'flex'; season: number; gameId: number }
   | { kind: 'owner'; season: number }
   | { kind: 'staffDeals'; season: number; people: StaffRef[] }
   | { kind: 'poached'; season: number; coachId: number; chair: Chair }
@@ -385,6 +388,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'deadline', season, weeksLeft: a === 'day' ? 'day' : Number(a) };
     case 'race':
       return { kind: 'race', season, level: a as 'spot' | 'division' | 'bye' | 'out' };
+    case 'flex':
+      return { kind: 'flex', season, gameId: Number(a) };
     case 'owner':
       return { kind: 'owner', season };
     case 'staff':
@@ -872,12 +877,55 @@ function deadlineMail(league: League, have: Set<string>): Draft[] {
   return [{ id, season: league.season, phase: 'regular', week: league.week, from: 'League office', category: 'trades', subject, body, actions: [{ kind: 'trades' }] }];
 }
 
+/**
+ * The league office's word when it moves one of our games (`season/flex.ts`): into prime time or out of
+ * it, or week 18's times once week 17 is played. One message per move, keyed by the new kickoff.
+ */
+function flexMail(league: League, have: Set<string>): Draft[] {
+  const user = league.userTeamId;
+  const out: Draft[] = [];
+  for (const g of league.games) {
+    if (g.season !== league.season || g.result || !g.flexed || !g.kickoff || (g.homeId !== user && g.awayId !== user)) continue;
+    const { kickoff: k, flexed: was } = g;
+    if (k.day === was.day && k.et === was.et) continue;
+    const id = `flex:${g.season}:${g.id}:${k.day}${k.et}`;
+    if (have.has(id)) continue;
+    const opp = league.teams[g.homeId === user ? g.awayId : g.homeId];
+    const where = g.homeId === user ? `against the ${teamName(opp)}` : `at the ${teamName(opp)}`;
+    const final = g.week === REGULAR_SEASON_WEEKS;
+    out.push({
+      id,
+      season: g.season,
+      phase: 'regular',
+      week: league.week,
+      from: 'League office',
+      category: 'league',
+      subject: final ? `Week ${g.week} kickoff: ${kickoffLabel(k)}` : isPrimeTime(k) ? `Moved to prime time: ${kickoffLabel(k)}` : `Moved out of prime time: ${kickoffLabel(k)}`,
+      body: final
+        ? `With a week to play, the league has set the final week's kickoffs. Our game ${where} kicks off ${kickoffLabel(k)}.`
+        : `The league has moved our week ${g.week} game ${where} from ${kickoffLabel(was)} to ${kickoffLabel(k)}.`,
+      actions: [{ kind: 'standings' }],
+    });
+  }
+  return out;
+}
+
 const RACE = ['bye', 'division', 'spot'] as const;
+
+/**
+ * Where the final standings put a team. `playoffRace` counts a tie on wins as still open, so a team that
+ * finishes level on the line, in or out on a tiebreaker, would otherwise never hear its fate.
+ */
+function finalRace(league: League, teamId: number): RaceStatus {
+  const seed = conferenceSeeds(league, league.teams[teamId].conference, computeRecords(league)).indexOf(teamId);
+  return { spot: seed >= 0, division: seed >= 0 && seed < 4, bye: seed === 0, out: seed < 0 };
+}
 
 /** The league office's word when our playoff fate is certain: the best clinch so far (a bye implies the rest), or elimination. */
 function raceMail(league: League, have: Set<string>): Draft[] {
   const team = league.teams[league.userTeamId];
-  const race = playoffRace(league, team.id);
+  const over = !league.games.some((g) => g.season === league.season && !g.playoffRound && !g.result);
+  const race = over ? finalRace(league, team.id) : playoffRace(league, team.id);
   const sent = (level: string) => have.has(`race:${league.season}:${level}`);
   const best = RACE.find((level) => race[level]);
   const level = race.out ? 'out' : best && !RACE.slice(0, RACE.indexOf(best) + 1).some(sent) ? best : null;
@@ -1213,7 +1261,7 @@ export function deliverMail(league: League): void {
   if (league.phase === 'draft') fresh.push(...draftDayMail(league, have));
   if ((league.phase === 'draft' && draftComplete(league)) || league.phase === 'preseason') fresh.push(...draftClassMail(league, have));
   if (league.phase === 'regular' || league.phase === 'playoffs') {
-    fresh.push(...recapMail(league, have), ...clearedMail(league, have), ...raceMail(league, have), ...matchupMail(league, have));
+    fresh.push(...recapMail(league, have), ...clearedMail(league, have), ...raceMail(league, have), ...matchupMail(league, have), ...flexMail(league, have));
   }
   if (league.phase === 'regular') fresh.push(...deadlineMail(league, have));
   if (league.phase === 'regular' || league.phase === 'resign') fresh.push(...marketMail(league, have));

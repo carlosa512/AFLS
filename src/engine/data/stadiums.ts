@@ -66,6 +66,13 @@ export const STADIUMS: Record<string, Stadium> = {
   SEA: { roof: 'outdoors', climate: 'SEA' },
 };
 
+/** Hours behind US Eastern time, by market (missing: Eastern). The schedule keeps western hosts out of the 1:00 window. */
+export const ZONES: Record<string, number> = {
+  HOU: -1, KC: -1, DAL: -1, CHI: -1, GB: -1, MIN: -1, NO: -1, TEN: -1,
+  DEN: -2, ARI: -2,
+  LV: -3, LAC: -3, LAS: -3, SF: -3, SEA: -3,
+};
+
 /** Where weather systems travel together: one storm front can soak every city in a region the same week. */
 export const REGIONS: Record<string, string> = {
   BUF: 'Northeast', NE: 'Northeast', NY: 'Northeast',

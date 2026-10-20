@@ -146,7 +146,7 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
     through `quirkNotes` in `scouting.ts` (seen on film, so the fog of war applies); AI front offices
     value them through `quirkWorth` (only what their own scouts have seen); game states (Rattled, Shaken, a kicker's
     slump) and event marbles go through `recordForm`, called from `recordResult` in `league.ts`
-  - `weather.ts` each game's weather (a pure function of seed, season and game id: nothing stored until
+  - `weather.ts` each game's weather (a pure function of seed, season, game id and kickoff: nothing stored until
     it's played): night kickoffs, regional storm fronts, rain that starts mid-game (`weatherAt` gives a
     quarter's conditions), its cost to play and the engine's levers (measured against a typical day, so
     league totals hold), its injury hooks (`staminaDrain` scales a snap's energy cost, `turfRisk` the injury
@@ -169,7 +169,11 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
-  - `season/` schedule (NFL 17-game formula), standings + tiebreakers, playoffs
+  - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
+    byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a
+    row), kickoffs (`kickoff.ts`: Thursday, Sunday 1:00/4:05/4:25, Sunday and Monday nights, the playoffs'
+    windows; western hosts never at 1:00), flex scheduling (`flex.ts`: the league moves better match-ups
+    into prime time on the NFL's notice and sets week 18 after week 17), standings + tiebreakers, playoffs
   - `league.ts` week/season orchestration
   - `finance/` contracts as year-by-year ledgers (`contract.ts`: proration, dead money,
     restructures), team cap sheets and moves (`cap.ts`), the rank-based market, rookie scale and

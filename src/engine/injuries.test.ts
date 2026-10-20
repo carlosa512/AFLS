@@ -240,11 +240,14 @@ describe('treatments', () => {
     expect(skill(p, 'hands')).toBe(hands);
   });
 
-  it('keeps the gear off a quarterback’s throwing hand, and off a strain', () => {
+  it('keeps the gear off a quarterback’s throwing hand and shoulder, and off a strain', () => {
     const league = fresh();
     const qb = Object.values(league.players).find((x) => x.teamId === 0 && x.position === 'QB')!;
     hurt(league, qb, 4, 'hand');
     expect(treatmentProblem(qb, 'brace')).toMatch(/QB/);
+    const backup = Object.values(league.players).find((x) => x.teamId === 0 && x.position === 'QB' && x !== qb)!;
+    hurt(league, backup, 4, 'shoulder');
+    expect(treatmentProblem(backup, 'brace')).toMatch(/QB/);
     const wr = Object.values(league.players).find((x) => x.teamId === 0 && x.position === 'WR')!;
     hurt(league, wr, 4, 'hamstring');
     expect(treatmentProblem(wr, 'brace')).toMatch(/No brace/);

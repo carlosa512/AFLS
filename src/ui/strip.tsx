@@ -8,7 +8,10 @@ import { gamesInWeek } from '../engine/league';
 import { allSeeds, roundWeek } from '../engine/season/playoffs';
 import { computeRecords } from '../engine/season/standings';
 import type { Game, League, Team } from '../engine/types';
+import { isPrimeTime } from '../engine/season/kickoff';
 import { isNight } from '../engine/weather';
+
+const NIGHTS = { thu: 'Thursday night', sat: 'Saturday night', sun: 'Sunday night', mon: 'Monday night' } as const;
 import { useNav } from './App';
 import { TeamChip } from './components';
 import { recordText, weekLabel } from './format';
@@ -52,6 +55,7 @@ export function stripGames(league: League, week: number, records: Records = comp
     if (g.result) return `${ours(g) ? 'Your game · ' : ''}Final${g.result.overtime ? ' · OT' : ''}`;
     if (ours(g)) return 'Your game';
     if (g === best) return 'Game of the week';
+    if (g.kickoff && isPrimeTime(g.kickoff)) return NIGHTS[g.kickoff.day];
     if (isNight(league, g)) return 'Prime time';
     return !g.playoffRound && league.teams[g.homeId].division === league.teams[g.awayId].division ? 'Division' : '';
   };

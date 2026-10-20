@@ -9,6 +9,7 @@
  */
 import { CLIMATE, DEFAULT_ROOF_POLICY, REGIONS, STADIUMS, type ClimateMonth, type Stadium } from './data/stadiums';
 import { clamp, Rng } from './rng';
+import { isPrimeTime } from './season/kickoff';
 import type { Game, League } from './types';
 
 export type Roof = 'dome' | 'closed' | 'open' | 'outdoors';
@@ -66,7 +67,7 @@ const PASS_CAP = 0.4;
  * The cost of a typical game day, averaged over a season's games and quarters, domes included: what
  * `npm run weather` measures (passing as the geometric mean of what's kept, since costs compound).
  */
-export const TYPICAL: WeatherCost = { pass: 0.038, kick: 0.71, fumble: 1.03 };
+export const TYPICAL: WeatherCost = { pass: 0.038, kick: 0.79, fumble: 1.03 };
 /** A forecast shows rain or snow at this chance or more as the likely weather. */
 const LIKELY = 50;
 /** A retractable roof stays shut at this chance of rain or more. */
@@ -83,8 +84,13 @@ export function stadiumFor(league: League, game: Game): Stadium | undefined {
   return change ? { ...s, ...change } : s;
 }
 
-/** Prime time: three games a regular-season week (Thursday, Sunday and Monday nights) and half of each playoff round, picked from the seed. */
+/**
+ * Played after dark: its kickoff (`season/kickoff.ts`: Thursday, Sunday and Monday nights, and the
+ * playoffs' night windows). A game from an older save without one: three a regular-season week and
+ * half of each playoff round, picked from the seed.
+ */
 export function isNight(league: League, game: Game): boolean {
+  if (game.kickoff) return isPrimeTime(game.kickoff);
   const draw = (g: Game) => new Rng(`${league.seed}:${g.season}:${g.id}:slot`).next();
   const week = league.games.filter((g) => g.season === game.season && g.week === game.week).map(draw).sort((a, b) => b - a);
   const slots = game.playoffRound ? Math.ceil(week.length / 2) : 3;
@@ -184,7 +190,7 @@ export function weatherCost(w: Weather): WeatherCost {
   ];
   return {
     pass: Math.min(PASS_CAP, 1 - parts.reduce((keep, p) => keep * (1 - p), 1)),
-    kick: 0.8 * Math.max(0, v - 10) + (wet ? 1 : snow ? (w.heavy ? 9 : 0.5) : 0) + (t < 25 ? 2 : t < 55 ? 0.5 : 0) - (w.altitudeFt ?? 0) / 1300,
+    kick: 0.8 * Math.max(0, v - 10) + (wet ? 2 : snow ? (w.heavy ? 9 : 0.5) : 0) + (t < 25 ? 2 : t < 55 ? 0.5 : 0) - (w.altitudeFt ?? 0) / 1300,
     fumble: (wet || snow ? (w.heavy ? 1.5 : 1.25) : 1) * (t < 25 ? 1.15 : 1),
   };
 }
