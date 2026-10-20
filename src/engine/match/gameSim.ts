@@ -156,10 +156,28 @@ const ST_DISCIPLINE = 10.5;
 /** A kick play's injury risk against a scrimmage snap's: a return is a collision at full speed; a touchback or a fair catch is mostly running. */
 const KICK_RISK = { returned: 1.5, quiet: 0.4 };
 /**
- * At the goal line the defense stacks the box and there's no room to run: up to this many yards off a
- * carry's mean at the 1, tapering to none at the 6 (inside the 3 the NFL scores on about half its runs).
+ * How far the field has shrunk on a snap: 0 at the 20, 1 on the goal line. With no room behind the
+ * coverage or past the second level, the defense's call and the man across from each player decide more
+ * and an offense's edge buys less (NFL 2021–25: 57% of red-zone trips end in a touchdown, and teams
+ * differ in it little beyond luck).
  */
-const GOAL_LINE_STACK = 1.75;
+const shrink = (yardsToGoal: number) => clamp((20 - yardsToGoal) / 19, 0, 1);
+/** Yards off a carry's mean at the goal line, tapering to none at the 20 (NFL runs score 57% from the 1, 29% from the 3–5, 13% from the 6–10). */
+const RED_ZONE_STACK = 1.6;
+/** How much more the defense's call counts at the goal line than between the 20s: the right front stuffs it, the wrong one gets burned. */
+const RED_ZONE_CALL = 2;
+/** Share of an offense's edge (blocking, separation) it can't use at the goal line. */
+const RED_ZONE_FADE = 0.5;
+/** Extra weight on the covering defender's skill at the goal line, man or zone. */
+const RED_ZONE_ISLAND = 0.3;
+/**
+ * Completion chance a throw loses at the goal line, and a throw into the end zone besides, with the end
+ * line and the sideline to beat (NFL 2021–25: 57% of red-zone passes complete, 52% inside the 10).
+ */
+const RED_ZONE_SQUEEZE = 0.15;
+const END_ZONE_THROW = 0.08;
+/** An offense's edge is worth less with no room to use it; being outmatched still costs in full. */
+const fade = (edge: number, tight: number) => (edge > 0 ? edge * (1 - RED_ZONE_FADE * tight) : edge);
 /** Mean kickoff and punt returns before flags (the flags on returns bring the averages back to where they were). */
 const KICK_RETURN = 29.5;
 const PUNT_RETURN = 9;
@@ -712,8 +730,10 @@ class GameSim {
   private fgProb(distance: number, kicker: Player): number {
     // Wind, snow and cold make every kick play longer; coaches see it in their range too.
     distance += this.wx.kick;
-    const center = 60 + 1.15 * (skill(kicker, 'fieldGoal') - 12);
-    const p = 1 / (1 + Math.exp((distance - center) / 6.8));
+    // A kicker of 12 makes 95% from 35 yards, 85% from 45 and 71% from 52 (NFL 2021–24: 77–80% of kicks
+    // from the 40s and 66–72% past 50 go in, with coaches choosing which long ones to try).
+    const center = 59.5 + 1.15 * (skill(kicker, 'fieldGoal') - 12);
+    const p = 1 / (1 + Math.exp((distance - center) / 8.5));
     return distance > center + 12 ? 0 : p;
   }
 
@@ -1475,9 +1495,9 @@ class GameSim {
           ? this.rng.int(8, 16)
           : t === 'milk'
             ? this.rng.int(coach.MILK_RUNOFF_MIN, 41)
-            : // 27–38 s between snaps at a normal tempo puts plays a game mid-band (NFL 61–65); at 28–38
+            : // 27–37 s between snaps at a normal tempo puts plays a game mid-band (NFL 61–65); at 28–38
               // the league sat on the floor, and its passing leaders under theirs.
-              this.rng.int(27, 38),
+              this.rng.int(27, 37),
       );
     }
     if (this.clock <= 0 && !this.untimed) return;
@@ -1673,9 +1693,11 @@ class GameSim {
     // A back who bounces everything takes some inside calls to the edge, where nobody is blocking.
     const bounce = !called && this.has(rusher, 'bouncesExternal') && rng.chance(0.35);
     const outside = called || bounce;
-    const boxAdj = { base: 0, runD: 1.5, passD: -1.5, blitz: 0.6 }[defCall];
+    // Near the goal the call is the story: a goal-line front chokes the run, a pass shell gets run on.
+    const tight = shrink(yardsToGoal);
+    const boxAdj = { base: 0, runD: 1.5, passD: -1.5, blitz: 0.6 }[defCall] * (1 + RED_ZONE_CALL * tight);
     const homeAdj = this.offense === 0 ? this.homeEdge : -this.homeEdge;
-    const lineDelta = off.runBlock - (def.runStop + boxAdj) + homeAdj;
+    const lineDelta = fade(off.runBlock - (def.runStop + boxAdj) + homeAdj, tight);
     const rusherSkill = skill(rusher, outside ? 'outsideRun' : 'insideRun');
 
     // Outside runs also have to get around the edge defenders.
@@ -1683,9 +1705,8 @@ class GameSim {
     // The best backs average about a yard a carry more than the league, not three: the line and the
     // defense decide most of a run, the back the rest (NFL rushing leaders run 4.5–5.5 a carry).
     const lean = this.runQuirks(off, def, rusher, outside, bounce, lineDelta, this.tired(s));
-    const stacked = GOAL_LINE_STACK * clamp((6 - yardsToGoal) / 5, 0, 1);
     let yards = rng.normal(
-      RUN_BASE + 0.25 * lineDelta + 0.1 * (rusherSkill - 12) - contain + lean.mean - stacked,
+      RUN_BASE + 0.25 * lineDelta + 0.1 * (rusherSkill - 12) - contain + lean.mean - RED_ZONE_STACK * tight,
       2.9 + lean.spread,
     );
     if (yards > 4) {
@@ -1702,7 +1723,8 @@ class GameSim {
       );
       if (rng.chance(pBreak)) {
         yards += rng.exponential(Math.max(2.5, 5 + 0.25 * (speed - 12)));
-        if (rng.chance(clamp(0.1 + 0.008 * (speed - 12), 0.05, 0.18))) yards += rng.exponential(22);
+        // A back who gets past the safety is often gone (NFL 2021–25: 0.64 runs of 20+ a team-game, 19% of them touchdowns).
+        if (rng.chance(clamp(0.18 + 0.008 * (speed - 12), 0.05, 0.3))) yards += rng.exponential(26);
       }
     }
     yards = Math.round(Math.max(yards, -6));
@@ -1899,7 +1921,9 @@ class GameSim {
     else if (this.has(defender, 'bitesOnDoubleMoves')) covSkill += 0.5;
     // Man coverage, or the man-to-man a blitz leaves behind it.
     if (man && this.has(defender, 'manDeficit')) covSkill -= 6;
-    const island = coverage ? (coverage.man ? MAN_ISLAND : ZONE_ISLAND) : 0;
+    // With the field shrunk every coverage is an island: the man across from the receiver is the whole defense.
+    const tight = shrink(yardsToGoal);
+    const island = (coverage ? (coverage.man ? MAN_ISLAND : ZONE_ISLAND) : 0) + RED_ZONE_ISLAND * tight;
     let sep = recvSkill - covSkill - island * (covSkill - 12) + homeAdj + (isBack && depth === 'short' ? 2.5 : 0);
     // Turning to find the ball means losing the man now and then.
     if (this.has(defender, 'playsTheBall')) sep += 0.6;
@@ -1922,10 +1946,12 @@ class GameSim {
     const help = skill(def.s[0], 'deepHelp') - DEEP_HELP - eyes;
     if (depth === 'deep') sep -= 0.93 + 0.35 * help;
     else if (depth === 'medium') sep -= 0.2 * help;
-    sep += { base: 0, runD: 0.8, passD: -1.2, blitz: 1.5 }[defCall];
+    // Near the goal the call counts for more, and a blitz's man coverage has no deep space behind it to lose.
+    sep += { base: 0, runD: 0.8, passD: -1.2, blitz: 1.5 * (1 - tight) }[defCall] * (1 + RED_ZONE_CALL * tight);
     // Defenses roll coverage toward a mismatch, so a receiver far better than his man still gets open
     // but not by a mile: big separation pays less and less (keeps elite seasons inside NFL records).
     if (sep > SEP_ROLL) sep = SEP_ROLL + (sep - SEP_ROLL) * 0.5;
+    sep = fade(sep, tight);
 
     // Past a point, placement can't beat physics: the best arms complete a few more, not every throw.
     const rawAcc =
@@ -1933,18 +1959,28 @@ class GameSim {
       fast -
       1.5 * ghosts;
     const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
+    let air: number;
+    if (isBack && depth === 'short') air = rng.int(-3, 4);
+    else if (depth === 'short') air = Math.round(clamp(rng.normal(2.9, 3.2), -3, 9));
+    else if (depth === 'medium') air = rng.int(10, 17);
+    // Deep balls travel (NFL 2021–25: 0.47 completions of 40+ yards a team-game, a third of them touchdowns).
+    else air = 20 + Math.round(Math.min(rng.exponential(12), 60));
+    air = Math.max(air, 1 - this.yardLine);
+    air = Math.min(air, yardsToGoal + 9);
+
     // Base odds are tuned with injuries on: backups throw and catch about a tenth of the passes, as in the NFL.
+    // The red zone's squeeze takes about a point off the league's rate, and short throws elsewhere give it back.
     let pComplete =
-      { short: 0.788, medium: 0.596, deep: 0.371 }[depth] +
+      { short: 0.81, medium: 0.596, deep: 0.371 }[depth] +
       0.018 * (acc - 12) +
       0.019 * sep +
       0.012 * (skill(receiver, 'hands') - 12);
     if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
     // A gunslinger who won't throw it away forces it into coverage instead.
     if (pressured && this.has(qb, 'gunslinger')) pComplete -= 0.1;
-    // Inside the 10 the field shrinks: no room behind the coverage, and less underneath (the NFL
-    // completes well over ten points fewer of its throws in there than of the rest).
-    if (yardsToGoal <= 10) pComplete -= depth === 'short' ? 0.1 : 0.11;
+    // The field shrinks: no room behind the coverage, and less underneath.
+    pComplete -= RED_ZONE_SQUEEZE * tight;
+    if (air >= yardsToGoal) pComplete -= END_ZONE_THROW;
     if (depth === 'deep' && this.has(receiver, 'goesUpForIt')) pComplete += 0.04;
     else if (depth !== 'deep' && this.has(receiver, 'hearsFootsteps')) pComplete -= 0.04;
     // Contested balls: hands shown late win them, hands that trap against the body don't.
@@ -1966,14 +2002,6 @@ class GameSim {
       (coverage?.ints ?? 1) *
       this.riskyThrow(qb, receiver, depth, !coverage?.man) *
       this.undercut(def, depth, !coverage?.man);
-
-    let air: number;
-    if (isBack && depth === 'short') air = rng.int(-3, 4);
-    else if (depth === 'short') air = Math.round(clamp(rng.normal(2.9, 3.2), -3, 9));
-    else if (depth === 'medium') air = rng.int(10, 17);
-    else air = 20 + Math.round(Math.min(rng.exponential(7), 40));
-    air = Math.max(air, 1 - this.yardLine);
-    air = Math.min(air, yardsToGoal + 9);
 
     const [sideLabel, lane] = rng.pick(PASS_LANES);
     const depthLabel = `${depth} ${sideLabel}`;
@@ -2030,11 +2058,13 @@ class GameSim {
       let yac = Math.max(
         0,
         rng.normal(
-          { short: 3.7, medium: 2.65, deep: 2.25 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth),
+          { short: 3.2, medium: 2.15, deep: 1.75 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth),
           3,
         ),
       );
-      if (rng.chance(clamp((0.022 + 0.004 * yacSkill) * (coverage?.yac ?? 1), 0.01, 0.06))) yac += rng.exponential(16);
+      // Most catches are tackled where they're made and a few break into the open and go a long way (NFL
+      // 2021–25: 15% of 20+ yard completions score, and three passing touchdowns in ten come from 21 yards or more).
+      if (rng.chance(clamp((0.05 + 0.009 * yacSkill) * (coverage?.yac ?? 1), 0.01, 0.1))) yac += rng.exponential(26);
       gain = Math.min(air + Math.round(yac), yardsToGoal);
     }
     const td = gain >= yardsToGoal;
