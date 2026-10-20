@@ -29,7 +29,14 @@ const RISK: Record<RiskTier, number> = { Low: 0.15, Medium: 0, High: -0.5 };
  * (`gap`), the injury risk it reads, and how much it cares about the years after this one (`future`:
  * 1 for a typical GM, less for an All-In one who wants it now, more for a rebuilder).
  */
-export function outlookOf(pos: Position, age: number, ovr: number, gap: number, risk: RiskTier = 'Medium', future = 1): number {
+export function outlookOf(
+  pos: Position,
+  age: number,
+  ovr: number,
+  gap: number,
+  risk: RiskTier = 'Medium',
+  future = 1,
+): number {
   let now = ovr;
   let left = Math.max(0, gap);
   let sum = ovr;

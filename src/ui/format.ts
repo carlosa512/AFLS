@@ -11,7 +11,9 @@ import { severity, type Forecast, type Severity, type Weather } from '../engine/
 export const money = (thousands: number): string => {
   if (thousands < 0) return `-${money(-thousands)}`;
   if (thousands === 0) return '$0';
-  return thousands >= 1000 ? `$${(thousands / 1000).toFixed(thousands >= 10_000 ? 1 : 2)}M` : `$${Math.round(thousands)}K`;
+  return thousands >= 1000
+    ? `$${(thousands / 1000).toFixed(thousands >= 10_000 ? 1 : 2)}M`
+    : `$${Math.round(thousands)}K`;
 };
 
 export const heightFt = (inches: number) => `${Math.floor(inches / 12)}'${inches % 12}"`;
@@ -64,7 +66,9 @@ export function verdict(good: number, max: number): Verdict {
 }
 
 /** [short, long] label for each attribute, from the attribute registry. */
-export const ATTR_LABELS = Object.fromEntries(ATTRIBUTES.map((a) => [a, [ATTRIBUTE_INFO[a].short, ATTRIBUTE_INFO[a].label]])) as Record<Attribute, [short: string, long: string]>;
+export const ATTR_LABELS = Object.fromEntries(
+  ATTRIBUTES.map((a) => [a, [ATTRIBUTE_INFO[a].short, ATTRIBUTE_INFO[a].label]]),
+) as Record<Attribute, [short: string, long: string]>;
 
 /** The attributes that matter most at a position, heaviest first. */
 export function keyAttributes(position: Position, count = 4): Attribute[] {
@@ -88,7 +92,8 @@ export function crewStandingText(st: { rank: number; of: number; season: number 
 }
 
 /** During the offseason the league year has already rolled over; results screens show the season just played. */
-export const resultsSeason = (league: League) => (OFFSEASON_PHASES.includes(league.phase) ? league.season - 1 : league.season);
+export const resultsSeason = (league: League) =>
+  OFFSEASON_PHASES.includes(league.phase) ? league.season - 1 : league.season;
 
 export const isOffseasonPhase = (league: League) => OFFSEASON_PHASES.includes(league.phase);
 
@@ -109,7 +114,14 @@ export const PHASE_LABELS: Record<League['phase'], string> = {
 export function kickoffText(league: League, game: Game): string {
   const k = game.kickoff;
   if (!k) return '';
-  if (game.season === league.season && !game.playoffRound && game.week === REGULAR_SEASON_WEEKS && league.phase !== 'playoffs' && league.week < REGULAR_SEASON_WEEKS) return 'Week 18 · time TBD';
+  if (
+    game.season === league.season &&
+    !game.playoffRound &&
+    game.week === REGULAR_SEASON_WEEKS &&
+    league.phase !== 'playoffs' &&
+    league.week < REGULAR_SEASON_WEEKS
+  )
+    return 'Week 18 · time TBD';
   const moved = game.flexed && (game.flexed.day !== k.day || game.flexed.et !== k.et);
   return `${kickoffLabel(k)}${moved && game.week !== REGULAR_SEASON_WEEKS ? ' · moved' : ''}`;
 }
@@ -120,7 +132,12 @@ export function weekLabel(week: number): string {
 }
 
 const PRECIP = { none: 'Dry', rain: 'Rain', mixed: 'Sleet', snow: 'Snow' } as const;
-const SEVERITY: Record<Severity, string> = { none: '', light: 'Light weather', moderate: 'Moderate weather', heavy: 'Heavy weather' };
+const SEVERITY: Record<Severity, string> = {
+  none: '',
+  light: 'Light weather',
+  moderate: 'Moderate weather',
+  heavy: 'Heavy weather',
+};
 
 /** How hard the conditions hit play, in words ('' when they don't). */
 export const severityText = (s: Severity) => SEVERITY[s];
@@ -131,20 +148,42 @@ export function weatherText(w: Weather): string {
   if (w.roof === 'closed') return 'Roof closed';
   const fall = w.heavy ? `Heavy ${PRECIP[w.precip].toLowerCase()}` : PRECIP[w.precip];
   // An open roof shuts when rain comes, so the rain itself never reaches the field.
-  const sky = w.precip === 'none' || w.roof === 'open' ? [] : [w.onset ? `${fall} from the ${ordinal(w.onset)} quarter` : fall];
-  const roof = w.roof !== 'open' ? [] : [w.onset ? `roof closed for ${PRECIP[w.precip].toLowerCase()} in the ${ordinal(w.onset)} quarter` : 'roof open'];
-  return [...(w.night ? ['Night'] : []), ...sky, `${w.tempF}°F`, `wind ${w.windMph} mph`, ...(w.altitudeFt ? [`${w.altitudeFt.toLocaleString()} ft up`] : []), ...roof].join(' · ');
+  const sky =
+    w.precip === 'none' || w.roof === 'open' ? [] : [w.onset ? `${fall} from the ${ordinal(w.onset)} quarter` : fall];
+  const roof =
+    w.roof !== 'open'
+      ? []
+      : [
+          w.onset
+            ? `roof closed for ${PRECIP[w.precip].toLowerCase()} in the ${ordinal(w.onset)} quarter`
+            : 'roof open',
+        ];
+  return [
+    ...(w.night ? ['Night'] : []),
+    ...sky,
+    `${w.tempF}°F`,
+    `wind ${w.windMph} mph`,
+    ...(w.altitudeFt ? [`${w.altitudeFt.toLocaleString()} ft up`] : []),
+    ...roof,
+  ].join(' · ');
 }
 
 /** The weather line for a game: what it was played in, or what the forecast says. */
-export function gameWeatherText(w: Weather | undefined, f: Forecast | null): { text: string; severity: Severity; outlook?: boolean } {
+export function gameWeatherText(
+  w: Weather | undefined,
+  f: Forecast | null,
+): { text: string; severity: Severity; outlook?: boolean } {
   if (w) return { text: weatherText(w), severity: severity(w) };
   if (!f) return { text: 'Indoors', severity: 'none' };
   if (f.roof === 'closed') return { text: 'Roof closed', severity: 'none' };
   const sky = f.chance ? `${PRECIP[f.precip]} ${f.chance}%` : 'Dry';
   const roof = f.roof === 'tbd' ? ['roof TBD'] : f.roof === 'open' ? ['roof open'] : [];
   const lead = [...(f.night ? ['Night'] : []), ...(f.storm ? ['Storm front'] : [])];
-  if (f.stage === 'outlook') return { text: [...lead, `Avg ${f.tempF[0]}°F`, sky, ...roof].join(' · '), severity: 'none', outlook: true };
+  if (f.stage === 'outlook')
+    return { text: [...lead, `Avg ${f.tempF[0]}°F`, sky, ...roof].join(' · '), severity: 'none', outlook: true };
   const range = ([lo, hi]: [number, number]) => (lo === hi ? `${lo}` : `${lo}–${hi}`);
-  return { text: [...lead, sky, `${range(f.tempF)}°F`, `wind ${range(f.windMph)} mph`, ...roof].join(' · '), severity: f.severity };
+  return {
+    text: [...lead, sky, `${range(f.tempF)}°F`, `wind ${range(f.windMph)} mph`, ...roof].join(' · '),
+    severity: f.severity,
+  };
 }

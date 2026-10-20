@@ -58,7 +58,10 @@ function bodyParts(league: League, p: Player): [Findings['cause'], number][] {
   // Out now: a month and a half of rehab is about a failed physical on its own.
   if (p.injury) parts.push(['injury', p.injury.weeksRemaining / 4]);
   const recent = (p.injuries ?? []).filter((r) => r.season > league.season - HISTORY_SEASONS && !r.aggravated);
-  const history = recent.reduce((s, r) => s + (r.severity === 'career-threatening' ? 1 : r.severity === 'severe' ? 0.6 : 0) + (r.scar ? 0.3 : 0), 0);
+  const history = recent.reduce(
+    (s, r) => s + (r.severity === 'career-threatening' ? 1 : r.severity === 'severe' ? 0.6 : 0) + (r.scar ? 0.3 : 0),
+    0,
+  );
   parts.push(['history', history]);
   parts.push(['age', 0.15 * Math.max(0, p.age - declineOnset(p.position, 'physical', p.traits))]);
   parts.push(['durability', 0.12 * (TRAIT_MEAN - effectiveResistance(p))]);
@@ -78,7 +81,8 @@ function note(p: Player, result: Physical['result'], cause: Findings['cause']): 
           : `he doesn't look like he holds up`;
   if (result === 'failed') return `${name(p)} failed his physical: ${what}.`;
   if (result === 'concerns') return `${name(p)} passed with concerns: ${what}.`;
-  if (result === 'rehab') return `${name(p)} is cleared to rehab: he'll be back in about ${Math.max(1, Math.round(p.injury?.weeksRemaining ?? 1))} weeks.`;
+  if (result === 'rehab')
+    return `${name(p)} is cleared to rehab: he'll be back in about ${Math.max(1, Math.round(p.injury?.weeksRemaining ?? 1))} weeks.`;
   return `${name(p)} passed his physical.`;
 }
 
@@ -87,19 +91,32 @@ function note(p: Player, result: Physical['result'], cause: Findings['cause']): 
  * otherwise is *cleared to rehab* rather than failed: there's time for him to heal before it counts.
  * `diagnosis` stands in for his doctor's rating (the check compares a sharp doctor with a weak one).
  */
-export function examine(league: League, buyerId: number, p: Player, diagnosis = departmentFor(league, buyerId).diagnosis): Physical {
+export function examine(
+  league: League,
+  buyerId: number,
+  p: Player,
+  diagnosis = departmentFor(league, buyerId).diagnosis,
+): Physical {
   const truth = findings(league, p);
   const rng = new Rng(`${league.seed}:physical:${league.season}:${league.phase}:${league.week}:${p.id}:${buyerId}`);
   const read = truth.score + READ_NOISE * diagnosisSpread(diagnosis) * rng.normal();
   let result: Physical['result'] = read >= FAIL ? 'failed' : read >= CONCERNS ? 'concerns' : 'passed';
   // Hurt, but nothing else wrong with him: an offseason buyer can wait out the rehab.
-  if (result !== 'passed' && league.phase !== 'regular' && p.injury && truth.score - p.injury.weeksRemaining / 4 < CONCERNS) result = 'rehab';
+  if (
+    result !== 'passed' &&
+    league.phase !== 'regular' &&
+    p.injury &&
+    truth.score - p.injury.weeksRemaining / 4 < CONCERNS
+  )
+    result = 'rehab';
   return { playerId: p.id, result, note: note(p, result, truth.cause) };
 }
 
 /** Every player in a deal examined by the team he'd join. */
 export function physicals(league: League, proposal: TradeProposal): Physical[] {
-  return proposal.sides.flatMap((side, i) => side.players.map((id) => examine(league, proposal.sides[1 - i].teamId, league.players[id])));
+  return proposal.sides.flatMap((side, i) =>
+    side.players.map((id) => examine(league, proposal.sides[1 - i].teamId, league.players[id])),
+  );
 }
 
 /** The worst result of a deal's physicals: one failure sinks it, one concern reopens the price. */
@@ -114,13 +131,20 @@ export function lowerPrice(ctx: TradeContext, proposal: TradeProposal, buyerId: 
   const { league } = ctx;
   const buys = proposal.sides.find((s) => s.teamId === buyerId)!;
   const sells = proposal.sides.find((s) => s.teamId !== buyerId)!;
-  const pick = (ids: readonly number[]) => ids.map((id) => league.draftPicks.find((p) => p.id === id)!).sort((a, b) => goingRate(league, a, ctx) - goingRate(league, b, ctx))[0];
-  const rebuild = (b: typeof buys, s: typeof sells): TradeProposal => ({ sides: proposal.sides[0].teamId === buyerId ? [b, s] : [s, b] });
+  const pick = (ids: readonly number[]) =>
+    ids
+      .map((id) => league.draftPicks.find((p) => p.id === id)!)
+      .sort((a, b) => goingRate(league, a, ctx) - goingRate(league, b, ctx))[0];
+  const rebuild = (b: typeof buys, s: typeof sells): TradeProposal => ({
+    sides: proposal.sides[0].teamId === buyerId ? [b, s] : [s, b],
+  });
   if (buys.picks.length && buys.players.length + buys.picks.length > 1) {
     const out = pick(buys.picks);
     return rebuild({ ...buys, picks: buys.picks.filter((id) => id !== out.id) }, sells);
   }
-  const back = league.draftPicks.filter((p) => p.ownerId === sells.teamId && p.playerId === undefined && !sells.picks.includes(p.id));
+  const back = league.draftPicks.filter(
+    (p) => p.ownerId === sells.teamId && p.playerId === undefined && !sells.picks.includes(p.id),
+  );
   if (!back.length) return null;
   return rebuild(buys, { ...sells, picks: [...sells.picks, pick(back.map((p) => p.id)).id] });
 }

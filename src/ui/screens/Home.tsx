@@ -1,5 +1,12 @@
 import { useState, type CSSProperties } from 'react';
-import { AWARD_SHORT, HONOR_SLOTS, monthEnding, seasonAwards, weeklyAwards, type AwardWinner } from '../../engine/awards';
+import {
+  AWARD_SHORT,
+  HONOR_SLOTS,
+  monthEnding,
+  seasonAwards,
+  weeklyAwards,
+  type AwardWinner,
+} from '../../engine/awards';
 import { champion, userGame } from '../../engine/league';
 import { capSheet } from '../../engine/finance/cap';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
@@ -28,7 +35,10 @@ import { GameStar, gameStory, KeyStats, LineScore, standouts, Standouts } from '
 
 function lastUserGame(league: League): Game | undefined {
   return league.games
-    .filter((g) => g.season === league.season && g.result && (g.homeId === league.userTeamId || g.awayId === league.userTeamId))
+    .filter(
+      (g) =>
+        g.season === league.season && g.result && (g.homeId === league.userTeamId || g.awayId === league.userTeamId),
+    )
     .sort((a, b) => b.week - a.week)[0];
 }
 
@@ -94,9 +104,16 @@ function NextGame({ league }: { league: League }) {
   if (league.phase === 'complete') return null;
   if (!game) {
     // The top seed has no Wild Card game: that is a bye, not elimination.
-    const topSeedBye = league.phase === 'playoffs' && league.week === roundWeek('WC') && allSeeds(league)[user.conference][0] === user.id;
+    const topSeedBye =
+      league.phase === 'playoffs' &&
+      league.week === roundWeek('WC') &&
+      allSeeds(league)[user.conference][0] === user.id;
     const eliminated = league.phase === 'playoffs' && !topSeedBye;
-    const title = topSeedBye ? 'Wild Card: first-round bye' : eliminated ? 'Season over for you' : `${weekLabel(league.week)}: bye week`;
+    const title = topSeedBye
+      ? 'Wild Card: first-round bye'
+      : eliminated
+        ? 'Season over for you'
+        : `${weekLabel(league.week)}: bye week`;
     return (
       <Panel title={title}>
         <p className="muted" style={{ margin: 0 }}>
@@ -140,8 +157,12 @@ function NextGame({ league }: { league: League }) {
       </p>
       <TheirInjuries league={league} opp={opp} game={game} />
       <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
-        {game.neutral ? 'Neutral site.' : isHome ? 'Home game: a small edge in every matchup.' : `Road game in ${opp.city}.`} Press Play to watch it live.
-        Unit ratings are starter averages on the 1–20 scale.
+        {game.neutral
+          ? 'Neutral site.'
+          : isHome
+            ? 'Home game: a small edge in every matchup.'
+            : `Road game in ${opp.city}.`}{' '}
+        Press Play to watch it live. Unit ratings are starter averages on the 1–20 scale.
       </p>
     </Panel>
   );
@@ -218,7 +239,14 @@ function DivisionMini({ league }: { league: League }) {
   const user = league.teams[league.userTeamId];
   const div = divisionStandings(league).find((d) => d.index === user.division)!;
   return (
-    <Panel title={div.division.name} action={<button className="btn btn-sm btn-ghost" onClick={() => nav.go({ view: 'standings' })}>All standings</button>}>
+    <Panel
+      title={div.division.name}
+      action={
+        <button className="btn btn-sm btn-ghost" onClick={() => nav.go({ view: 'standings' })}>
+          All standings
+        </button>
+      }
+    >
       <div className="table-scroll">
         <table>
           <thead>
@@ -282,7 +310,9 @@ function GmRecord({ league }: { league: League }) {
                 <tr key={s.season}>
                   <td className="num">{s.season}</td>
                   <td className="num">{formatRecord(s.regular)}</td>
-                  <td className={s.champion ? 'tone-good' : 'muted'}>{s.playoffs ? `${s.finish} (${s.playoffs.w}–${s.playoffs.l})` : s.finish || '–'}</td>
+                  <td className={s.champion ? 'tone-good' : 'muted'}>
+                    {s.playoffs ? `${s.finish} (${s.playoffs.w}–${s.playoffs.l})` : s.finish || '–'}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -307,8 +337,8 @@ function ChampionBanner({ league }: { league: League }) {
         {team.city} {team.name}
       </h2>
       <p style={{ margin: 0, opacity: 0.9 }}>
-        {isUser ? 'You won it all. ' : ''}Press “Begin {league.season + 1} offseason” to open the new league year: re-signings, free agency, the draft and
-        training camp.
+        {isUser ? 'You won it all. ' : ''}Press “Begin {league.season + 1} offseason” to open the new league year:
+        re-signings, free agency, the draft and training camp.
       </p>
     </section>
   );
@@ -319,7 +349,9 @@ function AwardsNotice({ league }: { league: League }) {
   const nav = useNav();
   const awards = league.phase === 'regular' ? undefined : seasonAwards(league, league.season);
   if (!awards) return null;
-  const winners = (['mvp', 'opoy', 'dpoy'] as const).filter((k) => awards.winners[k]).map((k) => ({ k, w: awards.winners[k]! }));
+  const winners = (['mvp', 'opoy', 'dpoy'] as const)
+    .filter((k) => awards.winners[k])
+    .map((k) => ({ k, w: awards.winners[k]! }));
   // Your own winners hear about it in the inbox; the banner is the league's news.
   return (
     <div className="notice staff-notice">
@@ -357,7 +389,12 @@ function PlayersOfTheWeek({ league }: { league: League }) {
   const list = (winners: (AwardWinner | null)[], weeks: [number, number]) => (
     <ul className="honor-list">
       {HONOR_SLOTS.map(({ conference, side }, i) => (
-        <li key={i} className={winners[i] && league.players[winners[i]!.playerId].teamId === league.userTeamId ? 'is-user' : undefined}>
+        <li
+          key={i}
+          className={
+            winners[i] && league.players[winners[i]!.playerId].teamId === league.userTeamId ? 'is-user' : undefined
+          }
+        >
           <span className="eyebrow">
             {league.conferences[conference].abbrev} {side}
           </span>
@@ -449,14 +486,18 @@ function OffseasonHome({ league }: { league: League }) {
   // Your own trades, retirements, injuries and position moves come to the inbox instead.
   const inboxed = new Set(['trade', 'retire', 'injury', 'position']);
   const moves = league.transactions
-    .filter((t) => t.season === league.season && t.kind !== 'release' && !(inboxed.has(t.kind) && t.teamIds.includes(teamId)))
+    .filter(
+      (t) => t.season === league.season && t.kind !== 'release' && !(inboxed.has(t.kind) && t.teamIds.includes(teamId)),
+    )
     .slice(-14)
     .reverse();
   const names = moveIndex(league);
   // A calm nudge, not a second primary action: an empty coaching chair or deals that are up, while moves are open.
   const attention = staffWindowOpen(league) ? coachAttention(league, teamId) : null;
   const coachNote = attention ? attentionText(league, teamId, attention) : '';
-  const myPick = league.draftPicks.filter((p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined).sort((a, b) => (a.overall ?? 999) - (b.overall ?? 999))[0];
+  const myPick = league.draftPicks
+    .filter((p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined)
+    .sort((a, b) => (a.overall ?? 999) - (b.overall ?? 999))[0];
 
   let title = '';
   let body = '';
@@ -476,7 +517,9 @@ function OffseasonHome({ league }: { league: League }) {
       break;
     case 'draft':
       title = 'The draft';
-      body = myPick ? `Your next pick: round ${myPick.round}, No. ${myPick.overall}. Sim to it, then pick from the big board or let your scouts choose.` : 'You have no picks left in this draft.';
+      body = myPick
+        ? `Your next pick: round ${myPick.round}, No. ${myPick.overall}. Sim to it, then pick from the big board or let your scouts choose.`
+        : 'You have no picks left in this draft.';
       action = { label: 'Draft room', go: () => nav.go({ view: 'office', tab: 'draft' }) };
       break;
     case 'preseason':
@@ -490,14 +533,27 @@ function OffseasonHome({ league }: { league: League }) {
     <>
       <ol className="stepper" aria-label="Offseason steps">
         {STEPS.map(([phase, label], i) => (
-          <li key={phase} className={i < idx ? 'done' : i === idx ? 'current' : undefined} aria-current={i === idx ? 'step' : undefined}>
+          <li
+            key={phase}
+            className={i < idx ? 'done' : i === idx ? 'current' : undefined}
+            aria-current={i === idx ? 'step' : undefined}
+          >
             {label}
           </li>
         ))}
       </ol>
       <div className="grid-2">
         <div className="stack">
-          <Panel title={title} action={action && <button className="btn btn-sm btn-primary" onClick={action.go}>{action.label}</button>}>
+          <Panel
+            title={title}
+            action={
+              action && (
+                <button className="btn btn-sm btn-primary" onClick={action.go}>
+                  {action.label}
+                </button>
+              )
+            }
+          >
             <p style={{ marginTop: 0 }}>{body}</p>
             <div className="facts">
               <span className="fact">
@@ -524,14 +580,20 @@ function OffseasonHome({ league }: { league: League }) {
                 <button className="btn btn-sm" onClick={() => store.mutate(autoCutdown)}>
                   Let the coaches make the cuts
                 </button>
-                <span className="muted small">Keeps the best value at each position, signs minimum fill-ins if a group runs thin.</span>
+                <span className="muted small">
+                  Keeps the best value at each position, signs minimum fill-ins if a group runs thin.
+                </span>
               </div>
             )}
           </Panel>
           {coachNote && (
             <div className="notice staff-notice">
               <span>
-                <LinkedText league={league} text={coachNote} about={attention!.leaving.map((c): Who => ({ kind: 'coach', id: c.id }))} />
+                <LinkedText
+                  league={league}
+                  text={coachNote}
+                  about={attention!.leaving.map((c): Who => ({ kind: 'coach', id: c.id }))}
+                />
               </span>
               <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'coaches' })}>
                 Review coaches

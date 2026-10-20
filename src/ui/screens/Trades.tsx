@@ -6,7 +6,20 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { capHit, isExpired, lastSeason } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
-import { counterOffer, evaluateTrade, isDeadlineDay, maxRetain, openOffers, pickLabel, playerTradeBlocker, proposeTrade, suggestSweetener, tradeCapImpact, tradeWindow, type TradeProposal } from '../../engine/trade';
+import {
+  counterOffer,
+  evaluateTrade,
+  isDeadlineDay,
+  maxRetain,
+  openOffers,
+  pickLabel,
+  playerTradeBlocker,
+  proposeTrade,
+  suggestSweetener,
+  tradeCapImpact,
+  tradeWindow,
+  type TradeProposal,
+} from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
@@ -22,25 +35,45 @@ import { tradeDesk, type Picked } from '../tradeDesk';
 const empty = (): Picked => ({ players: [], picks: [] });
 const toggle = (list: number[], id: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
-function AssetList({ league, teamId, picked, onChange }: { league: League; teamId: number; picked: Picked; onChange: (p: Picked) => void }) {
+function AssetList({
+  league,
+  teamId,
+  picked,
+  onChange,
+}: {
+  league: League;
+  teamId: number;
+  picked: Picked;
+  onChange: (p: Picked) => void;
+}) {
   const nav = useNav();
   const team = league.teams[teamId];
   // Grouped by position, best first within each group, like a depth chart.
-  const players = teamPlayers(league, teamId).sort((a, b) => POSITIONS.indexOf(a.position) - POSITIONS.indexOf(b.position) || seenOvr(league, b) - seenOvr(league, a));
-  const picks = league.draftPicks.filter((p) => p.ownerId === teamId && p.playerId === undefined).sort((a, b) => a.season - b.season || a.round - b.round);
+  const players = teamPlayers(league, teamId).sort(
+    (a, b) => POSITIONS.indexOf(a.position) - POSITIONS.indexOf(b.position) || seenOvr(league, b) - seenOvr(league, a),
+  );
+  const picks = league.draftPicks
+    .filter((p) => p.ownerId === teamId && p.playerId === undefined)
+    .sort((a, b) => a.season - b.season || a.round - b.round);
   const row = (p: Player) => {
     const blocked = playerTradeBlocker(league, p);
     const on = picked.players.includes(p.id);
     return (
       <label key={p.id} className={`asset${on ? ' on' : ''}${blocked ? ' blocked' : ''}`} title={blocked ?? undefined}>
-        <input type="checkbox" checked={on} disabled={!!blocked} onChange={() => onChange({ ...picked, players: toggle(picked.players, p.id) })} />
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={!!blocked}
+          onChange={() => onChange({ ...picked, players: toggle(picked.players, p.id) })}
+        />
         <PlayerAvatar player={p} team={team} size={24} />
         <span className="asset-name">
           <button type="button" className="linklike" onClick={() => nav.openPlayer(p.id)}>
             {p.firstName[0]}. {p.lastName}
           </button>
           <span className="muted small">
-            {p.position} · {p.age} · {isExpired(p.contract!, league.season) ? 'expiring' : `thru ${lastSeason(p.contract!)}`}
+            {p.position} · {p.age} ·{' '}
+            {isExpired(p.contract!, league.season) ? 'expiring' : `thru ${lastSeason(p.contract!)}`}
           </span>
         </span>
         <Ovr league={league} player={p} />
@@ -55,7 +88,11 @@ function AssetList({ league, teamId, picked, onChange }: { league: League; teamI
         const on = picked.picks.includes(pk.id);
         return (
           <label key={pk.id} className={`asset${on ? ' on' : ''}`}>
-            <input type="checkbox" checked={on} onChange={() => onChange({ ...picked, picks: toggle(picked.picks, pk.id) })} />
+            <input
+              type="checkbox"
+              checked={on}
+              onChange={() => onChange({ ...picked, picks: toggle(picked.picks, pk.id) })}
+            />
             <span className="asset-name">{pickLabel(league, pk)}</span>
           </label>
         );
@@ -82,7 +119,15 @@ function KeepPaying({ league, picked, onChange }: { league: League; picked: Pick
         return (
           <label key={p.id} className="row" style={{ gap: 8 }}>
             <span style={{ minWidth: 120 }}>{p.lastName}</span>
-            <input type="range" min={0} max={max} step={50} value={v} aria-label={`Salary you keep paying for ${p.firstName} ${p.lastName}`} onChange={(e) => onChange({ ...picked, retain: { ...picked.retain, [p.id]: Number(e.target.value) } })} />
+            <input
+              type="range"
+              min={0}
+              max={max}
+              step={50}
+              value={v}
+              aria-label={`Salary you keep paying for ${p.firstName} ${p.lastName}`}
+              onChange={(e) => onChange({ ...picked, retain: { ...picked.retain, [p.id]: Number(e.target.value) } })}
+            />
             <span className="num small">{money(v)}</span>
           </label>
         );
@@ -151,16 +196,25 @@ function TradeTable({ league }: { league: League }) {
   // Drop anything that moved since it was ticked (after a trade, a sim or a release), and salary kept for a player no longer in it.
   const valid = (p: Picked, teamId: number): Picked => {
     const players = p.players.filter((id) => league.players[id]?.teamId === teamId);
-    const retain = Object.fromEntries(Object.entries(p.retain ?? {}).filter(([id, v]) => v > 0 && players.includes(Number(id))));
+    const retain = Object.fromEntries(
+      Object.entries(p.retain ?? {}).filter(([id, v]) => v > 0 && players.includes(Number(id))),
+    );
     return {
       players,
-      picks: p.picks.filter((id) => league.draftPicks.some((x) => x.id === id && x.ownerId === teamId && x.playerId === undefined)),
+      picks: p.picks.filter((id) =>
+        league.draftPicks.some((x) => x.id === id && x.ownerId === teamId && x.playerId === undefined),
+      ),
       ...(Object.keys(retain).length ? { retain } : {}),
     };
   };
   const a = valid(mine, userId);
   const b = valid(theirs, partnerId);
-  const proposal: TradeProposal = { sides: [{ teamId: userId, ...a }, { teamId: partnerId, ...b }] };
+  const proposal: TradeProposal = {
+    sides: [
+      { teamId: userId, ...a },
+      { teamId: partnerId, ...b },
+    ],
+  };
   const anything = a.players.length + a.picks.length + b.players.length + b.picks.length > 0;
   const verdict = anything ? evaluateTrade(league, proposal) : null;
   const impact = anything ? tradeCapImpact(league, proposal) : null;
@@ -168,8 +222,25 @@ function TradeTable({ league }: { league: League }) {
   // The fill is coarse on purpose: a smooth bar would let you read the AI's exact valuation off it.
   // Rounding down means a full bar only ever means "they would accept".
   // A rule problem (cap, roster, window) or the GM's own line isn't about value: the bar stays empty and says so.
-  const fill = !verdict || verdict.problem ? 0 : verdict.accepts ? 1 : Math.floor(Math.min(1, Math.max(0, verdict.get / need)) * 10) / 10;
-  const mood = !verdict ? 'No offer yet' : verdict.problem ? (verdict.policy ? 'Not interested' : 'Blocked by a rule') : verdict.accepts ? 'They would accept' : fill >= 0.8 ? 'Close' : fill >= 0.4 ? 'Some way off' : 'Far apart';
+  const fill =
+    !verdict || verdict.problem
+      ? 0
+      : verdict.accepts
+        ? 1
+        : Math.floor(Math.min(1, Math.max(0, verdict.get / need)) * 10) / 10;
+  const mood = !verdict
+    ? 'No offer yet'
+    : verdict.problem
+      ? verdict.policy
+        ? 'Not interested'
+        : 'Blocked by a rule'
+      : verdict.accepts
+        ? 'They would accept'
+        : fill >= 0.8
+          ? 'Close'
+          : fill >= 0.4
+            ? 'Some way off'
+            : 'Far apart';
 
   // Every proposal is heard (about four a week per GM): a turned-down one costs a little of his patience.
   const propose = () => {
@@ -206,8 +277,12 @@ function TradeTable({ league }: { league: League }) {
   return (
     <>
       {closed && <div className="notice">{closed}</div>}
-      {!closed && isDeadlineDay(league) && <div className="notice">Deadline day: trades close when you play week {league.week}.</div>}
-      {counterTo !== undefined && <div className="notice">Countering the {partner.name}' offer: change the deal and propose it.</div>}
+      {!closed && isDeadlineDay(league) && (
+        <div className="notice">Deadline day: trades close when you play week {league.week}.</div>
+      )}
+      {counterTo !== undefined && (
+        <div className="notice">Countering the {partner.name}' offer: change the deal and propose it.</div>
+      )}
       {done && (
         <p className="callout" role="status">
           <LinkedText league={league} text={done} />
@@ -222,7 +297,10 @@ function TradeTable({ league }: { league: League }) {
                 Trade with the {partner.city} {partner.name}
               </h2>
               <span className="muted small">
-                GM style: {partner.gm.archetype} · {partner.gm.pickChart === 'johnson' ? 'old-school pick chart (prizes top picks)' : 'analytics pick chart (values Day 2 picks highly)'}
+                GM style: {partner.gm.archetype} ·{' '}
+                {partner.gm.pickChart === 'johnson'
+                  ? 'old-school pick chart (prizes top picks)'
+                  : 'analytics pick chart (values Day 2 picks highly)'}
               </span>
             </div>
           </div>
@@ -250,18 +328,34 @@ function TradeTable({ league }: { league: League }) {
           <div className="meter" role="img" aria-label={`Their view of the offer: ${mood}`}>
             <i style={{ width: `${fill * 100}%` }} className={verdict?.accepts ? 'yes' : ''} />
           </div>
-          <span className={verdict?.accepts ? 'tone-good' : 'muted'}>{verdict ? <LinkedText league={league} text={verdict.message} /> : 'Tick players or picks on both sides to build an offer.'}</span>
+          <span className={verdict?.accepts ? 'tone-good' : 'muted'}>
+            {verdict ? (
+              <LinkedText league={league} text={verdict.message} />
+            ) : (
+              'Tick players or picks on both sides to build an offer.'
+            )}
+          </span>
           {impact && (
             <span className="muted small">
-              Your cap room after: <b className={impact[0].space < 0 ? 'tone-bad' : ''}>{money(Math.round(impact[0].space))}</b>
-              {impact[0].dead > 0 && <> · dead money you'd book: {money(Math.round(impact[0].dead))}</>} · their room after: {money(Math.round(impact[1].space))}
+              Your cap room after:{' '}
+              <b className={impact[0].space < 0 ? 'tone-bad' : ''}>{money(Math.round(impact[0].space))}</b>
+              {impact[0].dead > 0 && <> · dead money you'd book: {money(Math.round(impact[0].dead))}</>} · their room
+              after: {money(Math.round(impact[1].space))}
             </span>
           )}
           <span className="row" style={{ gap: 8 }}>
-            <button className="btn btn-primary" disabled={!verdict || (!!verdict.problem && !verdict.policy) || !!closed} onClick={propose}>
+            <button
+              className="btn btn-primary"
+              disabled={!verdict || (!!verdict.problem && !verdict.policy) || !!closed}
+              onClick={propose}
+            >
               {counterTo !== undefined ? 'Send counter' : 'Propose trade'}
             </button>
-            <button className="btn" disabled={!verdict || verdict.accepts || !!verdict.problem || !!closed} onClick={sweeten}>
+            <button
+              className="btn"
+              disabled={!verdict || verdict.accepts || !!verdict.problem || !!closed}
+              onClick={sweeten}
+            >
               What would make it work?
             </button>
             <button
@@ -294,7 +388,8 @@ function TradeTable({ league }: { league: League }) {
           </div>
         </div>
         <p className="muted small" style={{ marginBottom: 0 }}>
-          Traded players take their salary with them; any bonus money stays on your cap as dead money. Teams want a small win in their own eyes, and each GM hears only a few proposals from you a week.
+          Traded players take their salary with them; any bonus money stays on your cap as dead money. Teams want a
+          small win in their own eyes, and each GM hears only a few proposals from you a week.
         </p>
       </Panel>
     </>

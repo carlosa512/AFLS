@@ -30,7 +30,9 @@ const inSeason = (league: League) => league.phase === 'regular' || league.phase 
 /** The latest week with finals before the one being played (the title game, once the season is over); null before week 1 is in. */
 export function resultsWeek(league: League): number | null {
   const current = inSeason(league) ? league.week : Infinity;
-  const done = league.games.filter((g) => g.season === league.season && g.result && g.week < current).map((g) => g.week);
+  const done = league.games
+    .filter((g) => g.season === league.season && g.result && g.week < current)
+    .map((g) => g.week);
   return done.length ? Math.max(...done) : null;
 }
 
@@ -88,8 +90,11 @@ export function ScoreStrip({ league }: { league: League }) {
   const off = byeTeams(league, week);
   const finals = games.filter((x) => x.game.result).length;
   const note =
-    view === 'results' ? `${finals} final${finals === 1 ? '' : 's'} · tap one for the box score` : `${games.length} game${games.length === 1 ? '' : 's'}${off.length ? ` · ${off.length} on a bye` : ''}`;
-  const scroll = (dir: number) => strip.current?.scrollBy({ left: dir * strip.current.clientWidth * 0.8, behavior: 'smooth' });
+    view === 'results'
+      ? `${finals} final${finals === 1 ? '' : 's'} · tap one for the box score`
+      : `${games.length} game${games.length === 1 ? '' : 's'}${off.length ? ` · ${off.length} on a bye` : ''}`;
+  const scroll = (dir: number) =>
+    strip.current?.scrollBy({ left: dir * strip.current.clientWidth * 0.8, behavior: 'smooth' });
   return (
     <section className="score-strip" aria-label="Around the league">
       <div className="strip-head">
@@ -162,7 +167,11 @@ function StripCard({ league, x, records }: { league: League; x: StripGame; recor
   if (r) {
     const state = (us: number, them: number) => (us > them ? 'won' : us < them ? 'lost' : undefined);
     return (
-      <button className={cls} onClick={() => nav.openGame(g.id)} aria-label={`${away.name} ${r.awayScore}, ${home.name} ${r.homeScore}${r.overtime ? ', overtime' : ''}. Open the box score.`}>
+      <button
+        className={cls}
+        onClick={() => nav.openGame(g.id)}
+        aria-label={`${away.name} ${r.awayScore}, ${home.name} ${r.homeScore}${r.overtime ? ', overtime' : ''}. Open the box score.`}
+      >
         <span className="strip-tag">{x.tag}</span>
         <span className={`strip-line ${state(r.awayScore, r.homeScore) ?? ''}`}>
           <Line team={away} home={false} value={String(r.awayScore)} />
@@ -178,7 +187,12 @@ function StripCard({ league, x, records }: { league: League; x: StripGame; recor
     <div className={cls}>
       <span className={`strip-tag${x.gameOfWeek ? ' hot' : ''}`}>{x.tag}</span>
       {[away, home].map((t) => (
-        <button key={t.id} className="strip-line" onClick={() => nav.openTeam(t.id)} aria-label={`${t.city} ${t.name}, ${record(t)}. Open their roster.`}>
+        <button
+          key={t.id}
+          className="strip-line"
+          onClick={() => nav.openTeam(t.id)}
+          aria-label={`${t.city} ${t.name}, ${record(t)}. Open their roster.`}
+        >
           <Line team={t} home={t === home} neutral={g.neutral} value={record(t)} />
         </button>
       ))}

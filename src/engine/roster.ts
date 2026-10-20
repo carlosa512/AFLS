@@ -14,7 +14,8 @@ export function activeRoster(league: League, teamId: number): Player[] {
 }
 
 /** Playing through an injury: on injections, or back early in protective gear once his wait is over. */
-export const playingHurt = (i: Injury | undefined) => !!i && (i.treatment === 'injection' || (i.treatment === 'brace' && !i.braceWait));
+export const playingHurt = (i: Injury | undefined) =>
+  !!i && (i.treatment === 'injection' || (i.treatment === 'brace' && !i.braceWait));
 
 /** Can he play this week? Not on reserve, and healthy or playing through it. */
 export const isAvailable = (p: Player) => !p.ir && (!p.injury || playingHurt(p.injury));
@@ -116,7 +117,6 @@ export function teamRatings(league: League, team: Team) {
   const overall = qb * 0.2 + offense * 0.35 + defense * 0.4 + special * 0.05;
   return { overall, qb, offense, defense, special };
 }
-
 
 export interface PlayerIdentity {
   firstName: string;

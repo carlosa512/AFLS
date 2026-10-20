@@ -9,8 +9,14 @@ import { nowWeight, readPlayer } from './value';
 const base = JSON.stringify(createLeague({ seed: 'deadline' }));
 const fresh = (): League => JSON.parse(base);
 
-const firstOf = (l: League, teamId: number, season: number) => l.draftPicks.find((p) => p.originalTeamId === teamId && p.round === 1 && p.season === season)!;
-const sendPicks = (from: number, to: number, picks: number[]): TradeProposal => ({ sides: [{ teamId: from, players: [], picks }, { teamId: to, players: [], picks: [] }] });
+const firstOf = (l: League, teamId: number, season: number) =>
+  l.draftPicks.find((p) => p.originalTeamId === teamId && p.round === 1 && p.season === season)!;
+const sendPicks = (from: number, to: number, picks: number[]): TradeProposal => ({
+  sides: [
+    { teamId: from, players: [], picks },
+    { teamId: to, players: [], picks: [] },
+  ],
+});
 
 describe('a tight cap in season', () => {
   it("doesn't make a cheap starter's play worth more, as it does in the offseason", () => {
@@ -18,7 +24,14 @@ describe('a tight cap in season', () => {
     const buyer = l.teams.find((t) => t.id !== l.userTeamId)!;
     // A good player on an expiring rookie deal elsewhere: the rental a capped contender paid firsts for.
     const target = Object.values(l.players)
-      .filter((p) => p.teamId != null && p.teamId !== buyer.id && p.teamId !== l.userTeamId && p.contract?.kind === 'rookie' && p.contract.years.at(-1)!.season === l.season)
+      .filter(
+        (p) =>
+          p.teamId != null &&
+          p.teamId !== buyer.id &&
+          p.teamId !== l.userTeamId &&
+          p.contract?.kind === 'rookie' &&
+          p.contract.years.at(-1)!.season === l.season,
+      )
       .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
     const gainAt = (phase: League['phase'], w: number) => {
       l.phase = phase;
@@ -57,7 +70,9 @@ describe('first-round picks', () => {
     // Nobody is stopped, you included.
     for (const team of [ai.id, l.userTeamId]) {
       firstOf(l, team, 2027).ownerId = other.id;
-      expect(tradeProblem(l, sendPicks(team, other.id, [firstOf(l, team, 2028).id, firstOf(l, team, 2029).id]))).toBeNull();
+      expect(
+        tradeProblem(l, sendPicks(team, other.id, [firstOf(l, team, 2028).id, firstOf(l, team, 2029).id])),
+      ).toBeNull();
     }
   });
 

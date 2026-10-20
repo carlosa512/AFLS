@@ -52,7 +52,12 @@ export interface CrewCalls {
 
 export function crewCalls(crew: Crew | undefined): CrewCalls {
   if (!crew) return { all: 1, holding: 1, coverage: 1, qbProtection: 1 };
-  return { all: crewMult(crew.flagVolume), holding: crewMult(crew.holding), coverage: crewMult(crew.coverage), qbProtection: crewMult(crew.qbProtection) };
+  return {
+    all: crewMult(crew.flagVolume),
+    holding: crewMult(crew.holding),
+    coverage: crewMult(crew.coverage),
+    qbProtection: crewMult(crew.qbProtection),
+  };
 }
 
 /** What a quarterback's public record is worth with the officials: MVPs, OPOYs and All-League teams. */
@@ -77,7 +82,8 @@ export function starLean(league: League, playerId: number): number {
 }
 
 /** "R. Halvorsen", or the full name. */
-export const refName = (crew: Crew, full = false) => (full ? `${crew.firstName} ${crew.lastName}` : `${crew.firstName[0]}. ${crew.lastName}`);
+export const refName = (crew: Crew, full = false) =>
+  full ? `${crew.firstName} ${crew.lastName}` : `${crew.firstName[0]}. ${crew.lastName}`;
 
 // ───────── the crews ─────────
 
@@ -158,7 +164,8 @@ export function crewAssignments(league: League, season: number): Map<number, num
   if (!league.crews?.length) return out;
   const worked = new Map(league.crews.map((c) => [c.id, 0]));
   const weeks = new Map<number, Game[]>();
-  for (const g of league.games) if (g.season === season) (weeks.get(g.week) ?? weeks.set(g.week, []).get(g.week)!).push(g);
+  for (const g of league.games)
+    if (g.season === season) (weeks.get(g.week) ?? weeks.set(g.week, []).get(g.week)!).push(g);
   for (const week of [...weeks.keys()].sort((a, b) => a - b)) {
     const rng = new Rng(`${league.seed}:crews:${season}:${week}`);
     const order = rng.shuffle(league.crews.map((c) => c.id)).sort((a, b) => worked.get(a)! - worked.get(b)!);
@@ -191,7 +198,9 @@ export const CREW_STATS: readonly CrewStat[] = ['flags', 'holding', 'coverage', 
 
 /** Seasons with games a crew worked, newest first (box scores older than last season are gone). */
 export function crewSeasons(league: League): number[] {
-  return [...new Set(league.games.filter((g) => g.result?.crewId !== undefined).map((g) => g.season))].sort((a, b) => b - a);
+  return [...new Set(league.games.filter((g) => g.result?.crewId !== undefined).map((g) => g.season))].sort(
+    (a, b) => b - a,
+  );
 }
 
 /** Every crew's calls in a season's played games, by crew id. Read from the box scores: there is no other ledger. */
@@ -201,7 +210,11 @@ export function crewSeason(league: League, season: number): Map<number, CrewLine
     const r = g.result;
     if (g.season !== season || r?.crewId === undefined) continue;
     let line = out.get(r.crewId);
-    if (!line) out.set(r.crewId, (line = { games: 0, fouls: Object.fromEntries(FOUL_KINDS.map((f) => [f, 0])) as Record<Foul, number> }));
+    if (!line)
+      out.set(
+        r.crewId,
+        (line = { games: 0, fouls: Object.fromEntries(FOUL_KINDS.map((f) => [f, 0])) as Record<Foul, number> }),
+      );
     line.games++;
     for (const side of [r.home, r.away]) for (const f of FOUL_KINDS) line.fouls[f] += side.flags?.[f] ?? 0;
   }
@@ -232,11 +245,18 @@ export function crewTable(league: League, season: number): { rows: CrewRow[]; ra
   const lines = crewSeason(league, season);
   const rows: CrewRow[] = (league.crews ?? []).map((crew) => {
     const line = lines.get(crew.id);
-    return { crew, games: line?.games ?? 0, perGame: line ? perGame(line) : { flags: 0, holding: 0, coverage: 0, roughing: 0 }, ranks: null };
+    return {
+      crew,
+      games: line?.games ?? 0,
+      perGame: line ? perGame(line) : { flags: 0, holding: 0, coverage: 0, roughing: 0 },
+      ranks: null,
+    };
   });
   const ranked = rows.filter((r) => r.games >= RANK_MIN_GAMES);
   for (const row of ranked) {
-    row.ranks = Object.fromEntries(CREW_STATS.map((s) => [s, 1 + ranked.filter((o) => o.perGame[s] > row.perGame[s]).length])) as Record<CrewStat, number>;
+    row.ranks = Object.fromEntries(
+      CREW_STATS.map((s) => [s, 1 + ranked.filter((o) => o.perGame[s] > row.perGame[s]).length]),
+    ) as Record<CrewStat, number>;
   }
   return { rows, ranked: ranked.length };
 }
@@ -245,7 +265,11 @@ export function crewTable(league: League, season: number): { rows: CrewRow[]; ra
  * Where a crew ranks in flags per game: this season once it has worked enough games to rank, else
  * last season (its tendencies move at most two points a year, so last year's habits still read).
  */
-export function crewStanding(league: League, crew: Crew, season: number): { rank: number; of: number; season: number } | null {
+export function crewStanding(
+  league: League,
+  crew: Crew,
+  season: number,
+): { rank: number; of: number; season: number } | null {
   for (const s of [season, season - 1]) {
     const { rows, ranked } = crewTable(league, s);
     const ranks = rows.find((r) => r.crew.id === crew.id)?.ranks;

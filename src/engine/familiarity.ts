@@ -41,9 +41,11 @@ export const CONVERSIONS: readonly Conversion[] = [
   { from: 'S', to: 'CB', tier: 'B', weeks: 22, ages: [21, 25] },
 ];
 
-export const conversionOf = (from: Position, to: Position): Conversion | undefined => CONVERSIONS.find((c) => c.from === from && c.to === to);
+export const conversionOf = (from: Position, to: Position): Conversion | undefined =>
+  CONVERSIONS.find((c) => c.from === from && c.to === to);
 /** Positions the coaches could teach a player, whatever his age. */
-export const targetsFor = (p: Pick<Player, 'position'>): Position[] => CONVERSIONS.filter((c) => c.from === p.position).map((c) => c.to);
+export const targetsFor = (p: Pick<Player, 'position'>): Position[] =>
+  CONVERSIONS.filter((c) => c.from === p.position).map((c) => c.to);
 
 // ───────── playing out of position ─────────
 
@@ -51,7 +53,20 @@ export const targetsFor = (p: Pick<Player, 'position'>): Position[] => CONVERSIO
 export const OUT_OF_POSITION_KNOCK = 2.5;
 
 /** Rooms that share the same calls and coaching: moving within one is half the shock. */
-const ROOM: Record<Position, string> = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'WR', OL: 'OL', DT: 'DL', EDGE: 'DL', LB: 'LB', CB: 'DB', S: 'DB', K: 'K', P: 'K' };
+const ROOM: Record<Position, string> = {
+  QB: 'QB',
+  RB: 'RB',
+  WR: 'WR',
+  TE: 'WR',
+  OL: 'OL',
+  DT: 'DL',
+  EDGE: 'DL',
+  LB: 'LB',
+  CB: 'DB',
+  S: 'DB',
+  K: 'K',
+  P: 'K',
+};
 
 /** What lining up at `slot` costs him on every skill, in rating points (0 at his own position). */
 export function knockFor(p: Player, slot: Position): number {

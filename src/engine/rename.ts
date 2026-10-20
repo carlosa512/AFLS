@@ -12,7 +12,8 @@ import type { League, Player } from './types';
 
 const OLD_FIRST = new Set(LEGACY_FIRST_NAMES);
 const OLD_LAST = new Set(LEGACY_LAST_NAMES);
-const generated = (p: { firstName: string; lastName: string }) => OLD_FIRST.has(p.firstName) && OLD_LAST.has(p.lastName);
+const generated = (p: { firstName: string; lastName: string }) =>
+  OLD_FIRST.has(p.firstName) && OLD_LAST.has(p.lastName);
 
 /**
  * Whether a player still has the name he was generated with. His traits are seeded by his name at creation
@@ -96,7 +97,12 @@ export interface PeopleAtLoad {
 export function peopleAtLoad(league: League): PeopleAtLoad {
   const ids = (r: Record<number, unknown> | undefined) => new Set(Object.keys(r ?? {}).map(Number));
   const coaches = [...Object.values(league.coaches ?? {}), ...Object.values(league.retiredCoaches ?? {})];
-  const unedited = [...coaches.filter((c) => c.playerId === undefined), ...Object.values(league.staff ?? {}), ...Object.values(league.medics ?? {}), ...(league.crews ?? [])];
+  const unedited = [
+    ...coaches.filter((c) => c.playerId === undefined),
+    ...Object.values(league.staff ?? {}),
+    ...Object.values(league.medics ?? {}),
+    ...(league.crews ?? []),
+  ];
   const players = Object.values(league.players);
   const share = (xs: { firstName: string; lastName: string }[]) => xs.filter(generated).length / xs.length;
   return {
@@ -146,8 +152,10 @@ export function renamePeople(league: League, before: PeopleAtLoad): void {
     }
     if (generated(c)) rename(c, 'coach', c.id, { kind: 'coach', role: c.role });
   }
-  for (const s of Object.values(league.staff)) if (before.staff.has(s.id) && generated(s)) rename(s, 'scout', s.id, { kind: 'scout', role: s.role });
-  for (const m of Object.values(league.medics)) if (before.medics.has(m.id) && generated(m)) rename(m, 'medic', m.id, { kind: 'medic', role: m.role });
+  for (const s of Object.values(league.staff))
+    if (before.staff.has(s.id) && generated(s)) rename(s, 'scout', s.id, { kind: 'scout', role: s.role });
+  for (const m of Object.values(league.medics))
+    if (before.medics.has(m.id) && generated(m)) rename(m, 'medic', m.id, { kind: 'medic', role: m.role });
   const renames = (c: { id: number; firstName: string; lastName: string }) => before.crews.has(c.id) && generated(c);
   const crewSurnames = new Set(league.crews.filter((c) => !renames(c)).map((c) => c.lastName));
   for (const c of league.crews) {
@@ -172,7 +180,8 @@ export function renamePeople(league: League, before: PeopleAtLoad): void {
     for (const h of league.market.history) for (const x of h.physicals ?? []) x.note = fix(x.note);
     for (const x of league.market.exam?.exams ?? []) x.note = fix(x.note);
   }
-  for (const t of league.teams) for (const list of [t.staffDead, t.coachDead, t.medicalDead]) for (const d of list ?? []) d.name = fix(d.name);
+  for (const t of league.teams)
+    for (const list of [t.staffDead, t.coachDead, t.medicalDead]) for (const d of list ?? []) d.name = fix(d.name);
 
   for (const g of league.games) {
     if (!g.result?.plays) continue;

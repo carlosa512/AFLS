@@ -43,7 +43,11 @@ export function Standings({ league }: { league: League }) {
   const divisions = divisionStandings(league, computeRecords(league, season));
   return (
     <>
-      {season !== league.season && <div className="notice">Final {season} standings. The {league.season} season starts after training camp.</div>}
+      {season !== league.season && (
+        <div className="notice">
+          Final {season} standings. The {league.season} season starts after training camp.
+        </div>
+      )}
       {league.conferences.map((conf, c) => (
         <Panel key={conf.name} title={conf.name}>
           <div className="grid-2">

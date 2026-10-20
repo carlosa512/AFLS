@@ -12,7 +12,8 @@ import { gameWeather } from '../engine/weather';
 
 const BLUE = { id: 0, colors: ['#1D4ED8', '#FFFFFF'] } as Team;
 const pearson = { firstName: 'Mario', lastName: 'Pearson', jersey: 7 } as Player;
-const html = (size: number, player = pearson) => renderToStaticMarkup(<PlayerAvatar player={player} team={BLUE} size={size} />);
+const html = (size: number, player = pearson) =>
+  renderToStaticMarkup(<PlayerAvatar player={player} team={BLUE} size={size} />);
 const seeds = TEAM_SEEDS.map((t) => ({ abbrev: t.abbrev, primary: t.colors[0], secondary: t.colors[1] }));
 
 describe('color', () => {
@@ -147,7 +148,11 @@ describe('staffLook', () => {
   });
   it('dresses for the weather and the calendar', () => {
     expect(staffLook('s1', 'scout', false, 'cold')).toMatchObject({ garment: 'jacket', headwear: 'beanie' });
-    expect(staffLook('s1', 'coach', false, 'hot')).toMatchObject({ garment: 'polo', headwear: 'visor', gear: 'headset' });
+    expect(staffLook('s1', 'coach', false, 'hot')).toMatchObject({
+      garment: 'polo',
+      headwear: 'visor',
+      gear: 'headset',
+    });
     expect(staffLook('s1', 'coach', false, 'offseason')).toMatchObject({ garment: 'quarterzip', gear: 'none' });
     expect(staffLook('s1', 'medical', false, 'offseason')).toMatchObject({ garment: 'labcoat', gear: 'stethoscope' });
   });
@@ -159,7 +164,11 @@ describe('staffLook', () => {
     }
   });
   it('gives the strength coach a whistle, never a headset, and his tee in the heat and the offseason', () => {
-    const gears = new Set(staffIds.flatMap((id) => (['game', 'cold', 'hot', 'offseason'] as const).map((day) => staffLook(id, 'strength', false, day).gear)));
+    const gears = new Set(
+      staffIds.flatMap((id) =>
+        (['game', 'cold', 'hot', 'offseason'] as const).map((day) => staffLook(id, 'strength', false, day).gear),
+      ),
+    );
     expect([...gears]).toEqual(['whistle']);
     expect(staffLook('s1', 'strength', false, 'hot')).toMatchObject({ garment: 'tee', headwear: 'visor' });
     expect(staffLook('s1', 'strength', false, 'offseason')).toMatchObject({ garment: 'tee', gear: 'whistle' });
@@ -186,7 +195,8 @@ describe('staffDay', () => {
   });
 
   it('is the offseason between seasons, and once the title game is played', () => {
-    for (const phase of ['resign', 'freeAgency', 'draft', 'preseason', 'complete'] as const) expect(staffDay({ ...league, phase }, 0)).toBe('offseason');
+    for (const phase of ['resign', 'freeAgency', 'draft', 'preseason', 'complete'] as const)
+      expect(staffDay({ ...league, phase }, 0)).toBe('offseason');
     expect(staffDay(null, 0)).toBe('game');
   });
   it("follows this week's game: jackets on cold open-air days, polos on hot ones, own outfits indoors and on a bye", () => {
@@ -225,7 +235,9 @@ describe('lookOf', () => {
     const scout = league.staff[1];
     const day = staffDay(league, coach.teamId);
     expect(lookOf(league, coach)).toEqual(staffLook('coaches:1', STAFF_FAMILY[coach.role], false, day));
-    expect(lookOf(league, scout)).toEqual(staffLook('staff:1', STAFF_FAMILY[scout.role], false, staffDay(league, scout.teamId)));
+    expect(lookOf(league, scout)).toEqual(
+      staffLook('staff:1', STAFF_FAMILY[scout.role], false, staffDay(league, scout.teamId)),
+    );
   });
   it('dresses a retired coach for the offseason, whatever the week', () => {
     const coach = Object.values(league.coaches).find((c) => c.role === 'headCoach')!;
@@ -241,7 +253,8 @@ describe('lookOf', () => {
 });
 
 describe('StaffFigure', () => {
-  const html = (size: number, woman = false) => renderToStaticMarkup(<StaffFigure colors={DAL} look={staffLook('s7', 'medical', woman, 'game')} size={size} />);
+  const html = (size: number, woman = false) =>
+    renderToStaticMarkup(<StaffFigure colors={DAL} look={staffLook('s7', 'medical', woman, 'game')} size={size} />);
   it('adds detail as it grows', () => {
     expect(html(28)).not.toContain('stroke-linejoin="round"'); // no face line at list-row size
     expect(html(56)).toContain('stroke-linejoin="round"');
@@ -262,7 +275,15 @@ describe('StaffFigure', () => {
     for (const t of seeds) {
       for (const family of ['coach', 'strength', 'scout', 'director', 'medical'] as const) {
         for (const day of ['game', 'cold', 'hot', 'offseason'] as const) {
-          expect(renderToStaticMarkup(<StaffFigure colors={t} look={staffLook(`${t.abbrev}${family}`, family, family !== 'coach' && family !== 'strength', day)} size={56} />)).toContain('</svg>');
+          expect(
+            renderToStaticMarkup(
+              <StaffFigure
+                colors={t}
+                look={staffLook(`${t.abbrev}${family}`, family, family !== 'coach' && family !== 'strength', day)}
+                size={56}
+              />,
+            ),
+          ).toContain('</svg>');
         }
       }
     }
@@ -271,7 +292,17 @@ describe('StaffFigure', () => {
 
 describe('StaffAvatar', () => {
   it('puts staff on the market in the grey-green', () => {
-    const scout = { id: 3, firstName: 'Dana', lastName: 'Reyes', role: 'collegeScout', age: 34, evaluation: 12, projection: 11, teamId: null, contract: null } as const;
+    const scout = {
+      id: 3,
+      firstName: 'Dana',
+      lastName: 'Reyes',
+      role: 'collegeScout',
+      age: 34,
+      evaluation: 12,
+      projection: 11,
+      teamId: null,
+      contract: null,
+    } as const;
     const html = renderToStaticMarkup(<StaffAvatar person={scout} size={56} />);
     expect(html).toContain(`stroke="${shade(FREE_AGENT.primary, 0.35)}"`); // the ring
   });

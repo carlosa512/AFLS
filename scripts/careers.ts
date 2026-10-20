@@ -34,7 +34,9 @@ const SEEDS = ['careers-audit', 'careers-audit-2', 'careers-audit-3', 'careers-a
 const leagues: Promise<LeagueRun>[] = SEEDS.map(
   (seed) =>
     new Promise((resolve, reject) => {
-      const child = fork(new URL('./careers-league.ts', import.meta.url).pathname, [], { env: { ...process.env, CAREERS_SEED: seed, CAREERS_SEASONS: String(seasons) } });
+      const child = fork(new URL('./careers-league.ts', import.meta.url).pathname, [], {
+        env: { ...process.env, CAREERS_SEED: seed, CAREERS_SEASONS: String(seasons) },
+      });
       let done = false;
       child.once('message', (run) => {
         done = true;
@@ -43,7 +45,10 @@ const leagues: Promise<LeagueRun>[] = SEEDS.map(
       });
       child.once('error', reject);
       // A worker that dies before reporting (a crash, or the OOM killer's signal) fails the audit by name.
-      child.once('exit', (code, signal) => done || reject(new Error(`league ${seed} exited (${signal ?? code}) before reporting`)));
+      child.once(
+        'exit',
+        (code, signal) => done || reject(new Error(`league ${seed} exited (${signal ?? code}) before reporting`)),
+      );
     }),
 );
 const COHORT = 1200;
@@ -74,10 +79,21 @@ interface Cohort {
 
 /** A draft class at one position: the ceiling is drawn the way `generateDraftClass` draws it. */
 function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching = NEUTRAL): Cohort {
-  const out: Cohort = { ovr: [], attr: { speed: [], agility: [], throwAccShort: [], throwAccDeep: [], awareness: [] }, traits: [] };
+  const out: Cohort = {
+    ovr: [],
+    attr: { speed: [], agility: [], throwAccShort: [], throwAccDeep: [], awareness: [] },
+    traits: [],
+  };
   for (let i = 0; i < n; i++) {
     const rng = new Rng(`careers:${pos}:${i}`);
-    const p = generatePlayer(rng, { id: 900000 + i, position: pos, quality: rng.normal(11, 1.2), age: 21, teamId: null, jerseysUsed: new Set() });
+    const p = generatePlayer(rng, {
+      id: 900000 + i,
+      position: pos,
+      quality: rng.normal(11, 1.2),
+      age: 21,
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
     const growth = Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = clamp(playerOvr(p) + growth, 1, 20);
     const row: number[] = [];
@@ -107,10 +123,20 @@ for (const pos of POSITIONS) {
   cohorts[pos] = cohort(pos);
   curves[pos] = curve(cohorts[pos].ovr);
 }
-console.log('pos   ' + AGES.filter((a) => a % 2 === 1).map((a) => String(a).padStart(6)).join(''));
+console.log(
+  'pos   ' +
+    AGES.filter((a) => a % 2 === 1)
+      .map((a) => String(a).padStart(6))
+      .join(''),
+);
 for (const pos of POSITIONS) {
   const c = curves[pos];
-  console.log(pos.padEnd(6) + AGES.filter((a) => a % 2 === 1).map((a) => at(c, a).toFixed(1).padStart(6)).join(''));
+  console.log(
+    pos.padEnd(6) +
+      AGES.filter((a) => a % 2 === 1)
+        .map((a) => at(c, a).toFixed(1).padStart(6))
+        .join(''),
+  );
 }
 console.log('');
 
@@ -118,33 +144,46 @@ const below = (c: number[], age: number) => Math.max(...c) - at(c, age);
 const lines: string[] = [];
 const RB = curves.RB;
 // Research: RB peak 21–26 by method (26 per Football Perspective); −25% production from 28 to 29.
-lines.push(`RB: ${check('peak age', peakAge(cohorts.RB), 24, 27, 1)} · ${check('loss 28→29', at(RB, 28) - at(RB, 29), 1.0, 2.5)} · ${check('below peak at 30', below(RB, 30), 3.0, 6.0)}`);
+lines.push(
+  `RB: ${check('peak age', peakAge(cohorts.RB), 24, 27, 1)} · ${check('loss 28→29', at(RB, 28) - at(RB, 29), 1.0, 2.5)} · ${check('below peak at 30', below(RB, 30), 3.0, 6.0)}`,
+);
 // Research: WR and CB peak 25–28.
 for (const pos of ['WR', 'CB'] as const) {
   const c = curves[pos];
   const late = pos === 'CB' ? 31 : 32;
-  lines.push(`${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 28.5, 1)} · ${check('below peak at 28', below(c, 28), 0, 0.5)} · ${check(`below peak at ${late}`, below(c, late), 1.5, 4.5)}`);
+  lines.push(
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 28.5, 1)} · ${check('below peak at 28', below(c, 28), 0, 0.5)} · ${check(`below peak at ${late}`, below(c, late), 1.5, 4.5)}`,
+  );
 }
 // Design targets: the front seven and safeties fade from about 30.
 for (const pos of ['S', 'LB', 'EDGE', 'DT'] as const) {
-  lines.push(`${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 30, 1)} · ${check('below peak at 33', below(curves[pos], 33), 1.5, 5.5)}`);
+  lines.push(
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 30, 1)} · ${check('below peak at 33', below(curves[pos], 33), 1.5, 5.5)}`,
+  );
 }
 // Research: long plateaus (TE still at 89% at 34, survivor-biased).
 for (const pos of ['TE', 'OL'] as const) {
   const c = curves[pos];
-  lines.push(`${pos}: ${check('peak age', peakAge(cohorts[pos]), 26, 32, 1)} · ${check('below peak at 32', below(c, 32), 0, 0.6)} · ${check('below peak at 35', below(c, 35), 0.8, 4)}`);
+  lines.push(
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 26, 32, 1)} · ${check('below peak at 32', below(c, 32), 0, 0.6)} · ${check('below peak at 35', below(c, 35), 0.8, 4)}`,
+  );
 }
 {
   // Research: QB peak season 28.5 on average (pocket 30.7, dual-threat 26.1); rushing flat 27–29.
   const c = curves.QB;
   const q = cohorts.QB.attr;
   const speed = curve(q.speed);
-  const acc = AGES.map((_, j) => mean(q.throwAccShort.map((r, i) => (r[j] + q.throwAccDeep[i][j] + q.awareness[i][j]) / 3)));
+  const acc = AGES.map((_, j) =>
+    mean(q.throwAccShort.map((r, i) => (r[j] + q.throwAccDeep[i][j] + q.awareness[i][j]) / 3)),
+  );
   lines.push(
     `QB: ${check('peak age', peakAge(cohorts.QB), 27, 31, 1)} · ${check('below peak at 33', below(c, 33), 0, 0.6)} · ${check('below peak at 37', below(c, 37), 1, 4)} · ${check('speed at 32 vs 25', at(speed, 32) / at(speed, 25), 0.6, 0.9)} · ${check('accuracy+awareness at 34 vs peak', at(acc, 34) / Math.max(...acc), 0.97, 1.01, 3)}`,
   );
 }
-for (const pos of ['K', 'P'] as const) lines.push(`${pos}: ${check('below peak at 35', below(curves[pos], 35), 0, 0.6)} · ${check('below peak at 38', below(curves[pos], 38), 0.3, 3)}`);
+for (const pos of ['K', 'P'] as const)
+  lines.push(
+    `${pos}: ${check('below peak at 35', below(curves[pos], 35), 0, 0.6)} · ${check('below peak at 38', below(curves[pos], 38), 0.3, 3)}`,
+  );
 for (const l of lines) console.log(l);
 
 // Hidden traits and playing time (design targets: felt, never decisive).
@@ -159,7 +198,11 @@ for (const l of lines) console.log(l);
   const weGrowth = mean(all.map((pos) => byTrait(cohorts[pos], 'workEthic', 26)));
   const weLate = mean(all.map((pos) => byTrait(cohorts[pos], 'workEthic', 32)));
   const durLate = mean(all.map((pos) => byTrait(cohorts[pos], 'durability', 32)));
-  const bench = mean(['WR', 'CB', 'OL', 'LB'].map((pos) => mean(at26(cohorts[pos as Position])) - mean(at26(cohort(pos as Position, 0, 400)))));
+  const bench = mean(
+    ['WR', 'CB', 'OL', 'LB'].map(
+      (pos) => mean(at26(cohorts[pos as Position])) - mean(at26(cohort(pos as Position, 0, 400))),
+    ),
+  );
   console.log(
     `\nTraits: ${check('work ethic top vs bottom third, OVR at 26', weGrowth, 0.3, 1.0)} · ${check('…at 32', weLate, 0.5, 2.0)} · ${check('durability top vs bottom third, OVR at 32', durLate, 0.5, 2.0)} · ${check('starter vs never plays, growth to 26', bench, 0.25, 0.9)}`,
   );
@@ -170,9 +213,29 @@ for (const l of lines) console.log(l);
 // one (every coach 8), so the gap is the coaches' alone.
 {
   const N = 400;
-  const staffOf = (rating: number): Coach[] => CHAIRS.map((ch, i) => ({ id: -i - 1, firstName: '', lastName: '', ...ch, age: 50, youth: rating, veterans: rating, teamId: 0, contract: null }));
+  const staffOf = (rating: number): Coach[] =>
+    CHAIRS.map((ch, i) => ({
+      id: -i - 1,
+      firstName: '',
+      lastName: '',
+      ...ch,
+      age: 50,
+      youth: rating,
+      veterans: rating,
+      teamId: 0,
+      contract: null,
+    }));
   const all = POSITIONS.filter((p) => p !== 'K' && p !== 'P');
-  const gap = (age: number, a: number, b: number) => (rows: Record<number, Cohort>) => mean(all.map((pos) => mean(rows[a * 100 + all.indexOf(pos)].ovr.map((r, i) => r[age - 21] - rows[b * 100 + all.indexOf(pos)].ovr[i][age - 21]))));
+  const gap = (age: number, a: number, b: number) => (rows: Record<number, Cohort>) =>
+    mean(
+      all.map((pos) =>
+        mean(
+          rows[a * 100 + all.indexOf(pos)].ovr.map(
+            (r, i) => r[age - 21] - rows[b * 100 + all.indexOf(pos)].ovr[i][age - 21],
+          ),
+        ),
+      ),
+    );
   const rows: Record<number, Cohort> = {};
   all.forEach((pos, j) => {
     rows[j] = { ...cohorts[pos], ovr: cohorts[pos].ovr.slice(0, N) };
@@ -199,24 +262,50 @@ for (const l of lines) console.log(l);
 // ───────── Part 2: four leagues ─────────
 
 const steadyFrom = Math.floor(seasons / 2);
-console.log(`\nPart 2 — league runs (${seasons} seasons each, seeds ${SEEDS.join(', ')}, pooled; steady state = seasons ${steadyFrom + 1}–${seasons})\n`);
+console.log(
+  `\nPart 2 — league runs (${seasons} seasons each, seeds ${SEEDS.join(', ')}, pooled; steady state = seasons ${steadyFrom + 1}–${seasons})\n`,
+);
 const runs = await Promise.all(leagues);
 const pool = <T>(pick: (r: LeagueRun) => T[]) => runs.flatMap(pick);
 const deltas = Object.fromEntries(Object.keys(runs[0].deltas).map((k) => [k, pool((r) => r.deltas[k])]));
-const steady = Object.fromEntries((Object.keys(runs[0].steady) as (keyof LeagueRun['steady'])[]).map((k) => [k, pool((r) => r.steady[k])])) as LeagueRun['steady'];
-const ledger = { growth: pool((r) => r.ledger.growth), body: pool((r) => r.ledger.body), craft: pool((r) => r.ledger.craft), kpGrowth: pool((r) => r.ledger.kpGrowth), kpCraft: pool((r) => r.ledger.kpCraft) };
-const coached = { all: pool((r) => r.coached.all), best: pool((r) => r.coached.best), worst: pool((r) => r.coached.worst) };
+const steady = Object.fromEntries(
+  (Object.keys(runs[0].steady) as (keyof LeagueRun['steady'])[]).map((k) => [k, pool((r) => r.steady[k])]),
+) as LeagueRun['steady'];
+const ledger = {
+  growth: pool((r) => r.ledger.growth),
+  body: pool((r) => r.ledger.body),
+  craft: pool((r) => r.ledger.craft),
+  kpGrowth: pool((r) => r.ledger.kpGrowth),
+  kpCraft: pool((r) => r.ledger.kpCraft),
+};
+const coached = {
+  all: pool((r) => r.coached.all),
+  best: pool((r) => r.coached.best),
+  worst: pool((r) => r.coached.worst),
+};
 const retiredAt: Record<string, number[]> = {};
 for (const r of runs) for (const [group, ages] of Object.entries(r.retiredAt)) (retiredAt[group] ??= []).push(...ages);
 
-for (const r of runs) console.log(`starter OVR by season (${r.seed}): ` + r.starterOvr.map((v) => v.toFixed(2)).join(' '));
+for (const r of runs)
+  console.log(`starter OVR by season (${r.seed}): ` + r.starterOvr.map((v) => v.toFixed(2)).join(' '));
 // The league must neither drain nor inflate (v4 on careers-audit slid from 12.92 to 12.60 over 16 seasons).
 // Judged on the leagues' average path, so one league's luck doesn't decide it.
 const meanPath = runs[0].starterOvr.map((_, i) => mean(runs.map((r) => r.starterOvr[i])));
 console.log(`starter OVR by season (mean): ${meanPath.map((v) => v.toFixed(2)).join(' ')}`);
-console.log(check('lowest starter OVR', Math.min(...meanPath), 12.65, 13.2) + ' · ' + check('highest starter OVR', Math.max(...meanPath), 12.65, 13.2));
-console.log(`starter awareness: ${runs.map((r) => `${r.awareness[0].toFixed(2)} → ${r.awareness[1].toFixed(2)}`).join(', ')} (informational: the mental game rises with age, the league shouldn't)`);
-console.log('mean yearly OVR change, rostered: ' + Object.entries(deltas).map(([k, v]) => `${k} ${mean(v).toFixed(2)}`).join(' · '));
+console.log(
+  check('lowest starter OVR', Math.min(...meanPath), 12.65, 13.2) +
+    ' · ' +
+    check('highest starter OVR', Math.max(...meanPath), 12.65, 13.2),
+);
+console.log(
+  `starter awareness: ${runs.map((r) => `${r.awareness[0].toFixed(2)} → ${r.awareness[1].toFixed(2)}`).join(', ')} (informational: the mental game rises with age, the league shouldn't)`,
+);
+console.log(
+  'mean yearly OVR change, rostered: ' +
+    Object.entries(deltas)
+      .map(([k, v]) => `${k} ${mean(v).toFixed(2)}`)
+      .join(' · '),
+);
 // Coaching must move players, not the league: a typical staff is neutral and the market keeps the average staff typical.
 console.log(
   `coaching: ${check('mean growth rate (under 26)', mean(ledger.growth), 0.985, 1.015, 3)} · ${check('mean body decline (28+)', mean(ledger.body), 0.985, 1.015, 3)} · ${check('mean technique decline (28+)', mean(ledger.craft), 0.985, 1.015, 3)} · K/P growth x${mean(ledger.kpGrowth).toFixed(3)}, technique decline x${mean(ledger.kpCraft).toFixed(3)} (informational)`,
@@ -229,13 +318,17 @@ console.log(
 // Research: 13.9% of QB peak seasons came at 35+ (recent leagues have had 3–7 QB1s that old, up to
 // 22%); a few kickers and punters play to 40. Across four leagues the engine before coaching sat at
 // 18.5% and 7.4 (the old 16% and 7 ceilings were fit to one seed, which happened to read 14.1 and 6.6).
-console.log(`${check('QB1s aged 35+ %', mean(steady.qb35), 4, 22, 1)} · ${check('RB1s aged 30+ %', mean(steady.rb30), 0, 8, 1)} · ${check('K/P starters aged 38+ (of 64)', mean(steady.k38), 1, 8, 1)}`);
+console.log(
+  `${check('QB1s aged 35+ %', mean(steady.qb35), 4, 22, 1)} · ${check('RB1s aged 30+ %', mean(steady.rb30), 0, 8, 1)} · ${check('K/P starters aged 38+ (of 64)', mean(steady.k38), 1, 8, 1)}`,
+);
 // Long-run play: development must not quietly change the game. Fresh-league targets are in `npm run sim`;
 // an aged league sits a little off them even on the v4 engine (careers-audit: 21.99 points, 5.22 penalties,
 // 2.19 sacks), so the bands here are a little wider. Points run to the NFL's record season (24.8 a team-game
 // in 2020): an aged league scores about 24.3 (its veterans' Awareness, docs/PENALTIES.md), a run swings
 // about half a point either way, and the old ceiling of 24 flipped from run to run (owner's call, Oct 19 2026).
-console.log(`${check('points per team-game', mean(steady.points), 21, 25)} · ${check('penalties', mean(steady.penalties), 5, 7)} · ${check('sacks', mean(steady.sacks), 2, 2.7)}`);
+console.log(
+  `${check('points per team-game', mean(steady.points), 21, 25)} · ${check('penalties', mean(steady.penalties), 5, 7)} · ${check('sacks', mean(steady.sacks), 2, 2.7)}`,
+);
 // Grown-up stars must still lead the league like the NFL's do: the average #1 and #5 are held to the
 // ranges `npm run sim` uses for a fresh league. How often a leader passes the record is printed but not
 // judged: four leagues hold a handful of star careers, one elite quarterback and receiver can break it
@@ -257,15 +350,35 @@ const leaders = LEADER_TARGETS.map(({ label, first, fifth, ceiling }) => {
   const wider = ([lo, hi]: [number, number]) => [round(lo * (AGED_FLOOR[label] ?? 0.95)), round(hi * 1.05)] as const;
   const [f1, f2] = wider(first);
   const [v1, v2] = wider(fifth);
-  return { label, over: tops.filter((t) => t[0] > ceiling).length, text: `${label} ${check('#1', rank(0), f1, f2, digits)}, ${check('#5', rank(4), v1, v2, digits)}` };
+  return {
+    label,
+    over: tops.filter((t) => t[0] > ceiling).length,
+    text: `${label} ${check('#1', rank(0), f1, f2, digits)}, ${check('#5', rank(4), v1, v2, digits)}`,
+  };
 });
-console.log(`season leaders, average #1 and #5 (of ${leaderSeasons} seasons): ` + leaders.map((l) => l.text).join(' · '));
+console.log(
+  `season leaders, average #1 and #5 (of ${leaderSeasons} seasons): ` + leaders.map((l) => l.text).join(' · '),
+);
 const maxOver = overRecordAllowed(leaderSeasons);
-console.log(`seasons with a leader past the record (an NFL-like league shows at most ${maxOver}): ` + leaders.map((l) => `${l.label} ${l.over}`).join(' · '));
+console.log(
+  `seasons with a leader past the record (an NFL-like league shows at most ${maxOver}): ` +
+    leaders.map((l) => `${l.label} ${l.over}`).join(' · '),
+);
 const outliers = leaders.filter((l) => l.over > maxOver);
-if (outliers.length) console.log(`⚠ outlier seasons (warning only): ${outliers.map((l) => `${l.label} ${l.over} past the record`).join(', ')}`);
+if (outliers.length)
+  console.log(
+    `⚠ outlier seasons (warning only): ${outliers.map((l) => `${l.label} ${l.over} past the record`).join(', ')}`,
+  );
 // Design targets (the research has no retirement ages); judged only with 8+ retirements.
-const RETIRE: Record<string, [number, number]> = { RB: [29, 33], WR: [31, 35], CB: [30, 34], OL: [32, 36], TE: [32, 36], QB: [35, 40], 'K/P': [36, 42] };
+const RETIRE: Record<string, [number, number]> = {
+  RB: [29, 33],
+  WR: [31, 35],
+  CB: [30, 34],
+  OL: [32, 36],
+  TE: [32, 36],
+  QB: [35, 40],
+  'K/P': [36, 42],
+};
 console.log(
   'median retirement age (rostered, steady state): ' +
     Object.entries(retiredAt)
@@ -273,11 +386,19 @@ console.log(
       .map(([group, ages]) => {
         const r = RETIRE[group];
         const m = ages.length >= 8 ? median(ages) : NaN;
-        return (r ? check(group, m, r[0], r[1], 1) : `${group} ${Number.isFinite(m) ? m.toFixed(1) : 'n/a'}`) + ` n=${ages.length}`;
+        return (
+          (r ? check(group, m, r[0], r[1], 1) : `${group} ${Number.isFinite(m) ? m.toFixed(1) : 'n/a'}`) +
+          ` n=${ages.length}`
+        );
       })
       .join(' · '),
 );
 const starterAges = pool((r) => r.starterAges);
-console.log('mean starter age: ' + POSITIONS.map((pos) => `${pos} ${mean(starterAges.filter((p) => p.position === pos).map((p) => p.age)).toFixed(1)}`).join(' · '));
+console.log(
+  'mean starter age: ' +
+    POSITIONS.map(
+      (pos) => `${pos} ${mean(starterAges.filter((p) => p.position === pos).map((p) => p.age)).toFixed(1)}`,
+    ).join(' · '),
+);
 console.log(`\n${misses} number(s) outside target range`);
 if (misses) process.exitCode = 1;

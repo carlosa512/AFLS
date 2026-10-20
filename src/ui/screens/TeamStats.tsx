@@ -29,14 +29,40 @@ const count = (v: number) => String(v);
 
 export const TEAM_COLS: TeamStatCol[] = [
   { key: 'ppg', label: 'Points per game', short: 'Pts/G', value: perGame((l) => l.pointsFor), format: oneDp },
-  { key: 'papg', label: 'Points allowed', short: 'Opp/G', value: perGame((l) => l.pointsAgainst), format: oneDp, fewest: true },
-  { key: 'diff', label: 'Point differential', short: 'Diff', value: (l) => l.pointsFor - l.pointsAgainst, format: signed },
+  {
+    key: 'papg',
+    label: 'Points allowed',
+    short: 'Opp/G',
+    value: perGame((l) => l.pointsAgainst),
+    format: oneDp,
+    fewest: true,
+  },
+  {
+    key: 'diff',
+    label: 'Point differential',
+    short: 'Diff',
+    value: (l) => l.pointsFor - l.pointsAgainst,
+    format: signed,
+  },
   { key: 'ypg', label: 'Yards per game', short: 'Yds/G', value: perGame((l) => l.yards), format: oneDp },
-  { key: 'yapg', label: 'Yards allowed', short: 'Opp Yds/G', value: perGame((l) => l.yardsAllowed), format: oneDp, fewest: true },
+  {
+    key: 'yapg',
+    label: 'Yards allowed',
+    short: 'Opp Yds/G',
+    value: perGame((l) => l.yardsAllowed),
+    format: oneDp,
+    fewest: true,
+  },
   { key: 'take', label: 'Takeaways', short: 'Take', value: (l) => l.takeaways, format: count },
   { key: 'give', label: 'Giveaways', short: 'Give', value: (l) => l.giveaways, format: count, fewest: true },
   { key: 'to', label: 'Turnover margin', short: 'TO ±', value: (l) => l.takeaways - l.giveaways, format: signed },
-  { key: 'third', label: 'Third-down rate', short: '3rd %', value: (l) => (l.thirdDownAtt ? l.thirdDownConv / l.thirdDownAtt : 0), format: (v) => `${(v * 100).toFixed(1)}%` },
+  {
+    key: 'third',
+    label: 'Third-down rate',
+    short: '3rd %',
+    value: (l) => (l.thirdDownAtt ? l.thirdDownConv / l.thirdDownAtt : 0),
+    format: (v) => `${(v * 100).toFixed(1)}%`,
+  },
   { key: 'sacks', label: 'Sacks', short: 'Sacks', value: (l) => l.sacks, format: count },
 ];
 
@@ -47,7 +73,8 @@ export function teamRank(stats: Map<number, TeamSeasonLine>, col: TeamStatCol, t
 }
 
 /** The regular seasons whose box scores the league still keeps, newest first. */
-export const teamStatSeasons = (league: League) => [...new Set(league.games.filter((g) => g.result && !g.playoffRound).map((g) => g.season))].sort((a, b) => b - a);
+export const teamStatSeasons = (league: League) =>
+  [...new Set(league.games.filter((g) => g.result && !g.playoffRound).map((g) => g.season))].sort((a, b) => b - a);
 
 export function TeamStats({ league }: { league: League }) {
   const nav = useNav();
@@ -70,7 +97,15 @@ export function TeamStats({ league }: { league: League }) {
     const w = l.home.w + l.road.w + 0.5 * (l.home.t + l.road.t);
     return l.games ? w / l.games : 0;
   };
-  const sorted = sortRows(rows, sort, ({ t, l }, key) => (key === 'team' ? t.name.toLowerCase() : key === 'rec' ? win(l) : key === 'g' ? l.games : TEAM_COLS.find((c) => c.key === key)!.value(l)));
+  const sorted = sortRows(rows, sort, ({ t, l }, key) =>
+    key === 'team'
+      ? t.name.toLowerCase()
+      : key === 'rec'
+        ? win(l)
+        : key === 'g'
+          ? l.games
+          : TEAM_COLS.find((c) => c.key === key)!.value(l),
+  );
   return (
     <Panel
       title={`${season} team stats`}
@@ -98,7 +133,15 @@ export function TeamStats({ league }: { league: League }) {
               <SortTh label="G" k="g" sort={sort} onSort={onSort} className="num" />
               <SortTh label="W-L" k="rec" sort={sort} onSort={onSort} className="num" />
               {TEAM_COLS.map((c) => (
-                <SortTh key={c.key} label={<span title={c.label}>{c.short}</span>} k={c.key} sort={sort} onSort={onSort} desc={!c.fewest} className="num" />
+                <SortTh
+                  key={c.key}
+                  label={<span title={c.label}>{c.short}</span>}
+                  k={c.key}
+                  sort={sort}
+                  onSort={onSort}
+                  desc={!c.fewest}
+                  className="num"
+                />
               ))}
             </tr>
           </thead>
@@ -112,7 +155,9 @@ export function TeamStats({ league }: { league: League }) {
                   </button>
                 </td>
                 <td className="num">{l.games}</td>
-                <td className="num">{recordText({ w: l.home.w + l.road.w, l: l.home.l + l.road.l, t: l.home.t + l.road.t })}</td>
+                <td className="num">
+                  {recordText({ w: l.home.w + l.road.w, l: l.home.l + l.road.l, t: l.home.t + l.road.t })}
+                </td>
                 {TEAM_COLS.map((c) => (
                   <td key={c.key} className="num" style={sort.key === c.key ? { fontWeight: 700 } : undefined}>
                     {c.format(c.value(l))}

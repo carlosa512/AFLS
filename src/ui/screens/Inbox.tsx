@@ -1,5 +1,17 @@
 import { useEffect, useState } from 'react';
-import { archiveMail, archiveRead, deleteMail, inInbox, mailSubject, markAllRead, memberTitle, needsYou, threadLabel, threads, type MailThread } from '../../engine/inbox';
+import {
+  archiveMail,
+  archiveRead,
+  deleteMail,
+  inInbox,
+  mailSubject,
+  markAllRead,
+  memberTitle,
+  needsYou,
+  threadLabel,
+  threads,
+  type MailThread,
+} from '../../engine/inbox';
 import type { InboxAction, InboxCategory, InboxMessage, League } from '../../engine/types';
 import { useNav } from '../App';
 import { PHASE_LABELS, weekLabel } from '../format';
@@ -86,13 +98,21 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
   }
 }
 
-const dateLabel = (m: InboxMessage) => `${m.season} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
+const dateLabel = (m: InboxMessage) =>
+  `${m.season} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
 
 /** "Sean Evans, Head coach" → name and role; "Kyle James's agent" → the agent; "The owner" → O. */
 function sender(from: string): { name: string; role: string; initials: string } {
   const [name, ...role] = from.split(', ');
-  const words = name.replace(/'s agent$/, '').replace(/^The /, '').split(' ');
-  return { name, role: role.join(', '), initials: (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase() };
+  const words = name
+    .replace(/'s agent$/, '')
+    .replace(/^The /, '')
+    .split(' ');
+  return {
+    name,
+    role: role.join(', '),
+    initials: (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase(),
+  };
 }
 
 /** Who a message is about: its players, the staff member who signs it, the coach it reports gone. Their names link first. */
@@ -153,7 +173,8 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
     setOpenKey(t.key);
     // On a phone the message replaces the list: start it at the top.
     window.scrollTo({ top: 0 });
-    if (t.messages.some((m) => !m.read)) store.mutate((l) => void l.inbox!.forEach((m) => t.messages.some((x) => x.id === m.id) && (m.read = true)));
+    if (t.messages.some((m) => !m.read))
+      store.mutate((l) => void l.inbox!.forEach((m) => t.messages.some((x) => x.id === m.id) && (m.read = true)));
   };
   // Sent to a message (from Home), open its thread. Otherwise a wide screen opens the first thread that needs you
   // (else the newest), like a mail app's reading pane; a phone starts on the list.
@@ -187,15 +208,21 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
   };
   const undoIt = () => {
     if (!undo) return;
-    store.mutate((l) => (undo.what === 'deleted' ? deleteMail(l, undo.ids, false) : archiveMail(l, undo.ids, undo.what === 'restored')));
+    store.mutate((l) =>
+      undo.what === 'deleted' ? deleteMail(l, undo.ids, false) : archiveMail(l, undo.ids, undo.what === 'restored'),
+    );
     setUndo(null);
   };
   const tidy = () => {
     const before = new Set(archived.map((m) => m.id));
     store.mutate(archiveRead);
-    setUndo({ ids: (league.inbox ?? []).filter((m) => m.archived && !before.has(m.id)).map((m) => m.id), what: 'archived' });
+    setUndo({
+      ids: (league.inbox ?? []).filter((m) => m.archived && !before.has(m.id)).map((m) => m.id),
+      what: 'archived',
+    });
   };
-  const count = (list: InboxMessage[], keep: (m: InboxMessage) => boolean) => threads(list).filter((t) => t.messages.some(keep)).length;
+  const count = (list: InboxMessage[], keep: (m: InboxMessage) => boolean) =>
+    threads(list).filter((t) => t.messages.some(keep)).length;
   const filters: [Show, string, number][] = [
     ['all', 'All', threads(inbox).length],
     ['unread', 'Unread', count(inbox, (m) => !m.read)],
@@ -213,7 +240,12 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <h2 style={{ margin: 0 }}>Messages</h2>
               <span className="row" style={{ gap: 6 }}>
-                <button className="btn btn-sm" disabled={!tidyable} title="Archive every message you've read that no longer needs you" onClick={tidy}>
+                <button
+                  className="btn btn-sm"
+                  disabled={!tidyable}
+                  title="Archive every message you've read that no longer needs you"
+                  onClick={tidy}
+                >
                   Archive read
                 </button>
                 <button className="btn btn-sm" disabled={!unread} onClick={() => store.mutate(markAllRead)}>
@@ -224,7 +256,12 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
             {undo && undo.ids.length > 0 && (
               <div className="inbox-undo" role="status">
                 <span>
-                  {undo.what === 'restored' ? 'Moved back to the inbox' : undo.what === 'archived' ? 'Archived' : 'Deleted'}: {undo.ids.length} message{undo.ids.length === 1 ? '' : 's'}.
+                  {undo.what === 'restored'
+                    ? 'Moved back to the inbox'
+                    : undo.what === 'archived'
+                      ? 'Archived'
+                      : 'Deleted'}
+                  : {undo.ids.length} message{undo.ids.length === 1 ? '' : 's'}.
                 </span>
                 <button className="linklike" onClick={undoIt}>
                   Undo
@@ -239,8 +276,18 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
               ))}
             </div>
             <div className="inbox-search">
-              <input type="search" aria-label="Search messages" placeholder="Search messages" value={query} onChange={(e) => setQuery(e.target.value)} />
-              <select aria-label="Message type" value={type} onChange={(e) => setType(e.target.value as InboxCategory | 'all')}>
+              <input
+                type="search"
+                aria-label="Search messages"
+                placeholder="Search messages"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <select
+                aria-label="Message type"
+                value={type}
+                onChange={(e) => setType(e.target.value as InboxCategory | 'all')}
+              >
                 {TYPES.map(([key, label]) => (
                   <option key={key} value={key}>
                     {label}
@@ -252,7 +299,11 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
           <div className="inbox-list" aria-label="Messages">
             {shown.length === 0 && (
               <p className="muted" style={{ padding: '12px 14px', margin: 0 }}>
-                {show === 'archived' ? 'Nothing archived.' : inbox.length === 0 ? 'Nothing here yet.' : 'Nothing matches. Switch to All to see every message.'}
+                {show === 'archived'
+                  ? 'Nothing archived.'
+                  : inbox.length === 0
+                    ? 'Nothing here yet.'
+                    : 'Nothing matches. Switch to All to see every message.'}
               </p>
             )}
             {groupByDate(shown).map((g) => (
@@ -264,7 +315,12 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                   const lead = t.messages[0];
                   const isUnread = t.messages.some((m) => !m.read);
                   return (
-                    <button key={t.key} className={`inbox-row${isUnread ? ' is-unread' : ''}`} aria-current={t.key === openKey ? 'true' : undefined} onClick={() => read(t)}>
+                    <button
+                      key={t.key}
+                      className={`inbox-row${isUnread ? ' is-unread' : ''}`}
+                      aria-current={t.key === openKey ? 'true' : undefined}
+                      onClick={() => read(t)}
+                    >
                       <span className={`mail-av cat-${lead.category}`} aria-hidden="true">
                         {who.initials}
                       </span>
@@ -318,17 +374,33 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                     <span className="muted small">
                       {at + 1} of {shown.length}
                     </span>
-                    <button className="btn btn-sm btn-ghost" disabled={at <= 0} onClick={() => read(shown[at - 1])} aria-label="Newer message">
+                    <button
+                      className="btn btn-sm btn-ghost"
+                      disabled={at <= 0}
+                      onClick={() => read(shown[at - 1])}
+                      aria-label="Newer message"
+                    >
                       ▲
                     </button>
-                    <button className="btn btn-sm btn-ghost" disabled={at >= shown.length - 1} onClick={() => read(shown[at + 1])} aria-label="Older message">
+                    <button
+                      className="btn btn-sm btn-ghost"
+                      disabled={at >= shown.length - 1}
+                      onClick={() => read(shown[at + 1])}
+                      aria-label="Older message"
+                    >
                       ▼
                     </button>
                   </span>
                 )}
               </div>
               {open.messages.length === 1 ? (
-                <Message league={league} m={open.messages[0]} needs={needs.has(open.messages[0].id)} index={names!} act={act} />
+                <Message
+                  league={league}
+                  m={open.messages[0]}
+                  needs={needs.has(open.messages[0].id)}
+                  index={names!}
+                  act={act}
+                />
               ) : (
                 <Folded league={league} t={open} needs={needs} index={names!} act={act} />
               )}
@@ -345,7 +417,19 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
 }
 
 /** One message: its head, its text with everyone in it linked, its cards and its buttons. */
-function Message({ league, m, needs, index, act }: { league: League; m: InboxMessage; needs: boolean; index: MoveIndex; act: (a: InboxAction) => void }) {
+function Message({
+  league,
+  m,
+  needs,
+  index,
+  act,
+}: {
+  league: League;
+  m: InboxMessage;
+  needs: boolean;
+  index: MoveIndex;
+  act: (a: InboxAction) => void;
+}) {
   return (
     <>
       <MessageHead league={league} m={m} from={m.from} subject={m.subject} needs={needs} index={index} />
@@ -354,7 +438,19 @@ function Message({ league, m, needs, index, act }: { league: League; m: InboxMes
   );
 }
 
-function MessageBody({ league, m, index, act, skip = [] }: { league: League; m: InboxMessage; index: MoveIndex; act: (a: InboxAction) => void; skip?: InboxAction['kind'][] }) {
+function MessageBody({
+  league,
+  m,
+  index,
+  act,
+  skip = [],
+}: {
+  league: League;
+  m: InboxMessage;
+  index: MoveIndex;
+  act: (a: InboxAction) => void;
+  skip?: InboxAction['kind'][];
+}) {
   const actions = m.actions.filter((a) => !skip.includes(a.kind));
   return (
     <>
@@ -385,18 +481,41 @@ const playerOf = (league: League, m: InboxMessage) => {
  * A day's letters of one kind as one message: a row per person, each opening in place to the whole letter. The
  * buttons every letter shares (Expiring contracts, Medical) sit once at the bottom.
  */
-function Folded({ league, t, needs, index, act }: { league: League; t: MailThread; needs: Set<string>; index: MoveIndex; act: (a: InboxAction) => void }) {
+function Folded({
+  league,
+  t,
+  needs,
+  index,
+  act,
+}: {
+  league: League;
+  t: MailThread;
+  needs: Set<string>;
+  index: MoveIndex;
+  act: (a: InboxAction) => void;
+}) {
   const [openIds, setOpenIds] = useState<string[]>([]);
   const label = threadLabel(t);
   const lead = t.messages[0];
   const allOpen = openIds.length === t.messages.length;
   // Buttons every letter has (not the per-player ones), once.
-  const shared = lead.actions.filter((a) => a.kind !== 'player' && a.kind !== 'team' && t.messages.every((m) => m.actions.some((x) => x.kind === a.kind)));
+  const shared = lead.actions.filter(
+    (a) =>
+      a.kind !== 'player' && a.kind !== 'team' && t.messages.every((m) => m.actions.some((x) => x.kind === a.kind)),
+  );
   const skip = shared.map((a) => a.kind);
   const toggle = (id: string) => setOpenIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
   return (
     <>
-      <MessageHead league={league} m={lead} from={label.from} subject={label.subject} needs={t.messages.some((m) => needs.has(m.id))} index={index} folded />
+      <MessageHead
+        league={league}
+        m={lead}
+        from={label.from}
+        subject={label.subject}
+        needs={t.messages.some((m) => needs.has(m.id))}
+        index={index}
+        folded
+      />
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <span className="muted small">{t.messages.length} letters in one: open any of them below.</span>
         <button className="linklike small" onClick={() => setOpenIds(allOpen ? [] : t.messages.map((m) => m.id))}>
@@ -417,7 +536,11 @@ function Folded({ league, t, needs, index, act }: { league: League; t: MailThrea
                   </span>
                 </button>
                 <span className="inbox-tags fold-side">
-                  {p && (t.kind === 'injury' || t.kind === 'cleared') ? <InjuryTag league={league} p={p} /> : p && <span className="muted small">age {p.age}</span>}
+                  {p && (t.kind === 'injury' || t.kind === 'cleared') ? (
+                    <InjuryTag league={league} p={p} />
+                  ) : (
+                    p && <span className="muted small">age {p.age}</span>
+                  )}
                   {needs.has(m.id) && <span className="needs-pill">Needs you</span>}
                 </span>
               </div>
@@ -443,7 +566,23 @@ function Folded({ league, t, needs, index, act }: { league: League; t: MailThrea
   );
 }
 
-function MessageHead({ league, m, from, subject, needs, index, folded = false }: { league: League; m: InboxMessage; from: string; subject: string; needs: boolean; index: MoveIndex; folded?: boolean }) {
+function MessageHead({
+  league,
+  m,
+  from,
+  subject,
+  needs,
+  index,
+  folded = false,
+}: {
+  league: League;
+  m: InboxMessage;
+  from: string;
+  subject: string;
+  needs: boolean;
+  index: MoveIndex;
+  folded?: boolean;
+}) {
   const nav = useNav();
   const who = sender(from);
   return (
@@ -454,7 +593,11 @@ function MessageHead({ league, m, from, subject, needs, index, folded = false }:
       <div style={{ minWidth: 0 }}>
         <div className="small">
           {m.fromCard ? (
-            <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openStaff(m.fromCard!.kind, m.fromCard!.id)}>
+            <button
+              className="linklike"
+              style={{ fontWeight: 700 }}
+              onClick={() => nav.openStaff(m.fromCard!.kind, m.fromCard!.id)}
+            >
               {who.name}
             </button>
           ) : folded ? (

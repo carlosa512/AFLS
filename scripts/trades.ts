@@ -76,7 +76,9 @@ import {
 import type { DraftPick, GmTraits, League, Player, Position, TradeOffer, TradeRecord } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 
-const LEAGUES = Number(process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seasons') ?? 3);
+const LEAGUES = Number(
+  process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seasons') ?? 3,
+);
 /** `--verbose`: every priced player and every AI trade, not just one example per bucket. */
 const VERBOSE = process.argv.includes('--verbose');
 const flag = (name: string) => process.argv[process.argv.indexOf(name) + 1];
@@ -89,7 +91,9 @@ const check = (label: string, value: number, [lo, hi]: [number, number], digits 
   const ok = Number.isFinite(value) && value >= lo && value <= hi;
   if (!ok) misses++;
   const range = lo === -Infinity ? `≤${hi}` : hi === Infinity ? `≥${lo}` : `${lo}–${hi}`;
-  console.log(`  ${label.padEnd(52)} ${Number.isFinite(value) ? value.toFixed(digits).padStart(8) : '     n/a'}   ${range}${ok ? '' : !Number.isFinite(value) || value < lo ? '  ▼ LOW' : '  ▲ HIGH'}`);
+  console.log(
+    `  ${label.padEnd(52)} ${Number.isFinite(value) ? value.toFixed(digits).padStart(8) : '     n/a'}   ${range}${ok ? '' : !Number.isFinite(value) || value < lo ? '  ▼ LOW' : '  ▲ HIGH'}`,
+  );
 };
 /** A number shown for reading, never failed: bad business that a GM's scouts or situation explain. */
 const note = (label: string, value: string) => console.log(`  ${label.padEnd(52)} ${value.padStart(8)}   (info)`);
@@ -133,41 +137,77 @@ function bucketOf(league: League, p: Player, rank: number): Bucket | null {
  * about a first and a half now.
  */
 const chartPoints = (ctx: TradeContext, picks: DraftPick[]) =>
-  picks.reduce((s, pk) => s + jimmyJohnson(pickOverall(ctx.league, pk, ctx)) * 0.75 ** Math.max(0, pk.season - nextDraftSeason(ctx.league)), 0);
+  picks.reduce(
+    (s, pk) =>
+      s + jimmyJohnson(pickOverall(ctx.league, pk, ctx)) * 0.75 ** Math.max(0, pk.season - nextDraftSeason(ctx.league)),
+    0,
+  );
 
 /** The cheapest package of the buyer's picks both GMs accept, or null if none of up to three picks does. */
-function price(ctx: TradeContext, p: Player, starter: boolean): { points: number; buyer: number; picks: DraftPick[] } | null {
+function price(
+  ctx: TradeContext,
+  p: Player,
+  starter: boolean,
+): { points: number; buyer: number; picks: DraftPick[] } | null {
   const { league } = ctx;
   const seller = league.teams[p.teamId!];
   const room = salaryToTake(league, p);
   const buyers = league.teams
     .filter((t) => t.id !== seller.id && t.id !== league.userTeamId && capRoom(ctx, t.id) >= room)
-    .filter((t) => !starter || rosterOf(ctx, t.id).filter((x) => x.position === p.position && playerOvr(x) >= ctx.view(t.id, p).ovr).length < STARTERS[p.position])
+    .filter(
+      (t) =>
+        !starter ||
+        rosterOf(ctx, t.id).filter((x) => x.position === p.position && playerOvr(x) >= ctx.view(t.id, p).ovr).length <
+          STARTERS[p.position],
+    )
     .map((t) => ({ t, v: playerValue(league, p, t, { ctx }) }))
     .sort((a, b) => b.v - a.v);
   const buyer = buyers[0]?.t;
   if (!buyer) return null;
-  const picks = league.draftPicks.filter((pk) => pk.ownerId === buyer.id && pk.playerId === undefined).sort((a, b) => pickValue(league, b, seller.gm, ctx) - pickValue(league, a, seller.gm, ctx));
+  const picks = league.draftPicks
+    .filter((pk) => pk.ownerId === buyer.id && pk.playerId === undefined)
+    .sort((a, b) => pickValue(league, b, seller.gm, ctx) - pickValue(league, a, seller.gm, ctx));
   const top = picks.slice(0, 8);
   const combos: DraftPick[][] = [
     ...picks.map((a) => [a]),
     ...top.flatMap((a, i) => top.slice(i + 1).map((b) => [a, b])),
-    ...top.slice(0, 6).flatMap((a, i) => top.slice(i + 1, 6).flatMap((b, j) => top.slice(i + j + 2, 6).map((c) => [a, b, c]))),
+    ...top
+      .slice(0, 6)
+      .flatMap((a, i) => top.slice(i + 1, 6).flatMap((b, j) => top.slice(i + j + 2, 6).map((c) => [a, b, c]))),
   ];
-  const ask = judge(ctx, seller.id, { sides: [{ teamId: buyer.id, players: [], picks: [] }, { teamId: seller.id, players: [p.id], picks: [] }] }).need;
+  const ask = judge(ctx, seller.id, {
+    sides: [
+      { teamId: buyer.id, players: [], picks: [] },
+      { teamId: seller.id, players: [p.id], picks: [] },
+    ],
+  }).need;
   const ranked = combos
     .map((combo) => ({ combo, value: combo.reduce((s, pk) => s + pickValue(league, pk, seller.gm, ctx), 0) }))
     .filter((x) => x.value >= ask)
     .sort((a, b) => a.value - b.value);
   for (const { combo } of ranked.slice(0, 12)) {
-    const proposal: TradeProposal = { sides: [{ teamId: buyer.id, players: [], picks: combo.map((pk) => pk.id) }, { teamId: seller.id, players: [p.id], picks: [] }] };
-    if (judge(ctx, seller.id, proposal, { rosterCuts: true }).accepts && judge(ctx, buyer.id, proposal, { rosterCuts: true }).accepts) return { points: chartPoints(ctx, combo), buyer: buyer.id, picks: combo };
+    const proposal: TradeProposal = {
+      sides: [
+        { teamId: buyer.id, players: [], picks: combo.map((pk) => pk.id) },
+        { teamId: seller.id, players: [p.id], picks: [] },
+      ],
+    };
+    if (
+      judge(ctx, seller.id, proposal, { rosterCuts: true }).accepts &&
+      judge(ctx, buyer.id, proposal, { rosterCuts: true }).accepts
+    )
+      return { points: chartPoints(ctx, combo), buyer: buyer.id, picks: combo };
   }
   return null;
 }
 
 /** What a 6th-round pick in the next draft goes for (the median of the round, at the league's going rate). */
-const sixth = (ctx: TradeContext) => median(ctx.league.draftPicks.filter((pk) => pk.round === 6 && pk.season === nextDraftSeason(ctx.league)).map((pk) => goingRate(ctx.league, pk, ctx)));
+const sixth = (ctx: TradeContext) =>
+  median(
+    ctx.league.draftPicks
+      .filter((pk) => pk.round === 6 && pk.season === nextDraftSeason(ctx.league))
+      .map((pk) => goingRate(ctx.league, pk, ctx)),
+  );
 
 const prices: Record<string, Record<Bucket, number[]>> = {};
 const examples: string[] = [];
@@ -202,7 +242,9 @@ function probePrices(league: League, moment: string, show: boolean) {
       if (underpriced && got.picks.every((pk) => pk.round === 7)) {
         starterForSeventh++;
         const seller = league.teams[p.teamId!];
-        seventhExamples.push(`${line}: the seller is ${seller.stance?.mode ?? 'bubble'} (${seller.gm.archetype}), week ${league.week}`);
+        seventhExamples.push(
+          `${line}: the seller is ${seller.stance?.mode ?? 'bubble'} (${seller.gm.archetype}), week ${league.week}`,
+        );
       }
       if (VERBOSE || (show && i === 0)) examples.push(line);
     }
@@ -292,26 +334,50 @@ dealWatch.onClose = (ctx, deal, proposal) => {
   fair.gaps.push(gap);
   const where = `[${league.phase} wk${league.week}]`;
   const what = (side: TradeProposal['sides'][number]) =>
-    [...side.players.map((id) => `${name(league.players[id])} ${playerOvr(league.players[id]).toFixed(1)}/${league.players[id].age}`), ...side.picks.map((id) => { const pk = league.draftPicks.find((x) => x.id === id)!; return `${pk.season} R${pk.round}`; })].join(' + ') || 'nothing';
+    [
+      ...side.players.map(
+        (id) => `${name(league.players[id])} ${playerOvr(league.players[id]).toFixed(1)}/${league.players[id].age}`,
+      ),
+      ...side.picks.map((id) => {
+        const pk = league.draftPicks.find((x) => x.id === id)!;
+        return `${pk.season} R${pk.round}`;
+      }),
+    ].join(' + ') || 'nothing';
   const who = (t: (typeof reads)[number]['team']) => `${t.abbrev} (${t.stance?.mode ?? 'bubble'}, ${t.gm.archetype})`;
   reads.forEach((r, i) => {
     // Every deal clears the evaluator for both sides, so neither loses in its own eyes (a point of rounding aside).
-    if (r.own < -1) fair.cheese.push(`${who(r.team)} lost ${(-r.own).toFixed(0)} in its own eyes: ${what(proposal.sides[i])} for ${what(proposal.sides[1 - i])} ${where} (${deal.kind})`);
+    if (r.own < -1)
+      fair.cheese.push(
+        `${who(r.team)} lost ${(-r.own).toFixed(0)} in its own eyes: ${what(proposal.sides[i])} for ${what(proposal.sides[1 - i])} ${where} (${deal.kind})`,
+      );
     const key = `${liveLabel}:${r.team.abbrev}:${r.team.gm.archetype}`;
     const ledger = fair.ledgers.get(key) ?? { truth: 0, scouts: 0, situation: 0, lines: [] };
     ledger.truth += r.truth;
     ledger.scouts += r.scouts;
     ledger.situation += r.situation;
-    if (VERBOSE) ledger.lines.push(`${r.truth.toFixed(0).padStart(5)} (scouts ${r.scouts.toFixed(0)}, situation ${r.situation.toFixed(0)}) ${where} sends ${what(proposal.sides[i])} for ${what(proposal.sides[1 - i])} to ${who(reads[1 - i].team)}`);
+    if (VERBOSE)
+      ledger.lines.push(
+        `${r.truth.toFixed(0).padStart(5)} (scouts ${r.scouts.toFixed(0)}, situation ${r.situation.toFixed(0)}) ${where} sends ${what(proposal.sides[i])} for ${what(proposal.sides[1 - i])} to ${who(reads[1 - i].team)}`,
+      );
     fair.ledgers.set(key, ledger);
   });
   if (gap >= 0.5 && stakes >= 100) {
     const loser = reads[0].truth < 0 ? reads[0] : reads[1];
     const cause = loser.scouts >= loser.situation ? 'scouts' : 'situation';
     fair.lopsided[cause]++;
-    if (VERBOSE) console.log(`  LOPSIDED ${where} ${who(loser.team)} down ${(-loser.truth).toFixed(0)}: its scouts ${loser.scouts.toFixed(0)}, its situation ${loser.situation.toFixed(0)} · ${proposal.sides.map((side) => `${league.teams[side.teamId].abbrev} sends ${what(side)}`).join(' · ')}`);
+    if (VERBOSE)
+      console.log(
+        `  LOPSIDED ${where} ${who(loser.team)} down ${(-loser.truth).toFixed(0)}: its scouts ${loser.scouts.toFixed(0)}, its situation ${loser.situation.toFixed(0)} · ${proposal.sides.map((side) => `${league.teams[side.teamId].abbrev} sends ${what(side)}`).join(' · ')}`,
+      );
   }
-  const kind = proposal.sides.some((x) => x.players.length) && proposal.sides.some((x) => x.picks.length) ? 'picks for players' : proposal.sides.every((x) => x.players.length) ? 'player swaps' : proposal.sides.some((x) => x.players.length) ? 'players for nothing' : 'picks only';
+  const kind =
+    proposal.sides.some((x) => x.players.length) && proposal.sides.some((x) => x.picks.length)
+      ? 'picks for players'
+      : proposal.sides.every((x) => x.players.length)
+        ? 'player swaps'
+        : proposal.sides.some((x) => x.players.length)
+          ? 'players for nothing'
+          : 'picks only';
   fair.kinds.set(kind, (fair.kinds.get(kind) ?? 0) + 1);
 };
 
@@ -319,10 +385,14 @@ function checkHealth(league: League, teamIds: number[]) {
   for (const id of teamIds) {
     fair.healthy++;
     const roster = teamPlayers(league, id);
-    const short = league.phase === 'regular' && POSITIONS.some((pos) => roster.filter((p) => p.position === pos).length < STARTERS[pos]);
+    const short =
+      league.phase === 'regular' &&
+      POSITIONS.some((pos) => roster.filter((p) => p.position === pos).length < STARTERS[pos]);
     if (capSpace(league, id) < 0 || short) {
       fair.health++;
-      console.log(`  ✗ ${league.teams[id].abbrev} after a trade: ${capSpace(league, id) < 0 ? 'over the cap' : 'short at a position'}`);
+      console.log(
+        `  ✗ ${league.teams[id].abbrev} after a trade: ${capSpace(league, id) < 0 ? 'over the cap' : 'short at a position'}`,
+      );
     }
   }
 }
@@ -339,9 +409,13 @@ const probes: Probe[] = [];
 function runProbes(base: League) {
   const USER = base.userTeamId;
   const fresh = () => clone(base);
-  const best = (l: League, teamId: number) => teamPlayers(l, teamId).filter((p) => !playerTradeBlocker(l, p)).sort((a, b) => playerOvr(b) - playerOvr(a));
+  const best = (l: League, teamId: number) =>
+    teamPlayers(l, teamId)
+      .filter((p) => !playerTradeBlocker(l, p))
+      .sort((a, b) => playerOvr(b) - playerOvr(a));
   const ai = base.teams.find((t) => t.id !== USER && best(base, t.id)[0] && playerOvr(best(base, t.id)[0]) >= 15)!.id;
-  const picksOf = (l: League, teamId: number, round?: number) => l.draftPicks.filter((p) => p.ownerId === teamId && p.playerId === undefined && (!round || p.round === round));
+  const picksOf = (l: League, teamId: number, round?: number) =>
+    l.draftPicks.filter((p) => p.ownerId === teamId && p.playerId === undefined && (!round || p.round === round));
   const accepts = (l: League, proposal: TradeProposal) => evaluateTrade(l, proposal).accepts;
   // Room on both rosters, so only value and policy are in play.
   const room = (l: League) => {
@@ -352,16 +426,40 @@ function runProbes(base: League) {
     const l = fresh();
     room(l);
     const star = best(l, ai)[0];
-    const junk = best(l, USER).slice(-5).map((p) => p.id);
-    const late = picksOf(l, USER).filter((p) => p.round >= 6).slice(0, 3).map((p) => p.id);
-    probes.push({ label: 'junk for a star (5 backups + 3 late picks)', worked: accepts(l, { sides: [{ teamId: USER, players: junk, picks: late }, { teamId: ai, players: [star.id], picks: [] }] }) });
+    const junk = best(l, USER)
+      .slice(-5)
+      .map((p) => p.id);
+    const late = picksOf(l, USER)
+      .filter((p) => p.round >= 6)
+      .slice(0, 3)
+      .map((p) => p.id);
+    probes.push({
+      label: 'junk for a star (5 backups + 3 late picks)',
+      worked: accepts(l, {
+        sides: [
+          { teamId: USER, players: junk, picks: late },
+          { teamId: ai, players: [star.id], picks: [] },
+        ],
+      }),
+    });
   }
   {
     const l = fresh();
     room(l);
     const star = best(l, ai)[0];
-    const mids = best(l, USER).filter((p) => p.position !== star.position && playerOvr(p) < 13.5).slice(0, 3).map((p) => p.id);
-    probes.push({ label: '3-for-1 for a star (three mid starters)', worked: accepts(l, { sides: [{ teamId: USER, players: mids, picks: [] }, { teamId: ai, players: [star.id], picks: [] }] }) });
+    const mids = best(l, USER)
+      .filter((p) => p.position !== star.position && playerOvr(p) < 13.5)
+      .slice(0, 3)
+      .map((p) => p.id);
+    probes.push({
+      label: '3-for-1 for a star (three mid starters)',
+      worked: accepts(l, {
+        sides: [
+          { teamId: USER, players: mids, picks: [] },
+          { teamId: ai, players: [star.id], picks: [] },
+        ],
+      }),
+    });
   }
   {
     const l = fresh();
@@ -373,7 +471,15 @@ function runProbes(base: League) {
       .sort((a, b) => a.v - b.v)
       .slice(0, 2)
       .map((x) => x.p.id);
-    probes.push({ label: 'dump two bad contracts for nothing', worked: accepts(l, { sides: [{ teamId: USER, players: worst, picks: [] }, { teamId: ai, players: [], picks: [] }] }) });
+    probes.push({
+      label: 'dump two bad contracts for nothing',
+      worked: accepts(l, {
+        sides: [
+          { teamId: USER, players: worst, picks: [] },
+          { teamId: ai, players: [], picks: [] },
+        ],
+      }),
+    });
   }
   {
     const l = fresh();
@@ -382,8 +488,21 @@ function runProbes(base: League) {
     const firsts = picksOf(l, ai, 1).slice(0, 3);
     const ctx = tradeContext(l);
     const face = firsts.reduce((s, pk) => s + pickValue(l, pk, l.teams[ai].gm, ctx), 0);
-    const offer = best(l, USER).find((p) => playerValue(l, p, l.teams[ai], { ctx }) < face * 1.15 && playerValue(l, p, l.teams[ai], { ctx }) > face * 0.85);
-    probes.push({ label: 'three firsts for a player worth about their face value', worked: !!offer && accepts(l, { sides: [{ teamId: USER, players: [offer.id], picks: [] }, { teamId: ai, players: [], picks: firsts.map((p) => p.id) }] }) });
+    const offer = best(l, USER).find(
+      (p) =>
+        playerValue(l, p, l.teams[ai], { ctx }) < face * 1.15 && playerValue(l, p, l.teams[ai], { ctx }) > face * 0.85,
+    );
+    probes.push({
+      label: 'three firsts for a player worth about their face value',
+      worked:
+        !!offer &&
+        accepts(l, {
+          sides: [
+            { teamId: USER, players: [offer.id], picks: [] },
+            { teamId: ai, players: [], picks: firsts.map((p) => p.id) },
+          ],
+        }),
+    });
   }
   {
     const l = fresh();
@@ -391,8 +510,16 @@ function runProbes(base: League) {
     // Sign a free agent and offer him straight to the AI for a pick it would otherwise give.
     const fa = freeAgents(l).sort((a, b) => playerOvr(b) - playerOvr(a))[0];
     signPlayer(l, fa, USER, { years: 1, apy: 1_000, bonusPct: 0, gtdPct: 0, voidYears: 0 }, 'minimum');
-    const pick = picksOf(l, ai).filter((p) => p.round === 7).map((p) => p.id).slice(0, 1);
-    const v = evaluateTrade(l, { sides: [{ teamId: USER, players: [fa.id], picks: [] }, { teamId: ai, players: [], picks: pick }] });
+    const pick = picksOf(l, ai)
+      .filter((p) => p.round === 7)
+      .map((p) => p.id)
+      .slice(0, 1);
+    const v = evaluateTrade(l, {
+      sides: [
+        { teamId: USER, players: [fa.id], picks: [] },
+        { teamId: ai, players: [], picks: pick },
+      ],
+    });
     probes.push({ label: 'sign a free agent and flip him at once', worked: v.accepts || !v.policy });
     probes.push({ label: 'the refusal names no week or number', worked: /\d/.test(v.message) });
   }
@@ -402,7 +529,12 @@ function runProbes(base: League) {
     // Sell a player for the cheapest of their picks they'd give, then try to buy him straight back for it.
     const ctx = tradeContext(l);
     const mine = best(l, USER).find((p) => playerOvr(p) >= 13 && playerOvr(p) < 15)!;
-    const sale = (pk: DraftPick): TradeProposal => ({ sides: [{ teamId: USER, players: [mine.id], picks: [] }, { teamId: ai, players: [], picks: [pk.id] }] });
+    const sale = (pk: DraftPick): TradeProposal => ({
+      sides: [
+        { teamId: USER, players: [mine.id], picks: [] },
+        { teamId: ai, players: [], picks: [pk.id] },
+      ],
+    });
     const their = picksOf(l, ai)
       .sort((a, b) => pickValue(l, a, l.teams[ai].gm, ctx) - pickValue(l, b, l.teams[ai].gm, ctx))
       .reverse()
@@ -410,7 +542,12 @@ function runProbes(base: League) {
     let worked = false;
     if (their) {
       executeTrade(l, sale(their));
-      worked = accepts(l, { sides: [{ teamId: USER, players: [], picks: [their.id] }, { teamId: ai, players: [mine.id], picks: [] }] });
+      worked = accepts(l, {
+        sides: [
+          { teamId: USER, players: [], picks: [their.id] },
+          { teamId: ai, players: [mine.id], picks: [] },
+        ],
+      });
     }
     probes.push({ label: 'sell a player, then buy him straight back for the same pick', worked });
   }
@@ -418,15 +555,45 @@ function runProbes(base: League) {
     // Proposing to one GM over and over: he hears about four a week, then he's done talking.
     const l = fresh();
     room(l);
-    const proposal: TradeProposal = { sides: [{ teamId: USER, players: best(l, USER).slice(-1).map((p) => p.id), picks: [] }, { teamId: ai, players: [best(l, ai)[0].id], picks: [] }] };
+    const proposal: TradeProposal = {
+      sides: [
+        {
+          teamId: USER,
+          players: best(l, USER)
+            .slice(-1)
+            .map((p) => p.id),
+          picks: [],
+        },
+        { teamId: ai, players: [best(l, ai)[0].id], picks: [] },
+      ],
+    };
     const answers = Array.from({ length: 20 }, () => proposeTrade(l, proposal).message);
-    probes.push({ label: 'probing one GM 20 times in a week', worked: answers.slice(ASKS).some((m) => m !== "We're done talking this week.") });
+    probes.push({
+      label: 'probing one GM 20 times in a week',
+      worked: answers.slice(ASKS).some((m) => m !== "We're done talking this week."),
+    });
   }
   {
     const l = fresh();
     const star = best(l, ai)[0];
-    star.injury = { type: 'hamstring', severity: 'moderate', weeksRemaining: 4, estimate: [3, 5], season: l.season, week: l.week, where: 'game' };
-    probes.push({ label: 'trade for an injured star in season', worked: accepts(l, { sides: [{ teamId: USER, players: [], picks: picksOf(l, USER, 1).map((p) => p.id) }, { teamId: ai, players: [star.id], picks: [] }] }) });
+    star.injury = {
+      type: 'hamstring',
+      severity: 'moderate',
+      weeksRemaining: 4,
+      estimate: [3, 5],
+      season: l.season,
+      week: l.week,
+      where: 'game',
+    };
+    probes.push({
+      label: 'trade for an injured star in season',
+      worked: accepts(l, {
+        sides: [
+          { teamId: USER, players: [], picks: picksOf(l, USER, 1).map((p) => p.id) },
+          { teamId: ai, players: [star.id], picks: [] },
+        ],
+      }),
+    });
   }
 }
 
@@ -440,7 +607,9 @@ const speed = { judge: NaN, week: [] as number[] };
  * time counts V8's helper threads (garbage collection, compiling) as well. The main thread's is what
  * the player waits for on an idle machine. Wall time where Node has no thread timer.
  */
-const threadCpu = (process as { threadCpuUsage?: (prev?: NodeJS.CpuUsage) => NodeJS.CpuUsage }).threadCpuUsage?.bind(process);
+const threadCpu = (process as { threadCpuUsage?: (prev?: NodeJS.CpuUsage) => NodeJS.CpuUsage }).threadCpuUsage?.bind(
+  process,
+);
 function cpuMs(fn: () => unknown): number {
   if (!threadCpu) {
     const t0 = performance.now();
@@ -463,7 +632,15 @@ function timeJudge(league: League) {
     if (a.id === b.id) continue;
     const p = rng.pick(rosterOf(ctx, b.id));
     const pk = rng.pick(league.draftPicks.filter((x) => x.ownerId === a.id && x.playerId === undefined));
-    proposals.push([b.id, { sides: [{ teamId: a.id, players: [], picks: [pk.id] }, { teamId: b.id, players: [p.id], picks: [] }] }]);
+    proposals.push([
+      b.id,
+      {
+        sides: [
+          { teamId: a.id, players: [], picks: [pk.id] },
+          { teamId: b.id, players: [p.id], picks: [] },
+        ],
+      },
+    ]);
   }
   // Warm the reads the way a market pass would, then time the verdicts.
   for (const [id, pr] of proposals) judge(ctx, id, pr);
@@ -472,7 +649,15 @@ function timeJudge(league: League) {
 
 // ───────── 6. Volume and mix ─────────
 
-const volume = { inSeason: [] as number[], deadline: 0, offseason: [] as number[], all: [] as TradeRecord[], seasons: 0, startingQbs: 0, tagTrades: 0 };
+const volume = {
+  inSeason: [] as number[],
+  deadline: 0,
+  offseason: [] as number[],
+  all: [] as TradeRecord[],
+  seasons: 0,
+  startingQbs: 0,
+  tagTrades: 0,
+};
 const speedOff: number[] = [];
 
 /**
@@ -494,14 +679,25 @@ function audit(after: League): TradeRecord[] {
     audited.add(record);
     if (record.physicals?.some((x) => x.result === 'concerns')) phys.flagged++;
     volume.all.push(record);
-    checkHealth(after, record.sides.map((x) => x.teamId));
+    checkHealth(
+      after,
+      record.sides.map((x) => x.teamId),
+    );
   }
   return fresh;
 }
 
 // ───────── 7. Offers to you ─────────
 
-const desk = { perYear: [] as number[], enquiries: 0, maxWeek: 0, maxDeadline: 0, afterDeadline: 0, untouchable: 0, listing: null as boolean | null };
+const desk = {
+  perYear: [] as number[],
+  enquiries: 0,
+  maxWeek: 0,
+  maxDeadline: 0,
+  afterDeadline: 0,
+  untouchable: 0,
+  listing: null as boolean | null,
+};
 const seenOffers = new Set<string>();
 
 /** Offers that landed on your desk since the last look (offer ids are per league). */
@@ -522,9 +718,18 @@ function freshOffers(league: League, label: string): TradeOffer[] {
  */
 function listingDraws(base: League): boolean | null {
   const ctx = tradeContext(base);
-  const needed = new Set(base.teams.filter((t) => t.id !== base.userTeamId).flatMap((t) => teamNeeds(ctx, t).map((n) => n.position)));
+  const needed = new Set(
+    base.teams.filter((t) => t.id !== base.userTeamId).flatMap((t) => teamNeeds(ctx, t).map((n) => n.position)),
+  );
   const shop = teamPlayers(base, base.userTeamId)
-    .filter((x) => needed.has(x.position) && x.contract && yearsLeft(x.contract, base.season) >= 2 && !playerTradeBlocker(base, x) && base.market?.status[x.id] !== 'untouchable')
+    .filter(
+      (x) =>
+        needed.has(x.position) &&
+        x.contract &&
+        yearsLeft(x.contract, base.season) >= 2 &&
+        !playerTradeBlocker(base, x) &&
+        base.market?.status[x.id] !== 'untouchable',
+    )
     .sort((a, b) => playerOvr(b) - playerOvr(a))
     .slice(0, 3);
   for (const p of shop) {
@@ -562,7 +767,13 @@ function physicalNews(league: League): void {
  */
 function probePhysicals(league: League): void {
   const players = Object.values(league.players).filter((p) => p.teamId !== null && !p.retired);
-  const sound = players.filter((p) => !p.injury && !(p.injuries ?? []).some((r) => r.season > league.season - 3 && (r.severity === 'severe' || r.severity === 'career-threatening')));
+  const sound = players.filter(
+    (p) =>
+      !p.injury &&
+      !(p.injuries ?? []).some(
+        (r) => r.season > league.season - 3 && (r.severity === 'severe' || r.severity === 'career-threatening'),
+      ),
+  );
   for (const p of sound) {
     for (const t of league.teams) {
       if (t.id === p.teamId) continue;
@@ -573,7 +784,10 @@ function probePhysicals(league: League): void {
   // Players a doctor should flag (between the concerns line and the fail line): passing one is a
   // miss. The same exams by a sharp doctor (15) and a weak one (7), as the plan compares them.
   const borderline = players.filter((p) => findings(league, p).score >= CONCERNS && findings(league, p).score < FAIL);
-  for (const [group, diagnosis] of [['weak', 7], ['strong', 15]] as const) {
+  for (const [group, diagnosis] of [
+    ['weak', 7],
+    ['strong', 15],
+  ] as const) {
     for (const p of borderline) {
       for (const t of league.teams) {
         if (t.id === p.teamId) continue;
@@ -598,7 +812,10 @@ for (let i = 0; i < LEAGUES; i++) {
     timeJudge(league);
   }
   // Like most users, mark the two best players Untouchable: no offer may ask for them.
-  for (const p of teamPlayers(league, league.userTeamId).sort((a, b) => playerOvr(b) - playerOvr(a)).slice(0, 2)) setTradeStatus(league, p.id, 'untouchable');
+  for (const p of teamPlayers(league, league.userTeamId)
+    .sort((a, b) => playerOvr(b) - playerOvr(a))
+    .slice(0, 2))
+    setTradeStatus(league, p.id, 'untouchable');
   for (let s = 0; s < SEASONS; s++) {
     fair.seasons++;
     volume.seasons++;
@@ -661,7 +878,8 @@ for (const [moment, buckets] of Object.entries(prices)) {
   console.log(` ${moment}:`);
   check(`star (top 3 at a premium position) n=${buckets.star.length}`, median(buckets.star), [1000, 3500]);
   check(`quality starter (top quarter, 1-2 years) n=${buckets.quality.length}`, median(buckets.quality), [400, 1300]);
-  if (moment === 'deadline') check(`deadline rental (expiring starter) n=${buckets.rental.length}`, median(buckets.rental), [35, 150]);
+  if (moment === 'deadline')
+    check(`deadline rental (expiring starter) n=${buckets.rental.length}`, median(buckets.rental), [35, 150]);
   check(`depth n=${buckets.depth.length}`, median(buckets.depth), [0, 40]);
 }
 note('good starters in their prime, worth a 6th or more, sold for 7th-round picks only', String(starterForSeventh));
@@ -671,7 +889,9 @@ for (const e of examples) console.log(`    ${e}`);
 console.log('\nFuture picks');
 check("next year's first, as a current pick (median over GMs)", median(futureSlots), [22, 45]);
 
-console.log(`\nNo cheese (${fair.trades} AI deals over ${fair.seasons} seasons, each read as it closed: ${[...fair.kinds].map(([k, n]) => `${n} ${k}`).join(', ')})`);
+console.log(
+  `\nNo cheese (${fair.trades} AI deals over ${fair.seasons} seasons, each read as it closed: ${[...fair.kinds].map(([k, n]) => `${n} ${k}`).join(', ')})`,
+);
 check('AI deals a side lost in its own eyes', fair.cheese.length, [0, 0]);
 for (const line of fair.cheese.slice(0, 10)) console.log(`    ✗ ${line}`);
 check('teams over the cap or short after a trade', fair.health, [0, 0]);
@@ -679,20 +899,30 @@ check('teams over the cap or short after a trade', fair.health, [0, 0]);
 console.log("\nBad business, explained (a GM's misreads and his own situation are his to live with)");
 note('median truth gap between the sides (% of the stakes)', (median(fair.gaps) * 100).toFixed(0));
 const lopsided = fair.lopsided.scouts + fair.lopsided.situation;
-note(`trades over 3:1 in truth, a season (scouts ${fair.lopsided.scouts}, situation ${fair.lopsided.situation})`, (lopsided / Math.max(1, fair.seasons)).toFixed(2));
+note(
+  `trades over 3:1 in truth, a season (scouts ${fair.lopsided.scouts}, situation ${fair.lopsided.situation})`,
+  (lopsided / Math.max(1, fair.seasons)).toFixed(2),
+);
 const ledgers = [...fair.ledgers].sort((x, y) => x[1].truth - y[1].truth);
-const worst = ledgers.reduce<(typeof ledgers)[number] | null>((w, x) => (!w || Math.abs(x[1].truth) > Math.abs(w[1].truth) ? x : w), null);
+const worst = ledgers.reduce<(typeof ledgers)[number] | null>(
+  (w, x) => (!w || Math.abs(x[1].truth) > Math.abs(w[1].truth) ? x : w),
+  null,
+);
 if (worst) {
   const [key, l] = worst;
   const seen = l.truth + l.scouts + l.situation;
   const share = (x: number) => `${Math.round((100 * x) / Math.max(1, l.scouts + l.situation))}%`;
   note("worst team's truth balance over its league's run", l.truth.toFixed(0));
-  console.log(`    ${key}: ${seen >= 0 ? '+' : ''}${seen.toFixed(0)} in its own eyes; the difference ${share(l.scouts)} its scouts' misreads, ${share(l.situation)} its own situation`);
+  console.log(
+    `    ${key}: ${seen >= 0 ? '+' : ''}${seen.toFixed(0)} in its own eyes; the difference ${share(l.scouts)} its scouts' misreads, ${share(l.situation)} its own situation`,
+  );
 }
 if (VERBOSE) {
   // The biggest losers and winners, each trade with what explains it.
   for (const [key, l] of ledgers.filter((_, i, all) => i < 5 || i >= all.length - 3)) {
-    console.log(`  balance ${key} ${l.truth.toFixed(0)} (scouts ${l.scouts.toFixed(0)}, situation ${l.situation.toFixed(0)}, ${l.lines.length} trades)`);
+    console.log(
+      `  balance ${key} ${l.truth.toFixed(0)} (scouts ${l.scouts.toFixed(0)}, situation ${l.situation.toFixed(0)}, ${l.lines.length} trades)`,
+    );
     if (Math.abs(l.truth) > 1000) for (const line of l.lines) console.log(`      ${line}`);
   }
 }
@@ -701,31 +931,76 @@ const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.le
 const share = (f: (r: TradeRecord) => boolean) => (100 * volume.all.filter(f).length) / Math.max(1, volume.all.length);
 const kinds = new Map<string, number>();
 for (const r of volume.all) kinds.set(r.kind, (kinds.get(r.kind) ?? 0) + 1);
-console.log(`\nVolume and mix (${volume.all.length} AI trades over ${volume.seasons} seasons: ${[...kinds].map(([k, n]) => `${n} ${k}`).join(', ')})`);
+console.log(
+  `\nVolume and mix (${volume.all.length} AI trades over ${volume.seasons} seasons: ${[...kinds].map(([k, n]) => `${n} ${k}`).join(', ')})`,
+);
 check('trades in season (week 1 to deadline day), a season', mean(volume.inSeason), [15, 25], 1);
 // The leagues' seasons in order, so a drift over a long run shows (league by league, season by season).
 const byYear = Array.from({ length: SEASONS }, (_, y) => mean(volume.inSeason.filter((_, k) => k % SEASONS === y)));
 console.log(`  in season, by year of the run: ${byYear.map((x) => x.toFixed(1)).join(' · ')}`);
-check('share of them on deadline day (%)', (100 * volume.deadline) / Math.max(1, volume.inSeason.reduce((a, b) => a + b, 0)), [30, 50]);
+check(
+  'share of them on deadline day (%)',
+  (100 * volume.deadline) /
+    Math.max(
+      1,
+      volume.inSeason.reduce((a, b) => a + b, 0),
+    ),
+  [30, 50],
+);
 check('trades in the offseason (league year to camp), a year', mean(volume.offseason), [15, 35], 1);
-check('picks for players (%)', share((r) => r.kind !== 'swap' && r.kind !== 'dump' && r.kind !== 'futureSwap'), [55, 80]);
-const perYear = (kind: string) => (volume.all.filter((r) => r.kind === kind).length / Math.max(1, volume.seasons)).toFixed(1);
+check(
+  'picks for players (%)',
+  share((r) => r.kind !== 'swap' && r.kind !== 'dump' && r.kind !== 'futureSwap'),
+  [55, 80],
+);
+const perYear = (kind: string) =>
+  (volume.all.filter((r) => r.kind === kind).length / Math.max(1, volume.seasons)).toFixed(1);
 console.log(`  next year's pick for this year's, a league year: ${perYear('futureSwap')}`);
-console.log(`  cap casualties sold for a late pick instead of cut, a league year: ${perYear('casualty')}; cut-down deals in camp: ${perYear('cutdown')}`);
+console.log(
+  `  cap casualties sold for a late pick instead of cut, a league year: ${perYear('casualty')}; cut-down deals in camp: ${perYear('cutdown')}`,
+);
 const extended = volume.all.filter((r) => r.extended?.length).length / Math.max(1, volume.seasons);
-console.log(`  salary retained, a season: ${(volume.all.filter((r) => r.sides.some((x) => x.retain)).length / Math.max(1, volume.seasons)).toFixed(1)}`);
-console.log(`  tag and trade, a league year: ${(volume.tagTrades / Math.max(1, volume.seasons)).toFixed(1)}; traded and extended on arrival: ${extended.toFixed(1)}`);
-check('player swaps (%)', share((r) => r.kind === 'swap'), [5, 15]);
-check('cap dumps, a season', volume.all.filter((r) => r.kind === 'dump').length / Math.max(1, volume.seasons), [1, 4], 1);
-check('a pick going each way, a late one riding back (%)', share((r) => r.kind !== 'futureSwap' && r.sides.every((x) => x.picks.length > 0)), [10, 25]);
+console.log(
+  `  salary retained, a season: ${(volume.all.filter((r) => r.sides.some((x) => x.retain)).length / Math.max(1, volume.seasons)).toFixed(1)}`,
+);
+console.log(
+  `  tag and trade, a league year: ${(volume.tagTrades / Math.max(1, volume.seasons)).toFixed(1)}; traded and extended on arrival: ${extended.toFixed(1)}`,
+);
+check(
+  'player swaps (%)',
+  share((r) => r.kind === 'swap'),
+  [5, 15],
+);
+check(
+  'cap dumps, a season',
+  volume.all.filter((r) => r.kind === 'dump').length / Math.max(1, volume.seasons),
+  [1, 4],
+  1,
+);
+check(
+  'a pick going each way, a late one riding back (%)',
+  share((r) => r.kind !== 'futureSwap' && r.sides.every((x) => x.picks.length > 0)),
+  [10, 25],
+);
 // Palmer (2011), Dobbs (2023) and Flacco (2025): a starting quarterback moves in season once every few years.
-check('starting quarterbacks traded in season, a season', volume.startingQbs / Math.max(1, volume.seasons), [0, 0.5], 2);
-check('division rivals (%)', share((r) => {
-  const [a, b] = r.sides.map((x) => x.teamId);
-  return a < 32 && b < 32 && DIVISION_OF[a] === DIVISION_OF[b];
-}), [0, 5]);
+check(
+  'starting quarterbacks traded in season, a season',
+  volume.startingQbs / Math.max(1, volume.seasons),
+  [0, 0.5],
+  2,
+);
+check(
+  'division rivals (%)',
+  share((r) => {
+    const [a, b] = r.sides.map((x) => x.teamId);
+    return a < 32 && b < 32 && DIVISION_OF[a] === DIVISION_OF[b];
+  }),
+  [0, 5],
+);
 
-console.log(`\nOffers to you (autopilot, nothing listed, your two best Untouchable; ${(desk.enquiries / Math.max(1, desk.perYear.length)).toFixed(1)} enquiries a year besides)`);
+console.log(
+  `\nOffers to you (autopilot, nothing listed, your two best Untouchable; ${(desk.enquiries / Math.max(1, desk.perYear.length)).toFixed(1)} enquiries a year besides)`,
+);
 check('offers, a league year', mean(desk.perYear), [10, 25], 1);
 check('most in an ordinary week', desk.maxWeek, [0, 2]);
 check('most on deadline day', desk.maxDeadline, [0, 4]);
@@ -734,10 +1009,22 @@ check('asking for an Untouchable', desk.untouchable, [0, 0]);
 check('listing a player draws an offer within two moments (1 = yes)', desk.listing === false ? 0 : 1, [1, 1]);
 
 const rate = ([pass, n]: number[]) => (n ? pass / n : NaN);
-console.log(`\nPhysicals (${phys.off} deals off, ${phys.flagged} through with concerns; bodies a doctor should flag: ${phys.borderline.strong[1]} exams by sharp doctors, ${phys.borderline.weak[1]} by weak)`);
-check('deals voided or through with concerns, league-wide, a season', (phys.off + phys.flagged) / Math.max(1, volume.seasons), [1, 4], 1);
+console.log(
+  `\nPhysicals (${phys.off} deals off, ${phys.flagged} through with concerns; bodies a doctor should flag: ${phys.borderline.strong[1]} exams by sharp doctors, ${phys.borderline.weak[1]} by weak)`,
+);
+check(
+  'deals voided or through with concerns, league-wide, a season',
+  (phys.off + phys.flagged) / Math.max(1, volume.seasons),
+  [1, 4],
+  1,
+);
 check('sound players failing (%)', (100 * phys.healthy.failed) / Math.max(1, phys.healthy.n), [0, 1], 2);
-check('bodies a doctor should flag, passed: a sharp doctor (15) against a weak one (7), ratio', rate(phys.borderline.strong) / rate(phys.borderline.weak), [0, 0.85], 2);
+check(
+  'bodies a doctor should flag, passed: a sharp doctor (15) against a weak one (7), ratio',
+  rate(phys.borderline.strong) / rate(phys.borderline.weak),
+  [0, 0.85],
+  2,
+);
 
 console.log('\nProbes (each must fail)');
 for (const p of probes) console.log(`  ${p.worked ? '✗ WORKED' : '✓ failed'}  ${p.label}`);

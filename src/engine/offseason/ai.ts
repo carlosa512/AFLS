@@ -3,9 +3,29 @@
  * who to keep, who to tag, who to chase in free agency, and how to get under the cap.
  */
 import { ageShift } from '../aging';
-import { accelerateProration, canRestructure, capFor, capSheet, capSpace, logTransaction, releasePlayer, releasePreview, restructureOptions, restructurePlayer } from '../finance/cap';
+import {
+  accelerateProration,
+  canRestructure,
+  capFor,
+  capSheet,
+  capSpace,
+  logTransaction,
+  releasePlayer,
+  releasePreview,
+  restructureOptions,
+  restructurePlayer,
+} from '../finance/cap';
 import { capHit, isExpired, lastSeason, remainingProration, yearOf } from '../finance/contract';
-import { fifthYearOptionValue, franchiseTagValue, leagueMarket, marketApy, minSalary, payTier, positionRank, topMinimum } from '../finance/market';
+import {
+  fifthYearOptionValue,
+  franchiseTagValue,
+  leagueMarket,
+  marketApy,
+  minSalary,
+  payTier,
+  positionRank,
+  topMinimum,
+} from '../finance/market';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
 import { teamOutlook } from '../outlook';
@@ -15,22 +35,50 @@ import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth, viewCache } from '../scouting';
 import type { League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
-import { contenderScore, demand, freeAgents, offerProblem, offerValue, rookieReserve, rosterLimit, ROSTER_MAX, signPlayer, willExtend, type Offer } from './negotiation';
+import {
+  contenderScore,
+  demand,
+  freeAgents,
+  offerProblem,
+  offerValue,
+  rookieReserve,
+  rosterLimit,
+  ROSTER_MAX,
+  signPlayer,
+  willExtend,
+  type Offer,
+} from './negotiation';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
-export const KEEP_MIN: Record<Position, number> = { QB: 2, RB: 3, WR: 5, TE: 2, OL: 8, DT: 4, EDGE: 4, LB: 4, CB: 5, S: 3, K: 1, P: 1 };
+export const KEEP_MIN: Record<Position, number> = {
+  QB: 2,
+  RB: 3,
+  WR: 5,
+  TE: 2,
+  OL: 8,
+  DT: 4,
+  EDGE: 4,
+  LB: 4,
+  CB: 5,
+  S: 3,
+  K: 1,
+  P: 1,
+};
 
 const cushion = (league: League) => league.caps[league.season] * 0.025;
 
 /** Room to keep for minimum deals that bring the roster to 53 once the draft class is in. */
 function fillReserve(league: League, teamId: number): number {
-  const picks = league.draftPicks.filter((p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined).length;
+  const picks = league.draftPicks.filter(
+    (p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined,
+  ).length;
   const missing = Math.max(0, ROSTER_MAX - activeRoster(league, teamId).length - picks);
   return missing * minSalary(1, league.caps[league.season]);
 }
 
 /** What an AI team can spend right now without starving the draft class or the bottom of the roster. */
-const spendable = (league: League, teamId: number) => capSpace(league, teamId) - rookieReserve(league, teamId) - fillReserve(league, teamId) - cushion(league);
+const spendable = (league: League, teamId: number) =>
+  capSpace(league, teamId) - rookieReserve(league, teamId) - fillReserve(league, teamId) - cushion(league);
 
 /**
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
@@ -39,7 +87,8 @@ const spendable = (league: League, teamId: number) => capSpace(league, teamId) -
 function depthOutlooks(league: League, team: Team): Record<Position, number[]> {
   const out = Object.fromEntries(POSITIONS.map((p) => [p, [] as number[]])) as Record<Position, number[]>;
   const wn = winNow(league, team);
-  for (const p of teamPlayers(league, team.id)) if (p.contract && !isExpired(p.contract, league.season)) out[p.position].push(teamOutlook(league, team.id, p, wn));
+  for (const p of teamPlayers(league, team.id))
+    if (p.contract && !isExpired(p.contract, league.season)) out[p.position].push(teamOutlook(league, team.id, p, wn));
   for (const list of Object.values(out)) list.sort((a, b) => b - a);
   return out;
 }
@@ -54,24 +103,39 @@ export function needGain(depth: Record<Position, number[]>, player: Player, ovr 
   if (mine.length < starters) return Math.max(0.5, ovr - 6);
   const weakest = mine[starters - 1];
   if (ovr > weakest) return ovr - weakest + 0.5;
-  if (mine.length < ROSTER_TEMPLATE[player.position]) return 0.3 + Math.max(0, ovr - (mine[mine.length - 1] ?? 0)) * 0.1;
+  if (mine.length < ROSTER_TEMPLATE[player.position])
+    return 0.3 + Math.max(0, ovr - (mine[mine.length - 1] ?? 0)) * 0.1;
   return 0;
 }
 
 /** Effective contention focus: the GM's temperament nudged by where the roster actually is. */
-const winNow = (league: League, team: Team) => clamp(team.gm.winNow * 0.6 + contenderScore(league, team.id) * 0.4, 0, 1);
+const winNow = (league: League, team: Team) =>
+  clamp(team.gm.winNow * 0.6 + contenderScore(league, team.id) * 0.4, 0, 1);
 
 /** 0 when a team is near the cap, 1 when it has a third of the cap or more to spend. Rich teams overpay. */
-const richness = (league: League, team: Team) => clamp((capSpace(league, team.id) - 0.08 * league.caps[league.season]) / (0.25 * league.caps[league.season]), 0, 1);
+const richness = (league: League, team: Team) =>
+  clamp((capSpace(league, team.id) - 0.08 * league.caps[league.season]) / (0.25 * league.caps[league.season]), 0, 1);
 
 /** A GM's offer to a player, shaped by need, ambition and cap style. */
 export function aiOffer(league: League, team: Team, player: Player, rng: Rng, gain: number): Offer {
   const d = demand(league, player, team.id);
-  const eager = clamp(0.93 + 0.02 * Math.min(gain, 4) + 0.06 * winNow(league, team) + 0.07 * richness(league, team) + rng.float(-0.04, 0.04), 0.85, 1.12);
+  const eager = clamp(
+    0.93 +
+      0.02 * Math.min(gain, 4) +
+      0.06 * winNow(league, team) +
+      0.07 * richness(league, team) +
+      rng.float(-0.04, 0.04),
+    0.85,
+    1.12,
+  );
   const cap = league.caps[league.season];
   const apy = Math.max(minSalary(player.experience, cap), Math.round(d.market * eager));
   // Ages read on the position's clock: a 33-year-old quarterback is a 29-year-old receiver.
-  const years = clamp(d.askYears + (player.age - ageShift(player.position) >= 31 && team.gm.winNow < 0.5 ? -1 : 0), 1, 5);
+  const years = clamp(
+    d.askYears + (player.age - ageShift(player.position) >= 31 && team.gm.winNow < 0.5 ? -1 : 0),
+    1,
+    5,
+  );
   const gtdPct = clamp(d.askGtdPct * rng.float(0.85, 1.05), 0, 0.9);
   const bonusPct = gtdPct * (0.45 + 0.4 * team.gm.capAggression);
   const voidYears = team.gm.capAggression > 0.75 && apy > cap * 0.04 && years < 4 ? 1 : 0;
@@ -123,13 +187,19 @@ export function exerciseFifthYearOption(league: League, player: Player, exercise
   c.years.push({ season: lastSeason(c) + 1, base: value, guaranteed: value });
   c.years.sort((a, b) => a.season - b.season);
   c.fifthYearOption = 'exercised';
-  logTransaction(league, 'option', [team.id], `${team.abbrev} exercised ${player.position} ${player.firstName} ${player.lastName}'s fifth-year option ($${(value / 1000).toFixed(1)}M)`);
+  logTransaction(
+    league,
+    'option',
+    [team.id],
+    `${team.abbrev} exercised ${player.position} ${player.firstName} ${player.lastName}'s fifth-year option ($${(value / 1000).toFixed(1)}M)`,
+  );
 }
 
 /** One franchise tag per team per league year, for a player whose deal has run out. */
 export function tagBlocker(league: League, player: Player): string | null {
   if (league.phase !== 'resign') return 'Tags are applied in the re-sign window, before free agency.';
-  if (!player.contract || !isExpired(player.contract, league.season)) return 'Only players whose contracts have expired can be tagged.';
+  if (!player.contract || !isExpired(player.contract, league.season))
+    return 'Only players whose contracts have expired can be tagged.';
   const team = league.teams[player.teamId!];
   if (team.taggedId) return 'You have already used your franchise tag this year.';
   const value = tagValue(league, player);
@@ -149,11 +219,24 @@ export function applyFranchiseTag(league: League, player: Player): void {
   const value = tagValue(league, player);
   // The old deal voids: its remaining bonus money (void years included) becomes dead money now.
   accelerateProration(league, player, team.id);
-  player.contract = { kind: 'tag', signedSeason: league.season, signedWeek: 0, apy: value, length: 1, years: [{ season: league.season, base: value, guaranteed: value }], bonuses: [] };
+  player.contract = {
+    kind: 'tag',
+    signedSeason: league.season,
+    signedWeek: 0,
+    apy: value,
+    length: 1,
+    years: [{ season: league.season, base: value, guaranteed: value }],
+    bonuses: [],
+  };
   player.tagCount = (player.tagCount ?? 0) + 1;
   team.taggedId = player.id;
   delete league.negotiations[player.id];
-  logTransaction(league, 'tag', [team.id], `${team.abbrev} franchise-tagged ${player.position} ${player.firstName} ${player.lastName} ($${(value / 1000).toFixed(1)}M)`);
+  logTransaction(
+    league,
+    'tag',
+    [team.id],
+    `${team.abbrev} franchise-tagged ${player.position} ${player.firstName} ${player.lastName} ($${(value / 1000).toFixed(1)}M)`,
+  );
 }
 
 /** Expiring players a team still holds the rights to, best first. */
@@ -179,7 +262,8 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     // A team knows its own players' games; their ceilings are still its scouts' judgment.
     const view = p.age <= 25 ? perceive(league, team.id, p) : null;
     const young = !!view && projectedCeiling(ovr, view.potMid, characterRead(league, team.id, p)?.workEthic) >= 12;
-    const keeper = (ahead >= starterBar - 0.5 || young || mine.length < KEEP_MIN[p.position]) && p.age - ageShift(p.position) <= 33;
+    const keeper =
+      (ahead >= starterBar - 0.5 || young || mine.length < KEEP_MIN[p.position]) && p.age - ageShift(p.position) <= 33;
     if (!keeper) continue;
     const offer = aiOffer(league, team, p, rng, needGain(depth, p, ahead + quirkWorth(league, team.id, p)));
     offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
@@ -291,7 +375,8 @@ const minGainFor = (league: League, team: Team) => 0.3 - richness(league, team) 
  * numbers, so the more of the cap it takes, the bigger the step it must be on where the room is
  * headed (no $80M a year for a quarterback level with the young one already there).
  */
-export const upgradeBar = (league: League, team: Team, apy: number) => minGainFor(league, team) + PRICE_GAIN * Math.max(0, apy / league.caps[league.season] - PRICEY);
+export const upgradeBar = (league: League, team: Team, apy: number) =>
+  minGainFor(league, team) + PRICE_GAIN * Math.max(0, apy / league.caps[league.season] - PRICEY);
 
 /** One day of free agency: every AI team bids on the players it needs; each player takes his best offer if it's good enough. */
 export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: boolean } = {}): number {
@@ -325,9 +410,16 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
       const offer = aiOffer(league, team, p, rng, gain);
       if (gain < upgradeBar(league, team, offer.apy)) continue;
       // Year-one charge must fit; bonus spreads, so the hit is below the APY for bigger deals.
-      const yearOne = offer.apy * (1 - offer.bonusPct) + (offer.apy * offer.years * offer.bonusPct) / Math.min(5, offer.years + offer.voidYears);
+      const yearOne =
+        offer.apy * (1 - offer.bonusPct) +
+        (offer.apy * offer.years * offer.bonusPct) / Math.min(5, offer.years + offer.voidYears);
       if (yearOne > budget.get(team.id)!) continue;
-      if (offer.years > 1 && offer.apy > 0.03 * league.caps[league.season] && committedNext.get(team.id)! + offer.apy > nextCap) continue;
+      if (
+        offer.years > 1 &&
+        offer.apy > 0.03 * league.caps[league.season] &&
+        committedNext.get(team.id)! + offer.apy > nextCap
+      )
+        continue;
       const value = offerValue(league, p, team.id, offer);
       if (!best || value > best.value) best = { team, offer, value };
     }
@@ -350,7 +442,14 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
 
 /** What a team loses by cutting a player: talent, upside as its scouts project it, and any dead money it would eat. */
 function keepScore(league: League, p: Player, read = viewCache(league)): number {
-  const youth = p.age <= 24 ? Math.max(0, projectedCeiling(playerOvr(p), read(p.teamId!, p).potMid, characterRead(league, p.teamId!, p)?.workEthic) - playerOvr(p)) * 0.5 : 0;
+  const youth =
+    p.age <= 24
+      ? Math.max(
+          0,
+          projectedCeiling(playerOvr(p), read(p.teamId!, p).potMid, characterRead(league, p.teamId!, p)?.workEthic) -
+            playerOvr(p),
+        ) * 0.5
+      : 0;
   const pre = releasePreview(league, p);
   const sunk = pre.thisYear + pre.nextYear > Math.max(0, pre.savings) ? 1.5 : 0;
   const draftee = p.draft?.season === league.season && p.draft.round <= 3 ? 2 : 0;
@@ -369,7 +468,12 @@ export function aiCutdown(league: League, team: Team, limit = ROSTER_MAX, pool?:
  * Who `aiCutdown` would let go to bring `roster` down to `limit`: the least valuable players at
  * positions it can spare, one at a time (only from `pool` if given). Nothing is released.
  */
-export function cutChoice(league: League, roster: readonly Player[], limit: number, pool?: readonly Player[]): Player[] {
+export function cutChoice(
+  league: League,
+  roster: readonly Player[],
+  limit: number,
+  pool?: readonly Player[],
+): Player[] {
   const read = viewCache(league);
   const allowed = pool && new Set(pool.map((p) => p.id));
   const left = [...roster];
@@ -390,7 +494,14 @@ export function cutChoice(league: League, roster: readonly Player[], limit: numb
 
 /** A replacement-level "street" free agent, for when the pool at a position has run dry. */
 function streetFreeAgent(league: League, position: Position, rng: Rng): Player {
-  const p = generatePlayer(rng, { id: league.nextPlayerId++, position, quality: clamp(rng.normal(7.5, 1.2), 4, 10), age: rng.int(24, 30), teamId: null, jerseysUsed: new Set() });
+  const p = generatePlayer(rng, {
+    id: league.nextPlayerId++,
+    position,
+    quality: clamp(rng.normal(7.5, 1.2), 4, 10),
+    age: rng.int(24, 30),
+    teamId: null,
+    jerseysUsed: new Set(),
+  });
   recordRatings(p, league.season);
   league.players[p.id] = p;
   return p;
@@ -402,7 +513,10 @@ function streetFreeAgent(league: League, position: Position, rng: Rng): Player {
  */
 export function minimumFits(league: League, position: Position, budget: number): boolean {
   const cap = league.caps[league.season];
-  return budget >= topMinimum(cap) || freeAgents(league).some((p) => p.position === position && !p.injury && minSalary(p.experience, cap) <= budget);
+  return (
+    budget >= topMinimum(cap) ||
+    freeAgents(league).some((p) => p.position === position && !p.injury && minSalary(p.experience, cap) <= budget)
+  );
 }
 
 /**
@@ -431,7 +545,8 @@ export function signMinimum(league: League, team: Team, rng: Rng, position?: Pos
  */
 export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
   for (const pos of POSITIONS) {
-    while (activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos]) if (!signMinimum(league, team, rng, pos)) break;
+    while (activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos])
+      if (!signMinimum(league, team, rng, pos)) break;
   }
   aiCutdown(league, team);
   const missing = ROSTER_MAX - activeRoster(league, team.id).length;
@@ -440,8 +555,15 @@ export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
   // then sign only deals that fit, so the 53 fills without going back over.
   aiCapCompliance(league, team);
   // A position a cap cut left short fills first, then the 53 fills with whoever's best.
-  const short = (pos: Position) => activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos];
-  for (const pos of POSITIONS) while (short(pos) && activeRoster(league, team.id).length < ROSTER_MAX) if (!signMinimum(league, team, rng, pos, capSpace(league, team.id))) break;
-  while (activeRoster(league, team.id).length < ROSTER_MAX && capSpace(league, team.id) >= minSalary(1, league.caps[league.season])) if (!signMinimum(league, team, rng, undefined, capSpace(league, team.id))) break;
+  const short = (pos: Position) =>
+    activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos];
+  for (const pos of POSITIONS)
+    while (short(pos) && activeRoster(league, team.id).length < ROSTER_MAX)
+      if (!signMinimum(league, team, rng, pos, capSpace(league, team.id))) break;
+  while (
+    activeRoster(league, team.id).length < ROSTER_MAX &&
+    capSpace(league, team.id) >= minSalary(1, league.caps[league.season])
+  )
+    if (!signMinimum(league, team, rng, undefined, capSpace(league, team.id))) break;
   syncDepthChart(league, team);
 }

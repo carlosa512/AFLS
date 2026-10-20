@@ -11,7 +11,18 @@ import { migrateLeague } from './migrate';
 import { beginOffseason } from './offseason';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
-import { careerOutlook, characterNotes, characterRead, CHARACTER_KNOWLEDGE, isProspect, knowledge, needsReps, perceive, projectedCeiling, scoutReport } from './scouting';
+import {
+  careerOutlook,
+  characterNotes,
+  characterRead,
+  CHARACTER_KNOWLEDGE,
+  isProspect,
+  knowledge,
+  needsReps,
+  perceive,
+  projectedCeiling,
+  scoutReport,
+} from './scouting';
 import { generateTraits, TRAIT_MEAN } from './traits';
 import type { League, Player, Position, Traits } from './types';
 
@@ -27,7 +38,14 @@ const corr = (xs: number[], ys: number[]) => {
 /** A fresh player of a given position, age and makeup. */
 function rookie(pos: Position, age: number, i: number, traits: Partial<Traits> = {}): Player {
   const rng = new Rng(`dev-test:${pos}:${i}`);
-  const p = generatePlayer(rng, { id: 1_000_000 + i, position: pos, quality: 11, age, teamId: null, jerseysUsed: new Set() });
+  const p = generatePlayer(rng, {
+    id: 1_000_000 + i,
+    position: pos,
+    quality: 11,
+    age,
+    teamId: null,
+    jerseysUsed: new Set(),
+  });
   p.traits = { ...p.traits, ...traits };
   return p;
 }
@@ -121,7 +139,9 @@ describe('development', () => {
     expect(playedShare(third, league.season)).toBeLessThan(0.3);
     // "Needs reps": young, still growing in your scouts' eyes, and not playing.
     const mine = Object.values(league.players).filter((p) => p.teamId === team.id);
-    const sitting = mine.find((p) => p.age <= 25 && !p.stats[league.season]?.gp && perceive(league, team.id, p).potMid - playerOvr(p) >= 1.5);
+    const sitting = mine.find(
+      (p) => p.age <= 25 && !p.stats[league.season]?.gp && perceive(league, team.id, p).potMid - playerOvr(p) >= 1.5,
+    );
     expect(sitting).toBeDefined();
     expect(needsReps(league, team.id, sitting!, league.season)).toBe(true);
     expect(needsReps(league, team.id, starter, league.season)).toBe(false);
@@ -139,7 +159,9 @@ describe('development', () => {
     gone.retired = true;
     beginOffseason(a);
     beginOffseason(b);
-    const sample = Object.values(a.players).filter((p) => p.id !== gone.id && !p.retired && p.teamId !== null).slice(0, 200);
+    const sample = Object.values(a.players)
+      .filter((p) => p.id !== gone.id && !p.retired && p.teamId !== null)
+      .slice(0, 200);
     for (const p of sample) expect(b.players[p.id].ratings).toEqual(p.ratings);
   }, 30_000);
 });
@@ -176,7 +198,8 @@ describe('temperament', () => {
     const league = createLeague({ seed: 'temper' });
     const team = league.teams[0];
     const set = (l: League, t: number) => {
-      for (const pos of ['OL', 'DT', 'EDGE'] as const) for (const id of l.teams[0].depthChart[pos]) l.players[id].traits.temperament = t;
+      for (const pos of ['OL', 'DT', 'EDGE'] as const)
+        for (const id of l.teams[0].depthChart[pos]) l.players[id].traits.temperament = t;
       for (const id of l.teams[0].depthChart.WR) l.players[id].traits.temperament = t;
     };
     const calm = copy(league);
@@ -208,7 +231,9 @@ describe('what scouts can say about makeup', () => {
     const me = league.userTeamId;
     const own = Object.values(league.players).find((p) => p.teamId === me)!;
     expect(characterRead(league, me, own)).toMatchObject({ ...own.traits, exact: true });
-    const prospect = Object.values(league.players).find((p) => p.teamId !== me && knowledge(league, me, p) < CHARACTER_KNOWLEDGE)!;
+    const prospect = Object.values(league.players).find(
+      (p) => p.teamId !== me && knowledge(league, me, p) < CHARACTER_KNOWLEDGE,
+    )!;
     expect(characterRead(league, me, prospect)).toBeNull();
     expect(characterNotes(league, me, prospect).known).toBe(false);
 
@@ -221,7 +246,9 @@ describe('what scouts can say about makeup', () => {
     expect(league.rngState).toEqual(before);
 
     // Across the league, a well-known read lands close to the truth.
-    const vets = Object.values(league.players).filter((p) => p.teamId !== null && p.teamId !== me && p.experience >= 5).slice(0, 300);
+    const vets = Object.values(league.players)
+      .filter((p) => p.teamId !== null && p.teamId !== me && p.experience >= 5)
+      .slice(0, 300);
     const err = vets.map((p) => Math.abs(characterRead(league, me, p)!.workEthic - p.traits.workEthic));
     expect(mean(err)).toBeLessThan(1.5);
 
@@ -260,16 +287,24 @@ describe('what scouts can say about makeup', () => {
     const wr = Object.values(league.players).find((p) => p.teamId === me && p.position === 'WR')!;
     wr.traits.durability = 11;
     wr.age = 27;
-    expect(careerOutlook(league, me, wr)).toBe('His physical tools should start to fade after about 29; his technique should hold up through about 30.');
+    expect(careerOutlook(league, me, wr)).toBe(
+      'His physical tools should start to fade after about 29; his technique should hold up through about 30.',
+    );
     wr.age = 30;
-    expect(careerOutlook(league, me, wr)).toBe('His physical tools have started to fade; his technique should hold up through about 30.');
+    expect(careerOutlook(league, me, wr)).toBe(
+      'His physical tools have started to fade; his technique should hold up through about 30.',
+    );
     // The report says the same in one of its reviewed wordings: the tools going first, the technique holding this year.
-    expect(scoutReport(league, me, wr)[2]).toMatch(/^(His physical tools have begun to fade, but his technique should hold this year|The athleticism is going first; his technique should hold this year)/);
+    expect(scoutReport(league, me, wr)[2]).toMatch(
+      /^(His physical tools have begun to fade, but his technique should hold this year|The athleticism is going first; his technique should hold this year)/,
+    );
     // In his prime the report says nothing about the clock: the Development section carries it.
     wr.age = 28;
     expect(scoutReport(league, me, wr).join(' ')).not.toMatch(/hold up through|prime to run/);
     wr.age = 30;
-    expect(scoutReport(league, me, wr)[0]).toMatch(/ wide receiver (whose value now rests on his technique|living on his technique now)\.$/);
+    expect(scoutReport(league, me, wr)[0]).toMatch(
+      / wide receiver (whose value now rests on his technique|living on his technique now)\.$/,
+    );
     wr.age = 31;
     expect(careerOutlook(league, me, wr)).toMatch(/^Past his prime/);
     const ol = Object.values(league.players).find((p) => p.teamId === me && p.position === 'OL')!;
@@ -287,7 +322,9 @@ describe('what scouts can say about makeup', () => {
 
   it('keeps the true traits out of the screens', () => {
     const dir = new URL('../ui/', import.meta.url);
-    const files = readdirSync(dir, { recursive: true }).map(String).filter((f) => /\.tsx?$/.test(f));
+    const files = readdirSync(dir, { recursive: true })
+      .map(String)
+      .filter((f) => /\.tsx?$/.test(f));
     for (const f of files) {
       const src = readFileSync(new URL(f, dir), 'utf8');
       expect(src, f).not.toMatch(/\.traits\b|\bcharacterRead\b|\bprojectedCeiling\b/);

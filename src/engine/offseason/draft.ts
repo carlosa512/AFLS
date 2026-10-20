@@ -5,7 +5,14 @@
  */
 import { recordRatings } from '../development';
 import { logTransaction } from '../finance/cap';
-import { createDraftPicks, DRAFT_ROUNDS, freeJersey, generatePlayer, MAX_FUTURE_DRAFT_YEARS, rookieContract } from '../generate';
+import {
+  createDraftPicks,
+  DRAFT_ROUNDS,
+  freeJersey,
+  generatePlayer,
+  MAX_FUTURE_DRAFT_YEARS,
+  rookieContract,
+} from '../generate';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { clamp, type Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
@@ -30,13 +37,23 @@ export function generateDraftClass(league: League, rng: Rng): void {
     // 0.3 below where a new league starts (`npm run careers`, starter OVR by season).
     const quality = clamp(13.7 - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** 0.6 + rng.normal(0, 0.9), 4, 16);
     const position = rng.weighted(CLASS_MIX, ([, w]) => w)[0];
-    const p = generatePlayer(rng, { id: league.nextPlayerId++, position, quality, age: rng.int(21, 23), teamId: null, jerseysUsed: new Set() });
+    const p = generatePlayer(rng, {
+      id: league.nextPlayerId++,
+      position,
+      quality,
+      age: rng.int(21, 23),
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
     p.experience = 0;
     // Most prospects grow a point or three; a few boom, some never move.
     const growth = Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = Math.round(clamp(playerOvr(p) + growth, playerOvr(p), 20) * 10) / 10;
     // Scouts see a noisy grade and an even noisier ceiling.
-    p.scouting = { grade: Math.round((playerOvr(p) + rng.normal(0, CONSENSUS_SD.grade)) * 2) / 2, ceiling: Math.round((p.potential + rng.normal(0, CONSENSUS_SD.ceiling)) * 2) / 2 };
+    p.scouting = {
+      grade: Math.round((playerOvr(p) + rng.normal(0, CONSENSUS_SD.grade)) * 2) / 2,
+      ceiling: Math.round((p.potential + rng.normal(0, CONSENSUS_SD.ceiling)) * 2) / 2,
+    };
     recordRatings(p, league.season);
     league.players[p.id] = p;
     league.draftClass.push(p.id);
@@ -77,7 +94,9 @@ export function setDraftOrder(league: League, lastSeason: number): void {
 }
 
 export function draftOrder(league: League): DraftPick[] {
-  return league.draftPicks.filter((p) => p.season === league.season && p.overall !== undefined).sort((a, b) => a.overall! - b.overall!);
+  return league.draftPicks
+    .filter((p) => p.season === league.season && p.overall !== undefined)
+    .sort((a, b) => a.overall! - b.overall!);
 }
 
 export const nextPick = (league: League) => draftOrder(league).find((p) => p.playerId === undefined);
@@ -86,7 +105,20 @@ export function availableProspects(league: League): Player[] {
   return league.draftClass.map((id) => league.players[id]).filter((p) => p && p.teamId === null);
 }
 
-export const POSITION_PREMIUM: Record<Position, number> = { QB: 1.2, EDGE: 0.6, OL: 0.3, CB: 0.3, WR: 0.3, DT: 0.3, LB: 0, S: 0, TE: 0, RB: -0.1, K: -2.5, P: -2.8 };
+export const POSITION_PREMIUM: Record<Position, number> = {
+  QB: 1.2,
+  EDGE: 0.6,
+  OL: 0.3,
+  CB: 0.3,
+  WR: 0.3,
+  DT: 0.3,
+  LB: 0,
+  S: 0,
+  TE: 0,
+  RB: -0.1,
+  K: -2.5,
+  P: -2.8,
+};
 
 /** A team's overalls by position, best first. */
 export function positionDepth(league: League, teamId: number): Record<Position, number[]> {
@@ -97,7 +129,8 @@ export function positionDepth(league: League, teamId: number): Record<Position, 
 }
 
 /** The league consensus's need-blind board value: talent, upside and positional value. */
-export const boardValue = (p: Player) => 0.6 * p.scouting!.grade + 0.4 * p.scouting!.ceiling + POSITION_PREMIUM[p.position];
+export const boardValue = (p: Player) =>
+  0.6 * p.scouting!.grade + 0.4 * p.scouting!.ceiling + POSITION_PREMIUM[p.position];
 
 /** Where the consensus ranks a prospect in his class (1 = best), which is roughly where he'll go. */
 export function consensusRank(league: League, p: Player): number {
@@ -146,7 +179,13 @@ function boardFrom(memo: BoardMemo, league: League, teamId: number, p: Player): 
 }
 
 /** A front office's board score for a prospect: its read of talent and upside, position value, need. */
-export function boardScore(depth: Record<Position, number[]>, p: Player, board: Board, rng: Rng, round: number): number {
+export function boardScore(
+  depth: Record<Position, number[]>,
+  p: Player,
+  board: Board,
+  rng: Rng,
+  round: number,
+): number {
   let score = 0.6 * board.grade + 0.4 * board.ceiling + POSITION_PREMIUM[p.position] + rng.normal(0, 0.6);
   const mine = depth[p.position];
   if (mine.length < STARTERS[p.position] + 1) score += 1;
@@ -156,7 +195,13 @@ export function boardScore(depth: Record<Position, number[]>, p: Player, board: 
   return score;
 }
 
-export function aiDraftChoice(league: League, teamId: number, rng: Rng, round: number, boards: BoardMemo = new Map()): Player {
+export function aiDraftChoice(
+  league: League,
+  teamId: number,
+  rng: Rng,
+  round: number,
+  boards: BoardMemo = new Map(),
+): Player {
   const pool = availableProspects(league);
   const depth = positionDepth(league, teamId);
   let best = pool[0];
@@ -178,10 +223,29 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
   pick.consRank = consensusRank(league, player);
   player.teamId = team.id;
   player.contract = rookieContract(pick.overall!, league.season, league.caps[league.season]);
-  player.draft = { season: league.season, round: pick.round, pick: pick.overall!, teamId: team.id, rank: pick.consRank };
-  player.jersey = freeJersey(player.position, new Set(teamPlayers(league, team.id).filter((p) => p.id !== player.id).map((p) => p.jersey)), player.jersey);
+  player.draft = {
+    season: league.season,
+    round: pick.round,
+    pick: pick.overall!,
+    teamId: team.id,
+    rank: pick.consRank,
+  };
+  player.jersey = freeJersey(
+    player.position,
+    new Set(
+      teamPlayers(league, team.id)
+        .filter((p) => p.id !== player.id)
+        .map((p) => p.jersey),
+    ),
+    player.jersey,
+  );
   syncDepthChart(league, team);
-  logTransaction(league, 'draft', [team.id], `${team.abbrev} drafted ${player.position} ${player.firstName} ${player.lastName} (round ${pick.round}, No. ${pick.overall})`);
+  logTransaction(
+    league,
+    'draft',
+    [team.id],
+    `${team.abbrev} drafted ${player.position} ${player.firstName} ${player.lastName} (round ${pick.round}, No. ${pick.overall})`,
+  );
 }
 
 /** Make picks until it's the user's turn, `limit` picks are made, or the draft ends. Returns the picks made. */
@@ -213,7 +277,8 @@ export function finishDraft(league: League): void {
     if (p && p.teamId === null) delete p.scouting;
   }
   league.draftClass = [];
-  if (!league.draftPicks.some((p) => p.season === league.season + MAX_FUTURE_DRAFT_YEARS)) createDraftPicks(league, league.season + MAX_FUTURE_DRAFT_YEARS);
+  if (!league.draftPicks.some((p) => p.season === league.season + MAX_FUTURE_DRAFT_YEARS))
+    createDraftPicks(league, league.season + MAX_FUTURE_DRAFT_YEARS);
   league.draftPicks = league.draftPicks.filter((p) => p.season > league.season - 2);
 }
 

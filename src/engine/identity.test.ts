@@ -6,7 +6,8 @@ import { identityFrom, newIdentity, type NameFor } from './identity';
 import { Rng } from './rng';
 import type { League } from './types';
 
-const sample = (who: NameFor, n: number, salt = '') => Array.from({ length: n }, (_, i) => identityFrom(new Rng(`t${salt}:${i}`), who));
+const sample = (who: NameFor, n: number, salt = '') =>
+  Array.from({ length: n }, (_, i) => identityFrom(new Rng(`t${salt}:${i}`), who));
 const share = (m: Mix, h: Heritage) => m[h] / HERITAGES.reduce((s, x) => s + m[x], 0);
 
 describe('name pools', () => {
@@ -32,13 +33,22 @@ describe('newIdentity', () => {
     expect(a.getState()).toEqual(b.getState());
   });
   it('is reproducible from the stream', () => {
-    expect(newIdentity(new Rng('x'), { kind: 'scout', role: 'proScout' })).toEqual(newIdentity(new Rng('x'), { kind: 'scout', role: 'proScout' }));
+    expect(newIdentity(new Rng('x'), { kind: 'scout', role: 'proScout' })).toEqual(
+      newIdentity(new Rng('x'), { kind: 'scout', role: 'proScout' }),
+    );
   });
 });
 
 describe('heritage by position', () => {
   it("follows each position's mix", () => {
-    for (const [position, h] of [['K', 'white'], ['P', 'international'], ['CB', 'black'], ['QB', 'white'], ['OL', 'pacific'], ['EDGE', 'african']] as const) {
+    for (const [position, h] of [
+      ['K', 'white'],
+      ['P', 'international'],
+      ['CB', 'black'],
+      ['QB', 'white'],
+      ['OL', 'pacific'],
+      ['EDGE', 'african'],
+    ] as const) {
       const got = sample({ kind: 'player', position }, 4000, position).filter((x) => x.heritage === h).length / 4000;
       expect(got, `${position} ${h}`).toBeCloseTo(share(PLAYER_MIX[position], h), 1);
     }
@@ -48,8 +58,12 @@ describe('heritage by position', () => {
     const asian = qbs.filter((x) => x.heritage === 'asian').length / qbs.length;
     expect(asian).toBeGreaterThan(0.003);
     expect(asian).toBeLessThan(0.02);
-    const corners = sample({ kind: 'player', position: 'CB' }, 4000, 'cb').filter((x) => x.lastName === 'Washington').length;
-    const kickers = sample({ kind: 'player', position: 'K' }, 4000, 'k').filter((x) => x.lastName === 'Washington').length;
+    const corners = sample({ kind: 'player', position: 'CB' }, 4000, 'cb').filter(
+      (x) => x.lastName === 'Washington',
+    ).length;
+    const kickers = sample({ kind: 'player', position: 'K' }, 4000, 'k').filter(
+      (x) => x.lastName === 'Washington',
+    ).length;
     expect(corners).toBeGreaterThan(kickers * 3);
   });
   it('never hands out a reserved real name, or a first name repeated as the surname', () => {
@@ -63,7 +77,11 @@ describe('heritage by position', () => {
 
 describe('women on staff', () => {
   it("come at each chair's share, with women's names, and never as coaches", () => {
-    for (const [kind, role] of [['scout', 'collegeScout'], ['medic', 'physio'], ['medic', 'scientist']] as const) {
+    for (const [kind, role] of [
+      ['scout', 'collegeScout'],
+      ['medic', 'physio'],
+      ['medic', 'scientist'],
+    ] as const) {
       const people = sample({ kind, role } as NameFor, 4000, role);
       const women = people.filter((x) => x.woman);
       expect(women.length / people.length, role).toBeCloseTo(WOMEN_SHARE[role], 1);
@@ -75,12 +93,18 @@ describe('women on staff', () => {
 });
 
 describe('a new league', () => {
-  const people = (l: League) => [...Object.values(l.players), ...Object.values(l.coaches), ...Object.values(l.staff), ...Object.values(l.medics)];
+  const people = (l: League) => [
+    ...Object.values(l.players),
+    ...Object.values(l.coaches),
+    ...Object.values(l.staff),
+    ...Object.values(l.medics),
+  ];
   it('keeps shared full names rare, so mail still links nearly everyone', () => {
     for (const seed of ['n1', 'n2']) {
       const all = people(createLeague({ seed }));
       const counts = new Map<string, number>();
-      for (const p of all) counts.set(`${p.firstName} ${p.lastName}`, (counts.get(`${p.firstName} ${p.lastName}`) ?? 0) + 1);
+      for (const p of all)
+        counts.set(`${p.firstName} ${p.lastName}`, (counts.get(`${p.firstName} ${p.lastName}`) ?? 0) + 1);
       const shared = all.filter((p) => counts.get(`${p.firstName} ${p.lastName}`)! > 1).length / all.length;
       expect(shared, seed).toBeLessThan(0.1);
     }

@@ -30,9 +30,11 @@ describe('flexible scheduling', () => {
 
   it('never gives a team a short week, and no more than seven night games', () => {
     for (const g of games.filter((x) => x.kickoff!.day === 'thu')) {
-      for (const t of [g.homeId, g.awayId]) expect(games.find((p) => p.week === g.week - 1 && plays(p, t))?.kickoff!.day).not.toBe('mon');
+      for (const t of [g.homeId, g.awayId])
+        expect(games.find((p) => p.week === g.week - 1 && plays(p, t))?.kickoff!.day).not.toBe('mon');
     }
-    for (const team of league.teams) expect(games.filter((g) => plays(g, team.id) && isPrimeTime(g.kickoff!)).length).toBeLessThanOrEqual(7);
+    for (const team of league.teams)
+      expect(games.filter((g) => plays(g, team.id) && isPrimeTime(g.kickoff!)).length).toBeLessThanOrEqual(7);
   });
 
   it('sets week 18 once week 17 is played: Sunday night and a Saturday doubleheader', () => {

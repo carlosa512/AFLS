@@ -29,7 +29,16 @@ import { BASE_CAP } from './finance/market';
 import { OVR_WEIGHTS, ROSTER_TEMPLATE } from './positions';
 import { newIdentity } from './identity';
 import { clamp, Rng } from './rng';
-import { BASE_OFFENSE, COVERAGES, FRONTS, OFF_SCHEMES, pressureOf, rollScheme, type CoachScheme, type TeamScheme } from './schemes';
+import {
+  BASE_OFFENSE,
+  COVERAGES,
+  FRONTS,
+  OFF_SCHEMES,
+  pressureOf,
+  rollScheme,
+  type CoachScheme,
+  type TeamScheme,
+} from './schemes';
 import { IDLE_MAX, ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
 import type { Attribute, Coach, CoachRole, CoachRoom, CoachStyle, League, Player, Position, Team } from './types';
 import { POSITIONS } from './types';
@@ -50,7 +59,9 @@ export const ROOM_OF: Record<Position, CoachRoom | null> = {
   P: null,
 };
 /** Positions in each room. */
-export const ROOM_POSITIONS: Record<CoachRoom, Position[]> = Object.fromEntries(COACH_ROOMS.map((r) => [r, POSITIONS.filter((p) => ROOM_OF[p] === r)])) as Record<CoachRoom, Position[]>;
+export const ROOM_POSITIONS: Record<CoachRoom, Position[]> = Object.fromEntries(
+  COACH_ROOMS.map((r) => [r, POSITIONS.filter((p) => ROOM_OF[p] === r)]),
+) as Record<CoachRoom, Position[]>;
 export const ROOM_LABEL: Record<CoachRoom, string> = {
   QB: 'Quarterbacks',
   RB: 'Running backs',
@@ -78,11 +89,13 @@ export const COACH_ROLE_LABEL: Record<CoachRole, string> = {
   stCoord: 'Special teams coordinator',
 };
 /** "Head coach", "Receivers coach"… */
-export const coachTitle = (c: Pick<Coach, 'role' | 'room'>) => (c.role === 'positionCoach' && c.room ? ROOM_COACH[c.room] : COACH_ROLE_LABEL[c.role]);
+export const coachTitle = (c: Pick<Coach, 'role' | 'room'>) =>
+  c.role === 'positionCoach' && c.room ? ROOM_COACH[c.room] : COACH_ROLE_LABEL[c.role];
 export const coachName = (c: Coach) => `${c.firstName} ${c.lastName}`;
 
 type Side = 'offense' | 'defense';
-const SIDE_OF = (p: Position): Side | null => (p === 'K' || p === 'P' ? null : ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p) ? 'offense' : 'defense');
+const SIDE_OF = (p: Position): Side | null =>
+  p === 'K' || p === 'P' ? null : ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p) ? 'offense' : 'defense';
 
 /** One job on a staff: a role, plus a room for position coaches. */
 export interface Chair {
@@ -96,9 +109,13 @@ export const CHAIRS: Chair[] = [
   { role: 'defCoord' },
   { role: 'strengthCoach' },
   { role: 'stCoord' },
-  ...(['QB', 'OL', 'DB', 'WR', 'DL', 'LB', 'RB'] as CoachRoom[]).map((room) => ({ role: 'positionCoach' as const, room })),
+  ...(['QB', 'OL', 'DB', 'WR', 'DL', 'LB', 'RB'] as CoachRoom[]).map((room) => ({
+    role: 'positionCoach' as const,
+    room,
+  })),
 ];
-export const chairOf = (c: Pick<Coach, 'role' | 'room'>): Chair => (c.role === 'positionCoach' ? { role: c.role, room: c.room } : { role: c.role });
+export const chairOf = (c: Pick<Coach, 'role' | 'room'>): Chair =>
+  c.role === 'positionCoach' ? { role: c.role, room: c.room } : { role: c.role };
 export const sameChair = (a: Chair, b: Chair) => a.role === b.role && (a.role !== 'positionCoach' || a.room === b.room);
 const LEADERSHIP: ReadonlySet<CoachRole> = new Set(['headCoach', 'offCoord', 'defCoord']);
 
@@ -116,7 +133,8 @@ export function teamCoaches(league: League, teamId: number): readonly Coach[] {
   let hit = index.get(league.coaches);
   if (!hit || hit.version !== version) {
     const byTeam = new Map<number, Coach[]>();
-    for (const c of Object.values(league.coaches)) if (c.teamId !== null) byTeam.set(c.teamId, [...(byTeam.get(c.teamId) ?? []), c]);
+    for (const c of Object.values(league.coaches))
+      if (c.teamId !== null) byTeam.set(c.teamId, [...(byTeam.get(c.teamId) ?? []), c]);
     index.set(league.coaches, (hit = { version, byTeam }));
   }
   return hit.byTeam.get(teamId) ?? [];
@@ -158,7 +176,10 @@ export const NEUTRAL: Coaching = { rate: 1, decline: { physical: 1, technical: 1
 
 /** The coach in a chair; in the re-sign window a replacement can overlap the man whose deal is up, and the better one counts. */
 export function chairHolder(coaches: readonly Coach[], chair: Chair): Coach | null {
-  return coaches.reduce<Coach | null>((best, c) => (sameChair(chairOf(c), chair) && (!best || coachValue(c) > coachValue(best)) ? c : best), null);
+  return coaches.reduce<Coach | null>(
+    (best, c) => (sameChair(chairOf(c), chair) && (!best || coachValue(c) > coachValue(best)) ? c : best),
+    null,
+  );
 }
 
 /** Which chair each source is for a player at this position (null: nobody covers him from there). */
@@ -201,7 +222,11 @@ export function coachingParts(coaches: readonly Coach[], position: Position): Co
   const totals = { growth: 0, body: 0, craft: 0 };
   for (const p of parts) for (const k of ['growth', 'body', 'craft'] as const) totals[k] += INFLUENCE[k][p.source];
   return parts.map((p) => {
-    const w = { growth: INFLUENCE.growth[p.source] / totals.growth, body: INFLUENCE.body[p.source] / totals.body, craft: INFLUENCE.craft[p.source] / totals.craft };
+    const w = {
+      growth: INFLUENCE.growth[p.source] / totals.growth,
+      body: INFLUENCE.body[p.source] / totals.body,
+      craft: INFLUENCE.craft[p.source] / totals.craft,
+    };
     const youth = p.coach?.youth ?? VACANT;
     const veterans = p.coach?.veterans ?? VACANT;
     return {
@@ -223,7 +248,10 @@ export function coachingFrom(coaches: readonly Coach[], position: Position): Coa
   const parts = coachingParts(coaches, position);
   const sum = (k: 'growth' | 'body' | 'craft') => parts.reduce((s, p) => s + p[k], 0);
   const craft = clamp(1 + sum('craft'), ...DECLINE_RANGE);
-  return { rate: clamp(1 + sum('growth'), ...RATE_RANGE), decline: { physical: clamp(1 + sum('body'), ...DECLINE_RANGE), technical: craft, mental: craft } };
+  return {
+    rate: clamp(1 + sum('growth'), ...RATE_RANGE),
+    decline: { physical: clamp(1 + sum('body'), ...DECLINE_RANGE), technical: craft, mental: craft },
+  };
 }
 
 /** What his coaches do for a player this year. Free agents have nobody: neutral, so a release is no development cliff. */
@@ -373,7 +401,12 @@ export function visionFit(league: League, hc: Coach | null, c: Coach, vision?: V
 export function visionNotes(v: Vision): { offense: string; defense: string } {
   return {
     offense: v.pass >= 0.3 ? 'a pass-first offense' : v.pass <= -0.3 ? 'a run-first offense' : 'a balanced offense',
-    defense: v.pressure >= 0.3 ? 'a defense that brings pressure' : v.pressure <= -0.3 ? 'a defense that rushes four and covers' : 'a balanced defense',
+    defense:
+      v.pressure >= 0.3
+        ? 'a defense that brings pressure'
+        : v.pressure <= -0.3
+          ? 'a defense that rushes four and covers'
+          : 'a balanced defense',
   };
 }
 
@@ -392,22 +425,43 @@ export function specialTeamsEdge(league: League, teamId: number): number {
 
 // ───────── money ─────────
 
-const BASE_ASK: Record<CoachRole, number> = { headCoach: 7000, offCoord: 2400, defCoord: 2400, strengthCoach: 2400, stCoord: 1600, positionCoach: 1000 };
+const BASE_ASK: Record<CoachRole, number> = {
+  headCoach: 7000,
+  offCoord: 2400,
+  defCoord: 2400,
+  strengthCoach: 2400,
+  stCoord: 1600,
+  positionCoach: 1000,
+};
 /** Shorter deals cost more per year; longer ones lock in a discount. */
 const TERM: Record<number, number> = { 1: 1.1, 2: 1, 3: 0.95, 4: 0.92, 5: 0.9 };
 /** Longest deal a role signs: head coaches get the long contracts. */
 export const maxYears = (role: CoachRole) => (role === 'headCoach' ? 5 : 3);
 /** How much of a coach's worth is youth development (the rest is veteran care), by what his job leans on. */
-const YOUTH_SHARE: Record<CoachRole, number> = { headCoach: 0.5, offCoord: 0.6, defCoord: 0.6, positionCoach: 0.55, strengthCoach: 0.35, stCoord: 0.5 };
+const YOUTH_SHARE: Record<CoachRole, number> = {
+  headCoach: 0.5,
+  offCoord: 0.6,
+  defCoord: 0.6,
+  positionCoach: 0.55,
+  strengthCoach: 0.35,
+  stCoord: 0.5,
+};
 
 /** One number for a coach's quality in his role. */
-export const coachValue = (c: Pick<Coach, 'role' | 'youth' | 'veterans'>) => YOUTH_SHARE[c.role] * c.youth + (1 - YOUTH_SHARE[c.role]) * c.veterans;
+export const coachValue = (c: Pick<Coach, 'role' | 'youth' | 'veterans'>) =>
+  YOUTH_SHARE[c.role] * c.youth + (1 - YOUTH_SHARE[c.role]) * c.veterans;
 
 const capOf = (league: League, season = league.season) => league.caps[season] ?? BASE_CAP;
 
 /** Salary he asks for, $K per year: convex in quality, scaled with the cap, and dearer off a winning staff (`pedigree`). */
 export function coachAsk(league: League, c: Coach, years = 2): number {
-  return Math.round(BASE_ASK[c.role] * (capOf(league) / BASE_CAP) * 1.16 ** (coachValue(c) - 10) * TERM[years] * (1 + PEDIGREE * pedigree(league, c)));
+  return Math.round(
+    BASE_ASK[c.role] *
+      (capOf(league) / BASE_CAP) *
+      1.16 ** (coachValue(c) - 10) *
+      TERM[years] *
+      (1 + PEDIGREE * pedigree(league, c)),
+  );
 }
 /** How much more a coach asks per unit of his staff's last win share over .500: off a 13–4 staff about a fifth more, off 4–13 a fifth less. */
 const PEDIGREE = 0.8;
@@ -425,7 +479,8 @@ function pedigree(league: League, c: Coach): number {
  * It grew with the special teams coordinator's chair (0.095 of the cap before), by that chair's share of the going
  * rates, so a staff fits as it did.
  */
-export const coachBudget = (league: League, teamId: number, season = league.season) => Math.round(0.102 * capOf(league, season) * league.teams[teamId].staffBudgetMult);
+export const coachBudget = (league: League, teamId: number, season = league.season) =>
+  Math.round(0.102 * capOf(league, season) * league.teams[teamId].staffBudgetMult);
 
 /** Severance booked against a league year's coaching budget. */
 export const coachSeverancePaid = (league: League, teamId: number, season = league.season) =>
@@ -433,7 +488,10 @@ export const coachSeverancePaid = (league: League, teamId: number, season = leag
 
 /** Salaries owed in a league year plus severance booked against it. */
 export function coachPayroll(league: League, teamId: number, season = league.season): number {
-  const pay = teamCoaches(league, teamId).reduce((sum, c) => sum + (c.contract && c.contract.through >= season ? c.contract.salary : 0), 0);
+  const pay = teamCoaches(league, teamId).reduce(
+    (sum, c) => sum + (c.contract && c.contract.through >= season ? c.contract.salary : 0),
+    0,
+  );
   return pay + coachSeverancePaid(league, teamId, season);
 }
 
@@ -443,11 +501,21 @@ export function coachPayroll(league: League, teamId: number, season = league.sea
  */
 export function noteCoachOverspend(league: League): void {
   const last = league.season - 1;
-  for (const team of league.teams) if (coachPayroll(league, team.id, last) > coachBudget(league, team.id, last)) team.coachOverspent = last;
+  for (const team of league.teams)
+    if (coachPayroll(league, team.id, last) > coachBudget(league, team.id, last)) team.coachOverspent = last;
 }
 
 /** Why an owner will or won't go past the coaching budget: a screen turns it into his words. */
-export type OwnerReason = 'assistant' | 'lastYear' | 'losing' | 'tight' | 'playoffs' | 'winNow' | 'newCoach' | 'bigMarket' | 'stretch';
+export type OwnerReason =
+  | 'assistant'
+  | 'lastYear'
+  | 'losing'
+  | 'tight'
+  | 'playoffs'
+  | 'winNow'
+  | 'newCoach'
+  | 'bigMarket'
+  | 'stretch';
 
 /** What an owner will add past the coaching budget for one chair this year ($K), and why. */
 export interface OwnerStance {
@@ -466,15 +534,23 @@ export interface OwnerStance {
 export function ownerLeeway(league: League, teamId: number, chair: Chair): OwnerStance {
   const team = league.teams[teamId];
   const no = (reason: OwnerReason, why: string): OwnerStance => ({ amount: 0, reason, why });
-  if (!LEADERSHIP.has(chair.role)) return no('assistant', 'he only goes over budget for a head coach or an offensive or defensive coordinator');
-  if (team.coachOverspent === league.season - 1) return no('lastYear', 'he went over budget last year and wants it kept this year');
+  if (!LEADERSHIP.has(chair.role))
+    return no('assistant', 'he only goes over budget for a head coach or an offensive or defensive coordinator');
+  if (team.coachOverspent === league.season - 1)
+    return no('lastYear', 'he went over budget last year and wants it kept this year');
   const rec = lastRecord(league, teamId);
   const share = winShare(league, teamId);
   const playoffs = madePlayoffs(league, teamId);
   const contending = playoffs || share >= 0.6;
   const losing = !!rec && share < 0.4;
   if (losing && chair.role !== 'headCoach') return no('losing', `not after a ${recordText(rec!)} season`);
-  const amount = Math.round(clamp(LEEWAY.base + LEEWAY.market * (team.staffBudgetMult - 1) + (contending ? LEEWAY.contending : 0), 0, LEEWAY.max) * coachBudget(league, teamId));
+  const amount = Math.round(
+    clamp(
+      LEEWAY.base + LEEWAY.market * (team.staffBudgetMult - 1) + (contending ? LEEWAY.contending : 0),
+      0,
+      LEEWAY.max,
+    ) * coachBudget(league, teamId),
+  );
   if (amount <= 0) return no('tight', 'his market can’t carry more than the budget');
   if (playoffs) return { amount, reason: 'playoffs', why: 'the team made the playoffs and he wants a title' };
   if (contending) return { amount, reason: 'winNow', why: `after a ${recordText(rec!)} season he wants to win now` };
@@ -486,20 +562,37 @@ export function ownerLeeway(league: League, teamId: number, chair: Chair): Owner
 const LEEWAY = { base: 0.03, market: 0.25, contending: 0.05, max: 0.12 };
 
 /** How far past the coaching budget one of your moves would take you ($K; zero or less: within it). */
-export function moveOverspend(league: League, teamId: number, c: Coach, years: number, move: StaffMove | 'replace' | 'promote'): number {
-  if (move === 'promote') return coachAsk(league, asPromoted(league, c, promotionFor(c)!), years) - owedNow(league, c) - coachRoom(league, teamId);
+export function moveOverspend(
+  league: League,
+  teamId: number,
+  c: Coach,
+  years: number,
+  move: StaffMove | 'replace' | 'promote',
+): number {
+  if (move === 'promote')
+    return (
+      coachAsk(league, asPromoted(league, c, promotionFor(c)!), years) - owedNow(league, c) - coachRoom(league, teamId)
+    );
   const holder = move === 'replace' ? sitting(league, teamId, c) : null;
   return coachAsk(league, c, years) - coachRoom(league, teamId) - (holder ? freedBy(league, holder) : 0);
 }
 
 /** Null if the move fits the budget, or the owner covers the overspend; otherwise what's wrong, with the owner's answer. */
-function budgetProblem(league: League, teamId: number, chair: Chair, over: number, replacing?: Coach | null): string | null {
+function budgetProblem(
+  league: League,
+  teamId: number,
+  chair: Chair,
+  over: number,
+  replacing?: Coach | null,
+): string | null {
   if (over <= 0) return null;
   const owner = ownerLeeway(league, teamId, chair);
   if (over <= owner.amount) return null;
   const m = (k: number) => `$${(k / 1000).toFixed(2)}M`;
   const by = `Over your coaching budget by ${m(over)}${replacing ? `, even after dismissing ${coachName(replacing)}` : ''}`;
-  return owner.amount > 0 ? `${by}; your owner will add ${m(owner.amount)} (${owner.why}), no more.` : `${by}, and your owner won’t go over: ${owner.why}.`;
+  return owner.amount > 0
+    ? `${by}; your owner will add ${m(owner.amount)} (${owner.why}), no more.`
+    : `${by}, and your owner won’t go over: ${owner.why}.`;
 }
 
 export const coachRoom = (league: League, teamId: number) => coachBudget(league, teamId) - coachPayroll(league, teamId);
@@ -517,20 +610,32 @@ export function coachSeverance(league: League, c: Coach): number {
 // ───────── moves ─────────
 
 /** The man in this coach's chair on a team, other than him and not on his way out. */
-const sitting = (league: League, teamId: number, c: Coach) => teamCoaches(league, teamId).find((x) => x !== c && sameChair(chairOf(x), chairOf(c)) && !isCoachExpiring(league, x)) ?? null;
+const sitting = (league: League, teamId: number, c: Coach) =>
+  teamCoaches(league, teamId).find(
+    (x) => x !== c && sameChair(chairOf(x), chairOf(c)) && !isCoachExpiring(league, x),
+  ) ?? null;
 
 /** Why a move can't happen right now, or null. With `budget` false, only what the owner can't wave through (`ownerLeeway`). */
-export function coachMoveProblem(league: League, teamId: number, c: Coach, move: StaffMove, years = 2, budget = true): string | null {
+export function coachMoveProblem(
+  league: League,
+  teamId: number,
+  c: Coach,
+  move: StaffMove,
+  years = 2,
+  budget = true,
+): string | null {
   if (!staffWindowOpen(league)) return 'Coaching moves open in the re-sign window and free agency.';
   if (move === 'release') return c.teamId === teamId ? null : 'He doesn’t work for you.';
-  if (years < 1 || years > maxYears(c.role)) return `A ${coachTitle(c).toLowerCase()} signs for 1–${maxYears(c.role)} years.`;
+  if (years < 1 || years > maxYears(c.role))
+    return `A ${coachTitle(c).toLowerCase()} signs for 1–${maxYears(c.role)} years.`;
   const holder = sitting(league, teamId, c);
   if (move === 'extend') {
     if (c.teamId !== teamId || !isCoachExpiring(league, c)) return 'Only expiring deals can be extended.';
     if (holder) return `His chair is taken: ${coachName(holder)} is your ${coachTitle(c).toLowerCase()}.`;
   } else {
     if (c.teamId !== null) return 'He isn’t available.';
-    if (holder) return `You already have a ${coachTitle(c).toLowerCase()}: replace ${coachName(holder)} or dismiss him first.`;
+    if (holder)
+      return `You already have a ${coachTitle(c).toLowerCase()}: replace ${coachName(holder)} or dismiss him first.`;
   }
   return budget ? budgetProblem(league, teamId, chairOf(c), moveOverspend(league, teamId, c, years, move)) : null;
 }
@@ -539,10 +644,13 @@ export function coachMoveProblem(league: League, teamId: number, c: Coach, move:
 export function replaceProblem(league: League, teamId: number, c: Coach, years = 2, budget = true): string | null {
   if (!staffWindowOpen(league)) return 'Coaching moves open in the re-sign window and free agency.';
   if (c.teamId !== null) return 'He isn’t available.';
-  if (years < 1 || years > maxYears(c.role)) return `A ${coachTitle(c).toLowerCase()} signs for 1–${maxYears(c.role)} years.`;
+  if (years < 1 || years > maxYears(c.role))
+    return `A ${coachTitle(c).toLowerCase()} signs for 1–${maxYears(c.role)} years.`;
   const holder = sitting(league, teamId, c);
   if (!holder) return 'Nobody sits in that chair: hire him instead.';
-  return budget ? budgetProblem(league, teamId, chairOf(c), moveOverspend(league, teamId, c, years, 'replace'), holder) : null;
+  return budget
+    ? budgetProblem(league, teamId, chairOf(c), moveOverspend(league, teamId, c, years, 'replace'), holder)
+    : null;
 }
 
 /** Who a hire would replace, if his chair is taken. */
@@ -574,7 +682,12 @@ export function hireCoach(league: League, teamId: number, coachId: number, years
   const problem = coachMoveProblem(league, teamId, c, 'hire', years);
   if (problem) throw new Error(problem);
   signCoach(league, teamId, c, years);
-  logCoach(league, teamId, c, `${league.teams[teamId].abbrev} hired ${titleLower(c)} ${coachName(c)} (${termText(years)})`);
+  logCoach(
+    league,
+    teamId,
+    c,
+    `${league.teams[teamId].abbrev} hired ${titleLower(c)} ${coachName(c)} (${termText(years)})`,
+  );
 }
 
 export function extendCoach(league: League, teamId: number, coachId: number, years = 2): void {
@@ -582,7 +695,12 @@ export function extendCoach(league: League, teamId: number, coachId: number, yea
   const problem = coachMoveProblem(league, teamId, c, 'extend', years);
   if (problem) throw new Error(problem);
   signCoach(league, teamId, c, years);
-  logCoach(league, teamId, c, `${league.teams[teamId].abbrev} extended ${titleLower(c)} ${coachName(c)} (${termText(years)})`);
+  logCoach(
+    league,
+    teamId,
+    c,
+    `${league.teams[teamId].abbrev} extended ${titleLower(c)} ${coachName(c)} (${termText(years)})`,
+  );
 }
 
 /** Dismiss (or let go) a coach: he returns to the market; severance is booked if he was under contract. */
@@ -600,7 +718,12 @@ export function replaceCoach(league: League, teamId: number, coachId: number, ye
   if (problem) throw new Error(problem);
   dismiss(league, sitting(league, teamId, c)!);
   signCoach(league, teamId, c, years);
-  logCoach(league, teamId, c, `${league.teams[teamId].abbrev} hired ${titleLower(c)} ${coachName(c)} (${termText(years)})`);
+  logCoach(
+    league,
+    teamId,
+    c,
+    `${league.teams[teamId].abbrev} hired ${titleLower(c)} ${coachName(c)} (${termText(years)})`,
+  );
 }
 
 function dismiss(league: League, c: Coach, why?: string): void {
@@ -609,7 +732,12 @@ function dismiss(league: League, c: Coach, why?: string): void {
   const team = league.teams[teamId];
   const owed = coachSeverance(league, c);
   if (owed > 0) team.coachDead.push({ season: league.season, amount: owed, name: coachName(c) });
-  logCoach(league, teamId, c, `${team.abbrev} ${owed > 0 ? 'dismissed' : 'let go'} ${titleLower(c)} ${coachName(c)}${why ? ` ${why}` : ''}`);
+  logCoach(
+    league,
+    teamId,
+    c,
+    `${team.abbrev} ${owed > 0 ? 'dismissed' : 'let go'} ${titleLower(c)} ${coachName(c)}${why ? ` ${why}` : ''}`,
+  );
   c.lastJob = `${coachTitle(c)}, ${team.abbrev}${why ? ` (${why})` : ''}`;
   c.teamId = null;
   c.contract = null;
@@ -639,7 +767,8 @@ export function asPromoted(league: League, c: Coach, chair: Chair): Coach {
   const style = { ...rollStyle(rng, chair.role), ...c.style };
   if (Object.keys(style).length) up.style = style;
   const scheme = rollScheme(league.seed, up);
-  if (scheme && !(chair.role === 'offCoord' ? c.scheme?.offense : c.scheme?.front)) up.scheme = { ...c.scheme, ...scheme };
+  if (scheme && !(chair.role === 'offCoord' ? c.scheme?.offense : c.scheme?.front))
+    up.scheme = { ...c.scheme, ...scheme };
   return up;
 }
 
@@ -653,7 +782,8 @@ function risers(league: League, teamId: number, chair: Chair, poach: boolean): C
 }
 
 /** Salary he's owed this league year (nothing once his deal has run out). */
-const owedNow = (league: League, c: Coach) => (c.contract && c.contract.through >= league.season ? c.contract.salary : 0);
+const owedNow = (league: League, c: Coach) =>
+  c.contract && c.contract.through >= league.season ? c.contract.salary : 0;
 
 /** He steps up into the chair above his own on `teamId`'s staff: off another staff with no severance (he chose to go), or within his own. */
 function promoteInto(league: League, teamId: number, c: Coach, years: number): void {
@@ -683,7 +813,8 @@ export function promotionProblem(league: League, teamId: number, c: Coach, years
   const chair = promotionFor(c);
   if (!chair) return 'There is no chair above his.';
   if (!c.career?.length) return 'He needs a season in his chair first.';
-  if (years < 1 || years > maxYears(chair.role)) return `A ${COACH_ROLE_LABEL[chair.role].toLowerCase()} signs for 1–${maxYears(chair.role)} years.`;
+  if (years < 1 || years > maxYears(chair.role))
+    return `A ${COACH_ROLE_LABEL[chair.role].toLowerCase()} signs for 1–${maxYears(chair.role)} years.`;
   const holder = teamCoaches(league, teamId).find((x) => sameChair(chairOf(x), chair) && !isCoachExpiring(league, x));
   if (holder) return `${coachName(holder)} holds that chair: dismiss him first.`;
   return budget ? budgetProblem(league, teamId, chair, moveOverspend(league, teamId, c, years, 'promote')) : null;
@@ -701,7 +832,8 @@ export function promoteCoach(league: League, teamId: number, coachId: number, ye
 
 /** The coach a former player became, on a staff, on the market or retired, if he went into coaching. */
 export const coachOfPlayer = (league: League, playerId: number): Coach | undefined =>
-  Object.values(league.coaches).find((c) => c.playerId === playerId) ?? Object.values(league.retiredCoaches).find((c) => c.playerId === playerId);
+  Object.values(league.coaches).find((c) => c.playerId === playerId) ??
+  Object.values(league.retiredCoaches).find((c) => c.playerId === playerId);
 
 /** When a season ends, every coach on a staff is credited with it, in the chair he holds now. */
 export function recordCoachSeasons(league: League): void {
@@ -716,9 +848,23 @@ export function recordCoachSeasons(league: League): void {
 // ───────── generation ─────────
 
 /** Candidates kept on the market for each chair. */
-const MARKET_SIZE: Record<CoachRole, number> = { headCoach: 12, offCoord: 12, defCoord: 12, strengthCoach: 12, stCoord: 12, positionCoach: 8 };
+const MARKET_SIZE: Record<CoachRole, number> = {
+  headCoach: 12,
+  offCoord: 12,
+  defCoord: 12,
+  strengthCoach: 12,
+  stCoord: 12,
+  positionCoach: 8,
+};
 /** Ages a candidate for each role comes from: a head coach gets there with experience. */
-const CANDIDATE_AGE: Record<CoachRole, [number, number]> = { headCoach: [40, 62], offCoord: [34, 58], defCoord: [34, 58], strengthCoach: [28, 52], stCoord: [32, 60], positionCoach: [28, 58] };
+const CANDIDATE_AGE: Record<CoachRole, [number, number]> = {
+  headCoach: [40, 62],
+  offCoord: [34, 58],
+  defCoord: [34, 58],
+  strengthCoach: [28, 52],
+  stCoord: [32, 60],
+  positionCoach: [28, 58],
+};
 
 /** A coach's yearly drift by age: rising into his 30s, still learning into his 50s, fading from 55. */
 function trend(age: number): number {
@@ -787,7 +933,8 @@ interface Entry {
 function entryBase(league: League, role: CoachRole): Entry {
   const employed = Object.values(league.coaches).filter((c) => c.teamId !== null && c.role === role);
   if (employed.length < 25) return { youth: ENTRY, veterans: ENTRY };
-  const pull = (rating: 'youth' | 'veterans') => ENTRY + clamp(PULL * (TYPICAL - employed.reduce((s, c) => s + c[rating], 0) / employed.length), -2, 2);
+  const pull = (rating: 'youth' | 'veterans') =>
+    ENTRY + clamp(PULL * (TYPICAL - employed.reduce((s, c) => s + c[rating], 0) / employed.length), -2, 2);
   return { youth: pull('youth'), veterans: pull('veterans') };
 }
 
@@ -798,7 +945,14 @@ function candidate(league: League, rng: Rng, chair: Chair, base: Entry): Coach {
   const learned = experience(age);
   const lean = rng.normal(0, 1.3);
   const sd = chair.role === 'headCoach' ? 2 : 2.3;
-  return newCoach(league, rng, chair, rng.normal(base.youth + learned + lean, sd), rng.normal(base.veterans + learned - lean, sd), age);
+  return newCoach(
+    league,
+    rng,
+    chair,
+    rng.normal(base.youth + learned + lean, sd),
+    rng.normal(base.veterans + learned - lean, sd),
+    age,
+  );
 }
 
 /** Top the market back up to its usual size. */
@@ -807,7 +961,8 @@ function refreshMarket(league: League, rng: Rng): void {
   const bases = new Map(Object.keys(MARKET_SIZE).map((role) => [role, entryBase(league, role as CoachRole)]));
   for (const chair of CHAIRS) {
     const size = MARKET_SIZE[chair.role];
-    for (let n = market.filter((c) => sameChair(chairOf(c), chair)).length; n < size; n++) candidate(league, rng, chair, bases.get(chair.role)!);
+    for (let n = market.filter((c) => sameChair(chairOf(c), chair)).length; n < size; n++)
+      candidate(league, rng, chair, bases.get(chair.role)!);
   }
 }
 
@@ -845,7 +1000,8 @@ function leagueGap(league: League, role: CoachRole): number {
   if (employed.length < 25) return 0;
   return clamp(PULL * (TYPICAL - employed.reduce((s, c) => s + coachValue(c), 0) / employed.length), -1.5, 1.5);
 }
-const madePlayoffs = (league: League, teamId: number) => !!league.history.find((h) => h.season === league.season - 1)?.playoffs?.[teamId];
+const madePlayoffs = (league: League, teamId: number) =>
+  !!league.history.find((h) => h.season === league.season - 1)?.playoffs?.[teamId];
 
 /**
  * The opening league: AI staffs of varying quality inside their budgets, and a full, typical staff
@@ -864,7 +1020,16 @@ export function generateCoachingWorld(league: League): void {
       const age = rng.int(lo, hi);
       if (user) {
         const lean = rng.pick([-1, 0, 1]);
-        hired.push(newCoach(league, rng, chair, 10.5 + lean + rng.pick([-1, 0, 0, 1]), 10.5 - lean + rng.pick([-1, 0, 0, 1]), age));
+        hired.push(
+          newCoach(
+            league,
+            rng,
+            chair,
+            10.5 + lean + rng.pick([-1, 0, 0, 1]),
+            10.5 - lean + rng.pick([-1, 0, 0, 1]),
+            age,
+          ),
+        );
       } else {
         const level = TYPICAL + 0.8 * (roleGoal(league, team, chair.role) - TYPICAL);
         const lean = rng.normal(0, 1.2);
@@ -902,9 +1067,17 @@ export function addSpecialTeamsCoordinators(league: League): void {
     if (chairHolder(teamCoaches(league, team.id), chair)) continue;
     const [lo, hi] = CANDIDATE_AGE.stCoord;
     const age = rng.int(lo, hi);
-    const level = team.id === league.userTeamId ? TYPICAL : TYPICAL + 0.8 * (roleGoal(league, team, 'stCoord') - TYPICAL);
+    const level =
+      team.id === league.userTeamId ? TYPICAL : TYPICAL + 0.8 * (roleGoal(league, team, 'stCoord') - TYPICAL);
     const lean = rng.normal(0, 1.2);
-    const c = newCoach(league, rng, chair, rng.normal(level + lean, team.id === league.userTeamId ? 0.7 : 2.2), rng.normal(level - lean, team.id === league.userTeamId ? 0.7 : 2.2), age);
+    const c = newCoach(
+      league,
+      rng,
+      chair,
+      rng.normal(level + lean, team.id === league.userTeamId ? 0.7 : 2.2),
+      rng.normal(level - lean, team.id === league.userTeamId ? 0.7 : 2.2),
+      age,
+    );
     const years = rng.int(1, maxYears('stCoord'));
     signCoach(league, team.id, c, years);
     c.since = league.season - rng.int(0, 2);
@@ -941,7 +1114,14 @@ function exPlayerCoach(league: League, p: Player, base: Entry): void {
   // His playing years teach what a coach his age has learned on the sidelines.
   const learned = experience(p.age) + 0.12 * iq + 0.08 * work;
   const lean = rng.normal(0, 1.3);
-  const c = newCoach(league, rng, { role: 'positionCoach', room: rng.chance(0.85) ? room : rng.pick(sameSide) }, rng.normal(base.youth + learned + lean, 2.3), rng.normal(base.veterans + learned - lean, 2.3), p.age);
+  const c = newCoach(
+    league,
+    rng,
+    { role: 'positionCoach', room: rng.chance(0.85) ? room : rng.pick(sameSide) },
+    rng.normal(base.youth + learned + lean, 2.3),
+    rng.normal(base.veterans + learned - lean, 2.3),
+    p.age,
+  );
   Object.assign(c, { firstName: p.firstName, lastName: p.lastName, playerId: p.id });
 }
 
@@ -986,7 +1166,8 @@ export function developCoaches(league: League, retirees: readonly Player[] = [])
     else delete c.idle;
     const drifts = c.teamId === null && (rng.chance(DRIFT) || c.idle! >= IDLE_MAX);
     if (retires || drifts) {
-      if (retires && c.teamId !== null) logCoach(league, c.teamId, c, `${league.teams[c.teamId].abbrev} ${titleLower(c)} ${coachName(c)} retired`);
+      if (retires && c.teamId !== null)
+        logCoach(league, c.teamId, c, `${league.teams[c.teamId].abbrev} ${titleLower(c)} ${coachName(c)} retired`);
       leaveFootball(league, c);
     }
   }
@@ -1002,13 +1183,19 @@ export function developCoaches(league: League, retirees: readonly Player[] = [])
  * nothing more: best first, each re-signs for two years at his ask while his chair is free and the
  * budget allows. The screen and the calendar both use this, so the forecast is the outcome.
  */
-export function coachResignForecast(league: League, teamId: number, hire?: { c: Coach; years: number }): Map<number, ResignOutlook> {
+export function coachResignForecast(
+  league: League,
+  teamId: number,
+  hire?: { c: Coach; years: number },
+): Map<number, ResignOutlook> {
   const mine = teamCoaches(league, teamId);
   const taken: Chair[] = mine.filter((x) => !isCoachExpiring(league, x)).map(chairOf);
   if (hire) taken.push(chairOf(hire.c));
   // A hire into a taken chair is a replacement: the man he replaces frees his salary, less severance.
   const replaced = hire && sitting(league, teamId, hire.c);
-  let room = coachRoom(league, teamId) - (hire ? coachAsk(league, hire.c, hire.years) - (replaced ? freedBy(league, replaced) : 0) : 0);
+  let room =
+    coachRoom(league, teamId) -
+    (hire ? coachAsk(league, hire.c, hire.years) - (replaced ? freedBy(league, replaced) : 0) : 0);
   const out = new Map<number, ResignOutlook>();
   for (const c of mine.filter((x) => isCoachExpiring(league, x)).sort((a, b) => coachValue(b) - coachValue(a))) {
     const ask = coachAsk(league, c, 2);
@@ -1026,7 +1213,8 @@ export function coachResignForecast(league: League, teamId: number, hire?: { c: 
 /** Budget left once the expiring coaches forecast to stay have re-signed. */
 export function coachRoomAfterResigns(league: League, teamId: number): number {
   let room = coachRoom(league, teamId);
-  for (const [id, outlook] of coachResignForecast(league, teamId)) if (outlook === 'stays') room -= coachAsk(league, league.coaches[id], 2);
+  for (const [id, outlook] of coachResignForecast(league, teamId))
+    if (outlook === 'stays') room -= coachAsk(league, league.coaches[id], 2);
   return room;
 }
 
@@ -1034,7 +1222,9 @@ export function coachRoomAfterResigns(league: League, teamId: number): number {
 export function coachesPushedOutBy(league: League, teamId: number, c: Coach, years = 2): Coach[] {
   const before = coachResignForecast(league, teamId);
   const after = coachResignForecast(league, teamId, { c, years });
-  return [...before].filter(([id, outlook]) => outlook === 'stays' && after.get(id) !== 'stays').map(([id]) => league.coaches[id]);
+  return [...before]
+    .filter(([id, outlook]) => outlook === 'stays' && after.get(id) !== 'stays')
+    .map(([id]) => league.coaches[id]);
 }
 
 /** Last season's record, for the hot seat. */
@@ -1095,10 +1285,18 @@ export function ownerTrigger(league: League, teamId: number): number {
   return clamp(1 + new Rng(`${league.seed}:owner-trigger:${teamId}`).normal(0, 0.3), 0.5, 1.5);
 }
 /** The owner's streak in words, where it stands out. */
-export const ownerTriggerNote = (trigger: number) => (trigger >= 1.25 ? 'Quick trigger with head coaches' : trigger <= 0.75 ? 'Patient with head coaches' : null);
+export const ownerTriggerNote = (trigger: number) =>
+  trigger >= 1.25 ? 'Quick trigger with head coaches' : trigger <= 0.75 ? 'Patient with head coaches' : null;
 
 // Offensive coordinators turn over faster than defensive ones (NFL tenure 2.3 years against 2.6).
-const KEEP: Record<CoachRole, number> = { headCoach: 0.95, offCoord: 0.6, defCoord: 0.7, strengthCoach: 0.75, stCoord: 0.75, positionCoach: 0.7 };
+const KEEP: Record<CoachRole, number> = {
+  headCoach: 0.95,
+  offCoord: 0.6,
+  defCoord: 0.7,
+  strengthCoach: 0.75,
+  stCoord: 0.75,
+  positionCoach: 0.7,
+};
 
 const recordText = (rec: { w: number; l: number; t: number }) => `${rec.w}–${rec.l}${rec.t ? `–${rec.t}` : ''}`;
 /** Last season's win share (0.5 with no record): a winning staff is the one others raid. */
@@ -1121,7 +1319,10 @@ function aiCoachMoves(league: League, team: Team, rng: Rng): Set<number> {
   const staff = () => teamCoaches(league, team.id);
   const decide = (c: Coach) => {
     const years = rng.int(1, maxYears(c.role));
-    const keep = coachValue(c) >= roleGoal(league, team, c.role) - 2 && rng.chance(KEEP[c.role]) && coachAsk(league, c, years) <= spare(league, team.id, chairOf(c));
+    const keep =
+      coachValue(c) >= roleGoal(league, team, c.role) - 2 &&
+      rng.chance(KEEP[c.role]) &&
+      coachAsk(league, c, years) <= spare(league, team.id, chairOf(c));
     if (keep) signCoach(league, team.id, c, years);
     else {
       dismiss(league, c);
@@ -1131,8 +1332,16 @@ function aiCoachMoves(league: League, team: Team, rng: Rng): Set<number> {
   const hc = chairHolder(staff(), { role: 'headCoach' });
   const rec = lastRecord(league, team.id);
   // Firing him is paying two head coaches this year: an owner who can't afford a real replacement keeps him.
-  const affordable = hc && spare(league, team.id, chairOf(hc)) + owedNow(league, hc) - coachSeverance(league, hc) >= 0.6 * coachAsk(league, hc, 2);
-  if (hc && rec && affordable && rng.chance(ownerTrigger(league, team.id) * hotSeat(rec, league.season - (hc.since ?? league.season)))) {
+  const affordable =
+    hc &&
+    spare(league, team.id, chairOf(hc)) + owedNow(league, hc) - coachSeverance(league, hc) >=
+      0.6 * coachAsk(league, hc, 2);
+  if (
+    hc &&
+    rec &&
+    affordable &&
+    rng.chance(ownerTrigger(league, team.id) * hotSeat(rec, league.season - (hc.since ?? league.season)))
+  ) {
     dismiss(league, hc, `after a ${recordText(rec)} season`);
     gone.add(hc.id);
   } else if (hc && rec && rng.chance(scapegoat(rec))) {
@@ -1152,11 +1361,19 @@ function aiCoachMoves(league: League, team: Team, rng: Rng): Set<number> {
 }
 
 /** Who a new head coach keeps, before fit: a coordinator who fits what he wants is worth up to +0.3 (the NFL keeps about one in five). */
-const KEEP_FOR_NEW: Record<CoachRole, number> = { headCoach: 1, offCoord: 0.05, defCoord: 0.05, strengthCoach: 0.4, stCoord: 0.4, positionCoach: 0.5 };
+const KEEP_FOR_NEW: Record<CoachRole, number> = {
+  headCoach: 1,
+  offCoord: 0.05,
+  defCoord: 0.05,
+  strengthCoach: 0.4,
+  stCoord: 0.4,
+  positionCoach: 0.5,
+};
 
 /** The owner pays a coach off only if what's left covers a typical man in his chair and keeps money aside for every chair not yet paid for (`spare`). */
 const canLetGo = (league: League, teamId: number, c: Coach) =>
-  spare(league, teamId, chairOf(c)) + owedNow(league, c) - coachSeverance(league, c) >= BASE_ASK[c.role] * (capOf(league) / BASE_CAP);
+  spare(league, teamId, chairOf(c)) + owedNow(league, c) - coachSeverance(league, c) >=
+  BASE_ASK[c.role] * (capOf(league) / BASE_CAP);
 
 /**
  * A new head coach brings his own people: a coordinator who fits his vision sometimes stays, one who
@@ -1169,7 +1386,9 @@ function cleanHouse(league: League, team: Team, hc: Coach, rng: Rng, gone: Set<n
     const years = rng.int(1, maxYears(c.role));
     const expiring = isCoachExpiring(league, c);
     const wanted = rng.chance(KEEP_FOR_NEW[c.role] + 0.3 * (visionFit(league, hc, c) ?? 0));
-    const keep = expiring ? wanted && coachAsk(league, c, years) <= spare(league, team.id, chairOf(c)) : wanted || !canLetGo(league, team.id, c);
+    const keep = expiring
+      ? wanted && coachAsk(league, c, years) <= spare(league, team.id, chairOf(c))
+      : wanted || !canLetGo(league, team.id, c);
     if (!keep) {
       dismiss(league, c, 'when a new head coach arrived');
       gone.add(c.id);
@@ -1194,8 +1413,13 @@ function spare(league: League, teamId: number, except: Chair, withOwner = true, 
   });
   // Hiring a head coach or coordinator, a GM keeps a typical teacher's pay aside for every open teaching chair: the
   // big names don't get to starve the rooms (going past the budget for them is the owner's call, `ownerLeeway`).
-  const aside = (role: CoachRole) => (teachersFirst && !LEADERSHIP.has(role) ? BASE_ASK[role] * (capOf(league) / BASE_CAP) : reserveFor(league, role));
-  return coachRoom(league, teamId) + (withOwner ? ownerLeeway(league, teamId, except).amount : 0) - unpaid.reduce((sum, ch) => sum + aside(ch.role), 0);
+  const aside = (role: CoachRole) =>
+    teachersFirst && !LEADERSHIP.has(role) ? BASE_ASK[role] * (capOf(league) / BASE_CAP) : reserveFor(league, role);
+  return (
+    coachRoom(league, teamId) +
+    (withOwner ? ownerLeeway(league, teamId, except).amount : 0) -
+    unpaid.reduce((sum, ch) => sum + aside(ch.role), 0)
+  );
 }
 
 /** How much a coordinator's fit with the head coach weighs in an AI hire, in rating points (none at all to the opposite of what he wants). */
@@ -1230,11 +1454,16 @@ function fillChairs(league: League, team: Team, rng: Rng, gone: Set<number> = ne
   const open = () => CHAIRS.filter((ch) => !chairHolder(teamCoaches(league, team.id), ch));
   // A chair is tried once: a promotion only ever opens chairs further down the list.
   const tried: Chair[] = [];
-  for (let chair: Chair | undefined = open()[0]; chair; chair = open().find((ch) => !tried.some((t) => sameChair(t, ch)))) {
+  for (
+    let chair: Chair | undefined = open()[0];
+    chair;
+    chair = open().find((ch) => !tried.some((t) => sameChair(t, ch)))
+  ) {
     tried.push(chair);
     const years = rng.int(1, maxYears(chair.role));
     const hc = chairHolder(teamCoaches(league, team.id), { role: 'headCoach' });
-    const vision = hc && (chair.role === 'offCoord' || chair.role === 'defCoord') ? headCoachVision(league, hc) : undefined;
+    const vision =
+      hc && (chair.role === 'offCoord' || chair.role === 'defCoord') ? headCoachVision(league, hc) : undefined;
     const candidates: Hire[] = [
       ...coachMarket(league)
         .filter((c) => sameChair(chairOf(c), chair))
@@ -1242,13 +1471,16 @@ function fillChairs(league: League, team: Team, rng: Rng, gone: Set<number> = ne
       ...risers(league, team.id, chair, poach).map((c) => ({ c, as: asPromoted(league, c, chair) })),
     ].filter((x) => !gone.has(x.c.id));
     // Promoting his own man frees what he's paid now, and opens his chair to fill.
-    const cost = (x: Hire) => coachAsk(league, x.as, years) - (x.c.teamId === team.id ? owedNow(league, x.c) - reserveFor(league, x.c.role) : 0);
+    const cost = (x: Hire) =>
+      coachAsk(league, x.as, years) -
+      (x.c.teamId === team.id ? owedNow(league, x.c) - reserveFor(league, x.c.role) : 0);
     // Only what leaves the money set aside for the other chairs: overspend here and the last chair can't be paid.
     const leading = LEADERSHIP.has(chair.role);
     const pool = candidates.filter((x) => cost(x) <= spare(league, team.id, chair, true, leading));
     // Going past the budget (on the owner's word) has to buy a clearly better man: a typical salary over costs OVERSPEND points.
     const within = spare(league, team.id, chair, false, leading);
-    const overspend = (x: Hire) => (OVERSPEND * Math.max(0, cost(x) - within)) / (BASE_ASK[chair.role] * (capOf(league) / BASE_CAP));
+    const overspend = (x: Hire) =>
+      (OVERSPEND * Math.max(0, cost(x) - within)) / (BASE_ASK[chair.role] * (capOf(league) / BASE_CAP));
     const goal = roleGoal(league, team, chair.role);
     const score = (x: Hire) =>
       Math.abs(coachValue(x.as) - goal) +
@@ -1271,9 +1503,16 @@ function fillChairs(league: League, team: Team, rng: Rng, gone: Set<number> = ne
       // costs no more than the money a chair has set aside (`reserveFor`).
       const hire = pick?.c ?? newCoach(league, rng, chair, rng.normal(6, 0.8), rng.normal(6, 0.8), rng.int(30, 45));
       signCoach(league, team.id, hire, pick ? years : 1);
-      logCoach(league, team.id, hire, `${team.abbrev} hired ${coachName(hire)} as ${titleLower(hire)}`, LEADERSHIP.has(chair.role));
+      logCoach(
+        league,
+        team.id,
+        hire,
+        `${team.abbrev} hired ${coachName(hire)} as ${titleLower(hire)}`,
+        LEADERSHIP.has(chair.role),
+      );
     }
-    if (chair.role === 'headCoach' && poach) cleanHouse(league, team, chairHolder(teamCoaches(league, team.id), chair)!, rng, gone);
+    if (chair.role === 'headCoach' && poach)
+      cleanHouse(league, team, chairHolder(teamCoaches(league, team.id), chair)!, rng, gone);
   }
 }
 
@@ -1302,8 +1541,12 @@ export function staffScore(coaches: readonly Coach[]): number {
 
 /** Letter grade by rank among the 32 staffs: A top 3, B next 6, C middle 14, D next 6, F bottom 3. */
 export function coachingGrades(league: League): Map<number, { rank: number; grade: string }> {
-  const ranked = league.teams.map((t) => ({ id: t.id, score: staffScore(teamCoaches(league, t.id)) })).sort((a, b) => b.score - a.score);
-  return new Map(ranked.map((x, i) => [x.id, { rank: i + 1, grade: i < 3 ? 'A' : i < 9 ? 'B' : i < 23 ? 'C' : i < 29 ? 'D' : 'F' }]));
+  const ranked = league.teams
+    .map((t) => ({ id: t.id, score: staffScore(teamCoaches(league, t.id)) }))
+    .sort((a, b) => b.score - a.score);
+  return new Map(
+    ranked.map((x, i) => [x.id, { rank: i + 1, grade: i < 3 ? 'A' : i < 9 ? 'B' : i < 23 ? 'C' : i < 29 ? 'D' : 'F' }]),
+  );
 }
 
 export interface RoomChange {
@@ -1319,14 +1562,19 @@ export interface RoomChange {
  * man he replaces) counts as gone, so losses show as well as gains.
  */
 export function previewCoachHire(league: League, teamId: number, c: Coach, years = 2): RoomChange[] {
-  const staying = (forecast: Map<number, ResignOutlook>) => teamCoaches(league, teamId).filter((x) => !isCoachExpiring(league, x) || forecast.get(x.id) === 'stays');
+  const staying = (forecast: Map<number, ResignOutlook>) =>
+    teamCoaches(league, teamId).filter((x) => !isCoachExpiring(league, x) || forecast.get(x.id) === 'stays');
   const now = staying(coachResignForecast(league, teamId));
-  const after = [...staying(coachResignForecast(league, teamId, { c, years })).filter((x) => !sameChair(chairOf(x), chairOf(c))), c];
+  const after = [
+    ...staying(coachResignForecast(league, teamId, { c, years })).filter((x) => !sameChair(chairOf(x), chairOf(c))),
+    c,
+  ];
   const out: RoomChange[] = [];
   for (const room of [...COACH_ROOMS, null]) {
     const from = roomEffect(now, room);
     const to = roomEffect(after, room);
-    if (Math.abs(to.growth - from.growth) > 0.0005 || Math.abs(to.aging - from.aging) > 0.0005) out.push({ room, from, to });
+    if (Math.abs(to.growth - from.growth) > 0.0005 || Math.abs(to.aging - from.aging) > 0.0005)
+      out.push({ room, from, to });
   }
   return out;
 }

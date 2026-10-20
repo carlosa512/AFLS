@@ -50,7 +50,13 @@ import { store } from '../store';
 type Group = ScoutFocus | null;
 
 /** How a position group reads in a sentence. */
-const GROUP_PHRASE: Record<ScoutFocus | 'kp', string> = { skill: 'QB, RB, WR and TE', line: 'the offensive line', front: 'DL and LB', back: 'CB and S', kp: 'kickers and punters' };
+const GROUP_PHRASE: Record<ScoutFocus | 'kp', string> = {
+  skill: 'QB, RB, WR and TE',
+  line: 'the offensive line',
+  front: 'DL and LB',
+  back: 'CB and S',
+  kp: 'kickers and punters',
+};
 const phrase = (g: Group) => GROUP_PHRASE[g ?? 'kp'];
 /** A focus as a button word: "Show college line scouts". */
 const FOCUS_NOUN: Record<ScoutFocus, string> = { skill: 'skill', line: 'line', front: 'front', back: 'secondary' };
@@ -66,7 +72,8 @@ const TERMS = [1, 2, 3];
 const Announce = createContext<(text: string) => void>(() => {});
 
 const roleLine = (s: Staff) => `${ROLE_LABEL[s.role]}${s.focus ? ` · ${FOCUS_LABEL[s.focus]}` : ''}`;
-const sumDead = (league: League, teamId: number) => league.teams[teamId].staffDead.filter((d) => d.season === league.season).reduce((n, d) => n + d.amount, 0);
+const sumDead = (league: League, teamId: number) =>
+  league.teams[teamId].staffDead.filter((d) => d.season === league.season).reduce((n, d) => n + d.amount, 0);
 
 function Trend({ age }: { age: number }) {
   const t = staffTrendLabel(age);
@@ -130,7 +137,8 @@ function Member({ league, s, open, outlook }: { league: League; s: Staff; open: 
         <span className="fact">
           <span className="eyebrow">Salary</span>
           <span className="staff-age">
-            <b className="num">{money(s.contract?.salary ?? 0)}</b> <span className="muted small">thru {s.contract?.through}</span>
+            <b className="num">{money(s.contract?.salary ?? 0)}</b>{' '}
+            <span className="muted small">thru {s.contract?.through}</span>
           </span>
         </span>
       </div>
@@ -218,12 +226,18 @@ const readWord = (r: number) => (r >= 16 ? 'sharp' : r >= 13 ? 'solid' : r >= 10
  * read ratings for the tap.
  */
 function previewText(changes: ReadChange[]): { words: string; numbers: string } {
-  const byImpact = (a: ReadChange, b: ReadChange) => (a.trait === b.trait ? 0 : a.trait === 'evaluation' ? -1 : 1) || Math.abs(b.to - b.from) - Math.abs(a.to - a.from);
-  const what = (c: ReadChange) => `${c.trait === 'projection' ? 'ceilings of ' : ''}${c.domain === 'college' ? 'prospects' : 'pros'} on ${phrase(c.group)}`;
+  const byImpact = (a: ReadChange, b: ReadChange) =>
+    (a.trait === b.trait ? 0 : a.trait === 'evaluation' ? -1 : 1) || Math.abs(b.to - b.from) - Math.abs(a.to - a.from);
+  const what = (c: ReadChange) =>
+    `${c.trait === 'projection' ? 'ceilings of ' : ''}${c.domain === 'college' ? 'prospects' : 'pros'} on ${phrase(c.group)}`;
   // Same word both sides: say which way it went rather than "fair → fair".
-  const words = (c: ReadChange) => `${what(c)} (${readWord(c.from) === readWord(c.to) ? (c.to > c.from ? 'a touch clearer' : 'a touch hazier') : `${readWord(c.from)} → ${readWord(c.to)}`})`;
+  const words = (c: ReadChange) =>
+    `${what(c)} (${readWord(c.from) === readWord(c.to) ? (c.to > c.from ? 'a touch clearer' : 'a touch hazier') : `${readWord(c.from)} → ${readWord(c.to)}`})`;
   const numbers = (c: ReadChange) => `${what(c)}: ${Math.round(c.from)} → ${Math.round(c.to)}`;
-  const gains = changes.filter((c) => c.to > c.from).sort(byImpact).slice(0, 2);
+  const gains = changes
+    .filter((c) => c.to > c.from)
+    .sort(byImpact)
+    .slice(0, 2);
   const loss = changes.filter((c) => c.to < c.from).sort(byImpact)[0];
   const say = (part: (c: ReadChange) => string) => {
     const text = gains.length ? `Sharpens ${gains.map(part).join(', and ')}` : 'No gain over your current staff';
@@ -233,11 +247,24 @@ function previewText(changes: ReadChange[]): { words: string; numbers: string } 
 }
 
 /** A scout's name: opens his card. `className` swaps the card-heading look for a plain inline link; `avatar` puts his picture beside it, as in a list. */
-function ScoutLink({ s, className = 'staff-name', last = false, avatar = false }: { s: Staff; className?: string; last?: boolean; avatar?: boolean }) {
+function ScoutLink({
+  s,
+  className = 'staff-name',
+  last = false,
+  avatar = false,
+}: {
+  s: Staff;
+  className?: string;
+  last?: boolean;
+  avatar?: boolean;
+}) {
   const nav = useNav();
   const name = last ? s.lastName : staffName(s);
   return (
-    <button className={`linklike ${avatar ? 'staff-link ' : ''}${className}`.trim()} onClick={() => nav.openStaff('scout', s.id)}>
+    <button
+      className={`linklike ${avatar ? 'staff-link ' : ''}${className}`.trim()}
+      onClick={() => nav.openStaff('scout', s.id)}
+    >
       {avatar ? (
         <>
           <StaffAvatar person={s} size={28} />
@@ -252,8 +279,10 @@ function ScoutLink({ s, className = 'staff-name', last = false, avatar = false }
 
 /** What each chair does, true to how reads are worked out (`readFor`). */
 const SCOUT_ROLE_LINE: Record<StaffRole, string> = {
-  director: 'Runs the department: the Director’s read backs up every group, a step behind a specialist’s, and covers any group no scout does.',
-  collegeScout: 'Reads draft prospects in a position group: what they are now (evaluation) and what they could become (projection).',
+  director:
+    'Runs the department: the Director’s read backs up every group, a step behind a specialist’s, and covers any group no scout does.',
+  collegeScout:
+    'Reads draft prospects in a position group: what they are now (evaluation) and what they could become (projection).',
   proScout: 'Reads players already in the league in a position group: free agents and trade targets.',
 };
 
@@ -293,7 +322,8 @@ export function ScoutCard({ league, scout: s, onClose }: { league: League; scout
         <span className="fact">
           <span className="eyebrow">{s.contract ? 'Salary' : 'Asks'}</span>
           <span className="staff-age">
-            <b className="num">{money(s.contract?.salary ?? staffAsk(league, s, 2))}</b> <span className="muted small">{s.contract ? `thru ${s.contract.through}` : '/ yr for 2'}</span>
+            <b className="num">{money(s.contract?.salary ?? staffAsk(league, s, 2))}</b>{' '}
+            <span className="muted small">{s.contract ? `thru ${s.contract.through}` : '/ yr for 2'}</span>
           </span>
         </span>
       </div>
@@ -302,7 +332,9 @@ export function ScoutCard({ league, scout: s, onClose }: { league: League; scout
       </p>
       {preview && (
         <Section id="staff-hire" title={`If you hire ${him}`}>
-          <div className={`small${preview.words.startsWith('No gain') ? ' muted' : ''}`}>{preview.numbers ? <Exact numbers={preview.numbers}>{preview.words}</Exact> : preview.words}</div>
+          <div className={`small${preview.words.startsWith('No gain') ? ' muted' : ''}`}>
+            {preview.numbers ? <Exact numbers={preview.numbers}>{preview.words}</Exact> : preview.words}
+          </div>
         </Section>
       )}
     </Sheet>
@@ -341,7 +373,8 @@ function Candidate({ league, s, open }: { league: League; s: Staff; open: boolea
         <span className="fact">
           <span className="eyebrow">Asks</span>
           <span className="staff-age">
-            <b className="num">{money(staffAsk(league, s, years))}</b> <span className="muted small">/ yr for {years}</span>
+            <b className="num">{money(staffAsk(league, s, years))}</b>{' '}
+            <span className="muted small">/ yr for {years}</span>
           </span>
         </span>
       </div>
@@ -398,7 +431,9 @@ export function StaffScreen({ league }: { league: League }) {
   const teamId = league.userTeamId;
   const open = staffWindowOpen(league);
   // teamStaff hands back a shared, cached list: copy before sorting.
-  const mine = [...teamStaff(league, teamId)].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || staffValue(b) - staffValue(a));
+  const mine = [...teamStaff(league, teamId)].sort(
+    (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || staffValue(b) - staffValue(a),
+  );
   const [role, setRole] = useState<StaffRole>('collegeScout');
   const [focus, setFocus] = useState<ScoutFocus | 'any'>('any');
   const [showAll, setShowAll] = useState(false);
@@ -445,8 +480,17 @@ export function StaffScreen({ league }: { league: League }) {
   };
 
   const spotRole: StaffRole = spot.group === null ? 'director' : SCOUT_ROLE[spot.domain];
-  const spotWho: ReactNode = spot.read.by === null ? 'Director’s chair empty' : spot.read.by.role === 'director' ? 'your Director' : <ScoutLink s={spot.read.by} className="" />;
-  const vacancies = ROLE_ORDER.flatMap((r) => Array.from({ length: Math.max(0, STAFF_SLOTS[r] - mine.filter((s) => s.role === r).length) }, () => r));
+  const spotWho: ReactNode =
+    spot.read.by === null ? (
+      'Director’s chair empty'
+    ) : spot.read.by.role === 'director' ? (
+      'your Director'
+    ) : (
+      <ScoutLink s={spot.read.by} className="" />
+    );
+  const vacancies = ROLE_ORDER.flatMap((r) =>
+    Array.from({ length: Math.max(0, STAFF_SLOTS[r] - mine.filter((s) => s.role === r).length) }, () => r),
+  );
 
   const candidates = staffMarket(league)
     .filter((s) => s.role === role && (role === 'director' || focus === 'any' || s.focus === focus))
@@ -488,17 +532,24 @@ export function StaffScreen({ league }: { league: League }) {
             </b>
           </span>
         </div>
-        <div className={`staff-bar${payroll > budget ? ' over' : ''}`} role="img" aria-label={`Staff payroll is ${Math.round(pct)}% of the staff budget`}>
+        <div
+          className={`staff-bar${payroll > budget ? ' over' : ''}`}
+          role="img"
+          aria-label={`Staff payroll is ${Math.round(pct)}% of the staff budget`}
+        >
           <i style={{ width: `${pct}%` }} />
         </div>
         <p className="muted small staff-lede">
-          Staff are paid from their own budget, not the cap{dead > 0 ? ` (${money(dead)} of this year's is severance)` : ''}. Your scouts set how wide your ranges are: a sharper read is closer to the truth
-          and surer of it.
+          Staff are paid from their own budget, not the cap
+          {dead > 0 ? ` (${money(dead)} of this year's is severance)` : ''}. Your scouts set how wide your ranges are: a
+          sharper read is closer to the truth and surer of it.
         </p>
         <div className="callout staff-next">
           <span>
             <b>Weakest spot:</b> {spot.domain} reads on {phrase(spot.group)} ({spotWho}, read {spot.read.rating}).
-            {expiringCount > 0 && open ? ` ${expiringCount === 1 ? 'One deal is' : `${expiringCount} deals are`} up below.` : ''}
+            {expiringCount > 0 && open
+              ? ` ${expiringCount === 1 ? 'One deal is' : `${expiringCount} deals are`} up below.`
+              : ''}
           </span>
           <button className="btn btn-sm" onClick={() => showCandidates(spotRole, spot.group ?? 'any')}>
             {spot.group === null ? 'Show Directors' : `Show ${spot.domain} ${FOCUS_NOUN[spot.group]} scouts`}
@@ -508,7 +559,8 @@ export function StaffScreen({ league }: { league: League }) {
 
       <Panel title="How your staff reads players">
         <p className="muted small" style={{ marginTop: 0 }}>
-          The number is how well each group is read for you, and by whom: whoever scores highest. A scout gets +3 on their own group and −3 on others; the Director reads every group at their rating −1.
+          The number is how well each group is read for you, and by whom: whoever scores highest. A scout gets +3 on
+          their own group and −3 on others; the Director reads every group at their rating −1.
         </p>
         <div className="table-scroll">
           <table className="read-table">
@@ -542,28 +594,36 @@ export function StaffScreen({ league }: { league: League }) {
       </Panel>
 
       <Panel
-        title={viewTeam === teamId ? 'Your staff' : `${league.teams[viewTeam].city} ${league.teams[viewTeam].name} staff`}
+        title={
+          viewTeam === teamId ? 'Your staff' : `${league.teams[viewTeam].city} ${league.teams[viewTeam].name} staff`
+        }
         action={<TeamPicker league={league} value={viewTeam} onChange={setViewTeam} />}
       >
         <ul className="staff-grid">
-          {(viewTeam === teamId ? mine : [...teamStaff(league, viewTeam)].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || staffValue(b) - staffValue(a))).map((s) => (
+          {(viewTeam === teamId
+            ? mine
+            : [...teamStaff(league, viewTeam)].sort(
+                (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || staffValue(b) - staffValue(a),
+              )
+          ).map((s) => (
             <Member key={s.id} league={league} s={s} open={open} outlook={forecast.get(s.id)} />
           ))}
-          {viewTeam === teamId && vacancies.map((r, i) => (
-            <li key={`${r}-${i}`} className="staff-card vacant">
-              <b className="staff-name">Open chair</b>
-              <span className="muted small">
-                {r === 'director'
-                  ? 'No Director: every group without a specialist is read badly until you hire one.'
-                  : `Room for one more ${ROLE_LABEL[r].toLowerCase()}: a specialist in a group nobody covers sharpens it.`}
-              </span>
-              <div className="staff-actions">
-                <button className="btn btn-sm" onClick={() => showCandidates(r, 'any')}>
-                  Find {r === 'director' ? 'a Director' : r === 'collegeScout' ? 'a college scout' : 'a pro scout'}
-                </button>
-              </div>
-            </li>
-          ))}
+          {viewTeam === teamId &&
+            vacancies.map((r, i) => (
+              <li key={`${r}-${i}`} className="staff-card vacant">
+                <b className="staff-name">Open chair</b>
+                <span className="muted small">
+                  {r === 'director'
+                    ? 'No Director: every group without a specialist is read badly until you hire one.'
+                    : `Room for one more ${ROLE_LABEL[r].toLowerCase()}: a specialist in a group nobody covers sharpens it.`}
+                </span>
+                <div className="staff-actions">
+                  <button className="btn btn-sm" onClick={() => showCandidates(r, 'any')}>
+                    Find {r === 'director' ? 'a Director' : r === 'collegeScout' ? 'a college scout' : 'a pro scout'}
+                  </button>
+                </div>
+              </li>
+            ))}
         </ul>
       </Panel>
 
@@ -591,7 +651,11 @@ export function StaffScreen({ league }: { league: League }) {
                 ))}
               </div>
               {role !== 'director' && (
-                <select aria-label="Filter by focus" value={focus} onChange={(e) => setFocus(e.target.value as ScoutFocus | 'any')}>
+                <select
+                  aria-label="Filter by focus"
+                  value={focus}
+                  onChange={(e) => setFocus(e.target.value as ScoutFocus | 'any')}
+                >
                   <option value="any">Any focus</option>
                   {FOCUSES.map((f) => (
                     <option key={f} value={f}>

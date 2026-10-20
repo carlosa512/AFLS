@@ -20,11 +20,29 @@ import { Rng } from '../rng';
 import { activeRoster } from '../roster';
 import type { DealKind, League, Physical, Player, Team, TradeExam, TradeMarket, TradeOffer, TradeSide } from '../types';
 import { capRoom, rosterOf, spendable, tradeContext, type TradeContext } from './context';
-import { DUMP_LIMIT, keepToFit, kindOf, MAX_PREMIUM, maxOver, packages, PER_BIDDER, picksOf, quickValue, TAGS } from './deals';
+import {
+  DUMP_LIMIT,
+  keepToFit,
+  kindOf,
+  MAX_PREMIUM,
+  maxOver,
+  packages,
+  PER_BIDDER,
+  picksOf,
+  quickValue,
+  TAGS,
+} from './deals';
 import { emptyMarket, executeTrade } from './execute';
 import { evaluateTrade, judge, marginFor, suggestSweetener } from './judge';
 import { teamNeeds, tradeBlock, untouchables, wanted, type BlockEntry } from './plans';
-import { freshlySigned, playerTradeBlocker, salaryToTake, tradeProblem, tradeWindow, type TradeProposal } from './rules';
+import {
+  freshlySigned,
+  playerTradeBlocker,
+  salaryToTake,
+  tradeProblem,
+  tradeWindow,
+  type TradeProposal,
+} from './rules';
 import type { Moment } from './market';
 import { lowerPrice, physicals, worstResult } from './physicals';
 import { nudgeTrust, talkRefusal, talksOf } from './talks';
@@ -60,8 +78,22 @@ export function yourListings(ctx: TradeContext): Listing[] {
   const user = userTeam(league);
   const status = league.market?.status ?? {};
   return rosterOf(ctx, user.id)
-    .filter((p) => p.contract && !isExpired(p.contract, league.season) && status[p.id] !== 'untouchable' && !playerTradeBlocker(league, p) && !freshlySigned(league, p, user.id))
-    .map((p) => ({ team: user, entry: { playerId: p.id, reason: status[p.id] === 'listed' ? ('listed' as const) : ('available' as const), keenness: status[p.id] === 'listed' ? LISTED : AVAILABLE } }));
+    .filter(
+      (p) =>
+        p.contract &&
+        !isExpired(p.contract, league.season) &&
+        status[p.id] !== 'untouchable' &&
+        !playerTradeBlocker(league, p) &&
+        !freshlySigned(league, p, user.id),
+    )
+    .map((p) => ({
+      team: user,
+      entry: {
+        playerId: p.id,
+        reason: status[p.id] === 'listed' ? ('listed' as const) : ('available' as const),
+        keenness: status[p.id] === 'listed' ? LISTED : AVAILABLE,
+      },
+    }));
 }
 
 // ───────── building offers ─────────
@@ -81,7 +113,9 @@ export function bidFor(ctx: TradeContext, buyer: Team, target: Player): TradePro
   const most = judge(ctx, buyer.id, nothing, { rosterCuts: true }).get / marginFor(buyer, user);
   const worth = marketValue(ctx, buyer, target);
   if (worth <= 0 || most <= 0) return null;
-  const bidders = (league.market?.interest ?? []).filter((x) => x.playerId === target.id && x.teamId !== buyer.id).length;
+  const bidders = (league.market?.interest ?? []).filter(
+    (x) => x.playerId === target.id && x.teamId !== buyer.id,
+  ).length;
   const listed = league.market?.status[target.id] === 'listed';
   const price = Math.min(most, worth * (1 + Math.min(MAX_PREMIUM, PER_BIDDER * bidders)) * (listed ? 0.95 : 1));
   const ceiling = maxOver(buyer.gm) * worth;
@@ -108,8 +142,18 @@ export function askFor(ctx: TradeContext, seller: Team, target: Player): TradePr
   // If you can't fit his salary, he keeps paying the difference (and asks more for it).
   const retain = keepToFit(league, target, capRoom(ctx, user.id));
   if (retain === null) return null;
-  const his: TradeSide = { teamId: seller.id, players: [target.id], picks: [], ...(retain ? { retain: { [target.id]: retain } } : {}) };
-  const need = judge(ctx, seller.id, { sides: [{ teamId: user.id, players: [], picks: [] }, his] }, { vsUser: true }).need;
+  const his: TradeSide = {
+    teamId: seller.id,
+    players: [target.id],
+    picks: [],
+    ...(retain ? { retain: { [target.id]: retain } } : {}),
+  };
+  const need = judge(
+    ctx,
+    seller.id,
+    { sides: [{ teamId: user.id, players: [], picks: [] }, his] },
+    { vsUser: true },
+  ).need;
   const worth = Math.max(marketValue(ctx, seller, target), 1);
   const ranked = packages(ctx, user, seller)
     .map((side) => ({ side, value: quickValue(ctx, seller, side) }))
@@ -138,8 +182,16 @@ export function dumpToYou(ctx: TradeContext, sender: Team, player: Player): Trad
     .reverse()
     .find((pk) => quickValue(ctx, sender, { teamId: sender.id, players: [], picks: [pk.id] }) >= 0.8 * burden);
   if (!sweetener) return null;
-  const proposal: TradeProposal = { sides: [{ teamId: sender.id, players: [player.id], picks: [sweetener.id] }, { teamId: user.id, players: [], picks: [] }] };
-  return judge(ctx, sender.id, proposal, { rosterCuts: true }).accepts && !tradeProblem(league, proposal, { rosterCuts: true, ctx }) ? proposal : null;
+  const proposal: TradeProposal = {
+    sides: [
+      { teamId: sender.id, players: [player.id], picks: [sweetener.id] },
+      { teamId: user.id, players: [], picks: [] },
+    ],
+  };
+  return judge(ctx, sender.id, proposal, { rosterCuts: true }).accepts &&
+    !tradeProblem(league, proposal, { rosterCuts: true, ctx })
+    ? proposal
+    : null;
 }
 
 /** Can this team come to you about this player now? Not while talks are off or he's cooling off, unless its offer is clearly better. */
@@ -161,7 +213,14 @@ function offerKind(ctx: TradeContext, [his, yours]: TradeOffer['sides']): DealKi
 }
 
 /** File an offer from `team` (sides [his, yours]), or null if it may not be made now. */
-function file(ctx: TradeContext, market: TradeMarket, team: Team, reason: TradeOffer['reason'], proposal: TradeProposal | null, kind?: TradeOffer['kind']): TradeOffer | null {
+function file(
+  ctx: TradeContext,
+  market: TradeMarket,
+  team: Team,
+  reason: TradeOffer['reason'],
+  proposal: TradeProposal | null,
+  kind?: TradeOffer['kind'],
+): TradeOffer | null {
   if (!proposal) return null;
   const { league } = ctx;
   const [his, yours] = proposal.sides;
@@ -188,7 +247,12 @@ function file(ctx: TradeContext, market: TradeMarket, team: Team, reason: TradeO
 
 /** A team at "asking around" about one of your players: is he available? */
 function enquiry(ctx: TradeContext, market: TradeMarket, team: Team, player: Player): TradeOffer | null {
-  const proposal: TradeProposal = { sides: [{ teamId: team.id, players: [], picks: [] }, { teamId: ctx.league.userTeamId, players: [player.id], picks: [] }] };
+  const proposal: TradeProposal = {
+    sides: [
+      { teamId: team.id, players: [], picks: [] },
+      { teamId: ctx.league.userTeamId, players: [player.id], picks: [] },
+    ],
+  };
   return file(ctx, market, team, 'enquiry', proposal, 'enquiry');
 }
 
@@ -198,7 +262,12 @@ function enquiry(ctx: TradeContext, market: TradeMarket, team: Team, player: Pla
  * At most a few a moment, one per team, the most pressing first. Its own random stream, so the AI
  * market between other teams plays out the same whatever lands on your desk.
  */
-export function offersMoment(ctx: TradeContext, market: TradeMarket, moment: Moment, aiListings: readonly Listing[]): TradeOffer[] {
+export function offersMoment(
+  ctx: TradeContext,
+  market: TradeMarket,
+  moment: Moment,
+  aiListings: readonly Listing[],
+): TradeOffer[] {
   const { league } = ctx;
   const user = userTeam(league);
   if (!user || tradeWindow(league)) return [];
@@ -210,18 +279,40 @@ export function offersMoment(ctx: TradeContext, market: TradeMarket, moment: Mom
     if (!p || p.teamId !== user.id || market.status[p.id] === 'untouchable') continue;
     const team = league.teams[x.teamId];
     const listed = market.status[p.id] === 'listed';
-    if (x.level >= 3 || (listed && x.level >= 2)) calls.push({ team, score: x.level + (listed ? 1 : 0), sure: listed, make: () => file(ctx, market, team, 'bid', bidFor(ctx, team, p)) });
+    if (x.level >= 3 || (listed && x.level >= 2))
+      calls.push({
+        team,
+        score: x.level + (listed ? 1 : 0),
+        sure: listed,
+        make: () => file(ctx, market, team, 'bid', bidFor(ctx, team, p)),
+      });
     // Most teams that are only asking around never call: an enquiry now and then, not every week.
-    else if (x.level === 2) calls.push({ team, score: 1, rate: OFFER_RATE / 2, make: () => enquiry(ctx, market, team, p) });
+    else if (x.level === 2)
+      calls.push({ team, score: 1, rate: OFFER_RATE / 2, make: () => enquiry(ctx, market, team, p) });
   }
   // Sellers pitch only what they're keen to move, and only where you have a real need.
-  for (const w of wanted(ctx, user, aiListings.filter((l) => l.entry.keenness >= 0.75)).filter((w) => w.score >= 0.5).slice(0, 2)) {
-    calls.push({ team: w.team, score: 1 + w.score, make: () => file(ctx, market, w.team, 'pitch', flip(askFor(ctx, w.team, w.player))) });
+  for (const w of wanted(
+    ctx,
+    user,
+    aiListings.filter((l) => l.entry.keenness >= 0.75),
+  )
+    .filter((w) => w.score >= 0.5)
+    .slice(0, 2)) {
+    calls.push({
+      team: w.team,
+      score: 1 + w.score,
+      make: () => file(ctx, market, w.team, 'pitch', flip(askFor(ctx, w.team, w.player))),
+    });
   }
   if (moment === 'leagueYear') {
     for (const team of league.teams.filter((t) => t.id !== user.id && salaryWeight(ctx, t.id) >= 1.6)) {
       const entry = tradeBlock(ctx, team).find((e) => e.reason === 'overpaid');
-      if (entry) calls.push({ team, score: 1, make: () => file(ctx, market, team, 'dump', dumpToYou(ctx, team, league.players[entry.playerId])) });
+      if (entry)
+        calls.push({
+          team,
+          score: 1,
+          make: () => file(ctx, market, team, 'dump', dumpToYou(ctx, team, league.players[entry.playerId])),
+        });
     }
   }
   const made: TradeOffer[] = [];
@@ -257,20 +348,29 @@ export function expireOffers(league: League): void {
     o.status = 'expired';
     // You didn't bite: he doesn't call about the same players next week.
     const t = talksOf(market, o.teamId);
-    for (const pid of [...o.sides[0].players, ...o.sides[1].players]) t.cooldowns[pid] ??= { until: market.moment + IGNORED_WAIT, worth: o.worth };
+    for (const pid of [...o.sides[0].players, ...o.sides[1].players])
+      t.cooldowns[pid] ??= { until: market.moment + IGNORED_WAIT, worth: o.worth };
   }
   const resolved = market.offers.filter((o) => o.status !== 'pending');
-  market.offers = [...market.offers.filter((o) => o.status === 'pending'), ...resolved.slice(-KEEP_RESOLVED)].sort((a, b) => a.id - b.id);
-  for (const id of Object.keys(market.status).map(Number)) if (league.players[id]?.teamId !== league.userTeamId) delete market.status[id];
+  market.offers = [...market.offers.filter((o) => o.status === 'pending'), ...resolved.slice(-KEEP_RESOLVED)].sort(
+    (a, b) => a.id - b.id,
+  );
+  for (const id of Object.keys(market.status).map(Number))
+    if (league.players[id]?.teamId !== league.userTeamId) delete market.status[id];
 }
 
-export const openOffers = (league: League): TradeOffer[] => (tradeWindow(league) ? [] : (league.market?.offers ?? []).filter((o) => o.status === 'pending'));
+export const openOffers = (league: League): TradeOffer[] =>
+  tradeWindow(league) ? [] : (league.market?.offers ?? []).filter((o) => o.status === 'pending');
 
 const offerById = (league: League, id: number) => league.market?.offers.find((o) => o.id === id);
 
 /** Every player and pick in it is still where the offer found it. */
 function stillThere(league: League, offer: TradeOffer): boolean {
-  return offer.sides.every((s) => s.players.every((id) => league.players[id]?.teamId === s.teamId) && s.picks.every((id) => league.draftPicks.find((p) => p.id === id)?.ownerId === s.teamId));
+  return offer.sides.every(
+    (s) =>
+      s.players.every((id) => league.players[id]?.teamId === s.teamId) &&
+      s.picks.every((id) => league.draftPicks.find((p) => p.id === id)?.ownerId === s.teamId),
+  );
 }
 
 export interface AcceptResult {
@@ -291,8 +391,10 @@ const tagFor = (offer: TradeOffer) => (offer.kind === 'enquiry' || offer.kind ==
 export function acceptOffer(league: League, id: number, release: readonly number[] = []): AcceptResult {
   league.market ??= emptyMarket();
   const offer = offerById(league, id);
-  if (!offer || offer.status !== 'pending' || offer.kind === 'enquiry') return { ok: false, message: 'That offer is no longer on the table.' };
-  if (league.market.exam?.offerId === id) return { ok: false, exam: true, message: 'This deal is waiting on your call after the physical.' };
+  if (!offer || offer.status !== 'pending' || offer.kind === 'enquiry')
+    return { ok: false, message: 'That offer is no longer on the table.' };
+  if (league.market.exam?.offerId === id)
+    return { ok: false, exam: true, message: 'This deal is waiting on your call after the physical.' };
   const window = tradeWindow(league);
   if (window) {
     offer.status = 'expired';
@@ -301,7 +403,10 @@ export function acceptOffer(league: League, id: number, release: readonly number
   const ai = league.teams[offer.teamId];
   if (!stillThere(league, offer)) {
     offer.status = 'withdrawn';
-    return { ok: false, message: `Something in it has moved since, so the ${ai.name} have taken the offer off the table.` };
+    return {
+      ok: false,
+      message: `Something in it has moved since, so the ${ai.name} have taken the offer off the table.`,
+    };
   }
   const ctx = tradeContext(league);
   const proposal: TradeProposal = { sides: offer.sides };
@@ -312,13 +417,21 @@ export function acceptOffer(league: League, id: number, release: readonly number
   }
   const user = userTeam(league);
   const incoming = offer.sides[0].players;
-  const after = [...activeRoster(league, user.id).filter((p) => !offer.sides[1].players.includes(p.id)), ...incoming.map((pid) => league.players[pid])];
+  const after = [
+    ...activeRoster(league, user.id).filter((p) => !offer.sides[1].players.includes(p.id)),
+    ...incoming.map((pid) => league.players[pid]),
+  ];
   const over = after.length - rosterLimit(league);
   let cut: number[] = [];
   if (over > 0) {
     const yours = after.filter((p) => !incoming.includes(p.id));
     const chosen = release.map((pid) => league.players[pid]).filter((p) => p && yours.includes(p));
-    if (chosen.length < over) return { ok: false, message: `You'd be ${over} over the roster limit: choose who to release.`, release: cutChoice(league, after, rosterLimit(league), yours) };
+    if (chosen.length < over)
+      return {
+        ok: false,
+        message: `You'd be ${over} over the roster limit: choose who to release.`,
+        release: cutChoice(league, after, rosterLimit(league), yours),
+      };
     cut = chosen.slice(0, over).map((p) => p.id);
   }
   return finish(league, proposal, { kind: offer.kind, tag: tagFor(offer) }, ai.id, { offerId: offer.id, release: cut });
@@ -332,16 +445,32 @@ export function acceptOffer(league: League, id: number, release: readonly number
  * examines theirs: a failure or concerns put the call to you (walk, ask for less, take him anyway).
  * Clean physicals make it official.
  */
-function finish(league: League, proposal: TradeProposal, meta: { kind: DealKind; tag?: string }, aiId: number, opts: { offerId?: number; release?: number[] } = {}): AcceptResult {
+function finish(
+  league: League,
+  proposal: TradeProposal,
+  meta: { kind: DealKind; tag?: string },
+  aiId: number,
+  opts: { offerId?: number; release?: number[] } = {},
+): AcceptResult {
   const market = (league.market ??= emptyMarket());
   const ai = league.teams[aiId];
   const exams = physicals(league, proposal);
   const yours = proposal.sides.find((s) => s.teamId === league.userTeamId)!;
   const theirs = exams.filter((e) => yours.players.includes(e.playerId));
   const mine = exams.filter((e) => !yours.players.includes(e.playerId));
-  const flagged = (list: Physical[], result: Physical['result']) => league.players[list.find((e) => e.result === result)!.playerId];
+  const flagged = (list: Physical[], result: Physical['result']) =>
+    league.players[list.find((e) => e.result === result)!.playerId];
   const pending = (by: TradeExam['by'], reduced?: TradeProposal | null): TradeExam => {
-    market.exam = { sides: proposal.sides, aiId, ...meta, exams, by, ...(reduced ? { reduced: reduced.sides } : {}), ...(opts.offerId !== undefined ? { offerId: opts.offerId } : {}), ...(opts.release?.length ? { release: opts.release } : {}) };
+    market.exam = {
+      sides: proposal.sides,
+      aiId,
+      ...meta,
+      exams,
+      by,
+      ...(reduced ? { reduced: reduced.sides } : {}),
+      ...(opts.offerId !== undefined ? { offerId: opts.offerId } : {}),
+      ...(opts.release?.length ? { release: opts.release } : {}),
+    };
     return market.exam;
   };
   const theirCall = worstResult(theirs);
@@ -349,14 +478,26 @@ function finish(league: League, proposal: TradeProposal, meta: { kind: DealKind;
     const p = flagged(theirs, 'failed');
     const offer = opts.offerId !== undefined ? offerById(league, opts.offerId) : undefined;
     if (offer) offer.status = 'withdrawn';
-    logTransaction(league, 'medical', [ai.id, league.userTeamId], `The ${ai.name}' trade for ${p.position} ${p.firstName} ${p.lastName} is off after a failed physical.`);
-    return { ok: false, message: `${theirs.find((e) => e.result === 'failed')!.note} The ${ai.name} have called the deal off.` };
+    logTransaction(
+      league,
+      'medical',
+      [ai.id, league.userTeamId],
+      `The ${ai.name}' trade for ${p.position} ${p.firstName} ${p.lastName} is off after a failed physical.`,
+    );
+    return {
+      ok: false,
+      message: `${theirs.find((e) => e.result === 'failed')!.note} The ${ai.name} have called the deal off.`,
+    };
   }
   if (theirCall === 'concerns') {
     const p = flagged(theirs, 'concerns');
     const reduced = lowerPrice(tradeContext(league), proposal, ai.id);
     pending('theirs', reduced);
-    return { ok: false, exam: true, message: `The ${ai.name}' doctor has concerns about ${p.firstName} ${p.lastName}. ${reduced ? 'They come back with a lower offer.' : 'They want to talk price.'}` };
+    return {
+      ok: false,
+      exam: true,
+      message: `The ${ai.name}' doctor has concerns about ${p.firstName} ${p.lastName}. ${reduced ? 'They come back with a lower offer.' : 'They want to talk price.'}`,
+    };
   }
   const myCall = worstResult(mine);
   if (myCall === 'failed' || myCall === 'concerns') {
@@ -368,17 +509,28 @@ function finish(league: League, proposal: TradeProposal, meta: { kind: DealKind;
 }
 
 /** Make a deal of yours official: your releases, the trade, his cut to fit, a little trust. */
-function settle(league: League, sides: TradeOffer['sides'], meta: { kind: DealKind; tag?: string }, aiId: number, exams: Physical[], opts: { offerId?: number; release?: number[] } = {}): AcceptResult {
+function settle(
+  league: League,
+  sides: TradeOffer['sides'],
+  meta: { kind: DealKind; tag?: string },
+  aiId: number,
+  exams: Physical[],
+  opts: { offerId?: number; release?: number[] } = {},
+): AcceptResult {
   const market = (league.market ??= emptyMarket());
   const ai = league.teams[aiId];
-  for (const id of opts.release ?? []) if (league.players[id]?.teamId === league.userTeamId) releasePlayer(league, league.players[id]);
+  for (const id of opts.release ?? [])
+    if (league.players[id]?.teamId === league.userTeamId) releasePlayer(league, league.players[id]);
   executeTrade(league, { sides }, { ...meta, physicals: exams });
   aiCutdown(league, ai, rosterLimit(league));
   const offer = opts.offerId !== undefined ? offerById(league, opts.offerId) : undefined;
   if (offer) offer.status = 'accepted';
   delete market.exam;
   nudgeTrust(market, ai.id, 0.03);
-  const rehab = exams.filter((e) => e.result === 'rehab').map((e) => ` ${e.note}`).join('');
+  const rehab = exams
+    .filter((e) => e.result === 'rehab')
+    .map((e) => ` ${e.note}`)
+    .join('');
   return { ok: true, message: `Done: the trade with the ${ai.name} is official.${rehab}` };
 }
 
@@ -399,13 +551,18 @@ export function resolveExam(league: League, choice: 'walk' | 'lower' | 'anyway' 
     return { ok: false, message };
   };
   const proposal: TradeProposal = { sides: exam.sides };
-  if (tradeWindow(league) || tradeProblem(league, proposal, { rosterCuts: true })) return off('The deal can no longer go through.');
+  if (tradeWindow(league) || tradeProblem(league, proposal, { rosterCuts: true }))
+    return off('The deal can no longer go through.');
   if (choice === 'walk' || choice === 'keep') return off(`The deal with the ${ai.name} is off.`);
   if (choice === 'anyway') return settle(league, exam.sides, exam, exam.aiId, exam.exams, opts);
-  if (choice === 'reduced') return exam.reduced ? settle(league, exam.reduced, exam, exam.aiId, exam.exams, opts) : off(`The ${ai.name} have walked away.`);
+  if (choice === 'reduced')
+    return exam.reduced
+      ? settle(league, exam.reduced, exam, exam.aiId, exam.exams, opts)
+      : off(`The ${ai.name} have walked away.`);
   const ctx = tradeContext(league);
   const lower = lowerPrice(ctx, proposal, league.userTeamId);
-  if (lower && judge(ctx, ai.id, lower, { rosterCuts: true }).accepts) return settle(league, lower.sides, exam, exam.aiId, exam.exams, opts);
+  if (lower && judge(ctx, ai.id, lower, { rosterCuts: true }).accepts)
+    return settle(league, lower.sides, exam, exam.aiId, exam.exams, opts);
   return { ok: false, message: `The ${ai.name} won't go lower. Walk away, or take him anyway.` };
 }
 
@@ -416,7 +573,8 @@ export function declineOffer(league: League, id: number): void {
   if (!market || !offer || offer.status !== 'pending') return;
   offer.status = 'declined';
   const t = talksOf(market, offer.teamId);
-  for (const pid of [...offer.sides[0].players, ...offer.sides[1].players]) t.cooldowns[pid] = { until: market.moment + DECLINE_WAIT, worth: offer.worth };
+  for (const pid of [...offer.sides[0].players, ...offer.sides[1].players])
+    t.cooldowns[pid] = { until: market.moment + DECLINE_WAIT, worth: offer.worth };
   nudgeTrust(market, offer.teamId, -0.02);
 }
 
@@ -428,7 +586,10 @@ export function answerEnquiry(league: League, id: number, answer: 'offer' | 'not
   offer.status = 'declined';
   const pid = offer.sides[1].players[0];
   if (answer === 'notForSale') {
-    talksOf(market, offer.teamId).cooldowns[pid] = { until: market.moment + NOT_FOR_SALE_WAIT, worth: Number.MAX_SAFE_INTEGER };
+    talksOf(market, offer.teamId).cooldowns[pid] = {
+      until: market.moment + NOT_FOR_SALE_WAIT,
+      worth: Number.MAX_SAFE_INTEGER,
+    };
     return null;
   }
   const ctx = tradeContext(league);
@@ -436,7 +597,11 @@ export function answerEnquiry(league: League, id: number, answer: 'offer' | 'not
   return file(ctx, market, team, 'bid', bidFor(ctx, team, league.players[pid]));
 }
 
-export type CounterResult = { result: 'accepted' | 'countered' | 'walked' | 'refused'; message: string; offer?: TradeOffer };
+export type CounterResult = {
+  result: 'accepted' | 'countered' | 'walked' | 'refused';
+  message: string;
+  offer?: TradeOffer;
+};
 
 /**
  * Your counter to an offer, as the trade table builds it ([yours, his]). He takes it if it works for
@@ -446,7 +611,8 @@ export type CounterResult = { result: 'accepted' | 'countered' | 'walked' | 'ref
 export function counterOffer(league: League, id: number, proposal: TradeProposal): CounterResult {
   const market = (league.market ??= emptyMarket());
   const offer = offerById(league, id);
-  if (!offer || offer.status !== 'pending') return { result: 'refused', message: 'That offer is no longer on the table.' };
+  if (!offer || offer.status !== 'pending')
+    return { result: 'refused', message: 'That offer is no longer on the table.' };
   const ai = league.teams[offer.teamId];
   const talk = talkRefusal(market, ai.id);
   if (talk) return { result: 'refused', message: talk };
@@ -454,8 +620,17 @@ export function counterOffer(league: League, id: number, proposal: TradeProposal
   const verdict = evaluateTrade(league, proposal);
   if (verdict.problem && !verdict.policy) return { result: 'refused', message: verdict.problem };
   if (verdict.accepts) {
-    const done = finish(league, proposal, { kind: offer.kind === 'enquiry' ? 'user' : offer.kind, tag: tagFor(offer) }, ai.id, { offerId: offer.id });
-    return { result: done.ok ? 'accepted' : 'refused', message: done.ok ? `The ${ai.name} accepted your counter.` : done.message };
+    const done = finish(
+      league,
+      proposal,
+      { kind: offer.kind === 'enquiry' ? 'user' : offer.kind, tag: tagFor(offer) },
+      ai.id,
+      { offerId: offer.id },
+    );
+    return {
+      result: done.ok ? 'accepted' : 'refused',
+      message: done.ok ? `The ${ai.name} accepted your counter.` : done.message,
+    };
   }
   offer.status = 'declined';
   if (offer.final || offer.patience <= 0) {
@@ -467,13 +642,26 @@ export function counterOffer(league: League, id: number, proposal: TradeProposal
   const add = suggestSweetener(league, proposal);
   const [yours, his] = proposal.sides;
   const back: TradeProposal = add
-    ? { sides: [his, { ...yours, players: add.kind === 'player' ? [...yours.players, add.id] : yours.players, picks: add.kind === 'pick' ? [...yours.picks, add.id] : yours.picks }] }
+    ? {
+        sides: [
+          his,
+          {
+            ...yours,
+            players: add.kind === 'player' ? [...yours.players, add.id] : yours.players,
+            picks: add.kind === 'pick' ? [...yours.picks, add.id] : yours.picks,
+          },
+        ],
+      }
     : { sides: offer.sides };
   const patience = offer.patience - 1;
   const next = file(ctx, market, ai, 'counter', back, offer.kind);
   if (!next) return { result: 'walked', message: `The ${ai.name} have walked away. Talks are off for now.` };
   Object.assign(next, { patience, final: patience <= 0 || undefined, replyTo: offer.id });
-  return { result: 'countered', message: next.final ? 'That is his final offer.' : 'He has come back with a counter.', offer: next };
+  return {
+    result: 'countered',
+    message: next.final ? 'That is his final offer.' : 'He has come back with a counter.',
+    offer: next,
+  };
 }
 
 /** A proposal of yours from the trade table ([yours, his]): he hears about four a moment, and turning you down costs a little trust. */
@@ -514,13 +702,17 @@ export function shopPlayer(league: League, playerId: number): { offers: TradeOff
   const window = tradeWindow(league);
   if (window) return { offers: [], message: window };
   if (!p || p.teamId !== league.userTeamId) return { offers: [], message: 'He isn’t on your roster.' };
-  if (market.shopped[playerId] === market.moment) return { offers: [], message: `You've already shopped ${p.firstName} ${p.lastName} this week.` };
+  if (market.shopped[playerId] === market.moment)
+    return { offers: [], message: `You've already shopped ${p.firstName} ${p.lastName} this week.` };
   market.status[playerId] = 'listed';
   market.shopped[playerId] = market.moment;
   const ctx = tradeContext(league);
   const user = userTeam(league);
   const bids = league.teams
-    .filter((t) => t.id !== user.id && teamNeeds(ctx, t).some((n) => n.position === p.position) && !untouchables(ctx, t).has(p.id))
+    .filter(
+      (t) =>
+        t.id !== user.id && teamNeeds(ctx, t).some((n) => n.position === p.position) && !untouchables(ctx, t).has(p.id),
+    )
     .map((t) => ({ t, proposal: bidFor(ctx, t, p) }))
     .filter((x): x is { t: Team; proposal: TradeProposal } => !!x.proposal)
     .map((x) => ({ ...x, value: quickValue(ctx, user, x.proposal.sides[0]) }))
@@ -528,7 +720,12 @@ export function shopPlayer(league: League, playerId: number): { offers: TradeOff
     .slice(0, 3);
   const offers = bids.map((b) => file(ctx, market, b.t, 'shop', b.proposal)).filter((o): o is TradeOffer => !!o);
   const name = `${p.firstName} ${p.lastName}`;
-  return { offers, message: offers.length ? `${offers.length} team${offers.length > 1 ? 's' : ''} came back with an offer for ${name}.` : `Nobody bit on ${name} this week.` };
+  return {
+    offers,
+    message: offers.length
+      ? `${offers.length} team${offers.length > 1 ? 's' : ''} came back with an offer for ${name}.`
+      : `Nobody bit on ${name} this week.`,
+  };
 }
 
 /** *Ask for their price* on an AI player: what his GM would want from you ([yours, his]), or a polite no. */
@@ -536,12 +733,16 @@ export function askPrice(league: League, playerId: number): { proposal: TradePro
   const p = league.players[playerId];
   const window = tradeWindow(league);
   if (window) return { proposal: null, message: window };
-  if (!p || p.teamId === null || p.teamId === league.userTeamId) return { proposal: null, message: 'He isn’t on another team.' };
+  if (!p || p.teamId === null || p.teamId === league.userTeamId)
+    return { proposal: null, message: 'He isn’t on another team.' };
   const blocker = playerTradeBlocker(league, p);
   if (blocker) return { proposal: null, message: blocker };
   const ctx = tradeContext(league);
   const seller = league.teams[p.teamId];
-  if (untouchables(ctx, seller).has(p.id)) return { proposal: null, message: `The ${seller.name} won't discuss ${p.firstName} ${p.lastName}.` };
+  if (untouchables(ctx, seller).has(p.id))
+    return { proposal: null, message: `The ${seller.name} won't discuss ${p.firstName} ${p.lastName}.` };
   const proposal = askFor(ctx, seller, p);
-  return proposal ? { proposal, message: `Here's what the ${seller.name} would want.` } : { proposal: null, message: `The ${seller.name} can't make this work.` };
+  return proposal
+    ? { proposal, message: `Here's what the ${seller.name} would want.` }
+    : { proposal: null, message: `The ${seller.name} can't make this work.` };
 }

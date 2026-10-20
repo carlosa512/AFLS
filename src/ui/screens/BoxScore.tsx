@@ -51,7 +51,15 @@ function TeamStatsTable({ away, home, a, h }: { away: Team; home: Team; a: TeamG
   );
 }
 
-function StatTable({ title, rows, cols }: { title: string; rows: Row[]; cols: [string, (s: StatLine) => string | number][] }) {
+function StatTable({
+  title,
+  rows,
+  cols,
+}: {
+  title: string;
+  rows: Row[];
+  cols: [string, (s: StatLine) => string | number][];
+}) {
   const nav = useNav();
   if (!rows.length) return null;
   return (
@@ -92,7 +100,8 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
   const rows: Row[] = Object.entries(result.playerStats)
     .map(([id, s]) => [league.players[Number(id)], s] as Row)
     .filter(([p]) => p && (result.playerTeams?.[p.id] ?? p.teamId) === teamId);
-  const by = (pred: (s: StatLine) => boolean, sort: (s: StatLine) => number) => rows.filter(([, s]) => pred(s)).sort((a, b) => sort(b[1]) - sort(a[1]));
+  const by = (pred: (s: StatLine) => boolean, sort: (s: StatLine) => number) =>
+    rows.filter(([, s]) => pred(s)).sort((a, b) => sort(b[1]) - sort(a[1]));
   const n = (k: keyof StatLine) => (s: StatLine) => s[k] ?? 0;
   return (
     <div className="stack">
@@ -132,7 +141,10 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
       />
       <StatTable
         title="Defense"
-        rows={by((s) => !!(s.tackles || s.sacks || s.defInt || s.passDef), (s) => (s.tackles ?? 0) + (s.sacks ?? 0) * 2 + (s.defInt ?? 0) * 3)}
+        rows={by(
+          (s) => !!(s.tackles || s.sacks || s.defInt || s.passDef),
+          (s) => (s.tackles ?? 0) + (s.sacks ?? 0) * 2 + (s.defInt ?? 0) * 3,
+        )}
         cols={[
           ['Tkl', n('tackles')],
           ['TFL', n('tfl')],
@@ -169,7 +181,10 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
       />
       <StatTable
         title="Returns"
-        rows={by((s) => !!(s.krAtt || s.prAtt), (s) => (s.krYds ?? 0) + (s.prYds ?? 0))}
+        rows={by(
+          (s) => !!(s.krAtt || s.prAtt),
+          (s) => (s.krYds ?? 0) + (s.prYds ?? 0),
+        )}
         cols={[
           ['KR', n('krAtt')],
           ['KR Yds', n('krYds')],
@@ -222,9 +237,17 @@ function PlayByPlay({ league, plays, names }: { league: League; plays: PlayLogEn
                   <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
                     <TeamChip team={off} />
                   </span>
-                  {p.down ? <FieldStrip small yardLine={p.yardLine} toGain={p.yardLine + p.distance} /> : <span className="field" aria-hidden="true" style={{ visibility: 'hidden' }} />}
+                  {p.down ? (
+                    <FieldStrip small yardLine={p.yardLine} toGain={p.yardLine + p.distance} />
+                  ) : (
+                    <span className="field" aria-hidden="true" style={{ visibility: 'hidden' }} />
+                  )}
                   <span className="txt">
-                    {p.down ? <b className="num" style={{ marginRight: 8 }}>{downText(p)}</b> : null}
+                    {p.down ? (
+                      <b className="num" style={{ marginRight: 8 }}>
+                        {downText(p)}
+                      </b>
+                    ) : null}
                     <PlayText text={p.text} names={names} />
                     {p.scoring && (
                       <span className="num muted" style={{ marginLeft: 8 }}>
@@ -386,7 +409,10 @@ function GameInjuries({ league, result }: { league: League; result: GameResult }
               <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
                 {p.position} {shortName(p)}
               </button>
-              : {injuryLabel(i.type).toLowerCase()}, {estimateText(i)} <span className="muted small">({i.quarter >= 5 ? 'OT' : `Q${i.quarter}`} {gameClock(i.clock)})</span>
+              : {injuryLabel(i.type).toLowerCase()}, {estimateText(i)}{' '}
+              <span className="muted small">
+                ({i.quarter >= 5 ? 'OT' : `Q${i.quarter}`} {gameClock(i.clock)})
+              </span>
             </li>
           );
         })}

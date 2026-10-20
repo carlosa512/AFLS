@@ -68,7 +68,8 @@ export function activeLearning(p: Player): Learning | undefined {
 }
 
 /** Players a team is teaching a new position. */
-export const learners = (league: League, teamId: number): Player[] => teamPlayers(league, teamId).filter((p) => activeLearning(p));
+export const learners = (league: League, teamId: number): Player[] =>
+  teamPlayers(league, teamId).filter((p) => activeLearning(p));
 
 /** The position his body aged as before any move, for `DevContext.bodyAs` (undefined if he never moved). */
 export const bodyAs = (p: Player): Position | undefined => p.moves?.[0]?.from;
@@ -98,7 +99,15 @@ export function familiarity(p: Player): Familiarity | null {
   const c = l && conversionOf(p.position, l.to);
   if (!l || !c) return null;
   const f = l.done / c.weeks;
-  return f >= 1 ? 'Ready' : f >= 0.75 ? 'Accomplished' : f >= 0.5 ? 'Competent' : f >= 0.25 ? 'Unconvincing' : 'Awkward';
+  return f >= 1
+    ? 'Ready'
+    : f >= 0.75
+      ? 'Accomplished'
+      : f >= 0.5
+        ? 'Competent'
+        : f >= 0.25
+          ? 'Unconvincing'
+          : 'Awkward';
 }
 
 // ───────── the learning clock ─────────
@@ -150,7 +159,10 @@ export function trainingWeek(league: League): void {
 
 /** Why a plan can't start, in plain words, or null. */
 export function moveProblem(league: League, p: Player, to: Position): string | null {
-  return playerProblem(league, p, to) ?? (p.teamId === null ? null : slotProblem(league, p.teamId, learners(league, p.teamId).length));
+  return (
+    playerProblem(league, p, to) ??
+    (p.teamId === null ? null : slotProblem(league, p.teamId, learners(league, p.teamId).length))
+  );
 }
 
 /** A team's plans are full. */
@@ -197,7 +209,8 @@ export function passMove(league: League, playerId: number): void {
   const team = league.teams[league.userTeamId];
   ((team.training ??= {}).passed ??= {})[playerId] = league.season;
   // Keep only what still matters.
-  for (const [id, season] of Object.entries(team.training.passed!)) if (season < league.season - 1) delete team.training.passed![Number(id)];
+  for (const [id, season] of Object.entries(team.training.passed!))
+    if (season < league.season - 1) delete team.training.passed![Number(id)];
 }
 
 /** The user's one setting: let the coaches start their own suggestion (AI teams always do). */
@@ -210,7 +223,8 @@ export function setCoachesDecide(league: League, on: boolean): void {
 // ───────── cut-down day ─────────
 
 /** The fewest a team keeps at a position after a move: your starters' count, an AI team's keep-minimum. */
-const minimumAt = (league: League, teamId: number, pos: Position) => (teamId === league.userTeamId ? STARTERS[pos] : KEEP_MIN[pos]);
+const minimumAt = (league: League, teamId: number, pos: Position) =>
+  teamId === league.userTeamId ? STARTERS[pos] : KEEP_MIN[pos];
 
 /** Why a ready player waits instead of moving, or null: a move never leaves his old position short. */
 export function holdReason(league: League, p: Player): string | null {
@@ -222,7 +236,8 @@ export function holdReason(league: League, p: Player): string | null {
 /** Cut-down day: every ready learner changes position, unless it would leave his old one short (he waits). */
 export function completeMoves(league: League): void {
   // One at a time: two ready learners can't both leave the same room short.
-  for (const p of Object.values(league.players)) if (isReady(p) && !holdReason(league, p)) changePosition(league, p, p.learning!.to);
+  for (const p of Object.values(league.players))
+    if (isReady(p) && !holdReason(league, p)) changePosition(league, p, p.learning!.to);
 }
 
 /**
@@ -267,7 +282,12 @@ export function changePosition(league: League, p: Player, to: Position): void {
     team.depthChart[to] = list;
   }
   syncDepthChart(league, team);
-  logTransaction(league, 'position', [team.id], `${team.abbrev} moved ${from} ${p.firstName} ${p.lastName} to ${to}${why ? `: ${reasonWords(why, to)}` : ''}`);
+  logTransaction(
+    league,
+    'position',
+    [team.id],
+    `${team.abbrev} moved ${from} ${p.firstName} ${p.lastName} to ${to}${why ? `: ${reasonWords(why, to)}` : ''}`,
+  );
 }
 
 // ───────── the coaches' read: is it worth it, and why ─────────
@@ -336,7 +356,10 @@ function physicalShare(pos: Position): number {
 /** Players under contract at a position (injured reserve aside), best first, leaving one player out. */
 function depthAt(ctx: TradeContext, teamId: number, pos: Position, without: number): Player[] {
   return rosterOf(ctx, teamId)
-    .filter((x) => x.position === pos && x.id !== without && !x.ir && !!x.contract && !isExpired(x.contract, ctx.league.season))
+    .filter(
+      (x) =>
+        x.position === pos && x.id !== without && !x.ir && !!x.contract && !isExpired(x.contract, ctx.league.season),
+    )
     .sort((a, b) => playerOvr(b) - playerOvr(a));
 }
 
@@ -364,7 +387,12 @@ export function campsToReady(league: League, p: Player, to: Position): number {
   let before: number;
   if (league.phase === 'preseason') before = CAMP_WEEKS;
   else if (OFFSEASON_PHASES.includes(league.phase)) before = blockWeeks(c, 'program') + CAMP_WEEKS;
-  else before = Math.max(0, REGULAR_SEASON_WEEKS - (league.phase === 'regular' ? league.week - 1 : REGULAR_SEASON_WEEKS)) * SEASON_WEEK + blockWeeks(c, 'program') + CAMP_WEEKS;
+  else
+    before =
+      Math.max(0, REGULAR_SEASON_WEEKS - (league.phase === 'regular' ? league.week - 1 : REGULAR_SEASON_WEEKS)) *
+        SEASON_WEEK +
+      blockWeeks(c, 'program') +
+      CAMP_WEEKS;
   need -= before * rate;
   return need <= 1e-9 ? 0 : Math.ceil(need / (year * rate) - 1e-9);
 }
@@ -375,7 +403,12 @@ export function campsToReady(league: League, p: Player, to: Position): number {
  * carry; being a little better at the new spot is not one. For a team's own players (exact ratings, as
  * every front office knows its own roster); screens show it in words, never the numbers behind it.
  */
-export function conversionRead(league: League, p: Player, to: Position, ctx: TradeContext = tradeContext(league)): ConversionRead {
+export function conversionRead(
+  league: League,
+  p: Player,
+  to: Position,
+  ctx: TradeContext = tradeContext(league),
+): ConversionRead {
   const teamId = p.teamId ?? league.userTeamId;
   const season = league.season;
   const ovrNow = playerOvr(p);
@@ -401,7 +434,9 @@ export function conversionRead(league: League, p: Player, to: Position, ctx: Tra
   // Next year's hole: a starter there near the end (well past his prime, or past it with his deal running
   // out; an ordinary expiring deal gets re-signed), and he'd be next in line from a room that can spare him.
   const peak = AGING[to].peakEnd;
-  const leaving = there.slice(0, S).some((x) => x.age >= peak + 3 || (x.age > peak && yearsLeft(x.contract!, season) <= 1));
+  const leaving = there
+    .slice(0, S)
+    .some((x) => x.age >= peak + 3 || (x.age > peak && yearsLeft(x.contract!, season) <= 1));
   const heir = role === 'starter' || ovrNew >= (there[S] ? playerOvr(there[S]) : 0);
   add('nextYear', 0.6, leaving && heir && diff >= -1 && lossFrom <= 0.3);
   // The coordinator's scheme wants his skills there more than at his own position.
@@ -411,16 +446,27 @@ export function conversionRead(league: League, p: Player, to: Position, ctx: Tra
   const chair = DEFENSE.has(to) ? 'defCoord' : 'offCoord';
   const coach = chairHolder(teamCoaches(league, teamId), { role: chair });
   const coordinator = coach ? { coach, isNew: coach.since === season } : undefined;
-  if (fitTo !== null) add('scheme', clamp(0.4 + (fitTo - fitFrom), 0.4, 0.9), fitTo >= 0.2 && fitTo - fitFrom >= 0.25 && role === 'starter' && diff >= -0.75 && net >= 0.3);
+  if (fitTo !== null)
+    add(
+      'scheme',
+      clamp(0.4 + (fitTo - fitFrom), 0.4, 0.9),
+      fitTo >= 0.2 && fitTo - fitFrom >= 0.25 && role === 'starter' && diff >= -0.75 && net >= 0.3,
+    );
   // Upside: a young player whose game already plays better at the new spot, and who'd be in its lineup.
   add('upside', 0.6, p.age <= 24 && diff >= 0 && role === 'starter' && lossFrom <= 0.3);
   // Reps: a young backup blocked by starters who are staying would start there.
   const blockers = home.slice(0, H).filter((x) => playerOvr(x) > ovrNow);
-  const blocked = !starterHome && blockers.length > 0 && blockers.every((x) => yearsLeft(x.contract!, season) >= 2 && x.age < AGING[p.position].peakEnd);
+  const blocked =
+    !starterHome &&
+    blockers.length > 0 &&
+    blockers.every((x) => yearsLeft(x.contract!, season) >= 2 && x.age < AGING[p.position].peakEnd);
   add('reps', 0.7, p.age <= 25 && blocked && role === 'starter' && diff >= -1);
   // Age: past his body's physical turn, moving to a job that leans less on legs: already as good there, or
   // about as good with his starting job at his own position gone.
-  const aging = p.age >= declineOnset(bodyAs(p) ?? p.position, 'physical') && physicalShare(to) < physicalShare(p.position) - 0.05 && diff >= -0.3;
+  const aging =
+    p.age >= declineOnset(bodyAs(p) ?? p.position, 'physical') &&
+    physicalShare(to) < physicalShare(p.position) - 0.05 &&
+    diff >= -0.3;
   add('age', 0.7, aging && role === 'starter' && (diff >= 0 || !starterHome) && net >= -0.3);
   // A clear upgrade, from a room that can spare him: the bigger the gap, the stronger.
   add('upgrade', clamp(0.3 + 0.2 * gainTo, 0.5, 0.9), role === 'starter' && gainTo >= 1 && lossFrom <= 0.2);
@@ -434,9 +480,25 @@ export function conversionRead(league: League, p: Player, to: Position, ctx: Tra
   const payNow = marketApy(market, p);
   const payThen = marketApy(market, { ...p, position: to });
   const pay = payThen > payNow * 1.1 ? 'higher' : payThen < payNow * 0.9 ? 'lower' : 'same';
-  const problem = playerProblem(league, p, to) ?? slotProblem(league, teamId, rosterOf(ctx, teamId).filter((x) => activeLearning(x)).length);
+  const problem =
+    playerProblem(league, p, to) ??
+    slotProblem(league, teamId, rosterOf(ctx, teamId).filter((x) => activeLearning(x)).length);
   const score = (motives[0]?.strength ?? 0) + 0.1 * net;
-  return { to, verdict, role, ahead: role === 'starter' ? weakest : undefined, left, camps: campsToReady(league, p, to), pay, reason, motives, coordinator: motives.some((m) => m.reason === 'scheme') ? coordinator : undefined, aging, problem, score };
+  return {
+    to,
+    verdict,
+    role,
+    ahead: role === 'starter' ? weakest : undefined,
+    left,
+    camps: campsToReady(league, p, to),
+    pay,
+    reason,
+    motives,
+    coordinator: motives.some((m) => m.reason === 'scheme') ? coordinator : undefined,
+    aging,
+    problem,
+    score,
+  };
 }
 
 /** A reason as the news gives it ("KC moved LB John Smith to S: their safety room was short"). */
@@ -504,7 +566,11 @@ export const MOTIVE_BAR = 0.5;
  * office acts on, that can start now. The user's team skips players it turned down this year or last.
  * The same function plans every AI team's moves.
  */
-export function suggestMove(league: League, teamId: number, ctx: TradeContext = tradeContext(league)): MoveSuggestion | null {
+export function suggestMove(
+  league: League,
+  teamId: number,
+  ctx: TradeContext = tradeContext(league),
+): MoveSuggestion | null {
   const team = league.teams[teamId];
   const passed = teamId === league.userTeamId ? (team.training?.passed ?? {}) : {};
   const roster = rosterOf(ctx, teamId);
@@ -518,7 +584,10 @@ export function suggestMove(league: League, teamId: number, ctx: TradeContext = 
       const read = conversionRead(league, p, to, ctx);
       if (read.verdict !== 'worth') continue;
       // The reason this front office would act on, if any clears the bar (the first, strongest, on a tie).
-      const weighed = read.motives.map((m) => ({ reason: m.reason, keen: m.strength * motiveWeight(league, team, m, read) }));
+      const weighed = read.motives.map((m) => ({
+        reason: m.reason,
+        keen: m.strength * motiveWeight(league, team, m, read),
+      }));
       const top = weighed.reduce((a, b) => (b.keen > a.keen ? b : a));
       if (top.keen < MOTIVE_BAR) continue;
       const k = top.keen + 0.01 * read.score;

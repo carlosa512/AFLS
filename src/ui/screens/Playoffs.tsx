@@ -18,7 +18,11 @@ function BracketGame({ league, game, seedOf }: { league: League; game: Game; see
           {seedOf(id) + 1}
         </span>
         {t.name}
-        {score !== undefined && <b className="num" style={{ marginLeft: 'auto' }}>{score}</b>}
+        {score !== undefined && (
+          <b className="num" style={{ marginLeft: 'auto' }}>
+            {score}
+          </b>
+        )}
       </span>
     );
   };
@@ -42,8 +46,8 @@ export function Playoffs({ league }: { league: League }) {
     return (
       <>
         <div className="notice">
-          The top seven teams in each conference make the playoffs: four division winners and three wild cards. The 1 seed gets a bye. This is
-          the field if the season ended today.
+          The top seven teams in each conference make the playoffs: four division winners and three wild cards. The 1
+          seed gets a bye. This is the field if the season ended today.
         </div>
         <div className="grid-2">
           {league.conferences.map((conf, c) => (
@@ -101,7 +105,8 @@ function LeagueHistory({ league }: { league: League }) {
         <>
           <p className="muted small" style={{ marginTop: 0 }}>
             {user.city} {user.name}: {titles} title{titles === 1 ? '' : 's'}
-            {finals ? `, ${finals} more championship game${finals === 1 ? '' : 's'}` : ''} in {history.length} season{history.length === 1 ? '' : 's'}.
+            {finals ? `, ${finals} more championship game${finals === 1 ? '' : 's'}` : ''} in {history.length} season
+            {history.length === 1 ? '' : 's'}.
           </p>
           <div className="table-scroll">
             <table>
@@ -130,7 +135,8 @@ function LeagueHistory({ league }: { league: League }) {
                       <td>
                         {best && (
                           <>
-                            <HistoryTeam league={league} id={Number(best[0])} /> <span className="muted num">{recordText(best[1])}</span>
+                            <HistoryTeam league={league} id={Number(best[0])} />{' '}
+                            <span className="muted num">{recordText(best[1])}</span>
                           </>
                         )}
                       </td>

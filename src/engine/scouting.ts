@@ -43,7 +43,9 @@ export const isProspect = (p: Player) => !!p.scouting && !p.draft && p.teamId ==
 export function knowledge(league: League, teamId: number, p: Player): number {
   if (p.teamId === teamId) return 1;
   // Higher-graded prospects get more exposure (bowl games, TV), so start better known.
-  const film = isProspect(p) ? 0.2 + 0.15 * clamp((p.scouting!.grade - 6) / 8, 0, 1) : Math.min(0.9, 0.45 + 0.08 * p.experience);
+  const film = isProspect(p)
+    ? 0.2 + 0.15 * clamp((p.scouting!.grade - 6) / 8, 0, 1)
+    : Math.min(0.9, 0.45 + 0.08 * p.experience);
   const scouted = teamId === league.userTeamId ? (league.knowledge[p.id] ?? 0) : aiScouted(league, teamId, p, film);
   return Math.max(film, scouted);
 }
@@ -67,7 +69,10 @@ function draftContext(league: League): DraftContext {
     league.draftClass
       .map((id) => league.players[id])
       .filter((p) => p?.scouting)
-      .sort((a, b) => 0.6 * b.scouting!.grade + 0.4 * b.scouting!.ceiling - (0.6 * a.scouting!.grade + 0.4 * a.scouting!.ceiling))
+      .sort(
+        (a, b) =>
+          0.6 * b.scouting!.grade + 0.4 * b.scouting!.ceiling - (0.6 * a.scouting!.grade + 0.4 * a.scouting!.ceiling),
+      )
       .map((p, i) => [p.id, i + 1]),
   );
   const slots = new Map<number, number[]>();
@@ -145,7 +150,9 @@ export function perceive(league: League, teamId: number, p: Player): PlayerView 
   const mix = () => 0.8 * rng.normal() + 0.6 * ownEval.normal();
   // A scout who is high on a player tends to be high on all of him; each trait adds its own miss.
   const zPlayer = mix();
-  const zPot = 0.8 * rng.normal() + (p.age < 26 ? 0.6 * new Rng(`${league.seed}:view:${teamId}:${p.id}:pot:${potReaderId ?? 0}`).normal() : 0);
+  const zPot =
+    0.8 * rng.normal() +
+    (p.age < 26 ? 0.6 * new Rng(`${league.seed}:view:${teamId}:${p.id}:pot:${potReaderId ?? 0}`).normal() : 0);
   const weights = OVR_WEIGHTS[p.position];
   const ratings = {} as Record<Attribute, RatingView>;
   const centers = {} as Ratings;
@@ -161,7 +168,10 @@ export function perceive(league: League, teamId: number, p: Player): PlayerView 
     const center = clamp(truth + ERROR * miss * acc * (0.6 * zPlayer + 0.8 * z), 1, 20);
     const half = SPREAD * miss * acc;
     const value = Math.round(center);
-    ratings[attr] = half < 0.5 ? { value, lo: value, hi: value } : { value, lo: clamp(Math.round(center - half), 1, 20), hi: clamp(Math.round(center + half), 1, 20) };
+    ratings[attr] =
+      half < 0.5
+        ? { value, lo: value, hi: value }
+        : { value, lo: clamp(Math.round(center - half), 1, 20), hi: clamp(Math.round(center + half), 1, 20) };
     centers[attr] = center;
     const w = weights[attr] ?? 0;
     spread += w * half;
@@ -191,7 +201,23 @@ export function perceive(league: League, teamId: number, p: Player): PlayerView 
     potMid = clamp(Math.max(ovr, center), 1, 20);
     potSd = Math.sqrt(ovrSd ** 2 + (0.8 * u) ** 2);
   }
-  return { knowledge: k, exact, ratings, ovr, ovrLo, ovrHi, potLo, potHi, potMid, ovrSd, potSd, accuracy: acc, potAccuracy: accPot, readerId, potReaderId };
+  return {
+    knowledge: k,
+    exact,
+    ratings,
+    ovr,
+    ovrLo,
+    ovrHi,
+    potLo,
+    potHi,
+    potMid,
+    ovrSd,
+    potSd,
+    accuracy: acc,
+    potAccuracy: accPot,
+    readerId,
+    potReaderId,
+  };
 }
 
 /**
@@ -228,7 +254,8 @@ export function scoutPlayer(league: League, playerId: number): number {
 /** New league year: a fresh scouting budget, and no notes kept on players who have retired. */
 export function resetScouting(league: League): void {
   league.scoutPoints = SCOUT_POINTS_PER_YEAR;
-  for (const id of Object.keys(league.knowledge)) if (!league.players[Number(id)] || league.players[Number(id)].retired) delete league.knowledge[Number(id)];
+  for (const id of Object.keys(league.knowledge))
+    if (!league.players[Number(id)] || league.players[Number(id)].retired) delete league.knowledge[Number(id)];
 }
 
 // ───────── character ─────────
@@ -272,7 +299,8 @@ export function characterRead(league: League, teamId: number, p: Player): Charac
   const team = new Rng(`${league.seed}:view:${teamId}:${p.id}:char`);
   const projector = new Rng(`${league.seed}:view:${teamId}:${p.id}:char:${proj?.by?.id ?? 0}`);
   const evaluator = new Rng(`${league.seed}:view:${teamId}:${p.id}:temper:${evalr?.by?.id ?? 0}`);
-  const guess = (truth: number, sd: number, own: Rng) => clamp(truth + sd * (0.8 * team.normal() + 0.6 * own.normal()), 1, 20);
+  const guess = (truth: number, sd: number, own: Rng) =>
+    clamp(truth + sd * (0.8 * team.normal() + 0.6 * own.normal()), 1, 20);
   const workEthic = guess(p.traits.workEthic, sdProj, projector);
   const durability = guess(p.traits.durability, sdProj, projector);
   const temperament = guess(p.traits.temperament, sdEval, evaluator);
@@ -319,7 +347,12 @@ export interface CharacterNotes {
   notes: CharacterNote[];
 }
 
-const note = (label: string, tone: CharacterNote['tone'], clause: string): CharacterNote => ({ label, tone, clause, line: `${cap(clause)}.` });
+const note = (label: string, tone: CharacterNote['tone'], clause: string): CharacterNote => ({
+  label,
+  tone,
+  clause,
+  line: `${cap(clause)}.`,
+});
 
 /**
  * Words for a makeup read: only what stands out gets a label; an average player gets none. Work
@@ -331,18 +364,63 @@ export function characterNotes(league: League, teamId: number, p: Player): Chara
   const notes: CharacterNote[] = [];
   const young = p.age < 26;
   const we = read.workEthic;
-  if (we >= 16) notes.push(note('Model pro', 'good', young ? 'a model pro who should reach his ceiling' : 'a model pro who should keep his game longer than most'));
-  else if (we >= 13.5) notes.push(note('Driven', 'good', young ? 'a self-starter who should get the most out of his ability' : 'a self-starter who should age well'));
-  else if (we <= 5) notes.push(note('Needs a push', 'warn', young ? 'rarely puts in extra work, so he is unlikely to reach his ceiling' : 'rarely puts in extra work, so expect him to age badly'));
-  else if (we <= 7.5) notes.push(note('Coasts', 'warn', young ? 'coasts at times, so he may fall short of his ceiling' : 'coasts at times, so the decline may hit him harder'));
+  if (we >= 16)
+    notes.push(
+      note(
+        'Model pro',
+        'good',
+        young ? 'a model pro who should reach his ceiling' : 'a model pro who should keep his game longer than most',
+      ),
+    );
+  else if (we >= 13.5)
+    notes.push(
+      note(
+        'Driven',
+        'good',
+        young ? 'a self-starter who should get the most out of his ability' : 'a self-starter who should age well',
+      ),
+    );
+  else if (we <= 5)
+    notes.push(
+      note(
+        'Needs a push',
+        'warn',
+        young
+          ? 'rarely puts in extra work, so he is unlikely to reach his ceiling'
+          : 'rarely puts in extra work, so expect him to age badly',
+      ),
+    );
+  else if (we <= 7.5)
+    notes.push(
+      note(
+        'Coasts',
+        'warn',
+        young
+          ? 'coasts at times, so he may fall short of his ceiling'
+          : 'coasts at times, so the decline may hit him harder',
+      ),
+    );
   if (read.durability >= 14) notes.push(note('Built to last', 'good', 'his body is built to last'));
   else if (read.durability <= 7) notes.push(note('Wears down early', 'warn', 'his body may wear down early'));
   if (TEMPER_POSITIONS.has(p.position)) {
     if (read.temperament <= 7) notes.push(note('Hothead', 'warn', 'has a short fuse, so his line draws more flags'));
-    else if (read.temperament >= 14.5) notes.push(note('Even-keeled', 'good', 'even-keeled, so he rarely draws a flag'));
+    else if (read.temperament >= 14.5)
+      notes.push(note('Even-keeled', 'good', 'even-keeled, so he rarely draws a flag'));
   }
-  if (read.versatility >= 15) notes.push({ ...note('Plays anywhere', 'good', 'versatile enough to cover another position in a pinch, and quick to learn a new one'), about: 'versatility' });
-  else if (read.versatility <= 6) notes.push({ ...note('One-position player', 'warn', 'struggles away from his own position and is slow to learn a new one'), about: 'versatility' });
+  if (read.versatility >= 15)
+    notes.push({
+      ...note(
+        'Plays anywhere',
+        'good',
+        'versatile enough to cover another position in a pinch, and quick to learn a new one',
+      ),
+      about: 'versatility',
+    });
+  else if (read.versatility <= 6)
+    notes.push({
+      ...note('One-position player', 'warn', 'struggles away from his own position and is slow to learn a new one'),
+      about: 'versatility',
+    });
   return { known: true, hedged: !read.exact && read.sd > 1.2, notes };
 }
 
@@ -355,14 +433,23 @@ export function characterNotes(league: League, teamId: number, p: Player): Chara
  */
 const QUIRK_WORTH: Record<QuirkTone, number> = { good: 0.3, bad: -0.3, style: 0 };
 const QUIRK_WORTH_CAP = 0.9;
-const worthOf = (habits: { tone: QuirkTone; forming: boolean }[]) => clamp(habits.reduce((a, h) => a + QUIRK_WORTH[h.tone] * (h.forming ? 0.5 : 1), 0), -QUIRK_WORTH_CAP, QUIRK_WORTH_CAP);
+const worthOf = (habits: { tone: QuirkTone; forming: boolean }[]) =>
+  clamp(
+    habits.reduce((a, h) => a + QUIRK_WORTH[h.tone] * (h.forming ? 0.5 : 1), 0),
+    -QUIRK_WORTH_CAP,
+    QUIRK_WORTH_CAP,
+  );
 
 /** The habits `teamId` has spotted, as overall points (the AI's read: unseen habits count for nothing). */
-export const quirkWorth = (league: League, teamId: number, p: Player): number => worthOf(quirkNotes(league, teamId, p).notes);
+export const quirkWorth = (league: League, teamId: number, p: Player): number =>
+  worthOf(quirkNotes(league, teamId, p).notes);
 
 /** The same from every habit he really has (analysis and tests, never an AI decision about another club's player). */
 export const trueQuirkWorth = (p: Player): number =>
-  worthOf([...activeQuirks(p).map((id) => ({ tone: QUIRKS[id].tone, forming: false })), ...formingQuirks(p).map((id) => ({ tone: QUIRKS[id].tone, forming: true }))]);
+  worthOf([
+    ...activeQuirks(p).map((id) => ({ tone: QUIRKS[id].tone, forming: false })),
+    ...formingQuirks(p).map((id) => ({ tone: QUIRKS[id].tone, forming: true })),
+  ]);
 
 /** Habits show on film, so they come out sooner than makeup: below this, a team can't name any. */
 export const QUIRK_KNOWLEDGE = 0.35;
@@ -401,7 +488,9 @@ export function quirkNotes(league: League, teamId: number, p: Player): QuirkNote
   const active = activeQuirks(p);
   const forming = formingQuirks(p);
   // A habit he has shaken still shows until this team notices: its scouts go on what they last saw.
-  const stale = shakenHabits(league, teamId, p, k).filter((h) => !h.noticed && !active.includes(h.id) && !forming.includes(h.id));
+  const stale = shakenHabits(league, teamId, p, k).filter(
+    (h) => !h.noticed && !active.includes(h.id) && !forming.includes(h.id),
+  );
   const notes = [
     ...active.filter((id) => spotted(league, teamId, p, id, k, QUIRK_KNOWLEDGE)).map((id) => note(id, false)),
     ...stale.map((h) => note(h.id, false)),
@@ -419,7 +508,8 @@ function spotted(league: League, teamId: number, p: Player, id: QuirkId, k: numb
 const WEEKS_PER_YEAR = 22;
 /** Weeks a team that barely knows a player goes on believing in a habit he has shaken. */
 const LINGER_WEEKS = 30;
-const weeksSince = (league: League, e: { season: number; week: number }) => (league.season - e.season) * WEEKS_PER_YEAR + league.week - e.week;
+const weeksSince = (league: League, e: { season: number; week: number }) =>
+  (league.season - e.season) * WEEKS_PER_YEAR + league.week - e.week;
 
 /**
  * Habits a player has shaken that `teamId` had seen, latest first: `noticed` once its scouts have
@@ -455,8 +545,19 @@ export function habitTimeline(league: League, teamId: number, p: Player): HabitC
   if (k < QUIRK_KNOWLEDGE) return [];
   const linger = Math.round(LINGER_WEEKS * (1 - Math.min(1, k)));
   return (p.quirkLog ?? [])
-    .filter((e) => spotted(league, teamId, p, e.id, k, QUIRK_KNOWLEDGE) && (e.change === 'gained' || weeksSince(league, e) >= linger))
-    .map((e) => ({ id: e.id, label: QUIRKS[e.id].label, tone: QUIRKS[e.id].tone, change: e.change, season: e.season, week: e.week }))
+    .filter(
+      (e) =>
+        spotted(league, teamId, p, e.id, k, QUIRK_KNOWLEDGE) &&
+        (e.change === 'gained' || weeksSince(league, e) >= linger),
+    )
+    .map((e) => ({
+      id: e.id,
+      label: QUIRKS[e.id].label,
+      tone: QUIRKS[e.id].tone,
+      change: e.change,
+      season: e.season,
+      week: e.week,
+    }))
     .reverse();
 }
 
@@ -467,7 +568,10 @@ export function habitTimeline(league: League, teamId: number, p: Player): HabitC
  * reader no longer sees it at all. `past` for a dated list ("Late-Hands Specialist became a regular
  * part of his game"), otherwise the perfect for a sentence ("has added …").
  */
-export function habitChangeText(e: Pick<HabitChange, 'label' | 'tone' | 'change'> & { gone?: boolean }, past = true): string {
+export function habitChangeText(
+  e: Pick<HabitChange, 'label' | 'tone' | 'change'> & { gone?: boolean },
+  past = true,
+): string {
   const [pastText, perfect] = {
     gained: {
       good: [`${e.label} became a regular part of his game`, `added ${e.label} to his game`],
@@ -475,8 +579,14 @@ export function habitChangeText(e: Pick<HabitChange, 'label' | 'tone' | 'change'
       style: [`${e.label} became part of how he plays`, `taken on a new style (${e.label})`],
     },
     lost: {
-      good: [`${e.label} grew less dependable`, e.gone ? `stopped showing ${e.label}` : `grown less consistent with ${e.label}`],
-      bad: [`${e.label} became less pronounced`, e.gone ? `shaken ${e.label}` : `reined in ${e.label}, though it still shows now and then`],
+      good: [
+        `${e.label} grew less dependable`,
+        e.gone ? `stopped showing ${e.label}` : `grown less consistent with ${e.label}`,
+      ],
+      bad: [
+        `${e.label} became less pronounced`,
+        e.gone ? `shaken ${e.label}` : `reined in ${e.label}, though it still shows now and then`,
+      ],
       style: [`Leaned away from ${e.label}`, e.gone ? `moved away from ${e.label}` : `leaned away from ${e.label}`],
     },
   }[e.change][e.tone];
@@ -499,10 +609,18 @@ export function habitChangeDetail(e: Pick<HabitChange, 'id' | 'tone' | 'change'>
 }
 
 /** How a card names habits he has left behind, by kind: a bad one fixed, a plus gone quiet, a style dropped. */
-export const FIXED_HEADING: Record<QuirkTone, string> = { bad: 'Seems to have fixed', good: 'No longer shows', style: 'Has moved away from' };
+export const FIXED_HEADING: Record<QuirkTone, string> = {
+  bad: 'Seems to have fixed',
+  good: 'No longer shows',
+  style: 'Has moved away from',
+};
 
 /** Habits `teamId` has noticed he shook in the last year: "seems to have fixed…". */
-export function fixedHabits(league: League, teamId: number, p: Player): { id: QuirkId; label: string; tone: QuirkTone }[] {
+export function fixedHabits(
+  league: League,
+  teamId: number,
+  p: Player,
+): { id: QuirkId; label: string; tone: QuirkTone }[] {
   const now = new Set([...activeQuirks(p), ...formingQuirks(p)]);
   return shakenHabits(league, teamId, p)
     .filter((h) => h.noticed && !now.has(h.id) && weeksSince(league, h) < WEEKS_PER_YEAR)
@@ -529,8 +647,10 @@ export function careerOutlook(league: League, teamId: number, p: Player): string
   const phys = lastGoodAge(league, teamId, p, 'physical');
   const { legs, skills, plural } = bodyWords(p.position);
   if (p.age > tech) return 'Past his prime: expect him to lose a little more every year.';
-  if (p.age > phys) return `${cap(legs)} ${plural ? 'have' : 'has'} started to fade; ${skills} should hold up through ${sure} ${tech}.`;
-  if (phys < tech) return `${cap(legs)} should start to fade after ${sure} ${phys}; ${skills} should hold up through ${sure} ${tech}.`;
+  if (p.age > phys)
+    return `${cap(legs)} ${plural ? 'have' : 'has'} started to fade; ${skills} should hold up through ${sure} ${tech}.`;
+  if (phys < tech)
+    return `${cap(legs)} should start to fade after ${sure} ${phys}; ${skills} should hold up through ${sure} ${tech}.`;
   if (p.age === tech) return 'In the last year of his prime: expect the decline to start next year.';
   return `Prime through ${sure} ${tech}.`;
 }
@@ -590,18 +710,28 @@ function reference(league: League): Reference {
   const starterAvg = {} as Record<Position, Ratings>;
   for (const pos of POSITIONS) {
     // The position's own starters: a man lined up there out of position doesn't set its bar.
-    const starters = league.teams.flatMap((t) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]).filter((x) => x && x.position === pos));
-    starterAvg[pos] = Object.fromEntries(ATTRIBUTES.map((a) => [a, starters.reduce((s, p) => s + p.ratings[a], 0) / Math.max(1, starters.length)])) as Ratings;
+    const starters = league.teams.flatMap((t) =>
+      t.depthChart[pos]
+        .slice(0, STARTERS[pos])
+        .map((id) => league.players[id])
+        .filter((x) => x && x.position === pos),
+    );
+    starterAvg[pos] = Object.fromEntries(
+      ATTRIBUTES.map((a) => [a, starters.reduce((s, p) => s + p.ratings[a], 0) / Math.max(1, starters.length)]),
+    ) as Ratings;
     for (const p of starters) starterCurves[pos].push(overall(p.ratings, pos));
   }
-  const starterIds = new Set(league.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]))));
+  const starterIds = new Set(
+    league.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]))),
+  );
   for (const p of Object.values(league.players)) {
     if (p.teamId === null || p.retired) continue;
     const ovr = overall(p.ratings, p.position);
     curves[p.position].push(ovr);
     if (!starterIds.has(p.id)) backups[p.position].push(ovr);
   }
-  for (const c of [...Object.values(curves), ...Object.values(starterCurves), ...Object.values(backups)]) c.sort((a, b) => a - b);
+  for (const c of [...Object.values(curves), ...Object.values(starterCurves), ...Object.values(backups)])
+    c.sort((a, b) => a - b);
   const ref = { curves, starters: starterCurves, backups, starterAvg };
   refCache.set(league, { key, ref });
   return ref;
@@ -621,7 +751,8 @@ function percentile(curve: number[], value: number): number {
 }
 
 /** Share of the league's rostered players at `pos` rated below `value` (0–1). */
-export const leaguePercentile = (league: League, pos: Position, value: number) => percentile(reference(league).curves[pos], value);
+export const leaguePercentile = (league: League, pos: Position, value: number) =>
+  percentile(reference(league).curves[pos], value);
 
 /** 0–4 in half steps: nine levels, each about an eighth of the league at the position. */
 const toStars = (x: number) => clamp(Math.round(x * 2) / 2, 0, 4);
@@ -643,17 +774,36 @@ export interface StarRating {
  * position ("is he good?"); `roster` compares with the viewing team's starters there ("does he
  * start for me?": 3 stars is your starters' level, each rating point is half a star).
  */
-export function starRating(league: League, teamId: number, p: Player, view: PlayerView, scale: StarScale = 'league'): StarRating {
+export function starRating(
+  league: League,
+  teamId: number,
+  p: Player,
+  view: PlayerView,
+  scale: StarScale = 'league',
+): StarRating {
   const pos = p.position;
   if (scale === 'roster') {
     const team = league.teams[teamId];
-    const mine = team.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]).filter((x) => x && x.position === pos);
+    const mine = team.depthChart[pos]
+      .slice(0, STARTERS[pos])
+      .map((id) => league.players[id])
+      .filter((x) => x && x.position === pos);
     const avg = mine.length ? mine.reduce((s, x) => s + overall(x.ratings, pos), 0) / mine.length : 10;
     const rel = (v: number) => toStars(3 + 0.5 * (v - avg));
-    return { ability: rel(view.ovr), potLo: rel(view.potLo), potHi: rel(view.potHi), basis: `vs your starting ${pos}${STARTERS[pos] > 1 ? 's' : ''}` };
+    return {
+      ability: rel(view.ovr),
+      potLo: rel(view.potLo),
+      potHi: rel(view.potHi),
+      basis: `vs your starting ${pos}${STARTERS[pos] > 1 ? 's' : ''}`,
+    };
   }
   const rel = (v: number) => toStars(leaguePercentile(league, pos, v) * 4);
-  return { ability: rel(view.ovr), potLo: rel(view.potLo), potHi: rel(view.potHi), basis: `vs every ${pos} in the league` };
+  return {
+    ability: rel(view.ovr),
+    potLo: rel(view.potLo),
+    potHi: rel(view.potHi),
+    basis: `vs every ${pos} in the league`,
+  };
 }
 
 // ───────── production ─────────
@@ -685,21 +835,24 @@ const PRODUCTION: Partial<Record<Position, Production>> = {
     enough: (s) => (s.gp ?? 0) >= 6 && n(s, 'passAtt') >= 14 * (s.gp ?? 0),
     volume: (s) => n(s, 'passAtt'),
     step: 6,
-    words: (s) => `threw for ${big(n(s, 'passYds'))} yards, ${pl(n(s, 'passTd'), 'touchdown')} and ${pl(n(s, 'passInt'), 'pick')} in ${n(s, 'gp')} games`,
+    words: (s) =>
+      `threw for ${big(n(s, 'passYds'))} yards, ${pl(n(s, 'passTd'), 'touchdown')} and ${pl(n(s, 'passInt'), 'pick')} in ${n(s, 'gp')} games`,
   },
   RB: {
     measure: (s) => n(s, 'rushYds') / Math.max(1, n(s, 'rushAtt')),
     enough: (s) => (s.gp ?? 0) >= 6 && n(s, 'rushAtt') >= 8 * (s.gp ?? 0),
     volume: (s) => n(s, 'rushAtt'),
     step: 0.35,
-    words: (s) => `ran for ${big(n(s, 'rushYds'))} yards at ${(n(s, 'rushYds') / Math.max(1, n(s, 'rushAtt'))).toFixed(1)} a carry`,
+    words: (s) =>
+      `ran for ${big(n(s, 'rushYds'))} yards at ${(n(s, 'rushYds') / Math.max(1, n(s, 'rushAtt'))).toFixed(1)} a carry`,
   },
   WR: {
     measure: (s) => perGame(s, 'recYds'),
     enough: (s) => (s.gp ?? 0) >= 6 && n(s, 'rec') >= 2 * (s.gp ?? 0),
     volume: (s) => n(s, 'rec'),
     step: 15,
-    words: (s) => `caught ${pl(n(s, 'rec'), 'pass').replace('passs', 'passes')} for ${big(n(s, 'recYds'))} yards and ${pl(n(s, 'recTd'), 'touchdown')}`,
+    words: (s) =>
+      `caught ${pl(n(s, 'rec'), 'pass').replace('passs', 'passes')} for ${big(n(s, 'recYds'))} yards and ${pl(n(s, 'recTd'), 'touchdown')}`,
   },
   OL: {
     measure: (s) => perGame(s, 'pressuresAllowed') + perGame(s, 'sacksAllowed'),
@@ -707,14 +860,16 @@ const PRODUCTION: Partial<Record<Position, Production>> = {
     enough: (s) => (s.gp ?? 0) >= 8,
     volume: (s) => n(s, 'gp'),
     step: 0.5,
-    words: (s) => `gave up ${pl(n(s, 'sacksAllowed'), 'sack')} and ${pl(n(s, 'pressuresAllowed'), 'pressure')} in ${n(s, 'gp')} games`,
+    words: (s) =>
+      `gave up ${pl(n(s, 'sacksAllowed'), 'sack')} and ${pl(n(s, 'pressuresAllowed'), 'pressure')} in ${n(s, 'gp')} games`,
   },
   DT: {
     measure: (s) => perGame(s, 'pressures'),
     enough: (s) => (s.gp ?? 0) >= 8,
     volume: (s) => n(s, 'pressures') + n(s, 'tackles'),
     step: 0.6,
-    words: (s) => `had ${n(s, 'sacks') % 1 ? n(s, 'sacks').toFixed(1) : n(s, 'sacks')} sack${n(s, 'sacks') === 1 ? '' : 's'} and ${pl(n(s, 'pressures'), 'pressure')}`,
+    words: (s) =>
+      `had ${n(s, 'sacks') % 1 ? n(s, 'sacks').toFixed(1) : n(s, 'sacks')} sack${n(s, 'sacks') === 1 ? '' : 's'} and ${pl(n(s, 'pressures'), 'pressure')}`,
   },
   LB: {
     measure: (s) => perGame(s, 'tackles'),
@@ -730,7 +885,8 @@ const PRODUCTION: Partial<Record<Position, Production>> = {
     step: 0.25,
     // A quiet line can mean nobody threw his way: the ball production only ever speaks for him, never against.
     onlyGood: true,
-    words: (s) => `had ${pl(n(s, 'defInt'), 'pick')} and ${n(s, 'passDef')} pass${n(s, 'passDef') === 1 ? '' : 'es'} defended`,
+    words: (s) =>
+      `had ${pl(n(s, 'defInt'), 'pick')} and ${n(s, 'passDef')} pass${n(s, 'passDef') === 1 ? '' : 'es'} defended`,
   },
   K: {
     measure: (s) => n(s, 'fgMade') / Math.max(1, n(s, 'fgAtt')),
@@ -781,7 +937,11 @@ function productionReference(league: League, season: number): Partial<Record<Pos
     const judged = group.filter((s) => rule.enough(s));
     if (judged.length < 8) continue;
     const mean = (f: (s: StatLine) => number, xs: StatLine[]) => xs.reduce((t, s) => t + f(s), 0) / xs.length;
-    ref[pos] = { measure: mean(rule.measure, judged), snaps: counted ? mean((s) => s.snaps ?? 0, group) : null, volume: mean(rule.volume, group) };
+    ref[pos] = {
+      measure: mean(rule.measure, judged),
+      snaps: counted ? mean((s) => s.snaps ?? 0, group) : null,
+      volume: mean(rule.volume, group),
+    };
   }
   productionCache.set(league, { season, ref });
   return ref;
@@ -794,12 +954,19 @@ export type SeasonRole = 'starter' | 'rotation' | 'backup';
  * position (his volume stat where no snaps were kept): a starter from three-fifths of them, a
  * rotation player from a fifth, a backup below that. Null when he didn't play.
  */
-export function seasonRole(league: League, p: Player, season = league.season - 1): { role: SeasonRole; share: number } | null {
+export function seasonRole(
+  league: League,
+  p: Player,
+  season = league.season - 1,
+): { role: SeasonRole; share: number } | null {
   const s = p.stats[season];
   const rule = PRODUCTION[p.position];
   const ref = productionReference(league, season)[p.position];
   if (!s || !rule || !ref || !(s.gp ?? 0)) return null;
-  const share = ref.snaps !== null && s.snaps !== undefined ? s.snaps / Math.max(1, ref.snaps) : rule.volume(s) / Math.max(1e-9, ref.volume);
+  const share =
+    ref.snaps !== null && s.snaps !== undefined
+      ? s.snaps / Math.max(1, ref.snaps)
+      : rule.volume(s) / Math.max(1e-9, ref.volume);
   return { role: share >= 0.6 ? 'starter' : share >= 0.2 ? 'rotation' : 'backup', share };
 }
 
@@ -809,7 +976,15 @@ export function growthSince(p: Player, season: number): string | null {
   if (!then) return null;
   const ratings = Object.fromEntries(ATTRIBUTES.map((a, i) => [a, then[i]])) as Ratings;
   const delta = overall(p.ratings, p.position) - overall(ratings, p.position);
-  return delta >= 1.2 ? 'taken a real step' : delta >= 0.7 ? 'come on a little' : delta <= -1.2 ? 'slipped noticeably' : delta <= -0.7 ? 'slipped a little' : null;
+  return delta >= 1.2
+    ? 'taken a real step'
+    : delta >= 0.7
+      ? 'come on a little'
+      : delta <= -1.2
+        ? 'slipped noticeably'
+        : delta <= -0.7
+          ? 'slipped a little'
+          : null;
 }
 
 /**
@@ -838,7 +1013,8 @@ export function seasonNote(league: League, p: Player): string | null {
     if (gap <= -1.5 && !rule.onlyGood) return `Last season he ${rule.words(s)}, below a league-average ${who}.`;
     return grown ? `Nothing unusual in his line last season, but he has ${grown} since.` : null;
   }
-  if (played.role === 'rotation') return `A rotation player last season (${rule.words(s)})${gap >= 1.5 ? ", at a starter's rate" : ''}${grown ? `, and he has ${grown} since` : ''}.`;
+  if (played.role === 'rotation')
+    return `A rotation player last season (${rule.words(s)})${gap >= 1.5 ? ", at a starter's rate" : ''}${grown ? `, and he has ${grown} since` : ''}.`;
   return grown ? `He barely saw the field last season, but he has ${grown} since.` : null;
 }
 
@@ -873,8 +1049,10 @@ function tierOf(league: League, pos: Position, ovr: number): number {
 }
 
 /** Habits as one sentence, each with its own "he" ("he X, he Y, and he Z"): a clause can carry commas of its own. */
-const clauses = (items: string[]) => (items.length > 1 ? `${items.slice(0, -1).join(', he ')}, and he ${items.at(-1)}` : items.join(''));
-const list = (items: string[]) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
+const clauses = (items: string[]) =>
+  items.length > 1 ? `${items.slice(0, -1).join(', he ')}, and he ${items.at(-1)}` : items.join('');
+const list = (items: string[]) =>
+  items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 const lowerFirst = (s: string) => s[0].toLowerCase() + s.slice(1);
 
 /**
@@ -883,11 +1061,24 @@ const lowerFirst = (s: string) => s[0].toLowerCase() + s.slice(1);
  * different things by position: a quarterback's awareness is his decision-making, a lineman's his
  * recognition, a defender's his instincts.
  */
-const TRAIT_WORDS: Partial<Record<Attribute, string>> = { throwPower: 'arm', throwAccDeep: 'deep ball', kickPower: 'leg', passRush: 'pass rush', elusiveness: 'elusiveness' };
+const TRAIT_WORDS: Partial<Record<Attribute, string>> = {
+  throwPower: 'arm',
+  throwAccDeep: 'deep ball',
+  kickPower: 'leg',
+  passRush: 'pass rush',
+  elusiveness: 'elusiveness',
+};
 /** Trait words that take a plural verb ("his hands are", "his instincts are"). */
 const PLURAL_WORDS = new Set(['hands', 'instincts']);
 function traitWords(a: Attribute, pos: Position): string {
-  if (a === 'awareness') return pos === 'QB' ? 'decision-making' : pos === 'OL' ? 'recognition' : ['RB', 'WR', 'TE'].includes(pos) ? 'feel for the game' : 'instincts';
+  if (a === 'awareness')
+    return pos === 'QB'
+      ? 'decision-making'
+      : pos === 'OL'
+        ? 'recognition'
+        : ['RB', 'WR', 'TE'].includes(pos)
+          ? 'feel for the game'
+          : 'instincts';
   return TRAIT_WORDS[a] ?? ATTRIBUTE_INFO[a].trait;
 }
 
@@ -933,14 +1124,23 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   // sets him apart (two if both are elite) and the one that holds him back most.
   const avg = reference(league).starterAvg[p.position];
   const weights = OVR_WEIGHTS[p.position];
-  const traits = (Object.keys(weights) as Attribute[]).map((a) => ({ a, diff: view.ratings[a].value - avg[a], w: weights[a]! }));
+  const traits = (Object.keys(weights) as Attribute[]).map((a) => ({
+    a,
+    diff: view.ratings[a].value - avg[a],
+    w: weights[a]!,
+  }));
   const pluses = traits.filter((t) => t.diff >= 2).sort((x, y) => y.diff * y.w - x.diff * x.w);
   const plus = pluses.slice(0, pluses.length > 1 && pluses[1].diff >= 4 ? 2 : 1);
   const minus = traits.filter((t) => t.diff <= -3 && t.w >= 1).sort((x, y) => x.diff * x.w - y.diff * y.w)[0];
   // Short of the starters' bar, a player still has a shape: what he does best and worst for his level.
   const rel = traits.map((t) => ({ ...t, rel: view.ratings[t.a].value - view.ovr }));
-  const best = [...rel].sort((x, y) => y.rel - x.rel || y.w - x.w).find((t) => t.rel >= 1 && !plus.some((x) => x.a === t.a));
-  const worst = [...rel].filter((t) => t.w >= 1 && t.a !== minus?.a).sort((x, y) => x.rel - y.rel || y.w - x.w).find((t) => t.rel <= -1.5);
+  const best = [...rel]
+    .sort((x, y) => y.rel - x.rel || y.w - x.w)
+    .find((t) => t.rel >= 1 && !plus.some((x) => x.a === t.a));
+  const worst = [...rel]
+    .filter((t) => t.w >= 1 && t.a !== minus?.a)
+    .sort((x, y) => x.rel - y.rel || y.w - x.w)
+    .find((t) => t.rel <= -1.5);
   const name = (t: { a: Attribute }) => traitWords(t.a, p.position);
   const many = (ts: { a: Attribute }[]) => ts.length > 1 || PLURAL_WORDS.has(name(ts[0]));
   const is = (t: { a: Attribute }) => (many([t]) ? 'are' : 'is');
@@ -970,11 +1170,25 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   const verdict = `${rough ? `On limited looks, ${lowerFirst(TIERS[now].role)}` : TIERS[now].role} ${pos}${arc}.`;
 
   const produced = seasonNote(league, p);
-  const strongest = (t: { a: Attribute }) => pick(`His ${name(t)} ${is(t)} the best of what he has`, `${cap(name(t))} ${is(t)} his strongest suit`, `His ${name(t)} ${is(t)} where he is strongest`);
+  const strongest = (t: { a: Attribute }) =>
+    pick(
+      `His ${name(t)} ${is(t)} the best of what he has`,
+      `${cap(name(t))} ${is(t)} his strongest suit`,
+      `His ${name(t)} ${is(t)} where he is strongest`,
+    );
   const game: string[] = [];
-  if (plus.length && minus) game.push(`His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}, but his ${name(minus)} ${many([minus]) ? 'remain' : 'remains'} the main concern.`);
-  else if (plus.length) game.push(`His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}${worst ? `; his ${name(worst)} ${is(worst)} the softest part of his game` : ', and there is no glaring hole in his game'}.`);
-  else if (minus) game.push(`${best ? `${strongest(best)}, but his` : 'Nothing in his game stands out, and his'} ${name(minus)} ${is(minus)} a real concern.`);
+  if (plus.length && minus)
+    game.push(
+      `His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}, but his ${name(minus)} ${many([minus]) ? 'remain' : 'remains'} the main concern.`,
+    );
+  else if (plus.length)
+    game.push(
+      `His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}${worst ? `; his ${name(worst)} ${is(worst)} the softest part of his game` : ', and there is no glaring hole in his game'}.`,
+    );
+  else if (minus)
+    game.push(
+      `${best ? `${strongest(best)}, but his` : 'Nothing in his game stands out, and his'} ${name(minus)} ${is(minus)} a real concern.`,
+    );
   else if (best && worst) game.push(`${strongest(best)}; his ${name(worst)} ${is(worst)} where he falls shortest.`);
   else if (best) game.push(`${strongest(best)}, and nothing in his game is a liability.`);
   else if (worst) game.push(`Nothing jumps out, but his ${name(worst)} ${is(worst)} the softest part of his game.`);
@@ -982,16 +1196,52 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   if (young) {
     // Growth ends at 26: a player of 25 with a tier still to climb has one year left to climb it.
     if (ceiling < now) {
-      const could = pick(`With reps he could grow into ${TIERS[ceiling].becomes}`, `Given snaps he could become ${TIERS[ceiling].becomes}`, `There is ${TIERS[ceiling].becomes} in him if he develops`);
+      const could = pick(
+        `With reps he could grow into ${TIERS[ceiling].becomes}`,
+        `Given snaps he could become ${TIERS[ceiling].becomes}`,
+        `There is ${TIERS[ceiling].becomes} in him if he develops`,
+      );
       const soon = p.age === 25;
-      const how = minus ? `; how quickly depends on his ${name(minus)} coming along${soon ? ', and at 25 it has to come soon' : ''}` : soon ? ', though at 25 what growth is left has to come soon' : '';
+      const how = minus
+        ? `; how quickly depends on his ${name(minus)} coming along${soon ? ', and at 25 it has to come soon' : ''}`
+        : soon
+          ? ', though at 25 what growth is left has to come soon'
+          : '';
       game.push(`${could}${how}.`);
-    } else if (growing) game.push(`He should keep improving for a few years yet${minus ? `, ${name(minus)} first of all` : ''}, without it changing what he is.`);
+    } else if (growing)
+      game.push(
+        `He should keep improving for a few years yet${minus ? `, ${name(minus)} first of all` : ''}, without it changing what he is.`,
+      );
     else game.push('Most of his value is in what he does today rather than a projected leap.');
-  } else if (p.age > tech) game.push(pick(`At ${p.age}, expect him to lose a little more every year.`, `At ${p.age} the decline is under way: budget for a little less each season.`, `Every year from here takes something; at ${p.age} that is the deal.`));
-  else if (fading && p.age === tech) game.push(pick(`${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold this year; expect the rest to follow next year.`, `The athleticism is going first; ${skills} should hold this year, and from ${tech + 1} on expect a little less each season.`));
-  else if (fading) game.push(pick(`${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold up through ${sure} ${tech}.`, `The athleticism is going first; ${skills} should carry him through ${sure} ${tech}.`));
-  else if (p.age === tech) game.push(pick('This is the last year of his prime: expect the decline to start next year.', `${cap(skills)} should hold this year; from ${tech + 1} on, expect a little less each season.`));
+  } else if (p.age > tech)
+    game.push(
+      pick(
+        `At ${p.age}, expect him to lose a little more every year.`,
+        `At ${p.age} the decline is under way: budget for a little less each season.`,
+        `Every year from here takes something; at ${p.age} that is the deal.`,
+      ),
+    );
+  else if (fading && p.age === tech)
+    game.push(
+      pick(
+        `${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold this year; expect the rest to follow next year.`,
+        `The athleticism is going first; ${skills} should hold this year, and from ${tech + 1} on expect a little less each season.`,
+      ),
+    );
+  else if (fading)
+    game.push(
+      pick(
+        `${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold up through ${sure} ${tech}.`,
+        `The athleticism is going first; ${skills} should carry him through ${sure} ${tech}.`,
+      ),
+    );
+  else if (p.age === tech)
+    game.push(
+      pick(
+        'This is the last year of his prime: expect the decline to start next year.',
+        `${cap(skills)} should hold this year; from ${tech + 1} on, expect a little less each season.`,
+      ),
+    );
   // In his prime, his body clock is the Development section's business (it says when it turns); the
   // report has nothing to warn about, so the slot goes to last season, when it says something.
   if (produced && game.length < 3) game.push(produced);
@@ -1004,7 +1254,8 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   const habits = quirkNotes(league, teamId, p).notes;
   const seen = new Set(habits.map((n) => n.id));
   const changes = new Map<QuirkId, HabitChange>();
-  for (const e of habitTimeline(league, teamId, p)) if (weeksSince(league, e) < WEEKS_PER_YEAR && !changes.has(e.id)) changes.set(e.id, e);
+  for (const e of habitTimeline(league, teamId, p))
+    if (weeksSince(league, e) < WEEKS_PER_YEAR && !changes.has(e.id)) changes.set(e.id, e);
   const lately = [...changes.values()].slice(0, 2);
   const settled = habits
     .filter((n) => !n.forming && !changes.has(n.id))
@@ -1023,32 +1274,52 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   if (settled.length) notes.push(`On film he ${clauses(settled.map((n) => QUIRKS[n.id].clause))}.`);
   if (gained.length || lost.length) {
     // Hedged unless it's our own player: we only think he has left a habit behind.
-    const parts = [gained.length ? `has ${list(gained)}` : '', lost.length ? `${exact ? 'has' : 'seems to have'} ${list(lost)}` : ''].filter(Boolean);
+    const parts = [
+      gained.length ? `has ${list(gained)}` : '',
+      lost.length ? `${exact ? 'has' : 'seems to have'} ${list(lost)}` : '',
+    ].filter(Boolean);
     notes.push(`Lately he ${parts.join(', and ')}.`);
   }
-  if (notes.length < 2 && forming.length) notes.push(`Starting to show: he ${clauses(forming.map((n) => QUIRKS[n.id].clause))}.`);
+  if (notes.length < 2 && forming.length)
+    notes.push(`Starting to show: he ${clauses(forming.map((n) => QUIRKS[n.id].clause))}.`);
   // Makeup, once the staff has seen enough of him: the two notes that matter most (the pills carry the rest).
   // Versatility is a football trait: it is said with what he is (the verdict), not with his makeup.
   const makeup = characterNotes(league, teamId, p);
   const character = makeup.notes.filter((n) => !n.about).slice(0, 2);
   const versatile = makeup.notes.find((n) => n.about === 'versatility');
-  if (character.length) notes.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${character.map((n) => n.clause).join('; ')}.`);
+  if (character.length)
+    notes.push(
+      `${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${character.map((n) => n.clause).join('; ')}.`,
+    );
 
   // How far to trust the grades, when that is in question: film, visits and who's doing the reading.
   // Our own player's game is known; his ceiling is worth a word only when the scouts' range on it is wide.
   if (view.exact) {
-    if (young && view.potHi - view.potLo >= 1.5) notes.push('We know his game; how high he goes is still our scouts’ guess.');
+    if (young && view.potHi - view.potLo >= 1.5)
+      notes.push('We know his game; how high he goes is still our scouts’ guess.');
   } else if (ovrHalf <= 0.5) notes.push('Plenty of film on him: this read is reliable.');
   else if (ovrHalf <= 1.1) notes.push('Decent film on him, but these grades could be a point or two off.');
-  else notes.push(`Our read is still provisional: more film${teamId === league.userTeamId && league.scoutPoints > 0 ? ' or a scouting visit' : ''} would narrow these grades.`);
+  else
+    notes.push(
+      `Our read is still provisional: more film${teamId === league.userTeamId && league.scoutPoints > 0 ? ' or a scouting visit' : ''} would narrow these grades.`,
+    );
 
   // Agents and teammates talk: a well-known player's priorities are no secret.
   if (view.knowledge >= 0.7) {
     const { greed, loyalty, winning } = p.personality;
     const top = Math.max(greed, loyalty, winning);
-    if (top > 0.8) notes.push(top === greed ? 'His agent drives a hard bargain.' : top === loyalty ? 'Values loyalty: open to a hometown discount.' : 'Wants to play for a contender.');
+    if (top > 0.8)
+      notes.push(
+        top === greed
+          ? 'His agent drives a hard bargain.'
+          : top === loyalty
+            ? 'Values loyalty: open to a hometown discount.'
+            : 'Wants to play for a contender.',
+      );
   }
-  const said = versatile ? `${verdict.slice(0, -1)}, ${versatile.tone === 'good' ? 'who can play anywhere' : 'at his best at his own position'}.` : verdict;
+  const said = versatile
+    ? `${verdict.slice(0, -1)}, ${versatile.tone === 'good' ? 'who can play anywhere' : 'at his best at his own position'}.`
+    : verdict;
   return { verdict: said, game, notes };
 }
 
@@ -1099,7 +1370,8 @@ export function generateCombine(p: Player): Combine {
   const heavy = p.weightLb - 250;
   if (!skips[0]) c.forty = round(clamp(forty - 0.035 * ds + 0.0015 * heavy + 0.035 * noise[2], 4.2, 5.7), 0.01);
   // Quarterbacks don't bench at the combine.
-  if (!skips[1] && p.position !== 'QB') c.bench = Math.round(clamp(bench + 1.3 * dst + 0.03 * heavy + 1.8 * noise[3], 4, 45));
+  if (!skips[1] && p.position !== 'QB')
+    c.bench = Math.round(clamp(bench + 1.3 * dst + 0.03 * heavy + 1.8 * noise[3], 4, 45));
   if (!skips[2]) c.vertical = round(clamp(vertical + 0.6 * burst + 1.3 * noise[4], 22, 45), 0.5);
   if (!skips[3]) c.broad = Math.round(clamp(broad + 2 * burst + 3 * noise[5], 90, 145));
   if (!skips[4]) c.shuttle = round(clamp(shuttle - 0.025 * da + 0.05 * noise[6], 3.85, 5.1), 0.01);

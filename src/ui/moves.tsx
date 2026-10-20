@@ -20,7 +20,10 @@ export type MoveIndexes = Record<Who['kind'], MoveIndex>;
  * never stale.
  */
 export function moveIndex(league: League): MoveIndexes {
-  const build = (people: { id: number; firstName: string; lastName: string; position?: string; moves?: { from: string }[] }[], kind: Who['kind']) => {
+  const build = (
+    people: { id: number; firstName: string; lastName: string; position?: string; moves?: { from: string }[] }[],
+    kind: Who['kind'],
+  ) => {
     const index: MoveIndex = new Map();
     for (const p of people) {
       // A player who changed position is named in older lines by the one he had then.
@@ -42,8 +45,13 @@ export function moveIndex(league: League): MoveIndexes {
 }
 
 /** The indexes a transaction's names can come from: always players, plus the staff its kind is about. */
-const STAFF_OF: Partial<Record<Transaction['kind'], Who['kind']>> = { coach: 'coach', staff: 'scout', medical: 'medic' };
-export const indexesFor = (all: MoveIndexes, kind: Transaction['kind']): MoveIndex[] => (STAFF_OF[kind] ? [all.player, all[STAFF_OF[kind]!]] : [all.player]);
+const STAFF_OF: Partial<Record<Transaction['kind'], Who['kind']>> = {
+  coach: 'coach',
+  staff: 'scout',
+  medical: 'medic',
+};
+export const indexesFor = (all: MoveIndexes, kind: Transaction['kind']): MoveIndex[] =>
+  STAFF_OF[kind] ? [all.player, all[STAFF_OF[kind]!]] : [all.player];
 
 const letter = (ch: string | undefined) => !!ch && /[A-Za-z]/.test(ch);
 
@@ -83,7 +91,11 @@ function Segments({ segments }: { segments: ReturnType<typeof moveSegments> }) {
         typeof s === 'string' ? (
           s
         ) : (
-          <button key={i} className="linklike" onClick={() => (s.who.kind === 'player' ? nav.openPlayer(s.who.id) : nav.openStaff(s.who.kind, s.who.id))}>
+          <button
+            key={i}
+            className="linklike"
+            onClick={() => (s.who.kind === 'player' ? nav.openPlayer(s.who.id) : nav.openStaff(s.who.kind, s.who.id))}
+          >
             {s.text}
           </button>
         ),
@@ -120,14 +132,30 @@ export function nameIndex(league: League): MoveIndex {
 
 /** The person a `Who` points at, if he's still on file. */
 function personOf(league: League, w: Who): { firstName: string; lastName: string } | undefined {
-  return w.kind === 'player' ? league.players[w.id] : w.kind === 'coach' ? (league.coaches[w.id] ?? league.retiredCoaches[w.id]) : w.kind === 'scout' ? league.staff[w.id] : league.medics[w.id];
+  return w.kind === 'player'
+    ? league.players[w.id]
+    : w.kind === 'coach'
+      ? (league.coaches[w.id] ?? league.retiredCoaches[w.id])
+      : w.kind === 'scout'
+        ? league.staff[w.id]
+        : league.medics[w.id];
 }
 
 /**
  * Text with everyone in it a link to his card. `about` names the people it's about (a message's player, its
  * sender): their names link even when someone else shares them. Pass `index` to share one across a screen.
  */
-export function LinkedText({ league, text, about = [], index }: { league: League; text: string; about?: Who[]; index?: MoveIndex }) {
+export function LinkedText({
+  league,
+  text,
+  about = [],
+  index,
+}: {
+  league: League;
+  text: string;
+  about?: Who[];
+  index?: MoveIndex;
+}) {
   return <Segments segments={linkedSegments(league, text, about, index)} />;
 }
 

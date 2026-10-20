@@ -20,7 +20,11 @@ describe('time on the market', () => {
     expect(league.coaches[hired[0].id]).toBeDefined();
     expect(league.coaches[hired[0].id].idle).toBeUndefined();
     // Fresh candidates start their own count.
-    expect(Object.values(league.coaches).filter((c) => c.teamId === null).every((c) => c.idle === undefined)).toBe(true);
+    expect(
+      Object.values(league.coaches)
+        .filter((c) => c.teamId === null)
+        .every((c) => c.idle === undefined),
+    ).toBe(true);
   });
 
   it('does the same for scouts and medics', () => {
@@ -39,7 +43,9 @@ describe('time on the market', () => {
   it('counts a year on the market each new league year', () => {
     const l = createLeague({ seed: 'idle-count' });
     l.season++;
-    const before = Object.values(l.coaches).filter((c) => c.teamId === null).map((c) => c.id);
+    const before = Object.values(l.coaches)
+      .filter((c) => c.teamId === null)
+      .map((c) => c.id);
     developCoaches(l);
     const still = before.filter((id) => l.coaches[id]);
     expect(still.length).toBeGreaterThan(0);

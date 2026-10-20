@@ -3,8 +3,26 @@
  * role's mix (`data/heritage.ts`), then a first name and a surname from that heritage's pools
  * (`data/names.ts`). The heritage is thrown away: only the name is kept, and nothing reads it back.
  */
-import { MEDIC_MIX, COACH_MIX, MIXED_SURNAME, OFFICIAL_MIX, PLAYER_MIX, SCOUT_MIX, WOMEN_MIX, WOMEN_SHARE, type Mix } from './data/heritage';
-import { HERITAGES, MEN_FIRST, RESERVED_FULL_NAMES, SURNAMES, WOMEN_FIRST, type Heritage, type Weighted } from './data/names';
+import {
+  MEDIC_MIX,
+  COACH_MIX,
+  MIXED_SURNAME,
+  OFFICIAL_MIX,
+  PLAYER_MIX,
+  SCOUT_MIX,
+  WOMEN_MIX,
+  WOMEN_SHARE,
+  type Mix,
+} from './data/heritage';
+import {
+  HERITAGES,
+  MEN_FIRST,
+  RESERVED_FULL_NAMES,
+  SURNAMES,
+  WOMEN_FIRST,
+  type Heritage,
+  type Weighted,
+} from './data/names';
 import { Rng } from './rng';
 import type { CoachRole, MedicRole, Position, StaffRole } from './types';
 
@@ -85,7 +103,11 @@ function mixFor(who: NameFor, woman: boolean): Mix {
 }
 
 /** The whole draw, on its own stream. */
-export function identityFrom(rng: Rng, who: NameFor, avoidLast?: ReadonlySet<string>): Identity & { heritage: Heritage } {
+export function identityFrom(
+  rng: Rng,
+  who: NameFor,
+  avoidLast?: ReadonlySet<string>,
+): Identity & { heritage: Heritage } {
   const woman = (who.kind === 'scout' || who.kind === 'medic') && rng.chance(WOMEN_SHARE[who.role]);
   const m = mixFor(who, woman);
   // players were born around 2000; staff and referees a generation earlier

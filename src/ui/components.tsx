@@ -1,4 +1,13 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { gamesInWeek } from '../engine/league';
 import type { Game, League, Player, Team } from '../engine/types';
@@ -19,19 +28,26 @@ export const HOT_KICKOFF_F = 85;
 
 // Paths share one 100x100 box. The player faces straight away from the viewer.
 // Football cues: tall, wide pads that overhang the arms; the pads lift the collar, so the head sits low.
-const HEAD = 'M50 10.4 C57.5 10.4 61.9 13.9 62.3 20.5 L62.5 32.4 C62.4 35.7 61.2 38.1 58.6 39.5 L57 40.3 L43 40.3 L41.4 39.5 C38.8 38.1 37.6 35.7 37.5 32.4 L37.7 20.5 C38.1 13.9 42.5 10.4 50 10.4 Z';
-const EARS = 'M62.1 23.8 C65 23.2 66.1 26 65.6 29.3 C65.2 32.2 63.6 33.5 62.3 33.1 Z M37.9 23.8 C35 23.2 33.9 26 34.4 29.3 C34.8 32.2 36.4 33.5 37.7 33.1 Z';
+const HEAD =
+  'M50 10.4 C57.5 10.4 61.9 13.9 62.3 20.5 L62.5 32.4 C62.4 35.7 61.2 38.1 58.6 39.5 L57 40.3 L43 40.3 L41.4 39.5 C38.8 38.1 37.6 35.7 37.5 32.4 L37.7 20.5 C38.1 13.9 42.5 10.4 50 10.4 Z';
+const EARS =
+  'M62.1 23.8 C65 23.2 66.1 26 65.6 29.3 C65.2 32.2 63.6 33.5 62.3 33.1 Z M37.9 23.8 C35 23.2 33.9 26 34.4 29.3 C34.8 32.2 36.4 33.5 37.7 33.1 Z';
 const NECK = 'M41.6 34 C41.8 39.6 41 43.8 38 47.8 L62 47.8 C59 43.8 58.2 39.6 58.4 34 Z';
 // thick neck, as wide as the jaw; soft shade under the skull and down each side
-const NECK_SIDES = 'M41.8 37 C42 40.6 41.4 44 38.8 47.6 L41.4 47.6 C42.8 44 43 40.6 42.8 37 Z M58.2 37 C58 40.6 58.6 44 61.2 47.6 L58.6 47.6 C57.2 44 57 40.6 57.2 37 Z';
+const NECK_SIDES =
+  'M41.8 37 C42 40.6 41.4 44 38.8 47.6 L41.4 47.6 C42.8 44 43 40.6 42.8 37 Z M58.2 37 C58 40.6 58.6 44 61.2 47.6 L58.6 47.6 C57.2 44 57 40.6 57.2 37 Z';
 const NECK_SHADE = 'M42 39.2 C46.6 42 53.4 42 58 39.2 L57.9 41.6 C53.4 43.8 46.6 43.8 42.1 41.6 Z';
 // arms tuck under the pads and angle slightly away from the torso, so a sliver of background shows at the waist
-const ARM_L = 'M10.6 61.6 C8.2 68.4 8.6 76 11.6 83 C13.6 88 15.6 94 16.4 100 L22.6 100 C22 94 21.6 88 21.6 82 C21.8 76 23.4 70 25.4 65.6 Z';
-const ARM_R = 'M89.4 61.6 C91.8 68.4 91.4 76 88.4 83 C86.4 88 84.4 94 83.6 100 L77.4 100 C78 94 78.4 88 78.4 82 C78.2 76 76.6 70 74.6 65.6 Z';
+const ARM_L =
+  'M10.6 61.6 C8.2 68.4 8.6 76 11.6 83 C13.6 88 15.6 94 16.4 100 L22.6 100 C22 94 21.6 88 21.6 82 C21.8 76 23.4 70 25.4 65.6 Z';
+const ARM_R =
+  'M89.4 61.6 C91.8 68.4 91.4 76 88.4 83 C86.4 88 84.4 94 83.6 100 L77.4 100 C78 94 78.4 88 78.4 82 C78.2 76 76.6 70 74.6 65.6 Z';
 // the arm sits in shade under each pad's overhang
-const SLEEVE_SHADOW = 'M93.4 57.8 C90 59.8 84 60.6 78 60.2 L77.2 64.8 C83.6 65.2 89.6 63.8 92.4 61.4 Z M6.6 57.8 C10 59.8 16 60.6 22 60.2 L22.8 64.8 C16.4 65.2 10.4 63.8 7.6 61.4 Z';
+const SLEEVE_SHADOW =
+  'M93.4 57.8 C90 59.8 84 60.6 78 60.2 L77.2 64.8 C83.6 65.2 89.6 63.8 92.4 61.4 Z M6.6 57.8 C10 59.8 16 60.6 22 60.2 L22.8 64.8 C16.4 65.2 10.4 63.8 7.6 61.4 Z';
 // pads: a tall shelf whose outer edges stick out past the arms
-const JERSEY = 'M40.6 44.6 C44 47.8 56 47.8 59.4 44.6 C62.4 44.4 65.6 42.4 70 42 L82 42.2 C90 42.6 93.6 46.6 93.8 51.4 L93.8 57.8 C90 59.8 84 60.6 78 60.2 C77.4 64 77 66 76.6 68 C75.6 78 74.8 88 74 100 L26 100 C25.2 88 24.4 78 23.4 68 C23 66 22.6 64 22 60.2 C16 60.6 10 59.8 6.2 57.8 L6.2 51.4 C6.4 46.6 10 42.6 18 42.2 L30 42 C34.4 42.4 37.6 44.4 40.6 44.6 Z';
+const JERSEY =
+  'M40.6 44.6 C44 47.8 56 47.8 59.4 44.6 C62.4 44.4 65.6 42.4 70 42 L82 42.2 C90 42.6 93.6 46.6 93.8 51.4 L93.8 57.8 C90 59.8 84 60.6 78 60.2 C77.4 64 77 66 76.6 68 C75.6 78 74.8 88 74 100 L26 100 C25.2 88 24.4 78 23.4 68 C23 66 22.6 64 22 60.2 C16 60.6 10 59.8 6.2 57.8 L6.2 51.4 C6.4 46.6 10 42.6 18 42.2 L30 42 C34.4 42.4 37.6 44.4 40.6 44.6 Z';
 const COLLAR = 'M40.6 44.6 C44 47.8 56 47.8 59.4 44.6';
 const PAD_GLOSS = 'M69.4 43.4 C75 42.4 83.4 42.6 89 44.6 M30.6 43.4 C25 42.4 16.6 42.6 11 44.6';
 // two bands on each pad's outer face, the classic NFL sleeve stripe
@@ -39,7 +55,8 @@ const BANDS_UPPER = 'M79.8 53.4 C85.2 54.4 90.6 53.8 93.4 52 M20.2 53.4 C14.8 54
 const BANDS_LOWER = 'M79.6 56.6 C85 57.6 90.4 57 93.4 55.2 M20.4 56.6 C15 57.6 9.6 57 6.6 55.2';
 // the jersey hangs off the bottom edge of the shoulder pads' back plate
 const PAD_SHELF = 'M20 60.4 C34 64.6 66 64.6 80 60.4 L80 63.6 C66 67.8 34 67.8 20 63.6 Z';
-const FOLDS = 'M76.6 68 C74.6 78 73.6 88 74 100 L68 100 C69 88 71 78 76.6 68 Z M23.4 68 C25.4 78 26.4 88 26 100 L32 100 C31 88 29 78 23.4 68 Z';
+const FOLDS =
+  'M76.6 68 C74.6 78 73.6 88 74 100 L68 100 C69 88 71 78 76.6 68 Z M23.4 68 C25.4 78 26.4 88 26 100 L32 100 C31 88 29 78 23.4 68 Z';
 
 /**
  * Whether a team takes the field in white. The league's rule: the home team picks, the visitors wear the
@@ -50,7 +67,9 @@ const FOLDS = 'M76.6 68 C74.6 78 73.6 88 74 100 L68 100 C69 88 71 78 76.6 68 Z M
  */
 export function wearsWhite(league: League | null, teamId: number, game?: Game): boolean {
   const inSeason = league?.phase === 'regular' || league?.phase === 'playoffs';
-  const g = game ?? (league && inSeason ? gamesInWeek(league).find((x) => x.homeId === teamId || x.awayId === teamId) : undefined);
+  const g =
+    game ??
+    (league && inSeason ? gamesInWeek(league).find((x) => x.homeId === teamId || x.awayId === teamId) : undefined);
   if (!league || !g || (g.homeId !== teamId && g.awayId !== teamId)) return false;
   const w = gameWeather(league, g);
   const homeInWhite = (w.roof === 'outdoors' || w.roof === 'open') && w.tempF >= HOT_KICKOFF_F;
@@ -62,7 +81,17 @@ export function wearsWhite(league: League | null, teamId: number, game?: Game): 
  * from behind in his team's jersey: just the figure in lists, the number from 32px, the surname from 96px.
  * Decorative: the name is always shown beside it. Pass `game` to dress him for that game instead of this week's.
  */
-export function PlayerAvatar({ player, team, size = 32, game }: { player: Player; team: Team | null; size?: number; game?: Game }) {
+export function PlayerAvatar({
+  player,
+  team,
+  size = 32,
+  game,
+}: {
+  player: Player;
+  team: Team | null;
+  size?: number;
+  game?: Game;
+}) {
   const id = useId();
   if (player.portrait) {
     return <img className="avatar" src={player.portrait} alt="" width={size} height={size} loading="lazy" />;
@@ -75,7 +104,14 @@ export function PlayerAvatar({ player, team, size = 32, game }: { player: Player
   // long names shrink, and textLength holds the estimate even if the font hasn't loaded and a wider one stands in
   const plateSize = Math.min(9.5, NAMEPLATE_MAX / (plate.length * PLATE_EM));
   return (
-    <svg className="avatar" width={size} height={size} viewBox="0 0 100 100" fontFamily="var(--font-display)" aria-hidden="true">
+    <svg
+      className="avatar"
+      width={size}
+      height={size}
+      viewBox="0 0 100 100"
+      fontFamily="var(--font-display)"
+      aria-hidden="true"
+    >
       <defs>
         <clipPath id={`${id}c`}>
           <circle cx="50" cy="50" r="45" />
@@ -107,7 +143,14 @@ export function PlayerAvatar({ player, team, size = 32, game }: { player: Player
         <path d={EARS} fill={url('sk')} />
         <path d={HEAD} fill={url('sk')} />
         {/* a soft outline keeps a white jersey off a pale backdrop */}
-        <path d={JERSEY} fill={url('j')} stroke="#0F172A" strokeOpacity={0.35} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        <path
+          d={JERSEY}
+          fill={url('j')}
+          stroke="#0F172A"
+          strokeOpacity={0.35}
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+        />
         {/* the head's shadow below the collar, the pad shelf, the folds where the body turns away, gloss on the pads */}
         <ellipse cx="50" cy="48.6" rx="11" ry="2.4" fill="#000" fillOpacity={0.16} />
         <path d={PAD_SHELF} fill="#000" fillOpacity={0.1} />
@@ -120,15 +163,37 @@ export function PlayerAvatar({ player, team, size = 32, game }: { player: Player
             <path d={BANDS_UPPER} stroke={ink} strokeWidth={2} fill="none" />
             <path d={BANDS_LOWER} stroke={accent} strokeWidth={2} fill="none" />
             {/* 15% wider around x = 50: the condensed display face is narrower than block jersey numerals */}
-            <text x="50" y="78" transform="translate(-7.5 0) scale(1.15 1)" textAnchor="middle" dominantBaseline="central" fontSize={32} fontWeight={900}
-              fill={ink} stroke={trim} strokeWidth={1.4} paintOrder="stroke" strokeLinejoin="round">
+            <text
+              x="50"
+              y="78"
+              transform="translate(-7.5 0) scale(1.15 1)"
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={32}
+              fontWeight={900}
+              fill={ink}
+              stroke={trim}
+              strokeWidth={1.4}
+              paintOrder="stroke"
+              strokeLinejoin="round"
+            >
               {player.jersey}
             </text>
           </>
         )}
         {size >= NAMEPLATE_MIN_PX && (
-          <text x="50" y="56.2" textAnchor="middle" dominantBaseline="central" fontSize={plateSize} fontWeight={800} letterSpacing={0.3} fill={ink}
-            textLength={plate.length * PLATE_EM * plateSize} lengthAdjust="spacingAndGlyphs">
+          <text
+            x="50"
+            y="56.2"
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize={plateSize}
+            fontWeight={800}
+            letterSpacing={0.3}
+            fill={ink}
+            textLength={plate.length * PLATE_EM * plateSize}
+            lengthAdjust="spacingAndGlyphs"
+          >
             {plate}
           </text>
         )}
@@ -148,7 +213,17 @@ export function TeamChip({ team, large }: { team: Team; large?: boolean }) {
   );
 }
 
-export function TeamLabel({ team, full, onClick, sub }: { team: Team; full?: boolean; onClick?: () => void; sub?: ReactNode }) {
+export function TeamLabel({
+  team,
+  full,
+  onClick,
+  sub,
+}: {
+  team: Team;
+  full?: boolean;
+  onClick?: () => void;
+  sub?: ReactNode;
+}) {
   const name = full ? `${team.city} ${team.name}` : team.name;
   return (
     <span className="team-inline">
@@ -161,7 +236,11 @@ export function TeamLabel({ team, full, onClick, sub }: { team: Team; full?: boo
         ) : (
           name
         )}
-        {sub && <small className="muted" style={{ display: 'block', lineHeight: 1.2 }}>{sub}</small>}
+        {sub && (
+          <small className="muted" style={{ display: 'block', lineHeight: 1.2 }}>
+            {sub}
+          </small>
+        )}
       </span>
     </span>
   );
@@ -187,10 +266,26 @@ export function Rating({ value, decimals = 0 }: { value: number; decimals?: numb
  * A 120-yard field strip, offense driving left to right. `yardLine` is yards
  * from the offense's own goal line; `toGain` is the absolute line to gain.
  */
-export function FieldStrip({ yardLine, toGain, small, offense, defense }: { yardLine: number; toGain?: number; small?: boolean; offense?: Team; defense?: Team }) {
+export function FieldStrip({
+  yardLine,
+  toGain,
+  small,
+  offense,
+  defense,
+}: {
+  yardLine: number;
+  toGain?: number;
+  small?: boolean;
+  offense?: Team;
+  defense?: Team;
+}) {
   const x = (yards: number) => `${8.333 + (Math.max(0, Math.min(100, yards)) / 100) * 83.333}%`;
   return (
-    <div className={`field${small ? ' field-sm' : ''}`} role="img" aria-label={`Ball on the ${yardLine < 50 ? 'own' : 'opponent'} ${yardLine <= 50 ? yardLine : 100 - yardLine}`}>
+    <div
+      className={`field${small ? ' field-sm' : ''}`}
+      role="img"
+      aria-label={`Ball on the ${yardLine < 50 ? 'own' : 'opponent'} ${yardLine <= 50 ? yardLine : 100 - yardLine}`}
+    >
       <span className="endzone left" style={{ background: offense?.colors[0] ?? 'rgba(0,0,0,.25)' }}>
         {offense?.abbrev}
       </span>
@@ -204,7 +299,17 @@ export function FieldStrip({ yardLine, toGain, small, offense, defense }: { yard
   );
 }
 
-export function Panel({ title, action, children, className }: { title?: ReactNode; action?: ReactNode; children: ReactNode; className?: string }) {
+export function Panel({
+  title,
+  action,
+  children,
+  className,
+}: {
+  title?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <section className={`panel${className ? ` ${className}` : ''}`}>
       {(title || action) && (
@@ -237,7 +342,17 @@ export function useBackdropClose(onClose: () => void) {
  * A small modal: focus moves in, Tab stays inside, Escape closes, focus returns to the opener.
  * Key events stop here so a dialog opened over the player card doesn't close the card too.
  */
-export function Dialog({ title, onClose, children, footer }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
+export function Dialog({
+  title,
+  onClose,
+  children,
+  footer,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const backdrop = useBackdropClose(onClose);
   // Escape closes the top-most dialog even if focus has wandered; capture runs before the player card's handler.
@@ -255,13 +370,19 @@ export function Dialog({ title, onClose, children, footer }: { title: string; on
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     const root = ref.current;
-    (root?.querySelector<HTMLElement>('[data-autofocus]') ?? root?.querySelector<HTMLElement>('.dialog-body input, .dialog-body select, .dialog-body button') ?? root?.querySelector<HTMLElement>('button'))?.focus();
+    (
+      root?.querySelector<HTMLElement>('[data-autofocus]') ??
+      root?.querySelector<HTMLElement>('.dialog-body input, .dialog-body select, .dialog-body button') ??
+      root?.querySelector<HTMLElement>('button')
+    )?.focus();
     return () => opener?.focus?.();
   }, []);
   const onKey = (e: ReactKeyboardEvent) => {
     e.stopPropagation();
     if (e.key !== 'Tab' || !ref.current) return;
-    const focusable = ref.current.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input, select, [tabindex]:not([tabindex="-1"])');
+    const focusable = ref.current.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), [href], input, select, [tabindex]:not([tabindex="-1"])',
+    );
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
     if (e.shiftKey && document.activeElement === first) {
@@ -292,7 +413,21 @@ export function Dialog({ title, onClose, children, footer }: { title: string; on
  * A full card over the page (a player, a coach): a head in team colours, then the body. Focus moves in,
  * Tab stays inside, Escape or the backdrop closes it, and focus returns to the opener.
  */
-export function Sheet({ label, team, head, actions, onClose, children }: { label: string; team: Team | null; head: ReactNode; actions?: ReactNode; onClose: () => void; children: ReactNode }) {
+export function Sheet({
+  label,
+  team,
+  head,
+  actions,
+  onClose,
+  children,
+}: {
+  label: string;
+  team: Team | null;
+  head: ReactNode;
+  actions?: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+}) {
   const backdrop = useBackdropClose(onClose);
   const sheetRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -307,7 +442,9 @@ export function Sheet({ label, team, head, actions, onClose, children }: { label
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') return onClose();
       if (e.key !== 'Tab' || !sheetRef.current) return;
-      const focusable = sheetRef.current.querySelectorAll<HTMLElement>('button, [href], input, select, summary, [tabindex]:not([tabindex="-1"])');
+      const focusable = sheetRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, summary, [tabindex]:not([tabindex="-1"])',
+      );
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (!first) return;
@@ -325,8 +462,18 @@ export function Sheet({ label, team, head, actions, onClose, children }: { label
 
   return (
     <div className="overlay" {...backdrop}>
-      <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.stopPropagation()}>
-        <div className={`sheet-head${actions ? ' has-edit' : ''}`} style={{ background: team?.colors[0] ?? '#333', boxShadow: `inset 0 -6px 0 ${team?.colors[1] ?? '#666'}` }}>
+      <div
+        ref={sheetRef}
+        className="sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className={`sheet-head${actions ? ' has-edit' : ''}`}
+          style={{ background: team?.colors[0] ?? '#333', boxShadow: `inset 0 -6px 0 ${team?.colors[1] ?? '#666'}` }}
+        >
           {head}
           {actions}
           <button ref={closeRef} className="close-x" onClick={onClose} aria-label="Close">
@@ -344,7 +491,15 @@ export function Sheet({ label, team, head, actions, onClose, children }: { label
  * touch). The note floats over the page from <body>, so a table's scroll box can't clip it; scrolling, a tap
  * elsewhere or Escape puts it away.
  */
-export function TipPill({ className = '', tip, children }: { className?: string; tip: ReactNode; children: ReactNode }) {
+export function TipPill({
+  className = '',
+  tip,
+  children,
+}: {
+  className?: string;
+  tip: ReactNode;
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLButtonElement>(null);
   const [at, setAt] = useState<{ left: number; top: number } | null>(null);
   const id = useId();
@@ -408,7 +563,17 @@ export function Exact({ numbers, children }: { numbers: ReactNode; children: Rea
 }
 
 /** Pick a club, yours marked: the same list wherever a screen can show another team. */
-export function TeamPicker({ league, value, onChange, id }: { league: League; value: number; onChange: (teamId: number) => void; id?: string }) {
+export function TeamPicker({
+  league,
+  value,
+  onChange,
+  id,
+}: {
+  league: League;
+  value: number;
+  onChange: (teamId: number) => void;
+  id?: string;
+}) {
   return (
     <select aria-label="Choose team" id={id} value={value} onChange={(e) => onChange(Number(e.target.value))}>
       {[...league.teams]
@@ -427,7 +592,15 @@ export function TeamPicker({ league, value, onChange, id }: { league: League; va
  * Every club's department by grade. Tap a team to open its staff underneath (`staffOf` says who, and how
  * good), so the league isn't just a rank: you can see who's behind it.
  */
-export function GradesTable({ league, grades, staffOf }: { league: League; grades: Map<number, { rank: number; grade: string }>; staffOf: (teamId: number) => ReactNode }) {
+export function GradesTable({
+  league,
+  grades,
+  staffOf,
+}: {
+  league: League;
+  grades: Map<number, { rank: number; grade: string }>;
+  staffOf: (teamId: number) => ReactNode;
+}) {
   const [open, setOpen] = useState<number | null>(null);
   return (
     <div className="table-scroll">
@@ -448,7 +621,11 @@ export function GradesTable({ league, grades, staffOf }: { league: League; grade
                 <tr key={id} className={id === league.userTeamId ? 'me' : undefined}>
                   <td className="num">{g.rank}</td>
                   <td>
-                    <button className="linklike team-inline" aria-expanded={open === id} onClick={() => setOpen(open === id ? null : id)}>
+                    <button
+                      className="linklike team-inline"
+                      aria-expanded={open === id}
+                      onClick={() => setOpen(open === id ? null : id)}
+                    >
                       <TeamChip team={t} />
                       <span>
                         {t.city} {t.name}
@@ -493,7 +670,19 @@ function savedSections(): Record<string, boolean> {
  * A card section that folds away under its heading. Folding one remembers it (per device) for every card,
  * so a section you never read stays out of the way on the next player too.
  */
-export function Section({ id, title, defaultOpen = true, className = '', children }: { id: string; title: ReactNode; defaultOpen?: boolean; className?: string; children: ReactNode }) {
+export function Section({
+  id,
+  title,
+  defaultOpen = true,
+  className = '',
+  children,
+}: {
+  id: string;
+  title: ReactNode;
+  defaultOpen?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
   const [open, setOpen] = useState(() => savedSections()[id] ?? defaultOpen);
   return (
     <details
@@ -534,7 +723,11 @@ export function useSort<K extends string>(initial: SortState<K>) {
 }
 
 /** Sorts a copy of `rows` by the value each one gives for the active column (ties keep their order). */
-export function sortRows<T, K extends string>(rows: T[], sort: SortState<K>, value: (row: T, key: K) => number | string): T[] {
+export function sortRows<T, K extends string>(
+  rows: T[],
+  sort: SortState<K>,
+  value: (row: T, key: K) => number | string,
+): T[] {
   const dir = sort.desc ? -1 : 1;
   return rows
     .map((row, i) => ({ row, i, v: value(row, sort.key) }))

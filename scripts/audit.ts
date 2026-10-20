@@ -58,7 +58,11 @@ const METRICS: Metric[] = [
   { label: 'int%', take: (r, s) => [ps(r, s, 'passInt') * 100, team(r, s).passAtt], digits: 2 },
   { label: 'yds/carry', take: (r, s) => [team(r, s).rushYds, team(r, s).rushAtt], digits: 2 },
   { label: 'yac/rec', take: (r, s) => [team(r, s).passYds, team(r, s).passCmp], digits: 2 },
-  { label: 'fumbles%', take: (r, s) => [ps(r, s, 'fumbles') * 100, team(r, s).rushAtt + team(r, s).passCmp], digits: 2 },
+  {
+    label: 'fumbles%',
+    take: (r, s) => [ps(r, s, 'fumbles') * 100, team(r, s).rushAtt + team(r, s).passCmp],
+    digits: 2,
+  },
   { label: 'WR yds/tgt', take: (r, s) => [ps(r, s, 'recYds', 'WR'), ps(r, s, 'targets', 'WR')], digits: 2 },
   { label: 'TE yds/tgt', take: (r, s) => [ps(r, s, 'recYds', 'TE'), ps(r, s, 'targets', 'TE')], digits: 2 },
   { label: 'RB yds/tgt', take: (r, s) => [ps(r, s, 'recYds', 'RB'), ps(r, s, 'targets', 'RB')], digits: 2 },
@@ -102,7 +106,8 @@ function ratio(rows: [number, number][]): [number, number] {
 
 function bumped(pos: Position, attr: Attribute): League {
   const league = createLeague({ seed: 'audit' });
-  for (const p of Object.values(league.players)) if (p.position === pos) p.ratings[attr] = Math.min(20, p.ratings[attr] + BUMP);
+  for (const p of Object.values(league.players))
+    if (p.position === pos) p.ratings[attr] = Math.min(20, p.ratings[attr] + BUMP);
   return league;
 }
 
@@ -124,7 +129,9 @@ function compare(test: Sample, against: Sample) {
 
 const merge = (a: Sample, b: Sample): Sample => ({ rows: a.rows.map((r, i) => [...r, ...b.rows[i]]) });
 
-console.log(`\nAttribute audit: +${BUMP} to every player at the position, ${seasons} season(s) per pair (${seasons * 3} for close calls, ${seasons * 9} before a flag)\n`);
+console.log(
+  `\nAttribute audit: +${BUMP} to every player at the position, ${seasons} season(s) per pair (${seasons * 3} for close calls, ${seasons * 9} before a flag)\n`,
+);
 console.log('pos  attribute        weight  verdict      biggest moves (Δ, z)');
 
 const flagged: string[] = [];
@@ -155,13 +162,16 @@ for (const pos of POSITIONS) {
     const top = Math.abs(moves[0].z);
     const verdict = top >= 3 ? 'moves play' : top >= 2 ? 'weak' : 'NO EFFECT';
     // Cosmetic: the overall counts it but play doesn't. Underpowered: it counts a lot but barely moves play.
-    if (w > 0 && (verdict === 'NO EFFECT' || (verdict === 'weak' && w >= 1.5))) flagged.push(`${pos} ${attr} (${verdict.toLowerCase()})`);
+    if (w > 0 && (verdict === 'NO EFFECT' || (verdict === 'weak' && w >= 1.5)))
+      flagged.push(`${pos} ${attr} (${verdict.toLowerCase()})`);
     const detail = moves
       .filter((x) => Math.abs(x.z) >= 2)
       .slice(0, 3)
       .map((x) => `${x.m.label} ${x.delta >= 0 ? '+' : ''}${x.delta.toFixed(x.m.digits)} (z ${x.z.toFixed(1)})`)
       .join(', ');
-    console.log(`${pos.padEnd(4)} ${attr.padEnd(16)} ${w ? w.toFixed(2).padStart(6) : '     –'}  ${verdict.padEnd(11)}  ${detail}`);
+    console.log(
+      `${pos.padEnd(4)} ${attr.padEnd(16)} ${w ? w.toFixed(2).padStart(6) : '     –'}  ${verdict.padEnd(11)}  ${detail}`,
+    );
     results.push({ pos, attr, weight: w, verdict, detail });
   }
 }
@@ -213,7 +223,9 @@ if (!only && !all) {
     '',
     '| Pos | Attribute | Overall weight | Verdict | Biggest moves |',
     '|---|---|---|---|---|',
-    ...results.map((r) => `| ${r.pos} | ${ATTRIBUTE_INFO[r.attr].label} | ${r.weight || '–'} | ${r.verdict} | ${r.detail || '–'} |`),
+    ...results.map(
+      (r) => `| ${r.pos} | ${ATTRIBUTE_INFO[r.attr].label} | ${r.weight || '–'} | ${r.verdict} | ${r.detail || '–'} |`,
+    ),
     '',
   ];
   writeFileSync(new URL('../docs/ATTRIBUTES.md', import.meta.url), lines.join('\n'));

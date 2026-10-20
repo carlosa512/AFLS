@@ -1,14 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
 import { honorBadges, playerHonors } from '../../engine/awards';
 import { POSITION_NAMES } from '../../engine/positions';
-import { careerOutlook, FIXED_HEADING, fixedHabits, habitChangeDetail, habitChangeText, habitTimeline, isProspect, scoutReportParts, type PlayerView } from '../../engine/scouting';
+import {
+  careerOutlook,
+  FIXED_HEADING,
+  fixedHabits,
+  habitChangeDetail,
+  habitChangeText,
+  habitTimeline,
+  isProspect,
+  scoutReportParts,
+  type PlayerView,
+} from '../../engine/scouting';
 import { formNote } from '../../engine/quirks';
 import { pron } from '../../engine/pronouns';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
 import { editPlayerIdentity, identityProblem, slotOf } from '../../engine/roster';
 import { careerLine, passerRating } from '../../engine/stats';
 import { consensusRank } from '../../engine/offseason/draft';
-import { activeLearning, campsToReady, conversionRead, familiarity, formerPositions, holdReason, isReady, startMove, stopMove } from '../../engine/training';
+import {
+  activeLearning,
+  campsToReady,
+  conversionRead,
+  familiarity,
+  formerPositions,
+  holdReason,
+  isReady,
+  startMove,
+  stopMove,
+} from '../../engine/training';
 import { targetsFor } from '../../engine/familiarity';
 import { tradeContext } from '../../engine/trade/context';
 import type { League, Player, Position, StatLine } from '../../engine/types';
@@ -21,11 +41,54 @@ import { store } from '../store';
 import { TradeActions } from '../offers';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
-import { familiarityTone, hasPositionWork, knockAt, learnLine, leftText, lineupText, moveLine, payText, placeBack, planReason, readyText, reasonText, roleText, startNote, verdictText, verdictTone } from '../training';
+import {
+  familiarityTone,
+  hasPositionWork,
+  knockAt,
+  learnLine,
+  leftText,
+  lineupText,
+  moveLine,
+  payText,
+  placeBack,
+  planReason,
+  readyText,
+  reasonText,
+  roleText,
+  startNote,
+  verdictText,
+  verdictTone,
+} from '../training';
 import { HealthSection } from '../injuries';
-import { chairHolder, coachName, coachOfPlayer, coachTitle, ROOM_OF, teamCoaches, teamScheme } from '../../engine/coaching';
+import {
+  chairHolder,
+  coachName,
+  coachOfPlayer,
+  coachTitle,
+  ROOM_OF,
+  teamCoaches,
+  teamScheme,
+} from '../../engine/coaching';
 import { spotsFor } from '../../engine/schemes';
-import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, QuirkPills, quirksOf, repsOf, ScoutButton, StarScaleToggle, Stars, schemeFitOf, starsOf, useStarScale, viewOf } from '../scouting';
+import {
+  AttributeList,
+  CombinePanel,
+  DevelopmentChart,
+  KnowledgeMeter,
+  MakeupPills,
+  makeupOf,
+  potentialText,
+  QuirkPills,
+  quirksOf,
+  repsOf,
+  ScoutButton,
+  StarScaleToggle,
+  Stars,
+  schemeFitOf,
+  starsOf,
+  useStarScale,
+  viewOf,
+} from '../scouting';
 
 type Col = [label: string, value: (s: StatLine) => string | number];
 
@@ -58,7 +121,8 @@ const SNAP_POSITIONS: ReadonlySet<Position> = new Set(['OL', 'DT', 'EDGE', 'LB',
 
 function statColumns(p: Player): Col[] {
   const cols = statColumnsAt(p.position);
-  for (const pos of formerPositions(p)) for (const col of statColumnsAt(pos)) if (!cols.some(([label]) => label === col[0])) cols.push(col);
+  for (const pos of formerPositions(p))
+    for (const col of statColumnsAt(pos)) if (!cols.some(([label]) => label === col[0])) cols.push(col);
   // Snaps first where they are the number people quote: the trenches (who held the job, the rotation's share)
   // and the back seven (sub-package usage). A back's carries and a receiver's targets say it already, and a
   // quarterback's snaps are all of them. A dash before the count was kept.
@@ -147,7 +211,8 @@ function statColumnsAt(position: Position): Col[] {
 }
 
 /** "every one of", "most of", "about half of", "a few of": playing time in words. */
-const shareWords = (share: number) => (share >= 0.99 ? 'every one of' : share >= 0.75 ? 'most of' : share >= 0.4 ? 'about half of' : 'a few of');
+const shareWords = (share: number) =>
+  share >= 0.99 ? 'every one of' : share >= 0.75 ? 'most of' : share >= 0.4 ? 'about half of' : 'a few of';
 
 /** Who in your scouting department sized up this player: the name behind the range, a link to his card. */
 function ReadBy({ league, view, p }: { league: League; view: PlayerView; p: Player }) {
@@ -161,7 +226,9 @@ function ReadBy({ league, view, p }: { league: League; view: PlayerView; p: Play
           {staffName(s)}
         </button>
         , {ROLE_LABEL[s.role].toLowerCase()}
-        {s.focus ? ` (${FOCUS_LABEL[s.focus]}${s.focus === FOCUS_OF[p.position] ? '' : `, off ${pron(s).his} specialty`})` : ''}
+        {s.focus
+          ? ` (${FOCUS_LABEL[s.focus]}${s.focus === FOCUS_OF[p.position] ? '' : `, off ${pron(s).his} specialty`})`
+          : ''}
       </>
     ) : null;
   };
@@ -198,7 +265,13 @@ function IdentityEditor({ league, player: p, onDone }: { league: League; player:
     >
       <label>
         <span className="eyebrow">First name</span>
-        <input ref={firstRef} className="text-input" value={firstName} maxLength={24} onChange={(e) => setFirst(e.target.value)} />
+        <input
+          ref={firstRef}
+          className="text-input"
+          value={firstName}
+          maxLength={24}
+          onChange={(e) => setFirst(e.target.value)}
+        />
       </label>
       <label>
         <span className="eyebrow">Last name</span>
@@ -206,7 +279,13 @@ function IdentityEditor({ league, player: p, onDone }: { league: League; player:
       </label>
       <label>
         <span className="eyebrow">Number</span>
-        <input className="text-input jersey-input" inputMode="numeric" value={jersey} maxLength={2} onChange={(e) => setJersey(e.target.value.replace(/\D/g, ''))} />
+        <input
+          className="text-input jersey-input"
+          inputMode="numeric"
+          value={jersey}
+          maxLength={2}
+          onChange={(e) => setJersey(e.target.value.replace(/\D/g, ''))}
+        />
       </label>
       <div className="row" style={{ gap: 8, alignSelf: 'end' }}>
         <button type="button" className="btn btn-sm btn-ghost" onClick={onDone}>
@@ -216,7 +295,11 @@ function IdentityEditor({ league, player: p, onDone }: { league: League; player:
           Save
         </button>
       </div>
-      {problem && <p className="small muted" style={{ margin: 0, gridColumn: '1 / -1' }}>{problem}</p>}
+      {problem && (
+        <p className="small muted" style={{ margin: 0, gridColumn: '1 / -1' }}>
+          {problem}
+        </p>
+      )}
     </form>
   );
 }
@@ -227,8 +310,23 @@ function seasonTeams(p: Player, season: number): number[] {
 }
 
 /** One stats row; the team shows as its abbreviation, "2 teams" for a split season, or a dash when unknown. */
-function StatRow({ league, label, teamIds, line, cols, total }: { league: League; label: string; teamIds: number[]; line: StatLine; cols: Col[]; total?: boolean }) {
-  const teamText = teamIds.length === 0 ? '–' : teamIds.length === 1 ? league.teams[teamIds[0]].abbrev : `${teamIds.length} teams`;
+function StatRow({
+  league,
+  label,
+  teamIds,
+  line,
+  cols,
+  total,
+}: {
+  league: League;
+  label: string;
+  teamIds: number[];
+  line: StatLine;
+  cols: Col[];
+  total?: boolean;
+}) {
+  const teamText =
+    teamIds.length === 0 ? '–' : teamIds.length === 1 ? league.teams[teamIds[0]].abbrev : `${teamIds.length} teams`;
   const one = teamIds.length === 1 ? league.teams[teamIds[0]] : null;
   return (
     <tr className={total ? 'stat-total' : undefined}>
@@ -279,15 +377,36 @@ export function StatsTable({ league, player: p }: { league: League; player: Play
           {seasons.flatMap((season) => {
             const teamIds = seasonTeams(p, season);
             const split = p.splitStats?.[season];
-            const row = <StatRow key={season} league={league} label={String(season)} teamIds={teamIds} line={p.stats[season]} cols={cols} total={!!split} />;
+            const row = (
+              <StatRow
+                key={season}
+                league={league}
+                label={String(season)}
+                teamIds={teamIds}
+                line={p.stats[season]}
+                cols={cols}
+                total={!!split}
+              />
+            );
             if (!split) return [row];
             // A season split by a trade: each team's share under the season total.
             return [
               row,
-              ...teamIds.map((id) => <StatRow key={`${season}-${id}`} league={league} label="" teamIds={[id]} line={split[id] ?? {}} cols={cols} />),
+              ...teamIds.map((id) => (
+                <StatRow
+                  key={`${season}-${id}`}
+                  league={league}
+                  label=""
+                  teamIds={[id]}
+                  line={split[id] ?? {}}
+                  cols={cols}
+                />
+              )),
             ];
           })}
-          {seasons.length > 1 && <StatRow league={league} label="Career" teamIds={careerTeams} line={careerLine(p)} cols={cols} total />}
+          {seasons.length > 1 && (
+            <StatRow league={league} label="Career" teamIds={careerTeams} line={careerLine(p)} cols={cols} total />
+          )}
         </tbody>
       </table>
     </div>
@@ -295,7 +414,8 @@ export function StatsTable({ league, player: p }: { league: League; player: Play
 }
 
 /** Words for how a player's own hidden Versatility reads to you (his makeup note), or null. */
-const versatilityNote = (league: League, p: Player) => makeupOf(league, p).notes.find((n) => n.label === 'Plays anywhere' || n.label === 'One-position player') ?? null;
+const versatilityNote = (league: League, p: Player) =>
+  makeupOf(league, p).notes.find((n) => n.label === 'Plays anywhere' || n.label === 'One-position player') ?? null;
 
 /**
  * Position work for one of your players: the plan he is on, what the coaches would teach him and whether it
@@ -328,7 +448,11 @@ function PositionSection({ league, player: p }: { league: League; player: Player
       title={
         <>
           Position
-          {learning ? <span className="muted"> · learning {learning.to}</span> : away ? <span className="muted"> · lined up at {slot}</span> : null}
+          {learning ? (
+            <span className="muted"> · learning {learning.to}</span>
+          ) : away ? (
+            <span className="muted"> · lined up at {slot}</span>
+          ) : null}
         </>
       }
       defaultOpen={false}
@@ -337,7 +461,10 @@ function PositionSection({ league, player: p }: { league: League; player: Player
         <div className="notice stack">
           <span>{lineupText(p, slot)}.</span>
           {knockAt(p, slot) !== 'none' && (
-            <span className="muted small">Everything he does there is worse for it, a little or a lot. He is a {POSITION_NAMES[p.position].toLowerCase()}; put him back when you can.</span>
+            <span className="muted small">
+              Everything he does there is worse for it, a little or a lot. He is a{' '}
+              {POSITION_NAMES[p.position].toLowerCase()}; put him back when you can.
+            </span>
           )}
           <span>
             <button className="btn btn-sm" onClick={() => store.mutate((l) => placeBack(l, p.id))}>
@@ -353,9 +480,15 @@ function PositionSection({ league, player: p }: { league: League; player: Player
             <b>{learnLine(p.position, learning.to, null)}</b>
             {stage && <span className={`tag-pill ${familiarityTone(stage)}`}>{stage}</span>}
           </div>
-          {why && <p className="small" style={{ margin: 0 }}>{why}.</p>}
+          {why && (
+            <p className="small" style={{ margin: 0 }}>
+              {why}.
+            </p>
+          )}
           <p className="small" style={{ margin: 0 }}>
-            {ready ? 'He is ready: he changes position on cut-down day.' : `${readyText(campsToReady(league, p, learning.to), league.phase)}.`}
+            {ready
+              ? 'He is ready: he changes position on cut-down day.'
+              : `${readyText(campsToReady(league, p, learning.to), league.phase)}.`}
             {held && ` But he stays at ${p.position} for now. ${held}`}
           </p>
           {chair && (
@@ -373,7 +506,9 @@ function PositionSection({ league, player: p }: { league: League; player: Player
               )}
             </p>
           )}
-          <p className="muted small" style={{ margin: 0 }}>He keeps playing {p.position} until cut-down day.</p>
+          <p className="muted small" style={{ margin: 0 }}>
+            He keeps playing {p.position} until cut-down day.
+          </p>
           <div>
             <button className="btn btn-sm" onClick={() => setStopping(true)}>
               Stop learning {learning.to}
@@ -401,7 +536,8 @@ function PositionSection({ league, player: p }: { league: League; player: Player
               }
             >
               <p style={{ margin: 0 }}>
-                Everything he has picked up at {learning.to} is lost. If you start again later, he starts from the beginning.
+                Everything he has picked up at {learning.to} is lost. If you start again later, he starts from the
+                beginning.
               </p>
             </Dialog>
           )}
@@ -429,7 +565,15 @@ function PositionSection({ league, player: p }: { league: League; player: Player
                   </div>
                   {reason && (
                     <p className="small">
-                      <LinkedText league={league} text={`${reason}.`} about={read.reason === 'scheme' && read.coordinator ? [{ kind: 'coach', id: read.coordinator.coach.id }] : undefined} />
+                      <LinkedText
+                        league={league}
+                        text={`${reason}.`}
+                        about={
+                          read.reason === 'scheme' && read.coordinator
+                            ? [{ kind: 'coach', id: read.coordinator.coach.id }]
+                            : undefined
+                        }
+                      />
                     </p>
                   )}
                   <p className="muted small">
@@ -438,7 +582,11 @@ function PositionSection({ league, player: p }: { league: League; player: Player
                   <p className="muted small">
                     {readyText(read.camps, league.phase)}. {payText(read.pay, read.to)}.
                   </p>
-                  <button className={`btn btn-sm${read.verdict === 'worth' ? ' btn-primary' : ''}`} disabled={!!read.problem} onClick={() => store.mutate((l) => startMove(l, p.id, read.to, read.reason ?? undefined))}>
+                  <button
+                    className={`btn btn-sm${read.verdict === 'worth' ? ' btn-primary' : ''}`}
+                    disabled={!!read.problem}
+                    onClick={() => store.mutate((l) => startMove(l, p.id, read.to, read.reason ?? undefined))}
+                  >
                     Start learning {read.to}
                   </button>
                   {note && <p className="muted small">{note}</p>}
@@ -506,7 +654,10 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const coachLine = p.teamId === league.userTeamId && !p.retired ? playerCoachLine(league, p) : null;
   const coachWho = coachLine?.coaches.map((c): Who => ({ kind: 'coach', id: c.id }));
   const fitSide = ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p.position) ? 'offense' : 'defense';
-  const fitScheme = fitSide === 'offense' ? myScheme.offense.label : [myScheme.front.label, myScheme.coverage?.label].filter(Boolean).join(' · ');
+  const fitScheme =
+    fitSide === 'offense'
+      ? myScheme.offense.label
+      : [myScheme.front.label, myScheme.coverage?.label].filter(Boolean).join(' · ');
 
   return (
     <Sheet
@@ -520,7 +671,13 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
               {spot ? `${spot} · ` : ''}
               {POSITION_NAMES[p.position]}
-              {team ? ` · ${team.city} ${team.name}` : isProspect(p) ? ' · Draft prospect' : p.retired ? ' · Retired' : ' · Free agent'}
+              {team
+                ? ` · ${team.city} ${team.name}`
+                : isProspect(p)
+                  ? ' · Draft prospect'
+                  : p.retired
+                    ? ' · Retired'
+                    : ' · Free agent'}
             </span>
             <h2 style={{ fontSize: 'var(--step-3)' }}>
               {p.firstName} {p.lastName}
@@ -529,235 +686,265 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
         </>
       }
       actions={
-        <button className="edit-x" onClick={() => setEditing((v) => !v)} aria-label="Edit name and number" aria-pressed={editing} title="Edit name and number">
+        <button
+          className="edit-x"
+          onClick={() => setEditing((v) => !v)}
+          aria-label="Edit name and number"
+          aria-pressed={editing}
+          title="Edit name and number"
+        >
           ✎
         </button>
       }
     >
-          {editing && <IdentityEditor league={league} player={p} onDone={() => setEditing(false)} />}
-          <div className="facts">
-            <span className="fact">
-              <span className="eyebrow">{view.exact ? 'Overall' : 'Overall (scouted)'}</span>
-              <b className={`num ${band(view.ovr)}`}>{view.exact ? view.ovr.toFixed(1) : `${view.ovrLo.toFixed(1)}–${view.ovrHi.toFixed(1)}`}</b>
+      {editing && <IdentityEditor league={league} player={p} onDone={() => setEditing(false)} />}
+      <div className="facts">
+        <span className="fact">
+          <span className="eyebrow">{view.exact ? 'Overall' : 'Overall (scouted)'}</span>
+          <b className={`num ${band(view.ovr)}`}>
+            {view.exact ? view.ovr.toFixed(1) : `${view.ovrLo.toFixed(1)}–${view.ovrHi.toFixed(1)}`}
+          </b>
+        </span>
+        <span className="fact stars-fact">
+          <span className="eyebrow">Stars · {stars.basis}</span>
+          <Stars s={stars} size={22} />
+        </span>
+        <span className="fact">
+          <span className="eyebrow">Potential</span>
+          <b className="num">{potentialText(view)}</b>
+        </span>
+        <span className="fact">
+          <span className="eyebrow">Age</span>
+          <b className="num">{p.age}</b>
+        </span>
+        <span className="fact">
+          <span className="eyebrow">Size</span>
+          <b className="num">
+            {heightFt(p.heightIn)}, {p.weightLb}
+          </b>
+        </span>
+        <span className="fact">
+          <span className="eyebrow">Experience</span>
+          <b className="num">{isProspect(p) ? 'Prospect' : p.experience === 0 ? 'Rookie' : `${p.experience} yr`}</b>
+        </span>
+        <span className="fact">
+          <span className="eyebrow">{makeup.known && makeup.hedged ? 'Makeup · early word' : 'Makeup'}</span>
+          {!makeup.known ? (
+            <span className="muted">Unknown</span>
+          ) : makeup.notes.length === 0 ? (
+            <span className="muted">Nothing stands out</span>
+          ) : (
+            <MakeupPills notes={makeup.notes} hedged={makeup.hedged} />
+          )}
+        </span>
+        <span className="fact">
+          <span className="eyebrow">Habits</span>
+          {!habits.known ? (
+            <span className="muted">Unknown</span>
+          ) : habits.notes.length === 0 ? (
+            <span className="muted">None on film</span>
+          ) : (
+            <QuirkPills notes={habits.notes} />
+          )}
+          {(['bad', 'good', 'style'] as const).map((tone) => {
+            const left = fixed.filter((f) => f.tone === tone);
+            // Your own players hide nothing: no "seems" about it.
+            const heading = view.exact && tone === 'bad' ? 'Has fixed' : FIXED_HEADING[tone];
+            return left.length ? (
+              <span key={tone} className="muted small">
+                {heading}: {left.map((f) => f.label).join(', ')}
+              </span>
+            ) : null;
+          })}
+        </span>
+        {form && (
+          <span className="fact">
+            <span className="eyebrow">Form</span>
+            <span className="tone-bad">{form}</span>
+          </span>
+        )}
+        {fit && (
+          <span
+            className="fact"
+            title={`Your ${fitSide} leans on ${fit.skills.join(', ')}${view.exact ? '' : ' (as your scouts read him)'}.`}
+          >
+            <span className="eyebrow">Fit · {fitScheme}</span>
+            <span className={fit.grade === 'Poor' ? 'tone-bad' : fit.grade === 'Ideal' ? 'tone-good' : undefined}>
+              {fit.grade}
+              <span className="muted small"> · {fit.skills.join(', ')}</span>
             </span>
-            <span className="fact stars-fact">
-              <span className="eyebrow">Stars · {stars.basis}</span>
-              <Stars s={stars} size={22} />
+          </span>
+        )}
+        {!view.exact && (
+          <span className="fact">
+            <span className="eyebrow">Known</span>
+            <KnowledgeMeter value={view.knowledge} />
+          </span>
+        )}
+      </div>
+
+      {coach && (
+        <p className="small" style={{ margin: 0 }}>
+          {league.coaches[coach.id] ? 'Now coaching: ' : 'Went on to coach: '}
+          <button className="linklike" onClick={() => nav.openStaff('coach', coach.id)}>
+            {coachTitle(coach)}
+            {coach.teamId !== null
+              ? `, ${league.teams[coach.teamId].abbrev}`
+              : league.coaches[coach.id]
+                ? ', on the market'
+                : ' (retired)'}
+          </button>
+        </p>
+      )}
+      {honors.length > 0 && (
+        <div className="pill-row" aria-label="Honors">
+          {honors.map((h) => (
+            <span key={h.label} className="tag-pill tag-good" title={`${h.label}: ${h.seasons.join(', ')}`}>
+              {h.seasons.length > 1 ? `${h.seasons.length}× ${h.label}` : `${h.seasons[0]} ${h.label}`}
             </span>
-            <span className="fact">
-              <span className="eyebrow">Potential</span>
-              <b className="num">{potentialText(view)}</b>
-            </span>
-            <span className="fact">
-              <span className="eyebrow">Age</span>
-              <b className="num">{p.age}</b>
-            </span>
-            <span className="fact">
-              <span className="eyebrow">Size</span>
-              <b className="num">
-                {heightFt(p.heightIn)}, {p.weightLb}
-              </b>
-            </span>
-            <span className="fact">
-              <span className="eyebrow">Experience</span>
-              <b className="num">{isProspect(p) ? 'Prospect' : p.experience === 0 ? 'Rookie' : `${p.experience} yr`}</b>
-            </span>
-            <span className="fact">
-              <span className="eyebrow">{makeup.known && makeup.hedged ? 'Makeup · early word' : 'Makeup'}</span>
-              {!makeup.known ? (
-                <span className="muted">Unknown</span>
-              ) : makeup.notes.length === 0 ? (
-                <span className="muted">Nothing stands out</span>
-              ) : (
-                <MakeupPills notes={makeup.notes} hedged={makeup.hedged} />
-              )}
-            </span>
-            <span className="fact">
-              <span className="eyebrow">Habits</span>
-              {!habits.known ? (
-                <span className="muted">Unknown</span>
-              ) : habits.notes.length === 0 ? (
-                <span className="muted">None on film</span>
-              ) : (
-                <QuirkPills notes={habits.notes} />
-              )}
-              {(['bad', 'good', 'style'] as const).map((tone) => {
-                const left = fixed.filter((f) => f.tone === tone);
-                // Your own players hide nothing: no "seems" about it.
-                const heading = view.exact && tone === 'bad' ? 'Has fixed' : FIXED_HEADING[tone];
-                return left.length ? (
-                  <span key={tone} className="muted small">
-                    {heading}: {left.map((f) => f.label).join(', ')}
+          ))}
+        </div>
+      )}
+
+      {timeline.length > 0 && (
+        <Section id="habits" title="Habits over time" defaultOpen={false} className="muted small">
+          <ul className="habit-timeline">
+            {timeline.map((e) => (
+              <li key={`${e.id}-${e.season}-${e.week}-${e.change}`}>
+                <b>
+                  <span className="num">
+                    {e.season}
+                    {e.week ? `, wk ${e.week}` : ', offseason'}
                   </span>
-                ) : null;
-              })}
-            </span>
-            {form && (
-              <span className="fact">
-                <span className="eyebrow">Form</span>
-                <span className="tone-bad">{form}</span>
-              </span>
-            )}
-            {fit && (
-              <span className="fact" title={`Your ${fitSide} leans on ${fit.skills.join(', ')}${view.exact ? '' : ' (as your scouts read him)'}.`}>
-                <span className="eyebrow">Fit · {fitScheme}</span>
-                <span className={fit.grade === 'Poor' ? 'tone-bad' : fit.grade === 'Ideal' ? 'tone-good' : undefined}>
-                  {fit.grade}
-                  <span className="muted small"> · {fit.skills.join(', ')}</span>
-                </span>
-              </span>
-            )}
-            {!view.exact && (
-              <span className="fact">
-                <span className="eyebrow">Known</span>
-                <KnowledgeMeter value={view.knowledge} />
-              </span>
-            )}
+                  {' · '}
+                  {habitChangeText(e)}.
+                </b>{' '}
+                {habitChangeDetail(e)}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {!view.exact && (
+        <p className="muted small read-by">
+          <ReadBy league={league} view={view} p={p} />
+          {sitDownHint && ' A scouting visit doubles as a sit-down: it can take one or two to learn his makeup.'}
+        </p>
+      )}
+
+      <div className="card-actions">
+        <StarScaleToggle scale={scale} onChange={setScale} />
+        <button
+          className="btn btn-sm"
+          aria-pressed={comparing}
+          disabled={!comparing && nav.compareIds.length >= MAX_COMPARE}
+          onClick={() => nav.toggleCompare(p.id)}
+        >
+          {comparing ? 'In comparison ✓' : 'Compare'}
+        </button>
+        {!view.exact && (
+          <>
+            <ScoutButton league={league} player={p} label="Send a scout" />
+            <span className="muted small">{league.scoutPoints} visits left this year</span>
+          </>
+        )}
+      </div>
+      <TradeActions league={league} player={p} onClose={onClose} />
+
+      <div className="report">
+        <span className="eyebrow">Scout's report</span>
+        <p>
+          <b>{report.verdict}</b> {report.game.join(' ')}
+        </p>
+        {report.notes.length > 0 && <p>{report.notes.join(' ')}</p>}
+      </div>
+
+      {!isProspect(p) && <HealthSection league={league} player={p} />}
+
+      <Section id="ratings" title={`Ratings at ${p.position}`}>
+        <AttributeList player={p} view={view} />
+        <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
+          Bold ratings make up his overall at {p.position}; tap any rating to see what it does in a game. Scale: 1–5
+          poor, 6–10 backup, 11–15 starter, 16–20 elite.
+          {view.exact
+            ? ' Arrows show the change since last season.'
+            : ' Ranges are your scouts’ estimates; film and scouting visits narrow them.'}
+        </p>
+      </Section>
+
+      <Section id="development" title={`Development${view.exact ? '' : ' (as your scouts see it)'}`}>
+        <DevelopmentChart league={league} player={p} />
+        <p className="muted small" style={{ margin: 0 }}>
+          {careerOutlook(league, league.userTeamId, p)}
+        </p>
+        {coachLine && (
+          <div className="muted small">
+            <Exact numbers={<LinkedText league={league} text={coachLine.numbers} about={coachWho} />}>
+              <LinkedText league={league} text={coachLine.text} about={coachWho} />
+            </Exact>
           </div>
-
-          {coach && (
-            <p className="small" style={{ margin: 0 }}>
-              {league.coaches[coach.id] ? 'Now coaching: ' : 'Went on to coach: '}
-              <button className="linklike" onClick={() => nav.openStaff('coach', coach.id)}>
-                {coachTitle(coach)}
-                {coach.teamId !== null ? `, ${league.teams[coach.teamId].abbrev}` : league.coaches[coach.id] ? ', on the market' : ' (retired)'}
-              </button>
-            </p>
-          )}
-          {honors.length > 0 && (
-            <div className="pill-row" aria-label="Honors">
-              {honors.map((h) => (
-                <span key={h.label} className="tag-pill tag-good" title={`${h.label}: ${h.seasons.join(', ')}`}>
-                  {h.seasons.length > 1 ? `${h.seasons.length}× ${h.label}` : `${h.seasons[0]} ${h.label}`}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {timeline.length > 0 && (
-            <Section id="habits" title="Habits over time" defaultOpen={false} className="muted small">
-              <ul className="habit-timeline">
-                {timeline.map((e) => (
-                  <li key={`${e.id}-${e.season}-${e.week}-${e.change}`}>
-                    <b>
-                      <span className="num">
-                        {e.season}
-                        {e.week ? `, wk ${e.week}` : ', offseason'}
-                      </span>
-                      {' · '}
-                      {habitChangeText(e)}.
-                    </b>{' '}
-                    {habitChangeDetail(e)}
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          )}
-
-          {!view.exact && (
-            <p className="muted small read-by">
-              <ReadBy league={league} view={view} p={p} />
-              {sitDownHint && ' A scouting visit doubles as a sit-down: it can take one or two to learn his makeup.'}
-            </p>
-          )}
-
-          <div className="card-actions">
-            <StarScaleToggle scale={scale} onChange={setScale} />
-            <button className="btn btn-sm" aria-pressed={comparing} disabled={!comparing && nav.compareIds.length >= MAX_COMPARE} onClick={() => nav.toggleCompare(p.id)}>
-              {comparing ? 'In comparison ✓' : 'Compare'}
-            </button>
-            {!view.exact && (
+        )}
+        {reps && (
+          <p className="muted small" style={{ margin: 0 }}>
+            {reps.share > 0
+              ? `Played in ${shareWords(reps.share)} his team’s games in ${reps.season}.`
+              : `Has not played in any of his team’s games in ${reps.season}.`}
+            {reps.needs && (
               <>
-                <ScoutButton league={league} player={p} label="Send a scout" />
-                <span className="muted small">{league.scoutPoints} visits left this year</span>
+                {' '}
+                <span className="tag-pill tag-warn" style={{ marginLeft: 0 }}>
+                  Needs reps
+                </span>{' '}
+                Young players develop faster with snaps; sitting slows him down.
               </>
             )}
+          </p>
+        )}
+      </Section>
+
+      {hasPositionWork(league, p) && <PositionSection league={league} player={p} />}
+
+      {/* Open while he's on the board (or just off it); a settled pro's draft day folds away. Each keeps its own fold. */}
+      <Section
+        key={draftDay ? 'draft-open' : 'draft'}
+        id={draftDay ? 'draft-open' : 'draft'}
+        title="Draft & combine"
+        defaultOpen={draftDay}
+      >
+        <DraftLine league={league} player={p} />
+        <CombinePanel player={p} />
+      </Section>
+
+      {!isProspect(p) && (
+        <Section id="contract" title="Contract">
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="muted small">{contractLabel(league, p)}</span>
+            <ContractActions league={league} player={p} />
           </div>
-          <TradeActions league={league} player={p} onClose={onClose} />
+          <ContractSummary league={league} player={p} />
+          <ContractYears player={p} />
+        </Section>
+      )}
 
-          <div className="report">
-            <span className="eyebrow">Scout's report</span>
-            <p>
-              <b>{report.verdict}</b> {report.game.join(' ')}
-            </p>
-            {report.notes.length > 0 && <p>{report.notes.join(' ')}</p>}
-          </div>
-
-          {!isProspect(p) && <HealthSection league={league} player={p} />}
-
-          <Section id="ratings" title={`Ratings at ${p.position}`}>
-            <AttributeList player={p} view={view} />
-            <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
-              Bold ratings make up his overall at {p.position}; tap any rating to see what it does in a game. Scale: 1–5 poor, 6–10 backup, 11–15 starter, 16–20 elite.
-              {view.exact ? ' Arrows show the change since last season.' : ' Ranges are your scouts’ estimates; film and scouting visits narrow them.'}
-            </p>
-          </Section>
-
-          <Section id="development" title={`Development${view.exact ? '' : ' (as your scouts see it)'}`}>
-            <DevelopmentChart league={league} player={p} />
-            <p className="muted small" style={{ margin: 0 }}>
-              {careerOutlook(league, league.userTeamId, p)}
-            </p>
-            {coachLine && (
-              <div className="muted small">
-                <Exact numbers={<LinkedText league={league} text={coachLine.numbers} about={coachWho} />}>
-                  <LinkedText league={league} text={coachLine.text} about={coachWho} />
-                </Exact>
-              </div>
-            )}
-            {reps && (
-              <p className="muted small" style={{ margin: 0 }}>
-                {reps.share > 0 ? `Played in ${shareWords(reps.share)} his team’s games in ${reps.season}.` : `Has not played in any of his team’s games in ${reps.season}.`}
-                {reps.needs && (
-                  <>
-                    {' '}
-                    <span className="tag-pill tag-warn" style={{ marginLeft: 0 }}>
-                      Needs reps
-                    </span>{' '}
-                    Young players develop faster with snaps; sitting slows him down.
-                  </>
-                )}
-              </p>
-            )}
-          </Section>
-
-          {hasPositionWork(league, p) && <PositionSection league={league} player={p} />}
-
-          {/* Open while he's on the board (or just off it); a settled pro's draft day folds away. Each keeps its own fold. */}
-          <Section key={draftDay ? 'draft-open' : 'draft'} id={draftDay ? 'draft-open' : 'draft'} title="Draft & combine" defaultOpen={draftDay}>
-            <DraftLine league={league} player={p} />
-            <CombinePanel player={p} />
-          </Section>
-
-          {!isProspect(p) && (
-            <Section id="contract" title="Contract">
-              <div className="row" style={{ justifyContent: 'space-between' }}>
-                <span className="muted small">{contractLabel(league, p)}</span>
-                <ContractActions league={league} player={p} />
-              </div>
-              <ContractSummary league={league} player={p} />
-              <ContractYears player={p} />
-            </Section>
-          )}
-
-          {cols.length > 0 && seasons.length > 0 && (
-            <Section id="stats" title="Stats">
-              <StatsTable league={league} player={p} />
-            </Section>
-          )}
-          {team && (
-            <div>
-              <button
-                className="btn btn-sm"
-                onClick={() => {
-                  onClose();
-                  nav.openTeam(team.id);
-                }}
-              >
-                View {team.name} roster
-              </button>
-            </div>
-          )}
+      {cols.length > 0 && seasons.length > 0 && (
+        <Section id="stats" title="Stats">
+          <StatsTable league={league} player={p} />
+        </Section>
+      )}
+      {team && (
+        <div>
+          <button
+            className="btn btn-sm"
+            onClick={() => {
+              onClose();
+              nav.openTeam(team.id);
+            }}
+          >
+            View {team.name} roster
+          </button>
+        </div>
+      )}
     </Sheet>
   );
 }

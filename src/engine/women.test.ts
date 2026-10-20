@@ -4,7 +4,8 @@ import { createLeague } from './generate';
 import { migrateLeague } from './migrate';
 import type { League } from './types';
 
-const flagged = (l: League) => [...Object.values(l.staff), ...Object.values(l.medics)].filter((p) => p.woman).map((p) => `${p.role}:${p.id}`);
+const flagged = (l: League) =>
+  [...Object.values(l.staff), ...Object.values(l.medics)].filter((p) => p.woman).map((p) => `${p.role}:${p.id}`);
 
 describe('women on staff', () => {
   const leagues = ['w1', 'w2', 'w3'].map((seed) => createLeague({ seed }));

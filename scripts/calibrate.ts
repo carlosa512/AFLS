@@ -102,9 +102,34 @@ const tally = (key: string, t: TeamGameStats) => {
   b.games++;
 };
 /** Schemes at work: what each offense gains and each front and coverage allows, per team-game. */
-const byScheme: Record<string, { games: number; pts: number; plays: number; passes: number; yds: number; passAtt: number; passYds: number; rushAtt: number; rushYds: number; sacks: number }> = {};
+const byScheme: Record<
+  string,
+  {
+    games: number;
+    pts: number;
+    plays: number;
+    passes: number;
+    yds: number;
+    passAtt: number;
+    passYds: number;
+    rushAtt: number;
+    rushYds: number;
+    sacks: number;
+  }
+> = {};
 const schemeTally = (key: string, t: TeamGameStats, pts: number) => {
-  const b = (byScheme[key] ??= { games: 0, pts: 0, plays: 0, passes: 0, yds: 0, passAtt: 0, passYds: 0, rushAtt: 0, rushYds: 0, sacks: 0 });
+  const b = (byScheme[key] ??= {
+    games: 0,
+    pts: 0,
+    plays: 0,
+    passes: 0,
+    yds: 0,
+    passAtt: 0,
+    passYds: 0,
+    rushAtt: 0,
+    rushYds: 0,
+    sacks: 0,
+  });
   b.games++;
   b.pts += pts;
   b.plays += t.plays;
@@ -144,7 +169,10 @@ for (let s = 0; s < seasons; s++) {
       [r.home, r.homeScore],
       [r.away, r.awayScore],
     ];
-    for (const [id, t, pts, oppId] of [[g.homeId, r.home, r.homeScore, g.awayId], [g.awayId, r.away, r.awayScore, g.homeId]] as const) {
+    for (const [id, t, pts, oppId] of [
+      [g.homeId, r.home, r.homeScore, g.awayId],
+      [g.awayId, r.away, r.awayScore, g.homeId],
+    ] as const) {
       const off = teamScheme(league, id);
       const def = teamScheme(league, oppId);
       schemeTally(`off:${off.offense.label}`, t, pts);
@@ -170,11 +198,23 @@ for (let s = 0; s < seasons; s++) {
       add('thirdAtt', t.thirdDownAtt);
       add('thirdConv', t.thirdDownConv);
       add('penalties', t.penalties);
-      add('declined', Object.values(t.declined ?? {}).reduce((a, b) => a + b, 0));
-      add('offsetting', Object.values(t.offset ?? {}).reduce((a, b) => a + b, 0));
-      add('personal', FOUL_KINDS.filter((f) => FOULS[f].personal).reduce((a, f) => a + (t.flags?.[f] ?? 0), 0));
+      add(
+        'declined',
+        Object.values(t.declined ?? {}).reduce((a, b) => a + b, 0),
+      );
+      add(
+        'offsetting',
+        Object.values(t.offset ?? {}).reduce((a, b) => a + b, 0),
+      );
+      add(
+        'personal',
+        FOUL_KINDS.filter((f) => FOULS[f].personal).reduce((a, f) => a + (t.flags?.[f] ?? 0), 0),
+      );
       add('roughing', t.flags?.roughingPasser ?? 0);
-      add('special', FOUL_KINDS.filter((f) => FOULS[f].special).reduce((a, f) => a + (t.flags?.[f] ?? 0), 0));
+      add(
+        'special',
+        FOUL_KINDS.filter((f) => FOULS[f].special).reduce((a, f) => a + (t.flags?.[f] ?? 0), 0),
+      );
       add('top', t.top);
     }
     for (const line of Object.values(r.playerStats)) {
@@ -202,7 +242,10 @@ for (let s = 0; s < seasons; s++) {
       (byPosition[p.position] ??= { hurt: 0, players: 0 }).hurt++;
     }
   }
-  injAdd('irReturns', league.teams.reduce((n, t) => n + (t.irReturns?.[league.season] ?? 0), 0));
+  injAdd(
+    'irReturns',
+    league.teams.reduce((n, t) => n + (t.irReturns?.[league.season] ?? 0), 0),
+  );
   injAdd('irNow', Object.values(league.players).filter((p) => p.ir).length);
   for (const t of league.teams) winsByStrength.push({ rating: ratings.get(t.id)!, wins: wins.get(t.id) ?? 0 });
 }
@@ -249,22 +292,36 @@ for (const [k, v] of Object.entries(results)) {
   console.log(k.padEnd(14), v.toFixed(2).padStart(8), `  ${lo}–${hi}`, ok ? '' : v < lo ? '  ▼ LOW' : '  ▲ HIGH');
 }
 console.log(`\nTime of possession check: ${(per('top') / 60).toFixed(1)} min per team-game (target 30)`);
-console.log(`Indoor games score ${(byRoof.indoor[0] / byRoof.indoor[1] - byRoof.outdoor[0] / byRoof.outdoor[1]).toFixed(1)} more points than outdoor ones (NFL ≈ 4)`);
+console.log(
+  `Indoor games score ${(byRoof.indoor[0] / byRoof.indoor[1] - byRoof.outdoor[0] / byRoof.outdoor[1]).toFixed(1)} more points than outdoor ones (NFL ≈ 4)`,
+);
 console.log(`Better-rated team wins ${((100 * favoriteWins) / decided).toFixed(1)}% of decided games`);
 winsByStrength.sort((a, b) => b.rating - a.rating);
 const q = Math.floor(winsByStrength.length / 4);
 const avgWins = (arr: typeof winsByStrength) => (arr.reduce((s, x) => s + x.wins, 0) / arr.length).toFixed(1);
-console.log(`Avg wins by rating quartile (best→worst): ${[0, 1, 2, 3].map((i) => avgWins(winsByStrength.slice(i * q, (i + 1) * q))).join(' / ')}`);
+console.log(
+  `Avg wins by rating quartile (best→worst): ${[0, 1, 2, 3].map((i) => avgWins(winsByStrength.slice(i * q, (i + 1) * q))).join(' / ')}`,
+);
 const mean = winsByStrength.reduce((s, x) => s + x.wins, 0) / winsByStrength.length;
 const sd = Math.sqrt(winsByStrength.reduce((s, x) => s + (x.wins - mean) ** 2, 0) / winsByStrength.length);
 console.log(`Std dev of team wins: ${sd.toFixed(2)} (NFL ≈ 3.0–3.3)`);
 const show = (kind: 'pass' | 'fourth', label: (b: (typeof byStyle)[string]) => string) =>
-  (['low', 'mid', 'high'] as const).map((k) => (byStyle[`${kind}:${k}`] ? `${k} ${label(byStyle[`${kind}:${k}`])}` : `${k} n/a`)).join(' · ');
-console.log(`Play-caller style (informational): pass share by pass lean ${show('pass', (b) => `${((100 * b.passes) / b.plays).toFixed(1)}%`)}`);
-console.log(`  fourth-down tries per game by head coach's appetite ${show('fourth', (b) => (b.fourth / b.games).toFixed(2))}`);
+  (['low', 'mid', 'high'] as const)
+    .map((k) => (byStyle[`${kind}:${k}`] ? `${k} ${label(byStyle[`${kind}:${k}`])}` : `${k} n/a`))
+    .join(' · ');
+console.log(
+  `Play-caller style (informational): pass share by pass lean ${show('pass', (b) => `${((100 * b.passes) / b.plays).toFixed(1)}%`)}`,
+);
+console.log(
+  `  fourth-down tries per game by head coach's appetite ${show('fourth', (b) => (b.fourth / b.games).toFixed(2))}`,
+);
 
 console.log('\nSeason leaders: average of each rank, and the best season seen');
-console.log('stat'.padEnd(14), ...['#1', '#2', '#3', '#4', '#5', 'best'].map((h) => h.padStart(7)), '  NFL #1 / #5 / record');
+console.log(
+  'stat'.padEnd(14),
+  ...['#1', '#2', '#3', '#4', '#5', 'best'].map((h) => h.padStart(7)),
+  '  NFL #1 / #5 / record',
+);
 const maxOver = overRecordAllowed(seasons);
 for (const { label, first, fifth, ceiling } of LEADER_TARGETS) {
   const rows = tops[label];
@@ -281,7 +338,13 @@ for (const { label, first, fifth, ceiling } of LEADER_TARGETS) {
   // The average #1 and #5 above are what's judged.
   if (over > maxOver) flags.push(`⚠ ${over} seasons past the record (warning only)`);
   const fmt = (v: number) => (v < 100 ? v.toFixed(1) : Math.round(v).toString()).padStart(7);
-  console.log(label.padEnd(14), ...[0, 1, 2, 3, 4].map((i) => fmt(rank(i))), fmt(best), `  ${first.join('–')} / ${fifth.join('–')} / ${ceiling}`, flags.join('  '));
+  console.log(
+    label.padEnd(14),
+    ...[0, 1, 2, 3, 4].map((i) => fmt(rank(i))),
+    fmt(best),
+    `  ${first.join('–')} / ${fifth.join('–')} / ${ceiling}`,
+    flags.join('  '),
+  );
 }
 
 const teamSeasons = seasons * 32;
@@ -304,16 +367,35 @@ for (const [k, v] of Object.entries(injuryResults)) {
   console.log(k.padEnd(22), v.toFixed(2).padStart(8), `  ${lo}–${hi}`, ok ? '' : v < lo ? '  ▼ LOW' : '  ▲ HIGH');
 }
 const sevTotal = Object.values(bySeverity).reduce((a, b) => a + b, 0);
-console.log(`Severity (informational): ${Object.entries(bySeverity).map(([k, v]) => `${k} ${((100 * v) / sevTotal).toFixed(0)}%`).join(' · ')}`);
-console.log(`Injured reserve (informational): ${(inj.irNow / teamSeasons).toFixed(1)} per team still on it after week 18, ${(inj.irReturns / teamSeasons).toFixed(1)} brought back`);
-console.log(`Injuries per rostered player-season by position (informational): ${Object.entries(byPosition).map(([pos, b]) => `${pos} ${(b.hurt / b.players).toFixed(2)}`).join(' · ')}`);
+console.log(
+  `Severity (informational): ${Object.entries(bySeverity)
+    .map(([k, v]) => `${k} ${((100 * v) / sevTotal).toFixed(0)}%`)
+    .join(' · ')}`,
+);
+console.log(
+  `Injured reserve (informational): ${(inj.irNow / teamSeasons).toFixed(1)} per team still on it after week 18, ${(inj.irReturns / teamSeasons).toFixed(1)} brought back`,
+);
+console.log(
+  `Injuries per rostered player-season by position (informational): ${Object.entries(byPosition)
+    .map(([pos, b]) => `${pos} ${(b.hurt / b.players).toFixed(2)}`)
+    .join(' · ')}`,
+);
 
 console.log(`\n${misses} stat(s) outside target range`);
 // The tables below are informational; a stat outside its range fails the run (and CI).
 if (misses) process.exitCode = 1;
 
 console.log('\nSchemes (informational, per team-game): offense gains, defense allows');
-console.log('scheme'.padEnd(22), 'games'.padStart(6), 'pts'.padStart(6), 'yds'.padStart(6), 'pass%'.padStart(6), 'ypa'.padStart(6), 'ypc'.padStart(6), 'sacks'.padStart(6));
+console.log(
+  'scheme'.padEnd(22),
+  'games'.padStart(6),
+  'pts'.padStart(6),
+  'yds'.padStart(6),
+  'pass%'.padStart(6),
+  'ypa'.padStart(6),
+  'ypc'.padStart(6),
+  'sacks'.padStart(6),
+);
 for (const [key, b] of Object.entries(byScheme).sort()) {
   const f = (v: number, d = 1) => v.toFixed(d).padStart(6);
   console.log(

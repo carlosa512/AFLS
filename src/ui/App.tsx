@@ -1,6 +1,13 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { gamesInWeek, playWeek, simToEndOfRegularSeason, simToEndOfSeason, userGame } from '../engine/league';
-import { advanceOffseason, beginOffseason, draftComplete, FA_DAYS, offseasonBlockers, simOffseason } from '../engine/offseason';
+import {
+  advanceOffseason,
+  beginOffseason,
+  draftComplete,
+  FA_DAYS,
+  offseasonBlockers,
+  simOffseason,
+} from '../engine/offseason';
 import { unreadCount } from '../engine/inbox';
 import { computeRecords } from '../engine/season/standings';
 import { isDeadlineDay } from '../engine/trade';
@@ -87,7 +94,11 @@ interface Step {
 function offseasonStep(league: League): Step | null {
   switch (league.phase) {
     case 'complete':
-      return { label: `Begin ${league.season + 1} offseason`, run: beginOffseason, then: { view: 'office', tab: 'resign' } };
+      return {
+        label: `Begin ${league.season + 1} offseason`,
+        run: beginOffseason,
+        then: { view: 'office', tab: 'resign' },
+      };
     case 'resign':
       return { label: 'Open free agency', run: (l) => advanceOffseason(l), then: { view: 'office', tab: 'fa' } };
     case 'freeAgency':
@@ -180,8 +191,14 @@ export function App() {
     route,
     go: (r) => navigate(r),
     // Switching between a game's viewer and box score replaces the entry, so Back returns to where the game was opened.
-    openGame: (gameId) => (inGame ? navigate({ view: 'game', gameId, back: route.back }, true) : navigate({ view: 'game', gameId, back: route })),
-    watchGame: (gameId) => (inGame ? navigate({ view: 'watch', gameId, back: route.back }, true) : navigate({ view: 'watch', gameId, back: route })),
+    openGame: (gameId) =>
+      inGame
+        ? navigate({ view: 'game', gameId, back: route.back }, true)
+        : navigate({ view: 'game', gameId, back: route }),
+    watchGame: (gameId) =>
+      inGame
+        ? navigate({ view: 'watch', gameId, back: route.back }, true)
+        : navigate({ view: 'watch', gameId, back: route }),
     openPlayer: setPlayerId,
     openStaff: (kind, id) => {
       setPlayerId(null);
@@ -189,13 +206,17 @@ export function App() {
     },
     openTeam: (teamId) => navigate({ view: 'roster', teamId }),
     compareIds,
-    toggleCompare: (id) => setCompareIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length >= MAX_COMPARE ? ids : [...ids, id])),
+    toggleCompare: (id) =>
+      setCompareIds((ids) =>
+        ids.includes(id) ? ids.filter((x) => x !== id) : ids.length >= MAX_COMPARE ? ids : [...ids, id],
+      ),
     clearCompare: () => setCompareIds([]),
   };
 
   const userTeam = league.teams[league.userTeamId];
   // A team id typed into the address bar may not exist.
-  const teamOr = (teamId: number | undefined) => (teamId !== undefined && league.teams[teamId] ? teamId : league.userTeamId);
+  const teamOr = (teamId: number | undefined) =>
+    teamId !== undefined && league.teams[teamId] ? teamId : league.userTeamId;
   const record = computeRecords(league, resultsSeason(league)).get(userTeam.id)!;
   const blockers = offseasonBlockers(league);
   const step = offseasonStep(league);
@@ -262,7 +283,8 @@ export function App() {
           : null;
 
   const pendingGames = gamesInWeek(league).filter((g) => !g.result).length;
-  const tabOf = (r: Route): Route['view'] => (r.view === 'game' || r.view === 'watch' ? tabOf(r.back) : r.view === 'live' ? 'home' : r.view);
+  const tabOf = (r: Route): Route['view'] =>
+    r.view === 'game' || r.view === 'watch' ? tabOf(r.back) : r.view === 'live' ? 'home' : r.view;
   const activeTab = tabOf(route);
 
   return (
@@ -276,8 +298,12 @@ export function App() {
                 {userTeam.city} {userTeam.name}
               </strong>
               <span>
-                {league.season} · {league.phase === 'regular' || league.phase === 'playoffs' ? weekLabel(league.week) : PHASE_LABELS[league.phase]}
-                {league.phase === 'freeAgency' ? ` (day ${league.faDay})` : ''} · {isOffseasonPhase(league) ? `${resultsSeason(league)}: ` : ''}
+                {league.season} ·{' '}
+                {league.phase === 'regular' || league.phase === 'playoffs'
+                  ? weekLabel(league.week)
+                  : PHASE_LABELS[league.phase]}
+                {league.phase === 'freeAgency' ? ` (day ${league.faDay})` : ''} ·{' '}
+                {isOffseasonPhase(league) ? `${resultsSeason(league)}: ` : ''}
                 {recordText(record)}
               </span>
             </div>
@@ -286,7 +312,12 @@ export function App() {
           {route.view !== 'live' && (
             <div className="actions">
               {secondary && (
-                <button className="btn" disabled={busy || (!step && blockers.length > 0)} title={!step ? blockers[0] : undefined} onClick={() => setConfirmSim(true)}>
+                <button
+                  className="btn"
+                  disabled={busy || (!step && blockers.length > 0)}
+                  title={!step ? blockers[0] : undefined}
+                  onClick={() => setConfirmSim(true)}
+                >
                   {secondary.label}
                 </button>
               )}
@@ -307,7 +338,13 @@ export function App() {
               key={t.view}
               className="tab"
               aria-current={activeTab === t.view ? 'page' : undefined}
-              onClick={() => navigate(t.view === 'roster' || t.view === 'cap' ? { view: t.view, teamId: league.userTeamId } : ({ view: t.view } as Route))}
+              onClick={() =>
+                navigate(
+                  t.view === 'roster' || t.view === 'cap'
+                    ? { view: t.view, teamId: league.userTeamId }
+                    : ({ view: t.view } as Route),
+                )
+              }
             >
               {t.label}
               {t.view === 'inbox' && unread > 0 && <span className="tab-badge"> ({unread})</span>}
@@ -359,10 +396,17 @@ export function App() {
         {route.view === 'stats' && <Stats league={league} tab={route.tab} />}
         {route.view === 'playoffs' && <Playoffs league={league} />}
         {route.view === 'compare' && <Compare league={league} />}
-        {route.view === 'game' && <BoxScore league={league} gameId={route.gameId} onBack={() => leaveGame(route.back)} />}
+        {route.view === 'game' && (
+          <BoxScore league={league} gameId={route.gameId} onBack={() => leaveGame(route.back)} />
+        )}
         {route.view === 'live' && <LiveGame league={league} />}
         {route.view === 'watch' && (
-          <GameViewer league={league} gameId={route.gameId} onBack={() => leaveGame(route.back)} onBoxScore={() => nav.openGame(route.gameId)} />
+          <GameViewer
+            league={league}
+            gameId={route.gameId}
+            onBack={() => leaveGame(route.back)}
+            onBoxScore={() => nav.openGame(route.gameId)}
+          />
         )}
       </main>
 
@@ -387,10 +431,18 @@ export function App() {
         <PlayerCard league={league} player={league.players[playerId]} onClose={() => setPlayerId(null)} />
       )}
       {staffCard?.kind === 'coach' && (league.coaches[staffCard.id] ?? league.retiredCoaches[staffCard.id]) && (
-        <CoachCard league={league} coach={league.coaches[staffCard.id] ?? league.retiredCoaches[staffCard.id]} onClose={() => setStaffCard(null)} />
+        <CoachCard
+          league={league}
+          coach={league.coaches[staffCard.id] ?? league.retiredCoaches[staffCard.id]}
+          onClose={() => setStaffCard(null)}
+        />
       )}
-      {staffCard?.kind === 'scout' && league.staff[staffCard.id] && <ScoutCard league={league} scout={league.staff[staffCard.id]} onClose={() => setStaffCard(null)} />}
-      {staffCard?.kind === 'medic' && league.medics[staffCard.id] && <MedicCard league={league} medic={league.medics[staffCard.id]} onClose={() => setStaffCard(null)} />}
+      {staffCard?.kind === 'scout' && league.staff[staffCard.id] && (
+        <ScoutCard league={league} scout={league.staff[staffCard.id]} onClose={() => setStaffCard(null)} />
+      )}
+      {staffCard?.kind === 'medic' && league.medics[staffCard.id] && (
+        <MedicCard league={league} medic={league.medics[staffCard.id]} onClose={() => setStaffCard(null)} />
+      )}
     </NavContext.Provider>
   );
 }

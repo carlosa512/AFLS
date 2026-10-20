@@ -226,7 +226,8 @@ h3 {
     background: var(--surface);
     border-top: 1px solid var(--line);
     box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.08);
-    padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px))
+      max(16px, env(safe-area-inset-left, 0px));
   }
   .topbar .actions .btn {
     min-height: 46px;
@@ -1428,7 +1429,9 @@ select {
   .btn,
   .team-option,
   .score-line {
-    transition: border-color 0.15s, filter 0.15s;
+    transition:
+      border-color 0.15s,
+      filter 0.15s;
   }
 }
 

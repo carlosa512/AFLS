@@ -21,12 +21,32 @@ export interface StaffLook {
 
 type Outfit = [Garment, Headwear, Gear];
 const WARDROBE: Record<StaffFamily, Outfit[]> = {
-  coach: [['hoodie', 'none', 'headset'], ['quarterzip', 'none', 'headset'], ['polo', 'cap', 'headset'], ['jacket', 'none', 'headset']],
+  coach: [
+    ['hoodie', 'none', 'headset'],
+    ['quarterzip', 'none', 'headset'],
+    ['polo', 'cap', 'headset'],
+    ['jacket', 'none', 'headset'],
+  ],
   // the weight room's uniform: a tee and a whistle, no headset (he runs warm-ups, not the play sheet)
-  strength: [['tee', 'none', 'whistle'], ['tee', 'cap', 'whistle'], ['quarterzip', 'none', 'whistle'], ['hoodie', 'none', 'whistle']],
-  scout: [['polo', 'cap', 'credential'], ['quarterzip', 'none', 'credential'], ['jacket', 'none', 'credential'], ['polo', 'none', 'credential']],
+  strength: [
+    ['tee', 'none', 'whistle'],
+    ['tee', 'cap', 'whistle'],
+    ['quarterzip', 'none', 'whistle'],
+    ['hoodie', 'none', 'whistle'],
+  ],
+  scout: [
+    ['polo', 'cap', 'credential'],
+    ['quarterzip', 'none', 'credential'],
+    ['jacket', 'none', 'credential'],
+    ['polo', 'none', 'credential'],
+  ],
   director: [['blazer', 'none', 'credential']], // the Director always wears the suit
-  medical: [['polo', 'none', 'cross'], ['scrubs', 'none', 'stethoscope'], ['quarterzip', 'none', 'stethoscope'], ['labcoat', 'none', 'stethoscope']],
+  medical: [
+    ['polo', 'none', 'cross'],
+    ['scrubs', 'none', 'stethoscope'],
+    ['quarterzip', 'none', 'stethoscope'],
+    ['labcoat', 'none', 'stethoscope'],
+  ],
 };
 const OFFSEASON: Record<StaffFamily, Outfit> = {
   coach: ['quarterzip', 'none', 'none'], // no headset without games
@@ -67,7 +87,8 @@ export function pick(id: string, salt: string, n: number): number {
 
 /** `id` is unique across every kind of staff (a scout and a coach can share a number), e.g. `coach:12`. */
 export function staffLook(id: string, family: StaffFamily, woman: boolean, day: StaffDay): StaffLook {
-  let [garment, headwear, gear] = day === 'offseason' ? OFFSEASON[family] : WARDROBE[family][pick(id, 'wear', WARDROBE[family].length)];
+  let [garment, headwear, gear] =
+    day === 'offseason' ? OFFSEASON[family] : WARDROBE[family][pick(id, 'wear', WARDROBE[family].length)];
   if (day === 'cold') [garment, headwear] = ['jacket', 'beanie'];
   if (day === 'hot') [garment, headwear] = [family === 'strength' ? 'tee' : 'polo', 'visor'];
   if (garment !== 'polo' && garment !== 'jacket' && gear === 'cross') gear = 'stethoscope'; // the cross is a chest patch

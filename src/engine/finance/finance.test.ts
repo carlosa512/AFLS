@@ -9,7 +9,12 @@ import { buildContract, capHit, deadMoney, isExpired, prorationIn, restructure, 
 import { leagueMarket, marketApy, payTier } from './market';
 
 const deal = (over: Partial<Parameters<typeof buildContract>[0]> = {}) =>
-  buildContract({ years: 4, total: 100_000, signingBonus: 40_000, guaranteedBase: 0, voidYears: 0, escalator: 0, ...over }, 2026, 'veteran', 1_000);
+  buildContract(
+    { years: 4, total: 100_000, signingBonus: 40_000, guaranteedBase: 0, voidYears: 0, escalator: 0, ...over },
+    2026,
+    'veteran',
+    1_000,
+  );
 
 describe('contract math', () => {
   it('prorates a signing bonus evenly, never over more than five years', () => {
@@ -35,7 +40,12 @@ describe('contract math', () => {
   });
 
   it("matches the doc's restructure formula (Watson 2026: $44.7M over 5 years saves $35.76M)", () => {
-    const c = buildContract({ years: 5, total: 5 * 46_000, signingBonus: 0, guaranteedBase: 0, voidYears: 0, escalator: 0 }, 2026, 'veteran', 1_000);
+    const c = buildContract(
+      { years: 5, total: 5 * 46_000, signingBonus: 0, guaranteedBase: 0, voidYears: 0, escalator: 0 },
+      2026,
+      'veteran',
+      1_000,
+    );
     const saved = restructure(c, 2026, 44_700, 1_000);
     expect(saved).toBeCloseTo(35_760);
     expect(capHit(c, 2027)).toBeCloseTo(46_000 + 8_940);
@@ -91,7 +101,9 @@ describe('team cap', () => {
 
   it('only restructures in the offseason', () => {
     const league = createLeague({ seed: 'restructure' });
-    const vet = Object.values(league.players).find((p) => p.contract?.kind === 'veteran' && p.contract.years.length >= 3)!;
+    const vet = Object.values(league.players).find(
+      (p) => p.contract?.kind === 'veteran' && p.contract.years.length >= 3,
+    )!;
     expect(restructurePlayer(league, vet)).toBe(0);
     league.phase = 'resign';
     expect(restructurePlayer(league, vet)).toBeGreaterThan(0);
@@ -120,7 +132,8 @@ describe('save migration', () => {
     v1.version = 1;
     (v1 as unknown as { salaryCap: number }).salaryCap = 301_200;
     delete (v1 as Partial<League>).caps;
-    for (const p of Object.values(v1.players)) (p as unknown as { contract: unknown }).contract = { salary: 5_000, years: 2 };
+    for (const p of Object.values(v1.players))
+      (p as unknown as { contract: unknown }).contract = { salary: 5_000, years: 2 };
     const up = migrateLeague(v1)!;
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.caps[up.season]).toBe(301_200);

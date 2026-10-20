@@ -43,7 +43,15 @@ export const live = {
 
   start(league: League, game: Game) {
     const sim = startLiveGame(league, game);
-    session = { gameId: game.id, sim, plays: sim.next(), current: 0, speed: session?.speed ?? 2, playing: true, finished: false };
+    session = {
+      gameId: game.id,
+      sim,
+      plays: sim.next(),
+      current: 0,
+      speed: session?.speed ?? 2,
+      playing: true,
+      finished: false,
+    };
     emit();
   },
 
@@ -96,7 +104,8 @@ export const live = {
 };
 
 /** Roster moves wait until the live game is over: the players on the field are already set. */
-export const liveLock = (): string | null => (live.inProgress() ? 'Finish your live game first (or sim it to the final).' : null);
+export const liveLock = (): string | null =>
+  live.inProgress() ? 'Finish your live game first (or sim it to the final).' : null;
 
 export function useLive(): LiveSession | null {
   useSyncExternalStore(live.subscribe, live.version);

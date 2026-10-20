@@ -34,10 +34,33 @@ import { capRoom, ovrOf, rosterOf, tradeContext, type TradeContext } from './con
 // ───────── pick value ─────────
 
 const JJ: [number, number][] = [
-  [1, 3000], [2, 2600], [3, 2200], [4, 1800], [5, 1700], [10, 1300], [16, 1000], [20, 850], [24, 740], [28, 660],
-  [32, 590], [33, 580], [48, 420], [64, 270], [96, 116], [141, 36], [200, 11], [257, 2],
+  [1, 3000],
+  [2, 2600],
+  [3, 2200],
+  [4, 1800],
+  [5, 1700],
+  [10, 1300],
+  [16, 1000],
+  [20, 850],
+  [24, 740],
+  [28, 660],
+  [32, 590],
+  [33, 580],
+  [48, 420],
+  [64, 270],
+  [96, 116],
+  [141, 36],
+  [200, 11],
+  [257, 2],
 ];
-const FS: [number, number][] = [[1, 3000], [32, 1244], [33, 1228], [141, 492], [200, 315], [257, 200]];
+const FS: [number, number][] = [
+  [1, 3000],
+  [32, 1244],
+  [33, 1228],
+  [141, 492],
+  [200, 315],
+  [257, 200],
+];
 
 /** Log-linear interpolation between chart anchors. */
 function chart(anchors: [number, number][], pick: number): number {
@@ -139,7 +162,8 @@ export function goingRate(league: League, pick: DraftPick, ctx?: TradeContext): 
   if (hit !== undefined) return hit;
   const slot = pickOverall(league, pick, ctx);
   const yearsOut = Math.max(0, pick.season - nextDraftSeason(league));
-  const value = Math.exp(0.75 * Math.log(jimmyJohnson(slot)) + 0.25 * Math.log(fitzgeraldSpielberger(slot))) * 0.75 ** yearsOut;
+  const value =
+    Math.exp(0.75 * Math.log(jimmyJohnson(slot)) + 0.25 * Math.log(fitzgeraldSpielberger(slot))) * 0.75 ** yearsOut;
   if (ctx) (ctx.goingRates ??= new Map()).set(pick.id, value);
   return value;
 }
@@ -150,7 +174,20 @@ export const pickLabel = (league: League, pick: DraftPick) =>
 // ───────── player value ─────────
 
 /** How much a position counts in a trade, before the player: quarterbacks most, specialists least. */
-export const POSITION_TRADE: Record<Position, number> = { QB: 1, EDGE: 0.75, WR: 0.7, CB: 0.65, DT: 0.65, OL: 0.6, LB: 0.45, S: 0.45, TE: 0.45, RB: 0.4, K: 0.1, P: 0.08 };
+export const POSITION_TRADE: Record<Position, number> = {
+  QB: 1,
+  EDGE: 0.75,
+  WR: 0.7,
+  CB: 0.65,
+  DT: 0.65,
+  OL: 0.6,
+  LB: 0.45,
+  S: 0.45,
+  TE: 0.45,
+  RB: 0.4,
+  K: 0.1,
+  P: 0.08,
+};
 /**
  * Pick-chart points per $1K of contract surplus: $40K ≈ one point, so a dead $16M contract costs about
  * a second-round pick to move (the Texans paid one, plus a sixth, to send Brock Osweiler to Cleveland).
@@ -174,7 +211,8 @@ export const AI_BAND = 1;
 
 /** How far `team` trusts its read of another club's player: in full for an AI club's player, halfway for yours. */
 function trustOf(league: League, team: Team, p: Player): { trust: number; band: number } {
-  const ai = team.id !== league.userTeamId && p.teamId != null && p.teamId !== league.userTeamId && p.teamId !== team.id;
+  const ai =
+    team.id !== league.userTeamId && p.teamId != null && p.teamId !== league.userTeamId && p.teamId !== team.id;
   return ai ? { trust: AI_TRUST, band: AI_BAND } : { trust: TRADE_TRUST, band: TRADE_BAND };
 }
 /** Seasons of control, weighted: next year counts less than this one, the year after less again. */
@@ -232,7 +270,8 @@ export function canAfford(ctx: TradeContext, teamId: number, p: Player): boolean
 }
 
 /** Effective contention focus: the GM's temperament nudged by where the roster actually is. */
-const winNowOf = (league: League, team: Team) => clamp(team.gm.winNow * 0.6 + contenderScore(league, team.id) * 0.4, 0, 1);
+const winNowOf = (league: League, team: Team) =>
+  clamp(team.gm.winNow * 0.6 + contenderScore(league, team.id) * 0.4, 0, 1);
 
 /** A player as one front office reads him. */
 export interface PlayerRead {
@@ -282,7 +321,10 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
     const view = ctx.view(team.id, p);
     character = young ? characterRead(league, team.id, p) : undefined;
     const readWork = young ? character?.workEthic : undefined;
-    const misread = effective(p.age, view.ovr, young ? projectedCeiling(view.ovr, view.potMid, readWork) : view.potMid) + quirkWorth(league, team.id, p) - real;
+    const misread =
+      effective(p.age, view.ovr, young ? projectedCeiling(view.ovr, view.potMid, readWork) : view.potMid) +
+      quirkWorth(league, team.id, p) -
+      real;
     const { trust, band } = trustOf(league, team, p);
     seen = real + clamp(trust * misread, -band, band);
     // His place on its depth chart is judged the same bounded way.
@@ -292,7 +334,8 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
   let base = talent * control(league, p);
   // His club's re-sign window is worth something only if it can pay him: one with no room next year
   // for his ask sees him walk, so it would rather move him now (Mack to Chicago).
-  if (p.teamId === team.id && !truth && yearsLeft(p.contract!, league.season) <= 1 && !canAfford(ctx, team.id, p)) base -= talent * RIGHTS;
+  if (p.teamId === team.id && !truth && yearsLeft(p.contract!, league.season) <= 1 && !canAfford(ctx, team.id, p))
+    base -= talent * RIGHTS;
   // A buyer's read only: his own team re-signs him through the window (`RIGHTS`).
   const extension = p.teamId !== team.id && willExtend(league, p, team.id) ? talent * EXTENSION : 0;
   // Contenders pay for proven veterans; rebuilders don't.
@@ -324,7 +367,13 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
  * his overall, his room to grow (counted at half in his talent, so twice the band here), its read of
  * his body. Kept apart from the full read because a trade block sorts whole rosters by it. Memoized.
  */
-export function outlookFor(ctx: TradeContext, team: Team, p: Player, truth = false, character?: CharacterRead | null): number {
+export function outlookFor(
+  ctx: TradeContext,
+  team: Team,
+  p: Player,
+  truth = false,
+  character?: CharacterRead | null,
+): number {
   const key = p.id * 128 + team.id * 2 + (truth ? 1 : 0);
   const memo = (ctx.outlooks ??= new Map()).get(key);
   if (memo !== undefined) return memo;
@@ -387,7 +436,8 @@ function schemeFit(ctx: TradeContext, team: Team, p: Player, truth: boolean): nu
 
 /** How a room counts a player at a (fractional) depth-chart rank: in full as a starter, 0.35 as the top backup, 0.2 deeper in a normal room, barely past it. */
 function roleAt(rank: number, pos: Position): number {
-  const at = (k: number) => (k < STARTERS[pos] ? 1 : k === STARTERS[pos] ? BACKUP : k < ROSTER_TEMPLATE[pos] ? DEPTH : CLUTTER);
+  const at = (k: number) =>
+    k < STARTERS[pos] ? 1 : k === STARTERS[pos] ? BACKUP : k < ROSTER_TEMPLATE[pos] ? DEPTH : CLUTTER;
   const k = Math.floor(rank);
   return at(k) + (at(k + 1) - at(k)) * (rank - k);
 }
@@ -413,7 +463,9 @@ function roomValue(reads: readonly PlayerRead[], pos: Position, w: number, now =
     const r = reads[i];
     let rank = 0;
     for (let j = 0; j < reads.length; j++) if (j !== i) rank += 1 / (1 + Math.exp((ahead[i] - ahead[j]) / RANK_SPREAD));
-    value += roleAt(rank, pos) * ((r.base + r.extension) * r.lens + weighed(r.pay, r.payNow, w, now)) - weighed(r.cost, r.costNow, w, now);
+    value +=
+      roleAt(rank, pos) * ((r.base + r.extension) * r.lens + weighed(r.pay, r.payNow, w, now)) -
+      weighed(r.cost, r.costNow, w, now);
   }
   return value;
 }
@@ -428,7 +480,12 @@ function roomWith(stay: readonly PlayerRead[], join: readonly PlayerRead[], pos:
   const ranked = roomValue([...stay, ...join], pos, w, now);
   if (!join.length) return ranked;
   let buried = roomValue(stay, pos, w, now);
-  join.forEach((r, i) => (buried += roleAt(stay.length + i, pos) * ((r.base + r.extension) * r.lens + weighed(r.pay, r.payNow, w, now)) - weighed(r.cost, r.costNow, w, now)));
+  join.forEach(
+    (r, i) =>
+      (buried +=
+        roleAt(stay.length + i, pos) * ((r.base + r.extension) * r.lens + weighed(r.pay, r.payNow, w, now)) -
+        weighed(r.cost, r.costNow, w, now)),
+  );
   return Math.max(ranked, buried);
 }
 
@@ -453,7 +510,8 @@ function contractTerms(ctx: TradeContext, p: Player): { pay: number; cost: numbe
   const min = minSalary(p.experience, ctx.market.cap);
   const share = seasonShare(league);
   const payNow = (market - min) * share;
-  const costNow = (c.years.find((y) => y.season === league.season)?.base ?? 0) * (1 - paidShare(league, c)) - min * share;
+  const costNow =
+    (c.years.find((y) => y.season === league.season)?.base ?? 0) * (1 - paidShare(league, c)) - min * share;
   let pay = payNow;
   let cost = costNow;
   for (let i = 1; i < Math.min(4, yearsLeft(c, league.season)); i++) {
@@ -462,7 +520,12 @@ function contractTerms(ctx: TradeContext, p: Player): { pay: number; cost: numbe
     pay += (market - min) * d;
     cost += (base - min) * d;
   }
-  return { pay: pay * POINTS_PER_K, cost: cost * POINTS_PER_K, payNow: payNow * POINTS_PER_K, costNow: costNow * POINTS_PER_K };
+  return {
+    pay: pay * POINTS_PER_K,
+    cost: cost * POINTS_PER_K,
+    payNow: payNow * POINTS_PER_K,
+    costNow: costNow * POINTS_PER_K,
+  };
 }
 
 const median = (xs: number[]) => {
@@ -483,7 +546,9 @@ export function salaryWeight(ctx: TradeContext, teamId: number): number {
     const next = league.teams.map((t) => capRoom(ctx, t.id, league.season + 1));
     const [mNow, mNext] = [median(now), median(next)];
     const scale = 0.08 * league.caps[league.season];
-    ctx.salaryWeights = league.teams.map((_, i) => clamp(1 - (0.5 * (now[i] - mNow) + 0.5 * (next[i] - mNext)) / scale, 0.5, 2));
+    ctx.salaryWeights = league.teams.map((_, i) =>
+      clamp(1 - (0.5 * (now[i] - mNow) + 0.5 * (next[i] - mNext)) / scale, 0.5, 2),
+    );
   }
   return ctx.salaryWeights[teamId];
 }
@@ -509,7 +574,12 @@ const weighed = (total: number, thisYear: number, w: number, now: number) => now
  * his position with him against without him, plus his contract. `truth` values him on his real
  * ratings instead (for tests and analysis, never for AI decisions).
  */
-export function playerValue(league: League, player: Player, team: Team, opts: { truth?: boolean; ctx?: TradeContext } = {}): number {
+export function playerValue(
+  league: League,
+  player: Player,
+  team: Team,
+  opts: { truth?: boolean; ctx?: TradeContext } = {},
+): number {
   if (!player.contract || isExpired(player.contract, league.season)) return 0;
   const ctx = opts.ctx ?? tradeContext(league);
   const truth = !!opts.truth;
@@ -530,11 +600,20 @@ export function grossWorth(ctx: TradeContext, team: Team, player: Player, truth 
 }
 
 /** How a team's player moves change its rooms and books: what it loses by sending `out`, and gains by taking `inc` in their place. */
-export function playerSwing(ctx: TradeContext, team: Team, out: readonly number[], inc: readonly number[], truth = false): { loss: number; gain: number } {
+export function playerSwing(
+  ctx: TradeContext,
+  team: Team,
+  out: readonly number[],
+  inc: readonly number[],
+  truth = false,
+): { loss: number; gain: number } {
   const { league } = ctx;
   const gone = new Set(out);
   const incoming = inc.map((id) => league.players[id]);
-  const positions = new Set<Position>([...out.map((id) => league.players[id].position), ...incoming.map((p) => p.position)]);
+  const positions = new Set<Position>([
+    ...out.map((id) => league.players[id].position),
+    ...incoming.map((p) => p.position),
+  ]);
   const w = salaryWeight(ctx, team.id);
   const now = nowWeight(ctx, team.id);
   let before = 0;
@@ -544,7 +623,13 @@ export function playerSwing(ctx: TradeContext, team: Team, out: readonly number[
     const room = roomOf(ctx, team, pos, truth);
     const stay = room.filter((r) => !gone.has(r.id));
     const arrive = incoming.filter((p) => p.position === pos).map((p) => readPlayer(ctx, team, p, truth));
-    before += roomWith(stay, room.filter((r) => gone.has(r.id)), pos, w, now);
+    before += roomWith(
+      stay,
+      room.filter((r) => gone.has(r.id)),
+      pos,
+      w,
+      now,
+    );
     kept += roomValue(stay, pos, w, now);
     after += roomWith(stay, arrive, pos, w, now);
   }

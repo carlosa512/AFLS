@@ -29,15 +29,64 @@ import {
   teamCoaches,
   visionFit,
 } from '../engine/coaching';
-import { extendMedic, isMedicExpiring, MEDIC_ROLE_LABEL, medicalBudget, medicalPayroll, medicAsk, medicMoveProblem, medicName, medicResignForecast } from '../engine/medical';
+import {
+  extendMedic,
+  isMedicExpiring,
+  MEDIC_ROLE_LABEL,
+  medicalBudget,
+  medicalPayroll,
+  medicAsk,
+  medicMoveProblem,
+  medicName,
+  medicResignForecast,
+} from '../engine/medical';
 import { demand, rookieCost, ROSTER_MAX } from '../engine/offseason/negotiation';
 import { coachSchemeLabel } from '../engine/schemes';
-import { extendStaff, isExpiring, resignForecast, ROLE_LABEL, staffAsk, staffBudget, staffMoveProblem, staffName, staffPayroll, type ResignOutlook } from '../engine/staff';
+import {
+  extendStaff,
+  isExpiring,
+  resignForecast,
+  ROLE_LABEL,
+  staffAsk,
+  staffBudget,
+  staffMoveProblem,
+  staffName,
+  staffPayroll,
+  type ResignOutlook,
+} from '../engine/staff';
 import { boardValue, reachOrSteal } from '../engine/offseason/draft';
 import { GameStar, KeyStats, LineScore, standouts, Standouts } from './game';
 import { LinkedText, moveIndex, MoveText } from './moves';
-import { deadlineDayTrades, draftClassOf, freeAgencyMoves, marketRumors, marketTrades, seasonDeals, headCoachChanges, mailSubject, needsYou, promotionCandidates, unitReads, type HeadCoachChange, type MailSubject, type Signing } from '../engine/inbox';
-import { activateFromIr, activateProblem, delegates, injuryLabel, IR_MIN_WEEKS, IR_RETURNS, irProblem, irReturnsUsed, outlookText, placeOnIr, SEVERITY_LABEL, weeksLeft } from '../engine/injuries';
+import {
+  deadlineDayTrades,
+  draftClassOf,
+  freeAgencyMoves,
+  marketRumors,
+  marketTrades,
+  seasonDeals,
+  headCoachChanges,
+  mailSubject,
+  needsYou,
+  promotionCandidates,
+  unitReads,
+  type HeadCoachChange,
+  type MailSubject,
+  type Signing,
+} from '../engine/inbox';
+import {
+  activateFromIr,
+  activateProblem,
+  delegates,
+  injuryLabel,
+  IR_MIN_WEEKS,
+  IR_RETURNS,
+  irProblem,
+  irReturnsUsed,
+  outlookText,
+  placeOnIr,
+  SEVERITY_LABEL,
+  weeksLeft,
+} from '../engine/injuries';
 import { lastSeason } from '../engine/finance/contract';
 import { activeRoster, playingHurt, slotOf, starters, teamPlayers } from '../engine/roster';
 import { capSheet } from '../engine/finance/cap';
@@ -45,7 +94,18 @@ import { userGame } from '../engine/league';
 import { allSeeds, PLAYOFF_ROUNDS, ROUND_NAMES } from '../engine/season/playoffs';
 import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { statLine } from '../engine/stats';
-import type { Coach, DealKind, Game, InboxMessage, League, Medic, Player, Position, Staff, Team } from '../engine/types';
+import type {
+  Coach,
+  DealKind,
+  Game,
+  InboxMessage,
+  League,
+  Medic,
+  Player,
+  Position,
+  Staff,
+  Team,
+} from '../engine/types';
 import { stanceOf } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
@@ -56,7 +116,16 @@ import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
 import { OfferCard } from './offers';
-import { familiarityTone, learnLine, readyText, reasonText, roleText, leftText, verdictText, verdictTone } from './training';
+import {
+  familiarityTone,
+  learnLine,
+  readyText,
+  reasonText,
+  roleText,
+  leftText,
+  verdictText,
+  verdictTone,
+} from './training';
 import { store } from './store';
 
 /** How many rows a list in a card shows before "See all". */
@@ -140,7 +209,11 @@ function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactN
         <button className="linklike mail-who-name" onClick={() => nav.openPlayer(p.id)}>
           {playerName(p)}
         </button>
-        {sub && <span className="muted small" style={{ display: 'block' }}>{sub}</span>}
+        {sub && (
+          <span className="muted small" style={{ display: 'block' }}>
+            {sub}
+          </span>
+        )}
       </span>
       {side && <span className="mail-who-side">{side}</span>}
     </div>
@@ -148,7 +221,13 @@ function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactN
 }
 
 /** Players as links, comma-separated: "QB Kyle James, WR Tom Hughes". */
-function PlayerList({ players, label = (p) => `${p.position} ${playerName(p)}` }: { players: Player[]; label?: (p: Player) => string }) {
+function PlayerList({
+  players,
+  label = (p) => `${p.position} ${playerName(p)}`,
+}: {
+  players: Player[];
+  label?: (p: Player) => string;
+}) {
   const nav = useNav();
   return (
     <>
@@ -185,7 +264,9 @@ function StatTiles({ line }: { line: string }) {
 
 /** The user's game a message is about, if the league still keeps it (box scores go after two seasons). */
 function gameOf(league: League, season: number, week: number, teamId = league.userTeamId): Game | undefined {
-  return league.games.find((g) => g.season === season && g.week === week && (g.homeId === teamId || g.awayId === teamId));
+  return league.games.find(
+    (g) => g.season === season && g.week === week && (g.homeId === teamId || g.awayId === teamId),
+  );
 }
 
 /** From `teamId`'s side: "W 20–10", and who it was against. */
@@ -193,7 +274,12 @@ function resultFor(league: League, g: Game, teamId: number) {
   const home = g.homeId === teamId;
   const us = home ? g.result!.homeScore : g.result!.awayScore;
   const them = home ? g.result!.awayScore : g.result!.homeScore;
-  return { res: us > them ? 'W' : us < them ? 'L' : 'T', score: `${us}–${them}`, opp: league.teams[home ? g.awayId : g.homeId], home };
+  return {
+    res: us > them ? 'W' : us < them ? 'L' : 'T',
+    score: `${us}–${them}`,
+    opp: league.teams[home ? g.awayId : g.homeId],
+    home,
+  };
 }
 
 function ResultLine({ league, g }: { league: League; g: Game }) {
@@ -216,7 +302,15 @@ function ResultLine({ league, g }: { league: League; g: Game }) {
 
 // ───────── matchups ─────────
 
-function MatchupCards({ league, s, live }: { league: League; s: Extract<MailSubject, { kind: 'matchup' }>; live: boolean }) {
+function MatchupCards({
+  league,
+  s,
+  live,
+}: {
+  league: League;
+  s: Extract<MailSubject, { kind: 'matchup' }>;
+  live: boolean;
+}) {
   const game = gameOf(league, s.season, s.week);
   if (!game) return null;
   // Once it's played, the report keeps its result: the scouting it carried is out of date by then.
@@ -241,7 +335,9 @@ function OpponentCard({ league, opp, game }: { league: League; opp: Team; game: 
   const seed = game.playoffRound ? seedOf(league, game.season, opp.id) : 0;
   // Their last five before this one, newest first.
   const last = league.games
-    .filter((g) => g.season === game.season && g.result && g.week < game.week && (g.homeId === opp.id || g.awayId === opp.id))
+    .filter(
+      (g) => g.season === game.season && g.result && g.week < game.week && (g.homeId === opp.id || g.awayId === opp.id),
+    )
     .sort((a, b) => b.week - a.week)
     .slice(0, 5);
   return (
@@ -291,7 +387,14 @@ function seedOf(league: League, season: number, teamId: number): number {
 function PlayoffPath({ league, game }: { league: League; game: Game }) {
   const user = league.userTeamId;
   const played = league.games
-    .filter((g) => g.season === game.season && g.playoffRound && g.result && g.week < game.week && (g.homeId === user || g.awayId === user))
+    .filter(
+      (g) =>
+        g.season === game.season &&
+        g.playoffRound &&
+        g.result &&
+        g.week < game.week &&
+        (g.homeId === user || g.awayId === user),
+    )
     .sort((a, b) => a.week - b.week);
   const opp = game.homeId === user ? game.awayId : game.homeId;
   const next = PLAYOFF_ROUNDS[PLAYOFF_ROUNDS.indexOf(game.playoffRound!) + 1];
@@ -315,9 +418,12 @@ function PlayoffPath({ league, game }: { league: League; game: Game }) {
         <span className="mail-step is-now">
           <span className="eyebrow">{ROUND_NAMES[game.playoffRound!]} · now</span>
           <span>
-            <b>({seedOf(league, game.season, user)})</b> {league.teams[user].abbrev} vs <b>({seedOf(league, game.season, opp)})</b> {league.teams[opp].abbrev}
+            <b>({seedOf(league, game.season, user)})</b> {league.teams[user].abbrev} vs{' '}
+            <b>({seedOf(league, game.season, opp)})</b> {league.teams[opp].abbrev}
           </span>
-          <span className="muted small">{game.neutral ? 'Neutral site' : game.homeId === user ? 'At home' : 'On the road'}</span>
+          <span className="muted small">
+            {game.neutral ? 'Neutral site' : game.homeId === user ? 'At home' : 'On the road'}
+          </span>
         </span>
         {next && (
           <span className="mail-step">
@@ -410,7 +516,11 @@ function TheirInjuries({ league, opp }: { league: League; opp: Team }) {
     .sort((a, b) => (b.injury?.estimate[1] ?? 99) - (a.injury?.estimate[1] ?? 99));
   return (
     <Card title="Their injuries">
-      {hurt.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nobody on their report.</p>}
+      {hurt.length === 0 && (
+        <p className="muted small" style={{ margin: 0 }}>
+          Nobody on their report.
+        </p>
+      )}
       {hurt.slice(0, SHOW).map((p) => (
         <div className="mail-row" key={p.id}>
           <span className="pos">{p.position}</span>
@@ -418,7 +528,11 @@ function TheirInjuries({ league, opp }: { league: League; opp: Team }) {
             <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
               {shortName(p)}
             </button>
-            {p.injury && <span className="muted small" style={{ display: 'block' }}>{injuryLabel(p.injury.type)}</span>}
+            {p.injury && (
+              <span className="muted small" style={{ display: 'block' }}>
+                {injuryLabel(p.injury.type)}
+              </span>
+            )}
           </span>
           <InjuryTag league={league} p={p} />
         </div>
@@ -466,7 +580,9 @@ function InjuryCards({ league, s }: { league: League; s: Extract<MailSubject, { 
           </span>
           <span>
             <span className="eyebrow">Doctor's estimate</span>
-            <b>{now ? capital(outlookText(now, weeksLeft(league))) : record ? `${record.weeks} wk at the time` : '–'}</b>
+            <b>
+              {now ? capital(outlookText(now, weeksLeft(league))) : record ? `${record.weeks} wk at the time` : '–'}
+            </b>
           </span>
           <span>
             <span className="eyebrow">This season</span>
@@ -501,10 +617,17 @@ function AwardCards({ league, s }: { league: League; s: Extract<MailSubject, { k
   if (!p) return null;
   const line = s.period === 'year' ? statLine(p, s.season) : periodLine(league, s.season, s.weeks, p.id);
   // The week's game, from his team's side at the time.
-  const game = s.period === 'week' ? league.games.find((g) => g.season === s.season && g.week === s.weeks[0] && g.result?.playerStats[p.id]) : undefined;
+  const game =
+    s.period === 'week'
+      ? league.games.find((g) => g.season === s.season && g.week === s.weeks[0] && g.result?.playerStats[p.id])
+      : undefined;
   const r = game ? resultFor(league, game, game.result!.playerTeams[p.id]) : null;
   const when =
-    s.period === 'week' ? weekLabel(s.weeks[0]) : s.period === 'month' ? `Weeks ${s.weeks[0]}–${s.weeks[1]} · ${line?.gp ?? 0} games` : `${s.season} season · ${line?.gp ?? 0} games`;
+    s.period === 'week'
+      ? weekLabel(s.weeks[0])
+      : s.period === 'month'
+        ? `Weeks ${s.weeks[0]}–${s.weeks[1]} · ${line?.gp ?? 0} games`
+        : `${s.season} season · ${line?.gp ?? 0} games`;
   return (
     <Card>
       <Who
@@ -526,7 +649,15 @@ function AwardCards({ league, s }: { league: League; s: Extract<MailSubject, { k
 
 // ───────── contracts and retirement ─────────
 
-function ContractCards({ league, s, live }: { league: League; s: Extract<MailSubject, { kind: 'contract' }>; live: boolean }) {
+function ContractCards({
+  league,
+  s,
+  live,
+}: {
+  league: League;
+  s: Extract<MailSubject, { kind: 'contract' }>;
+  live: boolean;
+}) {
   const p = league.players[s.playerId];
   if (!p) return null;
   const last = statLine(p, s.season - 1);
@@ -541,12 +672,18 @@ function ContractCards({ league, s, live }: { league: League; s: Extract<MailSub
         : 'Still a free agent';
   return (
     <Card>
-      <Who league={league} p={p} sub={`${p.position} · age ${p.age} · ${p.experience} season${p.experience === 1 ? '' : 's'}`} />
+      <Who
+        league={league}
+        p={p}
+        sub={`${p.position} · age ${p.age} · ${p.experience} season${p.experience === 1 ? '' : 's'}`}
+      />
       <div className="mail-split" style={{ marginTop: 10 }}>
         <span>
           <span className="eyebrow">{s.season - 1} season</span>
           <span style={{ display: 'block', fontSize: 'var(--step-0)' }}>
-            {last ? `${last.gp ?? 0} games${honorLine(p, last) ? ` · ${honorLine(p, last)}` : ''}` : 'No stats on record'}
+            {last
+              ? `${last.gp ?? 0} games${honorLine(p, last) ? ` · ${honorLine(p, last)}` : ''}`
+              : 'No stats on record'}
           </span>
         </span>
         <span>
@@ -554,7 +691,8 @@ function ContractCards({ league, s, live }: { league: League; s: Extract<MailSub
           <span style={{ display: 'block', fontSize: 'var(--step-0)' }}>
             {ask ? (
               <>
-                <b>{money(ask.askApy)} a year</b> for {ask.askYears} year{ask.askYears === 1 ? '' : 's'}, {Math.round(ask.askGtdPct * 100)}% guaranteed
+                <b>{money(ask.askApy)} a year</b> for {ask.askYears} year{ask.askYears === 1 ? '' : 's'},{' '}
+                {Math.round(ask.askGtdPct * 100)}% guaranteed
               </>
             ) : (
               now
@@ -572,7 +710,12 @@ function RetirementCards({ league, s }: { league: League; s: Extract<MailSubject
   const last = statLine(p, s.season - 1);
   return (
     <Card>
-      <Who league={league} p={p} sub={`${p.position} · age ${p.age} · ${p.experience} seasons`} side={<span className="tag-pill">Retired</span>} />
+      <Who
+        league={league}
+        p={p}
+        sub={`${p.position} · age ${p.age} · ${p.experience} seasons`}
+        side={<span className="tag-pill">Retired</span>}
+      />
       {last && (
         <>
           <div className="eyebrow" style={{ marginTop: 10 }}>
@@ -640,7 +783,9 @@ function CombineCards({ league, s }: { league: League; s: Extract<MailSubject, {
 }
 
 function DraftDayCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'draftDay' }> }) {
-  const picks = league.draftPicks.filter((d) => d.season === s.season && d.ownerId === league.userTeamId).sort((a, b) => (a.overall ?? 999) - (b.overall ?? 999));
+  const picks = league.draftPicks
+    .filter((d) => d.season === s.season && d.ownerId === league.userTeamId)
+    .sort((a, b) => (a.overall ?? 999) - (b.overall ?? 999));
   if (!picks.length) return null;
   return (
     <Card title="Our picks">
@@ -710,7 +855,10 @@ function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject
                     <td className="num">{p.age}</td>
                     <td className="num">{d.rank !== undefined ? ordinal(d.rank) : '–'}</td>
                     <td>
-                      <span className={`tag-pill ${value === 'steal' ? 'tag-good' : value === 'reach' ? 'tag-warn' : ''}`} style={{ marginLeft: 0 }}>
+                      <span
+                        className={`tag-pill ${value === 'steal' ? 'tag-good' : value === 'reach' ? 'tag-warn' : ''}`}
+                        style={{ marginLeft: 0 }}
+                      >
                         {value ?? 'fair'}
                       </span>
                     </td>
@@ -721,13 +869,18 @@ function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject
           </table>
         </div>
         <p className="muted small" style={{ margin: '8px 0 0' }}>
-          Value compares your pick with where the consensus ranked him: a round of the board later is a steal, a round earlier a reach.
+          Value compares your pick with where the consensus ranked him: a round of the board later is a steal, a round
+          earlier a reach.
         </p>
       </Card>
       {trades.length > 0 ? (
         <Card title="Trades during the draft">
           {trades.map((t, i) => (
-            <p key={i} className={`small${t.teamIds.includes(league.userTeamId) ? ' is-user-text' : ''}`} style={{ margin: '4px 0' }}>
+            <p
+              key={i}
+              className={`small${t.teamIds.includes(league.userTeamId) ? ' is-user-text' : ''}`}
+              style={{ margin: '4px 0' }}
+            >
               <MoveText move={t} index={moves} />
             </p>
           ))}
@@ -827,14 +980,16 @@ function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { k
             ? hurt.map((i, n) => (
                 <span key={i.playerId}>
                   {n > 0 && ', '}
-                  <PlayerList players={[league.players[i.playerId]]} label={shortName} /> hurt ({injuryLabel(i.type).toLowerCase()})
+                  <PlayerList players={[league.players[i.playerId]]} label={shortName} /> hurt (
+                  {injuryLabel(i.type).toLowerCase()})
                 </span>
               ))
             : 'nobody hurt'}
         </span>
         {nextOpp && next && (
           <span className="small">
-            Next: <b>{nextOpp.name}</b>, {next.neutral ? 'neutral site' : next.homeId === user ? 'at home' : 'on the road'}
+            Next: <b>{nextOpp.name}</b>,{' '}
+            {next.neutral ? 'neutral site' : next.homeId === user ? 'at home' : 'on the road'}
           </span>
         )}
       </Card>
@@ -863,7 +1018,15 @@ function ClearedCards({ league, s, at }: { league: League; s: Extract<MailSubjec
           league={league}
           p={p}
           sub={`${p.position} · age ${p.age}`}
-          side={p.injury ? <InjuryTag league={league} p={p} /> : p.ir ? <span className="tag-pill tag-warn">On IR</span> : <span className="tag-pill tag-good">Cleared</span>}
+          side={
+            p.injury ? (
+              <InjuryTag league={league} p={p} />
+            ) : p.ir ? (
+              <span className="tag-pill tag-warn">On IR</span>
+            ) : (
+              <span className="tag-pill tag-good">Cleared</span>
+            )
+          }
         />
         <div className="mail-kv">
           <span>
@@ -885,10 +1048,14 @@ function ClearedCards({ league, s, at }: { league: League; s: Extract<MailSubjec
       {ours && p.ir && team && (
         <Card className="mail-fact-card">
           <span className="small">
-            On injured reserve for {p.ir.weeks} wk · {irReturnsUsed(league, team.id)} of {IR_RETURNS} returns used this season
+            On injured reserve for {p.ir.weeks} wk · {irReturnsUsed(league, team.id)} of {IR_RETURNS} returns used this
+            season
           </span>
           {canActivate && (
-            <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => activateFromIr(l, l.players[p.id]))}>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={() => store.mutate((l) => activateFromIr(l, l.players[p.id]))}
+            >
               Activate from IR
             </button>
           )}
@@ -899,7 +1066,15 @@ function ClearedCards({ league, s, at }: { league: League; s: Extract<MailSubjec
 }
 
 /** Where we stand as the deadline nears: the numbers a buyer or a seller looks at first. */
-function DeadlineCards({ league, s, live }: { league: League; s: Extract<MailSubject, { kind: 'deadline' }>; live: boolean }) {
+function DeadlineCards({
+  league,
+  s,
+  live,
+}: {
+  league: League;
+  s: Extract<MailSubject, { kind: 'deadline' }>;
+  live: boolean;
+}) {
   const nav = useNav();
   const day = s.weeksLeft === 'day' && <DeadlineDayTrades league={league} season={s.season} />;
   if (!live) {
@@ -920,7 +1095,9 @@ function DeadlineCards({ league, s, live }: { league: League; s: Extract<MailSub
   const place = div.teams.findIndex((r) => r.teamId === user) + 1;
   const players = teamPlayers(league, user);
   const hurt = players.filter((p) => p.injury && !playingHurt(p.injury));
-  const expiring = players.filter((p) => p.contract && lastSeason(p.contract) === league.season).sort((a, b) => seenOvr(league, b) - seenOvr(league, a));
+  const expiring = players
+    .filter((p) => p.contract && lastSeason(p.contract) === league.season)
+    .sort((a, b) => seenOvr(league, b) - seenOvr(league, a));
   return (
     <>
       <Card title="Where you stand">
@@ -948,7 +1125,9 @@ function DeadlineCards({ league, s, live }: { league: League; s: Extract<MailSub
       {expiring.length > 0 && (
         <Card title="Deals that run out after this season">
           <p className="small" style={{ margin: 0 }}>
-            {expiring.length} player{expiring.length === 1 ? '' : 's'}, including <PlayerList players={expiring.slice(0, SHOW)} />. Re-sign them in the spring, or move one now while he still has trade value.
+            {expiring.length} player{expiring.length === 1 ? '' : 's'}, including{' '}
+            <PlayerList players={expiring.slice(0, SHOW)} />. Re-sign them in the spring, or move one now while he still
+            has trade value.
           </p>
           <div className="mail-more">
             <span />
@@ -1001,7 +1180,8 @@ function MarketCards({ league, s }: { league: League; s: Extract<MailSubject, { 
   const rumors = marketRumors(league, s.season, s.phase, s.week);
   const moves = moveIndex(league);
   // Stances move every market moment: only the latest digest can say who's buying now.
-  const now = s.season === league.season && s.phase === league.phase && (s.phase !== 'regular' || s.week === league.week);
+  const now =
+    s.season === league.season && s.phase === league.phase && (s.phase !== 'regular' || s.week === league.week);
   return (
     <>
       {trades.length > 0 && (
@@ -1043,7 +1223,9 @@ function MarketRecapCards({ league, s }: { league: League; s: Extract<MailSubjec
   const deals = seasonDeals(league, s.season);
   const day = deadlineDayTrades(league, s.season);
   const division = league.teams[league.userTeamId].division;
-  const rivals = all.filter((t) => t.teamIds.some((id) => id !== league.userTeamId && league.teams[id].division === division));
+  const rivals = all.filter((t) =>
+    t.teamIds.some((id) => id !== league.userTeamId && league.teams[id].division === division),
+  );
   const busiest = league.teams
     .map((t) => ({ t, n: all.filter((x) => x.teamIds.includes(t.id)).length }))
     .filter((x) => x.n > 1)
@@ -1115,7 +1297,11 @@ function DeadlineDayTrades({ league, season }: { league: League; season: number 
         </p>
       ) : (
         trades.map((t, i) => (
-          <p key={i} className={`small${t.teamIds.includes(league.userTeamId) ? ' is-user-text' : ''}`} style={{ margin: '4px 0' }}>
+          <p
+            key={i}
+            className={`small${t.teamIds.includes(league.userTeamId) ? ' is-user-text' : ''}`}
+            style={{ margin: '4px 0' }}
+          >
             <MoveText move={t} index={moves} />
           </p>
         ))
@@ -1166,7 +1352,12 @@ function RaceCards({ league, s }: { league: League; s: Extract<MailSubject, { ki
       <Card title="Still to play">
         <p className="small" style={{ margin: 0 }}>
           {left.length
-            ? left.map((g) => `${weekLabel(g.week)} ${g.homeId === user ? 'vs' : 'at'} ${league.teams[g.homeId === user ? g.awayId : g.homeId].abbrev}`).join(' · ')
+            ? left
+                .map(
+                  (g) =>
+                    `${weekLabel(g.week)} ${g.homeId === user ? 'vs' : 'at'} ${league.teams[g.homeId === user ? g.awayId : g.homeId].abbrev}`,
+                )
+                .join(' · ')
             : 'The regular season is over.'}
         </p>
       </Card>
@@ -1207,16 +1398,32 @@ function OwnerCards({ league, s }: { league: League; s: Extract<MailSubject, { k
         <BudgetTile label="Coaching" budget={coachBudget(league, user)} used={coachPayroll(league, user)} />
         <BudgetTile label="Scouting staff" budget={staffBudget(league, user)} used={staffPayroll(league, user)} />
         <BudgetTile label="Medical staff" budget={medicalBudget(league, user)} used={medicalPayroll(league, user)} />
-        <BudgetTile label="Salary cap" budget={league.caps[s.season]} note={`${money(Math.round(capSheet(league, user).space))} space`} />
+        <BudgetTile
+          label="Salary cap"
+          budget={league.caps[s.season]}
+          note={`${money(Math.round(capSheet(league, user).space))} space`}
+        />
       </div>
     </Card>
   );
 }
 
 const OUTLOOK: Record<ResignOutlook, { label: string; tone: string; tip: string }> = {
-  stays: { label: 'Re-signs', tone: 'tag-good', tip: 'Re-signs for 2 years at the ask when free agency opens, unless you let them go.' },
-  budget: { label: 'Leaves: budget', tone: 'tag-warn', tip: 'Leaves when free agency opens: the budget can’t cover the ask.' },
-  chair: { label: 'Leaves: chair taken', tone: 'tag-warn', tip: 'Leaves when free agency opens: someone else now holds the chair.' },
+  stays: {
+    label: 'Re-signs',
+    tone: 'tag-good',
+    tip: 'Re-signs for 2 years at the ask when free agency opens, unless you let them go.',
+  },
+  budget: {
+    label: 'Leaves: budget',
+    tone: 'tag-warn',
+    tip: 'Leaves when free agency opens: the budget can’t cover the ask.',
+  },
+  chair: {
+    label: 'Leaves: chair taken',
+    tone: 'tag-warn',
+    tip: 'Leaves when free agency opens: someone else now holds the chair.',
+  },
 };
 
 interface PersonRow {
@@ -1277,7 +1484,12 @@ function Person({ row }: { row: PersonRow }) {
           row.outcome && <span className="tag-pill">{row.outcome}</span>
         )}
         {row.extend && (
-          <button className="btn btn-sm" disabled={!!row.extend.problem} title={row.extend.problem ?? undefined} onClick={row.extend.go}>
+          <button
+            className="btn btn-sm"
+            disabled={!!row.extend.problem}
+            title={row.extend.problem ?? undefined}
+            onClick={row.extend.go}
+          >
             Extend 2 yr
           </button>
         )}
@@ -1287,16 +1499,29 @@ function Person({ row }: { row: PersonRow }) {
 }
 
 /** Where a staff member stands once his deal is no longer up: kept, gone to another team, or gone. */
-function outcomeOf(league: League, who: { teamId: number | null; contract: { through: number } | null } | undefined, season: number): string {
+function outcomeOf(
+  league: League,
+  who: { teamId: number | null; contract: { through: number } | null } | undefined,
+  season: number,
+): string {
   if (!who) return 'Retired';
-  if (who.teamId === league.userTeamId && who.contract && who.contract.through >= season) return `Signed thru ${who.contract.through}`;
+  if (who.teamId === league.userTeamId && who.contract && who.contract.through >= season)
+    return `Signed thru ${who.contract.through}`;
   return who.teamId !== null ? `Joined ${league.teams[who.teamId].abbrev}` : 'Left';
 }
 
 const COACH_OVER = 'Goes past your coaching budget: ask the owner on the Coaches screen.';
 
 /** Every expiring deal on our staffs, by department, each with his ask and what happens to him if you do nothing. */
-function StaffDealsCards({ league, s, live }: { league: League; s: Extract<MailSubject, { kind: 'staffDeals' }>; live: boolean }) {
+function StaffDealsCards({
+  league,
+  s,
+  live,
+}: {
+  league: League;
+  s: Extract<MailSubject, { kind: 'staffDeals' }>;
+  live: boolean;
+}) {
   const nav = useNav();
   const user = league.userTeamId;
   const now = s.season === league.season;
@@ -1308,7 +1533,10 @@ function StaffDealsCards({ league, s, live }: { league: League; s: Extract<MailS
       const c = league.coaches[r.id] ?? league.retiredCoaches[r.id];
       if (!c) return [];
       const up = now && live && c.teamId === user && isCoachExpiring(league, c);
-      const problem = up ? (coachMoveProblem(league, user, c, 'extend', 2, false) ?? (moveOverspend(league, user, c, 2, 'extend') > 0 ? COACH_OVER : null)) : null;
+      const problem = up
+        ? (coachMoveProblem(league, user, c, 'extend', 2, false) ??
+          (moveOverspend(league, user, c, 2, 'extend') > 0 ? COACH_OVER : null))
+        : null;
       return [
         {
           key: `c${c.id}`,
@@ -1351,7 +1579,12 @@ function StaffDealsCards({ league, s, live }: { league: League; s: Extract<MailS
           ask: staffAsk(league, x, 2),
           outlook: up ? staffOutlook.get(x.id) : undefined,
           outcome: up ? undefined : outcomeOf(league, x, s.season),
-          extend: up ? { problem: staffMoveProblem(league, user, x, 'extend', 2), go: () => store.mutate((l) => extendStaff(l, l.userTeamId, x.id, 2)) } : undefined,
+          extend: up
+            ? {
+                problem: staffMoveProblem(league, user, x, 'extend', 2),
+                go: () => store.mutate((l) => extendStaff(l, l.userTeamId, x.id, 2)),
+              }
+            : undefined,
         },
       ];
     }
@@ -1375,7 +1608,12 @@ function StaffDealsCards({ league, s, live }: { league: League; s: Extract<MailS
         ask: medicAsk(league, m, 2),
         outlook: up ? medicOutlook.get(m.id) : undefined,
         outcome: up ? undefined : outcomeOf(league, m, s.season),
-        extend: up ? { problem: medicMoveProblem(league, user, m, 'extend', 2), go: () => store.mutate((l) => extendMedic(l, l.userTeamId, m.id, 2)) } : undefined,
+        extend: up
+          ? {
+              problem: medicMoveProblem(league, user, m, 'extend', 2),
+              go: () => store.mutate((l) => extendMedic(l, l.userTeamId, m.id, 2)),
+            }
+          : undefined,
       },
     ];
   });
@@ -1410,11 +1648,31 @@ function StaffDealsCards({ league, s, live }: { league: League; s: Extract<MailS
 /** "Fits" / "Fair fit" / "Not a fit": how a coordinator matches what our head coach wants. */
 function FitPill({ fit }: { fit: number | null }) {
   if (fit === null) return null;
-  return fit >= 0.7 ? <span className="tag-pill tag-good">Fits</span> : fit <= 0.35 ? <span className="tag-pill tag-warn">Not a fit</span> : <span className="tag-pill">Fair fit</span>;
+  return fit >= 0.7 ? (
+    <span className="tag-pill tag-good">Fits</span>
+  ) : fit <= 0.35 ? (
+    <span className="tag-pill tag-warn">Not a fit</span>
+  ) : (
+    <span className="tag-pill">Fair fit</span>
+  );
 }
 
 /** A coach we could put in the open chair: the man as he'd be in it, his ratings, scheme and fit, the ask and the button. */
-function Option({ league, c, as, action, problem, go }: { league: League; c: Coach; as: Coach; action: string; problem: string | null; go: () => void }) {
+function Option({
+  league,
+  c,
+  as,
+  action,
+  problem,
+  go,
+}: {
+  league: League;
+  c: Coach;
+  as: Coach;
+  action: string;
+  problem: string | null;
+  go: () => void;
+}) {
   const nav = useNav();
   const hc = chairHolder(teamCoaches(league, league.userTeamId), { role: 'headCoach' });
   const scheme = coachSchemeLabel(as);
@@ -1427,7 +1685,8 @@ function Option({ league, c, as, action, problem, go }: { league: League; c: Coa
             {coachName(c)}
           </button>
           <span className="muted small" style={{ display: 'block' }}>
-            {c.teamId === league.userTeamId ? `Our ${coachTitle(c).toLowerCase()}` : c.lastJob ?? 'On the market'} · age {c.age}
+            {c.teamId === league.userTeamId ? `Our ${coachTitle(c).toLowerCase()}` : (c.lastJob ?? 'On the market')} ·
+            age {c.age}
           </span>
         </span>
       </span>
@@ -1457,7 +1716,15 @@ function Option({ league, c, as, action, problem, go }: { league: League; c: Coa
 }
 
 /** Ways to fill the chair a coach left: our own men one rung below it, and the best of the market. */
-function PoachedCards({ league, s, live }: { league: League; s: Extract<MailSubject, { kind: 'poached' }>; live: boolean }) {
+function PoachedCards({
+  league,
+  s,
+  live,
+}: {
+  league: League;
+  s: Extract<MailSubject, { kind: 'poached' }>;
+  live: boolean;
+}) {
   const nav = useNav();
   const user = league.userTeamId;
   const title = coachTitle(s.chair).toLowerCase();
@@ -1490,15 +1757,35 @@ function PoachedCards({ league, s, live }: { league: League; s: Extract<MailSubj
       {inside.length > 0 && (
         <Card title="Promote from within">
           {inside.map((c) => {
-            const problem = promotionProblem(league, user, c, 2, false) ?? (moveOverspend(league, user, c, 2, 'promote') > 0 ? COACH_OVER : null);
-            return <Option key={c.id} league={league} c={c} as={asPromoted(league, c, s.chair)} action="Promote" problem={problem} go={() => store.mutate((l) => promoteCoach(l, l.userTeamId, c.id, 2))} />;
+            const problem =
+              promotionProblem(league, user, c, 2, false) ??
+              (moveOverspend(league, user, c, 2, 'promote') > 0 ? COACH_OVER : null);
+            return (
+              <Option
+                key={c.id}
+                league={league}
+                c={c}
+                as={asPromoted(league, c, s.chair)}
+                action="Promote"
+                problem={problem}
+                go={() => store.mutate((l) => promoteCoach(l, l.userTeamId, c.id, 2))}
+              />
+            );
           })}
         </Card>
       )}
       {market.length > 0 && (
         <Card title={`On the market: ${title}s`}>
           {market.slice(0, SHOW).map(({ c, over }) => (
-            <Option key={c.id} league={league} c={c} as={c} action="Hire" problem={coachMoveProblem(league, user, c, 'hire', 2, false) ?? (over ? COACH_OVER : null)} go={() => store.mutate((l) => hireCoach(l, l.userTeamId, c.id, 2))} />
+            <Option
+              key={c.id}
+              league={league}
+              c={c}
+              as={c}
+              action="Hire"
+              problem={coachMoveProblem(league, user, c, 'hire', 2, false) ?? (over ? COACH_OVER : null)}
+              go={() => store.mutate((l) => hireCoach(l, l.userTeamId, c.id, 2))}
+            />
           ))}
           <div className="mail-more">
             <span className="muted">The best your budget covers come first.</span>
@@ -1575,7 +1862,11 @@ function CarouselCards({ league, s }: { league: League; s: Extract<MailSubject, 
                         <button className="linklike" onClick={() => nav.openStaff('coach', x.replaced!.id)}>
                           {coachName(x.replaced)}
                         </button>
-                        {x.record && <span className="muted small" style={{ display: 'block' }}>{recordText(x.record)}</span>}
+                        {x.record && (
+                          <span className="muted small" style={{ display: 'block' }}>
+                            {recordText(x.record)}
+                          </span>
+                        )}
                       </span>
                     </span>
                   ) : (
@@ -1602,7 +1893,17 @@ function CarouselCards({ league, s }: { league: League; s: Extract<MailSubject, 
 const dealText = (d: Signing) => `${d.years} yr, ${money(d.total)}`;
 
 /** A list that shows a few rows, with the rest a click away. */
-function Expandable<T>({ items, limit, render, label }: { items: T[]; limit: number; render: (x: T) => ReactNode; label: string }) {
+function Expandable<T>({
+  items,
+  limit,
+  render,
+  label,
+}: {
+  items: T[];
+  limit: number;
+  render: (x: T) => ReactNode;
+  label: string;
+}) {
   const [all, setAll] = useState(false);
   return (
     <>
@@ -1737,7 +2038,15 @@ function FaWrapCards({ league, s }: { league: League; s: Extract<MailSubject, { 
  * The coaches' suggestion: the case for the move in words, and, while it still asks, Start or Not now. Once
  * answered it says what came of it: a plan under way, turned down, or camp over.
  */
-function PositionOfferCards({ league, s, live }: { league: League; s: Extract<MailSubject, { kind: 'positionOffer' }>; live: boolean }) {
+function PositionOfferCards({
+  league,
+  s,
+  live,
+}: {
+  league: League;
+  s: Extract<MailSubject, { kind: 'positionOffer' }>;
+  live: boolean;
+}) {
   const p = league.players[s.playerId];
   if (!p || p.teamId !== league.userTeamId) return null;
   const learning = activeLearning(p);
@@ -1753,7 +2062,12 @@ function PositionOfferCards({ league, s, live }: { league: League; s: Extract<Ma
           : 'Not started';
     return (
       <Card>
-        <Who league={league} p={p} sub={`${p.position} · age ${p.age}`} side={<span className={`tag-pill ${learning?.to === s.to ? familiarityTone(f) : ''}`}>{now}</span>} />
+        <Who
+          league={league}
+          p={p}
+          sub={`${p.position} · age ${p.age}`}
+          side={<span className={`tag-pill ${learning?.to === s.to ? familiarityTone(f) : ''}`}>{now}</span>}
+        />
       </Card>
     );
   }
@@ -1761,11 +2075,18 @@ function PositionOfferCards({ league, s, live }: { league: League; s: Extract<Ma
   const reason = reasonText(read);
   return (
     <Card>
-      <Who league={league} p={p} sub={`${p.position} → ${s.to} · age ${p.age}`} side={<span className={`tag-pill ${verdictTone(read.verdict)}`}>{verdictText(read.verdict)}</span>} />
+      <Who
+        league={league}
+        p={p}
+        sub={`${p.position} → ${s.to} · age ${p.age}`}
+        side={<span className={`tag-pill ${verdictTone(read.verdict)}`}>{verdictText(read.verdict)}</span>}
+      />
       <div className="mail-split" style={{ marginTop: 10 }}>
         <span>
           <span className="eyebrow">Why</span>
-          <span style={{ display: 'block', fontSize: 'var(--step-0)' }}>{reason || 'No reason the coaches act on'}</span>
+          <span style={{ display: 'block', fontSize: 'var(--step-0)' }}>
+            {reason || 'No reason the coaches act on'}
+          </span>
         </span>
         <span>
           <span className="eyebrow">At {s.to}</span>
@@ -1778,7 +2099,12 @@ function PositionOfferCards({ league, s, live }: { league: League; s: Extract<Ma
         </span>
       </div>
       <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button className="btn btn-sm btn-primary" disabled={!!read.problem} title={read.problem ?? undefined} onClick={() => store.mutate((l) => startMove(l, p.id, s.to, read.reason ?? undefined))}>
+        <button
+          className="btn btn-sm btn-primary"
+          disabled={!!read.problem}
+          title={read.problem ?? undefined}
+          onClick={() => store.mutate((l) => startMove(l, p.id, s.to, read.reason ?? undefined))}
+        >
           Start teaching him {s.to}
         </button>
         <button className="btn btn-sm" onClick={() => store.mutate((l) => passMove(l, p.id))}>
@@ -1801,7 +2127,15 @@ function PositionMovedCards({ league, s }: { league: League; s: Extract<MailSubj
         league={league}
         p={p}
         sub={`${move.from} → ${move.to} · age ${p.age}`}
-        side={<span className="tag-pill">{p.position !== move.to ? `Now ${p.position}` : spot >= 0 ? `${ordinal(spot + 1)} on the ${move.to} chart` : move.to}</span>}
+        side={
+          <span className="tag-pill">
+            {p.position !== move.to
+              ? `Now ${p.position}`
+              : spot >= 0
+                ? `${ordinal(spot + 1)} on the ${move.to} chart`
+                : move.to}
+          </span>
+        }
       />
     </Card>
   );

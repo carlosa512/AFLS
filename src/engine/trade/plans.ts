@@ -54,8 +54,12 @@ function race(ctx: TradeContext, team: Team): number {
   ctx.seeds.set(team.conference, seeds);
   const net = (id: number) => records.get(id)!.w - records.get(id)!.l;
   // In: the lead over the best team outside; out: the deficit to the last seed. Two games a "game".
-  const outside = league.teams.filter((t) => t.conference === team.conference && !seeds.includes(t.id)).map((t) => net(t.id));
-  const edge = seeds.includes(team.id) ? (net(team.id) - Math.max(...outside)) / 2 : (net(team.id) - net(seeds[seeds.length - 1])) / 2;
+  const outside = league.teams
+    .filter((t) => t.conference === team.conference && !seeds.includes(t.id))
+    .map((t) => net(t.id));
+  const edge = seeds.includes(team.id)
+    ? (net(team.id) - Math.max(...outside)) / 2
+    : (net(team.id) - net(seeds[seeds.length - 1])) / 2;
   const standing = clamp(edge / (1 + 0.25 * (GAMES - played)), -1, 1);
   const share = Math.min(1, played / RECORD_GAMES);
   return share * standing + (1 - share) * roster;
@@ -97,7 +101,12 @@ function scoreOf(ctx: TradeContext, team: Team): number {
 const OLD_ROSTER = 28.5;
 
 function starterAge(league: League, team: Team): number {
-  const starters = POSITIONS.flatMap((pos) => team.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]).filter((p) => p && p.teamId === team.id));
+  const starters = POSITIONS.flatMap((pos) =>
+    team.depthChart[pos]
+      .slice(0, STARTERS[pos])
+      .map((id) => league.players[id])
+      .filter((p) => p && p.teamId === team.id),
+  );
   return starters.reduce((a, p) => a + p.age, 0) / Math.max(1, starters.length);
 }
 
@@ -110,7 +119,12 @@ const RELOAD_ROSTER = 0.7;
  */
 export function reloading(ctx: TradeContext, team: Team): boolean {
   const { league } = ctx;
-  return league.phase === 'regular' && isSeller(team) && contenderScore(league, team.id) >= RELOAD_ROSTER && starterAge(league, team) < OLD_ROSTER;
+  return (
+    league.phase === 'regular' &&
+    isSeller(team) &&
+    contenderScore(league, team.id) >= RELOAD_ROSTER &&
+    starterAge(league, team) < OLD_ROSTER
+  );
 }
 
 /** Bands with a dead zone: a contender stays one until it slips below 0.2, a rebuilder until it climbs above −0.2. */
@@ -144,10 +158,14 @@ export interface Need {
 }
 
 /** How much a need at a position weighs: quarterbacks and pass rushers most, specialists least. */
-const NEED_WEIGHT = Object.fromEntries(POSITIONS.map((p) => [p, Math.sqrt(POSITION_TRADE[p])])) as Record<Position, number>;
+const NEED_WEIGHT = Object.fromEntries(POSITIONS.map((p) => [p, Math.sqrt(POSITION_TRADE[p])])) as Record<
+  Position,
+  number
+>;
 
 /** Healthy enough to count in the lineup: not on reserve, not out a month. */
-const healthy = (league: League, p: Player) => !p.ir && !(league.phase === 'regular' && p.injury && p.injury.estimate[0] >= 4);
+const healthy = (league: League, p: Player) =>
+  !p.ir && !(league.phase === 'regular' && p.injury && p.injury.estimate[0] >= 4);
 
 /** The league's median starter at each position: the bar a team's weakest starter is measured against. */
 export function starterLine(ctx: TradeContext): Record<Position, number> {
@@ -187,7 +205,8 @@ export function teamNeeds(ctx: TradeContext, team: Team): Need[] {
       if (gap > 0) need = { position: pos, urgency: clamp(gap / 3, 0, 1) * NEED_WEIGHT[pos], reason: 'upgrade' };
     }
     // Starters whose deals end this year are next year's holes.
-    if (!need && lookAhead && fit.slice(0, S).some((p) => yearsLeft(p.contract!, league.season) <= 1)) need = { position: pos, urgency: 0.3 * NEED_WEIGHT[pos], reason: 'nextYear' };
+    if (!need && lookAhead && fit.slice(0, S).some((p) => yearsLeft(p.contract!, league.season) <= 1))
+      need = { position: pos, urgency: 0.3 * NEED_WEIGHT[pos], reason: 'nextYear' };
     if (need && need.urgency > 0.1) out.push(need);
   }
   out.sort((a, b) => b.urgency - a.urgency);
@@ -224,7 +243,9 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
     return out;
   }
   // The quarterback it builds around: the one it sees leading it over the next few years, not just this week.
-  const qbs = roster.filter((p) => p.position === 'QB').sort((a, b) => outlookFor(ctx, team, b) - outlookFor(ctx, team, a));
+  const qbs = roster
+    .filter((p) => p.position === 'QB')
+    .sort((a, b) => outlookFor(ctx, team, b) - outlookFor(ctx, team, a));
   if (qbs[0] && isBuyer(team) && ovrOf(ctx, qbs[0]) >= 14) out.add(qbs[0].id);
   if (team.gm.loyalty >= 0.5) {
     roster
@@ -256,12 +277,19 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
   const inSeason = league.phase === 'regular';
   const line = starterLine(ctx);
   const tight = salaryWeight(ctx, team.id) >= 1.15;
-  const roster = rosterOf(ctx, team.id).filter((p) => underContract(league, p) && !playerTradeBlocker(league, p) && !freshlySigned(league, p, team.id));
+  const roster = rosterOf(ctx, team.id).filter(
+    (p) => underContract(league, p) && !playerTradeBlocker(league, p) && !freshlySigned(league, p, team.id),
+  );
   const rank = new Map<number, number>();
   // Who's surplus is judged on where each player is headed: a climbing backup isn't the one to move.
   // Only near the starter line does that change an order (and it costs a read): deeper, today's overall.
-  const ahead = (p: Player) => (ovrOf(ctx, p) >= line[p.position] - NEAR_LINE ? outlookFor(ctx, team, p) : ovrOf(ctx, p));
-  for (const pos of POSITIONS) roster.filter((p) => p.position === pos).sort((a, b) => ahead(b) - ahead(a)).forEach((p, i) => rank.set(p.id, i));
+  const ahead = (p: Player) =>
+    ovrOf(ctx, p) >= line[p.position] - NEAR_LINE ? outlookFor(ctx, team, p) : ovrOf(ctx, p);
+  for (const pos of POSITIONS)
+    roster
+      .filter((p) => p.position === pos)
+      .sort((a, b) => ahead(b) - ahead(a))
+      .forEach((p, i) => rank.set(p.id, i));
   const out: BlockEntry[] = [];
   const keep = untouchables(ctx, team);
   for (const p of roster) {
@@ -277,10 +305,12 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
     // A seller shops the veterans another team would start: nobody trades for an expiring backup.
     const starterGrade = ovrOf(ctx, p) >= line[p.position] - 1.5;
     // A reloading team keeps its core: it lets go only the expiring starters it won't re-sign.
-    if (starterGrade && left <= 1 && p.age >= (reload ? 30 : 26) && (mode === 'retool' || mode === 'rebuild')) add('expiring', inSeason ? 0.8 : 0.45);
+    if (starterGrade && left <= 1 && p.age >= (reload ? 30 : 26) && (mode === 'retool' || mode === 'rebuild'))
+      add('expiring', inSeason ? 0.8 : 0.45);
     if (starterGrade && mode === 'rebuild' && !reload && p.age - ageShift(p.position) >= 28) add('veteran', 0.6);
     // Tagged and not worth his price to this team long-term (a seller, or a cap it can't fit him under): tag and trade (Ngakoue, Clowney).
-    if (p.contract!.kind === 'tag' && !inSeason && (mode === 'retool' || mode === 'rebuild' || tight)) add('tagged', 0.7);
+    if (p.contract!.kind === 'tag' && !inSeason && (mode === 'retool' || mode === 'rebuild' || tight))
+      add('tagged', 0.7);
     if (r >= ROSTER_TEMPLATE[p.position] || (p.position === 'QB' && r >= 2)) add('surplus', 0.4);
     else if (r >= S && ovrOf(ctx, p) >= line[p.position]) add('surplus', 0.5);
     // Only a big salary can be a burden worth paying to move: one well above what the market pays a
@@ -334,7 +364,12 @@ function byPosition(league: League, from: readonly Listing[]): Map<Position, Lis
 /** How far down a team's list a division rival's player goes. */
 const RIVAL_CALL = 0.3;
 
-export function wanted(ctx: TradeContext, team: Team, from: readonly Listing[], opts: { memo?: boolean } = {}): Wanted[] {
+export function wanted(
+  ctx: TradeContext,
+  team: Team,
+  from: readonly Listing[],
+  opts: { memo?: boolean } = {},
+): Wanted[] {
   if (opts.memo) {
     const hit = (ctx.wanted ??= new Map()).get(team.id);
     if (hit) return hit;
@@ -356,7 +391,11 @@ export function wanted(ctx: TradeContext, team: Team, from: readonly Listing[], 
       if (seller.id === team.id || (opts.memo && entry.keenness <= 0.4)) continue;
       const p = league.players[entry.playerId];
       // In season a salary he can't fit is still in play if his team could keep paying the difference.
-      if (p.position !== need.position || salaryToTake(league, p) - (league.phase === 'regular' ? maxRetain(league, p) : 0) > room) continue;
+      if (
+        p.position !== need.position ||
+        salaryToTake(league, p) - (league.phase === 'regular' ? maxRetain(league, p) : 0) > room
+      )
+        continue;
       // Its read of him is bounded within its band of the truth (`readPlayer`): no read can make an
       // upgrade of a player this far short of the bar, so skip the scouting pass.
       const band = team.id !== league.userTeamId && seller.id !== league.userTeamId ? AI_BAND : TRADE_BAND;
@@ -379,7 +418,13 @@ export function wanted(ctx: TradeContext, team: Team, from: readonly Listing[], 
  * selling by calling buyers). Each buyer also watches the one of your players (`yours`) it wants
  * most, without crowding out its own market; interest in a player you've put on the block grows fast.
  */
-export function updateInterest(ctx: TradeContext, market: TradeMarket, teams: readonly Team[], from: readonly { team: Team; entry: BlockEntry }[], yours: readonly { team: Team; entry: BlockEntry }[] = []): void {
+export function updateInterest(
+  ctx: TradeContext,
+  market: TradeMarket,
+  teams: readonly Team[],
+  from: readonly { team: Team; entry: BlockEntry }[],
+  yours: readonly { team: Team; entry: BlockEntry }[] = [],
+): void {
   const raise = (team: Team, player: Player, by = 1) => {
     const had = market.interest.find((x) => x.teamId === team.id && x.playerId === player.id);
     if (had) Object.assign(had, { level: Math.min(3, had.level + by), at: market.moment });
@@ -390,8 +435,12 @@ export function updateInterest(ctx: TradeContext, market: TradeMarket, teams: re
     const mine = yours.length ? wanted(ctx, team, yours)[0] : undefined;
     if (mine) raise(team, mine.player, market.status[mine.player.id] === 'listed' ? 2 : 1);
   }
-  for (const x of market.interest) if (market.moment - x.at >= FADE) Object.assign(x, { level: x.level - 1, at: market.moment });
-  market.interest = market.interest.filter((x) => x.level > 0 && ctx.league.players[x.playerId]?.teamId !== x.teamId).slice(-300);
+  for (const x of market.interest)
+    if (market.moment - x.at >= FADE) Object.assign(x, { level: x.level - 1, at: market.moment });
+  market.interest = market.interest
+    .filter((x) => x.level > 0 && ctx.league.players[x.playerId]?.teamId !== x.teamId)
+    .slice(-300);
 }
 
-export const interestIn = (market: TradeMarket, teamId: number, playerId: number) => market.interest.find((x) => x.teamId === teamId && x.playerId === playerId)?.level ?? 0;
+export const interestIn = (market: TradeMarket, teamId: number, playerId: number) =>
+  market.interest.find((x) => x.teamId === teamId && x.playerId === playerId)?.level ?? 0;

@@ -6,7 +6,15 @@ import { useId, useState } from 'react';
 import { capSpace } from '../engine/finance/cap';
 import { capHit, isExpired, prorationIn, totalGuaranteed } from '../engine/finance/contract';
 import { minSalary } from '../engine/finance/market';
-import { askOffer, demand, makeOffer, negotiationFor, offerProblem, prospectiveContract, type Offer } from '../engine/offseason/negotiation';
+import {
+  askOffer,
+  demand,
+  makeOffer,
+  negotiationFor,
+  offerProblem,
+  prospectiveContract,
+  type Offer,
+} from '../engine/offseason/negotiation';
 import { careerOutlook } from '../engine/scouting';
 import type { League, Player } from '../engine/types';
 import { Dialog, PlayerAvatar } from './components';
@@ -17,19 +25,51 @@ import { store } from './store';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
-function Slider({ label, value, min, max, step, onChange, format }: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void; format: (v: number) => string }) {
+function Slider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  format,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+  format: (v: number) => string;
+}) {
   const id = useId();
   return (
     <div className="field-row">
       <label htmlFor={id}>
         {label} <b className="num">{format(value)}</b>
       </label>
-      <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
     </div>
   );
 }
 
-export function NegotiationDialog({ league, player, onClose }: { league: League; player: Player; onClose: () => void }) {
+export function NegotiationDialog({
+  league,
+  player,
+  onClose,
+}: {
+  league: League;
+  player: Player;
+  onClose: () => void;
+}) {
   const teamId = league.userTeamId;
   const d = demand(league, player, teamId);
   const [offer, setOffer] = useState<Offer>(() => askOffer(d));
@@ -67,7 +107,16 @@ export function NegotiationDialog({ league, player, onClose }: { league: League;
 
   if (result?.accepted) {
     return (
-      <Dialog key="done" title="Deal done" onClose={onClose} footer={<button className="btn btn-primary" onClick={onClose} data-autofocus>Done</button>}>
+      <Dialog
+        key="done"
+        title="Deal done"
+        onClose={onClose}
+        footer={
+          <button className="btn btn-primary" onClick={onClose} data-autofocus>
+            Done
+          </button>
+        }
+      >
         <p style={{ margin: 0 }}>
           {player.firstName} {player.lastName} signed: {result.summary}
         </p>
@@ -98,7 +147,11 @@ export function NegotiationDialog({ league, player, onClose }: { league: League;
           </b>
           <div className="muted small">Market value {money(d.market)}/yr</div>
         </div>
-        <div className="patience" aria-label={`Agent patience: ${patience} of ${d.patience}`} title="Agent patience: lowball offers use it up; insults cost two">
+        <div
+          className="patience"
+          aria-label={`Agent patience: ${patience} of ${d.patience}`}
+          title="Agent patience: lowball offers use it up; insults cost two"
+        >
           {Array.from({ length: d.patience }, (_, i) => (
             <i key={i} className={i < patience ? 'on' : ''} />
           ))}
@@ -115,7 +168,11 @@ export function NegotiationDialog({ league, player, onClose }: { league: League;
         </b>
         <span className="muted small">{pct(d.askGtdPct)} guaranteed</span>
       </p>
-      {broken && <p className="callout callout-bad">His agent has ended talks for now. They reopen in the next phase of the offseason.</p>}
+      {broken && (
+        <p className="callout callout-bad">
+          His agent has ended talks for now. They reopen in the next phase of the offseason.
+        </p>
+      )}
       {result && !result.accepted && <p className="callout callout-bad">{result.message}</p>}
 
       <div className="field-row">
@@ -128,12 +185,38 @@ export function NegotiationDialog({ league, player, onClose }: { league: League;
           ))}
         </div>
       </div>
-      <Slider label="Per year" value={offer.apy} min={min} max={Math.max(min * 2, Math.round(d.askApy * 1.4))} step={50} onChange={(v) => set({ apy: v })} format={(v) => money(v)} />
-      <Slider label="Guaranteed" value={offer.gtdPct} min={0} max={1} step={0.05} onChange={(v) => set({ gtdPct: v })} format={pct} />
-      <Slider label="Paid as signing bonus" value={offer.bonusPct} min={0} max={offer.gtdPct} step={0.05} onChange={(v) => set({ bonusPct: v })} format={pct} />
+      <Slider
+        label="Per year"
+        value={offer.apy}
+        min={min}
+        max={Math.max(min * 2, Math.round(d.askApy * 1.4))}
+        step={50}
+        onChange={(v) => set({ apy: v })}
+        format={(v) => money(v)}
+      />
+      <Slider
+        label="Guaranteed"
+        value={offer.gtdPct}
+        min={0}
+        max={1}
+        step={0.05}
+        onChange={(v) => set({ gtdPct: v })}
+        format={pct}
+      />
+      <Slider
+        label="Paid as signing bonus"
+        value={offer.bonusPct}
+        min={0}
+        max={offer.gtdPct}
+        step={0.05}
+        onChange={(v) => set({ bonusPct: v })}
+        format={pct}
+      />
       {offer.years < 5 && (
         <div className="field-row">
-          <span title="Spreads the bonus over more cap years. The player doesn't care; future you might.">Void years</span>
+          <span title="Spreads the bonus over more cap years. The player doesn't care; future you might.">
+            Void years
+          </span>
           <div className="seg" role="group" aria-label="Void years">
             {Array.from({ length: 5 - offer.years + 1 }, (_, v) => (
               <button key={v} aria-pressed={offer.voidYears === v} onClick={() => set({ voidYears: v })}>
@@ -170,7 +253,9 @@ export function NegotiationDialog({ league, player, onClose }: { league: League;
               {y.void ? ' (void)' : ''}
             </span>
             <b className="num">{money(Math.round(capHit(preview, y.season)))}</b>
-            {prorationIn(preview, y.season) > 0 && <span className="muted small">bonus {money(Math.round(prorationIn(preview, y.season)))}</span>}
+            {prorationIn(preview, y.season) > 0 && (
+              <span className="muted small">bonus {money(Math.round(prorationIn(preview, y.season)))}</span>
+            )}
           </span>
         ))}
       </div>

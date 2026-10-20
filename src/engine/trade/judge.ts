@@ -18,8 +18,28 @@ import type { DraftPick, League, Player, Team } from '../types';
 import { rosterOf, tradeContext, type TradeContext } from './context';
 import { untouchables } from './plans';
 import { peekTalks, talkRefusal, TRUST_MARGIN } from './talks';
-import { freshSigningRefusal, guaranteesShed, playerTradeBlocker, retainedBy, tradeDeadMoney, tradeProblem, TRADE_DEADLINE_WEEK, type TradeProposal, type TradeSide } from './rules';
-import { goingRate, marketValue, nextDraftSeason, nowWeight, pickOverall, pickValue, playerSwing, POINTS_PER_K, salaryWeight } from './value';
+import {
+  freshSigningRefusal,
+  guaranteesShed,
+  playerTradeBlocker,
+  retainedBy,
+  tradeDeadMoney,
+  tradeProblem,
+  TRADE_DEADLINE_WEEK,
+  type TradeProposal,
+  type TradeSide,
+} from './rules';
+import {
+  goingRate,
+  marketValue,
+  nextDraftSeason,
+  nowWeight,
+  pickOverall,
+  pickValue,
+  playerSwing,
+  POINTS_PER_K,
+  salaryWeight,
+} from './value';
 
 /** Each player a deal leaves past the roster limit costs about a sixth-round pick: someone has to be cut. */
 const ROSTER_SPOT = 15;
@@ -70,7 +90,8 @@ const AI_RENTAL_FLOOR = { first: 0.5, deadline: 0.2 };
 
 /** Share of a player's market value a team holds out for when it sends him. */
 function floorShare(league: League, team: Team, p: Player, vsUser: boolean): number {
-  const selling = league.phase === 'regular' && contenderScore(league, team.id) <= 0.4 && yearsLeft(p.contract!, league.season) <= 1;
+  const selling =
+    league.phase === 'regular' && contenderScore(league, team.id) <= 0.4 && yearsLeft(p.contract!, league.season) <= 1;
   if (!selling) return 0.8;
   const floor = vsUser ? RENTAL_FLOOR : AI_RENTAL_FLOOR;
   const late = clamp((league.week - 1) / (TRADE_DEADLINE_WEEK - 1), 0, 1);
@@ -78,7 +99,8 @@ function floorShare(league: League, team: Team, p: Player, vsUser: boolean): num
 }
 
 /** Picks at the league's going rate. */
-const going = (ctx: TradeContext, ids: readonly number[]) => ids.reduce((s, id) => s + goingRate(ctx.league, pickById(ctx.league, id), ctx), 0);
+const going = (ctx: TradeContext, ids: readonly number[]) =>
+  ids.reduce((s, id) => s + goingRate(ctx.league, pickById(ctx.league, id), ctx), 0);
 
 /** Each first-round pick a team is without past its second costs it this much more (ZenGM's ×(1 + extra / 2.5)). */
 const FIRST_STEP = 1 / 2.5;
@@ -118,7 +140,16 @@ function firstsAround(league: League, teamId: number, sending: readonly number[]
 function picksOut(ctx: TradeContext, team: Team, ids: readonly number[], getting: readonly number[]): number {
   const { league } = ctx;
   const next = nextDraftSeason(league);
-  const picks = ids.map((id) => pickById(league, id)).map((p) => ({ value: Math.max(pickValue(league, p, team.gm, ctx), p.round === 1 && p.season > next ? goingRate(league, p, ctx) : 0), season: p.season, first: p.round === 1 }));
+  const picks = ids
+    .map((id) => pickById(league, id))
+    .map((p) => ({
+      value: Math.max(
+        pickValue(league, p, team.gm, ctx),
+        p.round === 1 && p.season > next ? goingRate(league, p, ctx) : 0,
+      ),
+      season: p.season,
+      first: p.round === 1,
+    }));
   if (!picks.some((p) => p.first)) return picks.reduce((s, p) => s + p.value, 0);
   picks.sort((a, b) => b.value - a.value);
   const around = firstsAround(league, team.id, ids, getting);
@@ -145,7 +176,8 @@ function centrepieceRefusal(ctx: TradeContext, team: Team, proposal: TradePropos
     const big =
       theirs.players.some((qid) => marketValue(ctx, team, league.players[qid]) >= CENTREPIECE * worth) ||
       theirs.picks.some((pid) => pickValue(league, pickById(league, pid), team.gm, ctx) >= CENTREPIECE * worth);
-    if (!first && !big) return `They won't move ${p.firstName} ${p.lastName} without a first-round pick or a front-line player coming back.`;
+    if (!first && !big)
+      return `They won't move ${p.firstName} ${p.lastName} without a first-round pick or a front-line player coming back.`;
   }
   return null;
 }
@@ -172,7 +204,12 @@ const DEAD_LIMIT = 0.25;
  * opens: in the re-sign window it's still on the expired contracts, but the GM knows it's coming.
  */
 const voidsComing = (ctx: TradeContext, teamId: number) =>
-  rosterOf(ctx, teamId).reduce((s, p) => s + (p.contract && isExpired(p.contract, ctx.league.season) ? remainingProration(p.contract, ctx.league.season) : 0), 0);
+  rosterOf(ctx, teamId).reduce(
+    (s, p) =>
+      s +
+      (p.contract && isExpired(p.contract, ctx.league.season) ? remainingProration(p.contract, ctx.league.season) : 0),
+    0,
+  );
 
 /** A GM won't sell players whose bonuses would bury his cap in dead money. */
 function deadRefusal(ctx: TradeContext, team: Team, mine: TradeSide): string | null {
@@ -180,8 +217,11 @@ function deadRefusal(ctx: TradeContext, team: Team, mine: TradeSide): string | n
   const { league } = ctx;
   const added = tradeDeadMoney(league, mine);
   added.thisYear += retainedBy(mine) + voidsComing(ctx, team.id);
-  const over = (season: number, amount: number) => amount > 0 && deadMoneyIn(team, season) + amount > DEAD_LIMIT * capFor(league, season);
-  return over(league.season, added.thisYear) || over(league.season + 1, added.nextYear) ? "They can't take on any more dead money this year." : null;
+  const over = (season: number, amount: number) =>
+    amount > 0 && deadMoneyIn(team, season) + amount > DEAD_LIMIT * capFor(league, season);
+  return over(league.season, added.thisYear) || over(league.season + 1, added.nextYear)
+    ? "They can't take on any more dead money this year."
+    : null;
 }
 
 /**
@@ -191,7 +231,8 @@ function deadRefusal(ctx: TradeContext, team: Team, mine: TradeSide): string | n
  */
 const QB_PREMIUM = 1;
 
-const startsAtQb = (league: League, team: Team, mine: TradeSide) => league.phase === 'regular' && mine.players.includes(team.depthChart.QB[0]);
+const startsAtQb = (league: League, team: Team, mine: TradeSide) =>
+  league.phase === 'regular' && mine.players.includes(team.depthChart.QB[0]);
 
 /** A first-round pick projected this high in the next draft is kept through the season. */
 const HOLD_SLOT = 10;
@@ -201,7 +242,10 @@ const HOLD_SLOT = 10;
  * day, and can trade down then.
  */
 export const heldPick = (ctx: TradeContext, pk: DraftPick) =>
-  ctx.league.phase === 'regular' && pk.round === 1 && pk.season === nextDraftSeason(ctx.league) && pickOverall(ctx.league, pk, ctx) <= HOLD_SLOT;
+  ctx.league.phase === 'regular' &&
+  pk.round === 1 &&
+  pk.season === nextDraftSeason(ctx.league) &&
+  pickOverall(ctx.league, pk, ctx) <= HOLD_SLOT;
 
 function pickHoldRefusal(ctx: TradeContext, mine: TradeSide): string | null {
   const held = mine.picks.map((id) => pickById(ctx.league, id)).find((pk) => heldPick(ctx, pk));
@@ -223,7 +267,12 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const mine = proposal.sides.find((s) => s.teamId === teamId)!;
   const theirs = proposal.sides.find((s) => s.teamId !== teamId)!;
   const problem = tradeProblem(league, proposal, { rosterCuts: opts.rosterCuts, ctx });
-  const refusal = freshSigningRefusal(league, teamId, proposal) ?? centrepieceRefusal(ctx, team, proposal) ?? rivalRefusal(ctx, team, proposal) ?? (opts.releasing ? null : deadRefusal(ctx, team, mine)) ?? pickHoldRefusal(ctx, mine);
+  const refusal =
+    freshSigningRefusal(league, teamId, proposal) ??
+    centrepieceRefusal(ctx, team, proposal) ??
+    rivalRefusal(ctx, team, proposal) ??
+    (opts.releasing ? null : deadRefusal(ctx, team, mine)) ??
+    pickHoldRefusal(ctx, mine);
 
   const w = salaryWeight(ctx, teamId);
   const swing = playerSwing(ctx, team, mine.players, theirs.players);
@@ -241,7 +290,9 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const get = pickIn + gain - cuts * ROSTER_SPOT + thisYear * POINTS_PER_K * retainedBy(theirs);
   const give = pickOut + loss + thisYear * POINTS_PER_K * retainedBy(mine);
   const trust = opts.vsUser ? peekTalks(league.market, teamId).trust : 0;
-  const margin = (opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser, trust)) + (startsAtQb(league, team, mine) ? QB_PREMIUM : 0);
+  const margin =
+    (opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser, trust)) +
+    (startsAtQb(league, team, mine) ? QB_PREMIUM : 0);
   // The margin is a share of the stakes, so it asks for more back whether the stakes are positive or not.
   const lift = (x: number) => x + Math.abs(x) * (margin - 1);
   let base = give;
@@ -252,11 +303,19 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
     // clear the floor at the league's prices.
     // Salary it keeps paying makes the player that much cheaper to his new team: the league would
     // pay that much more for him, so it counts in full, whatever a rich team thinks a dollar is worth.
-    const floor = mine.players.reduce((s, id) => {
-      const p = league.players[id];
-      const worth = marketValue(ctx, team, p);
-      return s + (worth > 0 ? worth * floorShare(league, team, p, !!opts.vsUser || theirs.teamId === league.userTeamId) : worth);
-    }, going(ctx, mine.picks) + POINTS_PER_K * retainedBy(mine));
+    const floor = mine.players.reduce(
+      (s, id) => {
+        const p = league.players[id];
+        const worth = marketValue(ctx, team, p);
+        return (
+          s +
+          (worth > 0
+            ? worth * floorShare(league, team, p, !!opts.vsUser || theirs.teamId === league.userTeamId)
+            : worth)
+        );
+      },
+      going(ctx, mine.picks) + POINTS_PER_K * retainedBy(mine),
+    );
     const rate = pickIn - going(ctx, theirs.picks);
     base = Math.max(base, floor + rate);
     need = Math.max(need, lift(floor) + rate);
@@ -285,16 +344,47 @@ export interface TradeVerdict {
  * The AI side's verdict (sides[1]). Against the user it wants a small win; pass `margin` to judge as
  * one AI judges another (`margin: 1`: merely not lose).
  */
-export function evaluateTrade(league: League, proposal: TradeProposal, opts: { margin?: number; rosterCuts?: boolean; ctx?: TradeContext } = {}): TradeVerdict {
+export function evaluateTrade(
+  league: League,
+  proposal: TradeProposal,
+  opts: { margin?: number; rosterCuts?: boolean; ctx?: TradeContext } = {},
+): TradeVerdict {
   const ctx = opts.ctx ?? tradeContext(league);
   const ai = league.teams[proposal.sides[1].teamId];
-  const j = judge(ctx, ai.id, proposal, { vsUser: opts.margin === undefined, margin: opts.margin, rosterCuts: opts.rosterCuts });
+  const j = judge(ctx, ai.id, proposal, {
+    vsUser: opts.margin === undefined,
+    margin: opts.margin,
+    rosterCuts: opts.rosterCuts,
+  });
   const shortfall = Math.max(0, j.need - j.get);
   const blocked = j.problem ?? j.refusal ?? (opts.margin === undefined ? talkRefusal(league.market, ai.id) : null);
-  if (blocked) return { accepts: false, get: j.get, give: j.give, shortfall, message: blocked, problem: blocked, policy: !j.problem };
-  if (j.accepts) return { accepts: true, get: j.get, give: j.give, shortfall: 0, message: `The ${ai.name} would accept.`, problem: null, policy: false };
+  if (blocked)
+    return {
+      accepts: false,
+      get: j.get,
+      give: j.give,
+      shortfall,
+      message: blocked,
+      problem: blocked,
+      policy: !j.problem,
+    };
+  if (j.accepts)
+    return {
+      accepts: true,
+      get: j.get,
+      give: j.give,
+      shortfall: 0,
+      message: `The ${ai.name} would accept.`,
+      problem: null,
+      policy: false,
+    };
   const scale = Math.max(Math.abs(j.need), 50);
-  const message = shortfall < scale * 0.12 ? 'Close. Add a little more and they’ll do it.' : shortfall < scale * 0.4 ? 'Not enough value for them yet.' : 'They aren’t interested at that price.';
+  const message =
+    shortfall < scale * 0.12
+      ? 'Close. Add a little more and they’ll do it.'
+      : shortfall < scale * 0.4
+        ? 'Not enough value for them yet.'
+        : 'They aren’t interested at that price.';
   return { accepts: false, get: j.get, give: j.give, shortfall, message, problem: null, policy: false };
 }
 
@@ -303,19 +393,33 @@ export function evaluateTrade(league: League, proposal: TradeProposal, opts: { m
  * the other GM values it, or the one that brings it closest if none does alone. Only additions that
  * keep the deal legal and that he'd take count.
  */
-export function suggestSweetener(league: League, proposal: TradeProposal): { kind: 'player' | 'pick'; id: number } | null {
+export function suggestSweetener(
+  league: League,
+  proposal: TradeProposal,
+): { kind: 'player' | 'pick'; id: number } | null {
   const ctx = tradeContext(league);
   const verdict = evaluateTrade(league, proposal, { ctx });
   if (verdict.accepts || verdict.problem || verdict.shortfall <= 0) return null;
   const [mine, theirs] = proposal.sides;
   const options: { kind: 'player' | 'pick'; id: number }[] = [
-    ...league.draftPicks.filter((p) => p.ownerId === mine.teamId && p.playerId === undefined && !mine.picks.includes(p.id)).map((p) => ({ kind: 'pick' as const, id: p.id })),
+    ...league.draftPicks
+      .filter((p) => p.ownerId === mine.teamId && p.playerId === undefined && !mine.picks.includes(p.id))
+      .map((p) => ({ kind: 'pick' as const, id: p.id })),
     ...rosterOf(ctx, mine.teamId)
-      .filter((p) => !mine.players.includes(p.id) && !playerTradeBlocker(league, p) && !untouchables(ctx, league.teams[mine.teamId]).has(p.id))
+      .filter(
+        (p) =>
+          !mine.players.includes(p.id) &&
+          !playerTradeBlocker(league, p) &&
+          !untouchables(ctx, league.teams[mine.teamId]).has(p.id),
+      )
       .map((p) => ({ kind: 'player' as const, id: p.id })),
   ];
   const tried = options.flatMap((o) => {
-    const side = { ...mine, players: o.kind === 'player' ? [...mine.players, o.id] : mine.players, picks: o.kind === 'pick' ? [...mine.picks, o.id] : mine.picks };
+    const side = {
+      ...mine,
+      players: o.kind === 'player' ? [...mine.players, o.id] : mine.players,
+      picks: o.kind === 'pick' ? [...mine.picks, o.id] : mine.picks,
+    };
     const j = judge(ctx, theirs.teamId, { sides: [side, theirs] }, { vsUser: true });
     const added = j.get - verdict.get;
     return j.problem || j.refusal || added <= 0 ? [] : [{ ...o, added, accepts: j.accepts }];

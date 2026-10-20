@@ -49,17 +49,26 @@ function appealOf(league: League): (g: Game) => number {
     const [h, a] = [share(g.homeId), share(g.awayId)];
     const late = g.week >= 12;
     const division = league.teams[g.homeId].division === league.teams[g.awayId].division;
-    return h + a - 0.5 * Math.abs(h - a) + (alive.get(g.homeId) && alive.get(g.awayId) ? 0.25 : 0) + (late && division ? 0.15 : 0);
+    return (
+      h +
+      a -
+      0.5 * Math.abs(h - a) +
+      (alive.get(g.homeId) && alive.get(g.awayId) ? 0.25 : 0) +
+      (late && division ? 0.15 : 0)
+    );
   };
 }
 
 /** Night games a team has this season, as scheduled now. */
 function primeCount(league: League, teamId: number): number {
-  return season(league).filter((g) => (g.homeId === teamId || g.awayId === teamId) && g.kickoff && isPrimeTime(g.kickoff)).length;
+  return season(league).filter(
+    (g) => (g.homeId === teamId || g.awayId === teamId) && g.kickoff && isPrimeTime(g.kickoff),
+  ).length;
 }
 
 /** The kickoff a team has in a week, if it plays. */
-const slotOf = (league: League, teamId: number, week: number) => season(league).find((g) => g.week === week && (g.homeId === teamId || g.awayId === teamId))?.kickoff;
+const slotOf = (league: League, teamId: number, week: number) =>
+  season(league).find((g) => g.week === week && (g.homeId === teamId || g.awayId === teamId))?.kickoff;
 
 /** Swap two games' kickoffs, remembering where each was first scheduled; a western host never lands at 1:00. */
 function swap(league: League, a: Game, b: Game): void {
@@ -76,7 +85,10 @@ function flexInto(league: League, week: number, slot: Kickoff, from: number): vo
   const current = games.find((g) => same(g.kickoff, slot));
   if (!current) return;
   // The NFL's caps: Sunday night twice in weeks 5–10, Thursday night twice a season.
-  const flexes = (k: Kickoff, weeks: [number, number]) => season(league).filter((g) => same(g.kickoff, k) && g.flexed && !same(g.flexed, k) && g.week >= weeks[0] && g.week <= weeks[1]).length;
+  const flexes = (k: Kickoff, weeks: [number, number]) =>
+    season(league).filter(
+      (g) => same(g.kickoff, k) && g.flexed && !same(g.flexed, k) && g.week >= weeks[0] && g.week <= weeks[1],
+    ).length;
   if (slot.day === 'sun' && week <= 10 && flexes(SUNDAY_NIGHT, [5, 10]) >= 2) return;
   if (slot.day === 'thu' && flexes(THURSDAY, [1, REGULAR_SEASON_WEEKS]) >= 2) return;
   const appeal = appealOf(league);
@@ -89,7 +101,14 @@ function flexInto(league: League, week: number, slot: Kickoff, from: number): vo
       return !next || next.day !== 'thu';
     });
   const best = games
-    .filter((g) => g !== current && g.kickoff?.day === 'sun' && !isPrimeTime(g.kickoff) && rested(g) && teams(g).every((t) => primeCount(league, t) < PRIME_CAP))
+    .filter(
+      (g) =>
+        g !== current &&
+        g.kickoff?.day === 'sun' &&
+        !isPrimeTime(g.kickoff) &&
+        rested(g) &&
+        teams(g).every((t) => primeCount(league, t) < PRIME_CAP),
+    )
     .sort((x, y) => appeal(y) - appeal(x) || x.id - y.id)[0];
   if (best && appeal(best) - appeal(current) >= MARGIN[slot.day as keyof typeof MARGIN]) swap(league, best, current);
 }
@@ -105,10 +124,20 @@ function setFinalWeek(league: League): void {
   const appeal = appealOf(league);
   const live = (id: number) => !race.get(id)!.out && !race.get(id)!.bye;
   const stakes = (g: Game) =>
-    (live(g.homeId) ? 2 : 0) + (live(g.awayId) ? 2 : 0) + (!race.get(g.homeId)!.division && !race.get(g.awayId)!.division && live(g.homeId) && live(g.awayId) ? 1 : 0) + appeal(g) / 4;
+    (live(g.homeId) ? 2 : 0) +
+    (live(g.awayId) ? 2 : 0) +
+    (!race.get(g.homeId)!.division && !race.get(g.awayId)!.division && live(g.homeId) && live(g.awayId) ? 1 : 0) +
+    appeal(g) / 4;
   const ranked = [...games].sort((x, y) => stakes(y) - stakes(x) || x.id - y.id);
   ranked.forEach((g, i) => {
-    const k = i === 0 ? SUNDAY_NIGHT : i <= SATURDAY.length ? SATURDAY[i - 1] : stakes(g) >= 2 || western(league, g.homeId) ? LATE[1] : EARLY;
+    const k =
+      i === 0
+        ? SUNDAY_NIGHT
+        : i <= SATURDAY.length
+          ? SATURDAY[i - 1]
+          : stakes(g) >= 2 || western(league, g.homeId)
+            ? LATE[1]
+            : EARLY;
     if (!same(g.kickoff, k)) {
       g.flexed ??= g.kickoff ? { ...g.kickoff } : undefined;
       g.kickoff = { ...k };

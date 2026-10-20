@@ -17,7 +17,10 @@ function MySchedule({ league }: { league: League }) {
   const records = computeRecords(league);
   const games = league.games.filter((g) => g.season === league.season && (g.homeId === uid || g.awayId === uid));
   const lastWeek = Math.max(REGULAR_SEASON_WEEKS, ...games.map((g) => g.week));
-  const rows = Array.from({ length: lastWeek }, (_, i) => i + 1).map((week) => ({ week, game: games.find((g) => g.week === week) }));
+  const rows = Array.from({ length: lastWeek }, (_, i) => i + 1).map((week) => ({
+    week,
+    game: games.find((g) => g.week === week),
+  }));
 
   return (
     <div className="table-scroll">
@@ -52,7 +55,11 @@ function MySchedule({ league }: { league: League }) {
             const them = r ? (home ? r.awayScore : r.homeScore) : 0;
             const res = r ? (us > them ? 'W' : us < them ? 'L' : 'T') : null;
             return (
-              <tr key={week} className={r ? 'clickable' : week === league.week ? 'is-user' : ''} onClick={r ? () => nav.openGame(game.id) : undefined}>
+              <tr
+                key={week}
+                className={r ? 'clickable' : week === league.week ? 'is-user' : ''}
+                onClick={r ? () => nav.openGame(game.id) : undefined}
+              >
                 <td>
                   {r ? (
                     <button className="linklike" onClick={(e) => (e.stopPropagation(), nav.openGame(game.id))}>
@@ -73,9 +80,21 @@ function MySchedule({ league }: { league: League }) {
                   </span>
                 </td>
                 <td className="muted small">{kickoffText(league, game)}</td>
-                <td>{res ? <span className={`res-${res}`}>{res}</span> : <span className="muted">{week === league.week ? 'Next' : '–'}</span>}</td>
+                <td>
+                  {res ? (
+                    <span className={`res-${res}`}>{res}</span>
+                  ) : (
+                    <span className="muted">{week === league.week ? 'Next' : '–'}</span>
+                  )}
+                </td>
                 <td className="num">{r ? `${us}–${them}${r.overtime ? ' OT' : ''}` : ''}</td>
-                <td>{r ? r.weather && <WeatherNote weather={r.weather} forecast={null} /> : <WeatherNote forecast={forecast(league, game)} />}</td>
+                <td>
+                  {r ? (
+                    r.weather && <WeatherNote weather={r.weather} forecast={null} />
+                  ) : (
+                    <WeatherNote forecast={forecast(league, game)} />
+                  )}
+                </td>
               </tr>
             );
           })}
@@ -94,7 +113,12 @@ function WeekView({ league }: { league: League }) {
   return (
     <div className="stack">
       <div className="row">
-        <button className="btn btn-sm" disabled={week <= 1} onClick={() => setWeek(week - 1)} aria-label="Previous week">
+        <button
+          className="btn btn-sm"
+          disabled={week <= 1}
+          onClick={() => setWeek(week - 1)}
+          aria-label="Previous week"
+        >
           ◀
         </button>
         <select aria-label="Week" id="week-select" value={week} onChange={(e) => setWeek(Number(e.target.value))}>
@@ -104,7 +128,12 @@ function WeekView({ league }: { league: League }) {
             </option>
           ))}
         </select>
-        <button className="btn btn-sm" disabled={week >= maxWeek} onClick={() => setWeek(week + 1)} aria-label="Next week">
+        <button
+          className="btn btn-sm"
+          disabled={week >= maxWeek}
+          onClick={() => setWeek(week + 1)}
+          aria-label="Next week"
+        >
           ▶
         </button>
       </div>

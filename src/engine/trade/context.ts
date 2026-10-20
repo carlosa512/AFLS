@@ -98,7 +98,8 @@ export function tradeContext(league: League): TradeContext {
  */
 export function refreshAfterTrade(ctx: TradeContext, teamIds: readonly number[], playerIds: readonly number[]): void {
   ctx.rosters = rostersOf(ctx.league);
-  for (const key of [...(ctx.capRooms?.keys() ?? [])]) if (teamIds.includes(Math.floor(key / 8))) ctx.capRooms!.delete(key);
+  for (const key of [...(ctx.capRooms?.keys() ?? [])])
+    if (teamIds.includes(Math.floor(key / 8))) ctx.capRooms!.delete(key);
   for (const id of teamIds) {
     ctx.viewsByTeam.delete(id);
     ctx.needs?.delete(id);

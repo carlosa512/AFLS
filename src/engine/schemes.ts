@@ -78,7 +78,12 @@ export const OFF_SCHEMES: Record<OffSchemeId, OffScheme> = {
     release: 0.8,
     playAction: 0,
     lean: 0.15,
-    fit: { QB: ['shortAccuracy', 'decisionMaking'], WR: ['shortRoutes', 'afterCatch'], TE: ['shortRoutes', 'hands'], RB: ['targeting', 'afterCatch'] },
+    fit: {
+      QB: ['shortAccuracy', 'decisionMaking'],
+      WR: ['shortRoutes', 'afterCatch'],
+      TE: ['shortRoutes', 'hands'],
+      RB: ['targeting', 'afterCatch'],
+    },
   },
   airRaid: {
     id: 'airRaid',
@@ -323,7 +328,8 @@ export const COVERAGES: Record<CoverageId, Coverage> = {
   quarters: {
     id: 'quarters',
     label: 'Quarters',
-    about: 'Cover 4 pattern-matching: safeties read the run and rob the deep ball. Hard to throw on, weaker in the flats.',
+    about:
+      'Cover 4 pattern-matching: safeties read the run and rob the deep ball. Hard to throw on, weaker in the flats.',
     man: false,
     twoHigh: true,
     sep: [0.25, -0.1, -0.3],
@@ -372,7 +378,11 @@ export function spotsFor(scheme: TeamScheme, pos: Position): string[] {
 
 /** The contests a team's schemes lean on at a position (offense from the OC, defense from the DC). */
 export function fitContests(scheme: TeamScheme, pos: Position): ContestName[] {
-  const all = [...(scheme.offense.fit[pos] ?? []), ...(scheme.front.fit[pos] ?? []), ...(scheme.coverage?.fit[pos] ?? [])];
+  const all = [
+    ...(scheme.offense.fit[pos] ?? []),
+    ...(scheme.front.fit[pos] ?? []),
+    ...(scheme.coverage?.fit[pos] ?? []),
+  ];
   return [...new Set(all)];
 }
 
@@ -412,12 +422,18 @@ export function rollScheme(seed: string, c: Pick<Coach, 'id' | 'role' | 'style'>
   if (c.role === 'offCoord') {
     const lean = c.style?.passLean ?? 0;
     // Closer leans weigh more; Pro Style is everyone's fallback.
-    return { offense: rng.weighted(OFF_SCHEME_IDS, (id) => (id === 'proStyle' ? 1.2 : 0.15 + Math.exp(-((lean - OFF_SCHEMES[id].lean) ** 2) / 0.12))) };
+    return {
+      offense: rng.weighted(OFF_SCHEME_IDS, (id) =>
+        id === 'proStyle' ? 1.2 : 0.15 + Math.exp(-((lean - OFF_SCHEMES[id].lean) ** 2) / 0.12),
+      ),
+    };
   }
   if (c.role === 'defCoord') {
     const front = rng.weighted(FRONT_IDS, (id) => (id === 'fourThree' ? 1.4 : id === 'threeFour' ? 1.2 : 1));
     // Fire-zone fronts play zone behind the pressure; everyone else picks freely.
-    const coverage = rng.weighted(COVERAGE_IDS, (id) => (front === 'fireZone' && id === 'cover1' ? 0.4 : id === 'cover3' ? 1.3 : 1));
+    const coverage = rng.weighted(COVERAGE_IDS, (id) =>
+      front === 'fireZone' && id === 'cover1' ? 0.4 : id === 'cover3' ? 1.3 : 1,
+    );
     return { front, coverage };
   }
   return undefined;
@@ -431,14 +447,20 @@ export function shiftMix(mix: [number, number, number], by: [number, number, num
 /** A team's schemes if `c` took over his side of the ball (for previewing a coordinator hire). */
 export function schemeWith(scheme: TeamScheme, c: Pick<Coach, 'role' | 'scheme'>): TeamScheme {
   if (c.role === 'offCoord') return { ...scheme, offense: OFF_SCHEMES[c.scheme?.offense ?? 'proStyle'] };
-  if (c.role === 'defCoord') return { ...scheme, front: FRONTS[c.scheme?.front ?? 'fourThree'], coverage: c.scheme?.coverage ? COVERAGES[c.scheme.coverage] : null };
+  if (c.role === 'defCoord')
+    return {
+      ...scheme,
+      front: FRONTS[c.scheme?.front ?? 'fourThree'],
+      coverage: c.scheme?.coverage ? COVERAGES[c.scheme.coverage] : null,
+    };
   return scheme;
 }
 
 /** One line on what a coordinator's scheme is about. */
 export function coachSchemeAbout(c: Pick<Coach, 'role' | 'scheme'>): string | null {
   if (c.role === 'offCoord') return OFF_SCHEMES[c.scheme?.offense ?? 'proStyle'].about;
-  if (c.role === 'defCoord' && c.scheme?.front) return `${FRONTS[c.scheme.front].about}${c.scheme.coverage ? ` ${COVERAGES[c.scheme.coverage].about}` : ''}`;
+  if (c.role === 'defCoord' && c.scheme?.front)
+    return `${FRONTS[c.scheme.front].about}${c.scheme.coverage ? ` ${COVERAGES[c.scheme.coverage].about}` : ''}`;
   return null;
 }
 

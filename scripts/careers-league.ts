@@ -57,7 +57,10 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     leaders: {},
     starterAges: [],
   };
-  const starters = () => league.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id])));
+  const starters = () =>
+    league.teams.flatMap((t) =>
+      POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id])),
+    );
   const awareness = () => mean(starters().map((p) => p.ratings.awareness));
   out.awareness[0] = awareness();
 
@@ -73,8 +76,14 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
         out.steady.sacks.push((r.home.sacked + r.away.sacked) / 2);
       }
     }
-    const before = new Map(Object.values(league.players).filter((p) => !p.retired).map((p) => [p.id, { ovr: playerOvr(p), age: p.age, rostered: p.teamId !== null }]));
-    const ranked = [...league.teams].sort((a, b) => staffScore(teamCoaches(league, b.id)) - staffScore(teamCoaches(league, a.id))).map((t) => t.id);
+    const before = new Map(
+      Object.values(league.players)
+        .filter((p) => !p.retired)
+        .map((p) => [p.id, { ovr: playerOvr(p), age: p.age, rostered: p.teamId !== null }]),
+    );
+    const ranked = [...league.teams]
+      .sort((a, b) => staffScore(teamCoaches(league, b.id)) - staffScore(teamCoaches(league, a.id)))
+      .map((t) => t.id);
     if (s >= steadyFrom) {
       for (const p of Object.values(league.players)) {
         if (p.retired || p.teamId === null) continue;
@@ -90,7 +99,11 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
           const year = (coaching: typeof NEUTRAL) => {
             const clone = structuredClone(p);
             trueUp(league, clone);
-            developPlayer(new Rng(`${league.seed}:dev:${league.season + 1}:${p.id}`), clone, rollInputs({ playedShare: playedShare(p, league.season), ...coaching, bodyAs: bodyAs(p) }));
+            developPlayer(
+              new Rng(`${league.seed}:dev:${league.season + 1}:${p.id}`),
+              clone,
+              rollInputs({ playedShare: playedShare(p, league.season), ...coaching, bodyAs: bodyAs(p) }),
+            );
             return playerOvr(clone);
           };
           const gain = year(c) - year(NEUTRAL);

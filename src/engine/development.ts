@@ -55,7 +55,12 @@ export function playedShare(p: Player, season: number): number {
  */
 export function repsSoFar(league: League, p: Player, season: number): number | null {
   const played = p.stats[season]?.gp ?? 0;
-  const teamGames = p.teamId === null ? SEASON_GAMES : league.games.filter((g) => g.season === season && !g.playoffRound && g.result && (g.homeId === p.teamId || g.awayId === p.teamId)).length;
+  const teamGames =
+    p.teamId === null
+      ? SEASON_GAMES
+      : league.games.filter(
+          (g) => g.season === season && !g.playoffRound && g.result && (g.homeId === p.teamId || g.awayId === p.teamId),
+        ).length;
   return teamGames < 4 ? null : Math.min(1, played / teamGames);
 }
 
@@ -102,7 +107,8 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
   let delta: number;
   if (age < 26) {
     const gap = Math.max(0, player.potential - overall(player.ratings, pos));
-    delta = gap * clamp(rng.float(0.15, 0.5) * growthMult(traits) * reps(age, ctx.playedShare) * rate * GROWTH_NORM, 0, 0.8);
+    delta =
+      gap * clamp(rng.float(0.15, 0.5) * growthMult(traits) * reps(age, ctx.playedShare) * rate * GROWTH_NORM, 0, 0.8);
   } else delta = rng.normal(0, 0.4);
   // Spread it so the overall moves by `delta`: weighted toward the families still growing.
   let shareSum = 0;
@@ -179,7 +185,11 @@ export const RELEASE = { newYear: 0.6, program: 0.05, camp: 0.05, season: 0.3 };
 export function rollInputs(ctx: DevContext): DevContext {
   if (RELEASE.newYear >= 1) return ctx;
   const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
-  const decline = ctx.decline && (Object.fromEntries(Object.entries(ctx.decline).map(([f, v]) => [f, r4(v)])) as Partial<Record<AgingFamily, number>>);
+  const decline =
+    ctx.decline &&
+    (Object.fromEntries(Object.entries(ctx.decline).map(([f, v]) => [f, r4(v)])) as Partial<
+      Record<AgingFamily, number>
+    >);
   return { ...ctx, ...(ctx.rate !== undefined ? { rate: r4(ctx.rate) } : {}), ...(decline ? { decline } : {}) };
 }
 
@@ -201,7 +211,9 @@ export function beginYear(league: League, rng: Rng, p: Player, ctx: DevContext):
     return;
   }
   // Only what the roll read: the coaching rate feeds growth (under 26), the decline effects a fading family.
-  const fading = FAMILIES.some((f) => p.age > declineOnset(f === 'physical' && ctx.bodyAs ? ctx.bodyAs : p.position, f, p.traits));
+  const fading = FAMILIES.some(
+    (f) => p.age > declineOnset(f === 'physical' && ctx.bodyAs ? ctx.bodyAs : p.position, f, p.traits),
+  );
   const games = Math.round(ctx.playedShare * SEASON_GAMES);
   p.dev = {
     season: league.season,
@@ -225,7 +237,12 @@ export function yearTargets(league: League, p: Player): number[] {
   // His age ticks over right after the roll, so all year he is a year older than he was rolled at.
   const rolled: Rolled = { age: p.age - 1, position: p.position, potential: p.potential, traits: p.traits, ratings };
   const decline = d.decline && Object.fromEntries(FAMILIES.map((f, i) => [f, d.decline![i]]));
-  return rollYear(yearStream(league, d.season, p.id), rolled, { playedShare: d.share ?? Math.min(1, (d.games ?? 0) / SEASON_GAMES), rate: d.rate, decline, bodyAs: d.bodyAs });
+  return rollYear(yearStream(league, d.season, p.id), rolled, {
+    playedShare: d.share ?? Math.min(1, (d.games ?? 0) / SEASON_GAMES),
+    rate: d.rate,
+    decline,
+    bodyAs: d.bodyAs,
+  });
 }
 
 /**
@@ -238,7 +255,14 @@ function releaseTo(p: Player, targets: number[], s: number): void {
   const to = Math.min(1, s);
   applyShare(p, targets, d.applied, to);
   d.done = to;
-  if (to >= 1 || !ATTRIBUTES.some((a, i) => targets[i] && Math.round(clamp(p.ratings[a] - (d.applied[i] ?? 0) + targets[i], 1, 20)) !== p.ratings[a])) delete p.dev;
+  if (
+    to >= 1 ||
+    !ATTRIBUTES.some(
+      (a, i) =>
+        targets[i] && Math.round(clamp(p.ratings[a] - (d.applied[i] ?? 0) + targets[i], 1, 20)) !== p.ratings[a],
+    )
+  )
+    delete p.dev;
 }
 
 /** Whatever of his year hasn't landed yet lands now: the next new league year, or a position change. */

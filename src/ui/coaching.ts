@@ -58,12 +58,17 @@ export const PAST_PRIME_WORDS = 'at or past the age their position starts to dec
  * most for the body), and the leadership chairs each own a call.
  */
 export const ROLE_LINE: Record<CoachRole, string> = {
-  headCoach: 'Sets the tone for the whole roster: a hand in how every player develops and holds up, and the call on fourth downs. Around the league, a bad season can cost him his job.',
-  offCoord: 'Runs the offense: the scheme and personnel, the call on run or pass, and how the offensive players develop.',
-  defCoord: 'Runs the defense: the front, the coverage, how often he sends extra rushers, and how the defensive players develop.',
-  positionCoach: 'Does most of the teaching in his room: the biggest say in how its players grow and keep their technique.',
+  headCoach:
+    'Sets the tone for the whole roster: a hand in how every player develops and holds up, and the call on fourth downs. Around the league, a bad season can cost him his job.',
+  offCoord:
+    'Runs the offense: the scheme and personnel, the call on run or pass, and how the offensive players develop.',
+  defCoord:
+    'Runs the defense: the front, the coverage, how often he sends extra rushers, and how the defensive players develop.',
+  positionCoach:
+    'Does most of the teaching in his room: the biggest say in how its players grow and keep their technique.',
   strengthCoach: 'Keeps bodies going: the biggest say in how slowly speed and strength fade, in every room.',
-  stCoord: 'Runs the kick units and coaches the kickers and punters: a good one draws fewer flags on kicks and wins a few yards on every return and every kick his units cover.',
+  stCoord:
+    'Runs the kick units and coaches the kickers and punters: a good one draws fewer flags on kicks and wins a few yards on every return and every kick his units cover.',
 };
 
 export interface RepNote {
@@ -131,7 +136,8 @@ export const agingTone = (x: number) => (whole(x) < 0 ? 'tone-good' : whole(x) >
 export const growthVerdict = (growth: number): Verdict => verdict(growth, RATE_RANGE[1] - 1);
 export const agingVerdict = (aging: number): Verdict => verdict(-aging, DECLINE_RANGE[1] - 1);
 /** The exact figures behind the words, for the tap: "growth +4%, decline −2% against a typical staff". */
-export const effectNumbers = (e: Effect) => `growth ${signedPct(e.growth)}, decline ${signedPct(e.aging)} against a typical staff`;
+export const effectNumbers = (e: Effect) =>
+  `growth ${signedPct(e.growth)}, decline ${signedPct(e.aging)} against a typical staff`;
 
 // ───────── how a room's effect adds up ─────────
 
@@ -155,8 +161,20 @@ export function roomParts(coaches: readonly Coach[], room: Room): RoomPart[] {
     spots += w;
     for (const part of coachingParts(coaches, pos)) {
       // Put this one chair's share through the engine's own aging blend for the position.
-      const e = effectOf({ rate: 1 + part.growth, decline: { physical: 1 + part.body, technical: 1 + part.craft, mental: 1 + part.craft } }, pos);
-      const sum = parts.get(part.source) ?? { source: part.source, chair: part.chair, coach: part.coach, growth: 0, aging: 0 };
+      const e = effectOf(
+        {
+          rate: 1 + part.growth,
+          decline: { physical: 1 + part.body, technical: 1 + part.craft, mental: 1 + part.craft },
+        },
+        pos,
+      );
+      const sum = parts.get(part.source) ?? {
+        source: part.source,
+        chair: part.chair,
+        coach: part.coach,
+        growth: 0,
+        aging: 0,
+      };
       sum.growth += e.growth * w;
       sum.aging += e.aging * w;
       parts.set(part.source, sum);
@@ -171,7 +189,17 @@ export const partLabel = (p: RoomPart) => (p.source === 'strengthCoach' ? 'S&C c
 // ───────── what a vacancy costs ─────────
 
 /** A coach of exactly typical quality: the yardstick an empty chair is measured against. */
-const typicalIn = (chair: Chair): Coach => ({ id: -1, firstName: '', lastName: '', ...chair, age: 45, youth: TYPICAL, veterans: TYPICAL, teamId: 0, contract: null });
+const typicalIn = (chair: Chair): Coach => ({
+  id: -1,
+  firstName: '',
+  lastName: '',
+  ...chair,
+  age: 45,
+  youth: TYPICAL,
+  veterans: TYPICAL,
+  teamId: 0,
+  contract: null,
+});
 
 /** What leaving a chair empty costs the rooms it covers, against a typical coach in it (positive = worse). */
 export function vacancyCost(staying: readonly Coach[], chair: Chair): { growth: number; aging: number; rooms: Room[] } {
@@ -188,7 +216,9 @@ export function vacancyCost(staying: readonly Coach[], chair: Chair): { growth: 
     growth += b.growth - a.growth;
     aging += a.aging - b.aging;
   }
-  return rooms.length ? { growth: growth / rooms.length, aging: aging / rooms.length, rooms } : { growth: 0, aging: 0, rooms };
+  return rooms.length
+    ? { growth: growth / rooms.length, aging: aging / rooms.length, rooms }
+    : { growth: 0, aging: 0, rooms };
 }
 
 const ROOM_SUBJECT: Record<CoachRoom, string> = {
@@ -205,12 +235,21 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** "receivers and tight ends develop noticeably slower and fade a little sooner than with a typical coach" */
 export function vacancyClause(staying: readonly Coach[], chair: Chair): string {
   const cost = vacancyCost(staying, chair);
-  const subject = chair.role === 'positionCoach' && chair.room ? ROOM_SUBJECT[chair.room] : chair.role === 'offCoord' ? 'your offensive players' : chair.role === 'defCoord' ? 'your defensive players' : 'your players';
+  const subject =
+    chair.role === 'positionCoach' && chair.room
+      ? ROOM_SUBJECT[chair.room]
+      : chair.role === 'offCoord'
+        ? 'your offensive players'
+        : chair.role === 'defCoord'
+          ? 'your defensive players'
+          : 'your players';
   // The cost is positive when it hurts: flip it onto the shared scale.
   const g = growthVerdict(-cost.growth).much;
   const a = agingVerdict(cost.aging).much;
   const bits = [g ? `develop ${g} slower` : '', a ? `fade ${a} sooner` : ''].filter(Boolean);
-  return bits.length ? `${subject} ${bits.join(' and ')} than with a typical coach` : `${subject} lose almost nothing without him`;
+  return bits.length
+    ? `${subject} ${bits.join(' and ')} than with a typical coach`
+    : `${subject} lose almost nothing without him`;
 }
 /** The same as a sentence. */
 export const vacancyText = (staying: readonly Coach[], chair: Chair) => `${capital(vacancyClause(staying, chair))}.`;
@@ -232,7 +271,10 @@ export function gainScore(changes: RoomChange[], counts: Map<Room, RoomCount>): 
 }
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-const avgEffect = (xs: Effect[]): Effect => ({ growth: mean(xs.map((e) => e.growth)), aging: mean(xs.map((e) => e.aging)) });
+const avgEffect = (xs: Effect[]): Effect => ({
+  growth: mean(xs.map((e) => e.growth)),
+  aging: mean(xs.map((e) => e.aging)),
+});
 
 export interface PreviewLine {
   /** "Receivers & tight ends: young players Average → Strong, veterans a touch better." */
@@ -247,10 +289,13 @@ export interface PreviewLine {
  * over those rooms. A figure that doesn't move is left out.
  */
 export function previewLines(changes: RoomChange[]): PreviewLine[] {
-  const moves = changes.filter((ch) => whole(ch.from.growth) !== whole(ch.to.growth) || whole(ch.from.aging) !== whole(ch.to.aging));
+  const moves = changes.filter(
+    (ch) => whole(ch.from.growth) !== whole(ch.to.growth) || whole(ch.from.aging) !== whole(ch.to.aging),
+  );
   if (!moves.length) return [{ words: 'No change to how your players develop.', numbers: '' }];
   // Same word both sides: say which way it went rather than "Average → Average".
-  const step = (who: string, a: Verdict, b: Verdict, up: boolean) => (a.word === b.word ? `${who} a touch ${up ? 'better' : 'worse'}` : `${who} ${a.word} → ${b.word}`);
+  const step = (who: string, a: Verdict, b: Verdict, up: boolean) =>
+    a.word === b.word ? `${who} a touch ${up ? 'better' : 'worse'}` : `${who} ${a.word} → ${b.word}`;
   const line = (label: string, from: Effect, to: Effect): PreviewLine => {
     const g = whole(from.growth) !== whole(to.growth);
     const a = whole(from.aging) !== whole(to.aging);
@@ -258,11 +303,18 @@ export function previewLines(changes: RoomChange[]): PreviewLine[] {
       g ? step('young players', growthVerdict(from.growth), growthVerdict(to.growth), to.growth > from.growth) : '',
       a ? step('veterans', agingVerdict(from.aging), agingVerdict(to.aging), to.aging < from.aging) : '',
     ].filter(Boolean);
-    const numbers = [g ? `growth ${signedPct(from.growth)} → ${signedPct(to.growth)}` : '', a ? `decline ${signedPct(from.aging)} → ${signedPct(to.aging)}` : ''].filter(Boolean);
+    const numbers = [
+      g ? `growth ${signedPct(from.growth)} → ${signedPct(to.growth)}` : '',
+      a ? `decline ${signedPct(from.aging)} → ${signedPct(to.aging)}` : '',
+    ].filter(Boolean);
     return { words: `${label}: ${words.join(', ')}.`, numbers: numbers.join(', ') };
   };
   if (moves.length <= 3) return moves.map((m) => line(roomLabel(m.room), m.from, m.to));
-  const side = moves.every((m) => OFFENSE_ROOMS.has(m.room)) ? 'Offensive rooms' : moves.every((m) => m.room !== null && !OFFENSE_ROOMS.has(m.room)) ? 'Defensive rooms' : 'Every room';
+  const side = moves.every((m) => OFFENSE_ROOMS.has(m.room))
+    ? 'Offensive rooms'
+    : moves.every((m) => m.room !== null && !OFFENSE_ROOMS.has(m.room))
+      ? 'Defensive rooms'
+      : 'Every room';
   return [line(`${side} (average)`, avgEffect(moves.map((m) => m.from)), avgEffect(moves.map((m) => m.to)))];
 }
 
@@ -301,8 +353,14 @@ export function playerCoachLine(league: League, p: Player): { text: string; numb
   const aging = a ? (e.aging < 0 ? `hold up ${a} longer` : `fade ${a} sooner`) : '';
   const clauses = (p.age < YOUNG_UNDER ? [growth, aging] : [aging]).filter(Boolean);
   // "than with a typical staff" closes the whole sentence, so it covers both clauses.
-  const effect = clauses.length ? `he should ${clauses.join(' and ')} than with a typical staff` : `he should ${p.age < YOUNG_UNDER ? 'develop' : 'hold up'} about as he would with a typical staff`;
-  return { text: `His coaches (${who}): ${effect}.`, numbers: [effectNumbers(e), ...named.map(youthVeteran)].join(' · '), coaches: named };
+  const effect = clauses.length
+    ? `he should ${clauses.join(' and ')} than with a typical staff`
+    : `he should ${p.age < YOUNG_UNDER ? 'develop' : 'hold up'} about as he would with a typical staff`;
+  return {
+    text: `His coaches (${who}): ${effect}.`,
+    numbers: [effectNumbers(e), ...named.map(youthVeteran)].join(' · '),
+    coaches: named,
+  };
 }
 
 // ───────── what needs attention ─────────
@@ -330,19 +388,29 @@ export function coachAttention(league: League, teamId: number): CoachAttention {
  * A calm line or two for a notice: the deals that are up and what happens to them, then any chair that is
  * empty and what that costs. Empty when there is nothing to say.
  */
-export function attentionText(league: League, teamId: number, att: CoachAttention = coachAttention(league, teamId)): string {
+export function attentionText(
+  league: League,
+  teamId: number,
+  att: CoachAttention = coachAttention(league, teamId),
+): string {
   const out: string[] = [];
   const n = att.due.length;
   if (n > 0) {
     out.push(n === 1 ? '1 coaching deal is up.' : `${n} coaching deals are up.`);
     const one = n === 1;
-    if (att.leaving.length === 0) out.push(`${one ? 'He re-signs' : 'They re-sign'} automatically unless you let ${one ? 'him' : 'them'} go.`);
+    if (att.leaving.length === 0)
+      out.push(`${one ? 'He re-signs' : 'They re-sign'} automatically unless you let ${one ? 'him' : 'them'} go.`);
     else {
       const rest = n - att.leaving.length;
-      out.push(`${att.leaving.map(coachName).join(' and ')} will leave (no chair or budget for ${att.leaving.length === 1 ? 'him' : 'them'}); ${rest === 0 ? 'nobody else is up' : 'the rest re-sign automatically'}.`);
+      out.push(
+        `${att.leaving.map(coachName).join(' and ')} will leave (no chair or budget for ${att.leaving.length === 1 ? 'him' : 'them'}); ${rest === 0 ? 'nobody else is up' : 'the rest re-sign automatically'}.`,
+      );
     }
   }
-  if (att.empty.length === 1) out.push(`Your ${chairNoun(att.empty[0])} chair is empty: ${vacancyClause(stayingCoaches(league, teamId), att.empty[0])}.`);
+  if (att.empty.length === 1)
+    out.push(
+      `Your ${chairNoun(att.empty[0])} chair is empty: ${vacancyClause(stayingCoaches(league, teamId), att.empty[0])}.`,
+    );
   else if (att.empty.length > 1) out.push(`${att.empty.length} coaching chairs are empty.`);
   return out.join(' ');
 }

@@ -26,7 +26,18 @@ import { emptyMarket, executeTrade } from './execute';
 import { judge } from './judge';
 import { offersMoment, yourListings } from './offers';
 import { lowerPrice, physicals, worstResult } from './physicals';
-import { interestIn, isBuyer, stanceOf, stanceScore, teamNeeds, tradeBlock, updateInterest, updateStances, wanted, type BlockEntry } from './plans';
+import {
+  interestIn,
+  isBuyer,
+  stanceOf,
+  stanceScore,
+  teamNeeds,
+  tradeBlock,
+  updateInterest,
+  updateStances,
+  wanted,
+  type BlockEntry,
+} from './plans';
 import { playerTradeBlocker, tradeWindow, TRADE_DEADLINE_WEEK, type TradeProposal } from './rules';
 import { settleTalks } from './talks';
 import { marketValue, salaryWeight } from './value';
@@ -40,11 +51,23 @@ const MOMENT_ACTIVITY: Record<Moment, number> = { leagueYear: 2, faDay: 0.5, cam
 export const TRADE_VOLUME = 0.28;
 
 /** A GM's appetite for dealing, by archetype: deal-makers call, hard-liners sit tight. */
-const ARCHETYPE_ACTIVITY: Record<string, number> = { 'All-In': 0.85, 'Pick Hoarder': 0.7, 'Cap Magician': 0.6, 'Can-Kicker': 0.6, Balanced: 0.5, 'Draft and Develop': 0.4, 'Hard-Liner': 0.25 };
+const ARCHETYPE_ACTIVITY: Record<string, number> = {
+  'All-In': 0.85,
+  'Pick Hoarder': 0.7,
+  'Cap Magician': 0.6,
+  'Can-Kicker': 0.6,
+  Balanced: 0.5,
+  'Draft and Develop': 0.4,
+  'Hard-Liner': 0.25,
+};
 
 /** Each GM's own appetite: his archetype's, jittered per team from the league seed (not stored, like the owner's trigger). */
 export function gmActivity(league: League, team: Team): number {
-  return clamp((ARCHETYPE_ACTIVITY[team.gm.archetype] ?? 0.5) + new Rng(`${league.seed}:gm-activity:${team.id}`).normal(0, 0.08), 0.05, 1);
+  return clamp(
+    (ARCHETYPE_ACTIVITY[team.gm.archetype] ?? 0.5) + new Rng(`${league.seed}:gm-activity:${team.id}`).normal(0, 0.08),
+    0.05,
+    1,
+  );
 }
 
 /** Most trades a team makes in a regular season (an All-In GM one more), and in a whole league year. */
@@ -55,21 +78,35 @@ const YEAR_CAP = 5;
 const MINOR = new Set<TradeRecord['kind']>(['futureSwap', 'cutdown', 'casualty']);
 
 function capped(league: League, market: TradeMarket, team: Team): boolean {
-  const mine = market.history.filter((r) => r.season === league.season && !MINOR.has(r.kind) && r.sides.some((s) => s.teamId === team.id));
+  const mine = market.history.filter(
+    (r) => r.season === league.season && !MINOR.has(r.kind) && r.sides.some((s) => s.teamId === team.id),
+  );
   const inSeason = mine.filter((r) => r.phase === 'regular').length;
-  return mine.length >= YEAR_CAP || (league.phase === 'regular' && inSeason >= SEASON_CAP + (team.gm.archetype === 'All-In' ? 1 : 0));
+  return (
+    mine.length >= YEAR_CAP ||
+    (league.phase === 'regular' && inSeason >= SEASON_CAP + (team.gm.archetype === 'All-In' ? 1 : 0))
+  );
 }
 
 type Listing = { team: Team; entry: BlockEntry };
 
 /** One GM's call: what he buys, sells or dumps, or nothing that both sides take. */
-function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Moment, listings: readonly Listing[], open: (t: Team) => boolean): Deal | null {
+function initiate(
+  ctx: TradeContext,
+  market: TradeMarket,
+  team: Team,
+  moment: Moment,
+  listings: readonly Listing[],
+  open: (t: Team) => boolean,
+): Deal | null {
   const { league } = ctx;
   const ai = league.teams.filter((t) => t.id !== league.userTeamId && t.id !== team.id && open(t));
   if (isBuyer(team)) {
     // In an ordinary week a team asks around before it deals; at the deadline and in the offseason it moves at once.
     const threshold = moment === 'week' ? 2 : 1;
-    const targets = wanted(ctx, team, listings, { memo: true }).filter((w) => open(w.team) && interestIn(market, team.id, w.player.id) >= threshold);
+    const targets = wanted(ctx, team, listings, { memo: true }).filter(
+      (w) => open(w.team) && interestIn(market, team.id, w.player.id) >= threshold,
+    );
     for (const t of targets.slice(0, 3)) {
       const deal = dealFor(ctx, team, t.player);
       if (deal) return deal;
@@ -83,7 +120,12 @@ function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Mo
         .map((b) => ({ b, w: wanted(ctx, b, [{ team, entry }])[0] }))
         .filter((x) => x.w)
         // Teams that have been asking first, division rivals last.
-        .sort((x, y) => Number(x.b.division === team.division) - Number(y.b.division === team.division) || interestIn(market, y.b.id, player.id) - interestIn(market, x.b.id, player.id) || y.w.score - x.w.score)
+        .sort(
+          (x, y) =>
+            Number(x.b.division === team.division) - Number(y.b.division === team.division) ||
+            interestIn(market, y.b.id, player.id) - interestIn(market, x.b.id, player.id) ||
+            y.w.score - x.w.score,
+        )
         .slice(0, 3);
       for (const { b } of buyers) {
         const deal = dealFor(ctx, b, player);
@@ -99,9 +141,13 @@ function initiate(ctx: TradeContext, market: TradeMarket, team: Team, moment: Mo
   // A team truly squeezed moves a bad contract when the league year opens, before the money's
   // guaranteed. After that the rest are cut, not traded, and in season it lives with them.
   // One a league year: a front office clears its worst contract, not its whole cap sheet.
-  const squeezed = salaryWeight(ctx, team.id) >= 1.6 && !market.history.some((r) => r.kind === 'dump' && r.season === league.season && r.sides[0].teamId === team.id);
-  if (squeezed && (moment === 'leagueYear')) {
-    for (const entry of tradeBlock(ctx, team).filter((e) => e.reason === 'overpaid').slice(0, 2)) {
+  const squeezed =
+    salaryWeight(ctx, team.id) >= 1.6 &&
+    !market.history.some((r) => r.kind === 'dump' && r.season === league.season && r.sides[0].teamId === team.id);
+  if (squeezed && moment === 'leagueYear') {
+    for (const entry of tradeBlock(ctx, team)
+      .filter((e) => e.reason === 'overpaid')
+      .slice(0, 2)) {
       const deal = dumpFor(ctx, team, league.players[entry.playerId], ai);
       if (deal) return deal;
     }
@@ -114,7 +160,8 @@ const perMoment = (moment: Moment) => (moment === 'deadline' ? 2 : 1);
 
 /** A team the market can still deal with this moment: not the user's, not one done for the moment, not at its limit. */
 function opener(league: League, market: TradeMarket, busy: ReadonlyMap<number, number>, moment: Moment) {
-  return (t: Team) => t.id !== league.userTeamId && (busy.get(t.id) ?? 0) < perMoment(moment) && !capped(league, market, t);
+  return (t: Team) =>
+    t.id !== league.userTeamId && (busy.get(t.id) ?? 0) < perMoment(moment) && !capped(league, market, t);
 }
 
 /** Run one market moment: stances, plans, interest, the calls, rumors. Returns the trades made. */
@@ -177,7 +224,11 @@ function close(ctx: TradeContext, deal: Deal, busy: Map<number, number>): TradeR
   // A team over the limit waives a backup, as `judge` priced in (`rosterCuts`).
   for (const side of proposal.sides) aiCutdown(league, league.teams[side.teamId], rosterLimit(league));
   // A trade changes the two teams' rosters, needs and blocks; everyone else's reads still hold.
-  refreshAfterTrade(ctx, proposal.sides.map((x) => x.teamId), proposal.sides.flatMap((x) => x.players));
+  refreshAfterTrade(
+    ctx,
+    proposal.sides.map((x) => x.teamId),
+    proposal.sides.flatMap((x) => x.players),
+  );
   return record;
 }
 
@@ -199,7 +250,13 @@ const CUT_CALLS = 3;
  * gives a 6th or 7th; a cap casualty nobody wants goes as a dump when the guarantees a release would
  * leave on the books are worth more to his team than the pick it pays. One such deal a team.
  */
-function beforeCuts(ctx: TradeContext, moment: 'leagueYear' | 'camp', order: readonly Team[], open: (t: Team) => boolean, busy: Map<number, number>): TradeRecord[] {
+function beforeCuts(
+  ctx: TradeContext,
+  moment: 'leagueYear' | 'camp',
+  order: readonly Team[],
+  open: (t: Team) => boolean,
+  busy: Map<number, number>,
+): TradeRecord[] {
   const { league } = ctx;
   const made: TradeRecord[] = [];
   for (const team of order) {
@@ -209,14 +266,16 @@ function beforeCuts(ctx: TradeContext, moment: 'leagueYear' | 'camp', order: rea
     if (moment === 'leagueYear') {
       const room = capSpace(league, team.id);
       const p = room < 0 ? capCut(league, team, room < -league.caps[league.season] * 0.04) : null;
-      if (p && !playerTradeBlocker(league, p)) deal = lateSale(ctx, team, p, buyers, 'casualty') ?? dumpFor(ctx, team, p, buyers, { releasing: true });
+      if (p && !playerTradeBlocker(league, p))
+        deal = lateSale(ctx, team, p, buyers, 'casualty') ?? dumpFor(ctx, team, p, buyers, { releasing: true });
     } else {
       const cuts = cutChoice(league, activeRoster(league, team.id), ROSTER_MAX)
         .filter((p) => p.contract && !p.injury && !playerTradeBlocker(league, p))
         .sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a))
         .slice(0, CUT_CALLS);
       // He has to make the buyer's own 53, or it would only be passing on the cut.
-      const keeps = (p: Player) => (b: Team) => !cutChoice(league, [...activeRoster(league, b.id), p], ROSTER_MAX).includes(p);
+      const keeps = (p: Player) => (b: Team) =>
+        !cutChoice(league, [...activeRoster(league, b.id), p], ROSTER_MAX).includes(p);
       for (const p of cuts) if ((deal = lateSale(ctx, team, p, buyers, 'cutdown', keeps(p)))) break;
     }
     const record = deal && close(ctx, deal, busy);
@@ -244,7 +303,12 @@ function afterPhysicals(ctx: TradeContext, proposal: TradeProposal, exams: reado
   const sellerSide = proposal.sides.find((s) => s.players.includes(p.id))!;
   const buyer = league.teams[proposal.sides.find((s) => s !== sellerSide)!.teamId];
   const off = (why: string) => {
-    logTransaction(league, 'medical', proposal.sides.map((s) => s.teamId), `The ${buyer.name}' trade for ${p.position} ${p.firstName} ${p.lastName} is off ${why}.`);
+    logTransaction(
+      league,
+      'medical',
+      proposal.sides.map((s) => s.teamId),
+      `The ${buyer.name}' trade for ${p.position} ${p.firstName} ${p.lastName} is off ${why}.`,
+    );
     return null;
   };
   if (result === 'failed') return off('after a failed physical');
@@ -263,7 +327,8 @@ const KEEP_RUMORS = 80;
 /** Only names worth talking about: about a mid-round pick's worth or more to the team that has him. */
 const NOTABLE = 250;
 
-const fullName = (league: League, id: number) => `${league.players[id].position} ${league.players[id].firstName} ${league.players[id].lastName}`;
+const fullName = (league: League, id: number) =>
+  `${league.players[id].position} ${league.players[id].firstName} ${league.players[id].lastName}`;
 const teamName = (t: Team) => `${t.city} ${t.name}`;
 
 /** Public talk from what front offices are really doing: who's shopping whom, who's been asking about whom. */
@@ -281,7 +346,15 @@ function writeRumors(ctx: TradeContext, market: TradeMarket, listings: readonly 
     .filter((l) => l.worth >= NOTABLE)
     .sort((a, b) => b.worth - a.worth)
     .slice(0, 2)
-    .forEach((l) => add({ id: `shopping:${league.season}:${l.team.id}:${l.entry.playerId}`, kind: 'shopping', teamIds: [l.team.id], playerId: l.entry.playerId, text: `League sources say the ${teamName(l.team)} are shopping ${fullName(league, l.entry.playerId)}.` }));
+    .forEach((l) =>
+      add({
+        id: `shopping:${league.season}:${l.team.id}:${l.entry.playerId}`,
+        kind: 'shopping',
+        teamIds: [l.team.id],
+        playerId: l.entry.playerId,
+        text: `League sources say the ${teamName(l.team)} are shopping ${fullName(league, l.entry.playerId)}.`,
+      }),
+    );
   market.interest
     .filter((x) => x.level >= 2 && x.at === market.moment)
     .map((x) => ({ x, p: league.players[x.playerId] }))

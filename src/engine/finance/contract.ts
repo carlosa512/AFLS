@@ -79,7 +79,11 @@ export interface DeadMoneySplit {
  * @param postJune1  post-June 1 accounting (automatic once training camp opens)
  * @param trade  traded players take their remaining salary (guaranteed or not) with them
  */
-export function deadMoney(c: Contract, season: number, opts: { paid?: number; postJune1?: boolean; trade?: boolean } = {}): DeadMoneySplit {
+export function deadMoney(
+  c: Contract,
+  season: number,
+  opts: { paid?: number; postJune1?: boolean; trade?: boolean } = {},
+): DeadMoneySplit {
   const paid = opts.paid ?? 0;
   const year = yearOf(c, season);
   const base = year?.base ?? 0;
@@ -146,7 +150,13 @@ export interface ContractTerms {
 }
 
 /** Build a contract from negotiated terms, starting in league year `start`. */
-export function buildContract(terms: ContractTerms, start: number, kind: Contract['kind'], minSalary: number, signedWeek = 0): Contract {
+export function buildContract(
+  terms: ContractTerms,
+  start: number,
+  kind: Contract['kind'],
+  minSalary: number,
+  signedWeek = 0,
+): Contract {
   const n = Math.max(1, Math.round(terms.years));
   const esc = terms.escalator ?? 0.04;
   const bonus = Math.max(0, Math.min(terms.signingBonus, terms.total - n * minSalary));
@@ -154,7 +164,11 @@ export function buildContract(terms: ContractTerms, start: number, kind: Contrac
   // Escalating base salaries that sum to baseTotal.
   const weights = Array.from({ length: n }, (_, i) => (1 + esc) ** i);
   const wsum = weights.reduce((a, b) => a + b, 0);
-  const years: ContractYear[] = weights.map((w, i) => ({ season: start + i, base: Math.max(minSalary, Math.round((baseTotal * w) / wsum)), guaranteed: 0 }));
+  const years: ContractYear[] = weights.map((w, i) => ({
+    season: start + i,
+    base: Math.max(minSalary, Math.round((baseTotal * w) / wsum)),
+    guaranteed: 0,
+  }));
   let gtd = Math.max(0, terms.guaranteedBase);
   for (const y of years) {
     const g = Math.min(gtd, y.base);
@@ -163,11 +177,17 @@ export function buildContract(terms: ContractTerms, start: number, kind: Contrac
   }
   const voids = Math.max(0, Math.min(terms.voidYears, MAX_PRORATION_YEARS - Math.min(n, MAX_PRORATION_YEARS)));
   for (let i = 0; i < voids; i++) years.push({ season: start + n + i, base: 0, guaranteed: 0, void: true });
-  const bonuses: Proration[] = bonus > 0 ? [{ amount: Math.round(bonus), start, years: Math.min(MAX_PRORATION_YEARS, n + voids), source: 'signing' }] : [];
+  const bonuses: Proration[] =
+    bonus > 0
+      ? [{ amount: Math.round(bonus), start, years: Math.min(MAX_PRORATION_YEARS, n + voids), source: 'signing' }]
+      : [];
   return { kind, signedSeason: start, signedWeek, apy: Math.round(terms.total / n), length: n, years, bonuses };
 }
 
 /** Total guaranteed at signing: the bonus plus guaranteed base. */
 export function totalGuaranteed(c: Contract): number {
-  return c.bonuses.filter((b) => b.source === 'signing').reduce((s, b) => s + b.amount, 0) + c.years.reduce((s, y) => s + y.guaranteed, 0);
+  return (
+    c.bonuses.filter((b) => b.source === 'signing').reduce((s, b) => s + b.amount, 0) +
+    c.years.reduce((s, y) => s + y.guaranteed, 0)
+  );
 }

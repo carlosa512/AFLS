@@ -14,7 +14,12 @@ const fresh = (): League => JSON.parse(base);
 /** What a seller asks for one of its players, as a share of his market value, from `buyer`. */
 function ask(l: League, sellerId: number, playerId: number, buyer: number): number {
   const ctx = tradeContext(l);
-  const proposal: TradeProposal = { sides: [{ teamId: buyer, players: [], picks: [] }, { teamId: sellerId, players: [playerId], picks: [] }] };
+  const proposal: TradeProposal = {
+    sides: [
+      { teamId: buyer, players: [], picks: [] },
+      { teamId: sellerId, players: [playerId], picks: [] },
+    ],
+  };
   return judge(ctx, sellerId, proposal).need / marketValue(ctx, l.teams[sellerId], l.players[playerId]);
 }
 
@@ -23,7 +28,14 @@ describe('a rental seller’s floor', () => {
     const l = fresh();
     const rentals = l.teams
       .filter((t) => t.id !== l.userTeamId && contenderScore(l, t.id) <= 0.4)
-      .flatMap((t) => activeRoster(l, t.id).filter((p) => p.contract && yearsLeft(p.contract, l.season) <= 1 && t.depthChart[p.position].slice(0, STARTERS[p.position]).includes(p.id)))
+      .flatMap((t) =>
+        activeRoster(l, t.id).filter(
+          (p) =>
+            p.contract &&
+            yearsLeft(p.contract, l.season) <= 1 &&
+            t.depthChart[p.position].slice(0, STARTERS[p.position]).includes(p.id),
+        ),
+      )
       .filter((p) => marketValue(tradeContext(l), l.teams[p.teamId!], p) > 50);
     expect(rentals.length).toBeGreaterThan(3);
     const buyer = l.teams.find((t) => t.id !== l.userTeamId && contenderScore(l, t.id) > 0.6)!.id;

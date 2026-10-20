@@ -37,7 +37,16 @@ export const inkOn = (hex: string) => (luminance(hex) > 0.4 ? '#121915' : '#ffff
 /** Blend a toward b; t = 0 gives a, t = 1 gives b. */
 export function mix(a: string, b: string, t: number): string {
   const [x, y] = [channels(a), channels(b)];
-  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
+  return (
+    '#' +
+    x
+      .map((v, i) =>
+        Math.round(v + (y[i] - v) * t)
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('')
+  );
 }
 
 export const tint = (hex: string, t: number) => mix(hex, '#FFFFFF', t);

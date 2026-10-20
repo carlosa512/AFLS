@@ -11,7 +11,14 @@ import type { League, Position, StatKey } from '../src/engine/types';
  * receiving, 18 rushing in 16 games, so 19 over 17; 11 picks). A leader past it may happen, but
  * rarely: about one season in fifteen (see `overRecordAllowed`).
  */
-export const LEADER_TARGETS: { key: StatKey; label: string; first: [number, number]; fifth: [number, number]; ceiling: number; pos?: Position }[] = [
+export const LEADER_TARGETS: {
+  key: StatKey;
+  label: string;
+  first: [number, number];
+  fifth: [number, number];
+  ceiling: number;
+  pos?: Position;
+}[] = [
   { key: 'passYds', label: 'passing yds', first: [4750, 5350], fifth: [4300, 4800], ceiling: 5477 },
   { key: 'passTd', label: 'passing TD', first: [37, 48], fifth: [28, 35], ceiling: 55 },
   { key: 'rushYds', label: 'rushing yds', first: [1550, 1900], fifth: [1150, 1400], ceiling: 2105 },
