@@ -96,7 +96,8 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     read-only list)
   - `injuries.ts` who gets hurt (snap and collision risk, resistance, energy, condition), layoffs,
     scars, treatments (pain injections, protective gear, fast-tracks; the player's say on each, AI
-    teams' calls for their starters), injured reserve, the weekly cycle (healing, practice, AI injury
+    teams' calls for their starters), the concussion protocol (a weekly marble draw from a bag his
+    concussion history fills; shutdowns and concussion retirements), injured reserve, the weekly cycle (healing, practice, AI injury
     moves), the injury-risk read and injury retirements. All randomness on its own streams (per game,
     per practice week, per player's answer)
   - `medical.ts` medical staffs: department ratings (`departmentFor`), the recovery curve, the

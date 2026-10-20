@@ -113,6 +113,54 @@ teams in five), or anyone in the playoffs, gear to get him back early or a fast-
 early in gear doesn't go on reserve unless the wait itself is long. Players can turn AI teams down
 too.
 
+## Concussions
+
+A concussion has no set layoff. He enters the **protocol** and takes a test each week, the first in
+the week it happened: a marble drawn from his own bag and never put back.
+
+| Marble | What it means |
+|---|---|
+| **All-clear** | He's cleared to play |
+| **Symptoms** | Another week in the protocol |
+| **Setback** | His symptoms come back: another week, and two more symptom marbles go in the bag |
+
+**His file fills the bag.** Every concussion starts with 4 all-clears and 4 symptoms. Each earlier
+concussion on his file adds two symptoms and a setback; one in the last 12 months adds a symptom, and
+so does being 30 or older. A past concussion counts in full for two years, then fades to half by
+four, never less: staying clean helps, it never wipes the file.
+
+| Concussion (clean otherwise) | Cleared for the next game | Typical |
+|---|---|---|
+| 1st | 50% | back in a week or two |
+| 2nd | about a third | a week or two, the odd setback |
+| 3rd | about 25% | a few weeks; a setback or two can mean injured reserve |
+| 4th+ | about 20% or less | weeks, sometimes much of a season |
+
+Over the league about two in five concussions miss no game, as in the NFL (59% miss one, median
+9 days). A practice concussion is tested the next week, so it always costs a game. His file shows the
+games he really missed, and the doctor's estimate is a read of what's left in his bag ("day to day",
+"day to day, up to 3 weeks"), redone after every test.
+
+**Worse each time, in three more ways:**
+- **The next one is likelier.** Each concussion on his file makes a contact injury 30% likelier to be
+  a concussion (up to four), and for his first two games back it's twice as likely again: the brain
+  isn't done when the symptoms are. This only changes which contact injury it is, so league totals hold.
+- **It leaves a mark.** A concussion drops one hit-shy marble in his quirk bag (*Sees Ghosts*,
+  *Contact Averse*, *Hears Footsteps*) for each concussion on his file, not just one.
+- **It can end a career.** In the offseason, on top of age and other injuries: from a file of about
+  three concussions, 3%; four, 10%; five, 25%; six or more, 40%; half again after two in the season
+  just played (60% at most). Retirement mail says why.
+
+**Weighing his future.** His third concussion in a season, or a fifth on his file, and he weighs his
+future: about half the time (less for a competitor) he shuts himself down for the rest of the year.
+No tests; back after the offseason. He never retires mid-season.
+
+**Your call:** *Hold him a week after he clears*, on his card while he's in the protocol. He sits one
+more game once he's cleared, which spends half of the window when a second concussion is likelier on
+the sideline. Or put him on injured reserve. No needle or fast-track gets anyone out of the protocol.
+
+The doctor writes when he enters the protocol, after a setback and when he's cleared.
+
 ## Injured reserve
 
 - Only an injured player can go on it. He is off the 53 and out at least **4 weeks**.
@@ -134,7 +182,8 @@ too.
 
 - **Retirement:** on top of age, a veteran of 33+ with a long file (three injuries of two weeks or
   more, or 16 weeks missed, in the last three years) retires with 25% more probability. Anyone 30+
-  coming off a career-threatening injury retires with 25%, and 60% at 33+.
+  coming off a career-threatening injury retires with 25%, and 60% at 33+. Concussions add their own
+  chance at any age (see *Concussions*).
 - **Development:** fewer games played means fewer reps for a young player, through the existing
   `playedShare` hook.
 
@@ -147,7 +196,7 @@ Habits and bodies meet in `injuries.ts`:
 | **High-Knee Stride** (RB) | Brought down with the ball: injury chance ×1.25. His contact injuries land up top (head, neck, shoulder, ribs, chest ×1.6) and spare the legs (×0.6). |
 | **Contact Averse** (RB) | Brought down with the ball: injury chance ×0.7. |
 | **Gassed in High-Tempo** (DL) | Each snap costs 15% more energy, so the late-game risk climbs sooner. |
-| **A serious hit** | A game injury from contact, moderate or worse (or any concussion), drops one marble in his bag: *Sees Ghosts* (QB), *Contact Averse* (RB), *Hears Footsteps* (WR, TE). It shifts the odds; the draws decide. |
+| **A serious hit** | A game injury from contact, moderate or worse, drops one marble in his bag: *Sees Ghosts* (QB), *Contact Averse* (RB), *Hears Footsteps* (WR, TE); a concussion drops one for every concussion on his file. It shifts the odds; the draws decide. |
 | **Out injured** | No weekly habit draw: habits form and fade on the field. |
 
 A new habit with an injury side plugs into the same places: `riskFactors` (who gets hurt),
@@ -188,7 +237,8 @@ Targets are per team over a 17-game regular season, time-loss injuries only (a w
 | Practice share | 15–30% | ACL tears 2013–20: 31% in practice |
 | Per team-season | 20–36 | The above, plus practice |
 | Weeks missed per team | 55–130 | In-season injuries only (PFR's 95–254 games missed by team in 2024 includes preseason and camp IR) |
-| Concussions per team | 2–5 | 182 (2024) and 219 (2023) league-wide incl. preseason and practice; 59% miss a game |
+| Concussions per team | 2–5 | 182 (2024) and 219 (2023) league-wide incl. preseason and practice; counted whether or not he misses a game |
+| Concussions missing no game | 33–50% | 59% miss a game |
 | Torn ACLs per team | 0.6–1.5 | ~47 a season (2013–20) incl. preseason and practice |
 | Hamstrings per team | 3.5–7 | ~160–175 a season (2008–20) |
 
@@ -240,8 +290,6 @@ at, not exact targets.
 
 ## Not yet
 
-- **Concussion protocol** (next): a marble bag per concussion instead of a fixed layoff, worse with
-  each one, and the offseason retirement it can lead to.
 - **Surgery choices**: a torn meniscus trimmed (back in weeks, a little of the knee for good) or
   repaired (months out, the knee as it was).
 
