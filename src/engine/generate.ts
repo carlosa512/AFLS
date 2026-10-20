@@ -247,7 +247,7 @@ function initialContract(rng: Rng, market: Market, player: Player, season: numbe
  * Nudge veteran money so a team's opening payroll lands near `target`. Rookie deals stay
  * slotted, and the nudge is bounded so the market, not the cap, decides what stars earn.
  */
-function fitPayroll(players: Player[], season: number, target: number): void {
+export function fitPayroll(players: Player[], season: number, target: number): void {
   const vets = players.filter((p) => p.contract!.kind !== 'rookie');
   const fixed = players
     .filter((p) => p.contract!.kind === 'rookie')

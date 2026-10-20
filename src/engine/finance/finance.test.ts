@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createLeague, SAVE_VERSION } from '../generate';
+import { createLeague, fitPayroll, SAVE_VERSION } from '../generate';
 import { startNextSeason, simToEndOfSeason } from '../league';
 import { migrateLeague } from '../migrate';
 import { playerOvr } from '../positions';
@@ -16,7 +16,7 @@ import {
   voidProration,
   yearsLeft,
 } from './contract';
-import { leagueMarket, marketApy, payTier } from './market';
+import { BASE_CAP, leagueMarket, marketApy, minSalary, payTier } from './market';
 
 const deal = (over: Partial<Parameters<typeof buildContract>[0]> = {}) =>
   buildContract(
@@ -107,6 +107,57 @@ describe('opening league', () => {
     const mean = last.reduce((a, b) => a + b, 0) / last.length;
     expect(mean).toBeGreaterThan(0.18);
     expect(mean).toBeLessThan(0.36);
+  });
+
+  it('opens every team at 85-100% of the cap, the weakest roster included', () => {
+    for (const seed of seeds) {
+      const league = createLeague({ seed });
+      for (const t of league.teams) {
+        const used = capSheet(league, t.id).used / league.caps[league.season];
+        expect(used).toBeGreaterThanOrEqual(0.85);
+        // The spec's range, not the 0.99 target's: `fitPayroll` raises a base that was below today's minimum to it
+        // after sizing its scale, so a team aimed at 0.985-0.99 can open a touch over (0.9935 on 'opening-b').
+        expect(used).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('can still restructure a front-loaded veteran in the offseason', () => {
+    const league = createLeague({ seed: 'opening-a' });
+    league.phase = 'resign';
+    // Front-loaded: this year's base is above next real year's, which an escalating market deal never is.
+    const frontLoaded = Object.values(league.players).filter((p) => {
+      const real = p.contract?.years.filter((y) => !y.void) ?? [];
+      return p.teamId !== null && p.contract?.kind === 'veteran' && real.length >= 2 && real[0].base > real[1].base;
+    });
+    expect(frontLoaded.length).toBeGreaterThan(0);
+    for (const vet of frontLoaded) expect(restructurePlayer(league, vet)).toBeGreaterThan(0);
+  });
+
+  it('leaves a roster of minimum-salary veterans as it is, with any target', () => {
+    // Bases at the minimum leave nothing to scale or to front-load; a bonus keeps payroll above the floor so
+    // the front-load is reached with an empty pool (no 0 / 0).
+    for (const bonus of [0, 6_000]) {
+      const league = createLeague({ seed: 'opening-a' });
+      const roster = teamPlayers(league, league.teams[0].id);
+      const vets = roster.filter((p) => p.contract!.kind !== 'rookie');
+      for (const p of vets) {
+        const min = minSalary(p.experience, BASE_CAP);
+        const terms = {
+          years: 2,
+          total: 2 * min + bonus,
+          signingBonus: bonus,
+          guaranteedBase: 0,
+          voidYears: 0,
+          escalator: 0,
+        };
+        p.contract = buildContract(terms, league.season, 'veteran', min);
+      }
+      const before = vets.map((p) => p.contract!.years.map((y) => y.base));
+      fitPayroll(roster, league.season, BASE_CAP * 0.95);
+      expect(vets.map((p) => p.contract!.years.map((y) => y.base))).toEqual(before);
+      for (const p of vets) expect(Number.isFinite(capHit(p.contract!, league.season))).toBe(true);
+    }
   });
 
   it('gives every veteran 1-5 real years and no fourth-year veteran a deal from before his rookie one ended', () => {
