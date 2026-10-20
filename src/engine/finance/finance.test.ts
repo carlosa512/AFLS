@@ -2,10 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../generate';
 import { startNextSeason, simToEndOfSeason } from '../league';
 import { migrateLeague } from '../migrate';
+import { playerOvr } from '../positions';
 import { teamPlayers } from '../roster';
 import type { League } from '../types';
 import { capSheet, releasePlayer, releasePreview, restructurePlayer } from './cap';
-import { buildContract, capHit, deadMoney, isExpired, prorationIn, restructure, voidProration } from './contract';
+import {
+  buildContract,
+  capHit,
+  deadMoney,
+  isExpired,
+  prorationIn,
+  restructure,
+  voidProration,
+  yearsLeft,
+} from './contract';
 import { leagueMarket, marketApy, payTier } from './market';
 
 const deal = (over: Partial<Parameters<typeof buildContract>[0]> = {}) =>
@@ -81,6 +91,33 @@ describe('market', () => {
     const best = Math.max(...qbs.map((p) => marketApy(market, p)));
     expect(best / market.cap).toBeGreaterThan(0.17);
     expect(best / market.cap).toBeLessThan(0.22);
+  });
+});
+
+describe('opening league', () => {
+  const seeds = ['opening-a', 'opening-b', 'opening-c'];
+  it('starts a quarter of its 14+ veterans in their last year, as a settled league does', () => {
+    const last = seeds.map((seed) => {
+      const league = createLeague({ seed });
+      const stars = Object.values(league.players).filter(
+        (p) => p.teamId !== null && p.contract?.kind !== 'rookie' && p.experience >= 4 && playerOvr(p) >= 14,
+      );
+      return stars.filter((p) => yearsLeft(p.contract!, league.season) === 1).length / stars.length;
+    });
+    const mean = last.reduce((a, b) => a + b, 0) / last.length;
+    expect(mean).toBeGreaterThan(0.18);
+    expect(mean).toBeLessThan(0.36);
+  });
+
+  it('gives every veteran 1-5 real years and no fourth-year veteran a deal from before his rookie one ended', () => {
+    const league = createLeague({ seed: 'opening-a' });
+    for (const p of Object.values(league.players)) {
+      if (p.teamId === null || p.contract?.kind === 'rookie' || p.experience < 4) continue;
+      const left = yearsLeft(p.contract!, league.season);
+      expect(left).toBeGreaterThanOrEqual(1);
+      expect(left).toBeLessThanOrEqual(5);
+      if (p.experience === 4) expect(p.contract!.signedSeason).toBe(league.season);
+    }
   });
 });
 
