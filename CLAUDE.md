@@ -34,6 +34,8 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
   own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
   season and first vs last): never loosen a range to get green. `⚠` lines are warnings that don't fail
   a run: outlier record seasons (luck in small samples) and known engine issues, each gone once fixed.
+- **`npm run format`** before committing: Prettier (`.prettierrc.json`, `.prettierignore`), and CI runs
+  `format:check` on every pull request. `npm run check` includes it.
 - `npm run dev` — local dev server (Vite)
 - `npm test` — engine tests (Vitest)
 - `npm run typecheck`
