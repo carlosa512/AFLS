@@ -1,5 +1,4 @@
 import { generateCoachingWorld } from './coaching';
-import { FIRST_NAMES, LAST_NAMES } from './data/names';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
 import {
   ATTRIBUTE_PROFILES,
@@ -16,6 +15,7 @@ import { buildContract, capHit, trimPast } from './finance/contract';
 import { BASE_CAP, guaranteeAsk, leagueMarket, marketApy, minSalary, rookieApy, rookieBonusShare, type Market } from './finance/market';
 import { clamp, Rng } from './rng';
 import { buildAutoDepthChart } from './roster';
+import { newIdentity } from './identity';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateSchedule } from './season/schedule';
 import { generateStaffWorld } from './staff';
@@ -24,7 +24,7 @@ import { generateTraits } from './traits';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 27;
+export const SAVE_VERSION = 29;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -96,10 +96,11 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
   const [hMin, hMax, wMin, wMax] = BODY[position];
   const experience = Math.max(0, age - 22 + rng.int(-1, 0));
 
+  const { firstName, lastName } = newIdentity(rng, { kind: 'player', position });
   const player: Player = {
     id: spec.id,
-    firstName: rng.pick(FIRST_NAMES),
-    lastName: rng.pick(LAST_NAMES),
+    firstName,
+    lastName,
     position,
     age,
     heightIn: rng.int(hMin, hMax),

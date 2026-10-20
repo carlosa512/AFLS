@@ -161,13 +161,14 @@ Decorative (`aria-hidden`): every placement shows the name beside it.
 
 ### Women on staff
 
-- **The flag lives on the record** (`woman?: true` on scouts and medics), set once at creation where the
-  name is picked (`rollWoman` in `staff.ts`), so a name and a face can never disagree. The avatar only
-  reads it. Coaches never roll.
-- **It ships off.** `WOMEN_SHARE` in `engine/data/names.ts` is 0 until women's first names land there;
-  then 0.02 (a little over 1% of full-time NFL coaches are women, somewhat more across football
-  operations). At 0 the roll draws nothing, so every seeded league is exactly as it was.
-- Old saves: v26 adds the optional field; absent means a man.
+- **The flag lives on the record** (`woman?: true` on scouts and medics), drawn with the name
+  (`newIdentity` in `identity.ts`), so a name and a face can never disagree. The avatar only reads it.
+  Coaches never roll.
+- **The share is by chair** (`WOMEN_SHARE` in `engine/data/heritage.ts`): 7% of scouts, 3% of Directors and
+  head doctors, 15% of physiotherapists, 25% of sports scientists, with women's names. See
+  [NAMES.md](NAMES.md).
+- Old saves: v26 adds the optional field (absent means a man); the v27 names pass rolls it for existing
+  scouts and medics as it renames them.
 
 ### Tunables
 
@@ -178,5 +179,5 @@ kit rule in `components.tsx`, the wardrobes in `staffLook.ts`, `WOMEN_SHARE` in 
 
 - Inbox sender avatars for staff (one line each: `fromCard` already names the person).
 - Mod-supplied staff portraits, like `player.portrait`.
-- Women coaches (their share stays 0) and women's names (they turn the flag on).
+- Women coaches (their share stays 0).
 

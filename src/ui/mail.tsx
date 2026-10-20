@@ -39,7 +39,7 @@ import { LinkedText, moveIndex, MoveText } from './moves';
 import { deadlineDayTrades, draftClassOf, freeAgencyMoves, marketRumors, marketTrades, seasonDeals, headCoachChanges, mailSubject, needsYou, promotionCandidates, unitReads, type HeadCoachChange, type MailSubject, type Signing } from '../engine/inbox';
 import { activateFromIr, activateProblem, delegates, estimateText, injuryLabel, IR_MIN_WEEKS, IR_RETURNS, irProblem, irReturnsUsed, placeOnIr, SEVERITY_LABEL, weeksLeft } from '../engine/injuries';
 import { lastSeason } from '../engine/finance/contract';
-import { activeRoster, starters, teamPlayers } from '../engine/roster';
+import { activeRoster, playingHurt, starters, teamPlayers } from '../engine/roster';
 import { capSheet } from '../engine/finance/cap';
 import { userGame } from '../engine/league';
 import { allSeeds, PLAYOFF_ROUNDS, ROUND_NAMES } from '../engine/season/playoffs';
@@ -911,7 +911,7 @@ function DeadlineCards({ league, s, live }: { league: League; s: Extract<MailSub
   const div = divisionStandings(league, records).find((d) => d.index === team.division)!;
   const place = div.teams.findIndex((r) => r.teamId === user) + 1;
   const players = teamPlayers(league, user);
-  const hurt = players.filter((p) => p.injury && !p.injury.injected);
+  const hurt = players.filter((p) => p.injury && !playingHurt(p.injury));
   const expiring = players.filter((p) => p.contract && lastSeason(p.contract) === league.season).sort((a, b) => seenOvr(league, b) - seenOvr(league, a));
   return (
     <>
@@ -1206,9 +1206,9 @@ function OwnerCards({ league, s }: { league: League; s: Extract<MailSubject, { k
 }
 
 const OUTLOOK: Record<ResignOutlook, { label: string; tone: string; tip: string }> = {
-  stays: { label: 'Re-signs', tone: 'tag-good', tip: 'Re-signs for 2 years at his ask when free agency opens, unless you let him go.' },
-  budget: { label: 'Leaves: budget', tone: 'tag-warn', tip: 'Leaves when free agency opens: the budget can’t cover his ask.' },
-  chair: { label: 'Leaves: chair taken', tone: 'tag-warn', tip: 'Leaves when free agency opens: someone else now holds his chair.' },
+  stays: { label: 'Re-signs', tone: 'tag-good', tip: 'Re-signs for 2 years at the ask when free agency opens, unless you let them go.' },
+  budget: { label: 'Leaves: budget', tone: 'tag-warn', tip: 'Leaves when free agency opens: the budget can’t cover the ask.' },
+  chair: { label: 'Leaves: chair taken', tone: 'tag-warn', tip: 'Leaves when free agency opens: someone else now holds the chair.' },
 };
 
 interface PersonRow {

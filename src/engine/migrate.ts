@@ -15,16 +15,19 @@ import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateStaffWorld, setOwnerBudgets } from './staff';
 import { playoffSummary } from './records';
+import { peopleAtLoad, renamePeople, type PeopleAtLoad } from './rename';
 import { rollScheme } from './schemes';
 import { addStats, statSeasons } from './stats';
 import { generateQuirks } from './quirks';
 import { generateTraits } from './traits';
-import type { League, StatLine, TradeMarket } from './types';
+import type { Injury, League, StatLine, TradeMarket } from './types';
 
 /** Returns the upgraded league, or null if the save is from a newer (unknown) version. */
 export function migrateLeague(league: League): League | null {
   if (typeof league.version !== 'number' || league.version > SAVE_VERSION) return null;
   renameLegacyTeams(league);
+  // who the save held as it loaded, before the steps below add anyone (the names pass, v27, reads it)
+  const atLoad = league.version < 27 ? peopleAtLoad(league) : null;
   if (league.version < 2) toV2(league);
   if (league.version < 3) toV3(league);
   if (league.version < 4) toV4(league);
@@ -50,7 +53,9 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 24) league.version = 24; // v24: optional `archived` and `deleted` on inbox messages, set by the user
   if (league.version < 25) toV25(league);
   if (league.version < 26) league.version = 26; // v26: optional `woman` on scouts and medics, set at creation (absent = a man)
-  if (league.version < 27) toV27(league);
+  if (atLoad) toV27(league, atLoad); // last: the earlier steps seed new fields from the old names
+  if (league.version < 28) toV28(league);
+  if (league.version < 29) toV29(league);
   return league;
 }
 
@@ -225,13 +230,13 @@ function toV11(league: League) {
 }
 
 /**
- * v26 → v27: position moves (`learning`, `moves`, `training`: optional, nothing to fill in) and the
+ * v28 → v29: position moves (`learning`, `moves`, `training`: optional, nothing to fill in) and the
  * versatility trait, rolled from each player's own seed after the others, so he gets what a new league
  * would give him.
  */
-function toV27(league: League) {
+function toV29(league: League) {
   for (const p of Object.values(league.players)) if (p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
-  league.version = 27;
+  league.version = 29;
 }
 
 /**
@@ -300,4 +305,21 @@ function toV25(league: League): void {
   const market = league.market as (Partial<TradeMarket> & Pick<TradeMarket, 'moment'>) | undefined;
   if (market) Object.assign(market, { nextOfferId: market.nextOfferId ?? 1, offers: market.offers ?? [], status: market.status ?? {}, talks: market.talks ?? {}, shopped: market.shopped ?? {} });
   league.version = 25;
+}
+
+/** v27: the names pass. Everyone the old pools named is renamed from the heritage pools, the stored text with them. */
+function toV27(league: League, atLoad: PeopleAtLoad): void {
+  renamePeople(league, atLoad);
+  league.version = 27;
+}
+
+/** v28: treatments. Playing through an injury on injections was a flag; it is now one treatment of three. */
+function toV28(league: League): void {
+  for (const p of Object.values(league.players)) {
+    const inj = p.injury as (Injury & { injected?: boolean }) | undefined;
+    if (!inj || !('injected' in inj)) continue;
+    if (inj.injected) inj.treatment = 'injection';
+    delete inj.injected;
+  }
+  league.version = 28;
 }

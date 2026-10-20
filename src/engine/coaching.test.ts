@@ -339,10 +339,12 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
     const forecast = coachResignForecast(l, user);
     expect(forecast.get(best.id)).toBe('stays');
     for (const c of rest) if (c !== best) expect(forecast.get(c.id)).toBe('budget');
+    const chairs = new Map([...forecast.keys()].map((id) => [id, chairOf(l.coaches[id])]));
     advanceOffseason(l); // the window closes
     for (const [id, outlook] of forecast) {
       const c = l.coaches[id];
-      if (outlook === 'stays') expect(c.teamId).toBe(user);
+      // He re-signs; another club may still promote him out of it (a team can't block a promotion).
+      if (outlook === 'stays') expect(c.teamId === user || !sameChair(chairOf(c), chairs.get(id)!)).toBe(true);
       else expect(c?.teamId ?? null).not.toBe(user);
     }
     for (const ch of CHAIRS) expect(teamCoaches(l, user).filter((c) => sameChair(chairOf(c), ch)).length).toBeLessThanOrEqual(1);

@@ -38,6 +38,10 @@ export interface TradeContext {
   salaryWeights?: number[];
   /** Each front office's read of each player it has looked at (see `readPlayer`). */
   reads?: Map<number, PlayerRead>;
+  /** Each front office's outlook for each player (`outlookFor`), keyed like `reads`. */
+  outlooks?: Map<number, number>;
+  /** How much each GM weighs the seasons ahead (`futureWeight`), by team. */
+  futures?: Map<number, number>;
   /** The standings, each conference's seeds, the league's median starters, and each team's needs and block (`plans.ts`). */
   records?: Map<number, TeamRecord>;
   stanceScores?: Map<number, number>;
@@ -101,13 +105,14 @@ export function refreshAfterTrade(ctx: TradeContext, teamIds: readonly number[],
     ctx.blocks?.delete(id);
     ctx.untouchables?.delete(id);
   }
-  if (ctx.reads) {
-    const moved = new Set(playerIds);
-    const teams = new Set(teamIds);
-    for (const key of [...ctx.reads.keys()]) {
+  const moved = new Set(playerIds);
+  const teams = new Set(teamIds);
+  for (const memo of [ctx.reads, ctx.outlooks]) {
+    if (!memo) continue;
+    for (const key of [...memo.keys()]) {
       const playerId = Math.floor(key / 128);
       const teamId = Math.floor((key % 128) / 2);
-      if (moved.has(playerId) || teams.has(teamId)) ctx.reads.delete(key);
+      if (moved.has(playerId) || teams.has(teamId)) memo.delete(key);
     }
   }
   delete ctx.wanted;

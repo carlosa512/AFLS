@@ -15,7 +15,7 @@ import type { League, Player, Position, Stance, Team, TradeMarket } from '../typ
 import { POSITIONS } from '../types';
 import { ovrOf, rosterOf, spendable, type TradeContext } from './context';
 import { freshlySigned, maxRetain, playerTradeBlocker, salaryToTake } from './rules';
-import { POSITION_TRADE, readPlayer, salaryWeight, TRADE_BAND } from './value';
+import { outlookFor, POSITION_TRADE, readPlayer, salaryWeight, TRADE_BAND } from './value';
 
 // ───────── stance ─────────
 
@@ -223,7 +223,8 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
     ctx.untouchables.set(team.id, out);
     return out;
   }
-  const qbs = roster.filter((p) => p.position === 'QB').sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a));
+  // The quarterback it builds around: the one it sees leading it over the next few years, not just this week.
+  const qbs = roster.filter((p) => p.position === 'QB').sort((a, b) => outlookFor(ctx, team, b) - outlookFor(ctx, team, a));
   if (qbs[0] && isBuyer(team) && ovrOf(ctx, qbs[0]) >= 14) out.add(qbs[0].id);
   if (team.gm.loyalty >= 0.5) {
     roster
@@ -238,6 +239,9 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
 }
 
 export const untouchable = (ctx: TradeContext, team: Team, p: Player) => untouchables(ctx, team).has(p.id);
+
+/** How far below the league's starter line a player's outlook is worth reading for the trade block. */
+const NEAR_LINE = 2;
 
 /** A contract this far under water (points, weighed by cap room: about a third-round pick) is a burden worth paying to move. */
 const OVERPAID = 100;
@@ -254,7 +258,10 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
   const tight = salaryWeight(ctx, team.id) >= 1.15;
   const roster = rosterOf(ctx, team.id).filter((p) => underContract(league, p) && !playerTradeBlocker(league, p) && !freshlySigned(league, p, team.id));
   const rank = new Map<number, number>();
-  for (const pos of POSITIONS) roster.filter((p) => p.position === pos).sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a)).forEach((p, i) => rank.set(p.id, i));
+  // Who's surplus is judged on where each player is headed: a climbing backup isn't the one to move.
+  // Only near the starter line does that change an order (and it costs a read): deeper, today's overall.
+  const ahead = (p: Player) => (ovrOf(ctx, p) >= line[p.position] - NEAR_LINE ? outlookFor(ctx, team, p) : ovrOf(ctx, p));
+  for (const pos of POSITIONS) roster.filter((p) => p.position === pos).sort((a, b) => ahead(b) - ahead(a)).forEach((p, i) => rank.set(p.id, i));
   const out: BlockEntry[] = [];
   const keep = untouchables(ctx, team);
   for (const p of roster) {

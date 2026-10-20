@@ -6,7 +6,6 @@ import {
   applyInjury,
   effectiveResistance,
   fatigueMult,
-  injectProblem,
   injuryRetireChance,
   injuryRisk,
   injuryType,
@@ -14,14 +13,20 @@ import {
   IR_MIN_WEEKS,
   IR_RETURNS,
   irProblem,
+  manageInjuries,
   placeOnIr,
-  playThrough,
+  proposeTreatment,
   resistanceMult,
   riskFactors,
   rollInjury,
   snapCost,
+  stopTreatment,
+  treatmentAnswer,
+  treatmentProblem,
   type Mechanism,
 } from './injuries';
+import { skill } from './attributes';
+import { lastSeason } from './finance/contract';
 import { playWeek, simToEndOfRegularSeason } from './league';
 import { simulateGame } from './match/gameSim';
 import { buildLineup } from './match/lineup';
@@ -32,7 +37,7 @@ import { Rng } from './rng';
 import { activeRoster, isAvailable, teamPlayers } from './roster';
 import { quirkWeek } from './quirks';
 import { generateTraits } from './traits';
-import type { Injury, League, Medic, Player } from './types';
+import type { Injury, League, Medic, Player, TreatmentId } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -172,24 +177,128 @@ describe('diagnosis', () => {
 
   it('makes a played-through injury worse instead of adding a new one', () => {
     const league = fresh();
-    const p = Object.values(league.players).find((x) => x.teamId === 0 && x.position === 'WR')!;
-    hurt(league, p, 2);
-    expect(injectProblem(p)).toBeNull();
-    playThrough(league, p);
+    const p = willing(Object.values(league.players).find((x) => x.teamId === 0 && x.position === 'WR')!);
+    hurt(league, p, 2, 'ankle');
+    expect(treatmentProblem(p, 'injection')).toBeNull();
+    expect(proposeTreatment(league, p, 'injection').yes).toBe(true);
     expect(isAvailable(p)).toBe(true);
     const { injury } = rollInjury(new Rng('aggravate'), league, p, 'soft', 'game');
-    expect(injury.type).toBe('hamstring');
+    expect(injury.type).toBe('ankle');
     expect(injury.weeksRemaining).toBeGreaterThan(2);
     applyInjury(league, p, injury);
     expect(p.injuries!.at(-1)!.aggravated).toBe(true);
-    expect(p.injury!.injected).toBeUndefined();
+    expect(p.injury!.treatment).toBeUndefined();
   });
 
-  it('only lets a minor injury be played through', () => {
+  it('only masks minor joint, bone and bruise injuries with a needle', () => {
     const league = fresh();
-    const p = Object.values(league.players).find((x) => x.teamId === 0)!;
+    const [a, b, c] = Object.values(league.players).filter((x) => x.teamId === 0);
+    hurt(league, a, 5, 'ankle');
+    expect(treatmentProblem(a, 'injection')).toMatch(/minor/);
+    hurt(league, b, 2, 'hamstring');
+    expect(treatmentProblem(b, 'injection')).toMatch(/muscle/);
+    hurt(league, c, 2, 'concussion');
+    expect(treatmentProblem(c, 'injection')).toMatch(/head/);
+    // A strain has a fast-track, a concussion has nothing but rest.
+    expect(treatmentProblem(b, 'fastTrack')).toBeNull();
+    expect(TREATMENTS.map((id) => treatmentProblem(c, id))).not.toContain(null);
+  });
+});
+
+/** A player who goes along with anything: a competitor with no contract on his mind. */
+function willing(p: Player): Player {
+  p.personality.winning = 1;
+  p.contract = null;
+  return p;
+}
+const TREATMENTS: TreatmentId[] = ['injection', 'brace', 'fastTrack'];
+
+describe('treatments', () => {
+  it('gets a broken hand back early in a club cast, a step down on his hands until it heals', () => {
+    const league = fresh();
+    const p = willing(Object.values(league.players).find((x) => x.teamId === 0 && x.position === 'WR')!);
+    const hands = skill(p, 'hands');
+    hurt(league, p, 4, 'hand');
+    expect(proposeTreatment(league, p, 'brace').yes).toBe(true);
+    expect(p.injury!.braceWait).toBe(1);
+    expect(isAvailable(p)).toBe(false);
+    league.week++;
+    injuryWeek(league);
+    expect(p.injury!.braceWait).toBeUndefined();
+    expect(isAvailable(p)).toBe(true);
+    expect(skill(p, 'hands')).toBeLessThan(hands - 2);
+    expect(riskFactors(league, p).contact).toBeGreaterThan(1.5 * riskFactors(league, { ...p, injury: undefined }).contact);
+    // Out of the cast: he sits until it heals, and plays at full strength once it has.
+    stopTreatment(league, p);
+    expect(isAvailable(p)).toBe(false);
+    expect(p.injury!.braceCost).toBeUndefined();
+    expect(skill(p, 'hands')).toBe(hands);
+  });
+
+  it('keeps the gear off a quarterback’s throwing hand, and off a strain', () => {
+    const league = fresh();
+    const qb = Object.values(league.players).find((x) => x.teamId === 0 && x.position === 'QB')!;
+    hurt(league, qb, 4, 'hand');
+    expect(treatmentProblem(qb, 'brace')).toMatch(/QB/);
+    const wr = Object.values(league.players).find((x) => x.teamId === 0 && x.position === 'WR')!;
+    hurt(league, wr, 4, 'hamstring');
+    expect(treatmentProblem(wr, 'brace')).toMatch(/No brace/);
+  });
+
+  it('fast-tracks a strain: back sooner, and likelier to go again once he is back', () => {
+    const league = fresh();
+    const p = willing(Object.values(league.players).find((x) => x.teamId === 0 && x.position === 'WR')!);
     hurt(league, p, 5);
-    expect(injectProblem(p)).toMatch(/minor/);
+    p.injury!.estimate = [4, 6];
+    expect(proposeTreatment(league, p, 'fastTrack').yes).toBe(true);
+    const inj = p.injury!;
+    expect(inj.weeksRemaining).toBeLessThan(5);
+    expect(inj.estimate[0]).toBeLessThanOrEqual(inj.weeksRemaining);
+    expect(inj.estimate[1]).toBeGreaterThanOrEqual(inj.weeksRemaining);
+    expect(p.injuries!.at(-1)!).toMatchObject({ fastTracked: true, weeks: inj.weeksRemaining });
+    // Three weeks after he's back: a plain return is half again as likely to tear; a rushed one far more.
+    const back = (fastTracked: boolean) => {
+      const q: Player = { ...p, injury: undefined, injuries: [{ type: 'hamstring', severity: 'moderate', season: league.season, week: league.week - 5, weeks: 2, ...(fastTracked ? { fastTracked: true as const } : {}) }] };
+      return riskFactors(league, q).soft;
+    };
+    expect(back(true) / back(false)).toBeCloseTo(2.5 / 1.5, 5);
+  });
+
+  it('lets a player say no, the same way every time he is asked', () => {
+    const league = fresh();
+    const pool = Object.values(league.players).filter((x) => x.teamId !== null && x.contract && lastSeason(x.contract) === league.season);
+    let refused = 0;
+    for (const p of pool.slice(0, 40)) {
+      p.personality.greed = 1;
+      p.personality.winning = 0.5;
+      hurt(league, p, 2, 'ankle');
+      const a = treatmentAnswer(league, p, 'injection');
+      expect(treatmentAnswer(league, p, 'injection')).toEqual(a);
+      if (a.yes) continue;
+      refused++;
+      expect(a.why).toMatch(/contract year/);
+      expect(proposeTreatment(league, p, 'injection').yes).toBe(false);
+      expect(p.injury!.treatment).toBeUndefined();
+    }
+    expect(refused).toBeGreaterThan(5);
+  });
+
+  it('pushes an AI starter back early for a win-now GM, never the user’s', () => {
+    const league = fresh();
+    const starterWr = (teamId: number) => willing(league.players[league.teams[teamId].depthChart.WR[0]]);
+    const ai = league.teams.find((t) => t.id !== league.userTeamId)!;
+    ai.gm.winNow = 0.9;
+    const theirs = starterWr(ai.id);
+    hurt(league, theirs, 4, 'hand');
+    manageInjuries(league, ai, new Rng('ai-treat'));
+    expect(theirs.injury!.treatment).toBe('brace');
+    expect(theirs.ir).toBeUndefined();
+    const user = league.teams[league.userTeamId];
+    user.gm.winNow = 0.9;
+    const ours = starterWr(user.id);
+    hurt(league, ours, 4, 'hand');
+    manageInjuries(league, user, new Rng('ai-treat'));
+    expect(ours.injury!.treatment).toBeUndefined();
   });
 });
 
@@ -360,6 +469,19 @@ describe('saves', () => {
     expect(teamMedics(up, 0).length).toBe(4);
     expect(departmentFor(up, 0).physio).toBeGreaterThan(1);
     expect(up.teams.every((t) => Array.isArray(t.medicalDead))).toBe(true);
+  });
+
+  it('turns injections from a flag into a treatment (v28)', () => {
+    const old = copy(base) as League;
+    old.version = 27;
+    const [a, b] = Object.values(old.players).filter((x) => x.teamId === 0);
+    a.injury = { type: 'ankle', severity: 'minor', weeksRemaining: 1, estimate: [1, 1], season: old.season, week: old.week, where: 'game', injected: true } as Injury;
+    b.injury = { type: 'ankle', severity: 'minor', weeksRemaining: 1, estimate: [1, 1], season: old.season, week: old.week, where: 'game', injected: false } as Injury;
+    const up = migrateLeague(old)!;
+    expect(up.players[a.id].injury).toMatchObject({ treatment: 'injection' });
+    expect(up.players[b.id].injury!.treatment).toBeUndefined();
+    expect('injected' in up.players[a.id].injury!).toBe(false);
+    expect(isAvailable(up.players[a.id])).toBe(true);
   });
 });
 

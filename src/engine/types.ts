@@ -151,6 +151,8 @@ export interface Player {
   id: number;
   firstName: string;
   lastName: string;
+  /** A name the user (or a mod) chose: no names pass ever replaces it. */
+  nameEdited?: true;
   position: Position;
   age: number;
   heightIn: number;
@@ -245,6 +247,13 @@ export interface PositionMove {
 
 export type InjurySeverity = 'minor' | 'moderate' | 'severe' | 'career-threatening';
 
+/**
+ * What a player does about an injury besides resting (the default, no entry): a pain injection to
+ * play through a minor one, protective gear to come back early, or a fast-track to heal sooner.
+ * Which ones an injury allows, and what each costs: `injuries.ts`, `docs/INJURIES.md`.
+ */
+export type TreatmentId = 'injection' | 'brace' | 'fastTrack';
+
 /** A current injury. The engine knows `weeksRemaining`; screens show the medical staff's estimate. */
 export interface Injury {
   /** Key into `INJURY_TYPES` (injuries.ts). */
@@ -259,8 +268,12 @@ export interface Injury {
   week: number;
   /** In a game or on the practice field. */
   where: 'game' | 'practice';
-  /** Playing through it on injections: available, but far likelier to make it worse. */
-  injected?: boolean;
+  /** The treatment he agreed to, if any (absent = resting it). */
+  treatment?: TreatmentId;
+  /** In protective gear: weeks still to sit before he can play in it (absent or 0 = playing). */
+  braceWait?: number;
+  /** In protective gear: rating points he plays down on until it heals (the engine reads it in `skill`). */
+  braceCost?: Partial<Record<Attribute, number>>;
 }
 
 /** One injury in a player's history. */
@@ -275,6 +288,8 @@ export interface InjuryRecord {
   scar?: Partial<Record<Attribute, number>>;
   /** An old injury made worse by playing through it. */
   aggravated?: true;
+  /** Healed on a fast-track: back sooner, and likelier to go again in his first weeks back. */
+  fastTracked?: true;
 }
 
 /** Combine results. A missing drill means he skipped it. */
@@ -333,7 +348,7 @@ export interface Staff {
   firstName: string;
   lastName: string;
   role: StaffRole;
-  /** Set once at creation (`rollWoman`), so the name and the avatar agree. Absent = a man. */
+  /** Set once at creation with the name (`newIdentity`), so the name, the avatar and the text agree. Absent = a man. */
   woman?: true;
   age: number;
   /** Reading what a player is today (1–20). */
@@ -417,7 +432,7 @@ export interface Medic {
   firstName: string;
   lastName: string;
   role: MedicRole;
-  /** Set once at creation (`rollWoman`), so the name and the avatar agree. Absent = a man. */
+  /** Set once at creation with the name (`newIdentity`), so the name, the avatar and the text agree. Absent = a man. */
   woman?: true;
   age: number;
   /** Physiotherapy (1–20): rehab that gets injured players back sooner. */

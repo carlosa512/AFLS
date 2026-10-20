@@ -95,8 +95,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     changes go through this module (it keeps a per-team index; `teamCoaches()` returns a shared
     read-only list)
   - `injuries.ts` who gets hurt (snap and collision risk, resistance, energy, condition), layoffs,
-    scars, injured reserve, the weekly cycle (healing, practice, AI injury moves), the injury-risk
-    read and injury retirements. All randomness on its own streams (per game, per practice week)
+    scars, treatments (pain injections, protective gear, fast-tracks; the player's say on each, AI
+    teams' calls for their starters), injured reserve, the weekly cycle (healing, practice, AI injury
+    moves), the injury-risk read and injury retirements. All randomness on its own streams (per game,
+    per practice week, per player's answer)
   - `medical.ts` medical staffs: department ratings (`departmentFor`), the recovery curve, the
     medical budget, contracts, the market, ageing and AI hiring (same shape as `staff.ts`)
   - `schemes.ts` what coordinators run: offenses (personnel, run/pass mix, targets, play action), fronts
@@ -110,6 +112,12 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     `needsYou` works out from the league as it is now whether a message still asks something (nothing
     stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
+  - `identity.ts` names for new people (players by position, staff by chair, referees): a heritage drawn
+    from `data/heritage.ts`, then names from `data/names.ts` for that heritage and generation; scouts and
+    medics can be women (drawn with the name). Costs the caller's stream exactly two draws. Heritage is
+    never stored or read by the sim. `rename.ts` is the v27 pass for older saves (keeps typed names,
+    `Player.nameEdited`, and rewrites stored text). `pronouns.ts` (`pron`) for any text about one scout or
+    medic. Spec and sources: `docs/NAMES.md`
   - `quirks.ts` on-field habits (registry, the marble bag, grip, `activeQuirks`): they change with
     weekly and offseason draws; the engine reads them through `has()` in `match/gameSim.ts`, screens
     through `quirkNotes` in `scouting.ts` (seen on film, so the fog of war applies); AI front offices
@@ -131,6 +139,10 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     weekly rotation (`crewAssignments`, a pure function like weather; the result keeps `crewId`), the
     multipliers on the engine's penalty rolls (`crewCalls`), and crew stats read from the box scores'
     penalties by kind (`crewTable`). Screens never show the tendencies. Spec: `docs/OFFICIALS.md`
+  - `outlook.ts` where a player is headed: the overall a club expects from him over the next three
+    seasons (growth toward its scouts' ceiling, the aging curve's fade via `expectedAging`, its read of
+    his injury risk, the GM's win-now). Trade rooms, the trade block, free agency (`upgradeBar`),
+    re-signing and fifth-year options plan on it; lineups still use today's play
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)

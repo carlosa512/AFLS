@@ -797,7 +797,7 @@ function staffDealsMail(league: League, have: Set<string>): Draft[] {
       from: 'Front office',
       category: 'staff',
       subject: n === 1 ? 'A staff contract is up' : `${count(n)} staff contracts are up`,
-      body: `${capital(list(groups))} ${n === 1 ? 'is' : 'are'} out of contract. Unless you extend them or let them go first, each re-signs for two years at his ask when free agency opens, as long as his chair is free and the budget covers him. ${outlook}`,
+      body: `${capital(list(groups))} ${n === 1 ? 'is' : 'are'} out of contract. Unless you extend them or let them go first, each re-signs for two years at the ask when free agency opens, as long as the chair is free and the budget covers the ask. ${outlook}`,
       actions: [{ kind: 'coaches' }, { kind: 'staff' }, { kind: 'medical' }],
     },
   ];

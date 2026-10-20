@@ -118,3 +118,41 @@ export function developPlayer(rng: Rng, player: Player, ctx: DevContext): void {
     player.ratings[attr as Attribute] = Math.round(clamp(player.ratings[attr] + d + rng.normal(0, 0.35), 1, 20));
   }
 }
+
+/** The average body's year (`year` above runs 0.3–1.4). */
+const TYPICAL_YEAR = 0.85;
+const agingMemo = new Map<Position, number[]>();
+
+/**
+ * The overall a typical body gains or loses, on average, in the offseason he spends at `age` once
+ * growth is done: the prime's mental gains, then the decline above with a middling year and no
+ * coaching. Calendar age only, a public judgment: front offices read it to see a veteran's fade
+ * coming (`outlook.ts`), whatever his body clock really says.
+ */
+export function expectedAging(pos: Position, age: number): number {
+  let table = agingMemo.get(pos);
+  if (!table) agingMemo.set(pos, (table = []));
+  const memo = table[age];
+  if (memo !== undefined) return memo;
+  const weights = OVR_WEIGHTS[pos];
+  const fade = AGING[pos].slope;
+  let sum = 0;
+  let total = 0;
+  for (const attr of ATTRIBUTES) {
+    const w = weights[attr];
+    if (!w) continue;
+    const family = agingFamily(pos, attr);
+    const past = age - declineOnset(pos, family);
+    const d =
+      past > 0
+        ? -TYPICAL_YEAR * fade * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25)
+        : family === 'mental' && age >= 26
+          ? MENTAL_GROWTH
+          : 0;
+    sum += w * d;
+    total += w;
+  }
+  const out = total ? sum / total : 0;
+  table[age] = out;
+  return out;
+}
