@@ -16,6 +16,7 @@ import {
   openOffers,
   pickLabel,
   playerTradeBlocker,
+  replyOf,
   resolveExam,
   setTradeStatus,
   shopPlayer,
@@ -163,6 +164,15 @@ export function ExamPanel({ league }: { league: League }) {
   );
 }
 
+/** How a closed offer ended, for a save from before offers kept the words. */
+const FALLBACK: Record<Exclude<TradeOffer['status'], 'pending'>, string> = {
+  accepted: 'You accepted.',
+  declined: 'You turned it down.',
+  expired: 'It lapsed.',
+  withdrawn: 'They pulled it.',
+  answered: 'You answered.',
+};
+
 /** When an offer lapses, in words. */
 const lapse = (league: League) =>
   league.phase === 'regular' ? `Open until you play week ${league.week}.` : 'Open until your next step.';
@@ -181,12 +191,14 @@ export function OfferCard({
 }) {
   const nav = useNav();
   const [note, setNote] = useState<string | null>(null);
+  const [ok, setOk] = useState(true);
   const [release, setRelease] = useState<number[] | null>(null);
   const team = league.teams[offer.teamId];
   const { subject, body } = offerWords(league, offer);
   const open = openOffers(league).some((o) => o.id === offer.id);
   const enquiry = offer.kind === 'enquiry';
   const advice = enquiry ? [] : dealAdvice(league, offer.sides);
+  const reply = replyOf(league, offer);
 
   const accept = (ids: number[] = []) => {
     let result = { ok: false, message: '', release: undefined as Player[] | undefined };
@@ -194,6 +206,7 @@ export function OfferCard({
       result = { release: undefined, ...acceptOffer(l, offer.id, ids) };
     });
     setNote(result.message);
+    setOk(result.ok);
     setRelease(result.release ? result.release.map((p) => p.id) : null);
     if (result.ok) onDone?.(result.message);
   };
@@ -207,9 +220,23 @@ export function OfferCard({
     nav.go({ view: 'office', tab: 'trades' });
   };
 
+  /** Answering an enquiry: the card keeps the words. Asking for an offer that couldn't be made is a miss. */
+  const answer = (choice: 'offer' | 'notForSale') => {
+    let result: ReturnType<typeof answerEnquiry> = { offer: null, message: '' };
+    store.mutate((l) => {
+      result = answerEnquiry(l, offer.id, choice);
+    });
+    setNote(result.message);
+    setOk(choice === 'notForSale' || result.offer !== null);
+  };
+
   const when = (
     <span className="muted small">
-      {open ? lapse(league) : `This offer is ${offer.status === 'pending' ? 'no longer open' : offer.status}.`}
+      {open
+        ? lapse(league)
+        : offer.status === 'pending'
+          ? 'This offer is no longer open.'
+          : (offer.outcome ?? FALLBACK[offer.status])}
     </span>
   );
   return (
@@ -275,25 +302,28 @@ export function OfferCard({
         </div>
       )}
       {note && (
-        <p className="callout" role="status">
+        <p className={`callout ${ok ? 'callout-good' : 'callout-bad'}`} role="status">
           {note}
         </p>
+      )}
+      {reply && (
+        <button
+          type="button"
+          className="btn btn-sm"
+          onClick={() => nav.go({ view: 'inbox', messageId: `offer:${reply.season}:${reply.id}` })}
+        >
+          See their offer →
+        </button>
       )}
       {league.market?.exam?.offerId === offer.id && <ExamPanel league={league} />}
       {open && league.market?.exam?.offerId !== offer.id && (
         <span className="row" style={{ gap: 8 }}>
           {enquiry ? (
             <>
-              <button
-                className="btn btn-primary"
-                onClick={() => store.mutate((l) => void answerEnquiry(l, offer.id, 'offer'))}
-              >
+              <button className="btn btn-primary" onClick={() => answer('offer')}>
                 Make me an offer
               </button>
-              <button
-                className="btn"
-                onClick={() => store.mutate((l) => void answerEnquiry(l, offer.id, 'notForSale'))}
-              >
+              <button className="btn" onClick={() => answer('notForSale')}>
                 Not for sale
               </button>
             </>

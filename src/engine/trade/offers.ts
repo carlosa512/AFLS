@@ -388,6 +388,10 @@ export function recheckOffers(league: League): void {
 export const openOffers = (league: League): TradeOffer[] =>
   tradeWindow(league) ? [] : (league.market?.offers ?? []).filter((o) => o.status === 'pending');
 
+/** The offer that answers this one: a bid filed from an enquiry, or the counter to a counter. */
+export const replyOf = (league: League, offer: TradeOffer): TradeOffer | undefined =>
+  league.market?.offers.find((o) => o.replyTo === offer.id);
+
 const offerById = (league: League, id: number) => league.market?.offers.find((o) => o.id === id);
 
 /** Every player and pick in it is still where the offer found it. */

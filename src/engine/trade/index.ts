@@ -40,6 +40,7 @@ export {
   openOffers,
   proposeTrade,
   recheckOffers,
+  replyOf,
   resolveExam,
   setTradeStatus,
   shopPlayer,
