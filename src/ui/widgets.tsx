@@ -26,6 +26,7 @@ export function outlookPill(league: League, p: Player): string {
   if (!i) return 'IR · ready';
   if (playingHurt(i)) return 'Playing hurt';
   if (i.braceWait) return `Out ${i.braceWait} wk`;
+  if (i.protocol && !i.protocol.shutdown) return p.ir ? 'IR · protocol' : 'Protocol';
   const [lo, hi] = i.estimate;
   const out = lo >= weeksLeft(league) ? 'season' : hi <= 1 ? '1 wk' : lo === hi ? `${lo} wk` : `${lo}–${hi} wk`;
   return p.ir ? `IR · ${out}` : out === 'season' ? 'Out for season' : `Out ${out}`;

@@ -153,7 +153,7 @@ describe('home widgets', () => {
       const est = list.map((p) => (p.injury ? p.injury.estimate[1] : -1));
       expect(est).toEqual([...est].sort((a, b) => b - a));
     }
-    for (const p of hurt) expect(outlookPill(league, p)).toMatch(/^(IR · (season|ready|\d+(–\d+)? wk)|Out (for season|\d+(–\d+)? wk)|Playing hurt)$/);
+    for (const p of hurt) expect(outlookPill(league, p)).toMatch(/^(IR · (season|ready|protocol|\d+(–\d+)? wk)|Out (for season|\d+(–\d+)? wk)|Playing hurt|Protocol)$/);
     for (const p of wornDown(league, league.userTeamId)) expect(p.injury || p.ir).toBeFalsy();
   });
 

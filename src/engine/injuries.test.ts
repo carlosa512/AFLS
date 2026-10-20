@@ -4,7 +4,11 @@ import {
   activateFromIr,
   activateProblem,
   applyInjury,
+  concussionLoad,
+  concussionRetireChance,
+  concussionWindow,
   effectiveResistance,
+  holdAfterProtocol,
   fatigueMult,
   injuryRetireChance,
   injuryRisk,
@@ -16,6 +20,7 @@ import {
   manageInjuries,
   placeOnIr,
   proposeTreatment,
+  protocolBag,
   resistanceMult,
   riskFactors,
   rollInjury,
@@ -452,6 +457,164 @@ describe('careers', () => {
     expect(after.tier).toBe('High');
   });
 });
+
+/** A concussion on his file `yearsAgo` before this week, cleared after `weeks`. */
+const pastConcussion = (league: League, yearsAgo: number, weeks = 1): NonNullable<Player['injuries']>[number] => ({ type: 'concussion', severity: 'minor', season: league.season - yearsAgo, week: league.week, weeks });
+
+/** Concuss him in this week's game: into the protocol, his bag built from his file. */
+function concuss(league: League, p: Player, where: Injury['where'] = 'game'): Injury {
+  const at = { season: league.season, week: league.week };
+  const injury: Injury = { type: 'concussion', severity: 'minor', weeksRemaining: 1, estimate: [0, 1], season: at.season, week: at.week, where, protocol: protocolBag(p, at) };
+  applyInjury(league, p, injury);
+  return injury;
+}
+
+/** Weekly cycles until he's out of the protocol: how many it took. */
+function untilCleared(league: League, p: Player): number {
+  for (let n = 1; n <= 40; n++) {
+    injuryWeek(league);
+    league.week++;
+    if (p.injury?.type !== 'concussion') return n;
+  }
+  throw new Error('never cleared');
+}
+
+describe('concussions', () => {
+  it('weighs each past concussion in full for two years, then half by four, never less', () => {
+    const league = fresh();
+    const p = Object.values(league.players).find((x) => x.teamId === 0)!;
+    p.injuries = [pastConcussion(league, 1)];
+    expect(concussionLoad(p, league.season, league.week)).toBeCloseTo(1, 5);
+    p.injuries = [pastConcussion(league, 3)];
+    expect(concussionLoad(p, league.season, league.week)).toBeCloseTo(0.75, 5);
+    p.injuries = [pastConcussion(league, 6), pastConcussion(league, 1)];
+    expect(concussionLoad(p, league.season, league.week)).toBeCloseTo(1.5, 5);
+  });
+
+  it('fills a bigger bag with each concussion on his file', () => {
+    const league = fresh();
+    const p = Object.values(league.players).find((x) => x.teamId === 0 && x.age < 30)!;
+    const at = { season: league.season, week: league.week };
+    const first = protocolBag(p, at);
+    expect(first).toEqual({ clear: 4, symptoms: 4, setbacks: 0 });
+    p.injuries = [pastConcussion(league, 3), pastConcussion(league, 2), pastConcussion(league, 0.5)];
+    const fourth = protocolBag(p, at);
+    expect(fourth.clear).toBe(4);
+    expect(fourth.symptoms).toBeGreaterThan(first.symptoms + 5);
+    expect(fourth.setbacks).toBeGreaterThanOrEqual(2);
+  });
+
+  it('clears about half of first concussions in time for the next game, and the file shows the games he missed', () => {
+    const league = fresh();
+    const players = Object.values(league.players).filter((x) => x.teamId !== null).slice(0, 300);
+    for (const p of players) concuss(league, p);
+    injuryWeek(league);
+    const cleared = players.filter((p) => p.injury?.type !== 'concussion').length / players.length;
+    expect(cleared).toBeGreaterThan(0.38);
+    expect(cleared).toBeLessThan(0.62);
+    for (const p of players.filter((x) => x.injury?.type !== 'concussion').slice(0, 20)) expect(p.injuries!.find((r) => r.type === 'concussion')!.weeks).toBe(0);
+    // The rest are still in it: day to day, never more than his bag allows.
+    const still = players.find((p) => p.injury?.protocol)!;
+    expect(still.injury!.estimate[0]).toBeGreaterThanOrEqual(0);
+    league.week++;
+    const n = untilCleared(league, still);
+    expect(still.injuries!.find((r) => r.type === 'concussion')!.weeks).toBe(n);
+  });
+
+  it('takes longer, on average, the more concussions he has had', () => {
+    const missed = (history: number) => {
+      const league = fresh();
+      const players = Object.values(league.players).filter((x) => x.teamId !== null && x.age < 30).slice(0, 120);
+      for (const p of players) {
+        p.injuries = Array.from({ length: history }, (_, i) => pastConcussion(league, 0.3 + i * 0.6));
+        concuss(league, p);
+      }
+      let total = 0;
+      for (let w = 0; w < 30 && players.some((p) => p.injury?.protocol); w++) {
+        injuryWeek(league);
+        league.week++;
+      }
+      for (const p of players) total += p.injuries!.at(history)!.weeks;
+      return total / players.length;
+    };
+    expect(missed(3)).toBeGreaterThan(missed(0) + 1);
+  });
+
+  it('brings symptoms back with a setback: two more of them in the bag', () => {
+    const league = fresh();
+    const p = Object.values(league.players).find((x) => x.teamId === 0)!;
+    const inj = concuss(league, p);
+    inj.protocol = { clear: 1, symptoms: 0, setbacks: 1 };
+    // Week by week until the setback marble comes out (one of two, so soon).
+    for (let w = 0; w < 30 && inj.protocol?.setbackWeek === undefined && p.injury; w++) {
+      inj.protocol!.clear = 0;
+      injuryWeek(league);
+      league.week++;
+    }
+    expect(inj.protocol!.setbackWeek).toBeDefined();
+    expect(inj.protocol!.symptoms).toBe(2);
+    expect(inj.protocol!.setbacks).toBe(0);
+  });
+
+  it('sits him one more week when his team holds him, and counts the week', () => {
+    const league = fresh();
+    const p = Object.values(league.players).find((x) => x.teamId === 0)!;
+    const inj = concuss(league, p);
+    inj.protocol = { clear: 1, symptoms: 0, setbacks: 0 };
+    holdAfterProtocol(p, true);
+    injuryWeek(league);
+    expect(p.injury?.protocol).toBeUndefined();
+    expect(isAvailable(p)).toBe(false);
+    league.week++;
+    injuryWeek(league);
+    expect(p.injury).toBeUndefined();
+    expect(p.injuries!.at(-1)).toMatchObject({ type: 'concussion', weeks: 1, held: true });
+    // Cleared a week ago, back now: one week left of the window when a second one is likelier.
+    league.week++;
+    expect(concussionWindow(league, p)).toBe(1);
+  });
+
+  it('has a player with a third concussion in a season weigh his future, and sometimes shut himself down', () => {
+    const league = fresh();
+    let shut = 0;
+    for (const p of Object.values(league.players).filter((x) => x.teamId !== null).slice(0, 60)) {
+      p.personality.winning = 0.5;
+      p.injuries = [pastConcussion(league, 0), pastConcussion(league, 0)];
+      const { injury } = rollConcussion(league, p);
+      if (!injury.protocol?.shutdown) continue;
+      shut++;
+      expect(injury.estimate[0]).toBeGreaterThanOrEqual(weeksLeftNow(league));
+    }
+    expect(shut).toBeGreaterThan(15);
+    expect(shut).toBeLessThan(45);
+  });
+
+  it('can end a career in the offseason from about the third concussion on', () => {
+    const league = fresh();
+    const p = Object.values(league.players).find((x) => x.teamId === 0)!;
+    const season = league.season + 1;
+    p.injuries = [pastConcussion(league, 1), pastConcussion(league, 0)];
+    expect(concussionRetireChance(p, season)).toBe(0);
+    p.injuries.push(pastConcussion(league, 0));
+    const three = concussionRetireChance(p, season);
+    expect(three).toBeGreaterThan(0);
+    p.injuries.push(pastConcussion(league, 1), pastConcussion(league, 2));
+    expect(concussionRetireChance(p, season)).toBeGreaterThan(0.2);
+    // Old ones weigh less: the same three, years ago, end fewer careers.
+    p.injuries = [pastConcussion(league, 5), pastConcussion(league, 5), pastConcussion(league, 5)];
+    expect(concussionRetireChance(p, season)).toBe(0);
+  });
+});
+
+/** Roll contact injuries until one is a concussion (the pick is weighted; the protocol is what's tested). */
+function rollConcussion(league: League, p: Player) {
+  for (let i = 0; i < 500; i++) {
+    const hurt = rollInjury(new Rng(`concuss:${p.id}:${i}`), league, p, 'contact', 'game');
+    if (hurt.injury.type === 'concussion') return hurt;
+  }
+  throw new Error('no concussion');
+}
+const weeksLeftNow = (league: League) => 22 - league.week + 1;
 
 describe('saves', () => {
   it('upgrades an old save: same traits a new league rolls, a medical staff, nobody hurt', () => {

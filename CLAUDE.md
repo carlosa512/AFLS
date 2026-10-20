@@ -13,9 +13,22 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 
 ## Commands
 
-- **`npm run check` — run before every push.** It reads what changed (vs `origin/main`, committed or
-  not), runs the checks below that the change calls for side by side, and prints one ✓/✗ line each;
-  full logs land in `.check/`. `--quick` skips the slow two (careers, audit), `--all` runs everything,
+**Run the smallest check that answers the question; go bigger only when you must.** The full run
+takes 10–20 minutes, and CI runs it on every pull request anyway (one job per check), so locally:
+
+1. **UI, docs, copy, tests, or anything the sim never reads:** `npm run typecheck` and the tests you
+   touched (`npx vitest run <file>`). No sims.
+2. **A change that can move play or numbers** (`src/engine/`): while tuning, the one command for that
+   area (`npm run sim -- 10`, `npm run endings`, or the area's script below) and its unit tests: each
+   takes about a minute and shows how the tweak moves play. Before pushing, `npm run check -- --quick`.
+3. **The full `npm run check`** only when the change is in what the slow three measure, or a number
+   sits near an edge: `audit` for `attributes.ts`, `OVR_WEIGHTS` or how the engine reads ratings;
+   `careers` for `development.ts`, `aging.ts`, `traits.ts`, `coaching.ts` or retirement; `quirks` for
+   `quirks.ts` or a quirk hook. Otherwise let CI run them and read its result on the PR.
+
+- **`npm run check`** reads what changed (vs `origin/main`, committed or not), runs the checks below
+  that the change calls for side by side, and prints one ✓/✗ line each; full logs land in `.check/`.
+  `--quick` skips the slow three (careers, audit, quirks), `--all` runs everything,
   `npm run check -- sim endings` runs just those. CI runs the same plan on every pull request, one job
   per check (`.github/workflows/ci.yml`), so a red ✗ here is a red PR there. Every check fails on its
   own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
@@ -96,7 +109,8 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
     read-only list)
   - `injuries.ts` who gets hurt (snap and collision risk, resistance, energy, condition), layoffs,
     scars, treatments (pain injections, protective gear, fast-tracks; the player's say on each, AI
-    teams' calls for their starters), injured reserve, the weekly cycle (healing, practice, AI injury
+    teams' calls for their starters), the concussion protocol (a weekly marble draw from a bag his
+    concussion history fills; shutdowns and concussion retirements), injured reserve, the weekly cycle (healing, practice, AI injury
     moves), the injury-risk read and injury retirements. All randomness on its own streams (per game,
     per practice week, per player's answer)
   - `medical.ts` medical staffs: department ratings (`departmentFor`), the recovery curve, the

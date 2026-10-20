@@ -55,6 +55,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 26) league.version = 26; // v26: optional `woman` on scouts and medics, set at creation (absent = a man)
   if (atLoad) toV27(league, atLoad); // last: the earlier steps seed new fields from the old names
   if (league.version < 28) toV28(league);
+  if (league.version < 29) league.version = 29; // v29: optional `protocol` on concussions and `held` on records, nothing to fill in
   return league;
 }
 

@@ -312,7 +312,7 @@ for (let s = 0; s < seasons; s++) {
   );
   const drafted = count('draft');
   console.log(
-    `  moves: re-signed ${count('resign')}, signed ${count('sign')}, released ${count('release')}, restructured ${count('restructure')}, tagged ${count('tag')}, options ${count('option')}, drafted ${drafted}, retired(notable) ${count('retire')} (injuries ${moves.filter((m) => m.kind === 'retire' && /injuries/.test(m.text)).length})`,
+    `  moves: re-signed ${count('resign')}, signed ${count('sign')}, released ${count('release')}, restructured ${count('restructure')}, tagged ${count('tag')}, options ${count('option')}, drafted ${drafted}, retired(notable) ${count('retire')} (injuries ${moves.filter((m) => m.kind === 'retire' && /injuries/.test(m.text)).length}, concussions ${moves.filter((m) => m.kind === 'retire' && /concussions/.test(m.text)).length})`,
   );
   const depts = league.teams.map((t) => departmentFor(league, t.id));
   const medPay = league.teams.map((t) => medicalPayroll(league, t.id) / medicalBudget(league, t.id));

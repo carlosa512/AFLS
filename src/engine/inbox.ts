@@ -7,7 +7,7 @@
 import { AWARD_KEYS, AWARD_NAMES, HONOR_SLOTS, MONTHS, playerOfTheGame, seasonAwards, weeklyAwards, type AwardWinner } from './awards';
 import { CHAIRS, chairHolder, coachName, coachResignForecast, coachTitle, isCoachExpiring, ownerLeeway, ownerTrigger, ownerTriggerNote, promotionFor, sameChair, teamCoaches, type Chair } from './coaching';
 import { capSpace } from './finance/cap';
-import { delegates, estimateText, injuryLabel, weeksLeft } from './injuries';
+import { concussionCount, concussionRetireChance, concussionWindow, delegates, estimateText, injuryLabel, outlookText, weeksLeft } from './injuries';
 import { userGame } from './league';
 import { isMedicExpiring, MEDIC_ROLE_LABEL, medicResignForecast, teamMedics } from './medical';
 import { expiringPlayers } from './offseason/ai';
@@ -42,6 +42,7 @@ type Sender = Pick<InboxMessage, 'from' | 'fromCard'>;
 const fullName = (p: Player) => `${p.firstName} ${p.lastName}`;
 const teamName = (t: Team) => `${t.city} ${t.name}`;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const nth = (n: number) => ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][n - 1] ?? `${n}th`;
 /** A small count in words, the way a sentence starts with one ("Two of them…"). */
 const count = (n: number) => ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'][n] ?? String(n);
 const list = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
@@ -120,12 +121,50 @@ function injuryMail(league: League, have: Set<string>): Draft[] {
     out.push({
       id,
       season: now.season,
-      phase: now.week === 0 ? league.phase : now.week > 18 ? 'playoffs' : 'regular',
+      phase: phaseOf(league, now.week),
       week: now.week,
       ...doctor(league),
       category: 'medical',
       subject: `${fullName(p)}: ${what}`,
-      body: `${fullName(p)} ${how}. Our early read is that he'll be ${estimateText(now, weeksLeft(league))}; we'll keep you posted through his rehab.`,
+      body: now.protocol ? concussionNote(p) : `${fullName(p)} ${how}. Our early read is that he'll be ${estimateText(now, weeksLeft(league))}; we'll keep you posted through his rehab.`,
+      actions: [{ kind: 'player', playerId: p.id }, { kind: 'medical' }],
+    });
+  }
+  return out.concat(setbackMail(league, have));
+}
+
+const phaseOf = (league: League, week: number): Phase => (week === 0 ? league.phase : week > 18 ? 'playoffs' : 'regular');
+
+/** The doctor on a concussion: the protocol and no set timeline, his file, or a player who has had enough for this year. */
+function concussionNote(p: Player): string {
+  const now = p.injury!;
+  const n = concussionCount(p);
+  const file = n > 1 ? ` It's his ${nth(n)} concussion, and each one tends to take longer to clear than the last.` : '';
+  if (now.protocol?.shutdown) {
+    const thisYear = (p.injuries ?? []).filter((r) => r.type === 'concussion' && r.season === now.season).length;
+    return `${fullName(p)} took another hit to the head: his ${nth(n)} concussion${thisYear >= 3 ? `, and his ${nth(thisYear)} this season` : ''}. He has told us he's shutting himself down for the rest of the year to think about his future. We support him; he'll be back in the building after the offseason.`;
+  }
+  return `${fullName(p)} was concussed ${now.where === 'game' ? 'in the game' : 'in practice'} and is in the concussion protocol. He clears it when his symptoms do, one test a week, so there's no set timeline: for now he's ${outlookText(now).replace('in the concussion protocol, ', '')}.${file}`;
+}
+
+/** A setback in the concussion protocol: his symptoms came back at this week's test. */
+function setbackMail(league: League, have: Set<string>): Draft[] {
+  const out: Draft[] = [];
+  for (const p of teamPlayers(league, league.userTeamId)) {
+    const now = p.injury;
+    const week = now?.protocol?.setbackWeek;
+    if (!now || week === undefined) continue;
+    const id = `setback:${now.season}:${now.week}:${p.id}:${week}`;
+    if (have.has(id)) continue;
+    out.push({
+      id,
+      season: now.season,
+      phase: phaseOf(league, week),
+      week,
+      ...doctor(league),
+      category: 'medical',
+      subject: `${fullName(p)}: a setback in the protocol`,
+      body: `${fullName(p)}'s symptoms came back at this week's test, so he's a step back in the concussion protocol. We'll test him again next week; for now he's ${outlookText(now).replace('in the concussion protocol, ', '')}.`,
       actions: [{ kind: 'player', playerId: p.id }, { kind: 'medical' }],
     });
   }
@@ -166,7 +205,10 @@ function newYearMail(league: League, have: Set<string>): Draft[] {
       from: fullName(p),
       category: 'retirement',
       subject: `${fullName(p)} retires`,
-      body: `After ${plural(p.experience, 'season')} in the league, I've decided it's time to hang up my cleats. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`,
+      body:
+        concussionRetireChance(p, season) > 0
+          ? `After ${plural(p.experience, 'season')} in the league and ${concussionCount(p)} concussions, I've decided my health has to come first. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`
+          : `After ${plural(p.experience, 'season')} in the league, I've decided it's time to hang up my cleats. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`,
       actions: [{ kind: 'player', playerId: p.id }],
     });
   }
@@ -283,6 +325,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'matchup', season, week: Number(a) };
     case 'medical':
       return { kind: 'injury', season, week: Number(a), playerId: Number(b), type: rest.join(':') };
+    case 'setback':
+      return { kind: 'injury', season, week: Number(a), playerId: Number(b), type: 'concussion' };
     case 'awards': {
       if (a === 'year') return { kind: 'award', season, playerId: Number(b), period: 'year', weeks: [1, 18] };
       const month = MONTHS.find((x) => `m${x.key}` === a);
@@ -545,7 +589,10 @@ function clearedMail(league: League, have: Set<string>): Draft[] {
       ...doctor(league),
       category: 'medical',
       subject: `${fullName(p)} is cleared to play`,
-      body: `${fullName(p)} is over his ${what} and cleared for full practice.${ir}`,
+      body:
+        was.type === 'concussion'
+          ? `${fullName(p)} has passed the last step of the concussion protocol${was.held ? ', and we gave him the extra week we planned,' : ''} and is cleared for full practice.${ir}${concussionWindow(league, p) > 0 ? ' A second concussion is likelier in his first couple of weeks back.' : ''}`
+          : `${fullName(p)} is over his ${what} and cleared for full practice.${ir}`,
       actions: [{ kind: 'player', playerId: p.id }, { kind: 'team', teamId: team.id }],
     });
   }
