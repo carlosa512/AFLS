@@ -263,11 +263,12 @@ describe('what scouts can say about makeup', () => {
     expect(careerOutlook(league, me, wr)).toBe('His physical tools should start to fade after about 29; his technique should hold up through about 30.');
     wr.age = 30;
     expect(careerOutlook(league, me, wr)).toBe('His physical tools have started to fade; his technique should hold up through about 30.');
-    expect(scoutReport(league, me, wr)).toContain('His physical tools have begun to fade, but his technique should hold this year; expect the rest to follow next year.');
+    // The report says the same in one of its reviewed wordings: the tools going first, the technique holding this year.
+    expect(scoutReport(league, me, wr)[2]).toMatch(/^(His physical tools have begun to fade, but his technique should hold this year|The athleticism is going first; his technique should hold this year)/);
     wr.age = 29;
-    expect(scoutReport(league, me, wr)).toContain('His physical tools should hold up through about 29, his technique through about 30.');
+    expect(scoutReport(league, me, wr)[2]).toMatch(/about 29.*about 30|about 30.*about 29/);
     wr.age = 30;
-    expect(scoutReport(league, me, wr)[0]).toMatch(/ wide receiver whose value now rests on his technique\.$/);
+    expect(scoutReport(league, me, wr)[0]).toMatch(/ wide receiver (whose value now rests on his technique|living on his technique now)\.$/);
     wr.age = 31;
     expect(careerOutlook(league, me, wr)).toMatch(/^Past his prime/);
     const ol = Object.values(league.players).find((p) => p.teamId === me && p.position === 'OL')!;

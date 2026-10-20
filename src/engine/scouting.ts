@@ -758,6 +758,14 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   const many = (ts: { a: Attribute }[]) => ts.length > 1 || PLURAL_WORDS.has(name(ts[0]));
   const is = (t: { a: Attribute }) => (many([t]) ? 'are' : 'is');
   const praise = plus[0]?.diff >= 4 ? 'elite' : plus.length > 1 ? 'real strengths' : 'a real strength';
+  // A pocket passer's legs were never part of his game, so their fading is no part of his outlook:
+  // his clock is his arm and his reads. A quarterback who runs is read like everyone else.
+  const legsMatter = p.position !== 'QB' || traits.some((t) => (t.a === 'speed' || t.a === 'agility') && t.diff >= 1.5);
+  const fading = !young && legsMatter && p.age > phys && p.age <= tech;
+  // One of a few reviewed wordings, seeded by the player: the same report on every refresh, and no
+  // two cards in a row reading like a form letter.
+  const rng = new Rng(`${league.seed}:report:${p.id}`);
+  const pick = (...xs: string[]) => xs[rng.int(0, xs.length - 1)];
 
   const arc = young
     ? ceiling < now
@@ -766,38 +774,44 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
         ? ' with room still to grow'
         : ', and already close to his ceiling'
     : p.age > tech
-      ? ' on the downslope'
-      : p.age > phys
-        ? ` whose value now rests on ${skills}`
+      ? pick(' on the downslope', ' past his best', ' in decline')
+      : fading
+        ? pick(` whose value now rests on ${skills}`, ` living on ${skills} now`)
         : p.age >= tech - 1
-          ? ' nearing the end of his best years'
-          : ' in his prime';
+          ? pick(' nearing the end of his best years', ' with a year or two of his prime left')
+          : pick(' in his prime', ' in his best years', ' in the middle of his prime');
   const verdict = `${rough ? `On limited looks, ${lowerFirst(TIERS[now].role)}` : TIERS[now].role} ${pos}${arc}.`;
 
+  const strongest = (t: { a: Attribute }) => pick(`His ${name(t)} ${is(t)} the best of what he has`, `${cap(name(t))} ${is(t)} his strongest suit`, `His ${name(t)} ${is(t)} where he is strongest`);
   const game: string[] = [];
   if (plus.length && minus) game.push(`His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}, but his ${name(minus)} ${many([minus]) ? 'remain' : 'remains'} the main concern.`);
   else if (plus.length) game.push(`His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}${worst ? `; his ${name(worst)} ${is(worst)} the softest part of his game` : ', and there is no glaring hole in his game'}.`);
-  else if (minus) game.push(`${best ? `His ${name(best)} ${is(best)} the best of what he has, but his` : 'Nothing in his game stands out, and his'} ${name(minus)} ${is(minus)} a real concern.`);
-  else if (best && worst) game.push(`His ${name(best)} ${is(best)} the best of what he has; his ${name(worst)} ${is(worst)} where he falls shortest.`);
-  else if (best) game.push(`His ${name(best)} ${is(best)} the best of what he has, and nothing in his game is a liability.`);
+  else if (minus) game.push(`${best ? `${strongest(best)}, but his` : 'Nothing in his game stands out, and his'} ${name(minus)} ${is(minus)} a real concern.`);
+  else if (best && worst) game.push(`${strongest(best)}; his ${name(worst)} ${is(worst)} where he falls shortest.`);
+  else if (best) game.push(`${strongest(best)}, and nothing in his game is a liability.`);
   else if (worst) game.push(`Nothing jumps out, but his ${name(worst)} ${is(worst)} the softest part of his game.`);
   else game.push('A balanced set: no one trait carries him, and none holds him back.');
   if (young) {
     // Growth ends at 26: a player of 25 with a tier still to climb has one year left to climb it.
-    if (ceiling < now) game.push(`With reps he could grow into ${TIERS[ceiling].becomes}${minus ? `; how quickly depends on his ${name(minus)} coming along` : ''}${p.age === 25 ? ', and at 25 the window is closing' : ''}.`);
-    else if (growing) game.push(`He should keep improving for a few years yet${minus ? `, ${name(minus)} first of all` : ''}, without it changing what he is.`);
+    if (ceiling < now) {
+      const could = pick(`With reps he could grow into ${TIERS[ceiling].becomes}`, `Given snaps he could become ${TIERS[ceiling].becomes}`, `There is ${TIERS[ceiling].becomes} in him if he develops`);
+      const soon = p.age === 25;
+      const how = minus ? `; how quickly depends on his ${name(minus)} coming along${soon ? ', and at 25 it has to come soon' : ''}` : soon ? ', though at 25 what growth is left has to come soon' : '';
+      game.push(`${could}${how}.`);
+    } else if (growing) game.push(`He should keep improving for a few years yet${minus ? `, ${name(minus)} first of all` : ''}, without it changing what he is.`);
     else game.push('Most of his value is in what he does today rather than a projected leap.');
-  } else if (p.age > tech) game.push(`At ${p.age}, expect him to lose a little more every year.`);
-  else if (p.age > phys) game.push(`${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should ${p.age === tech ? 'hold this year; expect the rest to follow next year' : `hold up through ${sure} ${tech}`}.`);
-  else if (p.age === tech) game.push('This is the last year of his prime: expect the decline to start next year.');
-  else if (phys < tech) game.push(`${cap(legs)} should hold up through ${sure} ${phys}, ${skills} through ${sure} ${tech}.`);
-  else game.push(`Expect his prime to run through ${sure} ${tech}.`);
+  } else if (p.age > tech) game.push(pick(`At ${p.age}, expect him to lose a little more every year.`, `At ${p.age} the decline is under way: budget for a little less each season.`, `Every year from here takes something; at ${p.age} that is the deal.`));
+  else if (fading && p.age === tech) game.push(pick(`${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold this year; expect the rest to follow next year.`, `The athleticism is going first; ${skills} should hold this year, and from ${tech + 1} on expect a little less each season.`));
+  else if (fading) game.push(pick(`${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold up through ${sure} ${tech}.`, `The athleticism is going first; ${skills} should carry him through ${sure} ${tech}.`));
+  else if (p.age === tech) game.push(pick('This is the last year of his prime: expect the decline to start next year.', `${cap(skills)} should hold this year; from ${tech + 1} on, expect a little less each season.`));
+  else if (phys < tech && legsMatter && p.age <= phys) game.push(pick(`${cap(legs)} should hold up through ${sure} ${phys}, ${skills} through ${sure} ${tech}.`, `Expect his best years to run through ${sure} ${tech}, with ${legs} the first thing to go, after ${sure} ${phys}.`, `No decline in sight yet: the athleticism should last through ${sure} ${phys}, and ${skills} a while past that, through ${sure} ${tech}.`));
+  else game.push(pick(`Expect his prime to run through ${sure} ${tech}.`, `${cap(skills)} should carry him through ${sure} ${tech}.`, `There are good years left: expect his prime to run through ${sure} ${tech}.`));
 
   const notes: string[] = [];
   // His habits, as far as we know them, in at most two sentences: what has changed this year is news,
   // so a habit he picked up lately is told as news rather than listed twice; of the rest, the two
   // settled ones that matter most (a flaw before a plus, a plus before a style); then, with a sentence
-  // to spare, the two most telling of those only starting to show.
+  // to spare, the most telling of those only starting to show (three when they are all there is).
   const habits = quirkNotes(league, teamId, p).notes;
   const seen = new Set(habits.map((n) => n.id));
   const changes = new Map<QuirkId, HabitChange>();
@@ -807,10 +821,11 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
     .filter((n) => !n.forming && !changes.has(n.id))
     .sort((a, b) => HABIT_ORDER[a.tone] - HABIT_ORDER[b.tone])
     .slice(0, 2);
+  const settledSaid = settled.length > 0;
   const forming = habits
     .filter((n) => n.forming)
     .sort((a, b) => HABIT_ORDER[a.tone] - HABIT_ORDER[b.tone])
-    .slice(0, 2);
+    .slice(0, settledSaid ? 2 : 3);
   // A loss the reader still sees traces of is a fade; one he sees nothing of any more is gone.
   const change = (e: HabitChange) => habitChangeText({ ...e, gone: !seen.has(e.id) }, false);
   const gained = lately.filter((e) => e.change === 'gained').map(change);
