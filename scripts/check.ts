@@ -50,6 +50,8 @@ const CHECKS = {
   crews: { cmd: ['npm', 'run', 'crews'], cores: 1, secs: 15, summary: /\d+ number\(s\) outside target range/, detail: /[▲▼]/ },
   // The trade market: prices against the NFL's, fair and legal AI trades, the exploit probes, speed.
   trades: { cmd: ['npm', 'run', 'trades'], cores: 1, secs: 110, summary: /\d+ number\(s\) outside target range/, detail: /[▲▼✗]/ },
+  // Training: position moves' invariants and development released in steps (docs/TRAINING.md §12).
+  training: { cmd: ['npm', 'run', 'training'], cores: 1, secs: 60, summary: /\d+ number\(s\) outside target range/, detail: /[▲▼✗]/ },
 } satisfies Record<string, Check>;
 
 type Name = keyof typeof CHECKS;
@@ -91,6 +93,9 @@ const RULES: [RegExp, Name[]][] = [
   // Trades: the market and what it values players with (scouting reads, contracts, the cap, rosters, aging, coaches).
   [/^src\/engine\/(?!.*\.test\.ts$)(trade\/|offseason\/|finance\/|coaching|scouting|staff|aging|positions|roster|league\.ts|generate)/, ['trades']],
   [/^scripts\/trades\.ts$/, ['trades']],
+  // Training: the moves, the learning clock, development's roll and release, and the calendar steps that run them.
+  [/^src\/engine\/(?!.*\.test\.ts$)(training|familiarity|development|aging|traits|quirks|offseason\/|league\.ts|generate)/, ['training']],
+  [/^scripts\/training\.ts$/, ['training']],
   // The harness itself, dependencies and compiler settings can break anything.
   [/^scripts\/check\.ts$|^package(-lock)?\.json$|^tsconfig\.json$|^\.github\/workflows\//, NAMES],
 ];

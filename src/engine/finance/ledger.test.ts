@@ -27,6 +27,9 @@ describe('salary paid mid-season', { timeout: 30_000 }, () => {
     const l = createLeague({ seed: 'ledger-sign' });
     toWeek(l, 10);
     const team = l.userTeamId;
+    // Our roster moves are ours alone here: with injuries delegated, the staff would cut the dearest deal
+    // per snap (this one) to fit a replacement.
+    l.teams[team].autoInjuries = false;
     releasePlayer(l, teamPlayers(l, team).find((p) => p.position === 'WR' && p.contract!.kind !== 'veteran')!);
     const fa = freeAgents(l)[0];
     signPlayer(l, fa, team, plain(1, 18_000));

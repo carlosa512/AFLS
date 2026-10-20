@@ -26,6 +26,7 @@ import { logTransaction } from './finance/cap';
 import { isExpired, yearsLeft } from './finance/contract';
 import { leagueMarket, marketApy, resetLeagueMarket } from './finance/market';
 import { KEEP_MIN } from './offseason/ai';
+import { trueUp } from './development';
 import { conversionOf, targetsFor, type Conversion } from './familiarity';
 import { BODY, OVR_WEIGHTS, overall, playerOvr, STARTERS } from './positions';
 import { fillBag, QUIRKS_FOR, type QuirkId } from './quirks';
@@ -243,6 +244,8 @@ export function rebasedPotential(potential: number, ovrOld: number, ovrNew: numb
 export function changePosition(league: League, p: Player, to: Position): void {
   const from = p.position;
   const why = p.learning?.why;
+  // The rest of this year's development lands as what he was: the new label starts clean next year.
+  trueUp(league, p);
   p.potential = rebasedPotential(p.potential, playerOvr(p), overall(p.ratings, to));
   p.position = to;
   (p.moves ??= []).push({ season: league.season, from, to });

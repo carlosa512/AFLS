@@ -75,7 +75,8 @@ The engine always plays the true ratings. Every screen shows **what your front o
 from the salary cap, on 1–3 year deals. Hiring and dismissing happen in the re-sign window and free
 agency; dismissing someone under contract costs half a year's salary. Expiring staff re-sign
 automatically unless you let them go. Staff rise into their 30s and decline from their mid-50s;
-part of the unhired market leaves football each year, so the league's average department stays put.
+part of the unhired market leaves football each year, and nobody sits unhired past three league years, so
+the league's average department stays put and a save never fills up with old candidates.
 
 **AI teams act on their own reads.** Draft boards blend the consensus with each team's scouts,
 trusting them as far as they're precise (so no team drafts worse than the consensus, but each
@@ -219,7 +220,8 @@ under typical (lower while they run over). New candidates are steered the same w
 each on its own, so the men are there to hire. The league's growth under coaching holds at about ×1.00
 over a long save. Coaches nobody hires
 by camp partly drift out of football for the season (a fifth of them), and more at the new league year
-(two in five). An AI team never
+(two in five); three league years unhired and a coach is out of the game for good (one who ran a chair stays
+on file for his record). An AI team never
 re-hires a coach it has just let go; head coach and coordinator moves around the league show in the
 news. `npm run offseason` reports the coaching economy, the carousel and young players' growth under
 the best and worst staffs.

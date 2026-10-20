@@ -21,7 +21,7 @@ import { BASE_CAP } from './finance/market';
 import { newIdentity } from './identity';
 import { pron } from './pronouns';
 import { clamp, Rng } from './rng';
-import { ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
+import { IDLE_MAX, ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
 import type { League, Medic, MedicRole, Team } from './types';
 
 export const MEDIC_ROLES: MedicRole[] = ['doctor', 'physio', 'scientist'];
@@ -353,7 +353,10 @@ export function developMedics(league: League): void {
     m.physio = Math.round(clamp(m.physio + rng.normal(drift, 0.5), 1, 20));
     m.science = Math.round(clamp(m.science + rng.normal(drift, 0.5), 1, 20));
     const retires = m.age >= 70 || (m.age >= 63 && rng.chance((m.age - 62) * 0.15));
-    const drifts = m.teamId === null && rng.chance(0.4);
+    // Years unhired, counted at each new league year; three and he's out of the game whatever the draw says.
+    if (m.teamId === null) m.idle = (m.idle ?? 0) + 1;
+    else delete m.idle;
+    const drifts = m.teamId === null && (rng.chance(0.4) || m.idle! >= IDLE_MAX);
     if (retires || drifts) {
       if (retires && m.teamId !== null) logMedic(league, m.teamId, `${MEDIC_ROLE_LABEL[m.role]} ${medicName(m)} retired`);
       delete league.medics[m.id];

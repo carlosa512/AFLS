@@ -215,6 +215,28 @@ export interface Player {
   learning?: Learning;
   /** Every position change, oldest first. The first `from` is the body's position: its physical aging stays his. */
   moves?: PositionMove[];
+  /** This league year's development, rolled once and still landing in steps (`development.ts`). Gone once the year has landed. */
+  dev?: DevYear;
+}
+
+/** A year of development on its way: the roll's inputs (its targets come back from the seed) and what has landed so far. */
+export interface DevYear {
+  /** League year it was rolled in (he was a year younger than he is now). */
+  season: number;
+  /**
+   * The roll's inputs (`DevContext`): last season's games played (`share` instead when it wasn't a whole
+   * number of games), and his coaches' effect at the time, kept only where the roll read it: the growth
+   * rate under 26, the decline effects (physical, technical, mental) once a family of his is fading.
+   */
+  games?: number;
+  share?: number;
+  rate?: number;
+  decline?: number[];
+  bodyAs?: Position;
+  /** Share of the year released so far (0–1). */
+  done: number;
+  /** Integer change applied so far to each rating, in `ATTRIBUTES` order; trailing zeros are dropped (missing = 0). */
+  applied: number[];
 }
 
 /** A position-learning plan. Nothing here is ever shown for another team's player. */
@@ -382,6 +404,8 @@ export interface Staff {
   focus?: ScoutFocus;
   /** null = on the market. */
   teamId: number | null;
+  /** League years he has sat on the market unhired (counted at each new league year; absent on a staff). Three and he's gone. */
+  idle?: number;
   /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
   contract: { salary: number; through: number } | null;
 }
@@ -435,6 +459,8 @@ export interface Coach {
   scheme?: CoachScheme;
   /** null = on the market. */
   teamId: number | null;
+  /** League years he has sat on the market unhired (counted at each new league year; absent on a staff). Three and he's gone. */
+  idle?: number;
   /** League year he joined his current team (tenure). */
   since?: number;
   /** His last job, for the market ("Head coach, NYX: fired after 3–14"). */
@@ -464,6 +490,8 @@ export interface Medic {
   science: number;
   /** null = on the market. */
   teamId: number | null;
+  /** League years he has sat on the market unhired (counted at each new league year; absent on a staff). Three and he's gone. */
+  idle?: number;
   /** League year he joined his current team (tenure). */
   since?: number;
   lastJob?: string;

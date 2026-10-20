@@ -340,6 +340,12 @@ export const staffTrendLabel = (age: number) => (age < 35 ? 'Rising' : age < 55 
  * football (otherwise unsigned talent piles up and hiring gets easier every year), and fresh
  * candidates arrive. Old severance is forgotten.
  */
+/**
+ * League years a coach, scout or medic can sit on the market unhired before he is out of the game for good
+ * (the yearly drift takes most sooner; this is the backstop, so nobody lingers on a save for a decade).
+ */
+export const IDLE_MAX = 3;
+
 export function developStaff(league: League): void {
   touch();
   const rng = new Rng(`${league.seed}:staff:dev:${league.season}`);
@@ -349,7 +355,10 @@ export function developStaff(league: League): void {
     s.evaluation = Math.round(clamp(s.evaluation + rng.normal(t, 0.55), 1, 20));
     s.projection = Math.round(clamp(s.projection + rng.normal(t, 0.55), 1, 20));
     const retires = s.age >= 68 || (s.age >= 62 && rng.chance((s.age - 61) * 0.15));
-    const drifts = s.teamId === null && rng.chance(0.4);
+    // Years unhired, counted at each new league year; three and he's out of the game whatever the draw says.
+    if (s.teamId === null) s.idle = (s.idle ?? 0) + 1;
+    else delete s.idle;
+    const drifts = s.teamId === null && (rng.chance(0.4) || s.idle! >= IDLE_MAX);
     if (retires || drifts) {
       if (retires && s.teamId !== null) logStaff(league, s.teamId, `${ROLE_LABEL[s.role]} ${staffName(s)} retired`);
       delete league.staff[s.id];

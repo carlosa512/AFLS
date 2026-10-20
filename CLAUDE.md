@@ -84,6 +84,12 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
   it after changing `trade/` or what it values players with (`scouting.ts`, `finance/`, `aging.ts`,
   `coaching.ts`). `--verbose` lists every price and trade and each team's ledger; `--seasons 6` plays
   longer leagues. Nothing may be flagged.
+- `npm run training` — the training layer (`docs/TRAINING.md` §12): position moves' invariants (a position
+  written only on cut-down day, slots, the cooldown, a mover's ceiling and habits, learning calls that never
+  touch a rating) and development released in steps (the dial sums to 1, a year released in steps lands
+  where one jump would for every player left alone that year, ratings on the scale all season, the tick's
+  speed and what a save carries). Run it after changing `training.ts`, `familiarity.ts`, `development.ts`
+  or the calendar steps that run them. Nothing may be flagged.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 

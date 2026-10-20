@@ -4,6 +4,7 @@
  */
 import { awardSeason, awardWeek } from './awards';
 import { simulateGame, startGame, type LiveGame } from './match/gameSim';
+import { developWeek } from './development';
 import { applyInjury, injuryWeek } from './injuries';
 import { simOffseason } from './offseason';
 import { quirkWeek, recordForm } from './quirks';
@@ -118,6 +119,8 @@ export function playWeek(league: League): Game[] {
     aiTrades(league);
     quirkWeek(league);
     trainingWeek(league);
+    // The week's share of each player's year lands, more for a man who played (the user's live game included).
+    developWeek(league, gamesInWeek(league));
   }
   league.week++;
   // The league moves the games worth watching into prime time, on the NFL's notice.
