@@ -4,7 +4,7 @@
  * runs one of these per seed in its own process and pools them.
  */
 import { coachingFor, NEUTRAL, staffScore, teamCoaches } from '../src/engine/coaching';
-import { developPlayer, playedShare, trueUp } from '../src/engine/development';
+import { developPlayer, playedShare, rollInputs, trueUp } from '../src/engine/development';
 import { createLeague } from '../src/engine/generate';
 import { simToEndOfSeason } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
@@ -90,7 +90,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
           const year = (coaching: typeof NEUTRAL) => {
             const clone = structuredClone(p);
             trueUp(league, clone);
-            developPlayer(new Rng(`${league.seed}:dev:${league.season + 1}:${p.id}`), clone, { playedShare: playedShare(p, league.season), ...coaching, bodyAs: bodyAs(p) });
+            developPlayer(new Rng(`${league.seed}:dev:${league.season + 1}:${p.id}`), clone, rollInputs({ playedShare: playedShare(p, league.season), ...coaching, bodyAs: bodyAs(p) }));
             return playerOvr(clone);
           };
           const gain = year(c) - year(NEUTRAL);

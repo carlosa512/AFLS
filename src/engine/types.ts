@@ -3,7 +3,6 @@ import type { SeasonAwards, WeeklyAwards } from './awards';
  * Core data model. Everything here is plain JSON-serializable data so a League
  * can be saved, loaded, exported and modded without custom (de)serializers.
  */
-import type { AgingFamily } from './attributes';
 import type { QuirkId } from './quirks';
 import type { RngState } from './rng';
 import type { Weather } from './weather';
@@ -220,17 +219,21 @@ export interface Player {
 
 /** A year of development on its way: the roll's inputs (its targets come back from the seed) and what has landed so far. */
 export interface DevYear {
-  /** League year it was rolled in, and his age at the roll. */
+  /** League year it was rolled in (he was a year younger than he is now). */
   season: number;
-  age: number;
-  /** The roll's inputs: last season's playing share and his coaches' effect at the time (`DevContext`). */
-  share: number;
+  /**
+   * The roll's inputs (`DevContext`): last season's games played (`share` instead when it wasn't a whole
+   * number of games), and his coaches' effect at the time, kept only where the roll read it: the growth
+   * rate under 26, the decline effects (physical, technical, mental) once a family of his is fading.
+   */
+  games?: number;
+  share?: number;
   rate?: number;
-  decline?: Partial<Record<AgingFamily, number>>;
+  decline?: number[];
   bodyAs?: Position;
   /** Share of the year released so far (0–1). */
   done: number;
-  /** Integer change applied so far to each rating, in `ATTRIBUTES` order. */
+  /** Integer change applied so far to each rating, in `ATTRIBUTES` order; trailing zeros are dropped (missing = 0). */
   applied: number[];
 }
 

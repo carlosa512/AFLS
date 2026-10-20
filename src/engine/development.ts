@@ -147,16 +147,18 @@ function applyShare(player: Player, targets: number[], applied: number[], s: num
     const t = targets[i];
     if (!t) continue;
     const attr = ATTRIBUTES[i];
-    const start = player.ratings[attr] - applied[i];
+    const start = player.ratings[attr] - (applied[i] ?? 0);
     const want = Math.round(clamp(start + s * t, 1, 20)) - start;
     player.ratings[attr] = start + want;
     applied[i] = want;
   }
+  // Trailing zeros carry nothing (a missing entry reads as 0): a save keeps the array short.
+  while (applied.length && !applied[applied.length - 1]) applied.pop();
 }
 
 /** One whole year of development in one step (the cohort scripts and tests). `rng` is the player's own stream for the year. */
 export function developPlayer(rng: Rng, player: Player, ctx: DevContext): void {
-  applyShare(player, rollYear(rng, player, ctx), ATTRIBUTES.map(() => 0), 1);
+  applyShare(player, rollYear(rng, player, ctx), [], 1);
 }
 
 // ───────── roll once, release in steps ─────────
@@ -168,6 +170,19 @@ export function developPlayer(rng: Rng, player: Player, ctx: DevContext): void {
  */
 export const RELEASE = { newYear: 0.5, program: 0.05, camp: 0.05, season: 0.4 };
 
+/**
+ * The inputs a year is rolled with. When the year is kept to land in steps, the coaching numbers are
+ * rounded to four places first, so the stored year is short and the roll comes back exactly from it (the
+ * one-jump replays in the scripts round the same way); with everything released in March nothing is
+ * stored and the inputs are used as they come, the game as it was.
+ */
+export function rollInputs(ctx: DevContext): DevContext {
+  if (RELEASE.newYear >= 1) return ctx;
+  const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
+  const decline = ctx.decline && (Object.fromEntries(Object.entries(ctx.decline).map(([f, v]) => [f, r4(v)])) as Partial<Record<AgingFamily, number>>);
+  return { ...ctx, ...(ctx.rate !== undefined ? { rate: r4(ctx.rate) } : {}), ...(decline ? { decline } : {}) };
+}
+
 /** The stream a player's year is rolled on. */
 const yearStream = (league: League, season: number, id: number) => new Rng(`${league.seed}:dev:${season}:${id}`);
 
@@ -178,23 +193,39 @@ const yearStream = (league: League, season: number, id: number) => new Rng(`${le
  * passes it (the retirement roll that follows draws from the same stream).
  */
 export function beginYear(league: League, rng: Rng, p: Player, ctx: DevContext): void {
+  ctx = rollInputs(ctx);
   const targets = rollYear(rng, p, ctx);
-  const applied = ATTRIBUTES.map(() => 0);
+  const applied: number[] = [];
   if (RELEASE.newYear >= 1) {
     applyShare(p, targets, applied, 1);
     return;
   }
-  p.dev = { season: league.season, age: p.age, share: ctx.playedShare, done: 0, applied, ...(ctx.rate !== undefined ? { rate: ctx.rate } : {}), ...(ctx.decline ? { decline: ctx.decline } : {}), ...(ctx.bodyAs ? { bodyAs: ctx.bodyAs } : {}) };
+  // Only what the roll read: the coaching rate feeds growth (under 26), the decline effects a fading family.
+  const fading = FAMILIES.some((f) => p.age > declineOnset(f === 'physical' && ctx.bodyAs ? ctx.bodyAs : p.position, f, p.traits));
+  const games = Math.round(ctx.playedShare * SEASON_GAMES);
+  p.dev = {
+    season: league.season,
+    ...(Math.abs(games / SEASON_GAMES - ctx.playedShare) < 1e-9 ? { games } : { share: ctx.playedShare }),
+    ...(p.age < 26 && ctx.rate !== undefined ? { rate: ctx.rate } : {}),
+    ...(fading && ctx.decline ? { decline: FAMILIES.map((f) => ctx.decline![f] ?? 1) } : {}),
+    ...(ctx.bodyAs ? { bodyAs: ctx.bodyAs } : {}),
+    done: 0,
+    applied,
+  };
   releaseTo(p, targets, RELEASE.newYear);
 }
+/** The aging families, in the order `DevYear.decline` keeps them. */
+const FAMILIES: AgingFamily[] = ['physical', 'technical', 'mental'];
 
 /** This year's targets again, from the seed and the roll's inputs, on the ratings he had when it was rolled. */
 export function yearTargets(league: League, p: Player): number[] {
   const d = p.dev!;
   const ratings = { ...p.ratings };
-  ATTRIBUTES.forEach((a, i) => (ratings[a] -= d.applied[i]));
-  const rolled: Rolled = { age: d.age, position: p.position, potential: p.potential, traits: p.traits, ratings };
-  return rollYear(yearStream(league, d.season, p.id), rolled, { playedShare: d.share, rate: d.rate, decline: d.decline, bodyAs: d.bodyAs });
+  ATTRIBUTES.forEach((a, i) => (ratings[a] -= d.applied[i] ?? 0));
+  // His age ticks over right after the roll, so all year he is a year older than he was rolled at.
+  const rolled: Rolled = { age: p.age - 1, position: p.position, potential: p.potential, traits: p.traits, ratings };
+  const decline = d.decline && Object.fromEntries(FAMILIES.map((f, i) => [f, d.decline![i]]));
+  return rollYear(yearStream(league, d.season, p.id), rolled, { playedShare: d.share ?? Math.min(1, (d.games ?? 0) / SEASON_GAMES), rate: d.rate, decline, bodyAs: d.bodyAs });
 }
 
 /**
@@ -207,7 +238,7 @@ function releaseTo(p: Player, targets: number[], s: number): void {
   const to = Math.min(1, s);
   applyShare(p, targets, d.applied, to);
   d.done = to;
-  if (to >= 1 || !ATTRIBUTES.some((a, i) => targets[i] && Math.round(clamp(p.ratings[a] - d.applied[i] + targets[i], 1, 20)) !== p.ratings[a])) delete p.dev;
+  if (to >= 1 || !ATTRIBUTES.some((a, i) => targets[i] && Math.round(clamp(p.ratings[a] - (d.applied[i] ?? 0) + targets[i], 1, 20)) !== p.ratings[a])) delete p.dev;
 }
 
 /** Whatever of his year hasn't landed yet lands now: the next new league year, or a position change. */

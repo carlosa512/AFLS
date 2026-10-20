@@ -15,7 +15,7 @@
  *   npm run training -- 5
  */
 import { coachingFor } from '../src/engine/coaching';
-import { developPlayer, developWeek, playedShare, RELEASE, trueUp } from '../src/engine/development';
+import { developPlayer, developWeek, playedShare, RELEASE, rollInputs, trueUp } from '../src/engine/development';
 import { createLeague } from '../src/engine/generate';
 import { gamesInWeek, playWeek } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
@@ -95,7 +95,7 @@ const takeOnce = () => {
   for (const p of live(league)) {
     const clone = structuredClone(p);
     trueUp(league, clone);
-    developPlayer(new Rng(`${league.seed}:dev:${season}:${p.id}`), clone, { playedShare: playedShare(p, league.season), ...coachingFor(league, p.teamId, p.position), bodyAs: bodyAs(p) });
+    developPlayer(new Rng(`${league.seed}:dev:${season}:${p.id}`), clone, rollInputs({ playedShare: playedShare(p, league.season), ...coachingFor(league, p.teamId, p.position), bodyAs: bodyAs(p) }));
     once.set(p.id, { ratings: ATTRIBUTES.map((a) => clone.ratings[a]), position: p.position, potential: clone.potential, injuries: p.injuries?.length ?? 0 });
   }
 };

@@ -495,9 +495,9 @@ Player.learning?: {                          // §4: at most 2 per team
   mentor?: number;                           // reserved for §8
 };
 Player.moves?: { season: number; from: Position; to: Position }[];  // newest last, keep 4
-Player.dev?: { season: number; age: number; share: number; rate?: number;   // §3 (built, v32): the roll's inputs,
-              decline?: Partial<Record<AgingFamily, number>>; bodyAs?: Position;   // the share released so far and
-              done: number; applied: number[] };                                // the ints applied, ATTRIBUTES order
+Player.dev?: { season: number; games?: number; share?: number; rate?: number;  // §3 (built, v32): the roll's inputs
+              decline?: number[]; bodyAs?: Position;                            // (only what the roll read), the share
+              done: number; applied: number[] };                                // released so far, the ints applied
 Player.focus?: { attr: Attribute; weeks: number };                 // §6
 Team.training?: { coachesDecide?: boolean; passed?: Record<number, number>;
                   week?: 'light' | 'normal' | 'hard'; saved?: number };  // §4, §5
