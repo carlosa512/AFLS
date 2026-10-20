@@ -3,6 +3,10 @@
 AFLS is an American football management sim ("Football Manager for the NFL"). Vision, scope and
 roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs/research/`.
 
+**`docs/MVP.md` is the working checklist to alpha.** When a change finishes an MVP item (or moves one to
+Partial), update its line there in the same PR and bump `package.json`'s version per `docs/VERSIONING.md`: the
+middle number for a finished MVP item, the last number for fixes.
+
 ## Standing instructions from the project owner
 
 - **Subagents: cheapest model that still does the job well.** Saving tokens matters, but not
