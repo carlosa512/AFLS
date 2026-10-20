@@ -307,13 +307,18 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
     const expiring = teamCoaches(l, user).filter((c) => isCoachExpiring(l, c));
     expect(expiring.length).toBeGreaterThan(1);
     const [letGo, ...keep] = expiring;
+    const chairs = new Map(keep.map((c) => [c.id, chairOf(c)]));
     releaseCoach(l, user, letGo.id);
     expect(l.teams[user].coachDead.filter((d) => d.season === l.season)).toHaveLength(0); // his deal was up: no severance
     l.teams[user].staffBudgetMult = 3; // money is not the question here
     advanceOffseason(l); // resign -> free agency
     expect(letGo.teamId).not.toBe(user);
     for (const c of keep) {
-      expect(c.teamId).toBe(user);
+      // He re-signs; another club may still promote him out of it (a team can't block a promotion).
+      if (c.teamId !== user) {
+        expect(sameChair(chairOf(c), chairs.get(c.id)!)).toBe(false);
+        continue;
+      }
       expect(c.contract!.through).toBe(l.season + 1);
     }
   });

@@ -300,6 +300,8 @@ export function projectedCeiling(ovr: number, ceiling: number, workEthic?: numbe
 }
 
 export interface CharacterNote {
+  /** What it reads: his makeup (most notes), or how he travels between positions (a football trait, not character). */
+  about?: 'versatility';
   label: string;
   tone: 'good' | 'warn';
   /** What it means for him, as a sentence. */
@@ -338,8 +340,8 @@ export function characterNotes(league: League, teamId: number, p: Player): Chara
     if (read.temperament <= 7) notes.push(note('Hothead', 'warn', 'has a short fuse, so his line draws more flags'));
     else if (read.temperament >= 14.5) notes.push(note('Even-keeled', 'good', 'even-keeled, so he rarely draws a flag'));
   }
-  if (read.versatility >= 15) notes.push(note('Plays anywhere', 'good', 'versatile enough to cover another position in a pinch, and quick to learn a new one'));
-  else if (read.versatility <= 6) notes.push(note('One-position player', 'warn', 'struggles away from his own position and is slow to learn a new one'));
+  if (read.versatility >= 15) notes.push({ ...note('Plays anywhere', 'good', 'versatile enough to cover another position in a pinch, and quick to learn a new one'), about: 'versatility' });
+  else if (read.versatility <= 6) notes.push({ ...note('One-position player', 'warn', 'struggles away from his own position and is slow to learn a new one'), about: 'versatility' });
   return { known: true, hedged: !read.exact && read.sd > 1.2, notes };
 }
 
@@ -697,7 +699,11 @@ export function scoutReport(league: League, teamId: number, p: Player): string[]
 
   // Makeup, once the staff has seen enough of him: everything that stands out, in one sentence.
   const makeup = characterNotes(league, teamId, p);
-  if (makeup.notes.length) lines.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${makeup.notes.map((n) => n.clause).join('; ')}.`);
+  // Versatility is a football trait, said with who he is (the first line), not with his makeup.
+  const character = makeup.notes.filter((n) => !n.about);
+  const versatile = makeup.notes.find((n) => n.about === 'versatility');
+  if (versatile) lines[0] = `${lines[0].slice(0, -1)}, ${versatile.tone === 'good' ? 'who can play anywhere' : 'at his best at his own position'}.`;
+  if (character.length) lines.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${character.map((n) => n.clause).join('; ')}.`);
   // His habits on film: the settled ones, then the ones starting to show.
   const habits = quirkNotes(league, teamId, p).notes;
   const settled = habits.filter((n) => !n.forming);
