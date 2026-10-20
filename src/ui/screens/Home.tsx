@@ -446,8 +446,8 @@ function OffseasonHome({ league }: { league: League }) {
   const reserve = teamPlayers(league, teamId).length - roster.length;
   const idx = STEPS.findIndex(([p]) => p === league.phase);
   const last = league.history[league.history.length - 1];
-  // Your own trades, retirements and injuries come to the inbox instead.
-  const inboxed = new Set(['trade', 'retire', 'injury']);
+  // Your own trades, retirements, injuries and position moves come to the inbox instead.
+  const inboxed = new Set(['trade', 'retire', 'injury', 'position']);
   const moves = league.transactions
     .filter((t) => t.season === league.season && t.kind !== 'release' && !(inboxed.has(t.kind) && t.teamIds.includes(teamId)))
     .slice(-14)

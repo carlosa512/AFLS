@@ -47,6 +47,7 @@ import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { statLine } from '../engine/stats';
 import type { Coach, DealKind, Game, InboxMessage, League, Medic, Player, Position, Staff, Team } from '../engine/types';
 import { stanceOf } from '../engine/trade';
+import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
 import { PlayerAvatar, TeamChip } from './components';
 import { StaffAvatar } from './staffAvatar';
@@ -55,6 +56,7 @@ import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
 import { OfferCard } from './offers';
+import { familiarityTone, learnLine, readyText, reasonText, roleText, leftText, verdictText, verdictTone } from './training';
 import { store } from './store';
 
 /** How many rows a list in a card shows before "See all". */
@@ -110,6 +112,10 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <MarketCards league={league} s={s} />;
     case 'marketRecap':
       return <MarketRecapCards league={league} s={s} />;
+    case 'positionOffer':
+      return <PositionOfferCards league={league} s={s} live={needsYou(league, message)} />;
+    case 'positionMoved':
+      return <PositionMovedCards league={league} s={s} />;
     default:
       return null;
   }
@@ -1720,5 +1726,81 @@ function FaWrapCards({ league, s }: { league: League; s: Extract<MailSubject, { 
         </Card>
       )}
     </>
+  );
+}
+
+// ───────── position moves ─────────
+
+/**
+ * The coaches' suggestion: the case for the move in words, and, while it still asks, Start or Not now. Once
+ * answered it says what came of it: a plan under way, turned down, or camp over.
+ */
+function PositionOfferCards({ league, s, live }: { league: League; s: Extract<MailSubject, { kind: 'positionOffer' }>; live: boolean }) {
+  const p = league.players[s.playerId];
+  if (!p || p.teamId !== league.userTeamId) return null;
+  const learning = activeLearning(p);
+  if (!live) {
+    const passed = league.teams[league.userTeamId].training?.passed?.[p.id] === s.season;
+    const f = learning ? familiarity(p) : null;
+    const now = p.moves?.some((m) => m.season >= s.season && m.to === s.to)
+      ? `Moved to ${s.to}`
+      : learning?.to === s.to
+        ? learnLine(p.position, s.to, f)
+        : passed
+          ? 'You turned it down'
+          : 'Not started';
+    return (
+      <Card>
+        <Who league={league} p={p} sub={`${p.position} · age ${p.age}`} side={<span className={`tag-pill ${learning?.to === s.to ? familiarityTone(f) : ''}`}>{now}</span>} />
+      </Card>
+    );
+  }
+  const read = conversionRead(league, p, s.to);
+  const reason = reasonText(read);
+  return (
+    <Card>
+      <Who league={league} p={p} sub={`${p.position} → ${s.to} · age ${p.age}`} side={<span className={`tag-pill ${verdictTone(read.verdict)}`}>{verdictText(read.verdict)}</span>} />
+      <div className="mail-split" style={{ marginTop: 10 }}>
+        <span>
+          <span className="eyebrow">Why</span>
+          <span style={{ display: 'block', fontSize: 'var(--step-0)' }}>{reason || 'No reason the coaches act on'}</span>
+        </span>
+        <span>
+          <span className="eyebrow">At {s.to}</span>
+          <span style={{ display: 'block', fontSize: 'var(--step-0)' }}>
+            {roleText(read)} · {readyText(read.camps, league.phase)}
+          </span>
+          <span className="muted small" style={{ display: 'block' }}>
+            {leftText(read.left, p.position)}
+          </span>
+        </span>
+      </div>
+      <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn btn-sm btn-primary" disabled={!!read.problem} title={read.problem ?? undefined} onClick={() => store.mutate((l) => startMove(l, p.id, s.to, read.reason ?? undefined))}>
+          Start teaching him {s.to}
+        </button>
+        <button className="btn btn-sm" onClick={() => store.mutate((l) => passMove(l, p.id))}>
+          Not now
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+/** A finished move: where he plays now and where he stands on that depth chart. */
+function PositionMovedCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'positionMoved' }> }) {
+  const p = league.players[s.playerId];
+  const move = p?.moves?.find((m) => m.season === s.season);
+  if (!p || !move) return null;
+  const spot = p.teamId === null ? -1 : league.teams[p.teamId].depthChart[move.to].indexOf(p.id);
+  return (
+    <Card>
+      <Who
+        league={league}
+        p={p}
+        sub={`${move.from} → ${move.to} · age ${p.age}`}
+        side={<span className="tag-pill">{p.position !== move.to ? `Now ${p.position}` : spot >= 0 ? `${ordinal(spot + 1)} on the ${move.to} chart` : move.to}</span>}
+      />
+    </Card>
   );
 }

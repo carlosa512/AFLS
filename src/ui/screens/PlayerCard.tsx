@@ -5,20 +5,25 @@ import { careerOutlook, FIXED_HEADING, fixedHabits, habitChangeText, habitTimeli
 import { formNote } from '../../engine/quirks';
 import { pron } from '../../engine/pronouns';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
-import { editPlayerIdentity, identityProblem } from '../../engine/roster';
+import { editPlayerIdentity, identityProblem, slotOf } from '../../engine/roster';
 import { careerLine, passerRating } from '../../engine/stats';
 import { consensusRank } from '../../engine/offseason/draft';
-import type { League, Player, StatLine } from '../../engine/types';
+import { activeLearning, campsToReady, conversionRead, familiarity, formerPositions, holdReason, isReady, startMove, stopMove } from '../../engine/training';
+import { targetsFor } from '../../engine/familiarity';
+import { tradeContext } from '../../engine/trade/context';
+import type { League, Player, Position, StatLine } from '../../engine/types';
+import { OFFSEASON_PHASES } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
-import { playerCoachLine } from '../coaching';
-import { Exact, PlayerAvatar, Section, Sheet } from '../components';
+import { chairNoun, playerCoachLine } from '../coaching';
+import { Dialog, Exact, PlayerAvatar, Section, Sheet } from '../components';
 import { LinkedText, type Who } from '../moves';
 import { store } from '../store';
 import { TradeActions } from '../offers';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
+import { familiarityTone, hasPositionWork, learnLine, leftText, lineupText, moveLine, payText, placeBack, planReason, readyText, reasonText, roleText, startNote, verdictText, verdictTone } from '../training';
 import { HealthSection } from '../injuries';
-import { coachOfPlayer, coachTitle, teamScheme } from '../../engine/coaching';
+import { chairHolder, coachName, coachOfPlayer, coachTitle, ROOM_OF, teamCoaches, teamScheme } from '../../engine/coaching';
 import { spotsFor } from '../../engine/schemes';
 import { AttributeList, CombinePanel, DevelopmentChart, KnowledgeMeter, MakeupPills, makeupOf, potentialText, QuirkPills, quirksOf, repsOf, ScoutButton, StarScaleToggle, Stars, schemeFitOf, starsOf, useStarScale, viewOf } from '../scouting';
 
@@ -44,9 +49,20 @@ function DraftLine({ league, player: p }: { league: League; player: Player }) {
   );
 }
 
+/**
+ * The columns for his stats: his position's, then any a position he left behind adds (a linebacker who was an
+ * edge rusher keeps pressures and hits, so his old seasons still read). Matched by label, as every pair that
+ * can move shares the stats it counts.
+ */
 function statColumns(p: Player): Col[] {
+  const cols = statColumnsAt(p.position);
+  for (const pos of formerPositions(p)) for (const col of statColumnsAt(pos)) if (!cols.some(([label]) => label === col[0])) cols.push(col);
+  return cols;
+}
+
+function statColumnsAt(position: Position): Col[] {
   const n = (k: keyof StatLine) => (s: StatLine) => s[k] ?? 0;
-  switch (p.position) {
+  switch (position) {
     case 'QB':
       return [
         ['Cmp', n('passCmp')],
@@ -272,6 +288,181 @@ export function StatsTable({ league, player: p }: { league: League; player: Play
   );
 }
 
+/** Words for how a player's own hidden Versatility reads to you (his makeup note), or null. */
+const versatilityNote = (league: League, p: Player) => makeupOf(league, p).notes.find((n) => n.label === 'Plays anywhere' || n.label === 'One-position player') ?? null;
+
+/**
+ * Position work for one of your players: the plan he is on, what the coaches would teach him and whether it
+ * is worth it, where he is lined up now, and the moves behind him. Everything in words; a rival's plans and
+ * his knock are none of your business, so this is for your own players only.
+ */
+function PositionSection({ league, player: p }: { league: League; player: Player }) {
+  const nav = useNav();
+  const [stopping, setStopping] = useState(false);
+  const learning = activeLearning(p);
+  const slot = slotOf(league, p);
+  const away = slot !== p.position;
+  const inOffseason = OFFSEASON_PHASES.includes(league.phase);
+  const targets = learning ? [] : targetsFor(p);
+  const ctx = targets.length ? tradeContext(league) : undefined;
+  const reads = targets.map((to) => conversionRead(league, p, to, ctx));
+  const moves = [...(p.moves ?? [])].reverse();
+  const versatility = versatilityNote(league, p);
+  const stage = familiarity(p);
+  const ready = isReady(p);
+  const held = ready ? holdReason(league, p) : null;
+  const room = learning ? ROOM_OF[learning.to] : null;
+  const chair = room ? ({ role: 'positionCoach', room } as const) : null;
+  const teacher = chair && p.teamId !== null ? chairHolder(teamCoaches(league, p.teamId), chair) : null;
+  const why = learning ? planReason(league, p) : '';
+
+  return (
+    <Section
+      id="position"
+      title={
+        <>
+          Position
+          {learning ? <span className="muted"> · learning {learning.to}</span> : away ? <span className="muted"> · lined up at {slot}</span> : null}
+        </>
+      }
+      defaultOpen={false}
+    >
+      {away && (
+        <div className="notice stack">
+          <span>{lineupText(p, slot)}.</span>
+          <span className="muted small">Everything he does there is worse for it, a little or a lot. He is a {POSITION_NAMES[p.position].toLowerCase()}; put him back when you can.</span>
+          <span>
+            <button className="btn btn-sm" onClick={() => store.mutate((l) => placeBack(l, p.id))}>
+              Back to {p.position}
+            </button>
+          </span>
+        </div>
+      )}
+
+      {learning && (
+        <div className="stack">
+          <div className="move-head">
+            <b>{learnLine(p.position, learning.to, null)}</b>
+            {stage && <span className={`tag-pill ${familiarityTone(stage)}`}>{stage}</span>}
+          </div>
+          {why && <p className="small" style={{ margin: 0 }}>{why}.</p>}
+          <p className="small" style={{ margin: 0 }}>
+            {ready ? 'He is ready: he changes position on cut-down day.' : `${readyText(campsToReady(league, p, learning.to), league.phase)}.`}
+            {held && ` But he stays at ${p.position} for now. ${held}`}
+          </p>
+          {chair && (
+            <p className="muted small" style={{ margin: 0 }}>
+              {teacher ? (
+                <>
+                  Taught by{' '}
+                  <button className="linklike" onClick={() => nav.openStaff('coach', teacher.id)}>
+                    {coachName(teacher)}
+                  </button>
+                  , your {chairNoun(chair)}.
+                </>
+              ) : (
+                <>Your {chairNoun(chair)} chair is empty.</>
+              )}
+            </p>
+          )}
+          <p className="muted small" style={{ margin: 0 }}>He keeps playing {p.position} until cut-down day.</p>
+          <div>
+            <button className="btn btn-sm" onClick={() => setStopping(true)}>
+              Stop learning {learning.to}
+            </button>
+          </div>
+          {stopping && (
+            <Dialog
+              title={`Stop learning ${learning.to}?`}
+              onClose={() => setStopping(false)}
+              footer={
+                <>
+                  <button className="btn" onClick={() => setStopping(false)} data-autofocus>
+                    Keep teaching him
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => {
+                      setStopping(false);
+                      store.mutate((l) => stopMove(l, p.id));
+                    }}
+                  >
+                    Stop
+                  </button>
+                </>
+              }
+            >
+              <p style={{ margin: 0 }}>
+                Everything he has picked up at {learning.to} is lost. If you start again later, he starts from the beginning.
+              </p>
+            </Dialog>
+          )}
+        </div>
+      )}
+
+      {reads.length > 0 && (
+        <>
+          {!inOffseason && (
+            <p className="small" style={{ margin: 0 }}>
+              Position moves start in the offseason. Until then, this is what your coaches think.
+            </p>
+          )}
+          <ul className="move-list" aria-label="Positions the coaches could teach him">
+            {reads.map((read) => {
+              const note = startNote(read, league);
+              const reason = reasonText(read);
+              return (
+                <li key={read.to} className="move-read">
+                  <div className="move-head">
+                    <b>
+                      {p.position} → {read.to}
+                    </b>
+                    <span className={`tag-pill ${verdictTone(read.verdict)}`}>{verdictText(read.verdict)}</span>
+                  </div>
+                  {reason && (
+                    <p className="small">
+                      <LinkedText league={league} text={`${reason}.`} about={read.coordinator ? [{ kind: 'coach', id: read.coordinator.coach.id }] : undefined} />
+                    </p>
+                  )}
+                  <p className="muted small">
+                    {roleText(read)}. {leftText(read.left, p.position)}.
+                  </p>
+                  <p className="muted small">
+                    {readyText(read.camps, league.phase)}. {payText(read.pay, read.to)}.
+                  </p>
+                  <button className={`btn btn-sm${read.verdict === 'worth' ? ' btn-primary' : ''}`} disabled={!!read.problem} onClick={() => store.mutate((l) => startMove(l, p.id, read.to, read.reason ?? undefined))}>
+                    Start learning {read.to}
+                  </button>
+                  {note && <p className="muted small">{note}</p>}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+
+      {versatility && (
+        <p className="muted small" style={{ margin: 0 }}>
+          <b>{versatility.label}.</b> {versatility.line}
+        </p>
+      )}
+
+      {moves.length > 0 && (
+        <div className="muted small">
+          <span className="eyebrow">Moves so far</span>
+          <ul className="habit-timeline">
+            {moves.map((m) => (
+              <li key={`${m.season}-${m.to}`} className="num">
+                {moveLine(m)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Section>
+  );
+}
+
 export function PlayerCard({ league, player: p, onClose }: { league: League; player: Player; onClose: () => void }) {
   const nav = useNav();
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
@@ -298,7 +489,8 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
 
   const [editing, setEditing] = useState(false);
   // His starting spot in his team's schemes (LT, SLOT, NT…), if he starts.
-  const spot = team ? spotsFor(teamScheme(league, team.id), p.position)[team.depthChart[p.position].indexOf(p.id)] : undefined;
+  const slot = slotOf(league, p);
+  const spot = team ? spotsFor(teamScheme(league, team.id), slot)[team.depthChart[slot].indexOf(p.id)] : undefined;
   // How he'd fit what your coordinators run (a free agent, a prospect or a rival's player alike).
   const myScheme = teamScheme(league, league.userTeamId);
   const fit = p.retired ? null : schemeFitOf(league, p, myScheme);
@@ -514,6 +706,8 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               </p>
             )}
           </Section>
+
+          {hasPositionWork(league, p) && <PositionSection league={league} player={p} />}
 
           {/* Open while he's on the board (or just off it); a settled pro's draft day folds away. Each keeps its own fold. */}
           <Section key={draftDay ? 'draft-open' : 'draft'} id={draftDay ? 'draft-open' : 'draft'} title="Draft & combine" defaultOpen={draftDay}>

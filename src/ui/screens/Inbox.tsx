@@ -46,6 +46,8 @@ const KIND_TAGS: Partial<Record<NonNullable<ReturnType<typeof mailSubject>>['kin
   owner: 'Owner',
   carousel: 'Coaching',
   faWrap: 'Free agency',
+  positionOffer: 'Training',
+  positionMoved: 'Training',
 };
 
 /** A tag says what kind of message it is: a recap or the playoff race reads as such, whatever its category. */

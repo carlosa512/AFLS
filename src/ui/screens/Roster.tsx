@@ -4,7 +4,8 @@ import { POSITION_NAMES } from '../../engine/positions';
 import { PERSONNEL_LABEL, spotsFor, type TeamScheme } from '../../engine/schemes';
 import { capSheet, isOffseason } from '../../engine/finance/cap';
 import { capHit, lastSeason } from '../../engine/finance/contract';
-import { buildAutoDepthChart, isAvailable, teamPlayers, teamRatings } from '../../engine/roster';
+import { buildAutoDepthChart, isAvailable, slotOf, teamPlayers, teamRatings } from '../../engine/roster';
+import { activeLearning, familiarity } from '../../engine/training';
 import { computeRecords } from '../../engine/season/standings';
 import type { Coach, League, Player, Position, StatLine, Team } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
@@ -15,6 +16,7 @@ import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } fr
 import { FitnessCell, fitnessSort, InjuryTag } from '../injuries';
 import { Ovr, repsOf, schemeFitOf, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { store } from '../store';
+import { familiarityTone, knockAt, learnLine, lineupText, playAt, positionChoices } from '../training';
 
 export function statSummary(position: Position, s: StatLine | undefined): string {
   if (!s || !s.gp) return '–';
@@ -291,13 +293,13 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
     document.querySelector<HTMLElement>(`[data-grip="${refocus.current}"]`)?.focus();
     refocus.current = null;
   });
-  const keyMove = (p: Player, index: number, to: number) => {
-    const count = shownDepth(league, team, p.position).length;
+  const keyMove = (p: Player, pos: Position, index: number, to: number) => {
+    const count = shownDepth(league, team, pos).length;
     if (to < 0 || to >= count) return;
-    moveInDepth(teamId, p.position, index, to);
+    moveInDepth(teamId, pos, index, to);
     refocus.current = p.id;
-    const spots = spotsFor(scheme, p.position);
-    setAnnouncement(`${p.firstName} ${p.lastName} moved to ${spots[to] ?? `${p.position}${to + 1}`}${to < spots.length ? ', starter' : ''}.`);
+    const spots = spotsFor(scheme, pos);
+    setAnnouncement(`${p.firstName} ${p.lastName} moved to ${spots[to] ?? `${pos}${to + 1}`}${to < spots.length ? ', starter' : ''}.`);
   };
 
   return (
@@ -389,7 +391,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
         )}
         {isUser && grouped && (
           <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
-            Starters sit above the yellow line, in the spots your coordinators' schemes use. Drag a player by the <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns auto-sort off for your team.
+            Starters sit above the yellow line, in the spots your coordinators' schemes use. Drag a player by the <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns auto-sort off for your team. In a pinch, "Play at…" lines a player up at another position: out of position he takes a knock, smaller in his own room or at a spot he has played.
           </p>
         )}
         <span className="visually-hidden" aria-live="polite">
@@ -418,12 +420,14 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                   sort,
                   (p, key) => rosterSortValue(league, p, key),
                 ).map((p) => {
-                  const ids = shownDepth(league, team, p.position);
+                  const slot = slotOf(league, p);
+                  const ids = shownDepth(league, team, slot);
                   return (
                     <RosterRow
                       key={p.id}
                       league={league}
                       player={p}
+                      slot={slot}
                       index={ids.indexOf(p.id)}
                       count={ids.length}
                       editable={false}
@@ -455,6 +459,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                         key={id}
                         league={league}
                         player={p}
+                        slot={pos}
                         index={i}
                         count={ids.length}
                         editable={isUser}
@@ -462,7 +467,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                         scheme={scheme}
                         dragging={drag?.id === id}
                         onGrip={(e) => start(pos, committed, id, e)}
-                        onKeyMove={(to) => keyMove(p, committed, to)}
+                        onKeyMove={(to) => keyMove(p, pos, committed, to)}
                       />
                     );
                   }),
@@ -479,6 +484,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
 function RosterRow({
   league,
   player: p,
+  slot,
   index,
   count,
   editable,
@@ -490,6 +496,8 @@ function RosterRow({
 }: {
   league: League;
   player: Player;
+  /** The position group he's lined up in: his own, or another one in a pinch. */
+  slot: Position;
   index: number;
   count: number;
   editable: boolean;
@@ -503,12 +511,15 @@ function RosterRow({
 }) {
   const nav = useNav();
   const view = viewOf(league, p);
-  const spots = spotsFor(scheme, p.position);
+  const spots = spotsFor(scheme, slot);
   const starter = index < spots.length;
   const lastStarter = grouped && index === spots.length - 1 && index < count - 1;
-  const spot = spots[index] ?? `${p.position}${index + 1}`;
+  const spot = spots[index] ?? `${slot}${index + 1}`;
+  const mine = p.teamId === league.userTeamId;
+  const away = slot !== p.position;
   // Your own players only: how a rival's roster suits its scheme is its business.
-  const fit = p.teamId === league.userTeamId && starter ? schemeFitOf(league, p, scheme) : null;
+  const fit = mine && starter && !away ? schemeFitOf(league, p, scheme) : null;
+  const learning = mine ? activeLearning(p) : undefined;
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
   // Only your own young players: a rival's backups are none of your business.
   const needsReps = p.teamId === league.userTeamId && repsOf(league, p)?.needs;
@@ -539,6 +550,7 @@ function RosterRow({
           <span className={`num spot${starter ? ' spot-starter' : ''}`} title={starter ? `Starting ${spot}` : 'Depth'}>
             {spot}
           </span>
+          {editable && grouped && <PlayAt p={p} slot={slot} />}
         </span>
       </td>
       <td className="sticky-col">
@@ -551,6 +563,16 @@ function RosterRow({
         {fit && (fit.grade === 'Ideal' || fit.grade === 'Poor') && (
           <span className={`tag-pill name-sub ${fit.grade === 'Poor' ? 'tag-warn' : 'tag-good'}`} title={`The scheme leans on ${fit.skills.join(', ')}.`}>
             {fit.grade === 'Ideal' ? 'Scheme fit' : 'Poor fit'}
+          </span>
+        )}
+        {away && (
+          <span className={`tag-pill name-sub ${knockAt(p, slot) === 'big' ? 'tag-warn' : ''}`} title={lineupText(p, slot)}>
+            Out of position ({p.position})
+          </span>
+        )}
+        {learning && (
+          <span className={`tag-pill name-sub ${familiarityTone(familiarity(p))}`} title={learnLine(p.position, learning.to, familiarity(p))}>
+            Learning {learning.to}
           </span>
         )}
         {needsReps && (
@@ -583,5 +605,33 @@ function RosterRow({
       <td className="num">{p.contract ? thruLabel(league, p.contract) : '–'}</td>
       <td className="muted">{statSummary(p.position, p.stats[resultsSeason(league)])}</td>
     </tr>
+  );
+}
+
+/** "Play at…": line him up at another position in a pinch, or back at his own. Each choice says the knock he'd take there. */
+function PlayAt({ p, slot }: { p: Player; slot: Position }) {
+  const choices = positionChoices(slot);
+  const label = (pos: Position) => (pos === p.position ? `Back to ${pos}` : `${pos} · ${knockAt(p, pos)} knock`);
+  return (
+    <select
+      className="play-at"
+      aria-label={`Play ${p.firstName} ${p.lastName} at another position`}
+      title="Line him up at another position"
+      value=""
+      onChange={(e) => {
+        const pos = e.target.value as Position;
+        if (pos) store.mutate((l) => playAt(l, p.id, pos));
+      }}
+    >
+      <option value="">Play at…</option>
+      {slot !== p.position && <option value={p.position}>{label(p.position)}</option>}
+      {choices
+        .filter((pos) => pos !== p.position)
+        .map((pos) => (
+          <option key={pos} value={pos}>
+            {label(pos)}
+          </option>
+        ))}
+    </select>
   );
 }
