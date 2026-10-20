@@ -37,6 +37,20 @@ describe('offseason calendar', () => {
     expect(availableProspects(league).length).toBe(260);
   });
 
+  it("keeps last season's box scores and scoring plays and drops their full replays", () => {
+    const league = fresh();
+    const mine = league.games.find((g) => g.homeId === league.userTeamId && g.result)!;
+    expect(mine.result!.plays!.some((p) => !p.scoring)).toBe(true);
+    beginOffseason(league);
+    const last = league.games.filter((g) => g.season === league.season - 1);
+    expect(last.length).toBeGreaterThan(0);
+    for (const g of last) expect(g.result?.plays?.every((p) => p.scoring) ?? true).toBe(true);
+    // The scoring plays stay, not nothing: a game's replay is trimmed, not dropped.
+    expect(mine.result!.plays?.length ?? 0).toBeGreaterThan(0);
+    expect(mine.result!.home).toBeDefined();
+    expect(league.games.some((g) => g.season === league.season && !g.result)).toBe(true);
+  });
+
   it('walks every phase and ends with legal, cap-compliant rosters', () => {
     const league = fresh();
     beginOffseason(league);
