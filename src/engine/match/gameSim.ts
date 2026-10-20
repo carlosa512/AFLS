@@ -399,7 +399,7 @@ class GameSim {
     this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
     this.syncKnocks();
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
-    this.qbLeans = qbLeans(league, [this.lineups[0].qb, this.lineups[1].qb]);
+    this.qbLeans = this.leans();
     this.fields = [units(this.lineups[0]), units(this.lineups[1])];
     // Form carried in from last week: a quarterback still shaken, a kicker in a slump.
     for (const l of this.lineups) {
@@ -428,6 +428,16 @@ class GameSim {
   private syncKnocks() {
     this.knocks.clear();
     for (const l of this.lineups) for (const [id, k] of l.knocks) this.knocks.set(id, k);
+  }
+
+  /** Both quarterbacks' leans, read with the knocks on: a fill-in under center throws like one. */
+  private leans(): [number, number] {
+    const prev = useKnocks(this.knocks);
+    try {
+      return qbLeans(this.league, [this.lineups[0].qb, this.lineups[1].qb]);
+    } finally {
+      useKnocks(prev);
+    }
   }
 
   /** One event, with this game's out-of-position knocks on (a live game interleaves with other code). */
@@ -602,7 +612,7 @@ class GameSim {
       this.lineups[side] = buildLineup(this.league, this.lineups[side].team, this.out);
       this.syncKnocks();
       this.fields[side] = units(this.lineups[side]);
-      if (this.lineups[side].qb !== qb) this.qbLeans = qbLeans(this.league, [this.lineups[0].qb, this.lineups[1].qb]);
+      if (this.lineups[side].qb !== qb) this.qbLeans = this.leans();
     }
     this.hurt = [];
   }

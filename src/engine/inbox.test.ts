@@ -12,8 +12,8 @@ import { teamPlayers } from './roster';
 import { computeRecords, conferenceSeeds } from './season/standings';
 import { isExpiring, teamStaff } from './staff';
 import { TRADE_DEADLINE_WEEK } from './trade';
-import { passMove, setCoachesDecide, startMove, suggestMove } from './training';
-import type { League, Position } from './types';
+import { changePosition, passMove, setCoachesDecide, startMove, suggestMove } from './training';
+import type { League, MoveReason, Position } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
@@ -365,12 +365,13 @@ describe('position moves in the inbox', () => {
   let playerId = -1;
   let to: Position = 'S';
   let read: NonNullable<ReturnType<typeof suggestMove>>['read'];
+  let why: MoveReason = 'hole';
   const offersIn = (l: League) => l.inbox!.filter((m) => m.id.startsWith(`position:${l.season}:offer:`));
   const movedIn = (l: League) => l.inbox!.filter((m) => m.id.startsWith(`position:${l.season}:moved:`));
   const nameOf = (l: League) => `${l.players[playerId].firstName} ${l.players[playerId].lastName}`;
   /** Start the suggested plan, call him ready and run the calendar to cut-down day. */
   const throughCutDown = (l: League) => {
-    startMove(l, playerId, to, read.reason ?? undefined);
+    startMove(l, playerId, to, why);
     l.players[playerId].learning!.done = 100;
     while (l.phase !== 'regular') advanceOffseason(l);
   };
@@ -386,6 +387,7 @@ describe('position moves in the inbox', () => {
     playerId = pick.player.id;
     to = pick.read.to;
     read = pick.read;
+    why = pick.why;
   }, 60_000);
 
   it("files the coaches' suggestion once a league year, in the head coach's words", () => {
@@ -401,7 +403,7 @@ describe('position moves in the inbox', () => {
     expect(mailSubject(offer)).toEqual({ kind: 'positionOffer', season: l.season, playerId, to });
     expect(needsYou(l, offer)).toBe(true);
     const p = l.players[playerId];
-    for (const part of [nameOf(l), `${p.age}-year-old`, reasonLine(read.reason!, to, read.coordinator), 'cut-down day', 'Not now', 'Coaches screen', String(l.season + 2)]) expect(offer.body).toContain(part);
+    for (const part of [nameOf(l), `${p.age}-year-old`, reasonLine(why, to, read.coordinator), 'cut-down day', 'before the draft closes', 'Not now', String(l.season + 2)]) expect(offer.body).toContain(part);
     // Camp is the last chance to start it, and it is still the one suggestion that year.
     advanceOffseason(l);
     deliverMail(l);
@@ -428,7 +430,7 @@ describe('position moves in the inbox', () => {
     const offer = offersIn(l)[0];
     expect(needsYou(l, offer)).toBe(true);
     const started = copy(l);
-    startMove(started, playerId, to, read.reason ?? undefined);
+    startMove(started, playerId, to, why);
     expect(needsYou(started, offer)).toBe(false);
     const passed = copy(l);
     passMove(passed, playerId);
@@ -468,7 +470,7 @@ describe('position moves in the inbox', () => {
     expect(needsYou(l, note)).toBe(false);
     for (const part of [nameOf(l), 'on cut-down day', "can't be traded until the new league year"]) expect(note.body).toContain(part);
     // The reason he was moved for, read from the news line ("their scheme wants him…").
-    if (read.reason) expect(note.body).toContain(reasonLine(read.reason, to));
+    expect(note.body).toContain(reasonLine(why, to));
     expect(note.body).not.toContain('placed by rating');
     // The suggestion is answered by now, and a deleted note is not filed again.
     expect(needsYou(l, offersIn(l)[0])).toBe(false);
@@ -484,6 +486,19 @@ describe('position moves in the inbox', () => {
     throughCutDown(l);
     deliverMail(l);
     expect(movedIn(l)[0].body).toContain(`He is placed by rating on your ${to} depth chart.`);
+  }, 30_000);
+
+  it('files no note for a player who came to us already moved by another team', () => {
+    const l = copy(base);
+    while (l.phase !== 'regular') advanceOffseason(l);
+    // Another team moves its corner on its cut-down day, and he joins us after it.
+    const ai = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const cb = teamPlayers(l, ai.id).find((p) => p.position === 'CB')!;
+    changePosition(l, cb, 'S');
+    cb.teamId = l.userTeamId;
+    deliverMail(l);
+    expect(cb.moves?.at(-1)?.season).toBe(l.season);
+    expect(movedIn(l).map((m) => m.id)).not.toContain(`position:${l.season}:moved:${cb.id}`);
   }, 30_000);
 
   it("folds a cut-down day's notes into one thread", () => {

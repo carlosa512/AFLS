@@ -23,7 +23,7 @@ import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
 import { generateSchedule } from '../season/schedule';
 import { bodyAs, completeMoves, learnBlock, planMoves } from '../training';
-import { expireOffers, marketMoment } from '../trade';
+import { expireOffers, marketMoment, TRADE_DEADLINE_WEEK } from '../trade';
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
@@ -112,9 +112,12 @@ export function beginOffseason(league: League): void {
 export function offseasonBlockers(league: League): string[] {
   const issues: string[] = [];
   const teamId = league.userTeamId;
-  // A team must be under the cap every week, not just at kickoff.
-  if ((league.phase === 'regular' || league.phase === 'playoffs') && capSpace(league, teamId) < 0) {
-    issues.push(`You're $${(-capSpace(league, teamId) / 1000).toFixed(1)}M over the cap: release, restructure or trade before playing on.`);
+  // A team must be under the cap every week of the season, not just at kickoff. (The playoffs pay nothing more
+  // and sign nobody, so a team that got there under the cap isn't stopped there.) Restructures wait for the
+  // offseason; a release frees what's left of a deal that isn't guaranteed.
+  if (league.phase === 'regular' && capSpace(league, teamId) < 0) {
+    const fix = league.week <= TRADE_DEADLINE_WEEK ? 'release or trade a player' : 'release a player (the trade deadline has passed)';
+    issues.push(`You're $${(-capSpace(league, teamId) / 1000).toFixed(1)}M over the cap: ${fix} before playing on.`);
   }
   if (league.phase === 'resign' && capSpace(league, teamId) < 0) issues.push('Get under the cap before free agency opens: release, restructure or trade.');
   if (league.phase === 'preseason') {

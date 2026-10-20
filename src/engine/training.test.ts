@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { skill, useKnocks } from './attributes';
 import { CONVERSIONS, conversionOf, knockFor, knockWord, OUT_OF_POSITION_KNOCK, slotOvr, targetsFor } from './familiarity';
-import { releasePlayer } from './finance/cap';
+import { capSpace, releasePlayer } from './finance/cap';
+import { manageInjuries } from './injuries';
+import { offseasonBlockers } from './offseason';
+import { Rng } from './rng';
 import { createLeague, SAVE_VERSION } from './generate';
 import { buildLineup } from './match/lineup';
 import { migrateLeague } from './migrate';
 import { overall, playerOvr } from './positions';
-import { placeAt, slotOf, syncDepthChart, teamPlayers } from './roster';
+import { buildAutoDepthChart, placeAt, slotOf, syncDepthChart, teamPlayers } from './roster';
 import { playerTradeBlocker } from './trade/rules';
 import {
   activeLearning,
@@ -208,6 +211,12 @@ describe('out of position', () => {
     expect(lineup.wrs.map((x) => x.id)).toContain(cb.id);
     expect(lineup.knocks?.get(cb.id)).toBeGreaterThan(0);
     expect(slotOvr(l.players[cb.id], 'WR')).toBeLessThan(overall(cb.ratings, 'WR'));
+    // The third rusher who rotates in is knocked too, when a hand-sorted chart lists a linebacker there.
+    const lb = teamPlayers(l, team.id).find((x) => x.position === 'LB')!;
+    placeAt(l, lb.id, 'EDGE', buildLineup(l, team).edge.length);
+    const rotating = buildLineup(l, team);
+    expect(rotating.rushRotation.map((x) => x.id)).toContain(lb.id);
+    expect(rotating.knocks.get(lb.id)).toBeGreaterThan(0);
     // A release takes him off every group.
     releasePlayer(l, l.players[cb.id]);
     for (const ids of Object.values(team.depthChart)) expect(ids).not.toContain(cb.id);
@@ -224,8 +233,13 @@ describe('reasons', () => {
       found++;
       expect(s.read.verdict).toBe('worth');
       expect(s.read.reason).not.toBeNull();
-      const keen = Math.max(...s.read.motives.map((m) => m.strength * motiveWeight(l, team, m, s.read)));
-      expect(keen).toBeGreaterThanOrEqual(MOTIVE_BAR);
+      // The reason it acts on is the one that clears the bar after its GM's weighting.
+      const weight = (reason: string) => {
+        const m = s.read.motives.find((x) => x.reason === reason)!;
+        return m.strength * motiveWeight(l, team, m, s.read);
+      };
+      expect(weight(s.why)).toBeGreaterThanOrEqual(MOTIVE_BAR);
+      for (const m of s.read.motives) expect(weight(m.reason)).toBeLessThanOrEqual(weight(s.why));
     }
     expect(found).toBeGreaterThan(0);
   });
@@ -245,7 +259,11 @@ describe('reasons', () => {
     const started = (league: League, teamId: number) => teamPlayers(league, teamId).filter((p) => activeLearning(p));
     expect(started(l, l.userTeamId)).toHaveLength(0);
     for (const team of l.teams) expect(started(l, team.id).length).toBeLessThanOrEqual(1);
-    for (const p of Object.values(l.players)) if (activeLearning(p)) expect(p.learning!.why).toBeDefined();
+    for (const team of l.teams) {
+      const plan = started(l, team.id)[0];
+      // Started for the reason the suggestion acted on.
+      if (plan) expect(plan.learning!.why).toBe(suggestMove(fresh(), team.id)!.why);
+    }
     const mine = fresh();
     setCoachesDecide(mine, true);
     planMoves(mine);
@@ -261,5 +279,46 @@ describe('saves', () => {
     const up = migrateLeague(l)!;
     expect(up.version).toBe(SAVE_VERSION);
     for (const p of Object.values(up.players)) expect(p.traits.versatility).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('the cap in season', () => {
+  /** A team at 53 whose WR room is short, with `room` ($K) under the cap. */
+  function shortHanded(room: number): { l: League; teamId: number } {
+    const l = createLeague({ seed: 'cover-room' });
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    // All but two receivers become kickers: the WR room is short and spare bodies sit at K, so the roster stays full.
+    for (const p of teamPlayers(l, team.id).filter((x) => x.position === 'WR').slice(2)) p.position = 'K';
+    team.depthChart = buildAutoDepthChart(teamPlayers(l, team.id));
+    l.caps[l.season] -= capSpace(l, team.id) - room;
+    return { l, teamId: team.id };
+  }
+
+  it("a team without room for a minimum deal plays short-handed: nobody cut, no street player made", () => {
+    const { l, teamId } = shortHanded(100);
+    const players = Object.keys(l.players).length;
+    const roster = teamPlayers(l, teamId).map((p) => p.id);
+    manageInjuries(l, l.teams[teamId], new Rng('cover'));
+    expect(Object.keys(l.players)).toHaveLength(players);
+    expect(teamPlayers(l, teamId).map((p) => p.id)).toEqual(roster);
+    expect(capSpace(l, teamId)).toBeGreaterThanOrEqual(0);
+  });
+
+  it('a team with room signs cover, and stays under the cap', () => {
+    const { l, teamId } = shortHanded(5_000);
+    const wrs = teamPlayers(l, teamId).filter((p) => p.position === 'WR').length;
+    manageInjuries(l, l.teams[teamId], new Rng('cover'));
+    expect(teamPlayers(l, teamId).filter((p) => p.position === 'WR').length).toBeGreaterThan(wrs);
+    expect(capSpace(l, teamId)).toBeGreaterThanOrEqual(0);
+  });
+
+  it('stops you in the regular season while over it, not in the playoffs', () => {
+    const l = createLeague({ seed: 'over-cap' });
+    l.caps[l.season] -= capSpace(l, l.userTeamId) + 2_000;
+    expect(offseasonBlockers(l).join(' ')).toContain('over the cap: release or trade a player');
+    l.week = 12;
+    expect(offseasonBlockers(l).join(' ')).toContain('trade deadline has passed');
+    l.phase = 'playoffs';
+    expect(offseasonBlockers(l).join(' ')).not.toContain('over the cap');
   });
 });

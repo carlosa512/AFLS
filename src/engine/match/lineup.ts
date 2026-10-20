@@ -190,14 +190,20 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
   }
   // Who lines up away from his own position (a fill-in, or one the user put there), and what it costs him.
   // A man with two jobs keeps his full game if one is his own: the specialist who kicks and punts, say.
+  // The third edge and tackle who rotate in count too: a hand-sorted chart can list anyone there.
+  const rotation = (['EDGE', 'DT'] as const).flatMap((pos) => {
+    const id = team.depthChart[pos].find(fit);
+    return id === undefined ? [] : [{ p: league.players[id], pos }];
+  });
   const slots = new Map<Player, Position[]>();
   for (const pos of POSITIONS) for (const p of at[pos]) slots.set(p, [...(slots.get(p) ?? []), pos]);
+  for (const { p, pos } of rotation) slots.set(p, [...(slots.get(p) ?? []), pos]);
   const knocks = new Map<number, number>();
   for (const [p, mine] of slots) if (!mine.includes(p.position)) knocks.set(p.id, Math.max(...mine.map((pos) => knockFor(p, pos))));
   // The unit composites below are read with the knocks on.
   const prev = useKnocks(knocks);
   try {
-    return assemble(league, team, out, scheme, at, fit, knocks);
+    return assemble(league, team, out, scheme, at, rotation.map((r) => r.p), fit, knocks);
   } finally {
     useKnocks(prev);
   }
@@ -210,6 +216,7 @@ function assemble(
   out: ReadonlySet<number>,
   scheme: TeamScheme,
   at: Record<Position, Player[]>,
+  rushRotation: Player[],
   fit: (id: number) => boolean,
   knocks: ReadonlyMap<number, number>,
 ): Lineup {
@@ -268,7 +275,7 @@ function assemble(
     lb,
     cb,
     s,
-    rushRotation: (['EDGE', 'DT'] as const).map((pos) => team.depthChart[pos].find(fit)).filter((id) => id !== undefined).map((id) => league.players[id]),
+    rushRotation,
     k: kicker,
     p: punter,
     kr: picked(team.returners?.kr) ?? best(krPool),

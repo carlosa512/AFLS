@@ -37,6 +37,9 @@ export function minSalary(experience: number, cap: number): number {
   return Math.round((base * cap) / BASE_CAP);
 }
 
+/** The highest league minimum, a long-time veteran's: room for it covers any minimum deal. */
+export const topMinimum = (cap: number): number => minSalary(MIN_BY_EXPERIENCE.length - 1, cap);
+
 /**
  * The market is relative: pay follows where a player ranks among everyone at his position,
  * measured in "starting jobs" (rank / number of starters league-wide). It is flat at the top

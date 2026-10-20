@@ -304,7 +304,7 @@ export interface ConversionRead {
   reason: MoveReason | null;
   /** Every reason that holds, strongest first. */
   motives: Motive[];
-  /** For a scheme reason, the coordinator whose scheme it is (and whether he's new this year). */
+  /** When a scheme reason holds, the coordinator whose scheme it is (and whether he's new this year). */
   coordinator?: { coach: Coach; isNew: boolean };
   /** True when his body's decline favors the new job (the aging corner, the aging edge rusher). */
   aging: boolean;
@@ -433,7 +433,7 @@ export function conversionRead(league: League, p: Player, to: Position, ctx: Tra
   const pay = payThen > payNow * 1.1 ? 'higher' : payThen < payNow * 0.9 ? 'lower' : 'same';
   const problem = playerProblem(league, p, to) ?? slotProblem(league, teamId, rosterOf(ctx, teamId).filter((x) => activeLearning(x)).length);
   const score = (motives[0]?.strength ?? 0) + 0.1 * net;
-  return { to, verdict, role, ahead: role === 'starter' ? weakest : undefined, left, camps: campsToReady(league, p, to), pay, reason, motives, coordinator: reason === 'scheme' ? coordinator : undefined, aging, problem, score };
+  return { to, verdict, role, ahead: role === 'starter' ? weakest : undefined, left, camps: campsToReady(league, p, to), pay, reason, motives, coordinator: motives.some((m) => m.reason === 'scheme') ? coordinator : undefined, aging, problem, score };
 }
 
 /** A reason as the news gives it ("KC moved LB John Smith to S: their safety room was short"). */
@@ -461,6 +461,8 @@ export function reasonWords(reason: MoveReason, to: Position): string {
 export interface MoveSuggestion {
   player: Player;
   read: ConversionRead;
+  /** The reason this front office acts on: the strongest after its GM's weighting, not always `read.reason`. */
+  why: MoveReason;
 }
 
 /**
@@ -512,12 +514,13 @@ export function suggestMove(league: League, teamId: number, ctx: TradeContext = 
       if (playerProblem(league, p, to)) continue;
       const read = conversionRead(league, p, to, ctx);
       if (read.verdict !== 'worth') continue;
-      // The reason this front office would act on, if any clears the bar.
-      const keen = Math.max(...read.motives.map((m) => m.strength * motiveWeight(league, team, m, read)));
-      if (keen < MOTIVE_BAR) continue;
-      const k = keen + 0.01 * read.score;
+      // The reason this front office would act on, if any clears the bar (the first, strongest, on a tie).
+      const weighed = read.motives.map((m) => ({ reason: m.reason, keen: m.strength * motiveWeight(league, team, m, read) }));
+      const top = weighed.reduce((a, b) => (b.keen > a.keen ? b : a));
+      if (top.keen < MOTIVE_BAR) continue;
+      const k = top.keen + 0.01 * read.score;
       if (!best || k > bestKeen || (k === bestKeen && p.id < best.player.id)) {
-        best = { player: p, read };
+        best = { player: p, read, why: top.reason };
         bestKeen = k;
       }
     }
@@ -538,6 +541,6 @@ export function planMoves(league: League): void {
   for (const team of league.teams) {
     if (!coachesStart(league, team) || (team.id !== league.userTeamId && !trainingConfig.aiMoves)) continue;
     const s = suggestMove(league, team.id, ctx);
-    if (s) startMove(league, s.player.id, s.read.to, s.read.reason ?? undefined);
+    if (s) startMove(league, s.player.id, s.read.to, s.why);
   }
 }

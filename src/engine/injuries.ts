@@ -31,6 +31,7 @@
 import { declineOnset } from './aging';
 import { capSpace, logTransaction, paidFraction } from './finance/cap';
 import { lastSeason } from './finance/contract';
+import { topMinimum } from './finance/market';
 import { conditionBonus, departmentFor, diagnosisSpread, preventionMultiplier, recoveryMultiplier, TYPICAL, type Department } from './medical';
 import { aiCapCompliance, aiCutdown, KEEP_MIN, signMinimum } from './offseason/ai';
 import { ROSTER_MAX } from './offseason/negotiation';
@@ -1022,9 +1023,13 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[]):
     if (!short && !open) return;
     // Room on the roster and nobody short: fill the spot where depth is thinnest against a full roster.
     const pos = short ?? POSITIONS.map((p) => ({ p, gap: (healthy.get(p) ?? 0) - KEEP_MIN[p] })).sort((a, b) => a.gap - b.gap)[0].p;
-    if (!open && !cutForRoom(league, team, pos)) return;
     // Only a deal that fits under the cap: a team out of room plays short-handed (the lineup borrows a fill-in).
-    if (!signMinimum(league, team, rng, pos, roomForMinimum(league, team))) return;
+    // It needs room for any minimum (a street free agent's rises with his years) before it cuts a man to make
+    // a spot, or it would release him for a signing it can't make and leave the street player on the market.
+    const room = roomForMinimum(league, team);
+    if (room < topMinimum(league.caps[league.season])) return;
+    if (!open && !cutForRoom(league, team, pos)) return;
+    if (!signMinimum(league, team, rng, pos, room)) return;
   }
 }
 

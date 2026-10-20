@@ -21,7 +21,10 @@ const generated = (p: { firstName: string; lastName: string }) => OLD_FIRST.has(
  */
 export function nameUntouched(p: Player): boolean {
   if (p.nameEdited || !generated(p)) return false;
-  return JSON.stringify(generateTraits(p)) === JSON.stringify(p.traits);
+  // Only the traits a v26 save had: Versatility arrives with v30, after this pass.
+  const { versatility: _made, ...made } = generateTraits(p);
+  const { versatility: _kept, ...kept } = p.traits;
+  return JSON.stringify(made) === JSON.stringify(kept);
 }
 
 const full = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;

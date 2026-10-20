@@ -1086,9 +1086,9 @@ function positionOfferMail(league: League, have: Set<string>): Draft[] {
   if (team.training?.coachesDecide || [...have].some((id) => id.startsWith(`position:${season}:offer:`))) return [];
   const pick = suggestMove(league, team.id);
   if (!pick) return [];
-  const { player: p, read } = pick;
+  const { player: p, read, why } = pick;
   const from = p.position;
-  const reason = read.reason ? `${reasonLine(read.reason, read.to, read.coordinator)}. ` : '';
+  const reason = `${reasonLine(why, read.to, read.coordinator)}. `;
   const ahead = read.ahead ? `, ahead of ${fullName(read.ahead)}` : '';
   const role = read.role === 'starter' ? `he would start at ${read.to}${ahead}` : `he would be depth at ${read.to}`;
   return [
@@ -1103,8 +1103,9 @@ function positionOfferMail(league: League, have: Set<string>): Draft[] {
       body:
         `We'd like to teach ${fullName(p)}, our ${p.age}-year-old ${posWord(from)}, to play ${posWord(read.to)}. ${reason}` +
         `We think it's worth it: ${role}, and that leaves ${read.left} at ${from}. ` +
-        `He should be ready by ${readyBy(season, read.camps)}. Until then he keeps playing ${from}. ` +
-        `Tap "Not now" on his card or the Coaches screen and we won't raise it again until ${season + 2}.`,
+        // The estimate counts the spring program while the draft is on: started later, he learns at camp only.
+        `He should be ready by ${readyBy(season, read.camps)}${phase === 'draft' ? ' if we start before the draft closes' : ''}. ` +
+        `Until then he keeps playing ${from}. Say "Not now" below and we won't raise it again until ${season + 2}.`,
       actions: [{ kind: 'player', playerId: p.id }, { kind: 'coaches' }],
     },
   ];
@@ -1114,14 +1115,14 @@ const MOVE_REASONS: MoveReason[] = ['hole', 'nextYear', 'scheme', 'upside', 'rep
 
 /**
  * The news line of a player's latest move and the reason it gave: his plan is gone once he has moved, but the
- * transaction log kept why ("KC moved LB Sam Reed to S: they were short at S").
+ * transaction log kept why ("KC moved LB Sam Reed to S: they were short at S"). Null when it was another team's
+ * move: a player who came to us already moved.
  */
-function moveNews(league: League, p: Player): { when: Pick<Draft, 'phase' | 'week'>; reason?: MoveReason } {
+function moveNews(league: League, p: Player): { when: Pick<Draft, 'phase' | 'week'>; reason?: MoveReason } | null {
   const move = p.moves!.at(-1)!;
   const said = `moved ${move.from} ${p.firstName} ${p.lastName} to ${move.to}`;
   const news = [...league.transactions].reverse().find((t) => t.kind === 'position' && t.season === move.season && p.teamId !== null && t.teamIds.includes(p.teamId) && t.text.includes(said));
-  // Cut-down day closes camp: that is when a move without a line in the log is dated.
-  if (!news) return { when: { phase: 'preseason', week: 0 } };
+  if (!news) return null;
   const why = news.text.split(said)[1]?.replace(/^: /, '');
   return { when: { phase: news.phase, week: news.phase === 'regular' ? news.week : 0 }, reason: MOVE_REASONS.find((r) => reasonWords(r, move.to) === why) };
 }
@@ -1138,7 +1139,9 @@ function positionMovedMail(league: League, have: Set<string>): Draft[] {
     const move = p.moves?.at(-1);
     const id = `position:${season}:moved:${p.id}`;
     if (!move || move.season !== season || p.retired || have.has(id)) continue;
-    const { when, reason } = moveNews(league, p);
+    const news = moveNews(league, p);
+    if (!news) continue;
+    const { when, reason } = news;
     out.push({
       id,
       season,
