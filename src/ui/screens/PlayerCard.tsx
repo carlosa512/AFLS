@@ -57,6 +57,8 @@ function DraftLine({ league, player: p }: { league: League; player: Player }) {
 function statColumns(p: Player): Col[] {
   const cols = statColumnsAt(p.position);
   for (const pos of formerPositions(p)) for (const col of statColumnsAt(pos)) if (!cols.some(([label]) => label === col[0])) cols.push(col);
+  // Snaps first for everyone who takes them: who really played, against who dressed (a dash before the count was kept).
+  if (cols.length && p.position !== 'K' && p.position !== 'P') cols.unshift(['Snaps', (s) => (s.snaps === undefined ? '–' : s.snaps)]);
   return cols;
 }
 
