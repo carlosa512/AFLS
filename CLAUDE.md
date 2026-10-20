@@ -41,7 +41,8 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
   top five (yards, TDs, catches, sacks, picks) to NFL leaders and records (`scripts/leaders.ts`), and
   injury rates to the NFL's (`docs/INJURIES.md`). **Run this after any change to `src/engine/match/`
   or `injuries.ts` and keep stats inside the target ranges.** Leaders are noisy over 10 seasons:
-  check a change near an edge with `-- 30` or more.
+  check a change near an edge with `-- 30` or more. `npm run check` (and CI) runs 30: over 10, the
+  #1 and #5 passing rows sit close enough to their floors that main itself misses one block in four.
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
