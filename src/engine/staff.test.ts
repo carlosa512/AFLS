@@ -281,6 +281,7 @@ describe('staff moves', { timeout: 30_000 }, () => {
     expect(teamStaff(copy, ai.id).some((s) => s.role === 'director')).toBe(true);
   });
 
+  // Four full seasons with every team run by the AI: about a minute here, longer on a loaded runner (CI timed out at 90 s).
   it('keeps the staff economy steady over several offseasons', () => {
     const l = createLeague({ seed: 'economy' });
     for (let y = 0; y < 4; y++) {
@@ -296,7 +297,7 @@ describe('staff moves', { timeout: 30_000 }, () => {
         expect(staffPayroll(l, team.id)).toBeLessThanOrEqual(staffBudget(l, team.id) * 1.05);
       }
     }
-  }, 90_000);
+  }, 300_000);
 });
 
 describe('AI front offices on their own reads', () => {
