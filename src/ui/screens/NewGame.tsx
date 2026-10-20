@@ -6,6 +6,7 @@ import { Rating, TeamChip } from '../components';
 import { live } from '../live';
 import { LoadBackupButton } from '../saves';
 import { store } from '../store';
+import { APP_VERSION } from '../version';
 
 export function NewGame() {
   // One preview league so every team's rating is visible before you commit.
@@ -29,7 +30,7 @@ export function NewGame() {
       <main className="wrap" style={{ paddingBlock: '8px 32px', display: 'grid', gap: 24 }}>
         <div className="title-block">
           <span className="eyebrow">
-            {preview.name} · {preview.season} season
+            {preview.name} · {preview.season} season · {APP_VERSION}
           </span>
           <h1>
             Take over a <em>franchise.</em>
