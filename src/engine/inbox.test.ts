@@ -22,6 +22,7 @@ import {
   memberTitle,
   needsYou,
   offerMailId,
+  offerWords,
   reasonLine,
   statBlurb,
   threadLabel,
@@ -39,7 +40,7 @@ import { playerOvr } from './positions';
 import { answerEnquiry, counterOffer, openOffers, TRADE_DEADLINE_WEEK } from './trade';
 import type { TradeProposal } from './trade/rules';
 import { changePosition, passMove, setCoachesDecide, startMove, suggestMove } from './training';
-import type { GameResult, League, MoveReason, Position, TeamGameStats } from './types';
+import type { GameResult, League, MoveReason, Position, TeamGameStats, TradeOffer } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
@@ -881,5 +882,49 @@ describe('a trade conversation in the inbox', () => {
     filed.id = `offer:${bid.season}:${tens.id}:${bid.id}`;
     expect(mailForOffer(l, bid)).toBeUndefined();
     expect(mailForOffer(l, tens)).toBe(filed);
+  });
+});
+
+describe('offer text', () => {
+  it('leaves a live projection to the card: an unmade pick has no "proj. No." in the mail', () => {
+    const l = createLeague({ seed: 'offer-words' });
+    const user = l.userTeamId;
+    const other = l.teams.find((t) => t.id !== user)!;
+    const pick = l.draftPicks.find((p) => p.ownerId === other.id && !p.overall)!;
+    const mine = teamPlayers(l, user)[0];
+    expect(pick, 'an unmade pick').toBeDefined();
+    const bid: TradeOffer = {
+      id: 1,
+      teamId: other.id,
+      sides: [
+        { teamId: other.id, players: [], picks: [pick.id] },
+        { teamId: user, players: [mine.id], picks: [] },
+      ],
+      kind: 'sale',
+      reason: 'bid',
+      season: l.season,
+      phase: l.phase,
+      week: l.week,
+      moment: 0,
+      status: 'pending',
+      patience: 0,
+      worth: 0,
+    };
+    const { body } = offerWords(l, bid);
+    expect(body).toContain(`${pick.season} round ${pick.round}`);
+    expect(body).not.toMatch(/proj\. No\./);
+  });
+});
+
+describe('flex mail', () => {
+  it('files one message per move, keyed by the game', () => {
+    const l = createLeague({ seed: 'flex-mail' });
+    const g = l.games.find((x) => x.season === l.season && (x.homeId === l.userTeamId || x.awayId === l.userTeamId))!;
+    g.flexed = { day: 'sun', et: 13 };
+    g.kickoff = { day: 'mon', et: 20 };
+    deliverMail(l);
+    const mail = l.inbox!.find((m) => m.id.startsWith(`flex:${g.season}:${g.id}:`))!;
+    expect(mail).toBeDefined();
+    expect(mailSubject(mail)).toEqual({ kind: 'flex', season: g.season, gameId: g.id });
   });
 });

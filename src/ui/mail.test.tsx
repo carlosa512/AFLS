@@ -116,3 +116,27 @@ describe('offer mail', () => {
     expect(() => aboutOf(league, message)).not.toThrow();
   });
 });
+
+describe('flex mail', () => {
+  it('shows the opponent card, with the team name as a button', () => {
+    const league = createLeague({ seed: 'flex-mail' });
+    const user = league.userTeamId;
+    const g = league.games.find((x) => x.season === league.season && (x.homeId === user || x.awayId === user))!;
+    g.flexed = { day: 'sun', et: 13 };
+    g.kickoff = { day: 'mon', et: 20 };
+    deliverMail(league);
+    const message = league.inbox!.find((m) => m.id.startsWith(`flex:${g.season}:${g.id}:`))!;
+    expect(message, 'a flex message').toBeDefined();
+    const opp = league.teams[g.homeId === user ? g.awayId : g.homeId];
+    const html = renderToStaticMarkup(<MailCards league={league} message={message} />);
+    expect(html).toMatch(new RegExp(`<button[^>]*>[^<]*${opp.name}[^<]*</button>`));
+  });
+
+  it('shows nothing for a game that is no longer in the league', () => {
+    const league = createLeague({ seed: 'flex-mail' });
+    const message = { id: `flex:${league.season}:99999:sun13`, actions: [] } as unknown as Parameters<
+      typeof MailCards
+    >[0]['message'];
+    expect(renderToStaticMarkup(<MailCards league={league} message={message} />)).toBe('');
+  });
+});

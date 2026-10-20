@@ -751,14 +751,17 @@ function tradeMail(league: League, have: Set<string>): Draft[] {
 }
 
 /** A side of a deal in words: "WR Riley Wright, a 2027 3rd and a 2028 6th". */
-export function packageWords(league: League, side: TradeSide): string {
+export function packageWords(league: League, side: TradeSide, opts?: { projected?: boolean }): string {
   const players = side.players.map((id) => `${league.players[id].position} ${fullName(league.players[id])}`);
   const picks = side.picks
     .map((id) => league.draftPicks.find((p) => p.id === id))
     .filter((p) => !!p)
-    .map((p) => pickLabel(league, p!));
+    .map((p) => pickLabel(league, p!, opts));
   return list([...players, ...picks]) || 'nothing';
 }
+
+/** Mail is read later, when a projected pick number would be stale: the offer card shows it live. */
+const NO_PROJ = { projected: false };
 
 /** The offer's subject and opening line, in the GM's words (never a number from his valuation). */
 export function offerWords(league: League, offer: TradeOffer): { subject: string; body: string } {
@@ -777,27 +780,27 @@ export function offerWords(league: League, offer: TradeOffer): { subject: string
     case 'pitch':
       return {
         subject: `The ${team.name} are listening on ${name(hisMan!)}`,
-        body: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours)} get it done?${close}`,
+        body: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours, NO_PROJ)} get it done?${close}`,
       };
     case 'dump':
       return {
         subject: `The ${team.name} want to move ${name(hisMan!)}'s deal`,
-        body: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] })} is yours.${close}`,
+        body: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] }, NO_PROJ)} is yours.${close}`,
       };
     case 'counter':
       return {
         subject: `The ${team.name} come back with a counter`,
-        body: `We've looked at your counter. ${packageWords(league, his)} for ${packageWords(league, yours)}, and we have a deal.${close}`,
+        body: `We've looked at your counter. ${packageWords(league, his, NO_PROJ)} for ${packageWords(league, yours, NO_PROJ)}, and we have a deal.${close}`,
       };
     case 'shop':
       return {
         subject: `The ${team.name} answer your call about ${name(yourMan!)}`,
-        body: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his)}.${close}`,
+        body: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his, NO_PROJ)}.${close}`,
       };
     default:
       return {
         subject: `The ${team.name} make an offer for ${name(yourMan!)}`,
-        body: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his))}, if you're open to it.${close}`,
+        body: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his, NO_PROJ))}, if you're open to it.${close}`,
       };
   }
 }
