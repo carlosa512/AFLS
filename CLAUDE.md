@@ -97,7 +97,11 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
   - `scouting.ts` what a team believes: knowledge, perceived ranges (seeded per team and player),
     stars, scout reports (`scoutReportParts`: a verdict, his game, then the rest; one judgment with
     the observations behind it, never a list of every rating or habit), habit wording over time
-    (`habitChangeText`, `habitChangeDetail`: a logged loss is a fade), scouting visits, combine
+    (`habitChangeText`, `habitChangeDetail`: a logged loss is a fade), last season in one sentence
+    when it decides something (`seasonNote`: a starter's line only when it stood well clear of a
+    league-average starter's, a rotation player's role, growth off the bench; `seasonRole` reads
+    the role from scrimmage snaps, `StatLine.snaps`, counted in `match/gameSim.ts` for the units on
+    the field and the pass-rush rotation on dropbacks), scouting visits, combine
     generation. Prose rules: the sim makes the facts, the writing says what they mean; every
     sentence is chosen by a condition on what the team can see, so a report is reproducible
   - `staff.ts` scouting departments: who reads which player (`readFor`), accuracy, the staff budget,

@@ -54,9 +54,15 @@ function DraftLine({ league, player: p }: { league: League; player: Player }) {
  * edge rusher keeps pressures and hits, so his old seasons still read). Matched by label, as every pair that
  * can move shares the stats it counts.
  */
+const SNAP_POSITIONS: ReadonlySet<Position> = new Set(['OL', 'DT', 'EDGE', 'LB', 'CB', 'S']);
+
 function statColumns(p: Player): Col[] {
   const cols = statColumnsAt(p.position);
   for (const pos of formerPositions(p)) for (const col of statColumnsAt(pos)) if (!cols.some(([label]) => label === col[0])) cols.push(col);
+  // Snaps first where they are the number people quote: the trenches (who held the job, the rotation's share)
+  // and the back seven (sub-package usage). A back's carries and a receiver's targets say it already, and a
+  // quarterback's snaps are all of them. A dash before the count was kept.
+  if (SNAP_POSITIONS.has(p.position)) cols.unshift(['Snaps', (s) => (s.snaps === undefined ? '–' : s.snaps)]);
   return cols;
 }
 
