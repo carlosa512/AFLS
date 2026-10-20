@@ -88,15 +88,18 @@ describe('perceived ratings', () => {
       const r = scoutReportParts(league, league.userTeamId, p);
       const lines = scoutReport(league, league.userTeamId, p);
       expect(lines).toEqual([r.verdict, ...r.game, ...r.notes]);
-      expect(lines.length).toBeGreaterThanOrEqual(3);
-      expect(lines.length).toBeLessThanOrEqual(8);
+      expect(lines.length).toBeGreaterThanOrEqual(2);
+      expect(lines.length).toBeLessThanOrEqual(9);
       for (const l of lines) expect(l).toMatch(/^[A-Z].*\.$/);
       expect(lines.join(' ')).not.toMatch(/undefined|NaN|offensive line\b/);
       // One judgment up front, with where he is headed; one sentence on his traits, one on his outlook.
       expect(r.verdict).toMatch(
         /^(On limited looks, an?|An?) \S.* (in his prime|in his best years|in the middle of his prime|on the downslope|past his best|in decline|nearing the end of his best years|with a year or two of his prime left|whose value now rests on|living on .* now|with the upside of|with room still to grow|close to his ceiling)/,
       );
-      expect(r.game).toHaveLength(2);
+      expect(r.game.length).toBeGreaterThanOrEqual(1);
+      expect(r.game.length).toBeLessThanOrEqual(3);
+      // The third sentence, when there is one, is last season's line against the league's starters.
+      if (r.game[2]) expect(r.game[2]).toMatch(/^Last season he .*, (well above|above|about what|below|well below) a league-average (starter|kicker|punter)( does)?\.$/);
       expect(r.game[0]).toMatch(/^(His |[A-Z][a-z-]+( [a-z-]+)* (is|are) his strongest suit|Nothing in his game|Nothing jumps out|A balanced set)/);
       expect(r.game[0]).not.toMatch(/\b(hands|instincts) is\b/);
       // The scouts never list every habit: at most two sentences on them.
@@ -112,10 +115,11 @@ describe('perceived ratings', () => {
     const prospect = theirs.find((p) => p.age <= 23 && scoutReportParts(league, me, p).verdict.includes('with the upside of'))!;
     const young = scoutReportParts(league, me, prospect);
     expect(young.game[1]).toMatch(/^(With reps he could grow into|Given snaps he could become|There is .* in him if he develops)/);
-    const old = theirs.find((p) => p.age >= 34)!;
+    const old = theirs.find((p) => p.age >= 34 && !['QB', 'K', 'P'].includes(p.position))!;
     const vet = scoutReportParts(league, me, old);
     expect(vet.verdict).toMatch(/on the downslope|past his best|in decline|nearing the end of his best years|a year or two of his prime left|whose value now rests on|living on|in his prime|in his best years/);
-    expect(vet.game[1]).toMatch(/expect him to lose|decline is under way|takes something|should hold|should carry him|last year of his prime|prime to run through|best years to run through|No decline in sight/);
+    // At 34 or more the clock is always worth a sentence: past his prime, or fading, or in its last year.
+    expect(vet.game[1]).toMatch(/expect him to lose|decline is under way|takes something|should hold|last year of his prime/);
     // A player we have barely seen: the verdict itself is hedged, and the report says what would help.
     const unknown = theirs.find((p) => p.experience === 0 && scoutReportParts(league, me, p).verdict.startsWith('On limited looks'))!;
     expect(unknown).toBeDefined();

@@ -265,8 +265,9 @@ describe('what scouts can say about makeup', () => {
     expect(careerOutlook(league, me, wr)).toBe('His physical tools have started to fade; his technique should hold up through about 30.');
     // The report says the same in one of its reviewed wordings: the tools going first, the technique holding this year.
     expect(scoutReport(league, me, wr)[2]).toMatch(/^(His physical tools have begun to fade, but his technique should hold this year|The athleticism is going first; his technique should hold this year)/);
-    wr.age = 29;
-    expect(scoutReport(league, me, wr)[2]).toMatch(/about 29.*about 30|about 30.*about 29/);
+    // In his prime the report says nothing about the clock: the Development section carries it.
+    wr.age = 28;
+    expect(scoutReport(league, me, wr).join(' ')).not.toMatch(/hold up through|prime to run/);
     wr.age = 30;
     expect(scoutReport(league, me, wr)[0]).toMatch(/ wide receiver (whose value now rests on his technique|living on his technique now)\.$/);
     wr.age = 31;

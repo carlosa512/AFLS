@@ -17,8 +17,9 @@ import { activeQuirks, formingQuirks, QUIRKS, type QuirkId, type QuirkTone } fro
 import { clamp, Rng } from './rng';
 import { slotOf } from './roster';
 import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
+import { passerRating } from './stats';
 import { TEMPER_POSITIONS, TRAIT_MEAN } from './traits';
-import type { Attribute, Combine, League, Player, Position, Ratings, Traits } from './types';
+import type { Attribute, Combine, League, Player, Position, Ratings, StatLine, Traits } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
 /** Scouting visits a front office gets per league year. */
@@ -655,6 +656,136 @@ export function starRating(league: League, teamId: number, p: Player, view: Play
   return { ability: rel(view.ovr), potLo: rel(view.potLo), potHi: rel(view.potHi), basis: `vs every ${pos} in the league` };
 }
 
+// ───────── production ─────────
+
+/**
+ * How a scout reads a season's line at each position: the one rate that says how he played
+ * (`measure`; `lowIsGood` for a blocker's pressures allowed), how much of the season it takes to
+ * mean anything (`enough`), what tells a starter's line from a backup's (`volume`, for the league's
+ * reference group), the gap that counts as a clear step above or below a league-average starter
+ * (`step`), and the words for the line itself.
+ */
+interface Production {
+  measure: (s: StatLine) => number;
+  lowIsGood?: boolean;
+  enough: (s: StatLine) => boolean;
+  volume: (s: StatLine) => number;
+  step: number;
+  words: (s: StatLine) => string;
+}
+const perGame = (s: StatLine, k: keyof StatLine) => ((s[k] as number | undefined) ?? 0) / Math.max(1, s.gp ?? 0);
+const n = (s: StatLine, k: keyof StatLine) => (s[k] as number | undefined) ?? 0;
+const big = (x: number) => x.toLocaleString('en-US');
+const PRODUCTION: Partial<Record<Position, Production>> = {
+  QB: {
+    measure: passerRating,
+    enough: (s) => (s.gp ?? 0) >= 6 && n(s, 'passAtt') >= 14 * (s.gp ?? 0),
+    volume: (s) => n(s, 'passAtt'),
+    step: 6,
+    words: (s) => `threw for ${big(n(s, 'passYds'))} yards, ${n(s, 'passTd')} touchdowns and ${n(s, 'passInt')} picks in ${n(s, 'gp')} games`,
+  },
+  RB: {
+    measure: (s) => n(s, 'rushYds') / Math.max(1, n(s, 'rushAtt')),
+    enough: (s) => (s.gp ?? 0) >= 6 && n(s, 'rushAtt') >= 8 * (s.gp ?? 0),
+    volume: (s) => n(s, 'rushAtt'),
+    step: 0.35,
+    words: (s) => `ran for ${big(n(s, 'rushYds'))} yards at ${(n(s, 'rushYds') / Math.max(1, n(s, 'rushAtt'))).toFixed(1)} a carry`,
+  },
+  WR: {
+    measure: (s) => perGame(s, 'recYds'),
+    enough: (s) => (s.gp ?? 0) >= 6 && n(s, 'rec') >= 2 * (s.gp ?? 0),
+    volume: (s) => n(s, 'rec'),
+    step: 15,
+    words: (s) => `caught ${n(s, 'rec')} passes for ${big(n(s, 'recYds'))} yards and ${n(s, 'recTd')} touchdowns`,
+  },
+  OL: {
+    measure: (s) => perGame(s, 'pressuresAllowed') + perGame(s, 'sacksAllowed'),
+    lowIsGood: true,
+    enough: (s) => (s.gp ?? 0) >= 8,
+    volume: (s) => n(s, 'gp'),
+    step: 0.5,
+    words: (s) => `gave up ${n(s, 'sacksAllowed')} sacks and ${n(s, 'pressuresAllowed')} pressures in ${n(s, 'gp')} games`,
+  },
+  DT: {
+    measure: (s) => perGame(s, 'pressures'),
+    enough: (s) => (s.gp ?? 0) >= 8,
+    volume: (s) => n(s, 'pressures') + n(s, 'tackles'),
+    step: 0.6,
+    words: (s) => `had ${n(s, 'sacks') % 1 ? n(s, 'sacks').toFixed(1) : n(s, 'sacks')} sack${n(s, 'sacks') === 1 ? '' : 's'} and ${n(s, 'pressures')} pressures`,
+  },
+  LB: {
+    measure: (s) => perGame(s, 'tackles'),
+    enough: (s) => (s.gp ?? 0) >= 8,
+    volume: (s) => n(s, 'tackles'),
+    step: 1.2,
+    words: (s) => `made ${n(s, 'tackles')} tackles, ${n(s, 'tfl')} of them for loss`,
+  },
+  CB: {
+    measure: (s) => perGame(s, 'passDef') + perGame(s, 'defInt'),
+    enough: (s) => (s.gp ?? 0) >= 8,
+    volume: (s) => n(s, 'passDef') + n(s, 'defInt') + n(s, 'tackles') / 4,
+    step: 0.25,
+    words: (s) => `had ${n(s, 'defInt')} pick${n(s, 'defInt') === 1 ? '' : 's'} and ${n(s, 'passDef')} passes defended`,
+  },
+  K: {
+    measure: (s) => n(s, 'fgMade') / Math.max(1, n(s, 'fgAtt')),
+    enough: (s) => n(s, 'fgAtt') >= 12,
+    volume: (s) => n(s, 'fgAtt'),
+    step: 0.05,
+    words: (s) => `hit ${n(s, 'fgMade')} of ${n(s, 'fgAtt')} field goals`,
+  },
+  P: {
+    measure: (s) => n(s, 'puntYds') / Math.max(1, n(s, 'punts')),
+    enough: (s) => n(s, 'punts') >= 20,
+    volume: (s) => n(s, 'punts'),
+    step: 1.5,
+    words: (s) => `averaged ${(n(s, 'puntYds') / Math.max(1, n(s, 'punts'))).toFixed(1)} yards a punt`,
+  },
+};
+PRODUCTION.TE = PRODUCTION.WR;
+PRODUCTION.EDGE = PRODUCTION.DT;
+PRODUCTION.S = PRODUCTION.CB;
+
+const productionCache = new WeakMap<League, { season: number; avg: Partial<Record<Position, number>> }>();
+
+/** A league-average starter's measure at each position last season: the league's starting-sized group by volume, averaged. */
+function productionReference(league: League, season: number): Partial<Record<Position, number>> {
+  const hit = productionCache.get(league);
+  if (hit && hit.season === season) return hit.avg;
+  const lines: Partial<Record<Position, StatLine[]>> = {};
+  for (const p of Object.values(league.players)) {
+    const s = p.stats[season];
+    const rule = PRODUCTION[p.position];
+    if (s && rule && rule.enough(s)) (lines[p.position] ??= []).push(s);
+  }
+  const avg: Partial<Record<Position, number>> = {};
+  for (const pos of POSITIONS) {
+    const rule = PRODUCTION[pos];
+    const group = (lines[pos] ?? []).sort((a, b) => rule!.volume(b) - rule!.volume(a)).slice(0, league.teams.length * STARTERS[pos]);
+    if (rule && group.length >= 8) avg[pos] = group.reduce((t, s) => t + rule.measure(s), 0) / group.length;
+  }
+  productionCache.set(league, { season, avg });
+  return avg;
+}
+
+/**
+ * Last season's line against a league-average starter at his position, when he played enough for
+ * it to mean something ("Last season he threw for 3,912 yards, 24 touchdowns and 9 picks in 16
+ * games, above a league-average starter."). Box scores are public, so every team reads the same.
+ */
+export function productionNote(league: League, p: Player): string | null {
+  const season = league.season - 1;
+  const s = p.stats[season];
+  const rule = PRODUCTION[p.position];
+  if (!s || !rule || !rule.enough(s)) return null;
+  const ref = productionReference(league, season)[p.position];
+  if (ref === undefined) return null;
+  const gap = ((rule.measure(s) - ref) / rule.step) * (rule.lowIsGood ? -1 : 1);
+  const who = p.position === 'K' ? 'kicker' : p.position === 'P' ? 'punter' : 'starter';
+  const against = gap >= 2 ? `well above a league-average ${who}` : gap >= 1 ? `above a league-average ${who}` : gap > -1 ? `about what a league-average ${who} does` : gap > -2 ? `below a league-average ${who}` : `well below a league-average ${who}`;
+  return `Last season he ${rule.words(s)}, ${against}.`;
+}
+
 // ───────── scout report ─────────
 
 /** Where an overall would rank in the league: among its starters, or else among its backups. */
@@ -782,6 +913,7 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
           : pick(' in his prime', ' in his best years', ' in the middle of his prime');
   const verdict = `${rough ? `On limited looks, ${lowerFirst(TIERS[now].role)}` : TIERS[now].role} ${pos}${arc}.`;
 
+  const produced = productionNote(league, p);
   const strongest = (t: { a: Attribute }) => pick(`His ${name(t)} ${is(t)} the best of what he has`, `${cap(name(t))} ${is(t)} his strongest suit`, `His ${name(t)} ${is(t)} where he is strongest`);
   const game: string[] = [];
   if (plus.length && minus) game.push(`His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}, but his ${name(minus)} ${many([minus]) ? 'remain' : 'remains'} the main concern.`);
@@ -804,8 +936,9 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   else if (fading && p.age === tech) game.push(pick(`${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold this year; expect the rest to follow next year.`, `The athleticism is going first; ${skills} should hold this year, and from ${tech + 1} on expect a little less each season.`));
   else if (fading) game.push(pick(`${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold up through ${sure} ${tech}.`, `The athleticism is going first; ${skills} should carry him through ${sure} ${tech}.`));
   else if (p.age === tech) game.push(pick('This is the last year of his prime: expect the decline to start next year.', `${cap(skills)} should hold this year; from ${tech + 1} on, expect a little less each season.`));
-  else if (phys < tech && legsMatter && p.age <= phys) game.push(pick(`${cap(legs)} should hold up through ${sure} ${phys}, ${skills} through ${sure} ${tech}.`, `Expect his best years to run through ${sure} ${tech}, with ${legs} the first thing to go, after ${sure} ${phys}.`, `No decline in sight yet: the athleticism should last through ${sure} ${phys}, and ${skills} a while past that, through ${sure} ${tech}.`));
-  else game.push(pick(`Expect his prime to run through ${sure} ${tech}.`, `${cap(skills)} should carry him through ${sure} ${tech}.`, `There are good years left: expect his prime to run through ${sure} ${tech}.`));
+  // In his prime, his body clock is the Development section's business (it says when it turns); the
+  // report has nothing to warn about, so the slot goes to what he did with it.
+  if (produced && game.length < 3) game.push(produced);
 
   const notes: string[] = [];
   // His habits, as far as we know them, in at most two sentences: what has changed this year is news,
