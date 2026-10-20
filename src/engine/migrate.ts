@@ -17,6 +17,8 @@ import { generateStaffWorld, setOwnerBudgets } from './staff';
 import { playoffSummary } from './records';
 import { peopleAtLoad, renamePeople, type PeopleAtLoad } from './rename';
 import { rollScheme } from './schemes';
+import { assignKickoffs, assignPlayoffKickoffs } from './season/kickoff';
+import { PLAYOFF_ROUNDS } from './season/playoffs';
 import { addStats, statSeasons } from './stats';
 import { generateQuirks } from './quirks';
 import { generateTraits } from './traits';
@@ -56,6 +58,7 @@ export function migrateLeague(league: League): League | null {
   if (atLoad) toV27(league, atLoad); // last: the earlier steps seed new fields from the old names
   if (league.version < 28) toV28(league);
   if (league.version < 29) league.version = 29; // v29: optional `protocol` on concussions and `held` on records, nothing to fill in
+  if (league.version < 30) toV30(league);
   return league;
 }
 
@@ -301,6 +304,17 @@ function toV25(league: League): void {
 function toV27(league: League, atLoad: PeopleAtLoad): void {
   renamePeople(league, atLoad);
   league.version = 27;
+}
+
+/** v30: kickoff times. This season's games get their slots; earlier seasons' stay as they were played. */
+function toV30(league: League): void {
+  const season = league.games.filter((g) => g.season === league.season);
+  assignKickoffs(league, season.filter((g) => !g.playoffRound), league.season);
+  for (const round of PLAYOFF_ROUNDS) {
+    const games = season.filter((g) => g.playoffRound === round);
+    if (games.length) assignPlayoffKickoffs(league, games, round);
+  }
+  league.version = 30;
 }
 
 /** v28: treatments. Playing through an injury on injections was a flag; it is now one treatment of three. */

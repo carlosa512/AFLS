@@ -9,6 +9,7 @@
  */
 import { CLIMATE, DEFAULT_ROOF_POLICY, REGIONS, STADIUMS, type ClimateMonth, type Stadium } from './data/stadiums';
 import { clamp, Rng } from './rng';
+import { isPrimeTime } from './season/kickoff';
 import type { Game, League } from './types';
 
 export type Roof = 'dome' | 'closed' | 'open' | 'outdoors';
@@ -83,8 +84,13 @@ export function stadiumFor(league: League, game: Game): Stadium | undefined {
   return change ? { ...s, ...change } : s;
 }
 
-/** Prime time: three games a regular-season week (Thursday, Sunday and Monday nights) and half of each playoff round, picked from the seed. */
+/**
+ * Played after dark: its kickoff (`season/kickoff.ts`: Thursday, Sunday and Monday nights, and the
+ * playoffs' night windows). A game from an older save without one: three a regular-season week and
+ * half of each playoff round, picked from the seed.
+ */
 export function isNight(league: League, game: Game): boolean {
+  if (game.kickoff) return isPrimeTime(game.kickoff);
   const draw = (g: Game) => new Rng(`${league.seed}:${g.season}:${g.id}:slot`).next();
   const week = league.games.filter((g) => g.season === game.season && g.week === game.week).map(draw).sort((a, b) => b - a);
   const slots = game.playoffRound ? Math.ceil(week.length / 2) : 3;

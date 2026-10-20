@@ -10,6 +10,7 @@ import { capSheet } from './finance/cap';
 import { isExpired } from './finance/contract';
 import { activeRoster, teamPlayers } from './roster';
 import { playoffGames } from './season/playoffs';
+import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { computeRecords, conferenceSeeds, divisionStandings, playoffRace, sortTeams } from './season/standings';
 import { teamSeasonStats } from './stats';
 import { ATTRIBUTES, POSITIONS, type GameResult } from './types';
@@ -84,9 +85,33 @@ describe('league generation', () => {
       expect(home === 8 || home === 9).toBe(true);
       const rivals = league.teams.filter((t) => t.division === team.division && t.id !== team.id);
       for (const rival of rivals) {
-        expect(games.filter((g) => g.homeId === rival.id || g.awayId === rival.id)).toHaveLength(2);
+        const twice = games.filter((g) => g.homeId === rival.id || g.awayId === rival.id);
+        expect(twice).toHaveLength(2);
+        // Never back to back: the rematch is at least three weeks on.
+        expect(Math.abs(twice[0].week - twice[1].week)).toBeGreaterThanOrEqual(3);
       }
     }
+    // The last week is all division games.
+    for (const g of league.games.filter((x) => x.week === 18)) expect(league.teams[g.homeId].division).toBe(league.teams[g.awayId].division);
+  });
+
+  it('gives every game a kickoff: a Thursday, Sunday and Monday night game a week, western hosts never at 1:00', () => {
+    for (let week = 1; week <= 17; week++) {
+      const games = league.games.filter((g) => g.week === week);
+      expect(games.filter((g) => g.kickoff!.day === 'thu')).toHaveLength(1);
+      expect(games.filter((g) => g.kickoff!.day === 'mon')).toHaveLength(1);
+      expect(games.filter((g) => g.kickoff!.day === 'sun' && isPrimeTime(g.kickoff!))).toHaveLength(1);
+      // Monday night's teams don't turn around for Thursday.
+      const monday = league.games.filter((g) => g.week === week - 1 && g.kickoff!.day === 'mon').flatMap((g) => [g.homeId, g.awayId]);
+      const thursday = games.find((g) => g.kickoff!.day === 'thu')!;
+      expect(monday).not.toContain(thursday.homeId);
+      expect(monday).not.toContain(thursday.awayId);
+    }
+    for (const g of league.games) {
+      if (['SEA', 'SF', 'LV', 'LAC', 'LAS', 'DEN', 'ARI'].includes(league.teams[g.homeId].abbrev)) expect(g.kickoff).not.toEqual({ day: 'sun', et: 13 * 60 });
+    }
+    expect(kickoffLabel({ day: 'sun', et: 13 * 60 })).toBe('Sun 1:00 PM ET');
+    expect(kickoffLabel({ day: 'mon', et: 20 * 60 + 15 })).toBe('Mon 8:15 PM ET');
   });
 });
 
