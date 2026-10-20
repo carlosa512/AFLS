@@ -402,6 +402,8 @@ export interface Staff {
   focus?: ScoutFocus;
   /** null = on the market. */
   teamId: number | null;
+  /** League years he has sat on the market unhired (counted at each new league year; absent on a staff). Three and he's gone. */
+  idle?: number;
   /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
   contract: { salary: number; through: number } | null;
 }
@@ -455,6 +457,8 @@ export interface Coach {
   scheme?: CoachScheme;
   /** null = on the market. */
   teamId: number | null;
+  /** League years he has sat on the market unhired (counted at each new league year; absent on a staff). Three and he's gone. */
+  idle?: number;
   /** League year he joined his current team (tenure). */
   since?: number;
   /** His last job, for the market ("Head coach, NYX: fired after 3–14"). */
@@ -484,6 +488,8 @@ export interface Medic {
   science: number;
   /** null = on the market. */
   teamId: number | null;
+  /** League years he has sat on the market unhired (counted at each new league year; absent on a staff). Three and he's gone. */
+  idle?: number;
   /** League year he joined his current team (tenure). */
   since?: number;
   lastJob?: string;

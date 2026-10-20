@@ -60,7 +60,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 29) league.version = 29; // v29: optional `protocol` on concussions and `held` on records, nothing to fill in
   if (league.version < 30) toV30(league);
   if (league.version < 31) toV31(league);
-  if (league.version < 32) league.version = 32; // v32: optional `dev` on players (a year of development still landing), nothing to fill in
+  if (league.version < 32) league.version = 32; // v32: optional `dev` on players (a year of development still landing) and `idle` on market coaches, scouts and medics, nothing to fill in
   return league;
 }
 

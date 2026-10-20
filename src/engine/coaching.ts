@@ -30,7 +30,7 @@ import { OVR_WEIGHTS, ROSTER_TEMPLATE } from './positions';
 import { newIdentity } from './identity';
 import { clamp, Rng } from './rng';
 import { BASE_OFFENSE, COVERAGES, FRONTS, OFF_SCHEMES, pressureOf, rollScheme, type CoachScheme, type TeamScheme } from './schemes';
-import { ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
+import { IDLE_MAX, ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
 import type { Attribute, Coach, CoachRole, CoachRoom, CoachStyle, League, Player, Position, Team } from './types';
 import { POSITIONS } from './types';
 
@@ -981,7 +981,10 @@ export function developCoaches(league: League, retirees: readonly Player[] = [])
     // Head coaches and coordinators work into their late 60s; assistants retire a few years sooner.
     const [from, forced, step] = LEADERSHIP.has(c.role) ? [64, 74, 0.1] : [61, 68, 0.15];
     const retires = c.age >= forced || (c.age > from && rng.chance((c.age - from) * step));
-    const drifts = c.teamId === null && rng.chance(DRIFT);
+    // Years unhired, counted at each new league year; three and he's gone whatever the draw says.
+    if (c.teamId === null) c.idle = (c.idle ?? 0) + 1;
+    else delete c.idle;
+    const drifts = c.teamId === null && (rng.chance(DRIFT) || c.idle! >= IDLE_MAX);
     if (retires || drifts) {
       if (retires && c.teamId !== null) logCoach(league, c.teamId, c, `${league.teams[c.teamId].abbrev} ${titleLower(c)} ${coachName(c)} retired`);
       leaveFootball(league, c);
@@ -1077,8 +1080,10 @@ export function hotSeat(rec: { w: number; l: number; t: number }, tenure: number
   if (!games) return 0;
   const pct = (rec.w + 0.5 * rec.t) / games;
   if (tenure < 2) return pct <= 0.15 ? 0.35 : 0;
-  // A winning season (9–8 and up) is always safe.
-  return clamp((0.525 - pct) * 3, 0, 0.85);
+  // A winning season (9–8 and up) is always safe. The slope and ceiling keep a league's firings near the NFL's
+  // (5–10 head coaches a year change hands): any hotter, and the coordinators every new head coach replaces push
+  // their turnover past the league's record year.
+  return clamp((0.525 - pct) * 2.5, 0, 0.75);
 }
 
 /**
