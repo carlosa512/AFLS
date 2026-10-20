@@ -26,10 +26,10 @@
  * week leaves every other stream in the league exactly where it was.
  */
 import { declineOnset } from './aging';
-import { logTransaction } from './finance/cap';
+import { capSpace, logTransaction, paidFraction } from './finance/cap';
 import { lastSeason } from './finance/contract';
 import { conditionBonus, departmentFor, diagnosisSpread, preventionMultiplier, recoveryMultiplier, TYPICAL, type Department } from './medical';
-import { aiCutdown, KEEP_MIN, signMinimum } from './offseason/ai';
+import { aiCapCompliance, aiCutdown, KEEP_MIN, signMinimum } from './offseason/ai';
 import { ROSTER_MAX } from './offseason/negotiation';
 import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
@@ -762,6 +762,9 @@ export function injuryWeek(league: League): void {
     const roster = rosters.get(team.id) ?? [];
     const busy = roster.some((p) => p.injury || p.ir) || roster.length < ROSTER_MAX;
     if (busy && delegates(league, team)) manageInjuries(league, team, ai, roster);
+    // A front office over the cap gets back under before the next game: no team plays a week over it.
+    // (Yours is told to, and can't play on until it has: `offseasonBlockers`.)
+    if (team.id !== league.userTeamId && capSpace(league, team.id) < 0) aiCapCompliance(league, team);
   }
 }
 
@@ -845,8 +848,20 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[]):
     // Room on the roster and nobody short: fill the spot where depth is thinnest against a full roster.
     const pos = short ?? POSITIONS.map((p) => ({ p, gap: (healthy.get(p) ?? 0) - KEEP_MIN[p] })).sort((a, b) => a.gap - b.gap)[0].p;
     if (!open && !cutForRoom(league, team, pos)) return;
-    if (!signMinimum(league, team, rng, pos)) return;
+    // Only a deal that fits under the cap: a team out of room plays short-handed (the lineup borrows a fill-in).
+    if (!signMinimum(league, team, rng, pos, roomForMinimum(league, team))) return;
   }
+}
+
+/**
+ * Cap room for a minimum deal signed now, in full-season terms: a deal signed mid-season only counts the
+ * weeks left (`prospectiveContract`), so the same room covers a bigger annual minimum later in the year.
+ */
+function roomForMinimum(league: League, team: Team): number {
+  const left = 1 - paidFraction(league);
+  const space = capSpace(league, team.id);
+  // In the playoffs every weekly check has been paid: a signing costs nothing this year.
+  return left > 0 ? space / left : space >= 0 ? Infinity : 0;
 }
 
 /** Release the least valuable healthy player at a position with depth to spare. False if nobody can go. */

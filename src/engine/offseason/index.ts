@@ -106,10 +106,14 @@ export function beginOffseason(league: League): void {
   marketMoment(league, 'leagueYear');
 }
 
-/** Problems the user must fix before the calendar can move on. */
+/** Problems the user must fix before the calendar can move on (the season's weeks included). */
 export function offseasonBlockers(league: League): string[] {
   const issues: string[] = [];
   const teamId = league.userTeamId;
+  // A team must be under the cap every week, not just at kickoff.
+  if ((league.phase === 'regular' || league.phase === 'playoffs') && capSpace(league, teamId) < 0) {
+    issues.push(`You're $${(-capSpace(league, teamId) / 1000).toFixed(1)}M over the cap: release, restructure or trade before playing on.`);
+  }
   if (league.phase === 'resign' && capSpace(league, teamId) < 0) issues.push('Get under the cap before free agency opens: release, restructure or trade.');
   if (league.phase === 'preseason') {
     // Injured reserve doesn't count toward the 53.
