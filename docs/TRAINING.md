@@ -25,10 +25,10 @@
   *Offseason program* and *Training camp*, then the existing cut-down day. No day-by-day stepping
   anywhere: a day earns a click only when it holds a decision (free-agency days do, practice days
   don't).
-- **Development moves weekly.** Each player's year is still rolled once (so breakout years and
-  busts survive), but it is *released* in steps through the new league year, camp and the 18
-  weeks, shaped by that week's practice and playing time. Released all at once, it is exactly
-  today's game, so the split is a dial walked away from today one measured step at a time.
+- **Development moves weekly** (built). Each player's year is still rolled once (so breakout years and
+  busts survive), but it is *released* in steps through the new league year, the program, camp and
+  the 18 weeks, shaped by that week's playing time. Released all at once, it is exactly the old
+  game, so the split is a dial walked away from it one measured step at a time.
 - **Position moves are taught, never switched.** You (or the AI) start a plan; the destination
   room's coach teaches it; a learning clock ticks through the program, camp and season; the label
   changes only on cut-down day, once he is ready. Six pairs to start: CB→S, S→LB, LB→S, EDGE→LB,
@@ -195,8 +195,11 @@ yearly step but would make about 15% of ratings jitter ±1 every week.
 5. **True-up.** At the next new league year any unreleased remainder lands, then the next year is
    rolled.
 
-**The split (built):** `RELEASE` in `development.ts`: half at the new league year, a twentieth each
-over the program (as the draft closes) and camp (cut-down day), the rest across the 18 weeks. At
+**The split (built):** `RELEASE` in `development.ts`: three fifths at the new league year, a twentieth
+each over the program (as the draft closes) and camp (cut-down day), the remaining three tenths across
+the 18 weeks. (Half in March was the first try; it put one AI team's dead money at 31% of a low cap
+year in `offseason`'s seeded run, since veterans fading in season get sold at the deadline and their
+bonuses land as next year's dead money. Three fifths keeps every band.) At
 1/0/0/0 the code path is the old one-jump `developPlayer`, nothing is stored and the league is
 identical; the PR shipped there first (green), then moved the dial. A week he played releases a full
 week's share; a week he sat (benched, hurt, unsigned) releases the bench's reps against a starter's
@@ -597,8 +600,8 @@ squad (the real home of bench youngsters' reps).
 
 **Still open:**
 
-1. ~~**Weekly release split**~~ **Decided:** half at the new league year, a twentieth each in the program
-   and camp, the rest in season; playing time decides when a week's share lands, not how much. Stat
+1. ~~**Weekly release split**~~ **Decided:** three fifths at the new league year, a twentieth each in the
+   program and camp, three tenths in season; playing time decides when a week's share lands, not how much. Stat
    lines stay out of development (they come from the ratings). A heavy-snap season adding a little, a
    lost season taking a little, is a later tuning step inside the `careers` bands.
 2. **Pairs:** six to start; add LB→EDGE, TE→OL, RB→WR later behind the economics probe?
