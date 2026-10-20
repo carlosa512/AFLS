@@ -247,6 +247,8 @@ function file(
 
 /** A team at "asking around" about one of your players: is he available? */
 function enquiry(ctx: TradeContext, market: TradeMarket, team: Team, player: Player): TradeOffer | null {
+  // A team says it's interested only if it has a number in mind.
+  if (!bidFor(ctx, team, player)) return null;
   const proposal: TradeProposal = {
     sides: [
       { teamId: team.id, players: [], picks: [] },
@@ -578,23 +580,40 @@ export function declineOffer(league: League, id: number): void {
   nudgeTrust(market, offer.teamId, -0.02);
 }
 
-/** Answer an enquiry: invite a bid now, or say he's not for sale (that team stops asking for six weeks). */
-export function answerEnquiry(league: League, id: number, answer: 'offer' | 'notForSale'): TradeOffer | null {
+/**
+ * Answer an enquiry: invite a bid now (the enquiry is answered, and the bid replies to it), or say he's
+ * not for sale (that team stops asking for six weeks). `message` is the line the enquiry's card keeps.
+ */
+export function answerEnquiry(
+  league: League,
+  id: number,
+  answer: 'offer' | 'notForSale',
+): { offer: TradeOffer | null; message: string } {
   const market = league.market;
   const offer = offerById(league, id);
-  if (!market || !offer || offer.status !== 'pending' || offer.kind !== 'enquiry') return null;
-  offer.status = 'declined';
+  if (!market || !offer || offer.status !== 'pending' || offer.kind !== 'enquiry')
+    return { offer: null, message: 'That call has already been dealt with.' };
   const pid = offer.sides[1].players[0];
   if (answer === 'notForSale') {
+    offer.status = 'declined';
+    offer.outcome = "You told them he's not for sale.";
     talksOf(market, offer.teamId).cooldowns[pid] = {
       until: market.moment + NOT_FOR_SALE_WAIT,
       worth: Number.MAX_SAFE_INTEGER,
     };
-    return null;
+    return { offer: null, message: offer.outcome };
   }
+  offer.status = 'answered';
   const ctx = tradeContext(league);
   const team = league.teams[offer.teamId];
-  return file(ctx, market, team, 'bid', bidFor(ctx, team, league.players[pid]));
+  const bid = file(ctx, market, team, 'bid', bidFor(ctx, team, league.players[pid]));
+  if (bid) {
+    bid.replyTo = offer.id;
+    offer.outcome = `You asked for an offer: the ${team.name} came back with one.`;
+  } else {
+    offer.outcome = `You asked for an offer, but the ${team.name} couldn't make the numbers work.`;
+  }
+  return { offer: bid, message: offer.outcome };
 }
 
 export type CounterResult = {

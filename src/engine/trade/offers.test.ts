@@ -166,9 +166,29 @@ describe('offers to you', () => {
       enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
     }
     if (!enquiry) return;
-    answerEnquiry(l, enquiry.id, 'notForSale');
+    const { offer } = answerEnquiry(l, enquiry.id, 'notForSale');
+    expect(offer).toBeNull();
+    expect(enquiry.status).toBe('declined');
+    expect(enquiry.outcome).toMatch(/not for sale/i);
     const pid = enquiry.sides[1].players[0];
     expect(l.market!.talks[enquiry.teamId].cooldowns[pid].until).toBe(l.market!.moment + 6);
+  });
+
+  it('treats "Make me an offer" as an answer, and the bid replies to the enquiry', () => {
+    const l = fresh();
+    let enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+    for (let w = 0; w < 6 && !enquiry; w++) {
+      playWeek(l);
+      enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+    }
+    if (!enquiry) return;
+    const { offer: bid, message } = answerEnquiry(l, enquiry.id, 'offer');
+    expect(enquiry.status).toBe('answered');
+    expect(enquiry.outcome).toBe(message);
+    if (bid) {
+      expect(bid.replyTo).toBe(enquiry.id);
+      expect(bid.status).toBe('pending');
+    }
   });
 
   it('files a message for each open offer that needs you until it lapses', () => {
