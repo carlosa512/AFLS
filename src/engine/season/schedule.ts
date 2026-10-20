@@ -6,6 +6,8 @@ export const REGULAR_SEASON_WEEKS = 18;
 /** The NFL's bye weeks, 5 through 14: every team has one, two to six teams a week. */
 const BYE_WEEKS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 const BYES_A_WEEK = [2, 6];
+/** Every week of the season as bits (bit w for week w). */
+const ALL_WEEKS = (1 << (REGULAR_SEASON_WEEKS + 1)) - 2;
 
 type Matchup = [home: number, away: number];
 
@@ -102,45 +104,48 @@ export function buildMatchups(league: League, season: number, order: DivisionOrd
 
 /**
  * Find a perfect matching of `teams` using unused matchups. Randomized DFS
- * that always expands the most constrained team first.
+ * that always expands the most constrained team first; `done` can still turn down a full matching.
  */
 function findWeekMatching(
   teams: number[],
-  byTeam: Map<number, number[]>,
+  byTeam: number[][],
   matchups: Matchup[],
   used: boolean[],
   rng: Rng,
   budget: { steps: number },
   allowed: (m: number) => boolean,
   cost: (m: number) => number = () => 0,
+  done: () => boolean = () => true,
 ): number[] | null {
-  const open = new Set(teams);
+  const open = new Uint8Array(byTeam.length);
+  for (const t of teams) open[t] = 1;
+  let left = teams.length;
   const chosen: number[] = [];
 
-  const options = (team: number) =>
-    byTeam.get(team)!.filter((m) => {
-      if (used[m] || !allowed(m)) return false;
-      const [h, a] = matchups[m];
-      return open.has(h === team ? a : h);
-    });
+  const fits = (team: number, m: number) => {
+    const [h, a] = matchups[m];
+    return !used[m] && open[h === team ? a : h] === 1 && allowed(m);
+  };
 
   const solve = (): boolean => {
-    if (open.size === 0) return true;
+    if (left === 0) return done();
     if (--budget.steps < 0) return false;
     let best = -1;
-    let bestOpts: number[] = [];
-    for (const t of open) {
-      const opts = options(t);
-      if (best === -1 || opts.length < bestOpts.length) {
+    let fewest = Infinity;
+    for (const t of teams) {
+      if (!open[t]) continue;
+      let n = 0;
+      for (const m of byTeam[t]) if (fits(t, m)) n++;
+      if (n < fewest) {
         best = t;
-        bestOpts = opts;
-        if (opts.length <= 1) break;
+        fewest = n;
+        if (n <= 1) break;
       }
     }
-    if (bestOpts.length === 0) return false;
+    if (fewest === 0) return false;
     // Cheapest first, then one candidate per opponent (of a division home-and-away, the cheaper).
     const seen = new Set<number>();
-    const ranked = rng.shuffle(bestOpts).map((m) => ({ m, c: cost(m) }));
+    const ranked = rng.shuffle(byTeam[best].filter((m) => fits(best, m))).map((m) => ({ m, c: cost(m) }));
     const candidates = ranked.sort((x, y) => x.c - y.c).map((x) => x.m).filter((m) => {
       const [h, a] = matchups[m];
       const opp = h === best ? a : h;
@@ -151,13 +156,13 @@ function findWeekMatching(
     for (const m of candidates) {
       const [h, a] = matchups[m];
       used[m] = true;
-      open.delete(h);
-      open.delete(a);
+      open[h] = open[a] = 0;
+      left -= 2;
       chosen.push(m);
       if (solve()) return true;
       chosen.pop();
-      open.add(h);
-      open.add(a);
+      open[h] = open[a] = 1;
+      left += 2;
       used[m] = false;
       if (budget.steps < 0) return false;
     }
@@ -168,148 +173,277 @@ function findWeekMatching(
 }
 
 /**
- * Put the season in an order the NFL would sign off on: no two games between the same teams within
- * `REMATCH_GAP` weeks, and no team on a `ROAD_TRIP`. Three moves keep every week a full, valid slate:
- * - swap two weeks whole (bye weeks only with bye weeks, so they keep their byes; week 18 stays put);
- * - swap a division rivalry's two meetings (the same teams play those weeks; only the host changes);
- * - trade a closed chain of games between two weeks (A–B in one, B–C in the other, C–D … back to A):
- *   both weeks stay full slates, with different games in them.
- * Simulated annealing on the count of broken rules; false if it finds no clean season.
+ * A team's road games past the second in a row, from its weeks as bits (bit w for week w): the weeks it
+ * plays and the weeks it plays away. A bye doesn't break a trip, so the road weeks close up over it (the
+ * weeks after it shift down one) before the runs are counted.
  */
-function orderWeeks(league: League, matchups: Matchup[], weekOf: number[], rng: Rng): boolean {
+function roadTrips(plays: number, aways: number): number {
+  const before = (ALL_WEEKS & ~plays) - 1;
+  const road = (aways & before) | ((aways & ~before) >>> 1);
+  let run = road;
+  for (let k = 1; k < ROAD_TRIP; k++) run &= road >>> k;
+  let trips = 0;
+  for (; run; run &= run - 1) trips++;
+  return trips;
+}
+
+/**
+ * Put the season in an order the NFL would sign off on: no two games between the same teams within
+ * `REMATCH_GAP` weeks, and no team on a `ROAD_TRIP`. One move keeps every week a full, valid slate: trade
+ * a closed set of games between two weeks x and y. Take a team's game in x, its opponent's game in y,
+ * that team's game in x… until the chain closes, or ends at a team on bye (which then has its bye in the
+ * other week). The teams in the chain play once in each week, as before. A division rivalry's two
+ * meetings are the shortest chain; every game of both weeks is the two weeks swapped whole.
+ *
+ * Simulated annealing on the count of broken rules, each move aimed at a broken rule most of the time.
+ * A move is scored before it's played, from what it touches (each team's weeks are bits, so a road trip
+ * is a few bit operations), and played only if kept: a few thousand moves take a few milliseconds. When
+ * a round of cooling ends short of a clean season, the next starts warm again from the best season found
+ * so far. (Trying every move that touches a broken rule, or every pair of them, mends a stuck season less
+ * often per millisecond than another round does.) False if it finds none in `budget` moves.
+ */
+function orderWeeks(
+  league: League,
+  matchups: Matchup[],
+  rematch: number[],
+  weekOf: number[],
+  rng: Rng,
+  budget: number,
+): boolean {
   const W = REGULAR_SEASON_WEEKS;
-  const teams = league.teams.map((t) => t.id);
-  // game[t][w]: team t's game in slate w (slates are the weeks as built), or -1 on its bye.
-  const game = new Map<number, number[]>(teams.map((t) => [t, new Array<number>(W + 1).fill(-1)]));
-  const place = (m: number, w: number) => matchups[m].forEach((t) => (game.get(t)![w] = m));
-  matchups.forEach((_, m) => place(m, weekOf[m]));
-  const meetings = new Map<number, number[]>();
-  matchups.forEach(([h, a], m) => {
-    const key = Math.min(h, a) * 1024 + Math.max(h, a);
-    meetings.set(key, [...(meetings.get(key) ?? []), m]);
-  });
-  const rematches = [...meetings.values()].filter((ms) => ms.length === 2);
-  // label[slate] is the week it's played; slateAt is the inverse.
-  const label = Array.from({ length: W + 1 }, (_, w) => w);
-  const slateAt = [...label];
+  const S = W + 1; // a team's row of weeks, 1..W (0 unused)
+  const T = league.teams.length;
+  const G = matchups.length;
+  const home = matchups.map(([h]) => h);
+  const away = matchups.map(([, a]) => a);
+  const division = matchups.map(([h, a]) => league.teams[h].division === league.teams[a].division);
+  // A week's slate: every team in a week without byes, two to six on bye in a bye week.
+  const fits = (w: number, games: number) =>
+    BYE_WEEKS.includes(w)
+      ? games >= (T - BYES_A_WEEK[1]) / 2 && games <= (T - BYES_A_WEEK[0]) / 2
+      : games === T / 2;
+  // The first meeting of each pair that meets twice.
+  const rematches = rematch.flatMap((o, m) => (m < o ? [m] : []));
 
-  // The rules a team breaks: rematches too soon (both teams), and each road game past the second in a row.
-  const teamCost = (t: number) => {
-    let road = 0;
-    let cost = 0;
-    const g = game.get(t)!;
-    for (let week = 1; week <= W; week++) {
-      const m = g[slateAt[week]];
-      if (m < 0) continue;
-      road = matchups[m][0] === t ? 0 : road + 1;
-      if (road >= ROAD_TRIP) cost++;
+  const week = Int8Array.from(weekOf);
+  // at[t * S + w]: team t's game in week w, or -1 on its bye; slate[w]: games in week w; plays and aways:
+  // each team's weeks as bits.
+  const at = new Int16Array(T * S);
+  const slate = new Int8Array(S);
+  const plays = new Int32Array(T);
+  const aways = new Int32Array(T);
+  // The rules each team breaks on the road and each rematch's shortfall from the gap (on both meetings).
+  const road = new Int16Array(T);
+  const short = new Int16Array(G);
+  const shortfall = (gap: number) => Math.max(0, REMATCH_GAP - Math.abs(gap));
+  let cost = 0;
+  // Whether `spots` (below) still lists the broken rules: only a kept move changes them.
+  let spotsFresh = false;
+  const score = () => {
+    at.fill(-1);
+    slate.fill(0);
+    plays.fill(0);
+    aways.fill(0);
+    for (let m = 0; m < G; m++) {
+      at[home[m] * S + week[m]] = at[away[m] * S + week[m]] = m;
+      slate[week[m]]++;
+      plays[home[m]] |= 1 << week[m];
+      plays[away[m]] |= 1 << week[m];
+      aways[away[m]] |= 1 << week[m];
     }
-    return cost;
+    cost = 0;
+    for (let t = 0; t < T; t++) cost += road[t] = roadTrips(plays[t], aways[t]);
+    for (const m of rematches) cost += short[m] = short[rematch[m]] = shortfall(week[m] - week[rematch[m]]);
+    spotsFresh = false;
   };
-  const rematchCost = () => rematches.reduce((n, [x, y]) => n + (Math.abs(label[weekOf[x]] - label[weekOf[y]]) < REMATCH_GAP ? 1 : 0), 0);
-  // Each team's road-trip count, kept current: a move re-scores only the teams it touches.
-  const trips = new Map(teams.map((t) => [t, teamCost(t)]));
-  let tripTotal = [...trips.values()].reduce((a, b) => a + b, 0);
-  const rescore = (ts: Iterable<number>) => {
-    for (const t of ts) {
-      const c = teamCost(t);
-      tripTotal += c - trips.get(t)!;
-      trips.set(t, c);
+  score();
+
+  // The move in hand: its two weeks and the games that trade between them (marked with its stamp).
+  const moved: number[] = [];
+  let mx = 0;
+  let my = 0;
+  const inMove = new Int32Array(G);
+  const seen = new Int32Array(T);
+  let stamp = 0;
+  /** The week game m would be played in after the move in hand. */
+  const to = (m: number) => (inMove[m] !== stamp ? week[m] : week[m] === mx ? my : mx);
+  const begin = (x: number, y: number) => {
+    moved.length = 0;
+    [mx, my] = [x, y];
+    stamp++;
+  };
+  /** The chain through team t between weeks x and y. */
+  const chain = (t: number, x: number, y: number) => {
+    begin(x, y);
+    const queue = [t];
+    seen[t] = stamp;
+    while (queue.length) {
+      const u = queue.pop()!;
+      for (let side = 0; side < 2; side++) {
+        const m = at[u * S + (side ? y : x)];
+        if (m < 0 || inMove[m] === stamp) continue;
+        inMove[m] = stamp;
+        moved.push(m);
+        const v = home[m] === u ? away[m] : home[m];
+        if (seen[v] !== stamp) {
+          seen[v] = stamp;
+          queue.push(v);
+        }
+      }
+    }
+  };
+  /** Weeks x and y swapped whole. */
+  const relabel = (x: number, y: number) => {
+    begin(x, y);
+    for (let m = 0; m < G; m++) {
+      if (week[m] !== x && week[m] !== y) continue;
+      inMove[m] = stamp;
+      moved.push(m);
+    }
+  };
+  /** Whether the move in hand leaves both weeks valid slates, and the last week all division games. */
+  const legal = () => {
+    let into = 0;
+    for (const m of moved) {
+      if (to(m) === W && !division[m]) return false;
+      into += to(m) === mx ? 1 : -1;
+    }
+    return moved.length > 0 && fits(mx, slate[mx] + into) && fits(my, slate[my] - into);
+  };
+
+  // What the move in hand would change: each touched team's weeks (bits to toggle), then [team, its new
+  // count] and [game, its rematch's new shortfall].
+  const togglePlays = new Int32Array(T);
+  const toggleAways = new Int32Array(T);
+  const scored = new Int32Array(T);
+  const touched: number[] = [];
+  const newRoad: number[] = [];
+  const newShort: number[] = [];
+  /** The change in broken rules the move in hand would make. */
+  const delta = () => {
+    touched.length = newRoad.length = newShort.length = 0;
+    let d = 0;
+    const bits = (1 << mx) | (1 << my);
+    for (const m of moved) {
+      for (let side = 0; side < 2; side++) {
+        const t = side ? away[m] : home[m];
+        if (scored[t] !== stamp) {
+          scored[t] = stamp;
+          togglePlays[t] = toggleAways[t] = 0;
+          touched.push(t);
+        }
+        togglePlays[t] ^= bits;
+      }
+      toggleAways[away[m]] ^= bits;
+      const o = rematch[m];
+      if (o >= 0 && (o > m || inMove[o] !== stamp)) {
+        const c = shortfall(to(m) - to(o));
+        d += c - short[m];
+        newShort.push(m, c);
+      }
+    }
+    for (const t of touched) {
+      const c = roadTrips(plays[t] ^ togglePlays[t], aways[t] ^ toggleAways[t]);
+      d += c - road[t];
+      newRoad.push(t, c);
+    }
+    return d;
+  };
+  /** Play the move in hand, as scored by `delta`. */
+  const play = (d: number) => {
+    for (const m of moved) at[home[m] * S + week[m]] = at[away[m] * S + week[m]] = -1;
+    for (const m of moved) {
+      const w = to(m);
+      slate[week[m]]--;
+      slate[w]++;
+      week[m] = w;
+      at[home[m] * S + w] = at[away[m] * S + w] = m;
+    }
+    for (const t of touched) {
+      plays[t] ^= togglePlays[t];
+      aways[t] ^= toggleAways[t];
+    }
+    for (let i = 0; i < newRoad.length; i += 2) road[newRoad[i]] = newRoad[i + 1];
+    for (let i = 0; i < newShort.length; i += 2) short[newShort[i]] = short[rematch[newShort[i]]] = newShort[i + 1];
+    cost += d;
+    spotsFresh = false;
+  };
+
+  /** The broken rules, as (team, week) spots: each game of a trip's last three, both meetings of a rematch too soon. */
+  const spots: number[] = [];
+  const findSpots = () => {
+    if (spotsFresh) return;
+    spotsFresh = true;
+    spots.length = 0;
+    for (let t = 0; t < T; t++) {
+      if (!road[t]) continue;
+      let a = 0;
+      let b = 0;
+      let run = 0;
+      for (let w = 1; w <= W; w++) {
+        const m = at[t * S + w];
+        if (m < 0) continue;
+        if (away[m] !== t) run = 0;
+        else if (++run >= ROAD_TRIP) spots.push(t * S + a, t * S + b, t * S + w);
+        a = b;
+        b = w;
+      }
+    }
+    for (const m of rematches) if (short[m]) spots.push(home[m] * S + week[m], home[m] * S + week[rematch[m]]);
+  };
+  /**
+   * A move aimed at a broken rule (or, now and then, anywhere): a chain from it, or its week swapped
+   * whole. Aimed, it goes to a week that would mend the rule if it can: a rematch to a week clear of the
+   * other meeting, a road game to a week the team is home (or off).
+   */
+  const randomMove = (aim: boolean) => {
+    if (aim) findSpots();
+    const spot = aim && spots.length ? rng.pick(spots) : rng.int(0, T - 1) * S + rng.int(1, W);
+    const t = Math.floor(spot / S);
+    const x = spot % S;
+    const m = at[spot];
+    const mends = (y: number) => {
+      if (!aim || m < 0) return true;
+      if (short[m]) return Math.abs(y - week[rematch[m]]) >= REMATCH_GAP;
+      const there = at[t * S + y];
+      return away[m] !== t || there < 0 || away[there] !== t;
+    };
+    let y = rng.int(1, W);
+    for (let tries = 0; tries < 8 && (y === x || !mends(y)); tries++) y = rng.int(1, W);
+    if (y === x) return false;
+    if (rng.chance(0.08)) relabel(x, y);
+    else chain(t, x, y);
+    return legal();
+  };
+
+  const best = Int8Array.from(week);
+  let bestCost = cost;
+  /** Anneal for `steps` moves, cooling from `hot` to near zero. */
+  const anneal = (steps: number, hot: number) => {
+    for (let step = 0; step < steps && cost > 0; step++) {
+      budget--;
+      if (!randomMove(rng.chance(0.8))) continue;
+      const heat = hot * (1 - step / steps) + 0.05;
+      const d = delta();
+      if (d > 0 && rng.next() >= Math.exp(-d / heat)) continue;
+      play(d);
+      if (cost < bestCost) {
+        best.set(week);
+        bestCost = cost;
+      }
     }
   };
 
-  const groups = [BYE_WEEKS, Array.from({ length: W - 1 }, (_, i) => i + 1).filter((w) => !BYE_WEEKS.includes(w))];
-  const groupOf = (w: number) => groups.find((g) => g.includes(w))!;
-  const relabel = (a: number, b: number) => {
-    [label[a], label[b]] = [label[b], label[a]];
-    slateAt[label[a]] = a;
-    slateAt[label[b]] = b;
-  };
-  const move = (m: number, w: number) => {
-    matchups[m].forEach((t) => game.get(t)![weekOf[m]] === m && (game.get(t)![weekOf[m]] = -1));
-    weekOf[m] = w;
-    place(m, w);
-  };
-  /** The chain through team `t` between slates x and y, or null if it reaches a bye or is the whole week. */
-  const chain = (t: number, x: number, y: number): number[] | null => {
-    const out: number[] = [];
-    let team = t;
-    for (let side = 0; ; side ^= 1) {
-      const m = game.get(team)![side ? y : x];
-      if (m < 0) return null;
-      out.push(m);
-      const [h, a] = matchups[m];
-      team = h === team ? a : h;
-      if (team === t && side === 1) return out.length < teams.length ? out : null;
+  anneal(3000, 0.5);
+  while (cost > 0 && budget > 0) {
+    if (bestCost < cost) {
+      week.set(best);
+      score();
     }
-  };
-
-  /** A broken rule to aim at: a team on a road trip and the slate of its third game, or a rematch too soon. */
-  const target = (): { team: number; slate: number } | null => {
-    const soon = rematches.filter(([x, y]) => Math.abs(label[weekOf[x]] - label[weekOf[y]]) < REMATCH_GAP);
-    const tripping = teams.filter((t) => trips.get(t)! > 0);
-    if (!soon.length && !tripping.length) return null;
-    if (rng.next() * (soon.length + tripping.length) < soon.length) {
-      const m = rng.pick(rng.pick(soon));
-      return { team: rng.pick(matchups[m]), slate: weekOf[m] };
-    }
-    const t = rng.pick(tripping);
-    const g = game.get(t)!;
-    let road = 0;
-    for (let week = 1; week <= W; week++) {
-      const m = g[slateAt[week]];
-      if (m < 0) continue;
-      road = matchups[m][0] === t ? 0 : road + 1;
-      if (road >= ROAD_TRIP) return { team: t, slate: slateAt[week] };
-    }
-    return null;
-  };
-  let now = rematchCost() + tripTotal;
-  // Rounds of cooling from where the last left off: a season a rule or two short is closer than a fresh one.
-  const STEPS = 20_000;
-  for (let step = 0; now > 0 && step < STEPS; step++) {
-    const heat = 1.5 * (1 - (step % STEPS) / STEPS) + 0.05;
-    let undo: () => void;
-    let touched: Iterable<number>;
-    // Most moves go at a rule that is broken: that team, that week. The rest wander.
-    const aim = rng.chance(0.6) ? target() : null;
-    const r = rng.next();
-    if (r < 0.3) {
-      const w = aim && aim.slate !== W ? aim.slate : rng.int(1, W - 1);
-      const other = rng.pick(groupOf(w).filter((x) => x !== w));
-      relabel(w, other);
-      undo = () => relabel(w, other);
-      touched = teams;
-    } else if (r < 0.5) {
-      const own = aim ? rematches.filter(([m]) => matchups[m].includes(aim.team)) : [];
-      const [x, y] = rng.pick(own.length ? own : rematches);
-      const [wx, wy] = [weekOf[x], weekOf[y]];
-      move(x, wy);
-      move(y, wx);
-      undo = () => {
-        move(x, wx);
-        move(y, wy);
-      };
-      touched = matchups[x];
-    } else {
-      const x = aim && aim.slate !== W ? aim.slate : rng.int(1, W - 1);
-      const y = rng.int(1, W - 1);
-      const ms = x === y ? null : chain(aim?.team ?? rng.pick(teams), x, y);
-      if (!ms) continue;
-      for (const m of ms) move(m, weekOf[m] === x ? y : x);
-      undo = () => ms.forEach((m) => move(m, weekOf[m] === x ? y : x));
-      touched = new Set(ms.flatMap((m) => matchups[m]));
-    }
-    rescore(touched);
-    const next = rematchCost() + tripTotal;
-    if (next <= now || rng.chance(Math.exp((now - next) / heat))) now = next;
-    else {
-      undo();
-      rescore(touched);
-    }
+    anneal(1500, 0.6);
   }
-  if (now > 0) return false;
-  weekOf.forEach((w, m) => (weekOf[m] = label[w]));
+  if (cost > 0) return false;
+  week.forEach((w, m) => (weekOf[m] = w));
   return true;
 }
 
@@ -329,59 +463,104 @@ export function generateSchedule(league: League, rng: Rng, order?: DivisionOrder
   const season = league.season;
   const matchups = buildMatchups(league, season, order ?? defaultDivisionOrder(league));
   const teamIds = league.teams.map((t) => t.id);
-  const byTeam = new Map<number, number[]>(teamIds.map((t) => [t, []]));
+  const byTeam = teamIds.map((): number[] => []);
   matchups.forEach(([h, a], i) => {
-    byTeam.get(h)!.push(i);
-    byTeam.get(a)!.push(i);
+    byTeam[h].push(i);
+    byTeam[a].push(i);
   });
 
   const division = (m: number) => league.teams[matchups[m][0]].division === league.teams[matchups[m][1]].division;
-  // The same two teams, whichever hosts.
-  const pair = (m: number) => Math.min(...matchups[m]) * 1024 + Math.max(...matchups[m]);
+  // The other meeting of the same two teams (whichever hosts), if they meet twice.
+  const meetings = new Map<number, number[]>();
+  const pair = ([h, a]: Matchup) => Math.min(h, a) * 1024 + Math.max(h, a);
+  matchups.forEach((g, m) => meetings.set(pair(g), [...(meetings.get(pair(g)) ?? []), m]));
+  const rematch = matchups.map((g, m) => meetings.get(pair(g))!.find((o) => o !== m) ?? -1);
   // The last week is all division games, as in the NFL, so it's filled first; then the rest in order.
   const weeks = [REGULAR_SEASON_WEEKS, ...Array.from({ length: REGULAR_SEASON_WEEKS - 1 }, (_, i) => i + 1)];
 
   for (let attempt = 0; attempt < 1000; attempt++) {
-    const byeOf = new Map<number, number>();
+    const byeOf: number[] = [];
     const sitting = byeCounts(league, rng).flatMap((n, i) => Array<number>(n).fill(BYE_WEEKS[i]));
-    rng.shuffle([...teamIds]).forEach((t, i) => byeOf.set(t, sitting[i]));
+    rng.shuffle([...teamIds]).forEach((t, i) => (byeOf[t] = sitting[i]));
 
     const used = new Array<boolean>(matchups.length).fill(false);
     const weekOf = new Array<number>(matchups.length).fill(0);
-    // Each team's road weeks, and the weeks each pair has met, as the weeks fill.
-    const away = new Map<number, boolean[]>(teamIds.map((t) => [t, []]));
-    const met = new Map<number, number[]>();
-    let ok = true;
-    for (const week of weeks) {
-      if (!ok) break;
-      const playing = teamIds.filter((t) => byeOf.get(t) !== week);
+    // Each team's road weeks, as the weeks fill.
+    const away = teamIds.map((): boolean[] => []);
+    const fill = (week: number, ms: number[]) => {
+      for (const m of ms) {
+        used[m] = true;
+        weekOf[m] = week;
+        away[matchups[m][1]][week] = true;
+      }
+    };
+    const empty = (week: number) =>
+      weekOf.forEach((w, m) => {
+        if (w !== week) return;
+        used[m] = false;
+        weekOf[m] = 0;
+        away[matchups[m][1]][week] = false;
+      });
+    /**
+     * Whether the games left, two a team, split into two full weeks: they make cycles (A at B, B at C, …
+     * back to A), and each cycle splits into alternate weeks only if it is even.
+     */
+    const splits = () => {
+      const left = teamIds.map((): number[] => []);
+      matchups.forEach(([h, a], m) => {
+        if (used[m]) return;
+        left[h].push(m);
+        left[a].push(m);
+      });
+      const seen = new Set<number>();
+      for (const [first] of left) {
+        if (first === undefined || seen.has(first)) continue;
+        let length = 0;
+        let team = matchups[first][0];
+        for (let m = first; length === 0 || m !== first; length++) {
+          seen.add(m);
+          team = matchups[m][0] === team ? matchups[m][1] : matchups[m][0];
+          m = left[team].find((o) => o !== m)!;
+        }
+        if (length % 2) return false;
+      }
+      return true;
+    };
+    // A week that can't be filled (most often the last few, when the games left no longer pair off) sends
+    // the build back to fill the week before another way.
+    let filled = 0;
+    for (let retries = 0; filled < weeks.length && retries <= 20; ) {
+      const week = weeks[filled];
+      const playing = teamIds.filter((t) => byeOf[t] !== week);
       // The rules a game would break here: a rematch too soon, a third road game in a row (the weeks
       // before, a bye not breaking a trip, and week 18 after 17).
       const cost = (m: number) => {
-        const soon = (met.get(pair(m)) ?? []).some((w) => Math.abs(w - week) < REMATCH_GAP) ? 1 : 0;
+        const o = rematch[m];
+        const soon = o >= 0 && weekOf[o] && Math.abs(weekOf[o] - week) < REMATCH_GAP ? 1 : 0;
         const a = matchups[m][1];
-        let trip = 1 + (week === REGULAR_SEASON_WEEKS - 1 && away.get(a)![REGULAR_SEASON_WEEKS] ? 1 : 0);
+        let trip = 1 + (week === REGULAR_SEASON_WEEKS - 1 && away[a][REGULAR_SEASON_WEEKS] ? 1 : 0);
         for (let w = week - 1; w >= 1 && trip < ROAD_TRIP; w--) {
-          if (byeOf.get(a) === w) continue;
-          if (!away.get(a)![w]) break;
+          if (byeOf[a] === w) continue;
+          if (!away[a][w]) break;
           trip++;
         }
         return soon + (trip >= ROAD_TRIP ? 1 : 0);
       };
       const legal = (m: number) => week !== REGULAR_SEASON_WEEKS || division(m);
-      // A clean week if there is one; otherwise the one that breaks the fewest rules, for `orderWeeks` to mend.
-      const matching =
-        findWeekMatching(playing, byTeam, matchups, used, rng, { steps: 1500 }, (m) => legal(m) && cost(m) === 0) ??
-        findWeekMatching(playing, byTeam, matchups, used, rng, { steps: 4000 }, legal, cost);
-      if (!matching) ok = false;
-      else
-        for (const m of matching) {
-          weekOf[m] = week;
-          away.get(matchups[m][1])![week] = true;
-          met.set(pair(m), [...(met.get(pair(m)) ?? []), week]);
-        }
+      // The week that breaks the fewest rules it can find, for `orderWeeks` to mend. With two weeks to go
+      // after it, only a week that leaves games that still split into two.
+      const last = filled === weeks.length - 3;
+      const done = () => !last || splits();
+      const matching = findWeekMatching(playing, byTeam, matchups, used, rng, { steps: 4000 }, legal, cost, done);
+      if (matching) {
+        fill(week, matching);
+        filled++;
+      } else if (filled > 0) {
+        empty(weeks[--filled]);
+        retries++;
+      } else break;
     }
-    if (!ok || !orderWeeks(league, matchups, weekOf, rng)) continue;
+    if (filled < weeks.length || !orderWeeks(league, matchups, rematch, weekOf, rng, 40_000)) continue;
 
     const games: Game[] = matchups.map(([homeId, awayId], i) => ({
       id: 0,
