@@ -4,8 +4,9 @@ import { deliverMail, mailForOffer, offerMailId, threads } from '../engine/inbox
 import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
+import { talksOf } from '../engine/trade/talks';
 import type { League, TradeOffer } from '../engine/types';
-import { OfferCard } from './offers';
+import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
 import { aboutOf, Folded } from './screens/Inbox';
 import { MailCards } from './mail';
@@ -20,6 +21,7 @@ function withEnquiry(seed = SEEDS[0]): { league: League; enquiry: TradeOffer } {
     if (enquiry) return { league, enquiry };
     playWeek(league);
   }
+  if (SEEDS.indexOf(seed) + 1 >= SEEDS.length) throw new Error('no seed in SEEDS had an enquiry by week 9');
   return withEnquiry(SEEDS[SEEDS.indexOf(seed) + 1]);
 }
 
@@ -45,6 +47,17 @@ describe('the offer card', () => {
     expect(card(league, bid)).not.toMatch(/see their offer/i);
     // The button opens the bid's message, filed in the enquiry's thread.
     expect(offerMailId(league, bid)).toBe(`offer:${bid.season}:${bid.id}:${enquiry.id}`);
+  });
+
+  it('reads a bid that could not be made as answered, never as turned down', () => {
+    const { league, enquiry } = withEnquiry();
+    // Talks are off with this team this moment, so no bid can be filed.
+    talksOf(league.market!, enquiry.teamId).offUntil = league.market!.moment;
+    const { offer } = answerEnquiry(league, enquiry.id, 'offer');
+    expect(offer).toBeNull();
+    const html = card(league, enquiry);
+    expect(html).toMatch(/couldn(&#x27;|')t make the numbers work/);
+    expect(html).not.toMatch(/declined|turned it down/i);
   });
 
   it('words a closed offer from an old save that never kept an outcome', () => {
@@ -89,8 +102,27 @@ function withFiledOffer(want: (o: TradeOffer) => boolean, seed = SEEDS[0]): { le
     if (offer) return { league, offer };
     playWeek(league);
   }
+  if (SEEDS.indexOf(seed) + 1 >= SEEDS.length) throw new Error('no seed in SEEDS had a matching filed offer by week 9');
   return withFiledOffer(want, SEEDS[SEEDS.indexOf(seed) + 1]);
 }
+
+describe('the note under an offer', () => {
+  it('is neutral when an accept only asks for something more, red only for a real refusal', () => {
+    expect(noteTone({ ok: true })).toBe('good');
+    expect(noteTone({ ok: false })).toBe('bad');
+    expect(noteTone({ ok: false, release: [] })).toBe('note');
+    expect(noteTone({ ok: false, exam: true })).toBe('note');
+  });
+
+  it('is not repeated when the card already shows the same line as the outcome', () => {
+    const offer = { outcome: 'You turned it down.' } as TradeOffer;
+    expect(showNote('You turned it down.', offer)).toBe(false);
+    expect(showNote('Something else.', offer)).toBe(true);
+    expect(showNote(null, offer)).toBe(false);
+    expect(showNote('', offer)).toBe(false);
+    expect(showNote('Anything.', { ...offer, outcome: undefined })).toBe(true);
+  });
+});
 
 describe('offer mail', () => {
   it('still reads after the offer is pruned from the market', () => {

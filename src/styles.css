@@ -1877,6 +1877,10 @@ tr.void-year td {
   background: color-mix(in srgb, var(--loss) 12%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--loss) 40%, transparent);
 }
+.callout-note {
+  background: color-mix(in srgb, var(--accent, var(--ink)) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent, var(--ink)) 25%, transparent);
+}
 .callout-good {
   background: color-mix(in srgb, var(--win) 10%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--win) 35%, transparent);

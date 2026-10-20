@@ -89,7 +89,7 @@ export function ExamPanel({ league }: { league: League }) {
   const exam = league.market?.exam;
   if (!exam)
     return note ? (
-      <p className="callout" role="status">
+      <p className="callout callout-note" role="status">
         {note}
       </p>
     ) : null;
@@ -130,7 +130,7 @@ export function ExamPanel({ league }: { league: League }) {
         </div>
       </div>
       {note && (
-        <p className="callout" role="status">
+        <p className="callout callout-note" role="status">
           {note}
         </p>
       )}
@@ -173,6 +173,15 @@ const FALLBACK: Record<Exclude<TradeOffer['status'], 'pending'>, string> = {
   answered: 'You answered.',
 };
 
+/** How a note under an offer reads: a prompt that asks for more (who to release, the physical) is neither a yes nor a refusal. */
+export function noteTone(result: { ok: boolean; release?: unknown; exam?: boolean }): 'good' | 'bad' | 'note' {
+  if (result.ok) return 'good';
+  return result.release || result.exam ? 'note' : 'bad';
+}
+
+/** The note shows only when it says something the card's title doesn't already (the outcome, once you've acted). */
+export const showNote = (note: string | null, offer: TradeOffer): note is string => !!note && note !== offer.outcome;
+
 /** When an offer lapses, in words. */
 const lapse = (league: League) =>
   league.phase === 'regular' ? `Open until you play week ${league.week}.` : 'Open until your next step.';
@@ -191,7 +200,7 @@ export function OfferCard({
 }) {
   const nav = useNav();
   const [note, setNote] = useState<string | null>(null);
-  const [ok, setOk] = useState(true);
+  const [tone, setTone] = useState<'good' | 'bad' | 'note'>('good');
   const [release, setRelease] = useState<number[] | null>(null);
   const team = league.teams[offer.teamId];
   const { subject, body } = offerWords(league, offer);
@@ -201,12 +210,17 @@ export function OfferCard({
   const reply = replyOf(league, offer);
 
   const accept = (ids: number[] = []) => {
-    let result = { ok: false, message: '', release: undefined as Player[] | undefined };
+    let result = {
+      ok: false,
+      message: '',
+      release: undefined as Player[] | undefined,
+      exam: undefined as boolean | undefined,
+    };
     store.mutate((l) => {
-      result = { release: undefined, ...acceptOffer(l, offer.id, ids) };
+      result = { release: undefined, exam: undefined, ...acceptOffer(l, offer.id, ids) };
     });
     setNote(result.message);
-    setOk(result.ok);
+    setTone(noteTone(result));
     setRelease(result.release ? result.release.map((p) => p.id) : null);
     if (result.ok) onDone?.(result.message);
   };
@@ -227,7 +241,7 @@ export function OfferCard({
       result = answerEnquiry(l, offer.id, choice);
     });
     setNote(result.message);
-    setOk(choice === 'notForSale' || result.offer !== null);
+    setTone(choice === 'notForSale' || result.offer !== null ? 'good' : 'bad');
   };
 
   const when = (
@@ -301,8 +315,8 @@ export function OfferCard({
           </button>
         </div>
       )}
-      {note && (
-        <p className={`callout ${ok ? 'callout-good' : 'callout-bad'}`} role="status">
+      {showNote(note, offer) && (
+        <p className={`callout callout-${tone}`} role="status">
           {note}
         </p>
       )}
