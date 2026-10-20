@@ -174,31 +174,36 @@ describe('special teams', () => {
   });
 
   it('flags field goals and extra points, and counts only the kicks that stand', () => {
-    const league = createLeague({ seed: 'kick-flags' });
     const seen = new Set<string>();
     let held = 0;
-    for (const g of league.games.filter((g) => g.week <= 12)) {
-      const r = simulateGame(league, g, { keepPlays: true });
-      const plays = r.plays!;
-      let tries = 0;
-      plays.forEach((p, i) => {
-        if (/extra point is (GOOD|NO GOOD)\.$/.test(p.text)) tries++;
-        const m = p.text.match(
-          /(?:field goal is (?:good|no good)|Field goal try|extra point is (?:good|no good))\. PENALTY on \w+ \([^)]*\): ([^,]+),/,
-        );
-        if (m) seen.add(m[1]);
-        // A hold on a good kick: the defense takes the points off the board and the kick goes again, 10 yards back.
-        if (/field goal is good\. PENALTY on \w+ \([^)]*\): Offensive holding, 10 yards/.test(p.text)) {
-          const next = plays.slice(i + 1).find((q) => q.down > 0);
-          if (next && next.offense === p.offense && next.quarter === p.quarter) {
-            expect(next.yardLine).toBe(p.yardLine - 10);
-            held++;
+    // A hold on a good kick is about one field goal in 300, so one league's first twelve weeks may not have a
+    // single one (a seed's world shifts with every change to how a league is generated): play fresh leagues,
+    // all from fixed seeds, until one does. Every game played is checked either way.
+    for (let world = 0; world < 6 && held === 0; world++) {
+      const league = createLeague({ seed: `kick-flags-${world}` });
+      for (const g of league.games.filter((g) => g.week <= 12)) {
+        const r = simulateGame(league, g, { keepPlays: true });
+        const plays = r.plays!;
+        let tries = 0;
+        plays.forEach((p, i) => {
+          if (/extra point is (GOOD|NO GOOD)\.$/.test(p.text)) tries++;
+          const m = p.text.match(
+            /(?:field goal is (?:good|no good)|Field goal try|extra point is (?:good|no good))\. PENALTY on \w+ \([^)]*\): ([^,]+),/,
+          );
+          if (m) seen.add(m[1]);
+          // A hold on a good kick: the defense takes the points off the board and the kick goes again, 10 yards back.
+          if (/field goal is good\. PENALTY on \w+ \([^)]*\): Offensive holding, 10 yards/.test(p.text)) {
+            const next = plays.slice(i + 1).find((q) => q.down > 0);
+            if (next && next.offense === p.offense && next.quarter === p.quarter) {
+              expect(next.yardLine).toBe(p.yardLine - 10);
+              held++;
+            }
           }
-        }
-      });
-      // One attempt in the box score per try that stood, however many flags came before it.
-      const attempts = Object.values(r.playerStats).reduce((n, line) => n + (line.xpAtt ?? 0), 0);
-      expect(attempts).toBe(tries);
+        });
+        // One attempt in the box score per try that stood, however many flags came before it.
+        const attempts = Object.values(r.playerStats).reduce((n, line) => n + (line.xpAtt ?? 0), 0);
+        expect(attempts).toBe(tries);
+      }
     }
     for (const label of ['False start', 'Offensive holding']) expect(seen.has(label)).toBe(true);
     expect(held).toBeGreaterThan(0);
