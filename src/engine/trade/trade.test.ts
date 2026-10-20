@@ -99,13 +99,15 @@ describe('AI trade evaluation', () => {
 
   it('charges more for each first-round pick past the second it sends, instead of refusing outright', () => {
     const l = fresh();
+    l.teams[AI].gm = { ...l.teams[AI].gm, winNow: 0.5 };
     const ctx = tradeContext(l);
     const firsts = picksOf(l, AI, 1).slice(0, 3);
     expect(firsts).toHaveLength(3);
     const values = firsts.map((p) => pickValue(l, p, l.teams[AI].gm, ctx)).sort((a, b) => b - a);
     const give = (n: number) => judge(ctx, AI, { sides: [{ teamId: USER, players: [], picks: [] }, { teamId: AI, players: [], picks: firsts.slice(0, n).map((p) => p.id) }] }).give;
     expect(give(3)).toBeGreaterThan(give(2));
-    expect(give(3)).toBeCloseTo(values[0] + values[1] + values[2] * 1.4);
+    // All three leave it without a first in back-to-back drafts (+0.3 each), and the third is past the second (+0.4).
+    expect(give(3)).toBeCloseTo(values[0] * 1.3 + values[1] * 1.3 + values[2] * 1.7);
   });
 
   it('moves a star only for a first-round pick or a front-line player', () => {

@@ -201,7 +201,7 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
     `value.ts`, with the league's going rate for a pick (`goingRate`); the window, deadline day and
     blockers in `rules.ts`, with the hidden wait on new signings (each GM's own, never shown); `judge`
     in `judge.ts`, the one evaluator every deal goes through (seller floors at the going rate, soft
-    first-round pricing, a centrepiece for a star, division rivals; `releasing` weighs a deal against
+    first-round pricing by the drafts a team is left without a first, scaled by the GM's win-now, a centrepiece for a star, division rivals; `releasing` weighs a deal against
     a cut); `executeTrade` (retained salary as the sender's dead money, the AI buyer's trade-and-extend
     on arrival, `willExtend` priced in by the buyer only); each front
     office's stance, needs, trade block and interest in `plans.ts` (on its own read); the deal search
