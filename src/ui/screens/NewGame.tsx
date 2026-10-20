@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+// Only the version string is bundled: Vite tree-shakes named imports from JSON.
+import { version } from '../../../package.json';
 import { createLeague } from '../../engine/generate';
 import { teamRatings } from '../../engine/roster';
 import { ownerBudgetNote } from '../../engine/staff';
@@ -29,7 +31,7 @@ export function NewGame() {
       <main className="wrap" style={{ paddingBlock: '8px 32px', display: 'grid', gap: 24 }}>
         <div className="title-block">
           <span className="eyebrow">
-            {preview.name} · {preview.season} season
+            {preview.name} · {preview.season} season · v{version}
           </span>
           <h1>
             Take over a <em>franchise.</em>
