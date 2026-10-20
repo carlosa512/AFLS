@@ -222,7 +222,11 @@ what the league would pay. Two uses:
   53 comfortably.
 - An AI's own first-round picks get dearer past the second it gives: ×(1 + extra / 2.5), ZenGM's 2025
   rule, counting the drafts it already has no first in: the third first is dear whether it goes in one
-  deal or three. A first past next year's draft never counts for less than its going rate to the GM
+  deal or three. A first that leaves it without one in back-to-back drafts adds +0.3. Both scale with
+  the GM's appetite (1.5 − winNow): an All-In GM pays about half and can still mortgage the future
+  (the Rams went seven drafts without a first), a Pick Hoarder balks sooner. No rule stops it, for the
+  AI or for you: one All-In GM had sold four straight firsts when pricing looked at each deal alone. A
+  first past next year's draft never counts for less than its going rate to the GM
   sending it, so a GM who barely values the future can't spend firsts three drafts out as free money.
   Later rounds keep his own discount (next year's pick for this year's, a 7th before the cut). This replaces the `MAX_AI_PICKS` hard stop; the "won't send more than two picks" message
   becomes a price.
@@ -520,9 +524,6 @@ pick. Target: under 3 ms a pick.
 - **Windows:** the new league year (`resign`) through the deadline day after week 9; closed in the
   playoffs and the `complete` gap.
 - **Picks:** current draft + 3 ahead, unused, owned by the side (as today).
-- **No back-to-back drafts without a first** (the NBA's Stepien rule, `firstsProblem`): no trade may
-  leave a team, yours included, without a first-round pick in two drafts running. One All-In GM had
-  sold four straight firsts, one deal at a time; pricing each deal alone never stopped it.
 - **Cap:** both sides under the cap after the trade, with the top-51 rule in the offseason (as today).
   The AI also requires that a multi-year incoming salary fit next year's books
   (`capFor(next) × 0.92`, the free-agency rule).
