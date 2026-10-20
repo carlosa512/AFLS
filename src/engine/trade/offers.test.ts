@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../generate';
-import { playWeek } from '../league';
+import { playWeek, simToEndOfSeason } from '../league';
+import { advanceOffseason, beginOffseason } from '../offseason';
 import { deliverMail, needsYou, offerMailId } from '../inbox';
 import { migrateLeague } from '../migrate';
 import { rosterLimit } from '../offseason/negotiation';
@@ -24,6 +25,7 @@ import {
 } from '.';
 import { bidFor, recheckOffers } from './offers';
 import type { TradeProposal } from './rules';
+import { talksOf } from './talks';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 let base = '';
@@ -54,7 +56,8 @@ describe('offers to you', () => {
 
   it('never shows you an offer its own team would already refuse', () => {
     let shown = 0;
-    for (const seed of ['trades-0', 'trades-1', 'trades-2']) {
+    // trades-4 files a camp bid that its own team refuses by week 1 without the recheck.
+    for (const seed of ['trades-4']) {
       const l = createLeague({ seed });
       for (let w = 0; w < 9; w++) {
         playWeek(l);
@@ -308,6 +311,52 @@ describe('offers to you', () => {
       expect(bid.status).toBe('pending');
     }
   });
+
+  it('treats an enquiry whose team has no number as answered, not turned down', () => {
+    const l = fresh();
+    let enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+    for (let w = 0; w < 12 && !enquiry; w++) {
+      playWeek(l);
+      enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+    }
+    expect(enquiry, 'an enquiry on the desk').toBeDefined();
+    // Talks are off with this team this moment, so no bid can be filed.
+    talksOf(l.market!, enquiry!.teamId).offUntil = l.market!.moment;
+    const { offer } = answerEnquiry(l, enquiry!.id, 'offer');
+    expect(offer).toBeNull();
+    expect(enquiry!.status).toBe('answered');
+    expect(enquiry!.outcome).toMatch(/couldn't make the numbers work/);
+  });
+
+  it('never leaves a camp offer its own team would refuse by the time you can accept it', () => {
+    let seen = 0;
+    // trades-4 files a camp bid that its own team refuses by week 1 without the recheck.
+    for (const seed of ['trades-4']) {
+      const l = createLeague({ seed });
+      simToEndOfSeason(l);
+      beginOffseason(l);
+      while (l.phase !== 'regular') {
+        const before = l.market?.offers.length ?? 0;
+        advanceOffseason(l, { autoUser: true });
+        // Count every offer filed along the way (withdrawn ones too), so the check can't pass for lack of any.
+        seen += (l.market?.offers.length ?? 0) - before;
+      }
+      const ctx = tradeContext(l);
+      for (const o of openOffers(l)) {
+        if (o.kind === 'enquiry') {
+          expect(
+            bidFor(ctx, l.teams[o.teamId], l.players[o.sides[1].players[0]]),
+            `${seed} enquiry ${o.id}`,
+          ).not.toBeNull();
+        } else {
+          expect(judge(ctx, o.teamId, { sides: o.sides }, { rosterCuts: true }).accepts, `${seed} offer ${o.id}`).toBe(
+            true,
+          );
+        }
+      }
+    }
+    expect(seen, 'offers seen across the seeds').toBeGreaterThan(0);
+  }, 120_000);
 
   it('files a message for each open offer that needs you until it lapses', () => {
     const l = fresh();
