@@ -55,6 +55,11 @@ The trade audit's in-season volume on main passes only because the generated yea
 38% of the cap unspent); a settled league trades about 14 times a season, under the band's 15. PR #67
 (the red-zone change) fails the same check (13.9; by year 19.7 / 10.3 / 11.7).
 
+At 9 leagues x 3 seasons (`npm run trades -- 9`) the volume gap is no sampling accident: main trades 19.1 / 13.3 / 14.4
+in season (mean 15.6), PR #67 20.0 / 13.4 / 14.9 (16.1), so a settled league is under 15 on both, and #67's 3-league
+13.9 was noise. Its deadline prices are lower than main's on large samples, though (star 989 vs 1263, n 19-23;
+quality starter 468 vs 535, n 125-141; rental 49 vs 64, n 47-56): that one is #67's own.
+
 NFL reference (research workflow, mostly unverified): league-year-start median cap space about 12%;
 Week 1 the five teams with the most space hold about 8-24% of the cap; carryover into 2025 averaged
 4.1% of the cap (median 2.3%, most 17.9%).
