@@ -112,10 +112,6 @@ const ISSUE_SHORT_ROSTER = 'short rosters at kickoff (band: roster minimum >= 50
 // releases is never replaced (2028: PHI enters camp at 53 and $6.3M over, releases one player, ends at 52 with $20.8M
 // free; 2031 is the same). The mid-camp compliance and top-up do nothing because nobody is missing. Ordering bug.
 const ISSUE_SHORT_WITH_ROOM = 'team under 53 with cap room for a minimum deal at kickoff (band: 0)';
-// Early cap hoarding: in seasons 1-3 one to three full, mostly below-average rosters keep 38-59% of the cap unspent at
-// kickoff (2027: $180M, 2028: $213.5M), minimum payroll 21-45% of the cap, on every seed (38-80%). From season 4 the
-// maximum is 7-11%. Cause not found; a thin early free-agent market is a guess.
-const ISSUE_HOARDING = 'early cap hoarding (band: no team keeps over 30% of the cap unspent at kickoff)';
 // Save growth: retired players are flagged retired (offseason/index.ts) but never removed, and each keeps its ratings,
 // ratingHistory, stats and combine while generateDraftClass adds 260 players a year. The players blob grows about
 // 430 KB a season for good (3.9 MB of retired players by 2039); the live players level off near 3.5 MB. The 650 KB band
@@ -437,9 +433,8 @@ for (let s = 0; s < seasons; s++) {
   // and plateaus near 500 (retirement caps the stock), so the ceiling is 650 and the floor 100 (a dried-up market).
   const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 110, 0)}` : ''}`;
   console.log(
-    `  checks ${year} cap: ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${s >= 4 ? check('max space %cap', pct(k.space[last]), 0, 20, 1) : `max space ${pct(k.space[last]).toFixed(1)}%cap`} · ${check('dead max %cap', pct(k.dead[last]), 0, 30, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
+    `  checks ${year} cap: ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 30, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
   );
-  if (pct(k.space[last]) > 30) warn(ISSUE_HOARDING, `${year} ${pct(k.space[last]).toFixed(0)}% (${M(k.space[last])})`);
 
   // League talent (mean starter OVR at kickoff): 12.93, 13.01, 13.11, 13.07, 13.12, 13.09 (all seeds 12.69-13.12), so
   // [12.4, 13.6] holds the level; steps of at most 0.10 (all seeds 0.15) get 0.25. Parity (sd of team means) is
