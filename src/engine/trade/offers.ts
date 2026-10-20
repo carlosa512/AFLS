@@ -348,6 +348,9 @@ export function expireOffers(league: League): void {
   delete market.exam;
   for (const o of market.offers.filter((x) => x.status === 'pending')) {
     o.status = 'expired';
+    // Same week the card's "Open until you play week N" promised: `expireOffers` runs before the week moves.
+    o.outcome =
+      league.phase === 'regular' ? `It lapsed when you played week ${league.week}.` : 'It lapsed when you moved on.';
     // You didn't bite: he doesn't call about the same players next week.
     const t = talksOf(market, o.teamId);
     for (const pid of [...o.sides[0].players, ...o.sides[1].players])
@@ -359,6 +362,27 @@ export function expireOffers(league: League): void {
   );
   for (const id of Object.keys(market.status).map(Number))
     if (league.players[id]?.teamId !== league.userTeamId) delete market.status[id];
+}
+
+/**
+ * Before you see this week's desk, every offer still pending is judged again by its own team on the state
+ * you'll accept in (call it after the week has moved): one it would now refuse, or an enquiry it has no
+ * number for, is withdrawn. An offer withdrawn here never reaches the inbox, because `offerMail` files only
+ * `'pending'` offers and `deliverMail` runs after `store.mutate`.
+ */
+export function recheckOffers(league: League): void {
+  const pending = (league.market?.offers ?? []).filter((o) => o.status === 'pending');
+  if (!pending.length) return;
+  const ctx = tradeContext(league);
+  for (const o of pending) {
+    const ok =
+      o.kind === 'enquiry'
+        ? bidFor(ctx, league.teams[o.teamId], league.players[o.sides[1].players[0]]) !== null
+        : judge(ctx, o.teamId, { sides: o.sides }, { rosterCuts: true }).accepts;
+    if (ok) continue;
+    o.status = 'withdrawn';
+    o.outcome = 'They pulled it before it reached you.';
+  }
 }
 
 export const openOffers = (league: League): TradeOffer[] =>
@@ -400,22 +424,24 @@ export function acceptOffer(league: League, id: number, release: readonly number
   const window = tradeWindow(league);
   if (window) {
     offer.status = 'expired';
+    offer.outcome = window;
     return { ok: false, message: window };
   }
   const ai = league.teams[offer.teamId];
   if (!stillThere(league, offer)) {
+    const message = `Something in it has moved since, so the ${ai.name} have taken the offer off the table.`;
     offer.status = 'withdrawn';
-    return {
-      ok: false,
-      message: `Something in it has moved since, so the ${ai.name} have taken the offer off the table.`,
-    };
+    offer.outcome = message;
+    return { ok: false, message };
   }
   const ctx = tradeContext(league);
   const proposal: TradeProposal = { sides: offer.sides };
   const his = judge(ctx, ai.id, proposal, { rosterCuts: true });
   if (his.problem || his.refusal || !his.accepts) {
+    const message = his.problem ?? `The ${ai.name} re-ran the numbers and pulled the offer.`;
     offer.status = 'withdrawn';
-    return { ok: false, message: his.problem ?? `The ${ai.name} have pulled the offer.` };
+    offer.outcome = message;
+    return { ok: false, message };
   }
   const user = userTeam(league);
   const incoming = offer.sides[0].players;
@@ -479,17 +505,18 @@ function finish(
   if (theirCall === 'failed') {
     const p = flagged(theirs, 'failed');
     const offer = opts.offerId !== undefined ? offerById(league, opts.offerId) : undefined;
-    if (offer) offer.status = 'withdrawn';
+    const message = `${theirs.find((e) => e.result === 'failed')!.note} The ${ai.name} have called the deal off.`;
+    if (offer) {
+      offer.status = 'withdrawn';
+      offer.outcome = message;
+    }
     logTransaction(
       league,
       'medical',
       [ai.id, league.userTeamId],
       `The ${ai.name}' trade for ${p.position} ${p.firstName} ${p.lastName} is off after a failed physical.`,
     );
-    return {
-      ok: false,
-      message: `${theirs.find((e) => e.result === 'failed')!.note} The ${ai.name} have called the deal off.`,
-    };
+    return { ok: false, message };
   }
   if (theirCall === 'concerns') {
     const p = flagged(theirs, 'concerns');
@@ -526,14 +553,18 @@ function settle(
   executeTrade(league, { sides }, { ...meta, physicals: exams });
   aiCutdown(league, ai, rosterLimit(league));
   const offer = opts.offerId !== undefined ? offerById(league, opts.offerId) : undefined;
-  if (offer) offer.status = 'accepted';
   delete market.exam;
   nudgeTrust(market, ai.id, 0.03);
   const rehab = exams
     .filter((e) => e.result === 'rehab')
     .map((e) => ` ${e.note}`)
     .join('');
-  return { ok: true, message: `Done: the trade with the ${ai.name} is official.${rehab}` };
+  const message = `Done: the trade with the ${ai.name} is official.${rehab}`;
+  if (offer) {
+    offer.status = 'accepted';
+    offer.outcome = message;
+  }
+  return { ok: true, message };
 }
 
 /**
@@ -549,7 +580,10 @@ export function resolveExam(league: League, choice: 'walk' | 'lower' | 'anyway' 
   const off = (message: string) => {
     delete market.exam;
     const offer = exam.offerId !== undefined ? offerById(league, exam.offerId) : undefined;
-    if (offer) offer.status = 'declined';
+    if (offer) {
+      offer.status = 'declined';
+      offer.outcome = message;
+    }
     return { ok: false, message };
   };
   const proposal: TradeProposal = { sides: exam.sides };
@@ -574,6 +608,7 @@ export function declineOffer(league: League, id: number): void {
   const offer = offerById(league, id);
   if (!market || !offer || offer.status !== 'pending') return;
   offer.status = 'declined';
+  offer.outcome = 'You turned it down.';
   const t = talksOf(market, offer.teamId);
   for (const pid of [...offer.sides[0].players, ...offer.sides[1].players])
     t.cooldowns[pid] = { until: market.moment + DECLINE_WAIT, worth: offer.worth };
@@ -651,11 +686,15 @@ export function counterOffer(league: League, id: number, proposal: TradeProposal
       message: done.ok ? `The ${ai.name} accepted your counter.` : done.message,
     };
   }
-  offer.status = 'declined';
+  const walkedAway = () => {
+    offer.status = 'declined';
+    offer.outcome = `You countered and the ${ai.name} walked away.`;
+    return { result: 'walked' as const, message: `The ${ai.name} have walked away. Talks are off for now.` };
+  };
   if (offer.final || offer.patience <= 0) {
     talksOf(market, ai.id).offUntil = market.moment;
     nudgeTrust(market, ai.id, -0.05);
-    return { result: 'walked', message: `The ${ai.name} have walked away. Talks are off for now.` };
+    return walkedAway();
   }
   const ctx = tradeContext(league);
   const add = suggestSweetener(league, proposal);
@@ -674,8 +713,10 @@ export function counterOffer(league: League, id: number, proposal: TradeProposal
     : { sides: offer.sides };
   const patience = offer.patience - 1;
   const next = file(ctx, market, ai, 'counter', back, offer.kind);
-  if (!next) return { result: 'walked', message: `The ${ai.name} have walked away. Talks are off for now.` };
+  if (!next) return walkedAway();
   Object.assign(next, { patience, final: patience <= 0 || undefined, replyTo: offer.id });
+  offer.status = 'answered';
+  offer.outcome = "You countered: they've come back with an answer.";
   return {
     result: 'countered',
     message: next.final ? 'That is his final offer.' : 'He has come back with a counter.',
