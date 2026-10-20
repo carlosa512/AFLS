@@ -35,6 +35,10 @@ const TARGETS: Record<string, [number, number]> = {
   fumblesLost: [0.35, 0.55],
   firstDowns: [18.5, 20.5],
   thirdDownPct: [37, 41],
+  // Drives that run a play inside the 20, and the share of them that end in a touchdown (NFL 2019–24:
+  // about 52–56 trips a team-season, 55% scored).
+  redZoneTrips: [3.0, 3.4],
+  redZonePct: [50, 60],
   fgAtt: [1.6, 2.0],
   fgPct: [83, 88],
   punts: [3.6, 4.4],
@@ -88,6 +92,8 @@ let homeWins = 0;
 let ot = 0;
 let ties = 0;
 let favoriteWins = 0;
+/** Team-seasons with 30 or more rushing touchdowns (NFL: 1 in 320; the record is 32). */
+let rushTd30 = 0;
 let decided = 0;
 /** Total points in games under a roof and in the open air (NFL: indoor games score almost 4 more). */
 const byRoof = { indoor: [0, 0], outdoor: [0, 0] };
@@ -197,6 +203,8 @@ for (let s = 0; s < seasons; s++) {
       add('firstDowns', t.firstDowns);
       add('thirdAtt', t.thirdDownAtt);
       add('thirdConv', t.thirdDownConv);
+      add('redZoneAtt', t.redZoneAtt);
+      add('redZoneTd', t.redZoneTd);
       add('penalties', t.penalties);
       add(
         'declined',
@@ -228,6 +236,13 @@ for (let s = 0; s < seasons; s++) {
       add('sackYds', line.sackYds ?? 0);
     }
   }
+  const rushTds = new Map<number, number>();
+  for (const g of regularSeasonGames(league))
+    for (const [id, line] of Object.entries(g.result!.playerStats)) {
+      const team = g.result!.playerTeams[Number(id)];
+      rushTds.set(team, (rushTds.get(team) ?? 0) + (line.rushTd ?? 0));
+    }
+  rushTd30 += [...rushTds.values()].filter((n) => n >= 30).length;
   for (const [key, top] of Object.entries(seasonTops(league, league.season))) (tops[key] ??= []).push(top);
   for (const g of regularSeasonGames(league)) injAdd('game', g.result?.injuries?.length ?? 0);
   for (const p of Object.values(league.players)) {
@@ -268,6 +283,8 @@ const results: Record<string, number> = {
   fumblesLost: per('fumblesLost'),
   firstDowns: per('firstDowns'),
   thirdDownPct: (100 * sum.thirdConv) / sum.thirdAtt,
+  redZoneTrips: per('redZoneAtt'),
+  redZonePct: (100 * sum.redZoneTd) / sum.redZoneAtt,
   fgAtt: per('fgAtt'),
   fgPct: (100 * sum.fgMade) / sum.fgAtt,
   punts: per('punts'),
@@ -305,6 +322,7 @@ console.log(
 const mean = winsByStrength.reduce((s, x) => s + x.wins, 0) / winsByStrength.length;
 const sd = Math.sqrt(winsByStrength.reduce((s, x) => s + (x.wins - mean) ** 2, 0) / winsByStrength.length);
 console.log(`Std dev of team wins: ${sd.toFixed(2)} (NFL ≈ 3.0–3.3)`);
+console.log(`Team-seasons with 30+ rushing TDs (informational): ${rushTd30} of ${seasons * 32} (NFL ≈ 1 in 320)`);
 const show = (kind: 'pass' | 'fourth', label: (b: (typeof byStyle)[string]) => string) =>
   (['low', 'mid', 'high'] as const)
     .map((k) => (byStyle[`${kind}:${k}`] ? `${k} ${label(byStyle[`${kind}:${k}`])}` : `${k} n/a`))
