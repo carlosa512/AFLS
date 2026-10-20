@@ -1585,8 +1585,10 @@ class GameSim {
       const pocket = skill(qb, 'pocketPresence') + (this.has(qb, 'muddyPockets') ? 1.5 : 0);
       // A bull rush collapses the pocket rather than finishing: more hurries, fewer of them sacks. A
       // heavy first punch buys the extra beat; a bend around the corner finishes.
+      // 0.21 holds an aged league at two sacks a team-game (npm run careers): its veteran passers read the
+      // rush well enough that long-run sacks had drifted to 1.97 on main's engine; fresh leagues sit mid-band.
       const pSack =
-        clamp(0.2 - 0.022 * (pocket - 12), 0.08, 0.38) *
+        clamp(0.21 - 0.022 * (pocket - 12), 0.08, 0.38) *
         (1 - 0.05 * this.stack(front, 'bullRush')) *
         (1 - 0.04 * this.stack(off.ol, 'heavyPunch')) *
         (1 + 0.08 * this.stack(def.edge, 'bendsArc')) *
