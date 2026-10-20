@@ -1,4 +1,6 @@
-import type { Attribute, League, Player, Position, Team } from '../engine/types';
+import type { Attribute, Game, League, Player, Position, Team } from '../engine/types';
+import { kickoffLabel } from '../engine/season/kickoff';
+import { REGULAR_SEASON_WEEKS } from '../engine/season/schedule';
 import { ATTRIBUTES, OFFSEASON_PHASES } from '../engine/types';
 import { ATTRIBUTE_INFO } from '../engine/attributes';
 import { OVR_WEIGHTS } from '../engine/positions';
@@ -99,6 +101,18 @@ export const PHASE_LABELS: Record<League['phase'], string> = {
   draft: 'Draft',
   preseason: 'Training camp',
 };
+
+/**
+ * When a game kicks off: "Sun 1:00 PM ET", with "moved" once the league has flexed it. Week 18's times
+ * are set once week 17 is played, so until then only the day shows.
+ */
+export function kickoffText(league: League, game: Game): string {
+  const k = game.kickoff;
+  if (!k) return '';
+  if (game.season === league.season && !game.playoffRound && game.week === REGULAR_SEASON_WEEKS && league.phase !== 'playoffs' && league.week < REGULAR_SEASON_WEEKS) return 'Week 18 · time TBD';
+  const moved = game.flexed && (game.flexed.day !== k.day || game.flexed.et !== k.et);
+  return `${kickoffLabel(k)}${moved && game.week !== REGULAR_SEASON_WEEKS ? ' · moved' : ''}`;
+}
 
 export function weekLabel(week: number): string {
   if (week <= 18) return `Week ${week}`;

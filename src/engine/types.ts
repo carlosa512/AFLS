@@ -889,6 +889,8 @@ export interface Game {
   neutral?: boolean;
   /** Its slot (`season/kickoff.ts`); missing on games from saves before v30. */
   kickoff?: Kickoff;
+  /** The slot it was first scheduled in, once the league has flexed it (`season/flex.ts`). */
+  flexed?: Kickoff;
   result?: GameResult;
 }
 

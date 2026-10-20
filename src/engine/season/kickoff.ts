@@ -11,14 +11,19 @@ import { Rng } from '../rng';
 import type { Game, Kickoff, League, PlayoffRound } from '../types';
 
 const at = (h: number, m = 0) => h * 60 + m;
-const THURSDAY: Kickoff = { day: 'thu', et: at(20, 15) };
-const EARLY: Kickoff = { day: 'sun', et: at(13) };
-const LATE: Kickoff[] = [
+export const THURSDAY: Kickoff = { day: 'thu', et: at(20, 15) };
+export const EARLY: Kickoff = { day: 'sun', et: at(13) };
+export const LATE: Kickoff[] = [
   { day: 'sun', et: at(16, 5) },
   { day: 'sun', et: at(16, 25) },
 ];
-const SUNDAY_NIGHT: Kickoff = { day: 'sun', et: at(20, 20) };
-const MONDAY: Kickoff = { day: 'mon', et: at(20, 15) };
+export const SUNDAY_NIGHT: Kickoff = { day: 'sun', et: at(20, 20) };
+export const MONDAY: Kickoff = { day: 'mon', et: at(20, 15) };
+/** Week 18's Saturday doubleheader, set once week 17 is played (`season/flex.ts`). */
+export const SATURDAY: Kickoff[] = [
+  { day: 'sat', et: at(16, 30) },
+  { day: 'sat', et: at(20) },
+];
 /** Games in the Sunday late window most weeks (the rest kick off at 1:00). */
 const LATE_GAMES = 4;
 
@@ -61,9 +66,9 @@ export function kickoffLabel(k: Kickoff): string {
 export const kickoffOrder = (k: Kickoff | undefined) => (k ? ['thu', 'sat', 'sun', 'mon'].indexOf(k.day) * 1440 + k.et : 1440 * 2 + at(13));
 
 /** Hosts this many hours behind Eastern (Mountain and Pacific) never get the 1:00 window. */
-const western = (league: League, teamId: number) => (ZONES[league.teams[teamId].abbrev] ?? 0) <= -2;
+export const western = (league: League, teamId: number) => (ZONES[league.teams[teamId].abbrev] ?? 0) <= -2;
 
-/** How strongly the networks want a team: last season's win share, or even without one. */
+/** How strongly the networks want a team before a down is played: last season's win share, or even without one. */
 function draw(league: League, season: number): (teamId: number) => number {
   const records = league.history.find((h) => h.season === season - 1)?.records;
   return (id) => {
