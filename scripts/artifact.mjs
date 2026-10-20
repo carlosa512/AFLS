@@ -1,7 +1,7 @@
 /**
  * Turn the single-file build (dist-single/index.html) into a shareable page
  * body: the host supplies <!doctype>, <html>, <head> and <body>, so keep only
- * the title, meta, font links, inline style, root element and inline script.
+ * the title, description and claude: metas, favicon, font links, inline style, root element and inline script.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -9,7 +9,9 @@ const html = readFileSync('dist-single/index.html', 'utf8');
 const grab = (re) => [...html.matchAll(re)].map((m) => m[0]);
 const parts = [
   ...grab(/<title>[\s\S]*?<\/title>/g),
-  ...grab(/<meta name="claude:[^>]*>/g),
+  // A tag may span lines (index.html keeps a long description readable), so \s, not a space.
+  ...grab(/<meta\s[^>]*name="(claude:[^"]*|description)"[^>]*>/g),
+  ...grab(/<link rel="icon"[^>]*>/g),
   ...grab(/<link\s[^>]*fonts\.(googleapis|gstatic)\.com[^>]*>/g).map((tag) => tag.replace(/\s+/g, ' ')),
   ...grab(/<style[^>]*>[\s\S]*?<\/style>/g),
   '<div id="root"></div>',
