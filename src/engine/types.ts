@@ -3,6 +3,7 @@ import type { SeasonAwards, WeeklyAwards } from './awards';
  * Core data model. Everything here is plain JSON-serializable data so a League
  * can be saved, loaded, exported and modded without custom (de)serializers.
  */
+import type { AgingFamily } from './attributes';
 import type { QuirkId } from './quirks';
 import type { RngState } from './rng';
 import type { Weather } from './weather';
@@ -213,6 +214,24 @@ export interface Player {
   learning?: Learning;
   /** Every position change, oldest first. The first `from` is the body's position: its physical aging stays his. */
   moves?: PositionMove[];
+  /** This league year's development, rolled once and still landing in steps (`development.ts`). Gone once the year has landed. */
+  dev?: DevYear;
+}
+
+/** A year of development on its way: the roll's inputs (its targets come back from the seed) and what has landed so far. */
+export interface DevYear {
+  /** League year it was rolled in, and his age at the roll. */
+  season: number;
+  age: number;
+  /** The roll's inputs: last season's playing share and his coaches' effect at the time (`DevContext`). */
+  share: number;
+  rate?: number;
+  decline?: Partial<Record<AgingFamily, number>>;
+  bodyAs?: Position;
+  /** Share of the year released so far (0–1). */
+  done: number;
+  /** Integer change applied so far to each rating, in `ATTRIBUTES` order. */
+  applied: number[];
 }
 
 /** A position-learning plan. Nothing here is ever shown for another team's player. */

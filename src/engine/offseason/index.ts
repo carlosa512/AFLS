@@ -9,7 +9,7 @@
  */
 import { retireChance } from '../aging';
 import { coachingFor, coachWindowCloses, developCoaches, ensureCoached, noteCoachOverspend } from '../coaching';
-import { developPlayer, playedShare, recordRatings } from '../development';
+import { beginYear, developBlock, playedShare, recordRatings, trueUp } from '../development';
 import { concussionRetireChance, delegates, injuriesNewYear, injuryRetireChance, manageInjuries } from '../injuries';
 import { developMedics, ensureMedical, medicalWindowCloses } from '../medical';
 import { crewsNewYear } from '../officials';
@@ -61,7 +61,9 @@ export function beginOffseason(league: League): void {
     // schedules, and one player's year doesn't depend on who was developed before him. His coaches
     // are the ones he finished the season with (their deals may be up, but they coached him).
     const own = new Rng(`${league.seed}:dev:${league.season}:${p.id}`);
-    developPlayer(own, p, { playedShare: playedShare(p, last), ...coachingFor(league, p.teamId, p.position), bodyAs: bodyAs(p) });
+    // Whatever of last year hadn't landed lands first; then this year is rolled and its March share released.
+    trueUp(league, p);
+    beginYear(league, own, p, { playedShare: playedShare(p, last), ...coachingFor(league, p.teamId, p.position), bodyAs: bodyAs(p) });
     p.age++;
     p.experience++;
     // Age and form, or a body (`injuryRetireChance`) or a head (`concussionRetireChance`) that can't take any more, in one roll.
@@ -79,6 +81,7 @@ export function beginOffseason(league: League): void {
       p.retired = true;
       delete p.quirkBag;
       delete p.learning;
+      delete p.dev;
       retirees.push(p);
       continue;
     }
@@ -183,10 +186,12 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
       // Coaches pick the position moves they'll teach, then the spring program's learning (docs/TRAINING.md §4).
       planMoves(league);
       learnBlock(league, 'program');
+      developBlock(league, 'program');
       break;
     case 'preseason':
       // Camp's learning, then cut-down day's position changes, before any camp deal or cut sees the rosters.
       learnBlock(league, 'camp');
+      developBlock(league, 'camp');
       completeMoves(league);
       // Camp: teams with surplus deal it before the cut to 53.
       marketMoment(league, 'camp');
