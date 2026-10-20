@@ -18,6 +18,32 @@ between what you believe and what is true.
   </tr>
 </table>
 
+## What's in the game
+
+- **Every snap is a matchup.** Pass protection against the rush, routes against coverage, tackles
+  against the open field: each play is resolved from named contests between the players on the
+  field, and league totals land inside real NFL ranges.
+- **You see what your scouts see.** Other teams' players are ranges that narrow with film; hidden
+  traits and habits are described in words, never numbers. Scout reports read like a staff wrote them.
+- **A front office with teeth.** Year-by-year contract ledgers with proration, dead money and
+  restructures; tags, the rookie scale, re-signings, free agency and a draft fed by a combine.
+- **A trade market that judges every deal.** AI front offices value players on their own read,
+  shop at the NFL's moments (deadline day, cap casualties, camp cuts), send you offers, and run every
+  deal past the buyer's doctor.
+- **Staff who matter.** Scouts set how sharp your read is, coaches shape development and call the
+  game through their schemes, the medical staff decide how fast players heal. Each has a budget,
+  contracts, a market and a carousel.
+- **Players grow, fade and change.** Development and aging on one curve, hidden traits, on-field
+  habits that come and go week to week, and position moves taught over a season.
+- **Injuries you have to manage.** Snap and collision risk, layoffs with the doctor's estimate,
+  injured reserve, treatments with the player's say, and a concussion protocol.
+- **A league that runs like one.** NFL-formula schedules, kickoff windows and flex scheduling,
+  weather by stadium, officiating crews with tendencies, penalties, records and awards.
+- **A watchable game.** Live play-by-play with a field view, box scores, and an inbox where your
+  head coach, scouting director and doctor each write in their own voice.
+- **Saves you own.** The game saves to your browser and exports a backup file; one command builds
+  a single self-contained HTML file to share.
+
 ## Play
 
 ```bash
