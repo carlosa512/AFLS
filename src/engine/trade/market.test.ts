@@ -7,7 +7,20 @@ import { rosterLimit } from '../offseason/negotiation';
 import { activeRoster } from '../roster';
 import type { League } from '../types';
 import type { TradeProposal } from './rules';
-import { heldPick, judge, marginFor, marketMoment, reloading, stanceFor, stanceOf, teamNeeds, tradeBlock, tradeContext, untouchables, updateStances } from '.';
+import {
+  heldPick,
+  judge,
+  marginFor,
+  marketMoment,
+  reloading,
+  stanceFor,
+  stanceOf,
+  teamNeeds,
+  tradeBlock,
+  tradeContext,
+  untouchables,
+  updateStances,
+} from '.';
 
 const base = JSON.stringify(createLeague({ seed: 'market-tests' }));
 const fresh = (): League => JSON.parse(base);
@@ -38,7 +51,8 @@ describe('team plans', () => {
   it('sees a hole where a team has no healthy starter', () => {
     const l = fresh();
     const team = l.teams[7];
-    for (const p of Object.values(l.players)) if (p.teamId === team.id && p.position === 'QB') p.ir = { season: l.season, week: l.week, weeks: 8 };
+    for (const p of Object.values(l.players))
+      if (p.teamId === team.id && p.position === 'QB') p.ir = { season: l.season, week: l.week, weeks: 8 };
     const needs = teamNeeds(tradeContext(l), team);
     expect(needs.find((n) => n.position === 'QB')).toMatchObject({ urgency: 1, reason: 'hole' });
   });
@@ -67,7 +81,12 @@ describe('team plans', () => {
     expect(pick).toBeDefined();
     const buyer = l.teams.find((t) => t.id !== pick.ownerId && t.id !== l.userTeamId)!;
     const star = Object.values(l.players).find((p) => p.teamId === buyer.id && p.contract)!;
-    const proposal: TradeProposal = { sides: [{ teamId: pick.ownerId, players: [], picks: [pick.id] }, { teamId: buyer.id, players: [star.id], picks: [] }] };
+    const proposal: TradeProposal = {
+      sides: [
+        { teamId: pick.ownerId, players: [], picks: [pick.id] },
+        { teamId: buyer.id, players: [star.id], picks: [] },
+      ],
+    };
     expect(judge(ctx, pick.ownerId, proposal).refusal).toMatch(/keeping their .* first-round pick/);
   });
 

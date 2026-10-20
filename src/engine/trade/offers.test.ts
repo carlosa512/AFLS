@@ -7,7 +7,20 @@ import { rosterLimit } from '../offseason/negotiation';
 import { playerOvr } from '../positions';
 import { activeRoster } from '../roster';
 import type { League, TradeOffer } from '../types';
-import { acceptOffer, answerEnquiry, ASKS, askPrice, counterOffer, declineOffer, openOffers, proposeTrade, setTradeStatus, shopPlayer, tradeContext, untouchables } from '.';
+import {
+  acceptOffer,
+  answerEnquiry,
+  ASKS,
+  askPrice,
+  counterOffer,
+  declineOffer,
+  openOffers,
+  proposeTrade,
+  setTradeStatus,
+  shopPlayer,
+  tradeContext,
+  untouchables,
+} from '.';
 import type { TradeProposal } from './rules';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -27,7 +40,9 @@ describe('offers to you', () => {
     const l = fresh();
     const open = packaged(l);
     expect(open.length).toBeGreaterThan(0);
-    const roster = activeRoster(l, l.userTeamId).map((p) => p.id).sort();
+    const roster = activeRoster(l, l.userTeamId)
+      .map((p) => p.id)
+      .sort();
     playWeek(l);
     for (const o of open) expect(l.market!.offers.find((x) => x.id === o.id)!.status).toBe('expired');
     // Nothing of yours moved because of them.
@@ -42,14 +57,21 @@ describe('offers to you', () => {
     for (let w = 0; w < 3; w++) playWeek(l);
     const asked = openOffers(l).flatMap((o) => o.sides[1].players);
     expect(asked.filter((id) => ids.includes(id))).toEqual([]);
-    expect(untouchables(tradeContext(l), l.teams[l.userTeamId]).size).toBe(ids.filter((id) => l.players[id].teamId === l.userTeamId).length);
+    expect(untouchables(tradeContext(l), l.teams[l.userTeamId]).size).toBe(
+      ids.filter((id) => l.players[id].teamId === l.userTeamId).length,
+    );
   }, 30_000);
 
   it('accepts as offered, re-checked, and leaves both rosters legal', () => {
     const l = fresh();
     const offer = packaged(l)[0];
     let result = acceptOffer(l, offer.id);
-    if (!result.ok && result.release) result = acceptOffer(l, offer.id, result.release.map((p) => p.id));
+    if (!result.ok && result.release)
+      result = acceptOffer(
+        l,
+        offer.id,
+        result.release.map((p) => p.id),
+      );
     expect(result.ok).toBe(true);
     expect(l.market!.offers.find((o) => o.id === offer.id)!.status).toBe('accepted');
     for (const id of offer.sides[0].players) expect(l.players[id].teamId).toBe(l.userTeamId);
@@ -65,14 +87,17 @@ describe('offers to you', () => {
     expect(l.market!.offers.find((o) => o.id === offer.id)!.status).toBe('withdrawn');
   });
 
-  it("keeps a team away from a player you turned down, unless it comes back clearly better", () => {
+  it('keeps a team away from a player you turned down, unless it comes back clearly better', () => {
     const l = fresh();
     const offer = packaged(l)[0];
     declineOffer(l, offer.id);
     const cooldown = l.market!.talks[offer.teamId].cooldowns;
-    for (const id of [...offer.sides[0].players, ...offer.sides[1].players]) expect(cooldown[id]).toMatchObject({ until: l.market!.moment + 3, worth: offer.worth });
+    for (const id of [...offer.sides[0].players, ...offer.sides[1].players])
+      expect(cooldown[id]).toMatchObject({ until: l.market!.moment + 3, worth: offer.worth });
     playWeek(l);
-    const again = openOffers(l).filter((o) => o.teamId === offer.teamId && o.sides[1].players.some((id) => offer.sides[1].players.includes(id)));
+    const again = openOffers(l).filter(
+      (o) => o.teamId === offer.teamId && o.sides[1].players.some((id) => offer.sides[1].players.includes(id)),
+    );
     for (const o of again) expect(o.worth).toBeGreaterThanOrEqual(offer.worth * 1.1);
   }, 30_000);
 
@@ -80,7 +105,12 @@ describe('offers to you', () => {
     const l = fresh();
     let offer: TradeOffer | undefined = packaged(l)[0];
     // A counter he can't take: ask for everything back and give nothing.
-    const lowball = (o: TradeOffer): TradeProposal => ({ sides: [{ teamId: l.userTeamId, players: [], picks: [] }, { teamId: o.teamId, players: o.sides[0].players, picks: [...o.sides[0].picks] }] });
+    const lowball = (o: TradeOffer): TradeProposal => ({
+      sides: [
+        { teamId: l.userTeamId, players: [], picks: [] },
+        { teamId: o.teamId, players: o.sides[0].players, picks: [...o.sides[0].picks] },
+      ],
+    });
     const seen: string[] = [];
     for (let round = 0; round < 5 && offer; round++) {
       const r = counterOffer(l, offer.id, lowball(offer));
@@ -96,7 +126,12 @@ describe('offers to you', () => {
     const ai = l.teams.find((t) => t.id !== l.userTeamId)!;
     // A legal lowball: your worst player for his best.
     const byOvr = (teamId: number) => activeRoster(l, teamId).sort((a, b) => playerOvr(b) - playerOvr(a));
-    const junk: TradeProposal = { sides: [{ teamId: l.userTeamId, players: [byOvr(l.userTeamId).at(-1)!.id], picks: [] }, { teamId: ai.id, players: [byOvr(ai.id)[0].id], picks: [] }] };
+    const junk: TradeProposal = {
+      sides: [
+        { teamId: l.userTeamId, players: [byOvr(l.userTeamId).at(-1)!.id], picks: [] },
+        { teamId: ai.id, players: [byOvr(ai.id)[0].id], picks: [] },
+      ],
+    };
     const answers = Array.from({ length: 20 }, () => proposeTrade(l, junk).message);
     expect(answers.slice(ASKS)).toEqual(Array(20 - ASKS).fill("We're done talking this week."));
     expect(answers.some((m) => /\d/.test(m))).toBe(false);
@@ -104,7 +139,9 @@ describe('offers to you', () => {
 
   it('shops a player once a moment and puts him on the block', () => {
     const l = fresh();
-    const p = activeRoster(l, l.userTeamId).sort((a, b) => (b.contract?.years.length ?? 0) - (a.contract?.years.length ?? 0))[0];
+    const p = activeRoster(l, l.userTeamId).sort(
+      (a, b) => (b.contract?.years.length ?? 0) - (a.contract?.years.length ?? 0),
+    )[0];
     const first = shopPlayer(l, p.id);
     expect(l.market!.status[p.id]).toBe('listed');
     expect(first.offers.length).toBeLessThanOrEqual(3);

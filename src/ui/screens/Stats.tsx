@@ -1,6 +1,25 @@
 import { useState } from 'react';
-import { ALL_LEAGUE_SLOTS, AWARD_KEYS, AWARD_NAMES, HONOR_SLOTS, lineStats, MONTHS, periodLine, seasonAwards, weeklyAwards, type AwardWinner } from '../../engine/awards';
-import { leaders, LEADER_CATEGORIES, passerRating, seasonRecords, statLine, statSeasons, type StatScope } from '../../engine/stats';
+import {
+  ALL_LEAGUE_SLOTS,
+  AWARD_KEYS,
+  AWARD_NAMES,
+  HONOR_SLOTS,
+  lineStats,
+  MONTHS,
+  periodLine,
+  seasonAwards,
+  weeklyAwards,
+  type AwardWinner,
+} from '../../engine/awards';
+import {
+  leaders,
+  LEADER_CATEGORIES,
+  passerRating,
+  seasonRecords,
+  statLine,
+  statSeasons,
+  type StatScope,
+} from '../../engine/stats';
 import type { League, Player, StatLine } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
@@ -33,12 +52,20 @@ export function Stats({ league, tab = 'leaders' }: { league: League; tab?: Stats
       <div className="row office-bar" style={{ justifyContent: 'space-between' }}>
         <div className="seg office-tabs" role="tablist" aria-label="Stats">
           {TABS.map(([key, label]) => (
-            <button key={key} role="tab" aria-selected={tab === key} aria-pressed={tab === key} onClick={() => nav.go({ view: 'stats', tab: key })}>
+            <button
+              key={key}
+              role="tab"
+              aria-selected={tab === key}
+              aria-pressed={tab === key}
+              onClick={() => nav.go({ view: 'stats', tab: key })}
+            >
               {label}
             </button>
           ))}
         </div>
-        {(tab === 'leaders' || tab === 'players') && seasons.length > 0 && <ScopeSelect seasons={seasons} value={scope} onChange={setPicked} />}
+        {(tab === 'leaders' || tab === 'players') && seasons.length > 0 && (
+          <ScopeSelect seasons={seasons} value={scope} onChange={setPicked} />
+        )}
       </div>
       {seasons.length === 0 ? (
         <Panel title="Stats">
@@ -63,9 +90,21 @@ export function Stats({ league, tab = 'leaders' }: { league: League; tab?: Stats
   );
 }
 
-function ScopeSelect({ seasons, value, onChange }: { seasons: number[]; value: StatScope; onChange: (s: StatScope) => void }) {
+function ScopeSelect({
+  seasons,
+  value,
+  onChange,
+}: {
+  seasons: number[];
+  value: StatScope;
+  onChange: (s: StatScope) => void;
+}) {
   return (
-    <select aria-label="Season" value={String(value)} onChange={(e) => onChange(e.target.value === 'career' ? 'career' : Number(e.target.value))}>
+    <select
+      aria-label="Season"
+      value={String(value)}
+      onChange={(e) => onChange(e.target.value === 'career' ? 'career' : Number(e.target.value))}
+    >
       {seasons.map((s) => (
         <option key={s} value={s}>
           {s} season
@@ -148,9 +187,18 @@ export function honorLine(p: Player, s: StatLine | undefined): string {
   const parts = (...xs: (string | false)[]) => xs.filter(Boolean).join(' · ');
   switch (p.position) {
     case 'QB':
-      return parts(`${num(s.passYds)} yds`, `${num(s.passTd)} TD`, `${num(s.passInt)} INT`, (s.rushYds ?? 0) >= 300 && `${num(s.rushYds)} rush`);
+      return parts(
+        `${num(s.passYds)} yds`,
+        `${num(s.passTd)} TD`,
+        `${num(s.passInt)} INT`,
+        (s.rushYds ?? 0) >= 300 && `${num(s.rushYds)} rush`,
+      );
     case 'RB':
-      return parts(`${num(s.rushYds)} rush yds`, `${num((s.rushTd ?? 0) + (s.recTd ?? 0))} TD`, (s.recYds ?? 0) >= 200 && `${num(s.recYds)} rec yds`);
+      return parts(
+        `${num(s.rushYds)} rush yds`,
+        `${num((s.rushTd ?? 0) + (s.recTd ?? 0))} TD`,
+        (s.recYds ?? 0) >= 200 && `${num(s.recYds)} rec yds`,
+      );
     case 'WR':
     case 'TE':
       return parts(`${num(s.rec)} rec`, `${num(s.recYds)} yds`, `${num(s.recTd)} TD`);
@@ -180,7 +228,17 @@ function clubThen(league: League, w: AwardWinner): string {
  * A winner, his club then, and the numbers behind it: his season, or `weeks` for a player of the
  * week or month (shown while those box scores are kept).
  */
-export function WinnerCell({ league, winner: w, season, weeks }: { league: League; winner: AwardWinner | null | undefined; season: number; weeks?: [number, number] }) {
+export function WinnerCell({
+  league,
+  winner: w,
+  season,
+  weeks,
+}: {
+  league: League;
+  winner: AwardWinner | null | undefined;
+  season: number;
+  weeks?: [number, number];
+}) {
   if (!w) return <span className="muted">—</span>;
   const p = league.players[w.playerId];
   // Linemen have no stats of their own: show what their line did.
@@ -200,11 +258,22 @@ export function WinnerCell({ league, winner: w, season, weeks }: { league: Leagu
 }
 
 /** One row per All-League spot, in the order the teams are stored. */
-const SLOT_ROWS = ALL_LEAGUE_SLOTS.flatMap(([pos, count]) => Array.from({ length: count }, (_, i) => ({ pos, firstOfPos: i === 0 })));
+const SLOT_ROWS = ALL_LEAGUE_SLOTS.flatMap(([pos, count]) =>
+  Array.from({ length: count }, (_, i) => ({ pos, firstOfPos: i === 0 })),
+);
 
 /** Players of the week or month for one season: a row per period, a column per conference and side. */
-export function HonorTable({ league, season, rows }: { league: League; season: number; rows: { label: string; weeks: [number, number]; winners: (AwardWinner | null)[] }[] }) {
-  const userCell = (w: AwardWinner | null) => (w && league.players[w.playerId].teamId === league.userTeamId ? 'is-user' : '');
+export function HonorTable({
+  league,
+  season,
+  rows,
+}: {
+  league: League;
+  season: number;
+  rows: { label: string; weeks: [number, number]; winners: (AwardWinner | null)[] }[];
+}) {
+  const userCell = (w: AwardWinner | null) =>
+    w && league.players[w.playerId].teamId === league.userTeamId ? 'is-user' : '';
   return (
     <div className="table-scroll">
       <table>
@@ -236,7 +305,9 @@ export function HonorTable({ league, season, rows }: { league: League; season: n
 }
 
 function Awards({ league }: { league: League }) {
-  const seasons = [...new Set([...league.awards.map((a) => a.season), ...league.weeklyAwards.map((w) => w.season)])].sort((a, b) => b - a);
+  const seasons = [
+    ...new Set([...league.awards.map((a) => a.season), ...league.weeklyAwards.map((w) => w.season)]),
+  ].sort((a, b) => b - a);
   const [picked, setPicked] = useState<number | undefined>(seasons[0]);
   if (seasons.length === 0) {
     return (
@@ -250,12 +321,17 @@ function Awards({ league }: { league: League }) {
   const season = picked !== undefined && seasons.includes(picked) ? picked : seasons[0];
   const awards = seasonAwards(league, season);
   const weekly = weeklyAwards(league, season);
-  const months = MONTHS.filter((m) => weekly?.months[m.key]).map((m) => ({ label: m.label, weeks: m.weeks, winners: weekly!.months[m.key]! }));
+  const months = MONTHS.filter((m) => weekly?.months[m.key]).map((m) => ({
+    label: m.label,
+    weeks: m.weeks,
+    winners: weekly!.months[m.key]!,
+  }));
   const weeks = Object.entries(weekly?.weeks ?? {})
     .map(([w, winners]) => ({ week: Number(w), winners }))
     .sort((a, b) => b.week - a.week)
     .map(({ week, winners }) => ({ label: `Week ${week}`, weeks: [week, week] as [number, number], winners }));
-  const userRow = (w: AwardWinner | undefined) => (w && league.players[w.playerId].teamId === league.userTeamId ? 'is-user' : '');
+  const userRow = (w: AwardWinner | undefined) =>
+    w && league.players[w.playerId].teamId === league.userTeamId ? 'is-user' : '';
   return (
     <>
       <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -269,8 +345,8 @@ function Awards({ league }: { league: League }) {
         </select>
       </div>
       <p className="muted small" style={{ marginTop: 0 }}>
-        Voted on the numbers and the standings, the way the press votes: players of the week and month as the season goes, the
-        season's awards when the regular season ends. Teams are where each player played at the time.
+        Voted on the numbers and the standings, the way the press votes: players of the week and month as the season
+        goes, the season's awards when the regular season ends. Teams are where each player played at the time.
       </p>
       {awards ? (
         <div className="grid-2">
@@ -354,7 +430,10 @@ function Records({ league }: { league: League }) {
               <table>
                 <tbody>
                   {rows.map((r, i) => (
-                    <tr key={`${r.player.id}-${r.season}`} className={r.player.teamId === league.userTeamId ? 'is-user' : ''}>
+                    <tr
+                      key={`${r.player.id}-${r.season}`}
+                      className={r.player.teamId === league.userTeamId ? 'is-user' : ''}
+                    >
                       <td className="num muted" style={{ width: '1.5em' }}>
                         {i + 1}
                       </td>
@@ -406,7 +485,10 @@ interface StatTable {
 }
 
 const n = (k: keyof StatLine) => (s: StatLine) => s[k] ?? 0;
-const ratio = (a: keyof StatLine, b: keyof StatLine, scale = 1) => (s: StatLine) => ((s[b] ?? 0) ? ((s[a] ?? 0) / s[b]!) * scale : 0);
+const ratio =
+  (a: keyof StatLine, b: keyof StatLine, scale = 1) =>
+  (s: StatLine) =>
+    (s[b] ?? 0) ? ((s[a] ?? 0) / s[b]!) * scale : 0;
 const fixed1 = (v: number) => v.toFixed(1);
 const gp = (s: StatLine) => s.gp ?? 0;
 
@@ -420,9 +502,23 @@ const TABLES: StatTable[] = [
     cols: [
       { key: 'passCmp', label: 'Cmp', value: n('passCmp') },
       { key: 'passAtt', label: 'Att', value: n('passAtt') },
-      { key: 'pct', label: 'Pct', title: 'Completion percentage', value: ratio('passCmp', 'passAtt', 100), format: fixed1, rate: true },
+      {
+        key: 'pct',
+        label: 'Pct',
+        title: 'Completion percentage',
+        value: ratio('passCmp', 'passAtt', 100),
+        format: fixed1,
+        rate: true,
+      },
       { key: 'passYds', label: 'Yds', value: n('passYds') },
-      { key: 'ya', label: 'Y/A', title: 'Yards per attempt', value: ratio('passYds', 'passAtt'), format: fixed1, rate: true },
+      {
+        key: 'ya',
+        label: 'Y/A',
+        title: 'Yards per attempt',
+        value: ratio('passYds', 'passAtt'),
+        format: fixed1,
+        rate: true,
+      },
       { key: 'passTd', label: 'TD', value: n('passTd') },
       { key: 'passInt', label: 'Int', value: n('passInt') },
       { key: 'sacked', label: 'Sck', title: 'Times sacked', value: n('sacked') },
@@ -438,7 +534,14 @@ const TABLES: StatTable[] = [
     cols: [
       { key: 'rushAtt', label: 'Att', value: n('rushAtt') },
       { key: 'rushYds', label: 'Yds', value: n('rushYds') },
-      { key: 'ypc', label: 'Avg', title: 'Yards per carry', value: ratio('rushYds', 'rushAtt'), format: fixed1, rate: true },
+      {
+        key: 'ypc',
+        label: 'Avg',
+        title: 'Yards per carry',
+        value: ratio('rushYds', 'rushAtt'),
+        format: fixed1,
+        rate: true,
+      },
       { key: 'rushTd', label: 'TD', value: n('rushTd') },
       { key: 'rushLong', label: 'Long', value: n('rushLong') },
       { key: 'fumblesLost', label: 'FL', title: 'Fumbles lost', value: n('fumblesLost') },
@@ -468,7 +571,13 @@ const TABLES: StatTable[] = [
     cols: [
       { key: 'tackles', label: 'Tkl', title: 'Tackles', value: n('tackles') },
       { key: 'tfl', label: 'TFL', title: 'Tackles for loss', value: n('tfl') },
-      { key: 'sacks', label: 'Sck', title: 'Sacks', value: n('sacks'), format: (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1)) },
+      {
+        key: 'sacks',
+        label: 'Sck',
+        title: 'Sacks',
+        value: n('sacks'),
+        format: (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1)),
+      },
       { key: 'defInt', label: 'Int', value: n('defInt') },
       { key: 'passDef', label: 'PD', title: 'Passes defended', value: n('passDef') },
       { key: 'forcedFum', label: 'FF', title: 'Forced fumbles', value: n('forcedFum') },
@@ -485,7 +594,14 @@ const TABLES: StatTable[] = [
     cols: [
       { key: 'fgMade', label: 'FGM', value: n('fgMade') },
       { key: 'fgAtt', label: 'FGA', value: n('fgAtt') },
-      { key: 'fgPct', label: 'Pct', title: 'Field-goal percentage', value: ratio('fgMade', 'fgAtt', 100), format: fixed1, rate: true },
+      {
+        key: 'fgPct',
+        label: 'Pct',
+        title: 'Field-goal percentage',
+        value: ratio('fgMade', 'fgAtt', 100),
+        format: fixed1,
+        rate: true,
+      },
       { key: 'fgLong', label: 'Long', value: n('fgLong') },
       { key: 'xpMade', label: 'XPM', value: n('xpMade') },
       { key: 'xpAtt', label: 'XPA', value: n('xpAtt') },
@@ -500,7 +616,14 @@ const TABLES: StatTable[] = [
     cols: [
       { key: 'punts', label: 'Punts', value: n('punts') },
       { key: 'puntYds', label: 'Yds', value: n('puntYds') },
-      { key: 'avg', label: 'Avg', title: 'Yards per punt', value: ratio('puntYds', 'punts'), format: fixed1, rate: true },
+      {
+        key: 'avg',
+        label: 'Avg',
+        title: 'Yards per punt',
+        value: ratio('puntYds', 'punts'),
+        format: fixed1,
+        rate: true,
+      },
     ],
   },
   {
@@ -512,11 +635,25 @@ const TABLES: StatTable[] = [
     cols: [
       { key: 'krAtt', label: 'KR', title: 'Kick returns', value: n('krAtt') },
       { key: 'krYds', label: 'Yds', title: 'Kick-return yards', value: n('krYds') },
-      { key: 'krAvg', label: 'Avg', title: 'Yards per kick return', value: ratio('krYds', 'krAtt'), format: fixed1, rate: true },
+      {
+        key: 'krAvg',
+        label: 'Avg',
+        title: 'Yards per kick return',
+        value: ratio('krYds', 'krAtt'),
+        format: fixed1,
+        rate: true,
+      },
       { key: 'krTd', label: 'TD', title: 'Kick-return touchdowns', value: n('krTd') },
       { key: 'prAtt', label: 'PR', title: 'Punt returns', value: n('prAtt') },
       { key: 'prYds', label: 'Yds', title: 'Punt-return yards', value: n('prYds') },
-      { key: 'prAvg', label: 'Avg', title: 'Yards per punt return', value: ratio('prYds', 'prAtt'), format: fixed1, rate: true },
+      {
+        key: 'prAvg',
+        label: 'Avg',
+        title: 'Yards per punt return',
+        value: ratio('prYds', 'prAtt'),
+        format: fixed1,
+        rate: true,
+      },
       { key: 'prTd', label: 'TD', title: 'Punt-return touchdowns', value: n('prTd') },
     ],
   },
@@ -568,7 +705,11 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
               </option>
             ))}
           </select>
-          <select aria-label="Players" value={teamFilter} onChange={(e) => setTeamFilter(e.target.value as 'all' | 'mine')}>
+          <select
+            aria-label="Players"
+            value={teamFilter}
+            onChange={(e) => setTeamFilter(e.target.value as 'all' | 'mine')}
+          >
             <option value="all">Whole league</option>
             <option value="mine">Your roster</option>
           </select>
@@ -576,7 +717,8 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
       }
     >
       <p className="muted small" style={{ marginTop: 0 }}>
-        Regular season. Click a column to sort.{hasRates ? ' Averages and percentages rank qualified players first (enough attempts per game).' : ''} Team is
+        Regular season. Click a column to sort.
+        {hasRates ? ' Averages and percentages rank qualified players first (enough attempts per game).' : ''} Team is
         each player's current team.
       </p>
       <div className="table-scroll">
@@ -589,7 +731,14 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
               <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
               <SortTh label="GP" k="gp" sort={sort} onSort={onSort} className="num" />
               {table.cols.map((c) => (
-                <SortTh key={c.key} label={<span title={c.title}>{c.label}</span>} k={c.key} sort={sort} onSort={onSort} className="num" />
+                <SortTh
+                  key={c.key}
+                  label={<span title={c.title}>{c.label}</span>}
+                  k={c.key}
+                  sort={sort}
+                  onSort={onSort}
+                  className="num"
+                />
               ))}
             </tr>
           </thead>
@@ -606,7 +755,11 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
                 {table.cols.map((c) => {
                   const v = c.value(s);
                   return (
-                    <td key={c.key} className={`num${c.rate && !table.qualifies(s) ? ' muted' : ''}`} style={sort.key === c.key ? { fontWeight: 700 } : undefined}>
+                    <td
+                      key={c.key}
+                      className={`num${c.rate && !table.qualifies(s) ? ' muted' : ''}`}
+                      style={sort.key === c.key ? { fontWeight: 700 } : undefined}
+                    >
                       {c.format ? c.format(v) : v.toLocaleString()}
                     </td>
                   );

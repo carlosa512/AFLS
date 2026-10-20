@@ -32,12 +32,15 @@ export function isDeadlineDay(league: League): boolean {
 }
 
 export function tradeWindow(league: League): string | null {
-  if (league.phase === 'playoffs' || league.phase === 'complete') return 'Trades reopen when the new league year begins.';
-  if (league.phase === 'regular' && league.week > TRADE_DEADLINE_WEEK && !isDeadlineDay(league)) return `The trade deadline (the day after week ${TRADE_DEADLINE_WEEK}) has passed.`;
+  if (league.phase === 'playoffs' || league.phase === 'complete')
+    return 'Trades reopen when the new league year begins.';
+  if (league.phase === 'regular' && league.week > TRADE_DEADLINE_WEEK && !isDeadlineDay(league))
+    return `The trade deadline (the day after week ${TRADE_DEADLINE_WEEK}) has passed.`;
   return null;
 }
 
-export const isTradeSeason = (league: League) => !tradeWindow(league) && (league.phase === 'regular' || isOffseason(league.phase));
+export const isTradeSeason = (league: League) =>
+  !tradeWindow(league) && (league.phase === 'regular' || isOffseason(league.phase));
 
 /** Why a player can't be traded at all, by league rules: what every screen can show. */
 export function playerTradeBlocker(league: League, p: Player): string | null {
@@ -70,7 +73,8 @@ const waits = new Map<string, number>();
 function weeksSinceSigning(league: League, p: Player): number | null {
   const c = p.contract;
   // Rookie deals and tags aren't free-agent signings: they're tradable at once.
-  if (!c || c.signedSeason !== league.season || c.signedWeek < 0 || c.kind === 'rookie' || c.kind === 'tag') return null;
+  if (!c || c.signedSeason !== league.season || c.signedWeek < 0 || c.kind === 'rookie' || c.kind === 'tag')
+    return null;
   return league.phase === 'regular' ? league.week - 1 - c.signedWeek : -1;
 }
 
@@ -88,7 +92,9 @@ export function freshSigningRefusal(league: League, teamId: number, proposal: Tr
       if (!freshlySigned(league, p, teamId)) continue;
       const name = `${p.firstName} ${p.lastName}`;
       if (side.teamId === teamId) return `${name} just signed with them, and they won't move him yet.`;
-      return side.teamId === league.userTeamId ? `They won't take on ${name} so soon after he signed with you.` : `They won't take on ${name} so soon after he signed with the ${league.teams[side.teamId].name}.`;
+      return side.teamId === league.userTeamId
+        ? `They won't take on ${name} so soon after he signed with you.`
+        : `They won't take on ${name} so soon after he signed with the ${league.teams[side.teamId].name}.`;
     }
   }
   return null;
@@ -117,7 +123,8 @@ export function tradeCapImpact(league: League, proposal: TradeProposal, ctx: Tra
     // The new team takes only the unpaid base salary; the bonus stays behind.
     const arriving = other.players.map((id) => salaryToTake(league, league.players[id], other.retain?.[id] ?? 0));
     const hit = (p: Player) => (p.contract ? capHit(p.contract, league.season) : 0);
-    const counted = (hits: number[]) => (top51 ? hits.sort((a, b) => b - a).slice(0, 51) : hits).reduce((a, b) => a + b, 0);
+    const counted = (hits: number[]) =>
+      (top51 ? hits.sort((a, b) => b - a).slice(0, 51) : hits).reduce((a, b) => a + b, 0);
     const before = counted(roster.map(hit));
     const after = counted([...roster.filter((p) => !gone.has(p.id)).map(hit), ...arriving]);
     return { teamId: side.teamId, space: capRoom(ctx, side.teamId) + before - after - deadNow, dead };
@@ -173,11 +180,16 @@ export const retainedBy = (side: TradeSide) => Object.values(side.retain ?? {}).
  * backup to make room (`aiCutdown` runs after every trade); yours must fit unless `rosterCuts` (you
  * name who goes when you accept an offer).
  */
-export function tradeProblem(league: League, proposal: TradeProposal, opts: { rosterCuts?: boolean; ctx?: TradeContext } = {}): string | null {
+export function tradeProblem(
+  league: League,
+  proposal: TradeProposal,
+  opts: { rosterCuts?: boolean; ctx?: TradeContext } = {},
+): string | null {
   const window = tradeWindow(league);
   if (window) return window;
   const [a, b] = proposal.sides;
-  if (!a.players.length && !a.picks.length && !b.players.length && !b.picks.length) return 'Add players or picks to trade.';
+  if (!a.players.length && !a.picks.length && !b.players.length && !b.picks.length)
+    return 'Add players or picks to trade.';
   for (const side of proposal.sides) {
     for (const id of side.players) {
       const p = league.players[id];
@@ -187,12 +199,14 @@ export function tradeProblem(league: League, proposal: TradeProposal, opts: { ro
     }
     for (const id of side.picks) {
       const pick = league.draftPicks.find((x) => x.id === id);
-      if (!pick || pick.ownerId !== side.teamId || pick.playerId !== undefined) return 'That pick is no longer available.';
+      if (!pick || pick.ownerId !== side.teamId || pick.playerId !== undefined)
+        return 'That pick is no longer available.';
     }
     for (const [id, amount] of Object.entries(side.retain ?? {})) {
       const p = league.players[Number(id)];
       if (!side.players.includes(Number(id)) || amount < 0) return 'Only a player you send can have salary kept.';
-      if (amount > maxRetain(league, p)) return `${league.teams[side.teamId].name} can't keep paying more of ${p.firstName} ${p.lastName}'s salary than he's owed this season.`;
+      if (amount > maxRetain(league, p))
+        return `${league.teams[side.teamId].name} can't keep paying more of ${p.firstName} ${p.lastName}'s salary than he's owed this season.`;
     }
   }
   const ctx = opts.ctx ?? tradeContext(league);
@@ -203,11 +217,15 @@ export function tradeProblem(league: League, proposal: TradeProposal, opts: { ro
     if (impact[i].space < 0) return `${team.name} would be over the cap after this trade.`;
     const roster = rosterOf(ctx, side.teamId);
     const size = roster.filter((p) => !p.ir).length - side.players.length + other.players.length;
-    if (size > rosterLimit(league) && !opts.rosterCuts && side.teamId === league.userTeamId) return `${team.name} would have too many players (${size}/${rosterLimit(league)}). Release someone first.`;
+    if (size > rosterLimit(league) && !opts.rosterCuts && side.teamId === league.userTeamId)
+      return `${team.name} would have too many players (${size}/${rosterLimit(league)}). Release someone first.`;
     if (league.phase === 'regular') {
-      const after = roster.filter((p) => !side.players.includes(p.id)).concat(other.players.map((id) => league.players[id]));
+      const after = roster
+        .filter((p) => !side.players.includes(p.id))
+        .concat(other.players.map((id) => league.players[id]));
       for (const pos of Object.keys(STARTERS) as Position[]) {
-        if (after.filter((p) => p.position === pos).length < STARTERS[pos]) return `${team.name} can't be left without enough ${pos}s in season.`;
+        if (after.filter((p) => p.position === pos).length < STARTERS[pos])
+          return `${team.name} can't be left without enough ${pos}s in season.`;
       }
     }
   }

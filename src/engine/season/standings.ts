@@ -26,7 +26,19 @@ export function regularSeasonGames(league: League, season = league.season): Game
 export function computeRecords(league: League, season = league.season): Map<number, TeamRecord> {
   const records = new Map<number, TeamRecord>();
   for (const t of league.teams) {
-    records.set(t.id, { teamId: t.id, w: 0, l: 0, t: 0, pf: 0, pa: 0, div: [0, 0, 0], conf: [0, 0, 0], home: [0, 0, 0], away: [0, 0, 0], streak: '' });
+    records.set(t.id, {
+      teamId: t.id,
+      w: 0,
+      l: 0,
+      t: 0,
+      pf: 0,
+      pa: 0,
+      div: [0, 0, 0],
+      conf: [0, 0, 0],
+      home: [0, 0, 0],
+      away: [0, 0, 0],
+      streak: '',
+    });
   }
   const games = regularSeasonGames(league, season).sort((a, b) => a.week - b.week);
   for (const g of games) {
@@ -163,7 +175,12 @@ export function playoffRace(league: League, teamId: number, season = league.seas
   const hopefuls = (ts: typeof others) => ts.length - new Set(ts.map((t) => t.division)).size;
   const rival = (ts: typeof others) => ts.some((t) => t.division === team.division);
   const division = !rival(level);
-  return { spot: division || hopefuls(level) < 3, division, bye: level.length === 0, out: rival(above) && hopefuls(above) >= 3 };
+  return {
+    spot: division || hopefuls(level) < 3,
+    division,
+    bye: level.length === 0,
+    out: rival(above) && hopefuls(above) >= 3,
+  };
 }
 
 /** Seven playoff seeds for a conference: four division winners, then three wild cards. */

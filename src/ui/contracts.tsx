@@ -14,7 +14,14 @@ import {
   restructureOptions,
   restructurePlayer,
 } from '../engine/finance/cap';
-import { capHit, guaranteedFrom, isExpired, lastSeason, prorationIn, totalGuaranteed } from '../engine/finance/contract';
+import {
+  capHit,
+  guaranteedFrom,
+  isExpired,
+  lastSeason,
+  prorationIn,
+  totalGuaranteed,
+} from '../engine/finance/contract';
 import type { Contract, League, Player } from '../engine/types';
 import { Dialog } from './components';
 import { liveLock } from './live';
@@ -24,12 +31,20 @@ import { store } from './store';
 const name = (p: Player) => `${p.firstName} ${p.lastName}`;
 
 /** "2029", or "Expiring" for a deal that has run out (re-sign window, before free agency opens). */
-export const thruLabel = (league: League, c: Contract) => (isExpired(c, league.season) ? 'Expiring' : String(lastSeason(c)));
+export const thruLabel = (league: League, c: Contract) =>
+  isExpired(c, league.season) ? 'Expiring' : String(lastSeason(c));
 
 export function contractLabel(league: League, p: Player): string {
   const c = p.contract;
   if (!c) return p.retired ? 'Retired' : 'Free agent';
-  const kind = c.kind === 'rookie' ? 'Rookie deal' : c.kind === 'tag' ? 'Franchise tag' : c.kind === 'minimum' ? 'Minimum deal' : 'Veteran deal';
+  const kind =
+    c.kind === 'rookie'
+      ? 'Rookie deal'
+      : c.kind === 'tag'
+        ? 'Franchise tag'
+        : c.kind === 'minimum'
+          ? 'Minimum deal'
+          : 'Veteran deal';
   const end = isExpired(c, league.season) ? `expired after ${lastSeason(c)}` : `thru ${lastSeason(c)}`;
   return `${kind} · ${c.length} yr, ${money(c.apy * c.length)} (${money(c.apy)}/yr) · ${end}`;
 }
@@ -56,7 +71,9 @@ export function ContractYears({ player }: { player: Player }) {
               <td className="num">
                 {y.season}
                 {y.void && <span className="tag-pill">void</span>}
-                {c.fifthYearOption === 'exercised' && y === c.years[c.years.length - 1] && !y.void && <span className="tag-pill">option</span>}
+                {c.fifthYearOption === 'exercised' && y === c.years[c.years.length - 1] && !y.void && (
+                  <span className="tag-pill">option</span>
+                )}
               </td>
               <td className="num">{y.void ? '–' : money(y.base)}</td>
               <td className="num">{money(Math.round(prorationIn(c, y.season)))}</td>
@@ -138,29 +155,47 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
     >
       <div className="facts">
         <Num label={`${league.season} cap hit now`} value={hit} />
-        <Num label={`Dead money ${league.season}`} value={preview.thisYear} tone={preview.thisYear > 0 ? 'bad' : undefined} />
-        <Num label={`Dead money ${league.season + 1}`} value={preview.nextYear} tone={preview.nextYear > 0 ? 'bad' : undefined} />
+        <Num
+          label={`Dead money ${league.season}`}
+          value={preview.thisYear}
+          tone={preview.thisYear > 0 ? 'bad' : undefined}
+        />
+        <Num
+          label={`Dead money ${league.season + 1}`}
+          value={preview.nextYear}
+          tone={preview.nextYear > 0 ? 'bad' : undefined}
+        />
         <Num label="Cap room gained" value={preview.savings} tone={preview.savings >= 0 ? 'good' : 'bad'} />
       </div>
       {preview.canDesignate ? (
         <label className="check-row">
           <input type="checkbox" checked={designate} onChange={(e) => setDesignate(e.target.checked)} />
           <span>
-            <b>Post-June 1 designation</b> ({POST_JUNE1_LIMIT - team.postJune1Used} of {POST_JUNE1_LIMIT} left). Only this year's bonus share counts now;
-            the rest moves to {league.season + 1}. Same total, different timing.
+            <b>Post-June 1 designation</b> ({POST_JUNE1_LIMIT - team.postJune1Used} of {POST_JUNE1_LIMIT} left). Only
+            this year's bonus share counts now; the rest moves to {league.season + 1}. Same total, different timing.
           </span>
         </label>
       ) : preview.postJune1 ? (
         <p className="muted small">After June 1, remaining bonus money is charged to next year's cap automatically.</p>
       ) : (
-        <p className="muted small">No post-June 1 designations left this league year: all remaining bonus money hits now.</p>
+        <p className="muted small">
+          No post-June 1 designations left this league year: all remaining bonus money hits now.
+        </p>
       )}
       <p className="muted small">He becomes a free agent. Guaranteed salary is still owed and counts as dead money.</p>
     </Dialog>
   );
 }
 
-export function RestructureDialog({ league, player, onClose }: { league: League; player: Player; onClose: () => void }) {
+export function RestructureDialog({
+  league,
+  player,
+  onClose,
+}: {
+  league: League;
+  player: Player;
+  onClose: () => void;
+}) {
   const full = restructureOptions(league, player);
   const step = 100;
   const [amount, setAmount] = useState(Math.floor(full.max / step) * step);
@@ -188,12 +223,21 @@ export function RestructureDialog({ league, player, onClose }: { league: League;
       }
     >
       <p className="small" style={{ margin: 0 }}>
-        Convert base salary into a bonus spread over {preview.years} league years. Room now, a bigger bill later, and more dead money if you ever cut him.
+        Convert base salary into a bonus spread over {preview.years} league years. Room now, a bigger bill later, and
+        more dead money if you ever cut him.
       </p>
       <label htmlFor={sliderId} className="eyebrow">
         Salary to convert: <b className="num">{money(amount)}</b> of {money(full.max)}
       </label>
-      <input id={sliderId} type="range" min={0} max={Math.max(step, full.max)} step={step} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+      <input
+        id={sliderId}
+        type="range"
+        min={0}
+        max={Math.max(step, full.max)}
+        step={step}
+        value={amount}
+        onChange={(e) => setAmount(Number(e.target.value))}
+      />
       <div className="facts">
         <Num label={`Room created in ${league.season}`} value={preview.savings} tone="good" />
         <Num label="Added to each later year" value={preview.addedPerYear} tone="bad" />
@@ -240,10 +284,20 @@ export function ContractActions({ league, player }: { league: League; player: Pl
   const rs = lock ?? restructureBlocker(league, player);
   return (
     <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-      <button className="btn btn-sm" disabled={!!rs} title={rs ?? 'Convert salary to bonus for cap room now'} onClick={() => setOpen('restructure')}>
+      <button
+        className="btn btn-sm"
+        disabled={!!rs}
+        title={rs ?? 'Convert salary to bonus for cap room now'}
+        onClick={() => setOpen('restructure')}
+      >
         Restructure
       </button>
-      <button className="btn btn-sm" disabled={!!cut} title={cut ?? 'Preview the dead money before releasing'} onClick={() => setOpen('release')}>
+      <button
+        className="btn btn-sm"
+        disabled={!!cut}
+        title={cut ?? 'Preview the dead money before releasing'}
+        onClick={() => setOpen('release')}
+      >
         Release
       </button>
       {open === 'release' && <ReleaseDialog league={league} player={player} onClose={() => setOpen(null)} />}
@@ -262,7 +316,16 @@ const SERIES = [
 
 /** Stacked columns of committed cap per league year against the (projected) cap line. */
 export function CapChart({ league, teamId }: { league: League; teamId: number }) {
-  const rows = capProjection(league, teamId).map((r) => ({ season: r.season, cap: r.cap + r.carryover, active: r.active - r.voidCharges, dead: r.dead, voids: r.voidCharges, used: r.used, space: r.space, players: r.players }));
+  const rows = capProjection(league, teamId).map((r) => ({
+    season: r.season,
+    cap: r.cap + r.carryover,
+    active: r.active - r.voidCharges,
+    dead: r.dead,
+    voids: r.voidCharges,
+    used: r.used,
+    space: r.space,
+    players: r.players,
+  }));
   const [hover, setHover] = useState<number | null>(null);
   const [asTable, setAsTable] = useState(false);
   // Draw at the container's real width so axis text stays a readable 11px at any size.
@@ -335,7 +398,14 @@ export function CapChart({ league, teamId }: { league: League; teamId: number })
         </div>
       ) : (
         <div className="chart-wrap" ref={wrapRef}>
-          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="Cap commitments for the next five league years">
+          <svg
+            width={W}
+            height={H}
+            viewBox={`0 0 ${W} ${H}`}
+            className="chart"
+            role="img"
+            aria-label="Cap commitments for the next five league years"
+          >
             {ticks.map((t) => (
               <g key={t}>
                 <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} className="grid" />
@@ -364,7 +434,13 @@ export function CapChart({ league, teamId }: { league: League; teamId: number })
                     const d = `M${x0},${yTop + h}V${yTop + r4}Q${x0},${yTop} ${x0 + r4},${yTop}H${x0 + barW - r4}Q${x0 + barW},${yTop} ${x0 + barW},${yTop + r4}V${yTop + h}Z`;
                     return <path key={g.s.key} d={d} className={g.s.cls} />;
                   })}
-                  <line x1={x(i) - band * 0.42} x2={x(i) + band * 0.42} y1={y(r.cap)} y2={y(r.cap)} className="cap-line" />
+                  <line
+                    x1={x(i) - band * 0.42}
+                    x2={x(i) + band * 0.42}
+                    y1={y(r.cap)}
+                    y2={y(r.cap)}
+                    className="cap-line"
+                  />
                   <text x={x(i)} y={H - 8} textAnchor="middle" className="axis">
                     {r.season}
                   </text>
@@ -391,7 +467,8 @@ export function CapChart({ league, teamId }: { league: League; teamId: number })
               <span>Cap {money(Math.round(rows[hover].cap))}</span>
               {SERIES.map((s) => (
                 <span key={s.key}>
-                  <i className={`swatch ${s.cls}`} aria-hidden="true" /> {s.label}: {money(Math.round(rows[hover][s.key]))}
+                  <i className={`swatch ${s.cls}`} aria-hidden="true" /> {s.label}:{' '}
+                  {money(Math.round(rows[hover][s.key]))}
                 </span>
               ))}
               <span>
@@ -405,4 +482,5 @@ export function CapChart({ league, teamId }: { league: League; teamId: number })
   );
 }
 
-export const capPct = (league: League, amount: number) => `${((amount / capFor(league, league.season)) * 100).toFixed(1)}%`;
+export const capPct = (league: League, amount: number) =>
+  `${((amount / capFor(league, league.season)) * 100).toFixed(1)}%`;

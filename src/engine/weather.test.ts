@@ -2,11 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { simulateGame } from './match/gameSim';
 import type { Game } from './types';
-import { forecast, gameWeather, isNight, severity, staminaDrain, turfRisk, weatherAt, weatherCost, type Weather } from './weather';
+import {
+  forecast,
+  gameWeather,
+  isNight,
+  severity,
+  staminaDrain,
+  turfRisk,
+  weatherAt,
+  weatherCost,
+  type Weather,
+} from './weather';
 
 const league = createLeague({ seed: 'test-weather' });
 const teamId = (abbrev: string) => league.teams.find((t) => t.abbrev === abbrev)!.id;
-const game = (home: string, week: number, season = league.season, id = 9000 + week): Game => ({ id, season, week, homeId: teamId(home), awayId: teamId('SEA') });
+const game = (home: string, week: number, season = league.season, id = 9000 + week): Game => ({
+  id,
+  season,
+  week,
+  homeId: teamId(home),
+  awayId: teamId('SEA'),
+});
 const day = (w: Partial<Weather>): Weather => ({ roof: 'outdoors', tempF: 70, windMph: 4, precip: 'none', ...w });
 
 describe('weather', () => {
@@ -28,7 +44,8 @@ describe('weather', () => {
   });
 
   it('makes Green Bay in December cold and Miami in September hot', () => {
-    const temps = (home: string, week: number) => Array.from({ length: 60 }, (_, i) => gameWeather(league, game(home, week, league.season, i + 1)).tempF);
+    const temps = (home: string, week: number) =>
+      Array.from({ length: 60 }, (_, i) => gameWeather(league, game(home, week, league.season, i + 1)).tempF);
     const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
     expect(avg(temps('GB', 15))).toBeLessThan(35);
     expect(avg(temps('MIA', 2))).toBeGreaterThan(80);
@@ -58,7 +75,16 @@ describe('weather', () => {
     expect(simulateGame(league, g).weather).toEqual(gameWeather(league, g));
     // Coaches read the make chance the engine hands them, so in a gale the long tries dry up.
     const longTries = (w: Weather) =>
-      league.games.slice(0, 60).reduce((n, g) => n + (simulateGame(league, g, { weather: w, keepPlays: true }).plays ?? []).filter((p) => /\b(5\d|6\d)-yard field goal/.test(p.text)).length, 0);
+      league.games
+        .slice(0, 60)
+        .reduce(
+          (n, g) =>
+            n +
+            (simulateGame(league, g, { weather: w, keepPlays: true }).plays ?? []).filter((p) =>
+              /\b(5\d|6\d)-yard field goal/.test(p.text),
+            ).length,
+          0,
+        );
     const calmTries = longTries(day({}));
     expect(calmTries).toBeGreaterThan(5);
     expect(longTries(day({ windMph: 25 }))).toBeLessThan(calmTries / 2);
@@ -83,7 +109,8 @@ describe('weather', () => {
   });
 
   it('plays three regular-season games a week at night', () => {
-    for (const week of [1, 9, 17]) expect(league.games.filter((g) => g.week === week && isNight(league, g))).toHaveLength(3);
+    for (const week of [1, 9, 17])
+      expect(league.games.filter((g) => g.week === week && isNight(league, g))).toHaveLength(3);
   });
 
   it('sends a storm front over every city in a region the same week', () => {
@@ -106,13 +133,17 @@ describe('weather', () => {
 
   it('carries kicks in thin air and tires visitors there, and drains both sides in the heat', () => {
     expect(weatherCost(day({ altitudeFt: 5280 })).kick).toBeLessThan(-3);
-    expect(staminaDrain(day({ altitudeFt: 5280 }), false)).toBeGreaterThan(staminaDrain(day({ altitudeFt: 5280 }), true));
+    expect(staminaDrain(day({ altitudeFt: 5280 }), false)).toBeGreaterThan(
+      staminaDrain(day({ altitudeFt: 5280 }), true),
+    );
     expect(staminaDrain(day({ altitudeFt: 5280 }), true)).toBe(1);
     expect(staminaDrain(day({ tempF: 95 }), true)).toBeGreaterThan(1.1);
     expect(staminaDrain({ ...day({ tempF: 95 }), roof: 'closed' }, true)).toBe(1);
     // Heat costs energy on every snap, so players leave a hot game more worn down.
     const worn = (w: Weather) => {
-      const left = league.games.slice(0, 8).flatMap((g) => Object.values(simulateGame(league, g, { weather: w }).condition ?? {}));
+      const left = league.games
+        .slice(0, 8)
+        .flatMap((g) => Object.values(simulateGame(league, g, { weather: w }).condition ?? {}));
       return left.reduce((a, b) => a + b, 0) / left.length;
     };
     expect(worn(day({ tempF: 100 }))).toBeLessThan(worn(day({})) - 1);

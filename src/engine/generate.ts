@@ -1,18 +1,20 @@
 import { generateCoachingWorld } from './coaching';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
-import {
-  ATTRIBUTE_PROFILES,
-  BODY,
-  JERSEY_RANGES,
-  overall,
-  ROSTER_TEMPLATE,
-  STARTERS,
-} from './positions';
+import { ATTRIBUTE_PROFILES, BODY, JERSEY_RANGES, overall, ROSTER_TEMPLATE, STARTERS } from './positions';
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
 import { generateCrews } from './officials';
 import { buildContract, capHit, trimPast } from './finance/contract';
-import { BASE_CAP, guaranteeAsk, leagueMarket, marketApy, minSalary, rookieApy, rookieBonusShare, type Market } from './finance/market';
+import {
+  BASE_CAP,
+  guaranteeAsk,
+  leagueMarket,
+  marketApy,
+  minSalary,
+  rookieApy,
+  rookieBonusShare,
+  type Market,
+} from './finance/market';
 import { clamp, Rng } from './rng';
 import { buildAutoDepthChart } from './roster';
 import { newIdentity } from './identity';
@@ -131,7 +133,12 @@ export function rookieContract(overall: number, draftSeason: number, cap: number
   const min = minSalary(0, cap);
   // First-rounders are fully guaranteed; Day 2 picks get their first year guaranteed.
   const guaranteedBase = round === 1 ? total : round <= 3 ? min : 0;
-  const c = buildContract({ years: 4, total, signingBonus: bonus, guaranteedBase, voidYears: 0, escalator: 0.08 }, draftSeason, 'rookie', min);
+  const c = buildContract(
+    { years: 4, total, signingBonus: bonus, guaranteedBase, voidYears: 0, escalator: 0.08 },
+    draftSeason,
+    'rookie',
+    min,
+  );
   if (round === 1) c.fifthYearOption = 'eligible';
   return c;
 }
@@ -140,16 +147,35 @@ export function rookieContract(overall: number, draftSeason: number, cap: number
  * Standard veteran structure: bigger deals carry a bigger signing bonus and early guarantees;
  * cap-aggressive front offices push money into void years.
  */
-export function veteranContract(rng: Rng, market: Market, player: Player, apyK: number, years: number, start: number, gm: GmTraits, signedWeek = 0): Contract {
+export function veteranContract(
+  rng: Rng,
+  market: Market,
+  player: Player,
+  apyK: number,
+  years: number,
+  start: number,
+  gm: GmTraits,
+  signedWeek = 0,
+): Contract {
   const cap = market.cap;
   const total = apyK * years;
-  const share = apyK > 0.04 * cap ? rng.float(0.28, 0.45) : apyK > 0.012 * cap ? rng.float(0.1, 0.28) : rng.float(0, 0.08);
+  const share =
+    apyK > 0.04 * cap ? rng.float(0.28, 0.45) : apyK > 0.012 * cap ? rng.float(0.1, 0.28) : rng.float(0, 0.08);
   const bonus = total * clamp(share + (gm.capAggression - 0.5) * 0.15, 0, 0.6);
   const gtdShare = guaranteeAsk(market, player) * rng.float(0.8, 1.1);
   const guaranteedBase = Math.max(0, total * gtdShare - bonus);
-  const voidYears = years < 5 && gm.capAggression > 0.75 && bonus > 0.03 * cap && rng.chance(0.6) ? rng.int(1, Math.min(3, 5 - years)) : 0;
+  const voidYears =
+    years < 5 && gm.capAggression > 0.75 && bonus > 0.03 * cap && rng.chance(0.6)
+      ? rng.int(1, Math.min(3, 5 - years))
+      : 0;
   const kind = apyK <= minSalary(player.experience, cap) * 1.05 ? 'minimum' : 'veteran';
-  return buildContract({ years, total, signingBonus: bonus, guaranteedBase, voidYears, escalator: rng.float(0.02, 0.07) }, start, kind, minSalary(player.experience, cap), signedWeek);
+  return buildContract(
+    { years, total, signingBonus: bonus, guaranteedBase, voidYears, escalator: rng.float(0.02, 0.07) },
+    start,
+    kind,
+    minSalary(player.experience, cap),
+    signedWeek,
+  );
 }
 
 /** Draft slot implied by a young player's quality when the league is created (history is invented). */
@@ -172,7 +198,19 @@ function initialContract(rng: Rng, market: Market, player: Player, season: numbe
     } else {
       // Undrafted: minimum salaries and a token bonus.
       const min = minSalary(0, capThen);
-      c = buildContract({ years: 3, total: min * 3 + rng.int(0, 40), signingBonus: rng.int(0, 40), guaranteedBase: 0, voidYears: 0, escalator: 0.08 }, draftSeason, 'rookie', min);
+      c = buildContract(
+        {
+          years: 3,
+          total: min * 3 + rng.int(0, 40),
+          signingBonus: rng.int(0, 40),
+          guaranteedBase: 0,
+          voidYears: 0,
+          escalator: 0.08,
+        },
+        draftSeason,
+        'rookie',
+        min,
+      );
     }
     if (c.fifthYearOption === 'eligible' && exp === 3) c.fifthYearOption = 'declined';
     trimPast(c, season);
@@ -180,7 +218,12 @@ function initialContract(rng: Rng, market: Market, player: Player, season: numbe
     // An undrafted deal that has run out: he's back on a one- or two-year minimum.
     const min = minSalary(exp, BASE_CAP);
     const years = rng.int(1, 2);
-    return buildContract({ years, total: min * years, signingBonus: 0, guaranteedBase: 0, voidYears: 0, escalator: 0 }, season, 'minimum', min);
+    return buildContract(
+      { years, total: min * years, signingBonus: 0, guaranteedBase: 0, voidYears: 0, escalator: 0 },
+      season,
+      'minimum',
+      min,
+    );
   }
   const remaining = ovr >= 14 ? rng.int(2, 5) : rng.int(1, 3);
   const elapsed = rng.int(0, Math.min(2, Math.max(0, 5 - remaining)));
@@ -201,7 +244,9 @@ function initialContract(rng: Rng, market: Market, player: Player, season: numbe
  */
 function fitPayroll(players: Player[], season: number, target: number): void {
   const vets = players.filter((p) => p.contract!.kind !== 'rookie');
-  const fixed = players.filter((p) => p.contract!.kind === 'rookie').reduce((s, p) => s + capHit(p.contract!, season), 0);
+  const fixed = players
+    .filter((p) => p.contract!.kind === 'rookie')
+    .reduce((s, p) => s + capHit(p.contract!, season), 0);
   const floor = vets.reduce((s, p) => s + minSalary(p.experience, BASE_CAP), 0);
   const current = vets.reduce((s, p) => s + capHit(p.contract!, season), 0);
   if (current <= floor) return;
@@ -223,19 +268,82 @@ function fitPayroll(players: Player[], season: number, target: number): void {
 }
 
 const GM_ARCHETYPES: GmTraits[] = [
-  { archetype: 'Cap Magician', winNow: 0.7, capAggression: 0.9, pickChart: 'analytics', futureDiscount: 0.2, loyalty: 0.8, stubbornness: 0.3 },
-  { archetype: 'All-In', winNow: 0.95, capAggression: 0.7, pickChart: 'johnson', futureDiscount: 0.38, loyalty: 0.4, stubbornness: 0.2 },
-  { archetype: 'Draft and Develop', winNow: 0.35, capAggression: 0.2, pickChart: 'analytics', futureDiscount: 0.18, loyalty: 0.6, stubbornness: 0.5 },
-  { archetype: 'Can-Kicker', winNow: 0.75, capAggression: 0.85, pickChart: 'johnson', futureDiscount: 0.3, loyalty: 0.5, stubbornness: 0.3 },
-  { archetype: 'Hard-Liner', winNow: 0.55, capAggression: 0.3, pickChart: 'johnson', futureDiscount: 0.3, loyalty: 0.2, stubbornness: 0.9 },
-  { archetype: 'Pick Hoarder', winNow: 0.2, capAggression: 0.2, pickChart: 'analytics', futureDiscount: 0.15, loyalty: 0.3, stubbornness: 0.6 },
-  { archetype: 'Balanced', winNow: 0.5, capAggression: 0.5, pickChart: 'johnson', futureDiscount: 0.25, loyalty: 0.5, stubbornness: 0.5 },
+  {
+    archetype: 'Cap Magician',
+    winNow: 0.7,
+    capAggression: 0.9,
+    pickChart: 'analytics',
+    futureDiscount: 0.2,
+    loyalty: 0.8,
+    stubbornness: 0.3,
+  },
+  {
+    archetype: 'All-In',
+    winNow: 0.95,
+    capAggression: 0.7,
+    pickChart: 'johnson',
+    futureDiscount: 0.38,
+    loyalty: 0.4,
+    stubbornness: 0.2,
+  },
+  {
+    archetype: 'Draft and Develop',
+    winNow: 0.35,
+    capAggression: 0.2,
+    pickChart: 'analytics',
+    futureDiscount: 0.18,
+    loyalty: 0.6,
+    stubbornness: 0.5,
+  },
+  {
+    archetype: 'Can-Kicker',
+    winNow: 0.75,
+    capAggression: 0.85,
+    pickChart: 'johnson',
+    futureDiscount: 0.3,
+    loyalty: 0.5,
+    stubbornness: 0.3,
+  },
+  {
+    archetype: 'Hard-Liner',
+    winNow: 0.55,
+    capAggression: 0.3,
+    pickChart: 'johnson',
+    futureDiscount: 0.3,
+    loyalty: 0.2,
+    stubbornness: 0.9,
+  },
+  {
+    archetype: 'Pick Hoarder',
+    winNow: 0.2,
+    capAggression: 0.2,
+    pickChart: 'analytics',
+    futureDiscount: 0.15,
+    loyalty: 0.3,
+    stubbornness: 0.6,
+  },
+  {
+    archetype: 'Balanced',
+    winNow: 0.5,
+    capAggression: 0.5,
+    pickChart: 'johnson',
+    futureDiscount: 0.25,
+    loyalty: 0.5,
+    stubbornness: 0.5,
+  },
 ];
 
 export function generateGm(rng: Rng): GmTraits {
   const a = rng.pick(GM_ARCHETYPES);
   const j = (v: number) => Math.round(clamp(v + rng.normal(0, 0.08), 0, 1) * 100) / 100;
-  return { ...a, winNow: j(a.winNow), capAggression: j(a.capAggression), loyalty: j(a.loyalty), stubbornness: j(a.stubbornness), futureDiscount: clamp(j(a.futureDiscount), 0.15, 0.4) };
+  return {
+    ...a,
+    winNow: j(a.winNow),
+    capAggression: j(a.capAggression),
+    loyalty: j(a.loyalty),
+    stubbornness: j(a.stubbornness),
+    futureDiscount: clamp(j(a.futureDiscount), 0.15, 0.4),
+  };
 }
 
 /** Each team's seven picks in the `season` draft. */
@@ -349,7 +457,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     // Talent varies between franchises, which creates contenders and rebuilders: the real franchise's last ten
     // seasons set where it starts (Kansas City's .750 about +1.0 on every starter's quality, Jacksonville's .335
     // about −0.66), with a little luck on top; a team without a record (a mod's) starts at random.
-    const teamTalent = seedTeam.winPct === undefined ? rng.normal(0, 0.2) : PEDIGREE * (seedTeam.winPct - 0.5) + rng.normal(0, 0.1);
+    const teamTalent =
+      seedTeam.winPct === undefined ? rng.normal(0, 0.2) : PEDIGREE * (seedTeam.winPct - 0.5) + rng.normal(0, 0.1);
     const jerseysUsed = new Set<number>();
     const roster: Player[] = [];
     for (const position of POSITIONS) {

@@ -73,14 +73,39 @@ const offseason = (seed: string) => {
 
 /** A full staff of one quality, for reading what coaching does without a league. */
 const staffOf = (rating: number, overrides: Partial<Record<string, Partial<Coach>>> = {}): Coach[] =>
-  CHAIRS.map((ch, i) => ({ id: -i - 1, firstName: 'A', lastName: String(i), ...ch, age: 50, youth: rating, veterans: rating, teamId: 0, contract: null, ...overrides[ch.room ?? ch.role] }));
+  CHAIRS.map((ch, i) => ({
+    id: -i - 1,
+    firstName: 'A',
+    lastName: String(i),
+    ...ch,
+    age: 50,
+    youth: rating,
+    veterans: rating,
+    teamId: 0,
+    contract: null,
+    ...overrides[ch.room ?? ch.role],
+  }));
 
 function rookie(pos: Position, age: number, i: number): Player {
-  return generatePlayer(new Rng(`coach-test:${pos}:${i}`), { id: 2_000_000 + i, position: pos, quality: 11, age, teamId: null, jerseysUsed: new Set() });
+  return generatePlayer(new Rng(`coach-test:${pos}:${i}`), {
+    id: 2_000_000 + i,
+    position: pos,
+    quality: 11,
+    age,
+    teamId: null,
+    jerseysUsed: new Set(),
+  });
 }
 
 /** Average change in overall over `years` offseasons for the same players under a given staff (and makeup). */
-function careerUnder(staff: Coach[] | null, pos: Position, age: number, years: number, n = 300, vary?: (p: Player) => void): number {
+function careerUnder(
+  staff: Coach[] | null,
+  pos: Position,
+  age: number,
+  years: number,
+  n = 300,
+  vary?: (p: Player) => void,
+): number {
   const coaching = staff ? coachingFrom(staff, pos) : NEUTRAL;
   const deltas: number[] = [];
   for (let i = 0; i < n; i++) {
@@ -122,21 +147,31 @@ describe('what coaches do for players', () => {
     expect(star('defCoord')).toEqual(NEUTRAL);
     // Kickers and punters have no room or side: the special teams coordinator is their position coach.
     expect(coachingFrom(staffOf(TYPICAL, { headCoach: { youth: 18 } }), 'K').rate).toBeGreaterThan(1);
-    expect(coachingFrom(staffOf(TYPICAL, { stCoord: { youth: 18 } }), 'K').rate).toBeGreaterThan(coachingFrom(staffOf(TYPICAL, { headCoach: { youth: 18 } }), 'K').rate);
+    expect(coachingFrom(staffOf(TYPICAL, { stCoord: { youth: 18 } }), 'K').rate).toBeGreaterThan(
+      coachingFrom(staffOf(TYPICAL, { headCoach: { youth: 18 } }), 'K').rate,
+    );
   });
 
   it('adds up the parts a screen shows to exactly what development applies', () => {
-    const staff = staffOf(TYPICAL, { WR: { youth: 16, veterans: 7 }, headCoach: { youth: 12, veterans: 13 }, strengthCoach: { youth: 9, veterans: 15 } });
+    const staff = staffOf(TYPICAL, {
+      WR: { youth: 16, veterans: 7 },
+      headCoach: { youth: 12, veterans: 13 },
+      strengthCoach: { youth: 9, veterans: 15 },
+    });
     for (const pos of ['WR', 'TE', 'K'] as Position[]) {
       const parts = coachingParts(staff, pos);
       const c = coachingFrom(staff, pos);
       expect(1 + parts.reduce((s, p) => s + p.growth, 0)).toBeCloseTo(c.rate, 10);
       expect(1 + parts.reduce((s, p) => s + p.body, 0)).toBeCloseTo(c.decline.physical, 10);
       expect(1 + parts.reduce((s, p) => s + p.craft, 0)).toBeCloseTo(c.decline.technical, 10);
-      for (const k of ['growth', 'body', 'craft'] as const) expect(parts.reduce((s, p) => s + p.weight[k], 0)).toBeCloseTo(1, 10);
+      for (const k of ['growth', 'body', 'craft'] as const)
+        expect(parts.reduce((s, p) => s + p.weight[k], 0)).toBeCloseTo(1, 10);
     }
     expect(roomEffect(staff, 'WR').growth).toBeGreaterThan(0.1);
-    expect(roomEffect(staff, 'QB').growth).toBeCloseTo(roomEffect(staffOf(TYPICAL, { headCoach: { youth: 12 }, strengthCoach: { youth: 9 } }), 'QB').growth, 10);
+    expect(roomEffect(staff, 'QB').growth).toBeCloseTo(
+      roomEffect(staffOf(TYPICAL, { headCoach: { youth: 12 }, strengthCoach: { youth: 9 } }), 'QB').growth,
+      10,
+    );
   });
 
   it('grows young players faster and ages veterans more gently under better coaches, less than work ethic does', () => {
@@ -176,8 +211,12 @@ describe('what coaches do for players', () => {
     for (const c of Object.values(weak.coaches)) c.youth = c.veterans = 3;
     beginOffseason(strong);
     beginOffseason(weak);
-    const young = Object.values(l.players).filter((p) => p.teamId !== null && p.age <= 23 && p.potential - playerOvr(p) > 1);
-    const old = Object.values(l.players).filter((p) => p.teamId !== null && p.age >= 31 && !strong.players[p.id].retired && !weak.players[p.id].retired);
+    const young = Object.values(l.players).filter(
+      (p) => p.teamId !== null && p.age <= 23 && p.potential - playerOvr(p) > 1,
+    );
+    const old = Object.values(l.players).filter(
+      (p) => p.teamId !== null && p.age >= 31 && !strong.players[p.id].retired && !weak.players[p.id].retired,
+    );
     expect(young.length).toBeGreaterThan(100);
     const change = (lg: League, ps: Player[]) => mean(ps.map((p) => playerOvr(lg.players[p.id]) - playerOvr(p)));
     expect(change(strong, young)).toBeGreaterThan(change(weak, young) + 0.1);
@@ -187,7 +226,9 @@ describe('what coaches do for players', () => {
     expect(strong.players[fa.id].ratings).toEqual(weak.players[fa.id].ratings);
     // Coaching moves players, never the league's own stream: same draft class, same schedule.
     expect(strong.rngState).toEqual(weak.rngState);
-    expect(strong.draftClass.map((id) => strong.players[id].ratings)).toEqual(weak.draftClass.map((id) => weak.players[id].ratings));
+    expect(strong.draftClass.map((id) => strong.players[id].ratings)).toEqual(
+      weak.draftClass.map((id) => weak.players[id].ratings),
+    );
   }, 30_000);
 });
 
@@ -268,8 +309,12 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
     expect(coachPayroll(l, user)).toBe(payroll - salary + severance + ask);
     expect(l.teams[user].coachDead.at(-1)!.amount).toBe(severance);
     // Terms are capped by role; only expiring deals extend; nobody dismisses another team's coach.
-    expect(coachMoveProblem(l, user, coachMarket(l).find((c) => c.role === 'offCoord')!, 'hire', 5)).toMatch(/1–3 years/);
-    expect(() => extendCoach(l, user, teamCoaches(l, user).find((c) => !isCoachExpiring(l, c))!.id)).toThrow(/expiring/);
+    expect(coachMoveProblem(l, user, coachMarket(l).find((c) => c.role === 'offCoord')!, 'hire', 5)).toMatch(
+      /1–3 years/,
+    );
+    expect(() => extendCoach(l, user, teamCoaches(l, user).find((c) => !isCoachExpiring(l, c))!.id)).toThrow(
+      /expiring/,
+    );
     expect(() => releaseCoach(l, user, teamCoaches(l, (user + 1) % 32)[0].id)).toThrow();
   }, 30_000);
 
@@ -351,7 +396,8 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
       if (outlook === 'stays') expect(c.teamId === user || !sameChair(chairOf(c), chairs.get(id)!)).toBe(true);
       else expect(c?.teamId ?? null).not.toBe(user);
     }
-    for (const ch of CHAIRS) expect(teamCoaches(l, user).filter((c) => sameChair(chairOf(c), ch)).length).toBeLessThanOrEqual(1);
+    for (const ch of CHAIRS)
+      expect(teamCoaches(l, user).filter((c) => sameChair(chairOf(c), ch)).length).toBeLessThanOrEqual(1);
   });
 
   it('forecasts a replacement with the salary it frees, as replaceCoach does', () => {
@@ -359,7 +405,9 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
     const user = l.userTeamId;
     const holder = teamCoaches(l, user).find((c) => !isCoachExpiring(l, c) && c.contract!.through === l.season)!;
     const incoming = coachMarket(l).find((c) => sameChair(chairOf(c), chairOf(holder)))!;
-    const expiring = teamCoaches(l, user).filter((c) => isCoachExpiring(l, c)).sort((a, b) => coachValue(b) - coachValue(a))[0];
+    const expiring = teamCoaches(l, user)
+      .filter((c) => isCoachExpiring(l, c))
+      .sort((a, b) => coachValue(b) - coachValue(a))[0];
     const freed = holder.contract!.salary - coachSeverance(l, holder);
     // Room for the hire and the best expiring deal only once the replaced man's salary is counted.
     const room = coachAsk(l, incoming) + coachAsk(l, expiring) - freed / 2;
@@ -410,7 +458,10 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
     expect(chairHolder(teamCoaches(fresh, ai.id), { role: 'headCoach' })).not.toBeNull();
     const other = copy(l);
     coachWindowCloses(other);
-    for (const t of other.teams) if (t.id !== other.userTeamId) for (const ch of CHAIRS) expect(chairHolder(teamCoaches(other, t.id), ch), `${t.abbrev} ${ch.role}`).not.toBeNull();
+    for (const t of other.teams)
+      if (t.id !== other.userTeamId)
+        for (const ch of CHAIRS)
+          expect(chairHolder(teamCoaches(other, t.id), ch), `${t.abbrev} ${ch.role}`).not.toBeNull();
     // The user's empty chair is his to fill.
     expect(chairHolder(teamCoaches(other, other.userTeamId), chairOf(mine))).toBeNull();
   });
@@ -445,7 +496,9 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
     }
     // Nobody an AI team let go in this window is back on that team.
     for (const t of ai) for (const c of teamCoaches(l, t.id)) expect(c.lastJob ?? '').not.toContain(`, ${t.abbrev}`);
-    expect(l.transactions.some((tx) => tx.kind === 'coach' && /dismissed head coach .* after a 1–16 season/.test(tx.text))).toBe(true);
+    expect(
+      l.transactions.some((tx) => tx.kind === 'coach' && /dismissed head coach .* after a 1–16 season/.test(tx.text)),
+    ).toBe(true);
   });
 
   it('keeps the coaching economy steady over several offseasons, with head coaches changing jobs', () => {
@@ -454,7 +507,9 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
     for (let y = 0; y < 4; y++) {
       simToEndOfSeason(l);
       simOffseason(l);
-      fired += l.transactions.filter((t) => t.season === l.season && t.kind === 'coach' && /head coach .* after a/.test(t.text)).length;
+      fired += l.transactions.filter(
+        (t) => t.season === l.season && t.kind === 'coach' && /head coach .* after a/.test(t.text),
+      ).length;
       const employed = Object.values(l.coaches).filter((c) => c.teamId !== null);
       const meanValue = mean(employed.map(coachValue));
       expect(meanValue).toBeGreaterThan(9.5);
@@ -469,7 +524,6 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
     }
     expect(fired).toBeGreaterThan(0);
   }, 120_000);
-
 });
 
 describe('the coaching carousel', { timeout: 30_000 }, () => {
@@ -491,20 +545,34 @@ describe('the coaching carousel', { timeout: 30_000 }, () => {
     const preview = asPromoted(l, qb, { role: 'offCoord' });
     expect(promotionProblem(l, user, qb)).toBeNull();
     promoteCoach(l, user, qb.id);
-    expect(qb).toMatchObject({ role: 'offCoord', teamId: user, ...ratings, scheme: preview.scheme, style: preview.style });
+    expect(qb).toMatchObject({
+      role: 'offCoord',
+      teamId: user,
+      ...ratings,
+      scheme: preview.scheme,
+      style: preview.style,
+    });
     expect(qb.room).toBeUndefined();
     expect(chairHolder(teamCoaches(l, user), { role: 'positionCoach', room: 'QB' })).toBeNull();
     // The chair above a defensive line coach is taken.
-    expect(promotionProblem(l, user, chairHolder(teamCoaches(l, user), { role: 'positionCoach', room: 'DL' })!)).toMatch(/holds that chair/);
+    expect(
+      promotionProblem(l, user, chairHolder(teamCoaches(l, user), { role: 'positionCoach', room: 'DL' })!),
+    ).toMatch(/holds that chair/);
   });
 
   it('lets AI teams promote off other staffs (nobody can block a promotion) and still fills every AI chair', () => {
     const l = offseason('poach');
-    for (const t of l.teams.filter((x) => x.id !== l.userTeamId).slice(0, 10)) delete l.coaches[chairHolder(teamCoaches(l, t.id), { role: 'headCoach' })!.id];
+    for (const t of l.teams.filter((x) => x.id !== l.userTeamId).slice(0, 10))
+      delete l.coaches[chairHolder(teamCoaches(l, t.id), { role: 'headCoach' })!.id];
     const fresh = copy(l); // a fresh coaching index, as after a reload
     coachWindowCloses(fresh);
-    expect(fresh.transactions.some((tx) => tx.season === fresh.season && tx.kind === 'coach' && tx.teamIds.length > 1)).toBe(true);
-    for (const t of fresh.teams) if (t.id !== fresh.userTeamId) for (const ch of CHAIRS) expect(chairHolder(teamCoaches(fresh, t.id), ch), `${t.abbrev} ${ch.role}`).not.toBeNull();
+    expect(
+      fresh.transactions.some((tx) => tx.season === fresh.season && tx.kind === 'coach' && tx.teamIds.length > 1),
+    ).toBe(true);
+    for (const t of fresh.teams)
+      if (t.id !== fresh.userTeamId)
+        for (const ch of CHAIRS)
+          expect(chairHolder(teamCoaches(fresh, t.id), ch), `${t.abbrev} ${ch.role}`).not.toBeNull();
   });
 
   it('gives a head coach a vision: an aggressive one wants to throw, a former play-caller his own offense', () => {
@@ -512,15 +580,21 @@ describe('the coaching carousel', { timeout: 30_000 }, () => {
     const hc = chairHolder(teamCoaches(l, 0), { role: 'headCoach' })!;
     const oc = chairHolder(teamCoaches(l, 0), { role: 'offCoord' })!;
     const bold = { ...hc, style: { fourthDown: 0.8 } };
-    expect(headCoachVision(l, bold).pass).toBeGreaterThan(headCoachVision(l, { ...hc, style: { fourthDown: -0.8 } }).pass);
+    expect(headCoachVision(l, bold).pass).toBeGreaterThan(
+      headCoachVision(l, { ...hc, style: { fourthDown: -0.8 } }).pass,
+    );
     expect(headCoachVision(l, { ...hc, style: { fourthDown: 0, passLean: -0.6 } }).pass).toBe(-0.6);
-    expect(visionFit(l, bold, { ...oc, style: { passLean: 0.7 } })!).toBeGreaterThan(visionFit(l, bold, { ...oc, style: { passLean: -0.7 } })!);
+    expect(visionFit(l, bold, { ...oc, style: { passLean: 0.7 } })!).toBeGreaterThan(
+      visionFit(l, bold, { ...oc, style: { passLean: -0.7 } })!,
+    );
     expect(visionFit(l, bold, hc)).toBeNull();
   });
 
   it('sends some retiring veterans into coaching, nearly always in their own room, linked to their playing record', () => {
     const l = createLeague({ seed: 'to-coach' });
-    const vets = Object.values(l.players).filter((p) => p.teamId !== null).slice(0, 800);
+    const vets = Object.values(l.players)
+      .filter((p) => p.teamId !== null)
+      .slice(0, 800);
     for (const p of vets) p.experience = 10;
     developCoaches(l, vets);
     const ex = Object.values(l.coaches).filter((c) => c.playerId !== undefined);
@@ -528,11 +602,19 @@ describe('the coaching carousel', { timeout: 30_000 }, () => {
     expect(ex.length).toBeLessThan(150);
     for (const c of ex) {
       const p = l.players[c.playerId!];
-      expect(c).toMatchObject({ role: 'positionCoach', teamId: null, firstName: p.firstName, lastName: p.lastName, age: p.age });
+      expect(c).toMatchObject({
+        role: 'positionCoach',
+        teamId: null,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        age: p.age,
+      });
       expect(ROOM_OF[p.position]).not.toBeNull(); // kickers and punters have no room to coach
       expect(coachOfPlayer(l, p.id)).toBe(c);
     }
-    expect(ex.filter((c) => c.room === ROOM_OF[l.players[c.playerId!].position]).length / ex.length).toBeGreaterThan(0.7);
+    expect(ex.filter((c) => c.room === ROOM_OF[l.players[c.playerId!].position]).length / ex.length).toBeGreaterThan(
+      0.7,
+    );
   });
 });
 
@@ -553,7 +635,10 @@ describe('owners', () => {
     const user = l.userTeamId;
     l.teams[user].staffBudgetMult = 1;
     const last = l.history.find((h) => h.season === l.season - 1)!;
-    expect(ownerLeeway(l, user, { role: 'positionCoach', room: 'QB' })).toMatchObject({ amount: 0, reason: 'assistant' });
+    expect(ownerLeeway(l, user, { role: 'positionCoach', room: 'QB' })).toMatchObject({
+      amount: 0,
+      reason: 'assistant',
+    });
     last.records[user] = { w: 4, l: 13, t: 0 };
     if (last.playoffs) delete last.playoffs[user];
     expect(ownerLeeway(l, user, { role: 'offCoord' })).toMatchObject({ amount: 0, reason: 'losing' });
@@ -603,7 +688,11 @@ describe('coaches who leave football', () => {
     beginOffseason(l);
     for (const c of [hc, unknown]) expect(l.coaches[c.id]).toBeUndefined();
     const kept = l.retiredCoaches[hc.id];
-    expect(kept).toMatchObject({ teamId: null, contract: null, career: [{ season: l.season - 1, teamId: 3, role: 'headCoach' }] });
+    expect(kept).toMatchObject({
+      teamId: null,
+      contract: null,
+      career: [{ season: l.season - 1, teamId: 3, role: 'headCoach' }],
+    });
     expect(kept.since).toBeUndefined();
     expect(coachRecord(l, kept)).toEqual(record);
     expect(l.retiredCoaches[unknown.id]).toBeUndefined();
@@ -629,7 +718,18 @@ describe('play-calling style', () => {
   });
 
   it('changes the mix in ordinary situations, never the end of a half or a game', () => {
-    const s: Situation = { quarter: 1, clock: 600, down: 1, distance: 10, yardLine: 30, scoreDiff: 0, offTimeouts: 3, defTimeouts: 3, overtime: false, fgMakeProb: 0.2 };
+    const s: Situation = {
+      quarter: 1,
+      clock: 600,
+      down: 1,
+      distance: 10,
+      yardLine: 30,
+      scoreDiff: 0,
+      offTimeouts: 3,
+      defTimeouts: 3,
+      overtime: false,
+      fgMakeProb: 0.2,
+    };
     expect(passProbability({ ...s, passLean: 1 })).toBeGreaterThan(passProbability(s));
     expect(passProbability({ ...s, passLean: -1 })).toBeLessThan(passProbability(s));
     // The two-minute drill, protecting a lead, backed up late in a half, overtime: the clock and score decide.
@@ -640,7 +740,8 @@ describe('play-calling style', () => {
       { ...s, quarter: 4, clock: 110, yardLine: 20 },
       { ...s, quarter: 5, clock: 500, overtime: true },
     ];
-    for (const x of late) for (const lean of [-1, 1]) expect(passProbability({ ...x, passLean: lean })).toBe(passProbability(x));
+    for (const x of late)
+      for (const lean of [-1, 1]) expect(passProbability({ ...x, passLean: lean })).toBe(passProbability(x));
     // Fourth and one near midfield in the first half: an aggressive coach goes more often.
     const fourth = { ...s, down: 4, distance: 1, yardLine: 45 };
     const goRate = (x: Situation, lean: number) => {
@@ -740,7 +841,8 @@ describe('special teams coordinator', () => {
     const staff = teamCoaches(league, team.id);
     const st = chairHolder(staff, { role: 'stCoord' })!;
     expect(st).not.toBeNull();
-    for (const pos of ['K', 'P'] as const) expect(coachingParts(staff, pos).find((p) => p.coach === st)?.source).toBe('positionCoach');
+    for (const pos of ['K', 'P'] as const)
+      expect(coachingParts(staff, pos).find((p) => p.coach === st)?.source).toBe('positionCoach');
     expect(specialTeamsEdge(league, team.id)).toBeCloseTo(coachValue(st) - TYPICAL, 9);
     const before = buildLineup(league, team);
     st.youth = 18;
@@ -748,7 +850,8 @@ describe('special teams coordinator', () => {
     const after = buildLineup(league, team);
     expect(after.stCoach).toBeCloseTo(18 - TYPICAL, 9);
     // Half a point of discipline per point of his quality, on every kick unit.
-    for (const k of ['specialDiscipline', 'fgDiscipline', 'blockDiscipline'] as const) expect(after[k] - before[k]).toBeCloseTo(0.5 * (after.stCoach - before.stCoach), 9);
+    for (const k of ['specialDiscipline', 'fgDiscipline', 'blockDiscipline'] as const)
+      expect(after[k] - before[k]).toBeCloseTo(0.5 * (after.stCoach - before.stCoach), 9);
   });
 
   it('gives a v18 save a special teams coordinator on every team, inside the budget, and candidates on the market', () => {

@@ -13,7 +13,14 @@ import {
   type RefObject,
 } from 'react';
 import { agingFamily } from '../engine/aging';
-import { AGING_TEXT, ATTRIBUTE_INFO, CONTESTS, contestsFor, relevantAttributes, type AttributeGroup } from '../engine/attributes';
+import {
+  AGING_TEXT,
+  ATTRIBUTE_INFO,
+  CONTESTS,
+  contestsFor,
+  relevantAttributes,
+  type AttributeGroup,
+} from '../engine/attributes';
 import { overall, OVR_WEIGHTS } from '../engine/positions';
 import { repsSoFar } from '../engine/development';
 import { fitContests, fitGrade, spotsFor, type FitGrade, type TeamScheme } from '../engine/schemes';
@@ -93,7 +100,10 @@ export function potentialText(v: PlayerView): string {
 const half = (n: number) => `${Math.floor(n)}${n % 1 ? '½' : ''}`;
 
 export function starLabel(s: StarRating): string {
-  const ceiling = s.potHi > s.ability ? `; ceiling ${s.potLo === s.potHi ? half(s.potHi) : `${half(s.potLo)} to ${half(s.potHi)}`}` : '';
+  const ceiling =
+    s.potHi > s.ability
+      ? `; ceiling ${s.potLo === s.potHi ? half(s.potHi) : `${half(s.potLo)} to ${half(s.potHi)}`}`
+      : '';
   return `${half(s.ability)} of 4 stars${ceiling} (${s.basis})`;
 }
 
@@ -174,7 +184,8 @@ export function StarScaleToggle({ scale, onChange }: { scale: StarScale; onChang
 // ───────── knowledge & scouting ─────────
 
 /** How well your staff knows a player, in a word: the bar shows the rest. */
-const knownWord = (k: number) => (k >= 0.95 ? 'Well' : k >= 0.7 ? 'Good' : k >= 0.45 ? 'Fair' : k >= 0.2 ? 'Thin' : 'Barely');
+const knownWord = (k: number) =>
+  k >= 0.95 ? 'Well' : k >= 0.7 ? 'Good' : k >= 0.45 ? 'Fair' : k >= 0.2 ? 'Thin' : 'Barely';
 
 export function KnowledgeMeter({ value }: { value: number }) {
   const pct = Math.round(value * 100);
@@ -198,15 +209,32 @@ export const makeupOf = (league: League, p: Player): CharacterNotes => character
  * dashed outline (like a dashed grade, it's a guess). Past `limit`, red flags are kept first and the
  * rest collapse into a "+N" (its labels stay available to hover and to screen readers).
  */
-export function MakeupPills({ notes, hedged = false, limit, oneLine = false }: { notes: CharacterNotes['notes']; hedged?: boolean; limit?: number; oneLine?: boolean }) {
+export function MakeupPills({
+  notes,
+  hedged = false,
+  limit,
+  oneLine = false,
+}: {
+  notes: CharacterNotes['notes'];
+  hedged?: boolean;
+  limit?: number;
+  oneLine?: boolean;
+}) {
   if (notes.length === 0) return null;
-  const ordered = limit !== undefined && notes.length > limit ? [...notes].sort((a, b) => Number(b.tone === 'warn') - Number(a.tone === 'warn')) : notes;
+  const ordered =
+    limit !== undefined && notes.length > limit
+      ? [...notes].sort((a, b) => Number(b.tone === 'warn') - Number(a.tone === 'warn'))
+      : notes;
   const shown = limit === undefined ? ordered : ordered.slice(0, limit);
   const rest = ordered.slice(shown.length);
   return (
     <span className={`pill-row${oneLine ? ' nowrap' : ''}`}>
       {shown.map((n) => (
-        <TipPill key={n.label} className={`${n.tone === 'good' ? 'tag-good' : 'tag-warn'}${hedged ? ' tag-early' : ''}`} tip={hedged ? `Early word: ${n.line}` : n.line}>
+        <TipPill
+          key={n.label}
+          className={`${n.tone === 'good' ? 'tag-good' : 'tag-warn'}${hedged ? ' tag-early' : ''}`}
+          tip={hedged ? `Early word: ${n.line}` : n.line}
+        >
           {n.label}
           {hedged && <span className="visually-hidden"> (early word)</span>}
         </TipPill>
@@ -228,10 +256,21 @@ export const quirksOf = (league: League, p: Player): QuirkNotes => quirkNotes(le
  * Quirks as pills: green for a plus, amber for a minus, plain for a style that trades one thing for
  * another. A habit only starting to show is dashed, like early word on makeup.
  */
-export function QuirkPills({ notes, limit, oneLine = false }: { notes: QuirkNotes['notes']; limit?: number; oneLine?: boolean }) {
+export function QuirkPills({
+  notes,
+  limit,
+  oneLine = false,
+}: {
+  notes: QuirkNotes['notes'];
+  limit?: number;
+  oneLine?: boolean;
+}) {
   if (notes.length === 0) return null;
   // Past `limit`, the minuses stay in view (they're what a board scans for) and the rest collapse into "+N".
-  const ordered = limit !== undefined && notes.length > limit ? [...notes].sort((a, b) => Number(b.tone === 'bad') - Number(a.tone === 'bad')) : notes;
+  const ordered =
+    limit !== undefined && notes.length > limit
+      ? [...notes].sort((a, b) => Number(b.tone === 'bad') - Number(a.tone === 'bad'))
+      : notes;
   const shown = limit === undefined ? ordered : ordered.slice(0, limit);
   const rest = ordered.slice(shown.length);
   return (
@@ -323,7 +362,21 @@ function seasonChange(p: Player): Partial<Record<Attribute, number>> {
   return Object.fromEntries(ATTRIBUTES.map((a) => [a, p.ratings[a] - start[a]]));
 }
 
-function AttrRow({ attr, r, position, delta, trend, isKey }: { attr: Attribute; r: RatingView; position: Position; delta?: number; trend?: number; isKey: boolean }) {
+function AttrRow({
+  attr,
+  r,
+  position,
+  delta,
+  trend,
+  isKey,
+}: {
+  attr: Attribute;
+  r: RatingView;
+  position: Position;
+  delta?: number;
+  trend?: number;
+  isKey: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const info = ATTRIBUTE_INFO[attr];
   const used = contestsFor(attr, position).map((c) => CONTESTS[c].label);
@@ -341,7 +394,10 @@ function AttrRow({ attr, r, position, delta, trend, isKey }: { attr: Attribute; 
           </span>
         ) : null}
         {trend ? (
-          <span className={`attr-trend ${trend > 0 ? 'tone-good' : 'tone-bad'}`} title={trend > 0 ? 'Trending up this season' : 'Trending down this season'}>
+          <span
+            className={`attr-trend ${trend > 0 ? 'tone-good' : 'tone-bad'}`}
+            title={trend > 0 ? 'Trending up this season' : 'Trending down this season'}
+          >
             <span aria-hidden="true">{trend > 0 ? '↗' : '↘'}</span>
             <span className="visually-hidden">{trend > 0 ? 'trending up' : 'trending down'} this season</span>
           </span>
@@ -372,7 +428,17 @@ export function AttributeList({ player: p, view }: { player: Player; view: Playe
   const delta = view.exact ? lastChange(p) : {};
   const trend = view.exact ? seasonChange(p) : {};
   const weights = OVR_WEIGHTS[p.position];
-  const row = (a: Attribute) => <AttrRow key={a} attr={a} r={view.ratings[a]} position={p.position} delta={delta[a]} trend={trend[a]} isKey={!!weights[a]} />;
+  const row = (a: Attribute) => (
+    <AttrRow
+      key={a}
+      attr={a}
+      r={view.ratings[a]}
+      position={p.position}
+      delta={delta[a]}
+      trend={trend[a]}
+      isKey={!!weights[a]}
+    />
+  );
   return (
     <>
       <div className="attr-grid">{relevant.map(row)}</div>
@@ -495,7 +561,9 @@ export function DevelopmentChart({ league, player: p }: { league: League; player
           </text>
           {active !== null && <line className="crosshair" x1={x(active)} x2={x(active)} y1={pad.t} y2={H - pad.b} />}
           <path className="line" d={path} />
-          {active !== null && active !== last && <circle className="dot" cx={x(active)} cy={y(points[active].ovr)} r={4} />}
+          {active !== null && active !== last && (
+            <circle className="dot" cx={x(active)} cy={y(points[active].ovr)} r={4} />
+          )}
           <circle className="dot" cx={x(last)} cy={y(points[last].ovr)} r={4} />
           <text className="end-label" x={x(last) + 9} y={y(points[last].ovr)} dy="0.32em">
             {points[last].ovr.toFixed(1)}
@@ -597,7 +665,10 @@ export function CombinePanel({ player: p }: { player: Player }) {
       </p>
     );
   // Kickers only measure; a drill nobody at his position runs (a quarterback's bench) isn't listed.
-  const drills = p.position === 'K' || p.position === 'P' ? [] : combineRows(p).filter((d) => c[d.key] !== undefined || d.typical !== undefined);
+  const drills =
+    p.position === 'K' || p.position === 'P'
+      ? []
+      : combineRows(p).filter((d) => c[d.key] !== undefined || d.typical !== undefined);
   return (
     <div className="combine">
       <div className="facts">
@@ -644,7 +715,11 @@ export function CombinePanel({ player: p }: { player: Player }) {
                         <span className={verdict === 'good' ? 'tone-good' : verdict === 'bad' ? 'tone-bad' : undefined}>
                           {verdict && <span aria-hidden="true">{verdict === 'good' ? '▲ ' : '▼ '}</span>}
                           {d.fmt(v)}
-                          {verdict && <span className="visually-hidden">{verdict === 'good' ? ' (better than typical)' : ' (worse than typical)'}</span>}
+                          {verdict && (
+                            <span className="visually-hidden">
+                              {verdict === 'good' ? ' (better than typical)' : ' (worse than typical)'}
+                            </span>
+                          )}
                         </span>
                       )}
                     </td>
@@ -685,7 +760,12 @@ export function schemeFitOf(league: League, p: Player, scheme: TeamScheme): Sche
 }
 
 /** How the user's starters would fit a scheme: how many fit well and how many poorly. */
-export function rosterFit(league: League, teamId: number, scheme: TeamScheme, side: 'offense' | 'defense'): { good: number; poor: number; asked: number } {
+export function rosterFit(
+  league: League,
+  teamId: number,
+  scheme: TeamScheme,
+  side: 'offense' | 'defense',
+): { good: number; poor: number; asked: number } {
   const team = league.teams[teamId];
   const positions: Position[] = side === 'offense' ? ['QB', 'RB', 'WR', 'TE', 'OL'] : ['DT', 'EDGE', 'LB', 'CB', 'S'];
   let good = 0;

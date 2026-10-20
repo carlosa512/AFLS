@@ -17,8 +17,13 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
   const players = teamPlayers(league, teamId)
     .filter((p) => p.contract)
     .sort((a, b) => capHit(b.contract!, season) - capHit(a.contract!, season));
-  const dead = team.deadMoney.filter((d) => d.season >= season).sort((a, b) => a.season - b.season || b.amount - a.amount);
-  const moves = league.transactions.filter((t) => t.teamIds.includes(teamId)).slice(-12).reverse();
+  const dead = team.deadMoney
+    .filter((d) => d.season >= season)
+    .sort((a, b) => a.season - b.season || b.amount - a.amount);
+  const moves = league.transactions
+    .filter((t) => t.teamIds.includes(teamId))
+    .slice(-12)
+    .reverse();
   const names = moveIndex(league);
 
   return (
@@ -37,7 +42,12 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
           </div>
         }
         action={
-          <select aria-label="Choose team" id="cap-team" value={teamId} onChange={(e) => nav.go({ view: 'cap', teamId: Number(e.target.value) })}>
+          <select
+            aria-label="Choose team"
+            id="cap-team"
+            value={teamId}
+            onChange={(e) => nav.go({ view: 'cap', teamId: Number(e.target.value) })}
+          >
             {[...league.teams]
               .sort((a, b) => a.city.localeCompare(b.city))
               .map((t) => (
@@ -81,14 +91,16 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
         </div>
         {sheet.space < 0 && (
           <p className="callout callout-bad">
-            Over the cap by {money(Math.round(-sheet.space))}. Release, restructure or trade players to get compliant before the new league year.
+            Over the cap by {money(Math.round(-sheet.space))}. Release, restructure or trade players to get compliant
+            before the new league year.
           </p>
         )}
       </Panel>
 
       <Panel title="Five-year outlook">
         <p className="muted small" style={{ marginTop: 0 }}>
-          Money already committed in each league year. Bonus money pushed into void years comes due as dead money when those deals void.
+          Money already committed in each league year. Bonus money pushed into void years comes due as dead money when
+          those deals void.
         </p>
         <CapChart league={league} teamId={teamId} />
       </Panel>
@@ -96,7 +108,8 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
       <Panel title="Contracts">
         {isUser && (
           <p className="muted small" style={{ marginTop: 0 }}>
-            "If released" shows today's dead money and cap room{isOffseason(league.phase) ? ' (pre-June 1)' : ''}. Every button previews the full split before anything happens.
+            "If released" shows today's dead money and cap room{isOffseason(league.phase) ? ' (pre-June 1)' : ''}. Every
+            button previews the full split before anything happens.
           </p>
         )}
         <div className="table-scroll">
@@ -143,7 +156,9 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                       {c.years.some((y) => y.void) && <span className="tag-pill">void</span>}
                     </td>
                     <td className="num">{money(guaranteedFrom(c, season))}</td>
-                    <td className={`num${cut.thisYear + cut.nextYear > 0 ? ' tone-bad' : ''}`}>{money(Math.round(cut.thisYear + cut.nextYear))}</td>
+                    <td className={`num${cut.thisYear + cut.nextYear > 0 ? ' tone-bad' : ''}`}>
+                      {money(Math.round(cut.thisYear + cut.nextYear))}
+                    </td>
                     <td className={`num${cut.savings < 0 ? ' tone-bad' : ''}`}>{money(Math.round(cut.savings))}</td>
                     {isUser && (
                       <td>

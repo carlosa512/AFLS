@@ -28,7 +28,16 @@ import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
 import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp } from './ai';
-import { aiDraftChoice, draftComplete, draftPlayer, finishDraft, generateDraftClass, nextPick, setDraftOrder, simDraft } from './draft';
+import {
+  aiDraftChoice,
+  draftComplete,
+  draftPlayer,
+  finishDraft,
+  generateDraftClass,
+  nextPick,
+  setDraftOrder,
+  simDraft,
+} from './draft';
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
 
 export const FA_DAYS = 5;
@@ -63,7 +72,11 @@ export function beginOffseason(league: League): void {
     const own = new Rng(`${league.seed}:dev:${league.season}:${p.id}`);
     // Whatever of last year hadn't landed lands first; then this year is rolled and its March share released.
     trueUp(league, p);
-    beginYear(league, own, p, { playedShare: playedShare(p, last), ...coachingFor(league, p.teamId, p.position), bodyAs: bodyAs(p) });
+    beginYear(league, own, p, {
+      playedShare: playedShare(p, last),
+      ...coachingFor(league, p.teamId, p.position),
+      bodyAs: bodyAs(p),
+    });
     p.age++;
     p.experience++;
     // Age and form, or a body (`injuryRetireChance`) or a head (`concussionRetireChance`) that can't take any more, in one roll.
@@ -74,7 +87,13 @@ export function beginOffseason(league: League): void {
       if (p.teamId !== null) {
         // Retiring under contract: every remaining bonus dollar accelerates.
         accelerateProration(league, p, p.teamId, 'Retired');
-        if (playerOvr(p) >= 14 || (worn > 0 && p.teamId === league.userTeamId)) logTransaction(league, 'retire', [p.teamId], `${league.teams[p.teamId].abbrev} ${p.position} ${p.firstName} ${p.lastName} retired${head > body ? ' (concussions)' : worn > 0 ? ' (injuries)' : ''}`);
+        if (playerOvr(p) >= 14 || (worn > 0 && p.teamId === league.userTeamId))
+          logTransaction(
+            league,
+            'retire',
+            [p.teamId],
+            `${league.teams[p.teamId].abbrev} ${p.position} ${p.firstName} ${p.lastName} retired${head > body ? ' (concussions)' : worn > 0 ? ' (injuries)' : ''}`,
+          );
       }
       p.teamId = null;
       p.contract = null;
@@ -119,10 +138,14 @@ export function offseasonBlockers(league: League): string[] {
   // and sign nobody, so a team that got there under the cap isn't stopped there.) Restructures wait for the
   // offseason; a release frees what's left of a deal that isn't guaranteed.
   if (league.phase === 'regular' && capSpace(league, teamId) < 0) {
-    const fix = league.week <= TRADE_DEADLINE_WEEK ? 'release or trade a player' : 'release a player (the trade deadline has passed)';
+    const fix =
+      league.week <= TRADE_DEADLINE_WEEK
+        ? 'release or trade a player'
+        : 'release a player (the trade deadline has passed)';
     issues.push(`You're $${(-capSpace(league, teamId) / 1000).toFixed(1)}M over the cap: ${fix} before playing on.`);
   }
-  if (league.phase === 'resign' && capSpace(league, teamId) < 0) issues.push('Get under the cap before free agency opens: release, restructure or trade.');
+  if (league.phase === 'resign' && capSpace(league, teamId) < 0)
+    issues.push('Get under the cap before free agency opens: release, restructure or trade.');
   if (league.phase === 'preseason') {
     // Injured reserve doesn't count toward the 53.
     const roster = activeRoster(league, teamId);
@@ -161,7 +184,9 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
       for (const team of ai) aiResignWindow(league, team, rng);
       if (!auto) {
         // Undecided options lapse at the deadline.
-        for (const p of teamPlayers(league, league.userTeamId)) if (p.contract?.fifthYearOption === 'eligible' && p.contract.years.at(-1)!.season === league.season) p.contract.fifthYearOption = 'declined';
+        for (const p of teamPlayers(league, league.userTeamId))
+          if (p.contract?.fifthYearOption === 'eligible' && p.contract.years.at(-1)!.season === league.season)
+            p.contract.fifthYearOption = 'declined';
       }
       // Expiring staff and coaches are decided with the players; open chairs are filled from the markets.
       staffWindowCloses(league, { autoUser: auto });
@@ -230,17 +255,23 @@ function withRng<T>(league: League, fn: (rng: Rng) => T): T {
 }
 
 /** Draft room controls for the user. */
-export const draftNextPick = (league: League) => withRng(league, (rng) => simDraft(league, rng, { stopAtUser: true, limit: 1 }));
-export const draftToUserPick = (league: League) => withRng(league, (rng) => simDraft(league, rng, { stopAtUser: true }));
+export const draftNextPick = (league: League) =>
+  withRng(league, (rng) => simDraft(league, rng, { stopAtUser: true, limit: 1 }));
+export const draftToUserPick = (league: League) =>
+  withRng(league, (rng) => simDraft(league, rng, { stopAtUser: true }));
 export const draftToEnd = (league: League) => withRng(league, (rng) => simDraft(league, rng, { stopAtUser: false }));
 export function draftForUser(league: League, playerId?: number): void {
   const pick = nextPick(league);
   if (!pick || pick.ownerId !== league.userTeamId) throw new Error('You are not on the clock');
-  const player = playerId !== undefined ? league.players[playerId] : withRng(league, (rng) => aiDraftChoice(league, pick.ownerId, rng, pick.round));
+  const player =
+    playerId !== undefined
+      ? league.players[playerId]
+      : withRng(league, (rng) => aiDraftChoice(league, pick.ownerId, rng, pick.round));
   draftPlayer(league, pick, player);
 }
 
 /** Training camp shortcut: let the AI make your cuts (and sign fill-ins at the minimum). */
-export const autoCutdown = (league: League) => withRng(league, (rng) => aiTrainingCamp(league, league.teams[league.userTeamId], rng));
+export const autoCutdown = (league: League) =>
+  withRng(league, (rng) => aiTrainingCamp(league, league.teams[league.userTeamId], rng));
 
 export { draftComplete };

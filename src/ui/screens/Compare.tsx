@@ -6,7 +6,22 @@ import { useNav } from '../App';
 import { Panel, PlayerAvatar } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, money } from '../format';
-import { combineRows, drillVerdict, inches, KnowledgeMeter, MakeupPills, makeupOf, Ovr, QuirkPills, quirksOf, potentialText, RangeValue, Stars, starsOf, viewOf } from '../scouting';
+import {
+  combineRows,
+  drillVerdict,
+  inches,
+  KnowledgeMeter,
+  MakeupPills,
+  makeupOf,
+  Ovr,
+  QuirkPills,
+  quirksOf,
+  potentialText,
+  RangeValue,
+  Stars,
+  starsOf,
+  viewOf,
+} from '../scouting';
 
 /** Side by side, with the same fog as everywhere else: you compare what your scouts believe. */
 export function Compare({ league }: { league: League }) {
@@ -18,8 +33,8 @@ export function Compare({ league }: { league: League }) {
     return (
       <Panel title="Compare players">
         <p className="muted" style={{ margin: 0 }}>
-          Open any player and choose <b>Compare</b> to line up to three players side by side: ratings, stars, potential and combine numbers, with the best in
-          each row highlighted.
+          Open any player and choose <b>Compare</b> to line up to three players side by side: ratings, stars, potential
+          and combine numbers, with the best in each row highlighted.
         </p>
       </Panel>
     );
@@ -63,8 +78,8 @@ export function Compare({ league }: { league: League }) {
       }
     >
       <p className="muted small" style={{ marginTop: 0 }}>
-        Your staff's view: exact for your own players, scouted ranges for everyone else. The best value in each row is shaded. Stars are measured against every
-        player at that position in the league.
+        Your staff's view: exact for your own players, scouted ranges for everyone else. The best value in each row is
+        shaded. Stars are measured against every player at that position in the league.
       </p>
       <div className="table-scroll">
         <table className="compare-table">
@@ -122,25 +137,39 @@ export function Compare({ league }: { league: League }) {
               players.map((p) => {
                 const m = makeupOf(league, p);
                 // The words are the content; "Unknown" and "Nothing stands out" stay plain, muted text.
-                return m.notes.length ? <MakeupPills notes={m.notes} hedged={m.hedged} /> : <span className="muted small">{!m.known ? 'Unknown' : m.hedged ? 'Nothing yet (early word)' : 'Nothing stands out'}</span>;
+                return m.notes.length ? (
+                  <MakeupPills notes={m.notes} hedged={m.hedged} />
+                ) : (
+                  <span className="muted small">
+                    {!m.known ? 'Unknown' : m.hedged ? 'Nothing yet (early word)' : 'Nothing stands out'}
+                  </span>
+                );
               }),
             )}
             {row(
               'Habits',
               players.map((p) => {
                 const h = quirksOf(league, p);
-                return h.notes.length ? <QuirkPills notes={h.notes} /> : <span className="muted small">{h.known ? 'None on film' : 'Unknown'}</span>;
+                return h.notes.length ? (
+                  <QuirkPills notes={h.notes} />
+                ) : (
+                  <span className="muted small">{h.known ? 'None on film' : 'Unknown'}</span>
+                );
               }),
             )}
             {row(
               'Known',
-              views.map((v) => (v.exact ? <span className="muted small">Your player</span> : <KnowledgeMeter value={v.knowledge} />)),
+              views.map((v) =>
+                v.exact ? <span className="muted small">Your player</span> : <KnowledgeMeter value={v.knowledge} />,
+              ),
             )}
             {row(
               'Cap hit',
               players.map((p) => (
                 <span className="num">
-                  {p.contract ? `${money(Math.round(capHit(p.contract, league.season)))} thru ${thruLabel(league, p.contract)}` : '–'}
+                  {p.contract
+                    ? `${money(Math.round(capHit(p.contract, league.season)))} thru ${thruLabel(league, p.contract)}`
+                    : '–'}
                 </span>
               )),
             )}

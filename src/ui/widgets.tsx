@@ -67,8 +67,18 @@ export function YourInjuries({ league }: { league: League }) {
   const hurt = hurtList(league, user);
   const worn = wornDown(league, user);
   const rows = [
-    ...hurt.map((p) => ({ p, note: p.injury ? injuryLabel(p.injury.type) : 'Healed', pill: outlookPill(league, p), tone: playingHurt(p.injury) ? ('warn' as const) : ('bad' as const) })),
-    ...worn.map((p) => ({ p, note: `Condition ${Math.round(p.condition ?? 100)}%`, pill: 'Worn', tone: 'warn' as const })),
+    ...hurt.map((p) => ({
+      p,
+      note: p.injury ? injuryLabel(p.injury.type) : 'Healed',
+      pill: outlookPill(league, p),
+      tone: playingHurt(p.injury) ? ('warn' as const) : ('bad' as const),
+    })),
+    ...worn.map((p) => ({
+      p,
+      note: `Condition ${Math.round(p.condition ?? 100)}%`,
+      pill: 'Worn',
+      tone: 'warn' as const,
+    })),
   ];
   const medical = () => nav.go({ view: 'office', tab: 'medical' });
   const rest = rows.length - SHOW;
@@ -106,7 +116,14 @@ export function YourInjuries({ league }: { league: League }) {
           ))}
         </div>
       )}
-      {rest > 0 && <More rest={rest} label={rows.slice(SHOW).every((r) => r.pill === 'Worn') ? 'more worn down' : 'more'} link={`See all ${rows.length}`} go={medical} />}
+      {rest > 0 && (
+        <More
+          rest={rest}
+          label={rows.slice(SHOW).every((r) => r.pill === 'Worn') ? 'more worn down' : 'more'}
+          link={`See all ${rows.length}`}
+          go={medical}
+        />
+      )}
     </Panel>
   );
 }
@@ -134,17 +151,31 @@ export function TheirInjuries({ league, opp, game }: { league: League; opp: Team
       ) : (
         <div>
           {hurt.slice(0, SHOW).map((p) => (
-            <PlayerRow key={p.id} p={p} note={p.injury ? injuryLabel(p.injury.type) : 'Healed'} pill={outlookPill(league, p)} tone={playingHurt(p.injury) ? 'warn' : 'bad'} />
+            <PlayerRow
+              key={p.id}
+              p={p}
+              note={p.injury ? injuryLabel(p.injury.type) : 'Healed'}
+              pill={outlookPill(league, p)}
+              tone={playingHurt(p.injury) ? 'warn' : 'bad'}
+            />
           ))}
         </div>
       )}
-      {rest > 0 && <More rest={rest} label="more (longest layoffs first)" link={`See all ${hurt.length}`} go={() => nav.openTeam(opp.id)} />}
+      {rest > 0 && (
+        <More
+          rest={rest}
+          label="more (longest layoffs first)"
+          link={`See all ${hurt.length}`}
+          go={() => nav.openTeam(opp.id)}
+        />
+      )}
     </div>
   );
 }
 
 /** "Head coach · Week 9", "Kyle James's agent · Re-sign window": who it's from and when, in a line. */
-const fromLine = (from: string, m: InboxMessage) => `${from.split(', ')[1] ?? from} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
+const fromLine = (from: string, m: InboxMessage) =>
+  `${from.split(', ')[1] ?? from} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
 
 /**
  * What's waiting in the inbox (archived and deleted mail aside): what still needs you first, then the unread, newest
@@ -184,7 +215,11 @@ export function WaitingForYou({ league }: { league: League }) {
             const label = threadLabel(t);
             const unread = t.messages.some((m) => !m.read);
             return (
-              <button key={t.key} className={`widget-mail${unread ? ' is-unread' : ''}`} onClick={() => nav.go({ view: 'inbox', messageId: lead.id })}>
+              <button
+                key={t.key}
+                className={`widget-mail${unread ? ' is-unread' : ''}`}
+                onClick={() => nav.go({ view: 'inbox', messageId: lead.id })}
+              >
                 <span className={`widget-dot cat-${lead.category}`} aria-hidden="true" />
                 <span style={{ minWidth: 0 }}>
                   {unread && <span className="visually-hidden">Unread: </span>}
@@ -197,7 +232,14 @@ export function WaitingForYou({ league }: { league: League }) {
           })}
         </div>
       )}
-      {rest > 0 && <More rest={rest} label={rows.slice(SHOW).every((t) => t.messages.every((m) => !m.read)) ? 'more unread' : 'more waiting'} link="See all in Inbox" go={inbox} />}
+      {rest > 0 && (
+        <More
+          rest={rest}
+          label={rows.slice(SHOW).every((t) => t.messages.every((m) => !m.read)) ? 'more unread' : 'more waiting'}
+          link="See all in Inbox"
+          go={inbox}
+        />
+      )}
     </Panel>
   );
 }
@@ -235,24 +277,87 @@ export function seasonFacts(league: League): SeasonFact[] {
   const perGame = (n: (l: TeamSeasonLine) => number) => (l: TeamSeasonLine) => (l.games ? n(l) / l.games : 0);
   const seed = conferenceSeeds(league, team.conference, records).indexOf(user);
   const div = divisionStandings(league, records).find((d) => d.index === team.division)!;
-  const left = league.games.filter((g) => g.season === league.season && !g.playoffRound && !g.result && (g.homeId === user || g.awayId === user)).length;
-  const total = league.games.filter((g) => g.season === league.season && !g.playoffRound && (g.homeId === user || g.awayId === user)).length;
-  const hurt = teamPlayers(league, user).reduce((n, p) => n + (p.injuries ?? []).filter((i) => i.season === league.season).length, 0);
+  const left = league.games.filter(
+    (g) => g.season === league.season && !g.playoffRound && !g.result && (g.homeId === user || g.awayId === user),
+  ).length;
+  const total = league.games.filter(
+    (g) => g.season === league.season && !g.playoffRound && (g.homeId === user || g.awayId === user),
+  ).length;
+  const hurt = teamPlayers(league, user).reduce(
+    (n, p) => n + (p.injuries ?? []).filter((i) => i.season === league.season).length,
+    0,
+  );
   const third = (l: TeamSeasonLine) => (l.thirdDownAtt ? l.thirdDownConv / l.thirdDownAtt : 0);
   return [
-    { key: 'record', label: 'Record', value: recordText(records.get(user)!), sub: `Home ${recordText(mine.home)} · Road ${recordText(mine.road)}` },
-    { key: 'seed', label: 'Playoff seed', value: seed >= 0 ? ordinal(seed + 1) : 'Out', sub: league.phase === 'regular' ? (seed >= 0 ? 'If the season ended today' : 'Outside the seven today') : 'Final seeding' },
-    { key: 'div', label: 'Division', value: ordinal(div.teams.findIndex((r) => r.teamId === user) + 1), sub: `${div.division.name} · ${recordText(mine.division)} in it` },
-    { key: 'diff', label: 'Point diff', value: signed(mine.pointsFor - mine.pointsAgainst), sub: rank(perGame((l) => l.pointsFor - l.pointsAgainst)) },
+    {
+      key: 'record',
+      label: 'Record',
+      value: recordText(records.get(user)!),
+      sub: `Home ${recordText(mine.home)} · Road ${recordText(mine.road)}`,
+    },
+    {
+      key: 'seed',
+      label: 'Playoff seed',
+      value: seed >= 0 ? ordinal(seed + 1) : 'Out',
+      sub:
+        league.phase === 'regular'
+          ? seed >= 0
+            ? 'If the season ended today'
+            : 'Outside the seven today'
+          : 'Final seeding',
+    },
+    {
+      key: 'div',
+      label: 'Division',
+      value: ordinal(div.teams.findIndex((r) => r.teamId === user) + 1),
+      sub: `${div.division.name} · ${recordText(mine.division)} in it`,
+    },
+    {
+      key: 'diff',
+      label: 'Point diff',
+      value: signed(mine.pointsFor - mine.pointsAgainst),
+      sub: rank(perGame((l) => l.pointsFor - l.pointsAgainst)),
+    },
     { key: 'ppg', label: 'Points per game', value: per(mine.pointsFor), sub: rank(perGame((l) => l.pointsFor)) },
-    { key: 'papg', label: 'Points allowed', value: per(mine.pointsAgainst), sub: rank(perGame((l) => l.pointsAgainst), true) },
+    {
+      key: 'papg',
+      label: 'Points allowed',
+      value: per(mine.pointsAgainst),
+      sub: rank(
+        perGame((l) => l.pointsAgainst),
+        true,
+      ),
+    },
     { key: 'ypg', label: 'Yards per game', value: per(mine.yards), sub: rank(perGame((l) => l.yards)) },
-    { key: 'ya', label: 'Yards allowed', value: per(mine.yardsAllowed), sub: rank(perGame((l) => l.yardsAllowed), true) },
-    { key: 'to', label: 'Turnover margin', value: signed(mine.takeaways - mine.giveaways), sub: rank((l) => l.takeaways - l.giveaways) },
-    { key: 'third', label: 'Third-down rate', value: mine.thirdDownAtt ? `${(third(mine) * 100).toFixed(1)}%` : '–', sub: rank(third) },
+    {
+      key: 'ya',
+      label: 'Yards allowed',
+      value: per(mine.yardsAllowed),
+      sub: rank(
+        perGame((l) => l.yardsAllowed),
+        true,
+      ),
+    },
+    {
+      key: 'to',
+      label: 'Turnover margin',
+      value: signed(mine.takeaways - mine.giveaways),
+      sub: rank((l) => l.takeaways - l.giveaways),
+    },
+    {
+      key: 'third',
+      label: 'Third-down rate',
+      value: mine.thirdDownAtt ? `${(third(mine) * 100).toFixed(1)}%` : '–',
+      sub: rank(third),
+    },
     { key: 'left', label: 'Games left', value: String(left), sub: `of ${total}` },
     { key: 'inj', label: 'Injuries', value: String(hurt), sub: 'this season' },
-    { key: 'cap', label: 'Cap space', value: money(Math.round(capSheet(league, user).space)), sub: `${league.season} league year` },
+    {
+      key: 'cap',
+      label: 'Cap space',
+      value: money(Math.round(capSheet(league, user).space)),
+      sub: `${league.season} league year`,
+    },
   ];
 }
 
@@ -260,7 +365,9 @@ export function seasonFacts(league: League): SeasonFact[] {
 function savedPicks(): string[] {
   try {
     const v: unknown = JSON.parse(localStorage.getItem(SEASON_KEY) ?? 'null');
-    return Array.isArray(v) ? v.filter((k): k is string => typeof k === 'string').slice(0, SEASON_PICKS) : SEASON_DEFAULT;
+    return Array.isArray(v)
+      ? v.filter((k): k is string => typeof k === 'string').slice(0, SEASON_PICKS)
+      : SEASON_DEFAULT;
   } catch {
     return SEASON_DEFAULT;
   }
@@ -274,7 +381,11 @@ export function SeasonSoFar({ league }: { league: League }) {
   const byKey = new Map(facts.map((f) => [f.key, f]));
   const shown = picks.map((k) => byKey.get(k)).filter((f): f is SeasonFact => !!f);
   const toggle = (key: string) => {
-    const next = picks.includes(key) ? picks.filter((k) => k !== key) : picks.length >= SEASON_PICKS ? picks : [...picks, key];
+    const next = picks.includes(key)
+      ? picks.filter((k) => k !== key)
+      : picks.length >= SEASON_PICKS
+        ? picks
+        : [...picks, key];
     setPicks(next);
     try {
       localStorage.setItem(SEASON_KEY, JSON.stringify(next));
@@ -302,7 +413,12 @@ export function SeasonSoFar({ league }: { league: League }) {
               const on = picks.includes(f.key);
               return (
                 <label key={f.key} className="season-option">
-                  <input type="checkbox" checked={on} disabled={!on && picks.length >= SEASON_PICKS} onChange={() => toggle(f.key)} />
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    disabled={!on && picks.length >= SEASON_PICKS}
+                    onChange={() => toggle(f.key)}
+                  />
                   <span>{f.label}</span>
                   <span className="muted small num">{f.value}</span>
                 </label>
@@ -385,7 +501,9 @@ export function LeagueLeaders({ league }: { league: League }) {
                     <button className="linklike" onClick={() => nav.openPlayer(r.player.id)}>
                       {shortName(r.player)}
                     </button>{' '}
-                    <span className="muted small">{r.player.teamId !== null ? league.teams[r.player.teamId].abbrev : 'FA'}</span>
+                    <span className="muted small">
+                      {r.player.teamId !== null ? league.teams[r.player.teamId].abbrev : 'FA'}
+                    </span>
                   </span>
                   <span className="num">{fmt(cat, r.value)}</span>
                 </div>

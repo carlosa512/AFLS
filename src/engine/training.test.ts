@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { skill, useKnocks } from './attributes';
-import { CONVERSIONS, conversionOf, knockFor, knockWord, OUT_OF_POSITION_KNOCK, slotOvr, targetsFor } from './familiarity';
+import {
+  CONVERSIONS,
+  conversionOf,
+  knockFor,
+  knockWord,
+  OUT_OF_POSITION_KNOCK,
+  slotOvr,
+  targetsFor,
+} from './familiarity';
 import { capSpace, releasePlayer } from './finance/cap';
 import { manageInjuries } from './injuries';
 import { offseasonBlockers } from './offseason';
@@ -138,7 +146,7 @@ describe('cut-down day', () => {
     expect(l.transactions.at(-1)!.text).toContain(`moved CB ${p.firstName} ${p.lastName} to S: they were short at S`);
   });
 
-  it("waits rather than leave his old room short", () => {
+  it('waits rather than leave his old room short', () => {
     const l = fresh();
     const p = moverAt(l, 'CB', 'S');
     for (const x of teamPlayers(l, l.userTeamId)) if (x.position === 'CB' && x.id !== p.id) x.teamId = null;
@@ -288,13 +296,16 @@ describe('the cap in season', () => {
     const l = createLeague({ seed: 'cover-room' });
     const team = l.teams.find((t) => t.id !== l.userTeamId)!;
     // All but two receivers become kickers: the WR room is short and spare bodies sit at K, so the roster stays full.
-    for (const p of teamPlayers(l, team.id).filter((x) => x.position === 'WR').slice(2)) p.position = 'K';
+    for (const p of teamPlayers(l, team.id)
+      .filter((x) => x.position === 'WR')
+      .slice(2))
+      p.position = 'K';
     team.depthChart = buildAutoDepthChart(teamPlayers(l, team.id));
     l.caps[l.season] -= capSpace(l, team.id) - room;
     return { l, teamId: team.id };
   }
 
-  it("a team without room for a minimum deal plays short-handed: nobody cut, no street player made", () => {
+  it('a team without room for a minimum deal plays short-handed: nobody cut, no street player made', () => {
     const { l, teamId } = shortHanded(100);
     const players = Object.keys(l.players).length;
     const roster = teamPlayers(l, teamId).map((p) => p.id);

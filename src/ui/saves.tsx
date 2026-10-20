@@ -37,10 +37,18 @@ export function parseBackup(text: string): { league: League } | { error: string 
     return { error: "That file isn't an AFLS backup." };
   }
   const l = raw as Partial<League> | null;
-  if (!l || typeof l !== 'object' || typeof l.version !== 'number' || !Array.isArray(l.teams) || typeof l.players !== 'object' || !l.teams[l.userTeamId ?? -1]) {
+  if (
+    !l ||
+    typeof l !== 'object' ||
+    typeof l.version !== 'number' ||
+    !Array.isArray(l.teams) ||
+    typeof l.players !== 'object' ||
+    !l.teams[l.userTeamId ?? -1]
+  ) {
     return { error: "That file isn't an AFLS backup." };
   }
-  if (l.version > SAVE_VERSION) return { error: 'That backup was made by a newer version of AFLS. Update the game to load it.' };
+  if (l.version > SAVE_VERSION)
+    return { error: 'That backup was made by a newer version of AFLS. Update the game to load it.' };
   const league = migrateLeague(l as League);
   return league ? { league } : { error: "That backup couldn't be upgraded." };
 }
@@ -53,7 +61,11 @@ function describe(league: League): string {
 /** Downloads the current career as a file. */
 export function BackupButton({ league }: { league: League }) {
   return (
-    <button className="btn btn-sm btn-ghost" onClick={() => downloadBackup(league)} title="Download this career as a file you can load later">
+    <button
+      className="btn btn-sm btn-ghost"
+      onClick={() => downloadBackup(league)}
+      title="Download this career as a file you can load later"
+    >
       Download backup
     </button>
   );
@@ -122,8 +134,8 @@ export function LoadBackupButton({ className = 'btn btn-sm btn-ghost' }: { class
           }
         >
           <p style={{ margin: 0 }}>
-            Loading <strong>{describe(pending)}</strong> replaces <strong>{describe(current)}</strong>. Download a backup of it first if you want to come
-            back to it.
+            Loading <strong>{describe(pending)}</strong> replaces <strong>{describe(current)}</strong>. Download a
+            backup of it first if you want to come back to it.
           </p>
         </Dialog>
       )}

@@ -49,13 +49,17 @@ export const AGING: Record<Position, AgingCurve> = {
 };
 
 /** Last age of the prime at each position, for a typical body. */
-export const PEAK_END = Object.fromEntries(Object.entries(AGING).map(([pos, c]) => [pos, c.peakEnd])) as Record<Position, number>;
+export const PEAK_END = Object.fromEntries(Object.entries(AGING).map(([pos, c]) => [pos, c.peakEnd])) as Record<
+  Position,
+  number
+>;
 
 /** The mental game keeps growing this many years past the technical prime. */
 const MENTAL_LAG = 3;
 
 /** How a rating ages at a position. */
-export const agingFamily = (position: Position, attr: Attribute): AgingFamily => AGING[position].family?.[attr] ?? ATTRIBUTE_INFO[attr].aging;
+export const agingFamily = (position: Position, attr: Attribute): AgingFamily =>
+  AGING[position].family?.[attr] ?? ATTRIBUTE_INFO[attr].aging;
 
 /** Last age before this family of ratings starts to decline, for a player with these traits. */
 export function declineOnset(position: Position, family: AgingFamily, traits?: Pick<Traits, 'durability'>): number {

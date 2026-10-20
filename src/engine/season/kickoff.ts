@@ -63,7 +63,8 @@ export function kickoffLabel(k: Kickoff): string {
 }
 
 /** Order within a week: Thursday first, then by day and time. */
-export const kickoffOrder = (k: Kickoff | undefined) => (k ? ['thu', 'sat', 'sun', 'mon'].indexOf(k.day) * 1440 + k.et : 1440 * 2 + at(13));
+export const kickoffOrder = (k: Kickoff | undefined) =>
+  k ? ['thu', 'sat', 'sun', 'mon'].indexOf(k.day) * 1440 + k.et : 1440 * 2 + at(13);
 
 /** Hosts this many hours behind Eastern (Mountain and Pacific) never get the 1:00 window. */
 export const western = (league: League, teamId: number) => (ZONES[league.teams[teamId].abbrev] ?? 0) <= -2;
@@ -95,7 +96,8 @@ export function assignKickoffs(league: League, games: Game[], season: number): v
       const pool = open.filter((g) => !g.kickoff && ok(g));
       if (!pool.length) return undefined;
       // Better teams draw the lights; a team already in prime time a few times draws them less.
-      const weight = (g: Game) => (0.4 + appeal(g.homeId) + appeal(g.awayId)) * 0.6 ** ((prime.get(g.homeId) ?? 0) + (prime.get(g.awayId) ?? 0));
+      const weight = (g: Game) =>
+        (0.4 + appeal(g.homeId) + appeal(g.awayId)) * 0.6 ** ((prime.get(g.homeId) ?? 0) + (prime.get(g.awayId) ?? 0));
       return rng.weighted(pool, weight);
     };
     const light = (g: Game | undefined, k: Kickoff) => {
@@ -108,13 +110,22 @@ export function assignKickoffs(league: League, games: Game[], season: number): v
       const opener = week === weeks[0] && champion !== undefined ? open.find((g) => g.homeId === champion) : undefined;
       // A short week after a Monday night game is no week at all.
       light(opener ?? pick((g) => !monday.has(g.homeId) && !monday.has(g.awayId)), THURSDAY);
-      light(pick(() => true), MONDAY);
+      light(
+        pick(() => true),
+        MONDAY,
+      );
     }
-    light(pick(() => true), SUNDAY_NIGHT);
+    light(
+      pick(() => true),
+      SUNDAY_NIGHT,
+    );
     monday = new Set(open.filter((g) => g.kickoff === MONDAY).flatMap((g) => [g.homeId, g.awayId]));
     // Sunday afternoon: western hosts play late, and enough others join them to fill the window.
     const day = rng.shuffle(open.filter((g) => !g.kickoff));
-    const late = [...day.filter((g) => western(league, g.homeId)), ...day.filter((g) => !western(league, g.homeId))].slice(0, Math.max(LATE_GAMES, day.filter((g) => western(league, g.homeId)).length));
+    const late = [
+      ...day.filter((g) => western(league, g.homeId)),
+      ...day.filter((g) => !western(league, g.homeId)),
+    ].slice(0, Math.max(LATE_GAMES, day.filter((g) => western(league, g.homeId)).length));
     late.forEach((g, i) => (g.kickoff = LATE[i % LATE.length]));
     for (const g of day) g.kickoff ??= EARLY;
   }

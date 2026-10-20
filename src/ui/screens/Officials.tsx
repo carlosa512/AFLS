@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { userGame } from '../../engine/league';
-import { crewSeason, crewSeasons, crewStanding, crewTable, gameCrew, RANK_MIN_GAMES, refName, type CrewStat } from '../../engine/officials';
+import {
+  crewSeason,
+  crewSeasons,
+  crewStanding,
+  crewTable,
+  gameCrew,
+  RANK_MIN_GAMES,
+  refName,
+  type CrewStat,
+} from '../../engine/officials';
 import { FOUL_KINDS, FOULS } from '../../engine/penalties';
 import type { Foul, Game, League, Team } from '../../engine/types';
 import { useNav } from '../App';
@@ -42,7 +51,9 @@ export function Officials({ league }: { league: League }) {
   const { rows, ranked } = crewTable(league, season);
   const next = userGame(league);
   const nextCrew = next && !next.result ? gameCrew(league, next) : undefined;
-  const sorted = sortRows(rows, sort, (r, key) => (key === 'name' ? r.crew.lastName : key === 'games' ? r.games : r.games ? r.perGame[key] : -1));
+  const sorted = sortRows(rows, sort, (r, key) =>
+    key === 'name' ? r.crew.lastName : key === 'games' ? r.games : r.games ? r.perGame[key] : -1,
+  );
 
   return (
     <Panel
@@ -60,9 +71,9 @@ export function Officials({ league }: { league: League }) {
       }
     >
       <p className="muted" style={{ marginTop: 0 }}>
-        Each game gets one of {rows.length} crews. Some throw flags all day, some let the linemen hold. You can't see their habits, only what they call.
-        Holding is offensive holding; coverage is pass interference and defensive holding; roughing is roughing the passer. Ranks show once a crew has worked{' '}
-        {RANK_MIN_GAMES} games.
+        Each game gets one of {rows.length} crews. Some throw flags all day, some let the linemen hold. You can't see
+        their habits, only what they call. Holding is offensive holding; coverage is pass interference and defensive
+        holding; roughing is roughing the passer. Ranks show once a crew has worked {RANK_MIN_GAMES} games.
       </p>
       {seasons.length === 0 ? (
         <p className="muted" style={{ margin: 0 }}>
@@ -76,7 +87,14 @@ export function Officials({ league }: { league: League }) {
                 <SortTh label="Head referee" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
                 <SortTh label="Games" k="games" sort={sort} onSort={onSort} className="num" />
                 {COLUMNS.map(([key, label, title]) => (
-                  <SortTh key={key} label={<span title={title}>{label}</span>} k={key} sort={sort} onSort={onSort} className="num" />
+                  <SortTh
+                    key={key}
+                    label={<span title={title}>{label}</span>}
+                    k={key}
+                    sort={sort}
+                    onSort={onSort}
+                    className="num"
+                  />
                 ))}
               </tr>
             </thead>
@@ -85,7 +103,11 @@ export function Officials({ league }: { league: League }) {
                 <tr key={r.crew.id} className={r.crew === nextCrew ? 'is-user' : undefined}>
                   <td className="sticky-col">
                     {refName(r.crew, true)}
-                    {r.crew === nextCrew && <span className="tag-pill" style={{ marginLeft: 6 }}>Next game</span>}
+                    {r.crew === nextCrew && (
+                      <span className="tag-pill" style={{ marginLeft: 6 }}>
+                        Next game
+                      </span>
+                    )}
                   </td>
                   <td className="num">{r.games}</td>
                   {COLUMNS.map(([key]) => (
@@ -119,9 +141,9 @@ export function GameOfficials({ league, game, away, home }: { league: League; ga
   const line = crewSeason(league, game.season).get(crew.id);
   const avg = (n: number) => (line ? (n / line.games).toFixed(1) : '–');
   // The fouls this game saw, or that this crew calls: a row for every kind in the book would bury them.
-  const rows = FOUL_KINDS.filter((f) => (r.away.flags![f] ?? 0) + (r.home.flags![f] ?? 0) > 0 || (line?.fouls[f] ?? 0) > 0).map(
-    (f) => [FOULS[f].label, r.away.flags![f] ?? 0, r.home.flags![f] ?? 0, avg(line?.fouls[f] ?? 0)] as const,
-  );
+  const rows = FOUL_KINDS.filter(
+    (f) => (r.away.flags![f] ?? 0) + (r.home.flags![f] ?? 0) > 0 || (line?.fouls[f] ?? 0) > 0,
+  ).map((f) => [FOULS[f].label, r.away.flags![f] ?? 0, r.home.flags![f] ?? 0, avg(line?.fouls[f] ?? 0)] as const);
   const total = line ? FOUL_KINDS.reduce((s, f) => s + line.fouls[f], 0) : 0;
   const count = (fouls?: Partial<Record<Foul, number>>) => Object.values(fouls ?? {}).reduce((s, n) => s + n, 0);
   return (
@@ -181,8 +203,8 @@ export function GameOfficials({ league, game, away, home }: { league: League; ga
       </div>
       {line && (
         <p className="muted small" style={{ marginBottom: 0 }}>
-          Accepted penalties; declined and offsetting flags are counted apart. Crew avg: per game, both teams, over the {line.games} game{line.games === 1 ? '' : 's'} it has
-          worked this season.
+          Accepted penalties; declined and offsetting flags are counted apart. Crew avg: per game, both teams, over the{' '}
+          {line.games} game{line.games === 1 ? '' : 's'} it has worked this season.
         </p>
       )}
     </Panel>

@@ -7,7 +7,22 @@ import { useState } from 'react';
 import { capHit, isExpired, lastSeason } from '../engine/finance/contract';
 import { offerWords } from '../engine/inbox';
 import { teamPlayers } from '../engine/roster';
-import { acceptOffer, answerEnquiry, askPrice, dealAdvice, declineOffer, openOffers, pickLabel, playerTradeBlocker, resolveExam, setTradeStatus, shopPlayer, stanceOf, tradeWindow, type Advice } from '../engine/trade';
+import {
+  acceptOffer,
+  answerEnquiry,
+  askPrice,
+  dealAdvice,
+  declineOffer,
+  openOffers,
+  pickLabel,
+  playerTradeBlocker,
+  resolveExam,
+  setTradeStatus,
+  shopPlayer,
+  stanceOf,
+  tradeWindow,
+  type Advice,
+} from '../engine/trade';
 import type { League, Player, Stance, TradeOffer, TradeRecord, TradeSide, TradeStatus } from '../engine/types';
 import { POSITIONS } from '../engine/types';
 import { useNav } from './App';
@@ -17,10 +32,19 @@ import { Ovr, seenOvr } from './scouting';
 import { store } from './store';
 import { tradeDesk } from './tradeDesk';
 
-const WHO: Record<Advice['who'], string> = { coach: 'Head coach', scouts: 'Pro scouts', medical: 'Medical', cap: 'Cap' };
+const WHO: Record<Advice['who'], string> = {
+  coach: 'Head coach',
+  scouts: 'Pro scouts',
+  medical: 'Medical',
+  cap: 'Cap',
+};
 
 /** A deal's side as the trade table holds it. */
-const picked = (side: TradeSide) => ({ players: [...side.players], picks: [...side.picks], ...(side.retain ? { retain: { ...side.retain } } : {}) });
+const picked = (side: TradeSide) => ({
+  players: [...side.players],
+  picks: [...side.picks],
+  ...(side.retain ? { retain: { ...side.retain } } : {}),
+});
 
 /** One side of a deal, player by player and pick by pick. */
 function SideList({ league, side }: { league: League; side: TradeSide }) {
@@ -39,7 +63,9 @@ function SideList({ league, side }: { league: League; side: TradeSide }) {
             </button>
             <Ovr league={league} player={p} />
             <span className="muted small">
-              {p.contract ? `${money(Math.round(capHit(p.contract, league.season)))} · thru ${lastSeason(p.contract)}` : ''}
+              {p.contract
+                ? `${money(Math.round(capHit(p.contract, league.season)))} · thru ${lastSeason(p.contract)}`
+                : ''}
               {side.retain?.[id] ? ` · ${team.name} keep paying ${money(side.retain[id])}` : ''}
             </span>
           </li>
@@ -60,7 +86,12 @@ function SideList({ league, side }: { league: League; side: TradeSide }) {
 export function ExamPanel({ league }: { league: League }) {
   const [note, setNote] = useState<string | null>(null);
   const exam = league.market?.exam;
-  if (!exam) return note ? <p className="callout" role="status">{note}</p> : null;
+  if (!exam)
+    return note ? (
+      <p className="callout" role="status">
+        {note}
+      </p>
+    ) : null;
   const ai = league.teams[exam.aiId];
   const sides = exam.by === 'theirs' && exam.reduced ? exam.reduced : exam.sides;
   const [theirs, yours] = sides[0].teamId === exam.aiId ? sides : [sides[1], sides[0]];
@@ -80,7 +111,13 @@ export function ExamPanel({ league }: { league: League }) {
             <li key={e.playerId}>{e.note}</li>
           ))}
       </ul>
-      <p className="muted small">{exam.by === 'theirs' ? (exam.reduced ? 'Their lower offer:' : 'They want to talk price.') : 'The deal as agreed:'}</p>
+      <p className="muted small">
+        {exam.by === 'theirs'
+          ? exam.reduced
+            ? 'Their lower offer:'
+            : 'They want to talk price.'
+          : 'The deal as agreed:'}
+      </p>
       <div className="grid-2">
         <div>
           <div className="eyebrow">You get</div>
@@ -127,10 +164,21 @@ export function ExamPanel({ league }: { league: League }) {
 }
 
 /** When an offer lapses, in words. */
-const lapse = (league: League) => (league.phase === 'regular' ? `Open until you play week ${league.week}.` : 'Open until your next step.');
+const lapse = (league: League) =>
+  league.phase === 'regular' ? `Open until you play week ${league.week}.` : 'Open until your next step.';
 
 /** An offer on your desk: what he sends and wants, your staff's word, and your answer. `compact` drops the heading and his words (the inbox message already says them). */
-export function OfferCard({ league, offer, compact, onDone }: { league: League; offer: TradeOffer; compact?: boolean; onDone?: (message: string) => void }) {
+export function OfferCard({
+  league,
+  offer,
+  compact,
+  onDone,
+}: {
+  league: League;
+  offer: TradeOffer;
+  compact?: boolean;
+  onDone?: (message: string) => void;
+}) {
   const nav = useNav();
   const [note, setNote] = useState<string | null>(null);
   const [release, setRelease] = useState<number[] | null>(null);
@@ -150,11 +198,20 @@ export function OfferCard({ league, offer, compact, onDone }: { league: League; 
     if (result.ok) onDone?.(result.message);
   };
   const counter = () => {
-    tradeDesk.put({ partnerId: offer.teamId, mine: picked(offer.sides[1]), theirs: picked(offer.sides[0]), counterTo: offer.id });
+    tradeDesk.put({
+      partnerId: offer.teamId,
+      mine: picked(offer.sides[1]),
+      theirs: picked(offer.sides[0]),
+      counterTo: offer.id,
+    });
     nav.go({ view: 'office', tab: 'trades' });
   };
 
-  const when = <span className="muted small">{open ? lapse(league) : `This offer is ${offer.status === 'pending' ? 'no longer open' : offer.status}.`}</span>;
+  const when = (
+    <span className="muted small">
+      {open ? lapse(league) : `This offer is ${offer.status === 'pending' ? 'no longer open' : offer.status}.`}
+    </span>
+  );
   return (
     <Panel
       title={
@@ -202,7 +259,13 @@ export function OfferCard({ league, offer, compact, onDone }: { league: League; 
             .slice(0, 12)
             .map((p) => (
               <label key={p.id} className="row" style={{ gap: 6 }}>
-                <input type="checkbox" checked={release.includes(p.id)} onChange={() => setRelease(release.includes(p.id) ? release.filter((x) => x !== p.id) : [...release, p.id])} />
+                <input
+                  type="checkbox"
+                  checked={release.includes(p.id)}
+                  onChange={() =>
+                    setRelease(release.includes(p.id) ? release.filter((x) => x !== p.id) : [...release, p.id])
+                  }
+                />
                 {p.position} {p.firstName} {p.lastName} <Ovr league={league} player={p} />
               </label>
             ))}
@@ -221,10 +284,16 @@ export function OfferCard({ league, offer, compact, onDone }: { league: League; 
         <span className="row" style={{ gap: 8 }}>
           {enquiry ? (
             <>
-              <button className="btn btn-primary" onClick={() => store.mutate((l) => void answerEnquiry(l, offer.id, 'offer'))}>
+              <button
+                className="btn btn-primary"
+                onClick={() => store.mutate((l) => void answerEnquiry(l, offer.id, 'offer'))}
+              >
                 Make me an offer
               </button>
-              <button className="btn" onClick={() => store.mutate((l) => void answerEnquiry(l, offer.id, 'notForSale'))}>
+              <button
+                className="btn"
+                onClick={() => store.mutate((l) => void answerEnquiry(l, offer.id, 'notForSale'))}
+              >
                 Not for sale
               </button>
             </>
@@ -261,7 +330,10 @@ export function OffersPanel({ league }: { league: League }) {
         offers.map((o) => <OfferCard key={o.id} league={league} offer={o} onDone={setDone} />)
       ) : (
         <Panel title={<h2>Offers</h2>}>
-          <p className="muted">No offers on your desk. Teams call about players they've been watching; put one on the block or shop him to draw calls.</p>
+          <p className="muted">
+            No offers on your desk. Teams call about players they've been watching; put one on the block or shop him to
+            draw calls.
+          </p>
         </Panel>
       )}
     </>
@@ -280,7 +352,11 @@ export function StatusPicker({ league, player }: { league: League; player: Playe
   return (
     <div className="seg seg-sm" role="group" aria-label={`Trade status for ${player.firstName} ${player.lastName}`}>
       {STATUS.map(([s, label]) => (
-        <button key={label} aria-pressed={status === s} onClick={() => store.mutate((l) => setTradeStatus(l, player.id, s))}>
+        <button
+          key={label}
+          aria-pressed={status === s}
+          onClick={() => store.mutate((l) => setTradeStatus(l, player.id, s))}
+        >
           {label}
         </button>
       ))}
@@ -294,7 +370,10 @@ export function BlockPanel({ league }: { league: League }) {
   const [note, setNote] = useState<string | null>(null);
   const players = teamPlayers(league, league.userTeamId)
     .filter((p) => p.contract && !isExpired(p.contract, league.season))
-    .sort((a, b) => POSITIONS.indexOf(a.position) - POSITIONS.indexOf(b.position) || seenOvr(league, b) - seenOvr(league, a));
+    .sort(
+      (a, b) =>
+        POSITIONS.indexOf(a.position) - POSITIONS.indexOf(b.position) || seenOvr(league, b) - seenOvr(league, a),
+    );
   const shop = (p: Player) => {
     let message = '';
     store.mutate((l) => {
@@ -305,7 +384,8 @@ export function BlockPanel({ league }: { league: League }) {
   return (
     <Panel title={<h2>Your block</h2>}>
       <p className="muted small">
-        On the block, interest grows fast and teams call sooner; they also know you want to sell. Untouchable, nobody asks. <b>Shop</b> calls every team that needs him now.
+        On the block, interest grows fast and teams call sooner; they also know you want to sell. Untouchable, nobody
+        asks. <b>Shop</b> calls every team that needs him now.
       </p>
       {note && (
         <p className="callout" role="status">
@@ -325,7 +405,12 @@ export function BlockPanel({ league }: { league: League }) {
               </span>
               <span className="row" style={{ gap: 8 }}>
                 <StatusPicker league={league} player={p} />
-                <button className="btn btn-sm" disabled={!!blocked || league.market?.shopped[p.id] === league.market?.moment} title={blocked ?? undefined} onClick={() => shop(p)}>
+                <button
+                  className="btn btn-sm"
+                  disabled={!!blocked || league.market?.shopped[p.id] === league.market?.moment}
+                  title={blocked ?? undefined}
+                  onClick={() => shop(p)}
+                >
                   Shop
                 </button>
               </span>
@@ -337,7 +422,12 @@ export function BlockPanel({ league }: { league: League }) {
   );
 }
 
-const STANCE: Record<Stance, string> = { contend: 'Buying', bubble: 'Listening', retool: 'Selling veterans', rebuild: 'Selling' };
+const STANCE: Record<Stance, string> = {
+  contend: 'Buying',
+  bubble: 'Listening',
+  retool: 'Selling veterans',
+  rebuild: 'Selling',
+};
 
 /** What the league is saying, and who's buying and selling (in words). */
 export function MarketPanel({ league }: { league: League }) {
@@ -373,14 +463,23 @@ export function MarketPanel({ league }: { league: League }) {
 }
 
 const sideText = (league: League, side: TradeSide) =>
-  [...side.players.map((id) => `${league.players[id].position} ${league.players[id].firstName[0]}. ${league.players[id].lastName}`), ...side.picks.map((id) => league.draftPicks.find((p) => p.id === id)).filter((p) => !!p).map((p) => `${p!.season} R${p!.round}`)].join(', ') || 'nothing';
+  [
+    ...side.players.map(
+      (id) => `${league.players[id].position} ${league.players[id].firstName[0]}. ${league.players[id].lastName}`,
+    ),
+    ...side.picks
+      .map((id) => league.draftPicks.find((p) => p.id === id))
+      .filter((p) => !!p)
+      .map((p) => `${p!.season} R${p!.round}`),
+  ].join(', ') || 'nothing';
 
 /** The league's trades, newest first: yours only, or everyone's. */
 export function HistoryPanel({ league }: { league: League }) {
   const [yours, setYours] = useState(false);
   const all = [...(league.market?.history ?? [])].reverse();
   const shown = (yours ? all.filter((r) => r.sides.some((s) => s.teamId === league.userTeamId)) : all).slice(0, 60);
-  const when = (r: TradeRecord) => `${r.season} ${r.phase === 'regular' ? `week ${r.week}` : r.phase === 'resign' ? 'league year' : r.phase === 'freeAgency' ? 'free agency' : r.phase === 'preseason' ? 'camp' : r.phase}`;
+  const when = (r: TradeRecord) =>
+    `${r.season} ${r.phase === 'regular' ? `week ${r.week}` : r.phase === 'resign' ? 'league year' : r.phase === 'freeAgency' ? 'free agency' : r.phase === 'preseason' ? 'camp' : r.phase}`;
   return (
     <Panel
       title={<h2>Trade history</h2>}
@@ -401,7 +500,8 @@ export function HistoryPanel({ league }: { league: League }) {
             const [a, b] = r.sides.map((s) => league.teams[s.teamId]);
             return (
               <li key={i}>
-                <b>{a.abbrev}</b> sent {sideText(league, r.sides[0])} to <b>{b.abbrev}</b> for {sideText(league, r.sides[1])}{' '}
+                <b>{a.abbrev}</b> sent {sideText(league, r.sides[0])} to <b>{b.abbrev}</b> for{' '}
+                {sideText(league, r.sides[1])}{' '}
                 <span className="muted small">
                   {when(r)}
                   {r.kind !== 'user' ? ` · ${r.kind}` : ''}
@@ -421,7 +521,8 @@ export function HistoryPanel({ league }: { league: League }) {
 export function TradeActions({ league, player, onClose }: { league: League; player: Player; onClose: () => void }) {
   const nav = useNav();
   const [note, setNote] = useState<string | null>(null);
-  if (player.teamId === null || player.retired || !player.contract || isExpired(player.contract, league.season)) return null;
+  if (player.teamId === null || player.retired || !player.contract || isExpired(player.contract, league.season))
+    return null;
   const closed = tradeWindow(league);
   if (player.teamId === league.userTeamId) {
     const shop = () => {
@@ -434,7 +535,12 @@ export function TradeActions({ league, player, onClose }: { league: League; play
     return (
       <div className="card-actions">
         <StatusPicker league={league} player={player} />
-        <button className="btn btn-sm" disabled={!!closed || league.market?.shopped[player.id] === league.market?.moment} title={closed ?? undefined} onClick={shop}>
+        <button
+          className="btn btn-sm"
+          disabled={!!closed || league.market?.shopped[player.id] === league.market?.moment}
+          title={closed ?? undefined}
+          onClick={shop}
+        >
           Shop him
         </button>
         {note && <span className="muted small">{note}</span>}

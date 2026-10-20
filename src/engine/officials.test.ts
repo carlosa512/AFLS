@@ -4,7 +4,19 @@ import { gamesInWeek, playWeek } from './league';
 import { simulateGame } from './match/gameSim';
 import { migrateLeague } from './migrate';
 import type { AwardWinner } from './awards';
-import { CREW_COUNT, crewAssignments, crewMult, crewsNewYear, crewStanding, crewTable, gameCrew, MAX_DRIFT, RANK_MIN_GAMES, STAR_LEAN, starLean } from './officials';
+import {
+  CREW_COUNT,
+  crewAssignments,
+  crewMult,
+  crewsNewYear,
+  crewStanding,
+  crewTable,
+  gameCrew,
+  MAX_DRIFT,
+  RANK_MIN_GAMES,
+  STAR_LEAN,
+  starLean,
+} from './officials';
 import { FOUL_KINDS } from './penalties';
 import type { Crew, League } from './types';
 
@@ -74,13 +86,22 @@ describe('officiating crews', () => {
   it('records the crew and every flag by kind, and a strict crew calls more than a lenient one', () => {
     const league = createLeague({ seed: 'crews-sim' });
     const games = league.games.filter((g) => g.week <= 3);
-    const crew = (n: number): Crew => ({ id: 0, firstName: 'Test', lastName: 'Crew', flagVolume: n, holding: n, coverage: n, qbProtection: n });
+    const crew = (n: number): Crew => ({
+      id: 0,
+      firstName: 'Test',
+      lastName: 'Crew',
+      flagVolume: n,
+      holding: n,
+      coverage: n,
+      qbProtection: n,
+    });
     let strict = 0;
     let lenient = 0;
     for (const g of games) {
       const own = simulateGame(league, g);
       expect(own.crewId).toBe(gameCrew(league, g)!.id);
-      for (const side of [own.home, own.away]) expect(FOUL_KINDS.reduce((s, f) => s + (side.flags?.[f] ?? 0), 0)).toBe(side.penalties);
+      for (const side of [own.home, own.away])
+        expect(FOUL_KINDS.reduce((s, f) => s + (side.flags?.[f] ?? 0), 0)).toBe(side.penalties);
       for (const [n, add] of [
         [20, (x: number) => (strict += x)],
         [1, (x: number) => (lenient += x)],
@@ -118,7 +139,10 @@ describe('officiating crews', () => {
     const season = (mvp: boolean, team: 0 | 1 | null) => ({
       season: 2000 + league.awards.length,
       winners: mvp ? { mvp: { playerId: qb, teamId: 0 } } : {},
-      allLeague: [team === 0 ? [{ playerId: qb, teamId: 0 }] : [], team === 1 ? [{ playerId: qb, teamId: 0 }] : []] as [AwardWinner[], AwardWinner[]],
+      allLeague: [team === 0 ? [{ playerId: qb, teamId: 0 }] : [], team === 1 ? [{ playerId: qb, teamId: 0 }] : []] as [
+        AwardWinner[],
+        AwardWinner[],
+      ],
     });
     league.awards.push(season(false, 1));
     expect(starLean(league, qb)).toBeCloseTo(1 + STAR_LEAN / 10, 9);

@@ -1,18 +1,52 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
-import { activeQuirks, eventQuirks, fillBag, formFor, formingQuirks, generateQuirks, isSpecial, QUIRK_IDS, QUIRKS, QUIRKS_FOR, quirkOffseason, quirkWeek, recordForm, schemeQuirks, SLUMP_WEEKS } from './quirks';
+import {
+  activeQuirks,
+  eventQuirks,
+  fillBag,
+  formFor,
+  formingQuirks,
+  generateQuirks,
+  isSpecial,
+  QUIRK_IDS,
+  QUIRKS,
+  QUIRKS_FOR,
+  quirkOffseason,
+  quirkWeek,
+  recordForm,
+  schemeQuirks,
+  SLUMP_WEEKS,
+} from './quirks';
 import { simulateGame } from './match/gameSim';
 import { teamScheme } from './coaching';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
-import { fixedHabits, habitChangeDetail, habitChangeText, habitTimeline, knowledge, QUIRK_KNOWLEDGE, quirkNotes, quirkWorth, scoutReport, trueQuirkWorth } from './scouting';
+import {
+  fixedHabits,
+  habitChangeDetail,
+  habitChangeText,
+  habitTimeline,
+  knowledge,
+  QUIRK_KNOWLEDGE,
+  quirkNotes,
+  quirkWorth,
+  scoutReport,
+  trueQuirkWorth,
+} from './scouting';
 import type { Player } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
 function player(i: number, age = 27, experience = 5): Player {
-  const p = generatePlayer(new Rng(`quirk-test:${i}`), { id: 2_000_000 + i, position: 'QB', quality: 10, age, teamId: null, jerseysUsed: new Set() });
+  const p = generatePlayer(new Rng(`quirk-test:${i}`), {
+    id: 2_000_000 + i,
+    position: 'QB',
+    quality: 10,
+    age,
+    teamId: null,
+    jerseysUsed: new Set(),
+  });
   p.experience = experience;
   return p;
 }
@@ -67,20 +101,27 @@ describe('quirks', () => {
     const logs = Object.values(league.players).flatMap((p) => p.quirkLog ?? []);
     expect(logs.some((e) => e.change === 'gained')).toBe(true);
     expect(logs.some((e) => e.change === 'lost')).toBe(true);
-    for (const p of Object.values(league.players)) for (const g of Object.values(p.quirks ?? {})) expect(g).toBeGreaterThanOrEqual(1);
+    for (const p of Object.values(league.players))
+      for (const g of Object.values(p.quirks ?? {})) expect(g).toBeGreaterThanOrEqual(1);
   });
 
   it('show on film: nothing below the threshold, everything for your own players, words only', () => {
     const league = createLeague({ seed: 'quirk-fog' });
     const me = league.userTeamId;
     const mine = Object.values(league.players).filter((p) => p.teamId === me);
-    for (const p of mine) expect(quirkNotes(league, me, p).notes.map((n) => n.id).sort()).toEqual(Object.keys(p.quirks ?? {}).sort());
+    for (const p of mine)
+      expect(
+        quirkNotes(league, me, p)
+          .notes.map((n) => n.id)
+          .sort(),
+      ).toEqual(Object.keys(p.quirks ?? {}).sort());
     // A late-round prospect nobody has scouted: a name on a list.
     const unseen = { ...player(3, 21, 0), scouting: { grade: 6, ceiling: 8 } };
     league.players[unseen.id] = unseen;
     expect(knowledge(league, me, unseen)).toBeLessThan(QUIRK_KNOWLEDGE);
     expect(quirkNotes(league, me, unseen)).toEqual({ known: false, notes: [] });
-    for (const p of Object.values(league.players).slice(0, 400)) for (const n of quirkNotes(league, me, p).notes) expect(n.label).not.toMatch(/\d/);
+    for (const p of Object.values(league.players).slice(0, 400))
+      for (const n of quirkNotes(league, me, p).notes) expect(n.label).not.toMatch(/\d/);
   });
 
   it('are worth a little to AI front offices, and only the habits their scouts have seen', () => {
@@ -141,27 +182,37 @@ describe('quirks', () => {
     expect(rattled.length).toBeGreaterThan(0);
     // A beating (five sacks) leaves him shaken for next week.
     const beaten = results.filter((r) => Object.values(r.form ?? {}).some((f) => f.shaken));
-    for (const r of beaten) for (const [id, f] of Object.entries(r.form!)) if (f.shaken) expect(r.playerStats[Number(id)].sacked).toBeGreaterThanOrEqual(5);
+    for (const r of beaten)
+      for (const [id, f] of Object.entries(r.form!))
+        if (f.shaken) expect(r.playerStats[Number(id)].sacked).toBeGreaterThanOrEqual(5);
   });
 
-  it('teach a scheme\'s habits in the offseason refill', () => {
+  it("teach a scheme's habits in the offseason refill", () => {
     const league = createLeague({ seed: 'quirk-scheme' });
     const team = league.teams.find((t) => teamScheme(league, t.id).coverage?.man)!;
     const cb = Object.values(league.players).find((p) => p.teamId === team.id && p.position === 'CB')!;
     expect(schemeQuirks(league, cb)).toContain('physicalJammer');
-    const zone = league.teams.find((t) => teamScheme(league, t.id).coverage && !teamScheme(league, t.id).coverage!.man)!;
+    const zone = league.teams.find(
+      (t) => teamScheme(league, t.id).coverage && !teamScheme(league, t.id).coverage!.man,
+    )!;
     const lb = Object.values(league.players).find((p) => p.teamId === zone.id && p.position === 'LB')!;
     expect(schemeQuirks(league, lb)).toEqual(expect.arrayContaining(['zoneHawk', 'spotDrop']));
     // Every scheme marble is one his position can draw.
-    for (const p of Object.values(league.players).slice(0, 500)) for (const q of schemeQuirks(league, p)) expect(QUIRKS_FOR[p.position]).toContain(q);
+    for (const p of Object.values(league.players).slice(0, 500))
+      for (const q of schemeQuirks(league, p)) expect(QUIRKS_FOR[p.position]).toContain(q);
   });
 
-  it('linger in other teams\' eyes after he shakes them, until their scouts notice', () => {
+  it("linger in other teams' eyes after he shakes them, until their scouts notice", () => {
     const league = createLeague({ seed: 'quirk-linger' });
     const me = league.userTeamId;
     // A veteran on another team: well known from film, not an open book.
     const vet = Object.values(league.players).find(
-      (p) => p.teamId !== null && p.teamId !== me && p.position === 'QB' && knowledge(league, me, p) < 0.9 && quirkNotes(league, me, { ...p, quirks: { staresDown: 2 } }).notes.some((n) => n.id === 'staresDown'),
+      (p) =>
+        p.teamId !== null &&
+        p.teamId !== me &&
+        p.position === 'QB' &&
+        knowledge(league, me, p) < 0.9 &&
+        quirkNotes(league, me, { ...p, quirks: { staresDown: 2 } }).notes.some((n) => n.id === 'staresDown'),
     )!;
     vet.quirks = {};
     vet.quirkLog = [
@@ -187,21 +238,43 @@ describe('quirks', () => {
   });
 
   it('describe a change in words that fit the habit, and a fade apart from a habit that is gone', () => {
-    expect(habitChangeText({ label: 'Patient Presser', tone: 'good', change: 'gained' })).toBe('Patient Presser became a regular part of his game');
-    expect(habitChangeText({ label: 'Short-Arm Catcher', tone: 'bad', change: 'gained' })).toBe('Short-Arm Catcher set in as a bad habit');
+    expect(habitChangeText({ label: 'Patient Presser', tone: 'good', change: 'gained' })).toBe(
+      'Patient Presser became a regular part of his game',
+    );
+    expect(habitChangeText({ label: 'Short-Arm Catcher', tone: 'bad', change: 'gained' })).toBe(
+      'Short-Arm Catcher set in as a bad habit',
+    );
     expect(habitChangeText({ label: 'Gunslinger', tone: 'style', change: 'lost' })).toBe('Leaned away from Gunslinger');
-    expect(habitChangeText({ label: 'Zone Hawk', tone: 'good', change: 'lost' })).toBe('Zone Hawk grew less dependable');
+    expect(habitChangeText({ label: 'Zone Hawk', tone: 'good', change: 'lost' })).toBe(
+      'Zone Hawk grew less dependable',
+    );
     // The log marks a habit losing its hold (established → emerging), not vanishing: the sentence says so
     // unless the reader sees nothing of it any more.
-    expect(habitChangeText({ label: 'Loose Carriage', tone: 'bad', change: 'lost' }, false)).toBe('reined in Loose Carriage, though it still shows now and then');
-    expect(habitChangeText({ label: 'Loose Carriage', tone: 'bad', change: 'lost', gone: true }, false)).toBe('shaken Loose Carriage');
-    expect(habitChangeText({ label: 'Zone Hawk', tone: 'good', change: 'lost' }, false)).toBe('grown less consistent with Zone Hawk');
-    expect(habitChangeText({ label: 'Zone Hawk', tone: 'good', change: 'lost', gone: true }, false)).toBe('stopped showing Zone Hawk');
+    expect(habitChangeText({ label: 'Loose Carriage', tone: 'bad', change: 'lost' }, false)).toBe(
+      'reined in Loose Carriage, though it still shows now and then',
+    );
+    expect(habitChangeText({ label: 'Loose Carriage', tone: 'bad', change: 'lost', gone: true }, false)).toBe(
+      'shaken Loose Carriage',
+    );
+    expect(habitChangeText({ label: 'Zone Hawk', tone: 'good', change: 'lost' }, false)).toBe(
+      'grown less consistent with Zone Hawk',
+    );
+    expect(habitChangeText({ label: 'Zone Hawk', tone: 'good', change: 'lost', gone: true }, false)).toBe(
+      'stopped showing Zone Hawk',
+    );
     // The line under a dated change: what the habit does once it sets in, or what a fade means.
-    expect(habitChangeDetail({ id: 'lateHands', tone: 'good', change: 'gained' })).toBe('He shows his hands at the last moment. Wins more contested catches.');
-    expect(habitChangeDetail({ id: 'lateHands', tone: 'good', change: 'lost' })).toMatch(/still shows on film now and then, but it is no longer a dependable part of his game/);
-    expect(habitChangeDetail({ id: 'bailsEarly', tone: 'bad', change: 'lost' })).toMatch(/no longer the problem it was/);
-    expect(habitChangeDetail({ id: 'gunslinger', tone: 'style', change: 'lost' })).toMatch(/no longer defines how he plays/);
+    expect(habitChangeDetail({ id: 'lateHands', tone: 'good', change: 'gained' })).toBe(
+      'He shows his hands at the last moment. Wins more contested catches.',
+    );
+    expect(habitChangeDetail({ id: 'lateHands', tone: 'good', change: 'lost' })).toMatch(
+      /still shows on film now and then, but it is no longer a dependable part of his game/,
+    );
+    expect(habitChangeDetail({ id: 'bailsEarly', tone: 'bad', change: 'lost' })).toMatch(
+      /no longer the problem it was/,
+    );
+    expect(habitChangeDetail({ id: 'gunslinger', tone: 'style', change: 'lost' })).toMatch(
+      /no longer defines how he plays/,
+    );
   });
 
   it('report the habits starting to show beside the settled one, flaws first, and a backup by what he does best and worst', () => {
@@ -213,10 +286,14 @@ describe('quirks', () => {
     const notes = scoutReport(league, me, wr);
     expect(notes).toContain('On film he traps the ball against his chest.');
     // Two of the three early habits, the flaw before the pluses; the pills carry the third.
-    expect(notes).toContain('Starting to show: he gets knocked off his route by press corners, and he shows his hands at the last moment.');
+    expect(notes).toContain(
+      'Starting to show: he gets knocked off his route by press corners, and he shows his hands at the last moment.',
+    );
     // A player short of the starters' bar still has a shape: the sentence names what he does best or worst for his level.
     const backup = Object.values(league.players).find((p) => p.teamId === me && playerOvr(p) < 8)!;
-    expect(scoutReport(league, me, backup)[1]).toMatch(/best of what he has|softest part of his game|falls shortest|A balanced set|Nothing jumps out|real strength|real concern/);
+    expect(scoutReport(league, me, backup)[1]).toMatch(
+      /best of what he has|softest part of his game|falls shortest|A balanced set|Nothing jumps out|real strength|real concern/,
+    );
   });
 
   it('report a fade as a fade while the habit still shows, and as gone once it is, by what the reader sees', () => {
@@ -229,20 +306,28 @@ describe('quirks', () => {
     ];
     // Our own player, the habit still there at a weaker grip: a fade, in so many words, and we know it.
     qb.quirks = { bailsEarly: 1 };
-    expect(scoutReport(league, me, qb).join(' ')).toMatch(/Lately he has reined in Bails Early, though it still shows now and then\./);
+    expect(scoutReport(league, me, qb).join(' ')).toMatch(
+      /Lately he has reined in Bails Early, though it still shows now and then\./,
+    );
     // Gone entirely: shaken.
     qb.quirks = {};
     expect(scoutReport(league, me, qb).join(' ')).toMatch(/Lately he has shaken Bails Early\./);
     // The dated list tells the change as it was logged, whatever came after.
-    expect(habitTimeline(league, me, qb).map((e) => habitChangeText(e))).toEqual(['Bails Early became less pronounced', 'Bails Early set in as a bad habit']);
+    expect(habitTimeline(league, me, qb).map((e) => habitChangeText(e))).toEqual([
+      'Bails Early became less pronounced',
+      'Bails Early set in as a bad habit',
+    ]);
     // A rival's player at the same weaker grip: his scouts don't see early word on a player they barely know,
     // so to them the habit is simply gone.
-    const rival = Object.values(league.players).find((p) => p.teamId !== null && p.teamId !== me && p.position === 'QB' && knowledge(league, me, p) < 0.6)!;
+    const rival = Object.values(league.players).find(
+      (p) => p.teamId !== null && p.teamId !== me && p.position === 'QB' && knowledge(league, me, p) < 0.6,
+    )!;
     rival.quirks = { bailsEarly: 1 };
     rival.quirkLog = [{ id: 'bailsEarly', change: 'lost', season: league.season - 2, week: 1 }];
     league.knowledge[rival.id] = 0.6;
     const lines = scoutReport(league, me, rival).join(' ');
-    if (quirkNotes(league, me, rival).notes.some((n) => n.id === 'bailsEarly')) expect(lines).not.toMatch(/shaken Bails Early/);
+    if (quirkNotes(league, me, rival).notes.some((n) => n.id === 'bailsEarly'))
+      expect(lines).not.toMatch(/shaken Bails Early/);
     else expect(lines).not.toMatch(/though it still shows/);
   });
 

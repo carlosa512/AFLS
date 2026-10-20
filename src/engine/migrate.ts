@@ -189,7 +189,9 @@ function toV9(league: League) {
     const seed = TEAM_SEEDS.find((t) => t.abbrev === team.abbrev);
     if (legacy && seed && team.colors[0] === legacy[0] && team.colors[1] === legacy[1]) team.colors = [...seed.colors];
   }
-  for (const h of league.history) if (!h.playoffs && league.games.some((g) => g.season === h.season && g.playoffRound && g.result)) h.playoffs = playoffSummary(league, h.season);
+  for (const h of league.history)
+    if (!h.playoffs && league.games.some((g) => g.season === h.season && g.playoffRound && g.result))
+      h.playoffs = playoffSummary(league, h.season);
 
   const byPlayer = new Map<number, Map<number, Map<number, StatLine>>>();
   for (const g of [...league.games].sort((a, b) => a.season - b.season || a.week - b.week)) {
@@ -214,7 +216,13 @@ function toV9(league: League) {
   for (const c of Object.values(league.coaches)) {
     if (c.teamId === null || c.since === undefined) continue;
     const seasons = league.history.filter((h) => h.season >= c.since!);
-    if (seasons.length) c.career = seasons.map((h) => ({ season: h.season, teamId: c.teamId!, role: c.role, ...(c.room ? { room: c.room } : {}) }));
+    if (seasons.length)
+      c.career = seasons.map((h) => ({
+        season: h.season,
+        teamId: c.teamId!,
+        role: c.role,
+        ...(c.room ? { room: c.room } : {}),
+      }));
   }
   league.version = 9;
 }
@@ -240,7 +248,8 @@ function toV11(league: League) {
  * would give him.
  */
 function toV31(league: League) {
-  for (const p of Object.values(league.players)) if (p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
+  for (const p of Object.values(league.players))
+    if (p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
   league.version = 31;
 }
 
@@ -308,7 +317,14 @@ function toV22(league: League) {
 /** v25: offers to you, your players' statuses and your dealings with each GM join the market (empty to start). */
 function toV25(league: League): void {
   const market = league.market as (Partial<TradeMarket> & Pick<TradeMarket, 'moment'>) | undefined;
-  if (market) Object.assign(market, { nextOfferId: market.nextOfferId ?? 1, offers: market.offers ?? [], status: market.status ?? {}, talks: market.talks ?? {}, shopped: market.shopped ?? {} });
+  if (market)
+    Object.assign(market, {
+      nextOfferId: market.nextOfferId ?? 1,
+      offers: market.offers ?? [],
+      status: market.status ?? {},
+      talks: market.talks ?? {},
+      shopped: market.shopped ?? {},
+    });
   league.version = 25;
 }
 
@@ -321,7 +337,11 @@ function toV27(league: League, atLoad: PeopleAtLoad): void {
 /** v30: kickoff times. This season's games get their slots; earlier seasons' stay as they were played. */
 function toV30(league: League): void {
   const season = league.games.filter((g) => g.season === league.season);
-  assignKickoffs(league, season.filter((g) => !g.playoffRound), league.season);
+  assignKickoffs(
+    league,
+    season.filter((g) => !g.playoffRound),
+    league.season,
+  );
   for (const round of PLAYOFF_ROUNDS) {
     const games = season.filter((g) => g.playoffRound === round);
     if (games.length) assignPlayoffKickoffs(league, games, round);

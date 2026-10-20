@@ -25,7 +25,11 @@ import { IDLE_MAX, ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMov
 import type { League, Medic, MedicRole, Team } from './types';
 
 export const MEDIC_ROLES: MedicRole[] = ['doctor', 'physio', 'scientist'];
-export const MEDIC_ROLE_LABEL: Record<MedicRole, string> = { doctor: 'Head team doctor', physio: 'Physiotherapist', scientist: 'Sports scientist' };
+export const MEDIC_ROLE_LABEL: Record<MedicRole, string> = {
+  doctor: 'Head team doctor',
+  physio: 'Physiotherapist',
+  scientist: 'Sports scientist',
+};
 /** Chairs per role. */
 export const MEDIC_SLOTS: Record<MedicRole, number> = { doctor: 1, physio: 2, scientist: 1 };
 export const medicName = (m: Pick<Medic, 'firstName' | 'lastName'>) => `${m.firstName} ${m.lastName}`;
@@ -49,12 +53,14 @@ export function teamMedics(league: League, teamId: number): readonly Medic[] {
   let hit = index.get(league.medics);
   if (!hit || hit.version !== version) {
     const byTeam = new Map<number, Medic[]>();
-    for (const m of Object.values(league.medics)) if (m.teamId !== null) byTeam.set(m.teamId, [...(byTeam.get(m.teamId) ?? []), m]);
+    for (const m of Object.values(league.medics))
+      if (m.teamId !== null) byTeam.set(m.teamId, [...(byTeam.get(m.teamId) ?? []), m]);
     index.set(league.medics, (hit = { version, byTeam }));
   }
   return hit.byTeam.get(teamId) ?? [];
 }
-export const medicMarket = (league: League): Medic[] => Object.values(league.medics ?? {}).filter((m) => m.teamId === null);
+export const medicMarket = (league: League): Medic[] =>
+  Object.values(league.medics ?? {}).filter((m) => m.teamId === null);
 
 // ───────── what the department does ─────────
 
@@ -75,7 +81,9 @@ export interface Department {
 export function departmentOf(medics: readonly Medic[]): Department {
   const out = { physio: 0, science: 0 };
   for (const role of MEDIC_ROLES) {
-    const held = [...medics.filter((m) => m.role === role)].sort((a, b) => medicValue(b) - medicValue(a)).slice(0, MEDIC_SLOTS[role]);
+    const held = [...medics.filter((m) => m.role === role)]
+      .sort((a, b) => medicValue(b) - medicValue(a))
+      .slice(0, MEDIC_SLOTS[role]);
     for (let i = 0; i < MEDIC_SLOTS[role]; i++) {
       const m = held[i];
       out.physio += WEIGHT.physio[role] * (m?.physio ?? VACANT);
@@ -88,7 +96,9 @@ export function departmentOf(medics: readonly Medic[]): Department {
 
 /** A team's department; free agents have nobody (baseline rehab, no prevention). */
 export function departmentFor(league: League, teamId: number | null): Department {
-  return teamId === null ? { physio: VACANT, science: VACANT, diagnosis: VACANT } : departmentOf(teamMedics(league, teamId));
+  return teamId === null
+    ? { physio: VACANT, science: VACANT, diagnosis: VACANT }
+    : departmentOf(teamMedics(league, teamId));
 }
 
 /**
@@ -145,21 +155,32 @@ export function medicAsk(league: League, m: Medic, years = 2): number {
 }
 
 /** The owner's medical budget for this league year, $K: the same generosity as his scouting and coaching budgets. */
-export const medicalBudget = (league: League, teamId: number) => Math.round(0.019 * capOf(league) * league.teams[teamId].staffBudgetMult);
+export const medicalBudget = (league: League, teamId: number) =>
+  Math.round(0.019 * capOf(league) * league.teams[teamId].staffBudgetMult);
 
 /** Salaries owed this league year plus severance booked against it. */
 export function medicalPayroll(league: League, teamId: number): number {
-  const pay = teamMedics(league, teamId).reduce((sum, m) => sum + (m.contract && m.contract.through >= league.season ? m.contract.salary : 0), 0);
-  return pay + (league.teams[teamId].medicalDead ?? []).filter((d) => d.season === league.season).reduce((sum, d) => sum + d.amount, 0);
+  const pay = teamMedics(league, teamId).reduce(
+    (sum, m) => sum + (m.contract && m.contract.through >= league.season ? m.contract.salary : 0),
+    0,
+  );
+  return (
+    pay +
+    (league.teams[teamId].medicalDead ?? [])
+      .filter((d) => d.season === league.season)
+      .reduce((sum, d) => sum + d.amount, 0)
+  );
 }
 
-export const medicalRoom = (league: League, teamId: number) => medicalBudget(league, teamId) - medicalPayroll(league, teamId);
+export const medicalRoom = (league: League, teamId: number) =>
+  medicalBudget(league, teamId) - medicalPayroll(league, teamId);
 
 /** His deal ran out last league year: he stays through the re-sign window, then leaves unless extended. */
 export const isMedicExpiring = (league: League, m: Medic) => !!m.contract && m.contract.through < league.season;
 
 /** Severance for dismissing him now: half a year's salary, if he's still under contract. */
-export const medicSeverance = (league: League, m: Medic) => (m.contract && m.contract.through >= league.season ? Math.round(m.contract.salary * 0.5) : 0);
+export const medicSeverance = (league: League, m: Medic) =>
+  m.contract && m.contract.through >= league.season ? Math.round(m.contract.salary * 0.5) : 0;
 
 // ───────── moves ─────────
 
@@ -169,14 +190,20 @@ export function medicMoveProblem(league: League, teamId: number, m: Medic, move:
   const { He, His, him } = pron(m);
   if (move === 'release') return m.teamId === teamId ? null : `${He} doesn’t work for you.`;
   if (years < 1 || years > MEDIC_MAX_YEARS) return `Medical staff sign for 1–${MEDIC_MAX_YEARS} years.`;
-  const held = teamMedics(league, teamId).filter((x) => x.role === m.role && x !== m && !isMedicExpiring(league, x)).length;
+  const held = teamMedics(league, teamId).filter(
+    (x) => x.role === m.role && x !== m && !isMedicExpiring(league, x),
+  ).length;
   const label = MEDIC_ROLE_LABEL[m.role].toLowerCase();
   if (move === 'extend') {
     if (m.teamId !== teamId || !isMedicExpiring(league, m)) return 'Only expiring deals can be extended.';
-    if (held >= MEDIC_SLOTS[m.role]) return `${His} chair is taken: your ${label} job${MEDIC_SLOTS[m.role] > 1 ? 's are' : ' is'} filled.`;
+    if (held >= MEDIC_SLOTS[m.role])
+      return `${His} chair is taken: your ${label} job${MEDIC_SLOTS[m.role] > 1 ? 's are' : ' is'} filled.`;
   } else {
     if (m.teamId !== null) return `${He} isn’t available.`;
-    if (held >= MEDIC_SLOTS[m.role]) return MEDIC_SLOTS[m.role] > 1 ? `Both ${label} jobs are filled. Dismiss one first.` : `You already have a ${label}. Dismiss ${him} first.`;
+    if (held >= MEDIC_SLOTS[m.role])
+      return MEDIC_SLOTS[m.role] > 1
+        ? `Both ${label} jobs are filled. Dismiss one first.`
+        : `You already have a ${label}. Dismiss ${him} first.`;
   }
   const over = medicAsk(league, m, years) - medicalRoom(league, teamId);
   return over > 0 ? `Over your medical budget by $${(over / 1000).toFixed(2)}M.` : null;
@@ -192,7 +219,14 @@ function signMedic(league: League, teamId: number, m: Medic, years: number): voi
 /** Medical news is the user's own business: AI hires don't make headlines. */
 function logMedic(league: League, teamId: number, text: string): void {
   if (teamId !== league.userTeamId) return;
-  league.transactions.push({ season: league.season, phase: league.phase, week: league.week, teamIds: [teamId], kind: 'medical', text });
+  league.transactions.push({
+    season: league.season,
+    phase: league.phase,
+    week: league.week,
+    teamIds: [teamId],
+    kind: 'medical',
+    text,
+  });
 }
 const labelOf = (m: Medic) => MEDIC_ROLE_LABEL[m.role].toLowerCase();
 
@@ -268,7 +302,8 @@ function candidate(league: League, rng: Rng, role: MedicRole): Medic {
 /** Top the market back up to its usual size. */
 function refreshMarket(league: League, rng: Rng): void {
   const market = medicMarket(league);
-  for (const role of MEDIC_ROLES) for (let n = market.filter((m) => m.role === role).length; n < MARKET_SIZE[role]; n++) candidate(league, rng, role);
+  for (const role of MEDIC_ROLES)
+    for (let n = market.filter((m) => m.role === role).length; n < MARKET_SIZE[role]; n++) candidate(league, rng, role);
 }
 
 /** Each AI front office's goal for its medical staff: some invest, some don't, centred on typical. A persistent trait, not stored. */
@@ -299,7 +334,14 @@ export function generateMedicalWorld(league: League): void {
     const hired = CHAIRS.map((role) => {
       const lean = LEAN[role] + rng.normal(0, user ? 0.5 : 1);
       const sd = user ? 0.6 : 2;
-      return newMedic(league, rng, role, rng.normal(level + lean, sd), rng.normal(level - lean, sd), rng.int(role === 'doctor' ? 40 : 28, 58));
+      return newMedic(
+        league,
+        rng,
+        role,
+        rng.normal(level + lean, sd),
+        rng.normal(level - lean, sd),
+        rng.int(role === 'doctor' ? 40 : 28, 58),
+      );
     });
     // Stagger contracts so departments don't all turn over in the same year.
     hired.forEach((m, i) => signMedic(league, team.id, m, user ? (i % 3) + 1 : rng.int(1, MEDIC_MAX_YEARS)));
@@ -348,7 +390,10 @@ export function developMedics(league: League): void {
     let drift = trend(m.age);
     if (m.teamId !== null) {
       const team = league.teams[m.teamId];
-      drift += (league.season - (m.since ?? league.season) >= 2 ? 0.1 : 0) + 0.4 * (lastWinShare(league, m.teamId) - 0.5) + 0.3 * (team.staffBudgetMult - 1);
+      drift +=
+        (league.season - (m.since ?? league.season) >= 2 ? 0.1 : 0) +
+        0.4 * (lastWinShare(league, m.teamId) - 0.5) +
+        0.3 * (team.staffBudgetMult - 1);
     }
     m.physio = Math.round(clamp(m.physio + rng.normal(drift, 0.5), 1, 20));
     m.science = Math.round(clamp(m.science + rng.normal(drift, 0.5), 1, 20));
@@ -358,7 +403,8 @@ export function developMedics(league: League): void {
     else delete m.idle;
     const drifts = m.teamId === null && (rng.chance(0.4) || m.idle! >= IDLE_MAX);
     if (retires || drifts) {
-      if (retires && m.teamId !== null) logMedic(league, m.teamId, `${MEDIC_ROLE_LABEL[m.role]} ${medicName(m)} retired`);
+      if (retires && m.teamId !== null)
+        logMedic(league, m.teamId, `${MEDIC_ROLE_LABEL[m.role]} ${medicName(m)} retired`);
       delete league.medics[m.id];
     }
   }
@@ -408,7 +454,8 @@ export function medicalWindowCloses(league: League, opts: { autoUser?: boolean }
       } else dismiss(league, m);
     }
   }
-  for (const team of rng.shuffle(league.teams.filter((t) => opts.autoUser || t.id !== user))) aiMedicalMoves(league, team, rng);
+  for (const team of rng.shuffle(league.teams.filter((t) => opts.autoUser || t.id !== user)))
+    aiMedicalMoves(league, team, rng);
   refreshMarket(league, rng);
 }
 
@@ -417,7 +464,8 @@ function aiMedicalMoves(league: League, team: Team, rng: Rng): void {
   const gone = new Set<number>();
   for (const m of teamMedics(league, team.id).filter((x) => isMedicExpiring(league, x))) {
     const years = rng.int(1, MEDIC_MAX_YEARS);
-    const keep = medicValue(m) >= goal - 2 && rng.chance(0.75) && medicAsk(league, m, years) <= medicalRoom(league, team.id);
+    const keep =
+      medicValue(m) >= goal - 2 && rng.chance(0.75) && medicAsk(league, m, years) <= medicalRoom(league, team.id);
     if (keep) signMedic(league, team.id, m, years);
     else {
       dismiss(league, m);
@@ -433,13 +481,17 @@ function fillChairs(league: League, team: Team, rng: Rng, gone: ReadonlySet<numb
   for (const role of CHAIRS) {
     const mine = teamMedics(league, team.id);
     if (mine.filter((m) => m.role === role).length >= MEDIC_SLOTS[role]) continue;
-    const open = MEDIC_ROLES.reduce((n, r) => n + Math.max(0, MEDIC_SLOTS[r] - mine.filter((m) => m.role === r).length), 0) - 1;
+    const open =
+      MEDIC_ROLES.reduce((n, r) => n + Math.max(0, MEDIC_SLOTS[r] - mine.filter((m) => m.role === r).length), 0) - 1;
     const reserve = open * 450 * (capOf(league) / BASE_CAP);
     const years = rng.int(1, MEDIC_MAX_YEARS);
     const room = medicalRoom(league, team.id);
-    const affordable = (budget: number) => medicMarket(league).filter((m) => m.role === role && !gone.has(m.id) && medicAsk(league, m, years) <= budget);
+    const affordable = (budget: number) =>
+      medicMarket(league).filter((m) => m.role === role && !gone.has(m.id) && medicAsk(league, m, years) <= budget);
     const pool = affordable(room - reserve).length ? affordable(room - reserve) : affordable(room);
-    const pick = pool.map((m) => ({ m, score: Math.abs(medicValue(m) - goal) + rng.normal(0, 0.6) })).sort((a, b) => a.score - b.score)[0]?.m;
+    const pick = pool
+      .map((m) => ({ m, score: Math.abs(medicValue(m) - goal) + rng.normal(0, 0.6) }))
+      .sort((a, b) => a.score - b.score)[0]?.m;
     // Nobody affordable: a journeyman takes the job on a one-year deal, so no chair stays empty.
     const hire = pick ?? newMedic(league, rng, role, rng.normal(6.5, 1), rng.normal(6.5, 1), rng.int(30, 45));
     signMedic(league, team.id, hire, pick ? years : 1);
@@ -459,13 +511,19 @@ export const departmentScore = (d: Department) => 0.5 * d.physio + 0.5 * d.scien
 
 /** Letter grade by rank among the 32 departments: A top 3, B next 6, C middle 14, D next 6, F bottom 3. */
 export function medicalGrades(league: League): Map<number, { rank: number; grade: string }> {
-  const ranked = league.teams.map((t) => ({ id: t.id, score: departmentScore(departmentFor(league, t.id)) })).sort((a, b) => b.score - a.score);
-  return new Map(ranked.map((x, i) => [x.id, { rank: i + 1, grade: i < 3 ? 'A' : i < 9 ? 'B' : i < 23 ? 'C' : i < 29 ? 'D' : 'F' }]));
+  const ranked = league.teams
+    .map((t) => ({ id: t.id, score: departmentScore(departmentFor(league, t.id)) }))
+    .sort((a, b) => b.score - a.score);
+  return new Map(
+    ranked.map((x, i) => [x.id, { rank: i + 1, grade: i < 3 ? 'A' : i < 9 ? 'B' : i < 23 ? 'C' : i < 29 ? 'D' : 'F' }]),
+  );
 }
 
 /** What hiring `m` would do to the department (replacing the weakest man in his role if the chairs are full). */
 export function previewMedicHire(league: League, teamId: number, m: Medic): { from: Department; to: Department } {
-  const mine = teamMedics(league, teamId).filter((x) => !isMedicExpiring(league, x) || medicResignForecast(league, teamId).get(x.id) === 'stays');
+  const mine = teamMedics(league, teamId).filter(
+    (x) => !isMedicExpiring(league, x) || medicResignForecast(league, teamId).get(x.id) === 'stays',
+  );
   const same = mine.filter((x) => x.role === m.role).sort((a, b) => medicValue(a) - medicValue(b));
   const out = same.length >= MEDIC_SLOTS[m.role] ? same[0] : null;
   return { from: departmentOf(mine), to: departmentOf([...mine.filter((x) => x !== out), m]) };

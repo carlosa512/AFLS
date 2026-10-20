@@ -1,0 +1,10 @@
+# Generated or not ours to format
+package-lock.json
+docs/ATTRIBUTES.md
+# Markdown stays out of v1: remove this line to bring it in (keep docs/ATTRIBUTES.md above)
+*.md
+# Build output and check logs (also in .gitignore, listed so a stray copy can't fail the check)
+dist/
+dist-single/
+.check/
+.claude/

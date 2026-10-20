@@ -67,7 +67,8 @@ export function leagueMarket(league: League): Market {
   if (hit && hit.key === key) return hit.market;
   const ovrs = Object.fromEntries(POSITIONS.map((p) => [p, [] as number[]])) as Record<Position, number[]>;
   const prospects = new Set(league.draftClass);
-  for (const p of Object.values(league.players)) if (!p.retired && !prospects.has(p.id)) ovrs[p.position].push(playerOvr(p));
+  for (const p of Object.values(league.players))
+    if (!p.retired && !prospects.has(p.id)) ovrs[p.position].push(playerOvr(p));
   for (const list of Object.values(ovrs)) list.sort((a, b) => b - a);
   const market = { cap: league.caps[league.season], ovrs };
   marketCache.set(league, { key, market });

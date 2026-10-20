@@ -39,7 +39,14 @@ export function generateTraits(p: Pick<Player, 'id' | 'firstName' | 'lastName' |
   const fitness = 0.25 * work + 0.2 * body + 0.947 * rng.normal();
   // Drawn last for the same reason. Versatility is its own gift: a football mind that picks up a new job.
   const versatile = rng.normal();
-  return { workEthic: roll(work), durability: roll(body), temperament: roll(temper), injuryResistance: roll(resist), naturalFitness: roll(fitness), versatility: roll(versatile) };
+  return {
+    workEthic: roll(work),
+    durability: roll(body),
+    temperament: roll(temper),
+    injuryResistance: roll(resist),
+    naturalFitness: roll(fitness),
+    versatility: roll(versatile),
+  };
 }
 
 /**
@@ -52,7 +59,8 @@ export const workEthicOf = (p: Pick<Player, 'traits'>) => p.traits.workEthic;
 export const growthMult = (t: Traits) => 1 + 0.065 * (t.workEthic - TRAIT_MEAN);
 
 /** Decline multiplier: hard workers and durable bodies age more gently. Averages 1. */
-export const declineMult = (t: Traits) => (1 - 0.03 * (t.workEthic - TRAIT_MEAN)) * (1 - 0.02 * (t.durability - TRAIT_MEAN));
+export const declineMult = (t: Traits) =>
+  (1 - 0.03 * (t.workEthic - TRAIT_MEAN)) * (1 - 0.02 * (t.durability - TRAIT_MEAN));
 
 /**
  * Years his body clock runs ahead (−) or behind (+) his position's: up to about ±1.6. Enough that a

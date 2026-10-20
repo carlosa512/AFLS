@@ -578,7 +578,17 @@ export interface TradeSide {
 }
 
 /** What a trade was, for the news: a contender's rental, a rebuilder's sale, a star, a swap, a cap dump, next year's pick for this year's. */
-export type DealKind = 'rental' | 'buy' | 'sale' | 'star' | 'swap' | 'dump' | 'futureSwap' | 'cutdown' | 'casualty' | 'user';
+export type DealKind =
+  | 'rental'
+  | 'buy'
+  | 'sale'
+  | 'star'
+  | 'swap'
+  | 'dump'
+  | 'futureSwap'
+  | 'cutdown'
+  | 'casualty'
+  | 'user';
 
 /** One player's exam by the buyer's doctor (`trade/physicals.ts`); `note` is the doctor's words. */
 export interface Physical {
@@ -761,11 +771,34 @@ export interface Transaction {
   phase: Phase;
   week: number;
   teamIds: number[];
-  kind: 'sign' | 'resign' | 'release' | 'trade' | 'restructure' | 'tag' | 'option' | 'draft' | 'retire' | 'staff' | 'coach' | 'injury' | 'medical' | 'position';
+  kind:
+    | 'sign'
+    | 'resign'
+    | 'release'
+    | 'trade'
+    | 'restructure'
+    | 'tag'
+    | 'option'
+    | 'draft'
+    | 'retire'
+    | 'staff'
+    | 'coach'
+    | 'injury'
+    | 'medical'
+    | 'position';
   text: string;
 }
 
-export type InboxCategory = 'awards' | 'contracts' | 'retirement' | 'medical' | 'scouting' | 'matchup' | 'trades' | 'staff' | 'league';
+export type InboxCategory =
+  | 'awards'
+  | 'contracts'
+  | 'retirement'
+  | 'medical'
+  | 'scouting'
+  | 'matchup'
+  | 'trades'
+  | 'staff'
+  | 'league';
 
 /** Where a message's buttons go: a player's card, a team's roster, a game's box score, a front-office tab, the cap sheet or the standings. */
 export type InboxAction =
@@ -873,7 +906,21 @@ export interface Crew {
 }
 
 /** What the replay viewer animates for a logged play. */
-export type PlayKind = 'run' | 'pass' | 'incomplete' | 'int' | 'sack' | 'scramble' | 'kneel' | 'spike' | 'penalty' | 'kickoff' | 'punt' | 'fg' | 'xp' | 'two';
+export type PlayKind =
+  | 'run'
+  | 'pass'
+  | 'incomplete'
+  | 'int'
+  | 'sack'
+  | 'scramble'
+  | 'kneel'
+  | 'spike'
+  | 'penalty'
+  | 'kickoff'
+  | 'punt'
+  | 'fg'
+  | 'xp'
+  | 'two';
 
 export interface PlayLogEntry {
   quarter: number;

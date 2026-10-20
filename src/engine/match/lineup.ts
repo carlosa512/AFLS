@@ -85,7 +85,11 @@ export const RETURN_COACH = { kick: 0.25, punt: 0.15 };
  * flags (a multiplier) and the yards his returners gain, or his coverage saves, on each kickoff and punt.
  */
 export function kickCoaching(edge: number): { flags: number; kickoff: number; punt: number } {
-  return { flags: Math.exp(-KICK_FLAG_PER_POINT * COACH_DISCIPLINE * edge), kickoff: RETURN_COACH.kick * edge, punt: RETURN_COACH.punt * edge };
+  return {
+    flags: Math.exp(-KICK_FLAG_PER_POINT * COACH_DISCIPLINE * edge),
+    kickoff: RETURN_COACH.kick * edge,
+    punt: RETURN_COACH.punt * edge,
+  };
 }
 
 /**
@@ -100,7 +104,8 @@ function coverUnit(league: League, team: Team, out: ReadonlySet<number>): Player
     for (const lane of lanes) if (round < lane.length && unit.length < ST_SIZE) unit.push(league.players[lane[round]]);
   }
   for (const [pos, starters] of ST_POOL) {
-    for (const id of team.depthChart[pos].filter(ok).slice(0, starters)) if (unit.length < ST_SIZE) unit.push(league.players[id]);
+    for (const id of team.depthChart[pos].filter(ok).slice(0, starters))
+      if (unit.length < ST_SIZE) unit.push(league.players[id]);
   }
   return unit;
 }
@@ -160,7 +165,13 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
   const take = (players: Player[]) => players.forEach((p) => used.add(p.id));
   // First every position's own healthy players, so a fill-in never takes another position's starter.
   const at = {} as Record<Position, Player[]>;
-  for (const pos of POSITIONS) take((at[pos] = team.depthChart[pos].filter(fit).slice(0, want[pos][0]).map((id) => league.players[id])));
+  for (const pos of POSITIONS)
+    take(
+      (at[pos] = team.depthChart[pos]
+        .filter(fit)
+        .slice(0, want[pos][0])
+        .map((id) => league.players[id])),
+    );
   for (const pos of POSITIONS) {
     const list = at[pos];
     const need = want[pos][1];
@@ -175,14 +186,19 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     // Nobody healthy anywhere close: one specialist kicks and punts, and otherwise someone plays hurt.
     if (!list.length && (pos === 'K' || pos === 'P')) list.push(...at[pos === 'K' ? 'P' : 'K'].slice(0, 1));
     if (list.length < need) {
-      const hurt = team.depthChart[pos].filter((id) => !out.has(id) && !used.has(id) && !league.players[id]?.ir).slice(0, need - list.length).map((id) => league.players[id]);
+      const hurt = team.depthChart[pos]
+        .filter((id) => !out.has(id) && !used.has(id) && !league.players[id]?.ir)
+        .slice(0, need - list.length)
+        .map((id) => league.players[id]);
       take(hurt);
       list.push(...hurt);
     }
     // Still nobody (both specialists hurt in the same game): whoever on the roster does it best,
     // even a man already on the field.
     if (list.length === 0) {
-      const anyone = POSITIONS.flatMap((from) => team.depthChart[from]).filter((id) => !out.has(id) && league.players[id] && !league.players[id].ir);
+      const anyone = POSITIONS.flatMap((from) => team.depthChart[from]).filter(
+        (id) => !out.has(id) && league.players[id] && !league.players[id].ir,
+      );
       const best = anyone.map((id) => league.players[id]).sort((a, b) => slotOvr(b, pos) - slotOvr(a, pos))[0];
       if (best) list.push(best);
     }
@@ -199,11 +215,21 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
   for (const pos of POSITIONS) for (const p of at[pos]) slots.set(p, [...(slots.get(p) ?? []), pos]);
   for (const { p, pos } of rotation) slots.set(p, [...(slots.get(p) ?? []), pos]);
   const knocks = new Map<number, number>();
-  for (const [p, mine] of slots) if (!mine.includes(p.position)) knocks.set(p.id, Math.max(...mine.map((pos) => knockFor(p, pos))));
+  for (const [p, mine] of slots)
+    if (!mine.includes(p.position)) knocks.set(p.id, Math.max(...mine.map((pos) => knockFor(p, pos))));
   // The unit composites below are read with the knocks on.
   const prev = useKnocks(knocks);
   try {
-    return assemble(league, team, out, scheme, at, rotation.map((r) => r.p), fit, knocks);
+    return assemble(
+      league,
+      team,
+      out,
+      scheme,
+      at,
+      rotation.map((r) => r.p),
+      fit,
+      knocks,
+    );
   } finally {
     useKnocks(prev);
   }
@@ -311,5 +337,22 @@ function assemble(
 
 /** Players credited with a game played when they dress as starters or key reserves. */
 export function activePlayers(l: Lineup): Player[] {
-  return [l.qb, ...l.rbs, ...l.wrs, ...(l.scheme.offense.personnel === '10' && l.wr4 ? [l.wr4] : []), ...l.tes, ...l.ol, ...l.dt, ...l.edge, ...l.lb, ...l.cb, ...l.s, ...l.rushRotation, l.k, l.p, l.kr, l.pr];
+  return [
+    l.qb,
+    ...l.rbs,
+    ...l.wrs,
+    ...(l.scheme.offense.personnel === '10' && l.wr4 ? [l.wr4] : []),
+    ...l.tes,
+    ...l.ol,
+    ...l.dt,
+    ...l.edge,
+    ...l.lb,
+    ...l.cb,
+    ...l.s,
+    ...l.rushRotation,
+    l.k,
+    l.p,
+    l.kr,
+    l.pr,
+  ];
 }

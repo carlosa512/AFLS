@@ -19,15 +19,31 @@ export const AWARD_NAMES: Record<AwardKey, string> = {
   comeback: 'Comeback Player of the Year',
 };
 
-export const AWARD_SHORT: Record<AwardKey, string> = { mvp: 'MVP', opoy: 'OPOY', dpoy: 'DPOY', oroy: 'OROY', droy: 'DROY', comeback: 'Comeback' };
+export const AWARD_SHORT: Record<AwardKey, string> = {
+  mvp: 'MVP',
+  opoy: 'OPOY',
+  dpoy: 'DPOY',
+  oroy: 'OROY',
+  droy: 'DROY',
+  comeback: 'Comeback',
+};
 
 export const AWARD_KEYS = Object.keys(AWARD_NAMES) as AwardKey[];
 
 /** All-League team slots, like the All-Pro ballot (offense, defense, specialists). */
 export const ALL_LEAGUE_SLOTS: [Position, number][] = [
-  ['QB', 1], ['RB', 1], ['WR', 3], ['TE', 1], ['OL', 5],
-  ['EDGE', 2], ['DT', 2], ['LB', 2], ['CB', 2], ['S', 2],
-  ['K', 1], ['P', 1],
+  ['QB', 1],
+  ['RB', 1],
+  ['WR', 3],
+  ['TE', 1],
+  ['OL', 5],
+  ['EDGE', 2],
+  ['DT', 2],
+  ['LB', 2],
+  ['CB', 2],
+  ['S', 2],
+  ['K', 1],
+  ['P', 1],
 ];
 
 export interface AwardWinner {
@@ -53,9 +69,14 @@ const v = (s: StatLine, k: keyof StatLine) => s[k] ?? 0;
 /** Yards and touchdowns, the way a ballot reads them. */
 export function offenseScore(s: StatLine): number {
   return (
-    v(s, 'passYds') / 25 + v(s, 'passTd') * 4 - v(s, 'passInt') * 2.5 +
-    v(s, 'rushYds') / 10 + v(s, 'rushTd') * 6 +
-    v(s, 'recYds') / 10 + v(s, 'recTd') * 6 + v(s, 'rec') * 0.5 -
+    v(s, 'passYds') / 25 +
+    v(s, 'passTd') * 4 -
+    v(s, 'passInt') * 2.5 +
+    v(s, 'rushYds') / 10 +
+    v(s, 'rushTd') * 6 +
+    v(s, 'recYds') / 10 +
+    v(s, 'recTd') * 6 +
+    v(s, 'rec') * 0.5 -
     v(s, 'fumblesLost') * 2
   );
 }
@@ -63,8 +84,14 @@ export function offenseScore(s: StatLine): number {
 /** Splash plays first (sacks, takeaways): voters crown pass rushers, not tackle totals. */
 export function defenseScore(s: StatLine): number {
   return (
-    v(s, 'sacks') * 5 + v(s, 'defInt') * 5.5 + v(s, 'passDef') + v(s, 'forcedFum') * 3 +
-    v(s, 'fumRec') * 2 + v(s, 'tfl') * 1.5 + v(s, 'tackles') * 0.2 + v(s, 'defTd') * 6
+    v(s, 'sacks') * 5 +
+    v(s, 'defInt') * 5.5 +
+    v(s, 'passDef') +
+    v(s, 'forcedFum') * 3 +
+    v(s, 'fumRec') * 2 +
+    v(s, 'tfl') * 1.5 +
+    v(s, 'tackles') * 0.2 +
+    v(s, 'defTd') * 6
   );
 }
 
@@ -80,21 +107,48 @@ function positionScore(pos: Position, s: StatLine): number {
     case 'QB':
       return offenseScore(s) + qbBonus(s);
     case 'RB':
-      return v(s, 'rushYds') / 10 + v(s, 'rushTd') * 6 + v(s, 'recYds') / 10 + v(s, 'recTd') * 6 - v(s, 'fumblesLost') * 2;
+      return (
+        v(s, 'rushYds') / 10 + v(s, 'rushTd') * 6 + v(s, 'recYds') / 10 + v(s, 'recTd') * 6 - v(s, 'fumblesLost') * 2
+      );
     case 'WR':
     case 'TE':
       return v(s, 'recYds') / 10 + v(s, 'recTd') * 6 + v(s, 'rec') * 0.5 - v(s, 'fumblesLost') * 2;
     case 'DT':
     case 'EDGE':
-      return v(s, 'sacks') * 4.5 + v(s, 'tfl') * 1.5 + v(s, 'tackles') * 0.35 + v(s, 'forcedFum') * 3 + v(s, 'fumRec') * 2 + v(s, 'defTd') * 6;
+      return (
+        v(s, 'sacks') * 4.5 +
+        v(s, 'tfl') * 1.5 +
+        v(s, 'tackles') * 0.35 +
+        v(s, 'forcedFum') * 3 +
+        v(s, 'fumRec') * 2 +
+        v(s, 'defTd') * 6
+      );
     case 'LB':
-      return v(s, 'tackles') * 0.5 + v(s, 'tfl') * 1.5 + v(s, 'sacks') * 4 + v(s, 'defInt') * 5 + v(s, 'passDef') + v(s, 'forcedFum') * 3 + v(s, 'defTd') * 6;
+      return (
+        v(s, 'tackles') * 0.5 +
+        v(s, 'tfl') * 1.5 +
+        v(s, 'sacks') * 4 +
+        v(s, 'defInt') * 5 +
+        v(s, 'passDef') +
+        v(s, 'forcedFum') * 3 +
+        v(s, 'defTd') * 6
+      );
     case 'CB':
-      return v(s, 'defInt') * 6 + v(s, 'passDef') * 2 + v(s, 'tackles') * 0.25 + v(s, 'forcedFum') * 2 + v(s, 'defTd') * 6;
+      return (
+        v(s, 'defInt') * 6 + v(s, 'passDef') * 2 + v(s, 'tackles') * 0.25 + v(s, 'forcedFum') * 2 + v(s, 'defTd') * 6
+      );
     case 'S':
-      return v(s, 'defInt') * 6 + v(s, 'passDef') * 1.5 + v(s, 'tackles') * 0.4 + v(s, 'forcedFum') * 2 + v(s, 'defTd') * 6;
+      return (
+        v(s, 'defInt') * 6 + v(s, 'passDef') * 1.5 + v(s, 'tackles') * 0.4 + v(s, 'forcedFum') * 2 + v(s, 'defTd') * 6
+      );
     case 'K':
-      return v(s, 'fgAtt') < 15 ? 0 : v(s, 'fgMade') * 3 - (v(s, 'fgAtt') - v(s, 'fgMade')) * 4 + v(s, 'fgLong') / 10 + v(s, 'xpMade') * 0.5 - (v(s, 'xpAtt') - v(s, 'xpMade')) * 2;
+      return v(s, 'fgAtt') < 15
+        ? 0
+        : v(s, 'fgMade') * 3 -
+            (v(s, 'fgAtt') - v(s, 'fgMade')) * 4 +
+            v(s, 'fgLong') / 10 +
+            v(s, 'xpMade') * 0.5 -
+            (v(s, 'xpAtt') - v(s, 'xpMade')) * 2;
     case 'P':
       return v(s, 'punts') < 30 ? 0 : (v(s, 'puntYds') / v(s, 'punts')) * 3;
     default:
@@ -144,7 +198,10 @@ function seasonContext(league: League, season: number): SeasonContext {
   const games = regularSeasonGames(league, season).filter((g) => g.result);
   const counts = new Map<number, Map<number, number>>();
   const wins = new Map<number, [number, number]>();
-  const team = new Map<number, { rushYds: number; rushAtt: number; sacked: number; drop: number; pts: number; g: number }>();
+  const team = new Map<
+    number,
+    { rushYds: number; rushAtt: number; sacked: number; drop: number; pts: number; g: number }
+  >();
   for (const g of games) {
     const r = g.result!;
     for (const [id, teamId] of Object.entries(r.playerTeams)) {
@@ -184,7 +241,12 @@ function seasonContext(league: League, season: number): SeasonContext {
   // A line opens holes, keeps the quarterback clean and moves the chains.
   const line = new Map<number, number>();
   for (const [id, t] of team) {
-    line.set(id, (t.rushYds / Math.max(1, t.rushAtt) - 4.3) * 25 + (0.065 - t.sacked / Math.max(1, t.drop)) * 500 + (t.pts / t.g - 22) * 1.5);
+    line.set(
+      id,
+      (t.rushYds / Math.max(1, t.rushAtt) - 4.3) * 25 +
+        (0.065 - t.sacked / Math.max(1, t.drop)) * 500 +
+        (t.pts / t.g - 22) * 1.5,
+    );
   }
   return { season, teamOf, winPct, line };
 }
@@ -244,7 +306,8 @@ export function pickAwards(league: League, season: number): SeasonAwards {
       .filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s || tie(a.c.player.id) - tie(b.c.player.id))
       .map((x) => x.c);
-  const win = (c: Candidate | undefined): AwardWinner | undefined => (c ? { playerId: c.player.id, teamId: c.teamId } : undefined);
+  const win = (c: Candidate | undefined): AwardWinner | undefined =>
+    c ? { playerId: c.player.id, teamId: c.teamId } : undefined;
 
   const regulars = candidates.filter((c) => v(c.line, 'gp') >= MIN_GAMES);
   const offense = regulars.filter((c) => OFFENSE.has(c.player.position));
@@ -255,7 +318,12 @@ export function pickAwards(league: League, season: number): SeasonAwards {
   // MVP: the best player on a winner. Quarterbacks run the offense, so their efficiency counts too.
   winners.mvp = win(
     best(regulars, (c) => {
-      const base = c.player.position === 'QB' ? offenseScore(c.line) * 1.35 + qbBonus(c.line) : OFFENSE.has(c.player.position) ? offenseScore(c.line) : defenseScore(c.line) * 1.9;
+      const base =
+        c.player.position === 'QB'
+          ? offenseScore(c.line) * 1.35 + qbBonus(c.line)
+          : OFFENSE.has(c.player.position)
+            ? offenseScore(c.line)
+            : defenseScore(c.line) * 1.9;
       return base * (0.4 + 1.2 * c.winPct);
     })[0],
   );
@@ -265,7 +333,11 @@ export function pickAwards(league: League, season: number): SeasonAwards {
   const group = (pos: Position) => (pos === 'TE' ? 'WR' : pos);
   const peers = new Map<Position, number>();
   for (const pos of ['QB', 'RB', 'WR'] as const) {
-    const top = offense.filter((c) => group(c.player.position) === pos).map((c) => offenseScore(c.line)).sort((a, b) => b - a).slice(0, 5);
+    const top = offense
+      .filter((c) => group(c.player.position) === pos)
+      .map((c) => offenseScore(c.line))
+      .sort((a, b) => b - a)
+      .slice(0, 5);
     peers.set(pos, top.reduce((a, b) => a + b, 0) / Math.max(1, top.length));
   }
   winners.opoy = win(
@@ -303,7 +375,8 @@ export function pickAwards(league: League, season: number): SeasonAwards {
   for (const [pos, count] of ALL_LEAGUE_SLOTS) {
     const pool = (pos === 'K' || pos === 'P' ? candidates : regulars).filter((c) => c.player.position === pos);
     const ranked = best(pool, (c) => {
-      if (pos === 'OL') return c.teamId === null ? 0 : 100 + (ctx.line.get(c.teamId) ?? (c.winPct - 0.5) * 40) + v(c.line, 'gp');
+      if (pos === 'OL')
+        return c.teamId === null ? 0 : 100 + (ctx.line.get(c.teamId) ?? (c.winPct - 0.5) * 40) + v(c.line, 'gp');
       return positionScore(pos, c.line) * (0.9 + 0.2 * c.winPct);
     });
     for (const squad of teams) {
@@ -406,10 +479,16 @@ export function pickPeriod(league: League, season: number, weeks: [number, numbe
       if (!p || league.teams[e.teamId].conference !== conference || e.played < minGames) continue;
       if (!(side === 'offense' ? OFFENSE : DEFENSE).has(p.position)) continue;
       // A big passing day is the headline: quarterbacks win most offensive weekly honors.
-      const base = side === 'defense' ? defenseScore(e.line) : p.position === 'QB' ? offenseScore(e.line) * QB_WEEKLY + qbBonus(e.line) * 0.5 : offenseScore(e.line);
+      const base =
+        side === 'defense'
+          ? defenseScore(e.line)
+          : p.position === 'QB'
+            ? offenseScore(e.line) * QB_WEEKLY + qbBonus(e.line) * 0.5
+            : offenseScore(e.line);
       const score = base * (0.8 + 0.4 * (e.won / e.played));
       if (score <= 0) continue;
-      if (!best || score > best.score || (score === best.score && tie(id) < tie(best.id))) best = { id, teamId: e.teamId, score };
+      if (!best || score > best.score || (score === best.score && tie(id) < tie(best.id)))
+        best = { id, teamId: e.teamId, score };
     }
     return best ? { playerId: best.id, teamId: best.teamId } : null;
   });
@@ -434,7 +513,12 @@ export function awardWeek(league: League, week: number, season = league.season):
 }
 
 /** A player's totals over a run of weeks, while the box scores are still kept (undefined after). */
-export function periodLine(league: League, season: number, weeks: [number, number], playerId: number): StatLine | undefined {
+export function periodLine(
+  league: League,
+  season: number,
+  weeks: [number, number],
+  playerId: number,
+): StatLine | undefined {
   let total: StatLine | undefined;
   for (const g of regularSeasonGames(league, season)) {
     const line = g.week >= weeks[0] && g.week <= weeks[1] ? g.result!.playerStats[playerId] : undefined;
@@ -460,7 +544,13 @@ export interface HonorBadge {
 
 /** The same honor won more than once becomes one badge ("2× MVP"), in order of prestige. */
 export function honorBadges(honors: PlayerHonor[]): HonorBadge[] {
-  const order = [...AWARD_KEYS.map((k) => AWARD_SHORT[k]), 'All-League 1st team', 'All-League 2nd team', 'Player of the Month', 'Player of the Week'];
+  const order = [
+    ...AWARD_KEYS.map((k) => AWARD_SHORT[k]),
+    'All-League 1st team',
+    'All-League 2nd team',
+    'Player of the Month',
+    'Player of the Week',
+  ];
   const by = new Map<string, number[]>();
   for (const h of honors) by.set(h.label, [...(by.get(h.label) ?? []), h.season]);
   return [...by]
@@ -472,14 +562,18 @@ export function honorBadges(honors: PlayerHonor[]): HonorBadge[] {
 export function playerHonors(league: League, playerId: number): PlayerHonor[] {
   const out: PlayerHonor[] = [];
   for (const a of [...league.awards].reverse()) {
-    for (const k of AWARD_KEYS) if (a.winners[k]?.playerId === playerId) out.push({ season: a.season, label: AWARD_SHORT[k] });
+    for (const k of AWARD_KEYS)
+      if (a.winners[k]?.playerId === playerId) out.push({ season: a.season, label: AWARD_SHORT[k] });
     a.allLeague.forEach((squad, i) => {
-      if (squad.some((w) => w.playerId === playerId)) out.push({ season: a.season, label: i === 0 ? 'All-League 1st team' : 'All-League 2nd team' });
+      if (squad.some((w) => w.playerId === playerId))
+        out.push({ season: a.season, label: i === 0 ? 'All-League 1st team' : 'All-League 2nd team' });
     });
   }
   for (const w of [...league.weeklyAwards].reverse()) {
-    for (const winners of Object.values(w.months)) if (winners!.some((x) => x?.playerId === playerId)) out.push({ season: w.season, label: 'Player of the Month' });
-    for (const winners of Object.values(w.weeks)) if (winners.some((x) => x?.playerId === playerId)) out.push({ season: w.season, label: 'Player of the Week' });
+    for (const winners of Object.values(w.months))
+      if (winners!.some((x) => x?.playerId === playerId)) out.push({ season: w.season, label: 'Player of the Month' });
+    for (const winners of Object.values(w.weeks))
+      if (winners.some((x) => x?.playerId === playerId)) out.push({ season: w.season, label: 'Player of the Week' });
   }
   return out;
 }

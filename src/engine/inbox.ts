@@ -4,10 +4,44 @@
  * at the league after each change and files whatever is new, each message keyed by what it's about,
  * so delivering twice (or after a long sim) never duplicates one.
  */
-import { AWARD_KEYS, AWARD_NAMES, HONOR_SLOTS, honorBadges, MONTHS, playerHonors, playerOfTheGame, seasonAwards, weeklyAwards, type AwardWinner } from './awards';
-import { CHAIRS, chairHolder, coachName, coachResignForecast, coachTitle, isCoachExpiring, ownerLeeway, ownerTrigger, ownerTriggerNote, promotionFor, sameChair, teamCoaches, type Chair } from './coaching';
+import {
+  AWARD_KEYS,
+  AWARD_NAMES,
+  HONOR_SLOTS,
+  honorBadges,
+  MONTHS,
+  playerHonors,
+  playerOfTheGame,
+  seasonAwards,
+  weeklyAwards,
+  type AwardWinner,
+} from './awards';
+import {
+  CHAIRS,
+  chairHolder,
+  coachName,
+  coachResignForecast,
+  coachTitle,
+  isCoachExpiring,
+  ownerLeeway,
+  ownerTrigger,
+  ownerTriggerNote,
+  promotionFor,
+  sameChair,
+  teamCoaches,
+  type Chair,
+} from './coaching';
 import { capSpace } from './finance/cap';
-import { concussionCount, concussionRetireChance, concussionWindow, delegates, estimateText, injuryLabel, outlookText, weeksLeft } from './injuries';
+import {
+  concussionCount,
+  concussionRetireChance,
+  concussionWindow,
+  delegates,
+  estimateText,
+  injuryLabel,
+  outlookText,
+  weeksLeft,
+} from './injuries';
 import { userGame } from './league';
 import { isMedicExpiring, MEDIC_ROLE_LABEL, medicResignForecast, teamMedics } from './medical';
 import { expiringPlayers } from './offseason/ai';
@@ -24,7 +58,23 @@ import { isExpiring, ownerBudgetNote, resignForecast, ROLE_LABEL, staffWindowOpe
 import { careerLine } from './stats';
 import { isDeadlineDay, openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './trade';
 import { activeLearning, formerPositions, moveProblem, reasonWords, suggestMove } from './training';
-import type { Coach, CoachRole, CoachRoom, GameResult, InboxMessage, League, MoveReason, Phase, Player, Position, StatLine, Team, TeamGameStats, TradeOffer, TradeSide } from './types';
+import type {
+  Coach,
+  CoachRole,
+  CoachRoom,
+  GameResult,
+  InboxMessage,
+  League,
+  MoveReason,
+  Phase,
+  Player,
+  Position,
+  StatLine,
+  Team,
+  TeamGameStats,
+  TradeOffer,
+  TradeSide,
+} from './types';
 
 /** Saves keep the latest messages only, like the transaction log. */
 const KEEP = 300;
@@ -49,7 +99,8 @@ const teamName = (t: Team) => `${t.city} ${t.name}`;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const nth = (n: number) => ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][n - 1] ?? `${n}th`;
 /** A small count in words, the way a sentence starts with one ("Two of them…"). */
-const count = (n: number) => ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'][n] ?? String(n);
+const count = (n: number) =>
+  ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'][n] ?? String(n);
 /** "seven" up to nine, digits past that: how a coach says a number mid-sentence. */
 const small = (n: number) => count(n).toLowerCase();
 const list = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
@@ -58,15 +109,21 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 // The staff member who signs a message, with a link to their card (a department name when the chair is empty).
 function headCoach(league: League): Sender {
   const c = teamCoaches(league, league.userTeamId).find((x) => x.role === 'headCoach');
-  return c ? { from: `${c.firstName} ${c.lastName}, Head coach`, fromCard: { kind: 'coach', id: c.id } } : { from: 'Coaching staff' };
+  return c
+    ? { from: `${c.firstName} ${c.lastName}, Head coach`, fromCard: { kind: 'coach', id: c.id } }
+    : { from: 'Coaching staff' };
 }
 function director(league: League): Sender {
   const s = teamStaff(league, league.userTeamId).find((x) => x.role === 'director');
-  return s ? { from: `${s.firstName} ${s.lastName}, Director of scouting`, fromCard: { kind: 'scout', id: s.id } } : { from: 'Scouting department' };
+  return s
+    ? { from: `${s.firstName} ${s.lastName}, Director of scouting`, fromCard: { kind: 'scout', id: s.id } }
+    : { from: 'Scouting department' };
 }
 function doctor(league: League): Sender {
   const m = teamMedics(league, league.userTeamId).find((x) => x.role === 'doctor');
-  return m ? { from: `${m.firstName} ${m.lastName}, Head team doctor`, fromCard: { kind: 'medic', id: m.id } } : { from: 'Medical staff' };
+  return m
+    ? { from: `${m.firstName} ${m.lastName}, Head team doctor`, fromCard: { kind: 'medic', id: m.id } }
+    : { from: 'Medical staff' };
 }
 
 /**
@@ -76,27 +133,53 @@ function doctor(league: League): Sender {
 function awardMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
   const team = league.teams[league.userTeamId];
-  const mine = (w: AwardWinner | null | undefined): w is AwardWinner => !!w && w.teamId === league.userTeamId && !!league.players[w.playerId];
+  const mine = (w: AwardWinner | null | undefined): w is AwardWinner =>
+    !!w && w.teamId === league.userTeamId && !!league.players[w.playerId];
   const send = (id: string, season: number, week: number, playerId: number, honor: string, body: string) => {
     if (have.has(id)) return;
     const p = league.players[playerId];
-    out.push({ id, season, phase: 'regular', week, from: 'League office', category: 'awards', subject: `${fullName(p)}: ${honor}`, body, actions: [{ kind: 'player', playerId }] });
+    out.push({
+      id,
+      season,
+      phase: 'regular',
+      week,
+      from: 'League office',
+      category: 'awards',
+      subject: `${fullName(p)}: ${honor}`,
+      body,
+      actions: [{ kind: 'player', playerId }],
+    });
   };
-  const slotName = (i: number, period: string) => `${league.conferences[HONOR_SLOTS[i].conference].abbrev} ${HONOR_SLOTS[i].side === 'offense' ? 'Offensive' : 'Defensive'} Player of the ${period}`;
+  const slotName = (i: number, period: string) =>
+    `${league.conferences[HONOR_SLOTS[i].conference].abbrev} ${HONOR_SLOTS[i].side === 'offense' ? 'Offensive' : 'Defensive'} Player of the ${period}`;
   for (const season of [league.season - 1, league.season]) {
     const weekly = weeklyAwards(league, season);
     for (const [week, winners] of Object.entries(weekly?.weeks ?? {})) {
       winners.forEach((w, i) => {
         if (!mine(w)) return;
         const honor = slotName(i, 'Week');
-        send(`awards:${season}:w${week}:${i}`, season, Number(week), w.playerId, honor, `${fullName(league.players[w.playerId])} has been named ${honor} for week ${week}. The league office congratulates him and the ${teamName(team)}.`);
+        send(
+          `awards:${season}:w${week}:${i}`,
+          season,
+          Number(week),
+          w.playerId,
+          honor,
+          `${fullName(league.players[w.playerId])} has been named ${honor} for week ${week}. The league office congratulates him and the ${teamName(team)}.`,
+        );
       });
     }
     for (const month of MONTHS) {
       weekly?.months[month.key]?.forEach((w, i) => {
         if (!mine(w)) return;
         const honor = slotName(i, 'Month');
-        send(`awards:${season}:m${month.key}:${i}`, season, month.weeks[1], w.playerId, honor, `${fullName(league.players[w.playerId])} has been named ${honor} for ${month.label}, after a month of consistent play for the ${teamName(team)}.`);
+        send(
+          `awards:${season}:m${month.key}:${i}`,
+          season,
+          month.weeks[1],
+          w.playerId,
+          honor,
+          `${fullName(league.players[w.playerId])} has been named ${honor} for ${month.label}, after a month of consistent play for the ${teamName(team)}.`,
+        );
       });
     }
     const voted = seasonAwards(league, season);
@@ -104,10 +187,19 @@ function awardMail(league: League, have: Set<string>): Draft[] {
     const honors = new Map<number, string[]>();
     const add = (w: AwardWinner, honor: string) => honors.set(w.playerId, [...(honors.get(w.playerId) ?? []), honor]);
     for (const k of AWARD_KEYS) if (mine(voted.winners[k])) add(voted.winners[k]!, AWARD_NAMES[k]);
-    voted.allLeague.forEach((tier, t) => tier.filter(mine).forEach((w) => add(w, `${t === 0 ? 'First' : 'Second'}-team All-League`)));
+    voted.allLeague.forEach((tier, t) =>
+      tier.filter(mine).forEach((w) => add(w, `${t === 0 ? 'First' : 'Second'}-team All-League`)),
+    );
     for (const [playerId, won] of honors) {
       const p = league.players[playerId];
-      send(`awards:${season}:year:${playerId}`, season, 18, playerId, list(won), `The votes are in for ${season}: ${fullName(p)} has been named ${list(won)}. A season to remember, and it reflects well on the whole organization.`);
+      send(
+        `awards:${season}:year:${playerId}`,
+        season,
+        18,
+        playerId,
+        list(won),
+        `The votes are in for ${season}: ${fullName(p)} has been named ${list(won)}. A season to remember, and it reflects well on the whole organization.`,
+      );
     }
   }
   return out;
@@ -124,7 +216,10 @@ function injuryMail(league: League, have: Set<string>): Draft[] {
     if (have.has(id)) continue;
     const what = injuryLabel(now.type);
     const record = p.injuries?.at(-1);
-    const how = record?.aggravated && record.type === now.type ? `has aggravated an old injury (${what})` : `was hurt ${now.where === 'game' ? 'in the game' : 'in practice'} (${what})`;
+    const how =
+      record?.aggravated && record.type === now.type
+        ? `has aggravated an old injury (${what})`
+        : `was hurt ${now.where === 'game' ? 'in the game' : 'in practice'} (${what})`;
     out.push({
       id,
       season: now.season,
@@ -133,14 +228,17 @@ function injuryMail(league: League, have: Set<string>): Draft[] {
       ...doctor(league),
       category: 'medical',
       subject: `${fullName(p)}: ${what}`,
-      body: now.protocol ? concussionNote(p) : `${fullName(p)} ${how}. Our early read is that he'll be ${estimateText(now, weeksLeft(league))}; we'll keep you posted through his rehab.`,
+      body: now.protocol
+        ? concussionNote(p)
+        : `${fullName(p)} ${how}. Our early read is that he'll be ${estimateText(now, weeksLeft(league))}; we'll keep you posted through his rehab.`,
       actions: [{ kind: 'player', playerId: p.id }, { kind: 'medical' }],
     });
   }
   return out.concat(setbackMail(league, have));
 }
 
-const phaseOf = (league: League, week: number): Phase => (week === 0 ? league.phase : week > 18 ? 'playoffs' : 'regular');
+const phaseOf = (league: League, week: number): Phase =>
+  week === 0 ? league.phase : week > 18 ? 'playoffs' : 'regular';
 
 /** The doctor on a concussion: the protocol and no set timeline, his file, or a player who has had enough for this year. */
 function concussionNote(p: Player): string {
@@ -231,13 +329,26 @@ function careerWords(league: League, p: Player): string {
   const n = (k: keyof StatLine) => (s[k] as number | undefined) ?? 0;
   const big = (x: number) => x.toLocaleString('en-US');
   let totals = '';
-  if (p.position === 'QB' && n('passYds') >= 5000) totals = `${big(n('passYds'))} passing yards and ${plural(n('passTd'), 'touchdown')}`;
-  else if (p.position === 'RB' && n('rushYds') >= 2000) totals = `${big(n('rushYds'))} rushing yards and ${plural(n('rushTd'), 'touchdown')}`;
-  else if ((p.position === 'WR' || p.position === 'TE') && n('rec') >= 150) totals = `${big(n('rec'))} catches for ${big(n('recYds'))} yards`;
-  else if (['DT', 'EDGE'].includes(p.position) && n('sacks') >= 20) totals = `${n('sacks') % 1 ? n('sacks').toFixed(1) : n('sacks')} sacks`;
-  else if (['LB', 'CB', 'S'].includes(p.position) && n('tackles') >= 300) totals = `${big(n('tackles'))} tackles${n('defInt') >= 5 ? ` and ${plural(n('defInt'), 'interception')}` : ''}`;
-  const honors = honorBadges(playerHonors(league, p.id)).filter((h) => h.label !== 'Player of the Week' && h.label !== 'Player of the Month');
-  const honored = honors.length ? list(honors.slice(0, 2).map((h) => `${small(h.seasons.length)} ${h.label} honor${h.seasons.length === 1 ? '' : 's'}`)) : '';
+  if (p.position === 'QB' && n('passYds') >= 5000)
+    totals = `${big(n('passYds'))} passing yards and ${plural(n('passTd'), 'touchdown')}`;
+  else if (p.position === 'RB' && n('rushYds') >= 2000)
+    totals = `${big(n('rushYds'))} rushing yards and ${plural(n('rushTd'), 'touchdown')}`;
+  else if ((p.position === 'WR' || p.position === 'TE') && n('rec') >= 150)
+    totals = `${big(n('rec'))} catches for ${big(n('recYds'))} yards`;
+  else if (['DT', 'EDGE'].includes(p.position) && n('sacks') >= 20)
+    totals = `${n('sacks') % 1 ? n('sacks').toFixed(1) : n('sacks')} sacks`;
+  else if (['LB', 'CB', 'S'].includes(p.position) && n('tackles') >= 300)
+    totals = `${big(n('tackles'))} tackles${n('defInt') >= 5 ? ` and ${plural(n('defInt'), 'interception')}` : ''}`;
+  const honors = honorBadges(playerHonors(league, p.id)).filter(
+    (h) => h.label !== 'Player of the Week' && h.label !== 'Player of the Month',
+  );
+  const honored = honors.length
+    ? list(
+        honors
+          .slice(0, 2)
+          .map((h) => `${small(h.seasons.length)} ${h.label} honor${h.seasons.length === 1 ? '' : 's'}`),
+      )
+    : '';
   if (!totals && !honored) return '';
   return `, ${[totals, honored].filter(Boolean).join(', and ')},`;
 }
@@ -271,7 +382,19 @@ function draftDayMail(league: League, have: Set<string>): Draft[] {
   const body = pick
     ? `Draft day. Our first pick is round ${pick.round}, No. ${pick.overall}. The big board is ready, and I'll make the call for you if you'd rather leave it to the scouts.`
     : `Draft day. We don't hold a pick in this draft, but the big board is there if you want to see where the class goes.`;
-  return [{ id, season: league.season, phase: 'draft', week: 0, ...director(league), category: 'scouting', subject: 'The draft board is ready', body, actions: [{ kind: 'draft' }] }];
+  return [
+    {
+      id,
+      season: league.season,
+      phase: 'draft',
+      week: 0,
+      ...director(league),
+      category: 'scouting',
+      subject: 'The draft board is ready',
+      body,
+      actions: [{ kind: 'draft' }],
+    },
+  ];
 }
 
 /** Our draftees this year, in pick order. Only players from drafts this league held: a new league's veterans have made-up draft lines. */
@@ -288,13 +411,31 @@ function draftClassMail(league: League, have: Set<string>): Draft[] {
   if (have.has(id) || !picks.length) return [];
   const first = picks[0];
   const rank = first.draft!.rank;
-  const consensus = rank === undefined ? '' : rank === first.draft!.pick ? ' (right where the consensus had him)' : ` (the consensus had him at No. ${rank})`;
+  const consensus =
+    rank === undefined
+      ? ''
+      : rank === first.draft!.pick
+        ? ' (right where the consensus had him)'
+        : ` (the consensus had him at No. ${rank})`;
   const steals = picks.filter((p) => reachOrSteal(p.draft!) === 'steal');
   const reaches = picks.filter((p) => reachOrSteal(p.draft!) === 'reach');
-  const value = !steals.length ? '' : steals.length === 1 ? ` ${steals[0].position} ${fullName(steals[0])} came well after where the consensus had him: the value pick of our class.` : ` ${count(steals.length)} of them came well after where the consensus had them.`;
-  const board = !reaches.length ? '' : reaches.length === 1 ? ` We took ${reaches[0].position} ${fullName(reaches[0])} well ahead of the consensus: our board had him higher than the room did.` : ` ${count(reaches.length)} of them went well ahead of the consensus: our board, not the room's.`;
+  const value = !steals.length
+    ? ''
+    : steals.length === 1
+      ? ` ${steals[0].position} ${fullName(steals[0])} came well after where the consensus had him: the value pick of our class.`
+      : ` ${count(steals.length)} of them came well after where the consensus had them.`;
+  const board = !reaches.length
+    ? ''
+    : reaches.length === 1
+      ? ` We took ${reaches[0].position} ${fullName(reaches[0])} well ahead of the consensus: our board had him higher than the room did.`
+      : ` ${count(reaches.length)} of them went well ahead of the consensus: our board, not the room's.`;
   // The one our own scouts rate highest for where he could end up (our own players: exact today, the ceiling still a judgment).
-  const favorite = picks.length > 1 ? [...picks].sort((a, b) => perceive(league, league.userTeamId, b).potMid - perceive(league, league.userTeamId, a).potMid)[0] : first;
+  const favorite =
+    picks.length > 1
+      ? [...picks].sort(
+          (a, b) => perceive(league, league.userTeamId, b).potMid - perceive(league, league.userTeamId, a).potMid,
+        )[0]
+      : first;
   const verdict = lowerFirst(scoutReportParts(league, league.userTeamId, favorite).verdict);
   const liked = ` Our scouts like ${favorite.position} ${fullName(favorite)} most of all: ${verdict}`;
   return [
@@ -352,7 +493,10 @@ export interface StaffRef {
 }
 const REF_KEY = { coach: 'c', scout: 's', medic: 'm' } as const;
 const refKey = (r: StaffRef) => `${REF_KEY[r.kind]}${r.id}`;
-const refOf = (key: string): StaffRef => ({ kind: key[0] === 'c' ? 'coach' : key[0] === 's' ? 'scout' : 'medic', id: Number(key.slice(1)) });
+const refOf = (key: string): StaffRef => ({
+  kind: key[0] === 'c' ? 'coach' : key[0] === 's' ? 'scout' : 'medic',
+  id: Number(key.slice(1)),
+});
 
 export function mailSubject(m: InboxMessage): MailSubject | null {
   const [category, s, a, b, ...rest] = m.id.split(':');
@@ -398,15 +542,27 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'owner', season };
     case 'staff':
       if (a === 'deals') return { kind: 'staffDeals', season, people: b ? b.split('.').map(refOf) : [] };
-      return { kind: 'poached', season, coachId: Number(b), chair: rest[0] === 'positionCoach' ? { role: 'positionCoach', room: rest[1] as CoachRoom } : { role: rest[0] as CoachRole } };
+      return {
+        kind: 'poached',
+        season,
+        coachId: Number(b),
+        chair:
+          rest[0] === 'positionCoach'
+            ? { role: 'positionCoach', room: rest[1] as CoachRoom }
+            : { role: rest[0] as CoachRole },
+      };
     case 'league':
       return { kind: 'carousel', season };
     case 'fa':
       return { kind: 'faWrap', season };
     case 'market':
-      return a === 'recap' ? { kind: 'marketRecap', season } : { kind: 'market', season, phase: a as Phase, week: Number(b) };
+      return a === 'recap'
+        ? { kind: 'marketRecap', season }
+        : { kind: 'market', season, phase: a as Phase, week: Number(b) };
     case 'position':
-      return a === 'offer' ? { kind: 'positionOffer', season, playerId: Number(b), to: rest[0] as Position } : { kind: 'positionMoved', season, playerId: Number(b) };
+      return a === 'offer'
+        ? { kind: 'positionOffer', season, playerId: Number(b), to: rest[0] as Position }
+        : { kind: 'positionMoved', season, playerId: Number(b) };
     default:
       return null;
   }
@@ -431,14 +587,24 @@ export function needsYou(league: League, m: InboxMessage): boolean {
     }
     case 'injury': {
       const p = league.players[s.playerId];
-      return !!p && p.teamId === user && !p.ir && p.injury?.season === s.season && p.injury.week === s.week && p.injury.type === s.type;
+      return (
+        !!p &&
+        p.teamId === user &&
+        !p.ir &&
+        p.injury?.season === s.season &&
+        p.injury.week === s.week &&
+        p.injury.type === s.type
+      );
     }
     case 'contract':
       return league.phase === 'resign' && expiringPlayers(league, user).some((p) => p.id === s.playerId);
     case 'combine':
       return league.phase === 'freeAgency' && league.scoutPoints > 0;
     case 'draftDay':
-      return league.phase === 'draft' && league.draftPicks.some((p) => p.season === league.season && p.ownerId === user && p.playerId === undefined);
+      return (
+        league.phase === 'draft' &&
+        league.draftPicks.some((p) => p.season === league.season && p.ownerId === user && p.playerId === undefined)
+      );
     case 'deadline':
       return league.phase === 'regular' && (league.week <= TRADE_DEADLINE_WEEK || isDeadlineDay(league));
     case 'cleared': {
@@ -454,7 +620,14 @@ export function needsYou(league: League, m: InboxMessage): boolean {
     case 'positionOffer': {
       const p = league.players[s.playerId];
       const passed = league.teams[user].training?.passed?.[s.playerId];
-      return (league.phase === 'draft' || league.phase === 'preseason') && !!p && p.teamId === user && !activeLearning(p) && !moveProblem(league, p, s.to) && passed !== league.season;
+      return (
+        (league.phase === 'draft' || league.phase === 'preseason') &&
+        !!p &&
+        p.teamId === user &&
+        !activeLearning(p) &&
+        !moveProblem(league, p, s.to) &&
+        passed !== league.season
+      );
     }
     default:
       return false;
@@ -467,13 +640,17 @@ export function markAllRead(league: League): void {
 
 /** Our read of a team's starters in a position group, as a league percentile (0–1). */
 function groupScore(league: League, team: Team, positions: Position[]): number {
-  const players = positions.flatMap((pos) => starters(league, team, pos).map((p) => leaguePercentile(league, pos, perceive(league, league.userTeamId, p).ovr)));
+  const players = positions.flatMap((pos) =>
+    starters(league, team, pos).map((p) => leaguePercentile(league, pos, perceive(league, league.userTeamId, p).ovr)),
+  );
   return players.reduce((s, x) => s + x, 0) / Math.max(1, players.length);
 }
 
 /** How well our scouts know a team's starters in a position group (0–1). */
 function groupKnowledge(league: League, team: Team, positions: Position[]): number {
-  const ks = positions.flatMap((pos) => starters(league, team, pos).map((p) => knowledge(league, league.userTeamId, p)));
+  const ks = positions.flatMap((pos) =>
+    starters(league, team, pos).map((p) => knowledge(league, league.userTeamId, p)),
+  );
   return ks.reduce((s, x) => s + x, 0) / Math.max(1, ks.length);
 }
 
@@ -513,17 +690,23 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
   if (!game || game.result || have.has(id)) return [];
   const home = game.homeId === league.userTeamId;
   const opp = league.teams[home ? game.awayId : game.homeId];
-  const ranked = GROUPS.map((g) => ({ g, score: groupScore(league, opp, g.positions) })).sort((a, b) => a.score - b.score);
+  const ranked = GROUPS.map((g) => ({ g, score: groupScore(league, opp, g.positions) })).sort(
+    (a, b) => a.score - b.score,
+  );
   const weak = ranked[0];
   const strong = ranked[ranked.length - 1];
-  const known = (groupKnowledge(league, opp, weak.g.positions) + groupKnowledge(league, opp, strong.g.positions)) / 2 >= 0.7;
+  const known =
+    (groupKnowledge(league, opp, weak.g.positions) + groupKnowledge(league, opp, strong.g.positions)) / 2 >= 0.7;
   const occasion = game.playoffRound ? `the ${ROUND_NAMES[game.playoffRound]}` : `week ${league.week}`;
   const where = game.neutral ? 'on a neutral field' : home ? 'at home' : 'on the road';
   const opener = `We face the ${teamName(opp)} ${where} in ${occasion}.`;
   let read: string;
-  if (strong.score - weak.score < EVEN_UNITS) read = `${known ? 'Our scouts grade their units about even: there is no obvious soft spot' : "On what our scouts have seen, there is no obvious soft spot: they look about even across the board"}, so this one will come down to who executes.`;
+  if (strong.score - weak.score < EVEN_UNITS)
+    read = `${known ? 'Our scouts grade their units about even: there is no obvious soft spot' : 'On what our scouts have seen, there is no obvious soft spot: they look about even across the board'}, so this one will come down to who executes.`;
   else {
-    const soft = known ? `Our scouts see their ${weak.g.phrase} as the softest unit they have` : `On what our scouts have seen, their ${weak.g.phrase} ${weak.g.plural ? 'look' : 'looks'} like the softest unit they have`;
+    const soft = known
+      ? `Our scouts see their ${weak.g.phrase} as the softest unit they have`
+      : `On what our scouts have seen, their ${weak.g.phrase} ${weak.g.plural ? 'look' : 'looks'} like the softest unit they have`;
     const best = `their ${strong.g.phrase} ${strong.g.plural ? 'are' : 'is'} the strength of the team`;
     read = `${soft}, while ${best}. ${capital(OPENING[weak.g.title])}, but ${CATCH[strong.g.title]}.`;
   }
@@ -558,7 +741,10 @@ function tradeMail(league: League, have: Set<string>): Draft[] {
       category: 'trades',
       subject: `Trade with the ${partner.name} is done`,
       body: `Pleasure doing business. ${t.text}. The players have passed their physicals and the league has approved the deal.`,
-      actions: [{ kind: 'team', teamId: league.userTeamId }, { kind: 'team', teamId: partner.id }],
+      actions: [
+        { kind: 'team', teamId: league.userTeamId },
+        { kind: 'team', teamId: partner.id },
+      ],
     });
   }
   return out;
@@ -567,7 +753,10 @@ function tradeMail(league: League, have: Set<string>): Draft[] {
 /** A side of a deal in words: "WR Riley Wright, a 2027 3rd and a 2028 6th". */
 export function packageWords(league: League, side: TradeSide): string {
   const players = side.players.map((id) => `${league.players[id].position} ${fullName(league.players[id])}`);
-  const picks = side.picks.map((id) => league.draftPicks.find((p) => p.id === id)).filter((p) => !!p).map((p) => pickLabel(league, p!));
+  const picks = side.picks
+    .map((id) => league.draftPicks.find((p) => p.id === id))
+    .filter((p) => !!p)
+    .map((p) => pickLabel(league, p!));
   return list([...players, ...picks]) || 'nothing';
 }
 
@@ -581,17 +770,35 @@ export function offerWords(league: League, offer: TradeOffer): { subject: string
   const close = offer.final ? ' That is our final offer.' : '';
   switch (offer.reason) {
     case 'enquiry':
-      return { subject: `The ${team.name} ask about ${name(yourMan!)}`, body: `Is ${name(yourMan!)} available? We'd be interested if you're willing to listen.` };
+      return {
+        subject: `The ${team.name} ask about ${name(yourMan!)}`,
+        body: `Is ${name(yourMan!)} available? We'd be interested if you're willing to listen.`,
+      };
     case 'pitch':
-      return { subject: `The ${team.name} are listening on ${name(hisMan!)}`, body: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours)} get it done?${close}` };
+      return {
+        subject: `The ${team.name} are listening on ${name(hisMan!)}`,
+        body: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours)} get it done?${close}`,
+      };
     case 'dump':
-      return { subject: `The ${team.name} want to move ${name(hisMan!)}'s deal`, body: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] })} is yours.${close}` };
+      return {
+        subject: `The ${team.name} want to move ${name(hisMan!)}'s deal`,
+        body: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] })} is yours.${close}`,
+      };
     case 'counter':
-      return { subject: `The ${team.name} come back with a counter`, body: `We've looked at your counter. ${packageWords(league, his)} for ${packageWords(league, yours)}, and we have a deal.${close}` };
+      return {
+        subject: `The ${team.name} come back with a counter`,
+        body: `We've looked at your counter. ${packageWords(league, his)} for ${packageWords(league, yours)}, and we have a deal.${close}`,
+      };
     case 'shop':
-      return { subject: `The ${team.name} answer your call about ${name(yourMan!)}`, body: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his)}.${close}` };
+      return {
+        subject: `The ${team.name} answer your call about ${name(yourMan!)}`,
+        body: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his)}.${close}`,
+      };
     default:
-      return { subject: `The ${team.name} make an offer for ${name(yourMan!)}`, body: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his))}, if you're open to it.${close}` };
+      return {
+        subject: `The ${team.name} make an offer for ${name(yourMan!)}`,
+        body: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his))}, if you're open to it.${close}`,
+      };
   }
 }
 
@@ -613,7 +820,11 @@ function offerMail(league: League, have: Set<string>): Draft[] {
       category: 'trades',
       subject,
       body,
-      actions: [{ kind: 'trades' }, ...(about !== undefined ? [{ kind: 'player' as const, playerId: about }] : []), { kind: 'team', teamId: team.id }],
+      actions: [
+        { kind: 'trades' },
+        ...(about !== undefined ? [{ kind: 'player' as const, playerId: about }] : []),
+        { kind: 'team', teamId: team.id },
+      ],
     });
   }
   return out;
@@ -626,7 +837,8 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds
 const sum = (xs: readonly number[], from: number, to: number) => xs.slice(from, to).reduce((a, b) => a + (b ?? 0), 0);
 
 /** Touchdowns from trips inside the 20, for a side that had a few: the one place a box score shows a game turning on finishing. */
-const redZone = (t: TeamGameStats) => `${t.redZoneTd} touchdown${t.redZoneTd === 1 ? '' : 's'} from ${t.redZoneAtt} trips inside the 20`;
+const redZone = (t: TeamGameStats) =>
+  `${t.redZoneTd} touchdown${t.redZoneTd === 1 ? '' : 's'} from ${t.redZoneAtt} trips inside the 20`;
 
 /**
  * What the box score says about how the game went, from `home`'s side: a clause on the halftime
@@ -651,26 +863,46 @@ export function gameStory(r: GameResult, home: boolean): { swing: string; takeaw
   const outgained = yds <= -60;
   const outgaining = yds >= 60;
   // Ahead at the end of every quarter (the end of the game counts for the last one).
-  const ledThroughout = (a: readonly number[], b: readonly number[]) => [1, 2, 3].every((q) => sum(a, 0, q) > sum(b, 0, q)) && a.reduce((x, y) => x + y, 0) > b.reduce((x, y) => x + y, 0);
-  const yards = ours.totalYds >= theirs.totalYds ? `We outgained them ${ours.totalYds} yards to ${theirs.totalYds}${ours.top >= 33 * 60 ? ` and held the ball for ${clock(ours.top)}` : ''}.` : `They outgained us ${theirs.totalYds} yards to ${ours.totalYds}.`;
+  const ledThroughout = (a: readonly number[], b: readonly number[]) =>
+    [1, 2, 3].every((q) => sum(a, 0, q) > sum(b, 0, q)) && a.reduce((x, y) => x + y, 0) > b.reduce((x, y) => x + y, 0);
+  const yards =
+    ours.totalYds >= theirs.totalYds
+      ? `We outgained them ${ours.totalYds} yards to ${theirs.totalYds}${ours.top >= 33 * 60 ? ` and held the ball for ${clock(ours.top)}` : ''}.`
+      : `They outgained us ${theirs.totalYds} yards to ${ours.totalYds}.`;
 
   let swing = '';
   if (won && usHalf < themHalf) swing = ` after trailing by ${small(themHalf - usHalf)} at halftime`;
   else if (lost && usHalf > themHalf) swing = ` after leading by ${small(usHalf - themHalf)} at halftime`;
 
   let takeaway: string;
-  if (swing && won) takeaway = `We outscored them ${us2}–${them2} after the break${take - give >= 2 ? `, and ${small(take)} takeaways helped turn it around` : ''}${outgained ? ', despite being outgained on the day' : ''}.`;
-  else if (swing && lost) takeaway = `They outscored us ${them2}–${us2} after the break${give - take >= 2 ? `, and our ${small(give)} turnovers gave them the chances` : ''}${outgaining ? ', even though we moved the ball better' : ''}.`;
-  else if (won && take - give >= 2) takeaway = `We won the turnover battle ${take}–${give}, and that decided it${outgained ? `: they outgained us ${theirs.totalYds} yards to ${ours.totalYds}` : ''}.`;
-  else if (lost && give - take >= 2) takeaway = outgaining ? `We moved the ball better than they did, but ${small(give)} turnovers cost us possessions and left too little room for error.` : `We lost the turnover battle ${give}–${take}, and that is where the game went.`;
-  else if (margin >= 21 && won && ledThroughout(usQ, themQ) && yds >= 0) takeaway = `We controlled it from start to finish: ${ours.totalYds} yards to ${theirs.totalYds}${ours.top >= 33 * 60 ? ` and ${clock(ours.top)} of possession` : ''}.`;
-  else if (margin >= 21 && lost && ledThroughout(themQ, usQ) && yds <= 0) takeaway = `They controlled it from start to finish: ${theirs.totalYds} yards to ${ours.totalYds}.`;
+  if (swing && won)
+    takeaway = `We outscored them ${us2}–${them2} after the break${take - give >= 2 ? `, and ${small(take)} takeaways helped turn it around` : ''}${outgained ? ', despite being outgained on the day' : ''}.`;
+  else if (swing && lost)
+    takeaway = `They outscored us ${them2}–${us2} after the break${give - take >= 2 ? `, and our ${small(give)} turnovers gave them the chances` : ''}${outgaining ? ', even though we moved the ball better' : ''}.`;
+  else if (won && take - give >= 2)
+    takeaway = `We won the turnover battle ${take}–${give}, and that decided it${outgained ? `: they outgained us ${theirs.totalYds} yards to ${ours.totalYds}` : ''}.`;
+  else if (lost && give - take >= 2)
+    takeaway = outgaining
+      ? `We moved the ball better than they did, but ${small(give)} turnovers cost us possessions and left too little room for error.`
+      : `We lost the turnover battle ${give}–${take}, and that is where the game went.`;
+  else if (margin >= 21 && won && ledThroughout(usQ, themQ) && yds >= 0)
+    takeaway = `We controlled it from start to finish: ${ours.totalYds} yards to ${theirs.totalYds}${ours.top >= 33 * 60 ? ` and ${clock(ours.top)} of possession` : ''}.`;
+  else if (margin >= 21 && lost && ledThroughout(themQ, usQ) && yds <= 0)
+    takeaway = `They controlled it from start to finish: ${theirs.totalYds} yards to ${ours.totalYds}.`;
   else if (won && outgained) {
-    const why = ours.redZoneAtt >= 2 && ours.redZoneTd / ours.redZoneAtt >= 0.6 ? `we cashed in ${redZone(ours)}` : theirs.redZoneAtt >= 3 && theirs.redZoneTd / theirs.redZoneAtt <= 0.34 ? `we held them to ${redZone(theirs)}` : 'we got the points when it mattered';
+    const why =
+      ours.redZoneAtt >= 2 && ours.redZoneTd / ours.redZoneAtt >= 0.6
+        ? `we cashed in ${redZone(ours)}`
+        : theirs.redZoneAtt >= 3 && theirs.redZoneTd / theirs.redZoneAtt <= 0.34
+          ? `we held them to ${redZone(theirs)}`
+          : 'we got the points when it mattered';
     takeaway = `They outgained us ${theirs.totalYds} yards to ${ours.totalYds}, but ${why}.`;
-  } else if (lost && outgaining) takeaway = `We outgained them ${ours.totalYds} yards to ${theirs.totalYds} but ${ours.redZoneAtt >= 3 && ours.redZoneTd / ours.redZoneAtt <= 0.34 ? `came away with only ${redZone(ours)}` : 'could not turn the yards into points'}.`;
-  else if (!lost && themHalf >= 14 && them2 <= 3) takeaway = `The defense shut the door after halftime: ${them2 === 0 ? 'nothing' : `${small(them2)} points`} allowed after the break.`;
-  else if (margin <= 3 && !r.overtime && Math.abs(sum(usQ, 0, 3) - sum(themQ, 0, 3)) <= 8) takeaway = 'A one-score game all through the fourth quarter.';
+  } else if (lost && outgaining)
+    takeaway = `We outgained them ${ours.totalYds} yards to ${theirs.totalYds} but ${ours.redZoneAtt >= 3 && ours.redZoneTd / ours.redZoneAtt <= 0.34 ? `came away with only ${redZone(ours)}` : 'could not turn the yards into points'}.`;
+  else if (!lost && themHalf >= 14 && them2 <= 3)
+    takeaway = `The defense shut the door after halftime: ${them2 === 0 ? 'nothing' : `${small(them2)} points`} allowed after the break.`;
+  else if (margin <= 3 && !r.overtime && Math.abs(sum(usQ, 0, 3) - sum(themQ, 0, 3)) <= 8)
+    takeaway = 'A one-score game all through the fourth quarter.';
   else if (r.overtime) takeaway = 'Neither side could put it away in regulation.';
   else takeaway = yards;
   return { swing, takeaway };
@@ -682,12 +914,18 @@ export function statBlurb(p: Player, s: StatLine): string {
   const td = (k: keyof StatLine) => (n(k) ? ` and ${plural(n(k), 'touchdown')}` : '');
   switch (p.position) {
     case 'QB':
-      return n('passAtt') ? `${n('passYds')} yards passing${td('passTd')}${n('passInt') >= 2 ? `, with ${plural(n('passInt'), 'interception')}` : ''}` : '';
+      return n('passAtt')
+        ? `${n('passYds')} yards passing${td('passTd')}${n('passInt') >= 2 ? `, with ${plural(n('passInt'), 'interception')}` : ''}`
+        : '';
     case 'RB':
-      return n('rushAtt') ? `${n('rushYds')} yards on ${n('rushAtt')} ${n('rushAtt') === 1 ? 'carry' : 'carries'}${td('rushTd')}` : '';
+      return n('rushAtt')
+        ? `${n('rushYds')} yards on ${n('rushAtt')} ${n('rushAtt') === 1 ? 'carry' : 'carries'}${td('rushTd')}`
+        : '';
     case 'WR':
     case 'TE':
-      return n('rec') ? `${n('rec')} ${n('rec') === 1 ? 'catch' : 'catches'} for ${n('recYds')} yards${td('recTd')}` : '';
+      return n('rec')
+        ? `${n('rec')} ${n('rec') === 1 ? 'catch' : 'catches'} for ${n('recYds')} yards${td('recTd')}`
+        : '';
     case 'K':
       return n('fgAtt') ? `${n('fgMade')} of ${n('fgAtt')} field goals` : '';
     case 'OL':
@@ -725,12 +963,28 @@ function recapMail(league: League, have: Set<string>): Draft[] {
   const when = `${where}${game.playoffRound ? ` in the ${ROUND_NAMES[game.playoffRound]}` : ''}${r.overtime ? ' in overtime' : ''}`;
   const score = `${Math.max(us, them)}–${Math.min(us, them)}`;
   const { swing, takeaway } = gameStory(r, home);
-  const result = us > them ? `We beat the ${teamName(opp)} ${score} ${when}${swing}.` : us < them ? `We lost to the ${teamName(opp)} ${score} ${when}${swing}.` : `We tied the ${teamName(opp)} ${score} ${when}.`;
+  const result =
+    us > them
+      ? `We beat the ${teamName(opp)} ${score} ${when}${swing}.`
+      : us < them
+        ? `We lost to the ${teamName(opp)} ${score} ${when}${swing}.`
+        : `We tied the ${teamName(opp)} ${score} ${when}.`;
   const star = playerOfTheGame(league, game);
   const p = star !== null ? league.players[star] : undefined;
   const line = p ? statBlurb(p, r.playerStats[p.id] ?? {}) : '';
-  const potg = !p ? '' : ` ${r.playerTeams[p.id] === user ? fullName(p) : `Their ${p.position} ${fullName(p)}`} was the player of the game${line ? `, with ${line}` : ''}.`;
-  const [win, lose] = us >= them ? [{ team: me, pts: us }, { team: opp, pts: them }] : [{ team: opp, pts: them }, { team: me, pts: us }];
+  const potg = !p
+    ? ''
+    : ` ${r.playerTeams[p.id] === user ? fullName(p) : `Their ${p.position} ${fullName(p)}`} was the player of the game${line ? `, with ${line}` : ''}.`;
+  const [win, lose] =
+    us >= them
+      ? [
+          { team: me, pts: us },
+          { team: opp, pts: them },
+        ]
+      : [
+          { team: opp, pts: them },
+          { team: me, pts: us },
+        ];
   return [
     {
       id: `recap:${game.season}:${game.id}`,
@@ -756,7 +1010,11 @@ function clearedMail(league: League, have: Set<string>): Draft[] {
     const key = `${was.season}:${was.week}:${p.id}:${was.type}`;
     if (!have.has(`medical:${key}`) || have.has(`cleared:${key}`)) continue;
     const what = lower(injuryLabel(was.type));
-    const ir = !p.ir ? " He's back in his spot on the depth chart." : delegates(league, team) ? " He's still on injured reserve: the staff will bring him back once his four weeks are up." : " He's still on injured reserve: activate him when you want him back.";
+    const ir = !p.ir
+      ? " He's back in his spot on the depth chart."
+      : delegates(league, team)
+        ? " He's still on injured reserve: the staff will bring him back once his four weeks are up."
+        : " He's still on injured reserve: activate him when you want him back.";
     out.push({
       id: `cleared:${key}`,
       season: league.season,
@@ -769,7 +1027,10 @@ function clearedMail(league: League, have: Set<string>): Draft[] {
         was.type === 'concussion'
           ? `${fullName(p)} has passed the last step of the concussion protocol${was.held ? ', and we gave him the extra week we planned,' : ''} and is cleared for full practice.${ir}${concussionWindow(league, p) > 0 ? ' A second concussion is likelier in his first couple of weeks back.' : ''}`
           : `${fullName(p)} is over his ${what} and cleared for full practice.${ir}`,
-      actions: [{ kind: 'player', playerId: p.id }, { kind: 'team', teamId: team.id }],
+      actions: [
+        { kind: 'player', playerId: p.id },
+        { kind: 'team', teamId: team.id },
+      ],
     });
   }
   return out;
@@ -783,13 +1044,22 @@ const coveredWeek = (phase: Phase, week: number) => (phase === 'regular' ? week 
 /** League trades a digest covers (ours have their own mail): one market moment's, from the transaction log. */
 export function marketTrades(league: League, season: number, phase: Phase, week: number) {
   const at = coveredWeek(phase, week);
-  return league.transactions.filter((t) => t.kind === 'trade' && t.season === season && t.phase === phase && (phase !== 'regular' || t.week === at) && !t.teamIds.includes(league.userTeamId));
+  return league.transactions.filter(
+    (t) =>
+      t.kind === 'trade' &&
+      t.season === season &&
+      t.phase === phase &&
+      (phase !== 'regular' || t.week === at) &&
+      !t.teamIds.includes(league.userTeamId),
+  );
 }
 
 /** Rumors a digest covers: what front offices were really doing that moment (`writeRumors`), never about us. */
 export function marketRumors(league: League, season: number, phase: Phase, week: number) {
   const at = coveredWeek(phase, week);
-  return (league.market?.rumors ?? []).filter((r) => r.season === season && r.phase === phase && (phase !== 'regular' || r.week === at));
+  return (league.market?.rumors ?? []).filter(
+    (r) => r.season === season && r.phase === phase && (phase !== 'regular' || r.week === at),
+  );
 }
 
 /** Weeks of the regular season the director writes up: from week 5 to the deadline week (deadline day has its own mail). */
@@ -810,10 +1080,17 @@ function marketMail(league: League, have: Set<string>): Draft[] {
   const trades = marketTrades(league, season, phase, week).length;
   const rumors = marketRumors(league, season, phase, week).length;
   if (!trades && !rumors) return [];
-  const dealt = trades ? `${count(trades)} trade${trades === 1 ? '' : 's'} went through around the league` : 'No trades went through around the league';
-  const heard = rumors ? `, and we're hearing ${rumors === 1 ? 'one more name' : `${count(rumors).toLowerCase()} more names`} that could move` : '';
+  const dealt = trades
+    ? `${count(trades)} trade${trades === 1 ? '' : 's'} went through around the league`
+    : 'No trades went through around the league';
+  const heard = rumors
+    ? `, and we're hearing ${rumors === 1 ? 'one more name' : `${count(rumors).toLowerCase()} more names`} that could move`
+    : '';
   const left = TRADE_DEADLINE_WEEK - league.week;
-  const deadline = phase === 'regular' ? ` The deadline is the day after week ${TRADE_DEADLINE_WEEK}${left ? `, ${left === 1 ? 'a week' : `${count(left).toLowerCase()} weeks`} from now` : ': this is the last week before it'}.` : '';
+  const deadline =
+    phase === 'regular'
+      ? ` The deadline is the day after week ${TRADE_DEADLINE_WEEK}${left ? `, ${left === 1 ? 'a week' : `${count(left).toLowerCase()} weeks`} from now` : ': this is the last week before it'}.`
+      : '';
   return [
     {
       id,
@@ -822,7 +1099,12 @@ function marketMail(league: League, have: Set<string>): Draft[] {
       week,
       ...director(league),
       category: 'trades',
-      subject: phase === 'resign' ? 'Market report: the league year opens' : trades ? `Market report: ${plural(trades, 'trade')} this week` : 'Market report: the rumor mill',
+      subject:
+        phase === 'resign'
+          ? 'Market report: the league year opens'
+          : trades
+            ? `Market report: ${plural(trades, 'trade')} this week`
+            : 'Market report: the rumor mill',
       body: `${dealt}${phase === 'resign' ? ' as the league year opened' : ' this week'}${heard}.${deadline}`,
       actions: [{ kind: 'trades' }],
     },
@@ -831,20 +1113,27 @@ function marketMail(league: League, have: Set<string>): Draft[] {
 
 /** The season's in-season trades by what they were (`TradeRecord.kind`), ours left out (an offer we took keeps its kind, so go by team). */
 export function seasonDeals(league: League, season = league.season) {
-  return (league.market?.history ?? []).filter((r) => r.season === season && r.phase === 'regular' && !r.sides.some((s) => s.teamId === league.userTeamId));
+  return (league.market?.history ?? []).filter(
+    (r) => r.season === season && r.phase === 'regular' && !r.sides.some((s) => s.teamId === league.userTeamId),
+  );
 }
 
 /** Once the deadline has passed: how the trade season went, with deadline day's deals. */
 function marketRecapMail(league: League, have: Set<string>): Draft[] {
   const { season } = league;
-  const passed = (league.phase === 'regular' && league.week > TRADE_DEADLINE_WEEK + 1) || league.phase === 'playoffs' || league.phase === 'complete';
+  const passed =
+    (league.phase === 'regular' && league.week > TRADE_DEADLINE_WEEK + 1) ||
+    league.phase === 'playoffs' ||
+    league.phase === 'complete';
   const id = `market:${season}:recap`;
   if (!passed || have.has(id)) return [];
   const all = league.transactions.filter((t) => t.kind === 'trade' && t.season === season && t.phase === 'regular');
   if (!all.length) return [];
   const day = deadlineDayTrades(league, season).length;
   const division = league.teams[league.userTeamId].division;
-  const rivals = all.filter((t) => t.teamIds.some((id) => id !== league.userTeamId && league.teams[id].division === division)).length;
+  const rivals = all.filter((t) =>
+    t.teamIds.some((id) => id !== league.userTeamId && league.teams[id].division === division),
+  ).length;
   const ours = all.filter((t) => t.teamIds.includes(league.userTeamId)).length;
   const stood = ours ? ` We made ${ours === 1 ? 'one of them' : `${small(ours)} of them`}.` : ' We stood pat.';
   return [
@@ -864,7 +1153,13 @@ function marketRecapMail(league: League, have: Set<string>): Draft[] {
 
 /** Trades around the league on deadline day: the market's last round runs as the deadline week's games end. */
 export const deadlineDayTrades = (league: League, season = league.season) =>
-  league.transactions.filter((t) => t.kind === 'trade' && t.season === season && t.phase === 'regular' && (t.week === TRADE_DEADLINE_WEEK || t.week === TRADE_DEADLINE_WEEK + 1));
+  league.transactions.filter(
+    (t) =>
+      t.kind === 'trade' &&
+      t.season === season &&
+      t.phase === 'regular' &&
+      (t.week === TRADE_DEADLINE_WEEK || t.week === TRADE_DEADLINE_WEEK + 1),
+  );
 
 /**
  * The league office's word on the trade deadline: the week before, the week of, and deadline day itself (the
@@ -878,15 +1173,33 @@ function deadlineMail(league: League, have: Set<string>): Draft[] {
   const w = TRADE_DEADLINE_WEEK;
   const done = deadlineDayTrades(league).length;
   const text: Record<string, [string, string]> = {
-    1: ['Trade deadline: one week to go', `The trade deadline is the day after week ${w}. After that, rosters are set until the new league year.`],
-    0: ['Trade deadline: this week', `Week ${w} is the last week of games before the deadline. Trades stay open through deadline day, the day after it, then rosters are set until the new league year.`],
+    1: [
+      'Trade deadline: one week to go',
+      `The trade deadline is the day after week ${w}. After that, rosters are set until the new league year.`,
+    ],
+    0: [
+      'Trade deadline: this week',
+      `Week ${w} is the last week of games before the deadline. Trades stay open through deadline day, the day after it, then rosters are set until the new league year.`,
+    ],
     day: [
       'Deadline day',
       `It's deadline day, the last day to make a trade this season. ${done ? `${count(done)} trade${done === 1 ? ' has' : 's have'} gone through around the league so far.` : 'The league has been quiet so far.'} Once week ${w + 1} is played, rosters are set until the new league year.`,
     ],
   };
   const [subject, body] = text[key];
-  return [{ id, season: league.season, phase: 'regular', week: league.week, from: 'League office', category: 'trades', subject, body, actions: [{ kind: 'trades' }] }];
+  return [
+    {
+      id,
+      season: league.season,
+      phase: 'regular',
+      week: league.week,
+      from: 'League office',
+      category: 'trades',
+      subject,
+      body,
+      actions: [{ kind: 'trades' }],
+    },
+  ];
 }
 
 /**
@@ -897,7 +1210,8 @@ function flexMail(league: League, have: Set<string>): Draft[] {
   const user = league.userTeamId;
   const out: Draft[] = [];
   for (const g of league.games) {
-    if (g.season !== league.season || g.result || !g.flexed || !g.kickoff || (g.homeId !== user && g.awayId !== user)) continue;
+    if (g.season !== league.season || g.result || !g.flexed || !g.kickoff || (g.homeId !== user && g.awayId !== user))
+      continue;
     const { kickoff: k, flexed: was } = g;
     if (k.day === was.day && k.et === was.et) continue;
     const id = `flex:${g.season}:${g.id}:${k.day}${k.et}`;
@@ -912,7 +1226,11 @@ function flexMail(league: League, have: Set<string>): Draft[] {
       week: league.week,
       from: 'League office',
       category: 'league',
-      subject: final ? `Week ${g.week} kickoff: ${kickoffLabel(k)}` : isPrimeTime(k) ? `Moved to prime time: ${kickoffLabel(k)}` : `Moved out of prime time: ${kickoffLabel(k)}`,
+      subject: final
+        ? `Week ${g.week} kickoff: ${kickoffLabel(k)}`
+        : isPrimeTime(k)
+          ? `Moved to prime time: ${kickoffLabel(k)}`
+          : `Moved out of prime time: ${kickoffLabel(k)}`,
       body: final
         ? `With a week to play, the league has set the final week's kickoffs. Our game ${where} kicks off ${kickoffLabel(k)}.`
         : `The league has moved our week ${g.week} game ${where} from ${kickoffLabel(was)} to ${kickoffLabel(k)}.`,
@@ -942,12 +1260,20 @@ function raceMail(league: League, have: Set<string>): Draft[] {
   const best = RACE.find((level) => race[level]);
   const level = race.out ? 'out' : best && !RACE.slice(0, RACE.indexOf(best) + 1).some(sent) ? best : null;
   if (!level || sent(level)) return [];
-  const left = league.games.filter((g) => g.season === league.season && !g.playoffRound && !g.result && (g.homeId === team.id || g.awayId === team.id)).length;
+  const left = league.games.filter(
+    (g) => g.season === league.season && !g.playoffRound && !g.result && (g.homeId === team.id || g.awayId === team.id),
+  ).length;
   const still = left ? ` with ${count(left).toLowerCase()} game${left === 1 ? '' : 's'} to play` : '';
   const name = teamName(team);
   const text = {
-    bye: [`Top seed clinched`, `The ${name} have clinched the top seed in the ${league.conferences[team.conference].abbrev}, and with it the only first-round bye${still}.`],
-    division: [`${league.divisions[team.division].name} title clinched`, `The ${name} have clinched the ${league.divisions[team.division].name} title${still}.`],
+    bye: [
+      `Top seed clinched`,
+      `The ${name} have clinched the top seed in the ${league.conferences[team.conference].abbrev}, and with it the only first-round bye${still}.`,
+    ],
+    division: [
+      `${league.divisions[team.division].name} title clinched`,
+      `The ${name} have clinched the ${league.divisions[team.division].name} title${still}.`,
+    ],
     spot: [`Playoff spot clinched`, `The ${name} have clinched a place in the ${league.season} playoffs${still}.`],
     out: [`Out of the playoff race`, `The ${name} can no longer reach the ${league.season} playoffs.`],
   }[level];
@@ -970,7 +1296,8 @@ function raceMail(league: League, have: Set<string>): Draft[] {
 
 const millions = (k: number) => `$${(k / 1000).toFixed(1)}M`;
 const recordWords = (r: { w: number; l: number; t: number }) => `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;
-const recordIn = (league: League, season: number, teamId: number) => league.history.find((h) => h.season === season)?.records[teamId] ?? null;
+const recordIn = (league: League, season: number, teamId: number) =>
+  league.history.find((h) => h.season === season)?.records[teamId] ?? null;
 
 /**
  * The owner's letter as the league year opens: the budgets (on the card), and how far past the coaching
@@ -1005,7 +1332,12 @@ function ownerMail(league: League, have: Set<string>): Draft[] {
     assistant: '',
   }[stance.reason];
   const trigger = ownerTriggerNote(ownerTrigger(league, team.id));
-  const patience = trigger === 'Quick trigger with head coaches' ? ' I expect results, and I expect them soon.' : trigger ? ' I believe in giving good people time to build something.' : '';
+  const patience =
+    trigger === 'Quick trigger with head coaches'
+      ? ' I expect results, and I expect them soon.'
+      : trigger
+        ? ' I believe in giving good people time to build something.'
+        : '';
   return [
     {
       id,
@@ -1044,17 +1376,30 @@ function staffDealsMail(league: League, have: Set<string>): Draft[] {
   const coaches = teamCoaches(league, user).filter((c) => isCoachExpiring(league, c));
   const scouts = teamStaff(league, user).filter((s) => isExpiring(league, s));
   const medics = teamMedics(league, user).filter((m) => isMedicExpiring(league, m));
-  const people: StaffRef[] = [...coaches.map((c) => ({ kind: 'coach' as const, id: c.id })), ...scouts.map((s) => ({ kind: 'scout' as const, id: s.id })), ...medics.map((m) => ({ kind: 'medic' as const, id: m.id }))];
+  const people: StaffRef[] = [
+    ...coaches.map((c) => ({ kind: 'coach' as const, id: c.id })),
+    ...scouts.map((s) => ({ kind: 'scout' as const, id: s.id })),
+    ...medics.map((m) => ({ kind: 'medic' as const, id: m.id })),
+  ];
   if (!people.length) return [];
-  const group = (n: number, one: string, many: string) => (n === 1 ? `our ${one}` : `${count(n).toLowerCase()} ${many}`);
+  const group = (n: number, one: string, many: string) =>
+    n === 1 ? `our ${one}` : `${count(n).toLowerCase()} ${many}`;
   const groups = [
     coaches.length ? group(coaches.length, coachTitle(coaches[0]).toLowerCase(), 'coaches') : '',
     scouts.length ? group(scouts.length, ROLE_LABEL[scouts[0].role].toLowerCase(), 'scouts') : '',
     medics.length ? group(medics.length, MEDIC_ROLE_LABEL[medics[0].role].toLowerCase(), 'of the medical staff') : '',
   ].filter(Boolean);
-  const leaving = [coachResignForecast(league, user), resignForecast(league, user), medicResignForecast(league, user)].reduce((n, f) => n + [...f.values()].filter((o) => o !== 'stays').length, 0);
+  const leaving = [
+    coachResignForecast(league, user),
+    resignForecast(league, user),
+    medicResignForecast(league, user),
+  ].reduce((n, f) => n + [...f.values()].filter((o) => o !== 'stays').length, 0);
   const n = people.length;
-  const outlook = !leaving ? 'As things stand, every one of them stays.' : leaving === n ? 'As things stand, none of them stays.' : `As things stand, ${count(leaving).toLowerCase()} of them would leave.`;
+  const outlook = !leaving
+    ? 'As things stand, every one of them stays.'
+    : leaving === n
+      ? 'As things stand, none of them stays.'
+      : `As things stand, ${count(leaving).toLowerCase()} of them would leave.`;
   return [
     {
       id: `staff:${season}:deals:${people.map(refKey).join('.')}`,
@@ -1088,7 +1433,14 @@ function poachedMail(league: League, have: Set<string>): Draft[] {
   const user = league.userTeamId;
   const out: Draft[] = [];
   for (const t of league.transactions) {
-    if (t.kind !== 'coach' || t.season !== league.season || t.teamIds.length !== 2 || t.teamIds[1] !== user || t.teamIds[0] === user) continue;
+    if (
+      t.kind !== 'coach' ||
+      t.season !== league.season ||
+      t.teamIds.length !== 2 ||
+      t.teamIds[1] !== user ||
+      t.teamIds[0] === user
+    )
+      continue;
     const hirer = league.teams[t.teamIds[0]];
     const c = teamCoaches(league, hirer.id).find((x) => t.text.includes(` ${coachName(x)} as `));
     // "LV hired BUF quarterbacks coach Sam Reed as offensive coordinator": the chair he held with us.
@@ -1098,7 +1450,9 @@ function poachedMail(league: League, have: Set<string>): Draft[] {
     const id = `staff:${league.season}:gone:${c.id}:${chair.role}${chair.role === 'positionCoach' ? `:${chair.room}` : ''}`;
     if (have.has(id)) continue;
     const now = coachTitle(c).toLowerCase();
-    const fill = promotionCandidates(league, chair).length ? 'promote from within or go to the market' : 'go to the market';
+    const fill = promotionCandidates(league, chair).length
+      ? 'promote from within or go to the market'
+      : 'go to the market';
     out.push({
       id,
       season: league.season,
@@ -1131,10 +1485,18 @@ export interface HeadCoachChange {
 /** Every team whose head coach for `season` isn't the one who finished `season - 1`, the user's division first. */
 export function headCoachChanges(league: League, season = league.season): HeadCoachChange[] {
   const everyone = [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)];
-  const headed = (s: number) => new Map(everyone.flatMap((c) => (c.career ?? []).filter((x) => x.season === s && x.role === 'headCoach').map((x) => [x.teamId, c] as const)));
+  const headed = (s: number) =>
+    new Map(
+      everyone.flatMap((c) =>
+        (c.career ?? []).filter((x) => x.season === s && x.role === 'headCoach').map((x) => [x.teamId, c] as const),
+      ),
+    );
   const before = headed(season - 1);
   // This league year: the chair as it stands now; a past one: whoever finished it.
-  const after = season === league.season ? new Map(league.teams.map((t) => [t.id, chairHolder(teamCoaches(league, t.id), { role: 'headCoach' })] as const)) : headed(season);
+  const after =
+    season === league.season
+      ? new Map(league.teams.map((t) => [t.id, chairHolder(teamCoaches(league, t.id), { role: 'headCoach' })] as const))
+      : headed(season);
   const division = league.teams[league.userTeamId].division;
   const out: HeadCoachChange[] = [];
   for (const team of league.teams) {
@@ -1146,12 +1508,22 @@ export function headCoachChanges(league: League, season = league.season): HeadCo
     out.push({
       teamId: team.id,
       coach,
-      from: last ? { title: coachTitle(last), teamId: last.teamId, season: last.season, record: last.role === 'headCoach' ? recordIn(league, last.season, last.teamId) : null } : null,
+      from: last
+        ? {
+            title: coachTitle(last),
+            teamId: last.teamId,
+            season: last.season,
+            record: last.role === 'headCoach' ? recordIn(league, last.season, last.teamId) : null,
+          }
+        : null,
       replaced,
       record: recordIn(league, season - 1, team.id),
     });
   }
-  return out.sort((a, b) => Number(league.teams[b.teamId].division === division) - Number(league.teams[a.teamId].division === division));
+  return out.sort(
+    (a, b) =>
+      Number(league.teams[b.teamId].division === division) - Number(league.teams[a.teamId].division === division),
+  );
 }
 
 /** The league office's note once the window's hirings are done: every team with a new head coach. */
@@ -1219,7 +1591,9 @@ export function freeAgencyMoves(league: League, season = league.season) {
     signed: standing.filter((d) => d.teamId === user).sort((a, b) => b.total - a.total),
     walked: standing.filter((d) => d.teamId !== user && ours(d.player)).sort((a, b) => b.total - a.total),
     unsigned: left.filter((p) => p.teamId === null),
-    resigned: league.transactions.filter((t) => t.kind === 'resign' && t.season === season && t.phase === 'resign' && t.teamIds.includes(user)).length,
+    resigned: league.transactions.filter(
+      (t) => t.kind === 'resign' && t.season === season && t.phase === 'resign' && t.teamIds.includes(user),
+    ).length,
     biggest: [...standing].sort((a, b) => b.total - a.total).slice(0, 3),
   };
 }
@@ -1233,15 +1607,25 @@ function faWrapMail(league: League, have: Set<string>): Draft[] {
   const rookies = rookieCost(league, league.userTeamId);
   const signed = fa.signed.length ? `We signed ${plural(fa.signed.length, 'free agent')}` : 'We signed no free agents';
   const kept = fa.resigned ? ` and re-signed ${fa.resigned} of our own` : '';
-  const walked = fa.walked.length ? `; ${count(fa.walked.length).toLowerCase()} of last season's players signed elsewhere` : '';
+  const walked = fa.walked.length
+    ? `; ${count(fa.walked.length).toLowerCase()} of last season's players signed elsewhere`
+    : '';
   const deal = (d: Signing) => `${d.player.position} ${fullName(d.player)} (${d.years} yr, ${millions(d.total)})`;
   // The deals that shaped it: our biggest, the loss that hurts most, and the richest around the league if it wasn't ours.
   const headline = fa.signed.length ? ` Our biggest deal was ${deal(fa.signed[0])}.` : '';
-  const gone = fa.walked.length ? ` The one that hurts is ${fa.walked[0].player.position} ${fullName(fa.walked[0].player)}, gone to the ${teamName(league.teams[fa.walked[0].teamId])} for ${millions(fa.walked[0].total)} over ${plural(fa.walked[0].years, 'year')}.` : '';
+  const gone = fa.walked.length
+    ? ` The one that hurts is ${fa.walked[0].player.position} ${fullName(fa.walked[0].player)}, gone to the ${teamName(league.teams[fa.walked[0].teamId])} for ${millions(fa.walked[0].total)} over ${plural(fa.walked[0].years, 'year')}.`
+    : '';
   // The league's richest deal, unless it was one of ours or the one we just said hurts.
   const top = fa.biggest[0];
-  const richest = top && top.teamId !== league.userTeamId && top.player.id !== fa.walked[0]?.player.id ? ` Around the league, the richest deal was ${deal(top)} to the ${teamName(league.teams[top.teamId])}.` : '';
-  const cap = rookies > 0 ? ` We have ${millions(space)} of cap space going into the draft, and our rookie class will need about ${millions(rookies)} of it.` : ` We have ${millions(space)} of cap space.`;
+  const richest =
+    top && top.teamId !== league.userTeamId && top.player.id !== fa.walked[0]?.player.id
+      ? ` Around the league, the richest deal was ${deal(top)} to the ${teamName(league.teams[top.teamId])}.`
+      : '';
+  const cap =
+    rookies > 0
+      ? ` We have ${millions(space)} of cap space going into the draft, and our rookie class will need about ${millions(rookies)} of it.`
+      : ` We have ${millions(space)} of cap space.`;
   return [
     {
       id,
@@ -1289,7 +1673,12 @@ export function reasonLine(reason: MoveReason, to: Position, coordinator?: { coa
 }
 
 /** The cut-down day a move should be done by, as the camps in the coaches' estimate count it (0 is the coming one). */
-const readyBy = (season: number, camps: number) => (camps === 0 ? "this year's cut-down day" : camps === 1 ? "next year's cut-down day" : `the ${season + camps} cut-down day`);
+const readyBy = (season: number, camps: number) =>
+  camps === 0
+    ? "this year's cut-down day"
+    : camps === 1
+      ? "next year's cut-down day"
+      : `the ${season + camps} cut-down day`;
 
 /**
  * The coaches' suggestion, once a league year, while a plan can still start before cut-down day (the draft and
@@ -1337,10 +1726,22 @@ const MOVE_REASONS: MoveReason[] = ['hole', 'nextYear', 'scheme', 'upside', 'rep
 function moveNews(league: League, p: Player): { when: Pick<Draft, 'phase' | 'week'>; reason?: MoveReason } | null {
   const move = p.moves!.at(-1)!;
   const said = `moved ${move.from} ${p.firstName} ${p.lastName} to ${move.to}`;
-  const news = [...league.transactions].reverse().find((t) => t.kind === 'position' && t.season === move.season && p.teamId !== null && t.teamIds.includes(p.teamId) && t.text.includes(said));
+  const news = [...league.transactions]
+    .reverse()
+    .find(
+      (t) =>
+        t.kind === 'position' &&
+        t.season === move.season &&
+        p.teamId !== null &&
+        t.teamIds.includes(p.teamId) &&
+        t.text.includes(said),
+    );
   if (!news) return null;
   const why = news.text.split(said)[1]?.replace(/^: /, '');
-  return { when: { phase: news.phase, week: news.phase === 'regular' ? news.week : 0 }, reason: MOVE_REASONS.find((r) => reasonWords(r, move.to) === why) };
+  return {
+    when: { phase: news.phase, week: news.phase === 'regular' ? news.week : 0 },
+    reason: MOVE_REASONS.find((r) => reasonWords(r, move.to) === why),
+  };
 }
 
 /**
@@ -1369,7 +1770,10 @@ function positionMovedMail(league: League, have: Set<string>): Draft[] {
         `${fullName(p)} moved from ${posWord(move.from)} to ${posWord(move.to)} on cut-down day. ${reason ? `${reasonLine(reason, move.to)}. ` : ''}` +
         `${team.autoDepth ? '' : `He is placed by rating on your ${move.to} depth chart. `}` +
         "He can't be traded until the new league year.",
-      actions: [{ kind: 'player', playerId: p.id }, { kind: 'team', teamId: team.id }],
+      actions: [
+        { kind: 'player', playerId: p.id },
+        { kind: 'team', teamId: team.id },
+      ],
     });
   }
   return out;
@@ -1385,23 +1789,39 @@ export function deliverMail(league: League): void {
   const first = !league.inbox;
   const inbox = (league.inbox ??= []);
   const have = new Set(inbox.map((m) => m.id));
-  const fresh = [...awardMail(league, have), ...injuryMail(league, have), ...tradeMail(league, have), ...offerMail(league, have)];
-  if (league.phase === 'resign') fresh.push(...ownerMail(league, have), ...staffDealsMail(league, have), ...newYearMail(league, have));
+  const fresh = [
+    ...awardMail(league, have),
+    ...injuryMail(league, have),
+    ...tradeMail(league, have),
+    ...offerMail(league, have),
+  ];
+  if (league.phase === 'resign')
+    fresh.push(...ownerMail(league, have), ...staffDealsMail(league, have), ...newYearMail(league, have));
   // Free agency's first day: the window's coaching moves are done.
-  if (league.phase === 'freeAgency') fresh.push(...combineMail(league, have), ...poachedMail(league, have), ...carouselMail(league, have));
+  if (league.phase === 'freeAgency')
+    fresh.push(...combineMail(league, have), ...poachedMail(league, have), ...carouselMail(league, have));
   // Free agency is over by the draft (or by camp, if a sim ran straight through it).
   if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...faWrapMail(league, have));
   if (league.phase === 'draft') fresh.push(...draftDayMail(league, have));
   // The coaches' position suggestion while a plan can still start; the note once cut-down day has made the move.
   if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...positionOfferMail(league, have));
-  if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...positionMovedMail(league, have));
-  if ((league.phase === 'draft' && draftComplete(league)) || league.phase === 'preseason') fresh.push(...draftClassMail(league, have));
+  if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
+    fresh.push(...positionMovedMail(league, have));
+  if ((league.phase === 'draft' && draftComplete(league)) || league.phase === 'preseason')
+    fresh.push(...draftClassMail(league, have));
   if (league.phase === 'regular' || league.phase === 'playoffs') {
-    fresh.push(...recapMail(league, have), ...clearedMail(league, have), ...raceMail(league, have), ...matchupMail(league, have), ...flexMail(league, have));
+    fresh.push(
+      ...recapMail(league, have),
+      ...clearedMail(league, have),
+      ...raceMail(league, have),
+      ...matchupMail(league, have),
+      ...flexMail(league, have),
+    );
   }
   if (league.phase === 'regular') fresh.push(...deadlineMail(league, have));
   if (league.phase === 'regular' || league.phase === 'resign') fresh.push(...marketMail(league, have));
-  if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...marketRecapMail(league, have));
+  if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
+    fresh.push(...marketRecapMail(league, have));
   // A full inbox lets its oldest mail go from the front, so anything not newer than the front was filed once
   // already: a look-back (last season's trades) would otherwise file it again as new mail, deleted or not.
   const floor = inbox.length >= KEEP ? order(inbox[0]) : -Infinity;
@@ -1416,7 +1836,8 @@ export function deliverMail(league: League): void {
 export const inInbox = (m: InboxMessage) => !m.archived && !m.deleted;
 
 /** Unread in the inbox, as it lists them: a folded day of letters counts once. */
-export const unreadCount = (league: League) => new Set((league.inbox ?? []).filter((m) => !m.read && inInbox(m)).map(threadKey)).size;
+export const unreadCount = (league: League) =>
+  new Set((league.inbox ?? []).filter((m) => !m.read && inInbox(m)).map(threadKey)).size;
 
 /** File messages away (they're read by then), or bring them back. */
 export function archiveMail(league: League, ids: readonly string[], archived = true): void {
@@ -1494,7 +1915,11 @@ export function threadLabel(t: MailThread): { from: string; subject: string } {
 
 /** One person's line inside a folded thread: the subject without what the thread already says. */
 export function memberTitle(m: InboxMessage): string {
-  return m.subject.replace(/'s contract is up$/, '').replace(/ is cleared to play$/, '').replace(/ retires$/, '').replace(/ is now an? [a-z ]+$/, '');
+  return m.subject
+    .replace(/'s contract is up$/, '')
+    .replace(/ is cleared to play$/, '')
+    .replace(/ retires$/, '')
+    .replace(/ is now an? [a-z ]+$/, '');
 }
 
 /** Fold messages (newest first) into threads, each where its newest message is. */

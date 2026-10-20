@@ -29,7 +29,17 @@
  * are printed, never counted, so CI stays green until someone fixes the engine; each one disappears
  * from the output when its fix lands. Do not loosen a band to hide one: add a line here instead.
  */
-import { coachBudget, coachingFor, coachMarket, coachPayroll, coachValue, CHAIRS, chairHolder, staffScore, teamCoaches } from '../src/engine/coaching';
+import {
+  coachBudget,
+  coachingFor,
+  coachMarket,
+  coachPayroll,
+  coachValue,
+  CHAIRS,
+  chairHolder,
+  staffScore,
+  teamCoaches,
+} from '../src/engine/coaching';
 import { capSheet } from '../src/engine/finance/cap';
 import { minSalary } from '../src/engine/finance/market';
 import { createLeague } from '../src/engine/generate';
@@ -38,9 +48,24 @@ import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { KEEP_MIN } from '../src/engine/offseason/ai';
 import { freeAgents, ROSTER_MAX } from '../src/engine/offseason/negotiation';
 import { playerOvr, STARTERS } from '../src/engine/positions';
-import { departmentFor, medicalBudget, medicalPayroll, medicMarket, MEDIC_SLOTS, teamMedics } from '../src/engine/medical';
+import {
+  departmentFor,
+  medicalBudget,
+  medicalPayroll,
+  medicMarket,
+  MEDIC_SLOTS,
+  teamMedics,
+} from '../src/engine/medical';
 import { activeRoster, teamPlayers } from '../src/engine/roster';
-import { departmentScore, STAFF_SLOTS, staffBudget, staffMarket, staffPayroll, staffValue, teamStaff } from '../src/engine/staff';
+import {
+  departmentScore,
+  STAFF_SLOTS,
+  staffBudget,
+  staffMarket,
+  staffPayroll,
+  staffValue,
+  teamStaff,
+} from '../src/engine/staff';
 import type { Coach, League, Phase } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 
@@ -95,7 +120,8 @@ const ISSUE_HOARDING = 'early cap hoarding (band: no team keeps over 30% of the 
 // ratingHistory, stats and combine while generateDraftClass adds 260 players a year. The players blob grows about
 // 430 KB a season for good (3.9 MB of retired players by 2039); the live players level off near 3.5 MB. The 650 KB band
 // below is 1.5x today's growth, so it cannot see this; the fix is to prune old retirees or strip their history.
-const ISSUE_SAVE_GROWTH = 'the save grows without bound: retired players are never pruned (band: players blob under 100 KB/season)';
+const ISSUE_SAVE_GROWTH =
+  'the save grows without bound: retired players are never pruned (band: players blob under 100 KB/season)';
 
 // ───────── Snapshots ─────────
 
@@ -132,7 +158,9 @@ function snapshot(l: League, label: string): Snap {
   const sizes = rosters.map((r) => r.length);
   const space = sheets.map((s) => s.space).sort((a, b) => a - b);
   const dead = sheets.map((s) => s.dead).sort((a, b) => a - b);
-  const byTeam = l.teams.map((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => playerOvr(l.players[id]))));
+  const byTeam = l.teams.map((t) =>
+    POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => playerOvr(l.players[id]))),
+  );
   const starters = byTeam.flat();
   const avgStarter = starters.reduce((a, b) => a + b, 0) / starters.length;
   const count = (t: number, pos: string) => rosters[t].filter((p) => p.position === pos).length;
@@ -154,7 +182,9 @@ function snapshot(l: League, label: string): Snap {
         n +
         POSITIONS.reduce((m, pos) => {
           const ids = t.depthChart[pos].slice(0, STARTERS[pos]);
-          const live = ids.filter((id) => l.players[id] && !l.players[id].retired && l.players[id].teamId === t.id).length;
+          const live = ids.filter(
+            (id) => l.players[id] && !l.players[id].retired && l.players[id].teamId === t.id,
+          ).length;
           return m + (STARTERS[pos] - live);
         }, 0),
       0,
@@ -191,7 +221,13 @@ interface Row {
 
 /** Who sits in every chair at kickoff, by team: the carousel is read off two of these. */
 const chairKey = (ch: (typeof CHAIRS)[number]) => `${ch.role}${ch.room ?? ''}`;
-const chairSnap = (l: League) => new Map(l.teams.map((t) => [t.id, new Map(CHAIRS.map((ch) => [chairKey(ch), chairHolder(teamCoaches(l, t.id), ch)?.id ?? -1]))]));
+const chairSnap = (l: League) =>
+  new Map(
+    l.teams.map((t) => [
+      t.id,
+      new Map(CHAIRS.map((ch) => [chairKey(ch), chairHolder(teamCoaches(l, t.id), ch)?.id ?? -1])),
+    ]),
+  );
 let chairsBefore = chairSnap(league);
 
 const KEEP_TOTAL = Object.values(KEEP_MIN).reduce((a, b) => a + b, 0); // 42: the roster floor nobody can be cut below
@@ -214,13 +250,23 @@ for (let s = 0; s < seasons; s++) {
   const steady = s >= 3;
   simToEndOfSeason(league);
   // The season's injuries, before the new year clears the reserve list.
-  const hurt = Object.values(league.players).flatMap((p) => (p.injuries ?? []).filter((r) => r.season === league.season));
+  const hurt = Object.values(league.players).flatMap((p) =>
+    (p.injuries ?? []).filter((r) => r.season === league.season),
+  );
   const hurtPerTeam = hurt.length / league.teams.length;
-  const severePerTeam = hurt.filter((r) => r.severity === 'severe' || r.severity === 'career-threatening').length / league.teams.length;
+  const severePerTeam =
+    hurt.filter((r) => r.severity === 'severe' || r.severity === 'career-threatening').length / league.teams.length;
   const weeksPerTeam = hurt.reduce((n, r) => n + r.weeks, 0) / league.teams.length;
   // Saves are one JSON blob in IndexedDB: awards must stay a sliver of it as seasons pile up.
   const all = Object.values(league.players);
-  const save = { total: sizeKb(league), games: sizeKb(league.games), players: sizeKb(league.players), awards: sizeKb(league.awards), weekly: sizeKb(league.weeklyAwards), retired: all.filter((p) => p.retired).length };
+  const save = {
+    total: sizeKb(league),
+    games: sizeKb(league.games),
+    players: sizeKb(league.players),
+    awards: sizeKb(league.awards),
+    weekly: sizeKb(league.weeklyAwards),
+    retired: all.filter((p) => p.retired).length,
+  };
   const saveYear = league.season;
   console.log(
     `${saveYear} save ${save.total.toFixed(1)} KB · awards ${save.awards.toFixed(1)} KB · players of the week/month ${save.weekly.toFixed(1)} KB · games ${save.games.toFixed(1)} KB · players ${save.players.toFixed(1)} KB (${save.retired} retired)`,
@@ -229,9 +275,15 @@ for (let s = 0; s < seasons; s++) {
   const rostered = all.filter((p) => !p.retired && p.teamId !== null);
   const young = rostered.filter((p) => p.age < 26 && p.position !== 'K' && p.position !== 'P');
   const rate = avg(young.map((p) => coachingFor(league, p.teamId, p.position).rate));
-  const body = avg(rostered.filter((p) => p.age >= 28).map((p) => coachingFor(league, p.teamId, p.position).decline.physical));
-  const craft = avg(rostered.filter((p) => p.age >= 28).map((p) => coachingFor(league, p.teamId, p.position).decline.technical));
-  const byCoaching = [...league.teams].sort((a, b) => staffScore(teamCoaches(league, b.id)) - staffScore(teamCoaches(league, a.id))).map((t) => t.id);
+  const body = avg(
+    rostered.filter((p) => p.age >= 28).map((p) => coachingFor(league, p.teamId, p.position).decline.physical),
+  );
+  const craft = avg(
+    rostered.filter((p) => p.age >= 28).map((p) => coachingFor(league, p.teamId, p.position).decline.technical),
+  );
+  const byCoaching = [...league.teams]
+    .sort((a, b) => staffScore(teamCoaches(league, b.id)) - staffScore(teamCoaches(league, a.id)))
+    .map((t) => t.id);
   const before = new Map(young.map((p) => [p.id, { ovr: playerOvr(p), team: p.teamId! }]));
   beginOffseason(league);
   for (const [id, b] of before) {
@@ -250,13 +302,20 @@ for (let s = 0; s < seasons; s++) {
   const year = league.season;
   const k = snaps.regular!;
   // The log is capped, so count this offseason's moves by date rather than by position in it.
-  const moves = league.transactions.filter((m) => m.season === league.season && m.phase !== 'regular' && m.phase !== 'playoffs');
+  const moves = league.transactions.filter(
+    (m) => m.season === league.season && m.phase !== 'regular' && m.phase !== 'playoffs',
+  );
   const count = (kind: string) => moves.filter((m) => m.kind === kind).length;
   // Draft quality in true terms (the AI only sees its own reads): early picks, and best- vs worst-staffed teams.
-  const picks = league.draftPicks.filter((pk) => pk.season === league.season && pk.playerId !== undefined && pk.round <= 3);
+  const picks = league.draftPicks.filter(
+    (pk) => pk.season === league.season && pk.playerId !== undefined && pk.round <= 3,
+  );
   const worth = (id: number) => 0.6 * playerOvr(league.players[id]) + 0.4 * league.players[id].potential;
-  const byStaff = [...league.teams].sort((a, b) => departmentScore(league, a.id) - departmentScore(league, b.id)).map((t) => t.id);
-  const pickWorth = (ids: number[]) => avg(picks.filter((pk) => ids.includes(pk.ownerId)).map((pk) => worth(pk.playerId!)));
+  const byStaff = [...league.teams]
+    .sort((a, b) => departmentScore(league, a.id) - departmentScore(league, b.id))
+    .map((t) => t.id);
+  const pickWorth = (ids: number[]) =>
+    avg(picks.filter((pk) => ids.includes(pk.ownerId)).map((pk) => worth(pk.playerId!)));
   const r1 = avg(picks.filter((pk) => pk.round === 1).map((pk) => worth(pk.playerId!)));
   const r23 = avg(picks.filter((pk) => pk.round > 1).map((pk) => worth(pk.playerId!)));
   const reach = avg(picks.filter((pk) => pk.consRank !== undefined).map((pk) => Math.abs(pk.overall! - pk.consRank!)));
@@ -276,7 +335,13 @@ for (let s = 0; s < seasons; s++) {
   const roleMean = (role: string) => avg(coaches.filter((c) => c.role === role).map(coachValue));
   const roles = ROLES.map(roleMean);
   const pay = league.teams.map((t) => coachPayroll(league, t.id) / coachBudget(league, t.id));
-  const teamRate = league.teams.map((t) => avg(rostered.filter((p) => p.teamId === t.id && p.age < 26 && p.position !== 'K' && p.position !== 'P').map((p) => coachingFor(league, t.id, p.position).rate)));
+  const teamRate = league.teams.map((t) =>
+    avg(
+      rostered
+        .filter((p) => p.teamId === t.id && p.age < 26 && p.position !== 'K' && p.position !== 'P')
+        .map((p) => coachingFor(league, t.id, p.position).rate),
+    ),
+  );
   const filled = league.teams.map((t) => CHAIRS.filter((ch) => chairHolder(teamCoaches(league, t.id), ch)).length);
   const staffMoves = moves.filter((m) => m.kind === 'coach');
   const hcFired = staffMoves.filter((m) => /head coach .* after a/.test(m.text)).length;
@@ -298,7 +363,12 @@ for (let s = 0; s < seasons; s++) {
   }
   chairsBefore = chairsNow;
   const hcHired = changed.headCoach;
-  const turnover = { hc: changed.headCoach, oc: changed.offCoord, dc: changed.defCoord, pcShare: changed.positionCoach / (league.teams.length * CHAIRS.filter((ch) => ch.role === 'positionCoach').length) };
+  const turnover = {
+    hc: changed.headCoach,
+    oc: changed.offCoord,
+    dc: changed.defCoord,
+    pcShare: changed.positionCoach / (league.teams.length * CHAIRS.filter((ch) => ch.role === 'positionCoach').length),
+  };
   const exPlayers = coaches.filter((c: Coach) => c.playerId !== undefined);
   const promoted = staffMoves.filter((m) => / promoted /.test(m.text)).length;
   const poached = staffMoves.filter((m) => m.teamIds.length > 1).length;
@@ -343,8 +413,19 @@ for (let s = 0; s < seasons; s++) {
   console.log(
     `  checks ${year} roster: ${check('max', k.rosterMax, ROSTER_MAX, ROSTER_MAX, 0)} · ${check('min', k.rosterMin, KEEP_TOTAL, ROSTER_MAX, 0)} · under 53: ${k.short.length} · ${check('under 53 with cap room', withRoom.length, 0, 1, 0)} · ${check('position holes', k.holes, 0, 0, 0)} · ${check('below keep-min', k.belowKeep, 0, 0, 0)} · ${check('bad depth-chart spots', k.badDepth, 0, 0, 0)}`,
   );
-  if (k.rosterMin < 50) warn(ISSUE_SHORT_ROSTER, `${year}: ${k.short.filter((t) => t.size < 50).map((t) => `${t.abbrev} ${t.size} (${M(t.space)} room)`).join(', ')}`);
-  if (withRoom.length) warn(ISSUE_SHORT_WITH_ROOM, `${year}: ${withRoom.map((t) => `${t.abbrev} ${t.size} (${M(t.space)} room)`).join(', ')}`);
+  if (k.rosterMin < 50)
+    warn(
+      ISSUE_SHORT_ROSTER,
+      `${year}: ${k.short
+        .filter((t) => t.size < 50)
+        .map((t) => `${t.abbrev} ${t.size} (${M(t.space)} room)`)
+        .join(', ')}`,
+    );
+  if (withRoom.length)
+    warn(
+      ISSUE_SHORT_WITH_ROOM,
+      `${year}: ${withRoom.map((t) => `${t.abbrev} ${t.size} (${M(t.space)} room)`).join(', ')}`,
+    );
 
   // Cap space as a share of the cap (the cap grows ~8% a year). Median: 6.9, 5.7, 3.1, then 2.3, 2.1, 2.1% (nominal
   // $23.0M falling to $10.2M); steady state on all four seeds is 2.0-2.3%, so [1, 4] catches a drift to hoarding
@@ -379,7 +460,13 @@ for (let s = 0; s < seasons; s++) {
   // more traits; injury histories and the backups' stat lines), games 5.5-5.6 MB (box scores keep each injury's
   // estimate), players growth 584-653 a season, snapshot growth up to 916, 12194 at the end. Ceilings: first season
   // 6300, final 13500, snapshot growth 1100, players growth 800 (the same headroom over the observed as before).
-  const dSave = prevSave && { total: save.total - prevSave.total, players: save.players - prevSave.players, retired: save.retired - prevSave.retired, awards: save.awards - prevSave.awards, weekly: save.weekly - prevSave.weekly };
+  const dSave = prevSave && {
+    total: save.total - prevSave.total,
+    players: save.players - prevSave.players,
+    retired: save.retired - prevSave.retired,
+    awards: save.awards - prevSave.awards,
+    weekly: save.weekly - prevSave.weekly,
+  };
   console.log(
     `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? 6300 : 13500, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, 1100, 0)}` : ''} · ${check('games KB', save.games, 0, 6500, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800, 0)} · ${check('retired added', dSave.retired, 0, 320, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
@@ -431,10 +518,15 @@ for (let s = 0; s < seasons; s++) {
   rows.push({ year, k, growth: rate, body, craft, roles, staffVal, hcFired, coachOver, staffOver, turnover, hcFrom });
 }
 
-console.log(`young players' yearly OVR gain under the best-8 coaching staffs ${avg(gains.best).toFixed(3)} (n=${gains.best.length}) vs worst-8 ${avg(gains.worst).toFixed(3)} (n=${gains.worst.length})`);
+console.log(
+  `young players' yearly OVR gain under the best-8 coaching staffs ${avg(gains.best).toFixed(3)} (n=${gains.best.length}) vs worst-8 ${avg(gains.worst).toFixed(3)} (n=${gains.worst.length})`,
+);
 
 if (playerGrowth.some((g) => g > 100)) {
-  warn(ISSUE_SAVE_GROWTH, `players blob +${Math.min(...playerGrowth).toFixed(0)}–${Math.max(...playerGrowth).toFixed(0)} KB a season, ${prevSave!.retired} retired players kept after ${seasons} seasons`);
+  warn(
+    ISSUE_SAVE_GROWTH,
+    `players blob +${Math.min(...playerGrowth).toFixed(0)}–${Math.max(...playerGrowth).toFixed(0)} KB a season, ${prevSave!.retired} retired players kept after ${seasons} seasons`,
+  );
 }
 
 // ───────── Whole-run checks ─────────
@@ -447,7 +539,25 @@ console.log(`\ngains: ${check('best-8 minus worst-8 staffs', avg(gains.best) - a
 // departments over budget 0 (all seeds 0-1 a season). Head coaches fired: the carousel follows the NFL's, 7.0 new head
 // coaches a year over 2015-2025 (5-10, nearly all firings), so 5-6.5 a season here (observed 36-38 a run) against 3-9.
 console.log(
-  `run: ${carouselRun()} · ${check('teams over coaching budget', rows.reduce((a, r) => a + r.coachOver, 0), 0, perRun(10), 0)} · ${check('head coaches fired', rows.reduce((a, r) => a + r.hcFired, 0), 3 * seasons, 9 * seasons, 0)} · ${check('scouting departments over budget', rows.reduce((a, r) => a + r.staffOver, 0), 0, perRun(4), 0)}`,
+  `run: ${carouselRun()} · ${check(
+    'teams over coaching budget',
+    rows.reduce((a, r) => a + r.coachOver, 0),
+    0,
+    perRun(10),
+    0,
+  )} · ${check(
+    'head coaches fired',
+    rows.reduce((a, r) => a + r.hcFired, 0),
+    3 * seasons,
+    9 * seasons,
+    0,
+  )} · ${check(
+    'scouting departments over budget',
+    rows.reduce((a, r) => a + r.staffOver, 0),
+    0,
+    perRun(4),
+    0,
+  )}`,
 );
 
 /**
@@ -459,9 +569,27 @@ function carouselRun(): string {
   const per = (f: (r: Row) => number) => avg(rows.map(f));
   const hires = rows.reduce((a, r) => a + r.turnover.hc, 0) || 1;
   return [
-    check('new HCs/season', per((r) => r.turnover.hc), 4.5, 9.5, 1),
-    check('new OCs/season', per((r) => r.turnover.oc), 8.5, 16, 1),
-    check('new DCs/season', per((r) => r.turnover.dc), 8, 15, 1),
+    check(
+      'new HCs/season',
+      per((r) => r.turnover.hc),
+      4.5,
+      9.5,
+      1,
+    ),
+    check(
+      'new OCs/season',
+      per((r) => r.turnover.oc),
+      8.5,
+      16,
+      1,
+    ),
+    check(
+      'new DCs/season',
+      per((r) => r.turnover.dc),
+      8,
+      15,
+      1,
+    ),
     check('HC hires retreads %', (100 * rows.reduce((a, r) => a + r.hcFrom.retread, 0)) / hires, 10, 50, 0),
     check('…coordinators %', (100 * rows.reduce((a, r) => a + r.hcFrom.coordinator, 0)) / hires, 35, 85, 0),
   ].join(' · ');

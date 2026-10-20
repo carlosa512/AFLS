@@ -26,7 +26,9 @@ let misses = 0;
 const check = (label: string, value: number, [lo, hi]: [number, number], digits = 2) => {
   const ok = value >= lo && value <= hi;
   if (!ok) misses++;
-  console.log(`${label.padEnd(36)} ${value.toFixed(digits).padStart(8)}   ${lo}–${hi}${ok ? '' : value < lo ? '  ▼ LOW' : '  ▲ HIGH'}`);
+  console.log(
+    `${label.padEnd(36)} ${value.toFixed(digits).padStart(8)}   ${lo}–${hi}${ok ? '' : value < lo ? '  ▼ LOW' : '  ▲ HIGH'}`,
+  );
 };
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -66,9 +68,13 @@ for (let i = 0; i < LEAGUES; i++) {
   // One crew in two games of a week would mean the rotation broke.
   if (new Set(played.map((g) => `${g.week}:${g.result!.crewId}`)).size !== played.length) doubled++;
 
-  console.log(`League ${i + 1}: ${(flags / played.length).toFixed(2)} flags/g (${(neutral / neutralGames).toFixed(2)} with a league-average crew)`);
+  console.log(
+    `League ${i + 1}: ${(flags / played.length).toFixed(2)} flags/g (${(neutral / neutralGames).toFixed(2)} with a league-average crew)`,
+  );
   console.log(`  busiest  ${refName(busiest.crew).padEnd(16)} ${busiest.perGame.flags.toFixed(1)} flags/g`);
-  console.log(`  quietest ${refName(quietest.crew).padEnd(16)} ${quietest.perGame.flags.toFixed(1)} flags/g   ×${ratios[i].toFixed(2)}`);
+  console.log(
+    `  quietest ${refName(quietest.crew).padEnd(16)} ${quietest.perGame.flags.toFixed(1)} flags/g   ×${ratios[i].toFixed(2)}`,
+  );
   tendencyMeans(league).forEach((m, t) => check(`  mean ${TENDENCIES[t]}`, m, [10, 11]));
 }
 

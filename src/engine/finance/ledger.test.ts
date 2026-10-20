@@ -15,7 +15,9 @@ import { accelerateProration, capSheet, releasePlayer, releasePreview } from './
 import { buildContract, lastSeason, remainingProration, yearOf } from './contract';
 
 const deadFor = (l: League, teamId: number, playerId: number, season: number) =>
-  l.teams[teamId].deadMoney.filter((d) => d.playerId === playerId && d.season === season).reduce((s, d) => s + d.amount, 0);
+  l.teams[teamId].deadMoney
+    .filter((d) => d.playerId === playerId && d.season === season)
+    .reduce((s, d) => s + d.amount, 0);
 const toWeek = (l: League, week: number) => {
   while (l.week < week) playWeek(l);
 };
@@ -44,14 +46,29 @@ describe('salary paid mid-season', { timeout: 30_000 }, () => {
   it('salary is conserved across two trades: every team books exactly the weeks it paid', () => {
     const l = createLeague({ seed: 'ledger-trade' });
     const [a, b, c] = [3, 9, 20];
-    const p = teamPlayers(l, a).find((x) => x.contract!.kind === 'veteran' && yearOf(x.contract!, l.season)!.base > 3_000)!;
+    const p = teamPlayers(l, a).find(
+      (x) => x.contract!.kind === 'veteran' && yearOf(x.contract!, l.season)!.base > 3_000,
+    )!;
     const full = yearOf(p.contract!, l.season)!.base;
     toWeek(l, 4); // 3 weeks paid by A
-    executeTrade(l, { sides: [{ teamId: a, players: [p.id], picks: [] }, { teamId: b, players: [], picks: [] }] });
+    executeTrade(l, {
+      sides: [
+        { teamId: a, players: [p.id], picks: [] },
+        { teamId: b, players: [], picks: [] },
+      ],
+    });
     toWeek(l, 8); // 4 more weeks paid by B
-    executeTrade(l, { sides: [{ teamId: b, players: [p.id], picks: [] }, { teamId: c, players: [], picks: [] }] });
+    executeTrade(l, {
+      sides: [
+        { teamId: b, players: [p.id], picks: [] },
+        { teamId: c, players: [], picks: [] },
+      ],
+    });
     // Salary only: any bonus proration is booked separately as 'Traded'.
-    const salary = (team: number) => l.teams[team].deadMoney.filter((d) => d.playerId === p.id && d.note === 'Salary paid before trade').reduce((s, d) => s + d.amount, 0);
+    const salary = (team: number) =>
+      l.teams[team].deadMoney
+        .filter((d) => d.playerId === p.id && d.note === 'Salary paid before trade')
+        .reduce((s, d) => s + d.amount, 0);
     const byA = salary(a);
     const byB = salary(b);
     const byC = yearOf(p.contract!, l.season)!.base;
@@ -86,7 +103,10 @@ describe('bonus money when a deal ends', { timeout: 30_000 }, () => {
     const owed = new Map(
       Object.values(l.players)
         .filter((p) => p.teamId !== null && p.contract)
-        .map((p) => [p.id, { team: p.teamId!, amount: remainingProration(p.contract!, next), booked: deadFor(l, p.teamId!, p.id, next) }]),
+        .map((p) => [
+          p.id,
+          { team: p.teamId!, amount: remainingProration(p.contract!, next), booked: deadFor(l, p.teamId!, p.id, next) },
+        ]),
     );
     const deadBefore = l.teams.map((t) => t.deadMoney.length);
     beginOffseason(l);
@@ -101,7 +121,12 @@ describe('bonus money when a deal ends', { timeout: 30_000 }, () => {
     const l = createLeague({ seed: 'ledger-orphan' });
     const p = teamPlayers(l, 0)[0];
     // Two real years, bonus spread over five: three years of proration outlive the deal.
-    p.contract = buildContract({ years: 2, total: 20_000, signingBonus: 10_000, guaranteedBase: 0, voidYears: 0 }, l.season, 'veteran', 900);
+    p.contract = buildContract(
+      { years: 2, total: 20_000, signingBonus: 10_000, guaranteedBase: 0, voidYears: 0 },
+      l.season,
+      'veteran',
+      900,
+    );
     p.contract.bonuses[0].years = 5;
     l.season += 2; // the deal has run out
     const owed = remainingProration(p.contract, l.season);
@@ -131,7 +156,10 @@ describe('franchise tags', { timeout: 30_000 }, () => {
     const l = offseason();
     const p = expiringPlayers(l, l.userTeamId)[0];
     // Give the expired deal a big void-year bonus that will accelerate on tagging.
-    p.contract!.years.push({ season: l.season, base: 0, guaranteed: 0, void: true }, { season: l.season + 1, base: 0, guaranteed: 0, void: true });
+    p.contract!.years.push(
+      { season: l.season, base: 0, guaranteed: 0, void: true },
+      { season: l.season + 1, base: 0, guaranteed: 0, void: true },
+    );
     p.contract!.bonuses.push({ amount: 300_000, start: l.season, years: 2, source: 'signing' });
     expect(tagBlocker(l, p)).toMatch(/cap room/);
   });
@@ -156,7 +184,14 @@ describe('determinism', { timeout: 30_000 }, () => {
     advanceOffseason(l); // free agency day 1
     // The user signs three free agents (the UI reads contender scores while doing so).
     const fas = freeAgents(l).slice(5, 8);
-    for (const p of fas) makeOffer(l, p, l.userTeamId, { years: 2, apy: Math.round((p.contract?.apy ?? 3_000) * 3), bonusPct: 0.2, gtdPct: 0.4, voidYears: 0 });
+    for (const p of fas)
+      makeOffer(l, p, l.userTeamId, {
+        years: 2,
+        apy: Math.round((p.contract?.apy ?? 3_000) * 3),
+        bonusPct: 0.2,
+        gtdPct: 0.4,
+        voidYears: 0,
+      });
     const reloaded: League = JSON.parse(JSON.stringify(l));
     advanceOffseason(l);
     advanceOffseason(reloaded);

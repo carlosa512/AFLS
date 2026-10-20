@@ -37,7 +37,11 @@ describe('routes', () => {
   });
 
   it('send a game opened from a link back to the schedule', () => {
-    expect(hashToRoute(routeToHash({ view: 'game', gameId: 42, back: { view: 'home' } }))).toEqual({ view: 'game', gameId: 42, back: { view: 'schedule' } });
+    expect(hashToRoute(routeToHash({ view: 'game', gameId: 42, back: { view: 'home' } }))).toEqual({
+      view: 'game',
+      gameId: 42,
+      back: { view: 'schedule' },
+    });
   });
 
   it('send the old Leaders address to the Stats tab', () => {
@@ -46,7 +50,16 @@ describe('routes', () => {
 
   it('reject anything unrecognised', () => {
     expect(hashToRoute('')).toEqual({ view: 'home' });
-    for (const bad of ['#/nope', '#/office/payroll', '#/stats/trophies', '#/roster/abc', '#/game/', '#/roster/-1', '#/inbox/%E0%A4%A']) expect(hashToRoute(bad)).toBeNull();
+    for (const bad of [
+      '#/nope',
+      '#/office/payroll',
+      '#/stats/trophies',
+      '#/roster/abc',
+      '#/game/',
+      '#/roster/-1',
+      '#/inbox/%E0%A4%A',
+    ])
+      expect(hashToRoute(bad)).toBeNull();
   });
 });
 
@@ -62,7 +75,9 @@ describe('backups', () => {
   it('turn away other files and newer versions', () => {
     expect(parseBackup('not json')).toHaveProperty('error');
     expect(parseBackup('{"hello":1}')).toHaveProperty('error');
-    expect(parseBackup(JSON.stringify({ ...league, version: SAVE_VERSION + 1 }))).toMatchObject({ error: expect.stringContaining('newer') });
+    expect(parseBackup(JSON.stringify({ ...league, version: SAVE_VERSION + 1 }))).toMatchObject({
+      error: expect.stringContaining('newer'),
+    });
   });
 });
 
@@ -85,12 +100,21 @@ describe('transaction links', () => {
     ['CB Joe Bloggs', { kind: 'player', id: 2 }],
     ['Sam Lee', null],
   ]);
-  const linked = (text: string) => moveSegments(text, [index]).map((s) => (typeof s === 'string' ? s : `[${s.who.kind}:${s.who.id}]`)).join('');
+  const linked = (text: string) =>
+    moveSegments(text, [index])
+      .map((s) => (typeof s === 'string' ? s : `[${s.who.kind}:${s.who.id}]`))
+      .join('');
 
   it('links every name, the longest where they overlap', () => {
-    expect(linked('CIN traded WR John Smith, CB Joe Bloggs to PIT for 2027 R1')).toBe('CIN traded [player:1], [player:2] to PIT for 2027 R1');
-    expect(linked('CIN hired quarterbacks coach John Smith (2 yrs)')).toBe('CIN hired quarterbacks coach [coach:7] (2 yrs)');
-    expect(linked("CIN exercised WR John Smith's fifth-year option")).toBe("CIN exercised [player:1]'s fifth-year option");
+    expect(linked('CIN traded WR John Smith, CB Joe Bloggs to PIT for 2027 R1')).toBe(
+      'CIN traded [player:1], [player:2] to PIT for 2027 R1',
+    );
+    expect(linked('CIN hired quarterbacks coach John Smith (2 yrs)')).toBe(
+      'CIN hired quarterbacks coach [coach:7] (2 yrs)',
+    );
+    expect(linked("CIN exercised WR John Smith's fifth-year option")).toBe(
+      "CIN exercised [player:1]'s fifth-year option",
+    );
   });
 
   it('leaves partial and shared names alone', () => {
@@ -107,7 +131,11 @@ describe('score strip', () => {
   it('shows the week ahead with our game first, and no game of the week before anyone has a record', () => {
     expect(resultsWeek(league)).toBeNull();
     const games = stripGames(league, 1);
-    expect(games.map((x) => x.game.id).sort()).toEqual(gamesInWeek(league, 1).map((g) => g.id).sort());
+    expect(games.map((x) => x.game.id).sort()).toEqual(
+      gamesInWeek(league, 1)
+        .map((g) => g.id)
+        .sort(),
+    );
     expect(ours(games[0].game)).toBe(true);
     expect(games[0].tag).toBe('Your game');
     expect(games.some((x) => x.gameOfWeek)).toBe(false);
@@ -131,7 +159,8 @@ describe('score strip', () => {
     expect(games.findIndex((x) => x.gameOfWeek)).toBe(games.some((x) => ours(x.game)) ? 1 : 0);
     expect(games.length * 2 + byeTeams(league, league.week).length).toBe(league.teams.length);
     expect(resultsWeek(league)).toBe(league.week - 1);
-    for (const x of stripGames(league, league.week - 1, records)) expect(x.tag).toMatch(ours(x.game) ? /^Your game · Final/ : /^Final/);
+    for (const x of stripGames(league, league.week - 1, records))
+      expect(x.tag).toMatch(ours(x.game) ? /^Your game · Final/ : /^Final/);
   }, 30_000);
 });
 
@@ -145,7 +174,7 @@ describe('home widgets', () => {
     }
   }, 30_000);
 
-  it('lists the hurt longest layoff first by the doctor\'s estimate, in a pill\'s words', () => {
+  it("lists the hurt longest layoff first by the doctor's estimate, in a pill's words", () => {
     const hurt = league.teams.flatMap((t) => hurtList(league, t.id));
     expect(hurt.length).toBeGreaterThan(0);
     for (const t of league.teams) {
@@ -153,7 +182,10 @@ describe('home widgets', () => {
       const est = list.map((p) => (p.injury ? p.injury.estimate[1] : -1));
       expect(est).toEqual([...est].sort((a, b) => b - a));
     }
-    for (const p of hurt) expect(outlookPill(league, p)).toMatch(/^(IR · (season|ready|protocol|\d+(–\d+)? wk)|Out (for season|\d+(–\d+)? wk)|Playing hurt|Protocol)$/);
+    for (const p of hurt)
+      expect(outlookPill(league, p)).toMatch(
+        /^(IR · (season|ready|protocol|\d+(–\d+)? wk)|Out (for season|\d+(–\d+)? wk)|Playing hurt|Protocol)$/,
+      );
     for (const p of wornDown(league, league.userTeamId)) expect(p.injury || p.ir).toBeFalsy();
   });
 
@@ -161,7 +193,9 @@ describe('home widgets', () => {
     const user = league.userTeamId;
     const g = league.games.filter((x) => x.result && (x.homeId === user || x.awayId === user)).at(-1)!;
     const story = gameStory(g, user);
-    expect(story).toMatch(/^(Led|Trailed|Tied) \d+–\d+ at the half; (won|lost) the second half \d+–\d+|^(Led|Trailed|Tied) \d+–\d+ at the half; played the second half even/);
+    expect(story).toMatch(
+      /^(Led|Trailed|Tied) \d+–\d+ at the half; (won|lost) the second half \d+–\d+|^(Led|Trailed|Tied) \d+–\d+ at the half; played the second half even/,
+    );
     // The halves add up to the final score (before overtime).
     const nums = story.match(/\d+/g)!.map(Number);
     const r = g.result!;
@@ -184,7 +218,9 @@ describe('home widgets', () => {
     expect(teamStatSeasons(league)).toEqual([league.season]);
     const stats = teamSeasonStats(league);
     for (const col of TEAM_COLS) {
-      const ranked = league.teams.map((t) => ({ v: col.value(stats.get(t.id)!), rank: teamRank(stats, col, t.id) })).sort((a, b) => a.rank - b.rank);
+      const ranked = league.teams
+        .map((t) => ({ v: col.value(stats.get(t.id)!), rank: teamRank(stats, col, t.id) }))
+        .sort((a, b) => a.rank - b.rank);
       expect(ranked[0].rank).toBe(1);
       for (let i = 1; i < ranked.length; i++) {
         const [a, b] = [ranked[i - 1], ranked[i]];
@@ -199,8 +235,11 @@ describe('home widgets', () => {
     const index = nameIndex(league);
     const players = Object.values(league.players);
     const unique = players.find((p) => index.get(`${p.firstName} ${p.lastName}`)?.id === p.id)!;
-    const links = (text: string, about = [] as { kind: 'player'; id: number }[]) => linkedSegments(league, text, about, index).filter((x) => typeof x !== 'string');
-    expect(links(`${unique.firstName} ${unique.lastName}'s contract is up`)).toEqual([{ text: `${unique.firstName} ${unique.lastName}`, who: { kind: 'player', id: unique.id } }]);
+    const links = (text: string, about = [] as { kind: 'player'; id: number }[]) =>
+      linkedSegments(league, text, about, index).filter((x) => typeof x !== 'string');
+    expect(links(`${unique.firstName} ${unique.lastName}'s contract is up`)).toEqual([
+      { text: `${unique.firstName} ${unique.lastName}`, who: { kind: 'player', id: unique.id } },
+    ]);
     expect(links(`Starting with ${unique.position} ${unique.firstName} ${unique.lastName} at No. 3.`)).toHaveLength(1);
     // A shared name stays plain, unless it's the message's own player.
     const twin = { ...unique, id: -1 };
@@ -208,8 +247,19 @@ describe('home widgets', () => {
     const shared = nameIndex(league);
     delete league.players[-1];
     expect(shared.get(`${unique.firstName} ${unique.lastName}`)).toBeNull();
-    expect(linkedSegments(league, `${unique.firstName} ${unique.lastName} is hurt`, [], shared).filter((x) => typeof x !== 'string')).toHaveLength(0);
-    expect(linkedSegments(league, `${unique.firstName} ${unique.lastName} is hurt`, [{ kind: 'player', id: unique.id }], shared).filter((x) => typeof x !== 'string')).toHaveLength(1);
+    expect(
+      linkedSegments(league, `${unique.firstName} ${unique.lastName} is hurt`, [], shared).filter(
+        (x) => typeof x !== 'string',
+      ),
+    ).toHaveLength(0);
+    expect(
+      linkedSegments(
+        league,
+        `${unique.firstName} ${unique.lastName} is hurt`,
+        [{ kind: 'player', id: unique.id }],
+        shared,
+      ).filter((x) => typeof x !== 'string'),
+    ).toHaveLength(1);
   });
 
   it('puts what needs you first, then the unread, newest first', () => {
@@ -218,7 +268,8 @@ describe('home widgets', () => {
     const needy = (t: (typeof rows)[number]) => t.messages.some((m) => needs.has(m.id));
     const firstOther = rows.findIndex((t) => !needy(t));
     if (firstOther >= 0) for (const t of rows.slice(firstOther)) expect(needy(t)).toBe(false);
-    for (const m of rows.flatMap((t) => t.messages)) expect(needs.has(m.id) === needsYou(league, m) && (needs.has(m.id) || !m.read)).toBe(true);
+    for (const m of rows.flatMap((t) => t.messages))
+      expect(needs.has(m.id) === needsYou(league, m) && (needs.has(m.id) || !m.read)).toBe(true);
     const order = league.inbox!.map((m) => m.id);
     const unread = rows.filter((t) => !needy(t)).map((t) => order.indexOf(t.messages[0].id));
     expect(unread).toEqual([...unread].sort((a, b) => b - a));

@@ -16,7 +16,16 @@ import type { Heritage } from './names';
 /** Relative weights over the heritage pools (they needn't sum to 100). */
 export type Mix = Readonly<Record<Heritage, number>>;
 
-const mix = (white: number, black: number, hispanic: number, pacific: number, asian: number, native: number, african: number, international: number): Mix => ({
+const mix = (
+  white: number,
+  black: number,
+  hispanic: number,
+  pacific: number,
+  asian: number,
+  native: number,
+  african: number,
+  international: number,
+): Mix => ({
   white,
   black,
   hispanic,

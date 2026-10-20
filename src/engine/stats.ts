@@ -60,7 +60,13 @@ export interface LeaderCategory {
 export const LEADER_CATEGORIES: LeaderCategory[] = [
   { key: 'passYds', label: 'Passing yards', stat: (s) => s.passYds ?? 0 },
   { key: 'passTd', label: 'Passing TD', stat: (s) => s.passTd ?? 0 },
-  { key: 'rating', label: 'Passer rating', stat: passerRating, format: (v) => v.toFixed(1), qualifies: (s) => (s.passAtt ?? 0) >= 14 * (s.gp ?? 0) && (s.passAtt ?? 0) > 0 },
+  {
+    key: 'rating',
+    label: 'Passer rating',
+    stat: passerRating,
+    format: (v) => v.toFixed(1),
+    qualifies: (s) => (s.passAtt ?? 0) >= 14 * (s.gp ?? 0) && (s.passAtt ?? 0) > 0,
+  },
   { key: 'rushYds', label: 'Rushing yards', stat: (s) => s.rushYds ?? 0 },
   { key: 'rushTd', label: 'Rushing TD', stat: (s) => s.rushTd ?? 0 },
   { key: 'recYds', label: 'Receiving yards', stat: (s) => s.recYds ?? 0 },
@@ -73,7 +79,12 @@ export const LEADER_CATEGORIES: LeaderCategory[] = [
   { key: 'fgMade', label: 'Field goals', stat: (s) => s.fgMade ?? 0 },
 ];
 
-export function leaders(league: League, category: LeaderCategory, limit = 10, scope: StatScope = league.season): LeaderRow[] {
+export function leaders(
+  league: League,
+  category: LeaderCategory,
+  limit = 10,
+  scope: StatScope = league.season,
+): LeaderRow[] {
   const rows: LeaderRow[] = [];
   for (const player of Object.values(league.players)) {
     const line = statLine(player, scope);

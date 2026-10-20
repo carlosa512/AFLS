@@ -35,7 +35,8 @@ describe('perceived ratings', () => {
     const p = mine[0];
     const v = perceive(league, league.userTeamId, p);
     expect(v.exact).toBe(true);
-    for (const a of ATTRIBUTES) expect(v.ratings[a]).toEqual({ value: p.ratings[a], lo: p.ratings[a], hi: p.ratings[a] });
+    for (const a of ATTRIBUTES)
+      expect(v.ratings[a]).toEqual({ value: p.ratings[a], lo: p.ratings[a], hi: p.ratings[a] });
     expect(v.ovr).toBeCloseTo(playerOvr(p), 6);
     const rookie = theirs.find((x) => x.experience === 0)!;
     expect(perceive(league, league.userTeamId, rookie).exact).toBe(false);
@@ -48,7 +49,8 @@ describe('perceived ratings', () => {
     expect(perceive(league, league.userTeamId, p)).toEqual(perceive(league, league.userTeamId, p));
     expect(league.rngState).toEqual(before);
     // Another front office sees him differently.
-    const other = (league.userTeamId + 1) % 32 === p.teamId ? (league.userTeamId + 2) % 32 : (league.userTeamId + 1) % 32;
+    const other =
+      (league.userTeamId + 1) % 32 === p.teamId ? (league.userTeamId + 2) % 32 : (league.userTeamId + 1) % 32;
     expect(perceive(league, other, p).ratings).not.toEqual(perceive(league, league.userTeamId, p).ratings);
   });
 
@@ -81,8 +83,13 @@ describe('perceived ratings', () => {
     // Each full level is roughly an eighth of the league; the extremes about a sixteenth.
     expect((counts.get(4) ?? 0) / theirs.length).toBeLessThan(0.12);
     expect((counts.get(2) ?? 0) / theirs.length).toBeGreaterThan(0.06);
-    const starter = mine.reduce((a, b) => (playerOvr(b) > playerOvr(a) && b.position === 'QB' ? b : a), mine.find((p) => p.position === 'QB')!);
-    expect(starRating(league, league.userTeamId, starter, perceive(league, league.userTeamId, starter), 'roster').basis).toMatch(/your starting QB/);
+    const starter = mine.reduce(
+      (a, b) => (playerOvr(b) > playerOvr(a) && b.position === 'QB' ? b : a),
+      mine.find((p) => p.position === 'QB')!,
+    );
+    expect(
+      starRating(league, league.userTeamId, starter, perceive(league, league.userTeamId, starter), 'roster').basis,
+    ).toMatch(/your starting QB/);
   });
 
   it('writes a short plain-language report: a verdict, his game, then the rest', () => {
@@ -101,8 +108,13 @@ describe('perceived ratings', () => {
       expect(r.game.length).toBeGreaterThanOrEqual(1);
       expect(r.game.length).toBeLessThanOrEqual(3);
       // The third sentence, when there is one, is last season's line against the league's starters.
-      if (r.game[2]) expect(r.game[2]).toMatch(/^(Last season he .*, (well above|above|below|well below) a league-average (starter|kicker|punter)|A rotation player last season \(|He barely saw the field last season, but he has|Nothing unusual in his line last season, but he has|He has (taken a real step|come on a little|slipped noticeably|slipped a little) since last season)/);
-      expect(r.game[0]).toMatch(/^(His |[A-Z][a-z-]+( [a-z-]+)* (is|are) his strongest suit|Nothing in his game|Nothing jumps out|A balanced set)/);
+      if (r.game[2])
+        expect(r.game[2]).toMatch(
+          /^(Last season he .*, (well above|above|below|well below) a league-average (starter|kicker|punter)|A rotation player last season \(|He barely saw the field last season, but he has|Nothing unusual in his line last season, but he has|He has (taken a real step|come on a little|slipped noticeably|slipped a little) since last season)/,
+        );
+      expect(r.game[0]).toMatch(
+        /^(His |[A-Z][a-z-]+( [a-z-]+)* (is|are) his strongest suit|Nothing in his game|Nothing jumps out|A balanced set)/,
+      );
       expect(r.game[0]).not.toMatch(/\b(hands|instincts) is\b/);
       // The scouts never list every habit: at most two sentences on them.
       expect(r.notes.filter((n) => /^(On film|Lately|Starting to show)/.test(n)).length).toBeLessThanOrEqual(2);
@@ -114,22 +126,36 @@ describe('perceived ratings', () => {
     const own = scoutReportParts(league, me, mine.find((p) => p.age >= 27)!);
     // Our own veteran: nothing to hedge, so no word on how sure we are.
     expect(own.notes.some((n) => /film|provisional|scouts’ best guess/.test(n))).toBe(false);
-    const prospect = theirs.find((p) => p.age <= 23 && scoutReportParts(league, me, p).verdict.includes('with the upside of'))!;
+    const prospect = theirs.find(
+      (p) => p.age <= 23 && scoutReportParts(league, me, p).verdict.includes('with the upside of'),
+    )!;
     const young = scoutReportParts(league, me, prospect);
-    expect(young.game[1]).toMatch(/^(With reps he could grow into|Given snaps he could become|There is .* in him if he develops)/);
+    expect(young.game[1]).toMatch(
+      /^(With reps he could grow into|Given snaps he could become|There is .* in him if he develops)/,
+    );
     const old = theirs.find((p) => p.age >= 34 && !['QB', 'K', 'P'].includes(p.position))!;
     const vet = scoutReportParts(league, me, old);
-    expect(vet.verdict).toMatch(/on the downslope|past his best|in decline|nearing the end of his best years|a year or two of his prime left|whose value now rests on|living on|in his prime|in his best years/);
+    expect(vet.verdict).toMatch(
+      /on the downslope|past his best|in decline|nearing the end of his best years|a year or two of his prime left|whose value now rests on|living on|in his prime|in his best years/,
+    );
     // At 34 or more the clock is always worth a sentence: past his prime, or fading, or in its last year.
-    expect(vet.game[1]).toMatch(/expect him to lose|decline is under way|takes something|should hold|last year of his prime/);
+    expect(vet.game[1]).toMatch(
+      /expect him to lose|decline is under way|takes something|should hold|last year of his prime/,
+    );
     // A player we have barely seen: the verdict itself is hedged, and the report says what would help.
-    const unknown = theirs.find((p) => p.experience === 0 && scoutReportParts(league, me, p).verdict.startsWith('On limited looks'))!;
+    const unknown = theirs.find(
+      (p) => p.experience === 0 && scoutReportParts(league, me, p).verdict.startsWith('On limited looks'),
+    )!;
     expect(unknown).toBeDefined();
     const rough = scoutReportParts(league, me, unknown);
     expect(rough.verdict).toMatch(/^On limited looks, an? /);
-    expect(rough.notes.find((n) => n.startsWith('Our read'))).toBe(`Our read is still provisional: more film${league.scoutPoints > 0 ? ' or a scouting visit' : ''} would narrow these grades.`);
+    expect(rough.notes.find((n) => n.startsWith('Our read'))).toBe(
+      `Our read is still provisional: more film${league.scoutPoints > 0 ? ' or a scouting visit' : ''} would narrow these grades.`,
+    );
     // A well-known veteran on another team: a plain verdict and a reliable read.
-    const known = theirs.find((p) => p.experience >= 8 && (perceive(league, me, p).ovrHi - perceive(league, me, p).ovrLo) / 2 <= 0.5)!;
+    const known = theirs.find(
+      (p) => p.experience >= 8 && (perceive(league, me, p).ovrHi - perceive(league, me, p).ovrLo) / 2 <= 0.5,
+    )!;
     const clear = scoutReportParts(league, me, known);
     expect(clear.verdict).not.toMatch(/^On limited looks/);
     expect(clear.notes).toContain('Plenty of film on him: this read is reliable.');
@@ -142,8 +168,13 @@ describe('scouting visits', () => {
     simToEndOfSeason(league);
     beginOffseason(league);
     expect(league.scoutPoints).toBe(SCOUT_POINTS_PER_YEAR);
-    const prospects = league.draftClass.map((id) => league.players[id]).filter(isProspect).slice(0, 25);
-    const error = () => prospects.reduce((s, p) => s + Math.abs(perceive(league, league.userTeamId, p).ovr - playerOvr(p)), 0) / prospects.length;
+    const prospects = league.draftClass
+      .map((id) => league.players[id])
+      .filter(isProspect)
+      .slice(0, 25);
+    const error = () =>
+      prospects.reduce((s, p) => s + Math.abs(perceive(league, league.userTeamId, p).ovr - playerOvr(p)), 0) /
+      prospects.length;
     const before = error();
     const w0 = width(league, prospects[0]);
     for (const p of prospects.slice(0, 10)) for (let i = 0; i < 3; i++) scoutPlayer(league, p.id);
@@ -228,19 +259,27 @@ describe('last season in the report', () => {
       expect(s.snaps ?? 0).toBeLessThanOrEqual(80 * s.gp!);
     }
     // A team's quarterback takes nearly every offensive snap; its third quarterback next to none.
-    const qbs = played.filter((p) => p.teamId === me && p.position === 'QB').sort((a, b) => (b.stats[last].snaps ?? 0) - (a.stats[last].snaps ?? 0));
+    const qbs = played
+      .filter((p) => p.teamId === me && p.position === 'QB')
+      .sort((a, b) => (b.stats[last].snaps ?? 0) - (a.stats[last].snaps ?? 0));
     expect(qbs[0].stats[last].snaps!).toBeGreaterThan(40 * qbs[0].stats[last].gp!);
     expect(seasonRole(league, qbs[0])!.role).toBe('starter');
-    const third = Object.values(league.players).find((p) => p.teamId === me && p.position === 'QB' && (p.stats[last]?.snaps ?? 0) < 0.2 * qbs[0].stats[last].snaps!);
+    const third = Object.values(league.players).find(
+      (p) => p.teamId === me && p.position === 'QB' && (p.stats[last]?.snaps ?? 0) < 0.2 * qbs[0].stats[last].snaps!,
+    );
     if (third?.stats[last]?.gp) expect(seasonRole(league, third)!.role).toBe('backup');
   });
 
   it('says only what a contract decision needs: a line that stood out, a rotation role, growth off the bench', () => {
-    const qb = played.filter((p) => p.position === 'QB' && seasonRole(league, p)?.role === 'starter').sort((a, b) => playerOvr(b) - playerOvr(a))[0];
+    const qb = played
+      .filter((p) => p.position === 'QB' && seasonRole(league, p)?.role === 'starter')
+      .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
     const s = qb.stats[last];
     // A line nobody could call ordinary.
     Object.assign(s, { passAtt: 17 * 35, passCmp: 17 * 25, passYds: 5200, passTd: 45, passInt: 4 });
-    expect(seasonNote(league, qb)).toBe(`Last season he threw for 5,200 yards, 45 touchdowns and 4 picks in ${s.gp} games, well above a league-average starter.`);
+    expect(seasonNote(league, qb)).toBe(
+      `Last season he threw for 5,200 yards, 45 touchdowns and 4 picks in ${s.gp} games, well above a league-average starter.`,
+    );
     // An ordinary one says nothing, unless he has grown since.
     const lb = played.filter((p) => p.position === 'LB' && seasonRole(league, p)?.role === 'starter')[0];
     const note = seasonNote(league, lb);
@@ -253,7 +292,9 @@ describe('last season in the report', () => {
     lb.stats[last].snaps = Math.round(0.4 * refSnaps);
     delete lb.ratingHistory![last];
     expect(seasonRole(league, lb)!.role).toBe('rotation');
-    expect(seasonNote(league, lb)).toMatch(/^A rotation player last season \(made \d+ tackles, \d+ of them for loss\)(, at a starter's rate)?\.$/);
+    expect(seasonNote(league, lb)).toMatch(
+      /^A rotation player last season \(made \d+ tackles, \d+ of them for loss\)(, at a starter's rate)?\.$/,
+    );
     // A backup who barely played: nothing to say, unless he has come on.
     lb.stats[last].snaps = Math.round(0.1 * refSnaps);
     expect(seasonRole(league, lb)!.role).toBe('backup');

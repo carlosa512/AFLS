@@ -14,7 +14,12 @@ import type { League, StatLine } from './types';
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
 /** Every coordinator of a side runs `scheme` (a fresh copy, so the coaching index is rebuilt). */
-function withSchemes(base: League, offense: CoachScheme['offense'], front?: CoachScheme['front'], coverage?: CoachScheme['coverage']): League {
+function withSchemes(
+  base: League,
+  offense: CoachScheme['offense'],
+  front?: CoachScheme['front'],
+  coverage?: CoachScheme['coverage'],
+): League {
   const l = copy(base);
   for (const c of Object.values(l.coaches)) {
     if (c.role === 'offCoord' && offense) c.scheme = { offense };
@@ -76,7 +81,18 @@ describe('schemes', () => {
   });
 
   it('calls more blitzes in a fire zone and throws deeper in Air Coryell', () => {
-    const s: Situation = { quarter: 1, clock: 600, down: 3, distance: 8, yardLine: 40, scoreDiff: 0, offTimeouts: 3, defTimeouts: 3, overtime: false, fgMakeProb: 0.5 };
+    const s: Situation = {
+      quarter: 1,
+      clock: 600,
+      down: 3,
+      distance: 8,
+      yardLine: 40,
+      scoreDiff: 0,
+      offTimeouts: 3,
+      defTimeouts: 3,
+      overtime: false,
+      fgMakeProb: 0.5,
+    };
     const count = (blitz: number) => {
       const rng = new Rng('blitz');
       let n = 0;
@@ -96,7 +112,8 @@ describe('schemes', () => {
   it('puts the ball where the personnel is: two tight ends in Power, four wide in Air Raid', () => {
     const power = season(withSchemes(league, 'power'));
     const raid = season(withSchemes(league, 'airRaid'));
-    const teShare = (r: ReturnType<typeof season>) => r.byPos['TE:targets'] / (r.byPos['TE:targets'] + r.byPos['WR:targets']);
+    const teShare = (r: ReturnType<typeof season>) =>
+      r.byPos['TE:targets'] / (r.byPos['TE:targets'] + r.byPos['WR:targets']);
     expect(teShare(power)).toBeGreaterThan(teShare(raid) + 0.15);
   }, 60_000);
 

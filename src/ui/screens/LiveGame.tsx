@@ -75,7 +75,9 @@ export function LiveGame({ league }: { league: League }) {
             <div key={t.id} className="vb-team" style={{ background: t.colors[0] }}>
               <span className="vb-name">
                 {t.abbrev}
-                {!s.finished && entry.offense === t.id && entry.down ? <span className="vb-poss" aria-label="has the ball" /> : null}
+                {!s.finished && entry.offense === t.id && entry.down ? (
+                  <span className="vb-poss" aria-label="has the ball" />
+                ) : null}
               </span>
               <span className="vb-score">{t.id === home.id ? entry.homeScore : entry.awayScore}</span>
             </div>
@@ -95,7 +97,15 @@ export function LiveGame({ league }: { league: League }) {
           </div>
         </div>
 
-        <Field home={home} away={away} entry={entry} restX={restingSpot(s.plays, s.current, home.id)} animKey={`live:${s.gameId}:${s.current}`} speed={s.speed} onDone={onDone} />
+        <Field
+          home={home}
+          away={away}
+          entry={entry}
+          restX={restingSpot(s.plays, s.current, home.id)}
+          animKey={`live:${s.gameId}:${s.current}`}
+          speed={s.speed}
+          onDone={onDone}
+        />
 
         <div className="viewer-sit">
           <span className="num">{situation(entry, home, away) || ' '}</span>
@@ -107,7 +117,11 @@ export function LiveGame({ league }: { league: League }) {
             <button className="vc-btn vc-play" onClick={togglePlay} aria-label={s.playing ? 'Pause' : 'Play'}>
               {s.playing ? '❚❚' : '▶'}
             </button>
-            <button className="vc-speed" onClick={() => live.update({ speed: SPEEDS[(SPEEDS.indexOf(s.speed) + 1) % SPEEDS.length] })} aria-label="Playback speed">
+            <button
+              className="vc-speed"
+              onClick={() => live.update({ speed: SPEEDS[(SPEEDS.indexOf(s.speed) + 1) % SPEEDS.length] })}
+              aria-label="Playback speed"
+            >
               {s.speed}×
             </button>
             <span className="live-label">Live</span>
@@ -122,10 +136,15 @@ export function LiveGame({ league }: { league: League }) {
         <section className="panel live-final">
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <span className="row">
-              <span className={`res-${verdict}`} style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--step-3)', lineHeight: 1 }}>
+              <span
+                className={`res-${verdict}`}
+                style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--step-3)', lineHeight: 1 }}
+              >
                 {verdict}
               </span>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--step-3)', fontWeight: 800, lineHeight: 1 }}>
+              <span
+                style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--step-3)', fontWeight: 800, lineHeight: 1 }}
+              >
                 {us}–{them}
               </span>
             </span>
@@ -152,7 +171,10 @@ export function LiveGame({ league }: { league: League }) {
           {recent.map((p, i) => {
             const team = p.offense === home.id ? home : away;
             return (
-              <div key={s.current - i} className={`play-card${i === 0 ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}>
+              <div
+                key={s.current - i}
+                className={`play-card${i === 0 ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
+              >
                 <span className="pc-meta">
                   <TeamChip team={team} />
                   <span className="num muted">

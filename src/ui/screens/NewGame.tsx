@@ -28,13 +28,16 @@ export function NewGame() {
     <>
       <main className="wrap" style={{ paddingBlock: '8px 32px', display: 'grid', gap: 24 }}>
         <div className="title-block">
-          <span className="eyebrow">{preview.name} · {preview.season} season</span>
+          <span className="eyebrow">
+            {preview.name} · {preview.season} season
+          </span>
           <h1>
             Take over a <em>franchise.</em>
           </h1>
           <p>
-            Pick one of 32 teams. You set the depth chart and watch every snap play out from the ratings of real matchups: blockers against
-            rushers, receivers against their corner. Ratings use a 1–20 scale, where 10 is a solid backup and 16+ is a star.
+            Pick one of 32 teams. You set the depth chart and watch every snap play out from the ratings of real
+            matchups: blockers against rushers, receivers against their corner. Ratings use a 1–20 scale, where 10 is a
+            solid backup and 16+ is a star.
           </p>
         </div>
 
@@ -47,7 +50,12 @@ export function NewGame() {
                 .map((team) => {
                   const r = ratings.get(team.id)!;
                   return (
-                    <button key={team.id} className="team-option" aria-pressed={picked === team.id} onClick={() => setPicked(team.id)}>
+                    <button
+                      key={team.id}
+                      className="team-option"
+                      aria-pressed={picked === team.id}
+                      onClick={() => setPicked(team.id)}
+                    >
                       <TeamChip team={team} />
                       <span className="nm">
                         {team.city} {team.name}
@@ -69,7 +77,11 @@ export function NewGame() {
           <span className={pickedTeam ? '' : 'muted'}>
             {pickedTeam ? (
               <>
-                You'll run the <strong>{pickedTeam.city} {pickedTeam.name}</strong>.
+                You'll run the{' '}
+                <strong>
+                  {pickedTeam.city} {pickedTeam.name}
+                </strong>
+                .
               </>
             ) : (
               'Choose a team to start your career.'

@@ -24,7 +24,15 @@ export function winnerOf(game: Game): number | null {
 }
 
 function makeGame(league: League, round: PlayoffRound, homeId: number, awayId: number, neutral = false): Game {
-  return { id: league.nextGameId++, season: league.season, week: roundWeek(round), homeId, awayId, playoffRound: round, ...(neutral ? { neutral } : {}) };
+  return {
+    id: league.nextGameId++,
+    season: league.season,
+    week: roundWeek(round),
+    homeId,
+    awayId,
+    playoffRound: round,
+    ...(neutral ? { neutral } : {}),
+  };
 }
 
 export function allSeeds(league: League, season = league.season): number[][] {
@@ -54,7 +62,12 @@ function scheduleRound(league: League): boolean {
 
   if (!lastRound) {
     for (const s of seeds) {
-      for (const [hi, lo] of [[1, 6], [2, 5], [3, 4]]) league.games.push(makeGame(league, 'WC', s[hi], s[lo]));
+      for (const [hi, lo] of [
+        [1, 6],
+        [2, 5],
+        [3, 4],
+      ])
+        league.games.push(makeGame(league, 'WC', s[hi], s[lo]));
     }
     return true;
   }

@@ -80,11 +80,34 @@ describe('the v27 names pass on an old save', () => {
   exPlayer.playerId = coachPlayer.id;
   exPlayer.firstName = coachPlayer.firstName;
   exPlayer.lastName = coachPlayer.lastName;
-  old.transactions.push({ season: 2026, phase: 'regular', week: 1, teamIds: [0], kind: 'sign', text: `DAL signed QB ${before.mover}, and ${before.typed}'s agent called` });
-  old.transactions.push({ season: 2026, phase: 'regular', week: 1, teamIds: [0], kind: 'release', text: `DAL released ${before.twin}` });
-  old.inbox = [mail(`${before.mover}: Torn ACL`, `${before.mover}'s knee will cost him the season.`, `${before.scout}, Director of scouting`)];
+  old.transactions.push({
+    season: 2026,
+    phase: 'regular',
+    week: 1,
+    teamIds: [0],
+    kind: 'sign',
+    text: `DAL signed QB ${before.mover}, and ${before.typed}'s agent called`,
+  });
+  old.transactions.push({
+    season: 2026,
+    phase: 'regular',
+    week: 1,
+    teamIds: [0],
+    kind: 'release',
+    text: `DAL released ${before.twin}`,
+  });
+  old.inbox = [
+    mail(
+      `${before.mover}: Torn ACL`,
+      `${before.mover}'s knee will cost him the season.`,
+      `${before.scout}, Director of scouting`,
+    ),
+  ];
   const game = old.games[0] as Game;
-  game.result = { playerTeams: { [mover.id]: game.homeId }, plays: [{ text: `${before.moverShort} rush right end for 7 yards` }] } as unknown as Game['result'];
+  game.result = {
+    playerTeams: { [mover.id]: game.homeId },
+    plays: [{ text: `${before.moverShort} rush right end for 7 yards` }],
+  } as unknown as Game['result'];
 
   const up = migrateLeague(JSON.parse(JSON.stringify(old)) as League)!;
   const now = (p: Player) => up.players[p.id];

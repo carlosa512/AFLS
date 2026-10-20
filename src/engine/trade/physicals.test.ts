@@ -12,8 +12,23 @@ const fresh = (): League => JSON.parse(base);
 
 /** Three severe injuries in two years and a bad knee now: no doctor should pass him. */
 function breakDown(l: League, p: Player): void {
-  p.injuries = [0, 1, 2].map((i) => ({ type: 'acl', severity: 'severe' as const, season: l.season - (i % 2), week: 3 + i, weeks: 30, scar: { speed: -1 } }));
-  p.injury = { type: 'acl', severity: 'severe', weeksRemaining: 12, estimate: [10, 14], season: l.season, week: l.week, where: 'game' };
+  p.injuries = [0, 1, 2].map((i) => ({
+    type: 'acl',
+    severity: 'severe' as const,
+    season: l.season - (i % 2),
+    week: 3 + i,
+    weeks: 30,
+    scar: { speed: -1 },
+  }));
+  p.injury = {
+    type: 'acl',
+    severity: 'severe',
+    weeksRemaining: 12,
+    estimate: [10, 14],
+    season: l.season,
+    week: l.week,
+    where: 'game',
+  };
 }
 
 describe('physicals', () => {
@@ -21,7 +36,9 @@ describe('physicals', () => {
     const l = fresh();
     let failed = 0;
     let n = 0;
-    for (const p of Object.values(l.players).filter((x) => x.teamId !== null && !x.injury).slice(0, 400)) {
+    for (const p of Object.values(l.players)
+      .filter((x) => x.teamId !== null && !x.injury)
+      .slice(0, 400)) {
       for (const t of [3, 17, 28]) {
         if (t === p.teamId) continue;
         n++;
@@ -42,7 +59,15 @@ describe('physicals', () => {
     off.phase = 'freeAgency';
     const q = activeRoster(off, 5)[0];
     q.injuries = [];
-    q.injury = { type: 'hamstring', severity: 'moderate', weeksRemaining: 8, estimate: [6, 9], season: off.season, week: 0, where: 'game' };
+    q.injury = {
+      type: 'hamstring',
+      severity: 'moderate',
+      weeksRemaining: 8,
+      estimate: [6, 9],
+      season: off.season,
+      week: 0,
+      where: 'game',
+    };
     expect(['rehab', 'passed']).toContain(examine(off, 9, q).result);
   });
 
@@ -62,7 +87,12 @@ describe('physicals', () => {
     breakDown(l, target);
     target.injury = undefined; // in season a hurt player can't be traded at all
     const mine = activeRoster(l, l.userTeamId).sort((a, b) => playerOvr(b) - playerOvr(a));
-    const proposal: TradeProposal = { sides: [{ teamId: l.userTeamId, players: [mine[0].id], picks: [] }, { teamId: ai, players: [target.id], picks: [] }] };
+    const proposal: TradeProposal = {
+      sides: [
+        { teamId: l.userTeamId, players: [mine[0].id], picks: [] },
+        { teamId: ai, players: [target.id], picks: [] },
+      ],
+    };
     const r = proposeTrade(l, proposal);
     expect(r.accepted).toBe(false);
     expect(l.market!.exam!.by).toBe('yours');
@@ -80,9 +110,19 @@ describe('physicals', () => {
     const ctx = tradeContext(l);
     const picks = (t: number) => l.draftPicks.filter((p) => p.ownerId === t).map((p) => p.id);
     const p = activeRoster(l, 9)[0];
-    const two: TradeProposal = { sides: [{ teamId: 4, players: [], picks: picks(4).slice(0, 2) }, { teamId: 9, players: [p.id], picks: [] }] };
+    const two: TradeProposal = {
+      sides: [
+        { teamId: 4, players: [], picks: picks(4).slice(0, 2) },
+        { teamId: 9, players: [p.id], picks: [] },
+      ],
+    };
     expect(lowerPrice(ctx, two, 4)!.sides[0].picks).toHaveLength(1);
-    const one: TradeProposal = { sides: [{ teamId: 4, players: [], picks: picks(4).slice(0, 1) }, { teamId: 9, players: [p.id], picks: [] }] };
+    const one: TradeProposal = {
+      sides: [
+        { teamId: 4, players: [], picks: picks(4).slice(0, 1) },
+        { teamId: 9, players: [p.id], picks: [] },
+      ],
+    };
     expect(lowerPrice(ctx, one, 4)!.sides[1].picks).toHaveLength(1);
   });
 });

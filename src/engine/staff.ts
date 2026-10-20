@@ -21,9 +21,18 @@ import { POSITIONS } from './types';
 export type Domain = 'college' | 'pro';
 export type StaffTrait = 'evaluation' | 'projection';
 
-export const ROLE_LABEL: Record<StaffRole, string> = { director: 'Director of scouting', collegeScout: 'College scout', proScout: 'Pro scout' };
+export const ROLE_LABEL: Record<StaffRole, string> = {
+  director: 'Director of scouting',
+  collegeScout: 'College scout',
+  proScout: 'Pro scout',
+};
 export const FOCUSES: ScoutFocus[] = ['skill', 'line', 'front', 'back'];
-export const FOCUS_LABEL: Record<ScoutFocus, string> = { skill: 'QB · RB · WR · TE', line: 'Offensive line', front: 'DL · LB', back: 'CB · S' };
+export const FOCUS_LABEL: Record<ScoutFocus, string> = {
+  skill: 'QB · RB · WR · TE',
+  line: 'Offensive line',
+  front: 'DL · LB',
+  back: 'CB · S',
+};
 export const FOCUS_OF: Record<Position, ScoutFocus | null> = {
   QB: 'skill',
   RB: 'skill',
@@ -65,7 +74,8 @@ export function teamStaff(league: League, teamId: number): readonly Staff[] {
   let hit = index.get(league.staff);
   if (!hit || hit.version !== version) {
     const byTeam = new Map<number, Staff[]>();
-    for (const s of Object.values(league.staff)) if (s.teamId !== null) byTeam.set(s.teamId, [...(byTeam.get(s.teamId) ?? []), s]);
+    for (const s of Object.values(league.staff))
+      if (s.teamId !== null) byTeam.set(s.teamId, [...(byTeam.get(s.teamId) ?? []), s]);
     index.set(league.staff, (hit = { version, byTeam }));
   }
   return hit.byTeam.get(teamId) ?? [];
@@ -83,7 +93,10 @@ export interface Read {
 /** Who reads a player in `focus` (null for kickers and punters) for this domain and trait. */
 export function readFor(staff: readonly Staff[], domain: Domain, focus: ScoutFocus | null, trait: StaffTrait): Read {
   // One Director, except in the re-sign window when a replacement overlaps the man whose deal is up: the better one reads.
-  const director = staff.reduce<Staff | null>((best, s) => (s.role === 'director' && (!best || s[trait] > best[trait]) ? s : best), null);
+  const director = staff.reduce<Staff | null>(
+    (best, s) => (s.role === 'director' && (!best || s[trait] > best[trait]) ? s : best),
+    null,
+  );
   let best: Read = { rating: (director ? director[trait] : VACANT) - DIRECTOR_PENALTY, by: director };
   if (focus) {
     for (const s of staff) {
@@ -122,12 +135,18 @@ export function staffAsk(league: League, s: Staff, years = 2): number {
 }
 
 /** The owner's staff budget for this league year, $K. */
-export const staffBudget = (league: League, teamId: number) => Math.round(0.032 * capOf(league) * league.teams[teamId].staffBudgetMult);
+export const staffBudget = (league: League, teamId: number) =>
+  Math.round(0.032 * capOf(league) * league.teams[teamId].staffBudgetMult);
 
 /** Salaries owed this league year plus severance booked against it. */
 export function staffPayroll(league: League, teamId: number): number {
-  const pay = teamStaff(league, teamId).reduce((sum, s) => sum + (s.contract && s.contract.through >= league.season ? s.contract.salary : 0), 0);
-  return pay + league.teams[teamId].staffDead.filter((d) => d.season === league.season).reduce((sum, d) => sum + d.amount, 0);
+  const pay = teamStaff(league, teamId).reduce(
+    (sum, s) => sum + (s.contract && s.contract.through >= league.season ? s.contract.salary : 0),
+    0,
+  );
+  return (
+    pay + league.teams[teamId].staffDead.filter((d) => d.season === league.season).reduce((sum, d) => sum + d.amount, 0)
+  );
 }
 
 export const staffRoom = (league: League, teamId: number) => staffBudget(league, teamId) - staffPayroll(league, teamId);
@@ -139,7 +158,8 @@ export const isExpiring = (league: League, s: Staff) => !!s.contract && s.contra
 export const staffWindowOpen = (league: League) => league.phase === 'resign' || league.phase === 'freeAgency';
 
 /** Severance for dismissing him now: half a year's salary, if he's still under contract. */
-export const severance = (league: League, s: Staff) => (s.contract && s.contract.through >= league.season ? Math.round(s.contract.salary * 0.5) : 0);
+export const severance = (league: League, s: Staff) =>
+  s.contract && s.contract.through >= league.season ? Math.round(s.contract.salary * 0.5) : 0;
 
 // ───────── moves ─────────
 
@@ -153,10 +173,14 @@ export function staffMoveProblem(league: League, teamId: number, s: Staff, move:
   const held = teamStaff(league, teamId).filter((x) => x.role === s.role && !isExpiring(league, x)).length;
   if (move === 'extend') {
     if (s.teamId !== teamId || !isExpiring(league, s)) return 'Only expiring deals can be extended.';
-    if (held >= STAFF_SLOTS[s.role]) return `${His} chair is taken: all ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
+    if (held >= STAFF_SLOTS[s.role])
+      return `${His} chair is taken: all ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
   } else {
     if (s.teamId !== null) return `${He} isn’t available.`;
-    if (held >= STAFF_SLOTS[s.role]) return s.role === 'director' ? `You already have a Director. Dismiss ${him} first.` : `All ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
+    if (held >= STAFF_SLOTS[s.role])
+      return s.role === 'director'
+        ? `You already have a Director. Dismiss ${him} first.`
+        : `All ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
   }
   const over = staffAsk(league, s, years) - staffRoom(league, teamId);
   return over > 0 ? `Over your staff budget by $${(over / 1000).toFixed(2)}M.` : null;
@@ -170,7 +194,14 @@ function signStaff(league: League, teamId: number, s: Staff, years: number): voi
 
 const logStaff = (league: League, teamId: number, text: string) => {
   if (teamId !== league.userTeamId) return;
-  league.transactions.push({ season: league.season, phase: league.phase, week: league.week, teamIds: [teamId], kind: 'staff', text });
+  league.transactions.push({
+    season: league.season,
+    phase: league.phase,
+    week: league.week,
+    teamIds: [teamId],
+    kind: 'staff',
+    text,
+  });
 };
 
 export function hireStaff(league: League, teamId: number, staffId: number, years = 2): void {
@@ -178,7 +209,11 @@ export function hireStaff(league: League, teamId: number, staffId: number, years
   const problem = staffMoveProblem(league, teamId, s, 'hire', years);
   if (problem) throw new Error(problem);
   signStaff(league, teamId, s, years);
-  logStaff(league, teamId, `${league.teams[teamId].abbrev} hired ${ROLE_LABEL[s.role].toLowerCase()} ${staffName(s)} (${years} yr)`);
+  logStaff(
+    league,
+    teamId,
+    `${league.teams[teamId].abbrev} hired ${ROLE_LABEL[s.role].toLowerCase()} ${staffName(s)} (${years} yr)`,
+  );
 }
 
 export function extendStaff(league: League, teamId: number, staffId: number, years = 2): void {
@@ -186,7 +221,11 @@ export function extendStaff(league: League, teamId: number, staffId: number, yea
   const problem = staffMoveProblem(league, teamId, s, 'extend', years);
   if (problem) throw new Error(problem);
   signStaff(league, teamId, s, years);
-  logStaff(league, teamId, `${league.teams[teamId].abbrev} extended ${ROLE_LABEL[s.role].toLowerCase()} ${staffName(s)} (${years} yr)`);
+  logStaff(
+    league,
+    teamId,
+    `${league.teams[teamId].abbrev} extended ${ROLE_LABEL[s.role].toLowerCase()} ${staffName(s)} (${years} yr)`,
+  );
 }
 
 /** Dismiss (or let go) a staff member: he returns to the market; severance is booked if he was under contract. */
@@ -202,7 +241,11 @@ function dismiss(league: League, s: Staff): void {
   const teamId = s.teamId!;
   const owed = severance(league, s);
   if (owed > 0) league.teams[teamId].staffDead.push({ season: league.season, amount: owed, name: staffName(s) });
-  logStaff(league, teamId, `${league.teams[teamId].abbrev} ${owed > 0 ? 'dismissed' : 'let go'} ${ROLE_LABEL[s.role].toLowerCase()} ${staffName(s)}`);
+  logStaff(
+    league,
+    teamId,
+    `${league.teams[teamId].abbrev} ${owed > 0 ? 'dismissed' : 'let go'} ${ROLE_LABEL[s.role].toLowerCase()} ${staffName(s)}`,
+  );
   s.teamId = null;
   s.contract = null;
 }
@@ -213,7 +256,15 @@ const ROLES: StaffRole[] = ['director', 'collegeScout', 'proScout'];
 /** Candidates kept on the market for each role. */
 const MARKET_SIZE: Record<StaffRole, number> = { director: 8, collegeScout: 16, proScout: 12 };
 
-function newStaff(league: League, rng: Rng, role: StaffRole, evaluation: number, projection: number, age: number, focus?: ScoutFocus): Staff {
+function newStaff(
+  league: League,
+  rng: Rng,
+  role: StaffRole,
+  evaluation: number,
+  projection: number,
+  age: number,
+  focus?: ScoutFocus,
+): Staff {
   const s: Staff = {
     id: league.nextStaffId++,
     // the name and whether she's a woman are drawn together, so they always agree
@@ -242,11 +293,13 @@ function candidate(league: League, rng: Rng, role: StaffRole, quality = 0): Staf
 /** Top the market back up to its usual size. */
 function refreshMarket(league: League, rng: Rng): void {
   const market = staffMarket(league);
-  for (const role of ROLES) for (let n = market.filter((s) => s.role === role).length; n < MARKET_SIZE[role]; n++) candidate(league, rng, role);
+  for (const role of ROLES)
+    for (let n = market.filter((s) => s.role === role).length; n < MARKET_SIZE[role]; n++) candidate(league, rng, role);
 }
 
 /** A goal for each AI front office's staff quality: some invest in scouting, some don't. A persistent trait, not stored. */
-const staffGoal = (league: League, team: Team) => 10 + 1.4 * new Rng(`${league.seed}:staff-goal:${team.id}`).normal() + ownerTilt(team);
+const staffGoal = (league: League, team: Team) =>
+  10 + 1.4 * new Rng(`${league.seed}:staff-goal:${team.id}`).normal() + ownerTilt(team);
 
 /**
  * What each owner spends on his staffs (scouting, coaching, medical), ×1 being the league's average owner:
@@ -271,7 +324,8 @@ export function setOwnerBudgets(league: League): void {
 export const ownerTilt = (team: Team) => 4 * (team.staffBudgetMult - 1);
 
 /** The owner's spending in words, where it stands out. */
-export const ownerBudgetNote = (mult: number) => (mult >= 1.08 ? 'Big-spending owner' : mult <= 0.94 ? 'Tight-budget owner' : null);
+export const ownerBudgetNote = (mult: number) =>
+  mult >= 1.08 ? 'Big-spending owner' : mult <= 0.94 ? 'Tight-budget owner' : null;
 
 /** How many scouts an AI team carries: rebuilders lean on college scouts, contenders on pro scouts. */
 function aiTarget(team: Team): Record<StaffRole, number> {
@@ -301,12 +355,24 @@ export function generateStaffWorld(league: League): void {
     } else {
       const tier = (staffGoal(league, team) - 10) * 0.8;
       const target = aiTarget(team);
-      hired.push(newStaff(league, rng, 'director', rng.normal(11 + tier, 2.2), rng.normal(11 + tier, 2.2), rng.int(40, 60)));
+      hired.push(
+        newStaff(league, rng, 'director', rng.normal(11 + tier, 2.2), rng.normal(11 + tier, 2.2), rng.int(40, 60)),
+      );
       for (const role of ['collegeScout', 'proScout'] as const) {
         const foci = rng.shuffle([...FOCUSES]);
         for (let i = 0; i < target[role]; i++) {
           const lean = role === 'proScout' ? 0.6 : -0.4;
-          hired.push(newStaff(league, rng, role, rng.normal(10.3 + tier + lean, 2.4), rng.normal(10.3 + tier - lean, 2.4), rng.int(28, 58), foci[i % 4]));
+          hired.push(
+            newStaff(
+              league,
+              rng,
+              role,
+              rng.normal(10.3 + tier + lean, 2.4),
+              rng.normal(10.3 + tier - lean, 2.4),
+              rng.int(28, 58),
+              foci[i % 4],
+            ),
+          );
         }
       }
     }
@@ -376,7 +442,11 @@ export type ResignOutlook = 'stays' | 'budget' | 'chair';
  * nothing more: best first, each re-signs for two years at his ask while a chair and the budget
  * allow. The screen and the calendar both use this, so the forecast is the outcome.
  */
-export function resignForecast(league: League, teamId: number, hire?: { s: Staff; years: number }): Map<number, ResignOutlook> {
+export function resignForecast(
+  league: League,
+  teamId: number,
+  hire?: { s: Staff; years: number },
+): Map<number, ResignOutlook> {
   const mine = teamStaff(league, teamId);
   // A hire in the window takes his chair and his salary before the expiring deals are decided.
   const taken: Partial<Record<StaffRole, number>> = hire ? { [hire.s.role]: 1 } : {};
@@ -399,7 +469,8 @@ export function resignForecast(league: League, teamId: number, hire?: { s: Staff
 /** Budget left once the expiring staff forecast to stay have re-signed. */
 export function staffRoomAfterResigns(league: League, teamId: number): number {
   let room = staffRoom(league, teamId);
-  for (const [id, outlook] of resignForecast(league, teamId)) if (outlook === 'stays') room -= staffAsk(league, league.staff[id], 2);
+  for (const [id, outlook] of resignForecast(league, teamId))
+    if (outlook === 'stays') room -= staffAsk(league, league.staff[id], 2);
   return room;
 }
 
@@ -407,7 +478,9 @@ export function staffRoomAfterResigns(league: League, teamId: number): number {
 export function pushedOutBy(league: League, teamId: number, s: Staff, years = 2): Staff[] {
   const before = resignForecast(league, teamId);
   const after = resignForecast(league, teamId, { s, years });
-  return [...before].filter(([id, outlook]) => outlook === 'stays' && after.get(id) !== 'stays').map(([id]) => league.staff[id]);
+  return [...before]
+    .filter(([id, outlook]) => outlook === 'stays' && after.get(id) !== 'stays')
+    .map(([id]) => league.staff[id]);
 }
 
 /**
@@ -424,7 +497,11 @@ export function staffWindowCloses(league: League, opts: { autoUser?: boolean } =
       const s = league.staff[id];
       if (outlook === 'stays') {
         signStaff(league, user, s, 2);
-        logStaff(league, user, `${league.teams[user].abbrev} re-signed ${ROLE_LABEL[s.role].toLowerCase()} ${staffName(s)} (2 yr)`);
+        logStaff(
+          league,
+          user,
+          `${league.teams[user].abbrev} re-signed ${ROLE_LABEL[s.role].toLowerCase()} ${staffName(s)} (2 yr)`,
+        );
       } else dismiss(league, s);
     }
   }
@@ -435,7 +512,8 @@ export function staffWindowCloses(league: League, opts: { autoUser?: boolean } =
 
 /** A journeyman Director's one-year ask, a little above the usual (`fillChairs`'s last resort). */
 const JOURNEYMAN = 7.5;
-const journeymanAsk = (league: League) => Math.round(BASE_ASK.director * (capOf(league) / BASE_CAP) * 1.2 ** (JOURNEYMAN - 10) * TERM[1]);
+const journeymanAsk = (league: League) =>
+  Math.round(BASE_ASK.director * (capOf(league) / BASE_CAP) * 1.2 ** (JOURNEYMAN - 10) * TERM[1]);
 
 function aiStaffMoves(league: League, team: Team, rng: Rng): void {
   const goal = staffGoal(league, team);
@@ -448,7 +526,10 @@ function aiStaffMoves(league: League, team: Team, rng: Rng): void {
     // leave only the journeyman fallback (`fillChairs`), hired whatever the budget says.
     const noDirector = !teamStaff(league, team.id).some((x) => x.role === 'director' && !isExpiring(league, x));
     const reserve = s.role !== 'director' && noDirector ? journeymanAsk(league) : 0;
-    const keep = staffValue(s) >= goal - 2 && rng.chance(0.75) && staffAsk(league, s, years) <= staffRoom(league, team.id) - reserve;
+    const keep =
+      staffValue(s) >= goal - 2 &&
+      rng.chance(0.75) &&
+      staffAsk(league, s, years) <= staffRoom(league, team.id) - reserve;
     if (keep) signStaff(league, team.id, s, years);
     else dismiss(league, s);
   }
@@ -468,11 +549,15 @@ function fillChairs(league: League, team: Team, rng: Rng, goal = staffGoal(leagu
       const open = ROLES.reduce((n, r) => n + Math.max(0, target[r] - mine.filter((s) => s.role === r).length), 0) - 1;
       const reserve = open * 700 * (capOf(league) / BASE_CAP);
       const years = rng.int(1, 3);
-      const affordable = (room: number) => staffMarket(league).filter((s) => s.role === role && staffAsk(league, s, years) <= room);
+      const affordable = (room: number) =>
+        staffMarket(league).filter((s) => s.role === role && staffAsk(league, s, years) <= room);
       const room = staffRoom(league, team.id);
       const pool = affordable(room - reserve).length ? affordable(room - reserve) : affordable(room);
       const pick = pool
-        .map((s) => ({ s, score: Math.abs(staffValue(s) - goal) + rng.normal(0, 0.6) - (s.focus && !covered.has(s.focus) ? 1.5 : 0) }))
+        .map((s) => ({
+          s,
+          score: Math.abs(staffValue(s) - goal) + rng.normal(0, 0.6) - (s.focus && !covered.has(s.focus) ? 1.5 : 0),
+        }))
         .sort((a, b) => a.score - b.score)[0]?.s;
       if (pick) {
         signStaff(league, team.id, pick, years);
@@ -481,7 +566,12 @@ function fillChairs(league: League, team: Team, rng: Rng, goal = staffGoal(leagu
       // Nobody affordable. A department can't run without a Director, so a cheap journeyman takes
       // that job; an unaffordable scout's chair stays empty until next year.
       if (role !== 'director') break;
-      signStaff(league, team.id, newStaff(league, rng, role, rng.normal(6.5, 1), rng.normal(6.5, 1), rng.int(30, 45)), 1);
+      signStaff(
+        league,
+        team.id,
+        newStaff(league, rng, role, rng.normal(6.5, 1), rng.normal(6.5, 1), rng.int(30, 45)),
+        1,
+      );
     }
   }
 }
@@ -521,8 +611,12 @@ export function departmentScore(league: League, teamId: number, staff = teamStaf
 
 /** Letter grade by rank among the 32 departments: A top 3, B next 6, C middle 14, D next 6, F bottom 3. */
 export function departmentGrades(league: League): Map<number, { rank: number; grade: string }> {
-  const ranked = league.teams.map((t) => ({ id: t.id, score: departmentScore(league, t.id) })).sort((a, b) => a.score - b.score);
-  return new Map(ranked.map((x, i) => [x.id, { rank: i + 1, grade: i < 3 ? 'A' : i < 9 ? 'B' : i < 23 ? 'C' : i < 29 ? 'D' : 'F' }]));
+  const ranked = league.teams
+    .map((t) => ({ id: t.id, score: departmentScore(league, t.id) }))
+    .sort((a, b) => a.score - b.score);
+  return new Map(
+    ranked.map((x, i) => [x.id, { rank: i + 1, grade: i < 3 ? 'A' : i < 9 ? 'B' : i < 23 ? 'C' : i < 29 ? 'D' : 'F' }]),
+  );
 }
 
 export interface WeakSpot {
@@ -534,7 +628,12 @@ export interface WeakSpot {
 /** The read that costs the team most: low rating on a big group. */
 export function weakestSpot(league: League, teamId: number): WeakSpot {
   const staff = teamStaff(league, teamId);
-  let worst: WeakSpot & { cost: number } = { domain: 'college', group: null, read: readFor(staff, 'college', null, 'evaluation'), cost: -Infinity };
+  let worst: WeakSpot & { cost: number } = {
+    domain: 'college',
+    group: null,
+    read: readFor(staff, 'college', null, 'evaluation'),
+    cost: -Infinity,
+  };
   for (const g of GROUPS) {
     for (const domain of ['college', 'pro'] as const) {
       const read = readFor(staff, domain, g, 'evaluation');
@@ -559,9 +658,15 @@ export interface ReadChange {
  * staying, and anyone the hire would push out counts as gone, so losses show as well as gains.
  */
 export function previewHire(league: League, teamId: number, s: Staff, years = 2): ReadChange[] {
-  const staying = (forecast: Map<number, ResignOutlook>) => teamStaff(league, teamId).filter((x) => !isExpiring(league, x) || forecast.get(x.id) === 'stays');
+  const staying = (forecast: Map<number, ResignOutlook>) =>
+    teamStaff(league, teamId).filter((x) => !isExpiring(league, x) || forecast.get(x.id) === 'stays');
   const now = staying(resignForecast(league, teamId));
-  const after = [...staying(resignForecast(league, teamId, { s, years })).filter((x) => s.role !== 'director' || x.role !== 'director'), s];
+  const after = [
+    ...staying(resignForecast(league, teamId, { s, years })).filter(
+      (x) => s.role !== 'director' || x.role !== 'director',
+    ),
+    s,
+  ];
   const out: ReadChange[] = [];
   for (const g of GROUPS) {
     for (const domain of ['college', 'pro'] as const) {

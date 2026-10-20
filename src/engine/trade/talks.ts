@@ -31,7 +31,8 @@ export function talksOf(market: TradeMarket, teamId: number): TradeTalks {
 /** Why a GM won't hear another proposal from you this moment, or null. */
 export function talkRefusal(market: TradeMarket | undefined, teamId: number): string | null {
   const t = peekTalks(market, teamId);
-  if ((t.offUntil !== undefined && t.offUntil >= (market?.moment ?? 0)) || t.asks >= ASKS) return "We're done talking this week.";
+  if ((t.offUntil !== undefined && t.offUntil >= (market?.moment ?? 0)) || t.asks >= ASKS)
+    return "We're done talking this week.";
   return null;
 }
 

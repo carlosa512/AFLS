@@ -73,9 +73,18 @@ export function buildMatchups(league: League, season: number, order: DivisionOrd
 
   // Same-conference rotation, cycling every 3 seasons.
   const rotations = [
-    [[0, 1], [2, 3]],
-    [[0, 2], [1, 3]],
-    [[0, 3], [1, 2]],
+    [
+      [0, 1],
+      [2, 3],
+    ],
+    [
+      [0, 2],
+      [1, 3],
+    ],
+    [
+      [0, 3],
+      [1, 2],
+    ],
   ];
   const intraPairs = rotations[season % 3];
   for (const divs of confDivs) {
@@ -155,13 +164,16 @@ function findWeekMatching(
     // Cheapest first, then one candidate per opponent (of a division home-and-away, the cheaper).
     const seen = new Set<number>();
     const ranked = rng.shuffle(byTeam[best].filter((m) => available(best, m))).map((m) => ({ m, c: cost(m) }));
-    const candidates = ranked.sort((x, y) => x.c - y.c).map((x) => x.m).filter((m) => {
-      const [h, a] = matchups[m];
-      const opp = h === best ? a : h;
-      if (seen.has(opp)) return false;
-      seen.add(opp);
-      return true;
-    });
+    const candidates = ranked
+      .sort((x, y) => x.c - y.c)
+      .map((x) => x.m)
+      .filter((m) => {
+        const [h, a] = matchups[m];
+        const opp = h === best ? a : h;
+        if (seen.has(opp)) return false;
+        seen.add(opp);
+        return true;
+      });
     for (const m of candidates) {
       const [h, a] = matchups[m];
       used[m] = true;
@@ -230,9 +242,7 @@ function orderWeeks(
   const division = matchups.map(([h, a]) => league.teams[h].division === league.teams[a].division);
   // A week's slate: every team in a week without byes, two to six on bye in a bye week.
   const slateFits = (w: number, games: number) =>
-    BYE_WEEKS.includes(w)
-      ? games >= (T - BYES_A_WEEK[1]) / 2 && games <= (T - BYES_A_WEEK[0]) / 2
-      : games === T / 2;
+    BYE_WEEKS.includes(w) ? games >= (T - BYES_A_WEEK[1]) / 2 && games <= (T - BYES_A_WEEK[0]) / 2 : games === T / 2;
   // The first meeting of each pair that meets twice.
   const rematches = rematch.flatMap((o, m) => (m < o ? [m] : []));
 
@@ -401,7 +411,8 @@ function orderWeeks(
         prev1 = w;
       }
     }
-    for (const m of rematches) if (short[m]) spots.push(homeTeam[m] * S + gameWeek[m], homeTeam[m] * S + gameWeek[rematch[m]]);
+    for (const m of rematches)
+      if (short[m]) spots.push(homeTeam[m] * S + gameWeek[m], homeTeam[m] * S + gameWeek[rematch[m]]);
   };
   /**
    * A move aimed at a broken rule (or, now and then, anywhere): a chain from it, or its week swapped
@@ -572,7 +583,17 @@ export function generateSchedule(league: League, rng: Rng, order?: DivisionOrder
       // after it, only a week that leaves games that still split into two.
       const last = filled === weeks.length - 3;
       const done = () => !last || splits();
-      const matching = findWeekMatching(playing, byTeam, matchups, used, rng, { steps: MATCHING_STEPS }, fitsWeek, cost, done);
+      const matching = findWeekMatching(
+        playing,
+        byTeam,
+        matchups,
+        used,
+        rng,
+        { steps: MATCHING_STEPS },
+        fitsWeek,
+        cost,
+        done,
+      );
       if (matching) {
         fill(week, matching);
         filled++;

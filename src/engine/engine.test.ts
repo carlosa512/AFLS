@@ -72,7 +72,9 @@ describe('league generation', () => {
   it('is reproducible from its seed', () => {
     const again = createLeague({ seed: 'test-gen' });
     expect(again.players[100]).toEqual(league.players[100]);
-    expect(again.games.map((g) => [g.week, g.homeId, g.awayId])).toEqual(league.games.map((g) => [g.week, g.homeId, g.awayId]));
+    expect(again.games.map((g) => [g.week, g.homeId, g.awayId])).toEqual(
+      league.games.map((g) => [g.week, g.homeId, g.awayId]),
+    );
   });
 
   it('builds a 17-game, 18-week schedule with one bye per team', () => {
@@ -93,7 +95,8 @@ describe('league generation', () => {
       }
     }
     // The last week is all division games.
-    for (const g of league.games.filter((x) => x.week === 18)) expect(league.teams[g.homeId].division).toBe(league.teams[g.awayId].division);
+    for (const g of league.games.filter((x) => x.week === 18))
+      expect(league.teams[g.homeId].division).toBe(league.teams[g.awayId].division);
   });
 
   it('keeps the NFL’s scheduling rules whatever the season and last year’s finish', () => {
@@ -112,7 +115,9 @@ describe('league generation', () => {
           else expect(off).toBe(0);
         }
         for (const team of l.teams) {
-          const mine = games.filter((g) => g.homeId === team.id || g.awayId === team.id).sort((a, b) => a.week - b.week);
+          const mine = games
+            .filter((g) => g.homeId === team.id || g.awayId === team.id)
+            .sort((a, b) => a.week - b.week);
           expect(mine).toHaveLength(17);
           // Never a third road game in a row, a bye in between or not.
           let road = 0;
@@ -132,13 +137,16 @@ describe('league generation', () => {
       expect(games.filter((g) => g.kickoff!.day === 'mon')).toHaveLength(1);
       expect(games.filter((g) => g.kickoff!.day === 'sun' && isPrimeTime(g.kickoff!))).toHaveLength(1);
       // Monday night's teams don't turn around for Thursday.
-      const monday = league.games.filter((g) => g.week === week - 1 && g.kickoff!.day === 'mon').flatMap((g) => [g.homeId, g.awayId]);
+      const monday = league.games
+        .filter((g) => g.week === week - 1 && g.kickoff!.day === 'mon')
+        .flatMap((g) => [g.homeId, g.awayId]);
       const thursday = games.find((g) => g.kickoff!.day === 'thu')!;
       expect(monday).not.toContain(thursday.homeId);
       expect(monday).not.toContain(thursday.awayId);
     }
     for (const g of league.games) {
-      if (['SEA', 'SF', 'LV', 'LAC', 'LAS', 'DEN', 'ARI'].includes(league.teams[g.homeId].abbrev)) expect(g.kickoff).not.toEqual({ day: 'sun', et: 13 * 60 });
+      if (['SEA', 'SF', 'LV', 'LAC', 'LAS', 'DEN', 'ARI'].includes(league.teams[g.homeId].abbrev))
+        expect(g.kickoff).not.toEqual({ day: 'sun', et: 13 * 60 });
     }
     expect(kickoffLabel({ day: 'sun', et: 13 * 60 })).toBe('Sun 1:00 PM ET');
     expect(kickoffLabel({ day: 'mon', et: 20 * 60 + 15 })).toBe('Mon 8:15 PM ET');
@@ -260,9 +268,11 @@ describe('end-of-game rules (regressions)', () => {
       if (!last || plays.some((p) => p.quarter >= 5)) continue;
       const i = plays.indexOf(last);
       const before = plays[i - 1];
-      const diff = last.offense === game.homeId ? before.homeScore - before.awayScore : before.awayScore - before.homeScore;
+      const diff =
+        last.offense === game.homeId ? before.homeScore - before.awayScore : before.awayScore - before.homeScore;
       // A run that scores (a go-ahead touchdown with seconds left) isn't one that lets the clock die.
-      const scored = (last.offense === game.homeId ? last.homeScore - before.homeScore : last.awayScore - before.awayScore) > 0;
+      const scored =
+        (last.offense === game.homeId ? last.homeScore - before.homeScore : last.awayScore - before.awayScore) > 0;
       if (diff < 0 && !scored) expect(last.kind).not.toBe('run');
     }
   });
@@ -273,7 +283,8 @@ describe('end-of-game rules (regressions)', () => {
         if (p.kind === 'spike') expect(p.down).toBeLessThan(4);
         if (p.kind !== 'kneel' || p.quarter < 4) return;
         const before = r.plays![i - 1];
-        const diff = p.offense === game.homeId ? before.homeScore - before.awayScore : before.awayScore - before.homeScore;
+        const diff =
+          p.offense === game.homeId ? before.homeScore - before.awayScore : before.awayScore - before.homeScore;
         expect(diff).toBeGreaterThanOrEqual(0);
       });
     }
@@ -301,7 +312,13 @@ describe('tiebreakers (regressions)', () => {
     });
     // A (0), B (4), C (8) are conference-0 teams in different divisions, all 1-1.
     // Only A and B met (A won). C has the best conference record (1-0).
-    league.games = [game(1, 0, 4, 21, 14), game(2, 12, 0, 24, 10), game(3, 4, 16, 17, 3), game(4, 8, 13, 20, 13), game(5, 20, 8, 27, 20)];
+    league.games = [
+      game(1, 0, 4, 21, 14),
+      game(2, 12, 0, 24, 10),
+      game(3, 4, 16, 17, 3),
+      game(4, 8, 13, 20, 13),
+      game(5, 20, 8, 27, 20),
+    ];
     expect(sortTeams(league, [0, 4, 8], computeRecords(league))).toEqual([8, 0, 4]);
   });
 });
@@ -345,12 +362,18 @@ describe('season flow', () => {
     // from, and a trade can change who starts).
     const qbTrades = new Set(
       (league.market?.history ?? [])
-        .filter((r) => r.season === league.season && r.sides.some((s) => s.players.some((id) => league.players[id].position === 'QB')))
+        .filter(
+          (r) =>
+            r.season === league.season &&
+            r.sides.some((s) => s.players.some((id) => league.players[id].position === 'QB')),
+        )
         .flatMap((r) => r.sides.map((s) => s.teamId)),
     );
     for (const t of league.teams) {
       const starterQb = league.players[t.depthChart.QB[0]];
-      const hurt = starterQb.injury?.season === league.season || (starterQb.injuries ?? []).some((r) => r.season === league.season);
+      const hurt =
+        starterQb.injury?.season === league.season ||
+        (starterQb.injuries ?? []).some((r) => r.season === league.season);
       if (hurt || qbTrades.has(t.id)) continue;
       expect(starterQb.stats[league.season]?.gp).toBeGreaterThan(10);
     }

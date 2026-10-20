@@ -50,7 +50,11 @@ export function readyText(camps: number, phase: Phase): string {
 /** The deal he would sign next, priced as what he has become. */
 export function payText(pay: ConversionRead['pay'], to: Position): string {
   const job = POSITION_NAMES[to].toLowerCase();
-  return pay === 'higher' ? `His next deal would pay more as ${withArticle(job)}` : pay === 'lower' ? `His next deal would pay less as ${withArticle(job)}` : 'His next deal would pay about the same';
+  return pay === 'higher'
+    ? `His next deal would pay more as ${withArticle(job)}`
+    : pay === 'lower'
+      ? `His next deal would pay less as ${withArticle(job)}`
+      : 'His next deal would pay about the same';
 }
 
 const initialed = (p: Pick<Player, 'firstName' | 'lastName'>) => `${p.firstName[0]}. ${p.lastName}`;
@@ -100,15 +104,24 @@ export function coordinatorFor(league: League, teamId: number, to: Position): Re
 export function planReason(league: League, p: Player): string {
   const l = activeLearning(p);
   if (!l?.why) return '';
-  return reasonText({ reason: l.why, to: l.to, coordinator: l.why === 'scheme' ? coordinatorFor(league, p.teamId!, l.to) : undefined });
+  return reasonText({
+    reason: l.why,
+    to: l.to,
+    coordinator: l.why === 'scheme' ? coordinatorFor(league, p.teamId!, l.to) : undefined,
+  });
 }
 
 /** The line under a Start button that can't be pressed, or null. Out of the offseason one line on the card says it for every row. */
-export const startNote = (read: Pick<ConversionRead, 'problem'>, league: League): string | null => (OFFSEASON_PHASES.includes(league.phase) ? read.problem : null);
+export const startNote = (read: Pick<ConversionRead, 'problem'>, league: League): string | null =>
+  OFFSEASON_PHASES.includes(league.phase) ? read.problem : null;
 
 /** Does his card have anything to say about position: a plan, a target, a move behind him, or a spot away from his own? */
 export function hasPositionWork(league: League, p: Player): boolean {
-  return !p.retired && p.teamId === league.userTeamId && (!!activeLearning(p) || targetsFor(p).length > 0 || (p.moves ?? []).length > 0 || slotOf(league, p) !== p.position);
+  return (
+    !p.retired &&
+    p.teamId === league.userTeamId &&
+    (!!activeLearning(p) || targetsFor(p).length > 0 || (p.moves ?? []).length > 0 || slotOf(league, p) !== p.position)
+  );
 }
 
 // ───────── playing out of position ─────────
@@ -123,7 +136,8 @@ export function lineupText(p: Player, slot: Position): string {
 }
 
 /** A "Play at…" choice: "WR · big knock", "S · no knock". */
-export const playAtLabel = (p: Player, pos: Position): string => (pos === p.position ? `Back to ${pos}` : `${pos} · ${knockAt(p, pos) === 'none' ? 'no' : knockAt(p, pos)} knock`);
+export const playAtLabel = (p: Player, pos: Position): string =>
+  pos === p.position ? `Back to ${pos}` : `${pos} · ${knockAt(p, pos) === 'none' ? 'no' : knockAt(p, pos)} knock`;
 
 /** Where the "Play at…" menu can send him: every position but the one he's lined up at (his own comes first as "Back to"). */
 export const positionChoices = (slot: Position): Position[] => POSITIONS.filter((pos) => pos !== slot);

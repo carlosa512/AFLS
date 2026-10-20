@@ -34,7 +34,14 @@ export function teamSeasonRecord(summary: SeasonSummary, teamId: number): TeamSe
   else if (summary.runnerUpId === teamId) finish = 'Lost the title game';
   else if (po) finish = `Lost in the ${ROUND_NAMES[po.round]}`;
   else if (summary.playoffs) finish = 'Missed the playoffs';
-  return { season: summary.season, teamId, regular: { ...regular }, playoffs: po ? { w: po.w, l: po.l } : null, finish, champion };
+  return {
+    season: summary.season,
+    teamId,
+    regular: { ...regular },
+    playoffs: po ? { w: po.w, l: po.l } : null,
+    finish,
+    champion,
+  };
 }
 
 export interface CareerRecord<T extends TeamSeasonRecord = TeamSeasonRecord> {
@@ -67,7 +74,9 @@ function total<T extends TeamSeasonRecord>(seasons: T[]): CareerRecord<T> {
 
 /** The user's record as general manager: every finished season of the user's team, newest first. */
 export function gmRecord(league: League): CareerRecord {
-  const seasons = league.history.map((h) => teamSeasonRecord(h, league.userTeamId)).filter((s): s is TeamSeasonRecord => !!s);
+  const seasons = league.history
+    .map((h) => teamSeasonRecord(h, league.userTeamId))
+    .filter((s): s is TeamSeasonRecord => !!s);
   return total(seasons.reverse());
 }
 

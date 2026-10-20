@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { chairHolder, coachName, teamCoaches, teamScheme } from '../../engine/coaching';
 import { POSITION_NAMES } from '../../engine/positions';
 import { PERSONNEL_LABEL, spotsFor, type TeamScheme } from '../../engine/schemes';
@@ -68,16 +75,14 @@ function SchemeStrip({ league, teamId, scheme }: { league: League; teamId: numbe
   return (
     <div className="scheme-strip">
       <div>
-        <span className="eyebrow">
-          Offense · {oc ? <CoordinatorLink c={oc} /> : 'no coordinator'}
-        </span>
+        <span className="eyebrow">Offense · {oc ? <CoordinatorLink c={oc} /> : 'no coordinator'}</span>
         <b>{scheme.offense.label}</b>
-        <span className="muted small">{PERSONNEL_LABEL[scheme.offense.personnel]}. {scheme.offense.about}</span>
+        <span className="muted small">
+          {PERSONNEL_LABEL[scheme.offense.personnel]}. {scheme.offense.about}
+        </span>
       </div>
       <div>
-        <span className="eyebrow">
-          Defense · {dc ? <CoordinatorLink c={dc} /> : 'no coordinator'}
-        </span>
+        <span className="eyebrow">Defense · {dc ? <CoordinatorLink c={dc} /> : 'no coordinator'}</span>
         <b>{defense}</b>
         <span className="muted small">
           {scheme.front.about}
@@ -128,7 +133,9 @@ const RETURNER_POSITIONS: readonly Position[] = ['RB', 'WR', 'CB', 'S'];
 
 /** Who returns kicks and punts: the user's pick, or Auto (the best backup, as the AI does). A pick who's hurt sits like anyone else. */
 function Returners({ league, team }: { league: League; team: Team }) {
-  const choices = RETURNER_POSITIONS.flatMap((pos) => team.depthChart[pos].map((id) => league.players[id]).filter((p): p is Player => !!p));
+  const choices = RETURNER_POSITIONS.flatMap((pos) =>
+    team.depthChart[pos].map((id) => league.players[id]).filter((p): p is Player => !!p),
+  );
   const pick = (role: 'kr' | 'pr', value: string) =>
     store.mutate((l) => {
       const t = l.teams[team.id];
@@ -201,7 +208,8 @@ function useDepthDrag(teamId: number, lineUpAt: (id: number, pos: Position, inde
     const g = geo.current;
     const row = g && rowOf(g.state.id);
     // Over his own group the rows around him shift to show the order; over another group the row simply follows the pointer.
-    if (g && row) row.style.transform = `translateY(${g.dy - (g.state.to === g.state.pos ? (g.state.over - g.state.from) * g.height : 0)}px)`;
+    if (g && row)
+      row.style.transform = `translateY(${g.dy - (g.state.to === g.state.pos ? (g.state.over - g.state.from) * g.height : 0)}px)`;
   };
   // Once React has rendered the preview order, re-anchor the dragged row under the pointer.
   useLayoutEffect(applyOffset, [drag]);
@@ -211,9 +219,16 @@ function useDepthDrag(teamId: number, lineUpAt: (id: number, pos: Position, inde
     e.preventDefault();
     const groups: GroupGeo[] = [];
     for (const p of POSITIONS) {
-      const rects = [...document.querySelectorAll<HTMLTableRowElement>(`tr[data-pos="${p}"]`)].map((r) => r.getBoundingClientRect());
+      const rects = [...document.querySelectorAll<HTMLTableRowElement>(`tr[data-pos="${p}"]`)].map((r) =>
+        r.getBoundingClientRect(),
+      );
       if (!rects.length) continue;
-      groups.push({ pos: p, top: rects[0].top + window.scrollY, bottom: rects[rects.length - 1].bottom + window.scrollY, centers: rects.map((r) => r.top + window.scrollY + r.height / 2) });
+      groups.push({
+        pos: p,
+        top: rects[0].top + window.scrollY,
+        bottom: rects[rects.length - 1].bottom + window.scrollY,
+        centers: rects.map((r) => r.top + window.scrollY + r.height / 2),
+      });
     }
     const own = groups.find((g) => g.pos === pos)!;
     const state: DragState = { pos, id, from: index, to: pos, over: index };
@@ -235,8 +250,12 @@ function useDepthDrag(teamId: number, lineUpAt: (id: number, pos: Position, inde
       const own = g.groups.find((x) => x.pos === g.state.pos)!;
       const center = own.centers[g.state.from] + g.dy;
       // The group under the row's centre (between groups, the last one it was over); within it, the rows above.
-      const group = g.groups.find((x) => center >= x.top && center <= x.bottom) ?? g.groups.find((x) => x.pos === g.state.to)!;
-      const over = group.pos === g.state.pos ? own.centers.filter((c, i) => i !== g.state.from && c < center).length : group.centers.filter((c) => c < center).length;
+      const group =
+        g.groups.find((x) => center >= x.top && center <= x.bottom) ?? g.groups.find((x) => x.pos === g.state.to)!;
+      const over =
+        group.pos === g.state.pos
+          ? own.centers.filter((c, i) => i !== g.state.from && c < center).length
+          : group.centers.filter((c) => c < center).length;
       if (over !== g.state.over || group.pos !== g.state.to) {
         g.state = { ...g.state, to: group.pos, over };
         setDrag(g.state);
@@ -305,7 +324,8 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
   const [announcement, setAnnouncement] = useState('');
   // The depth chart is the default; any other column shows the whole roster as one sorted list.
   const [sort, toggleSort, setSort] = useSort<RosterSort>({ key: 'depth', desc: false });
-  const onSort = (key: RosterSort, desc: boolean) => (key === 'depth' ? setSort({ key, desc: false }) : toggleSort(key, desc));
+  const onSort = (key: RosterSort, desc: boolean) =>
+    key === 'depth' ? setSort({ key, desc: false }) : toggleSort(key, desc);
   const grouped = sort.key === 'depth';
   const refocus = useRef<number | null>(null);
   // Dropped in another group: he's lined up there, in that spot, out of position (back in his own group: at his own position).
@@ -327,7 +347,9 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
     moveInDepth(teamId, pos, index, to);
     refocus.current = p.id;
     const spots = spotsFor(scheme, pos);
-    setAnnouncement(`${p.firstName} ${p.lastName} moved to ${spots[to] ?? `${pos}${to + 1}`}${to < spots.length ? ', starter' : ''}.`);
+    setAnnouncement(
+      `${p.firstName} ${p.lastName} moved to ${spots[to] ?? `${pos}${to + 1}`}${to < spots.length ? ', starter' : ''}.`,
+    );
   };
 
   // "Play at…" moves the row to another group (a fresh row): keep focus on his handle and say where he went.
@@ -353,9 +375,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
             </div>
           </div>
         }
-        action={
-          <TeamPicker league={league} value={teamId} onChange={nav.openTeam} id="roster-team" />
-        }
+        action={<TeamPicker league={league} value={teamId} onChange={nav.openTeam} id="roster-team" />}
       >
         <div className="facts">
           <span className="fact">
@@ -391,7 +411,9 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
               <b className="num">
                 {cap.rosterSize}/{isOffseason(league.phase) ? 90 : 53}
               </b>
-              {players.some((p) => p.ir) && <span className="muted small">+{players.filter((p) => p.ir).length} on IR</span>}
+              {players.some((p) => p.ir) && (
+                <span className="muted small">+{players.filter((p) => p.ir).length} on IR</span>
+              )}
             </span>
           </span>
         </div>
@@ -402,12 +424,26 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
         action={
           isUser ? (
             <span className="row" style={{ gap: 14 }}>
-              <label className="row" style={{ gap: 6, cursor: 'pointer' }} title="Your medical staff moves long injuries to injured reserve, brings players back, and signs a minimum-deal replacement when a position runs short.">
-                <input type="checkbox" id="auto-injuries" checked={team.autoInjuries !== false} onChange={(e) => setAutoInjuries(teamId, e.target.checked)} />
+              <label
+                className="row"
+                style={{ gap: 6, cursor: 'pointer' }}
+                title="Your medical staff moves long injuries to injured reserve, brings players back, and signs a minimum-deal replacement when a position runs short."
+              >
+                <input
+                  type="checkbox"
+                  id="auto-injuries"
+                  checked={team.autoInjuries !== false}
+                  onChange={(e) => setAutoInjuries(teamId, e.target.checked)}
+                />
                 Staff handles injuries
               </label>
               <label className="row" style={{ gap: 6, cursor: 'pointer' }}>
-                <input type="checkbox" id="auto-depth" checked={team.autoDepth} onChange={(e) => setAuto(teamId, e.target.checked)} />
+                <input
+                  type="checkbox"
+                  id="auto-depth"
+                  checked={team.autoDepth}
+                  onChange={(e) => setAuto(teamId, e.target.checked)}
+                />
                 Auto-sort by rating
               </label>
             </span>
@@ -426,7 +462,10 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
         )}
         {isUser && grouped && (
           <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
-            Starters sit above the yellow line, in the spots your coordinators' schemes use. Drag a player by the <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns auto-sort off for your team. In a pinch, "Play at…" lines a player up at another position: out of position he takes a knock, smaller in his own room or at a spot he has played.
+            Starters sit above the yellow line, in the spots your coordinators' schemes use. Drag a player by the{' '}
+            <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns
+            auto-sort off for your team. In a pinch, "Play at…" lines a player up at another position: out of position
+            he takes a knock, smaller in his own room or at a spot he has played.
           </p>
         )}
         <span className="visually-hidden" aria-live="polite">
@@ -451,7 +490,9 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
             <tbody className={drag ? 'drag-active' : undefined}>
               {!grouped &&
                 sortRows(
-                  POSITIONS.flatMap((pos) => team.depthChart[pos].map((id) => league.players[id]).filter((p): p is Player => !!p)),
+                  POSITIONS.flatMap((pos) =>
+                    team.depthChart[pos].map((id) => league.players[id]).filter((p): p is Player => !!p),
+                  ),
                   sort,
                   (p, key) => rosterSortValue(league, p, key),
                 ).map((p) => {
@@ -474,43 +515,47 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                     />
                   );
                 })}
-              {grouped && POSITIONS.map((pos) => {
-                // While dragging, show the order the drop would produce.
-                const ids = drag?.pos === pos && drag.to === pos ? reorder(shownDepth(league, team, pos), drag.from, drag.over) : shownDepth(league, team, pos);
-                // Dragged over another group: that group lights up as the drop target.
-                const target = !!drag && drag.to === pos && drag.to !== drag.pos;
-                return [
-                  <tr className={`group-row${target ? ' drop-target' : ''}`} key={`g-${pos}`}>
-                    <td colSpan={10}>
-                      <span className="group-label">
-                        {POSITION_NAMES[pos]} · {groupNote(scheme, pos)}
-                      </span>
-                    </td>
-                  </tr>,
-                  ...ids.map((id, i) => {
-                    const p = league.players[id] ?? players.find((x) => x.id === id);
-                    if (!p) return null;
-                    const committed = shownDepth(league, team, pos).indexOf(id);
-                    return (
-                      <RosterRow
-                        key={id}
-                        league={league}
-                        player={p}
-                        slot={pos}
-                        index={i}
-                        count={ids.length}
-                        editable={isUser}
-                        grouped
-                        scheme={scheme}
-                        dragging={drag?.id === id}
-                        onGrip={(e) => start(pos, committed, id, e)}
-                        onKeyMove={(to) => keyMove(p, pos, committed, to)}
-                        onPlayAt={(to) => lineUp(p, to)}
-                      />
-                    );
-                  }),
-                ];
-              })}
+              {grouped &&
+                POSITIONS.map((pos) => {
+                  // While dragging, show the order the drop would produce.
+                  const ids =
+                    drag?.pos === pos && drag.to === pos
+                      ? reorder(shownDepth(league, team, pos), drag.from, drag.over)
+                      : shownDepth(league, team, pos);
+                  // Dragged over another group: that group lights up as the drop target.
+                  const target = !!drag && drag.to === pos && drag.to !== drag.pos;
+                  return [
+                    <tr className={`group-row${target ? ' drop-target' : ''}`} key={`g-${pos}`}>
+                      <td colSpan={10}>
+                        <span className="group-label">
+                          {POSITION_NAMES[pos]} · {groupNote(scheme, pos)}
+                        </span>
+                      </td>
+                    </tr>,
+                    ...ids.map((id, i) => {
+                      const p = league.players[id] ?? players.find((x) => x.id === id);
+                      if (!p) return null;
+                      const committed = shownDepth(league, team, pos).indexOf(id);
+                      return (
+                        <RosterRow
+                          key={id}
+                          league={league}
+                          player={p}
+                          slot={pos}
+                          index={i}
+                          count={ids.length}
+                          editable={isUser}
+                          grouped
+                          scheme={scheme}
+                          dragging={drag?.id === id}
+                          onGrip={(e) => start(pos, committed, id, e)}
+                          onKeyMove={(to) => keyMove(p, pos, committed, to)}
+                          onPlayAt={(to) => lineUp(p, to)}
+                        />
+                      );
+                    }),
+                  ];
+                })}
             </tbody>
           </table>
         </div>
@@ -571,7 +616,11 @@ function RosterRow({
     onKeyMove(to);
   };
   return (
-    <tr data-pos={slot} data-id={p.id} className={`depth-row${lastStarter ? ' last-starter' : ''}${dragging ? ' dragging' : ''}`}>
+    <tr
+      data-pos={slot}
+      data-id={p.id}
+      className={`depth-row${lastStarter ? ' last-starter' : ''}${dragging ? ' dragging' : ''}`}
+    >
       <td>
         <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
           {editable && (
@@ -595,29 +644,45 @@ function RosterRow({
         </span>
       </td>
       <td className="sticky-col">
-        <button className="linklike player-link" style={{ fontWeight: starter ? 700 : 400 }} onClick={() => nav.openPlayer(p.id)}>
+        <button
+          className="linklike player-link"
+          style={{ fontWeight: starter ? 700 : 400 }}
+          onClick={() => nav.openPlayer(p.id)}
+        >
           <PlayerAvatar player={p} team={team} size={32} />
           <span>
             {p.firstName} {p.lastName}
           </span>
         </button>
         {fit && (fit.grade === 'Ideal' || fit.grade === 'Poor') && (
-          <span className={`tag-pill name-sub ${fit.grade === 'Poor' ? 'tag-warn' : 'tag-good'}`} title={`The scheme leans on ${fit.skills.join(', ')}.`}>
+          <span
+            className={`tag-pill name-sub ${fit.grade === 'Poor' ? 'tag-warn' : 'tag-good'}`}
+            title={`The scheme leans on ${fit.skills.join(', ')}.`}
+          >
             {fit.grade === 'Ideal' ? 'Scheme fit' : 'Poor fit'}
           </span>
         )}
         {away && (
-          <span className={`tag-pill name-sub ${knockAt(p, slot) === 'big' ? 'tag-warn' : ''}`} title={lineupText(p, slot)}>
+          <span
+            className={`tag-pill name-sub ${knockAt(p, slot) === 'big' ? 'tag-warn' : ''}`}
+            title={lineupText(p, slot)}
+          >
             Out of position ({p.position})
           </span>
         )}
         {learning && (
-          <span className={`tag-pill name-sub ${familiarityTone(familiarity(p))}`} title={learnLine(p.position, learning.to, familiarity(p))}>
+          <span
+            className={`tag-pill name-sub ${familiarityTone(familiarity(p))}`}
+            title={learnLine(p.position, learning.to, familiarity(p))}
+          >
             Learning {learning.to}
           </span>
         )}
         {needsReps && (
-          <span className="tag-pill tag-warn name-sub" title="Young and still growing, but he rarely plays: snaps speed up his development.">
+          <span
+            className="tag-pill tag-warn name-sub"
+            title="Young and still growing, but he rarely plays: snaps speed up his development."
+          >
             Needs reps
           </span>
         )}
@@ -637,7 +702,8 @@ function RosterRow({
         <span className="row" style={{ gap: 10, flexWrap: 'nowrap' }}>
           {keyAttributes(p.position).map((a) => (
             <span key={a} className="num" style={{ fontSize: '0.75rem' }}>
-              <span className="muted">{ATTR_LABELS[a][0]}</span> <span className={band(view.ratings[a].value)}>{view.ratings[a].value}</span>
+              <span className="muted">{ATTR_LABELS[a][0]}</span>{' '}
+              <span className={band(view.ratings[a].value)}>{view.ratings[a].value}</span>
             </span>
           ))}
         </span>

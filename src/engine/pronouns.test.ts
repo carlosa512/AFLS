@@ -17,7 +17,8 @@ const open = (seed: string): League => {
 };
 
 /** Another club's person in the role, so `hire` is refused as unavailable. */
-const employed = <T extends Staff | Medic>(people: T[], role: string, userTeam: number) => people.find((p) => p.role === role && p.teamId !== null && p.teamId !== userTeam)!;
+const employed = <T extends Staff | Medic>(people: T[], role: string, userTeam: number) =>
+  people.find((p) => p.role === role && p.teamId !== null && p.teamId !== userTeam)!;
 
 describe('pron', () => {
   it('gives the woman forms to a woman scout or medic', () => {
@@ -26,7 +27,8 @@ describe('pron', () => {
     const medic = Object.values(l.medics)[0];
     scout.woman = true;
     medic.woman = true;
-    for (const p of [scout, medic]) expect(pron(p)).toEqual({ he: 'she', He: 'She', him: 'her', his: 'her', His: 'Her' });
+    for (const p of [scout, medic])
+      expect(pron(p)).toEqual({ he: 'she', He: 'She', him: 'her', his: 'her', His: 'Her' });
   });
   it('gives the man forms to a coach, and to a scout or medic with no flag', () => {
     const l = createLeague({ seed: 'pron' });

@@ -92,7 +92,10 @@ export function stadiumFor(league: League, game: Game): Stadium | undefined {
 export function isNight(league: League, game: Game): boolean {
   if (game.kickoff) return isPrimeTime(game.kickoff);
   const draw = (g: Game) => new Rng(`${league.seed}:${g.season}:${g.id}:slot`).next();
-  const week = league.games.filter((g) => g.season === game.season && g.week === game.week).map(draw).sort((a, b) => b - a);
+  const week = league.games
+    .filter((g) => g.season === game.season && g.week === game.week)
+    .map(draw)
+    .sort((a, b) => b - a);
   const slots = game.playoffRound ? Math.ceil(week.length / 2) : 3;
   return week.length > 0 && draw(game) >= week[Math.min(slots, week.length) - 1];
 }
@@ -110,7 +113,9 @@ const precipAt = (tempF: number): Precip => (tempF <= 34 ? 'snow' : tempF <= 38 
 function setup(league: League, game: Game, stadium: Stadium) {
   const c = CLIMATE[stadium.climate!][monthOf(game.week)];
   const night = isNight(league, game);
-  const storm = new Rng(`${league.seed}:${game.season}:${game.week}:storm:${REGIONS[stadium.climate!]}`).chance(STORM_CHANCE);
+  const storm = new Rng(`${league.seed}:${game.season}:${game.week}:storm:${REGIONS[stadium.climate!]}`).chance(
+    STORM_CHANCE,
+  );
   const wind = c[4] * FIELD_WIND * (stadium.windShelter ?? 1);
   const wet = (c[2] / 30.4) * GAME_WINDOW;
   return {
@@ -155,13 +160,17 @@ export function gameWeather(league: League, game: Game): Weather {
   if (stadium.roof === 'outdoors') return air;
   // The home team declares on the short-range forecast; it stays shut if it's already wet at kickoff
   // and shuts when rain comes later. shortcut: a 4th-quarter shower closes it too (the NFL keeps it open after 5:00).
-  return roofOpens(stadium, predict(league, game, stadium, air, 'short')) && (air.precip === 'none' || air.onset) ? air : { ...INDOORS, roof: 'closed' };
+  return roofOpens(stadium, predict(league, game, stadium, air, 'short')) && (air.precip === 'none' || air.onset)
+    ? air
+    : { ...INDOORS, roof: 'closed' };
 }
 
 function roofOpens(stadium: Stadium, f: Forecast): boolean {
   const p = stadium.policy ?? DEFAULT_ROOF_POLICY;
   const temp = (f.tempF[0] + f.tempF[1]) / 2;
-  return f.chance < ROOF_MAX_CHANCE && temp >= p.minF && temp <= p.maxF && (f.windMph[0] + f.windMph[1]) / 2 <= p.maxWind;
+  return (
+    f.chance < ROOF_MAX_CHANCE && temp >= p.minF && temp <= p.maxF && (f.windMph[0] + f.windMph[1]) / 2 <= p.maxWind
+  );
 }
 
 /** The conditions in a quarter: dry until the rain or snow starts, and an open roof shuts when it does. */
@@ -190,7 +199,11 @@ export function weatherCost(w: Weather): WeatherCost {
   ];
   return {
     pass: Math.min(PASS_CAP, 1 - parts.reduce((keep, p) => keep * (1 - p), 1)),
-    kick: 0.8 * Math.max(0, v - 10) + (wet ? 2 : snow ? (w.heavy ? 9 : 0.5) : 0) + (t < 25 ? 2 : t < 55 ? 0.5 : 0) - (w.altitudeFt ?? 0) / 1300,
+    kick:
+      0.8 * Math.max(0, v - 10) +
+      (wet ? 2 : snow ? (w.heavy ? 9 : 0.5) : 0) +
+      (t < 25 ? 2 : t < 55 ? 0.5 : 0) -
+      (w.altitudeFt ?? 0) / 1300,
     fumble: (wet || snow ? (w.heavy ? 1.5 : 1.25) : 1) * (t < 25 ? 1.15 : 1),
   };
 }
@@ -202,7 +215,11 @@ export function weatherCost(w: Weather): WeatherCost {
  */
 export function weatherEffects(w: Weather): WeatherCost {
   const c = weatherCost(w);
-  return { pass: Math.log((1 - TYPICAL.pass) / (1 - c.pass)), kick: c.kick - TYPICAL.kick, fumble: c.fumble / TYPICAL.fumble };
+  return {
+    pass: Math.log((1 - TYPICAL.pass) / (1 - c.pass)),
+    kick: c.kick - TYPICAL.kick,
+    fumble: c.fumble / TYPICAL.fumble,
+  };
 }
 
 /**
@@ -279,10 +296,20 @@ function predict(league: League, game: Game, stadium: Stadium, air: Weather, sta
   if (stage !== 'outlook') {
     const s = STAGES[stage];
     const rng = new Rng(`${league.seed}:${game.season}:${game.id}:forecast:${stage}`);
-    [temp, wind, tempErr, windErr] = [air.tempF + rng.normal(0, s.temp), Math.max(0, air.windMph + rng.normal(0, s.wind)), s.temp, s.wind];
+    [temp, wind, tempErr, windErr] = [
+      air.tempF + rng.normal(0, s.temp),
+      Math.max(0, air.windMph + rng.normal(0, s.wind)),
+      s.temp,
+      s.wind,
+    ];
     chance = precipChance(d.stormWet, air.precip !== 'none', s.noise, rng);
   }
-  const likely: Weather = { roof: 'outdoors', tempF: Math.round(temp), windMph: Math.round(wind), precip: chance >= LIKELY ? precipAt(temp) : 'none' };
+  const likely: Weather = {
+    roof: 'outdoors',
+    tempF: Math.round(temp),
+    windMph: Math.round(wind),
+    precip: chance >= LIKELY ? precipAt(temp) : 'none',
+  };
   return {
     stage,
     roof: stadium.roof === 'retractable' ? 'tbd' : 'outdoors',

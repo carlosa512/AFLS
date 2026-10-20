@@ -39,8 +39,7 @@ export type DefenseCall = 'base' | 'runD' | 'passD' | 'blitz';
 export type Tempo = 'hurry' | 'normal' | 'milk';
 export type FourthDown = 'go' | 'punt' | 'fg';
 
-const isLateHalf = (s: Situation, seconds: number) =>
-  (s.quarter === 2 || s.quarter >= 4) && s.clock <= seconds;
+const isLateHalf = (s: Situation, seconds: number) => (s.quarter === 2 || s.quarter >= 4) && s.clock <= seconds;
 /** Seconds left in the game (regulation fourth quarter or overtime). */
 const gameSecondsLeft = (s: Situation) => (s.quarter >= 4 ? s.clock : Infinity);
 
@@ -61,7 +60,8 @@ const FOURTH_LEAN = 0.4;
  */
 const ordinary = (s: Situation) => !s.overtime && !isLateHalf(s, s.quarter === 2 ? 120 : 300) && tempo(s) === 'normal';
 /** A judgment-call go-for-it chance, nudged by the head coach's appetite in ordinary situations. */
-const goOdds = (s: Situation, base: number) => (ordinary(s) ? clamp(base * (1 + FOURTH_LEAN * (s.fourthDown ?? 0)), 0, 0.95) : base);
+const goOdds = (s: Situation, base: number) =>
+  ordinary(s) ? clamp(base * (1 + FOURTH_LEAN * (s.fourthDown ?? 0)), 0, 0.95) : base;
 
 export function tempo(s: Situation): Tempo {
   if (playForFieldGoal(s)) return 'milk';
@@ -107,7 +107,9 @@ export function shouldKneel(s: Situation): boolean {
  * stop it with the last timeout, and kick at the gun so the opponent never gets the ball back.
  */
 export function playForFieldGoal(s: Situation): boolean {
-  return s.quarter === 4 && !s.overtime && s.scoreDiff <= 0 && s.scoreDiff >= -2 && s.fgMakeProb >= 0.85 && s.clock <= 100;
+  return (
+    s.quarter === 4 && !s.overtime && s.scoreDiff <= 0 && s.scoreDiff >= -2 && s.fgMakeProb >= 0.85 && s.clock <= 100
+  );
 }
 
 /** A field goal now ties or wins, and the clock can't afford another snap first. */
@@ -130,7 +132,8 @@ export function kickNow(s: Situation): boolean {
 /** Out of timeouts in a two-minute drill: clock it with a spike rather than snap a play. */
 export function shouldSpike(s: Situation): boolean {
   if (s.offTimeouts > 0 || s.down >= 4 || s.clock > 35 || s.clock < 3) return false;
-  const needPoints = s.quarter >= 4 ? s.scoreDiff <= 0 && !(s.scoreDiff === 0 && s.yardLine < 40) : s.quarter === 2 && s.yardLine >= 45;
+  const needPoints =
+    s.quarter >= 4 ? s.scoreDiff <= 0 && !(s.scoreDiff === 0 && s.yardLine < 40) : s.quarter === 2 && s.yardLine >= 45;
   if (!needPoints) return false;
   // On third down a spike only makes sense to set up a field goal that ties or wins.
   const fgEnough = s.quarter === 2 || s.scoreDiff >= -3;
@@ -160,10 +163,12 @@ export function fourthDown(s: Situation, rng: Rng): FourthDown {
 
   // Analytics-era aggressiveness on short yardage; how far a coach takes it is his call.
   if (s.distance <= 1 && s.yardLine >= 40) return rng.chance(goOdds(s, 0.7)) ? 'go' : inRange ? 'fg' : 'punt';
-  if (s.distance <= 2 && s.yardLine >= 55 && yardsToGoal > 3) return rng.chance(goOdds(s, 0.6)) ? 'go' : inRange ? 'fg' : 'punt';
+  if (s.distance <= 2 && s.yardLine >= 55 && yardsToGoal > 3)
+    return rng.chance(goOdds(s, 0.6)) ? 'go' : inRange ? 'fg' : 'punt';
   if (s.distance <= 1 && s.yardLine >= 30) return rng.chance(goOdds(s, 0.25)) ? 'go' : 'punt';
   if (yardsToGoal <= 3 && s.distance <= 3) return rng.chance(goOdds(s, 0.6)) ? 'go' : 'fg';
-  if (s.distance <= 4 && s.yardLine >= 60 && yardsToGoal > 3) return rng.chance(goOdds(s, 0.3)) ? 'go' : s.fgMakeProb >= 0.55 ? 'fg' : 'punt';
+  if (s.distance <= 4 && s.yardLine >= 60 && yardsToGoal > 3)
+    return rng.chance(goOdds(s, 0.3)) ? 'go' : s.fgMakeProb >= 0.55 ? 'fg' : 'punt';
 
   if (comfortable) return 'fg';
   // No-man's land: a long kick, a short punt, or go for it. Coin-flip kicks are for the end of games.

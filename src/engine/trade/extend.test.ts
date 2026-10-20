@@ -30,12 +30,25 @@ const fresh = (): League => JSON.parse(base);
 function arrival(l: League): { p: Player; buyer: Team } {
   const starts = (t: Team, p: Player) => {
     const outlook = (x: Player) => teamOutlook(l, t.id, x, t.gm.winNow);
-    const room = teamPlayers(l, t.id).filter((x) => x.position === p.position && x.contract && !isExpired(x.contract, l.season)).map(outlook).sort((a, b) => b - a);
+    const room = teamPlayers(l, t.id)
+      .filter((x) => x.position === p.position && x.contract && !isExpired(x.contract, l.season))
+      .map(outlook)
+      .sort((a, b) => b - a);
     return outlook(p) >= (room[STARTERS[p.position] - 1] ?? 0);
   };
   const ai = l.teams.filter((t) => t.id !== l.userTeamId);
-  for (const p of Object.values(l.players).filter((x) => x.teamId !== null && x.teamId !== l.userTeamId && x.contract && yearsLeft(x.contract, l.season) === 1 && x.contract.kind !== 'rookie' && !x.injury)) {
-    const buyer = ai.find((t) => t.id !== p.teamId && capSpace(l, t.id) > 0.15 * l.caps[l.season] && starts(t, p) && willExtend(l, p, t.id));
+  for (const p of Object.values(l.players).filter(
+    (x) =>
+      x.teamId !== null &&
+      x.teamId !== l.userTeamId &&
+      x.contract &&
+      yearsLeft(x.contract, l.season) === 1 &&
+      x.contract.kind !== 'rookie' &&
+      !x.injury,
+  )) {
+    const buyer = ai.find(
+      (t) => t.id !== p.teamId && capSpace(l, t.id) > 0.15 * l.caps[l.season] && starts(t, p) && willExtend(l, p, t.id),
+    );
     if (buyer) return { p, buyer };
   }
   throw new Error('no arrival found');
@@ -61,7 +74,16 @@ describe('trade and extend', { timeout: 30_000 }, () => {
     const { p, buyer } = arrival(l);
     const was = p.contract!;
     const pick = l.draftPicks.find((x) => x.ownerId === buyer.id && x.playerId === undefined)!;
-    const record = executeTrade(l, { sides: [{ teamId: p.teamId!, players: [p.id], picks: [] }, { teamId: buyer.id, players: [], picks: [pick.id] }] }, { kind: 'sale' });
+    const record = executeTrade(
+      l,
+      {
+        sides: [
+          { teamId: p.teamId!, players: [p.id], picks: [] },
+          { teamId: buyer.id, players: [], picks: [pick.id] },
+        ],
+      },
+      { kind: 'sale' },
+    );
     expect(record.extended).toEqual([{ playerId: p.id, tradedOn: was }]);
     // A new deal with his new team (its length is his ask: a veteran may take one year).
     expect(l.players[p.id].contract).not.toBe(was);
@@ -72,7 +94,16 @@ describe('trade and extend', { timeout: 30_000 }, () => {
     const l = fresh();
     const { p } = arrival(l);
     const pick = l.draftPicks.find((x) => x.ownerId === l.userTeamId && x.playerId === undefined)!;
-    const record = executeTrade(l, { sides: [{ teamId: p.teamId!, players: [p.id], picks: [] }, { teamId: l.userTeamId, players: [], picks: [pick.id] }] }, { kind: 'user' });
+    const record = executeTrade(
+      l,
+      {
+        sides: [
+          { teamId: p.teamId!, players: [p.id], picks: [] },
+          { teamId: l.userTeamId, players: [], picks: [pick.id] },
+        ],
+      },
+      { kind: 'user' },
+    );
     expect(record.extended).toBeUndefined();
   });
 });
@@ -80,8 +111,12 @@ describe('trade and extend', { timeout: 30_000 }, () => {
 describe('tag and trade', { timeout: 30_000 }, () => {
   it('puts a seller’s tagged star on the block in the offseason', () => {
     const l = fresh();
-    const seller = l.teams.find((t) => t.id !== l.userTeamId && (t.stance?.mode === 'rebuild' || t.stance?.mode === 'retool'))!;
-    const star = activeRoster(l, seller.id).filter((p) => p.contract).sort((a, b) => playerOvr(b) - playerOvr(a))[0];
+    const seller = l.teams.find(
+      (t) => t.id !== l.userTeamId && (t.stance?.mode === 'rebuild' || t.stance?.mode === 'retool'),
+    )!;
+    const star = activeRoster(l, seller.id)
+      .filter((p) => p.contract)
+      .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
     seller.taggedId = null;
     applyFranchiseTag(l, star);
     const entry = tradeBlock(tradeContext(l), seller).find((e) => e.playerId === star.id);
@@ -97,14 +132,30 @@ describe('dead money in the re-sign window', { timeout: 30_000 }, () => {
     seller.contract!.bonuses.push({ amount: 8000, start: l.season, years: 2, source: 'signing' });
     const dead = tradeDeadMoney(l, { teamId: team.id, players: [seller.id], picks: [] }).thisYear;
     // A hair under a quarter of the cap with the sale...
-    team.deadMoney = [{ season: l.season, amount: Math.round(0.25 * capFor(l, l.season) - dead - 1000), note: 'Released', playerId: seller.id }];
+    team.deadMoney = [
+      {
+        season: l.season,
+        amount: Math.round(0.25 * capFor(l, l.season) - dead - 1000),
+        note: 'Released',
+        playerId: seller.id,
+      },
+    ];
     const buyer = l.teams.find((t) => t.id !== team.id && t.id !== l.userTeamId)!;
     const pick = l.draftPicks.find((x) => x.ownerId === buyer.id && x.playerId === undefined)!;
-    const deal: TradeProposal = { sides: [{ teamId: team.id, players: [seller.id], picks: [] }, { teamId: buyer.id, players: [], picks: [pick.id] }] };
+    const deal: TradeProposal = {
+      sides: [
+        { teamId: team.id, players: [seller.id], picks: [] },
+        { teamId: buyer.id, players: [], picks: [pick.id] },
+      ],
+    };
     expect(judge(tradeContext(l), team.id, deal).refusal ?? '').not.toMatch(/dead money/);
     // ...and over it once a deal that ran out drops its void years on the books.
     const gone = activeRoster(l, team.id).find((p) => p.id !== seller.id)!;
-    gone.contract = { ...gone.contract!, years: [{ season: l.season, base: 0, guaranteed: 0, void: true }], bonuses: [{ amount: 4000, start: l.season - 1, years: 2, source: 'signing' }] };
+    gone.contract = {
+      ...gone.contract!,
+      years: [{ season: l.season, base: 0, guaranteed: 0, void: true }],
+      bonuses: [{ amount: 4000, start: l.season - 1, years: 2, source: 'signing' }],
+    };
     expect(judge(tradeContext(l), team.id, deal).refusal).toMatch(/dead money/);
   });
 });

@@ -42,7 +42,9 @@ describe('front offices invest on outlook', () => {
     expect(gain).toBeLessThan(upgradeBar(league, team, 0.2 * league.caps[league.season]));
     // A real upgrade at that price still gets made.
     depth.QB = [outlookOf('QB', 31, 12.5, 0), 11];
-    expect(needGain(depth, vet, outlookOf('QB', 28, 15.2, 0))).toBeGreaterThan(upgradeBar(league, team, 0.2 * league.caps[league.season]));
+    expect(needGain(depth, vet, outlookOf('QB', 28, 15.2, 0))).toBeGreaterThan(
+      upgradeBar(league, team, 0.2 * league.caps[league.season]),
+    );
   });
 
   /** A team's best quarterback made option-eligible this year, and a teammate set `delta` points better on every rating. */
@@ -59,12 +61,29 @@ describe('front offices invest on outlook', () => {
     const [p, q] = qbs;
     // p: a rookie deal ending this year with the option open.
     p.age = 24;
-    p.contract = { kind: 'rookie', signedSeason: league.season - 3, signedWeek: 0, apy: 10000, length: 4, years: [{ season: league.season, base: 10000, guaranteed: 10000 }], bonuses: [], fifthYearOption: 'eligible' };
+    p.contract = {
+      kind: 'rookie',
+      signedSeason: league.season - 3,
+      signedWeek: 0,
+      apy: 10000,
+      length: 4,
+      years: [{ season: league.season, base: 10000, guaranteed: 10000 }],
+      bonuses: [],
+      fifthYearOption: 'eligible',
+    };
     // q: the same game moved by `delta`, signed long-term, paid enough next year to fill the cap if `tight`.
     q.age = 27;
     for (const a of ATTRIBUTES) q.ratings[a] = Math.max(1, Math.min(20, p.ratings[a] + delta));
     const next = tight ? league.caps[league.season] * 1.2 : 20000;
-    q.contract = { kind: 'veteran', signedSeason: league.season, signedWeek: 0, apy: next, length: 3, years: [0, 1, 2].map((i) => ({ season: league.season + i, base: i ? next : 20000, guaranteed: 0 })), bonuses: [] };
+    q.contract = {
+      kind: 'veteran',
+      signedSeason: league.season,
+      signedWeek: 0,
+      apy: next,
+      length: 3,
+      years: [0, 1, 2].map((i) => ({ season: league.season + i, base: i ? next : 20000, guaranteed: 0 })),
+      bonuses: [],
+    };
     expect(lastSeason(p.contract)).toBe(league.season);
     expect(STARTERS.QB).toBe(1);
     aiFifthYearOptions(league, team);

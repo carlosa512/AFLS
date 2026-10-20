@@ -33,13 +33,59 @@ export const FOULS: Record<Foul, FoulInfo> = {
   falseStart: { label: 'False start', side: 'offense', yards: 5, deadBall: true, tendency: null },
   offside: { label: 'Offside', side: 'defense', yards: 5, tendency: null },
   holding: { label: 'Offensive holding', side: 'offense', yards: 10, tendency: 'holding' },
-  passInterference: { label: 'Pass interference', side: 'defense', yards: 'spot', autoFirst: true, tendency: 'coverage' },
+  passInterference: {
+    label: 'Pass interference',
+    side: 'defense',
+    yards: 'spot',
+    autoFirst: true,
+    tendency: 'coverage',
+  },
   defHolding: { label: 'Defensive holding', side: 'defense', yards: 5, autoFirst: true, tendency: 'coverage' },
-  roughingPasser: { label: 'Roughing the passer', side: 'defense', yards: 15, autoFirst: true, tendency: 'qbProtection', personal: true, late: 'pastLine' },
-  unnecessaryRoughness: { label: 'Unnecessary roughness', side: 'defense', yards: 15, autoFirst: true, tendency: null, personal: true, late: 'pastLine' },
-  faceMask: { label: 'Face mask', side: 'defense', yards: 15, autoFirst: true, tendency: null, personal: true, late: 'pastLine' },
-  horseCollar: { label: 'Horse collar', side: 'defense', yards: 15, autoFirst: true, tendency: null, personal: true, late: 'pastLine' },
-  unsportsmanlike: { label: 'Unsportsmanlike conduct', side: 'defense', yards: 15, autoFirst: true, tendency: null, personal: true, late: 'always' },
+  roughingPasser: {
+    label: 'Roughing the passer',
+    side: 'defense',
+    yards: 15,
+    autoFirst: true,
+    tendency: 'qbProtection',
+    personal: true,
+    late: 'pastLine',
+  },
+  unnecessaryRoughness: {
+    label: 'Unnecessary roughness',
+    side: 'defense',
+    yards: 15,
+    autoFirst: true,
+    tendency: null,
+    personal: true,
+    late: 'pastLine',
+  },
+  faceMask: {
+    label: 'Face mask',
+    side: 'defense',
+    yards: 15,
+    autoFirst: true,
+    tendency: null,
+    personal: true,
+    late: 'pastLine',
+  },
+  horseCollar: {
+    label: 'Horse collar',
+    side: 'defense',
+    yards: 15,
+    autoFirst: true,
+    tendency: null,
+    personal: true,
+    late: 'pastLine',
+  },
+  unsportsmanlike: {
+    label: 'Unsportsmanlike conduct',
+    side: 'defense',
+    yards: 15,
+    autoFirst: true,
+    tendency: null,
+    personal: true,
+    late: 'always',
+  },
   // Special teams: 10 yards from the spot of a block on a return; the receiving team's ball at its 40 on a
   // kickoff out of bounds or short of the landing zone; 5 for a kicking team lined up wrong; 15 from the
   // catch for interfering with it; 5 for running into a punter, 15 and the ball for roughing him.
@@ -49,7 +95,15 @@ export const FOULS: Record<Foul, FoulInfo> = {
   kickoffFormation: { label: 'Kickoff offside or formation', side: 'kicking', yards: 5, tendency: null, special: true },
   kickCatch: { label: 'Kick-catch interference', side: 'kicking', yards: 15, tendency: null, special: true },
   runningIntoKicker: { label: 'Running into the kicker', side: 'receiving', yards: 5, tendency: null, special: true },
-  roughingKicker: { label: 'Roughing the kicker', side: 'receiving', yards: 15, autoFirst: true, tendency: null, personal: true, special: true },
+  roughingKicker: {
+    label: 'Roughing the kicker',
+    side: 'receiving',
+    yards: 15,
+    autoFirst: true,
+    tendency: null,
+    personal: true,
+    special: true,
+  },
 };
 export const FOUL_KINDS = Object.keys(FOULS) as Foul[];
 
@@ -72,8 +126,12 @@ export function enforce(foul: Foul, at: Spot, spotYards = 0): Spot & { yards: nu
     const yards = Math.min(info.yards as number, Math.floor(at.yardLine / 2));
     return { yardLine: at.yardLine - yards, down: at.down, lineToGain: at.lineToGain, yards };
   }
-  const yards = info.yards === 'spot' ? Math.min(Math.max(1, spotYards), 99 - at.yardLine) : Math.min(info.yards, Math.floor((100 - at.yardLine) / 2));
+  const yards =
+    info.yards === 'spot'
+      ? Math.min(Math.max(1, spotYards), 99 - at.yardLine)
+      : Math.min(info.yards, Math.floor((100 - at.yardLine) / 2));
   const yardLine = at.yardLine + yards;
-  if (info.autoFirst || yardLine >= at.lineToGain) return { yardLine, down: 1, lineToGain: Math.min(100, yardLine + 10), yards };
+  if (info.autoFirst || yardLine >= at.lineToGain)
+    return { yardLine, down: 1, lineToGain: Math.min(100, yardLine + 10), yards };
   return { yardLine, down: at.down, lineToGain: at.lineToGain, yards };
 }

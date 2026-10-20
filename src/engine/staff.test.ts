@@ -82,7 +82,18 @@ describe('scouting departments', { timeout: 30_000 }, () => {
   });
 
   it('reads a group with its specialist, an off-focus scout poorly, and the Director as fallback', () => {
-    const mk = (role: Staff['role'], evaluation: number, focus?: Staff['focus']): Staff => ({ id: 0, firstName: 'A', lastName: 'B', role, age: 40, evaluation, projection: evaluation, focus, teamId: 0, contract: null });
+    const mk = (role: Staff['role'], evaluation: number, focus?: Staff['focus']): Staff => ({
+      id: 0,
+      firstName: 'A',
+      lastName: 'B',
+      role,
+      age: 40,
+      evaluation,
+      projection: evaluation,
+      focus,
+      teamId: 0,
+      contract: null,
+    });
     const director = mk('director', 12);
     const line = mk('collegeScout', 13, 'line');
     const back = mk('collegeScout', 16, 'back');
@@ -103,7 +114,10 @@ describe('scouting departments', { timeout: 30_000 }, () => {
 
   it('makes reads sharper and ranges narrower with better staff, without hiding the truth', () => {
     const l = offseason('sharp');
-    const prospects = l.draftClass.map((id) => l.players[id]).filter(isProspect).slice(0, 120);
+    const prospects = l.draftClass
+      .map((id) => l.players[id])
+      .filter(isProspect)
+      .slice(0, 120);
     setQuality(l, 6);
     const poor = errorAndWidth(l, prospects);
     setQuality(l, 17);
@@ -133,8 +147,36 @@ describe('scouting departments', { timeout: 30_000 }, () => {
     const before = perceive(l, l.userTeamId, p);
     const copy = createLeagueCopy(l);
     // A projection-only specialist in his group takes the ceiling read and nothing else.
-    const seer: Staff = { id: copy.nextStaffId++, firstName: 'C', lastName: 'Seer', role: 'proScout', age: 40, evaluation: 1, projection: 20, focus: undefined, teamId: copy.userTeamId, contract: { salary: 1, through: copy.season + 1 } };
-    seer.focus = (['skill', 'line', 'front', 'back'] as const).find((f) => f === ({ QB: 'skill', RB: 'skill', WR: 'skill', TE: 'skill', OL: 'line', DT: 'front', EDGE: 'front', LB: 'front', CB: 'back', S: 'back' } as Record<string, string>)[p.position]);
+    const seer: Staff = {
+      id: copy.nextStaffId++,
+      firstName: 'C',
+      lastName: 'Seer',
+      role: 'proScout',
+      age: 40,
+      evaluation: 1,
+      projection: 20,
+      focus: undefined,
+      teamId: copy.userTeamId,
+      contract: { salary: 1, through: copy.season + 1 },
+    };
+    seer.focus = (['skill', 'line', 'front', 'back'] as const).find(
+      (f) =>
+        f ===
+        (
+          {
+            QB: 'skill',
+            RB: 'skill',
+            WR: 'skill',
+            TE: 'skill',
+            OL: 'line',
+            DT: 'front',
+            EDGE: 'front',
+            LB: 'front',
+            CB: 'back',
+            S: 'back',
+          } as Record<string, string>
+        )[p.position],
+    );
     copy.staff[seer.id] = seer;
     const after = perceive(createLeagueCopy(copy), copy.userTeamId, p);
     if (p.position !== 'K' && p.position !== 'P') expect(after.potReaderId).toBe(seer.id);
@@ -249,7 +291,9 @@ describe('staff moves', { timeout: 30_000 }, () => {
     const scout = expiring.find((s) => s.role !== 'director')!;
     expect(scout).toBeDefined();
     // Fill every chair of his role with hires: his chair is gone, and he can't be extended into it.
-    while (teamStaff(l, user).filter((s) => s.role === scout.role && !isExpiring(l, s)).length < STAFF_SLOTS[scout.role]) {
+    while (
+      teamStaff(l, user).filter((s) => s.role === scout.role && !isExpiring(l, s)).length < STAFF_SLOTS[scout.role]
+    ) {
       const cheap = staffMarket(l)
         .filter((s) => s.role === scout.role)
         .sort((a, b) => staffAsk(l, a) - staffAsk(l, b))[0];
@@ -268,7 +312,8 @@ describe('staff moves', { timeout: 30_000 }, () => {
       if (outlook === 'stays') expect(s.teamId).toBe(user);
       else expect(s?.teamId ?? null).not.toBe(user);
     }
-    for (const role of ['director', 'collegeScout', 'proScout'] as const) expect(teamStaff(l, user).filter((s) => s.role === role).length).toBeLessThanOrEqual(STAFF_SLOTS[role]);
+    for (const role of ['director', 'collegeScout', 'proScout'] as const)
+      expect(teamStaff(l, user).filter((s) => s.role === role).length).toBeLessThanOrEqual(STAFF_SLOTS[role]);
   });
 
   it('fills an AI team’s empty chairs before the season', () => {
@@ -329,7 +374,8 @@ describe('AI front offices on their own reads', () => {
       for (const t of l.teams) {
         if (t.id === l.userTeamId) continue;
         const stakes = grossWorth(ctx, t, p, true);
-        if (stakes > 50) errors.push((playerValue(l, p, t, { ctx }) - playerValue(l, p, t, { truth: true, ctx })) / stakes);
+        if (stakes > 50)
+          errors.push((playerValue(l, p, t, { ctx }) - playerValue(l, p, t, { truth: true, ctx })) / stakes);
       }
     }
     errors.sort((x, y) => x - y);
@@ -357,8 +403,13 @@ describe('AI front offices on their own reads', () => {
     }
     // A team knows prospects around its first-round slot better than ones far from any of its picks.
     const team = l.teams.find((t) => t.id !== l.userTeamId)!;
-    const slots = l.draftPicks.filter((pk) => pk.season === l.season && pk.ownerId === team.id && pk.round <= 2).map((pk) => pk.overall!);
-    const ranked = [...prospects].sort((a, b) => 0.6 * b.scouting!.grade + 0.4 * b.scouting!.ceiling - (0.6 * a.scouting!.grade + 0.4 * a.scouting!.ceiling));
+    const slots = l.draftPicks
+      .filter((pk) => pk.season === l.season && pk.ownerId === team.id && pk.round <= 2)
+      .map((pk) => pk.overall!);
+    const ranked = [...prospects].sort(
+      (a, b) =>
+        0.6 * b.scouting!.grade + 0.4 * b.scouting!.ceiling - (0.6 * a.scouting!.grade + 0.4 * a.scouting!.ceiling),
+    );
     const near = ranked[slots[0] - 1];
     const far = ranked.find((_, i) => slots.every((s) => i + 1 < s - 10 || i + 1 > s + 30) && i > 60 && i < 200)!;
     expect(knowledge(l, team.id, near)).toBeGreaterThan(0.45);
@@ -367,7 +418,9 @@ describe('AI front offices on their own reads', () => {
 
   it('keeps AI-only belief helpers out of the screens', () => {
     const dir = new URL('../ui/', import.meta.url);
-    const files = readdirSync(dir, { recursive: true }).map(String).filter((f) => /\.tsx?$/.test(f));
+    const files = readdirSync(dir, { recursive: true })
+      .map(String)
+      .filter((f) => /\.tsx?$/.test(f));
     for (const f of files) {
       const src = readFileSync(new URL(f, dir), 'utf8');
       expect(src, f).not.toMatch(/\b(boardOf|viewCache)\b/);

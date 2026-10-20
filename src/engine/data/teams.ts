@@ -43,12 +43,12 @@ export const DIVISIONS = [
 /** 32 teams, four per division in DIVISIONS order. */
 export const TEAM_SEEDS: TeamSeed[] = [
   // Liberty East
-  { city: 'Buffalo', name: 'Blizzard', abbrev: 'BUF', colors: ['#00338d', '#c60c30'], revenue: 585, winPct: 0.620 },
+  { city: 'Buffalo', name: 'Blizzard', abbrev: 'BUF', colors: ['#00338d', '#c60c30'], revenue: 585, winPct: 0.62 },
   { city: 'Miami', name: 'Barracudas', abbrev: 'MIA', colors: ['#008e97', '#fc4c02'], revenue: 656, winPct: 0.494 },
   { city: 'New England', name: 'Admirals', abbrev: 'NE', colors: ['#002244', '#c60c30'], revenue: 762, winPct: 0.579 },
   { city: 'New York', name: 'Knights', abbrev: 'NYK', colors: ['#125740', '#ffffff'], revenue: 663, winPct: 0.341 },
   // Liberty North
-  { city: 'Baltimore', name: 'Clippers', abbrev: 'BAL', colors: ['#241773', '#9e7c0c'], revenue: 621, winPct: 0.610 },
+  { city: 'Baltimore', name: 'Clippers', abbrev: 'BAL', colors: ['#241773', '#9e7c0c'], revenue: 621, winPct: 0.61 },
   { city: 'Cincinnati', name: 'Steamers', abbrev: 'CIN', colors: ['#fb4f14', '#000000'], revenue: 573, winPct: 0.479 },
   { city: 'Cleveland', name: 'Hammers', abbrev: 'CLE', colors: ['#311d00', '#ff3c00'], revenue: 685, winPct: 0.351 },
   { city: 'Pittsburgh', name: 'Forge', abbrev: 'PIT', colors: ['#101820', '#ffb612'], revenue: 619, winPct: 0.622 },
@@ -59,13 +59,20 @@ export const TEAM_SEEDS: TeamSeed[] = [
   { city: 'Tennessee', name: 'Outlaws', abbrev: 'TEN', colors: ['#0c2340', '#4b92db'], revenue: 582, winPct: 0.476 },
   // Liberty West
   { city: 'Denver', name: 'Summit', abbrev: 'DEN', colors: ['#fb4f14', '#002244'], revenue: 645, winPct: 0.451 },
-  { city: 'Kansas City', name: 'Marshals', abbrev: 'KC', colors: ['#e31837', '#ffb81c'], revenue: 610, winPct: 0.750 },
+  { city: 'Kansas City', name: 'Marshals', abbrev: 'KC', colors: ['#e31837', '#ffb81c'], revenue: 610, winPct: 0.75 },
   { city: 'Las Vegas', name: 'Mirage', abbrev: 'LV', colors: ['#000000', '#a5acaf'], revenue: 832, winPct: 0.439 },
-  { city: 'Los Angeles', name: 'Condors', abbrev: 'LAC', colors: ['#0080c6', '#ffc20e'], revenue: 593, winPct: 0.470 },
+  { city: 'Los Angeles', name: 'Condors', abbrev: 'LAC', colors: ['#0080c6', '#ffc20e'], revenue: 593, winPct: 0.47 },
   // Frontier East
   { city: 'Dallas', name: 'Stampede', abbrev: 'DAL', colors: ['#003594', '#869397'], revenue: 1234, winPct: 0.567 },
   { city: 'New York', name: 'Empire', abbrev: 'NYE', colors: ['#0b2265', '#a71930'], revenue: 707, winPct: 0.351 },
-  { city: 'Philadelphia', name: 'Founders', abbrev: 'PHI', colors: ['#004c54', '#a5acaf'], revenue: 688, winPct: 0.595 },
+  {
+    city: 'Philadelphia',
+    name: 'Founders',
+    abbrev: 'PHI',
+    colors: ['#004c54', '#a5acaf'],
+    revenue: 688,
+    winPct: 0.595,
+  },
   { city: 'Washington', name: 'Sentinels', abbrev: 'WAS', colors: ['#5a1414', '#ffb612'], revenue: 644, winPct: 0.445 },
   // Frontier North
   { city: 'Chicago', name: 'Gale', abbrev: 'CHI', colors: ['#0b162a', '#c83803'], revenue: 629, winPct: 0.384 },
@@ -80,16 +87,46 @@ export const TEAM_SEEDS: TeamSeed[] = [
   // Frontier West
   { city: 'Arizona', name: 'Scorpions', abbrev: 'ARI', colors: ['#97233f', '#000000'], revenue: 571, winPct: 0.439 },
   { city: 'Los Angeles', name: 'Stars', abbrev: 'LAS', colors: ['#003594', '#ffd100'], revenue: 764, winPct: 0.555 },
-  { city: 'San Francisco', name: 'Fog', abbrev: 'SF', colors: ['#aa0000', '#b3995d'], revenue: 723, winPct: 0.470 },
+  { city: 'San Francisco', name: 'Fog', abbrev: 'SF', colors: ['#aa0000', '#b3995d'], revenue: 723, winPct: 0.47 },
   { city: 'Seattle', name: 'Squall', abbrev: 'SEA', colors: ['#002244', '#69be28'], revenue: 624, winPct: 0.595 },
 ];
 
 /** Nicknames we must never ship (licensed marks), used by tests to guard mod-free defaults. */
 export const RESERVED_NICKNAMES = [
-  'Bears', 'Bengals', 'Bills', 'Broncos', 'Browns', 'Buccaneers', 'Cardinals', 'Chargers', 'Chiefs', 'Colts',
-  'Commanders', 'Cowboys', 'Dolphins', 'Eagles', 'Falcons', '49ers', 'Giants', 'Jaguars', 'Jets', 'Lions',
-  'Packers', 'Panthers', 'Patriots', 'Raiders', 'Rams', 'Ravens', 'Saints', 'Seahawks', 'Steelers', 'Texans',
-  'Titans', 'Vikings', 'Oilers', 'Redskins',
+  'Bears',
+  'Bengals',
+  'Bills',
+  'Broncos',
+  'Browns',
+  'Buccaneers',
+  'Cardinals',
+  'Chargers',
+  'Chiefs',
+  'Colts',
+  'Commanders',
+  'Cowboys',
+  'Dolphins',
+  'Eagles',
+  'Falcons',
+  '49ers',
+  'Giants',
+  'Jaguars',
+  'Jets',
+  'Lions',
+  'Packers',
+  'Panthers',
+  'Patriots',
+  'Raiders',
+  'Rams',
+  'Ravens',
+  'Saints',
+  'Seahawks',
+  'Steelers',
+  'Texans',
+  'Titans',
+  'Vikings',
+  'Oilers',
+  'Redskins',
 ];
 
 /** Old default team names (before real markets) → used to migrate existing saves in place. */

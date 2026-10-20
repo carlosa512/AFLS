@@ -60,12 +60,24 @@ export function hashToRoute(hash: string): Route | null {
       return null;
     }
   }
-  if (view === 'roster' || view === 'cap') return arg === undefined ? { view } : id(arg) !== undefined ? { view, teamId: id(arg) } : null;
-  if (view === 'office') return arg === undefined ? { view } : (OFFICE_TABS as readonly string[]).includes(arg) ? { view, tab: arg as OfficeTab } : null;
-  if (view === 'stats') return arg === undefined ? { view } : (STATS_TABS as readonly string[]).includes(arg) ? { view, tab: arg as StatsTab } : null;
+  if (view === 'roster' || view === 'cap')
+    return arg === undefined ? { view } : id(arg) !== undefined ? { view, teamId: id(arg) } : null;
+  if (view === 'office')
+    return arg === undefined
+      ? { view }
+      : (OFFICE_TABS as readonly string[]).includes(arg)
+        ? { view, tab: arg as OfficeTab }
+        : null;
+  if (view === 'stats')
+    return arg === undefined
+      ? { view }
+      : (STATS_TABS as readonly string[]).includes(arg)
+        ? { view, tab: arg as StatsTab }
+        : null;
   // The Stats tab was called Leaders; keep old bookmarks working.
   if (view === 'leaders') return { view: 'stats', tab: 'leaders' };
-  if ((view === 'game' || view === 'watch') && id(arg) !== undefined) return { view, gameId: id(arg)!, back: { view: 'schedule' } };
+  if ((view === 'game' || view === 'watch') && id(arg) !== undefined)
+    return { view, gameId: id(arg)!, back: { view: 'schedule' } };
   return null;
 }
 

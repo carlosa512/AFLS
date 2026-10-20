@@ -27,7 +27,9 @@ describe('attribute registry', () => {
   });
 
   it('declares only contests the match engine actually reads', () => {
-    const src = ['match/gameSim.ts', 'match/lineup.ts'].map((f) => readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n');
+    const src = ['match/gameSim.ts', 'match/lineup.ts']
+      .map((f) => readFileSync(new URL(f, import.meta.url), 'utf8'))
+      .join('\n');
     for (const name of Object.keys(CONTESTS)) expect(src, name).toContain(`'${name}'`);
   });
 

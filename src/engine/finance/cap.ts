@@ -7,7 +7,16 @@ import { clamp, type Rng } from '../rng';
 import { teamPlayers } from '../roster';
 import type { Contract, League, Phase, Player, Team, Transaction } from '../types';
 import { OFFSEASON_PHASES, POSITIONS } from '../types';
-import { capHit, deadMoney, remainingProration, restructure, restructurePreview, yearOf, type DeadMoneySplit, type RestructurePreview } from './contract';
+import {
+  capHit,
+  deadMoney,
+  remainingProration,
+  restructure,
+  restructurePreview,
+  yearOf,
+  type DeadMoneySplit,
+  type RestructurePreview,
+} from './contract';
 import { BASE_CAP, minSalary } from './market';
 
 export const POST_JUNE1_LIMIT = 2;
@@ -17,7 +26,9 @@ export const PROJECTED_CAP_GROWTH = 0.07;
 /** Salary cap for a league year: actual once set, otherwise projected from the latest known year. */
 export function capFor(league: League, season: number): number {
   if (league.caps[season]) return league.caps[season];
-  const known = Object.keys(league.caps).map(Number).filter((y) => y <= season);
+  const known = Object.keys(league.caps)
+    .map(Number)
+    .filter((y) => y <= season);
   const from = known.length ? Math.max(...known) : season;
   const base = league.caps[from] ?? BASE_CAP;
   return Math.round(base * (1 + PROJECTED_CAP_GROWTH) ** (season - from));
@@ -71,10 +82,17 @@ export interface CapSheet {
  * League year cap position (the top-51 rule applies to the current year until camp). `roster` saves
  * a scan of the league when the caller already holds the team's players (the trade market does).
  */
-export function capSheet(league: League, teamId: number, season = league.season, roster: readonly Player[] = teamPlayers(league, teamId)): CapSheet {
+export function capSheet(
+  league: League,
+  teamId: number,
+  season = league.season,
+  roster: readonly Player[] = teamPlayers(league, teamId),
+): CapSheet {
   const team = league.teams[teamId];
   // The top-51 rule runs until the final roster is set in training camp.
-  const top51 = season === league.season && (league.phase === 'resign' || league.phase === 'freeAgency' || league.phase === 'draft');
+  const top51 =
+    season === league.season &&
+    (league.phase === 'resign' || league.phase === 'freeAgency' || league.phase === 'draft');
   let hits = roster.map((p) => (p.contract ? capHit(p.contract, season) : 0)).sort((a, b) => b - a);
   if (top51) hits = hits.slice(0, 51);
   const active = hits.reduce((a, b) => a + b, 0);
@@ -83,10 +101,21 @@ export function capSheet(league: League, teamId: number, season = league.season,
   const cap = capFor(league, season);
   const used = active + dead;
   // Injured reserve still counts on the cap, but not toward the roster limit.
-  return { season, cap, carryover, active, dead, used, space: cap + carryover - used, rosterSize: roster.filter((p) => !p.ir).length, top51 };
+  return {
+    season,
+    cap,
+    carryover,
+    active,
+    dead,
+    used,
+    space: cap + carryover - used,
+    rosterSize: roster.filter((p) => !p.ir).length,
+    top51,
+  };
 }
 
-export const capSpace = (league: League, teamId: number, season = league.season, roster?: readonly Player[]) => capSheet(league, teamId, season, roster).space;
+export const capSpace = (league: League, teamId: number, season = league.season, roster?: readonly Player[]) =>
+  capSheet(league, teamId, season, roster).space;
 
 export function logTransaction(league: League, kind: Transaction['kind'], teamIds: number[], text: string): void {
   league.transactions.push({ season: league.season, phase: league.phase, week: league.week, teamIds, kind, text });
@@ -116,10 +145,12 @@ export function releasePreview(league: League, player: Player, designatePostJune
 /** Why a release isn't allowed right now, or null if it is. */
 export function releaseBlocker(league: League, player: Player): string | null {
   if (player.teamId === null || !player.contract) return 'Not under contract.';
-  if (league.phase === 'playoffs' || league.phase === 'complete') return 'Roster moves reopen when the new league year begins.';
+  if (league.phase === 'playoffs' || league.phase === 'complete')
+    return 'Roster moves reopen when the new league year begins.';
   if (league.phase === 'regular') {
     const left = teamPlayers(league, player.teamId).filter((p) => p.position === player.position).length - 1;
-    if (left < STARTERS[player.position]) return `Keep at least ${STARTERS[player.position]} ${player.position} on the roster during the season.`;
+    if (left < STARTERS[player.position])
+      return `Keep at least ${STARTERS[player.position]} ${player.position} on the roster during the season.`;
   }
   return null;
 }
@@ -130,8 +161,10 @@ export function releasePlayer(league: League, player: Player, designatePostJune1
   const preview = releasePreview(league, player, designatePostJune1);
   const team = league.teams[player.teamId];
   const note = preview.postJune1 && !autoPostJune1(league.phase) ? 'Released (post-June 1)' : 'Released';
-  if (preview.thisYear > 0) team.deadMoney.push({ season: league.season, amount: Math.round(preview.thisYear), playerId: player.id, note });
-  if (preview.nextYear > 0) team.deadMoney.push({ season: league.season + 1, amount: Math.round(preview.nextYear), playerId: player.id, note });
+  if (preview.thisYear > 0)
+    team.deadMoney.push({ season: league.season, amount: Math.round(preview.thisYear), playerId: player.id, note });
+  if (preview.nextYear > 0)
+    team.deadMoney.push({ season: league.season + 1, amount: Math.round(preview.nextYear), playerId: player.id, note });
   if (preview.postJune1 && !autoPostJune1(league.phase)) team.postJune1Used++;
   // Wherever he was lined up (a player can be at another position on a hand-sorted chart).
   for (const pos of POSITIONS) team.depthChart[pos] = team.depthChart[pos].filter((id) => id !== player.id);
@@ -162,14 +195,30 @@ export function restructureBlocker(league: League, player: Player): string | nul
 export const canRestructure = (league: League, player: Player) => restructureBlocker(league, player) === null;
 
 export function restructureOptions(league: League, player: Player, amount = Infinity): RestructurePreview {
-  return restructurePreview(player.contract!, league.season, amount, minSalary(player.experience, capFor(league, league.season)));
+  return restructurePreview(
+    player.contract!,
+    league.season,
+    amount,
+    minSalary(player.experience, capFor(league, league.season)),
+  );
 }
 
 export function restructurePlayer(league: League, player: Player, amount = Infinity): number {
   if (!canRestructure(league, player)) return 0;
-  const saved = restructure(player.contract!, league.season, amount, minSalary(player.experience, capFor(league, league.season)));
+  const saved = restructure(
+    player.contract!,
+    league.season,
+    amount,
+    minSalary(player.experience, capFor(league, league.season)),
+  );
   const team = league.teams[player.teamId!];
-  if (saved > 0) logTransaction(league, 'restructure', [team.id], `${team.abbrev} restructured ${nameOf(player)} (+$${(saved / 1000).toFixed(1)}M cap room)`);
+  if (saved > 0)
+    logTransaction(
+      league,
+      'restructure',
+      [team.id],
+      `${team.abbrev} restructured ${nameOf(player)} (+$${(saved / 1000).toFixed(1)}M cap room)`,
+    );
   return saved;
 }
 
@@ -201,7 +250,6 @@ export function capProjection(league: League, teamId: number, span = 5) {
   });
 }
 
-
 /**
  * Next league year's cap: usually 6–10% growth, with a rare revenue shock (like 2021's
  * COVID cut) that stress-tests cap-heavy teams.
@@ -210,4 +258,3 @@ export function nextCap(rng: Rng, cap: number): number {
   const growth = rng.chance(0.04) ? -rng.float(0.05, 0.1) : clamp(rng.normal(0.08, 0.012), 0.06, 0.1);
   return Math.round(cap * (1 + growth));
 }
-

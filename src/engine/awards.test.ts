@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_LEAGUE_SLOTS, AWARD_KEYS, HONOR_SLOTS, honorBadges, MONTHS, pickAwards, pickPeriod, playerHonors, rookieSeason, seasonAwards, weeklyAwards } from './awards';
+import {
+  ALL_LEAGUE_SLOTS,
+  AWARD_KEYS,
+  HONOR_SLOTS,
+  honorBadges,
+  MONTHS,
+  pickAwards,
+  pickPeriod,
+  playerHonors,
+  rookieSeason,
+  seasonAwards,
+  weeklyAwards,
+} from './awards';
 import { createLeague, SAVE_VERSION } from './generate';
 import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { migrateLeague } from './migrate';
@@ -25,7 +37,8 @@ describe('season awards', () => {
     const pos = (k: (typeof AWARD_KEYS)[number]) => league.players[awards.winners[k]!.playerId].position;
     expect(['QB', 'RB', 'WR', 'TE']).toContain(pos('opoy'));
     expect(['DT', 'EDGE', 'LB', 'CB', 'S']).toContain(pos('dpoy'));
-    for (const k of ['oroy', 'droy'] as const) expect(rookieSeason(league, league.players[awards.winners[k]!.playerId])).toBe(league.season);
+    for (const k of ['oroy', 'droy'] as const)
+      expect(rookieSeason(league, league.players[awards.winners[k]!.playerId])).toBe(league.season);
     const mvp = league.players[awards.winners.mvp!.playerId];
     const games = league.games.filter((g) => g.season === league.season && g.result?.playerTeams[mvp.id] !== undefined);
     expect(games.map((g) => g.result!.playerTeams[mvp.id])).toContain(awards.winners.mvp!.teamId);
@@ -54,7 +67,10 @@ describe('season awards', () => {
   it('show on the winners as honors', () => {
     const honors = playerHonors(league, awards.winners.mvp!.playerId);
     expect(honors).toContainEqual({ season: league.season, label: 'MVP' });
-    expect(playerHonors(league, awards.allLeague[1][0].playerId)).toContainEqual({ season: league.season, label: 'All-League 2nd team' });
+    expect(playerHonors(league, awards.allLeague[1][0].playerId)).toContainEqual({
+      season: league.season,
+      label: 'All-League 2nd team',
+    });
   });
 });
 
@@ -124,7 +140,9 @@ describe('players of the week and month', () => {
         expect(league.teams[w!.teamId!].conference).toBe(conference);
         expect(offense.includes(p.position)).toBe(side === 'offense');
         // He played that week, for that team.
-        const game = league.games.find((g) => g.season === league.season && g.week === Number(week) && g.result?.playerTeams[p.id] === w!.teamId);
+        const game = league.games.find(
+          (g) => g.season === league.season && g.week === Number(week) && g.result?.playerTeams[p.id] === w!.teamId,
+        );
         expect(game).toBeDefined();
       });
     }
@@ -140,16 +158,20 @@ describe('players of the week and month', () => {
 
   it('come from the box scores, never from ratings', () => {
     const blind = copy(league);
-    for (const p of Object.values(blind.players)) for (const a of ATTRIBUTES) p.ratings[a] = 1 + ((p.id * 3 + a.length) % 20);
+    for (const p of Object.values(blind.players))
+      for (const a of ATTRIBUTES) p.ratings[a] = 1 + ((p.id * 3 + a.length) % 20);
     expect(pickPeriod(blind, league.season, [1, 4])).toEqual(honors.months.sep);
     expect(pickPeriod(blind, league.season, [2, 2])).toEqual(honors.weeks[2]);
   });
 
   it('count on the player card', () => {
     const counts = new Map<number, number>();
-    for (const winners of Object.values(honors.weeks)) for (const w of winners) counts.set(w!.playerId, (counts.get(w!.playerId) ?? 0) + 1);
+    for (const winners of Object.values(honors.weeks))
+      for (const w of winners) counts.set(w!.playerId, (counts.get(w!.playerId) ?? 0) + 1);
     const [id, n] = [...counts].sort((a, b) => b[1] - a[1])[0];
-    expect(honorBadges(playerHonors(league, id)).find((b) => b.label === 'Player of the Week')?.seasons).toHaveLength(n);
+    expect(honorBadges(playerHonors(league, id)).find((b) => b.label === 'Player of the Week')?.seasons).toHaveLength(
+      n,
+    );
   });
 
   it('keep the save small: a season of winners is a few kilobytes', () => {

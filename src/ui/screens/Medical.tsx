@@ -40,7 +40,19 @@ import { pron } from '../../engine/pronouns';
 import { staffWindowOpen } from '../../engine/staff';
 import type { League, Medic, MedicRole, Player } from '../../engine/types';
 import { useNav } from '../App';
-import { Exact, GradesTable, Panel, PlayerAvatar, Section, Sheet, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
+import {
+  Exact,
+  GradesTable,
+  Panel,
+  PlayerAvatar,
+  Section,
+  Sheet,
+  SortTh,
+  sortRows,
+  TeamChip,
+  TeamPicker,
+  useSort,
+} from '../components';
 import { StaffAvatar } from '../staffAvatar';
 import { money, ordinal, resultsSeason, verdict, type Verdict } from '../format';
 import { conditionTone, FitnessCell, hurtList, InjuryTag, wornDown } from '../injuries';
@@ -118,7 +130,8 @@ function Member({ league, m, open }: { league: League; m: Medic; open: boolean }
         <span className="fact">
           <span className="eyebrow">Salary</span>
           <span className="staff-age">
-            <b className="num">{money(m.contract?.salary ?? 0)}</b> <span className="muted small">thru {m.contract?.through}</span>
+            <b className="num">{money(m.contract?.salary ?? 0)}</b>{' '}
+            <span className="muted small">thru {m.contract?.through}</span>
           </span>
         </span>
       </div>
@@ -132,21 +145,33 @@ function Member({ league, m, open }: { league: League; m: Medic; open: boolean }
         </p>
       )}
       {!theirs && (
-      <div className="staff-actions">
-        <button className="btn btn-sm" disabled={!!releaseProblem} title={releaseProblem ?? undefined} onClick={() => store.mutate((l) => releaseMedic(l, l.userTeamId, m.id))}>
-          {expiring ? 'Let go' : `Dismiss${pay > 0 ? ` · ${money(pay)} severance` : ''}`}
-        </button>
-        {expiring && (
-          <>
-            <Term value={years} onChange={setYears} label={`Extension length for ${medicName(m)}`} />
-            <button className="btn btn-sm btn-primary" disabled={!!extendProblem} title={extendProblem ?? undefined} onClick={() => store.mutate((l) => extendMedic(l, l.userTeamId, m.id, years))}>
-              Extend · {money(medicAsk(league, m, years))}/yr
-            </button>
-          </>
-        )}
-      </div>
+        <div className="staff-actions">
+          <button
+            className="btn btn-sm"
+            disabled={!!releaseProblem}
+            title={releaseProblem ?? undefined}
+            onClick={() => store.mutate((l) => releaseMedic(l, l.userTeamId, m.id))}
+          >
+            {expiring ? 'Let go' : `Dismiss${pay > 0 ? ` · ${money(pay)} severance` : ''}`}
+          </button>
+          {expiring && (
+            <>
+              <Term value={years} onChange={setYears} label={`Extension length for ${medicName(m)}`} />
+              <button
+                className="btn btn-sm btn-primary"
+                disabled={!!extendProblem}
+                title={extendProblem ?? undefined}
+                onClick={() => store.mutate((l) => extendMedic(l, l.userTeamId, m.id, years))}
+              >
+                Extend · {money(medicAsk(league, m, years))}/yr
+              </button>
+            </>
+          )}
+        </div>
       )}
-      {!theirs && open && (expiring ? extendProblem : releaseProblem) && <p className="small muted staff-why">{expiring ? extendProblem : releaseProblem}</p>}
+      {!theirs && open && (expiring ? extendProblem : releaseProblem) && (
+        <p className="small muted staff-why">{expiring ? extendProblem : releaseProblem}</p>
+      )}
     </li>
   );
 }
@@ -155,7 +180,10 @@ function Member({ league, m, open }: { league: League; m: Medic; open: boolean }
 function MedicLink({ m, avatar = false }: { m: Medic; avatar?: boolean }) {
   const nav = useNav();
   return (
-    <button className={`linklike ${avatar ? 'staff-link ' : ''}staff-name`} onClick={() => nav.openStaff('medic', m.id)}>
+    <button
+      className={`linklike ${avatar ? 'staff-link ' : ''}staff-name`}
+      onClick={() => nav.openStaff('medic', m.id)}
+    >
       {avatar ? (
         <>
           <StaffAvatar person={m} size={28} />
@@ -178,14 +206,22 @@ const MEDIC_ROLE_LINE: Record<MedicRole, string> = {
 /** What hiring `m` would do to your department, in words with the ratings for the tap. */
 function hirePreview(league: League, teamId: number, m: Medic): { words: string; numbers: string } | null {
   const { from, to } = previewMedicHire(league, teamId, m);
-  const change = (label: string, a: number, b: number) => (Math.abs(b - a) >= 0.05 ? `${label} ${a.toFixed(1)} → ${b.toFixed(1)}` : null);
-  const numbers = [change('physiotherapy', from.physio, to.physio), change('sports science', from.science, to.science)].filter(Boolean).join(', ');
+  const change = (label: string, a: number, b: number) =>
+    Math.abs(b - a) >= 0.05 ? `${label} ${a.toFixed(1)} → ${b.toFixed(1)}` : null;
+  const numbers = [change('physiotherapy', from.physio, to.physio), change('sports science', from.science, to.science)]
+    .filter(Boolean)
+    .join(', ');
   if (!numbers) return null;
   // Same word both sides: say which way it went rather than "Average → Average".
-  const step = (what: string, a: Verdict, b: Verdict, up: boolean) => (a.word === b.word ? `${what} a touch ${up ? 'better' : 'worse'}` : `${what} ${a.word} → ${b.word}`);
+  const step = (what: string, a: Verdict, b: Verdict, up: boolean) =>
+    a.word === b.word ? `${what} a touch ${up ? 'better' : 'worse'}` : `${what} ${a.word} → ${b.word}`;
   const words = [
-    Math.abs(to.physio - from.physio) >= 0.05 ? step('rehab', rehabVerdict(from), rehabVerdict(to), to.physio > from.physio) : '',
-    Math.abs(to.science - from.science) >= 0.05 ? step('prevention', preventionVerdict(from), preventionVerdict(to), to.science > from.science) : '',
+    Math.abs(to.physio - from.physio) >= 0.05
+      ? step('rehab', rehabVerdict(from), rehabVerdict(to), to.physio > from.physio)
+      : '',
+    Math.abs(to.science - from.science) >= 0.05
+      ? step('prevention', preventionVerdict(from), preventionVerdict(to), to.science > from.science)
+      : '',
   ].filter(Boolean);
   return { words: `Your department: ${words.join(', ')}.`, numbers: `Department ${numbers}` };
 }
@@ -226,7 +262,8 @@ export function MedicCard({ league, medic: m, onClose }: { league: League; medic
         <span className="fact">
           <span className="eyebrow">{m.contract ? 'Salary' : 'Asks'}</span>
           <span className="staff-age">
-            <b className="num">{money(m.contract?.salary ?? medicAsk(league, m, 2))}</b> <span className="muted small">{m.contract ? `thru ${m.contract.through}` : '/ yr for 2'}</span>
+            <b className="num">{money(m.contract?.salary ?? medicAsk(league, m, 2))}</b>{' '}
+            <span className="muted small">{m.contract ? `thru ${m.contract.through}` : '/ yr for 2'}</span>
           </span>
         </span>
       </div>
@@ -240,7 +277,9 @@ export function MedicCard({ league, medic: m, onClose }: { league: League; medic
       )}
       {preview !== undefined && (
         <Section id="staff-hire" title={`If you hire ${him}`}>
-          <div className={`small${preview ? '' : ' muted'}`}>{preview ? <Exact numbers={preview.numbers}>{preview.words}</Exact> : 'No gain over your current staff.'}</div>
+          <div className={`small${preview ? '' : ' muted'}`}>
+            {preview ? <Exact numbers={preview.numbers}>{preview.words}</Exact> : 'No gain over your current staff.'}
+          </div>
         </Section>
       )}
     </Sheet>
@@ -274,13 +313,19 @@ function Candidate({ league, m, open }: { league: League; m: Medic; open: boolea
         <span className="fact">
           <span className="eyebrow">Asks</span>
           <span className="staff-age">
-            <b className="num">{money(medicAsk(league, m, years))}</b> <span className="muted small">/ yr for {years}</span>
+            <b className="num">{money(medicAsk(league, m, years))}</b>{' '}
+            <span className="muted small">/ yr for {years}</span>
           </span>
         </span>
       </div>
       <div className="staff-actions">
         <Term value={years} onChange={setYears} label={`Contract length for ${medicName(m)}`} />
-        <button className="btn btn-sm btn-primary" disabled={!!problem} title={problem ?? undefined} onClick={() => store.mutate((l) => hireMedic(l, l.userTeamId, m.id, years))}>
+        <button
+          className="btn btn-sm btn-primary"
+          disabled={!!problem}
+          title={problem ?? undefined}
+          onClick={() => store.mutate((l) => hireMedic(l, l.userTeamId, m.id, years))}
+        >
           Hire · {money(medicAsk(league, m, years))}/yr
         </button>
       </div>
@@ -339,7 +384,9 @@ function InjuryReport({ league }: { league: League }) {
                   <td>
                     <InjuryCell league={league} p={p} />
                   </td>
-                  <td className="muted small">{p.injury ? outlookText(p.injury, weeksLeft(league)) : 'Ready to come off reserve'}</td>
+                  <td className="muted small">
+                    {p.injury ? outlookText(p.injury, weeksLeft(league)) : 'Ready to come off reserve'}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -408,7 +455,11 @@ function LeagueInjuries({ league }: { league: League }) {
   const season = resultsSeason(league);
   const players = Object.values(league.players).filter((p) => !p.retired);
   const out = players.filter((p) => p.teamId !== null && (p.injury || p.ir));
-  const hurtThisSeason = (teamId: number) => players.reduce((n, p) => n + (p.teamId === teamId ? (p.injuries ?? []).filter((r) => r.season === season).length : 0), 0);
+  const hurtThisSeason = (teamId: number) =>
+    players.reduce(
+      (n, p) => n + (p.teamId === teamId ? (p.injuries ?? []).filter((r) => r.season === season).length : 0),
+      0,
+    );
   const byTeam = sortRows(
     league.teams.map((t) => ({
       t,
@@ -450,7 +501,8 @@ function LeagueInjuries({ league }: { league: League }) {
     <>
       <Panel title="Who's banged up">
         <p className="muted small" style={{ marginTop: 0 }}>
-          Players out now (playing through it on injections doesn't count), on injured reserve, and hurt this {season} season. Tap a team to see its injuries.
+          Players out now (playing through it on injections doesn't count), on injured reserve, and hurt this {season}{' '}
+          season. Tap a team to see its injuries.
         </p>
         <div className="table-scroll">
           <table>
@@ -464,7 +516,11 @@ function LeagueInjuries({ league }: { league: League }) {
             </thead>
             <tbody>
               {byTeam.map(({ t, out: n, ir, season: total }) => (
-                <tr key={t.id} className={`clickable${t.id === league.userTeamId ? ' is-user' : ''}`} onClick={() => setOnly(only === t.id ? null : t.id)}>
+                <tr
+                  key={t.id}
+                  className={`clickable${t.id === league.userTeamId ? ' is-user' : ''}`}
+                  onClick={() => setOnly(only === t.id ? null : t.id)}
+                >
                   <td className="sticky-col">
                     <span className="team-inline">
                       <TeamChip team={t} />
@@ -500,7 +556,14 @@ function LeagueInjuries({ league }: { league: League }) {
             <table>
               <thead>
                 <tr>
-                  <SortTh label="Player" k="name" sort={outSort} onSort={onOutSort} desc={false} className="sticky-col" />
+                  <SortTh
+                    label="Player"
+                    k="name"
+                    sort={outSort}
+                    onSort={onOutSort}
+                    desc={false}
+                    className="sticky-col"
+                  />
                   {only === null && <SortTh label="Team" k="team" sort={outSort} onSort={onOutSort} desc={false} />}
                   <SortTh label="Age" k="age" sort={outSort} onSort={onOutSort} desc={false} className="num" />
                   <SortTh label="OVR" k="ovr" sort={outSort} onSort={onOutSort} className="num" />
@@ -522,7 +585,9 @@ function LeagueInjuries({ league }: { league: League }) {
                     <td>
                       <InjuryCell league={league} p={p} />
                     </td>
-                    <td className="muted small">{p.injury ? outlookText(p.injury, weeksLeft(league)) : 'Ready to come off reserve'}</td>
+                    <td className="muted small">
+                      {p.injury ? outlookText(p.injury, weeksLeft(league)) : 'Ready to come off reserve'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -561,7 +626,9 @@ export function MedicalScreen({ league }: { league: League }) {
 function Department({ league }: { league: League }) {
   const teamId = league.userTeamId;
   const open = staffWindowOpen(league);
-  const mine = [...teamMedics(league, teamId)].sort((a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role) || medicValue(b) - medicValue(a));
+  const mine = [...teamMedics(league, teamId)].sort(
+    (a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role) || medicValue(b) - medicValue(a),
+  );
   const [role, setRole] = useState<MedicRole>('physio');
   const [showAll, setShowAll] = useState(false);
   // Whose department the staff panel shows: yours, or any club's to look at.
@@ -590,7 +657,9 @@ function Department({ league }: { league: League }) {
   const budget = medicalBudget(league, teamId);
   const room = medicalRoom(league, teamId);
   const fill = budget > 0 ? Math.min(100, Math.max(0, (payroll / budget) * 100)) : 100;
-  const vacancies = MEDIC_ROLES.flatMap((r) => Array.from({ length: Math.max(0, MEDIC_SLOTS[r] - mine.filter((m) => m.role === r).length) }, () => r));
+  const vacancies = MEDIC_ROLES.flatMap((r) =>
+    Array.from({ length: Math.max(0, MEDIC_SLOTS[r] - mine.filter((m) => m.role === r).length) }, () => r),
+  );
   const candidates = medicMarket(league)
     .filter((m) => m.role === role)
     .sort((a, b) => medicValue(b) - medicValue(a));
@@ -622,15 +691,28 @@ function Department({ league }: { league: League }) {
             </b>
           </span>
         </div>
-        <div className={`staff-bar${payroll > budget ? ' over' : ''}`} role="img" aria-label={`Medical payroll is ${Math.round(fill)}% of the medical budget`}>
+        <div
+          className={`staff-bar${payroll > budget ? ' over' : ''}`}
+          role="img"
+          aria-label={`Medical payroll is ${Math.round(fill)}% of the medical budget`}
+        >
           <i style={{ width: `${fill}%` }} />
         </div>
         <ul className="medical-effects small">
           <li>
-            <Exact numbers={shows(e.rehab) ? `Layoffs ${pct(e.rehab)} shorter than the standard timeline.` : 'The standard clinical timeline: a physiotherapy above 9 starts to shorten it.'}>
+            <Exact
+              numbers={
+                shows(e.rehab)
+                  ? `Layoffs ${pct(e.rehab)} shorter than the standard timeline.`
+                  : 'The standard clinical timeline: a physiotherapy above 9 starts to shorten it.'
+              }
+            >
               <b>Rehab:</b> <b className={rehabVerdict(dept).tone}>{rehabVerdict(dept).word}</b>
               {' · '}
-              {rehabVerdict(dept).much ? `players get back from injuries ${rehabVerdict(dept).much} sooner` : 'players come back on the standard timeline'}.
+              {rehabVerdict(dept).much
+                ? `players get back from injuries ${rehabVerdict(dept).much} sooner`
+                : 'players come back on the standard timeline'}
+              .
             </Exact>
           </li>
           <li>
@@ -639,40 +721,62 @@ function Department({ league }: { league: League }) {
             >
               <b>Prevention:</b> <b className={preventionVerdict(dept).tone}>{preventionVerdict(dept).word}</b>
               {' · '}
-              {preventionVerdict(dept).much ? `${preventionVerdict(dept).much.replace('much', 'far')} fewer soft-tissue injuries` : 'soft-tissue injuries at the usual rate'}
-              {verdict(e.recovery, MAX.recovery).much ? `, and players get their legs back ${verdict(e.recovery, MAX.recovery).much} faster` : ''}.
+              {preventionVerdict(dept).much
+                ? `${preventionVerdict(dept).much.replace('much', 'far')} fewer soft-tissue injuries`
+                : 'soft-tissue injuries at the usual rate'}
+              {verdict(e.recovery, MAX.recovery).much
+                ? `, and players get their legs back ${verdict(e.recovery, MAX.recovery).much} faster`
+                : ''}
+              .
             </Exact>
           </li>
           <li>
-            <b>Diagnosis:</b> the head doctor's estimates {dept.diagnosis >= 14 ? 'land close to the real layoff' : dept.diagnosis >= 10 ? 'are usually within a week or two' : 'can miss by weeks'}.
+            <b>Diagnosis:</b> the head doctor's estimates{' '}
+            {dept.diagnosis >= 14
+              ? 'land close to the real layoff'
+              : dept.diagnosis >= 10
+                ? 'are usually within a week or two'
+                : 'can miss by weeks'}
+            .
           </li>
         </ul>
         <p className="muted small staff-lede">
-          Staff are paid from their own budget, not the cap. Elite rehab (18–20) takes up to a quarter off every layoff; anything at 9 or below follows the standard timeline, never a slower one.
+          Staff are paid from their own budget, not the cap. Elite rehab (18–20) takes up to a quarter off every layoff;
+          anything at 9 or below follows the standard timeline, never a slower one.
         </p>
       </Panel>
 
       <InjuryReport league={league} />
 
       <Panel
-        title={viewTeam === teamId ? 'Your staff' : `${league.teams[viewTeam].city} ${league.teams[viewTeam].name} staff`}
+        title={
+          viewTeam === teamId ? 'Your staff' : `${league.teams[viewTeam].city} ${league.teams[viewTeam].name} staff`
+        }
         action={<TeamPicker league={league} value={viewTeam} onChange={setViewTeam} />}
       >
         <ul className="staff-grid">
-          {(viewTeam === teamId ? mine : [...teamMedics(league, viewTeam)].sort((a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role) || medicValue(b) - medicValue(a))).map((m) => (
+          {(viewTeam === teamId
+            ? mine
+            : [...teamMedics(league, viewTeam)].sort(
+                (a, b) => MEDIC_ROLES.indexOf(a.role) - MEDIC_ROLES.indexOf(b.role) || medicValue(b) - medicValue(a),
+              )
+          ).map((m) => (
             <Member key={m.id} league={league} m={m} open={open} />
           ))}
-          {viewTeam === teamId && vacancies.map((r, i) => (
-            <li key={`${r}-${i}`} className="staff-card vacant">
-              <b className="staff-name">Open chair</b>
-              <span className="muted small">An empty {MEDIC_ROLE_LABEL[r].toLowerCase()} chair works like a replacement-level clinician (6).</span>
-              <div className="staff-actions">
-                <button className="btn btn-sm" onClick={() => setRole(r)}>
-                  Find a {MEDIC_ROLE_LABEL[r].toLowerCase()}
-                </button>
-              </div>
-            </li>
-          ))}
+          {viewTeam === teamId &&
+            vacancies.map((r, i) => (
+              <li key={`${r}-${i}`} className="staff-card vacant">
+                <b className="staff-name">Open chair</b>
+                <span className="muted small">
+                  An empty {MEDIC_ROLE_LABEL[r].toLowerCase()} chair works like a replacement-level clinician (6).
+                </span>
+                <div className="staff-actions">
+                  <button className="btn btn-sm" onClick={() => setRole(r)}>
+                    Find a {MEDIC_ROLE_LABEL[r].toLowerCase()}
+                  </button>
+                </div>
+              </li>
+            ))}
         </ul>
       </Panel>
 
@@ -696,7 +800,8 @@ function Department({ league }: { league: League }) {
         }
       >
         <p className="muted small" style={{ marginTop: 0 }}>
-          Best first. Physios carry most of the rehab, the sports scientist most of the prevention, the head doctor both and the diagnosis. Tap a name to see what hiring them would change in your department.
+          Best first. Physios carry most of the rehab, the sports scientist most of the prevention, the head doctor both
+          and the diagnosis. Tap a name to see what hiring them would change in your department.
         </p>
         {candidates.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>

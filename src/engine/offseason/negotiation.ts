@@ -38,7 +38,8 @@ export interface Demand {
 
 export const OFFSEASON_ROSTER_MAX = 90;
 export const ROSTER_MAX = 53;
-export const rosterLimit = (league: League) => (OFFSEASON_PHASES.includes(league.phase) && league.phase !== 'preseason' ? OFFSEASON_ROSTER_MAX : ROSTER_MAX);
+export const rosterLimit = (league: League) =>
+  OFFSEASON_PHASES.includes(league.phase) && league.phase !== 'preseason' ? OFFSEASON_ROSTER_MAX : ROSTER_MAX;
 
 /** Unsigned players lower their sights as free agency wears on. */
 export function marketPressure(league: League): number {
@@ -75,7 +76,9 @@ export function contenderScore(league: League, teamId: number): number {
   let hit = contenderCache.get(league);
   if (!hit || hit.key !== key) {
     const overall = league.teams.map((t) => teamRatings(league, t).overall);
-    const scores = overall.map((mine, id) => overall.filter((o, j) => j !== id && o < mine).length / (league.teams.length - 1));
+    const scores = overall.map(
+      (mine, id) => overall.filter((o, j) => j !== id && o < mine).length / (league.teams.length - 1),
+    );
     hit = { key, scores };
     contenderCache.set(league, hit);
   }
@@ -102,7 +105,13 @@ export function demand(league: League, player: Player, teamId: number): Demand {
 }
 
 /** What an offer is worth to the player, in APY-equivalent $K. */
-export function offerValue(league: League, player: Player, teamId: number, offer: Offer, d = demand(league, player, teamId)): number {
+export function offerValue(
+  league: League,
+  player: Player,
+  teamId: number,
+  offer: Offer,
+  d = demand(league, player, teamId),
+): number {
   const p = player.personality;
   const gtd = 1 + clamp((offer.gtdPct - d.askGtdPct) * 0.25, -0.12, 0.08);
   const term = 1 - 0.03 * Math.abs(offer.years - d.askYears);
@@ -113,10 +122,21 @@ export function offerValue(league: League, player: Player, teamId: number, offer
 
 /** The offer that matches the agent's ask exactly. */
 export function askOffer(d: Demand): Offer {
-  return { years: d.askYears, apy: d.askApy, bonusPct: Math.round(d.askGtdPct * 0.6 * 100) / 100, gtdPct: d.askGtdPct, voidYears: 0 };
+  return {
+    years: d.askYears,
+    apy: d.askApy,
+    bonusPct: Math.round(d.askGtdPct * 0.6 * 100) / 100,
+    gtdPct: d.askGtdPct,
+    voidYears: 0,
+  };
 }
 
-export function contractFromOffer(league: League, player: Player, offer: Offer, kind: Contract['kind'] = 'veteran'): Contract {
+export function contractFromOffer(
+  league: League,
+  player: Player,
+  offer: Offer,
+  kind: Contract['kind'] = 'veteran',
+): Contract {
   const cap = league.caps[league.season];
   const min = minSalary(player.experience, cap);
   const total = offer.apy * offer.years;
@@ -157,7 +177,9 @@ function replacedCharge(league: League, player: Player, teamId: number): number 
   const c = player.teamId === teamId ? player.contract : null;
   if (!c) return 0;
   const now = capHit(c, league.season);
-  return isExpired(c, league.season) ? now - remainingProration(c, league.season) : now - paidUnderCurrentDeal(league, player);
+  return isExpired(c, league.season)
+    ? now - remainingProration(c, league.season)
+    : now - paidUnderCurrentDeal(league, player);
 }
 
 /**
@@ -168,7 +190,8 @@ function replacedCharge(league: League, player: Player, teamId: number): number 
  */
 export function willExtend(league: League, p: Player, teamId: number): boolean {
   const c = p.contract;
-  if (!OFFSEASON_PHASES.includes(league.phase) || !c || isExpired(c, league.season) || yearsLeft(c, league.season) > 1) return false;
+  if (!OFFSEASON_PHASES.includes(league.phase) || !c || isExpired(c, league.season) || yearsLeft(c, league.season) > 1)
+    return false;
   if (c.kind === 'rookie' && p.experience < 3) return false;
   return !new Rng(`${league.seed}:extend:${league.season}:${p.id}:${teamId}`).chance(0.3 * (1 - p.personality.loyalty));
 }
@@ -187,7 +210,13 @@ export function extensionBlocker(league: League, player: Player): string | null 
  * The contract as it would stand after signing. An extension replaces the remaining years but
  * the old bonus proration keeps counting on schedule, as it does in the NFL.
  */
-export function prospectiveContract(league: League, player: Player, teamId: number, offer: Offer, kind: Contract['kind'] = 'veteran'): Contract {
+export function prospectiveContract(
+  league: League,
+  player: Player,
+  teamId: number,
+  offer: Offer,
+  kind: Contract['kind'] = 'veteran',
+): Contract {
   const c = contractFromOffer(league, player, offer, kind);
   const prior = player.teamId === teamId ? player.contract : null;
   if (prior && !isExpired(prior, league.season)) c.bonuses.unshift(...prior.bonuses);
@@ -199,7 +228,8 @@ export function offerProblem(league: League, player: Player, teamId: number, off
   if (player.retired) return 'He has retired.';
   if (league.draftClass.includes(player.id)) return 'Draft prospects can only be drafted.';
   if (player.teamId !== null && player.teamId !== teamId) return 'He is under contract with another team.';
-  if (league.phase === 'playoffs' || league.phase === 'complete') return 'Signings reopen when the new league year begins.';
+  if (league.phase === 'playoffs' || league.phase === 'complete')
+    return 'Signings reopen when the new league year begins.';
   const min = minSalary(player.experience, league.caps[league.season]);
   if (offer.years < 1 || offer.years > 5) return 'Contracts run one to five years.';
   if (offer.apy < min) return `The minimum for his experience is $${(min / 1000).toFixed(2)}M.`;
@@ -208,10 +238,12 @@ export function offerProblem(league: League, player: Player, teamId: number, off
     const ext = extensionBlocker(league, player);
     if (ext) return ext;
   }
-  if (!own && activeRoster(league, teamId).length >= rosterLimit(league)) return `Your roster is full (${rosterLimit(league)}). Release someone first.`;
+  if (!own && activeRoster(league, teamId).length >= rosterLimit(league))
+    return `Your roster is full (${rosterLimit(league)}). Release someone first.`;
   const hit = capHit(prospectiveContract(league, player, teamId, offer), league.season);
   const space = capSpace(league, teamId);
-  if (hit - replacedCharge(league, player, teamId) > space) return `Not enough cap room: this year's hit is $${(hit / 1000).toFixed(1)}M, you have $${(Math.max(0, space) / 1000).toFixed(1)}M.`;
+  if (hit - replacedCharge(league, player, teamId) > space)
+    return `Not enough cap room: this year's hit is $${(hit / 1000).toFixed(1)}M, you have $${(Math.max(0, space) / 1000).toFixed(1)}M.`;
   return null;
 }
 
@@ -226,7 +258,12 @@ export function negotiationFor(league: League, player: Player, teamId: number): 
     }
     return existing;
   }
-  const n: Negotiation = { playerId: player.id, teamId, patience: demand(league, player, teamId).patience, status: 'open' };
+  const n: Negotiation = {
+    playerId: player.id,
+    teamId,
+    patience: demand(league, player, teamId).patience,
+    status: 'open',
+  };
   league.negotiations[player.id] = n;
   return n;
 }
@@ -240,7 +277,12 @@ export interface OfferResponse {
 /** The user makes an offer. Accepted deals are signed on the spot. */
 export function makeOffer(league: League, player: Player, teamId: number, offer: Offer): OfferResponse {
   const n = negotiationFor(league, player, teamId);
-  if (n.status === 'broken') return { accepted: false, message: 'His agent isn’t taking calls right now. Try again later in the offseason.', negotiation: n };
+  if (n.status === 'broken')
+    return {
+      accepted: false,
+      message: 'His agent isn’t taking calls right now. Try again later in the offseason.',
+      negotiation: n,
+    };
   const problem = offerProblem(league, player, teamId, offer);
   if (problem) return { accepted: false, message: problem, negotiation: n };
   const d = demand(league, player, teamId);
@@ -264,24 +306,50 @@ export function makeOffer(league: League, player: Player, teamId: number, offer:
 }
 
 /** Put a player under a new contract with `teamId` (used by the user and the AI alike). */
-export function signPlayer(league: League, player: Player, teamId: number, offer: Offer, kind: Contract['kind'] = 'veteran'): void {
+export function signPlayer(
+  league: League,
+  player: Player,
+  teamId: number,
+  offer: Offer,
+  kind: Contract['kind'] = 'veteran',
+): void {
   const own = player.teamId === teamId;
   const extension = own && !!player.contract && !isExpired(player.contract, league.season);
   // Re-signing after a deal ran out: its remaining bonus money (void years included) is dead.
   if (own && !extension) accelerateProration(league, player, teamId);
   // Extending mid-season: the old salary already paid this year stays on this year's cap.
   const paid = extension ? Math.round(paidUnderCurrentDeal(league, player)) : 0;
-  if (paid > 0) league.teams[teamId].deadMoney.push({ season: league.season, amount: paid, playerId: player.id, note: 'Salary paid before extension' });
+  if (paid > 0)
+    league.teams[teamId].deadMoney.push({
+      season: league.season,
+      amount: paid,
+      playerId: player.id,
+      note: 'Salary paid before extension',
+    });
   player.contract = prospectiveContract(league, player, teamId, offer, kind);
   player.teamId = teamId;
   if (kind !== 'tag') player.tagCount = 0; // a new deal ends any run of consecutive tags
   delete league.negotiations[player.id];
   const team = league.teams[teamId];
-  if (!own) player.jersey = freeJersey(player.position, new Set(teamPlayers(league, teamId).filter((p) => p.id !== player.id).map((p) => p.jersey)), player.jersey);
+  if (!own)
+    player.jersey = freeJersey(
+      player.position,
+      new Set(
+        teamPlayers(league, teamId)
+          .filter((p) => p.id !== player.id)
+          .map((p) => p.jersey),
+      ),
+      player.jersey,
+    );
   syncDepthChart(league, team);
   const money = `${offer.years} yr, $${((offer.apy * offer.years) / 1000).toFixed(1)}M`;
   const verb = extension ? 'extended' : own ? 're-signed' : 'signed';
-  logTransaction(league, own ? 'resign' : 'sign', [teamId], `${team.abbrev} ${verb} ${player.position} ${player.firstName} ${player.lastName} (${money})`);
+  logTransaction(
+    league,
+    own ? 'resign' : 'sign',
+    [teamId],
+    `${team.abbrev} ${verb} ${player.position} ${player.firstName} ${player.lastName} (${money})`,
+  );
 }
 
 /** Free agents: unsigned, not retired, not in the draft class. */

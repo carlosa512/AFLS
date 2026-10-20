@@ -35,7 +35,18 @@ import { lastSeason } from './finance/contract';
 import { playWeek, simToEndOfRegularSeason } from './league';
 import { simulateGame } from './match/gameSim';
 import { buildLineup } from './match/lineup';
-import { departmentFor, departmentOf, hireMedic, MEDIC_SLOTS, medicAsk, medicalRoom, medicMarket, recoveryMultiplier, releaseMedic, teamMedics } from './medical';
+import {
+  departmentFor,
+  departmentOf,
+  hireMedic,
+  MEDIC_SLOTS,
+  medicAsk,
+  medicalRoom,
+  medicMarket,
+  recoveryMultiplier,
+  releaseMedic,
+  teamMedics,
+} from './medical';
 import { migrateLeague } from './migrate';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
@@ -53,13 +64,28 @@ const fresh = () => copy(base);
 
 /** A made-up injury of `weeks`, diagnosed exactly. */
 function hurt(league: League, p: Player, weeks: number, type = 'hamstring'): Injury {
-  const injury: Injury = { type, severity: weeks > 6 ? 'severe' : weeks > 2 ? 'moderate' : 'minor', weeksRemaining: weeks, estimate: [weeks, weeks], season: league.season, week: league.week, where: 'game' };
+  const injury: Injury = {
+    type,
+    severity: weeks > 6 ? 'severe' : weeks > 2 ? 'moderate' : 'minor',
+    weeksRemaining: weeks,
+    estimate: [weeks, weeks],
+    season: league.season,
+    week: league.week,
+    where: 'game',
+  };
   applyInjury(league, p, injury);
   return injury;
 }
 
 function player(i: number, age = 26): Player {
-  return generatePlayer(new Rng(`injury-player:${i}`), { id: 2_000_000 + i, position: 'WR', quality: 12, age, teamId: null, jerseysUsed: new Set() });
+  return generatePlayer(new Rng(`injury-player:${i}`), {
+    id: 2_000_000 + i,
+    position: 'WR',
+    quality: 12,
+    age,
+    teamId: null,
+    jerseysUsed: new Set(),
+  });
 }
 
 describe('injury traits', () => {
@@ -78,7 +104,8 @@ describe('injury traits', () => {
 
   it('fades resistance past the physical prime, slower for a body built to last', () => {
     const p = player(2, 25);
-    const at = (age: number, durability: number) => effectiveResistance({ ...p, age, traits: { ...p.traits, durability } });
+    const at = (age: number, durability: number) =>
+      effectiveResistance({ ...p, age, traits: { ...p.traits, durability } });
     expect(at(25, 10.5)).toBeCloseTo(p.traits.injuryResistance, 5);
     expect(at(34, 10.5)).toBeLessThan(at(28, 10.5));
     // The ironman loses less of it at the same age.
@@ -121,11 +148,22 @@ describe('medical staff', () => {
     const league = fresh();
     const p = Object.values(league.players).find((x) => x.teamId === 0)!;
     const staff = (rating: number): Medic[] =>
-      (['doctor', 'physio', 'physio', 'scientist'] as const).map((role, i) => ({ id: 900 + i, firstName: 'A', lastName: 'B', role, age: 40, physio: rating, science: rating, teamId: 0, contract: null }));
+      (['doctor', 'physio', 'physio', 'scientist'] as const).map((role, i) => ({
+        id: 900 + i,
+        firstName: 'A',
+        lastName: 'B',
+        role,
+        age: 40,
+        physio: rating,
+        science: rating,
+        teamId: 0,
+        contract: null,
+      }));
     const weeks = (rating: number) => {
       const dept = departmentOf(staff(rating));
       const out: number[] = [];
-      for (let i = 0; i < 400; i++) out.push(rollInjury(new Rng(`rehab:${i}`), league, p, 'soft', 'game', dept).injury.weeksRemaining);
+      for (let i = 0; i < 400; i++)
+        out.push(rollInjury(new Rng(`rehab:${i}`), league, p, 'soft', 'game', dept).injury.weeksRemaining);
       return mean(out);
     };
     expect(weeks(20)).toBeLessThan(weeks(5) * 0.85);
@@ -141,7 +179,10 @@ describe('medical staff', () => {
     const mine = teamMedics(league, league.userTeamId).find((m) => m.role === 'physio')!;
     releaseMedic(league, league.userTeamId, mine.id);
     expect(league.medics[mine.id].teamId).toBeNull();
-    const affordable = medicMarket(league).find((m) => m.role === 'physio' && m.id !== mine.id && medicAsk(league, m, 2) <= medicalRoom(league, league.userTeamId))!;
+    const affordable = medicMarket(league).find(
+      (m) =>
+        m.role === 'physio' && m.id !== mine.id && medicAsk(league, m, 2) <= medicalRoom(league, league.userTeamId),
+    )!;
     hireMedic(league, league.userTeamId, affordable.id, 2);
     expect(league.medics[affordable.id].teamId).toBe(league.userTeamId);
   });
@@ -162,7 +203,15 @@ describe('diagnosis', () => {
 
   it('scars a severe injury: physical ratings drop, and from 26 the ceiling with them', () => {
     const league = fresh();
-    const acl = (): Injury => ({ type: 'acl', severity: 'severe', weeksRemaining: 40, estimate: [36, 44], season: league.season, week: 1, where: 'game' });
+    const acl = (): Injury => ({
+      type: 'acl',
+      severity: 'severe',
+      weeksRemaining: 40,
+      estimate: [36, 44],
+      season: league.season,
+      week: 1,
+      where: 'game',
+    });
     const p = Object.values(league.players).find((x) => x.position === 'RB' && x.age >= 26)!;
     const before = { speed: p.ratings.speed, agility: p.ratings.agility, ovr: playerOvr(p), pot: p.potential };
     applyInjury(league, p, acl(), { speed: 2, agility: 1 });
@@ -232,7 +281,9 @@ describe('treatments', () => {
     expect(p.injury!.braceWait).toBeUndefined();
     expect(isAvailable(p)).toBe(true);
     expect(skill(p, 'hands')).toBeLessThan(hands - 2);
-    expect(riskFactors(league, p).contact).toBeGreaterThan(1.5 * riskFactors(league, { ...p, injury: undefined }).contact);
+    expect(riskFactors(league, p).contact).toBeGreaterThan(
+      1.5 * riskFactors(league, { ...p, injury: undefined }).contact,
+    );
     // Out of the cast: he sits until it heals, and plays at full strength once it has.
     stopTreatment(league, p);
     expect(isAvailable(p)).toBe(false);
@@ -266,7 +317,20 @@ describe('treatments', () => {
     expect(p.injuries!.at(-1)!).toMatchObject({ fastTracked: true, weeks: inj.weeksRemaining });
     // Three weeks after he's back: a plain return is half again as likely to tear; a rushed one far more.
     const back = (fastTracked: boolean) => {
-      const q: Player = { ...p, injury: undefined, injuries: [{ type: 'hamstring', severity: 'moderate', season: league.season, week: league.week - 5, weeks: 2, ...(fastTracked ? { fastTracked: true as const } : {}) }] };
+      const q: Player = {
+        ...p,
+        injury: undefined,
+        injuries: [
+          {
+            type: 'hamstring',
+            severity: 'moderate',
+            season: league.season,
+            week: league.week - 5,
+            weeks: 2,
+            ...(fastTracked ? { fastTracked: true as const } : {}),
+          },
+        ],
+      };
       return riskFactors(league, q).soft;
     };
     expect(back(true) / back(false)).toBeCloseTo(2.5 / 1.5, 5);
@@ -274,7 +338,9 @@ describe('treatments', () => {
 
   it('lets a player say no, the same way every time he is asked', () => {
     const league = fresh();
-    const pool = Object.values(league.players).filter((x) => x.teamId !== null && x.contract && lastSeason(x.contract) === league.season);
+    const pool = Object.values(league.players).filter(
+      (x) => x.teamId !== null && x.contract && lastSeason(x.contract) === league.season,
+    );
     let refused = 0;
     for (const p of pool.slice(0, 40)) {
       p.personality.greed = 1;
@@ -373,7 +439,10 @@ describe('the weekly cycle', () => {
   it('keeps every team able to field a lineup through a season of injuries', () => {
     const league = fresh();
     simToEndOfRegularSeason(league);
-    const hurtThisYear = Object.values(league.players).reduce((n, p) => n + (p.injuries ?? []).filter((r) => r.season === league.season).length, 0);
+    const hurtThisYear = Object.values(league.players).reduce(
+      (n, p) => n + (p.injuries ?? []).filter((r) => r.season === league.season).length,
+      0,
+    );
     // About 20–36 time-loss injuries per team over a season.
     expect(hurtThisYear / 32).toBeGreaterThan(15);
     expect(hurtThisYear / 32).toBeLessThan(40);
@@ -427,7 +496,8 @@ describe('injured reserve', () => {
     const onIr = Object.values(league.players).filter((p) => p.ir);
     expect(onIr.length).toBeGreaterThan(0);
     for (const p of onIr) expect(p.teamId).not.toBeNull();
-    for (const team of league.teams) if (team.id !== league.userTeamId) expect(activeRoster(league, team.id).length).toBeLessThanOrEqual(53);
+    for (const team of league.teams)
+      if (team.id !== league.userTeamId) expect(activeRoster(league, team.id).length).toBeLessThanOrEqual(53);
   }, 30_000);
 });
 
@@ -453,7 +523,13 @@ describe('careers', () => {
     const rival = teamPlayers(league, 7).find((p) => p.experience >= 3 && p.age <= 27)!;
     rival.traits.injuryResistance = 7;
     const before = injuryRisk(league, league.userTeamId, rival);
-    rival.injuries = [0, 1, 2, 3].map((i) => ({ type: 'hamstring', severity: 'moderate' as const, season: league.season - (i % 2), week: 3 + i, weeks: 3 }));
+    rival.injuries = [0, 1, 2, 3].map((i) => ({
+      type: 'hamstring',
+      severity: 'moderate' as const,
+      season: league.season - (i % 2),
+      week: 3 + i,
+      weeks: 3,
+    }));
     const after = injuryRisk(league, league.userTeamId, rival);
     expect(after.known).toBe(true);
     expect(after.read).toBeLessThan(before.read - 2);
@@ -462,12 +538,27 @@ describe('careers', () => {
 });
 
 /** A concussion on his file `yearsAgo` before this week, cleared after `weeks`. */
-const pastConcussion = (league: League, yearsAgo: number, weeks = 1): NonNullable<Player['injuries']>[number] => ({ type: 'concussion', severity: 'minor', season: league.season - yearsAgo, week: league.week, weeks });
+const pastConcussion = (league: League, yearsAgo: number, weeks = 1): NonNullable<Player['injuries']>[number] => ({
+  type: 'concussion',
+  severity: 'minor',
+  season: league.season - yearsAgo,
+  week: league.week,
+  weeks,
+});
 
 /** Concuss him in this week's game: into the protocol, his bag built from his file. */
 function concuss(league: League, p: Player, where: Injury['where'] = 'game'): Injury {
   const at = { season: league.season, week: league.week };
-  const injury: Injury = { type: 'concussion', severity: 'minor', weeksRemaining: 1, estimate: [0, 1], season: at.season, week: at.week, where, protocol: protocolBag(p, at) };
+  const injury: Injury = {
+    type: 'concussion',
+    severity: 'minor',
+    weeksRemaining: 1,
+    estimate: [0, 1],
+    season: at.season,
+    week: at.week,
+    where,
+    protocol: protocolBag(p, at),
+  };
   applyInjury(league, p, injury);
   return injury;
 }
@@ -509,13 +600,16 @@ describe('concussions', () => {
 
   it('clears about half of first concussions in time for the next game, and the file shows the games he missed', () => {
     const league = fresh();
-    const players = Object.values(league.players).filter((x) => x.teamId !== null).slice(0, 300);
+    const players = Object.values(league.players)
+      .filter((x) => x.teamId !== null)
+      .slice(0, 300);
     for (const p of players) concuss(league, p);
     injuryWeek(league);
     const cleared = players.filter((p) => p.injury?.type !== 'concussion').length / players.length;
     expect(cleared).toBeGreaterThan(0.38);
     expect(cleared).toBeLessThan(0.62);
-    for (const p of players.filter((x) => x.injury?.type !== 'concussion').slice(0, 20)) expect(p.injuries!.find((r) => r.type === 'concussion')!.weeks).toBe(0);
+    for (const p of players.filter((x) => x.injury?.type !== 'concussion').slice(0, 20))
+      expect(p.injuries!.find((r) => r.type === 'concussion')!.weeks).toBe(0);
     // The rest are still in it: day to day, never more than his bag allows.
     const still = players.find((p) => p.injury?.protocol)!;
     expect(still.injury!.estimate[0]).toBeGreaterThanOrEqual(0);
@@ -527,7 +621,9 @@ describe('concussions', () => {
   it('takes longer, on average, the more concussions he has had', () => {
     const missed = (history: number) => {
       const league = fresh();
-      const players = Object.values(league.players).filter((x) => x.teamId !== null && x.age < 30).slice(0, 120);
+      const players = Object.values(league.players)
+        .filter((x) => x.teamId !== null && x.age < 30)
+        .slice(0, 120);
       for (const p of players) {
         p.injuries = Array.from({ length: history }, (_, i) => pastConcussion(league, 0.3 + i * 0.6));
         concuss(league, p);
@@ -580,7 +676,9 @@ describe('concussions', () => {
   it('has a player with a third concussion in a season weigh his future, and sometimes shut himself down', () => {
     const league = fresh();
     let shut = 0;
-    for (const p of Object.values(league.players).filter((x) => x.teamId !== null).slice(0, 60)) {
+    for (const p of Object.values(league.players)
+      .filter((x) => x.teamId !== null)
+      .slice(0, 60)) {
       p.personality.winning = 0.5;
       p.injuries = [pastConcussion(league, 0), pastConcussion(league, 0)];
       const { injury } = rollConcussion(league, p);
@@ -641,8 +739,26 @@ describe('saves', () => {
     const old = copy(base) as League;
     old.version = 27;
     const [a, b] = Object.values(old.players).filter((x) => x.teamId === 0);
-    a.injury = { type: 'ankle', severity: 'minor', weeksRemaining: 1, estimate: [1, 1], season: old.season, week: old.week, where: 'game', injected: true } as Injury;
-    b.injury = { type: 'ankle', severity: 'minor', weeksRemaining: 1, estimate: [1, 1], season: old.season, week: old.week, where: 'game', injected: false } as Injury;
+    a.injury = {
+      type: 'ankle',
+      severity: 'minor',
+      weeksRemaining: 1,
+      estimate: [1, 1],
+      season: old.season,
+      week: old.week,
+      where: 'game',
+      injected: true,
+    } as Injury;
+    b.injury = {
+      type: 'ankle',
+      severity: 'minor',
+      weeksRemaining: 1,
+      estimate: [1, 1],
+      season: old.season,
+      week: old.week,
+      where: 'game',
+      injected: false,
+    } as Injury;
     const up = migrateLeague(old)!;
     expect(up.players[a.id].injury).toMatchObject({ treatment: 'injection' });
     expect(up.players[b.id].injury!.treatment).toBeUndefined();
@@ -652,7 +768,7 @@ describe('saves', () => {
 });
 
 describe('quirks and injuries', () => {
-  it('lets a back\'s running habits change what a tackle does to him', () => {
+  it("lets a back's running habits change what a tackle does to him", () => {
     const league = fresh();
     const rb = Object.values(league.players).find((p) => p.teamId === 0 && p.position === 'RB')!;
     rb.quirks = {};
@@ -664,7 +780,13 @@ describe('quirks and injuries', () => {
     // An upright runner's contact injuries land up top more and on the legs less.
     const lowerShare = () => {
       let low = 0;
-      for (let i = 0; i < 1500; i++) if (['ankle', 'knee', 'foot', 'leg', 'achilles'].includes(injuryType(rollInjury(new Rng(`lean:${i}`), league, rb, 'contact', 'game').injury.type).part)) low++;
+      for (let i = 0; i < 1500; i++)
+        if (
+          ['ankle', 'knee', 'foot', 'leg', 'achilles'].includes(
+            injuryType(rollInjury(new Rng(`lean:${i}`), league, rb, 'contact', 'game').injury.type).part,
+          )
+        )
+          low++;
       return low / 1500;
     };
     rb.quirks = {};
@@ -684,7 +806,15 @@ describe('quirks and injuries', () => {
     const league = fresh();
     const wr = Object.values(league.players).find((p) => p.teamId === 0 && p.position === 'WR')!;
     wr.quirkBag = { blank: 5 };
-    const at = (type: string, where: Injury['where']): Injury => ({ type, severity: 'moderate', weeksRemaining: 3, estimate: [3, 3], season: league.season, week: 2, where });
+    const at = (type: string, where: Injury['where']): Injury => ({
+      type,
+      severity: 'moderate',
+      weeksRemaining: 3,
+      estimate: [3, 3],
+      season: league.season,
+      week: 2,
+      where,
+    });
     applyInjury(league, wr, at('hamstring', 'game'));
     applyInjury(league, wr, at('mcl', 'practice'));
     expect(wr.quirkBag.hearsFootsteps ?? 0).toBe(0);

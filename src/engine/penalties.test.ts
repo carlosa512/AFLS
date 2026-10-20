@@ -6,7 +6,8 @@ import { buildLineup } from './match/lineup';
 import { enforce, FOUL_KINDS, FOULS } from './penalties';
 
 const at = (yardLine: number, down = 1, toGo = 10) => ({ yardLine, down, lineToGain: Math.min(100, yardLine + toGo) });
-const value = (s: { yardLine: number; down: number; lineToGain: number }) => downValue(s.yardLine, s.down, s.lineToGain - s.yardLine);
+const value = (s: { yardLine: number; down: number; lineToGain: number }) =>
+  downValue(s.yardLine, s.down, s.lineToGain - s.yardLine);
 
 describe('penalty enforcement', () => {
   it('replays the down on an offensive foul, half the distance near its own goal line', () => {
@@ -90,7 +91,9 @@ describe('flags in a game', () => {
 
 describe('personal fouls', () => {
   const league = createLeague({ seed: 'personal-fouls' });
-  const games = league.games.filter((g) => g.week <= 6).map((g) => ({ g, r: simulateGame(league, g, { keepPlays: true }) }));
+  const games = league.games
+    .filter((g) => g.week <= 6)
+    .map((g) => ({ g, r: simulateGame(league, g, { keepPlays: true }) }));
 
   it('credits the quarterback with every roughing call his defense drew', () => {
     let calls = 0;
@@ -110,7 +113,8 @@ describe('personal fouls', () => {
   });
 
   it('goes on from where a run or a catch ended, with a first down, and the play stands', () => {
-    const late = /for (-?\d+) yards?.*PENALTY on \w+ \([^)]*\): (Roughing the passer|Unnecessary roughness|Face mask|Horse collar), (\d+) yards\.$/;
+    const late =
+      /for (-?\d+) yards?.*PENALTY on \w+ \([^)]*\): (Roughing the passer|Unnecessary roughness|Face mask|Horse collar), (\d+) yards\.$/;
     let seen = 0;
     for (const { r } of games) {
       const plays = r.plays!;
@@ -132,7 +136,13 @@ describe('special teams', () => {
   it('covers kicks with backups, never a starter while a backup is free, and takes the returners the user picks', () => {
     const league = createLeague({ seed: 'special-teams' });
     const team = league.teams[0];
-    const starters = new Set([...team.depthChart.LB.slice(0, 2), ...team.depthChart.S.slice(0, 2), ...team.depthChart.CB.slice(0, 2), ...team.depthChart.QB, ...team.depthChart.OL]);
+    const starters = new Set([
+      ...team.depthChart.LB.slice(0, 2),
+      ...team.depthChart.S.slice(0, 2),
+      ...team.depthChart.CB.slice(0, 2),
+      ...team.depthChart.QB,
+      ...team.depthChart.OL,
+    ]);
     const lineup = buildLineup(league, team);
     expect(lineup.st).toHaveLength(10);
     expect(new Set(lineup.st.map((p) => p.id)).size).toBe(10);
@@ -149,11 +159,14 @@ describe('special teams', () => {
     const seen = new Set<string>();
     for (const g of league.games.filter((g) => g.week <= 8)) {
       const r = simulateGame(league, g, { keepPlays: true });
-      for (const side of [r.home, r.away]) for (const f of FOUL_KINDS) if (FOULS[f].special && side.flags?.[f]) seen.add(f);
+      for (const side of [r.home, r.away])
+        for (const f of FOUL_KINDS) if (FOULS[f].special && side.flags?.[f]) seen.add(f);
       // A flagged return goes 10 yards back from the spot of the foul (half the distance near the goal): toward
       // the returning team's own goal, so down the yard lines on its side of the field and up them on the other.
       for (const p of r.plays!) {
-        const m = p.text.match(/returns to the (\w+) (\d+)\. PENALTY on (\w+) \([^)]*\): (?:Holding on a return|Illegal block in the back), (\d+) yards\. Ball at the (\w+) (\d+)\./);
+        const m = p.text.match(
+          /returns to the (\w+) (\d+)\. PENALTY on (\w+) \([^)]*\): (?:Holding on a return|Illegal block in the back), (\d+) yards\. Ball at the (\w+) (\d+)\./,
+        );
         if (m && m[1] === m[5]) expect(Number(m[2]) + (m[1] === m[3] ? -1 : 1) * Number(m[4])).toBe(Number(m[6]));
       }
     }
@@ -170,7 +183,9 @@ describe('special teams', () => {
       let tries = 0;
       plays.forEach((p, i) => {
         if (/extra point is (GOOD|NO GOOD)\.$/.test(p.text)) tries++;
-        const m = p.text.match(/(?:field goal is (?:good|no good)|Field goal try|extra point is (?:good|no good))\. PENALTY on \w+ \([^)]*\): ([^,]+),/);
+        const m = p.text.match(
+          /(?:field goal is (?:good|no good)|Field goal try|extra point is (?:good|no good))\. PENALTY on \w+ \([^)]*\): ([^,]+),/,
+        );
         if (m) seen.add(m[1]);
         // A hold on a good kick: the defense takes the points off the board and the kick goes again, 10 yards back.
         if (/field goal is good\. PENALTY on \w+ \([^)]*\): Offensive holding, 10 yards/.test(p.text)) {

@@ -20,7 +20,9 @@ let misses = 0;
 const check = (label: string, value: number, [lo, hi]: [number, number], digits = 2) => {
   const ok = value >= lo && value <= hi;
   if (!ok) misses++;
-  console.log(`${label.padEnd(34)} ${value.toFixed(digits).padStart(8)}   ${lo}–${hi}${ok ? '' : value < lo ? '  ▼ LOW' : '  ▲ HIGH'}`);
+  console.log(
+    `${label.padEnd(34)} ${value.toFixed(digits).padStart(8)}   ${lo}–${hi}${ok ? '' : value < lo ? '  ▼ LOW' : '  ▲ HIGH'}`,
+  );
 };
 const info = (label: string, value: string) => console.log(`${label.padEnd(34)} ${value.padStart(8)}`);
 
@@ -30,7 +32,22 @@ const games = league.games.filter((g) => !g.playoffRound);
 // ───────── climate ─────────
 
 const ROLLS = 200;
-const sum = { kept: 0, kick: 0, fumble: 0, games: 0, outdoor: 0, wind: 0, windy: 0, wet: 0, late: 0, snow: 0, heavySnow: 0, retract: 0, open: 0, night: 0 };
+const sum = {
+  kept: 0,
+  kick: 0,
+  fumble: 0,
+  games: 0,
+  outdoor: 0,
+  wind: 0,
+  windy: 0,
+  wet: 0,
+  late: 0,
+  snow: 0,
+  heavySnow: 0,
+  retract: 0,
+  open: 0,
+  night: 0,
+};
 const gbDec: number[] = [];
 const decTemps = { day: [0, 0], night: [0, 0] };
 /** A game's cost averaged over its four quarters (rain that starts late costs only the quarters it falls in). */
@@ -76,7 +93,10 @@ check('outdoor games with rain or snow %', (100 * sum.wet) / sum.outdoor, [8, 16
 info('  of which snow %', ((100 * sum.snow) / sum.wet).toFixed(1));
 info('  of which start after kickoff %', ((100 * sum.late) / sum.wet).toFixed(1));
 check('outdoor games at night %', (100 * sum.night) / sum.outdoor, [15, 25], 1);
-info('December kickoff, day / night (°F)', `${(decTemps.day[0] / decTemps.day[1]).toFixed(1)} / ${(decTemps.night[0] / decTemps.night[1]).toFixed(1)}`);
+info(
+  'December kickoff, day / night (°F)',
+  `${(decTemps.day[0] / decTemps.day[1]).toFixed(1)} / ${(decTemps.night[0] / decTemps.night[1]).toFixed(1)}`,
+);
 info('heavy-snow games per season', (sum.heavySnow / ROLLS).toFixed(2));
 // Roofs open only in mild, calm, dry weather, which costs nothing either way: the share is for show.
 info('retractable roofs open %', ((100 * sum.open) / sum.retract).toFixed(1));
@@ -122,9 +142,18 @@ for (const [chance, b] of [...buckets].sort((a, b) => a[0] - b[0])) {
   check(`  shown ${chance}% (${b.n})`, (100 * b.wet) / b.n, [chance - 8, chance + 8], 1);
 }
 info('true temp inside the shown range %', ((100 * inTemp) / shown).toFixed(1));
-check('outdoor games under a storm front %', (100 * fronts.storm[0]) / (fronts.storm[0] + fronts.quiet[0]), [20, 30], 1);
+check(
+  'outdoor games under a storm front %',
+  (100 * fronts.storm[0]) / (fronts.storm[0] + fronts.quiet[0]),
+  [20, 30],
+  1,
+);
 // By construction a front makes a wet game STORM_WET / calm(STORM_WET) = 3 times as likely as a quiet week.
-check('wet games, storm ÷ quiet weeks', fronts.storm[1] / fronts.storm[0] / (fronts.quiet[1] / fronts.quiet[0]), [2.5, 3.5]);
+check(
+  'wet games, storm ÷ quiet weeks',
+  fronts.storm[1] / fronts.storm[0] / (fronts.quiet[1] / fronts.quiet[0]),
+  [2.5, 3.5],
+);
 
 // ───────── effects ─────────
 
@@ -199,8 +228,12 @@ function kickRatio(t: Tally, calm: Tally): number {
 const calm = play(day({}));
 const per = (t: Tally) => t.passYds / t.teamGames;
 console.log(`\nEffects: ${calm.teamGames / 2} games replayed per condition. Passing yards against a calm 70°F day,`);
-console.log('target = 1 − weatherCost(w).pass (by quarter) ± 0.03; field goals made against calm-day rates from the same distances\n');
-console.log(`${'condition'.padEnd(20)} ${'research'.padEnd(17)} ${'pass'.padStart(6)}  ${'target'.padStart(11)}   ${'rush ypc'.padStart(8)}  ${'kicks'.padStart(6)}`);
+console.log(
+  'target = 1 − weatherCost(w).pass (by quarter) ± 0.03; field goals made against calm-day rates from the same distances\n',
+);
+console.log(
+  `${'condition'.padEnd(20)} ${'research'.padEnd(17)} ${'pass'.padStart(6)}  ${'target'.padStart(11)}   ${'rush ypc'.padStart(8)}  ${'kicks'.padStart(6)}`,
+);
 const KICK_TARGETS: Record<string, [number, number]> = {
   // 77% made on kicks expected at ~89%, 76% at ~88%, ~2% below expected in rain; the coaches' shorter tries fold in.
   'wind 23 mph': [0.82, 0.92],

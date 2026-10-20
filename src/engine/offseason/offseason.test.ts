@@ -51,7 +51,8 @@ describe('offseason calendar', () => {
       const roster = activeRoster(league, team.id);
       expect(roster.length).toBeLessThanOrEqual(53);
       expect(roster.length).toBeGreaterThanOrEqual(46);
-      for (const pos of POSITIONS) expect(roster.filter((p) => p.position === pos).length).toBeGreaterThanOrEqual(STARTERS[pos]);
+      for (const pos of POSITIONS)
+        expect(roster.filter((p) => p.position === pos).length).toBeGreaterThanOrEqual(STARTERS[pos]);
       expect(capSpace(league, team.id)).toBeGreaterThanOrEqual(0);
       for (const p of roster) expect(isExpired(p.contract!, league.season)).toBe(false);
     }
@@ -92,7 +93,8 @@ describe('negotiation', () => {
     const first = makeOffer(league, player, league.userTeamId, insult);
     expect(first.negotiation.patience).toBe(d.patience - 2);
     let last = first;
-    for (let i = 0; i < 4 && last.negotiation.status === 'open'; i++) last = makeOffer(league, player, league.userTeamId, insult);
+    for (let i = 0; i < 4 && last.negotiation.status === 'open'; i++)
+      last = makeOffer(league, player, league.userTeamId, insult);
     expect(last.negotiation.status).toBe('broken');
     expect(makeOffer(league, player, league.userTeamId, askOffer(d)).accepted).toBe(false);
   });
@@ -101,7 +103,13 @@ describe('negotiation', () => {
     const league = fresh();
     beginOffseason(league);
     const player = expiringPlayers(league, league.userTeamId)[0];
-    const r = makeOffer(league, player, league.userTeamId, { years: 1, apy: league.caps[league.season] * 2, bonusPct: 0, gtdPct: 0, voidYears: 0 });
+    const r = makeOffer(league, player, league.userTeamId, {
+      years: 1,
+      apy: league.caps[league.season] * 2,
+      bonusPct: 0,
+      gtdPct: 0,
+      voidYears: 0,
+    });
     expect(r.accepted).toBe(false);
     expect(r.message).toMatch(/cap room/);
   });

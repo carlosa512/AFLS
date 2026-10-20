@@ -54,7 +54,19 @@ function air(x0: number, y0: number, x1: number, y1: number, peak: number, dur?:
 }
 
 /** Plays snapped from scrimmage start on the hash nearest to where the last play ended. */
-const SNAPPED = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble', 'kneel', 'spike', 'penalty', 'punt', 'fg']);
+const SNAPPED = new Set([
+  'run',
+  'pass',
+  'incomplete',
+  'int',
+  'sack',
+  'scramble',
+  'kneel',
+  'spike',
+  'penalty',
+  'punt',
+  'fg',
+]);
 
 function buildPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
   if (e.from === undefined || e.to === undefined || !e.kind) return [];
@@ -72,7 +84,8 @@ function buildPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
       const target = e.air ?? from + dir * 2;
       const targetY = e.air === undefined ? (laneY > MID ? FIELD_W + 2 : -2) : laneY;
       segs.push(air(qbX, snapY, target, targetY, Math.min(14, 2.5 + Math.abs(target - qbX) * 0.3)));
-      if (e.kind !== 'incomplete' && Math.abs(to - target) > 0.5) segs.push(ground(target, targetY, to, clampY(laneY + (e.lane ?? 0) * 3)));
+      if (e.kind !== 'incomplete' && Math.abs(to - target) > 0.5)
+        segs.push(ground(target, targetY, to, clampY(laneY + (e.lane ?? 0) * 3)));
       break;
     }
     case 'run':
@@ -125,7 +138,10 @@ export function restingSpot(plays: PlayLogEntry[], index: number, homeId: number
 }
 
 /** Line of scrimmage and line to gain in field coordinates, or null when no snap is set. */
-function downLines(e: PlayLogEntry | undefined, homeId: number): { los: number | null; gain: number | null } | undefined {
+function downLines(
+  e: PlayLogEntry | undefined,
+  homeId: number,
+): { los: number | null; gain: number | null } | undefined {
   if (!e) return undefined;
   if (e.down) {
     const home = e.offense === homeId;
@@ -149,7 +165,23 @@ interface FieldMemory {
 }
 
 // ───────── field ─────────
-export function Field({ home, away, entry, restX, animKey, speed, onDone }: { home: Team; away: Team; entry: PlayLogEntry | undefined; restX: number; animKey: string; speed: number; onDone: () => void }) {
+export function Field({
+  home,
+  away,
+  entry,
+  restX,
+  animKey,
+  speed,
+  onDone,
+}: {
+  home: Team;
+  away: Team;
+  entry: PlayLogEntry | undefined;
+  restX: number;
+  animKey: string;
+  speed: number;
+  onDone: () => void;
+}) {
   const ballRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
   const trailRef = useRef<SVGPathElement>(null);
@@ -204,7 +236,11 @@ export function Field({ home, away, entry, restX, animKey, speed, onDone }: { ho
     const snapY = entry?.kind && SNAPPED.has(entry.kind) ? Math.max(HASH_LO, Math.min(HASH_HI, from.y)) : MID;
     const segs = entry ? buildPath(entry, home.id, snapY) : [];
     // Plays without a path (timeouts, announcements) leave the ball where it lies.
-    const start = segs.length ? { x: segs[0].x0, y: segs[0].y0 } : Math.abs(from.x - restX) < 0.5 ? { x: from.x, y: from.y } : { x: restX, y: snapY };
+    const start = segs.length
+      ? { x: segs[0].x0, y: segs[0].y0 }
+      : Math.abs(from.x - restX) < 0.5
+        ? { x: from.x, y: from.y }
+        : { x: restX, y: snapY };
     const last = segs[segs.length - 1];
     const end = last ? { x: last.x1, y: last.y1 } : start;
     const endOpacity = entry?.kind === 'incomplete' ? 0.35 : 1;
@@ -225,7 +261,15 @@ export function Field({ home, away, entry, restX, animKey, speed, onDone }: { ho
     const gap = Math.hypot(start.x - from.x, start.y - from.y);
     const linesMove = from.los !== lines.los || from.gain !== lines.gain;
     const teleport = gap > 40;
-    const respot = teleport ? (linesMove ? 0.25 : 0) : gap > 0.3 ? 0.3 + Math.min(0.35, gap * 0.012) : linesMove ? 0.3 : 0;
+    const respot = teleport
+      ? linesMove
+        ? 0.25
+        : 0
+      : gap > 0.3
+        ? 0.3 + Math.min(0.35, gap * 0.012)
+        : linesMove
+          ? 0.3
+          : 0;
     const playTime = segs.reduce((sum, x) => sum + x.dur, 0);
 
     const finish = () => {
@@ -292,7 +336,14 @@ export function Field({ home, away, entry, restX, animKey, speed, onDone }: { ho
   const endzoneLabel = (x: number, team: Team) => {
     const p = project(x, MID);
     return (
-      <text x={p.x} y={p.y + 4} textAnchor="middle" className="ez-text" fontSize={11 * p.scale} transform={`rotate(${x < 50 ? 90 : -90} ${p.x} ${p.y})`}>
+      <text
+        x={p.x}
+        y={p.y + 4}
+        textAnchor="middle"
+        className="ez-text"
+        fontSize={11 * p.scale}
+        transform={`rotate(${x < 50 ? 90 : -90} ${p.x} ${p.y})`}
+      >
         {team.abbrev}
       </text>
     );
@@ -322,7 +373,12 @@ export function Field({ home, away, entry, restX, animKey, speed, onDone }: { ho
   }, []);
 
   return (
-    <svg className="field-scene" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} role="img" aria-label="Field view of the current play">
+    <svg
+      className="field-scene"
+      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+      role="img"
+      aria-label="Field view of the current play"
+    >
       <defs>
         <pattern id="crowd" width="9" height="7" patternUnits="userSpaceOnUse">
           <circle cx="2" cy="2" r="1.5" fill="rgba(255,255,255,0.16)" />
@@ -359,7 +415,16 @@ export function Field({ home, away, entry, restX, animKey, speed, onDone }: { ho
       <polygon points={quad(-10, 110)} fill="none" stroke="#fff" strokeWidth="1.2" />
       <line ref={losRef} stroke="#5aa9ff" strokeWidth="2" strokeLinecap="round" opacity="0" />
       <line ref={gainRef} stroke="#ffd43b" strokeWidth="2.2" strokeLinecap="round" opacity="0" />
-      <path ref={trailRef} fill="none" strokeWidth="1.6" strokeLinecap="round" pathLength={1} strokeDasharray="1" strokeDashoffset="0" opacity="0.9" />
+      <path
+        ref={trailRef}
+        fill="none"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        pathLength={1}
+        strokeDasharray="1"
+        strokeDashoffset="0"
+        opacity="0.9"
+      />
       <ellipse ref={shadowRef} rx="4" ry="1.6" fill="rgba(0,0,0,0.35)" />
       <ellipse ref={ballRef} rx="4.4" ry="2.7" fill="#7a3f1d" stroke="#fff" strokeWidth="0.7" />
     </svg>
@@ -412,7 +477,12 @@ export function situation(e: PlayLogEntry, home: Team, away: Team): string {
   const goal = e.yardLine + e.distance >= 100;
   const off = e.offense === home.id ? home : away;
   const def = off === home ? away : home;
-  const spot = e.yardLine === 50 ? 'midfield' : e.yardLine < 50 ? `${off.abbrev} ${e.yardLine}` : `${def.abbrev} ${100 - e.yardLine}`;
+  const spot =
+    e.yardLine === 50
+      ? 'midfield'
+      : e.yardLine < 50
+        ? `${off.abbrev} ${e.yardLine}`
+        : `${def.abbrev} ${100 - e.yardLine}`;
   return `${ord} & ${goal ? 'Goal' : e.distance} · Ball on ${spot}`;
 }
 
@@ -436,7 +506,9 @@ export function usePlayNames(league: League, game: Game | undefined): PlayNames 
   const done = !!game?.result;
   return useMemo(() => {
     if (!game) return { re: null, ids: new Map() };
-    const ids = game.result ? Object.keys(game.result.playerTeams).map(Number) : [...teamPlayers(league, game.homeId), ...teamPlayers(league, game.awayId)].map((p) => p.id);
+    const ids = game.result
+      ? Object.keys(game.result.playerTeams).map(Number)
+      : [...teamPlayers(league, game.homeId), ...teamPlayers(league, game.awayId)].map((p) => p.id);
     const byName = new Map<string, number | null>();
     for (const id of ids) {
       const p = league.players[id];
@@ -479,7 +551,17 @@ export function PlayText({ text, names }: { text: string; names: PlayNames }) {
   );
 }
 
-export function GameViewer({ league, gameId, onBack, onBoxScore }: { league: League; gameId: number; onBack: () => void; onBoxScore: () => void }) {
+export function GameViewer({
+  league,
+  gameId,
+  onBack,
+  onBoxScore,
+}: {
+  league: League;
+  gameId: number;
+  onBack: () => void;
+  onBoxScore: () => void;
+}) {
   const game = league.games.find((g) => g.id === gameId);
   const plays = game?.result?.plays ?? [];
   const [index, setIndex] = useState(0);
@@ -558,12 +640,22 @@ export function GameViewer({ league, gameId, onBack, onBoxScore }: { league: Lea
             </div>
           ))}
           <div className="vb-clock">
-            <span>{final ? `Final${game.result.overtime ? '/OT' : ''}` : `${quarterLabel} · ${gameClock(entry.clock)}`}</span>
+            <span>
+              {final ? `Final${game.result.overtime ? '/OT' : ''}` : `${quarterLabel} · ${gameClock(entry.clock)}`}
+            </span>
             <span>{label}</span>
           </div>
         </div>
 
-        <Field home={home} away={away} entry={entry} restX={restingSpot(plays, index, home.id)} animKey={`${index}:${run}`} speed={speed} onDone={onDone} />
+        <Field
+          home={home}
+          away={away}
+          entry={entry}
+          restX={restingSpot(plays, index, home.id)}
+          animKey={`${index}:${run}`}
+          speed={speed}
+          onDone={onDone}
+        />
 
         <div className="viewer-sit">
           <span className="num">{situation(entry, home, away) || ' '}</span>
@@ -580,7 +672,11 @@ export function GameViewer({ league, gameId, onBack, onBoxScore }: { league: Lea
           <button className="vc-btn" onClick={() => go(index + 1)} disabled={atEnd} aria-label="Next play">
             ▶▶
           </button>
-          <button className="vc-speed" onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])} aria-label="Playback speed">
+          <button
+            className="vc-speed"
+            onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])}
+            aria-label="Playback speed"
+          >
             {speed}×
           </button>
           <input
@@ -603,10 +699,18 @@ export function GameViewer({ league, gameId, onBack, onBoxScore }: { league: Lea
             const team = p.offense === home.id ? home : away;
             return (
               // The whole card jumps to its play (the clock is the keyboard way in); a name opens the player.
-              <div key={idx} className={`play-card${i === 0 ? ' current' : ''}${p.scoring ? ' scoring' : ''}`} onClick={() => go(idx)}>
+              <div
+                key={idx}
+                className={`play-card${i === 0 ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
+                onClick={() => go(idx)}
+              >
                 <span className="pc-meta">
                   <TeamChip team={team} />
-                  <button className="linklike num muted" onClick={() => go(idx)} aria-label={`Jump to the play at ${p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} ${gameClock(p.clock)}`}>
+                  <button
+                    className="linklike num muted"
+                    onClick={() => go(idx)}
+                    aria-label={`Jump to the play at ${p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} ${gameClock(p.clock)}`}
+                  >
                     {p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} {gameClock(p.clock)}
                   </button>
                 </span>

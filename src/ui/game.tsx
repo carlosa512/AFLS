@@ -50,7 +50,17 @@ export function LineScore({ league, game, teamId }: { league: League; game: Game
 }
 
 /** One key stat, ours against theirs, the better side bold. */
-function KeyStat({ label, ours, theirs, better }: { label: string; ours: string; theirs: string; better: 'us' | 'them' | null }) {
+function KeyStat({
+  label,
+  ours,
+  theirs,
+  better,
+}: {
+  label: string;
+  ours: string;
+  theirs: string;
+  better: 'us' | 'them' | null;
+}) {
   return (
     <div className="key-stat">
       <span className={better === 'us' ? 'best' : undefined}>{ours}</span>
@@ -60,7 +70,8 @@ function KeyStat({ label, ours, theirs, better }: { label: string; ours: string;
   );
 }
 
-const side = (a: number, b: number, more = true): 'us' | 'them' | null => (a === b ? null : a > b === more ? 'us' : 'them');
+const side = (a: number, b: number, more = true): 'us' | 'them' | null =>
+  a === b ? null : a > b === more ? 'us' : 'them';
 const rate = (c: number, a: number) => (a ? c / a : 0);
 
 /** Yards, turnovers, third downs, possession and penalties, side by side. */
@@ -76,16 +87,36 @@ export function KeyStats({ league, game, teamId }: { league: League; game: Game;
         <span />
         <span className="eyebrow">{opp.abbrev}</span>
       </div>
-      <KeyStat label="Total yards" ours={String(ours.totalYds)} theirs={String(theirs.totalYds)} better={side(ours.totalYds, theirs.totalYds)} />
-      <KeyStat label="Turnovers" ours={String(ours.turnovers)} theirs={String(theirs.turnovers)} better={side(ours.turnovers, theirs.turnovers, false)} />
+      <KeyStat
+        label="Total yards"
+        ours={String(ours.totalYds)}
+        theirs={String(theirs.totalYds)}
+        better={side(ours.totalYds, theirs.totalYds)}
+      />
+      <KeyStat
+        label="Turnovers"
+        ours={String(ours.turnovers)}
+        theirs={String(theirs.turnovers)}
+        better={side(ours.turnovers, theirs.turnovers, false)}
+      />
       <KeyStat
         label="Third down"
         ours={`${ours.thirdDownConv}/${ours.thirdDownAtt}`}
         theirs={`${theirs.thirdDownConv}/${theirs.thirdDownAtt}`}
         better={side(rate(ours.thirdDownConv, ours.thirdDownAtt), rate(theirs.thirdDownConv, theirs.thirdDownAtt))}
       />
-      <KeyStat label="Possession" ours={gameClock(ours.top)} theirs={gameClock(theirs.top)} better={side(ours.top, theirs.top)} />
-      <KeyStat label="Penalties" ours={`${ours.penalties}-${ours.penaltyYds}`} theirs={`${theirs.penalties}-${theirs.penaltyYds}`} better={side(ours.penaltyYds, theirs.penaltyYds, false)} />
+      <KeyStat
+        label="Possession"
+        ours={gameClock(ours.top)}
+        theirs={gameClock(theirs.top)}
+        better={side(ours.top, theirs.top)}
+      />
+      <KeyStat
+        label="Penalties"
+        ours={`${ours.penalties}-${ours.penaltyYds}`}
+        theirs={`${theirs.penalties}-${theirs.penaltyYds}`}
+        better={side(ours.penaltyYds, theirs.penaltyYds, false)}
+      />
     </div>
   );
 }
@@ -158,9 +189,22 @@ export function gameStory(game: Game, teamId: number): string {
   const sum = (q: number[], from: number, to: number) => q.slice(from, to).reduce((a, b) => a + b, 0);
   const [a, b] = [sum(us, 0, 2), sum(them, 0, 2)];
   const [c, d] = [sum(us, 2, 4), sum(them, 2, 4)];
-  const half = a > b ? `Led ${a}–${b} at the half` : a < b ? `Trailed ${a}–${b} at the half` : `Tied ${a}–${b} at the half`;
-  const second = c > d ? `won the second half ${c}–${d}` : c < d ? `lost the second half ${c}–${d}` : `played the second half even, ${c}–${d}`;
+  const half =
+    a > b ? `Led ${a}–${b} at the half` : a < b ? `Trailed ${a}–${b} at the half` : `Tied ${a}–${b} at the half`;
+  const second =
+    c > d
+      ? `won the second half ${c}–${d}`
+      : c < d
+        ? `lost the second half ${c}–${d}`
+        : `played the second half even, ${c}–${d}`;
   const [e, f] = [sum(us, 4, us.length), sum(them, 4, them.length)];
-  const ot = us.length <= 4 ? '' : e > f ? ', then won it in overtime' : e < f ? ', then lost it in overtime' : ', and overtime settled nothing';
+  const ot =
+    us.length <= 4
+      ? ''
+      : e > f
+        ? ', then won it in overtime'
+        : e < f
+          ? ', then lost it in overtime'
+          : ', and overtime settled nothing';
   return `${half}; ${second}${ot}.`;
 }

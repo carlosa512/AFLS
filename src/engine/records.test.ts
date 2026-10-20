@@ -70,13 +70,19 @@ describe('a season split between teams', () => {
     let gameId = 9000;
     const play = (teamId: number, line: StatLine) => {
       const game = { id: gameId++, season: league.season, week: 1, homeId: 0, awayId: 1 } as Game;
-      recordResult(league, game, { playerStats: { [p.id]: line }, playerTeams: { [p.id]: teamId } } as unknown as GameResult);
+      recordResult(league, game, {
+        playerStats: { [p.id]: line },
+        playerTeams: { [p.id]: teamId },
+      } as unknown as GameResult);
     };
     play(0, { gp: 1, rushYds: 50, rushLong: 20 });
     play(0, { gp: 1, rushYds: 30, rushLong: 12 });
     play(5, { gp: 1, rushYds: 70, rushLong: 40 });
     expect(p.statTeams![league.season]).toEqual([0, 5]);
-    expect(p.splitStats![league.season]).toEqual({ 0: { gp: 2, rushYds: 80, rushLong: 20 }, 5: { gp: 1, rushYds: 70, rushLong: 40 } });
+    expect(p.splitStats![league.season]).toEqual({
+      0: { gp: 2, rushYds: 80, rushLong: 20 },
+      5: { gp: 1, rushYds: 70, rushLong: 40 },
+    });
     expect(p.stats[league.season]).toEqual({ gp: 3, rushYds: 150, rushLong: 40 });
   });
 });
