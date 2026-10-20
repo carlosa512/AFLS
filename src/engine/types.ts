@@ -872,6 +872,12 @@ export interface GameInjury {
   estimate: [number, number];
 }
 
+/** When a game kicks off: its day of the game week and the time, in minutes after midnight US Eastern. */
+export interface Kickoff {
+  day: 'thu' | 'sat' | 'sun' | 'mon';
+  et: number;
+}
+
 export interface Game {
   id: number;
   season: number;
@@ -881,6 +887,10 @@ export interface Game {
   awayId: number;
   playoffRound?: PlayoffRound;
   neutral?: boolean;
+  /** Its slot (`season/kickoff.ts`); missing on games from saves before v30. */
+  kickoff?: Kickoff;
+  /** The slot it was first scheduled in, once the league has flexed it (`season/flex.ts`). */
+  flexed?: Kickoff;
   result?: GameResult;
 }
 

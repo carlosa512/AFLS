@@ -9,6 +9,7 @@ import { simOffseason } from './offseason';
 import { quirkWeek, recordForm } from './quirks';
 import { expireOffers, marketMoment, weekMoment } from './trade';
 import { syncDepthChart } from './roster';
+import { flexWeek } from './season/flex';
 import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { computeRecords } from './season/standings';
@@ -117,6 +118,8 @@ export function playWeek(league: League): Game[] {
     quirkWeek(league);
   }
   league.week++;
+  // The league moves the games worth watching into prime time, on the NFL's notice.
+  if (league.phase === 'regular') flexWeek(league);
 
   if (league.phase === 'regular' && league.week > REGULAR_SEASON_WEEKS) {
     awardSeason(league);

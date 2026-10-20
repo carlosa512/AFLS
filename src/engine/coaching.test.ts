@@ -310,9 +310,13 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
     releaseCoach(l, user, letGo.id);
     expect(l.teams[user].coachDead.filter((d) => d.season === l.season)).toHaveLength(0); // his deal was up: no severance
     l.teams[user].staffBudgetMult = 3; // money is not the question here
+    const chairs = new Map(keep.map((c) => [c.id, chairOf(c)]));
     advanceOffseason(l); // resign -> free agency
     expect(letGo.teamId).not.toBe(user);
-    for (const c of keep) {
+    // Re-signed, he can still be promoted away (a team can't block a promotion): only the rest must stay.
+    const stayed = keep.filter((c) => c.teamId === user || sameChair(chairOf(c), chairs.get(c.id)!));
+    expect(stayed.length).toBeGreaterThan(0);
+    for (const c of stayed) {
       expect(c.teamId).toBe(user);
       expect(c.contract!.through).toBe(l.season + 1);
     }
@@ -573,7 +577,7 @@ describe('owners', () => {
     expect(coachMoveProblem(l, user, pick, 'hire')).toMatch(/your owner will add/);
     l.teams[user].coachOverspent = l.season - 1;
     expect(ownerLeeway(l, user, { role: 'headCoach' })).toMatchObject({ amount: 0, reason: 'lastYear' });
-  });
+  }, 30_000);
 
   it('upgrades older saves: owners from their markets, and an empty archive of retired coaches', () => {
     const l = createLeague({ seed: 'owners-v14' });

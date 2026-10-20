@@ -7,7 +7,8 @@ import type { League } from '../../engine/types';
 import { forecast } from '../../engine/weather';
 import { useNav } from '../App';
 import { Panel, TeamLabel, WeatherNote } from '../components';
-import { recordText, weekLabel } from '../format';
+import { kickoffOrder } from '../../engine/season/kickoff';
+import { kickoffText, recordText, weekLabel } from '../format';
 import { ScoreLine } from './Home';
 
 function MySchedule({ league }: { league: League }) {
@@ -25,6 +26,7 @@ function MySchedule({ league }: { league: League }) {
           <tr>
             <th>Week</th>
             <th>Opponent</th>
+            <th>Kickoff</th>
             <th>Result</th>
             <th className="num">Score</th>
             <th>Weather</th>
@@ -37,7 +39,7 @@ function MySchedule({ league }: { league: League }) {
               return (
                 <tr key={week}>
                   <td>{weekLabel(week)}</td>
-                  <td className="muted" colSpan={4}>
+                  <td className="muted" colSpan={5}>
                     Bye
                   </td>
                 </tr>
@@ -70,6 +72,7 @@ function MySchedule({ league }: { league: League }) {
                     <TeamLabel team={opp} sub={recordText(records.get(opp.id)!)} />
                   </span>
                 </td>
+                <td className="muted small">{kickoffText(league, game)}</td>
                 <td>{res ? <span className={`res-${res}`}>{res}</span> : <span className="muted">{week === league.week ? 'Next' : '–'}</span>}</td>
                 <td className="num">{r ? `${us}–${them}${r.overtime ? ' OT' : ''}` : ''}</td>
                 <td>{r ? r.weather && <WeatherNote weather={r.weather} forecast={null} /> : <WeatherNote forecast={forecast(league, game)} />}</td>
@@ -114,18 +117,20 @@ function WeekView({ league }: { league: League }) {
       )}
       {upcoming.length > 0 && (
         <div className="scores-grid">
-          {upcoming.map((g) => (
-            <div key={g.id} className="score-line" style={{ cursor: 'default' }}>
-              <span className="t">
-                <TeamLabel team={league.teams[g.awayId]} />
-              </span>
-              <span className="s muted">@</span>
-              <span className="t">
-                <TeamLabel team={league.teams[g.homeId]} />
-              </span>
-              <span />
-            </div>
-          ))}
+          {[...upcoming]
+            .sort((a, b) => kickoffOrder(a.kickoff) - kickoffOrder(b.kickoff) || a.id - b.id)
+            .map((g) => (
+              <div key={g.id} className="score-line" style={{ cursor: 'default' }}>
+                <span className="t">
+                  <TeamLabel team={league.teams[g.awayId]} />
+                </span>
+                <span className="s muted">@</span>
+                <span className="t">
+                  <TeamLabel team={league.teams[g.homeId]} />
+                </span>
+                <span className="muted small">{kickoffText(league, g)}</span>
+              </div>
+            ))}
         </div>
       )}
     </div>
