@@ -34,6 +34,8 @@ export interface Situation {
   weather?: number;
 }
 
+/** The make odds at which a field goal is a coach's easy call. */
+const COMFORTABLE = 0.75;
 export type PassDepth = 'short' | 'medium' | 'deep';
 export type DefenseCall = 'base' | 'runD' | 'passD' | 'blitz';
 export type Tempo = 'hurry' | 'normal' | 'milk';
@@ -143,9 +145,8 @@ export function shouldSpike(s: Situation): boolean {
 export function fourthDown(s: Situation, rng: Rng): FourthDown {
   const yardsToGoal = 100 - s.yardLine;
   const inRange = s.fgMakeProb >= 0.4;
-  // Comfortable means a kick he makes four times in five; past that a coach weighs a punt or going for it
-  // (at a 70% bar the league tried a fifth more 50-yarders than the NFL's 0.4–0.5 a team-game).
-  const comfortable = s.fgMakeProb >= 0.82;
+  // Comfortable means a kick he makes three times in four; past that a coach weighs a punt or going for it.
+  const comfortable = s.fgMakeProb >= COMFORTABLE;
   const secondsLeft = gameSecondsLeft(s);
 
   // End of half: take the points if we can.
@@ -163,20 +164,23 @@ export function fourthDown(s: Situation, rng: Rng): FourthDown {
     if (s.overtime && behind === 0 && inRange && s.fgMakeProb >= 0.6) return 'fg';
   }
 
-  // Analytics-era aggressiveness on short yardage; how far a coach takes it is his call.
-  // In their territory a yard to go is nearly always a try (NFL 2024: 88% of the time, 72% converted).
+  // Analytics-era aggressiveness on short yardage; how far a coach takes it is his call. Goal to go inside
+  // the 3 has its own odds; elsewhere in their territory a yard to go is nearly always a try (NFL 2024:
+  // 88% of the time, 72% converted).
+  if (yardsToGoal <= 3 && s.distance <= 3) return rng.chance(goOdds(s, 0.75)) ? 'go' : 'fg';
   if (s.distance <= 1 && s.yardLine >= 50) return rng.chance(goOdds(s, 0.88)) ? 'go' : inRange ? 'fg' : 'punt';
   if (s.distance <= 1 && s.yardLine >= 40) return rng.chance(goOdds(s, 0.7)) ? 'go' : inRange ? 'fg' : 'punt';
   if (s.distance <= 2 && s.yardLine >= 55 && yardsToGoal > 3)
     return rng.chance(goOdds(s, 0.75)) ? 'go' : inRange ? 'fg' : 'punt';
   if (s.distance <= 1 && s.yardLine >= 30) return rng.chance(goOdds(s, 0.25)) ? 'go' : 'punt';
-  if (yardsToGoal <= 3 && s.distance <= 3) return rng.chance(goOdds(s, 0.75)) ? 'go' : 'fg';
   if (s.distance <= 4 && s.yardLine >= 60 && yardsToGoal > 3)
     return rng.chance(goOdds(s, 0.3)) ? 'go' : s.fgMakeProb >= 0.55 ? 'fg' : 'punt';
 
   if (comfortable) return 'fg';
   // No-man's land: a long kick, a short punt, or go for it. Coin-flip kicks are for the end of games.
-  if (s.fgMakeProb >= 0.55 && s.distance > 4) return rng.chance(0.6) ? 'fg' : 'punt';
+  // The closer to comfortable, the likelier the kick: a 50-yarder goes up, a 58-yarder mostly doesn't.
+  if (s.fgMakeProb >= 0.55 && s.distance > 4)
+    return rng.chance((s.fgMakeProb - 0.5) / (COMFORTABLE - 0.5)) ? 'fg' : 'punt';
   if (s.yardLine >= 62 && s.distance <= 4) return 'go';
   if (s.yardLine >= 66 && s.distance <= 7 && rng.chance(goOdds(s, 0.4))) return 'go';
   return 'punt';
@@ -190,8 +194,8 @@ export function passProbability(s: Situation): number {
   else p = s.distance >= 7 ? 0.88 : s.distance >= 4 ? 0.74 : s.distance <= 1 ? 0.3 : 0.52;
 
   // Inside the 20 the windows shrink and play-callers lean on the run (NFL 2021–25: about half of red-zone
-  // snaps are runs, two in three at the 1 or 2, against about 43% across the field).
-  if (100 - s.yardLine <= 20) p -= 0.06;
+  // snaps are runs, two in three at the 1 or 2); the clock and the score still decide the end of games.
+  if (100 - s.yardLine <= 20 && ordinary(s)) p -= 0.06;
   if (100 - s.yardLine <= 3) p -= 0.12;
   // The play-caller's taste, in ordinary situations only: the clock and the score decide the end of games.
   if (ordinary(s)) p += PASS_LEAN * (s.passLean ?? 0) + QB_LEAN * (s.qbLean ?? 0) - WEATHER_LEAN * (s.weather ?? 0);

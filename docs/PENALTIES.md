@@ -284,6 +284,9 @@ at the goal line (up to 1.75 yards off a run's mean at the 1, none by the 6) and
 the 10 complete 3 points less often (medium and deep already lost 6); yards after the catch give back
 0.15 of Phase 2's cut so the season's top passers stay in range. `npm run sim -- 10`: 22.98 points,
 passing touchdowns 1.59 (the band's top is 1.6: watch it in Phase 4), field goal tries 1.97 (top 2.0).
+Since replaced: one red-zone ramp (`shrink` in `match/gameSim.ts`) now stacks the box, squeezes throws
+and weighs the defense's call from the 20 to the goal line, and `npm run sim` judges red-zone trips and
+touchdown rate against the NFL's.
 
 Returns today are one draw for the yards; nobody blocks. Fouls need the men around the returner.
 
