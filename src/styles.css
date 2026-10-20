@@ -487,6 +487,11 @@ tr.is-user .sticky-col {
   color: var(--muted);
   padding-block: 5px;
 }
+/* A dragged player held over another position group: where he'd be lined up out of position. */
+.group-row.drop-target td {
+  background: color-mix(in srgb, var(--marker) 22%, var(--surface-2));
+  color: var(--text);
+}
 
 /* ───────── ratings ───────── */
 .rating {
@@ -2269,6 +2274,12 @@ tr.void-year td {
   font-family: var(--font-data);
   font-size: 0.72rem;
   font-weight: 700;
+}
+/* This season's direction, next to the yearly change: an arrow, no number. */
+.attr-trend {
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
 }
 .attr-tip {
   flex-basis: 100%;

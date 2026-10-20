@@ -4,7 +4,7 @@ import { POSITION_NAMES } from '../../engine/positions';
 import { PERSONNEL_LABEL, spotsFor, type TeamScheme } from '../../engine/schemes';
 import { capSheet, isOffseason } from '../../engine/finance/cap';
 import { capHit, lastSeason } from '../../engine/finance/contract';
-import { buildAutoDepthChart, isAvailable, slotOf, teamPlayers, teamRatings } from '../../engine/roster';
+import { buildAutoDepthChart, isAvailable, placeAt, slotOf, teamPlayers, teamRatings } from '../../engine/roster';
 import { activeLearning, familiarity } from '../../engine/training';
 import { computeRecords } from '../../engine/season/standings';
 import type { Coach, League, Player, Position, StatLine, Team } from '../../engine/types';
@@ -170,25 +170,38 @@ function setAuto(teamId: number, auto: boolean) {
 }
 
 interface DragState {
+  /** The group he was picked up from. */
   pos: Position;
   id: number;
   from: number;
+  /** The group under the pointer: his own, or another one he'd be lined up at out of position. */
+  to: Position;
   over: number;
 }
 
+/** One position group's rows on screen: where it starts and ends, and each row's centre. */
+interface GroupGeo {
+  pos: Position;
+  top: number;
+  bottom: number;
+  centers: number[];
+}
+
 /**
- * Drag-to-reorder for depth chart rows. Listeners sit on window rather than the grip: React may
- * move the dragged row in the DOM while previewing the new order, which would drop pointer capture.
+ * Drag-to-reorder for depth chart rows, and drag-to-another-group to line a player up out of position
+ * (the same move as "Play at…"). Listeners sit on window rather than the grip: React may move the
+ * dragged row in the DOM while previewing the new order, which would drop pointer capture.
  */
-function useDepthDrag(teamId: number) {
+function useDepthDrag(teamId: number, lineUpAt: (id: number, pos: Position, index: number) => void) {
   const [drag, setDrag] = useState<DragState | null>(null);
-  const geo = useRef<{ startY: number; dy: number; centers: number[]; height: number; state: DragState } | null>(null);
+  const geo = useRef<{ startY: number; dy: number; groups: GroupGeo[]; height: number; state: DragState } | null>(null);
 
   const rowOf = (id: number) => document.querySelector<HTMLTableRowElement>(`tr[data-id="${id}"]`);
   const applyOffset = () => {
     const g = geo.current;
     const row = g && rowOf(g.state.id);
-    if (g && row) row.style.transform = `translateY(${g.dy - (g.state.over - g.state.from) * g.height}px)`;
+    // Over his own group the rows around him shift to show the order; over another group the row simply follows the pointer.
+    if (g && row) row.style.transform = `translateY(${g.dy - (g.state.to === g.state.pos ? (g.state.over - g.state.from) * g.height : 0)}px)`;
   };
   // Once React has rendered the preview order, re-anchor the dragged row under the pointer.
   useLayoutEffect(applyOffset, [drag]);
@@ -196,14 +209,19 @@ function useDepthDrag(teamId: number) {
   const start = (pos: Position, index: number, id: number, e: ReactPointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
-    const rows = [...document.querySelectorAll<HTMLTableRowElement>(`tr[data-pos="${pos}"]`)];
-    const rects = rows.map((r) => r.getBoundingClientRect());
-    const state = { pos, id, from: index, over: index };
+    const groups: GroupGeo[] = [];
+    for (const p of POSITIONS) {
+      const rects = [...document.querySelectorAll<HTMLTableRowElement>(`tr[data-pos="${p}"]`)].map((r) => r.getBoundingClientRect());
+      if (!rects.length) continue;
+      groups.push({ pos: p, top: rects[0].top + window.scrollY, bottom: rects[rects.length - 1].bottom + window.scrollY, centers: rects.map((r) => r.top + window.scrollY + r.height / 2) });
+    }
+    const own = groups.find((g) => g.pos === pos)!;
+    const state: DragState = { pos, id, from: index, to: pos, over: index };
     geo.current = {
       startY: e.clientY + window.scrollY,
       dy: 0,
-      centers: rects.map((r) => r.top + window.scrollY + r.height / 2),
-      height: rects[index].height,
+      groups,
+      height: own.centers.length > 1 ? own.centers[1] - own.centers[0] : 40,
       state,
     };
     setDrag(state);
@@ -214,10 +232,13 @@ function useDepthDrag(teamId: number) {
       if (!g) return;
       const y = ev.clientY + window.scrollY;
       g.dy = y - g.startY;
-      const center = g.centers[g.state.from] + g.dy;
-      const over = g.centers.filter((c, i) => i !== g.state.from && c < center).length;
-      if (over !== g.state.over) {
-        g.state = { ...g.state, over };
+      const own = g.groups.find((x) => x.pos === g.state.pos)!;
+      const center = own.centers[g.state.from] + g.dy;
+      // The group under the row's centre (between groups, the last one it was over); within it, the rows above.
+      const group = g.groups.find((x) => center >= x.top && center <= x.bottom) ?? g.groups.find((x) => x.pos === g.state.to)!;
+      const over = group.pos === g.state.pos ? own.centers.filter((c, i) => i !== g.state.from && c < center).length : group.centers.filter((c) => c < center).length;
+      if (over !== g.state.over || group.pos !== g.state.to) {
+        g.state = { ...g.state, to: group.pos, over };
         setDrag(g.state);
       } else applyOffset();
       // Nudge the page when dragging near the window edge.
@@ -234,7 +255,8 @@ function useDepthDrag(teamId: number) {
       if (!g) return;
       const row = rowOf(g.state.id);
       if (row) row.style.transform = '';
-      if (commit && g.state.over !== g.state.from) moveInDepth(teamId, g.state.pos, g.state.from, g.state.over);
+      if (commit && g.state.to !== g.state.pos) lineUpAt(g.state.id, g.state.to, g.state.over);
+      else if (commit && g.state.over !== g.state.from) moveInDepth(teamId, g.state.pos, g.state.from, g.state.over);
       setDrag(null);
     };
     const up = () => end(true);
@@ -279,7 +301,6 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
   const record = computeRecords(league).get(teamId)!;
   const cap = capSheet(league, teamId);
   const players = teamPlayers(league, teamId);
-  const { drag, start } = useDepthDrag(teamId);
   const scheme = teamScheme(league, teamId);
   const [announcement, setAnnouncement] = useState('');
   // The depth chart is the default; any other column shows the whole roster as one sorted list.
@@ -287,6 +308,13 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
   const onSort = (key: RosterSort, desc: boolean) => (key === 'depth' ? setSort({ key, desc: false }) : toggleSort(key, desc));
   const grouped = sort.key === 'depth';
   const refocus = useRef<number | null>(null);
+  // Dropped in another group: he's lined up there, in that spot, out of position (back in his own group: at his own position).
+  const { drag, start } = useDepthDrag(teamId, (id, pos, index) => {
+    const p = league.players[id];
+    store.mutate((l) => (pos === p.position ? playAt(l, id, pos) : placeAt(l, id, pos, index)));
+    refocus.current = id;
+    setAnnouncement(`${p.firstName} ${p.lastName} lined up at ${pos}${pos === p.position ? '' : ', out of position'}.`);
+  });
   // Keyboard moves re-render the list; keep focus on the grip that was used.
   useEffect(() => {
     if (refocus.current === null) return;
@@ -448,9 +476,11 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                 })}
               {grouped && POSITIONS.map((pos) => {
                 // While dragging, show the order the drop would produce.
-                const ids = drag?.pos === pos ? reorder(shownDepth(league, team, pos), drag.from, drag.over) : shownDepth(league, team, pos);
+                const ids = drag?.pos === pos && drag.to === pos ? reorder(shownDepth(league, team, pos), drag.from, drag.over) : shownDepth(league, team, pos);
+                // Dragged over another group: that group lights up as the drop target.
+                const target = !!drag && drag.to === pos && drag.to !== drag.pos;
                 return [
-                  <tr className="group-row" key={`g-${pos}`}>
+                  <tr className={`group-row${target ? ' drop-target' : ''}`} key={`g-${pos}`}>
                     <td colSpan={10}>
                       <span className="group-label">
                         {POSITION_NAMES[pos]} · {groupNote(scheme, pos)}

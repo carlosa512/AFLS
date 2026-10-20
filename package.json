@@ -21,7 +21,8 @@
     "quirks": "tsx scripts/quirks.ts",
     "weather": "tsx scripts/weather.ts",
     "crews": "tsx scripts/crews.ts",
-    "trades": "tsx scripts/trades.ts"
+    "trades": "tsx scripts/trades.ts",
+    "training": "tsx scripts/training.ts"
   },
   "dependencies": {
     "react": "19.3.1",

@@ -315,7 +315,15 @@ function lastChange(p: Player): Partial<Record<Attribute, number>> {
   return Object.fromEntries(ATTRIBUTES.map((a) => [a, p.ratings[a] - prev[a]]));
 }
 
-function AttrRow({ attr, r, position, delta, isKey }: { attr: Attribute; r: RatingView; position: Position; delta?: number; isKey: boolean }) {
+/** Change in each rating since the league year opened: what this season's work (and its knocks) has done so far. Exact views only. */
+function seasonChange(p: Player): Partial<Record<Attribute, number>> {
+  const seasons = Object.keys(p.ratingHistory ?? {}).map(Number);
+  if (!seasons.length) return {};
+  const start = toRatings(p.ratingHistory![Math.max(...seasons)]);
+  return Object.fromEntries(ATTRIBUTES.map((a) => [a, p.ratings[a] - start[a]]));
+}
+
+function AttrRow({ attr, r, position, delta, trend, isKey }: { attr: Attribute; r: RatingView; position: Position; delta?: number; trend?: number; isKey: boolean }) {
   const [open, setOpen] = useState(false);
   const info = ATTRIBUTE_INFO[attr];
   const used = contestsFor(attr, position).map((c) => CONTESTS[c].label);
@@ -330,6 +338,12 @@ function AttrRow({ attr, r, position, delta, isKey }: { attr: Attribute; r: Rati
             <span aria-hidden="true">{delta > 0 ? '▲' : '▼'}</span>
             {Math.abs(delta)}
             <span className="visually-hidden">{delta > 0 ? ' up' : ' down'} since last season</span>
+          </span>
+        ) : null}
+        {trend ? (
+          <span className={`attr-trend ${trend > 0 ? 'tone-good' : 'tone-bad'}`} title={trend > 0 ? 'Trending up this season' : 'Trending down this season'}>
+            <span aria-hidden="true">{trend > 0 ? '↗' : '↘'}</span>
+            <span className="visually-hidden">{trend > 0 ? 'trending up' : 'trending down'} this season</span>
           </span>
         ) : null}
         <RangeValue r={r} />
@@ -356,8 +370,9 @@ export function AttributeList({ player: p, view }: { player: Player; view: Playe
   const relevant = relevantAttributes(p.position);
   const others = ATTRIBUTES.filter((a) => !relevant.includes(a));
   const delta = view.exact ? lastChange(p) : {};
+  const trend = view.exact ? seasonChange(p) : {};
   const weights = OVR_WEIGHTS[p.position];
-  const row = (a: Attribute) => <AttrRow key={a} attr={a} r={view.ratings[a]} position={p.position} delta={delta[a]} isKey={!!weights[a]} />;
+  const row = (a: Attribute) => <AttrRow key={a} attr={a} r={view.ratings[a]} position={p.position} delta={delta[a]} trend={trend[a]} isKey={!!weights[a]} />;
   return (
     <>
       <div className="attr-grid">{relevant.map(row)}</div>
