@@ -685,8 +685,8 @@ function tierOf(league: League, pos: Position, ovr: number): number {
   return bp >= 0.5 ? 4 : bp >= 0.15 ? 5 : 6;
 }
 
-/** Habits as one sentence: commas inside a clause ("runs upright, shrugging off…") call for semicolons between them. */
-const clauses = (items: string[]) => (items.some((c) => c.includes(',')) && items.length > 1 ? `${items.slice(0, -1).join('; ')}; and ${items.at(-1)}` : list(items));
+/** Habits as one sentence, each with its own "he" ("he X, he Y, and he Z"): a clause can carry commas of its own. */
+const clauses = (items: string[]) => (items.length > 1 ? `${items.slice(0, -1).join(', he ')}, and he ${items.at(-1)}` : items.join(''));
 const list = (items: string[]) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 const lowerFirst = (s: string) => s[0].toLowerCase() + s.slice(1);
 
@@ -697,7 +697,8 @@ const lowerFirst = (s: string) => s[0].toLowerCase() + s.slice(1);
  * recognition, a defender's his instincts.
  */
 const TRAIT_WORDS: Partial<Record<Attribute, string>> = { throwPower: 'arm', throwAccDeep: 'deep ball', kickPower: 'leg', passRush: 'pass rush', elusiveness: 'elusiveness' };
-const PLURAL_TRAITS = new Set<Attribute>(['catching']);
+/** Trait words that take a plural verb ("his hands are", "his instincts are"). */
+const PLURAL_WORDS = new Set(['hands', 'instincts']);
 function traitWords(a: Attribute, pos: Position): string {
   if (a === 'awareness') return pos === 'QB' ? 'decision-making' : pos === 'OL' ? 'recognition' : ['RB', 'WR', 'TE'].includes(pos) ? 'feel for the game' : 'instincts';
   return TRAIT_WORDS[a] ?? ATTRIBUTE_INFO[a].trait;
@@ -749,8 +750,13 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   const pluses = traits.filter((t) => t.diff >= 2).sort((x, y) => y.diff * y.w - x.diff * x.w);
   const plus = pluses.slice(0, pluses.length > 1 && pluses[1].diff >= 4 ? 2 : 1);
   const minus = traits.filter((t) => t.diff <= -3 && t.w >= 1).sort((x, y) => x.diff * x.w - y.diff * y.w)[0];
+  // Short of the starters' bar, a player still has a shape: what he does best and worst for his level.
+  const rel = traits.map((t) => ({ ...t, rel: view.ratings[t.a].value - view.ovr }));
+  const best = [...rel].sort((x, y) => y.rel - x.rel || y.w - x.w).find((t) => t.rel >= 1 && !plus.some((x) => x.a === t.a));
+  const worst = [...rel].filter((t) => t.w >= 1 && t.a !== minus?.a).sort((x, y) => x.rel - y.rel || y.w - x.w).find((t) => t.rel <= -1.5);
   const name = (t: { a: Attribute }) => traitWords(t.a, p.position);
-  const many = (ts: { a: Attribute }[]) => ts.length > 1 || PLURAL_TRAITS.has(ts[0].a);
+  const many = (ts: { a: Attribute }[]) => ts.length > 1 || PLURAL_WORDS.has(name(ts[0]));
+  const is = (t: { a: Attribute }) => (many([t]) ? 'are' : 'is');
   const praise = plus[0]?.diff >= 4 ? 'elite' : plus.length > 1 ? 'real strengths' : 'a real strength';
 
   const arc = young
@@ -770,11 +776,15 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
 
   const game: string[] = [];
   if (plus.length && minus) game.push(`His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}, but his ${name(minus)} ${many([minus]) ? 'remain' : 'remains'} the main concern.`);
-  else if (plus.length) game.push(`His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}, and there is no glaring hole in his game.`);
-  else if (minus) game.push(`Nothing in his game stands out, and his ${name(minus)} ${many([minus]) ? 'are' : 'is'} a real concern.`);
-  else game.push('No standout trait and no glaring hole: a balanced game.');
+  else if (plus.length) game.push(`His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}${worst ? `; his ${name(worst)} ${is(worst)} the softest part of his game` : ', and there is no glaring hole in his game'}.`);
+  else if (minus) game.push(`${best ? `His ${name(best)} ${is(best)} the best of what he has, but his` : 'Nothing in his game stands out, and his'} ${name(minus)} ${is(minus)} a real concern.`);
+  else if (best && worst) game.push(`His ${name(best)} ${is(best)} the best of what he has; his ${name(worst)} ${is(worst)} where he falls shortest.`);
+  else if (best) game.push(`His ${name(best)} ${is(best)} the best of what he has, and nothing in his game is a liability.`);
+  else if (worst) game.push(`Nothing jumps out, but his ${name(worst)} ${is(worst)} the softest part of his game.`);
+  else game.push('A balanced set: no one trait carries him, and none holds him back.');
   if (young) {
-    if (ceiling < now) game.push(`With reps he could grow into ${TIERS[ceiling].becomes}${minus ? `; how quickly depends on his ${name(minus)} coming along` : ''}.`);
+    // Growth ends at 26: a player of 25 with a tier still to climb has one year left to climb it.
+    if (ceiling < now) game.push(`With reps he could grow into ${TIERS[ceiling].becomes}${minus ? `; how quickly depends on his ${name(minus)} coming along` : ''}${p.age === 25 ? ', and at 25 the window is closing' : ''}.`);
     else if (growing) game.push(`He should keep improving for a few years yet${minus ? `, ${name(minus)} first of all` : ''}, without it changing what he is.`);
     else game.push('Most of his value is in what he does today rather than a projected leap.');
   } else if (p.age > tech) game.push(`At ${p.age}, expect him to lose a little more every year.`);
@@ -784,10 +794,10 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   else game.push(`Expect his prime to run through ${sure} ${tech}.`);
 
   const notes: string[] = [];
-  // His habits, as far as we know them: what has changed this year is news, so a habit he picked up
-  // lately is told as news rather than listed twice; of the rest, the two that matter most (a flaw
-  // before a plus, a plus before a style). A habit only starting to show gets a mention when there
-  // is nothing else to say about him.
+  // His habits, as far as we know them, in at most two sentences: what has changed this year is news,
+  // so a habit he picked up lately is told as news rather than listed twice; of the rest, the two
+  // settled ones that matter most (a flaw before a plus, a plus before a style); then, with a sentence
+  // to spare, the two most telling of those only starting to show.
   const habits = quirkNotes(league, teamId, p).notes;
   const seen = new Set(habits.map((n) => n.id));
   const changes = new Map<QuirkId, HabitChange>();
@@ -797,7 +807,10 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
     .filter((n) => !n.forming && !changes.has(n.id))
     .sort((a, b) => HABIT_ORDER[a.tone] - HABIT_ORDER[b.tone])
     .slice(0, 2);
-  const forming = habits.find((n) => n.forming);
+  const forming = habits
+    .filter((n) => n.forming)
+    .sort((a, b) => HABIT_ORDER[a.tone] - HABIT_ORDER[b.tone])
+    .slice(0, 2);
   // A loss the reader still sees traces of is a fade; one he sees nothing of any more is gone.
   const change = (e: HabitChange) => habitChangeText({ ...e, gone: !seen.has(e.id) }, false);
   const gained = lately.filter((e) => e.change === 'gained').map(change);
@@ -808,17 +821,19 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
     // Hedged unless it's our own player: we only think he has left a habit behind.
     const parts = [gained.length ? `has ${list(gained)}` : '', lost.length ? `${exact ? 'has' : 'seems to have'} ${list(lost)}` : ''].filter(Boolean);
     notes.push(`Lately he ${parts.join(', and ')}.`);
-  } else if (!settled.length && forming) notes.push(`Starting to show: he ${QUIRKS[forming.id].clause}.`);
-  // Makeup, once the staff has seen enough of him, unless his habits already fill the report. Versatility is
-  // a football trait: it is said with what he is (the verdict), not with his makeup.
+  }
+  if (notes.length < 2 && forming.length) notes.push(`Starting to show: he ${clauses(forming.map((n) => QUIRKS[n.id].clause))}.`);
+  // Makeup, once the staff has seen enough of him: the two notes that matter most (the pills carry the rest).
+  // Versatility is a football trait: it is said with what he is (the verdict), not with his makeup.
   const makeup = characterNotes(league, teamId, p);
-  const character = makeup.notes.filter((n) => !n.about);
+  const character = makeup.notes.filter((n) => !n.about).slice(0, 2);
   const versatile = makeup.notes.find((n) => n.about === 'versatility');
-  if (character.length && notes.length < 2) notes.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${character.map((n) => n.clause).join('; ')}.`);
+  if (character.length) notes.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${character.map((n) => n.clause).join('; ')}.`);
 
   // How far to trust the grades, when that is in question: film, visits and who's doing the reading.
+  // Our own player's game is known; his ceiling is worth a word only when the scouts' range on it is wide.
   if (view.exact) {
-    if (young) notes.push('We know his game; his ceiling is our scouts’ best guess.');
+    if (young && view.potHi - view.potLo >= 1.5) notes.push('We know his game; how high he goes is still our scouts’ guess.');
   } else if (ovrHalf <= 0.5) notes.push('Plenty of film on him: this read is reliable.');
   else if (ovrHalf <= 1.1) notes.push('Decent film on him, but these grades could be a point or two off.');
   else notes.push(`Our read is still provisional: more film${teamId === league.userTeamId && league.scoutPoints > 0 ? ' or a scouting visit' : ''} would narrow these grades.`);

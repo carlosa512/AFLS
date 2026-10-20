@@ -4,6 +4,7 @@ import { migrateLeague } from './migrate';
 import { activeQuirks, eventQuirks, fillBag, formFor, formingQuirks, generateQuirks, isSpecial, QUIRK_IDS, QUIRKS, QUIRKS_FOR, quirkOffseason, quirkWeek, recordForm, schemeQuirks, SLUMP_WEEKS } from './quirks';
 import { simulateGame } from './match/gameSim';
 import { teamScheme } from './coaching';
+import { playerOvr } from './positions';
 import { Rng } from './rng';
 import { fixedHabits, habitChangeDetail, habitChangeText, habitTimeline, knowledge, QUIRK_KNOWLEDGE, quirkNotes, quirkWorth, scoutReport, trueQuirkWorth } from './scouting';
 import type { Player } from './types';
@@ -201,6 +202,21 @@ describe('quirks', () => {
     expect(habitChangeDetail({ id: 'lateHands', tone: 'good', change: 'lost' })).toMatch(/still shows on film now and then, but it is no longer a dependable part of his game/);
     expect(habitChangeDetail({ id: 'bailsEarly', tone: 'bad', change: 'lost' })).toMatch(/no longer the problem it was/);
     expect(habitChangeDetail({ id: 'gunslinger', tone: 'style', change: 'lost' })).toMatch(/no longer defines how he plays/);
+  });
+
+  it('report the habits starting to show beside the settled one, flaws first, and a backup by what he does best and worst', () => {
+    const league = createLeague({ seed: 'quirk-forming' });
+    const me = league.userTeamId;
+    const wr = Object.values(league.players).find((p) => p.teamId === me && p.position === 'WR')!;
+    wr.quirks = { bodyCatcher: 2, lateHands: 1, getsJammed: 1, stemsDB: 1 };
+    wr.quirkLog = [];
+    const notes = scoutReport(league, me, wr);
+    expect(notes).toContain('On film he traps the ball against his chest.');
+    // Two of the three early habits, the flaw before the pluses; the pills carry the third.
+    expect(notes).toContain('Starting to show: he gets knocked off his route by press corners, and he shows his hands at the last moment.');
+    // A player short of the starters' bar still has a shape: the sentence names what he does best or worst for his level.
+    const backup = Object.values(league.players).find((p) => p.teamId === me && playerOvr(p) < 8)!;
+    expect(scoutReport(league, me, backup)[1]).toMatch(/best of what he has|softest part of his game|falls shortest|A balanced set|Nothing jumps out|real strength|real concern/);
   });
 
   it('report a fade as a fade while the habit still shows, and as gone once it is, by what the reader sees', () => {

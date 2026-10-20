@@ -89,13 +89,14 @@ describe('perceived ratings', () => {
       const lines = scoutReport(league, league.userTeamId, p);
       expect(lines).toEqual([r.verdict, ...r.game, ...r.notes]);
       expect(lines.length).toBeGreaterThanOrEqual(3);
-      expect(lines.length).toBeLessThanOrEqual(7);
+      expect(lines.length).toBeLessThanOrEqual(8);
       for (const l of lines) expect(l).toMatch(/^[A-Z].*\.$/);
       expect(lines.join(' ')).not.toMatch(/undefined|NaN|offensive line\b/);
       // One judgment up front, with where he is headed; one sentence on his traits, one on his outlook.
       expect(r.verdict).toMatch(/^(On limited looks, an?|An?) \S.* (in his prime|on the downslope|nearing the end of his best years|whose value now rests on|with the upside of|with room still to grow|close to his ceiling)/);
       expect(r.game).toHaveLength(2);
-      expect(r.game[0]).toMatch(/^(His |Nothing in his game|No standout trait)/);
+      expect(r.game[0]).toMatch(/^(His |Nothing in his game|Nothing jumps out|A balanced set)/);
+      expect(r.game[0]).not.toMatch(/\b(hands|instincts) is\b/);
       // The scouts never list every habit: at most two sentences on them.
       expect(r.notes.filter((n) => /^(On film|Lately|Starting to show)/.test(n)).length).toBeLessThanOrEqual(2);
     }
