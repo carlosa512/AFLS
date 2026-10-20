@@ -13,6 +13,7 @@ import type { League, Player, Position, TradeSide } from '../types';
 
 export type { TradeSide };
 import { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
+import { nextDraftSeason } from './value';
 
 /**
  * Trades are allowed all offseason and through deadline day: the day after week 9's games (the NFL's
@@ -168,6 +169,34 @@ export function maxRetain(league: League, p: Player): number {
 /** What a side keeps paying in all. */
 export const retainedBy = (side: TradeSide) => Object.values(side.retain ?? {}).reduce((a, b) => a + b, 0);
 
+// ───────── first-round picks ─────────
+
+/** Whether a team would hold a first-round pick in a draft after a trade: its own (used counts) less what it sends, plus what comes back. */
+function holdsFirst(league: League, teamId: number, season: number, sending: readonly number[], getting: readonly number[]): boolean {
+  return league.draftPicks.some((p) => p.season === season && p.round === 1 && (p.ownerId === teamId ? !sending.includes(p.id) : getting.includes(p.id)));
+}
+
+/**
+ * No trade may leave a team without a first-round pick in two drafts running (the NBA's Stepien rule).
+ * The NFL has none, but pricing alone let an All-In front office sell every first it could trade, one
+ * deal at a time, until it had none for four drafts. It binds you as well as the AI, so neither side
+ * can mortgage a franchise past what the market prices. `getting` is what comes back.
+ */
+export function firstsProblem(league: League, side: TradeSide, getting: readonly number[] = []): string | null {
+  const sent = side.picks.map((id) => league.draftPicks.find((p) => p.id === id)).filter((p) => p?.round === 1);
+  if (!sent.length) return null;
+  const from = nextDraftSeason(league);
+  const seasons = new Set(league.draftPicks.filter((p) => p.season >= from).map((p) => p.season));
+  const without = (s: number) => seasons.has(s) && !holdsFirst(league, side.teamId, s, side.picks, getting);
+  for (const pk of sent) {
+    const s = pk!.season;
+    if (!without(s)) continue;
+    const other = without(s - 1) ? s - 1 : without(s + 1) ? s + 1 : null;
+    if (other !== null) return `${league.teams[side.teamId].name} can't be left without a first-round pick in back-to-back drafts (${Math.min(s, other)} and ${Math.max(s, other)}).`;
+  }
+  return null;
+}
+
 /**
  * Hard rule problems (either side), independent of value. An AI team over the roster limit waives a
  * backup to make room (`aiCutdown` runs after every trade); yours must fit unless `rosterCuts` (you
@@ -189,6 +218,8 @@ export function tradeProblem(league: League, proposal: TradeProposal, opts: { ro
       const pick = league.draftPicks.find((x) => x.id === id);
       if (!pick || pick.ownerId !== side.teamId || pick.playerId !== undefined) return 'That pick is no longer available.';
     }
+    const firsts = firstsProblem(league, side, proposal.sides.find((x) => x !== side)!.picks);
+    if (firsts) return firsts;
     for (const [id, amount] of Object.entries(side.retain ?? {})) {
       const p = league.players[Number(id)];
       if (!side.players.includes(Number(id)) || amount < 0) return 'Only a player you send can have salary kept.';

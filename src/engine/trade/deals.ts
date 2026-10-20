@@ -13,7 +13,7 @@ import { capRoom, ovrOf, rosterOf, spendable, type TradeContext } from './contex
 import { heldPick, judge, marginFor, STAR, type Judgement } from './judge';
 import { CONCERNS, onFile } from './physicals';
 import { isSeller, stanceOf, starterLine, teamNeeds, untouchables } from './plans';
-import { freshlySigned, maxRetain, playerTradeBlocker, salaryToTake, type TradeProposal, type TradeSide } from './rules';
+import { firstsProblem, freshlySigned, maxRetain, playerTradeBlocker, salaryToTake, type TradeProposal, type TradeSide } from './rules';
 import { goingRate, marketValue, nextDraftSeason, pickValue, salaryWeight } from './value';
 
 export interface Deal {
@@ -35,11 +35,11 @@ const SWAP_WORTH = 70;
 /** How much better (points, in his own eyes) a swap must leave the buyer than his best pick package. */
 const SWAP_EDGE = 5;
 
-/** A team's unused picks it would trade (not a first it's holding for draft day), the most valuable to `valuer` first. */
+/** A team's unused picks it would trade (not a first it's holding for draft day, nor one it can't send), the most valuable to `valuer` first. */
 export function picksOf(ctx: TradeContext, teamId: number, valuer: Team): DraftPick[] {
   const { league } = ctx;
   return league.draftPicks
-    .filter((p) => p.ownerId === teamId && p.playerId === undefined && !heldPick(ctx, p))
+    .filter((p) => p.ownerId === teamId && p.playerId === undefined && !heldPick(ctx, p) && !(p.round === 1 && firstsProblem(league, { teamId, players: [], picks: [p.id] })))
     .sort((a, b) => pickValue(league, b, valuer.gm, ctx) - pickValue(league, a, valuer.gm, ctx));
 }
 

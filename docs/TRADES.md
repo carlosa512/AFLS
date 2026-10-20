@@ -202,11 +202,11 @@ value(T, p) = talent(p) × control(p, now) × role(T, p) × lens(T, p)  +  salar
 
 | Term | What it is | Change from today |
 | --- | --- | --- |
-| `talent` | `3000 × e^{0.55 (eff − 18.5)} × POSITION_TRADE × ageMultiplier` on the team's half-trusted, bounded read | Unchanged |
+| `talent` | `3000 × e^{0.55 (eff − 18.5)} × POSITION_TRADE × ageMultiplier` on the team's read: of another AI club's player its scouts' read in full, within a point of the truth (their misses are the market's honest bad deals); of yours half-trusted within 0.35, so you can't shop a player to whichever club overrates him most | Unchanged |
 | `control` | Seasons of control left, weighted 1 / 0.75 / 0.55. Year one counts only for the share of the season still to play. A deal that ends this year adds 0.15 for the re-sign window | Replaces the flat 0.6 / 0.85 / 1. Tuned so a full offseason still reads about 0.6 / 0.8 / 1, and an expiring veteran at the deadline is worth about a third of a full-control one |
 | `role` | What he adds to *this* depth chart: a starter is worth his value minus 65% of the starter he pushes down, never less than a top backup; a top backup 0.35; deeper 0.2 | Replaces "starter or ×0.35" |
 | `lens` | Stance (contenders pay for veterans, rebuilders for youth and picks), need urgency (up to +30%), scheme fit (±8%), coaching (±10% young, ±5% old). See section 8 | Today: `winNow` on players 27+ only |
-| `salary` | Contract surplus over up to four years (market minus base), × the team's **salary weight**: 0.5 for a rich rebuilder, 1 typical, up to 2 for a team over the cap or tight next year | Today: weight always 1 |
+| `salary` | Contract surplus over up to four years (market minus base), × the team's **salary weight**: 0.5 for a rich rebuilder, 1 typical, up to 2 for a team over the cap or tight next year. In season the market's pay for his play weighs at most 1 (`playWeight`): there's nothing left to buy with the room, and capped contenders were paying firsts for half a season of a rookie-deal starter. The salary he's owed still weighs in full | Today: weight always 1 |
 
 **Market value** is the same formula through a league-average lens (role 1, lens 1, salary weight 1):
 what the league would pay. Two uses:
@@ -221,7 +221,9 @@ what the league would pay. Two uses:
 - Each incoming player costs a **roster spot** (about 15 points, a 6th-round pick) unless he makes the
   53 comfortably.
 - An AI's own first-round picks get dearer past the second it gives: ×(1 + extra / 2.5), ZenGM's 2025
-  rule. This replaces the `MAX_AI_PICKS` hard stop; the "won't send more than two picks" message
+  rule, counting the drafts it already has no first in: the third first is dear whether it goes in one
+  deal or three. A pick past next year's draft never counts for less than its going rate to the GM
+  sending it, so a GM who barely values the future can't spend picks three drafts out as free money. This replaces the `MAX_AI_PICKS` hard stop; the "won't send more than two picks" message
   becomes a price.
 - A star (value ≥ about a mid first) only goes for a package that includes one asset worth at least
   45% of him, or a first-round pick.
@@ -517,6 +519,9 @@ pick. Target: under 3 ms a pick.
 - **Windows:** the new league year (`resign`) through the deadline day after week 9; closed in the
   playoffs and the `complete` gap.
 - **Picks:** current draft + 3 ahead, unused, owned by the side (as today).
+- **No back-to-back drafts without a first** (the NBA's Stepien rule, `firstsProblem`): no trade may
+  leave a team, yours included, without a first-round pick in two drafts running. One All-In GM had
+  sold four straight firsts, one deal at a time; pricing each deal alone never stopped it.
 - **Cap:** both sides under the cap after the trade, with the top-51 rule in the offseason (as today).
   The AI also requires that a multi-year incoming salary fit next year's books
   (`capFor(next) × 0.92`, the free-agency rule).

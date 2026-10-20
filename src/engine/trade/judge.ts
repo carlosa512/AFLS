@@ -80,11 +80,26 @@ function floorShare(league: League, team: Team, p: Player, vsUser: boolean): num
 /** Picks at the league's going rate. */
 const going = (ctx: TradeContext, ids: readonly number[]) => ids.reduce((s, id) => s + goingRate(ctx.league, pickById(ctx.league, id), ctx), 0);
 
-/** A team's own outgoing picks: each first-round pick past the second costs it more (ZenGM's price in place of a hard cap). */
+/** Drafts still to come that a team already has no first-round pick in: the firsts it sold in earlier deals. */
+function draftsWithoutFirst(league: League, teamId: number): number {
+  const from = nextDraftSeason(league);
+  const seasons = new Set(league.draftPicks.filter((p) => p.season >= from).map((p) => p.season));
+  return [...seasons].filter((s) => !league.draftPicks.some((p) => p.season === s && p.round === 1 && p.ownerId === teamId)).length;
+}
+
+/**
+ * A team's own outgoing picks: each first-round pick past the second costs it more (ZenGM's price in
+ * place of a hard cap), counting the firsts it already sold: the third first is dear whether it goes in
+ * one deal or three. A pick past next year's draft never counts for less than the league pays for it:
+ * a GM who barely values the future would otherwise spend those as free money, and every deadline
+ * deal was paid in picks three drafts out.
+ */
 function picksOut(ctx: TradeContext, team: Team, ids: readonly number[]): number {
-  const picks = ids.map((id) => pickById(ctx.league, id)).map((p) => ({ value: pickValue(ctx.league, p, team.gm, ctx), first: p.round === 1 }));
+  const { league } = ctx;
+  const next = nextDraftSeason(league);
+  const picks = ids.map((id) => pickById(league, id)).map((p) => ({ value: Math.max(pickValue(league, p, team.gm, ctx), p.season > next ? goingRate(league, p, ctx) : 0), first: p.round === 1 }));
   picks.sort((a, b) => b.value - a.value);
-  let firsts = 0;
+  let firsts = picks.some((p) => p.first) ? draftsWithoutFirst(league, team.id) : 0;
   return picks.reduce((s, p) => s + p.value * (p.first && ++firsts > 2 ? 1 + (firsts - 2) / 2.5 : 1), 0);
 }
 
