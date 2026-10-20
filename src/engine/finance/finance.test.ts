@@ -16,7 +16,7 @@ import {
   voidProration,
   yearsLeft,
 } from './contract';
-import { BASE_CAP, leagueMarket, marketApy, minSalary, payTier } from './market';
+import { BASE_CAP, leagueMarket, marketApy, maxBonusShare, minSalary, payTier } from './market';
 
 const deal = (over: Partial<Parameters<typeof buildContract>[0]> = {}) =>
   buildContract(
@@ -91,6 +91,20 @@ describe('market', () => {
     const best = Math.max(...qbs.map((p) => marketApy(market, p)));
     expect(best / market.cap).toBeGreaterThan(0.17);
     expect(best / market.cap).toBeLessThan(0.22);
+  });
+
+  it("caps the signing bonus at 20-35% of a deal by the GM's cap style", () => {
+    expect(maxBonusShare(0)).toBeCloseTo(0.2);
+    expect(maxBonusShare(1)).toBeCloseTo(0.35);
+    const league = createLeague({ seed: 'bonus' });
+    for (const p of Object.values(league.players)) {
+      const c = p.contract;
+      if (!c || c.kind !== 'veteran' || p.teamId === null) continue;
+      const signing = c.bonuses.filter((b) => b.source === 'signing').reduce((s, b) => s + b.amount, 0);
+      // The 1.6 covers `fitPayroll`'s market nudge (up to 1.5x on bonuses) on top of the share the test pins.
+      const ceiling = c.apy * c.length * maxBonusShare(league.teams[p.teamId].gm.capAggression) * 1.6 + 1;
+      expect(signing).toBeLessThanOrEqual(ceiling);
+    }
   });
 });
 
