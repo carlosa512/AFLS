@@ -250,7 +250,9 @@ describe('inbox', () => {
     // The deals that shaped it, when there were any: ours, the loss that hurts, the league's richest.
     if (fa.signed.length) expect(wrap.body).toContain(`Our biggest deal was ${fa.signed[0].player.position} ${fa.signed[0].player.firstName} ${fa.signed[0].player.lastName}`);
     if (fa.walked.length) expect(wrap.body).toContain(`The one that hurts is ${fa.walked[0].player.position} ${fa.walked[0].player.firstName} ${fa.walked[0].player.lastName}, gone to the`);
-    if (fa.biggest[0].teamId !== league.userTeamId) expect(wrap.body).toContain('Around the league, the richest deal was');
+    if (fa.biggest[0].teamId !== league.userTeamId && fa.biggest[0].player.id !== fa.walked[0]?.player.id) expect(wrap.body).toContain('Around the league, the richest deal was');
+    // Never the same deal twice: the loss that hurts is not also "the richest around the league".
+    if (fa.walked.length) expect(wrap.body.split(`${fa.walked[0].player.firstName} ${fa.walked[0].player.lastName}`).length).toBe(2);
     for (const m of league.inbox!) expect(needsYou(league, m) && m.category === 'staff').toBe(false);
   });
 

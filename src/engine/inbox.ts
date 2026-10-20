@@ -1175,7 +1175,9 @@ function faWrapMail(league: League, have: Set<string>): Draft[] {
   // The deals that shaped it: our biggest, the loss that hurts most, and the richest around the league if it wasn't ours.
   const headline = fa.signed.length ? ` Our biggest deal was ${deal(fa.signed[0])}.` : '';
   const gone = fa.walked.length ? ` The one that hurts is ${fa.walked[0].player.position} ${fullName(fa.walked[0].player)}, gone to the ${teamName(league.teams[fa.walked[0].teamId])} for ${millions(fa.walked[0].total)} over ${plural(fa.walked[0].years, 'year')}.` : '';
-  const richest = fa.biggest[0] && fa.biggest[0].teamId !== league.userTeamId ? ` Around the league, the richest deal was ${deal(fa.biggest[0])} to the ${teamName(league.teams[fa.biggest[0].teamId])}.` : '';
+  // The league's richest deal, unless it was one of ours or the one we just said hurts.
+  const top = fa.biggest[0];
+  const richest = top && top.teamId !== league.userTeamId && top.player.id !== fa.walked[0]?.player.id ? ` Around the league, the richest deal was ${deal(top)} to the ${teamName(league.teams[top.teamId])}.` : '';
   const cap = rookies > 0 ? ` We have ${millions(space)} of cap space going into the draft, and our rookie class will need about ${millions(rookies)} of it.` : ` We have ${millions(space)} of cap space.`;
   return [
     {

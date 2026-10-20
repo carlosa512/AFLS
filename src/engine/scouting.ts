@@ -768,7 +768,7 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
     else if (growing) game.push(`He should keep improving for a few years yet${minus ? `, ${name(minus)} first of all` : ''}, without it changing what he is.`);
     else game.push('Most of his value is in what he does today rather than a projected leap.');
   } else if (p.age > tech) game.push(`At ${p.age}, expect him to lose a little more every year.`);
-  else if (p.age > phys) game.push(`${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold up through ${sure} ${tech}.`);
+  else if (p.age > phys) game.push(`${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should ${p.age === tech ? 'hold this year; expect the rest to follow next year' : `hold up through ${sure} ${tech}`}.`);
   else if (p.age === tech) game.push('This is the last year of his prime: expect the decline to start next year.');
   else if (phys < tech) game.push(`${cap(legs)} should hold up through ${sure} ${phys}, ${skills} through ${sure} ${tech}.`);
   else game.push(`Expect his prime to run through ${sure} ${tech}.`);
