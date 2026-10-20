@@ -274,7 +274,7 @@ describe('reasons', () => {
 describe('saves', () => {
   it('give older players a Versatility trait on load', () => {
     const l = fresh();
-    l.version = 29;
+    l.version = 30;
     for (const p of Object.values(l.players)) delete (p.traits as Partial<Player['traits']>).versatility;
     const up = migrateLeague(l)!;
     expect(up.version).toBe(SAVE_VERSION);

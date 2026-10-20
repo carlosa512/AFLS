@@ -1680,8 +1680,9 @@ class GameSim {
     if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
     // A gunslinger who won't throw it away forces it into coverage instead.
     if (pressured && this.has(qb, 'gunslinger')) pComplete -= 0.1;
-    // Inside the 10 the field shrinks: no room behind the coverage, and less underneath.
-    if (yardsToGoal <= 10) pComplete -= depth === 'short' ? 0.05 : 0.06;
+    // Inside the 10 the field shrinks: no room behind the coverage, and less underneath (the NFL
+    // completes well over ten points fewer of its throws in there than of the rest).
+    if (yardsToGoal <= 10) pComplete -= depth === 'short' ? 0.1 : 0.11;
     if (depth === 'deep' && this.has(receiver, 'goesUpForIt')) pComplete += 0.04;
     else if (depth !== 'deep' && this.has(receiver, 'hearsFootsteps')) pComplete -= 0.04;
     // Contested balls: hands shown late win them, hands that trap against the body don't.

@@ -54,8 +54,11 @@ export const growthMult = (t: Traits) => 1 + 0.065 * (t.workEthic - TRAIT_MEAN);
 /** Decline multiplier: hard workers and durable bodies age more gently. Averages 1. */
 export const declineMult = (t: Traits) => (1 - 0.03 * (t.workEthic - TRAIT_MEAN)) * (1 - 0.02 * (t.durability - TRAIT_MEAN));
 
-/** Years his body clock runs ahead (−) or behind (+) his position's: up to about ±2. */
-export const bodyShift = (t: Pick<Traits, 'durability'>) => clamp(0.2 * (t.durability - TRAIT_MEAN), -2, 2);
+/**
+ * Years his body clock runs ahead (−) or behind (+) his position's: up to about ±1.6. Enough that a
+ * durable body is still about 1.8 overall up on a fragile one at 32 (`npm run careers` holds it to 0.5–2).
+ */
+export const bodyShift = (t: Pick<Traits, 'durability'>) => clamp(0.17 * (t.durability - TRAIT_MEAN), -2, 2);
 
 /** Share of the out-of-position knock he takes: about ×0.45 for the most versatile, ×1.55 for the least. Averages 1. */
 export const knockMult = (t: Pick<Traits, 'versatility'>) => clamp(1 - 0.06 * (t.versatility - TRAIT_MEAN), 0.4, 1.6);

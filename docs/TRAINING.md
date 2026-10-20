@@ -363,7 +363,7 @@ there (it hand-sorts the chart, like a drag). He plays with his own ratings, whi
 plus a broad **knock** on every skill the engine reads for him (`knockFor` in `familiarity.ts`, applied
 through `skill()`'s overlay while he's on the field): 2.5 points, half within his own room (CB↔S,
 EDGE↔DT, WR↔TE), a quarter at a position he used to play, fading to nothing as he learns a position
-he's training for. The hidden **Versatility** trait (1-20, drawn for every player, migrated at v30)
+he's training for. The hidden **Versatility** trait (1-20, drawn for every player, migrated at v31)
 scales it from ×0.4 to ×1.6 and speeds learning a little (×0.75-1.25). Scouts read it in words ("Plays
 anywhere", "One-position player"); screens show the knock as none / small / big, never a number. AI
 lineups only use this to fill a hole (`FILL_IN`, by knocked overall).

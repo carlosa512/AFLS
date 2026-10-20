@@ -9,7 +9,7 @@ import type { Game, InboxMessage, League, Player } from './types';
 
 const full = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
 
-/** A player's traits as a v26 save kept them: Versatility only arrives with v30. */
+/** A player's traits as a v26 save kept them: Versatility only arrives with v31. */
 function v26Traits(p: Player): Player['traits'] {
   const { versatility: _, ...traits } = generateTraits(p);
   return traits as Player['traits'];

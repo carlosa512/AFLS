@@ -399,6 +399,20 @@ function roomValue(reads: readonly PlayerRead[], pos: Position, w: number): numb
   return value;
 }
 
+/**
+ * A room with newcomers (`join`) added to `stay`. A club can always keep a newcomer at the bottom of its
+ * depth chart, so he never costs the room more than that: ranked on his outlook alone, a climber with
+ * room to grow would push a fairly paid veteran down and bring less than the veteran's pay (the more
+ * growth a club read in him, the less he'd be worth).
+ */
+function roomWith(stay: readonly PlayerRead[], join: readonly PlayerRead[], pos: Position, w: number): number {
+  const ranked = roomValue([...stay, ...join], pos, w);
+  if (!join.length) return ranked;
+  let buried = roomValue(stay, pos, w);
+  join.forEach((r, i) => (buried += roleAt(stay.length + i, pos) * ((r.base + r.extension) * r.lens + w * r.pay) - w * r.cost));
+  return Math.max(ranked, buried);
+}
+
 /** A team's players at a position who are under contract, as it reads them. */
 export function roomOf(ctx: TradeContext, team: Team, pos: Position, truth = false): PlayerRead[] {
   const season = ctx.league.season;
@@ -465,7 +479,7 @@ export function playerValue(league: League, player: Player, team: Team, opts: { 
   const others = roomOf(ctx, team, player.position, truth).filter((r) => r.id !== player.id);
   const me = readPlayer(ctx, team, player, truth);
   const w = salaryWeight(ctx, team.id);
-  return roomValue([...others, me], player.position, w) - roomValue(others, player.position, w);
+  return roomWith(others, [me], player.position, w) - roomValue(others, player.position, w);
 }
 
 /**
@@ -491,9 +505,9 @@ export function playerSwing(ctx: TradeContext, team: Team, out: readonly number[
     const room = roomOf(ctx, team, pos, truth);
     const stay = room.filter((r) => !gone.has(r.id));
     const arrive = incoming.filter((p) => p.position === pos).map((p) => readPlayer(ctx, team, p, truth));
-    before += roomValue(room, pos, w);
+    before += roomWith(stay, room.filter((r) => gone.has(r.id)), pos, w);
     kept += roomValue(stay, pos, w);
-    after += roomValue([...stay, ...arrive], pos, w);
+    after += roomWith(stay, arrive, pos, w);
   }
   return { loss: before - kept, gain: after - kept };
 }

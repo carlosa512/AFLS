@@ -5,7 +5,7 @@ import { activeQuirks, eventQuirks, fillBag, formFor, formingQuirks, generateQui
 import { simulateGame } from './match/gameSim';
 import { teamScheme } from './coaching';
 import { Rng } from './rng';
-import { fixedHabits, habitChangeText, habitTimeline, knowledge, QUIRK_KNOWLEDGE, quirkNotes, quirkWorth, scoutReport, trueQuirkWorth } from './scouting';
+import { fixedHabits, habitChangeDetail, habitChangeText, habitTimeline, knowledge, QUIRK_KNOWLEDGE, quirkNotes, quirkWorth, scoutReport, trueQuirkWorth } from './scouting';
 import type { Player } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
@@ -185,12 +185,49 @@ describe('quirks', () => {
     expect(fixedHabits(league, team, vet).map((f) => f.id)).toEqual(['staresDown']);
   });
 
-  it('describe a change in words that fit the habit', () => {
-    expect(habitChangeText({ label: 'Patient Presser', tone: 'good', change: 'gained' })).toBe('Added Patient Presser to his game');
-    expect(habitChangeText({ label: 'Short-Arm Catcher', tone: 'bad', change: 'gained' })).toBe('Picked up a bad habit: Short-Arm Catcher');
-    expect(habitChangeText({ label: 'Gunslinger', tone: 'style', change: 'lost' })).toBe('Moved away from Gunslinger');
-    expect(habitChangeText({ label: 'Loose Carriage', tone: 'bad', change: 'lost' }, false)).toBe('shaken Loose Carriage');
-    expect(habitChangeText({ label: 'Zone Hawk', tone: 'good', change: 'lost' }, false)).toBe('stopped showing Zone Hawk');
+  it('describe a change in words that fit the habit, and a fade apart from a habit that is gone', () => {
+    expect(habitChangeText({ label: 'Patient Presser', tone: 'good', change: 'gained' })).toBe('Patient Presser became a regular part of his game');
+    expect(habitChangeText({ label: 'Short-Arm Catcher', tone: 'bad', change: 'gained' })).toBe('Short-Arm Catcher set in as a bad habit');
+    expect(habitChangeText({ label: 'Gunslinger', tone: 'style', change: 'lost' })).toBe('Leaned away from Gunslinger');
+    expect(habitChangeText({ label: 'Zone Hawk', tone: 'good', change: 'lost' })).toBe('Zone Hawk grew less dependable');
+    // The log marks a habit losing its hold (established → emerging), not vanishing: the sentence says so
+    // unless the reader sees nothing of it any more.
+    expect(habitChangeText({ label: 'Loose Carriage', tone: 'bad', change: 'lost' }, false)).toBe('reined in Loose Carriage, though it still shows now and then');
+    expect(habitChangeText({ label: 'Loose Carriage', tone: 'bad', change: 'lost', gone: true }, false)).toBe('shaken Loose Carriage');
+    expect(habitChangeText({ label: 'Zone Hawk', tone: 'good', change: 'lost' }, false)).toBe('grown less consistent with Zone Hawk');
+    expect(habitChangeText({ label: 'Zone Hawk', tone: 'good', change: 'lost', gone: true }, false)).toBe('stopped showing Zone Hawk');
+    // The line under a dated change: what the habit does once it sets in, or what a fade means.
+    expect(habitChangeDetail({ id: 'lateHands', tone: 'good', change: 'gained' })).toBe('He shows his hands at the last moment. Wins more contested catches.');
+    expect(habitChangeDetail({ id: 'lateHands', tone: 'good', change: 'lost' })).toMatch(/still shows on film now and then, but it is no longer a dependable part of his game/);
+    expect(habitChangeDetail({ id: 'bailsEarly', tone: 'bad', change: 'lost' })).toMatch(/no longer the problem it was/);
+    expect(habitChangeDetail({ id: 'gunslinger', tone: 'style', change: 'lost' })).toMatch(/no longer defines how he plays/);
+  });
+
+  it('report a fade as a fade while the habit still shows, and as gone once it is, by what the reader sees', () => {
+    const league = createLeague({ seed: 'quirk-fade' });
+    const me = league.userTeamId;
+    const qb = Object.values(league.players).find((p) => p.teamId === me && p.position === 'QB')!;
+    qb.quirkLog = [
+      { id: 'bailsEarly', change: 'gained', season: league.season - 1, week: 3 },
+      { id: 'bailsEarly', change: 'lost', season: league.season, week: 1 },
+    ];
+    // Our own player, the habit still there at a weaker grip: a fade, in so many words, and we know it.
+    qb.quirks = { bailsEarly: 1 };
+    expect(scoutReport(league, me, qb).join(' ')).toMatch(/Lately he has reined in Bails Early, though it still shows now and then\./);
+    // Gone entirely: shaken.
+    qb.quirks = {};
+    expect(scoutReport(league, me, qb).join(' ')).toMatch(/Lately he has shaken Bails Early\./);
+    // The dated list tells the change as it was logged, whatever came after.
+    expect(habitTimeline(league, me, qb).map((e) => habitChangeText(e))).toEqual(['Bails Early became less pronounced', 'Bails Early set in as a bad habit']);
+    // A rival's player at the same weaker grip: his scouts don't see early word on a player they barely know,
+    // so to them the habit is simply gone.
+    const rival = Object.values(league.players).find((p) => p.teamId !== null && p.teamId !== me && p.position === 'QB' && knowledge(league, me, p) < 0.6)!;
+    rival.quirks = { bailsEarly: 1 };
+    rival.quirkLog = [{ id: 'bailsEarly', change: 'lost', season: league.season - 2, week: 1 }];
+    league.knowledge[rival.id] = 0.6;
+    const lines = scoutReport(league, me, rival).join(' ');
+    if (quirkNotes(league, me, rival).notes.some((n) => n.id === 'bailsEarly')) expect(lines).not.toMatch(/shaken Bails Early/);
+    else expect(lines).not.toMatch(/though it still shows/);
   });
 
   it('upgrade a v10 save with the same quirks a new league would roll', () => {

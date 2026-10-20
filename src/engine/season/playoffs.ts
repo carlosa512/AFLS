@@ -1,4 +1,5 @@
 import type { Game, League, PlayoffRound } from '../types';
+import { assignPlayoffKickoffs } from './kickoff';
 import { REGULAR_SEASON_WEEKS } from './schedule';
 import { computeRecords, conferenceSeeds } from './standings';
 
@@ -31,8 +32,16 @@ export function allSeeds(league: League, season = league.season): number[][] {
   return league.conferences.map((_, c) => conferenceSeeds(league, c, records));
 }
 
-/** Create the next playoff round's games. Returns false when the season is decided. */
+/** Create the next playoff round's games, each with its kickoff. Returns false when the season is decided. */
 export function scheduleNextRound(league: League): boolean {
+  const before = league.games.length;
+  const made = scheduleRound(league);
+  const games = league.games.slice(before);
+  if (games.length) assignPlayoffKickoffs(league, games, games[0].playoffRound!);
+  return made;
+}
+
+function scheduleRound(league: League): boolean {
   const seeds = allSeeds(league);
   const seedOf = (id: number) => seeds.flat().indexOf(id) % 7;
   const existing = playoffGames(league);

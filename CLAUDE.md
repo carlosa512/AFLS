@@ -95,7 +95,11 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
   - `attributes.ts` the attribute registry: labels, aging families, and the named **contests** the
     engine resolves (`skill(player, contest)`). The match engine never reads `player.ratings` directly.
   - `scouting.ts` what a team believes: knowledge, perceived ranges (seeded per team and player),
-    stars, scout reports, scouting visits, combine generation
+    stars, scout reports (`scoutReportParts`: a verdict, his game, then the rest; one judgment with
+    the observations behind it, never a list of every rating or habit), habit wording over time
+    (`habitChangeText`, `habitChangeDetail`: a logged loss is a fade), scouting visits, combine
+    generation. Prose rules: the sim makes the facts, the writing says what they mean; every
+    sentence is chosen by a condition on what the team can see, so a report is reproducible
   - `staff.ts` scouting departments: who reads which player (`readFor`), accuracy, the staff budget,
     contracts, the market, ageing, AI hiring; owners' budgets from their markets' revenue (`ownerBudgets`,
     `TeamSeed.revenue`). All staff changes go through this module (it keeps a
@@ -123,7 +127,12 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
   - `inbox.ts` the user's mail (awards, injuries, expiring deals, retirements, scouting, opposition reports and recaps,
     trades, the playoff race, the owner's letter, staff deals, coaches hired away, the coaching carousel, free agency):
     `deliverMail` runs after every `store.mutate` and files what's new, each message keyed by what it's
-    about so nothing doubles up. The sim never sends mail itself. `mailSubject` reads that key back, and
+    about so nothing doubles up. The sim never sends mail itself. A recap tells one thing that decided
+    the game, read off the box score (`gameStory`: comeback, lead let go, turnovers, control, a result
+    against the yardage, a late shutdown, a close one; a routine game gets the yards); the opposition
+    report is a briefing on our scouts' read, qualified when they barely know the team, and never
+    promises a tactic the engine doesn't run. Each sender keeps a voice: the head coach direct, the
+    director analytical and hedged, the doctor measured, agents advocates, the league office neutral. `mailSubject` reads that key back, and
     `needsYou` works out from the league as it is now whether a message still asks something (nothing
     stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
@@ -138,7 +147,7 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
     through `quirkNotes` in `scouting.ts` (seen on film, so the fog of war applies); AI front offices
     value them through `quirkWorth` (only what their own scouts have seen); game states (Rattled, Shaken, a kicker's
     slump) and event marbles go through `recordForm`, called from `recordResult` in `league.ts`
-  - `weather.ts` each game's weather (a pure function of seed, season and game id: nothing stored until
+  - `weather.ts` each game's weather (a pure function of seed, season, game id and kickoff: nothing stored until
     it's played): night kickoffs, regional storm fronts, rain that starts mid-game (`weatherAt` gives a
     quarter's conditions), its cost to play and the engine's levers (measured against a typical day, so
     league totals hold), its injury hooks (`staminaDrain` scales a snap's energy cost, `turfRisk` the injury
@@ -167,7 +176,11 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
-  - `season/` schedule (NFL 17-game formula), standings + tiebreakers, playoffs
+  - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
+    byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a
+    row), kickoffs (`kickoff.ts`: Thursday, Sunday 1:00/4:05/4:25, Sunday and Monday nights, the playoffs'
+    windows; western hosts never at 1:00), flex scheduling (`flex.ts`: the league moves better match-ups
+    into prime time on the NFL's notice and sets week 18 after week 17), standings + tiebreakers, playoffs
   - `league.ts` week/season orchestration
   - `finance/` contracts as year-by-year ledgers (`contract.ts`: proration, dead money,
     restructures), team cap sheets and moves (`cap.ts`), the rank-based market, rookie scale and

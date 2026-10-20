@@ -109,7 +109,7 @@ const HARNESS = 'a shoulder harness';
  */
 export const INJURY_TYPES = {
   // ── soft tissue: the body giving out on its own ──
-  hamstring: { label: 'Hamstring strain', part: 'hamstring', mechanism: 'soft', weeks: [1, 5], freq: 30, pos: SKILL_SPRINT, fastTrack: REHAB },
+  hamstring: { label: 'Hamstring strain', part: 'hamstring', mechanism: 'soft', weeks: [1, 5], freq: 22, pos: SKILL_SPRINT, fastTrack: REHAB },
   groin: { label: 'Groin strain', part: 'groin', mechanism: 'soft', weeks: [1, 4], freq: 13, pos: { ...SKILL_SPRINT, K: 1.8, P: 1.4 }, fastTrack: REHAB },
   calf: { label: 'Calf strain', part: 'calf', mechanism: 'soft', weeks: [1, 3], freq: 9, fastTrack: REHAB },
   quad: { label: 'Quad strain', part: 'quad', mechanism: 'soft', weeks: [1, 3], freq: 6, pos: { K: 2.5, P: 1.8 }, fastTrack: REHAB },
@@ -129,7 +129,8 @@ export const INJURY_TYPES = {
   concussion: { label: 'Concussion', part: 'head', mechanism: 'contact', weeks: [1, 3], freq: 28, pos: COLLISION },
   shoulder: {
     label: 'Shoulder sprain', part: 'shoulder', mechanism: 'contact', weeks: [1, 3], freq: 8, pos: { QB: 1.3, LB: 1.2, S: 1.2, OL: 0.9 }, inject: true,
-    brace: { gear: HARNESS, wait: 0.5, cost: { strength: 1, tackling: 2, passBlock: 1, runBlock: 1, throwPower: 2 } },
+    // A quarterback can't throw in a harness (docs/INJURIES.md), the sprain no more than the labrum.
+    brace: { gear: HARNESS, wait: 0.5, cost: { strength: 1, tackling: 2, passBlock: 1, runBlock: 1 }, not: ['QB'] },
   },
   // Played through in a harness all season, fixed once it's over (the offseason covers the surgery).
   labrum: {
