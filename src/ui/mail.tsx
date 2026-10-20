@@ -37,7 +37,7 @@ import { boardValue, reachOrSteal } from '../engine/offseason/draft';
 import { GameStar, KeyStats, LineScore, standouts, Standouts } from './game';
 import { LinkedText, moveIndex, MoveText } from './moves';
 import { deadlineDayTrades, draftClassOf, freeAgencyMoves, marketRumors, marketTrades, seasonDeals, headCoachChanges, mailSubject, needsYou, promotionCandidates, unitReads, type HeadCoachChange, type MailSubject, type Signing } from '../engine/inbox';
-import { activateFromIr, activateProblem, delegates, estimateText, injuryLabel, IR_MIN_WEEKS, IR_RETURNS, irProblem, irReturnsUsed, placeOnIr, SEVERITY_LABEL, weeksLeft } from '../engine/injuries';
+import { activateFromIr, activateProblem, delegates, injuryLabel, IR_MIN_WEEKS, IR_RETURNS, irProblem, irReturnsUsed, outlookText, placeOnIr, SEVERITY_LABEL, weeksLeft } from '../engine/injuries';
 import { lastSeason } from '../engine/finance/contract';
 import { activeRoster, playingHurt, starters, teamPlayers } from '../engine/roster';
 import { capSheet } from '../engine/finance/cap';
@@ -458,7 +458,7 @@ function InjuryCards({ league, s }: { league: League; s: Extract<MailSubject, { 
           </span>
           <span>
             <span className="eyebrow">Doctor's estimate</span>
-            <b>{now ? capital(estimateText(now, weeksLeft(league))) : record ? `${record.weeks} wk at the time` : '–'}</b>
+            <b>{now ? capital(outlookText(now, weeksLeft(league))) : record ? `${record.weeks} wk at the time` : '–'}</b>
           </span>
           <span>
             <span className="eyebrow">This season</span>

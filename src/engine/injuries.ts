@@ -18,6 +18,9 @@
  *   one, protective gear to come back early at a cost on the field, a fast-track to heal sooner and
  *   risk it going again. The player has his say: a competitor plays hurt, a contract year protects
  *   his next deal. Your players' treatments are always your call; AI teams choose their own.
+ * - **Concussions** go through the protocol instead of a set layoff: a weekly draw from a bag of
+ *   marbles built from his concussion history, so each one tends to last longer than the one before,
+ *   makes the next likelier, and a long file can end a career in the offseason.
  * - **Injured reserve** takes a player off the 53 for at least four weeks; eight can come back each
  *   season. AI teams (and the user's, unless he takes over) place and activate players and sign
  *   replacements so every position stays covered.
@@ -37,7 +40,7 @@ import { clamp, Rng } from './rng';
 import { activeRoster, isAvailable, playingHurt, syncDepthChart, teamPlayers } from './roster';
 import { characterRead, type CharacterRead } from './scouting';
 import { TRAIT_MEAN } from './traits';
-import type { Attribute, Injury, InjurySeverity, League, Player, Position, Team, TreatmentId } from './types';
+import type { Attribute, ConcussionProtocol, Injury, InjurySeverity, League, Player, Position, Team, TreatmentId } from './types';
 import { POSITIONS } from './types';
 
 /** Fewest weeks a player placed on injured reserve sits out. */
@@ -341,10 +344,12 @@ export function rollInjury(
     // Recent injuries to a part make it the likeliest to go again.
     const recent = new Set((p.injuries ?? []).filter((r) => weeksSince(league, r.season, r.week) < YEAR_WEEKS).map((r) => injuryType(r.type).part));
     const quirks = activeQuirks(p);
+    const head = concussionRisk(league, p, at);
     id = rng.weighted(POOLS[mechanism], (t) => {
       const type: InjuryType = INJURY_TYPES[t];
-      return type.freq * (type.pos?.[p.position] ?? 1) * (recent.has(type.part) ? (mechanism === 'soft' ? 2.5 : 1.5) : 1) * partLean(quirks, mechanism, type.part);
+      return type.freq * (type.pos?.[p.position] ?? 1) * (recent.has(type.part) ? (mechanism === 'soft' ? 2.5 : 1.5) : 1) * partLean(quirks, mechanism, type.part) * (t === 'concussion' ? head : 1);
     });
+    if (id === 'concussion') return { injury: diagnoseConcussion(rng, league, p, dept, at, where) };
     weeks = rollWeeks(rng, p, injuryType(id), dept);
   }
   const type = injuryType(id);
@@ -415,7 +420,9 @@ export function applyInjury(league: League, p: Player, injury: Injury, scar?: Pa
   // A serious hit in a game can leave a habit behind (not a strain, not the practice field).
   const type = injuryType(injury.type);
   const shy = HIT_SHY[p.position];
-  if (shy && injury.where === 'game' && type.mechanism !== 'soft' && (injury.severity !== 'minor' || type.part === 'head')) addMarbles(league, p, [shy]);
+  // Each concussion leaves more of a mark than the last: a marble for every one on his file.
+  const marks = type.part === 'head' ? Math.max(1, Math.round(concussionLoad(p, injury.season, injury.week))) : 1;
+  if (shy && injury.where === 'game' && type.mechanism !== 'soft' && (injury.severity !== 'minor' || type.part === 'head')) addMarbles(league, p, [shy], marks);
   if (p.teamId === null) return;
   // News: everything about the user's players; around the league, only the big ones to good players.
   const team = league.teams[p.teamId];
@@ -442,6 +449,7 @@ export function injuryTag(p: Player): string | null {
   if (!p.injury) return null;
   if (playingHurt(p.injury)) return 'Playing hurt';
   if (p.injury.braceWait) return `Out ${p.injury.braceWait} wk`;
+  if (p.injury.protocol && !p.injury.protocol.shutdown) return 'Protocol';
   const [lo, hi] = p.injury.estimate;
   return hi <= 1 ? 'Out 1 wk' : lo === hi ? `Out ${lo} wk` : `Out ${lo}–${hi} wk`;
 }
@@ -454,10 +462,19 @@ const weeksText = (n: number) => (n === 1 ? 'a week' : `${n} weeks`);
  */
 export function outlookText(injury: Injury, weeksLeftInSeason?: number): string {
   const type = injuryType(injury.type);
+  if (injury.protocol?.shutdown) return 'shut down for the season to think about his future';
+  if (injury.protocol) return `in the concussion protocol, ${protocolOutlook(injury.estimate)}`;
   if (injury.treatment === 'injection') return 'playing through it on injections';
   if (injury.treatment === 'brace' && type.brace) return injury.braceWait ? `back in ${type.brace.gear} in ${weeksText(injury.braceWait)}` : `playing in ${type.brace.gear}`;
   const out = estimateText(injury, weeksLeftInSeason);
   return injury.treatment === 'fastTrack' && type.fastTrack ? `${out}, after ${type.fastTrack === REHAB ? 'fast-track rehab' : type.fastTrack}` : out;
+}
+
+/** "day to day", "day to day, up to 3 weeks", "out 2–4 weeks": the doctor's read of the protocol. */
+function protocolOutlook([lo, hi]: [number, number]): string {
+  if (hi <= 1) return 'day to day';
+  if (lo <= 0) return `day to day, up to ${hi} weeks`;
+  return lo === hi ? `out about ${weeksText(lo)}` : `out ${lo}–${hi} weeks`;
 }
 
 export type RiskTier = 'Low' | 'Medium' | 'High';
@@ -705,6 +722,162 @@ export function stopTreatment(league: League, p: Player): void {
   if (p.teamId !== null) syncDepthChart(league, league.teams[p.teamId]);
 }
 
+// ───────── concussions ─────────
+
+/**
+ * A concussed player enters the protocol. There is no set layoff: each week he takes the test, a
+ * marble drawn from his own bag and never put back. An all-clear ends it, a week with symptoms keeps
+ * him out, a setback brings the symptoms back (two more of them go in the bag). A first concussion
+ * clears in time for the next game half the time, about two in five over the league as in the NFL (59% miss a game,
+ * median 9 days: docs/INJURIES.md); every earlier one on his file adds symptoms and setbacks, so each
+ * tends to last longer than the one before, and makes the next one likelier.
+ */
+const CLEAR = 4;
+const SYMPTOMS = 4;
+/** Games after he's cleared in which a second concussion is likelier: the brain isn't done when the symptoms are. */
+export const CONCUSSION_WINDOW = 2;
+
+/**
+ * His concussion history as it weighs on the next one: each past concussion counts in full for two
+ * years, then fades to half by four, never less. Staying clean helps; it never wipes the file.
+ */
+export function concussionLoad(p: Player, season: number, week: number): number {
+  let load = 0;
+  for (const r of p.injuries ?? []) {
+    if (r.type !== 'concussion') continue;
+    const years = ((season - r.season) * YEAR_WEEKS + (week - r.week)) / YEAR_WEEKS;
+    load += clamp(1 - 0.25 * (years - 2), 0.5, 1);
+  }
+  return load;
+}
+
+export const concussionCount = (p: Player) => (p.injuries ?? []).filter((r) => r.type === 'concussion').length;
+
+/** Weeks left (0 when none) of the window after his last concussion cleared, when a second one is likelier. */
+export function concussionWindow(league: League, p: Player): number {
+  const last = (p.injuries ?? []).filter((r) => r.type === 'concussion').at(-1);
+  if (!last || p.injury?.type === 'concussion') return 0;
+  // Weeks since the test that cleared him: the first game he could play is one week on.
+  const since = weeksSince(league, last.season, last.week) - (last.weeks - (last.held ? 1 : 0));
+  return since >= 1 && since <= CONCUSSION_WINDOW ? CONCUSSION_WINDOW - since + 1 : 0;
+}
+
+/** How much likelier a contact injury is to be a concussion for him: his file, and a brain cleared only just. */
+function concussionRisk(league: League, p: Player, at: { season: number; week: number }): number {
+  return (1 + 0.3 * Math.min(4, concussionLoad(p, at.season, at.week))) * (concussionWindow(league, p) > 0 ? 2 : 1);
+}
+
+/** His bag for a new concussion: two more symptoms and a setback for each earlier one, more if it was recent or he's 30 or older. */
+export function protocolBag(p: Player, at: { season: number; week: number }): ConcussionProtocol {
+  const load = concussionLoad(p, at.season, at.week);
+  const recent = (p.injuries ?? []).some((r) => r.type === 'concussion' && (at.season - r.season) * YEAR_WEEKS + (at.week - r.week) < YEAR_WEEKS);
+  return { clear: CLEAR, symptoms: SYMPTOMS + Math.round(2 * load) + (recent ? 1 : 0) + (p.age >= 30 ? 1 : 0), setbacks: Math.round(load) };
+}
+
+/**
+ * Draws he can expect until the all-clear: without replacement, (others + clears + 1) / (clears + 1),
+ * each setback counting for itself and, if it comes out before the all-clear, the two symptoms it adds.
+ */
+function expectedTests(b: ConcussionProtocol): number {
+  const others = b.symptoms + b.setbacks + (2 * b.setbacks * b.setbacks) / (b.setbacks + b.clear);
+  return (others + b.clear + 1) / (b.clear + 1);
+}
+
+/**
+ * The doctor's read of the protocol from here: the games he can expect to miss, as a range as wide as
+ * any other estimate of his. `testFirst`: the next test comes before the next game (the week it happened).
+ */
+function estimateProtocol(rng: Rng, inj: Injury, dept: Department, testFirst: boolean): void {
+  const out = expectedTests(inj.protocol!) - (testFirst ? 1 : 0);
+  const spread = diagnosisSpread(dept.diagnosis);
+  inj.weeksRemaining = Math.max(1, Math.round(out));
+  inj.estimate = [Math.max(0, Math.floor(out * (1 - spread * rng.float(0.2, 1)))), Math.max(1, Math.ceil(out * (1 + spread * rng.float(0.2, 1))))];
+}
+
+/**
+ * Diagnose a concussion: into the protocol. His third in a season, or a file this long, has him
+ * weighing his future, and about half the time (fewer for a competitor) he shuts himself down for the
+ * rest of the year: no tests, back after the offseason. That roll runs on his own stream.
+ */
+function diagnoseConcussion(rng: Rng, league: League, p: Player, dept: Department, at: { season: number; week: number }, where: Injury['where']): Injury {
+  const type = INJURY_TYPES.concussion;
+  const protocol = protocolBag(p, at);
+  const injury: Injury = { type: 'concussion', severity: 'minor', weeksRemaining: 1, estimate: [0, 1], season: at.season, week: at.week, where, protocol };
+  if (weighsHisFuture(league, p, at)) {
+    protocol.shutdown = true;
+    injury.weeksRemaining = Math.max(1, weeksLeft(league));
+    injury.estimate = [injury.weeksRemaining, injury.weeksRemaining];
+  } else estimateProtocol(rng, injury, dept, where === 'game');
+  injury.severity = severityFor(type, injury.weeksRemaining, p.age);
+  return injury;
+}
+
+/** A third concussion this season, or a fifth on his file, and he may shut himself down for the year. */
+function weighsHisFuture(league: League, p: Player, at: { season: number; week: number }): boolean {
+  if (!inSeason(league)) return false;
+  const thisSeason = (p.injuries ?? []).filter((r) => r.type === 'concussion' && r.season === at.season).length + 1;
+  if (thisSeason < 3 && concussionLoad(p, at.season, at.week) + 1 < 5) return false;
+  return new Rng(`${league.seed}:shutdown:${p.id}:${at.season}:${at.week}`).chance(clamp(0.5 - 0.6 * (p.personality.winning - 0.5), 0.2, 0.8));
+}
+
+/** This week's test, on his own stream: the all-clear, another week, or a setback. */
+function protocolTest(league: League, p: Player, inj: Injury, dept: Department): void {
+  const pr = inj.protocol!;
+  const rng = new Rng(`${league.seed}:${league.season}:${league.week}:protocol:${p.id}`);
+  const roll = rng.int(0, pr.clear + pr.symptoms + pr.setbacks - 1);
+  if (roll < pr.clear) return clearProtocol(league, p, inj);
+  if (roll < pr.clear + pr.symptoms) pr.symptoms--;
+  else {
+    pr.setbacks--;
+    pr.symptoms += 2;
+    pr.setbackWeek = league.week;
+  }
+  estimateProtocol(rng, inj, dept, false);
+}
+
+/** Cleared: his file shows the games he really missed, and a team that holds him sits him one more week. */
+function clearProtocol(league: League, p: Player, inj: Injury): void {
+  const held = !!inj.protocol!.hold;
+  const missed = Math.max(0, weeksSince(league, inj.season, inj.week)) + (held ? 1 : 0);
+  const record = p.injuries?.at(-1);
+  if (record && record.type === inj.type && record.season === inj.season && record.week === inj.week) {
+    record.weeks = missed;
+    record.severity = severityFor(INJURY_TYPES.concussion, missed, p.age);
+    if (held) record.held = true;
+  }
+  if (!held) {
+    delete p.injury;
+    return;
+  }
+  delete inj.protocol;
+  inj.weeksRemaining = 1;
+  inj.estimate = [1, 1];
+}
+
+/** Sit him a week once he's cleared, or not: a week off the field is a week of the window spent safe. */
+export function holdAfterProtocol(p: Player, on: boolean): void {
+  const pr = p.injury?.protocol;
+  if (!pr || pr.shutdown) return;
+  if (on) pr.hold = true;
+  else delete pr.hold;
+}
+
+/** Concussions' share of the offseason retirement chance, by his file: from the third on, more with each one. */
+const CONCUSSION_RETIRE: [number, number][] = [[2.5, 0], [3, 0.03], [4, 0.1], [5, 0.25], [6, 0.4]];
+
+/**
+ * Chance concussions end his career this offseason (`season` is the league year that just began): from
+ * about the third on his file, rising with each one, half again after two in the season just played.
+ */
+export function concussionRetireChance(p: Player, season: number): number {
+  const load = concussionLoad(p, season, 0);
+  if (load <= CONCUSSION_RETIRE[0][0]) return 0;
+  const i = CONCUSSION_RETIRE.findIndex(([at]) => at >= load);
+  const base = i < 0 ? CONCUSSION_RETIRE.at(-1)![1] : CONCUSSION_RETIRE[i - 1][1] + ((load - CONCUSSION_RETIRE[i - 1][0]) / (CONCUSSION_RETIRE[i][0] - CONCUSSION_RETIRE[i - 1][0])) * (CONCUSSION_RETIRE[i][1] - CONCUSSION_RETIRE[i - 1][1]);
+  const lastYear = (p.injuries ?? []).filter((r) => r.type === 'concussion' && r.season === season - 1).length;
+  return Math.min(0.6, base * (lastYear >= 2 ? 1.5 : 1));
+}
+
 // ───────── the weekly cycle ─────────
 
 /** Chance a player picks up an injury on the practice field in a week, before his risk factors. */
@@ -725,7 +898,9 @@ export function injuryWeek(league: League): void {
   for (const p of Object.values(league.players)) {
     if (p.retired) continue;
     const inj = p.injury;
-    if (inj && (inj.season < season || inj.week < week)) {
+    // A concussion is a test a week, the first in the week it happened: some clear in time for the next game.
+    if (inj?.protocol && !inj.protocol.shutdown) protocolTest(league, p, inj, dept(p.teamId));
+    else if (inj && (inj.season < season || inj.week < week)) {
       inj.weeksRemaining--;
       inj.estimate = [Math.max(0, inj.estimate[0] - 1), Math.max(0, inj.estimate[1] - 1)];
       if (inj.braceWait && --inj.braceWait <= 0) delete inj.braceWait;

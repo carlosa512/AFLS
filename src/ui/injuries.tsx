@@ -9,6 +9,9 @@ import {
   activateFromIr,
   activateProblem,
   braceWait,
+  concussionCount,
+  concussionWindow,
+  holdAfterProtocol,
   injuryLabel,
   injuryRisk,
   injuryTag,
@@ -144,6 +147,9 @@ export function HealthSection({ league, player: p }: { league: League; player: P
   const irBlock = mine ? irProblem(league, p) : 'not yours';
   const activateBlock = mine && p.ir ? activateProblem(league, p) : null;
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
+  const concussions = concussionCount(p);
+  const lastConcussion = (p.injuries ?? []).filter((r) => r.type === 'concussion').at(-1)?.season;
+  const backWeeks = concussionWindow(league, p);
   // His last answer, for this injury only (asking again gets the same one).
   const injKey = inj ? `${p.id}:${inj.season}:${inj.week}:${inj.type}` : '';
   const [asked, setAsked] = useState<{ key: string; id: TreatmentId; answer: TreatmentAnswer } | null>(null);
@@ -179,6 +185,21 @@ export function HealthSection({ league, player: p }: { league: League; player: P
             <span>
               {capital(outlookText(inj, weeksLeft(league)))}
               {type?.gear && !inj.treatment && <span className="muted small"> · back in {type.gear}</span>}
+              {inj.protocol?.setbackWeek !== undefined && <span className="muted small"> · a setback in week {inj.protocol.setbackWeek}</span>}
+              {inj.protocol?.hold && <span className="muted small"> · he sits a week once he's cleared</span>}
+            </span>
+          </span>
+        )}
+        {concussions > 0 && (
+          <span className="fact">
+            <span className="eyebrow">Concussions</span>
+            <span>
+              {concussions}
+              <span className="muted small">
+                {' '}
+                · last in {lastConcussion}
+                {backWeeks > 0 && ` · just back: a second one is likelier for ${backWeeks === 1 ? 'another week' : `${backWeeks} more weeks`}`}
+              </span>
             </span>
           </span>
         )}
@@ -223,6 +244,15 @@ export function HealthSection({ league, player: p }: { league: League; player: P
           {inj && type && (inj.treatment === 'injection' || inj.treatment === 'brace') && (
             <button className="btn btn-sm" title="Back to resting it until it heals." onClick={() => store.mutate((l) => stopTreatment(l, l.players[p.id]))}>
               {inj.treatment === 'injection' ? 'Stop the injections' : 'Rest him instead'}
+            </button>
+          )}
+          {inj?.protocol && !inj.protocol.shutdown && (
+            <button
+              className="btn btn-sm"
+              title="A second concussion is twice as likely in his first two weeks back: holding him spends one of them on the sideline."
+              onClick={() => store.mutate((l) => holdAfterProtocol(l.players[p.id], !inj.protocol!.hold))}
+            >
+              {inj.protocol.hold ? 'Play him once he’s cleared' : 'Hold him a week after he clears'}
             </button>
           )}
           {type &&

@@ -59,7 +59,8 @@ const TARGETS: Record<string, [number, number]> = {
 
 /**
  * Injuries per team over a 17-game regular season, against the NFL's injury surveillance and
- * return-to-play studies (sources: docs/INJURIES.md). Only time-loss injuries count (a week or more).
+ * return-to-play studies (sources: docs/INJURIES.md). Only time-loss injuries count (a week or more),
+ * except concussions, which count whether or not he misses a game (as the NFL counts them): 59% do.
  */
 const INJURY_TARGETS: Record<string, [number, number]> = {
   'in games / team-game': [1.0, 1.6],
@@ -67,6 +68,7 @@ const INJURY_TARGETS: Record<string, [number, number]> = {
   'per team-season': [20, 36],
   'weeks missed / team': [55, 130],
   'concussions / team': [2, 5],
+  'concussions 0 games %': [33, 50],
   'torn ACLs / team': [0.6, 1.5],
   'hamstrings / team': [3.5, 7],
 };
@@ -195,6 +197,7 @@ for (let s = 0; s < seasons; s++) {
       injAdd('all');
       injAdd('weeks', Math.min(r.weeks, REGULAR_SEASON_WEEKS - r.week));
       injAdd(r.type);
+      if (r.type === 'concussion' && r.weeks === 0) injAdd('concussion:none');
       bySeverity[r.severity] = (bySeverity[r.severity] ?? 0) + 1;
       (byPosition[p.position] ??= { hurt: 0, players: 0 }).hurt++;
     }
@@ -288,6 +291,7 @@ const injuryResults: Record<string, number> = {
   'per team-season': inj.all / teamSeasons,
   'weeks missed / team': inj.weeks / teamSeasons,
   'concussions / team': (inj.concussion ?? 0) / teamSeasons,
+  'concussions 0 games %': (100 * (inj['concussion:none'] ?? 0)) / (inj.concussion ?? 1),
   'torn ACLs / team': (inj.acl ?? 0) / teamSeasons,
   'hamstrings / team': (inj.hamstring ?? 0) / teamSeasons,
 };

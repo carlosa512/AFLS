@@ -10,7 +10,7 @@
 import { retireChance } from '../aging';
 import { coachingFor, coachWindowCloses, developCoaches, ensureCoached, noteCoachOverspend } from '../coaching';
 import { developPlayer, playedShare, recordRatings } from '../development';
-import { delegates, injuriesNewYear, injuryRetireChance, manageInjuries } from '../injuries';
+import { concussionRetireChance, delegates, injuriesNewYear, injuryRetireChance, manageInjuries } from '../injuries';
 import { developMedics, ensureMedical, medicalWindowCloses } from '../medical';
 import { crewsNewYear } from '../officials';
 import { accelerateProration, capSheet, capSpace, logTransaction, nextCap } from '../finance/cap';
@@ -64,13 +64,15 @@ export function beginOffseason(league: League): void {
     developPlayer(own, p, { playedShare: playedShare(p, last), ...coachingFor(league, p.teamId, p.position), bodyAs: bodyAs(p) });
     p.age++;
     p.experience++;
-    // Age and form, or a body that can't take any more (`injuryRetireChance`), in one roll.
-    const worn = injuryRetireChance(p, league.season);
+    // Age and form, or a body (`injuryRetireChance`) or a head (`concussionRetireChance`) that can't take any more, in one roll.
+    const body = injuryRetireChance(p, league.season);
+    const head = concussionRetireChance(p, league.season);
+    const worn = 1 - (1 - body) * (1 - head);
     if (own.chance(1 - (1 - retireChance(p, playerOvr(p))) * (1 - worn))) {
       if (p.teamId !== null) {
         // Retiring under contract: every remaining bonus dollar accelerates.
         accelerateProration(league, p, p.teamId, 'Retired');
-        if (playerOvr(p) >= 14 || (worn > 0 && p.teamId === league.userTeamId)) logTransaction(league, 'retire', [p.teamId], `${league.teams[p.teamId].abbrev} ${p.position} ${p.firstName} ${p.lastName} retired${worn > 0 ? ' (injuries)' : ''}`);
+        if (playerOvr(p) >= 14 || (worn > 0 && p.teamId === league.userTeamId)) logTransaction(league, 'retire', [p.teamId], `${league.teams[p.teamId].abbrev} ${p.position} ${p.firstName} ${p.lastName} retired${head > body ? ' (concussions)' : worn > 0 ? ' (injuries)' : ''}`);
       }
       p.teamId = null;
       p.contract = null;

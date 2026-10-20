@@ -274,6 +274,25 @@ export interface Injury {
   braceWait?: number;
   /** In protective gear: rating points he plays down on until it heals (the engine reads it in `skill`). */
   braceCost?: Partial<Record<Attribute, number>>;
+  /** A concussion: in the protocol, cleared by a weekly draw instead of a set layoff. */
+  protocol?: ConcussionProtocol;
+}
+
+/**
+ * The concussion protocol (`injuries.ts`, concussions): a bag of marbles built from his concussion
+ * history, one drawn each week, never put back. An all-clear ends it; a week with symptoms doesn't;
+ * a setback brings the symptoms back (two more of them go in).
+ */
+export interface ConcussionProtocol {
+  clear: number;
+  symptoms: number;
+  setbacks: number;
+  /** The week of his latest setback, if he has had one. */
+  setbackWeek?: number;
+  /** Sit him one more week once he's cleared (his team's call). */
+  hold?: true;
+  /** He shut himself down for the season to think about his future: no tests, back next year. */
+  shutdown?: true;
 }
 
 /** One injury in a player's history. */
@@ -290,6 +309,8 @@ export interface InjuryRecord {
   aggravated?: true;
   /** Healed on a fast-track: back sooner, and likelier to go again in his first weeks back. */
   fastTracked?: true;
+  /** A concussion: his team held him a week after the protocol cleared him (counted in `weeks`). */
+  held?: true;
 }
 
 /** Combine results. A missing drill means he skipped it. */

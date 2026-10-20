@@ -55,7 +55,8 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 26) league.version = 26; // v26: optional `woman` on scouts and medics, set at creation (absent = a man)
   if (atLoad) toV27(league, atLoad); // last: the earlier steps seed new fields from the old names
   if (league.version < 28) toV28(league);
-  if (league.version < 29) toV29(league);
+  if (league.version < 29) league.version = 29; // v29: optional `protocol` on concussions and `held` on records, nothing to fill in
+  if (league.version < 30) toV30(league);
   return league;
 }
 
@@ -230,13 +231,13 @@ function toV11(league: League) {
 }
 
 /**
- * v28 → v29: position moves (`learning`, `moves`, `training`: optional, nothing to fill in) and the
+ * v29 → v30: position moves (`learning`, `moves`, `training`: optional, nothing to fill in) and the
  * versatility trait, rolled from each player's own seed after the others, so he gets what a new league
  * would give him.
  */
-function toV29(league: League) {
+function toV30(league: League) {
   for (const p of Object.values(league.players)) if (p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
-  league.version = 29;
+  league.version = 30;
 }
 
 /**

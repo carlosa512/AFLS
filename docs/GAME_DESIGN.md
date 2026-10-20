@@ -367,7 +367,9 @@ scaled by hidden injury resistance (fading with age, buffered by a durable body)
 games, condition carried week to week (natural fitness), history and playing hurt. Twenty-seven injury
 types with layoffs, a doctor's estimate and permanent scars for the severe ones. Treatments where an
 injury allows them (pain injections, protective gear that costs him on the field, fast-tracks that
-risk it going again), which a player can turn down. Injured reserve (4
+risk it going again), which a player can turn down. A concussion protocol: a weekly marble draw
+instead of a set layoff, longer and likelier with each concussion on his file, and a career that a
+long file can end. Injured reserve (4
 weeks, 8 return designations) with AI and optional automatic management. Injury-forced retirements. A
 medical staff (doctor, physios, sports scientist) whose physiotherapy shortens layoffs on the spec's
 curve and whose sports science prevents strains and restores condition. An injury-risk read in words
