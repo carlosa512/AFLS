@@ -98,9 +98,12 @@ export function beginOffseason(league: League): void {
       p.teamId = null;
       p.contract = null;
       p.retired = true;
+      // A retired player keeps his record (stats, awards, injuries, draft, habits) and his last ratings for his card;
+      // what only a developing player needs goes, or the save grows with every class that ages out.
       delete p.quirkBag;
       delete p.learning;
       delete p.dev;
+      delete p.ratingHistory;
       retirees.push(p);
       continue;
     }
