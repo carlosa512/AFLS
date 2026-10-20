@@ -3,7 +3,8 @@ import { seasonAwards } from './awards';
 import { coachTitle, isCoachExpiring, teamCoaches } from './coaching';
 import { logTransaction } from './finance/cap';
 import { createLeague } from './generate';
-import { archiveMail, archiveRead, deadlineDayTrades, deleteMail, deliverMail, draftClassOf, freeAgencyMoves, headCoachChanges, mailSubject, marketRumors, marketTrades, markAllRead, needsYou, threadLabel, threads, unreadCount } from './inbox';
+import { archiveMail, archiveRead, deadlineDayTrades, deleteMail, deliverMail, draftClassOf, freeAgencyMoves, gameStory, headCoachChanges, mailSubject, marketRumors, marketTrades, markAllRead, needsYou, statBlurb, threadLabel, threads, unreadCount } from './inbox';
+import type { GameResult, TeamGameStats } from './types';
 import { isMedicExpiring, teamMedics } from './medical';
 import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
@@ -227,6 +228,10 @@ describe('inbox', () => {
     expect(picks.length).toBeGreaterThan(0);
     const report = league.inbox!.find((m) => m.id === `scouting:${league.season}:class`)!;
     expect(report.body).toContain(`We made ${picks.length} pick`);
+    // The class in a few words: our first pick against the consensus, and the one our scouts like most, in the report's own verdict.
+    expect(report.body).toMatch(/at No\. \d+( \((the consensus had him at No\. \d+|right where the consensus had him)\))?\./);
+    expect(report.body).toMatch(/ Our scouts like [A-Z]+ .+ most of all: an? .+\.$/);
+    expect(report.body).not.toMatch(/undefined|NaN/);
     expect(mailSubject(report)).toEqual({ kind: 'draftClass', season: league.season });
   }, 30_000);
 
@@ -242,6 +247,10 @@ describe('inbox', () => {
       expect(d.player.statTeams?.[league.season - 1]?.at(-1)).toBe(league.userTeamId);
     }
     expect(fa.biggest.length).toBeGreaterThan(0);
+    // The deals that shaped it, when there were any: ours, the loss that hurts, the league's richest.
+    if (fa.signed.length) expect(wrap.body).toContain(`Our biggest deal was ${fa.signed[0].player.position} ${fa.signed[0].player.firstName} ${fa.signed[0].player.lastName}`);
+    if (fa.walked.length) expect(wrap.body).toContain(`The one that hurts is ${fa.walked[0].player.position} ${fa.walked[0].player.firstName} ${fa.walked[0].player.lastName}, gone to the`);
+    if (fa.biggest[0].teamId !== league.userTeamId) expect(wrap.body).toContain('Around the league, the richest deal was');
     for (const m of league.inbox!) expect(needsYou(league, m) && m.category === 'staff').toBe(false);
   });
 
@@ -290,6 +299,24 @@ describe('mail through a season', () => {
       expect(m.body).toContain('was the player of the game');
       expect(m.actions).toEqual([{ kind: 'game', gameId: s.kind === 'recap' ? s.gameId : -1 }]);
       expect(needsYou(league, m)).toBe(false);
+      // The result, one sentence on what decided it, the player of the game: never a wall of text.
+      expect(m.body.split(/\. (?=[A-Z])/).length).toBeLessThanOrEqual(3);
+      expect(m.body).not.toMatch(/undefined|NaN/);
+    }
+    // Every recap's story is read off its own box score, from our side.
+    for (const g of ours) {
+      const m = recaps.find((x) => x.id === `recap:${g.season}:${g.id}`)!;
+      const { swing, takeaway } = gameStory(g.result!, g.homeId === user);
+      expect(m.body).toContain(takeaway);
+      if (swing) expect(m.body).toContain(swing);
+    }
+    // The opposition reports say where they look soft and what it opens up, with the confidence the read allows.
+    const reports = league.inbox!.filter((m) => m.id.startsWith('matchup:'));
+    expect(reports.length).toBeGreaterThan(10);
+    for (const m of reports) {
+      expect(m.body).toMatch(/^We face the .* in (week \d+|the )/);
+      expect(m.body).toMatch(/(Our scouts see their .* as the softest unit they have|On what our scouts have seen, their .* looks? like the softest unit they have|no obvious soft spot)/);
+      expect(m.body).not.toMatch(/we'll go after them|linebackers is/);
     }
   }, 30_000);
 
@@ -353,5 +380,89 @@ describe('mail through a season', () => {
       if (s.level === 'division') expect(seed).toBeLessThan(4);
       if (s.level === 'bye') expect(seed).toBe(0);
     }
+  });
+});
+
+describe('the story of a game', () => {
+  const stats = (over: Partial<TeamGameStats> = {}): TeamGameStats => ({
+    firstDowns: 20,
+    plays: 60,
+    totalYds: 340,
+    passYds: 240,
+    rushYds: 100,
+    passAtt: 32,
+    passCmp: 20,
+    rushAtt: 25,
+    sacked: 2,
+    turnovers: 1,
+    penalties: 5,
+    penaltyYds: 40,
+    thirdDownAtt: 12,
+    thirdDownConv: 5,
+    fourthDownAtt: 0,
+    fourthDownConv: 0,
+    redZoneAtt: 3,
+    redZoneTd: 2,
+    top: 30 * 60,
+    ...over,
+  });
+  /** A box score from the home side: quarter scores for us and them, and whatever stats matter to the story. */
+  const game = (us: number[], them: number[], ours: Partial<TeamGameStats> = {}, theirs: Partial<TeamGameStats> = {}, overtime = false): GameResult => ({
+    homeScore: us.reduce((a, b) => a + b, 0),
+    awayScore: them.reduce((a, b) => a + b, 0),
+    overtime,
+    quarters: { home: us, away: them },
+    home: stats(ours),
+    away: stats(theirs),
+    playerStats: {},
+    playerTeams: {},
+  });
+
+  it('tells a comeback, a lead let go, and the turnover battle from the quarters and the stats', () => {
+    // Trailed 17–10 at the half, won 24–20 on two takeaways while being outgained.
+    expect(gameStory(game([3, 7, 7, 7], [7, 10, 3, 0], { totalYds: 318, turnovers: 0 }, { totalYds: 362, turnovers: 2 }), true)).toEqual({
+      swing: ' after trailing by seven at halftime',
+      takeaway: 'We outscored them 14–3 after the break, and two takeaways helped turn it around.',
+    });
+    // The same game from the road team's side: a lead let go, without a turnover story (one giveaway apart is noise).
+    expect(gameStory(game([3, 7, 7, 7], [7, 10, 3, 0], { turnovers: 0 }, { turnovers: 1 }), false)).toEqual({
+      swing: ' after leading by seven at halftime',
+      takeaway: 'They outscored us 14–3 after the break.',
+    });
+    // More yards, more turnovers, a three-point loss.
+    expect(gameStory(game([7, 3, 7, 0], [7, 7, 3, 3], { totalYds: 410, turnovers: 3 }, { totalYds: 280, turnovers: 0 }), true)).toEqual({
+      swing: '',
+      takeaway: 'We moved the ball better than they did, but three turnovers cost us possessions and left too little room for error.',
+    });
+    expect(gameStory(game([7, 3, 7, 0], [7, 7, 3, 3], { totalYds: 300, turnovers: 3 }, { totalYds: 280, turnovers: 0 }), true).takeaway).toBe('We lost the turnover battle 3–0, and that is where the game went.');
+    expect(gameStory(game([7, 7, 7, 3], [7, 0, 3, 3], { totalYds: 300, turnovers: 0 }, { totalYds: 380, turnovers: 3 }), true).takeaway).toBe('We won the turnover battle 3–0, and that decided it: they outgained us 380 yards to 300.');
+  });
+
+  it('tells control, a result against the yardage, a defense that shut the door, and a close one', () => {
+    expect(gameStory(game([10, 7, 10, 7], [0, 3, 0, 3], { totalYds: 420, top: 38 * 60 }, { totalYds: 190 }), true).takeaway).toBe('We controlled it from start to finish: 420 yards to 190 and 38:00 of possession.');
+    expect(gameStory(game([0, 3, 0, 3], [10, 7, 10, 7], { totalYds: 190 }, { totalYds: 420 }), true).takeaway).toBe('They controlled it from start to finish: 420 yards to 190.');
+    // Won while outgained: the red zone explains it when it can.
+    expect(gameStory(game([7, 7, 3, 7], [3, 3, 7, 7], { totalYds: 280, redZoneAtt: 3, redZoneTd: 3 }, { totalYds: 390, redZoneAtt: 5, redZoneTd: 1 }), true).takeaway).toBe('They outgained us 390 yards to 280, but we cashed in 3 touchdowns from 3 trips inside the 20.');
+    expect(gameStory(game([7, 7, 3, 7], [3, 3, 7, 7], { totalYds: 280, redZoneAtt: 1, redZoneTd: 0 }, { totalYds: 390, redZoneAtt: 5, redZoneTd: 1 }), true).takeaway).toBe('They outgained us 390 yards to 280, but we held them to 1 touchdown from 5 trips inside the 20.');
+    expect(gameStory(game([3, 3, 7, 7], [7, 7, 3, 7], { totalYds: 390, redZoneAtt: 6, redZoneTd: 1 }, { totalYds: 280 }), true).takeaway).toBe('We outgained them 390 yards to 280 but came away with only 1 touchdown from 6 trips inside the 20.');
+    // Up 14 at the half and nothing allowed after it.
+    expect(gameStory(game([14, 7, 3, 3], [7, 7, 0, 0]), true).takeaway).toBe('The defense shut the door after halftime: nothing allowed after the break.');
+    // A one-score game into the fourth, settled by three.
+    expect(gameStory(game([7, 7, 3, 7], [7, 7, 7, 0]), true).takeaway).toBe('A one-score game all through the fourth quarter.');
+    expect(gameStory(game([7, 7, 3, 7, 3], [7, 7, 7, 3, 0], {}, {}, true), true).takeaway).toBe('Neither side could put it away in regulation.');
+    // Nothing to tell: the yards, as before.
+    expect(gameStory(game([7, 7, 3, 7], [3, 7, 0, 7], { totalYds: 350 }, { totalYds: 320 }), true)).toEqual({ swing: '', takeaway: 'We outgained them 350 yards to 320.' });
+  });
+
+  it('gives the player of the game a line in his position\'s terms', () => {
+    const p = (position: string) => ({ position }) as Parameters<typeof statBlurb>[0];
+    expect(statBlurb(p('QB'), { passAtt: 30, passYds: 312, passTd: 3 })).toBe('312 yards passing and 3 touchdowns');
+    expect(statBlurb(p('QB'), { passAtt: 30, passYds: 212, passTd: 1, passInt: 2 })).toBe('212 yards passing and 1 touchdown, with 2 interceptions');
+    expect(statBlurb(p('RB'), { rushAtt: 1, rushYds: 4 })).toBe('4 yards on 1 carry');
+    expect(statBlurb(p('WR'), { rec: 9, recYds: 131, recTd: 1 })).toBe('9 catches for 131 yards and 1 touchdown');
+    expect(statBlurb(p('EDGE'), { sacks: 2.5, tackles: 6 })).toBe('2.5 sacks and 6 tackles');
+    expect(statBlurb(p('CB'), { defInt: 2, tackles: 5, forcedFum: 1 })).toBe('2 interceptions and 1 forced fumble');
+    expect(statBlurb(p('K'), { fgAtt: 4, fgMade: 4 })).toBe('4 of 4 field goals');
+    expect(statBlurb(p('OL'), { penalties: 1 })).toBe('');
   });
 });

@@ -330,7 +330,14 @@ weather/injuries exist (each of those systems then unlocks its quirks for free).
      notice (at once for its own players, most of a year for one it barely knows); then the card
      says "Seems to have fixed…". AI valuations see the same stale belief.
    - **Habits over time** on the player card and a "Lately…" line in the scout's report, both
-     limited to what your scouts know. The draft board has a Habits column.
+     limited to what your scouts know. The draft board has a Habits column. The log marks a habit
+     becoming established and ceasing to be (grip 2 → 1), so a logged loss is a *fade*, not a
+     disappearance: the list says "grew less dependable" / "became less pronounced" with a line on
+     what that means, and the report says "reined in …, though it still shows now and then" while
+     your scouts still see traces of it, "shaken" only once they see nothing of it (`habitChangeText`,
+     `habitChangeDetail` in `scouting.ts`). The report picks the one or two habits that matter most
+     (a flaw before a plus, a plus before a style; this year's changes told as news) rather than
+     listing them all: the pills carry the full list.
 3. ✅ **States and event marbles.**
    - Two new quirks: **Sees Ghosts** (QB) and **Yips Susceptibility** (K).
    - **Rattled**: a QB who sees ghosts is rattled after his 2nd sack (−3 decisions, −1.5
