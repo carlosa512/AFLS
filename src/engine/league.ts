@@ -36,7 +36,7 @@ function aiTrades(league: League) {
   marketMoment(league, weekMoment(league));
 }
 
-/** Keep full play-by-play only for the user's games and the most recent week. */
+/** Keep full play-by-play only for the user's games and the most recent week (a new league year trims the rest, `beginOffseason`). */
 function prunePlayLogs(league: League) {
   for (const g of league.games) {
     if (!g.result?.plays || g.week >= league.week - 1) continue;
