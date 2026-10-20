@@ -35,8 +35,8 @@ const TARGETS: Record<string, [number, number]> = {
   fumblesLost: [0.35, 0.55],
   firstDowns: [18.5, 20.5],
   thirdDownPct: [37, 41],
-  // Drives that run a play inside the 20, and the share of them that end in a touchdown (NFL 2019–24:
-  // about 52–56 trips a team-season, 55% scored).
+  // Drives that run a play inside the 20, and the share of them that end in a touchdown (NFL 2021–25:
+  // 3.0–3.3 trips a team-game, 56.8–58.2% scored; Sharp Football's drive tables and nflverse play-by-play).
   redZoneTrips: [3.0, 3.4],
   redZonePct: [50, 60],
   fgAtt: [1.6, 2.0],
@@ -92,7 +92,7 @@ let homeWins = 0;
 let ot = 0;
 let ties = 0;
 let favoriteWins = 0;
-/** Team-seasons with 30 or more rushing touchdowns (NFL: 1 in 320; the record is 32). */
+/** Team-seasons with 30 or more rushing touchdowns (NFL: 3 of 160 in 2021–25, 8 of 861 since 1999; the most is 32). */
 let rushTd30 = 0;
 let decided = 0;
 /** Total points in games under a roof and in the open air (NFL: indoor games score almost 4 more). */
@@ -322,7 +322,9 @@ console.log(
 const mean = winsByStrength.reduce((s, x) => s + x.wins, 0) / winsByStrength.length;
 const sd = Math.sqrt(winsByStrength.reduce((s, x) => s + (x.wins - mean) ** 2, 0) / winsByStrength.length);
 console.log(`Std dev of team wins: ${sd.toFixed(2)} (NFL ≈ 3.0–3.3)`);
-console.log(`Team-seasons with 30+ rushing TDs (informational): ${rushTd30} of ${seasons * 32} (NFL ≈ 1 in 320)`);
+console.log(
+  `Team-seasons with 30+ rushing TDs (informational): ${rushTd30} of ${seasons * 32} (NFL 2021–25: 3 of 160)`,
+);
 const show = (kind: 'pass' | 'fourth', label: (b: (typeof byStyle)[string]) => string) =>
   (['low', 'mid', 'high'] as const)
     .map((k) => (byStyle[`${kind}:${k}`] ? `${k} ${label(byStyle[`${kind}:${k}`])}` : `${k} n/a`))
