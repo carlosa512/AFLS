@@ -197,13 +197,17 @@ export function yearTargets(league: League, p: Player): number[] {
   return rollYear(yearStream(league, d.season, p.id), rolled, { playedShare: d.share, rate: d.rate, decline: d.decline, bodyAs: d.bodyAs });
 }
 
-/** Release the year up to share `s`; at 1 the year is done and nothing is kept. */
+/**
+ * Release the year up to share `s`; at 1 the year is done and nothing is kept. A year whose remainder
+ * would round to nothing on every rating is done early too: the record goes, and the player's later
+ * steps cost nothing (most of a prime-age player's drift lands in March).
+ */
 function releaseTo(p: Player, targets: number[], s: number): void {
   const d = p.dev!;
   const to = Math.min(1, s);
   applyShare(p, targets, d.applied, to);
   d.done = to;
-  if (to >= 1) delete p.dev;
+  if (to >= 1 || !ATTRIBUTES.some((a, i) => targets[i] && Math.round(clamp(p.ratings[a] - d.applied[i] + targets[i], 1, 20)) !== p.ratings[a])) delete p.dev;
 }
 
 /** Whatever of his year hasn't landed yet lands now: the next new league year, or a position change. */

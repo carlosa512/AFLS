@@ -54,8 +54,9 @@ describe('roll once, release in steps', () => {
         once.set(p.id, o);
         before.set(p.id, copy(p));
         beginYear(league, rng(), p, ctx);
-        expect(p.dev).toBeDefined();
-        expect(p.dev!.done).toBe(0.5);
+        // A year whose rest rounds to nothing is done early, and keeps no record.
+        if (p.dev) expect(p.dev.done).toBe(0.5);
+        else expect(p.ratings).toEqual(o.ratings);
       }
       // Each step moves every rating toward its year's end, or leaves it: never back.
       const seen = new Map<number, number[]>(sample.map((p) => [p.id, ATTRIBUTES.map((a) => p.ratings[a])]));
@@ -100,8 +101,7 @@ describe('roll once, release in steps', () => {
         beginYear(fresh, rng(), p, ctx);
         // Half a season of sitting out, then the true-up.
         for (let w = 0; w < 9; w++) developWeek(fresh, [{ id: 1, season: fresh.season, week: w + 1, homeId: 30, awayId: 31, result: { playerStats: {} } } as never]);
-        expect(p.dev).toBeDefined();
-        expect(p.dev!.done).toBeLessThan(1);
+        if (p.dev) expect(p.dev.done).toBeLessThan(1);
         trueUp(fresh, p);
         expect(p.ratings).toEqual(once.ratings);
         expect(p.dev).toBeUndefined();
