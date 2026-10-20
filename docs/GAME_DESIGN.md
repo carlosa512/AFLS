@@ -130,8 +130,9 @@ the real-world ranges in the research doc.
 | Temperament | Linemen only: a hothead jumps early and grabs (false starts, offside, holding), a calm one rarely draws a flag |
 | Injury resistance | How often his body breaks; it fades past his physical prime, slower for a durable body (`docs/INJURIES.md`) |
 | Natural fitness | How much condition a game costs and how fast it comes back, how fast he heals, and how much a severe injury takes for good |
+| Versatility | How big a knock he takes lined up out of position, and a little of how fast he learns a new one (`docs/TRAINING.md` §4.8) |
 
-Other traits from the research (consistency, big-game play, adaptability, versatility) wait for the
+Other traits from the research (consistency, big-game play, adaptability) wait for the
 systems they would drive, such as per-game form and schemes. "No engine hook, no trait" applies to
 them too.
 

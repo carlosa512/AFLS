@@ -29,8 +29,8 @@ export interface Conversion {
 /**
  * Six directed moves to start, from the gap and aging tables in docs/TRAINING.md §1: an aging corner
  * becomes a safety, an edge rusher a linebacker or an interior lineman, safeties and linebackers trade
- * places, a young safety moves to corner. Every other pair is refused. Weeks are tuning targets
- * (`npm run training`); the next pairs (LB→EDGE, TE→OL, RB→WR) wait on its economics probe.
+ * places, a young safety moves to corner. Every other pair is refused. Weeks are tuning targets for the
+ * training check still to come (docs/TRAINING.md); the next pairs (LB→EDGE, TE→OL, RB→WR) wait on it.
  */
 export const CONVERSIONS: readonly Conversion[] = [
   { from: 'CB', to: 'S', tier: 'A', weeks: 8, ages: [21, 36] },

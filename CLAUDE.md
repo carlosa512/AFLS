@@ -157,6 +157,12 @@ takes 10–20 minutes, and CI runs it on every pull request anyway (one job per 
     seasons (growth toward its scouts' ceiling, the aging curve's fade via `expectedAging`, its read of
     his injury risk, the GM's win-now). Trade rooms, the trade block, free agency (`upgradeBar`),
     re-signing and fifth-year options plan on it; lineups still use today's play
+  - `training.ts` position moves (`docs/TRAINING.md`): the pairs coaches teach and the knock for playing
+    out of position live in `familiarity.ts` (`knockFor`, read by the engine through `skill()`'s overlay,
+    `useKnocks`); plans and the learning clock (offseason program, camp, practice weeks), cut-down-day flips
+    (`changePosition`, the one writer of `player.position`), the coaches' read with its reason
+    (`conversionRead`: no move without a `MoveReason`), and the same planner for your suggestion and AI teams
+    (`suggestMove`, `planMoves`). A mover's body keeps aging as his first position (`DevContext.bodyAs`)
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)

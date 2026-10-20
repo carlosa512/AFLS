@@ -1,6 +1,12 @@
 # Training, practice and position moves
 
-> **Status.** Plan only, nothing built. This is the spec for an FM-style training layer: an
+> **Status.** Position moves are built (phase 2 below, with AI moves from phase 6): the pairs and
+> learning clock, cut-down-day flips, the coaches' read with a **reason** for every move (§4.7), AI
+> front offices on the same planner, playing a player out of position in a pinch with the hidden
+> **Versatility** trait (§4.8), the player card, Coaches and Roster screens and two kinds of mail. The
+> calendar split, weekly development, practice, focus and mentoring are still plan only.
+>
+> This is the spec for an FM-style training layer: an
 > offseason program and training camp as calendar steps, player development that moves week by
 > week, coaches teaching a player a new position over time (no instant switch), an optional
 > weekly practice plan, and hooks for mentoring later. It merges six research reports (the
@@ -328,6 +334,40 @@ Your examples, as the coaches would read them:
 | A CB at 30 to S | Worth it: he's already the better safety. |
 | An LB to S late in his career | Only if you need a safety: about 0.5 worse at every age. |
 
+### 4.7 Reasons: no move "just because"
+
+A move is only ever *worth it* for a reason, and the coaches name it. `conversionRead` collects every
+reason that holds (`Motive`, with a strength 0-1), each read from the team's own roster and plans:
+
+| Reason | When it holds | In words |
+|---|---|---|
+| `hole` | the new position is short of starters now, he's no more than 1.5 worse there and his room can spare him | Fills a hole at S |
+| `nextYear` | a starter there is well past his prime, or past it with his deal running out, and he'd be next in line | Takes over at S next year |
+| `scheme` | the coordinator's scheme wants his skills at the new spot clearly more than at his own (the measure trade value uses), and he'd start | Smith's scheme wants him at LB |
+| `upside` | 24 or younger, already as good there, and he'd start | His game fits S better |
+| `reps` | 25 or younger, stuck behind starters signed two more years who aren't aging out, and he'd start there | Gets him on the field |
+| `age` | past his body's physical turn, the new job leans less on legs, and he'd start | Extends his career: S asks less of his legs |
+| `upgrade` | a point or more better than the starter there, at no cost to his own room | A clear upgrade at S |
+
+Being a little better at the new spot is not a reason. Without one the verdict is at best "Only if you
+need him there". AI teams weigh each reason by their GM (`motiveWeight`): every team fills a hole, a
+patient GM looks to next year and gets young backups on the field, a win-now GM keeps veterans useful
+and takes upgrades, a coordinator new this year gets his way more often. A reason must clear
+`MOTIVE_BAR` (0.5) after weighting. The plan stores its reason (`Learning.why`) and the transaction
+line says it ("KC moved LB Sam Reed to S: they were short at S"); the cut-down-day mail repeats it.
+
+### 4.8 Out of position in a pinch
+
+On the Roster screen, "Play at…" lines any player up at any position for as long as you leave him
+there (it hand-sorts the chart, like a drag). He plays with his own ratings, which suit the job less,
+plus a broad **knock** on every skill the engine reads for him (`knockFor` in `familiarity.ts`, applied
+through `skill()`'s overlay while he's on the field): 2.5 points, half within his own room (CB↔S,
+EDGE↔DT, WR↔TE), a quarter at a position he used to play, fading to nothing as he learns a position
+he's training for. The hidden **Versatility** trait (1-20, drawn for every player, migrated at v30)
+scales it from ×0.4 to ×1.6 and speeds learning a little (×0.75-1.25). Scouts read it in words ("Plays
+anywhere", "One-position player"); screens show the knock as none / small / big, never a number. AI
+lineups only use this to fill a hole (`FILL_IN`, by knocked overall).
+
 ## 5. Practice plan (later phase, optional)
 
 Both design reviews argued against a team intensity dial in v1, and for good reason: a dial with a
@@ -379,18 +419,15 @@ FM's "where do the points go", on top of weekly development:
 
 - **Practice and focus:** AI teams run the default, so their development and injuries are exactly
   today's.
-- **Position moves use the same `suggestMove` function the coaches use for you.** On their own
-  (exactly known) roster, a move qualifies when:
-  - it fills a real need at the new position, scored with `needGain` (`offseason/ai.ts:43`);
-  - the old position stays at `KEEP_MIN` (`ai.ts:20`);
-  - the player loses at most 1.0 overall;
-  - he is under contract and outside his cooldown.
-- **Limits:** one plan per team and a league-wide dial `AI_MOVES_PER_YEAR`; tier A pairs at first.
-- **Why the dial is small:** filling holes with surplus players is real allocation gain.
-  Measured: +0.008 to +0.019 mean starter overall per offseason at the plain rule, +0.037
-  uncapped, against 0.01 of headroom. So the dial starts around 2 a year and is set by a
-  twin-league audit (AI moves on vs off, same seeds); 0 is the kill switch. A real AI market
-  (about 5 a year) would need a `GROWTH_NORM` retune in the same PR.
+- **Position moves use the same `suggestMove` function the coaches use for you** (built). As the
+  draft closes (`planMoves`), each AI team starts its best move if one is *worth it* for a reason its
+  GM acts on (§4.7) and it has a free slot; the old position keeps `KEEP_MIN`. About six plans start
+  a league year across the league, for mixed reasons.
+- **Limits:** one plan per team (two for you); `trainingConfig.aiMoves` is the kill switch.
+- **Still to do:** the twin-league audit (AI moves on vs off, same seeds). Filling holes with surplus
+  players is real allocation gain (measured +0.008 to +0.019 mean starter overall per offseason at a
+  plain rule, against 0.01 of headroom), so if the twins show drift the bar rises or `GROWTH_NORM` is
+  retuned in the same PR.
 - **Same locks as you:** cooldown, slots, the mover's trade lock. Learners are never on an AI
   trade block.
 
@@ -425,7 +462,7 @@ Hooks that land with the earlier phases, so mentoring is a small change later:
 | Header, Home stepper, primary button | `calendarLabel(league)` replaces the four hard-coded "day N" strings (`App.tsx:95, 280`, `Home.tsx:473`, `FrontOffice.tsx:873`). The stepper keeps 5 steps; a thin bar under "Camp" shows program → camp → cut-down. | 1 |
 | PlayerCard, new "Position" section (own players, folded by default) | Could learn (up to 3 targets, each with the read), Learning (ladder word, "ready by…", coach), Moves (history). Outside the offseason: "Position moves start in the offseason." on screen, not in a tooltip. | 2 |
 | Coaches tab, "Position work" panel | Learners and the one suggestion; the single setting **"Coaches may start position moves on their own"**, off by default (you keep the big calls; *Sim offseason* never moves anyone otherwise). | 2 |
-| Roster | One pill, "Learning LB", own players only. A per-player action never flips the team's auto-sort (unlike a drag, `Roster.tsx:107`). | 2 |
+| Roster | Pills "Learning LB" (own players) and "Out of position (RB)"; "Play at…" on each of your rows lines him up elsewhere (it hand-sorts the chart, as a drag does) with the knock in words per choice. | 2 |
 | Mail (2 kinds) | **Suggestion** (Needs you; at most one a year; lapses quietly when you advance; "Not now" is remembered two seasons) and **"Howard is now a linebacker"** (folded, with "placed by rating on your depth chart"). Category `staff`, tag "Training". | 2 |
 | PlayerCard, "This season" line | Weekly arrows ("+1 coverage since camp") and the development chart, own players only. | 3 |
 | PlayerCard, focus row | "Focus: Coaches choose / Tackling / …", styled like the returner picker. | 4 |
@@ -506,8 +543,7 @@ careers and more); treat each as `--all`. A range is never loosened.
 | 7 | **Mentoring** | changes on purpose | owner signs off `careers`; `training` §K rewritten |
 
 **Later, not scheduled:** preseason games (separate array); playing a learner at his new spot in
-season (second-position depth listing: the lineup claims players in `POSITIONS` order,
-`lineup.ts:161-163`, and `FILL_IN` would be rebuilt from data); a Versatility trait; the next pairs
+season (now possible by hand with "Play at…", §4.8); the next pairs
 (LB→EDGE, TE→OL, RB→WR); a derived Full/Limited/DNP line; automatic veteran rest days; a practice
 squad (the real home of bench youngsters' reps).
 
@@ -538,6 +574,10 @@ squad (the real home of bench youngsters' reps).
   This is what the engine already does: ratings belong to the player, the new position's weights
   decide what counts (a corner's coverage and hands carry to safety), and skills the new position
   never uses simply stop changing. No technique retraining at 26+.
+- **AI moves:** built now, tested after. Every move needs a reason (§4.7): a hole, next year, the
+  coordinator's scheme, upside, reps, age or a clear upgrade, never "why not".
+- **Out of position:** you can line anyone up anywhere in a pinch; he takes a broad knock, smaller
+  for a versatile player (§4.8).
 
 **Still open:**
 
@@ -545,15 +585,14 @@ squad (the real home of bench youngsters' reps).
    rest in season? (100/0/0 = today.)
 2. **Pairs:** six to start; add LB→EDGE, TE→OL, RB→WR later behind the economics probe?
 3. **One flip window,** cut-down day: a vet ready in week 12 becomes a safety next camp. OK?
-4. **AI moves:** ornamental (about 2 a year, no retune) or a real market (about 5 a year, with a
-   growth retune)?
+4. **AI moves volume:** about six a year now; the twin-league test decides whether that stays.
 5. **Practice plan (§5):** build it as designed, or leave practice to the coaches for good? Both
    design reviews leaned "leave it".
 6. **Camp grain:** 3 preseason steps (default) or 7 (each camp week its own step)?
 7. **Camp injuries:** wanted? They redefine what `npm run sim` counts as the season.
 8. **"Coaches may start position moves"** off by default. Right?
-9. **Suggestion bar:** your current Dallas roster would get no suggestion this year (its best
-    need scores 0.42 against a 1.0 bar). Lower it so the coaches speak up more?
+9. **Suggestion bar:** a reason must score 0.5 after the GM's weighting (yours count fully). Raise
+    it if the coaches speak up too often?
 10. **Mentoring:** a stored, bounded work-ethic offset behind `workEthicOf`, or change the trait
     itself?
 
