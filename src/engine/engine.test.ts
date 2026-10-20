@@ -349,6 +349,9 @@ describe('coach decisions', () => {
     expect(coach.kickNow({ ...inRange, fgMakeProb: 0.55, offTimeouts: 1, clock: 7 })).toBe(true);
     // Out of timeouts with the clock stopped: kick now rather than risk an in-bounds snap.
     expect(coach.kickNow({ ...inRange, fgMakeProb: 0.6, offTimeouts: 0, clock: 18 })).toBe(true);
+    // Third down, 21 seconds, no timeouts: no spike after an in-bounds catch, so kick on third.
+    expect(coach.kickNow({ ...inRange, offTimeouts: 0, clock: 21, down: 3 })).toBe(true);
+    expect(coach.kickNow({ ...inRange, offTimeouts: 0, clock: 21, down: 2 })).toBe(false);
     expect(coach.kickNow({ ...inRange, scoreDiff: -4, clock: 4 })).toBe(false);
   });
 

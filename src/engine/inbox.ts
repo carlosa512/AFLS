@@ -16,7 +16,7 @@ import { rookieCost } from './offseason/negotiation';
 import { leaguePercentile, perceive } from './scouting';
 import { starters, teamPlayers } from './roster';
 import { ROUND_NAMES } from './season/playoffs';
-import { playoffRace } from './season/standings';
+import { computeRecords, conferenceSeeds, playoffRace, type RaceStatus } from './season/standings';
 import { isExpiring, ownerBudgetNote, resignForecast, ROLE_LABEL, staffWindowOpen, teamStaff } from './staff';
 import { isDeadlineDay, openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './trade';
 import type { Coach, CoachRole, CoachRoom, InboxMessage, League, Phase, Player, Position, Team, TradeOffer, TradeSide } from './types';
@@ -713,10 +713,20 @@ function deadlineMail(league: League, have: Set<string>): Draft[] {
 
 const RACE = ['bye', 'division', 'spot'] as const;
 
+/**
+ * Where the final standings put a team. `playoffRace` counts a tie on wins as still open, so a team that
+ * finishes level on the line, in or out on a tiebreaker, would otherwise never hear its fate.
+ */
+function finalRace(league: League, teamId: number): RaceStatus {
+  const seed = conferenceSeeds(league, league.teams[teamId].conference, computeRecords(league)).indexOf(teamId);
+  return { spot: seed >= 0, division: seed >= 0 && seed < 4, bye: seed === 0, out: seed < 0 };
+}
+
 /** The league office's word when our playoff fate is certain: the best clinch so far (a bye implies the rest), or elimination. */
 function raceMail(league: League, have: Set<string>): Draft[] {
   const team = league.teams[league.userTeamId];
-  const race = playoffRace(league, team.id);
+  const over = !league.games.some((g) => g.season === league.season && !g.playoffRound && !g.result);
+  const race = over ? finalRace(league, team.id) : playoffRace(league, team.id);
   const sent = (level: string) => have.has(`race:${league.season}:${level}`);
   const best = RACE.find((level) => race[level]);
   const level = race.out ? 'out' : best && !RACE.slice(0, RACE.indexOf(best) + 1).some(sent) ? best : null;

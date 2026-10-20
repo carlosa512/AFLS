@@ -66,7 +66,7 @@ const PASS_CAP = 0.4;
  * The cost of a typical game day, averaged over a season's games and quarters, domes included: what
  * `npm run weather` measures (passing as the geometric mean of what's kept, since costs compound).
  */
-export const TYPICAL: WeatherCost = { pass: 0.038, kick: 0.71, fumble: 1.03 };
+export const TYPICAL: WeatherCost = { pass: 0.038, kick: 0.79, fumble: 1.03 };
 /** A forecast shows rain or snow at this chance or more as the likely weather. */
 const LIKELY = 50;
 /** A retractable roof stays shut at this chance of rain or more. */
@@ -184,7 +184,7 @@ export function weatherCost(w: Weather): WeatherCost {
   ];
   return {
     pass: Math.min(PASS_CAP, 1 - parts.reduce((keep, p) => keep * (1 - p), 1)),
-    kick: 0.8 * Math.max(0, v - 10) + (wet ? 1 : snow ? (w.heavy ? 9 : 0.5) : 0) + (t < 25 ? 2 : t < 55 ? 0.5 : 0) - (w.altitudeFt ?? 0) / 1300,
+    kick: 0.8 * Math.max(0, v - 10) + (wet ? 2 : snow ? (w.heavy ? 9 : 0.5) : 0) + (t < 25 ? 2 : t < 55 ? 0.5 : 0) - (w.altitudeFt ?? 0) / 1300,
     fumble: (wet || snow ? (w.heavy ? 1.5 : 1.25) : 1) * (t < 25 ? 1.15 : 1),
   };
 }

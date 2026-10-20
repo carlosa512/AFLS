@@ -126,7 +126,7 @@ the real-world ranges in the research doc.
 | Trait | What it does |
 |---|---|
 | Work ethic | How much of his ceiling he reaches, and how gently he declines |
-| Durability (body clock) | Starts his decline up to two years early or late, sets how steep it is, and when he retires |
+| Durability (body clock) | Starts his decline up to about a year and a half early or late, sets how steep it is, and when he retires |
 | Temperament | Linemen only: a hothead jumps early and grabs (false starts, offside, holding), a calm one rarely draws a flag |
 | Injury resistance | How often his body breaks; it fades past his physical prime, slower for a durable body (`docs/INJURIES.md`) |
 | Natural fitness | How much condition a game costs and how fast it comes back, how fast he heals, and how much a severe injury takes for good |

@@ -122,7 +122,9 @@ export function kickNow(s: Situation): boolean {
   // Already in comfortable range: don't risk a snap that could eat the last seconds.
   if (s.clock <= 12 && s.fgMakeProb >= 0.8) return true;
   // Without a timeout, a play that ends in bounds runs out the clock: kick while it is stopped.
-  return s.offTimeouts === 0 && s.clock <= 20;
+  // On third down there's no spike left to save it: an in-bounds snap (up to 8s) and the hurried
+  // fourth-down lineup after it (up to 16s) can take 24s.
+  return s.offTimeouts === 0 && s.clock <= (s.down >= 3 ? 24 : 20);
 }
 
 /** Out of timeouts in a two-minute drill: clock it with a spike rather than snap a play. */
