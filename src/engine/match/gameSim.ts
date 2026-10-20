@@ -1901,6 +1901,8 @@ class GameSim {
     // The second level and the secondary.
     mean += -0.08 * lb('diagnoses') + 0.15 * lb('slowFlow') + 0.25 * lb('stuckOnBlocks') * clamp((off.runBlock - 10) / 3, 0, 1.5);
     if (outside) mean -= 0.15 * lb('scraper') + 0.1 * this.stack(dbs, 'alleyCrusher');
+    // A thumper stops the carrier where he meets him: less after contact on every run, and fewer breakaways.
+    mean -= 0.08 * lb('thumper');
     breakaway -= 0.012 * lb('thumper');
     return { mean, spread, breakaway };
   }
