@@ -13,6 +13,7 @@ import {
   SCOUT_POINTS_PER_YEAR,
   scoutPlayer,
   scoutReport,
+  scoutReportParts,
   starRating,
 } from './scouting';
 import type { League, Player } from './types';
@@ -82,14 +83,47 @@ describe('perceived ratings', () => {
     expect(starRating(league, league.userTeamId, starter, perceive(league, league.userTeamId, starter), 'roster').basis).toMatch(/your starting QB/);
   });
 
-  it('writes a short plain-language report', () => {
-    for (const p of [mine[3], theirs[42], theirs[400]]) {
+  it('writes a short plain-language report: a verdict, his game, then the rest', () => {
+    for (const p of [mine[3], theirs[42], theirs[400], ...theirs.slice(0, 200)]) {
+      const r = scoutReportParts(league, league.userTeamId, p);
       const lines = scoutReport(league, league.userTeamId, p);
+      expect(lines).toEqual([r.verdict, ...r.game, ...r.notes]);
       expect(lines.length).toBeGreaterThanOrEqual(3);
       expect(lines.length).toBeLessThanOrEqual(7);
       for (const l of lines) expect(l).toMatch(/^[A-Z].*\.$/);
-      expect(lines.join(' ')).not.toMatch(/undefined|NaN/);
+      expect(lines.join(' ')).not.toMatch(/undefined|NaN|offensive line\b/);
+      // One judgment up front, with where he is headed; one sentence on his traits, one on his outlook.
+      expect(r.verdict).toMatch(/^(On limited looks, an?|An?) \S.* (in his prime|on the downslope|nearing the end of his best years|whose value now rests on|with the upside of|with room still to grow|close to his ceiling)/);
+      expect(r.game).toHaveLength(2);
+      expect(r.game[0]).toMatch(/^(His |Nothing in his game|No standout trait)/);
+      // The scouts never list every habit: at most two sentences on them.
+      expect(r.notes.filter((n) => /^(On film|Lately|Starting to show)/.test(n)).length).toBeLessThanOrEqual(2);
     }
+  });
+
+  it('tells a prospect from a veteran, and a rough read from a sure one', () => {
+    const me = league.userTeamId;
+    const own = scoutReportParts(league, me, mine.find((p) => p.age >= 27)!);
+    // Our own veteran: nothing to hedge, so no word on how sure we are.
+    expect(own.notes.some((n) => /film|provisional|scouts’ best guess/.test(n))).toBe(false);
+    const prospect = theirs.find((p) => p.age <= 23 && scoutReportParts(league, me, p).verdict.includes('with the upside of'))!;
+    const young = scoutReportParts(league, me, prospect);
+    expect(young.game[1]).toMatch(/^With reps he could grow into/);
+    const old = theirs.find((p) => p.age >= 34)!;
+    const vet = scoutReportParts(league, me, old);
+    expect(vet.verdict).toMatch(/on the downslope|nearing the end of his best years|whose value now rests on|in his prime/);
+    expect(vet.game[1]).toMatch(/expect him to lose|should hold up through|last year of his prime|prime to run through/);
+    // A player we have barely seen: the verdict itself is hedged, and the report says what would help.
+    const unknown = theirs.find((p) => p.experience === 0 && scoutReportParts(league, me, p).verdict.startsWith('On limited looks'))!;
+    expect(unknown).toBeDefined();
+    const rough = scoutReportParts(league, me, unknown);
+    expect(rough.verdict).toMatch(/^On limited looks, an? /);
+    expect(rough.notes.find((n) => n.startsWith('Our read'))).toBe(`Our read is still provisional: more film${league.scoutPoints > 0 ? ' or a scouting visit' : ''} would narrow these grades.`);
+    // A well-known veteran on another team: a plain verdict and a reliable read.
+    const known = theirs.find((p) => p.experience >= 8 && (perceive(league, me, p).ovrHi - perceive(league, me, p).ovrLo) / 2 <= 0.5)!;
+    const clear = scoutReportParts(league, me, known);
+    expect(clear.verdict).not.toMatch(/^On limited looks/);
+    expect(clear.notes).toContain('Plenty of film on him: this read is reliable.');
   });
 });
 

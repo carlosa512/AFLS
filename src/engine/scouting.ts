@@ -453,24 +453,41 @@ export function habitTimeline(league: League, teamId: number, p: Player): HabitC
 }
 
 /**
- * A change in words that fit the habit: a plus is added to his game or stops showing, a bad habit is
- * picked up or shaken, a style is taken on or moved away from. `past` for a dated list ("Added Late-Hands
- * Specialist to his game"), otherwise the perfect for a sentence ("has added …").
+ * A change in words that fit the habit and what really happened. The log records a habit becoming
+ * established and ceasing to be (grip 2 → 1), so a logged loss means it faded to an emerging habit,
+ * not that it vanished: the wording only says "shaken" or "stopped showing" when `gone` says the
+ * reader no longer sees it at all. `past` for a dated list ("Late-Hands Specialist became a regular
+ * part of his game"), otherwise the perfect for a sentence ("has added …").
  */
-export function habitChangeText(e: Pick<HabitChange, 'label' | 'tone' | 'change'>, past = true): string {
+export function habitChangeText(e: Pick<HabitChange, 'label' | 'tone' | 'change'> & { gone?: boolean }, past = true): string {
   const [pastText, perfect] = {
     gained: {
-      good: [`Added ${e.label} to his game`, `added ${e.label} to his game`],
-      bad: [`Picked up a bad habit: ${e.label}`, `picked up a bad habit (${e.label})`],
-      style: [`Took on a new style: ${e.label}`, `taken on a new style (${e.label})`],
+      good: [`${e.label} became a regular part of his game`, `added ${e.label} to his game`],
+      bad: [`${e.label} set in as a bad habit`, `picked up a bad habit (${e.label})`],
+      style: [`${e.label} became part of how he plays`, `taken on a new style (${e.label})`],
     },
     lost: {
-      good: [`Stopped showing ${e.label}`, `stopped showing ${e.label}`],
-      bad: [`Shook off ${e.label}`, `shaken ${e.label}`],
-      style: [`Moved away from ${e.label}`, `moved away from ${e.label}`],
+      good: [`${e.label} grew less dependable`, e.gone ? `stopped showing ${e.label}` : `grown less consistent with ${e.label}`],
+      bad: [`${e.label} became less pronounced`, e.gone ? `shaken ${e.label}` : `reined in ${e.label}, though it still shows now and then`],
+      style: [`Leaned away from ${e.label}`, e.gone ? `moved away from ${e.label}` : `leaned away from ${e.label}`],
     },
   }[e.change][e.tone];
   return past ? pastText : perfect;
+}
+
+/**
+ * The line under a dated change: what the habit is and does once it has set in (from the registry,
+ * so the list needs no knowledge of grip), or what a fade means, which is the same for every habit
+ * of its kind: still on film, no longer something to count on (or to worry about).
+ */
+export function habitChangeDetail(e: Pick<HabitChange, 'id' | 'tone' | 'change'>): string {
+  const q = QUIRKS[e.id];
+  if (e.change === 'gained') return `He ${q.clause}. ${q.effect}`;
+  return {
+    good: 'It still shows on film now and then, but it is no longer a dependable part of his game.',
+    bad: 'It still shows now and then, but it is no longer the problem it was.',
+    style: 'He still falls back on it at times, but it no longer defines how he plays.',
+  }[e.tone];
 }
 
 /** How a card names habits he has left behind, by kind: a bad one fixed, a plus gone quiet, a style dropped. */
@@ -502,16 +519,25 @@ export function careerOutlook(league: League, teamId: number, p: Player): string
   const sure = read && (read.exact || read.sd <= 1.2) ? 'about' : 'roughly';
   const tech = lastGoodAge(league, teamId, p, 'technical');
   const phys = lastGoodAge(league, teamId, p, 'physical');
-  const qb = p.position === 'QB';
-  const legs = qb ? 'his legs' : 'his physical tools';
-  const skills = qb ? 'his arm and his reads' : p.position === 'K' || p.position === 'P' ? 'his leg' : 'his technique';
+  const { legs, skills, plural } = bodyWords(p.position);
   if (p.age > tech) return 'Past his prime: expect him to lose a little more every year.';
-  if (p.age > phys) return `${cap(legs)} have started to fade; ${skills} should hold up through ${sure} ${tech}.`;
+  if (p.age > phys) return `${cap(legs)} ${plural ? 'have' : 'has'} started to fade; ${skills} should hold up through ${sure} ${tech}.`;
   if (phys < tech) return `${cap(legs)} should start to fade after ${sure} ${phys}; ${skills} should hold up through ${sure} ${tech}.`;
   if (p.age === tech) return 'In the last year of his prime: expect the decline to start next year.';
   return `Prime through ${sure} ${tech}.`;
 }
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+
+/**
+ * What ages first and what lasts, in a position's own words: a quarterback's legs go before his arm
+ * and his reads, a kicker's range before his accuracy, everyone else's physical tools before their
+ * technique. The same words everywhere a screen talks about his body clock.
+ */
+function bodyWords(pos: Position): { legs: string; skills: string; plural: boolean } {
+  if (pos === 'QB') return { legs: 'his legs', skills: 'his arm and his reads', plural: true };
+  if (pos === 'K' || pos === 'P') return { legs: 'his range', skills: 'his accuracy', plural: false };
+  return { legs: 'his physical tools', skills: 'his technique', plural: true };
+}
 
 /**
  * A young player of `teamId`'s whom its scouts still see real growth in, but who has barely played
@@ -652,75 +678,151 @@ function tierOf(league: League, pos: Position, ovr: number): number {
 /** Habits as one sentence: commas inside a clause ("runs upright, shrugging off…") call for semicolons between them. */
 const clauses = (items: string[]) => (items.some((c) => c.includes(',')) && items.length > 1 ? `${items.slice(0, -1).join('; ')}; and ${items.at(-1)}` : list(items));
 const list = (items: string[]) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
+const lowerFirst = (s: string) => s[0].toLowerCase() + s.slice(1);
 
 /**
- * A short plain-language report: verdict, standout traits, concerns, projection and how sure the
- * staff is. Written only from what `teamId` can see.
+ * How a scout names a trait in a sentence ("his deep ball", "his hands are"). The registry's trait
+ * names are for a ratings sheet; a report says "arm", not "arm strength". The same rating means
+ * different things by position: a quarterback's awareness is his decision-making, a lineman's his
+ * recognition, a defender's his instincts.
  */
-export function scoutReport(league: League, teamId: number, p: Player): string[] {
+const TRAIT_WORDS: Partial<Record<Attribute, string>> = { throwPower: 'arm', throwAccDeep: 'deep ball', kickPower: 'leg', passRush: 'pass rush', elusiveness: 'elusiveness' };
+const PLURAL_TRAITS = new Set<Attribute>(['catching']);
+function traitWords(a: Attribute, pos: Position): string {
+  if (a === 'awareness') return pos === 'QB' ? 'decision-making' : pos === 'OL' ? 'recognition' : ['RB', 'WR', 'TE'].includes(pos) ? 'feel for the game' : 'instincts';
+  return TRAIT_WORDS[a] ?? ATTRIBUTE_INFO[a].trait;
+}
+
+/** A scout's report in its parts, so a card can set the verdict apart from the rest. */
+export interface ScoutReport {
+  /** The one sentence that says what he is: his standing today and where he is headed. */
+  verdict: string;
+  /** His game: what sets him apart and what holds him back, then his projection or his body clock. */
+  game: string[];
+  /** The rest of what the staff has seen: a habit or his makeup, how sure the read is, what he wants. */
+  notes: string[];
+}
+
+/** The tone a report leads with when it has to pick between a player's habits: a flaw first, then a plus, then a style. */
+const HABIT_ORDER: Record<QuirkTone, number> = { bad: 0, good: 1, style: 2 };
+
+/**
+ * A scout's report: one judgment with a few observations behind it, written only from what
+ * `teamId` can see. The verdict says what he is and where he is going; one sentence picks his most
+ * consequential strength and concern; one gives his projection (young) or his body clock as the
+ * scouts read it (a typical one when they can't tell yet). Then the one or two most telling things
+ * about his habits or makeup (the card's pills carry the full list), how far to trust the grades
+ * when that matters, and his priorities when they are no secret.
+ */
+export function scoutReportParts(league: League, teamId: number, p: Player): ScoutReport {
   const view = perceive(league, teamId, p);
-  const pos = POSITION_NAMES[p.position].toLowerCase();
-  const lines: string[] = [];
+  const pos = p.position === 'OL' ? 'offensive lineman' : POSITION_NAMES[p.position].toLowerCase();
   const now = tierOf(league, p.position, view.ovr);
   const ceiling = tierOf(league, p.position, view.potHi);
-  lines.push(`${TIERS[now].role} ${pos}.`);
+  const young = p.age < 26;
+  // Growth that won't change his standing still matters to a contract: say so when there is some.
+  const growing = young && ceiling >= now && view.potHi - view.ovr >= 1.5;
+  const ovrHalf = (view.ovrHi - view.ovrLo) / 2;
+  // A wide range is said up front, where it colours the verdict, not just in a footnote.
+  const rough = !view.exact && ovrHalf > 1.1;
+  const tech = lastGoodAge(league, teamId, p, 'technical');
+  const phys = lastGoodAge(league, teamId, p, 'physical');
+  const { legs, skills, plural } = bodyWords(p.position);
+  const read = characterRead(league, teamId, p);
+  const sure = read && (read.exact || read.sd <= 1.2) ? 'about' : 'roughly';
 
-  // Traits that count at his position, measured against the league's starters there.
+  // Traits that count at his position, measured against the league's starters there: the one that
+  // sets him apart (two if both are elite) and the one that holds him back most.
   const avg = reference(league).starterAvg[p.position];
   const weights = OVR_WEIGHTS[p.position];
   const traits = (Object.keys(weights) as Attribute[]).map((a) => ({ a, diff: view.ratings[a].value - avg[a], w: weights[a]! }));
-  const plus = traits.filter((t) => t.diff >= 2).sort((x, y) => y.diff * y.w - x.diff * x.w).slice(0, 2);
-  const minus = traits.filter((t) => t.diff <= -3 && t.w >= 1).sort((x, y) => x.diff * x.w - y.diff * y.w).slice(0, 2);
-  if (plus.length) lines.push(`Stands out for his ${list(plus.map((t) => `${t.diff >= 4 ? 'elite' : 'plus'} ${ATTRIBUTE_INFO[t.a].trait}`))}.`);
-  if (minus.length) lines.push(`Needs work on his ${list(minus.map((t) => ATTRIBUTE_INFO[t.a].trait))}.`);
-  if (!plus.length && !minus.length) lines.push('No standout trait and no glaring hole.');
+  const pluses = traits.filter((t) => t.diff >= 2).sort((x, y) => y.diff * y.w - x.diff * x.w);
+  const plus = pluses.slice(0, pluses.length > 1 && pluses[1].diff >= 4 ? 2 : 1);
+  const minus = traits.filter((t) => t.diff <= -3 && t.w >= 1).sort((x, y) => x.diff * x.w - y.diff * y.w)[0];
+  const name = (t: { a: Attribute }) => traitWords(t.a, p.position);
+  const many = (ts: { a: Attribute }[]) => ts.length > 1 || PLURAL_TRAITS.has(ts[0].a);
+  const praise = plus[0]?.diff >= 4 ? 'elite' : plus.length > 1 ? 'real strengths' : 'a real strength';
 
-  if (p.age < 26) {
-    if (ceiling < now) lines.push(`Still developing: with reps he could become ${TIERS[ceiling].becomes}.`);
-    else lines.push('Close to a finished product already.');
-  } else {
-    // His body clock as the scouts read it (a typical one when they can't tell yet).
-    const tech = lastGoodAge(league, teamId, p, 'technical');
-    const phys = lastGoodAge(league, teamId, p, 'physical');
-    if (p.age > tech) lines.push(`At ${p.age}, he is on the downslope.`);
-    else if (p.age > phys) lines.push(p.position === 'QB' ? `At ${p.age}, his legs are fading; his arm and reads still carry him.` : `At ${p.age}, his physical tools are fading; his technique still carries him.`);
-    else if (p.age >= tech - 1) lines.push('At the tail end of his prime.');
-  }
+  const arc = young
+    ? ceiling < now
+      ? ` with the upside of ${TIERS[ceiling].becomes}`
+      : growing
+        ? ' with room still to grow'
+        : ', and already close to his ceiling'
+    : p.age > tech
+      ? ' on the downslope'
+      : p.age > phys
+        ? ` whose value now rests on ${skills}`
+        : p.age >= tech - 1
+          ? ' nearing the end of his best years'
+          : ' in his prime';
+  const verdict = `${rough ? `On limited looks, ${lowerFirst(TIERS[now].role)}` : TIERS[now].role} ${pos}${arc}.`;
 
-  // Makeup, once the staff has seen enough of him: everything that stands out, in one sentence.
-  const makeup = characterNotes(league, teamId, p);
-  if (makeup.notes.length) lines.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${makeup.notes.map((n) => n.clause).join('; ')}.`);
-  // His habits on film: the settled ones, then the ones starting to show.
+  const game: string[] = [];
+  if (plus.length && minus) game.push(`His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}, but his ${name(minus)} ${many([minus]) ? 'remain' : 'remains'} the main concern.`);
+  else if (plus.length) game.push(`His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}, and there is no glaring hole in his game.`);
+  else if (minus) game.push(`Nothing in his game stands out, and his ${name(minus)} ${many([minus]) ? 'are' : 'is'} a real concern.`);
+  else game.push('No standout trait and no glaring hole: a balanced game.');
+  if (young) {
+    if (ceiling < now) game.push(`With reps he could grow into ${TIERS[ceiling].becomes}${minus ? `; how quickly depends on his ${name(minus)} coming along` : ''}.`);
+    else if (growing) game.push(`He should keep improving for a few years yet${minus ? `, ${name(minus)} first of all` : ''}, without it changing what he is.`);
+    else game.push('Most of his value is in what he does today rather than a projected leap.');
+  } else if (p.age > tech) game.push(`At ${p.age}, expect him to lose a little more every year.`);
+  else if (p.age > phys) game.push(`${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold up through ${sure} ${tech}.`);
+  else if (p.age === tech) game.push('This is the last year of his prime: expect the decline to start next year.');
+  else if (phys < tech) game.push(`${cap(legs)} should hold up through ${sure} ${phys}, ${skills} through ${sure} ${tech}.`);
+  else game.push(`Expect his prime to run through ${sure} ${tech}.`);
+
+  const notes: string[] = [];
+  // His habits, as far as we know them: what has changed this year is news, so a habit he picked up
+  // lately is told as news rather than listed twice; of the rest, the two that matter most (a flaw
+  // before a plus, a plus before a style). A habit only starting to show gets a mention when there
+  // is nothing else to say about him.
   const habits = quirkNotes(league, teamId, p).notes;
-  const settled = habits.filter((n) => !n.forming);
-  const forming = habits.filter((n) => n.forming);
-  if (settled.length) lines.push(`On film he ${clauses(settled.map((n) => QUIRKS[n.id].clause))}.`);
-  if (forming.length) lines.push(`Starting to show: he ${clauses(forming.map((n) => QUIRKS[n.id].clause))}.`);
-  // What has changed lately, as far as we know: this year's habits picked up and shaken.
-  // Gains first, then what he has left behind (hedged unless it's our own player: we only think so).
-  const lately = habitTimeline(league, teamId, p).filter((e) => weeksSince(league, e) < WEEKS_PER_YEAR);
-  const gained = lately.filter((e) => e.change === 'gained').map((e) => habitChangeText(e, false));
-  const lost = lately.filter((e) => e.change === 'lost').map((e) => habitChangeText(e, false));
-  const sure = knowledge(league, teamId, p) >= 1;
+  const seen = new Set(habits.map((n) => n.id));
+  const changes = new Map<QuirkId, HabitChange>();
+  for (const e of habitTimeline(league, teamId, p)) if (weeksSince(league, e) < WEEKS_PER_YEAR && !changes.has(e.id)) changes.set(e.id, e);
+  const lately = [...changes.values()].slice(0, 2);
+  const settled = habits
+    .filter((n) => !n.forming && !changes.has(n.id))
+    .sort((a, b) => HABIT_ORDER[a.tone] - HABIT_ORDER[b.tone])
+    .slice(0, 2);
+  const forming = habits.find((n) => n.forming);
+  // A loss the reader still sees traces of is a fade; one he sees nothing of any more is gone.
+  const change = (e: HabitChange) => habitChangeText({ ...e, gone: !seen.has(e.id) }, false);
+  const gained = lately.filter((e) => e.change === 'gained').map(change);
+  const lost = lately.filter((e) => e.change === 'lost').map(change);
+  const exact = knowledge(league, teamId, p) >= 1;
+  if (settled.length) notes.push(`On film he ${clauses(settled.map((n) => QUIRKS[n.id].clause))}.`);
   if (gained.length || lost.length) {
-    const parts = [gained.length ? `has ${list(gained)}` : '', lost.length ? `${sure ? 'has' : 'seems to have'} ${list(lost)}` : ''].filter(Boolean);
-    lines.push(`Lately he ${parts.join(', and ')}.`);
-  }
+    // Hedged unless it's our own player: we only think he has left a habit behind.
+    const parts = [gained.length ? `has ${list(gained)}` : '', lost.length ? `${exact ? 'has' : 'seems to have'} ${list(lost)}` : ''].filter(Boolean);
+    notes.push(`Lately he ${parts.join(', and ')}.`);
+  } else if (!settled.length && forming) notes.push(`Starting to show: he ${QUIRKS[forming.id].clause}.`);
+  // Makeup, once the staff has seen enough of him, unless his habits already fill the report.
+  const makeup = characterNotes(league, teamId, p);
+  if (makeup.notes.length && notes.length < 2) notes.push(`${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${makeup.notes.map((n) => n.clause).join('; ')}.`);
 
-  // How sure we are follows the actual width of the read: film, visits and who's doing the reading.
-  const ovrHalf = (view.ovrHi - view.ovrLo) / 2;
-  if (view.exact) lines.push(p.age < 26 ? 'We know his game; his ceiling is our scouts’ best guess.' : 'We know exactly what he is.');
-  else if (ovrHalf <= 0.5) lines.push('Plenty of film on him: this read is reliable.');
-  else if (ovrHalf <= 1.1) lines.push('Decent film, but these grades could be a point or two off.');
-  else lines.push(`Limited looks: treat these grades as a rough range.${teamId === league.userTeamId && league.scoutPoints > 0 ? ' A scouting visit would narrow it.' : ''}`);
+  // How far to trust the grades, when that is in question: film, visits and who's doing the reading.
+  if (view.exact) {
+    if (young) notes.push('We know his game; his ceiling is our scouts’ best guess.');
+  } else if (ovrHalf <= 0.5) notes.push('Plenty of film on him: this read is reliable.');
+  else if (ovrHalf <= 1.1) notes.push('Decent film on him, but these grades could be a point or two off.');
+  else notes.push(`Our read is still provisional: more film${teamId === league.userTeamId && league.scoutPoints > 0 ? ' or a scouting visit' : ''} would narrow these grades.`);
 
   // Agents and teammates talk: a well-known player's priorities are no secret.
   if (view.knowledge >= 0.7) {
     const { greed, loyalty, winning } = p.personality;
     const top = Math.max(greed, loyalty, winning);
-    if (top > 0.8) lines.push(top === greed ? 'His agent drives a hard bargain.' : top === loyalty ? 'Values loyalty: open to a hometown discount.' : 'Wants to play for a contender.');
+    if (top > 0.8) notes.push(top === greed ? 'His agent drives a hard bargain.' : top === loyalty ? 'Values loyalty: open to a hometown discount.' : 'Wants to play for a contender.');
   }
-  return lines;
+  return { verdict, game, notes };
+}
+
+/** The report as a list of sentences, verdict first. */
+export function scoutReport(league: League, teamId: number, p: Player): string[] {
+  const r = scoutReportParts(league, teamId, p);
+  return [r.verdict, ...r.game, ...r.notes];
 }
 
 // ───────── combine ─────────

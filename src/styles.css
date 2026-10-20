@@ -2346,6 +2346,13 @@ details.more > summary {
   display: block;
   padding-block: 0 4px;
 }
+/* The verdict and his game, then the rest of what the staff has seen: two short blocks, not one wall. */
+.report p {
+  margin: 0;
+}
+.report p + p {
+  margin-top: 8px;
+}
 .stars-fact {
   display: grid;
   gap: 2px;
@@ -2562,6 +2569,9 @@ details.more > summary {
 .habit-timeline {
   margin: 2px 0 0;
   padding-left: 18px;
+}
+.habit-timeline li + li {
+  margin-top: 4px;
 }
 /* A table cell should stay one line tall: the draft board shows at most two pills side by side. */
 .pill-row.nowrap {
