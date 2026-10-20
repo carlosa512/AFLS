@@ -19,7 +19,7 @@ import { rosterOf, tradeContext, type TradeContext } from './context';
 import { untouchables } from './plans';
 import { peekTalks, talkRefusal, TRUST_MARGIN } from './talks';
 import { freshSigningRefusal, guaranteesShed, playerTradeBlocker, retainedBy, tradeDeadMoney, tradeProblem, TRADE_DEADLINE_WEEK, type TradeProposal, type TradeSide } from './rules';
-import { goingRate, marketValue, nextDraftSeason, pickOverall, pickValue, playerSwing, POINTS_PER_K, salaryWeight } from './value';
+import { goingRate, marketValue, nextDraftSeason, nowWeight, pickOverall, pickValue, playerSwing, POINTS_PER_K, salaryWeight } from './value';
 
 /** Each player a deal leaves past the roster limit costs about a sixth-round pick: someone has to be cut. */
 const ROSTER_SPOT = 15;
@@ -83,21 +83,27 @@ const going = (ctx: TradeContext, ids: readonly number[]) => ids.reduce((s, id) 
 /** Drafts still to come that a team already has no first-round pick in: the firsts it sold in earlier deals. */
 function draftsWithoutFirst(league: League, teamId: number): number {
   const from = nextDraftSeason(league);
-  const seasons = new Set(league.draftPicks.filter((p) => p.season >= from).map((p) => p.season));
-  return [...seasons].filter((s) => !league.draftPicks.some((p) => p.season === s && p.round === 1 && p.ownerId === teamId)).length;
+  const seasons = new Set<number>();
+  const held = new Set<number>();
+  for (const p of league.draftPicks) {
+    if (p.season < from) continue;
+    seasons.add(p.season);
+    if (p.round === 1 && p.ownerId === teamId) held.add(p.season);
+  }
+  return seasons.size - held.size;
 }
 
 /**
  * A team's own outgoing picks: each first-round pick past the second costs it more (ZenGM's price in
  * place of a hard cap), counting the firsts it already sold: the third first is dear whether it goes in
- * one deal or three. A pick past next year's draft never counts for less than the league pays for it:
- * a GM who barely values the future would otherwise spend those as free money, and every deadline
- * deal was paid in picks three drafts out.
+ * one deal or three. A first past next year's draft never counts for less than the league pays for
+ * it: a GM who barely values the future would otherwise spend those as free money. Later rounds keep
+ * his own discount: next year's pick for this year's, a late one before the cut, are real trades.
  */
 function picksOut(ctx: TradeContext, team: Team, ids: readonly number[]): number {
   const { league } = ctx;
   const next = nextDraftSeason(league);
-  const picks = ids.map((id) => pickById(league, id)).map((p) => ({ value: Math.max(pickValue(league, p, team.gm, ctx), p.season > next ? goingRate(league, p, ctx) : 0), first: p.round === 1 }));
+  const picks = ids.map((id) => pickById(league, id)).map((p) => ({ value: Math.max(pickValue(league, p, team.gm, ctx), p.round === 1 && p.season > next ? goingRate(league, p, ctx) : 0), first: p.round === 1 }));
   picks.sort((a, b) => b.value - a.value);
   let firsts = picks.some((p) => p.first) ? draftsWithoutFirst(league, team.id) : 0;
   return picks.reduce((s, p) => s + p.value * (p.first && ++firsts > 2 ? 1 + (firsts - 2) / 2.5 : 1), 0);
@@ -207,9 +213,10 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const now = rosterOf(ctx, teamId).filter((p) => !p.ir).length;
   const over = (n: number) => Math.max(0, n - rosterLimit(league));
   const cuts = Math.max(0, over(now - mine.players.length + theirs.players.length) - over(now));
-  // Salary kept by the sender: a cost to it, a saving to the buyer, weighed by cap room like any salary.
-  const get = pickIn + gain - cuts * ROSTER_SPOT + w * POINTS_PER_K * retainedBy(theirs);
-  const give = pickOut + loss + w * POINTS_PER_K * retainedBy(mine);
+  // Salary kept by the sender: a cost to it, a saving to the buyer, weighed by cap room like this year's salary (`nowWeight`).
+  const thisYear = nowWeight(ctx, teamId);
+  const get = pickIn + gain - cuts * ROSTER_SPOT + thisYear * POINTS_PER_K * retainedBy(theirs);
+  const give = pickOut + loss + thisYear * POINTS_PER_K * retainedBy(mine);
   const trust = opts.vsUser ? peekTalks(league.market, teamId).trust : 0;
   const margin = (opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser, trust)) + (startsAtQb(league, team, mine) ? QB_PREMIUM : 0);
   // The margin is a share of the stakes, so it asks for more back whether the stakes are positive or not.

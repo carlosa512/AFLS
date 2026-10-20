@@ -171,11 +171,6 @@ export const retainedBy = (side: TradeSide) => Object.values(side.retain ?? {}).
 
 // ───────── first-round picks ─────────
 
-/** Whether a team would hold a first-round pick in a draft after a trade: its own (used counts) less what it sends, plus what comes back. */
-function holdsFirst(league: League, teamId: number, season: number, sending: readonly number[], getting: readonly number[]): boolean {
-  return league.draftPicks.some((p) => p.season === season && p.round === 1 && (p.ownerId === teamId ? !sending.includes(p.id) : getting.includes(p.id)));
-}
-
 /**
  * No trade may leave a team without a first-round pick in two drafts running (the NBA's Stepien rule).
  * The NFL has none, but pricing alone let an All-In front office sell every first it could trade, one
@@ -183,13 +178,22 @@ function holdsFirst(league: League, teamId: number, season: number, sending: rea
  * can mortgage a franchise past what the market prices. `getting` is what comes back.
  */
 export function firstsProblem(league: League, side: TradeSide, getting: readonly number[] = []): string | null {
-  const sent = side.picks.map((id) => league.draftPicks.find((p) => p.id === id)).filter((p) => p?.round === 1);
-  if (!sent.length) return null;
+  if (!side.picks.length) return null;
+  // One pass (every verdict checks it): the drafts to come, the firsts it sends, and the ones it would
+  // still hold (its own, used ones too, and any coming back).
   const from = nextDraftSeason(league);
-  const seasons = new Set(league.draftPicks.filter((p) => p.season >= from).map((p) => p.season));
-  const without = (s: number) => seasons.has(s) && !holdsFirst(league, side.teamId, s, side.picks, getting);
-  for (const pk of sent) {
-    const s = pk!.season;
+  const seasons = new Set<number>();
+  const held = new Set<number>();
+  const sent: number[] = [];
+  for (const p of league.draftPicks) {
+    if (p.season < from) continue;
+    seasons.add(p.season);
+    if (p.round !== 1) continue;
+    if (side.picks.includes(p.id)) sent.push(p.season);
+    else if (p.ownerId === side.teamId || getting.includes(p.id)) held.add(p.season);
+  }
+  const without = (s: number) => seasons.has(s) && !held.has(s);
+  for (const s of sent) {
     if (!without(s)) continue;
     const other = without(s - 1) ? s - 1 : without(s + 1) ? s + 1 : null;
     if (other !== null) return `${league.teams[side.teamId].name} can't be left without a first-round pick in back-to-back drafts (${Math.min(s, other)} and ${Math.max(s, other)}).`;
@@ -214,11 +218,13 @@ export function tradeProblem(league: League, proposal: TradeProposal, opts: { ro
       const blocker = playerTradeBlocker(league, p);
       if (blocker) return `${p.firstName} ${p.lastName}: ${blocker}`;
     }
+    let sendsFirst = false;
     for (const id of side.picks) {
       const pick = league.draftPicks.find((x) => x.id === id);
       if (!pick || pick.ownerId !== side.teamId || pick.playerId !== undefined) return 'That pick is no longer available.';
+      sendsFirst ||= pick.round === 1;
     }
-    const firsts = firstsProblem(league, side, proposal.sides.find((x) => x !== side)!.picks);
+    const firsts = sendsFirst ? firstsProblem(league, side, proposal.sides.find((x) => x !== side)!.picks) : null;
     if (firsts) return firsts;
     for (const [id, amount] of Object.entries(side.retain ?? {})) {
       const p = league.players[Number(id)];

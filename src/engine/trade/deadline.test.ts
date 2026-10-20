@@ -4,7 +4,7 @@ import { playerOvr } from '../positions';
 import type { League } from '../types';
 import { goingRate, judge, pickValue, playerSwing, tradeContext, tradeProblem } from '.';
 import type { TradeProposal } from './rules';
-import { playWeight, readPlayer } from './value';
+import { nowWeight, readPlayer } from './value';
 
 const base = JSON.stringify(createLeague({ seed: 'deadline' }));
 const fresh = (): League => JSON.parse(base);
@@ -16,22 +16,23 @@ describe('a tight cap in season', () => {
   it("doesn't make a cheap starter's play worth more, as it does in the offseason", () => {
     const l = fresh();
     const buyer = l.teams.find((t) => t.id !== l.userTeamId)!;
-    // A good player on a cheap deal elsewhere: the deadline target a capped contender paid firsts for.
+    // A good player on an expiring rookie deal elsewhere: the rental a capped contender paid firsts for.
     const target = Object.values(l.players)
-      .filter((p) => p.teamId !== undefined && p.teamId !== buyer.id && p.teamId !== l.userTeamId && p.contract?.kind === 'rookie')
+      .filter((p) => p.teamId != null && p.teamId !== buyer.id && p.teamId !== l.userTeamId && p.contract?.kind === 'rookie' && p.contract.years.at(-1)!.season === l.season)
       .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
     const gainAt = (phase: League['phase'], w: number) => {
       l.phase = phase;
       const ctx = tradeContext(l);
       ctx.salaryWeights = l.teams.map(() => 1);
       ctx.salaryWeights[buyer.id] = w;
-      expect(playWeight(ctx, buyer.id)).toBe(phase === 'regular' ? Math.min(1, w) : w);
+      expect(nowWeight(ctx, buyer.id)).toBe(phase === 'regular' ? Math.min(1, w) : w);
       expect(readPlayer(ctx, buyer, target).pay).toBeGreaterThan(50);
       return playerSwing(ctx, buyer, [], [target.id]).gain;
     };
-    // Squeezed, his salary still weighs double; his play no longer does.
-    expect(gainAt('regular', 2)).toBeLessThan(gainAt('regular', 1) * 1.05);
-    expect(gainAt('preseason', 2)).toBeGreaterThan(gainAt('preseason', 1) * 1.3);
+    // Squeezed, this year's money (all of his) counts like anyone's in season.
+    expect(gainAt('regular', 2)).toBeCloseTo(gainAt('regular', 1), 6);
+    // In the offseason the room a squeeze saves still buys a free agent.
+    expect(Math.abs(gainAt('preseason', 2) - gainAt('preseason', 1))).toBeGreaterThan(50);
     // A rich team still discounts it.
     expect(gainAt('regular', 0.5)).toBeLessThan(gainAt('regular', 1));
   });

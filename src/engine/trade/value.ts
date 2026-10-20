@@ -253,6 +253,9 @@ export interface PlayerRead {
   /** His contract (`contractTerms`): the market's pay for a player of his rank, and the salary still owed. */
   pay: number;
   cost: number;
+  /** The parts of `pay` and `cost` that fall in this league year. */
+  payNow: number;
+  costNow: number;
 }
 
 /**
@@ -402,7 +405,7 @@ const RANK_SPREAD = 0.75;
  * his role, weighed by the team's `salaryWeight`. A starter on a cheap deal is a bargain; the same
  * deal on the bench is money spent on a backup.
  */
-function roomValue(reads: readonly PlayerRead[], pos: Position, w: number, play = w): number {
+function roomValue(reads: readonly PlayerRead[], pos: Position, w: number, now = w): number {
   let value = 0;
   // The role it plans for him: where he's headed, not just where he is (a climbing 15 starts over a fading one).
   const ahead = reads.map((r) => r.outlook);
@@ -410,7 +413,7 @@ function roomValue(reads: readonly PlayerRead[], pos: Position, w: number, play 
     const r = reads[i];
     let rank = 0;
     for (let j = 0; j < reads.length; j++) if (j !== i) rank += 1 / (1 + Math.exp((ahead[i] - ahead[j]) / RANK_SPREAD));
-    value += roleAt(rank, pos) * ((r.base + r.extension) * r.lens + play * r.pay) - w * r.cost;
+    value += roleAt(rank, pos) * ((r.base + r.extension) * r.lens + weighed(r.pay, r.payNow, w, now)) - weighed(r.cost, r.costNow, w, now);
   }
   return value;
 }
@@ -421,11 +424,11 @@ function roomValue(reads: readonly PlayerRead[], pos: Position, w: number, play 
  * room to grow would push a fairly paid veteran down and bring less than the veteran's pay (the more
  * growth a club read in him, the less he'd be worth).
  */
-function roomWith(stay: readonly PlayerRead[], join: readonly PlayerRead[], pos: Position, w: number, play = w): number {
-  const ranked = roomValue([...stay, ...join], pos, w, play);
+function roomWith(stay: readonly PlayerRead[], join: readonly PlayerRead[], pos: Position, w: number, now = w): number {
+  const ranked = roomValue([...stay, ...join], pos, w, now);
   if (!join.length) return ranked;
-  let buried = roomValue(stay, pos, w, play);
-  join.forEach((r, i) => (buried += roleAt(stay.length + i, pos) * ((r.base + r.extension) * r.lens + play * r.pay) - w * r.cost));
+  let buried = roomValue(stay, pos, w, now);
+  join.forEach((r, i) => (buried += roleAt(stay.length + i, pos) * ((r.base + r.extension) * r.lens + weighed(r.pay, r.payNow, w, now)) - weighed(r.cost, r.costNow, w, now)));
   return Math.max(ranked, buried);
 }
 
@@ -442,22 +445,24 @@ export function roomOf(ctx: TradeContext, team: Team, pos: Position, truth = fal
  * market pays a player of his rank, `cost` the base salary still owed (the bonus stays behind in a
  * trade), both above the league minimum, this year only for what's left of it.
  */
-function contractTerms(ctx: TradeContext, p: Player): { pay: number; cost: number } {
+function contractTerms(ctx: TradeContext, p: Player): { pay: number; cost: number; payNow: number; costNow: number } {
   const { league } = ctx;
   const c = p.contract;
-  if (!c || isExpired(c, league.season)) return { pay: 0, cost: 0 };
+  if (!c || isExpired(c, league.season)) return { pay: 0, cost: 0, payNow: 0, costNow: 0 };
   const market = marketApy(ctx.market, p);
   const min = minSalary(p.experience, ctx.market.cap);
   const share = seasonShare(league);
-  let pay = 0;
-  let cost = 0;
-  for (let i = 0; i < Math.min(4, yearsLeft(c, league.season)); i++) {
+  const payNow = (market - min) * share;
+  const costNow = (c.years.find((y) => y.season === league.season)?.base ?? 0) * (1 - paidShare(league, c)) - min * share;
+  let pay = payNow;
+  let cost = costNow;
+  for (let i = 1; i < Math.min(4, yearsLeft(c, league.season)); i++) {
     const base = c.years.find((y) => y.season === league.season + i)?.base ?? 0;
     const d = 0.9 ** i;
-    pay += (market - min) * (i === 0 ? share : 1) * d;
-    cost += (i === 0 ? base * (1 - paidShare(league, c)) - min * share : base - min) * d;
+    pay += (market - min) * d;
+    cost += (base - min) * d;
   }
-  return { pay: pay * POINTS_PER_K, cost: cost * POINTS_PER_K };
+  return { pay: pay * POINTS_PER_K, cost: cost * POINTS_PER_K, payNow: payNow * POINTS_PER_K, costNow: costNow * POINTS_PER_K };
 }
 
 const median = (xs: number[]) => {
@@ -484,16 +489,20 @@ export function salaryWeight(ctx: TradeContext, teamId: number): number {
 }
 
 /**
- * How much the market's pay for a player's play weighs (`salaryWeight` still weighs the salary he's
- * owed). In the offseason a squeezed team's cheap starter is worth more: the room he leaves buys the
- * next one in free agency. In season there's nothing left to buy with it, so a tight cap doesn't make
- * his play worth more; at the deadline a capped contender was paying firsts for half a season of a
- * rookie-deal starter. A rich team still discounts it.
+ * How much this league year's money weighs for a team (`salaryWeight` still weighs later years'). In
+ * the offseason a squeezed team's room is worth more: what a cheap starter saves buys the next one in
+ * free agency. In season there's nothing left to buy with it until the spring, so a tight cap counts
+ * this year's dollars like anyone's, the pay a cheap starter saves and the salary a veteran brings
+ * alike; at the deadline a capped contender was paying firsts for half a season of a rookie-deal
+ * starter. A rich team still shrugs at them.
  */
-export function playWeight(ctx: TradeContext, teamId: number): number {
+export function nowWeight(ctx: TradeContext, teamId: number): number {
   const w = salaryWeight(ctx, teamId);
   return ctx.league.phase === 'regular' ? Math.min(1, w) : w;
 }
+
+/** A contract amount weighed by the team: this year's part at `now`, the years after at `w`. */
+const weighed = (total: number, thisYear: number, w: number, now: number) => now * thisYear + w * (total - thisYear);
 
 /**
  * What a player is worth to `team` in pick-chart points, as its front office sees him: the room at
@@ -507,8 +516,8 @@ export function playerValue(league: League, player: Player, team: Team, opts: { 
   const others = roomOf(ctx, team, player.position, truth).filter((r) => r.id !== player.id);
   const me = readPlayer(ctx, team, player, truth);
   const w = salaryWeight(ctx, team.id);
-  const play = playWeight(ctx, team.id);
-  return roomWith(others, [me], player.position, w, play) - roomValue(others, player.position, w, play);
+  const now = nowWeight(ctx, team.id);
+  return roomWith(others, [me], player.position, w, now) - roomValue(others, player.position, w, now);
 }
 
 /**
@@ -517,7 +526,7 @@ export function playerValue(league: League, player: Player, team: Team, opts: { 
  */
 export function grossWorth(ctx: TradeContext, team: Team, player: Player, truth = false): number {
   const r = readPlayer(ctx, team, player, truth);
-  return r.base * r.lens + playWeight(ctx, team.id) * r.pay;
+  return r.base * r.lens + weighed(r.pay, r.payNow, salaryWeight(ctx, team.id), nowWeight(ctx, team.id));
 }
 
 /** How a team's player moves change its rooms and books: what it loses by sending `out`, and gains by taking `inc` in their place. */
@@ -527,7 +536,7 @@ export function playerSwing(ctx: TradeContext, team: Team, out: readonly number[
   const incoming = inc.map((id) => league.players[id]);
   const positions = new Set<Position>([...out.map((id) => league.players[id].position), ...incoming.map((p) => p.position)]);
   const w = salaryWeight(ctx, team.id);
-  const play = playWeight(ctx, team.id);
+  const now = nowWeight(ctx, team.id);
   let before = 0;
   let kept = 0;
   let after = 0;
@@ -535,9 +544,9 @@ export function playerSwing(ctx: TradeContext, team: Team, out: readonly number[
     const room = roomOf(ctx, team, pos, truth);
     const stay = room.filter((r) => !gone.has(r.id));
     const arrive = incoming.filter((p) => p.position === pos).map((p) => readPlayer(ctx, team, p, truth));
-    before += roomWith(stay, room.filter((r) => gone.has(r.id)), pos, w, play);
-    kept += roomValue(stay, pos, w, play);
-    after += roomWith(stay, arrive, pos, w, play);
+    before += roomWith(stay, room.filter((r) => gone.has(r.id)), pos, w, now);
+    kept += roomValue(stay, pos, w, now);
+    after += roomWith(stay, arrive, pos, w, now);
   }
   return { loss: before - kept, gain: after - kept };
 }
