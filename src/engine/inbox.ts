@@ -802,7 +802,11 @@ export function offerWords(league: League, offer: TradeOffer): { subject: string
   }
 }
 
-/** The offer that opened a conversation: walk `replyTo` back (pruned offers end the walk early). */
+/**
+ * The offer that opened a conversation: walk `replyTo` back. When a parent was pruned the walk ends early and the
+ * id returned is only a best-effort root, which is why nothing should recompute it after the mail is filed
+ * (look the message up with `mailForOffer`).
+ */
 function offerRoot(league: League, offer: TradeOffer): number {
   const offers = league.market?.offers ?? [];
   const seen = new Set<number>([offer.id]);
@@ -819,6 +823,12 @@ function offerRoot(league: League, offer: TradeOffer): number {
 /** An offer's mail id: its last segment is the conversation's root, so replies fold into one thread. */
 export function offerMailId(league: League, offer: TradeOffer): string {
   return `offer:${offer.season}:${offer.id}:${offerRoot(league, offer)}`;
+}
+
+/** The message filed for an offer, whatever root its id carries (old saves have no root segment). */
+export function mailForOffer(league: League, offer: TradeOffer): InboxMessage | undefined {
+  const prefix = `offer:${offer.season}:${offer.id}`;
+  return (league.inbox ?? []).find((m) => m.id === prefix || m.id.startsWith(`${prefix}:`));
 }
 
 /** Every offer on your desk files a message: it asks something of you while the offer is open. */

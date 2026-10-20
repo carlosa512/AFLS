@@ -14,6 +14,7 @@ import {
   freeAgencyMoves,
   gameStory,
   headCoachChanges,
+  mailForOffer,
   mailSubject,
   marketRumors,
   marketTrades,
@@ -866,5 +867,19 @@ describe('a trade conversation in the inbox', () => {
     const msg = (id: string) => ({ id, actions: [] }) as unknown as Parameters<typeof mailSubject>[0];
     expect(mailSubject(msg('offer:2026:7'))).toEqual({ kind: 'offer', season: 2026, offerId: 7, root: 7 });
     expect(mailSubject(msg('offer:2026:9:7'))).toEqual({ kind: 'offer', season: 2026, offerId: 9, root: 7 });
+  });
+
+  it('finds a reply filed under an old 3-segment id, and id 1 never matches id 10', () => {
+    const { l, bid } = chain();
+    const filed = l.inbox!.find((m) => m.id === offerMailId(l, bid))!;
+    expect(mailForOffer(l, bid)).toBe(filed);
+    filed.id = `offer:${bid.season}:${bid.id}`;
+    expect(mailForOffer(l, bid)).toBe(filed);
+    const other = { ...bid, id: bid.id * 10 };
+    expect(mailForOffer(l, other)).toBeUndefined();
+    const tens = { ...bid, id: bid.id * 10 };
+    filed.id = `offer:${bid.season}:${tens.id}:${bid.id}`;
+    expect(mailForOffer(l, bid)).toBeUndefined();
+    expect(mailForOffer(l, tens)).toBe(filed);
   });
 });

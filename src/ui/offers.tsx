@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { capHit, isExpired, lastSeason } from '../engine/finance/contract';
-import { offerMailId, offerWords } from '../engine/inbox';
+import { mailForOffer, offerMailId, offerWords } from '../engine/inbox';
 import { teamPlayers } from '../engine/roster';
 import {
   acceptOffer,
@@ -310,7 +310,9 @@ export function OfferCard({
         <button
           type="button"
           className="btn btn-sm"
-          onClick={() => nav.go({ view: 'inbox', messageId: offerMailId(league, reply) })}
+          onClick={() =>
+            nav.go({ view: 'inbox', messageId: mailForOffer(league, reply)?.id ?? offerMailId(league, reply) })
+          }
         >
           See their offer →
         </button>
