@@ -39,7 +39,7 @@ import { LinkedText, moveIndex, MoveText } from './moves';
 import { deadlineDayTrades, draftClassOf, freeAgencyMoves, marketRumors, marketTrades, seasonDeals, headCoachChanges, mailSubject, needsYou, promotionCandidates, unitReads, type HeadCoachChange, type MailSubject, type Signing } from '../engine/inbox';
 import { activateFromIr, activateProblem, delegates, injuryLabel, IR_MIN_WEEKS, IR_RETURNS, irProblem, irReturnsUsed, outlookText, placeOnIr, SEVERITY_LABEL, weeksLeft } from '../engine/injuries';
 import { lastSeason } from '../engine/finance/contract';
-import { activeRoster, playingHurt, starters, teamPlayers } from '../engine/roster';
+import { activeRoster, playingHurt, slotOf, starters, teamPlayers } from '../engine/roster';
 import { capSheet } from '../engine/finance/cap';
 import { userGame } from '../engine/league';
 import { allSeeds, PLAYOFF_ROUNDS, ROUND_NAMES } from '../engine/season/playoffs';
@@ -445,7 +445,9 @@ function InjuryCards({ league, s }: { league: League; s: Extract<MailSubject, { 
   const count = (p.injuries ?? []).filter((r) => r.season === s.season).length;
   const ours = p.teamId === league.userTeamId;
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
-  const instead = now && ours && team ? starters(league, team, p.position).filter((x) => x.id !== p.id) : [];
+  // Who starts where he lines up (his own position, unless you put him somewhere else).
+  const at = slotOf(league, p);
+  const instead = now && ours && team ? starters(league, team, at).filter((x) => x.id !== p.id) : [];
   // Reserve is for a long layoff: it keeps him off the 53 for at least four weeks.
   const ir = now && ours && now.estimate[0] >= IR_MIN_WEEKS && !irProblem(league, p);
   return (
@@ -473,7 +475,7 @@ function InjuryCards({ league, s }: { league: League; s: Extract<MailSubject, { 
         </div>
       </Card>
       {instead.length > 0 && (
-        <Card title={`Starting at ${p.position} this week`}>
+        <Card title={`Starting at ${at} this week`}>
           <p className="small" style={{ margin: 0 }}>
             {instead.map(shortName).join(' · ')} <span className="muted">(your depth chart)</span>
           </p>

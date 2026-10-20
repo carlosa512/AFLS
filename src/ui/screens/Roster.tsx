@@ -16,7 +16,7 @@ import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } fr
 import { FitnessCell, fitnessSort, InjuryTag } from '../injuries';
 import { Ovr, repsOf, schemeFitOf, seenOvr, Stars, starsOf, viewOf } from '../scouting';
 import { store } from '../store';
-import { familiarityTone, knockAt, learnLine, lineupText, playAt, positionChoices } from '../training';
+import { familiarityTone, knockAt, learnLine, lineupText, playAt, playAtLabel, positionChoices } from '../training';
 
 export function statSummary(position: Position, s: StatLine | undefined): string {
   if (!s || !s.gp) return '–';
@@ -302,6 +302,13 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
     setAnnouncement(`${p.firstName} ${p.lastName} moved to ${spots[to] ?? `${pos}${to + 1}`}${to < spots.length ? ', starter' : ''}.`);
   };
 
+  // "Play at…" moves the row to another group (a fresh row): keep focus on his handle and say where he went.
+  const lineUp = (p: Player, pos: Position) => {
+    store.mutate((l) => playAt(l, p.id, pos));
+    refocus.current = p.id;
+    setAnnouncement(`${p.firstName} ${p.lastName} lined up at ${pos}${pos === p.position ? '' : ', out of position'}.`);
+  };
+
   return (
     <>
       <Panel
@@ -468,6 +475,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                         dragging={drag?.id === id}
                         onGrip={(e) => start(pos, committed, id, e)}
                         onKeyMove={(to) => keyMove(p, pos, committed, to)}
+                        onPlayAt={(to) => lineUp(p, to)}
                       />
                     );
                   }),
@@ -493,6 +501,7 @@ function RosterRow({
   dragging,
   onGrip,
   onKeyMove,
+  onPlayAt = () => {},
 }: {
   league: League;
   player: Player;
@@ -508,6 +517,8 @@ function RosterRow({
   dragging: boolean;
   onGrip: (e: ReactPointerEvent) => void;
   onKeyMove: (to: number) => void;
+  /** "Play at…" picked a position: the row moves to that group. */
+  onPlayAt?: (pos: Position) => void;
 }) {
   const nav = useNav();
   const view = viewOf(league, p);
@@ -530,7 +541,7 @@ function RosterRow({
     onKeyMove(to);
   };
   return (
-    <tr data-pos={p.position} data-id={p.id} className={`depth-row${lastStarter ? ' last-starter' : ''}${dragging ? ' dragging' : ''}`}>
+    <tr data-pos={slot} data-id={p.id} className={`depth-row${lastStarter ? ' last-starter' : ''}${dragging ? ' dragging' : ''}`}>
       <td>
         <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
           {editable && (
@@ -550,7 +561,7 @@ function RosterRow({
           <span className={`num spot${starter ? ' spot-starter' : ''}`} title={starter ? `Starting ${spot}` : 'Depth'}>
             {spot}
           </span>
-          {editable && grouped && <PlayAt p={p} slot={slot} />}
+          {editable && grouped && <PlayAt p={p} slot={slot} onPick={onPlayAt} />}
         </span>
       </td>
       <td className="sticky-col">
@@ -609,9 +620,9 @@ function RosterRow({
 }
 
 /** "Play at…": line him up at another position in a pinch, or back at his own. Each choice says the knock he'd take there. */
-function PlayAt({ p, slot }: { p: Player; slot: Position }) {
+function PlayAt({ p, slot, onPick }: { p: Player; slot: Position; onPick: (pos: Position) => void }) {
   const choices = positionChoices(slot);
-  const label = (pos: Position) => (pos === p.position ? `Back to ${pos}` : `${pos} · ${knockAt(p, pos)} knock`);
+  const label = (pos: Position) => playAtLabel(p, pos);
   return (
     <select
       className="play-at"
@@ -620,7 +631,7 @@ function PlayAt({ p, slot }: { p: Player; slot: Position }) {
       value=""
       onChange={(e) => {
         const pos = e.target.value as Position;
-        if (pos) store.mutate((l) => playAt(l, p.id, pos));
+        if (pos) onPick(pos);
       }}
     >
       <option value="">Play at…</option>

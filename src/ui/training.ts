@@ -116,8 +116,14 @@ export function hasPositionWork(league: League, p: Player): boolean {
 /** The knock he takes lined up at `slot`, in words. The only way a screen sees it. */
 export const knockAt = (p: Player, slot: Position) => knockWord(knockFor(p, slot));
 
-/** "Lined up at WR (out of position): a big knock". */
-export const lineupText = (p: Player, slot: Position): string => `Lined up at ${slot} (out of position): a ${knockAt(p, slot)} knock`;
+/** "Lined up at WR (out of position): a big knock" ("no knock" once he has learned it). */
+export function lineupText(p: Player, slot: Position): string {
+  const word = knockAt(p, slot);
+  return `Lined up at ${slot} (out of position): ${word === 'none' ? 'no knock' : `a ${word} knock`}`;
+}
+
+/** A "Play at…" choice: "WR · big knock", "S · no knock". */
+export const playAtLabel = (p: Player, pos: Position): string => (pos === p.position ? `Back to ${pos}` : `${pos} · ${knockAt(p, pos) === 'none' ? 'no' : knockAt(p, pos)} knock`);
 
 /** Where the "Play at…" menu can send him: every position but the one he's lined up at (his own comes first as "Back to"). */
 export const positionChoices = (slot: Position): Position[] => POSITIONS.filter((pos) => pos !== slot);
@@ -132,7 +138,8 @@ export function placeBack(league: League, playerId: number): void {
   const rank = new Map(buildAutoDepthChart(teamPlayers(league, p.teamId))[p.position].map((id, i) => [id, i]));
   const mine = rank.get(p.id) ?? Infinity;
   const list = league.teams[p.teamId].depthChart[p.position].filter((id) => id !== p.id);
-  const at = list.findIndex((id) => (rank.get(id) ?? Infinity) > mine);
+  // Only his own room counts: a man the user lined up here from another position has no rank in it.
+  const at = list.findIndex((id) => rank.has(id) && rank.get(id)! > mine);
   placeAt(league, playerId, p.position, at < 0 ? list.length : at);
 }
 

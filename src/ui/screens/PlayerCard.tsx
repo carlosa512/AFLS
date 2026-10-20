@@ -21,7 +21,7 @@ import { store } from '../store';
 import { TradeActions } from '../offers';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
-import { familiarityTone, hasPositionWork, learnLine, leftText, lineupText, moveLine, payText, placeBack, planReason, readyText, reasonText, roleText, startNote, verdictText, verdictTone } from '../training';
+import { familiarityTone, hasPositionWork, knockAt, learnLine, leftText, lineupText, moveLine, payText, placeBack, planReason, readyText, reasonText, roleText, startNote, verdictText, verdictTone } from '../training';
 import { HealthSection } from '../injuries';
 import { chairHolder, coachName, coachOfPlayer, coachTitle, ROOM_OF, teamCoaches, teamScheme } from '../../engine/coaching';
 import { spotsFor } from '../../engine/schemes';
@@ -330,7 +330,9 @@ function PositionSection({ league, player: p }: { league: League; player: Player
       {away && (
         <div className="notice stack">
           <span>{lineupText(p, slot)}.</span>
-          <span className="muted small">Everything he does there is worse for it, a little or a lot. He is a {POSITION_NAMES[p.position].toLowerCase()}; put him back when you can.</span>
+          {knockAt(p, slot) !== 'none' && (
+            <span className="muted small">Everything he does there is worse for it, a little or a lot. He is a {POSITION_NAMES[p.position].toLowerCase()}; put him back when you can.</span>
+          )}
           <span>
             <button className="btn btn-sm" onClick={() => store.mutate((l) => placeBack(l, p.id))}>
               Back to {p.position}
@@ -421,7 +423,7 @@ function PositionSection({ league, player: p }: { league: League; player: Player
                   </div>
                   {reason && (
                     <p className="small">
-                      <LinkedText league={league} text={`${reason}.`} about={read.coordinator ? [{ kind: 'coach', id: read.coordinator.coach.id }] : undefined} />
+                      <LinkedText league={league} text={`${reason}.`} about={read.reason === 'scheme' && read.coordinator ? [{ kind: 'coach', id: read.coordinator.coach.id }] : undefined} />
                     </p>
                   )}
                   <p className="muted small">

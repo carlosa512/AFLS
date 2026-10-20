@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { injuryLabel, outlookText, SEVERITY_LABEL, weeksLeft } from '../../engine/injuries';
 import { teamScheme } from '../../engine/coaching';
 import { spotsFor } from '../../engine/schemes';
-import { playingHurt } from '../../engine/roster';
+import { playingHurt, slotOf } from '../../engine/roster';
 import {
   conditionBonus,
   departmentFor,
@@ -375,9 +375,10 @@ const SEVERITY_ORDER = ['minor', 'moderate', 'severe', 'career-threatening'];
  * skip the unavailable on game day), so it's the job he goes back to. Read live, nothing stored.
  */
 function roleOf(league: League, p: Player): { label: string; rank: number } {
-  const ids = league.teams[p.teamId!].depthChart[p.position];
-  const slot = ids.indexOf(p.id);
-  const spot = spotsFor(teamScheme(league, p.teamId!), p.position)[slot];
+  // Where he's lined up: his own position, or another one the user put him at.
+  const at = slotOf(league, p);
+  const slot = league.teams[p.teamId!].depthChart[at].indexOf(p.id);
+  const spot = spotsFor(teamScheme(league, p.teamId!), at)[slot];
   if (slot < 0 || !spot) return { label: 'Backup', rank: 100 + Math.max(0, slot) };
   return { label: spot === p.position ? 'Starter' : `Starter · ${spot}`, rank: slot };
 }

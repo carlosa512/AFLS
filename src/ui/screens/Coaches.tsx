@@ -1564,10 +1564,10 @@ function PositionWork({ league }: { league: League }) {
             <button className="linklike" onClick={() => nav.openPlayer(pick.player.id)}>
               {pick.player.position} {pick.player.firstName} {pick.player.lastName}
             </button>{' '}
-            to play {pick.read.to}: {reasonText(pick.read) || verdictText(pick.read.verdict)}. {roleText(pick.read)}. <span className={`tag-pill ${verdictTone(pick.read.verdict)}`}>{verdictText(pick.read.verdict)}</span>
+            to play {pick.read.to}: {reasonText({ ...pick.read, reason: pick.why })}. {roleText(pick.read)}. <span className={`tag-pill ${verdictTone(pick.read.verdict)}`}>{verdictText(pick.read.verdict)}</span>
           </span>
           <span className="row" style={{ gap: 8 }}>
-            <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => startMove(l, pick.player.id, pick.read.to, pick.read.reason ?? undefined))}>
+            <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => startMove(l, pick.player.id, pick.read.to, pick.why))}>
               Start
             </button>
             <button className="btn btn-sm" onClick={() => store.mutate((l) => passMove(l, pick.player.id))}>
