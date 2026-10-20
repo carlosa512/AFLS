@@ -23,8 +23,8 @@ const toWeek = (l: League, week: number) => {
 };
 const plain = (years: number, apy: number): Offer => ({ years, apy, bonusPct: 0, gtdPct: 0, voidYears: 0 });
 
-// These play into the season: 30 s, so a busy machine doesn't time them out.
-describe('salary paid mid-season', { timeout: 30_000 }, () => {
+// These play into the season.
+describe('salary paid mid-season', () => {
   it('a player signed in week 10 and cut in week 12 only books the checks he was paid', () => {
     const l = createLeague({ seed: 'ledger-sign' });
     toWeek(l, 10);
@@ -93,7 +93,7 @@ describe('salary paid mid-season', { timeout: 30_000 }, () => {
   });
 });
 
-describe('bonus money when a deal ends', { timeout: 30_000 }, () => {
+describe('bonus money when a deal ends', () => {
   it('retirements and expiries book every remaining bonus dollar', () => {
     const l = createLeague({ seed: 'ledger-retire' });
     simToEndOfSeason(l);
@@ -136,7 +136,7 @@ describe('bonus money when a deal ends', { timeout: 30_000 }, () => {
   });
 });
 
-describe('franchise tags', { timeout: 30_000 }, () => {
+describe('franchise tags', () => {
   const offseason = () => {
     const l = createLeague({ seed: 'ledger-tags' });
     simToEndOfSeason(l);
@@ -176,7 +176,7 @@ describe('franchise tags', { timeout: 30_000 }, () => {
   });
 });
 
-describe('determinism', { timeout: 30_000 }, () => {
+describe('determinism', () => {
   it('AI free agency is the same whether or not the save was reloaded after the user acted', () => {
     const l = createLeague({ seed: 'ledger-determinism' });
     simToEndOfSeason(l);
@@ -197,5 +197,5 @@ describe('determinism', { timeout: 30_000 }, () => {
     advanceOffseason(reloaded);
     expect(l.transactions.map((t) => t.text)).toEqual(reloaded.transactions.map((t) => t.text));
     expect(l.rngState).toEqual(reloaded.rngState);
-  }, 30_000);
+  });
 });

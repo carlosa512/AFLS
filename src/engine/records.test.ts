@@ -60,7 +60,7 @@ describe('records', () => {
     expect(up.teams[0].colors).toEqual(TEAM_SEEDS[0].colors);
     expect(up.teams[1].colors).toEqual(['#123456', '#654321']);
     expect(migrateLeague(copy(up))).toEqual(up);
-  }, 30_000);
+  });
 });
 
 describe('a season split between teams', () => {

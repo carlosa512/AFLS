@@ -90,7 +90,7 @@ describe('comeback player', () => {
     back.experience = 4;
     delete back.draft;
     expect(pickAwards(league, s).winners.comeback?.playerId).toBe(back.id);
-  }, 30_000);
+  });
 });
 
 describe('save migration to v7', () => {
@@ -113,7 +113,7 @@ describe('save migration to v7', () => {
     // An older one keeps its winners' stat lines; only clubs may be unknown.
     expect(seasonAwards(up, first)!.winners.mvp).toBeDefined();
     expect(migrateLeague(copy(up))).toEqual(up);
-  }, 60_000);
+  });
 
   it('votes nothing for a season still being played', () => {
     const league = createLeague({ seed: 'awards-migrate-early' });
@@ -181,7 +181,7 @@ describe('players of the week and month', () => {
     expect(Object.keys(entry.weeks)).toHaveLength(18);
     expect(Object.keys(entry.months)).toEqual(['sep', 'oct', 'nov', 'dec']);
     expect(JSON.stringify(full.weeklyAwards).length).toBeLessThan(4000);
-  }, 30_000);
+  });
 });
 
 describe('save migration to v8', () => {

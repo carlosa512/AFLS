@@ -161,7 +161,7 @@ describe('score strip', () => {
     expect(resultsWeek(league)).toBe(league.week - 1);
     for (const x of stripGames(league, league.week - 1, records))
       expect(x.tag).toMatch(ours(x.game) ? /^Your game · Final/ : /^Final/);
-  }, 30_000);
+  });
 });
 
 describe('home widgets', () => {
@@ -172,7 +172,7 @@ describe('home widgets', () => {
       playWeek(league);
       deliverMail(league);
     }
-  }, 30_000);
+  });
 
   it("lists the hurt longest layoff first by the doctor's estimate, in a pill's words", () => {
     const hurt = league.teams.flatMap((t) => hurtList(league, t.id));

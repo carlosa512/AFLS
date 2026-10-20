@@ -85,7 +85,7 @@ describe('inbox', () => {
     // One year-end message per player, however many season honors he won.
     const yearEnd = league.inbox!.filter((m) => m.id.startsWith(`awards:${league.season}:year:`)).map((m) => m.id);
     expect(new Set(yearEnd).size).toBe(yearEnd.length);
-  }, 30_000);
+  });
 
   it("passes on the doctor's word about our injured players, with his estimate", () => {
     const hurt = league.inbox!.filter((m) => m.category === 'medical');
@@ -150,7 +150,7 @@ describe('inbox', () => {
     expect(league.inbox!.filter((m) => m.id.startsWith('owner:') || m.id.startsWith('staff:'))).toHaveLength(
       1 + deals.length,
     );
-  }, 30_000);
+  });
 
   it("folds a day of agents' letters into one, and leaves other mail as it is", () => {
     const all = [...league.inbox!].reverse();
@@ -239,7 +239,7 @@ describe('inbox', () => {
     expect(needsYou(league, combine)).toBe(league.scoutPoints > 0);
     // Free agency closes the re-sign window: the agents' letters no longer ask anything.
     for (const m of deals) expect(needsYou(league, m)).toBe(false);
-  }, 30_000);
+  });
 
   it('reports the coaching carousel, and a coach hired away until his chair is filled', () => {
     const changes = headCoachChanges(league);
@@ -288,7 +288,7 @@ describe('inbox', () => {
     hc.career = [{ season: rested.season - 2, teamId: elsewhere, role: 'headCoach' }];
     const change = headCoachChanges(copy(rested)).find((x) => x.coach.id === hc.id)!;
     expect(change.from).toMatchObject({ season: rested.season - 2, teamId: elsewhere, title: 'Head coach' });
-  }, 30_000);
+  });
 
   it('reports our draft class once the draft is done', () => {
     while (league.phase === 'freeAgency') advanceOffseason(league);
@@ -310,7 +310,7 @@ describe('inbox', () => {
     expect(report.body).toMatch(/ Our scouts like [A-Z]+ .+ most of all: an? .+\.$/);
     expect(report.body).not.toMatch(/undefined|NaN/);
     expect(mailSubject(report)).toEqual({ kind: 'draftClass', season: league.season });
-  }, 30_000);
+  });
 
   it('sums up free agency once it closes, with our signings and the players who left', () => {
     const wrap = league.inbox!.find((m) => m.id === `fa:${league.season}`)!;
@@ -412,7 +412,7 @@ describe('mail through a season', () => {
       );
       expect(m.body).not.toMatch(/we'll go after them|linebackers is/);
     }
-  }, 30_000);
+  });
 
   it('reminds us of the trade deadline the week before, the week of and on deadline day, until it passes', () => {
     const before = league.inbox!.find((m) => m.id === `deadline:${league.season}:1`)!;
@@ -511,7 +511,7 @@ describe('position moves in the inbox', () => {
     to = pick.read.to;
     read = pick.read;
     why = pick.why;
-  }, 60_000);
+  });
 
   it("files the coaches' suggestion once a league year, in the head coach's words", () => {
     const l = copy(base);
@@ -614,7 +614,7 @@ describe('position moves in the inbox', () => {
     deliverMail(l);
     expect(movedIn(l)).toHaveLength(1);
     expect(movedIn(l)[0].deleted).toBe(true);
-  }, 30_000);
+  });
 
   it('says where he was placed when the depth chart is hand-sorted', () => {
     const l = copy(base);
@@ -622,7 +622,7 @@ describe('position moves in the inbox', () => {
     throughCutDown(l);
     deliverMail(l);
     expect(movedIn(l)[0].body).toContain(`He is placed by rating on your ${to} depth chart.`);
-  }, 30_000);
+  });
 
   it('files no note for a player who came to us already moved by another team', () => {
     const l = copy(base);
@@ -635,7 +635,7 @@ describe('position moves in the inbox', () => {
     deliverMail(l);
     expect(cb.moves?.at(-1)?.season).toBe(l.season);
     expect(movedIn(l).map((m) => m.id)).not.toContain(`position:${l.season}:moved:${cb.id}`);
-  }, 30_000);
+  });
 
   it("folds a cut-down day's notes into one thread", () => {
     const l = copy(base);
@@ -649,7 +649,7 @@ describe('position moves in the inbox', () => {
     expect(threadLabel(list[0]).subject).toBe('2 players change position');
     expect(memberTitle(note)).toBe(nameOf(l));
     expect(threads([note])[0].messages).toHaveLength(1);
-  }, 30_000);
+  });
 });
 
 describe('the story of a game', () => {

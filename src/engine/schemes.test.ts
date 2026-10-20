@@ -115,7 +115,7 @@ describe('schemes', () => {
     const teShare = (r: ReturnType<typeof season>) =>
       r.byPos['TE:targets'] / (r.byPos['TE:targets'] + r.byPos['WR:targets']);
     expect(teShare(power)).toBeGreaterThan(teShare(raid) + 0.15);
-  }, 60_000);
+  });
 
   it('credits every sack to a rusher and most to a blocker, and replays the same', () => {
     const { totals } = season(league, 48);
@@ -128,7 +128,7 @@ describe('schemes', () => {
     const g = league.games[0];
     const strip = (r: ReturnType<typeof simulateGame>) => ({ ...r, playerStats: undefined });
     expect(strip(simulateGame(league, g))).toEqual(strip(simulateGame(league, g)));
-  }, 60_000);
+  });
 
   it('lines up the best pass protectors at tackle', () => {
     const team = league.teams[0];

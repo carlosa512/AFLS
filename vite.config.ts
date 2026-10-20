@@ -8,5 +8,11 @@ export default defineConfig(({ mode }) => ({
   plugins: mode === 'single' ? [react(), viteSingleFile()] : [react()],
   base: './',
   build: { outDir: mode === 'single' ? 'dist-single' : 'dist' },
-  test: { include: ['src/**/*.test.{ts,tsx}'], setupFiles: ['src/vitest.setup.ts'] },
+  test: {
+    include: ['src/**/*.test.{ts,tsx}'],
+    setupFiles: ['src/vitest.setup.ts'],
+    // Engine tests build whole leagues and walk seasons: a draft test takes four seconds on an idle
+    // machine and more on a shared CI runner, so vitest's five-second default fails them at random.
+    testTimeout: 120_000,
+  },
 }));

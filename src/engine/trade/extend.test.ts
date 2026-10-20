@@ -54,7 +54,7 @@ function arrival(l: League): { p: Player; buyer: Team } {
   throw new Error('no arrival found');
 }
 
-describe('trade and extend', { timeout: 30_000 }, () => {
+describe('trade and extend', () => {
   it('prices a willing player higher for his buyer, but not what the league would pay', () => {
     const l = fresh();
     const { p, buyer } = arrival(l);
@@ -108,7 +108,7 @@ describe('trade and extend', { timeout: 30_000 }, () => {
   });
 });
 
-describe('tag and trade', { timeout: 30_000 }, () => {
+describe('tag and trade', () => {
   it('puts a seller’s tagged star on the block in the offseason', () => {
     const l = fresh();
     const seller = l.teams.find(
@@ -124,7 +124,7 @@ describe('tag and trade', { timeout: 30_000 }, () => {
   });
 });
 
-describe('dead money in the re-sign window', { timeout: 30_000 }, () => {
+describe('dead money in the re-sign window', () => {
   it('counts the void years about to land when free agency opens', () => {
     const l = fresh();
     const team = l.teams.find((t) => t.id !== l.userTeamId)!;
