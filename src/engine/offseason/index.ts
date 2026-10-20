@@ -27,7 +27,7 @@ import { expireOffers, marketMoment, TRADE_DEADLINE_WEEK } from '../trade';
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
-import { aiFreeAgencyDay, aiResignWindow, aiTrainingCamp } from './ai';
+import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp } from './ai';
 import { aiDraftChoice, draftComplete, draftPlayer, finishDraft, generateDraftClass, nextPick, setDraftOrder, simDraft } from './draft';
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
 
@@ -168,6 +168,9 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
       coachWindowCloses(league, { autoUser: auto });
       medicalWindowCloses(league, { autoUser: auto });
       openFreeAgency(league);
+      // The void years that just accelerated land after the window's compliance pass: an AI team they put
+      // over the cap gets under before the market opens, as the league year demands.
+      for (const team of ai) if (capSpace(league, team.id) < 0) aiCapCompliance(league, team);
       league.phase = 'freeAgency';
       league.faDay = 1;
       break;
