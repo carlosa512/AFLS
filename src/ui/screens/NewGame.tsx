@@ -1,6 +1,4 @@
 import { useMemo, useState } from 'react';
-// Only the version string is bundled: Vite tree-shakes named imports from JSON.
-import { version } from '../../../package.json';
 import { createLeague } from '../../engine/generate';
 import { teamRatings } from '../../engine/roster';
 import { ownerBudgetNote } from '../../engine/staff';
@@ -8,6 +6,7 @@ import { Rating, TeamChip } from '../components';
 import { live } from '../live';
 import { LoadBackupButton } from '../saves';
 import { store } from '../store';
+import { APP_VERSION } from '../version';
 
 export function NewGame() {
   // One preview league so every team's rating is visible before you commit.
@@ -31,7 +30,7 @@ export function NewGame() {
       <main className="wrap" style={{ paddingBlock: '8px 32px', display: 'grid', gap: 24 }}>
         <div className="title-block">
           <span className="eyebrow">
-            {preview.name} · {preview.season} season · v{version}
+            {preview.name} · {preview.season} season · {APP_VERSION}
           </span>
           <h1>
             Take over a <em>franchise.</em>
