@@ -183,7 +183,7 @@ describe('scouting visits', () => {
     expect(knowledge(league, league.userTeamId, prospects[0])).toBeGreaterThan(0.7);
     expect(error()).toBeLessThan(before);
     expect(() => scoutPlayer(league, prospects[20].id)).toThrow(/No scouting visits/);
-  }, 30_000);
+  });
 
   it('records a ratings snapshot each league year', () => {
     const league = createLeague({ seed: 'history' });
@@ -195,7 +195,7 @@ describe('scouting visits', () => {
     const prospect = league.players[league.draftClass[0]];
     expect(prospect.ratingHistory![league.season]).toBeDefined();
     advanceOffseason(league, { autoUser: true });
-  }, 30_000);
+  });
 });
 
 describe('combine', () => {
@@ -304,5 +304,5 @@ describe('last season in the report', () => {
     // Without the snap count (a save from before it was kept), the volume stat stands in.
     for (const p of played) delete p.stats[last].snaps;
     expect(seasonRole(league, qb)!.role).toBe('starter');
-  }, 30_000);
+  });
 });

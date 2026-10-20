@@ -163,7 +163,7 @@ describe('development', () => {
       .filter((p) => p.id !== gone.id && !p.retired && p.teamId !== null)
       .slice(0, 200);
     for (const p of sample) expect(b.players[p.id].ratings).toEqual(p.ratings);
-  }, 30_000);
+  });
 });
 
 describe('retirement and the one aging table', () => {
@@ -221,7 +221,7 @@ describe('temperament', () => {
       return n;
     };
     expect(flags(hot)).toBeGreaterThan(flags(calm) * 1.15);
-  }, 30_000);
+  });
 });
 
 describe('what scouts can say about makeup', () => {

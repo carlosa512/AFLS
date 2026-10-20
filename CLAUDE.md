@@ -13,18 +13,18 @@ roadmap live in `docs/GAME_DESIGN.md`; the market research behind it is in `docs
 
 ## Commands
 
-**Run the smallest check that answers the question; go bigger only when you must.** The full run
-takes 10–20 minutes, and CI runs it on every pull request anyway (one job per check), so locally:
+**CI is the full run; a session runs only what it needs to steer.** Every pull request runs the checks
+its changes call for (one job per check, `.github/workflows/ci.yml`), and every push to main runs them
+all, so a session never runs `npm run check` (quick or full) unless the owner asks for it. Locally:
 
 1. **UI, docs, copy, tests, or anything the sim never reads:** `npm run typecheck` and the tests you
    touched (`npx vitest run <file>`). No sims.
-2. **A change that can move play or numbers** (`src/engine/`): while tuning, the one command for that
-   area (`npm run sim -- 10`, `npm run endings`, or the area's script below) and its unit tests: each
-   takes about a minute and shows how the tweak moves play. Before pushing, `npm run check -- --quick`.
-3. **The full `npm run check`** only when the change is in what the slow three measure, or a number
-   sits near an edge: `audit` for `attributes.ts`, `OVR_WEIGHTS` or how the engine reads ratings;
-   `careers` for `development.ts`, `aging.ts`, `traits.ts`, `coaching.ts` or retirement; `quirks` for
-   `quirks.ts` or a quirk hook. Otherwise let CI run them and read its result on the PR.
+2. **A change that can move play or numbers** (`src/engine/`): the unit tests it touches and, while
+   tuning, the one command for that area at a small size (`npm run sim -- 10`, `npm run endings`, or the
+   area's script below): about a minute each, enough to see which way a tweak moves play. Then push.
+3. **Then read CI on the pull request** and fix what is red before calling the PR ready. A red check on
+   the PR is the PR's job, even when main is red for the same reason; the planner picked that check
+   because the change can move it. Never merge over red: the branch rule on main requires "CI result".
 
 - **`npm run check`** reads what changed (vs `origin/main`, committed or not), runs the checks below
   that the change calls for side by side, and prints one ✓/✗ line each; full logs land in `.check/`.

@@ -1475,7 +1475,9 @@ class GameSim {
           ? this.rng.int(8, 16)
           : t === 'milk'
             ? this.rng.int(coach.MILK_RUNOFF_MIN, 41)
-            : this.rng.int(28, 38),
+            : // 27–38 s between snaps at a normal tempo puts plays a game mid-band (NFL 61–65); at 28–38
+              // the league sat on the floor, and its passing leaders under theirs.
+              this.rng.int(27, 38),
       );
     }
     if (this.clock <= 0 && !this.untimed) return;

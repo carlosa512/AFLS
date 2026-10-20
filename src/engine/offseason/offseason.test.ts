@@ -58,7 +58,7 @@ describe('offseason calendar', () => {
     }
     expect(league.draftClass).toEqual([]);
     expect(league.draftPicks.some((p) => p.season === league.season + 3)).toBe(true);
-  }, 30_000);
+  });
 
   it('is deterministic for a seed', () => {
     const a = fresh();
@@ -66,7 +66,7 @@ describe('offseason calendar', () => {
     simOffseason(a);
     simOffseason(b);
     expect(a.transactions.map((t) => t.text)).toEqual(b.transactions.map((t) => t.text));
-  }, 30_000);
+  });
 });
 
 describe('negotiation', () => {

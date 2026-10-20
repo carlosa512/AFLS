@@ -121,7 +121,7 @@ describe('the AI market', () => {
       expect(capSpace(l, t.id)).toBeGreaterThanOrEqual(0);
       expect(activeRoster(l, t.id).length).toBeLessThanOrEqual(rosterLimit(l));
     }
-  }, 30_000);
+  });
 
   it('keeps a history and rumors, and files each trade under its tag', () => {
     const l = fresh();
@@ -134,7 +134,7 @@ describe('the AI market', () => {
     const ids = l.market!.rumors.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const r of l.market!.rumors) expect(r.teamIds.includes(l.userTeamId)).toBe(false);
-  }, 30_000);
+  });
 
   it('plays the same market from the same seed', () => {
     const run = () => {
@@ -143,7 +143,7 @@ describe('the AI market', () => {
       return l.market?.history ?? [];
     };
     expect(run()).toEqual(run());
-  }, 30_000);
+  });
 
   it('runs on a save from before the market existed', () => {
     const old = fresh() as League;
@@ -154,5 +154,5 @@ describe('the AI market', () => {
     expect(up.version).toBe(SAVE_VERSION);
     expect(() => marketMoment(up, 'week')).not.toThrow();
     expect(up.market).toBeDefined();
-  }, 30_000);
+  });
 });

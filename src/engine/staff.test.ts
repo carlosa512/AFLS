@@ -60,7 +60,7 @@ const errorAndWidth = (league: League, players: Player[]) => {
   return { err: err / players.length, width: width / players.length };
 };
 
-describe('scouting departments', { timeout: 30_000 }, () => {
+describe('scouting departments', () => {
   const league = createLeague({ seed: 'staff' });
 
   it('gives every team a Director and scouts, inside its budget', () => {
@@ -138,7 +138,7 @@ describe('scouting departments', { timeout: 30_000 }, () => {
       }
       expect(inside / total).toBeGreaterThan(0.8);
     }
-  }, 30_000);
+  });
 
   it('keeps the evaluator’s opinion when only the ceiling reader changes', () => {
     const l = offseason('readers');
@@ -210,7 +210,7 @@ describe('scouting departments', { timeout: 30_000 }, () => {
 /** JSON round trip: what a save and reload produces (and a fresh staff index). */
 const createLeagueCopy = (l: League): League => JSON.parse(JSON.stringify(l)) as League;
 
-describe('staff moves', { timeout: 30_000 }, () => {
+describe('staff moves', () => {
   it('only happen in the re-sign window and free agency', () => {
     const l = createLeague({ seed: 'window' });
     const candidate = staffMarket(l)[0];
@@ -361,7 +361,7 @@ describe('AI front offices on their own reads', () => {
     const mean = offBy.reduce((x, y) => x + y, 0) / offBy.length;
     expect(mean).toBeGreaterThan(2);
     expect(mean).toBeLessThan(25);
-  }, 30_000);
+  });
 
   it("misjudge other teams' players in trades only within a narrow band", () => {
     const l = createLeague({ seed: 'band' });
@@ -390,7 +390,7 @@ describe('AI front offices on their own reads', () => {
     // the one that likes him most, as it should, but for at most half his stakes again, not a fantasy price.
     expect(errors.at(-1)!).toBeLessThan(0.5);
     expect(errors[0]).toBeGreaterThan(-1);
-  }, 30_000);
+  });
 
   it('build boards no worse than the consensus, and scout prospects near their own picks', () => {
     const l = offseason('boards');
@@ -414,7 +414,7 @@ describe('AI front offices on their own reads', () => {
     const far = ranked.find((_, i) => slots.every((s) => i + 1 < s - 10 || i + 1 > s + 30) && i > 60 && i < 200)!;
     expect(knowledge(l, team.id, near)).toBeGreaterThan(0.45);
     expect(knowledge(l, team.id, far)).toBeLessThan(0.4);
-  }, 30_000);
+  });
 
   it('keeps AI-only belief helpers out of the screens', () => {
     const dir = new URL('../ui/', import.meta.url);

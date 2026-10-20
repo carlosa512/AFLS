@@ -388,7 +388,7 @@ describe('season flow', () => {
       expect(roster.length).toBeLessThanOrEqual(53);
       for (const pos of POSITIONS) expect(roster.filter((p) => p.position === pos).length).toBeGreaterThanOrEqual(1);
     }
-  }, 30_000);
+  });
 });
 
 describe('coach decisions', () => {
@@ -487,7 +487,7 @@ describe('playoff race', () => {
     }
     // A season of 17 games settles plenty of teams with games to spare.
     expect(early).toBeGreaterThan(8);
-  }, 30_000);
+  });
 });
 
 describe('team season stats', () => {
@@ -510,5 +510,5 @@ describe('team season stats', () => {
       expect(l.games).toBe(r.w + r.l + r.t);
       expect(l.division.w + l.division.l + l.division.t).toBeLessThanOrEqual(l.games);
     }
-  }, 30_000);
+  });
 });

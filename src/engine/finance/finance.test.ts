@@ -121,7 +121,7 @@ describe('team cap', () => {
       }
     }
     expect(league.caps[league.season]).toBeGreaterThan(league.caps[league.season - 2]! * 0.85);
-  }, 60_000);
+  });
 });
 
 describe('save migration', () => {

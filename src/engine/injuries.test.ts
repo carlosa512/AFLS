@@ -455,7 +455,7 @@ describe('the weekly cycle', () => {
     expect(results.every((r) => r.diagnoses === undefined && r.condition === undefined)).toBe(true);
     const healed = results.flatMap((r) => r.injuries ?? []).filter((i) => !league.players[i.playerId].injury);
     expect(healed.some((i) => i.estimate[1] >= 2)).toBe(true);
-  }, 60_000);
+  });
 });
 
 describe('injured reserve', () => {
@@ -488,7 +488,7 @@ describe('injured reserve', () => {
     const q = teamPlayers(league, team.id).find((x) => x.position === 'S' && !x.injury)!;
     q.ir = { season: league.season, week: 1, weeks: IR_MIN_WEEKS };
     expect(activateProblem(league, q)).toMatch(/designations|full/);
-  }, 30_000);
+  });
 
   it('lets AI teams move long injuries to reserve and stay at 53 healthy-enough players', () => {
     const league = fresh();
@@ -498,7 +498,7 @@ describe('injured reserve', () => {
     for (const p of onIr) expect(p.teamId).not.toBeNull();
     for (const team of league.teams)
       if (team.id !== league.userTeamId) expect(activeRoster(league, team.id).length).toBeLessThanOrEqual(53);
-  }, 30_000);
+  });
 });
 
 describe('careers', () => {

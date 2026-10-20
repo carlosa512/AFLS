@@ -61,6 +61,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 30) toV30(league);
   if (league.version < 31) toV31(league);
   if (league.version < 32) league.version = 32; // v32: optional `dev` on players (a year of development still landing) and `idle` on market coaches, scouts and medics, nothing to fill in
+  if (league.version < 33) toV33(league);
   return league;
 }
 
@@ -247,6 +248,12 @@ function toV11(league: League) {
  * versatility trait, rolled from each player's own seed after the others, so he gets what a new league
  * would give him.
  */
+/** v33: a retired player drops the ratings-by-year log (retirement now does this), so old saves shrink too. */
+function toV33(league: League) {
+  for (const p of Object.values(league.players)) if (p.retired) delete p.ratingHistory;
+  league.version = 33;
+}
+
 function toV31(league: League) {
   for (const p of Object.values(league.players))
     if (p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;

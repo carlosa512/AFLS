@@ -33,7 +33,7 @@ beforeAll(() => {
   const l = createLeague({ seed: 'trades-0' });
   while (l.week <= 9 && packaged(l).length === 0) playWeek(l);
   base = JSON.stringify(l);
-}, 60_000);
+});
 
 describe('offers to you', () => {
   it('arrive on autopilot and lapse when you play on, never accepted for you', () => {
@@ -48,7 +48,7 @@ describe('offers to you', () => {
     // Nothing of yours moved because of them.
     expect(open.every((o) => o.sides[1].players.every((id) => l.players[id].teamId === l.userTeamId))).toBe(true);
     expect(roster.length).toBeGreaterThan(0);
-  }, 30_000);
+  });
 
   it('never asks for an Untouchable', () => {
     const l = fresh();
@@ -60,7 +60,7 @@ describe('offers to you', () => {
     expect(untouchables(tradeContext(l), l.teams[l.userTeamId]).size).toBe(
       ids.filter((id) => l.players[id].teamId === l.userTeamId).length,
     );
-  }, 30_000);
+  });
 
   it('accepts as offered, re-checked, and leaves both rosters legal', () => {
     const l = fresh();
@@ -99,7 +99,7 @@ describe('offers to you', () => {
       (o) => o.teamId === offer.teamId && o.sides[1].players.some((id) => offer.sides[1].players.includes(id)),
     );
     for (const o of again) expect(o.worth).toBeGreaterThanOrEqual(offer.worth * 1.1);
-  }, 30_000);
+  });
 
   it('runs out of patience: a counter he refuses at his final offer ends talks', () => {
     const l = fresh();
@@ -169,7 +169,7 @@ describe('offers to you', () => {
     answerEnquiry(l, enquiry.id, 'notForSale');
     const pid = enquiry.sides[1].players[0];
     expect(l.market!.talks[enquiry.teamId].cooldowns[pid].until).toBe(l.market!.moment + 6);
-  }, 60_000);
+  });
 
   it('files a message for each open offer that needs you until it lapses', () => {
     const l = fresh();
@@ -181,7 +181,7 @@ describe('offers to you', () => {
     expect(mail.body).not.toMatch(/\d+\.\d/);
     playWeek(l);
     expect(needsYou(l, mail)).toBe(false);
-  }, 30_000);
+  });
 
   it('loads a save from before offers', () => {
     const old = copy(fresh()) as League;

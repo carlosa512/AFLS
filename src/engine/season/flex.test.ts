@@ -58,4 +58,4 @@ describe('flexible scheduling', () => {
     const up = migrateLeague(old)!;
     expect(up.games.filter((g) => g.season === up.season).every((g) => g.kickoff)).toBe(true);
   });
-}, 60_000);
+});

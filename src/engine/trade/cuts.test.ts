@@ -65,7 +65,7 @@ describe('trades before a cut', () => {
   });
 });
 
-describe('future-for-current pick swaps', { timeout: 30_000 }, () => {
+describe('future-for-current pick swaps', () => {
   it("trades a win-now GM's pick next year for this year's a round later, before the draft", () => {
     const l = fresh();
     simToEndOfSeason(l);

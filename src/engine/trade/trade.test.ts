@@ -249,7 +249,7 @@ describe('trade rules and execution', () => {
     playWeek(l);
     expect(isDeadlineDay(l)).toBe(false);
     expect(tradeProblem(l, swap())).toMatch(/deadline/);
-  }, 30_000);
+  });
 
   it('hides the wait on new signings: each GM has his own, says it in words, and nothing is greyed out', () => {
     const l = fresh();
@@ -354,5 +354,5 @@ describe('value v2', () => {
       return l.transactions.filter((t) => t.kind === 'trade').map((t) => t.text);
     };
     expect(trades()).toEqual(trades());
-  }, 30_000);
+  });
 });

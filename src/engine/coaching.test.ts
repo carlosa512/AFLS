@@ -229,11 +229,11 @@ describe('what coaches do for players', () => {
     expect(strong.draftClass.map((id) => strong.players[id].ratings)).toEqual(
       weak.draftClass.map((id) => weak.players[id].ratings),
     );
-  }, 30_000);
+  });
 });
 
-// These play a season first (`offseason`): 30 s, like the file's other season tests, so a busy machine doesn't time them out.
-describe('coaching staffs and moves', { timeout: 30_000 }, () => {
+// These play a season first (`offseason`).
+describe('coaching staffs and moves', () => {
   it('gives every team a full staff inside its budget, and the user a typical one', () => {
     const l = createLeague({ seed: 'staffs' });
     for (const team of l.teams) {
@@ -316,7 +316,7 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
       /expiring/,
     );
     expect(() => releaseCoach(l, user, teamCoaches(l, (user + 1) % 32)[0].id)).toThrow();
-  }, 30_000);
+  });
 
   it('refuses what the budget can’t cover, counting what a replacement frees', () => {
     const l = offseason('coach-budget');
@@ -523,10 +523,10 @@ describe('coaching staffs and moves', { timeout: 30_000 }, () => {
       }
     }
     expect(fired).toBeGreaterThan(0);
-  }, 120_000);
+  });
 });
 
-describe('the coaching carousel', { timeout: 30_000 }, () => {
+describe('the coaching carousel', () => {
   it('moves a coach one rung up: a position coach to his side’s coordinator, a coordinator to head coach', () => {
     expect(promotionFor({ role: 'positionCoach', room: 'QB' })).toEqual({ role: 'offCoord' });
     expect(promotionFor({ role: 'positionCoach', room: 'DB' })).toEqual({ role: 'defCoord' });
@@ -662,7 +662,7 @@ describe('owners', () => {
     expect(coachMoveProblem(l, user, pick, 'hire')).toMatch(/your owner will add/);
     l.teams[user].coachOverspent = l.season - 1;
     expect(ownerLeeway(l, user, { role: 'headCoach' })).toMatchObject({ amount: 0, reason: 'lastYear' });
-  }, 30_000);
+  });
 
   it('upgrades older saves: owners from their markets, and an empty archive of retired coaches', () => {
     const l = createLeague({ seed: 'owners-v14' });
@@ -696,7 +696,7 @@ describe('coaches who leave football', () => {
     expect(kept.since).toBeUndefined();
     expect(coachRecord(l, kept)).toEqual(record);
     expect(l.retiredCoaches[unknown.id]).toBeUndefined();
-  }, 30_000);
+  });
 });
 
 describe('play-calling style', () => {
@@ -796,7 +796,7 @@ describe('play-calling style', () => {
     const lo = tally(styled(-1));
     expect(hi.pass).toBeGreaterThan(lo.pass + 0.04);
     expect(hi.fourth).toBeGreaterThan(lo.fourth);
-  }, 30_000);
+  });
 });
 
 describe('save migration to v6', () => {
@@ -831,7 +831,7 @@ describe('save migration to v6', () => {
       for (const c of teamCoaches(up, t.id)) expect(c.contract!.through).toBeGreaterThanOrEqual(up.season);
     }
     expect(up.rngState).toEqual(league.rngState);
-  }, 30_000);
+  });
 });
 
 describe('special teams coordinator', () => {
