@@ -10,6 +10,7 @@ import { capSheet } from './finance/cap';
 import { isExpired } from './finance/contract';
 import { activeRoster, teamPlayers } from './roster';
 import { playoffGames } from './season/playoffs';
+import { generateSchedule } from './season/schedule';
 import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { computeRecords, conferenceSeeds, divisionStandings, playoffRace, sortTeams } from './season/standings';
 import { teamSeasonStats } from './stats';
@@ -93,6 +94,35 @@ describe('league generation', () => {
     }
     // The last week is all division games.
     for (const g of league.games.filter((x) => x.week === 18)) expect(league.teams[g.homeId].division).toBe(league.teams[g.awayId].division);
+  });
+
+  it('keeps the NFL’s scheduling rules whatever the season and last year’s finish', () => {
+    for (const seed of ['rules-a', 'rules-b', 'rules-c']) {
+      const l = createLeague({ seed });
+      for (const season of [l.season, l.season + 1]) {
+        const rng = new Rng(`${seed}:${season}`);
+        // The order beginOffseason passes: each division's teams by last season's finish.
+        const order = l.divisions.map((_, d) => rng.shuffle(l.teams.filter((t) => t.division === d).map((t) => t.id)));
+        const games = generateSchedule({ ...l, season }, rng, order);
+        expect(games).toHaveLength(272);
+        for (let week = 1; week <= 18; week++) {
+          const off = 32 - 2 * games.filter((g) => g.week === week).length;
+          // Byes in weeks 5–14 only, two to six teams a week.
+          if (week >= 5 && week <= 14) expect([2, 4, 6]).toContain(off);
+          else expect(off).toBe(0);
+        }
+        for (const team of l.teams) {
+          const mine = games.filter((g) => g.homeId === team.id || g.awayId === team.id).sort((a, b) => a.week - b.week);
+          expect(mine).toHaveLength(17);
+          // Never a third road game in a row, a bye in between or not.
+          let road = 0;
+          for (const g of mine) {
+            road = g.awayId === team.id ? road + 1 : 0;
+            expect(road).toBeLessThan(3);
+          }
+        }
+      }
+    }
   });
 
   it('gives every game a kickoff: a Thursday, Sunday and Monday night game a week, western hosts never at 1:00', () => {
