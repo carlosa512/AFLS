@@ -31,9 +31,8 @@
 import { declineOnset } from './aging';
 import { capSpace, logTransaction, paidFraction } from './finance/cap';
 import { lastSeason } from './finance/contract';
-import { topMinimum } from './finance/market';
 import { conditionBonus, departmentFor, diagnosisSpread, preventionMultiplier, recoveryMultiplier, TYPICAL, type Department } from './medical';
-import { aiCapCompliance, aiCutdown, KEEP_MIN, signMinimum } from './offseason/ai';
+import { aiCapCompliance, aiCutdown, KEEP_MIN, minimumFits, signMinimum } from './offseason/ai';
 import { ROSTER_MAX } from './offseason/negotiation';
 import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
@@ -1024,10 +1023,10 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[]):
     // Room on the roster and nobody short: fill the spot where depth is thinnest against a full roster.
     const pos = short ?? POSITIONS.map((p) => ({ p, gap: (healthy.get(p) ?? 0) - KEEP_MIN[p] })).sort((a, b) => a.gap - b.gap)[0].p;
     // Only a deal that fits under the cap: a team out of room plays short-handed (the lineup borrows a fill-in).
-    // It needs room for any minimum (a street free agent's rises with his years) before it cuts a man to make
-    // a spot, or it would release him for a signing it can't make and leave the street player on the market.
+    // It makes sure a signing fits before it cuts a man to make a spot, or it would release him for a deal it
+    // can't make (and leave a street free agent it can't afford on the market).
     const room = roomForMinimum(league, team);
-    if (room < topMinimum(league.caps[league.season])) return;
+    if (!minimumFits(league, pos, room)) return;
     if (!open && !cutForRoom(league, team, pos)) return;
     if (!signMinimum(league, team, rng, pos, room)) return;
   }
