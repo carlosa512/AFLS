@@ -4,7 +4,7 @@
  * at the league after each change and files whatever is new, each message keyed by what it's about,
  * so delivering twice (or after a long sim) never duplicates one.
  */
-import { AWARD_KEYS, AWARD_NAMES, HONOR_SLOTS, MONTHS, playerOfTheGame, seasonAwards, weeklyAwards, type AwardWinner } from './awards';
+import { AWARD_KEYS, AWARD_NAMES, HONOR_SLOTS, honorBadges, MONTHS, playerHonors, playerOfTheGame, seasonAwards, weeklyAwards, type AwardWinner } from './awards';
 import { CHAIRS, chairHolder, coachName, coachResignForecast, coachTitle, isCoachExpiring, ownerLeeway, ownerTrigger, ownerTriggerNote, promotionFor, sameChair, teamCoaches, type Chair } from './coaching';
 import { capSpace } from './finance/cap';
 import { concussionCount, concussionRetireChance, concussionWindow, delegates, estimateText, injuryLabel, outlookText, weeksLeft } from './injuries';
@@ -13,15 +13,16 @@ import { isMedicExpiring, MEDIC_ROLE_LABEL, medicResignForecast, teamMedics } fr
 import { expiringPlayers } from './offseason/ai';
 import { draftComplete, reachOrSteal } from './offseason/draft';
 import { rookieCost } from './offseason/negotiation';
-import { leaguePercentile, perceive } from './scouting';
+import { knowledge, leaguePercentile, perceive, scoutReportParts } from './scouting';
 import { starters, teamPlayers } from './roster';
 import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { ROUND_NAMES } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { computeRecords, conferenceSeeds, playoffRace, type RaceStatus } from './season/standings';
 import { isExpiring, ownerBudgetNote, resignForecast, ROLE_LABEL, staffWindowOpen, teamStaff } from './staff';
+import { careerLine } from './stats';
 import { isDeadlineDay, openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './trade';
-import type { Coach, CoachRole, CoachRoom, InboxMessage, League, Phase, Player, Position, Team, TradeOffer, TradeSide } from './types';
+import type { Coach, CoachRole, CoachRoom, GameResult, InboxMessage, League, Phase, Player, Position, StatLine, Team, TeamGameStats, TradeOffer, TradeSide } from './types';
 
 /** Saves keep the latest messages only, like the transaction log. */
 const KEEP = 300;
@@ -47,6 +48,8 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const nth = (n: number) => ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][n - 1] ?? `${n}th`;
 /** A small count in words, the way a sentence starts with one ("Two of them…"). */
 const count = (n: number) => ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'][n] ?? String(n);
+/** "seven" up to nine, digits past that: how a coach says a number mid-sentence. */
+const small = (n: number) => count(n).toLowerCase();
 const list = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -210,11 +213,31 @@ function newYearMail(league: League, have: Set<string>): Draft[] {
       body:
         concussionRetireChance(p, season) > 0
           ? `After ${plural(p.experience, 'season')} in the league and ${concussionCount(p)} concussions, I've decided my health has to come first. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`
-          : `After ${plural(p.experience, 'season')} in the league, I've decided it's time to hang up my cleats. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`,
+          : `After ${plural(p.experience, 'season')} in the league${careerWords(league, p)}, I've decided it's time to hang up my cleats. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`,
       actions: [{ kind: 'player', playerId: p.id }],
     });
   }
   return out;
+}
+
+/**
+ * What a career added up to, for a retirement letter (", 38,412 passing yards and 241 touchdowns,
+ * and two All-League teams"): his totals by position and his honors, or nothing when neither says much.
+ */
+function careerWords(league: League, p: Player): string {
+  const s = careerLine(p);
+  const n = (k: keyof StatLine) => (s[k] as number | undefined) ?? 0;
+  const big = (x: number) => x.toLocaleString('en-US');
+  let totals = '';
+  if (p.position === 'QB' && n('passYds') >= 5000) totals = `${big(n('passYds'))} passing yards and ${plural(n('passTd'), 'touchdown')}`;
+  else if (p.position === 'RB' && n('rushYds') >= 2000) totals = `${big(n('rushYds'))} rushing yards and ${plural(n('rushTd'), 'touchdown')}`;
+  else if ((p.position === 'WR' || p.position === 'TE') && n('rec') >= 150) totals = `${big(n('rec'))} catches for ${big(n('recYds'))} yards`;
+  else if (['DT', 'EDGE'].includes(p.position) && n('sacks') >= 20) totals = `${n('sacks') % 1 ? n('sacks').toFixed(1) : n('sacks')} sacks`;
+  else if (['LB', 'CB', 'S'].includes(p.position) && n('tackles') >= 300) totals = `${big(n('tackles'))} tackles${n('defInt') >= 5 ? ` and ${plural(n('defInt'), 'interception')}` : ''}`;
+  const honors = honorBadges(playerHonors(league, p.id)).filter((h) => h.label !== 'Player of the Week' && h.label !== 'Player of the Month');
+  const honored = honors.length ? list(honors.slice(0, 2).map((h) => `${small(h.seasons.length)} ${h.label} honor${h.seasons.length === 1 ? '' : 's'}`)) : '';
+  if (!totals && !honored) return '';
+  return `, ${[totals, honored].filter(Boolean).join(', and ')},`;
 }
 
 /** The combine report, the day free agency opens: as in the NFL, the combine wraps up just before it. */
@@ -262,8 +285,16 @@ function draftClassMail(league: League, have: Set<string>): Draft[] {
   const picks = draftClassOf(league, league.season);
   if (have.has(id) || !picks.length) return [];
   const first = picks[0];
-  const steals = picks.filter((p) => reachOrSteal(p.draft!) === 'steal').length;
-  const value = !steals ? '' : steals === 1 ? ' One of them came well after where the consensus had him.' : ` ${count(steals)} of them came well after where the consensus had them.`;
+  const rank = first.draft!.rank;
+  const consensus = rank === undefined ? '' : rank === first.draft!.pick ? ' (right where the consensus had him)' : ` (the consensus had him at No. ${rank})`;
+  const steals = picks.filter((p) => reachOrSteal(p.draft!) === 'steal');
+  const reaches = picks.filter((p) => reachOrSteal(p.draft!) === 'reach');
+  const value = !steals.length ? '' : steals.length === 1 ? ` ${steals[0].position} ${fullName(steals[0])} came well after where the consensus had him: the value pick of our class.` : ` ${count(steals.length)} of them came well after where the consensus had them.`;
+  const board = !reaches.length ? '' : reaches.length === 1 ? ` We took ${reaches[0].position} ${fullName(reaches[0])} well ahead of the consensus: our board had him higher than the room did.` : ` ${count(reaches.length)} of them went well ahead of the consensus: our board, not the room's.`;
+  // The one our own scouts rate highest for where he could end up (our own players: exact today, the ceiling still a judgment).
+  const favorite = picks.length > 1 ? [...picks].sort((a, b) => perceive(league, league.userTeamId, b).potMid - perceive(league, league.userTeamId, a).potMid)[0] : first;
+  const verdict = lowerFirst(scoutReportParts(league, league.userTeamId, favorite).verdict);
+  const liked = ` Our scouts like ${favorite.position} ${fullName(favorite)} most of all: ${verdict}`;
   return [
     {
       id,
@@ -273,11 +304,12 @@ function draftClassMail(league: League, have: Set<string>): Draft[] {
       ...director(league),
       category: 'scouting',
       subject: `Our ${league.season} draft class`,
-      body: `We made ${plural(picks.length, 'pick')}, starting with ${first.position} ${fullName(first)} at No. ${first.draft!.pick}.${value}`,
+      body: `We made ${plural(picks.length, 'pick')}, starting with ${first.position} ${fullName(first)} at No. ${first.draft!.pick}${consensus}.${value}${board}${liked}`,
       actions: [{ kind: 'draft' }],
     },
   ];
 }
+const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 /** Each position group's starters as our scouts read them, as a league percentile (0–1): what the opposition report's card shows. */
 export function unitReads(league: League, teamId: number): { title: string; score: number }[] {
@@ -427,7 +459,42 @@ function groupScore(league: League, team: Team, positions: Position[]): number {
   return players.reduce((s, x) => s + x, 0) / Math.max(1, players.length);
 }
 
-/** The head coach's opposition report for this week's game, built on our scouts' read of their starters. */
+/** How well our scouts know a team's starters in a position group (0–1). */
+function groupKnowledge(league: League, team: Team, positions: Position[]): number {
+  const ks = positions.flatMap((pos) => starters(league, team, pos).map((p) => knowledge(league, league.userTeamId, p)));
+  return ks.reduce((s, x) => s + x, 0) / Math.max(1, ks.length);
+}
+
+/**
+ * What a soft unit means for us, and what a strong one costs us, by group: where the chances should
+ * be, never a plan the sim doesn't run.
+ */
+const OPENING: Record<string, string> = {
+  Quarterback: 'there are mistakes to be had from their quarterback if we get to him',
+  Backfield: 'they should struggle to run it, which puts the game on their quarterback',
+  Receivers: 'their receivers should not trouble our secondary much',
+  'Offensive line': 'there should be pressure to be had up front',
+  'Defensive front': 'there should be room to run and time to throw',
+  Linebackers: 'the middle of their defense is where they are thinnest',
+  Secondary: 'there may be opportunities downfield',
+};
+const CATCH: Record<string, string> = {
+  Quarterback: 'he can punish any mistake in coverage',
+  Backfield: 'their back can carry a game if we let him get going',
+  Receivers: 'their receivers will test our secondary all day',
+  'Offensive line': 'pressure will be hard to come by',
+  'Defensive front': "we'll need to give the quarterback time",
+  Linebackers: 'their linebackers will make the middle of the field a hard place to work',
+  Secondary: 'the deep ball will be a hard sell',
+};
+/** Below this gap between their best and worst units (league percentile), no unit stands out either way. */
+const EVEN_UNITS = 0.12;
+
+/**
+ * The head coach's opposition report for this week's game: a briefing on our scouts' read of their
+ * starters. Where they look soft and what that opens up, their best unit and what it costs us,
+ * said with the confidence the read allows: decisive when we know them, qualified when we don't.
+ */
 function matchupMail(league: League, have: Set<string>): Draft[] {
   const game = userGame(league);
   const id = `matchup:${league.season}:${league.week}`;
@@ -435,10 +502,19 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
   const home = game.homeId === league.userTeamId;
   const opp = league.teams[home ? game.awayId : game.homeId];
   const ranked = GROUPS.map((g) => ({ g, score: groupScore(league, opp, g.positions) })).sort((a, b) => a.score - b.score);
-  const weak = ranked[0].g;
-  const strong = ranked[ranked.length - 1].g.phrase;
+  const weak = ranked[0];
+  const strong = ranked[ranked.length - 1];
+  const known = (groupKnowledge(league, opp, weak.g.positions) + groupKnowledge(league, opp, strong.g.positions)) / 2 >= 0.7;
   const occasion = game.playoffRound ? `the ${ROUND_NAMES[game.playoffRound]}` : `week ${league.week}`;
   const where = game.neutral ? 'on a neutral field' : home ? 'at home' : 'on the road';
+  const opener = `We face the ${teamName(opp)} ${where} in ${occasion}.`;
+  let read: string;
+  if (strong.score - weak.score < EVEN_UNITS) read = `${known ? 'Our scouts grade their units about even: there is no obvious soft spot' : "On what our scouts have seen, there is no obvious soft spot: they look about even across the board"}, so this one will come down to who executes.`;
+  else {
+    const soft = known ? `Our scouts see their ${weak.g.phrase} as the softest unit they have` : `On what our scouts have seen, their ${weak.g.phrase} ${weak.g.plural ? 'look' : 'looks'} like the softest unit they have`;
+    const best = `their ${strong.g.phrase} ${strong.g.plural ? 'are' : 'is'} the strength of the team`;
+    read = `${soft}, while ${best}. ${capital(OPENING[weak.g.title])}, but ${CATCH[strong.g.title]}.`;
+  }
   return [
     {
       id,
@@ -448,7 +524,7 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
       ...headCoach(league),
       category: 'matchup',
       subject: `Opposition report: ${teamName(opp)}`,
-      body: `We face the ${teamName(opp)} ${where} in ${occasion}. Their ${weak.phrase} ${weak.plural ? 'are' : 'is'} the soft spot, and that's where we'll go after them. Respect their ${strong}: it's the best unit they have.`,
+      body: `${opener} ${read}`,
       actions: [{ kind: 'team', teamId: opp.id }],
     },
   ];
@@ -535,7 +611,93 @@ function offerMail(league: League, have: Set<string>): Draft[] {
 const lower = (s: string) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
-/** The head coach's word after our latest game: the score, the yards, the player of the game. One game only, so a long sim doesn't bury the inbox. */
+const sum = (xs: readonly number[], from: number, to: number) => xs.slice(from, to).reduce((a, b) => a + (b ?? 0), 0);
+
+/** Touchdowns from trips inside the 20, for a side that had a few: the one place a box score shows a game turning on finishing. */
+const redZone = (t: TeamGameStats) => `${t.redZoneTd} touchdown${t.redZoneTd === 1 ? '' : 's'} from ${t.redZoneAtt} trips inside the 20`;
+
+/**
+ * What the box score says about how the game went, from `home`'s side: a clause on the halftime
+ * swing for the result sentence ("after trailing by seven at halftime"), and the one sentence that
+ * best explains the result. Chosen in order of what decides games (a comeback or a lead let go, the
+ * turnover battle, control from start to finish, a result against the yardage, a defense that shut
+ * the door, a game that stayed close), and every claim read off the quarters and team stats: a
+ * routine game gets the yards and nothing more.
+ */
+export function gameStory(r: GameResult, home: boolean): { swing: string; takeaway: string } {
+  const [us, them] = home ? [r.homeScore, r.awayScore] : [r.awayScore, r.homeScore];
+  const [ours, theirs] = home ? [r.home, r.away] : [r.away, r.home];
+  const [usQ, themQ] = home ? [r.quarters.home, r.quarters.away] : [r.quarters.away, r.quarters.home];
+  const [usHalf, themHalf] = [sum(usQ, 0, 2), sum(themQ, 0, 2)];
+  // Everything after the break, overtime included.
+  const [us2, them2] = [us - usHalf, them - themHalf];
+  const won = us > them;
+  const lost = us < them;
+  const margin = Math.abs(us - them);
+  const [give, take] = [ours.turnovers, theirs.turnovers];
+  const yds = ours.totalYds - theirs.totalYds;
+  const outgained = yds <= -60;
+  const outgaining = yds >= 60;
+  // Ahead at the end of every quarter (the end of the game counts for the last one).
+  const ledThroughout = (a: readonly number[], b: readonly number[]) => [1, 2, 3].every((q) => sum(a, 0, q) > sum(b, 0, q)) && a.reduce((x, y) => x + y, 0) > b.reduce((x, y) => x + y, 0);
+  const yards = ours.totalYds >= theirs.totalYds ? `We outgained them ${ours.totalYds} yards to ${theirs.totalYds}${ours.top >= 33 * 60 ? ` and held the ball for ${clock(ours.top)}` : ''}.` : `They outgained us ${theirs.totalYds} yards to ${ours.totalYds}.`;
+
+  let swing = '';
+  if (won && usHalf < themHalf) swing = ` after trailing by ${small(themHalf - usHalf)} at halftime`;
+  else if (lost && usHalf > themHalf) swing = ` after leading by ${small(usHalf - themHalf)} at halftime`;
+
+  let takeaway: string;
+  if (swing && won) takeaway = `We outscored them ${us2}–${them2} after the break${take - give >= 2 ? `, and ${small(take)} takeaways helped turn it around` : ''}${outgained ? ', despite being outgained on the day' : ''}.`;
+  else if (swing && lost) takeaway = `They outscored us ${them2}–${us2} after the break${give - take >= 2 ? `, and our ${small(give)} turnovers gave them the chances` : ''}${outgaining ? ', even though we moved the ball better' : ''}.`;
+  else if (won && take - give >= 2) takeaway = `We won the turnover battle ${take}–${give}, and that decided it${outgained ? `: they outgained us ${theirs.totalYds} yards to ${ours.totalYds}` : ''}.`;
+  else if (lost && give - take >= 2) takeaway = outgaining ? `We moved the ball better than they did, but ${small(give)} turnovers cost us possessions and left too little room for error.` : `We lost the turnover battle ${give}–${take}, and that is where the game went.`;
+  else if (margin >= 21 && won && ledThroughout(usQ, themQ) && yds >= 0) takeaway = `We controlled it from start to finish: ${ours.totalYds} yards to ${theirs.totalYds}${ours.top >= 33 * 60 ? ` and ${clock(ours.top)} of possession` : ''}.`;
+  else if (margin >= 21 && lost && ledThroughout(themQ, usQ) && yds <= 0) takeaway = `They controlled it from start to finish: ${theirs.totalYds} yards to ${ours.totalYds}.`;
+  else if (won && outgained) {
+    const why = ours.redZoneAtt >= 2 && ours.redZoneTd / ours.redZoneAtt >= 0.6 ? `we cashed in ${redZone(ours)}` : theirs.redZoneAtt >= 3 && theirs.redZoneTd / theirs.redZoneAtt <= 0.34 ? `we held them to ${redZone(theirs)}` : 'we got the points when it mattered';
+    takeaway = `They outgained us ${theirs.totalYds} yards to ${ours.totalYds}, but ${why}.`;
+  } else if (lost && outgaining) takeaway = `We outgained them ${ours.totalYds} yards to ${theirs.totalYds} but ${ours.redZoneAtt >= 3 && ours.redZoneTd / ours.redZoneAtt <= 0.34 ? `came away with only ${redZone(ours)}` : 'could not turn the yards into points'}.`;
+  else if (!lost && themHalf >= 14 && them2 <= 3) takeaway = `The defense shut the door after halftime: ${them2 === 0 ? 'nothing' : `${small(them2)} points`} allowed after the break.`;
+  else if (margin <= 3 && !r.overtime && Math.abs(sum(usQ, 0, 3) - sum(themQ, 0, 3)) <= 8) takeaway = 'A one-score game all through the fourth quarter.';
+  else if (r.overtime) takeaway = 'Neither side could put it away in regulation.';
+  else takeaway = yards;
+  return { swing, takeaway };
+}
+
+/** A player's game in a few words, by position ("3 catches for 71 yards"), or nothing when his line has no number worth saying. */
+export function statBlurb(p: Player, s: StatLine): string {
+  const n = (k: keyof StatLine) => (s[k] as number | undefined) ?? 0;
+  const td = (k: keyof StatLine) => (n(k) ? ` and ${plural(n(k), 'touchdown')}` : '');
+  switch (p.position) {
+    case 'QB':
+      return n('passAtt') ? `${n('passYds')} yards passing${td('passTd')}${n('passInt') >= 2 ? `, with ${plural(n('passInt'), 'interception')}` : ''}` : '';
+    case 'RB':
+      return n('rushAtt') ? `${n('rushYds')} yards on ${n('rushAtt')} ${n('rushAtt') === 1 ? 'carry' : 'carries'}${td('rushTd')}` : '';
+    case 'WR':
+    case 'TE':
+      return n('rec') ? `${n('rec')} ${n('rec') === 1 ? 'catch' : 'catches'} for ${n('recYds')} yards${td('recTd')}` : '';
+    case 'K':
+      return n('fgAtt') ? `${n('fgMade')} of ${n('fgAtt')} field goals` : '';
+    case 'OL':
+    case 'P':
+      return '';
+    default: {
+      const sacks = n('sacks');
+      const parts = [
+        sacks ? `${sacks % 1 ? sacks.toFixed(1) : sacks} sack${sacks === 1 ? '' : 's'}` : '',
+        n('defInt') ? plural(n('defInt'), 'interception') : '',
+        n('forcedFum') ? plural(n('forcedFum'), 'forced fumble') : '',
+        n('tackles') ? plural(n('tackles'), 'tackle') : '',
+      ].filter(Boolean);
+      return list(parts.slice(0, 2));
+    }
+  }
+}
+
+/**
+ * The head coach's word after our latest game: the score, the one thing that decided it, and the
+ * player of the game with his line. One game only, so a long sim doesn't bury the inbox.
+ */
 function recapMail(league: League, have: Set<string>): Draft[] {
   const user = league.userTeamId;
   const game = league.games
@@ -545,20 +707,17 @@ function recapMail(league: League, have: Set<string>): Draft[] {
   const r = game.result!;
   const home = game.homeId === user;
   const [us, them] = home ? [r.homeScore, r.awayScore] : [r.awayScore, r.homeScore];
-  const [ours, theirs] = home ? [r.home, r.away] : [r.away, r.home];
   const me = league.teams[user];
   const opp = league.teams[home ? game.awayId : game.homeId];
   const where = game.neutral ? 'on a neutral field' : home ? 'at home' : 'on the road';
   const when = `${where}${game.playoffRound ? ` in the ${ROUND_NAMES[game.playoffRound]}` : ''}${r.overtime ? ' in overtime' : ''}`;
   const score = `${Math.max(us, them)}–${Math.min(us, them)}`;
-  const result = us > them ? `We beat the ${teamName(opp)} ${score} ${when}.` : us < them ? `We lost to the ${teamName(opp)} ${score} ${when}.` : `We tied the ${teamName(opp)} ${score} ${when}.`;
-  const yards =
-    ours.totalYds >= theirs.totalYds
-      ? ` We outgained them ${ours.totalYds} yards to ${theirs.totalYds}${ours.top >= 33 * 60 ? ` and held the ball for ${clock(ours.top)}` : ''}.`
-      : ` They outgained us ${theirs.totalYds} yards to ${ours.totalYds}.`;
+  const { swing, takeaway } = gameStory(r, home);
+  const result = us > them ? `We beat the ${teamName(opp)} ${score} ${when}${swing}.` : us < them ? `We lost to the ${teamName(opp)} ${score} ${when}${swing}.` : `We tied the ${teamName(opp)} ${score} ${when}.`;
   const star = playerOfTheGame(league, game);
   const p = star !== null ? league.players[star] : undefined;
-  const potg = !p ? '' : r.playerTeams[p.id] === user ? ` ${fullName(p)} was the player of the game.` : ` Their ${p.position} ${fullName(p)} was the player of the game.`;
+  const line = p ? statBlurb(p, r.playerStats[p.id] ?? {}) : '';
+  const potg = !p ? '' : ` ${r.playerTeams[p.id] === user ? fullName(p) : `Their ${p.position} ${fullName(p)}`} was the player of the game${line ? `, with ${line}` : ''}.`;
   const [win, lose] = us >= them ? [{ team: me, pts: us }, { team: opp, pts: them }] : [{ team: opp, pts: them }, { team: me, pts: us }];
   return [
     {
@@ -569,7 +728,7 @@ function recapMail(league: League, have: Set<string>): Draft[] {
       ...headCoach(league),
       category: 'matchup',
       subject: `Game recap: ${win.team.name} ${win.pts}, ${lose.team.name} ${lose.pts}`,
-      body: `${result}${yards}${potg}`,
+      body: `${result} ${takeaway}${potg}`,
       actions: [{ kind: 'game', gameId: game.id }],
     },
   ];
@@ -674,6 +833,8 @@ function marketRecapMail(league: League, have: Set<string>): Draft[] {
   const day = deadlineDayTrades(league, season).length;
   const division = league.teams[league.userTeamId].division;
   const rivals = all.filter((t) => t.teamIds.some((id) => id !== league.userTeamId && league.teams[id].division === division)).length;
+  const ours = all.filter((t) => t.teamIds.includes(league.userTeamId)).length;
+  const stood = ours ? ` We made ${ours === 1 ? 'one of them' : `${small(ours)} of them`}.` : ' We stood pat.';
   return [
     {
       id,
@@ -683,7 +844,7 @@ function marketRecapMail(league: League, have: Set<string>): Draft[] {
       ...director(league),
       category: 'trades',
       subject: 'Deadline recap',
-      body: `The trade deadline has passed. ${count(all.length)} trade${all.length === 1 ? '' : 's'} went through this season, ${day ? `${count(day).toLowerCase()} of them on deadline day` : 'none of them on deadline day'}.${rivals ? ` ${rivals === 1 ? 'One involved' : `${count(rivals)} involved`} a division rival.` : ''} Rosters are set until the new league year.`,
+      body: `The trade deadline has passed. ${count(all.length)} trade${all.length === 1 ? '' : 's'} went through this season, ${day ? `${count(day).toLowerCase()} of them on deadline day` : 'none of them on deadline day'}.${stood}${rivals ? ` ${rivals === 1 ? 'One involved' : `${count(rivals)} involved`} a division rival.` : ''} Rosters are set until the new league year.`,
       actions: [{ kind: 'trades' }],
     },
   ];
@@ -1058,6 +1219,13 @@ function faWrapMail(league: League, have: Set<string>): Draft[] {
   const signed = fa.signed.length ? `We signed ${plural(fa.signed.length, 'free agent')}` : 'We signed no free agents';
   const kept = fa.resigned ? ` and re-signed ${fa.resigned} of our own` : '';
   const walked = fa.walked.length ? `; ${count(fa.walked.length).toLowerCase()} of last season's players signed elsewhere` : '';
+  const deal = (d: Signing) => `${d.player.position} ${fullName(d.player)} (${d.years} yr, ${millions(d.total)})`;
+  // The deals that shaped it: our biggest, the loss that hurts most, and the richest around the league if it wasn't ours.
+  const headline = fa.signed.length ? ` Our biggest deal was ${deal(fa.signed[0])}.` : '';
+  const gone = fa.walked.length ? ` The one that hurts is ${fa.walked[0].player.position} ${fullName(fa.walked[0].player)}, gone to the ${teamName(league.teams[fa.walked[0].teamId])} for ${millions(fa.walked[0].total)} over ${plural(fa.walked[0].years, 'year')}.` : '';
+  // The league's richest deal, unless it was one of ours or the one we just said hurts.
+  const top = fa.biggest[0];
+  const richest = top && top.teamId !== league.userTeamId && top.player.id !== fa.walked[0]?.player.id ? ` Around the league, the richest deal was ${deal(top)} to the ${teamName(league.teams[top.teamId])}.` : '';
   const cap = rookies > 0 ? ` We have ${millions(space)} of cap space going into the draft, and our rookie class will need about ${millions(rookies)} of it.` : ` We have ${millions(space)} of cap space.`;
   return [
     {
@@ -1068,7 +1236,7 @@ function faWrapMail(league: League, have: Set<string>): Draft[] {
       from: 'Front office',
       category: 'contracts',
       subject: 'Free agency wrap-up',
-      body: `Free agency is over. ${signed}${kept}${walked}.${cap}`,
+      body: `Free agency is over. ${signed}${kept}${walked}.${headline}${gone}${richest}${cap}`,
       actions: [{ kind: 'cap' }, { kind: 'fa' }],
     },
   ];

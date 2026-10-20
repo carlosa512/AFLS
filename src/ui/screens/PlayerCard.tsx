@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { honorBadges, playerHonors } from '../../engine/awards';
 import { POSITION_NAMES } from '../../engine/positions';
-import { careerOutlook, FIXED_HEADING, fixedHabits, habitChangeText, habitTimeline, isProspect, scoutReport, type PlayerView } from '../../engine/scouting';
+import { careerOutlook, FIXED_HEADING, fixedHabits, habitChangeDetail, habitChangeText, habitTimeline, isProspect, scoutReportParts, type PlayerView } from '../../engine/scouting';
 import { formNote } from '../../engine/quirks';
 import { pron } from '../../engine/pronouns';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
@@ -279,7 +279,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const draftDay = isProspect(p) || (league.phase === 'draft' && p.draft?.season === league.season);
   const [scale, setScale] = useStarScale();
   const stars = starsOf(league, p, scale, view);
-  const report = scoutReport(league, league.userTeamId, p);
+  const report = scoutReportParts(league, league.userTeamId, p);
   const makeup = makeupOf(league, p);
   const habits = quirksOf(league, p);
   const form = formNote(league, p);
@@ -439,12 +439,15 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               <ul className="habit-timeline">
                 {timeline.map((e) => (
                   <li key={`${e.id}-${e.season}-${e.week}-${e.change}`}>
-                    <span className="num">
-                      {e.season}
-                      {e.week ? `, wk ${e.week}` : ', offseason'}
-                    </span>
-                    {' · '}
-                    {habitChangeText(e)}
+                    <b>
+                      <span className="num">
+                        {e.season}
+                        {e.week ? `, wk ${e.week}` : ', offseason'}
+                      </span>
+                      {' · '}
+                      {habitChangeText(e)}.
+                    </b>{' '}
+                    {habitChangeDetail(e)}
                   </li>
                 ))}
               </ul>
@@ -472,10 +475,13 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           </div>
           <TradeActions league={league} player={p} onClose={onClose} />
 
-          <p className="report">
+          <div className="report">
             <span className="eyebrow">Scout's report</span>
-            {report.join(' ')}
-          </p>
+            <p>
+              <b>{report.verdict}</b> {report.game.join(' ')}
+            </p>
+            {report.notes.length > 0 && <p>{report.notes.join(' ')}</p>}
+          </div>
 
           {!isProspect(p) && <HealthSection league={league} player={p} />}
 
