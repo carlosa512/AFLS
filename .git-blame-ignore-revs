@@ -1,0 +1,3 @@
+# Commits git blame should skip (GitHub reads this file too). Whole-repo formatting only.
+# Format codebase with Prettier (no logic changes)
+48a3b3d27a267c48e5b8af8c3eaab41e0da4bb16
