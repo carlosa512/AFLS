@@ -233,7 +233,7 @@ function careerWords(league: League, p: Player): string {
   else if (['DT', 'EDGE'].includes(p.position) && n('sacks') >= 20) totals = `${n('sacks') % 1 ? n('sacks').toFixed(1) : n('sacks')} sacks`;
   else if (['LB', 'CB', 'S'].includes(p.position) && n('tackles') >= 300) totals = `${big(n('tackles'))} tackles${n('defInt') >= 5 ? ` and ${plural(n('defInt'), 'interception')}` : ''}`;
   const honors = honorBadges(playerHonors(league, p.id)).filter((h) => h.label !== 'Player of the Week' && h.label !== 'Player of the Month');
-  const honored = honors.length ? list(honors.slice(0, 2).map((h) => (h.seasons.length > 1 ? `${small(h.seasons.length)} ${h.label} honors` : `a ${h.label} honor`))) : '';
+  const honored = honors.length ? list(honors.slice(0, 2).map((h) => `${small(h.seasons.length)} ${h.label} honor${h.seasons.length === 1 ? '' : 's'}`)) : '';
   if (!totals && !honored) return '';
   return `, ${[totals, honored].filter(Boolean).join(', and ')},`;
 }
