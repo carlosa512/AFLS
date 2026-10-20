@@ -85,6 +85,8 @@ export interface Contract {
 
 export const STAT_KEYS = [
   'gp',
+  /** Scrimmage snaps on the field (kick plays aside): what tells a starter from a backup who dressed. Games before v33 have none. */
+  'snaps',
   'passAtt',
   'passCmp',
   'passYds',

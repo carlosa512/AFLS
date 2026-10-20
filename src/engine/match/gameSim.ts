@@ -503,6 +503,11 @@ class GameSim {
     return yardLine < 50 ? `${this.abbrev(side)} ${yardLine}` : `${this.abbrev((1 - side) as Side)} ${100 - yardLine}`;
   }
 
+  private countSnap(p: Player) {
+    const line = (this.playerStats[p.id] ??= {});
+    line.snaps = (line.snaps ?? 0) + 1;
+  }
+
   private credit(buf: StatBuffer) {
     for (const [p, key, value] of buf.entries) {
       const line = (this.playerStats[p.id] ??= {});
@@ -525,14 +530,16 @@ class GameSim {
     let tackled = false;
     let sacked = false;
     let spell = false;
+    let passing = false;
     for (const [p, key] of buf.entries) {
       if (key === 'passAtt' || key === 'rushAtt') scrimmage = true;
       else if (key === 'sacked') scrimmage = sacked = true;
+      if (key === 'passAtt' || key === 'sacked') passing = true;
       else if (key === 'tackles') tackled = true;
       // The second back is on the field for the plays he's part of, spelling the lead back.
       if (p === rb2) spell = true;
     }
-    if (scrimmage) this.snap(spell);
+    if (scrimmage) this.snap(spell, passing);
     for (const [p, key] of buf.entries) {
       if (key === 'rushAtt' || key === 'rec') {
         if (tackled) this.collide(p, 'carrier');
@@ -563,7 +570,7 @@ class GameSim {
   }
 
   /** One scrimmage snap: the units on the field tire and face the snap's risk; the units off it rest. */
-  private snap(spell: boolean) {
+  private snap(spell: boolean, passing: boolean) {
     for (let side: Side = 0; side <= 1; side++) {
       const [off, def] = this.fields[side];
       const offense = side === this.offense;
@@ -574,7 +581,11 @@ class GameSim {
         b.energy -= b.cost;
         b.spent += b.cost;
         this.expose(p, SNAP_RISK * SNAP_EXPOSURE[p.position], SNAP_CONTACT);
+        // The snap count: who really played, as against who dressed.
+        this.countSnap(p);
       }
+      // The pass-rush rotation is in the hunt on every dropback (`rushers`): a snap each, no wear (they rest between).
+      if (!offense && passing) for (const p of this.lineups[side].rushRotation) this.countSnap(p);
       for (const p of offense ? def : off) {
         const b = this.body(p);
         b.energy = Math.min((p.condition ?? 100) - HELD_SHARE * b.spent, b.energy + SIDELINE_REST);
