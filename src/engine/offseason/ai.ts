@@ -68,6 +68,14 @@ export const KEEP_MIN: Record<Position, number> = {
 };
 
 /**
+ * Most players an AI carries at a position on the 53: one kicker and one punter, as every NFL team opened
+ * 2019-2025 (nflverse week-1 rosters, 0 of 224 with two). A second one, kept on his overall or signed as the
+ * best man left, is a roster spot no team spends, and it kept old specialists in work long past the NFL's.
+ */
+const KEEP_MAX: Partial<Record<Position, number>> = { K: 1, P: 1 };
+const surplus = (pos: Position, count: number) => count > (KEEP_MAX[pos] ?? Infinity);
+
+/**
  * Room an AI front office plans to carry into the season, as a share of the cap: for injury signings and deadline
  * deals, which otherwise find every buyer spent to the dollar. NFL clubs carried 4.1% of the cap into 2025 on
  * average (median 2.3%) after a season of using it. A cap-aggressive GM keeps less of it, a careful one more.
@@ -506,7 +514,8 @@ export function cutChoice(
     for (const p of left) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
     const cut = left
       .filter((p) => (counts.get(p.position) ?? 0) > KEEP_MIN[p.position] && (!allowed || allowed.has(p.id)))
-      .map((p) => ({ p, score: keepScore(league, p, read) }))
+      // A second specialist goes before anyone else, the weaker of the two first.
+      .map((p) => ({ p, score: keepScore(league, p, read) - (surplus(p.position, counts.get(p.position)!) ? 100 : 0) }))
       .sort((a, b) => a.score - b.score)[0]?.p;
     if (!cut) break;
     out.push(cut);
@@ -549,8 +558,11 @@ export function minimumFits(league: League, position: Position, budget: number):
 export function signMinimum(league: League, team: Team, rng: Rng, position?: Position, budget = Infinity): boolean {
   const cap = league.caps[league.season];
   // The best available as this front office sees him.
+  const roster = activeRoster(league, team.id);
+  const full = (pos: Position) => surplus(pos, roster.filter((p) => p.position === pos).length + 1);
   let pick = freeAgents(league)
-    .filter((p) => (!position || p.position === position) && !p.injury && minSalary(p.experience, cap) <= budget)
+    .filter((p) => (position ? p.position === position : !full(p.position)))
+    .filter((p) => !p.injury && minSalary(p.experience, cap) <= budget)
     .map((p) => ({ p, ovr: perceive(league, team.id, p).ovr + quirkWorth(league, team.id, p) }))
     .sort((a, b) => b.ovr - a.ovr)[0]?.p;
   if (!pick && position) pick = streetFreeAgent(league, position, rng);
@@ -572,6 +584,13 @@ export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
       if (!signMinimum(league, team, rng, pos)) break;
   }
   aiCutdown(league, team);
+  // A team already at 53 or under cuts no one above, so a second specialist goes here: the weaker one.
+  const read = viewCache(league);
+  for (const pos of Object.keys(KEEP_MAX) as Position[]) {
+    const mine = activeRoster(league, team.id).filter((p) => p.position === pos);
+    for (const p of mine.sort((a, b) => keepScore(league, b, read) - keepScore(league, a, read)).slice(KEEP_MAX[pos]))
+      releasePlayer(league, p);
+  }
   const missing = ROSTER_MAX - activeRoster(league, team.id).length;
   if (missing > 0) aiCapCompliance(league, team, missing * minSalary(1, league.caps[league.season]));
   // Get legal before topping up (the minimums above can tip a team over, and the cut that fixes it opens a spot),
