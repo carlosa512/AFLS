@@ -9,7 +9,7 @@ import { activeRoster, teamPlayers } from '../roster';
 import type { League } from '../types';
 import { POSITIONS } from '../types';
 import { advanceOffseason, beginOffseason, draftNextPick, FA_DAYS, offseasonBlockers, simOffseason } from '.';
-import { aiOffer, applyFranchiseTag, expiringPlayers, tagBlocker } from './ai';
+import { aiOffer, applyFranchiseTag, expiringPlayers, IN_SEASON_RESERVE, tagBlocker } from './ai';
 import { availableProspects, draftOrder, draftPlayer, nextPick, simDraft } from './draft';
 import { askOffer, demand, freeAgents, makeOffer } from './negotiation';
 import { Rng } from '../rng';
@@ -72,6 +72,18 @@ describe('offseason calendar', () => {
     }
     expect(league.draftClass).toEqual([]);
     expect(league.draftPicks.some((p) => p.season === league.season + 3)).toBe(true);
+  });
+
+  it('opens the season with the room AI front offices planned to keep for it', () => {
+    const league = fresh();
+    beginOffseason(league);
+    while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
+    const cap = league.caps[league.season];
+    const ai = league.teams.filter((t) => t.id !== league.userTeamId);
+    const space = ai.map((t) => capSpace(league, t.id)).sort((a, b) => a - b);
+    expect(space[ai.length >> 1]).toBeGreaterThanOrEqual(IN_SEASON_RESERVE * cap);
+    // A reserve is room kept, never a man short: the 53 still fills.
+    for (const t of ai) expect(activeRoster(league, t.id).length).toBe(53);
   });
 
   it('is deterministic for a seed', () => {

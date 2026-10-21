@@ -66,7 +66,14 @@ export const KEEP_MIN: Record<Position, number> = {
   P: 1,
 };
 
-const cushion = (league: League) => league.caps[league.season] * 0.025;
+/**
+ * Room an AI front office plans to carry into the season, as a share of the cap: for injury signings and deadline
+ * deals, which otherwise find every buyer spent to the dollar. NFL clubs carried 4.1% of the cap into 2025 on
+ * average (median 2.3%) after a season of using it. A cap-aggressive GM keeps less of it, a careful one more.
+ */
+export const IN_SEASON_RESERVE = 0.03;
+const reserve = (league: League, teamId: number) =>
+  league.caps[league.season] * IN_SEASON_RESERVE * (1.5 - league.teams[teamId].gm.capAggression);
 
 /** Room to keep for minimum deals that bring the roster to 53 once the draft class is in. */
 function fillReserve(league: League, teamId: number): number {
@@ -79,7 +86,7 @@ function fillReserve(league: League, teamId: number): number {
 
 /** What an AI team can spend right now without starving the draft class or the bottom of the roster. */
 const spendable = (league: League, teamId: number) =>
-  capSpace(league, teamId) - rookieReserve(league, teamId) - fillReserve(league, teamId) - cushion(league);
+  capSpace(league, teamId) - rookieReserve(league, teamId) - fillReserve(league, teamId) - reserve(league, teamId);
 
 /**
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
