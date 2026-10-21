@@ -11,6 +11,7 @@ import {
   leagueMarket,
   marketApy,
   maxBonusShare,
+  TOP_APY_PCT,
   minSalary,
   rookieApy,
   rookieBonusShare,
@@ -255,34 +256,49 @@ export function fitPayroll(players: Player[], season: number, target: number): v
   const floor = vets.reduce((s, p) => s + minSalary(p.experience, BASE_CAP), 0);
   const current = vets.reduce((s, p) => s + capHit(p.contract!, season), 0);
   if (current <= floor) return;
-  let factor = clamp((target - fixed - floor) / (current - floor), 0.75, 1.5);
+  let factor = clamp((target - fixed - floor) / (current - floor), 0.75, 2.5);
   // Never open a league over the cap.
   const ceiling = (BASE_CAP * 0.985 - fixed - floor) / (current - floor);
   factor = Math.min(factor, ceiling);
+  const top = (p: Player) => TOP_APY_PCT[p.position] * BASE_CAP;
   for (const p of vets) {
     const c = p.contract!;
     const min = minSalary(p.experience, BASE_CAP);
+    // An overpaid roster still pays by position: nobody's raise takes him past his position's top of the market.
+    const f = factor > 1 && c.apy > min ? Math.min(factor, Math.max(1, (top(p) - min) / (c.apy - min))) : factor;
     for (const y of c.years) {
       if (y.void) continue;
-      y.base = Math.round(min + Math.max(0, y.base - min) * factor);
-      y.guaranteed = Math.min(y.base, Math.round(y.guaranteed * factor));
+      y.base = Math.round(min + Math.max(0, y.base - min) * f);
+      y.guaranteed = Math.min(y.base, Math.round(y.guaranteed * f));
     }
-    for (const b of c.bonuses) b.amount = Math.round(b.amount * factor);
-    c.apy = Math.round(min + Math.max(0, c.apy - min) * factor);
+    for (const b of c.bonuses) b.amount = Math.round(b.amount * f);
+    c.apy = Math.round(min + Math.max(0, c.apy - min) * f);
   }
   // A roster whose veterans aren't worth the target spends the rest this year instead, front-loading its
-  // deals the way a rebuilding team uses its room, so no club opens the league sitting on idle cap.
-  const paid = fixed + vets.reduce((s, p) => s + capHit(p.contract!, season), 0);
-  const short = Math.min(target, BASE_CAP * 0.985) - paid;
+  // deals the way a rebuilding team uses its room, so no club opens the league sitting on idle cap. The
+  // extra goes by pay above the minimum, but no deal's charge this year passes four times its average or his
+  // position's top of the market: what a capped player can't take goes to the rest, so a thin roster's room
+  // doesn't land on one man.
+  let short = Math.min(target, BASE_CAP * 0.985) - fixed - vets.reduce((s, p) => s + capHit(p.contract!, season), 0);
   const above = (p: Player) =>
     Math.max(0, (yearOf(p.contract!, season)?.base ?? 0) - minSalary(p.experience, BASE_CAP));
-  const pool = vets.reduce((s, p) => s + above(p), 0);
-  if (short <= 0 || pool <= 0) return;
-  for (const p of vets) {
-    const c = p.contract!;
-    const extra = Math.round((short * above(p)) / pool);
-    yearOf(c, season)!.base += extra;
-    c.apy = Math.round(c.apy + extra / c.length);
+  const room = new Map(
+    vets.map((p) => [p, Math.max(0, Math.min(4 * p.contract!.apy, top(p)) - capHit(p.contract!, season))]),
+  );
+  for (let pass = 0; pass < 6 && short > 1; pass++) {
+    const open = vets.filter((p) => room.get(p)! > 0 && above(p) > 0);
+    const pool = open.reduce((s, p) => s + above(p), 0);
+    if (pool <= 0) return;
+    let given = 0;
+    for (const p of open) {
+      const c = p.contract!;
+      const extra = Math.min(room.get(p)!, Math.round((short * above(p)) / pool));
+      yearOf(c, season)!.base += extra;
+      c.apy = Math.round(c.apy + extra / c.length);
+      room.set(p, room.get(p)! - extra);
+      given += extra;
+    }
+    short -= given;
   }
 }
 

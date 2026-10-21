@@ -16,7 +16,7 @@ import {
   voidProration,
   yearsLeft,
 } from './contract';
-import { BASE_CAP, leagueMarket, marketApy, maxBonusShare, minSalary, payTier } from './market';
+import { BASE_CAP, leagueMarket, marketApy, maxBonusShare, minSalary, payTier, TOP_APY_PCT } from './market';
 
 const deal = (over: Partial<Parameters<typeof buildContract>[0]> = {}) =>
   buildContract(
@@ -101,7 +101,8 @@ describe('market', () => {
       const c = p.contract;
       if (!c || c.kind !== 'veteran' || p.teamId === null) continue;
       const signing = c.bonuses.filter((b) => b.source === 'signing').reduce((s, b) => s + b.amount, 0);
-      // The 1.6 covers `fitPayroll`'s market nudge (up to 1.5x on bonuses) on top of the share the test pins.
+      // The 1.6 covers `fitPayroll`'s market nudge on top of the share the test pins: it scales a deal's bonus and
+      // its average together (up to 2.5x), so the share barely moves.
       const ceiling = c.apy * c.length * maxBonusShare(league.teams[p.teamId].gm.capAggression) * 1.6 + 1;
       expect(signing).toBeLessThanOrEqual(ceiling);
     }
@@ -132,6 +133,19 @@ describe('opening league', () => {
         // The spec's range, not the 0.99 target's: `fitPayroll` raises a base that was below today's minimum to it
         // after sizing its scale, so a team aimed at 0.985-0.99 can open a touch over (0.9935 on 'opening-b').
         expect(used).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("fills a thin roster's room without paying anyone past his position's top of the market", () => {
+    // 'physicals' opens the thinnest roster of these seeds. The 1.2 is the market's own draw on a top deal (up to
+    // 1.15x) plus its structure; a front-load spread by pay alone once put a cornerback at 39.5% of the cap.
+    for (const seed of [...seeds, 'physicals']) {
+      const league = createLeague({ seed });
+      const cap = league.caps[league.season];
+      for (const p of Object.values(league.players)) {
+        if (p.teamId === null || p.contract?.kind !== 'veteran') continue;
+        expect(capHit(p.contract, league.season)).toBeLessThanOrEqual(1.2 * TOP_APY_PCT[p.position] * cap);
       }
     }
   });
