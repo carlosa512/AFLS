@@ -391,7 +391,9 @@ export function App() {
         {route.view === 'home' && <Home league={league} />}
         {route.view === 'roster' && <Roster league={league} teamId={teamOr(route.teamId)} />}
         {route.view === 'cap' && <Finances league={league} teamId={teamOr(route.teamId)} />}
-        {route.view === 'inbox' && <Inbox key={route.messageId ?? ''} league={league} messageId={route.messageId} />}
+        {route.view === 'inbox' && (
+          <Inbox key={`${route.messageId ?? ''}:${route.focus ?? ''}`} league={league} messageId={route.messageId} />
+        )}
         {route.view === 'office' && <FrontOffice league={league} tab={route.tab} />}
         {route.view === 'schedule' && <Schedule league={league} />}
         {route.view === 'standings' && <Standings league={league} />}

@@ -14,28 +14,36 @@ import {
   freeAgencyMoves,
   gameStory,
   headCoachChanges,
+  EDGE_GAP,
+  keyMatchups,
+  mailForOffer,
   mailSubject,
   marketRumors,
   marketTrades,
   markAllRead,
   memberTitle,
   needsYou,
+  offerMailId,
+  offerWords,
   reasonLine,
   statBlurb,
   threadLabel,
   threads,
+  unitReads,
   unreadCount,
 } from './inbox';
 import { isMedicExpiring, teamMedics } from './medical';
 import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { expiringPlayers } from './offseason/ai';
-import { teamPlayers } from './roster';
+import { activeRoster, teamPlayers } from './roster';
 import { computeRecords, conferenceSeeds } from './season/standings';
 import { isExpiring, teamStaff } from './staff';
-import { TRADE_DEADLINE_WEEK } from './trade';
+import { playerOvr } from './positions';
+import { answerEnquiry, counterOffer, openOffers, TRADE_DEADLINE_WEEK } from './trade';
+import type { TradeProposal } from './trade/rules';
 import { changePosition, passMove, setCoachesDecide, startMove, suggestMove } from './training';
-import type { GameResult, League, MoveReason, Position, TeamGameStats } from './types';
+import type { GameResult, League, MoveReason, Position, TeamGameStats, TradeOffer } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
@@ -800,5 +808,189 @@ describe('the story of a game', () => {
     expect(statBlurb(p('CB'), { defInt: 2, tackles: 5, forcedFum: 1 })).toBe('2 interceptions and 1 forced fumble');
     expect(statBlurb(p('K'), { fgAtt: 4, fgMade: 4 })).toBe('4 of 4 field goals');
     expect(statBlurb(p('OL'), { penalties: 1 })).toBe('');
+  });
+});
+
+describe('a trade conversation in the inbox', () => {
+  /** An enquiry, the bid it drew and a counter to that bid, found by trying seeds until one goes all the way. */
+  function chain() {
+    for (let i = 0; i < 6; i++) {
+      const l = createLeague({ seed: `trades-${i}` });
+      let enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+      for (let w = 0; w < 9 && !enquiry; w++) {
+        playWeek(l);
+        enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+      }
+      if (!enquiry) continue;
+      deliverMail(l);
+      const { offer: bid } = answerEnquiry(l, enquiry.id, 'offer');
+      if (!bid) continue;
+      deliverMail(l);
+      // A counter he is to throw in every pick he owns for: legal, never worth it to him.
+      const filler = activeRoster(l, l.userTeamId)
+        .filter((p) => !bid.sides[1].players.includes(p.id))
+        .sort((a, b) => playerOvr(a) - playerOvr(b))
+        .slice(0, bid.sides[0].players.length)
+        .map((p) => p.id);
+      const greedy: TradeProposal = {
+        sides: [
+          { ...bid.sides[1], players: [...bid.sides[1].players, ...filler] },
+          { ...bid.sides[0], picks: l.draftPicks.filter((p) => p.ownerId === bid.teamId).map((p) => p.id) },
+        ],
+      };
+      const r = counterOffer(l, bid.id, greedy);
+      if (r.result !== 'countered') continue;
+      deliverMail(l);
+      return { l, enquiry, bid, counter: r.offer! };
+    }
+    throw new Error('no seed gave an enquiry, a bid and a counter');
+  }
+
+  it('folds an enquiry, its bid and the counter into one thread', () => {
+    const { l, enquiry, bid, counter } = chain();
+    const offerMessages = l.inbox!.filter((m) => m.id.startsWith('offer:'));
+    expect(offerMessages.length).toBeGreaterThanOrEqual(3);
+    for (const o of [enquiry, bid, counter]) {
+      const m = l.inbox!.find((x) => x.id === `offer:${o.season}:${o.id}:${enquiry.id}`);
+      expect(m, `mail for offer ${o.id}`).toBeDefined();
+    }
+    // Other teams' offers on the desk keep their own threads.
+    const found = threads(l.inbox!).filter((t) => t.messages.some((m) => m.id === offerMailId(l, enquiry)));
+    expect(found).toHaveLength(1);
+    const [thread] = found;
+    expect(thread.messages).toHaveLength(3);
+    expect(thread.messages.map((m) => m.id).sort()).toEqual(
+      [enquiry, bid, counter].map((o) => offerMailId(l, o)).sort(),
+    );
+    expect(thread.kind).toBe('offer');
+    expect(thread.messages.every((m) => mailSubject(m)?.kind === 'offer')).toBe(true);
+    expect(threadLabel(thread).subject).toBe(`${thread.messages[0].subject} (${thread.messages.length} messages)`);
+  });
+
+  it('reads the root off an offer mail id, and an old id without one is its own root', () => {
+    const msg = (id: string) => ({ id, actions: [] }) as unknown as Parameters<typeof mailSubject>[0];
+    expect(mailSubject(msg('offer:2026:7'))).toEqual({ kind: 'offer', season: 2026, offerId: 7, root: 7 });
+    expect(mailSubject(msg('offer:2026:9:7'))).toEqual({ kind: 'offer', season: 2026, offerId: 9, root: 7 });
+  });
+
+  it('finds a reply filed under an old 3-segment id, and id 1 never matches id 10', () => {
+    const { l, bid } = chain();
+    const filed = l.inbox!.find((m) => m.id === offerMailId(l, bid))!;
+    expect(mailForOffer(l, bid)).toBe(filed);
+    filed.id = `offer:${bid.season}:${bid.id}`;
+    expect(mailForOffer(l, bid)).toBe(filed);
+    const other = { ...bid, id: bid.id * 10 };
+    expect(mailForOffer(l, other)).toBeUndefined();
+    const tens = { ...bid, id: bid.id * 10 };
+    filed.id = `offer:${bid.season}:${tens.id}:${bid.id}`;
+    expect(mailForOffer(l, bid)).toBeUndefined();
+    expect(mailForOffer(l, tens)).toBe(filed);
+  });
+});
+
+describe('offer text', () => {
+  it('leaves a live projection to the card: an unmade pick has no "proj. No." in the mail', () => {
+    const l = createLeague({ seed: 'offer-words' });
+    const user = l.userTeamId;
+    const other = l.teams.find((t) => t.id !== user)!;
+    const pick = l.draftPicks.find((p) => p.ownerId === other.id && !p.overall)!;
+    const mine = teamPlayers(l, user)[0];
+    expect(pick, 'an unmade pick').toBeDefined();
+    const bid: TradeOffer = {
+      id: 1,
+      teamId: other.id,
+      sides: [
+        { teamId: other.id, players: [], picks: [pick.id] },
+        { teamId: user, players: [mine.id], picks: [] },
+      ],
+      kind: 'sale',
+      reason: 'bid',
+      season: l.season,
+      phase: l.phase,
+      week: l.week,
+      moment: 0,
+      status: 'pending',
+      patience: 0,
+      worth: 0,
+    };
+    const { body } = offerWords(l, bid);
+    expect(body).toContain(`${pick.season} round ${pick.round}`);
+    expect(body).not.toMatch(/proj\. No\./);
+  });
+});
+
+describe('flex mail', () => {
+  it('files one message per move, keyed by the game', () => {
+    const l = createLeague({ seed: 'flex-mail' });
+    const g = l.games.find((x) => x.season === l.season && (x.homeId === l.userTeamId || x.awayId === l.userTeamId))!;
+    g.flexed = { day: 'sun', et: 13 };
+    g.kickoff = { day: 'mon', et: 20 };
+    deliverMail(l);
+    const mail = l.inbox!.find((m) => m.id.startsWith(`flex:${g.season}:${g.id}:`))!;
+    expect(mail).toBeDefined();
+    expect(mailSubject(mail)).toEqual({ kind: 'flex', season: g.season, gameId: g.id });
+  });
+});
+
+describe('key matchups', () => {
+  const TITLES = ['Trenches', 'Run game', 'Pass game'];
+  it('pairs each offensive unit with the defensive unit it faces, both ways', () => {
+    const league = createLeague({ seed: 'matchups' });
+    const user = league.userTeamId;
+    const opp = user === 1 ? 2 : 1;
+    const { attack, defend } = keyMatchups(league, opp);
+    expect(attack.map((m) => m.title)).toEqual(TITLES);
+    expect(defend.map((m) => m.title)).toEqual(TITLES);
+    const ours = unitReads(league, user);
+    const theirs = unitReads(league, opp);
+    const read = (units: typeof ours, title: string) => units.find((u) => u.title === title)!;
+    // Our line against their front, their backs against our linebackers.
+    expect(attack[0].offense).toEqual(read(ours, 'Offensive line'));
+    expect(attack[0].defense).toEqual(read(theirs, 'Defensive front'));
+    expect(defend[1].offense).toEqual(read(theirs, 'Backfield'));
+    expect(defend[1].defense).toEqual(read(ours, 'Linebackers'));
+    // The passing game is the quarterback and his receivers together, led by the quarterback.
+    expect(attack[2].offense.score).toBeCloseTo((read(ours, 'Quarterback').score + read(ours, 'Receivers').score) / 2);
+    expect(attack[2].offense.lead).toBe(read(ours, 'Quarterback').lead);
+    for (const [side, offenseTeam] of [
+      [attack, user],
+      [defend, opp],
+    ] as const) {
+      for (const m of side) {
+        for (const u of [m.offense, m.defense]) {
+          expect(u.score).toBeGreaterThanOrEqual(0);
+          expect(u.score).toBeLessThanOrEqual(1);
+        }
+        const gap = m.offense.score - m.defense.score;
+        if (Math.abs(gap) < EDGE_GAP) expect(m.edge).toBeNull();
+        else expect(m.edge).toBe(gap > 0 === (offenseTeam === user) ? 'ours' : 'theirs');
+        expect(league.players[m.offense.lead!].teamId).toBe(offenseTeam);
+        expect(league.players[m.defense.lead!].teamId).toBe(offenseTeam === user ? opp : user);
+      }
+    }
+  });
+
+  it("ranks each unit against the league's same unit, so a typical one reads 50th", () => {
+    const league = createLeague({ seed: 'matchups' });
+    const all = league.teams.map((t) => unitReads(league, t.id));
+    for (let g = 0; g < all[0].length; g++) {
+      const scores = all.map((units) => units[g].score).sort((a, b) => a - b);
+      const median = (scores[15] + scores[16]) / 2;
+      expect(median, all[0][g].title).toBeCloseTo(0.5, 1);
+      // The ends of the league (a tie there sits a little inside).
+      expect(scores[0]).toBeLessThan(0.05);
+      expect(scores.at(-1)).toBeGreaterThan(0.95);
+    }
+  });
+
+  it('still reads a unit with nobody in it', () => {
+    const league = createLeague({ seed: 'matchups' });
+    const opp = league.userTeamId === 1 ? 2 : 1;
+    league.teams[opp].depthChart.DT = [];
+    league.teams[opp].depthChart.EDGE = [];
+    const { attack } = keyMatchups(league, opp);
+    expect(attack).toHaveLength(3);
+    expect(attack[0].defense.lead).toBeUndefined();
+    expect(attack[0].defense.score).toBe(0);
   });
 });

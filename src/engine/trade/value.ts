@@ -168,8 +168,18 @@ export function goingRate(league: League, pick: DraftPick, ctx?: TradeContext): 
   return value;
 }
 
-export const pickLabel = (league: League, pick: DraftPick) =>
-  `${pick.season} round ${pick.round}${pick.overall ? ` (No. ${pick.overall})` : ` (proj. No. ${pickOverall(league, pick)})`}${pick.originalTeamId !== pick.ownerId ? ` · via ${league.teams[pick.originalTeamId].abbrev}` : ''}`;
+/**
+ * A pick in words. A pick not yet made shows where it projects ("proj. No. 31") unless `projected` is off:
+ * mail is filed once and read later, when a projection would be stale, so it leaves that to the live card.
+ */
+export const pickLabel = (league: League, pick: DraftPick, opts: { projected?: boolean } = {}) =>
+  `${pick.season} round ${pick.round}${
+    pick.overall
+      ? ` (No. ${pick.overall})`
+      : opts.projected === false
+        ? ''
+        : ` (proj. No. ${pickOverall(league, pick)})`
+  }${pick.originalTeamId !== pick.ownerId ? ` · via ${league.teams[pick.originalTeamId].abbrev}` : ''}`;
 
 // ───────── player value ─────────
 

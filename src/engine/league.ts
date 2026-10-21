@@ -8,7 +8,7 @@ import { developWeek } from './development';
 import { applyInjury, injuryWeek } from './injuries';
 import { simOffseason } from './offseason';
 import { quirkWeek, recordForm } from './quirks';
-import { expireOffers, marketMoment, weekMoment } from './trade';
+import { expireOffers, marketMoment, recheckOffers, weekMoment } from './trade';
 import { syncDepthChart } from './roster';
 import { flexWeek } from './season/flex';
 import { trainingWeek } from './training';
@@ -111,6 +111,7 @@ export function playWeek(league: League): Game[] {
   if (league.phase === 'complete') return [];
   // Offers you didn't answer lapse when you play on.
   expireOffers(league);
+  const weekPlayed = league.phase;
   const games = gamesInWeek(league).filter((g) => !g.result);
   for (const g of games) playGame(league, g);
   injuryWeek(league);
@@ -125,6 +126,8 @@ export function playWeek(league: League): Game[] {
   league.week++;
   // The league moves the games worth watching into prime time, on the NFL's notice.
   if (league.phase === 'regular') flexWeek(league);
+  // What's on the desk was judged before the week moved: judge it again in the state you'd accept in.
+  if (weekPlayed === 'regular') recheckOffers(league);
 
   if (league.phase === 'regular' && league.week > REGULAR_SEASON_WEEKS) {
     awardSeason(league);

@@ -23,7 +23,7 @@ import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
 import { generateSchedule } from '../season/schedule';
 import { bodyAs, completeMoves, learnBlock, planMoves } from '../training';
-import { expireOffers, marketMoment, TRADE_DEADLINE_WEEK } from '../trade';
+import { expireOffers, marketMoment, recheckOffers, TRADE_DEADLINE_WEEK } from '../trade';
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
@@ -243,6 +243,9 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
     default:
       throw new Error(`Not in the offseason (${league.phase})`);
   }
+  // Offers filed at this step's market moment are judged again on the state you'll accept in: camp's cuts,
+  // signings and the phase switch (roster limits in season) can turn a bid its own team made into a refusal.
+  recheckOffers(league);
   league.rngState = rng.getState();
   return league.phase;
 }
