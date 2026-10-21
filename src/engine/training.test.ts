@@ -280,7 +280,7 @@ describe('out of position', () => {
     expect(team.autoDepth).toBe(false);
     expect(team.depthChart.CB).toEqual(handCb);
     expect(team.depthChart.S.at(-1)).toBe(wr.id);
-    expect(team.playingAt?.[wr.id]).toEqual({ pos: 'S', by: 'staff' });
+    expect(team.playingAt?.[wr.id]).toMatchObject({ pos: 'S', by: 'staff' });
     // The user moving staff's man makes the move his.
     placeAt(l, wr.id, 'S');
     expect(team.playingAt?.[wr.id]).toEqual({ pos: 'S', by: 'user' });

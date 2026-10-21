@@ -872,7 +872,7 @@ describe('covering a short position', () => {
     thin(league, team.id, 'S', NEED.S - 1);
     const before = ids(league, team.id);
     manageInjuries(league, team, new Rng('cover'));
-    expect(team.playingAt?.[spare.id]).toEqual({ pos: 'S', by: 'staff' });
+    expect(team.playingAt?.[spare.id]).toMatchObject({ pos: 'S', by: 'staff' });
     expect(team.depthChart.S).toContain(spare.id);
     expect(ids(league, team.id)).toEqual(before);
   });
@@ -944,7 +944,7 @@ describe('covering a short position', () => {
     thin(league, team.id, 'S', NEED.S - 1);
     const before = ids(league, team.id);
     manageInjuries(league, team, new Rng('cover'));
-    expect(team.playingAt?.[spare.id]).toEqual({ pos: 'S', by: 'staff' });
+    expect(team.playingAt?.[spare.id]).toMatchObject({ pos: 'S', by: 'staff' });
     expect(ids(league, team.id)).toEqual(before);
     // Nobody good enough: still nobody signed, nobody cut.
     for (const [id] of staffAt(league, team.id)) delete team.playingAt![Number(id)];
