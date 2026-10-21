@@ -40,7 +40,16 @@ import {
   TYPICAL,
   type Department,
 } from './medical';
-import { aiCapCompliance, aiCutdown, KEEP_MIN, minimumFits, signMinimum } from './offseason/ai';
+import {
+  aiCapCompliance,
+  aiCutdown,
+  inSeasonReserve,
+  KEEP_MIN,
+  minimumFits,
+  needSigning,
+  signForNeed,
+  signMinimum,
+} from './offseason/ai';
 import { ROSTER_MAX } from './offseason/negotiation';
 import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
@@ -1565,8 +1574,11 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     // It makes sure a signing fits before it cuts a man to make a spot, or it would release him for a deal it
     // can't make (and leave a street free agent it can't afford on the market).
     const room = roomForMinimum(league, team);
-    if (!minimumFits(league, pos, room)) return;
+    // A real free agent at his price first, out of the room kept for the season (no hole spends past it).
+    const budget = Math.min(room, inSeasonReserve(league, team.id));
+    if (!needSigning(league, team, pos, budget) && !minimumFits(league, pos, room)) return;
     if (!open && !cutForRoom(league, team, pos)) return;
+    if (signForNeed(league, team, pos, budget)) continue;
     if (!signMinimum(league, team, rng, pos, room)) return;
   }
 }

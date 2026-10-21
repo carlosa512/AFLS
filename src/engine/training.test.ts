@@ -12,8 +12,11 @@ import {
 import { capSpace, releasePlayer } from './finance/cap';
 import { manageInjuries } from './injuries';
 import { offseasonBlockers } from './offseason';
+import { inSeasonReserve } from './offseason/ai';
+import { demand, freeAgents, offerValue } from './offseason/negotiation';
+import { minSalary } from './finance/market';
 import { Rng } from './rng';
-import { createLeague, SAVE_VERSION } from './generate';
+import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { buildLineup } from './match/lineup';
 import { migrateLeague } from './migrate';
 import { overall, playerOvr } from './positions';
@@ -407,6 +410,71 @@ describe('the cap in season', () => {
     manageInjuries(l, l.teams[teamId], new Rng('cover'));
     expect(teamPlayers(l, teamId).filter((p) => p.position === 'WR').length).toBeGreaterThan(wrs);
     expect(capSpace(l, teamId)).toBeGreaterThanOrEqual(0);
+  });
+
+  /** A healthy free receiver of `quality`. */
+  function freeWr(l: League, quality: number): Player {
+    const p = generatePlayer(new Rng(`free-wr:${quality}`), {
+      id: l.nextPlayerId++,
+      position: 'WR',
+      quality,
+      age: 27,
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
+    l.players[p.id] = p;
+    return p;
+  }
+  const newWrs = (l: League, teamId: number, before: Set<number>) =>
+    teamPlayers(l, teamId).filter((p) => p.position === 'WR' && !before.has(p.id));
+
+  it('an AI team with no cover signs a free agent at his price, above the minimum', () => {
+    const { l, teamId } = shortHanded(60_000);
+    const fa = freeWr(l, 13);
+    const min = minSalary(fa.experience, l.caps[l.season]);
+    const ask = demand(l, fa, teamId).walkAway;
+    expect(ask).toBeGreaterThan(1.5 * min);
+    expect(ask).toBeLessThan(inSeasonReserve(l, teamId));
+    const before = new Set(teamPlayers(l, teamId).map((p) => p.id));
+    // His price as a free agent, read before he signs (once he's ours, he's no longer on the market).
+    const unit = { years: 1, apy: 1, bonusPct: 0, gtdPct: 0, voidYears: 0 };
+    const asks = new Map(
+      freeAgents(l).map((p) => [p.id, demand(l, p, teamId).walkAway / offerValue(l, p, teamId, unit)]),
+    );
+    manageInjuries(l, l.teams[teamId], new Rng('cover'));
+    const signed = newWrs(l, teamId, before);
+    // The room is several receivers short: the first comes at a price, later ones may be minimum-salary men.
+    const priced = signed.filter((p) => p.contract!.kind === 'veteran');
+    expect(priced.length).toBeGreaterThan(0);
+    for (const p of priced) {
+      expect(p.contract!.length).toBe(1);
+      // The deal that just meets his walk-away: no less, and no more than a rounding dollar.
+      expect(p.contract!.apy).toBeGreaterThanOrEqual(asks.get(p.id)!);
+      expect(p.contract!.apy).toBeLessThan(asks.get(p.id)! + 1);
+    }
+    expect(capSpace(l, teamId)).toBeGreaterThanOrEqual(0);
+  });
+
+  it('with no room for any real free agent it still covers the hole at the minimum', () => {
+    const { l, teamId } = shortHanded(2_500);
+    freeWr(l, 13);
+    const before = new Set(teamPlayers(l, teamId).map((p) => p.id));
+    manageInjuries(l, l.teams[teamId], new Rng('cover'));
+    const signed = newWrs(l, teamId, before);
+    expect(signed.length).toBeGreaterThan(0);
+    for (const p of signed) expect(p.contract!.kind).toBe('minimum');
+  });
+
+  it('never spends past its in-season reserve on one hole', () => {
+    const { l, teamId } = shortHanded(0);
+    const reserve = inSeasonReserve(l, teamId);
+    l.caps[l.season] += 10 * reserve;
+    const star = freeWr(l, 17);
+    expect(demand(l, star, teamId).walkAway).toBeGreaterThan(reserve);
+    const before = new Set(teamPlayers(l, teamId).map((p) => p.id));
+    manageInjuries(l, l.teams[teamId], new Rng('cover'));
+    expect(star.teamId).toBeNull();
+    for (const p of newWrs(l, teamId, before)) expect(p.contract!.apy).toBeLessThanOrEqual(reserve);
   });
 
   it('stops you in the regular season while over it, not in the playoffs', () => {

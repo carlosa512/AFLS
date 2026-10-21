@@ -71,7 +71,7 @@ export const KEEP_MIN: Record<Position, number> = {
  * average (median 2.3%) after a season of using it. A cap-aggressive GM keeps less of it, a careful one more.
  */
 export const IN_SEASON_RESERVE = 0.03;
-const reserve = (league: League, teamId: number) =>
+export const inSeasonReserve = (league: League, teamId: number) =>
   league.caps[league.season] * IN_SEASON_RESERVE * (1.5 - league.teams[teamId].gm.capAggression);
 
 /** Room to keep for minimum deals that bring the roster to 53 once the draft class is in. */
@@ -85,7 +85,10 @@ function fillReserve(league: League, teamId: number): number {
 
 /** What an AI team can spend right now without starving the draft class or the bottom of the roster. */
 const spendable = (league: League, teamId: number) =>
-  capSpace(league, teamId) - rookieReserve(league, teamId) - fillReserve(league, teamId) - reserve(league, teamId);
+  capSpace(league, teamId) -
+  rookieReserve(league, teamId) -
+  fillReserve(league, teamId) -
+  inSeasonReserve(league, teamId);
 
 /**
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
@@ -545,6 +548,38 @@ export function minimumFits(league: League, position: Position, budget: number):
     budget >= topMinimum(cap) ||
     freeAgents(league).some((p) => p.position === position && !p.injury && minSalary(p.experience, cap) <= budget)
   );
+}
+
+/**
+ * The free agent a team would sign for a hole at `position`, and his price: one year at what he'll take now (his
+ * walk-away, which comes down as the season goes on), the best by this front office's read whose price fits
+ * `budget` ($K, full-season terms). None if nobody fits.
+ */
+export function needSigning(
+  league: League,
+  team: Team,
+  position: Position,
+  budget: number,
+): { player: Player; offer: Offer } | undefined {
+  const best = freeAgents(league)
+    .filter((p) => p.position === position && !p.injury)
+    .map((p) => {
+      const d = demand(league, p, team.id);
+      // What an offer is worth to him is linear in its APY: price the deal that just meets his walk-away.
+      const perDollar = offerValue(league, p, team.id, { ...minimumOffer(league, p), apy: 1 }, d);
+      const offer = { ...minimumOffer(league, p), apy: Math.ceil(d.walkAway / perDollar) };
+      return { player: p, offer, ovr: perceive(league, team.id, p).ovr + quirkWorth(league, team.id, p) };
+    })
+    .filter((x) => x.offer.apy <= budget)
+    .sort((a, b) => b.ovr - a.ovr)[0];
+  return best && { player: best.player, offer: best.offer };
+}
+
+/** Sign `needSigning`'s pick (the deal is prorated for the weeks left). Whether anyone signed. */
+export function signForNeed(league: League, team: Team, position: Position, budget: number): boolean {
+  const pick = needSigning(league, team, position, budget);
+  if (pick) signPlayer(league, pick.player, team.id, pick.offer);
+  return !!pick;
 }
 
 /** The position where `team` has the fewest players over what it keeps through cutdowns. */
