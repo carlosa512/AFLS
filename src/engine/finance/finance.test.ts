@@ -374,7 +374,7 @@ describe('opening league, read across fifty seeds', () => {
     // rookie deals hold 43% of what its rosters are worth, against 31%), and what their market leaves of the cap
     // goes on deals with years to run, never on one in its last year, whose raise is next spring's unspent room
     // (raised there, a team opened year two with 31.7% of the cap unspent; with the room on running deals the most
-    // at a season 1-3 kickoff on 31 seeds is 18%).
+    // at a season 1-3 kickoff on 31 seeds is 19%).
     const { next, nextRookie, nextVets } = openings();
     expect(quantile(next, 0.5)).toBeGreaterThanOrEqual(0.68);
     expect(quantile(next, 0.5)).toBeLessThanOrEqual(0.8);

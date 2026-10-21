@@ -58,7 +58,11 @@ describe('retained salary', () => {
   it('costs the seller and helps the buyer in their own eyes', () => {
     const l = fresh();
     const ctx = tradeContext(l);
-    const p = activeRoster(l, 9).sort((a, b) => playerOvr(b) - playerOvr(a))[3];
+    // A good player with salary left to keep: a restructured deal's pay this year is bonus, and the opening league
+    // restructures its over-target rosters' biggest deals.
+    const p = activeRoster(l, 9)
+      .filter((q) => maxRetain(l, q) > 0)
+      .sort((a, b) => playerOvr(b) - playerOvr(a))[3];
     const pick = l.draftPicks.find((x) => x.ownerId === 4 && x.playerId === undefined)!;
     const plain: TradeProposal = {
       sides: [
