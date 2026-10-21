@@ -83,3 +83,19 @@ Temporary counters in the trade market, `npm run trades -- 9`, years 2-3 of the 
   season on main and +3.3-5.5 on the cap branch.
 
 Decision: neither Task 6a nor 6b; reported to the project owner before writing a fix (the plan's stop).
+
+## Results at the branch head (main merged, 0.1.3)
+
+- Offseason audit (`npm run offseason -- 6`): 0 outside range. Most cap unspent at kickoff 19.5, 10.3, 5.8, 12.7, 5.2,
+  6.3%; median 4.6, 2.5, 2.8, 2.6, 2.6, 2.1%; dead money at kickoff at most 19.3%, and at most 19% after any offseason step
+  (scratch `cap-diag.ts`), under the spec's 30%. Save 6260 KB after the first season (ceiling 6300), 12900 at the end.
+- Trade audit, 3 leagues (CI's run): 0 outside range; in season 15.2 a season (15.7 / 14.3 / 15.7), 32% on deadline day;
+  listing draws an offer. 9 leagues: in season 15.2 (15.3 / 15.7 / 14.6), deadline quality-starter price 376 (band
+  400-1300): a measurement question for the owner, below.
+- The 9-league deadline quality-starter price: real (every player priced, 18 leagues: main 510, branch 391) and mostly
+  NFL-right mix. Settled contract lengths put expiring market-rate veterans into the year-one sample, and they price at a
+  3rd, as 2021-25 deadline deals did; the bonus cap and payroll fill lower prices a little within groups. In a settled
+  season the branch reads 505 and 666 at the season-2 and season-3 deadlines. Options: split the bucket into rookie-scale
+  and veteran players, or price the deadline in a settled season. Deciding fifth-year options at generation (they are all
+  declined today, though the league opens after the May decision) is NFL-right but moves this price only +7 to +12 and
+  adds a 3-league red (preseason star 992, n=3), so it waits for its own change.
