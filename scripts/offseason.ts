@@ -423,28 +423,30 @@ for (let s = 0; s < seasons; s++) {
       `${year}: ${withRoom.map((t) => `${t.abbrev} ${t.size} (${M(t.space)} room)`).join(', ')}`,
     );
 
-  // Cap space as a share of the cap (the cap grows ~8% a year). Median: 3.5, 3.2, 3.3, then 3.6, 3.5, 3.2% (the 3%
-  // reserve AI front offices plan, kept now that re-signs and rookies are charged their first-year cap hits); the bands
+  // Cap space as a share of the cap (the cap grows ~8% a year). Median: 3.4, 3.6, 3.8, then 3.8, 3.5, 3.4% (the 3%
+  // reserve AI front offices plan, kept now that re-signs, rookies and the minimum deals that fill the 53 are charged
+  // what they cost, the spots of players who walk included); the bands
   // were set from four seeds whose steady state was 2.0-2.3%, so [1, 4] catches a drift to hoarding or to teams spent
   // flat, and the early seasons get [0.8, 12] (obs 2.8-9.9% across seeds then).
-  // Max: 9.6, 17.3, 9.2% in seasons 1-3, then 6.7, 7.3, 6.3, so seasons 1-3 are judged at <= 30% and index 4+ at
+  // Max: 8.4, 12.2, 11.7% in seasons 1-3, then 10.1, 7.3, 6.6, so seasons 1-3 are judged at <= 30% and index 4+ at
   // <= 20%. Before the generated league was paid like a settled one (0.1.3) seasons 1-3 read 54.6, 59.0, 37.9%: rosters
   // opened as low as 62% committed and a hoarder banked the rest; paid like one in year one only (its next year 57-64%
   // committed), 5 of 13 seeds still had a team at 30-66% in seasons 2-3. With next year committed as a settled league
   // commits it, the most on offseason-audit and rev-0..rev-12 and rev-22 was 23%, and with no raise on a deal in its last
-  // year it is 19% on offseason-audit and rev-0..rev-29. Dead money: max 10.3-22.3% of cap (all seeds then 6.5-22.7; 19%
-  // at its worst after any offseason step), median at most 2.4%; a front office that cuts stars wholesale shows up as
-  // the max passing 30%.
-  // Free agents: 251 → 438 over 6 seasons, +86 at most in a step (all seeds then 99); it keeps rising until about season
+  // year it is 19% on offseason-audit and rev-0..rev-29 (16% with the trade market keeping salary to move a player and
+  // the 53's minimum deals kept for). Dead money: max 10.3-19.0% of cap (all seeds then 6.5-22.7; 19% at its worst
+  // after any offseason step), median at most 2.3%; a front office that cuts stars wholesale shows up as the max
+  // passing 30%.
+  // Free agents: 249 → 444 over 6 seasons, +79 at most in a step (all seeds then 99); it keeps rising until about season
   // 12 and plateaus near 500 (retirement caps the stock), so the ceiling is 650 and the floor 100 (a dried-up market).
   const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 110, 0)}` : ''}`;
   console.log(
     `  checks ${year} cap: ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 30, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
   );
 
-  // League talent (mean starter OVR at kickoff): 12.82, 12.90, 13.08, 13.10, 13.11, 13.11 (all seeds then 12.69-13.12),
-  // so [12.4, 13.6] holds the level; steps of at most 0.18 (all seeds then 0.15) get 0.25. Parity (sd of team means) is
-  // 0.38-0.52 (all seeds then 0.28-0.64): below 0.15 every team is alike, above 0.8 the league has split in two.
+  // League talent (mean starter OVR at kickoff): 12.78, 12.89, 13.00, 13.09, 13.21, 13.17 (all seeds then 12.69-13.12),
+  // so [12.4, 13.6] holds the level; steps of at most 0.13 (all seeds then 0.15) get 0.25. Parity (sd of team means) is
+  // 0.34-0.48 (all seeds then 0.28-0.64): below 0.15 every team is alike, above 0.8 the league has split in two.
   console.log(
     `  checks ${year} talent: ${check('starter OVR', k.avgStarter, 12.4, 13.6)}${prev ? ` · ${check('change', k.avgStarter - prev.k.avgStarter, -0.25, 0.25)}` : ''} · ${check('parity sd', k.parity, 0.15, 0.8)}`,
   );
@@ -468,7 +470,8 @@ for (let s = 0; s < seasons; s++) {
   // (mean 6266; the commit before, 6188-6316, mean 6268), so a 3 KB margin on this seed was luck, not headroom. With
   // the invented draft history keeping only the records something reads (28 KB fewer), raises only on running deals
   // and the reserve kept, it reads 6244, players growth 598-759 and 12786 at the end (alt-1 6348; the commit before
-  // read 6406 there).
+  // read 6406 there). With the trade market keeping salary to move a player and the 53's minimum deals kept for, 6179,
+  // players growth 609-769 (a snapshot's growth up to 1004) and 12783 at the end.
   const dSave = prevSave && {
     total: save.total - prevSave.total,
     players: save.players - prevSave.players,
@@ -617,7 +620,10 @@ if (rows.length >= 5) {
   console.log(
     `  talent: ${check('starter OVR, last − first', end.k.avgStarter - first.k.avgStarter, -0.15, 0.6)} · ${check(`…last − ${rows[2].year}`, end.k.avgStarter - rows[2].k.avgStarter, -0.3, 0.3)}`,
   );
-  // Median cap space is flat once settled: 3.6, 3.5, 3.2% over the last three (all seeds then 2.0-2.3), so within 1 point.
+  // Median cap space is flat once settled: 3.8, 3.5, 3.4% over the last three (all seeds then 2.0-2.3), so within 1 point.
+  // It drifted 1.1 (3.5, 3.9, 2.8) while the re-sign window spent the room for the walking players' replacements and
+  // camp's minimum deals were kept for at a second-year player's minimum: 5-14 teams a season reached kickoff under 0.8x
+  // the room they planned to keep, and the median fell on whichever side of that gap a season's teams landed.
   // The pool of free agents is still growing at season 6 (+28 in the last step; all seeds then +26 to +41); band 70.
   console.log(
     `  cap: ${check('median space %cap, spread over the last 3', Math.max(...tail) - Math.min(...tail), 0, 1, 1)} · ${check('free agents, last step', end.k.fas - rows[rows.length - 2].k.fas, -Infinity, 70, 0)}`,

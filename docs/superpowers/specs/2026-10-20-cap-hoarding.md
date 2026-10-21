@@ -99,3 +99,21 @@ Decision: neither Task 6a nor 6b; reported to the project owner before writing a
   and veteran players, or price the deadline in a settled season. Deciding fifth-year options at generation (they are all
   declined today, though the league opens after the May decision) is NFL-right but moves this price only +7 to +12 and
   adds a 3-league red (preseason star 992, n=3), so it waits for its own change.
+
+## Results with year two committed and the retained-salary market (0.1.4)
+
+The opening league drafts by board and signs deals on each position's clock (next year committed at 77% of the cap for
+the median team, 63% at the tenth percentile; medians over 31 seeds); the trade market prices the salary a seller keeps into the player (docs/TRADES.md,
+"Retained salary priced as part of the player"); AI front offices keep the room for the minimum deals that fill the 53,
+the spots of players who walk included, at a veteran's minimum.
+
+- Offseason audit (`npm run offseason -- 6`): 0 outside range. Median kickoff room 3.4, 3.6, 3.8, 3.8, 3.5, 3.4%
+  (spread over the last three 0.4); most 8.4, 12.2, 11.7, 10.1, 7.3, 6.6%. Save 6179 KB after the first season, 12783
+  at the end. On six more seeds (alt-1..6) the spread is 0.47-0.97, but the steady-season median passes the band's 4%
+  in at least one season on five of them (4.04-4.42%): their GMs plan a median reserve of 2.9-3.6% of the cap, and the
+  median team lands 6-32% above its own (camp cuts free salary; each open spot is kept at the highest minimum). Before
+  the reserve for the 53 and the rider threshold changed, those seeds stayed under 4%, but the spread failed on this
+  seed (1.13) and alt-2 (1.01). The band and `IN_SEASON_RESERVE` (NFL median carryover 2.3%, mean 4.1%) are the owner's call.
+- Seasons 1-3, offseason-audit and rev-0..rev-29: the most cap unspent at any kickoff is 16.4% (rev-6, season 1).
+- Trade audit, 3 leagues (CI's run): 0 outside range; in season 16.1 a season (15.3 / 16.3 / 16.7), 31% on deadline
+  day, a pick each way 16%, picks for players 80%. 9 leagues: in season 16.4, physicals 4.1 a season (band 1-4).

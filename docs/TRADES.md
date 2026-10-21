@@ -1477,7 +1477,8 @@ would need recalibrating.
 
 A league generated paid and committed like a settled one (the cap-hoarding branch) needs salary kept in
 41–50% of in-season calls, and those closed at 2.3–2.6% against 4.0–5.9% for calls where the buyer had
-the room (temporary counters, CI's three leagues). Two causes:
+the room (temporary counters, CI's three leagues, on the opening league before it drafted by board). Two
+causes:
 
 - **`dealFor` priced the player alone.** His asking price and the most a buyer may send (`maxOver` ×
   his worth) left out the salary his team keeps, while the seller's floor counted it. In 47–61% of the
@@ -1497,17 +1498,31 @@ check adds up only what moves, positions are counted in one pass, picks are look
 (`pickOf`), each package's value is read once per search, and `roleAt` makes no closure per call. The
 three-league run is identical line for line, but for speed.
 
+On the branch as it stands (the opening league drafting by board, its deals on each position's clock, and
+the 53's minimum deals kept for in the AI's offseason room), against the same tree without this change:
+
 | `npm run trades` | before | after |
 | --- | --- | --- |
-| 3 leagues: trades in season (by year) | 12.6 (12.0 · 11.7 · 14.0) | 15.3 (13.0 · 16.3 · 16.7) |
-| 3 leagues: deadline day / salary retained a season | 43% / 4.2 | 30% / 8.3 |
-| 3 leagues: a market week | 119 ms | 115 ms |
-| 9 leagues: trades in season (by year) | 14.1 (13.6 · 14.3 · 14.4) | 16.9 (15.2 · 17.7 · 17.9) |
+| 3 leagues: trades in season (by year) | 12.8 (13.7 · 11.3 · 13.3) | 16.1 (15.3 · 16.3 · 16.7) |
+| 3 leagues: deadline day / salary retained a season | 37% / 3.9 | 31% / 9.4 |
+| 3 leagues: a market week, run alone | 111 ms | 110 ms |
+| 9 leagues: trades in season (by year) | 13.3 (11.9 · 13.9 · 14.1) | 16.4 (15.6 · 16.3 · 17.4) |
+| 9 leagues: deadline day / salary retained a season | 34% / 4.3 | 34% / 9.3 |
 
 No side lost in its own eyes, no exploit worked and no team ended over the cap or short. Trades over 3:1
-in the truth rose from 0.2 to 1.0 a season (info), each one the losing side's situation: two of the nine
-are salary kept by a rebuilder, the rest rebuilders' rentals in weeks 8–9 and league-year deals, kinds
-that were there before.
+in the truth rose from 0.6 to 1.0 a season at nine leagues (info), all but one of the 28 the losing side's
+own situation rather than its scouts' misread. The physicals line at nine leagues reads 4.1 deals voided
+or through with concerns a season (band 1–4, assumed; 3.6 before): it counts deals, and there are 6% more
+of them, more of them veterans' rentals (3.1 in CI's three leagues).
+
+#### A late pick rides back from a late fifth's worth ahead (Oct 21 2026)
+
+With that opening league the trades check read 9% of AI deals with a pick going each way (band 10–25%,
+the research's share of NFL deals with a late pick riding along): its packages land closer to the price.
+Over the run's deals the package overshot the price by an early fifth's worth (40 points, the old
+threshold for handing a pick back) in 43 of 362, by a late fifth's (30) in 60. The seller now hands one
+back from 30 points ahead (`BALANCE` in `deals.ts`); the rider is still the biggest that evens the deal,
+and both GMs must still take it. Three leagues: 9% → 16%; nine: 17%.
 
 ### Phase 4: draft day
 
