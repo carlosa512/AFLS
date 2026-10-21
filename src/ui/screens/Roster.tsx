@@ -427,7 +427,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
               <label
                 className="row"
                 style={{ gap: 6, cursor: 'pointer' }}
-                title="Your medical staff moves long injuries to injured reserve, brings players back, and signs a minimum-deal replacement when a position runs short."
+                title="Your medical staff moves long injuries to injured reserve, brings players back when there's room, and lines up a spare player at a position that runs short. Signings and cuts stay yours."
               >
                 <input
                   type="checkbox"

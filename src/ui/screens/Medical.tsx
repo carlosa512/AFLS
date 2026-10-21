@@ -346,7 +346,7 @@ function InjuryReport({ league }: { league: League }) {
       <p className="muted small" style={{ marginTop: 0 }}>
         {team.autoInjuries === false
           ? 'You manage injuries yourself: place long injuries on reserve and sign replacements from the player card and free agency.'
-          : 'Your staff moves long injuries to reserve, brings players back when they heal, and signs a replacement when a position runs short. Turn that off on the roster screen.'}
+          : "Your staff moves long injuries to reserve, brings players back when there's room, and covers a short position from the roster. Signings and cuts are yours. Turn that off on the roster screen."}
       </p>
       {hurt.length === 0 ? (
         <p className="muted">Nobody is hurt.</p>
