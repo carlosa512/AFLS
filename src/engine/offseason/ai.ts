@@ -76,14 +76,28 @@ export const IN_SEASON_RESERVE = 0.03;
 const reserve = (league: League, teamId: number) =>
   league.caps[league.season] * IN_SEASON_RESERVE * (1.5 - league.teams[teamId].gm.capAggression);
 
-/** Room to keep for minimum deals that bring the roster to 53 once the draft class is in. */
-function fillReserve(league: League, teamId: number): number {
+/**
+ * Spots on the 53 still open once the draft class is in. Only players signed for the league year fill one: in the
+ * re-sign window an expiring player is still on the roster, but his spot is open until he signs (a team that let 28
+ * walk read as nearly full, spent their replacements' room on re-signs, and paid for 22 minimum deals at camp out of
+ * the room it planned to carry into the season).
+ */
+function openSpots(league: League, teamId: number): number {
   const picks = league.draftPicks.filter(
     (p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined,
   ).length;
-  const missing = Math.max(0, ROSTER_MAX - activeRoster(league, teamId).length - picks);
-  return missing * minSalary(1, league.caps[league.season]);
+  const signed = activeRoster(league, teamId).filter((p) => p.contract && !isExpired(p.contract, league.season));
+  return Math.max(0, ROSTER_MAX - signed.length - picks);
 }
+
+/**
+ * Room to keep for the minimum deals that fill the open spots. Camp signs the best free agents left, mostly veterans
+ * on a veteran's minimum (1.27-1.30x a second-year player's on 'offseason-audit'), so each spot is kept at the highest
+ * minimum, which covers any of them; kept at the second-year minimum, a team with twenty spots to fill paid the
+ * difference out of its in-season room.
+ */
+const fillReserve = (league: League, teamId: number) =>
+  openSpots(league, teamId) * topMinimum(league.caps[league.season]);
 
 /** What an AI team can spend right now without starving the draft class or the bottom of the roster. */
 export const spendable = (league: League, teamId: number) =>
@@ -260,8 +274,10 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
   aiFifthYearOptions(league, team);
   const depth = depthOutlooks(league, team);
   const wn = winNow(league, team);
-  let budget = spendable(league, team.id);
   const market = leagueMarket(league);
+  // What a re-sign may cost: what the team can spend, plus the minimum deal it keeps for his spot while it's open.
+  const budget = () =>
+    spendable(league, team.id) + (openSpots(league, team.id) > 0 ? topMinimum(league.caps[league.season]) : 0);
   for (const p of expiringPlayers(league, team.id)) {
     const ovr = playerOvr(p);
     // Kept on where he's headed: a fading veteran has to beat the room's future, a climbing one is worth his raise.
@@ -281,9 +297,8 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const testsMarket = rng.chance(0.3 * (1 - p.personality.loyalty));
     // The new deal's year-one cap hit: 0.85x its APY ran about a tenth under a market deal's (all of a one-year one's).
     const cost = offerCharge(league, p, team.id, offer);
-    if (!testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway && cost <= budget) {
+    if (!testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway && cost <= budget()) {
       signPlayer(league, p, team.id, offer);
-      budget -= cost;
       mine.push(ahead);
       mine.sort((a, b) => b - a);
       continue;
@@ -293,10 +308,7 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
       // The tag's charge, less the old deal's (its void years' bonus money accelerates), as `tagBlocker` reads it.
       const value =
         tagValue(league, p) - (capHit(p.contract!, league.season) - remainingProration(p.contract!, league.season));
-      if (value <= budget) {
-        applyFranchiseTag(league, p);
-        budget -= value;
-      }
+      if (value <= budget()) applyFranchiseTag(league, p);
     }
   }
   aiCapCompliance(league, team);
