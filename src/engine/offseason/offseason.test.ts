@@ -97,6 +97,17 @@ describe('offseason calendar', () => {
       if (activeRoster(league, t.id).length < 53) expect(capSpace(league, t.id)).toBeLessThan(minSalary(1, cap));
   });
 
+  it('opens the season with one kicker and one punter a team, as every NFL team did in 2019-2025', () => {
+    // nflverse week-1 rosters, 2019-2025: 0 of 224 teams carried two kickers or two punters on the 53. A second
+    // specialist kept on his overall (cuts) or signed as the best available (camp top-ups) kept old ones employed.
+    const league = fresh();
+    beginOffseason(league);
+    while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
+    for (const t of league.teams.filter((t) => t.id !== league.userTeamId))
+      for (const pos of ['K', 'P'] as const)
+        expect(activeRoster(league, t.id).filter((p) => p.position === pos).length, `${t.abbrev} ${pos}`).toBe(1);
+  });
+
   it("keeps a re-sign inside what the team can spend, charged at the new deal's first-year cap hit", () => {
     // The window once charged a new deal 0.85x its APY, about 10% under a market deal's first year (a one-year
     // deal's is all of it), so a team near its limit re-signed into the room it planned to keep for the season.
