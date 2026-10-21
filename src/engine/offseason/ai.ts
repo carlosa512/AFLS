@@ -40,6 +40,7 @@ import {
   contenderScore,
   demand,
   freeAgents,
+  offerCharge,
   offerProblem,
   offerValue,
   rookieReserve,
@@ -85,7 +86,7 @@ function fillReserve(league: League, teamId: number): number {
 }
 
 /** What an AI team can spend right now without starving the draft class or the bottom of the roster. */
-const spendable = (league: League, teamId: number) =>
+export const spendable = (league: League, teamId: number) =>
   capSpace(league, teamId) - rookieReserve(league, teamId) - fillReserve(league, teamId) - reserve(league, teamId);
 
 /**
@@ -278,8 +279,8 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const d = demand(league, p, team.id);
     // Some players want to see what the market will pay, however loyal the club.
     const testsMarket = rng.chance(0.3 * (1 - p.personality.loyalty));
-    // Roughly the new deal's year-one cap hit (the bonus is spread).
-    const cost = offer.apy * 0.85;
+    // The new deal's year-one cap hit: 0.85x its APY ran about a tenth under a market deal's (all of a one-year one's).
+    const cost = offerCharge(league, p, team.id, offer);
     if (!testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway && cost <= budget) {
       signPlayer(league, p, team.id, offer);
       budget -= cost;
@@ -289,7 +290,9 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     }
     const tier = payTier(p.position, positionRank(market, p));
     if (!team.taggedId && tier >= 0.75 && p.age - ageShift(p.position) <= 30 && rng.chance(0.35)) {
-      const value = tagValue(league, p);
+      // The tag's charge, less the old deal's (its void years' bonus money accelerates), as `tagBlocker` reads it.
+      const value =
+        tagValue(league, p) - (capHit(p.contract!, league.season) - remainingProration(p.contract!, league.season));
       if (value <= budget) {
         applyFranchiseTag(league, p);
         budget -= value;

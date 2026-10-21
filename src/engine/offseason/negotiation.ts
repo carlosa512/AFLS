@@ -8,8 +8,8 @@
  */
 import { accelerateProration, capSpace, logTransaction, paidFraction, paidShare, weeksPaid } from '../finance/cap';
 import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft } from '../finance/contract';
-import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears, rookieApy } from '../finance/market';
-import { freeJersey } from '../generate';
+import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears } from '../finance/market';
+import { freeJersey, rookieContract } from '../generate';
 import { clamp, Rng } from '../rng';
 import { activeRoster, syncDepthChart, teamPlayers, teamRatings } from '../roster';
 import type { Contract, League, Negotiation, Player } from '../types';
@@ -223,6 +223,13 @@ export function prospectiveContract(
   return c;
 }
 
+/** What signing `offer` adds to the team's cap this league year: the new deal's charge less the one it replaces. */
+export function offerCharge(league: League, player: Player, teamId: number, offer: Offer): number {
+  return (
+    capHit(prospectiveContract(league, player, teamId, offer), league.season) - replacedCharge(league, player, teamId)
+  );
+}
+
 /** Problems that make an offer impossible regardless of the player's opinion. */
 export function offerProblem(league: League, player: Player, teamId: number, offer: Offer): string | null {
   if (player.retired) return 'He has retired.';
@@ -358,11 +365,16 @@ export function freeAgents(league: League): Player[] {
   return Object.values(league.players).filter((p) => p.teamId === null && !p.retired && !prospects.has(p.id));
 }
 
-/** What this year's picks a team still holds will take of its cap once they're signed, about ($K). */
+/**
+ * What this year's picks a team still holds will take of its cap once they're signed: their rookie deals' first-year
+ * cap hits ($K). A rookie deal's first year charges 89-96% of its APY (the bonus spread over four years, salaries
+ * climbing 8% a year); a reserve at 0.8x the APY left a front office short of the room it planned to keep.
+ */
 export function rookieCost(league: League, teamId: number): number {
+  const season = league.season;
   return league.draftPicks
-    .filter((p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined)
-    .reduce((s, p) => s + rookieApy(p.overall ?? 100, league.caps[league.season]) * 0.8, 0);
+    .filter((p) => p.season === season && p.ownerId === teamId && p.playerId === undefined)
+    .reduce((s, p) => s + capHit(rookieContract(p.overall ?? 100, season, league.caps[season]), season), 0);
 }
 
 /** Cap room a team keeps aside before the draft for this offseason's rookie class. */
