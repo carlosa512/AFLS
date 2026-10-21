@@ -379,10 +379,13 @@ describe('the cap in season', () => {
     const l = createLeague({ seed: 'cover-room' });
     const team = l.teams.find((t) => t.id !== l.userTeamId)!;
     // All but two receivers become kickers: the WR room is short and spare bodies sit at K, so the roster stays full.
+    // Rated 1 across the board, none of them is good enough to cover back at receiver: the hole needs a signing.
     for (const p of teamPlayers(l, team.id)
       .filter((x) => x.position === 'WR')
-      .slice(2))
+      .slice(2)) {
       p.position = 'K';
+      for (const k of Object.keys(p.ratings)) p.ratings[k as keyof typeof p.ratings] = 1;
+    }
     team.depthChart = buildAutoDepthChart(teamPlayers(l, team.id));
     l.caps[l.season] -= capSpace(l, team.id) - room;
     return { l, teamId: team.id };

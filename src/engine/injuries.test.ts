@@ -18,6 +18,7 @@ import {
   IR_RETURNS,
   irProblem,
   manageInjuries,
+  NEED,
   placeOnIr,
   proposeTreatment,
   protocolBag,
@@ -50,10 +51,12 @@ import {
 import { migrateLeague } from './migrate';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
-import { activeRoster, isAvailable, teamPlayers } from './roster';
+import { activeRoster, chooseCover, COVER_BAR, isAvailable, placeAt, teamPlayers } from './roster';
+import { slotOvr } from './familiarity';
+import { signPlayer } from './offseason/negotiation';
 import { quirkWeek } from './quirks';
 import { generateTraits } from './traits';
-import type { Injury, League, Medic, Player, TreatmentId } from './types';
+import type { Injury, League, Medic, Player, Position, Ratings, Team, TreatmentId } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -832,5 +835,137 @@ describe('quirks and injuries', () => {
       quirkWeek(league);
     }
     expect(JSON.stringify(out.quirkBag)).toBe(bag);
+  });
+});
+
+describe('covering a short position', () => {
+  const aiTeam = (league: League) => league.teams.find((t) => t.id !== league.userTeamId)!;
+  /** Hurt all but `left` healthy players at `pos` (two weeks: off the field, not on reserve). */
+  const thin = (league: League, teamId: number, pos: Position, left: number) =>
+    teamPlayers(league, teamId)
+      .filter((p) => p.position === pos)
+      .slice(left)
+      .forEach((p) => hurt(league, p, 2));
+  /** Everyone on the team outside `keep` rated 1 across the board: nobody covers anywhere. */
+  const blank = (league: League, teamId: number, keep: Position[]) => {
+    for (const p of teamPlayers(league, teamId))
+      if (!keep.includes(p.position)) for (const k of Object.keys(p.ratings)) p.ratings[k as keyof Ratings] = 1;
+  };
+  const staffAt = (league: League, teamId: number) =>
+    Object.entries(league.teams[teamId].playingAt ?? {}).filter(([, v]) => v.by === 'staff');
+  const ids = (league: League, teamId: number) =>
+    teamPlayers(league, teamId)
+      .map((p) => p.id)
+      .sort();
+  /** The last linebacker on the chart, rated `r` across the board: a spare who's a decent backup at safety. */
+  const spareLb = (league: League, team: Team, r = 13) => {
+    const p = league.players[team.depthChart.LB.at(-1)!];
+    for (const k of Object.keys(p.ratings)) p.ratings[k as keyof Ratings] = r;
+    expect(slotOvr(p, 'S')).toBeGreaterThanOrEqual(COVER_BAR);
+    return p;
+  };
+
+  it('covers a short position from the roster before signing anyone', () => {
+    const league = fresh();
+    const team = aiTeam(league);
+    const spare = spareLb(league, team);
+    thin(league, team.id, 'S', NEED.S - 1);
+    const before = ids(league, team.id);
+    manageInjuries(league, team, new Rng('cover'));
+    expect(team.playingAt?.[spare.id]).toEqual({ pos: 'S', by: 'staff' });
+    expect(team.depthChart.S).toContain(spare.id);
+    expect(ids(league, team.id)).toEqual(before);
+  });
+
+  it('never covers with a starter, a man his position cannot spare, or anyone under the bar', () => {
+    const league = fresh();
+    const team = aiTeam(league);
+    thin(league, team.id, 'S', NEED.S - 1);
+    blank(league, team.id, ['S']);
+    expect(chooseCover(league, team, 'S', NEED)).toBeNull();
+    // The starting linebacker is good enough, but he starts.
+    const lbs = team.depthChart.LB.map((id) => league.players[id]);
+    for (const k of Object.keys(lbs[0].ratings)) lbs[0].ratings[k as keyof Ratings] = 20;
+    expect(chooseCover(league, team, 'S', NEED)).toBeNull();
+    // A backup good enough, with linebackers down to what the position needs: none to spare.
+    const backup = lbs[lbs.length - 1];
+    for (const k of Object.keys(backup.ratings)) backup.ratings[k as keyof Ratings] = 15;
+    expect(chooseCover(league, team, 'S', NEED)).toBe(backup);
+    lbs.slice(1, lbs.length - NEED.LB + 1).forEach((p) => p !== backup && hurt(league, p, 2));
+    expect(chooseCover(league, team, 'S', NEED)).toBeNull();
+  });
+
+  it('uses one spare player for one hole only', () => {
+    const league = fresh();
+    const team = aiTeam(league);
+    blank(league, team.id, ['S', 'CB']);
+    // Starting corners stay strong, one spare corner is good enough anywhere in the secondary or behind it.
+    team.depthChart.CB.forEach((id, i) => {
+      const r = i < 3 ? 18 : i === team.depthChart.CB.length - 1 ? 15 : 1;
+      for (const k of Object.keys(league.players[id].ratings)) league.players[id].ratings[k as keyof Ratings] = r;
+    });
+    thin(league, team.id, 'S', NEED.S - 1);
+    thin(league, team.id, 'LB', NEED.LB - 1);
+    const spare = league.players[team.depthChart.CB.at(-1)!];
+    manageInjuries(league, team, new Rng('cover'));
+    expect(staffAt(league, team.id)).toHaveLength(1);
+    // Equally short, linebacker comes first: he stays there rather than being moved on to safety.
+    expect(team.playingAt?.[spare.id]?.pos).toBe('LB');
+  });
+
+  it("sends staff's cover back when the position heals, or when he's hurt himself; leaves a user's move", () => {
+    const league = fresh();
+    const team = aiTeam(league);
+    const cover = spareLb(league, team);
+    thin(league, team.id, 'S', NEED.S - 1);
+    manageInjuries(league, team, new Rng('cover'));
+    expect(team.playingAt?.[cover.id]?.by).toBe('staff');
+    const mine = teamPlayers(league, team.id).find((p) => p.position === 'WR' && !team.playingAt?.[p.id])!;
+    placeAt(league, mine.id, 'TE');
+    for (const p of teamPlayers(league, team.id)) if (p.position === 'S') delete p.injury;
+    manageInjuries(league, team, new Rng('cover'));
+    expect(team.playingAt?.[cover.id]).toBeUndefined();
+    expect(team.depthChart[cover.position]).toContain(cover.id);
+    expect(team.playingAt?.[mine.id]).toEqual({ pos: 'TE', by: 'user' });
+    // Short again, covered again; then the cover is hurt himself.
+    thin(league, team.id, 'S', NEED.S - 1);
+    manageInjuries(league, team, new Rng('cover'));
+    expect(team.playingAt?.[cover.id]?.by).toBe('staff');
+    hurt(league, cover, 2);
+    manageInjuries(league, team, new Rng('cover'));
+    expect(team.playingAt?.[cover.id]).toBeUndefined();
+  });
+
+  it('your staff covers but never signs or cuts', () => {
+    const league = fresh();
+    const team = league.teams[league.userTeamId];
+    expect(activeRoster(league, team.id)).toHaveLength(53);
+    const spare = spareLb(league, team);
+    thin(league, team.id, 'S', NEED.S - 1);
+    const before = ids(league, team.id);
+    manageInjuries(league, team, new Rng('cover'));
+    expect(team.playingAt?.[spare.id]).toEqual({ pos: 'S', by: 'staff' });
+    expect(ids(league, team.id)).toEqual(before);
+    // Nobody good enough: still nobody signed, nobody cut.
+    for (const [id] of staffAt(league, team.id)) delete team.playingAt![Number(id)];
+    blank(league, team.id, ['S']);
+    manageInjuries(league, team, new Rng('cover'));
+    expect(staffAt(league, team.id)).toHaveLength(0);
+    expect(ids(league, team.id)).toEqual(before);
+  });
+
+  it('a healed player on your IR waits for a spot instead of costing someone his job', () => {
+    const league = fresh();
+    const team = league.teams[league.userTeamId];
+    const p = teamPlayers(league, team.id).find((x) => x.position === 'LB')!;
+    p.ir = { season: league.season, week: 1, weeks: IR_MIN_WEEKS };
+    const fa = player(7);
+    league.players[fa.id] = fa;
+    signPlayer(league, fa, team.id, { years: 1, apy: 2000, bonusPct: 0, gtdPct: 0, voidYears: 0 });
+    expect(activeRoster(league, team.id)).toHaveLength(53);
+    const before = ids(league, team.id);
+    manageInjuries(league, team, new Rng('cover'));
+    expect(p.ir).toBeDefined();
+    expect(ids(league, team.id)).toEqual(before);
   });
 });

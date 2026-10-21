@@ -126,6 +126,35 @@ export function slotOf(league: League, p: Player): Position {
   return POSITIONS.find((pos) => chart[pos].includes(p.id)) ?? p.position;
 }
 
+/** The least a player has to be worth at a position, knock included, to cover it from the roster: a decent backup. */
+export const COVER_BAR = 9.5;
+
+/**
+ * Who covers a short position from the roster ("use what you have"): the healthy player worth the most there
+ * (`slotOvr`, knock included) who isn't already lined up elsewhere, doesn't start at his own position, and whose
+ * position keeps `need` healthy players without him. Nobody, if the best of them isn't a decent backup there.
+ */
+export function chooseCover(
+  league: League,
+  team: Team,
+  pos: Position,
+  need: Readonly<Record<Position, number>>,
+): Player | null {
+  const players = activeRoster(league, team.id).filter(isAvailable);
+  const healthy = new Map<Position, number>();
+  for (const p of players) healthy.set(slotOf(league, p), (healthy.get(slotOf(league, p)) ?? 0) + 1);
+  const best = players
+    .filter(
+      (p) =>
+        p.position !== pos &&
+        !team.playingAt?.[p.id] &&
+        !starters(league, team, p.position).includes(p) &&
+        (healthy.get(p.position) ?? 0) - 1 >= need[p.position],
+    )
+    .sort((a, b) => slotOvr(b, pos) - slotOvr(a, pos))[0];
+  return best && slotOvr(best, pos) >= COVER_BAR ? best : null;
+}
+
 /** Starters at a position per the depth chart, skipping anyone hurt (may be fewer if the roster is short). */
 export function starters(league: League, team: Team, pos: Position): Player[] {
   const out: Player[] = [];

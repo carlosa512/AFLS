@@ -45,7 +45,17 @@ import { ROSTER_MAX } from './offseason/negotiation';
 import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
 import { clamp, Rng } from './rng';
-import { activeRoster, isAvailable, playingHurt, syncDepthChart, teamPlayers } from './roster';
+import {
+  activeRoster,
+  chooseCover,
+  isAvailable,
+  placeAt,
+  playingHurt,
+  returnHome,
+  slotOf,
+  syncDepthChart,
+  teamPlayers,
+} from './roster';
 import { characterRead, type CharacterRead } from './scouting';
 import { TRAIT_MEAN } from './traits';
 import type {
@@ -1443,13 +1453,16 @@ export function manageInjuries(league: League, team: Team, rng: Rng, roster = te
       !p.injury &&
       (!season || (p.ir.weeks >= IR_MIN_WEEKS && irReturnsUsed(league, team.id) < IR_RETURNS))
     ) {
+      // Your staff never cuts a man to bring one back: he waits on reserve until you make room.
+      if (team.id === league.userTeamId && activeRoster(league, team.id).length >= ROSTER_MAX) continue;
       if (inSeason(league)) (team.irReturns ??= {})[league.season] = irReturnsUsed(league, team.id) + 1;
       delete p.ir;
       if (activeRoster(league, team.id).length > ROSTER_MAX) aiCutdown(league, team);
       syncDepthChart(league, team);
     }
   }
-  if (season) coverPositions(league, team, rng, roster);
+  // Your staff covers from the roster; signings and cuts stay yours.
+  if (season) coverPositions(league, team, rng, roster, team.id !== league.userTeamId);
 }
 
 /** Weeks the doctor expects him to miss: the estimate's middle, or the wait before he plays in gear. */
@@ -1480,7 +1493,7 @@ function aiTreatment(league: League, team: Team, p: Player): void {
 }
 
 /** Fewest healthy players a team needs at each position to field a lineup without emergencies. */
-const NEED: Record<Position, number> = {
+export const NEED: Record<Position, number> = {
   QB: 2,
   RB: 2,
   WR: 4,
@@ -1496,18 +1509,52 @@ const NEED: Record<Position, number> = {
 };
 
 /**
- * Sign a minimum-deal replacement wherever too few healthy players are left, cutting to make room.
+ * Staff's covers end once they're not needed: a player staff lined up at a position goes back to his own when
+ * that position has enough healthy players of its own again, or when he's hurt himself. The user's moves stay.
+ */
+function releaseCovers(league: League, team: Team): void {
+  const at = team.playingAt;
+  if (!at) return;
+  const roster = activeRoster(league, team.id);
+  for (const [id, entry] of Object.entries(at)) {
+    if (entry.by !== 'staff') continue;
+    const p = league.players[Number(id)];
+    const own = roster.filter((q) => q.position === entry.pos && !at[q.id] && isAvailable(q)).length;
+    if (!isAvailable(p) || own >= NEED[entry.pos]) returnHome(league, p.id);
+  }
+}
+
+/**
+ * Wherever too few healthy players are left (counted where they line up), use what the roster has first: a spare
+ * player who's a decent backup there moves over (`chooseCover`). Then, with `sign` (AI teams), a replacement on
+ * a minimum deal, cutting to make room. Without it (your staff) nobody is signed or cut.
  * `roster` is the team as it stood before this pass (re-read only once a move changes it).
  */
-function coverPositions(league: League, team: Team, rng: Rng, roster: Player[]): void {
+function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], sign: boolean): void {
+  releaseCovers(league, team);
   let current = roster.filter((p) => p.teamId === team.id && !p.ir);
+  // Positions nobody on the roster can cover, when this pass can't sign: left short.
+  const stuck = new Set<Position>();
   for (let guard = 0; guard < 12; guard++) {
     if (guard > 0) current = activeRoster(league, team.id);
     const healthy = new Map<Position, number>();
-    for (const p of current) if (isAvailable(p)) healthy.set(p.position, (healthy.get(p.position) ?? 0) + 1);
-    const short = POSITIONS.filter((pos) => (healthy.get(pos) ?? 0) < NEED[pos]).sort(
+    for (const p of current)
+      if (isAvailable(p)) healthy.set(slotOf(league, p), (healthy.get(slotOf(league, p)) ?? 0) + 1);
+    const short = POSITIONS.filter((pos) => !stuck.has(pos) && (healthy.get(pos) ?? 0) < NEED[pos]).sort(
       (a, b) => (healthy.get(a) ?? 0) / NEED[a] - (healthy.get(b) ?? 0) / NEED[b],
     )[0];
+    if (short) {
+      const cover = chooseCover(league, team, short, NEED);
+      if (cover) {
+        placeAt(league, cover.id, short, undefined, 'staff');
+        continue;
+      }
+    }
+    if (!sign) {
+      if (!short) return;
+      stuck.add(short);
+      continue;
+    }
     const open = current.length < ROSTER_MAX;
     if (!short && !open) return;
     // Room on the roster and nobody short: fill the spot where depth is thinnest against a full roster.
