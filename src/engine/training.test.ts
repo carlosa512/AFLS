@@ -17,7 +17,7 @@ import { createLeague, SAVE_VERSION } from './generate';
 import { buildLineup } from './match/lineup';
 import { migrateLeague } from './migrate';
 import { overall, playerOvr } from './positions';
-import { buildAutoDepthChart, placeAt, slotOf, syncDepthChart, teamPlayers } from './roster';
+import { buildAutoDepthChart, placeAt, returnHome, slotOf, syncDepthChart, teamPlayers } from './roster';
 import { playerTradeBlocker } from './trade/rules';
 import {
   activeLearning,
@@ -228,6 +228,89 @@ describe('out of position', () => {
     // A release takes him off every group.
     releasePlayer(l, l.players[cb.id]);
     for (const ids of Object.values(team.depthChart)) expect(ids).not.toContain(cb.id);
+  });
+
+  it('"Play at" survives auto-sort and leaves it on; back home undoes it', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const cb = teamPlayers(l, team.id).find((p) => p.position === 'CB')!;
+    placeAt(l, cb.id, 'S');
+    expect(team.autoDepth).toBe(true);
+    expect(team.playingAt?.[cb.id]).toEqual({ pos: 'S', by: 'user' });
+    syncDepthChart(l, team);
+    expect(team.depthChart.S).toContain(cb.id);
+    expect(team.depthChart.CB).not.toContain(cb.id);
+    returnHome(l, cb.id);
+    expect(team.playingAt?.[cb.id]).toBeUndefined();
+    expect(team.depthChart.CB).toContain(cb.id);
+    expect(team.depthChart.S).not.toContain(cb.id);
+  });
+
+  it('an auto-sorted group ranks a "Play at" player by his worth there', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const cb = teamPlayers(l, team.id)
+      .filter((p) => p.position === 'CB')
+      .sort((a, b) => slotOvr(b, 'S') - slotOvr(a, 'S'))[0];
+    // The best corner at safety outplays the last safety there: auto-sort lists him ahead of that man.
+    expect(slotOvr(cb, 'S')).toBeGreaterThan(slotOvr(l.players[team.depthChart.S.at(-1)!], 'S'));
+    placeAt(l, cb.id, 'S');
+    expect(team.depthChart.S.at(-1)).not.toBe(cb.id);
+    const worth = team.depthChart.S.map((id) => slotOvr(l.players[id], 'S'));
+    expect(worth).toEqual([...worth].sort((a, b) => b - a));
+    // A chart with nobody out of position ranks exactly as before.
+    const other = l.teams.find((t) => t.id !== team.id)!;
+    expect(buildAutoDepthChart(teamPlayers(l, other.id))).toEqual(
+      buildAutoDepthChart(teamPlayers(l, other.id), other.playingAt),
+    );
+  });
+
+  it('a hand-sorted chart keeps its order when staff lines someone up', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const cbs = [...team.depthChart.CB];
+    team.depthChart.CB = [cbs[1], cbs[0], ...cbs.slice(2)];
+    team.autoDepth = false;
+    const handCb = [...team.depthChart.CB];
+    const wr = l.players[team.depthChart.WR.at(-1)!];
+    placeAt(l, wr.id, 'S', undefined, 'staff');
+    expect(team.autoDepth).toBe(false);
+    expect(team.depthChart.CB).toEqual(handCb);
+    expect(team.depthChart.S.at(-1)).toBe(wr.id);
+    expect(team.playingAt?.[wr.id]).toEqual({ pos: 'S', by: 'staff' });
+    // The user moving staff's man makes the move his.
+    placeAt(l, wr.id, 'S');
+    expect(team.playingAt?.[wr.id]).toEqual({ pos: 'S', by: 'user' });
+  });
+
+  it('drops entries for players who left the team or moved there for good', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const [a, b] = teamPlayers(l, team.id).filter((p) => p.position === 'CB');
+    placeAt(l, a.id, 'S');
+    placeAt(l, b.id, 'S');
+    expect(team.playingAt?.[a.id]).toBeDefined();
+    releasePlayer(l, l.players[a.id]);
+    syncDepthChart(l, team);
+    expect(team.playingAt?.[a.id]).toBeUndefined();
+    l.players[b.id].position = 'S';
+    syncDepthChart(l, team);
+    expect(team.playingAt?.[b.id]).toBeUndefined();
+    expect(team.depthChart.S).toContain(b.id);
+  });
+
+  it('an old hand-sorted chart\'s out-of-position players load as your "Play at" moves', () => {
+    const old = fresh() as League & { version: number };
+    const team = old.teams[old.userTeamId];
+    const cb = teamPlayers(old, team.id).find((p) => p.position === 'CB')!;
+    team.depthChart.CB = team.depthChart.CB.filter((id) => id !== cb.id);
+    team.depthChart.S.push(cb.id);
+    team.autoDepth = false;
+    old.version = 34;
+    const l = migrateLeague(old)!;
+    const t = l.teams[l.userTeamId];
+    expect(t.playingAt?.[cb.id]).toEqual({ pos: 'S', by: 'user' });
+    expect(t.depthChart.S).toContain(cb.id);
   });
 });
 

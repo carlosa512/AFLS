@@ -172,7 +172,7 @@ function setAuto(teamId: number, auto: boolean) {
   store.mutate((l) => {
     const team = l.teams[teamId];
     team.autoDepth = auto;
-    if (auto) team.depthChart = buildAutoDepthChart(teamPlayers(l, teamId));
+    if (auto) team.depthChart = buildAutoDepthChart(teamPlayers(l, teamId), team.playingAt);
   });
 }
 
@@ -464,8 +464,8 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
           <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
             Starters sit above the yellow line, in the spots your coordinators' schemes use. Drag a player by the{' '}
             <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns
-            auto-sort off for your team. In a pinch, "Play at…" lines a player up at another position: out of position
-            he takes a knock, smaller in his own room or at a spot he has played.
+            auto-sort off for your team. In a pinch, "Play at…" lines a player up at another position (auto-sort keeps
+            him there): out of position he takes a knock, smaller in his own room or at a spot he has played.
           </p>
         )}
         <span className="visually-hidden" aria-live="polite">
@@ -603,6 +603,8 @@ function RosterRow({
   const spot = spots[index] ?? `${slot}${index + 1}`;
   const mine = p.teamId === league.userTeamId;
   const away = slot !== p.position;
+  // Staff lined him up here for an injury (it sends him back once the position heals).
+  const staffMove = away && p.teamId !== null && league.teams[p.teamId].playingAt?.[p.id]?.by === 'staff';
   // Your own players only: how a rival's roster suits its scheme is its business.
   const fit = mine && starter && !away ? schemeFitOf(league, p, scheme) : null;
   const learning = mine ? activeLearning(p) : undefined;
@@ -667,7 +669,7 @@ function RosterRow({
             className={`tag-pill name-sub ${knockAt(p, slot) === 'big' ? 'tag-warn' : ''}`}
             title={lineupText(p, slot)}
           >
-            Out of position ({p.position})
+            Out of position ({p.position}){staffMove ? ' · staff' : ''}
           </span>
         )}
         {learning && (

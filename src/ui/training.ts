@@ -4,7 +4,7 @@
  * words; the numbers behind them (a learner's weeks, his pace, a motive's strength, the knock's size) stay
  * with the engine. Mirrors ui/coaching.ts.
  */
-import { buildAutoDepthChart, placeAt, slotOf, teamPlayers } from '../engine/roster';
+import { buildAutoDepthChart, placeAt, returnHome, slotOf, teamPlayers } from '../engine/roster';
 import { chairHolder, teamCoaches } from '../engine/coaching';
 import { reasonLine } from '../engine/inbox';
 import { knockFor, knockWord, targetsFor } from '../engine/familiarity';
@@ -149,6 +149,8 @@ export const positionChoices = (slot: Position): Position[] => POSITIONS.filter(
 export function placeBack(league: League, playerId: number): void {
   const p = league.players[playerId];
   if (p.teamId === null) throw new Error('Not on a team.');
+  // An auto-sorted chart files him by rating itself.
+  if (league.teams[p.teamId].autoDepth) return returnHome(league, playerId);
   const rank = new Map(buildAutoDepthChart(teamPlayers(league, p.teamId))[p.position].map((id, i) => [id, i]));
   const mine = rank.get(p.id) ?? Infinity;
   const list = league.teams[p.teamId].depthChart[p.position].filter((id) => id !== p.id);
@@ -157,7 +159,7 @@ export function placeBack(league: League, playerId: number): void {
   placeAt(league, playerId, p.position, at < 0 ? list.length : at);
 }
 
-/** Line him up at `pos` ("Play at…"), or back at his own. Hand-sorts the chart, as a drag does. */
+/** Line him up at `pos` ("Play at…"), or back at his own. Auto-sort stays as it was: the move is remembered either way. */
 export function playAt(league: League, playerId: number, pos: Position): void {
   if (league.players[playerId].position === pos) placeBack(league, playerId);
   else placeAt(league, playerId, pos);
