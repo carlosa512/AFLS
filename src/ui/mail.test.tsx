@@ -91,6 +91,35 @@ describe('the offer card', () => {
     expect(html).not.toContain('class="pos"');
     expect(html).not.toMatch(/letters in one/);
   });
+
+  it('opens the thread with the offer it was sent to expanded', () => {
+    let html = '';
+    for (const seed of SEEDS) {
+      const { league, enquiry } = withEnquiry(seed);
+      deliverMail(league);
+      const { offer: bid } = answerEnquiry(league, enquiry.id, 'offer');
+      if (!bid) continue;
+      deliverMail(league);
+      const target = mailForOffer(league, bid)?.id ?? offerMailId(league, bid);
+      const thread = threads(league.inbox!).find((t) => t.messages.some((m) => m.id === target))!;
+      expect(thread.messages.length).toBeGreaterThanOrEqual(2);
+      html = renderToStaticMarkup(
+        <Folded
+          league={league}
+          t={thread}
+          needs={new Set()}
+          index={nameIndex(league)}
+          act={() => {}}
+          focusId={target}
+        />,
+      );
+      break;
+    }
+    expect(html, 'a conversation in one of the seeds').not.toBe('');
+    // Only the bid is open, and it shows its buttons.
+    expect(html.match(/aria-expanded="true"/g)?.length).toBe(1);
+    expect(html).toContain('Accept');
+  });
 });
 
 /** A league with a filed offer message, found by playing on; `want` picks the offer. */

@@ -407,7 +407,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                   act={act}
                 />
               ) : (
-                <Folded league={league} t={open} needs={needs} index={names!} act={act} />
+                <Folded league={league} t={open} needs={needs} index={names!} act={act} focusId={messageId} />
               )}
             </>
           ) : (
@@ -499,14 +499,26 @@ export function Folded({
   needs,
   index,
   act,
+  focusId,
 }: {
   league: League;
   t: MailThread;
   needs: Set<string>;
   index: MoveIndex;
   act: (a: InboxAction) => void;
+  /** The message a link sent us to: it opens, the rest stay folded. */
+  focusId?: string;
 }) {
-  const [openIds, setOpenIds] = useState<string[]>([]);
+  const focused = t.messages.some((m) => m.id === focusId);
+  const [openIds, setOpenIds] = useState<string[]>(focused ? [focusId!] : []);
+  // After the inbox has put the thread at the top (its effect runs after ours), bring the message into view.
+  useEffect(() => {
+    if (!focused) return;
+    const frame = requestAnimationFrame(() =>
+      document.getElementById(`mail-${focusId}`)?.scrollIntoView({ block: 'start' }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [focused, focusId]);
   const label = threadLabel(t);
   const lead = t.messages[0];
   const talk = t.kind === 'offer';
@@ -545,7 +557,7 @@ export function Folded({
           const status = talk ? offerStatus(league, m) : '';
           const isOpen = openIds.includes(m.id);
           return (
-            <div key={m.id} className={`fold-item${isOpen ? ' is-open' : ''}`}>
+            <div key={m.id} id={`mail-${m.id}`} className={`fold-item${isOpen ? ' is-open' : ''}`}>
               <div className="fold-row">
                 <button className="fold-toggle" aria-expanded={isOpen} onClick={() => toggle(m.id)}>
                   <span aria-hidden="true">{isOpen ? '▾' : '▸'}</span>

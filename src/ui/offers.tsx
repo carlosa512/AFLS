@@ -325,7 +325,11 @@ export function OfferCard({
           type="button"
           className="btn btn-sm"
           onClick={() =>
-            nav.go({ view: 'inbox', messageId: mailForOffer(league, reply)?.id ?? offerMailId(league, reply) })
+            nav.go({
+              view: 'inbox',
+              messageId: mailForOffer(league, reply)?.id ?? offerMailId(league, reply),
+              focus: Date.now(),
+            })
           }
         >
           See their offer →
