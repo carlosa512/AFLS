@@ -171,7 +171,7 @@ export function MailCards({ league, message }: { league: League; message: InboxM
     case 'recap':
       return <RecapCards league={league} s={s} />;
     case 'cleared':
-      return <ClearedCards league={league} s={s} at={message.week} />;
+      return <ClearedCards league={league} s={s} at={message} />;
     case 'deadline':
       return <DeadlineCards league={league} s={s} live={needsYou(league, message)} />;
     case 'race':
@@ -1024,13 +1024,34 @@ function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { k
   );
 }
 
-function ClearedCards({ league, s, at }: { league: League; s: Extract<MailSubject, { kind: 'cleared' }>; at: number }) {
+/**
+ * Weeks a player sat out: hurt in week N's game he first misses N + 1, and the doctor clears him for the game of
+ * the week the letter comes in, so it's the weeks strictly between. Null across an offseason, where weeks don't count.
+ */
+export function weeksMissed(
+  hurt: { season: number; week: number },
+  back: { season: number; week: number },
+): number | null {
+  if (hurt.week === 0 || hurt.season !== back.season) return null;
+  return Math.max(0, back.week - hurt.week - 1);
+}
+
+function ClearedCards({
+  league,
+  s,
+  at,
+}: {
+  league: League;
+  s: Extract<MailSubject, { kind: 'cleared' }>;
+  at: { season: number; week: number };
+}) {
   const p = league.players[s.playerId];
   const record = p?.injuries?.find((r) => r.season === s.season && r.week === s.week && r.type === s.type);
   if (!p || !record) return null;
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
   const ours = p.teamId === league.userTeamId;
   const canActivate = ours && p.ir && team && !delegates(league, team) && !activateProblem(league, p);
+  const missed = weeksMissed(s, at);
   return (
     <>
       <Card>
@@ -1060,8 +1081,10 @@ function ClearedCards({ league, s, at }: { league: League; s: Extract<MailSubjec
           </span>
           <span>
             <span className="eyebrow">Time out</span>
-            <b>{Math.max(1, at - s.week)} wk</b>
-            <span className="muted small">Expected {record.weeks} at the time</span>
+            <b>
+              {missed === null ? (s.week ? '–' : 'Over the offseason') : missed ? `${missed} wk` : "Didn't miss a game"}
+            </b>
+            <span className="muted small">Expected {record.weeks} wk at the time</span>
           </span>
         </div>
       </Card>

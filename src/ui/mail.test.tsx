@@ -9,7 +9,7 @@ import type { League, TradeOffer } from '../engine/types';
 import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
 import { aboutOf, Folded } from './screens/Inbox';
-import { MailCards } from './mail';
+import { MailCards, weeksMissed } from './mail';
 
 const SEEDS = ['trades-0', 'trades-1', 'trades-2', 'trades-3', 'trades-4', 'trades-5'];
 
@@ -199,5 +199,20 @@ describe('flex mail', () => {
       typeof MailCards
     >[0]['message'];
     expect(renderToStaticMarkup(<MailCards league={league} message={message} />)).toBe('');
+  });
+});
+
+describe('cleared mail', () => {
+  it('counts the weeks a player missed, not the weeks since he was hurt', () => {
+    // Hurt in week 2's game, out for week 3, back for week 4: one week out.
+    expect(weeksMissed({ season: 2026, week: 2 }, { season: 2026, week: 4 })).toBe(1);
+    expect(weeksMissed({ season: 2026, week: 1 }, { season: 2026, week: 3 })).toBe(1);
+    // Cleared in time for the next game.
+    expect(weeksMissed({ season: 2026, week: 5 }, { season: 2026, week: 6 })).toBe(0);
+  });
+
+  it('gives no count for an offseason injury or one that ran into the next season', () => {
+    expect(weeksMissed({ season: 2026, week: 0 }, { season: 2026, week: 3 })).toBeNull();
+    expect(weeksMissed({ season: 2025, week: 17 }, { season: 2026, week: 2 })).toBeNull();
   });
 });
