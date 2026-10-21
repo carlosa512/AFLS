@@ -135,8 +135,8 @@ export function slotOf(league: League, p: Player): Position {
   return POSITIONS.find((pos) => chart[pos].includes(p.id)) ?? p.position;
 }
 
-/** The least a player has to be worth at a position, knock included, to cover it from the roster: a decent backup. */
-export const COVER_BAR = 9.5;
+/** The least a player has to be worth at a position, knock included, to cover it from the roster: a fringe backup. */
+export const COVER_BAR = 8.5;
 
 /**
  * Who covers a short position from the roster ("use what you have"): the healthy player worth the most there

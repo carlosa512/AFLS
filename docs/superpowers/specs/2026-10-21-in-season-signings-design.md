@@ -17,7 +17,7 @@ Follow-up to the camp-minimum fix on this branch (`signMinimum` only signs a pla
 - A hole is a position short of healthy players or an open roster spot. AI teams sign for **holes only**, never to
   upgrade.
 - Before signing, the team (AI, or the user's staff with the toggle on) **covers from the roster**: the best-fitting
-  spare player at another position moves over if he's **a decent backup there**: `COVER_BAR` = 9.5, his overall at
+  spare player at another position moves over if he's **a decent backup there**: `COVER_BAR` = 8.5, his overall at
   that position with the out-of-position knock (`slotOvr`).
 - A cover is an ordinary **"Play at…"** move, the one the user makes on the roster page: staff and AI teams make the
   same move, and the user undoes it the same way. To work for AI teams (always auto-sorted), "Play at…" now survives

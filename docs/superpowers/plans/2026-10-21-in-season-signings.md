@@ -17,7 +17,7 @@ it stands.
 
 ## Global Constraints
 
-- `COVER_BAR = 9.5`: a cover's `slotOvr(p, pos)` (overall at that position, knock included) must reach it.
+- `COVER_BAR = 8.5`: a cover's `slotOvr(p, pos)` (overall at that position, knock included) must reach it.
 - `League` stays plain JSON; `SAVE_VERSION` goes 34 → 35 with a `migrate.ts` step.
 - Engine: no `Math.random`; randomness only from the `Rng` passed in. Pure functions, comments that explain why.
 - Screens never render `player.ratings`, `playerOvr` or `potential` (fog of war); mail names a cover's level in words
@@ -136,7 +136,7 @@ Expected: PASS, no type errors.
 **Interfaces:**
 - Consumes: `placeAt(..., 'staff')`, `returnHome`, `Team.playingAt` (Task 1).
 - Produces:
-  - `export const COVER_BAR = 9.5` and
+  - `export const COVER_BAR = 8.5` and
     `chooseCover(league: League, team: Team, pos: Position, need: Record<Position, number>): Player | null` in
     `roster.ts`.
   - `export const NEED` in `injuries.ts`.
