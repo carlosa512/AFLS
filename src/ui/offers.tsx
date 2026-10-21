@@ -26,6 +26,7 @@ import {
 } from '../engine/trade';
 import type { League, Player, Stance, TradeOffer, TradeRecord, TradeSide, TradeStatus } from '../engine/types';
 import { POSITIONS } from '../engine/types';
+import { LinkedText, nameIndex } from './moves';
 import { useNav } from './App';
 import { Panel, PlayerAvatar, TeamChip } from './components';
 import { money } from './format';
@@ -207,6 +208,8 @@ export function OfferCard({
   const open = openOffers(league).some((o) => o.id === offer.id);
   const enquiry = offer.kind === 'enquiry';
   const advice = enquiry ? [] : dealAdvice(league, offer.sides);
+  // One index for every note: building it reads the whole league.
+  const names = advice.length ? nameIndex(league) : undefined;
   const reply = replyOf(league, offer);
 
   const accept = (ids: number[] = []) => {
@@ -286,7 +289,7 @@ export function OfferCard({
         <ul className="plain-list small">
           {advice.map((a, i) => (
             <li key={i}>
-              <b>{WHO[a.who]}:</b> {a.line}
+              <b>{WHO[a.who]}:</b> <LinkedText league={league} text={a.line} index={names} />
             </li>
           ))}
         </ul>
@@ -325,7 +328,11 @@ export function OfferCard({
           type="button"
           className="btn btn-sm"
           onClick={() =>
-            nav.go({ view: 'inbox', messageId: mailForOffer(league, reply)?.id ?? offerMailId(league, reply) })
+            nav.go({
+              view: 'inbox',
+              messageId: mailForOffer(league, reply)?.id ?? offerMailId(league, reply),
+              focus: Date.now(),
+            })
           }
         >
           See their offer →

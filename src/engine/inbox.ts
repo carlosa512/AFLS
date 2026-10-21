@@ -454,9 +454,90 @@ function draftClassMail(league: League, have: Set<string>): Draft[] {
 }
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
-/** Each position group's starters as our scouts read them, as a league percentile (0–1): what the opposition report's card shows. */
-export function unitReads(league: League, teamId: number): { title: string; score: number }[] {
-  return GROUPS.map((g) => ({ title: g.title, score: groupScore(league, league.teams[teamId], g.positions) }));
+/** A position group's starters as our scouts read them: where the unit ranks in the league, and its best player. */
+export interface UnitRead {
+  title: string;
+  /**
+   * Where the unit ranks among the league's same units (0 the worst, 0.5 a typical one, 1 the best), by our scouts'
+   * read of every team's starters: a rival's through the fog of war.
+   */
+  score: number;
+  /** Player id of the group's best starter by our read; none when the group is empty. */
+  lead?: number;
+}
+
+/**
+ * Every team's raw read of each group, by team id. A unit is ranked on this rather than on the player percentile
+ * alone: that ranks starters against backups too, so every group read high, and some higher than others.
+ */
+export function unitTable(league: League): number[][] {
+  return league.teams.map((t) => GROUPS.map((g) => groupScore(league, t, g.positions)));
+}
+
+/** Each position group's starters as our scouts read them, ranked against the league's (pass `table` to share one). */
+export function unitReads(league: League, teamId: number, table = unitTable(league)): UnitRead[] {
+  const team = league.teams[teamId];
+  return GROUPS.map((g, i) => {
+    const mine = table[teamId][i];
+    const below = table.filter((row) => row[i] < mine).length;
+    // A tie sits halfway through the teams it ties with (itself not counted).
+    const ties = table.filter((row) => row[i] === mine).length - 1;
+    const best = g.positions
+      .flatMap((pos) => starters(league, team, pos))
+      .sort((a, b) => perceive(league, league.userTeamId, b).ovr - perceive(league, league.userTeamId, a).ovr)[0];
+    return { title: g.title, score: (below + ties / 2) / Math.max(1, table.length - 1), lead: best?.id };
+  });
+}
+
+/** One unit against the unit it lines up across from, and who our scouts think has the better of it. */
+export interface Matchup {
+  title: string;
+  offense: UnitRead;
+  defense: UnitRead;
+  edge: 'ours' | 'theirs' | null;
+}
+
+/**
+ * How far apart two units' league ranks must be before the card calls an edge: closer is a fair fight. At 0.4 about
+ * a third of matchups get one, as often for the offense as the defense, so a report names two or so.
+ */
+export const EDGE_GAP = 0.4;
+
+/**
+ * The opposition report's key matchups: each offensive unit against the defenders it faces (the line against the
+ * front, the backs against the linebackers, the quarterback and receivers against the secondary), our offense
+ * against their defense and theirs against ours. Units that never meet on the field aren't compared.
+ */
+export function keyMatchups(league: League, oppId: number): { attack: Matchup[]; defend: Matchup[] } {
+  const table = unitTable(league);
+  const side = (offenseId: number, defenseId: number): Matchup[] => {
+    const off = unitReads(league, offenseId, table);
+    const def = unitReads(league, defenseId, table);
+    const unit = (units: UnitRead[], title: string) => units.find((u) => u.title === title)!;
+    const qb = unit(off, 'Quarterback');
+    const passing: UnitRead = {
+      title: 'QB and receivers',
+      score: (qb.score + unit(off, 'Receivers').score) / 2,
+      lead: qb.lead,
+    };
+    const pairs: [string, UnitRead, UnitRead][] = [
+      ['Trenches', unit(off, 'Offensive line'), unit(def, 'Defensive front')],
+      ['Run game', unit(off, 'Backfield'), unit(def, 'Linebackers')],
+      ['Pass game', passing, unit(def, 'Secondary')],
+    ];
+    const oursOnOffense = offenseId === league.userTeamId;
+    return pairs.map(([title, offense, defense]) => {
+      const gap = offense.score - defense.score;
+      const offenseAhead = gap >= EDGE_GAP ? true : gap <= -EDGE_GAP ? false : null;
+      return {
+        title,
+        offense,
+        defense,
+        edge: offenseAhead === null ? null : offenseAhead === oursOnOffense ? 'ours' : 'theirs',
+      };
+    });
+  };
+  return { attack: side(league.userTeamId, oppId), defend: side(oppId, league.userTeamId) };
 }
 
 /** What a message is about, read back from its id. The ids are built here, so this is the one place that knows their shape. */

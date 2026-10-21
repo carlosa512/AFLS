@@ -5,11 +5,12 @@ import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
 import { talksOf } from '../engine/trade/talks';
-import type { League, TradeOffer } from '../engine/types';
+import { dealAdvice } from '../engine/trade/advice';
+import type { Game, League, TradeOffer } from '../engine/types';
 import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
 import { aboutOf, Folded } from './screens/Inbox';
-import { MailCards } from './mail';
+import { MailCards, weekBack, weeksMissed } from './mail';
 
 const SEEDS = ['trades-0', 'trades-1', 'trades-2', 'trades-3', 'trades-4', 'trades-5'];
 
@@ -91,20 +92,71 @@ describe('the offer card', () => {
     expect(html).not.toContain('class="pos"');
     expect(html).not.toMatch(/letters in one/);
   });
+
+  it('opens the thread with the offer it was sent to expanded', () => {
+    let html = '';
+    for (const seed of SEEDS) {
+      const { league, enquiry } = withEnquiry(seed);
+      deliverMail(league);
+      const { offer: bid } = answerEnquiry(league, enquiry.id, 'offer');
+      if (!bid) continue;
+      deliverMail(league);
+      const target = mailForOffer(league, bid)?.id ?? offerMailId(league, bid);
+      const thread = threads(league.inbox!).find((t) => t.messages.some((m) => m.id === target))!;
+      expect(thread.messages.length).toBeGreaterThanOrEqual(2);
+      html = renderToStaticMarkup(
+        <Folded
+          league={league}
+          t={thread}
+          needs={new Set()}
+          index={nameIndex(league)}
+          act={() => {}}
+          focusId={target}
+        />,
+      );
+      break;
+    }
+    expect(html, 'a conversation in one of the seeds').not.toBe('');
+    // Only the bid is open, and it shows its buttons.
+    expect(html.match(/aria-expanded="true"/g)?.length).toBe(1);
+    expect(html).toContain('Accept');
+  });
 });
 
 /** A league with a filed offer message, found by playing on; `want` picks the offer. */
-function withFiledOffer(want: (o: TradeOffer) => boolean, seed = SEEDS[0]): { league: League; offer: TradeOffer } {
+function withFiledOffer(
+  want: (o: TradeOffer, league: League) => boolean,
+  seed = SEEDS[0],
+): { league: League; offer: TradeOffer } {
   const league = createLeague({ seed });
   for (let w = 0; w < 9; w++) {
     deliverMail(league);
-    const offer = openOffers(league).find((o) => want(o) && mailForOffer(league, o));
+    const offer = openOffers(league).find((o) => want(o, league) && mailForOffer(league, o));
     if (offer) return { league, offer };
     playWeek(league);
   }
   if (SEEDS.indexOf(seed) + 1 >= SEEDS.length) throw new Error('no seed in SEEDS had a matching filed offer by week 9');
   return withFiledOffer(want, SEEDS[SEEDS.indexOf(seed) + 1]);
 }
+
+describe('staff notes on an offer', () => {
+  it('link every player they name', () => {
+    const { league, offer } = withFiledOffer(
+      (o, l) => o.kind !== 'enquiry' && dealAdvice(l, o.sides).some((a) => a.who === 'coach'),
+    );
+    const named = dealAdvice(league, offer.sides).flatMap((a) =>
+      offer.sides
+        .flatMap((s) => s.players)
+        .map((id) => league.players[id])
+        .filter(Boolean)
+        .filter((p) => a.line.includes(`${p.firstName} ${p.lastName}`)),
+    );
+    expect(named.length, 'a note naming a player').toBeGreaterThan(0);
+    const html = renderToStaticMarkup(<OfferCard league={league} offer={offer} />);
+    const list = html.slice(html.indexOf('plain-list small'));
+    expect(list).toContain(`>${named[0].firstName} ${named[0].lastName}</button>`);
+  });
+});
 
 describe('the note under an offer', () => {
   it('is neutral when an accept only asks for something more, red only for a real refusal', () => {
@@ -170,5 +222,68 @@ describe('flex mail', () => {
       typeof MailCards
     >[0]['message'];
     expect(renderToStaticMarkup(<MailCards league={league} message={message} />)).toBe('');
+  });
+});
+
+describe('cleared mail', () => {
+  it('counts the weeks a player missed, not the weeks since he was hurt', () => {
+    // Hurt in week 2's game, out for week 3, back for week 4: one week out.
+    expect(weeksMissed({ season: 2026, week: 2 }, { season: 2026, week: 4 })).toBe(1);
+    expect(weeksMissed({ season: 2026, week: 1 }, { season: 2026, week: 3 })).toBe(1);
+    // Cleared in time for the next game.
+    expect(weeksMissed({ season: 2026, week: 5 }, { season: 2026, week: 6 })).toBe(0);
+  });
+
+  it('finds the week he was back from the box scores, so a multi-week sim does not stretch it', () => {
+    const game = (week: number, dressed: number[]) =>
+      ({
+        season: 2026,
+        week,
+        result: { playerTeams: Object.fromEntries(dressed.map((id) => [id, 0])) },
+      }) as unknown as Game;
+    const games = [game(5, [7]), game(6, []), game(7, [7]), game(8, [7]), game(9, [])];
+    // Hurt in week 5, dressed again in week 7: the letter filed in week 17 after a sim still says week 7.
+    expect(weekBack(games, 7, { season: 2026, week: 5 }, { season: 2026, week: 17 })).toBe(7);
+    expect(weeksMissed({ season: 2026, week: 5 }, { season: 2026, week: 7 })).toBe(1);
+    // Not played since he was cleared: the letter's own week.
+    expect(weekBack(games, 9, { season: 2026, week: 5 }, { season: 2026, week: 9 })).toBe(9);
+    // Dressed in the letter's own week: that week.
+    expect(weekBack(games, 7, { season: 2026, week: 7 }, { season: 2026, week: 8 })).toBe(8);
+  });
+
+  it('gives no count for an offseason injury or one that ran into the next season', () => {
+    expect(weeksMissed({ season: 2026, week: 0 }, { season: 2026, week: 3 })).toBeNull();
+    expect(weeksMissed({ season: 2025, week: 17 }, { season: 2026, week: 2 })).toBeNull();
+  });
+});
+
+describe('the opposition report', () => {
+  it('shows key matchups, each unit against the one it faces, with the key players', () => {
+    const league = createLeague({ seed: 'inbox' });
+    deliverMail(league);
+    const report = league.inbox!.find((m) => m.category === 'matchup')!;
+    const html = renderToStaticMarkup(<MailCards league={league} message={report} />);
+    expect(html).toContain('Key matchups');
+    expect(html).toContain('Our offense vs their defense');
+    expect(html).toContain('Their offense vs our defense');
+    expect(html).not.toContain('How we match up');
+    for (const title of ['Trenches', 'Run game', 'Pass game']) expect(html.split(title).length - 1).toBe(2);
+    // Two sides of three rows, a face on each side.
+    expect(html.match(/class="mail-matchup-side[ "]/g)?.length).toBe(12);
+    expect(html.slice(html.indexOf('Key matchups')).match(/class="avatar"/g)?.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it('says plainly what its numbers mean', () => {
+    const league = createLeague({ seed: 'inbox' });
+    deliverMail(league);
+    const report = league.inbox!.find((m) => m.category === 'matchup')!;
+    const html = renderToStaticMarkup(<MailCards league={league} message={report} />);
+    expect(html).toMatch(/where the unit ranks in the league/);
+    expect(html).toMatch(/50th is average/);
+    // Every score reads as a rank ("74th"), with what it means on hover.
+    const scores = [...html.matchAll(/class="num mail-matchup-score"[^>]*>([^<]+)</g)].map((m) => m[1]);
+    expect(scores).toHaveLength(12);
+    for (const s of scores) expect(s).toMatch(/^\d+(st|nd|rd|th)$/);
+    expect(html).toMatch(/title="Better than about \d+% of the league(&#x27;|')s units"/);
   });
 });
