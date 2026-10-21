@@ -1124,6 +1124,28 @@ export function weeksMissed(
   return Math.max(0, back.week - hurt.week - 1);
 }
 
+/**
+ * The week he was back: the first game after he was hurt that he dressed for (a box score lists everyone dressed),
+ * else the week the letter came. A sim of several weeks files the letter at its end, so its week alone runs long.
+ */
+export function weekBack(
+  games: Game[],
+  playerId: number,
+  hurt: { season: number; week: number },
+  by: { season: number; week: number },
+): number {
+  let back = by.week;
+  for (const g of games)
+    if (
+      g.season === by.season &&
+      g.week > hurt.week &&
+      g.week < back &&
+      g.result?.playerTeams?.[playerId] !== undefined
+    )
+      back = g.week;
+  return back;
+}
+
 function ClearedCards({
   league,
   s,
@@ -1139,7 +1161,7 @@ function ClearedCards({
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
   const ours = p.teamId === league.userTeamId;
   const canActivate = ours && p.ir && team && !delegates(league, team) && !activateProblem(league, p);
-  const missed = weeksMissed(s, at);
+  const missed = weeksMissed(s, { season: at.season, week: weekBack(league.games, p.id, s, at) });
   return (
     <>
       <Card>

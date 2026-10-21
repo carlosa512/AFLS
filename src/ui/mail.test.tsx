@@ -6,11 +6,11 @@ import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
 import { talksOf } from '../engine/trade/talks';
 import { dealAdvice } from '../engine/trade/advice';
-import type { League, TradeOffer } from '../engine/types';
+import type { Game, League, TradeOffer } from '../engine/types';
 import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
 import { aboutOf, Folded } from './screens/Inbox';
-import { MailCards, weeksMissed } from './mail';
+import { MailCards, weekBack, weeksMissed } from './mail';
 
 const SEEDS = ['trades-0', 'trades-1', 'trades-2', 'trades-3', 'trades-4', 'trades-5'];
 
@@ -232,6 +232,23 @@ describe('cleared mail', () => {
     expect(weeksMissed({ season: 2026, week: 1 }, { season: 2026, week: 3 })).toBe(1);
     // Cleared in time for the next game.
     expect(weeksMissed({ season: 2026, week: 5 }, { season: 2026, week: 6 })).toBe(0);
+  });
+
+  it('finds the week he was back from the box scores, so a multi-week sim does not stretch it', () => {
+    const game = (week: number, dressed: number[]) =>
+      ({
+        season: 2026,
+        week,
+        result: { playerTeams: Object.fromEntries(dressed.map((id) => [id, 0])) },
+      }) as unknown as Game;
+    const games = [game(5, [7]), game(6, []), game(7, [7]), game(8, [7]), game(9, [])];
+    // Hurt in week 5, dressed again in week 7: the letter filed in week 17 after a sim still says week 7.
+    expect(weekBack(games, 7, { season: 2026, week: 5 }, { season: 2026, week: 17 })).toBe(7);
+    expect(weeksMissed({ season: 2026, week: 5 }, { season: 2026, week: 7 })).toBe(1);
+    // Not played since he was cleared: the letter's own week.
+    expect(weekBack(games, 9, { season: 2026, week: 5 }, { season: 2026, week: 9 })).toBe(9);
+    // Dressed in the letter's own week: that week.
+    expect(weekBack(games, 7, { season: 2026, week: 7 }, { season: 2026, week: 8 })).toBe(8);
   });
 
   it('gives no count for an offseason injury or one that ran into the next season', () => {
