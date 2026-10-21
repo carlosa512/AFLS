@@ -4,7 +4,7 @@ import { createLeague } from '../generate';
 import { playWeek } from '../league';
 import { playerOvr } from '../positions';
 import { activeRoster } from '../roster';
-import type { League } from '../types';
+import type { League, Team } from '../types';
 import {
   capRoom,
   dealFor,
@@ -20,7 +20,9 @@ import {
   tradeProblem,
 } from '.';
 import { quickValue } from './deals';
-import type { TradeProposal } from './rules';
+import type { TradeProposal, TradeSide } from './rules';
+import { pickValue } from './value';
+import type { TradeContext } from './context';
 
 const base = (() => {
   const l = createLeague({ seed: 'retain' });
@@ -96,7 +98,13 @@ describe('retained salary', () => {
     // of it), each with a buyer that has the room and buys him outright.
     const l = fresh();
     const ctx = tradeContext(l);
-    const cases: { seller: number; player: number; buyer: number; paid: number }[] = [];
+    const cases: { seller: number; player: number; buyer: number; paid: number; floor: number }[] = [];
+    // What comes back to a seller net of a late pick it hands back: at the league's prices, and in its own eyes.
+    const net = (c: TradeContext, side: (s: TradeContext, t: Team, x: TradeSide) => number, deal: TradeProposal) =>
+      side(c, c.league.teams[deal.sides[1].teamId], deal.sides[0]) -
+      side(c, c.league.teams[deal.sides[1].teamId], { ...deal.sides[1], players: [] });
+    const ownEyes = (c: TradeContext, t: Team, x: TradeSide) =>
+      x.picks.reduce((v, id) => v + pickValue(c.league, c.league.draftPicks.find((pk) => pk.id === id)!, t.gm, c), 0);
     for (const seller of l.teams.filter((t) => t.id !== l.userTeamId)) {
       for (const p of activeRoster(l, seller.id)) {
         if (cases.length >= 8) break;
@@ -116,12 +124,21 @@ describe('retained salary', () => {
             seller: seller.id,
             player: p.id,
             buyer: buyer.id,
-            paid: quickValue(ctx, seller, outright.proposal.sides[0]),
+            paid: net(ctx, quickValue, outright.proposal),
+            // The least it would take for him from that buyer.
+            floor: judge(ctx, seller.id, {
+              sides: [
+                { teamId: buyer.id, players: [], picks: [] },
+                { teamId: seller.id, players: [p.id], picks: [] },
+              ],
+            }).need,
           });
       }
     }
     expect(cases.length).toBeGreaterThanOrEqual(4);
     let closed = 0;
+    let extra = 0;
+    let keptPoints = 0;
     for (const c of cases) {
       // The same buyer squeezed against the cap, so his team has to keep about 1.3 times his worth to fit him.
       const m = fresh();
@@ -141,12 +158,20 @@ describe('retained salary', () => {
       if (!deal) continue;
       closed++;
       expect(deal.proposal.sides[1].retain?.[p.id]).toBe(kept);
-      // Most of the money comes back to it in picks, on top of what a buyer with room pays.
-      expect(quickValue(mctx, m.teams[c.seller], deal.proposal.sides[0]) - c.paid).toBeGreaterThan(
+      // It is paid for the money in picks, in its own eyes, on top of the least it would take from a buyer with room:
+      // at least half of it, the least a team weighs this year's money at in season (`nowWeight`).
+      expect(net(mctx, ownEyes, deal.proposal) - c.floor, m.teams[c.seller].abbrev).toBeGreaterThan(
         0.5 * POINTS_PER_K * kept!,
       );
+      extra += net(mctx, quickValue, deal.proposal) - c.paid;
+      keptPoints += POINTS_PER_K * kept!;
     }
     expect(closed).toBeGreaterThanOrEqual(cases.length / 2);
+    // And most of the money comes back at the league's prices, on top of what buyers with room paid. Across the cases:
+    // a haggled deal lands anywhere between the seller's floor and its price, a pick's width either way, so one deal
+    // against another is noise of that size (CIN let a player go to a buyer with room for 77 points it would have
+    // taken 47 for, then took 79 more for 166 points of salary kept).
+    expect(extra).toBeGreaterThan(0.5 * keptPoints);
   });
 
   it('keeps just enough to fit a buyer short of room, or says it can’t', () => {
