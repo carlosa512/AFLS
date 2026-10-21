@@ -455,6 +455,33 @@ describe('coach decisions', () => {
     expect(coach.fourthDown({ ...base, scoreDiff: -10, clock: 200, down: 4, distance: 8 }, rng)).toBe('go');
     expect(coach.passProbability({ ...base, scoreDiff: -10, clock: 120 })).toBeGreaterThan(0.8);
   });
+
+  it('reads the red zone: goal-line fronts, the run lean, goal-to-go tries and the kicking bar', () => {
+    const rng = new Rng('red zone');
+    const early = { ...base, quarter: 1, clock: 600, scoreDiff: 0 };
+    const share = (n: number, f: () => boolean) => Array.from({ length: n }, f).filter(Boolean).length / n;
+    // At the 2 the defense never sits in a pass shell, and loads the box more often than not.
+    const calls = Array.from({ length: 2000 }, () => coach.defenseCall({ ...early, yardLine: 98, distance: 2 }, rng));
+    expect(calls).not.toContain('passD');
+    expect(calls.filter((c) => c === 'runD').length / calls.length).toBeGreaterThan(0.5);
+    // Play-callers run more inside the 20, except when the clock decides.
+    const pass = (s: coach.Situation) => coach.passProbability(s);
+    expect(pass({ ...early, yardLine: 85 })).toBeCloseTo(pass({ ...early, yardLine: 75 }) - 0.06);
+    const drill = { ...early, quarter: 2, clock: 100 };
+    expect(pass({ ...drill, yardLine: 85 })).toBe(pass({ ...drill, yardLine: 75 }));
+    // A yard to go in their territory is nearly always a try; goal to go at the 1 has its own odds.
+    const fourth = { ...early, down: 4, distance: 1, fgMakeProb: 0.9 };
+    expect(share(2000, () => coach.fourthDown({ ...fourth, yardLine: 60 }, rng) === 'go')).toBeGreaterThan(0.82);
+    const goal = share(2000, () => coach.fourthDown({ ...fourth, yardLine: 99 }, rng) === 'go');
+    expect(goal).toBeGreaterThan(0.68);
+    expect(goal).toBeLessThan(0.82);
+    // Fourth and long in range: an easy kick always goes up, a long one is a coin weighted by its odds.
+    const long = { ...early, down: 4, distance: 8, yardLine: 66 };
+    expect(share(500, () => coach.fourthDown({ ...long, fgMakeProb: 0.8 }, rng) === 'fg')).toBe(1);
+    const coin = share(2000, () => coach.fourthDown({ ...long, fgMakeProb: 0.6 }, rng) === 'fg');
+    expect(coin).toBeGreaterThan(0.33);
+    expect(coin).toBeLessThan(0.47);
+  });
 });
 
 describe('playoff race', () => {

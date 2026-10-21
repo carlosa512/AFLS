@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { capSpace } from '../finance/cap';
 import { capHit, isExpired } from '../finance/contract';
-import { rookieApy } from '../finance/market';
+import { minSalary, rookieApy } from '../finance/market';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { STARTERS } from '../positions';
@@ -9,7 +9,7 @@ import { activeRoster, teamPlayers } from '../roster';
 import type { League } from '../types';
 import { POSITIONS } from '../types';
 import { advanceOffseason, beginOffseason, draftNextPick, FA_DAYS, offseasonBlockers, simOffseason } from '.';
-import { applyFranchiseTag, expiringPlayers, tagBlocker } from './ai';
+import { applyFranchiseTag, expiringPlayers, IN_SEASON_RESERVE, tagBlocker } from './ai';
 import { availableProspects, draftOrder, draftPlayer, nextPick, simDraft } from './draft';
 import { askOffer, demand, freeAgents, makeOffer } from './negotiation';
 import { Rng } from '../rng';
@@ -58,6 +58,20 @@ describe('offseason calendar', () => {
     }
     expect(league.draftClass).toEqual([]);
     expect(league.draftPicks.some((p) => p.season === league.season + 3)).toBe(true);
+  });
+
+  it('opens the season with the room AI front offices planned to keep for it', () => {
+    const league = fresh();
+    beginOffseason(league);
+    while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
+    const cap = league.caps[league.season];
+    const ai = league.teams.filter((t) => t.id !== league.userTeamId);
+    const space = ai.map((t) => capSpace(league, t.id)).sort((a, b) => a - b);
+    expect(space[ai.length >> 1]).toBeGreaterThanOrEqual(IN_SEASON_RESERVE * cap);
+    // A reserve is room kept, never a man short: a team under 53 has no room for a minimum deal (short rosters
+    // without room are a known issue of their own, flagged by the offseason audit).
+    for (const t of ai)
+      if (activeRoster(league, t.id).length < 53) expect(capSpace(league, t.id)).toBeLessThan(minSalary(1, cap));
   });
 
   it('is deterministic for a seed', () => {

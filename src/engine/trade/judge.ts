@@ -89,7 +89,7 @@ const RENTAL_FLOOR = { first: 0.65, deadline: 0.4 };
 const AI_RENTAL_FLOOR = { first: 0.5, deadline: 0.2 };
 
 /** Share of a player's market value a team holds out for when it sends him. */
-function floorShare(league: League, team: Team, p: Player, vsUser: boolean): number {
+export function floorShare(league: League, team: Team, p: Player, vsUser: boolean): number {
   const selling =
     league.phase === 'regular' && contenderScore(league, team.id) <= 0.4 && yearsLeft(p.contract!, league.season) <= 1;
   if (!selling) return 0.8;
