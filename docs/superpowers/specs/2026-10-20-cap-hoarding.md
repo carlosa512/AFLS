@@ -117,3 +117,26 @@ the spots of players who walk included, at a veteran's minimum.
 - Seasons 1-3, offseason-audit and rev-0..rev-29: the most cap unspent at any kickoff is 16.4% (rev-6, season 1).
 - Trade audit, 3 leagues (CI's run): 0 outside range; in season 16.1 a season (15.3 / 16.3 / 16.7), 31% on deadline
   day, a pick each way 16%, picks for players 80%. 9 leagues: in season 16.4, physicals 4.1 a season (band 1-4).
+
+## Parked (2026-10-21): open items before this branch becomes a PR
+
+This branch (`claude/settled-opening-league`) holds the work past PR #70's scope: year two committed at generation,
+the retained-salary trade market, one kicker and one punter per AI roster, and the draft-board fixes. It waits for
+`claude/lucid-ride-i2b47h` (in-season hole signings; camp signs only players who'd take a minimum) to merge, then
+rebases on main and is re-measured: that branch changes `signMinimum` and spends the in-season reserve on holes, so
+the careers and trade-volume numbers here will move.
+
+Open before it can go green:
+- **Buy-and-flip through retained salary (user exploit).** "Ask for their price" with the seller keeping salary, then
+  selling the player straight on: 292 of 473 week-1 round trips net positive on 5f1cacc (216 before the retained-salary
+  change, 103 on #70's head). The seller must hold out for at least what the kept room is worth to the league's buyers;
+  `scripts/trades.ts` needs a probe for it (it must fail).
+- **`retain.test` was softened** in the trade-volume work: restore the per-case check (each case at the league's prices
+  pays the seller back more than half the salary kept; one case read 0.476) and fix the code to pass it.
+- **Draft records:** `63f56d6` drops generated rookies' draft records in rounds 2-7 to fit the 6300 KB first-season
+  save, but `PlayerCard.tsx` shows them. Restore them and find the space elsewhere.
+- **Careers:** K/P starters aged 38+ read 8.0 against 8 (NFL 2019-25: about 2.6 of 64 a season, nflverse).
+  `fb59a8d` (one K and one P per roster; NFL: 0 of 224 teams opened with two) is untested in the careers audit yet.
+- Smaller: the drift baseline comment in `scripts/offseason.ts` (obs +0.28/+0.03; this tree +0.39/+0.17); the
+  `room()` line in `scripts/trades.ts` does nothing here; finance.test bands were set to this generation (next-year
+  median <= 0.80, last-year payroll >= 0.21; settled 0.72-0.76 and 0.32): confirm or tighten.
