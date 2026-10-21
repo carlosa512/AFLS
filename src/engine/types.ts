@@ -515,6 +515,8 @@ export type DepthChart = Record<Position, number[]>;
 export interface PlayingAt {
   pos: Position;
   by: 'staff' | 'user';
+  /** When staff lined him up there (its cover note to you is filed once per move). */
+  since?: { season: number; week: number };
 }
 
 export interface Team {
@@ -819,7 +821,7 @@ export type InboxAction =
   | { kind: 'team'; teamId: number }
   | { kind: 'game'; gameId: number }
   | { kind: 'resign' }
-  | { kind: 'fa' }
+  | { kind: 'fa'; pos?: Position }
   | { kind: 'draft' }
   | { kind: 'coaches' }
   | { kind: 'staff' }

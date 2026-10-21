@@ -1517,6 +1517,18 @@ export const NEED: Record<Position, number> = {
   P: 1,
 };
 
+/** Positions where `team` has fewer healthy players than it needs, counted where they line up. */
+export function shortPositions(league: League, team: Team): Position[] {
+  const healthy = new Map<Position, number>();
+  for (const p of activeRoster(league, team.id))
+    if (isAvailable(p)) healthy.set(slotOf(league, p), (healthy.get(slotOf(league, p)) ?? 0) + 1);
+  return POSITIONS.filter((pos) => (healthy.get(pos) ?? 0) < NEED[pos]);
+}
+
+/** Healthy players at `pos` on `team`, counted where they line up. */
+export const healthyAt = (league: League, team: Team, pos: Position) =>
+  activeRoster(league, team.id).filter((p) => isAvailable(p) && slotOf(league, p) === pos).length;
+
 /**
  * Staff's covers end once they're not needed: a player staff lined up at a position goes back to his own when
  * that position has enough healthy players of its own again, or when he's hurt himself. The user's moves stay.

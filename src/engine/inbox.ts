@@ -38,18 +38,25 @@ import {
   concussionWindow,
   delegates,
   estimateText,
+  healthyAt,
   injuryLabel,
+  IR_MIN_WEEKS,
+  IR_RETURNS,
+  irReturnsUsed,
+  NEED,
   outlookText,
+  shortPositions,
   weeksLeft,
 } from './injuries';
+import { knockFor, knockWord } from './familiarity';
 import { userGame } from './league';
 import { isMedicExpiring, MEDIC_ROLE_LABEL, medicResignForecast, teamMedics } from './medical';
 import { expiringPlayers } from './offseason/ai';
 import { draftComplete, reachOrSteal } from './offseason/draft';
-import { rookieCost } from './offseason/negotiation';
+import { rookieCost, ROSTER_MAX } from './offseason/negotiation';
 import { knowledge, leaguePercentile, perceive, scoutReportParts } from './scouting';
 import { POSITION_NAMES } from './positions';
-import { starters, teamPlayers } from './roster';
+import { activeRoster, chooseCover, starters, teamPlayers } from './roster';
 import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { ROUND_NAMES } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
@@ -565,7 +572,9 @@ export type MailSubject =
   | { kind: 'market'; season: number; phase: Phase; week: number }
   | { kind: 'marketRecap'; season: number }
   | { kind: 'positionOffer'; season: number; playerId: number; to: Position }
-  | { kind: 'positionMoved'; season: number; playerId: number };
+  | { kind: 'positionMoved'; season: number; playerId: number }
+  | { kind: 'covering'; season: number; week: number; playerId: number; pos: Position }
+  | { kind: 'shortHanded'; season: number; week: number; pos: Position };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -640,6 +649,10 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return a === 'recap'
         ? { kind: 'marketRecap', season }
         : { kind: 'market', season, phase: a as Phase, week: Number(b) };
+    case 'cover':
+      return { kind: 'covering', season, week: Number(a), playerId: Number(b), pos: rest[0] as Position };
+    case 'short':
+      return { kind: 'shortHanded', season, week: Number(a), pos: b as Position };
     case 'position':
       return a === 'offer'
         ? { kind: 'positionOffer', season, playerId: Number(b), to: rest[0] as Position }
@@ -690,8 +703,12 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       return league.phase === 'regular' && (league.week <= TRADE_DEADLINE_WEEK || isDeadlineDay(league));
     case 'cleared': {
       const p = league.players[s.playerId];
-      return !!p && p.teamId === user && !!p.ir && !p.injury && !delegates(league, league.teams[user]);
+      if (!p || p.teamId !== user || !p.ir || p.injury) return false;
+      // You activate him yourself; or your staff would, but the 53 is full and it never cuts a man for him.
+      return !delegates(league, league.teams[user]) || waitsForSpot(league, p);
     }
+    case 'shortHanded':
+      return shortPositions(league, league.teams[user]).includes(s.pos);
     case 'staffDeals':
       return league.phase === 'resign' && s.people.some((r) => stillExpiring(league, r));
     case 'poached':
@@ -1117,6 +1134,14 @@ function recapMail(league: League, have: Set<string>): Draft[] {
 }
 
 /** The doctor's all-clear for a player whose injury we wrote about, once he's healthy again (in season: the offseason heals everyone at once). */
+/** A healed player on your reserve your staff would bring back, but the 53 is full (it never cuts a man for him). */
+const waitsForSpot = (league: League, p: Player) =>
+  !!p.ir &&
+  !p.injury &&
+  p.ir.weeks >= IR_MIN_WEEKS &&
+  irReturnsUsed(league, league.userTeamId) < IR_RETURNS &&
+  activeRoster(league, league.userTeamId).length >= ROSTER_MAX;
+
 function clearedMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
   const team = league.teams[league.userTeamId];
@@ -1128,9 +1153,11 @@ function clearedMail(league: League, have: Set<string>): Draft[] {
     const what = lower(injuryLabel(was.type));
     const ir = !p.ir
       ? " He's back in his spot on the depth chart."
-      : delegates(league, team)
-        ? " He's still on injured reserve: the staff will bring him back once his four weeks are up."
-        : " He's still on injured reserve: activate him when you want him back.";
+      : !delegates(league, team)
+        ? " He's still on injured reserve: activate him when you want him back."
+        : waitsForSpot(league, p)
+          ? " He's waiting on injured reserve: the 53 is full, so make room and the staff will bring him back."
+          : " He's still on injured reserve: the staff will bring him back once his four weeks are up, if there's a spot on the 53.";
     out.push({
       id: `cleared:${key}`,
       season: league.season,
@@ -1895,6 +1922,70 @@ function positionMovedMail(league: League, have: Set<string>): Draft[] {
   return out;
 }
 
+/**
+ * The head coach on a short position: who the staff lined up there (once per move), or that it's short with nobody on
+ * the roster good enough to cover, pointing to free agency there (once while it stays short).
+ */
+function coverMail(league: League, have: Set<string>): Draft[] {
+  const { season } = league;
+  const team = league.teams[league.userTeamId];
+  const out: Draft[] = [];
+  for (const [id, at] of Object.entries(team.playingAt ?? {})) {
+    if (at.by !== 'staff' || at.since?.season !== season) continue;
+    const p = league.players[Number(id)];
+    const key = `cover:${season}:${at.since.week}:${p.id}:${at.pos}`;
+    if (have.has(key)) continue;
+    const knock = knockWord(knockFor(p, at.pos));
+    out.push({
+      id: key,
+      season,
+      phase: league.phase,
+      week: league.week,
+      ...headCoach(league),
+      category: 'medical',
+      subject: `${fullName(p)} covers at ${at.pos}`,
+      body:
+        `We're short at ${posWord(at.pos)} with the injuries, so ${fullName(p)} lines up there for now` +
+        `${knock === 'none' ? '.' : `; out of position he'll take a ${knock} knock.`} ` +
+        `He goes back to ${posWord(p.position)} once we're healthy there. You can move him yourself with "Play at…".`,
+      actions: [
+        { kind: 'player', playerId: p.id },
+        { kind: 'team', teamId: team.id },
+      ],
+    });
+  }
+  for (const pos of shortPositions(league, team)) {
+    const key = `short:${season}:${league.week}:${pos}`;
+    const open = (league.inbox ?? []).some((m) => {
+      const s = mailSubject(m);
+      return s?.kind === 'shortHanded' && s.pos === pos && needsYou(league, m);
+    });
+    if (open || have.has(key)) continue;
+    const cover = !delegates(league, team) ? chooseCover(league, team, pos, NEED) : null;
+    const n = healthyAt(league, team, pos);
+    out.push({
+      id: key,
+      season,
+      phase: league.phase,
+      week: league.week,
+      ...headCoach(league),
+      category: 'medical',
+      subject: `We're short at ${pos}`,
+      body:
+        `With the injuries we're down to ${count(n).toLowerCase()} healthy ${n === 1 ? posWord(pos) : `${posWord(pos)}s`}. ` +
+        (cover
+          ? `${fullName(cover)} could cover there with "Play at…", or `
+          : 'Nobody else on the roster is good enough to cover there, so ') +
+        'free agency has players who would sign for the rest of the season.',
+      actions: [
+        { kind: 'fa', pos },
+        { kind: 'team', teamId: team.id },
+      ],
+    });
+  }
+  return out;
+}
+
 const order = (m: Draft) => m.season * 1000 + PHASE_ORDER.indexOf(m.phase) * 100 + m.week;
 
 /**
@@ -1929,6 +2020,7 @@ export function deliverMail(league: League): void {
     fresh.push(
       ...recapMail(league, have),
       ...clearedMail(league, have),
+      ...coverMail(league, have),
       ...raceMail(league, have),
       ...matchupMail(league, have),
       ...flexMail(league, have),

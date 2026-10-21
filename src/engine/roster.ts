@@ -98,7 +98,9 @@ export function placeAt(
   const team = league.teams[p.teamId];
   if (pos === p.position) {
     if (team.playingAt) delete team.playingAt[playerId];
-  } else (team.playingAt ??= {})[playerId] = { pos, by };
+  } else
+    (team.playingAt ??= {})[playerId] =
+      by === 'staff' ? { pos, by, since: { season: league.season, week: league.week } } : { pos, by };
   for (const q of POSITIONS) team.depthChart[q] = team.depthChart[q].filter((id) => id !== playerId);
   if (index !== undefined) {
     const list = team.depthChart[pos];

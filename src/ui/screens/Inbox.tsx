@@ -77,7 +77,7 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
     case 'resign':
       return 'Expiring contracts';
     case 'fa':
-      return 'Free agency';
+      return a.pos ? `Free agents at ${a.pos}` : 'Free agency';
     case 'coaches':
       return 'Coaches';
     case 'staff':
@@ -201,6 +201,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
     else if (a.kind === 'game') nav.openGame(a.gameId);
     else if (a.kind === 'standings') nav.go({ view: 'standings' });
     else if (a.kind === 'cap') nav.go({ view: 'cap' });
+    else if (a.kind === 'fa') nav.go({ view: 'office', tab: 'fa', pos: a.pos });
     else nav.go({ view: 'office', tab: a.kind });
   };
   /** Archive, restore or delete the open thread, then move on to the next one in the list (as a mail app does). */
