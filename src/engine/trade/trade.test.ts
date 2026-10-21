@@ -6,9 +6,11 @@ import { playWeek } from '../league';
 import { playerOvr } from '../positions';
 import { teamPlayers } from '../roster';
 import {
+  dealFor,
   evaluateTrade,
   executeTrade,
   fitzgeraldSpielberger,
+  goingRate,
   isDeadlineDay,
   jimmyJohnson,
   judge,
@@ -28,6 +30,7 @@ import {
   type TradeProposal,
 } from '.';
 import type { League } from '../types';
+import { balance, picksOf as tradeablePicks } from './deals';
 
 const base = JSON.stringify(createLeague({ seed: 'trade-tests' }));
 const fresh = (): League => JSON.parse(base);
@@ -189,6 +192,42 @@ describe('AI trade evaluation', () => {
     };
     expect(evaluateTrade(l, proposal).problem).toMatch(/too many players|over the cap/);
     expect(suggestSweetener(l, proposal)).toBeNull();
+  });
+});
+
+describe('the deal search', () => {
+  it('hands back a late pick when a package leaves the seller a late fifth-round pick ahead', () => {
+    // A late pick rides back in 10-25% of NFL deals (docs/TRADES.md). Handed back only once the seller was an early
+    // fifth's worth ahead (40 points), the opening league that commits next year like a settled one rode one back in
+    // 9% of its AI deals: its packages land closer to the price.
+    const l = fresh();
+    const ctx = tradeContext(l);
+    const ai = l.teams.filter((t) => t.id !== USER);
+    let tried = 0;
+    for (const seller of ai) {
+      for (const target of best(l, seller.id).slice(0, 8)) {
+        if (playerTradeBlocker(l, target) || marketValue(ctx, seller, target) <= 60) continue;
+        for (const buyer of ai.filter((t) => t.id !== seller.id).slice(0, 6)) {
+          const deal = dealFor(ctx, buyer, target);
+          if (!deal || deal.proposal.sides[1].picks.length || deal.proposal.sides[0].players.length) continue;
+          // A late pick that both GMs would still take with it: a seller this far ahead hands it back.
+          const fits = tradeablePicks(ctx, seller.id, seller)
+            .filter((pk) => goingRate(l, pk, ctx) <= 35)
+            .some((pk) => {
+              const [buys, sells] = deal.proposal.sides;
+              const tried: TradeProposal = { sides: [buys, { ...sells, picks: [pk.id] }] };
+              return (
+                judge(ctx, seller.id, tried, { rosterCuts: true }).accepts &&
+                judge(ctx, buyer.id, tried, { rosterCuts: true }).accepts
+              );
+            });
+          if (!fits) continue;
+          tried++;
+          expect(balance(ctx, deal.proposal, 35).sides[1].picks, `${seller.abbrev} to ${buyer.abbrev}`).toHaveLength(1);
+        }
+      }
+    }
+    expect(tried).toBeGreaterThanOrEqual(3);
   });
 });
 

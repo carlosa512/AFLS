@@ -35,8 +35,12 @@ export interface Deal {
 /** Packages tried with a full verdict each way from the price: pick packages, then ones with a player. */
 const TRIES = 6;
 const SWAP_TRIES = 3;
-/** A seller left this far ahead (about a fifth-round pick) hands back a late pick to even it out. */
-const BALANCE = 40;
+/**
+ * A seller left this far ahead (about a late fifth-round pick) hands back a late pick to even it out. At an early
+ * fifth's worth (40), an opening league paid and committed like a settled one rode a pick back in 9% of its AI deals
+ * (10-25% of NFL deals carry one): its packages land closer to the price.
+ */
+const BALANCE = 30;
 /** A player worth sending in a swap: about a late fourth-round pick's worth to the seller or more, not a throw-in to fill a roster spot. */
 const SWAP_WORTH = 70;
 /** How much better (points, in his own eyes) a swap must leave the buyer than his best pick package. */
@@ -147,7 +151,7 @@ export const TAGS: Record<DealKind, string> = {
 };
 
 /** A pick back from a seller the package leaves well ahead: the biggest that evens it out, if both still say yes. */
-function balance(ctx: TradeContext, proposal: TradeProposal, ahead: number): TradeProposal {
+export function balance(ctx: TradeContext, proposal: TradeProposal, ahead: number): TradeProposal {
   if (ahead < BALANCE) return proposal;
   const [buys, sells] = proposal.sides;
   const seller = ctx.league.teams[sells.teamId];
