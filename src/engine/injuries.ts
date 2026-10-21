@@ -47,10 +47,9 @@ import {
   KEEP_MIN,
   minimumFits,
   needSigning,
-  signForNeed,
   signMinimum,
 } from './offseason/ai';
-import { ROSTER_MAX } from './offseason/negotiation';
+import { ROSTER_MAX, signPlayer } from './offseason/negotiation';
 import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
 import { clamp, Rng } from './rng';
@@ -1592,9 +1591,14 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     const room = roomForMinimum(league, team);
     // A real free agent at his price first, out of the room kept for the season (no hole spends past it).
     const budget = Math.min(room, inSeasonReserve(league, team.id));
-    if (!needSigning(league, team, pos, budget) && !minimumFits(league, pos, room)) return;
+    // Priced once: a cut to make room sends a man at another position to the market, not one this pick weighs.
+    const pick = needSigning(league, team, pos, budget);
+    if (!pick && !minimumFits(league, pos, room)) return;
     if (!open && !cutForRoom(league, team, pos)) return;
-    if (signForNeed(league, team, pos, budget)) continue;
+    if (pick) {
+      signPlayer(league, pick.player, team.id, pick.offer);
+      continue;
+    }
     if (!signMinimum(league, team, rng, pos, room)) return;
   }
 }

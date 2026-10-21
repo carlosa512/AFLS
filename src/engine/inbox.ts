@@ -1133,7 +1133,6 @@ function recapMail(league: League, have: Set<string>): Draft[] {
   ];
 }
 
-/** The doctor's all-clear for a player whose injury we wrote about, once he's healthy again (in season: the offseason heals everyone at once). */
 /** A healed player on your reserve your staff would bring back, but the 53 is full (it never cuts a man for him). */
 const waitsForSpot = (league: League, p: Player) =>
   !!p.ir &&
@@ -1142,6 +1141,7 @@ const waitsForSpot = (league: League, p: Player) =>
   irReturnsUsed(league, league.userTeamId) < IR_RETURNS &&
   activeRoster(league, league.userTeamId).length >= ROSTER_MAX;
 
+/** The doctor's all-clear for a player whose injury we wrote about, once he's healthy again (in season: the offseason heals everyone at once). */
 function clearedMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
   const team = league.teams[league.userTeamId];

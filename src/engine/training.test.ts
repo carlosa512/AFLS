@@ -20,7 +20,16 @@ import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { buildLineup } from './match/lineup';
 import { migrateLeague } from './migrate';
 import { overall, playerOvr } from './positions';
-import { buildAutoDepthChart, claimMove, placeAt, returnHome, slotOf, syncDepthChart, teamPlayers } from './roster';
+import {
+  buildAutoDepthChart,
+  claimMove,
+  handOverMoves,
+  placeAt,
+  returnHome,
+  slotOf,
+  syncDepthChart,
+  teamPlayers,
+} from './roster';
 import { playerTradeBlocker } from './trade/rules';
 import {
   activeLearning,
@@ -284,6 +293,40 @@ describe('out of position', () => {
     // The user moving staff's man makes the move his.
     placeAt(l, wr.id, 'S');
     expect(team.playingAt?.[wr.id]).toEqual({ pos: 'S', by: 'user' });
+  });
+
+  it('a cover sent home on a hand-sorted chart goes back among his group by rating, not last', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    team.autoDepth = false;
+    // The best backup corner: he outranks the corners behind him.
+    const cb = l.players[team.depthChart.CB[3]];
+    expect(playerOvr(cb)).toBeGreaterThan(playerOvr(l.players[team.depthChart.CB.at(-1)!]));
+    placeAt(l, cb.id, 'S', undefined, 'staff');
+    returnHome(l, cb.id);
+    expect(team.depthChart.CB.at(-1)).not.toBe(cb.id);
+    expect(team.depthChart.CB.indexOf(cb.id)).toBe(3);
+  });
+
+  it("clears the move of a player who's already left the team", () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const cb = l.players[team.depthChart.CB.at(-1)!];
+    placeAt(l, cb.id, 'S', undefined, 'staff');
+    cb.teamId = null;
+    returnHome(l, cb.id);
+    for (const t of l.teams) expect(t.playingAt?.[cb.id]).toBeUndefined();
+  });
+
+  it('turning the staff off hands its moves to you, and leaves the field as it is', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const cb = l.players[team.depthChart.CB.at(-1)!];
+    placeAt(l, cb.id, 'S', undefined, 'staff');
+    const chart = JSON.stringify(team.depthChart);
+    handOverMoves(l, team.id);
+    expect(team.playingAt?.[cb.id]).toEqual({ pos: 'S', by: 'user' });
+    expect(JSON.stringify(team.depthChart)).toBe(chart);
   });
 
   it("dragging staff's man within his group makes the move yours", () => {

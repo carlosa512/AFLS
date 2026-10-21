@@ -246,11 +246,23 @@ function toV11(league: League) {
   league.version = 11;
 }
 
+/** v33: a retired player drops the ratings-by-year log (retirement now does this), so old saves shrink too. */
+function toV33(league: League) {
+  for (const p of Object.values(league.players)) if (p.retired) delete p.ratingHistory;
+  league.version = 33;
+}
+
 /**
  * v30 → v31: position moves (`learning`, `moves`, `training`: optional, nothing to fill in) and the
  * versatility trait, rolled from each player's own seed after the others, so he gets what a new league
  * would give him.
  */
+function toV31(league: League) {
+  for (const p of Object.values(league.players))
+    if (p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
+  league.version = 31;
+}
+
 /**
  * v35: "Play at…" is remembered on the team (`playingAt`), so auto-sort keeps it too. A hand-sorted chart's
  * players listed away from their own position were put there by the user.
@@ -265,18 +277,6 @@ function toV35(league: League) {
       }
   }
   league.version = 35;
-}
-
-/** v33: a retired player drops the ratings-by-year log (retirement now does this), so old saves shrink too. */
-function toV33(league: League) {
-  for (const p of Object.values(league.players)) if (p.retired) delete p.ratingHistory;
-  league.version = 33;
-}
-
-function toV31(league: League) {
-  for (const p of Object.values(league.players))
-    if (p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
-  league.version = 31;
 }
 
 /**

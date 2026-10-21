@@ -14,6 +14,7 @@ import { capHit, lastSeason } from '../../engine/finance/contract';
 import {
   buildAutoDepthChart,
   claimMove,
+  handOverMoves,
   isAvailable,
   placeAt,
   slotOf,
@@ -136,6 +137,8 @@ function reorder<T>(list: T[], from: number, to: number): T[] {
 function setAutoInjuries(teamId: number, auto: boolean) {
   store.mutate((l) => {
     l.teams[teamId].autoInjuries = auto;
+    // Taking injuries back: the staff's moves become yours, so nothing says it'll send them home.
+    if (!auto) handOverMoves(l, teamId);
   });
 }
 

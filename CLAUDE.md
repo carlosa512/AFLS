@@ -134,7 +134,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     concussion history fills; shutdowns and concussion retirements), injured reserve, the weekly cycle (healing, practice, injury
     moves: a short position is covered from the roster first, `chooseCover` lining up a spare with "Play at…",
     which `Team.playingAt` keeps through auto-sort; then AI teams sign at the player's price from their in-season
-    reserve, `signForNeed`, then at the minimum; the user's staff never signs or cuts), the injury-risk read and injury retirements. All randomness on its own streams (per game,
+    reserve, `needSigning`, then at the minimum; the user's staff never signs or cuts), the injury-risk read and injury retirements. All randomness on its own streams (per game,
     per practice week, per player's answer)
   - `medical.ts` medical staffs: department ratings (`departmentFor`), the recovery curve, the
     medical budget, contracts, the market, ageing and AI hiring (same shape as `staff.ts`)

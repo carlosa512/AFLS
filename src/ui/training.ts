@@ -4,7 +4,7 @@
  * words; the numbers behind them (a learner's weeks, his pace, a motive's strength, the knock's size) stay
  * with the engine. Mirrors ui/coaching.ts.
  */
-import { buildAutoDepthChart, placeAt, returnHome, slotOf, teamPlayers } from '../engine/roster';
+import { placeAt, returnHome, slotOf } from '../engine/roster';
 import { chairHolder, teamCoaches } from '../engine/coaching';
 import { reasonLine } from '../engine/inbox';
 import { knockFor, knockWord, targetsFor } from '../engine/familiarity';
@@ -142,21 +142,10 @@ export const playAtLabel = (p: Player, pos: Position): string =>
 /** Where the "Play at…" menu can send him: every position but the one he's lined up at (his own comes first as "Back to"). */
 export const positionChoices = (slot: Position): Position[] => POSITIONS.filter((pos) => pos !== slot);
 
-/**
- * Put him back at his own position, among the group by rating: where an auto-sorted chart would file him,
- * not last, so a starter who played somewhere else for a week isn't buried when he returns.
- */
+/** Put him back at his own position, among the group by rating (`returnHome`). */
 export function placeBack(league: League, playerId: number): void {
-  const p = league.players[playerId];
-  if (p.teamId === null) throw new Error('Not on a team.');
-  // An auto-sorted chart files him by rating itself.
-  if (league.teams[p.teamId].autoDepth) return returnHome(league, playerId);
-  const rank = new Map(buildAutoDepthChart(teamPlayers(league, p.teamId))[p.position].map((id, i) => [id, i]));
-  const mine = rank.get(p.id) ?? Infinity;
-  const list = league.teams[p.teamId].depthChart[p.position].filter((id) => id !== p.id);
-  // Only his own room counts: a man the user lined up here from another position has no rank in it.
-  const at = list.findIndex((id) => rank.has(id) && rank.get(id)! > mine);
-  placeAt(league, playerId, p.position, at < 0 ? list.length : at);
+  if (league.players[playerId].teamId === null) throw new Error('Not on a team.');
+  returnHome(league, playerId);
 }
 
 /** Line him up at `pos` ("Play at…"), or back at his own. Auto-sort stays as it was: the move is remembered either way. */

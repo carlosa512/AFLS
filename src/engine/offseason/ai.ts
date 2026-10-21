@@ -577,13 +577,6 @@ export function needSigning(
   return best && { player: best.player, offer: best.offer };
 }
 
-/** Sign `needSigning`'s pick (the deal is prorated for the weeks left). Whether anyone signed. */
-export function signForNeed(league: League, team: Team, position: Position, budget: number): boolean {
-  const pick = needSigning(league, team, position, budget);
-  if (pick) signPlayer(league, pick.player, team.id, pick.offer);
-  return !!pick;
-}
-
 /** The position where `team` has the fewest players over what it keeps through cutdowns. */
 function thinnest(league: League, team: Team): Position {
   const roster = activeRoster(league, team.id);

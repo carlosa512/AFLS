@@ -117,15 +117,39 @@ export function claimMove(league: League, playerId: number): void {
   if (at?.by === 'staff') league.teams[p.teamId!].playingAt![playerId] = { pos: at.pos, by: 'user' };
 }
 
-/** Send a player lined up elsewhere back to his own position ("Play at…" his own, or staff's cover ending). */
+/**
+ * Send a player lined up elsewhere back to his own position ("Play at…" his own, or staff's cover ending). An
+ * auto-sorted chart files him by rating itself; on a hand-sorted one he goes back among his group by rating, where
+ * auto-sort would put him, not last, so a starter who played somewhere else for a week isn't buried.
+ */
 export function returnHome(league: League, playerId: number): void {
   const p = league.players[playerId];
-  if (p.teamId === null) return;
+  if (p.teamId === null) {
+    // Gone already: no team keeps a move for him.
+    for (const t of league.teams) if (t.playingAt) delete t.playingAt[playerId];
+    return;
+  }
   const team = league.teams[p.teamId];
   if (team.playingAt) delete team.playingAt[playerId];
-  for (const q of POSITIONS)
-    if (q !== p.position) team.depthChart[q] = team.depthChart[q].filter((id) => id !== playerId);
+  for (const q of POSITIONS) team.depthChart[q] = team.depthChart[q].filter((id) => id !== playerId);
+  if (!team.autoDepth) {
+    const rank = new Map(buildAutoDepthChart(teamPlayers(league, team.id))[p.position].map((id, i) => [id, i]));
+    const mine = rank.get(p.id) ?? Infinity;
+    const list = team.depthChart[p.position];
+    // Only his own room counts: a man the user lined up here from another position has no rank in it.
+    const at = list.findIndex((id) => rank.has(id) && rank.get(id)! > mine);
+    list.splice(at < 0 ? list.length : at, 0, p.id);
+  }
   syncDepthChart(league, team);
+}
+
+/** The user took injuries back from his staff: its moves are his now (nothing on the field changes). */
+export function handOverMoves(league: League, teamId: number): void {
+  for (const at of Object.values(league.teams[teamId].playingAt ?? {}))
+    if (at.by === 'staff') {
+      at.by = 'user';
+      delete at.since;
+    }
 }
 
 /** Where a player is lined up on his team's depth chart (his own position unless the user moved him). */
