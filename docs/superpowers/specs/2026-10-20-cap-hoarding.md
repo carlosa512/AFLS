@@ -63,3 +63,23 @@ quality starter 468 vs 535, n 125-141; rental 49 vs 64, n 47-56): that one is #6
 NFL reference (research workflow, mostly unverified): league-year-start median cap space about 12%;
 Week 1 the five teams with the most space hold about 8-24% of the cap; carryover into 2025 averaged
 4.1% of the cap (median 2.3%, most 17.9%).
+
+## Task 5 findings: what holds a settled league's in-season trades down
+
+Temporary counters in the trade market, `npm run trades -- 9`, years 2-3 of the run, per league-season (main / cap branch):
+
+- About 89 calls a season pass the activity roll on both; rolls are flat across years (main 784 / 798 / 793 over 9 leagues).
+  What falls is conversion per roll: main 22% in year 1, then 15-16%.
+- About 85% of rolled calls find no deal: `dealFor` is tried about 4.7 times a roll and about 3.5% of tries succeed.
+- The plan's two tests both miss. Salary that won't fit even with retention is 1.4-1.9% of failed `dealFor` calls on main
+  (1.3-3.5% on the cap branch), against the 40% the cap-bound branch needed. No targets or no buyers is 7-12% of rolls
+  (6-10%), against the 60% the stance-bound branch needed. Sellers at week 9 are 53-60% of AI teams.
+- Throttle 1, dead targets: 30-33% of `dealFor` calls go to a player whose market value is 0 or less, so the buyer's most
+  is 0 and no package can be agreed, and each takes one of the three target slots a call tries. Success per live call
+  is flat by year (main 5.7 / 4.9 / 5.7%); live calls fall (3056 / 2529 / 2403).
+- Throttle 2, retained salary: calls that need the seller to keep salary are 10% of main's in year 1, then 31% / 40%; on
+  the cap branch 42% in every year. They close at 1.8-3.2% against 3.6-5.1% without, mostly because the seller's ask with
+  the retained salary is above the buyer's most. Estimated (not measured): without that penalty, +1.2-2.2 trades a
+  season on main and +3.3-5.5 on the cap branch.
+
+Decision: neither Task 6a nor 6b; reported to the project owner before writing a fix (the plan's stop).
