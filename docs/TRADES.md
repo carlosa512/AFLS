@@ -1473,6 +1473,42 @@ AI seeing past its scouts. Reading trades through the scouts' view alone would m
 real trades, for the AI and through your scouts for you. It's the owner's call, and the price check
 would need recalibrating.
 
+#### Retained salary priced as part of the player (Oct 21 2026)
+
+A league generated paid and committed like a settled one (the cap-hoarding branch) needs salary kept in
+41–50% of in-season calls, and those closed at 2.3–2.6% against 4.0–5.9% for calls where the buyer had
+the room (temporary counters, CI's three leagues). Two causes:
+
+- **`dealFor` priced the player alone.** His asking price and the most a buyer may send (`maxOver` ×
+  his worth) left out the salary his team keeps, while the seller's floor counted it. In 47–61% of the
+  failed calls the floor was past every package the buyer was allowed to offer, so no package was ever
+  judged. Now his worth in a deal is his market value plus the salary kept: the league would pay that
+  much more for a cheaper player.
+- **The floor held out for the salary kept in full**, but for the player himself only its share
+  (`floorShare`). A buyer short of room this season but roomy next counts this year's dollar at less
+  (it rolls over into a roomy cap), so it could never pay face value: 43–58% of the calls still failing
+  had such a buyer. Now the floor holds out for the same share of the salary kept as of his worth. What
+  the money costs the seller stays in its own `give`, so a squeezed seller asks it all back and a
+  rebuilder with room to burn eats salary for a better pick, as Denver kept $9M of Von Miller's for a
+  second and a third in 2021.
+
+The extra deals cost CPU, so the verdict got cheaper without changing a result: the in-season cap
+check adds up only what moves, positions are counted in one pass, picks are looked up by id
+(`pickOf`), each package's value is read once per search, and `roleAt` makes no closure per call. The
+three-league run is identical line for line, but for speed.
+
+| `npm run trades` | before | after |
+| --- | --- | --- |
+| 3 leagues: trades in season (by year) | 12.6 (12.0 · 11.7 · 14.0) | 15.3 (13.0 · 16.3 · 16.7) |
+| 3 leagues: deadline day / salary retained a season | 43% / 4.2 | 30% / 8.3 |
+| 3 leagues: a market week | 119 ms | 115 ms |
+| 9 leagues: trades in season (by year) | 14.1 (13.6 · 14.3 · 14.4) | 16.9 (15.2 · 17.7 · 17.9) |
+
+No side lost in its own eyes, no exploit worked and no team ended over the cap or short. Trades over 3:1
+in the truth rose from 0.2 to 1.0 a season (info), each one the losing side's situation: two of the nine
+are salary kept by a rebuilder, the rest rebuilders' rentals in weeks 8–9 and league-year deals, kinds
+that were there before.
+
 ### Phase 4: draft day
 
 1. Trade-ups and trade-downs before each pick (coveted prospects from boards, priced on each GM's

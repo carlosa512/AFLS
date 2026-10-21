@@ -301,12 +301,16 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
     // Whatever it thinks of a player itself, a seller holds out for most of what the league would pay,
     // and counts the picks against that at the going rate, not its own chart: what comes back must
     // clear the floor at the league's prices.
-    // Salary it keeps paying makes the player that much cheaper to his new team: the league would
-    // pay that much more for him, so it counts in full, whatever a rich team thinks a dollar is worth.
+    // Salary it keeps paying makes the player that much cheaper to his new team, so the league would
+    // pay that much more for him: it holds out for the same share of that as of the rest of his worth.
+    // What the money costs it is in `give`, so a squeezed team asks it all back and a rebuilder with
+    // room to burn eats salary for a better pick (Denver kept $9M of Von Miller's for a second and a
+    // third). Held out for in full, it priced out every buyer short of room now but not next year:
+    // that buyer counts this year's dollar at less, as the money rolls over into a roomy cap.
     const floor = mine.players.reduce(
       (s, id) => {
         const p = league.players[id];
-        const worth = marketValue(ctx, team, p);
+        const worth = marketValue(ctx, team, p) + POINTS_PER_K * (mine.retain?.[id] ?? 0);
         return (
           s +
           (worth > 0
@@ -314,7 +318,7 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
             : worth)
         );
       },
-      going(ctx, mine.picks) + POINTS_PER_K * retainedBy(mine),
+      going(ctx, mine.picks),
     );
     const rate = pickIn - going(ctx, theirs.picks);
     base = Math.max(base, floor + rate);

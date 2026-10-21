@@ -12,7 +12,9 @@ import { nameIndex } from './moves';
 import { aboutOf, Folded } from './screens/Inbox';
 import { MailCards, weekBack, weeksMissed } from './mail';
 
-const SEEDS = ['trades-0', 'trades-1', 'trades-2', 'trades-3', 'trades-4', 'trades-5'];
+// Fixed seeds searched in order for a fixture: a swap offered to you in the first nine weeks is rare (two seeds in
+// twelve), so the list runs to the first one that has it.
+const SEEDS = ['trades-0', 'trades-1', 'trades-2', 'trades-3', 'trades-4', 'trades-5', 'trades-6', 'trades-7'];
 
 /** A league with an enquiry on the desk, found by playing on. */
 function withEnquiry(seed = SEEDS[0]): { league: League; enquiry: TradeOffer } {
