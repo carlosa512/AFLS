@@ -11,7 +11,15 @@ import { POSITION_NAMES } from '../../engine/positions';
 import { PERSONNEL_LABEL, spotsFor, type TeamScheme } from '../../engine/schemes';
 import { capSheet, isOffseason } from '../../engine/finance/cap';
 import { capHit, lastSeason } from '../../engine/finance/contract';
-import { buildAutoDepthChart, isAvailable, placeAt, slotOf, teamPlayers, teamRatings } from '../../engine/roster';
+import {
+  buildAutoDepthChart,
+  claimMove,
+  isAvailable,
+  placeAt,
+  slotOf,
+  teamPlayers,
+  teamRatings,
+} from '../../engine/roster';
 import { activeLearning, familiarity } from '../../engine/training';
 import { computeRecords } from '../../engine/season/standings';
 import type { Coach, League, Player, Position, StatLine, Team } from '../../engine/types';
@@ -113,6 +121,8 @@ function moveInDepth(teamId: number, pos: Position, from: number, to: number) {
     if (to < 0 || to >= list.length || to === from) return;
     team.autoDepth = false;
     team.depthChart[pos] = reorder(list, from, to);
+    // Moving staff's cover makes him yours: staff won't send him back.
+    claimMove(l, list[from]);
   });
 }
 

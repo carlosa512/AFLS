@@ -12,7 +12,7 @@ import {
 import { capSpace, releasePlayer } from './finance/cap';
 import { manageInjuries } from './injuries';
 import { offseasonBlockers } from './offseason';
-import { inSeasonReserve } from './offseason/ai';
+import { inSeasonReserve, needSigning } from './offseason/ai';
 import { demand, freeAgents, offerValue } from './offseason/negotiation';
 import { minSalary } from './finance/market';
 import { Rng } from './rng';
@@ -20,7 +20,7 @@ import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { buildLineup } from './match/lineup';
 import { migrateLeague } from './migrate';
 import { overall, playerOvr } from './positions';
-import { buildAutoDepthChart, placeAt, returnHome, slotOf, syncDepthChart, teamPlayers } from './roster';
+import { buildAutoDepthChart, claimMove, placeAt, returnHome, slotOf, syncDepthChart, teamPlayers } from './roster';
 import { playerTradeBlocker } from './trade/rules';
 import {
   activeLearning,
@@ -286,6 +286,19 @@ describe('out of position', () => {
     expect(team.playingAt?.[wr.id]).toEqual({ pos: 'S', by: 'user' });
   });
 
+  it("dragging staff's man within his group makes the move yours", () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const wr = l.players[team.depthChart.WR.at(-1)!];
+    placeAt(l, wr.id, 'S', undefined, 'staff');
+    claimMove(l, wr.id);
+    expect(team.playingAt?.[wr.id]).toEqual({ pos: 'S', by: 'user' });
+    // A player at his own position has nothing to claim.
+    const cb = l.players[team.depthChart.CB[0]];
+    claimMove(l, cb.id);
+    expect(team.playingAt?.[cb.id]).toBeUndefined();
+  });
+
   it('drops entries for players who left the team or moved there for good', () => {
     const l = fresh();
     const team = l.teams[l.userTeamId];
@@ -475,6 +488,25 @@ describe('the cap in season', () => {
     manageInjuries(l, l.teams[teamId], new Rng('cover'));
     expect(star.teamId).toBeNull();
     for (const p of newWrs(l, teamId, before)) expect(p.contract!.apy).toBeLessThanOrEqual(reserve);
+  });
+
+  it('never prices a hole below the league minimum, even for a contender a player wants to join', () => {
+    const { l, teamId } = shortHanded(60_000);
+    const fa = freeWr(l, 4);
+    // A veteran near the end wants one year: a one-year deal costs nothing in his eyes.
+    fa.age = 35;
+    fa.personality.winning = 1;
+    // A contender's pull is worth more than the knocks for a short, unguaranteed deal: a dollar is worth more than one.
+    for (const t of l.teams) if (t.id !== teamId) l.teams[t.id].depthChart.QB = [];
+    const unit = { years: 1, apy: 1, bonusPct: 0, gtdPct: 0, voidYears: 0 };
+    expect(offerValue(l, fa, teamId, unit)).toBeGreaterThan(1);
+    const min = minSalary(fa.experience, l.caps[l.season]);
+    expect(demand(l, fa, teamId).walkAway).toBe(min);
+    // Only him on the market at receiver: he's the pick.
+    for (const p of freeAgents(l)) if (p.position === 'WR' && p !== fa) p.position = 'K';
+    const pick = needSigning(l, l.teams[teamId], 'WR', 60_000)!;
+    expect(pick.player).toBe(fa);
+    expect(pick.offer.apy).toBeGreaterThanOrEqual(min);
   });
 
   it('stops you in the regular season while over it, not in the playoffs', () => {

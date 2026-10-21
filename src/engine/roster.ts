@@ -110,6 +110,13 @@ export function placeAt(
   syncDepthChart(league, team);
 }
 
+/** The user moved staff's man (a drag within his group): the move is his now, and staff won't send him back. */
+export function claimMove(league: League, playerId: number): void {
+  const p = league.players[playerId];
+  const at = p.teamId === null ? undefined : league.teams[p.teamId].playingAt?.[playerId];
+  if (at?.by === 'staff') league.teams[p.teamId!].playingAt![playerId] = { pos: at.pos, by: 'user' };
+}
+
 /** Send a player lined up elsewhere back to his own position ("Play at…" his own, or staff's cover ending). */
 export function returnHome(league: League, playerId: number): void {
   const p = league.players[playerId];

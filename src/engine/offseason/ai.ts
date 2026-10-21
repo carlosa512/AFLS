@@ -567,7 +567,9 @@ export function needSigning(
       const d = demand(league, p, team.id);
       // What an offer is worth to him is linear in its APY: price the deal that just meets his walk-away.
       const perDollar = offerValue(league, p, team.id, { ...minimumOffer(league, p), apy: 1 }, d);
-      const offer = { ...minimumOffer(league, p), apy: Math.ceil(d.walkAway / perDollar) };
+      // Never under the league minimum, however much he'd like to play for this team.
+      const floor = minimumOffer(league, p);
+      const offer = { ...floor, apy: Math.max(floor.apy, Math.ceil(d.walkAway / perDollar)) };
       return { player: p, offer, ovr: perceive(league, team.id, p).ovr + quirkWorth(league, team.id, p) };
     })
     .filter((x) => x.offer.apy <= budget)
