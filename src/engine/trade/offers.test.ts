@@ -273,8 +273,12 @@ describe('offers to you', () => {
   it('hears about four proposals a moment from you, then is done talking', () => {
     const l = fresh();
     const ai = l.teams.find((t) => t.id !== l.userTeamId)!;
-    // A legal lowball: your worst player for his best.
-    const byOvr = (teamId: number) => activeRoster(l, teamId).sort((a, b) => playerOvr(b) - playerOvr(a));
+    // A legal lowball: your worst player for his best, both tradeable (a hurt one fails the physical first) and
+    // neither a kicker or punter (a team can't be left without one).
+    const byOvr = (teamId: number) =>
+      activeRoster(l, teamId)
+        .filter((p) => !playerTradeBlocker(l, p) && p.position !== 'K' && p.position !== 'P')
+        .sort((a, b) => playerOvr(b) - playerOvr(a));
     const junk: TradeProposal = {
       sides: [
         { teamId: l.userTeamId, players: [byOvr(l.userTeamId).at(-1)!.id], picks: [] },
