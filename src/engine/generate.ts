@@ -793,6 +793,11 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     // level, keeps a team from hoarding what's left (most room at a seasons 1-4 kickoff 23% on 15 seeds).
     fitPayroll(roster, season, SALARY_CAP * rng.float(0.9, 0.99), market, team.gm);
   }
+  // The invented history keeps a draft record only where one is read once the deals are made: a first-rounder's (his
+  // option, the top of each class) and this year's class through the third round, whose rookies a front office keeps
+  // through its cuts (`keepScore`). The rest were 28 KB of a save that opens near its size ceiling.
+  for (const p of Object.values(league.players))
+    if (p.draft && p.contract?.kind === 'rookie' && p.draft.round > (p.draft.season === season ? 3 : 1)) delete p.draft;
 
   for (let y = 1; y <= MAX_FUTURE_DRAFT_YEARS; y++) createDraftPicks(league, season + y);
   league.games = generateSchedule(league, rng);

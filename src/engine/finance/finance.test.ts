@@ -275,6 +275,8 @@ interface Opening {
   topThree: number[];
   /** Per team: veterans the market prices at the minimum whose charge this year is over 3x it. */
   floorRaised: number[];
+  /** Per team: the most rookie deals it holds from one of its last four drafts. */
+  rookieClass: number[];
   deals: OpeningDeal[];
   cap: number;
 }
@@ -291,6 +293,7 @@ function openings(): Opening {
     prorated: [],
     topThree: [],
     floorRaised: [],
+    rookieClass: [],
     deals: [],
     cap: BASE_CAP,
   };
@@ -341,6 +344,9 @@ function openings(): Opening {
       const mine = o.deals.slice(first);
       o.topThree.push(mine.filter((d) => d.kind === 'rookie' && d.pick !== undefined && d.pick <= 3).length);
       o.floorRaised.push(mine.filter((d) => d.kind !== 'rookie' && d.market <= d.min && d.hit > 3 * d.min).length);
+      o.rookieClass.push(
+        Math.max(...[0, 1, 2, 3].map((e) => mine.filter((d) => d.kind === 'rookie' && d.experience === e).length)),
+      );
     }
   }
   return (opening = o);
@@ -459,15 +465,15 @@ describe('opening league, read across fifty seeds', () => {
 
   it('drafts a full first round in each of the last four drafts and pays it like a settled league', () => {
     // Settled: 148 first-round rookie deals a league (4 classes of 32 plus 20 on an exercised fifth-year option; a
-    // few more have been extended by then), rookie deals 19.7% of payroll, and undrafted players on minimum deals.
-    // Picks drawn from each player's quality alone left 34 first-rounders a league, rookie deals 10.9% of payroll and
-    // 210 undrafted players on rookie deals.
-    const { deals, leagues } = openings();
+    // few more have been extended by then), rookie deals 19.7% of payroll, and undrafted players on minimum deals
+    // (the test below). Picks drawn from each player's quality alone left 34 first-rounders a league, rookie deals
+    // 10.9% of payroll and 210 undrafted players on rookie deals: no team holds more than a pick a round of a class.
+    const { deals, leagues, rookieClass } = openings();
     const rookies = deals.filter((d) => d.kind === 'rookie');
     const firsts = rookies.filter((d) => d.round === 1).length / leagues;
     expect(firsts).toBeGreaterThanOrEqual(128);
     expect(firsts).toBeLessThanOrEqual(155);
-    expect(rookies.filter((d) => d.round === undefined)).toEqual([]);
+    expect(Math.max(...rookieClass)).toBeLessThanOrEqual(7);
     expect(rookies.filter((d) => d.option === 'exercised').length / leagues).toBeGreaterThan(10);
     const pay = deals.reduce((s, d) => s + d.hit, 0);
     const rookiePay = rookies.reduce((s, d) => s + d.hit, 0) / pay;
