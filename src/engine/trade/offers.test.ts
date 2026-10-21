@@ -35,6 +35,30 @@ let base = '';
 const fresh = (): League => JSON.parse(base);
 const packaged = (l: League) => openOffers(l).filter((o) => o.kind !== 'enquiry');
 
+/**
+ * Enquiries are rare (about one a league a season reaches you), and any change to generation or play re-rolls who
+ * asks when, so the enquiry tests look across a few fixed-seed leagues for them, as the refusal tests loop seeds.
+ * `look` sees each week's open enquiries and returns true to stop there; otherwise the search ends with the first
+ * league that showed any. Returns the league it stopped in, or null if none showed one.
+ */
+const ENQUIRY_SEEDS = ['trades-0', 'trades-1', 'trades-2', 'trades-3', 'trades-4', 'trades-5'];
+function findEnquiries(weeks: number, look: (l: League, enquiries: TradeOffer[]) => boolean): League | null {
+  for (const seed of ENQUIRY_SEEDS) {
+    const l = createLeague({ seed });
+    let seen = false;
+    for (let w = 0; w < weeks && l.phase === 'regular'; w++) {
+      const enquiries = openOffers(l).filter((o) => o.kind === 'enquiry');
+      if (enquiries.length) {
+        seen = true;
+        if (look(l, enquiries)) return l;
+      }
+      playWeek(l);
+    }
+    if (seen) return l;
+  }
+  return null;
+}
+
 beforeAll(() => {
   // Play on until offers are on the desk.
   const l = createLeague({ seed: 'trades-0' });
@@ -101,18 +125,18 @@ describe('offers to you', () => {
   });
 
   it('only asks about a player it could bid for', () => {
-    const l = fresh();
     let asked = 0;
-    for (let w = 0; w < 8; w++) {
-      for (const e of openOffers(l).filter((o) => o.kind === 'enquiry')) {
+    // Every enquiry the first league with any shows in its first 12 weeks, each checked the week it's open.
+    findEnquiries(12, (l, enquiries) => {
+      for (const e of enquiries) {
         asked++;
         const p = l.players[e.sides[1].players[0]];
         expect(bidFor(tradeContext(l), l.teams[e.teamId], p)).not.toBeNull();
       }
-      playWeek(l);
-    }
+      return false;
+    });
     expect(asked).toBeGreaterThan(0);
-  });
+  }, 120_000);
 
   it('says why every offer ended', () => {
     const l = fresh();
@@ -345,20 +369,16 @@ describe('offers to you', () => {
   });
 
   it('treats an enquiry whose team has no number as answered, not turned down', () => {
-    const l = fresh();
-    let enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
-    for (let w = 0; w < 12 && !enquiry; w++) {
-      playWeek(l);
-      enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
-    }
+    let enquiry: TradeOffer | undefined;
+    const l = findEnquiries(12, (_, enquiries) => !!(enquiry = enquiries[0]));
     expect(enquiry, 'an enquiry on the desk').toBeDefined();
     // Talks are off with this team this moment, so no bid can be filed.
-    talksOf(l.market!, enquiry!.teamId).offUntil = l.market!.moment;
-    const { offer } = answerEnquiry(l, enquiry!.id, 'offer');
+    talksOf(l!.market!, enquiry!.teamId).offUntil = l!.market!.moment;
+    const { offer } = answerEnquiry(l!, enquiry!.id, 'offer');
     expect(offer).toBeNull();
     expect(enquiry!.status).toBe('answered');
     expect(enquiry!.outcome).toMatch(/couldn't make the numbers work/);
-  });
+  }, 120_000);
 
   it('never leaves a camp offer its own team would refuse by the time you can accept it', () => {
     let seen = 0;
