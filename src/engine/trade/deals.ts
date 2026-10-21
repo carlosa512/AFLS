@@ -9,7 +9,7 @@ import { isExpired, yearsLeft } from '../finance/contract';
 import { STARTERS } from '../positions';
 import type { DealKind, DraftPick, GmTraits, League, Player, Team } from '../types';
 import { KEEP_MIN } from '../offseason/ai';
-import { capRoom, ovrOf, rosterOf, spendable, type TradeContext } from './context';
+import { capRoom, ovrOf, pickOf, rosterOf, spendable, type TradeContext } from './context';
 import { heldPick, judge, marginFor, STAR, type Judgement } from './judge';
 import { CONCERNS, onFile } from './physicals';
 import { isSeller, stanceOf, starterLine, teamNeeds, untouchables } from './plans';
@@ -179,7 +179,7 @@ type Tried = { proposal: TradeProposal; sells: Judgement; buys: Judgement };
 export function quickValue(ctx: TradeContext, valuer: Team, side: TradeSide): number {
   const { league } = ctx;
   return (
-    side.picks.reduce((s, id) => s + goingRate(league, league.draftPicks.find((x) => x.id === id)!, ctx), 0) +
+    side.picks.reduce((s, id) => s + goingRate(league, pickOf(ctx, id)!, ctx), 0) +
     side.players.reduce((s, id) => s + marketValue(ctx, valuer, league.players[id]), 0)
   );
 }
@@ -221,15 +221,16 @@ export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | 
   // A seller who wants more than that for him isn't really selling.
   const ceiling = Math.max(maxOver(buyer.gm) * worth, 0);
   const quick = (side: TradeSide) => quickValue(ctx, seller, side);
-  const all = packages(ctx, buyer, seller);
-  const affordable = all.filter((x) => quick(x) <= ceiling);
+  // Each package read once: the reads are the search's own cost, before a verdict.
+  const affordable = packages(ctx, buyer, seller)
+    .map((side) => ({ side, value: quick(side) }))
+    .filter((x) => x.value <= ceiling);
   const picks = search(
     ctx,
     buyer,
     seller,
     theirs,
-    affordable.filter((x) => !x.players.length),
-    quick,
+    affordable.filter((x) => !x.side.players.length),
     ask,
     price,
     TRIES,
@@ -239,8 +240,7 @@ export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | 
     buyer,
     seller,
     theirs,
-    affordable.filter((x) => x.players.length),
-    quick,
+    affordable.filter((x) => x.side.players.length),
     ask,
     price,
     SWAP_TRIES,
@@ -272,22 +272,22 @@ export function keepToFit(league: League, p: Player, room: number): number | nul
 }
 
 /**
- * The first of `sides` both GMs take: the cheapest at or above the price first (the seller's
- * opening ask), then down from it toward his floor (the buyer haggling). Each run stops early once
- * the side it leans on has said no twice: dearer packages won't win back a buyer, cheaper ones a seller.
+ * The first of `sides` (each with its value at the league's prices) both GMs take: the cheapest at
+ * or above the price first (the seller's opening ask), then down from it toward his floor (the buyer
+ * haggling). Each run stops early once the side it leans on has said no twice: dearer packages won't
+ * win back a buyer, cheaper ones a seller.
  */
 function search(
   ctx: TradeContext,
   buyer: Team,
   seller: Team,
   theirs: TradeSide,
-  sides: TradeSide[],
-  quick: (s: TradeSide) => number,
+  sides: readonly { side: TradeSide; value: number }[],
   ask: number,
   price: number,
   n: number,
 ): Tried | null {
-  const valued = sides.map((side) => ({ side, value: quick(side) })).filter((x) => x.value >= ask * 0.9);
+  const valued = sides.filter((x) => x.value >= ask * 0.9);
   const up = valued
     .filter((x) => x.value >= price)
     .sort((a, b) => a.value - b.value)

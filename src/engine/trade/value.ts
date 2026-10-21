@@ -444,12 +444,19 @@ function schemeFit(ctx: TradeContext, team: Team, p: Player, truth: boolean): nu
   return clamp((values.reduce((a, b) => a + b, 0) / values.length - ovr) / 3, -1, 1);
 }
 
-/** How a room counts a player at a (fractional) depth-chart rank: in full as a starter, 0.35 as the top backup, 0.2 deeper in a normal room, barely past it. */
+/** How a room counts its player at a whole depth-chart rank (0 is the first starter). */
+const roleAtRank = (k: number, pos: Position) =>
+  k < STARTERS[pos] ? 1 : k === STARTERS[pos] ? BACKUP : k < ROSTER_TEMPLATE[pos] ? DEPTH : CLUTTER;
+
+/**
+ * How a room counts a player at a (fractional) depth-chart rank: in full as a starter, 0.35 as the
+ * top backup, 0.2 deeper in a normal room, barely past it. The hottest call in a verdict, so it
+ * makes no closure per call.
+ */
 function roleAt(rank: number, pos: Position): number {
-  const at = (k: number) =>
-    k < STARTERS[pos] ? 1 : k === STARTERS[pos] ? BACKUP : k < ROSTER_TEMPLATE[pos] ? DEPTH : CLUTTER;
   const k = Math.floor(rank);
-  return at(k) + (at(k + 1) - at(k)) * (rank - k);
+  const at = roleAtRank(k, pos);
+  return at + (roleAtRank(k + 1, pos) - at) * (rank - k);
 }
 
 /**
