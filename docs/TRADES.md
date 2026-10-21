@@ -797,7 +797,7 @@ autopilot, and flag every number outside its range ▲/▼ (non-zero exit), like
 | | Swaps (player ↔ player, ± picks) | 5–15% |
 | | Dumps (bad contract + pick) | 1–4 a season |
 | | Deals with a late-pick swap riding along | 10–25% |
-| Prices (JJ points, undiscounted, the median of each bucket) | Star (top 3 at a premium position, ≤ 28, 2+ years left) | 1,500–3,500 (1–2 firsts +) |
+| Prices (JJ points, undiscounted, the median of each bucket over every eligible player in 48 leagues' first season; depth an even sample) | Star (top 3 at a premium position, ≤ 28, 2+ years left) | 1,500–3,500 (1–2 firsts +) |
 | | Quality starter, 1–2 years left | 400–1,300 (a 1st or 2nd) |
 | | Deadline rental (expiring, 12–14 OVR) | 35–150 (R3–R6) |
 | | Depth | ≤ 40 |

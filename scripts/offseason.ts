@@ -6,6 +6,7 @@
  *
  *   npm run offseason            # 3 seasons
  *   npm run offseason -- 6       # what CI and `npm run check` run
+ *   npm run offseason -- 6 --seed alt-1   # another world, the same code
  *
  * It prints the numbers a human reads, then judges them: after each season a `checks` block tests the
  * kickoff ("→ regular") snapshot, the save size, the coaching and scouting economies and the draft
@@ -13,7 +14,9 @@
  * marks a number above/below its band; the last line counts them and the process exits 1 if there are
  * any. It fails on drift as well as on a single bad season: a change that makes the AI front offices
  * overspend or hoard cap, lets talent, cap space or the coaching ledgers walk away from where they
- * started, or bloats the save fails CI instead of waiting for someone to eyeball it.
+ * started, or bloats the save fails CI instead of waiting for someone to eyeball it. On 5+ seasons,
+ * three more leagues play beside this one in their own processes (`offseason-league.ts`) for the
+ * cap-space drift check, which one league's 32 teams are too few to judge.
  *
  * Why the bands are what they are. The run is seeded, so the same code prints the same numbers every
  * time; a band cannot flake, but any change that shifts RNG order reshuffles the whole world. The
@@ -29,6 +32,7 @@
  * are printed, never counted, so CI stays green until someone fixes the engine; each one disappears
  * from the output when its fix lands. Do not loosen a band to hide one: add a line here instead.
  */
+import { fork } from 'node:child_process';
 import {
   coachBudget,
   coachingFor,
@@ -68,9 +72,39 @@ import {
 } from '../src/engine/staff';
 import type { Coach, League, Phase } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
+import type { CapRun } from './offseason-league';
 
-const seasons = Number(process.argv[2] ?? 3);
-const league = createLeague({ seed: 'offseason-audit' });
+const seasons = Number(process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seed') ?? 3);
+const SEED = process.argv.includes('--seed') ? process.argv[process.argv.indexOf('--seed') + 1] : 'offseason-audit';
+const league = createLeague({ seed: SEED });
+
+/**
+ * More leagues for the cap-space drift check, each in its own process while this one plays: one league's median is
+ * a single team's cap space. Only a run long enough for the drift checks needs them.
+ */
+const capRuns: Promise<CapRun[]> = Promise.all(
+  (seasons >= 5 ? [2, 3, 4] : []).map(
+    (n) =>
+      new Promise<CapRun>((resolve, reject) => {
+        const seed = `${SEED}-${n}`;
+        const child = fork(new URL('./offseason-league.ts', import.meta.url).pathname, [], {
+          env: { ...process.env, OFFSEASON_SEED: seed, OFFSEASON_SEASONS: String(seasons) },
+        });
+        let done = false;
+        child.once('message', (run) => {
+          done = true;
+          resolve(run as CapRun);
+          child.kill();
+        });
+        child.once('error', reject);
+        // A worker that dies before reporting (a crash, or the OOM killer's signal) fails the audit by name.
+        child.once(
+          'exit',
+          (code, signal) => done || reject(new Error(`league ${seed} exited (${signal ?? code}) before reporting`)),
+        );
+      }),
+  ),
+);
 const M = (k: number) => `$${(k / 1000).toFixed(1)}M`;
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 const sd = (xs: number[]) => Math.sqrt(avg(xs.map((x) => (x - avg(xs)) ** 2)));
@@ -599,8 +633,13 @@ function carouselRun(): string {
 if (rows.length >= 5) {
   const first = rows[0];
   const end = rows[rows.length - 1];
-  const share = (r: Row) => (100 * r.k.space[r.k.space.length >> 1]) / r.k.cap;
-  const tail = rows.slice(-3).map(share);
+  // Every team of the four leagues a season, this one's and the others' (the upper middle, as for one league's).
+  const others = await capRuns;
+  const tail = rows.slice(-3).map((r, j) => {
+    const s = rows.length - 3 + j;
+    const all = [...r.k.space.map((x) => (100 * x) / r.k.cap), ...others.flatMap((run) => run.space[s])];
+    return all.sort((a, b) => a - b)[all.length >> 1];
+  });
   console.log(`\ndrift, ${first.year} → ${end.year}:`);
   // The generated first league always settles upward by 0.1-0.3 OVR (obs +0.16; all seeds +0.16 to +0.34), so the band is
   // lopsided; deflation would show as a negative change. After the 3rd kickoff it should hold (obs -0.02; all seeds <= 0.12).
@@ -608,9 +647,12 @@ if (rows.length >= 5) {
     `  talent: ${check('starter OVR, last − first', end.k.avgStarter - first.k.avgStarter, -0.15, 0.6)} · ${check(`…last − ${rows[2].year}`, end.k.avgStarter - rows[2].k.avgStarter, -0.3, 0.3)}`,
   );
   // Median cap space is flat once settled: 2.3, 2.1, 2.1% over the last three (all seeds 2.0-2.3), so within 1 point.
+  // One league's median is one team's space, and drawing other teams moves it 0.3-0.6 points a season (a bootstrap
+  // over the 32), so it is read over all four leagues' 128 teams. Over twelve seeds one league's spread ran 0.1-1.6
+  // (two over the band); every grouping of four of them, 0.0-0.8.
   // The pool of free agents is still growing at season 6 (+33 in the last step; all seeds +26 to +41); band 70.
   console.log(
-    `  cap: ${check('median space %cap, spread over the last 3', Math.max(...tail) - Math.min(...tail), 0, 1, 1)} · ${check('free agents, last step', end.k.fas - rows[rows.length - 2].k.fas, -Infinity, 70, 0)}`,
+    `  cap: median space %cap over ${others.length + 1} leagues ${tail.map((x) => x.toFixed(1)).join(' · ')} · ${check('spread over the last 3', Math.max(...tail) - Math.min(...tail), 0, 1, 1)} · ${check('free agents, last step', end.k.fas - rows[rows.length - 2].k.fas, -Infinity, 70, 0)}`,
   );
   // The neutrality ledger must not walk: growth 0.999 → 1.008 (+0.009), body 0.999 → 0.987, craft 0.999 → 0.996.
   // Role values wander within a point (biggest: S&C +0.7); staff value falls 10.30 → 10.00 (all seeds -0.05 to -0.30,
