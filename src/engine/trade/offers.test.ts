@@ -5,6 +5,7 @@ import { deliverMail, needsYou } from '../inbox';
 import { migrateLeague } from '../migrate';
 import { rosterLimit } from '../offseason/negotiation';
 import { playerOvr } from '../positions';
+import { yearsLeft } from '../finance/contract';
 import { activeRoster } from '../roster';
 import type { League, TradeOffer } from '../types';
 import {
@@ -15,9 +16,11 @@ import {
   counterOffer,
   declineOffer,
   openOffers,
+  playerTradeBlocker,
   proposeTrade,
   setTradeStatus,
   shopPlayer,
+  teamNeeds,
   tradeContext,
   untouchables,
 } from '.';
@@ -48,6 +51,29 @@ describe('offers to you', () => {
     // Nothing of yours moved because of them.
     expect(open.every((o) => o.sides[1].players.every((id) => l.players[id].teamId === l.userTeamId))).toBe(true);
     expect(roster.length).toBeGreaterThan(0);
+  });
+
+  it('draws an offer for any of your three best players some team needs, priced in firsts or not', () => {
+    // The trades audit's listing (`listingDraws`): your best players at a position an AI team needs, signed 2+ more
+    // years. Shopped, a young cornerback draws a crowd, and the bidders' premium puts a buyer's price past every
+    // package he'd sign off on (each first past the second costs him more than the going rate): he must offer the
+    // best he'd pay under it, not nothing.
+    const l = fresh();
+    const ctx = tradeContext(l);
+    const ai = l.teams.filter((t) => t.id !== l.userTeamId);
+    const needed = new Set(ai.flatMap((t) => teamNeeds(ctx, t).map((n) => n.position)));
+    const shop = activeRoster(l, l.userTeamId)
+      .filter((p) => needed.has(p.position) && yearsLeft(p.contract!, l.season) >= 2 && !playerTradeBlocker(l, p))
+      .sort((a, b) => playerOvr(b) - playerOvr(a))
+      .slice(0, 3);
+    for (const star of shop) {
+      const x = fresh();
+      setTradeStatus(x, star.id, 'listed');
+      const before = x.market!.nextOfferId;
+      for (let w = 0; w < 2; w++) playWeek(x);
+      const named = x.market!.offers.filter((o) => o.id >= before && o.sides[1].players.includes(star.id));
+      expect(named.length, `${star.position} ${star.age}`).toBeGreaterThan(0);
+    }
   });
 
   it('never asks for an Untouchable', () => {
