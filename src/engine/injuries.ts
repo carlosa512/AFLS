@@ -1415,7 +1415,11 @@ export function injuryWeek(league: League): void {
   const ai = new Rng(`${league.seed}:${season}:${week}:injury-moves`);
   for (const team of league.teams) {
     const roster = rosters.get(team.id) ?? [];
-    const busy = roster.some((p) => p.injury || p.ir) || roster.length < ROSTER_MAX;
+    // A staff cover counts too: it has to go back once the injury it covered for heals.
+    const busy =
+      roster.some((p) => p.injury || p.ir) ||
+      roster.length < ROSTER_MAX ||
+      Object.values(team.playingAt ?? {}).some((x) => x.by === 'staff');
     if (busy && delegates(league, team)) manageInjuries(league, team, ai, roster);
     // A front office over the cap gets back under before the next game: no team plays a week over it.
     // (Yours is told to, and can't play on until it has: `offseasonBlockers`.)
@@ -1628,6 +1632,9 @@ function cutForRoom(league: League, team: Team, need: Position): boolean {
  * start of the next one), the reserve list clears, and everyone reports fresh.
  */
 export function injuriesNewYear(league: League): void {
+  // Thirty weeks off refill every position: staff's covers go back (the user's own moves stay his).
+  for (const team of league.teams)
+    for (const [id, at] of Object.entries(team.playingAt ?? {})) if (at.by === 'staff') returnHome(league, Number(id));
   for (const p of Object.values(league.players)) {
     delete p.ir;
     delete p.condition;

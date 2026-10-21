@@ -13,6 +13,7 @@ import {
   injuryRetireChance,
   injuryRisk,
   injuryType,
+  injuriesNewYear,
   injuryWeek,
   IR_MIN_WEEKS,
   IR_RETURNS,
@@ -934,6 +935,35 @@ describe('covering a short position', () => {
     hurt(league, cover, 2);
     manageInjuries(league, team, new Rng('cover'));
     expect(team.playingAt?.[cover.id]).toBeUndefined();
+  });
+
+  it("ends staff's cover when the last injury heals, though nobody else is hurt", () => {
+    const league = fresh();
+    const team = aiTeam(league);
+    const cover = spareLb(league, team);
+    for (const p of teamPlayers(league, team.id)) delete p.injury;
+    thin(league, team.id, 'S', NEED.S - 1);
+    manageInjuries(league, team, new Rng('cover'));
+    expect(team.playingAt?.[cover.id]?.by).toBe('staff');
+    // Every injury on the team heals; the weekly cycle runs with a full, healthy roster.
+    for (const p of teamPlayers(league, team.id)) delete p.injury;
+    expect(activeRoster(league, team.id)).toHaveLength(53);
+    injuryWeek(league);
+    expect(team.playingAt?.[cover.id]).toBeUndefined();
+  });
+
+  it("clears staff's covers at the new league year, and keeps the user's moves", () => {
+    const league = fresh();
+    const team = aiTeam(league);
+    const cover = spareLb(league, team);
+    thin(league, team.id, 'S', NEED.S - 1);
+    manageInjuries(league, team, new Rng('cover'));
+    const mine = teamPlayers(league, team.id).find((p) => p.position === 'WR')!;
+    placeAt(league, mine.id, 'TE');
+    injuriesNewYear(league);
+    expect(team.playingAt?.[cover.id]).toBeUndefined();
+    expect(team.depthChart[cover.position]).toContain(cover.id);
+    expect(team.playingAt?.[mine.id]).toEqual({ pos: 'TE', by: 'user' });
   });
 
   it('your staff covers but never signs or cuts', () => {
