@@ -17,6 +17,7 @@ import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { clamp, type Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth } from '../scouting';
+import { POSITION_PREMIUM, specialistPenalty } from './positionValue';
 import { computeRecords, winPct } from '../season/standings';
 import type { DraftPick, League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
@@ -105,20 +106,7 @@ export function availableProspects(league: League): Player[] {
   return league.draftClass.map((id) => league.players[id]).filter((p) => p && p.teamId === null);
 }
 
-export const POSITION_PREMIUM: Record<Position, number> = {
-  QB: 1.2,
-  EDGE: 0.6,
-  OL: 0.3,
-  CB: 0.3,
-  WR: 0.3,
-  DT: 0.3,
-  LB: 0,
-  S: 0,
-  TE: 0,
-  RB: -0.1,
-  K: -2.5,
-  P: -2.8,
-};
+export { POSITION_PREMIUM };
 
 /** A team's overalls by position, best first. */
 export function positionDepth(league: League, teamId: number): Record<Position, number[]> {
@@ -191,7 +179,7 @@ export function boardScore(
   if (mine.length < STARTERS[p.position] + 1) score += 1;
   else if ((mine[STARTERS[p.position] - 1] ?? 0) < Math.min(11, board.grade)) score += 0.8;
   if (mine.length >= ROSTER_TEMPLATE[p.position] + 1) score -= 1.5;
-  if ((p.position === 'K' || p.position === 'P') && round < 5) score -= 3;
+  score -= specialistPenalty(p.position, round);
   return score;
 }
 
