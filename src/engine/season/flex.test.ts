@@ -3,7 +3,8 @@ import { createLeague } from '../generate';
 import { playWeek } from '../league';
 import { migrateLeague } from '../migrate';
 import type { Game, League } from '../types';
-import { isPrimeTime } from './kickoff';
+import { flexWeek } from './flex';
+import { isPrimeTime, SUNDAY_NIGHT } from './kickoff';
 import { REGULAR_SEASON_WEEKS } from './schedule';
 
 describe('flexible scheduling', () => {
@@ -41,6 +42,38 @@ describe('flexible scheduling', () => {
     const last = games.filter((g) => g.week === REGULAR_SEASON_WEEKS);
     expect(last.filter((g) => g.kickoff!.day === 'sun' && isPrimeTime(g.kickoff!))).toHaveLength(1);
     expect(last.filter((g) => g.kickoff!.day === 'sat')).toHaveLength(2);
+  });
+
+  it('keeps week 18 from putting a team past seven night games', () => {
+    // Week 17 played: the league sets week 18. Teams in its two night games first, then the same league with
+    // those teams already at seven nights through week 17 (the cap, a flex's included).
+    const fresh = createLeague({ seed: 'flex-cap' });
+    fresh.week = REGULAR_SEASON_WEEKS;
+    const regular = (l: League) => l.games.filter((g) => g.season === l.season && !g.playoffRound);
+    const nights = (l: League, id: number) =>
+      regular(l).filter((g) => g.week < REGULAR_SEASON_WEEKS && plays(g, id) && isPrimeTime(g.kickoff!)).length;
+    const finalGame = (l: League, id: number) =>
+      regular(l).find((g) => g.week === REGULAR_SEASON_WEEKS && plays(g, id))!;
+
+    const open = structuredClone(fresh);
+    flexWeek(open);
+    const lit = regular(open).filter((g) => g.week === REGULAR_SEASON_WEEKS && isPrimeTime(g.kickoff!));
+    expect(lit.length).toBeGreaterThan(0);
+
+    const capped = structuredClone(fresh);
+    for (const id of lit.flatMap((g) => [g.homeId, g.awayId]))
+      for (const g of regular(capped).filter(
+        (g) => g.week < REGULAR_SEASON_WEEKS && plays(g, id) && !isPrimeTime(g.kickoff!),
+      ))
+        if (nights(capped, id) < 7) g.kickoff = { ...SUNDAY_NIGHT };
+    const full = capped.teams.filter((t) => nights(capped, t.id) >= 7).map((t) => t.id);
+    expect(full.length).toBeGreaterThanOrEqual(lit.length * 2);
+    flexWeek(capped);
+    for (const id of full) expect(isPrimeTime(finalGame(capped, id).kickoff!)).toBe(false);
+    // The games still get their night slots, with the teams that have the room.
+    expect(regular(capped).filter((g) => g.week === REGULAR_SEASON_WEEKS && isPrimeTime(g.kickoff!)).length).toBe(
+      lit.length,
+    );
   });
 
   it('gives the playoffs the NFL’s windows', () => {
