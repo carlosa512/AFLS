@@ -298,7 +298,9 @@ describe('offers to you', () => {
     const l = fresh();
     const ai = l.teams.find((t) => t.id !== l.userTeamId)!;
     // A legal lowball: your worst player for his best, both tradeable (a hurt one fails the physical first) and
-    // neither a kicker or punter (a team can't be left without one).
+    // neither a kicker or punter (a team can't be left without one), with room under your cap for his salary (a trade
+    // the cap forbids is a league rule, which costs no patience).
+    l.teams[l.userTeamId].carryover = l.caps[l.season];
     const byOvr = (teamId: number) =>
       activeRoster(l, teamId)
         .filter((p) => !playerTradeBlocker(l, p) && p.position !== 'K' && p.position !== 'P')

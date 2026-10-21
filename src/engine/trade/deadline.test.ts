@@ -22,13 +22,17 @@ describe('a tight cap in season', () => {
   it("doesn't make a cheap starter's play worth more, as it does in the offseason", () => {
     const l = fresh();
     const buyer = l.teams.find((t) => t.id !== l.userTeamId)!;
-    // A good player on an expiring rookie deal elsewhere: the rental a capped contender paid firsts for.
+    // A good player on an expiring rookie deal elsewhere: the rental a capped contender paid firsts for. Not a kicker
+    // or punter: a specialist's play is priced apart, and a first-round kicker on his option year reads too little pay
+    // to show the squeeze (one did once the opening league drafted a full first round every year).
     const target = Object.values(l.players)
       .filter(
         (p) =>
           p.teamId != null &&
           p.teamId !== buyer.id &&
           p.teamId !== l.userTeamId &&
+          p.position !== 'K' &&
+          p.position !== 'P' &&
           p.contract?.kind === 'rookie' &&
           p.contract.years.at(-1)!.season === l.season,
       )
