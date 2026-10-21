@@ -39,8 +39,8 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       development and aging, and their style and schemes change how games are called. But no HC/OC/DC rating makes a
       team better on game day; only the special teams coordinator has a game-day edge (`specialTeamsEdge`).
 - [ ] **12. AI teams that manage their rosters sensibly** · **Partial**: AI front offices draft, sign, cut, trade and
-      stay cap-legal (`offseason/ai.ts`). Two known issues are flagged by `npm run offseason`: some teams start a
-      season short of 53, and some keep 38–59% of the cap unspent in seasons 1–3.
+      stay cap-legal (`offseason/ai.ts`), keeping a cap reserve for the season by their GM's cap style. One known
+      issue is flagged by `npm run offseason`: some teams start a season short of 53.
 
 ## The feel
 
