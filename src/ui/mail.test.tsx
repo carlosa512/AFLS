@@ -5,6 +5,7 @@ import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
 import { talksOf } from '../engine/trade/talks';
+import { dealAdvice } from '../engine/trade/advice';
 import type { League, TradeOffer } from '../engine/types';
 import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
@@ -123,17 +124,39 @@ describe('the offer card', () => {
 });
 
 /** A league with a filed offer message, found by playing on; `want` picks the offer. */
-function withFiledOffer(want: (o: TradeOffer) => boolean, seed = SEEDS[0]): { league: League; offer: TradeOffer } {
+function withFiledOffer(
+  want: (o: TradeOffer, league: League) => boolean,
+  seed = SEEDS[0],
+): { league: League; offer: TradeOffer } {
   const league = createLeague({ seed });
   for (let w = 0; w < 9; w++) {
     deliverMail(league);
-    const offer = openOffers(league).find((o) => want(o) && mailForOffer(league, o));
+    const offer = openOffers(league).find((o) => want(o, league) && mailForOffer(league, o));
     if (offer) return { league, offer };
     playWeek(league);
   }
   if (SEEDS.indexOf(seed) + 1 >= SEEDS.length) throw new Error('no seed in SEEDS had a matching filed offer by week 9');
   return withFiledOffer(want, SEEDS[SEEDS.indexOf(seed) + 1]);
 }
+
+describe('staff notes on an offer', () => {
+  it('link every player they name', () => {
+    const { league, offer } = withFiledOffer(
+      (o, l) => o.kind !== 'enquiry' && dealAdvice(l, o.sides).some((a) => a.who === 'coach'),
+    );
+    const named = dealAdvice(league, offer.sides).flatMap((a) =>
+      offer.sides
+        .flatMap((s) => s.players)
+        .map((id) => league.players[id])
+        .filter(Boolean)
+        .filter((p) => a.line.includes(`${p.firstName} ${p.lastName}`)),
+    );
+    expect(named.length, 'a note naming a player').toBeGreaterThan(0);
+    const html = renderToStaticMarkup(<OfferCard league={league} offer={offer} />);
+    const list = html.slice(html.indexOf('plain-list small'));
+    expect(list).toContain(`>${named[0].firstName} ${named[0].lastName}</button>`);
+  });
+});
 
 describe('the note under an offer', () => {
   it('is neutral when an accept only asks for something more, red only for a real refusal', () => {

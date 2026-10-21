@@ -120,7 +120,8 @@ const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName}
 /**
  * Everyone by full name, the way mail writes them ("Tim Bell was the player of the game"): players, coaches
  * (retired too), scouts and medics in one index, a name two people share left out. Teams go in last as
- * "Denver Summit" and the bare nickname ("The Scorpions ask…"; nicknames are unique), never over a person.
+ * "Denver Summit", the bare nickname ("The Scorpions ask…"; nicknames are unique) and a city one team has, never
+ * over a person.
  */
 export function nameIndex(league: League): MoveIndex {
   const index: MoveIndex = new Map();
@@ -143,6 +144,12 @@ export function nameIndex(league: League): MoveIndex {
       teamKeys.add(key);
     }
   }
+  // Then the bare city ("bring him to Washington"), last of all so a nickname or person always wins; a city two
+  // teams share (New York) stays plain.
+  const cities = new Map<string, number>();
+  for (const t of league.teams) cities.set(t.city, (cities.get(t.city) ?? 0) + 1);
+  for (const t of league.teams)
+    if (cities.get(t.city) === 1 && !index.has(t.city)) index.set(t.city, { kind: 'team', id: t.id });
   return index;
 }
 

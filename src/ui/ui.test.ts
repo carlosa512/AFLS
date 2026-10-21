@@ -121,6 +121,22 @@ describe('transaction links', () => {
     expect(linked('CIN released WR John Smithers')).toBe('CIN released WR John Smithers');
     expect(linked('CIN hired physiotherapist Sam Lee (2 yr)')).toBe('CIN hired physiotherapist Sam Lee (2 yr)');
   });
+
+  it('links a team by its city in mail, unless two teams share it', () => {
+    const league = createLeague({ seed: 'city-links' });
+    const show = (text: string) =>
+      linkedSegments(league, text)
+        .map((s) => (typeof s === 'string' ? s : `[${s.who.kind}:${s.who.id}]`))
+        .join('');
+    const lone = league.teams.find((t) => league.teams.filter((u) => u.city === t.city).length === 1)!;
+    const shared = league.teams.find((t) => league.teams.filter((u) => u.city === t.city).length > 1)!;
+    expect(show(`We'd like to bring him to ${lone.city}.`)).toBe(`We'd like to bring him to [team:${lone.id}].`);
+    expect(show(`A trip to ${shared.city}.`)).toBe(`A trip to ${shared.city}.`);
+    // A player named after a city is still the player.
+    const p = Object.values(league.players)[0];
+    p.lastName = lone.city;
+    expect(show(`${p.firstName} ${p.lastName} signs`)).toBe(`[player:${p.id}] signs`);
+  });
 });
 
 describe('score strip', () => {

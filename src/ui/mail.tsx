@@ -229,6 +229,21 @@ function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactN
   );
 }
 
+/** A team's name as a link to its page, with its chip in a table. */
+function TeamLink({ team, chip = false }: { team: Team; chip?: boolean }) {
+  const nav = useNav();
+  return (
+    <button className={`linklike${chip ? ' team-inline' : ''}`} onClick={() => nav.openTeam(team.id)}>
+      {chip && (
+        <>
+          <TeamChip team={team} />{' '}
+        </>
+      )}
+      {team.name}
+    </button>
+  );
+}
+
 /** Players as links, comma-separated: "QB Kyle James, WR Tom Hughes". */
 function PlayerList({
   players,
@@ -300,7 +315,7 @@ function ResultLine({ league, g }: { league: League; g: Game }) {
       <span className={`mail-res res-${r.res}`}>{r.res}</span>
       <span className="num">{r.score}</span>
       <span className="muted small">
-        {r.home ? 'vs' : 'at'} {r.opp.name}
+        {r.home ? 'vs' : 'at'} <TeamLink team={r.opp} />
       </span>
       <button className="btn btn-sm" onClick={() => nav.openGame(g.id)}>
         Box score
@@ -590,7 +605,20 @@ function InjuryCards({ league, s }: { league: League; s: Extract<MailSubject, { 
         <Who
           league={league}
           p={p}
-          sub={`${p.position} · age ${p.age}${!ours ? (team ? ` · now with ${team.name}` : ' · no longer on a roster') : ''}`}
+          sub={
+            <>
+              {p.position} · age {p.age}
+              {!ours &&
+                (team ? (
+                  <>
+                    {' '}
+                    · now with <TeamLink team={team} />
+                  </>
+                ) : (
+                  ' · no longer on a roster'
+                ))}
+            </>
+          }
           side={now ? <InjuryTag league={league} p={p} /> : <span className="tag-pill tag-good">Healthy</span>}
         />
         <div className="mail-kv">
@@ -683,13 +711,17 @@ function ContractCards({
   const last = statLine(p, s.season - 1);
   const ask = live ? demand(league, p, league.userTeamId) : null;
   // After the window: where he ended up.
-  const now = p.retired
-    ? 'Retired'
-    : p.teamId === league.userTeamId && p.contract
-      ? `Re-signed through ${lastSeason(p.contract)}`
-      : p.teamId !== null
-        ? `Signed with the ${league.teams[p.teamId].name}`
-        : 'Still a free agent';
+  const now = p.retired ? (
+    'Retired'
+  ) : p.teamId === league.userTeamId && p.contract ? (
+    `Re-signed through ${lastSeason(p.contract)}`
+  ) : p.teamId !== null ? (
+    <>
+      Signed with the <TeamLink team={league.teams[p.teamId]} />
+    </>
+  ) : (
+    'Still a free agent'
+  );
   return (
     <Card>
       <Who
@@ -1008,8 +1040,11 @@ function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { k
         </span>
         {nextOpp && next && (
           <span className="small">
-            Next: <b>{nextOpp.name}</b>,{' '}
-            {next.neutral ? 'neutral site' : next.homeId === user ? 'at home' : 'on the road'}
+            Next:{' '}
+            <b>
+              <TeamLink team={nextOpp} />
+            </b>
+            , {next.neutral ? 'neutral site' : next.homeId === user ? 'at home' : 'on the road'}
           </span>
         )}
       </Card>
@@ -1380,9 +1415,7 @@ function RaceCards({ league, s }: { league: League; s: Extract<MailSubject, { ki
               return (
                 <tr key={r.teamId} className={r.teamId === user ? 'is-user' : undefined}>
                   <td>
-                    <span className="team-inline">
-                      <TeamChip team={league.teams[r.teamId]} /> {league.teams[r.teamId].name}
-                    </span>
+                    <TeamLink team={league.teams[r.teamId]} chip />
                   </td>
                   <td className="num">{recordText(r)}</td>
                   <td className="num">{back > 0 ? back : '–'}</td>
@@ -1875,9 +1908,7 @@ function CarouselCards({ league, s }: { league: League; s: Extract<MailSubject, 
             {shown.map((x) => (
               <tr key={x.teamId} className={x.teamId === league.userTeamId ? 'is-user' : undefined}>
                 <td>
-                  <span className="team-inline">
-                    <TeamChip team={league.teams[x.teamId]} /> {league.teams[x.teamId].name}
-                  </span>
+                  <TeamLink team={league.teams[x.teamId]} chip />
                   {league.teams[x.teamId].division === division && x.teamId !== league.userTeamId && (
                     <span className="muted small" style={{ display: 'block' }}>
                       Your division
@@ -2042,7 +2073,10 @@ function FaWrapCards({ league, s }: { league: League; s: Extract<MailSubject, { 
           {fa.biggest.map((d) => (
             <div className="mail-deal" key={d.player.id}>
               <span className="team-inline">
-                <TeamChip team={league.teams[d.teamId]} /> {name(d.player)}
+                <TeamChip team={league.teams[d.teamId]} />{' '}
+                <button className="linklike" onClick={() => nav.openPlayer(d.player.id)}>
+                  {name(d.player)}
+                </button>
               </span>
               <span className="num small">{dealText(d)}</span>
             </div>
