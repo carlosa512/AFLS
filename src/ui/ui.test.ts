@@ -121,6 +121,22 @@ describe('transaction links', () => {
     expect(linked('CIN released WR John Smithers')).toBe('CIN released WR John Smithers');
     expect(linked('CIN hired physiotherapist Sam Lee (2 yr)')).toBe('CIN hired physiotherapist Sam Lee (2 yr)');
   });
+
+  it('links a team by its city in mail, unless two teams share it', () => {
+    const league = createLeague({ seed: 'city-links' });
+    const show = (text: string) =>
+      linkedSegments(league, text)
+        .map((s) => (typeof s === 'string' ? s : `[${s.who.kind}:${s.who.id}]`))
+        .join('');
+    const lone = league.teams.find((t) => league.teams.filter((u) => u.city === t.city).length === 1)!;
+    const shared = league.teams.find((t) => league.teams.filter((u) => u.city === t.city).length > 1)!;
+    expect(show(`We'd like to bring him to ${lone.city}.`)).toBe(`We'd like to bring him to [team:${lone.id}].`);
+    expect(show(`A trip to ${shared.city}.`)).toBe(`A trip to ${shared.city}.`);
+    // A player named after a city is still the player.
+    const p = Object.values(league.players)[0];
+    p.lastName = lone.city;
+    expect(show(`${p.firstName} ${p.lastName} signs`)).toBe(`[player:${p.id}] signs`);
+  });
 });
 
 describe('score strip', () => {
@@ -260,6 +276,34 @@ describe('home widgets', () => {
         shared,
       ).filter((x) => typeof x !== 'string'),
     ).toHaveLength(1);
+  });
+
+  it('links team names to their roster, the full name over the nickname', () => {
+    const other = league.teams.find((t) => league.teams.filter((u) => u.name === t.name).length === 1)!;
+    const links = (text: string) => linkedSegments(league, text).filter((x) => typeof x !== 'string');
+    expect(links(`We face the ${other.city} ${other.name} on the road`)).toEqual([
+      { text: `${other.city} ${other.name}`, who: { kind: 'team', id: other.id } },
+    ]);
+    expect(links(`The ${other.name} ask about a pick`)).toEqual([
+      { text: other.name, who: { kind: 'team', id: other.id } },
+    ]);
+    // Lower case is ordinary prose, and the nickname matches whole words only.
+    expect(links(`a ${other.name.toLowerCase()} day, ${other.name}s and ${other.name}ish`)).toHaveLength(0);
+  });
+
+  it('links a person over a team when they share a name', () => {
+    const team = league.teams[0];
+    const p = Object.values(league.players)[0];
+    const [first, last] = [p.firstName, p.lastName];
+    p.firstName = team.city;
+    p.lastName = team.name;
+    try {
+      const hit = linkedSegments(league, `${team.city} ${team.name} is hurt`).filter((x) => typeof x !== 'string');
+      expect(hit).toEqual([{ text: `${team.city} ${team.name}`, who: { kind: 'player', id: p.id } }]);
+    } finally {
+      p.firstName = first;
+      p.lastName = last;
+    }
   });
 
   it('puts what needs you first, then the unread, newest first', () => {

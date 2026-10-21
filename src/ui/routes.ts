@@ -9,7 +9,8 @@ export type Route =
   | { view: 'home' }
   | { view: 'roster'; teamId?: number }
   | { view: 'cap'; teamId?: number }
-  | { view: 'inbox'; messageId?: string }
+  // `focus` is a click's nonce, never in the address bar: sent to the same message again, the inbox still reopens it.
+  | { view: 'inbox'; messageId?: string; focus?: number }
   | { view: 'office'; tab?: OfficeTab }
   | { view: 'schedule' }
   | { view: 'standings' }

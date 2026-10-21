@@ -1877,6 +1877,10 @@ tr.void-year td {
   background: color-mix(in srgb, var(--loss) 12%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--loss) 40%, transparent);
 }
+.callout-note {
+  background: color-mix(in srgb, var(--accent, var(--ink)) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent, var(--ink)) 25%, transparent);
+}
 .callout-good {
   background: color-mix(in srgb, var(--win) 10%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--win) 35%, transparent);
@@ -3595,6 +3599,10 @@ button.tip-pill {
   border-radius: var(--radius);
   overflow: hidden;
 }
+/* A link that scrolls to one message stops it below the sticky top bar, as the staff anchors do. */
+.fold-item {
+  scroll-margin-top: 130px;
+}
 .fold-item + .fold-item {
   border-top: 1px solid var(--line);
 }
@@ -3790,37 +3798,66 @@ button.tip-pill {
   border: 2px solid var(--marker);
   padding: 7px 9px;
 }
-.mail-unit {
-  display: grid;
-  grid-template-columns: minmax(130px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px;
-  align-items: center;
-  padding: 6px 0;
+.mail-matchups + .mail-matchups {
+  margin-top: 12px;
+}
+.mail-matchup {
+  padding: 8px 0;
   border-top: 1px solid var(--line);
 }
-.mail-unit-head {
-  border-top: 0;
-  padding-top: 0;
+.mail-matchups .eyebrow {
+  margin-bottom: 4px;
 }
-.mail-unit .tag-pill {
+.mail-matchup-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.mail-matchup-head .tag-pill {
   white-space: nowrap;
 }
-.mail-bar {
+/* Offense on the left, defense mirrored on the right, "vs" between. */
+.mail-matchup-sides {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 10px;
   align-items: center;
 }
-.mail-bar .bar {
-  height: 8px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  overflow: hidden;
+.mail-matchup-side {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
 }
-.mail-bar .bar i {
+.mail-matchup-side.is-flip {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+.mail-matchup-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mail-matchup-who > * {
   display: block;
-  height: 100%;
-  border-radius: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-matchup-side.is-flip .mail-matchup-who {
+  align-items: flex-end;
+}
+.mail-matchup-score {
+  margin-left: auto;
+  font-size: var(--step-1);
+  font-weight: 700;
+}
+.mail-matchup-side.is-flip .mail-matchup-score {
+  margin-left: 0;
+  margin-right: auto;
 }
 .mail-row {
   display: grid;
@@ -4028,9 +4065,32 @@ button.tip-pill {
   .mail-kv {
     grid-template-columns: minmax(0, 1fr);
   }
-  .mail-unit {
-    grid-template-columns: minmax(96px, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-    gap: 8px;
+  .mail-matchup-sides {
+    gap: 6px;
+  }
+  /* Face and number on one line, the name under them with the side's full width. */
+  .mail-matchup-side {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: 'face score' 'name name';
+    gap: 4px 8px;
+  }
+  .mail-matchup-side.is-flip {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'score face' 'name name';
+  }
+  .mail-matchup-side > .avatar {
+    grid-area: face;
+  }
+  .mail-matchup-side > .mail-matchup-who {
+    grid-area: name;
+  }
+  .mail-matchup-side > .mail-matchup-score {
+    grid-area: score;
+    margin: 0;
+  }
+  .mail-matchup-side.is-flip > .mail-matchup-score {
+    justify-self: end;
   }
   .inbox-show button {
     font-size: var(--step--1);

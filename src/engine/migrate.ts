@@ -62,6 +62,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 31) toV31(league);
   if (league.version < 32) league.version = 32; // v32: optional `dev` on players (a year of development still landing) and `idle` on market coaches, scouts and medics, nothing to fill in
   if (league.version < 33) toV33(league);
+  if (league.version < 34) league.version = 34; // v34: offers may be 'answered' and carry an optional `outcome` line, nothing to fill in
   return league;
 }
 

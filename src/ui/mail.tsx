@@ -68,7 +68,9 @@ import {
   mailSubject,
   needsYou,
   promotionCandidates,
-  unitReads,
+  keyMatchups,
+  type Matchup,
+  type UnitRead,
   type HeadCoachChange,
   type MailSubject,
   type Signing,
@@ -152,17 +154,26 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <DraftDayCards league={league} s={s} />;
     case 'draftClass':
       return <DraftClassCards league={league} s={s} />;
+    case 'flex':
+      return <FlexCards league={league} s={s} />;
     case 'trade':
       return <TradeCards league={league} s={s} />;
     case 'offer': {
       // The offer itself, live: its answers work from the inbox as on the Offers tab.
       const offer = league.market?.offers.find((o) => o.id === s.offerId);
-      return offer ? <OfferCard league={league} offer={offer} compact /> : null;
+      // A pruned offer still reads: the message stands, the live card is gone.
+      return offer ? (
+        <OfferCard league={league} offer={offer} compact />
+      ) : (
+        <Card>
+          <span className="muted small">This offer is closed and no longer on file.</span>
+        </Card>
+      );
     }
     case 'recap':
       return <RecapCards league={league} s={s} />;
     case 'cleared':
-      return <ClearedCards league={league} s={s} at={message.week} />;
+      return <ClearedCards league={league} s={s} at={message} />;
     case 'deadline':
       return <DeadlineCards league={league} s={s} live={needsYou(league, message)} />;
     case 'race':
@@ -217,6 +228,21 @@ function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactN
       </span>
       {side && <span className="mail-who-side">{side}</span>}
     </div>
+  );
+}
+
+/** A team's name as a link to its page, with its chip in a table. */
+function TeamLink({ team, chip = false }: { team: Team; chip?: boolean }) {
+  const nav = useNav();
+  return (
+    <button className={`linklike${chip ? ' team-inline' : ''}`} onClick={() => nav.openTeam(team.id)}>
+      {chip && (
+        <>
+          <TeamChip team={team} />{' '}
+        </>
+      )}
+      {team.name}
+    </button>
   );
 }
 
@@ -291,7 +317,7 @@ function ResultLine({ league, g }: { league: League; g: Game }) {
       <span className={`mail-res res-${r.res}`}>{r.res}</span>
       <span className="num">{r.score}</span>
       <span className="muted small">
-        {r.home ? 'vs' : 'at'} {r.opp.name}
+        {r.home ? 'vs' : 'at'} <TeamLink team={r.opp} />
       </span>
       <button className="btn btn-sm" onClick={() => nav.openGame(g.id)}>
         Box score
@@ -321,7 +347,7 @@ function MatchupCards({
     <>
       {game.playoffRound && <PlayoffPath league={league} game={game} />}
       <OpponentCard league={league} opp={opp} game={game} />
-      {live && <UnitsCard league={league} opp={opp} />}
+      {live && <MatchupsCard league={league} opp={opp} />}
       <div className="mail-split">
         <WatchCard league={league} opp={opp} season={s.season} />
         <TheirInjuries league={league} opp={opp} />
@@ -330,7 +356,16 @@ function MatchupCards({
   );
 }
 
+/** The league office moved a game: the other team in it, as in its opposition report. */
+function FlexCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'flex' }> }) {
+  const g = league.games.find((x) => x.id === s.gameId);
+  if (!g) return null;
+  const opp = league.teams[g.homeId === league.userTeamId ? g.awayId : g.homeId];
+  return <OpponentCard league={league} opp={opp} game={g} />;
+}
+
 function OpponentCard({ league, opp, game }: { league: League; opp: Team; game: Game }) {
+  const nav = useNav();
   const rec = computeRecords(league, game.season).get(opp.id);
   const seed = game.playoffRound ? seedOf(league, game.season, opp.id) : 0;
   // Their last five before this one, newest first.
@@ -345,7 +380,9 @@ function OpponentCard({ league, opp, game }: { league: League; opp: Team; game: 
       <div className="mail-who">
         <TeamChip team={opp} large />
         <span>
-          <b className="mail-who-name">{teamName(opp)}</b>
+          <button className="linklike mail-who-name" onClick={() => nav.openTeam(opp.id)}>
+            {teamName(opp)}
+          </button>
           <span className="muted small" style={{ display: 'block' }}>
             {rec ? recordText(rec) : ''}
             {seed ? ` · ${ordinal(seed)} seed` : ''}
@@ -436,45 +473,96 @@ function PlayoffPath({ league, game }: { league: League; game: Game }) {
   );
 }
 
-/** Every unit, theirs against ours, as our scouts read the starters (league percentiles, like the coach's report). */
-function UnitsCard({ league, opp }: { league: League; opp: Team }) {
-  const theirs = unitReads(league, opp.id);
-  const ours = unitReads(league, league.userTeamId);
-  const best = theirs.reduce((a, b) => (b.score > a.score ? b : a));
-  const soft = theirs.reduce((a, b) => (b.score < a.score ? b : a));
-  const pctOf = (x: number) => Math.round(x * 100);
+/** Each unit against the one it lines up across from, both ways, as our scouts read the starters. */
+function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
+  const { attack, defend } = keyMatchups(league, opp.id);
+  const us = league.teams[league.userTeamId];
   return (
-    <Card title="How we match up">
+    <Card title="Key matchups">
       <p className="muted small" style={{ margin: '-4px 0 8px' }}>
-        Our scouts' read of each side's starters, as a league percentile: 100 is the best in the league.
+        Each number is where the unit ranks in the league, by our scouts' read of every team's starters: 74th means
+        better than about 74% of the league's units at those spots, 50th is average. Each face is the unit's best
+        player.
       </p>
-      <div className="mail-unit mail-unit-head">
-        <span className="eyebrow">Unit</span>
-        <span className="eyebrow">{opp.name}</span>
-        <span className="eyebrow">{league.teams[league.userTeamId].name}</span>
-      </div>
-      {theirs.map((u, i) => (
-        <div className="mail-unit" key={u.title}>
-          <span>
-            {u.title}
-            {u === best && <span className="tag-pill tag-bad">their best</span>}
-            {u === soft && <span className="tag-pill tag-good">soft spot</span>}
-          </span>
-          <UnitBar value={pctOf(u.score)} team={opp} />
-          <UnitBar value={pctOf(ours[i].score)} team={league.teams[league.userTeamId]} />
-        </div>
-      ))}
+      <MatchupGroup league={league} title="Our offense vs their defense" rows={attack} offense={us} defense={opp} />
+      <MatchupGroup league={league} title="Their offense vs our defense" rows={defend} offense={opp} defense={us} />
     </Card>
   );
 }
 
-function UnitBar({ value, team }: { value: number; team: Team }) {
+function MatchupGroup({
+  league,
+  title,
+  rows,
+  offense,
+  defense,
+}: {
+  league: League;
+  title: string;
+  rows: Matchup[];
+  offense: Team;
+  defense: Team;
+}) {
   return (
-    <span className="mail-bar">
-      <span className="bar">
-        <i style={{ width: `${Math.max(3, value)}%`, background: team.colors[0] }} />
+    <div className="mail-matchups">
+      <div className="eyebrow">{title}</div>
+      {rows.map((m) => (
+        <div className="mail-matchup" key={m.title}>
+          <div className="mail-matchup-head">
+            <b>{m.title}</b>
+            <span className="muted small">
+              {m.offense.title} vs {m.defense.title.toLowerCase()}
+            </span>
+            {m.edge && (
+              <span className={`tag-pill ${m.edge === 'ours' ? 'tag-good' : 'tag-bad'}`}>
+                {m.edge === 'ours' ? 'Our edge' : 'Their edge'}
+              </span>
+            )}
+          </div>
+          <div className="mail-matchup-sides">
+            <MatchupSide league={league} unit={m.offense} team={offense} />
+            <span className="muted small">vs</span>
+            <MatchupSide league={league} unit={m.defense} team={defense} flip />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** One side of a matchup: the unit's best player and its percentile (the row's head names the units). */
+function MatchupSide({
+  league,
+  unit,
+  team,
+  flip = false,
+}: {
+  league: League;
+  unit: UnitRead;
+  team: Team;
+  flip?: boolean;
+}) {
+  const nav = useNav();
+  const p = unit.lead !== undefined ? league.players[unit.lead] : undefined;
+  const pct = Math.round(unit.score * 100);
+  return (
+    <span className={`mail-matchup-side${flip ? ' is-flip' : ''}`}>
+      {p && <PlayerAvatar player={p} team={team} size={32} />}
+      <span className="mail-matchup-who">
+        {p ? (
+          <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
+            {p.lastName}
+          </button>
+        ) : (
+          <span className="muted">Nobody</span>
+        )}
       </span>
-      <span className="num">{value}</span>
+      <span
+        className="num mail-matchup-score"
+        title={p ? `Better than about ${pct}% of the league's units` : undefined}
+      >
+        {p ? ordinal(pct) : '–'}
+      </span>
     </span>
   );
 }
@@ -570,7 +658,20 @@ function InjuryCards({ league, s }: { league: League; s: Extract<MailSubject, { 
         <Who
           league={league}
           p={p}
-          sub={`${p.position} · age ${p.age}${!ours ? (team ? ` · now with ${team.name}` : ' · no longer on a roster') : ''}`}
+          sub={
+            <>
+              {p.position} · age {p.age}
+              {!ours &&
+                (team ? (
+                  <>
+                    {' '}
+                    · now with <TeamLink team={team} />
+                  </>
+                ) : (
+                  ' · no longer on a roster'
+                ))}
+            </>
+          }
           side={now ? <InjuryTag league={league} p={p} /> : <span className="tag-pill tag-good">Healthy</span>}
         />
         <div className="mail-kv">
@@ -663,13 +764,17 @@ function ContractCards({
   const last = statLine(p, s.season - 1);
   const ask = live ? demand(league, p, league.userTeamId) : null;
   // After the window: where he ended up.
-  const now = p.retired
-    ? 'Retired'
-    : p.teamId === league.userTeamId && p.contract
-      ? `Re-signed through ${lastSeason(p.contract)}`
-      : p.teamId !== null
-        ? `Signed with the ${league.teams[p.teamId].name}`
-        : 'Still a free agent';
+  const now = p.retired ? (
+    'Retired'
+  ) : p.teamId === league.userTeamId && p.contract ? (
+    `Re-signed through ${lastSeason(p.contract)}`
+  ) : p.teamId !== null ? (
+    <>
+      Signed with the <TeamLink team={league.teams[p.teamId]} />
+    </>
+  ) : (
+    'Still a free agent'
+  );
   return (
     <Card>
       <Who
@@ -988,8 +1093,11 @@ function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { k
         </span>
         {nextOpp && next && (
           <span className="small">
-            Next: <b>{nextOpp.name}</b>,{' '}
-            {next.neutral ? 'neutral site' : next.homeId === user ? 'at home' : 'on the road'}
+            Next:{' '}
+            <b>
+              <TeamLink team={nextOpp} />
+            </b>
+            , {next.neutral ? 'neutral site' : next.homeId === user ? 'at home' : 'on the road'}
           </span>
         )}
       </Card>
@@ -1004,13 +1112,56 @@ function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { k
   );
 }
 
-function ClearedCards({ league, s, at }: { league: League; s: Extract<MailSubject, { kind: 'cleared' }>; at: number }) {
+/**
+ * Weeks a player sat out: hurt in week N's game he first misses N + 1, and the doctor clears him for the game of
+ * the week the letter comes in, so it's the weeks strictly between. Null across an offseason, where weeks don't count.
+ */
+export function weeksMissed(
+  hurt: { season: number; week: number },
+  back: { season: number; week: number },
+): number | null {
+  if (hurt.week === 0 || hurt.season !== back.season) return null;
+  return Math.max(0, back.week - hurt.week - 1);
+}
+
+/**
+ * The week he was back: the first game after he was hurt that he dressed for (a box score lists everyone dressed),
+ * else the week the letter came. A sim of several weeks files the letter at its end, so its week alone runs long.
+ */
+export function weekBack(
+  games: Game[],
+  playerId: number,
+  hurt: { season: number; week: number },
+  by: { season: number; week: number },
+): number {
+  let back = by.week;
+  for (const g of games)
+    if (
+      g.season === by.season &&
+      g.week > hurt.week &&
+      g.week < back &&
+      g.result?.playerTeams?.[playerId] !== undefined
+    )
+      back = g.week;
+  return back;
+}
+
+function ClearedCards({
+  league,
+  s,
+  at,
+}: {
+  league: League;
+  s: Extract<MailSubject, { kind: 'cleared' }>;
+  at: { season: number; week: number };
+}) {
   const p = league.players[s.playerId];
   const record = p?.injuries?.find((r) => r.season === s.season && r.week === s.week && r.type === s.type);
   if (!p || !record) return null;
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
   const ours = p.teamId === league.userTeamId;
   const canActivate = ours && p.ir && team && !delegates(league, team) && !activateProblem(league, p);
+  const missed = weeksMissed(s, { season: at.season, week: weekBack(league.games, p.id, s, at) });
   return (
     <>
       <Card>
@@ -1040,8 +1191,10 @@ function ClearedCards({ league, s, at }: { league: League; s: Extract<MailSubjec
           </span>
           <span>
             <span className="eyebrow">Time out</span>
-            <b>{Math.max(1, at - s.week)} wk</b>
-            <span className="muted small">Expected {record.weeks} at the time</span>
+            <b>
+              {missed === null ? (s.week ? '–' : 'Over the offseason') : missed ? `${missed} wk` : "Didn't miss a game"}
+            </b>
+            <span className="muted small">Expected {record.weeks} wk at the time</span>
           </span>
         </div>
       </Card>
@@ -1337,9 +1490,7 @@ function RaceCards({ league, s }: { league: League; s: Extract<MailSubject, { ki
               return (
                 <tr key={r.teamId} className={r.teamId === user ? 'is-user' : undefined}>
                   <td>
-                    <span className="team-inline">
-                      <TeamChip team={league.teams[r.teamId]} /> {league.teams[r.teamId].name}
-                    </span>
+                    <TeamLink team={league.teams[r.teamId]} chip />
                   </td>
                   <td className="num">{recordText(r)}</td>
                   <td className="num">{back > 0 ? back : '–'}</td>
@@ -1832,9 +1983,7 @@ function CarouselCards({ league, s }: { league: League; s: Extract<MailSubject, 
             {shown.map((x) => (
               <tr key={x.teamId} className={x.teamId === league.userTeamId ? 'is-user' : undefined}>
                 <td>
-                  <span className="team-inline">
-                    <TeamChip team={league.teams[x.teamId]} /> {league.teams[x.teamId].name}
-                  </span>
+                  <TeamLink team={league.teams[x.teamId]} chip />
                   {league.teams[x.teamId].division === division && x.teamId !== league.userTeamId && (
                     <span className="muted small" style={{ display: 'block' }}>
                       Your division
@@ -1999,7 +2148,10 @@ function FaWrapCards({ league, s }: { league: League; s: Extract<MailSubject, { 
           {fa.biggest.map((d) => (
             <div className="mail-deal" key={d.player.id}>
               <span className="team-inline">
-                <TeamChip team={league.teams[d.teamId]} /> {name(d.player)}
+                <TeamChip team={league.teams[d.teamId]} />{' '}
+                <button className="linklike" onClick={() => nav.openPlayer(d.player.id)}>
+                  {name(d.player)}
+                </button>
               </span>
               <span className="num small">{dealText(d)}</span>
             </div>

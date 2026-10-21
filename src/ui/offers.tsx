@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { capHit, isExpired, lastSeason } from '../engine/finance/contract';
-import { offerWords } from '../engine/inbox';
+import { mailForOffer, offerMailId, offerWords } from '../engine/inbox';
 import { teamPlayers } from '../engine/roster';
 import {
   acceptOffer,
@@ -16,6 +16,7 @@ import {
   openOffers,
   pickLabel,
   playerTradeBlocker,
+  replyOf,
   resolveExam,
   setTradeStatus,
   shopPlayer,
@@ -25,6 +26,7 @@ import {
 } from '../engine/trade';
 import type { League, Player, Stance, TradeOffer, TradeRecord, TradeSide, TradeStatus } from '../engine/types';
 import { POSITIONS } from '../engine/types';
+import { LinkedText, nameIndex } from './moves';
 import { useNav } from './App';
 import { Panel, PlayerAvatar, TeamChip } from './components';
 import { money } from './format';
@@ -88,7 +90,7 @@ export function ExamPanel({ league }: { league: League }) {
   const exam = league.market?.exam;
   if (!exam)
     return note ? (
-      <p className="callout" role="status">
+      <p className="callout callout-note" role="status">
         {note}
       </p>
     ) : null;
@@ -129,7 +131,7 @@ export function ExamPanel({ league }: { league: League }) {
         </div>
       </div>
       {note && (
-        <p className="callout" role="status">
+        <p className="callout callout-note" role="status">
           {note}
         </p>
       )}
@@ -163,6 +165,24 @@ export function ExamPanel({ league }: { league: League }) {
   );
 }
 
+/** How a closed offer ended, for a save from before offers kept the words. */
+const FALLBACK: Record<Exclude<TradeOffer['status'], 'pending'>, string> = {
+  accepted: 'You accepted.',
+  declined: 'You turned it down.',
+  expired: 'It lapsed.',
+  withdrawn: 'They pulled it.',
+  answered: 'You answered.',
+};
+
+/** How a note under an offer reads: a prompt that asks for more (who to release, the physical) is neither a yes nor a refusal. */
+export function noteTone(result: { ok: boolean; release?: unknown; exam?: boolean }): 'good' | 'bad' | 'note' {
+  if (result.ok) return 'good';
+  return result.release || result.exam ? 'note' : 'bad';
+}
+
+/** The note shows only when it says something the card's title doesn't already (the outcome, once you've acted). */
+export const showNote = (note: string | null, offer: TradeOffer): note is string => !!note && note !== offer.outcome;
+
 /** When an offer lapses, in words. */
 const lapse = (league: League) =>
   league.phase === 'regular' ? `Open until you play week ${league.week}.` : 'Open until your next step.';
@@ -181,19 +201,29 @@ export function OfferCard({
 }) {
   const nav = useNav();
   const [note, setNote] = useState<string | null>(null);
+  const [tone, setTone] = useState<'good' | 'bad' | 'note'>('good');
   const [release, setRelease] = useState<number[] | null>(null);
   const team = league.teams[offer.teamId];
   const { subject, body } = offerWords(league, offer);
   const open = openOffers(league).some((o) => o.id === offer.id);
   const enquiry = offer.kind === 'enquiry';
   const advice = enquiry ? [] : dealAdvice(league, offer.sides);
+  // One index for every note: building it reads the whole league.
+  const names = advice.length ? nameIndex(league) : undefined;
+  const reply = replyOf(league, offer);
 
   const accept = (ids: number[] = []) => {
-    let result = { ok: false, message: '', release: undefined as Player[] | undefined };
+    let result = {
+      ok: false,
+      message: '',
+      release: undefined as Player[] | undefined,
+      exam: undefined as boolean | undefined,
+    };
     store.mutate((l) => {
-      result = { release: undefined, ...acceptOffer(l, offer.id, ids) };
+      result = { release: undefined, exam: undefined, ...acceptOffer(l, offer.id, ids) };
     });
     setNote(result.message);
+    setTone(noteTone(result));
     setRelease(result.release ? result.release.map((p) => p.id) : null);
     if (result.ok) onDone?.(result.message);
   };
@@ -207,9 +237,23 @@ export function OfferCard({
     nav.go({ view: 'office', tab: 'trades' });
   };
 
+  /** Answering an enquiry: the card keeps the words. Asking for an offer that couldn't be made is a miss. */
+  const answer = (choice: 'offer' | 'notForSale') => {
+    let result: ReturnType<typeof answerEnquiry> = { offer: null, message: '' };
+    store.mutate((l) => {
+      result = answerEnquiry(l, offer.id, choice);
+    });
+    setNote(result.message);
+    setTone(choice === 'notForSale' || result.offer !== null ? 'good' : 'bad');
+  };
+
   const when = (
     <span className="muted small">
-      {open ? lapse(league) : `This offer is ${offer.status === 'pending' ? 'no longer open' : offer.status}.`}
+      {open
+        ? lapse(league)
+        : offer.status === 'pending'
+          ? 'This offer is no longer open.'
+          : (offer.outcome ?? FALLBACK[offer.status])}
     </span>
   );
   return (
@@ -245,7 +289,7 @@ export function OfferCard({
         <ul className="plain-list small">
           {advice.map((a, i) => (
             <li key={i}>
-              <b>{WHO[a.who]}:</b> {a.line}
+              <b>{WHO[a.who]}:</b> <LinkedText league={league} text={a.line} index={names} />
             </li>
           ))}
         </ul>
@@ -274,26 +318,35 @@ export function OfferCard({
           </button>
         </div>
       )}
-      {note && (
-        <p className="callout" role="status">
+      {showNote(note, offer) && (
+        <p className={`callout callout-${tone}`} role="status">
           {note}
         </p>
+      )}
+      {reply && (
+        <button
+          type="button"
+          className="btn btn-sm"
+          onClick={() =>
+            nav.go({
+              view: 'inbox',
+              messageId: mailForOffer(league, reply)?.id ?? offerMailId(league, reply),
+              focus: Date.now(),
+            })
+          }
+        >
+          See their offer →
+        </button>
       )}
       {league.market?.exam?.offerId === offer.id && <ExamPanel league={league} />}
       {open && league.market?.exam?.offerId !== offer.id && (
         <span className="row" style={{ gap: 8 }}>
           {enquiry ? (
             <>
-              <button
-                className="btn btn-primary"
-                onClick={() => store.mutate((l) => void answerEnquiry(l, offer.id, 'offer'))}
-              >
+              <button className="btn btn-primary" onClick={() => answer('offer')}>
                 Make me an offer
               </button>
-              <button
-                className="btn"
-                onClick={() => store.mutate((l) => void answerEnquiry(l, offer.id, 'notForSale'))}
-              >
+              <button className="btn" onClick={() => answer('notForSale')}>
                 Not for sale
               </button>
             </>

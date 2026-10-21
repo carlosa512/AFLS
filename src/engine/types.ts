@@ -652,7 +652,9 @@ export interface TradeOffer {
   week: number;
   /** The market moment it was made at (`TradeMarket.moment`). */
   moment: number;
-  status: 'pending' | 'accepted' | 'declined' | 'expired' | 'withdrawn';
+  status: 'pending' | 'accepted' | 'declined' | 'answered' | 'expired' | 'withdrawn';
+  /** The one line the card shows once it is resolved: what happened to it. */
+  outcome?: string;
   /** Counters he'll still hear before he walks away; at 0 his counter is his final offer. */
   patience: number;
   final?: boolean;

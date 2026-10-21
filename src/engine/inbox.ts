@@ -454,9 +454,90 @@ function draftClassMail(league: League, have: Set<string>): Draft[] {
 }
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
-/** Each position group's starters as our scouts read them, as a league percentile (0–1): what the opposition report's card shows. */
-export function unitReads(league: League, teamId: number): { title: string; score: number }[] {
-  return GROUPS.map((g) => ({ title: g.title, score: groupScore(league, league.teams[teamId], g.positions) }));
+/** A position group's starters as our scouts read them: where the unit ranks in the league, and its best player. */
+export interface UnitRead {
+  title: string;
+  /**
+   * Where the unit ranks among the league's same units (0 the worst, 0.5 a typical one, 1 the best), by our scouts'
+   * read of every team's starters: a rival's through the fog of war.
+   */
+  score: number;
+  /** Player id of the group's best starter by our read; none when the group is empty. */
+  lead?: number;
+}
+
+/**
+ * Every team's raw read of each group, by team id. A unit is ranked on this rather than on the player percentile
+ * alone: that ranks starters against backups too, so every group read high, and some higher than others.
+ */
+export function unitTable(league: League): number[][] {
+  return league.teams.map((t) => GROUPS.map((g) => groupScore(league, t, g.positions)));
+}
+
+/** Each position group's starters as our scouts read them, ranked against the league's (pass `table` to share one). */
+export function unitReads(league: League, teamId: number, table = unitTable(league)): UnitRead[] {
+  const team = league.teams[teamId];
+  return GROUPS.map((g, i) => {
+    const mine = table[teamId][i];
+    const below = table.filter((row) => row[i] < mine).length;
+    // A tie sits halfway through the teams it ties with (itself not counted).
+    const ties = table.filter((row) => row[i] === mine).length - 1;
+    const best = g.positions
+      .flatMap((pos) => starters(league, team, pos))
+      .sort((a, b) => perceive(league, league.userTeamId, b).ovr - perceive(league, league.userTeamId, a).ovr)[0];
+    return { title: g.title, score: (below + ties / 2) / Math.max(1, table.length - 1), lead: best?.id };
+  });
+}
+
+/** One unit against the unit it lines up across from, and who our scouts think has the better of it. */
+export interface Matchup {
+  title: string;
+  offense: UnitRead;
+  defense: UnitRead;
+  edge: 'ours' | 'theirs' | null;
+}
+
+/**
+ * How far apart two units' league ranks must be before the card calls an edge: closer is a fair fight. At 0.4 about
+ * a third of matchups get one, as often for the offense as the defense, so a report names two or so.
+ */
+export const EDGE_GAP = 0.4;
+
+/**
+ * The opposition report's key matchups: each offensive unit against the defenders it faces (the line against the
+ * front, the backs against the linebackers, the quarterback and receivers against the secondary), our offense
+ * against their defense and theirs against ours. Units that never meet on the field aren't compared.
+ */
+export function keyMatchups(league: League, oppId: number): { attack: Matchup[]; defend: Matchup[] } {
+  const table = unitTable(league);
+  const side = (offenseId: number, defenseId: number): Matchup[] => {
+    const off = unitReads(league, offenseId, table);
+    const def = unitReads(league, defenseId, table);
+    const unit = (units: UnitRead[], title: string) => units.find((u) => u.title === title)!;
+    const qb = unit(off, 'Quarterback');
+    const passing: UnitRead = {
+      title: 'QB and receivers',
+      score: (qb.score + unit(off, 'Receivers').score) / 2,
+      lead: qb.lead,
+    };
+    const pairs: [string, UnitRead, UnitRead][] = [
+      ['Trenches', unit(off, 'Offensive line'), unit(def, 'Defensive front')],
+      ['Run game', unit(off, 'Backfield'), unit(def, 'Linebackers')],
+      ['Pass game', passing, unit(def, 'Secondary')],
+    ];
+    const oursOnOffense = offenseId === league.userTeamId;
+    return pairs.map(([title, offense, defense]) => {
+      const gap = offense.score - defense.score;
+      const offenseAhead = gap >= EDGE_GAP ? true : gap <= -EDGE_GAP ? false : null;
+      return {
+        title,
+        offense,
+        defense,
+        edge: offenseAhead === null ? null : offenseAhead === oursOnOffense ? 'ours' : 'theirs',
+      };
+    });
+  };
+  return { attack: side(league.userTeamId, oppId), defend: side(oppId, league.userTeamId) };
 }
 
 /** What a message is about, read back from its id. The ids are built here, so this is the one place that knows their shape. */
@@ -470,7 +551,7 @@ export type MailSubject =
   | { kind: 'draftDay'; season: number }
   | { kind: 'draftClass'; season: number }
   | { kind: 'trade'; season: number; text: string }
-  | { kind: 'offer'; season: number; offerId: number }
+  | { kind: 'offer'; season: number; offerId: number; root: number }
   | { kind: 'recap'; season: number; gameId: number }
   | { kind: 'cleared'; season: number; week: number; playerId: number; type: string }
   | { kind: 'deadline'; season: number; weeksLeft: number | 'day' }
@@ -527,7 +608,7 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
     case 'trades':
       return { kind: 'trade', season, text: rest.join(':') };
     case 'offer':
-      return { kind: 'offer', season, offerId: Number(a) };
+      return { kind: 'offer', season, offerId: Number(a), root: b === undefined ? Number(a) : Number(b) };
     case 'recap':
       return { kind: 'recap', season, gameId: Number(a) };
     case 'cleared':
@@ -751,14 +832,17 @@ function tradeMail(league: League, have: Set<string>): Draft[] {
 }
 
 /** A side of a deal in words: "WR Riley Wright, a 2027 3rd and a 2028 6th". */
-export function packageWords(league: League, side: TradeSide): string {
+export function packageWords(league: League, side: TradeSide, opts?: { projected?: boolean }): string {
   const players = side.players.map((id) => `${league.players[id].position} ${fullName(league.players[id])}`);
   const picks = side.picks
     .map((id) => league.draftPicks.find((p) => p.id === id))
     .filter((p) => !!p)
-    .map((p) => pickLabel(league, p!));
+    .map((p) => pickLabel(league, p!, opts));
   return list([...players, ...picks]) || 'nothing';
 }
+
+/** Mail is read later, when a projected pick number would be stale: the offer card shows it live. */
+const NO_PROJ = { projected: false };
 
 /** The offer's subject and opening line, in the GM's words (never a number from his valuation). */
 export function offerWords(league: League, offer: TradeOffer): { subject: string; body: string } {
@@ -777,37 +861,69 @@ export function offerWords(league: League, offer: TradeOffer): { subject: string
     case 'pitch':
       return {
         subject: `The ${team.name} are listening on ${name(hisMan!)}`,
-        body: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours)} get it done?${close}`,
+        body: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours, NO_PROJ)} get it done?${close}`,
       };
     case 'dump':
       return {
         subject: `The ${team.name} want to move ${name(hisMan!)}'s deal`,
-        body: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] })} is yours.${close}`,
+        body: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] }, NO_PROJ)} is yours.${close}`,
       };
     case 'counter':
       return {
         subject: `The ${team.name} come back with a counter`,
-        body: `We've looked at your counter. ${packageWords(league, his)} for ${packageWords(league, yours)}, and we have a deal.${close}`,
+        body: `We've looked at your counter. ${packageWords(league, his, NO_PROJ)} for ${packageWords(league, yours, NO_PROJ)}, and we have a deal.${close}`,
       };
     case 'shop':
       return {
         subject: `The ${team.name} answer your call about ${name(yourMan!)}`,
-        body: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his)}.${close}`,
+        body: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his, NO_PROJ)}.${close}`,
       };
     default:
       return {
         subject: `The ${team.name} make an offer for ${name(yourMan!)}`,
-        body: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his))}, if you're open to it.${close}`,
+        body: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his, NO_PROJ))}, if you're open to it.${close}`,
       };
   }
+}
+
+/**
+ * The offer that opened a conversation: walk `replyTo` back. When a parent was pruned the walk ends early and the
+ * id returned is only a best-effort root, which is why nothing should recompute it after the mail is filed
+ * (look the message up with `mailForOffer`).
+ */
+function offerRoot(league: League, offer: TradeOffer): number {
+  const offers = league.market?.offers ?? [];
+  const seen = new Set<number>([offer.id]);
+  let root = offer;
+  while (root.replyTo !== undefined && !seen.has(root.replyTo)) {
+    const prev = offers.find((o) => o.id === root.replyTo);
+    if (!prev) return root.replyTo;
+    seen.add(prev.id);
+    root = prev;
+  }
+  return root.id;
+}
+
+/** An offer's mail id: its last segment is the conversation's root, so replies fold into one thread. */
+export function offerMailId(league: League, offer: TradeOffer): string {
+  return `offer:${offer.season}:${offer.id}:${offerRoot(league, offer)}`;
+}
+
+/** The message filed for an offer, whatever root its id carries (old saves have no root segment). */
+export function mailForOffer(league: League, offer: TradeOffer): InboxMessage | undefined {
+  const prefix = `offer:${offer.season}:${offer.id}`;
+  return (league.inbox ?? []).find((m) => m.id === prefix || m.id.startsWith(`${prefix}:`));
 }
 
 /** Every offer on your desk files a message: it asks something of you while the offer is open. */
 function offerMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
+  // Filed under the offer's own prefix, so pruning an ancestor (which moves the root) never files it twice.
+  const filed = new Set<string>();
+  for (const id of have) if (id.startsWith('offer:')) filed.add(id.split(':').slice(0, 3).join(':'));
   for (const offer of league.market?.offers ?? []) {
-    const id = `offer:${offer.season}:${offer.id}`;
-    if (have.has(id) || offer.status !== 'pending') continue;
+    const id = offerMailId(league, offer);
+    if (filed.has(`offer:${offer.season}:${offer.id}`) || offer.status !== 'pending') continue;
     const team = league.teams[offer.teamId];
     const { subject, body } = offerWords(league, offer);
     const about = [...offer.sides[1].players, ...offer.sides[0].players][0];
@@ -1886,7 +2002,9 @@ export interface MailThread {
 
 /** What a message folds under: its kind and day, or (for kinds that don't fold) itself. */
 export function threadKey(m: InboxMessage): string {
-  const kind = mailSubject(m)?.kind;
+  const subject = mailSubject(m);
+  if (subject?.kind === 'offer') return `offer:${subject.season}:${subject.root}`;
+  const kind = subject?.kind;
   return kind && FOLDED.has(kind) ? `${kind}:${m.season}:${m.phase}:${m.week}` : m.id;
 }
 
@@ -1908,6 +2026,8 @@ export function threadLabel(t: MailThread): { from: string; subject: string } {
       return { from: 'League office', subject: `${n} of our players honored` };
     case 'positionMoved':
       return { from: lead.from, subject: `${n} players change position` };
+    case 'offer':
+      return { from: lead.from, subject: `${lead.subject} (${n} messages)` };
     default:
       return { from: lead.from, subject: `${lead.subject} and ${n - 1} more` };
   }

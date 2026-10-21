@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../generate';
-import { playWeek } from '../league';
-import { deliverMail, needsYou } from '../inbox';
+import { playWeek, simToEndOfSeason } from '../league';
+import { advanceOffseason, beginOffseason } from '../offseason';
+import { deliverMail, needsYou, offerMailId } from '../inbox';
 import { migrateLeague } from '../migrate';
 import { rosterLimit } from '../offseason/negotiation';
 import { playerOvr } from '../positions';
@@ -14,6 +15,7 @@ import {
   askPrice,
   counterOffer,
   declineOffer,
+  judge,
   openOffers,
   proposeTrade,
   setTradeStatus,
@@ -21,7 +23,9 @@ import {
   tradeContext,
   untouchables,
 } from '.';
+import { bidFor, recheckOffers } from './offers';
 import type { TradeProposal } from './rules';
+import { talksOf } from './talks';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 let base = '';
@@ -48,6 +52,123 @@ describe('offers to you', () => {
     // Nothing of yours moved because of them.
     expect(open.every((o) => o.sides[1].players.every((id) => l.players[id].teamId === l.userTeamId))).toBe(true);
     expect(roster.length).toBeGreaterThan(0);
+  });
+
+  it('never shows you an offer its own team would already refuse', () => {
+    let shown = 0;
+    // trades-4 files a camp bid that its own team refuses by week 1 without the recheck.
+    for (const seed of ['trades-4']) {
+      const l = createLeague({ seed });
+      for (let w = 0; w < 9; w++) {
+        playWeek(l);
+        const ctx = tradeContext(l);
+        for (const o of packaged(l)) {
+          shown++;
+          expect(judge(ctx, o.teamId, { sides: o.sides }, { rosterCuts: true }).accepts).toBe(true);
+        }
+      }
+    }
+    // The loop really looked at offers.
+    expect(shown).toBeGreaterThan(0);
+  });
+
+  it('only asks about a player it could bid for', () => {
+    const l = fresh();
+    let asked = 0;
+    for (let w = 0; w < 8; w++) {
+      for (const e of openOffers(l).filter((o) => o.kind === 'enquiry')) {
+        asked++;
+        const p = l.players[e.sides[1].players[0]];
+        expect(bidFor(tradeContext(l), l.teams[e.teamId], p)).not.toBeNull();
+      }
+      playWeek(l);
+    }
+    expect(asked).toBeGreaterThan(0);
+  });
+
+  it('says why every offer ended', () => {
+    const l = fresh();
+    const a = packaged(l)[0];
+    // A second one on the desk, so one is turned down and one is left to lapse.
+    const b: TradeOffer = { ...copy(a), id: l.market!.nextOfferId++ };
+    l.market!.offers.push(b);
+    declineOffer(l, a.id);
+    expect(a.outcome).toMatch(/turned/i);
+    playWeek(l);
+    expect(b.outcome).toMatch(/lapsed/i);
+    for (const o of l.market!.offers.filter((x) => x.status !== 'pending')) expect(o.outcome).toBeTruthy();
+  });
+
+  it('a counter leaves the original pointing at the reply', () => {
+    const l = fresh();
+    const original = packaged(l)[0];
+    // Your roster stays the same size (a body for each he sends), but he is to throw in every pick he
+    // owns: legal, and never worth it to him.
+    const filler = activeRoster(l, l.userTeamId)
+      .filter((p) => !original.sides[1].players.includes(p.id))
+      .sort((a, b) => playerOvr(a) - playerOvr(b))
+      .slice(0, original.sides[0].players.length)
+      .map((p) => p.id);
+    const greedy: TradeProposal = {
+      sides: [
+        { ...original.sides[1], players: [...original.sides[1].players, ...filler] },
+        {
+          ...original.sides[0],
+          picks: l.draftPicks.filter((p) => p.ownerId === original.teamId).map((p) => p.id),
+        },
+      ],
+    };
+    const r = counterOffer(l, original.id, greedy);
+    expect(['countered', 'walked'], r.message).toContain(r.result);
+    if (r.result === 'countered') {
+      expect(original.status).toBe('answered');
+      expect(original.outcome).toMatch(/countered/i);
+      expect(r.offer!.replyTo).toBe(original.id);
+    } else {
+      expect(original.status).toBe('declined');
+      expect(original.outcome).toMatch(/walked away/i);
+    }
+  });
+
+  it('pulls an offer or enquiry its team would now refuse, and leaves the sound ones', () => {
+    const l = fresh();
+    const market = l.market!;
+    const sound = packaged(l)[0];
+    // The same ask, but the team would now give away every pick it owns for it: it would refuse.
+    const spoiled: TradeOffer = { ...copy(sound), id: market.nextOfferId++ };
+    spoiled.sides[0].picks = l.draftPicks.filter((p) => p.ownerId === spoiled.teamId).map((p) => p.id);
+    market.offers.push(spoiled);
+    // An enquiry about a player its team has no number for.
+    const ctx = tradeContext(l);
+    let pair: { team: number; player: number } | undefined;
+    for (const p of activeRoster(l, l.userTeamId)) {
+      const team = l.teams.find((t) => t.id !== l.userTeamId && !bidFor(ctx, t, p));
+      if (team) {
+        pair = { team: team.id, player: p.id };
+        break;
+      }
+    }
+    expect(pair).toBeDefined();
+    const enq: TradeOffer = {
+      ...copy(spoiled),
+      id: market.nextOfferId++,
+      teamId: pair!.team,
+      kind: 'enquiry',
+      reason: 'enquiry',
+      sides: [
+        { teamId: pair!.team, players: [], picks: [] },
+        { teamId: l.userTeamId, players: [pair!.player], picks: [] },
+      ],
+      status: 'pending',
+      outcome: undefined,
+    };
+    market.offers.push(enq);
+    recheckOffers(l);
+    expect(spoiled.status).toBe('withdrawn');
+    expect(spoiled.outcome).toMatch(/pulled it/i);
+    expect(enq.status).toBe('withdrawn');
+    expect(enq.outcome).toMatch(/pulled it/i);
+    expect(sound.status).toBe('pending');
   });
 
   it('never asks for an Untouchable', () => {
@@ -166,16 +287,82 @@ describe('offers to you', () => {
       enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
     }
     if (!enquiry) return;
-    answerEnquiry(l, enquiry.id, 'notForSale');
+    const { offer } = answerEnquiry(l, enquiry.id, 'notForSale');
+    expect(offer).toBeNull();
+    expect(enquiry.status).toBe('declined');
+    expect(enquiry.outcome).toMatch(/not for sale/i);
     const pid = enquiry.sides[1].players[0];
     expect(l.market!.talks[enquiry.teamId].cooldowns[pid].until).toBe(l.market!.moment + 6);
   });
+
+  it('treats "Make me an offer" as an answer, and the bid replies to the enquiry', () => {
+    const l = fresh();
+    let enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+    for (let w = 0; w < 6 && !enquiry; w++) {
+      playWeek(l);
+      enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+    }
+    if (!enquiry) return;
+    const { offer: bid, message } = answerEnquiry(l, enquiry.id, 'offer');
+    expect(enquiry.status).toBe('answered');
+    expect(enquiry.outcome).toBe(message);
+    if (bid) {
+      expect(bid.replyTo).toBe(enquiry.id);
+      expect(bid.status).toBe('pending');
+    }
+  });
+
+  it('treats an enquiry whose team has no number as answered, not turned down', () => {
+    const l = fresh();
+    let enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+    for (let w = 0; w < 12 && !enquiry; w++) {
+      playWeek(l);
+      enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
+    }
+    expect(enquiry, 'an enquiry on the desk').toBeDefined();
+    // Talks are off with this team this moment, so no bid can be filed.
+    talksOf(l.market!, enquiry!.teamId).offUntil = l.market!.moment;
+    const { offer } = answerEnquiry(l, enquiry!.id, 'offer');
+    expect(offer).toBeNull();
+    expect(enquiry!.status).toBe('answered');
+    expect(enquiry!.outcome).toMatch(/couldn't make the numbers work/);
+  });
+
+  it('never leaves a camp offer its own team would refuse by the time you can accept it', () => {
+    let seen = 0;
+    // trades-4 files a camp bid that its own team refuses by week 1 without the recheck.
+    for (const seed of ['trades-4']) {
+      const l = createLeague({ seed });
+      simToEndOfSeason(l);
+      beginOffseason(l);
+      while (l.phase !== 'regular') {
+        const before = l.market?.offers.length ?? 0;
+        advanceOffseason(l, { autoUser: true });
+        // Count every offer filed along the way (withdrawn ones too), so the check can't pass for lack of any.
+        seen += (l.market?.offers.length ?? 0) - before;
+      }
+      const ctx = tradeContext(l);
+      for (const o of openOffers(l)) {
+        if (o.kind === 'enquiry') {
+          expect(
+            bidFor(ctx, l.teams[o.teamId], l.players[o.sides[1].players[0]]),
+            `${seed} enquiry ${o.id}`,
+          ).not.toBeNull();
+        } else {
+          expect(judge(ctx, o.teamId, { sides: o.sides }, { rosterCuts: true }).accepts, `${seed} offer ${o.id}`).toBe(
+            true,
+          );
+        }
+      }
+    }
+    expect(seen, 'offers seen across the seeds').toBeGreaterThan(0);
+  }, 120_000);
 
   it('files a message for each open offer that needs you until it lapses', () => {
     const l = fresh();
     deliverMail(l);
     const offer = packaged(l)[0];
-    const mail = l.inbox!.find((m) => m.id === `offer:${offer.season}:${offer.id}`)!;
+    const mail = l.inbox!.find((m) => m.id === offerMailId(l, offer))!;
     expect(mail).toBeDefined();
     expect(needsYou(l, mail)).toBe(true);
     expect(mail.body).not.toMatch(/\d+\.\d/);

@@ -415,6 +415,15 @@ dump*, *need swap*, *trade up*, *trade down*, *depth for a pick*, *tag and trade
 - **Re-checked when you accept.** If cap or roster changed, you're told why. If your roster is full,
   the accept dialog offers the release `aiCutdown` would make, and you can change it. An offer whose
   players or picks have moved is withdrawn.
+- **Withdrawn before you see it.** An offer its own team would now refuse (cap, roster limits, the
+  deal no longer clearing its judge) is pulled before it reaches you: at the end of each week in season
+  and after each offseason step (camp's cuts and signings included). You never meet a bid that fails when
+  you click Accept.
+- **An enquiry means a bid is ready.** A team only enquires when it has a bid for that player. *Make me an
+  offer* marks the enquiry answered and the bid replies to it (the enquiry links to it); if the numbers no
+  longer work by then, the enquiry still reads as answered, with the team saying so, never as turned down.
+- **Every closed offer keeps an outcome line** (accepted, declined, lapsed, withdrawn, answered), shown on
+  its card and in the inbox thread.
 - **Decline:** that team won't offer for that player again for 3 weeks unless it comes back at least
   10% better ("They've come back with an improved offer").
 - **Counter:** the trade table opens with the offer filled in. The GM judges your version; patience
@@ -1201,7 +1210,7 @@ Measured (`npm run trades`, three leagues, three seasons, your two best players 
 | Number | Result | Band |
 | --- | --- | --- |
 | Offers a league year | 17.1 | 10–25 |
-| Enquiries a league year | 13.1 | – |
+| Enquiries a league year | 2.8 | – |
 | Most in an ordinary week / on deadline day | 2 / 3 | ≤ 2 / ≤ 4 |
 | After the deadline | 0 | 0 |
 | Asking for an Untouchable | 0 | 0 |
