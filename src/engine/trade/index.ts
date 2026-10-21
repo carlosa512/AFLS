@@ -39,6 +39,8 @@ export {
   OFFER_RATE,
   openOffers,
   proposeTrade,
+  recheckOffers,
+  replyOf,
   resolveExam,
   setTradeStatus,
   shopPlayer,

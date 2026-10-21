@@ -152,12 +152,21 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <DraftDayCards league={league} s={s} />;
     case 'draftClass':
       return <DraftClassCards league={league} s={s} />;
+    case 'flex':
+      return <FlexCards league={league} s={s} />;
     case 'trade':
       return <TradeCards league={league} s={s} />;
     case 'offer': {
       // The offer itself, live: its answers work from the inbox as on the Offers tab.
       const offer = league.market?.offers.find((o) => o.id === s.offerId);
-      return offer ? <OfferCard league={league} offer={offer} compact /> : null;
+      // A pruned offer still reads: the message stands, the live card is gone.
+      return offer ? (
+        <OfferCard league={league} offer={offer} compact />
+      ) : (
+        <Card>
+          <span className="muted small">This offer is closed and no longer on file.</span>
+        </Card>
+      );
     }
     case 'recap':
       return <RecapCards league={league} s={s} />;
@@ -330,7 +339,16 @@ function MatchupCards({
   );
 }
 
+/** The league office moved a game: the other team in it, as in its opposition report. */
+function FlexCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'flex' }> }) {
+  const g = league.games.find((x) => x.id === s.gameId);
+  if (!g) return null;
+  const opp = league.teams[g.homeId === league.userTeamId ? g.awayId : g.homeId];
+  return <OpponentCard league={league} opp={opp} game={g} />;
+}
+
 function OpponentCard({ league, opp, game }: { league: League; opp: Team; game: Game }) {
+  const nav = useNav();
   const rec = computeRecords(league, game.season).get(opp.id);
   const seed = game.playoffRound ? seedOf(league, game.season, opp.id) : 0;
   // Their last five before this one, newest first.
@@ -345,7 +363,9 @@ function OpponentCard({ league, opp, game }: { league: League; opp: Team; game: 
       <div className="mail-who">
         <TeamChip team={opp} large />
         <span>
-          <b className="mail-who-name">{teamName(opp)}</b>
+          <button className="linklike mail-who-name" onClick={() => nav.openTeam(opp.id)}>
+            {teamName(opp)}
+          </button>
           <span className="muted small" style={{ display: 'block' }}>
             {rec ? recordText(rec) : ''}
             {seed ? ` · ${ordinal(seed)} seed` : ''}

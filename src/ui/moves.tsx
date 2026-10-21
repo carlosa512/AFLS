@@ -7,12 +7,12 @@ import type { League, Transaction } from '../engine/types';
 import { useNav, type StaffKind } from './App';
 
 export interface Who {
-  kind: 'player' | StaffKind;
+  kind: 'player' | StaffKind | 'team';
   id: number;
 }
 /** Name as written → who it is (null when two people share it). */
 export type MoveIndex = Map<string, Who | null>;
-export type MoveIndexes = Record<Who['kind'], MoveIndex>;
+export type MoveIndexes = Record<Exclude<Who['kind'], 'team'>, MoveIndex>;
 
 /**
  * Everyone a transaction can name, one index per kind of person, so a coaching move only weighs coaches (a
@@ -22,7 +22,7 @@ export type MoveIndexes = Record<Who['kind'], MoveIndex>;
 export function moveIndex(league: League): MoveIndexes {
   const build = (
     people: { id: number; firstName: string; lastName: string; position?: string; moves?: { from: string }[] }[],
-    kind: Who['kind'],
+    kind: Exclude<Who['kind'], 'team'>,
   ) => {
     const index: MoveIndex = new Map();
     for (const p of people) {
@@ -45,7 +45,7 @@ export function moveIndex(league: League): MoveIndexes {
 }
 
 /** The indexes a transaction's names can come from: always players, plus the staff its kind is about. */
-const STAFF_OF: Partial<Record<Transaction['kind'], Who['kind']>> = {
+const STAFF_OF: Partial<Record<Transaction['kind'], Exclude<Who['kind'], 'team'>>> = {
   coach: 'coach',
   staff: 'scout',
   medical: 'medic',
@@ -94,7 +94,13 @@ function Segments({ segments }: { segments: ReturnType<typeof moveSegments> }) {
           <button
             key={i}
             className="linklike"
-            onClick={() => (s.who.kind === 'player' ? nav.openPlayer(s.who.id) : nav.openStaff(s.who.kind, s.who.id))}
+            onClick={() =>
+              s.who.kind === 'player'
+                ? nav.openPlayer(s.who.id)
+                : s.who.kind === 'team'
+                  ? nav.openTeam(s.who.id)
+                  : nav.openStaff(s.who.kind, s.who.id)
+            }
           >
             {s.text}
           </button>
@@ -113,11 +119,12 @@ const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName}
 
 /**
  * Everyone by full name, the way mail writes them ("Tim Bell was the player of the game"): players, coaches
- * (retired too), scouts and medics in one index, a name two people share left out.
+ * (retired too), scouts and medics in one index, a name two people share left out. Teams go in last as
+ * "Denver Summit" and the bare nickname ("The Scorpions ask…"; nicknames are unique), never over a person.
  */
 export function nameIndex(league: League): MoveIndex {
   const index: MoveIndex = new Map();
-  const add = (people: { id: number; firstName: string; lastName: string }[], kind: Who['kind']) => {
+  const add = (people: { id: number; firstName: string; lastName: string }[], kind: Exclude<Who['kind'], 'team'>) => {
     for (const p of people) {
       const key = fullName(p);
       index.set(key, index.has(key) ? null : { kind, id: p.id });
@@ -127,18 +134,29 @@ export function nameIndex(league: League): MoveIndex {
   add([...Object.values(league.coaches), ...Object.values(league.retiredCoaches)], 'coach');
   add(Object.values(league.staff), 'scout');
   add(Object.values(league.medics), 'medic');
+  // A nickname two teams share (a mod's) stays plain, like a shared person's name.
+  const teamKeys = new Set<string>();
+  for (const t of league.teams) {
+    for (const key of [`${t.city} ${t.name}`, t.name]) {
+      if (teamKeys.has(key)) index.set(key, null);
+      else if (!index.has(key)) index.set(key, { kind: 'team', id: t.id });
+      teamKeys.add(key);
+    }
+  }
   return index;
 }
 
 /** The person a `Who` points at, if he's still on file. */
 function personOf(league: League, w: Who): { firstName: string; lastName: string } | undefined {
-  return w.kind === 'player'
-    ? league.players[w.id]
-    : w.kind === 'coach'
-      ? (league.coaches[w.id] ?? league.retiredCoaches[w.id])
-      : w.kind === 'scout'
-        ? league.staff[w.id]
-        : league.medics[w.id];
+  return w.kind === 'team'
+    ? undefined
+    : w.kind === 'player'
+      ? league.players[w.id]
+      : w.kind === 'coach'
+        ? (league.coaches[w.id] ?? league.retiredCoaches[w.id])
+        : w.kind === 'scout'
+          ? league.staff[w.id]
+          : league.medics[w.id];
 }
 
 /**

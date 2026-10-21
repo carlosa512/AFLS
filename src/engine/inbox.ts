@@ -470,7 +470,7 @@ export type MailSubject =
   | { kind: 'draftDay'; season: number }
   | { kind: 'draftClass'; season: number }
   | { kind: 'trade'; season: number; text: string }
-  | { kind: 'offer'; season: number; offerId: number }
+  | { kind: 'offer'; season: number; offerId: number; root: number }
   | { kind: 'recap'; season: number; gameId: number }
   | { kind: 'cleared'; season: number; week: number; playerId: number; type: string }
   | { kind: 'deadline'; season: number; weeksLeft: number | 'day' }
@@ -527,7 +527,7 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
     case 'trades':
       return { kind: 'trade', season, text: rest.join(':') };
     case 'offer':
-      return { kind: 'offer', season, offerId: Number(a) };
+      return { kind: 'offer', season, offerId: Number(a), root: b === undefined ? Number(a) : Number(b) };
     case 'recap':
       return { kind: 'recap', season, gameId: Number(a) };
     case 'cleared':
@@ -751,14 +751,17 @@ function tradeMail(league: League, have: Set<string>): Draft[] {
 }
 
 /** A side of a deal in words: "WR Riley Wright, a 2027 3rd and a 2028 6th". */
-export function packageWords(league: League, side: TradeSide): string {
+export function packageWords(league: League, side: TradeSide, opts?: { projected?: boolean }): string {
   const players = side.players.map((id) => `${league.players[id].position} ${fullName(league.players[id])}`);
   const picks = side.picks
     .map((id) => league.draftPicks.find((p) => p.id === id))
     .filter((p) => !!p)
-    .map((p) => pickLabel(league, p!));
+    .map((p) => pickLabel(league, p!, opts));
   return list([...players, ...picks]) || 'nothing';
 }
+
+/** Mail is read later, when a projected pick number would be stale: the offer card shows it live. */
+const NO_PROJ = { projected: false };
 
 /** The offer's subject and opening line, in the GM's words (never a number from his valuation). */
 export function offerWords(league: League, offer: TradeOffer): { subject: string; body: string } {
@@ -777,37 +780,69 @@ export function offerWords(league: League, offer: TradeOffer): { subject: string
     case 'pitch':
       return {
         subject: `The ${team.name} are listening on ${name(hisMan!)}`,
-        body: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours)} get it done?${close}`,
+        body: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours, NO_PROJ)} get it done?${close}`,
       };
     case 'dump':
       return {
         subject: `The ${team.name} want to move ${name(hisMan!)}'s deal`,
-        body: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] })} is yours.${close}`,
+        body: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] }, NO_PROJ)} is yours.${close}`,
       };
     case 'counter':
       return {
         subject: `The ${team.name} come back with a counter`,
-        body: `We've looked at your counter. ${packageWords(league, his)} for ${packageWords(league, yours)}, and we have a deal.${close}`,
+        body: `We've looked at your counter. ${packageWords(league, his, NO_PROJ)} for ${packageWords(league, yours, NO_PROJ)}, and we have a deal.${close}`,
       };
     case 'shop':
       return {
         subject: `The ${team.name} answer your call about ${name(yourMan!)}`,
-        body: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his)}.${close}`,
+        body: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his, NO_PROJ)}.${close}`,
       };
     default:
       return {
         subject: `The ${team.name} make an offer for ${name(yourMan!)}`,
-        body: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his))}, if you're open to it.${close}`,
+        body: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his, NO_PROJ))}, if you're open to it.${close}`,
       };
   }
+}
+
+/**
+ * The offer that opened a conversation: walk `replyTo` back. When a parent was pruned the walk ends early and the
+ * id returned is only a best-effort root, which is why nothing should recompute it after the mail is filed
+ * (look the message up with `mailForOffer`).
+ */
+function offerRoot(league: League, offer: TradeOffer): number {
+  const offers = league.market?.offers ?? [];
+  const seen = new Set<number>([offer.id]);
+  let root = offer;
+  while (root.replyTo !== undefined && !seen.has(root.replyTo)) {
+    const prev = offers.find((o) => o.id === root.replyTo);
+    if (!prev) return root.replyTo;
+    seen.add(prev.id);
+    root = prev;
+  }
+  return root.id;
+}
+
+/** An offer's mail id: its last segment is the conversation's root, so replies fold into one thread. */
+export function offerMailId(league: League, offer: TradeOffer): string {
+  return `offer:${offer.season}:${offer.id}:${offerRoot(league, offer)}`;
+}
+
+/** The message filed for an offer, whatever root its id carries (old saves have no root segment). */
+export function mailForOffer(league: League, offer: TradeOffer): InboxMessage | undefined {
+  const prefix = `offer:${offer.season}:${offer.id}`;
+  return (league.inbox ?? []).find((m) => m.id === prefix || m.id.startsWith(`${prefix}:`));
 }
 
 /** Every offer on your desk files a message: it asks something of you while the offer is open. */
 function offerMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
+  // Filed under the offer's own prefix, so pruning an ancestor (which moves the root) never files it twice.
+  const filed = new Set<string>();
+  for (const id of have) if (id.startsWith('offer:')) filed.add(id.split(':').slice(0, 3).join(':'));
   for (const offer of league.market?.offers ?? []) {
-    const id = `offer:${offer.season}:${offer.id}`;
-    if (have.has(id) || offer.status !== 'pending') continue;
+    const id = offerMailId(league, offer);
+    if (filed.has(`offer:${offer.season}:${offer.id}`) || offer.status !== 'pending') continue;
     const team = league.teams[offer.teamId];
     const { subject, body } = offerWords(league, offer);
     const about = [...offer.sides[1].players, ...offer.sides[0].players][0];
@@ -1886,7 +1921,9 @@ export interface MailThread {
 
 /** What a message folds under: its kind and day, or (for kinds that don't fold) itself. */
 export function threadKey(m: InboxMessage): string {
-  const kind = mailSubject(m)?.kind;
+  const subject = mailSubject(m);
+  if (subject?.kind === 'offer') return `offer:${subject.season}:${subject.root}`;
+  const kind = subject?.kind;
   return kind && FOLDED.has(kind) ? `${kind}:${m.season}:${m.phase}:${m.week}` : m.id;
 }
 
@@ -1908,6 +1945,8 @@ export function threadLabel(t: MailThread): { from: string; subject: string } {
       return { from: 'League office', subject: `${n} of our players honored` };
     case 'positionMoved':
       return { from: lead.from, subject: `${n} players change position` };
+    case 'offer':
+      return { from: lead.from, subject: `${lead.subject} (${n} messages)` };
     default:
       return { from: lead.from, subject: `${lead.subject} and ${n - 1} more` };
   }

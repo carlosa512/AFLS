@@ -116,11 +116,16 @@ function sender(from: string): { name: string; role: string; initials: string } 
 }
 
 /** Who a message is about: its players, the staff member who signs it, the coach it reports gone. Their names link first. */
-function aboutOf(m: InboxMessage): Who[] {
+export function aboutOf(league: League, m: InboxMessage): Who[] {
   const out: Who[] = m.actions.flatMap((a): Who[] => (a.kind === 'player' ? [{ kind: 'player', id: a.playerId }] : []));
   if (m.fromCard) out.push(m.fromCard);
   const s = mailSubject(m);
   if (s?.kind === 'poached') out.push({ kind: 'coach', id: s.coachId });
+  // Every player in the deal, both sides, while the offer is still on file (a pruned one has no sides to read).
+  if (s?.kind === 'offer') {
+    const offer = league.market?.offers.find((o) => o.id === s.offerId);
+    for (const side of offer?.sides ?? []) for (const id of side.players) out.push({ kind: 'player', id });
+  }
   return out;
 }
 
@@ -455,7 +460,7 @@ function MessageBody({
   return (
     <>
       <p className="inbox-body">
-        <LinkedText league={league} text={m.body} about={aboutOf(m)} index={index} />
+        <LinkedText league={league} text={m.body} about={aboutOf(league, m)} index={index} />
       </p>
       <MailCards league={league} message={m} />
       {actions.length > 0 && (
@@ -477,11 +482,18 @@ const playerOf = (league: League, m: InboxMessage) => {
   return a?.kind === 'player' ? league.players[a.playerId] : undefined;
 };
 
+/** Where an offer stands, for its row in a conversation: "Open" while it waits, else how it ended. */
+const offerStatus = (league: League, m: InboxMessage): string => {
+  const s = mailSubject(m);
+  const offer = s?.kind === 'offer' ? league.market?.offers.find((o) => o.id === s.offerId) : undefined;
+  return !offer ? '' : offer.status === 'pending' ? 'Open' : (offer.outcome ?? '');
+};
+
 /**
  * A day's letters of one kind as one message: a row per person, each opening in place to the whole letter. The
  * buttons every letter shares (Expiring contracts, Medical) sit once at the bottom.
  */
-function Folded({
+export function Folded({
   league,
   t,
   needs,
@@ -497,6 +509,7 @@ function Folded({
   const [openIds, setOpenIds] = useState<string[]>([]);
   const label = threadLabel(t);
   const lead = t.messages[0];
+  const talk = t.kind === 'offer';
   const allOpen = openIds.length === t.messages.length;
   // Buttons every letter has (not the per-player ones), once.
   const shared = lead.actions.filter(
@@ -517,14 +530,19 @@ function Folded({
         folded
       />
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="muted small">{t.messages.length} letters in one: open any of them below.</span>
+        <span className="muted small">
+          {talk
+            ? `A conversation with the ${lead.from}, newest first.`
+            : `${t.messages.length} letters in one: open any of them below.`}
+        </span>
         <button className="linklike small" onClick={() => setOpenIds(allOpen ? [] : t.messages.map((m) => m.id))}>
           {allOpen ? 'Hide all' : 'Show all'}
         </button>
       </div>
       <div className="fold-list">
         {t.messages.map((m) => {
-          const p = playerOf(league, m);
+          const p = talk ? undefined : playerOf(league, m);
+          const status = talk ? offerStatus(league, m) : '';
           const isOpen = openIds.includes(m.id);
           return (
             <div key={m.id} className={`fold-item${isOpen ? ' is-open' : ''}`}>
@@ -532,7 +550,7 @@ function Folded({
                 <button className="fold-toggle" aria-expanded={isOpen} onClick={() => toggle(m.id)}>
                   <span aria-hidden="true">{isOpen ? '▾' : '▸'}</span>
                   <span className="fold-title">
-                    {p && <span className="pos">{p.position}</span>} {memberTitle(m)}
+                    {p && <span className="pos">{p.position}</span>} {talk ? m.subject : memberTitle(m)}
                   </span>
                 </button>
                 <span className="inbox-tags fold-side">
@@ -541,6 +559,7 @@ function Folded({
                   ) : (
                     p && <span className="muted small">age {p.age}</span>
                   )}
+                  {status && <span className="muted small">{status}</span>}
                   {needs.has(m.id) && <span className="needs-pill">Needs you</span>}
                 </span>
               </div>
@@ -605,14 +624,16 @@ function MessageHead({
           ) : (
             // An agent writes for his client, a retiring player for himself: either name opens the player.
             <b>
-              <LinkedText league={league} text={who.name} about={aboutOf(m)} index={index} />
+              <LinkedText league={league} text={who.name} about={aboutOf(league, m)} index={index} />
             </b>
           )}
           <span className="muted">
             {who.role && ` · ${who.role}`} · {dateLabel(m)}
           </span>
         </div>
-        <h3>{folded ? subject : <LinkedText league={league} text={subject} about={aboutOf(m)} index={index} />}</h3>
+        <h3>
+          {folded ? subject : <LinkedText league={league} text={subject} about={aboutOf(league, m)} index={index} />}
+        </h3>
       </div>
       <span className="inbox-tags">
         <span className={`mail-tag cat-${m.category}`}>{tagOf(m)}</span>
