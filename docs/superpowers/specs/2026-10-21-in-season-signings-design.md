@@ -89,8 +89,8 @@ New subjects, keyed so nothing doubles up; `needsYou` reads the league as it sta
 - **`shortHanded`** (season, week, position): the user's team is short at a position and nobody on the roster is good
   enough to cover. From the head coach, with a link to **free agency filtered to that position**. Needs you while it's
   still short.
-- **`irReady`** (season, week, player): a healed player on the user's IR can return and the 53 is full. From the head
-  team doctor, linking to the player and the roster. Needs you while that's still true.
+- **`cleared`** (exists: a healed player cleared to play). With the toggle on and the 53 full, it says he waits on
+  IR until the user makes room, and needs you while that's still true (today it only needs you with the toggle off).
 
 ### 5. Free-agency link (`ui/routes.ts`, `ui/screens/FrontOffice.tsx`)
 
@@ -115,7 +115,7 @@ Unit tests (each run first against the code without the change, where it must fa
   minimum; with no room for any real free agent it still covers the hole at the minimum.
 - The user's team with the toggle on, short with a full roster: a cover is made when one reaches the bar; no player
   is ever added or released.
-- A healed IR player on the user's full roster stays on IR, and `irReady` needs you; after a cut he can come back.
+- A healed IR player on the user's full roster stays on IR, and his `cleared` mail needs you; after a cut he comes back.
 - `shortHanded` needs you while the position is short and not after it's filled; `covering` names the cover.
 - The `office` route round-trips `pos` through the hash.
 - `migrate.ts`: an old hand-sorted chart's out-of-position players load as the user's `playingAt` moves.
