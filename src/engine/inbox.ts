@@ -454,9 +454,71 @@ function draftClassMail(league: League, have: Set<string>): Draft[] {
 }
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
-/** Each position group's starters as our scouts read them, as a league percentile (0–1): what the opposition report's card shows. */
-export function unitReads(league: League, teamId: number): { title: string; score: number }[] {
-  return GROUPS.map((g) => ({ title: g.title, score: groupScore(league, league.teams[teamId], g.positions) }));
+/** A position group's starters as our scouts read them: a league percentile (0–1) and the one they rate highest. */
+export interface UnitRead {
+  title: string;
+  /** League percentile (0–1) of the starters as our scouts read them: a rival's through the fog of war. */
+  score: number;
+  /** Player id of the group's best starter by our read; none when the group is empty. */
+  lead?: number;
+}
+
+/** Each position group's starters as our scouts read them, as a league percentile (0–1). */
+export function unitReads(league: League, teamId: number): UnitRead[] {
+  const team = league.teams[teamId];
+  return GROUPS.map((g) => {
+    const best = g.positions
+      .flatMap((pos) => starters(league, team, pos))
+      .sort((a, b) => perceive(league, league.userTeamId, b).ovr - perceive(league, league.userTeamId, a).ovr)[0];
+    return { title: g.title, score: groupScore(league, team, g.positions), lead: best?.id };
+  });
+}
+
+/** One unit against the unit it lines up across from, and who our scouts think has the better of it. */
+export interface Matchup {
+  title: string;
+  offense: UnitRead;
+  defense: UnitRead;
+  edge: 'ours' | 'theirs' | null;
+}
+
+/** How far apart (in league percentile) two units must be before the card calls an edge: closer is a fair fight. */
+export const EDGE_GAP = 0.15;
+
+/**
+ * The opposition report's key matchups: each offensive unit against the defenders it faces (the line against the
+ * front, the backs against the linebackers, the quarterback and receivers against the secondary), our offense
+ * against their defense and theirs against ours. Units that never meet on the field aren't compared.
+ */
+export function keyMatchups(league: League, oppId: number): { attack: Matchup[]; defend: Matchup[] } {
+  const side = (offenseId: number, defenseId: number): Matchup[] => {
+    const off = unitReads(league, offenseId);
+    const def = unitReads(league, defenseId);
+    const unit = (units: UnitRead[], title: string) => units.find((u) => u.title === title)!;
+    const qb = unit(off, 'Quarterback');
+    const passing: UnitRead = {
+      title: 'QB and receivers',
+      score: (qb.score + unit(off, 'Receivers').score) / 2,
+      lead: qb.lead,
+    };
+    const pairs: [string, UnitRead, UnitRead][] = [
+      ['Trenches', unit(off, 'Offensive line'), unit(def, 'Defensive front')],
+      ['Run game', unit(off, 'Backfield'), unit(def, 'Linebackers')],
+      ['Pass game', passing, unit(def, 'Secondary')],
+    ];
+    const oursOnOffense = offenseId === league.userTeamId;
+    return pairs.map(([title, offense, defense]) => {
+      const gap = offense.score - defense.score;
+      const offenseAhead = gap >= EDGE_GAP ? true : gap <= -EDGE_GAP ? false : null;
+      return {
+        title,
+        offense,
+        defense,
+        edge: offenseAhead === null ? null : offenseAhead === oursOnOffense ? 'ours' : 'theirs',
+      };
+    });
+  };
+  return { attack: side(league.userTeamId, oppId), defend: side(oppId, league.userTeamId) };
 }
 
 /** What a message is about, read back from its id. The ids are built here, so this is the one place that knows their shape. */

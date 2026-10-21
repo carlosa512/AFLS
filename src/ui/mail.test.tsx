@@ -239,3 +239,33 @@ describe('cleared mail', () => {
     expect(weeksMissed({ season: 2025, week: 17 }, { season: 2026, week: 2 })).toBeNull();
   });
 });
+
+describe('the opposition report', () => {
+  it('shows key matchups, each unit against the one it faces, with the key players', () => {
+    const league = createLeague({ seed: 'inbox' });
+    deliverMail(league);
+    const report = league.inbox!.find((m) => m.category === 'matchup')!;
+    const html = renderToStaticMarkup(<MailCards league={league} message={report} />);
+    expect(html).toContain('Key matchups');
+    expect(html).toContain('Our offense vs their defense');
+    expect(html).toContain('Their offense vs our defense');
+    expect(html).not.toContain('How we match up');
+    for (const title of ['Trenches', 'Run game', 'Pass game']) expect(html.split(title).length - 1).toBe(2);
+    // Two sides of three rows, a face on each side.
+    expect(html.match(/class="mail-matchup-side[ "]/g)?.length).toBe(12);
+    expect(html.slice(html.indexOf('Key matchups')).match(/class="avatar"/g)?.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it('says plainly that its numbers are league percentiles', () => {
+    const league = createLeague({ seed: 'inbox' });
+    deliverMail(league);
+    const report = league.inbox!.find((m) => m.category === 'matchup')!;
+    const html = renderToStaticMarkup(<MailCards league={league} message={report} />);
+    expect(html).toMatch(/league percentile/i);
+    // Every score reads as a rank ("74th"), with what it means on hover.
+    const scores = [...html.matchAll(/class="num mail-matchup-score"[^>]*>([^<]+)</g)].map((m) => m[1]);
+    expect(scores).toHaveLength(12);
+    for (const s of scores) expect(s).toMatch(/^\d+(st|nd|rd|th)$/);
+    expect(html).toMatch(/title="Better than about \d+% of the league"/);
+  });
+});

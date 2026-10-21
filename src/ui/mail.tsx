@@ -68,7 +68,9 @@ import {
   mailSubject,
   needsYou,
   promotionCandidates,
-  unitReads,
+  keyMatchups,
+  type Matchup,
+  type UnitRead,
   type HeadCoachChange,
   type MailSubject,
   type Signing,
@@ -345,7 +347,7 @@ function MatchupCards({
     <>
       {game.playoffRound && <PlayoffPath league={league} game={game} />}
       <OpponentCard league={league} opp={opp} game={game} />
-      {live && <UnitsCard league={league} opp={opp} />}
+      {live && <MatchupsCard league={league} opp={opp} />}
       <div className="mail-split">
         <WatchCard league={league} opp={opp} season={s.season} />
         <TheirInjuries league={league} opp={opp} />
@@ -471,45 +473,92 @@ function PlayoffPath({ league, game }: { league: League; game: Game }) {
   );
 }
 
-/** Every unit, theirs against ours, as our scouts read the starters (league percentiles, like the coach's report). */
-function UnitsCard({ league, opp }: { league: League; opp: Team }) {
-  const theirs = unitReads(league, opp.id);
-  const ours = unitReads(league, league.userTeamId);
-  const best = theirs.reduce((a, b) => (b.score > a.score ? b : a));
-  const soft = theirs.reduce((a, b) => (b.score < a.score ? b : a));
-  const pctOf = (x: number) => Math.round(x * 100);
+/** Each unit against the one it lines up across from, both ways, as our scouts read the starters. */
+function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
+  const { attack, defend } = keyMatchups(league, opp.id);
+  const us = league.teams[league.userTeamId];
   return (
-    <Card title="How we match up">
+    <Card title="Key matchups">
       <p className="muted small" style={{ margin: '-4px 0 8px' }}>
-        Our scouts' read of each side's starters, as a league percentile: 100 is the best in the league.
+        Each number is a league percentile from our scouts' read of the starters: 74th means better than about 74% of
+        the league at those spots, 100th the best. Each face is the unit's best player.
       </p>
-      <div className="mail-unit mail-unit-head">
-        <span className="eyebrow">Unit</span>
-        <span className="eyebrow">{opp.name}</span>
-        <span className="eyebrow">{league.teams[league.userTeamId].name}</span>
-      </div>
-      {theirs.map((u, i) => (
-        <div className="mail-unit" key={u.title}>
-          <span>
-            {u.title}
-            {u === best && <span className="tag-pill tag-bad">their best</span>}
-            {u === soft && <span className="tag-pill tag-good">soft spot</span>}
-          </span>
-          <UnitBar value={pctOf(u.score)} team={opp} />
-          <UnitBar value={pctOf(ours[i].score)} team={league.teams[league.userTeamId]} />
-        </div>
-      ))}
+      <MatchupGroup league={league} title="Our offense vs their defense" rows={attack} offense={us} defense={opp} />
+      <MatchupGroup league={league} title="Their offense vs our defense" rows={defend} offense={opp} defense={us} />
     </Card>
   );
 }
 
-function UnitBar({ value, team }: { value: number; team: Team }) {
+function MatchupGroup({
+  league,
+  title,
+  rows,
+  offense,
+  defense,
+}: {
+  league: League;
+  title: string;
+  rows: Matchup[];
+  offense: Team;
+  defense: Team;
+}) {
   return (
-    <span className="mail-bar">
-      <span className="bar">
-        <i style={{ width: `${Math.max(3, value)}%`, background: team.colors[0] }} />
+    <div className="mail-matchups">
+      <div className="eyebrow">{title}</div>
+      {rows.map((m) => (
+        <div className="mail-matchup" key={m.title}>
+          <div className="mail-matchup-head">
+            <b>{m.title}</b>
+            <span className="muted small">
+              {m.offense.title} vs {m.defense.title.toLowerCase()}
+            </span>
+            {m.edge && (
+              <span className={`tag-pill ${m.edge === 'ours' ? 'tag-good' : 'tag-bad'}`}>
+                {m.edge === 'ours' ? 'Our edge' : 'Their edge'}
+              </span>
+            )}
+          </div>
+          <div className="mail-matchup-sides">
+            <MatchupSide league={league} unit={m.offense} team={offense} />
+            <span className="muted small">vs</span>
+            <MatchupSide league={league} unit={m.defense} team={defense} flip />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** One side of a matchup: the unit's best player and its percentile (the row's head names the units). */
+function MatchupSide({
+  league,
+  unit,
+  team,
+  flip = false,
+}: {
+  league: League;
+  unit: UnitRead;
+  team: Team;
+  flip?: boolean;
+}) {
+  const nav = useNav();
+  const p = unit.lead !== undefined ? league.players[unit.lead] : undefined;
+  const pct = Math.round(unit.score * 100);
+  return (
+    <span className={`mail-matchup-side${flip ? ' is-flip' : ''}`}>
+      {p && <PlayerAvatar player={p} team={team} size={32} />}
+      <span className="mail-matchup-who">
+        {p ? (
+          <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
+            {p.lastName}
+          </button>
+        ) : (
+          <span className="muted">Nobody</span>
+        )}
       </span>
-      <span className="num">{value}</span>
+      <span className="num mail-matchup-score" title={p ? `Better than about ${pct}% of the league` : undefined}>
+        {p ? ordinal(pct) : '–'}
+      </span>
     </span>
   );
 }

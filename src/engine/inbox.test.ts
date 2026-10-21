@@ -14,6 +14,8 @@ import {
   freeAgencyMoves,
   gameStory,
   headCoachChanges,
+  EDGE_GAP,
+  keyMatchups,
   mailForOffer,
   mailSubject,
   marketRumors,
@@ -27,6 +29,7 @@ import {
   statBlurb,
   threadLabel,
   threads,
+  unitReads,
   unreadCount,
 } from './inbox';
 import { isMedicExpiring, teamMedics } from './medical';
@@ -926,5 +929,55 @@ describe('flex mail', () => {
     const mail = l.inbox!.find((m) => m.id.startsWith(`flex:${g.season}:${g.id}:`))!;
     expect(mail).toBeDefined();
     expect(mailSubject(mail)).toEqual({ kind: 'flex', season: g.season, gameId: g.id });
+  });
+});
+
+describe('key matchups', () => {
+  const TITLES = ['Trenches', 'Run game', 'Pass game'];
+  it('pairs each offensive unit with the defensive unit it faces, both ways', () => {
+    const league = createLeague({ seed: 'matchups' });
+    const user = league.userTeamId;
+    const opp = user === 1 ? 2 : 1;
+    const { attack, defend } = keyMatchups(league, opp);
+    expect(attack.map((m) => m.title)).toEqual(TITLES);
+    expect(defend.map((m) => m.title)).toEqual(TITLES);
+    const ours = unitReads(league, user);
+    const theirs = unitReads(league, opp);
+    const read = (units: typeof ours, title: string) => units.find((u) => u.title === title)!;
+    // Our line against their front, their backs against our linebackers.
+    expect(attack[0].offense).toEqual(read(ours, 'Offensive line'));
+    expect(attack[0].defense).toEqual(read(theirs, 'Defensive front'));
+    expect(defend[1].offense).toEqual(read(theirs, 'Backfield'));
+    expect(defend[1].defense).toEqual(read(ours, 'Linebackers'));
+    // The passing game is the quarterback and his receivers together, led by the quarterback.
+    expect(attack[2].offense.score).toBeCloseTo((read(ours, 'Quarterback').score + read(ours, 'Receivers').score) / 2);
+    expect(attack[2].offense.lead).toBe(read(ours, 'Quarterback').lead);
+    for (const [side, offenseTeam] of [
+      [attack, user],
+      [defend, opp],
+    ] as const) {
+      for (const m of side) {
+        for (const u of [m.offense, m.defense]) {
+          expect(u.score).toBeGreaterThanOrEqual(0);
+          expect(u.score).toBeLessThanOrEqual(1);
+        }
+        const gap = m.offense.score - m.defense.score;
+        if (Math.abs(gap) < EDGE_GAP) expect(m.edge).toBeNull();
+        else expect(m.edge).toBe(gap > 0 === (offenseTeam === user) ? 'ours' : 'theirs');
+        expect(league.players[m.offense.lead!].teamId).toBe(offenseTeam);
+        expect(league.players[m.defense.lead!].teamId).toBe(offenseTeam === user ? opp : user);
+      }
+    }
+  });
+
+  it('still reads a unit with nobody in it', () => {
+    const league = createLeague({ seed: 'matchups' });
+    const opp = league.userTeamId === 1 ? 2 : 1;
+    league.teams[opp].depthChart.DT = [];
+    league.teams[opp].depthChart.EDGE = [];
+    const { attack } = keyMatchups(league, opp);
+    expect(attack).toHaveLength(3);
+    expect(attack[0].defense.lead).toBeUndefined();
+    expect(attack[0].defense.score).toBe(0);
   });
 });
