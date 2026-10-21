@@ -1,16 +1,19 @@
 import { generateCoachingWorld } from './coaching';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
-import { ATTRIBUTE_PROFILES, BODY, JERSEY_RANGES, overall, ROSTER_TEMPLATE, STARTERS } from './positions';
+import { ATTRIBUTE_PROFILES, BODY, JERSEY_RANGES, overall, playerOvr, ROSTER_TEMPLATE, STARTERS } from './positions';
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
 import { generateCrews } from './officials';
-import { buildContract, capHit, trimPast, yearOf } from './finance/contract';
+import { buildContract, capHit, restructure, restructurePreview, trimPast, yearOf } from './finance/contract';
 import {
   BASE_CAP,
+  fifthYearOptionValue,
   guaranteeAsk,
   leagueMarket,
   marketApy,
   maxBonusShare,
+  payTier,
+  positionRank,
   TOP_APY_PCT,
   minSalary,
   rookieApy,
@@ -147,7 +150,9 @@ export function rookieContract(overall: number, draftSeason: number, cap: number
 
 /**
  * Standard veteran structure: bigger deals carry a bigger signing bonus and early guarantees;
- * cap-aggressive front offices push money into void years.
+ * cap-aggressive front offices push money into void years. Salaries climb through the deal as a settled league's
+ * charges do (its multi-year deals charge 14% more next year than this, restructures included; 2-7% raises left a
+ * new league's at 3%).
  */
 export function veteranContract(
   rng: Rng,
@@ -172,7 +177,7 @@ export function veteranContract(
       : 0;
   const kind = apyK <= minSalary(player.experience, cap) * 1.05 ? 'minimum' : 'veteran';
   return buildContract(
-    { years, total, signingBonus: bonus, guaranteedBase, voidYears, escalator: rng.float(0.02, 0.07) },
+    { years, total, signingBonus: bonus, guaranteedBase, voidYears, escalator: rng.float(0.06, 0.16) },
     start,
     kind,
     minSalary(player.experience, cap),
@@ -180,125 +185,241 @@ export function veteranContract(
   );
 }
 
-/** Draft slot implied by a young player's quality when the league is created (history is invented). */
-function syntheticPick(rng: Rng, ovr: number): number {
-  return Math.round(clamp(262 - (ovr - 6) * 26 + rng.normal(0, 22), 1, 262));
+/** Drafts in the opening league's invented history: rookie deals for the last four, options for the one before. */
+const DRAFT_HISTORY = 5;
+/** Experience of the class before those four: only its first round can still be on a rookie deal (its option year). */
+const OPTION_CLASS = DRAFT_HISTORY - 1;
+
+/**
+ * The opening league's last five drafts. Every team took one player a round, its best young players of each class
+ * in order of their quality at the draft (today's overall less the growth since, read with the scouts' miss), and
+ * the weakest franchises (`talent`, the records the league is seeded from) pick first in every round, as the
+ * NFL's order runs: a bad team carries the top picks' bigger rookie deals, a good one the cheap ones at the end. A
+ * team's eighth and later are undrafted. Every class has a full first round, as a settled league's does: picks
+ * drawn from each player's quality alone left 34 first-rounders a league and rookie deals at half a settled
+ * league's share of payroll. The oldest class keeps a record only for its first round, whose fifth-year options
+ * decide their deals (`initialContract`): the opening league's history goes no further back than its rookie deals.
+ */
+function draftHistory(rng: Rng, league: League, season: number, talent: number[]): void {
+  const order = league.teams.map((t) => t.id).sort((a, b) => talent[a] - talent[b]);
+  const classes = new Map<string, Player[]>();
+  for (const p of Object.values(league.players)) {
+    if (p.teamId === null || p.experience >= DRAFT_HISTORY) continue;
+    const key = `${p.teamId}:${p.experience}`;
+    classes.set(key, [...(classes.get(key) ?? []), p]);
+  }
+  for (let exp = 0; exp < DRAFT_HISTORY; exp++) {
+    order.forEach((teamId, slot) =>
+      (classes.get(`${teamId}:${exp}`) ?? [])
+        .map((p) => ({ p, grade: playerOvr(p) - exp * 0.6 + rng.normal(0, 1) }))
+        .sort((a, b) => b.grade - a.grade)
+        .slice(0, DRAFT_ROUNDS)
+        .forEach(({ p }, round) => {
+          if (exp < OPTION_CLASS || round === 0)
+            p.draft = { season: season - exp, round: round + 1, pick: round * 32 + slot + 1, teamId };
+        }),
+    );
+  }
 }
 
-/** Contracts for the league's opening rosters: rookie deals for young players, market deals for veterans. */
-function initialContract(rng: Rng, market: Market, player: Player, season: number, gm: GmTraits): Contract {
+/**
+ * Years left on a veteran's deal by his age (weights for 1, 2, 3, 4 and 5), as a settled league carries them at
+ * kickoff (its 4th to 6th kickoffs over eight six-season runs): a young veteran has just signed his long second
+ * deal, a 30-year-old is in the last year or two of his. Minimum deals: the old sign a year at a time, young depth
+ * for three to five like an undrafted rookie. Drawn by talent alone, a new league's deals ran 2.1-2.3 years at every
+ * age: over a third of its veterans in their prime were a year from free agency, its money a year from leaving.
+ */
+const YEARS_LEFT: { upTo: number; market: number[]; minimum: number[] }[] = [
+  { upTo: 25, market: [0, 0, 0, 17, 83], minimum: [40, 2, 10, 24, 24] },
+  { upTo: 26, market: [0, 0, 8, 59, 33], minimum: [63, 2, 8, 19, 8] },
+  { upTo: 27, market: [0, 5, 40, 42, 13], minimum: [58, 6, 17, 15, 4] },
+  { upTo: 28, market: [4, 35, 44, 16, 1], minimum: [44, 24, 23, 9, 0] },
+  { upTo: 29, market: [35, 44, 18, 2, 1], minimum: [48, 33, 16, 3, 0] },
+  { upTo: 30, market: [53, 39, 6, 2, 0], minimum: [66, 26, 5, 3, 0] },
+  { upTo: 31, market: [61, 27, 9, 3, 0], minimum: [75, 17, 7, 1, 0] },
+  { upTo: 32, market: [62, 32, 6, 0, 0], minimum: [83, 14, 3, 0, 0] },
+  { upTo: 34, market: [73, 24, 3, 0, 0], minimum: [91, 8, 1, 0, 0] },
+  { upTo: Infinity, market: [80, 20, 0, 0, 0], minimum: [100, 0, 0, 0, 0] },
+];
+
+/** Contracts for the league's opening rosters: rookie deals for its last drafts, market deals for veterans. */
+function initialContract(
+  rng: Rng,
+  league: League,
+  market: Market,
+  player: Player,
+  season: number,
+  gm: GmTraits,
+): Contract {
   const exp = player.experience;
-  const ovr = overall(player.ratings, player.position);
-  if (exp < 4) {
-    const draftSeason = season - exp;
-    const capThen = Math.round(BASE_CAP / 1.07 ** exp);
-    const pick = syntheticPick(rng, ovr - exp * 0.6);
-    let c: Contract;
-    if (pick <= DRAFT_ROUNDS * 32) {
-      c = rookieContract(pick, draftSeason, capThen);
-      player.draft = { season: draftSeason, round: Math.ceil(pick / 32), pick, teamId: player.teamId! };
-    } else {
-      // Undrafted: minimum salaries and a token bonus.
-      const min = minSalary(0, capThen);
-      c = buildContract(
-        {
-          years: 3,
-          total: min * 3 + rng.int(0, 40),
-          signingBonus: rng.int(0, 40),
-          guaranteedBase: 0,
-          voidYears: 0,
-          escalator: 0.08,
-        },
-        draftSeason,
-        'rookie',
-        min,
-      );
-    }
-    if (c.fifthYearOption === 'eligible' && exp === 3) c.fifthYearOption = 'declined';
+  const capThen = (years: number) => Math.round(BASE_CAP / 1.07 ** years);
+  const draft = player.draft;
+  // A first-rounder four or five years in: his club took up the fifth-year option if he's paid like a starter worth
+  // its price (the first test `aiFifthYearOptions` makes; a settled league exercises about 23 of a class's 32).
+  const option =
+    draft?.round === 1 &&
+    exp >= OPTION_CLASS - 1 &&
+    exp <= OPTION_CLASS &&
+    payTier(player.position, positionRank(market, player)) >= 0.45;
+  if (draft && (exp < OPTION_CLASS || option)) {
+    const c = rookieContract(draft.pick, draft.season, capThen(exp));
+    if (option) {
+      // Priced the spring he was four years in, at that year's cap.
+      const value = Math.round(fifthYearOptionValue(league, player) / 1.07 ** (exp - (OPTION_CLASS - 1)));
+      c.years.push({ season: draft.season + 4, base: value, guaranteed: value });
+      c.fifthYearOption = 'exercised';
+    } else if (c.fifthYearOption === 'eligible' && exp === OPTION_CLASS - 1) c.fifthYearOption = 'declined';
     trimPast(c, season);
-    if (c.years.some((y) => !y.void)) return c;
-    // An undrafted deal that has run out: he's back on a one- or two-year minimum.
-    const min = minSalary(exp, BASE_CAP);
-    const years = rng.int(1, 2);
-    return buildContract(
-      { years, total: min * years, signingBonus: 0, guaranteedBase: 0, voidYears: 0, escalator: 0 },
-      season,
+    return c;
+  }
+  // A first-rounder whose option was declined has been on a veteran deal since: no rookie deal, no record kept.
+  if (exp === OPTION_CLASS) delete player.draft;
+  if (exp < OPTION_CLASS) {
+    // Undrafted: three years at the minimum and a token bonus, signed after his draft.
+    const min = minSalary(0, capThen(exp));
+    const c = buildContract(
+      {
+        years: 3,
+        total: min * 3 + rng.int(0, 40),
+        signingBonus: rng.int(0, 40),
+        guaranteedBase: 0,
+        voidYears: 0,
+        escalator: 0.08,
+      },
+      season - exp,
       'minimum',
       min,
     );
+    trimPast(c, season);
+    if (c.years.some((y) => !y.void)) return c;
+    // A deal that has run out: he's back on a one- or two-year minimum.
+    const now = minSalary(exp, BASE_CAP);
+    const years = rng.int(1, 2);
+    return buildContract(
+      { years, total: now * years, signingBonus: 0, guaranteedBase: 0, voidYears: 0, escalator: 0 },
+      season,
+      'minimum',
+      now,
+    );
   }
-  // A league already in motion: each veteran is somewhere inside a deal of the length his tier signs, so
-  // about a quarter of the stars and more of the depth are in their last year, as in a settled league.
-  const length = rng.int(ovr >= 14 ? 3 : ovr >= 12 ? 2 : 1, 5);
-  const remaining = rng.int(1, length);
+  // A league already in motion: each veteran is somewhere inside a deal, with the years left a player his age has.
+  const floor = marketApy(market, player) <= minSalary(exp, market.cap);
+  const row = YEARS_LEFT.find((r) => player.age <= r.upTo)!;
+  const weights = floor ? row.minimum : row.market;
+  const remaining = rng.weighted([1, 2, 3, 4, 5], (k) => weights[k - 1]);
   // His first deal after the rookie one started at four years in.
-  const elapsed = Math.min(length - remaining, exp - 4);
-  const years = remaining + elapsed;
-  const capThen = Math.round(BASE_CAP / 1.07 ** elapsed);
+  const elapsed = rng.int(0, Math.min(5 - remaining, exp - 4));
+  const then = { ...market, cap: capThen(elapsed) };
   const younger = { ...player, age: player.age - elapsed, experience: exp - elapsed };
-  const then = { ...market, cap: capThen };
-  const apyK = marketApy(then, younger) * rng.float(0.85, 1.15);
-  const c = veteranContract(rng, then, younger, apyK, years, season - elapsed, gm);
+  const apyK = floor ? minSalary(younger.experience, then.cap) : marketApy(then, younger) * rng.float(0.85, 1.15);
+  const c = veteranContract(rng, then, younger, apyK, remaining + elapsed, season - elapsed, gm);
   c.signedSeason = season - elapsed;
   trimPast(c, season);
   return c;
 }
 
+/** The most `fitPayroll` scales a roster's pay above the minimum: past it, what's missing comes as raises. */
+const MAX_SCALE = 1.5;
+
 /**
- * Nudge veteran money so a team's opening payroll lands near `target`. Rookie deals stay
- * slotted, and the nudge is bounded so the market, not the cap, decides what stars earn.
+ * Nudge veteran money so a team's opening payroll lands near `target`, never over the cap. Rookie deals stay
+ * slotted.
+ *
+ * A roster over its target fits the way a capped-out front office does (`aiCapCompliance`): it restructures, the
+ * biggest savings first, which moves money into later years as a settled league's restructures have (its
+ * multi-year deals charge 14% more next year than this); only what that can't fit comes off pay. A roster under it
+ * scales pay above the minimum, every year of a deal alike, by at most 1.5 and never past a position's top of the
+ * market, so the market, not the cap, decides what stars earn (a scale up to 2.5 left ten deals a league at twice
+ * the market into the next season; a settled league has five).
+ *
+ * A roster still short takes the rest as raises over each deal's remaining years: a front-load into this year
+ * alone opened the next with 57-64% of the cap committed against a settled league's 73, and the room went to
+ * whoever hoarded it. The raises go by pay above the minimum, and no year's charge passes the position's top of the
+ * market, four times the deal's average in its last year, or twice the player's market in a deal with years to run
+ * (past that a deal is dead weight into next season); what a capped player can't take goes to the rest, so a thin
+ * roster's room doesn't land on one man. A team still short once every such deal is full raises its
+ * minimum-salary veterans too, then lets any deal run up to the position's top: it stops only when nobody has room
+ * left (one that stopped at its above-minimum veterans opened at 71.7% of the cap).
  */
-export function fitPayroll(players: Player[], season: number, target: number): void {
+export function fitPayroll(players: Player[], season: number, target: number, market: Market): void {
   const vets = players.filter((p) => p.contract!.kind !== 'rookie');
   const fixed = players
     .filter((p) => p.contract!.kind === 'rookie')
     .reduce((s, p) => s + capHit(p.contract!, season), 0);
-  const floor = vets.reduce((s, p) => s + minSalary(p.experience, BASE_CAP), 0);
-  const current = vets.reduce((s, p) => s + capHit(p.contract!, season), 0);
-  if (current <= floor) return;
-  let factor = clamp((target - fixed - floor) / (current - floor), 0.75, 2.5);
-  // Never open a league over the cap.
-  const ceiling = (BASE_CAP * 0.985 - fixed - floor) / (current - floor);
-  factor = Math.min(factor, ceiling);
+  const aim = Math.min(target, BASE_CAP * 0.985);
+  const min = (p: Player) => minSalary(p.experience, BASE_CAP);
   const top = (p: Player) => TOP_APY_PCT[p.position] * BASE_CAP;
-  for (const p of vets) {
-    const c = p.contract!;
-    const min = minSalary(p.experience, BASE_CAP);
-    // An overpaid roster still pays by position: nobody's raise takes him past his position's top of the market.
-    const f = factor > 1 && c.apy > min ? Math.min(factor, Math.max(1, (top(p) - min) / (c.apy - min))) : factor;
-    for (const y of c.years) {
-      if (y.void) continue;
-      y.base = Math.round(min + Math.max(0, y.base - min) * f);
-      y.guaranteed = Math.min(y.base, Math.round(y.guaranteed * f));
-    }
-    for (const b of c.bonuses) b.amount = Math.round(b.amount * f);
-    c.apy = Math.round(min + Math.max(0, c.apy - min) * f);
+  const hit = (p: Player) => capHit(p.contract!, season);
+  const payroll = () => vets.reduce((s, p) => s + hit(p), 0);
+  const restructuring = (p: Player) => restructurePreview(p.contract!, season, Infinity, min(p));
+  let over = fixed + payroll() - aim;
+  for (const p of vets
+    .filter((p) => p.contract!.kind === 'veteran' && restructuring(p).savings > 0)
+    .sort((a, b) => restructuring(b).savings - restructuring(a).savings)) {
+    if (over <= 0) break;
+    over -= restructure(p.contract!, season, over / (1 - 1 / restructuring(p).years), min(p));
   }
-  // A roster whose veterans aren't worth the target spends the rest this year instead, front-loading its
-  // deals the way a rebuilding team uses its room, so no club opens the league sitting on idle cap. The
-  // extra goes by pay above the minimum, but no deal's charge this year passes four times its average or his
-  // position's top of the market: what a capped player can't take goes to the rest, so a thin roster's room
-  // doesn't land on one man.
-  let short = Math.min(target, BASE_CAP * 0.985) - fixed - vets.reduce((s, p) => s + capHit(p.contract!, season), 0);
-  const above = (p: Player) =>
-    Math.max(0, (yearOf(p.contract!, season)?.base ?? 0) - minSalary(p.experience, BASE_CAP));
-  const room = new Map(
-    vets.map((p) => [p, Math.max(0, Math.min(4 * p.contract!.apy, top(p)) - capHit(p.contract!, season))]),
-  );
-  for (let pass = 0; pass < 6 && short > 1; pass++) {
-    const open = vets.filter((p) => room.get(p)! > 0 && above(p) > 0);
-    const pool = open.reduce((s, p) => s + above(p), 0);
-    if (pool <= 0) return;
-    let given = 0;
-    for (const p of open) {
+  const floor = vets.reduce((s, p) => s + min(p), 0);
+  const current = payroll();
+  if (current > floor) {
+    const factor = Math.min(
+      clamp((target - fixed - floor) / (current - floor), 0.75, MAX_SCALE),
+      (aim - fixed - floor) / (current - floor),
+    );
+    for (const p of vets) {
       const c = p.contract!;
-      const extra = Math.min(room.get(p)!, Math.round((short * above(p)) / pool));
-      yearOf(c, season)!.base += extra;
-      c.apy = Math.round(c.apy + extra / c.length);
-      room.set(p, room.get(p)! - extra);
-      given += extra;
+      // An overpaid roster still pays by position: nobody's raise takes him past his position's top of the market.
+      const f =
+        factor > 1 && c.apy > min(p) ? Math.min(factor, Math.max(1, (top(p) - min(p)) / (c.apy - min(p)))) : factor;
+      for (const y of c.years) {
+        if (y.void) continue;
+        y.base = Math.round(min(p) + Math.max(0, y.base - min(p)) * f);
+        y.guaranteed = Math.min(y.base, Math.round(y.guaranteed * f));
+      }
+      for (const b of c.bonuses) b.amount = Math.round(b.amount * f);
+      c.apy = Math.round(min(p) + Math.max(0, c.apy - min(p)) * f);
     }
-    short -= given;
+  }
+  let short = aim - fixed - payroll();
+  if (short <= 1) return;
+  const real = (p: Player) => p.contract!.years.filter((y) => !y.void);
+  const above = (p: Player) => Math.max(0, (yearOf(p.contract!, season)?.base ?? 0) - min(p));
+  const average = new Map(vets.map((p) => [p, p.contract!.apy]));
+  const worth = new Map(vets.map((p) => [p, marketApy(market, p)]));
+  const capped = (p: Player) => Math.min(top(p), real(p).length > 1 ? 2 * worth.get(p)! : 4 * average.get(p)!);
+  const stages = [
+    { weight: above, most: capped },
+    { weight: hit, most: capped },
+    { weight: hit, most: top },
+  ];
+  for (const { weight, most } of stages) {
+    for (let pass = 0; pass < 6 && short > 1; pass++) {
+      const room = new Map(
+        vets.map((p) => {
+          const years = real(p);
+          return [
+            p,
+            years.length ? Math.max(0, Math.min(...years.map((y) => most(p) - capHit(p.contract!, y.season)))) : 0,
+          ];
+        }),
+      );
+      const open = vets.filter((p) => room.get(p)! >= 1 && weight(p) > 0);
+      const pool = open.reduce((s, p) => s + weight(p), 0);
+      let given = 0;
+      for (const p of open) {
+        const c = p.contract!;
+        const extra = Math.min(room.get(p)!, Math.round((short * weight(p)) / pool));
+        if (extra <= 0) continue;
+        const years = real(p);
+        for (const y of years) y.base += extra;
+        c.apy = Math.round(c.apy + (extra * years.length) / c.length);
+        // Paid past the minimum, it's a market deal now.
+        if (c.kind === 'minimum' && c.apy > min(p) * 1.05) c.kind = 'veteran';
+        given += extra;
+      }
+      if (given <= 0) break;
+      short -= given;
+    }
   }
 }
 
@@ -465,6 +586,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     crews: [],
   };
 
+  const talent: number[] = [];
   TEAM_SEEDS.forEach((seedTeam, i) => {
     const division = Math.floor(i / 4);
     const team: Team = {
@@ -494,6 +616,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     // about −0.66), with a little luck on top; a team without a record (a mod's) starts at random.
     const teamTalent =
       seedTeam.winPct === undefined ? rng.normal(0, 0.2) : PEDIGREE * (seedTeam.winPct - 0.5) + rng.normal(0, 0.1);
+    talent.push(teamTalent);
     const jerseysUsed = new Set<number>();
     const roster: Player[] = [];
     for (const position of POSITIONS) {
@@ -517,13 +640,17 @@ export function createLeague(options: NewLeagueOptions = {}): League {
 
   // Contracts are priced against the whole league's talent, so they come after every roster exists.
   const market = leagueMarket(league);
+  draftHistory(rng, league, season, talent);
   for (const team of league.teams) {
     const roster = Object.values(league.players).filter((p) => p.teamId === team.id);
     for (const p of roster) {
-      p.contract = initialContract(rng, market, p, season, team.gm);
+      p.contract = initialContract(rng, league, market, p, season, team.gm);
       p.contract.signedWeek = -1; // part of the world as generated: no trade cooldown
     }
-    fitPayroll(roster, season, SALARY_CAP * rng.float(0.9, 0.99));
+    // Some room for the season's injury signings and deadline deals: a new league aimed at 94-99% of the cap (a
+    // settled league's kickoff level) traded 10 times in season against 14 at 90-99%, and its structure, not its
+    // level, keeps a team from hoarding what's left (most room at a seasons 1-4 kickoff 23% on 15 seeds).
+    fitPayroll(roster, season, SALARY_CAP * rng.float(0.9, 0.99), market);
   }
 
   for (let y = 1; y <= MAX_FUTURE_DRAFT_YEARS; y++) createDraftPicks(league, season + y);

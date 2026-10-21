@@ -102,7 +102,7 @@ describe('market', () => {
       if (!c || c.kind !== 'veteran' || p.teamId === null) continue;
       const signing = c.bonuses.filter((b) => b.source === 'signing').reduce((s, b) => s + b.amount, 0);
       // The 1.6 covers `fitPayroll`'s market nudge on top of the share the test pins: it scales a deal's bonus and
-      // its average together (up to 2.5x), so the share barely moves.
+      // its average together (up to 1.5x), and its raises add salary, never bonus, so the share barely moves.
       const ceiling = c.apy * c.length * maxBonusShare(league.teams[p.teamId].gm.capAggression) * 1.6 + 1;
       expect(signing).toBeLessThanOrEqual(ceiling);
     }
@@ -150,41 +150,48 @@ describe('opening league', () => {
     }
   });
 
-  it('can still restructure a front-loaded veteran in the offseason', () => {
+  /** A team whose veterans are all on two-year minimum deals (a bonus on top, if any): nobody above the minimum. */
+  function minimumRoster(bonus: number) {
     const league = createLeague({ seed: 'opening-a' });
-    league.phase = 'resign';
-    // Front-loaded: this year's base is above next real year's, which an escalating market deal never is.
-    const frontLoaded = Object.values(league.players).filter((p) => {
-      const real = p.contract?.years.filter((y) => !y.void) ?? [];
-      return p.teamId !== null && p.contract?.kind === 'veteran' && real.length >= 2 && real[0].base > real[1].base;
-    });
-    expect(frontLoaded.length).toBeGreaterThan(0);
-    for (const vet of frontLoaded) expect(restructurePlayer(league, vet)).toBeGreaterThan(0);
+    const roster = teamPlayers(league, league.teams[0].id);
+    const vets = roster.filter((p) => p.contract!.kind !== 'rookie');
+    for (const p of vets) {
+      const min = minSalary(p.experience, BASE_CAP);
+      const terms = { years: 2, total: 2 * min + bonus, signingBonus: bonus, guaranteedBase: 0, voidYears: 0 };
+      p.contract = buildContract({ ...terms, escalator: 0 }, league.season, 'veteran', min);
+    }
+    return { league, roster, vets, market: leagueMarket(league) };
+  }
+
+  it('fills a roster of minimum-salary veterans to its target, never past a position top', () => {
+    // Nobody above the minimum leaves the first raises nowhere to go, so the fill falls back to every veteran with
+    // room (a team that gave up there opened at 71.7% of the cap). A bonus keeps payroll above the floor: both ways
+    // into the fill, with no 0 / 0.
+    for (const bonus of [0, 6_000]) {
+      const { league, roster, vets, market } = minimumRoster(bonus);
+      fitPayroll(roster, league.season, BASE_CAP * 0.95, market);
+      const payroll = roster.reduce((s, p) => s + capHit(p.contract!, league.season), 0);
+      expect(payroll / BASE_CAP).toBeCloseTo(0.95, 3);
+      for (const p of vets) {
+        for (const y of p.contract!.years) {
+          const hit = capHit(p.contract!, y.season);
+          expect(Number.isFinite(hit)).toBe(true);
+          expect(hit).toBeLessThanOrEqual(TOP_APY_PCT[p.position] * BASE_CAP + 1);
+        }
+      }
+    }
   });
 
-  it('leaves a roster of minimum-salary veterans as it is, with any target', () => {
-    // Bases at the minimum leave nothing to scale or to front-load; a bonus keeps payroll above the floor so
-    // the front-load is reached with an empty pool (no 0 / 0).
-    for (const bonus of [0, 6_000]) {
-      const league = createLeague({ seed: 'opening-a' });
-      const roster = teamPlayers(league, league.teams[0].id);
-      const vets = roster.filter((p) => p.contract!.kind !== 'rookie');
-      for (const p of vets) {
-        const min = minSalary(p.experience, BASE_CAP);
-        const terms = {
-          years: 2,
-          total: 2 * min + bonus,
-          signingBonus: bonus,
-          guaranteedBase: 0,
-          voidYears: 0,
-          escalator: 0,
-        };
-        p.contract = buildContract(terms, league.season, 'veteran', min);
-      }
-      const before = vets.map((p) => p.contract!.years.map((y) => y.base));
-      fitPayroll(roster, league.season, BASE_CAP * 0.95);
-      expect(vets.map((p) => p.contract!.years.map((y) => y.base))).toEqual(before);
-      for (const p of vets) expect(Number.isFinite(capHit(p.contract!, league.season))).toBe(true);
+  it('raises a deal over all its years, and the raised deal still restructures in the offseason', () => {
+    // The fill is a raise over a deal's remaining years, not this year's money alone: a front-load into the first
+    // year left the next one 57-64% committed against a settled league's 73.
+    const { league, roster, vets, market } = minimumRoster(0);
+    fitPayroll(roster, league.season, BASE_CAP * 0.95, market);
+    league.phase = 'resign';
+    for (const p of vets) {
+      const [now, next] = p.contract!.years.filter((y) => !y.void);
+      expect(next.base).toBeGreaterThanOrEqual(now.base);
+      expect(restructurePlayer(league, p)).toBeGreaterThan(0);
     }
   });
 
@@ -198,6 +205,199 @@ describe('opening league', () => {
       if (p.experience === 4) expect(p.contract!.signedSeason).toBe(league.season);
     }
   });
+});
+
+/**
+ * What fifty new leagues (rev-0..rev-49, createLeague only) carry into their first two league years, read once
+ * and shared by the tests below. The targets are a settled league's at kickoff (the 4th to 6th kickoffs of eight
+ * six-season runs of the offseason loop): a new league should already look like one, next year included, or its
+ * front offices spend year two on what generation left out.
+ */
+interface OpeningDeal {
+  kind: string;
+  age: number;
+  experience: number;
+  left: number;
+  hit: number;
+  next: number;
+  apy: number;
+  market: number;
+  round?: number;
+  option?: string;
+}
+interface Opening {
+  leagues: number;
+  /** Per team: share of this year's cap used; of next year's committed, all of it, rookie deals' and the rest's. */
+  used: number[];
+  next: number[];
+  nextRookie: number[];
+  nextVets: number[];
+  deals: OpeningDeal[];
+  cap: number;
+}
+const OPENING_SEEDS = Array.from({ length: 50 }, (_, i) => `rev-${i}`);
+let opening: Opening | undefined;
+function openings(): Opening {
+  if (opening) return opening;
+  const o: Opening = { leagues: 0, used: [], next: [], nextRookie: [], nextVets: [], deals: [], cap: BASE_CAP };
+  for (const seed of OPENING_SEEDS) {
+    const league = createLeague({ seed });
+    const market = leagueMarket(league);
+    const s = league.season;
+    o.leagues++;
+    for (const t of league.teams) {
+      const roster = teamPlayers(league, t.id);
+      const nextCap = capSheet(league, t.id, s + 1).cap;
+      o.used.push(capSheet(league, t.id).used / league.caps[s]);
+      o.next.push(capSheet(league, t.id, s + 1).used / nextCap);
+      const nextOf = (rookie: boolean) =>
+        roster
+          .filter((p) => (p.contract!.kind === 'rookie') === rookie)
+          .reduce((sum, p) => sum + capHit(p.contract!, s + 1), 0) / nextCap;
+      o.nextRookie.push(nextOf(true));
+      o.nextVets.push(nextOf(false));
+      for (const p of roster) {
+        const c = p.contract!;
+        o.deals.push({
+          kind: c.kind,
+          age: p.age,
+          experience: p.experience,
+          left: yearsLeft(c, s),
+          hit: capHit(c, s),
+          next: capHit(c, s + 1),
+          apy: c.apy,
+          market: marketApy(market, p),
+          round: p.draft?.round,
+          option: c.fifthYearOption,
+        });
+      }
+    }
+  }
+  return (opening = o);
+}
+const quantile = (xs: number[], q: number) => {
+  const sorted = [...xs].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+};
+const share = <T>(xs: T[], test: (x: T) => boolean) => xs.filter(test).length / xs.length;
+
+describe('opening league, read across fifty seeds', () => {
+  it('opens every team at 85-100% of the cap', () => {
+    // The weakest rosters set this: a team whose veterans all hit their raise limits once opened at 71.7% of
+    // the cap (rev-22) and kept 54% of it unspent at the next kickoff.
+    const { used } = openings();
+    expect(Math.min(...used)).toBeGreaterThanOrEqual(0.85);
+    expect(Math.max(...used)).toBeLessThanOrEqual(1);
+  }, 60_000);
+
+  it("commits about three-quarters of next year's cap, as a settled league does at kickoff", () => {
+    // Settled: median 73.2% (71.7-75.8 by seed), p10 54.4% (49.6-58.1), p90 88.8%; rookie deals 16.0% of it, the
+    // rest 56.0% (p10 39.6%). A new league that commits ~61% (its rookie deals 7%) leaves its front offices a
+    // year-two market with too little to buy for the room they have. Two numbers sit a little under a settled
+    // league's, by choice. The median (69.7 here): a new league opens at 90-99% of the cap, not a settled one's
+    // 96-99.6, to leave room for the season's deals (aimed at 94-99% it committed 70% and traded 10 times in season,
+    // not 14). The veterans' p10 (36.4): a thin roster's raises stop at twice the market in a deal with years to
+    // run, so the rest of its room is this year's money.
+    const { next, nextRookie, nextVets } = openings();
+    expect(quantile(next, 0.5)).toBeGreaterThanOrEqual(0.68);
+    expect(quantile(next, 0.5)).toBeLessThanOrEqual(0.76);
+    expect(quantile(next, 0.1)).toBeGreaterThanOrEqual(0.5);
+    expect(quantile(next, 0.9)).toBeLessThanOrEqual(0.92);
+    expect(quantile(nextRookie, 0.5)).toBeGreaterThanOrEqual(0.14);
+    expect(quantile(nextRookie, 0.5)).toBeLessThanOrEqual(0.18);
+    expect(quantile(nextVets, 0.5)).toBeGreaterThanOrEqual(0.53);
+    expect(quantile(nextVets, 0.5)).toBeLessThanOrEqual(0.59);
+    expect(quantile(nextVets, 0.1)).toBeGreaterThanOrEqual(0.35);
+  }, 60_000);
+
+  it('keeps about a third of its payroll in last-year deals, as a settled league does', () => {
+    // Settled: 32.1% of payroll (32.7-35.5% later on), 45.6% of veteran deals. Fewer would be the
+    // transient of a league settling (23-29% at its first three kickoffs), not the steady state.
+    const { deals } = openings();
+    const pay = deals.reduce((s, d) => s + d.hit, 0);
+    const lastPay = deals.filter((d) => d.left === 1).reduce((s, d) => s + d.hit, 0) / pay;
+    expect(lastPay).toBeGreaterThanOrEqual(0.29);
+    expect(lastPay).toBeLessThanOrEqual(0.35);
+    const vets = deals.filter((d) => d.kind !== 'rookie');
+    expect(share(vets, (d) => d.left === 1)).toBeGreaterThanOrEqual(0.38);
+    expect(share(vets, (d) => d.left === 1)).toBeLessThanOrEqual(0.48);
+  }, 60_000);
+
+  it('signs each veteran for the years a player his age signs for', () => {
+    // Settled veteran deals by age: years left average 4.4 at 26 and under (just signed his second deal), 2.7 at
+    // 27-29, 1.5 at 30-32 and 1.3 from 33, and next year's charges are 0.77 of this year's. Drawn by talent alone,
+    // a new league's averaged 2.1-2.3 at every age and its front-loads made next year 0.66 of this one.
+    const { deals } = openings();
+    // The deals the market table draws: veterans past their rookie deal whom the market prices above the minimum
+    // (a minimum player a thin roster raised is on a market deal now, for the years he signed at the minimum).
+    const vets = deals.filter(
+      (d) => d.kind === 'veteran' && d.experience >= 4 && d.market > minSalary(d.experience, BASE_CAP),
+    );
+    const bands: [number, number, number][] = [
+      [0, 26, 4.4],
+      [27, 29, 2.7],
+      [30, 32, 1.5],
+      [33, 99, 1.3],
+    ];
+    for (const [lo, hi, mean] of bands) {
+      const band = vets.filter((d) => d.age >= lo && d.age <= hi);
+      const avg = band.reduce((s, d) => s + Math.min(d.left, 5), 0) / band.length;
+      expect(avg, `ages ${lo}-${hi}`).toBeGreaterThanOrEqual(mean - 0.2);
+      expect(avg, `ages ${lo}-${hi}`).toBeLessThanOrEqual(mean + 0.2);
+    }
+    // Minimum deals: the old take a year at a time (75% from 30 here; a settled league's 78% counts a cohort of
+    // OVR 13+ players on one-year minimums that its glutted market leaves, which a new league doesn't copy), and
+    // young depth signs for three to five like an undrafted rookie.
+    const mins = deals.filter((d) => d.kind === 'minimum');
+    expect(
+      share(
+        mins.filter((d) => d.age >= 30),
+        (d) => d.left === 1,
+      ),
+    ).toBeGreaterThanOrEqual(0.7);
+    expect(
+      share(
+        mins.filter((d) => d.age <= 26),
+        (d) => d.left >= 3,
+      ),
+    ).toBeGreaterThanOrEqual(0.25);
+    const all = deals.filter((d) => d.kind !== 'rookie');
+    expect(all.reduce((s, d) => s + d.next, 0) / all.reduce((s, d) => s + d.hit, 0)).toBeGreaterThanOrEqual(0.75);
+  }, 60_000);
+
+  it('pays few veterans past twice their market into next year', () => {
+    // Settled: 5.3 a league over twice the market with next year's charge past 3% of the cap; a raise scaled up to
+    // 2.5x left 10 a league. Pay against the market: a settled league's 90th percentile is 1.53, a new league's
+    // 1.60, as its thin rosters top up their own veterans where a settled league's overpay free agents.
+    const { deals, leagues, cap } = openings();
+    const vets = deals.filter((d) => d.kind !== 'rookie');
+    const rich = vets.filter((d) => d.apy > 2 * d.market && d.next > 0.03 * cap);
+    expect(rich.length / leagues).toBeLessThanOrEqual(6);
+    expect(
+      quantile(
+        vets.map((d) => d.apy / d.market),
+        0.9,
+      ),
+    ).toBeLessThanOrEqual(1.7);
+  }, 60_000);
+
+  it('drafts a full first round in each of the last four drafts and pays it like a settled league', () => {
+    // Settled: 148 first-round rookie deals a league (4 classes of 32 plus 20 on an exercised fifth-year option; a
+    // few more have been extended by then, none in a new league), rookie deals 19.7% of payroll, and undrafted
+    // players on minimum deals. Picks drawn from each player's quality alone
+    // left 34 first-rounders a league, rookie deals 10.9% of payroll and 210 undrafted players on rookie deals.
+    const { deals, leagues } = openings();
+    const rookies = deals.filter((d) => d.kind === 'rookie');
+    const firsts = rookies.filter((d) => d.round === 1).length / leagues;
+    expect(firsts).toBeGreaterThanOrEqual(128);
+    expect(firsts).toBeLessThanOrEqual(155);
+    expect(rookies.filter((d) => d.round === undefined)).toEqual([]);
+    expect(rookies.filter((d) => d.option === 'exercised').length / leagues).toBeGreaterThan(10);
+    const pay = deals.reduce((s, d) => s + d.hit, 0);
+    const rookiePay = rookies.reduce((s, d) => s + d.hit, 0) / pay;
+    expect(rookiePay).toBeGreaterThanOrEqual(0.18);
+    expect(rookiePay).toBeLessThanOrEqual(0.21);
+  }, 60_000);
 });
 
 describe('team cap', () => {
@@ -217,8 +417,12 @@ describe('team cap', () => {
 
   it('only restructures in the offseason', () => {
     const league = createLeague({ seed: 'restructure' });
+    // Paid above the minimum this year: an opening roster over its target has already restructured its biggest deals.
     const vet = Object.values(league.players).find(
-      (p) => p.contract?.kind === 'veteran' && p.contract.years.length >= 3,
+      (p) =>
+        p.contract?.kind === 'veteran' &&
+        p.contract.years.length >= 3 &&
+        p.contract.years[0].base > minSalary(p.experience, BASE_CAP),
     )!;
     expect(restructurePlayer(league, vet)).toBe(0);
     league.phase = 'resign';
