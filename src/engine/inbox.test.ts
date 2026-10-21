@@ -970,6 +970,19 @@ describe('key matchups', () => {
     }
   });
 
+  it("ranks each unit against the league's same unit, so a typical one reads 50th", () => {
+    const league = createLeague({ seed: 'matchups' });
+    const all = league.teams.map((t) => unitReads(league, t.id));
+    for (let g = 0; g < all[0].length; g++) {
+      const scores = all.map((units) => units[g].score).sort((a, b) => a - b);
+      const median = (scores[15] + scores[16]) / 2;
+      expect(median, all[0][g].title).toBeCloseTo(0.5, 1);
+      // The ends of the league (a tie there sits a little inside).
+      expect(scores[0]).toBeLessThan(0.05);
+      expect(scores.at(-1)).toBeGreaterThan(0.95);
+    }
+  });
+
   it('still reads a unit with nobody in it', () => {
     const league = createLeague({ seed: 'matchups' });
     const opp = league.userTeamId === 1 ? 2 : 1;

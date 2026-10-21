@@ -256,16 +256,17 @@ describe('the opposition report', () => {
     expect(html.slice(html.indexOf('Key matchups')).match(/class="avatar"/g)?.length).toBeGreaterThanOrEqual(12);
   });
 
-  it('says plainly that its numbers are league percentiles', () => {
+  it('says plainly what its numbers mean', () => {
     const league = createLeague({ seed: 'inbox' });
     deliverMail(league);
     const report = league.inbox!.find((m) => m.category === 'matchup')!;
     const html = renderToStaticMarkup(<MailCards league={league} message={report} />);
-    expect(html).toMatch(/league percentile/i);
+    expect(html).toMatch(/where the unit ranks in the league/);
+    expect(html).toMatch(/50th is average/);
     // Every score reads as a rank ("74th"), with what it means on hover.
     const scores = [...html.matchAll(/class="num mail-matchup-score"[^>]*>([^<]+)</g)].map((m) => m[1]);
     expect(scores).toHaveLength(12);
     for (const s of scores) expect(s).toMatch(/^\d+(st|nd|rd|th)$/);
-    expect(html).toMatch(/title="Better than about \d+% of the league"/);
+    expect(html).toMatch(/title="Better than about \d+% of the league(&#x27;|')s units"/);
   });
 });

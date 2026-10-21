@@ -480,8 +480,9 @@ function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
   return (
     <Card title="Key matchups">
       <p className="muted small" style={{ margin: '-4px 0 8px' }}>
-        Each number is a league percentile from our scouts' read of the starters: 74th means better than about 74% of
-        the league at those spots, 100th the best. Each face is the unit's best player.
+        Each number is where the unit ranks in the league, by our scouts' read of every team's starters: 74th means
+        better than about 74% of the league's units at those spots, 50th is average. Each face is the unit's best
+        player.
       </p>
       <MatchupGroup league={league} title="Our offense vs their defense" rows={attack} offense={us} defense={opp} />
       <MatchupGroup league={league} title="Their offense vs our defense" rows={defend} offense={opp} defense={us} />
@@ -556,7 +557,10 @@ function MatchupSide({
           <span className="muted">Nobody</span>
         )}
       </span>
-      <span className="num mail-matchup-score" title={p ? `Better than about ${pct}% of the league` : undefined}>
+      <span
+        className="num mail-matchup-score"
+        title={p ? `Better than about ${pct}% of the league's units` : undefined}
+      >
         {p ? ordinal(pct) : '–'}
       </span>
     </span>
