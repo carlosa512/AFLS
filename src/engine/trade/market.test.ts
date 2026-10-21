@@ -7,6 +7,7 @@ import { rosterLimit } from '../offseason/negotiation';
 import { activeRoster } from '../roster';
 import type { League } from '../types';
 import type { TradeProposal } from './rules';
+import { dealFor, priceable } from './deals';
 import {
   heldPick,
   judge,
@@ -112,6 +113,19 @@ describe('team plans', () => {
 });
 
 describe('the AI market', () => {
+  it('can price nobody worth nothing to his own team, so a call spends no try on him', () => {
+    const l = fresh();
+    for (let w = 0; w < 4; w++) playWeek(l);
+    const ctx = tradeContext(l);
+    const dead = Object.values(l.players).filter(
+      (p) => p.teamId !== null && p.teamId !== l.userTeamId && !priceable(ctx, p),
+    );
+    expect(dead.length).toBeGreaterThan(0);
+    const buyers = l.teams.filter((t) => t.id !== l.userTeamId);
+    for (const p of dead.slice(0, 15))
+      for (const b of buyers.filter((t) => t.id !== p.teamId).slice(0, 3)) expect(dealFor(ctx, b, p)).toBeNull();
+  });
+
   it('leaves every team legal on the cap and the roster, and never touches the user', () => {
     const l = fresh();
     const made = marketMoment(l, 'deadline');

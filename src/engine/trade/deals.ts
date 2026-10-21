@@ -190,6 +190,13 @@ export function quickValue(ctx: TradeContext, valuer: Team, side: TradeSide): nu
  * than the buyer could pay: a desperate buyer's need is his own business, competition is what raises
  * a price. The buyer sends whichever of picks or a player costs him less in his own eyes.
  */
+/**
+ * Whether `dealFor` can price `p` at all: a buyer offers at most a multiple of what he's worth to his
+ * own team, so one worth nothing there can't be bought for anything (a bad contract goes as a dump).
+ */
+export const priceable = (ctx: TradeContext, p: Player) =>
+  p.teamId !== null && marketValue(ctx, ctx.league.teams[p.teamId], p) > 0;
+
 export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | null {
   const { league } = ctx;
   const seller = league.teams[target.teamId!];

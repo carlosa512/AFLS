@@ -21,7 +21,7 @@ import { clamp, Rng } from '../rng';
 import { activeRoster } from '../roster';
 import type { League, Physical, Player, Rumor, Team, TradeMarket, TradeRecord } from '../types';
 import { ovrOf, refreshAfterTrade, tradeContext, type TradeContext } from './context';
-import { dealFor, dumpFor, lateSale, pickSwapFor, type Deal } from './deals';
+import { dealFor, dumpFor, lateSale, pickSwapFor, priceable, type Deal } from './deals';
 import { emptyMarket, executeTrade } from './execute';
 import { judge } from './judge';
 import { offersMoment, yourListings } from './offers';
@@ -104,8 +104,9 @@ function initiate(
   if (isBuyer(team)) {
     // In an ordinary week a team asks around before it deals; at the deadline and in the offseason it moves at once.
     const threshold = moment === 'week' ? 2 : 1;
+    // A call tries three players, so none of them is one nobody can price.
     const targets = wanted(ctx, team, listings, { memo: true }).filter(
-      (w) => open(w.team) && interestIn(market, team.id, w.player.id) >= threshold,
+      (w) => open(w.team) && interestIn(market, team.id, w.player.id) >= threshold && priceable(ctx, w.player),
     );
     for (const t of targets.slice(0, 3)) {
       const deal = dealFor(ctx, team, t.player);
@@ -113,7 +114,9 @@ function initiate(
     }
   } else {
     // A seller calls the teams that would want each of his players: buyers, and retoolers for a young one.
-    for (const entry of tradeBlock(ctx, team).slice(0, 3)) {
+    for (const entry of tradeBlock(ctx, team)
+      .filter((e) => priceable(ctx, league.players[e.playerId]))
+      .slice(0, 3)) {
       const player = league.players[entry.playerId];
       const buyers = ai
         .filter((b) => isBuyer(b) || (stanceOf(b) === 'retool' && player.age <= 25))
