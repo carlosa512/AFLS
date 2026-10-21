@@ -298,9 +298,11 @@ function runProbes(base: League) {
   const picksOf = (l: League, teamId: number, round?: number) =>
     l.draftPicks.filter((p) => p.ownerId === teamId && p.playerId === undefined && (!round || p.round === round));
   const accepts = (l: League, proposal: TradeProposal) => evaluateTrade(l, proposal).accepts;
-  // Room on both rosters, so only value and policy are in play.
+  // Room on both rosters and under your cap, so only value and policy are in play: a trade your cap forbids is a league
+  // rule, refused before the GM hears it, and an opening league paid like a settled one leaves you little room.
   const room = (l: League) => {
     for (const id of [USER, ai]) for (const p of best(l, id).slice(-3)) p.teamId = null;
+    l.teams[USER].carryover = l.caps[l.season];
   };
 
   {
