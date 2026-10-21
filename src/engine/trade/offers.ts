@@ -33,7 +33,7 @@ import {
   TAGS,
 } from './deals';
 import { emptyMarket, executeTrade } from './execute';
-import { evaluateTrade, judge, marginFor, suggestSweetener } from './judge';
+import { evaluateTrade, floorShare, judge, marginFor, suggestSweetener } from './judge';
 import { teamNeeds, tradeBlock, untouchables, wanted, type BlockEntry } from './plans';
 import {
   freshlySigned,
@@ -101,7 +101,8 @@ export function yourListings(ctx: TradeContext): Listing[] {
 /**
  * What an AI buyer opens with for one of your players: about what the league would pay on his own
  * read, 5% less once you've put him on the block (he knows you want to sell), more when other teams
- * are asking, never more than he'd pay. Picks first; a player of his only when no pick package works.
+ * are asking, never more than he'd pay; when no package reaches that, the best he would pay under it,
+ * down to what a seller holds out for. Picks first; a player of his only when no pick package works.
  * Sides: [his, yours].
  */
 export function bidFor(ctx: TradeContext, buyer: Team, target: Player): TradeProposal | null {
@@ -119,11 +120,27 @@ export function bidFor(ctx: TradeContext, buyer: Team, target: Player): TradePro
   const listed = league.market?.status[target.id] === 'listed';
   const price = Math.min(most, worth * (1 + Math.min(MAX_PREMIUM, PER_BIDDER * bidders)) * (listed ? 0.95 : 1));
   const ceiling = maxOver(buyer.gm) * worth;
-  const ranked = packages(ctx, buyer, user)
+  // How low a bid under his price may go: what an AI seller would hold out for from you, 5% less once he's on the block.
+  const floor = floorShare(league, user, target, true) * worth * (listed ? 0.95 : 1);
+  const valued = packages(ctx, buyer, user)
     .map((side) => ({ side, value: quickValue(ctx, buyer, side) }))
-    .filter((x) => x.value >= price && x.value <= ceiling)
-    .sort((a, b) => Number(a.side.players.length > 0) - Number(b.side.players.length > 0) || a.value - b.value)
-    .slice(0, 8);
+    .filter((x) => x.value <= ceiling);
+  const picksFirst = (a: { side: TradeSide }, b: { side: TradeSide }) =>
+    Number(a.side.players.length > 0) - Number(b.side.players.length > 0);
+  // The cheapest package at his price first; then the best he'd pay under it, down to the floor. Packages are read at
+  // the going rate and `judge` prices them on his own chart, where a patient GM's picks, firsts in back-to-back
+  // drafts and each first past his second cost more; and other bidders push his price up to his own most. So a
+  // shopped star's price in firsts can be past every package he'd sign off on: he offers what he can, not nothing.
+  const ranked = [
+    ...valued
+      .filter((x) => x.value >= price)
+      .sort((a, b) => picksFirst(a, b) || a.value - b.value)
+      .slice(0, 8),
+    ...valued
+      .filter((x) => x.value < price && x.value >= floor)
+      .sort((a, b) => picksFirst(a, b) || b.value - a.value)
+      .slice(0, 8),
+  ];
   for (const { side } of ranked) {
     const proposal: TradeProposal = { sides: [side, yours] };
     if (judge(ctx, buyer.id, proposal, { rosterCuts: true }).accepts) return proposal;
