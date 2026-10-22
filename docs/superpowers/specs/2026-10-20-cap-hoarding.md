@@ -99,3 +99,39 @@ Decision: neither Task 6a nor 6b; reported to the project owner before writing a
   and veteran players, or price the deadline in a settled season. Deciding fifth-year options at generation (they are all
   declined today, though the league opens after the May decision) is NFL-right but moves this price only +7 to +12 and
   adds a 3-league red (preseason star 992, n=3), so it waits for its own change.
+
+## Parked (2026-10-22): the settled opening league, year two included
+
+`claude/settled-opening-league` holds the work past PR #70, rebuilt on main after #70 merged. The first parked head
+is kept as `claude/settled-opening-league-v1` (8ffe114).
+
+On this branch:
+- Year two committed at generation, re-signs and the rookie reserve charged at their first-year cap hits, drafts by
+  board with deals on the position's clock (D1-D6), cheaper trade verdicts, the fill reserve at a veteran's minimum,
+  and one kicker and one punter per AI roster (NFL 2019-2025: 0 of 224 teams opened with two of either).
+- New: the re-sign window keeps room for void years about to land. The cap sheet charges only this year's slice of a
+  running-out deal's void-year proration; the rest lands when free agency opens (BUF on 'offseason-tests': $8.0M,
+  opening free agency $0.5M under its plan). `spendable` holds it back in the re-sign window.
+- Left out on purpose: the retained-salary floor change (7419028's `judge` half, the buy-and-flip exploit; its
+  `dealFor` half is on main), its softened retain test (93e07fe), and the draft-records trim (63f56d6; the save fits
+  now and `PlayerCard.tsx` shows the records).
+
+Measured on 2026-10-22 (CI's sizes):
+- `npm run offseason -- 6`: 0 outside range; the short-roster warning is gone. Median kickoff space 3.7, 3.9, 3.5% over
+  the last three (main 3.1, 2.7, 2.4), dead money median $3.6-8.7M (main $4.7-10.4M).
+- `npm run trades`: 2 outside. In-season trades 13.8 a season (16.3, 12.3, 12.7; main 17.8) and deals voided or
+  through with concerns 5.0 a season (band 1-4; main 3.0).
+- Bisected over the commits: in-season trades read 15.4 after year two is committed (dumps 4.6, over the band, and one
+  exploit probe worked), 15.3 after first-year cap hits (dumps 4.1), and 13.0 after the draft-board commit (years two
+  and three at 11.0). Its D6 puts a new league's leftover cap on deals that run into next year: 77.6% of next year's
+  cap committed at the median against a settled league's 72-76%, and finance.test's bounds were moved to fit (next
+  year's median <= 0.80 from 0.76, last-year deals' payroll share >= 0.21 from 0.29). Less room next year, fewer buyers.
+- The physicals number moved after the draft-board commit (3.2 there, 5.0 at the head); not yet bisected.
+
+Ways forward (the owner parked it here):
+- Tune D6 toward a settled league: part of the room back on last-year deals, about 74% of next year committed, without
+  bringing back year-two hoarding (31.7% unspent when last-year deals took the raises), and restore the test bounds.
+- Or make the trade market work under NFL-level commitments: sellers paid in full for salary they keep, with a
+  buy-and-flip probe in `scripts/trades.ts` that fails today's exploit.
+- Then: the careers check (K/P starters aged 38+ read 8.0 against 8 before; NFL about 2.6 of 64 a season) and the
+  offseason audit's baseline comments.
