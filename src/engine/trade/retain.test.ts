@@ -72,7 +72,10 @@ describe('retained salary', () => {
   it('costs the seller and helps the buyer in their own eyes', () => {
     const l = fresh();
     const ctx = tradeContext(l);
-    const p = activeRoster(l, 9).sort((a, b) => playerOvr(b) - playerOvr(a))[3];
+    // A starter with salary left to keep: a deal restructured down to the minimum base has none.
+    const p = activeRoster(l, 9)
+      .filter((x) => maxRetain(l, x) >= 2000)
+      .sort((a, b) => playerOvr(b) - playerOvr(a))[3];
     const pick = l.draftPicks.find((x) => x.ownerId === 4 && x.playerId === undefined)!;
     const plain: TradeProposal = {
       sides: [

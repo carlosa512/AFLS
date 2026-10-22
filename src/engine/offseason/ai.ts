@@ -15,7 +15,7 @@ import {
   restructureOptions,
   restructurePlayer,
 } from '../finance/cap';
-import { capHit, isExpired, lastSeason, remainingProration, yearOf } from '../finance/contract';
+import { capHit, futureProration, isExpired, lastSeason, remainingProration, yearOf } from '../finance/contract';
 import {
   fifthYearOptionValue,
   franchiseTagValue,
@@ -107,12 +107,25 @@ function openSpots(league: League, teamId: number): number {
 const fillReserve = (league: League, teamId: number) =>
   openSpots(league, teamId) * topMinimum(league.caps[league.season]);
 
+/**
+ * Void-year money the deals running out still owe past this league year's slice. In the re-sign window the cap sheet
+ * charges only the slice; the rest lands at once as dead money when free agency opens (`accelerateProration`), after
+ * the window has spent the room: a team that let two such deals walk was $8M short of what it planned to keep.
+ */
+const voidReserve = (league: League, teamId: number) =>
+  league.phase !== 'resign'
+    ? 0
+    : teamPlayers(league, teamId)
+        .filter((p) => p.contract && isExpired(p.contract, league.season))
+        .reduce((sum, p) => sum + futureProration(p.contract!, league.season), 0);
+
 /** What an AI team can spend right now without starving the draft class or the bottom of the roster. */
 export const spendable = (league: League, teamId: number) =>
   capSpace(league, teamId) -
   rookieReserve(league, teamId) -
   fillReserve(league, teamId) -
-  inSeasonReserve(league, teamId);
+  inSeasonReserve(league, teamId) -
+  voidReserve(league, teamId);
 
 /**
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
