@@ -4,6 +4,8 @@
  */
 import type { OfficeTab } from './screens/FrontOffice';
 import type { StatsTab } from './screens/Stats';
+import type { Position } from '../engine/types';
+import { POSITIONS } from '../engine/types';
 
 export type Route =
   | { view: 'home' }
@@ -11,7 +13,8 @@ export type Route =
   | { view: 'cap'; teamId?: number }
   // `focus` is a click's nonce, never in the address bar: sent to the same message again, the inbox still reopens it.
   | { view: 'inbox'; messageId?: string; focus?: number }
-  | { view: 'office'; tab?: OfficeTab }
+  // `pos` opens the free-agents tab filtered to a position (a short position's mail links there).
+  | { view: 'office'; tab?: OfficeTab; pos?: Position }
   | { view: 'schedule' }
   | { view: 'standings' }
   | { view: 'stats'; tab?: StatsTab }
@@ -33,6 +36,7 @@ export function routeToHash(route: Route): string {
     case 'cap':
       return route.teamId === undefined ? `#/${route.view}` : `#/${route.view}/${route.teamId}`;
     case 'office':
+      return route.tab ? `#/office/${route.tab}${route.pos ? `/${route.pos}` : ''}` : '#/office';
     case 'stats':
       return route.tab ? `#/${route.view}/${route.tab}` : `#/${route.view}`;
     case 'inbox':
@@ -50,7 +54,7 @@ const id = (s: string | undefined) => (s !== undefined && /^\d+$/.test(s) ? Numb
 
 /** The route a hash names, or null for anything unrecognised. A game opened from a link goes back to the schedule. */
 export function hashToRoute(hash: string): Route | null {
-  const [view, arg] = hash.replace(/^#\/?/, '').split('/');
+  const [view, arg, more] = hash.replace(/^#\/?/, '').split('/');
   if (!view) return { view: 'home' };
   if ((PLAIN as readonly string[]).includes(view)) return { view } as Route;
   if (view === 'inbox') {
@@ -67,7 +71,9 @@ export function hashToRoute(hash: string): Route | null {
     return arg === undefined
       ? { view }
       : (OFFICE_TABS as readonly string[]).includes(arg)
-        ? { view, tab: arg as OfficeTab }
+        ? (POSITIONS as readonly string[]).includes(more ?? '')
+          ? { view, tab: arg as OfficeTab, pos: more as Position }
+          : { view, tab: arg as OfficeTab }
         : null;
   if (view === 'stats')
     return arg === undefined

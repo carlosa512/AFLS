@@ -394,7 +394,7 @@ export function App() {
         {route.view === 'inbox' && (
           <Inbox key={`${route.messageId ?? ''}:${route.focus ?? ''}`} league={league} messageId={route.messageId} />
         )}
-        {route.view === 'office' && <FrontOffice league={league} tab={route.tab} />}
+        {route.view === 'office' && <FrontOffice league={league} tab={route.tab} pos={route.pos} />}
         {route.view === 'schedule' && <Schedule league={league} />}
         {route.view === 'standings' && <Standings league={league} />}
         {route.view === 'stats' && <Stats league={league} tab={route.tab} />}

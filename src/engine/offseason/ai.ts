@@ -71,7 +71,7 @@ export const KEEP_MIN: Record<Position, number> = {
  * average (median 2.3%) after a season of using it. A cap-aggressive GM keeps less of it, a careful one more.
  */
 export const IN_SEASON_RESERVE = 0.03;
-const reserve = (league: League, teamId: number) =>
+export const inSeasonReserve = (league: League, teamId: number) =>
   league.caps[league.season] * IN_SEASON_RESERVE * (1.5 - league.teams[teamId].gm.capAggression);
 
 /** Room to keep for minimum deals that bring the roster to 53 once the draft class is in. */
@@ -85,7 +85,10 @@ function fillReserve(league: League, teamId: number): number {
 
 /** What an AI team can spend right now without starving the draft class or the bottom of the roster. */
 const spendable = (league: League, teamId: number) =>
-  capSpace(league, teamId) - rookieReserve(league, teamId) - fillReserve(league, teamId) - reserve(league, teamId);
+  capSpace(league, teamId) -
+  rookieReserve(league, teamId) -
+  fillReserve(league, teamId) -
+  inSeasonReserve(league, teamId);
 
 /**
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
@@ -499,13 +502,16 @@ export function cutChoice(
   return out;
 }
 
-/** A replacement-level "street" free agent, for when the pool at a position has run dry. */
-function streetFreeAgent(league: League, position: Position, rng: Rng): Player {
+/**
+ * A replacement-level "street" free agent, for when the pool at a position has run dry: no older than
+ * `maxAge`, so his minimum (it rises with his years) fits the room he's signed into.
+ */
+function streetFreeAgent(league: League, position: Position, rng: Rng, maxAge = 30): Player {
   const p = generatePlayer(rng, {
     id: league.nextPlayerId++,
     position,
     quality: clamp(rng.normal(7.5, 1.2), 4, 10),
-    age: rng.int(24, 30),
+    age: rng.int(Math.min(24, maxAge), maxAge),
     teamId: null,
     jerseysUsed: new Set(),
   });
@@ -513,6 +519,24 @@ function streetFreeAgent(league: League, position: Position, rng: Rng): Player {
   league.players[p.id] = p;
   return p;
 }
+
+/** A one-year minimum deal for `player`. */
+const minimumOffer = (league: League, player: Player): Offer => ({
+  years: 1,
+  apy: minSalary(player.experience, league.caps[league.season]),
+  bonusPct: 0,
+  gtdPct: 0,
+  voidYears: 0,
+});
+
+/**
+ * Whether `player` would sign a one-year minimum with `teamId` today: only when the least he'll take is the
+ * minimum. A player the market still values above it waits for a real deal (a star unsigned in free agency
+ * doesn't come cheap in camp). The floor itself is the test, not `offerValue`: its knocks for a short,
+ * unguaranteed deal would have a minimum-salary veteran turn down the only deal there is.
+ */
+const takesMinimum = (league: League, player: Player, teamId: number): boolean =>
+  demand(league, player, teamId).walkAway <= minimumOffer(league, player).apy;
 
 /**
  * Whether `signMinimum` at `position` can sign someone within `budget`: a healthy free agent whose minimum
@@ -527,22 +551,67 @@ export function minimumFits(league: League, position: Position, budget: number):
 }
 
 /**
- * Sign the best available healthy free agent at `position` (any position if undefined) to a one-year
+ * The free agent a team would sign for a hole at `position`, and his price: one year at what he'll take now (his
+ * walk-away, which comes down as the season goes on), the best by this front office's read whose price fits
+ * `budget` ($K, full-season terms). None if nobody fits.
+ */
+export function needSigning(
+  league: League,
+  team: Team,
+  position: Position,
+  budget: number,
+): { player: Player; offer: Offer } | undefined {
+  const best = freeAgents(league)
+    .filter((p) => p.position === position && !p.injury)
+    .map((p) => {
+      const d = demand(league, p, team.id);
+      // What an offer is worth to him is linear in its APY: price the deal that just meets his walk-away.
+      const perDollar = offerValue(league, p, team.id, { ...minimumOffer(league, p), apy: 1 }, d);
+      // Never under the league minimum, however much he'd like to play for this team.
+      const floor = minimumOffer(league, p);
+      const offer = { ...floor, apy: Math.max(floor.apy, Math.ceil(d.walkAway / perDollar)) };
+      return { player: p, offer, ovr: perceive(league, team.id, p).ovr + quirkWorth(league, team.id, p) };
+    })
+    .filter((x) => x.offer.apy <= budget)
+    .sort((a, b) => b.ovr - a.ovr)[0];
+  return best && { player: best.player, offer: best.offer };
+}
+
+/** The position where `team` has the fewest players over what it keeps through cutdowns. */
+function thinnest(league: League, team: Team): Position {
+  const roster = activeRoster(league, team.id);
+  return POSITIONS.map((pos) => ({ pos, gap: roster.filter((p) => p.position === pos).length - KEEP_MIN[pos] })).sort(
+    (a, b) => a.gap - b.gap,
+  )[0].pos;
+}
+
+/**
+ * Sign the best available healthy free agent at `position` (any position if undefined) who'll take a one-year
  * minimum deal. `budget` ($K) skips anyone whose minimum (it rises with experience) wouldn't fit.
  */
 export function signMinimum(league: League, team: Team, rng: Rng, position?: Position, budget = Infinity): boolean {
   const cap = league.caps[league.season];
   // The best available as this front office sees him.
   let pick = freeAgents(league)
-    .filter((p) => (!position || p.position === position) && !p.injury && minSalary(p.experience, cap) <= budget)
+    .filter(
+      (p) =>
+        (!position || p.position === position) &&
+        !p.injury &&
+        minSalary(p.experience, cap) <= budget &&
+        takesMinimum(league, p, team.id),
+    )
     .map((p) => ({ p, ovr: perceive(league, team.id, p).ovr + quirkWorth(league, team.id, p) }))
     .sort((a, b) => b.ovr - a.ovr)[0]?.p;
-  if (!pick && position) pick = streetFreeAgent(league, position, rng);
-  if (!pick) return false;
-  const min = minSalary(pick.experience, cap);
-  // A street free agent's minimum can run past the room left: he stays on the market.
-  if (min > budget) return false;
-  signPlayer(league, pick, team.id, { years: 1, apy: min, bonusPct: 0, gtdPct: 0, voidYears: 0 }, 'minimum');
+  if (!pick) {
+    // Nobody left who'll take the minimum: a street free agent will, wherever the roster is thinnest, as long as
+    // one young enough for the room exists (a player has at most his age less 22 years in the league, so room
+    // for any free agent's minimum, as `minimumFits` reads it, is room for a 22-year-old's).
+    let maxAge = 30;
+    while (maxAge >= 22 && minSalary(maxAge - 22, cap) > budget) maxAge--;
+    if (maxAge < 22) return false;
+    pick = streetFreeAgent(league, position ?? thinnest(league, team), rng, maxAge);
+  }
+  signPlayer(league, pick, team.id, minimumOffer(league, pick), 'minimum');
   return true;
 }
 

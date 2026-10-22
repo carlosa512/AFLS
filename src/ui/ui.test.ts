@@ -26,6 +26,7 @@ describe('routes', () => {
       { view: 'inbox', messageId: 'trades:2026:regular:5:BUF traded QB A. Smith to LV for 2027 R1/R2' },
       { view: 'office' },
       { view: 'office', tab: 'draft' },
+      { view: 'office', tab: 'fa', pos: 'S' },
       { view: 'stats' },
       { view: 'stats', tab: 'records' },
       { view: 'stats', tab: 'teams' },

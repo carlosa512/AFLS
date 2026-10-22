@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { capSpace } from '../finance/cap';
 import { capHit, isExpired } from '../finance/contract';
-import { minSalary, rookieApy } from '../finance/market';
+import { leagueMarket, marketApy, minSalary, rookieApy } from '../finance/market';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
-import { STARTERS } from '../positions';
+import { playerOvr, STARTERS } from '../positions';
 import { activeRoster, teamPlayers } from '../roster';
 import type { League } from '../types';
 import { POSITIONS } from '../types';
 import { advanceOffseason, beginOffseason, draftNextPick, FA_DAYS, offseasonBlockers, simOffseason } from '.';
-import { applyFranchiseTag, expiringPlayers, IN_SEASON_RESERVE, tagBlocker } from './ai';
+import { applyFranchiseTag, expiringPlayers, IN_SEASON_RESERVE, signMinimum, tagBlocker } from './ai';
 import { availableProspects, draftOrder, draftPlayer, nextPick, simDraft } from './draft';
 import { askOffer, demand, freeAgents, makeOffer } from './negotiation';
 import { Rng } from '../rng';
@@ -183,5 +183,47 @@ describe('draft', () => {
     const roster = teamPlayers(league, league.userTeamId);
     if (roster.length > 53) expect(offseasonBlockers(league).join(' ')).toMatch(/Cut down to 53/);
     else expect(offseasonBlockers(league).filter((b) => /Cut down/.test(b))).toEqual([]);
+  });
+});
+
+describe('camp signings', () => {
+  /** Walk to the preseason and put a team's best player on the market, the way an unsigned star sits there. */
+  const unsignedStar = () => {
+    const league = fresh();
+    beginOffseason(league);
+    while (league.phase !== 'preseason') advanceOffseason(league);
+    const star = teamPlayers(league, 5).sort((a, b) => playerOvr(b) - playerOvr(a))[0];
+    star.teamId = null;
+    star.contract = null;
+    return { league, star };
+  };
+
+  it("doesn't sign a player at the minimum he wouldn't take", () => {
+    const { league, star } = unsignedStar();
+    const team = league.teams.find((t) => t.id !== 5 && t.id !== league.userTeamId)!;
+    expect(demand(league, star, team.id).walkAway).toBeGreaterThan(
+      minSalary(star.experience, league.caps[league.season]),
+    );
+    signMinimum(league, team, new Rng('camp'), star.position);
+    expect(star.teamId).toBeNull();
+  });
+
+  it('camp signs no one at the minimum the market values well above it', () => {
+    const { league, star } = unsignedStar();
+    // Camp can still make a street free agent when the pool runs dry: he's new, and takes what's offered.
+    const before = league.nextPlayerId;
+    advanceOffseason(league);
+    expect(league.phase).toBe('regular');
+    const market = leagueMarket(league);
+    const cheap = Object.values(league.players).filter(
+      (p) =>
+        p.teamId !== null &&
+        p.id < before &&
+        p.contract?.kind === 'minimum' &&
+        p.contract.signedSeason === league.season &&
+        marketApy(market, p) > p.contract.apy * 3,
+    );
+    expect(cheap.map((p) => `${p.position} ${p.firstName} ${p.lastName}`)).toEqual([]);
+    expect(star.teamId).toBeNull();
   });
 });

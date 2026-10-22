@@ -307,8 +307,17 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
 
 type FaSort = 'name' | 'pos' | 'age' | 'ovr' | 'fit' | 'market' | 'ask';
 
-function FreeAgents({ league, negotiate }: { league: League; negotiate: (p: Player) => void }) {
-  const [pos, setPos] = useState<Position | 'ALL'>('ALL');
+function FreeAgents({
+  league,
+  start,
+  negotiate,
+}: {
+  league: League;
+  /** The position a link opened the tab on. */
+  start?: Position;
+  negotiate: (p: Player) => void;
+}) {
+  const [pos, setPos] = useState<Position | 'ALL'>(start ?? 'ALL');
   const [sort, onSort] = useSort<FaSort>({ key: 'market', desc: true });
   const teamId = league.userTeamId;
   const depth = positionDepth(league, teamId);
@@ -982,7 +991,7 @@ function BoardHabits({ league, player }: { league: League; player: Player }) {
   return <QuirkPills notes={h.notes} limit={1} oneLine />;
 }
 
-export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }) {
+export function FrontOffice({ league, tab, pos }: { league: League; tab?: OfficeTab; pos?: Position }) {
   const nav = useNav();
   const active = tab ?? defaultOfficeTab(league);
   const [talking, setTalking] = useState<number | null>(null);
@@ -1073,7 +1082,10 @@ export function FrontOffice({ league, tab }: { league: League; tab?: OfficeTab }
         </div>
       )}
       {active === 'resign' && <Resign league={league} negotiate={(p) => setTalking(p.id)} />}
-      {active === 'fa' && <FreeAgents league={league} negotiate={(p) => setTalking(p.id)} />}
+      {active === 'fa' && (
+        // Keyed by the position a link asked for, so following another link resets the filter.
+        <FreeAgents key={pos ?? 'ALL'} league={league} start={pos} negotiate={(p) => setTalking(p.id)} />
+      )}
       {active === 'draft' && <Draft league={league} />}
       {active === 'trades' && <Trades league={league} />}
       {active === 'coaches' && <CoachesScreen league={league} />}

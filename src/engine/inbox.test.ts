@@ -1,8 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { seasonAwards } from './awards';
 import { coachTitle, isCoachExpiring, teamCoaches } from './coaching';
-import { logTransaction } from './finance/cap';
-import { createLeague } from './generate';
+import { logTransaction, releasePlayer } from './finance/cap';
+import { createLeague, generatePlayer } from './generate';
+import { applyInjury, IR_MIN_WEEKS, manageInjuries, NEED, placeOnIr } from './injuries';
+import { signPlayer } from './offseason/negotiation';
+import { Rng } from './rng';
 import {
   aPosition,
   archiveMail,
@@ -43,7 +46,7 @@ import { playerOvr } from './positions';
 import { answerEnquiry, counterOffer, openOffers, TRADE_DEADLINE_WEEK } from './trade';
 import type { TradeProposal } from './trade/rules';
 import { changePosition, passMove, setCoachesDecide, startMove, suggestMove } from './training';
-import type { GameResult, League, MoveReason, Position, TeamGameStats, TradeOffer } from './types';
+import type { GameResult, League, MoveReason, Player, Position, Ratings, TeamGameStats, TradeOffer } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
@@ -992,5 +995,98 @@ describe('key matchups', () => {
     expect(attack).toHaveLength(3);
     expect(attack[0].defense.lead).toBeUndefined();
     expect(attack[0].defense.score).toBe(0);
+  });
+});
+
+describe('short positions in the inbox', () => {
+  const base = createLeague({ seed: 'inbox-cover' });
+  const fresh = () => copy(base);
+  const hurtFor = (l: League, p: Player, weeks: number) =>
+    applyInjury(l, p, {
+      type: 'hamstring',
+      severity: 'moderate',
+      weeksRemaining: weeks,
+      estimate: [weeks, weeks],
+      season: l.season,
+      week: l.week,
+      where: 'game',
+    });
+  /** All but `NEED.S - 1` of your safeties hurt: the position is short. */
+  const shortAtSafety = (l: League) =>
+    teamPlayers(l, l.userTeamId)
+      .filter((p) => p.position === 'S')
+      .slice(NEED.S - 1)
+      .forEach((p) => hurtFor(l, p, 2));
+  const rate = (p: Player, r: number) => {
+    for (const k of Object.keys(p.ratings)) p.ratings[k as keyof Ratings] = r;
+  };
+  const byKind = (l: League, kind: string) => l.inbox!.filter((m) => mailSubject(m)?.kind === kind);
+
+  it('names the player staff lined up at a short position', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const spare = l.players[team.depthChart.LB.at(-1)!];
+    rate(spare, 13);
+    shortAtSafety(l);
+    manageInjuries(l, team, new Rng('cover'));
+    deliverMail(l);
+    const [m] = byKind(l, 'covering');
+    expect(mailSubject(m)).toMatchObject({ kind: 'covering', playerId: spare.id, pos: 'S' });
+    expect(m.from).toContain('Head coach');
+    expect(m.actions).toContainEqual({ kind: 'player', playerId: spare.id });
+    expect(needsYou(l, m)).toBe(false);
+    expect(byKind(l, 'shortHanded')).toHaveLength(0);
+    // Delivered again, and a week later with the cover still on: once.
+    deliverMail(l);
+    l.week++;
+    deliverMail(l);
+    expect(byKind(l, 'covering')).toHaveLength(1);
+  });
+
+  it('says a position is short when nobody can cover, and links to free agency there', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    for (const p of teamPlayers(l, team.id)) if (p.position !== 'S') rate(p, 1);
+    shortAtSafety(l);
+    manageInjuries(l, team, new Rng('cover'));
+    deliverMail(l);
+    const [m] = byKind(l, 'shortHanded');
+    expect(mailSubject(m)).toMatchObject({ kind: 'shortHanded', pos: 'S' });
+    expect(m.actions).toContainEqual({ kind: 'fa', pos: 'S' });
+    expect(needsYou(l, m)).toBe(true);
+    // Still short a week later: the same message stands, no second one.
+    l.week++;
+    deliverMail(l);
+    expect(byKind(l, 'shortHanded')).toHaveLength(1);
+    for (const p of teamPlayers(l, team.id)) if (p.position === 'S') delete p.injury;
+    expect(needsYou(l, m)).toBe(false);
+  });
+
+  it('a healed player waiting on IR for a spot needs you, with the staff handling injuries', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const p = teamPlayers(l, team.id).find((x) => x.position === 'LB')!;
+    hurtFor(l, p, 5);
+    deliverMail(l);
+    placeOnIr(l, p);
+    delete p.injury;
+    p.ir!.weeks = IR_MIN_WEEKS;
+    const fa = generatePlayer(new Rng('inbox-fa'), {
+      id: l.nextPlayerId++,
+      position: 'WR',
+      quality: 9,
+      age: 27,
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
+    l.players[fa.id] = fa;
+    signPlayer(l, fa, team.id, { years: 1, apy: 2000, bonusPct: 0, gtdPct: 0, voidYears: 0 });
+    expect(activeRoster(l, team.id)).toHaveLength(53);
+    deliverMail(l);
+    const [m] = byKind(l, 'cleared');
+    expect(m.body).toContain('make room');
+    expect(needsYou(l, m)).toBe(true);
+    releasePlayer(l, fa);
+    expect(needsYou(l, m)).toBe(false);
   });
 });

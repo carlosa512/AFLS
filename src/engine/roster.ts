@@ -1,7 +1,7 @@
 import { skill } from './attributes';
 import { slotOvr } from './familiarity';
-import { playerOvr, STARTERS } from './positions';
-import type { DepthChart, Injury, League, Player, Position, Team } from './types';
+import { STARTERS } from './positions';
+import type { DepthChart, Injury, League, Player, PlayingAt, Position, Team } from './types';
 import { POSITIONS } from './types';
 
 export function teamPlayers(league: League, teamId: number): Player[] {
@@ -20,13 +20,17 @@ export const playingHurt = (i: Injury | undefined) =>
 /** Can he play this week? Not on reserve, and healthy or playing through it. */
 export const isAvailable = (p: Player) => !p.ir && (!p.injury || playingHurt(p.injury));
 
-/** Depth chart ordered purely by overall rating at each position. */
-export function buildAutoDepthChart(players: Player[]): DepthChart {
-  const chart = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as number[]])) as DepthChart;
-  const sorted = [...players].sort((a, b) => playerOvr(b) - playerOvr(a));
-  for (const p of sorted) chart[p.position].push(p.id);
-  chart.OL = lineOrder(chart.OL.map((id) => players.find((p) => p.id === id)!)).map((p) => p.id);
-  return chart;
+/**
+ * Depth chart ordered by what each player is worth where he lines up: his own position, or the one `playingAt`
+ * puts him at (his worth there carries the out-of-position knock, so he ranks among its own players by it).
+ */
+export function buildAutoDepthChart(players: Player[], playingAt: Record<number, PlayingAt> = {}): DepthChart {
+  const chart = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as Player[]])) as Record<Position, Player[]>;
+  for (const p of players) chart[playingAt[p.id]?.pos ?? p.position].push(p);
+  const out = {} as DepthChart;
+  for (const pos of POSITIONS) out[pos] = chart[pos].sort((a, b) => slotOvr(b, pos) - slotOvr(a, pos)).map((p) => p.id);
+  out.OL = lineOrder(out.OL.map((id) => players.find((p) => p.id === id)!)).map((p) => p.id);
+  return out;
 }
 
 /**
@@ -47,40 +51,105 @@ export function lineOrder(ol: Player[]): Player[] {
 
 /**
  * Make sure the depth chart only references players currently on the team and that every roster player
- * appears exactly once. An auto-sorted chart files everyone under his own position; a hand-sorted one keeps
- * a player where the user put him, even at another position (he plays there out of position, `knockFor`),
- * and adds anyone missing under his own.
+ * appears exactly once. An auto-sorted chart files everyone where he lines up (`playingAt`, else his own
+ * position); a hand-sorted one keeps a player where the user put him and adds anyone missing where he lines up.
+ * A `playingAt` entry goes once he's off the team or that position is now his own.
  */
 export function syncDepthChart(league: League, team: Team): void {
   const players = teamPlayers(league, team.id);
+  const byId = new Map(players.map((p) => [p.id, p]));
+  if (team.playingAt)
+    for (const id of Object.keys(team.playingAt).map(Number)) {
+      const p = byId.get(id);
+      if (!p || p.position === team.playingAt[id].pos) delete team.playingAt[id];
+    }
+  const at = team.playingAt ?? {};
   if (team.autoDepth) {
-    team.depthChart = buildAutoDepthChart(players);
+    team.depthChart = buildAutoDepthChart(players, at);
     return;
   }
-  const onTeam = new Set(players.map((p) => p.id));
   const placed = new Set<number>();
   const kept = {} as DepthChart;
   for (const pos of POSITIONS) {
-    kept[pos] = (team.depthChart[pos] ?? []).filter((id) => onTeam.has(id) && !placed.has(id));
+    // A player lined up elsewhere stays out of his own group.
+    kept[pos] = (team.depthChart[pos] ?? []).filter(
+      (id) => byId.has(id) && !placed.has(id) && (!at[id] || at[id].pos === pos),
+    );
     kept[pos].forEach((id) => placed.add(id));
   }
-  const auto = buildAutoDepthChart(players);
+  const auto = buildAutoDepthChart(players, at);
   for (const pos of POSITIONS) team.depthChart[pos] = [...kept[pos], ...auto[pos].filter((id) => !placed.has(id))];
 }
 
 /**
- * Line a player up at a position on his team's depth chart (at `index`, or last), his own or another:
- * away from his own he plays out of position and takes a knock (`knockFor`). Hand-sorts the chart.
+ * Line a player up at a position, his own or another ("Play at…"): away from his own he plays out of position
+ * and takes a knock (`knockFor`). The move is remembered (`playingAt`), so an auto-sorted chart keeps it; only a
+ * pick of an exact spot (`index`, a drag) hand-sorts the chart. A user's move of staff's man makes it his.
  */
-export function placeAt(league: League, playerId: number, pos: Position, index?: number): void {
+export function placeAt(
+  league: League,
+  playerId: number,
+  pos: Position,
+  index?: number,
+  by: PlayingAt['by'] = 'user',
+): void {
   const p = league.players[playerId];
   if (p.teamId === null) throw new Error('Not on a team.');
   const team = league.teams[p.teamId];
+  if (pos === p.position) {
+    if (team.playingAt) delete team.playingAt[playerId];
+  } else
+    (team.playingAt ??= {})[playerId] =
+      by === 'staff' ? { pos, by, since: { season: league.season, week: league.week } } : { pos, by };
   for (const q of POSITIONS) team.depthChart[q] = team.depthChart[q].filter((id) => id !== playerId);
-  const list = team.depthChart[pos];
-  list.splice(index === undefined ? list.length : Math.max(0, Math.min(index, list.length)), 0, playerId);
-  team.autoDepth = false;
+  if (index !== undefined) {
+    const list = team.depthChart[pos];
+    list.splice(Math.max(0, Math.min(index, list.length)), 0, playerId);
+    team.autoDepth = false;
+  }
   syncDepthChart(league, team);
+}
+
+/** The user moved staff's man (a drag within his group): the move is his now, and staff won't send him back. */
+export function claimMove(league: League, playerId: number): void {
+  const p = league.players[playerId];
+  const at = p.teamId === null ? undefined : league.teams[p.teamId].playingAt?.[playerId];
+  if (at?.by === 'staff') league.teams[p.teamId!].playingAt![playerId] = { pos: at.pos, by: 'user' };
+}
+
+/**
+ * Send a player lined up elsewhere back to his own position ("Play at…" his own, or staff's cover ending). An
+ * auto-sorted chart files him by rating itself; on a hand-sorted one he goes back among his group by rating, where
+ * auto-sort would put him, not last, so a starter who played somewhere else for a week isn't buried.
+ */
+export function returnHome(league: League, playerId: number): void {
+  const p = league.players[playerId];
+  if (p.teamId === null) {
+    // Gone already: no team keeps a move for him.
+    for (const t of league.teams) if (t.playingAt) delete t.playingAt[playerId];
+    return;
+  }
+  const team = league.teams[p.teamId];
+  if (team.playingAt) delete team.playingAt[playerId];
+  for (const q of POSITIONS) team.depthChart[q] = team.depthChart[q].filter((id) => id !== playerId);
+  if (!team.autoDepth) {
+    const rank = new Map(buildAutoDepthChart(teamPlayers(league, team.id))[p.position].map((id, i) => [id, i]));
+    const mine = rank.get(p.id) ?? Infinity;
+    const list = team.depthChart[p.position];
+    // Only his own room counts: a man the user lined up here from another position has no rank in it.
+    const at = list.findIndex((id) => rank.has(id) && rank.get(id)! > mine);
+    list.splice(at < 0 ? list.length : at, 0, p.id);
+  }
+  syncDepthChart(league, team);
+}
+
+/** The user took injuries back from his staff: its moves are his now (nothing on the field changes). */
+export function handOverMoves(league: League, teamId: number): void {
+  for (const at of Object.values(league.teams[teamId].playingAt ?? {}))
+    if (at.by === 'staff') {
+      at.by = 'user';
+      delete at.since;
+    }
 }
 
 /** Where a player is lined up on his team's depth chart (his own position unless the user moved him). */
@@ -88,6 +157,35 @@ export function slotOf(league: League, p: Player): Position {
   if (p.teamId === null) return p.position;
   const chart = league.teams[p.teamId].depthChart;
   return POSITIONS.find((pos) => chart[pos].includes(p.id)) ?? p.position;
+}
+
+/** The least a player has to be worth at a position, knock included, to cover it from the roster: a fringe backup. */
+export const COVER_BAR = 8.5;
+
+/**
+ * Who covers a short position from the roster ("use what you have"): the healthy player worth the most there
+ * (`slotOvr`, knock included) who isn't already lined up elsewhere, doesn't start at his own position, and whose
+ * position keeps `need` healthy players without him. Nobody, if the best of them isn't a decent backup there.
+ */
+export function chooseCover(
+  league: League,
+  team: Team,
+  pos: Position,
+  need: Readonly<Record<Position, number>>,
+): Player | null {
+  const players = activeRoster(league, team.id).filter(isAvailable);
+  const healthy = new Map<Position, number>();
+  for (const p of players) healthy.set(slotOf(league, p), (healthy.get(slotOf(league, p)) ?? 0) + 1);
+  const best = players
+    .filter(
+      (p) =>
+        p.position !== pos &&
+        !team.playingAt?.[p.id] &&
+        !starters(league, team, p.position).includes(p) &&
+        (healthy.get(p.position) ?? 0) - 1 >= need[p.position],
+    )
+    .sort((a, b) => slotOvr(b, pos) - slotOvr(a, pos))[0];
+  return best && slotOvr(best, pos) >= COVER_BAR ? best : null;
 }
 
 /** Starters at a position per the depth chart, skipping anyone hurt (may be fewer if the roster is short). */
