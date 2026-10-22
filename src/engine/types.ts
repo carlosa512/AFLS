@@ -511,6 +511,14 @@ export interface Division {
 
 export type DepthChart = Record<Position, number[]>;
 
+/** A player lined up at another position: where, and who put him there. */
+export interface PlayingAt {
+  pos: Position;
+  by: 'staff' | 'user';
+  /** When staff lined him up there (its cover note to you is filed once per move). */
+  since?: { season: number; week: number };
+}
+
 export interface Team {
   id: number;
   city: string;
@@ -524,6 +532,11 @@ export interface Team {
   returners?: { kr?: number; pr?: number };
   /** If true the depth chart is rebuilt from ratings before every game. */
   autoDepth: boolean;
+  /**
+   * Players lined up away from their own position ("Play at…"), by player id: where, and whether the user or the
+   * staff put him there (staff sends its own back once the position is healthy). Kept by auto-sort too.
+   */
+  playingAt?: Record<number, PlayingAt>;
   /** Dead money charged to this team, by league year. */
   deadMoney: DeadMoney[];
   /** Unused cap rolled over from the previous league year, in $K. */
@@ -808,7 +821,7 @@ export type InboxAction =
   | { kind: 'team'; teamId: number }
   | { kind: 'game'; gameId: number }
   | { kind: 'resign' }
-  | { kind: 'fa' }
+  | { kind: 'fa'; pos?: Position }
   | { kind: 'draft' }
   | { kind: 'coaches' }
   | { kind: 'staff' }

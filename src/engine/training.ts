@@ -274,6 +274,8 @@ export function changePosition(league: League, p: Player, to: Position): void {
   resetLeagueMarket(league);
   if (p.teamId === null) return;
   const team = league.teams[p.teamId];
+  // His new position is his own now: a "Play at…" there, or anywhere, ends with the move.
+  if (team.playingAt) delete team.playingAt[p.id];
   for (const pos of POSITIONS) team.depthChart[pos] = team.depthChart[pos].filter((id) => id !== p.id);
   if (!team.autoDepth) {
     const list = team.depthChart[to].filter((id) => id !== p.id);

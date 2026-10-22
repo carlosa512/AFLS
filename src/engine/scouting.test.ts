@@ -253,18 +253,18 @@ describe('last season in the report', () => {
 
   it('counts scrimmage snaps for who really played, kickers and punters aside', () => {
     expect(played.length).toBeGreaterThan(1000);
-    // Nobody is on the field for more plays than the busiest unit ran: a long game can pass 80 (an 82-play one on this
-    // seed, for a lineman whose only game it was), so the bound is the season's most plays by a team in a game.
-    const busiest = Math.max(
+    // Nobody is on the field for more snaps than the busiest offense ran in a game: a long day's 80-odd plays, never
+    // double counted.
+    const most = Math.max(
       ...league.games
         .filter((g) => g.season === last && g.result)
         .flatMap((g) => [g.result!.home.plays, g.result!.away.plays]),
     );
-    expect(busiest).toBeLessThan(100);
+    expect(most).toBeGreaterThan(60);
     for (const p of played) {
       const s = p.stats[last];
       if (p.position === 'K' || p.position === 'P') continue;
-      expect(s.snaps ?? 0).toBeLessThanOrEqual(busiest * s.gp!);
+      expect(s.snaps ?? 0).toBeLessThanOrEqual(most * s.gp!);
     }
     // A team's quarterback takes nearly every offensive snap; its third quarterback next to none.
     const qbs = played

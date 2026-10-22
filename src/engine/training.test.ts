@@ -12,12 +12,24 @@ import {
 import { capSpace, releasePlayer } from './finance/cap';
 import { manageInjuries } from './injuries';
 import { offseasonBlockers } from './offseason';
+import { inSeasonReserve, needSigning } from './offseason/ai';
+import { demand, freeAgents, offerValue } from './offseason/negotiation';
+import { minSalary } from './finance/market';
 import { Rng } from './rng';
-import { createLeague, SAVE_VERSION } from './generate';
+import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { buildLineup } from './match/lineup';
 import { migrateLeague } from './migrate';
 import { overall, playerOvr } from './positions';
-import { buildAutoDepthChart, placeAt, slotOf, syncDepthChart, teamPlayers } from './roster';
+import {
+  buildAutoDepthChart,
+  claimMove,
+  handOverMoves,
+  placeAt,
+  returnHome,
+  slotOf,
+  syncDepthChart,
+  teamPlayers,
+} from './roster';
 import { playerTradeBlocker } from './trade/rules';
 import {
   activeLearning,
@@ -229,6 +241,136 @@ describe('out of position', () => {
     releasePlayer(l, l.players[cb.id]);
     for (const ids of Object.values(team.depthChart)) expect(ids).not.toContain(cb.id);
   });
+
+  it('"Play at" survives auto-sort and leaves it on; back home undoes it', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const cb = teamPlayers(l, team.id).find((p) => p.position === 'CB')!;
+    placeAt(l, cb.id, 'S');
+    expect(team.autoDepth).toBe(true);
+    expect(team.playingAt?.[cb.id]).toEqual({ pos: 'S', by: 'user' });
+    syncDepthChart(l, team);
+    expect(team.depthChart.S).toContain(cb.id);
+    expect(team.depthChart.CB).not.toContain(cb.id);
+    returnHome(l, cb.id);
+    expect(team.playingAt?.[cb.id]).toBeUndefined();
+    expect(team.depthChart.CB).toContain(cb.id);
+    expect(team.depthChart.S).not.toContain(cb.id);
+  });
+
+  it('an auto-sorted group ranks a "Play at" player by his worth there', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const cb = teamPlayers(l, team.id)
+      .filter((p) => p.position === 'CB')
+      .sort((a, b) => slotOvr(b, 'S') - slotOvr(a, 'S'))[0];
+    // The best corner at safety outplays the last safety there: auto-sort lists him ahead of that man.
+    expect(slotOvr(cb, 'S')).toBeGreaterThan(slotOvr(l.players[team.depthChart.S.at(-1)!], 'S'));
+    placeAt(l, cb.id, 'S');
+    expect(team.depthChart.S.at(-1)).not.toBe(cb.id);
+    const worth = team.depthChart.S.map((id) => slotOvr(l.players[id], 'S'));
+    expect(worth).toEqual([...worth].sort((a, b) => b - a));
+    // A chart with nobody out of position ranks exactly as before.
+    const other = l.teams.find((t) => t.id !== team.id)!;
+    expect(buildAutoDepthChart(teamPlayers(l, other.id))).toEqual(
+      buildAutoDepthChart(teamPlayers(l, other.id), other.playingAt),
+    );
+  });
+
+  it('a hand-sorted chart keeps its order when staff lines someone up', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const cbs = [...team.depthChart.CB];
+    team.depthChart.CB = [cbs[1], cbs[0], ...cbs.slice(2)];
+    team.autoDepth = false;
+    const handCb = [...team.depthChart.CB];
+    const wr = l.players[team.depthChart.WR.at(-1)!];
+    placeAt(l, wr.id, 'S', undefined, 'staff');
+    expect(team.autoDepth).toBe(false);
+    expect(team.depthChart.CB).toEqual(handCb);
+    expect(team.depthChart.S.at(-1)).toBe(wr.id);
+    expect(team.playingAt?.[wr.id]).toMatchObject({ pos: 'S', by: 'staff' });
+    // The user moving staff's man makes the move his.
+    placeAt(l, wr.id, 'S');
+    expect(team.playingAt?.[wr.id]).toEqual({ pos: 'S', by: 'user' });
+  });
+
+  it('a cover sent home on a hand-sorted chart goes back among his group by rating, not last', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    team.autoDepth = false;
+    // The best backup corner: he outranks the corners behind him.
+    const cb = l.players[team.depthChart.CB[3]];
+    expect(playerOvr(cb)).toBeGreaterThan(playerOvr(l.players[team.depthChart.CB.at(-1)!]));
+    placeAt(l, cb.id, 'S', undefined, 'staff');
+    returnHome(l, cb.id);
+    expect(team.depthChart.CB.at(-1)).not.toBe(cb.id);
+    expect(team.depthChart.CB.indexOf(cb.id)).toBe(3);
+  });
+
+  it("clears the move of a player who's already left the team", () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const cb = l.players[team.depthChart.CB.at(-1)!];
+    placeAt(l, cb.id, 'S', undefined, 'staff');
+    cb.teamId = null;
+    returnHome(l, cb.id);
+    for (const t of l.teams) expect(t.playingAt?.[cb.id]).toBeUndefined();
+  });
+
+  it('turning the staff off hands its moves to you, and leaves the field as it is', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const cb = l.players[team.depthChart.CB.at(-1)!];
+    placeAt(l, cb.id, 'S', undefined, 'staff');
+    const chart = JSON.stringify(team.depthChart);
+    handOverMoves(l, team.id);
+    expect(team.playingAt?.[cb.id]).toEqual({ pos: 'S', by: 'user' });
+    expect(JSON.stringify(team.depthChart)).toBe(chart);
+  });
+
+  it("dragging staff's man within his group makes the move yours", () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const wr = l.players[team.depthChart.WR.at(-1)!];
+    placeAt(l, wr.id, 'S', undefined, 'staff');
+    claimMove(l, wr.id);
+    expect(team.playingAt?.[wr.id]).toEqual({ pos: 'S', by: 'user' });
+    // A player at his own position has nothing to claim.
+    const cb = l.players[team.depthChart.CB[0]];
+    claimMove(l, cb.id);
+    expect(team.playingAt?.[cb.id]).toBeUndefined();
+  });
+
+  it('drops entries for players who left the team or moved there for good', () => {
+    const l = fresh();
+    const team = l.teams[l.userTeamId];
+    const [a, b] = teamPlayers(l, team.id).filter((p) => p.position === 'CB');
+    placeAt(l, a.id, 'S');
+    placeAt(l, b.id, 'S');
+    expect(team.playingAt?.[a.id]).toBeDefined();
+    releasePlayer(l, l.players[a.id]);
+    syncDepthChart(l, team);
+    expect(team.playingAt?.[a.id]).toBeUndefined();
+    l.players[b.id].position = 'S';
+    syncDepthChart(l, team);
+    expect(team.playingAt?.[b.id]).toBeUndefined();
+    expect(team.depthChart.S).toContain(b.id);
+  });
+
+  it('an old hand-sorted chart\'s out-of-position players load as your "Play at" moves', () => {
+    const old = fresh() as League & { version: number };
+    const team = old.teams[old.userTeamId];
+    const cb = teamPlayers(old, team.id).find((p) => p.position === 'CB')!;
+    team.depthChart.CB = team.depthChart.CB.filter((id) => id !== cb.id);
+    team.depthChart.S.push(cb.id);
+    team.autoDepth = false;
+    old.version = 34;
+    const l = migrateLeague(old)!;
+    const t = l.teams[l.userTeamId];
+    expect(t.playingAt?.[cb.id]).toEqual({ pos: 'S', by: 'user' });
+    expect(t.depthChart.S).toContain(cb.id);
+  });
 });
 
 describe('reasons', () => {
@@ -296,10 +438,13 @@ describe('the cap in season', () => {
     const l = createLeague({ seed: 'cover-room' });
     const team = l.teams.find((t) => t.id !== l.userTeamId)!;
     // All but two receivers become kickers: the WR room is short and spare bodies sit at K, so the roster stays full.
+    // Rated 1 across the board, none of them is good enough to cover back at receiver: the hole needs a signing.
     for (const p of teamPlayers(l, team.id)
       .filter((x) => x.position === 'WR')
-      .slice(2))
+      .slice(2)) {
       p.position = 'K';
+      for (const k of Object.keys(p.ratings)) p.ratings[k as keyof typeof p.ratings] = 1;
+    }
     team.depthChart = buildAutoDepthChart(teamPlayers(l, team.id));
     l.caps[l.season] -= capSpace(l, team.id) - room;
     return { l, teamId: team.id };
@@ -321,6 +466,90 @@ describe('the cap in season', () => {
     manageInjuries(l, l.teams[teamId], new Rng('cover'));
     expect(teamPlayers(l, teamId).filter((p) => p.position === 'WR').length).toBeGreaterThan(wrs);
     expect(capSpace(l, teamId)).toBeGreaterThanOrEqual(0);
+  });
+
+  /** A healthy free receiver of `quality`. */
+  function freeWr(l: League, quality: number): Player {
+    const p = generatePlayer(new Rng(`free-wr:${quality}`), {
+      id: l.nextPlayerId++,
+      position: 'WR',
+      quality,
+      age: 27,
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
+    l.players[p.id] = p;
+    return p;
+  }
+  const newWrs = (l: League, teamId: number, before: Set<number>) =>
+    teamPlayers(l, teamId).filter((p) => p.position === 'WR' && !before.has(p.id));
+
+  it('an AI team with no cover signs a free agent at his price, above the minimum', () => {
+    const { l, teamId } = shortHanded(60_000);
+    const fa = freeWr(l, 13);
+    const min = minSalary(fa.experience, l.caps[l.season]);
+    const ask = demand(l, fa, teamId).walkAway;
+    expect(ask).toBeGreaterThan(1.5 * min);
+    expect(ask).toBeLessThan(inSeasonReserve(l, teamId));
+    const before = new Set(teamPlayers(l, teamId).map((p) => p.id));
+    // His price as a free agent, read before he signs (once he's ours, he's no longer on the market).
+    const unit = { years: 1, apy: 1, bonusPct: 0, gtdPct: 0, voidYears: 0 };
+    const asks = new Map(
+      freeAgents(l).map((p) => [p.id, demand(l, p, teamId).walkAway / offerValue(l, p, teamId, unit)]),
+    );
+    manageInjuries(l, l.teams[teamId], new Rng('cover'));
+    const signed = newWrs(l, teamId, before);
+    // The room is several receivers short: the first comes at a price, later ones may be minimum-salary men.
+    const priced = signed.filter((p) => p.contract!.kind === 'veteran');
+    expect(priced.length).toBeGreaterThan(0);
+    for (const p of priced) {
+      expect(p.contract!.length).toBe(1);
+      // The deal that just meets his walk-away: no less, and no more than a rounding dollar.
+      expect(p.contract!.apy).toBeGreaterThanOrEqual(asks.get(p.id)!);
+      expect(p.contract!.apy).toBeLessThan(asks.get(p.id)! + 1);
+    }
+    expect(capSpace(l, teamId)).toBeGreaterThanOrEqual(0);
+  });
+
+  it('with no room for any real free agent it still covers the hole at the minimum', () => {
+    const { l, teamId } = shortHanded(2_500);
+    freeWr(l, 13);
+    const before = new Set(teamPlayers(l, teamId).map((p) => p.id));
+    manageInjuries(l, l.teams[teamId], new Rng('cover'));
+    const signed = newWrs(l, teamId, before);
+    expect(signed.length).toBeGreaterThan(0);
+    for (const p of signed) expect(p.contract!.kind).toBe('minimum');
+  });
+
+  it('never spends past its in-season reserve on one hole', () => {
+    const { l, teamId } = shortHanded(0);
+    const reserve = inSeasonReserve(l, teamId);
+    l.caps[l.season] += 10 * reserve;
+    const star = freeWr(l, 17);
+    expect(demand(l, star, teamId).walkAway).toBeGreaterThan(reserve);
+    const before = new Set(teamPlayers(l, teamId).map((p) => p.id));
+    manageInjuries(l, l.teams[teamId], new Rng('cover'));
+    expect(star.teamId).toBeNull();
+    for (const p of newWrs(l, teamId, before)) expect(p.contract!.apy).toBeLessThanOrEqual(reserve);
+  });
+
+  it('never prices a hole below the league minimum, even for a contender a player wants to join', () => {
+    const { l, teamId } = shortHanded(60_000);
+    const fa = freeWr(l, 4);
+    // A veteran near the end wants one year: a one-year deal costs nothing in his eyes.
+    fa.age = 35;
+    fa.personality.winning = 1;
+    // A contender's pull is worth more than the knocks for a short, unguaranteed deal: a dollar is worth more than one.
+    for (const t of l.teams) if (t.id !== teamId) l.teams[t.id].depthChart.QB = [];
+    const unit = { years: 1, apy: 1, bonusPct: 0, gtdPct: 0, voidYears: 0 };
+    expect(offerValue(l, fa, teamId, unit)).toBeGreaterThan(1);
+    const min = minSalary(fa.experience, l.caps[l.season]);
+    expect(demand(l, fa, teamId).walkAway).toBe(min);
+    // Only him on the market at receiver: he's the pick.
+    for (const p of freeAgents(l)) if (p.position === 'WR' && p !== fa) p.position = 'K';
+    const pick = needSigning(l, l.teams[teamId], 'WR', 60_000)!;
+    expect(pick.player).toBe(fa);
+    expect(pick.offer.apy).toBeGreaterThanOrEqual(min);
   });
 
   it('stops you in the regular season while over it, not in the playoffs', () => {
