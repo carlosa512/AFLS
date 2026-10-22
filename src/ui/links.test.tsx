@@ -7,7 +7,7 @@ import { expiringPlayers } from '../engine/offseason/ai';
 import { Resign } from './screens/FrontOffice';
 import type { ReactElement } from 'react';
 import type { League, Player } from '../engine/types';
-import { PlayerLink, SortSeg, TeamLink, TeamPicker } from './components';
+import { GradesTable, PlayerLink, SortSeg, TeamLink, TeamPicker } from './components';
 import { NavContext, type Nav } from './nav';
 
 let league: League;
@@ -107,6 +107,21 @@ describe('Resign tables', () => {
     const expiring = expiringPlayers(l, l.userTeamId).length;
     expect(expiring).toBeGreaterThan(0);
     expect(html.split('>Negotiate</button>').length - 1).toBe(expiring);
+    expect(html).toContain('class="th-sort"');
+  });
+});
+
+describe('GradesTable', () => {
+  it('marks your row with is-user and keeps it a tap away from its staff', () => {
+    const me = league.userTeamId;
+    const grades = new Map([
+      [me, { rank: 1, grade: 'A' }],
+      [me === 0 ? 1 : 0, { rank: 2, grade: 'B' }],
+    ]);
+    const html = render(<GradesTable league={league} grades={grades} staffOf={() => null} />);
+    expect(html).toContain('class="is-user"');
+    expect(html).not.toContain('class="me"');
+    expect(html).toMatch(/class="is-user"[\s\S]*?aria-expanded="false"/);
     expect(html).toContain('class="th-sort"');
   });
 });

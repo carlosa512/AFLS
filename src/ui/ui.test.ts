@@ -365,6 +365,11 @@ describe('screen contract', () => {
     expect(bad).toEqual([]);
   });
 
+  it('marks your row with is-user only', () => {
+    const bad = files.filter((f) => /['"`]me['"`]\s*:\s*undefined|className=\{[^}]*\?\s*'me'/.test(src(f)));
+    expect(bad).toEqual([]);
+  });
+
   it('builds team dropdowns only with TeamPicker', () => {
     const bad = files.filter((f) => /\[\.\.\.league\.teams\]\s*\.(sort|filter)/.test(src(f)));
     expect(bad).toEqual([]);
