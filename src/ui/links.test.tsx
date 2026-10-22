@@ -155,9 +155,10 @@ describe('TeamUnit', () => {
 });
 
 describe('NewGame', () => {
-  it('shows no strength or record yet: a new league has no history and you have no scouts', () => {
+  it('shows each club its overall as a pill, and no unit breakdown or record', () => {
     const html = render(<NewGame />);
     expect(html).toContain('Buffalo');
+    expect(html.match(/class="rating /g)?.length).toBe(32);
     expect(html).not.toMatch(/Last 10 years|QB \d|OFF \d|DEF \d/);
   });
 });

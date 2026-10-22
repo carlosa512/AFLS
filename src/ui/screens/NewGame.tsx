@@ -1,18 +1,21 @@
 import { useMemo, useState } from 'react';
 import { createLeague } from '../../engine/generate';
+import { teamRatings } from '../../engine/roster';
 import { ownerBudgetNote } from '../../engine/staff';
-import { TeamChip } from '../components';
+import { Rating, TeamChip } from '../components';
 import { live } from '../live';
 import { LoadBackupButton } from '../saves';
 import { store } from '../store';
 import { APP_VERSION } from '../version';
 
 export function NewGame() {
-  // One preview league for the names and colours. Before you take a job you have no scouts, and a new league
-  // has no history yet, so a club shows no strength or record (docs/MVP.md, item 14).
+  // One preview league, so you can weigh the clubs before you commit. This is the one screen that shows a club's
+  // true overall: you haven't taken a job yet, so there are no scouts of yours to read it through, and choosing
+  // a project (a contender or a rebuild) is the decision this screen is for. Just the headline, no unit breakdown.
   const [seed] = useState(() => Math.random().toString(36).slice(2, 10));
   const preview = useMemo(() => createLeague({ seed }), [seed]);
   const [picked, setPicked] = useState<number | null>(null);
+  const overall = useMemo(() => new Map(preview.teams.map((t) => [t.id, teamRatings(preview, t).overall])), [preview]);
 
   const start = () => {
     if (picked === null) return;
@@ -61,6 +64,7 @@ export function NewGame() {
                         {team.city} {team.name}
                         {note && <small>{note}</small>}
                       </span>
+                      <Rating value={overall.get(team.id)!} decimals={1} />
                     </button>
                   );
                 })}

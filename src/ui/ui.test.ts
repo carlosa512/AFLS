@@ -383,8 +383,9 @@ describe('screen contract', () => {
   });
 
   it("never reads a club's true strength", () => {
-    // teamRatings is the truth; screens show perceivedTeamRatings (fog of war).
-    const bad = files.filter((f) => /\bteamRatings\b/.test(src(f)));
+    // teamRatings is the truth; screens show perceivedTeamRatings (fog of war). New Game is the one exception,
+    // by the owner's call: before you take a job you have no scouts, and its overall is how you pick a project.
+    const bad = files.filter((f) => f !== join('src/ui/screens', 'NewGame.tsx') && /\bteamRatings\b/.test(src(f)));
     expect(bad).toEqual([]);
   });
 
