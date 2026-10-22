@@ -458,16 +458,19 @@ for (let s = 0; s < seasons; s++) {
     );
 
   // Cap space as a share of the cap (the cap grows ~8% a year). Median: 3.8, 2.6, 3.4, then 3.3, 1.9, 2.6% (0.1.5);
+  // 3.2, 4.2, 3.8, then 4.0, 3.6, 4.0 with last-year deals paid past their market and a planned in-season reserve
+  // (0.1.7: the 2030 4.0 sits on the band's edge, an open calibration);
   // the bands were set from four seeds whose steady state was 2.0-2.3%, so [1, 4] catches a drift to hoarding or to
   // teams spent flat, and the early seasons get [0.8, 12] (obs 2.8-9.9% across seeds then).
-  // Max: 17.5, 8.1, 12.9% in seasons 1-3, then 9.5, 5.1, 8.9 (0.1.5; 19.5, 10.3, 5.8 then 12.7, 5.2, 6.3 at 0.1.3), so
+  // Max: 17.5, 8.1, 12.9% in seasons 1-3, then 9.5, 5.1, 8.9 (0.1.5; 19.5, 10.3, 5.8 then 12.7, 5.2, 6.3 at 0.1.3;
+  // 7.3, 8.4, 9.7 then 8.3, 12.1, 9.8 at 0.1.7, last-year deals raised up to 1.7x their market and no hoarder), so
   // seasons 1-3 are judged at <= 30% and index 4+ at <= 20%. Before the generated league was paid like a settled one
   // (0.1.3) seasons 1-3 read 54.6, 59.0, 37.9%: rosters opened as low as 62% committed and a hoarder banked the rest.
-  // Dead money: max 7.1-16.7% of cap at kickoff (0.1.5; 6.0-19.3% at 0.1.3, all seeds then 6.5-22.7), median at most
-  // 3.1%; a front office that cuts stars wholesale shows up as the max passing 30%.
-  // Free agents: 253 → 467 over 6 seasons, +64 at most in a step (0.1.5; all seeds then 99); it keeps rising until about
-  // season 12 and plateaus near 500 (retirement caps the stock), so the ceiling is 650 and the floor 100 (a dried-up
-  // market).
+  // Dead money: max 7.1-16.7% of cap at kickoff (0.1.5; 8.8-17.7% at 0.1.7; 6.0-19.3% at 0.1.3, all seeds then
+  // 6.5-22.7), median at most 3.1%; a front office that cuts stars wholesale shows up as the max passing 30%.
+  // Free agents: 253 → 467 over 6 seasons, +64 at most in a step (0.1.5; 254 → 452, +78 at 0.1.7; all seeds then 99);
+  // it keeps rising until about season 12 and plateaus near 500 (retirement caps the stock), so the ceiling is 650 and
+  // the floor 100 (a dried-up market).
   const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 110, 0)}` : ''}`;
   console.log(
     `  checks ${year} cap: ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 30, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
@@ -652,7 +655,8 @@ if (rows.length >= 5) {
     `  talent: ${check('starter OVR, last − first', end.k.avgStarter - first.k.avgStarter, -0.15, 0.6)} · ${check(`…last − ${rows[2].year}`, end.k.avgStarter - rows[2].k.avgStarter, -0.3, 0.3)}`,
   );
   // Median cap space is flat once settled: 2.3, 2.1, 2.1% over the last three (all seeds 2.0-2.3), so within 1 point;
-  // 3.1, 2.7, 2.4 (spread 0.7) with the settled opening league (0.1.5).
+  // 3.1, 2.7, 2.4 (spread 0.7) with the settled opening league (0.1.5); 3.9, 3.8, 3.7 (spread 0.2) at 0.1.7, the in-season
+  // reserve kept (17b8b0b took it from 2.8, 3.2, 3.2 to 3.9, 3.7, 3.7).
   // One league's median is one team's space, and drawing other teams moves it 0.3-0.6 points a season (a bootstrap
   // over the 32), so it is read over all four leagues' 128 teams. The 4th kickoff still sits 0.2 above the next two
   // on average (2.32, 2.09, 2.10 over 36 seeds: a league still settling), part of every spread. Over those 36 seeds

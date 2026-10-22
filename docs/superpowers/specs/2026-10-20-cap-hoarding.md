@@ -135,3 +135,23 @@ Ways forward (the owner parked it here):
   buy-and-flip probe in `scripts/trades.ts` that fails today's exploit.
 - Then: the careers check (K/P starters aged 38+ read 8.0 against 8 before; NFL about 2.6 of 64 a season) and the
   offseason audit's baseline comments.
+
+## Picked up (2026-10-22, 0.1.7): D6 tuned, physicals and careers green, two calibrations left
+
+- D6: `fitPayroll` pays last-year veteran deals past their market first, each up to 1.7x it and never past the
+  position's top, as this year's salary only. A settled league (rev-0..3 played forward, kickoffs 2-6) pays its
+  last-year deals 1.13-1.55x their market in all; the opening league now 1.19 (was 0.96). 50 seeds: next year
+  committed 77.6% -> 72.6% at the median, its veterans 62.6% -> 57.2%, last-year deals 23.8% -> 29.3% of payroll.
+  finance.test's bounds are back at 0.76 / 0.59 / 0.29; the last-year pay test reads the settled 1.1-1.55 (the old
+  "<= 1.05, settled 0.79" did not match a settled league). No hoarding: max kickoff space in seasons 1-3 7.3-9.7%.
+- Physicals: the rise came with 17b8b0b (3.2 -> 5.6 at three leagues); at nine leagues the parked head read 4.5
+  (over) and this head 3.6 (in band), so it was real and the D6 tuning undid it.
+- Careers: a kicker or punter aged 36+ gets a younger leg to beat in camp. K/P starters aged 38+ 8.3 -> 7.5, 0 outside.
+- Fixtures: offers.test and retain.test's retained-salary cases depended on the old world (buyers' room next year, the
+  case pool); adapted with their assertions kept.
+- Still red at CI's sizes, both owner calls:
+  - trades: in-season trades 14.8 a season (14.5 at nine leagues; by year 15.1, 14.9, 13.4). Main at nine leagues
+    reads 17.8 (20.4, 16.7, 16.2), so the branch's steady state trades about two fewer a season; star trades 40 vs 64.
+  - offseason: median kickoff space 4.0% in 2030 against [1, 4]; over four leagues 3.9, 3.8, 3.7. 17b8b0b's planned
+    in-season reserve (3% x (1.5 - cap aggression), a median 3.1-3.6% of the cap) sits at the band's top; its own
+    commit left "the band against IN_SEASON_RESERVE" to the owner.
