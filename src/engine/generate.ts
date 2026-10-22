@@ -404,6 +404,12 @@ function rookieExtension(market: Market, player: Player, season: number, gm: GmT
 const MAX_SCALE = 1.5;
 /** The most of next year's cap an opening roster's restructures may commit. */
 const NEXT_YEAR_CEILING = 0.97;
+/**
+ * The most a last-year deal is raised to, as a multiple of its player's market. A settled league's kickoffs pay their
+ * last-year deals 1.13-1.55 times their market in all; 1.55 a deal left a new league's at 1.16 (the position's top
+ * holds the best back) and 28.5% of payroll, against a settled 29-33%.
+ */
+const LAST_YEAR_MOST = 1.7;
 
 /**
  * Nudge veteran money so a team's opening payroll lands near `target`, never over the cap. Rookie deals stay
@@ -416,9 +422,12 @@ const NEXT_YEAR_CEILING = 0.97;
  * leagues over next year's cap (the most at 144.6%; a settled league's kickoffs top out at 108%). What that can't fit
  * comes off pay, every year alike.
  *
- * A roster under its target raises only deals with years to run: a raise on a deal in its last year is this year's
- * money alone, room again in the spring for whoever hoards it (a team that opened with half its payroll in last-year
- * deals the fill had raised kept 31.7% of the cap unspent at its next kickoff). It scales their salaries above the
+ * A roster under its target first pays its veterans in their last year as a settled league does, past their market
+ * (1.13-1.55 times it at its kickoffs; at their market a new league committed 77.6% of next year's cap against a
+ * settled league's 73.2%, and its in-season buyers, who read two years of room, were too few). It takes them no
+ * further than 1.7 times (1.19 in all, 29.3% of payroll, 72.6% of next year committed at the median): a raise on a deal in its last year is this year's money alone, room again in the spring
+ * for whoever hoards it (a team whose last-year deals took every raise, at up to 3.5 times their market, kept 31.7% of
+ * the cap unspent at its next kickoff). Then it scales their salaries above the
  * minimum, every year alike, by at most 1.5 and never past a position's top of the market, so the market, not the
  * cap, decides what stars earn (a scale up to 2.5 left ten deals a league at twice the market into the next season; a
  * settled league has five). What's still missing comes as raises over each deal's remaining years, by pay above the
@@ -484,6 +493,21 @@ export function fitPayroll(players: Player[], season: number, target: number, ma
     for (const b of c.bonuses) b.amount = Math.round(b.amount * f);
     c.apy = Math.round(min(p) + Math.max(0, c.apy - min(p)) * f);
   };
+  if (payroll() < aim) {
+    // Each last-year deal by how far it is from the most it may be paid, as salary for this year alone.
+    const last = vets.filter(
+      (p) => !running(p) && p.contract!.kind === 'veteran' && p.contract!.years.every((y) => !y.void),
+    );
+    const gap = (p: Player) => Math.max(0, Math.min(top(p), LAST_YEAR_MOST * marketApy(market, p)) - hit(p));
+    const gaps = last.reduce((s, p) => s + gap(p), 0);
+    const room = aim - payroll();
+    for (const p of gaps > 0 ? last : []) {
+      // Rounded down: a dollar over the target would scale the roster back down.
+      const extra = Math.floor(Math.min(gap(p), (room * gap(p)) / gaps));
+      yearOf(p.contract!, season)!.base += extra;
+      p.contract!.apy = Math.round(p.contract!.apy + extra / p.contract!.length);
+    }
+  }
   if (payroll() > aim) {
     const factor = Math.max(0, 1 - (payroll() - aim) / vets.reduce((s, p) => s + above(p), 0));
     for (const p of vets) scale(p, factor);

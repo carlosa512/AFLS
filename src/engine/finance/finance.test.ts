@@ -201,28 +201,35 @@ describe('opening league', () => {
     }
   });
 
-  it('raises only deals with years to run, never one in its last year', () => {
-    // A raise on a deal in its last year is this year's money alone: it leaves in the spring as room nobody planned
-    // for (rev-15's team 22 opened year two with 31.7% of the cap unspent, half its payroll in last-year deals the
-    // fill had raised). Re-fitting each opening roster to the whole cap puts its room on deals with years to run.
+  it('raises a last-year deal no further than a settled league pays one, and never a minimum deal', () => {
+    // A settled league pays its last-year veterans past their market (1.13-1.55 times it in all at its kickoffs), so
+    // part of an opening roster's room goes there, up to 1.7 times a deal's market. No further: a raise on a deal in its last year is this year's money alone,
+    // room again in the spring (rev-15's team 22 opened year two with 31.7% of the cap unspent when its last-year deals
+    // took every raise, at up to three and a half times their market).
     const league = createLeague({ seed: 'opening-a' });
     const s = league.season;
     const market = leagueMarket(league);
-    let raised = 0;
-    let last = 0;
+    let raisedLast = 0;
+    let raisedRunning = 0;
     for (const t of league.teams) {
       const roster = teamPlayers(league, t.id);
       const before = new Map(roster.map((p) => [p, capHit(p.contract!, s)]));
+      const kind = new Map(roster.map((p) => [p, p.contract!.kind]));
       fitPayroll(roster, s, BASE_CAP, market, t.gm);
       for (const p of roster) {
-        raised += capHit(p.contract!, s) - before.get(p)!;
-        if (yearsLeft(p.contract!, s) > 1) continue;
-        last++;
-        expect(capHit(p.contract!, s), `${p.position} ${p.id}`).toBeLessThanOrEqual(before.get(p)! + 1);
+        const gain = capHit(p.contract!, s) - before.get(p)!;
+        if (yearsLeft(p.contract!, s) > 1) {
+          raisedRunning += Math.max(0, gain);
+          continue;
+        }
+        if (gain <= 1) continue;
+        raisedLast += gain;
+        expect(kind.get(p), `${p.position} ${p.id}`).toBe('veteran');
+        expect(capHit(p.contract!, s), `${p.position} ${p.id}`).toBeLessThanOrEqual(1.7 * marketApy(market, p) + 1);
       }
     }
-    expect(last).toBeGreaterThan(0);
-    expect(raised).toBeGreaterThan(0);
+    expect(raisedLast).toBeGreaterThan(0);
+    expect(raisedRunning).toBeGreaterThan(0);
   });
 
   it('gives every veteran 1-5 real years and no fourth-year veteran a deal from before his rookie one ended', () => {
@@ -363,40 +370,39 @@ describe('opening league, read across fifty seeds', () => {
   it("commits about three-quarters of next year's cap, as a settled league does at kickoff", () => {
     // Settled: median 73.2% (71.7-75.8 by seed), p10 54.4% (49.6-58.1), p90 88.8%; rookie deals 16.0% of it, the
     // rest 56.0% (p10 39.6%). A new league that commits ~61% (its rookie deals 7%) leaves its front offices a
-    // year-two market with too little to buy for the room they have. A new league commits a little more (78% at the
-    // median, its veterans 63%): its veterans are worth less on the market than a settled league's (players on
-    // rookie deals hold 43% of what its rosters are worth, against 31%), and what their market leaves of the cap
-    // goes on deals with years to run, never on one in its last year, whose raise is next spring's unspent room
-    // (raised there, a team opened year two with 31.7% of the cap unspent; with the room on running deals the most
-    // at a season 1-3 kickoff on 31 seeds is 18%).
+    // year-two market with too little to buy for the room they have; one whose room all goes on deals with years to
+    // run commits 77.6% (its veterans 62.6%) and has too few buyers in season (trades' salary weight reads two years
+    // of room: 13.8 in-season trades a season against main's 17.8).
     const { next, nextRookie, nextVets } = openings();
     expect(quantile(next, 0.5)).toBeGreaterThanOrEqual(0.68);
-    expect(quantile(next, 0.5)).toBeLessThanOrEqual(0.8);
+    expect(quantile(next, 0.5)).toBeLessThanOrEqual(0.76);
     expect(quantile(next, 0.1)).toBeGreaterThanOrEqual(0.5);
     expect(quantile(next, 0.9)).toBeLessThanOrEqual(0.92);
     expect(quantile(nextRookie, 0.5)).toBeGreaterThanOrEqual(0.14);
     expect(quantile(nextRookie, 0.5)).toBeLessThanOrEqual(0.18);
     expect(quantile(nextVets, 0.5)).toBeGreaterThanOrEqual(0.53);
-    expect(quantile(nextVets, 0.5)).toBeLessThanOrEqual(0.66);
+    expect(quantile(nextVets, 0.5)).toBeLessThanOrEqual(0.59);
     expect(quantile(nextVets, 0.1)).toBeGreaterThanOrEqual(0.35);
   }, 60_000);
 
   it('keeps about two in five veteran deals in their last year, as a settled league does', () => {
-    // Settled: 45.6% of veteran deals, 32.1% of payroll (32.7-35.5% later on). A new league's last-year deals carry
-    // their market and no raise, 24% of payroll: its last-year veterans hold 24% of what its veterans are worth,
-    // against a settled league's 38% (its talent sits on rookie deals), and a raise on a deal in its last year is
-    // this year's money alone (raised there, they made 33% of payroll at 1.28 times their market).
+    // Settled: 45.6% of veteran deals, 32.1% of payroll (32.7-35.5% later on). A settled league's last-year
+    // veterans hold about what a new league's do of its veterans' market value (20-31% at the 4th-6th kickoffs of
+    // rev-0..3, against 25-28% at their openings), but are paid past it: their charge is 1.13-1.55 times their
+    // market (by apy 1.08-1.38), where a new league's market-priced deals sit at 0.95 and make 24% of payroll.
     const { deals } = openings();
     const pay = deals.reduce((s, d) => s + d.hit, 0);
     const lastPay = deals.filter((d) => d.left === 1).reduce((s, d) => s + d.hit, 0) / pay;
-    expect(lastPay).toBeGreaterThanOrEqual(0.21);
+    expect(lastPay).toBeGreaterThanOrEqual(0.29);
     expect(lastPay).toBeLessThanOrEqual(0.35);
     const vets = deals.filter((d) => d.kind !== 'rookie');
     expect(share(vets, (d) => d.left === 1)).toBeGreaterThanOrEqual(0.38);
     expect(share(vets, (d) => d.left === 1)).toBeLessThanOrEqual(0.48);
-    // At their market, no more (a settled league pays them 0.79 of theirs).
+    // Paid past their market as a settled league's are (1.13-1.55 times it at the 4th-6th kickoffs), no further.
     const last = vets.filter((d) => d.left === 1);
-    expect(last.reduce((s, d) => s + d.hit, 0) / last.reduce((s, d) => s + d.market, 0)).toBeLessThanOrEqual(1.05);
+    const paid = last.reduce((s, d) => s + d.hit, 0) / last.reduce((s, d) => s + d.market, 0);
+    expect(paid).toBeGreaterThanOrEqual(1.1);
+    expect(paid).toBeLessThanOrEqual(1.55);
   }, 60_000);
 
   it('signs each veteran for the years a player his age signs for', () => {
