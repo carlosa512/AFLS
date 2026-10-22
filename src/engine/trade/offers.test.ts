@@ -14,19 +14,26 @@ import {
   answerEnquiry,
   ASKS,
   askPrice,
+  capRoom,
   counterOffer,
   declineOffer,
   judge,
+  keepToFit,
+  maxRetain,
   openOffers,
   playerTradeBlocker,
   proposeTrade,
+  salaryToTake,
   setTradeStatus,
   shopPlayer,
   teamNeeds,
   tradeContext,
   untouchables,
 } from '.';
-import { bidFor, recheckOffers } from './offers';
+import { quickValue } from './deals';
+import { bidFor, recheckOffers, yourListings } from './offers';
+import { interestIn, isBuyer, updateInterest, wanted } from './plans';
+import { POINTS_PER_K } from './value';
 import type { TradeProposal } from './rules';
 import { talksOf } from './talks';
 
@@ -106,6 +113,54 @@ describe('offers to you', () => {
       const named = x.market!.offers.filter((o) => o.id >= before && o.sides[1].players.includes(star.id));
       expect(named.length, `${star.position} ${star.age}`).toBeGreaterThan(0);
     }
+  });
+
+  it('bids for your player from a team short of room, with you keeping what it can’t fit, and pays for it', () => {
+    // As between AI teams (`dealFor`) and when you buy (`askFor`): a buyer that can't fit his salary bids if you keep
+    // paying the difference, and his price counts the money you keep. Without it, a listed starter on a big deal drew
+    // bids only from the few teams with room for all of it.
+    const l = fresh();
+    const ctx = tradeContext(l);
+    const ai = l.teams.filter((t) => t.id !== l.userTeamId);
+    const cases: { player: number; buyer: number; paid: number }[] = [];
+    for (const p of activeRoster(l, l.userTeamId)) {
+      if (cases.length >= 8) break;
+      if (!p.contract || playerTradeBlocker(l, p) || p.position === 'K' || p.position === 'P') continue;
+      // Paid well past the minimum, so his team can keep a third of what's left.
+      if (maxRetain(l, p) < 0.5 * salaryToTake(l, p)) continue;
+      for (const t of ai) {
+        if (capRoom(ctx, t.id) < salaryToTake(l, p) + 2000) continue;
+        const bid = bidFor(ctx, t, p);
+        if (!bid) continue;
+        cases.push({ player: p.id, buyer: t.id, paid: quickValue(ctx, t, bid.sides[0]) });
+        break;
+      }
+    }
+    expect(cases.length, 'players a roomy team bids for').toBeGreaterThanOrEqual(4);
+    let bids = 0;
+    for (const c of cases) {
+      // The same buyer squeezed so it fits only about two-thirds of what's left of his salary.
+      const m = fresh();
+      const p = m.players[c.player];
+      const owed = salaryToTake(m, p);
+      const room = capRoom(tradeContext(m), c.buyer);
+      m.teams[c.buyer].deadMoney.push({
+        season: m.season,
+        amount: Math.round(room - 0.67 * owed),
+        playerId: -1,
+        note: 'Test',
+      });
+      const mctx = tradeContext(m);
+      const kept = keepToFit(m, p, capRoom(mctx, c.buyer));
+      expect(kept).toBeGreaterThan(0);
+      const bid = bidFor(mctx, m.teams[c.buyer], p);
+      if (!bid) continue;
+      bids++;
+      expect(bid.sides[1].retain?.[p.id]).toBe(kept);
+      // Most of the money comes back to you in picks, on top of what he'd pay with room for all of it.
+      expect(quickValue(mctx, m.teams[c.buyer], bid.sides[0]) - c.paid).toBeGreaterThan(0.5 * POINTS_PER_K * kept!);
+    }
+    expect(bids, `bids from squeezed buyers, of ${cases.length}`).toBeGreaterThanOrEqual(cases.length / 2);
   });
 
   it('never shows you an offer its own team would already refuse', () => {
@@ -260,6 +315,55 @@ describe('offers to you', () => {
     l.players[[...offer.sides[0].players, ...offer.sides[1].players][0]].teamId = null;
     expect(acceptOffer(l, offer.id).ok).toBe(false);
     expect(l.market!.offers.find((o) => o.id === offer.id)!.status).toBe('withdrawn');
+  });
+
+  it('tells every buyer that wants a player you list, even one that would rather have another of yours', () => {
+    // Each buyer watches the one of your players it wants most; a listing has to reach the others that want him too,
+    // or a shopped starter hears only from the teams whose first choice he already was.
+    const l = fresh();
+    const ai = l.teams.filter((t) => t.id !== l.userTeamId);
+    let reached = 0;
+    for (const star of activeRoster(l, l.userTeamId).sort((a, b) => playerOvr(b) - playerOvr(a))) {
+      const x = fresh();
+      setTradeStatus(x, star.id, 'listed');
+      const ctx = tradeContext(x);
+      const yours = yourListings(ctx);
+      const listed = yours.filter((y) => y.entry.playerId === star.id);
+      // Buyers that want him, but want another of yours more.
+      const second = ai.filter((t) => {
+        const team = x.teams[t.id];
+        return isBuyer(team) && wanted(ctx, team, listed).length && wanted(ctx, team, yours)[0].player.id !== star.id;
+      });
+      if (!second.length) continue;
+      updateInterest(ctx, x.market!, x.teams, [], yours);
+      for (const t of second)
+        expect(interestIn(x.market!, t.id, star.id), x.teams[t.id].abbrev).toBeGreaterThanOrEqual(2);
+      if (++reached >= 3) break;
+    }
+    expect(reached, 'listings with a buyer that wanted another of yours more').toBeGreaterThan(0);
+  });
+
+  it('lets a team whose bid you let lapse call again once you list the player, but not one you turned down', () => {
+    // A bid left to lapse keeps its team off him for two moments; putting him on the block answers it, and the
+    // listing's call is "always made". A bid you declined keeps its wait.
+    const l = fresh();
+    const [lapsed, declined] = packaged(l).filter((o) => o.sides[1].players.length);
+    expect(declined, 'two bids for your players on the desk').toBeDefined();
+    expect(lapsed.teamId).not.toBe(declined.teamId);
+    declineOffer(l, declined.id);
+    playWeek(l);
+    const wait = (o: TradeOffer) => l.market!.talks[o.teamId].cooldowns[o.sides[1].players[0]];
+    expect(wait(lapsed)).toBeDefined();
+    expect(wait(declined)).toBeDefined();
+    setTradeStatus(l, lapsed.sides[1].players[0], 'listed');
+    setTradeStatus(l, declined.sides[1].players[0], 'listed');
+    expect(wait(lapsed)).toBeUndefined();
+    expect(wait(declined)).toBeDefined();
+    // Listed while the bid is still on the desk: it lapses with no wait.
+    const m = fresh();
+    setTradeStatus(m, lapsed.sides[1].players[0], 'listed');
+    playWeek(m);
+    expect(m.market!.talks[lapsed.teamId]?.cooldowns[lapsed.sides[1].players[0]]).toBeUndefined();
   });
 
   it('keeps a team away from a player you turned down, unless it comes back clearly better', () => {
