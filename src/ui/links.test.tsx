@@ -1,6 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
+import { simToEndOfSeason } from '../engine/league';
+import { advanceOffseason, beginOffseason } from '../engine/offseason';
+import { expiringPlayers } from '../engine/offseason/ai';
+import { Resign } from './screens/FrontOffice';
 import type { ReactElement } from 'react';
 import type { League, Player } from '../engine/types';
 import { PlayerLink, SortSeg, TeamLink, TeamPicker } from './components';
@@ -90,5 +94,19 @@ describe('SortSeg', () => {
     );
     expect(html).toMatch(/aria-pressed="true"[^>]*>OVR[^<]*▼/);
     expect(html).toMatch(/aria-pressed="false"[^>]*>Position/);
+  });
+});
+
+describe('Resign tables', () => {
+  it('sort through the shared header and keep every row its buttons', () => {
+    const l = createLeague({ seed: 'resign' });
+    simToEndOfSeason(l);
+    beginOffseason(l);
+    while (l.phase !== 'resign') advanceOffseason(l);
+    const html = render(<Resign league={l} negotiate={() => {}} />);
+    const expiring = expiringPlayers(l, l.userTeamId).length;
+    expect(expiring).toBeGreaterThan(0);
+    expect(html.split('>Negotiate</button>').length - 1).toBe(expiring);
+    expect(html).toContain('class="th-sort"');
   });
 });

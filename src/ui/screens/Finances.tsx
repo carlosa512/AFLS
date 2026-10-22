@@ -1,12 +1,42 @@
 import { capSheet, deadMoneyIn, isOffseason, POST_JUNE1_LIMIT, releasePreview } from '../../engine/finance/cap';
-import { capHit, guaranteedFrom } from '../../engine/finance/contract';
+import { capHit, guaranteedFrom, lastSeason } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
-import type { League } from '../../engine/types';
+import type { League, Player } from '../../engine/types';
+import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerLink, TeamChip, TeamLink, TeamPicker } from '../components';
+import { Panel, PlayerLink, SortTh, sortRows, TeamChip, TeamLink, TeamPicker, useSort } from '../components';
 import { CapChart, capPct, ContractActions, thruLabel } from '../contracts';
 import { money } from '../format';
 import { moveIndex, MoveText } from '../moves';
+
+/** The contracts table's columns ("% of cap" sorts as the cap hit: same order). */
+type ContractSort = 'name' | 'pos' | 'age' | 'cap' | 'apy' | 'thru' | 'gtd' | 'dead' | 'saves';
+
+function contractSortValue(league: League, p: Player, key: ContractSort): number | string {
+  const c = p.contract!;
+  switch (key) {
+    case 'name':
+      return `${p.lastName} ${p.firstName}`.toLowerCase();
+    case 'pos':
+      return POSITIONS.indexOf(p.position);
+    case 'age':
+      return p.age;
+    case 'cap':
+      return capHit(c, league.season);
+    case 'apy':
+      return c.apy;
+    case 'thru':
+      return lastSeason(c);
+    case 'gtd':
+      return guaranteedFrom(c, league.season);
+    case 'dead': {
+      const cut = releasePreview(league, p);
+      return cut.thisYear + cut.nextYear;
+    }
+    case 'saves':
+      return releasePreview(league, p).savings;
+  }
+}
 
 export function Finances({ league, teamId }: { league: League; teamId: number }) {
   const nav = useNav();
@@ -14,9 +44,12 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
   const isUser = teamId === league.userTeamId;
   const sheet = capSheet(league, teamId);
   const season = league.season;
-  const players = teamPlayers(league, teamId)
-    .filter((p) => p.contract)
-    .sort((a, b) => capHit(b.contract!, season) - capHit(a.contract!, season));
+  const [sort, onSort] = useSort<ContractSort>({ key: 'cap', desc: true });
+  const players = sortRows(
+    teamPlayers(league, teamId).filter((p) => p.contract),
+    sort,
+    (p, key) => contractSortValue(league, p, key),
+  );
   const dead = team.deadMoney
     .filter((d) => d.season >= season)
     .sort((a, b) => a.season - b.season || b.amount - a.amount);
@@ -107,16 +140,16 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
           <table>
             <thead>
               <tr>
-                <th className="sticky-col">Player</th>
-                <th>Pos</th>
-                <th className="num">Age</th>
-                <th className="num">Cap hit</th>
-                <th className="num">% of cap</th>
-                <th className="num">APY</th>
-                <th className="num">Thru</th>
-                <th className="num">Gtd left</th>
-                <th className="num">If released: dead</th>
-                <th className="num">Saves</th>
+                <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
+                <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
+                <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
+                <SortTh label="Cap hit" k="cap" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="% of cap" k="cap" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="APY" k="apy" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="Thru" k="thru" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="Gtd left" k="gtd" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="If released: dead" k="dead" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="Saves" k="saves" sort={sort} onSort={onSort} className="num" />
                 {isUser && <th>Actions</th>}
               </tr>
             </thead>
