@@ -7,7 +7,8 @@
  * A league has only about ten stars and a few dozen rentals, and only one star in seven is cheap enough for three
  * picks, so the audit prices every eligible player and pools the first season of many leagues: its own, priced as
  * they play, and the rest here, each in a child process (`priceLeagues`) that plays its league to deadline day while
- * the audit runs. With three leagues a bucket's median moved with any change that reshuffled the world.
+ * the audit runs. With three leagues a bucket's median moved with any change that reshuffled the world: over six
+ * seeds deadline-day stars ran 855-1431 (three under the band), rentals 40-88; over 48 leagues, 1202-1408 and 62-67.
  */
 import { fork } from 'node:child_process';
 import { availableParallelism } from 'node:os';

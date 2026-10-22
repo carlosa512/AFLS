@@ -648,8 +648,10 @@ if (rows.length >= 5) {
   );
   // Median cap space is flat once settled: 2.3, 2.1, 2.1% over the last three (all seeds 2.0-2.3), so within 1 point.
   // One league's median is one team's space, and drawing other teams moves it 0.3-0.6 points a season (a bootstrap
-  // over the 32), so it is read over all four leagues' 128 teams. Over twelve seeds one league's spread ran 0.1-1.6
-  // (two over the band); every grouping of four of them, 0.0-0.8.
+  // over the 32), so it is read over all four leagues' 128 teams. The 4th kickoff still sits 0.2 above the next two
+  // on average (2.32, 2.09, 2.10 over 36 seeds: a league still settling), part of every spread. Over those 36 seeds
+  // one league's spread ran 0.1-1.6, one in six over the band; four drawn at random, 0.26 at the median and 0.86 at
+  // the 99th percentile, about one draw in 800 over.
   // The pool of free agents is still growing at season 6 (+33 in the last step; all seeds +26 to +41); band 70.
   console.log(
     `  cap: median space %cap over ${others.length + 1} leagues ${tail.map((x) => x.toFixed(1)).join(' · ')} · ${check('spread over the last 3', Math.max(...tail) - Math.min(...tail), 0, 1, 1)} · ${check('free agents, last step', end.k.fas - rows[rows.length - 2].k.fas, -Infinity, 70, 0)}`,
