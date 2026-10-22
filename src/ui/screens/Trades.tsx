@@ -3,7 +3,7 @@
  * GM's reaction, the cap impact for both teams and the dead money you'd book before you propose),
  * your block, the market's talk and the history.
  */
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { capHit, isExpired, lastSeason } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
 import {
@@ -21,10 +21,21 @@ import {
   type TradeProposal,
 } from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
-import { POSITIONS } from '../../engine/types';
-import { Panel, PlayerAvatar, PlayerLink, TeamChip, TeamLink, TeamPicker } from '../components';
+import { useNav } from '../nav';
+import {
+  Panel,
+  PlayerAvatar,
+  PlayerLink,
+  SortSeg,
+  sortRows,
+  TeamChip,
+  TeamLink,
+  TeamPicker,
+  useSort,
+} from '../components';
+import { LIST_SORT_OPTIONS, listSortValue, type ListSort } from '../offers';
 import { money } from '../format';
-import { Ovr, seenOvr } from '../scouting';
+import { Ovr } from '../scouting';
 import { liveLock } from '../live';
 import { LinkedText } from '../moves';
 import { BlockPanel, ExamPanel, HistoryPanel, MarketPanel, OffersPanel } from '../offers';
@@ -46,10 +57,9 @@ function AssetList({
   onChange: (p: Picked) => void;
 }) {
   const team = league.teams[teamId];
-  // Grouped by position, best first within each group, like a depth chart.
-  const players = teamPlayers(league, teamId).sort(
-    (a, b) => POSITIONS.indexOf(a.position) - POSITIONS.indexOf(b.position) || seenOvr(league, b) - seenOvr(league, a),
-  );
+  // By position, best first within each group, like a depth chart; or by OVR or cap hit.
+  const [sort, onSort] = useSort<ListSort>({ key: 'pos', desc: false });
+  const players = sortRows(teamPlayers(league, teamId), sort, (p, key) => listSortValue(league, p, key));
   const picks = league.draftPicks
     .filter((p) => p.ownerId === teamId && p.playerId === undefined)
     .sort((a, b) => a.season - b.season || a.round - b.round);
@@ -94,6 +104,7 @@ function AssetList({
         );
       })}
       <div className="eyebrow">Players</div>
+      <SortSeg label={`Sort ${team.name} players`} options={LIST_SORT_OPTIONS} sort={sort} onSort={onSort} />
       {players.map(row)}
     </div>
   );
@@ -132,17 +143,35 @@ function KeepPaying({ league, picked, onChange }: { league: League; picked: Pick
   );
 }
 
-type View = 'offers' | 'table' | 'block' | 'market' | 'history';
+export type TradeTab = 'offers' | 'table' | 'block' | 'market' | 'history';
+export const TRADE_TABS: readonly TradeTab[] = ['offers', 'table', 'block', 'market', 'history'];
 
-export function Trades({ league }: { league: League }) {
+/** The view the trades tab opens on: the table when a deal is waiting for it, else the offers when any are open. */
+export function defaultTradeTab(league: League): TradeTab {
+  return tradeDesk.pending() ? 'table' : openOffers(league).length ? 'offers' : 'table';
+}
+
+/**
+ * The view to show: the one the address names, else the one this visit opened on (`held`), else the default.
+ * Holding it keeps the screen still while you work: answering the last offer or advancing a week must not
+ * throw you off the Offers list or the deal you were building.
+ */
+export function stickyTradeTab(held: TradeTab | undefined, tab: TradeTab | undefined, league: League): TradeTab {
+  return tab ?? held ?? defaultTradeTab(league);
+}
+
+export function Trades({ league, tab }: { league: League; tab?: TradeTab }) {
+  const nav = useNav();
   const pending = openOffers(league).length;
-  const [view, setView] = useState<View>(() => (tradeDesk.pending() ? 'table' : pending ? 'offers' : 'table'));
+  const held = useRef<TradeTab | undefined>(undefined);
+  const view = stickyTradeTab(held.current, tab, league);
+  held.current = view;
   // A deal handed over from elsewhere (a counter, "Ask their price") opens the table.
   const version = useSyncExternalStore(tradeDesk.subscribe, tradeDesk.version);
   useEffect(() => {
-    if (tradeDesk.pending()) setView('table');
-  }, [version]);
-  const views: [View, string][] = [
+    if (tradeDesk.pending() && view !== 'table') nav.go({ view: 'office', tab: 'trades', sub: 'table' });
+  }, [version, view, nav]);
+  const views: [TradeTab, string][] = [
     ['offers', pending ? `Offers (${pending})` : 'Offers'],
     ['table', 'Trade table'],
     ['block', 'Your block'],
@@ -153,7 +182,7 @@ export function Trades({ league }: { league: League }) {
     <>
       <div className="seg" role="group" aria-label="Trades" style={{ marginBottom: 12 }}>
         {views.map(([v, label]) => (
-          <button key={v} aria-pressed={view === v} onClick={() => setView(v)}>
+          <button key={v} aria-pressed={view === v} onClick={() => nav.go({ view: 'office', tab: 'trades', sub: v })}>
             {label}
           </button>
         ))}

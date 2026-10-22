@@ -1,9 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
+import { simToEndOfSeason } from '../engine/league';
+import { advanceOffseason, beginOffseason } from '../engine/offseason';
+import { expiringPlayers } from '../engine/offseason/ai';
+import { Resign } from './screens/FrontOffice';
 import type { ReactElement } from 'react';
 import type { League, Player } from '../engine/types';
-import { PlayerLink, TeamLink, TeamPicker } from './components';
+import { GradesTable, PlayerLink, SortSeg, TeamLink, TeamPicker } from './components';
 import { NavContext, type Nav } from './nav';
 
 let league: League;
@@ -72,5 +76,52 @@ describe('TeamPicker', () => {
     expect(html).toMatch(/<option value="all"[^>]*>League<\/option>/);
     expect(html).not.toContain(`value="${me}"`);
     expect(html).not.toContain('(you)');
+  });
+});
+
+describe('SortSeg', () => {
+  it('marks the active key and shows its direction', () => {
+    const html = render(
+      <SortSeg
+        label="Sort assets"
+        options={[
+          { k: 'pos', label: 'Position', desc: false },
+          { k: 'ovr', label: 'OVR' },
+        ]}
+        sort={{ key: 'ovr', desc: true }}
+        onSort={() => {}}
+      />,
+    );
+    expect(html).toMatch(/aria-pressed="true"[^>]*>OVR[^<]*▼/);
+    expect(html).toMatch(/aria-pressed="false"[^>]*>Position/);
+  });
+});
+
+describe('Resign tables', () => {
+  it('sort through the shared header and keep every row its buttons', () => {
+    const l = createLeague({ seed: 'resign' });
+    simToEndOfSeason(l);
+    beginOffseason(l);
+    while (l.phase !== 'resign') advanceOffseason(l);
+    const html = render(<Resign league={l} negotiate={() => {}} />);
+    const expiring = expiringPlayers(l, l.userTeamId).length;
+    expect(expiring).toBeGreaterThan(0);
+    expect(html.split('>Negotiate</button>').length - 1).toBe(expiring);
+    expect(html).toContain('class="th-sort"');
+  });
+});
+
+describe('GradesTable', () => {
+  it('marks your row with is-user and keeps it a tap away from its staff', () => {
+    const me = league.userTeamId;
+    const grades = new Map([
+      [me, { rank: 1, grade: 'A' }],
+      [me === 0 ? 1 : 0, { rank: 2, grade: 'B' }],
+    ]);
+    const html = render(<GradesTable league={league} grades={grades} staffOf={() => null} />);
+    expect(html).toContain('class="is-user"');
+    expect(html).not.toContain('class="me"');
+    expect(html).toMatch(/class="is-user"[\s\S]*?aria-expanded="false"/);
+    expect(html).toContain('class="th-sort"');
   });
 });

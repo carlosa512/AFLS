@@ -104,7 +104,22 @@ import {
   verdictTone,
 } from '../training';
 import { useNav } from '../App';
-import { Dialog, Exact, Panel, PlayerLink, Section, Sheet, TeamChip, TeamPicker, TipPill } from '../components';
+import {
+  Dialog,
+  Exact,
+  gradesSortValue,
+  Panel,
+  PlayerLink,
+  Section,
+  Sheet,
+  SortTh,
+  sortRows,
+  TeamChip,
+  TeamPicker,
+  TipPill,
+  useSort,
+  type GradesSort,
+} from '../components';
 import { StaffAvatar } from '../staffAvatar';
 import { POSITION_NAMES } from '../../engine/positions';
 import { ownerBudgetNote } from '../../engine/staff';
@@ -1910,6 +1925,7 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
     .reverse();
   const names = moveIndex(league);
   const [open, setOpen] = useState<number | null>(null);
+  const [gradeSort, onGradeSort] = useSort<GradesSort>({ key: 'rank', desc: false });
   return (
     <Panel>
       <details className="more">
@@ -1920,8 +1936,15 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
           <table className="league-grades league-coaches">
             <thead>
               <tr>
-                <th className="num">Rank</th>
-                <th className="sticky-col">Team</th>
+                <SortTh label="Rank" k="rank" sort={gradeSort} onSort={onGradeSort} desc={false} className="num" />
+                <SortTh
+                  label="Team"
+                  k="team"
+                  sort={gradeSort}
+                  onSort={onGradeSort}
+                  desc={false}
+                  className="sticky-col"
+                />
                 <th>Grade</th>
                 <th>Head coach</th>
                 <th>Offensive coordinator</th>
@@ -1929,13 +1952,12 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
               </tr>
             </thead>
             <tbody>
-              {[...grades]
-                .sort((a, b) => a[1].rank - b[1].rank)
-                .flatMap(([id, g]) => {
+              {sortRows([...grades], gradeSort, ([id, g], key) => gradesSortValue(league, id, g.rank, key)).flatMap(
+                ([id, g]) => {
                   const t = league.teams[id];
                   const staff = teamCoaches(league, id);
                   const row = (
-                    <tr key={id} className={id === teamId ? 'me' : undefined}>
+                    <tr key={id} className={id === teamId ? 'is-user' : undefined}>
                       <td className="num">{g.rank}</td>
                       <td className="sticky-col">
                         {/* Tap a team for the rest of its staff: position coaches and S&C. */}
@@ -1990,7 +2012,8 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
                       </td>
                     </tr>,
                   ];
-                })}
+                },
+              )}
             </tbody>
           </table>
         </div>

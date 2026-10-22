@@ -29,7 +29,18 @@ import { resignForecast, staffName, staffWindowOpen } from '../../engine/staff';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerLink, Rating, Section, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
+import {
+  Panel,
+  PlayerLink,
+  Rating,
+  Section,
+  SortTh,
+  sortRows,
+  TeamChip,
+  TeamPicker,
+  useSort,
+  type SortState,
+} from '../components';
 import { attentionText, coachAttention } from '../coaching';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
@@ -52,7 +63,7 @@ import {
 import { CoachesScreen } from './Coaches';
 import { MedicalScreen } from './Medical';
 import { StaffScreen } from './Staff';
-import { Trades } from './Trades';
+import { Trades, type TradeTab } from './Trades';
 import { LinkedText, type Who } from '../moves';
 import { store } from '../store';
 
@@ -80,12 +91,47 @@ function PositionFilter({ value, onChange }: { value: Position | 'ALL'; onChange
 
 // ───────── re-sign window ─────────
 
-function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) => void }) {
+/** The columns the re-sign tables share; each table sorts by the ones it shows. */
+type ResignSort = 'name' | 'pos' | 'age' | 'ovr' | 'old' | 'market' | 'ask' | 'option' | 'thru' | 'team';
+
+function resignSortValue(league: League, p: Player, key: ResignSort): number | string {
+  switch (key) {
+    case 'name':
+      return `${p.lastName} ${p.firstName}`.toLowerCase();
+    case 'pos':
+      return POSITIONS.indexOf(p.position);
+    case 'age':
+      return p.age;
+    case 'ovr':
+      return seenOvr(league, p);
+    case 'old':
+      return p.contract?.apy ?? 0;
+    case 'market':
+      return demand(league, p, league.userTeamId).market;
+    case 'ask':
+      return demand(league, p, league.userTeamId).askApy;
+    case 'option':
+      return fifthYearOptionValue(league, p);
+    case 'thru':
+      return p.contract ? lastSeason(p.contract) : 0;
+    case 'team':
+      return p.teamId !== null ? league.teams[p.teamId].abbrev : '';
+  }
+}
+
+export function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) => void }) {
   const teamId = league.userTeamId;
   const team = league.teams[teamId];
-  const expiring = league.phase === 'resign' ? expiringPlayers(league, teamId) : [];
-  const options = teamPlayers(league, teamId).filter(
-    (p) => p.contract?.fifthYearOption === 'eligible' && lastSeason(p.contract) === league.season,
+  const [expSort, onExpSort] = useSort<ResignSort>({ key: 'ovr', desc: true });
+  const [optSort, onOptSort] = useSort<ResignSort>({ key: 'ovr', desc: true });
+  const [extSort, onExtSort] = useSort<ResignSort>({ key: 'ovr', desc: true });
+  const by = (sort: SortState<ResignSort>) => (rows: Player[]) =>
+    sortRows(rows, sort, (p, key) => resignSortValue(league, p, key));
+  const expiring = by(expSort)(league.phase === 'resign' ? expiringPlayers(league, teamId) : []);
+  const options = by(optSort)(
+    teamPlayers(league, teamId).filter(
+      (p) => p.contract?.fifthYearOption === 'eligible' && lastSeason(p.contract) === league.season,
+    ),
   );
   // Worth a call: starters and promising young players, not the bottom of the depth chart.
   const extensions = teamPlayers(league, teamId)
@@ -100,6 +146,7 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
     .filter((p) => seenOvr(league, p) >= 11 || (p.age <= 25 && viewOf(league, p).potHi >= 12))
     .sort((a, b) => seenOvr(league, b) - seenOvr(league, a))
     .slice(0, 15);
+  const extensionRows = by(extSort)(extensions);
   const tagged = team.taggedId ? league.players[team.taggedId] : null;
 
   return (
@@ -125,13 +172,20 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
               <table>
                 <thead>
                   <tr>
-                    <th className="sticky-col">Player</th>
-                    <th>Pos</th>
-                    <th className="num">Age</th>
-                    <th className="num">OVR</th>
-                    <th className="num">Old APY</th>
-                    <th className="num">Market</th>
-                    <th className="num">Ask</th>
+                    <SortTh
+                      label="Player"
+                      k="name"
+                      sort={expSort}
+                      onSort={onExpSort}
+                      desc={false}
+                      className="sticky-col"
+                    />
+                    <SortTh label="Pos" k="pos" sort={expSort} onSort={onExpSort} desc={false} />
+                    <SortTh label="Age" k="age" sort={expSort} onSort={onExpSort} desc={false} className="num" />
+                    <SortTh label="OVR" k="ovr" sort={expSort} onSort={onExpSort} className="num" />
+                    <SortTh label="Old APY" k="old" sort={expSort} onSort={onExpSort} className="num" />
+                    <SortTh label="Market" k="market" sort={expSort} onSort={onExpSort} className="num" />
+                    <SortTh label="Ask" k="ask" sort={expSort} onSort={onExpSort} className="num" />
                     <th>Talks</th>
                     <th>Actions</th>
                   </tr>
@@ -198,6 +252,15 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
           </p>
           <div className="table-scroll">
             <table>
+              <thead>
+                <tr>
+                  <SortTh label="Player" k="name" sort={optSort} onSort={onOptSort} desc={false} />
+                  <SortTh label="Pos" k="pos" sort={optSort} onSort={onOptSort} desc={false} />
+                  <SortTh label="OVR" k="ovr" sort={optSort} onSort={onOptSort} className="num" />
+                  <SortTh label="Option" k="option" sort={optSort} onSort={onOptSort} className="num" />
+                  <th>Actions</th>
+                </tr>
+              </thead>
               <tbody>
                 {options.map((p) => (
                   <tr key={p.id}>
@@ -247,8 +310,19 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
         ) : (
           <div className="table-scroll">
             <table>
+              <thead>
+                <tr>
+                  <SortTh label="Player" k="name" sort={extSort} onSort={onExtSort} desc={false} />
+                  <SortTh label="Pos" k="pos" sort={extSort} onSort={onExtSort} desc={false} />
+                  <SortTh label="Age" k="age" sort={extSort} onSort={onExtSort} desc={false} className="num" />
+                  <SortTh label="OVR" k="ovr" sort={extSort} onSort={onExtSort} className="num" />
+                  <SortTh label="Thru" k="thru" sort={extSort} onSort={onExtSort} className="num" />
+                  <SortTh label="Ask" k="ask" sort={extSort} onSort={onExtSort} className="num" />
+                  <th>Actions</th>
+                </tr>
+              </thead>
               <tbody>
-                {extensions.map((p) => {
+                {extensionRows.map((p) => {
                   const d = demand(league, p, teamId);
                   return (
                     <tr key={p.id}>
@@ -297,14 +371,20 @@ function FreeAgents({
 }) {
   const [pos, setPos] = useState<Position | 'ALL'>(start ?? 'ALL');
   const [sort, onSort] = useSort<FaSort>({ key: 'market', desc: true });
+  const [pendingSort, onPendingSort] = useSort<ResignSort>({ key: 'ovr', desc: true });
   const teamId = league.userTeamId;
   const depth = positionDepth(league, teamId);
   if (league.phase === 'resign') {
-    const pending = league.teams
-      .filter((t) => t.id !== teamId)
-      .flatMap((t) => expiringPlayers(league, t.id))
-      .sort((a, b) => seenOvr(league, b) - seenOvr(league, a))
-      .slice(0, 25);
+    // The 25 best by our read, in whatever order the header asks for.
+    const pending = sortRows(
+      league.teams
+        .filter((t) => t.id !== teamId)
+        .flatMap((t) => expiringPlayers(league, t.id))
+        .sort((a, b) => seenOvr(league, b) - seenOvr(league, a))
+        .slice(0, 25),
+      pendingSort,
+      (p, key) => resignSortValue(league, p, key),
+    );
     return (
       <Panel title="Coming to market">
         <p className="muted small" style={{ marginTop: 0 }}>
@@ -313,6 +393,15 @@ function FreeAgents({
         </p>
         <div className="table-scroll">
           <table>
+            <thead>
+              <tr>
+                <SortTh label="Player" k="name" sort={pendingSort} onSort={onPendingSort} desc={false} />
+                <SortTh label="Pos" k="pos" sort={pendingSort} onSort={onPendingSort} desc={false} />
+                <SortTh label="Age" k="age" sort={pendingSort} onSort={onPendingSort} desc={false} className="num" />
+                <SortTh label="OVR" k="ovr" sort={pendingSort} onSort={onPendingSort} className="num" />
+                <SortTh label="Team" k="team" sort={pendingSort} onSort={onPendingSort} desc={false} />
+              </tr>
+            </thead>
             <tbody>
               {pending.map((p) => (
                 <tr key={p.id}>
@@ -609,7 +698,7 @@ function Draft({ league }: { league: League }) {
             <table>
               <thead>
                 <tr>
-                  <SortTh label="# Prospect" k="rank" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
+                  <SortTh label="Player" k="rank" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
                   <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
                   <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
                   <SortTh
@@ -938,7 +1027,17 @@ function BoardHabits({ league, player }: { league: League; player: Player }) {
   return <QuirkPills notes={h.notes} limit={1} oneLine />;
 }
 
-export function FrontOffice({ league, tab, pos }: { league: League; tab?: OfficeTab; pos?: Position }) {
+export function FrontOffice({
+  league,
+  tab,
+  pos,
+  sub,
+}: {
+  league: League;
+  tab?: OfficeTab;
+  pos?: Position;
+  sub?: TradeTab;
+}) {
   const nav = useNav();
   const active = tab ?? defaultOfficeTab(league);
   const [talking, setTalking] = useState<number | null>(null);
@@ -1034,7 +1133,7 @@ export function FrontOffice({ league, tab, pos }: { league: League; tab?: Office
         <FreeAgents key={pos ?? 'ALL'} league={league} start={pos} negotiate={(p) => setTalking(p.id)} />
       )}
       {active === 'draft' && <Draft league={league} />}
-      {active === 'trades' && <Trades league={league} />}
+      {active === 'trades' && <Trades league={league} tab={sub} />}
       {active === 'coaches' && <CoachesScreen league={league} />}
       {active === 'staff' && <StaffScreen league={league} />}
       {active === 'medical' && <MedicalScreen league={league} />}

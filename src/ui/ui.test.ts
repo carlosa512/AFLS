@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../engine/generate';
 import { deliverMail, needsYou } from '../engine/inbox';
 import { gamesInWeek, playWeek } from '../engine/league';
-import { computeRecords } from '../engine/season/standings';
+import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { teamSeasonStats } from '../engine/stats';
 import { sortRows } from './components';
 import { linkedSegments, moveSegments, nameIndex, type MoveIndex } from './moves';
@@ -13,7 +13,10 @@ import { backupFileName, parseBackup } from './saves';
 import { byeTeams, resultsWeek, stripGames } from './strip';
 import { hurtList, wornDown } from './injuries';
 import { gameStory } from './game';
+import { standingsSortValue } from './screens/Standings';
 import { TEAM_COLS, teamRank, teamStatSeasons } from './screens/TeamStats';
+import { defaultTradeTab, stickyTradeTab } from './screens/Trades';
+import { tradeDesk } from './tradeDesk';
 import { outlookPill, SEASON_DEFAULT, seasonFacts, waitingMail } from './widgets';
 
 describe('routes', () => {
@@ -29,6 +32,7 @@ describe('routes', () => {
       { view: 'office' },
       { view: 'office', tab: 'draft' },
       { view: 'office', tab: 'fa', pos: 'S' },
+      { view: 'office', tab: 'trades', sub: 'block' },
       { view: 'stats' },
       { view: 'stats', tab: 'records' },
       { view: 'stats', tab: 'teams' },
@@ -47,6 +51,22 @@ describe('routes', () => {
     });
   });
 
+  it('opens the trade table by default and when a draft is waiting', () => {
+    const league = createLeague({ seed: 'tabs' });
+    expect(defaultTradeTab(league)).toBe('table');
+    tradeDesk.put({ partnerId: 1, mine: { players: [], picks: [] }, theirs: { players: [], picks: [] } });
+    expect(defaultTradeTab(league)).toBe('table');
+    tradeDesk.take();
+  });
+
+  it('keeps the trades view it opened on until a link names another', () => {
+    const league = createLeague({ seed: 'tabs' });
+    // Opened on Offers (one was pending); the last one answered, the screen stays put instead of jumping to the table.
+    expect(stickyTradeTab('offers', undefined, league)).toBe('offers');
+    expect(stickyTradeTab(undefined, undefined, league)).toBe(defaultTradeTab(league));
+    expect(stickyTradeTab('offers', 'block', league)).toBe('block');
+  });
+
   it('send the old Leaders address to the Stats tab', () => {
     expect(hashToRoute('#/leaders')).toEqual({ view: 'stats', tab: 'leaders' });
   });
@@ -56,6 +76,8 @@ describe('routes', () => {
     for (const bad of [
       '#/nope',
       '#/office/payroll',
+      '#/office/trades/nope',
+      '#/office/fa/block',
       '#/stats/trophies',
       '#/roster/abc',
       '#/game/',
@@ -351,8 +373,30 @@ describe('screen contract', () => {
     expect(bad).toEqual([]);
   });
 
+  it('marks your row with is-user only', () => {
+    const bad = files.filter((f) => /['"`]me['"`]\s*:\s*undefined|className=\{[^}]*\?\s*'me'/.test(src(f)));
+    expect(bad).toEqual([]);
+  });
+
+  it('offers league or mine as the seg control, not a select', () => {
+    expect(/<select\s+aria-label="Players"/.test(src('src/ui/screens/Stats.tsx'))).toBe(false);
+  });
+
   it('builds team dropdowns only with TeamPicker', () => {
     const bad = files.filter((f) => /\[\.\.\.league\.teams\]\s*\.(sort|filter)/.test(src(f)));
     expect(bad).toEqual([]);
+  });
+});
+
+describe('standings sort', () => {
+  it('sorts each division on its own and restores the tiebreaker order', () => {
+    const league = createLeague({ seed: 'standings' });
+    for (let i = 0; i < 6; i++) playWeek(league);
+    const d = divisionStandings(league, computeRecords(league))[0];
+    const rows = d.teams.map((r, i) => ({ r, i }));
+    const byPf = sortRows(rows, { key: 'pf', desc: true }, ({ r, i }, k) => standingsSortValue(r, k, i));
+    expect(byPf.map((x) => x.r.pf)).toEqual([...byPf].map((x) => x.r.pf).sort((a, b) => b - a));
+    const back = sortRows(byPf, { key: 'rank', desc: false }, ({ r, i }, k) => standingsSortValue(r, k, i));
+    expect(back.map((x) => x.r.teamId)).toEqual(d.teams.map((r) => r.teamId));
   });
 });
