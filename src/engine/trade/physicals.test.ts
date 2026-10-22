@@ -3,7 +3,7 @@ import { createLeague } from '../generate';
 import { playerOvr } from '../positions';
 import { activeRoster } from '../roster';
 import type { League, Player } from '../types';
-import { examine, proposeTrade, resolveExam, tradeContext } from '.';
+import { evaluateTrade, examine, proposeTrade, resolveExam, tradeContext } from '.';
 import { lowerPrice } from './physicals';
 import type { TradeProposal } from './rules';
 
@@ -82,17 +82,19 @@ describe('physicals', () => {
   it('puts the call to you when your doctor fails a player you are buying', () => {
     const l = fresh();
     const ai = 9;
-    // A depth player of his for your best: a deal he takes, so it reaches the physicals.
+    // A depth player of his for the best of yours that he takes: a deal the league allows and he agrees to, so it
+    // reaches the physicals. (Your very best may not be one: a payroll near the cap can't absorb a star's whole hit.)
     const target = activeRoster(l, ai).sort((a, b) => playerOvr(b) - playerOvr(a))[30];
     breakDown(l, target);
     target.injury = undefined; // in season a hurt player can't be traded at all
     const mine = activeRoster(l, l.userTeamId).sort((a, b) => playerOvr(b) - playerOvr(a));
-    const proposal: TradeProposal = {
+    const dealFor = (give: Player): TradeProposal => ({
       sides: [
-        { teamId: l.userTeamId, players: [mine[0].id], picks: [] },
+        { teamId: l.userTeamId, players: [give.id], picks: [] },
         { teamId: ai, players: [target.id], picks: [] },
       ],
-    };
+    });
+    const proposal = dealFor(mine.find((p) => evaluateTrade(l, dealFor(p)).accepts)!);
     const r = proposeTrade(l, proposal);
     expect(r.accepted).toBe(false);
     expect(l.market!.exam!.by).toBe('yours');

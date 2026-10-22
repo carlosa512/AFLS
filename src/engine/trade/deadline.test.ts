@@ -33,6 +33,13 @@ describe('a tight cap in season', () => {
           p.contract.years.at(-1)!.season === l.season,
       )
       .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
+    // Everyone he would push down the buyer's depth chart is in the last year of his deal. A displaced starter with
+    // years left loses the later-year money he brings, and later years always weigh at the team's salaryWeight (so
+    // a squeezed team's gain moves a little with w whenever the room has one): that is not what this asserts, and
+    // whether a generated room has such a player at the boundary depends on the contracts the world dealt out.
+    for (const p of Object.values(l.players))
+      if (p.teamId === buyer.id && p.position === target.position && p.contract)
+        p.contract.years = p.contract.years.filter((y) => y.season <= l.season);
     const gainAt = (phase: League['phase'], w: number) => {
       l.phase = phase;
       const ctx = tradeContext(l);

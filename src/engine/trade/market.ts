@@ -91,7 +91,7 @@ function capped(league: League, market: TradeMarket, team: Team): boolean {
 type Listing = { team: Team; entry: BlockEntry };
 
 /** One GM's call: what he buys, sells or dumps, or nothing that both sides take. */
-function initiate(
+export function initiate(
   ctx: TradeContext,
   market: TradeMarket,
   team: Team,
@@ -101,6 +101,11 @@ function initiate(
 ): Deal | null {
   const { league } = ctx;
   const ai = league.teams.filter((t) => t.id !== league.userTeamId && t.id !== team.id && open(t));
+  // A squeezed team clears its bad contract before it shops.
+  if (moment === 'leagueYear') {
+    const dump = dumpCall(ctx, market, team, ai);
+    if (dump) return dump;
+  }
   if (isBuyer(team)) {
     // In an ordinary week a team asks around before it deals; at the deadline and in the offseason it moves at once.
     const threshold = moment === 'week' ? 2 : 1;
@@ -141,19 +146,24 @@ function initiate(
     const swap = pickSwapFor(ctx, team, ai);
     if (swap) return swap;
   }
-  // A team truly squeezed moves a bad contract when the league year opens, before the money's
-  // guaranteed. After that the rest are cut, not traded, and in season it lives with them.
-  // One a league year: a front office clears its worst contract, not its whole cap sheet.
-  const squeezed =
-    salaryWeight(ctx, team.id) >= 1.6 &&
-    !market.history.some((r) => r.kind === 'dump' && r.season === league.season && r.sides[0].teamId === team.id);
-  if (squeezed && moment === 'leagueYear') {
-    for (const entry of tradeBlock(ctx, team)
-      .filter((e) => e.reason === 'overpaid')
-      .slice(0, 2)) {
-      const deal = dumpFor(ctx, team, league.players[entry.playerId], ai);
-      if (deal) return deal;
-    }
+  return null;
+}
+
+/**
+ * A team truly squeezed moves a bad contract when the league year opens, before the money's
+ * guaranteed. After that the rest are cut, not traded, and in season it lives with them.
+ * One a league year: a front office clears its worst contract, not its whole cap sheet.
+ */
+function dumpCall(ctx: TradeContext, market: TradeMarket, team: Team, among: readonly Team[]): Deal | null {
+  const { league } = ctx;
+  if (salaryWeight(ctx, team.id) < 1.6) return null;
+  if (market.history.some((r) => r.kind === 'dump' && r.season === league.season && r.sides[0].teamId === team.id))
+    return null;
+  for (const entry of tradeBlock(ctx, team)
+    .filter((e) => e.reason === 'overpaid')
+    .slice(0, 2)) {
+    const deal = dumpFor(ctx, team, league.players[entry.playerId], among);
+    if (deal) return deal;
   }
   return null;
 }

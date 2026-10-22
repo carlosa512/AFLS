@@ -46,7 +46,7 @@ import {
 import type { Moment } from './market';
 import { lowerPrice, physicals, worstResult } from './physicals';
 import { nudgeTrust, talkRefusal, talksOf } from './talks';
-import { marketValue, salaryWeight } from './value';
+import { marketValue, POINTS_PER_K, salaryWeight } from './value';
 
 type Listing = { team: Team; entry: BlockEntry };
 
@@ -103,17 +103,26 @@ export function yourListings(ctx: TradeContext): Listing[] {
  * read, 5% less once you've put him on the block (he knows you want to sell), more when other teams
  * are asking, never more than he'd pay; when no package reaches that, the best he would pay under it,
  * down to what a seller holds out for. Picks first; a player of his only when no pick package works.
- * Sides: [his, yours].
+ * A buyer short of room asks you to keep paying what he can't fit, and pays for it, as between AI
+ * teams (`dealFor`). Sides: [his, yours].
  */
 export function bidFor(ctx: TradeContext, buyer: Team, target: Player): TradeProposal | null {
   const { league } = ctx;
   const user = userTeam(league);
-  if (salaryToTake(league, target) > spendable(ctx, buyer.id)) return null;
-  const yours: TradeSide = { teamId: user.id, players: [target.id], picks: [] };
+  const retain = keepToFit(league, target, spendable(ctx, buyer.id));
+  if (retain === null) return null;
+  const yours: TradeSide = {
+    teamId: user.id,
+    players: [target.id],
+    picks: [],
+    ...(retain ? { retain: { [target.id]: retain } } : {}),
+  };
   const nothing: TradeProposal = { sides: [{ teamId: buyer.id, players: [], picks: [] }, yours] };
   const most = judge(ctx, buyer.id, nothing, { rosterCuts: true }).get / marginFor(buyer, user);
-  const worth = marketValue(ctx, buyer, target);
-  if (worth <= 0 || most <= 0) return null;
+  const value = marketValue(ctx, buyer, target);
+  if (value <= 0 || most <= 0) return null;
+  // The salary you keep makes him that much cheaper to him: it's in his price, his most and your floor.
+  const worth = value + POINTS_PER_K * retain;
   const bidders = (league.market?.interest ?? []).filter(
     (x) => x.playerId === target.id && x.teamId !== buyer.id,
   ).length;
@@ -368,10 +377,10 @@ export function expireOffers(league: League): void {
     // Same week the card's "Open until you play week N" promised: `expireOffers` runs before the week moves.
     o.outcome =
       league.phase === 'regular' ? `It lapsed when you played week ${league.week}.` : 'It lapsed when you moved on.';
-    // You didn't bite: he doesn't call about the same players next week.
+    // You didn't bite: he doesn't call about the same players next week, unless you've since put him on the block.
     const t = talksOf(market, o.teamId);
     for (const pid of [...o.sides[0].players, ...o.sides[1].players])
-      t.cooldowns[pid] ??= { until: market.moment + IGNORED_WAIT, worth: o.worth };
+      if (market.status[pid] !== 'listed') t.cooldowns[pid] ??= { until: market.moment + IGNORED_WAIT, worth: o.worth };
   }
   const resolved = market.offers.filter((o) => o.status !== 'pending');
   market.offers = [...market.offers.filter((o) => o.status === 'pending'), ...resolved.slice(-KEEP_RESOLVED)].sort(
@@ -770,6 +779,13 @@ export function setTradeStatus(league: League, playerId: number, status: 'untouc
   if (league.players[playerId]?.teamId !== league.userTeamId) return;
   if (status) market.status[playerId] = status;
   else delete market.status[playerId];
+  // Putting him on the block answers the bids for him you let lapse: those teams may call again (a listed player's
+  // call is always made). The latest you turned down keeps its wait.
+  if (status === 'listed') {
+    const latest = new Map<number, TradeOffer>();
+    for (const o of market.offers) if (o.sides[1].players.includes(playerId)) latest.set(o.teamId, o);
+    for (const [teamId, o] of latest) if (o.status === 'expired') delete market.talks[teamId]?.cooldowns[playerId];
+  }
 }
 
 /**

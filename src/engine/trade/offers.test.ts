@@ -14,19 +14,26 @@ import {
   answerEnquiry,
   ASKS,
   askPrice,
+  capRoom,
   counterOffer,
   declineOffer,
   judge,
+  keepToFit,
+  maxRetain,
   openOffers,
   playerTradeBlocker,
   proposeTrade,
+  salaryToTake,
   setTradeStatus,
   shopPlayer,
   teamNeeds,
   tradeContext,
   untouchables,
 } from '.';
-import { bidFor, recheckOffers } from './offers';
+import { quickValue } from './deals';
+import { bidFor, recheckOffers, yourListings } from './offers';
+import { interestIn, isBuyer, updateInterest, wanted } from './plans';
+import { POINTS_PER_K } from './value';
 import type { TradeProposal } from './rules';
 import { talksOf } from './talks';
 
@@ -34,6 +41,30 @@ const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 let base = '';
 const fresh = (): League => JSON.parse(base);
 const packaged = (l: League) => openOffers(l).filter((o) => o.kind !== 'enquiry');
+
+/**
+ * Enquiries are rare (about one a league a season reaches you), and any change to generation or play re-rolls who
+ * asks when, so the enquiry tests look across a few fixed-seed leagues for them, as the refusal tests loop seeds.
+ * `look` sees each week's open enquiries and returns true to stop there; otherwise the search ends with the first
+ * league that showed any. Returns the league it stopped in, or null if none showed one.
+ */
+const ENQUIRY_SEEDS = ['trades-0', 'trades-1', 'trades-2', 'trades-3', 'trades-4', 'trades-5'];
+function findEnquiries(weeks: number, look: (l: League, enquiries: TradeOffer[]) => boolean): League | null {
+  for (const seed of ENQUIRY_SEEDS) {
+    const l = createLeague({ seed });
+    let seen = false;
+    for (let w = 0; w < weeks && l.phase === 'regular'; w++) {
+      const enquiries = openOffers(l).filter((o) => o.kind === 'enquiry');
+      if (enquiries.length) {
+        seen = true;
+        if (look(l, enquiries)) return l;
+      }
+      playWeek(l);
+    }
+    if (seen) return l;
+  }
+  return null;
+}
 
 beforeAll(() => {
   // Play on until offers are on the desk.
@@ -57,7 +88,7 @@ describe('offers to you', () => {
     expect(roster.length).toBeGreaterThan(0);
   });
 
-  it('draws an offer for any of your three best non-specialists some team needs, priced in firsts or not', () => {
+  it('draws an offer for any of your three best prime-age non-specialists some team needs, priced in firsts or not', () => {
     // The trades audit's listing (`listingDraws`): your best players at a position an AI team needs, signed 2+ more
     // years. Shopped, a young cornerback draws a crowd, and the bidders' premium puts a buyer's price past every
     // package he'd sign off on (each first past the second costs him more than the going rate): he must offer the
@@ -68,8 +99,10 @@ describe('offers to you', () => {
     const needed = new Set(ai.flatMap((t) => teamNeeds(ctx, t).map((n) => n.position)));
     const shop = activeRoster(l, l.userTeamId)
       .filter((p) => needed.has(p.position) && yearsLeft(p.contract!, l.season) >= 2 && !playerTradeBlocker(l, p))
-      // Kickers and punters aren't traded for picks (the price audit leaves them out too).
-      .filter((p) => p.position !== 'K' && p.position !== 'P')
+      // Kickers and punters aren't traded for picks (the price audit leaves them out too), nor is a lineman of 34
+      // with years left on his deal: the bug is a young starter priced in firsts, so prime-age players only (30 or
+      // under, as the price audit's quality starters).
+      .filter((p) => p.position !== 'K' && p.position !== 'P' && p.age <= 30)
       .sort((a, b) => playerOvr(b) - playerOvr(a))
       .slice(0, 3);
     for (const star of shop) {
@@ -80,6 +113,54 @@ describe('offers to you', () => {
       const named = x.market!.offers.filter((o) => o.id >= before && o.sides[1].players.includes(star.id));
       expect(named.length, `${star.position} ${star.age}`).toBeGreaterThan(0);
     }
+  });
+
+  it('bids for your player from a team short of room, with you keeping what it can’t fit, and pays for it', () => {
+    // As between AI teams (`dealFor`) and when you buy (`askFor`): a buyer that can't fit his salary bids if you keep
+    // paying the difference, and his price counts the money you keep. Without it, a listed starter on a big deal drew
+    // bids only from the few teams with room for all of it.
+    const l = fresh();
+    const ctx = tradeContext(l);
+    const ai = l.teams.filter((t) => t.id !== l.userTeamId);
+    const cases: { player: number; buyer: number; paid: number }[] = [];
+    for (const p of activeRoster(l, l.userTeamId)) {
+      if (cases.length >= 8) break;
+      if (!p.contract || playerTradeBlocker(l, p) || p.position === 'K' || p.position === 'P') continue;
+      // Paid well past the minimum, so his team can keep a third of what's left.
+      if (maxRetain(l, p) < 0.5 * salaryToTake(l, p)) continue;
+      for (const t of ai) {
+        if (capRoom(ctx, t.id) < salaryToTake(l, p) + 2000) continue;
+        const bid = bidFor(ctx, t, p);
+        if (!bid) continue;
+        cases.push({ player: p.id, buyer: t.id, paid: quickValue(ctx, t, bid.sides[0]) });
+        break;
+      }
+    }
+    expect(cases.length, 'players a roomy team bids for').toBeGreaterThanOrEqual(4);
+    let bids = 0;
+    for (const c of cases) {
+      // The same buyer squeezed so it fits only about two-thirds of what's left of his salary.
+      const m = fresh();
+      const p = m.players[c.player];
+      const owed = salaryToTake(m, p);
+      const room = capRoom(tradeContext(m), c.buyer);
+      m.teams[c.buyer].deadMoney.push({
+        season: m.season,
+        amount: Math.round(room - 0.67 * owed),
+        playerId: -1,
+        note: 'Test',
+      });
+      const mctx = tradeContext(m);
+      const kept = keepToFit(m, p, capRoom(mctx, c.buyer));
+      expect(kept).toBeGreaterThan(0);
+      const bid = bidFor(mctx, m.teams[c.buyer], p);
+      if (!bid) continue;
+      bids++;
+      expect(bid.sides[1].retain?.[p.id]).toBe(kept);
+      // Most of the money comes back to you in picks, on top of what he'd pay with room for all of it.
+      expect(quickValue(mctx, m.teams[c.buyer], bid.sides[0]) - c.paid).toBeGreaterThan(0.5 * POINTS_PER_K * kept!);
+    }
+    expect(bids, `bids from squeezed buyers, of ${cases.length}`).toBeGreaterThanOrEqual(cases.length / 2);
   });
 
   it('never shows you an offer its own team would already refuse', () => {
@@ -101,18 +182,18 @@ describe('offers to you', () => {
   });
 
   it('only asks about a player it could bid for', () => {
-    const l = fresh();
     let asked = 0;
-    for (let w = 0; w < 8; w++) {
-      for (const e of openOffers(l).filter((o) => o.kind === 'enquiry')) {
+    // Every enquiry the first league with any shows in its first 12 weeks, each checked the week it's open.
+    findEnquiries(12, (l, enquiries) => {
+      for (const e of enquiries) {
         asked++;
         const p = l.players[e.sides[1].players[0]];
         expect(bidFor(tradeContext(l), l.teams[e.teamId], p)).not.toBeNull();
       }
-      playWeek(l);
-    }
+      return false;
+    });
     expect(asked).toBeGreaterThan(0);
-  });
+  }, 120_000);
 
   it('says why every offer ended', () => {
     const l = fresh();
@@ -236,6 +317,55 @@ describe('offers to you', () => {
     expect(l.market!.offers.find((o) => o.id === offer.id)!.status).toBe('withdrawn');
   });
 
+  it('tells every buyer that wants a player you list, even one that would rather have another of yours', () => {
+    // Each buyer watches the one of your players it wants most; a listing has to reach the others that want him too,
+    // or a shopped starter hears only from the teams whose first choice he already was.
+    const l = fresh();
+    const ai = l.teams.filter((t) => t.id !== l.userTeamId);
+    let reached = 0;
+    for (const star of activeRoster(l, l.userTeamId).sort((a, b) => playerOvr(b) - playerOvr(a))) {
+      const x = fresh();
+      setTradeStatus(x, star.id, 'listed');
+      const ctx = tradeContext(x);
+      const yours = yourListings(ctx);
+      const listed = yours.filter((y) => y.entry.playerId === star.id);
+      // Buyers that want him, but want another of yours more.
+      const second = ai.filter((t) => {
+        const team = x.teams[t.id];
+        return isBuyer(team) && wanted(ctx, team, listed).length && wanted(ctx, team, yours)[0].player.id !== star.id;
+      });
+      if (!second.length) continue;
+      updateInterest(ctx, x.market!, x.teams, [], yours);
+      for (const t of second)
+        expect(interestIn(x.market!, t.id, star.id), x.teams[t.id].abbrev).toBeGreaterThanOrEqual(2);
+      if (++reached >= 3) break;
+    }
+    expect(reached, 'listings with a buyer that wanted another of yours more').toBeGreaterThan(0);
+  });
+
+  it('lets a team whose bid you let lapse call again once you list the player, but not one you turned down', () => {
+    // A bid left to lapse keeps its team off him for two moments; putting him on the block answers it, and the
+    // listing's call is "always made". A bid you declined keeps its wait.
+    const l = fresh();
+    const [lapsed, declined] = packaged(l).filter((o) => o.sides[1].players.length);
+    expect(declined, 'two bids for your players on the desk').toBeDefined();
+    expect(lapsed.teamId).not.toBe(declined.teamId);
+    declineOffer(l, declined.id);
+    playWeek(l);
+    const wait = (o: TradeOffer) => l.market!.talks[o.teamId].cooldowns[o.sides[1].players[0]];
+    expect(wait(lapsed)).toBeDefined();
+    expect(wait(declined)).toBeDefined();
+    setTradeStatus(l, lapsed.sides[1].players[0], 'listed');
+    setTradeStatus(l, declined.sides[1].players[0], 'listed');
+    expect(wait(lapsed)).toBeUndefined();
+    expect(wait(declined)).toBeDefined();
+    // Listed while the bid is still on the desk: it lapses with no wait.
+    const m = fresh();
+    setTradeStatus(m, lapsed.sides[1].players[0], 'listed');
+    playWeek(m);
+    expect(m.market!.talks[lapsed.teamId]?.cooldowns[lapsed.sides[1].players[0]]).toBeUndefined();
+  });
+
   it('keeps a team away from a player you turned down, unless it comes back clearly better', () => {
     const l = fresh();
     const offer = packaged(l)[0];
@@ -273,8 +403,12 @@ describe('offers to you', () => {
   it('hears about four proposals a moment from you, then is done talking', () => {
     const l = fresh();
     const ai = l.teams.find((t) => t.id !== l.userTeamId)!;
-    // A legal lowball: your worst player for his best.
-    const byOvr = (teamId: number) => activeRoster(l, teamId).sort((a, b) => playerOvr(b) - playerOvr(a));
+    // A legal lowball: your worst player for his best, both tradeable (a hurt one fails the physical first) and
+    // neither a kicker or punter (a team can't be left without one).
+    const byOvr = (teamId: number) =>
+      activeRoster(l, teamId)
+        .filter((p) => !playerTradeBlocker(l, p) && p.position !== 'K' && p.position !== 'P')
+        .sort((a, b) => playerOvr(b) - playerOvr(a));
     const junk: TradeProposal = {
       sides: [
         { teamId: l.userTeamId, players: [byOvr(l.userTeamId).at(-1)!.id], picks: [] },
@@ -341,20 +475,16 @@ describe('offers to you', () => {
   });
 
   it('treats an enquiry whose team has no number as answered, not turned down', () => {
-    const l = fresh();
-    let enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
-    for (let w = 0; w < 12 && !enquiry; w++) {
-      playWeek(l);
-      enquiry = openOffers(l).find((o) => o.kind === 'enquiry');
-    }
+    let enquiry: TradeOffer | undefined;
+    const l = findEnquiries(12, (_, enquiries) => !!(enquiry = enquiries[0]));
     expect(enquiry, 'an enquiry on the desk').toBeDefined();
     // Talks are off with this team this moment, so no bid can be filed.
-    talksOf(l.market!, enquiry!.teamId).offUntil = l.market!.moment;
-    const { offer } = answerEnquiry(l, enquiry!.id, 'offer');
+    talksOf(l!.market!, enquiry!.teamId).offUntil = l!.market!.moment;
+    const { offer } = answerEnquiry(l!, enquiry!.id, 'offer');
     expect(offer).toBeNull();
     expect(enquiry!.status).toBe('answered');
     expect(enquiry!.outcome).toMatch(/couldn't make the numbers work/);
-  });
+  }, 120_000);
 
   it('never leaves a camp offer its own team would refuse by the time you can accept it', () => {
     let seen = 0;
