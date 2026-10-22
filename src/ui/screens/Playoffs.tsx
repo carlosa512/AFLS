@@ -1,7 +1,7 @@
 import { allSeeds, PLAYOFF_ROUNDS, playoffGames, ROUND_NAMES, winnerOf } from '../../engine/season/playoffs';
 import type { Game, League } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, TeamChip, TeamLink } from '../components';
+import { Panel, SortTh, sortRows, TeamChip, TeamLink, useSort } from '../components';
 import { recordText, resultsSeason } from '../format';
 import { PlayoffPicture } from './Standings';
 
@@ -91,8 +91,11 @@ const winPct = (r: { w: number; l: number; t: number }) => (r.w + r.t / 2) / Mat
 
 /** Every finished season: who won it all, who came closest, the best regular season, and how you did. */
 function LeagueHistory({ league }: { league: League }) {
-  const history = [...league.history].sort((a, b) => b.season - a.season);
   const user = league.teams[league.userTeamId];
+  const [sort, onSort] = useSort<'season' | 'mine'>({ key: 'season', desc: true });
+  const history = sortRows(league.history, sort, (h, key) =>
+    key === 'season' ? h.season : h.records[user.id] ? winPct(h.records[user.id]) : -1,
+  );
   const titles = history.filter((h) => h.championId === user.id).length;
   const finals = history.filter((h) => h.runnerUpId === user.id).length;
   return (
@@ -112,11 +115,11 @@ function LeagueHistory({ league }: { league: League }) {
             <table>
               <thead>
                 <tr>
-                  <th className="num">Season</th>
+                  <SortTh label="Season" k="season" sort={sort} onSort={onSort} className="num" />
                   <th>Champion</th>
                   <th>Runner-up</th>
                   <th>Best record</th>
-                  <th className="num">Your record</th>
+                  <SortTh label="Your record" k="mine" sort={sort} onSort={onSort} className="num" />
                 </tr>
               </thead>
               <tbody>

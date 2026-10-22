@@ -734,7 +734,8 @@ tr.is-user .sticky-col {
 }
 .unit-bar {
   display: grid;
-  grid-template-columns: 2.6em 1fr 5.5em 1fr 2.6em;
+  /* the number columns fit an estimate chip or a little-film range ("8–11") */
+  grid-template-columns: 3.4em 1fr 5.5em 1fr 3.4em;
   gap: 8px;
   align-items: center;
   font-size: var(--step--1);
@@ -2794,9 +2795,6 @@ details.more > summary {
   align-items: center;
   gap: 8px;
 }
-.league-grades tr.me td {
-  background: color-mix(in srgb, var(--marker) 14%, transparent);
-}
 .grade {
   display: inline-block;
   min-width: 1.9em;
@@ -3033,9 +3031,6 @@ details.more > summary {
 .owner-notes {
   display: block;
   font-size: var(--step--1);
-}
-.league-coaches tr.me .sticky-col {
-  background: color-mix(in srgb, var(--marker) 14%, var(--surface));
 }
 /* On a phone the chip says which team it is, and the coaches get the room. */
 @media (max-width: 560px) {
@@ -3916,6 +3911,7 @@ button.tip-pill {
   width: 1%;
   white-space: nowrap;
 }
+/* Your team's name inside a sentence (a bracket's seeds). Rows use tr.is-user, never this. */
 .is-user-text {
   font-weight: 700;
 }

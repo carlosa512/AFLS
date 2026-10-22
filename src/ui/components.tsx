@@ -690,6 +690,11 @@ export function TeamPicker({
   );
 }
 
+/** The league grades tables' columns: by rank (the grade's order) or by team name. */
+export type GradesSort = 'rank' | 'team';
+export const gradesSortValue = (league: League, teamId: number, rank: number, key: GradesSort): number | string =>
+  key === 'rank' ? rank : league.teams[teamId].name.toLowerCase();
+
 /**
  * Every club's department by grade. Tap a team to open its staff underneath (`staffOf` says who, and how
  * good), so the league isn't just a rank: you can see who's behind it.
@@ -704,23 +709,23 @@ export function GradesTable({
   staffOf: (teamId: number) => ReactNode;
 }) {
   const [open, setOpen] = useState<number | null>(null);
+  const [sort, onSort] = useSort<GradesSort>({ key: 'rank', desc: false });
   return (
     <div className="table-scroll">
       <table className="league-grades">
         <thead>
           <tr>
-            <th className="num">Rank</th>
-            <th>Team</th>
+            <SortTh label="Rank" k="rank" sort={sort} onSort={onSort} desc={false} className="num" />
+            <SortTh label="Team" k="team" sort={sort} onSort={onSort} desc={false} />
             <th>Grade</th>
           </tr>
         </thead>
         <tbody>
-          {[...grades]
-            .sort((a, b) => a[1].rank - b[1].rank)
-            .flatMap(([id, g]) => {
+          {sortRows([...grades], sort, ([id, g], key) => gradesSortValue(league, id, g.rank, key)).flatMap(
+            ([id, g]) => {
               const t = league.teams[id];
               const row = (
-                <tr key={id} className={id === league.userTeamId ? 'me' : undefined}>
+                <tr key={id} className={id === league.userTeamId ? 'is-user' : undefined}>
                   <td className="num">{g.rank}</td>
                   <td>
                     <button
@@ -751,7 +756,8 @@ export function GradesTable({
                     </tr>,
                   ]
                 : [row];
-            })}
+            },
+          )}
         </tbody>
       </table>
     </div>
@@ -835,6 +841,36 @@ export function sortRows<T, K extends string>(
     .map((row, i) => ({ row, i, v: value(row, sort.key) }))
     .sort((a, b) => (a.v < b.v ? -dir : a.v > b.v ? dir : a.i - b.i))
     .map((x) => x.row);
+}
+
+/**
+ * The sort control for a list that has no header (the trade assets, your block): the same `SortState` as a
+ * table's, as a row of `seg` buttons. Each option names the order its first click uses.
+ */
+export function SortSeg<K extends string>({
+  options,
+  sort,
+  onSort,
+  label,
+}: {
+  options: { k: K; label: string; desc?: boolean }[];
+  sort: SortState<K>;
+  onSort: (key: K, desc: boolean) => void;
+  label: string;
+}) {
+  return (
+    <div className="seg seg-sm" role="group" aria-label={label}>
+      {options.map((o) => {
+        const active = sort.key === o.k;
+        return (
+          <button key={o.k} type="button" aria-pressed={active} onClick={() => onSort(o.k, o.desc ?? true)}>
+            {o.label}
+            {active ? (sort.desc ? ' ▼' : ' ▲') : ''}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 /** A header cell that sorts its column. `desc` is the order the first click uses. */

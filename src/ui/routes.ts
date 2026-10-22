@@ -4,6 +4,7 @@
  */
 import type { OfficeTab } from './screens/FrontOffice';
 import type { StatsTab } from './screens/Stats';
+import { TRADE_TABS, type TradeTab } from './screens/Trades';
 import type { Position } from '../engine/types';
 import { POSITIONS } from '../engine/types';
 
@@ -13,8 +14,9 @@ export type Route =
   | { view: 'cap'; teamId?: number }
   // `focus` is a click's nonce, never in the address bar: sent to the same message again, the inbox still reopens it.
   | { view: 'inbox'; messageId?: string; focus?: number }
-  // `pos` opens the free-agents tab filtered to a position (a short position's mail links there).
-  | { view: 'office'; tab?: OfficeTab; pos?: Position }
+  // `pos` opens the free-agents tab filtered to a position (a short position's mail links there);
+  // `sub` is the trades tab's own view (#/office/trades/block), so Back and deep links work there too.
+  | { view: 'office'; tab?: OfficeTab; pos?: Position; sub?: TradeTab }
   | { view: 'schedule' }
   | { view: 'standings' }
   | { view: 'stats'; tab?: StatsTab }
@@ -36,7 +38,9 @@ export function routeToHash(route: Route): string {
     case 'cap':
       return route.teamId === undefined ? `#/${route.view}` : `#/${route.view}/${route.teamId}`;
     case 'office':
-      return route.tab ? `#/office/${route.tab}${route.pos ? `/${route.pos}` : ''}` : '#/office';
+      return route.tab
+        ? `#/office/${route.tab}${route.tab === 'fa' && route.pos ? `/${route.pos}` : ''}${route.tab === 'trades' && route.sub ? `/${route.sub}` : ''}`
+        : '#/office';
     case 'stats':
       return route.tab ? `#/${route.view}/${route.tab}` : `#/${route.view}`;
     case 'inbox':
@@ -71,9 +75,13 @@ export function hashToRoute(hash: string): Route | null {
     return arg === undefined
       ? { view }
       : (OFFICE_TABS as readonly string[]).includes(arg)
-        ? (POSITIONS as readonly string[]).includes(more ?? '')
-          ? { view, tab: arg as OfficeTab, pos: more as Position }
-          : { view, tab: arg as OfficeTab }
+        ? more === undefined
+          ? { view, tab: arg as OfficeTab }
+          : arg === 'fa' && (POSITIONS as readonly string[]).includes(more)
+            ? { view, tab: 'fa', pos: more as Position }
+            : arg === 'trades' && (TRADE_TABS as readonly string[]).includes(more)
+              ? { view, tab: 'trades', sub: more as TradeTab }
+              : null
         : null;
   if (view === 'stats')
     return arg === undefined

@@ -12,7 +12,20 @@ import { nameIndex } from './moves';
 import { aboutOf, Folded } from './screens/Inbox';
 import { MailCards, weekBack, weeksMissed } from './mail';
 
-const SEEDS = ['trades-0', 'trades-1', 'trades-2', 'trades-3', 'trades-4', 'trades-5'];
+// Fallbacks, tried in order until one has what a test needs: an opening league that commits as a settled one does
+// files fewer swap offers to you, and none of trades-0..5 had one with players both ways by week 9; a later one does.
+const SEEDS = [
+  'trades-0',
+  'trades-1',
+  'trades-2',
+  'trades-3',
+  'trades-4',
+  'trades-5',
+  'trades-6',
+  'trades-7',
+  'trades-8',
+  'trades-9',
+];
 
 /** A league with an enquiry on the desk, found by playing on. */
 function withEnquiry(seed = SEEDS[0]): { league: League; enquiry: TradeOffer } {

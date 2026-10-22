@@ -12,7 +12,9 @@ import { capSheet } from '../../engine/finance/cap';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
 import { expiringPlayers } from '../../engine/offseason/ai';
 import { formatRecord, gmRecord } from '../../engine/records';
-import { activeRoster, teamPlayers, teamRatings } from '../../engine/roster';
+import { activeRoster, teamPlayers } from '../../engine/roster';
+import { perceivedTeamRatings, type UnitView } from '../../engine/scouting';
+import { TeamUnit } from '../scouting';
 import { staffWindowOpen } from '../../engine/staff';
 import { allSeeds, ROUND_NAMES, roundWeek } from '../../engine/season/playoffs';
 import { computeRecords, divisionStandings } from '../../engine/season/standings';
@@ -65,9 +67,10 @@ export function ScoreLine({ league, game }: { league: League; game: Game }) {
 }
 
 function UnitBars({ a, b, league }: { a: Team; b: Team; league: League }) {
-  const ra = teamRatings(league, a);
-  const rb = teamRatings(league, b);
-  const rows: [string, number, number][] = [
+  // Each side as your scouts read it: your own club exactly, the opponent through their eyes.
+  const ra = perceivedTeamRatings(league, league.userTeamId, a);
+  const rb = perceivedTeamRatings(league, league.userTeamId, b);
+  const rows: [string, UnitView, UnitView][] = [
     ['QB', ra.qb, rb.qb],
     ['Offense', ra.offense, rb.offense],
     ['Defense', ra.defense, rb.defense],
@@ -78,16 +81,18 @@ function UnitBars({ a, b, league }: { a: Team; b: Team; league: League }) {
     <div className="unit-bars">
       {rows.map(([label, va, vb]) => (
         <div className="unit-bar" key={label}>
-          <span className="num">{va.toFixed(1)}</span>
+          <span className="num">
+            <TeamUnit u={va} compact />
+          </span>
           <span className="bar rev">
-            <i style={{ width: w(va), '--c': a.colors[0] } as CSSProperties} />
+            <i style={{ width: w(va.value), '--c': a.colors[0] } as CSSProperties} />
           </span>
           <span className="label">{label}</span>
           <span className="bar">
-            <i style={{ width: w(vb), '--c': b.colors[0] } as CSSProperties} />
+            <i style={{ width: w(vb.value), '--c': b.colors[0] } as CSSProperties} />
           </span>
           <span className="num" style={{ textAlign: 'right' }}>
-            {vb.toFixed(1)}
+            <TeamUnit u={vb} compact />
           </span>
         </div>
       ))}
