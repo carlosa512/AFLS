@@ -12,7 +12,7 @@ import { playerOvr } from '../positions';
 import { perceive, type PlayerView } from '../scouting';
 import type { TeamScheme } from '../schemes';
 import type { TeamRecord } from '../season/standings';
-import type { GmTraits, League, Player, Position } from '../types';
+import type { DraftPick, GmTraits, League, Player, Position } from '../types';
 import type { BlockEntry, Need, Wanted } from './plans';
 import type { PlayerRead } from './value';
 
@@ -58,6 +58,8 @@ export interface TradeContext {
   ovrs?: Map<number, number>;
   /** Cap space by team and league year (`capRoom`). */
   capRooms?: Map<number, number>;
+  /** The draft picks by id (`pickOf`): trades move them, they don't make or remove any. */
+  picks?: Map<number, DraftPick>;
   /** Each team's schemes and its coaching by position, read once per pass (`value.ts`). */
   schemes?: Map<number, TeamScheme>;
   coaching?: Map<number, Coaching>;
@@ -149,4 +151,10 @@ export function capRoom(ctx: TradeContext, teamId: number, season = ctx.league.s
   const space = capSheet(ctx.league, teamId, season, rosterOf(ctx, teamId)).space;
   ctx.capRooms.set(key, space);
   return space;
+}
+
+/** A draft pick by id, from an index built once per pass: every verdict looks up each pick in a deal, often more than once. */
+export function pickOf(ctx: TradeContext, id: number): DraftPick | undefined {
+  ctx.picks ??= new Map(ctx.league.draftPicks.map((p) => [p.id, p]));
+  return ctx.picks.get(id);
 }

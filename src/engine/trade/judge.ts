@@ -15,7 +15,7 @@ import { isExpired, remainingProration, yearsLeft } from '../finance/contract';
 import { contenderScore, rosterLimit } from '../offseason/negotiation';
 import { clamp } from '../rng';
 import type { DraftPick, League, Player, Team } from '../types';
-import { rosterOf, tradeContext, type TradeContext } from './context';
+import { pickOf, rosterOf, tradeContext, type TradeContext } from './context';
 import { untouchables } from './plans';
 import { peekTalks, talkRefusal, TRUST_MARGIN } from './talks';
 import {
@@ -77,7 +77,7 @@ export interface Judgement {
   refusal: string | null;
 }
 
-const pickById = (league: League, id: number) => league.draftPicks.find((x) => x.id === id)!;
+const pickById = (ctx: TradeContext, id: number) => pickOf(ctx, id)!;
 
 /**
  * What a non-contender holds out for on an expiring veteran in season, as a share of his market value:
@@ -100,7 +100,7 @@ export function floorShare(league: League, team: Team, p: Player, vsUser: boolea
 
 /** Picks at the league's going rate. */
 const going = (ctx: TradeContext, ids: readonly number[]) =>
-  ids.reduce((s, id) => s + goingRate(ctx.league, pickById(ctx.league, id), ctx), 0);
+  ids.reduce((s, id) => s + goingRate(ctx.league, pickById(ctx, id), ctx), 0);
 
 /** Each first-round pick a team is without past its second costs it this much more (ZenGM's ×(1 + extra / 2.5)). */
 const FIRST_STEP = 1 / 2.5;
@@ -141,7 +141,7 @@ function picksOut(ctx: TradeContext, team: Team, ids: readonly number[], getting
   const { league } = ctx;
   const next = nextDraftSeason(league);
   const picks = ids
-    .map((id) => pickById(league, id))
+    .map((id) => pickById(ctx, id))
     .map((p) => ({
       value: Math.max(
         pickValue(league, p, team.gm, ctx),
@@ -172,10 +172,10 @@ function centrepieceRefusal(ctx: TradeContext, team: Team, proposal: TradePropos
     const p = league.players[id];
     const worth = marketValue(ctx, team, p);
     if (worth < STAR) continue;
-    const first = theirs.picks.some((pid) => pickById(league, pid).round === 1);
+    const first = theirs.picks.some((pid) => pickById(ctx, pid).round === 1);
     const big =
       theirs.players.some((qid) => marketValue(ctx, team, league.players[qid]) >= CENTREPIECE * worth) ||
-      theirs.picks.some((pid) => pickValue(league, pickById(league, pid), team.gm, ctx) >= CENTREPIECE * worth);
+      theirs.picks.some((pid) => pickValue(league, pickById(ctx, pid), team.gm, ctx) >= CENTREPIECE * worth);
     if (!first && !big)
       return `They won't move ${p.firstName} ${p.lastName} without a first-round pick or a front-line player coming back.`;
   }
@@ -248,7 +248,7 @@ export const heldPick = (ctx: TradeContext, pk: DraftPick) =>
   pickOverall(ctx.league, pk, ctx) <= HOLD_SLOT;
 
 function pickHoldRefusal(ctx: TradeContext, mine: TradeSide): string | null {
-  const held = mine.picks.map((id) => pickById(ctx.league, id)).find((pk) => heldPick(ctx, pk));
+  const held = mine.picks.map((id) => pickById(ctx, id)).find((pk) => heldPick(ctx, pk));
   return held ? `They're keeping their ${held.season} first-round pick until draft day.` : null;
 }
 
@@ -279,7 +279,7 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   // Against a release he's gone either way: the trade saves the guarantees a cut would leave behind.
   const loss = opts.releasing ? -w * POINTS_PER_K * guaranteesShed(league, mine) : swing.loss;
   const gain = swing.gain;
-  const pickIn = theirs.picks.reduce((s, id) => s + pickValue(league, pickById(league, id), team.gm, ctx), 0);
+  const pickIn = theirs.picks.reduce((s, id) => s + pickValue(league, pickById(ctx, id), team.gm, ctx), 0);
   const pickOut = picksOut(ctx, team, mine.picks, theirs.picks);
   // Each cut the deal forces costs a roster spot: only the ones it adds (in camp every roster is over 53 before the cut).
   const now = rosterOf(ctx, teamId).filter((p) => !p.ir).length;
@@ -301,20 +301,24 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
     // Whatever it thinks of a player itself, a seller holds out for most of what the league would pay,
     // and counts the picks against that at the going rate, not its own chart: what comes back must
     // clear the floor at the league's prices.
-    // Salary it keeps paying makes the player that much cheaper to his new team: the league would
-    // pay that much more for him, so it counts in full, whatever a rich team thinks a dollar is worth.
+    // Salary it keeps paying makes the player that much cheaper to his new team, so the league would pay that much
+    // more for him: it holds out for it in full, whatever a rich team thinks a dollar is worth. A rental is the one
+    // exception between front offices: what it keeps of an expiring deal is this year's money alone, which a buyer
+    // short of room now but not next year counts at less, so it holds out for the same share of that as of the rest
+    // of his worth (Denver kept $9M of Von Miller's for a second and a third); what the money costs it is still in
+    // `give`. Held out for in full, rentals for squeezed buyers never closed. On a longer deal the share bought early
+    // season dumps instead (4.1 a season over nine leagues, band 1-4), and from you it stays in full: at a share, a
+    // player bought with his salary kept sold straight on at a profit (292 of 473 week-1 round trips came out ahead).
+    const withUser = !!opts.vsUser || theirs.teamId === league.userTeamId;
     const floor = mine.players.reduce(
       (s, id) => {
         const p = league.players[id];
-        const worth = marketValue(ctx, team, p);
-        return (
-          s +
-          (worth > 0
-            ? worth * floorShare(league, team, p, !!opts.vsUser || theirs.teamId === league.userTeamId)
-            : worth)
-        );
+        const kept = POINTS_PER_K * (mine.retain?.[id] ?? 0);
+        const shared = !withUser && yearsLeft(p.contract!, league.season) <= 1;
+        const worth = marketValue(ctx, team, p) + (shared ? kept : 0);
+        return s + (worth > 0 ? worth * floorShare(league, team, p, withUser) : worth) + (shared ? 0 : kept);
       },
-      going(ctx, mine.picks) + POINTS_PER_K * retainedBy(mine),
+      going(ctx, mine.picks),
     );
     const rate = pickIn - going(ctx, theirs.picks);
     base = Math.max(base, floor + rate);

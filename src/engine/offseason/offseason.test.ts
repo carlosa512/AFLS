@@ -2,16 +2,28 @@ import { describe, expect, it } from 'vitest';
 import { capSpace } from '../finance/cap';
 import { capHit, isExpired } from '../finance/contract';
 import { leagueMarket, marketApy, maxBonusShare, minSalary, rookieApy } from '../finance/market';
-import { createLeague } from '../generate';
+import { createLeague, rookieContract } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr, STARTERS } from '../positions';
 import { activeRoster, teamPlayers } from '../roster';
 import type { League } from '../types';
 import { POSITIONS } from '../types';
 import { advanceOffseason, beginOffseason, draftNextPick, FA_DAYS, offseasonBlockers, simOffseason } from '.';
-import { aiOffer, applyFranchiseTag, expiringPlayers, IN_SEASON_RESERVE, signMinimum, tagBlocker } from './ai';
+import {
+  aiOffer,
+  aiResignWindow,
+  aiTrainingCamp,
+  applyFranchiseTag,
+  expiringPlayers,
+  IN_SEASON_RESERVE,
+  inSeasonReserve,
+  payAhead,
+  signMinimum,
+  spendable,
+  tagBlocker,
+} from './ai';
 import { availableProspects, draftOrder, draftPlayer, nextPick, simDraft } from './draft';
-import { askOffer, demand, freeAgents, makeOffer } from './negotiation';
+import { askOffer, demand, freeAgents, makeOffer, rookieCost, rookieReserve } from './negotiation';
 import { Rng } from '../rng';
 
 /** One league played to the end of its first season, then cloned per test (JSON keeps it cheap). */
@@ -86,6 +98,144 @@ describe('offseason calendar', () => {
     // without room are a known issue of their own, flagged by the offseason audit).
     for (const t of ai)
       if (activeRoster(league, t.id).length < 53) expect(capSpace(league, t.id)).toBeLessThan(minSalary(1, cap));
+  });
+
+  it('opens the season with one kicker and one punter a team, as every NFL team did in 2019-2025', () => {
+    // nflverse week-1 rosters, 2019-2025: 0 of 224 teams carried two kickers or two punters on the 53. A second
+    // specialist kept on his overall (cuts) or signed as the best available (camp top-ups) kept old ones employed.
+    const league = fresh();
+    beginOffseason(league);
+    while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
+    for (const t of league.teams.filter((t) => t.id !== league.userTeamId))
+      for (const pos of ['K', 'P'] as const)
+        expect(activeRoster(league, t.id).filter((p) => p.position === pos).length, `${t.abbrev} ${pos}`).toBe(1);
+  });
+
+  it('pays next year ahead with the room it holds past its plan once camp is done, no player paid more', () => {
+    // A team with a full 53 and nobody worth its room kept it all to kickoff: 5-11 AI teams a season sat 1-8.7 points
+    // of the cap past the reserve they planned, and the league's median kickoff room touched the audit's 4% ceiling.
+    // A pay-as-you-go club turns next year's salary into a roster bonus paid now: the room is used this year and
+    // next year's books are lighter for it.
+    const league = fresh();
+    beginOffseason(league);
+    const team = league.teams.find((t) => t.id !== league.userTeamId)!;
+    aiTrainingCamp(league, team, new Rng('pay-ahead'));
+    const cap = league.caps[league.season];
+    const past = () => capSpace(league, team.id) - inSeasonReserve(league, team.id);
+    team.carryover += Math.max(0, Math.round(0.03 * cap - past()));
+    const total = (p: (typeof league.players)[number]) =>
+      p.contract!.years.reduce((s, y) => s + y.base, 0) + p.contract!.bonuses.reduce((s, b) => s + b.amount, 0);
+    const before = new Map(teamPlayers(league, team.id).map((p) => [p.id, total(p)]));
+    const nextYear = () => teamPlayers(league, team.id).reduce((s, p) => s + capHit(p.contract!, league.season + 1), 0);
+    const committed = nextYear();
+    payAhead(league, team);
+    // A point of the cap past its plan stays, for the season's deals.
+    expect(past()).toBeLessThanOrEqual(0.01 * cap + 1);
+    expect(past()).toBeGreaterThanOrEqual(0.01 * cap - 1);
+    expect(committed - nextYear()).toBeCloseTo(0.02 * cap, -1);
+    for (const p of teamPlayers(league, team.id)) expect(total(p), `${p.position} ${p.id}`).toBe(before.get(p.id));
+  });
+
+  it('brings a camp leg in for a specialist past his prime, and keeps the better of the two', () => {
+    // With one kicker and one punter a team and no second signed at camp, a young specialist reached a roster only
+    // through the draft, so old ones kept their jobs long after their legs went (careers: 8.3 K/P starters aged 38+
+    // of 64; NFL 2019-25 about 2.6). An NFL club brings a younger leg to camp to push one.
+    const league = fresh();
+    beginOffseason(league);
+    const team = league.teams.find((t) => t.id !== league.userTeamId)!;
+    const old = activeRoster(league, team.id).find((p) => p.position === 'K')!;
+    old.age = 38;
+    for (const k of Object.keys(old.ratings) as (keyof typeof old.ratings)[]) old.ratings[k] = 4;
+    const legs = freeAgents(league).filter((p) => p.position === 'K' && p.age < old.age && !p.injury);
+    expect(Math.max(...legs.map(playerOvr)), 'a better free-agent kicker').toBeGreaterThan(playerOvr(old));
+    aiTrainingCamp(league, team, new Rng('camp-leg'));
+    const kickers = activeRoster(league, team.id).filter((p) => p.position === 'K');
+    expect(kickers).toHaveLength(1);
+    expect(kickers[0].id).not.toBe(old.id);
+  });
+
+  it("keeps a re-sign inside what the team can spend, charged at the new deal's first-year cap hit", () => {
+    // The window once charged a new deal 0.85x its APY, about 10% under a market deal's first year (a one-year
+    // deal's is all of it), so a team near its limit re-signed into the room it planned to keep for the season.
+    const league = fresh();
+    beginOffseason(league);
+    const rng = new Rng('resign-budget');
+    let resigned = 0;
+    for (const t of league.teams) {
+      if (t.id === league.userTeamId || spendable(league, t.id) < 0) continue;
+      const expiring = new Set(expiringPlayers(league, t.id));
+      aiResignWindow(league, t, rng);
+      const kept = [...expiring].filter((p) => p.teamId === t.id && !isExpired(p.contract!, league.season));
+      if (!kept.some((p) => p.contract!.kind !== 'tag')) continue;
+      resigned++;
+      expect(spendable(league, t.id), t.abbrev).toBeGreaterThanOrEqual(-1);
+    }
+    expect(resigned).toBeGreaterThan(5);
+  });
+
+  it('keeps room in the re-sign window for the spots its walking free agents leave', () => {
+    // Expiring players are still on the roster while the window runs, so the spots they leave read as filled: a team
+    // that let 28 walk spent the room their minimum-deal replacements would take on 7 re-signs, then filled 22 spots
+    // at camp out of the room it planned to carry into the season.
+    const league = fresh();
+    beginOffseason(league);
+    const expiring = new Map(league.teams.map((t) => [t.id, expiringPlayers(league, t.id).map((p) => p.id)]));
+    advanceOffseason(league, { autoUser: true });
+    expect(league.phase).toBe('freeAgency');
+    let resigned = 0;
+    for (const t of league.teams) {
+      const kept = expiring
+        .get(t.id)!
+        .map((id) => league.players[id])
+        .filter((p) => p.teamId === t.id && p.contract!.kind !== 'tag');
+      if (!kept.length) continue;
+      resigned++;
+      expect(spendable(league, t.id), `${t.abbrev}: ${kept.length} re-signed`).toBeGreaterThanOrEqual(-1);
+    }
+    expect(resigned).toBeGreaterThan(20);
+  });
+
+  it("keeps room for the draft class at its rookie deals' first-year cap hits", () => {
+    // A rookie deal's first year charges 89-96% of its APY (the bonus spread over four years, salaries climbing
+    // 8% a year); a reserve at 0.8x left the class short by its size when it signed.
+    const league = fresh();
+    beginOffseason(league);
+    const cap = league.caps[league.season];
+    for (const t of league.teams) {
+      const picks = league.draftPicks.filter((p) => p.season === league.season && p.ownerId === t.id);
+      const hits = picks.reduce((s, p) => s + capHit(rookieContract(p.overall!, league.season, cap), league.season), 0);
+      expect(rookieCost(league, t.id)).toBeCloseTo(hits, 0);
+    }
+  });
+
+  it('keeps room for the minimum deals that fill its 53 at what they cost', { timeout: 30_000 }, () => {
+    // Camp fills the 53 with the best free agents left, on minimum deals, and the best are veterans, whose minimum
+    // runs to 1.37x a second-year player's (camp fills cost 1.27-1.30x it on 'offseason-audit'). A reserve priced at
+    // the second-year minimum left a team with twenty spots to fill paying for them out of its in-season room.
+    const league = fresh();
+    beginOffseason(league);
+    advanceOffseason(league, { autoUser: true });
+    expect(league.phase).toBe('freeAgency');
+    const cap = league.caps[league.season];
+    let checked = 0;
+    for (const t of league.teams) {
+      const picks = league.draftPicks.filter(
+        (p) => p.season === league.season && p.ownerId === t.id && p.playerId === undefined,
+      ).length;
+      const open = 53 - activeRoster(league, t.id).length - picks;
+      if (open <= 0) continue;
+      // What spendable keeps back for the open spots: all it holds back but the draft class and the in-season room.
+      const inSeason = IN_SEASON_RESERVE * cap * (1.5 - t.gm.capAggression);
+      const kept = capSpace(league, t.id) - rookieReserve(league, t.id) - inSeason - spendable(league, t.id);
+      const copy: League = JSON.parse(JSON.stringify(league));
+      const rng = new Rng(`fill-${t.id}`);
+      for (let i = 0; i < open; i++) signMinimum(copy, copy.teams[t.id], rng);
+      expect(kept, `${t.abbrev}: ${open} open`).toBeGreaterThanOrEqual(
+        capSpace(league, t.id) - capSpace(copy, t.id) - 1,
+      );
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(5);
   });
 
   it('is deterministic for a seed', () => {

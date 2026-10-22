@@ -58,7 +58,8 @@ export interface Proration {
   /** First league year it counts against. */
   start: number;
   years: number;
-  source: 'signing' | 'restructure';
+  /** 'roster': next year's salary paid ahead as a bonus that counts in full this year. */
+  source: 'signing' | 'restructure' | 'roster';
 }
 
 export type ContractKind = 'rookie' | 'veteran' | 'tag' | 'minimum';

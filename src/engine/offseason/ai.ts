@@ -2,7 +2,7 @@
  * AI front offices. Decisions come from numeric GM traits plus the roster in front of them:
  * who to keep, who to tag, who to chase in free agency, and how to get under the cap.
  */
-import { ageShift } from '../aging';
+import { ageShift, PEAK_END } from '../aging';
 import {
   accelerateProration,
   canRestructure,
@@ -15,7 +15,7 @@ import {
   restructureOptions,
   restructurePlayer,
 } from '../finance/cap';
-import { capHit, isExpired, lastSeason, remainingProration, yearOf } from '../finance/contract';
+import { capHit, futureProration, isExpired, lastSeason, remainingProration, yearOf } from '../finance/contract';
 import {
   fifthYearOptionValue,
   franchiseTagValue,
@@ -40,6 +40,7 @@ import {
   contenderScore,
   demand,
   freeAgents,
+  offerCharge,
   offerProblem,
   offerValue,
   rookieReserve,
@@ -67,6 +68,14 @@ export const KEEP_MIN: Record<Position, number> = {
 };
 
 /**
+ * Most players an AI carries at a position on the 53: one kicker and one punter, as every NFL team opened
+ * 2019-2025 (nflverse week-1 rosters, 0 of 224 with two). A second one, kept on his overall or signed as the
+ * best man left, is a roster spot no team spends, and it kept old specialists in work long past the NFL's.
+ */
+const KEEP_MAX: Partial<Record<Position, number>> = { K: 1, P: 1 };
+const surplus = (pos: Position, count: number) => count > (KEEP_MAX[pos] ?? Infinity);
+
+/**
  * Room an AI front office plans to carry into the season, as a share of the cap: for injury signings and deadline
  * deals, which otherwise find every buyer spent to the dollar. NFL clubs carried 4.1% of the cap into 2025 on
  * average (median 2.3%) after a season of using it. A cap-aggressive GM keeps less of it, a careful one more.
@@ -75,21 +84,48 @@ export const IN_SEASON_RESERVE = 0.03;
 export const inSeasonReserve = (league: League, teamId: number) =>
   league.caps[league.season] * IN_SEASON_RESERVE * (1.5 - league.teams[teamId].gm.capAggression);
 
-/** Room to keep for minimum deals that bring the roster to 53 once the draft class is in. */
-function fillReserve(league: League, teamId: number): number {
+/**
+ * Spots on the 53 still open once the draft class is in. Only players signed for the league year fill one: in the
+ * re-sign window an expiring player is still on the roster, but his spot is open until he signs (a team that let 28
+ * walk read as nearly full, spent their replacements' room on re-signs, and paid for 22 minimum deals at camp out of
+ * the room it planned to carry into the season).
+ */
+function openSpots(league: League, teamId: number): number {
   const picks = league.draftPicks.filter(
     (p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined,
   ).length;
-  const missing = Math.max(0, ROSTER_MAX - activeRoster(league, teamId).length - picks);
-  return missing * minSalary(1, league.caps[league.season]);
+  const signed = activeRoster(league, teamId).filter((p) => p.contract && !isExpired(p.contract, league.season));
+  return Math.max(0, ROSTER_MAX - signed.length - picks);
 }
 
+/**
+ * Room to keep for the minimum deals that fill the open spots. Camp signs the best free agents left, mostly veterans
+ * on a veteran's minimum (1.27-1.30x a second-year player's on 'offseason-audit'), so each spot is kept at the highest
+ * minimum, which covers any of them; kept at the second-year minimum, a team with twenty spots to fill paid the
+ * difference out of its in-season room.
+ */
+const fillReserve = (league: League, teamId: number) =>
+  openSpots(league, teamId) * topMinimum(league.caps[league.season]);
+
+/**
+ * Void-year money the deals running out still owe past this league year's slice. In the re-sign window the cap sheet
+ * charges only the slice; the rest lands at once as dead money when free agency opens (`accelerateProration`), after
+ * the window has spent the room: a team that let two such deals walk was $8M short of what it planned to keep.
+ */
+const voidReserve = (league: League, teamId: number) =>
+  league.phase !== 'resign'
+    ? 0
+    : teamPlayers(league, teamId)
+        .filter((p) => p.contract && isExpired(p.contract, league.season))
+        .reduce((sum, p) => sum + futureProration(p.contract!, league.season), 0);
+
 /** What an AI team can spend right now without starving the draft class or the bottom of the roster. */
-const spendable = (league: League, teamId: number) =>
+export const spendable = (league: League, teamId: number) =>
   capSpace(league, teamId) -
   rookieReserve(league, teamId) -
   fillReserve(league, teamId) -
-  inSeasonReserve(league, teamId);
+  inSeasonReserve(league, teamId) -
+  voidReserve(league, teamId);
 
 /**
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
@@ -262,8 +298,10 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
   aiFifthYearOptions(league, team);
   const depth = depthOutlooks(league, team);
   const wn = winNow(league, team);
-  let budget = spendable(league, team.id);
   const market = leagueMarket(league);
+  // What a re-sign may cost: what the team can spend, plus the minimum deal it keeps for his spot while it's open.
+  const budget = () =>
+    spendable(league, team.id) + (openSpots(league, team.id) > 0 ? topMinimum(league.caps[league.season]) : 0);
   for (const p of expiringPlayers(league, team.id)) {
     const ovr = playerOvr(p);
     // Kept on where he's headed: a fading veteran has to beat the room's future, a climbing one is worth his raise.
@@ -281,22 +319,20 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const d = demand(league, p, team.id);
     // Some players want to see what the market will pay, however loyal the club.
     const testsMarket = rng.chance(0.3 * (1 - p.personality.loyalty));
-    // Roughly the new deal's year-one cap hit (the bonus is spread).
-    const cost = offer.apy * 0.85;
-    if (!testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway && cost <= budget) {
+    // The new deal's year-one cap hit: 0.85x its APY ran about a tenth under a market deal's (all of a one-year one's).
+    const cost = offerCharge(league, p, team.id, offer);
+    if (!testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway && cost <= budget()) {
       signPlayer(league, p, team.id, offer);
-      budget -= cost;
       mine.push(ahead);
       mine.sort((a, b) => b - a);
       continue;
     }
     const tier = payTier(p.position, positionRank(market, p));
     if (!team.taggedId && tier >= 0.75 && p.age - ageShift(p.position) <= 30 && rng.chance(0.35)) {
-      const value = tagValue(league, p);
-      if (value <= budget) {
-        applyFranchiseTag(league, p);
-        budget -= value;
-      }
+      // The tag's charge, less the old deal's (its void years' bonus money accelerates), as `tagBlocker` reads it.
+      const value =
+        tagValue(league, p) - (capHit(p.contract!, league.season) - remainingProration(p.contract!, league.season));
+      if (value <= budget()) applyFranchiseTag(league, p);
     }
   }
   aiCapCompliance(league, team);
@@ -494,7 +530,8 @@ export function cutChoice(
     for (const p of left) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
     const cut = left
       .filter((p) => (counts.get(p.position) ?? 0) > KEEP_MIN[p.position] && (!allowed || allowed.has(p.id)))
-      .map((p) => ({ p, score: keepScore(league, p, read) }))
+      // A second specialist goes before anyone else, the weaker of the two first.
+      .map((p) => ({ p, score: keepScore(league, p, read) - (surplus(p.position, counts.get(p.position)!) ? 100 : 0) }))
       .sort((a, b) => a.score - b.score)[0]?.p;
     if (!cut) break;
     out.push(cut);
@@ -590,13 +627,23 @@ function thinnest(league: League, team: Team): Position {
  * Sign the best available healthy free agent at `position` (any position if undefined) who'll take a one-year
  * minimum deal. `budget` ($K) skips anyone whose minimum (it rises with experience) wouldn't fit.
  */
-export function signMinimum(league: League, team: Team, rng: Rng, position?: Position, budget = Infinity): boolean {
+export function signMinimum(
+  league: League,
+  team: Team,
+  rng: Rng,
+  position?: Position,
+  budget = Infinity,
+  under = Infinity,
+): boolean {
   const cap = league.caps[league.season];
-  // The best available as this front office sees him.
+  // The best available as this front office sees him (younger than `under`, when it wants a younger man).
+  const roster = activeRoster(league, team.id);
+  const full = (pos: Position) => surplus(pos, roster.filter((p) => p.position === pos).length + 1);
   let pick = freeAgents(league)
     .filter(
       (p) =>
-        (!position || p.position === position) &&
+        (position ? p.position === position : !full(p.position)) &&
+        p.age < under &&
         !p.injury &&
         minSalary(p.experience, cap) <= budget &&
         takesMinimum(league, p, team.id),
@@ -625,7 +672,22 @@ export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
     while (activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos])
       if (!signMinimum(league, team, rng, pos)) break;
   }
+  // A specialist two years past his prime gets a younger leg to beat in camp, the best one left: with one kicker and one
+  // punter a team, a young one otherwise reached a roster only through the draft, and old ones kept their jobs (8.3
+  // K/P starters aged 38+ of 64 in the careers check; NFL 2019-25 about 2.6). The weaker of the two goes below.
+  for (const pos of Object.keys(KEEP_MAX) as Position[]) {
+    const mine = activeRoster(league, team.id).filter((p) => p.position === pos);
+    if (mine.length === 1 && mine[0].age >= PEAK_END[pos] + 2)
+      signMinimum(league, team, rng, pos, Infinity, mine[0].age);
+  }
   aiCutdown(league, team);
+  // A team already at 53 or under cuts no one above, so a second specialist goes here: the weaker one.
+  const read = viewCache(league);
+  for (const pos of Object.keys(KEEP_MAX) as Position[]) {
+    const mine = activeRoster(league, team.id).filter((p) => p.position === pos);
+    for (const p of mine.sort((a, b) => keepScore(league, b, read) - keepScore(league, a, read)).slice(KEEP_MAX[pos]))
+      releasePlayer(league, p);
+  }
   const missing = ROSTER_MAX - activeRoster(league, team.id).length;
   if (missing > 0) aiCapCompliance(league, team, missing * minSalary(1, league.caps[league.season]));
   // Get legal before topping up (the minimums above can tip a team over, and the cut that fixes it opens a spot),
@@ -642,5 +704,40 @@ export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
     capSpace(league, team.id) >= minSalary(1, league.caps[league.season])
   )
     if (!signMinimum(league, team, rng, undefined, capSpace(league, team.id))) break;
+  payAhead(league, team);
   syncDepthChart(league, team);
+}
+
+/** Room past its planned reserve a team keeps rather than paying it ahead, as a share of the cap. */
+const PAY_AHEAD_CUSHION = 0.01;
+
+/**
+ * Room a team still holds past the reserve it planned, once camp is done and the 53 is full: a pay-as-you-go club turns
+ * next year's salary into a roster bonus paid now, which counts in full this year and leaves next year's books that
+ * much lighter. Nobody is paid more, only sooner. Without it a team with nobody worth its room kept it all to kickoff
+ * (5-11 AI teams a season 1-8.7 points of the cap past their plan, the league's median kickoff room at the audit's 4%
+ * ceiling). It keeps a point of the cap past its plan: that room was the deadline buyers' (kept to half a point,
+ * in-season trades fell from 16.2 to 14.4 a season), and the league's teams still open at their reserve or a little
+ * over. The best-paid veterans go first; rookie deals keep their slotted
+ * shape, and no year drops under the minimum.
+ */
+export function payAhead(league: League, team: Team): void {
+  const season = league.season;
+  let extra = capSpace(league, team.id) - inSeasonReserve(league, team.id) - PAY_AHEAD_CUSHION * league.caps[season];
+  if (extra < 1) return;
+  const next = (p: Player) => yearOf(p.contract!, season + 1);
+  const floor = (p: Player) => minSalary(p.experience + 1, capFor(league, season + 1));
+  const deals = activeRoster(league, team.id)
+    .filter((p) => p.contract?.kind === 'veteran' && next(p) && !next(p)!.void)
+    .sort((a, b) => next(b)!.base - next(a)!.base);
+  for (const p of deals) {
+    if (extra < 1) break;
+    const y = next(p)!;
+    const x = Math.floor(Math.min(extra, y.base - floor(p)));
+    if (x <= 0) continue;
+    y.base -= x;
+    y.guaranteed = Math.min(y.guaranteed, y.base);
+    p.contract!.bonuses.push({ amount: x, start: season, years: 1, source: 'roster' });
+    extra -= x;
+  }
 }
