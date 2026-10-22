@@ -20,6 +20,8 @@ import {
   tradeProblem,
 } from '.';
 import { quickValue } from './deals';
+import { marginFor } from './judge';
+import { nowWeight } from './value';
 import type { TradeProposal } from './rules';
 
 const base = (() => {
@@ -159,6 +161,48 @@ describe('retained salary', () => {
       );
     }
     expect(closed).toBeGreaterThanOrEqual(cases.length / 2);
+  });
+
+  it('holds out for its floor share of what it keeps of a rental from an AI buyer, and all of it from you', () => {
+    // Between front offices what a seller keeps of an expiring deal is part of the rental's price, held out for at the
+    // same share as the rest of his worth: held out for in full, it priced out every buyer short of room now but not
+    // next year (that buyer counts this year's dollar at less), and in-season trades fell under the NFL's (14.8 a
+    // season, floor 15). Against you it stays in full, or you buy a player with his salary kept and sell him on at a
+    // profit.
+    const l = fresh();
+    const ctx = tradeContext(l);
+    const user = l.userTeamId;
+    const deal = (seller: number, id: number, to: number, retain: number): TradeProposal => ({
+      sides: [
+        { teamId: seller, players: [id], picks: [], ...(retain ? { retain: { [id]: retain } } : {}) },
+        { teamId: to, players: [], picks: [] },
+      ],
+    });
+    // A seller with room to spare (it weighs this year's money under face value) selling a player whose price its
+    // floor sets: what it asks is past its own read of him, so the money kept moves the floor, not the read.
+    const cases = l.teams
+      .filter((t) => t.id !== user && nowWeight(ctx, t.id) <= 0.8)
+      .flatMap((seller) => {
+        const buyer = l.teams.find((t) => t.id !== user && t.id !== seller.id && t.division !== seller.division)!;
+        return activeRoster(l, seller.id)
+          .filter(
+            (p) =>
+              p.contract &&
+              yearsLeft(p.contract, l.season) <= 1 &&
+              !playerTradeBlocker(l, p) &&
+              maxRetain(l, p) >= 2000,
+          )
+          .map((p) => ({ seller, buyer, p, v: judge(ctx, seller.id, deal(seller.id, p.id, buyer.id, 0)) }))
+          .filter(({ seller, buyer, v }) => v.give > 0 && v.need > marginFor(seller, buyer) * v.give + 1);
+      });
+    expect(cases.length, 'players a seller with room prices at its floor').toBeGreaterThan(0);
+    const { seller, buyer, p } = cases[0];
+    const keep = Math.floor(maxRetain(l, p) / 2);
+    const ask = (to: number, retain: number) =>
+      judge(ctx, seller.id, deal(seller.id, p.id, to, retain), { vsUser: to === user }).need;
+    const face = POINTS_PER_K * keep;
+    expect(ask(buyer.id, keep) - ask(buyer.id, 0), 'from an AI buyer').toBeLessThan(0.9 * face);
+    expect(ask(user, keep) - ask(user, 0), 'from you').toBeGreaterThanOrEqual(face);
   });
 
   it('keeps just enough to fit a buyer short of room, or says it can’t', () => {
