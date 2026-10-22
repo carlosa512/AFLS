@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { TEAM_SEEDS } from '../../engine/data/teams';
 import { createLeague } from '../../engine/generate';
 import { ownerBudgetNote } from '../../engine/staff';
 import { TeamChip } from '../components';
@@ -9,8 +8,8 @@ import { store } from '../store';
 import { APP_VERSION } from '../version';
 
 export function NewGame() {
-  // One preview league for the names and colours. Before you take a job you have no scouts, so a club shows
-  // only what the whole league knows: its record over the last ten years (team i is TEAM_SEEDS[i]).
+  // One preview league for the names and colours. Before you take a job you have no scouts, and a new league
+  // has no history yet, so a club shows no strength or record (docs/MVP.md, item 14).
   const [seed] = useState(() => Math.random().toString(36).slice(2, 10));
   const preview = useMemo(() => createLeague({ seed }), [seed]);
   const [picked, setPicked] = useState<number | null>(null);
@@ -49,11 +48,7 @@ export function NewGame() {
               {preview.teams
                 .filter((t) => t.division === d)
                 .map((team) => {
-                  const winPct = TEAM_SEEDS[team.id]?.winPct;
-                  const notes = [
-                    winPct !== undefined && `Last 10 years: ${Math.round(winPct * 100)}% wins`,
-                    ownerBudgetNote(team.staffBudgetMult),
-                  ].filter(Boolean);
+                  const note = ownerBudgetNote(team.staffBudgetMult);
                   return (
                     <button
                       key={team.id}
@@ -64,7 +59,7 @@ export function NewGame() {
                       <TeamChip team={team} />
                       <span className="nm">
                         {team.city} {team.name}
-                        {notes.length > 0 && <small>{notes.join(' · ')}</small>}
+                        {note && <small>{note}</small>}
                       </span>
                     </button>
                   );

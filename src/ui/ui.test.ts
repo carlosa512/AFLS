@@ -1,7 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { TEAM_SEEDS } from '../engine/data/teams';
 import { createLeague, SAVE_VERSION } from '../engine/generate';
 import { deliverMail, needsYou } from '../engine/inbox';
 import { gamesInWeek, playWeek } from '../engine/league';
@@ -387,11 +386,6 @@ describe('screen contract', () => {
     // teamRatings is the truth; screens show perceivedTeamRatings (fog of war).
     const bad = files.filter((f) => /\bteamRatings\b/.test(src(f)));
     expect(bad).toEqual([]);
-  });
-
-  it("finds each new club's seed by its id, as New Game reads it", () => {
-    const league = createLeague({ seed: 'seeds' });
-    expect(league.teams.every((t, i) => TEAM_SEEDS[i].abbrev === t.abbrev)).toBe(true);
   });
 
   it('builds team dropdowns only with TeamPicker', () => {

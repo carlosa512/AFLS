@@ -5,6 +5,7 @@ import { simToEndOfSeason } from '../engine/league';
 import { advanceOffseason, beginOffseason } from '../engine/offseason';
 import { expiringPlayers } from '../engine/offseason/ai';
 import { Resign } from './screens/FrontOffice';
+import { NewGame } from './screens/NewGame';
 import type { ReactElement } from 'react';
 import type { League, Player } from '../engine/types';
 import { GradesTable, PlayerLink, SortSeg, TeamLink, TeamPicker } from './components';
@@ -150,5 +151,13 @@ describe('TeamUnit', () => {
     const html = render(<TeamUnit u={{ ...unit, exact: false, known: false }} />);
     expect(html).toContain('11.5–13.2');
     expect(html).toContain('Little film');
+  });
+});
+
+describe('NewGame', () => {
+  it('shows no strength or record yet: a new league has no history and you have no scouts', () => {
+    const html = render(<NewGame />);
+    expect(html).toContain('Buffalo');
+    expect(html).not.toMatch(/Last 10 years|QB \d|OFF \d|DEF \d/);
   });
 });
