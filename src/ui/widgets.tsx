@@ -12,7 +12,7 @@ import { computeRecords, conferenceSeeds, divisionStandings } from '../engine/se
 import { leaders, LEADER_CATEGORIES, teamSeasonStats, type TeamSeasonLine } from '../engine/stats';
 import type { Game, InboxMessage, League, Player, Team } from '../engine/types';
 import { useNav } from './App';
-import { Panel, PlayerLink, TeamChip } from './components';
+import { Panel, PlayerLink, TeamLink } from './components';
 import { money, ordinal, PHASE_LABELS, recordText, weekLabel } from './format';
 import { hurtList, wornDown } from './injuries';
 import { TEAM_COLS, teamRank } from './screens/TeamStats';
@@ -571,9 +571,7 @@ export function TeamStatsWidget({ league }: { league: League }) {
                 rows={top.map((x) => (
                   <div key={x.t.id} className={`board-row${x.t.id === user ? ' is-user' : ''}`}>
                     <span className="muted">{x.rank}</span>
-                    <button className="linklike team-inline" onClick={() => nav.openTeam(x.t.id)}>
-                      <TeamChip team={x.t} /> {x.t.name}
-                    </button>
+                    <TeamLink team={x.t} chip />
                     <span className="num">{col.format(x.v)}</span>
                   </div>
                 ))}

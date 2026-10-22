@@ -20,7 +20,7 @@ import type { Game, League, Team } from '../../engine/types';
 import { forecast } from '../../engine/weather';
 import { useNav } from '../App';
 import { attentionText, coachAttention } from '../coaching';
-import { Panel, PlayerLink, TeamChip, TeamLabel, WeatherNote } from '../components';
+import { Panel, PlayerLink, TeamChip, TeamLink, WeatherNote } from '../components';
 import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, weekLabel } from '../format';
 import { live } from '../live';
 import { WinnerCell } from './Stats';
@@ -96,7 +96,6 @@ function UnitBars({ a, b, league }: { a: Team; b: Team; league: League }) {
 }
 
 function NextGame({ league }: { league: League }) {
-  const nav = useNav();
   const records = computeRecords(league);
   const user = league.teams[league.userTeamId];
   const game = league.phase === 'complete' ? undefined : userGame(league);
@@ -141,9 +140,7 @@ function NextGame({ league }: { league: League }) {
         <div className="matchup-side right">
           <TeamChip team={opp} large />
           <strong>
-            <button className="linklike" onClick={() => nav.openTeam(opp.id)}>
-              {opp.name}
-            </button>
+            <TeamLink team={opp} />
           </strong>
           <span className="muted">{recordText(records.get(opp.id)!)}</span>
         </div>
@@ -208,10 +205,7 @@ function LastGame({ league }: { league: League }) {
           {us}–{them}
         </span>
         <span className="small muted">
-          {userHome || game.neutral ? 'vs' : 'at'}{' '}
-          <button className="linklike" onClick={() => nav.openTeam(opp.id)}>
-            {opp.city} {opp.name}
-          </button>
+          {userHome || game.neutral ? 'vs' : 'at'} <TeamLink team={opp} full />
         </span>
       </div>
       <p className="small" style={{ margin: 0 }}>
@@ -264,7 +258,7 @@ function DivisionMini({ league }: { league: League }) {
               return (
                 <tr key={t.id} className={t.id === user.id ? 'is-user' : ''}>
                   <td>
-                    <TeamLabel team={t} onClick={() => nav.openTeam(t.id)} />
+                    <TeamLink team={t} chip />
                   </td>
                   <td className="num">{`${r.w}-${r.l}-${r.t}`}</td>
                   <td className="num">{pct(r)}</td>

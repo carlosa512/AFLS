@@ -111,9 +111,9 @@ import type {
 import { stanceOf } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
-import { PlayerAvatar, PlayerLink, TeamChip } from './components';
+import { PlayerAvatar, PlayerLink, TeamChip, TeamLink } from './components';
 import { StaffAvatar } from './staffAvatar';
-import { band, money, ordinal, playerName, recordText, shortName, teamName, weekLabel } from './format';
+import { band, money, ordinal, playerName, recordText, shortName, weekLabel } from './format';
 import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
@@ -225,21 +225,6 @@ function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactN
       </span>
       {side && <span className="mail-who-side">{side}</span>}
     </div>
-  );
-}
-
-/** A team's name as a link to its page, with its chip in a table. */
-function TeamLink({ team, chip = false }: { team: Team; chip?: boolean }) {
-  const nav = useNav();
-  return (
-    <button className={`linklike${chip ? ' team-inline' : ''}`} onClick={() => nav.openTeam(team.id)}>
-      {chip && (
-        <>
-          <TeamChip team={team} />{' '}
-        </>
-      )}
-      {team.name}
-    </button>
   );
 }
 
@@ -362,7 +347,6 @@ function FlexCards({ league, s }: { league: League; s: Extract<MailSubject, { ki
 }
 
 function OpponentCard({ league, opp, game }: { league: League; opp: Team; game: Game }) {
-  const nav = useNav();
   const rec = computeRecords(league, game.season).get(opp.id);
   const seed = game.playoffRound ? seedOf(league, game.season, opp.id) : 0;
   // Their last five before this one, newest first.
@@ -377,9 +361,7 @@ function OpponentCard({ league, opp, game }: { league: League; opp: Team; game: 
       <div className="mail-who">
         <TeamChip team={opp} large />
         <span>
-          <button className="linklike mail-who-name" onClick={() => nav.openTeam(opp.id)}>
-            {teamName(opp)}
-          </button>
+          <TeamLink team={opp} full className="mail-who-name" />
           <span className="muted small" style={{ display: 'block' }}>
             {rec ? recordText(rec) : ''}
             {seed ? ` · ${ordinal(seed)} seed` : ''}
@@ -1281,7 +1263,6 @@ function DeadlineCards({
 
 /** Who's buying and who's selling right now, from each front office's stance (`trade/plans.ts`): words, never numbers. */
 function BuyersSellers({ league }: { league: League }) {
-  const nav = useNav();
   const others = league.teams.filter((t) => t.id !== league.userTeamId);
   const rows: [string, Team[]][] = [
     ['Buying', others.filter((t) => stanceOf(t) === 'contend')],
@@ -1297,9 +1278,7 @@ function BuyersSellers({ league }: { league: League }) {
               <span className="eyebrow">{label}</span>
               <span className="market-teams">
                 {teams.map((t) => (
-                  <button key={t.id} className="linklike team-inline" onClick={() => nav.openTeam(t.id)}>
-                    <TeamChip team={t} /> {t.name}
-                  </button>
+                  <TeamLink key={t.id} team={t} chip />
                 ))}
               </span>
             </div>
@@ -1353,7 +1332,6 @@ const DEAL_WORDS: [DealKind, string][] = [
 
 /** The trade season in numbers, the busiest teams, our division's moves and deadline day's deals. */
 function MarketRecapCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'marketRecap' }> }) {
-  const nav = useNav();
   const all = league.transactions.filter((t) => t.kind === 'trade' && t.season === s.season && t.phase === 'regular');
   const deals = seasonDeals(league, s.season);
   const day = deadlineDayTrades(league, s.season);
@@ -1397,10 +1375,7 @@ function MarketRecapCards({ league, s }: { league: League; s: Extract<MailSubjec
             {busiest.map(({ t, n }, i) => (
               <span key={t.id}>
                 {i > 0 && ', '}
-                <button className="linklike" onClick={() => nav.openTeam(t.id)}>
-                  {t.name}
-                </button>{' '}
-                ({n})
+                <TeamLink team={t} /> ({n})
               </span>
             ))}
           </p>

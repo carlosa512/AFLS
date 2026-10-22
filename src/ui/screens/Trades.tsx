@@ -22,7 +22,7 @@ import {
 } from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
-import { Panel, PlayerAvatar, PlayerLink, TeamChip } from '../components';
+import { Panel, PlayerAvatar, PlayerLink, TeamChip, TeamLink } from '../components';
 import { money } from '../format';
 import { Ovr, seenOvr } from '../scouting';
 import { liveLock } from '../live';
@@ -290,7 +290,7 @@ function TradeTable({ league }: { league: League }) {
             <TeamChip team={partner} large />
             <div>
               <h2>
-                Trade with the {partner.city} {partner.name}
+                Trade with the <TeamLink team={partner} full />
               </h2>
               <span className="muted small">
                 GM style: {partner.gm.archetype} ·{' '}

@@ -3,7 +3,7 @@ import { capHit, guaranteedFrom } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
 import type { League } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerLink, TeamChip } from '../components';
+import { Panel, PlayerLink, TeamChip, TeamLink } from '../components';
 import { CapChart, capPct, ContractActions, thruLabel } from '../contracts';
 import { money } from '../format';
 import { moveIndex, MoveText } from '../moves';
@@ -35,7 +35,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
             <div>
               <h2>{season} salary cap</h2>
               <span className="muted">
-                {team.city} {team.name}
+                <TeamLink team={team} full />
                 {!isUser && ` · GM style: ${team.gm.archetype}`}
               </span>
             </div>

@@ -255,34 +255,54 @@ export function TeamChip({ team, large }: { team: Team; large?: boolean }) {
   );
 }
 
-export function TeamLabel({
+/**
+ * A team's name, and it always opens its page. The one way a screen shows a team: `chip` (the colour chip
+ * before the name) in tables and lists, none in a sentence; `full` for "Dallas Rangers" over "Rangers";
+ * `sub` a record or note under the name, outside the link.
+ */
+export function TeamLink({
   team,
-  full,
-  onClick,
+  chip = false,
+  full = false,
   sub,
+  className,
 }: {
   team: Team;
+  chip?: boolean;
   full?: boolean;
-  onClick?: () => void;
   sub?: ReactNode;
+  className?: string;
 }) {
+  const nav = useNav();
   const name = full ? `${team.city} ${team.name}` : team.name;
+  const link = (
+    <button
+      type="button"
+      className={className ? `linklike ${className}` : 'linklike'}
+      onClick={() => nav.openTeam(team.id)}
+    >
+      {name}
+    </button>
+  );
+  const note = sub && (
+    <small className="muted" style={{ display: 'block', lineHeight: 1.2 }}>
+      {sub}
+    </small>
+  );
+  if (!chip) {
+    return (
+      <>
+        {link}
+        {note}
+      </>
+    );
+  }
   return (
     <span className="team-inline">
       <TeamChip team={team} />
       <span style={{ minWidth: 0 }}>
-        {onClick ? (
-          <button className="linklike" onClick={onClick}>
-            {name}
-          </button>
-        ) : (
-          name
-        )}
-        {sub && (
-          <small className="muted" style={{ display: 'block', lineHeight: 1.2 }}>
-            {sub}
-          </small>
-        )}
+        {link}
+        {note}
       </span>
     </span>
   );
