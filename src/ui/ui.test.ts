@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../engine/generate';
 import { deliverMail, needsYou } from '../engine/inbox';
@@ -318,5 +320,27 @@ describe('home widgets', () => {
     const order = league.inbox!.map((m) => m.id);
     const unread = rows.filter((t) => !needy(t)).map((t) => order.indexOf(t.messages[0].id));
     expect(unread).toEqual([...unread].sort((a, b) => b - a));
+  });
+});
+
+/**
+ * The screen contract (docs/UI.md): a player's or a team's name is always a link, drawn by the one shared
+ * component, and every team dropdown is the shared picker. A new screen that writes its own fails here.
+ */
+describe('screen contract', () => {
+  const files = ['src/ui', 'src/ui/screens']
+    .flatMap((d) =>
+      readdirSync(d)
+        .filter((f) => /\.tsx$/.test(f) && !/\.test\./.test(f))
+        .map((f) => join(d, f)),
+    )
+    .filter((f) => !f.endsWith('components.tsx'));
+  const src = (f: string) => readFileSync(f, 'utf8');
+
+  it('renders player names only through PlayerLink', () => {
+    // The card's own header, the "signed" toast and the play-by-play (it links by index) are not links by design.
+    const allowed = ['src/ui/screens/PlayerCard.tsx', 'src/ui/negotiation.tsx', 'src/ui/screens/GameViewer.tsx'];
+    const bad = files.filter((f) => !allowed.includes(f) && /\{\w+\.firstName\} \{\w+\.lastName\}/.test(src(f)));
+    expect(bad).toEqual([]);
   });
 });

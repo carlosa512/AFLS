@@ -104,7 +104,7 @@ import {
   verdictTone,
 } from '../training';
 import { useNav } from '../App';
-import { Dialog, Exact, Panel, Section, Sheet, TeamChip, TeamPicker, TipPill } from '../components';
+import { Dialog, Exact, Panel, PlayerLink, Section, Sheet, TeamChip, TeamPicker, TipPill } from '../components';
 import { StaffAvatar } from '../staffAvatar';
 import { POSITION_NAMES } from '../../engine/positions';
 import { ownerBudgetNote } from '../../engine/staff';
@@ -1818,7 +1818,6 @@ export function CoachesScreen({ league }: { league: League }) {
  * still start (the offseason), and your one setting, whether the coaches may start their own.
  */
 function PositionWork({ league }: { league: League }) {
-  const nav = useNav();
   const team = league.teams[league.userTeamId];
   const decide = !!team.training?.coachesDecide;
   const now = learners(league, team.id);
@@ -1856,9 +1855,7 @@ function PositionWork({ league }: { league: League }) {
             const why = planReason(league, p);
             return (
               <li key={p.id} className="move-head">
-                <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openPlayer(p.id)}>
-                  {p.position} {p.firstName} {p.lastName}
-                </button>
+                <PlayerLink league={league} player={p} pos bold />
                 <span className={`tag-pill ${familiarityTone(f)}`}>{learnLine(p.position, l.to, f)}</span>
                 <span className="muted small">
                   {why ? `${why} · ` : ''}
@@ -1875,11 +1872,8 @@ function PositionWork({ league }: { league: League }) {
       {pick && (
         <div className="callout staff-next">
           <span>
-            The coaches suggest teaching{' '}
-            <button className="linklike" onClick={() => nav.openPlayer(pick.player.id)}>
-              {pick.player.position} {pick.player.firstName} {pick.player.lastName}
-            </button>{' '}
-            to play {pick.read.to}: {reasonText({ ...pick.read, reason: pick.why })}. {roleText(pick.read)}.{' '}
+            The coaches suggest teaching <PlayerLink league={league} player={pick.player} pos /> to play {pick.read.to}:{' '}
+            {reasonText({ ...pick.read, reason: pick.why })}. {roleText(pick.read)}.{' '}
             <span className={`tag-pill ${verdictTone(pick.read.verdict)}`}>{verdictText(pick.read.verdict)}</span>
           </span>
           <span className="row" style={{ gap: 8 }}>

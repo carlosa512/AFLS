@@ -22,8 +22,7 @@ import {
 } from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
-import { useNav } from '../App';
-import { Panel, PlayerAvatar, TeamChip } from '../components';
+import { Panel, PlayerAvatar, PlayerLink, TeamChip } from '../components';
 import { money } from '../format';
 import { Ovr, seenOvr } from '../scouting';
 import { liveLock } from '../live';
@@ -46,7 +45,6 @@ function AssetList({
   picked: Picked;
   onChange: (p: Picked) => void;
 }) {
-  const nav = useNav();
   const team = league.teams[teamId];
   // Grouped by position, best first within each group, like a depth chart.
   const players = teamPlayers(league, teamId).sort(
@@ -68,9 +66,7 @@ function AssetList({
         />
         <PlayerAvatar player={p} team={team} size={24} />
         <span className="asset-name">
-          <button type="button" className="linklike" onClick={() => nav.openPlayer(p.id)}>
-            {p.firstName[0]}. {p.lastName}
-          </button>
+          <PlayerLink league={league} player={p} short />
           <span className="muted small">
             {p.position} · {p.age} ·{' '}
             {isExpired(p.contract!, league.season) ? 'expiring' : `thru ${lastSeason(p.contract!)}`}

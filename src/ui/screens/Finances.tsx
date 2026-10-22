@@ -3,7 +3,7 @@ import { capHit, guaranteedFrom } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
 import type { League } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, TeamChip } from '../components';
+import { Panel, PlayerLink, TeamChip } from '../components';
 import { CapChart, capPct, ContractActions, thruLabel } from '../contracts';
 import { money } from '../format';
 import { moveIndex, MoveText } from '../moves';
@@ -137,12 +137,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                 return (
                   <tr key={p.id}>
                     <td className="sticky-col">
-                      <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
-                        <PlayerAvatar player={p} team={team} size={26} />
-                        <span>
-                          {p.firstName} {p.lastName}
-                        </span>
-                      </button>
+                      <PlayerLink league={league} player={p} avatar={26} />
                     </td>
                     <td>{p.position}</td>
                     <td className="num">{p.age}</td>
@@ -188,13 +183,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                     <tr key={i}>
                       <td className="num">{d.season}</td>
                       <td>
-                        {p ? (
-                          <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                            {p.firstName} {p.lastName}
-                          </button>
-                        ) : (
-                          'Former player'
-                        )}{' '}
+                        {p ? <PlayerLink league={league} player={p} /> : 'Former player'}{' '}
                         <span className="muted small">{d.note}</span>
                       </td>
                       <td className="num">{money(d.amount)}</td>
