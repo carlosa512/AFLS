@@ -9,11 +9,13 @@ import { store } from '../store';
 import { APP_VERSION } from '../version';
 
 export function NewGame() {
-  // One preview league so every team's rating is visible before you commit.
+  // One preview league, so you can weigh the clubs before you commit. This is the one screen that shows a club's
+  // true overall: you haven't taken a job yet, so there are no scouts of yours to read it through, and choosing
+  // a project (a contender or a rebuild) is the decision this screen is for. Just the headline, no unit breakdown.
   const [seed] = useState(() => Math.random().toString(36).slice(2, 10));
   const preview = useMemo(() => createLeague({ seed }), [seed]);
   const [picked, setPicked] = useState<number | null>(null);
-  const ratings = useMemo(() => new Map(preview.teams.map((t) => [t.id, teamRatings(preview, t)])), [preview]);
+  const overall = useMemo(() => new Map(preview.teams.map((t) => [t.id, teamRatings(preview, t).overall])), [preview]);
 
   const start = () => {
     if (picked === null) return;
@@ -49,7 +51,7 @@ export function NewGame() {
               {preview.teams
                 .filter((t) => t.division === d)
                 .map((team) => {
-                  const r = ratings.get(team.id)!;
+                  const note = ownerBudgetNote(team.staffBudgetMult);
                   return (
                     <button
                       key={team.id}
@@ -60,12 +62,9 @@ export function NewGame() {
                       <TeamChip team={team} />
                       <span className="nm">
                         {team.city} {team.name}
-                        <small>
-                          QB {r.qb.toFixed(1)} · OFF {r.offense.toFixed(1)} · DEF {r.defense.toFixed(1)}
-                          {ownerBudgetNote(team.staffBudgetMult) ? ` · ${ownerBudgetNote(team.staffBudgetMult)}` : ''}
-                        </small>
+                        {note && <small>{note}</small>}
                       </span>
-                      <Rating value={r.overall} decimals={1} />
+                      <Rating value={overall.get(team.id)!} decimals={1} />
                     </button>
                   );
                 })}

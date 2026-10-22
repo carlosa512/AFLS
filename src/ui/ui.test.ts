@@ -382,6 +382,13 @@ describe('screen contract', () => {
     expect(/<select\s+aria-label="Players"/.test(src('src/ui/screens/Stats.tsx'))).toBe(false);
   });
 
+  it("never reads a club's true strength", () => {
+    // teamRatings is the truth; screens show perceivedTeamRatings (fog of war). New Game is the one exception,
+    // by the owner's call: before you take a job you have no scouts, and its overall is how you pick a project.
+    const bad = files.filter((f) => f !== join('src/ui/screens', 'NewGame.tsx') && /\bteamRatings\b/.test(src(f)));
+    expect(bad).toEqual([]);
+  });
+
   it('builds team dropdowns only with TeamPicker', () => {
     const bad = files.filter((f) => /\[\.\.\.league\.teams\]\s*\.(sort|filter)/.test(src(f)));
     expect(bad).toEqual([]);

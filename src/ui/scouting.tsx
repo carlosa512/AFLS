@@ -38,6 +38,7 @@ import {
   type RatingView,
   type StarRating,
   type StarScale,
+  type UnitView,
 } from '../engine/scouting';
 import type { Attribute, Combine, League, Player, Position, Ratings } from '../engine/types';
 import { ATTRIBUTES } from '../engine/types';
@@ -60,6 +61,41 @@ export function Ovr({ league, player, decimals = 1 }: { league: League; player: 
   return (
     <span className={`rating est ${band(v.ovr)}`} title={`Scouted estimate: ${range}`}>
       {v.ovr.toFixed(decimals)}
+      <span className="visually-hidden"> (estimate, {range})</span>
+    </span>
+  );
+}
+
+/**
+ * A team unit's strength (`perceivedTeamRatings`), read the way `Ovr` reads a player: exact for your club, an
+ * estimate chip for a rival your scouts know well, and a range with "Little film" when they barely do.
+ * `compact` fits a narrow column: the range rounded outward to whole numbers, the words in its title.
+ */
+export function TeamUnit({ u, compact = false }: { u: UnitView; compact?: boolean }) {
+  if (u.exact) return <Rating value={u.value} decimals={1} />;
+  const range = `${u.lo.toFixed(1)}–${u.hi.toFixed(1)}`;
+  if (!u.known && compact) {
+    return (
+      <span
+        className={`num range ${band(u.value)}`}
+        style={{ whiteSpace: 'nowrap' }}
+        title={`Little film: your scouts put it at ${range}`}
+      >
+        {Math.floor(u.lo)}–{Math.ceil(u.hi)}
+        <span className="visually-hidden"> (little film)</span>
+      </span>
+    );
+  }
+  if (!u.known) {
+    return (
+      <span className={`num range ${band(u.value)}`}>
+        {range} <small className="muted">Little film</small>
+      </span>
+    );
+  }
+  return (
+    <span className={`rating est ${band(u.value)}`} title={`Scouted estimate: ${range}`}>
+      {u.value.toFixed(1)}
       <span className="visually-hidden"> (estimate, {range})</span>
     </span>
   );

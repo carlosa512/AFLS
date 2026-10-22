@@ -4,8 +4,9 @@ import { simToEndOfSeason } from './league';
 import { migrateLeague } from './migrate';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { overall, playerOvr } from './positions';
-import { teamPlayers } from './roster';
+import { starters, teamPlayers, teamRatings } from './roster';
 import {
+  perceivedTeamRatings,
   generateCombine,
   isProspect,
   knowledge,
@@ -312,5 +313,60 @@ describe('last season in the report', () => {
     // Without the snap count (a save from before it was kept), the volume stat stands in.
     for (const p of played) delete p.stats[last].snaps;
     expect(seasonRole(league, qb)!.role).toBe('starter');
+  });
+});
+
+describe('perceived team strength', () => {
+  const UNITS = ['overall', 'qb', 'offense', 'defense', 'special'] as const;
+  const POS = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE', 'LB', 'CB', 'S', 'K', 'P'] as const;
+
+  it('reads your own club exactly', () => {
+    const league = createLeague({ seed: 'units' });
+    const own = league.teams[league.userTeamId];
+    const seen = perceivedTeamRatings(league, own.id, own);
+    const truth = teamRatings(league, own);
+    for (const u of UNITS) {
+      expect(seen[u].exact).toBe(true);
+      expect(seen[u].value).toBe(truth[u]);
+      expect(seen[u].lo).toBe(seen[u].hi);
+    }
+  });
+
+  it('reads a fully scouted rival at his true strength', () => {
+    const league = createLeague({ seed: 'units' });
+    const rival = league.teams.find((t) => t.id !== league.userTeamId)!;
+    for (const pos of POS) for (const p of starters(league, rival, pos)) league.knowledge[p.id] = 1;
+    const seen = perceivedTeamRatings(league, league.userTeamId, rival);
+    const truth = teamRatings(league, rival);
+    for (const u of UNITS) {
+      expect(seen[u].value).toBeCloseTo(truth[u], 1);
+      expect(seen[u].known).toBe(true);
+    }
+  });
+
+  it('gives every rival a range around its best guess', () => {
+    const league = createLeague({ seed: 'units' });
+    for (const t of league.teams.filter((x) => x.id !== league.userTeamId)) {
+      const seen = perceivedTeamRatings(league, league.userTeamId, t);
+      for (const u of UNITS) {
+        expect(seen[u].exact).toBe(false);
+        expect(seen[u].lo).toBeLessThanOrEqual(seen[u].value);
+        expect(seen[u].value).toBeLessThanOrEqual(seen[u].hi);
+      }
+    }
+  });
+
+  it('counts a starter out of position at what he is worth there', () => {
+    const league = createLeague({ seed: 'units' });
+    const rival = league.teams.find((t) => t.id !== league.userTeamId)!;
+    for (const pos of POS) for (const p of starters(league, rival, pos)) league.knowledge[p.id] = 1;
+    const corner = rival.depthChart.CB[rival.depthChart.CB.length - 1];
+    league.knowledge[corner] = 1;
+    const before = perceivedTeamRatings(league, league.userTeamId, rival).defense.value;
+    const truthBefore = teamRatings(league, rival).defense;
+    rival.depthChart.S = [corner, ...rival.depthChart.S.filter((id) => id !== corner)];
+    const after = perceivedTeamRatings(league, league.userTeamId, rival).defense.value;
+    const truthAfter = teamRatings(league, rival).defense;
+    expect(after).toBeCloseTo(before + (truthAfter - truthBefore), 1);
   });
 });

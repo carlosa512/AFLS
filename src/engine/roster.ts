@@ -200,20 +200,30 @@ export function starters(league: League, team: Team, pos: Position): Player[] {
   return out.length ? out : team.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]);
 }
 
+/** The units a team's strength is read by, and the positions whose starters make each one. */
+export const UNIT_POSITIONS = {
+  qb: ['QB'],
+  offense: ['QB', 'RB', 'WR', 'TE', 'OL'],
+  defense: ['DT', 'EDGE', 'LB', 'CB', 'S'],
+  special: ['K', 'P'],
+} as const satisfies Record<string, readonly Position[]>;
+
+/** The headline number from the units. QB play matters most, so it is weighted in on its own as well. */
+export const headline = (qb: number, offense: number, defense: number, special: number) =>
+  qb * 0.2 + offense * 0.35 + defense * 0.4 + special * 0.05;
+
 /** Team strength summary: average starter overall per unit, on the 1–20 scale. */
 export function teamRatings(league: League, team: Team) {
-  const avg = (positions: Position[]) => {
+  const avg = (positions: readonly Position[]) => {
     // A starter lined up out of position counts at what he's worth there, knock included.
     const ps = positions.flatMap((pos) => starters(league, team, pos).map((p) => slotOvr(p, pos)));
     return ps.reduce((sum, v) => sum + v, 0) / Math.max(1, ps.length);
   };
-  const qb = avg(['QB']);
-  const offense = avg(['QB', 'RB', 'WR', 'TE', 'OL']);
-  const defense = avg(['DT', 'EDGE', 'LB', 'CB', 'S']);
-  const special = avg(['K', 'P']);
-  // QB play matters most; weight it into the headline number.
-  const overall = qb * 0.2 + offense * 0.35 + defense * 0.4 + special * 0.05;
-  return { overall, qb, offense, defense, special };
+  const qb = avg(UNIT_POSITIONS.qb);
+  const offense = avg(UNIT_POSITIONS.offense);
+  const defense = avg(UNIT_POSITIONS.defense);
+  const special = avg(UNIT_POSITIONS.special);
+  return { overall: headline(qb, offense, defense, special), qb, offense, defense, special };
 }
 
 export interface PlayerIdentity {

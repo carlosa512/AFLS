@@ -51,7 +51,9 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       Names always link: `PlayerLink` and `TeamLink` (`components.tsx`) are the only way a screen shows a player or
       a team, `TeamPicker` the only team dropdown; `ui.test.ts` enforces it. Every list of comparable rows sorts
       through `SortTh` (or `SortSeg` for a list); `tr.is-user` is the one row mark; the trade screen's views are routed
-      tabs (`#/office/trades/<view>`).
+      tabs (`#/office/trades/<view>`). Team strength reads through your scouts (`perceivedTeamRatings` in
+      `scouting.ts`); only New Game reads `teamRatings`, for each club's overall before you pick (you have no scouts
+      yet). It shows no record: a new league has no history.
 - [x] **15. Save and load** · **Done**: IndexedDB autosave after every change, backup export and import (`saves.tsx`)
       and old saves migrated on load (`migrate.ts`). Known issue: saves grow about 430 KB a season because retired
       players are never pruned.
