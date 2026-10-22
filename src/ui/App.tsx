@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { gamesInWeek, playWeek, simToEndOfRegularSeason, simToEndOfSeason, userGame } from '../engine/league';
 import {
   advanceOffseason,
@@ -34,32 +34,14 @@ import { Schedule } from './screens/Schedule';
 import { Standings } from './screens/Standings';
 import { Stats } from './screens/Stats';
 import { hashToRoute, isHistoryEntry, routeToHash, type HistoryEntry, type Route } from './routes';
+import { MAX_COMPARE, NavContext, type Nav, type StaffKind } from './nav';
 import { store, useLeague } from './store';
 import { APP_VERSION } from './version';
 
 export type { Route };
 
-interface Nav {
-  route: Route;
-  go: (route: Route) => void;
-  openGame: (gameId: number) => void;
-  watchGame: (gameId: number) => void;
-  openPlayer: (playerId: number) => void;
-  /** A coach's, scout's or medic's card. */
-  openStaff: (kind: StaffKind, id: number) => void;
-  openTeam: (teamId: number) => void;
-  /** Players lined up on the comparison screen (at most MAX_COMPARE). */
-  compareIds: number[];
-  toggleCompare: (playerId: number) => void;
-  clearCompare: () => void;
-}
-
-export const MAX_COMPARE = 3;
-
-export type StaffKind = 'coach' | 'scout' | 'medic';
-
-const NavContext = createContext<Nav | null>(null);
-export const useNav = () => useContext(NavContext)!;
+export { useNav, MAX_COMPARE } from './nav';
+export type { StaffKind } from './nav';
 
 const TABS: { view: Route['view']; label: string }[] = [
   { view: 'home', label: 'Home' },

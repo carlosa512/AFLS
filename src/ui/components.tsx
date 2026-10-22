@@ -13,7 +13,8 @@ import { gamesInWeek } from '../engine/league';
 import type { Game, League, Player, Team } from '../engine/types';
 import { gameWeather, type Forecast, type Weather } from '../engine/weather';
 import { inkOn, kitFor, shade, tint, type TeamColors } from './color';
-import { band, gameWeatherText, severityText } from './format';
+import { band, gameWeatherText, playerName, severityText, shortName } from './format';
+import { useNav } from './nav';
 import { store } from './store';
 
 /** Free agents, prospects and staff on the market: the app's grey-green. */
@@ -201,6 +202,47 @@ export function PlayerAvatar({
       <circle cx="50" cy="50" r="46.5" fill="none" stroke={shade(primary, 0.35)} strokeWidth={5} />
       <circle cx="50" cy="50" r="43.6" fill="none" stroke={tint(primary, 0.45)} strokeWidth={0.6} strokeOpacity={0.8} />
     </svg>
+  );
+}
+
+/**
+ * A player's name, and it always opens his card. The one way a screen shows a player: `avatar` (a size in
+ * px) in tables and lists, none in a sentence; `short` ("J. Smith") for tight cells; `pos` only where the
+ * table has no position column.
+ */
+export function PlayerLink({
+  league,
+  player,
+  avatar,
+  short = false,
+  pos = false,
+  bold = false,
+  className,
+}: {
+  league: League;
+  player: Player;
+  avatar?: number;
+  short?: boolean;
+  pos?: boolean;
+  bold?: boolean;
+  className?: string;
+}) {
+  const nav = useNav();
+  const team = player.teamId !== null ? league.teams[player.teamId] : null;
+  const classes = ['linklike', avatar ? 'player-link' : '', className ?? ''].filter(Boolean).join(' ');
+  return (
+    <button
+      type="button"
+      className={classes}
+      style={bold ? { fontWeight: 700 } : undefined}
+      onClick={() => nav.openPlayer(player.id)}
+    >
+      {avatar ? <PlayerAvatar player={player} team={team} size={avatar} /> : null}
+      <span>
+        {pos ? `${player.position} ` : ''}
+        {short ? shortName(player) : playerName(player)}
+      </span>
+    </button>
   );
 }
 
