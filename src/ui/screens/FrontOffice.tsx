@@ -52,7 +52,7 @@ import {
 import { CoachesScreen } from './Coaches';
 import { MedicalScreen } from './Medical';
 import { StaffScreen } from './Staff';
-import { Trades } from './Trades';
+import { Trades, type TradeTab } from './Trades';
 import { LinkedText, type Who } from '../moves';
 import { store } from '../store';
 
@@ -938,7 +938,17 @@ function BoardHabits({ league, player }: { league: League; player: Player }) {
   return <QuirkPills notes={h.notes} limit={1} oneLine />;
 }
 
-export function FrontOffice({ league, tab, pos }: { league: League; tab?: OfficeTab; pos?: Position }) {
+export function FrontOffice({
+  league,
+  tab,
+  pos,
+  sub,
+}: {
+  league: League;
+  tab?: OfficeTab;
+  pos?: Position;
+  sub?: TradeTab;
+}) {
   const nav = useNav();
   const active = tab ?? defaultOfficeTab(league);
   const [talking, setTalking] = useState<number | null>(null);
@@ -1034,7 +1044,7 @@ export function FrontOffice({ league, tab, pos }: { league: League; tab?: Office
         <FreeAgents key={pos ?? 'ALL'} league={league} start={pos} negotiate={(p) => setTalking(p.id)} />
       )}
       {active === 'draft' && <Draft league={league} />}
-      {active === 'trades' && <Trades league={league} />}
+      {active === 'trades' && <Trades league={league} tab={sub} />}
       {active === 'coaches' && <CoachesScreen league={league} />}
       {active === 'staff' && <StaffScreen league={league} />}
       {active === 'medical' && <MedicalScreen league={league} />}

@@ -231,7 +231,7 @@ export function OfferCard({
       theirs: picked(offer.sides[0]),
       counterTo: offer.id,
     });
-    nav.go({ view: 'office', tab: 'trades' });
+    nav.go({ view: 'office', tab: 'trades', sub: 'table' });
   };
 
   /** Answering an enquiry: the card keeps the words. Asking for an offer that couldn't be made is a miss. */
@@ -599,7 +599,7 @@ export function TradeActions({ league, player, onClose }: { league: League; play
     if (!proposal) return setNote(message);
     tradeDesk.put({ partnerId: player.teamId!, mine: picked(proposal.sides[0]), theirs: picked(proposal.sides[1]) });
     onClose();
-    nav.go({ view: 'office', tab: 'trades' });
+    nav.go({ view: 'office', tab: 'trades', sub: 'table' });
   };
   return (
     <div className="card-actions">

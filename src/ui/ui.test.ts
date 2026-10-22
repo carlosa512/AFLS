@@ -14,6 +14,8 @@ import { byeTeams, resultsWeek, stripGames } from './strip';
 import { hurtList, wornDown } from './injuries';
 import { gameStory } from './game';
 import { TEAM_COLS, teamRank, teamStatSeasons } from './screens/TeamStats';
+import { defaultTradeTab } from './screens/Trades';
+import { tradeDesk } from './tradeDesk';
 import { outlookPill, SEASON_DEFAULT, seasonFacts, waitingMail } from './widgets';
 
 describe('routes', () => {
@@ -29,6 +31,7 @@ describe('routes', () => {
       { view: 'office' },
       { view: 'office', tab: 'draft' },
       { view: 'office', tab: 'fa', pos: 'S' },
+      { view: 'office', tab: 'trades', sub: 'block' },
       { view: 'stats' },
       { view: 'stats', tab: 'records' },
       { view: 'stats', tab: 'teams' },
@@ -47,6 +50,14 @@ describe('routes', () => {
     });
   });
 
+  it('opens the trade table by default and when a draft is waiting', () => {
+    const league = createLeague({ seed: 'tabs' });
+    expect(defaultTradeTab(league)).toBe('table');
+    tradeDesk.put({ partnerId: 1, mine: { players: [], picks: [] }, theirs: { players: [], picks: [] } });
+    expect(defaultTradeTab(league)).toBe('table');
+    tradeDesk.take();
+  });
+
   it('send the old Leaders address to the Stats tab', () => {
     expect(hashToRoute('#/leaders')).toEqual({ view: 'stats', tab: 'leaders' });
   });
@@ -56,6 +67,8 @@ describe('routes', () => {
     for (const bad of [
       '#/nope',
       '#/office/payroll',
+      '#/office/trades/nope',
+      '#/office/fa/block',
       '#/stats/trophies',
       '#/roster/abc',
       '#/game/',

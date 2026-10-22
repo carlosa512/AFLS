@@ -22,6 +22,7 @@ import {
 } from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
+import { useNav } from '../nav';
 import { Panel, PlayerAvatar, PlayerLink, TeamChip, TeamLink, TeamPicker } from '../components';
 import { money } from '../format';
 import { Ovr, seenOvr } from '../scouting';
@@ -132,17 +133,24 @@ function KeepPaying({ league, picked, onChange }: { league: League; picked: Pick
   );
 }
 
-type View = 'offers' | 'table' | 'block' | 'market' | 'history';
+export type TradeTab = 'offers' | 'table' | 'block' | 'market' | 'history';
+export const TRADE_TABS: readonly TradeTab[] = ['offers', 'table', 'block', 'market', 'history'];
 
-export function Trades({ league }: { league: League }) {
+/** The view the trades tab opens on: the table when a deal is waiting for it, else the offers when any are open. */
+export function defaultTradeTab(league: League): TradeTab {
+  return tradeDesk.pending() ? 'table' : openOffers(league).length ? 'offers' : 'table';
+}
+
+export function Trades({ league, tab }: { league: League; tab?: TradeTab }) {
+  const nav = useNav();
   const pending = openOffers(league).length;
-  const [view, setView] = useState<View>(() => (tradeDesk.pending() ? 'table' : pending ? 'offers' : 'table'));
+  const view = tab ?? defaultTradeTab(league);
   // A deal handed over from elsewhere (a counter, "Ask their price") opens the table.
   const version = useSyncExternalStore(tradeDesk.subscribe, tradeDesk.version);
   useEffect(() => {
-    if (tradeDesk.pending()) setView('table');
-  }, [version]);
-  const views: [View, string][] = [
+    if (tradeDesk.pending() && view !== 'table') nav.go({ view: 'office', tab: 'trades', sub: 'table' });
+  }, [version, view, nav]);
+  const views: [TradeTab, string][] = [
     ['offers', pending ? `Offers (${pending})` : 'Offers'],
     ['table', 'Trade table'],
     ['block', 'Your block'],
@@ -153,7 +161,7 @@ export function Trades({ league }: { league: League }) {
     <>
       <div className="seg" role="group" aria-label="Trades" style={{ marginBottom: 12 }}>
         {views.map(([v, label]) => (
-          <button key={v} aria-pressed={view === v} onClick={() => setView(v)}>
+          <button key={v} aria-pressed={view === v} onClick={() => nav.go({ view: 'office', tab: 'trades', sub: v })}>
             {label}
           </button>
         ))}
