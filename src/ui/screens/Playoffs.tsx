@@ -1,7 +1,7 @@
 import { allSeeds, PLAYOFF_ROUNDS, playoffGames, ROUND_NAMES, winnerOf } from '../../engine/season/playoffs';
 import type { Game, League } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, TeamChip } from '../components';
+import { Panel, TeamChip, TeamLink } from '../components';
 import { recordText, resultsSeason } from '../format';
 import { PlayoffPicture } from './Standings';
 
@@ -127,15 +127,15 @@ function LeagueHistory({ league }: { league: League }) {
                     <tr key={h.season} className={h.championId === user.id ? 'is-user' : ''}>
                       <td className="num">{h.season}</td>
                       <td>
-                        <HistoryTeam league={league} id={h.championId} />
+                        <TeamLink team={league.teams[h.championId]} chip full />
                       </td>
                       <td>
-                        <HistoryTeam league={league} id={h.runnerUpId} />
+                        <TeamLink team={league.teams[h.runnerUpId]} chip full />
                       </td>
                       <td>
                         {best && (
                           <>
-                            <HistoryTeam league={league} id={Number(best[0])} />{' '}
+                            <TeamLink team={league.teams[Number(best[0])]} chip full />{' '}
                             <span className="muted num">{recordText(best[1])}</span>
                           </>
                         )}
@@ -150,16 +150,5 @@ function LeagueHistory({ league }: { league: League }) {
         </>
       )}
     </Panel>
-  );
-}
-
-function HistoryTeam({ league, id }: { league: League; id: number }) {
-  const nav = useNav();
-  const team = league.teams[id];
-  return (
-    <button className="linklike row" style={{ gap: 6, display: 'inline-flex' }} onClick={() => nav.openTeam(id)}>
-      <TeamChip team={team} />
-      {team.city} {team.name}
-    </button>
   );
 }

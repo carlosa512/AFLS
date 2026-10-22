@@ -6,7 +6,7 @@ import { computeRecords } from '../../engine/season/standings';
 import type { League } from '../../engine/types';
 import { forecast } from '../../engine/weather';
 import { useNav } from '../App';
-import { Panel, TeamLabel, WeatherNote } from '../components';
+import { Panel, TeamLink, WeatherNote } from '../components';
 import { kickoffOrder } from '../../engine/season/kickoff';
 import { kickoffText, recordText, weekLabel } from '../format';
 import { ScoreLine } from './Home';
@@ -76,7 +76,7 @@ function MySchedule({ league }: { league: League }) {
                     <span className="muted" style={{ width: '1.2em' }}>
                       {game.neutral ? 'vs' : home ? 'vs' : '@'}
                     </span>
-                    <TeamLabel team={opp} sub={recordText(records.get(opp.id)!)} />
+                    <TeamLink team={opp} chip sub={recordText(records.get(opp.id)!)} />
                   </span>
                 </td>
                 <td className="muted small">{kickoffText(league, game)}</td>
@@ -151,11 +151,11 @@ function WeekView({ league }: { league: League }) {
             .map((g) => (
               <div key={g.id} className="score-line" style={{ cursor: 'default' }}>
                 <span className="t">
-                  <TeamLabel team={league.teams[g.awayId]} />
+                  <TeamLink team={league.teams[g.awayId]} chip />
                 </span>
                 <span className="s muted">@</span>
                 <span className="t">
-                  <TeamLabel team={league.teams[g.homeId]} />
+                  <TeamLink team={league.teams[g.homeId]} chip />
                 </span>
                 <span className="muted small">{kickoffText(league, g)}</span>
               </div>

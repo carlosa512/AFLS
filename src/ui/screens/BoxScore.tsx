@@ -4,10 +4,10 @@ import { ROUND_NAMES } from '../../engine/season/playoffs';
 import { passerRating } from '../../engine/stats';
 import type { GameResult, League, Player, PlayLogEntry, StatLine, Team, TeamGameStats } from '../../engine/types';
 import { useNav } from '../App';
-import { FieldStrip, Panel, TeamChip, WeatherNote } from '../components';
+import { FieldStrip, Panel, PlayerLink, TeamChip, WeatherNote } from '../components';
 import { PlayText, usePlayNames, type PlayNames } from './GameViewer';
 import { GameOfficials } from './Officials';
-import { gameClock, shortName, weekLabel } from '../format';
+import { gameClock, weekLabel } from '../format';
 
 type Row = [Player, StatLine];
 
@@ -52,15 +52,16 @@ function TeamStatsTable({ away, home, a, h }: { away: Team; home: Team; a: TeamG
 }
 
 function StatTable({
+  league,
   title,
   rows,
   cols,
 }: {
+  league: League;
   title: string;
   rows: Row[];
   cols: [string, (s: StatLine) => string | number][];
 }) {
-  const nav = useNav();
   if (!rows.length) return null;
   return (
     <div className="table-scroll">
@@ -79,9 +80,7 @@ function StatTable({
           {rows.map(([p, s]) => (
             <tr key={p.id}>
               <td className="sticky-col">
-                <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                  {shortName(p)}
-                </button>
+                <PlayerLink league={league} player={p} short />
               </td>
               {cols.map(([l, f]) => (
                 <td key={l} className="num">
@@ -106,6 +105,7 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
   return (
     <div className="stack">
       <StatTable
+        league={league}
         title="Passing"
         rows={by((s) => !!s.passAtt, n('passAtt'))}
         cols={[
@@ -118,6 +118,7 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
         ]}
       />
       <StatTable
+        league={league}
         title="Rushing"
         rows={by((s) => !!s.rushAtt, n('rushYds'))}
         cols={[
@@ -129,6 +130,7 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
         ]}
       />
       <StatTable
+        league={league}
         title="Receiving"
         rows={by((s) => !!s.targets, n('recYds'))}
         cols={[
@@ -140,6 +142,7 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
         ]}
       />
       <StatTable
+        league={league}
         title="Defense"
         rows={by(
           (s) => !!(s.tackles || s.sacks || s.defInt || s.passDef),
@@ -155,6 +158,7 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
         ]}
       />
       <StatTable
+        league={league}
         title="Kicking"
         rows={by((s) => !!(s.fgAtt || s.xpAtt), n('fgAtt'))}
         cols={[
@@ -164,6 +168,7 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
         ]}
       />
       <StatTable
+        league={league}
         title="Punting"
         rows={by((s) => !!s.punts, n('punts'))}
         cols={[
@@ -172,6 +177,7 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
         ]}
       />
       <StatTable
+        league={league}
         title="Penalties"
         rows={by((s) => !!s.penalties, n('penaltyYds'))}
         cols={[
@@ -180,6 +186,7 @@ function PlayerStats({ league, result, teamId }: { league: League; result: GameR
         ]}
       />
       <StatTable
+        league={league}
         title="Returns"
         rows={by(
           (s) => !!(s.krAtt || s.prAtt),
@@ -396,7 +403,6 @@ export function BoxScore({ league, gameId, onBack }: { league: League; gameId: n
 
 /** Who got hurt and when, with the diagnosis as it was made at the time. */
 function GameInjuries({ league, result }: { league: League; result: GameResult }) {
-  const nav = useNav();
   return (
     <Panel title="Injuries">
       <ul className="box-injuries">
@@ -405,11 +411,8 @@ function GameInjuries({ league, result }: { league: League; result: GameResult }
           if (!p) return null;
           return (
             <li key={i.playerId}>
-              <b>{league.teams[i.teamId].abbrev}</b>{' '}
-              <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                {p.position} {shortName(p)}
-              </button>
-              : {injuryLabel(i.type).toLowerCase()}, {estimateText(i)}{' '}
+              <b>{league.teams[i.teamId].abbrev}</b> <PlayerLink league={league} player={p} short pos />:{' '}
+              {injuryLabel(i.type).toLowerCase()}, {estimateText(i)}{' '}
               <span className="muted small">
                 ({i.quarter >= 5 ? 'OT' : `Q${i.quarter}`} {gameClock(i.clock)})
               </span>

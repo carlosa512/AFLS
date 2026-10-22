@@ -22,8 +22,7 @@ import {
 } from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
-import { useNav } from '../App';
-import { Panel, PlayerAvatar, TeamChip } from '../components';
+import { Panel, PlayerAvatar, PlayerLink, TeamChip, TeamLink, TeamPicker } from '../components';
 import { money } from '../format';
 import { Ovr, seenOvr } from '../scouting';
 import { liveLock } from '../live';
@@ -46,7 +45,6 @@ function AssetList({
   picked: Picked;
   onChange: (p: Picked) => void;
 }) {
-  const nav = useNav();
   const team = league.teams[teamId];
   // Grouped by position, best first within each group, like a depth chart.
   const players = teamPlayers(league, teamId).sort(
@@ -68,9 +66,7 @@ function AssetList({
         />
         <PlayerAvatar player={p} team={team} size={24} />
         <span className="asset-name">
-          <button type="button" className="linklike" onClick={() => nav.openPlayer(p.id)}>
-            {p.firstName[0]}. {p.lastName}
-          </button>
+          <PlayerLink league={league} player={p} short />
           <span className="muted small">
             {p.position} · {p.age} ·{' '}
             {isExpired(p.contract!, league.season) ? 'expiring' : `thru ${lastSeason(p.contract!)}`}
@@ -294,7 +290,7 @@ function TradeTable({ league }: { league: League }) {
             <TeamChip team={partner} large />
             <div>
               <h2>
-                Trade with the {partner.city} {partner.name}
+                Trade with the <TeamLink team={partner} full />
               </h2>
               <span className="muted small">
                 GM style: {partner.gm.archetype} ·{' '}
@@ -306,22 +302,18 @@ function TradeTable({ league }: { league: League }) {
           </div>
         }
         action={
-          <select
-            aria-label="Trade partner"
+          <TeamPicker
+            league={league}
             value={partnerId}
-            onChange={(e) => {
-              setPartnerId(Number(e.target.value));
+            onChange={(id) => {
+              setPartnerId(id);
               setTheirs(empty());
               setCounterTo(undefined);
               setDone(null);
             }}
-          >
-            {others.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.city} {t.name}
-              </option>
-            ))}
-          </select>
+            label="Trade partner"
+            exclude={[userId]}
+          />
         }
       >
         <div className="trade-verdict" aria-live="polite">

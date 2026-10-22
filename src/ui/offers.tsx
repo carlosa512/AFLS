@@ -28,8 +28,8 @@ import type { League, Player, Stance, TradeOffer, TradeRecord, TradeSide, TradeS
 import { POSITIONS } from '../engine/types';
 import { LinkedText, nameIndex } from './moves';
 import { useNav } from './App';
-import { Panel, PlayerAvatar, TeamChip } from './components';
-import { money } from './format';
+import { Panel, PlayerAvatar, PlayerLink, TeamChip } from './components';
+import { money, playerName } from './format';
 import { Ovr, seenOvr } from './scouting';
 import { store } from './store';
 import { tradeDesk } from './tradeDesk';
@@ -50,7 +50,6 @@ const picked = (side: TradeSide) => ({
 
 /** One side of a deal, player by player and pick by pick. */
 function SideList({ league, side }: { league: League; side: TradeSide }) {
-  const nav = useNav();
   const team = league.teams[side.teamId];
   if (!side.players.length && !side.picks.length) return <p className="muted small">Nothing</p>;
   return (
@@ -60,9 +59,7 @@ function SideList({ league, side }: { league: League; side: TradeSide }) {
         return (
           <li key={id} className="row" style={{ gap: 8 }}>
             <PlayerAvatar player={p} team={team} size={24} />
-            <button type="button" className="linklike" onClick={() => nav.openPlayer(id)}>
-              {p.position} {p.firstName} {p.lastName}
-            </button>
+            <PlayerLink league={league} player={p} pos />
             <Ovr league={league} player={p} />
             <span className="muted small">
               {p.contract
@@ -310,7 +307,7 @@ export function OfferCard({
                     setRelease(release.includes(p.id) ? release.filter((x) => x !== p.id) : [...release, p.id])
                   }
                 />
-                {p.position} {p.firstName} {p.lastName} <Ovr league={league} player={p} />
+                {p.position} {playerName(p)} <Ovr league={league} player={p} />
               </label>
             ))}
           <button className="btn btn-primary" onClick={() => accept(release)}>
@@ -419,7 +416,6 @@ export function StatusPicker({ league, player }: { league: League; player: Playe
 
 /** Your trade block: every player's status, and *Shop* to call every team that needs him. */
 export function BlockPanel({ league }: { league: League }) {
-  const nav = useNav();
   const [note, setNote] = useState<string | null>(null);
   const players = teamPlayers(league, league.userTeamId)
     .filter((p) => p.contract && !isExpired(p.contract, league.season))
@@ -451,9 +447,7 @@ export function BlockPanel({ league }: { league: League }) {
           return (
             <li key={p.id} className="row" style={{ gap: 8, justifyContent: 'space-between' }}>
               <span className="row" style={{ gap: 8 }}>
-                <button type="button" className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                  {p.position} {p.firstName} {p.lastName}
-                </button>
+                <PlayerLink league={league} player={p} pos />
                 <Ovr league={league} player={p} />
               </span>
               <span className="row" style={{ gap: 8 }}>

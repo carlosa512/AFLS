@@ -3,7 +3,7 @@ import { capHit, guaranteedFrom } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
 import type { League } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, TeamChip } from '../components';
+import { Panel, PlayerLink, TeamChip, TeamLink, TeamPicker } from '../components';
 import { CapChart, capPct, ContractActions, thruLabel } from '../contracts';
 import { money } from '../format';
 import { moveIndex, MoveText } from '../moves';
@@ -35,28 +35,19 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
             <div>
               <h2>{season} salary cap</h2>
               <span className="muted">
-                {team.city} {team.name}
+                <TeamLink team={team} full />
                 {!isUser && ` · GM style: ${team.gm.archetype}`}
               </span>
             </div>
           </div>
         }
         action={
-          <select
-            aria-label="Choose team"
-            id="cap-team"
+          <TeamPicker
+            league={league}
             value={teamId}
-            onChange={(e) => nav.go({ view: 'cap', teamId: Number(e.target.value) })}
-          >
-            {[...league.teams]
-              .sort((a, b) => a.city.localeCompare(b.city))
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.city} {t.name}
-                  {t.id === league.userTeamId ? ' (you)' : ''}
-                </option>
-              ))}
-          </select>
+            onChange={(id) => nav.go({ view: 'cap', teamId: id })}
+            id="cap-team"
+          />
         }
       >
         <div className="facts">
@@ -137,12 +128,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                 return (
                   <tr key={p.id}>
                     <td className="sticky-col">
-                      <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
-                        <PlayerAvatar player={p} team={team} size={26} />
-                        <span>
-                          {p.firstName} {p.lastName}
-                        </span>
-                      </button>
+                      <PlayerLink league={league} player={p} avatar={26} />
                     </td>
                     <td>{p.position}</td>
                     <td className="num">{p.age}</td>
@@ -188,13 +174,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                     <tr key={i}>
                       <td className="num">{d.season}</td>
                       <td>
-                        {p ? (
-                          <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                            {p.firstName} {p.lastName}
-                          </button>
-                        ) : (
-                          'Former player'
-                        )}{' '}
+                        {p ? <PlayerLink league={league} player={p} /> : 'Former player'}{' '}
                         <span className="muted small">{d.note}</span>
                       </td>
                       <td className="num">{money(d.amount)}</td>

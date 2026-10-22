@@ -23,7 +23,7 @@ import {
 import type { League, Player, StatLine } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, SortTh, sortRows, useSort } from '../components';
+import { Panel, PlayerLink, SortTh, sortRows, useSort } from '../components';
 import { resultsSeason } from '../format';
 import { Officials } from './Officials';
 import { TeamStats } from './TeamStats';
@@ -123,17 +123,6 @@ function teamTag(league: League, p: Player): string {
   return p.retired ? 'Ret.' : 'FA';
 }
 
-export function PlayerLink({ league, player: p, short = false }: { league: League; player: Player; short?: boolean }) {
-  const nav = useNav();
-  const team = p.teamId !== null ? league.teams[p.teamId] : null;
-  return (
-    <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
-      <PlayerAvatar player={p} team={team} size={28} />
-      <span>{short ? `${p.firstName[0]}. ${p.lastName}` : `${p.firstName} ${p.lastName}`}</span>
-    </button>
-  );
-}
-
 // ───────── leaders ─────────
 
 function Leaders({ league, scope }: { league: League; scope: StatScope }) {
@@ -153,7 +142,7 @@ function Leaders({ league, scope }: { league: League; scope: StatScope }) {
                         {i + 1}
                       </td>
                       <td style={{ whiteSpace: 'normal' }}>
-                        <PlayerLink league={league} player={r.player} short />
+                        <PlayerLink league={league} player={r.player} avatar={28} short />
                         <small className="muted"> {teamTag(league, r.player)}</small>
                       </td>
                       <td className="num" style={{ fontWeight: 700 }}>
@@ -248,7 +237,7 @@ export function WinnerCell({
     : honorLine(p, weeks ? periodLine(league, season, weeks, p.id) : p.stats[season]);
   return (
     <span className="stack" style={{ gap: 2 }}>
-      <PlayerLink league={league} player={p} short />
+      <PlayerLink league={league} player={p} avatar={28} short />
       <small className="muted">
         {p.position} · {clubThen(league, w)}
         {numbers && ` · ${numbers}`}
@@ -438,7 +427,7 @@ function Records({ league }: { league: League }) {
                         {i + 1}
                       </td>
                       <td>
-                        <PlayerLink league={league} player={r.player} short />
+                        <PlayerLink league={league} player={r.player} avatar={28} short />
                       </td>
                       <td className="num muted">{r.season}</td>
                       <td className="num" style={{ fontWeight: 700 }}>
@@ -747,7 +736,7 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
               <tr key={p.id} className={p.teamId === league.userTeamId ? 'is-user' : ''}>
                 <td className="num muted">{i + 1}</td>
                 <td className="sticky-col">
-                  <PlayerLink league={league} player={p} />
+                  <PlayerLink league={league} player={p} avatar={28} />
                 </td>
                 <td>{teamTag(league, p)}</td>
                 <td>{p.position}</td>

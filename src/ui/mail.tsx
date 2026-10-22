@@ -111,9 +111,9 @@ import type {
 import { stanceOf } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
-import { PlayerAvatar, TeamChip } from './components';
+import { PlayerAvatar, PlayerLink, TeamChip, TeamLink } from './components';
 import { StaffAvatar } from './staffAvatar';
-import { band, money, ordinal, playerName, recordText, shortName, teamName, weekLabel } from './format';
+import { band, money, ordinal, recordText, shortName, weekLabel } from './format';
 import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
@@ -212,14 +212,11 @@ function Card({ title, children, className = '' }: { title?: ReactNode; children
 
 /** A player's name and picture, opening his card. */
 function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactNode; side?: ReactNode }) {
-  const nav = useNav();
   return (
     <div className="mail-who">
       <PlayerAvatar player={p} team={p.teamId !== null ? league.teams[p.teamId] : null} size={40} />
       <span style={{ minWidth: 0 }}>
-        <button className="linklike mail-who-name" onClick={() => nav.openPlayer(p.id)}>
-          {playerName(p)}
-        </button>
+        <PlayerLink league={league} player={p} className="mail-who-name" />
         {sub && (
           <span className="muted small" style={{ display: 'block' }}>
             {sub}
@@ -231,38 +228,26 @@ function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactN
   );
 }
 
-/** A team's name as a link to its page, with its chip in a table. */
-function TeamLink({ team, chip = false }: { team: Team; chip?: boolean }) {
-  const nav = useNav();
-  return (
-    <button className={`linklike${chip ? ' team-inline' : ''}`} onClick={() => nav.openTeam(team.id)}>
-      {chip && (
-        <>
-          <TeamChip team={team} />{' '}
-        </>
-      )}
-      {team.name}
-    </button>
-  );
-}
-
-/** Players as links, comma-separated: "QB Kyle James, WR Tom Hughes". */
+/** Players as links, comma-separated: "QB Kyle James, WR Tom Hughes" (`short` or `surname` as PlayerLink). */
 function PlayerList({
+  league,
   players,
-  label = (p) => `${p.position} ${playerName(p)}`,
+  pos = true,
+  short,
+  surname,
 }: {
+  league: League;
   players: Player[];
-  label?: (p: Player) => string;
+  pos?: boolean;
+  short?: boolean;
+  surname?: boolean;
 }) {
-  const nav = useNav();
   return (
     <>
       {players.map((p, i) => (
         <span key={p.id}>
           {i > 0 && ', '}
-          <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-            {label(p)}
-          </button>
+          <PlayerLink league={league} player={p} pos={pos} short={short} surname={surname} />
         </span>
       ))}
     </>
@@ -365,7 +350,6 @@ function FlexCards({ league, s }: { league: League; s: Extract<MailSubject, { ki
 }
 
 function OpponentCard({ league, opp, game }: { league: League; opp: Team; game: Game }) {
-  const nav = useNav();
   const rec = computeRecords(league, game.season).get(opp.id);
   const seed = game.playoffRound ? seedOf(league, game.season, opp.id) : 0;
   // Their last five before this one, newest first.
@@ -380,9 +364,7 @@ function OpponentCard({ league, opp, game }: { league: League; opp: Team; game: 
       <div className="mail-who">
         <TeamChip team={opp} large />
         <span>
-          <button className="linklike mail-who-name" onClick={() => nav.openTeam(opp.id)}>
-            {teamName(opp)}
-          </button>
+          <TeamLink team={opp} full className="mail-who-name" />
           <span className="muted small" style={{ display: 'block' }}>
             {rec ? recordText(rec) : ''}
             {seed ? ` · ${ordinal(seed)} seed` : ''}
@@ -542,20 +524,13 @@ function MatchupSide({
   team: Team;
   flip?: boolean;
 }) {
-  const nav = useNav();
   const p = unit.lead !== undefined ? league.players[unit.lead] : undefined;
   const pct = Math.round(unit.score * 100);
   return (
     <span className={`mail-matchup-side${flip ? ' is-flip' : ''}`}>
       {p && <PlayerAvatar player={p} team={team} size={32} />}
       <span className="mail-matchup-who">
-        {p ? (
-          <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-            {p.lastName}
-          </button>
-        ) : (
-          <span className="muted">Nobody</span>
-        )}
+        {p ? <PlayerLink league={league} player={p} surname /> : <span className="muted">Nobody</span>}
       </span>
       <span
         className="num mail-matchup-score"
@@ -571,7 +546,6 @@ const FIELD_POSITIONS: Position[] = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE',
 
 /** Their two best starters as our scouts see them, with this season's numbers. */
 function WatchCard({ league, opp, season }: { league: League; opp: Team; season: number }) {
-  const nav = useNav();
   const best = FIELD_POSITIONS.flatMap((pos) => starters(league, opp, pos))
     .map((p) => ({ p, ovr: seenOvr(league, p) }))
     .sort((a, b) => b.ovr - a.ovr)
@@ -583,9 +557,7 @@ function WatchCard({ league, opp, season }: { league: League; opp: Team; season:
         <div className="mail-row" key={p.id}>
           <span className="pos">{p.position}</span>
           <span>
-            <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-              {shortName(p)}
-            </button>
+            <PlayerLink league={league} player={p} short />
             <span className="muted small" style={{ display: 'block' }}>
               {honorLine(p, statLine(p, season)) || 'No stats yet this season'}
             </span>
@@ -613,9 +585,7 @@ function TheirInjuries({ league, opp }: { league: League; opp: Team }) {
         <div className="mail-row" key={p.id}>
           <span className="pos">{p.position}</span>
           <span>
-            <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-              {shortName(p)}
-            </button>
+            <PlayerLink league={league} player={p} short />
             {p.injury && (
               <span className="muted small" style={{ display: 'block' }}>
                 {injuryLabel(p.injury.type)}
@@ -842,7 +812,6 @@ function firstPick(league: League, season: number) {
 }
 
 function CombineCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'combine' }> }) {
-  const nav = useNav();
   if (s.season !== league.season || !league.draftClass.length) return null;
   // The consensus board, top first (the same order the draft room's Consensus column ranks).
   const board = league.draftClass
@@ -859,10 +828,7 @@ function CombineCards({ league, s }: { league: League; s: Extract<MailSubject, {
             <span className="num muted">{i + 1}</span>
             <span className="pos">{p.position}</span>
             <span>
-              <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                {playerName(p)}
-              </button>{' '}
-              <span className="muted small">· {p.age}</span>
+              <PlayerLink league={league} player={p} /> <span className="muted small">· {p.age}</span>
             </span>
             <span className="num small">{p.combine?.forty ? `40 yd ${p.combine.forty.toFixed(2)}` : ''}</span>
           </div>
@@ -903,7 +869,7 @@ function DraftDayCards({ league, s }: { league: League; s: Extract<MailSubject, 
               {p && (
                 <span className="muted">
                   {' '}
-                  · <PlayerList players={[p]} label={(x) => `${x.position} ${x.lastName}`} />
+                  · <PlayerList league={league} players={[p]} surname />
                 </span>
               )}
             </span>
@@ -915,7 +881,6 @@ function DraftDayCards({ league, s }: { league: League; s: Extract<MailSubject, 
 }
 
 function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'draftClass' }> }) {
-  const nav = useNav();
   const ours = draftClassOf(league, s.season);
   const moves = moveIndex(league);
   // Trades made during the draft (ours first), else the top of the draft.
@@ -952,10 +917,7 @@ function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject
                       R{d.round} · {d.pick}
                     </td>
                     <td>
-                      <span className="pos">{p.position}</span>{' '}
-                      <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                        {playerName(p)}
-                      </button>
+                      <span className="pos">{p.position}</span> <PlayerLink league={league} player={p} />
                     </td>
                     <td className="num">{p.age}</td>
                     <td className="num">{d.rank !== undefined ? ordinal(d.rank) : '–'}</td>
@@ -1003,9 +965,7 @@ function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject
                     </td>
                     <td className="pos">{p.position}</td>
                     <td>
-                      <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                        {playerName(p)}
-                      </button>
+                      <PlayerLink league={league} player={p} />
                     </td>
                   </tr>
                 ))}
@@ -1074,7 +1034,7 @@ function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { k
         <GameStar league={league} game={g} />
         {stood.length > 0 && (
           <Card title={star !== null && r.playerTeams[star] === user ? 'Also stood out' : 'Our best'}>
-            <Standouts rows={stood} />
+            <Standouts league={league} rows={stood} />
           </Card>
         )}
       </div>
@@ -1085,7 +1045,7 @@ function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { k
             ? hurt.map((i, n) => (
                 <span key={i.playerId}>
                   {n > 0 && ', '}
-                  <PlayerList players={[league.players[i.playerId]]} label={shortName} /> hurt (
+                  <PlayerList league={league} players={[league.players[i.playerId]]} pos={false} short /> hurt (
                   {injuryLabel(i.type).toLowerCase()})
                 </span>
               ))
@@ -1279,8 +1239,8 @@ function DeadlineCards({
         <Card title="Deals that run out after this season">
           <p className="small" style={{ margin: 0 }}>
             {expiring.length} player{expiring.length === 1 ? '' : 's'}, including{' '}
-            <PlayerList players={expiring.slice(0, SHOW)} />. Re-sign them in the spring, or move one now while he still
-            has trade value.
+            <PlayerList league={league} players={expiring.slice(0, SHOW)} />. Re-sign them in the spring, or move one
+            now while he still has trade value.
           </p>
           <div className="mail-more">
             <span />
@@ -1299,7 +1259,6 @@ function DeadlineCards({
 
 /** Who's buying and who's selling right now, from each front office's stance (`trade/plans.ts`): words, never numbers. */
 function BuyersSellers({ league }: { league: League }) {
-  const nav = useNav();
   const others = league.teams.filter((t) => t.id !== league.userTeamId);
   const rows: [string, Team[]][] = [
     ['Buying', others.filter((t) => stanceOf(t) === 'contend')],
@@ -1315,9 +1274,7 @@ function BuyersSellers({ league }: { league: League }) {
               <span className="eyebrow">{label}</span>
               <span className="market-teams">
                 {teams.map((t) => (
-                  <button key={t.id} className="linklike team-inline" onClick={() => nav.openTeam(t.id)}>
-                    <TeamChip team={t} /> {t.name}
-                  </button>
+                  <TeamLink key={t.id} team={t} chip />
                 ))}
               </span>
             </div>
@@ -1371,7 +1328,6 @@ const DEAL_WORDS: [DealKind, string][] = [
 
 /** The trade season in numbers, the busiest teams, our division's moves and deadline day's deals. */
 function MarketRecapCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'marketRecap' }> }) {
-  const nav = useNav();
   const all = league.transactions.filter((t) => t.kind === 'trade' && t.season === s.season && t.phase === 'regular');
   const deals = seasonDeals(league, s.season);
   const day = deadlineDayTrades(league, s.season);
@@ -1415,10 +1371,7 @@ function MarketRecapCards({ league, s }: { league: League; s: Extract<MailSubjec
             {busiest.map(({ t, n }, i) => (
               <span key={t.id}>
                 {i > 0 && ', '}
-                <button className="linklike" onClick={() => nav.openTeam(t.id)}>
-                  {t.name}
-                </button>{' '}
-                ({n})
+                <TeamLink team={t} /> ({n})
               </span>
             ))}
           </p>
@@ -2073,15 +2026,11 @@ function Expandable<T>({
 
 /** Free agency in short: who came, who left and for how much, the league's biggest deals, and the cap the draft fits in. */
 function FaWrapCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'faWrap' }> }) {
-  const nav = useNav();
   const fa = freeAgencyMoves(league, s.season);
   const user = league.userTeamId;
   const name = (p: Player) => (
     <span>
-      <span className="pos">{p.position}</span>{' '}
-      <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-        {playerName(p)}
-      </button>
+      <span className="pos">{p.position}</span> <PlayerLink league={league} player={p} />
     </span>
   );
   const space = Math.round(capSheet(league, user).space);
@@ -2131,7 +2080,7 @@ function FaWrapCards({ league, s }: { league: League; s: Extract<MailSubject, { 
               />
               {fa.unsigned.length > 0 && (
                 <p className="muted small" style={{ margin: '8px 0 0' }}>
-                  Still unsigned: <PlayerList players={fa.unsigned.slice(0, 5)} />
+                  Still unsigned: <PlayerList league={league} players={fa.unsigned.slice(0, 5)} />
                   {fa.unsigned.length > 5 ? ` and ${fa.unsigned.length - 5} more` : ''}.
                 </p>
               )}
@@ -2148,10 +2097,7 @@ function FaWrapCards({ league, s }: { league: League; s: Extract<MailSubject, { 
           {fa.biggest.map((d) => (
             <div className="mail-deal" key={d.player.id}>
               <span className="team-inline">
-                <TeamChip team={league.teams[d.teamId]} />{' '}
-                <button className="linklike" onClick={() => nav.openPlayer(d.player.id)}>
-                  {name(d.player)}
-                </button>
+                <TeamChip team={league.teams[d.teamId]} /> {name(d.player)}
               </span>
               <span className="num small">{dealText(d)}</span>
             </div>

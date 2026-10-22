@@ -6,8 +6,7 @@
 import { useState } from 'react';
 import { teamSeasonStats, type TeamSeasonLine } from '../../engine/stats';
 import type { League } from '../../engine/types';
-import { useNav } from '../App';
-import { Panel, SortTh, sortRows, TeamChip, useSort } from '../components';
+import { Panel, SortTh, sortRows, TeamLink, useSort } from '../components';
 import { recordText, resultsSeason } from '../format';
 
 export interface TeamStatCol {
@@ -77,7 +76,6 @@ export const teamStatSeasons = (league: League) =>
   [...new Set(league.games.filter((g) => g.result && !g.playoffRound).map((g) => g.season))].sort((a, b) => b - a);
 
 export function TeamStats({ league }: { league: League }) {
-  const nav = useNav();
   const seasons = teamStatSeasons(league);
   const [picked, setPicked] = useState(() => resultsSeason(league));
   const season = seasons.includes(picked) ? picked : seasons[0];
@@ -150,9 +148,7 @@ export function TeamStats({ league }: { league: League }) {
               <tr key={t.id} className={t.id === league.userTeamId ? 'is-user' : undefined}>
                 <td className="num muted">{i + 1}</td>
                 <td className="sticky-col">
-                  <button className="linklike team-inline" onClick={() => nav.openTeam(t.id)}>
-                    <TeamChip team={t} /> {t.name}
-                  </button>
+                  <TeamLink team={t} chip />
                 </td>
                 <td className="num">{l.games}</td>
                 <td className="num">

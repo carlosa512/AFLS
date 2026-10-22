@@ -29,7 +29,7 @@ import { resignForecast, staffName, staffWindowOpen } from '../../engine/staff';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, Rating, Section, SortTh, sortRows, TeamChip, useSort } from '../components';
+import { Panel, PlayerLink, Rating, Section, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
 import { attentionText, coachAttention } from '../coaching';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
@@ -60,28 +60,6 @@ export type OfficeTab = 'resign' | 'fa' | 'draft' | 'trades' | 'coaches' | 'staf
 
 export const defaultOfficeTab = (league: League): OfficeTab =>
   league.phase === 'resign' ? 'resign' : league.phase === 'draft' ? 'draft' : 'fa';
-
-function PlayerCell({ league, p }: { league: League; p: Player }) {
-  const nav = useNav();
-  return (
-    <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
-      <PlayerAvatar player={p} team={p.teamId !== null ? league.teams[p.teamId] : null} size={26} />
-      <span>
-        {p.firstName} {p.lastName}
-      </span>
-    </button>
-  );
-}
-
-/** A player's name in a sentence: opens his card. */
-function PlayerName({ p }: { p: Player }) {
-  const nav = useNav();
-  return (
-    <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-      {p.firstName} {p.lastName}
-    </button>
-  );
-}
 
 function PositionFilter({ value, onChange }: { value: Position | 'ALL'; onChange: (v: Position | 'ALL') => void }) {
   return (
@@ -134,7 +112,7 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
             {tagged ? (
               <>
                 {' '}
-                You tagged <PlayerName p={tagged} /> this year.
+                You tagged <PlayerLink league={league} player={tagged} /> this year.
               </>
             ) : (
               ' You have one franchise tag: a fully guaranteed one-year deal.'
@@ -167,7 +145,7 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
                     return (
                       <tr key={p.id}>
                         <td className="sticky-col">
-                          <PlayerCell league={league} p={p} />
+                          <PlayerLink league={league} player={p} avatar={26} />
                         </td>
                         <td>{p.position}</td>
                         <td className="num">{p.age}</td>
@@ -224,7 +202,7 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
                 {options.map((p) => (
                   <tr key={p.id}>
                     <td>
-                      <PlayerCell league={league} p={p} />
+                      <PlayerLink league={league} player={p} avatar={26} />
                     </td>
                     <td>{p.position}</td>
                     <td className="num">
@@ -275,7 +253,7 @@ function Resign({ league, negotiate }: { league: League; negotiate: (p: Player) 
                   return (
                     <tr key={p.id}>
                       <td>
-                        <PlayerCell league={league} p={p} />
+                        <PlayerLink league={league} player={p} avatar={26} />
                       </td>
                       <td>{p.position}</td>
                       <td className="num">{p.age}</td>
@@ -339,7 +317,7 @@ function FreeAgents({
               {pending.map((p) => (
                 <tr key={p.id}>
                   <td>
-                    <PlayerCell league={league} p={p} />
+                    <PlayerLink league={league} player={p} avatar={26} />
                   </td>
                   <td>{p.position}</td>
                   <td className="num">{p.age}</td>
@@ -410,7 +388,7 @@ function FreeAgents({
               return (
                 <tr key={p.id}>
                   <td className="sticky-col">
-                    <PlayerCell league={league} p={p} />
+                    <PlayerLink league={league} player={p} avatar={26} />
                   </td>
                   <td>{p.position}</td>
                   <td className="num">{p.age}</td>
@@ -470,7 +448,6 @@ const myBoardValue = (league: League, p: Player) => {
 };
 
 function Draft({ league }: { league: League }) {
-  const nav = useNav();
   const [pos, setPos] = useState<Position | 'ALL'>('ALL');
   const [sort, onSort, setSort] = useSort<BoardSort>({ key: 'rank', desc: false });
   const [drill, setDrill] = useState<BoardDrill>('forty');
@@ -563,7 +540,7 @@ function Draft({ league }: { league: League }) {
             {last && lastP && (
               <>
                 Last pick: No. {last.overall} {league.teams[last.ownerId].abbrev}, {lastP.position}{' '}
-                <PlayerName p={lastP} /> (consensus #{last.consRank}).{' '}
+                <PlayerLink league={league} player={lastP} /> (consensus #{last.consRank}).{' '}
               </>
             )}
             {!onClock
@@ -661,12 +638,7 @@ function Draft({ league }: { league: League }) {
                       <td className="sticky-col">
                         {/* The rank rides in the sticky cell: as a column of its own, the name would slide over it. */}
                         <span className="board-rank muted small">{rank.get(p.id)}</span>
-                        <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
-                          <PlayerAvatar player={p} team={null} size={26} />
-                          <span>
-                            {p.firstName} {p.lastName}
-                          </span>
-                        </button>
+                        <PlayerLink league={league} player={p} avatar={26} />
                       </td>
                       <td>{p.position}</td>
                       <td className="num">{p.age}</td>
@@ -733,7 +705,6 @@ function Draft({ league }: { league: League }) {
  * traded off stay listed, so a missing round reads as "traded to", not as a gap.
  */
 function YourPicks({ league }: { league: League }) {
-  const nav = useNav();
   const teamId = league.userTeamId;
   const next =
     league.phase === 'resign' || league.phase === 'freeAgency' || league.phase === 'draft'
@@ -765,13 +736,7 @@ function YourPicks({ league }: { league: League }) {
                     <span className="tag-pill tag-good">from {league.teams[pk.originalTeamId].abbrev}</span>
                   ) : null}
                 </td>
-                <td>
-                  {used && !gone && (
-                    <button className="linklike" onClick={() => nav.openPlayer(used.id)}>
-                      {used.position} {used.firstName} {used.lastName}
-                    </button>
-                  )}
-                </td>
+                <td>{used && !gone && <PlayerLink league={league} player={used} pos />}</td>
               </tr>
             );
           })}
@@ -809,7 +774,6 @@ function YourPicks({ league }: { league: League }) {
  * round. It opens on your own team: every year and round of your drafting at a glance.
  */
 function DraftHistory({ league, live }: { league: League; live?: number }) {
-  const nav = useNav();
   // Drafts this league held: those players keep the consensus read. A new league's veterans come with made-up draft lines.
   const drafted = Object.values(league.players).filter((p) => p.draft && p.scouting);
   const years = [...new Set(drafted.map((p) => p.draft!.season))].sort((a, b) => b - a);
@@ -837,22 +801,7 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
     <Panel className="draft-history">
       <Section id="draft-history" title="Draft history">
         <span className="row" style={{ gap: 8 }}>
-          <select
-            aria-label="Team"
-            value={team}
-            onChange={(e) => setTeam(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-          >
-            <option value={league.userTeamId}>Your team</option>
-            <option value="all">League-wide</option>
-            {[...league.teams]
-              .filter((t) => t.id !== league.userTeamId)
-              .sort((a, b) => a.city.localeCompare(b.city))
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.city} {t.name}
-                </option>
-              ))}
-          </select>
+          <TeamPicker league={league} value={team} onChange={setTeam} label="Team" allowLeague />
           <select
             aria-label="Draft year"
             value={year}
@@ -912,9 +861,7 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
                         {d.round}.{d.pick - (d.round - 1) * 32} <span className="small">(No. {d.pick})</span>
                       </td>
                       <td className="sticky-col">
-                        <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                          {p.firstName} {p.lastName}
-                        </button>
+                        <PlayerLink league={league} player={p} />
                         {value === 'reach' && <span className="tag-pill tag-warn">reach</span>}
                         {value === 'steal' && <span className="tag-pill tag-good">steal</span>}
                       </td>

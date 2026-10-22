@@ -4,9 +4,8 @@
  */
 import { impact, playerOfTheGame } from '../engine/awards';
 import type { Game, League, Player, StatLine } from '../engine/types';
-import { useNav } from './App';
-import { PlayerAvatar, TeamChip } from './components';
-import { gameClock, shortName } from './format';
+import { PlayerAvatar, PlayerLink, TeamChip } from './components';
+import { gameClock } from './format';
 import { honorLine } from './screens/Stats';
 
 /** Points by quarter (overtime as OT), the team's row marked. */
@@ -123,7 +122,6 @@ export function KeyStats({ league, game, teamId }: { league: League; game: Game;
 
 /** The player of the game, with his line. */
 export function GameStar({ league, game }: { league: League; game: Game }) {
-  const nav = useNav();
   const r = game.result!;
   const star = playerOfTheGame(league, game);
   const p = star !== null ? league.players[star] : undefined;
@@ -135,9 +133,7 @@ export function GameStar({ league, game }: { league: League; game: Game }) {
       <span>
         <span className="eyebrow">Player of the game</span>
         <span style={{ display: 'block' }}>
-          <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openPlayer(p.id)}>
-            {shortName(p)}
-          </button>{' '}
+          <PlayerLink league={league} player={p} short bold />{' '}
           <span className="muted small">
             {p.position} · {team?.abbrev}
           </span>
@@ -162,18 +158,14 @@ export function standouts(league: League, game: Game, teamId: number, n: number)
 }
 
 /** Standouts as rows: position, name, line. */
-export function Standouts({ rows }: { rows: { p: Player; line: StatLine }[] }) {
-  const nav = useNav();
+export function Standouts({ league, rows }: { league: League; rows: { p: Player; line: StatLine }[] }) {
   return (
     <>
       {rows.map(({ p, line }) => (
         <div className="standout" key={p.id}>
           <span className="pos">{p.position}</span>
           <span style={{ minWidth: 0 }}>
-            <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-              {shortName(p)}
-            </button>{' '}
-            <span className="muted small">{honorLine(p, line)}</span>
+            <PlayerLink league={league} player={p} short /> <span className="muted small">{honorLine(p, line)}</span>
           </span>
         </div>
       ))}

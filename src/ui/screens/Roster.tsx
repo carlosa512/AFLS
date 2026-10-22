@@ -26,7 +26,7 @@ import { computeRecords } from '../../engine/season/standings';
 import type { Coach, League, Player, Position, StatLine, Team } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
+import { Panel, PlayerLink, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
 import { FitnessCell, fitnessSort, InjuryTag } from '../injuries';
@@ -608,7 +608,6 @@ function RosterRow({
   /** "Play at…" picked a position: the row moves to that group. */
   onPlayAt?: (pos: Position) => void;
 }) {
-  const nav = useNav();
   const view = viewOf(league, p);
   const spots = spotsFor(scheme, slot);
   const starter = index < spots.length;
@@ -621,7 +620,6 @@ function RosterRow({
   // Your own players only: how a rival's roster suits its scheme is its business.
   const fit = mine && starter && !away ? schemeFitOf(league, p, scheme) : null;
   const learning = mine ? activeLearning(p) : undefined;
-  const team = p.teamId !== null ? league.teams[p.teamId] : null;
   // Only your own young players: a rival's backups are none of your business.
   const needsReps = p.teamId === league.userTeamId && repsOf(league, p)?.needs;
   const onKey = (e: ReactKeyboardEvent) => {
@@ -659,16 +657,7 @@ function RosterRow({
         </span>
       </td>
       <td className="sticky-col">
-        <button
-          className="linklike player-link"
-          style={{ fontWeight: starter ? 700 : 400 }}
-          onClick={() => nav.openPlayer(p.id)}
-        >
-          <PlayerAvatar player={p} team={team} size={32} />
-          <span>
-            {p.firstName} {p.lastName}
-          </span>
-        </button>
+        <PlayerLink league={league} player={p} avatar={32} bold={starter} />
         {fit && (fit.grade === 'Ideal' || fit.grade === 'Poor') && (
           <span
             className={`tag-pill name-sub ${fit.grade === 'Poor' ? 'tag-warn' : 'tag-good'}`}

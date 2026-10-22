@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type ReactElement,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -13,7 +14,8 @@ import { gamesInWeek } from '../engine/league';
 import type { Game, League, Player, Team } from '../engine/types';
 import { gameWeather, type Forecast, type Weather } from '../engine/weather';
 import { inkOn, kitFor, shade, tint, type TeamColors } from './color';
-import { band, gameWeatherText, severityText } from './format';
+import { band, gameWeatherText, playerName, severityText, shortName } from './format';
+import { useNav } from './nav';
 import { store } from './store';
 
 /** Free agents, prospects and staff on the market: the app's grey-green. */
@@ -204,6 +206,49 @@ export function PlayerAvatar({
   );
 }
 
+/**
+ * A player's name, and it always opens his card. The one way a screen shows a player: `avatar` (a size in
+ * px) in tables and lists, none in a sentence; `short` ("J. Smith") for tight cells, `surname` ("Smith")
+ * where the picture or the sentence already says who; `pos` only where the table has no position column.
+ */
+export function PlayerLink({
+  league,
+  player,
+  avatar,
+  short = false,
+  surname = false,
+  pos = false,
+  bold = false,
+  className,
+}: {
+  league: League;
+  player: Player;
+  avatar?: number;
+  short?: boolean;
+  surname?: boolean;
+  pos?: boolean;
+  bold?: boolean;
+  className?: string;
+}) {
+  const nav = useNav();
+  const team = player.teamId !== null ? league.teams[player.teamId] : null;
+  const classes = ['linklike', avatar ? 'player-link' : '', className ?? ''].filter(Boolean).join(' ');
+  return (
+    <button
+      type="button"
+      className={classes}
+      style={bold ? { fontWeight: 700 } : undefined}
+      onClick={() => nav.openPlayer(player.id)}
+    >
+      {avatar ? <PlayerAvatar player={player} team={team} size={avatar} /> : null}
+      <span>
+        {pos ? `${player.position} ` : ''}
+        {surname ? player.lastName : short ? shortName(player) : playerName(player)}
+      </span>
+    </button>
+  );
+}
+
 export function TeamChip({ team, large }: { team: Team; large?: boolean }) {
   const style = { '--c1': team.colors[0], '--c2': team.colors[1], color: inkOn(team.colors[0]) } as CSSProperties;
   return (
@@ -213,34 +258,54 @@ export function TeamChip({ team, large }: { team: Team; large?: boolean }) {
   );
 }
 
-export function TeamLabel({
+/**
+ * A team's name, and it always opens its page. The one way a screen shows a team: `chip` (the colour chip
+ * before the name) in tables and lists, none in a sentence; `full` for "Dallas Rangers" over "Rangers";
+ * `sub` a record or note under the name, outside the link.
+ */
+export function TeamLink({
   team,
-  full,
-  onClick,
+  chip = false,
+  full = false,
   sub,
+  className,
 }: {
   team: Team;
+  chip?: boolean;
   full?: boolean;
-  onClick?: () => void;
   sub?: ReactNode;
+  className?: string;
 }) {
+  const nav = useNav();
   const name = full ? `${team.city} ${team.name}` : team.name;
+  const link = (
+    <button
+      type="button"
+      className={className ? `linklike ${className}` : 'linklike'}
+      onClick={() => nav.openTeam(team.id)}
+    >
+      {name}
+    </button>
+  );
+  const note = sub && (
+    <small className="muted" style={{ display: 'block', lineHeight: 1.2 }}>
+      {sub}
+    </small>
+  );
+  if (!chip) {
+    return (
+      <>
+        {link}
+        {note}
+      </>
+    );
+  }
   return (
     <span className="team-inline">
       <TeamChip team={team} />
       <span style={{ minWidth: 0 }}>
-        {onClick ? (
-          <button className="linklike" onClick={onClick}>
-            {name}
-          </button>
-        ) : (
-          name
-        )}
-        {sub && (
-          <small className="muted" style={{ display: 'block', lineHeight: 1.2 }}>
-            {sub}
-          </small>
-        )}
+        {link}
+        {note}
       </span>
     </span>
   );
@@ -562,21 +627,58 @@ export function Exact({ numbers, children }: { numbers: ReactNode; children: Rea
   );
 }
 
-/** Pick a club, yours marked: the same list wherever a screen can show another team. */
+/**
+ * Pick a club, yours marked: the one team dropdown, wherever a screen can show another team. `allowLeague`
+ * puts "League" first (value 'all'); `exclude` leaves clubs out (the trade table: you can't trade with
+ * yourself). A picker without `allowLeague` only ever hands back a team id.
+ */
+export function TeamPicker(props: {
+  league: League;
+  value: number;
+  onChange: (teamId: number) => void;
+  id?: string;
+  label?: string;
+  allowLeague?: false;
+  exclude?: number[];
+}): ReactElement;
+export function TeamPicker(props: {
+  league: League;
+  value: number | 'all';
+  onChange: (teamId: number | 'all') => void;
+  id?: string;
+  label?: string;
+  allowLeague: true;
+  exclude?: number[];
+}): ReactElement;
 export function TeamPicker({
   league,
   value,
   onChange,
   id,
+  label = 'Choose team',
+  allowLeague = false,
+  exclude = [],
 }: {
   league: League;
-  value: number;
-  onChange: (teamId: number) => void;
+  value: number | 'all';
+  onChange: ((teamId: number) => void) | ((teamId: number | 'all') => void);
   id?: string;
+  label?: string;
+  allowLeague?: boolean;
+  exclude?: number[];
 }) {
+  // Without `allowLeague` the 'all' option never renders, so the narrower callback never sees it.
+  const pick = onChange as (teamId: number | 'all') => void;
   return (
-    <select aria-label="Choose team" id={id} value={value} onChange={(e) => onChange(Number(e.target.value))}>
+    <select
+      aria-label={label}
+      id={id}
+      value={value}
+      onChange={(e) => pick(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+    >
+      {allowLeague && <option value="all">League</option>}
       {[...league.teams]
+        .filter((t) => !exclude.includes(t.id))
         .sort((a, b) => a.city.localeCompare(b.city))
         .map((t) => (
           <option key={t.id} value={t.id}>

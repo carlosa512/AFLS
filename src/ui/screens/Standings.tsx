@@ -1,11 +1,9 @@
 import { computeRecords, conferenceSeeds, divisionStandings } from '../../engine/season/standings';
 import type { League } from '../../engine/types';
-import { useNav } from '../App';
-import { Panel, TeamLabel } from '../components';
+import { Panel, TeamLink } from '../components';
 import { pct, recordText, resultsSeason } from '../format';
 
 export function PlayoffPicture({ league, conference }: { league: League; conference: number }) {
-  const nav = useNav();
   const records = computeRecords(league);
   const seeds = conferenceSeeds(league, conference, records);
   return (
@@ -25,7 +23,7 @@ export function PlayoffPicture({ league, conference }: { league: League; confere
               <tr key={id} className={id === league.userTeamId ? 'is-user' : ''}>
                 <td className="num">{i + 1}</td>
                 <td>
-                  <TeamLabel team={t} onClick={() => nav.openTeam(id)} sub={i < 4 ? 'Division leader' : 'Wild card'} />
+                  <TeamLink team={t} chip sub={i < 4 ? 'Division leader' : 'Wild card'} />
                 </td>
                 <td className="num">{recordText(records.get(id)!)}</td>
               </tr>
@@ -38,7 +36,6 @@ export function PlayoffPicture({ league, conference }: { league: League; confere
 }
 
 export function Standings({ league }: { league: League }) {
-  const nav = useNav();
   const season = resultsSeason(league);
   const divisions = divisionStandings(league, computeRecords(league, season));
   return (
@@ -75,7 +72,7 @@ export function Standings({ league }: { league: League }) {
                         return (
                           <tr key={t.id} className={t.id === league.userTeamId ? 'is-user' : ''}>
                             <td className="sticky-col">
-                              <TeamLabel team={t} onClick={() => nav.openTeam(t.id)} />
+                              <TeamLink team={t} chip />
                             </td>
                             <td className="num">{r.w}</td>
                             <td className="num">{r.l}</td>

@@ -3,7 +3,7 @@ import { relevantAttributes } from '../../engine/attributes';
 import { capHit } from '../../engine/finance/contract';
 import type { Attribute, League, Player } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerAvatar } from '../components';
+import { Panel, PlayerLink } from '../components';
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, money } from '../format';
 import {
@@ -91,12 +91,7 @@ export function Compare({ league }: { league: League }) {
                 return (
                   <th key={p.id}>
                     <span className="compare-head">
-                      <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
-                        <PlayerAvatar player={p} team={team} size={30} />
-                        <span>
-                          {p.firstName} {p.lastName}
-                        </span>
-                      </button>
+                      <PlayerLink league={league} player={p} avatar={30} />
                       <span className="muted small">
                         {p.position} · {team ? team.abbrev : p.scouting && !p.draft ? 'Prospect' : 'Free agent'}
                       </span>

@@ -44,7 +44,7 @@ import {
   Exact,
   GradesTable,
   Panel,
-  PlayerAvatar,
+  PlayerLink,
   Section,
   Sheet,
   SortTh,
@@ -336,7 +336,6 @@ function Candidate({ league, m, open }: { league: League; m: Medic; open: boolea
 
 /** Your injured players, worst first: what they have, how long, and where they stand. */
 function InjuryReport({ league }: { league: League }) {
-  const nav = useNav();
   const teamId = league.userTeamId;
   const team = league.teams[teamId];
   const hurt = hurtList(league, teamId);
@@ -367,12 +366,7 @@ function InjuryReport({ league }: { league: League }) {
               {hurt.map((p) => (
                 <tr key={p.id}>
                   <td className="sticky-col">
-                    <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
-                      <PlayerAvatar player={p} team={team} size={26} />
-                      <span>
-                        {p.position} {p.firstName} {p.lastName}
-                      </span>
-                    </button>
+                    <PlayerLink league={league} player={p} avatar={26} pos />
                   </td>
                   <td className="num">{p.age}</td>
                   <td className="num">
@@ -399,9 +393,7 @@ function InjuryReport({ league }: { league: League }) {
           {tired.slice(0, 6).map((p, i) => (
             <span key={p.id}>
               {i > 0 && ', '}
-              <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                {p.position} {p.lastName}
-              </button>{' '}
+              <PlayerLink league={league} player={p} pos surname />{' '}
               <span className={conditionTone(p.condition ?? 100)}>{Math.round(p.condition ?? 100)}%</span>
             </span>
           ))}
@@ -447,7 +439,6 @@ function InjuryCell({ league, p }: { league: League; p: Player }) {
  * sorts by the estimate too). Who's banged up by team, then everyone out now.
  */
 function LeagueInjuries({ league }: { league: League }) {
-  const nav = useNav();
   const [only, setOnly] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [teamSort, onTeamSort] = useSort<TeamSort>({ key: 'out', desc: true });
@@ -489,14 +480,7 @@ function LeagueInjuries({ league }: { league: League }) {
                   : (p.injury?.estimate[1] ?? 0),
   );
   const LIMIT = 15;
-  const name = (p: Player) => (
-    <button className="linklike player-link" onClick={() => nav.openPlayer(p.id)}>
-      <PlayerAvatar player={p} team={p.teamId !== null ? league.teams[p.teamId] : null} size={26} />
-      <span>
-        {p.position} {p.firstName} {p.lastName}
-      </span>
-    </button>
-  );
+  const name = (p: Player) => <PlayerLink league={league} player={p} avatar={26} pos />;
   return (
     <>
       <Panel title="Who's banged up">
