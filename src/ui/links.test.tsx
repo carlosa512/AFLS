@@ -139,6 +139,13 @@ describe('TeamUnit', () => {
     expect(html).toContain('rating est');
     expect(html).toContain('11.5–13.2');
   });
+  it('fits a narrow column: a whole-number range on one line, little film said in its title', () => {
+    const html = render(<TeamUnit u={{ ...unit, exact: false, known: false }} compact />);
+    expect(html).toContain('11–14');
+    expect(html).toContain('title="Little film');
+    expect(html).not.toContain('<small');
+  });
+
   it('shows a barely-scouted rival as a range with little film', () => {
     const html = render(<TeamUnit u={{ ...unit, exact: false, known: false }} />);
     expect(html).toContain('11.5–13.2');

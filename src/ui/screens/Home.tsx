@@ -82,7 +82,7 @@ function UnitBars({ a, b, league }: { a: Team; b: Team; league: League }) {
       {rows.map(([label, va, vb]) => (
         <div className="unit-bar" key={label}>
           <span className="num">
-            <TeamUnit u={va} />
+            <TeamUnit u={va} compact />
           </span>
           <span className="bar rev">
             <i style={{ width: w(va.value), '--c': a.colors[0] } as CSSProperties} />
@@ -92,7 +92,7 @@ function UnitBars({ a, b, league }: { a: Team; b: Team; league: League }) {
             <i style={{ width: w(vb.value), '--c': b.colors[0] } as CSSProperties} />
           </span>
           <span className="num" style={{ textAlign: 'right' }}>
-            <TeamUnit u={vb} />
+            <TeamUnit u={vb} compact />
           </span>
         </div>
       ))}
