@@ -208,14 +208,15 @@ export function PlayerAvatar({
 
 /**
  * A player's name, and it always opens his card. The one way a screen shows a player: `avatar` (a size in
- * px) in tables and lists, none in a sentence; `short` ("J. Smith") for tight cells; `pos` only where the
- * table has no position column.
+ * px) in tables and lists, none in a sentence; `short` ("J. Smith") for tight cells, `surname` ("Smith")
+ * where the picture or the sentence already says who; `pos` only where the table has no position column.
  */
 export function PlayerLink({
   league,
   player,
   avatar,
   short = false,
+  surname = false,
   pos = false,
   bold = false,
   className,
@@ -224,6 +225,7 @@ export function PlayerLink({
   player: Player;
   avatar?: number;
   short?: boolean;
+  surname?: boolean;
   pos?: boolean;
   bold?: boolean;
   className?: string;
@@ -241,7 +243,7 @@ export function PlayerLink({
       {avatar ? <PlayerAvatar player={player} team={team} size={avatar} /> : null}
       <span>
         {pos ? `${player.position} ` : ''}
-        {short ? shortName(player) : playerName(player)}
+        {surname ? player.lastName : short ? shortName(player) : playerName(player)}
       </span>
     </button>
   );

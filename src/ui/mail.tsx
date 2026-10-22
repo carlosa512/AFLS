@@ -113,7 +113,7 @@ import { activeLearning, conversionRead, familiarity, passMove, startMove } from
 import { useNav, type StaffKind } from './App';
 import { PlayerAvatar, PlayerLink, TeamChip, TeamLink } from './components';
 import { StaffAvatar } from './staffAvatar';
-import { band, money, ordinal, playerName, recordText, shortName, weekLabel } from './format';
+import { band, money, ordinal, recordText, shortName, weekLabel } from './format';
 import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
@@ -228,23 +228,26 @@ function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactN
   );
 }
 
-/** Players as links, comma-separated: "QB Kyle James, WR Tom Hughes". */
+/** Players as links, comma-separated: "QB Kyle James, WR Tom Hughes" (`short` or `surname` as PlayerLink). */
 function PlayerList({
+  league,
   players,
-  label = (p) => `${p.position} ${playerName(p)}`,
+  pos = true,
+  short,
+  surname,
 }: {
+  league: League;
   players: Player[];
-  label?: (p: Player) => string;
+  pos?: boolean;
+  short?: boolean;
+  surname?: boolean;
 }) {
-  const nav = useNav();
   return (
     <>
       {players.map((p, i) => (
         <span key={p.id}>
           {i > 0 && ', '}
-          <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-            {label(p)}
-          </button>
+          <PlayerLink league={league} player={p} pos={pos} short={short} surname={surname} />
         </span>
       ))}
     </>
@@ -521,20 +524,13 @@ function MatchupSide({
   team: Team;
   flip?: boolean;
 }) {
-  const nav = useNav();
   const p = unit.lead !== undefined ? league.players[unit.lead] : undefined;
   const pct = Math.round(unit.score * 100);
   return (
     <span className={`mail-matchup-side${flip ? ' is-flip' : ''}`}>
       {p && <PlayerAvatar player={p} team={team} size={32} />}
       <span className="mail-matchup-who">
-        {p ? (
-          <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-            {p.lastName}
-          </button>
-        ) : (
-          <span className="muted">Nobody</span>
-        )}
+        {p ? <PlayerLink league={league} player={p} surname /> : <span className="muted">Nobody</span>}
       </span>
       <span
         className="num mail-matchup-score"
@@ -873,7 +869,7 @@ function DraftDayCards({ league, s }: { league: League; s: Extract<MailSubject, 
               {p && (
                 <span className="muted">
                   {' '}
-                  · <PlayerList players={[p]} label={(x) => `${x.position} ${x.lastName}`} />
+                  · <PlayerList league={league} players={[p]} surname />
                 </span>
               )}
             </span>
@@ -1049,7 +1045,7 @@ function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { k
             ? hurt.map((i, n) => (
                 <span key={i.playerId}>
                   {n > 0 && ', '}
-                  <PlayerList players={[league.players[i.playerId]]} label={shortName} /> hurt (
+                  <PlayerList league={league} players={[league.players[i.playerId]]} pos={false} short /> hurt (
                   {injuryLabel(i.type).toLowerCase()})
                 </span>
               ))
@@ -1243,8 +1239,8 @@ function DeadlineCards({
         <Card title="Deals that run out after this season">
           <p className="small" style={{ margin: 0 }}>
             {expiring.length} player{expiring.length === 1 ? '' : 's'}, including{' '}
-            <PlayerList players={expiring.slice(0, SHOW)} />. Re-sign them in the spring, or move one now while he still
-            has trade value.
+            <PlayerList league={league} players={expiring.slice(0, SHOW)} />. Re-sign them in the spring, or move one
+            now while he still has trade value.
           </p>
           <div className="mail-more">
             <span />
@@ -2084,7 +2080,7 @@ function FaWrapCards({ league, s }: { league: League; s: Extract<MailSubject, { 
               />
               {fa.unsigned.length > 0 && (
                 <p className="muted small" style={{ margin: '8px 0 0' }}>
-                  Still unsigned: <PlayerList players={fa.unsigned.slice(0, 5)} />
+                  Still unsigned: <PlayerList league={league} players={fa.unsigned.slice(0, 5)} />
                   {fa.unsigned.length > 5 ? ` and ${fa.unsigned.length - 5} more` : ''}.
                 </p>
               )}

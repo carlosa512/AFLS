@@ -336,7 +336,6 @@ function Candidate({ league, m, open }: { league: League; m: Medic; open: boolea
 
 /** Your injured players, worst first: what they have, how long, and where they stand. */
 function InjuryReport({ league }: { league: League }) {
-  const nav = useNav();
   const teamId = league.userTeamId;
   const team = league.teams[teamId];
   const hurt = hurtList(league, teamId);
@@ -394,9 +393,7 @@ function InjuryReport({ league }: { league: League }) {
           {tired.slice(0, 6).map((p, i) => (
             <span key={p.id}>
               {i > 0 && ', '}
-              <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                {p.position} {p.lastName}
-              </button>{' '}
+              <PlayerLink league={league} player={p} pos surname />{' '}
               <span className={conditionTone(p.condition ?? 100)}>{Math.round(p.condition ?? 100)}%</span>
             </span>
           ))}

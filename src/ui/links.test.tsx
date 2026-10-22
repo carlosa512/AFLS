@@ -36,6 +36,12 @@ describe('PlayerLink', () => {
     expect(html).toContain('QB J. Smith-Jones');
   });
 
+  it('shows the surname alone on request', () => {
+    const p = { ...signed(), firstName: 'Kyle', lastName: 'James', position: 'WR' } as Player;
+    const html = render(<PlayerLink league={league} player={p} surname pos />);
+    expect(html).toContain('>WR James</span>');
+  });
+
   it('draws a free agent in the free-agent grey', () => {
     const p = { ...signed(), teamId: null } as Player;
     expect(() => render(<PlayerLink league={league} player={p} avatar={26} />)).not.toThrow();

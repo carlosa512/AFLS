@@ -324,7 +324,7 @@ describe('home widgets', () => {
 });
 
 /**
- * The screen contract (docs/UI.md): a player's or a team's name is always a link, drawn by the one shared
+ * The screen contract (docs/superpowers/specs/2026-10-22-ui-consistency-design.md, PR 1): a player's or a team's name is always a link, drawn by the one shared
  * component, and every team dropdown is the shared picker. A new screen that writes its own fails here.
  */
 describe('screen contract', () => {
@@ -340,7 +340,9 @@ describe('screen contract', () => {
   it('renders player names only through PlayerLink', () => {
     // The card's own header, the "signed" toast and the play-by-play (it links by index) are not links by design.
     const allowed = ['src/ui/screens/PlayerCard.tsx', 'src/ui/negotiation.tsx', 'src/ui/screens/GameViewer.tsx'];
-    const bad = files.filter((f) => !allowed.includes(f) && /\{\w+\.firstName\} \{\w+\.lastName\}/.test(src(f)));
+    const raw = /\{\w+\.firstName\} \{\w+\.lastName\}/;
+    const handRolled = /className="linklike[^"]*"[^>]*onClick=\{\(\) => nav\.openPlayer\(/;
+    const bad = files.filter((f) => !allowed.includes(f) && (raw.test(src(f)) || handRolled.test(src(f))));
     expect(bad).toEqual([]);
   });
 
