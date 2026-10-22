@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../engine/generate';
 import { deliverMail, needsYou } from '../engine/inbox';
 import { gamesInWeek, playWeek } from '../engine/league';
-import { computeRecords } from '../engine/season/standings';
+import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { teamSeasonStats } from '../engine/stats';
 import { sortRows } from './components';
 import { linkedSegments, moveSegments, nameIndex, type MoveIndex } from './moves';
@@ -13,6 +13,7 @@ import { backupFileName, parseBackup } from './saves';
 import { byeTeams, resultsWeek, stripGames } from './strip';
 import { hurtList, wornDown } from './injuries';
 import { gameStory } from './game';
+import { standingsSortValue } from './screens/Standings';
 import { TEAM_COLS, teamRank, teamStatSeasons } from './screens/TeamStats';
 import { defaultTradeTab } from './screens/Trades';
 import { tradeDesk } from './tradeDesk';
@@ -367,5 +368,18 @@ describe('screen contract', () => {
   it('builds team dropdowns only with TeamPicker', () => {
     const bad = files.filter((f) => /\[\.\.\.league\.teams\]\s*\.(sort|filter)/.test(src(f)));
     expect(bad).toEqual([]);
+  });
+});
+
+describe('standings sort', () => {
+  it('sorts each division on its own and restores the tiebreaker order', () => {
+    const league = createLeague({ seed: 'standings' });
+    for (let i = 0; i < 6; i++) playWeek(league);
+    const d = divisionStandings(league, computeRecords(league))[0];
+    const rows = d.teams.map((r, i) => ({ r, i }));
+    const byPf = sortRows(rows, { key: 'pf', desc: true }, ({ r, i }, k) => standingsSortValue(r, k, i));
+    expect(byPf.map((x) => x.r.pf)).toEqual([...byPf].map((x) => x.r.pf).sort((a, b) => b - a));
+    const back = sortRows(byPf, { key: 'rank', desc: false }, ({ r, i }, k) => standingsSortValue(r, k, i));
+    expect(back.map((x) => x.r.teamId)).toEqual(d.teams.map((r) => r.teamId));
   });
 });

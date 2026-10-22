@@ -1,7 +1,23 @@
-import { computeRecords, conferenceSeeds, divisionStandings } from '../../engine/season/standings';
+import { computeRecords, conferenceSeeds, divisionStandings, type TeamRecord } from '../../engine/season/standings';
 import type { League } from '../../engine/types';
-import { Panel, TeamLink } from '../components';
+import { Panel, SortTh, sortRows, TeamLink, useSort } from '../components';
 import { pct, recordText, resultsSeason } from '../format';
+
+/** Standings columns: `rank` is the tiebreaker order the engine gives, the rest the row's own numbers. */
+export type StandingsSort = 'rank' | 'w' | 'l' | 't' | 'pct' | 'pf' | 'pa' | 'div';
+
+export function standingsSortValue(row: TeamRecord, key: StandingsSort, index: number): number {
+  switch (key) {
+    case 'rank':
+      return index;
+    case 'pct':
+      return (row.w + row.t / 2) / Math.max(1, row.w + row.l + row.t);
+    case 'div':
+      return (row.div[0] + row.div[2] / 2) / Math.max(1, row.div[0] + row.div[1] + row.div[2]);
+    default:
+      return row[key];
+  }
+}
 
 export function PlayoffPicture({ league, conference }: { league: League; conference: number }) {
   const records = computeRecords(league);
@@ -38,6 +54,8 @@ export function PlayoffPicture({ league, conference }: { league: League; confere
 export function Standings({ league }: { league: League }) {
   const season = resultsSeason(league);
   const divisions = divisionStandings(league, computeRecords(league, season));
+  // One sort for all eight tables; each division's rows stay in their own table.
+  const [sort, onSort] = useSort<StandingsSort>({ key: 'rank', desc: false });
   return (
     <>
       {season !== league.season && (
@@ -55,19 +73,30 @@ export function Standings({ league }: { league: League }) {
                   <table>
                     <thead>
                       <tr>
-                        <th className="sticky-col">{d.division.name}</th>
-                        <th className="num">W</th>
-                        <th className="num">L</th>
-                        <th className="num">T</th>
-                        <th className="num">Pct</th>
-                        <th className="num">PF</th>
-                        <th className="num">PA</th>
-                        <th className="num">Div</th>
+                        <SortTh
+                          label={d.division.name}
+                          k="rank"
+                          sort={sort}
+                          onSort={() => onSort('rank', false)}
+                          desc={false}
+                          className="sticky-col"
+                        />
+                        <SortTh label="W" k="w" sort={sort} onSort={onSort} className="num" />
+                        <SortTh label="L" k="l" sort={sort} onSort={onSort} className="num" />
+                        <SortTh label="T" k="t" sort={sort} onSort={onSort} className="num" />
+                        <SortTh label="Pct" k="pct" sort={sort} onSort={onSort} className="num" />
+                        <SortTh label="PF" k="pf" sort={sort} onSort={onSort} className="num" />
+                        <SortTh label="PA" k="pa" sort={sort} onSort={onSort} className="num" />
+                        <SortTh label="Div" k="div" sort={sort} onSort={onSort} className="num" />
                         <th className="num">Strk</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {d.teams.map((r) => {
+                      {sortRows(
+                        d.teams.map((r, i) => ({ r, i })),
+                        sort,
+                        ({ r, i }, key) => standingsSortValue(r, key, i),
+                      ).map(({ r }) => {
                         const t = league.teams[r.teamId];
                         return (
                           <tr key={t.id} className={t.id === league.userTeamId ? 'is-user' : ''}>
