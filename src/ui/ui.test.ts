@@ -382,6 +382,12 @@ describe('screen contract', () => {
     expect(/<select\s+aria-label="Players"/.test(src('src/ui/screens/Stats.tsx'))).toBe(false);
   });
 
+  it("never reads a club's true strength", () => {
+    // teamRatings is the truth; screens show perceivedTeamRatings (fog of war).
+    const bad = files.filter((f) => /\bteamRatings\b/.test(src(f)));
+    expect(bad).toEqual([]);
+  });
+
   it('builds team dropdowns only with TeamPicker', () => {
     const bad = files.filter((f) => /\[\.\.\.league\.teams\]\s*\.(sort|filter)/.test(src(f)));
     expect(bad).toEqual([]);

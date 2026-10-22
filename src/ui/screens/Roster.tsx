@@ -19,7 +19,6 @@ import {
   placeAt,
   slotOf,
   teamPlayers,
-  teamRatings,
 } from '../../engine/roster';
 import { activeLearning, familiarity } from '../../engine/training';
 import { computeRecords } from '../../engine/season/standings';
@@ -30,7 +29,8 @@ import { Panel, PlayerLink, SortTh, sortRows, TeamChip, TeamPicker, useSort } fr
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
 import { FitnessCell, fitnessSort, InjuryTag } from '../injuries';
-import { Ovr, repsOf, schemeFitOf, seenOvr, Stars, starsOf, viewOf } from '../scouting';
+import { perceivedTeamRatings } from '../../engine/scouting';
+import { Ovr, repsOf, schemeFitOf, seenOvr, Stars, starsOf, TeamUnit, viewOf } from '../scouting';
 import { store } from '../store';
 import { familiarityTone, knockAt, learnLine, lineupText, playAt, playAtLabel, positionChoices } from '../training';
 
@@ -329,7 +329,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
   const nav = useNav();
   const team = league.teams[teamId];
   const isUser = teamId === league.userTeamId;
-  const ratings = teamRatings(league, team);
+  const ratings = perceivedTeamRatings(league, league.userTeamId, team);
   const record = computeRecords(league).get(teamId)!;
   const cap = capSheet(league, teamId);
   const players = teamPlayers(league, teamId);
@@ -393,19 +393,19 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
         <div className="facts">
           <span className="fact">
             <span className="eyebrow">Overall</span>
-            <b className="num">{ratings.overall.toFixed(1)}</b>
+            <TeamUnit u={ratings.overall} />
           </span>
           <span className="fact">
             <span className="eyebrow">QB</span>
-            <b className="num">{ratings.qb.toFixed(1)}</b>
+            <TeamUnit u={ratings.qb} />
           </span>
           <span className="fact">
             <span className="eyebrow">Offense</span>
-            <b className="num">{ratings.offense.toFixed(1)}</b>
+            <TeamUnit u={ratings.offense} />
           </span>
           <span className="fact">
             <span className="eyebrow">Defense</span>
-            <b className="num">{ratings.defense.toFixed(1)}</b>
+            <TeamUnit u={ratings.defense} />
           </span>
           <span className="fact">
             <span className="eyebrow">Cap used</span>
