@@ -704,5 +704,40 @@ export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
     capSpace(league, team.id) >= minSalary(1, league.caps[league.season])
   )
     if (!signMinimum(league, team, rng, undefined, capSpace(league, team.id))) break;
+  payAhead(league, team);
   syncDepthChart(league, team);
+}
+
+/** Room past its planned reserve a team keeps rather than paying it ahead, as a share of the cap. */
+const PAY_AHEAD_CUSHION = 0.01;
+
+/**
+ * Room a team still holds past the reserve it planned, once camp is done and the 53 is full: a pay-as-you-go club turns
+ * next year's salary into a roster bonus paid now, which counts in full this year and leaves next year's books that
+ * much lighter. Nobody is paid more, only sooner. Without it a team with nobody worth its room kept it all to kickoff
+ * (5-11 AI teams a season 1-8.7 points of the cap past their plan, the league's median kickoff room at the audit's 4%
+ * ceiling). It keeps a point of the cap past its plan: that room was the deadline buyers' (kept to half a point,
+ * in-season trades fell from 16.2 to 14.4 a season), and the league's teams still open at their reserve or a little
+ * over. The best-paid veterans go first; rookie deals keep their slotted
+ * shape, and no year drops under the minimum.
+ */
+export function payAhead(league: League, team: Team): void {
+  const season = league.season;
+  let extra = capSpace(league, team.id) - inSeasonReserve(league, team.id) - PAY_AHEAD_CUSHION * league.caps[season];
+  if (extra < 1) return;
+  const next = (p: Player) => yearOf(p.contract!, season + 1);
+  const floor = (p: Player) => minSalary(p.experience + 1, capFor(league, season + 1));
+  const deals = activeRoster(league, team.id)
+    .filter((p) => p.contract?.kind === 'veteran' && next(p) && !next(p)!.void)
+    .sort((a, b) => next(b)!.base - next(a)!.base);
+  for (const p of deals) {
+    if (extra < 1) break;
+    const y = next(p)!;
+    const x = Math.floor(Math.min(extra, y.base - floor(p)));
+    if (x <= 0) continue;
+    y.base -= x;
+    y.guaranteed = Math.min(y.guaranteed, y.base);
+    p.contract!.bonuses.push({ amount: x, start: season, years: 1, source: 'roster' });
+    extra -= x;
+  }
 }

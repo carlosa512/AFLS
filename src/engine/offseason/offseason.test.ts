@@ -16,6 +16,8 @@ import {
   applyFranchiseTag,
   expiringPlayers,
   IN_SEASON_RESERVE,
+  inSeasonReserve,
+  payAhead,
   signMinimum,
   spendable,
   tagBlocker,
@@ -107,6 +109,31 @@ describe('offseason calendar', () => {
     for (const t of league.teams.filter((t) => t.id !== league.userTeamId))
       for (const pos of ['K', 'P'] as const)
         expect(activeRoster(league, t.id).filter((p) => p.position === pos).length, `${t.abbrev} ${pos}`).toBe(1);
+  });
+
+  it('pays next year ahead with the room it holds past its plan once camp is done, no player paid more', () => {
+    // A team with a full 53 and nobody worth its room kept it all to kickoff: 5-11 AI teams a season sat 1-8.7 points
+    // of the cap past the reserve they planned, and the league's median kickoff room touched the audit's 4% ceiling.
+    // A pay-as-you-go club turns next year's salary into a roster bonus paid now: the room is used this year and
+    // next year's books are lighter for it.
+    const league = fresh();
+    beginOffseason(league);
+    const team = league.teams.find((t) => t.id !== league.userTeamId)!;
+    aiTrainingCamp(league, team, new Rng('pay-ahead'));
+    const cap = league.caps[league.season];
+    const past = () => capSpace(league, team.id) - inSeasonReserve(league, team.id);
+    team.carryover += Math.max(0, Math.round(0.03 * cap - past()));
+    const total = (p: (typeof league.players)[number]) =>
+      p.contract!.years.reduce((s, y) => s + y.base, 0) + p.contract!.bonuses.reduce((s, b) => s + b.amount, 0);
+    const before = new Map(teamPlayers(league, team.id).map((p) => [p.id, total(p)]));
+    const nextYear = () => teamPlayers(league, team.id).reduce((s, p) => s + capHit(p.contract!, league.season + 1), 0);
+    const committed = nextYear();
+    payAhead(league, team);
+    // A point of the cap past its plan stays, for the season's deals.
+    expect(past()).toBeLessThanOrEqual(0.01 * cap + 1);
+    expect(past()).toBeGreaterThanOrEqual(0.01 * cap - 1);
+    expect(committed - nextYear()).toBeCloseTo(0.02 * cap, -1);
+    for (const p of teamPlayers(league, team.id)) expect(total(p), `${p.position} ${p.id}`).toBe(before.get(p.id));
   });
 
   it('brings a camp leg in for a specialist past his prime, and keeps the better of the two', () => {
