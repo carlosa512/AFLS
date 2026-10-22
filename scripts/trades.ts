@@ -2,10 +2,11 @@
  * Trade market audit (docs/TRADES.md, "Checks"). Plays leagues and checks:
  *
  * 1. Prices: before the season and on deadline day, what a buyer pays for each kind of player. For
- *    every sampled player the buyer is the team that values him most among those he'd start for and
+ *    every eligible player the buyer is the team that values him most among those he'd start for and
  *    that can take his salary; the price is the cheapest package of its picks that both GMs accept
  *    (`judge`), in Jimmy Johnson points at the picks' projected slots, future picks discounted 25% a
- *    year. Medians by bucket, against the NFL's prices.
+ *    year. Medians by bucket over 48 leagues' first season, against the NFL's prices
+ *    (`trades-prices.ts`).
  * 2. Future picks: the current pick a typical team's first next year is worth, GM by GM (the NFL's
  *    rule of thumb: a round later, so a late first to an early second).
  * 3. No cheese: every AI deal is read as it closes, for each side three ways (its own eyes, its own
@@ -20,13 +21,13 @@
  * 6. Volume and mix: trades in season, the share on deadline day, the offseason's, what kinds, and
  *    how few go between division rivals, against the NFL's.
  *
- *   npm run trades          # 3 leagues, 3 seasons each
+ *   npm run trades          # 3 leagues, 3 seasons each (and 45 more priced to deadline day)
  *   npm run trades -- 4
  *   npm run trades -- --seasons 6
+ *   npm run trades -- --seed x   # leagues x-0, x-1… instead of trades-0…: another world, the same code
  *
  * ▲/▼ marks a number outside its band; the last line counts them and the process exits 1 if any are.
  */
-import { ageShift } from '../src/engine/aging';
 import { capSpace } from '../src/engine/finance/cap';
 import { yearsLeft } from '../src/engine/finance/contract';
 import { createLeague } from '../src/engine/generate';
@@ -41,13 +42,11 @@ import {
   executeTrade,
   goingRate,
   isDeadlineDay,
-  jimmyJohnson,
   judge,
   marketMoment,
   marketValue,
   nextDraftSeason,
   pickChartValue,
-  pickOverall,
   pickValue,
   playerTradeBlocker,
   proposeTrade,
@@ -60,8 +59,6 @@ import {
   findings,
   playerValue,
   rosterOf,
-  salaryToTake,
-  capRoom,
   dealWatch,
   playerSwing,
   POINTS_PER_K,
@@ -73,16 +70,30 @@ import {
   type TradeProposal,
   weekMoment,
 } from '../src/engine/trade';
-import type { DraftPick, GmTraits, League, Player, Position, TradeOffer, TradeRecord } from '../src/engine/types';
+import type { DraftPick, GmTraits, League, TradeOffer, TradeRecord } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
+import {
+  BUCKETS,
+  type Bucket,
+  guardBest,
+  median,
+  name,
+  priceLeagues,
+  type PriceRun,
+  type Prices,
+  probePrices,
+} from './trades-prices';
 
 const LEAGUES = Number(
-  process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seasons') ?? 3,
+  process.argv
+    .slice(2)
+    .find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seasons' && all[i - 1] !== '--seed') ?? 3,
 );
 /** `--verbose`: every priced player and every AI trade, not just one example per bucket. */
 const VERBOSE = process.argv.includes('--verbose');
 const flag = (name: string) => process.argv[process.argv.indexOf(name) + 1];
 const SEASONS = process.argv.includes('--seasons') ? Number(flag('--seasons')) : 3;
+const SEED = process.argv.includes('--seed') ? flag('--seed') : 'trades';
 /** Each team's division (every league uses the real alignment). */
 const DIVISION_OF = createLeague({ seed: 'divisions' }).teams.map((t) => t.division);
 
@@ -97,158 +108,28 @@ const check = (label: string, value: number, [lo, hi]: [number, number], digits 
 };
 /** A number shown for reading, never failed: bad business that a GM's scouts or situation explain. */
 const note = (label: string, value: string) => console.log(`  ${label.padEnd(52)} ${value.padStart(8)}   (info)`);
-const median = (xs: number[]) => {
-  if (!xs.length) return NaN;
-  const s = [...xs].sort((a, b) => a - b);
-  return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
-};
 const clone = (l: League): League => JSON.parse(JSON.stringify(l));
-const name = (p: Player) => `${p.position} ${p.firstName[0]}. ${p.lastName}`;
 
 // ───────── 1. Prices ─────────
 
-type Bucket = 'star' | 'quality' | 'rental' | 'depth';
-const PREMIUM: ReadonlySet<Position> = new Set(['QB', 'EDGE', 'WR', 'CB', 'DT', 'OL']);
-
-/** Each rostered player's true rank at his position (0 = the league's best). */
-function ranks(league: League): Map<number, number> {
-  const out = new Map<number, number>();
-  for (const pos of POSITIONS) {
-    const list = Object.values(league.players).filter((p) => p.teamId !== null && p.position === pos && p.contract);
-    list.sort((a, b) => playerOvr(b) - playerOvr(a)).forEach((p, i) => out.set(p.id, i));
-  }
-  return out;
-}
-
-function bucketOf(league: League, p: Player, rank: number): Bucket | null {
-  if (p.position === 'K' || p.position === 'P' || !p.contract || playerTradeBlocker(league, p)) return null;
-  const S = STARTERS[p.position];
-  const left = yearsLeft(p.contract, league.season);
-  if (rank < 3 && PREMIUM.has(p.position) && p.age <= 28 && left >= 2) return 'star';
-  if (rank < 8 * S && left <= 2 && p.age <= 30) return 'quality';
-  if (rank < 32 * S && left <= 1 && playerOvr(p) >= 12 && playerOvr(p) < 14) return 'rental';
-  if (rank >= 48 * S && p.age <= 30) return 'depth';
-  return null;
-}
-
-/**
- * A package in today's terms: Jimmy Johnson points at the picks' (projected) slots, a future pick
- * discounted 25% a year (the NFL's "a round later" rule of thumb), so two firsts next year read as
- * about a first and a half now.
- */
-const chartPoints = (ctx: TradeContext, picks: DraftPick[]) =>
-  picks.reduce(
-    (s, pk) =>
-      s + jimmyJohnson(pickOverall(ctx.league, pk, ctx)) * 0.75 ** Math.max(0, pk.season - nextDraftSeason(ctx.league)),
-    0,
+/** Leagues whose first season is priced: the audit's own as they play, then more in child processes (`priceLeagues`). */
+const PRICE_LEAGUES = Math.max(48, LEAGUES);
+/** The other price leagues, started once the speed section is timed (on a shared core the timings would read slow). */
+let priceRuns: Promise<PriceRun[]> | undefined;
+const priceTheRest = () =>
+  priceLeagues(
+    Array.from({ length: PRICE_LEAGUES - LEAGUES }, (_, k) => `${SEED}-${LEAGUES + k}`),
+    VERBOSE,
   );
-
-/** The cheapest package of the buyer's picks both GMs accept, or null if none of up to three picks does. */
-function price(
-  ctx: TradeContext,
-  p: Player,
-  starter: boolean,
-): { points: number; buyer: number; picks: DraftPick[] } | null {
-  const { league } = ctx;
-  const seller = league.teams[p.teamId!];
-  const room = salaryToTake(league, p);
-  const buyers = league.teams
-    .filter((t) => t.id !== seller.id && t.id !== league.userTeamId && capRoom(ctx, t.id) >= room)
-    .filter(
-      (t) =>
-        !starter ||
-        rosterOf(ctx, t.id).filter((x) => x.position === p.position && playerOvr(x) >= ctx.view(t.id, p).ovr).length <
-          STARTERS[p.position],
-    )
-    .map((t) => ({ t, v: playerValue(league, p, t, { ctx }) }))
-    .sort((a, b) => b.v - a.v);
-  const buyer = buyers[0]?.t;
-  if (!buyer) return null;
-  const picks = league.draftPicks
-    .filter((pk) => pk.ownerId === buyer.id && pk.playerId === undefined)
-    .sort((a, b) => pickValue(league, b, seller.gm, ctx) - pickValue(league, a, seller.gm, ctx));
-  const top = picks.slice(0, 8);
-  const combos: DraftPick[][] = [
-    ...picks.map((a) => [a]),
-    ...top.flatMap((a, i) => top.slice(i + 1).map((b) => [a, b])),
-    ...top
-      .slice(0, 6)
-      .flatMap((a, i) => top.slice(i + 1, 6).flatMap((b, j) => top.slice(i + j + 2, 6).map((c) => [a, b, c]))),
-  ];
-  const ask = judge(ctx, seller.id, {
-    sides: [
-      { teamId: buyer.id, players: [], picks: [] },
-      { teamId: seller.id, players: [p.id], picks: [] },
-    ],
-  }).need;
-  const ranked = combos
-    .map((combo) => ({ combo, value: combo.reduce((s, pk) => s + pickValue(league, pk, seller.gm, ctx), 0) }))
-    .filter((x) => x.value >= ask)
-    .sort((a, b) => a.value - b.value);
-  for (const { combo } of ranked.slice(0, 12)) {
-    const proposal: TradeProposal = {
-      sides: [
-        { teamId: buyer.id, players: [], picks: combo.map((pk) => pk.id) },
-        { teamId: seller.id, players: [p.id], picks: [] },
-      ],
-    };
-    if (
-      judge(ctx, seller.id, proposal, { rosterCuts: true }).accepts &&
-      judge(ctx, buyer.id, proposal, { rosterCuts: true }).accepts
-    )
-      return { points: chartPoints(ctx, combo), buyer: buyer.id, picks: combo };
-  }
-  return null;
-}
-
-/** What a 6th-round pick in the next draft goes for (the median of the round, at the league's going rate). */
-const sixth = (ctx: TradeContext) =>
-  median(
-    ctx.league.draftPicks
-      .filter((pk) => pk.round === 6 && pk.season === nextDraftSeason(ctx.league))
-      .map((pk) => goingRate(ctx.league, pk, ctx)),
-  );
-
 const prices: Record<string, Record<Bucket, number[]>> = {};
 const examples: string[] = [];
-let starterForSeventh = 0;
 const seventhExamples: string[] = [];
 
-function probePrices(league: League, moment: string, show: boolean) {
-  const ctx = tradeContext(league);
-  const rank = ranks(league);
+function addPrices(moment: string, got: Prices) {
   const out = (prices[moment] ??= { star: [], quality: [], rental: [], depth: [] });
-  const byBucket = new Map<Bucket, Player[]>();
-  for (const p of Object.values(league.players)) {
-    if (p.teamId === null || p.teamId === league.userTeamId) continue;
-    const b = bucketOf(league, p, rank.get(p.id) ?? 999);
-    if (b) byBucket.set(b, [...(byBucket.get(b) ?? []), p]);
-  }
-  for (const [b, list] of byBucket) {
-    // An even spread of each bucket, the same players every run.
-    const step = Math.max(1, Math.floor(list.length / 24));
-    for (let i = 0; i < list.length; i += step) {
-      const p = list[i];
-      const got = price(ctx, p, b !== 'depth');
-      // A backup nobody will spend a pick and a roster spot on is worth nothing in a trade.
-      if (!got && b === 'depth') out[b].push(0);
-      if (!got) continue;
-      out[b].push(got.points);
-      // A good starter in his prime: the top half of the league's starters, not past his position's decline.
-      const good = (rank.get(p.id) ?? 999) < 16 * STARTERS[p.position] && p.age - ageShift(p.position) <= 29;
-      // ...that the league itself prices at a 6th or more: an overpaid veteran's salary can eat his worth down to a 7th's, fairly.
-      const underpriced = good && marketValue(ctx, league.teams[p.teamId!], p, true) >= sixth(ctx);
-      const line = `${moment.padEnd(10)} ${b.padEnd(8)} ${name(p).padEnd(22)} ${playerOvr(p).toFixed(1)} age ${p.age}, ${yearsLeft(p.contract!, league.season)} yr → ${got.picks.map((pk) => `${pk.season} R${pk.round}`).join(' + ')} (${got.points.toFixed(0)} pts)`;
-      if (underpriced && got.picks.every((pk) => pk.round === 7)) {
-        starterForSeventh++;
-        const seller = league.teams[p.teamId!];
-        seventhExamples.push(
-          `${line}: the seller is ${seller.stance?.mode ?? 'bubble'} (${seller.gm.archetype}), week ${league.week}`,
-        );
-      }
-      if (VERBOSE || (show && i === 0)) examples.push(line);
-    }
-  }
+  for (const b of BUCKETS) out[b].push(...got.prices[b]);
+  seventhExamples.push(...got.seventh);
+  examples.push(...got.examples);
 }
 
 // ───────── 2. Future picks ─────────
@@ -801,21 +682,17 @@ function probePhysicals(league: League): void {
 // ───────── run ─────────
 
 for (let i = 0; i < LEAGUES; i++) {
-  const league = createLeague({ seed: `trades-${i}` });
+  const league = createLeague({ seed: `${SEED}-${i}` });
   const label = `L${i}`;
   live = league;
   liveLabel = label;
   // Prices in every league's first season: a bucket like deadline rentals has only a handful of players in one league.
-  probePrices(league, 'preseason', i === 0);
+  addPrices('preseason', probePrices(league, 'preseason', i === 0, VERBOSE));
   if (i === 0) {
     runProbes(league);
     timeJudge(league);
   }
-  // Like most users, mark the two best players Untouchable: no offer may ask for them.
-  for (const p of teamPlayers(league, league.userTeamId)
-    .sort((a, b) => playerOvr(b) - playerOvr(a))
-    .slice(0, 2))
-    setTradeStatus(league, p.id, 'untouchable');
+  guardBest(league);
   for (let s = 0; s < SEASONS; s++) {
     fair.seasons++;
     volume.seasons++;
@@ -825,7 +702,7 @@ for (let i = 0; i < LEAGUES; i++) {
     const season: TradeRecord[] = [];
     let offers = 0;
     while (league.phase === 'regular' && (league.week <= TRADE_DEADLINE_WEEK + 1 || isDeadlineDay(league))) {
-      if (s === 0 && isDeadlineDay(league)) probePrices(league, 'deadline', i === 0);
+      if (s === 0 && isDeadlineDay(league)) addPrices('deadline', probePrices(league, 'deadline', i === 0, VERBOSE));
       if (timing && isDeadlineDay(league)) {
         const ctx = tradeContext(league);
         futureSlots.push(...league.teams.map((t) => futureFirstSlot(league, t.gm, ctx)));
@@ -870,10 +747,19 @@ for (let i = 0; i < LEAGUES; i++) {
     }
     volume.offseason.push(offseason);
     desk.perYear.push(offers);
+    if (timing) priceRuns = priceTheRest();
   }
 }
 
-console.log('\nPrices (median JJ points at projected slots, future picks 25% off a year; examples below)');
+// The other price leagues, in seed order so the output reads the same every run.
+const leagueIndex = (seed: string) => Number(seed.slice(seed.lastIndexOf('-') + 1));
+for (const run of (await (priceRuns ?? priceTheRest())).sort((a, b) => leagueIndex(a.seed) - leagueIndex(b.seed))) {
+  addPrices('preseason', run.preseason);
+  addPrices('deadline', run.deadline);
+}
+console.log(
+  `\nPrices (median JJ points at projected slots, future picks 25% off a year; every eligible player in ${PRICE_LEAGUES} leagues' first season, depth an even sample; examples below)`,
+);
 for (const [moment, buckets] of Object.entries(prices)) {
   console.log(` ${moment}:`);
   check(`star (top 3 at a premium position) n=${buckets.star.length}`, median(buckets.star), [1000, 3500]);
@@ -882,8 +768,11 @@ for (const [moment, buckets] of Object.entries(prices)) {
     check(`deadline rental (expiring starter) n=${buckets.rental.length}`, median(buckets.rental), [35, 150]);
   check(`depth n=${buckets.depth.length}`, median(buckets.depth), [0, 40]);
 }
-note('good starters in their prime, worth a 6th or more, sold for 7th-round picks only', String(starterForSeventh));
-for (const e of seventhExamples) console.log(`    ${e}`);
+note(
+  'good starters in their prime, worth a 6th or more, sold for 7th-round picks only',
+  String(seventhExamples.length),
+);
+for (const e of VERBOSE ? seventhExamples : seventhExamples.slice(0, 10)) console.log(`    ${e}`);
 for (const e of examples) console.log(`    ${e}`);
 
 console.log('\nFuture picks');

@@ -62,7 +62,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
   it after changes to `finance/`, `offseason/`, `trade/`, `staff.ts`, `coaching.ts`, `medical.ts`
   or `injuries.ts`; talent, cap space, rosters and the coaching ledger (growth and decline ×1.00)
-  should stay stable across seasons.
+  should stay stable across seasons. Three more leagues play in child processes for the cap-space drift
+  check (one league's 32 teams are too few); `--seed x` plays another world.
 - `npm run quirks` — run the quirk marble bag for 10 seasons and check how often each quirk is carried,
   gained and lost; `npm run quirks -- --effects` also gives each quirk to every player at its positions
   and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in
@@ -77,7 +78,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   rotation, and thirty years of offseason drift. Run it after changing `officials.ts` or the penalty
   rolls in `match/gameSim.ts`.
 - `npm run trades` — the trade market (`docs/TRADES.md`): what buyers pay for stars, quality starters,
-  deadline rentals and depth against the NFL's prices, what a future first is worth, every AI deal
+  deadline rentals and depth against the NFL's prices (every eligible player in 48 leagues' first season,
+  45 of them priced in child processes, `scripts/trades-prices.ts`), what a future first is worth, every AI deal
   read as it closes (no cheese: no side may lose in its own eyes, both teams legal on cap and rosters
   afterwards; bad business, like a lopsided deal or a team's ledger, is shown with what explains it,
   its scouts' misreads or its own situation, never failed), the AI market's volume and mix

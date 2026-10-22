@@ -52,9 +52,10 @@ const CHECKS = {
     summary: /\d+ flagged ending\(s\)/,
     detail: /^\S.*: \d+$/,
   },
+  // One league judged season by season, and three more in child processes for the cap-space drift.
   offseason: {
     cmd: ['npm', 'run', 'offseason', '--', '6'],
-    cores: 1,
+    cores: 4,
     secs: 35,
     summary: /\d+ number\(s\) outside target range/,
   },
@@ -98,10 +99,11 @@ const CHECKS = {
     summary: /\d+ number\(s\) outside target range/,
     detail: /[▲▼]/,
   },
-  // The trade market: prices against the NFL's, fair and legal AI trades, the exploit probes, speed.
+  // The trade market: prices against the NFL's, fair and legal AI trades, the exploit probes, speed. More leagues are
+  // priced in child processes on the other cores.
   trades: {
     cmd: ['npm', 'run', 'trades'],
-    cores: 1,
+    cores: 4,
     secs: 110,
     summary: /\d+ number\(s\) outside target range/,
     detail: /[▲▼✗]/,
@@ -145,7 +147,7 @@ const RULES: [RegExp, Name[]][] = [
   [/^scripts\/calibrate\.ts$/, ['sim']],
   [/^scripts\/leaders\.ts$/, ['sim', 'careers']],
   [/^scripts\/endings\.ts$/, ['endings']],
-  [/^scripts\/offseason\.ts$/, ['offseason']],
+  [/^scripts\/offseason(-league)?\.ts$/, ['offseason']],
   [/^scripts\/careers(-league)?\.ts$/, ['careers']],
   [/^scripts\/audit\.ts$|^docs\/ATTRIBUTES\.md$/, ['audit']],
   // Quirks: the bag and its hooks, and what builds the leagues they're measured in.
@@ -162,7 +164,7 @@ const RULES: [RegExp, Name[]][] = [
     /^src\/engine\/(?!.*\.test\.ts$)(trade\/|offseason\/|finance\/|coaching|scouting|staff|aging|positions|roster|league\.ts|generate)/,
     ['trades'],
   ],
-  [/^scripts\/trades\.ts$/, ['trades']],
+  [/^scripts\/trades(-prices)?\.ts$/, ['trades']],
   // Training: the moves, the learning clock, development's roll and release, and the calendar steps that run them.
   [
     /^src\/engine\/(?!.*\.test\.ts$)(training|familiarity|development|aging|traits|quirks|offseason\/|league\.ts|generate)/,
