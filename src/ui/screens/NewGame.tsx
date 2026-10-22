@@ -1,19 +1,19 @@
 import { useMemo, useState } from 'react';
+import { TEAM_SEEDS } from '../../engine/data/teams';
 import { createLeague } from '../../engine/generate';
-import { teamRatings } from '../../engine/roster';
 import { ownerBudgetNote } from '../../engine/staff';
-import { Rating, TeamChip } from '../components';
+import { TeamChip } from '../components';
 import { live } from '../live';
 import { LoadBackupButton } from '../saves';
 import { store } from '../store';
 import { APP_VERSION } from '../version';
 
 export function NewGame() {
-  // One preview league so every team's rating is visible before you commit.
+  // One preview league for the names and colours. Before you take a job you have no scouts, so a club shows
+  // only what the whole league knows: its record over the last ten years (team i is TEAM_SEEDS[i]).
   const [seed] = useState(() => Math.random().toString(36).slice(2, 10));
   const preview = useMemo(() => createLeague({ seed }), [seed]);
   const [picked, setPicked] = useState<number | null>(null);
-  const ratings = useMemo(() => new Map(preview.teams.map((t) => [t.id, teamRatings(preview, t)])), [preview]);
 
   const start = () => {
     if (picked === null) return;
@@ -49,7 +49,11 @@ export function NewGame() {
               {preview.teams
                 .filter((t) => t.division === d)
                 .map((team) => {
-                  const r = ratings.get(team.id)!;
+                  const winPct = TEAM_SEEDS[team.id]?.winPct;
+                  const notes = [
+                    winPct !== undefined && `Last 10 years: ${Math.round(winPct * 100)}% wins`,
+                    ownerBudgetNote(team.staffBudgetMult),
+                  ].filter(Boolean);
                   return (
                     <button
                       key={team.id}
@@ -60,12 +64,8 @@ export function NewGame() {
                       <TeamChip team={team} />
                       <span className="nm">
                         {team.city} {team.name}
-                        <small>
-                          QB {r.qb.toFixed(1)} · OFF {r.offense.toFixed(1)} · DEF {r.defense.toFixed(1)}
-                          {ownerBudgetNote(team.staffBudgetMult) ? ` · ${ownerBudgetNote(team.staffBudgetMult)}` : ''}
-                        </small>
+                        {notes.length > 0 && <small>{notes.join(' · ')}</small>}
                       </span>
-                      <Rating value={r.overall} decimals={1} />
                     </button>
                   );
                 })}
