@@ -125,9 +125,12 @@ export function tradeCapImpact(league: League, proposal: TradeProposal, ctx: Tra
     const hit = (p: Player) => (p.contract ? capHit(p.contract, league.season) : 0);
     const counted = (hits: number[]) =>
       (top51 ? hits.sort((a, b) => b - a).slice(0, 51) : hits).reduce((a, b) => a + b, 0);
-    const before = counted(roster.map(hit));
-    const after = counted([...roster.filter((p) => !gone.has(p.id)).map(hit), ...arriving]);
-    return { teamId: side.teamId, space: capRoom(ctx, side.teamId) + before - after - deadNow, dead };
+    // Once camp opens every hit counts, so the change is just what leaves less what arrives: every AI
+    // verdict checks the cap, and re-adding both rosters' hits each time slowed the market's week.
+    const shed = top51
+      ? counted(roster.map(hit)) - counted([...roster.filter((p) => !gone.has(p.id)).map(hit), ...arriving])
+      : roster.reduce((s, p) => (gone.has(p.id) ? s + hit(p) : s), 0) - arriving.reduce((a, b) => a + b, 0);
+    return { teamId: side.teamId, space: capRoom(ctx, side.teamId) + shed - deadNow, dead };
   });
 }
 
@@ -220,11 +223,13 @@ export function tradeProblem(
     if (size > rosterLimit(league) && !opts.rosterCuts && side.teamId === league.userTeamId)
       return `${team.name} would have too many players (${size}/${rosterLimit(league)}). Release someone first.`;
     if (league.phase === 'regular') {
-      const after = roster
-        .filter((p) => !side.players.includes(p.id))
-        .concat(other.players.map((id) => league.players[id]));
+      // Counted in one pass over the roster, not once a position: every AI verdict runs this.
+      const count = new Map<Position, number>();
+      const add = (p: Player) => count.set(p.position, (count.get(p.position) ?? 0) + 1);
+      for (const p of roster) if (!side.players.includes(p.id)) add(p);
+      for (const id of other.players) add(league.players[id]);
       for (const pos of Object.keys(STARTERS) as Position[]) {
-        if (after.filter((p) => p.position === pos).length < STARTERS[pos])
+        if ((count.get(pos) ?? 0) < STARTERS[pos])
           return `${team.name} can't be left without enough ${pos}s in season.`;
       }
     }

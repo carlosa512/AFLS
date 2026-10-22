@@ -347,9 +347,14 @@ describe('offers to you', () => {
     // A bid left to lapse keeps its team off him for two moments; putting him on the block answers it, and the
     // listing's call is "always made". A bid you declined keeps its wait.
     const l = fresh();
-    const [lapsed, declined] = packaged(l).filter((o) => o.sides[1].players.length);
+    // Two bids from different teams for your players: play on until the desk has them.
+    const bids = () => packaged(l).filter((o) => o.sides[1].players.length);
+    const twoTeams = () => new Set(bids().map((o) => o.teamId)).size >= 2;
+    while (!twoTeams() && l.phase === 'regular' && l.week <= 9) playWeek(l);
+    const lapsed = bids()[0];
+    const declined = bids().find((o) => o.teamId !== lapsed?.teamId);
     expect(declined, 'two bids for your players on the desk').toBeDefined();
-    expect(lapsed.teamId).not.toBe(declined.teamId);
+    const desk = JSON.stringify(l);
     declineOffer(l, declined.id);
     playWeek(l);
     const wait = (o: TradeOffer) => l.market!.talks[o.teamId].cooldowns[o.sides[1].players[0]];
@@ -360,7 +365,8 @@ describe('offers to you', () => {
     expect(wait(lapsed)).toBeUndefined();
     expect(wait(declined)).toBeDefined();
     // Listed while the bid is still on the desk: it lapses with no wait.
-    const m = fresh();
+    const m: League = JSON.parse(desk);
+    expect(m.market!.offers.find((o) => o.id === lapsed.id)?.status).toBe('pending');
     setTradeStatus(m, lapsed.sides[1].players[0], 'listed');
     playWeek(m);
     expect(m.market!.talks[lapsed.teamId]?.cooldowns[lapsed.sides[1].players[0]]).toBeUndefined();
@@ -404,7 +410,9 @@ describe('offers to you', () => {
     const l = fresh();
     const ai = l.teams.find((t) => t.id !== l.userTeamId)!;
     // A legal lowball: your worst player for his best, both tradeable (a hurt one fails the physical first) and
-    // neither a kicker or punter (a team can't be left without one).
+    // neither a kicker or punter (a team can't be left without one), with room under your cap for his salary (a trade
+    // the cap forbids is a league rule, which costs no patience).
+    l.teams[l.userTeamId].carryover = l.caps[l.season];
     const byOvr = (teamId: number) =>
       activeRoster(l, teamId)
         .filter((p) => !playerTradeBlocker(l, p) && p.position !== 'K' && p.position !== 'P')
