@@ -98,7 +98,7 @@ above.
   and is never imported by `src/ui/`.
 - Roster header, Home matchup bars and New Game read the perceived version. A range renders through
   `RangeValue`; New Game, where no scouting exists yet, shows the league's public reputation instead
-  (last season's record and the unit ranks from `league.history`), the way a new GM would know a club.
+  (last season's record and playoff finish from `league.history`, no unit numbers at all), the way a new GM would know a club.
 - Where the user's scouts barely know a team (`knowledge` under the same floor the opposition report
   uses in `inbox.ts`), the unit shows as a range with a "Little film" note rather than a number.
 
