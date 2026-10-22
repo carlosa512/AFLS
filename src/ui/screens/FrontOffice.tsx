@@ -29,7 +29,7 @@ import { resignForecast, staffName, staffWindowOpen } from '../../engine/staff';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerLink, Rating, Section, SortTh, sortRows, TeamChip, useSort } from '../components';
+import { Panel, PlayerLink, Rating, Section, SortTh, sortRows, TeamChip, TeamPicker, useSort } from '../components';
 import { attentionText, coachAttention } from '../coaching';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
@@ -801,22 +801,7 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
     <Panel className="draft-history">
       <Section id="draft-history" title="Draft history">
         <span className="row" style={{ gap: 8 }}>
-          <select
-            aria-label="Team"
-            value={team}
-            onChange={(e) => setTeam(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-          >
-            <option value={league.userTeamId}>Your team</option>
-            <option value="all">League-wide</option>
-            {[...league.teams]
-              .filter((t) => t.id !== league.userTeamId)
-              .sort((a, b) => a.city.localeCompare(b.city))
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.city} {t.name}
-                </option>
-              ))}
-          </select>
+          <TeamPicker league={league} value={team} onChange={setTeam} label="Team" allowLeague />
           <select
             aria-label="Draft year"
             value={year}

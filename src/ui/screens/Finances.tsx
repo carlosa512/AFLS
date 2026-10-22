@@ -3,7 +3,7 @@ import { capHit, guaranteedFrom } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
 import type { League } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerLink, TeamChip, TeamLink } from '../components';
+import { Panel, PlayerLink, TeamChip, TeamLink, TeamPicker } from '../components';
 import { CapChart, capPct, ContractActions, thruLabel } from '../contracts';
 import { money } from '../format';
 import { moveIndex, MoveText } from '../moves';
@@ -42,21 +42,12 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
           </div>
         }
         action={
-          <select
-            aria-label="Choose team"
-            id="cap-team"
+          <TeamPicker
+            league={league}
             value={teamId}
-            onChange={(e) => nav.go({ view: 'cap', teamId: Number(e.target.value) })}
-          >
-            {[...league.teams]
-              .sort((a, b) => a.city.localeCompare(b.city))
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.city} {t.name}
-                  {t.id === league.userTeamId ? ' (you)' : ''}
-                </option>
-              ))}
-          </select>
+            onChange={(id) => nav.go({ view: 'cap', teamId: id })}
+            id="cap-team"
+          />
         }
       >
         <div className="facts">

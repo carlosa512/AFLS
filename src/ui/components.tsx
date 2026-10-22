@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type ReactElement,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -624,21 +625,58 @@ export function Exact({ numbers, children }: { numbers: ReactNode; children: Rea
   );
 }
 
-/** Pick a club, yours marked: the same list wherever a screen can show another team. */
+/**
+ * Pick a club, yours marked: the one team dropdown, wherever a screen can show another team. `allowLeague`
+ * puts "League" first (value 'all'); `exclude` leaves clubs out (the trade table: you can't trade with
+ * yourself). A picker without `allowLeague` only ever hands back a team id.
+ */
+export function TeamPicker(props: {
+  league: League;
+  value: number;
+  onChange: (teamId: number) => void;
+  id?: string;
+  label?: string;
+  allowLeague?: false;
+  exclude?: number[];
+}): ReactElement;
+export function TeamPicker(props: {
+  league: League;
+  value: number | 'all';
+  onChange: (teamId: number | 'all') => void;
+  id?: string;
+  label?: string;
+  allowLeague: true;
+  exclude?: number[];
+}): ReactElement;
 export function TeamPicker({
   league,
   value,
   onChange,
   id,
+  label = 'Choose team',
+  allowLeague = false,
+  exclude = [],
 }: {
   league: League;
-  value: number;
-  onChange: (teamId: number) => void;
+  value: number | 'all';
+  onChange: ((teamId: number) => void) | ((teamId: number | 'all') => void);
   id?: string;
+  label?: string;
+  allowLeague?: boolean;
+  exclude?: number[];
 }) {
+  // Without `allowLeague` the 'all' option never renders, so the narrower callback never sees it.
+  const pick = onChange as (teamId: number | 'all') => void;
   return (
-    <select aria-label="Choose team" id={id} value={value} onChange={(e) => onChange(Number(e.target.value))}>
+    <select
+      aria-label={label}
+      id={id}
+      value={value}
+      onChange={(e) => pick(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+    >
+      {allowLeague && <option value="all">League</option>}
       {[...league.teams]
+        .filter((t) => !exclude.includes(t.id))
         .sort((a, b) => a.city.localeCompare(b.city))
         .map((t) => (
           <option key={t.id} value={t.id}>

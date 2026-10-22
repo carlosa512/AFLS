@@ -22,7 +22,7 @@ import {
 } from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
-import { Panel, PlayerAvatar, PlayerLink, TeamChip, TeamLink } from '../components';
+import { Panel, PlayerAvatar, PlayerLink, TeamChip, TeamLink, TeamPicker } from '../components';
 import { money } from '../format';
 import { Ovr, seenOvr } from '../scouting';
 import { liveLock } from '../live';
@@ -302,22 +302,18 @@ function TradeTable({ league }: { league: League }) {
           </div>
         }
         action={
-          <select
-            aria-label="Trade partner"
+          <TeamPicker
+            league={league}
             value={partnerId}
-            onChange={(e) => {
-              setPartnerId(Number(e.target.value));
+            onChange={(id) => {
+              setPartnerId(id);
               setTheirs(empty());
               setCounterTo(undefined);
               setDone(null);
             }}
-          >
-            {others.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.city} {t.name}
-              </option>
-            ))}
-          </select>
+            label="Trade partner"
+            exclude={[userId]}
+          />
         }
       >
         <div className="trade-verdict" aria-live="polite">

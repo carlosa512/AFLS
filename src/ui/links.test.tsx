@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
 import type { ReactElement } from 'react';
 import type { League, Player } from '../engine/types';
-import { PlayerLink, TeamLink } from './components';
+import { PlayerLink, TeamLink, TeamPicker } from './components';
 import { NavContext, type Nav } from './nav';
 
 let league: League;
@@ -56,5 +56,15 @@ describe('TeamLink', () => {
     expect(html).toContain('team-inline');
     expect(html).toContain(`${t.city} ${t.name}</button>`);
     expect(html).toMatch(/<\/button><small[^>]*>Division leader/);
+  });
+});
+
+describe('TeamPicker', () => {
+  it('offers the league first when asked, and never the excluded club', () => {
+    const me = league.userTeamId;
+    const html = render(<TeamPicker league={league} value="all" onChange={() => {}} allowLeague exclude={[me]} />);
+    expect(html).toMatch(/<option value="all"[^>]*>League<\/option>/);
+    expect(html).not.toContain(`value="${me}"`);
+    expect(html).not.toContain('(you)');
   });
 });
