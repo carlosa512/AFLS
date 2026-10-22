@@ -354,6 +354,7 @@ describe('offers to you', () => {
     const lapsed = bids()[0];
     const declined = bids().find((o) => o.teamId !== lapsed?.teamId);
     expect(declined, 'two bids for your players on the desk').toBeDefined();
+    if (!declined) return;
     const desk = JSON.stringify(l);
     declineOffer(l, declined.id);
     playWeek(l);
