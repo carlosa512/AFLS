@@ -15,11 +15,12 @@ import { repsSoFar } from './development';
 import { ATTRIBUTE_PROFILES, overall, OVR_WEIGHTS, POSITION_NAMES, STARTERS } from './positions';
 import { activeQuirks, formingQuirks, QUIRKS, type QuirkId, type QuirkTone } from './quirks';
 import { clamp, Rng } from './rng';
-import { slotOf } from './roster';
+import { knockFor } from './familiarity';
+import { slotOf, starters, teamRatings } from './roster';
 import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
 import { passerRating } from './stats';
 import { TEMPER_POSITIONS, TRAIT_MEAN } from './traits';
-import type { Attribute, Combine, League, Player, Position, Ratings, StatLine, Traits } from './types';
+import type { Attribute, Combine, League, Player, Position, Ratings, StatLine, Team, Traits } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
 /** Scouting visits a front office gets per league year. */
@@ -232,6 +233,99 @@ export function viewCache(league: League): (teamId: number, p: Player) => Player
     let v = memo.get(key);
     if (!v) memo.set(key, (v = perceive(league, teamId, p)));
     return v;
+  };
+}
+
+/**
+ * How well scouts must know a unit's starters (mean knowledge) before a screen gives its strength as one
+ * number. The opposition report uses the same floor before it speaks with confidence.
+ */
+export const WELL_KNOWN = 0.7;
+
+/** One unit's strength as a club reads it: a best guess with its range, exact for its own players. */
+export interface UnitView {
+  value: number;
+  lo: number;
+  hi: number;
+  exact: boolean;
+  /** The scouts know these starters well enough to give one number. */
+  known: boolean;
+}
+
+export interface TeamView {
+  overall: UnitView;
+  qb: UnitView;
+  offense: UnitView;
+  defense: UnitView;
+  special: UnitView;
+}
+
+const UNIT_POSITIONS: Record<Exclude<keyof TeamView, 'overall'>, Position[]> = {
+  qb: ['QB'],
+  offense: ['QB', 'RB', 'WR', 'TE', 'OL'],
+  defense: ['DT', 'EDGE', 'LB', 'CB', 'S'],
+  special: ['K', 'P'],
+};
+
+/**
+ * `teamRatings` as `viewerId`'s scouts read the club: the same starters and weights, each starter at his
+ * perceived overall in the spot he lines up (knock included), with his range carried along. A club reads
+ * its own players exactly. Screens show this, never `teamRatings`, so a rival's strength stays a scouting
+ * judgment.
+ */
+export function perceivedTeamRatings(league: League, viewerId: number, team: Team): TeamView {
+  if (viewerId === team.id) {
+    const t = teamRatings(league, team);
+    const at = (value: number): UnitView => ({ value, lo: value, hi: value, exact: true, known: true });
+    return {
+      overall: at(t.overall),
+      qb: at(t.qb),
+      offense: at(t.offense),
+      defense: at(t.defense),
+      special: at(t.special),
+    };
+  }
+  const unit = (positions: Position[]): UnitView => {
+    let value = 0;
+    let lo = 0;
+    let hi = 0;
+    let known = 0;
+    let n = 0;
+    for (const pos of positions) {
+      for (const p of starters(league, team, pos)) {
+        const v = perceive(league, viewerId, p);
+        const values = {} as Ratings;
+        for (const a of ATTRIBUTES) values[a] = v.ratings[a].value;
+        const here = (pos === p.position ? v.ovr : overall(values, pos)) - knockFor(p, pos);
+        value += here;
+        lo += here - (v.ovr - v.ovrLo);
+        hi += here + (v.ovrHi - v.ovr);
+        known += v.knowledge;
+        n++;
+      }
+    }
+    const d = Math.max(1, n);
+    return { value: value / d, lo: lo / d, hi: hi / d, exact: false, known: known / d >= WELL_KNOWN };
+  };
+  const qb = unit(UNIT_POSITIONS.qb);
+  const offense = unit(UNIT_POSITIONS.offense);
+  const defense = unit(UNIT_POSITIONS.defense);
+  const special = unit(UNIT_POSITIONS.special);
+  // The headline mixes the units with teamRatings' weights. It is known when offense and defense are (95% of
+  // it, the quarterback included): a kicker nobody has scouted shouldn't blur the whole club.
+  const mix = (f: (u: UnitView) => number) => f(qb) * 0.2 + f(offense) * 0.35 + f(defense) * 0.4 + f(special) * 0.05;
+  return {
+    overall: {
+      value: mix((u) => u.value),
+      lo: mix((u) => u.lo),
+      hi: mix((u) => u.hi),
+      exact: false,
+      known: offense.known && defense.known,
+    },
+    qb,
+    offense,
+    defense,
+    special,
   };
 }
 
