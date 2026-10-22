@@ -2,7 +2,7 @@
  * AI front offices. Decisions come from numeric GM traits plus the roster in front of them:
  * who to keep, who to tag, who to chase in free agency, and how to get under the cap.
  */
-import { ageShift } from '../aging';
+import { ageShift, PEAK_END } from '../aging';
 import {
   accelerateProration,
   canRestructure,
@@ -627,15 +627,23 @@ function thinnest(league: League, team: Team): Position {
  * Sign the best available healthy free agent at `position` (any position if undefined) who'll take a one-year
  * minimum deal. `budget` ($K) skips anyone whose minimum (it rises with experience) wouldn't fit.
  */
-export function signMinimum(league: League, team: Team, rng: Rng, position?: Position, budget = Infinity): boolean {
+export function signMinimum(
+  league: League,
+  team: Team,
+  rng: Rng,
+  position?: Position,
+  budget = Infinity,
+  under = Infinity,
+): boolean {
   const cap = league.caps[league.season];
-  // The best available as this front office sees him.
+  // The best available as this front office sees him (younger than `under`, when it wants a younger man).
   const roster = activeRoster(league, team.id);
   const full = (pos: Position) => surplus(pos, roster.filter((p) => p.position === pos).length + 1);
   let pick = freeAgents(league)
     .filter(
       (p) =>
         (position ? p.position === position : !full(p.position)) &&
+        p.age < under &&
         !p.injury &&
         minSalary(p.experience, cap) <= budget &&
         takesMinimum(league, p, team.id),
@@ -663,6 +671,14 @@ export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
   for (const pos of POSITIONS) {
     while (activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos])
       if (!signMinimum(league, team, rng, pos)) break;
+  }
+  // A specialist two years past his prime gets a younger leg to beat in camp, the best one left: with one kicker and one
+  // punter a team, a young one otherwise reached a roster only through the draft, and old ones kept their jobs (8.3
+  // K/P starters aged 38+ of 64 in the careers check; NFL 2019-25 about 2.6). The weaker of the two goes below.
+  for (const pos of Object.keys(KEEP_MAX) as Position[]) {
+    const mine = activeRoster(league, team.id).filter((p) => p.position === pos);
+    if (mine.length === 1 && mine[0].age >= PEAK_END[pos] + 2)
+      signMinimum(league, team, rng, pos, Infinity, mine[0].age);
   }
   aiCutdown(league, team);
   // A team already at 53 or under cuts no one above, so a second specialist goes here: the weaker one.

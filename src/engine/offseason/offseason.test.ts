@@ -12,6 +12,7 @@ import { advanceOffseason, beginOffseason, draftNextPick, FA_DAYS, offseasonBloc
 import {
   aiOffer,
   aiResignWindow,
+  aiTrainingCamp,
   applyFranchiseTag,
   expiringPlayers,
   IN_SEASON_RESERVE,
@@ -106,6 +107,24 @@ describe('offseason calendar', () => {
     for (const t of league.teams.filter((t) => t.id !== league.userTeamId))
       for (const pos of ['K', 'P'] as const)
         expect(activeRoster(league, t.id).filter((p) => p.position === pos).length, `${t.abbrev} ${pos}`).toBe(1);
+  });
+
+  it('brings a camp leg in for a specialist past his prime, and keeps the better of the two', () => {
+    // With one kicker and one punter a team and no second signed at camp, a young specialist reached a roster only
+    // through the draft, so old ones kept their jobs long after their legs went (careers: 8.3 K/P starters aged 38+
+    // of 64; NFL 2019-25 about 2.6). An NFL club brings a younger leg to camp to push one.
+    const league = fresh();
+    beginOffseason(league);
+    const team = league.teams.find((t) => t.id !== league.userTeamId)!;
+    const old = activeRoster(league, team.id).find((p) => p.position === 'K')!;
+    old.age = 38;
+    for (const k of Object.keys(old.ratings) as (keyof typeof old.ratings)[]) old.ratings[k] = 4;
+    const legs = freeAgents(league).filter((p) => p.position === 'K' && p.age < old.age && !p.injury);
+    expect(Math.max(...legs.map(playerOvr)), 'a better free-agent kicker').toBeGreaterThan(playerOvr(old));
+    aiTrainingCamp(league, team, new Rng('camp-leg'));
+    const kickers = activeRoster(league, team.id).filter((p) => p.position === 'K');
+    expect(kickers).toHaveLength(1);
+    expect(kickers[0].id).not.toBe(old.id);
   });
 
   it("keeps a re-sign inside what the team can spend, charged at the new deal's first-year cap hit", () => {
