@@ -346,8 +346,9 @@ describe('home widgets', () => {
 });
 
 /**
- * The screen contract (docs/superpowers/specs/2026-10-22-ui-consistency-design.md, PR 1): a player's or a team's name is always a link, drawn by the one shared
- * component, and every team dropdown is the shared picker. A new screen that writes its own fails here.
+ * The screen contract (docs/UI.md): names always link, tables sort and mark your row the same way, every team
+ * dropdown is the shared picker, and nothing reads the truth past the fog of war. A new screen that breaks a rule
+ * fails here; fix the screen, never widen an allow-list without a reason in its comment.
  */
 describe('screen contract', () => {
   const files = ['src/ui', 'src/ui/screens']
@@ -386,6 +387,15 @@ describe('screen contract', () => {
     // teamRatings is the truth; screens show perceivedTeamRatings (fog of war). New Game is the one exception,
     // by the owner's call: before you take a job you have no scouts, and its overall is how you pick a project.
     const bad = files.filter((f) => f !== join('src/ui/screens', 'NewGame.tsx') && /\bteamRatings\b/.test(src(f)));
+    expect(bad).toEqual([]);
+  });
+
+  it('never reads the truth past the fog of war', () => {
+    // A screen shows its own club's view only (docs/UI.md, "Fog of war"). ui/scouting.tsx is the one place that
+    // reads true ratings, and only for an exact view of your own player (his rating changes). Hidden traits have
+    // their own guard in engine/development.test.ts, which scans this file too, so the pattern leaves them out.
+    const truth = /\b(p|player)\.ratings\b|\bplayerOvr\b|\.potential\b|\bweeksRemaining\b/;
+    const bad = files.filter((f) => f !== join('src/ui', 'scouting.tsx') && truth.test(src(f)));
     expect(bad).toEqual([]);
   });
 

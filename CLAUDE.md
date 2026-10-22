@@ -228,7 +228,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     deal in `advice.ts` (your view only); `TradeContext`, one decision pass's cache ·
     `migrate.ts` save upgrades
 - `src/ui/` — React screens. State is one mutable `League` in `ui/store.ts`; call
-  `store.mutate(fn)` to change it (triggers re-render + IndexedDB autosave).
+  `store.mutate(fn)` to change it (triggers re-render + IndexedDB autosave). **Every screen follows
+  `docs/UI.md`**: names through `PlayerLink`/`TeamLink`, one `TeamPicker`, tables sorted with `SortTh`, your row
+  `tr.is-user`, tabs as routes, and the fog-of-war list of what a screen may show. The "screen contract" tests
+  in `ui/ui.test.ts` enforce it.
 
 ## Conventions
 

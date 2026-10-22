@@ -1,6 +1,6 @@
 # UI consistency across screens — design
 
-Date: 2026-10-22. Status: approved in conversation, awaiting the implementation plan.
+Date: 2026-10-22. Status: done. PR 1 carlosa512/AFLS#73, PR 2 #74, PR 3 #75, PR 4 writes the rules in `docs/UI.md`.
 
 ## Goal
 
