@@ -3,7 +3,7 @@
  * GM's reaction, the cap impact for both teams and the dead money you'd book before you propose),
  * your block, the market's talk and the history.
  */
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { capHit, isExpired, lastSeason } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
 import {
@@ -151,10 +151,21 @@ export function defaultTradeTab(league: League): TradeTab {
   return tradeDesk.pending() ? 'table' : openOffers(league).length ? 'offers' : 'table';
 }
 
+/**
+ * The view to show: the one the address names, else the one this visit opened on (`held`), else the default.
+ * Holding it keeps the screen still while you work: answering the last offer or advancing a week must not
+ * throw you off the Offers list or the deal you were building.
+ */
+export function stickyTradeTab(held: TradeTab | undefined, tab: TradeTab | undefined, league: League): TradeTab {
+  return tab ?? held ?? defaultTradeTab(league);
+}
+
 export function Trades({ league, tab }: { league: League; tab?: TradeTab }) {
   const nav = useNav();
   const pending = openOffers(league).length;
-  const view = tab ?? defaultTradeTab(league);
+  const held = useRef<TradeTab | undefined>(undefined);
+  const view = stickyTradeTab(held.current, tab, league);
+  held.current = view;
   // A deal handed over from elsewhere (a counter, "Ask their price") opens the table.
   const version = useSyncExternalStore(tradeDesk.subscribe, tradeDesk.version);
   useEffect(() => {

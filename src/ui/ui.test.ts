@@ -15,7 +15,7 @@ import { hurtList, wornDown } from './injuries';
 import { gameStory } from './game';
 import { standingsSortValue } from './screens/Standings';
 import { TEAM_COLS, teamRank, teamStatSeasons } from './screens/TeamStats';
-import { defaultTradeTab } from './screens/Trades';
+import { defaultTradeTab, stickyTradeTab } from './screens/Trades';
 import { tradeDesk } from './tradeDesk';
 import { outlookPill, SEASON_DEFAULT, seasonFacts, waitingMail } from './widgets';
 
@@ -57,6 +57,14 @@ describe('routes', () => {
     tradeDesk.put({ partnerId: 1, mine: { players: [], picks: [] }, theirs: { players: [], picks: [] } });
     expect(defaultTradeTab(league)).toBe('table');
     tradeDesk.take();
+  });
+
+  it('keeps the trades view it opened on until a link names another', () => {
+    const league = createLeague({ seed: 'tabs' });
+    // Opened on Offers (one was pending); the last one answered, the screen stays put instead of jumping to the table.
+    expect(stickyTradeTab('offers', undefined, league)).toBe('offers');
+    expect(stickyTradeTab(undefined, undefined, league)).toBe(defaultTradeTab(league));
+    expect(stickyTradeTab('offers', 'block', league)).toBe('block');
   });
 
   it('send the old Leaders address to the Stats tab', () => {

@@ -55,7 +55,7 @@ export function Standings({ league }: { league: League }) {
   const season = resultsSeason(league);
   const divisions = divisionStandings(league, computeRecords(league, season));
   // One sort for all eight tables; each division's rows stay in their own table.
-  const [sort, onSort] = useSort<StandingsSort>({ key: 'rank', desc: false });
+  const [sort, onSort, setSort] = useSort<StandingsSort>({ key: 'rank', desc: false });
   return (
     <>
       {season !== league.season && (
@@ -77,7 +77,7 @@ export function Standings({ league }: { league: League }) {
                           label={d.division.name}
                           k="rank"
                           sort={sort}
-                          onSort={() => onSort('rank', false)}
+                          onSort={() => setSort({ key: 'rank', desc: false })}
                           desc={false}
                           className="sticky-col"
                         />
