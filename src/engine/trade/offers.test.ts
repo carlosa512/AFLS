@@ -144,12 +144,13 @@ describe('offers to you', () => {
       const p = m.players[c.player];
       const owed = salaryToTake(m, p);
       const room = capRoom(tradeContext(m), c.buyer);
-      m.teams[c.buyer].deadMoney.push({
-        season: m.season,
-        amount: Math.round(room - 0.67 * owed),
-        playerId: -1,
-        note: 'Test',
-      });
+      // Next year's room squeezed alike: a buyer with room to spare next year weighs money as a rich team does,
+      // at as little as half (`salaryWeight` reads both years).
+      const next = capRoom(tradeContext(m), c.buyer, m.season + 1);
+      m.teams[c.buyer].deadMoney.push(
+        { season: m.season, amount: Math.round(room - 0.67 * owed), playerId: -1, note: 'Test' },
+        { season: m.season + 1, amount: Math.max(0, Math.round(next - room)), playerId: -1, note: 'Test' },
+      );
       const mctx = tradeContext(m);
       const kept = keepToFit(m, p, capRoom(mctx, c.buyer));
       expect(kept).toBeGreaterThan(0);
