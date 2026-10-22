@@ -16,7 +16,7 @@ import { ATTRIBUTE_PROFILES, overall, OVR_WEIGHTS, POSITION_NAMES, STARTERS } fr
 import { activeQuirks, formingQuirks, QUIRKS, type QuirkId, type QuirkTone } from './quirks';
 import { clamp, Rng } from './rng';
 import { knockFor } from './familiarity';
-import { slotOf, starters, teamRatings } from './roster';
+import { headline, slotOf, starters, teamRatings, UNIT_POSITIONS } from './roster';
 import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
 import { passerRating } from './stats';
 import { TEMPER_POSITIONS, TRAIT_MEAN } from './traits';
@@ -260,13 +260,6 @@ export interface TeamView {
   special: UnitView;
 }
 
-const UNIT_POSITIONS: Record<Exclude<keyof TeamView, 'overall'>, Position[]> = {
-  qb: ['QB'],
-  offense: ['QB', 'RB', 'WR', 'TE', 'OL'],
-  defense: ['DT', 'EDGE', 'LB', 'CB', 'S'],
-  special: ['K', 'P'],
-};
-
 /**
  * `teamRatings` as `viewerId`'s scouts read the club: the same starters and weights, each starter at his
  * perceived overall in the spot he lines up (knock included), with his range carried along. A club reads
@@ -285,7 +278,7 @@ export function perceivedTeamRatings(league: League, viewerId: number, team: Tea
       special: at(t.special),
     };
   }
-  const unit = (positions: Position[]): UnitView => {
+  const unit = (positions: readonly Position[]): UnitView => {
     let value = 0;
     let lo = 0;
     let hi = 0;
@@ -311,9 +304,9 @@ export function perceivedTeamRatings(league: League, viewerId: number, team: Tea
   const offense = unit(UNIT_POSITIONS.offense);
   const defense = unit(UNIT_POSITIONS.defense);
   const special = unit(UNIT_POSITIONS.special);
-  // The headline mixes the units with teamRatings' weights. It is known when offense and defense are (95% of
+  // The headline mixes the units the way teamRatings does. It is known when offense and defense are (95% of
   // it, the quarterback included): a kicker nobody has scouted shouldn't blur the whole club.
-  const mix = (f: (u: UnitView) => number) => f(qb) * 0.2 + f(offense) * 0.35 + f(defense) * 0.4 + f(special) * 0.05;
+  const mix = (f: (u: UnitView) => number) => headline(f(qb), f(offense), f(defense), f(special));
   return {
     overall: {
       value: mix((u) => u.value),
