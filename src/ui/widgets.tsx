@@ -12,8 +12,8 @@ import { computeRecords, conferenceSeeds, divisionStandings } from '../engine/se
 import { leaders, LEADER_CATEGORIES, teamSeasonStats, type TeamSeasonLine } from '../engine/stats';
 import type { Game, InboxMessage, League, Player, Team } from '../engine/types';
 import { useNav } from './App';
-import { Panel, TeamChip } from './components';
-import { money, ordinal, PHASE_LABELS, recordText, shortName, weekLabel } from './format';
+import { Panel, PlayerLink, TeamChip } from './components';
+import { money, ordinal, PHASE_LABELS, recordText, weekLabel } from './format';
 import { hurtList, wornDown } from './injuries';
 import { TEAM_COLS, teamRank } from './screens/TeamStats';
 
@@ -32,14 +32,23 @@ export function outlookPill(league: League, p: Player): string {
   return p.ir ? `IR · ${out}` : out === 'season' ? 'Out for season' : `Out ${out}`;
 }
 
-function PlayerRow({ p, note, pill, tone }: { p: Player; note: string; pill: string; tone: 'bad' | 'warn' }) {
-  const nav = useNav();
+function PlayerRow({
+  league,
+  p,
+  note,
+  pill,
+  tone,
+}: {
+  league: League;
+  p: Player;
+  note: string;
+  pill: string;
+  tone: 'bad' | 'warn';
+}) {
   return (
     <div className="widget-row">
       <span className="pos">{p.position}</span>
-      <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-        {shortName(p)}
-      </button>
+      <PlayerLink league={league} player={p} short />
       <span className="muted small">{note}</span>
       <span className={`tag-pill tag-${tone}`}>{pill}</span>
     </div>
@@ -112,7 +121,7 @@ export function YourInjuries({ league }: { league: League }) {
       ) : (
         <div>
           {rows.slice(0, SHOW).map((r) => (
-            <PlayerRow key={r.p.id} {...r} />
+            <PlayerRow league={league} key={r.p.id} {...r} />
           ))}
         </div>
       )}
@@ -152,6 +161,7 @@ export function TheirInjuries({ league, opp, game }: { league: League; opp: Team
         <div>
           {hurt.slice(0, SHOW).map((p) => (
             <PlayerRow
+              league={league}
               key={p.id}
               p={p}
               note={p.injury ? injuryLabel(p.injury.type) : 'Healed'}
@@ -498,9 +508,7 @@ export function LeagueLeaders({ league }: { league: League }) {
                   {/* Ties share a place. */}
                   <span className="muted">{1 + top.filter((x) => x.value > r.value).length}</span>
                   <span style={{ minWidth: 0 }}>
-                    <button className="linklike" onClick={() => nav.openPlayer(r.player.id)}>
-                      {shortName(r.player)}
-                    </button>{' '}
+                    <PlayerLink league={league} player={r.player} short />{' '}
                     <span className="muted small">
                       {r.player.teamId !== null ? league.teams[r.player.teamId].abbrev : 'FA'}
                     </span>
@@ -512,10 +520,7 @@ export function LeagueLeaders({ league }: { league: League }) {
                 best && !top.includes(best) ? (
                   <div className="board-you">
                     <span>
-                      {team.abbrev} ·{' '}
-                      <button className="linklike" onClick={() => nav.openPlayer(best.player.id)}>
-                        {shortName(best.player)}
-                      </button>{' '}
+                      {team.abbrev} · <PlayerLink league={league} player={best.player} short />{' '}
                       <span className="muted">({ordinal(rank)})</span>
                     </span>
                     <span className="num">{fmt(cat, best.value)}</span>

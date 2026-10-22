@@ -20,8 +20,8 @@ import type { Game, League, Team } from '../../engine/types';
 import { forecast } from '../../engine/weather';
 import { useNav } from '../App';
 import { attentionText, coachAttention } from '../coaching';
-import { Panel, TeamChip, TeamLabel, WeatherNote } from '../components';
-import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, shortName, weekLabel } from '../format';
+import { Panel, PlayerLink, TeamChip, TeamLabel, WeatherNote } from '../components';
+import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, weekLabel } from '../format';
 import { live } from '../live';
 import { WinnerCell } from './Stats';
 import { CrewNote } from './Officials';
@@ -226,7 +226,7 @@ function LastGame({ league }: { league: League }) {
         {best.length > 0 && (
           <div>
             <div className="eyebrow">Your top performers</div>
-            <Standouts rows={best} />
+            <Standouts league={league} rows={best} />
           </div>
         )}
       </div>
@@ -360,10 +360,7 @@ function AwardsNotice({ league }: { league: League }) {
         {winners.map(({ k, w }, i) => (
           <span key={k}>
             {i > 0 && ' · '}
-            {AWARD_SHORT[k]}{' '}
-            <button className="linklike" onClick={() => nav.openPlayer(w.playerId)}>
-              {shortName(league.players[w.playerId])}
-            </button>
+            {AWARD_SHORT[k]} <PlayerLink league={league} player={league.players[w.playerId]} short />
             {w.teamId !== null ? ` (${league.teams[w.teamId].abbrev})` : ''}
           </span>
         ))}

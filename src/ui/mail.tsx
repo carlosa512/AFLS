@@ -111,7 +111,7 @@ import type {
 import { stanceOf } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
-import { PlayerAvatar, TeamChip } from './components';
+import { PlayerAvatar, PlayerLink, TeamChip } from './components';
 import { StaffAvatar } from './staffAvatar';
 import { band, money, ordinal, playerName, recordText, shortName, teamName, weekLabel } from './format';
 import { InjuryTag } from './injuries';
@@ -212,14 +212,11 @@ function Card({ title, children, className = '' }: { title?: ReactNode; children
 
 /** A player's name and picture, opening his card. */
 function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactNode; side?: ReactNode }) {
-  const nav = useNav();
   return (
     <div className="mail-who">
       <PlayerAvatar player={p} team={p.teamId !== null ? league.teams[p.teamId] : null} size={40} />
       <span style={{ minWidth: 0 }}>
-        <button className="linklike mail-who-name" onClick={() => nav.openPlayer(p.id)}>
-          {playerName(p)}
-        </button>
+        <PlayerLink league={league} player={p} className="mail-who-name" />
         {sub && (
           <span className="muted small" style={{ display: 'block' }}>
             {sub}
@@ -571,7 +568,6 @@ const FIELD_POSITIONS: Position[] = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE',
 
 /** Their two best starters as our scouts see them, with this season's numbers. */
 function WatchCard({ league, opp, season }: { league: League; opp: Team; season: number }) {
-  const nav = useNav();
   const best = FIELD_POSITIONS.flatMap((pos) => starters(league, opp, pos))
     .map((p) => ({ p, ovr: seenOvr(league, p) }))
     .sort((a, b) => b.ovr - a.ovr)
@@ -583,9 +579,7 @@ function WatchCard({ league, opp, season }: { league: League; opp: Team; season:
         <div className="mail-row" key={p.id}>
           <span className="pos">{p.position}</span>
           <span>
-            <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-              {shortName(p)}
-            </button>
+            <PlayerLink league={league} player={p} short />
             <span className="muted small" style={{ display: 'block' }}>
               {honorLine(p, statLine(p, season)) || 'No stats yet this season'}
             </span>
@@ -613,9 +607,7 @@ function TheirInjuries({ league, opp }: { league: League; opp: Team }) {
         <div className="mail-row" key={p.id}>
           <span className="pos">{p.position}</span>
           <span>
-            <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-              {shortName(p)}
-            </button>
+            <PlayerLink league={league} player={p} short />
             {p.injury && (
               <span className="muted small" style={{ display: 'block' }}>
                 {injuryLabel(p.injury.type)}
@@ -842,7 +834,6 @@ function firstPick(league: League, season: number) {
 }
 
 function CombineCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'combine' }> }) {
-  const nav = useNav();
   if (s.season !== league.season || !league.draftClass.length) return null;
   // The consensus board, top first (the same order the draft room's Consensus column ranks).
   const board = league.draftClass
@@ -859,10 +850,7 @@ function CombineCards({ league, s }: { league: League; s: Extract<MailSubject, {
             <span className="num muted">{i + 1}</span>
             <span className="pos">{p.position}</span>
             <span>
-              <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                {playerName(p)}
-              </button>{' '}
-              <span className="muted small">· {p.age}</span>
+              <PlayerLink league={league} player={p} /> <span className="muted small">· {p.age}</span>
             </span>
             <span className="num small">{p.combine?.forty ? `40 yd ${p.combine.forty.toFixed(2)}` : ''}</span>
           </div>
@@ -915,7 +903,6 @@ function DraftDayCards({ league, s }: { league: League; s: Extract<MailSubject, 
 }
 
 function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'draftClass' }> }) {
-  const nav = useNav();
   const ours = draftClassOf(league, s.season);
   const moves = moveIndex(league);
   // Trades made during the draft (ours first), else the top of the draft.
@@ -952,10 +939,7 @@ function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject
                       R{d.round} · {d.pick}
                     </td>
                     <td>
-                      <span className="pos">{p.position}</span>{' '}
-                      <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                        {playerName(p)}
-                      </button>
+                      <span className="pos">{p.position}</span> <PlayerLink league={league} player={p} />
                     </td>
                     <td className="num">{p.age}</td>
                     <td className="num">{d.rank !== undefined ? ordinal(d.rank) : '–'}</td>
@@ -1003,9 +987,7 @@ function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject
                     </td>
                     <td className="pos">{p.position}</td>
                     <td>
-                      <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-                        {playerName(p)}
-                      </button>
+                      <PlayerLink league={league} player={p} />
                     </td>
                   </tr>
                 ))}
@@ -1074,7 +1056,7 @@ function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { k
         <GameStar league={league} game={g} />
         {stood.length > 0 && (
           <Card title={star !== null && r.playerTeams[star] === user ? 'Also stood out' : 'Our best'}>
-            <Standouts rows={stood} />
+            <Standouts league={league} rows={stood} />
           </Card>
         )}
       </div>
@@ -2073,15 +2055,11 @@ function Expandable<T>({
 
 /** Free agency in short: who came, who left and for how much, the league's biggest deals, and the cap the draft fits in. */
 function FaWrapCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'faWrap' }> }) {
-  const nav = useNav();
   const fa = freeAgencyMoves(league, s.season);
   const user = league.userTeamId;
   const name = (p: Player) => (
     <span>
-      <span className="pos">{p.position}</span>{' '}
-      <button className="linklike" onClick={() => nav.openPlayer(p.id)}>
-        {playerName(p)}
-      </button>
+      <span className="pos">{p.position}</span> <PlayerLink league={league} player={p} />
     </span>
   );
   const space = Math.round(capSheet(league, user).space);
@@ -2148,10 +2126,7 @@ function FaWrapCards({ league, s }: { league: League; s: Extract<MailSubject, { 
           {fa.biggest.map((d) => (
             <div className="mail-deal" key={d.player.id}>
               <span className="team-inline">
-                <TeamChip team={league.teams[d.teamId]} />{' '}
-                <button className="linklike" onClick={() => nav.openPlayer(d.player.id)}>
-                  {name(d.player)}
-                </button>
+                <TeamChip team={league.teams[d.teamId]} /> {name(d.player)}
               </span>
               <span className="num small">{dealText(d)}</span>
             </div>
