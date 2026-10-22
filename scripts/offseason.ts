@@ -25,7 +25,7 @@
  * front office, a ledger that stops being neutral, a runaway save) lands outside. Dollar bands are a
  * share of that year's cap, never nominal dollars: the cap compounds about 8% a year. "Steady" means
  * the 4th kickoff on (index 3): the generated first league settles for three seasons (free agents
- * pile up, early cap space is high), then the numbers hold. Steady and drift bands need 5+ seasons
+ * pile up, the first kickoffs have a little more room), then the numbers hold. Steady and drift bands need 5+ seasons
  * and are skipped on shorter runs.
  *
  * "⚠ known issue:" lines are real engine weaknesses the bands would catch if they were strict. They
@@ -146,10 +146,6 @@ const ISSUE_SHORT_ROSTER = 'short rosters at kickoff (band: roster minimum >= 50
 // releases is never replaced (2028: PHI enters camp at 53 and $6.3M over, releases one player, ends at 52 with $20.8M
 // free; 2031 is the same). The mid-camp compliance and top-up do nothing because nobody is missing. Ordering bug.
 const ISSUE_SHORT_WITH_ROOM = 'team under 53 with cap room for a minimum deal at kickoff (band: 0)';
-// Early cap hoarding: in seasons 1-3 one to three full, mostly below-average rosters keep 38-59% of the cap unspent at
-// kickoff (2027: $180M, 2028: $213.5M), minimum payroll 21-45% of the cap, on every seed (38-80%). From season 4 the
-// maximum is 7-11%. Cause not found; a thin early free-agent market is a guess.
-const ISSUE_HOARDING = 'early cap hoarding (band: no team keeps over 30% of the cap unspent at kickoff)';
 // Save growth: retired players are flagged retired (offseason/index.ts) but never removed, and each keeps its ratings,
 // ratingHistory, stats and combine while generateDraftClass adds 260 players a year. The players blob grows about
 // 430 KB a season for good (3.9 MB of retired players by 2039); the live players level off near 3.5 MB. The 650 KB band
@@ -461,23 +457,25 @@ for (let s = 0; s < seasons; s++) {
       `${year}: ${withRoom.map((t) => `${t.abbrev} ${t.size} (${M(t.space)} room)`).join(', ')}`,
     );
 
-  // Cap space as a share of the cap (the cap grows ~8% a year). Median: 6.9, 5.7, 3.1, then 2.3, 2.1, 2.1% (nominal
-  // $23.0M falling to $10.2M); steady state on all four seeds is 2.0-2.3%, so [1, 4] catches a drift to hoarding
-  // or to teams spent flat, and the early seasons get [0.8, 12] (obs 2.8-9.9% across seeds).
-  // Max: 54.6, 59.0, 37.9% in seasons 1-3, then 9.8, 7.4, 11.4 (all seeds 6.3-11.4 from index 4), so only index 4+ is
-  // judged (<= 20%); the early hoarding is a known issue. Dead money: max 11.6-18.3% of cap (all seeds 6.5-22.7), median
-  // at most 2.7%; a front office that cuts stars wholesale shows up as the max passing 30%.
-  // Free agents: 184 → 451 over 6 seasons, +92 at most in a step (all seeds 99); it keeps rising until about season 12
-  // and plateaus near 500 (retirement caps the stock), so the ceiling is 650 and the floor 100 (a dried-up market).
+  // Cap space as a share of the cap (the cap grows ~8% a year). Median: 3.8, 2.6, 3.4, then 3.3, 1.9, 2.6% (0.1.5);
+  // the bands were set from four seeds whose steady state was 2.0-2.3%, so [1, 4] catches a drift to hoarding or to
+  // teams spent flat, and the early seasons get [0.8, 12] (obs 2.8-9.9% across seeds then).
+  // Max: 17.5, 8.1, 12.9% in seasons 1-3, then 9.5, 5.1, 8.9 (0.1.5; 19.5, 10.3, 5.8 then 12.7, 5.2, 6.3 at 0.1.3), so
+  // seasons 1-3 are judged at <= 30% and index 4+ at <= 20%. Before the generated league was paid like a settled one
+  // (0.1.3) seasons 1-3 read 54.6, 59.0, 37.9%: rosters opened as low as 62% committed and a hoarder banked the rest.
+  // Dead money: max 7.1-16.7% of cap at kickoff (0.1.5; 6.0-19.3% at 0.1.3, all seeds then 6.5-22.7), median at most
+  // 3.1%; a front office that cuts stars wholesale shows up as the max passing 30%.
+  // Free agents: 253 → 467 over 6 seasons, +64 at most in a step (0.1.5; all seeds then 99); it keeps rising until about
+  // season 12 and plateaus near 500 (retirement caps the stock), so the ceiling is 650 and the floor 100 (a dried-up
+  // market).
   const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 110, 0)}` : ''}`;
   console.log(
-    `  checks ${year} cap: ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${s >= 4 ? check('max space %cap', pct(k.space[last]), 0, 20, 1) : `max space ${pct(k.space[last]).toFixed(1)}%cap`} · ${check('dead max %cap', pct(k.dead[last]), 0, 30, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
+    `  checks ${year} cap: ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 30, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
   );
-  if (pct(k.space[last]) > 30) warn(ISSUE_HOARDING, `${year} ${pct(k.space[last]).toFixed(0)}% (${M(k.space[last])})`);
 
-  // League talent (mean starter OVR at kickoff): 12.93, 13.01, 13.11, 13.07, 13.12, 13.09 (all seeds 12.69-13.12), so
-  // [12.4, 13.6] holds the level; steps of at most 0.10 (all seeds 0.15) get 0.25. Parity (sd of team means) is
-  // 0.28-0.36 (all seeds 0.28-0.64): below 0.15 every team is alike, above 0.8 the league has split in two.
+  // League talent (mean starter OVR at kickoff): 12.89, 12.92, 13.02, 13.09, 13.18, 13.20 (all seeds then 12.69-13.12),
+  // so [12.4, 13.6] holds the level; steps of at most 0.10 (all seeds then 0.15) get 0.25. Parity (sd of team means) is
+  // 0.37-0.53 (all seeds then 0.28-0.64): below 0.15 every team is alike, above 0.8 the league has split in two.
   console.log(
     `  checks ${year} talent: ${check('starter OVR', k.avgStarter, 12.4, 13.6)}${prev ? ` · ${check('change', k.avgStarter - prev.k.avgStarter, -0.25, 0.25)}` : ''} · ${check('parity sd', k.parity, 0.15, 0.8)}`,
   );
@@ -494,6 +492,12 @@ for (let s = 0; s < seasons; s++) {
   // more traits; injury histories and the backups' stat lines), games 5.5-5.6 MB (box scores keep each injury's
   // estimate), players growth 584-653 a season, snapshot growth up to 916, 12194 at the end. Ceilings: first season
   // 6300, final 13500, snapshot growth 1100, players growth 800 (the same headroom over the observed as before).
+  // The settled opening league (0.1.3) carries more contract years: 6260 after the first season, players growth 618-781,
+  // and 12900 at the end, where last season's games now keep only box scores and scoring plays. Your own games keep
+  // their full play-by-play all season (about 33 KB a game), so how far the autopilot team runs in the playoffs moves
+  // the first save by up to 130 KB from one engine change to the next: 6200 when it missed them, 6330 when it reached
+  // the final (0.1.5, players growth 610-788, 12765 at the end). The first-season ceiling is 6450, a playoff run over
+  // the 6300 it was before.
   const dSave = prevSave && {
     total: save.total - prevSave.total,
     players: save.players - prevSave.players,
@@ -502,7 +506,7 @@ for (let s = 0; s < seasons; s++) {
     weekly: save.weekly - prevSave.weekly,
   };
   console.log(
-    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? 6300 : 13500, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, 1100, 0)}` : ''} · ${check('games KB', save.games, 0, 6500, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800, 0)} · ${check('retired added', dSave.retired, 0, 320, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
+    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? 6450 : 13500, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, 1100, 0)}` : ''} · ${check('games KB', save.games, 0, 6500, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800, 0)} · ${check('retired added', dSave.retired, 0, 320, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
   if (dSave) playerGrowth.push(dSave.players);
   prevSave = save;
@@ -641,12 +645,14 @@ if (rows.length >= 5) {
     return all.sort((a, b) => a - b)[all.length >> 1];
   });
   console.log(`\ndrift, ${first.year} → ${end.year}:`);
-  // The generated first league always settles upward by 0.1-0.3 OVR (obs +0.16; all seeds +0.16 to +0.34), so the band is
-  // lopsided; deflation would show as a negative change. After the 3rd kickoff it should hold (obs -0.02; all seeds <= 0.12).
+  // The generated first league always settles upward by 0.1-0.3 OVR (obs +0.31; all seeds then +0.16 to +0.34), so the band
+  // is lopsided; deflation would show as a negative change. After the 3rd kickoff it should hold (obs +0.17; all seeds
+  // then <= 0.12). The settled opening league (0.1.5) barely moves: +0.05 over the run, -0.03 after the 3rd kickoff.
   console.log(
     `  talent: ${check('starter OVR, last − first', end.k.avgStarter - first.k.avgStarter, -0.15, 0.6)} · ${check(`…last − ${rows[2].year}`, end.k.avgStarter - rows[2].k.avgStarter, -0.3, 0.3)}`,
   );
-  // Median cap space is flat once settled: 2.3, 2.1, 2.1% over the last three (all seeds 2.0-2.3), so within 1 point.
+  // Median cap space is flat once settled: 2.3, 2.1, 2.1% over the last three (all seeds 2.0-2.3), so within 1 point;
+  // 3.1, 2.7, 2.4 (spread 0.7) with the settled opening league (0.1.5).
   // One league's median is one team's space, and drawing other teams moves it 0.3-0.6 points a season (a bootstrap
   // over the 32), so it is read over all four leagues' 128 teams. The 4th kickoff still sits 0.2 above the next two
   // on average (2.32, 2.09, 2.10 over 36 seeds: a league still settling), part of every spread. Over those 36 seeds

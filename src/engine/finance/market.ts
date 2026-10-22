@@ -116,6 +116,13 @@ export function preferredYears(player: Player): number {
   return 1;
 }
 
+/**
+ * The most of a deal's value a front office puts in the signing bonus: real ones run 10-35% of it, the
+ * cap-aggressive end of that range for GMs who push money into later years. The rest of a guarantee
+ * goes into base salary, which a release only leaves behind for the years it covers.
+ */
+export const maxBonusShare = (capAggression: number) => 0.2 + 0.15 * capAggression;
+
 /** Share of the total value a player's agent wants guaranteed. Stars push hardest. */
 export function guaranteeAsk(market: Market, player: Player): number {
   const tier = payTier(player.position, positionRank(market, player));

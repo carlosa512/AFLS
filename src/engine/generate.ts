@@ -4,12 +4,14 @@ import { ATTRIBUTE_PROFILES, BODY, JERSEY_RANGES, overall, ROSTER_TEMPLATE, STAR
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
 import { generateCrews } from './officials';
-import { buildContract, capHit, trimPast } from './finance/contract';
+import { buildContract, capHit, trimPast, yearOf } from './finance/contract';
 import {
   BASE_CAP,
   guaranteeAsk,
   leagueMarket,
   marketApy,
+  maxBonusShare,
+  TOP_APY_PCT,
   minSalary,
   rookieApy,
   rookieBonusShare,
@@ -161,7 +163,7 @@ export function veteranContract(
   const total = apyK * years;
   const share =
     apyK > 0.04 * cap ? rng.float(0.28, 0.45) : apyK > 0.012 * cap ? rng.float(0.1, 0.28) : rng.float(0, 0.08);
-  const bonus = total * clamp(share + (gm.capAggression - 0.5) * 0.15, 0, 0.6);
+  const bonus = total * clamp(share + (gm.capAggression - 0.5) * 0.15, 0, maxBonusShare(gm.capAggression));
   const gtdShare = guaranteeAsk(market, player) * rng.float(0.8, 1.1);
   const guaranteedBase = Math.max(0, total * gtdShare - bonus);
   const voidYears =
@@ -225,8 +227,12 @@ function initialContract(rng: Rng, market: Market, player: Player, season: numbe
       min,
     );
   }
-  const remaining = ovr >= 14 ? rng.int(2, 5) : rng.int(1, 3);
-  const elapsed = rng.int(0, Math.min(2, Math.max(0, 5 - remaining)));
+  // A league already in motion: each veteran is somewhere inside a deal of the length his tier signs, so
+  // about a quarter of the stars and more of the depth are in their last year, as in a settled league.
+  const length = rng.int(ovr >= 14 ? 3 : ovr >= 12 ? 2 : 1, 5);
+  const remaining = rng.int(1, length);
+  // His first deal after the rookie one started at four years in.
+  const elapsed = Math.min(length - remaining, exp - 4);
   const years = remaining + elapsed;
   const capThen = Math.round(BASE_CAP / 1.07 ** elapsed);
   const younger = { ...player, age: player.age - elapsed, experience: exp - elapsed };
@@ -242,7 +248,7 @@ function initialContract(rng: Rng, market: Market, player: Player, season: numbe
  * Nudge veteran money so a team's opening payroll lands near `target`. Rookie deals stay
  * slotted, and the nudge is bounded so the market, not the cap, decides what stars earn.
  */
-function fitPayroll(players: Player[], season: number, target: number): void {
+export function fitPayroll(players: Player[], season: number, target: number): void {
   const vets = players.filter((p) => p.contract!.kind !== 'rookie');
   const fixed = players
     .filter((p) => p.contract!.kind === 'rookie')
@@ -250,20 +256,49 @@ function fitPayroll(players: Player[], season: number, target: number): void {
   const floor = vets.reduce((s, p) => s + minSalary(p.experience, BASE_CAP), 0);
   const current = vets.reduce((s, p) => s + capHit(p.contract!, season), 0);
   if (current <= floor) return;
-  let factor = clamp((target - fixed - floor) / (current - floor), 0.75, 1.5);
+  let factor = clamp((target - fixed - floor) / (current - floor), 0.75, 2.5);
   // Never open a league over the cap.
   const ceiling = (BASE_CAP * 0.985 - fixed - floor) / (current - floor);
   factor = Math.min(factor, ceiling);
+  const top = (p: Player) => TOP_APY_PCT[p.position] * BASE_CAP;
   for (const p of vets) {
     const c = p.contract!;
     const min = minSalary(p.experience, BASE_CAP);
+    // An overpaid roster still pays by position: nobody's raise takes him past his position's top of the market.
+    const f = factor > 1 && c.apy > min ? Math.min(factor, Math.max(1, (top(p) - min) / (c.apy - min))) : factor;
     for (const y of c.years) {
       if (y.void) continue;
-      y.base = Math.round(min + Math.max(0, y.base - min) * factor);
-      y.guaranteed = Math.min(y.base, Math.round(y.guaranteed * factor));
+      y.base = Math.round(min + Math.max(0, y.base - min) * f);
+      y.guaranteed = Math.min(y.base, Math.round(y.guaranteed * f));
     }
-    for (const b of c.bonuses) b.amount = Math.round(b.amount * factor);
-    c.apy = Math.round(min + Math.max(0, c.apy - min) * factor);
+    for (const b of c.bonuses) b.amount = Math.round(b.amount * f);
+    c.apy = Math.round(min + Math.max(0, c.apy - min) * f);
+  }
+  // A roster whose veterans aren't worth the target spends the rest this year instead, front-loading its
+  // deals the way a rebuilding team uses its room, so no club opens the league sitting on idle cap. The
+  // extra goes by pay above the minimum, but no deal's charge this year passes four times its average or his
+  // position's top of the market: what a capped player can't take goes to the rest, so a thin roster's room
+  // doesn't land on one man.
+  let short = Math.min(target, BASE_CAP * 0.985) - fixed - vets.reduce((s, p) => s + capHit(p.contract!, season), 0);
+  const above = (p: Player) =>
+    Math.max(0, (yearOf(p.contract!, season)?.base ?? 0) - minSalary(p.experience, BASE_CAP));
+  const room = new Map(
+    vets.map((p) => [p, Math.max(0, Math.min(4 * p.contract!.apy, top(p)) - capHit(p.contract!, season))]),
+  );
+  for (let pass = 0; pass < 6 && short > 1; pass++) {
+    const open = vets.filter((p) => room.get(p)! > 0 && above(p) > 0);
+    const pool = open.reduce((s, p) => s + above(p), 0);
+    if (pool <= 0) return;
+    let given = 0;
+    for (const p of open) {
+      const c = p.contract!;
+      const extra = Math.min(room.get(p)!, Math.round((short * above(p)) / pool));
+      yearOf(c, season)!.base += extra;
+      c.apy = Math.round(c.apy + extra / c.length);
+      room.set(p, room.get(p)! - extra);
+      given += extra;
+    }
+    short -= given;
   }
 }
 
@@ -488,7 +523,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
       p.contract = initialContract(rng, market, p, season, team.gm);
       p.contract.signedWeek = -1; // part of the world as generated: no trade cooldown
     }
-    fitPayroll(roster, season, SALARY_CAP * rng.float(0.86, 0.96));
+    fitPayroll(roster, season, SALARY_CAP * rng.float(0.9, 0.99));
   }
 
   for (let y = 1; y <= MAX_FUTURE_DRAFT_YEARS; y++) createDraftPicks(league, season + y);

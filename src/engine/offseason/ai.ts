@@ -21,6 +21,7 @@ import {
   franchiseTagValue,
   leagueMarket,
   marketApy,
+  maxBonusShare,
   minSalary,
   payTier,
   positionRank,
@@ -147,7 +148,7 @@ export function aiOffer(league: League, team: Team, player: Player, rng: Rng, ga
     5,
   );
   const gtdPct = clamp(d.askGtdPct * rng.float(0.85, 1.05), 0, 0.9);
-  const bonusPct = gtdPct * (0.45 + 0.4 * team.gm.capAggression);
+  const bonusPct = Math.min(gtdPct * (0.45 + 0.4 * team.gm.capAggression), maxBonusShare(team.gm.capAggression));
   const voidYears = team.gm.capAggression > 0.75 && apy > cap * 0.04 && years < 4 ? 1 : 0;
   return { years, apy, bonusPct, gtdPct, voidYears };
 }

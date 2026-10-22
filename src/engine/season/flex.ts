@@ -6,7 +6,7 @@
  * - Thursday night, weeks 13–17, four weeks ahead; at most twice a season.
  * - Week 18 is set once week 17 is played: the game with the most riding on it on Sunday night, the next
  *   two on Saturday, the games with playoff stakes in the late window (so linked results kick off together)
- *   and the rest at 1:00.
+ *   and the rest at 1:00. A night slot only goes to a game whose teams are both under the night-game cap.
  * A flex swaps the two games' kickoffs (a western host moved to Sunday afternoon plays late); the game
  * keeps the slot it was scheduled in as `flexed`. No randomness: the standings decide.
  */
@@ -59,10 +59,10 @@ function appealOf(league: League): (g: Game) => number {
   };
 }
 
-/** Night games a team has this season, as scheduled now. */
-function primeCount(league: League, teamId: number): number {
+/** Night games a team has this season, as scheduled now (through `week`, when given). */
+function primeCount(league: League, teamId: number, week = REGULAR_SEASON_WEEKS): number {
   return season(league).filter(
-    (g) => (g.homeId === teamId || g.awayId === teamId) && g.kickoff && isPrimeTime(g.kickoff),
+    (g) => g.week <= week && (g.homeId === teamId || g.awayId === teamId) && g.kickoff && isPrimeTime(g.kickoff),
   ).length;
 }
 
@@ -129,18 +129,21 @@ function setFinalWeek(league: League): void {
     (!race.get(g.homeId)!.division && !race.get(g.awayId)!.division && live(g.homeId) && live(g.awayId) ? 1 : 0) +
     appeal(g) / 4;
   const ranked = [...games].sort((x, y) => stakes(y) - stakes(x) || x.id - y.id);
-  ranked.forEach((g, i) => {
-    const k =
-      i === 0
-        ? SUNDAY_NIGHT
-        : i <= SATURDAY.length
-          ? SATURDAY[i - 1]
-          : stakes(g) >= 2 || western(league, g.homeId)
-            ? LATE[1]
-            : EARLY;
+  // The slots in order of the game they are for. Week 18's own slots are what is being set, so the cap counts
+  // the nights through week 17: a night slot goes to the biggest game left whose teams both have room, and a
+  // bigger game whose team is full takes a daytime slot instead (the Saturday afternoon one, or the late window).
+  const room = (g: Game) =>
+    [g.homeId, g.awayId].every((t) => primeCount(league, t, REGULAR_SEASON_WEEKS - 1) < PRIME_CAP);
+  const placed = new Map<Game, Kickoff>();
+  for (const slot of [SUNDAY_NIGHT, ...SATURDAY]) {
+    const g = ranked.find((x) => !placed.has(x) && (!isPrimeTime(slot) || room(x)));
+    if (g) placed.set(g, slot);
+  }
+  for (const g of ranked) {
+    const k = placed.get(g) ?? (stakes(g) >= 2 || western(league, g.homeId) ? LATE[1] : EARLY);
     if (!same(g.kickoff, k)) {
       g.flexed ??= g.kickoff ? { ...g.kickoff } : undefined;
       g.kickoff = { ...k };
     }
-  });
+  }
 }

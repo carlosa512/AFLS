@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { capSpace } from '../finance/cap';
 import { capHit, isExpired } from '../finance/contract';
-import { leagueMarket, marketApy, minSalary, rookieApy } from '../finance/market';
+import { leagueMarket, marketApy, maxBonusShare, minSalary, rookieApy } from '../finance/market';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr, STARTERS } from '../positions';
@@ -9,7 +9,7 @@ import { activeRoster, teamPlayers } from '../roster';
 import type { League } from '../types';
 import { POSITIONS } from '../types';
 import { advanceOffseason, beginOffseason, draftNextPick, FA_DAYS, offseasonBlockers, simOffseason } from '.';
-import { applyFranchiseTag, expiringPlayers, IN_SEASON_RESERVE, signMinimum, tagBlocker } from './ai';
+import { aiOffer, applyFranchiseTag, expiringPlayers, IN_SEASON_RESERVE, signMinimum, tagBlocker } from './ai';
 import { availableProspects, draftOrder, draftPlayer, nextPick, simDraft } from './draft';
 import { askOffer, demand, freeAgents, makeOffer } from './negotiation';
 import { Rng } from '../rng';
@@ -35,6 +35,20 @@ describe('offseason calendar', () => {
     // The champion picks last in every round.
     expect(order[31].originalTeamId).toBe(league.history[0].championId);
     expect(availableProspects(league).length).toBe(260);
+  });
+
+  it("keeps last season's box scores and scoring plays and drops their full replays", () => {
+    const league = fresh();
+    const mine = league.games.find((g) => g.homeId === league.userTeamId && g.result)!;
+    expect(mine.result!.plays!.some((p) => !p.scoring)).toBe(true);
+    beginOffseason(league);
+    const last = league.games.filter((g) => g.season === league.season - 1);
+    expect(last.length).toBeGreaterThan(0);
+    for (const g of last) expect(g.result?.plays?.every((p) => p.scoring) ?? true).toBe(true);
+    // The scoring plays stay, not nothing: a game's replay is trimmed, not dropped.
+    expect(mine.result!.plays?.length ?? 0).toBeGreaterThan(0);
+    expect(mine.result!.home).toBeDefined();
+    expect(league.games.some((g) => g.season === league.season && !g.result)).toBe(true);
   });
 
   it('walks every phase and ends with legal, cap-compliant rosters', () => {
@@ -126,6 +140,28 @@ describe('negotiation', () => {
     });
     expect(r.accepted).toBe(false);
     expect(r.message).toMatch(/cap room/);
+  });
+
+  it("keeps an AI offer's signing bonus inside the GM's share of the deal, and inside its guarantee", () => {
+    const league = fresh();
+    beginOffseason(league);
+    const team = league.teams[1];
+    const rng = new Rng('bonus-share');
+    const others = Object.values(league.players).filter((p) => p.teamId !== null && p.teamId !== team.id);
+    const sample = others.filter((_, i) => i % 4 === 0);
+    // A cap-aggressive GM pushes the most money into bonus, so the cap is what holds him; a conservative one
+    // is held by his cap too. Neither may put more into the bonus than the deal guarantees (an agent's ask is
+    // never below 10%, so a zero-guarantee offer is out of reach, but the bonus can never exceed the guarantee).
+    for (const capAggression of [0.9, 0]) {
+      team.gm.capAggression = capAggression;
+      const offers = sample.map((p) => aiOffer(league, team, p, rng, 2));
+      for (const o of offers) {
+        expect(o.bonusPct).toBeLessThanOrEqual(maxBonusShare(capAggression));
+        expect(o.bonusPct).toBeLessThanOrEqual(o.gtdPct);
+      }
+      // The cap does bind: agents ask up to 70% guaranteed, which the style alone would put 40-80% into bonus.
+      expect(offers.some((o) => o.bonusPct === maxBonusShare(capAggression))).toBe(true);
+    }
   });
 
   it('moves unsigned expiring players into free agency, keeping a tagged one', () => {

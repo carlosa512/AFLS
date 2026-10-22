@@ -1051,7 +1051,9 @@ Where the build departed from the plan, and why:
 - **Picks are the currency; a swap needs an edge.** A buyer sends a player only when that's clearly
   cheaper for him than his best pick package (by 25 points). A swap piece must be worth at least a late
   fourth to the seller, so no throw-ins pad the count.
-- **A late pick riding back is the biggest that evens the deal**, not the smallest the seller has.
+- **A late pick riding back is the biggest that evens the deal**, not the smallest the seller has. It
+  rides once the seller is a late fifth's worth ahead (30 points, `BALANCE`): at an early fifth's (40), a
+  league paid like a settled one rode a pick back in 9% of its AI deals against the NFL's 10-25%.
 - **Sellers call buyers.** A seller shops a player to contenders and bubble teams, and to retoolers
   only if he's 25 or younger. Before, a retooler bought a 28-year-old with three future picks.
 - **Deadline day is a day of calls:** every GM gets two rounds and can make two trades. With one, the
@@ -1181,7 +1183,11 @@ Where the build departed from the plan, and why:
   offseason step), not on a stored expiry: the market runs after the week's games, before the week
   number moves on, so "until you play the next week" is exactly the next advance.
 - **An offer you ignore cools that team off for two moments**, like a soft decline. Without it the
-  same seller pitched the same player every week.
+  same seller pitched the same player every week. Listing the player answers it: the wait lifts (the
+  latest offer you declined keeps its own), and a bid that lapses once he's listed sets none.
+- **A listed player reaches every buyer that wants him.** Each buyer watches the one of your players it
+  wants most; a player you list also raises interest with buyers that would rather have another of yours.
+  Without it a listing was heard only by teams whose first choice he already was.
 - **Pitches need a keen seller and a real need**: block entries he's keen to move (a rental at the
   deadline, an overpaid deal), at a position where you'd gain, at most two a moment. They were most
   of the first build's 40 offers a year.
@@ -1277,6 +1283,12 @@ Built as planned:
     in full.
   - In season the AI keeps just enough salary to fit a buyer that's short of room (`keepToFit`). You get
     a *Keep paying* slider on the trade table.
+  - The AI deal search prices it in: the player's asking price and the most a buyer goes to count the
+    salary kept (`dealFor`). Priced on the player alone, a seller covering a capped buyer asked past every
+    package the buyer could send. In a league paid like a settled one this took in-season trades from
+    14.3 to 17.4 a season.
+  - An AI buyer short of room bids for your player too: you keep paying what it can't fit, and its price
+    counts the money you keep (`bidFor`), as when you ask an AI seller's price (`askFor`).
 - **The league-year market: cap casualties go to the phone before the AI releases them.** `capCut` names
   the player `aiCapCompliance` would cut next.
   - A team that would keep him gives a 6th or 7th.
@@ -1328,7 +1340,9 @@ Where the build departed from the plan, and why:
   The limit is for real deals.
 - **Trading a cap casualty is rare (about 0.2 a year).** AI teams cut only when over the cap
   (`aiCapCompliance` with no room target), and the league year rarely finds one there. The squeezed
-  team's dump (salary weight 1.6 or more) covers the rest.
+  team's dump (salary weight 1.6 or more) covers the rest. It's that team's first try when its call comes
+  at the league year, before it buys or sells (`dumpCall`): tried last, a squeezed buyer spent its deal
+  on a target and kept the contract, and dumps ran 0.7-1.0 a season against the NFL's 1-4.
 - **The trades check:**
   - Pick swaps no longer count as "a pick riding back". The research's "deals with a late-pick swap
     riding along" are player deals.

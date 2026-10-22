@@ -8,9 +8,11 @@ import { playerOvr } from '../positions';
 import { activeRoster } from '../roster';
 import type { League } from '../types';
 import { judge, tradeContext } from '.';
-import { pickSwapFor } from './deals';
+import { dumpFor, pickSwapFor } from './deals';
+import { initiate } from './market';
+import { tradeBlock } from './plans';
 import type { TradeProposal } from './rules';
-import { nextDraftSeason } from './value';
+import { nextDraftSeason, salaryWeight } from './value';
 
 const base = JSON.stringify(createLeague({ seed: 'cuts' }));
 const fresh = (): League => JSON.parse(base);
@@ -85,5 +87,37 @@ describe('future-for-current pick swaps', () => {
     // In season nobody swaps like this.
     l.phase = 'regular';
     expect(pickSwapFor(tradeContext(l), l.teams[1], l.teams)).toBeNull();
+  });
+});
+
+describe('league-year dumps', () => {
+  it('has a squeezed team clear its bad contract before it shops', { timeout: 300_000 }, () => {
+    // A team truly squeezed moves a bad contract when the league year opens, before the money's guaranteed: its
+    // call goes to the dump first, not to the buy or sale it would otherwise make.
+    let calls = 0;
+    for (const seed of ['trades-0', 'trades-1', 'trades-2']) {
+      const l = createLeague({ seed });
+      simToEndOfSeason(l);
+      beginOffseason(l);
+      const ctx = tradeContext(l);
+      const market = l.market!;
+      const ai = l.teams.filter((t) => t.id !== l.userTeamId);
+      const listings = ai.flatMap((t) => tradeBlock(ctx, t).map((entry) => ({ team: t, entry })));
+      for (const team of ai) {
+        if (salaryWeight(ctx, team.id) < 1.6) continue;
+        if (market.history.some((r) => r.kind === 'dump' && r.season === l.season && r.sides[0].teamId === team.id))
+          continue;
+        const others = ai.filter((t) => t.id !== team.id);
+        const dumpable = tradeBlock(ctx, team)
+          .filter((e) => e.reason === 'overpaid')
+          .slice(0, 2)
+          .some((e) => dumpFor(ctx, team, l.players[e.playerId], others));
+        if (!dumpable) continue;
+        const deal = initiate(ctx, market, team, 'leagueYear', listings, () => true);
+        calls++;
+        expect(deal?.kind, `${seed} ${team.abbrev}`).toBe('dump');
+      }
+    }
+    expect(calls, 'squeezed teams with a contract another would take').toBeGreaterThan(0);
   });
 });

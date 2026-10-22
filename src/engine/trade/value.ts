@@ -552,13 +552,12 @@ const median = (xs: number[]) => {
 export function salaryWeight(ctx: TradeContext, teamId: number): number {
   if (!ctx.salaryWeights) {
     const { league } = ctx;
-    const now = league.teams.map((t) => capRoom(ctx, t.id));
-    const next = league.teams.map((t) => capRoom(ctx, t.id, league.season + 1));
-    const [mNow, mNext] = [median(now), median(next)];
+    // One median of both years' room, so the team in the middle weighs exactly 1: two medians taken apart
+    // belong to different teams, and the middle one landed anywhere from 0.96 to 1.24.
+    const room = league.teams.map((t) => 0.5 * capRoom(ctx, t.id) + 0.5 * capRoom(ctx, t.id, league.season + 1));
+    const mid = median(room);
     const scale = 0.08 * league.caps[league.season];
-    ctx.salaryWeights = league.teams.map((_, i) =>
-      clamp(1 - (0.5 * (now[i] - mNow) + 0.5 * (next[i] - mNext)) / scale, 0.5, 2),
-    );
+    ctx.salaryWeights = room.map((r) => clamp(1 - (r - mid) / scale, 0.5, 2));
   }
   return ctx.salaryWeights[teamId];
 }

@@ -416,7 +416,8 @@ export function wanted(
 /**
  * Raise buyers' interest in what each wants most this moment; let the rest fade (sellers do their
  * selling by calling buyers). Each buyer also watches the one of your players (`yours`) it wants
- * most, without crowding out its own market; interest in a player you've put on the block grows fast.
+ * most, without crowding out its own market; interest in a player you've put on the block grows fast,
+ * and a buyer that wants him hears he's on it even when it would rather have another of yours.
  */
 export function updateInterest(
   ctx: TradeContext,
@@ -434,6 +435,9 @@ export function updateInterest(
     for (const { player } of wanted(ctx, team, from, { memo: true }).slice(0, WATCH)) raise(team, player);
     const mine = yours.length ? wanted(ctx, team, yours)[0] : undefined;
     if (mine) raise(team, mine.player, market.status[mine.player.id] === 'listed' ? 2 : 1);
+    const listed = yours.filter((y) => market.status[y.entry.playerId] === 'listed');
+    const shopped = listed.length ? wanted(ctx, team, listed)[0] : undefined;
+    if (shopped && shopped.player !== mine?.player) raise(team, shopped.player, 2);
   }
   for (const x of market.interest)
     if (market.moment - x.at >= FADE) Object.assign(x, { level: x.level - 1, at: market.moment });

@@ -21,7 +21,7 @@ import {
   type TradeProposal,
   type TradeSide,
 } from './rules';
-import { goingRate, marketValue, nextDraftSeason, pickValue, salaryWeight } from './value';
+import { goingRate, marketValue, nextDraftSeason, pickValue, POINTS_PER_K, salaryWeight } from './value';
 
 export interface Deal {
   proposal: TradeProposal;
@@ -35,8 +35,12 @@ export interface Deal {
 /** Packages tried with a full verdict each way from the price: pick packages, then ones with a player. */
 const TRIES = 6;
 const SWAP_TRIES = 3;
-/** A seller left this far ahead (about a fifth-round pick) hands back a late pick to even it out. */
-const BALANCE = 40;
+/**
+ * A seller left this far ahead (about a late fifth-round pick) hands back a late pick to even it out. At an early
+ * fifth's worth (40), an opening league paid and committed like a settled one rode a pick back in 9% of its AI deals
+ * (10-25% of NFL deals carry one): its packages land closer to the price.
+ */
+const BALANCE = 30;
 /** A player worth sending in a swap: about a late fourth-round pick's worth to the seller or more, not a throw-in to fill a roster spot. */
 const SWAP_WORTH = 70;
 /** How much better (points, in his own eyes) a swap must leave the buyer than his best pick package. */
@@ -147,7 +151,7 @@ export const TAGS: Record<DealKind, string> = {
 };
 
 /** A pick back from a seller the package leaves well ahead: the biggest that evens it out, if both still say yes. */
-function balance(ctx: TradeContext, proposal: TradeProposal, ahead: number): TradeProposal {
+export function balance(ctx: TradeContext, proposal: TradeProposal, ahead: number): TradeProposal {
   if (ahead < BALANCE) return proposal;
   const [buys, sells] = proposal.sides;
   const seller = ctx.league.teams[sells.teamId];
@@ -215,7 +219,11 @@ export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | 
   const bidders = (league.market?.interest ?? []).filter(
     (x) => x.playerId === target.id && x.teamId !== buyer.id,
   ).length;
-  const worth = marketValue(ctx, seller, target);
+  // Salary the seller keeps makes him that much cheaper to his new team, so the league would pay that
+  // much more for him: it's in his price and in the most a buyer goes to, as in the floor `judge`
+  // holds out for. Priced on the player alone, a seller covering a capped buyer asked past every
+  // package the buyer could send, and the deal died before a pick was offered.
+  const worth = marketValue(ctx, seller, target) + POINTS_PER_K * retain;
   const asking = worth * (1 + Math.min(MAX_PREMIUM, PER_BIDDER * bidders));
   const price = Math.max(ask, Math.min(asking, most));
   // A seller who wants more than that for him isn't really selling.
