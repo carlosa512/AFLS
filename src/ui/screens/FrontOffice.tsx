@@ -609,7 +609,7 @@ function Draft({ league }: { league: League }) {
             <table>
               <thead>
                 <tr>
-                  <SortTh label="# Prospect" k="rank" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
+                  <SortTh label="Player" k="rank" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
                   <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
                   <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
                   <SortTh

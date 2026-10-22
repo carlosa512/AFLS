@@ -837,6 +837,36 @@ export function sortRows<T, K extends string>(
     .map((x) => x.row);
 }
 
+/**
+ * The sort control for a list that has no header (the trade assets, your block): the same `SortState` as a
+ * table's, as a row of `seg` buttons. Each option names the order its first click uses.
+ */
+export function SortSeg<K extends string>({
+  options,
+  sort,
+  onSort,
+  label,
+}: {
+  options: { k: K; label: string; desc?: boolean }[];
+  sort: SortState<K>;
+  onSort: (key: K, desc: boolean) => void;
+  label: string;
+}) {
+  return (
+    <div className="seg seg-sm" role="group" aria-label={label}>
+      {options.map((o) => {
+        const active = sort.key === o.k;
+        return (
+          <button key={o.k} type="button" aria-pressed={active} onClick={() => onSort(o.k, o.desc ?? true)}>
+            {o.label}
+            {active ? (sort.desc ? ' ▼' : ' ▲') : ''}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** A header cell that sorts its column. `desc` is the order the first click uses. */
 export function SortTh<K extends string>({
   label,

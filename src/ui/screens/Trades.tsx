@@ -21,11 +21,21 @@ import {
   type TradeProposal,
 } from '../../engine/trade';
 import type { League, Player } from '../../engine/types';
-import { POSITIONS } from '../../engine/types';
 import { useNav } from '../nav';
-import { Panel, PlayerAvatar, PlayerLink, TeamChip, TeamLink, TeamPicker } from '../components';
+import {
+  Panel,
+  PlayerAvatar,
+  PlayerLink,
+  SortSeg,
+  sortRows,
+  TeamChip,
+  TeamLink,
+  TeamPicker,
+  useSort,
+} from '../components';
+import { LIST_SORT_OPTIONS, listSortValue, type ListSort } from '../offers';
 import { money } from '../format';
-import { Ovr, seenOvr } from '../scouting';
+import { Ovr } from '../scouting';
 import { liveLock } from '../live';
 import { LinkedText } from '../moves';
 import { BlockPanel, ExamPanel, HistoryPanel, MarketPanel, OffersPanel } from '../offers';
@@ -47,10 +57,9 @@ function AssetList({
   onChange: (p: Picked) => void;
 }) {
   const team = league.teams[teamId];
-  // Grouped by position, best first within each group, like a depth chart.
-  const players = teamPlayers(league, teamId).sort(
-    (a, b) => POSITIONS.indexOf(a.position) - POSITIONS.indexOf(b.position) || seenOvr(league, b) - seenOvr(league, a),
-  );
+  // By position, best first within each group, like a depth chart; or by OVR or cap hit.
+  const [sort, onSort] = useSort<ListSort>({ key: 'pos', desc: false });
+  const players = sortRows(teamPlayers(league, teamId), sort, (p, key) => listSortValue(league, p, key));
   const picks = league.draftPicks
     .filter((p) => p.ownerId === teamId && p.playerId === undefined)
     .sort((a, b) => a.season - b.season || a.round - b.round);
@@ -95,6 +104,7 @@ function AssetList({
         );
       })}
       <div className="eyebrow">Players</div>
+      <SortSeg label={`Sort ${team.name} players`} options={LIST_SORT_OPTIONS} sort={sort} onSort={onSort} />
       {players.map(row)}
     </div>
   );

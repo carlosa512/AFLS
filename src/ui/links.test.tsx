@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
 import type { ReactElement } from 'react';
 import type { League, Player } from '../engine/types';
-import { PlayerLink, TeamLink, TeamPicker } from './components';
+import { PlayerLink, SortSeg, TeamLink, TeamPicker } from './components';
 import { NavContext, type Nav } from './nav';
 
 let league: League;
@@ -72,5 +72,23 @@ describe('TeamPicker', () => {
     expect(html).toMatch(/<option value="all"[^>]*>League<\/option>/);
     expect(html).not.toContain(`value="${me}"`);
     expect(html).not.toContain('(you)');
+  });
+});
+
+describe('SortSeg', () => {
+  it('marks the active key and shows its direction', () => {
+    const html = render(
+      <SortSeg
+        label="Sort assets"
+        options={[
+          { k: 'pos', label: 'Position', desc: false },
+          { k: 'ovr', label: 'OVR' },
+        ]}
+        sort={{ key: 'ovr', desc: true }}
+        onSort={() => {}}
+      />,
+    );
+    expect(html).toMatch(/aria-pressed="true"[^>]*>OVR[^<]*▼/);
+    expect(html).toMatch(/aria-pressed="false"[^>]*>Position/);
   });
 });

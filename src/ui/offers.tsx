@@ -28,11 +28,27 @@ import type { League, Player, Stance, TradeOffer, TradeRecord, TradeSide, TradeS
 import { POSITIONS } from '../engine/types';
 import { LinkedText, nameIndex } from './moves';
 import { useNav } from './App';
-import { Panel, PlayerAvatar, PlayerLink, TeamChip } from './components';
+import { Panel, PlayerAvatar, PlayerLink, SortSeg, sortRows, TeamChip, useSort } from './components';
 import { money, playerName } from './format';
 import { Ovr, seenOvr } from './scouting';
 import { store } from './store';
 import { tradeDesk } from './tradeDesk';
+
+/** How the trade asset list and your block sort: by position (depth-chart order), OVR or cap hit. */
+export type ListSort = 'pos' | 'ovr' | 'cap';
+export const LIST_SORT_OPTIONS: { k: ListSort; label: string; desc?: boolean }[] = [
+  { k: 'pos', label: 'Position', desc: false },
+  { k: 'ovr', label: 'OVR' },
+  { k: 'cap', label: 'Cap hit' },
+];
+export const listSortValue = (league: League, p: Player, key: ListSort): number =>
+  key === 'pos'
+    ? POSITIONS.indexOf(p.position) * 100 - seenOvr(league, p)
+    : key === 'ovr'
+      ? seenOvr(league, p)
+      : p.contract
+        ? capHit(p.contract, league.season)
+        : 0;
 
 const WHO: Record<Advice['who'], string> = {
   coach: 'Head coach',
@@ -417,12 +433,12 @@ export function StatusPicker({ league, player }: { league: League; player: Playe
 /** Your trade block: every player's status, and *Shop* to call every team that needs him. */
 export function BlockPanel({ league }: { league: League }) {
   const [note, setNote] = useState<string | null>(null);
-  const players = teamPlayers(league, league.userTeamId)
-    .filter((p) => p.contract && !isExpired(p.contract, league.season))
-    .sort(
-      (a, b) =>
-        POSITIONS.indexOf(a.position) - POSITIONS.indexOf(b.position) || seenOvr(league, b) - seenOvr(league, a),
-    );
+  const [sort, onSort] = useSort<ListSort>({ key: 'pos', desc: false });
+  const players = sortRows(
+    teamPlayers(league, league.userTeamId).filter((p) => p.contract && !isExpired(p.contract, league.season)),
+    sort,
+    (p, key) => listSortValue(league, p, key),
+  );
   const shop = (p: Player) => {
     let message = '';
     store.mutate((l) => {
@@ -441,6 +457,7 @@ export function BlockPanel({ league }: { league: League }) {
           {note}
         </p>
       )}
+      <SortSeg label="Sort your block" options={LIST_SORT_OPTIONS} sort={sort} onSort={onSort} />
       <ul className="plain-list">
         {players.map((p) => {
           const blocked = playerTradeBlocker(league, p);
