@@ -28,6 +28,14 @@ const base = (() => {
   return JSON.stringify(l);
 })();
 const fresh = (): League => JSON.parse(base);
+let secondBase: string | undefined;
+/** A second league four weeks in, built when a test needs more of the world than one league holds. */
+const second = () => {
+  if (secondBase) return secondBase;
+  const l = createLeague({ seed: 'retain-2' });
+  for (let w = 0; w < 4; w++) playWeek(l);
+  return (secondBase = JSON.stringify(l));
+};
 const richest = (l: League, teamId: number) =>
   activeRoster(l, teamId)
     .filter((p) => p.contract)
@@ -93,37 +101,42 @@ describe('retained salary', () => {
   it('gets a capped buyer his man, and is paid for the money it keeps in picks', { timeout: 30_000 }, () => {
     // Expiring veterans whose teams could keep more than they're worth (so next year's money is out
     // of it), each with a buyer that has the room and buys him outright.
-    const l = fresh();
-    const ctx = tradeContext(l);
-    const cases: { seller: number; player: number; buyer: number; paid: number }[] = [];
-    for (const seller of l.teams.filter((t) => t.id !== l.userTeamId)) {
-      for (const p of activeRoster(l, seller.id)) {
-        if (cases.length >= 8) break;
-        if (!p.contract || playerTradeBlocker(l, p) || yearsLeft(p.contract, l.season) > 1) continue;
-        const worth = marketValue(ctx, seller, p);
-        if (worth <= 20 || POINTS_PER_K * maxRetain(l, p) < 1.5 * worth) continue;
-        const buyer = l.teams.find(
-          (t) =>
-            t.id !== seller.id &&
-            t.id !== l.userTeamId &&
-            capRoom(ctx, t.id) >= salaryToTake(l, p) + 2000 &&
-            dealFor(ctx, t, p),
-        );
-        const outright = buyer && dealFor(ctx, buyer, p);
-        if (outright)
-          cases.push({
-            seller: seller.id,
-            player: p.id,
-            buyer: buyer.id,
-            paid: quickValue(ctx, seller, outright.proposal.sides[0]),
-          });
+    // Two leagues: one opening league holds as few as four such players (its last-year deals paid past their market,
+    // fewer have a roomy buyer), too few to read half of them closing.
+    const cases: { league: string; seller: number; player: number; buyer: number; paid: number }[] = [];
+    for (const league of [base, second()]) {
+      const l: League = JSON.parse(league);
+      const ctx = tradeContext(l);
+      for (const seller of l.teams.filter((t) => t.id !== l.userTeamId)) {
+        for (const p of activeRoster(l, seller.id)) {
+          if (cases.length >= 8 * (league === base ? 1 : 2)) break;
+          if (!p.contract || playerTradeBlocker(l, p) || yearsLeft(p.contract, l.season) > 1) continue;
+          const worth = marketValue(ctx, seller, p);
+          if (worth <= 20 || POINTS_PER_K * maxRetain(l, p) < 1.5 * worth) continue;
+          const buyer = l.teams.find(
+            (t) =>
+              t.id !== seller.id &&
+              t.id !== l.userTeamId &&
+              capRoom(ctx, t.id) >= salaryToTake(l, p) + 2000 &&
+              dealFor(ctx, t, p),
+          );
+          const outright = buyer && dealFor(ctx, buyer, p);
+          if (outright)
+            cases.push({
+              league,
+              seller: seller.id,
+              player: p.id,
+              buyer: buyer.id,
+              paid: quickValue(ctx, seller, outright.proposal.sides[0]),
+            });
+        }
       }
     }
     expect(cases.length).toBeGreaterThanOrEqual(4);
     let closed = 0;
     for (const c of cases) {
       // The same buyer squeezed against the cap, so his team has to keep about 1.3 times his worth to fit him.
-      const m = fresh();
+      const m: League = JSON.parse(c.league);
       const p = m.players[c.player];
       const keep = Math.round((1.3 * marketValue(tradeContext(m), m.teams[c.seller], p)) / POINTS_PER_K);
       const room = capRoom(tradeContext(m), c.buyer);
