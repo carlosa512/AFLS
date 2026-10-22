@@ -343,4 +343,14 @@ describe('screen contract', () => {
     const bad = files.filter((f) => !allowed.includes(f) && /\{\w+\.firstName\} \{\w+\.lastName\}/.test(src(f)));
     expect(bad).toEqual([]);
   });
+
+  it('renders team names only through TeamLink', () => {
+    const bad = files.filter((f) => /<TeamLabel|linklike team-inline" onClick=\{\(\) => nav\.openTeam/.test(src(f)));
+    expect(bad).toEqual([]);
+  });
+
+  it('builds team dropdowns only with TeamPicker', () => {
+    const bad = files.filter((f) => /\[\.\.\.league\.teams\]\s*\.(sort|filter)/.test(src(f)));
+    expect(bad).toEqual([]);
+  });
 });
