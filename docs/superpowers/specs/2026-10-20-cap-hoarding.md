@@ -155,3 +155,10 @@ Ways forward (the owner parked it here):
   - offseason: median kickoff space 4.0% in 2030 against [1, 4]; over four leagues 3.9, 3.8, 3.7. 17b8b0b's planned
     in-season reserve (3% x (1.5 - cap aggression), a median 3.1-3.6% of the cap) sits at the band's top; its own
     commit left "the band against IN_SEASON_RESERVE" to the owner.
+- Resolved (owner's calls, 0.1.10):
+  - Trades: between AI teams, what a seller keeps of an expiring deal counts toward the rental's worth at its floor
+    share (`judge`); longer deals and anything with you stay in full (no buy-and-flip). In-season trades 15.9 at CI's
+    size, 16.2 at nine leagues, 0 outside. The same share on every deal bought early dumps instead (4.1, over 1-4).
+  - Kickoff room: the in-season reserve stays. After camp a team more than a point past its plan pays next year's
+    salary ahead as a one-year roster bonus (`payAhead`); medians 3.0-3.8, four-league 3.2-3.4, 0 outside. Kept to half
+    a point past plan, in-season trades fell to 14.4: that room is the deadline buyers'.
