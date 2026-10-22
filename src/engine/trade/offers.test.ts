@@ -81,7 +81,7 @@ describe('offers to you', () => {
     expect(roster.length).toBeGreaterThan(0);
   });
 
-  it('draws an offer for any of your three best non-specialists some team needs, priced in firsts or not', () => {
+  it('draws an offer for any of your three best prime-age non-specialists some team needs, priced in firsts or not', () => {
     // The trades audit's listing (`listingDraws`): your best players at a position an AI team needs, signed 2+ more
     // years. Shopped, a young cornerback draws a crowd, and the bidders' premium puts a buyer's price past every
     // package he'd sign off on (each first past the second costs him more than the going rate): he must offer the
@@ -92,8 +92,10 @@ describe('offers to you', () => {
     const needed = new Set(ai.flatMap((t) => teamNeeds(ctx, t).map((n) => n.position)));
     const shop = activeRoster(l, l.userTeamId)
       .filter((p) => needed.has(p.position) && yearsLeft(p.contract!, l.season) >= 2 && !playerTradeBlocker(l, p))
-      // Kickers and punters aren't traded for picks (the price audit leaves them out too).
-      .filter((p) => p.position !== 'K' && p.position !== 'P')
+      // Kickers and punters aren't traded for picks (the price audit leaves them out too), nor is a lineman of 34
+      // with years left on his deal: the bug is a young starter priced in firsts, so prime-age players only (30 or
+      // under, as the price audit's quality starters).
+      .filter((p) => p.position !== 'K' && p.position !== 'P' && p.age <= 30)
       .sort((a, b) => playerOvr(b) - playerOvr(a))
       .slice(0, 3);
     for (const star of shop) {
