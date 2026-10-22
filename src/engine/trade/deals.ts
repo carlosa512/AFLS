@@ -21,7 +21,7 @@ import {
   type TradeProposal,
   type TradeSide,
 } from './rules';
-import { goingRate, marketValue, nextDraftSeason, pickValue, salaryWeight } from './value';
+import { goingRate, marketValue, nextDraftSeason, pickValue, POINTS_PER_K, salaryWeight } from './value';
 
 export interface Deal {
   proposal: TradeProposal;
@@ -215,7 +215,11 @@ export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | 
   const bidders = (league.market?.interest ?? []).filter(
     (x) => x.playerId === target.id && x.teamId !== buyer.id,
   ).length;
-  const worth = marketValue(ctx, seller, target);
+  // Salary the seller keeps makes him that much cheaper to his new team, so the league would pay that
+  // much more for him: it's in his price and in the most a buyer goes to, as in the floor `judge`
+  // holds out for. Priced on the player alone, a seller covering a capped buyer asked past every
+  // package the buyer could send, and the deal died before a pick was offered.
+  const worth = marketValue(ctx, seller, target) + POINTS_PER_K * retain;
   const asking = worth * (1 + Math.min(MAX_PREMIUM, PER_BIDDER * bidders));
   const price = Math.max(ask, Math.min(asking, most));
   // A seller who wants more than that for him isn't really selling.
