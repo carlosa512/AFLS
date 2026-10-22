@@ -694,14 +694,14 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
               </option>
             ))}
           </select>
-          <select
-            aria-label="Players"
-            value={teamFilter}
-            onChange={(e) => setTeamFilter(e.target.value as 'all' | 'mine')}
-          >
-            <option value="all">Whole league</option>
-            <option value="mine">Your roster</option>
-          </select>
+          <div className="seg seg-sm" role="group" aria-label="Players">
+            <button type="button" aria-pressed={teamFilter === 'all'} onClick={() => setTeamFilter('all')}>
+              Whole league
+            </button>
+            <button type="button" aria-pressed={teamFilter === 'mine'} onClick={() => setTeamFilter('mine')}>
+              Your roster
+            </button>
+          </div>
         </span>
       }
     >

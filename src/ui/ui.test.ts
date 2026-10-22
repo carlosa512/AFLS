@@ -370,6 +370,10 @@ describe('screen contract', () => {
     expect(bad).toEqual([]);
   });
 
+  it('offers league or mine as the seg control, not a select', () => {
+    expect(/<select\s+aria-label="Players"/.test(src('src/ui/screens/Stats.tsx'))).toBe(false);
+  });
+
   it('builds team dropdowns only with TeamPicker', () => {
     const bad = files.filter((f) => /\[\.\.\.league\.teams\]\s*\.(sort|filter)/.test(src(f)));
     expect(bad).toEqual([]);
