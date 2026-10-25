@@ -75,7 +75,10 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 - [ ] **Deep scouting network** · **Partial** (hooks into #9): scouting departments with ratings, budgets and a
       market (`staff.ts`) and per-scout reads (`readFor`). No regional network yet.
 - [ ] **Owner and job security** · **Partial** (hooks into #11 and #12): owners have market budgets, patience and a
-      yearly letter, and AI head coaches get fired from the hot seat (`coaching.ts`). Your own job is never at risk.
+      yearly letter, and AI head coaches get fired from the hot seat (`coaching.ts`). Phase 1 adds persistent GM
+      identities and appointment histories, scout → director → GM promotion functions, and per-game GM/coach
+      career records with save migration. GM cards, owner mandates, automatic GM turnover, employment UI and
+      spectating while unemployed remain to build. Your own job is not yet automatically at risk.
 - [x] **Schedule weather forecasts (fog of war)** · **Already in** (hooks into #5): forecasts at three stages with
       calibrated rain chances on the schedule and the next-game card (`forecast` in `weather.ts`). Trend arrows and a
       staff hook are not built yet (`docs/WEATHER.md`).

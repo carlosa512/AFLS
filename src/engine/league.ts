@@ -16,7 +16,7 @@ import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { computeRecords } from './season/standings';
 import { addStats } from './stats';
-import { recordCoachSeasons } from './coaching';
+import { captureManagement, creditManagement } from './service';
 import { playoffSummary } from './records';
 import type { Game, GameResult, League, Player } from './types';
 
@@ -56,6 +56,7 @@ export function recordResult(league: League, game: Game, result: GameResult): vo
   // Condition and diagnoses are carried by the players, not the game record.
   const { condition, diagnoses, ...kept } = result;
   game.result = kept;
+  creditManagement(league, game);
   for (const [id, c] of Object.entries(condition ?? {})) {
     const p = league.players[Number(id)];
     if (p && c < (p.condition ?? 100)) p.condition = c;
@@ -96,12 +97,16 @@ function creditTeam(player: Player, season: number, teamId: number) {
 }
 
 export function playGame(league: League, game: Game): void {
+  if (game.result) return;
+  captureManagement(league, game);
   prepareGame(league, game);
   recordResult(league, game, simulateGame(league, game, { keepPlays: true, playoff: !!game.playoffRound }));
 }
 
 /** Begin a game to be watched play by play; finish it with recordResult, then playWeek. */
 export function startLiveGame(league: League, game: Game): LiveGame {
+  if (game.result) throw new Error('This game has already been played.');
+  captureManagement(league, game);
   prepareGame(league, game);
   return startGame(league, game, { playoff: !!game.playoffRound });
 }
@@ -151,7 +156,6 @@ function finishSeason(league: League) {
     records: Object.fromEntries([...records].map(([id, r]) => [id, { w: r.w, l: r.l, t: r.t }])),
     playoffs: playoffSummary(league, league.season),
   });
-  recordCoachSeasons(league);
   league.phase = 'complete';
 }
 

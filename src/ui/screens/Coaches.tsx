@@ -457,7 +457,7 @@ function RoleGuide({ roles }: { roles: CoachRole[] }) {
 }
 
 /**
- * A coach's record in one line: his teams' results in the seasons he finished on their staff, with the
+ * A coach's record in one line: results earned while he held each role, with the
  * head-coaching seasons counted on their own (that's the record people quote). The seasons are on his card.
  */
 function CoachRecord({ league, c }: { league: League; c: Coach }) {
@@ -465,7 +465,7 @@ function CoachRecord({ league, c }: { league: League; c: Coach }) {
   if (!all.seasons.length) return null;
   const head = coachRecord(league, c, ['headCoach']);
   const main = head.seasons.length ? head : all;
-  const yrs = main.seasons.length;
+  const yrs = new Set(main.seasons.map((s) => s.season)).size;
   const extras = [
     main.playoffTrips ? `${main.playoffTrips} playoff trip${main.playoffTrips > 1 ? 's' : ''}` : '',
     main.titles ? `${main.titles} title${main.titles > 1 ? 's' : ''}` : '',
@@ -479,7 +479,7 @@ function CoachRecord({ league, c }: { league: League; c: Coach }) {
   );
 }
 
-/** Every season a coach finished on a staff, newest first, with his team's record. */
+/** Each season and role, newest first, including a partial season before a departure or promotion. */
 function CareerTable({ league, c }: { league: League; c: Coach }) {
   return (
     <div className="table-scroll">
@@ -495,7 +495,7 @@ function CareerTable({ league, c }: { league: League; c: Coach }) {
         </thead>
         <tbody>
           {coachRecord(league, c).seasons.map((s) => (
-            <tr key={s.season}>
+            <tr key={`${s.season}:${s.teamId}:${s.role}:${s.room ?? ''}`}>
               <td className="num">{s.season}</td>
               <td>{league.teams[s.teamId].abbrev}</td>
               <td>{coachTitle(s)}</td>
@@ -666,7 +666,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
           </>
         ) : (
           <p className="muted small" style={{ margin: 0 }}>
-            No finished seasons on a staff yet.
+            No games on a staff yet.
           </p>
         )}
       </Section>

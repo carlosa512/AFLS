@@ -279,11 +279,11 @@ function DivisionMini({ league }: { league: League }) {
   );
 }
 
-/** The user's record as general manager, season by season (shown once a season has been finished). */
+/** The persistent user's record, including current service and former teams. */
 function GmRecord({ league }: { league: League }) {
   const rec = gmRecord(league);
   if (!rec.seasons.length) return null;
-  const n = rec.seasons.length;
+  const n = new Set(rec.seasons.map((s) => s.season)).size;
   const parts = [
     `${formatRecord(rec.regular)} in ${n} season${n > 1 ? 's' : ''}`,
     rec.playoffs.w + rec.playoffs.l ? `${rec.playoffs.w}–${rec.playoffs.l} in the playoffs` : '',
@@ -300,14 +300,18 @@ function GmRecord({ league }: { league: League }) {
             <thead>
               <tr>
                 <th className="num">Season</th>
+                <th>Team</th>
                 <th className="num">Record</th>
                 <th>Playoffs</th>
               </tr>
             </thead>
             <tbody>
               {rec.seasons.map((s) => (
-                <tr key={s.season}>
+                <tr key={`${s.season}:${s.teamId}`}>
                   <td className="num">{s.season}</td>
+                  <td>
+                    <TeamLink team={league.teams[s.teamId]} />
+                  </td>
                   <td className="num">{formatRecord(s.regular)}</td>
                   <td className={s.champion ? 'tone-good' : 'muted'}>
                     {s.playoffs ? `${s.finish} (${s.playoffs.w}–${s.playoffs.l})` : s.finish || '–'}

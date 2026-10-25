@@ -8,6 +8,7 @@
  * same AI when simulating straight through (`simOffseason`).
  */
 import { retireChance } from '../aging';
+import { ageGms } from '../gm';
 import { coachingFor, coachWindowCloses, developCoaches, ensureCoached, noteCoachOverspend } from '../coaching';
 import { beginYear, developBlock, playedShare, recordRatings, trueUp } from '../development';
 import { concussionRetireChance, delegates, injuriesNewYear, injuryRetireChance, manageInjuries } from '../injuries';
@@ -53,6 +54,7 @@ export function beginOffseason(league: League): void {
   const carry = league.teams.map((t) => Math.max(0, capSheet(league, t.id).space));
 
   league.season++;
+  ageGms(league);
   // The cap's path is drawn on its own stream: on the shared one, any change in what a season draws
   // reshuffled every later cap (a revenue shock landing or not), and the offseason audit's numbers with it.
   league.caps[league.season] = nextCap(new Rng(`${league.seed}:cap:${league.season}`), league.caps[last]);

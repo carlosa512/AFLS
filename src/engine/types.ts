@@ -385,6 +385,20 @@ export interface Traits {
 }
 
 export type StaffRole = 'director' | 'collegeScout' | 'proScout';
+/** A known appointment boundary; weeks are the next game week, and 0 in the offseason. */
+export interface CareerDate {
+  season: number;
+  phase: Phase;
+  week: number;
+}
+
+export interface StaffAppointment {
+  teamId: number;
+  role: StaffRole;
+  start: CareerDate;
+  end?: CareerDate;
+  reason?: 'released' | 'promoted' | 'gm';
+}
 /** Position groups a scout can specialise in. Kickers and punters are the Director's job. */
 export type ScoutFocus = 'skill' | 'line' | 'front' | 'back';
 
@@ -409,6 +423,8 @@ export interface Staff {
   idle?: number;
   /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
   contract: { salary: number; through: number } | null;
+  /** Only appointments observed by this save; promotions preserve the same person's history. */
+  appointments?: StaffAppointment[];
 }
 
 /** Severance owed to a dismissed staff member, charged to that league year's staff budget. */
@@ -433,12 +449,23 @@ export interface CoachStyle {
   fourthDown?: number;
 }
 
-/** One season a coach spent on a staff: the team and the chair he held when it ended. */
+/** A season in one role: future midseason promotions can produce several rows in the same year. */
 export interface CoachSeason {
   season: number;
   teamId: number;
   role: CoachRole;
   room?: CoachRoom;
+  /** Exact results in this role. Absent on legacy seasons, whose team record is used instead. */
+  record?: ServiceRecord;
+}
+
+/** Results credited as games finish, so a departure cannot erase a partial season. */
+export interface ServiceRecord {
+  fromWeek: number;
+  throughWeek: number;
+  regular: { w: number; l: number; t: number };
+  playoffs: { w: number; l: number; round: PlayoffRound } | null;
+  champion: boolean;
 }
 
 /** A member of a team's coaching staff (or a candidate on the market). */
@@ -466,8 +493,10 @@ export interface Coach {
   since?: number;
   /** His last job, for the market ("Head coach, NYX: fired after 3–14"). */
   lastJob?: string;
-  /** Every season he finished on a staff, oldest first (records come from `league.history`). */
+  /** Observed service by season, team and role; legacy rows look up the team's historical record. */
   career?: CoachSeason[];
+  /** A temporary leadership appointment; conversion to permanent is always explicit. */
+  interim?: boolean;
   /** A former player: his playing career is that player's record in `league.players`. */
   playerId?: number;
   /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
@@ -548,6 +577,8 @@ export interface Team {
   taggedId?: number | null;
   /** AI general manager tendencies (the user's team keeps one too, unused). */
   gm: GmTraits;
+  /** Persistent person currently running this front office; null only during an appointment transition. */
+  gmId: number | null;
   /**
    * Owner's spending on football staff relative to the league norm (the user's is 1): scales both the
    * scouting and the coaching budget. Staff pay is not on the cap.
@@ -753,6 +784,47 @@ export interface GmTraits {
   loyalty: number;
   /** Wants a bigger win in any trade. */
   stubbornness: number;
+}
+
+export interface GmAppointment {
+  teamId: number;
+  start: CareerDate;
+  end?: CareerDate;
+  interim: boolean;
+  through: number;
+  reason?: 'dismissed' | 'expired' | 'retired' | 'permanent';
+}
+
+export interface GmSeason {
+  season: number;
+  teamId: number;
+  record?: ServiceRecord;
+}
+
+/** A GM's identity outlives any one club, including their former scouting career. */
+export interface GeneralManager {
+  id: number;
+  firstName: string;
+  lastName: string;
+  woman?: true;
+  age: number;
+  /** Stable across scouting promotions, team changes, unemployment and retirement. */
+  appearanceId: string;
+  teamId: number | null;
+  retired?: true;
+  /** While employed, tendencies live in their club's `gm`; on departure they move here. */
+  traits?: GmTraits;
+  appointments: GmAppointment[];
+  career: GmSeason[];
+  /** Opening incumbents are supplied with the world; all later entrants come from scouting directors. */
+  origin: 'opening' | 'director';
+  scouting?: Staff;
+}
+
+/** Staff in their actual roles when a game began, independent of later employment changes. */
+export interface GameManagement {
+  home: { gmId: number | null; coaches: { id: number; role: CoachRole; room?: CoachRoom }[] };
+  away: { gmId: number | null; coaches: { id: number; role: CoachRole; room?: CoachRoom }[] };
 }
 
 export interface DraftPick {
@@ -1055,6 +1127,8 @@ export interface Game {
   /** The slot it was first scheduled in, once the league has flexed it (`season/flex.ts`). */
   flexed?: Kickoff;
   result?: GameResult;
+  /** In-flight attribution, consumed when the result is committed to career records. */
+  management?: GameManagement;
 }
 
 /**
@@ -1085,6 +1159,10 @@ export interface League {
   week: number;
   phase: Phase;
   userTeamId: number;
+  /** The user's persistent identity; does not change when a different team is viewed or managed. */
+  userGmId: number;
+  gms: Record<number, GeneralManager>;
+  nextGmId: number;
   /** League-year salary cap, in $K, by season (future years are projections until reached). */
   caps: Record<number, number>;
   conferences: Conference[];

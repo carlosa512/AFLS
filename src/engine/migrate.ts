@@ -9,6 +9,8 @@ import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
+import { careerDate, initializeGms } from './gm';
+import { captureManagement, creditManagement } from './service';
 import { addQbProtection, generateCrews } from './officials';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
@@ -70,7 +72,37 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 38) league.version = 38; // v38: optional SNN standings and team-stat snapshots; existing letters keep their text
   if (league.version < 39) league.version = 39; // v39: optional trade-news snapshots on newly filed SNN articles
   if (league.version < 40) league.version = 40; // v40: optional news table choice and trade edition labels
+  if (league.version < 41) toV41(league);
   return league;
+}
+
+/** v41: give the fixed-franchise user's known career a person; other incumbents start being observed now. */
+function toV41(league: League): void {
+  // Tests and mod tools can downgrade a newer document; never erase records already present.
+  if (!league.gms?.[league.userGmId]) {
+    initializeGms(league);
+    const user = league.gms[league.userGmId];
+    user.career = league.history
+      .filter((h) => h.records[league.userTeamId])
+      .map((h) => ({ season: h.season, teamId: league.userTeamId }));
+    const first = user.career[0]?.season ?? league.season;
+    if (first < league.season) user.appointments[0].start = { season: first, phase: 'regular', week: 1 };
+    // The legacy game allowed staff changes only in the offseason. Its current coaches' roles are
+    // therefore known for this season, but we cannot identify the historical AI GMs from team traits.
+    if (!league.history.some((h) => h.season === league.season)) {
+      for (const game of league.games
+        .filter((g) => g.season === league.season && g.result)
+        .sort((a, b) => a.week - b.week || a.id - b.id)) {
+        const management = captureManagement(league, game);
+        for (const side of [management.home, management.away]) if (side.gmId !== league.userGmId) side.gmId = null;
+        creditManagement(league, game);
+      }
+    }
+  }
+  for (const s of Object.values(league.staff))
+    if (s.teamId !== null && !s.appointments)
+      s.appointments = [{ teamId: s.teamId, role: s.role, start: careerDate(league) }];
+  league.version = 41;
 }
 
 /** Saves made before the switch to real NFL markets (same ids and divisions). */

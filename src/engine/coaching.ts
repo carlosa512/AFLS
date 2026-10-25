@@ -383,8 +383,19 @@ export function headCoachVision(league: League, hc: Coach): Vision {
 /** Who held a chair on a team at the end of last season, read off careers (he may have moved on, or retired). */
 function lastSeasonHolder(league: League, teamId: number, role: CoachRole): Coach | undefined {
   const last = league.season - 1;
-  const held = (c: Coach) => !!c.career?.some((cs) => cs.season === last && cs.teamId === teamId && cs.role === role);
-  return Object.values(league.coaches).find(held) ?? Object.values(league.retiredCoaches).find(held);
+  let latest: Coach | undefined;
+  let through = -1;
+  for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)]) {
+    const spell = c.career?.find((cs) => cs.season === last && cs.teamId === teamId && cs.role === role);
+    if (!spell) continue;
+    // A legacy row describes the season-end holder. New rows distinguish actual partial seasons.
+    const week = spell.record?.throughWeek ?? Infinity;
+    if (week > through) {
+      latest = c;
+      through = week;
+    }
+  }
+  return latest;
 }
 
 /** How a coordinator fits his head coach's vision: 1 is what he wants, 0 the opposite. Null for other chairs, or with no head coach. */
@@ -834,16 +845,6 @@ export function promoteCoach(league: League, teamId: number, coachId: number, ye
 export const coachOfPlayer = (league: League, playerId: number): Coach | undefined =>
   Object.values(league.coaches).find((c) => c.playerId === playerId) ??
   Object.values(league.retiredCoaches).find((c) => c.playerId === playerId);
-
-/** When a season ends, every coach on a staff is credited with it, in the chair he holds now. */
-export function recordCoachSeasons(league: League): void {
-  for (const c of Object.values(league.coaches)) {
-    if (c.teamId === null) continue;
-    const career = (c.career ??= []);
-    if (career.some((s) => s.season === league.season)) continue;
-    career.push({ season: league.season, teamId: c.teamId, role: c.role, ...(c.room ? { room: c.room } : {}) });
-  }
-}
 
 // ───────── generation ─────────
 
