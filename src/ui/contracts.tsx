@@ -23,11 +23,18 @@ import {
   totalGuaranteed,
 } from '../engine/finance/contract';
 import type { Contract, League, Player } from '../engine/types';
-import { Dialog } from './components';
+import { Dialog, PlayerLink } from './components';
 import { liveLock } from './live';
-import { money } from './format';
+import { money, weeklyMoney } from './format';
 import { waiverApplies } from '../engine/personnel/waivers';
 import { personnelLabel } from '../engine/personnel/calendar';
+import {
+  inviteSquadReturn,
+  promoteSquadPlayer,
+  releaseSquadPlayer,
+  squadPromotionPreview,
+  squadReleaseProblem,
+} from '../engine/personnel/squads';
 import { store } from './store';
 
 const name = (p: Player) => `${p.firstName} ${p.lastName}`;
@@ -37,6 +44,8 @@ export const thruLabel = (league: League, c: Contract) =>
   isExpired(c, league.season) ? 'Expiring' : String(lastSeason(c));
 
 export function contractLabel(league: League, p: Player): string {
+  if (p.squad?.agreement)
+    return `Practice squad · ${weeklyMoney(p.squad.agreement.weeklyPay)}/week · ${p.squad.agreement.season}`;
   const c = p.contract;
   if (!c) return p.retired ? 'Retired' : 'Free agent';
   if (p.waiver) return 'On waivers · existing contract pending assignment';
@@ -93,6 +102,13 @@ export function ContractYears({ player }: { player: Player }) {
 }
 
 export function ContractSummary({ league, player }: { league: League; player: Player }) {
+  if (player.squad?.agreement)
+    return (
+      <p className="muted">
+        Weekly squad agreement: {weeklyMoney(player.squad.agreement.weeklyPay)}. No signing bonus or future salary
+        guarantee. Earned checks remain owed after release.
+      </p>
+    );
   const c = player.contract;
   if (!c) return <p className="muted">{player.retired ? 'Retired.' : 'Free agent.'}</p>;
   return (
@@ -134,11 +150,15 @@ function Num({ label, value, tone }: { label: string; value: number; tone?: 'goo
 
 export function ReleaseDialog({ league, player, onClose }: { league: League; player: Player; onClose: () => void }) {
   const [designate, setDesignate] = useState(false);
+  const [invite, setInvite] = useState(false);
   const preview = releasePreview(league, player, designate);
   const team = league.teams[player.teamId!];
   const hit = capHit(player.contract!, league.season);
   const confirm = () => {
-    store.mutate((l) => releasePlayer(l, l.players[player.id], designate));
+    store.mutate((l) => {
+      if (invite) inviteSquadReturn(l, player.teamId!, l.players[player.id]);
+      releasePlayer(l, l.players[player.id], designate);
+    });
     onClose();
   };
   return (
@@ -200,7 +220,79 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
           ? 'He goes on waivers with his existing contract. These figures show the cost if he clears; a successful claim transfers unpaid salary and guarantees to the new club. His roster spot opens now, while the potential release cost remains reserved until the notice settles.'
           : 'He becomes a free agent. Guaranteed salary is still owed and counts as dead money.'}
       </p>
+      {league.personnel?.enabled && !player.injury && (
+        <label className="check-row">
+          <input type="checkbox" checked={invite} onChange={(e) => setInvite(e.target.checked)} />
+          <span>
+            Invite him back on a practice squad deal if available. Other clubs can claim him or win his signature; this
+            reserves no rights or roster spot.
+          </span>
+        </label>
+      )}
     </Dialog>
+  );
+}
+
+export function SquadActions({ league, player }: { league: League; player: Player }) {
+  const [open, setOpen] = useState<'promote' | 'release' | null>(null);
+  if (!player.squad?.agreement || player.teamId !== league.userTeamId) return null;
+  const preview = squadPromotionPreview(league, player);
+  const lock = liveLock();
+  const promotion = lock ?? preview.problem;
+  const release = lock ?? squadReleaseProblem(league, player);
+  return (
+    <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+      <button
+        className="btn btn-sm"
+        disabled={!!promotion}
+        title={promotion ?? 'Preview a new NFL contract'}
+        onClick={() => setOpen('promote')}
+      >
+        Sign to 53
+      </button>
+      <button
+        className="btn btn-sm"
+        disabled={!!release}
+        title={release ?? 'Preview the squad release'}
+        onClick={() => setOpen('release')}
+      >
+        Release
+      </button>
+      {open && (
+        <Dialog
+          title={open === 'promote' ? 'Sign a new NFL contract?' : 'Release from the practice squad?'}
+          onClose={() => setOpen(null)}
+          footer={
+            <>
+              <button className="btn" onClick={() => setOpen(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={!!(open === 'promote' ? promotion : release)}
+                onClick={() => {
+                  store.mutate((l) =>
+                    open === 'promote'
+                      ? promoteSquadPlayer(l, l.players[player.id])
+                      : releaseSquadPlayer(l, l.players[player.id]),
+                  );
+                  setOpen(null);
+                }}
+              >
+                {open === 'promote' ? 'Sign to 53' : 'Release'}
+              </button>
+            </>
+          }
+        >
+          <p>
+            <PlayerLink league={league} player={player} /> · <b>{player.position}</b> ·{' '}
+            {open === 'promote'
+              ? `One-year minimum NFL deal. Additional cap commitment: ${money(preview.additionalCap)}. This week's squad check is credited against the new salary; a cleared rookie's former contract stays terminated.`
+              : `This week's ${weeklyMoney(player.squad.agreement.weeklyPay)} is already committed. Earned pay stays on the cap; future squad checks stop. He becomes an unrestricted free agent without waivers.`}
+          </p>
+        </Dialog>
+      )}
+    </span>
   );
 }
 
@@ -295,6 +387,7 @@ export function RestructureDialog({
 /** Release / restructure buttons with their preview dialogs, for the user's own players. */
 export function ContractActions({ league, player }: { league: League; player: Player }) {
   const [open, setOpen] = useState<'release' | 'restructure' | null>(null);
+  if (player.squad) return <SquadActions league={league} player={player} />;
   if (player.teamId !== league.userTeamId || !player.contract) return null;
   const lock = liveLock();
   const cut = lock ?? releaseBlocker(league, player);
@@ -327,16 +420,19 @@ export function ContractActions({ league, player }: { league: League; player: Pl
 
 const SERIES = [
   { key: 'active', label: 'Player contracts', cls: 'cap-active' },
+  { key: 'squad', label: 'Practice squad', cls: 'cap-squad' },
   { key: 'dead', label: 'Dead money', cls: 'cap-dead' },
   { key: 'voids', label: 'Void-year bonus (future dead money)', cls: 'cap-void' },
 ] as const;
 
 /** Stacked columns of committed cap per league year against the (projected) cap line. */
 export function CapChart({ league, teamId }: { league: League; teamId: number }) {
+  const series = SERIES.filter((s) => s.key !== 'squad' || league.personnel?.enabled);
   const rows = capProjection(league, teamId).map((r) => ({
     season: r.season,
     cap: r.cap + r.carryover,
     active: r.active - r.voidCharges,
+    squad: r.practiceSquad ?? 0,
     dead: r.dead,
     voids: r.voidCharges,
     used: r.used,
@@ -369,7 +465,7 @@ export function CapChart({ league, teamId }: { league: League; teamId: number })
     <div className="cap-chart">
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <div className="legend" role="list">
-          {SERIES.map((s) => (
+          {series.map((s) => (
             <span key={s.key} role="listitem" className="legend-item">
               <i className={`swatch ${s.cls}`} aria-hidden="true" />
               {s.label}
@@ -392,6 +488,7 @@ export function CapChart({ league, teamId }: { league: League; teamId: number })
                 <th>Season</th>
                 <th className="num">Cap</th>
                 <th className="num">Contracts</th>
+                {league.personnel?.enabled && <th className="num">Practice squad</th>}
                 <th className="num">Dead</th>
                 <th className="num">Void bonus</th>
                 <th className="num">Space</th>
@@ -404,6 +501,7 @@ export function CapChart({ league, teamId }: { league: League; teamId: number })
                   <td className="num">{r.season}</td>
                   <td className="num">{money(Math.round(r.cap))}</td>
                   <td className="num">{money(Math.round(r.active))}</td>
+                  {league.personnel?.enabled && <td className="num">{money(r.squad)}</td>}
                   <td className="num">{money(Math.round(r.dead))}</td>
                   <td className="num">{money(Math.round(r.voids))}</td>
                   <td className="num">{money(Math.round(r.space))}</td>
@@ -433,19 +531,22 @@ export function CapChart({ league, teamId }: { league: League; teamId: number })
             ))}
             {rows.map((r, i) => {
               let acc = 0;
-              const segs = SERIES.map((s) => {
-                const v = r[s.key];
-                const seg = { s, y0: acc, y1: acc + v };
-                acc += v;
-                return seg;
-              }).filter((g) => g.y1 - g.y0 > 0);
+              const segs = series
+                .map((s) => {
+                  const v = r[s.key];
+                  const seg = { s, y0: acc, y1: acc + v };
+                  acc += v;
+                  return seg;
+                })
+                .filter((g) => g.y1 - g.y0 > 0);
               return (
                 <g key={r.season}>
                   {segs.map((g, k) => {
                     const isTop = k === segs.length - 1;
                     const yTop = y(g.y1);
-                    // 2px surface gap between stacked segments.
-                    const h = Math.max(0, y(g.y0) - yTop - (k > 0 ? 2 : 0));
+                    // Keep small commitments visible instead of consuming the entire squad bar as a gap.
+                    const rawHeight = y(g.y0) - yTop;
+                    const h = Math.max(0, rawHeight - (k > 0 ? Math.min(2, rawHeight / 4) : 0));
                     const r4 = isTop ? Math.min(4, h) : 0;
                     const x0 = x(i) - barW / 2;
                     const d = `M${x0},${yTop + h}V${yTop + r4}Q${x0},${yTop} ${x0 + r4},${yTop}H${x0 + barW - r4}Q${x0 + barW},${yTop} ${x0 + barW},${yTop + r4}V${yTop + h}Z`;
@@ -482,7 +583,7 @@ export function CapChart({ league, teamId }: { league: League; teamId: number })
             <div className="chart-tip" style={{ left: Math.min(Math.max(x(hover), 110), W - 110) }}>
               <b>{rows[hover].season}</b>
               <span>Cap {money(Math.round(rows[hover].cap))}</span>
-              {SERIES.map((s) => (
+              {series.map((s) => (
                 <span key={s.key}>
                   <i className={`swatch ${s.cls}`} aria-hidden="true" /> {s.label}:{' '}
                   {money(Math.round(rows[hover][s.key]))}

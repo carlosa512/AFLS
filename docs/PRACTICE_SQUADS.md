@@ -2,7 +2,7 @@
 
 ## Status
 
-Steps 1–2 implement service/list foundations and the staged personnel calendar, waivers, AI claims and waiver desk. Save version 42 retains the disabled-by-default `afls-2026-v1` profile; ordinary careers are not automatically opted into an unfinished practice squad lifecycle. Enabled development careers exercise waivers; `npm run waivers -- 2` runs the reproducible AI audit. Practice squad contracts, elevations, poaching and weekly protections remain later steps. The seven-step plan is in `superpowers/plans/2026-10-25-practice-squads.md`.
+Steps 1–3 implement service/list foundations, the personnel calendar and waivers, and practice squad formation/contracts/payroll. Save version 43 retains the disabled-by-default `afls-2026-v1` profile. Ordinary careers stay off until elevations, protections/poaching and the complete yearly lifecycle ship. Development worlds can opt in with `createLeague({ personnel: true })`; existing development saves keep their enabled flag. The seven-step plan is in `superpowers/plans/2026-10-25-practice-squads.md`.
 
 ## Design authority
 
@@ -109,3 +109,42 @@ Full injured-waiver reversion, injury settlements, salary continuation, playoff 
 - `scripts/waivers.ts` explicitly enables the staged feature and checks two seeded leagues, every notice across JSON reload, roster size, cap legality, unchanged pending contracts and AI addition limits. It is registered in the existing CI check planner for affected personnel/roster/finance/offseason/trade/calendar code.
 - The existing six-season/four-league offseason audit and trade audit each report zero out-of-range numbers with ordinary careers still disabled. The existing retired-player save-growth warning remains; no threshold was loosened.
 - Typecheck, formatting and the production build are checked locally. Remote CI has not been run. In this sandbox, audit entry points use `node --import tsx` because the `tsx` CLI cannot open its IPC socket.
+
+
+## Step 3: squad formation, contracts and payroll
+
+### Eligibility and salaries
+
+Squads have 16 places. Base eligibility covers zero completed accrued seasons, or a lone accrued season with fewer than nine **known** game-day activations. Up to ten expanded places cover other players with up to two accrued seasons plus unrestricted veterans; at most six are unrestricted veterans. Base-eligible players never consume an expanded place, so reversing signing order cannot change the legal assignment. Estimated historical experience does not manufacture a known active count. Unknown history uses an expanded place.
+
+Weekly pay is separate from an NFL contract. For 2026, players with no more than two accrued seasons receive $13,750; unrestricted veterans can receive $18,350–$22,850. The CBA table runs through 2030. Later AFLS years scale the final rate with the league cap, a house projection. There are no squad signing bonuses or guaranteed future weeks. Sources: [NFL operations eligibility](https://operations.nfl.com/calendar-events/nfl-free-agency/contract-language), [CBA Article 33 §3 salary schedule](https://overthecap.com/collective-bargaining-agreement/article/33/section/3).
+
+### Market and AI
+
+Formation opens after camp cutdowns and their waiver notices. A release can include an optional contingent invitation back to the squad. Invitations survive pending waivers, confer no exclusive rights and become offers only after clearance. A claimed player joins the claiming club on his existing NFL contract; a cleared rookie's original contract stays terminated.
+
+Each round collects offers against a shared world. Players choose among viable offers using pay, their existing loyalty/winning preferences, positional opportunity and deterministic club fit. Club iteration order cannot win a tie. AI scouting reads weight current ability and estimated ceiling, with a modest penalty for duplicated positional cover; no true potential enters its ranking. Losing clubs refill in subsequent bounded rounds, with no repeated cuts or churn. AI clubs use the low end of veteran pay; the user may bid within the published range. A full squad is optional and never blocks advancing or kickoff. The desk has **Let staff fill open spots** for managers who prefer delegation over individual offers; ordinary background processing leaves user signings manual.
+
+Enabled new worlds reserve minimum squad pay **before** their initial contract fitting, on top of the existing injury/trade reserve. A second initial fitting reconciles bases that the first pass lifted to the NFL minimum; this occurs before the world is presented. No existing career's contracts or 53-man roster are rewritten to fund squads. A separate seeded stream generates adequate eligible unattached prospects; it leaves the shared player/schedule RNG stream and existing 53 identities unchanged. Later markets replenish supply only when openings exceed the available young pool.
+
+AI offseason spending, waiver budgets and salary pay-ahead also reserve formation costs. After cutdown waivers settle, AI clubs fund and fill any remaining NFL roster places before spending the remainder on squad agreements. Any additional cap cut receives a new waiver notice. Camp development is never run twice. After the season begins, actual squad commitments appear in cap space while the separate injury/trade reserve remains intact. Tight returning clubs may leave affordable open squad places.
+
+### Earned pay and promotion
+
+**AFLS house accounting:** a squad signing commits the current regular-season week's check immediately, including a preseason agreement committing week one. This prevents signing and releasing between payroll ticks from erasing pay. Future checks are projected through week 18; release stops future checks, retains earned cap charges and requires no waivers. Same-club re-signing in the same week pays only a raise; another club owes its own check. A compact cumulative club ledger and current-week receipts avoid storing a record for every player-week. Queries calculate unposted checks without mutating saves. An invalidated read cache keeps trade valuations from rescanning every squad for every cap query.
+
+Permanent promotion requires a free place on the 53, medical clearance and cap room. It signs a **new one-year minimum NFL contract**, using salary-credited service rather than calendar experience. The preview shows the additional cap cost after removing future squad pay and crediting this week's squad check. Previous weeks stay on the squad ledger. The new NFL contract guarantees at least its current weekly check, so immediately cutting it cannot erase the credited earnings. No old rookie contract resumes. Squad membership alone remains ineligible for games or the depth chart.
+
+The squad desk at `#/office/squad` shows all clubs' squads, category use, precise weekly pay, earned/projected pay and scouted ceilings. Opposing offer instructions stay private. User offers can be withdrawn before a round. Player cards identify squad contracts and expose release/promotion previews. The cap screen and chart include the separate squad commitment, including when the trade market supplies an NFL-only roster cache.
+
+### Year boundary and staged limits
+
+The old squad employer remains attached through the offseason coaching/development roll, then the agreement expires and the player becomes unattached. No future-contract rights are invented. Injured squad members remain on ordinary squad agreements and stay paid; they cannot be sent through NFL IR or released until cleared. Squad injured-list moves, settlements, futures, postseason squad salary treatment and full expiry rules arrive in step 6. Step 3's ledger deliberately covers regular-season checks only; it does not claim full NFL postseason accounting. Temporary elevations and dressed lists remain step 4; two weekly automatic protections and poaching remain step 5.
+
+### Step 3 verification
+
+- 216 targeted engine/UI regression tests passed across personnel, finances, offseason, injuries and screen contracts. Additional final checks cover the final cutdown reconciliation and readable previews.
+- `npm run squads -- 2`: two enabled new worlds, every opening squad at 16, legal categories/caps, full season + offseason + four weeks, expiry and idempotent payroll across JSON reload. Returning squads varied from 0 to 16 with cap budget; none were forced full. No invariant failures.
+- `npm run waivers -- 2`: both migrated-career trials reach 53 on every opening NFL roster, remain legal for four weeks and resolve identically across reloads. The observed trials produced 37 awards over five notices and 33 over seven; no invariant failures.
+- Existing six-season/four-league offseason and trade audits report zero out-of-range numbers. The known retired-player save-growth warning remains. The ten-season play audit reproduces the existing rushing-leader #5 threshold failure (1,412 yards against a 1,400 ceiling); the foundation fingerprint remains unchanged. No thresholds were loosened.
+- Production build and typecheck pass. Browser checks exercise the squad desk, cap sheet, waiver claim, promotion, staff refill and IndexedDB reload with no browser errors; desktop and mobile captures are genuine development-world screens. Remote CI has not run.

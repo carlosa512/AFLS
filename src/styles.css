@@ -1897,6 +1897,7 @@ tr.void-year td {
 }
 .dialog {
   width: min(520px, 100%);
+  white-space: normal;
   background: var(--surface);
   color: var(--ink);
   border-radius: 14px;
@@ -4172,4 +4173,9 @@ button.tip-pill {
   .mail-focus-facts {
     grid-template-columns: 1fr;
   }
+}
+
+.cap-squad {
+  fill: var(--marker);
+  background: var(--marker);
 }

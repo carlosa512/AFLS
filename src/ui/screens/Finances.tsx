@@ -1,3 +1,4 @@
+import { squadPayroll } from '../../engine/personnel/payroll';
 import { capSheet, deadMoneyIn, isOffseason, POST_JUNE1_LIMIT, releasePreview } from '../../engine/finance/cap';
 import { capHit, guaranteedFrom, lastSeason } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
@@ -99,6 +100,16 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
               <span className="small muted">{money(sheet.waiverHold)} reserved pending waiver notices</span>
             )}
           </span>
+          {!!sheet.practiceSquad && (
+            <span className="fact">
+              <span className="eyebrow">Practice squad</span>
+              <b className="num">{money(sheet.practiceSquad)}</b>
+              <span className="small muted">
+                {money(squadPayroll(league, teamId).earned)} earned · {money(squadPayroll(league, teamId).projected)}{' '}
+                projected
+              </span>
+            </span>
+          )}
           <span className="fact">
             <span className="eyebrow">Cap space</span>
             <b className={`num${sheet.space < 0 ? ' tone-bad' : ''}`}>{money(Math.round(sheet.space))}</b>

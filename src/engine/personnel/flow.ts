@@ -1,3 +1,5 @@
+import { formPracticeSquads } from './squadMarket';
+import { settleSquadPayroll } from './payroll';
 import { capSpace } from '../finance/cap';
 import { activeRoster } from '../roster';
 import type { Game, League } from '../types';
@@ -24,6 +26,7 @@ export function advancePersonnelTo(league: League, minute: number, autoUser = fa
     deadline = nextWaiverDeadline(league);
   }
   clock.minute = Math.max(clock.minute, minute);
+  settleSquadPayroll(league);
 }
 
 export function nextDeadlineBlocker(league: League): string | null {
@@ -41,6 +44,7 @@ export function advanceNextPersonnelEvent(league: League, autoUser = false): voi
   const problem = nextDeadlineBlocker(league);
   if (problem) throw new Error(problem);
   advancePersonnelTo(league, nextWaiverDeadline(league)!, autoUser);
+  if (nextWaiverDeadline(league) === undefined) formPracticeSquads(league, autoUser);
 }
 
 export function settleOffseasonWaivers(league: League, autoUser = false): void {
@@ -67,5 +71,8 @@ export function preparePersonnelGame(league: League, game: Game): void {
 
 /** Keep the clock aligned when calendar phases advance, without replaying earlier notices. */
 export function syncPersonnelTime(league: League): void {
-  if (league.personnel?.enabled) advancePersonnelTo(league, Math.max(personnelTime(league), managementTime(league)));
+  if (league.personnel?.enabled) {
+    advancePersonnelTo(league, Math.max(personnelTime(league), managementTime(league)));
+    if (league.phase === 'regular') formPracticeSquads(league);
+  }
 }

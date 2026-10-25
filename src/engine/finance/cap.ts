@@ -20,6 +20,8 @@ import {
 import { BASE_CAP, minSalary } from './market';
 import { queueWaiver, waiverApplies } from '../personnel/waivers';
 import { personnelTime, waiverDeadline } from '../personnel/calendar';
+import { squadPayroll } from '../personnel/payroll';
+import { inviteSquadReturn } from '../personnel/squads';
 
 export const POST_JUNE1_LIMIT = 2;
 /** Projected yearly cap growth for future-year planning. */
@@ -76,6 +78,7 @@ export interface CapSheet {
   dead: number;
   /** Included in dead while pending, then replaced by the actual release/assignment charge. */
   waiverHold?: number;
+  practiceSquad?: number;
   used: number;
   space: number;
   rosterSize: number;
@@ -109,7 +112,8 @@ export function capSheet(
   const dead = deadMoneyIn(team, season) + waiverHold;
   const carryover = season === league.season ? team.carryover : 0;
   const cap = capFor(league, season);
-  const used = active + dead;
+  const practiceSquad = squadPayroll(league, teamId, season).total;
+  const used = active + dead + practiceSquad;
   // Injured reserve still counts on the cap, but not toward the roster limit.
   return {
     season,
@@ -118,6 +122,7 @@ export function capSheet(
     active,
     dead,
     ...(waiverHold > 0 ? { waiverHold } : {}),
+    ...(practiceSquad > 0 ? { practiceSquad } : {}),
     used,
     space: cap + carryover - used,
     rosterSize: roster.filter(onGameRoster).length,
@@ -193,6 +198,8 @@ export function releasePlayer(league: League, player: Player, designatePostJune1
   if (player.squad) throw new Error('Practice squad releases use the personnel system.');
   if (player.teamId === null || !player.contract) throw new Error('Player is not under contract');
   const preview = releasePreview(league, player, designatePostJune1);
+  if (league.personnel?.enabled && player.teamId !== league.userTeamId && !player.injury)
+    inviteSquadReturn(league, player.teamId, player);
   if (waiverApplies(league, player)) {
     queueWaiver(league, player, preview);
     return preview;

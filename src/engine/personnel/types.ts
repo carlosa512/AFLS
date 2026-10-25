@@ -5,6 +5,18 @@ export interface PersonnelState {
   enabled: boolean;
   profile: 'afls-2026-v1';
   clock?: { season: number; minute: number; cutdown: boolean };
+  squads?: {
+    season: number;
+    offers: SquadOffer[];
+    returns: SquadOffer[];
+    results: { playerId: number; teamId: number; weeklyPay: number }[];
+    payroll: {
+      week: number;
+      earned: Record<number, number>;
+      receipts: Record<string, number>;
+      credits?: Record<string, number>;
+    };
+  };
   waivers?: {
     nextId: number;
     originalOrder: { season: number; teams: number[] };
@@ -57,6 +69,15 @@ export interface WaiverResult {
 /** Active and IR continue to use the existing employer and `ir` record. */
 export interface SquadMembership {
   kind: 'practiceSquad' | 'practiceSquadInjured';
+  agreement?: { season: number; weeklyPay: number; startWeek: number; paidThrough: number };
+}
+
+export interface SquadOffer {
+  playerId: number;
+  teamId: number;
+  weeklyPay: number;
+  /** A return invitation has no exclusivity: the player can accept another club's offer. */
+  formerTeam?: true;
 }
 
 export type RosterList = 'active' | 'injuredReserve' | SquadMembership['kind'] | 'waivers' | 'unattached' | 'retired';

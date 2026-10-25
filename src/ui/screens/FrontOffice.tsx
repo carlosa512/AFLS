@@ -1,3 +1,4 @@
+import { PracticeSquad } from './PracticeSquad';
 import { useEffect, useRef, useState } from 'react';
 import { capSpace } from '../../engine/finance/cap';
 import { lastSeason, yearsLeft } from '../../engine/finance/contract';
@@ -68,7 +69,7 @@ import { Waivers } from './Waivers';
 import { LinkedText, type Who } from '../moves';
 import { store } from '../store';
 
-export type OfficeTab = 'resign' | 'fa' | 'waivers' | 'draft' | 'trades' | 'coaches' | 'staff' | 'medical';
+export type OfficeTab = 'resign' | 'fa' | 'squad' | 'waivers' | 'draft' | 'trades' | 'coaches' | 'staff' | 'medical';
 
 export const defaultOfficeTab = (league: League): OfficeTab =>
   league.phase === 'resign' ? 'resign' : league.phase === 'draft' ? 'draft' : 'fa';
@@ -1051,7 +1052,7 @@ export function FrontOffice({
     ['staff', 'Scouts'],
     ['medical', 'Medical'],
   ];
-  if (league.personnel?.enabled) TABS.splice(2, 0, ['waivers', 'Waiver wire']);
+  if (league.personnel?.enabled) TABS.splice(2, 0, ['waivers', 'Waiver wire'], ['squad', 'Practice squad']);
   // Seven tabs scroll on a phone: keep the one you're on (or were sent to) in view.
   const bar = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1136,6 +1137,7 @@ export function FrontOffice({
       )}
       {active === 'draft' && <Draft league={league} />}
       {active === 'waivers' && <Waivers league={league} />}
+      {active === 'squad' && <PracticeSquad league={league} />}
       {active === 'trades' && <Trades league={league} tab={sub} />}
       {active === 'coaches' && <CoachesScreen league={league} />}
       {active === 'staff' && <StaffScreen league={league} />}

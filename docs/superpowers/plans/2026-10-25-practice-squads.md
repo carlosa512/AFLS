@@ -150,13 +150,13 @@ Moves use preview/validate/commit functions. Validate everything before mutation
 
 **Depends on:** PR 2. **Files:** personnel squad module, `finance/`, offseason signing/calendar, `generate.ts`, roster/player/finances screens.
 
-- [ ] Implement eligibility as a feasible assignment across overlapping categories, returning a precise rejection reason.
-- [ ] Add offers, acceptance, release and permanent promotion. A cleared rookie's old contract never resumes.
-- [ ] Add contingent return offers and simultaneous formation rounds using existing player preferences and club scouting reads.
-- [ ] Track earned and projected pay/cap commitments without double charging promotion or allowing sign/cut between payroll ticks to erase liabilities.
-- [ ] Reserve squad costs before AI offseason spending and opening payroll fitting; preserve the separate injury/trade reserve.
-- [ ] Create new-game squads through a deterministic market with adequate eligible supply and affordable payroll, without taking players from existing 53s.
-- [ ] Add the squad roster view, category explanation, weekly pay and promotion preview.
+- [x] Implement eligibility as a feasible assignment across overlapping categories, returning a precise rejection reason.
+- [x] Add offers, acceptance, release and permanent promotion. A cleared rookie's old contract never resumes.
+- [x] Add contingent return offers and simultaneous formation rounds using existing player preferences and club scouting reads.
+- [x] Track earned and projected pay/cap commitments without double charging promotion or allowing sign/cut between payroll ticks to erase liabilities.
+- [x] Reserve squad costs before AI offseason spending and opening payroll fitting; preserve the separate injury/trade reserve.
+- [x] Create new-game squads through a deterministic market with adequate eligible supply and affordable payroll, without taking players from existing 53s.
+- [x] Add the squad roster view, category explanation, weekly pay and promotion preview.
 
 **Acceptance:** clubs can form legal affordable squads; clearance does not guarantee return; overlapping eligibility does not depend on signing order; squad membership alone grants no match eligibility.
 
@@ -265,7 +265,7 @@ Use executed CBA language and current amendments to establish NFL facts; summari
 
 ## Implementation progress
 
-Step 1 is implemented on `feature/practice-squad-foundation`: save version 41, disabled rules profile, list boundaries, observed service and legacy estimates. Verification is recorded in `docs/PRACTICE_SQUADS.md`: targeted tests and typecheck pass, the six-season roster audit and trade audit report zero out-of-range numbers, and the ten-season simulation matches the unchanged baseline including its existing rushing-leader threshold failure. Step 2 is implemented on `feature/practice-squad-waivers`: save version 42, contract-preserving notices, ordered/conditional claims, scouted AI decisions, chronological game guards and the waiver desk. The complete profile remains off for normal careers. The enabled AI audit is `npm run waivers -- 2`; step 3 (practice squad formation/contracts/payroll) is next.
+Step 1 is implemented on `feature/practice-squad-foundation`: save version 41, disabled rules profile, list boundaries, observed service and legacy estimates. Verification is recorded in `docs/PRACTICE_SQUADS.md`: targeted tests and typecheck pass, the six-season roster audit and trade audit report zero out-of-range numbers, and the ten-season simulation matches the unchanged baseline including its existing rushing-leader threshold failure. Step 2 is implemented on `feature/practice-squad-waivers`: save version 42, contract-preserving notices, ordered/conditional claims, scouted AI decisions, chronological game guards and the waiver desk. The complete profile remains off for normal careers. The enabled AI audit is `npm run waivers -- 2`; Step 3 is implemented on `feature/practice-squad-contracts`: save version 43, squad eligibility/agreements, simultaneous market rounds, contingent return invitations, weekly payroll and promotion, AI formation budgets and the squad desk. Verification and staging limits are recorded in `docs/PRACTICE_SQUADS.md`. Step 4 (elevations/game-day lists) is next.
 
 ## Original first implementation action
 

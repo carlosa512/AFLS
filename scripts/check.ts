@@ -116,6 +116,12 @@ const CHECKS = {
     summary: /\d+ number\(s\) outside target range/,
     detail: /[▲▼✗]/,
   },
+  squads: {
+    cmd: ['npm', 'run', 'squads', '--', '2'],
+    cores: 1,
+    secs: 60,
+    summary: /\d+ squad invariant failures/,
+  },
   waivers: {
     cmd: ['npm', 'run', 'waivers', '--', '2'],
     cores: 1,
@@ -137,8 +143,8 @@ const NAMES = Object.keys(CHECKS) as Name[];
  */
 const RULES: [RegExp, Name[]][] = [
   [
-    /^src\/engine\/(personnel\/|roster\.ts|finance\/|offseason\/|league\.ts|trade\/)|^scripts\/waivers\.ts$/,
-    ['waivers'],
+    /^src\/engine\/(personnel\/|roster\.ts|finance\/|offseason\/|league\.ts|trade\/)|^scripts\/(waivers|squads)\.ts$/,
+    ['waivers', 'squads'],
   ],
   // Every change is formatted, whatever it touches (Prettier skips what .prettierignore lists).
   [/./, ['format']],

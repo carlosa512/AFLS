@@ -672,7 +672,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
               {spot ? `${spot} · ` : ''}
               {POSITION_NAMES[p.position]}
               {team
-                ? ` · ${team.city} ${team.name}`
+                ? ` · ${team.city} ${team.name}${p.squad ? ' · Practice squad' : ''}`
                 : isProspect(p)
                   ? ' · Draft prospect'
                   : p.retired

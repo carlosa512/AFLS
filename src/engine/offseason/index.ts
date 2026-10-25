@@ -1,3 +1,6 @@
+import { formPracticeSquads } from '../personnel/squadMarket';
+import { settleSquadPayroll } from '../personnel/payroll';
+import { expireSquadContracts } from '../personnel/squads';
 /**
  * The offseason calendar. `beginOffseason` opens the new league year (cap growth, ageing,
  * the draft order); `advanceOffseason` moves one step at a time:
@@ -14,6 +17,7 @@ import { concussionRetireChance, delegates, injuriesNewYear, injuryRetireChance,
 import { developMedics, ensureMedical, medicalWindowCloses } from '../medical';
 import { crewsNewYear } from '../officials';
 import { accelerateProration, capSheet, capSpace, logTransaction, nextCap } from '../finance/cap';
+import { minSalary } from '../finance/market';
 import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
 import { Rng } from '../rng';
@@ -27,7 +31,7 @@ import { expireOffers, marketMoment, recheckOffers, TRADE_DEADLINE_WEEK } from '
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
-import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp } from './ai';
+import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp, fillCampRoster } from './ai';
 import {
   aiDraftChoice,
   draftComplete,
@@ -41,7 +45,7 @@ import {
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
 import { archiveService, ensureService } from '../personnel/service';
 import { personnelClock } from '../personnel/calendar';
-import { settleOffseasonWaivers, syncPersonnelTime } from '../personnel/flow';
+import { nextWaiverDeadline, settleOffseasonWaivers, syncPersonnelTime } from '../personnel/flow';
 import { ensureWaivers } from '../personnel/waivers';
 
 export const FA_DAYS = 5;
@@ -50,6 +54,7 @@ export const FA_DAYS = 5;
 export function beginOffseason(league: League): void {
   if (league.phase !== 'complete') throw new Error('The season is not finished');
   settleOffseasonWaivers(league);
+  settleSquadPayroll(league);
   expireOffers(league);
   resetContenderCache(league);
   const rng = new Rng(league.rngState);
@@ -122,6 +127,7 @@ export function beginOffseason(league: League): void {
     recordRatings(p, league.season);
     quirkOffseason(league, p);
   }
+  expireSquadContracts(league);
   injuriesNewYear(league);
   resetScouting(league);
   developStaff(league);
@@ -239,6 +245,17 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
     case 'preseason':
       if (league.personnel?.enabled && personnelClock(league).cutdown) {
         settleOffseasonWaivers(league, auto);
+        // Holds can make the first camp fill unaffordable. Fund the final NFL places after clearance;
+        // any additional cap cut receives its own notice before the squad market uses the remainder.
+        for (let guard = 0; guard < 16; guard++) {
+          for (const team of ai) {
+            const missing = Math.max(0, 53 - activeRoster(league, team.id).length);
+            if (missing) aiCapCompliance(league, team, missing * minSalary(1, league.caps[league.season]));
+          }
+          if (nextWaiverDeadline(league) === undefined) break;
+          settleOffseasonWaivers(league, auto);
+        }
+        for (const team of ai) fillCampRoster(league, team, rng);
       } else {
         // Camp's learning, then cut-down day's position changes, before any camp deal or cut sees the rosters.
         learnBlock(league, 'camp');
@@ -255,6 +272,7 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
           break; // Give the manager the complete league-wide cutdown wire before awarding anyone.
         }
       }
+      if (league.personnel?.enabled) formPracticeSquads(league, auto);
       league.phase = 'regular';
       league.week = 1;
       league.faDay = 0;

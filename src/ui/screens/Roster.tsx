@@ -332,7 +332,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
   const ratings = perceivedTeamRatings(league, league.userTeamId, team);
   const record = computeRecords(league).get(teamId)!;
   const cap = capSheet(league, teamId);
-  const players = teamPlayers(league, teamId);
+  const players = teamPlayers(league, teamId).filter((p) => !p.squad);
   const scheme = teamScheme(league, teamId);
   const [announcement, setAnnouncement] = useState('');
   // The depth chart is the default; any other column shows the whole roster as one sorted list.
@@ -390,6 +390,14 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
         }
         action={<TeamPicker league={league} value={teamId} onChange={nav.openTeam} id="roster-team" />}
       >
+        {league.personnel?.enabled && (
+          <p>
+            <button className="linklike" onClick={() => nav.go({ view: 'office', tab: 'squad' })}>
+              Practice squad desk
+            </button>{' '}
+            · Squad agreements are separate from this depth chart.
+          </p>
+        )}
         <div className="facts">
           <span className="fact">
             <span className="eyebrow">Overall</span>

@@ -469,7 +469,8 @@ describe('AI and calendar integration', () => {
     const ratings = Object.fromEntries(Object.values(l.players).map((p) => [p.id, copy(p.ratings)]));
     advanceOffseason(l);
     expect(l.phase).toBe('regular');
-    for (const p of Object.values(l.players)) expect(p.ratings).toEqual(ratings[p.id]);
+    // Formation can add unattached candidates; only the players present at camp had development to repeat.
+    for (const [id, before] of Object.entries(ratings)) expect(l.players[Number(id)].ratings).toEqual(before);
   });
 
   it('rejects an illegal user cutdown before changing camp or offers', () => {

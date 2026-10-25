@@ -40,7 +40,9 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       team better on game day; only the special teams coordinator has a game-day edge (`specialTeamsEdge`).
 - [ ] **12. AI teams that manage their rosters sensibly** · **Partial**: AI front offices draft, sign, cut, trade and
       stay cap-legal (`offseason/ai.ts`), keeping a cap reserve for the season by their GM's cap style. One known
-      issue is flagged by `npm run offseason`: some teams start a season short of 53.
+      issue is flagged by `npm run offseason`: some teams start a season short of 53. Staged personnel development
+      careers now add waivers and practice squad formation, scouted AI offers, separate payroll and post-waiver
+      roster funding (`personnel/`); elevations, poaching and full yearly lifecycle remain in progress.
 
 ## The feel
 

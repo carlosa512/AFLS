@@ -1,3 +1,4 @@
+import { squadReserve } from './squads';
 import { capSpace } from '../finance/cap';
 import { capHit } from '../finance/contract';
 import { minSalary } from '../finance/market';
@@ -62,14 +63,18 @@ export function submitAIClaims(league: League, deadline: number, autoUser = fals
       const score = gain + youth - expense;
       if (score < (missing && !full ? 0 : 0.6)) continue;
       const incoming = hit - (cut?.contract ? capHit(cut.contract, league.season) : 0);
-      if (capSpace(league, team.id) - Math.max(0, incoming) < inSeasonReserve(league, team.id)) continue;
+      if (
+        capSpace(league, team.id) - Math.max(0, incoming) <
+        inSeasonReserve(league, team.id) + squadReserve(league, team.id)
+      )
+        continue;
       const claim: WaiverClaim = {
         entryId: entry.id,
         teamId: team.id,
         preference: 0,
         cutIds: cut ? [cut.id] : [],
         group: p.position,
-        minCapSpace: inSeasonReserve(league, team.id),
+        minCapSpace: inSeasonReserve(league, team.id) + squadReserve(league, team.id),
         automatic: true,
       };
       if (claimProblem(league, claim)) continue;

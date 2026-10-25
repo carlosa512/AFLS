@@ -952,6 +952,7 @@ export const weeksLeft = (league: League) => (inSeason(league) ? Math.max(0, 22 
 export const irReturnsUsed = (league: League, teamId: number) => league.teams[teamId].irReturns?.[league.season] ?? 0;
 
 export function irProblem(league: League, p: Player): string | null {
+  if (p.squad) return 'Practice squad players do not occupy the NFL injured reserve list.';
   if (p.teamId === null) return 'He isn’t on a roster.';
   if (p.ir) return 'He is already on injured reserve.';
   if (!p.injury) return 'Only an injured player can go on injured reserve.';
@@ -1449,7 +1450,7 @@ export function manageInjuries(league: League, team: Team, rng: Rng, roster = te
   const season = inSeason(league);
   for (const p of roster) {
     // A cut to make room for a returning player may have released him already.
-    if (p.teamId !== team.id) continue;
+    if (p.teamId !== team.id || p.squad) continue;
     const inj = p.injury;
     if (inj && !p.ir && !inj.treatment && season && team.id !== league.userTeamId) aiTreatment(league, team, p);
     if (
@@ -1556,7 +1557,7 @@ function releaseCovers(league: League, team: Team): void {
  */
 function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], sign: boolean): void {
   releaseCovers(league, team);
-  let current = roster.filter((p) => p.teamId === team.id && !p.ir);
+  let current = roster.filter((p) => p.teamId === team.id && !p.ir && !p.squad);
   // Positions nobody on the roster can cover, when this pass can't sign: left short.
   const stuck = new Set<Position>();
   for (let guard = 0; guard < 12; guard++) {
