@@ -33,6 +33,8 @@ export interface WaiverClaim {
   /** Order in this club's list; winners do not lose their league priority. */
   preference: number;
   cutIds: number[];
+  /** Subset of cutIds: only after an award, invite these released players back on new squad deals. */
+  squadReturnIds?: number[];
   /** Alternatives in the same group can produce at most one award per batch. */
   group?: string;
   /** AI budget floor, rechecked after every earlier award. User claims may omit it. */

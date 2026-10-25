@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { practiceSquad } from '../../engine/roster';
+import { practiceSquad, teamPlayers } from '../../engine/roster';
+import { capSheet } from '../../engine/finance/cap';
+import { yearOf } from '../../engine/finance/contract';
 import type { League, Player } from '../../engine/types';
 import { squadCategory, squadRates } from '../../engine/personnel/eligibility';
 import { squadPayroll } from '../../engine/personnel/payroll';
@@ -34,6 +36,15 @@ export function PracticeSquad({ league }: { league: League }) {
     );
   const members = practiceSquad(league, teamId);
   const pay = squadPayroll(league, teamId);
+  const sheet = capSheet(league, teamId);
+  const weeklyPay = members.reduce((sum, p) => sum + (p.squad?.agreement?.weeklyPay ?? 0), 0);
+  const weeklyPayroll =
+    weeklyPay +
+    teamPlayers(league, teamId).reduce((sum, p) => {
+      const year = p.contract && yearOf(p.contract, league.season);
+      return sum + (year && !year.void ? year.base / Math.max(1, 18 - (year.paidBefore ?? 0)) : 0);
+    }, 0);
+  const seasonBudget = sheet.cap + sheet.carryover;
   const expanded = members.filter((p) => squadCategory(league, p) !== 'base').length;
   const veterans = members.filter((p) => squadCategory(league, p) === 'veteran').length;
   const mine = teamId === league.userTeamId;
@@ -162,8 +173,12 @@ export function PracticeSquad({ league }: { league: League }) {
         action={<TeamPicker league={league} value={teamId} onChange={setTeamId} id="squad-team" />}
       >
         <p>
-          <TeamLink team={league.teams[teamId]} full /> · Develop players here, then move them to your main roster when
-          needed.
+          <TeamLink team={league.teams[teamId]} full /> · Up to 16 players train with your team outside the main roster.
+          To use one in a game, sign him to the 53-man roster.
+        </p>
+        <p className="small muted">
+          Squad deals pay by the week. Releasing a player stops later checks. Moving a player off the main roster
+          requires a release first; other clubs may get a chance to claim him.
         </p>
         <div className="facts">
           <span className="fact">
@@ -171,12 +186,35 @@ export function PracticeSquad({ league }: { league: League }) {
             <b>{members.length}/16</b>
           </span>
           <span className="fact">
-            <span className="eyebrow">Weekly pay</span>
-            <b>{weeklyMoney(members.reduce((sum, p) => sum + (p.squad?.agreement?.weeklyPay ?? 0), 0))}</b>
+            <span className="eyebrow">Squad weekly pay</span>
+            <b>{weeklyMoney(weeklyPay)}</b>
+            <span className="small muted">
+              {((weeklyPay / Math.max(1, weeklyPayroll)) * 100).toFixed(1)}% of {money(weeklyPayroll)} team weekly
+              payroll
+            </span>
+            <progress
+              className="personnel-spend"
+              aria-label="Squad share of weekly payroll"
+              max={Math.max(1, weeklyPayroll)}
+              value={weeklyPay}
+            />
           </span>
           <span className="fact" title="Includes pay already owed and future weeks if you keep this squad.">
-            <span className="eyebrow">Season cost</span>
+            <span className="eyebrow">Squad season cost</span>
             <b>{money(pay.total)}</b>
+            <span className="small muted">
+              {((pay.total / seasonBudget) * 100).toFixed(1)}% of {money(seasonBudget)} salary cap
+            </span>
+            <progress
+              className="personnel-spend"
+              aria-label="Squad share of salary cap"
+              max={seasonBudget}
+              value={pay.total}
+            />
+          </span>
+          <span className="fact">
+            <span className="eyebrow">Team cap space left</span>
+            <b className={sheet.space < 0 ? 'tone-bad' : undefined}>{money(sheet.space)}</b>
           </span>
         </div>
         <details className="personnel-help">

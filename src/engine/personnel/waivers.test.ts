@@ -280,7 +280,7 @@ describe('atomic validation and notice boundaries', () => {
   it('rejects a full-roster claim without changing any state', () => {
     const e = waive();
     const before = copy(l);
-    expect(claimProblem(l, claim(e.id))).toMatch(/conditional release/);
+    expect(claimProblem(l, claim(e.id))).toMatch(/roster move/);
     expect(() => setWaiverClaim(l, claim(e.id))).toThrow();
     expect(l).toEqual(before);
   });
@@ -510,5 +510,46 @@ describe('AI and calendar integration', () => {
     playWeek(l);
     expect(p.service!.seasons[2026]?.[0] ?? 0).toBe(0);
     expect(nextWaiverDeadline(l) === undefined || nextWaiverDeadline(l)! > personnelTime(l)).toBe(true);
+  });
+});
+
+describe('conditional practice squad return plans', () => {
+  it('creates a return invitation only after winning, preserves it across reload and uses a later waiver notice', () => {
+    l.teams[0].carryover = 100_000;
+    const cut = player(0);
+    const e = waive();
+    setWaiverClaim(l, { ...claim(e.id, 0, [cut.id]), squadReturnIds: [cut.id] });
+    expect(l.personnel!.squads!.returns.some((o) => o.playerId === cut.id)).toBe(false);
+    const reload = copy(l);
+    resolveWaiverBatch(l, e.deadline);
+    resolveWaiverBatch(reload, e.deadline);
+    expect(JSON.stringify(copy(l)) === JSON.stringify(copy(reload))).toBe(true);
+    expect(l.players[e.playerId].teamId).toBe(0);
+    expect(cut.squad).toBeUndefined();
+    expect(cut.waiver).toBeDefined();
+    expect(l.personnel!.waivers!.pending.find((x) => x.playerId === cut.id)!.deadline).toBeGreaterThan(e.deadline);
+    expect(l.personnel!.squads!.returns.some((o) => o.playerId === cut.id)).toBe(true);
+  });
+  it('leaves both the roster and return instructions alone when a higher-priority club wins', () => {
+    l.userTeamId = 1;
+    l.teams[1].carryover = 100_000;
+    const cut = player(1);
+    const e = waive();
+    room(0);
+    setWaiverClaim(l, claim(e.id, 0));
+    setWaiverClaim(l, { ...claim(e.id, 1, [cut.id]), squadReturnIds: [cut.id] });
+    resolveWaiverBatch(l, e.deadline);
+    expect(cut.teamId).toBe(1);
+    expect(cut.waiver).toBeUndefined();
+    expect(l.personnel!.squads!.returns.some((o) => o.playerId === cut.id)).toBe(false);
+  });
+  it('rejects a full squad or a return plan for a player not actually released by the claim', () => {
+    l = createLeague({ seed: 'full-return-squad', personnel: true });
+    const cut = player(0);
+    const e = waive();
+    const saved = JSON.stringify(l);
+    expect(claimProblem(l, { ...claim(e.id, 0, [cut.id]), squadReturnIds: [cut.id] })).toMatch(/16/);
+    expect(claimProblem(l, { ...claim(e.id, 0), squadReturnIds: [cut.id] })).toMatch(/released by this claim/);
+    expect(JSON.stringify(l)).toBe(saved);
   });
 });

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { squadPayWeek, squadPayroll } from '../../engine/personnel/payroll';
+import { squadPayroll } from '../../engine/personnel/payroll';
 import { capSheet, deadMoneyIn, isOffseason, POST_JUNE1_LIMIT, releasePreview } from '../../engine/finance/cap';
 import { capHit, guaranteedFrom, lastSeason } from '../../engine/finance/contract';
 import { onGameRoster, teamPlayers } from '../../engine/roster';
@@ -9,6 +9,7 @@ import { useNav } from '../App';
 import { Panel, PlayerLink, SortTh, sortRows, TeamChip, TeamLink, TeamPicker, useSort } from '../components';
 import { CapChart, capPct, ContractActions, SquadActions, thruLabel } from '../contracts';
 import { money, weeklyMoney } from '../format';
+import { Ovr, ScoutedCeiling, seenOvr, viewOf } from '../scouting';
 import { moveIndex, MoveText } from '../moves';
 
 /** The contracts table's columns ("% of cap" sorts as the cap hit: same order). */
@@ -46,14 +47,13 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
   const isUser = teamId === league.userTeamId;
   const sheet = capSheet(league, teamId);
   const season = league.season;
-  const [list, setList] = useState<'main' | 'squad' | 'ir'>('main');
+  const [list, setList] = useState<'main' | 'squad'>('main');
   const roster = teamPlayers(league, teamId);
   const main = roster.filter(onGameRoster);
   const squad = roster.filter((p) => p.squad?.agreement);
-  const ir = roster.filter((p) => p.ir && !p.squad);
   const [sort, onSort] = useSort<ContractSort>({ key: 'cap', desc: true });
   const players = sortRows(
-    (league.personnel?.enabled ? (list === 'ir' ? ir : main) : roster).filter((p) => p.contract),
+    (league.personnel?.enabled ? main : roster).filter((p) => p.contract),
     sort,
     (p, key) => contractSortValue(league, p, key),
   );
@@ -154,9 +154,8 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
           <div className="seg" role="group" aria-label="Contract list">
             {(
               [
-                ['main', `${isOffseason(league.phase) ? 'Main roster' : '53-man roster'} (${main.length})`],
+                ['main', `Active roster (${main.length})`],
                 ['squad', `Practice squad (${squad.length})`],
-                ['ir', `Injured reserve (${ir.length})`],
               ] as const
             ).map(([key, label]) => (
               <button key={key} aria-pressed={list === key} onClick={() => setList(key)}>
@@ -294,8 +293,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
 }
 
 export function SquadContracts({ league, players, isUser }: { league: League; players: Player[]; isUser: boolean }) {
-  const [sort, onSort] = useSort<'name' | 'pos' | 'pay' | 'remaining'>({ key: 'pay', desc: true });
-  const remaining = (p: Player) => Math.max(0, 18 - squadPayWeek(league)) * p.squad!.agreement!.weeklyPay;
+  const [sort, onSort] = useSort<'name' | 'pos' | 'pay' | 'ability' | 'ceiling'>({ key: 'pay', desc: true });
   const rows = sortRows(players, sort, (p, key) =>
     key === 'name'
       ? `${p.lastName} ${p.firstName}`
@@ -303,12 +301,14 @@ export function SquadContracts({ league, players, isUser }: { league: League; pl
         ? p.position
         : key === 'pay'
           ? p.squad!.agreement!.weeklyPay
-          : remaining(p),
+          : key === 'ability'
+            ? seenOvr(league, p)
+            : viewOf(league, p).potMid,
   );
   return (
     <>
       <p className="small muted">
-        Weekly squad contracts. Future weeks stop if a player leaves; pay already owed stays on the cap.
+        Compare weekly pay with current ability and your scouts’ estimate of future ability.
       </p>
       {!rows.length ? (
         <p>No practice squad contracts.</p>
@@ -320,7 +320,8 @@ export function SquadContracts({ league, players, isUser }: { league: League; pl
                 <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
                 <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
                 <SortTh label="Weekly pay" k="pay" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="Future weeks" k="remaining" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="Ability" k="ability" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="Scouted ceiling" k="ceiling" sort={sort} onSort={onSort} className="num" />
                 {isUser && <th>Actions</th>}
               </tr>
             </thead>
@@ -332,7 +333,12 @@ export function SquadContracts({ league, players, isUser }: { league: League; pl
                   </td>
                   <td>{p.position}</td>
                   <td className="num">{weeklyMoney(p.squad!.agreement!.weeklyPay)}</td>
-                  <td className="num">{weeklyMoney(remaining(p))}</td>
+                  <td className="num">
+                    <Ovr league={league} player={p} />
+                  </td>
+                  <td className="num">
+                    <ScoutedCeiling league={league} player={p} />
+                  </td>
                   {isUser && (
                     <td>
                       <SquadActions league={league} player={p} />

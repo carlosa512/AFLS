@@ -26,8 +26,8 @@ describe('practice squad desk', () => {
     for (const text of [
       'Player limits',
       '16/16',
-      'Weekly pay',
-      'Season cost',
+      'Squad weekly pay',
+      'Squad season cost',
       '$13,750',
       'Sign to 53',
       'Scouted ceiling',

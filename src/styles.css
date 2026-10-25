@@ -4198,3 +4198,27 @@ button.tip-pill {
   max-width: 30ch;
   white-space: normal;
 }
+
+.personnel-spend {
+  width: 100%;
+  max-width: 250px;
+  height: 7px;
+  accent-color: var(--field);
+}
+.roster-move-plan label {
+  display: grid;
+  gap: 5px;
+  font-size: var(--step--1);
+  flex: 1;
+  min-width: 160px;
+}
+.roster-move-plan select {
+  width: 100%;
+  min-width: 0;
+}
+.personnel-deadline {
+  margin-block: 14px;
+}
+.personnel-deadline p {
+  margin: 5px 0;
+}

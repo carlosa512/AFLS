@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { capHit, lastSeason } from '../../engine/finance/contract';
-import { activeRoster } from '../../engine/roster';
 import type { League } from '../../engine/types';
+import type { RosterMove } from '../../engine/personnel/rosterMoves';
+import type { WaiverClaim } from '../../engine/personnel/types';
 import {
   assignedContract,
   cancelWaiverClaim,
@@ -12,14 +13,17 @@ import {
 } from '../../engine/personnel/waivers';
 import { personnelLabel } from '../../engine/personnel/calendar';
 import { advanceNextPersonnelEvent, nextDeadlineBlocker, nextWaiverDeadline } from '../../engine/personnel/flow';
-import { Panel, PlayerLink, SortTh, sortRows, TeamLink, useSort } from '../components';
+import { Dialog, Panel, PlayerLink, SortTh, sortRows, TeamLink, useSort } from '../components';
 import { Ovr, seenOvr } from '../scouting';
-import { money, playerName } from '../format';
+import { money } from '../format';
 import { store } from '../store';
+import { liveLock } from '../live';
+import { RosterMovePicker } from '../rosterMoves';
 
 export function Waivers({ league }: { league: League }) {
-  const [cuts, setCuts] = useState<Record<number, number | null>>({});
   const [filter, setFilter] = useState<'available' | 'mine' | 'released'>('available');
+  const [editing, setEditing] = useState<number | null>(null);
+  const [move, setMove] = useState<RosterMove>();
   const [sort, onSort] = useSort<'player' | 'pos' | 'ovr' | 'cap' | 'deadline'>({ key: 'deadline', desc: false });
   const state = league.personnel?.waivers;
   if (!league.personnel?.enabled)
@@ -30,8 +34,8 @@ export function Waivers({ league }: { league: League }) {
     );
   const teamId = league.userTeamId;
   const deadline = nextWaiverDeadline(league);
-  const problem = nextDeadlineBlocker(league);
-  const roster = activeRoster(league, teamId);
+  const lock = liveLock();
+  const clockProblem = lock ?? nextDeadlineBlocker(league);
   const mine = state?.claims.filter((c) => c.teamId === teamId).sort((a, b) => a.preference - b.preference) ?? [];
   const pending = state?.pending ?? [];
   const visible = pending.filter((e) =>
@@ -56,6 +60,30 @@ export function Waivers({ league }: { league: League }) {
         return e.deadline;
     }
   });
+  // One shared decision time belongs above the table. Different batches still need their own times.
+  const showDates = new Set(rows.map((e) => e.deadline)).size > 1;
+  const entry = pending.find((e) => e.id === editing);
+  const old = mine.find((c) => c.entryId === editing);
+  const plan: WaiverClaim | undefined = entry
+    ? {
+        entryId: entry.id,
+        teamId,
+        preference: old?.preference ?? mine.length,
+        cutIds: move ? [move.playerId] : [],
+        ...(move?.action === 'squad' ? { squadReturnIds: [move.playerId] } : {}),
+      }
+    : undefined;
+  const planProblem = lock ?? (plan ? claimProblem(league, plan) : null);
+  const openPlan = (id: number) => {
+    const own = mine.find((c) => c.entryId === id);
+    const playerId = own?.cutIds[0];
+    setMove(
+      playerId === undefined
+        ? undefined
+        : { playerId, action: own?.squadReturnIds?.includes(playerId) ? 'squad' : 'release' },
+    );
+    setEditing(id);
+  };
   const reorder = (index: number, delta: number) =>
     store.mutate((l) => {
       const ordered = [...mine];
@@ -73,19 +101,17 @@ export function Waivers({ league }: { league: League }) {
           {filter === 'released'
             ? 'These are players you released. Other teams can claim them; unclaimed players become free agents.'
             : filter === 'mine'
-              ? 'These are your requests to add players. A successful claim brings the player to your main roster on his current contract.'
-              : 'These players were released by other teams. Place a claim to add a player to your main roster on his current contract.'}
+              ? 'These are your plans to add players. No roster move happens unless you win the claim.'
+              : 'These players were released by other teams. Plan a claim to add one on his existing contract.'}
         </p>
         {filter !== 'released' && (
-          <>
-            <p className="small muted">
-              Your place in line:{' '}
-              <b>
-                {waiverOrder(league).indexOf(teamId) + 1} of {league.teams.length}
-              </b>
-              . If several teams want the same player, the team nearest the front gets him.
-            </p>
-          </>
+          <p className="small muted">
+            Your place in line:{' '}
+            <b>
+              {waiverOrder(league).indexOf(teamId) + 1} of {league.teams.length}
+            </b>
+            . If several teams want a player, the team nearest the front gets him.
+          </p>
         )}
         <div className="seg" role="group" aria-label="Waiver players">
           {(
@@ -101,30 +127,23 @@ export function Waivers({ league }: { league: League }) {
           ))}
         </div>
         {deadline !== undefined && (
-          <div className="row">
-            <span>Claims decided: {personnelLabel(deadline)}</span>
-            <button
-              className="btn"
-              disabled={!!problem}
-              title={problem ?? undefined}
-              onClick={() => store.mutate(advanceNextPersonnelEvent)}
-            >
-              Advance to deadline
-            </button>
-            {problem && <span className="small muted">{problem}</span>}
+          <div className="personnel-deadline">
+            <div className="row">
+              <span>
+                Next decisions: <b>{personnelLabel(deadline)}</b>
+              </span>
+              <button
+                className="btn"
+                disabled={!!clockProblem}
+                title={clockProblem ?? undefined}
+                onClick={() => store.mutate(advanceNextPersonnelEvent)}
+              >
+                Advance roster clock
+              </button>
+            </div>
+            <p className="small muted">Resolves claims at that time. No games are played.</p>
+            {clockProblem && <p className="small muted">{clockProblem}</p>}
           </div>
-        )}
-        {filter !== 'released' && (
-          <>
-            <details className="personnel-help">
-              <summary>How claims work</summary>
-              <p>A successful claim brings the player to your main roster with his existing pay and contract years.</p>
-              <p>
-                If your roster is full, choose someone under “Release only if signed.” He is released only if your claim
-                succeeds. If you lose the claim, you keep him.
-              </p>
-            </details>
-          </>
         )}
         {!rows.length ? (
           <p className="muted">
@@ -143,22 +162,14 @@ export function Waivers({ league }: { league: League }) {
                   <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} />
                   <SortTh label="Overall" k="ovr" sort={sort} onSort={onSort} />
                   <SortTh label="Cap cost this season" k="cap" sort={sort} onSort={onSort} />
-                  <SortTh label="Deadline" k="deadline" sort={sort} onSort={onSort} />
-                  {filter !== 'released' && <th>Release only if signed</th>}
-                  <th>{filter === 'released' ? 'Status' : 'Request'}</th>
+                  {showDates && <SortTh label="Decision time" k="deadline" sort={sort} onSort={onSort} />}
+                  <th>{filter === 'released' ? 'Status' : 'Your actions'}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((e) => {
                   const p = league.players[e.playerId];
                   const own = mine.find((c) => c.entryId === e.id);
-                  const candidate = {
-                    entryId: e.id,
-                    teamId,
-                    preference: own?.preference ?? mine.length,
-                    cutIds: cuts[e.id] === undefined ? (own?.cutIds ?? []) : cuts[e.id] === null ? [] : [cuts[e.id]!],
-                  };
-                  const issue = claimProblem(league, candidate);
                   return (
                     <tr key={e.id} className={own ? 'is-user' : undefined}>
                       <td className="sticky-col">
@@ -175,55 +186,26 @@ export function Waivers({ league }: { league: League }) {
                         {money(capHit(assignedContract(e), league.season))}
                         <div className="small muted">Contract ends {lastSeason(e.contract)}</div>
                       </td>
-                      <td>{personnelLabel(e.deadline)}</td>
-                      {filter !== 'released' && (
-                        <>
-                          <td>
-                            <select
-                              disabled={e.fromTeamId === teamId}
-                              aria-label={`Release only if ${p.firstName} ${p.lastName} joins your team`}
-                              value={cuts[e.id] === undefined ? (own?.cutIds[0] ?? '') : (cuts[e.id] ?? '')}
-                              onChange={(event) =>
-                                setCuts({ ...cuts, [e.id]: event.target.value ? Number(event.target.value) : null })
-                              }
-                            >
-                              <option value="">Keep everyone</option>
-                              {roster.map((x) => (
-                                <option key={x.id} value={x.id}>{`${x.position} ${playerName(x)}`}</option>
-                              ))}
-                            </select>
-                          </td>
-                        </>
-                      )}
+                      {showDates && <td>{personnelLabel(e.deadline)}</td>}
                       <td>
                         {filter === 'released' ? (
-                          <span className="small muted waiver-reason">
+                          <div className="small muted waiver-reason">
                             Waiting for other teams. If nobody claims him, you can offer a new deal.
-                          </span>
+                          </div>
                         ) : (
                           <>
-                            <button
-                              className="btn btn-sm"
-                              disabled={!!issue}
-                              title={issue ?? undefined}
-                              onClick={() => store.mutate((l) => setWaiverClaim(l, candidate))}
-                            >
-                              {own ? 'Update claim' : 'Claim player'}
-                            </button>
+                            {own && <span className="small muted">Claim saved · </span>}
+                            <button className="btn btn-sm" disabled={!!lock} onClick={() => openPlan(e.id)}>
+                              {own ? 'Edit plan' : 'Plan claim'}
+                            </button>{' '}
                             {own && (
                               <button
                                 className="btn btn-sm"
+                                disabled={!!lock}
                                 onClick={() => store.mutate((l) => cancelWaiverClaim(l, e.id, teamId))}
                               >
-                                Withdraw
+                                Cancel claim
                               </button>
-                            )}
-                            {issue && (
-                              <div className="small muted waiver-reason">
-                                {e.fromTeamId === teamId
-                                  ? 'You released him. If nobody claims him, you can offer a new deal.'
-                                  : issue}
-                              </div>
                             )}
                           </>
                         )}
@@ -243,14 +225,18 @@ export function Waivers({ league }: { league: League }) {
           </p>
           <ol>
             {mine.map((c, index) => {
-              const e = state!.pending.find((e) => e.id === c.entryId)!;
+              const e = pending.find((e) => e.id === c.entryId)!;
               return (
                 <li key={c.entryId}>
                   <PlayerLink league={league} player={league.players[e.playerId]} />{' '}
-                  <button className="btn btn-sm" disabled={index === 0} onClick={() => reorder(index, -1)}>
+                  <button className="btn btn-sm" disabled={!!lock || index === 0} onClick={() => reorder(index, -1)}>
                     Move up
                   </button>{' '}
-                  <button className="btn btn-sm" disabled={index === mine.length - 1} onClick={() => reorder(index, 1)}>
+                  <button
+                    className="btn btn-sm"
+                    disabled={!!lock || index === mine.length - 1}
+                    onClick={() => reorder(index, 1)}
+                  >
                     Move down
                   </button>
                 </li>
@@ -260,7 +246,7 @@ export function Waivers({ league }: { league: League }) {
         </Panel>
       )}
       {!!state?.results.length && (
-        <Panel title="Recent awards and clearances">
+        <Panel title="Claim results">
           <ul>
             {[...state.results]
               .reverse()
@@ -280,6 +266,48 @@ export function Waivers({ league }: { league: League }) {
               ))}
           </ul>
         </Panel>
+      )}
+      {entry && plan && (
+        <Dialog
+          title="Plan this claim"
+          onClose={() => setEditing(null)}
+          footer={
+            <>
+              <button className="btn" onClick={() => setEditing(null)}>
+                Back
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={!!planProblem}
+                onClick={() => {
+                  store.mutate((l) => setWaiverClaim(l, plan));
+                  setEditing(null);
+                }}
+              >
+                {old ? 'Save changes' : 'Save claim'}
+              </button>
+            </>
+          }
+        >
+          <p>
+            <PlayerLink league={league} player={league.players[entry.playerId]} /> joins your main roster if you win.
+            His current contract stays in place.
+          </p>
+          <RosterMovePicker league={league} teamId={teamId} value={move} onChange={setMove} />
+          <p className="small muted">
+            {move
+              ? 'The selected roster move happens only if you win. If you lose, you keep your player.'
+              : 'Keep everyone if there is room for the new player.'}
+          </p>
+          <p className="small muted">
+            Decided at {personnelLabel(entry.deadline)}. “Save claim” files your plan; it does not advance time.
+          </p>
+          {planProblem && (
+            <p className="callout callout-bad" role="status">
+              {planProblem}
+            </p>
+          )}
+        </Dialog>
       )}
     </div>
   );

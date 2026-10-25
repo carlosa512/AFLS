@@ -38,6 +38,8 @@ import {
 } from '../engine/personnel/squads';
 import { store } from './store';
 import { activeRoster } from '../engine/roster';
+import type { RosterMove } from '../engine/personnel/rosterMoves';
+import { RosterMovePicker } from './rosterMoves';
 
 const name = (p: Player) => `${p.firstName} ${p.lastName}`;
 
@@ -237,8 +239,9 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
 
 export function SquadActions({ league, player }: { league: League; player: Player }) {
   const [open, setOpen] = useState<'promote' | 'release' | null>(null);
+  const [move, setMove] = useState<RosterMove>();
   if (!player.squad?.agreement || player.teamId !== league.userTeamId) return null;
-  const preview = squadPromotionPreview(league, player);
+  const preview = squadPromotionPreview(league, player, move);
   const space = capSpace(league, player.teamId);
   const spaceAfter = space - preview.additionalCap;
   const rosterSize = activeRoster(league, player.teamId).length;
@@ -278,7 +281,7 @@ export function SquadActions({ league, player }: { league: League; player: Playe
                 onClick={() => {
                   store.mutate((l) =>
                     open === 'promote'
-                      ? promoteSquadPlayer(l, l.players[player.id])
+                      ? promoteSquadPlayer(l, l.players[player.id], move)
                       : releaseSquadPlayer(l, l.players[player.id]),
                   );
                   setOpen(null);
@@ -295,24 +298,34 @@ export function SquadActions({ league, player }: { league: League; player: Playe
           {open === 'promote' ? (
             <>
               <p>Moves him from the practice squad to your main roster on a one-year contract.</p>
+              <RosterMovePicker
+                league={league}
+                teamId={player.teamId}
+                value={move}
+                onChange={setMove}
+                departingSquadId={player.id}
+              />
               <div className="facts">
                 <Num label="Cap space now" value={space} />
-                <Num label="Cost of this move" value={preview.additionalCap} />
+                <Num label="Net cap cost" value={preview.additionalCap} />
                 <Num label="Cap space after" value={spaceAfter} tone={spaceAfter < 0 ? 'bad' : 'good'} />
                 <span className="fact">
                   <span className="eyebrow">53-man roster</span>
-                  <b className={rosterSize >= 53 ? 'tone-bad' : undefined}>
-                    {rosterSize}/53 → {rosterSize + 1}/53
+                  <b className={rosterSize + 1 - (move ? 1 : 0) > 53 ? 'tone-bad' : undefined}>
+                    {rosterSize}/53 → {rosterSize + 1 - (move ? 1 : 0)}/53
                   </b>
                 </span>
               </div>
               <p className={`callout${promotion ? ' callout-bad' : ''}`} role="status">
                 {lock ??
-                  (rosterSize >= 53
-                    ? 'Your roster is full. Release or trade a player before confirming.'
+                  (rosterSize >= 53 && !move
+                    ? 'Your roster is full. Select a player and an action above to make room.'
                     : spaceAfter < 0
                       ? `You need ${money(-spaceAfter)} more cap space before confirming.`
-                      : (preview.problem ?? 'You have a roster spot and enough cap space. No release is needed.'))}
+                      : (preview.problem ??
+                        (move
+                          ? 'This plan makes room and fits your cap. The selected roster move happens when you confirm.'
+                          : 'You have a roster spot and enough cap space. No release is needed.')))}
               </p>
             </>
           ) : (

@@ -127,6 +127,72 @@ describe('squad eligibility and agreements', () => {
 });
 
 describe('earned and projected squad payroll', () => {
+  it('previews and executes a release plus promotion together without changing the save during preview', () => {
+    const p = sign();
+    const cut = activeRoster(l, 0)
+      .filter((x) => x.position === 'WR')
+      .at(-1)!;
+    const move = { playerId: cut.id, action: 'release' as const };
+    const saved = JSON.stringify(l);
+    const before = capSpace(l, 0);
+    const preview = squadPromotionPreview(l, p, move);
+    expect(preview.problem).toBeNull();
+    expect(JSON.stringify(l)).toBe(saved);
+    promoteSquadPlayer(l, p, move);
+    expect(activeRoster(l, 0)).toHaveLength(53);
+    expect(p.squad).toBeUndefined();
+    expect(cut.teamId).toBeNull();
+    expect(before - capSpace(l, 0)).toBeCloseTo(preview.additionalCap, 5);
+    expect(l.personnel!.squads!.returns.some((o) => o.playerId === cut.id)).toBe(false);
+  });
+  it('offers a new squad deal after making room, using the place vacated by the promoted player', () => {
+    const p = sign();
+    for (let n = 1; n < 16; n++) sign();
+    const cut = activeRoster(l, 0)
+      .filter((x) => x.position === 'WR')
+      .at(-1)!;
+    cut.service = initialService(0, l.season - 1);
+    const move = { playerId: cut.id, action: 'squad' as const };
+    expect(squadPromotionPreview(l, p, move).problem).toBeNull();
+    promoteSquadPlayer(l, p, move);
+    expect(activeRoster(l, 0)).toHaveLength(53);
+    expect(practiceSquad(l, 0)).toHaveLength(15);
+    expect(cut.waiver).toBeDefined();
+    expect(cut.squad).toBeUndefined();
+    expect(l.personnel!.squads!.returns.some((o) => o.playerId === cut.id)).toBe(true);
+  });
+  it('rejects an unaffordable combined move before cutting or inviting anyone', () => {
+    const p = sign();
+    const cut = activeRoster(l, 0)
+      .filter((x) => x.position === 'WR')
+      .at(-1)!;
+    l.teams[0].carryover = -1_000_000;
+    const saved = JSON.stringify(l);
+    expect(() => promoteSquadPlayer(l, p, { playerId: cut.id, action: 'squad' })).toThrow(/cap room/);
+    expect(JSON.stringify(l)).toBe(saved);
+  });
+  it('revalidates the selected player and keeps required positional cover', () => {
+    const p = sign();
+    const kicker = activeRoster(l, 0).find((x) => x.position === 'K')!;
+    const saved = JSON.stringify(l);
+    expect(() => promoteSquadPlayer(l, p, { playerId: kicker.id, action: 'release' })).toThrow(/too few K/);
+    expect(JSON.stringify(l)).toBe(saved);
+    const other = activeRoster(l, 1)[0];
+    expect(() => promoteSquadPlayer(l, p, { playerId: other.id, action: 'release' })).toThrow(/your main roster/);
+    expect(JSON.stringify(l)).toBe(saved);
+  });
+  it('does not partially cut a player when a preseason waiver would block completing the promotion', () => {
+    const p = sign();
+    const cut = activeRoster(l, 0)
+      .filter((x) => x.position === 'WR')
+      .at(-1)!;
+    cut.service = initialService(0, l.season - 1);
+    l.phase = 'preseason';
+    l.personnel!.clock = { season: l.season, minute: -100, cutdown: true };
+    const saved = JSON.stringify(l);
+    expect(() => promoteSquadPlayer(l, p, { playerId: cut.id, action: 'squad' })).toThrow(/waiver notices/);
+    expect(JSON.stringify(l)).toBe(saved);
+  });
   it('books the current week immediately, keeps earned money after release and credits a same-week re-sign', () => {
     const before = capSpace(l, 0);
     const p = sign();

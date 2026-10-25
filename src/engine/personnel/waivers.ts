@@ -4,7 +4,7 @@ import { deadMoney, isExpired } from '../finance/contract';
 import { freeJersey } from '../generate';
 import { rosterLimit } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
-import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, practiceSquad, syncDepthChart, teamPlayers } from '../roster';
 import { Rng } from '../rng';
 import { computeRecords, winPct } from '../season/standings';
 import type { Contract, League, Player } from '../types';
@@ -13,6 +13,9 @@ import { personnelClock, personnelTime, TRADE_DEADLINE_MINUTE, waiverDeadline } 
 import { ensureService, serviceTotals } from './service';
 import type { WaiverClaim, WaiverEntry, WaiverResult } from './types';
 import { PERSONNEL_RULES } from './rules';
+import { squadReturnProblem } from './rosterMoves';
+import { inviteSquadReturn } from './squads';
+import { squadFit } from './eligibility';
 
 export function aiWaiverWindowKey(league: League): string {
   return `${league.season}:${league.phase}:${league.phase === 'preseason' ? 'camp' : league.phase === 'freeAgency' ? league.faDay : league.week}`;
@@ -157,12 +160,28 @@ export function claimProblem(league: League, claim: WaiverClaim, resolving = fal
   if (!league.teams[claim.teamId] || entry.fromTeamId === claim.teamId)
     return 'The waiving club cannot claim its own player.';
   if (new Set(claim.cutIds).size !== claim.cutIds.length) return 'A conditional release is listed twice.';
+  if (
+    new Set(claim.squadReturnIds).size !== (claim.squadReturnIds?.length ?? 0) ||
+    claim.squadReturnIds?.some((id) => !claim.cutIds.includes(id))
+  )
+    return 'Squad return plans must name a player released by this claim.';
   const roster = activeRoster(league, claim.teamId);
   const cuts = claim.cutIds.map((id) => league.players[id]);
   if (cuts.some((c) => !c || c.teamId !== claim.teamId || !c.contract || c.waiver || c.squad || c.ir))
     return 'A conditional release is no longer on this roster.';
+  for (const id of claim.squadReturnIds ?? []) {
+    const issue = squadReturnProblem(league, claim.teamId, league.players[id]);
+    if (issue) return issue;
+  }
+  if (claim.squadReturnIds?.length) {
+    const issue = squadFit(league, [
+      ...practiceSquad(league, claim.teamId),
+      ...claim.squadReturnIds.map((id) => league.players[id]),
+    ]);
+    if (issue) return issue;
+  }
   const remaining = roster.filter((x) => !claim.cutIds.includes(x.id));
-  if (remaining.length + 1 > rosterLimit(league)) return 'Name a conditional release to make roster space.';
+  if (remaining.length + 1 > rosterLimit(league)) return 'Choose a roster move to make room if this claim wins.';
   for (const pos of POSITIONS) {
     const before = roster.filter((x) => x.position === pos).length;
     const after = remaining.filter((x) => x.position === pos).length + (p.position === pos ? 1 : 0);
@@ -276,7 +295,10 @@ export function resolveWaiverBatch(league: League, deadline: number): WaiverResu
       const entry = batch.find((e) => e.id === claim.entryId)!;
       const p = league.players[entry.playerId];
       // Validate before the first mutation. The reserved worst-case release costs make the cuts affordable.
-      for (const id of claim.cutIds) releasePlayer(league, league.players[id]);
+      for (const id of claim.cutIds) {
+        if (claim.squadReturnIds?.includes(id)) inviteSquadReturn(league, teamId, league.players[id]);
+        releasePlayer(league, league.players[id]);
+      }
       book(league, entry, entry.assigned, 'Waiver assignment');
       p.contract = assignedContract(entry);
       p.teamId = teamId;

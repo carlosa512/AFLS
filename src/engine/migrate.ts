@@ -89,6 +89,7 @@ export function migrateLeague(league: League): League | null {
   }
   if (league.version < 42) league.version = 42; // optional waiver/clock state, initialized only for enabled personnel
   if (league.version < 43) league.version = 43; // optional squad agreements and payroll, lazy for enabled careers
+  if (league.version < 44) league.version = 44; // optional squad-return instructions on winning waiver claims
   return league;
 }
 

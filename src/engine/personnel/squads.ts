@@ -1,12 +1,14 @@
 import { capSpace, logTransaction, paidFraction } from '../finance/cap';
 import { capHit, buildContract } from '../finance/contract';
 import { minSalary } from '../finance/market';
-import { activeRoster, practiceSquad, syncDepthChart } from '../roster';
+import { activeRoster, onGameRoster, practiceSquad, syncDepthChart } from '../roster';
+import { STARTERS } from '../positions';
 import type { Contract, League, Player } from '../types';
 import type { SquadOffer } from './types';
 import { squadFit, squadRates } from './eligibility';
 import { ensureService, initialService, serviceTotals } from './service';
 import { ensureSquads, promotionCredit, settleSquadPayroll, squadPayWeek, startSquadPay } from './payroll';
+import { executeRosterMove, squadReturnProblem, type RosterMove } from './rosterMoves';
 
 export function squadWindowProblem(league: League): string | null {
   if (!league.personnel?.enabled) return 'Personnel transactions are not active.';
@@ -146,7 +148,45 @@ export function squadPromotionContract(league: League, p: Player): Contract {
   return c;
 }
 
-export function squadPromotionPreview(league: League, p: Player) {
+export function squadPromotionPreview(
+  league: League,
+  p: Player,
+  move?: RosterMove,
+): { contract: Contract; additionalCap: number; problem: string | null } {
+  if (move && p.teamId !== null && p.squad?.agreement) {
+    const contract = squadPromotionContract(league, p);
+    const cut = league.players[move.playerId];
+    const invalid =
+      !['release', 'squad'].includes(move.action) ||
+      !cut ||
+      cut.teamId !== p.teamId ||
+      !onGameRoster(cut) ||
+      !cut.contract;
+    if (invalid) return { contract, additionalCap: 0, problem: 'Choose a player from your main roster.' };
+    if (move.action === 'squad') {
+      const issue = squadReturnProblem(league, p.teamId, cut, p.id);
+      if (issue) return { contract, additionalCap: 0, problem: issue };
+    }
+    const before = activeRoster(league, p.teamId).filter((x) => x.position === cut.position).length;
+    if (before - 1 + (p.position === cut.position ? 1 : 0) < Math.min(before, STARTERS[cut.position]))
+      return {
+        contract,
+        additionalCap: 0,
+        problem: `This move would leave too few ${cut.position} on your main roster.`,
+      };
+    // Exercise the existing release/waiver accounting in a disposable draft. No cuts or invitations
+    // reach the real save until the complete roster and cap plan validates.
+    const draft = structuredClone(league);
+    executeRosterMove(draft, move);
+    const next = squadPromotionPreview(draft, draft.players[p.id]);
+    const additionalCap = capSpace(league, p.teamId) - (capSpace(draft, p.teamId) - next.additionalCap);
+    const future = capSpace(draft, p.teamId, league.season + 1);
+    return {
+      contract: next.contract,
+      additionalCap,
+      problem: next.problem ?? (future < 0 ? 'The release would exceed next season’s cap.' : null),
+    };
+  }
   const contract = squadPromotionContract(league, p);
   const a = p.squad?.agreement;
   const saved = a ? (18 - squadPayWeek(league)) * a.weeklyPay + promotionCredit(league, p) : 0;
@@ -165,9 +205,10 @@ export function squadPromotionPreview(league: League, p: Player) {
   return { contract, additionalCap, problem };
 }
 
-export function promoteSquadPlayer(league: League, p: Player): void {
-  const preview = squadPromotionPreview(league, p);
+export function promoteSquadPlayer(league: League, p: Player, move?: RosterMove): void {
+  const preview = squadPromotionPreview(league, p, move);
   if (preview.problem) throw new Error(preview.problem);
+  if (move) executeRosterMove(league, move);
   promotionCredit(league, p, true);
   delete p.squad;
   p.contract = preview.contract;
