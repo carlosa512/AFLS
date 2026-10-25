@@ -1,3 +1,4 @@
+import { leadershipNewYear, enforceCoachChanges } from './leadership';
 import { describe, expect, it } from 'vitest';
 import {
   asPromoted,
@@ -356,7 +357,9 @@ describe('coaching staffs and moves', () => {
     expect(l.teams[user].coachDead.filter((d) => d.season === l.season)).toHaveLength(0); // his deal was up: no severance
     l.teams[user].staffBudgetMult = 3; // money is not the question here
     const chairs = new Map(keep.map((c) => [c.id, chairOf(c)]));
-    advanceOffseason(l); // resign -> free agency
+    do {
+      advanceOffseason(l);
+    } while (l.phase === 'resign'); // hiring rounds, then free agency
     expect(letGo.teamId).not.toBe(user);
     // Re-signed, he can still be promoted away (a team can't block a promotion): only the rest must stay.
     const stayed = keep.filter((c) => c.teamId === user || sameChair(chairOf(c), chairs.get(c.id)!));
@@ -389,7 +392,9 @@ describe('coaching staffs and moves', () => {
     expect(forecast.get(best.id)).toBe('stays');
     for (const c of rest) if (c !== best) expect(forecast.get(c.id)).toBe('budget');
     const chairs = new Map([...forecast.keys()].map((id) => [id, chairOf(l.coaches[id])]));
-    advanceOffseason(l); // the window closes
+    do {
+      advanceOffseason(l);
+    } while (l.phase === 'resign'); // the staffing window closes after GM hiring
     for (const [id, outlook] of forecast) {
       const c = l.coaches[id];
       // He re-signs; another club may still promote him out of it (a team can't block a promotion).
@@ -475,8 +480,22 @@ describe('coaching staffs and moves', () => {
   });
 
   it('puts AI head coaches on the hot seat at the window, and never re-hires the man just let go', () => {
-    const l = offseason('hot-seat');
-    const last = l.history.find((h) => h.season === l.season - 1)!;
+    const l = createLeague({ seed: 'hot-seat' });
+    l.phase = 'resign';
+    l.season += 3;
+    l.history.push({
+      season: l.season - 1,
+      championId: 31,
+      runnerUpId: 30,
+      records: Object.fromEntries(l.teams.map((t) => [t.id, { w: 8, l: 9, t: 0 }])),
+    });
+    const last = l.history.at(-1)!;
+    // This review isolates coaching accountability: each GM is new, but each head coach has had time.
+    for (const t of l.teams) {
+      const job = l.gms[t.gmId!].appointments.at(-1)!;
+      job.start.season = l.season - 1;
+      job.priorSeasons = 0;
+    }
     const ai = l.teams.filter((t) => t.id !== l.userTeamId);
     const before = new Map(ai.map((t) => [t.id, chairHolder(teamCoaches(l, t.id), { role: 'headCoach' })!]));
     const [bad, good] = [ai.slice(0, 16), ai.slice(16)];
@@ -485,9 +504,11 @@ describe('coaching staffs and moves', () => {
       before.get(t.id)!.since = l.season - 3;
     }
     for (const t of good) last.records[t.id] = { w: 13, l: 4, t: 0 };
+    leadershipNewYear(l);
+    enforceCoachChanges(l, true);
     coachWindowCloses(l);
     // Three in four of a 1–16 team's veteran head coaches go; a 13–4 team never fires its man.
-    const fired = bad.filter((t) => /after a 1–16 season/.test(before.get(t.id)!.lastJob ?? ''));
+    const fired = bad.filter((t) => before.get(t.id)!.teamId !== t.id);
     expect(fired.length).toBeGreaterThan(6);
     for (const t of good) expect(before.get(t.id)!.lastJob ?? '').not.toMatch(/season/);
     for (const t of fired) {
@@ -496,9 +517,9 @@ describe('coaching staffs and moves', () => {
     }
     // Nobody an AI team let go in this window is back on that team.
     for (const t of ai) for (const c of teamCoaches(l, t.id)) expect(c.lastJob ?? '').not.toContain(`, ${t.abbrev}`);
-    expect(
-      l.transactions.some((tx) => tx.kind === 'coach' && /dismissed head coach .* after a 1–16 season/.test(tx.text)),
-    ).toBe(true);
+    expect(l.transactions.some((tx) => tx.kind === 'coach' && /(dismissed|let go) head coach/.test(tx.text))).toBe(
+      true,
+    );
   });
 
   it('keeps the coaching economy steady over several offseasons, with head coaches changing jobs', () => {
@@ -508,7 +529,7 @@ describe('coaching staffs and moves', () => {
       simToEndOfSeason(l);
       simOffseason(l);
       fired += l.transactions.filter(
-        (t) => t.season === l.season && t.kind === 'coach' && /head coach .* after a/.test(t.text),
+        (t) => t.season === l.season && t.kind === 'coach' && /(dismissed|let go) head coach/.test(t.text),
       ).length;
       const employed = Object.values(l.coaches).filter((c) => c.teamId !== null);
       const meanValue = mean(employed.map(coachValue));
@@ -562,8 +583,10 @@ describe('the coaching carousel', () => {
 
   it('lets AI teams promote off other staffs (nobody can block a promotion) and still fills every AI chair', () => {
     const l = offseason('poach');
-    for (const t of l.teams.filter((x) => x.id !== l.userTeamId).slice(0, 10))
-      delete l.coaches[chairHolder(teamCoaches(l, t.id), { role: 'headCoach' })!.id];
+    for (const t of l.teams.filter((x) => x.id !== l.userTeamId).slice(0, 10)) {
+      const current = chairHolder(teamCoaches(l, t.id), { role: 'headCoach' });
+      if (current) delete l.coaches[current.id];
+    }
     const fresh = copy(l); // a fresh coaching index, as after a reload
     coachWindowCloses(fresh);
     expect(

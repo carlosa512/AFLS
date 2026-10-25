@@ -1,3 +1,4 @@
+import { employed } from '../engine/employment';
 /**
  * How the user's front office sees players. Every screen reads ratings through here, never from
  * `player.ratings` directly: own players are exact, everyone else is a scouted estimate.
@@ -48,7 +49,8 @@ import { band, heightFt, resultsSeason } from './format';
 import { store } from './store';
 
 /** The user's view of a player: what every screen should show. */
-export const viewOf = (league: League, p: Player): PlayerView => perceive(league, league.userTeamId, p);
+export const viewOf = (league: League, p: Player): PlayerView =>
+  perceive(league, employed(league) ? league.userTeamId : -1, p);
 export const seenOvr = (league: League, p: Player) => viewOf(league, p).ovr;
 export const starsOf = (league: League, p: Player, scale: StarScale = 'league', view = viewOf(league, p)) =>
   starRating(league, league.userTeamId, p, view, scale);

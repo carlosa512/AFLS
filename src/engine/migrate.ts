@@ -78,6 +78,14 @@ export function migrateLeague(league: League): League | null {
     for (const team of league.teams) team.ownerMandates ??= [];
     league.version = 42;
   }
+  if (league.version < 43) {
+    league.leadership ??= { nextEventId: 1, events: [] };
+    for (const m of league.inbox ?? []) if (m.category !== 'league') m.organizationId ??= league.userTeamId;
+    // Old owner-retention headlines contained internal instructions. Public history keeps only the move.
+    for (const tx of league.transactions)
+      if (tx.kind === 'coach' && /owner retained/.test(tx.text)) tx.text = tx.text.split(': ')[0];
+    league.version = 43;
+  }
   return league;
 }
 

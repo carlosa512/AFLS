@@ -48,6 +48,7 @@ export function moveIndex(league: League): MoveIndexes {
 /** The indexes a transaction's names can come from: always players, plus the staff its kind is about. */
 const STAFF_OF: Partial<Record<Transaction['kind'], Exclude<Who['kind'], 'team'>>> = {
   coach: 'coach',
+  gm: 'gm',
   staff: 'scout',
   medical: 'medic',
 };

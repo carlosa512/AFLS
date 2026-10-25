@@ -599,10 +599,14 @@ export interface Team {
   coachOverspent?: number;
   /** Severance owed to dismissed coaches, charged to the coaching budget. */
   coachDead: StaffSeverance[];
+  /** Coaches this club let go this year are excluded from its own immediate replacements. */
+  coachDepartures?: { season: number; ids: number[] };
   /** Promises follow the club, including when its GM changes. Expired promises remain on file. */
   ownerMandates: OwnerCoachMandate[];
   /** Makes opening-year owner decisions idempotent across saves and repeated calendar calls. */
   ownerReviewSeason?: number;
+  leadershipReview?: LeadershipReview;
+  leadershipWeek?: { season: number; week: number };
   /** Severance owed to dismissed medical staff, charged to the medical budget. */
   medicalDead: StaffSeverance[];
   /** False when the user manages injuries by hand (IR moves, replacements). AI teams always delegate. */
@@ -806,6 +810,8 @@ export interface GmAppointment {
   end?: CareerDate;
   interim: boolean;
   through: number;
+  /** Generated opening-world tenure, without inventing prior game results. Not used by migrated saves. */
+  priorSeasons?: number;
   reason?: 'dismissed' | 'expired' | 'retired' | 'permanent';
 }
 
@@ -833,6 +839,44 @@ export interface GeneralManager {
   /** Opening incumbents are supplied with the world; all later entrants come from scouting directors. */
   origin: 'opening' | 'director';
   scouting?: Staff;
+}
+
+export interface LeadershipReview {
+  season: number;
+  week: number;
+  gmId: number;
+  coachId?: number;
+  outcome: 'back' | 'warning' | 'coachChange' | 'gmChange' | 'bothChange';
+  /** Private instructions, visible only to the club's current GM. */
+  reason: string;
+}
+
+export interface LeadershipEvent {
+  id: number;
+  date: CareerDate;
+  teamId: number;
+  kind:
+    | 'gmDismissed'
+    | 'gmRetired'
+    | 'gmHired'
+    | 'gmExtended'
+    | 'coachDismissed'
+    | 'coachInterim'
+    | 'coachPermanent'
+    | 'warning'
+    | 'coachChange';
+  gmId?: number;
+  coachId?: number;
+  /** Confirmed public news or explicitly qualified reporting. Never the private instruction. */
+  report: string;
+  privateText?: string;
+}
+
+export interface GmJobOffer {
+  teamId: number;
+  through: number;
+  expiresRound: number;
+  incumbent?: boolean;
 }
 
 /** Staff in their actual roles when a game began, independent of later employment changes. */
@@ -885,6 +929,7 @@ export interface Transaction {
     | 'retire'
     | 'staff'
     | 'coach'
+    | 'gm'
     | 'injury'
     | 'medical'
     | 'position';
@@ -911,6 +956,7 @@ export type InboxAction =
   | { kind: 'fa'; pos?: Position }
   | { kind: 'draft' }
   | { kind: 'coaches' }
+  | { kind: 'gms' }
   | { kind: 'staff' }
   | { kind: 'medical' }
   | { kind: 'trades' }
@@ -940,6 +986,8 @@ export interface LeagueNewsReport {
 }
 
 export interface InboxMessage {
+  /** Internal correspondence belongs to the club, even after its GM changes jobs. */
+  organizationId?: number;
   /** Built from what the message is about, so delivering twice can't duplicate it. */
   id: string;
   season: number;
@@ -1167,6 +1215,8 @@ export interface League {
   version: number;
   name: string;
   seed: string;
+  /** Optional comparison branch for future match outcomes; preserves the world's people and owner personalities. */
+  simulationSalt?: string;
   rngState: RngState;
   season: number;
   /** Next week to be played (1-based). */
@@ -1177,6 +1227,11 @@ export interface League {
   userGmId: number;
   gms: Record<number, GeneralManager>;
   nextGmId: number;
+  leadership: {
+    nextEventId: number;
+    events: LeadershipEvent[];
+    search?: { season: number; round: number; offers: GmJobOffer[] };
+  };
   /** League-year salary cap, in $K, by season (future years are projections until reached). */
   caps: Record<number, number>;
   conferences: Conference[];

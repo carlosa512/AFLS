@@ -278,7 +278,8 @@ function closeStaffAppointment(league: League, s: Staff, reason: 'released' | 'p
 /** A department's own scouts can rise into its vacant director chair without changing identity. */
 export function promoteScoutToDirector(league: League, teamId: number, staffId: number, years = 2): void {
   const s = league.staff[staffId];
-  if (!staffWindowOpen(league)) throw new Error('Scouting promotions open in the offseason hiring window.');
+  if (!staffWindowOpen(league) && league.phase !== 'regular')
+    throw new Error('Scouting promotions open during the season or hiring window.');
   if (!s || s.teamId !== teamId || s.role === 'director') throw new Error('Choose one of this team’s scouts.');
   if (teamStaff(league, teamId).some((x) => x.role === 'director')) throw new Error('The director chair is occupied.');
   if (!Number.isInteger(years) || years < 1 || years > 3) throw new Error('Staff contracts run for 1–3 years.');

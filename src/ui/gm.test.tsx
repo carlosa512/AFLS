@@ -1,3 +1,4 @@
+import { PublicPlayerCard } from './screens/PlayerCard';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
@@ -12,12 +13,42 @@ import { GeneralManagers, GmCard, gmHeadCoaches } from './screens/GeneralManager
 import { lookOf } from './staffAvatar';
 import { staffLook } from './staffLook';
 import { linkedSegments, moveIndex, nameIndex } from './moves';
+import { GmJobs, LeadershipReports, PublicRoster } from './screens/GmEmployment';
 
 const world = () => createLeague({ seed: 'gm-cards' });
 const renderCard = (league: ReturnType<typeof world>, gm: GeneralManager) =>
   renderToStaticMarkup(<GmCard league={league} gm={gm} onClose={() => {}} />);
 
 describe('GM cards and directory', () => {
+  it('keeps other clubs’ owner instructions off GM and coach cards and uses qualified public reporting', () => {
+    const l = world();
+    const other = l.teams[1];
+    const c = teamCoaches(l, other.id).find((c) => c.role === 'headCoach')!;
+    protectCoach(l, c.id, l.season, 'PRIVATE exact staffing promise');
+    l.leadership.events.push({
+      id: 1,
+      date: { season: l.season, phase: 'regular', week: 1 },
+      teamId: 1,
+      gmId: other.gmId!,
+      kind: 'warning',
+      report: 'Reports suggest the GM has a prove-it season.',
+      privateText: 'PRIVATE exact staffing promise',
+    });
+    for (const html of [
+      renderCard(l, l.gms[other.gmId!]),
+      renderToStaticMarkup(<CoachCard league={l} coach={c} onClose={() => {}} />),
+      renderToStaticMarkup(<LeadershipReports league={l} />),
+    ])
+      expect(html).not.toContain('PRIVATE');
+    expect(renderToStaticMarkup(<LeadershipReports league={l} />)).toContain('Reports suggest');
+    endGmAppointment(l, l.userGmId, 'dismissed');
+    expect(renderToStaticMarkup(<GmJobs league={l} />)).toContain('Between GM jobs');
+    const p = Object.values(l.players).find((p) => p.teamId === l.userTeamId)!;
+    const card = renderToStaticMarkup(<PublicPlayerCard league={l} player={p} onClose={() => {}} />);
+    expect(card).toContain('Public career results');
+    expect(card).not.toContain('Scouting report');
+    expect(renderToStaticMarkup(<PublicRoster league={l} teamId={l.userTeamId} />)).not.toContain('Release');
+  });
   it('shows the signed owner commitment on both GM and coach views, with dismissal disabled', () => {
     const l = world();
     l.phase = 'resign';

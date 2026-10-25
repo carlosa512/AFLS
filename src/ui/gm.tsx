@@ -1,5 +1,4 @@
 /** Shared GM identity and presentation. These views never change a person's employment. */
-import { gmTraits } from '../engine/gm';
 import type { CareerDate, GeneralManager, League } from '../engine/types';
 import { FREE_AGENT } from './components';
 import { PHASE_LABELS, weekLabel } from './format';
@@ -45,20 +44,5 @@ export function GmLink({ league, gm, avatar = false }: { league: League; gm: Gen
 /** Tendencies are described in words; the user's choices are never attributed to their unused AI profile. */
 export function gmStyleNotes(league: League, gm: GeneralManager): string[] {
   if (gm.id === league.userGmId) return ['You set the roster strategy, spending and draft priorities.'];
-  const t = gmTraits(league, gm);
-  return [
-    t.winNow >= 0.7
-      ? 'Prioritizes winning now'
-      : t.winNow <= 0.4
-        ? 'Builds for the future'
-        : 'Balances today and tomorrow',
-    t.capAggression >= 0.7
-      ? 'Pushes money into future years'
-      : t.capAggression <= 0.35
-        ? 'Protects future cap room'
-        : 'Measured with the cap',
-    t.pickChart === 'analytics' ? 'Values depth across the draft' : 'Pays a premium for top picks',
-    ...(t.loyalty >= 0.65 ? ['Pays to keep the core together'] : []),
-    ...(t.stubbornness >= 0.7 ? ['Drives a hard bargain'] : []),
-  ];
+  return ['Public career history. Internal staffing instructions are private.'];
 }

@@ -948,3 +948,28 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
     </Sheet>
   );
 }
+
+export function PublicPlayerCard({ league, player, onClose }: { league: League; player: Player; onClose: () => void }) {
+  const team = player.teamId === null ? null : league.teams[player.teamId];
+  return (
+    <Sheet
+      label={`${player.firstName} ${player.lastName}`}
+      team={team}
+      onClose={onClose}
+      head={
+        <>
+          <PlayerAvatar player={player} team={team} size={128} />
+          <h2>
+            {player.firstName} {player.lastName}
+          </h2>
+        </>
+      }
+    >
+      <p>
+        {player.position} · Age {player.age}
+      </p>
+      <p className="muted">Public career results. Scouting files belong to the team that prepared them.</p>
+      <StatsTable league={league} player={player} />
+    </Sheet>
+  );
+}

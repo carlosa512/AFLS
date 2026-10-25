@@ -38,7 +38,7 @@ import { generateTraits } from './traits';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 42;
+export const SAVE_VERSION = 43;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -648,6 +648,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     userGmId: 0,
     gms: {},
     nextGmId: 1,
+    leadership: { nextEventId: 1, events: [] },
     caps: { [season]: SALARY_CAP },
     conferences: CONFERENCES.map((c) => ({ ...c })),
     divisions: DIVISIONS.map((d) => ({ ...d })),
@@ -750,7 +751,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   for (let y = 1; y <= MAX_FUTURE_DRAFT_YEARS; y++) createDraftPicks(league, season + y);
   league.games = generateSchedule(league, rng);
   league.rngState = rng.getState();
-  initializeGms(league);
+  initializeGms(league, true);
   // Scouting departments, coaching and medical staffs and the officiating crews draw from their own
   // seeded streams: the players and schedule above are unchanged by them.
   generateStaffWorld(league);

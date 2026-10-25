@@ -170,7 +170,8 @@ describe('the scouting leadership pipeline', () => {
   it('rejects invalid promotion contracts and occupied director jobs before changing a scout', () => {
     const l = world();
     const scout = teamStaff(l, 0).find((s) => s.role === 'collegeScout')!;
-    expect(() => promoteScoutToDirector(l, 0, scout.id)).toThrow(/offseason/);
+    l.phase = 'playoffs';
+    expect(() => promoteScoutToDirector(l, 0, scout.id)).toThrow(/season|window/);
     l.phase = 'resign';
     expect(() => promoteScoutToDirector(l, 0, scout.id)).toThrow(/occupied/);
     releaseStaff(l, 0, director(l, 0).id);

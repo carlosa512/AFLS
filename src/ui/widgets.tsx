@@ -1,3 +1,4 @@
+import { canReadMail } from '../engine/inbox';
 /**
  * Home's small panels: our injuries, the opponent's injury report, the mail waiting for us and the season
  * so far. Each is a few rows deep, the rest a click away (the Medical screen, their roster, the inbox). Injuries show
@@ -192,7 +193,7 @@ const fromLine = (from: string, m: InboxMessage) =>
  * first, a day's letters of one kind folded as the inbox folds them.
  */
 export function waitingMail(league: League): { needs: Set<string>; rows: MailThread[] } {
-  const all = [...(league.inbox ?? [])].reverse().filter(inInbox);
+  const all = [...(league.inbox ?? [])].reverse().filter((m) => inInbox(m) && canReadMail(league, m));
   const needs = new Set(all.filter((m) => needsYou(league, m)).map((m) => m.id));
   const waiting = threads(all.filter((m) => needs.has(m.id) || !m.read));
   const needy = (t: MailThread) => t.messages.some((m) => needs.has(m.id));

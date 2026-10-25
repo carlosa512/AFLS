@@ -1,3 +1,4 @@
+import { managesTeam } from '../../engine/employment';
 /**
  * The coaching staff: who coaches which of your rooms, whose deal is up, and who you could hire.
  * Coach ratings are public, so they show exactly; what they do for players is shown as percentages
@@ -565,6 +566,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
           <StaffAvatar person={c} size={128} />
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
+              {c.interim ? 'Interim ' : ''}
               {coachTitle(c)}
               {team ? ` · ${team.city} ${team.name}` : retired ? ' · Retired' : ' · On the market'}
             </span>
@@ -1372,6 +1374,7 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
 
 /** Your owner: how he spends, and how far past the budget he'll go this year for the men who run the team. */
 export function OwnerMandates({ league, teamId, coachId }: { league: League; teamId: number; coachId?: number }) {
+  if (!managesTeam(league, teamId)) return null;
   const promises = teamCoaches(league, teamId).flatMap((coach) => {
     const mandate = coachMandate(league, coach);
     return mandate && (coachId === undefined || coach.id === coachId) ? [{ coach, mandate }] : [];

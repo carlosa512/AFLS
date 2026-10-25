@@ -25,7 +25,7 @@ export function gmTraits(league: League, gm: GeneralManager): GmTraits {
 }
 
 /** Isolated identity stream: adding people must never reroll players, contracts or schedules. */
-export function initializeGms(league: League): void {
+export function initializeGms(league: League, newWorld = false): void {
   league.gms = {};
   league.nextGmId = 1;
   for (const team of league.teams) {
@@ -38,7 +38,15 @@ export function initializeGms(league: League): void {
       appearanceId: `gm:${id}`,
       teamId: team.id,
       origin: 'opening',
-      appointments: [{ teamId: team.id, start: careerDate(league), interim: false, through: league.season + 2 }],
+      appointments: [
+        {
+          teamId: team.id,
+          start: careerDate(league),
+          interim: false,
+          through: league.season + 2,
+          ...(newWorld && team.id !== league.userTeamId ? { priorSeasons: rng.int(0, 6) } : {}),
+        },
+      ],
       career: [],
     };
     team.gmId = id;
@@ -68,6 +76,21 @@ export function endGmAppointment(league: League, gmId: number, reason: 'dismisse
   appointment.end = careerDate(league);
   appointment.reason = reason;
   gm.teamId = null;
+  if (gm.id === league.userGmId) {
+    team.autoDepth = true;
+    team.autoInjuries = true;
+    team.training = { ...team.training, coachesDecide: true };
+    league.negotiations = {};
+    league.knowledge = {};
+    league.scoutPoints = 0;
+    if (league.market) {
+      league.market.offers = [];
+      league.market.status = {};
+      league.market.talks = {};
+      league.market.shopped = {};
+      delete league.market.exam;
+    }
+  }
   if (reason === 'retired') gm.retired = true;
 }
 

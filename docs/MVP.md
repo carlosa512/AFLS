@@ -80,8 +80,10 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       career records with save migration. Phase 2 adds GM cards, stable SVG portraits, a sortable league GM
       directory and career overview, with links from team, cap and trade screens. Phase 3 adds owner retention
       mandates with signed coach contracts, shared player/AI staffing restrictions and visible owner explanations.
-      Automatic GM turnover, employment UI and spectating while unemployed remain to build. Your own job is not yet
-      automatically at risk.
+      Joint GM/coach reviews now drive GM dismissals, renewals, midseason interims, director succession and offseason
+      hiring rounds. The player can lose the job, accept another offer or spectate while unemployed. Private staffing
+      briefings stay with the current club; other teams appear through reported moves and qualified rumors. Long-run
+      tuning and broader midseason player recruitment remain in progress.
 - [x] **Schedule weather forecasts (fog of war)** · **Already in** (hooks into #5): forecasts at three stages with
       calibrated rain chances on the schedule and the next-game card (`forecast` in `weather.ts`). Trend arrows and a
       staff hook are not built yet (`docs/WEATHER.md`).

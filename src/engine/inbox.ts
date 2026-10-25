@@ -1,3 +1,4 @@
+import { employed, managesTeam } from './employment';
 /**
  * The user's inbox: mail from the league office, agents and the team's own staff, the way a
  * manager's desk fills up in Football Manager. Nothing in the sim sends mail. `deliverMail` looks
@@ -576,6 +577,8 @@ export function keyMatchups(league: League, oppId: number): { attack: Matchup[];
 
 /** What a message is about, read back from its id. The ids are built here, so this is the one place that knows their shape. */
 export type MailSubject =
+  | { kind: 'leadership'; season: number; eventId: number }
+  | { kind: 'gmOffer'; season: number; teamId: number }
   | { kind: 'news'; season: number }
   | { kind: 'rookieImpact'; season: number }
   | { kind: 'matchup'; season: number; week: number }
@@ -620,6 +623,8 @@ const refOf = (key: string): StaffRef => ({
 export function mailSubject(m: InboxMessage): MailSubject | null {
   const [category, s, a, b, ...rest] = m.id.split(':');
   const season = Number(s);
+  if (category === 'leadership') return { kind: 'leadership', season, eventId: Number(a) };
+  if (category === 'gm-offer') return { kind: 'gmOffer', season, teamId: Number(a) };
   const player = m.actions.find((x) => x.kind === 'player');
   const playerId = player?.kind === 'player' ? player.playerId : -1;
   switch (category) {
@@ -710,10 +715,18 @@ export function briefingCurrent(league: League, m: InboxMessage): boolean {
 
 /** Present-day management tasks only; news and preparation never become tasks just for being current. */
 export function needsYou(league: League, m: InboxMessage): boolean {
+  if (!canReadMail(league, m)) return false;
   const s = mailSubject(m);
   if (!s || s.season !== league.season) return false;
   const user = league.userTeamId;
   switch (s.kind) {
+    case 'gmOffer':
+      return (
+        league.phase === 'resign' &&
+        !!league.leadership.search?.offers.some(
+          (o) => o.teamId === s.teamId && league.leadership.search!.round < o.expiresRound,
+        )
+      );
     case 'matchup':
     case 'injury':
     case 'deadline':
@@ -1505,7 +1518,7 @@ const recordIn = (league: League, season: number, teamId: number) =>
  */
 function ownerMail(league: League, have: Set<string>): Draft[] {
   const { season } = league;
-  const id = `owner:${season}`;
+  const id = `owner:${season}:${league.userTeamId}`;
   if (have.has(id)) return [];
   const team = league.teams[league.userTeamId];
   const market = ownerBudgetNote(team.staffBudgetMult);
@@ -2052,6 +2065,46 @@ function coverMail(league: League, have: Set<string>): Draft[] {
   return out;
 }
 
+/** Only your club sends private instructions. Outside reporting never quotes its decision file. */
+export function leadershipMail(league: League, have: Set<string>): Draft[] {
+  const out: Draft[] = [];
+  for (const e of league.leadership.events) {
+    const id = `leadership:${e.date.season}:${e.id}`;
+    if (have.has(id)) continue;
+    const personal = e.gmId === league.userGmId;
+    const inside = managesTeam(league, e.teamId);
+    out.push({
+      id,
+      season: e.date.season,
+      phase: e.date.phase,
+      week: e.date.week,
+      from: inside || (personal && e.kind === 'gmDismissed') ? 'The owner' : 'SNN league desk',
+      category: inside || personal ? 'staff' : 'league',
+      subject: e.report,
+      body: (inside || (personal && e.kind === 'gmDismissed')) && e.privateText ? e.privateText : e.report,
+      actions: [{ kind: 'gms' }],
+    });
+  }
+  const search = league.leadership.search;
+  if (search && search.round < 2)
+    for (const o of search.offers) {
+      const id = `gm-offer:${search.season}:${o.teamId}`;
+      if (!have.has(id))
+        out.push({
+          id,
+          season: league.season,
+          phase: league.phase,
+          week: league.week,
+          from: 'The owner',
+          category: 'staff',
+          subject: `${league.teams[o.teamId].abbrev}: ${o.incumbent ? 'permanent GM offer' : 'GM job offer'}`,
+          body: `We are offering you the GM position through ${o.through}. Open Front office → GMs to respond before hiring round ${o.expiresRound + 1}.`,
+          actions: [{ kind: 'gms' }],
+        });
+    }
+  return out;
+}
+
 const order = (m: Draft) => m.season * 1000 + PHASE_ORDER.indexOf(m.phase) * 100 + m.week;
 
 /**
@@ -2061,44 +2114,48 @@ const order = (m: Draft) => m.season * 1000 + PHASE_ORDER.indexOf(m.phase) * 100
 export function deliverMail(league: League): void {
   const first = !league.inbox;
   const inbox = (league.inbox ??= []);
-  const have = new Set(inbox.map((m) => m.id));
-  const fresh = [
-    ...awardMail(league, have),
-    ...injuryMail(league, have),
-    ...tradeMail(league, have),
-    ...offerMail(league, have),
-  ];
-  if (league.phase === 'resign')
-    fresh.push(...ownerMail(league, have), ...staffDealsMail(league, have), ...newYearMail(league, have));
-  // Free agency's first day: the window's coaching moves are done.
-  if (league.phase === 'freeAgency')
-    fresh.push(...combineMail(league, have), ...poachedMail(league, have), ...carouselMail(league, have));
-  // Free agency is over by the draft (or by camp, if a sim ran straight through it).
-  if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...faWrapMail(league, have));
-  if (league.phase === 'draft') fresh.push(...draftDayMail(league, have));
-  // The coaches' position suggestion while a plan can still start; the note once cut-down day has made the move.
-  if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...positionOfferMail(league, have));
-  if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
-    fresh.push(...positionMovedMail(league, have));
-  if ((league.phase === 'draft' && draftComplete(league)) || league.phase === 'preseason')
-    fresh.push(...draftClassMail(league, have));
-  if (league.phase === 'regular' || league.phase === 'playoffs') {
+  const have = new Set(inbox.filter((m) => canReadMail(league, m)).map((m) => m.id));
+  const fresh: Draft[] = [];
+  if (employed(league)) {
     fresh.push(
-      ...recapMail(league, have),
-      ...clearedMail(league, have),
-      ...coverMail(league, have),
-      ...raceMail(league, have),
-      ...matchupMail(league, have),
-      ...flexMail(league, have),
+      ...awardMail(league, have),
+      ...injuryMail(league, have),
+      ...tradeMail(league, have),
+      ...offerMail(league, have),
     );
+    if (league.phase === 'resign')
+      fresh.push(...ownerMail(league, have), ...staffDealsMail(league, have), ...newYearMail(league, have));
+    // Free agency's first day: the window's coaching moves are done.
+    if (league.phase === 'freeAgency')
+      fresh.push(...combineMail(league, have), ...poachedMail(league, have), ...carouselMail(league, have));
+    // Free agency is over by the draft (or by camp, if a sim ran straight through it).
+    if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...faWrapMail(league, have));
+    if (league.phase === 'draft') fresh.push(...draftDayMail(league, have));
+    // The coaches' position suggestion while a plan can still start; the note once cut-down day has made the move.
+    if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...positionOfferMail(league, have));
+    if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
+      fresh.push(...positionMovedMail(league, have));
+    if ((league.phase === 'draft' && draftComplete(league)) || league.phase === 'preseason')
+      fresh.push(...draftClassMail(league, have));
+    if (league.phase === 'regular' || league.phase === 'playoffs') {
+      fresh.push(
+        ...recapMail(league, have),
+        ...clearedMail(league, have),
+        ...coverMail(league, have),
+        ...raceMail(league, have),
+        ...matchupMail(league, have),
+        ...flexMail(league, have),
+      );
+    }
+    if (league.phase === 'regular') fresh.push(...deadlineMail(league, have));
+    if (league.phase === 'regular' || league.phase === 'resign') fresh.push(...marketMail(league, have));
+    if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
+      fresh.push(...marketRecapMail(league, have));
   }
-  if (league.phase === 'regular') fresh.push(...deadlineMail(league, have));
-  if (league.phase === 'regular' || league.phase === 'resign') fresh.push(...marketMail(league, have));
-  if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
-    fresh.push(...marketRecapMail(league, have));
   fresh.push(
     ...leagueNews(league, have),
-    ...rookieImpactMail(league, draftClassOf(league, league.season), director(league)),
+    ...(employed(league) ? rookieImpactMail(league, draftClassOf(league, league.season), director(league)) : []),
+    ...leadershipMail(league, have),
   );
   // Old full saves have no record of evicted IDs. Preserve their conservative cutoff once;
   // thereafter only IDs actually evicted on the boundary date are tombstoned.
@@ -2111,7 +2168,13 @@ export function deliverMail(league: League): void {
   const due = fresh.filter((m) => !floor || order(m) > floor.date || (order(m) === floor.date && !evicted.has(m.id)));
   if (!due.length) return;
   due.sort((a, b) => order(a) - order(b));
-  inbox.push(...due.map((m) => ({ ...m, read: first })));
+  inbox.push(
+    ...due.map((m) => ({
+      ...m,
+      read: first,
+      ...(m.category !== 'league' && employed(league) ? { organizationId: league.userTeamId } : {}),
+    })),
+  );
   // A newly reconstructed historical story may predate mail already filed. Evict chronologically.
   inbox.sort((a, b) => order(a) - order(b));
   const removed = inbox.splice(0, Math.max(0, inbox.length - KEEP));
@@ -2124,10 +2187,12 @@ export function deliverMail(league: League): void {
 
 /** Messages still in the inbox: not filed away, not deleted. */
 export const inInbox = (m: InboxMessage) => !m.archived && !m.deleted;
+export const canReadMail = (league: League, m: InboxMessage) =>
+  m.organizationId === undefined || managesTeam(league, m.organizationId);
 
 /** Unread in the inbox, as it lists them: a folded day of letters counts once. */
 export const unreadCount = (league: League) =>
-  new Set((league.inbox ?? []).filter((m) => !m.read && inInbox(m)).map(threadKey)).size;
+  new Set((league.inbox ?? []).filter((m) => canReadMail(league, m) && !m.read && inInbox(m)).map(threadKey)).size;
 
 /** File messages away (they're read by then), or bring them back. */
 export function archiveMail(league: League, ids: readonly string[], archived = true): void {

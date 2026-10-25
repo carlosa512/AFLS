@@ -54,6 +54,7 @@ import type {
   Team,
 } from './types';
 import { POSITIONS } from './types';
+import { computeRecords } from './season/standings';
 
 export const COACH_ROOMS: CoachRoom[] = ['QB', 'RB', 'WR', 'OL', 'DL', 'LB', 'DB'];
 export const ROOM_OF: Record<Position, CoachRoom | null> = {
@@ -672,7 +673,7 @@ export function protectCoach(league: League, coachId: number, through: number, r
     league,
     'coach',
     [c.teamId],
-    `${league.teams[c.teamId].abbrev} owner retained ${titleLower(c)} ${coachName(c)} through ${through}: ${reason}`,
+    `${league.teams[c.teamId].abbrev} retained ${titleLower(c)} ${coachName(c)} through ${through}`,
   );
   return mandate;
 }
@@ -769,6 +770,7 @@ function signCoach(league: League, teamId: number, c: Coach, years: number): voi
   if (c.teamId !== teamId) c.since = league.season;
   c.teamId = teamId;
   c.contract = { salary: coachAsk(league, c, years), through: league.season + years - 1 };
+  if (staffWindowOpen(league)) delete c.interim;
 }
 
 /**
@@ -838,6 +840,8 @@ function dismiss(league: League, c: Coach, why?: string): void {
   const teamId = c.teamId!;
   const team = league.teams[teamId];
   const owed = coachSeverance(league, c);
+  if (team.coachDepartures?.season !== league.season) team.coachDepartures = { season: league.season, ids: [] };
+  if (!team.coachDepartures.ids.includes(c.id)) team.coachDepartures.ids.push(c.id);
   if (owed > 0) team.coachDead.push({ season: league.season, amount: owed, name: coachName(c) });
   logCoach(
     league,
@@ -848,6 +852,7 @@ function dismiss(league: League, c: Coach, why?: string): void {
   c.lastJob = `${coachTitle(c)}, ${team.abbrev}${why ? ` (${why})` : ''}`;
   c.teamId = null;
   c.contract = null;
+  delete c.interim;
   delete c.since;
 }
 
@@ -1423,7 +1428,7 @@ export function scapegoat(rec: { w: number; l: number; t: number }): number {
 /** One AI team's window: the hot seat, expiring deals and every open chair. Returns who it let go, so it won't hire them back. */
 function aiCoachMoves(league: League, team: Team, rng: Rng): Set<number> {
   // Whoever the team lets go now is not its candidate for the same chair a minute later.
-  const gone = new Set<number>();
+  const gone = new Set<number>(team.coachDepartures?.season === league.season ? team.coachDepartures.ids : []);
   const staff = () => teamCoaches(league, team.id);
   const decide = (c: Coach) => {
     if (coachMandate(league, c)) return;
@@ -1447,6 +1452,7 @@ function aiCoachMoves(league: League, team: Team, rng: Rng): Set<number> {
       0.6 * coachAsk(league, hc, 2);
   if (
     hc &&
+    team.leadershipReview?.season !== league.season &&
     !coachMandate(league, hc) &&
     rec &&
     affordable &&
@@ -1468,6 +1474,55 @@ function aiCoachMoves(league: League, team: Team, rng: Rng): Set<number> {
   for (const c of staff().filter((x) => isCoachExpiring(league, x))) decide(c);
   fillChairs(league, team, rng, gone, true);
   return gone;
+}
+
+/** Owner action used by joint reviews. A promised coach stays and the replacement must be affordable. */
+export function ownerDismissHeadCoach(league: League, teamId: number): Coach | null {
+  const hc = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
+  if (!hc || coachMandate(league, hc) || !canLetGo(league, teamId, hc)) return null;
+  const record = league.phase === 'regular' ? computeRecords(league).get(teamId) : lastRecord(league, teamId);
+  dismiss(
+    league,
+    hc,
+    record ? `after a ${recordText(record)} ${league.phase === 'regular' ? 'start' : 'season'}` : undefined,
+  );
+  return hc;
+}
+
+export function canOwnerDismissHeadCoach(league: League, teamId: number): boolean {
+  const hc = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
+  return !!hc && !coachMandate(league, hc) && canLetGo(league, teamId, hc);
+}
+
+/** Midseason succession uses this club's coordinators, then the unemployed market; never another staff. */
+export function installInterimHeadCoach(league: League, teamId: number): Coach | null {
+  if (league.phase !== 'regular') throw new Error('Interim head coaches are appointed during the season.');
+  const old = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
+  if (old && !ownerDismissHeadCoach(league, teamId)) return null;
+  const internal = teamCoaches(league, teamId)
+    .filter((c) => (c.role === 'offCoord' || c.role === 'defCoord') && !coachMandate(league, c))
+    .sort((a, b) => coachValue(b) - coachValue(a))[0];
+  if (internal) promoteInto(league, teamId, internal, 1);
+  fillChairs(
+    league,
+    league.teams[teamId],
+    new Rng(`${league.seed}:interim-coaches:${league.season}:${league.week}:${teamId}`),
+  );
+  const hc = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
+  if (hc) {
+    hc.interim = true;
+    hc.contract!.through = league.season;
+  }
+  return hc;
+}
+
+/** A separate, explicit offseason decision resolves an interim; expiry alone grants no permanent job. */
+export function resolveInterimHeadCoach(league: League, c: Coach, keep: boolean): void {
+  if (!staffWindowOpen(league) || !c.interim || c.teamId === null) throw new Error('No interim review is due.');
+  if (keep) {
+    signCoach(league, c.teamId, c, 2);
+    delete c.interim;
+  } else dismiss(league, c);
 }
 
 /** Who a new head coach keeps, before fit: a coordinator who fits what he wants is worth up to +0.3 (the NFL keeps about one in five). */
@@ -1561,7 +1616,13 @@ interface Hire {
  * to a man one rung below: the team's own, the market's or, with `poach` (the window), another staff's. The
  * chair he leaves opens in turn, and a new head coach then picks his staff (`cleanHouse`).
  */
-function fillChairs(league: League, team: Team, rng: Rng, gone: Set<number> = new Set(), poach = false): void {
+function fillChairs(
+  league: League,
+  team: Team,
+  rng: Rng,
+  gone: Set<number> = new Set(team.coachDepartures?.season === league.season ? team.coachDepartures.ids : []),
+  poach = false,
+): void {
   const open = () => CHAIRS.filter((ch) => !chairHolder(teamCoaches(league, team.id), ch));
   // A chair is tried once: a promotion only ever opens chairs further down the list.
   const tried: Chair[] = [];

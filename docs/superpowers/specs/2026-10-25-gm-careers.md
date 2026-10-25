@@ -155,3 +155,82 @@ results or shared RNG. Validate a supplied long-running save separately without 
 
 Run typechecking and the relevant GM, records, scouting, coaching, offseason, engine and UI tests;
 use the area-specific offseason audit at a small size. Follow CLAUDE.md for CI and release checks.
+
+## Leadership reviews, hiring and player continuity
+
+Save version 43 adds durable leadership events, each club's latest private review, dated review markers,
+and an offseason GM search. New-world AI incumbents have generated prior tenure for owner patience,
+without invented historical game records. A new player GM and migrated incumbents receive no fictitious
+prior tenure. All ownership and staffing decisions run on isolated seeded streams.
+
+Reviews consider the current appointment's results, recent playoff appearances, improvement, time to
+rebuild and owner patience. New hires get two complete seasons. A winning recent season or playoff trip
+protects the GM. Owners can retain leadership, warn, require a different head coach, replace the GM
+while retaining an already-contracted coach, or open both roles. Expired GM contracts receive an
+explicit renewal or search decision. Older AI GMs can retire; the player does not silently retire.
+
+Midseason reviews take place after weeks 8, 12 and 16. Severe current losses and a poor prior record
+can lead to GM dismissal; the internal scouting director normally becomes interim GM, with an internal
+scout promoted to cover the director chair. A coordinator can become interim head coach, with the
+vacated roles filled from the internal staff or unemployed market. Another team's employees cannot
+be recruited during the season. A club has at most one midseason GM and head-coach change per year.
+Interims expire with the season and require separate permanent offseason offers. Dismissed coaches
+cannot immediately be rehired by the same team in that year's replacement search.
+
+Three offseason GM hiring rounds hold shortlisted player offers long enough to respond. Expiry or
+continuing the rounds lets AI owners choose other candidates. Permanent hires come from unemployed
+experienced GMs or actual scouting directors; employed GMs are not taken from another club. Scouting
+appointments and portraits follow the promoted person. Vacated director roles, including retirements,
+are covered by the end of hiring. The player can be passed over and sit out a season. Player offers
+currently arrive in offseason rounds; midseason succession is handled internally or from the unemployed
+AI candidate pool.
+
+A persistent GM appointment grants authority; `userTeamId` retains the last viewed club for legacy
+filters. While unemployed, calendar simulation temporarily routes every franchise through its normal
+AI path, including the former club, and restores the viewer afterward. Job changes clear old scouting
+visits, negotiations, trade offers, statuses and pending physicals; the new club supplies the scouting
+budget. The unemployment home supports GM offers, league news, public rosters/stat cards and watching
+any scheduled game live. Management screens are replaced by the career directory. User-facing long
+simulation stops at dismissal or job offers; automated audits explicitly resolve offers and continue.
+
+Owner mandates, exact review reasons and internal mail are visible only while managing that club.
+Public GM and coach cards do not quote them. Leadership news/mail use confirmed moves and selective,
+qualified reports such as a rumored prove-it season or an incoming GM expected to keep the existing
+head coach. Public transaction logs contain the move only. Migration redacts old retention headlines;
+club mail is scoped to its organization, while personal job offers and dismissals remain readable.
+
+`npm run gm:ten-years -- --seasons 10 --output /path/to/work` creates one new world, selects its weakest
+team by starting overall and forks two identical saves. The league seed and owner personalities stay
+fixed. A separate match salt and future RNG state let results diverge. Both careers use the same AI
+roster/hiring policy, accepting the first available GM offer or sitting out if none arrives. The harness
+follows the person and the original franchise separately, includes the closing owner review after year
+ten, reconciles every team's split GM service and championship credit, and checks portrait and director
+coverage across JSON save/load boundaries. It does not force a fired/surviving pair of outcomes.
+
+### First paired ten-year validation
+
+Fresh seed `afls-gm-careers-new-world-2026` selected Carolina, the weakest starting roster. Both runs
+played 2026–2035 and included the closing 2036 ownership review/search, without forcing either outcome.
+A's player served nine seasons (48–105, one playoff trip), was dismissed in the 2035 offseason and sat
+out 2035. B served six seasons (30–72, one playoff trip), was dismissed in the 2032 offseason and sat
+out 2032–2035. Neither received another offer within this sample.
+
+A had 32 actual GM changes (29 dismissals, three retirements); B had 30 (27 dismissals, three
+retirements). Annual changes ranged from zero to five. Director entrants numbered 31/29; each league
+also hired one experienced former GM. There were 51/63 head-coach changes across the played seasons,
+including 2/8 midseason interim appointments. Neither run produced a midseason GM dismissal; that
+path is covered by a targeted seeded scenario, not demonstrated at a calibrated rate by this sample.
+
+All 5,700 games completed. Each club's split GM and head-coach service reconciled across 640
+team-seasons apiece, with correct title credit. All 20 kickoffs were cap compliant. GM and scouting
+director chairs were covered after searches; portrait identity and suits survived JSON reloads.
+Lifecycle, privacy, inbox, owner, GM, avatar, UI and coaching regressions passed. Career, trade and
+six-season offseason audits completed with zero numbers outside their existing target ranges. The
+production build passed. Browser checks exercise private/public views, actual interim coaches,
+unemployed viewing, read-only rosters and mobile cards. An explicitly staged offer preview exercises
+acceptance; it is not counted as a playthrough result.
+
+Before final balance, revisit the unusually patient Carolina owner in A, prolonged unemployment in B,
+the dominance of director hires and the observed rarity of midseason GM dismissal. Broader seeds
+should guide tuning; these two careers establish lifecycle correctness and expose the first balance
+questions, rather than proving final NFL-like rates.

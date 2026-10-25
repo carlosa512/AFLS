@@ -170,7 +170,7 @@ describe('owner coaching mandates', () => {
     protectCoach(l, c.id, l.season, 'The owner wants one more year.');
     deliverMail(l);
     deliverMail(l);
-    const letters = l.inbox!.filter((m) => m.id === `owner:${l.season}`);
+    const letters = l.inbox!.filter((m) => m.id === `owner:${l.season}:${l.userTeamId}`);
     expect(letters).toHaveLength(1);
     expect(letters[0].body).toContain('contract already covers that commitment');
     expect(letters[0].body).toContain('The owner wants one more year.');

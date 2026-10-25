@@ -1,3 +1,4 @@
+import { GmJobs, LeadershipReports } from './GmEmployment';
 import { useState } from 'react';
 import { formatRecord, gmRecord, winPct } from '../../engine/records';
 import type { Coach, GeneralManager, League } from '../../engine/types';
@@ -253,6 +254,8 @@ export function GeneralManagers({ league }: { league: League }) {
   ];
   return (
     <div className="stack">
+      <GmJobs league={league} />
+      <LeadershipReports league={league} />
       <Panel className="gm-career-overview" title="Your GM career">
         <div className="gm-overview-person">
           <GmAvatar league={league} gm={you} size={88} />
