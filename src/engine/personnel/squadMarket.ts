@@ -3,9 +3,11 @@ import { capSpace } from '../finance/cap';
 import { inSeasonReserve } from '../offseason/ai';
 import { contenderScore, resetContenderCache } from '../offseason/negotiation';
 import { activeRoster, practiceSquad } from '../roster';
+import { playerOvr } from '../positions';
+import { recordRatings } from '../development';
 import { Rng } from '../rng';
 import { viewCache } from '../scouting';
-import type { League, Player } from '../types';
+import type { League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
 import { squadCategory, squadRates } from './eligibility';
 import { ensureSquads, settleSquadPayroll, squadPayWeek } from './payroll';
@@ -20,27 +22,50 @@ export function squadCandidates(league: League): Player[] {
   );
 }
 
+// Rounded 2022–24 NFL practice-squad player-week shares; DL/DB split for AFLS positions.
+const SUPPLY_WEIGHT: Record<Position, number> = {
+  QB: 3,
+  RB: 8,
+  WR: 17,
+  TE: 8,
+  OL: 18,
+  DT: 8,
+  EDGE: 8,
+  LB: 10,
+  CB: 11,
+  S: 8,
+  K: 0.8,
+  P: 0.2,
+};
+
 /** World supply is independent of the main RNG and never takes a player or dollar from an existing 53. */
 export function ensureSquadSupply(league: League): void {
   const openings = league.teams.reduce((sum, t) => sum + Math.max(0, 16 - practiceSquad(league, t.id).length), 0);
-  const missing = Math.max(
-    0,
-    openings + 64 - squadCandidates(league).filter((p) => squadCategory(league, p) === 'base').length,
-  );
+  const candidates = squadCandidates(league);
+  let baseMissing = Math.max(0, openings + 64 - candidates.filter((p) => squadCategory(league, p) === 'base').length);
+  const missing = Math.max(0, openings + 64 - candidates.length);
   const rng = new Rng(`${league.seed}:squad-pool:${league.season}:${league.nextPlayerId}`);
-  for (let i = 0; i < missing; i++) {
+  for (let i = 0; i < missing || baseMissing > 0; i++) {
+    const veteran = rng.chance(0.25);
+    const experience = veteran ? rng.int(4, 7) : rng.chance(0.45) ? 0 : rng.int(1, 3);
     const p = generatePlayer(rng, {
       id: league.nextPlayerId++,
-      position: POSITIONS[i % POSITIONS.length],
-      quality: rng.float(6.5, 10),
-      age: rng.int(21, 24),
+      position: rng.weighted(POSITIONS, (pos) => SUPPLY_WEIGHT[pos]),
+      quality: veteran ? rng.float(8, 10.5) : rng.float(6.5, 10),
+      age: veteran ? rng.int(27, 31) : experience === 0 ? rng.int(21, 23) : rng.int(23, 26),
       teamId: null,
       jerseysUsed: new Set(),
     });
-    p.experience = 0;
-    p.service = initialService(0, league.season - 1);
+    // Calendar experience can include prior practice-squad seasons with no accrued NFL service.
+    p.experience = experience;
+    p.service = initialService(veteran ? experience : 0, league.season - 1);
+    // Most unsigned reserves project as depth. Rare young breakouts survive; no change to drafted/cut players.
+    const upside = veteran ? rng.float(0, 0.8) : rng.float(0.2, 2.2) + (rng.chance(0.025) ? rng.float(2, 4) : 0);
+    p.potential = Math.min(20, playerOvr(p) + upside);
+    recordRatings(p, league.season);
     p.contract = null;
     league.players[p.id] = p;
+    if (!veteran) baseMissing--;
   }
 }
 
@@ -110,11 +135,15 @@ export function formPracticeSquads(league: League, autoUser = false): number {
       const open = 16 - existing.length;
       if (open <= 0) continue;
       const budget = capSpace(league, team.id) - inSeasonReserve(league, team.id);
+      const healthy = activeRoster(league, team.id).filter((p) => !p.injury);
       const ranks = pool
         .map((p) => {
           const read = view(team.id, p);
           const coverage = existing.filter((x) => x.position === p.position).length;
-          return { p, score: read.ovr * 0.45 + read.potMid * 0.55 - coverage * 0.4 };
+          const roster = healthy.filter((x) => x.position === p.position);
+          const cover = roster.length < (p.position === 'QB' ? 2 : 1) ? 1 : 0;
+          const specialist = p.position === 'K' || p.position === 'P';
+          return { p, score: read.ovr * 0.7 + read.potMid * 0.3 + cover - coverage * (specialist ? 4 : 0.8) };
         })
         .sort((a, b) => b.score - a.score || a.p.id - b.p.id);
       let offered = 0;

@@ -35,7 +35,7 @@ import { generateTraits } from './traits';
 import { initialPersonnelState } from './personnel/rules';
 import { ensureService } from './personnel/service';
 import { formPracticeSquads } from './personnel/squadMarket';
-import { squadRates } from './personnel/eligibility';
+import { squadFormationCost } from './personnel/eligibility';
 import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
@@ -823,14 +823,18 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     // settled league's kickoff level) traded 10 times in season against 14 at 90-99%, and its structure, not its
     // level, keeps a team from hoarding what's left (most room at a seasons 1-4 kickoff 23% on 15 seeds).
     const target = SALARY_CAP * rng.float(0.9, 0.99);
-    const squadBudget = 16 * 18 * squadRates(league).min;
+    const squadBudget = squadFormationCost(league);
     const aim = options.personnel
       ? Math.min(target, SALARY_CAP - inSeasonReserve(league, team.id)) - squadBudget - 20
       : target;
     fitPayroll(roster, season, aim, market, team.gm);
     // The first fitting pass can raise a formerly below-minimum base. Reconcile inside world creation,
     // before any contract is presented to the manager; normal careers retain their original generation.
-    if (options.personnel && roster.reduce((sum, p) => sum + capHit(p.contract!, season), 0) > aim)
+    for (
+      let pass = 0;
+      options.personnel && pass < 8 && roster.reduce((sum, p) => sum + capHit(p.contract!, season), 0) > aim;
+      pass++
+    )
       fitPayroll(roster, season, aim, market, team.gm);
   }
 

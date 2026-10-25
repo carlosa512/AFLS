@@ -2,7 +2,7 @@
 
 ## Status
 
-Steps 1–3 implement service/list foundations, the personnel calendar and waivers, and practice squad formation/contracts/payroll. Save version 43 retains the disabled-by-default `afls-2026-v1` profile. Ordinary careers stay off until elevations, protections/poaching and the complete yearly lifecycle ship. Development worlds can opt in with `createLeague({ personnel: true })`; existing development saves keep their enabled flag. The seven-step plan is in `superpowers/plans/2026-10-25-practice-squads.md`.
+Steps 1–3 implement service/list foundations, the personnel calendar and waivers, and practice squad formation/contracts/payroll. Save version 44 retains the disabled-by-default `afls-2026-v1` profile. Ordinary careers stay off until elevations, protections/poaching and the complete yearly lifecycle ship. Development worlds can opt in with `createLeague({ personnel: true })`; existing development saves keep their enabled flag. The seven-step plan is in `superpowers/plans/2026-10-25-practice-squads.md`.
 
 ## Design authority
 
@@ -166,3 +166,8 @@ Optional `WaiverClaim.squadReturnIds` records return instructions for the select
 The waiver table now has an explicit **Your actions** column with **Plan claim**, **Edit plan** and **Cancel claim**. The popup distinguishes saving a plan from changing the roster and explains the conditional action. One shared deadline appears above the table; per-player decision times appear only for different batches. **Advance roster clock** resolves personnel claims without playing games, verified against the unplayed schedule and current week in the browser. Signing order is unchanged.
 
 Validation includes combined promotion previews and exact posted cap changes, full-squad returns using the promoted player's place, insufficient-cap/stale-player/positional/preseason blockers without partial cuts, winning/losing return instructions and JSON reload. The enabled waiver and squad career audits pass on two worlds each. Browser checks cover the actual dropdowns, claim save/edit/cancel, full-roster promotion, signing order, spending shares, active/squad filters, clock advancement without game simulation, reload, dark mode and mobile.
+
+
+## NFL roles and balance research (v0.1.17)
+
+[Modern NFL usage, outcome definitions, reproducible data analysis and ten-season study](research/practice-squad-outcomes.md) inform the unsigned reserve pool and squad AI. Formation now mixes experience levels, follows positional demand and values ready cover alongside projects. This changes balance, not the stored rule profile or existing player ceilings. Active-roster contracts also show sortable Ability pills.

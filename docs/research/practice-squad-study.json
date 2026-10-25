@@ -1,0 +1,5037 @@
+{
+  "date": "2026-10-25",
+  "baselineCommit": "0d76f7b",
+  "updatedVersion": "0.1.17",
+  "nfl": {
+    "2022": {
+      "week1": 513,
+      "devPlayerWeeks": 8150,
+      "distinctSeasonPlayers": 891,
+      "meanUniquePerTeam": 32.28125,
+      "rookiePct": 31.06,
+      "exp4PlusPct": 22.74,
+      "meanAgePlayerWeeks": 25.52219309369803,
+      "positions": {
+        "OL": 1486,
+        "WR": 1448,
+        "QB": 342,
+        "LS": 10,
+        "P": 21,
+        "DL": 1296,
+        "LB": 832,
+        "DB": 1426,
+        "RB": 609,
+        "TE": 598,
+        "K": 82
+      },
+      "week1LaterACT": 284,
+      "week1SameYearSnaps": {
+        "n": 513,
+        "mapped": 494,
+        "anySnaps": 263,
+        "regularRole": 4,
+        "specialTeamsRole": 22,
+        "anySnapsPctOfAll": 51.27,
+        "regularRolePctOfAll": 0.78
+      },
+      "youngSameYear": {
+        "n": 348,
+        "mapped": 331,
+        "anySnaps": 157,
+        "regularRole": 1,
+        "specialTeamsRole": 14,
+        "anySnapsPctOfAll": 45.11,
+        "regularRolePctOfAll": 0.29
+      },
+      "rookiesSameYear": {
+        "n": 178,
+        "mapped": 168,
+        "anySnaps": 69,
+        "regularRole": 0,
+        "specialTeamsRole": 8,
+        "anySnapsPctOfAll": 38.76,
+        "regularRolePctOfAll": 0.0
+      },
+      "youngNextYear": {
+        "n": 348,
+        "mapped": 331,
+        "anySnaps": 118,
+        "regularRole": 2,
+        "specialTeamsRole": 25,
+        "anySnapsPctOfAll": 33.91,
+        "regularRolePctOfAll": 0.57
+      },
+      "youngThrough2024": {
+        "n": 348,
+        "mapped": 331,
+        "anySnaps": 208,
+        "regularRole": 7,
+        "specialTeamsRole": 44,
+        "anySnapsPctOfAll": 59.77,
+        "regularRolePctOfAll": 2.01
+      },
+      "rookiesThrough2024": {
+        "n": 178,
+        "mapped": 168,
+        "anySnaps": 104,
+        "regularRole": 2,
+        "specialTeamsRole": 27,
+        "anySnapsPctOfAll": 58.43,
+        "regularRolePctOfAll": 1.12
+      },
+      "youngFutureYearsOnly": {
+        "n": 348,
+        "mapped": 331,
+        "anySnaps": 144,
+        "regularRole": 6,
+        "specialTeamsRole": 39,
+        "anySnapsPctOfAll": 41.38,
+        "regularRolePctOfAll": 1.72
+      }
+    },
+    "2023": {
+      "week1": 486,
+      "devPlayerWeeks": 8195,
+      "distinctSeasonPlayers": 843,
+      "meanUniquePerTeam": 30.28125,
+      "rookiePct": 27.44,
+      "exp4PlusPct": 26.11,
+      "meanAgePlayerWeeks": 25.799531699278045,
+      "positions": {
+        "OL": 1517,
+        "QB": 249,
+        "LS": 4,
+        "DL": 1356,
+        "RB": 635,
+        "DB": 1531,
+        "WR": 1395,
+        "LB": 834,
+        "TE": 625,
+        "K": 44,
+        "P": 5
+      },
+      "week1LaterACT": 257,
+      "week1SameYearSnaps": {
+        "n": 486,
+        "mapped": 474,
+        "anySnaps": 239,
+        "regularRole": 3,
+        "specialTeamsRole": 22,
+        "anySnapsPctOfAll": 49.18,
+        "regularRolePctOfAll": 0.62
+      },
+      "youngSameYear": {
+        "n": 301,
+        "mapped": 292,
+        "anySnaps": 122,
+        "regularRole": 1,
+        "specialTeamsRole": 9,
+        "anySnapsPctOfAll": 40.53,
+        "regularRolePctOfAll": 0.33
+      },
+      "rookiesSameYear": {
+        "n": 142,
+        "mapped": 135,
+        "anySnaps": 52,
+        "regularRole": 1,
+        "specialTeamsRole": 3,
+        "anySnapsPctOfAll": 36.62,
+        "regularRolePctOfAll": 0.7
+      },
+      "youngNextYear": {
+        "n": 301,
+        "mapped": 292,
+        "anySnaps": 102,
+        "regularRole": 1,
+        "specialTeamsRole": 28,
+        "anySnapsPctOfAll": 33.89,
+        "regularRolePctOfAll": 0.33
+      },
+      "youngThrough2024": {
+        "n": 301,
+        "mapped": 292,
+        "anySnaps": 168,
+        "regularRole": 2,
+        "specialTeamsRole": 32,
+        "anySnapsPctOfAll": 55.81,
+        "regularRolePctOfAll": 0.66
+      },
+      "rookiesThrough2024": {
+        "n": 142,
+        "mapped": 135,
+        "anySnaps": 72,
+        "regularRole": 2,
+        "specialTeamsRole": 11,
+        "anySnapsPctOfAll": 50.7,
+        "regularRolePctOfAll": 1.41
+      }
+    },
+    "2024": {
+      "week1": 494,
+      "devPlayerWeeks": 8306,
+      "distinctSeasonPlayers": 885,
+      "meanUniquePerTeam": 31.875,
+      "rookiePct": 29.67,
+      "exp4PlusPct": 26.51,
+      "meanAgePlayerWeeks": 25.824260861947884,
+      "positions": {
+        "OL": 1435,
+        "DB": 1537,
+        "LS": 4,
+        "TE": 667,
+        "WR": 1429,
+        "DL": 1260,
+        "LB": 888,
+        "QB": 345,
+        "P": 14,
+        "K": 71,
+        "RB": 656
+      },
+      "week1LaterACT": 267,
+      "week1SameYearSnaps": {
+        "n": 494,
+        "mapped": 482,
+        "anySnaps": 250,
+        "regularRole": 6,
+        "specialTeamsRole": 32,
+        "anySnapsPctOfAll": 50.61,
+        "regularRolePctOfAll": 1.21
+      },
+      "youngSameYear": {
+        "n": 324,
+        "mapped": 313,
+        "anySnaps": 139,
+        "regularRole": 3,
+        "specialTeamsRole": 17,
+        "anySnapsPctOfAll": 42.9,
+        "regularRolePctOfAll": 0.93
+      },
+      "rookiesSameYear": {
+        "n": 148,
+        "mapped": 141,
+        "anySnaps": 47,
+        "regularRole": 1,
+        "specialTeamsRole": 3,
+        "anySnapsPctOfAll": 31.76,
+        "regularRolePctOfAll": 0.68
+      }
+    }
+  },
+  "game": {
+    "baseline-a": {
+      "seed": "ps-long-a",
+      "completed": 10,
+      "failures": [],
+      "initialPool": {
+        "n": 576,
+        "everRoster": 392,
+        "everStarter": 220
+      },
+      "initialSquad": {
+        "n": 512,
+        "threeYearDepthRole": 66,
+        "tenYearDepthRole": 179
+      },
+      "initialYoungSquad": {
+        "n": 512,
+        "threeYearDepthRole": 66,
+        "tenYearDepthRole": 179
+      },
+      "initialRookieSquad": {
+        "n": 512,
+        "threeYearDepthRole": 66,
+        "tenYearDepthRole": 179
+      },
+      "initialFieldSquad": {
+        "n": 421,
+        "threeYearDepthRole": 57,
+        "tenYearDepthRole": 155
+      },
+      "meanAnnualMoves": {
+        "squadSign": 417.55555555555554,
+        "sign": 304.55555555555554,
+        "waiver": 275.3333333333333,
+        "claim": 161.88888888888889,
+        "trade": 46.888888888888886
+      },
+      "rows": [
+        {
+          "season": 2026,
+          "players": 2272,
+          "squadSize": {
+            "n": 32,
+            "mean": 16,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 512,
+            "mean": 8.030358628059853,
+            "p50": 8.045454545454545,
+            "p90": 9.666666666666666,
+            "max": 11
+          },
+          "squadPotential": {
+            "n": 512,
+            "mean": 11.240625000000009,
+            "p50": 11.1,
+            "p90": 13.5,
+            "max": 17.3
+          },
+          "squadUpside": {
+            "n": 512,
+            "mean": 3.210266371940147,
+            "p50": 3.01578947368421,
+            "p90": 5.275,
+            "max": 7.089473684210526
+          },
+          "squadScoutedCeiling": {
+            "n": 512,
+            "mean": 11.97219279491152,
+            "p50": 11.937987364031512,
+            "p90": 14.645231733001836,
+            "max": 17.592728345743318
+          },
+          "squadAge": {
+            "n": 512,
+            "mean": 22.3984375,
+            "p50": 22,
+            "p90": 24,
+            "max": 24
+          },
+          "squadRookiesPct": 100,
+          "squadVeteransPct": 0,
+          "squadPotential14Pct": 7.6171875,
+          "squadPotential16Pct": 0.5859375,
+          "squadAbility12Pct": 0,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.517941638097385,
+            "p50": 12.421052631578947,
+            "p90": 15.368421052631579,
+            "max": 19.095238095238095
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.030620132153928,
+            "p50": 9.736842105263158,
+            "p90": 14.261904761904763,
+            "max": 19.095238095238095
+          },
+          "squadAtTeamStarter": 27,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 5.684707696989818,
+            "p50": 5.156828242585225,
+            "p90": 8.936553784860566,
+            "max": 9.963800354139002
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.3147410358565732,
+            "p50": 1.3147410358565736,
+            "p90": 1.3147410358565736,
+            "max": 1.3147410358565736
+          },
+          "initialPoolRoster": 0,
+          "initialPoolStarters": 0,
+          "formerSquadStarters": 0,
+          "moves": {
+            "injury": 70,
+            "waiver": 214,
+            "sign": 308,
+            "trade": 46,
+            "claim": 136,
+            "release": 120,
+            "retire": 2,
+            "resign": 240,
+            "option": 20,
+            "tag": 3,
+            "staff": 1,
+            "coach": 50,
+            "draft": 224,
+            "position": 3,
+            "restructure": 2,
+            "squadSign": 376
+          },
+          "nextOpeningSeason": 2027,
+          "finishedSeason": 2026
+        },
+        {
+          "season": 2027,
+          "players": 2711,
+          "squadSize": {
+            "n": 32,
+            "mean": 11.75,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 376,
+            "mean": 9.124044221106447,
+            "p50": 9,
+            "p90": 11.35,
+            "max": 16.2
+          },
+          "squadPotential": {
+            "n": 376,
+            "mean": 11.753457446808511,
+            "p50": 11.6,
+            "p90": 14.1,
+            "max": 17.9
+          },
+          "squadUpside": {
+            "n": 376,
+            "mean": 2.629413225702071,
+            "p50": 2.581818181818182,
+            "p90": 4.463157894736842,
+            "max": 6.595238095238095
+          },
+          "squadScoutedCeiling": {
+            "n": 376,
+            "mean": 12.176046925653294,
+            "p50": 12.211906758023279,
+            "p90": 14.952677634099219,
+            "max": 17.520107089881325
+          },
+          "squadAge": {
+            "n": 376,
+            "mean": 24.13563829787234,
+            "p50": 23,
+            "p90": 27,
+            "max": 36
+          },
+          "squadRookiesPct": 10.638297872340425,
+          "squadVeteransPct": 15.957446808510639,
+          "squadPotential14Pct": 11.96808510638298,
+          "squadPotential16Pct": 1.3297872340425532,
+          "squadAbility12Pct": 6.117021276595745,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.616190103869998,
+            "p50": 12.476190476190476,
+            "p90": 15.421052631578947,
+            "max": 18.894736842105264
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.404923723532141,
+            "p50": 10.052631578947368,
+            "p90": 14.125,
+            "max": 18.894736842105264
+          },
+          "squadAtTeamStarter": 47,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.8505848213510965,
+            "p50": 2.5177163992440197,
+            "p90": 4.278900587490012,
+            "max": 4.874587332046136
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.9545385862089637,
+            "p50": 1.2323602363660515,
+            "p90": 1.3344452840684038,
+            "max": 1.3681292520700055
+          },
+          "initialPoolRoster": 102,
+          "initialPoolStarters": 26,
+          "formerSquadStarters": 26,
+          "moves": {
+            "injury": 97,
+            "sign": 305,
+            "waiver": 329,
+            "squadSign": 411,
+            "claim": 218,
+            "release": 170,
+            "trade": 43,
+            "retire": 3,
+            "resign": 220,
+            "option": 20,
+            "tag": 1,
+            "coach": 44,
+            "medical": 2,
+            "draft": 224,
+            "position": 5,
+            "restructure": 5
+          },
+          "nextOpeningSeason": 2028,
+          "finishedSeason": 2027
+        },
+        {
+          "season": 2028,
+          "players": 3150,
+          "squadSize": {
+            "n": 32,
+            "mean": 11.90625,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 381,
+            "mean": 9.381317952779828,
+            "p50": 9.368421052631579,
+            "p90": 11.789473684210526,
+            "max": 16.2
+          },
+          "squadPotential": {
+            "n": 381,
+            "mean": 11.870866141732272,
+            "p50": 11.9,
+            "p90": 14.3,
+            "max": 16.8
+          },
+          "squadUpside": {
+            "n": 381,
+            "mean": 2.489548188952457,
+            "p50": 2.2428571428571438,
+            "p90": 4.4526315789473685,
+            "max": 7.071428571428571
+          },
+          "squadScoutedCeiling": {
+            "n": 381,
+            "mean": 12.156262064984016,
+            "p50": 12.280538024016643,
+            "p90": 14.896028724963752,
+            "max": 17.29219967066099
+          },
+          "squadAge": {
+            "n": 381,
+            "mean": 24.26246719160105,
+            "p50": 23,
+            "p90": 28,
+            "max": 37
+          },
+          "squadRookiesPct": 32.28346456692913,
+          "squadVeteransPct": 18.89763779527559,
+          "squadPotential14Pct": 13.910761154855644,
+          "squadPotential16Pct": 0.7874015748031495,
+          "squadAbility12Pct": 8.136482939632545,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.834999697396903,
+            "p50": 12.628571428571428,
+            "p90": 15.631578947368421,
+            "max": 19.210526315789473
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.810511909396661,
+            "p50": 10.428571428571429,
+            "p90": 14.333333333333334,
+            "max": 19.210526315789473
+          },
+          "squadAtTeamStarter": 63,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.863293248453767,
+            "p50": 2.6370818861130356,
+            "p90": 4.471699140650778,
+            "max": 4.9437908565646005
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.9745583590864874,
+            "p50": 1.261614885294191,
+            "p90": 1.3625490744786075,
+            "max": 1.402123744616112
+          },
+          "initialPoolRoster": 154,
+          "initialPoolStarters": 50,
+          "formerSquadStarters": 67,
+          "moves": {
+            "injury": 76,
+            "sign": 278,
+            "waiver": 268,
+            "release": 171,
+            "claim": 156,
+            "trade": 47,
+            "squadSign": 453,
+            "retire": 1,
+            "resign": 237,
+            "option": 26,
+            "tag": 2,
+            "staff": 1,
+            "coach": 34,
+            "draft": 224,
+            "position": 3,
+            "restructure": 6
+          },
+          "nextOpeningSeason": 2029,
+          "finishedSeason": 2028
+        },
+        {
+          "season": 2029,
+          "players": 3530,
+          "squadSize": {
+            "n": 32,
+            "mean": 13.15625,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 421,
+            "mean": 9.826234705203946,
+            "p50": 9.8,
+            "p90": 12.421052631578947,
+            "max": 18.75
+          },
+          "squadPotential": {
+            "n": 421,
+            "mean": 12.042992874109268,
+            "p50": 12.1,
+            "p90": 14.3,
+            "max": 18.5
+          },
+          "squadUpside": {
+            "n": 421,
+            "mean": 2.216758168905313,
+            "p50": 1.9000000000000004,
+            "p90": 4.299999999999999,
+            "max": 7.086363636363636
+          },
+          "squadScoutedCeiling": {
+            "n": 421,
+            "mean": 12.167215718489821,
+            "p50": 12.368421052631579,
+            "p90": 14.762577749938629,
+            "max": 18.75
+          },
+          "squadAge": {
+            "n": 421,
+            "mean": 24.847980997624703,
+            "p50": 24,
+            "p90": 30,
+            "max": 37
+          },
+          "squadRookiesPct": 23.27790973871734,
+          "squadVeteransPct": 22.565320665083135,
+          "squadPotential14Pct": 14.489311163895488,
+          "squadPotential16Pct": 2.375296912114014,
+          "squadAbility12Pct": 15.914489311163896,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.035567656712809,
+            "p50": 12.736842105263158,
+            "p90": 15.789473684210526,
+            "max": 19.4
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.119941851506445,
+            "p50": 10.75,
+            "p90": 14.571428571428571,
+            "max": 19.4
+          },
+          "squadAtTeamStarter": 78,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.0819166712394943,
+            "p50": 2.907152115492839,
+            "p90": 4.6912666738445585,
+            "max": 5.136352717190384
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.080487678658186,
+            "p50": 1.2955097450377482,
+            "p90": 1.3816064873361475,
+            "max": 1.396466771256394
+          },
+          "initialPoolRoster": 180,
+          "initialPoolStarters": 66,
+          "formerSquadStarters": 97,
+          "moves": {
+            "injury": 91,
+            "waiver": 269,
+            "sign": 287,
+            "claim": 155,
+            "release": 158,
+            "trade": 53,
+            "squadSign": 361,
+            "retire": 3,
+            "resign": 212,
+            "option": 28,
+            "tag": 2,
+            "coach": 44,
+            "medical": 2,
+            "draft": 224,
+            "position": 4,
+            "restructure": 6
+          },
+          "nextOpeningSeason": 2030,
+          "finishedSeason": 2029
+        },
+        {
+          "season": 2030,
+          "players": 3893,
+          "squadSize": {
+            "n": 32,
+            "mean": 10.90625,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 349,
+            "mean": 10.50219033844053,
+            "p50": 10.227272727272727,
+            "p90": 13.68421052631579,
+            "max": 19.6
+          },
+          "squadPotential": {
+            "n": 349,
+            "mean": 12.626934097421204,
+            "p50": 12.9,
+            "p90": 15.1,
+            "max": 18.8
+          },
+          "squadUpside": {
+            "n": 349,
+            "mean": 2.124743758980677,
+            "p50": 1.8000000000000007,
+            "p90": 4.336363636363636,
+            "max": 7.289473684210526
+          },
+          "squadScoutedCeiling": {
+            "n": 349,
+            "mean": 12.62650915327491,
+            "p50": 12.885714285714286,
+            "p90": 15.144785385843454,
+            "max": 20
+          },
+          "squadAge": {
+            "n": 349,
+            "mean": 25.154727793696274,
+            "p50": 24,
+            "p90": 30,
+            "max": 35
+          },
+          "squadRookiesPct": 22.922636103151863,
+          "squadVeteransPct": 44.69914040114613,
+          "squadPotential14Pct": 24.355300859598856,
+          "squadPotential16Pct": 4.871060171919771,
+          "squadAbility12Pct": 31.51862464183381,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.036273359772515,
+            "p50": 12.8,
+            "p90": 15.8,
+            "max": 19.42105263157895
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.183689244619407,
+            "p50": 10.880952380952381,
+            "p90": 14.526315789473685,
+            "max": 19.42105263157895
+          },
+          "squadAtTeamStarter": 107,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.6339336087738427,
+            "p50": 2.5664260282791456,
+            "p90": 4.579187172619551,
+            "max": 4.87071596783746
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.878724345139837,
+            "p50": 1.2197901980015944,
+            "p90": 1.3269435214097665,
+            "max": 1.3464027777464014
+          },
+          "initialPoolRoster": 202,
+          "initialPoolStarters": 81,
+          "formerSquadStarters": 140,
+          "moves": {
+            "injury": 72,
+            "waiver": 274,
+            "sign": 264,
+            "claim": 128,
+            "release": 197,
+            "trade": 50,
+            "squadSign": 429,
+            "retire": 5,
+            "coach": 54,
+            "resign": 240,
+            "option": 27,
+            "tag": 3,
+            "staff": 1,
+            "draft": 224,
+            "position": 2,
+            "restructure": 3
+          },
+          "nextOpeningSeason": 2031,
+          "finishedSeason": 2030
+        },
+        {
+          "season": 2031,
+          "players": 4254,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.75,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 408,
+            "mean": 10.340958400904219,
+            "p50": 10.2,
+            "p90": 13.421052631578947,
+            "max": 16.5
+          },
+          "squadPotential": {
+            "n": 408,
+            "mean": 12.317647058823527,
+            "p50": 12.4,
+            "p90": 14.9,
+            "max": 19.2
+          },
+          "squadUpside": {
+            "n": 408,
+            "mean": 1.9766886579193084,
+            "p50": 1.7210526315789476,
+            "p90": 4.2125,
+            "max": 7.776190476190477
+          },
+          "squadScoutedCeiling": {
+            "n": 408,
+            "mean": 12.213478358719174,
+            "p50": 12.331215794292445,
+            "p90": 14.906837024566295,
+            "max": 18.54578408472526
+          },
+          "squadAge": {
+            "n": 408,
+            "mean": 25.590686274509803,
+            "p50": 25,
+            "p90": 31,
+            "max": 37
+          },
+          "squadRookiesPct": 21.568627450980394,
+          "squadVeteransPct": 41.66666666666667,
+          "squadPotential14Pct": 19.362745098039216,
+          "squadPotential16Pct": 2.696078431372549,
+          "squadAbility12Pct": 25.98039215686275,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.189988569316277,
+            "p50": 12.947368421052632,
+            "p90": 15.75,
+            "max": 19.526315789473685
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.425013459288783,
+            "p50": 11.105263157894736,
+            "p90": 14.545454545454545,
+            "max": 19.526315789473685
+          },
+          "squadAtTeamStarter": 96,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.7816317582090133,
+            "p50": 2.52392046753821,
+            "p90": 4.625352356388308,
+            "max": 5.062374114954164
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0388373219348956,
+            "p50": 1.281908427850082,
+            "p90": 1.3444816607581997,
+            "max": 1.346493423460181
+          },
+          "initialPoolRoster": 203,
+          "initialPoolStarters": 87,
+          "formerSquadStarters": 170,
+          "moves": {
+            "injury": 83,
+            "sign": 314,
+            "waiver": 227,
+            "release": 120,
+            "trade": 46,
+            "squadSign": 391,
+            "claim": 146,
+            "medical": 3,
+            "retire": 1,
+            "resign": 188,
+            "restructure": 9,
+            "option": 18,
+            "tag": 2,
+            "staff": 1,
+            "coach": 47,
+            "draft": 224,
+            "position": 6
+          },
+          "nextOpeningSeason": 2032,
+          "finishedSeason": 2031
+        },
+        {
+          "season": 2032,
+          "players": 4669,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.09375,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 387,
+            "mean": 11.163998710954036,
+            "p50": 11.052631578947368,
+            "p90": 14.5625,
+            "max": 18.6
+          },
+          "squadPotential": {
+            "n": 387,
+            "mean": 12.977519379844956,
+            "p50": 13,
+            "p90": 15.4,
+            "max": 18.9
+          },
+          "squadUpside": {
+            "n": 387,
+            "mean": 1.8135206688909256,
+            "p50": 1.6000000000000014,
+            "p90": 4,
+            "max": 6.214285714285714
+          },
+          "squadScoutedCeiling": {
+            "n": 387,
+            "mean": 12.888202504018983,
+            "p50": 12.947368421052632,
+            "p90": 15.368421052631579,
+            "max": 18.6
+          },
+          "squadAge": {
+            "n": 387,
+            "mean": 25.930232558139537,
+            "p50": 25,
+            "p90": 31,
+            "max": 38
+          },
+          "squadRookiesPct": 21.705426356589147,
+          "squadVeteransPct": 50.90439276485789,
+          "squadPotential14Pct": 28.940568475452196,
+          "squadPotential16Pct": 6.976744186046512,
+          "squadAbility12Pct": 41.60206718346253,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.044689908957993,
+            "p50": 12.789473684210526,
+            "p90": 15.6875,
+            "max": 19.526315789473685
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.323957821158276,
+            "p50": 11.052631578947368,
+            "p90": 14.31578947368421,
+            "max": 19.526315789473685
+          },
+          "squadAtTeamStarter": 141,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.9636599820212264,
+            "p50": 2.829738338726262,
+            "p90": 4.203305901120214,
+            "max": 9.833241155548075
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.992265997081631,
+            "p50": 1.2972252549163088,
+            "p90": 1.345771410385113,
+            "max": 1.346541054316844
+          },
+          "initialPoolRoster": 192,
+          "initialPoolStarters": 93,
+          "formerSquadStarters": 203,
+          "moves": {
+            "injury": 89,
+            "waiver": 259,
+            "sign": 323,
+            "release": 169,
+            "claim": 129,
+            "trade": 55,
+            "squadSign": 414,
+            "medical": 4,
+            "retire": 3,
+            "coach": 31,
+            "resign": 311,
+            "option": 23,
+            "tag": 3,
+            "staff": 1,
+            "draft": 224,
+            "position": 4,
+            "restructure": 4
+          },
+          "nextOpeningSeason": 2033,
+          "finishedSeason": 2032
+        },
+        {
+          "season": 2033,
+          "players": 5041,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.15625,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 389,
+            "mean": 11.12442677006844,
+            "p50": 11.31578947368421,
+            "p90": 14.545454545454545,
+            "max": 18.457142857142856
+          },
+          "squadPotential": {
+            "n": 389,
+            "mean": 13.059626572858873,
+            "p50": 13.1,
+            "p90": 15.7,
+            "max": 20
+          },
+          "squadUpside": {
+            "n": 389,
+            "mean": 1.9351998027904533,
+            "p50": 1.6999999999999993,
+            "p90": 4.300000000000001,
+            "max": 7.6
+          },
+          "squadScoutedCeiling": {
+            "n": 389,
+            "mean": 12.863805291166722,
+            "p50": 12.820078982560759,
+            "p90": 15.314285714285715,
+            "max": 19.498808145082936
+          },
+          "squadAge": {
+            "n": 389,
+            "mean": 26.030848329048844,
+            "p50": 26,
+            "p90": 31,
+            "max": 38
+          },
+          "squadRookiesPct": 21.336760925449873,
+          "squadVeteransPct": 52.95629820051414,
+          "squadPotential14Pct": 31.362467866323907,
+          "squadPotential16Pct": 8.740359897172237,
+          "squadAbility12Pct": 40.87403598971722,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.127815584623248,
+            "p50": 12.863636363636363,
+            "p90": 15.68421052631579,
+            "max": 19.6
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.434660514923703,
+            "p50": 11.1875,
+            "p90": 14.4,
+            "max": 19.6
+          },
+          "squadAtTeamStarter": 150,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.805244955674853,
+            "p50": 2.6155018380836372,
+            "p90": 4.078579875297669,
+            "max": 5.080861786763086
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0041280605751155,
+            "p50": 1.276214017753896,
+            "p90": 1.3453282878139992,
+            "max": 1.3464666704023787
+          },
+          "initialPoolRoster": 164,
+          "initialPoolStarters": 80,
+          "formerSquadStarters": 211,
+          "moves": {
+            "release": 157,
+            "sign": 321,
+            "injury": 101,
+            "waiver": 286,
+            "trade": 41,
+            "squadSign": 451,
+            "claim": 177,
+            "medical": 2,
+            "retire": 2,
+            "staff": 2,
+            "coach": 55,
+            "resign": 251,
+            "option": 22,
+            "tag": 1,
+            "draft": 224,
+            "position": 5,
+            "restructure": 5
+          },
+          "nextOpeningSeason": 2034,
+          "finishedSeason": 2033
+        },
+        {
+          "season": 2034,
+          "players": 5408,
+          "squadSize": {
+            "n": 32,
+            "mean": 13.25,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 424,
+            "mean": 10.833656074147632,
+            "p50": 11,
+            "p90": 14.136363636363637,
+            "max": 18.6
+          },
+          "squadPotential": {
+            "n": 424,
+            "mean": 12.722028753272546,
+            "p50": 12.6,
+            "p90": 15.4,
+            "max": 20
+          },
+          "squadUpside": {
+            "n": 424,
+            "mean": 1.8883726791249145,
+            "p50": 1.6263157894736837,
+            "p90": 4.1,
+            "max": 7.025
+          },
+          "squadScoutedCeiling": {
+            "n": 424,
+            "mean": 12.511938620123662,
+            "p50": 12.5,
+            "p90": 14.956901912343765,
+            "max": 18.952303779201774
+          },
+          "squadAge": {
+            "n": 424,
+            "mean": 26.080188679245282,
+            "p50": 25,
+            "p90": 31,
+            "max": 38
+          },
+          "squadRookiesPct": 20.99056603773585,
+          "squadVeteransPct": 52.594339622641506,
+          "squadPotential14Pct": 25.943396226415093,
+          "squadPotential16Pct": 7.311320754716981,
+          "squadAbility12Pct": 33.9622641509434,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.18655987966484,
+            "p50": 12.942857142857143,
+            "p90": 15.578947368421053,
+            "max": 19.6
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.50680312890933,
+            "p50": 11.263157894736842,
+            "p90": 14.473684210526315,
+            "max": 19.6
+          },
+          "squadAtTeamStarter": 117,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.0052583174431615,
+            "p50": 2.73203927216852,
+            "p90": 4.651072561520963,
+            "max": 4.934671814517266
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0851834827443985,
+            "p50": 1.2480922101838148,
+            "p90": 1.3459668987732982,
+            "max": 1.3464918756863773
+          },
+          "initialPoolRoster": 134,
+          "initialPoolStarters": 73,
+          "formerSquadStarters": 222,
+          "moves": {
+            "injury": 105,
+            "sign": 341,
+            "waiver": 352,
+            "trade": 41,
+            "release": 188,
+            "squadSign": 472,
+            "claim": 212,
+            "medical": 2,
+            "retire": 4,
+            "resign": 255,
+            "option": 27,
+            "tag": 1,
+            "coach": 53,
+            "draft": 224,
+            "position": 9,
+            "restructure": 1
+          },
+          "nextOpeningSeason": 2035,
+          "finishedSeason": 2034
+        },
+        {
+          "season": 2035,
+          "players": 5769,
+          "squadSize": {
+            "n": 32,
+            "mean": 13.875,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 444,
+            "mean": 10.749370893449846,
+            "p50": 10.947368421052632,
+            "p90": 13.738095238095237,
+            "max": 19.2
+          },
+          "squadPotential": {
+            "n": 444,
+            "mean": 12.615931156720624,
+            "p50": 12.6,
+            "p90": 15.1,
+            "max": 18.9
+          },
+          "squadUpside": {
+            "n": 444,
+            "mean": 1.86656026327079,
+            "p50": 1.578947368421053,
+            "p90": 4.136842105263158,
+            "max": 10.8
+          },
+          "squadScoutedCeiling": {
+            "n": 444,
+            "mean": 12.33744286829353,
+            "p50": 12.4,
+            "p90": 14.945003049440482,
+            "max": 19.2
+          },
+          "squadAge": {
+            "n": 444,
+            "mean": 26.27252252252252,
+            "p50": 25,
+            "p90": 31,
+            "max": 39
+          },
+          "squadRookiesPct": 20.495495495495494,
+          "squadVeteransPct": 51.80180180180181,
+          "squadPotential14Pct": 24.324324324324326,
+          "squadPotential16Pct": 4.72972972972973,
+          "squadAbility12Pct": 35.36036036036036,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.177343356912646,
+            "p50": 13,
+            "p90": 15.578947368421053,
+            "max": 19.210526315789473
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.534964767058073,
+            "p50": 11.333333333333334,
+            "p90": 14.428571428571429,
+            "max": 19.210526315789473
+          },
+          "squadAtTeamStarter": 118,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.9691370998144357,
+            "p50": 2.8542401446403027,
+            "p90": 4.379747728924759,
+            "max": 4.786525385402643
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.1360594461121243,
+            "p50": 1.3019808064143374,
+            "p90": 1.3463752843756305,
+            "max": 1.3464840695965763
+          },
+          "initialPoolRoster": 116,
+          "initialPoolStarters": 64,
+          "formerSquadStarters": 215,
+          "moves": {
+            "injury": 90,
+            "sign": 136,
+            "waiver": 164,
+            "trade": 17,
+            "release": 100,
+            "claim": 87,
+            "squadSign": 18,
+            "medical": 3
+          },
+          "nextOpeningSeason": 2035,
+          "finishedSeason": 2035
+        }
+      ]
+    },
+    "baseline-b": {
+      "seed": "ps-long-b",
+      "completed": 10,
+      "failures": [],
+      "initialPool": {
+        "n": 576,
+        "everRoster": 396,
+        "everStarter": 219
+      },
+      "initialSquad": {
+        "n": 512,
+        "threeYearDepthRole": 64,
+        "tenYearDepthRole": 178
+      },
+      "initialYoungSquad": {
+        "n": 512,
+        "threeYearDepthRole": 64,
+        "tenYearDepthRole": 178
+      },
+      "initialRookieSquad": {
+        "n": 512,
+        "threeYearDepthRole": 64,
+        "tenYearDepthRole": 178
+      },
+      "initialFieldSquad": {
+        "n": 420,
+        "threeYearDepthRole": 59,
+        "tenYearDepthRole": 160
+      },
+      "meanAnnualMoves": {
+        "squadSign": 434.6666666666667,
+        "sign": 292.1111111111111,
+        "waiver": 281,
+        "claim": 167,
+        "trade": 46.55555555555556
+      },
+      "rows": [
+        {
+          "season": 2026,
+          "players": 2272,
+          "squadSize": {
+            "n": 32,
+            "mean": 16,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 512,
+            "mean": 8.121058411075632,
+            "p50": 8.181818181818182,
+            "p90": 9.642857142857142,
+            "max": 11.4
+          },
+          "squadPotential": {
+            "n": 512,
+            "mean": 11.237109374999987,
+            "p50": 11,
+            "p90": 13.7,
+            "max": 17
+          },
+          "squadUpside": {
+            "n": 512,
+            "mean": 3.116050963924371,
+            "p50": 2.9000000000000004,
+            "p90": 5.294736842105264,
+            "max": 6.799999999999999
+          },
+          "squadScoutedCeiling": {
+            "n": 512,
+            "mean": 12.07010631467913,
+            "p50": 11.95385213152912,
+            "p90": 14.80174232385318,
+            "max": 17.759826747679075
+          },
+          "squadAge": {
+            "n": 512,
+            "mean": 22.453125,
+            "p50": 22,
+            "p90": 24,
+            "max": 24
+          },
+          "squadRookiesPct": 100,
+          "squadVeteransPct": 0,
+          "squadPotential14Pct": 7.8125,
+          "squadPotential16Pct": 0.78125,
+          "squadAbility12Pct": 0,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.785319952342986,
+            "p50": 12.578947368421053,
+            "p90": 15.625,
+            "max": 19.263157894736842
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.316351670610912,
+            "p50": 10.105263157894736,
+            "p90": 14.263157894736842,
+            "max": 19.263157894736842
+          },
+          "squadAtTeamStarter": 13,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 5.791659122885737,
+            "p50": 5.249125719344834,
+            "p90": 8.940571049136786,
+            "max": 9.8550298804781
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.3147410358565732,
+            "p50": 1.3147410358565736,
+            "p90": 1.3147410358565736,
+            "max": 1.3147410358565736
+          },
+          "initialPoolRoster": 0,
+          "initialPoolStarters": 0,
+          "formerSquadStarters": 0,
+          "moves": {
+            "injury": 106,
+            "sign": 345,
+            "trade": 44,
+            "release": 150,
+            "waiver": 243,
+            "claim": 155,
+            "retire": 5,
+            "resign": 256,
+            "option": 18,
+            "tag": 3,
+            "staff": 1,
+            "coach": 34,
+            "medical": 1,
+            "draft": 224,
+            "position": 2,
+            "restructure": 4,
+            "squadSign": 481
+          },
+          "nextOpeningSeason": 2027,
+          "finishedSeason": 2026
+        },
+        {
+          "season": 2027,
+          "players": 2711,
+          "squadSize": {
+            "n": 32,
+            "mean": 15.03125,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 481,
+            "mean": 8.443310980153086,
+            "p50": 8.473684210526315,
+            "p90": 10,
+            "max": 16.736842105263158
+          },
+          "squadPotential": {
+            "n": 481,
+            "mean": 10.911018711018713,
+            "p50": 10.9,
+            "p90": 13.2,
+            "max": 17.2
+          },
+          "squadUpside": {
+            "n": 481,
+            "mean": 2.4677077308656235,
+            "p50": 2.2789473684210524,
+            "p90": 4.314285714285715,
+            "max": 6.247368421052633
+          },
+          "squadScoutedCeiling": {
+            "n": 481,
+            "mean": 11.354535662343345,
+            "p50": 11.401266515749713,
+            "p90": 14.087844564325973,
+            "max": 17.017378276343443
+          },
+          "squadAge": {
+            "n": 481,
+            "mean": 23.823284823284823,
+            "p50": 23,
+            "p90": 26,
+            "max": 37
+          },
+          "squadRookiesPct": 8.731808731808732,
+          "squadVeteransPct": 9.97920997920998,
+          "squadPotential14Pct": 5.405405405405405,
+          "squadPotential16Pct": 0.8316008316008316,
+          "squadAbility12Pct": 0.6237006237006237,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.842364437520168,
+            "p50": 12.578947368421053,
+            "p90": 15.631578947368421,
+            "max": 19.263157894736842
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.747771739597708,
+            "p50": 10.5,
+            "p90": 14.30952380952381,
+            "max": 19.263157894736842
+          },
+          "squadAtTeamStarter": 18,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.4084131940338525,
+            "p50": 3.403206359553566,
+            "p90": 4.202492494403698,
+            "max": 4.6273817991939
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.1923262112944433,
+            "p50": 1.2645203331599262,
+            "p90": 1.3122522356222615,
+            "max": 1.338397963634213
+          },
+          "initialPoolRoster": 86,
+          "initialPoolStarters": 19,
+          "formerSquadStarters": 19,
+          "moves": {
+            "injury": 109,
+            "sign": 332,
+            "waiver": 346,
+            "release": 188,
+            "claim": 213,
+            "trade": 50,
+            "squadSign": 459,
+            "medical": 3,
+            "retire": 1,
+            "resign": 185,
+            "option": 16,
+            "staff": 1,
+            "coach": 18,
+            "draft": 224,
+            "position": 5,
+            "restructure": 5
+          },
+          "nextOpeningSeason": 2028,
+          "finishedSeason": 2027
+        },
+        {
+          "season": 2028,
+          "players": 3081,
+          "squadSize": {
+            "n": 32,
+            "mean": 14.0625,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 450,
+            "mean": 9.092672058935225,
+            "p50": 9.0625,
+            "p90": 10.909090909090908,
+            "max": 18.2
+          },
+          "squadPotential": {
+            "n": 450,
+            "mean": 11.284888888888881,
+            "p50": 11.2,
+            "p90": 13.4,
+            "max": 18.7
+          },
+          "squadUpside": {
+            "n": 450,
+            "mean": 2.192216829953671,
+            "p50": 1.9499999999999993,
+            "p90": 3.8736842105263154,
+            "max": 7.054545454545454
+          },
+          "squadScoutedCeiling": {
+            "n": 450,
+            "mean": 11.483791618933248,
+            "p50": 11.433317366589456,
+            "p90": 13.944718586584381,
+            "max": 18.972798742072193
+          },
+          "squadAge": {
+            "n": 450,
+            "mean": 24.351111111111113,
+            "p50": 24,
+            "p90": 27,
+            "max": 38
+          },
+          "squadRookiesPct": 22.444444444444443,
+          "squadVeteransPct": 15.555555555555555,
+          "squadPotential14Pct": 6.222222222222222,
+          "squadPotential16Pct": 0.4444444444444444,
+          "squadAbility12Pct": 3.7777777777777777,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.02652559058039,
+            "p50": 12.789473684210526,
+            "p90": 15.7,
+            "max": 19.68421052631579
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.097142390643743,
+            "p50": 10.82857142857143,
+            "p90": 14.45,
+            "max": 19.68421052631579
+          },
+          "squadAtTeamStarter": 28,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.3081973013026205,
+            "p50": 3.4664315344412153,
+            "p90": 4.222952991780343,
+            "max": 4.471894941306555
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.1316892594598709,
+            "p50": 1.2651253540566163,
+            "p90": 1.3335124270645797,
+            "max": 1.4086773769064
+          },
+          "initialPoolRoster": 142,
+          "initialPoolStarters": 50,
+          "formerSquadStarters": 52,
+          "moves": {
+            "injury": 100,
+            "sign": 289,
+            "waiver": 307,
+            "claim": 155,
+            "release": 201,
+            "trade": 47,
+            "squadSign": 404,
+            "medical": 2,
+            "retire": 1,
+            "resign": 265,
+            "option": 29,
+            "tag": 3,
+            "staff": 2,
+            "coach": 39,
+            "draft": 224,
+            "position": 4,
+            "restructure": 1
+          },
+          "nextOpeningSeason": 2029,
+          "finishedSeason": 2028
+        },
+        {
+          "season": 2029,
+          "players": 3417,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.28125,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 393,
+            "mean": 9.129625141386896,
+            "p50": 9.263157894736842,
+            "p90": 11,
+            "max": 14.8
+          },
+          "squadPotential": {
+            "n": 393,
+            "mean": 11.351145038167928,
+            "p50": 11.3,
+            "p90": 13.4,
+            "max": 16.3
+          },
+          "squadUpside": {
+            "n": 393,
+            "mean": 2.221519896781047,
+            "p50": 1.8999999999999986,
+            "p90": 4.08421052631579,
+            "max": 8.536842105263158
+          },
+          "squadScoutedCeiling": {
+            "n": 393,
+            "mean": 11.413198769723664,
+            "p50": 11.461268988513558,
+            "p90": 13.791273256273202,
+            "max": 16.27821183341098
+          },
+          "squadAge": {
+            "n": 393,
+            "mean": 24.447837150127228,
+            "p50": 24,
+            "p90": 27,
+            "max": 35
+          },
+          "squadRookiesPct": 24.681933842239186,
+          "squadVeteransPct": 13.231552162849871,
+          "squadPotential14Pct": 4.580152671755725,
+          "squadPotential16Pct": 0.2544529262086514,
+          "squadAbility12Pct": 2.5445292620865136,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.290524102633478,
+            "p50": 13,
+            "p90": 15.68421052631579,
+            "max": 19.842105263157894
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.401234911154946,
+            "p50": 11.157894736842104,
+            "p90": 14.6,
+            "max": 19.842105263157894
+          },
+          "squadAtTeamStarter": 10,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.098049894806604,
+            "p50": 3.564181509020045,
+            "p90": 4.364546344566721,
+            "max": 4.660146142264984
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.9505308224100395,
+            "p50": 1.2098089273707606,
+            "p90": 1.2707483939391309,
+            "max": 1.3136662397923529
+          },
+          "initialPoolRoster": 178,
+          "initialPoolStarters": 67,
+          "formerSquadStarters": 86,
+          "moves": {
+            "injury": 98,
+            "sign": 246,
+            "release": 150,
+            "waiver": 238,
+            "trade": 49,
+            "squadSign": 393,
+            "claim": 125,
+            "retire": 2,
+            "coach": 41,
+            "resign": 186,
+            "option": 20,
+            "tag": 3,
+            "medical": 2,
+            "draft": 224,
+            "position": 6,
+            "restructure": 8
+          },
+          "nextOpeningSeason": 2030,
+          "finishedSeason": 2029
+        },
+        {
+          "season": 2030,
+          "players": 3767,
+          "squadSize": {
+            "n": 32,
+            "mean": 11.71875,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 375,
+            "mean": 10.174986245917822,
+            "p50": 10,
+            "p90": 13.578947368421053,
+            "max": 19.842105263157894
+          },
+          "squadPotential": {
+            "n": 375,
+            "mean": 12.115494736842098,
+            "p50": 12,
+            "p90": 14.7,
+            "max": 20
+          },
+          "squadUpside": {
+            "n": 375,
+            "mean": 1.9405084909242796,
+            "p50": 1.6727272727272737,
+            "p90": 4.281818181818181,
+            "max": 8.138095238095236
+          },
+          "squadScoutedCeiling": {
+            "n": 375,
+            "mean": 12.067105198169019,
+            "p50": 12.044379516772496,
+            "p90": 14.789473684210526,
+            "max": 19.842105263157894
+          },
+          "squadAge": {
+            "n": 375,
+            "mean": 25.08,
+            "p50": 25,
+            "p90": 29,
+            "max": 36
+          },
+          "squadRookiesPct": 24.8,
+          "squadVeteransPct": 47.199999999999996,
+          "squadPotential14Pct": 17.333333333333336,
+          "squadPotential16Pct": 3.733333333333334,
+          "squadAbility12Pct": 19.733333333333334,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.194454879801306,
+            "p50": 12.942857142857143,
+            "p90": 15.736842105263158,
+            "max": 19.736842105263158
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.395892564279494,
+            "p50": 11.210526315789474,
+            "p90": 14.473684210526315,
+            "max": 19.736842105263158
+          },
+          "squadAtTeamStarter": 67,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.794654302716311,
+            "p50": 3.049278434716753,
+            "p90": 4.292758029893647,
+            "max": 4.545013276896529
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.9187964788771077,
+            "p50": 1.205940419704021,
+            "p90": 1.3155620187304087,
+            "max": 1.318349124538566
+          },
+          "initialPoolRoster": 200,
+          "initialPoolStarters": 96,
+          "formerSquadStarters": 126,
+          "moves": {
+            "injury": 103,
+            "waiver": 245,
+            "sign": 269,
+            "trade": 45,
+            "release": 149,
+            "claim": 138,
+            "squadSign": 444,
+            "medical": 1,
+            "retire": 3,
+            "staff": 1,
+            "resign": 243,
+            "option": 24,
+            "tag": 4,
+            "coach": 33,
+            "draft": 224,
+            "position": 7,
+            "restructure": 5
+          },
+          "nextOpeningSeason": 2031,
+          "finishedSeason": 2030
+        },
+        {
+          "season": 2031,
+          "players": 4129,
+          "squadSize": {
+            "n": 32,
+            "mean": 13.625,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 436,
+            "mean": 10.076361664952616,
+            "p50": 10.045454545454545,
+            "p90": 12.80952380952381,
+            "max": 18
+          },
+          "squadPotential": {
+            "n": 436,
+            "mean": 12.015391115403183,
+            "p50": 11.9,
+            "p90": 14.4,
+            "max": 19.3
+          },
+          "squadUpside": {
+            "n": 436,
+            "mean": 1.939029450450562,
+            "p50": 1.700000000000001,
+            "p90": 3.872727272727273,
+            "max": 7.568421052631578
+          },
+          "squadScoutedCeiling": {
+            "n": 436,
+            "mean": 11.85887007108075,
+            "p50": 11.8,
+            "p90": 14.047619047619047,
+            "max": 18
+          },
+          "squadAge": {
+            "n": 436,
+            "mean": 25.511467889908257,
+            "p50": 25,
+            "p90": 31,
+            "max": 38
+          },
+          "squadRookiesPct": 21.788990825688074,
+          "squadVeteransPct": 44.72477064220183,
+          "squadPotential14Pct": 14.449541284403669,
+          "squadPotential16Pct": 2.981651376146789,
+          "squadAbility12Pct": 17.201834862385322,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.279127702809342,
+            "p50": 13.05,
+            "p90": 15.8,
+            "max": 19.789473684210527
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.512954294236895,
+            "p50": 11.318181818181818,
+            "p90": 14.526315789473685,
+            "max": 19.789473684210527
+          },
+          "squadAtTeamStarter": 65,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.2004049068171465,
+            "p50": 3.3428907847131093,
+            "p90": 4.322058974031819,
+            "max": 4.52891773956491
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0786020573319364,
+            "p50": 1.22212245231889,
+            "p90": 1.2961840328090364,
+            "max": 1.3183459505845538
+          },
+          "initialPoolRoster": 206,
+          "initialPoolStarters": 93,
+          "formerSquadStarters": 155,
+          "moves": {
+            "injury": 101,
+            "sign": 265,
+            "waiver": 257,
+            "trade": 45,
+            "claim": 163,
+            "release": 141,
+            "squadSign": 437,
+            "medical": 6,
+            "retire": 2,
+            "resign": 250,
+            "option": 16,
+            "tag": 2,
+            "coach": 48,
+            "draft": 224,
+            "position": 7
+          },
+          "nextOpeningSeason": 2032,
+          "finishedSeason": 2031
+        },
+        {
+          "season": 2032,
+          "players": 4483,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.78125,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 409,
+            "mean": 10.64093396416134,
+            "p50": 10.666666666666666,
+            "p90": 13.842105263157896,
+            "max": 18.685714285714287
+          },
+          "squadPotential": {
+            "n": 409,
+            "mean": 12.499866637030449,
+            "p50": 12.4,
+            "p90": 14.8,
+            "max": 19.8
+          },
+          "squadUpside": {
+            "n": 409,
+            "mean": 1.8589326728691042,
+            "p50": 1.5631578947368432,
+            "p90": 4.215789473684211,
+            "max": 7.168181818181818
+          },
+          "squadScoutedCeiling": {
+            "n": 409,
+            "mean": 12.289897919463064,
+            "p50": 12.317650225288629,
+            "p90": 14.620303802894767,
+            "max": 18.685714285714287
+          },
+          "squadAge": {
+            "n": 409,
+            "mean": 26.0880195599022,
+            "p50": 26,
+            "p90": 31,
+            "max": 36
+          },
+          "squadRookiesPct": 16.381418092909534,
+          "squadVeteransPct": 53.30073349633252,
+          "squadPotential14Pct": 20.048899755501225,
+          "squadPotential16Pct": 3.9119804400977993,
+          "squadAbility12Pct": 28.606356968215156,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.241068087328879,
+            "p50": 12.954545454545455,
+            "p90": 15.68421052631579,
+            "max": 19.842105263157894
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.481327879155982,
+            "p50": 11.285714285714286,
+            "p90": 14.625,
+            "max": 19.842105263157894
+          },
+          "squadAtTeamStarter": 102,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.1020939585745007,
+            "p50": 3.026141009766535,
+            "p90": 4.364036210987851,
+            "max": 4.642173380848759
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.028168019904957,
+            "p50": 1.244169631003101,
+            "p90": 1.3062981266914646,
+            "max": 1.3183135528216774
+          },
+          "initialPoolRoster": 184,
+          "initialPoolStarters": 91,
+          "formerSquadStarters": 173,
+          "moves": {
+            "injury": 92,
+            "sign": 270,
+            "waiver": 255,
+            "trade": 46,
+            "squadSign": 420,
+            "release": 146,
+            "claim": 161,
+            "medical": 5,
+            "retire": 1,
+            "coach": 46,
+            "resign": 267,
+            "option": 23,
+            "draft": 224,
+            "position": 7,
+            "restructure": 5
+          },
+          "nextOpeningSeason": 2033,
+          "finishedSeason": 2032
+        },
+        {
+          "season": 2033,
+          "players": 4848,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.6875,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 406,
+            "mean": 10.654586463359475,
+            "p50": 10.681818181818182,
+            "p90": 13.6875,
+            "max": 18.514285714285716
+          },
+          "squadPotential": {
+            "n": 406,
+            "mean": 12.483128078817733,
+            "p50": 12.5,
+            "p90": 14.8,
+            "max": 19.8
+          },
+          "squadUpside": {
+            "n": 406,
+            "mean": 1.8285416154582605,
+            "p50": 1.5,
+            "p90": 3.957142857142859,
+            "max": 12.127272727272725
+          },
+          "squadScoutedCeiling": {
+            "n": 406,
+            "mean": 12.23084982912801,
+            "p50": 12.31578947368421,
+            "p90": 14.613636363636363,
+            "max": 18.514285714285716
+          },
+          "squadAge": {
+            "n": 406,
+            "mean": 26.182266009852217,
+            "p50": 25,
+            "p90": 31,
+            "max": 38
+          },
+          "squadRookiesPct": 18.226600985221676,
+          "squadVeteransPct": 52.95566502463054,
+          "squadPotential14Pct": 21.182266009852217,
+          "squadPotential16Pct": 3.4482758620689653,
+          "squadAbility12Pct": 32.26600985221675,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.29704860369437,
+            "p50": 13.023809523809524,
+            "p90": 15.789473684210526,
+            "max": 19.789473684210527
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.518240577255236,
+            "p50": 11.31578947368421,
+            "p90": 14.5,
+            "max": 19.789473684210527
+          },
+          "squadAtTeamStarter": 110,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.040397997760191,
+            "p50": 3.0160257065884286,
+            "p90": 4.058709689207851,
+            "max": 4.648358097142969
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0213382141275908,
+            "p50": 1.2704692640784216,
+            "p90": 1.3068553455698206,
+            "max": 1.3183403956840765
+          },
+          "initialPoolRoster": 161,
+          "initialPoolStarters": 82,
+          "formerSquadStarters": 199,
+          "moves": {
+            "injury": 95,
+            "waiver": 322,
+            "sign": 310,
+            "claim": 200,
+            "release": 171,
+            "trade": 47,
+            "squadSign": 412,
+            "medical": 3,
+            "retire": 3,
+            "resign": 267,
+            "option": 25,
+            "tag": 1,
+            "staff": 2,
+            "coach": 37,
+            "draft": 224,
+            "position": 2,
+            "restructure": 6
+          },
+          "nextOpeningSeason": 2034,
+          "finishedSeason": 2033
+        },
+        {
+          "season": 2034,
+          "players": 5215,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.25,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 392,
+            "mean": 10.629023168136019,
+            "p50": 10.789473684210526,
+            "p90": 13.421052631578947,
+            "max": 18.34285714285714
+          },
+          "squadPotential": {
+            "n": 392,
+            "mean": 12.440541084854981,
+            "p50": 12.5,
+            "p90": 14.7,
+            "max": 19.8
+          },
+          "squadUpside": {
+            "n": 392,
+            "mean": 1.8115179167189777,
+            "p50": 1.5,
+            "p90": 4.0375,
+            "max": 13.172727272727272
+          },
+          "squadScoutedCeiling": {
+            "n": 392,
+            "mean": 12.133400947935971,
+            "p50": 12.238095238095237,
+            "p90": 14.227467443224837,
+            "max": 20
+          },
+          "squadAge": {
+            "n": 392,
+            "mean": 26.507653061224488,
+            "p50": 26,
+            "p90": 32,
+            "max": 39
+          },
+          "squadRookiesPct": 20.153061224489797,
+          "squadVeteransPct": 54.59183673469388,
+          "squadPotential14Pct": 18.622448979591837,
+          "squadPotential16Pct": 3.316326530612245,
+          "squadAbility12Pct": 31.377551020408163,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.297858437820409,
+            "p50": 13,
+            "p90": 15.789473684210526,
+            "max": 19.789473684210527
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.55752402621588,
+            "p50": 11.368421052631579,
+            "p90": 14.571428571428571,
+            "max": 19.789473684210527
+          },
+          "squadAtTeamStarter": 101,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.9491650812036507,
+            "p50": 3.3695078281121726,
+            "p90": 4.19402985068615,
+            "max": 4.676767318380604
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.9889625785508128,
+            "p50": 1.2684960985684128,
+            "p90": 1.3163933592416255,
+            "max": 1.3183350789766783
+          },
+          "initialPoolRoster": 151,
+          "initialPoolStarters": 77,
+          "formerSquadStarters": 208,
+          "moves": {
+            "injury": 101,
+            "sign": 303,
+            "waiver": 316,
+            "trade": 46,
+            "squadSign": 462,
+            "claim": 193,
+            "release": 161,
+            "medical": 2,
+            "retire": 4,
+            "coach": 62,
+            "resign": 257,
+            "option": 24,
+            "tag": 2,
+            "draft": 224,
+            "position": 5,
+            "restructure": 5
+          },
+          "nextOpeningSeason": 2035,
+          "finishedSeason": 2034
+        },
+        {
+          "season": 2035,
+          "players": 5575,
+          "squadSize": {
+            "n": 32,
+            "mean": 13.25,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 424,
+            "mean": 10.724877413839057,
+            "p50": 10.82857142857143,
+            "p90": 13.631578947368421,
+            "max": 17.857142857142858
+          },
+          "squadPotential": {
+            "n": 424,
+            "mean": 12.511537984111225,
+            "p50": 12.5,
+            "p90": 14.7,
+            "max": 19.8
+          },
+          "squadUpside": {
+            "n": 424,
+            "mean": 1.7866605702721616,
+            "p50": 1.5590909090909086,
+            "p90": 3.8454545454545457,
+            "max": 7.1
+          },
+          "squadScoutedCeiling": {
+            "n": 424,
+            "mean": 12.382172458909878,
+            "p50": 12.327407768049753,
+            "p90": 14.368421052631579,
+            "max": 17.857142857142858
+          },
+          "squadAge": {
+            "n": 424,
+            "mean": 26.495283018867923,
+            "p50": 25,
+            "p90": 32,
+            "max": 39
+          },
+          "squadRookiesPct": 21.933962264150946,
+          "squadVeteransPct": 51.886792452830186,
+          "squadPotential14Pct": 20.28301886792453,
+          "squadPotential16Pct": 4.009433962264151,
+          "squadAbility12Pct": 31.367924528301888,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.24970381980046,
+            "p50": 12.947368421052632,
+            "p90": 15.68421052631579,
+            "max": 19.57894736842105
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.548796887359378,
+            "p50": 11.421052631578947,
+            "p90": 14.476190476190476,
+            "max": 19.57894736842105
+          },
+          "squadAtTeamStarter": 117,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.141043129575793,
+            "p50": 3.286828485458995,
+            "p90": 4.336714621079464,
+            "max": 7.185733962784632
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.064444349732278,
+            "p50": 1.2615711833471583,
+            "p90": 1.316390427508645,
+            "max": 1.318320352777811
+          },
+          "initialPoolRoster": 121,
+          "initialPoolStarters": 67,
+          "formerSquadStarters": 214,
+          "moves": {
+            "injury": 87,
+            "release": 82,
+            "sign": 132,
+            "waiver": 150,
+            "medical": 5,
+            "claim": 84,
+            "trade": 23,
+            "squadSign": 15
+          },
+          "nextOpeningSeason": 2035,
+          "finishedSeason": 2035
+        }
+      ]
+    },
+    "tuned-a": {
+      "seed": "ps-long-a",
+      "completed": 10,
+      "failures": [],
+      "initialPool": {
+        "n": 799,
+        "everRoster": 428,
+        "everStarter": 158
+      },
+      "initialSquad": {
+        "n": 512,
+        "threeYearDepthRole": 48,
+        "tenYearDepthRole": 100
+      },
+      "initialYoungSquad": {
+        "n": 310,
+        "threeYearDepthRole": 29,
+        "tenYearDepthRole": 73
+      },
+      "initialRookieSquad": {
+        "n": 183,
+        "threeYearDepthRole": 17,
+        "tenYearDepthRole": 50
+      },
+      "initialFieldSquad": {
+        "n": 503,
+        "threeYearDepthRole": 46,
+        "tenYearDepthRole": 97
+      },
+      "meanAnnualMoves": {
+        "squadSign": 408.3333333333333,
+        "sign": 330.8888888888889,
+        "waiver": 276.3333333333333,
+        "claim": 170.11111111111111,
+        "trade": 48.55555555555556
+      },
+      "rows": [
+        {
+          "season": 2026,
+          "players": 2495,
+          "squadSize": {
+            "n": 32,
+            "mean": 16,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 512,
+            "mean": 8.581919231227925,
+            "p50": 8.631578947368421,
+            "p90": 9.894736842105264,
+            "max": 11.522727272727273
+          },
+          "squadPotential": {
+            "n": 512,
+            "mean": 9.686269793170649,
+            "p50": 9.60237599537757,
+            "p90": 10.970230934023856,
+            "max": 14.394370692329748
+          },
+          "squadUpside": {
+            "n": 512,
+            "mean": 1.1043505619427358,
+            "p50": 0.8992084388621153,
+            "p90": 2.0161452407948666,
+            "max": 5.414041628409177
+          },
+          "squadScoutedCeiling": {
+            "n": 512,
+            "mean": 9.760818408742796,
+            "p50": 9.625,
+            "p90": 11.42848975685947,
+            "max": 14.80598496635504
+          },
+          "squadAge": {
+            "n": 512,
+            "mean": 24.87890625,
+            "p50": 24,
+            "p90": 30,
+            "max": 31
+          },
+          "squadPositions": {
+            "QB": 14,
+            "RB": 38,
+            "WR": 76,
+            "TE": 41,
+            "OL": 84,
+            "DT": 48,
+            "EDGE": 41,
+            "LB": 62,
+            "CB": 49,
+            "S": 50,
+            "K": 8,
+            "P": 1
+          },
+          "squadRookiesPct": 35.7421875,
+          "squadVeteransPct": 28.7109375,
+          "squadPotential14Pct": 0.1953125,
+          "squadPotential16Pct": 0,
+          "squadAbility12Pct": 0,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.517941638097385,
+            "p50": 12.421052631578947,
+            "p90": 15.368421052631579,
+            "max": 19.095238095238095
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.030620132153928,
+            "p50": 9.736842105263158,
+            "p90": 14.261904761904763,
+            "max": 19.095238095238095
+          },
+          "squadAtTeamStarter": 54,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 5.731504060265152,
+            "p50": 5.184251384950185,
+            "p90": 8.998549097527423,
+            "max": 10.046668880035408
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.4410234063745024,
+            "p50": 1.452191235059761,
+            "p90": 1.4796812749003985,
+            "max": 1.4796812749003985
+          },
+          "initialPoolRoster": 0,
+          "initialPoolStarters": 0,
+          "formerSquadStarters": 0,
+          "moves": {
+            "injury": 112,
+            "waiver": 199,
+            "sign": 339,
+            "trade": 52,
+            "release": 122,
+            "claim": 137,
+            "retire": 2,
+            "resign": 228,
+            "option": 19,
+            "staff": 1,
+            "coach": 47,
+            "draft": 224,
+            "position": 1,
+            "restructure": 5,
+            "squadSign": 390
+          },
+          "nextOpeningSeason": 2027,
+          "finishedSeason": 2026
+        },
+        {
+          "season": 2027,
+          "players": 2975,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.1875,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 390,
+            "mean": 8.821637178610864,
+            "p50": 8.842105263157896,
+            "p90": 10.476190476190476,
+            "max": 16.2
+          },
+          "squadPotential": {
+            "n": 390,
+            "mean": 9.933670253264577,
+            "p50": 9.879997858076699,
+            "p90": 11.8,
+            "max": 16.7
+          },
+          "squadUpside": {
+            "n": 390,
+            "mean": 1.1120330746537055,
+            "p50": 1.0207630747929208,
+            "p90": 1.9000000000000004,
+            "max": 5.281286059692503
+          },
+          "squadScoutedCeiling": {
+            "n": 390,
+            "mean": 9.812888270593376,
+            "p50": 9.738095238095237,
+            "p90": 11.727123339026766,
+            "max": 16.2
+          },
+          "squadAge": {
+            "n": 390,
+            "mean": 25.57948717948718,
+            "p50": 25,
+            "p90": 31,
+            "max": 35
+          },
+          "squadPositions": {
+            "QB": 22,
+            "RB": 28,
+            "WR": 50,
+            "TE": 35,
+            "OL": 50,
+            "DT": 36,
+            "EDGE": 33,
+            "LB": 48,
+            "CB": 37,
+            "S": 32,
+            "K": 14,
+            "P": 5
+          },
+          "squadRookiesPct": 13.846153846153847,
+          "squadVeteransPct": 37.17948717948718,
+          "squadPotential14Pct": 1.282051282051282,
+          "squadPotential16Pct": 0.2564102564102564,
+          "squadAbility12Pct": 2.8205128205128207,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.610513996579998,
+            "p50": 12.485714285714286,
+            "p90": 15.4,
+            "max": 18.894736842105264
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.398926361855006,
+            "p50": 10,
+            "p90": 14.157894736842104,
+            "max": 18.894736842105264
+          },
+          "squadAtTeamStarter": 45,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.7324646077466985,
+            "p50": 2.8157921444460943,
+            "p90": 4.387096460290552,
+            "max": 5.084162168580093
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0461112170434914,
+            "p50": 1.3139774114289895,
+            "p90": 1.4258706195029727,
+            "max": 1.4669428886396911
+          },
+          "initialPoolRoster": 128,
+          "initialPoolStarters": 25,
+          "formerSquadStarters": 23,
+          "moves": {
+            "injury": 96,
+            "sign": 318,
+            "waiver": 273,
+            "trade": 43,
+            "claim": 176,
+            "release": 137,
+            "squadSign": 348,
+            "retire": 1,
+            "resign": 201,
+            "option": 21,
+            "tag": 2,
+            "coach": 34,
+            "medical": 1,
+            "draft": 224,
+            "position": 5,
+            "restructure": 7
+          },
+          "nextOpeningSeason": 2028,
+          "finishedSeason": 2027
+        },
+        {
+          "season": 2028,
+          "players": 3488,
+          "squadSize": {
+            "n": 32,
+            "mean": 10.46875,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 335,
+            "mean": 9.380876419338714,
+            "p50": 9.238095238095237,
+            "p90": 11.25,
+            "max": 16.2
+          },
+          "squadPotential": {
+            "n": 335,
+            "mean": 10.462998716776175,
+            "p50": 10.271497457779265,
+            "p90": 12.410124108195305,
+            "max": 16.7
+          },
+          "squadUpside": {
+            "n": 335,
+            "mean": 1.0821222974374656,
+            "p50": 0.9142857142857128,
+            "p90": 2.011518008820712,
+            "max": 5.328917199559511
+          },
+          "squadScoutedCeiling": {
+            "n": 335,
+            "mean": 10.270228062669155,
+            "p50": 10.192387318463302,
+            "p90": 12.057670858273854,
+            "max": 16.2
+          },
+          "squadAge": {
+            "n": 335,
+            "mean": 25.713432835820896,
+            "p50": 25,
+            "p90": 30,
+            "max": 36
+          },
+          "squadPositions": {
+            "QB": 17,
+            "RB": 21,
+            "WR": 48,
+            "TE": 27,
+            "OL": 45,
+            "DT": 31,
+            "EDGE": 27,
+            "LB": 39,
+            "CB": 34,
+            "S": 28,
+            "K": 10,
+            "P": 8
+          },
+          "squadRookiesPct": 14.626865671641792,
+          "squadVeteransPct": 44.776119402985074,
+          "squadPotential14Pct": 3.2835820895522385,
+          "squadPotential16Pct": 0.2985074626865672,
+          "squadAbility12Pct": 5.970149253731343,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.779438226989114,
+            "p50": 12.6,
+            "p90": 15.631578947368421,
+            "max": 19.210526315789473
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.706306139423923,
+            "p50": 10.263157894736842,
+            "p90": 14.357142857142858,
+            "max": 19.210526315789473
+          },
+          "squadAtTeamStarter": 41,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.6756753060029346,
+            "p50": 2.7098482032746616,
+            "p90": 4.32027640467602,
+            "max": 5.156590122636447
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.89878547002682,
+            "p50": 1.3223457418145788,
+            "p90": 1.3926794610363002,
+            "max": 1.4156229180002118
+          },
+          "initialPoolRoster": 143,
+          "initialPoolStarters": 32,
+          "formerSquadStarters": 46,
+          "moves": {
+            "injury": 98,
+            "sign": 289,
+            "waiver": 239,
+            "trade": 44,
+            "squadSign": 439,
+            "release": 160,
+            "claim": 133,
+            "retire": 2,
+            "resign": 243,
+            "option": 25,
+            "tag": 1,
+            "staff": 1,
+            "coach": 60,
+            "medical": 1,
+            "draft": 224,
+            "position": 11,
+            "restructure": 5
+          },
+          "nextOpeningSeason": 2029,
+          "finishedSeason": 2028
+        },
+        {
+          "season": 2029,
+          "players": 3957,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.4375,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 398,
+            "mean": 9.720302540842736,
+            "p50": 9.421052631578947,
+            "p90": 12.263157894736842,
+            "max": 18.75
+          },
+          "squadPotential": {
+            "n": 398,
+            "mean": 10.857258345702329,
+            "p50": 10.491499070370836,
+            "p90": 13.5,
+            "max": 18.5
+          },
+          "squadUpside": {
+            "n": 398,
+            "mean": 1.1369558048595894,
+            "p50": 0.9451771078631275,
+            "p90": 2.245454545454545,
+            "max": 6.205263157894737
+          },
+          "squadScoutedCeiling": {
+            "n": 398,
+            "mean": 10.551873350658274,
+            "p50": 10.246010000556389,
+            "p90": 12.644238052728443,
+            "max": 18.75
+          },
+          "squadAge": {
+            "n": 398,
+            "mean": 26.07788944723618,
+            "p50": 26,
+            "p90": 31,
+            "max": 37
+          },
+          "squadPositions": {
+            "QB": 25,
+            "RB": 18,
+            "WR": 55,
+            "TE": 40,
+            "OL": 58,
+            "DT": 36,
+            "EDGE": 28,
+            "LB": 41,
+            "CB": 38,
+            "S": 37,
+            "K": 11,
+            "P": 11
+          },
+          "squadRookiesPct": 16.08040201005025,
+          "squadVeteransPct": 45.22613065326633,
+          "squadPotential14Pct": 8.040201005025125,
+          "squadPotential16Pct": 2.261306532663317,
+          "squadAbility12Pct": 12.814070351758794,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.89412000645554,
+            "p50": 12.631578947368421,
+            "p90": 15.736842105263158,
+            "max": 19.4
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.910799038091575,
+            "p50": 10.428571428571429,
+            "p90": 14.526315789473685,
+            "max": 19.4
+          },
+          "squadAtTeamStarter": 60,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.066304609936625,
+            "p50": 3.0081259096459965,
+            "p90": 4.9219347536723115,
+            "max": 5.199678923827049
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0582169762506362,
+            "p50": 1.337146770373136,
+            "p90": 1.39008556978053,
+            "max": 1.3962816106379634
+          },
+          "initialPoolRoster": 136,
+          "initialPoolStarters": 26,
+          "formerSquadStarters": 54,
+          "moves": {
+            "injury": 82,
+            "release": 170,
+            "sign": 302,
+            "waiver": 335,
+            "claim": 221,
+            "trade": 47,
+            "squadSign": 431,
+            "medical": 2,
+            "retire": 2,
+            "resign": 233,
+            "option": 26,
+            "tag": 3,
+            "coach": 45,
+            "draft": 224,
+            "position": 9,
+            "restructure": 5
+          },
+          "nextOpeningSeason": 2030,
+          "finishedSeason": 2029
+        },
+        {
+          "season": 2030,
+          "players": 4416,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.84375,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 411,
+            "mean": 9.999650759557602,
+            "p50": 9.6,
+            "p90": 13.157894736842104,
+            "max": 17.85
+          },
+          "squadPotential": {
+            "n": 411,
+            "mean": 11.144352035832208,
+            "p50": 10.64802741371095,
+            "p90": 14.2,
+            "max": 18.5
+          },
+          "squadUpside": {
+            "n": 411,
+            "mean": 1.1447012762746154,
+            "p50": 0.9121412790114327,
+            "p90": 2.2333333333333343,
+            "max": 7.4
+          },
+          "squadScoutedCeiling": {
+            "n": 411,
+            "mean": 10.774320302624966,
+            "p50": 10.482546036803157,
+            "p90": 13.263157894736842,
+            "max": 17.85
+          },
+          "squadAge": {
+            "n": 411,
+            "mean": 26.24574209245742,
+            "p50": 26,
+            "p90": 31,
+            "max": 35
+          },
+          "squadPositions": {
+            "QB": 23,
+            "RB": 23,
+            "WR": 54,
+            "TE": 38,
+            "OL": 52,
+            "DT": 38,
+            "EDGE": 26,
+            "LB": 47,
+            "CB": 46,
+            "S": 40,
+            "K": 14,
+            "P": 10
+          },
+          "squadRookiesPct": 11.922141119221411,
+          "squadVeteransPct": 57.66423357664233,
+          "squadPotential14Pct": 11.435523114355231,
+          "squadPotential16Pct": 2.67639902676399,
+          "squadAbility12Pct": 18.248175182481752,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.83346386058659,
+            "p50": 12.631578947368421,
+            "p90": 15.75,
+            "max": 19.6
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.970853111686834,
+            "p50": 10.473684210526315,
+            "p90": 14.526315789473685,
+            "max": 19.6
+          },
+          "squadAtTeamStarter": 107,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.0745751932159395,
+            "p50": 2.9789921912527486,
+            "p90": 4.523143516387089,
+            "max": 4.96170955068864
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.057645899524109,
+            "p50": 1.297038292210347,
+            "p90": 1.3444666512407808,
+            "max": 1.3464884704159628
+          },
+          "initialPoolRoster": 137,
+          "initialPoolStarters": 31,
+          "formerSquadStarters": 84,
+          "moves": {
+            "injury": 69,
+            "sign": 309,
+            "trade": 53,
+            "waiver": 286,
+            "squadSign": 426,
+            "release": 169,
+            "claim": 172,
+            "medical": 1,
+            "retire": 1,
+            "coach": 36,
+            "resign": 239,
+            "option": 25,
+            "staff": 1,
+            "draft": 224,
+            "position": 7,
+            "restructure": 5
+          },
+          "nextOpeningSeason": 2031,
+          "finishedSeason": 2030
+        },
+        {
+          "season": 2031,
+          "players": 4852,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.71875,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 407,
+            "mean": 10.111812001524921,
+            "p50": 9.736842105263158,
+            "p90": 13.157894736842104,
+            "max": 15.931818181818182
+          },
+          "squadPotential": {
+            "n": 407,
+            "mean": 11.218931928760046,
+            "p50": 10.709672638298454,
+            "p90": 14.3,
+            "max": 19.2
+          },
+          "squadUpside": {
+            "n": 407,
+            "mean": 1.1071199272351437,
+            "p50": 0.9142857142857128,
+            "p90": 2.4684210526315784,
+            "max": 5.6
+          },
+          "squadScoutedCeiling": {
+            "n": 407,
+            "mean": 10.876911501120066,
+            "p50": 10.524373023831638,
+            "p90": 13.363636363636363,
+            "max": 15.931818181818182
+          },
+          "squadAge": {
+            "n": 407,
+            "mean": 26.31941031941032,
+            "p50": 26,
+            "p90": 31,
+            "max": 37
+          },
+          "squadPositions": {
+            "QB": 25,
+            "RB": 21,
+            "WR": 54,
+            "TE": 31,
+            "OL": 56,
+            "DT": 43,
+            "EDGE": 30,
+            "LB": 44,
+            "CB": 42,
+            "S": 35,
+            "K": 14,
+            "P": 12
+          },
+          "squadRookiesPct": 14.004914004914005,
+          "squadVeteransPct": 56.51105651105651,
+          "squadPotential14Pct": 12.039312039312039,
+          "squadPotential16Pct": 2.211302211302211,
+          "squadAbility12Pct": 21.62162162162162,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.901183352409186,
+            "p50": 12.631578947368421,
+            "p90": 15.685714285714285,
+            "max": 19.526315789473685
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.091196394247296,
+            "p50": 10.631578947368421,
+            "p90": 14.421052631578947,
+            "max": 19.526315789473685
+          },
+          "squadAtTeamStarter": 105,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.0507356788830307,
+            "p50": 3.1674958258921397,
+            "p90": 4.7453005272939786,
+            "max": 4.885801612053841
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0433222139396046,
+            "p50": 1.3019586671395635,
+            "p90": 1.3392107466857617,
+            "max": 1.3465175472569957
+          },
+          "initialPoolRoster": 122,
+          "initialPoolStarters": 30,
+          "formerSquadStarters": 109,
+          "moves": {
+            "injury": 96,
+            "sign": 386,
+            "waiver": 248,
+            "trade": 47,
+            "claim": 146,
+            "release": 138,
+            "squadSign": 400,
+            "retire": 4,
+            "coach": 39,
+            "medical": 1,
+            "resign": 152,
+            "option": 25,
+            "tag": 1,
+            "restructure": 14,
+            "staff": 1,
+            "draft": 224,
+            "position": 4
+          },
+          "nextOpeningSeason": 2032,
+          "finishedSeason": 2031
+        },
+        {
+          "season": 2032,
+          "players": 5341,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.125,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 388,
+            "mean": 10.706460746817841,
+            "p50": 9.8,
+            "p90": 14.404761904761905,
+            "max": 18.6
+          },
+          "squadPotential": {
+            "n": 388,
+            "mean": 11.744204880687938,
+            "p50": 10.95261859375199,
+            "p90": 15.3,
+            "max": 19.3
+          },
+          "squadUpside": {
+            "n": 388,
+            "mean": 1.0377441338701003,
+            "p50": 0.8850107064555317,
+            "p90": 2.1867674219422035,
+            "max": 6.2
+          },
+          "squadScoutedCeiling": {
+            "n": 388,
+            "mean": 11.475355317739373,
+            "p50": 11.142857142857142,
+            "p90": 14.473684210526315,
+            "max": 18.6
+          },
+          "squadAge": {
+            "n": 388,
+            "mean": 26.335051546391753,
+            "p50": 26,
+            "p90": 31,
+            "max": 37
+          },
+          "squadPositions": {
+            "QB": 20,
+            "RB": 20,
+            "WR": 53,
+            "TE": 27,
+            "OL": 70,
+            "DT": 37,
+            "EDGE": 22,
+            "LB": 37,
+            "CB": 39,
+            "S": 37,
+            "K": 15,
+            "P": 11
+          },
+          "squadRookiesPct": 16.752577319587626,
+          "squadVeteransPct": 57.47422680412371,
+          "squadPotential14Pct": 19.587628865979383,
+          "squadPotential16Pct": 5.670103092783505,
+          "squadAbility12Pct": 32.98969072164948,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.682865607585489,
+            "p50": 12.375,
+            "p90": 15.595238095238095,
+            "max": 19.526315789473685
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.002472672018282,
+            "p50": 10.578947368421053,
+            "p90": 14.210526315789474,
+            "max": 19.526315789473685
+          },
+          "squadAtTeamStarter": 144,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.319891263050956,
+            "p50": 2.707574050308432,
+            "p90": 4.647832077941828,
+            "max": 14.464570942736756
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.9991912675134055,
+            "p50": 1.2774657973955446,
+            "p90": 1.3458022300587598,
+            "max": 1.3465342956832944
+          },
+          "initialPoolRoster": 93,
+          "initialPoolStarters": 28,
+          "formerSquadStarters": 135,
+          "moves": {
+            "injury": 87,
+            "sign": 406,
+            "release": 188,
+            "waiver": 339,
+            "trade": 58,
+            "squadSign": 365,
+            "claim": 213,
+            "medical": 2,
+            "retire": 3,
+            "coach": 38,
+            "resign": 282,
+            "option": 21,
+            "tag": 4,
+            "staff": 1,
+            "draft": 224,
+            "position": 3,
+            "restructure": 6
+          },
+          "nextOpeningSeason": 2033,
+          "finishedSeason": 2032
+        },
+        {
+          "season": 2033,
+          "players": 5775,
+          "squadSize": {
+            "n": 32,
+            "mean": 10.03125,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 321,
+            "mean": 10.590140832824067,
+            "p50": 10,
+            "p90": 13.894736842105264,
+            "max": 18
+          },
+          "squadPotential": {
+            "n": 321,
+            "mean": 11.851550465970735,
+            "p50": 11.129552727724825,
+            "p90": 15.3,
+            "max": 19
+          },
+          "squadUpside": {
+            "n": 321,
+            "mean": 1.2614096331466844,
+            "p50": 0.9454545454545453,
+            "p90": 3,
+            "max": 8.868421052631579
+          },
+          "squadScoutedCeiling": {
+            "n": 321,
+            "mean": 11.343322019785196,
+            "p50": 10.938433052268158,
+            "p90": 13.954545454545455,
+            "max": 18
+          },
+          "squadAge": {
+            "n": 321,
+            "mean": 26.75077881619938,
+            "p50": 27,
+            "p90": 32,
+            "max": 39
+          },
+          "squadPositions": {
+            "QB": 20,
+            "RB": 12,
+            "WR": 35,
+            "TE": 29,
+            "OL": 55,
+            "DT": 28,
+            "EDGE": 19,
+            "LB": 41,
+            "CB": 25,
+            "S": 27,
+            "K": 15,
+            "P": 15
+          },
+          "squadRookiesPct": 17.133956386292834,
+          "squadVeteransPct": 58.25545171339564,
+          "squadPotential14Pct": 21.806853582554517,
+          "squadPotential16Pct": 5.29595015576324,
+          "squadAbility12Pct": 35.51401869158878,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.808739529784452,
+            "p50": 12.368421052631579,
+            "p90": 15.631578947368421,
+            "max": 19.6
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.1082164751367,
+            "p50": 10.685714285714285,
+            "p90": 14.473684210526315,
+            "max": 19.6
+          },
+          "squadAtTeamStarter": 120,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.8777059058179493,
+            "p50": 2.678736175825786,
+            "p90": 4.691183998650806,
+            "max": 5.204155172799562
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.8317314771944504,
+            "p50": 1.2496833685208986,
+            "p90": 1.3388040482933645,
+            "max": 1.3464879873372815
+          },
+          "initialPoolRoster": 74,
+          "initialPoolStarters": 28,
+          "formerSquadStarters": 157,
+          "moves": {
+            "injury": 88,
+            "sign": 335,
+            "waiver": 245,
+            "trade": 49,
+            "claim": 134,
+            "release": 153,
+            "squadSign": 434,
+            "retire": 4,
+            "staff": 2,
+            "coach": 36,
+            "resign": 313,
+            "option": 27,
+            "tag": 1,
+            "draft": 224,
+            "position": 6,
+            "restructure": 10
+          },
+          "nextOpeningSeason": 2034,
+          "finishedSeason": 2033
+        },
+        {
+          "season": 2034,
+          "players": 6206,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.5625,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 402,
+            "mean": 10.34621851156611,
+            "p50": 9.909090909090908,
+            "p90": 13.613636363636363,
+            "max": 18.6
+          },
+          "squadPotential": {
+            "n": 402,
+            "mean": 11.427165653266446,
+            "p50": 10.8,
+            "p90": 14.6,
+            "max": 19
+          },
+          "squadUpside": {
+            "n": 402,
+            "mean": 1.080947141700339,
+            "p50": 0.8626355038024478,
+            "p90": 2.542105263157895,
+            "max": 7.636363636363637
+          },
+          "squadScoutedCeiling": {
+            "n": 402,
+            "mean": 11.120417170144826,
+            "p50": 10.799005372440332,
+            "p90": 13.736842105263158,
+            "max": 18.6
+          },
+          "squadAge": {
+            "n": 402,
+            "mean": 26.855721393034827,
+            "p50": 27,
+            "p90": 32,
+            "max": 40
+          },
+          "squadPositions": {
+            "QB": 23,
+            "RB": 11,
+            "WR": 50,
+            "TE": 38,
+            "OL": 63,
+            "DT": 36,
+            "EDGE": 33,
+            "LB": 46,
+            "CB": 42,
+            "S": 29,
+            "K": 14,
+            "P": 17
+          },
+          "squadRookiesPct": 14.17910447761194,
+          "squadVeteransPct": 59.452736318407965,
+          "squadPotential14Pct": 14.925373134328357,
+          "squadPotential16Pct": 3.482587064676617,
+          "squadAbility12Pct": 24.62686567164179,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.851847058163878,
+            "p50": 12.571428571428571,
+            "p90": 15.523809523809524,
+            "max": 19.6
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.193367947634968,
+            "p50": 10.842105263157896,
+            "p90": 14.4,
+            "max": 19.6
+          },
+          "squadAtTeamStarter": 112,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.0816985672588944,
+            "p50": 2.836800084749687,
+            "p90": 4.798266396588837,
+            "max": 5.003161324834421
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.04277473084967,
+            "p50": 1.2972976563298748,
+            "p90": 1.3444373779471637,
+            "max": 1.3464777082634507
+          },
+          "initialPoolRoster": 56,
+          "initialPoolStarters": 21,
+          "formerSquadStarters": 158,
+          "moves": {
+            "injury": 90,
+            "sign": 294,
+            "waiver": 323,
+            "trade": 44,
+            "release": 181,
+            "squadSign": 442,
+            "claim": 199,
+            "medical": 2,
+            "retire": 4,
+            "coach": 40,
+            "resign": 268,
+            "option": 23,
+            "tag": 4,
+            "draft": 224,
+            "position": 6,
+            "restructure": 4
+          },
+          "nextOpeningSeason": 2035,
+          "finishedSeason": 2034
+        },
+        {
+          "season": 2035,
+          "players": 6614,
+          "squadSize": {
+            "n": 32,
+            "mean": 13.46875,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 431,
+            "mean": 10.150025936228465,
+            "p50": 9.947368421052632,
+            "p90": 13.105263157894736,
+            "max": 15.9
+          },
+          "squadPotential": {
+            "n": 431,
+            "mean": 11.351453945580673,
+            "p50": 10.9,
+            "p90": 14.3,
+            "max": 19.3
+          },
+          "squadUpside": {
+            "n": 431,
+            "mean": 1.2014280093522274,
+            "p50": 0.9500000000000011,
+            "p90": 2.9499999999999993,
+            "max": 9.031578947368422
+          },
+          "squadScoutedCeiling": {
+            "n": 431,
+            "mean": 10.9387983732231,
+            "p50": 10.75,
+            "p90": 13.261904761904763,
+            "max": 15.9
+          },
+          "squadAge": {
+            "n": 431,
+            "mean": 26.925754060324827,
+            "p50": 26,
+            "p90": 32,
+            "max": 38
+          },
+          "squadPositions": {
+            "QB": 31,
+            "RB": 19,
+            "WR": 46,
+            "TE": 44,
+            "OL": 69,
+            "DT": 39,
+            "EDGE": 27,
+            "LB": 54,
+            "CB": 38,
+            "S": 33,
+            "K": 14,
+            "P": 17
+          },
+          "squadRookiesPct": 12.064965197215777,
+          "squadVeteransPct": 57.076566125290014,
+          "squadPotential14Pct": 12.993039443155451,
+          "squadPotential16Pct": 2.5522041763341066,
+          "squadAbility12Pct": 19.489559164733176,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.949427279135357,
+            "p50": 12.65,
+            "p90": 15.6,
+            "max": 19.2
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.268022677835255,
+            "p50": 10.9375,
+            "p90": 14.454545454545455,
+            "max": 19.2
+          },
+          "squadAtTeamStarter": 100,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.0530469355828047,
+            "p50": 2.8865133708795723,
+            "p90": 4.72647988152746,
+            "max": 5.067001174064327
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.1122252018292456,
+            "p50": 1.2964302884744163,
+            "p90": 1.3453133349042636,
+            "max": 1.3465165608405452
+          },
+          "initialPoolRoster": 46,
+          "initialPoolStarters": 18,
+          "formerSquadStarters": 162,
+          "moves": {
+            "injury": 103,
+            "sign": 142,
+            "waiver": 183,
+            "trade": 17,
+            "release": 86,
+            "squadSign": 20,
+            "claim": 111
+          },
+          "nextOpeningSeason": 2035,
+          "finishedSeason": 2035
+        }
+      ]
+    },
+    "tuned-b": {
+      "seed": "ps-long-b",
+      "completed": 10,
+      "failures": [],
+      "initialPool": {
+        "n": 801,
+        "everRoster": 452,
+        "everStarter": 129
+      },
+      "initialSquad": {
+        "n": 512,
+        "threeYearDepthRole": 40,
+        "tenYearDepthRole": 84
+      },
+      "initialYoungSquad": {
+        "n": 339,
+        "threeYearDepthRole": 29,
+        "tenYearDepthRole": 63
+      },
+      "initialRookieSquad": {
+        "n": 227,
+        "threeYearDepthRole": 20,
+        "tenYearDepthRole": 48
+      },
+      "initialFieldSquad": {
+        "n": 499,
+        "threeYearDepthRole": 38,
+        "tenYearDepthRole": 78
+      },
+      "meanAnnualMoves": {
+        "squadSign": 427.6666666666667,
+        "sign": 313.1111111111111,
+        "waiver": 288.44444444444446,
+        "claim": 176.55555555555554,
+        "trade": 45.666666666666664
+      },
+      "rows": [
+        {
+          "season": 2026,
+          "players": 2497,
+          "squadSize": {
+            "n": 32,
+            "mean": 16,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 512,
+            "mean": 8.625066416930112,
+            "p50": 8.657142857142857,
+            "p90": 9.95,
+            "max": 11.8
+          },
+          "squadPotential": {
+            "n": 512,
+            "mean": 9.707302867855772,
+            "p50": 9.741221185232558,
+            "p90": 11.101629414187656,
+            "max": 13.76349313070643
+          },
+          "squadUpside": {
+            "n": 512,
+            "mean": 1.0822364509256632,
+            "p50": 0.8660957690328352,
+            "p90": 1.9726380173116915,
+            "max": 5.498654403071851
+          },
+          "squadScoutedCeiling": {
+            "n": 512,
+            "mean": 9.851074604472783,
+            "p50": 9.752963466417322,
+            "p90": 11.632258143498808,
+            "max": 14.348197867013566
+          },
+          "squadAge": {
+            "n": 512,
+            "mean": 24.49609375,
+            "p50": 23,
+            "p90": 29,
+            "max": 31
+          },
+          "squadPositions": {
+            "QB": 18,
+            "RB": 37,
+            "WR": 87,
+            "TE": 39,
+            "OL": 84,
+            "DT": 45,
+            "EDGE": 45,
+            "LB": 53,
+            "CB": 50,
+            "S": 41,
+            "K": 10,
+            "P": 3
+          },
+          "squadRookiesPct": 44.3359375,
+          "squadVeteransPct": 25.390625,
+          "squadPotential14Pct": 0,
+          "squadPotential16Pct": 0,
+          "squadAbility12Pct": 0,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.785319952342986,
+            "p50": 12.578947368421053,
+            "p90": 15.625,
+            "max": 19.263157894736842
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.316351670610912,
+            "p50": 10.105263157894736,
+            "p90": 14.263157894736842,
+            "max": 19.263157894736842
+          },
+          "squadAtTeamStarter": 27,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 5.844920126379032,
+            "p50": 5.249026117751212,
+            "p90": 8.940775785745915,
+            "max": 9.992546480743707
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.4264193227091635,
+            "p50": 1.4247011952191235,
+            "p90": 1.4796812749003985,
+            "max": 1.4796812749003985
+          },
+          "initialPoolRoster": 0,
+          "initialPoolStarters": 0,
+          "formerSquadStarters": 0,
+          "moves": {
+            "injury": 84,
+            "sign": 363,
+            "trade": 52,
+            "release": 151,
+            "waiver": 228,
+            "claim": 140,
+            "retire": 4,
+            "resign": 239,
+            "medical": 1,
+            "option": 18,
+            "tag": 2,
+            "staff": 1,
+            "coach": 39,
+            "draft": 224,
+            "restructure": 6,
+            "squadSign": 383
+          },
+          "nextOpeningSeason": 2027,
+          "finishedSeason": 2026
+        },
+        {
+          "season": 2027,
+          "players": 2974,
+          "squadSize": {
+            "n": 32,
+            "mean": 11.96875,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 383,
+            "mean": 8.59447886866466,
+            "p50": 8.842105263157896,
+            "p90": 9.80952380952381,
+            "max": 11.8
+          },
+          "squadPotential": {
+            "n": 383,
+            "mean": 9.660149573407947,
+            "p50": 9.901683099674328,
+            "p90": 11,
+            "max": 13.189130593548041
+          },
+          "squadUpside": {
+            "n": 383,
+            "mean": 1.0656707047432887,
+            "p50": 1.0498212168481018,
+            "p90": 1.8300310851074748,
+            "max": 4.736749641167089
+          },
+          "squadScoutedCeiling": {
+            "n": 383,
+            "mean": 9.62662316917804,
+            "p50": 9.689666959543214,
+            "p90": 11.246779844852218,
+            "max": 13.54174170143632
+          },
+          "squadAge": {
+            "n": 383,
+            "mean": 25.467362924281986,
+            "p50": 24,
+            "p90": 31,
+            "max": 37
+          },
+          "squadPositions": {
+            "QB": 23,
+            "RB": 25,
+            "WR": 57,
+            "TE": 35,
+            "OL": 53,
+            "DT": 34,
+            "EDGE": 31,
+            "LB": 37,
+            "CB": 35,
+            "S": 32,
+            "K": 12,
+            "P": 9
+          },
+          "squadRookiesPct": 9.660574412532636,
+          "squadVeteransPct": 35.24804177545692,
+          "squadPotential14Pct": 0,
+          "squadPotential16Pct": 0,
+          "squadAbility12Pct": 0,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.894154876270926,
+            "p50": 12.631578947368421,
+            "p90": 15.631578947368421,
+            "max": 19.263157894736842
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 10.751679032419705,
+            "p50": 10.5,
+            "p90": 14.35,
+            "max": 19.263157894736842
+          },
+          "squadAtTeamStarter": 11,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.744303335075494,
+            "p50": 2.995158229466544,
+            "p90": 3.893134417943316,
+            "max": 4.834320586921785
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0086340889175895,
+            "p50": 1.2615967072438206,
+            "p90": 1.4012705758759523,
+            "max": 1.4426729554727664
+          },
+          "initialPoolRoster": 126,
+          "initialPoolStarters": 16,
+          "formerSquadStarters": 16,
+          "moves": {
+            "injury": 120,
+            "sign": 318,
+            "waiver": 308,
+            "release": 168,
+            "trade": 41,
+            "squadSign": 394,
+            "claim": 194,
+            "retire": 2,
+            "resign": 207,
+            "option": 17,
+            "tag": 1,
+            "staff": 1,
+            "coach": 52,
+            "medical": 1,
+            "draft": 224,
+            "position": 3,
+            "restructure": 4
+          },
+          "nextOpeningSeason": 2028,
+          "finishedSeason": 2027
+        },
+        {
+          "season": 2028,
+          "players": 3445,
+          "squadSize": {
+            "n": 32,
+            "mean": 11.4375,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 366,
+            "mean": 9.216992633720423,
+            "p50": 9.263157894736842,
+            "p90": 10.789473684210526,
+            "max": 18.2
+          },
+          "squadPotential": {
+            "n": 366,
+            "mean": 10.322567298534334,
+            "p50": 10.148082838428058,
+            "p90": 12,
+            "max": 18.7
+          },
+          "squadUpside": {
+            "n": 366,
+            "mean": 1.1055746648139149,
+            "p50": 1,
+            "p90": 2.1458223655819886,
+            "max": 4.683420555479826
+          },
+          "squadScoutedCeiling": {
+            "n": 366,
+            "mean": 10.158139040580306,
+            "p50": 10.023809523809524,
+            "p90": 11.789473684210526,
+            "max": 18.2
+          },
+          "squadAge": {
+            "n": 366,
+            "mean": 25.612021857923498,
+            "p50": 25,
+            "p90": 30,
+            "max": 38
+          },
+          "squadPositions": {
+            "QB": 27,
+            "RB": 25,
+            "WR": 49,
+            "TE": 29,
+            "OL": 50,
+            "DT": 33,
+            "EDGE": 29,
+            "LB": 35,
+            "CB": 35,
+            "S": 31,
+            "K": 15,
+            "P": 8
+          },
+          "squadRookiesPct": 16.666666666666664,
+          "squadVeteransPct": 39.89071038251366,
+          "squadPotential14Pct": 2.73224043715847,
+          "squadPotential16Pct": 0.273224043715847,
+          "squadAbility12Pct": 5.737704918032787,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.038039449357305,
+            "p50": 12.789473684210526,
+            "p90": 15.789473684210526,
+            "max": 19.68421052631579
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.006369192371473,
+            "p50": 10.68421052631579,
+            "p90": 14.526315789473685,
+            "max": 19.68421052631579
+          },
+          "squadAtTeamStarter": 29,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.0496307293253224,
+            "p50": 3.04456513281655,
+            "p90": 4.525342318394461,
+            "max": 4.908139282720927
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.9664165482504098,
+            "p50": 1.3154184825022617,
+            "p90": 1.3793218390470963,
+            "max": 1.4086882207732838
+          },
+          "initialPoolRoster": 137,
+          "initialPoolStarters": 28,
+          "formerSquadStarters": 29,
+          "moves": {
+            "injury": 101,
+            "sign": 305,
+            "release": 188,
+            "trade": 45,
+            "waiver": 293,
+            "squadSign": 506,
+            "claim": 165,
+            "medical": 3,
+            "resign": 260,
+            "option": 29,
+            "tag": 3,
+            "staff": 2,
+            "coach": 46,
+            "draft": 224,
+            "position": 5,
+            "restructure": 3
+          },
+          "nextOpeningSeason": 2029,
+          "finishedSeason": 2028
+        },
+        {
+          "season": 2029,
+          "players": 3872,
+          "squadSize": {
+            "n": 32,
+            "mean": 14.78125,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 473,
+            "mean": 8.933200987284668,
+            "p50": 9.105263157894736,
+            "p90": 10.125,
+            "max": 18.2
+          },
+          "squadPotential": {
+            "n": 473,
+            "mean": 10.062783991076126,
+            "p50": 10.017991363223302,
+            "p90": 11.4,
+            "max": 18.7
+          },
+          "squadUpside": {
+            "n": 473,
+            "mean": 1.1295830037914705,
+            "p50": 0.9806727925992815,
+            "p90": 2.121235250774772,
+            "max": 5.6909090909090905
+          },
+          "squadScoutedCeiling": {
+            "n": 473,
+            "mean": 9.783466269071052,
+            "p50": 9.789473684210526,
+            "p90": 11.31384428752195,
+            "max": 18.2
+          },
+          "squadAge": {
+            "n": 473,
+            "mean": 25.67864693446089,
+            "p50": 25,
+            "p90": 30,
+            "max": 39
+          },
+          "squadPositions": {
+            "QB": 35,
+            "RB": 32,
+            "WR": 61,
+            "TE": 43,
+            "OL": 69,
+            "DT": 40,
+            "EDGE": 35,
+            "LB": 54,
+            "CB": 36,
+            "S": 41,
+            "K": 18,
+            "P": 9
+          },
+          "squadRookiesPct": 17.33615221987315,
+          "squadVeteransPct": 39.112050739957716,
+          "squadPotential14Pct": 0.8456659619450317,
+          "squadPotential16Pct": 0.21141649048625794,
+          "squadAbility12Pct": 0.42283298097251587,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.202187037936925,
+            "p50": 12.894736842105264,
+            "p90": 15.736842105263158,
+            "max": 19.842105263157894
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.227405644256425,
+            "p50": 10.894736842105264,
+            "p90": 14.6,
+            "max": 19.842105263157894
+          },
+          "squadAtTeamStarter": 8,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.4257208980491507,
+            "p50": 3.543941248814253,
+            "p90": 4.293655357485153,
+            "max": 4.795491562747908
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.204031593276326,
+            "p50": 1.3033131669167028,
+            "p90": 1.3335335350405155,
+            "max": 1.359242575665725
+          },
+          "initialPoolRoster": 142,
+          "initialPoolStarters": 30,
+          "formerSquadStarters": 56,
+          "moves": {
+            "injury": 106,
+            "sign": 303,
+            "waiver": 300,
+            "trade": 35,
+            "squadSign": 414,
+            "claim": 191,
+            "release": 157,
+            "medical": 5,
+            "retire": 3,
+            "resign": 218,
+            "option": 23,
+            "tag": 2,
+            "coach": 43,
+            "draft": 224,
+            "position": 5,
+            "restructure": 1
+          },
+          "nextOpeningSeason": 2030,
+          "finishedSeason": 2029
+        },
+        {
+          "season": 2030,
+          "players": 4282,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.625,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 404,
+            "mean": 9.925311809846391,
+            "p50": 9.578947368421053,
+            "p90": 13.31578947368421,
+            "max": 15.681818181818182
+          },
+          "squadPotential": {
+            "n": 404,
+            "mean": 11.001877026924967,
+            "p50": 10.47466350183577,
+            "p90": 14,
+            "max": 17.3
+          },
+          "squadUpside": {
+            "n": 404,
+            "mean": 1.0765652170785762,
+            "p50": 0.8142857142857132,
+            "p90": 2.2624999999999993,
+            "max": 8.272727272727273
+          },
+          "squadScoutedCeiling": {
+            "n": 404,
+            "mean": 10.623860138712272,
+            "p50": 10.25,
+            "p90": 13.421052631578947,
+            "max": 16.1818641542314
+          },
+          "squadAge": {
+            "n": 404,
+            "mean": 26.047029702970296,
+            "p50": 26,
+            "p90": 30,
+            "max": 36
+          },
+          "squadPositions": {
+            "QB": 37,
+            "RB": 22,
+            "WR": 57,
+            "TE": 38,
+            "OL": 57,
+            "DT": 33,
+            "EDGE": 32,
+            "LB": 41,
+            "CB": 23,
+            "S": 39,
+            "K": 14,
+            "P": 11
+          },
+          "squadRookiesPct": 14.356435643564355,
+          "squadVeteransPct": 57.920792079207914,
+          "squadPotential14Pct": 10.891089108910892,
+          "squadPotential16Pct": 1.9801980198019802,
+          "squadAbility12Pct": 16.584158415841586,
+          "starterAbility": {
+            "n": 768,
+            "mean": 12.993192913628752,
+            "p50": 12.642857142857142,
+            "p90": 15.82857142857143,
+            "max": 19.842105263157894
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.15946789680033,
+            "p50": 10.771428571428572,
+            "p90": 14.428571428571429,
+            "max": 19.842105263157894
+          },
+          "squadAtTeamStarter": 79,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 2.9851706482487184,
+            "p50": 3.376008642547204,
+            "p90": 4.158886057760232,
+            "max": 4.878152629287039
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.014378449340678,
+            "p50": 1.2710698669002176,
+            "p90": 1.3008163204431507,
+            "max": 1.318191075628552
+          },
+          "initialPoolRoster": 136,
+          "initialPoolStarters": 42,
+          "formerSquadStarters": 76,
+          "moves": {
+            "injury": 78,
+            "sign": 277,
+            "waiver": 268,
+            "trade": 53,
+            "release": 154,
+            "squadSign": 382,
+            "claim": 167,
+            "medical": 1,
+            "retire": 2,
+            "staff": 1,
+            "coach": 46,
+            "resign": 275,
+            "option": 25,
+            "tag": 1,
+            "draft": 224,
+            "position": 7,
+            "restructure": 3
+          },
+          "nextOpeningSeason": 2031,
+          "finishedSeason": 2030
+        },
+        {
+          "season": 2031,
+          "players": 4712,
+          "squadSize": {
+            "n": 32,
+            "mean": 11.53125,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 369,
+            "mean": 10.317863564429674,
+            "p50": 9.8,
+            "p90": 13.631578947368421,
+            "max": 18.272727272727273
+          },
+          "squadPotential": {
+            "n": 369,
+            "mean": 11.355943927148678,
+            "p50": 10.7,
+            "p90": 14.4,
+            "max": 19
+          },
+          "squadUpside": {
+            "n": 369,
+            "mean": 1.038080362719005,
+            "p50": 0.8169660921123896,
+            "p90": 2.2609337994828813,
+            "max": 5.747368421052633
+          },
+          "squadScoutedCeiling": {
+            "n": 369,
+            "mean": 11.063788237991064,
+            "p50": 10.640216899814765,
+            "p90": 13.736842105263158,
+            "max": 18.272727272727273
+          },
+          "squadAge": {
+            "n": 369,
+            "mean": 26.317073170731707,
+            "p50": 26,
+            "p90": 31,
+            "max": 38
+          },
+          "squadPositions": {
+            "QB": 30,
+            "RB": 17,
+            "WR": 54,
+            "TE": 33,
+            "OL": 60,
+            "DT": 32,
+            "EDGE": 25,
+            "LB": 39,
+            "CB": 23,
+            "S": 32,
+            "K": 11,
+            "P": 13
+          },
+          "squadRookiesPct": 13.821138211382115,
+          "squadVeteransPct": 56.91056910569105,
+          "squadPotential14Pct": 14.363143631436316,
+          "squadPotential16Pct": 2.710027100271003,
+          "squadAbility12Pct": 23.848238482384822,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.031056730812596,
+            "p50": 12.789473684210526,
+            "p90": 15.894736842105264,
+            "max": 19.894736842105264
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.18426757757924,
+            "p50": 10.818181818181818,
+            "p90": 14.578947368421053,
+            "max": 19.894736842105264
+          },
+          "squadAtTeamStarter": 95,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.178154506658333,
+            "p50": 3.0132276703202114,
+            "p90": 4.451997066380326,
+            "max": 13.441162190801299
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 0.930361278378136,
+            "p50": 1.273211498291237,
+            "p90": 1.3155222157420876,
+            "max": 1.3183070521685376
+          },
+          "initialPoolRoster": 122,
+          "initialPoolStarters": 40,
+          "formerSquadStarters": 94,
+          "moves": {
+            "injury": 88,
+            "sign": 297,
+            "waiver": 328,
+            "trade": 54,
+            "release": 168,
+            "squadSign": 430,
+            "claim": 204,
+            "medical": 2,
+            "retire": 2,
+            "resign": 253,
+            "option": 17,
+            "coach": 32,
+            "draft": 224,
+            "position": 3,
+            "restructure": 2
+          },
+          "nextOpeningSeason": 2032,
+          "finishedSeason": 2031
+        },
+        {
+          "season": 2032,
+          "players": 5103,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.875,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 412,
+            "mean": 10.160380423421746,
+            "p50": 9.842105263157896,
+            "p90": 13.473684210526315,
+            "max": 16.4
+          },
+          "squadPotential": {
+            "n": 412,
+            "mean": 11.336840546723003,
+            "p50": 10.833565639500462,
+            "p90": 14.3,
+            "max": 17.7
+          },
+          "squadUpside": {
+            "n": 412,
+            "mean": 1.1764601233012504,
+            "p50": 0.9263157894736853,
+            "p90": 2.663636363636364,
+            "max": 9.822727272727274
+          },
+          "squadScoutedCeiling": {
+            "n": 412,
+            "mean": 10.971747774900638,
+            "p50": 10.523809523809524,
+            "p90": 13.578947368421053,
+            "max": 16.756468967140325
+          },
+          "squadAge": {
+            "n": 412,
+            "mean": 26.50242718446602,
+            "p50": 26,
+            "p90": 32,
+            "max": 37
+          },
+          "squadPositions": {
+            "QB": 34,
+            "RB": 16,
+            "WR": 55,
+            "TE": 35,
+            "OL": 65,
+            "DT": 36,
+            "EDGE": 32,
+            "LB": 40,
+            "CB": 31,
+            "S": 40,
+            "K": 13,
+            "P": 15
+          },
+          "squadRookiesPct": 12.864077669902912,
+          "squadVeteransPct": 57.28155339805825,
+          "squadPotential14Pct": 13.106796116504855,
+          "squadPotential16Pct": 2.669902912621359,
+          "squadAbility12Pct": 20.87378640776699,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.053240979312625,
+            "p50": 12.69047619047619,
+            "p90": 15.8,
+            "max": 19.842105263157894
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.220342276682253,
+            "p50": 10.894736842105264,
+            "p90": 14.578947368421053,
+            "max": 19.842105263157894
+          },
+          "squadAtTeamStarter": 88,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.218054751400351,
+            "p50": 3.4588428215688114,
+            "p90": 4.313683361753528,
+            "max": 4.812815237072721
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0362732088317235,
+            "p50": 1.2759719372783351,
+            "p90": 1.3182054505615235,
+            "max": 1.3183421420034416
+          },
+          "initialPoolRoster": 101,
+          "initialPoolStarters": 30,
+          "formerSquadStarters": 119,
+          "moves": {
+            "injury": 112,
+            "sign": 310,
+            "waiver": 304,
+            "trade": 46,
+            "claim": 187,
+            "release": 166,
+            "squadSign": 459,
+            "retire": 2,
+            "coach": 34,
+            "resign": 253,
+            "option": 21,
+            "draft": 224,
+            "position": 4,
+            "restructure": 7
+          },
+          "nextOpeningSeason": 2033,
+          "finishedSeason": 2032
+        },
+        {
+          "season": 2033,
+          "players": 5503,
+          "squadSize": {
+            "n": 32,
+            "mean": 13.65625,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 437,
+            "mean": 10.045829944374146,
+            "p50": 9.833333333333334,
+            "p90": 13.105263157894736,
+            "max": 16.136363636363637
+          },
+          "squadPotential": {
+            "n": 437,
+            "mean": 11.239673934107834,
+            "p50": 10.804525075759738,
+            "p90": 13.9,
+            "max": 18.4
+          },
+          "squadUpside": {
+            "n": 437,
+            "mean": 1.193843989733688,
+            "p50": 0.9451443257986707,
+            "p90": 2.8500000000000014,
+            "max": 12.127272727272725
+          },
+          "squadScoutedCeiling": {
+            "n": 437,
+            "mean": 10.799364432451226,
+            "p50": 10.473684210526315,
+            "p90": 13.441653750273924,
+            "max": 16.885298855928067
+          },
+          "squadAge": {
+            "n": 437,
+            "mean": 26.695652173913043,
+            "p50": 26,
+            "p90": 32,
+            "max": 37
+          },
+          "squadPositions": {
+            "QB": 37,
+            "RB": 19,
+            "WR": 49,
+            "TE": 40,
+            "OL": 70,
+            "DT": 37,
+            "EDGE": 28,
+            "LB": 52,
+            "CB": 36,
+            "S": 41,
+            "K": 9,
+            "P": 19
+          },
+          "squadRookiesPct": 10.983981693363845,
+          "squadVeteransPct": 59.49656750572082,
+          "squadPotential14Pct": 10.068649885583524,
+          "squadPotential16Pct": 2.9748283752860414,
+          "squadAbility12Pct": 17.391304347826086,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.116210789165144,
+            "p50": 12.82857142857143,
+            "p90": 15.894736842105264,
+            "max": 19.789473684210527
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.298233064906603,
+            "p50": 11,
+            "p90": 14.526315789473685,
+            "max": 19.789473684210527
+          },
+          "squadAtTeamStarter": 92,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.2916693937244252,
+            "p50": 3.290224649939875,
+            "p90": 4.408323075449148,
+            "max": 4.93067213265761
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0980020011002185,
+            "p50": 1.2780996488847718,
+            "p90": 1.3181423539281625,
+            "max": 1.3183091600479144
+          },
+          "initialPoolRoster": 84,
+          "initialPoolStarters": 23,
+          "formerSquadStarters": 131,
+          "moves": {
+            "injury": 88,
+            "sign": 323,
+            "waiver": 289,
+            "release": 177,
+            "trade": 41,
+            "squadSign": 454,
+            "claim": 167,
+            "medical": 3,
+            "retire": 3,
+            "resign": 277,
+            "option": 25,
+            "tag": 1,
+            "staff": 2,
+            "coach": 41,
+            "draft": 224,
+            "position": 5,
+            "restructure": 4
+          },
+          "nextOpeningSeason": 2034,
+          "finishedSeason": 2033
+        },
+        {
+          "season": 2034,
+          "players": 5945,
+          "squadSize": {
+            "n": 32,
+            "mean": 13.875,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 444,
+            "mean": 10.150164204276049,
+            "p50": 9.880952380952381,
+            "p90": 13.285714285714286,
+            "max": 16.42105263157895
+          },
+          "squadPotential": {
+            "n": 444,
+            "mean": 11.211049534455586,
+            "p50": 10.709092456661164,
+            "p90": 14,
+            "max": 19.8
+          },
+          "squadUpside": {
+            "n": 444,
+            "mean": 1.0608853301795371,
+            "p50": 0.8499999999999996,
+            "p90": 2.4333333333333336,
+            "max": 6.181818181818182
+          },
+          "squadScoutedCeiling": {
+            "n": 444,
+            "mean": 10.813886806538338,
+            "p50": 10.404761904761905,
+            "p90": 13.4,
+            "max": 16.42105263157895
+          },
+          "squadAge": {
+            "n": 444,
+            "mean": 26.93243243243243,
+            "p50": 26,
+            "p90": 32,
+            "max": 38
+          },
+          "squadPositions": {
+            "QB": 41,
+            "RB": 21,
+            "WR": 54,
+            "TE": 34,
+            "OL": 73,
+            "DT": 38,
+            "EDGE": 32,
+            "LB": 46,
+            "CB": 31,
+            "S": 47,
+            "K": 10,
+            "P": 17
+          },
+          "squadRookiesPct": 12.837837837837837,
+          "squadVeteransPct": 60.36036036036037,
+          "squadPotential14Pct": 10.36036036036036,
+          "squadPotential16Pct": 2.027027027027027,
+          "squadAbility12Pct": 19.81981981981982,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.142695187157038,
+            "p50": 12.8,
+            "p90": 15.789473684210526,
+            "max": 19.789473684210527
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.336852194272142,
+            "p50": 11.047619047619047,
+            "p90": 14.6,
+            "max": 19.789473684210527
+          },
+          "squadAtTeamStarter": 88,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.1692311402884896,
+            "p50": 3.48926794279832,
+            "p90": 4.303287670308029,
+            "max": 4.822165908336395
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.1209574892022216,
+            "p50": 1.2692950072640254,
+            "p90": 1.3139834677260855,
+            "max": 1.318295251329054
+          },
+          "initialPoolRoster": 66,
+          "initialPoolStarters": 24,
+          "formerSquadStarters": 144,
+          "moves": {
+            "injury": 102,
+            "sign": 322,
+            "release": 163,
+            "waiver": 278,
+            "trade": 44,
+            "squadSign": 427,
+            "claim": 174,
+            "retire": 6,
+            "resign": 265,
+            "option": 24,
+            "tag": 3,
+            "coach": 42,
+            "draft": 224,
+            "position": 4,
+            "restructure": 4
+          },
+          "nextOpeningSeason": 2035,
+          "finishedSeason": 2034
+        },
+        {
+          "season": 2035,
+          "players": 6388,
+          "squadSize": {
+            "n": 32,
+            "mean": 12.84375,
+            "p50": 16,
+            "p90": 16,
+            "max": 16
+          },
+          "squadAbility": {
+            "n": 411,
+            "mean": 10.171591886152019,
+            "p50": 10,
+            "p90": 13.052631578947368,
+            "max": 17.842105263157894
+          },
+          "squadPotential": {
+            "n": 411,
+            "mean": 11.283536212138156,
+            "p50": 10.9,
+            "p90": 14.2,
+            "max": 18.2
+          },
+          "squadUpside": {
+            "n": 411,
+            "mean": 1.1119443259861497,
+            "p50": 0.928543318808078,
+            "p90": 2.530329855014993,
+            "max": 8.768181818181818
+          },
+          "squadScoutedCeiling": {
+            "n": 411,
+            "mean": 10.874369530292268,
+            "p50": 10.547619047619047,
+            "p90": 13.15,
+            "max": 17.842105263157894
+          },
+          "squadAge": {
+            "n": 411,
+            "mean": 26.89051094890511,
+            "p50": 26,
+            "p90": 32,
+            "max": 39
+          },
+          "squadPositions": {
+            "QB": 38,
+            "RB": 14,
+            "WR": 48,
+            "TE": 34,
+            "OL": 68,
+            "DT": 34,
+            "EDGE": 27,
+            "LB": 41,
+            "CB": 32,
+            "S": 43,
+            "K": 12,
+            "P": 20
+          },
+          "squadRookiesPct": 14.355231143552311,
+          "squadVeteransPct": 60.82725060827251,
+          "squadPotential14Pct": 11.435523114355231,
+          "squadPotential16Pct": 2.4330900243309004,
+          "squadAbility12Pct": 19.951338199513383,
+          "starterAbility": {
+            "n": 768,
+            "mean": 13.1131565819734,
+            "p50": 12.69047619047619,
+            "p90": 15.761904761904763,
+            "max": 19.57894736842105
+          },
+          "rosterAbility": {
+            "n": 1696,
+            "mean": 11.304878151707005,
+            "p50": 11.1,
+            "p90": 14.523809523809524,
+            "max": 19.57894736842105
+          },
+          "squadAtTeamStarter": 91,
+          "rosterSizes": {
+            "n": 32,
+            "mean": 53,
+            "p50": 53,
+            "p90": 53,
+            "max": 53
+          },
+          "capSpacePct": {
+            "n": 32,
+            "mean": 3.228236998646996,
+            "p50": 3.326226414625021,
+            "p90": 4.489962243206369,
+            "max": 4.7441749487863065
+          },
+          "squadCapPct": {
+            "n": 32,
+            "mean": 1.0401010476804813,
+            "p50": 1.2617273986566293,
+            "p90": 1.3171043168645964,
+            "max": 1.3182848126875628
+          },
+          "initialPoolRoster": 46,
+          "initialPoolStarters": 19,
+          "formerSquadStarters": 142,
+          "moves": {
+            "sign": 159,
+            "waiver": 238,
+            "injury": 87,
+            "release": 114,
+            "trade": 17,
+            "claim": 151,
+            "squadSign": 22
+          },
+          "nextOpeningSeason": 2035,
+          "finishedSeason": 2035
+        }
+      ]
+    }
+  },
+  "limits": [
+    "NFL snap-share roles and AFLS depth-chart roles are different metrics.",
+    "NFL missing ID links remain in the denominator: conservative lower bounds.",
+    "No automatic elevations or poaching in the current game stage.",
+    "Move averages exclude the final season because it has no following offseason.",
+    "Two seeds per variant; not population estimates."
+  ]
+}

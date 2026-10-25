@@ -5,7 +5,7 @@ import { activeRoster, onGameRoster, practiceSquad, syncDepthChart } from '../ro
 import { STARTERS } from '../positions';
 import type { Contract, League, Player } from '../types';
 import type { SquadOffer } from './types';
-import { squadFit, squadRates } from './eligibility';
+import { squadFit, squadRates, squadCategory, squadFormationCost } from './eligibility';
 import { ensureService, initialService, serviceTotals } from './service';
 import { ensureSquads, promotionCredit, settleSquadPayroll, squadPayWeek, startSquadPay } from './payroll';
 import { executeRosterMove, squadReturnProblem, type RosterMove } from './rosterMoves';
@@ -22,7 +22,9 @@ export function squadWindowProblem(league: League): string | null {
 /** Reserved before AI NFL spending, independently of the injury/trade reserve. */
 export function squadReserve(league: League, teamId: number): number {
   if (!league.personnel?.enabled || ['regular', 'playoffs', 'complete'].includes(league.phase)) return 0;
-  return Math.max(0, 16 - practiceSquad(league, teamId).length) * squadRates(league).min * 18;
+  const squad = practiceSquad(league, teamId);
+  const veterans = squad.filter((p) => squadCategory(league, p) === 'veteran').length;
+  return squadFormationCost(league, 16 - squad.length, 6 - veterans);
 }
 
 export function squadOfferProblem(league: League, offer: SquadOffer): string | null {

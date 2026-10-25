@@ -13,7 +13,7 @@ import { Ovr, ScoutedCeiling, seenOvr, viewOf } from '../scouting';
 import { moveIndex, MoveText } from '../moves';
 
 /** The contracts table's columns ("% of cap" sorts as the cap hit: same order). */
-type ContractSort = 'name' | 'pos' | 'age' | 'cap' | 'apy' | 'thru' | 'gtd' | 'dead' | 'saves';
+type ContractSort = 'name' | 'pos' | 'age' | 'ability' | 'cap' | 'apy' | 'thru' | 'gtd' | 'dead' | 'saves';
 
 function contractSortValue(league: League, p: Player, key: ContractSort): number | string {
   const c = p.contract!;
@@ -24,6 +24,8 @@ function contractSortValue(league: League, p: Player, key: ContractSort): number
       return POSITIONS.indexOf(p.position);
     case 'age':
       return p.age;
+    case 'ability':
+      return seenOvr(league, p);
     case 'cap':
       return capHit(c, league.season);
     case 'apy':
@@ -181,6 +183,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                     <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
                     <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
                     <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
+                    <SortTh label="Ability" k="ability" sort={sort} onSort={onSort} className="num" />
                     <SortTh label="Cap hit" k="cap" sort={sort} onSort={onSort} className="num" />
                     <SortTh label="% of cap" k="cap" sort={sort} onSort={onSort} className="num" />
                     <SortTh label="APY" k="apy" sort={sort} onSort={onSort} className="num" />
@@ -203,6 +206,9 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                         </td>
                         <td>{p.position}</td>
                         <td className="num">{p.age}</td>
+                        <td className="num">
+                          <Ovr league={league} player={p} />
+                        </td>
                         <td className="num" style={{ fontWeight: 700 }}>
                           {money(Math.round(hit))}
                         </td>

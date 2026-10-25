@@ -1,7 +1,7 @@
 {
   "name": "afls",
   "private": true,
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "AFLS — a deep American football management simulation",
   "type": "module",
   "scripts": {
@@ -26,7 +26,8 @@
     "trades": "tsx scripts/trades.ts",
     "training": "tsx scripts/training.ts",
     "waivers": "tsx scripts/waivers.ts",
-    "squads": "tsx scripts/squads.ts"
+    "squads": "tsx scripts/squads.ts",
+    "squad-careers": "tsx scripts/squad-careers.ts"
   },
   "dependencies": {
     "react": "19.3.1",

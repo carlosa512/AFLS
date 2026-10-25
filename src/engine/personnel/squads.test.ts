@@ -346,7 +346,7 @@ describe('simultaneous market and world generation', () => {
   it('reserves formation money before offseason spending without replacing the injury reserve', () => {
     l.phase = 'freeAgency';
     const reserve = squadReserve(l, 0);
-    expect(reserve).toBe(16 * 18 * 13.75);
+    expect(reserve).toBe(18 * (10 * 13.75 + 6 * 18.35));
     const enabled = spendable(l, 0);
     l.personnel!.enabled = false;
     expect(spendable(l, 0) - enabled).toBeCloseTo(reserve);
@@ -365,6 +365,16 @@ describe('simultaneous market and world generation', () => {
       expect(capSpace(enabled, t.id) + 1).toBeGreaterThanOrEqual(inSeasonReserve(enabled, t.id));
       expect(squad.every((p) => !p.contract && !isAvailable(p))).toBe(true);
     }
+    // Broad population checks: useful reserves, mixed experience, and no specialist/prospect factory.
+    const all = enabled.teams.flatMap((t) => practiceSquad(enabled, t.id));
+    expect(all.filter((p) => p.position === 'K' || p.position === 'P').length / all.length).toBeLessThan(0.05);
+    const rookies = all.filter((p) => p.experience === 0).length / all.length;
+    const veterans = all.filter((p) => p.experience >= 4).length / all.length;
+    expect(rookies).toBeGreaterThan(0.15);
+    expect(rookies).toBeLessThan(0.6);
+    expect(veterans).toBeGreaterThan(0.05);
+    expect(veterans).toBeLessThan(0.4);
+    expect(all.filter((p) => p.potential >= 14).length / all.length).toBeLessThan(0.05);
     const again = createLeague({ seed: 'squad-world', personnel: true });
     expect(again.personnel!.squads!.results).toEqual(enabled.personnel!.squads!.results);
     expect(capHit(activeRoster(enabled, 0)[0].contract!, enabled.season)).toBeGreaterThan(0);
