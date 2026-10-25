@@ -1,5 +1,5 @@
 import { employed, managesTeam } from '../../engine/employment';
-import { acceptGmOffer, advanceGmHiringRound } from '../../engine/leadership';
+import { acceptGmOffer, advanceGmHiringRound, declineGmOffers, gmOfferTerms } from '../../engine/leadership';
 import { gamesInWeek } from '../../engine/league';
 import { teamPlayers } from '../../engine/roster';
 import type { League } from '../../engine/types';
@@ -41,54 +41,40 @@ export function GmJobs({ league }: { league: League }) {
   const review = user.teamId === null ? undefined : league.teams[user.teamId].leadershipReview;
   return (
     <Panel title={employed(league) ? 'Your appointment' : 'Between GM jobs'}>
-      <p>
-        <GmLink league={league} gm={user} avatar />{' '}
-        {user.teamId !== null ? (
-          <>
-            runs <TeamLink team={league.teams[user.teamId]} full />.
-          </>
-        ) : (
-          <>remains in this league. You can seek a new job, watch games or simulate while unemployed.</>
-        )}
-      </p>
+      <div className="gm-appointment-line">
+        <GmLink league={league} gm={user} avatar />
+        <span>{user.teamId !== null ? <>This is you, GM of <TeamLink team={league.teams[user.teamId]} full />.</> : <>This is you. Your career continues in this league.</>}</span>
+      </div>
       {review && managesTeam(league, user.teamId!) && (
         <div className="callout">
           <b>Private owner briefing</b>
           <p>{review.reason}</p>
         </div>
       )}
-      {active && (
+      {active && (user.teamId === null || user.appointments.at(-1)?.interim) && (
         <>
-          <p>GM hiring round {search.round + 1} of 3. Offers expire before round 3.</p>
+          <p>Review the owner's terms before accepting. You can keep an offer while considering other openings during the staffing window.</p>
           <ul className="gm-job-offers">
-            {search.offers.map((o) => (
-              <li key={o.teamId}>
-                <TeamLink team={league.teams[o.teamId]} full /> ·{' '}
-                {o.incumbent ? 'Permanent appointment' : 'GM position'} through {o.through}{' '}
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => store.mutate((l) => acceptGmOffer(l, o.teamId))}
-                >
-                  Accept offer
-                </button>
-              </li>
-            ))}
+            {search.offers.map((o) => {
+              const terms = gmOfferTerms(league, o);
+              return <li key={o.teamId} className="gm-offer">
+                <h3><TeamLink team={league.teams[o.teamId]} full /></h3>
+                <p>{o.incumbent ? 'Permanent appointment' : 'GM position'} through {o.through}</p>
+                <b>Owner expectations</b>
+                <p>{terms.expectation}</p>
+                <ul>{terms.staffing.map((line) => <li key={line}>{line}</li>)}</ul>
+                <button className="btn btn-primary btn-sm" onClick={() => store.mutate((l) => acceptGmOffer(l, o.teamId))}>Accept terms and join</button>
+              </li>;
+            })}
           </ul>
-          {!search.offers.length && (
-            <p className="muted">
-              {user.teamId !== null && !user.appointments.at(-1)?.interim
-                ? 'Other clubs are conducting their GM searches. Your appointment continues.'
-                : 'No offers at this round. Owners may choose another candidate.'}
-            </p>
-          )}
-          <button className="btn btn-sm" onClick={() => store.mutate((l) => advanceGmHiringRound(l))}>
-            Continue hiring round
-          </button>
+          <div className="gm-search-actions">
+            {search.round < 2 && <button className="btn btn-sm" onClick={() => store.mutate((l) => advanceGmHiringRound(l))}>Consider other openings</button>}
+            <button className="btn btn-sm btn-ghost" onClick={() => store.mutate((l) => declineGmOffers(l))}>Decline offers and sit out</button>
+          </div>
         </>
       )}
-      {!active && !employed(league) && (
-        <p className="muted">The next offseason brings another hiring cycle. A job offer is not guaranteed.</p>
-      )}
+      {!active && !employed(league) && <p className="muted">Watch games or simulate this season. The next staffing window brings another chance to return.</p>}
+
     </Panel>
   );
 }

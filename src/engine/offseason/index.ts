@@ -10,7 +10,7 @@
 import { retireChance } from '../aging';
 import { ageGms } from '../gm';
 import { employed, withLeagueAi } from '../employment';
-import { advanceGmHiringRound, enforceCoachChanges, leadershipNewYear } from '../leadership';
+import { advanceGmHiringRound, enforceCoachChanges, leadershipNewYear, pendingGmOffers } from '../leadership';
 import {
   coachingFor,
   coachWindowCloses,
@@ -153,6 +153,7 @@ export function beginOffseason(league: League): void {
 
 /** Problems the user must fix before the calendar can move on (the season's weeks included). */
 export function offseasonBlockers(league: League): string[] {
+  if (pendingGmOffers(league)) return ['Review your GM offers: accept a position or choose to sit out before leaving the staffing window.'];
   if (!employed(league)) return [];
   const issues: string[] = [];
   const teamId = league.userTeamId;
@@ -205,6 +206,7 @@ function openFreeAgency(league: League): void {
 
 /** Move the offseason one step. With `autoUser`, the user's team is run by the AI too. */
 export function advanceOffseason(league: League, opts: { autoUser?: boolean } = {}): Phase {
+  if (!opts.autoUser && pendingGmOffers(league)) throw new Error('Review your GM offers before leaving the staffing window.');
   return withLeagueAi(league, () => advanceOffseasonControlled(league, opts));
 }
 function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }): Phase {
@@ -216,9 +218,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
   const ai = league.teams.filter((t) => auto || t.id !== league.userTeamId);
   switch (league.phase) {
     case 'resign':
-      if (league.leadership.search && league.leadership.search.round < 3) {
+      while (league.leadership.search && league.leadership.search.round < 3) {
         advanceGmHiringRound(league, { autoUser: !!opts.autoUser });
-        return league.phase;
       }
       enforceCoachChanges(league, auto);
       for (const team of ai) aiResignWindow(league, team, rng);

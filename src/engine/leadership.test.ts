@@ -5,6 +5,7 @@ import {
   acceptGmOffer,
   advanceGmHiringRound,
   beginGmSearch,
+  declineGmOffers,
   gmDismissalChance,
   leadershipCoachTenure,
   leadershipNewYear,
@@ -72,6 +73,7 @@ describe('GM leadership and searches', () => {
     l.phase = 'complete';
     const viewer = l.userTeamId;
     beginOffseason(l);
+    declineGmOffers(l);
     expect(l.userTeamId).toBe(viewer);
     for (let n = 0; n < 24 && (l.phase as string) !== 'regular'; n++) {
       advanceOffseason(l);

@@ -1512,6 +1512,7 @@ export function installInterimHeadCoach(league: League, teamId: number): Coach |
   if (hc) {
     hc.interim = true;
     hc.contract!.through = league.season;
+    (hc.interimAppointments ??= []).push({ season: league.season, teamId, week: league.week });
   }
   return hc;
 }

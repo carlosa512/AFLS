@@ -4341,3 +4341,34 @@ button.tip-pill {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 0.8rem;
 }
+
+.gm-appointment-line,
+.gm-search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+.gm-appointment-line .staff-link {
+  vertical-align: middle;
+}
+.gm-job-offers > .gm-offer {
+  display: block;
+  padding: 16px 0;
+}
+.gm-offer h3,
+.gm-offer p {
+  margin: 8px 0;
+}
+.gm-offer ul {
+  margin-bottom: 16px;
+}
+.gm-offer ul li {
+  display: list-item;
+  padding: 0;
+  border: 0;
+}
+.coach-takeovers {
+  padding-left: 20px;
+}

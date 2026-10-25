@@ -1,5 +1,6 @@
 import { GmAvatar } from './gm';
 import { employed } from '../engine/employment';
+import { pendingGmOffers } from '../engine/leadership';
 import { GeneralManagers } from './screens/GeneralManagers';
 import { PublicRoster, SpectatorHome } from './screens/GmEmployment';
 import { useEffect, useState } from 'react';
@@ -88,12 +89,7 @@ function offseasonStep(league: League): Step | null {
         then: { view: 'office', tab: 'resign' },
       };
     case 'resign':
-      if (league.leadership.search && league.leadership.search.round < 3)
-        return {
-          label: `Continue GM hiring round ${league.leadership.search.round + 1}`,
-          run: (l) => advanceOffseason(l),
-          then: { view: 'office', tab: 'gms' },
-        };
+      if (pendingGmOffers(league)) return { label: 'Review GM offers', run: () => {}, then: { view: 'office', tab: 'gms' } };
       return { label: 'Open free agency', run: (l) => advanceOffseason(l), then: { view: 'office', tab: 'fa' } };
     case 'freeAgency':
       return league.faDay < FA_DAYS

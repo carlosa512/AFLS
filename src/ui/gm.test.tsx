@@ -20,6 +20,28 @@ const renderCard = (league: ReturnType<typeof world>, gm: GeneralManager) =>
   renderToStaticMarkup(<GmCard league={league} gm={gm} onClose={() => {}} />);
 
 describe('GM cards and directory', () => {
+  it('offers name editing only on the human card and describes other GMs through public perception', () => {
+    const l = world();
+    expect(renderCard(l, l.gms[l.userGmId])).toContain('Edit your GM name');
+    const other = renderCard(l, l.gms[l.teams[1].gmId!]);
+    expect(other).not.toContain('Edit your GM name');
+    expect(other).toContain('Public perception');
+    expect(other).not.toContain('Internal staffing');
+    const appointment = renderToStaticMarkup(<GmJobs league={l} />);
+    expect(appointment).toContain('This is you');
+    expect(appointment).toContain('gm-appointment-line');
+    expect(appointment).not.toContain('hiring round');
+  });
+  it('keeps the interim takeover in a coach’s history after a permanent appointment', () => {
+    const l = world();
+    const c = teamCoaches(l, 1).find(c => c.role === 'headCoach')!;
+    c.interimAppointments = [{season:l.season - 1,teamId:1,week:9}];
+    delete c.interim;
+    const html = renderToStaticMarkup(<CoachCard league={l} coach={c} onClose={() => {}} />);
+    expect(html).toContain('took over as interim head coach');
+    expect(html).toContain('Week 9');
+  });
+
   it('keeps other clubs’ owner instructions off GM and coach cards and uses qualified public reporting', () => {
     const l = world();
     const other = l.teams[1];

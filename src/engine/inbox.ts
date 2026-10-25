@@ -1,4 +1,5 @@
 import { employed, managesTeam } from './employment';
+import { gmOfferTerms } from './leadership';
 /**
  * The user's inbox: mail from the league office, agents and the team's own staff, the way a
  * manager's desk fills up in Football Manager. Nothing in the sim sends mail. `deliverMail` looks
@@ -2086,7 +2087,7 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
     });
   }
   const search = league.leadership.search;
-  if (search && search.round < 2)
+  if (league.phase === 'resign' && search && search.round < 3)
     for (const o of search.offers) {
       const id = `gm-offer:${search.season}:${o.teamId}`;
       if (!have.has(id))
@@ -2098,7 +2099,7 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
           from: 'The owner',
           category: 'staff',
           subject: `${league.teams[o.teamId].abbrev}: ${o.incumbent ? 'permanent GM offer' : 'GM job offer'}`,
-          body: `We are offering you the GM position through ${o.through}. Open Front office → GMs to respond before hiring round ${o.expiresRound + 1}.`,
+          body: `We are offering you the GM position through ${o.through}. ${gmOfferTerms(league, o).expectation} ${gmOfferTerms(league, o).staffing.join(' ')} Review the terms in Front office → GMs before the staffing window closes.`,
           actions: [{ kind: 'gms' }],
         });
     }

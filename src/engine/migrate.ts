@@ -10,6 +10,7 @@ import { minSalary } from './finance/market';
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
 import { careerDate, initializeGms } from './gm';
+import { beginGmSearch, gmOfferTerms } from './leadership';
 import { captureManagement, creditManagement } from './service';
 import { addQbProtection, generateCrews } from './officials';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
@@ -85,6 +86,23 @@ export function migrateLeague(league: League): League | null {
     for (const tx of league.transactions)
       if (tx.kind === 'coach' && /owner retained/.test(tx.text)) tx.text = tx.text.split(': ')[0];
     league.version = 43;
+  }
+  if (league.version < 44) {
+    for (const e of league.leadership.events) {
+      if (e.kind !== 'coachInterim' || e.coachId === undefined) continue;
+      const c = league.coaches[e.coachId] ?? league.retiredCoaches[e.coachId];
+      if (c && !c.interimAppointments?.some((a) => a.season === e.date.season && a.teamId === e.teamId && a.week === e.date.week))
+        (c.interimAppointments ??= []).push({season:e.date.season, teamId:e.teamId, week:e.date.week});
+    }
+    for (const o of league.leadership.search?.offers ?? []) {
+      o.expiresRound = 3;
+      o.terms ??= gmOfferTerms(league, o);
+    }
+    if (league.phase === 'resign' && league.gms[league.userGmId].teamId === null && !league.leadership.search?.offers.length) {
+      delete league.leadership.search;
+      beginGmSearch(league);
+    }
+    league.version = 44;
   }
   return league;
 }

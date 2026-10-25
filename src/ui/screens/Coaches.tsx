@@ -1,4 +1,5 @@
 import { managesTeam } from '../../engine/employment';
+import { TeamLink } from '../components';
 /**
  * The coaching staff: who coaches which of your rooms, whose deal is up, and who you could hire.
  * Coach ratings are public, so they show exactly; what they do for players is shown as percentages
@@ -500,7 +501,7 @@ function CareerTable({ league, c }: { league: League; c: Coach }) {
             <tr key={`${s.season}:${s.teamId}:${s.role}:${s.room ?? ''}`}>
               <td className="num">{s.season}</td>
               <td>{league.teams[s.teamId].abbrev}</td>
-              <td>{coachTitle(s)}</td>
+              <td>{c.interimAppointments?.some((a) => a.season === s.season && a.teamId === s.teamId) && s.role === 'headCoach' ? 'Interim head coach' : coachTitle(s)}</td>
               <td className="num">{formatRecord(s.regular)}</td>
               <td className={s.champion ? 'tone-good' : 'muted'}>
                 {s.playoffs ? `${s.finish} (${s.playoffs.w}–${s.playoffs.l})` : s.finish || '–'}
@@ -632,6 +633,11 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
         </p>
       )}
       <Section id="coach-career" title="Career">
+        {career === 'coach' && !!c.interimAppointments?.length && <ul className="coach-takeovers">
+          {[...c.interimAppointments].reverse().map((a) => <li key={`${a.season}:${a.teamId}:${a.week}`}>
+            {a.season} · Week {a.week}: took over as interim head coach of <TeamLink team={league.teams[a.teamId]} full />.
+          </li>)}
+        </ul>}
         {player && (
           <div className="seg seg-sm" role="group" aria-label="Which career">
             <button aria-pressed={career === 'coach'} onClick={() => setCareer('coach')}>

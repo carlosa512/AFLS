@@ -507,6 +507,8 @@ export interface Coach {
   career?: CoachSeason[];
   /** A temporary leadership appointment; conversion to permanent is always explicit. */
   interim?: boolean;
+  /** Observed interim takeovers survive dismissal, permanent hiring and retirement. */
+  interimAppointments?: { season: number; teamId: number; week: number }[];
   /** A former player: his playing career is that player's record in `league.players`. */
   playerId?: number;
   /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
@@ -810,6 +812,7 @@ export interface GmAppointment {
   end?: CareerDate;
   interim: boolean;
   through: number;
+  terms?: GmJobTerms;
   /** Generated opening-world tenure, without inventing prior game results. Not used by migrated saves. */
   priorSeasons?: number;
   reason?: 'dismissed' | 'expired' | 'retired' | 'permanent';
@@ -826,6 +829,7 @@ export interface GeneralManager {
   id: number;
   firstName: string;
   lastName: string;
+  nameEdited?: true;
   woman?: true;
   age: number;
   /** Stable across scouting promotions, team changes, unemployment and retirement. */
@@ -877,6 +881,14 @@ export interface GmJobOffer {
   through: number;
   expiresRound: number;
   incumbent?: boolean;
+  /** A quiet-year conditional offer replaces this incumbent only on acceptance. */
+  replacesGmId?: number;
+  terms?: GmJobTerms;
+}
+
+export interface GmJobTerms {
+  expectation: string;
+  staffing: string[];
 }
 
 /** Staff in their actual roles when a game began, independent of later employment changes. */
@@ -1230,7 +1242,7 @@ export interface League {
   leadership: {
     nextEventId: number;
     events: LeadershipEvent[];
-    search?: { season: number; round: number; offers: GmJobOffer[] };
+    search?: { season: number; round: number; offers: GmJobOffer[]; playerDeclined?: boolean };
   };
   /** League-year salary cap, in $K, by season (future years are projections until reached). */
   caps: Record<number, number>;

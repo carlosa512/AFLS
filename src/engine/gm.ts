@@ -1,10 +1,37 @@
-/** Persistent GM careers. The carousel will call these moves; nothing schedules dismissals yet. */
+/** Persistent GM identities, appointments and scouting promotions. */
 import { generateGm } from './gmTraits';
 import { recruitmentProblem } from './employment';
 import { newIdentity } from './identity';
 import { Rng } from './rng';
 import { departForGm, staffWindowOpen } from './staff';
 import type { CareerDate, GeneralManager, GmTraits, League } from './types';
+
+export function gmNameProblem(league: League, gmId: number, first: string, last: string): string | null {
+  if (gmId !== league.userGmId || !league.gms[gmId]) return 'Only your own GM name can be edited.';
+  if (!first.trim() || !last.trim()) return 'Both names are needed.';
+  if (first.trim().length > 24 || last.trim().length > 24) return 'Names are 24 letters at most.';
+  return null;
+}
+
+export function editGmName(league: League, gmId: number, first: string, last: string): void {
+  const problem = gmNameProblem(league, gmId, first, last);
+  if (problem) throw new Error(problem);
+  const gm = league.gms[gmId], old = `${gm.firstName} ${gm.lastName}`;
+  gm.firstName = first.trim();
+  gm.lastName = last.trim();
+  gm.nameEdited = true;
+  if (gm.scouting) Object.assign(gm.scouting, { firstName: gm.firstName, lastName: gm.lastName });
+  const renamed = `${gm.firstName} ${gm.lastName}`;
+  for (const e of league.leadership.events.filter((e) => e.gmId === gmId)) {
+    const prior = e.report;
+    e.report = prior.replaceAll(old, renamed);
+    for (const t of league.transactions) if (t.text === prior) t.text = e.report;
+    for (const m of league.inbox ?? []) if (m.id === `leadership:${e.date.season}:${e.id}`) {
+      m.subject = m.subject.replaceAll(old, renamed);
+      m.body = m.body.replaceAll(old, renamed);
+    }
+  }
+}
 
 export const careerDate = (league: League): CareerDate => ({
   season: league.season,
