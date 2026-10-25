@@ -40,12 +40,16 @@ import {
 } from './draft';
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
 import { archiveService, ensureService } from '../personnel/service';
+import { personnelClock } from '../personnel/calendar';
+import { settleOffseasonWaivers, syncPersonnelTime } from '../personnel/flow';
+import { ensureWaivers } from '../personnel/waivers';
 
 export const FA_DAYS = 5;
 
 /** The new league year: cap, carryover, ageing and retirements, the draft order and class, the schedule. */
 export function beginOffseason(league: League): void {
   if (league.phase !== 'complete') throw new Error('The season is not finished');
+  settleOffseasonWaivers(league);
   expireOffers(league);
   resetContenderCache(league);
   const rng = new Rng(league.rngState);
@@ -132,6 +136,7 @@ export function beginOffseason(league: League): void {
   league.games.push(...generateSchedule(league, rng, order));
   league.week = 1;
   league.phase = 'resign';
+  if (league.personnel?.enabled) ensureWaivers(league);
   league.faDay = 0;
   league.negotiations = {};
   for (const team of league.teams) syncDepthChart(league, team);
@@ -183,6 +188,11 @@ function openFreeAgency(league: League): void {
 
 /** Move the offseason one step. With `autoUser`, the user's team is run by the AI too. */
 export function advanceOffseason(league: League, opts: { autoUser?: boolean } = {}): Phase {
+  if (league.personnel?.enabled && league.phase === 'preseason' && !opts.autoUser) {
+    const blockers = offseasonBlockers(league);
+    if (blockers.length) throw new Error(blockers.join(' '));
+  }
+  if (league.phase !== 'preseason') settleOffseasonWaivers(league, !!opts.autoUser);
   // Offers you didn't answer lapse at the next calendar step.
   expireOffers(league);
   resetContenderCache(league);
@@ -227,16 +237,24 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
       developBlock(league, 'program');
       break;
     case 'preseason':
-      // Camp's learning, then cut-down day's position changes, before any camp deal or cut sees the rosters.
-      learnBlock(league, 'camp');
-      developBlock(league, 'camp');
-      completeMoves(league);
-      // Camp: teams with surplus deal it before the cut to 53.
-      marketMoment(league, 'camp');
-      for (const team of ai) aiTrainingCamp(league, team, rng);
-      ensureStaffed(league, { autoUser: auto });
-      ensureCoached(league, { autoUser: auto });
-      ensureMedical(league, { autoUser: auto });
+      if (league.personnel?.enabled && personnelClock(league).cutdown) {
+        settleOffseasonWaivers(league, auto);
+      } else {
+        // Camp's learning, then cut-down day's position changes, before any camp deal or cut sees the rosters.
+        learnBlock(league, 'camp');
+        developBlock(league, 'camp');
+        completeMoves(league);
+        // Camp: teams with surplus deal it before the cut to 53.
+        marketMoment(league, 'camp');
+        for (const team of ai) aiTrainingCamp(league, team, rng);
+        ensureStaffed(league, { autoUser: auto });
+        ensureCoached(league, { autoUser: auto });
+        ensureMedical(league, { autoUser: auto });
+        if (league.personnel?.enabled) {
+          personnelClock(league).cutdown = true;
+          break; // Give the manager the complete league-wide cutdown wire before awarding anyone.
+        }
+      }
       league.phase = 'regular';
       league.week = 1;
       league.faDay = 0;
@@ -249,6 +267,7 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
   // Offers filed at this step's market moment are judged again on the state you'll accept in: camp's cuts,
   // signings and the phase switch (roster limits in season) can turn a bid its own team made into a refusal.
   recheckOffers(league);
+  syncPersonnelTime(league);
   league.rngState = rng.getState();
   return league.phase;
 }
@@ -256,7 +275,8 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
 /** From the end of a season to week 1 of the next, with every team (yours too) run by the AI. */
 export function simOffseason(league: League): void {
   if (league.phase === 'complete') beginOffseason(league);
-  for (let guard = 0; guard < 20 && league.phase !== 'regular'; guard++) advanceOffseason(league, { autoUser: true });
+  for (let guard = 0; guard < 256 && league.phase !== 'regular'; guard++) advanceOffseason(league, { autoUser: true });
+  if (league.phase !== 'regular') throw new Error('The offseason did not reach opening week.');
 }
 
 /** Run an RNG-using step with the league's own generator, saving its state afterwards. */

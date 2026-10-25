@@ -26,6 +26,8 @@ import type { Contract, League, Player } from '../engine/types';
 import { Dialog } from './components';
 import { liveLock } from './live';
 import { money } from './format';
+import { waiverApplies } from '../engine/personnel/waivers';
+import { personnelLabel } from '../engine/personnel/calendar';
 import { store } from './store';
 
 const name = (p: Player) => `${p.firstName} ${p.lastName}`;
@@ -37,6 +39,7 @@ export const thruLabel = (league: League, c: Contract) =>
 export function contractLabel(league: League, p: Player): string {
   const c = p.contract;
   if (!c) return p.retired ? 'Retired' : 'Free agent';
+  if (p.waiver) return 'On waivers · existing contract pending assignment';
   const kind =
     c.kind === 'rookie'
       ? 'Rookie deal'
@@ -182,7 +185,21 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
           No post-June 1 designations left this league year: all remaining bonus money hits now.
         </p>
       )}
-      <p className="muted small">He becomes a free agent. Guaranteed salary is still owed and counts as dead money.</p>
+      {preview.waiver && (
+        <>
+          <p className="small">If another club claims him · {personnelLabel(preview.waiver.deadline)}</p>
+          <div className="facts">
+            <Num label={`Dead money ${league.season} if claimed`} value={preview.waiver.assigned.thisYear} />
+            <Num label={`Dead money ${league.season + 1} if claimed`} value={preview.waiver.assigned.nextYear} />
+            <Num label="Cap room gained if claimed" value={preview.waiver.assigned.savings} />
+          </div>
+        </>
+      )}
+      <p className="muted small">
+        {waiverApplies(league, player)
+          ? 'He goes on waivers with his existing contract. These figures show the cost if he clears; a successful claim transfers unpaid salary and guarantees to the new club. His roster spot opens now, while the potential release cost remains reserved until the notice settles.'
+          : 'He becomes a free agent. Guaranteed salary is still owed and counts as dead money.'}
+      </p>
     </Dialog>
   );
 }

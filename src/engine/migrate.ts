@@ -87,6 +87,7 @@ export function migrateLeague(league: League): League | null {
     }
     league.version = 41;
   }
+  if (league.version < 42) league.version = 42; // optional waiver/clock state, initialized only for enabled personnel
   return league;
 }
 

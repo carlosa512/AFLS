@@ -677,7 +677,9 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                   ? ' · Draft prospect'
                   : p.retired
                     ? ' · Retired'
-                    : ' · Free agent'}
+                    : p.waiver
+                      ? ' · On waivers'
+                      : ' · Free agent'}
             </span>
             <h2 style={{ fontSize: 'var(--step-3)' }}>
               {p.firstName} {p.lastName}

@@ -116,6 +116,12 @@ const CHECKS = {
     summary: /\d+ number\(s\) outside target range/,
     detail: /[▲▼✗]/,
   },
+  waivers: {
+    cmd: ['npm', 'run', 'waivers', '--', '2'],
+    cores: 1,
+    secs: 40,
+    summary: /\d+ personnel invariant failures/,
+  },
 } satisfies Record<string, Check>;
 
 type Name = keyof typeof CHECKS;
@@ -130,6 +136,10 @@ const NAMES = Object.keys(CHECKS) as Name[];
  * numbers in docs/ATTRIBUTES.md. Deliberately not covered: `build:single` (scripts/artifact.mjs).
  */
 const RULES: [RegExp, Name[]][] = [
+  [
+    /^src\/engine\/(personnel\/|roster\.ts|finance\/|offseason\/|league\.ts|trade\/)|^scripts\/waivers\.ts$/,
+    ['waivers'],
+  ],
   // Every change is formatted, whatever it touches (Prettier skips what .prettierignore lists).
   [/./, ['format']],
   [/^src\/.*\.test\.ts$/, ['typecheck', 'test']],

@@ -93,8 +93,11 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
             <b className="num">{money(Math.round(sheet.active))}</b>
           </span>
           <span className="fact">
-            <span className="eyebrow">Dead money</span>
+            <span className="eyebrow">{sheet.waiverHold ? 'Dead money & waiver holds' : 'Dead money'}</span>
             <b className="num">{money(Math.round(sheet.dead))}</b>
+            {!!sheet.waiverHold && (
+              <span className="small muted">{money(sheet.waiverHold)} reserved pending waiver notices</span>
+            )}
           </span>
           <span className="fact">
             <span className="eyebrow">Cap space</span>

@@ -8,6 +8,7 @@ import type { RosterList } from './personnel/types';
 /** One authoritative list query: legacy IR data is retained as the reserve-stint record. */
 export function rosterList(p: Player): RosterList {
   if (p.retired) return 'retired';
+  if (p.waiver) return 'waivers';
   if (p.teamId === null) return 'unattached';
   if (p.squad) return p.squad.kind;
   return p.ir ? 'injuredReserve' : 'active';

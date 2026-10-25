@@ -1,9 +1,57 @@
-/** Personnel foundations only: transaction queues arrive with the calendar/waiver step. */
+/** Saved state for staged personnel transactions; normal careers stay off until the lifecycle is complete. */
 export interface PersonnelState {
   version: 1;
   /** Remains off until the complete transaction lifecycle is available. */
   enabled: boolean;
   profile: 'afls-2026-v1';
+  clock?: { season: number; minute: number; cutdown: boolean };
+  waivers?: {
+    nextId: number;
+    originalOrder: { season: number; teams: number[] };
+    pending: WaiverEntry[];
+    claims: WaiverClaim[];
+    results: WaiverResult[];
+    aiWindow?: { key: string; awards: Record<number, number> };
+  };
+}
+
+export interface WaiverClaim {
+  entryId: number;
+  teamId: number;
+  /** Order in this club's list; winners do not lose their league priority. */
+  preference: number;
+  cutIds: number[];
+  /** Alternatives in the same group can produce at most one award per batch. */
+  group?: string;
+  /** AI budget floor, rechecked after every earlier award. User claims may omit it. */
+  minCapSpace?: number;
+  automatic?: true;
+}
+
+export interface WaiverEntry {
+  id: number;
+  playerId: number;
+  fromTeamId: number;
+  season: number;
+  deadline: number;
+  contract: import('../types').Contract;
+  /** Financial state frozen at the release request, not recalculated after the clock moves. */
+  paid: number;
+  paidBefore: number;
+  postJune1: boolean;
+  release: { thisYear: number; nextYear: number };
+  assigned: { thisYear: number; nextYear: number };
+}
+
+export interface WaiverResult {
+  entryId: number;
+  playerId: number;
+  fromTeamId: number;
+  toTeamId: number | null;
+  season: number;
+  deadline: number;
+  /** Only the user's own unsuccessful instructions are retained; opposing bids stay private. */
+  userReason?: string;
 }
 
 /** Active and IR continue to use the existing employer and `ir` record. */
@@ -11,7 +59,7 @@ export interface SquadMembership {
   kind: 'practiceSquad' | 'practiceSquadInjured';
 }
 
-export type RosterList = 'active' | 'injuredReserve' | SquadMembership['kind'] | 'unattached' | 'retired';
+export type RosterList = 'active' | 'injuredReserve' | SquadMembership['kind'] | 'waivers' | 'unattached' | 'retired';
 
 /** Named tuples keep thousands of service records small in exported JSON saves. */
 export type ServiceSeason = [

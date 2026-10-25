@@ -9,6 +9,8 @@ export const PERSONNEL_RULES = Object.freeze({
   accruedGames: 6,
   salaryCreditedGames: 3,
   pensionCreditedGames: 3,
+  /** Business policy, not an NFL restriction or a limit on manual user claims. */
+  maxAIWaiverAddsPerWindow: 2,
 });
 
 export function initialPersonnelState(): PersonnelState {

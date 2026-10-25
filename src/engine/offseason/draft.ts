@@ -105,7 +105,9 @@ export function draftOrder(league: League): DraftPick[] {
 export const nextPick = (league: League) => draftOrder(league).find((p) => p.playerId === undefined);
 
 export function availableProspects(league: League): Player[] {
-  return league.draftClass.map((id) => league.players[id]).filter((p) => p && p.teamId === null);
+  return league.draftClass
+    .map((id) => league.players[id])
+    .filter((p) => p && p.teamId === null && !p.waiver && p.draft?.season !== league.season);
 }
 
 export { POSITION_PREMIUM };
@@ -207,7 +209,8 @@ export function aiDraftChoice(
 }
 
 export function draftPlayer(league: League, pick: DraftPick, player: Player): void {
-  if (pick.playerId !== undefined || player.teamId !== null) throw new Error('Pick already used or player taken');
+  if (pick.playerId !== undefined || player.teamId !== null || player.waiver || player.draft?.season === league.season)
+    throw new Error('Pick already used or player taken');
   const team = league.teams[pick.ownerId];
   pick.playerId = player.id;
   pick.consRank = consensusRank(league, player);

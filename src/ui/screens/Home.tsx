@@ -9,6 +9,8 @@ import {
 } from '../../engine/awards';
 import { champion, userGame } from '../../engine/league';
 import { capSheet } from '../../engine/finance/cap';
+import { nextWaiverDeadline } from '../../engine/personnel/flow';
+import { personnelLabel } from '../../engine/personnel/calendar';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
 import { expiringPlayers } from '../../engine/offseason/ai';
 import { formatRecord, gmRecord } from '../../engine/records';
@@ -522,6 +524,12 @@ function OffseasonHome({ league }: { league: League }) {
       title = 'Training camp';
       body = `Cut down to 53 before week 1 (you have ${roster.length}${reserve ? `, plus ${reserve} on injured reserve` : ''}). After June 1, dead money from cuts is split across two years automatically.`;
       action = { label: 'Cap & cuts', go: () => nav.go({ view: 'cap' }) };
+      if (league.personnel?.enabled && league.personnel.clock?.cutdown) {
+        title = 'Cutdown waiver wire';
+        body =
+          'The initial cuts are in. Review claims before continuing; claimed players bring their existing contracts, and unclaimed players become free agents. Starting the season handles later notices automatically, or you can process them individually on the wire.';
+        action = { label: 'Review waiver wire', go: () => nav.go({ view: 'office', tab: 'waivers' }) };
+      }
       break;
   }
 
@@ -621,11 +629,35 @@ function OffseasonHome({ league }: { league: League }) {
   );
 }
 
+function WaiverNotice({ league }: { league: League }) {
+  const nav = useNav();
+  const deadline = nextWaiverDeadline(league);
+  if (!league.personnel?.enabled || deadline === undefined) return null;
+  return (
+    <Panel
+      title="Personnel notice"
+      action={
+        <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'waivers' })}>
+          Waiver wire
+        </button>
+      }
+    >
+      <p>
+        {league.personnel.waivers!.pending.length} players awaiting waivers. Next notice: {personnelLabel(deadline)}.
+      </p>
+      <p className="small muted">
+        Review claims before continuing. Your players are released only if a claim you submitted wins.
+      </p>
+    </Panel>
+  );
+}
+
 export function Home({ league }: { league: League }) {
   if (isOffseasonPhase(league)) {
     return (
       <>
         <OffseasonHome league={league} />
+        <WaiverNotice league={league} />
         <GmRecord league={league} />
         <StartOver league={league} />
       </>
@@ -641,6 +673,7 @@ export function Home({ league }: { league: League }) {
   return (
     <>
       <ScoreStrip league={league} />
+      <WaiverNotice league={league} />
       <ChampionBanner league={league} />
       <AwardsNotice league={league} />
       <div className="home-grid">

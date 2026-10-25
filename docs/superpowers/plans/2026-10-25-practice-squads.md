@@ -137,12 +137,12 @@ Moves use preview/validate/commit functions. Validate everything before mutation
 
 **Depends on:** PR 1. **Files:** personnel calendar/transactions/waivers; `finance/cap.ts`, `offseason/index.ts`, `offseason/negotiation.ts`, `offseason/ai.ts`, `league.ts`, trade cut callers, `Home.tsx`, `FrontOffice.tsx`.
 
-- [ ] Add cutdown/weekly event stages and shared guards for every game entry point.
-- [ ] Route every cut through waiver-aware behavior. Pending waivers are excluded from free-agent signing and negotiation.
-- [ ] Preserve the full NFL contract while pending; transfer applicable obligations on assignment or terminate on clearance. Preview both outcomes.
-- [ ] Persist original priority independently of traded picks. For a league without historical standings, generate a stable documented opening order without inventing played seasons.
-- [ ] Resolve claims in batches with correct priority, preferences, conditional cuts, cap and list capacity. Winning does not move a club to the back.
-- [ ] Add the waiver wire, claim controls, deadlines and result notices. Opponent claim instructions remain private.
+- [x] Add cutdown/weekly event stages and shared guards for every game entry point.
+- [x] Route every cut through waiver-aware behavior. Pending waivers are excluded from free-agent signing and negotiation.
+- [x] Preserve the full NFL contract while pending; transfer applicable obligations on assignment or terminate on clearance. Preview both outcomes.
+- [x] Persist original priority independently of traded picks. For a league without historical standings, generate a stable documented opening order without inventing played seasons.
+- [x] Resolve claims in batches with correct priority, preferences, conditional cuts, cap and list capacity. Winning does not move a club to the back.
+- [x] Add the waiver wire, claim controls, deadlines and result notices. Opponent claim instructions remain private.
 
 **Acceptance:** competing claims award correctly regardless of iteration order; contracts survive; cap/dead money settles once; follow-on cuts wait for another deadline; failed claims leave no partial changes.
 
@@ -265,7 +265,7 @@ Use executed CBA language and current amendments to establish NFL facts; summari
 
 ## Implementation progress
 
-Step 1 is implemented on `feature/practice-squad-foundation`: save version 41, disabled rules profile, list boundaries, observed service and legacy estimates. Verification is recorded in `docs/PRACTICE_SQUADS.md`: targeted tests and typecheck pass, the six-season roster audit and trade audit report zero out-of-range numbers, and the ten-season simulation matches the unchanged baseline including its existing rushing-leader threshold failure. Step 2 is next; no waiver/calendar behavior is enabled yet.
+Step 1 is implemented on `feature/practice-squad-foundation`: save version 41, disabled rules profile, list boundaries, observed service and legacy estimates. Verification is recorded in `docs/PRACTICE_SQUADS.md`: targeted tests and typecheck pass, the six-season roster audit and trade audit report zero out-of-range numbers, and the ten-season simulation matches the unchanged baseline including its existing rushing-leader threshold failure. Step 2 is implemented on `feature/practice-squad-waivers`: save version 42, contract-preserving notices, ordered/conditional claims, scouted AI decisions, chronological game guards and the waiver desk. The complete profile remains off for normal careers. The enabled AI audit is `npm run waivers -- 2`; step 3 (practice squad formation/contracts/payroll) is next.
 
 ## Original first implementation action
 

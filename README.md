@@ -77,6 +77,7 @@ npm run weather          # roll seasons of weather and check it looks like the N
 npm run crews            # officiating crews: flags per game, busiest against quietest, the rotation
 npm run trades           # the trade market against NFL prices, every AI deal read as it closes
 npm run training         # position moves and development released in steps
+npm run waivers -- 2     # staged waiver AI: legal claims, cap/rosters and reload determinism
 ```
 
 See [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) for the vision, how the engine works and the

@@ -9,6 +9,7 @@ import { capHit, deadMoney, isExpired } from '../finance/contract';
 import { rosterLimit } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
 import { onGameRoster } from '../roster';
+import { personnelTime, TRADE_DEADLINE_MINUTE } from '../personnel/calendar';
 import { Rng } from '../rng';
 import type { League, Player, Position, TradeSide } from '../types';
 
@@ -28,11 +29,14 @@ export interface TradeProposal {
 
 /** Deadline day: week 9's games are in, week 10's haven't started. */
 export function isDeadlineDay(league: League): boolean {
+  if (league.personnel?.enabled && personnelTime(league) > TRADE_DEADLINE_MINUTE) return false;
   if (league.phase !== 'regular' || league.week !== TRADE_DEADLINE_WEEK + 1) return false;
   return !league.games.some((g) => g.season === league.season && g.week === league.week && g.result);
 }
 
 export function tradeWindow(league: League): string | null {
+  if (league.personnel?.enabled && league.phase === 'regular' && personnelTime(league) > TRADE_DEADLINE_MINUTE)
+    return 'The trade deadline has passed.';
   if (league.phase === 'playoffs' || league.phase === 'complete')
     return 'Trades reopen when the new league year begins.';
   if (league.phase === 'regular' && league.week > TRADE_DEADLINE_WEEK && !isDeadlineDay(league))
@@ -45,6 +49,7 @@ export const isTradeSeason = (league: League) =>
 
 /** Why a player can't be traded at all, by league rules: what every screen can show. */
 export function playerTradeBlocker(league: League, p: Player): string | null {
+  if (p.waiver) return 'On waivers.';
   if (p.squad) return 'Practice squad players cannot be traded.';
   if (!p.contract || isExpired(p.contract, league.season)) return 'Not under contract.';
   if (p.ir) return 'On injured reserve.';

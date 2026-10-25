@@ -2,7 +2,7 @@
 
 ## Status
 
-Step 1 implements the data/query/service foundation only. Save version 41 stores a disabled personnel state with profile `afls-2026-v1`. It creates no practice squads, waiver claims, protections, signing obligations or calendar steps. Existing contracts, cap pricing, experience, coaching and match randomness retain their existing behavior. The seven-step implementation plan is in `superpowers/plans/2026-10-25-practice-squads.md`.
+Steps 1–2 implement service/list foundations and the staged personnel calendar, waivers, AI claims and waiver desk. Save version 42 retains the disabled-by-default `afls-2026-v1` profile; ordinary careers are not automatically opted into an unfinished practice squad lifecycle. Enabled development careers exercise waivers; `npm run waivers -- 2` runs the reproducible AI audit. Practice squad contracts, elevations, poaching and weekly protections remain later steps. The seven-step plan is in `superpowers/plans/2026-10-25-practice-squads.md`.
 
 ## Design authority
 
@@ -38,13 +38,12 @@ Accrual intentionally covers statuses supported by AFLS. PUP/NFI, holdouts, inju
 
 Migration adds no transactions and changes no employer, contract, rating, chart order, cap or RNG stream. A midseason legacy save marks the current service season incomplete; unobserved earlier games are not backfilled from statistical appearances. Its resulting totals can be conservative, and the incomplete marker must remain visible to future eligibility/migration logic. New draft prospects initialize at zero after their experience is reset; generated fill-ins initialize before their next experience increment or first observed game.
 
-Queries of completed service can pass a `throughSeason` cutoff. In particular, future Article 29 waiver handling must examine pension service through the last completed season; earning a third game in the current season must not prematurely activate the veteran exception.
+Queries of completed service can pass a `throughSeason` cutoff. In particular, Article 29 waiver handling examines pension service through the last completed season; earning a third game in the current season must not prematurely activate the veteran exception.
 
 ## Rules queued for later steps
 
 | Step | Rule work before enabling |
 | --- | --- |
-| 2: waivers/calendar | Preserve and transfer the existing contract; freeze correct original/current priority independently of pick ownership; resolve award batches and conditional cuts. Article 29's veteran exception uses completed pension service, not generic `experience` or accrued seasons. Document personnel deadlines and cap settlement timing |
 | 3: formation/pay | Sixteen ordinary places; exact assignment across overlapping NFL eligibility categories. Weekly pay schedule and cap handling; competing offers and return intents. Qualifying international exception remains deferred |
 | 4: elevations | Two per club/game; current regular/postseason usage rules, per-club history and same-club re-sign restriction; reversion, pay/service, signing lock and dressing lists. Resolve original CBA versus later amendment wording before enabling |
 | 5: poaching/protection | Player choice, opponent cutoffs, three salary weeks/three roster-count games and offsets. Implement the settled two-player AFLS protection rule with no routine prompt and no cycling |
@@ -66,3 +65,47 @@ Full predicates and boundary scenarios are listed in the implementation plan. Re
 - Formatting and whitespace checks pass. Validation ran locally, not in remote CI. The `tsx` CLI cannot create its IPC socket in this sandbox, so equivalent audit entry points ran with `node --import tsx scripts/<name>.ts`.
 
 Historical service estimates and unknown game-day-active history are explicit compatibility limits. Practice squad transactions and two automatic protections are still disabled pending their implementation steps.
+
+
+## Step 2: calendar, contract assignment and AI
+
+| Rule | Implemented behavior | Authority |
+| --- | --- | --- |
+| Veteran exception | Four completed pension seasons bypass waivers during the pre-deadline window; all releases use waivers after the trade deadline or in the postseason. Expired deals use normal termination. The current season cannot vest the exception early | [CBA Article 29 §1](https://overthecap.com/collective-bargaining-agreement/article/29/section/1) |
+| Early claiming priority | Freeze the original first-round order using `originalTeamId`, independent of the pick owner. A world without a recorded prior draft gets a stable seeded order, with no invented standings | NFL draft-based priority; AFLS initialization fallback |
+| Later priority | After Week 3, worst current record first, then current strength of schedule. Remaining ties use frozen original priority, an explicit AFLS simplification instead of the complete NFL secondary procedures. A winner never rotates to the back | [NFL important dates](https://operations.nfl.com/calendar-events/nfl-important-dates), AFLS final tie rule |
+| Notice timing | A Tuesday-based football clock distinguishes Thursday/Saturday/Sunday/Monday games. Requests enter daily 4 PM ET notices with at least 24 hours of exposure. Offseason phases use compressed ordinal dates; camp begins at minus 21 days. Daily notices replace actual holiday/cutdown exceptions for this AFLS profile | NFL waiver procedure as foundation; AFLS timing simplification |
+| Pending contract | The player leaves the roster, retains the exact contract and gets a waiver marker. He cannot negotiate, be signed, be traded, play or re-enter the draft through that marker. Existing draft history also prevents a cleared current-year pick being drafted twice | Contract-preserving waiver design |
+| Originating liability | Reserve the worst-case release cost until the notice settles. Assignment books original bonus acceleration/already-paid salary and transfers remaining salary/guarantees; clearance books the full release once. Holds and projections use the same $K rounding as the actual ledger | Existing AFLS cap ledger and [NFL contract guidance](https://operations.nfl.com/calendar-events/nfl-free-agency/contract-language) |
+| Assignment | Preserve contract kind, control, options and future salary/guarantees. Remove originating bonuses/void years; reduce current base and guarantees only by amounts already paid. Claiming does not negotiate a new deal | NFL assumption of existing contract, AFLS ledger representation |
+| Claim instructions | Clubs submit ordered claims, optional alternative groups and named conditional cuts. Validate current and future cap, actual roster space, ownership and positional coverage before mutation. Revalidate after earlier wins; rejected claims never trigger their cuts | AFLS atomic transaction implementation |
+| Subsequent cuts | A winning claim's cuts enter the next notice, never the resolving batch. Submitted claims remain private; the wire shows only the user's instructions and public awards/clearances | NFL notice/priority foundation, AFLS manager flow |
+
+### Manager and game flow
+
+The first camp advance performs camp learning/development, position changes, camp business and AI cutdowns once, then pauses at the complete league-wide wire. The manager can submit/reorder/withdraw claims and name a conditional release. The main continue action settles submitted claims and remaining notices, then opens Week 1. Processing notices individually is optional; it is not a mandatory daily chore. A user roster that is already illegal is rejected before camp/offer state changes.
+
+Games settle due notices before kickoff. Opening a Sunday live game first simulates earlier unplayed games, so a Friday waiver award cannot rewrite Thursday's roster. Transactional game entry points (`playGame`, `startLiveGame`, `recordResult`) enforce preparation; the pure match simulator remains usable for hypothetical simulations. Personnel events cannot be advanced manually past an earlier unplayed kickoff. Game start also requires legal roster size and current cap.
+
+The front office has a routed, sortable waiver desk with own claim preferences, conditional release selection, deadlines, remaining contract costs and public results. Player cards mark pending waivers, release previews show clearance and assignment outcomes, and finances distinguish pending holds. Rendering these views does not mutate the save or expose opposing claims. Inbox integration remains step 7.
+
+### AI business policy
+
+Every club submits against the same pre-award world using its own `perceive` read. It considers an immediate positional upgrade, modest scouted upside for young players and the cost of assuming the contract. It skips players expected to miss at least two weeks, rejects unaffordable future commitments, names a same-position replacement when full and reserves its existing in-season budget. The budget floor is part of each automatic claim and is checked again after earlier wins.
+
+To avoid claim churn, AI clubs make at most two additions per camp or weekly management window (each free-agency day is its own window). This is a front-office policy, not an NFL rule and not a cap on manual user claims. New claims are not used as AI waiver replacement cuts during the same camp, or during their first two regular-season weeks. Competing alternatives share a position group and at most one can win per notice. A high-priority club can still win multiple claims when its budget, roster and plan allow it; its league priority never changes.
+
+The first unconstrained trial produced 81 awards across 16 notices and ran past the opener. The bounded policy settled the two reproducible trial worlds at 35 awards over three notices and 29 over eight. Both had all 32 opening rosters at 53, no over-cap teams, legal play through four regular-season weeks and identical persisted outcomes after reloading before every notice. These are observations, not hard-coded volume targets.
+
+### Staging and remaining limits
+
+Waiver state is initialized only for enabled personnel careers. Migration from version 41 preserves the existing profile and creates no retroactive cuts, claims or clock events. The serialized queue contains contract snapshots; settled results are limited to the latest 96 and retain only the user's own unsuccessful-claim explanation. The existing transaction log keeps the public history.
+
+Full injured-waiver reversion, injury settlements, salary continuation, playoff signing permissions, practice squad formation and later protections are not claimed complete in this step. In enabled development careers, cuts currently follow ordinary clearance/assignment; the complete profile stays off for normal careers until the lifecycle work ships. Historical service estimates from step 1 remain estimates.
+
+### Step 2 verification
+
+- Targeted regression suites passed, including the foundation fingerprint, finance, offseason, trades, game flow and UI contracts. The final focused run includes 31 waiver engine tests, three waiver desk tests and 30 UI/route tests.
+- `scripts/waivers.ts` explicitly enables the staged feature and checks two seeded leagues, every notice across JSON reload, roster size, cap legality, unchanged pending contracts and AI addition limits. It is registered in the existing CI check planner for affected personnel/roster/finance/offseason/trade/calendar code.
+- The existing six-season/four-league offseason audit and trade audit each report zero out-of-range numbers with ordinary careers still disabled. The existing retired-player save-growth warning remains; no threshold was loosened.
+- Typecheck, formatting and the production build are checked locally. Remote CI has not been run. In this sandbox, audit entry points use `node --import tsx` because the `tsx` CLI cannot open its IPC socket.

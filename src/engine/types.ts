@@ -168,6 +168,10 @@ export interface Player {
   service?: PlayerService;
   /** Exclusive practice-squad list membership; ordinary active/IR membership remains implicit. */
   squad?: SquadMembership;
+  /** Pending waivers are not free agency; the NFL contract remains intact until settlement. */
+  waiver?: { id: number; fromTeamId: number };
+  /** AI gives a newly claimed player a trial instead of immediately churning him through another notice. */
+  waiverArrival?: { season: number; week: number; phase: Phase };
   ratings: Ratings;
   /** Hidden ceiling for overall rating (1–20). Revealed only through scouting. */
   potential: number;
@@ -796,6 +800,8 @@ export interface Transaction {
     | 'sign'
     | 'resign'
     | 'release'
+    | 'waiver'
+    | 'claim'
     | 'trade'
     | 'restructure'
     | 'tag'
