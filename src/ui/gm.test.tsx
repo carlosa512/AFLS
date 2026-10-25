@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
+import { protectCoach, teamCoaches } from '../engine/coaching';
+import { CoachCard, CoachesScreen } from './screens/Coaches';
 import { appointDirectorAsGm, endGmAppointment } from '../engine/gm';
 import { recordResult } from '../engine/league';
 import type { Game, GameResult, GeneralManager } from '../engine/types';
@@ -16,6 +18,24 @@ const renderCard = (league: ReturnType<typeof world>, gm: GeneralManager) =>
   renderToStaticMarkup(<GmCard league={league} gm={gm} onClose={() => {}} />);
 
 describe('GM cards and directory', () => {
+  it('shows the signed owner commitment on both GM and coach views, with dismissal disabled', () => {
+    const l = world();
+    l.phase = 'resign';
+    const coach = teamCoaches(l, l.userTeamId).find((c) => c.role === 'headCoach')!;
+    coach.contract!.through = l.season - 1;
+    protectCoach(l, coach.id, l.season, 'Give this program another year.');
+    for (const html of [
+      renderCard(l, l.gms[l.userGmId]),
+      renderToStaticMarkup(<CoachCard league={l} coach={coach} onClose={() => {}} />),
+      renderToStaticMarkup(<CoachesScreen league={l} />),
+    ]) {
+      expect(html).toContain('Owner mandate');
+      expect(html).toContain('Give this program another year.');
+      expect(html).toContain('Already under contract');
+    }
+    const html = renderToStaticMarkup(<CoachesScreen league={l} />);
+    expect(html).toMatch(new RegExp(`aria-label="Dismiss[^\"]*${coach.firstName} ${coach.lastName}" disabled=""`));
+  });
   it('round-trips the GM directory route', () => {
     expect(routeToHash({ view: 'office', tab: 'gms' })).toBe('#/office/gms');
     expect(hashToRoute('#/office/gms')).toEqual({ view: 'office', tab: 'gms' });

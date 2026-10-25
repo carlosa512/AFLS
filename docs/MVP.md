@@ -78,8 +78,9 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       yearly letter, and AI head coaches get fired from the hot seat (`coaching.ts`). Phase 1 adds persistent GM
       identities and appointment histories, scout → director → GM promotion functions, and per-game GM/coach
       career records with save migration. Phase 2 adds GM cards, stable SVG portraits, a sortable league GM
-      directory and career overview, with links from team, cap and trade screens. Owner mandates, automatic
-      GM turnover, employment UI and spectating while unemployed remain to build. Your own job is not yet
+      directory and career overview, with links from team, cap and trade screens. Phase 3 adds owner retention
+      mandates with signed coach contracts, shared player/AI staffing restrictions and visible owner explanations.
+      Automatic GM turnover, employment UI and spectating while unemployed remain to build. Your own job is not yet
       automatically at risk.
 - [x] **Schedule weather forecasts (fog of war)** · **Already in** (hooks into #5): forecasts at three stages with
       calibrated rain chances on the schedule and the next-game card (`forecast` in `weather.ts`). Trend arrows and a

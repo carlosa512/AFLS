@@ -18,6 +18,7 @@
  * main random stream and a migrated save gets the same staffs as a new league.
  */
 import { BASE_CAP } from './finance/market';
+import { recruitmentProblem } from './employment';
 import { newIdentity } from './identity';
 import { pron } from './pronouns';
 import { clamp, Rng } from './rng';
@@ -186,6 +187,10 @@ export const medicSeverance = (league: League, m: Medic) =>
 
 /** Why a move can't happen right now, or null. */
 export function medicMoveProblem(league: League, teamId: number, m: Medic, move: StaffMove, years = 2): string | null {
+  if (move === 'hire') {
+    const recruitment = recruitmentProblem(league, teamId, m.teamId);
+    if (recruitment) return recruitment;
+  }
   if (!staffWindowOpen(league)) return 'Medical staff moves open in the re-sign window and free agency.';
   const { He, His, him } = pron(m);
   if (move === 'release') return m.teamId === teamId ? null : `${He} doesn’t work for you.`;

@@ -27,6 +27,7 @@ import {
   coachingGrades,
   coachMarket,
   coachMoveProblem,
+  coachMandate,
   coachName,
   coachPayroll,
   coachResignForecast,
@@ -608,6 +609,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
           </span>
         )}
       </div>
+      {team && <OwnerMandates league={league} teamId={team.id} coachId={c.id} />}
       <SchemeRow league={league} c={c} preview={c.teamId === null && !retired} />
       <CoachTags c={c} />
       <VisionLine league={league} c={c} />
@@ -841,6 +843,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
         </span>
       </div>
       <SchemeRow league={league} c={c} compact />
+      {c.teamId !== null && <OwnerMandates league={league} teamId={c.teamId} coachId={c.id} />}
       <CoachTags c={c} />
       <VisionLine league={league} c={c} />
       {c.role !== 'headCoach' && (
@@ -1368,6 +1371,31 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
 }
 
 /** Your owner: how he spends, and how far past the budget he'll go this year for the men who run the team. */
+export function OwnerMandates({ league, teamId, coachId }: { league: League; teamId: number; coachId?: number }) {
+  const promises = teamCoaches(league, teamId).flatMap((coach) => {
+    const mandate = coachMandate(league, coach);
+    return mandate && (coachId === undefined || coach.id === coachId) ? [{ coach, mandate }] : [];
+  });
+  if (!promises.length) return null;
+  return (
+    <div className="callout owner-mandates" aria-label="Owner mandates">
+      <b>Owner mandate</b>
+      {promises.map(({ coach, mandate }) => (
+        <div key={coach.id}>
+          <p>
+            <CoachLink c={coach} /> stays as {coachTitle(coach).toLowerCase()} through <b>{mandate.through}</b>.
+          </p>
+          <p className="small">{mandate.reason}</p>
+          <p className="small muted">
+            Already under contract. Salary counts toward the coaching budget. This chair stays filled for the promised
+            period.
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OwnerLine({ league }: { league: League }) {
   const teamId = league.userTeamId;
   const head = ownerLeeway(league, teamId, { role: 'headCoach' });
@@ -1375,12 +1403,15 @@ function OwnerLine({ league }: { league: League }) {
   const spend = ownerBudgetNote(league.teams[teamId].staffBudgetMult);
   const chairs = coord.amount > 0 ? 'a head coach or an offensive or defensive coordinator' : 'a new head coach';
   return (
-    <p className="muted small staff-lede">
-      <b>Owner:</b> {spend === 'Big-spending owner' ? 'a big spender. ' : spend ? 'on a tight budget. ' : ''}
-      {head.amount > 0
-        ? `He’ll add up to ${money(Math.max(head.amount, coord.amount))} past the budget this year for ${chairs} (${head.why}).`
-        : `He won’t go past the budget this year: ${head.why}.`}
-    </p>
+    <>
+      <p className="muted small staff-lede">
+        <b>Owner:</b> {spend === 'Big-spending owner' ? 'a big spender. ' : spend ? 'on a tight budget. ' : ''}
+        {head.amount > 0
+          ? `He’ll add up to ${money(Math.max(head.amount, coord.amount))} past the budget this year for ${chairs} (${head.why}).`
+          : `He won’t go past the budget this year: ${head.why}.`}
+      </p>
+      <OwnerMandates league={league} teamId={teamId} />
+    </>
   );
 }
 

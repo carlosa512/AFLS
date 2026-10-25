@@ -73,6 +73,11 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 39) league.version = 39; // v39: optional trade-news snapshots on newly filed SNN articles
   if (league.version < 40) league.version = 40; // v40: optional news table choice and trade edition labels
   if (league.version < 41) toV41(league);
+  if (league.version < 42) {
+    // Existing saves receive no invented promises or changes to their current contracts.
+    for (const team of league.teams) team.ownerMandates ??= [];
+    league.version = 42;
+  }
   return league;
 }
 

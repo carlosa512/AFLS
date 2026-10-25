@@ -20,6 +20,7 @@ import {
   CHAIRS,
   chairHolder,
   coachName,
+  coachMandate,
   coachResignForecast,
   coachTitle,
   isCoachExpiring,
@@ -1536,6 +1537,16 @@ function ownerMail(league: League, have: Set<string>): Draft[] {
       : trigger
         ? ' I believe in giving good people time to build something.'
         : '';
+  const promises = teamCoaches(league, team.id)
+    .flatMap((c) => {
+      const mandate = coachMandate(league, c);
+      return mandate
+        ? [
+            `${coachName(c)} stays as ${coachTitle(c).toLowerCase()} through ${mandate.through}. ${mandate.reason} His contract already covers that commitment, and his salary counts toward our coaching budget.`,
+          ]
+        : [];
+    })
+    .join(' ');
   return [
     {
       id,
@@ -1545,7 +1556,7 @@ function ownerMail(league: League, have: Set<string>): Draft[] {
       from: 'The owner',
       category: 'staff',
       subject: 'A letter from the owner',
-      body: `A new league year starts today, and the budgets for ${season} are below. ${marketLine} ${leeway}${patience}`,
+      body: `A new league year starts today, and the budgets for ${season} are below. ${marketLine} ${leeway}${patience}${promises ? ` ${promises}` : ''}`,
       actions: [{ kind: 'coaches' }, { kind: 'cap' }],
     },
   ];

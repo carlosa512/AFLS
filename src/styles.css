@@ -2699,6 +2699,9 @@ details.more > summary {
 .staff-bar.over i {
   background: var(--loss);
 }
+.owner-mandates p {
+  margin: 0.4rem 0 0;
+}
 .staff-lede {
   margin: 10px 0 0;
 }

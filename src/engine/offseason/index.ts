@@ -9,7 +9,14 @@
  */
 import { retireChance } from '../aging';
 import { ageGms } from '../gm';
-import { coachingFor, coachWindowCloses, developCoaches, ensureCoached, noteCoachOverspend } from '../coaching';
+import {
+  coachingFor,
+  coachWindowCloses,
+  developCoaches,
+  ensureCoached,
+  noteCoachOverspend,
+  ownerRetentionReviews,
+} from '../coaching';
 import { beginYear, developBlock, playedShare, recordRatings, trueUp } from '../development';
 import { concussionRetireChance, delegates, injuriesNewYear, injuryRetireChance, manageInjuries } from '../injuries';
 import { developMedics, ensureMedical, medicalWindowCloses } from '../medical';
@@ -135,6 +142,8 @@ export function beginOffseason(league: League): void {
   league.negotiations = {};
   for (const team of league.teams) syncDepthChart(league, team);
   league.rngState = rng.getState();
+  // Promised coaches are contracted before the player or any AI GM reaches the staffing window.
+  ownerRetentionReviews(league);
   // The new league year opens the trade market: deals agreed over the winter, cap casualties, stars on the move.
   marketMoment(league, 'leagueYear');
 }

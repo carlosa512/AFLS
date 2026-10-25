@@ -10,6 +10,7 @@
  * uses its own seeded Rngs, so it never shifts the league's main random stream.
  */
 import { TEAM_SEEDS } from './data/teams';
+import { recruitmentProblem } from './employment';
 import { BASE_CAP } from './finance/market';
 import { ROSTER_TEMPLATE } from './positions';
 import { newIdentity } from './identity';
@@ -167,6 +168,10 @@ export type StaffMove = 'hire' | 'extend' | 'release';
 
 /** Why a move can't happen right now, or null. */
 export function staffMoveProblem(league: League, teamId: number, s: Staff, move: StaffMove, years = 2): string | null {
+  if (move === 'hire') {
+    const recruitment = recruitmentProblem(league, teamId, s.teamId);
+    if (recruitment) return recruitment;
+  }
   if (!staffWindowOpen(league)) return 'Staff moves open in the re-sign window and free agency.';
   const { He, His, him } = pron(s);
   if (move === 'release') return s.teamId === teamId ? null : `${He} doesn’t work for you.`;

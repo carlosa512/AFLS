@@ -1,5 +1,6 @@
 /** Persistent GM careers. The carousel will call these moves; nothing schedules dismissals yet. */
 import { generateGm } from './gmTraits';
+import { recruitmentProblem } from './employment';
 import { newIdentity } from './identity';
 import { Rng } from './rng';
 import { departForGm, staffWindowOpen } from './staff';
@@ -115,8 +116,8 @@ export function makeGmPermanent(league: League, gmId: number, through: number): 
 export function appointDirectorAsGm(league: League, teamId: number, staffId: number, offer: GmOffer): GeneralManager {
   const director = league.staff[staffId];
   if (!director || director.role !== 'director') throw new Error('A new GM must be a scouting director.');
-  if (league.phase === 'regular' && director.teamId !== null && director.teamId !== teamId)
-    throw new Error('Another team’s staff cannot be poached midseason.');
+  const recruitment = recruitmentProblem(league, teamId, director.teamId);
+  if (recruitment) throw new Error(recruitment);
   const problem = offerProblem(league, teamId, offer);
   if (problem) throw new Error(problem);
   const scouting = departForGm(league, staffId);

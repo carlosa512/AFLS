@@ -3,7 +3,7 @@ import { formatRecord, gmRecord, winPct } from '../../engine/records';
 import type { Coach, GeneralManager, League } from '../../engine/types';
 import { Panel, Section, Sheet, SortTh, sortRows, TeamLink, useSort } from '../components';
 import { GmAvatar, gmDate, GmLink, gmName, gmStatus, gmStyleNotes } from '../gm';
-import { CoachLink } from './Coaches';
+import { CoachLink, OwnerMandates } from './Coaches';
 
 export function gmHeadCoaches(league: League, gm: GeneralManager): { coach: Coach; seasons: number[] }[] {
   const people = [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)];
@@ -100,6 +100,7 @@ export function GmCard({ league, gm, onClose }: { league: League; gm: GeneralMan
         )}
       </div>
       <CareerFigures league={league} gm={gm} />
+      {team && <OwnerMandates league={league} teamId={team.id} />}
       <Section id="gm-approach" title={you ? 'Your approach' : 'Front-office approach'}>
         <div className="gm-style-notes">
           {gmStyleNotes(league, gm).map((note) => (

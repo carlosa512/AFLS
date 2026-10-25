@@ -434,6 +434,16 @@ export interface StaffSeverance {
   name: string;
 }
 
+/** An owner's promise to keep a particular person in a particular coaching chair. */
+export interface OwnerCoachMandate {
+  coachId: number;
+  role: CoachRole;
+  room?: CoachRoom;
+  issued: CareerDate;
+  through: number;
+  reason: string;
+}
+
 export type CoachRole = 'headCoach' | 'offCoord' | 'defCoord' | 'positionCoach' | 'strengthCoach' | 'stCoord';
 /** Position rooms, each with its own coach. Kickers and punters have none: the special teams coordinator coaches them. */
 export type CoachRoom = 'QB' | 'RB' | 'WR' | 'OL' | 'DL' | 'LB' | 'DB';
@@ -589,6 +599,10 @@ export interface Team {
   coachOverspent?: number;
   /** Severance owed to dismissed coaches, charged to the coaching budget. */
   coachDead: StaffSeverance[];
+  /** Promises follow the club, including when its GM changes. Expired promises remain on file. */
+  ownerMandates: OwnerCoachMandate[];
+  /** Makes opening-year owner decisions idempotent across saves and repeated calendar calls. */
+  ownerReviewSeason?: number;
   /** Severance owed to dismissed medical staff, charged to the medical budget. */
   medicalDead: StaffSeverance[];
   /** False when the user manages injuries by hand (IR moves, replacements). AI teams always delegate. */
