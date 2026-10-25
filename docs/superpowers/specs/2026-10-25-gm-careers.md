@@ -80,8 +80,8 @@ and the scouting appointments preserved when a director becomes a GM. Opening in
 are labelled as recorded history rather than inferred hiring dates. The player is not assigned
 their unused AI management tendencies.
 
-GM SVG portraits reuse the existing staff renderer with varied executive outfits and no coaching
-headset. A promoted scouting director retains their appearance key, silhouette and hair; team
+GM SVG portraits reuse the existing staff renderer. Every GM wears a suit, preserving the head,
+hair and body profile already established for that person. A promoted scouting director retains their appearance key, silhouette and hair; team
 colours change with employment and unemployed/retired portraits use the market palette. The same
 card handles permanent, interim, unemployed and retired states. No employment actions or automatic
 turnover are added in this slice, and no save migration is needed.
@@ -92,6 +92,19 @@ restoration, coach/team links, light/dark themes and phone layouts. A supplied 2
 the real long-career example; any staged interim/unemployed examples use separate preview state.
 
 ## Validation
+
+`npm run gm:playthrough -- --save /path/to/save.json --seasons 5 --output work/gm-playthrough`
+finishes the supplied partial season once, then runs two parallel continuations from that shared
+baseline with independent future RNG streams. It automates offseason roster decisions, injuries
+and training, checks every incumbent's yearly GM record against league history, and verifies each
+GM's suit, head, hair and body profile before and after a JSON save/load each season.
+
+The supplied 2037 save's five full seasons (2038–2042) produced 46–39 with three playoff appearances
+in Run A and 50–35 with four in Run B. Neither won a title. All 320 GM-season records matched
+regular-season, playoff and title results, and all 640 appearance checks passed. There were no
+over-cap kickoffs; four kickoffs had one team below 53 active players. Automatic GM reviews and
+turnover are not yet enabled, and the existing contract correctly displays as due for review in
+2042 rather than receiving an invented extension.
 
 Unit tests cover identity persistence, moving tendencies, scout-to-director-to-GM continuity,
 midseason no-poaching checks, interim/permanent eligibility, split-season attribution, live kickoff

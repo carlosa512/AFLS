@@ -8,6 +8,7 @@ import { gmLook, gmName, gmStatus, gmStyleNotes, GmAvatar } from './gm';
 import { hashToRoute, routeToHash } from './routes';
 import { GeneralManagers, GmCard, gmHeadCoaches } from './screens/GeneralManagers';
 import { lookOf } from './staffAvatar';
+import { staffLook } from './staffLook';
 import { linkedSegments, moveIndex, nameIndex } from './moves';
 
 const world = () => createLeague({ seed: 'gm-cards' });
@@ -107,12 +108,20 @@ describe('GM cards and directory', () => {
 });
 
 describe('GM portraits', () => {
-  it('offers varied executive outfits without coaching or medical equipment', () => {
+  it('dresses every GM in a suit while keeping varied head shapes', () => {
     const l = world();
     const looks = Object.values(l.gms).map(gmLook);
-    expect(new Set(looks.map((look) => look.garment)).size).toBe(4);
+    expect(new Set(looks.map((look) => look.garment))).toEqual(new Set(['blazer']));
     expect(new Set(looks.map((look) => look.head)).size).toBeGreaterThan(2);
-    expect(looks.every((look) => look.headwear === 'none' && ['none', 'credential'].includes(look.gear))).toBe(true);
+    expect(looks.every((look) => look.headwear === 'none' && look.gear === 'none')).toBe(true);
+  });
+
+  it('keeps every established head and hair profile when the dress code changes', () => {
+    const l = world();
+    for (const gm of Object.values(l.gms)) {
+      const before = staffLook(gm.appearanceId, 'gm', gm.woman === true, 'game');
+      expect(gmLook(gm)).toMatchObject({ head: before.head, hair: before.hair, woman: before.woman });
+    }
   });
 
   it('preserves a director’s silhouette and hair on promotion and during unemployment', () => {

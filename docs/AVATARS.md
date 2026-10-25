@@ -1,8 +1,8 @@
 # Player and staff avatars
 
 General managers use the same staff SVG renderer through `GmAvatar` (`ui/gm.tsx`). Their stable
-appearance key selects one of four executive outfits: blazer, quarter-zip, polo or jacket, without a
-coaching headset. Promoted directors retain their silhouette and hair. Current team colours follow
+appearance key preserves each person's established head, hair and body type. Every GM wears the suit
+outfit, without a coaching headset or staff equipment. Promoted directors retain their silhouette and hair. Current team colours follow
 employment; unemployed and retired GMs use the neutral market palette. The portraits are decorative
 and always accompany a linked name. GM cards and the directory use the same identity at every size.
 

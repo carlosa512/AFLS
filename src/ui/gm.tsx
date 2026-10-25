@@ -19,11 +19,11 @@ export const gmDate = (date: CareerDate) =>
   `${date.season} · ${date.phase === 'regular' || date.phase === 'playoffs' ? weekLabel(date.week) : PHASE_LABELS[date.phase]}`;
 
 export function gmLook(gm: GeneralManager) {
-  // Executives dress for the press box, with a stable outfit even when the club is playing in snow.
+  // Derive the established silhouette first: changing the dress code must not change the person.
   const look = staffLook(gm.appearanceId, 'gm', gm.woman === true, 'game');
   // A promoted director keeps the same head and hair as their scouting portrait.
   if (gm.scouting) look.hair = staffLook(gm.appearanceId, 'director', gm.woman === true, 'game').hair;
-  return look;
+  return { ...look, garment: 'blazer' as const, headwear: 'none' as const, gear: 'none' as const };
 }
 
 export function GmAvatar({ league, gm, size = 32 }: { league: League; gm: GeneralManager; size?: number }) {
