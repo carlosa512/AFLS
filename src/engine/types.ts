@@ -831,6 +831,28 @@ export type InboxAction =
   | { kind: 'cap' }
   | { kind: 'standings' };
 
+/** Public, event-time facts retained with a rookie checkpoint letter. */
+export interface RookieReportRow {
+  playerId: number;
+  name: string;
+  position: Position;
+  round: number;
+  pick: number;
+  snaps: number | null;
+  production: string;
+  context: string;
+  contributed: boolean;
+}
+
+export interface LeagueNewsReport {
+  division: string;
+  table?: 'division' | 'team' | 'yearOverYear';
+  teamId: number;
+  season: number;
+  standings: { teamId: number; name: string; w: number; l: number; t: number; gap: number; streak: string }[];
+  stats: { label: string; current: string; previous: string; currentRank: string; previousRank: string }[];
+}
+
 export interface InboxMessage {
   /** Built from what the message is about, so delivering twice can't duplicate it. */
   id: string;
@@ -844,6 +866,13 @@ export interface InboxMessage {
   category: InboxCategory;
   subject: string;
   body: string;
+  leagueReport?: LeagueNewsReport;
+  tradeReport?: {
+    period?: string;
+    exchanges: { teamId: number; receives: string }[];
+    rumors: { playerId: number; name: string; position: Position; clubId: number; status: string; sourceId?: string }[];
+  };
+  rookieReport?: { teamId: number; games: number; rows: RookieReportRow[] };
   read: boolean;
   actions: InboxAction[];
   /** Filed away by the user: out of the inbox, under Archived. */
@@ -1077,6 +1106,8 @@ export interface League {
   transactions: Transaction[];
   /** The user's mail, oldest first (see `inbox.ts`). Unset until the first delivery. */
   inbox?: InboxMessage[];
+  /** Eviction boundary: older mail cannot return; same-date IDs distinguish removed mail from new arrivals. */
+  mailFloor?: { date: number; ids: string[] };
   negotiations: Record<number, Negotiation>;
   /** Free-agency day within the current offseason (0 before it opens). */
   faDay: number;

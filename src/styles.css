@@ -4119,3 +4119,57 @@ button.tip-pill {
   padding: 1px 2px;
   max-width: 6.5em;
 }
+
+/* A rookie checkpoint keeps the class readable without turning its letter into a paragraph of stat lines. */
+.rookie-report {
+  min-width: 560px;
+}
+.rookie-report td {
+  vertical-align: top;
+  white-space: normal;
+}
+.rookie-report td:nth-child(2) {
+  min-width: 130px;
+}
+.rookie-report td:last-child {
+  min-width: 220px;
+}
+.rookie-report td:first-child {
+  white-space: nowrap;
+  width: 1%;
+}
+.mail-focus + .mail-focus {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 14px;
+}
+.mail-focus-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.mail-focus-facts > div {
+  display: grid;
+  gap: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+}
+.mail-focus-leaders {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 10px;
+}
+.mail-focus-leaders > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+@media (max-width: 640px) {
+  .mail-focus-facts {
+    grid-template-columns: 1fr;
+  }
+}
