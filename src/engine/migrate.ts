@@ -1,3 +1,4 @@
+import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
 /**
  * Save upgrades. Each step takes a league saved by an older build and reshapes it in place,
  * so careers survive engine changes instead of being thrown away.
@@ -70,6 +71,14 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 38) league.version = 38; // v38: optional SNN standings and team-stat snapshots; existing letters keep their text
   if (league.version < 39) league.version = 39; // v39: optional trade-news snapshots on newly filed SNN articles
   if (league.version < 40) league.version = 40; // v40: optional news table choice and trade edition labels
+  if (league.version < 41) {
+    for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches ?? {})]) {
+      generateCoachQuirks(league.seed, c);
+      const p = c.playerId !== undefined ? league.players[c.playerId] : undefined;
+      if (p) inheritCoachQuirk(league.seed, c, p);
+    }
+    league.version = 41;
+  }
   return league;
 }
 

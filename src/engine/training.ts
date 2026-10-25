@@ -1,3 +1,4 @@
+import { coachPlayerFit, positionCoachFor } from './coachQuirks';
 /**
  * Position moves: coaches teaching a player a new position over time (docs/TRAINING.md §4). Nobody is
  * switched in one click, the user or an AI team. A plan starts in the offseason; a learning clock ticks
@@ -21,7 +22,7 @@
  */
 import { AGING, agingFamily, declineOnset } from './aging';
 import { skill } from './attributes';
-import { chairHolder, coachingFor, teamCoaches, teamScheme } from './coaching';
+import { chairHolder, coachingFor, coachingForPlayer, teamCoaches, teamScheme } from './coaching';
 import { logTransaction } from './finance/cap';
 import { isExpired, yearsLeft } from './finance/contract';
 import { leagueMarket, marketApy, resetLeagueMarket } from './finance/market';
@@ -117,7 +118,7 @@ export function familiarity(p: Player): Familiarity | null {
  * versatility and his own hidden pace (1 when the coaches estimate, so an estimate never gives the pace away). 0.3–2.
  */
 export function learnRate(league: League, p: Player, to: Position, pace = 1): number {
-  const coach = coachingFor(league, p.teamId, to).rate;
+  const coach = coachingForPlayer(league, p, to).rate;
   const age = Math.max(0.6, 1 - 0.02 * Math.max(0, p.age - 24));
   const ethic = clamp(1 + 0.03 * (workEthicOf(p) - 10.5), 0.7, 1.3);
   // Mentoring (docs/TRAINING.md §8) multiplies in here later; until then it is 1.
@@ -472,6 +473,10 @@ export function conversionRead(
   add('age', 0.7, aging && role === 'starter' && (diff >= 0 || !starterHome) && net >= -0.3);
   // A clear upgrade, from a room that can spare him: the bigger the gap, the stronger.
   add('upgrade', clamp(0.3 + 0.2 * gainTo, 0.5, 0.9), role === 'starter' && gainTo >= 1 && lossFrom <= 0.2);
+  // Preferences can rank existing supported motives, never manufacture a valid conversion.
+  const teacher = positionCoachFor(teamCoaches(league, teamId), to);
+  const fit = coachPlayerFit(teacher, p);
+  for (const m of motives) if (m.reason === 'upside' || m.reason === 'reps') m.strength *= 1 + fit;
   motives.sort((a, b) => b.strength - a.strength);
 
   const left = home.length;

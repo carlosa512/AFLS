@@ -8,10 +8,10 @@ import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
 import { talksOf } from '../engine/trade/talks';
 import { dealAdvice } from '../engine/trade/advice';
-import type { Game, League, TradeOffer } from '../engine/types';
+import type { Game, InboxMessage, League, TradeOffer } from '../engine/types';
 import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
-import { aboutOf, Folded } from './screens/Inbox';
+import { aboutOf, Folded, MessageBody } from './screens/Inbox';
 import { MailCards, weekBack, weeksMissed } from './mail';
 
 // Fallbacks, tried in order until one has what a test needs: an opening league that commits as a settled one does
@@ -35,6 +35,31 @@ const SEEDS = [
   'trades-14',
   'trades-15',
 ];
+
+it('separates a dated staff recommendation from the briefing without repeating its text', () => {
+  const league = createLeague({ seed: 'coach-note-ui' });
+  const text = 'The early return is encouraging; we should consider keeping the change for another week.';
+  const m: InboxMessage = {
+    id: `matchup:${league.season}:1`,
+    season: league.season,
+    week: 1,
+    phase: 'regular',
+    from: 'Head coach',
+    read: false,
+    category: 'matchup',
+    subject: 'Opposition report',
+    body: `Regular opponent briefing.\n\n${text}`,
+    actions: [],
+    coachNoteKey: 'test-followup',
+    coachNote: { coachId: -1, coachName: 'Former Staff Member', kind: 'followup', text },
+  };
+  const html = renderToStaticMarkup(<MessageBody league={league} m={m} index={nameIndex(league)} act={() => {}} />);
+  expect(html).toContain('class="coach-note" aria-label="Coach follow-up"');
+  expect(html).toContain('Following up');
+  expect(html).toContain('Former Staff Member');
+  expect(html.split(text)).toHaveLength(2);
+  expect(html).toContain('Regular opponent briefing.');
+});
 
 /** A league with an enquiry on the desk, found by playing on. */
 function withEnquiry(seed = SEEDS[0]): { league: League; enquiry: TradeOffer } {

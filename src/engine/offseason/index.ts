@@ -8,7 +8,7 @@
  * same AI when simulating straight through (`simOffseason`).
  */
 import { retireChance } from '../aging';
-import { coachingFor, coachWindowCloses, developCoaches, ensureCoached, noteCoachOverspend } from '../coaching';
+import { coachingForPlayer, coachWindowCloses, developCoaches, ensureCoached, noteCoachOverspend } from '../coaching';
 import { beginYear, developBlock, playedShare, recordRatings, trueUp } from '../development';
 import { concussionRetireChance, delegates, injuriesNewYear, injuryRetireChance, manageInjuries } from '../injuries';
 import { developMedics, ensureMedical, medicalWindowCloses } from '../medical';
@@ -76,7 +76,7 @@ export function beginOffseason(league: League): void {
     trueUp(league, p);
     beginYear(league, own, p, {
       playedShare: playedShare(p, last),
-      ...coachingFor(league, p.teamId, p.position),
+      ...coachingForPlayer(league, p),
       bodyAs: bodyAs(p),
     });
     p.age++;

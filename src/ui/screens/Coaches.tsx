@@ -1,3 +1,5 @@
+import { QUIRKS, type QuirkId } from '../../engine/quirks';
+import { activeCoachQuirks, coachHabitChangeText, COACH_QUIRKS, type CoachQuirkId } from '../../engine/coachQuirks';
 /**
  * The coaching staff: who coaches which of your rooms, whose deal is up, and who you could hire.
  * Coach ratings are public, so they show exactly; what they do for players is shown as percentages
@@ -238,6 +240,9 @@ function Rates({ c }: { c: Pick<Coach, 'youth' | 'veterans'> }) {
 /** What each play-calling or defensive style tag means on the field. */
 const STYLE_TIP: Record<string, string> = {
   'Pass-first': 'Calls more passes than the down and distance call for.',
+  'Balanced play-calling': 'Balances run and pass calls around the down, distance and game situation.',
+  'Balanced on 4th down': 'Weighs fourth-down attempts, punts and field goals around the game situation.',
+  'Balanced defense': 'Varies defensive calls with the situation, without a strong overall lean.',
   'Run-first': 'Calls more runs than the down and distance call for.',
   'Aggressive on 4th down': 'Goes for it on fourth down more often than most head coaches.',
   'Conservative on 4th down': 'Punts and kicks on fourth down more often than most head coaches.',
@@ -272,7 +277,7 @@ function CoachTags({ c }: { c: Coach }) {
           ? styleNotes({ passLean: c.style?.passLean })
           : [];
   const balanced = !style.length ? BALANCED[c.role] : undefined;
-  if (!rep.length && !style.length && !balanced) return null;
+  if (!rep.length && !style.length && !balanced && !Object.keys(c.quirks ?? {}).length) return null;
   return (
     <span className="pill-row">
       {rep.map((n) => (
@@ -285,7 +290,33 @@ function CoachTags({ c }: { c: Coach }) {
           {n}
         </TipPill>
       ))}
-      {balanced && <span className="muted small">{balanced}</span>}
+      {balanced && <TipPill tip={STYLE_TIP[balanced]}>{balanced}</TipPill>}
+      {(Object.entries(c.quirks ?? {}) as [CoachQuirkId, number][])
+        .filter(([id]) => COACH_QUIRKS[id])
+        .map(([id, grip]) => {
+          const q = COACH_QUIRKS[id];
+          const active = activeCoachQuirks(c).includes(id);
+          const status =
+            q.role !== c.role
+              ? 'Inactive in this role'
+              : grip === 1
+                ? 'Forming'
+                : !active
+                  ? 'Dormant'
+                  : grip === 3
+                    ? 'Ingrained'
+                    : 'Established';
+          return (
+            <TipPill
+              key={id}
+              className={`${q.tone === 'good' ? 'tag-good' : q.tone === 'bad' ? 'tag-warn' : ''}${grip === 1 ? ' tag-early' : ''}${!active && (q.role !== c.role || grip >= 2) ? ' tag-inactive' : ''}`}
+              tip={`${status}. ${q.effect}`}
+            >
+              {q.label}
+              <span className="visually-hidden"> ({status.toLowerCase()})</span>
+            </TipPill>
+          );
+        })}
     </span>
   );
 }
@@ -572,6 +603,12 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
         </>
       }
     >
+      {c.quirkOrigin && (
+        <p className="small muted">
+          His playing habit, {QUIRKS[c.quirkOrigin.source as QuirkId]?.label ?? c.quirkOrigin.source}, helped shape{' '}
+          {COACH_QUIRKS[c.quirkOrigin.id].label}.
+        </p>
+      )}
       <div className="facts">
         <StaffSkill label="Youth development" value={c.youth} />
         <StaffSkill label="Veteran care" value={c.veterans} />
@@ -610,6 +647,23 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
       </div>
       <SchemeRow league={league} c={c} preview={c.teamId === null && !retired} />
       <CoachTags c={c} />
+      {!!c.quirkLog?.length && (
+        <Section id="coach-habits" title="Habits over time" defaultOpen={false} className="muted small">
+          <ul className="habit-timeline">
+            {[...c.quirkLog].reverse().map((e, i) => (
+              <li key={i}>
+                <b>
+                  <span className="num">
+                    {e.season}
+                    {e.week ? `, wk ${e.week}` : ', offseason'}
+                  </span>{' '}
+                  · {coachHabitChangeText(e)}.
+                </b>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
       <VisionLine league={league} c={c} />
       {!retired && (
         <FitLine

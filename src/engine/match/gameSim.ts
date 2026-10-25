@@ -7,7 +7,9 @@
  * better teams win more often without making upsets impossible.
  */
 import { skill, useKnocks } from '../attributes';
-import { callerStyle, type CallerStyle } from '../coaching';
+import { activeCoachQuirks, type CoachQuirkId } from '../coachQuirks';
+import { habitCalls, canDeferTimeout, canStopEarly, shortGoalDecision, fourthDownHabit } from './coachHabits';
+import { callerStyle, teamCoaches, type CallerStyle } from '../coaching';
 import {
   CONTACT_RISK,
   fatigueMult,
@@ -31,6 +33,8 @@ import { activeQuirks, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
 import type {
   Crew,
+  Coach,
+  CoachGameReport,
   Foul,
   Game,
   GameInjury,
@@ -60,6 +64,8 @@ import { activePlayers, buildLineup, discipline, KICK_FLAG_PER_POINT, RETURN_COA
 type Side = 0 | 1; // 0 = home, 1 = away
 
 export interface SimOptions {
+  /** Matched audits may disable coaching habits without changing staff generation. */
+  coachQuirks?: boolean;
   /** Keep the full play-by-play log (otherwise only scoring plays are kept). */
   keepPlays?: boolean;
   /** Playoff games cannot end in a tie. */
@@ -363,6 +369,57 @@ function units(l: Lineup): [offense: Player[], defense: Player[]] {
 
 class GameSim {
   private rng: Rng;
+  private habitRng: Rng;
+  private coachReports: CoachGameReport[] = [];
+  private gameCoaches: [Coach[], Coach[]];
+  private gameHabits: [Map<Coach['role'], ReadonlySet<CoachQuirkId>>, Map<Coach['role'], ReadonlySet<CoachQuirkId>>];
+  private noHabits: ReadonlySet<CoachQuirkId> = new Set();
+  private shots: [number, number] = [0, 0];
+  private offenseSnaps: [number, number] = [0, 0];
+  private deferredTimeout: [boolean, boolean] = [false, false];
+  private designedShot = false;
+  private safePass = false;
+  private openingWindow = false;
+  private deepProtection = false;
+  private habits(side: Side, role: Coach['role']): ReadonlySet<CoachQuirkId> {
+    return this.gameHabits[side].get(role) ?? this.noHabits;
+  }
+  private coachReport(side: Side, role: Coach['role']): CoachGameReport | undefined {
+    const c = this.gameCoaches[side].find((c) => c.role === role);
+    if (!c) return;
+    let report = this.coachReports.find((r) => r.coachId === c.id);
+    if (!report) {
+      report = {
+        coachId: c.id,
+        name: `${c.firstName} ${c.lastName}`,
+        role,
+        teamId: this.lineups[side].team.id,
+        opportunities: {},
+        choices: {},
+        uses: {},
+        events: [],
+      };
+      this.coachReports.push(report);
+    }
+    return report;
+  }
+  private evidence(
+    side: Side,
+    role: Coach['role'],
+    id: CoachQuirkId,
+    choice = false,
+    used = false,
+    text?: string,
+    outcome?: string,
+  ) {
+    const r = this.coachReport(side, role);
+    if (!r) return;
+    r.opportunities[id] = (r.opportunities[id] ?? 0) + 1;
+    if (choice) r.choices[id] = (r.choices[id] ?? 0) + 1;
+    if (used) r.uses[id] = (r.uses[id] ?? 0) + 1;
+    if (text && r.events.length < 4)
+      r.events.push({ quirk: id, quarter: this.quarter, clock: this.clock, text, ...(outcome ? { outcome } : {}) });
+  }
   private lineups: [Lineup, Lineup];
   private score: [number, number] = [0, 0];
   private quarters: [number[], number[]] = [
@@ -463,6 +520,15 @@ class GameSim {
     private options: SimOptions,
   ) {
     this.rng = new Rng(options.seed ?? `${league.seed}:${game.season}:${game.id}`);
+    this.habitRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:coach-habits`);
+    this.gameCoaches = [game.homeId, game.awayId].map((id) =>
+      options.coachQuirks === false ? [] : teamCoaches(league, id).map((c) => ({ ...c, quirks: { ...c.quirks } })),
+    ) as [Coach[], Coach[]];
+    const habitsFor = (staff: Coach[]) =>
+      new Map<Coach['role'], ReadonlySet<CoachQuirkId>>(
+        staff.filter((c) => c.role !== 'positionCoach').map((c) => [c.role, new Set(activeCoachQuirks(c))]),
+      );
+    this.gameHabits = [habitsFor(this.gameCoaches[0]), habitsFor(this.gameCoaches[1])];
     this.creditRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:credit`);
     this.injuryRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:injury`);
     this.flagRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:flags`);
@@ -1486,8 +1552,40 @@ class GameSim {
           this.clockRunning = false; // already ran the clock for this snap
         }
       } else if (coach.offenseTimeout(s)) this.useTimeout(offSide);
-      else if (coach.defenseTimeout(s)) this.useTimeout(this.def);
-      else if (coach.shouldSpike(s)) return this.spike();
+      else if (
+        coach.defenseTimeout(s) ||
+        (canStopEarly(s) && this.habits(this.def, 'headCoach').has('stopsTheClock'))
+      ) {
+        const delay =
+          canDeferTimeout(s) &&
+          !this.deferredTimeout[this.def] &&
+          this.habits(this.def, 'headCoach').has('clingsToTimeouts') &&
+          this.habitRng.chance(0.2);
+        if (canDeferTimeout(s))
+          this.evidence(
+            this.def,
+            'headCoach',
+            'clingsToTimeouts',
+            delay,
+            delay,
+            delay ? 'Held a defensive timeout through another snap late in the game.' : undefined,
+          );
+        if (delay) {
+          this.deferredTimeout[this.def] = true;
+          this.log('The sideline holds its timeout for another snap.');
+        } else {
+          if (s.clock > 180)
+            this.evidence(
+              this.def,
+              'headCoach',
+              'stopsTheClock',
+              true,
+              true,
+              'Stopped the clock early to preserve another possession.',
+            );
+          this.useTimeout(this.def);
+        }
+      } else if (coach.shouldSpike(s)) return this.spike();
     }
     if (this.clockRunning) {
       const t = coach.tempo(this.situation());
@@ -1510,18 +1608,170 @@ class GameSim {
     if (coach.kickNow(s)) return this.fieldGoal();
 
     if (this.down === 4) {
-      const decision = coach.fourthDown(s, this.rng);
+      let decision = coach.fourthDown(s, this.rng);
+      if (shortGoalDecision(s)) {
+        const hc = this.habits(offSide, 'headCoach');
+        const adjustment = fourthDownHabit(s, decision, hc, this.habitRng);
+        const { takes, backs } = adjustment;
+        decision = adjustment.decision;
+        this.evidence(
+          offSide,
+          'headCoach',
+          'takesThePoints',
+          decision === 'fg',
+          takes,
+          takes ? 'Chose the comfortable field goal on fourth down near the goal line.' : undefined,
+        );
+        this.evidence(
+          offSide,
+          'headCoach',
+          'backsHisOffense',
+          decision === 'go',
+          backs,
+          backs ? 'Trusted the offense on fourth down near the goal line.' : undefined,
+        );
+      }
       if (decision === 'punt') return this.punt();
       if (decision === 'fg') return this.fieldGoal();
     }
 
     if (this.preSnapPenalty()) return;
 
-    const defCall = coach.defenseCall(s, this.rng);
+    this.offenseSnaps[offSide]++;
+    const oc = this.habits(offSide, 'offCoord');
+    const dc = this.habits(this.def, 'defCoord');
+    const calls = habitCalls(s, oc, dc, this.offenseSnaps[offSide]);
+    let defCall = coach.defenseCall(s, this.rng);
+    const heat = calls.heat && defCall !== 'blitz' && this.habitRng.chance(0.075);
+    const coverage = calls.coverage && defCall === 'blitz' && this.habitRng.chance(0.17);
+    const crowd = calls.crowdLine && defCall !== 'runD' && this.habitRng.chance(0.06);
+    if (heat) defCall = 'blitz';
+    if (coverage) defCall = 'passD';
+    if (crowd) defCall = 'runD';
+    if (calls.third) {
+      this.evidence(this.def, 'defCoord', 'thirdDownHeat', defCall === 'blitz', heat);
+      this.evidence(this.def, 'defCoord', 'trustsCoverage', defCall !== 'blitz', coverage);
+    }
+    if (calls.crowd) this.evidence(this.def, 'defCoord', 'crowdsTheLine', defCall === 'runD', crowd);
+    this.designedShot =
+      calls.shotEligible && this.shots[offSide] < 2 && oc.has('shotPlayArchitect') && this.habitRng.chance(0.055);
+    if (this.designedShot) this.shots[offSide]++;
+    this.safePass = calls.safeDepth;
+    this.openingWindow = calls.opening;
+    this.deepProtection = calls.protectDeep;
     this.pressureBy = null;
-    const result = this.rng.chance(coach.passProbability(s)) ? this.passPlay(s, defCall) : this.runPlay(s, defCall);
+    const passing = this.rng.chance(clamp(coach.passProbability(s) + calls.passShift, 0, 1)) || this.designedShot;
+    const result = passing ? this.passPlay(s, defCall) : this.runPlay(s, defCall);
+    if (calls.settling)
+      this.evidence(
+        offSide,
+        'offCoord',
+        'settlesForThree',
+        !passing || result.depth === 'short',
+        oc.has('settlesForThree'),
+      );
+    if (calls.shell)
+      this.evidence(
+        offSide,
+        'offCoord',
+        'goesIntoShell',
+        !passing || result.depth === 'short',
+        oc.has('goesIntoShell'),
+      );
+    if (calls.shotEligible)
+      this.evidence(
+        offSide,
+        'offCoord',
+        'shotPlayArchitect',
+        passing && result.depth === 'deep',
+        this.designedShot,
+        this.designedShot ? `Designed a deep shot: ${result.text}` : undefined,
+        this.designedShot
+          ? result.kind === 'sack'
+            ? 'ended in a sack'
+            : result.kind === 'scramble'
+              ? 'became a scramble'
+              : result.turnover?.kind === 'int'
+                ? 'was intercepted'
+                : result.complete
+                  ? `produced a ${result.yards}-yard completion`
+                  : 'fell incomplete'
+          : undefined,
+      );
+    if (passing && this.offenseSnaps[offSide] <= 6)
+      this.evidence(
+        offSide,
+        'offCoord',
+        'scriptedOpening',
+        result.complete === true,
+        this.openingWindow && result.depth !== undefined,
+      );
+    if (calls.protect && passing)
+      this.evidence(
+        this.def,
+        'defCoord',
+        'protectsDeep',
+        result.depth === 'deep',
+        calls.protectDeep && result.depth !== undefined,
+      );
+    if (this.designedShot) result.text = `Designed shot: ${result.text}`;
     if (this.pressureBy) this.creditPressure(result.stats, this.pressureBy, defCall, false);
+    const beforePlays = this.teamStats[offSide].plays;
+    const beforeTurnovers = this.teamStats[offSide].turnovers;
+    const beforePoints = this.score[offSide];
+    const defensiveSide = (1 - offSide) as Side;
+    const shotEvent = this.designedShot
+      ? this.coachReports
+          .find((r) => r.teamId === this.lineups[offSide].team.id && r.role === 'offCoord')
+          ?.events.at(-1)
+      : undefined;
     this.resolve(result);
+    if (
+      this.teamStats[offSide].plays > beforePlays &&
+      s.quarter >= 4 &&
+      (s.overtime || s.clock <= 180) &&
+      Math.abs(s.scoreDiff) <= 8
+    ) {
+      const turnover = this.teamStats[offSide].turnovers > beforeTurnovers;
+      const stopped = s.down === 4 && this.offense !== offSide && this.score[offSide] === beforePoints;
+      const conceded = defCall === 'blitz' && this.score[offSide] - beforePoints >= 6 && !turnover;
+      const outcome = turnover ? 'turnover' : stopped ? 'fourthDownStop' : conceded ? 'touchdownAllowed' : undefined;
+      if (outcome) {
+        const report = this.coachReport(defensiveSide, 'defCoord');
+        if (report) {
+          const decisions = (report.defensiveDecisions ??= []);
+          let decisionText = result.text;
+          for (const player of [result.rusher, result.defender, result.turnover?.by])
+            if (player) decisionText = decisionText.replace(short(player), `${player.firstName} ${player.lastName}`);
+          const full = (p: Player) => `${p.firstName} ${p.lastName}`;
+          if (result.turnover)
+            decisionText = `${full(result.turnover.by)} ${result.turnover.kind === 'int' ? 'intercepted the pass' : 'recovered a fumble'}`;
+          else if (result.kind === 'sack' && result.rusher) decisionText = `${full(result.rusher)} made the sack`;
+          else if (result.kind === 'pass' && !result.complete)
+            decisionText =
+              result.defender && result.text.includes(`broken up by ${short(result.defender)}`)
+                ? `${full(result.defender)} broke up the pass`
+                : 'the pass fell incomplete';
+          else if (conceded)
+            decisionText = `the offense scored on a ${result.yards}-yard ${result.kind === 'pass' ? 'pass' : 'run'}`;
+          else decisionText = 'the offense finished short of the marker';
+          decisions.push({
+            quarter: s.quarter,
+            clock: s.clock,
+            down: s.down,
+            distance: s.distance,
+            call: defCall,
+            outcome,
+            text: decisionText,
+            marginBefore: -s.scoreDiff,
+            marginAfter: this.score[defensiveSide] - this.score[offSide],
+          });
+          if (decisions.length > 4) decisions.shift();
+        }
+      }
+    }
+    if (shotEvent && this.teamStats[offSide].plays === beforePlays)
+      shotEvent.outcome = 'was wiped out by an accepted or offsetting penalty';
   }
 
   /**
@@ -1862,7 +2112,12 @@ class GameSim {
     if (!pressured && rng.chance(clamp(0.015 + 0.004 * (skill(qb, 'scrambling') - 9), 0.005, 0.05)))
       return this.scramble(def, s);
 
-    const depth = coach.passDepth(s, rng);
+    const ordinaryDepth = coach.passDepth(s, rng);
+    const depth = this.designedShot
+      ? 'deep'
+      : this.safePass && ordinaryDepth === 'deep' && this.habitRng.chance(0.1)
+        ? 'short'
+        : ordinaryDepth;
     // He leaves before the deep route comes open.
     if (depth === 'deep' && !pressured && this.has(qb, 'bailsEarly') && rng.chance(0.15)) return this.scramble(def, s);
     // Targets: [receiver, base weight by depth, coverage defender]
@@ -1947,6 +2202,9 @@ class GameSim {
     const help = skill(def.s[0], 'deepHelp') - DEEP_HELP - eyes;
     if (depth === 'deep') sep -= 0.93 + 0.35 * help;
     else if (depth === 'medium') sep -= 0.2 * help;
+    if (this.designedShot && depth === 'deep') sep += 0.5;
+    if (this.openingWindow) sep += 0.25;
+    if (this.deepProtection) sep += depth === 'deep' ? -0.3 : depth === 'short' ? 0.15 : 0;
     // Near the goal the call counts for more; a blitz leaves the same man coverage behind it anywhere.
     sep += defCall === 'blitz' ? 1.5 : { base: 0, runD: 0.8, passD: -1.2 }[defCall] * (1 + RED_ZONE_CALL * tight);
     // Defenses roll coverage toward a mismatch, so a receiver far better than his man still gets open
@@ -2833,7 +3091,70 @@ class GameSim {
     // A quarterback who saw ghosts and took a beating carries it into his next game.
     for (const id of this.everRattled) if ((this.sacksTaken.get(id) ?? 0) >= 5) (this.formOut[id] ??= {}).shaken = true;
     for (const [id, f] of Object.entries(this.formOut)) if (!Object.keys(f).length) delete this.formOut[Number(id)];
+    const reactions: CoachGameReport[] = [];
+    for (const side of [0, 1] as const)
+      for (const c of this.gameCoaches[side]) {
+        if (c.role !== 'positionCoach' || !c.room) continue;
+        const habits = activeCoachQuirks(c);
+        if (!habits.includes('patientTeacher') && !habits.includes('earnYourReps')) continue;
+        for (const [id, line] of Object.entries(this.playerStats)) {
+          const p = this.league.players[Number(id)];
+          if (!p || playerTeams[p.id] !== c.teamId || p.age > 25) continue;
+          const room = (
+            {
+              QB: 'QB',
+              RB: 'RB',
+              WR: 'WR',
+              TE: 'WR',
+              OL: 'OL',
+              DT: 'DL',
+              EDGE: 'DL',
+              LB: 'LB',
+              CB: 'DB',
+              S: 'DB',
+              K: null,
+              P: null,
+            } as const
+          )[p.position];
+          const poorReceiving = (line.targets ?? 0) >= 6 && (line.rec ?? 0) <= 1;
+          if (
+            room !== c.room ||
+            ((line.passInt ?? 0) < 3 && (line.fumbles ?? 0) < 2 && (line.sacksAllowed ?? 0) < 2 && !poorReceiving)
+          )
+            continue;
+          const fact =
+            (line.passInt ?? 0) >= 3
+              ? `${line.passInt} interceptions`
+              : (line.fumbles ?? 0) >= 2
+                ? `${line.fumbles} fumbles`
+                : (line.sacksAllowed ?? 0) >= 2
+                  ? `${line.sacksAllowed} sacks allowed`
+                  : `${line.rec ?? 0} catches from ${line.targets} targets`;
+          const patient = habits.includes('patientTeacher');
+          reactions.push({
+            coachId: c.id,
+            name: `${c.firstName} ${c.lastName}`,
+            role: c.role,
+            teamId: c.teamId!,
+            opportunities: {},
+            choices: {},
+            uses: {},
+            events: [
+              {
+                quirk: patient ? 'patientTeacher' : 'earnYourReps',
+                quarter: this.quarter,
+                clock: this.clock,
+                text: patient
+                  ? `Wants to stay patient with ${p.firstName} ${p.lastName} after ${fact}; he favors giving young players time to learn.`
+                  : `Wants ${p.firstName} ${p.lastName}'s place reviewed after ${fact}; preparation will weigh in his recommendation.`,
+              },
+            ],
+          });
+          break;
+        }
+      }
     return {
+      ...(this.coachReports.length || reactions.length ? { coaching: [...this.coachReports, ...reactions] } : {}),
       ...(Object.keys(this.formOut).length ? { form: this.formOut } : {}),
       homeScore: this.score[0],
       awayScore: this.score[1],
