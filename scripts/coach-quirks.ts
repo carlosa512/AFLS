@@ -71,7 +71,11 @@ for (const c of Object.values(league.coaches)) c.quirks = {};
 const games = Array.from({ length: n }, (_, i) => league.games[i % league.games.length]);
 const baseline = games.map((g, i) => simulateGame(league, g, { seed: `coach-paired-${i}`, keepPlays: false }));
 console.log(`${n} fixed-roster matched games per game-day quirk; both teams carry that quirk alone.`);
-console.log('Quirk                     opportunities uses   pts/game Δ  pass att Δ  sacks Δ  changed winners');
+const fgAtt = (r: ReturnType<typeof simulateGame>) =>
+  Object.values(r.playerStats).reduce((sum, line) => sum + (line.fgAtt ?? 0), 0);
+console.log(
+  'Quirk                     opportunities uses   pts/game Δ  pass att Δ  sacks Δ  FG att Δ  changed winners',
+);
 for (const id of COACH_QUIRK_IDS.filter((id) => COACH_QUIRKS[id].role !== 'positionCoach')) {
   for (const c of Object.values(league.coaches)) c.quirks = c.role === COACH_QUIRKS[id].role ? { [id]: 2 } : {};
   let opportunities = 0,
@@ -79,6 +83,7 @@ for (const id of COACH_QUIRK_IDS.filter((id) => COACH_QUIRKS[id].role !== 'posit
     points = 0,
     attempts = 0,
     sacks = 0,
+    kicks = 0,
     changed = 0;
   for (let i = 0; i < n; i++) {
     const r = simulateGame(league, games[i], { seed: `coach-paired-${i}`, keepPlays: false }),
@@ -91,10 +96,11 @@ for (const id of COACH_QUIRK_IDS.filter((id) => COACH_QUIRKS[id].role !== 'posit
     points += r.homeScore + r.awayScore - b.homeScore - b.awayScore;
     attempts += r.home.passAtt + r.away.passAtt - b.home.passAtt - b.away.passAtt;
     sacks += r.home.sacked + r.away.sacked - b.home.sacked - b.away.sacked;
+    kicks += fgAtt(r) - fgAtt(b);
     changed += Number(Math.sign(r.homeScore - r.awayScore) !== Math.sign(b.homeScore - b.awayScore));
   }
   console.log(
-    `${COACH_QUIRKS[id].label.padEnd(26)} ${String(opportunities).padStart(6)} ${String(uses).padStart(6)} ${(points / (n * 2)).toFixed(3).padStart(11)} ${(attempts / (n * 2)).toFixed(3).padStart(11)} ${(sacks / (n * 2)).toFixed(3).padStart(8)} ${changed}/${n}`,
+    `${COACH_QUIRKS[id].label.padEnd(26)} ${String(opportunities).padStart(6)} ${String(uses).padStart(6)} ${(points / (n * 2)).toFixed(3).padStart(11)} ${(attempts / (n * 2)).toFixed(3).padStart(11)} ${(sacks / (n * 2)).toFixed(3).padStart(8)} ${(kicks / (n * 2)).toFixed(3).padStart(9)} ${changed}/${n}`,
   );
 }
 
