@@ -11,7 +11,7 @@ export interface Nav {
   openGame: (gameId: number) => void;
   watchGame: (gameId: number) => void;
   openPlayer: (playerId: number) => void;
-  /** A coach's, scout's or medic's card. */
+  /** A GM's, coach's, scout's or medic's card. */
   openStaff: (kind: StaffKind, id: number) => void;
   openTeam: (teamId: number) => void;
   /** Players lined up on the comparison screen (at most MAX_COMPARE). */
@@ -22,7 +22,7 @@ export interface Nav {
 
 export const MAX_COMPARE = 3;
 
-export type StaffKind = 'coach' | 'scout' | 'medic';
+export type StaffKind = 'coach' | 'scout' | 'medic' | 'gm';
 
 export const NavContext = createContext<Nav | null>(null);
 export const useNav = () => useContext(NavContext)!;

@@ -1,5 +1,11 @@
 # Player and staff avatars
 
+General managers use the same staff SVG renderer through `GmAvatar` (`ui/gm.tsx`). Their stable
+appearance key selects one of four executive outfits: blazer, quarter-zip, polo or jacket, without a
+coaching headset. Promoted directors retain their silhouette and hair. Current team colours follow
+employment; unemployed and retired GMs use the neutral market palette. The portraits are decorative
+and always accompany a linked name. GM cards and the directory use the same identity at every size.
+
 > **Status.** Built: `PlayerAvatar` in `src/ui/components.tsx` draws every player from behind in his
 > team's jersey (pure SVG, no images, no new dependencies), the colour rules and kits in `src/ui/color.ts`,
 > and home and away jerseys by the league's rule. Tested in `src/ui/avatar.test.tsx`. A roster mod's

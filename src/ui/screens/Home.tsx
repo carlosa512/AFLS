@@ -12,6 +12,7 @@ import { capSheet } from '../../engine/finance/cap';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
 import { expiringPlayers } from '../../engine/offseason/ai';
 import { formatRecord, gmRecord } from '../../engine/records';
+import { GmLink } from '../gm';
 import { activeRoster, teamPlayers } from '../../engine/roster';
 import { perceivedTeamRatings, type UnitView } from '../../engine/scouting';
 import { TeamUnit } from '../scouting';
@@ -281,6 +282,7 @@ function DivisionMini({ league }: { league: League }) {
 
 /** The persistent user's record, including current service and former teams. */
 function GmRecord({ league }: { league: League }) {
+  const nav = useNav();
   const rec = gmRecord(league);
   if (!rec.seasons.length) return null;
   const n = new Set(rec.seasons.map((s) => s.season)).size;
@@ -291,7 +293,17 @@ function GmRecord({ league }: { league: League }) {
     rec.titles ? `${rec.titles} title${rec.titles > 1 ? 's' : ''}` : '',
   ].filter(Boolean);
   return (
-    <Panel title="Your record as GM">
+    <Panel
+      title="Your record as GM"
+      action={
+        <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'gms' })}>
+          GM careers
+        </button>
+      }
+    >
+      <p>
+        <GmLink league={league} gm={league.gms[league.userGmId]} avatar />
+      </p>
       <p style={{ margin: 0 }}>{parts.join(' · ')}</p>
       <details className="more">
         <summary className="small">Season by season</summary>

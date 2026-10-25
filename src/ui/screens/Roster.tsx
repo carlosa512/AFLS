@@ -1,3 +1,4 @@
+import { GmLink } from '../gm';
 import {
   useEffect,
   useLayoutEffect,
@@ -385,6 +386,11 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
               <span className="muted">
                 {league.divisions[team.division].name} · {recordText(record)}
               </span>
+              {team.gmId !== null && (
+                <div className="muted small">
+                  GM: <GmLink league={league} gm={league.gms[team.gmId]} />
+                </div>
+              )}
             </div>
           </div>
         }

@@ -65,9 +65,31 @@ completed history is retained. The current season can be backfilled from retaine
 staff moves were offseason-only. Historical AI GMs cannot be identified from team tendencies and
 receive no invented past record. Previously recorded coach seasons retain the history fallback.
 
-This phase exposes engine functions only. It does not enable automatic GM dismissals, search or
-employment UI, owner protection, GM cards, or unemployment/spectator controls. An expired contract
+Phase 1 exposes engine functions only. It does not enable automatic GM dismissals, search or
+employment UI, owner protection, or unemployment/spectator controls. An expired contract
 does not yet trigger a carousel decision; that belongs to the review and hiring slices.
+
+## Phase 2: cards, portraits and career overview
+
+The Front Office's GMs tab contains the user's career overview and a sortable directory of all
+persistent GMs, with employment filters for active, unemployed and retired people. Names open the
+same staff-style card from the home, roster, cap and trade screens, and names in linked text resolve
+to the person's GM record. The card shows employment and contract status, recorded GM seasons,
+actual career results, appointments and departure reasons, head coaches whose service overlapped,
+and the scouting appointments preserved when a director becomes a GM. Opening incumbents' dates
+are labelled as recorded history rather than inferred hiring dates. The player is not assigned
+their unused AI management tendencies.
+
+GM SVG portraits reuse the existing staff renderer with varied executive outfits and no coaching
+headset. A promoted scouting director retains their appearance key, silhouette and hair; team
+colours change with employment and unemployed/retired portraits use the market palette. The same
+card handles permanent, interim, unemployed and retired states. No employment actions or automatic
+turnover are added in this slice, and no save migration is needed.
+
+Validate with the existing UI and avatar tests plus GM presentation tests. Browser checks cover
+directory navigation, sorting, employment filters, opening and closing cards, Escape and focus
+restoration, coach/team links, light/dark themes and phone layouts. A supplied 2037 save provides
+the real long-career example; any staged interim/unemployed examples use separate preview state.
 
 ## Validation
 

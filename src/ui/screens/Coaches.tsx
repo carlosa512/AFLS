@@ -512,7 +512,7 @@ function CareerTable({ league, c }: { league: League; c: Coach }) {
 }
 
 /** A coach's name that opens his card; `avatar` puts his picture beside it, as in a list. */
-function CoachLink({ c, className, avatar }: { c: Coach; className?: string; avatar?: boolean }) {
+export function CoachLink({ c, className, avatar }: { c: Coach; className?: string; avatar?: boolean }) {
   const nav = useNav();
   return (
     <button

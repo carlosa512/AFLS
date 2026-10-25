@@ -18,6 +18,7 @@ import { BoxScore } from './screens/BoxScore';
 import { CoachCard } from './screens/Coaches';
 import { MedicCard } from './screens/Medical';
 import { ScoutCard } from './screens/Staff';
+import { GmCard } from './screens/GeneralManagers';
 import { Compare } from './screens/Compare';
 import { GameViewer } from './screens/GameViewer';
 import { LiveGame } from './screens/LiveGame';
@@ -187,7 +188,11 @@ export function App() {
       setPlayerId(null);
       setStaffCard({ kind, id });
     },
-    openTeam: (teamId) => navigate({ view: 'roster', teamId }),
+    openTeam: (teamId) => {
+      setStaffCard(null);
+      setPlayerId(null);
+      navigate({ view: 'roster', teamId });
+    },
     compareIds,
     toggleCompare: (id) =>
       setCompareIds((ids) =>
@@ -428,6 +433,9 @@ export function App() {
       )}
       {staffCard?.kind === 'medic' && league.medics[staffCard.id] && (
         <MedicCard league={league} medic={league.medics[staffCard.id]} onClose={() => setStaffCard(null)} />
+      )}
+      {staffCard?.kind === 'gm' && league.gms[staffCard.id] && (
+        <GmCard key={staffCard.id} league={league} gm={league.gms[staffCard.id]} onClose={() => setStaffCard(null)} />
       )}
     </NavContext.Provider>
   );
