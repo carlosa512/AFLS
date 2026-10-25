@@ -45,10 +45,13 @@ describe('waiver desk', () => {
     setWaiverClaim(l, { entryId: id, teamId: 1, cutIds: [], preference: 0, group: 'PRIVATE-OPPOSING-PLAN' });
     const withHiddenClaim = renderToStaticMarkup(<Waivers league={l} />);
     expect(withHiddenClaim).not.toContain('PRIVATE-OPPOSING-PLAN');
-    expect(withHiddenClaim).not.toContain('Your claim preferences');
+    expect(withHiddenClaim).not.toContain('Your signing order');
     expect(withHiddenClaim).toBe(noClaims);
-    expect(withHiddenClaim).toContain('Next notice');
-    expect(withHiddenClaim).toContain('Conditional release');
-    expect(withHiddenClaim).toContain('Through');
+    expect(withHiddenClaim).toContain('released by other teams');
+    expect(withHiddenClaim).toContain('Available to claim');
+    expect(withHiddenClaim).toContain('Your released players');
+    expect(withHiddenClaim).toContain('Claims decided');
+    expect(withHiddenClaim).toContain('Release only if signed');
+    expect(withHiddenClaim).toContain('Contract ends');
   });
 });

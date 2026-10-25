@@ -1,13 +1,14 @@
-import { squadPayroll } from '../../engine/personnel/payroll';
+import { useState } from 'react';
+import { squadPayWeek, squadPayroll } from '../../engine/personnel/payroll';
 import { capSheet, deadMoneyIn, isOffseason, POST_JUNE1_LIMIT, releasePreview } from '../../engine/finance/cap';
 import { capHit, guaranteedFrom, lastSeason } from '../../engine/finance/contract';
-import { teamPlayers } from '../../engine/roster';
+import { onGameRoster, teamPlayers } from '../../engine/roster';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerLink, SortTh, sortRows, TeamChip, TeamLink, TeamPicker, useSort } from '../components';
-import { CapChart, capPct, ContractActions, thruLabel } from '../contracts';
-import { money } from '../format';
+import { CapChart, capPct, ContractActions, SquadActions, thruLabel } from '../contracts';
+import { money, weeklyMoney } from '../format';
 import { moveIndex, MoveText } from '../moves';
 
 /** The contracts table's columns ("% of cap" sorts as the cap hit: same order). */
@@ -45,9 +46,14 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
   const isUser = teamId === league.userTeamId;
   const sheet = capSheet(league, teamId);
   const season = league.season;
+  const [list, setList] = useState<'main' | 'squad' | 'ir'>('main');
+  const roster = teamPlayers(league, teamId);
+  const main = roster.filter(onGameRoster);
+  const squad = roster.filter((p) => p.squad?.agreement);
+  const ir = roster.filter((p) => p.ir && !p.squad);
   const [sort, onSort] = useSort<ContractSort>({ key: 'cap', desc: true });
   const players = sortRows(
-    teamPlayers(league, teamId).filter((p) => p.contract),
+    (league.personnel?.enabled ? (list === 'ir' ? ir : main) : roster).filter((p) => p.contract),
     sort,
     (p, key) => contractSortValue(league, p, key),
   );
@@ -102,11 +108,11 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
           </span>
           {!!sheet.practiceSquad && (
             <span className="fact">
-              <span className="eyebrow">Practice squad</span>
+              <span className="eyebrow">Practice squad cost</span>
               <b className="num">{money(sheet.practiceSquad)}</b>
               <span className="small muted">
-                {money(squadPayroll(league, teamId).earned)} earned · {money(squadPayroll(league, teamId).projected)}{' '}
-                projected
+                {money(squadPayroll(league, teamId).earned)} owed so far ·{' '}
+                {money(squadPayroll(league, teamId).projected)} for future weeks
               </span>
             </span>
           )}
@@ -144,66 +150,87 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
       </Panel>
 
       <Panel title="Contracts">
-        {isUser && (
-          <p className="muted small" style={{ marginTop: 0 }}>
-            "If released" shows today's dead money and cap room{isOffseason(league.phase) ? ' (pre-June 1)' : ''}. Every
-            button previews the full split before anything happens.
-          </p>
+        {league.personnel?.enabled && (
+          <div className="seg" role="group" aria-label="Contract list">
+            {(
+              [
+                ['main', `${isOffseason(league.phase) ? 'Main roster' : '53-man roster'} (${main.length})`],
+                ['squad', `Practice squad (${squad.length})`],
+                ['ir', `Injured reserve (${ir.length})`],
+              ] as const
+            ).map(([key, label]) => (
+              <button key={key} aria-pressed={list === key} onClick={() => setList(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
         )}
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
-                <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
-                <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
-                <SortTh label="Cap hit" k="cap" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="% of cap" k="cap" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="APY" k="apy" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="Thru" k="thru" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="Gtd left" k="gtd" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="If released: dead" k="dead" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="Saves" k="saves" sort={sort} onSort={onSort} className="num" />
-                {isUser && <th>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((p) => {
-                const c = p.contract!;
-                const hit = capHit(c, season);
-                const cut = releasePreview(league, p);
-                return (
-                  <tr key={p.id}>
-                    <td className="sticky-col">
-                      <PlayerLink league={league} player={p} avatar={26} />
-                    </td>
-                    <td>{p.position}</td>
-                    <td className="num">{p.age}</td>
-                    <td className="num" style={{ fontWeight: 700 }}>
-                      {money(Math.round(hit))}
-                    </td>
-                    <td className="num muted">{capPct(league, hit)}</td>
-                    <td className="num">{money(c.apy)}</td>
-                    <td className="num">
-                      {thruLabel(league, c)}
-                      {c.years.some((y) => y.void) && <span className="tag-pill">void</span>}
-                    </td>
-                    <td className="num">{money(guaranteedFrom(c, season))}</td>
-                    <td className={`num${cut.thisYear + cut.nextYear > 0 ? ' tone-bad' : ''}`}>
-                      {money(Math.round(cut.thisYear + cut.nextYear))}
-                    </td>
-                    <td className={`num${cut.savings < 0 ? ' tone-bad' : ''}`}>{money(Math.round(cut.savings))}</td>
-                    {isUser && (
-                      <td>
-                        <ContractActions league={league} player={p} />
-                      </td>
-                    )}
+        {league.personnel?.enabled && list === 'squad' ? (
+          <SquadContracts league={league} players={squad} isUser={isUser} />
+        ) : (
+          <>
+            {isUser && (
+              <p className="muted small" style={{ marginTop: 0 }}>
+                "If released" shows today's dead money and cap room{isOffseason(league.phase) ? ' (pre-June 1)' : ''}.
+                Every button previews the full split before anything happens.
+              </p>
+            )}
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
+                    <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
+                    <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
+                    <SortTh label="Cap hit" k="cap" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="% of cap" k="cap" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="APY" k="apy" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="Thru" k="thru" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="Gtd left" k="gtd" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="If released: dead" k="dead" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="Saves" k="saves" sort={sort} onSort={onSort} className="num" />
+                    {isUser && <th>Actions</th>}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {players.map((p) => {
+                    const c = p.contract!;
+                    const hit = capHit(c, season);
+                    const cut = releasePreview(league, p);
+                    return (
+                      <tr key={p.id}>
+                        <td className="sticky-col">
+                          <PlayerLink league={league} player={p} avatar={26} />
+                        </td>
+                        <td>{p.position}</td>
+                        <td className="num">{p.age}</td>
+                        <td className="num" style={{ fontWeight: 700 }}>
+                          {money(Math.round(hit))}
+                        </td>
+                        <td className="num muted">{capPct(league, hit)}</td>
+                        <td className="num">{money(c.apy)}</td>
+                        <td className="num">
+                          {thruLabel(league, c)}
+                          {c.years.some((y) => y.void) && <span className="tag-pill">void</span>}
+                        </td>
+                        <td className="num">{money(guaranteedFrom(c, season))}</td>
+                        <td className={`num${cut.thisYear + cut.nextYear > 0 ? ' tone-bad' : ''}`}>
+                          {money(Math.round(cut.thisYear + cut.nextYear))}
+                        </td>
+                        <td className={`num${cut.savings < 0 ? ' tone-bad' : ''}`}>{money(Math.round(cut.savings))}</td>
+                        {isUser && (
+                          <td>
+                            <ContractActions league={league} player={p} />
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </Panel>
 
       <div className="grid-2">
@@ -262,6 +289,61 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
           )}
         </Panel>
       </div>
+    </>
+  );
+}
+
+export function SquadContracts({ league, players, isUser }: { league: League; players: Player[]; isUser: boolean }) {
+  const [sort, onSort] = useSort<'name' | 'pos' | 'pay' | 'remaining'>({ key: 'pay', desc: true });
+  const remaining = (p: Player) => Math.max(0, 18 - squadPayWeek(league)) * p.squad!.agreement!.weeklyPay;
+  const rows = sortRows(players, sort, (p, key) =>
+    key === 'name'
+      ? `${p.lastName} ${p.firstName}`
+      : key === 'pos'
+        ? p.position
+        : key === 'pay'
+          ? p.squad!.agreement!.weeklyPay
+          : remaining(p),
+  );
+  return (
+    <>
+      <p className="small muted">
+        Weekly squad contracts. Future weeks stop if a player leaves; pay already owed stays on the cap.
+      </p>
+      {!rows.length ? (
+        <p>No practice squad contracts.</p>
+      ) : (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
+                <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
+                <SortTh label="Weekly pay" k="pay" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="Future weeks" k="remaining" sort={sort} onSort={onSort} className="num" />
+                {isUser && <th>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((p) => (
+                <tr key={p.id}>
+                  <td className="sticky-col">
+                    <PlayerLink league={league} player={p} avatar={26} />
+                  </td>
+                  <td>{p.position}</td>
+                  <td className="num">{weeklyMoney(p.squad!.agreement!.weeklyPay)}</td>
+                  <td className="num">{weeklyMoney(remaining(p))}</td>
+                  {isUser && (
+                    <td>
+                      <SquadActions league={league} player={p} />
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }

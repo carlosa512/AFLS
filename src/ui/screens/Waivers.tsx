@@ -19,6 +19,7 @@ import { store } from '../store';
 
 export function Waivers({ league }: { league: League }) {
   const [cuts, setCuts] = useState<Record<number, number | null>>({});
+  const [filter, setFilter] = useState<'available' | 'mine' | 'released'>('available');
   const [sort, onSort] = useSort<'player' | 'pos' | 'ovr' | 'cap' | 'deadline'>({ key: 'deadline', desc: false });
   const state = league.personnel?.waivers;
   if (!league.personnel?.enabled)
@@ -32,7 +33,15 @@ export function Waivers({ league }: { league: League }) {
   const problem = nextDeadlineBlocker(league);
   const roster = activeRoster(league, teamId);
   const mine = state?.claims.filter((c) => c.teamId === teamId).sort((a, b) => a.preference - b.preference) ?? [];
-  const rows = sortRows(state?.pending ?? [], sort, (e, key) => {
+  const pending = state?.pending ?? [];
+  const visible = pending.filter((e) =>
+    filter === 'available'
+      ? e.fromTeamId !== teamId
+      : filter === 'mine'
+        ? mine.some((c) => c.entryId === e.id)
+        : e.fromTeamId === teamId,
+  );
+  const rows = sortRows(visible, sort, (e, key) => {
     const p = league.players[e.playerId];
     switch (key) {
       case 'player':
@@ -61,29 +70,70 @@ export function Waivers({ league }: { league: League }) {
     <div className="stack">
       <Panel title="Waiver wire">
         <p>
-          Your priority: <b>{waiverOrder(league).indexOf(teamId) + 1}</b>. A claim takes the existing salary and
-          remaining years. Winning does not change your league priority.
+          {filter === 'released'
+            ? 'These are players you released. Other teams can claim them; unclaimed players become free agents.'
+            : filter === 'mine'
+              ? 'These are your requests to add players. A successful claim brings the player to your main roster on his current contract.'
+              : 'These players were released by other teams. Place a claim to add a player to your main roster on his current contract.'}
         </p>
-        <p className="small muted">
-          Only your claims are shown. Conditional releases happen only if you win and the complete move still fits your
-          roster and cap.
-        </p>
+        {filter !== 'released' && (
+          <>
+            <p className="small muted">
+              Your place in line:{' '}
+              <b>
+                {waiverOrder(league).indexOf(teamId) + 1} of {league.teams.length}
+              </b>
+              . If several teams want the same player, the team nearest the front gets him.
+            </p>
+          </>
+        )}
+        <div className="seg" role="group" aria-label="Waiver players">
+          {(
+            [
+              ['available', 'Available to claim'],
+              ['mine', 'Your claims'],
+              ['released', 'Your released players'],
+            ] as const
+          ).map(([key, label]) => (
+            <button key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>
+              {label}
+            </button>
+          ))}
+        </div>
         {deadline !== undefined && (
           <div className="row">
-            <span>Next notice: {personnelLabel(deadline)}</span>
+            <span>Claims decided: {personnelLabel(deadline)}</span>
             <button
               className="btn"
               disabled={!!problem}
               title={problem ?? undefined}
               onClick={() => store.mutate(advanceNextPersonnelEvent)}
             >
-              Process next notice
+              Advance to deadline
             </button>
             {problem && <span className="small muted">{problem}</span>}
           </div>
         )}
+        {filter !== 'released' && (
+          <>
+            <details className="personnel-help">
+              <summary>How claims work</summary>
+              <p>A successful claim brings the player to your main roster with his existing pay and contract years.</p>
+              <p>
+                If your roster is full, choose someone under “Release only if signed.” He is released only if your claim
+                succeeds. If you lose the claim, you keep him.
+              </p>
+            </details>
+          </>
+        )}
         {!rows.length ? (
-          <p className="muted">No players are on waivers.</p>
+          <p className="muted">
+            {filter === 'mine'
+              ? 'You have no claims waiting.'
+              : filter === 'released'
+                ? 'None of your released players are waiting on waivers.'
+                : 'No players are available to claim right now.'}
+          </p>
         ) : (
           <div className="table-scroll">
             <table>
@@ -92,10 +142,10 @@ export function Waivers({ league }: { league: League }) {
                   <SortTh label="Player" k="player" sort={sort} onSort={onSort} />
                   <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} />
                   <SortTh label="Overall" k="ovr" sort={sort} onSort={onSort} />
-                  <SortTh label="This year" k="cap" sort={sort} onSort={onSort} />
+                  <SortTh label="Cap cost this season" k="cap" sort={sort} onSort={onSort} />
                   <SortTh label="Deadline" k="deadline" sort={sort} onSort={onSort} />
-                  <th>Conditional release</th>
-                  <th>Claim</th>
+                  {filter !== 'released' && <th>Release only if signed</th>}
+                  <th>{filter === 'released' ? 'Status' : 'Request'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -114,7 +164,7 @@ export function Waivers({ league }: { league: League }) {
                       <td className="sticky-col">
                         <PlayerLink league={league} player={p} />
                         <div className="small muted">
-                          From <TeamLink team={league.teams[e.fromTeamId]} />
+                          Released by <TeamLink team={league.teams[e.fromTeamId]} />
                         </div>
                       </td>
                       <td>{p.position}</td>
@@ -123,41 +173,60 @@ export function Waivers({ league }: { league: League }) {
                       </td>
                       <td className="num">
                         {money(capHit(assignedContract(e), league.season))}
-                        <div className="small muted">Through {lastSeason(e.contract)}</div>
+                        <div className="small muted">Contract ends {lastSeason(e.contract)}</div>
                       </td>
                       <td>{personnelLabel(e.deadline)}</td>
+                      {filter !== 'released' && (
+                        <>
+                          <td>
+                            <select
+                              disabled={e.fromTeamId === teamId}
+                              aria-label={`Release only if ${p.firstName} ${p.lastName} joins your team`}
+                              value={cuts[e.id] === undefined ? (own?.cutIds[0] ?? '') : (cuts[e.id] ?? '')}
+                              onChange={(event) =>
+                                setCuts({ ...cuts, [e.id]: event.target.value ? Number(event.target.value) : null })
+                              }
+                            >
+                              <option value="">Keep everyone</option>
+                              {roster.map((x) => (
+                                <option key={x.id} value={x.id}>{`${x.position} ${playerName(x)}`}</option>
+                              ))}
+                            </select>
+                          </td>
+                        </>
+                      )}
                       <td>
-                        <select
-                          aria-label={`Conditional release for ${p.firstName} ${p.lastName}`}
-                          value={cuts[e.id] === undefined ? (own?.cutIds[0] ?? '') : (cuts[e.id] ?? '')}
-                          onChange={(event) =>
-                            setCuts({ ...cuts, [e.id]: event.target.value ? Number(event.target.value) : null })
-                          }
-                        >
-                          <option value="">No release</option>
-                          {roster.map((x) => (
-                            <option key={x.id} value={x.id}>{`${x.position} ${playerName(x)}`}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-sm"
-                          disabled={!!issue}
-                          title={issue ?? undefined}
-                          onClick={() => store.mutate((l) => setWaiverClaim(l, candidate))}
-                        >
-                          {own ? 'Update' : 'Submit claim'}
-                        </button>
-                        {own && (
-                          <button
-                            className="btn btn-sm"
-                            onClick={() => store.mutate((l) => cancelWaiverClaim(l, e.id, teamId))}
-                          >
-                            Withdraw
-                          </button>
+                        {filter === 'released' ? (
+                          <span className="small muted waiver-reason">
+                            Waiting for other teams. If nobody claims him, you can offer a new deal.
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              className="btn btn-sm"
+                              disabled={!!issue}
+                              title={issue ?? undefined}
+                              onClick={() => store.mutate((l) => setWaiverClaim(l, candidate))}
+                            >
+                              {own ? 'Update claim' : 'Claim player'}
+                            </button>
+                            {own && (
+                              <button
+                                className="btn btn-sm"
+                                onClick={() => store.mutate((l) => cancelWaiverClaim(l, e.id, teamId))}
+                              >
+                                Withdraw
+                              </button>
+                            )}
+                            {issue && (
+                              <div className="small muted waiver-reason">
+                                {e.fromTeamId === teamId
+                                  ? 'You released him. If nobody claims him, you can offer a new deal.'
+                                  : issue}
+                              </div>
+                            )}
+                          </>
                         )}
-                        {issue && <div className="small muted">{issue}</div>}
                       </td>
                     </tr>
                   );
@@ -167,8 +236,11 @@ export function Waivers({ league }: { league: League }) {
           </div>
         )}
       </Panel>
-      {mine.length > 0 && (
-        <Panel title="Your claim preferences">
+      {mine.length > 0 && filter !== 'released' && (
+        <Panel title="Your signing order">
+          <p className="small muted">
+            We try to sign players in this order. Put your favorite first if you cannot fit everyone.
+          </p>
           <ol>
             {mine.map((c, index) => {
               const e = state!.pending.find((e) => e.id === c.entryId)!;
@@ -197,7 +269,7 @@ export function Waivers({ league }: { league: League }) {
                 <li key={r.entryId}>
                   <PlayerLink league={league} player={league.players[r.playerId]} />{' '}
                   {r.toTeamId === null ? (
-                    'cleared waivers'
+                    'was not claimed and became a free agent'
                   ) : (
                     <>
                       claimed by <TeamLink team={league.teams[r.toTeamId]} />

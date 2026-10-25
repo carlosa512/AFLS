@@ -4179,3 +4179,22 @@ button.tip-pill {
   fill: var(--marker);
   background: var(--marker);
 }
+
+.personnel-help {
+  margin-block: 12px;
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+.personnel-help summary {
+  cursor: pointer;
+  font-weight: 600;
+  width: fit-content;
+}
+.personnel-help p {
+  max-width: 80ch;
+  margin-block: 8px;
+}
+.waiver-reason {
+  max-width: 30ch;
+  white-space: normal;
+}

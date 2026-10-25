@@ -24,16 +24,18 @@ describe('practice squad desk', () => {
     const html = renderToStaticMarkup(<PracticeSquad league={l} />);
     expect(JSON.stringify(l)).toBe(before);
     for (const text of [
-      'Expanded slots',
+      'Player limits',
       '16/16',
-      'Earned pay',
-      'Remaining projection',
+      'Weekly pay',
+      'Season cost',
       '$13,750',
       'Sign to 53',
       'Scouted ceiling',
-      'Run market round',
+      'Send offers',
     ])
       expect(html).toContain(text);
+    expect(html).not.toContain('class="is-user"');
+    expect(html).toContain('Your scouts&#x27; estimate of his best future overall');
     const p = squadCandidates(l)[0];
     submitSquadOffer(l, { teamId: 1, playerId: p.id, weeklyPay: squadRates(l, p).min });
     expect(renderToStaticMarkup(<PracticeSquad league={l} />)).toBe(html);

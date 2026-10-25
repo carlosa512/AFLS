@@ -14,11 +14,11 @@ import { Panel, PlayerLink, SortTh, sortRows, TeamLink, TeamPicker, useSort } fr
 import { SquadActions } from '../contracts';
 import { money, weeklyMoney } from '../format';
 import { liveLock } from '../live';
-import { Ovr, seenOvr, viewOf } from '../scouting';
+import { Ovr, ScoutedCeiling, seenOvr, viewOf } from '../scouting';
 import { store } from '../store';
 
 type Key = 'name' | 'pos' | 'age' | 'ovr' | 'upside' | 'category' | 'pay';
-const categoryLabel = { base: 'Base', developmental: 'Expanded · ≤2 seasons', veteran: 'Expanded · veteran' };
+const categoryLabel = { base: 'Standard', developmental: 'Experience exception', veteran: 'Veteran' };
 
 export function PracticeSquad({ league }: { league: League }) {
   const [teamId, setTeamId] = useState(league.userTeamId);
@@ -71,7 +71,7 @@ export function PracticeSquad({ league }: { league: League }) {
                 ['age', 'Age'],
                 ['ovr', 'Overall'],
                 ['upside', 'Scouted ceiling'],
-                ['category', 'Slot'],
+                ['category', 'Eligibility'],
                 ['pay', 'Weekly pay'],
               ] as [Key, string][]
             ).map(([key, label]) => (
@@ -82,14 +82,13 @@ export function PracticeSquad({ league }: { league: League }) {
         </thead>
         <tbody>
           {sortRows(players, sort, value).map((p) => {
-            const view = viewOf(league, p);
             const rate = squadRates(league, p);
             const weeklyPay = rates[p.id] ?? rate.min;
             const offer = { teamId: league.userTeamId, playerId: p.id, weeklyPay };
             const problem = lock ?? squadOfferProblem(league, offer);
             const pending = offers.some((o) => o.playerId === p.id);
             return (
-              <tr key={p.id} className={p.teamId === league.userTeamId ? 'is-user' : undefined}>
+              <tr key={p.id}>
                 <td className="sticky-col">
                   <PlayerLink league={league} player={p} />
                 </td>
@@ -99,20 +98,20 @@ export function PracticeSquad({ league }: { league: League }) {
                   <Ovr league={league} player={p} />
                 </td>
                 <td className="num">
-                  {view.potLo.toFixed(1)}–{view.potHi.toFixed(1)}
+                  <ScoutedCeiling league={league} player={p} />
                 </td>
                 <td>{categoryLabel[squadCategory(league, p)]}</td>
                 <td className="num">
                   {market && rate.min !== rate.max ? (
                     <input
-                      aria-label={`Weekly pay for ${p.firstName} ${p.lastName}, in thousands`}
+                      aria-label={`Weekly pay for ${p.firstName} ${p.lastName}, in dollars`}
                       type="number"
-                      min={rate.min}
-                      max={rate.max}
-                      step="0.05"
-                      value={weeklyPay}
+                      min={Math.round(rate.min * 1000)}
+                      max={Math.round(rate.max * 1000)}
+                      step="50"
+                      value={Math.round(weeklyPay * 1000)}
                       style={{ width: 85 }}
-                      onChange={(e) => setRates({ ...rates, [p.id]: Number(e.target.value) })}
+                      onChange={(e) => setRates({ ...rates, [p.id]: Number(e.target.value) / 1000 })}
                     />
                   ) : (
                     weeklyMoney(market ? rate.min : (p.squad?.agreement?.weeklyPay ?? 0))
@@ -124,9 +123,7 @@ export function PracticeSquad({ league }: { league: League }) {
                       <button
                         className="btn btn-sm"
                         disabled={!!lock || (!pending && !!problem)}
-                        title={
-                          pending ? 'Withdraw this offer' : (problem ?? 'The player chooses when the market round runs')
-                        }
+                        title={pending ? 'Withdraw this offer' : (problem ?? 'Add this player to your offers')}
                         onClick={() =>
                           store.mutate((l) =>
                             pending ? cancelSquadOffer(l, l.userTeamId, p.id) : submitSquadOffer(l, offer),
@@ -148,13 +145,12 @@ export function PracticeSquad({ league }: { league: League }) {
     </div>
   );
   const runRound = (staff = false) => {
-    let signed = 0;
     let ours = 0;
     store.mutate((l) => {
-      signed = formPracticeSquads(l, staff);
+      formPracticeSquads(l, staff);
       ours = practiceSquad(l, l.userTeamId).length;
     });
-    setMessage(`Market round complete: your squad has ${ours}/16 players; ${signed} agreements across the league.`);
+    setMessage(`Your squad now has ${ours} of 16 players.`);
   };
   const candidates = squadCandidates(league).filter(
     (p) => !query || `${p.position} ${p.firstName} ${p.lastName}`.toLowerCase().includes(query.toLowerCase()),
@@ -166,7 +162,8 @@ export function PracticeSquad({ league }: { league: League }) {
         action={<TeamPicker league={league} value={teamId} onChange={setTeamId} id="squad-team" />}
       >
         <p>
-          <TeamLink team={league.teams[teamId]} full /> · A place to develop prospects and keep affordable cover nearby.
+          <TeamLink team={league.teams[teamId]} full /> · Develop players here, then move them to your main roster when
+          needed.
         </p>
         <div className="facts">
           <span className="fact">
@@ -174,31 +171,28 @@ export function PracticeSquad({ league }: { league: League }) {
             <b>{members.length}/16</b>
           </span>
           <span className="fact">
-            <span className="eyebrow">Expanded slots</span>
-            <b>{expanded}/10</b>
+            <span className="eyebrow">Weekly pay</span>
+            <b>{weeklyMoney(members.reduce((sum, p) => sum + (p.squad?.agreement?.weeklyPay ?? 0), 0))}</b>
           </span>
-          <span className="fact">
-            <span className="eyebrow">Veterans within expanded</span>
-            <b>{veterans}/6</b>
-          </span>
-          <span className="fact">
-            <span className="eyebrow">Earned pay</span>
-            <b>{money(pay.earned)}</b>
-          </span>
-          <span className="fact">
-            <span className="eyebrow">Remaining projection</span>
-            <b>{money(pay.projected)}</b>
+          <span className="fact" title="Includes pay already owed and future weeks if you keep this squad.">
+            <span className="eyebrow">Season cost</span>
+            <b>{money(pay.total)}</b>
           </span>
         </div>
-        <p className="small muted">
-          Base slots cover players with no accrued seasons, plus a lone accrued season with fewer than nine known
-          game-day activations. Up to ten players can use expanded eligibility, including six unrestricted veterans. A
-          full squad is optional.
-        </p>
-        <p className="small muted">
-          Squad players practice with the club. To play, they need a new NFL contract and a spot on the 53. Signing
-          commits this week's pay; releasing keeps earned pay on the cap.
-        </p>
+        <details className="personnel-help">
+          <summary>Player limits</summary>
+          <p>You can carry up to 16 players. A full squad is optional.</p>
+          <p>
+            Most players use a standard spot. More experienced players use special slots: {expanded}/10 used, including{' '}
+            {veterans}/6 veteran slots.
+          </p>
+          <p className="small muted">
+            A standard spot covers players with no accrued seasons, or only one accrued season with fewer than nine
+            known game-day activations. An accrued season means at least six regular-season games on the main roster or
+            injured reserve. Other players with up to two accrued seasons can use an experience exception; veterans use
+            the veteran slots.
+          </p>
+        </details>
         {window && <p className="callout">{window}</p>}
         {message && (
           <p role="status" className="callout">
@@ -210,12 +204,12 @@ export function PracticeSquad({ league }: { league: League }) {
         {members.length ? (
           table(members, false)
         ) : (
-          <p className="muted">No squad agreements yet. Open places never block your next game.</p>
+          <p className="muted">Your squad is empty. Add players below or let your staff choose for you.</p>
         )}
       </Panel>
       {mine && (
         <Panel
-          title="Squad market"
+          title="Add players"
           action={
             <span className="row">
               <button
@@ -228,22 +222,21 @@ export function PracticeSquad({ league }: { league: League }) {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={!!window}
+                disabled={!!window || (!offers.length && !invites.length)}
                 title={window ?? undefined}
                 onClick={() => runRound()}
               >
-                Run market round
+                Send offers
               </button>
             </span>
           }
         >
           <p>
-            Your {offers.length} pending offers compete with the other clubs at the same time. Players weigh pay,
-            familiarity, opportunity and winning. A return invitation guarantees neither clearance nor a signature.
+            {offers.length} {offers.length === 1 ? 'offer' : 'offers'} ready to send. Players can choose another club.
           </p>
           {!!invites.length && (
             <p className="small">
-              Return invitations:{' '}
+              Invited back:{' '}
               {invites.map((o) => (
                 <span key={o.playerId}>
                   <PlayerLink league={league} player={league.players[o.playerId]} />{' '}
@@ -260,7 +253,7 @@ export function PracticeSquad({ league }: { league: League }) {
             </p>
           )}
           <label className="row">
-            Find candidates{' '}
+            Find players{' '}
             <input
               type="search"
               value={query}
@@ -269,8 +262,8 @@ export function PracticeSquad({ league }: { league: League }) {
             />
           </label>
           <p className="small muted">
-            Showing the first 60 matching candidates by your scouts' ceiling. Veteran offers use $K per week; younger
-            players have a fixed weekly rate. Unaccepted offers expire after the round.
+            Showing {Math.min(60, candidates.length)} of {candidates.length} matching players, ranked by your scouts'
+            ceiling. Pay is per week, in dollars.
           </p>
           {table(sortRows(candidates, { key: 'upside', desc: true }, value).slice(0, 60), true)}
         </Panel>

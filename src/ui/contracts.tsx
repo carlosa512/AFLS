@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import {
   capFor,
   capProjection,
+  capSpace,
   POST_JUNE1_LIMIT,
   releaseBlocker,
   releasePlayer,
@@ -36,6 +37,7 @@ import {
   squadReleaseProblem,
 } from '../engine/personnel/squads';
 import { store } from './store';
+import { activeRoster } from '../engine/roster';
 
 const name = (p: Player) => `${p.firstName} ${p.lastName}`;
 
@@ -237,6 +239,9 @@ export function SquadActions({ league, player }: { league: League; player: Playe
   const [open, setOpen] = useState<'promote' | 'release' | null>(null);
   if (!player.squad?.agreement || player.teamId !== league.userTeamId) return null;
   const preview = squadPromotionPreview(league, player);
+  const space = capSpace(league, player.teamId);
+  const spaceAfter = space - preview.additionalCap;
+  const rosterSize = activeRoster(league, player.teamId).length;
   const lock = liveLock();
   const promotion = lock ?? preview.problem;
   const release = lock ?? squadReleaseProblem(league, player);
@@ -244,7 +249,7 @@ export function SquadActions({ league, player }: { league: League; player: Playe
     <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
       <button
         className="btn btn-sm"
-        disabled={!!promotion}
+        disabled={!!lock}
         title={promotion ?? 'Preview a new NFL contract'}
         onClick={() => setOpen('promote')}
       >
@@ -260,7 +265,7 @@ export function SquadActions({ league, player }: { league: League; player: Playe
       </button>
       {open && (
         <Dialog
-          title={open === 'promote' ? 'Sign a new NFL contract?' : 'Release from the practice squad?'}
+          title={open === 'promote' ? 'Move to the main roster?' : 'Release from the practice squad?'}
           onClose={() => setOpen(null)}
           footer={
             <>
@@ -285,11 +290,37 @@ export function SquadActions({ league, player }: { league: League; player: Playe
           }
         >
           <p>
-            <PlayerLink league={league} player={player} /> · <b>{player.position}</b> ·{' '}
-            {open === 'promote'
-              ? `One-year minimum NFL deal. Additional cap commitment: ${money(preview.additionalCap)}. This week's squad check is credited against the new salary; a cleared rookie's former contract stays terminated.`
-              : `This week's ${weeklyMoney(player.squad.agreement.weeklyPay)} is already committed. Earned pay stays on the cap; future squad checks stop. He becomes an unrestricted free agent without waivers.`}
+            <PlayerLink league={league} player={player} /> · <b>{player.position}</b>
           </p>
+          {open === 'promote' ? (
+            <>
+              <p>Moves him from the practice squad to your main roster on a one-year contract.</p>
+              <div className="facts">
+                <Num label="Cap space now" value={space} />
+                <Num label="Cost of this move" value={preview.additionalCap} />
+                <Num label="Cap space after" value={spaceAfter} tone={spaceAfter < 0 ? 'bad' : 'good'} />
+                <span className="fact">
+                  <span className="eyebrow">53-man roster</span>
+                  <b className={rosterSize >= 53 ? 'tone-bad' : undefined}>
+                    {rosterSize}/53 → {rosterSize + 1}/53
+                  </b>
+                </span>
+              </div>
+              <p className={`callout${promotion ? ' callout-bad' : ''}`} role="status">
+                {lock ??
+                  (rosterSize >= 53
+                    ? 'Your roster is full. Release or trade a player before confirming.'
+                    : spaceAfter < 0
+                      ? `You need ${money(-spaceAfter)} more cap space before confirming.`
+                      : (preview.problem ?? 'You have a roster spot and enough cap space. No release is needed.'))}
+              </p>
+            </>
+          ) : (
+            <p>
+              He leaves your squad immediately. You still owe this week's{' '}
+              {weeklyMoney(player.squad.agreement.weeklyPay)}, but no future weeks.
+            </p>
+          )}
         </Dialog>
       )}
     </span>
