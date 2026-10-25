@@ -31,6 +31,7 @@ import {
   teamCoaches,
   type Chair,
 } from './coaching';
+import { leagueNews, rookieImpactMail, matchupStakes } from './news';
 import { capSpace } from './finance/cap';
 import {
   concussionCount,
@@ -43,6 +44,7 @@ import {
   IR_MIN_WEEKS,
   IR_RETURNS,
   irReturnsUsed,
+  irProblem,
   NEED,
   outlookText,
   shortPositions,
@@ -56,7 +58,7 @@ import { draftComplete, reachOrSteal } from './offseason/draft';
 import { rookieCost, ROSTER_MAX } from './offseason/negotiation';
 import { knowledge, leaguePercentile, perceive, scoutReportParts } from './scouting';
 import { POSITION_NAMES } from './positions';
-import { activeRoster, chooseCover, starters, teamPlayers } from './roster';
+import { activeRoster, chooseCover, starters, teamPlayers, isAvailable, slotOf } from './roster';
 import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { ROUND_NAMES } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
@@ -212,9 +214,35 @@ function awardMail(league: League, have: Set<string>): Draft[] {
   return out;
 }
 
+/** The diagnosis matters through the people still available and the choices the roster permits. */
+function medicalImpact(league: League, p: Player): string {
+  const team = league.teams[league.userTeamId];
+  const pos = slotOf(league, p);
+  const available = activeRoster(league, team.id).filter((x) => isAvailable(x) && slotOf(league, x) === pos);
+  const n = available.length;
+  const people = available.slice(0, 3).map(fullName);
+  const label = posWord(pos);
+  const noun = n === 1 ? label : pos === 'S' ? 'safeties' : pos === 'OL' ? 'offensive linemen' : `${label}s`;
+  const coverage =
+    n === 0
+      ? `Nobody is available at ${pos} on the active roster.`
+      : `That leaves ${small(n)} available ${noun}${people.length ? `, including ${list(people)}` : ''}.`;
+  let decision: string;
+  if (n < NEED[pos]) {
+    const cover = chooseCover(league, team, pos, NEED);
+    decision = ` We need ${small(NEED[pos])} for normal cover. ${cover ? `${fullName(cover)} can cover at ${pos} with "Play at…", or we can look at free agents.` : 'There is no suitable cover elsewhere on the roster; take a look at free agents before the next game.'}`;
+  } else decision = ' We still have enough cover for the usual roles at that position.';
+  const reserve =
+    p.injury!.estimate[0] >= IR_MIN_WEEKS && !irProblem(league, p)
+      ? ` Injured reserve would free his roster spot, with a minimum ${IR_MIN_WEEKS}-week stay.`
+      : '';
+  return `${isAvailable(p) ? 'He remains available under the current treatment plan. ' : ''}${coverage}${decision}${reserve}`;
+}
+
 /** The head doctor's word on each of our players who's hurt for a week or more (news, so only while he's still out). */
 function injuryMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
+  const short = new Set(shortPositions(league, league.teams[league.userTeamId]));
   for (const p of teamPlayers(league, league.userTeamId)) {
     const now = p.injury;
     // The doctor's estimate, never the true weeks.
@@ -234,10 +262,8 @@ function injuryMail(league: League, have: Set<string>): Draft[] {
       week: now.week,
       ...doctor(league),
       category: 'medical',
-      subject: `${fullName(p)}: ${what}`,
-      body: now.protocol
-        ? concussionNote(p)
-        : `${fullName(p)} ${how}. Our early read is that he'll be ${estimateText(now, weeksLeft(league))}; we'll keep you posted through his rehab.`,
+      subject: `${fullName(p)}: ${what}${short.has(slotOf(league, p)) ? `; short at ${slotOf(league, p)}` : ''}`,
+      body: `${now.protocol ? concussionNote(p) : `${fullName(p)} ${how}. Our early read is that he'll be ${estimateText(now, weeksLeft(league))}.`} ${medicalImpact(league, p)}`,
       actions: [{ kind: 'player', playerId: p.id }, { kind: 'medical' }],
     });
   }
@@ -549,6 +575,8 @@ export function keyMatchups(league: League, oppId: number): { attack: Matchup[];
 
 /** What a message is about, read back from its id. The ids are built here, so this is the one place that knows their shape. */
 export type MailSubject =
+  | { kind: 'news'; season: number }
+  | { kind: 'rookieImpact'; season: number }
   | { kind: 'matchup'; season: number; week: number }
   | { kind: 'injury'; season: number; week: number; playerId: number; type: string }
   | { kind: 'award'; season: number; playerId: number; period: 'week' | 'month' | 'year'; weeks: [number, number] }
@@ -594,6 +622,10 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
   const player = m.actions.find((x) => x.kind === 'player');
   const playerId = player?.kind === 'player' ? player.playerId : -1;
   switch (category) {
+    case 'press':
+      return { kind: 'news', season };
+    case 'rookies':
+      return { kind: 'rookieImpact', season };
     case 'matchup':
       return { kind: 'matchup', season, week: Number(a) };
     case 'medical':
@@ -662,34 +694,29 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
   }
 }
 
-/**
- * Whether a message still asks something of the user, worked out from the league as it is now (nothing
- * stored): a report until the game is played, an injury while he's out and off reserve, an expiring deal
- * through the re-sign window, the combine while visits are left before the draft, draft day until our picks
- * are in, the trade deadline until it passes, an all-clear while he waits on reserve for you to activate him,
- * staff deals through the re-sign window, a coach hired away until his chair is filled (or the window shuts), the
- * coaches' position suggestion until you start it, turn it down or the draft and camp are over.
- */
+/** A briefing can still be current without requiring a decision. Used by the live report cards. */
+export function briefingCurrent(league: League, m: InboxMessage): boolean {
+  const s = mailSubject(m);
+  if (!s || s.season !== league.season) return false;
+  if (s.kind === 'matchup') {
+    const game = userGame(league, s.week);
+    return !!game && !game.result;
+  }
+  return (
+    s.kind === 'deadline' && league.phase === 'regular' && (league.week <= TRADE_DEADLINE_WEEK || isDeadlineDay(league))
+  );
+}
+
+/** Present-day management tasks only; news and preparation never become tasks just for being current. */
 export function needsYou(league: League, m: InboxMessage): boolean {
   const s = mailSubject(m);
   if (!s || s.season !== league.season) return false;
   const user = league.userTeamId;
   switch (s.kind) {
-    case 'matchup': {
-      const game = userGame(league, s.week);
-      return !!game && !game.result;
-    }
-    case 'injury': {
-      const p = league.players[s.playerId];
-      return (
-        !!p &&
-        p.teamId === user &&
-        !p.ir &&
-        p.injury?.season === s.season &&
-        p.injury.week === s.week &&
-        p.injury.type === s.type
-      );
-    }
+    case 'matchup':
+    case 'injury':
+    case 'deadline':
+      return false;
     case 'contract':
       return league.phase === 'resign' && expiringPlayers(league, user).some((p) => p.id === s.playerId);
     case 'combine':
@@ -699,16 +726,25 @@ export function needsYou(league: League, m: InboxMessage): boolean {
         league.phase === 'draft' &&
         league.draftPicks.some((p) => p.season === league.season && p.ownerId === user && p.playerId === undefined)
       );
-    case 'deadline':
-      return league.phase === 'regular' && (league.week <= TRADE_DEADLINE_WEEK || isDeadlineDay(league));
     case 'cleared': {
       const p = league.players[s.playerId];
-      if (!p || p.teamId !== user || !p.ir || p.injury) return false;
+      if (
+        !p ||
+        p.teamId !== user ||
+        !p.ir ||
+        p.injury ||
+        p.ir.weeks < IR_MIN_WEEKS ||
+        irReturnsUsed(league, user) >= IR_RETURNS
+      )
+        return false;
       // You activate him yourself; or your staff would, but the 53 is full and it never cuts a man for him.
       return !delegates(league, league.teams[user]) || waitsForSpot(league, p);
     }
     case 'shortHanded':
-      return shortPositions(league, league.teams[user]).includes(s.pos);
+      return (
+        (league.phase === 'regular' || league.phase === 'playoffs') &&
+        shortPositions(league, league.teams[user]).includes(s.pos)
+      );
     case 'staffDeals':
       return league.phase === 'resign' && s.people.some((r) => stillExpiring(league, r));
     case 'poached':
@@ -808,6 +844,7 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
     const best = `their ${strong.g.phrase} ${strong.g.plural ? 'are' : 'is'} the strength of the team`;
     read = `${soft}, while ${best}. ${capital(OPENING[weak.g.title])}, but ${CATCH[strong.g.title]}.`;
   }
+  const stakes = matchupStakes(league, opp.id);
   return [
     {
       id,
@@ -816,8 +853,8 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
       week: league.week,
       ...headCoach(league),
       category: 'matchup',
-      subject: `Opposition report: ${teamName(opp)}`,
-      body: `${opener} ${read}`,
+      subject: stakes?.subject ?? `Opposition report: ${teamName(opp)}`,
+      body: `${opener} ${stakes?.body ?? ''}${read}`,
       actions: [{ kind: 'team', teamId: opp.id }],
     },
   ];
@@ -1118,6 +1155,24 @@ function recapMail(league: League, have: Set<string>): Draft[] {
           { team: opp, pts: them },
           { team: me, pts: us },
         ];
+  const before = computeRecords(
+    { ...league, games: league.games.filter((g) => g.season !== game.season || g.week < game.week) },
+    game.season,
+  );
+  const theirRecord = before.get(opp.id)!;
+  const ourRecord = before.get(user)!;
+  const strongOpponent =
+    !game.playoffRound &&
+    theirRecord.w + theirRecord.l + theirRecord.t >= 6 &&
+    (theirRecord.w + theirRecord.t / 2) / (theirRecord.w + theirRecord.l + theirRecord.t) >= 0.75;
+  const headline =
+    us > them && strongOpponent
+      ? us - them >= 14
+        ? 'Statement win'
+        : ourRecord.w <= ourRecord.l
+          ? 'Upset win'
+          : 'Game recap'
+      : 'Game recap';
   return [
     {
       id: `recap:${game.season}:${game.id}`,
@@ -1126,7 +1181,7 @@ function recapMail(league: League, have: Set<string>): Draft[] {
       week: game.week,
       ...headCoach(league),
       category: 'matchup',
-      subject: `Game recap: ${win.team.name} ${win.pts}, ${lose.team.name} ${lose.pts}`,
+      subject: `${headline}: ${win.team.name} ${win.pts}, ${lose.team.name} ${lose.pts}`,
       body: `${result} ${takeaway}${potg}`,
       actions: [{ kind: 'game', gameId: game.id }],
     },
@@ -1165,7 +1220,7 @@ function clearedMail(league: League, have: Set<string>): Draft[] {
       week: league.week,
       ...doctor(league),
       category: 'medical',
-      subject: `${fullName(p)} is cleared to play`,
+      subject: `${fullName(p)} is cleared to play${waitsForSpot(league, p) ? '; the 53 is full' : ''}`,
       body:
         was.type === 'concussion'
           ? `${fullName(p)} has passed the last step of the concussion protocol${was.held ? ', and we gave him the extra week we planned,' : ''} and is cleared for full practice.${ir}${concussionWindow(league, p) > 0 ? ' A second concussion is likelier in his first couple of weeks back.' : ''}`
@@ -2030,14 +2085,30 @@ export function deliverMail(league: League): void {
   if (league.phase === 'regular' || league.phase === 'resign') fresh.push(...marketMail(league, have));
   if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
     fresh.push(...marketRecapMail(league, have));
-  // A full inbox lets its oldest mail go from the front, so anything not newer than the front was filed once
-  // already: a look-back (last season's trades) would otherwise file it again as new mail, deleted or not.
-  const floor = inbox.length >= KEEP ? order(inbox[0]) : -Infinity;
-  const due = fresh.filter((m) => order(m) > floor);
+  fresh.push(
+    ...leagueNews(league, have),
+    ...rookieImpactMail(league, draftClassOf(league, league.season), director(league)),
+  );
+  // Old full saves have no record of evicted IDs. Preserve their conservative cutoff once;
+  // thereafter only IDs actually evicted on the boundary date are tombstoned.
+  if (!league.mailFloor && inbox.length >= KEEP) {
+    const date = order(inbox[0]);
+    league.mailFloor = { date, ids: fresh.filter((m) => order(m) === date).map((m) => m.id) };
+  }
+  const floor = league.mailFloor;
+  const evicted = new Set(floor?.ids ?? []);
+  const due = fresh.filter((m) => !floor || order(m) > floor.date || (order(m) === floor.date && !evicted.has(m.id)));
   if (!due.length) return;
   due.sort((a, b) => order(a) - order(b));
   inbox.push(...due.map((m) => ({ ...m, read: first })));
-  if (inbox.length > KEEP) inbox.splice(0, inbox.length - KEEP);
+  // A newly reconstructed historical story may predate mail already filed. Evict chronologically.
+  inbox.sort((a, b) => order(a) - order(b));
+  const removed = inbox.splice(0, Math.max(0, inbox.length - KEEP));
+  for (const m of removed) {
+    const date = order(m);
+    if (!league.mailFloor || date > league.mailFloor.date) league.mailFloor = { date, ids: [] };
+    if (date === league.mailFloor.date) league.mailFloor.ids.push(m.id);
+  }
 }
 
 /** Messages still in the inbox: not filed away, not deleted. */

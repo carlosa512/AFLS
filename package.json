@@ -1,7 +1,7 @@
 {
   "name": "afls",
   "private": true,
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "AFLS — a deep American football management simulation",
   "type": "module",
   "scripts": {

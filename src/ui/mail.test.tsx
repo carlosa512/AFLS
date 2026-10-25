@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { deliverMail, mailForOffer, offerMailId, threads } from '../engine/inbox';
+import { applyInjury, NEED } from '../engine/injuries';
+import { chooseCover } from '../engine/roster';
 import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
@@ -278,32 +280,233 @@ describe('cleared mail', () => {
 });
 
 describe('the opposition report', () => {
-  it('shows key matchups, each unit against the one it faces, with the key players', () => {
+  it('shows at most two focused contests with clear reasoning and linked unit leaders', () => {
     const league = createLeague({ seed: 'inbox' });
     deliverMail(league);
     const report = league.inbox!.find((m) => m.category === 'matchup')!;
     const html = renderToStaticMarkup(<MailCards league={league} message={report} />);
-    expect(html).toContain('Key matchups');
-    expect(html).toContain('Our offense vs their defense');
-    expect(html).toContain('Their offense vs our defense');
-    expect(html).not.toContain('How we match up');
-    for (const title of ['Trenches', 'Run game', 'Pass game']) expect(html.split(title).length - 1).toBe(2);
-    // Two sides of three rows, a face on each side.
-    expect(html.match(/class="mail-matchup-side[ "]/g)?.length).toBe(12);
-    expect(html.slice(html.indexOf('Key matchups')).match(/class="avatar"/g)?.length).toBeGreaterThanOrEqual(12);
+    const count = html.match(/class="mail-focus"/g)!.length;
+    expect(count).toBeGreaterThanOrEqual(1);
+    expect(count).toBeLessThanOrEqual(2);
+    expect(html).toContain('Unit leaders');
+    expect(html).toContain('Our scouts place');
+    expect(html).toMatch(/Our offense vs their defense|Their offense vs our defense/);
+    expect(html).not.toContain('mail-matchup-score');
   });
-
-  it('says plainly what its numbers mean', () => {
+  it('explains unit percentiles and does not invent early-season statistics', () => {
     const league = createLeague({ seed: 'inbox' });
     deliverMail(league);
     const report = league.inbox!.find((m) => m.category === 'matchup')!;
     const html = renderToStaticMarkup(<MailCards league={league} message={report} />);
-    expect(html).toMatch(/where the unit ranks in the league/);
-    expect(html).toMatch(/50th is average/);
-    // Every score reads as a rank ("74th"), with what it means on hover.
-    const scores = [...html.matchAll(/class="num mail-matchup-score"[^>]*>([^<]+)</g)].map((m) => m[1]);
-    expect(scores).toHaveLength(12);
-    for (const s of scores) expect(s).toMatch(/^\d+(st|nd|rd|th)$/);
-    expect(html).toMatch(/title="Better than about \d+% of the league(&#x27;|')s units"/);
+    expect(html).toContain('Higher unit percentiles mean a stronger group');
+    expect(html).toContain('Not enough games yet');
+    expect(html).not.toMatch(/NaN|Infinity|71th/);
+  });
+});
+
+describe('current briefings without a task badge', () => {
+  it('keeps the deadline card live until trading closes', () => {
+    const league = createLeague({ seed: 'deadline-briefing' });
+    league.week = 8;
+    deliverMail(league);
+    const message = league.inbox!.find((m) => m.id.startsWith('deadline:'))!;
+    expect(message).toBeDefined();
+    const live = renderToStaticMarkup(<MailCards league={league} message={message} />);
+    expect(live).not.toContain('The trade deadline has passed');
+    expect(live).toContain('mail-card');
+    league.phase = 'complete';
+    const closed = renderToStaticMarkup(<MailCards league={league} message={message} />);
+    expect(closed).toContain('The trade deadline has passed');
+  });
+});
+
+describe('rookie checkpoint table', () => {
+  it('renders the saved rows with sortable headers after game history is gone', () => {
+    const league = createLeague({ seed: 'rookie-table' });
+    const p = Object.values(league.players).find((p) => p.teamId === league.userTeamId)!;
+    const message = {
+      id: `rookies:${league.season}:mid`,
+      season: league.season,
+      phase: 'regular' as const,
+      week: 9,
+      from: 'Director',
+      category: 'scouting' as const,
+      subject: 'Eight games in',
+      body: 'Our class so far.',
+      read: false,
+      actions: [],
+      rookieReport: {
+        teamId: league.userTeamId,
+        games: 8,
+        rows: [
+          {
+            playerId: p.id,
+            name: `${p.firstName} ${p.lastName}`,
+            position: p.position,
+            round: 2,
+            pick: 40,
+            snaps: 400,
+            production: '22 catches · 310 yards',
+            context: 'Workload rose after a recorded injury.',
+            contributed: true,
+          },
+        ],
+      },
+    };
+    league.games = [];
+    const html = renderToStaticMarkup(<MailCards league={league} message={message} />);
+    expect(html).toContain('<table');
+    expect(html).toContain('Snaps');
+    expect(html).toContain('aria-sort="ascending"');
+    expect(html).toContain('400');
+    expect(html).toContain('310 yards');
+    expect(html).toContain('Workload rose');
+    expect(html).toContain('No. 40');
+  });
+  it('keeps old narrative-only checkpoint letters readable without inventing a table', () => {
+    const league = createLeague({ seed: 'old-rookie-table' });
+    deliverMail(league);
+    const message = { ...league.inbox![0], id: `rookies:${league.season}:mid` };
+    expect(renderToStaticMarkup(<MailCards league={league} message={message} />)).toBe('');
+  });
+});
+
+describe('medical letters distinguish history from current health', () => {
+  it('does not call a player healthy merely because the original diagnosis is over', () => {
+    const league = createLeague({ seed: 'medical-report-status' });
+    const p = Object.values(league.players).find((p) => p.teamId === league.userTeamId)!;
+    applyInjury(league, p, {
+      type: 'hamstring',
+      severity: 'moderate',
+      weeksRemaining: 4,
+      estimate: [3, 5],
+      season: league.season,
+      week: league.week,
+      where: 'game',
+    });
+    deliverMail(league);
+    const message = league.inbox!.find((m) => m.id === `medical:${league.season}:${league.week}:${p.id}:hamstring`)!;
+    p.injury!.week++;
+    let html = renderToStaticMarkup(<MailCards league={league} message={message} />);
+    expect(html).toContain('Past report');
+    expect(html).toContain('now being treated');
+    expect(html).not.toContain('>Healthy<');
+    delete p.injury;
+    html = renderToStaticMarkup(<MailCards league={league} message={message} />);
+    expect(html).toContain('has since recovered');
+  });
+});
+
+describe('news evidence and medical names', () => {
+  it('shows one chosen evidence table, reserving previous-year values for comparisons', () => {
+    const league = createLeague({ seed: 'news-table' });
+    deliverMail(league);
+    const message = {
+      ...league.inbox![0],
+      id: `press:${league.season}:10:division:0`,
+      leagueReport: {
+        division: 'Liberty East',
+        table: 'division' as 'division' | 'team' | 'yearOverYear',
+        teamId: 0,
+        season: league.season,
+        standings: [{ teamId: 0, name: 'Buffalo Blizzard', w: 6, l: 4, t: 0, gap: 0, streak: 'W1' }],
+        stats: [
+          { label: 'points per game', current: '26.6', previous: '15.6', currentRank: '2nd', previousRank: '30th' },
+        ],
+      },
+    };
+    const html = renderToStaticMarkup(<MailCards league={league} message={message} />);
+    expect(html.match(/<table/g)).toHaveLength(1);
+    expect(html).toContain('6–4');
+    expect(html).not.toContain('26.6');
+    message.leagueReport.table = 'team';
+    const current = renderToStaticMarkup(<MailCards league={league} message={message} />);
+    expect(current).toContain('26.6');
+    expect(current).not.toContain('15.6');
+    message.leagueReport.table = 'yearOverYear';
+    const comparison = renderToStaticMarkup(<MailCards league={league} message={message} />);
+    expect(comparison).toContain('26.6');
+    expect(comparison).toContain('15.6');
+    expect(html).toMatch(/<button[^>]*class="linklike[^>]*>[\s\S]*?Blizzard/);
+  });
+  it('links available corners and the out-of-position cover option to player cards', () => {
+    const league = createLeague({ seed: 'medical-news-preview' });
+    const corners = Object.values(league.players).filter((p) => p.teamId === league.userTeamId && p.position === 'CB');
+    for (const p of corners.slice(2))
+      applyInjury(league, p, {
+        type: 'hamstring',
+        severity: 'moderate',
+        weeksRemaining: 5,
+        estimate: [4, 6],
+        season: league.season,
+        week: league.week,
+        where: 'game',
+      });
+    deliverMail(league);
+    const note = league.inbox!.find(
+      (m) => m.id === `medical:${league.season}:${league.week}:${corners[2].id}:hamstring`,
+    )!;
+    const cover = chooseCover(league, league.teams[league.userTeamId], 'CB', NEED)!;
+    expect(cover).toBeDefined();
+    const html = renderToStaticMarkup(<MailCards league={league} message={note} />);
+    expect(html).toContain('Available at CB');
+    expect(html).toContain('out of position');
+    expect(html).toContain(`(${cover.position}, out of position)`);
+    for (const p of [corners[0], corners[1], cover])
+      expect(html).toMatch(
+        new RegExp(`<button[^>]*class="linklike[^>]*><span>${p.firstName} ${p.lastName}</span></button>`),
+      );
+  });
+});
+
+describe('article paragraph layout', () => {
+  it('renders paragraphs separately and keeps named people clickable in each', () => {
+    const league = createLeague({ seed: 'article-paragraphs' });
+    deliverMail(league);
+    const p = Object.values(league.players).find((p) => p.teamId === league.userTeamId)!;
+    const name = `${p.firstName} ${p.lastName}`;
+    const message = {
+      ...league.inbox![0],
+      id: `press:${league.season}:10:division:0`,
+      body: `${name} opened the scoring.\n\n${name} finished with two touchdowns.`,
+      actions: [{ kind: 'player' as const, playerId: p.id }],
+    };
+    const [thread] = threads([message]);
+    const html = renderToStaticMarkup(
+      <Folded
+        league={league}
+        t={thread}
+        needs={new Set()}
+        index={nameIndex(league)}
+        act={() => {}}
+        focusId={message.id}
+      />,
+    );
+    expect(html.match(/class="inbox-body"/g)).toHaveLength(2);
+    expect(html.match(new RegExp(`<button[^>]*class="linklike"[^>]*>${name}</button>`, 'g'))).toHaveLength(2);
+  });
+});
+
+describe('SNN deal evidence', () => {
+  it('lists each return and links the named player and clubs', () => {
+    const league = createLeague({ seed: 'snn-deal-table' });
+    deliverMail(league);
+    const p = Object.values(league.players).find((p) => p.teamId === 1)!;
+    const name = `${p.firstName} ${p.lastName}`;
+    const message = {
+      ...league.inbox![0],
+      id: `press:${league.season}:7:trade:test`,
+      tradeReport: {
+        exchanges: [
+          { teamId: 2, receives: `${p.position} ${name}` },
+          { teamId: 1, receives: '2028 first-round pick' },
+        ],
+        rumors: [],
+      },
+    };
+    const html = renderToStaticMarkup(<MailCards league={league} message={message} />);
+    expect(html).toContain('Receives');
+    expect(html).toContain('2028 first-round pick');
+    expect(html).toMatch(new RegExp(`<button[^>]*class="linklike"[^>]*>${name}</button>`));
   });
 });

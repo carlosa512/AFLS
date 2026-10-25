@@ -1,10 +1,11 @@
 /**
  * What a message opens with under its text: the cards each kind of mail brings (an opposition report's
  * matchup, a doctor's diagnosis, an award's stat line). Everything is looked up from the league as it is
- * now, from what the message is about (`mailSubject`); nothing extra is stored with the mail. Screens show
+ * now, from what the message is about (`mailSubject`); rookie checkpoints keep their original table. Screens show
  * the user's view only: our scouts' reads, the doctor's estimate, the public consensus.
  */
 import { useState, type ReactNode } from 'react';
+import { focusMatchups } from '../engine/opposition';
 import { periodLine, playerOfTheGame } from '../engine/awards';
 import {
   asPromoted,
@@ -56,7 +57,7 @@ import {
 } from '../engine/staff';
 import { boardValue, reachOrSteal } from '../engine/offseason/draft';
 import { GameStar, KeyStats, LineScore, standouts, Standouts } from './game';
-import { LinkedText, moveIndex, MoveText } from './moves';
+import { LinkedText, moveIndex, MoveText, nameIndex } from './moves';
 import {
   deadlineDayTrades,
   draftClassOf,
@@ -67,10 +68,8 @@ import {
   headCoachChanges,
   mailSubject,
   needsYou,
+  briefingCurrent,
   promotionCandidates,
-  keyMatchups,
-  type Matchup,
-  type UnitRead,
   type HeadCoachChange,
   type MailSubject,
   type Signing,
@@ -85,12 +84,14 @@ import {
   irProblem,
   irReturnsUsed,
   outlookText,
+  NEED,
+  healthyAt,
   placeOnIr,
   SEVERITY_LABEL,
   weeksLeft,
 } from '../engine/injuries';
 import { lastSeason } from '../engine/finance/contract';
-import { activeRoster, playingHurt, slotOf, starters, teamPlayers } from '../engine/roster';
+import { activeRoster, playingHurt, slotOf, starters, teamPlayers, chooseCover, isAvailable } from '../engine/roster';
 import { capSheet } from '../engine/finance/cap';
 import { userGame } from '../engine/league';
 import { allSeeds, PLAYOFF_ROUNDS, ROUND_NAMES } from '../engine/season/playoffs';
@@ -105,15 +106,16 @@ import type {
   Medic,
   Player,
   Position,
+  RookieReportRow,
   Staff,
   Team,
 } from '../engine/types';
 import { stanceOf } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
-import { PlayerAvatar, PlayerLink, TeamChip, TeamLink } from './components';
+import { PlayerAvatar, PlayerLink, TeamChip, TeamLink, sortRows, SortTh, useSort } from './components';
 import { StaffAvatar } from './staffAvatar';
-import { band, money, ordinal, recordText, shortName, weekLabel } from './format';
+import { band, money, ordinal, recordText, weekLabel } from './format';
 import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
@@ -138,8 +140,15 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export function MailCards({ league, message }: { league: League; message: InboxMessage }) {
   const s = mailSubject(message);
   switch (s?.kind) {
+    case 'news':
+      return (
+        <>
+          {message.leagueReport && <LeagueNewsCards league={league} report={message.leagueReport} />}
+          {message.tradeReport && <TradeNewsCards league={league} report={message.tradeReport} />}
+        </>
+      );
     case 'matchup':
-      return <MatchupCards league={league} s={s} live={needsYou(league, message)} />;
+      return <MatchupCards league={league} s={s} live={briefingCurrent(league, message)} />;
     case 'injury':
       return <InjuryCards league={league} s={s} />;
     case 'award':
@@ -152,6 +161,8 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <CombineCards league={league} s={s} />;
     case 'draftDay':
       return <DraftDayCards league={league} s={s} />;
+    case 'rookieImpact':
+      return message.rookieReport ? <RookieImpactCards league={league} report={message.rookieReport} /> : null;
     case 'draftClass':
       return <DraftClassCards league={league} s={s} />;
     case 'flex':
@@ -175,7 +186,7 @@ export function MailCards({ league, message }: { league: League; message: InboxM
     case 'cleared':
       return <ClearedCards league={league} s={s} at={message} />;
     case 'deadline':
-      return <DeadlineCards league={league} s={s} live={needsYou(league, message)} />;
+      return <DeadlineCards league={league} s={s} live={briefingCurrent(league, message)} />;
     case 'race':
       return <RaceCards league={league} s={s} />;
     case 'owner':
@@ -199,6 +210,203 @@ export function MailCards({ league, message }: { league: League; message: InboxM
     default:
       return null;
   }
+}
+
+function TradeNewsCards({ league, report }: { league: League; report: NonNullable<InboxMessage['tradeReport']> }) {
+  const index = nameIndex(league);
+  return (
+    <>
+      {report.exchanges.length > 0 && (
+        <Card title={report.period ? `The deal · ${report.period}` : 'The deal'}>
+          <div className="table-scroll">
+            <table className="mail-table">
+              <thead>
+                <tr>
+                  <th>Team</th>
+                  <th>Receives</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.exchanges.map((r) => (
+                  <tr key={r.teamId} className={r.teamId === league.userTeamId ? 'is-user' : undefined}>
+                    <td>
+                      <TeamLink team={league.teams[r.teamId]} />
+                    </td>
+                    <td>
+                      <LinkedText league={league} text={r.receives} index={index} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+      {report.rumors.length > 0 && (
+        <Card title={report.exchanges.length ? 'Other names being discussed' : 'Names being discussed'}>
+          {report.rumors.map((r) => (
+            <p key={r.playerId} className="small">
+              {league.players[r.playerId] ? (
+                <PlayerLink league={league} player={league.players[r.playerId]} pos={false} />
+              ) : (
+                r.name
+              )}{' '}
+              ({r.position}) · <TeamLink team={league.teams[r.clubId]} /> ·{' '}
+              <LinkedText league={league} text={r.status} index={index} />
+            </p>
+          ))}
+        </Card>
+      )}
+    </>
+  );
+}
+
+/** The standings and statistical evidence as they were when the headline was filed. */
+function LeagueNewsCards({ league, report }: { league: League; report: NonNullable<InboxMessage['leagueReport']> }) {
+  const view = report.table ?? 'division';
+  if (view === 'division')
+    return (
+      <Card title={`${report.division} · standings at the time`}>
+        <div className="table-scroll">
+          <table className="mail-table">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>W–L–T</th>
+                <th>Back</th>
+                <th>Streak</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.standings.map((r, i) => (
+                <tr key={r.teamId} className={r.teamId === league.userTeamId ? 'is-user' : undefined}>
+                  <td>
+                    <span className="small muted">{i + 1}. </span>
+                    <TeamLink team={league.teams[r.teamId]} />
+                  </td>
+                  <td className="num">
+                    {r.w}–{r.l}
+                    {r.t ? `–${r.t}` : ''}
+                  </td>
+                  <td>{i === 0 ? '—' : r.gap === 0 ? 'Level' : r.gap}</td>
+                  <td>{r.streak || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="small muted" style={{ margin: '8px 0 0' }}>
+          Official order includes tiebreakers. Back is the gap in games.
+        </p>
+      </Card>
+    );
+  const compare = view === 'yearOverYear';
+  return (
+    <Card
+      title={
+        <>
+          <TeamLink team={league.teams[report.teamId]} /> · {compare ? 'year over year' : 'this season'}
+        </>
+      }
+    >
+      <div className="table-scroll">
+        <table className="mail-table">
+          <thead>
+            <tr>
+              <th>Team stat</th>
+              <th>{report.season}</th>
+              {compare && <th>{report.season - 1}</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {report.stats.map((r) => (
+              <tr key={r.label}>
+                <td>{capital(r.label)}</td>
+                <td className="num">
+                  {r.current}
+                  <span className="small muted" style={{ display: 'block' }}>
+                    {r.currentRank && `${r.currentRank} in league`}
+                  </span>
+                </td>
+                {compare && (
+                  <td className="num">
+                    {r.previous}
+                    <span className="small muted" style={{ display: 'block' }}>
+                      {r.previousRank && `${r.previousRank} in league`}
+                    </span>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+/** A retained checkpoint, not a live query of today's draft class. */
+function RookieImpactCards({ league, report }: { league: League; report: NonNullable<InboxMessage['rookieReport']> }) {
+  type Key = 'pick' | 'player' | 'snaps';
+  const [sort, onSort] = useSort<Key>({ key: 'pick', desc: false });
+  const index = nameIndex(league);
+  const rows = sortRows(report.rows, sort, (r: RookieReportRow, key) =>
+    key === 'player' ? r.name : key === 'pick' ? r.pick : (r.snaps ?? -1),
+  );
+  return (
+    <Card title={`Draft class · through ${report.games} games`}>
+      <div className="table-scroll" tabIndex={0} aria-label="Rookie class contributions">
+        <table className="mail-table rookie-report">
+          <thead>
+            <tr>
+              <SortTh label="Pick" k="pick" sort={sort} onSort={onSort} desc={false} />
+              <SortTh label="Player" k="player" sort={sort} onSort={onSort} desc={false} />
+              <SortTh
+                label={<span title="Scrimmage snaps — downs played">Snaps</span>}
+                k="snaps"
+                sort={sort}
+                onSort={onSort}
+              />
+              <th>Production &amp; context</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.playerId}>
+                <td className="num">
+                  R{r.round}
+                  <span className="muted small" style={{ display: 'block' }}>
+                    No. {r.pick}
+                  </span>
+                </td>
+                <td>
+                  {league.players[r.playerId] ? (
+                    <PlayerLink league={league} player={league.players[r.playerId]} pos={false} />
+                  ) : (
+                    r.name
+                  )}
+                  <span className="muted small" style={{ display: 'block' }}>
+                    {r.position}
+                  </span>
+                </td>
+                <td className="num">{r.snaps === null ? '—' : r.snaps.toLocaleString('en-US')}</td>
+                <td>
+                  <b>{r.production}</b>
+                  <span className="muted small" style={{ display: 'block', marginTop: 4 }}>
+                    <LinkedText league={league} text={r.context} index={index} />
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="small muted" style={{ margin: '8px 0 0' }}>
+        Work for {league.teams[report.teamId].name} only. Snaps count scrimmage downs; kicking work is listed
+        separately.
+      </p>
+    </Card>
+  );
 }
 
 function Card({ title, children, className = '' }: { title?: ReactNode; children: ReactNode; className?: string }) {
@@ -455,90 +663,70 @@ function PlayoffPath({ league, game }: { league: League; game: Game }) {
   );
 }
 
-/** Each unit against the one it lines up across from, both ways, as our scouts read the starters. */
+/** One or two useful contests, with the football evidence behind the scout's read. */
 function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
-  const { attack, defend } = keyMatchups(league, opp.id);
-  const us = league.teams[league.userTeamId];
+  const focuses = focusMatchups(league, opp.id);
   return (
     <Card title="Key matchups">
-      <p className="muted small" style={{ margin: '-4px 0 8px' }}>
-        Each number is where the unit ranks in the league, by our scouts' read of every team's starters: 74th means
-        better than about 74% of the league's units at those spots, 50th is average. Each face is the unit's best
-        player.
+      <p className="small muted" style={{ margin: '-4px 0 10px' }}>
+        The clearest openings and risks on our scouts' read. Higher unit percentiles mean a stronger group; the team
+        results below provide context.
       </p>
-      <MatchupGroup league={league} title="Our offense vs their defense" rows={attack} offense={us} defense={opp} />
-      <MatchupGroup league={league} title="Their offense vs our defense" rows={defend} offense={opp} defense={us} />
-    </Card>
-  );
-}
-
-function MatchupGroup({
-  league,
-  title,
-  rows,
-  offense,
-  defense,
-}: {
-  league: League;
-  title: string;
-  rows: Matchup[];
-  offense: Team;
-  defense: Team;
-}) {
-  return (
-    <div className="mail-matchups">
-      <div className="eyebrow">{title}</div>
-      {rows.map((m) => (
-        <div className="mail-matchup" key={m.title}>
+      {focuses.map((f) => (
+        <section className="mail-focus" key={`${f.side}:${f.matchup.title}`}>
           <div className="mail-matchup-head">
-            <b>{m.title}</b>
-            <span className="muted small">
-              {m.offense.title} vs {m.defense.title.toLowerCase()}
+            <b>{f.matchup.title}</b>
+            <span className="small muted">
+              {f.side === 'attack' ? 'Our offense vs their defense' : 'Their offense vs our defense'}
             </span>
-            {m.edge && (
-              <span className={`tag-pill ${m.edge === 'ours' ? 'tag-good' : 'tag-bad'}`}>
-                {m.edge === 'ours' ? 'Our edge' : 'Their edge'}
-              </span>
+            <span
+              className={`tag-pill ${f.advantage === 'ours' ? 'tag-good' : f.advantage === 'theirs' ? 'tag-bad' : ''}`}
+            >
+              {f.label}
+            </span>
+          </div>
+          <p className="small">{f.why}</p>
+          {f.facts.length > 0 ? (
+            <div className="mail-focus-facts">
+              {f.facts.map((fact) => (
+                <div key={fact.teamId}>
+                  <b className="small">
+                    <TeamLink team={league.teams[fact.teamId]} />
+                  </b>
+                  <span className="small">
+                    {fact.label}: <strong>{fact.value}</strong>
+                  </span>
+                  <span className="muted small">
+                    {fact.rank ? `${ordinal(fact.rank)} in league · ` : ''}
+                    {fact.games} games
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="small muted">
+              Not enough games yet for a reliable statistical comparison. This is a scouting read.
+            </p>
+          )}
+          <div className="mail-focus-leaders">
+            <span className="small muted">Unit leaders</span>
+            {[f.matchup.offense.lead, f.matchup.defense.lead].map((id, i) =>
+              id !== undefined && league.players[id] ? (
+                <span key={`${i}:${id}`}>
+                  <PlayerAvatar
+                    player={league.players[id]}
+                    team={league.teams[i === 0 ? f.offenseId : f.defenseId]}
+                    size={28}
+                  />
+                  <PlayerLink league={league} player={league.players[id]} />
+                  <span className="small muted">({league.players[id].position})</span>
+                </span>
+              ) : null,
             )}
           </div>
-          <div className="mail-matchup-sides">
-            <MatchupSide league={league} unit={m.offense} team={offense} />
-            <span className="muted small">vs</span>
-            <MatchupSide league={league} unit={m.defense} team={defense} flip />
-          </div>
-        </div>
+        </section>
       ))}
-    </div>
-  );
-}
-
-/** One side of a matchup: the unit's best player and its percentile (the row's head names the units). */
-function MatchupSide({
-  league,
-  unit,
-  team,
-  flip = false,
-}: {
-  league: League;
-  unit: UnitRead;
-  team: Team;
-  flip?: boolean;
-}) {
-  const p = unit.lead !== undefined ? league.players[unit.lead] : undefined;
-  const pct = Math.round(unit.score * 100);
-  return (
-    <span className={`mail-matchup-side${flip ? ' is-flip' : ''}`}>
-      {p && <PlayerAvatar player={p} team={team} size={32} />}
-      <span className="mail-matchup-who">
-        {p ? <PlayerLink league={league} player={p} surname /> : <span className="muted">Nobody</span>}
-      </span>
-      <span
-        className="num mail-matchup-score"
-        title={p ? `Better than about ${pct}% of the league's units` : undefined}
-      >
-        {p ? ordinal(pct) : '–'}
-      </span>
-    </span>
+    </Card>
   );
 }
 
@@ -619,7 +807,10 @@ function InjuryCards({ league, s }: { league: League; s: Extract<MailSubject, { 
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
   // Who starts where he lines up (his own position, unless you put him somewhere else).
   const at = slotOf(league, p);
-  const instead = now && ours && team ? starters(league, team, at).filter((x) => x.id !== p.id) : [];
+  const instead =
+    now && ours && team ? activeRoster(league, team.id).filter((x) => isAvailable(x) && slotOf(league, x) === at) : [];
+  const cover =
+    now && ours && team && healthyAt(league, team, at) < NEED[at] ? chooseCover(league, team, at, NEED) : null;
   // Reserve is for a long layoff: it keeps him off the 53 for at least four weeks.
   const ir = now && ours && now.estimate[0] >= IR_MIN_WEEKS && !irProblem(league, p);
   return (
@@ -642,8 +833,16 @@ function InjuryCards({ league, s }: { league: League; s: Extract<MailSubject, { 
                 ))}
             </>
           }
-          side={now ? <InjuryTag league={league} p={p} /> : <span className="tag-pill tag-good">Healthy</span>}
+          side={now ? <InjuryTag league={league} p={p} /> : <span className="tag-pill">Past report</span>}
         />
+        {!now && (
+          <p className="small muted">
+            {p.injury
+              ? `He is now being treated for ${injuryLabel(p.injury.type).replace(/^[A-Z][a-z]/, (s) => s[0].toLowerCase() + s[1])}.`
+              : 'He has since recovered from this injury.'}{' '}
+            The estimate below is from the original report.
+          </p>
+        )}
         <div className="mail-kv">
           <span>
             <span className="eyebrow">Severity</span>
@@ -661,11 +860,23 @@ function InjuryCards({ league, s }: { league: League; s: Extract<MailSubject, { 
           </span>
         </div>
       </Card>
-      {instead.length > 0 && (
-        <Card title={`Starting at ${at} this week`}>
+      {(instead.length > 0 || cover) && (
+        <Card title={`Available at ${at}`}>
           <p className="small" style={{ margin: 0 }}>
-            {instead.map(shortName).join(' · ')} <span className="muted">(your depth chart)</span>
+            {instead.map((x, i) => (
+              <span key={x.id}>
+                {i > 0 ? ' · ' : ''}
+                <PlayerLink league={league} player={x} pos={false} />
+                {x.position !== at && <span className="muted"> ({x.position}, out of position)</span>}
+              </span>
+            ))}
           </p>
+          {cover && (
+            <p className="small" style={{ margin: '6px 0 0' }}>
+              Cover option: <PlayerLink league={league} player={cover} pos={false} />{' '}
+              <span className="muted">({cover.position}, out of position)</span>
+            </p>
+          )}
         </Card>
       )}
       {ir && (

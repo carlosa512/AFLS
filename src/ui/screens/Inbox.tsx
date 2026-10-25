@@ -460,9 +460,11 @@ function MessageBody({
   const actions = m.actions.filter((a) => !skip.includes(a.kind));
   return (
     <>
-      <p className="inbox-body">
-        <LinkedText league={league} text={m.body} about={aboutOf(league, m)} index={index} />
-      </p>
+      {m.body.split(/\n\s*\n/).map((paragraph, i) => (
+        <p className="inbox-body" key={i}>
+          <LinkedText league={league} text={paragraph} about={aboutOf(league, m)} index={index} />
+        </p>
+      ))}
       <MailCards league={league} message={m} />
       {actions.length > 0 && (
         <div className="row">

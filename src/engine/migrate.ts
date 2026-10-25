@@ -65,6 +65,11 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 33) toV33(league);
   if (league.version < 34) league.version = 34; // v34: offers may be 'answered' and carry an optional `outcome` line, nothing to fill in
   if (league.version < 35) toV35(league);
+  if (league.version < 36) league.version = 36; // v36: optional mailFloor, initialized conservatively on delivery
+  if (league.version < 37) league.version = 37; // v37: optional rookieReport snapshots on new mail; existing letters keep their original text
+  if (league.version < 38) league.version = 38; // v38: optional SNN standings and team-stat snapshots; existing letters keep their text
+  if (league.version < 39) league.version = 39; // v39: optional trade-news snapshots on newly filed SNN articles
+  if (league.version < 40) league.version = 40; // v40: optional news table choice and trade edition labels
   return league;
 }
 

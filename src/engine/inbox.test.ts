@@ -10,6 +10,7 @@ import {
   aPosition,
   archiveMail,
   archiveRead,
+  briefingCurrent,
   deadlineDayTrades,
   deleteMail,
   deliverMail,
@@ -60,13 +61,15 @@ describe('inbox', () => {
     expect(unreadCount(league)).toBe(1);
   });
 
-  it('needs you for the report until the game is played', () => {
+  it('keeps the report current without making it a management task', () => {
     const report = league.inbox![0];
     expect(mailSubject(report)).toEqual({ kind: 'matchup', season: league.season, week: 1 });
-    expect(needsYou(league, report)).toBe(true);
+    expect(needsYou(league, report)).toBe(false);
+    expect(briefingCurrent(league, report)).toBe(true);
     const played = copy(league);
     playWeek(played);
     expect(needsYou(played, report)).toBe(false);
+    expect(briefingCurrent(played, report)).toBe(false);
   });
 
   it('tells the user about their own award winners and trades, once', () => {
@@ -117,7 +120,7 @@ describe('inbox', () => {
       medical: ['injury', 'cleared'],
       awards: ['award'],
       trades: ['trade', 'deadline', 'market', 'marketRecap'],
-      league: ['race'],
+      league: ['race', 'news'],
     };
     for (const m of league.inbox!) {
       const s = mailSubject(m)!;
@@ -203,6 +206,43 @@ describe('inbox', () => {
     markAllRead(l);
     archiveRead(l);
     for (const m of l.inbox!) if (!m.deleted) expect(!!m.archived).toBe(!needsYou(l, m));
+  });
+
+  it('admits new same-date mail after rollover without resurrecting deleted mail, including after reload', () => {
+    const l = createLeague({ seed: 'same-day-mail' });
+    const log = (n: number) => logTransaction(l, 'trade', [l.userTeamId, (l.userTeamId + 1) % 32], `Deal ${n}`);
+    for (let i = 0; i < 301; i++) log(i);
+    deliverMail(l);
+    const first = l.inbox!.find((m) => m.id.endsWith(':Deal 300'))!;
+    expect(first).toBeDefined();
+    deleteMail(l, [first.id]);
+    log(301);
+    deliverMail(l);
+    expect(l.inbox!.some((m) => m.id.endsWith(':Deal 301'))).toBe(true);
+    expect(l.inbox!.some((m) => m.id.endsWith(':Deal 0'))).toBe(false);
+    const loaded = copy(l);
+    deliverMail(loaded);
+    expect(loaded.inbox).toEqual(l.inbox);
+    expect(loaded.inbox!.find((m) => m.id === first.id)?.deleted).toBe(true);
+    expect(loaded.inbox).toHaveLength(300);
+  });
+
+  it('advances the eviction boundary without keeping tombstones for every historical date', () => {
+    const l = createLeague({ seed: 'mail-boundary' });
+    const logBatch = (week: number) => {
+      l.week = week;
+      for (let i = 0; i < 301; i++)
+        logTransaction(l, 'trade', [l.userTeamId, (l.userTeamId + 1) % 32], `Week ${week} deal ${i}`);
+      deliverMail(l);
+    };
+    logBatch(1);
+    logBatch(2);
+    expect(l.mailFloor!.ids.length).toBeLessThan(10);
+    expect(l.mailFloor!.ids.every((id) => !id.includes('Week 1 deal'))).toBe(true);
+    const again = copy(l);
+    deliverMail(again);
+    expect(again.inbox).toEqual(l.inbox);
+    expect(again.inbox!.some((m) => m.id.includes('Week 1 deal'))).toBe(false);
   });
 
   it('never files mail again once a full inbox has let it go', () => {
@@ -388,7 +428,7 @@ describe('mail through a season', () => {
       playWeek(league);
       deliverMail(league);
       for (const m of league.inbox!)
-        if (m.id.startsWith('deadline:')) needsAt.set(m.id, [...(needsAt.get(m.id) ?? []), needsYou(league, m)]);
+        if (m.id.startsWith('deadline:')) needsAt.set(m.id, [...(needsAt.get(m.id) ?? []), briefingCurrent(league, m)]);
     }
     const ours = league.games.filter(
       (g) => g.season === league.season && g.result && (g.homeId === user || g.awayId === user),
@@ -435,7 +475,7 @@ describe('mail through a season', () => {
     expect(day.week).toBe(TRADE_DEADLINE_WEEK + 1);
     expect(mailSubject(day)).toEqual({ kind: 'deadline', season: league.season, weeksLeft: 'day' });
     expect(day.body).toContain(`Once week ${TRADE_DEADLINE_WEEK + 1} is played`);
-    // Each needs you until deadline day has gone by: the week-of reminder still does on deadline day.
+    // Each briefing stays current until deadline day has gone by: the week-of reminder still does on deadline day.
     for (const m of [now, day]) {
       expect(needsAt.get(m.id)![0]).toBe(true);
       expect(needsAt.get(m.id)!.at(-1)).toBe(false);
@@ -1054,6 +1094,10 @@ describe('short positions in the inbox', () => {
     expect(mailSubject(m)).toMatchObject({ kind: 'shortHanded', pos: 'S' });
     expect(m.actions).toContainEqual({ kind: 'fa', pos: 'S' });
     expect(needsYou(l, m)).toBe(true);
+    const diagnosis = byKind(l, 'injury').find((m) => m.subject.includes('short at S'))!;
+    expect(diagnosis.body).toMatch(/available safet(?:y|ies)/);
+    expect(diagnosis.body).toContain('We need three for normal cover');
+    expect(diagnosis.body).toContain('take a look at free agents');
     // Still short a week later: the same message stands, no second one.
     l.week++;
     deliverMail(l);
