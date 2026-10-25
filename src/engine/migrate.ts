@@ -24,6 +24,8 @@ import { generateQuirks } from './quirks';
 import { generateTraits } from './traits';
 import type { Injury, League, StatLine, TradeMarket } from './types';
 import { POSITIONS } from './types';
+import { initialPersonnelState } from './personnel/rules';
+import { ensureService } from './personnel/service';
 
 /** Returns the upgraded league, or null if the save is from a newer (unknown) version. */
 export function migrateLeague(league: League): League | null {
@@ -70,6 +72,21 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 38) league.version = 38; // v38: optional SNN standings and team-stat snapshots; existing letters keep their text
   if (league.version < 39) league.version = 39; // v39: optional trade-news snapshots on newly filed SNN articles
   if (league.version < 40) league.version = 40; // v40: optional news table choice and trade edition labels
+  if (league.version < 41) {
+    league.personnel = initialPersonnelState();
+    for (const p of Object.values(league.players)) {
+      const service = ensureService(p, league.season);
+      // Earlier membership in a mid-season legacy save was never recorded. Preserve that uncertainty.
+      if (
+        (league.phase === 'regular' && league.week > 1) ||
+        league.phase === 'playoffs' ||
+        league.phase === 'complete'
+      ) {
+        service.seasons[league.season] ??= [0, 0, 0, null, 0, true];
+      }
+    }
+    league.version = 41;
+  }
   return league;
 }
 

@@ -18,6 +18,7 @@ import { computeRecords } from './season/standings';
 import { addStats } from './stats';
 import { recordCoachSeasons } from './coaching';
 import { playoffSummary } from './records';
+import { recordGameService, serviceRoster } from './personnel/service';
 import type { Game, GameResult, League, Player } from './types';
 
 export function gamesInWeek(league: League, week = league.week): Game[] {
@@ -48,11 +49,13 @@ function prunePlayLogs(league: League) {
 function prepareGame(league: League, game: Game) {
   syncDepthChart(league, league.teams[game.homeId]);
   syncDepthChart(league, league.teams[game.awayId]);
+  if (!game.result) game.serviceRoster ??= serviceRoster(league, game);
 }
 
 /** Store a finished game's result, apply what it did to bodies, and credit regular-season stats. */
 export function recordResult(league: League, game: Game, result: GameResult): void {
   if (game.result) return;
+  recordGameService(league, game);
   // Condition and diagnoses are carried by the players, not the game record.
   const { condition, diagnoses, ...kept } = result;
   game.result = kept;

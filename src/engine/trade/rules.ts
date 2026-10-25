@@ -8,6 +8,7 @@ import { minSalary } from '../finance/market';
 import { capHit, deadMoney, isExpired } from '../finance/contract';
 import { rosterLimit } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
+import { onGameRoster } from '../roster';
 import { Rng } from '../rng';
 import type { League, Player, Position, TradeSide } from '../types';
 
@@ -44,6 +45,7 @@ export const isTradeSeason = (league: League) =>
 
 /** Why a player can't be traded at all, by league rules: what every screen can show. */
 export function playerTradeBlocker(league: League, p: Player): string | null {
+  if (p.squad) return 'Practice squad players cannot be traded.';
   if (!p.contract || isExpired(p.contract, league.season)) return 'Not under contract.';
   if (p.ir) return 'On injured reserve.';
   // A trade waits on a physical, and a player who will miss weeks fails it.
@@ -219,7 +221,7 @@ export function tradeProblem(
     const team = league.teams[side.teamId];
     if (impact[i].space < 0) return `${team.name} would be over the cap after this trade.`;
     const roster = rosterOf(ctx, side.teamId);
-    const size = roster.filter((p) => !p.ir).length - side.players.length + other.players.length;
+    const size = roster.filter(onGameRoster).length - side.players.length + other.players.length;
     if (size > rosterLimit(league) && !opts.rosterCuts && side.teamId === league.userTeamId)
       return `${team.name} would have too many players (${size}/${rosterLimit(league)}). Release someone first.`;
     if (league.phase === 'regular') {

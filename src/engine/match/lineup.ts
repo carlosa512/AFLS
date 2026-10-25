@@ -2,7 +2,7 @@ import { skill, useKnocks } from '../attributes';
 import { specialTeamsEdge, teamScheme } from '../coaching';
 import type { TeamScheme } from '../schemes';
 import { knockFor, slotOvr } from '../familiarity';
-import { isAvailable } from '../roster';
+import { isAvailable, onGameRoster } from '../roster';
 import { temperOffset } from '../traits';
 import type { League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
@@ -187,7 +187,7 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     if (!list.length && (pos === 'K' || pos === 'P')) list.push(...at[pos === 'K' ? 'P' : 'K'].slice(0, 1));
     if (list.length < need) {
       const hurt = team.depthChart[pos]
-        .filter((id) => !out.has(id) && !used.has(id) && !league.players[id]?.ir)
+        .filter((id) => !out.has(id) && !used.has(id) && !!league.players[id] && onGameRoster(league.players[id]))
         .slice(0, need - list.length)
         .map((id) => league.players[id]);
       take(hurt);
@@ -197,7 +197,7 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     // even a man already on the field.
     if (list.length === 0) {
       const anyone = POSITIONS.flatMap((from) => team.depthChart[from]).filter(
-        (id) => !out.has(id) && league.players[id] && !league.players[id].ir,
+        (id) => !out.has(id) && league.players[id] && onGameRoster(league.players[id]),
       );
       const best = anyone.map((id) => league.players[id]).sort((a, b) => slotOvr(b, pos) - slotOvr(a, pos))[0];
       if (best) list.push(best);

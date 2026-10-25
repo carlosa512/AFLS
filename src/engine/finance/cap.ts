@@ -4,7 +4,7 @@
  */
 import { STARTERS } from '../positions';
 import { clamp, type Rng } from '../rng';
-import { teamPlayers } from '../roster';
+import { onGameRoster, teamPlayers } from '../roster';
 import type { Contract, League, Phase, Player, Team, Transaction } from '../types';
 import { OFFSEASON_PHASES, POSITIONS } from '../types';
 import {
@@ -109,7 +109,7 @@ export function capSheet(
     dead,
     used,
     space: cap + carryover - used,
-    rosterSize: roster.filter((p) => !p.ir).length,
+    rosterSize: roster.filter(onGameRoster).length,
     top51,
   };
 }
@@ -144,11 +144,13 @@ export function releasePreview(league: League, player: Player, designatePostJune
 
 /** Why a release isn't allowed right now, or null if it is. */
 export function releaseBlocker(league: League, player: Player): string | null {
+  if (player.squad) return 'Practice squad releases use the personnel system.';
   if (player.teamId === null || !player.contract) return 'Not under contract.';
   if (league.phase === 'playoffs' || league.phase === 'complete')
     return 'Roster moves reopen when the new league year begins.';
   if (league.phase === 'regular') {
-    const left = teamPlayers(league, player.teamId).filter((p) => p.position === player.position).length - 1;
+    const left =
+      teamPlayers(league, player.teamId).filter((p) => !p.squad && p.position === player.position).length - 1;
     if (left < STARTERS[player.position])
       return `Keep at least ${STARTERS[player.position]} ${player.position} on the roster during the season.`;
   }
@@ -157,6 +159,7 @@ export function releaseBlocker(league: League, player: Player): string | null {
 
 /** Cut a player: he becomes a free agent and the team books the dead money. */
 export function releasePlayer(league: League, player: Player, designatePostJune1 = false): ReleasePreview {
+  if (player.squad) throw new Error('Practice squad releases use the personnel system.');
   if (player.teamId === null || !player.contract) throw new Error('Player is not under contract');
   const preview = releasePreview(league, player, designatePostJune1);
   const team = league.teams[player.teamId];

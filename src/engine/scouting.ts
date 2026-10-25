@@ -801,7 +801,7 @@ function reference(league: League): Reference {
       t.depthChart[pos]
         .slice(0, STARTERS[pos])
         .map((id) => league.players[id])
-        .filter((x) => x && x.position === pos),
+        .filter((x) => x && !x.squad && x.position === pos),
     );
     starterAvg[pos] = Object.fromEntries(
       ATTRIBUTES.map((a) => [a, starters.reduce((s, p) => s + p.ratings[a], 0) / Math.max(1, starters.length)]),
@@ -812,7 +812,7 @@ function reference(league: League): Reference {
     league.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]))),
   );
   for (const p of Object.values(league.players)) {
-    if (p.teamId === null || p.retired) continue;
+    if (p.teamId === null || p.retired || p.squad) continue;
     const ovr = overall(p.ratings, p.position);
     curves[p.position].push(ovr);
     if (!starterIds.has(p.id)) backups[p.position].push(ovr);

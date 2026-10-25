@@ -21,6 +21,7 @@ import { POSITION_PREMIUM, specialistPenalty } from './positionValue';
 import { computeRecords, winPct } from '../season/standings';
 import type { DraftPick, League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
+import { ensureService } from '../personnel/service';
 
 export const DRAFT_CLASS_SIZE = 260;
 /** How far the league consensus sits from the truth (sd of its grade and of its ceiling). */
@@ -47,6 +48,7 @@ export function generateDraftClass(league: League, rng: Rng): void {
       jerseysUsed: new Set(),
     });
     p.experience = 0;
+    ensureService(p, league.season);
     // Most prospects grow a point or three; a few boom, some never move.
     const growth = Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = Math.round(clamp(playerOvr(p) + growth, playerOvr(p), 20) * 10) / 10;

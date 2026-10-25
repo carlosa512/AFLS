@@ -5,6 +5,7 @@ import type { SeasonAwards, WeeklyAwards } from './awards';
  */
 import type { QuirkId } from './quirks';
 import type { RngState } from './rng';
+import type { PersonnelState, PlayerService, ServiceAssignment, SquadMembership } from './personnel/types';
 import type { Weather } from './weather';
 
 export const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE', 'LB', 'CB', 'S', 'K', 'P'] as const;
@@ -163,6 +164,10 @@ export interface Player {
   jersey: number;
   /** Years of pro experience (0 = rookie). */
   experience: number;
+  /** Separate from calendar experience: accrued, minimum-salary and pension service. */
+  service?: PlayerService;
+  /** Exclusive practice-squad list membership; ordinary active/IR membership remains implicit. */
+  squad?: SquadMembership;
   ratings: Ratings;
   /** Hidden ceiling for overall rating (1–20). Revealed only through scouting. */
   potential: number;
@@ -1042,6 +1047,8 @@ export interface Kickoff {
 }
 
 export interface Game {
+  /** Membership at kickoff, cleared when service is settled with the result. */
+  serviceRoster?: ServiceAssignment[];
   id: number;
   season: number;
   /** 1–18 regular season; 19+ playoffs. */
@@ -1075,6 +1082,8 @@ export interface SeasonSummary {
 }
 
 export interface League {
+  /** Foundation profile; transactions stay disabled until the complete personnel lifecycle ships. */
+  personnel?: PersonnelState;
   /** Save-format version; bump and add a migration when the shape changes. */
   version: number;
   name: string;

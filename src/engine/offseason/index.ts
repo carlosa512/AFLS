@@ -39,6 +39,7 @@ import {
   simDraft,
 } from './draft';
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
+import { archiveService, ensureService } from '../personnel/service';
 
 export const FA_DAYS = 5;
 
@@ -68,6 +69,8 @@ export function beginOffseason(league: League): void {
   const retirees: Player[] = [];
   for (const p of Object.values(league.players)) {
     if (p.retired) continue;
+    // Initialize newly generated fill-ins before calendar experience advances; service is not experience.
+    archiveService(ensureService(p, last), last);
     // Each player's year runs on his own stream: tuning development never reshuffles drafts or
     // schedules, and one player's year doesn't depend on who was developed before him. His coaches
     // are the ones he finished the season with (their deals may be up, but they coached him).
