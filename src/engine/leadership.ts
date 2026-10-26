@@ -20,7 +20,16 @@ import { gmRecord } from './records';
 import { clamp, Rng } from './rng';
 import { computeRecords } from './season/standings';
 import { ensureStaffed, promoteScoutToDirector, staffValue, teamStaff } from './staff';
-import type { Coach, GeneralManager, GmJobOffer, GmJobTerms, League, LeadershipEvent, LeadershipReview, Team } from './types';
+import type {
+  Coach,
+  GeneralManager,
+  GmJobOffer,
+  GmJobTerms,
+  League,
+  LeadershipEvent,
+  LeadershipReview,
+  Team,
+} from './types';
 const name = (gm: GeneralManager) => `${gm.firstName} ${gm.lastName}`;
 const head = (l: League, id: number) => chairHolder(teamCoaches(l, id), { role: 'headCoach' });
 const pct = (r: { w: number; l: number; t: number }) => (r.w + r.t / 2) / Math.max(1, r.w + r.l + r.t);
@@ -229,10 +238,23 @@ function vacancies(l: League) {
 /** Recent results carry more weight than an old winning spell, but titles and playoff work still matter. */
 export function gmReputation(l: League, gm: GeneralManager): number {
   const career = gmRecord(l, gm);
-  const recent = career.seasons.slice().sort((a, b) => b.season - a.season).slice(0, 3);
-  const recentRecord = recent.reduce((r, s) => ({w:r.w+s.regular.w,l:r.l+s.regular.l,t:r.t+s.regular.t}), {w:0,l:0,t:0});
+  const recent = career.seasons
+    .slice()
+    .sort((a, b) => b.season - a.season)
+    .slice(0, 3);
+  const recentRecord = recent.reduce((r, s) => ({ w: r.w + s.regular.w, l: r.l + s.regular.l, t: r.t + s.regular.t }), {
+    w: 0,
+    l: 0,
+    t: 0,
+  });
   if (!career.seasons.length) return 0.4;
-  return clamp(0.6 * pct(recentRecord) + 0.4 * pct(career.regular) + Math.min(0.12, career.playoffTrips * 0.02 + career.titles * 0.04), 0, 1);
+  return clamp(
+    0.6 * pct(recentRecord) +
+      0.4 * pct(career.regular) +
+      Math.min(0.12, career.playoffTrips * 0.02 + career.titles * 0.04),
+    0,
+    1,
+  );
 }
 
 /** The same owner's appetite for a second chance influences player interest and AI candidate rankings. */
@@ -250,13 +272,22 @@ export function gmJobAppeal(l: League, teamId: number): number {
 
 export function gmOfferTerms(l: League, offer: GmJobOffer): GmJobTerms {
   if (offer.terms) return offer.terms;
-  const appeal = gmJobAppeal(l, offer.teamId), trigger = ownerTrigger(l, offer.teamId);
-  const expectation = appeal < 0.4
-    ? trigger > 1.2 ? 'Show clear progress this season. Ownership expects the rebuild to move quickly.' : 'Build a competitive roster and show progress over your first two seasons.'
-    : appeal >= 0.55 ? 'Compete for the playoffs immediately and sustain a winning roster.' : 'Improve the record and put this club in the playoff race.';
+  const appeal = gmJobAppeal(l, offer.teamId),
+    trigger = ownerTrigger(l, offer.teamId);
+  const expectation =
+    appeal < 0.4
+      ? trigger > 1.2
+        ? 'Show clear progress this season. Ownership expects the rebuild to move quickly.'
+        : 'Build a competitive roster and show progress over your first two seasons.'
+      : appeal >= 0.55
+        ? 'Compete for the playoffs immediately and sustain a winning roster.'
+        : 'Improve the record and put this club in the playoff race.';
   const staffing = l.teams[offer.teamId].ownerMandates
     .filter((m) => m.through >= l.season && l.coaches[m.coachId]?.teamId === offer.teamId)
-    .map((m) => `Keep ${coachName(l.coaches[m.coachId])} in the current role through ${m.through}; the contract is already signed.`);
+    .map(
+      (m) =>
+        `Keep ${coachName(l.coaches[m.coachId])} in the current role through ${m.through}; the contract is already signed.`,
+    );
   const review = l.teams[offer.teamId].leadershipReview;
   if (review?.season === l.season && review.outcome === 'coachChange' && head(l, offer.teamId)?.id === review.coachId)
     staffing.push('Hire a different head coach before free agency opens.');
@@ -270,13 +301,18 @@ function jobOffer(l: League, teamId: number, extra: Partial<GmJobOffer> = {}): G
 }
 
 function additionalOffers(l: League): void {
-  const search = l.leadership.search!, user = l.gms[l.userGmId];
+  const search = l.leadership.search!,
+    user = l.gms[l.userGmId];
   if (user.teamId !== null || search.playerDeclined || search.round >= 3) return;
   const rng = new Rng(`${l.seed}:gm-offers:${l.season}:${user.id}:${search.round}`);
   for (const t of rng.shuffle(vacancies(l))) {
     if (search.offers.length >= 3) break;
     if (search.offers.some((o) => o.teamId === t.id) || justLeft(l, user, t.id)) continue;
-    const interest = clamp(0.1 + 0.85 * (gmCandidateScore(l, t.id, user) - 0.25) - 0.15 * gmJobAppeal(l, t.id), 0.04, 0.8);
+    const interest = clamp(
+      0.1 + 0.85 * (gmCandidateScore(l, t.id, user) - 0.25) - 0.15 * gmJobAppeal(l, t.id),
+      0.04,
+      0.8,
+    );
     if (rng.chance(interest)) search.offers.push(jobOffer(l, t.id));
   }
 }
@@ -286,10 +322,13 @@ function justLeft(l: League, user: GeneralManager, teamId: number): boolean {
 }
 export function beginGmSearch(l: League): void {
   if (l.leadership.search?.season === l.season) return;
-  const user = l.gms[l.userGmId], offers: GmJobOffer[] = [];
+  const user = l.gms[l.userGmId],
+    offers: GmJobOffer[] = [];
   const incumbent = user.teamId === null ? undefined : user.appointments.at(-1);
   if (incumbent?.interim) {
-    const record = gmRecord(l, user).seasons.filter((s) => s.teamId === user.teamId && s.season === l.season - 1).at(-1)?.regular;
+    const record = gmRecord(l, user)
+      .seasons.filter((s) => s.teamId === user.teamId && s.season === l.season - 1)
+      .at(-1)?.regular;
     if (new Rng(`${l.seed}:interim-offer:${l.season}:${user.id}`).chance(record && pct(record) >= 0.4 ? 0.8 : 0.35))
       offers.push(jobOffer(l, user.teamId!, { incumbent: true }));
     else endGmAppointment(l, user.id, 'expired');
@@ -300,7 +339,8 @@ export function beginGmSearch(l: League): void {
     const open = vacancies(l).filter((t) => !justLeft(l, user, t.id));
     const pool = open.length ? open : l.teams.filter((t) => !justLeft(l, user, t.id));
     const worst = pool.sort((a, b) => gmJobAppeal(l, a.id) - gmJobAppeal(l, b.id) || a.id - b.id)[0];
-    if (worst) offers.push(jobOffer(l, worst.id, open.length || worst.gmId === null ? {} : { replacesGmId: worst.gmId }));
+    if (worst)
+      offers.push(jobOffer(l, worst.id, open.length || worst.gmId === null ? {} : { replacesGmId: worst.gmId }));
   }
   l.leadership.search = { season: l.season, round: vacancies(l).length || offers.length ? 0 : 3, offers };
   additionalOffers(l);
@@ -340,7 +380,14 @@ export function acceptGmOffer(l: League, teamId: number): void {
   const terms = gmOfferTerms(l, offer);
   user.appointments.at(-1)!.terms = JSON.parse(JSON.stringify(terms));
   const review = l.teams[teamId].leadershipReview;
-  l.teams[teamId].leadershipReview = { season:l.season, week:0, gmId:user.id, coachId:head(l, teamId)?.id, outcome:review?.outcome === 'coachChange' ? 'coachChange' : 'back', reason:[terms.expectation, ...terms.staffing].join(' ') };
+  l.teams[teamId].leadershipReview = {
+    season: l.season,
+    week: 0,
+    gmId: user.id,
+    coachId: head(l, teamId)?.id,
+    outcome: review?.outcome === 'coachChange' ? 'coachChange' : 'back',
+    reason: [terms.expectation, ...terms.staffing].join(' '),
+  };
   if (changingClub) {
     // Scouting visits and trade negotiations belong to the old club, not the person changing jobs.
     l.knowledge = {};

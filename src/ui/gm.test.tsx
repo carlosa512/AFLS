@@ -34,8 +34,8 @@ describe('GM cards and directory', () => {
   });
   it('keeps the interim takeover in a coach’s history after a permanent appointment', () => {
     const l = world();
-    const c = teamCoaches(l, 1).find(c => c.role === 'headCoach')!;
-    c.interimAppointments = [{season:l.season - 1,teamId:1,week:9}];
+    const c = teamCoaches(l, 1).find((c) => c.role === 'headCoach')!;
+    c.interimAppointments = [{ season: l.season - 1, teamId: 1, week: 9 }];
     delete c.interim;
     const html = renderToStaticMarkup(<CoachCard league={l} coach={c} onClose={() => {}} />);
     expect(html).toContain('took over as interim head coach');

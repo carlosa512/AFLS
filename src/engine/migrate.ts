@@ -91,14 +91,23 @@ export function migrateLeague(league: League): League | null {
     for (const e of league.leadership.events) {
       if (e.kind !== 'coachInterim' || e.coachId === undefined) continue;
       const c = league.coaches[e.coachId] ?? league.retiredCoaches[e.coachId];
-      if (c && !c.interimAppointments?.some((a) => a.season === e.date.season && a.teamId === e.teamId && a.week === e.date.week))
-        (c.interimAppointments ??= []).push({season:e.date.season, teamId:e.teamId, week:e.date.week});
+      if (
+        c &&
+        !c.interimAppointments?.some(
+          (a) => a.season === e.date.season && a.teamId === e.teamId && a.week === e.date.week,
+        )
+      )
+        (c.interimAppointments ??= []).push({ season: e.date.season, teamId: e.teamId, week: e.date.week });
     }
     for (const o of league.leadership.search?.offers ?? []) {
       o.expiresRound = 3;
       o.terms ??= gmOfferTerms(league, o);
     }
-    if (league.phase === 'resign' && league.gms[league.userGmId].teamId === null && !league.leadership.search?.offers.length) {
+    if (
+      league.phase === 'resign' &&
+      league.gms[league.userGmId].teamId === null &&
+      !league.leadership.search?.offers.length
+    ) {
       delete league.leadership.search;
       beginGmSearch(league);
     }

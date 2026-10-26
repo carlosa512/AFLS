@@ -153,7 +153,8 @@ export function beginOffseason(league: League): void {
 
 /** Problems the user must fix before the calendar can move on (the season's weeks included). */
 export function offseasonBlockers(league: League): string[] {
-  if (pendingGmOffers(league)) return ['Review your GM offers: accept a position or choose to sit out before leaving the staffing window.'];
+  if (pendingGmOffers(league))
+    return ['Review your GM offers: accept a position or choose to sit out before leaving the staffing window.'];
   if (!employed(league)) return [];
   const issues: string[] = [];
   const teamId = league.userTeamId;
@@ -206,7 +207,8 @@ function openFreeAgency(league: League): void {
 
 /** Move the offseason one step. With `autoUser`, the user's team is run by the AI too. */
 export function advanceOffseason(league: League, opts: { autoUser?: boolean } = {}): Phase {
-  if (!opts.autoUser && pendingGmOffers(league)) throw new Error('Review your GM offers before leaving the staffing window.');
+  if (!opts.autoUser && pendingGmOffers(league))
+    throw new Error('Review your GM offers before leaving the staffing window.');
   return withLeagueAi(league, () => advanceOffseasonControlled(league, opts));
 }
 function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }): Phase {

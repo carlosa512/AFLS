@@ -89,7 +89,8 @@ function offseasonStep(league: League): Step | null {
         then: { view: 'office', tab: 'resign' },
       };
     case 'resign':
-      if (pendingGmOffers(league)) return { label: 'Review GM offers', run: () => {}, then: { view: 'office', tab: 'gms' } };
+      if (pendingGmOffers(league))
+        return { label: 'Review GM offers', run: () => {}, then: { view: 'office', tab: 'gms' } };
       return { label: 'Open free agency', run: (l) => advanceOffseason(l), then: { view: 'office', tab: 'fa' } };
     case 'freeAgency':
       return league.faDay < FA_DAYS

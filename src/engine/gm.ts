@@ -16,7 +16,8 @@ export function gmNameProblem(league: League, gmId: number, first: string, last:
 export function editGmName(league: League, gmId: number, first: string, last: string): void {
   const problem = gmNameProblem(league, gmId, first, last);
   if (problem) throw new Error(problem);
-  const gm = league.gms[gmId], old = `${gm.firstName} ${gm.lastName}`;
+  const gm = league.gms[gmId],
+    old = `${gm.firstName} ${gm.lastName}`;
   gm.firstName = first.trim();
   gm.lastName = last.trim();
   gm.nameEdited = true;
@@ -26,10 +27,11 @@ export function editGmName(league: League, gmId: number, first: string, last: st
     const prior = e.report;
     e.report = prior.replaceAll(old, renamed);
     for (const t of league.transactions) if (t.text === prior) t.text = e.report;
-    for (const m of league.inbox ?? []) if (m.id === `leadership:${e.date.season}:${e.id}`) {
-      m.subject = m.subject.replaceAll(old, renamed);
-      m.body = m.body.replaceAll(old, renamed);
-    }
+    for (const m of league.inbox ?? [])
+      if (m.id === `leadership:${e.date.season}:${e.id}`) {
+        m.subject = m.subject.replaceAll(old, renamed);
+        m.body = m.body.replaceAll(old, renamed);
+      }
   }
 }
 
