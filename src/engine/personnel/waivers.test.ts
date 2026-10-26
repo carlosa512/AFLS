@@ -178,7 +178,7 @@ describe('veteran eligibility, league priority and preferences', () => {
     l.week = TRADE_DEADLINE_WEEK;
     p.service = initialService(4, 2025);
     expect(waiverApplies(l, p)).toBe(false);
-    l.week = TRADE_DEADLINE_WEEK + 1; // releases after the trade deadline week always use waivers
+    l.week = TRADE_DEADLINE_WEEK + 2; // after deadline day, every release uses waivers
     expect(waiverApplies(l, p)).toBe(true);
   });
 
@@ -269,6 +269,15 @@ describe('veteran eligibility, league priority and preferences', () => {
 });
 
 describe('atomic validation and notice boundaries', () => {
+  it('a vested veteran released on trade-deadline day still skips waivers', () => {
+    const p = player();
+    p.service = initialService(6, 2025);
+    l.week = TRADE_DEADLINE_WEEK + 1; // deadline day: week 10's games not yet played
+    expect(waiverApplies(l, p)).toBe(false);
+    l.games.find((g) => g.week === l.week)!.result = {} as GameResult; // the week is under way
+    expect(waiverApplies(l, p)).toBe(true);
+  });
+
   it('a user claim with two cuts is rejected and changes nothing', () => {
     const e = waive();
     const [x, y] = activeRoster(l, l.userTeamId).filter((p) => p.position === 'WR');

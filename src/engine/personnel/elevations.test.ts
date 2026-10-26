@@ -95,6 +95,17 @@ function nextGame(p: Player, week: number, playoff = false) {
 }
 
 describe('temporary call-ups and durable history', () => {
+  it('a kickoff refused for roster size leaves your call-up plans editable', () => {
+    const p = player();
+    planElevation(l, p, g);
+    const extra = structuredClone(activeRoster(l, g.homeId)[0]);
+    extra.id = l.nextPlayerId++;
+    l.players[extra.id] = extra; // 54 on the 53
+    expect(() => preparePersonnelGame(l, g)).toThrow(/cut down to 53/);
+    expect(g.personnel?.elevationsFiled).toBeUndefined();
+    cancelElevation(l, p, g);
+    expect(elevationRecords(l).find((e) => e.playerId === p.id)!.status).toBe('cancelled');
+  });
   it('reserves a single-game cap charge, never a 53 place or a second squad check; cancellation is free', () => {
     const p = player();
     const ids = activeRoster(l, g.homeId).map((p) => p.id);

@@ -60,12 +60,13 @@ export function preparePersonnelGame(league: League, game: Game): void {
   const earlier = league.games.some((g) => g.season === game.season && !g.result && gameTime(g) < gameTime(game));
   if (earlier) throw new Error('Play the earlier games before preparing this kickoff.');
   settleWeek(league);
-  fileElevations(league, game);
+  // Refuse an illegal roster before filing anything, so the fix can still change this game's call-ups.
   for (const id of [game.homeId, game.awayId]) {
     if (activeRoster(league, id).length > 53)
       throw new Error(`${league.teams[id].abbrev} must cut down to 53 before kickoff.`);
     if (capSpace(league, id) < 0) throw new Error(`${league.teams[id].abbrev} must get under the cap before kickoff.`);
   }
+  fileElevations(league, game);
   lockGameDayLists(league, game);
   for (const id of [game.homeId, game.awayId]) {
     const issue = gameDayProblem(league, game, id);

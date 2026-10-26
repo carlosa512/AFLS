@@ -11,7 +11,7 @@ import { computeRecords, winPct } from '../season/standings';
 import type { Contract, League, Player } from '../types';
 import { POSITIONS } from '../types';
 import { personnelClock } from './calendar';
-import { TRADE_DEADLINE_WEEK } from '../trade/rules';
+import { isDeadlineDay, TRADE_DEADLINE_WEEK } from '../trade/rules';
 import { ensureService, serviceSeasons } from './service';
 import type { WaiverClaim, WaiverEntry, WaiverResult } from './types';
 import { PERSONNEL_RULES } from './rules';
@@ -91,7 +91,7 @@ export function waiverApplies(league: League, p: Player): boolean {
   if (
     league.phase === 'playoffs' ||
     league.phase === 'complete' ||
-    (league.phase === 'regular' && league.week > TRADE_DEADLINE_WEEK)
+    (league.phase === 'regular' && league.week > TRADE_DEADLINE_WEEK && !isDeadlineDay(league))
   )
     return true;
   // Completed seasons only: the current year cannot vest the exception early.
