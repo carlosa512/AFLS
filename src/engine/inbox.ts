@@ -79,6 +79,7 @@ import { isDeadlineDay, openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './tra
 import { activeLearning, formerPositions, moveProblem, reasonWords, suggestMove } from './training';
 import type {
   Coach,
+  LeadershipEvent,
   CoachRole,
   CoachRoom,
   GameResult,
@@ -2101,11 +2102,18 @@ function coverMail(league: League, have: Set<string>): Draft[] {
 /** Only your club sends private instructions. Outside reporting never quotes its decision file. */
 export function leadershipMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
+  // Other clubs' in-season changes are gathered by week into one SNN roundup (a lone change stays its own story).
+  const weeks = new Map<string, LeadershipEvent[]>();
   for (const e of league.leadership.events) {
     const id = `leadership:${e.date.season}:${e.id}`;
     if (have.has(id)) continue;
     const personal = e.gmId === league.userGmId;
     const inside = managesTeam(league, e.teamId);
+    if (!inside && !personal && e.date.phase === 'regular') {
+      const key = `${e.date.season}:${e.date.week}`;
+      weeks.set(key, [...(weeks.get(key) ?? []), e]);
+      continue;
+    }
     out.push({
       id,
       season: e.date.season,
@@ -2119,6 +2127,39 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
           ? e.privateText.slice(0, e.privateText.indexOf(' go.') + 3)
           : e.report,
       body: (inside || (personal && e.kind === 'gmDismissed')) && e.privateText ? e.privateText : e.report,
+      actions: [{ kind: 'gms' }],
+    });
+  }
+  for (const [key, events] of weeks) {
+    const e = events[0];
+    if (events.length === 1) {
+      out.push({
+        id: `leadership:${e.date.season}:${e.id}`,
+        season: e.date.season,
+        phase: e.date.phase,
+        week: e.date.week,
+        from: 'SNN league desk',
+        category: 'league',
+        subject: e.report,
+        body: e.report,
+        actions: [{ kind: 'gms' }],
+      });
+      continue;
+    }
+    const id = `leadership-week:${key}`;
+    if (have.has(id)) continue;
+    const coaches = events.some((x) => x.kind.startsWith('coach'));
+    const gms = events.some((x) => x.kind.startsWith('gm'));
+    const clubs = [...new Set(events.map((x) => league.teams[x.teamId].abbrev))].join(', ');
+    out.push({
+      id,
+      season: e.date.season,
+      phase: e.date.phase,
+      week: e.date.week,
+      from: 'SNN league desk',
+      category: 'league',
+      subject: `${coaches && gms ? 'Changes around the league' : coaches ? 'Coaching changes' : 'Front-office changes'}: ${clubs}`,
+      body: events.map((x) => x.report).join('\n\n'),
       actions: [{ kind: 'gms' }],
     });
   }

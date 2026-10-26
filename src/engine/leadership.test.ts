@@ -329,3 +329,76 @@ describe('the owner’s letter when our head coach goes', () => {
     expect(theirs.body).toBe(l.leadership.events[1].report);
   });
 });
+
+describe('the weekly roundup of changes around the league', () => {
+  const event = (
+    l: League,
+    id: number,
+    teamId: number,
+    kind: 'coachInterim' | 'gmDismissed' | 'gmHired',
+    week = 12,
+  ) => {
+    const e = {
+      id,
+      date: { season: l.season, phase: 'regular' as const, week },
+      teamId,
+      kind,
+      report: `${l.teams[teamId].abbrev} ${kind} report ${id}.`,
+    };
+    l.leadership.events.push(e);
+    return e;
+  };
+  const others = (l: League) => l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+  it('gathers other clubs’ in-season changes of one week into one SNN roundup', () => {
+    const l = world();
+    const [a, b] = others(l);
+    const ea = event(l, 1, a, 'coachInterim');
+    const eb = event(l, 2, b, 'coachInterim');
+    const mail = leadershipMail(l, new Set());
+    expect(mail).toHaveLength(1);
+    expect(mail[0].id).toBe(`leadership-week:${l.season}:12`);
+    expect(mail[0].from).toBe('SNN league desk');
+    expect(mail[0].subject).toBe(`Coaching changes: ${l.teams[a].abbrev}, ${l.teams[b].abbrev}`);
+    expect(mail[0].body).toContain(ea.report);
+    expect(mail[0].body).toContain(eb.report);
+  });
+  it('names GM-only weeks and mixed weeks, each club once', () => {
+    const l = world();
+    const [a, b] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    event(l, 2, a, 'gmHired');
+    event(l, 3, b, 'gmDismissed');
+    expect(leadershipMail(l, new Set())[0].subject).toBe(
+      `Front-office changes: ${l.teams[a].abbrev}, ${l.teams[b].abbrev}`,
+    );
+    const m = world();
+    event(m, 1, a, 'gmDismissed');
+    event(m, 2, a, 'coachInterim');
+    event(m, 3, b, 'coachInterim');
+    expect(leadershipMail(m, new Set())[0].subject).toBe(
+      `Changes around the league: ${m.teams[a].abbrev}, ${m.teams[b].abbrev}`,
+    );
+  });
+  it('keeps a single change as its own story and our own club apart', () => {
+    const l = world();
+    const [a] = others(l);
+    const ea = event(l, 1, a, 'coachInterim');
+    event(l, 2, l.userTeamId, 'coachInterim');
+    const mail = leadershipMail(l, new Set());
+    expect(mail).toHaveLength(2);
+    const story = mail.find((m) => m.id === `leadership:${l.season}:1`)!;
+    expect(story.subject).toBe(ea.report);
+    expect(mail.find((m) => m.id === `leadership:${l.season}:2`)!.from).toBe('The owner');
+  });
+  it('does not refile a story an old save already delivered, nor a filed roundup', () => {
+    const l = world();
+    const [a, b, c] = others(l);
+    event(l, 1, a, 'coachInterim');
+    const eb = event(l, 2, b, 'coachInterim');
+    const mail = leadershipMail(l, new Set([`leadership:${l.season}:1`]));
+    expect(mail).toHaveLength(1);
+    expect(mail[0].subject).toBe(eb.report);
+    event(l, 3, c, 'coachInterim');
+    expect(leadershipMail(l, new Set([`leadership-week:${l.season}:12`]))).toHaveLength(0);
+  });
+});
