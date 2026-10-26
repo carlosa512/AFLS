@@ -19,6 +19,7 @@ import { liveLock } from '../live';
 import { Ovr, ScoutedCeiling, seenOvr, viewOf } from '../scouting';
 import { FuturesCell, GameDayPanel, PoachAction, ProtectionCell, SquadSignings } from '../personnel';
 import { futuresWindowOpen } from '../../engine/personnel/futures';
+import { canTurnOnPersonnel, turnOnPersonnel } from '../../engine/personnel/activation';
 import { elevationUses } from '../../engine/personnel/elevations';
 import { store } from '../store';
 
@@ -31,12 +32,27 @@ export function PracticeSquad({ league }: { league: League }) {
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
   const [sort, onSort] = useSort<Key>({ key: 'upside', desc: true });
-  if (!league.personnel?.enabled)
+  if (!league.personnel?.enabled) {
+    const blocked = canTurnOnPersonnel(league);
     return (
       <Panel title="Practice squad">
         <p>Personnel transactions are not active in this career yet.</p>
+        <p className="small muted">
+          Practice squads add up to 16 players a club, waivers, one-game call-ups and squad signings between clubs. Once
+          on, they stay on for this career.
+        </p>
+        <button
+          className="btn btn-primary"
+          disabled={!!blocked}
+          title={blocked ?? undefined}
+          onClick={() => store.mutate(turnOnPersonnel)}
+        >
+          Turn on practice squads
+        </button>
+        {blocked && <p className="small muted">{blocked}</p>}
       </Panel>
     );
+  }
   const members = practiceSquad(league, teamId);
   const pay = squadPayroll(league, teamId);
   const sheet = capSheet(league, teamId);

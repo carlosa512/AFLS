@@ -147,6 +147,26 @@ function doctor(league: League): Sender {
     : { from: 'Medical staff' };
 }
 
+/** Existing careers: the league office offers practice squads once, at the start of the offseason. */
+function personnelOfferMail(league: League, have: Set<string>): Draft[] {
+  if (!league.personnel?.offered || league.personnel.enabled) return [];
+  const id = `personnelOffer:${league.season}`;
+  if (have.has(id) || (league.inbox ?? []).some((m) => m.id.startsWith('personnelOffer:'))) return [];
+  return [
+    {
+      id,
+      season: league.season,
+      phase: league.phase,
+      week: 0,
+      from: 'League office',
+      category: 'league',
+      subject: 'Practice squads are available',
+      body: 'Clubs can now carry a practice squad of up to 16 players, with waivers, one-game call-ups and squad signings between clubs. You can turn them on for this career on the practice squad desk until training camp opens. Once on, they stay on.',
+      actions: [{ kind: 'team', teamId: league.userTeamId }],
+    },
+  ];
+}
+
 /** Waivers that concern you: a claim you made, won or lost, and a player you released, claimed or cleared. */
 function waiverMail(league: League, have: Set<string>): Draft[] {
   const user = league.userTeamId;
@@ -769,6 +789,7 @@ export type MailSubject =
   | { kind: 'shortHanded'; season: number; week: number; pos: Position }
   | { kind: 'squadPoach'; season: number; week: number; playerId: number }
   | { kind: 'futures'; season: number }
+  | { kind: 'personnelOffer'; season: number }
   | { kind: 'waiverClaim'; season: number; entryId: number }
   | { kind: 'waiverOut'; season: number; entryId: number }
   | { kind: 'callups'; season: number; playerId: number }
@@ -863,6 +884,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'waiverOut', season, entryId: Number(a) };
     case 'callups':
       return { kind: 'callups', season, playerId: Number(a) };
+    case 'personnelOffer':
+      return { kind: 'personnelOffer', season };
     case 'futures':
       return { kind: 'futures', season };
     case 'futuresKept':
@@ -2333,6 +2356,7 @@ export function deliverMail(league: League): void {
         ...staffDealsMail(league, have),
         ...newYearMail(league, have),
         ...futuresKeptMail(league, have),
+        ...personnelOfferMail(league, have),
       );
     if (league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...futuresMail(league, have));
     if (league.phase === 'preseason' || league.phase === 'regular' || league.phase === 'playoffs')

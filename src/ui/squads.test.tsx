@@ -91,4 +91,10 @@ describe('practice squad desk', () => {
       expect(html).toContain('Scouted ceiling');
     }
   });
+  it('an old career can turn practice squads on from the desk in the offseason only', () => {
+    const l = createLeague({ seed: 'squad-ui-switch' });
+    expect(renderToStaticMarkup(<PracticeSquad league={l} />)).toMatch(/disabled=""[^>]*>Turn on practice squads/);
+    l.phase = 'freeAgency';
+    expect(renderToStaticMarkup(<PracticeSquad league={l} />)).not.toMatch(/disabled=""[^>]*>Turn on practice squads/);
+  });
 });

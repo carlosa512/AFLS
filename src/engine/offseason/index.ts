@@ -139,6 +139,8 @@ export function beginOffseason(league: League): void {
     quirkOffseason(league, p);
   }
   expireSquadContracts(league);
+  // Careers from before practice squads get one offer to switch them on (the squad desk, until camp).
+  if (league.personnel && !league.personnel.enabled && !league.personnel.offered) league.personnel.offered = true;
   injuriesNewYear(league);
   resetScouting(league);
   developStaff(league);
