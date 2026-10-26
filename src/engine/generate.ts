@@ -629,6 +629,11 @@ export interface NewLeagueOptions {
   userTeamId?: number;
   season?: number;
   name?: string;
+  /**
+   * The user takes over the club's own scouts, coaches and medics instead of a fresh, typical staff, so the
+   * staff grades on New Game are what he inherits. Off by default: scripts and tests keep the typical start.
+   */
+  inheritStaff?: boolean;
 }
 
 export function createLeague(options: NewLeagueOptions = {}): League {
@@ -753,10 +758,13 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   league.rngState = rng.getState();
   initializeGms(league, true);
   // Scouting departments, coaching and medical staffs and the officiating crews draw from their own
-  // seeded streams: the players and schedule above are unchanged by them.
+  // seeded streams: the players and schedule above are unchanged by them. Inheriting builds every club's
+  // staff as an AI club's (no user while they're hired), so the same seed gives the same staffs whoever is picked.
+  if (options.inheritStaff) league.userTeamId = -1;
   generateStaffWorld(league);
   generateCoachingWorld(league);
   generateMedicalWorld(league);
+  league.userTeamId = options.userTeamId ?? 0;
   generateCrews(league);
   return league;
 }

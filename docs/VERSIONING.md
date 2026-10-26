@@ -5,6 +5,8 @@ AFLS versions are `MAJOR.MINOR.PATCH`, set in `package.json` and shown on the ma
 - **Middle number (MINOR):** bump it when an MVP item in `docs/MVP.md` goes to Done, and reset PATCH to 0.
   Example: `0.1.3` → `0.2.0`.
 - **Last number (PATCH):** bump it for fixes and anything else that doesn't finish an MVP item. Example: `0.2.0` → `0.2.1`.
+- **Every bump adds an entry** to `src/ui/changelog.ts` (newest first): a title and one short paragraph, in a
+  player's words, about what the version added. Players read it from the version tag on any screen.
 - **Alpha** is reached when every MVP item is Done.
 - **1.0.0** is release.
 

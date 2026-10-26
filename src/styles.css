@@ -196,6 +196,38 @@ h3 {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+/* The version tag is a button: it opens the version history. */
+.version-tag {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.app-version.version-tag {
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+.version-tag:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.changelog {
+  display: grid;
+  gap: 4px;
+}
+.changelog details {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 0;
+}
+.changelog summary {
+  cursor: pointer;
+}
+.changelog p {
+  margin: 6px 0 2px;
+  color: var(--ink);
+}
 .actions {
   display: flex;
   gap: 8px;
@@ -1263,6 +1295,20 @@ button.strip-line:hover .ab {
   display: block;
   color: var(--muted);
   font-size: 0.75rem;
+}
+/* Coach · Scout · Med: the staff a new manager inherits, graded as the staff screens grade them. */
+.team-option .staff-grades {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-top: -6px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.team-option .staff-grades .grade {
+  min-width: 1.6em;
+  padding: 0 4px;
 }
 .start-bar {
   position: sticky;
