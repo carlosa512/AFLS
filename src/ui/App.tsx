@@ -36,7 +36,7 @@ import { Stats } from './screens/Stats';
 import { hashToRoute, isHistoryEntry, routeToHash, type HistoryEntry, type Route } from './routes';
 import { MAX_COMPARE, NavContext, type Nav, type StaffKind } from './nav';
 import { store, useLeague } from './store';
-import { APP_VERSION } from './version';
+import { VersionTag } from './versionHistory';
 
 export type { Route };
 
@@ -290,7 +290,7 @@ export function App() {
                 {recordText(record)}
               </span>
             </div>
-            <span className="app-version">{APP_VERSION}</span>
+            <VersionTag />
           </div>
           {/* The live game has its own controls; Resume and a season sim would only be stray taps there. */}
           {route.view !== 'live' && (

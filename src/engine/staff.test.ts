@@ -1,7 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { coachingGrades } from './coaching';
 import { createLeague, SAVE_VERSION } from './generate';
 import { simToEndOfSeason } from './league';
+import { medicalGrades } from './medical';
 import { migrateLeague } from './migrate';
 import { advanceOffseason, beginOffseason, simOffseason } from './offseason';
 import { boardOf, draftOrder, simDraft } from './offseason/draft';
@@ -10,6 +12,7 @@ import { Rng } from './rng';
 import { isProspect, knowledge, perceive } from './scouting';
 import {
   accuracy,
+  departmentGrades,
   departmentScore,
   ensureStaffed,
   extendStaff,
@@ -79,6 +82,15 @@ describe('scouting departments', () => {
     const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
     expect(Math.abs(mean)).toBeLessThan(0.12);
     expect(Math.abs(departmentScore(league, league.userTeamId) - mean)).toBeLessThan(0.15);
+  });
+
+  it('hands the picked club the staff New Game graded when the user inherits it', () => {
+    const preview = createLeague({ seed: 'inherit', inheritStaff: true });
+    const picked = createLeague({ seed: 'inherit', userTeamId: 7, inheritStaff: true });
+    expect(picked.userTeamId).toBe(7);
+    for (const grades of [departmentGrades, coachingGrades, medicalGrades])
+      expect([...grades(picked)]).toEqual([...grades(preview)]);
+    expect(teamStaff(picked, 7).map((s) => s.id)).toEqual(teamStaff(preview, 7).map((s) => s.id));
   });
 
   it('reads a group with its specialist, an off-focus scout poorly, and the Director as fallback', () => {
