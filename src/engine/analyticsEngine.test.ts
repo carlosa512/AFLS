@@ -25,6 +25,10 @@ describe('counting the advanced numbers', () => {
         expect(ts.adv!.success).toBeLessThanOrEqual(ts.adv!.plays);
         expect(ts.adv!.pressured).toBeLessThanOrEqual(ts.adv!.dropbacks);
         expect(ts.adv!.dropbacks).toBeGreaterThanOrEqual(ts.sacked);
+        // Attempts and sacks are dropbacks; spikes aren't, scrambles are (on top of attempts and sacks).
+        expect(ts.adv!.dropbacks - (ts.passAtt + ts.sacked)).toBeGreaterThanOrEqual(-3);
+        // Saved to three decimals: a game's EPA is a measure, not a fortune.
+        expect(Math.round(ts.adv!.epa * 1000) / 1000).toBe(ts.adv!.epa);
       }
   });
   it('credits EPA and dropbacks to passers and rushers so they sum to the team', () => {
@@ -34,15 +38,19 @@ describe('counting the advanced numbers', () => {
           .map(Number)
           .filter((id) => x.r.playerTeams[id] === teamId);
         const sum = (key: 'epa' | 'dropbacks') => mine.reduce((a, id) => a + (x.r.playerStats[id][key] ?? 0), 0);
-        expect(sum('epa')).toBeCloseTo(ts.adv!.epa, 6);
+        expect(sum('epa')).toBeCloseTo(ts.adv!.epa, 1);
         expect(sum('dropbacks')).toBe(ts.adv!.dropbacks);
       }
   });
   it('counts pass-rush snaps for defenders on dropbacks only', () => {
     for (const x of played) {
-      const lines = Object.values(x.r.playerStats);
-      expect(lines.reduce((a, s) => a + (s.rushSnaps ?? 0), 0)).toBeGreaterThan(0);
-      for (const s of lines) expect(s.rushSnaps ?? 0).toBeLessThanOrEqual(s.snaps ?? 0);
+      const lines = Object.entries(x.r.playerStats);
+      expect(lines.reduce((a, [, s]) => a + (s.rushSnaps ?? 0), 0)).toBeGreaterThan(0);
+      for (const [id, s] of lines) {
+        // A rusher can't rush more often than the other side dropped back (scrambles included, spikes not).
+        const faced = x.r.playerTeams[Number(id)] === x.g.homeId ? x.r.away.adv! : x.r.home.adv!;
+        expect(s.rushSnaps ?? 0).toBeLessThanOrEqual(faced.dropbacks);
+      }
     }
   });
 });

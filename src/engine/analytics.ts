@@ -15,8 +15,8 @@ export interface PlayState {
 
 /**
  * Expected points on first and ten by field position: the next score in the half, fitted to this engine's own
- * games (about 40,000 plays) so a league of average offenses adds about nothing a play, as the NFL's does. The shape
- * is the NFL's: a little under one point at the 25, about two and a half at midfield, flattening near the goal.
+ * games (about 40,000 plays). With fourth down valued as the punt or kick that follows (`fourthDownValue`), a league
+ * of average offenses adds about nothing a play, as the NFL's does (`npm run sim` prints the league's numbers).
  */
 const FIRST_DOWN: readonly [number, number][] = [
   [1, -0.3],
@@ -30,12 +30,6 @@ const FIRST_DOWN: readonly [number, number][] = [
   [85, 4.4],
   [99, 5.4],
 ];
-/**
- * The fit measures the next score from a play; EPA adds up play by play within drives, which ends scoring drives and
- * turnovers a little differently. Lowering the whole table by this much brings a league-average offense back to
- * about nothing added a play (`npm run sim` prints the league's numbers).
- */
-const LEVEL = 0.45;
 /** A later down costs points, more with distance to go (fitted the same way); never more than a punt's worth. */
 const DOWN_CAP = 3.4;
 
@@ -61,10 +55,34 @@ export function expectedPoints(down: number, distance: number, yardLine: number)
         : down >= 4
           ? 2.2 + 0.2 * Math.max(0, distance - 1)
           : 0;
-  return firstAndTen(yardLine) - LEVEL - Math.min(DOWN_CAP, cost);
+  return firstAndTen(yardLine) - Math.min(DOWN_CAP, cost);
 }
 
-const ep = (s: PlayState) => expectedPoints(s.down, s.distance, s.yardLine);
+/** A punt's net: the opponent takes over about this far downfield, at its own 20 on a touchback. */
+const PUNT_NET = 40;
+
+/**
+ * Fourth down, valued as what usually follows: a punt (the opponent's ball where it lands), a field-goal try, or going
+ * for it (the table). Punts and kicks never pass the counting point (`countAdvanced`), so a failed third down ends its
+ * drive here: valuing this spot as a near-turnover would charge every punt drive an interception's worth.
+ */
+export function fourthDownValue(s: PlayState): number {
+  // Going for it: the first down it earns, or the ball over on downs, by the odds of converting at this distance.
+  const convert = Math.min(0.75, Math.max(0.15, 0.75 - 0.05 * (s.distance - 1)));
+  const goFor =
+    convert * expectedPoints(1, 10, Math.min(99, s.yardLine + s.distance)) -
+    (1 - convert) * expectedPoints(1, 10, Math.max(1, 100 - s.yardLine));
+  const punt = -expectedPoints(1, 10, Math.max(20, 100 - (s.yardLine + PUNT_NET)));
+  const kick = 100 - s.yardLine + 17;
+  if (kick > 58) return Math.max(goFor, punt);
+  // Make odds by distance, about the NFL's: nine in ten from 40, seven in ten from 50.
+  const make = Math.min(0.97, Math.max(0.3, 1.65 - 0.019 * kick));
+  const fg =
+    make * (3 - expectedPoints(1, 10, 25)) - (1 - make) * expectedPoints(1, 10, Math.max(20, 100 - s.yardLine + 7));
+  return Math.max(goFor, punt, fg);
+}
+
+const ep = (s: PlayState) => (s.down >= 4 ? fourthDownValue(s) : expectedPoints(s.down, s.distance, s.yardLine));
 
 /**
  * Expected points added by a play, from the offense's side. Points scored on it (either way) end the reckoning; else
@@ -85,7 +103,8 @@ export function isSuccess(down: number, distance: number, gained: number, touchd
   return gained >= share * distance;
 }
 
-/** A run of 10 yards or more, or a completion of 20 or more. */
-export function isExplosive(kind: 'run' | 'pass', gained: number, complete: boolean): boolean {
+/** A run of 10 yards or more, or a completion of 20 or more, that the offense kept. */
+export function isExplosive(kind: 'run' | 'pass', gained: number, complete: boolean, turnover = false): boolean {
+  if (turnover) return false;
   return kind === 'run' ? gained >= 10 : complete && gained >= 20;
 }

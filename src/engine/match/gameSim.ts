@@ -710,17 +710,22 @@ class GameSim {
     const touchdown = this.score[side] - scoreBefore[side] >= 6;
     const success = !result.turnover && isSuccess(s.down, s.distance, result.yards, touchdown);
     const dropback = result.kind !== 'run';
+    const lost = !!result.turnover;
     const explosive = dropback
       ? result.kind === 'scramble'
-        ? isExplosive('run', result.yards, false)
-        : isExplosive('pass', result.yards, !!result.complete)
-      : isExplosive('run', result.yards, false);
+        ? isExplosive('run', result.yards, false, lost)
+        : isExplosive('pass', result.yards, !!result.complete, lost)
+      : isExplosive('run', result.yards, false, lost);
     adv.plays++;
     adv.epa += epa;
     if (success) adv.success++;
     if (explosive) adv.explosive++;
     const carrier = dropback ? this.lineups[side].qb : result.stats.entries.find(([, key]) => key === 'rushAtt')?.[0];
     if (dropback) {
+      // Who rushed the passer on it: the front on the field and the rotation, once each (pressure-rate samples).
+      const defSide = (1 - side) as Side;
+      const front = this.fields[defSide][1].filter((p) => p.position === 'EDGE' || p.position === 'DT');
+      for (const p of new Set([...front, ...this.lineups[defSide].rushRotation])) this.tally(p, 'rushSnaps', 1);
       adv.dropbacks++;
       adv.passEpa += epa;
       if (success) adv.passSuccess++;
@@ -829,13 +834,6 @@ class GameSim {
       }
       // The pass-rush rotation is in the hunt on every dropback (`rushers`): a snap each, no wear (they rest between).
       if (!offense && passing) for (const p of this.lineups[side].rushRotation) this.countSnap(p);
-      // Who rushed the passer: the front on the field and the rotation, once each (`analytics.ts` rates).
-      if (!offense && passing)
-        for (const p of new Set([
-          ...def.filter((x) => x.position === 'EDGE' || x.position === 'DT'),
-          ...this.lineups[side].rushRotation,
-        ]))
-          this.tally(p, 'rushSnaps', 1);
       for (const p of offense ? def : off) {
         const b = this.body(p);
         b.energy = Math.min((p.condition ?? 100) - HELD_SHARE * b.spent, b.energy + SIDELINE_REST);
@@ -3316,6 +3314,11 @@ class GameSim {
           break;
         }
       }
+    // The advanced numbers are measures: three decimals keep every saved box score small.
+    const thousandth = (v: number) => Math.round(v * 1000) / 1000;
+    for (const ts of [home, away])
+      if (ts.adv) for (const k of ['epa', 'passEpa', 'rushEpa'] as const) ts.adv[k] = thousandth(ts.adv[k]);
+    for (const line of Object.values(this.playerStats)) if (line.epa !== undefined) line.epa = thousandth(line.epa);
     return {
       ...(this.coachReports.length || reactions.length ? { coaching: [...this.coachReports, ...reactions] } : {}),
       ...(Object.keys(this.formOut).length ? { form: this.formOut } : {}),
