@@ -6,3 +6,4 @@ dist-single/
 .claude/worktrees/
 .DS_Store
 work/
+.superpowers/
