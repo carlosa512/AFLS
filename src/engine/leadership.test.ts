@@ -10,6 +10,8 @@ import {
   leadershipNewYear,
   interimLetter,
   leadershipWeek,
+  pendingGmOffers,
+  userExtensionOffer,
 } from './leadership';
 import { leadershipMail } from './inbox';
 import {
@@ -500,5 +502,91 @@ describe('a roundup week with a late change', () => {
         report: 'r',
       });
     expect(leadershipMail(l, new Set([`leadership-week:${l.season}:12`]))).toHaveLength(0);
+  });
+});
+
+describe('your contract offer', () => {
+  /** The user's deal ran out last season; no history, so the owner keeps everyone. */
+  function expiring() {
+    const l = world();
+    l.phase = 'resign';
+    l.gms[l.userGmId].appointments.at(-1)!.through = l.season - 1;
+    delete l.leadership.search;
+    return l;
+  }
+  it('offers the user an extension instead of extending silently', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    const o = userExtensionOffer(l)!;
+    expect(o).toMatchObject({ teamId: l.userTeamId, through: l.season + 2, incumbent: true, extension: true });
+    expect(l.leadership.search!.offers[0]).toBe(o);
+    expect(l.gms[l.userGmId].appointments.at(-1)!.through).toBe(l.season - 1);
+    expect(l.leadership.events.some((e) => e.kind === 'gmExtended' && e.gmId === l.userGmId)).toBe(false);
+    expect(pendingGmOffers(l)).toBe(true);
+    expect(() => advanceOffseason(l)).toThrow(/offer/);
+  });
+  it('makes a one-year prove-it offer on a warning', () => {
+    const l = expiring();
+    const t = l.teams[l.userTeamId];
+    t.leadershipReview = { season: l.season, week: 0, gmId: l.userGmId, outcome: 'warning', reason: 'Progress.' };
+    beginGmSearch(l);
+    expect(userExtensionOffer(l)!.through).toBe(l.season);
+  });
+  it('accepting extends the deal and files the public line', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    l.knowledge[10] = 1;
+    acceptGmOffer(l, l.userTeamId);
+    expect(l.gms[l.userGmId].appointments.at(-1)!.through).toBe(l.season + 2);
+    expect(l.leadership.events.at(-1)).toMatchObject({ kind: 'gmExtended', gmId: l.userGmId });
+    expect(l.knowledge[10]).toBe(1);
+    expect(pendingGmOffers(l)).toBe(false);
+  });
+  it('declining ends the job and still guarantees a way back, never at our old club', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    const old = l.userTeamId;
+    declineGmOffers(l);
+    const user = l.gms[l.userGmId];
+    expect(user.teamId).toBeNull();
+    expect(user.appointments.at(-1)!.reason).toBe('expired');
+    const offers = l.leadership.search!.offers;
+    expect(offers.length).toBeGreaterThan(0);
+    expect(offers.every((o) => o.teamId !== old && !o.extension)).toBe(true);
+    expect(l.leadership.search!.playerDeclined).toBeFalsy();
+    expect(pendingGmOffers(l)).toBe(true);
+  });
+  it('sim offseason accepts the extension', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    advanceGmHiringRound(l, { autoUser: true });
+    expect(l.gms[l.userGmId].appointments.at(-1)!.through).toBe(l.season + 2);
+    expect(l.gms[l.userGmId].teamId).toBe(l.userTeamId);
+  });
+  it('makes no extension offer when the owner lets the user go', () => {
+    const l = expiring();
+    l.teams[l.userTeamId].leadershipReview = {
+      season: l.season,
+      week: 0,
+      gmId: l.userGmId,
+      outcome: 'gmChange',
+      reason: 'Change.',
+    };
+    beginGmSearch(l);
+    expect(userExtensionOffer(l)).toBeUndefined();
+  });
+  it('gives an interim user the permanent offer, never an extension', () => {
+    const l = expiring();
+    l.gms[l.userGmId].appointments.at(-1)!.interim = true;
+    leadershipNewYear(l);
+    expect(l.leadership.search!.offers.some((o) => o.extension)).toBe(false);
+  });
+  it('still extends AI GMs in place', () => {
+    const l = expiring();
+    const gm = l.gms[l.teams.find((t) => t.id !== l.userTeamId)!.gmId!];
+    gm.appointments.at(-1)!.through = l.season - 1;
+    leadershipNewYear(l);
+    expect(gm.appointments.at(-1)!.through).toBe(l.season + 2);
+    expect(l.leadership.events.some((e) => e.kind === 'gmExtended' && e.gmId === gm.id)).toBe(true);
   });
 });

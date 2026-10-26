@@ -982,6 +982,8 @@ export interface GmJobOffer {
   through: number;
   expiresRound: number;
   incumbent?: boolean;
+  /** The owner's offer to extend the user in the job he already holds: accept, or decline and go into the job market. */
+  extension?: boolean;
   /** A quiet-year conditional offer replaces this incumbent only on acceptance. */
   replacesGmId?: number;
   terms?: GmJobTerms;

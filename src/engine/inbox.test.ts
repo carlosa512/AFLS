@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { acceptGmOffer, userExtensionOffer } from './leadership';
 import { seasonAwards } from './awards';
 import { coachTitle, isCoachExpiring, teamCoaches } from './coaching';
 import { logTransaction, releasePlayer } from './finance/cap';
@@ -309,6 +310,9 @@ describe('inbox', () => {
     expect(year.filter((m) => m.category === 'retirement')).toHaveLength(retired.length);
     // The NFL's combine wraps up just before free agency opens: not yet.
     expect(league.inbox!.some((m) => m.id === `scouting:${league.season}:combine`)).toBe(false);
+    // Our GM's deal is up: the owner's extension offer must be answered before the window closes.
+    const extension = userExtensionOffer(league);
+    if (extension) acceptGmOffer(league, extension.teamId);
     do {
       advanceOffseason(league);
     } while (league.phase === 'resign');

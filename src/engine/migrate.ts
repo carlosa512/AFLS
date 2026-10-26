@@ -152,6 +152,8 @@ export function migrateLeague(league: League): League | null {
     for (const m of league.inbox ?? []) if (clubs.has(m.from)) m.fromTeamId = clubs.get(m.from);
     league.version = 49;
   }
+  // v50: optional `GmJobOffer.extension` and `InboxMessage.carousel`; an older save's GM was already extended.
+  if (league.version < 50) league.version = 50;
   return league;
 }
 
