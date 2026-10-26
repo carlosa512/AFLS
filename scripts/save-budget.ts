@@ -18,6 +18,10 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // against 15,100 over six seasons); players growth 862 KB a season against 800 (castoffs retire but, like every
   // retiree, stay in the save until retirees are pruned).
   practiceSquads: { firstSeason: 900, retainedSeasons: 1100, games: 0, annualGrowth: 0, playersGrowth: 80 },
+  // Per-game advanced stats (EPA, success, explosives: TeamGameStats.adv) and the Gazette's numbers desk, on top of
+  // practice squads: measured with both at 8,229 KB first season against 8,150, 16,625 KB retained against 16,200,
+  // players growth 902 KB against 880 (0.2.0 merge). A modest allowance agreed by the owner, not a leak.
+  analytics: { firstSeason: 300, retainedSeasons: 700, games: 0, annualGrowth: 0, playersGrowth: 40 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(
