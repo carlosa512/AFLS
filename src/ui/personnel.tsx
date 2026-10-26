@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { capSpace } from '../engine/finance/cap';
+import { capHit } from '../engine/finance/contract';
 import { activeRoster } from '../engine/roster';
 import {
   cancelElevation,
@@ -26,6 +27,15 @@ import { playingHurt } from '../engine/roster';
 import type { League, Player } from '../engine/types';
 import { Dialog, Panel, PlayerLink, TeamLink, SortTh, sortRows, useSort } from './components';
 import { liveLock } from './live';
+import {
+  cancelPoachOffer,
+  pinnedIds,
+  poachContract,
+  poachProblem,
+  protectedThisWeek,
+  setPin,
+  submitPoachOffer,
+} from '../engine/personnel/poaching';
 import { Ovr, viewOf } from './scouting';
 import { money, weeklyMoney } from './format';
 import { store } from './store';
@@ -330,6 +340,152 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
           </table>
         </div>
       </details>
+    </Panel>
+  );
+}
+
+/** Your squad: whether he's protected this week (automatic or pinned) and the "Always protect" pin. */
+export function ProtectionCell({ league, player }: { league: League; player: Player }) {
+  const teamId = player.teamId;
+  if (!league.personnel?.enabled || teamId === null || player.squad?.kind !== 'practiceSquad') return null;
+  const pins = pinnedIds(league, teamId);
+  const pinned = pins.includes(player.id);
+  const covered = protectedThisWeek(league, teamId).includes(player.id);
+  return (
+    <span className="row">
+      {covered ? (
+        <span className="pill" title="Protected from other clubs this week">
+          Protected · {pinned ? 'pinned' : 'auto'}
+        </span>
+      ) : pinned ? (
+        <span className="small muted">Protected from next week</span>
+      ) : null}
+      {teamId === league.userTeamId && (
+        <button
+          className="btn btn-sm"
+          disabled={!pinned && pins.length >= 2}
+          title={!pinned && pins.length >= 2 ? 'Two players are already always protected.' : undefined}
+          onClick={() => store.mutate((l) => setPin(l, teamId, player.id, !pinned))}
+        >
+          {pinned ? 'Unpin' : 'Always protect'}
+        </button>
+      )}
+    </span>
+  );
+}
+
+/** Another club's squad player: sign him to our 53. The offer waits for the week's settle. */
+export function PoachAction({ league, player }: { league: League; player: Player }) {
+  const [open, setOpen] = useState(false);
+  const [years, setYears] = useState<1 | 2>(1);
+  const from = player.teamId;
+  const us = league.userTeamId;
+  if (!league.personnel?.enabled || from === null || from === us || player.squad?.kind !== 'practiceSquad') return null;
+  if (protectedThisWeek(league, from).includes(player.id)) return <span className="small muted">Protected</span>;
+  const pending = league.personnel.poaching?.offers.some((o) => o.teamId === us && o.playerId === player.id);
+  if (pending)
+    return (
+      <button
+        className="btn btn-sm"
+        disabled={!!liveLock()}
+        onClick={() => store.mutate((l) => cancelPoachOffer(l, us, player.id))}
+      >
+        Withdraw offer
+      </button>
+    );
+  const offer = { playerId: player.id, teamId: us, years };
+  const issue = liveLock() ?? poachProblem(league, offer);
+  const cost = capHit(poachContract(league, player, years), league.season);
+  const space = capSpace(league, us);
+  return (
+    <>
+      <button className="btn btn-sm" disabled={!!issue} title={issue ?? undefined} onClick={() => setOpen(true)}>
+        Sign to our 53
+      </button>
+      {open && (
+        <Dialog
+          title="Sign him to your 53?"
+          onClose={() => setOpen(false)}
+          footer={
+            <>
+              <button className="btn" onClick={() => setOpen(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={!!issue}
+                onClick={() => {
+                  store.mutate((l) => submitPoachOffer(l, offer));
+                  setOpen(false);
+                }}
+              >
+                Make offer
+              </button>
+            </>
+          }
+        >
+          <p>
+            <PlayerLink league={league} player={player} /> joins your 53 from the <TeamLink team={league.teams[from]} />{' '}
+            practice squad on a minimum deal, three weeks of it guaranteed. It's decided before this week's first
+            kickoff; another club may offer more years.
+          </p>
+          <label className="row">
+            Years{' '}
+            <select value={years} onChange={(e) => setYears(Number(e.target.value) as 1 | 2)}>
+              <option value={1}>1</option>
+              <option value={2}>2</option>
+            </select>
+          </label>
+          <div className="facts">
+            <span className="fact">
+              <span className="eyebrow">Cap hit this year</span>
+              <b>{money(cost)}</b>
+            </span>
+            <span className="fact">
+              <span className="eyebrow">Cap space after</span>
+              <b>
+                {money(space)} → {money(space - cost)}
+              </b>
+            </span>
+          </div>
+          {issue && <p role="alert">{issue}</p>}
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+/** Your waiting offers and the league's latest squad signings. */
+export function SquadSignings({ league }: { league: League }) {
+  const state = league.personnel?.poaching;
+  const mine = state?.offers.filter((o) => o.teamId === league.userTeamId) ?? [];
+  const recent = (state?.results ?? [])
+    .filter((r) => r.toTeamId !== null)
+    .slice(-10)
+    .reverse();
+  return (
+    <Panel title="Squad signings">
+      <p className="small muted">
+        Any club can sign another club's practice squad player to its 53, except the two each club protects this week
+        and a club it plays this week. Offers are decided before the week's first kickoff.
+      </p>
+      {mine.map((o) => (
+        <p key={o.playerId}>
+          Your offer: <PlayerLink league={league} player={league.players[o.playerId]} /> · {o.years}{' '}
+          {o.years === 1 ? 'year' : 'years'}
+        </p>
+      ))}
+      {recent.length ? (
+        recent.map((r) => (
+          <p className="small" key={`${r.season}:${r.week}:${r.playerId}`}>
+            Week {r.week}: <TeamLink team={league.teams[r.toTeamId!]} /> signed{' '}
+            <PlayerLink league={league} player={league.players[r.playerId]} /> from{' '}
+            <TeamLink team={league.teams[r.fromTeamId]} />
+          </p>
+        ))
+      ) : (
+        <p className="small muted">No squad signings yet this season.</p>
+      )}
     </Panel>
   );
 }

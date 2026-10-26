@@ -6,6 +6,8 @@ import { squadCandidates } from '../engine/personnel/squadMarket';
 import { squadRates } from '../engine/personnel/eligibility';
 import { practiceSquad } from '../engine/roster';
 import { contractLabel } from './contracts';
+import { protectionPicks, setPin } from '../engine/personnel/poaching';
+import { PoachAction, ProtectionCell } from './personnel';
 import { hashToRoute, routeToHash } from './routes';
 import { PracticeSquad } from './screens/PracticeSquad';
 
@@ -40,5 +42,25 @@ describe('practice squad desk', () => {
     submitSquadOffer(l, { teamId: 1, playerId: p.id, weeklyPay: squadRates(l, p).min });
     expect(renderToStaticMarkup(<PracticeSquad league={l} />)).toBe(html);
     expect(contractLabel(l, practiceSquad(l, l.userTeamId)[0])).toContain('Practice squad');
+  });
+  it('shows protection with a pin toggle on your squad', () => {
+    const l = createLeague({ seed: 'squad-ui-poach', personnel: true, userTeamId: 0 });
+    const [auto] = protectionPicks(l, 0);
+    expect(renderToStaticMarkup(<ProtectionCell league={l} player={l.players[auto]} />)).toContain('Protected · auto');
+    const other = practiceSquad(l, 0).find((p) => !protectionPicks(l, 0).includes(p.id))!;
+    const open = renderToStaticMarkup(<ProtectionCell league={l} player={other} />);
+    expect(open).toContain('Always protect');
+    setPin(l, 0, other.id, true);
+    expect(renderToStaticMarkup(<ProtectionCell league={l} player={other} />)).toContain('Protected · pinned');
+  });
+  it("offers 'Sign to our 53' on another club's unprotected players only", () => {
+    const l = createLeague({ seed: 'squad-ui-poach', personnel: true, userTeamId: 0 });
+    const theirs = practiceSquad(l, 7);
+    const shielded = l.players[protectionPicks(l, 7)[0]];
+    const open = theirs.find((p) => !protectionPicks(l, 7).includes(p.id))!;
+    expect(renderToStaticMarkup(<PoachAction league={l} player={open} />)).toContain('Sign to our 53');
+    expect(renderToStaticMarkup(<PoachAction league={l} player={shielded} />)).toContain('Protected');
+    expect(renderToStaticMarkup(<PoachAction league={l} player={practiceSquad(l, 0)[0]} />)).toBe('');
+    expect(renderToStaticMarkup(<PracticeSquad league={l} />)).toContain('Squad signings');
   });
 });

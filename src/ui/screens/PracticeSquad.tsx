@@ -17,7 +17,7 @@ import { SquadActions } from '../contracts';
 import { money, weeklyMoney } from '../format';
 import { liveLock } from '../live';
 import { Ovr, ScoutedCeiling, seenOvr, viewOf } from '../scouting';
-import { GameDayPanel } from '../personnel';
+import { GameDayPanel, PoachAction, ProtectionCell, SquadSignings } from '../personnel';
 import { elevationUses } from '../../engine/personnel/elevations';
 import { store } from '../store';
 
@@ -93,6 +93,7 @@ export function PracticeSquad({ league }: { league: League }) {
             ).map(([key, label]) => (
               <SortTh key={key} label={label} k={key} sort={sort} onSort={onSort} />
             ))}
+            {!market && <th>{mine ? 'Protection' : 'Sign'}</th>}
             {mine && <th>{market ? 'Offer' : 'Moves'}</th>}
           </tr>
         </thead>
@@ -138,6 +139,11 @@ export function PracticeSquad({ league }: { league: League }) {
                     {league.phase === 'playoffs'
                       ? 'Unlimited'
                       : `${Math.max(0, 3 - elevationUses(league, p, teamId))} left`}
+                  </td>
+                )}
+                {!market && (
+                  <td>
+                    {mine ? <ProtectionCell league={league} player={p} /> : <PoachAction league={league} player={p} />}
                   </td>
                 )}
                 {mine && (
@@ -257,6 +263,7 @@ export function PracticeSquad({ league }: { league: League }) {
           <p className="muted">Your squad is empty. Add players below or let your staff choose for you.</p>
         )}
       </Panel>
+      <SquadSignings league={league} />
       {mine && (
         <Panel
           title="Add players"

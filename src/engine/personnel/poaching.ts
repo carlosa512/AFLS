@@ -75,6 +75,9 @@ export function protectedIds(league: League, teamId: number): number[] {
   return (locked.ids[teamId] ?? []).filter((id) => onSquad(league, teamId, id));
 }
 
+export const pinnedIds = (league: League, teamId: number): number[] =>
+  league.personnel?.poaching?.pins[teamId] ?? [];
+
 export function setPin(league: League, teamId: number, playerId: number, on: boolean): void {
   if (!onSquad(league, teamId, playerId)) throw new Error('Only players on your practice squad can be protected.');
   const state = ensurePoaching(league);
@@ -84,6 +87,9 @@ export function setPin(league: League, teamId: number, playerId: number, on: boo
 }
 
 /** Protected now: this week's locked list once the week has settled, otherwise the list it will lock. */
+export function protectedThisWeek(league: League, teamId: number): number[] {
+  return shielded(league, teamId);
+}
 function shielded(league: League, teamId: number): number[] {
   return league.personnel?.poaching?.locked.week === league.week
     ? protectedIds(league, teamId)
