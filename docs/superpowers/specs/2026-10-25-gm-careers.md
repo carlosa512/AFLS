@@ -256,12 +256,16 @@ marble bag (`ownerBag.ts`, save version 45), the same idea as the concussion pro
   best noisy score in a pool that grows every year. An unemployed player keeps one guaranteed offer from the weakest
   open jobs; a second is now likely.
 
-Same seed, ten seasons each (A / B): GM dismissals 3.9 / 3.9 a year (NFL about four), in-season GM dismissals
-0.5 / 0.2 a year (NFL about one every two years), interim head coaches 1.4 / 1.5 a year (NFL about two), former GMs
-5 of 34 and 8 of 40 permanent hires. The player was fired twice in each run and always received at least one offer
-(A: 2 and 1; B: 2, then 2): A after an 0–8 start in 2031, in season, and again at Baltimore after 4–13, 6–11, 4–13;
-B after a 5–12 at Carolina in 2033 following three winning-or-.500 seasons. The six-season offseason audit stays
-inside every band (6.7 new head coaches a season against 4.5–9.5; the NFL averages 7).
+Same seed, ten seasons each (A / B): GM dismissals 4.2 / 5.1 a year (NFL about four, two to seven), in-season GM
+dismissals 0.3 / 0.2 a year (NFL about one every two years), interim head coaches 0.9 / 1.8 a year (NFL about two),
+former GMs 8 of 45 and 4 of 51 permanent hires. In A the player was dismissed after 6–11 in 2033, his eighth Carolina
+season, and took the one offer (Tennessee); in B he kept the job all ten years, finishing 13–4 and 12–5. An earlier
+calibration with 7–12 calm marbles left a new world's first offseason with 3.7 GM and 4.8 head-coach changes (the hot
+seat before the bag: 6.2 and 6.9); fewer new regimes meant fewer sellers, and `npm run trades` fell under its in-season
+floor (15.1 a season over nine leagues against 16.1). At 5–9 the first offseason changes 4.7 and 5.8, and nine leagues
+trade 16.8 a season in season, 31% of them on deadline day. A club that changed its head coach or GM in season sells:
+the interim's seat is cold, so the hot-seat sell-off no longer fires for it. The six-season offseason audit stays inside
+every band (6.8 new head coaches a season against 4.5–9.5; the NFL averages 7).
 
 `npm run screens -- --save <save.json> --out <dir>` loads a save into the real app in headless Chromium and
 captures the home, GM directory and cards, inbox, coaches, roster, cap, standings and phone layouts.
