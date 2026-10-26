@@ -13,6 +13,7 @@ import { GeneralManagers, GmCard, gmHeadCoaches } from './screens/GeneralManager
 import { lookOf } from './staffAvatar';
 import { staffLook } from './staffLook';
 import { linkedSegments, moveIndex, nameIndex } from './moves';
+import { leadershipNewYear } from '../engine/leadership';
 import { GmJobs, LeadershipReports, PublicRoster } from './screens/GmEmployment';
 
 const world = () => createLeague({ seed: 'gm-cards' });
@@ -34,6 +35,19 @@ describe('GM cards and directory', () => {
     expect(appointment).toContain('This is you');
     expect(appointment).toContain('gm-appointment-line');
     expect(appointment).not.toContain('hiring round');
+  });
+  it('shows the owner’s extension offer with accept and a decline that ends the job', () => {
+    const l = world();
+    l.phase = 'resign';
+    l.gms[l.userGmId].appointments.at(-1)!.through = l.season - 1;
+    delete l.leadership.search;
+    leadershipNewYear(l);
+    const html = renderToStaticMarkup(<GmJobs league={l} />);
+    expect(html).toContain(`Extension through ${l.season + 2}`);
+    expect(html).toContain('Accept the extension');
+    expect(html).toContain('Decline and enter the job market');
+    expect(html).not.toContain('Consider other openings');
+    expect(html).not.toContain('GM position through');
   });
   it('keeps the interim takeover in a coach’s history after a permanent appointment', () => {
     const l = world();

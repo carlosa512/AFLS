@@ -39,6 +39,7 @@ export function GmJobs({ league }: { league: League }) {
     search = league.leadership.search;
   const active = search && search.season === league.season && search.round < 3 && league.phase === 'resign';
   const review = user.teamId === null ? undefined : league.teams[user.teamId].leadershipReview;
+  const extension = active ? search.offers.find((o) => o.extension) : undefined;
   return (
     <Panel title={employed(league) ? 'Your appointment' : 'Between GM jobs'}>
       <div className="gm-appointment-line">
@@ -59,7 +60,33 @@ export function GmJobs({ league }: { league: League }) {
           <p>{review.reason}</p>
         </div>
       )}
-      {active && (user.teamId === null || user.appointments.at(-1)?.interim) && (
+      {extension && (
+        <div className="gm-offer">
+          <h3>Extension through {extension.through}</h3>
+          <p>
+            Your deal with the <TeamLink team={league.teams[extension.teamId]} full /> is up, and the owner wants you
+            back. Decline and your job ends: you go into the GM job market.
+          </p>
+          <b>Owner expectations</b>
+          <p>{gmOfferTerms(league, extension).expectation}</p>
+          <div className="gm-search-actions">
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => store.mutate((l) => acceptGmOffer(l, extension.teamId))}
+            >
+              Accept the extension
+            </button>
+            <button
+              className="btn btn-sm btn-ghost"
+              title={`Your job with the ${league.teams[extension.teamId].name} ends.`}
+              onClick={() => store.mutate((l) => declineGmOffers(l))}
+            >
+              Decline and enter the job market
+            </button>
+          </div>
+        </div>
+      )}
+      {active && !extension && (user.teamId === null || user.appointments.at(-1)?.interim) && (
         <>
           <p>
             Review the owner's terms before accepting. You can keep an offer while considering other openings during the
