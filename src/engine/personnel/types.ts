@@ -31,6 +31,8 @@ export interface PersonnelState {
     kept: Record<number, number[]>;
     /** Who actually signed at the new league year, by club (read by the mail). */
     signed?: Record<number, number[]>;
+    /** Squad players whose deals ended unkept: the ones still unsigned when camp ends may leave football. */
+    released?: number[];
   };
   /** The one-time offer to switch practice squads on was made (existing careers). */
   offered?: true;

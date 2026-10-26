@@ -1,6 +1,7 @@
 import { formPracticeSquads } from '../personnel/squadMarket';
 import { settleSquadPayroll } from '../personnel/payroll';
 import { expireSquadContracts } from '../personnel/squads';
+import { retireCastoffs } from '../personnel/futures';
 /**
  * The offseason calendar. `beginOffseason` opens the new league year (cap growth, ageing,
  * the draft order); `advanceOffseason` moves one step at a time:
@@ -310,7 +311,11 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
           break; // Give the manager the complete league-wide cutdown wire before awarding anyone.
         }
       }
-      if (league.personnel?.enabled) formPracticeSquads(league, auto || staffHandlesSquad(league));
+      if (league.personnel?.enabled) {
+        formPracticeSquads(league, auto || staffHandlesSquad(league));
+        // Camp is over: last year's squad castoffs nobody wanted may leave football.
+        retireCastoffs(league);
+      }
       league.phase = 'regular';
       league.week = 1;
       league.faDay = 0;

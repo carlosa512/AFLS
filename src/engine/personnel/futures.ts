@@ -1,5 +1,6 @@
 import { activeRoster, practiceSquad } from '../roster';
 import { perceive } from '../scouting';
+import { Rng } from '../rng';
 import type { League, Player } from '../types';
 import { squadMinimumContract } from './squads';
 
@@ -71,13 +72,46 @@ export function signFuturesDeals(league: League): void {
   if (!league.personnel?.enabled) return;
   const last = league.season - 1;
   const signed: Record<number, number[]> = {};
+  const kept = new Set<number>();
   for (const team of league.teams) {
     for (const id of keptFor(league, team.id, last)) {
       const p = league.players[id];
       p.contract = squadMinimumContract(league, p, 1);
       delete p.squad;
       (signed[team.id] ??= []).push(id);
+      kept.add(id);
     }
   }
-  league.personnel.futures = { season: last, kept: league.personnel.futures?.kept ?? {}, signed };
+  const released = Object.values(league.players)
+    .filter((p) => p.squad && !p.retired && !kept.has(p.id))
+    .map((p) => p.id);
+  league.personnel.futures = { season: last, kept: league.personnel.futures?.kept ?? {}, signed, released };
+}
+
+/**
+ * How likely a squad castoff nobody signed by the end of camp leaves football: likely for a low ceiling, unlikely
+ * for a real prospect, a bit likelier past 28, never certain and never zero. The engine's call, on true ratings.
+ */
+export function castoffRetireChance(p: Pick<Player, 'potential' | 'age'>): number {
+  const base =
+    p.potential < 7 ? 0.85 : p.potential < 8.5 ? 0.6 : p.potential < 10 ? 0.35 : p.potential < 12 ? 0.15 : 0.05;
+  return Math.min(0.92, Math.max(0.03, base + (p.age >= 29 ? 0.15 : 0)));
+}
+
+/** End of camp: last year's unkept squad players still unsigned roll once, on their own stream, to leave football. */
+export function retireCastoffs(league: League): void {
+  const f = league.personnel?.futures;
+  if (!league.personnel?.enabled || !f?.released?.length) return;
+  for (const id of f.released) {
+    const p = league.players[id];
+    if (!p || p.retired || p.teamId !== null || p.contract || p.squad || p.waiver) continue;
+    if (!new Rng(`${league.seed}:castoff:${league.season}:${id}`).chance(castoffRetireChance(p))) continue;
+    p.retired = true;
+    // As any retirement: the record stays, what only a developing player needs goes.
+    delete p.quirkBag;
+    delete p.learning;
+    delete p.dev;
+    delete p.ratingHistory;
+  }
+  f.released = [];
 }

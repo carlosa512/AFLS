@@ -4,7 +4,14 @@ import { deliverMail } from '../inbox';
 import { activeRoster, practiceSquad } from '../roster';
 import { perceive } from '../scouting';
 import type { League } from '../types';
-import { futuresKept, futuresPicks, futuresWindowOpen, setFuturesKeep } from './futures';
+import {
+  castoffRetireChance,
+  futuresKept,
+  futuresPicks,
+  futuresWindowOpen,
+  retireCastoffs,
+  setFuturesKeep,
+} from './futures';
 import { expireSquadContracts } from './squads';
 
 const template = createLeague({ seed: 'futures-tests', personnel: true, userTeamId: 0 });
@@ -90,5 +97,38 @@ describe('futures deals', () => {
     deliverMail(l);
     deliverMail(l);
     expect((l.inbox ?? []).filter((m) => m.id.startsWith('futuresKept:'))).toHaveLength(1);
+  });
+});
+
+describe('squad castoffs nobody signed by the end of camp', () => {
+  it('the chance is never zero or certain, and falls as the ceiling rises', () => {
+    const p = practiceSquad(l, 3)[0];
+    const at = (potential: number, age = 23) => castoffRetireChance({ ...p, potential, age });
+    expect(at(5)).toBeGreaterThan(at(9));
+    expect(at(9)).toBeGreaterThan(at(14));
+    for (const pot of [3, 5, 8, 11, 16]) {
+      expect(at(pot)).toBeGreaterThan(0);
+      expect(at(pot)).toBeLessThan(1);
+    }
+    expect(at(9, 30)).toBeGreaterThan(at(9, 23));
+  });
+
+  it('low ceilings mostly leave football, high ones mostly stay; signed ones are untouched; the same every time', () => {
+    newLeagueYear();
+    const released = l.personnel!.futures!.released ?? [];
+    expect(released.length).toBeGreaterThan(100);
+    const signed = l.players[released[0]];
+    signed.teamId = 4;
+    signed.contract = { ...l.players[activeRoster(l, 4)[0].id].contract! };
+    const again = copy(l);
+    retireCastoffs(l);
+    retireCastoffs(again);
+    expect(released.map((id) => !!l.players[id].retired)).toEqual(released.map((id) => !!again.players[id].retired));
+    expect(signed.retired).toBeFalsy();
+    const rate = (ids: number[]) => ids.filter((id) => l.players[id].retired).length / Math.max(1, ids.length);
+    const low = released.filter((id) => l.players[id].potential < 8 && id !== signed.id);
+    const high = released.filter((id) => l.players[id].potential >= 11 && id !== signed.id);
+    expect(rate(low)).toBeGreaterThan(rate(high));
+    expect(rate(low)).toBeLessThan(1);
   });
 });
