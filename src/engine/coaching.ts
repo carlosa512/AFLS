@@ -204,6 +204,11 @@ export function chairHolder(coaches: readonly Coach[], chair: Chair): Coach | nu
   );
 }
 
+/** Who runs a side of the ball: its coordinator, else an interim head coach still running the chair he was promoted from. */
+export function coordinatorOf(coaches: readonly Coach[], role: 'offCoord' | 'defCoord'): Coach | null {
+  return chairHolder(coaches, { role }) ?? coaches.find((c) => c.role === 'headCoach' && c.actingAs === role) ?? null;
+}
+
 /** Which chair each source is for a player at this position (null: nobody covers him from there). */
 function sourceChair(source: Source, position: Position): Chair | null {
   if (source === 'headCoach') return { role: 'headCoach' };
@@ -239,7 +244,15 @@ export function coachingParts(coaches: readonly Coach[], position: Position): Co
   const parts: { source: Source; chair: Chair; coach: Coach | null }[] = [];
   for (const source of SOURCES) {
     const chair = sourceChair(source, position);
-    if (chair) parts.push({ source, chair, coach: chairHolder(coaches, chair) });
+    if (chair)
+      parts.push({
+        source,
+        chair,
+        coach:
+          chair.role === 'offCoord' || chair.role === 'defCoord'
+            ? coordinatorOf(coaches, chair.role)
+            : chairHolder(coaches, chair),
+      });
   }
   const totals = { growth: 0, body: 0, craft: 0 };
   for (const p of parts) for (const k of ['growth', 'body', 'craft'] as const) totals[k] += INFLUENCE[k][p.source];
@@ -351,7 +364,7 @@ export function callerStyle(league: League, teamId: number): CallerStyle {
   if (!league.coaches) return NO_STYLE;
   const staff = teamCoaches(league, teamId);
   return {
-    passLean: chairHolder(staff, { role: 'offCoord' })?.style?.passLean ?? 0,
+    passLean: coordinatorOf(staff, 'offCoord')?.style?.passLean ?? 0,
     fourthDown: chairHolder(staff, { role: 'headCoach' })?.style?.fourthDown ?? 0,
   };
 }
@@ -362,8 +375,8 @@ export function callerStyle(league: League, teamId: number): CallerStyle {
  */
 export function teamScheme(league: League, teamId: number): TeamScheme {
   const staff = league.coaches ? teamCoaches(league, teamId) : [];
-  const oc = chairHolder(staff, { role: 'offCoord' })?.scheme;
-  const dc = chairHolder(staff, { role: 'defCoord' })?.scheme;
+  const oc = coordinatorOf(staff, 'offCoord')?.scheme;
+  const dc = coordinatorOf(staff, 'defCoord')?.scheme;
   return {
     offense: oc?.offense ? OFF_SCHEMES[oc.offense] : BASE_OFFENSE,
     front: FRONTS[dc?.front ?? 'fourThree'],
@@ -781,7 +794,13 @@ function signCoach(league: League, teamId: number, c: Coach, years: number): voi
   if (c.teamId !== teamId) c.since = league.season;
   c.teamId = teamId;
   c.contract = { salary: coachAsk(league, c, years), through: league.season + years - 1 };
-  if (staffWindowOpen(league)) delete c.interim;
+  if (staffWindowOpen(league)) {
+    delete c.interim;
+    delete c.actingAs;
+  }
+  // A coordinator hired into a chair the interim head coach was covering takes it over.
+  if (c.role === 'offCoord' || c.role === 'defCoord')
+    for (const hc of teamCoaches(league, teamId)) if (hc.actingAs === c.role) delete hc.actingAs;
 }
 
 /**
@@ -864,6 +883,7 @@ function dismiss(league: League, c: Coach, why?: string): void {
   c.teamId = null;
   c.contract = null;
   delete c.interim;
+  delete c.actingAs;
   delete c.since;
 }
 
@@ -1524,7 +1544,12 @@ export function installInterimHeadCoach(league: League, teamId: number): Coach |
   const internal = teamCoaches(league, teamId)
     .filter((c) => (c.role === 'offCoord' || c.role === 'defCoord') && !coachMandate(league, c))
     .sort((a, b) => coachValue(b) - coachValue(a))[0];
-  if (internal) promoteInto(league, teamId, internal, 1);
+  const was = internal?.role as 'offCoord' | 'defCoord' | undefined;
+  if (internal) {
+    promoteInto(league, teamId, internal, 1);
+    // He keeps calling his side of the ball for the rest of the season, as NFL interims do: nobody is hired into it.
+    internal.actingAs = was;
+  }
   fillChairs(
     league,
     league.teams[teamId],
@@ -1646,7 +1671,13 @@ function fillChairs(
   gone: Set<number> = new Set(team.coachDepartures?.season === league.season ? team.coachDepartures.ids : []),
   poach = false,
 ): void {
-  const open = () => CHAIRS.filter((ch) => !chairHolder(teamCoaches(league, team.id), ch));
+  const open = () =>
+    CHAIRS.filter((ch) => {
+      const staff = teamCoaches(league, team.id);
+      return ch.role === 'offCoord' || ch.role === 'defCoord'
+        ? !coordinatorOf(staff, ch.role)
+        : !chairHolder(staff, ch);
+    });
   // A chair is tried once: a promotion only ever opens chairs further down the list.
   const tried: Chair[] = [];
   for (

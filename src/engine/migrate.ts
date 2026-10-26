@@ -136,6 +136,8 @@ export function migrateLeague(league: League): League | null {
     }
     league.version = 46;
   }
+  // v47: optional `Coach.actingAs` and `InboxMessage.fromTeamId`; nothing to rewrite for an acting coordinator.
+  if (league.version < 47) league.version = 47;
   return league;
 }
 
