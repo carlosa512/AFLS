@@ -11,7 +11,7 @@ import { dealAdvice } from '../engine/trade/advice';
 import type { Game, InboxMessage, League, TradeOffer } from '../engine/types';
 import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
-import { aboutOf, clubOf, Folded, MessageBody, SenderAvatar } from './screens/Inbox';
+import { aboutOf, clubOf, Folded, MessageBody, sender, SenderAvatar } from './screens/Inbox';
 import { badgeOn, contrast } from './color';
 import { MailCards, weekBack, weeksMissed } from './mail';
 
@@ -618,4 +618,14 @@ describe('SNN’s offseason front-office digest', () => {
     expect(html).toContain(l.teams[a].name);
     expect(html).toContain(gm.lastName);
   });
+});
+
+describe('outlet badges', () => {
+  it.each([
+    ['SNN league desk', 'SNN'],
+    ['The Arena Gazette', 'GAZ'],
+    ['League office', 'LO'],
+    ['The owner', 'OWN'],
+  ])('draws %s as %s', (from, badge) => expect(sender(from).initials).toBe(badge));
+  it('keeps people’s initials', () => expect(sender('Nick Holland, Director of scouting').initials).toBe('NH'));
 });
