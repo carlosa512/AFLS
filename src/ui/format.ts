@@ -16,6 +16,9 @@ export const money = (thousands: number): string => {
     : `$${Math.round(thousands)}K`;
 };
 
+/** Squad weekly checks need dollar precision; rounding $13,750 to $14K hides the fixed rate. */
+export const weeklyMoney = (thousands: number) => `$${Math.round(thousands * 1000).toLocaleString('en-US')}`;
+
 export const heightFt = (inches: number) => `${Math.floor(inches / 12)}'${inches % 12}"`;
 
 export const gameClock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;

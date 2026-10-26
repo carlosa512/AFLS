@@ -6,11 +6,47 @@ import { Rng } from './rng';
 import { departForGm, staffWindowOpen } from './staff';
 import type { CareerDate, GeneralManager, GmTraits, League } from './types';
 
-export function gmNameProblem(league: League, gmId: number, first: string, last: string): string | null {
-  if (gmId !== league.userGmId || !league.gms[gmId]) return 'Only your own GM name can be edited.';
+function nameProblem(first: string, last: string): string | null {
   if (!first.trim() || !last.trim()) return 'Both names are needed.';
   if (first.trim().length > 24 || last.trim().length > 24) return 'Names are 24 letters at most.';
   return null;
+}
+
+export function gmNameProblem(league: League, gmId: number, first: string, last: string): string | null {
+  if (gmId !== league.userGmId || !league.gms[gmId]) return 'Only your own GM name can be edited.';
+  return nameProblem(first, last);
+}
+
+/** Who you start as. The age is yours to pick at the start only: it shows on your card and grows each year. */
+export interface StartingGm {
+  firstName: string;
+  lastName: string;
+  age: number;
+}
+export const GM_START_AGES = [30, 45] as const;
+
+export function gmStartProblem(first: string, last: string, age: number): string | null {
+  const [min, max] = GM_START_AGES;
+  if (!Number.isInteger(age) || age < min || age > max) return `Starting ages run from ${min} to ${max}.`;
+  return nameProblem(first, last);
+}
+
+/** The club's own GM, offered as the default, with the age brought into the starting range. */
+export const startingGm = (gm: GeneralManager): StartingGm => ({
+  firstName: gm.firstName,
+  lastName: gm.lastName,
+  age: Math.min(GM_START_AGES[1], Math.max(GM_START_AGES[0], gm.age)),
+});
+
+/** New careers only: set before anything has been written about the GM, so no history needs rewriting. */
+export function applyStartingGm(league: League, start: StartingGm): void {
+  const problem = gmStartProblem(start.firstName, start.lastName, start.age);
+  if (problem) throw new Error(problem);
+  const gm = league.gms[league.userGmId];
+  gm.firstName = start.firstName.trim();
+  gm.lastName = start.lastName.trim();
+  gm.age = start.age;
+  gm.nameEdited = true;
 }
 
 export function editGmName(league: League, gmId: number, first: string, last: string): void {

@@ -23,6 +23,9 @@ import { addStats } from './stats';
 import { captureManagement, creditManagement } from './service';
 import { teamCoaches } from './coaching';
 import { playoffSummary } from './records';
+import { recordGameService, serviceRoster } from './personnel/service';
+import { gameTime } from './personnel/calendar';
+import { finishPersonnelGame, preparePersonnelGame, syncPersonnel } from './personnel/flow';
 import type { Game, GameResult, League, Player } from './types';
 
 export function gamesInWeek(league: League, week = league.week): Game[] {
@@ -51,13 +54,18 @@ function prunePlayLogs(league: League) {
 }
 
 function prepareGame(league: League, game: Game) {
+  preparePersonnelGame(league, game);
   syncDepthChart(league, league.teams[game.homeId]);
   syncDepthChart(league, league.teams[game.awayId]);
+  if (!game.result) game.serviceRoster ??= serviceRoster(league, game);
 }
 
 /** Store a finished game's result, apply what it did to bodies, and credit regular-season stats. */
 export function recordResult(league: League, game: Game, result: GameResult): void {
   if (game.result) return;
+  if (league.personnel?.enabled && !game.serviceRoster) throw new Error('Prepare the game before recording a result.');
+  recordGameService(league, game);
+  finishPersonnelGame(league, game);
   // Condition and diagnoses are carried by the players, not the game record.
   const { condition, diagnoses, ...kept } = result;
   game.result = kept;
@@ -104,6 +112,7 @@ function creditTeam(player: Player, season: number, teamId: number) {
 
 export function playGame(league: League, game: Game): void {
   if (game.result) return;
+  playEarlierGames(league, game);
   captureManagement(league, game);
   prepareGame(league, game);
   recordResult(
@@ -120,12 +129,22 @@ export function playGame(league: League, game: Game): void {
 /** Begin a game to be watched play by play; finish it with recordResult, then playWeek. */
 export function startLiveGame(league: League, game: Game): LiveGame {
   if (game.result) throw new Error('This game has already been played.');
+  playEarlierGames(league, game);
   captureManagement(league, game);
   prepareGame(league, game);
   return startGame(league, game, {
     playoff: !!game.playoffRound,
     ...(league.simulationSalt ? { seed: `${league.seed}:${league.simulationSalt}:${game.season}:${game.id}` } : {}),
   });
+}
+
+/** A Sunday live game cannot resolve Friday waivers before an unplayed Thursday game. */
+function playEarlierGames(league: League, game: Game): void {
+  if (!league.personnel?.enabled) return;
+  const earlier = league.games
+    .filter((g) => g.season === game.season && !g.result && gameTime(g) < gameTime(game))
+    .sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);
+  for (const g of earlier) playGame(league, g);
 }
 
 /** Play every game in the current week, then advance the calendar. Returns the games played. */
@@ -138,6 +157,7 @@ function playWeekControlled(league: League): Game[] {
   expireOffers(league);
   const weekPlayed = league.phase;
   const games = gamesInWeek(league).filter((g) => !g.result);
+  if (league.personnel?.enabled) games.sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);
   for (const g of games) playGame(league, g);
   injuryWeek(league);
   coachQuirksWeek(league);
@@ -171,6 +191,7 @@ function playWeekControlled(league: League): Game[] {
     if (!scheduleNextRound(league)) finishSeason(league);
   }
   prunePlayLogs(league);
+  syncPersonnel(league);
   return games;
 }
 

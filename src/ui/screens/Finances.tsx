@@ -1,17 +1,21 @@
+import { useState } from 'react';
+import { elevationCap } from '../../engine/personnel/elevations';
+import { squadPayroll, weeklySquadPay } from '../../engine/personnel/payroll';
 import { capSheet, deadMoneyIn, isOffseason, POST_JUNE1_LIMIT, releasePreview } from '../../engine/finance/cap';
 import { capHit, guaranteedFrom, lastSeason } from '../../engine/finance/contract';
-import { teamPlayers } from '../../engine/roster';
+import { onGameRoster, teamPlayers } from '../../engine/roster';
 import type { League, Player } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
 import { Panel, PlayerLink, SortTh, sortRows, TeamChip, TeamLink, TeamPicker, useSort } from '../components';
-import { CapChart, capPct, ContractActions, thruLabel } from '../contracts';
-import { money } from '../format';
+import { CapChart, capPct, ContractActions, SquadActions, thruLabel } from '../contracts';
+import { money, weeklyMoney } from '../format';
+import { Ovr, ScoutedCeiling, seenOvr, viewOf } from '../scouting';
 import { moveIndex, MoveText } from '../moves';
 import { GmLink } from '../gm';
 
 /** The contracts table's columns ("% of cap" sorts as the cap hit: same order). */
-type ContractSort = 'name' | 'pos' | 'age' | 'cap' | 'apy' | 'thru' | 'gtd' | 'dead' | 'saves';
+type ContractSort = 'name' | 'pos' | 'age' | 'ability' | 'cap' | 'apy' | 'thru' | 'gtd' | 'dead' | 'saves';
 
 function contractSortValue(league: League, p: Player, key: ContractSort): number | string {
   const c = p.contract!;
@@ -22,6 +26,8 @@ function contractSortValue(league: League, p: Player, key: ContractSort): number
       return POSITIONS.indexOf(p.position);
     case 'age':
       return p.age;
+    case 'ability':
+      return seenOvr(league, p);
     case 'cap':
       return capHit(c, league.season);
     case 'apy':
@@ -45,9 +51,13 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
   const isUser = teamId === league.userTeamId;
   const sheet = capSheet(league, teamId);
   const season = league.season;
+  const [list, setList] = useState<'main' | 'squad'>('main');
+  const roster = teamPlayers(league, teamId);
+  const main = roster.filter(onGameRoster);
+  const squad = roster.filter((p) => p.squad?.agreement);
   const [sort, onSort] = useSort<ContractSort>({ key: 'cap', desc: true });
   const players = sortRows(
-    teamPlayers(league, teamId).filter((p) => p.contract),
+    (league.personnel?.enabled ? main : roster).filter((p) => p.contract),
     sort,
     (p, key) => contractSortValue(league, p, key),
   );
@@ -99,9 +109,23 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
             <b className="num">{money(Math.round(sheet.active))}</b>
           </span>
           <span className="fact">
-            <span className="eyebrow">Dead money</span>
+            <span className="eyebrow">{sheet.waiverHold ? 'Dead money & waiver holds' : 'Dead money'}</span>
             <b className="num">{money(Math.round(sheet.dead))}</b>
+            {!!sheet.waiverHold && (
+              <span className="small muted">{money(sheet.waiverHold)} reserved pending waiver notices</span>
+            )}
           </span>
+          {!!sheet.practiceSquad && (
+            <span className="fact">
+              <span className="eyebrow">Practice squad cost</span>
+              <b className="num">{money(sheet.practiceSquad)}</b>
+              <span className="small muted">
+                {money(squadPayroll(league, teamId).earned)} owed so far ·{' '}
+                {money(squadPayroll(league, teamId).projected)} for future weeks
+                {elevationCap(league, teamId) > 0 && <> · {money(elevationCap(league, teamId))} for game call-ups</>}
+              </span>
+            </span>
+          )}
           <span className="fact">
             <span className="eyebrow">Cap space</span>
             <b className={`num${sheet.space < 0 ? ' tone-bad' : ''}`}>{money(Math.round(sheet.space))}</b>
@@ -136,66 +160,90 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
       </Panel>
 
       <Panel title="Contracts">
-        {isUser && (
-          <p className="muted small" style={{ marginTop: 0 }}>
-            "If released" shows today's dead money and cap room{isOffseason(league.phase) ? ' (pre-June 1)' : ''}. Every
-            button previews the full split before anything happens.
-          </p>
+        {league.personnel?.enabled && (
+          <div className="seg" role="group" aria-label="Contract list">
+            {(
+              [
+                ['main', `Active roster (${main.length})`],
+                ['squad', `Practice squad (${squad.length})`],
+              ] as const
+            ).map(([key, label]) => (
+              <button key={key} aria-pressed={list === key} onClick={() => setList(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
         )}
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
-                <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
-                <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
-                <SortTh label="Cap hit" k="cap" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="% of cap" k="cap" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="APY" k="apy" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="Thru" k="thru" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="Gtd left" k="gtd" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="If released: dead" k="dead" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="Saves" k="saves" sort={sort} onSort={onSort} className="num" />
-                {isUser && <th>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((p) => {
-                const c = p.contract!;
-                const hit = capHit(c, season);
-                const cut = releasePreview(league, p);
-                return (
-                  <tr key={p.id}>
-                    <td className="sticky-col">
-                      <PlayerLink league={league} player={p} avatar={26} />
-                    </td>
-                    <td>{p.position}</td>
-                    <td className="num">{p.age}</td>
-                    <td className="num" style={{ fontWeight: 700 }}>
-                      {money(Math.round(hit))}
-                    </td>
-                    <td className="num muted">{capPct(league, hit)}</td>
-                    <td className="num">{money(c.apy)}</td>
-                    <td className="num">
-                      {thruLabel(league, c)}
-                      {c.years.some((y) => y.void) && <span className="tag-pill">void</span>}
-                    </td>
-                    <td className="num">{money(guaranteedFrom(c, season))}</td>
-                    <td className={`num${cut.thisYear + cut.nextYear > 0 ? ' tone-bad' : ''}`}>
-                      {money(Math.round(cut.thisYear + cut.nextYear))}
-                    </td>
-                    <td className={`num${cut.savings < 0 ? ' tone-bad' : ''}`}>{money(Math.round(cut.savings))}</td>
-                    {isUser && (
-                      <td>
-                        <ContractActions league={league} player={p} />
-                      </td>
-                    )}
+        {league.personnel?.enabled && list === 'squad' ? (
+          <SquadContracts league={league} players={squad} isUser={isUser} />
+        ) : (
+          <>
+            {isUser && (
+              <p className="muted small" style={{ marginTop: 0 }}>
+                "If released" shows today's dead money and cap room{isOffseason(league.phase) ? ' (pre-June 1)' : ''}.
+                Every button previews the full split before anything happens.
+              </p>
+            )}
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
+                    <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
+                    <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
+                    <SortTh label="Ability" k="ability" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="Cap hit" k="cap" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="% of cap" k="cap" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="APY" k="apy" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="Thru" k="thru" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="Gtd left" k="gtd" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="If released: dead" k="dead" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="Saves" k="saves" sort={sort} onSort={onSort} className="num" />
+                    {isUser && <th>Actions</th>}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {players.map((p) => {
+                    const c = p.contract!;
+                    const hit = capHit(c, season);
+                    const cut = releasePreview(league, p);
+                    return (
+                      <tr key={p.id}>
+                        <td className="sticky-col">
+                          <PlayerLink league={league} player={p} avatar={26} />
+                        </td>
+                        <td>{p.position}</td>
+                        <td className="num">{p.age}</td>
+                        <td className="num">
+                          <Ovr league={league} player={p} />
+                        </td>
+                        <td className="num" style={{ fontWeight: 700 }}>
+                          {money(Math.round(hit))}
+                        </td>
+                        <td className="num muted">{capPct(league, hit)}</td>
+                        <td className="num">{money(c.apy)}</td>
+                        <td className="num">
+                          {thruLabel(league, c)}
+                          {c.years.some((y) => y.void) && <span className="tag-pill">void</span>}
+                        </td>
+                        <td className="num">{money(guaranteedFrom(c, season))}</td>
+                        <td className={`num${cut.thisYear + cut.nextYear > 0 ? ' tone-bad' : ''}`}>
+                          {money(Math.round(cut.thisYear + cut.nextYear))}
+                        </td>
+                        <td className={`num${cut.savings < 0 ? ' tone-bad' : ''}`}>{money(Math.round(cut.savings))}</td>
+                        {isUser && (
+                          <td>
+                            <ContractActions league={league} player={p} />
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </Panel>
 
       <div className="grid-2">
@@ -254,6 +302,68 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
           )}
         </Panel>
       </div>
+    </>
+  );
+}
+
+export function SquadContracts({ league, players, isUser }: { league: League; players: Player[]; isUser: boolean }) {
+  const [sort, onSort] = useSort<'name' | 'pos' | 'pay' | 'ability' | 'ceiling'>({ key: 'pay', desc: true });
+  const rows = sortRows(players, sort, (p, key) =>
+    key === 'name'
+      ? `${p.lastName} ${p.firstName}`
+      : key === 'pos'
+        ? p.position
+        : key === 'pay'
+          ? p.squad!.agreement!.weeklyPay
+          : key === 'ability'
+            ? seenOvr(league, p)
+            : viewOf(league, p).potMid,
+  );
+  return (
+    <>
+      <p className="small muted">
+        Compare weekly pay with current ability and your scouts’ estimate of future ability.
+      </p>
+      {!rows.length ? (
+        <p>No practice squad contracts.</p>
+      ) : (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
+                <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
+                <SortTh label="Weekly pay" k="pay" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="Ability" k="ability" sort={sort} onSort={onSort} className="num" />
+                <SortTh label="Scouted ceiling" k="ceiling" sort={sort} onSort={onSort} className="num" />
+                {isUser && <th>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((p) => (
+                <tr key={p.id}>
+                  <td className="sticky-col">
+                    <PlayerLink league={league} player={p} avatar={26} />
+                  </td>
+                  <td>{p.position}</td>
+                  <td className="num">{weeklyMoney(weeklySquadPay(p))}</td>
+                  <td className="num">
+                    <Ovr league={league} player={p} />
+                  </td>
+                  <td className="num">
+                    <ScoutedCeiling league={league} player={p} />
+                  </td>
+                  {isUser && (
+                    <td>
+                      <SquadActions league={league} player={p} />
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }

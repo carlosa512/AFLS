@@ -29,6 +29,8 @@ import { generateQuirks } from './quirks';
 import { generateTraits } from './traits';
 import type { Injury, League, StatLine, TradeMarket } from './types';
 import { POSITIONS } from './types';
+import { initialPersonnelState } from './personnel/rules';
+import { ensureService } from './personnel/service';
 
 /** Returns the upgraded league, or null if the save is from a newer (unknown) version. */
 export function migrateLeague(league: League): League | null {
@@ -136,6 +138,13 @@ export function migrateLeague(league: League): League | null {
     }
     league.version = 46;
   }
+  if (league.version < 47) {
+    // Practice squads, waivers and call-ups stay off for existing careers; every player gets a service record.
+    league.personnel = initialPersonnelState();
+    for (const p of Object.values(league.players)) ensureService(p, league.season);
+    league.version = 47;
+  }
+  if (league.version < 48) league.version = 48; // v48: optional personnel.poaching, created when a career first settles a week
   return league;
 }
 

@@ -42,7 +42,11 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       (`specialTeamsEdge`).
 - [ ] **12. AI teams that manage their rosters sensibly** · **Partial**: AI front offices draft, sign, cut, trade and
       stay cap-legal (`offseason/ai.ts`), keeping a cap reserve for the season by their GM's cap style. One known
-      issue is flagged by `npm run offseason`: some teams start a season short of 53.
+      issue is flagged by `npm run offseason`: some teams start a season short of 53. Staged personnel development
+      careers now add waivers and practice squad formation, scouted AI offers, separate payroll and post-waiver
+      roster funding, temporary call-ups and game-day active lists (`personnel/`), with the rules trimmed for play
+      (weekly settle points, one service counter; `docs/PRACTICE_SQUADS.md`). Poaching with two weekly protections
+      is in; the yearly lifecycle comes next, and the feature stays off for ordinary careers until then.
 
 ## The feel
 
@@ -95,3 +99,13 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 
 - **A real-world start file** (real players and rosters), for legal reasons. If this is ever revisited, the usual
   route is letting the community make roster mods.
+
+
+## Follow-up: rate-stat qualification
+
+- [ ] Use shared, scope-aware minimum opportunities for rate leaders (passer rating, completion percentage,
+      yards/attempt and similar categories), based on team games rather than a backup's own appearances.
+      Apply the same eligibility to widgets, sorted league tables, season/career leaders and awards; show the
+      minimum clearly without hiding a player's actual statistics. Verify early-season and partial-season
+      samples, traded players and postseason scopes. A 2-for-2 passer must not lead a season rate category.
+      Current Stats sorting already has a per-player-GP qualification; that is an incomplete foundation.

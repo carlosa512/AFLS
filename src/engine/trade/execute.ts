@@ -31,6 +31,8 @@ export function executeTrade(
   proposal: TradeProposal,
   meta: { kind: DealKind; tag?: string; physicals?: Physical[] } = { kind: 'user' },
 ): TradeRecord {
+  if (proposal.sides.some((side) => side.players.some((id) => league.players[id]?.waiver)))
+    throw new Error('A player on waivers cannot be traded.');
   const post = autoPostJune1(league.phase);
   const moved: string[][] = [[], []];
   proposal.sides.forEach((side, i) => {

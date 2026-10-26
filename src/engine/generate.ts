@@ -1,5 +1,6 @@
 import { generateCoachingWorld } from './coaching';
-import { initializeGms } from './gm';
+import { applyStartingGm, initializeGms } from './gm';
+import type { StartingGm } from './gm';
 import { generateGm } from './gmTraits';
 export { generateGm } from './gmTraits';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
@@ -35,10 +36,15 @@ import { generateStaffWorld } from './staff';
 import { POSITION_PREMIUM, specialistPenalty } from './offseason/positionValue';
 import { generateQuirks } from './quirks';
 import { generateTraits } from './traits';
+import { initialPersonnelState } from './personnel/rules';
+import { ensureService } from './personnel/service';
+import { formPracticeSquads } from './personnel/squadMarket';
+import { squadFormationCost } from './personnel/eligibility';
+import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 46;
+export const SAVE_VERSION = 48;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -629,11 +635,15 @@ export interface NewLeagueOptions {
   userTeamId?: number;
   season?: number;
   name?: string;
+  /** Development opt-in until elevations, protections and the full yearly lifecycle ship. */
+  personnel?: boolean;
   /**
    * The user takes over the club's own scouts, coaches and medics instead of a fresh, typical staff, so the
    * staff grades on New Game are what he inherits. Off by default: scripts and tests keep the typical start.
    */
   inheritStaff?: boolean;
+  /** The name and age you start as (New Game). Omitted: the club's own GM, as generated. */
+  gm?: StartingGm;
 }
 
 export function createLeague(options: NewLeagueOptions = {}): League {
@@ -750,13 +760,27 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     // Some room for the season's injury signings and deadline deals: a new league aimed at 94-99% of the cap (a
     // settled league's kickoff level) traded 10 times in season against 14 at 90-99%, and its structure, not its
     // level, keeps a team from hoarding what's left (most room at a seasons 1-4 kickoff 23% on 15 seeds).
-    fitPayroll(roster, season, SALARY_CAP * rng.float(0.9, 0.99), market, team.gm);
+    const target = SALARY_CAP * rng.float(0.9, 0.99);
+    const squadBudget = squadFormationCost(league);
+    const aim = options.personnel
+      ? Math.min(target, SALARY_CAP - inSeasonReserve(league, team.id)) - squadBudget - 20
+      : target;
+    fitPayroll(roster, season, aim, market, team.gm);
+    // The first fitting pass can raise a formerly below-minimum base. Reconcile inside world creation,
+    // before any contract is presented to the manager; normal careers retain their original generation.
+    for (
+      let pass = 0;
+      options.personnel && pass < 8 && roster.reduce((sum, p) => sum + capHit(p.contract!, season), 0) > aim;
+      pass++
+    )
+      fitPayroll(roster, season, aim, market, team.gm);
   }
 
   for (let y = 1; y <= MAX_FUTURE_DRAFT_YEARS; y++) createDraftPicks(league, season + y);
   league.games = generateSchedule(league, rng);
   league.rngState = rng.getState();
   initializeGms(league, true);
+  if (options.gm) applyStartingGm(league, options.gm);
   // Scouting departments, coaching and medical staffs and the officiating crews draw from their own
   // seeded streams: the players and schedule above are unchanged by them. Inheriting builds every club's
   // staff as an AI club's (no user while they're hired), so the same seed gives the same staffs whoever is picked.
@@ -766,5 +790,9 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   generateMedicalWorld(league);
   league.userTeamId = options.userTeamId ?? 0;
   generateCrews(league);
+  league.personnel = initialPersonnelState();
+  league.personnel.enabled = options.personnel ?? false;
+  for (const p of Object.values(league.players)) ensureService(p, season);
+  if (options.personnel) formPracticeSquads(league, true);
   return league;
 }

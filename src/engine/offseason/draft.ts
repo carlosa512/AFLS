@@ -21,6 +21,7 @@ import { POSITION_PREMIUM, specialistPenalty } from './positionValue';
 import { computeRecords, winPct } from '../season/standings';
 import type { DraftPick, League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
+import { ensureService } from '../personnel/service';
 
 export const DRAFT_CLASS_SIZE = 260;
 /** How far the league consensus sits from the truth (sd of its grade and of its ceiling). */
@@ -47,6 +48,7 @@ export function generateDraftClass(league: League, rng: Rng): void {
       jerseysUsed: new Set(),
     });
     p.experience = 0;
+    ensureService(p, league.season);
     // Most prospects grow a point or three; a few boom, some never move.
     const growth = Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = Math.round(clamp(playerOvr(p) + growth, playerOvr(p), 20) * 10) / 10;
@@ -103,7 +105,9 @@ export function draftOrder(league: League): DraftPick[] {
 export const nextPick = (league: League) => draftOrder(league).find((p) => p.playerId === undefined);
 
 export function availableProspects(league: League): Player[] {
-  return league.draftClass.map((id) => league.players[id]).filter((p) => p && p.teamId === null);
+  return league.draftClass
+    .map((id) => league.players[id])
+    .filter((p) => p && p.teamId === null && !p.waiver && p.draft?.season !== league.season);
 }
 
 export { POSITION_PREMIUM };
@@ -205,7 +209,8 @@ export function aiDraftChoice(
 }
 
 export function draftPlayer(league: League, pick: DraftPick, player: Player): void {
-  if (pick.playerId !== undefined || player.teamId !== null) throw new Error('Pick already used or player taken');
+  if (pick.playerId !== undefined || player.teamId !== null || player.waiver || player.draft?.season === league.season)
+    throw new Error('Pick already used or player taken');
   const team = league.teams[pick.ownerId];
   pick.playerId = player.id;
   pick.consRank = consensusRank(league, player);

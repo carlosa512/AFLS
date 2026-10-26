@@ -52,6 +52,7 @@ import {
   signMinimum,
 } from './offseason/ai';
 import { ROSTER_MAX, signPlayer } from './offseason/negotiation';
+import { aiPoachCover, heldForPoaching } from './personnel/poaching';
 import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
 import { clamp, Rng } from './rng';
@@ -955,6 +956,7 @@ export const weeksLeft = (league: League) => (inSeason(league) ? Math.max(0, 22 
 export const irReturnsUsed = (league: League, teamId: number) => league.teams[teamId].irReturns?.[league.season] ?? 0;
 
 export function irProblem(league: League, p: Player): string | null {
+  if (p.squad) return 'Practice squad players do not occupy the NFL injured reserve list.';
   if (p.teamId === null) return 'He isn’t on a roster.';
   if (p.ir) return 'He is already on injured reserve.';
   if (!p.injury) return 'Only an injured player can go on injured reserve.';
@@ -1455,7 +1457,7 @@ export function manageInjuries(league: League, team: Team, rng: Rng, roster = te
   const season = inSeason(league);
   for (const p of roster) {
     // A cut to make room for a returning player may have released him already.
-    if (p.teamId !== team.id) continue;
+    if (p.teamId !== team.id || p.squad) continue;
     const inj = p.injury;
     if (inj && !p.ir && !inj.treatment && season && team.id !== league.userTeamId) aiTreatment(league, team, p);
     if (
@@ -1560,9 +1562,9 @@ function releaseCovers(league: League, team: Team): void {
  * a minimum deal, cutting to make room. Without it (your staff) nobody is signed or cut.
  * `roster` is the team as it stood before this pass (re-read only once a move changes it).
  */
-function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], sign: boolean): void {
+function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], sign: boolean, poach = true): void {
   releaseCovers(league, team);
-  let current = roster.filter((p) => p.teamId === team.id && !p.ir);
+  let current = roster.filter((p) => p.teamId === team.id && !p.ir && !p.squad);
   // Positions nobody on the roster can cover, when this pass can't sign: left short.
   const stuck = new Set<Position>();
   for (let guard = 0; guard < 12; guard++) {
@@ -1570,9 +1572,11 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     const healthy = new Map<Position, number>();
     for (const p of current)
       if (isAvailable(p)) healthy.set(slotOf(league, p), (healthy.get(slotOf(league, p)) ?? 0) + 1);
-    const short = POSITIONS.filter((pos) => !stuck.has(pos) && (healthy.get(pos) ?? 0) < NEED[pos]).sort(
-      (a, b) => (healthy.get(a) ?? 0) / NEED[a] - (healthy.get(b) ?? 0) / NEED[b],
-    )[0];
+    // Practice squads on: a poaching offer waiting for the settle holds its place and covers its position.
+    const held = heldForPoaching(league, team.id);
+    const short = POSITIONS.filter(
+      (pos) => !stuck.has(pos) && !held.positions.has(pos) && (healthy.get(pos) ?? 0) < NEED[pos],
+    ).sort((a, b) => (healthy.get(a) ?? 0) / NEED[a] - (healthy.get(b) ?? 0) / NEED[b])[0];
     if (short) {
       const cover = chooseCover(league, team, short, NEED);
       if (cover) {
@@ -1585,7 +1589,7 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
       stuck.add(short);
       continue;
     }
-    const open = current.length < ROSTER_MAX;
+    const open = current.length + held.places < ROSTER_MAX;
     if (!short && !open) return;
     // Room on the roster and nobody short: fill the spot where depth is thinnest against a full roster.
     const pos =
@@ -1599,7 +1603,10 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     const budget = Math.min(room, inSeasonReserve(league, team.id));
     // Priced once: a cut to make room sends a man at another position to the market, not one this pick weighs.
     const pick = needSigning(league, team, pos, budget);
+    if (poach && open && aiPoachCover(league, team.id, pos, pick?.player)) continue;
     if (!pick && !minimumFits(league, pos, room)) return;
+    // A place held for a poaching offer is never a reason to cut a man.
+    if (!open && current.length < ROSTER_MAX) return;
     if (!open && !cutForRoom(league, team, pos)) return;
     if (pick) {
       signPlayer(league, pick.player, team.id, pick.offer);
@@ -1607,6 +1614,12 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     }
     if (!signMinimum(league, team, rng, pos, room)) return;
   }
+}
+
+/** AI only: cover and fill the 53 again, e.g. after a poaching offer it held a place for has lapsed. */
+export function refillRoster(league: League, team: Team): void {
+  const rng = new Rng(`${league.seed}:${league.season}:${league.week}:refill:${team.id}`);
+  coverPositions(league, team, rng, teamPlayers(league, team.id), true, false);
 }
 
 /**

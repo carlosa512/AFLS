@@ -145,6 +145,33 @@ function doctor(league: League): Sender {
     : { from: 'Medical staff' };
 }
 
+/** Another club signed one of our practice squad players to its 53: the head coach says so, once. */
+function squadPoachMail(league: League, have: Set<string>): Draft[] {
+  const out: Draft[] = [];
+  for (const r of league.personnel?.poaching?.results ?? []) {
+    if (r.fromTeamId !== league.userTeamId || r.toTeamId === null || r.season !== league.season) continue;
+    const id = `squadPoach:${r.season}:${r.week}:${r.playerId}`;
+    if (have.has(id)) continue;
+    const p = league.players[r.playerId];
+    const club = league.teams[r.toTeamId];
+    out.push({
+      id,
+      season: r.season,
+      phase: 'regular',
+      week: r.week,
+      ...headCoach(league),
+      category: 'trades',
+      subject: `${fullName(p)} signed with the ${club.name}`,
+      body: `The ${club.city} ${club.name} signed ${fullName(p)} off our practice squad to their 53. He wasn't one of our two protected players this week.`,
+      actions: [
+        { kind: 'player', playerId: p.id },
+        { kind: 'team', teamId: club.id },
+      ],
+    });
+  }
+  return out;
+}
+
 /**
  * Players of the week and month as they're named, and once a year the season's honors: one message
  * per player, whatever he won (the weekly and monthly ones aren't repeated).
@@ -614,7 +641,8 @@ export type MailSubject =
   | { kind: 'positionOffer'; season: number; playerId: number; to: Position }
   | { kind: 'positionMoved'; season: number; playerId: number }
   | { kind: 'covering'; season: number; week: number; playerId: number; pos: Position }
-  | { kind: 'shortHanded'; season: number; week: number; pos: Position };
+  | { kind: 'shortHanded'; season: number; week: number; pos: Position }
+  | { kind: 'squadPoach'; season: number; week: number; playerId: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -699,6 +727,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'covering', season, week: Number(a), playerId: Number(b), pos: rest[0] as Position };
     case 'short':
       return { kind: 'shortHanded', season, week: Number(a), pos: b as Position };
+    case 'squadPoach':
+      return { kind: 'squadPoach', season, week: Number(a), playerId: Number(b) };
     case 'position':
       return a === 'offer'
         ? { kind: 'positionOffer', season, playerId: Number(b), to: rest[0] as Position }
@@ -2182,6 +2212,8 @@ export function deliverMail(league: League): void {
       );
     }
     if (league.phase === 'regular') fresh.push(...deadlineMail(league, have));
+    // The week-18 settle runs in the same step that starts the playoffs.
+    if (league.phase === 'regular' || league.phase === 'playoffs') fresh.push(...squadPoachMail(league, have));
     if (league.phase === 'regular' || league.phase === 'resign') fresh.push(...marketMail(league, have));
     if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
       fresh.push(...marketRecapMail(league, have));

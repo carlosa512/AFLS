@@ -5,14 +5,37 @@ import { slotOvr } from './familiarity';
 import { STARTERS } from './positions';
 import type { Coach, DepthChart, Injury, League, Player, PlayingAt, Position, Team } from './types';
 import { POSITIONS } from './types';
+import type { RosterList } from './personnel/types';
+
+/** One authoritative list query: legacy IR data is retained as the reserve-stint record. */
+export function rosterList(p: Player): RosterList {
+  if (p.retired) return 'retired';
+  if (p.waiver) return 'waivers';
+  if (p.teamId === null) return 'unattached';
+  if (p.squad) return p.squad.kind;
+  return p.ir ? 'injuredReserve' : 'active';
+}
+
+/** Eligible list membership, independent of health (emergency injury fallbacks still need this). */
+export const onGameRoster = (p: Player) => rosterList(p) === 'active';
+
+export function practiceSquad(league: League, teamId: number): Player[] {
+  return teamPlayers(league, teamId).filter((p) => rosterList(p) === 'practiceSquad');
+}
+
+export function practicingPlayers(league: League, teamId: number): Player[] {
+  return teamPlayers(league, teamId).filter(
+    (p) => (onGameRoster(p) || rosterList(p) === 'practiceSquad') && (!p.injury || playingHurt(p.injury)),
+  );
+}
 
 export function teamPlayers(league: League, teamId: number): Player[] {
   return Object.values(league.players).filter((p) => p.teamId === teamId);
 }
 
-/** The players who count toward the 53: everyone but those on injured reserve. */
+/** Players counting toward the 53; employment and practice squad membership are separate queries. */
 export function activeRoster(league: League, teamId: number): Player[] {
-  return Object.values(league.players).filter((p) => p.teamId === teamId && !p.ir);
+  return teamPlayers(league, teamId).filter(onGameRoster);
 }
 
 /** Playing through an injury: on injections, or back early in protective gear once his wait is over. */
@@ -20,7 +43,7 @@ export const playingHurt = (i: Injury | undefined) =>
   !!i && (i.treatment === 'injection' || (i.treatment === 'brace' && !i.braceWait));
 
 /** Can he play this week? Not on reserve, and healthy or playing through it. */
-export const isAvailable = (p: Player) => !p.ir && (!p.injury || playingHurt(p.injury));
+export const isAvailable = (p: Player) => onGameRoster(p) && (!p.injury || playingHurt(p.injury));
 
 /**
  * Depth chart ordered by what each player is worth where he lines up: his own position, or the one `playingAt`
@@ -30,9 +53,12 @@ export function buildAutoDepthChart(
   players: Player[],
   playingAt: Record<number, PlayingAt> = {},
   staff: readonly Coach[] = [],
+  elevated: ReadonlySet<number> = new Set(),
 ): DepthChart {
   const chart = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as Player[]])) as Record<Position, Player[]>;
-  for (const p of players) chart[playingAt[p.id]?.pos ?? p.position].push(p);
+  // Retain ordinary IR chart entries for old saves, but never admit a squad member as emergency depth.
+  for (const p of players)
+    if ((!p.squad || elevated.has(p.id)) && !p.retired) chart[playingAt[p.id]?.pos ?? p.position].push(p);
   const out = {} as DepthChart;
   for (const pos of POSITIONS) out[pos] = coachOrder(chart[pos], pos, staff).map((p) => p.id);
   out.OL = lineOrder(out.OL.map((id) => players.find((p) => p.id === id)!)).map((p) => p.id);
@@ -62,7 +88,7 @@ export function lineOrder(ol: Player[]): Player[] {
  * A `playingAt` entry goes once he's off the team or that position is now his own.
  */
 export function syncDepthChart(league: League, team: Team): void {
-  const players = teamPlayers(league, team.id);
+  const players = teamPlayers(league, team.id).filter((p) => !p.squad && !p.retired);
   const byId = new Map(players.map((p) => [p.id, p]));
   if (team.playingAt)
     for (const id of Object.keys(team.playingAt).map(Number)) {
@@ -202,8 +228,13 @@ export function starters(league: League, team: Team, pos: Position): Player[] {
     if (p && isAvailable(p)) out.push(p);
     if (out.length === STARTERS[pos]) return out;
   }
-  // Nobody healthy at all: the depth chart as it stands.
-  return out.length ? out : team.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id]);
+  // Preserve the old injury fallback for strength estimates, but never borrow practice squad depth.
+  return out.length
+    ? out
+    : team.depthChart[pos]
+        .map((id) => league.players[id])
+        .filter((p) => p && !p.squad && !p.retired && p.teamId === team.id)
+        .slice(0, STARTERS[pos]);
 }
 
 /** The units a team's strength is read by, and the positions whose starters make each one. */

@@ -1,3 +1,6 @@
+import { formPracticeSquads } from '../personnel/squadMarket';
+import { settleSquadPayroll } from '../personnel/payroll';
+import { expireSquadContracts } from '../personnel/squads';
 /**
  * The offseason calendar. `beginOffseason` opens the new league year (cap growth, ageing,
  * the draft order); `advanceOffseason` moves one step at a time:
@@ -24,6 +27,7 @@ import { concussionRetireChance, delegates, injuriesNewYear, injuryRetireChance,
 import { developMedics, ensureMedical, medicalWindowCloses } from '../medical';
 import { crewsNewYear } from '../officials';
 import { accelerateProration, capSheet, capSpace, logTransaction, nextCap } from '../finance/cap';
+import { minSalary } from '../finance/market';
 import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
 import { Rng } from '../rng';
@@ -37,7 +41,7 @@ import { expireOffers, marketMoment, recheckOffers, TRADE_DEADLINE_WEEK } from '
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
-import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp } from './ai';
+import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp, fillCampRoster } from './ai';
 import {
   aiDraftChoice,
   draftComplete,
@@ -49,12 +53,18 @@ import {
   simDraft,
 } from './draft';
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
+import { rollService } from '../personnel/service';
+import { personnelClock } from '../personnel/calendar';
+import { settleOffseasonWaivers, syncPersonnel, waiversPending } from '../personnel/flow';
+import { ensureWaivers } from '../personnel/waivers';
 
 export const FA_DAYS = 5;
 
 /** The new league year: cap, carryover, ageing and retirements, the draft order and class, the schedule. */
 export function beginOffseason(league: League): void {
   if (league.phase !== 'complete') throw new Error('The season is not finished');
+  settleOffseasonWaivers(league);
+  settleSquadPayroll(league);
   expireOffers(league);
   resetContenderCache(league);
   const rng = new Rng(league.rngState);
@@ -79,6 +89,8 @@ export function beginOffseason(league: League): void {
   const retirees: Player[] = [];
   for (const p of Object.values(league.players)) {
     if (p.retired) continue;
+    // Close the season's service before calendar experience advances; service is not experience.
+    rollService(p, last);
     // Each player's year runs on his own stream: tuning development never reshuffles drafts or
     // schedules, and one player's year doesn't depend on who was developed before him. His coaches
     // are the ones he finished the season with (their deals may be up, but they coached him).
@@ -126,6 +138,7 @@ export function beginOffseason(league: League): void {
     recordRatings(p, league.season);
     quirkOffseason(league, p);
   }
+  expireSquadContracts(league);
   injuriesNewYear(league);
   resetScouting(league);
   developStaff(league);
@@ -140,6 +153,7 @@ export function beginOffseason(league: League): void {
   league.games.push(...generateSchedule(league, rng, order));
   league.week = 1;
   league.phase = 'resign';
+  if (league.personnel?.enabled) ensureWaivers(league);
   league.faDay = 0;
   league.negotiations = {};
   for (const team of league.teams) syncDepthChart(league, team);
@@ -212,6 +226,11 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
   return withLeagueAi(league, () => advanceOffseasonControlled(league, opts));
 }
 function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }): Phase {
+  if (league.personnel?.enabled && league.phase === 'preseason' && !opts.autoUser) {
+    const blockers = offseasonBlockers(league);
+    if (blockers.length) throw new Error(blockers.join(' '));
+  }
+  if (league.phase !== 'preseason') settleOffseasonWaivers(league, !!opts.autoUser);
   // Offers you didn't answer lapse at the next calendar step.
   expireOffers(league);
   resetContenderCache(league);
@@ -260,16 +279,36 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
       developBlock(league, 'program');
       break;
     case 'preseason':
-      // Camp's learning, then cut-down day's position changes, before any camp deal or cut sees the rosters.
-      learnBlock(league, 'camp');
-      developBlock(league, 'camp');
-      completeMoves(league);
-      // Camp: teams with surplus deal it before the cut to 53.
-      marketMoment(league, 'camp');
-      for (const team of ai) aiTrainingCamp(league, team, rng);
-      ensureStaffed(league, { autoUser: auto });
-      ensureCoached(league, { autoUser: auto });
-      ensureMedical(league, { autoUser: auto });
+      if (league.personnel?.enabled && personnelClock(league).cutdown) {
+        settleOffseasonWaivers(league, auto);
+        // Holds can make the first camp fill unaffordable. Fund the final NFL places after clearance;
+        // any additional cap cut receives its own notice before the squad market uses the remainder.
+        for (let guard = 0; guard < 16; guard++) {
+          for (const team of ai) {
+            const missing = Math.max(0, 53 - activeRoster(league, team.id).length);
+            if (missing) aiCapCompliance(league, team, missing * minSalary(1, league.caps[league.season]));
+          }
+          if (!waiversPending(league)) break;
+          settleOffseasonWaivers(league, auto);
+        }
+        for (const team of ai) fillCampRoster(league, team, rng);
+      } else {
+        // Camp's learning, then cut-down day's position changes, before any camp deal or cut sees the rosters.
+        learnBlock(league, 'camp');
+        developBlock(league, 'camp');
+        completeMoves(league);
+        // Camp: teams with surplus deal it before the cut to 53.
+        marketMoment(league, 'camp');
+        for (const team of ai) aiTrainingCamp(league, team, rng);
+        ensureStaffed(league, { autoUser: auto });
+        ensureCoached(league, { autoUser: auto });
+        ensureMedical(league, { autoUser: auto });
+        if (league.personnel?.enabled) {
+          personnelClock(league).cutdown = true;
+          break; // Give the manager the complete league-wide cutdown wire before awarding anyone.
+        }
+      }
+      if (league.personnel?.enabled) formPracticeSquads(league, auto);
       league.phase = 'regular';
       league.week = 1;
       league.faDay = 0;
@@ -282,6 +321,7 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
   // Offers filed at this step's market moment are judged again on the state you'll accept in: camp's cuts,
   // signings and the phase switch (roster limits in season) can turn a bid its own team made into a refusal.
   recheckOffers(league);
+  syncPersonnel(league);
   league.rngState = rng.getState();
   return league.phase;
 }
@@ -290,7 +330,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
 export function simOffseason(league: League, stopForJobs = false): void {
   const beforeTeam = league.gms[league.userGmId]?.teamId;
   if (league.phase === 'complete') beginOffseason(league);
-  for (let guard = 0; guard < 24 && league.phase !== 'regular'; guard++) {
+  // Personnel careers take more steps: free-agency days and cutdown waiver notices.
+  for (let guard = 0; guard < 256 && league.phase !== 'regular'; guard++) {
     if (stopForJobs && league.gms[league.userGmId]?.teamId !== beforeTeam) return;
     if (stopForJobs && league.leadership.search?.offers.length && league.leadership.search.round < 2) return;
     advanceOffseason(league, { autoUser: true });

@@ -124,18 +124,21 @@ export function GmCard({ league, gm, onClose }: { league: League; gm: GeneralMan
           </div>
         </>
       }
+      actions={
+        you ? (
+          <button
+            className="edit-x"
+            onClick={() => setEditingName((v) => !v)}
+            aria-label="Edit your GM name"
+            aria-pressed={editingName}
+            title="Edit your GM name"
+          >
+            ✎
+          </button>
+        ) : undefined
+      }
     >
-      {you && (
-        <Section id="gm-name" title="Your GM name">
-          {editingName ? (
-            <GmNameEditor league={league} gm={gm} onDone={() => setEditingName(false)} />
-          ) : (
-            <button className="btn btn-sm" onClick={() => setEditingName(true)}>
-              Edit your GM name
-            </button>
-          )}
-        </Section>
-      )}
+      {you && editingName && <GmNameEditor league={league} gm={gm} onDone={() => setEditingName(false)} />}
       <div className="facts gm-profile-facts">
         <span className="fact">
           <span className="eyebrow">Status</span>
