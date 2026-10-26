@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { headCoachVision } from './coaching';
 import { createLeague, SAVE_VERSION } from './generate';
-import { appointDirectorAsGm, appointGm, endGmAppointment, gmTraits, makeGmPermanent, teamGm } from './gm';
+import {
+  appointDirectorAsGm,
+  appointGm,
+  endGmAppointment,
+  gmStartProblem,
+  gmTraits,
+  makeGmPermanent,
+  startingGm,
+  teamGm,
+} from './gm';
 import { recordResult, startLiveGame } from './league';
 import { migrateLeague } from './migrate';
 import { coachRecord, gmRecord } from './records';
@@ -295,5 +304,45 @@ describe('v41 migration', () => {
     expect(gmRecord(up).regular).toEqual({ w: 10, l: 7, t: 0 });
     expect(coachRecord(up, up.coaches[head.id]).regular).toEqual({ w: 10, l: 7, t: 0 });
     expect(migrateLeague(copy(up))).toEqual(up);
+  });
+});
+
+describe('the GM you start as', () => {
+  it('a new career starts with the GM name and age you chose', () => {
+    const l = createLeague({
+      seed: 'gm-start',
+      userTeamId: 5,
+      gm: { firstName: ' Ada ', lastName: 'Lovelace', age: 33 },
+    });
+    const gm = l.gms[l.userGmId];
+    expect(gm.teamId).toBe(5);
+    expect([gm.firstName, gm.lastName, gm.age]).toEqual(['Ada', 'Lovelace', 33]);
+    expect(gm.nameEdited).toBe(true);
+    // Only your GM changes: the rest of the world is the one the preview showed.
+    const plain = createLeague({ seed: 'gm-start', userTeamId: 5 });
+    expect(l.players).toEqual(plain.players);
+    expect(l.rngState).toEqual(plain.rngState);
+  });
+
+  it('starting ages run from 30 to 45, whole years only', () => {
+    expect(gmStartProblem('Ada', 'Lovelace', 30)).toBeNull();
+    expect(gmStartProblem('Ada', 'Lovelace', 45)).toBeNull();
+    expect(gmStartProblem('Ada', 'Lovelace', 29)).toMatch(/30 to 45/);
+    expect(gmStartProblem('Ada', 'Lovelace', 46)).toMatch(/30 to 45/);
+    expect(gmStartProblem('Ada', 'Lovelace', 33.5)).toMatch(/30 to 45/);
+    expect(gmStartProblem(' ', 'Lovelace', 33)).toMatch(/Both names/);
+    expect(() => createLeague({ seed: 'gm-start', gm: { firstName: 'A', lastName: 'B', age: 60 } })).toThrow(
+      /30 to 45/,
+    );
+  });
+
+  it('the New Game default is the club GM, with the age brought into the starting range', () => {
+    const l = createLeague({ seed: 'gm-start', userTeamId: 5 });
+    const gm = l.gms[l.teams[5].gmId!];
+    expect(startingGm(gm)).toEqual({
+      firstName: gm.firstName,
+      lastName: gm.lastName,
+      age: Math.min(45, Math.max(30, gm.age)),
+    });
   });
 });

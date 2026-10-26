@@ -1,5 +1,6 @@
 import { generateCoachingWorld } from './coaching';
-import { initializeGms } from './gm';
+import { applyStartingGm, initializeGms } from './gm';
+import type { StartingGm } from './gm';
 import { generateGm } from './gmTraits';
 export { generateGm } from './gmTraits';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
@@ -641,6 +642,8 @@ export interface NewLeagueOptions {
    * staff grades on New Game are what he inherits. Off by default: scripts and tests keep the typical start.
    */
   inheritStaff?: boolean;
+  /** The name and age you start as (New Game). Omitted: the club's own GM, as generated. */
+  gm?: StartingGm;
 }
 
 export function createLeague(options: NewLeagueOptions = {}): League {
@@ -777,6 +780,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   league.games = generateSchedule(league, rng);
   league.rngState = rng.getState();
   initializeGms(league, true);
+  if (options.gm) applyStartingGm(league, options.gm);
   // Scouting departments, coaching and medical staffs and the officiating crews draw from their own
   // seeded streams: the players and schedule above are unchanged by them. Inheriting builds every club's
   // staff as an AI club's (no user while they're hired), so the same seed gives the same staffs whoever is picked.

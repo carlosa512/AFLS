@@ -4485,3 +4485,16 @@ button.tip-pill {
 .coach-takeovers {
   padding-left: 20px;
 }
+
+/* New Game: the GM you start as folds out from the start bar. */
+.starting-gm summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.starting-gm .identity-edit {
+  margin-top: 8px;
+}
+.starting-gm .identity-edit > p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
