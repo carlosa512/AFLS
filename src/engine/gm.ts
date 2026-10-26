@@ -204,6 +204,15 @@ export function makeGmPermanent(league: League, gmId: number, through: number): 
   gm.appointments.push({ teamId: gm.teamId, start: careerDate(league), interim: false, through });
 }
 
+/** The owner extends a permanent GM in the job he holds. */
+export function extendGm(league: League, gmId: number, through: number): void {
+  const gm = league.gms[gmId];
+  const a = gm?.appointments.at(-1);
+  if (!gm || gm.teamId === null || !a || a.interim || a.end) throw new Error('This GM holds no permanent job.');
+  if (!Number.isInteger(through) || through < league.season) throw new Error('The offer must cover this season.');
+  a.through = through;
+}
+
 /** New entrants come from actual scouting directors, carrying their identity and observed career. */
 export function appointDirectorAsGm(league: League, teamId: number, staffId: number, offer: GmOffer): GeneralManager {
   const director = league.staff[staffId];

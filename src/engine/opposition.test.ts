@@ -78,7 +78,7 @@ describe('focused opposition briefing', () => {
     const [focus, ...rest] = focusMatchups(l, 1);
     expect(rest).toHaveLength(0);
     expect(focus.advantage).toBeNull();
-    expect(focus.why).toContain('Neither group has a clear advantage');
+    expect(focus.why).toContain('even on film');
   });
   it('uses season efficiency to find an opening when the scouting grades are level', () => {
     const l = setup();
@@ -102,7 +102,7 @@ describe('focused opposition briefing', () => {
       if (g.homeId === 1) g.result!.away.sacked = 5;
     }
     const line = focusMatchups(l, 1).find((f) => f.side === 'attack' && f.matchup.title === 'Trenches')!;
-    expect(line.why).toContain('season results point the other way');
+    expect(line.why).toContain('The results say otherwise');
   });
   it('does not use future games or fabricate statistics before enough games exist', () => {
     const l = setup();

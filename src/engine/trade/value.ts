@@ -151,6 +151,11 @@ export function pickValue(league: League, pick: DraftPick, gm: GmTraits, ctx?: T
   return value;
 }
 
+/** The league's going rate for a pick at this overall slot in the coming draft: the curve `goingRate` discounts by years out. */
+export function slotRate(slot: number): number {
+  return Math.exp(0.75 * Math.log(jimmyJohnson(slot)) + 0.25 * Math.log(fitzgeraldSpielberger(slot)));
+}
+
 /**
  * The league's going rate for a pick: a chart midway between the two GM styles' and a quarter off a
  * year (the NFL's "a round later"), memoized per pass like `pickValue`. A GM prices what a pick does for *him* on his own chart, but he
@@ -162,8 +167,7 @@ export function goingRate(league: League, pick: DraftPick, ctx?: TradeContext): 
   if (hit !== undefined) return hit;
   const slot = pickOverall(league, pick, ctx);
   const yearsOut = Math.max(0, pick.season - nextDraftSeason(league));
-  const value =
-    Math.exp(0.75 * Math.log(jimmyJohnson(slot)) + 0.25 * Math.log(fitzgeraldSpielberger(slot))) * 0.75 ** yearsOut;
+  const value = slotRate(slot) * 0.75 ** yearsOut;
   if (ctx) (ctx.goingRates ??= new Map()).set(pick.id, value);
   return value;
 }

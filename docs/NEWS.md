@@ -7,15 +7,23 @@ reporting explains the league. Delivery still happens after `store.mutate`; the 
 
 - SNN — Sports News Network reports late division-lead changes in the user's division. It uses the same
   standings and tiebreakers as the standings screen and never turns provisional first place into a clinch.
-- The Arena Gazette reports substantial reversals from last season. At 8, 12 or 17 team games, a club
-  with at most six wins last year qualifies at a .750 winning percentage; a club with at least ten wins
-  qualifies at .375 or below. Division relevance comes first, then the largest percentage change, then
-  team ID for a deterministic tie. These are editorial thresholds, not simulation effects.
-- Features add a meaningful year-over-year change in scoring per game, points allowed per game, passing yards per game or
-  third-down conversion rate. Per-game and rate comparisons account for different season lengths. Ranks
-  require league-wide samples (six games now, eight last year); missing prior box scores never become zeros.
-  Defensive declines are described as lost ground (or a collapse for a substantial deterioration), rather
-  than presenting higher points allowed as an improvement. Division stories locate your team in the race and can report a losing streak or an ended winning streak.
+- The Arena Gazette is the numbers desk (`gazette.ts`): SNN reports what happened, the Gazette explains it with the
+  open measures in `analytics.ts`: EPA per play and per dropback (the stand-ins for DVOA and QBR, which are
+  proprietary), success rate (40% of the distance on first down, 60% on second, all of it on third and fourth) and
+  explosive plays (runs of 10+, completions of 20+). The match engine counts them as each play resolves
+  (`TeamGameStats.adv`; `dropbacks`, `epa`, `successes`, `rushSnaps` on players) and they never move play. Expected
+  points come from a fixed table fitted to the engine's own games, with fourth down valued as what follows it (a punt,
+  a field-goal try or going for it, the best of the three: punts and kicks never pass the counting point); `npm run
+  sim` prints the league's numbers against the NFL's as warnings.
+- A column runs after weeks 4, 7, 10, 13 and 16, with a playoff preview and a season wrap: filed only at its moment
+  (no backfill), with or without a job, never Needs you. Each has one story, chosen by the first condition that
+  holds (a club leading a measure by a quarter of the spread to tenth; our club top or bottom three; the biggest
+  offensive mover since the last column actually filed, ten places or more; a top-five offense with a bottom-five defense or the
+  reverse; a turnaround from last season (.750 after six wins or fewer, .375 after ten or more); otherwise the
+  league's state), a paragraph on the tables and a line locating our club, then two or three tables on rotating
+  themes (top five, bottom three and our row; players top ten). Samples: every club needs three counted games; a
+  passer 12 dropbacks, a rusher 6 carries and a pass rusher 15 rush snaps per team game. Tables are saved with the
+  column. The turnaround replaced the Gazette's old trajectory stories.
 - SNN lead-change stories finish with one supporting table: division standings or the featured team’s
   current stats, with year-over-year comparisons reserved for exceptional changes. The choice is saved
   with the article and alternates deterministically when neither view has a special claim. Stories add the
@@ -26,9 +34,35 @@ reporting explains the league. Delivery still happens after `store.mutate`; the 
   including draft years/rounds and retained salary. The headline uses the highest-rated notable traded
   player on the user scouts’ read; up to three other active names can appear beneath the deal. Selection requires a modeled star deal, an early-round
   pick or a strong scouted player, and complete asset records. Public rumors use recorded shopping/interest only; completed moves and
-  closed windows suppress stale rumors. The user's own deals keep their personal confirmation instead.
+  closed windows suppress stale rumors. The user's own deals keep their personal confirmation instead. When the
+  seller has played and sits at .500 or worse, the story adds its record: "The Squall, 1–3, are selling."
+- SNN tells the league's trade stories. The director of scouting doesn't retell them: four times a year he
+  recommends two to four moves for us (`directorAdvice.ts`): three weeks before the deadline (week 6), in deadline
+  week, when the league year opens (other clubs' players whose deals have run out, and a trade target) and on free
+  agency's first day (the free agents our cap can carry). In season he leans from the playoff race: holding a seed or
+  within a game, add; two or three games out, one in and one out; further, sell (players clubs asked about first,
+  then veteran starters on expiring deals). Each pick is read through our scouts (knowledge 0.35 or more), comes from
+  what is public (a club the market shows selling, a shopping rumor; never a private trade block), and carries one
+  line on why, a ballpark ("likely a 4th", "asking about $6.2M a year") and a button that loads the trade table or
+  opens free agency. With nothing worth it, the in-season mail says "we hold" and the offseason one isn't filed.
+  The league office's only deadline notice is deadline day's.
+- Other clubs' in-season coaching and front-office changes reach the inbox as one SNN roundup per week ("Coaching
+  changes: HOU, CIN"); a lone change stays its own story, and our own club's come from the owner.
+- Other clubs' offseason front-office changes (GMs let go, retired, hired or extended, hot-seat reporting, interim
+  head-coach calls) arrive as one SNN digest per offseason step: "Front-office carousel: 4 GMs out, 3 hired, 6 on
+  the hot seat", a short lead and a grouped table (Out, Hired, Extended, Hot seat, Interim head coaches) saved with
+  the mail. The id names the events it carried (`leadership-phase:season:phase:first-last`), so a later change starts
+  a new digest and a save that filed single stories gets nothing twice. A lone change stays its own story. The
+  coaching carousel is SNN's too; the league office keeps official notices about our club.
+- The owner sends one letter per league year: his verdict when it isn't plain "back", the user's contract when it's
+  up, then the budgets. Our own offseason warning, coach-change and extension events send no other mail. When the
+  user's deal has run out and the owner keeps him, it is an offer, not a silent extension: two years, one on a
+  warning. It is Needs you and blocks the staffing window; declining ends the job and opens the GM job market, with
+  the guaranteed way back and never the old club.
+- Outlets carry fixed badges in the inbox (SNN, GAZ, LO, OWN) rather than initials of their names.
 - One public headline at most is selected for the latest fully completed regular-season week. There is
-  no minimum quota. Division stories take precedence, then key trades, trajectory features and public rumors.
+  no minimum quota. Division stories take precedence, then key trades and public rumors (the Gazette's turnarounds
+  live in its numbers column).
   Trade editions cover non-overlapping windows: Weeks 1–2, 3–4, 5–6, 7–8, then Week 9. A separate
   deadline-day edition requires new important activity on that day; it never repeats Week 9’s deals.
   The user’s own transactions are excluded, and completed trades suppress related rumors. No weekly backfill after

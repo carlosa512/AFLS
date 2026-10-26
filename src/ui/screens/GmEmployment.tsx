@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { employed, managesTeam } from '../../engine/employment';
 import { acceptGmOffer, advanceGmHiringRound, declineGmOffers, gmOfferTerms } from '../../engine/leadership';
 import { gamesInWeek } from '../../engine/league';
@@ -34,11 +35,33 @@ export function LeadershipReports({ league, teamId }: { league: League; teamId?:
     </Panel>
   );
 }
+/** Turning the extension down ends the job, so it takes a second click. */
+export function ExtensionDecline({ teamName, confirming = false }: { teamName: string; confirming?: boolean }) {
+  const [asking, setAsking] = useState(confirming);
+  if (!asking)
+    return (
+      <button className="btn btn-sm btn-ghost" onClick={() => setAsking(true)}>
+        Decline and enter the job market
+      </button>
+    );
+  return (
+    <span className="gm-decline-confirm">
+      Your job with the {teamName} ends.{' '}
+      <button className="btn btn-sm btn-danger" onClick={() => store.mutate((l) => declineGmOffers(l))}>
+        Yes, end my job
+      </button>{' '}
+      <button className="btn btn-sm btn-ghost" onClick={() => setAsking(false)}>
+        Keep it
+      </button>
+    </span>
+  );
+}
 export function GmJobs({ league }: { league: League }) {
   const user = league.gms[league.userGmId],
     search = league.leadership.search;
   const active = search && search.season === league.season && search.round < 3 && league.phase === 'resign';
   const review = user.teamId === null ? undefined : league.teams[user.teamId].leadershipReview;
+  const extension = active ? search.offers.find((o) => o.extension) : undefined;
   return (
     <Panel title={employed(league) ? 'Your appointment' : 'Between GM jobs'}>
       <div className="gm-appointment-line">
@@ -59,7 +82,27 @@ export function GmJobs({ league }: { league: League }) {
           <p>{review.reason}</p>
         </div>
       )}
-      {active && (user.teamId === null || user.appointments.at(-1)?.interim) && (
+      {extension && (
+        <div className="gm-offer">
+          <h3>Extension through {extension.through}</h3>
+          <p>
+            Your deal with the <TeamLink team={league.teams[extension.teamId]} full /> is up, and the owner wants you
+            back. Decline and your job ends: you go into the GM job market.
+          </p>
+          <b>Owner expectations</b>
+          <p>{gmOfferTerms(league, extension).expectation}</p>
+          <div className="gm-search-actions">
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => store.mutate((l) => acceptGmOffer(l, extension.teamId))}
+            >
+              Accept the extension
+            </button>
+            <ExtensionDecline teamName={league.teams[extension.teamId].name} />
+          </div>
+        </div>
+      )}
+      {active && !extension && (user.teamId === null || user.appointments.at(-1)?.interim) && (
         <>
           <p>
             Review the owner's terms before accepting. You can keep an offer while considering other openings during the

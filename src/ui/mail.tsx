@@ -98,6 +98,8 @@ import { allSeeds, PLAYOFF_ROUNDS, ROUND_NAMES } from '../engine/season/playoffs
 import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { statLine } from '../engine/stats';
 import type {
+  AdviceRow,
+  GazetteTable,
   Coach,
   DealKind,
   Game,
@@ -110,7 +112,7 @@ import type {
   Staff,
   Team,
 } from '../engine/types';
-import { stanceOf } from '../engine/trade';
+import { stanceOf, tradeWindow } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
 import { PlayerAvatar, PlayerLink, TeamChip, TeamLink, sortRows, SortTh, useSort } from './components';
@@ -120,6 +122,9 @@ import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
 import { OfferCard } from './offers';
+import { employed } from '../engine/employment';
+import { tradeDesk, type DeskDraft } from './tradeDesk';
+import { GmLink } from './gm';
 import {
   familiarityTone,
   learnLine,
@@ -191,16 +196,24 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <RaceCards league={league} s={s} />;
     case 'owner':
       return <OwnerCards league={league} s={s} />;
+    case 'rundown':
+      return message.rundown ? <RundownCards league={league} r={message.rundown} /> : null;
     case 'staffDeals':
       return <StaffDealsCards league={league} s={s} live={needsYou(league, message)} />;
     case 'poached':
       return <PoachedCards league={league} s={s} live={needsYou(league, message)} />;
     case 'carousel':
       return <CarouselCards league={league} s={s} />;
+    case 'gazette':
+      return message.gazette ? <GazetteCards league={league} tables={message.gazette.tables} /> : null;
+    case 'advice':
+      return message.advice ? <AdviceCards league={league} rows={message.advice.rows} /> : null;
+    case 'frontOffice':
+      return message.carousel ? <FrontOfficeCards league={league} rows={message.carousel} /> : null;
     case 'faWrap':
       return <FaWrapCards league={league} s={s} />;
     case 'market':
-      return <MarketCards league={league} s={s} />;
+      return <MarketCards league={league} s={s} notes={message.marketNotes} />;
     case 'marketRecap':
       return <MarketRecapCards league={league} s={s} />;
     case 'positionOffer':
@@ -258,6 +271,176 @@ function TradeNewsCards({ league, report }: { league: League; report: NonNullabl
         </Card>
       )}
     </>
+  );
+}
+
+/**
+ * The trade table a pick opens on, or null once the player has moved on from where the director found him: a buy
+ * asks their club for him, a sale offers him to the club that asked (else a buyer).
+ */
+export function adviceDraft(league: League, row: AdviceRow): DeskDraft | null {
+  const p = league.players[row.playerId];
+  if (!p || p.retired || row.kind === 'sign' || p.teamId !== row.teamId || tradeWindow(league)) return null;
+  const none = { players: [], picks: [] };
+  if (row.kind === 'buy') return { partnerId: row.teamId!, mine: none, theirs: { players: [p.id], picks: [] } };
+  if (row.partnerId === undefined) return null;
+  return { partnerId: row.partnerId, mine: { players: [p.id], picks: [] }, theirs: none };
+}
+
+const gazetteValue = (t: GazetteTable, v: number) =>
+  t.unit === 'epa' || t.unit === 'perDropback'
+    ? `${v < 0 ? '−' : ''}${Math.abs(v).toFixed(2)}`
+    : `${Math.round(v * 100)}%`;
+
+/** The Gazette's tables as filed: rank, club or player, the number; a gap where the middle of the league is left out. */
+function GazetteCards({ league, tables }: { league: League; tables: GazetteTable[] }) {
+  // Our row stands out only while we run a club (between jobs, none is ours).
+  const mine = employed(league);
+  return (
+    <>
+      {tables.map((t) => (
+        <Card key={t.title} title={t.title}>
+          <div className="table-scroll">
+            <table className="mail-table">
+              <tbody>
+                {t.rows.map((r, i) => {
+                  const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+                  const gap = i > 0 && r.rank > t.rows[i - 1].rank + 1;
+                  return (
+                    <tr
+                      key={`${r.teamId}:${r.playerId ?? ''}`}
+                      className={
+                        [mine && r.teamId === league.userTeamId ? 'is-user' : '', gap ? 'mail-gap' : '']
+                          .filter(Boolean)
+                          .join(' ') || undefined
+                      }
+                    >
+                      <td className="num small muted">{r.rank}</td>
+                      <td>
+                        {p ? <PlayerLink league={league} player={p} pos={false} /> : t.players ? r.name : null}
+                        {t.players ? (
+                          <span className="small muted">
+                            {' '}
+                            <TeamLink team={league.teams[r.teamId]} />
+                          </span>
+                        ) : (
+                          <TeamLink team={league.teams[r.teamId]} />
+                        )}
+                      </td>
+                      <td className="num">{gazetteValue(t, r.value)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ))}
+    </>
+  );
+}
+
+const ADVICE_TITLES: Record<AdviceRow['kind'], string> = { buy: 'To add', sell: 'To move', sign: 'To sign' };
+
+/** The director's picks: who, why, his ballpark, and the button that starts the move. */
+function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
+  const nav = useNav();
+  const kinds = (['buy', 'sell', 'sign'] as const).filter((k) => rows.some((r) => r.kind === k));
+  return (
+    <>
+      {kinds.map((kind) => (
+        <Card key={kind} title={ADVICE_TITLES[kind]}>
+          <div className="table-scroll">
+            <table className="mail-table">
+              <tbody>
+                {rows
+                  .filter((r) => r.kind === kind)
+                  .map((r) => {
+                    const p = league.players[r.playerId];
+                    const draft = adviceDraft(league, r);
+                    const free = r.kind === 'sign' && p && p.teamId === null && !p.retired;
+                    return (
+                      <tr key={r.playerId}>
+                        <td>
+                          <span className="small muted">{r.position} </span>
+                          {p ? <PlayerLink league={league} player={p} pos={false} /> : r.name}
+                          <div className="small muted">
+                            {r.teamId === null ? 'Free agent' : <TeamLink team={league.teams[r.teamId]} />}
+                          </div>
+                        </td>
+                        <td>{r.why}</td>
+                        <td className="num">{r.price}</td>
+                        <td>
+                          {draft && (
+                            <button
+                              className="btn btn-sm"
+                              onClick={() => {
+                                tradeDesk.put(draft);
+                                nav.go({ view: 'office', tab: 'trades', sub: 'table' });
+                              }}
+                            >
+                              Open talks
+                            </button>
+                          )}
+                          {free && (
+                            <button
+                              className="btn btn-sm"
+                              onClick={() => nav.go({ view: 'office', tab: 'fa', pos: r.position })}
+                            >
+                              Free agency
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ))}
+    </>
+  );
+}
+
+const FRONT_OFFICE_GROUPS: [NonNullable<InboxMessage['carousel']>[number]['group'], string][] = [
+  ['out', 'Out'],
+  ['hired', 'Hired'],
+  ['extended', 'Extended'],
+  ['hotSeat', 'Hot seat'],
+  ['coaches', 'Interim head coaches'],
+];
+
+/** SNN's offseason digest: who left, who came in, who signed on and who starts the year under pressure. */
+function FrontOfficeCards({ league, rows }: { league: League; rows: NonNullable<InboxMessage['carousel']> }) {
+  return (
+    <Card title="Around the league">
+      <div className="table-scroll">
+        <table className="mail-table">
+          {FRONT_OFFICE_GROUPS.filter(([g]) => rows.some((r) => r.group === g)).map(([g, label]) => (
+            <tbody key={g}>
+              <tr>
+                <th colSpan={3}>{label}</th>
+              </tr>
+              {rows
+                .filter((r) => r.group === g)
+                .map((r, i) => {
+                  const gm = r.gmId === undefined ? undefined : league.gms[r.gmId];
+                  return (
+                    <tr key={i} className={r.teamId === league.userTeamId ? 'is-user' : undefined}>
+                      <td>
+                        <TeamLink team={league.teams[r.teamId]} />
+                      </td>
+                      <td>{gm ? <GmLink league={league} gm={gm} /> : r.name}</td>
+                      <td className="muted">{r.line}</td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          ))}
+        </table>
+      </div>
+    </Card>
   );
 }
 
@@ -668,10 +851,6 @@ function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
   const focuses = focusMatchups(league, opp.id);
   return (
     <Card title="Key matchups">
-      <p className="small muted" style={{ margin: '-4px 0 10px' }}>
-        The clearest openings and risks on our scouts' read. Higher unit percentiles mean a stronger group; the team
-        results below provide context.
-      </p>
       {focuses.map((f) => (
         <section className="mail-focus" key={`${f.side}:${f.matchup.title}`}>
           <div className="mail-matchup-head">
@@ -686,7 +865,7 @@ function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
             </span>
           </div>
           <p className="small">{f.why}</p>
-          {f.facts.length > 0 ? (
+          {f.facts.length > 0 && (
             <div className="mail-focus-facts">
               {f.facts.map((fact) => (
                 <div key={fact.teamId}>
@@ -703,10 +882,6 @@ function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="small muted">
-              Not enough games yet for a reliable statistical comparison. This is a scouting read.
-            </p>
           )}
           <div className="mail-focus-leaders">
             <span className="small muted">Unit leaders</span>
@@ -1496,7 +1671,15 @@ function BuyersSellers({ league }: { league: League }) {
 }
 
 /** The director's digest: the moment's trades with their reasons, what his people are hearing, who's buying and selling. */
-function MarketCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'market' }> }) {
+function MarketCards({
+  league,
+  s,
+  notes,
+}: {
+  league: League;
+  s: Extract<MailSubject, { kind: 'market' }>;
+  notes?: InboxMessage['marketNotes'];
+}) {
   const trades = marketTrades(league, s.season, s.phase, s.week);
   const rumors = marketRumors(league, s.season, s.phase, s.week);
   const moves = moveIndex(league);
@@ -1508,8 +1691,11 @@ function MarketCards({ league, s }: { league: League; s: Extract<MailSubject, { 
       {trades.length > 0 && (
         <Card title={s.phase === 'resign' ? 'Trades as the league year opened' : 'Trades this week'}>
           {trades.map((t, i) => (
+            // What it meant for us when the report was filed, and whether SNN had already told the story.
             <p key={i} className="small" style={{ margin: '4px 0' }}>
               <MoveText move={t} index={moves} />
+              {notes?.[i]?.note && <span className="muted"> {notes[i].note}</span>}
+              {notes?.[i]?.snn && <span className="muted"> (SNN ran the story)</span>}
             </p>
           ))}
         </Card>
@@ -1704,6 +1890,34 @@ function BudgetTile({ label, budget, used, note }: { label: string; budget: numb
 }
 
 /** The year's budgets, as they stand now. The letter itself says how far past them the owner will go. */
+/** The head coach's rundown: the players each side runs through, and the young ones with room to grow, as filed. */
+function RundownCards({ league, r }: { league: League; r: NonNullable<InboxMessage['rundown']> }) {
+  const team = league.teams[league.userTeamId];
+  const list = (ids: number[]) =>
+    ids
+      .filter((id) => league.players[id])
+      .map((id) => {
+        const p = league.players[id];
+        return (
+          <p key={id} className="small" style={{ margin: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <PlayerAvatar player={p} team={team} size={24} /> <PlayerLink league={league} player={p} pos={false} />{' '}
+            <span className="muted">
+              {p.position} · {p.age}
+            </span>
+          </p>
+        );
+      });
+  return (
+    <>
+      <div className="mail-tiles">
+        <Card title={`Offense · ${ordinal(r.offenseRank)}`}>{list(r.offense)}</Card>
+        <Card title={`Defense · ${ordinal(r.defenseRank)}`}>{list(r.defense)}</Card>
+      </div>
+      {r.prospects.length > 0 && <Card title="Prospects to watch">{list(r.prospects)}</Card>}
+    </>
+  );
+}
+
 function OwnerCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'owner' }> }) {
   if (s.season !== league.season) return null;
   const user = league.userTeamId;

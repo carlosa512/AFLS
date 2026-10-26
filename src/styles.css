@@ -3593,6 +3593,13 @@ button.tip-pill {
   background: color-mix(in srgb, var(--cat) 60%, #0d1210);
   flex: none;
 }
+.inbox-row.is-club {
+  box-shadow: inset 3px 0 0 var(--club);
+}
+.mail-tag-club {
+  background: var(--surface-2);
+  color: var(--ink);
+}
 .mail-av-lg {
   width: 44px;
   height: 44px;
@@ -3974,6 +3981,10 @@ button.tip-pill {
 .mail-table td,
 .mail-table th {
   padding: 5px 6px;
+}
+/* A ranked table that leaves out the middle of the league: a dashed rule where the ranks jump. */
+.mail-table tr.mail-gap td {
+  border-top: 2px dashed var(--line);
 }
 .mail-top td:nth-child(-n + 3) {
   width: 1%;

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from './generate';
 import { IR_MIN_WEEKS, IR_RETURNS } from './injuries';
 import { migrateLeague } from './migrate';
-import { briefingCurrent, deliverMail, draftClassOf, mailSubject, needsYou } from './inbox';
+import { briefingCurrent, deliverMail, draftClassOf, needsYou } from './inbox';
 import { emptyMarket } from './trade/execute';
 import { keyTradeNews, rumorNews, tradeNewsWindow } from './tradeNews';
-import { divisionTable, teamStatContext } from './newsContext';
+import { divisionTable } from './newsContext';
 import { leagueNews, matchupStakes, rookieImpactMail } from './news';
 import type { Game, GameResult, League, TeamGameStats } from './types';
 
@@ -56,51 +56,11 @@ function trajectory(count = 8): League {
 }
 
 describe('the public news desk', () => {
-  it('uses public results at a checkpoint, with one headline per completed week', () => {
-    const l = trajectory();
-    const [m] = leagueNews(l, new Set());
-    expect(m.from).toBe('The Arena Gazette');
-    expect(m.body).toContain('8–0 through 8 games');
-    expect(m.body).toContain('4–13');
-    expect(m.actions).toContainEqual({ kind: 'team', teamId: 0 });
-    expect(mailSubject({ ...m, read: false })).toEqual({ kind: 'news', season: l.season });
-    expect(needsYou(l, { ...m, read: false })).toBe(false);
-    // Even another candidate cannot take a second slot when the manager makes a same-week mutation.
-    expect(leagueNews(l, new Set([m.id]))).toEqual([]);
-    const hidden = copy(l);
-    for (const p of Object.values(hidden.players)) {
-      p.potential = 1;
-      p.ratings.speed = 1;
+  it('files no Gazette trajectory stories: the turnaround is a story angle in its numbers column', () => {
+    for (const count of [8, 12, 17]) {
+      const l = trajectory(count);
+      expect(leagueNews(l, new Set()).some((m) => m.from === 'The Arena Gazette')).toBe(false);
     }
-    expect(leagueNews(hidden, new Set())).toEqual([m]);
-  });
-
-  it('says nothing without history or a substantial change, or in a partial week', () => {
-    const l = trajectory();
-    l.history = [];
-    expect(leagueNews(l, new Set())).toEqual([]);
-    l.history = [{ season: l.season - 1, championId: 1, runnerUpId: 2, records: { 0: { w: 12, l: 5, t: 0 } } }];
-    expect(leagueNews(l, new Set())).toEqual([]);
-    const partial = trajectory();
-    partial.games.push({ ...game(partial, 2, 3, 8), result: undefined });
-    expect(leagueNews(partial, new Set())).toEqual([]);
-    expect(leagueNews(trajectory(9), new Set())).toEqual([]);
-  });
-
-  it('covers a sustained decline and skips intermediate checkpoints after a long advance', () => {
-    const l = trajectory(17);
-    l.games = l.games.filter((g) => g.result);
-    for (const g of l.games) {
-      g.result!.homeScore = 10;
-      g.result!.awayScore = 24;
-    }
-    l.history[0].records[0] = { w: 12, l: 5, t: 0 };
-    l.phase = 'playoffs';
-    const news = leagueNews(l, new Set());
-    expect(news).toHaveLength(1);
-    expect(news[0].body).toContain('finish the regular season 0–17');
-    expect(news[0].body).not.toContain('through 8 games');
-    expect(news[0].week).toBe(17);
   });
 
   it('uses SNN for a late division lead change and respects current tiebreakers', () => {
@@ -270,81 +230,7 @@ describe('rookie impact and delivery', () => {
   });
 });
 
-function comparisonLeague(): League {
-  const l = copy(base);
-  l.games = [];
-  for (const [season, weeks] of [
-    [l.season - 1, 17],
-    [l.season, 8],
-  ]) {
-    for (let w = 1; w <= weeks; w++)
-      for (let t = 0; t < 32; t += 2) {
-        const g = game(l, t, t + 1, w, 20, 20);
-        g.season = season;
-        for (const [id, side] of [
-          [t, g.result!.home],
-          [t + 1, g.result!.away],
-        ] as const) {
-          side.passYds = 200;
-          side.thirdDownAtt = 20;
-          side.thirdDownConv = id === 0 ? (season === l.season ? 9 : 4) : 7;
-        }
-        l.games.push(g);
-      }
-  }
-  return l;
-}
-
 describe('year-over-year and division context', () => {
-  it('selects a third-down reversal with exact percentages, rank and percentage-point change', () => {
-    const l = comparisonLeague();
-    const text = teamStatContext(l, 0, 'up');
-    expect(text).toContain('20.0% (32nd) last season');
-    expect(text).toContain('45.0% (1st in the league) this season');
-    expect(text).toContain('25.0 percentage-point increase');
-  });
-  it('explains a defensive decline even when scoring has improved slightly', () => {
-    const l = comparisonLeague();
-    for (const g of l.games) {
-      g.result!.home.thirdDownConv = 7;
-      g.result!.away.thirdDownConv = 7;
-      if (g.homeId === 0) {
-        g.result!.homeScore = g.season === l.season ? 26 : 25;
-        g.result!.awayScore = g.season === l.season ? 35 : 14;
-      }
-    }
-    const text = teamStatContext(l, 0, 'down');
-    expect(text).toContain('defense has fallen off a cliff');
-    expect(text).toContain('allowing 35.0 points per game');
-    expect(text).toContain('14.0');
-    expect(text).toContain('35.0');
-  });
-  it('recognizes a scoring leader who was last, and distinguishes shared first place', () => {
-    const l = comparisonLeague();
-    for (const g of l.games) {
-      g.result!.home.thirdDownConv = 7;
-      g.result!.away.thirdDownConv = 7;
-      if (g.homeId === 0) g.result!.homeScore = g.season === l.season ? 45 : 5;
-    }
-    expect(teamStatContext(l, 0)).toContain('5.0 (32nd) last season to 45.0 (1st in the league)');
-    for (const g of l.games) if (g.homeId === 2 && g.season === l.season) g.result!.homeScore = 45;
-    expect(teamStatContext(l, 0)).toContain('tied 1st in the league');
-  });
-  it('can select a passing reversal and does not invent comparisons or ranks from missing history', () => {
-    const l = comparisonLeague();
-    for (const g of l.games) {
-      g.result!.home.thirdDownConv = 7;
-      g.result!.away.thirdDownConv = 7;
-      if (g.homeId === 0) g.result!.home.passYds = g.season === l.season ? 350 : 100;
-    }
-    expect(teamStatContext(l, 0)).toContain('passing yards per game');
-    l.games = l.games.filter((g) => g.season === l.season);
-    expect(teamStatContext(l, 0)).not.toContain('last season');
-    l.games = l.games.filter((g) => g.homeId === 0);
-    expect(teamStatContext(l, 0)).not.toContain('in the league');
-    for (const g of l.games) g.result!.home.thirdDownAtt = 0;
-    expect(teamStatContext(l, 0)).not.toMatch(/NaN|Infinity/);
-  });
   it('reports a first defeat after a recorded winning streak', () => {
     const l = copy(base);
     l.userTeamId = 0;
@@ -562,6 +448,21 @@ describe('SNN trade reporting', () => {
     p.position = 'WR';
     deliverMail(l);
     expect(l.inbox.find((x) => x.id === m.id)!.tradeReport).toEqual(saved);
+  });
+  it('adds the seller’s record when it is selling at .500 or worse', () => {
+    const { l, p, deal } = marketLeague();
+    l.games.push(
+      game(l, 1, 5, 1, 10, 24),
+      game(l, 1, 6, 2, 10, 24),
+      game(l, 1, 7, 3, 10, 24),
+      game(l, 1, 8, 4, 24, 10),
+    );
+    l.market!.history = [deal];
+    p.teamId = 2;
+    const [m] = keyTradeNews(l, 8);
+    expect(m.body).toContain(`The ${l.teams[1].name}, 1–3, are selling.`);
+    l.games = l.games.filter((g) => g.homeId !== 1);
+    expect(keyTradeNews(l, 8)[0].body).not.toContain('are selling');
   });
   it('skips an incomplete asset history instead of silently dropping part of the price', () => {
     const { l, deal } = marketLeague();

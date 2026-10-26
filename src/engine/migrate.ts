@@ -145,7 +145,21 @@ export function migrateLeague(league: League): League | null {
     league.version = 47;
   }
   if (league.version < 48) league.version = 48; // v48: optional personnel.poaching, created when a career first settles a week
-  if (league.version < 49) league.version = 49; // v49: optional futures choices, the switch-on offer and Team.autoSquad
+  // v49: optional `Coach.actingAs` and `InboxMessage.fromTeamId`; nothing to rewrite for an acting coordinator.
+  if (league.version < 49) {
+    // Mail from another club's front office learns which club, so the inbox can draw it in its colours.
+    const clubs = new Map(league.teams.map((t) => [`${t.city} ${t.name} front office`, t.id]));
+    for (const m of league.inbox ?? []) if (clubs.has(m.from)) m.fromTeamId = clubs.get(m.from);
+    league.version = 49;
+  }
+  // v50: optional `GmJobOffer.extension` and `InboxMessage.carousel`; an older save's GM was already extended.
+  if (league.version < 50) league.version = 50;
+  // v51: optional `InboxMessage.advice`, the director's recommendations; filed market reports stay as they were.
+  if (league.version < 51) league.version = 51;
+  // v52: optional `TeamGameStats.adv` and the advanced stat keys; games played before have none (a dash).
+  if (league.version < 52) league.version = 52;
+  // v53: optional practice squad futures choices, the one-time switch-on offer and `Team.autoSquad`.
+  if (league.version < 53) league.version = 53;
   return league;
 }
 

@@ -4,15 +4,17 @@ import { deliverMail, mailForOffer, offerMailId, threads } from '../engine/inbox
 import { applyInjury, NEED } from '../engine/injuries';
 import { chooseCover } from '../engine/roster';
 import { createLeague } from '../engine/generate';
+import { endGmAppointment } from '../engine/gm';
 import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
 import { talksOf } from '../engine/trade/talks';
 import { dealAdvice } from '../engine/trade/advice';
-import type { Game, InboxMessage, League, TradeOffer } from '../engine/types';
+import type { AdviceRow, Game, InboxMessage, League, TradeOffer } from '../engine/types';
 import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
-import { aboutOf, Folded, MessageBody } from './screens/Inbox';
-import { MailCards, weekBack, weeksMissed } from './mail';
+import { aboutOf, clubOf, Folded, MessageBody, sender, SenderAvatar } from './screens/Inbox';
+import { badgeOn, contrast } from './color';
+import { adviceDraft, MailCards, weekBack, weeksMissed } from './mail';
 
 // Fallbacks, tried in order until one has what a test needs: an opening league that commits as a settled one does
 // files fewer swap offers to you (none of trades-0..9 had one with players both ways by week 9 once rentals for
@@ -314,17 +316,20 @@ describe('the opposition report', () => {
     expect(count).toBeGreaterThanOrEqual(1);
     expect(count).toBeLessThanOrEqual(2);
     expect(html).toContain('Unit leaders');
-    expect(html).toContain('Our scouts place');
+    expect(html).toMatch(/(Our|Their) .* \(\d+(st|nd|rd|th)\) vs/);
     expect(html).toMatch(/Our offense vs their defense|Their offense vs our defense/);
     expect(html).not.toContain('mail-matchup-score');
   });
-  it('explains unit percentiles and does not invent early-season statistics', () => {
+  it('reads each matchup in one line and does not invent early-season statistics', () => {
     const league = createLeague({ seed: 'inbox' });
     deliverMail(league);
     const report = league.inbox!.find((m) => m.category === 'matchup')!;
     const html = renderToStaticMarkup(<MailCards league={league} message={report} />);
-    expect(html).toContain('Higher unit percentiles mean a stronger group');
-    expect(html).toContain('Not enough games yet');
+    expect(html).not.toContain('Higher unit percentiles');
+    expect(html).not.toContain('Not enough games yet');
+    expect(html).not.toContain('percentile');
+    expect(html).toMatch(/\((\d+)(st|nd|rd|th)\) vs (our|their) .* \((\d+)(st|nd|rd|th)\): /);
+    expect(html).not.toContain('mail-focus-facts');
     expect(html).not.toMatch(/NaN|Infinity|71th/);
   });
 });
@@ -332,7 +337,7 @@ describe('the opposition report', () => {
 describe('current briefings without a task badge', () => {
   it('keeps the deadline card live until trading closes', () => {
     const league = createLeague({ seed: 'deadline-briefing' });
-    league.week = 8;
+    league.week = 10; // deadline day: the league office's only deadline notice
     deliverMail(league);
     const message = league.inbox!.find((m) => m.id.startsWith('deadline:'))!;
     expect(message).toBeDefined();
@@ -533,5 +538,225 @@ describe('SNN deal evidence', () => {
     expect(html).toContain('Receives');
     expect(html).toContain('2028 first-round pick');
     expect(html).toMatch(new RegExp(`<button[^>]*class="linklike"[^>]*>${name}</button>`));
+  });
+});
+
+describe('mail from another club', () => {
+  const l = createLeague({ seed: 'club-colours' });
+  const other = (l.userTeamId + 7) % 32;
+  const msg = (fromTeamId?: number): InboxMessage => ({
+    id: 'x',
+    season: l.season,
+    phase: 'regular',
+    week: 3,
+    from: fromTeamId === undefined ? 'Maureen Rose, Director of scouting' : 'Somewhere front office',
+    category: 'trades',
+    subject: 's',
+    body: 'b',
+    read: false,
+    actions: [],
+    fromTeamId,
+  });
+  it('shows mail from another club in its colours with its abbreviation', () => {
+    expect(clubOf(l, msg(other))?.id).toBe(other);
+    const html = renderToStaticMarkup(<SenderAvatar league={l} m={msg(other)} initials="SF" />);
+    expect(html).toContain(`>${l.teams[other].abbrev}<`);
+    expect(html.toLowerCase()).toContain(`background:${badgeOn(l.teams[other].colors[0]).bg.toLowerCase()}`);
+  });
+  it('keeps our own staff, and our own club, in the category colours', () => {
+    expect(clubOf(l, msg())).toBeNull();
+    expect(clubOf(l, msg(l.userTeamId))).toBeNull();
+    const html = renderToStaticMarkup(<SenderAvatar league={l} m={msg()} initials="MR" />);
+    expect(html).toContain('>MR<');
+    expect(html).toContain('cat-trades');
+  });
+  it('keeps every club’s initials readable', () => {
+    for (const t of l.teams) {
+      const { bg, ink } = badgeOn(t.colors[0]);
+      expect(contrast(bg, ink)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
+describe('the head coach’s rundown', () => {
+  it('lists our key players and prospects as links', () => {
+    const league = createLeague({ seed: 'onboarding-card' });
+    deliverMail(league);
+    const m = league.inbox!.find((x) => x.id.startsWith('rundown:'))!;
+    const html = renderToStaticMarkup(<MailCards league={league} message={m} />);
+    for (const id of [...m.rundown!.offense, ...m.rundown!.defense, ...m.rundown!.prospects])
+      expect(html).toContain(league.players[id].lastName);
+    expect(html).toContain('Prospects to watch');
+  });
+});
+
+describe('SNN’s offseason front-office digest', () => {
+  it('shows the changes grouped, with clubs and GMs linked', () => {
+    const l = createLeague({ seed: 'digest-card' });
+    const [a, b] = [1, 2].map((i) => (l.userTeamId + i) % 32);
+    const gm = l.gms[l.teams[a].gmId!];
+    const message: InboxMessage = {
+      id: `leadership-phase:${l.season}:resign:1-2`,
+      season: l.season,
+      phase: 'resign',
+      week: 0,
+      from: 'SNN league desk',
+      category: 'league',
+      subject: 'Front-office carousel: 1 GM out, 1 on the hot seat',
+      body: 'b',
+      read: false,
+      actions: [],
+      carousel: [
+        { group: 'out', teamId: a, gmId: gm.id, name: `${gm.firstName} ${gm.lastName}`, line: 'let go after 3–14' },
+        { group: 'hotSeat', teamId: b, name: 'Pat Doe', line: 'prove-it season' },
+      ],
+    };
+    const html = renderToStaticMarkup(<MailCards league={l} message={message} />);
+    expect(html).toContain('Out');
+    expect(html).toContain('Hot seat');
+    expect(html).not.toContain('Hired');
+    expect(html).toContain('let go after 3–14');
+    expect(html).toContain(l.teams[a].name);
+    expect(html).toContain(gm.lastName);
+  });
+});
+
+describe('outlet badges', () => {
+  it.each([
+    ['SNN league desk', 'SNN'],
+    ['SNN — Sports News Network', 'SNN'],
+    ['The Arena Gazette', 'GAZ'],
+    ['League office', 'LO'],
+    ['The owner', 'OWN'],
+    ['SNN', 'SNN'],
+    ['Front office', 'FO'],
+    ['Coaching staff', 'CS'],
+    ['Scouting department', 'SCT'],
+    ['Director of scouting', 'DIR'],
+    ['Medical staff', 'MED'],
+    ['Your players', 'PLY'],
+  ])('draws %s as %s', (from, badge) => expect(sender(from).initials).toBe(badge));
+  it('keeps people’s initials', () => expect(sender('Nick Holland, Director of scouting').initials).toBe('NH'));
+});
+
+describe('the director’s advice card', () => {
+  const l = createLeague({ seed: 'advice-card' });
+  const theirs = Object.values(l.players).find((p) => p.teamId !== null && p.teamId !== l.userTeamId)!;
+  const ours = Object.values(l.players).filter((p) => p.teamId === l.userTeamId);
+  const buy = {
+    kind: 'buy' as const,
+    playerId: theirs.id,
+    teamId: theirs.teamId,
+    name: `${theirs.firstName} ${theirs.lastName}`,
+    position: theirs.position,
+    why: 'A starter at our weakest spot.',
+    price: 'likely a 4th',
+  };
+  const sell = {
+    kind: 'sell' as const,
+    playerId: ours[0].id,
+    teamId: l.userTeamId,
+    name: `${ours[0].firstName} ${ours[0].lastName}`,
+    position: ours[0].position,
+    why: 'Two clubs have asked about him.',
+    price: 'likely a 6th',
+    partnerId: theirs.teamId!,
+  };
+  const message = (rows: AdviceRow[]): InboxMessage => ({
+    id: `advice:${l.season}:w6`,
+    season: l.season,
+    phase: 'regular',
+    week: 6,
+    from: 'Scouting department',
+    category: 'trades',
+    subject: 's',
+    body: 'b',
+    read: false,
+    actions: [],
+    advice: { lean: 'targeted', rows },
+  });
+  it('shows each pick with its reason, ballpark and button', () => {
+    const html = renderToStaticMarkup(<MailCards league={l} message={message([buy, sell])} />);
+    expect(html).toContain(theirs.lastName);
+    expect(html).toContain('A starter at our weakest spot.');
+    expect(html).toContain('likely a 4th');
+    expect(html).toContain('To add');
+    expect(html).toContain('To move');
+    expect(html.match(/Open talks/g)).toHaveLength(2);
+  });
+  it('drops the button, not the row, once a player has moved on', () => {
+    const moved = { ...buy, teamId: (theirs.teamId! + 1) % 32 };
+    const html = renderToStaticMarkup(<MailCards league={l} message={message([moved])} />);
+    expect(html).toContain(theirs.lastName);
+    expect(html).not.toContain('Open talks');
+    expect(adviceDraft(l, moved)).toBeNull();
+  });
+  it('drops the talks button once the trade window has closed', () => {
+    const closed = createLeague({ seed: 'advice-card' });
+    closed.phase = 'complete';
+    expect(adviceDraft(closed, buy)).toBeNull();
+  });
+  it('loads the trade table with the pick', () => {
+    expect(adviceDraft(l, buy)).toEqual({
+      partnerId: theirs.teamId,
+      mine: { players: [], picks: [] },
+      theirs: { players: [theirs.id], picks: [] },
+    });
+    expect(adviceDraft(l, sell)).toEqual({
+      partnerId: theirs.teamId,
+      mine: { players: [ours[0].id], picks: [] },
+      theirs: { players: [], picks: [] },
+    });
+  });
+});
+
+describe('the Gazette’s numbers card', () => {
+  it('shows each table with links, values and our row marked', () => {
+    const l = createLeague({ seed: 'gazette-card' });
+    const qb = Object.values(l.players).find((p) => p.position === 'QB' && p.teamId !== null)!;
+    const other = (l.userTeamId + 1) % 32;
+    const message: InboxMessage = {
+      id: `gazette:${l.season}:w4`,
+      season: l.season,
+      phase: 'regular',
+      week: 4,
+      from: 'The Arena Gazette',
+      category: 'league',
+      subject: 's',
+      body: 'b',
+      read: false,
+      actions: [],
+      gazette: {
+        edition: 'w4',
+        tables: [
+          {
+            title: 'Offense: EPA per play',
+            unit: 'epa',
+            rows: [
+              { teamId: other, name: l.teams[other].name, value: 0.214, rank: 1 },
+              { teamId: l.userTeamId, name: l.teams[l.userTeamId].name, value: -0.05, rank: 20 },
+            ],
+          },
+          {
+            title: 'Quarterbacks: EPA per dropback',
+            unit: 'perDropback',
+            players: true,
+            rows: [
+              { teamId: qb.teamId!, playerId: qb.id, name: `${qb.firstName} ${qb.lastName}`, value: 0.31, rank: 1 },
+            ],
+          },
+        ],
+      },
+    };
+    const html = renderToStaticMarkup(<MailCards league={l} message={message} />);
+    expect(html).toContain('Offense: EPA per play');
+    expect(html).toContain('0.21');
+    expect(html).toContain('−0.05');
+    expect(html).toContain('is-user');
+    expect(html).toContain(qb.lastName);
+    expect(html).toContain('Quarterbacks: EPA per dropback');
+    // Between jobs, no club is ours.
+    endGmAppointment(l, l.userGmId, 'dismissed');
+    expect(renderToStaticMarkup(<MailCards league={l} message={message} />)).not.toContain('is-user');
   });
 });

@@ -18,6 +18,11 @@ import {
   coachingFor,
   coachingFrom,
   coachingParts,
+  coordinatorOf,
+  unpaidChairs,
+  installInterimHeadCoach,
+  resolveInterimHeadCoach,
+  teamScheme,
   coachMarket,
   coachMoveProblem,
   coachPayroll,
@@ -48,6 +53,7 @@ import {
   TYPICAL,
 } from './coaching';
 import { developPlayer } from './development';
+import { FRONTS, OFF_SCHEMES } from './schemes';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { simToEndOfSeason } from './league';
 import { fourthDown, passProbability, type Situation } from './match/coach';
@@ -892,5 +898,90 @@ describe('special teams coordinator', () => {
     }
     expect(coachMarket(up).some((c) => c.role === 'stCoord')).toBe(true);
     expect(migrateLeague(copy(up))).toEqual(up);
+  });
+});
+
+describe('an interim head coach keeps his coordinator job', () => {
+  const midseason = (seed = 'interim-acting') => {
+    const l = createLeague({ seed });
+    l.phase = 'regular';
+    l.week = 11;
+    l.teams[3].staffBudgetMult = 3;
+    return l;
+  };
+  const best = (l: League, role: 'offCoord' | 'defCoord') => {
+    const c = teamCoaches(l, 3).find((c) => c.role === role)!;
+    c.youth = 20;
+    c.veterans = 20;
+    return c;
+  };
+  it('leaves his old chair to him and hires nobody into it', () => {
+    const l = midseason();
+    const dc = best(l, 'defCoord');
+    const front = dc.scheme!.front!;
+    const hc = installInterimHeadCoach(l, 3)!;
+    expect(hc.id).toBe(dc.id);
+    expect(hc.actingAs).toBe('defCoord');
+    expect(chairHolder(teamCoaches(l, 3), { role: 'defCoord' })).toBeNull();
+    expect(coordinatorOf(teamCoaches(l, 3), 'defCoord')!.id).toBe(dc.id);
+    expect(teamScheme(l, 3).front).toBe(FRONTS[front]);
+  });
+  it('reads the offense and its calls from him when he was the offensive coordinator', () => {
+    const l = midseason();
+    const oc = best(l, 'offCoord');
+    oc.style = { ...oc.style, passLean: 0.4 };
+    const offense = oc.scheme!.offense!;
+    installInterimHeadCoach(l, 3);
+    expect(oc.actingAs).toBe('offCoord');
+    expect(teamScheme(l, 3).offense).toBe(OFF_SCHEMES[offense]);
+    expect(callerStyle(l, 3).passLean).toBe(0.4);
+  });
+  it('counts him as the coordinator for development', () => {
+    const l = midseason();
+    const dc = best(l, 'defCoord');
+    installInterimHeadCoach(l, 3);
+    expect(coachingParts(teamCoaches(l, 3), 'LB').find((p) => p.source === 'coordinator')!.coach!.id).toBe(dc.id);
+  });
+  it('gives up the chair when a coordinator is hired into it', () => {
+    const l = midseason();
+    const dc = best(l, 'defCoord');
+    installInterimHeadCoach(l, 3);
+    l.phase = 'resign';
+    const hire = coachMarket(l).find((c) => c.role === 'defCoord')!;
+    hireCoach(l, 3, hire.id, 1);
+    expect(dc.actingAs).toBeUndefined();
+    expect(coordinatorOf(teamCoaches(l, 3), 'defCoord')!.id).toBe(hire.id);
+  });
+  it('gives up the chair when made permanent', () => {
+    const l = midseason();
+    const dc = best(l, 'defCoord');
+    installInterimHeadCoach(l, 3);
+    l.season++;
+    l.phase = 'resign';
+    resolveInterimHeadCoach(l, dc, true);
+    expect(dc.actingAs).toBeUndefined();
+    expect(coordinatorOf(teamCoaches(l, 3), 'defCoord')).toBeNull();
+  });
+  it('leaves no acting chair on a coach who retires', () => {
+    const l = midseason();
+    const dc = best(l, 'defCoord');
+    installInterimHeadCoach(l, 3);
+    dc.age = 90;
+    dc.career = [{ season: l.season, teamId: 3, role: 'defCoord' }];
+    developCoaches(l);
+    expect(l.retiredCoaches[dc.id]).toBeDefined();
+    expect(l.retiredCoaches[dc.id].actingAs).toBeUndefined();
+  });
+  it('keeps no money aside for the chair the interim covers', () => {
+    const l = midseason();
+    best(l, 'defCoord');
+    installInterimHeadCoach(l, 3);
+    expect(unpaidChairs(l, 3, { role: 'stCoord' }).some((ch) => ch.role === 'defCoord')).toBe(false);
+  });
+  it('never acts as coordinator when the interim came from the market', () => {
+    const l = midseason();
+    for (const c of teamCoaches(l, 3).filter((c) => c.role === 'offCoord' || c.role === 'defCoord')) c.teamId = null;
+    const hc = installInterimHeadCoach(l, 3)!;
+    expect(hc.actingAs).toBeUndefined();
   });
 });

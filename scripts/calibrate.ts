@@ -152,6 +152,9 @@ const schemeTally = (key: string, t: TeamGameStats, pts: number) => {
 };
 const lean = (v: number) => (v >= 0.35 ? 'high' : v <= -0.35 ? 'low' : 'mid');
 
+/** The league's advanced numbers (`analytics.ts`), both sides of every game. */
+const adv = { plays: 0, epa: 0, success: 0, explosive: 0, dropbacks: 0, passEpa: 0, rushes: 0, rushEpa: 0 };
+
 const t0 = Date.now();
 for (let s = 0; s < seasons; s++) {
   const league = createLeague({ seed: `calibrate-${s}` });
@@ -161,6 +164,17 @@ for (let s = 0; s < seasons; s++) {
   for (const g of regularSeasonGames(league)) {
     const r = g.result as GameResult;
     games++;
+    for (const a of [r.home.adv, r.away.adv])
+      if (a) {
+        adv.plays += a.plays;
+        adv.epa += a.epa;
+        adv.success += a.success;
+        adv.explosive += a.explosive;
+        adv.dropbacks += a.dropbacks;
+        adv.passEpa += a.passEpa;
+        adv.rushes += a.rushes;
+        adv.rushEpa += a.rushEpa;
+      }
     const roof = byRoof[r.weather?.roof === 'dome' || r.weather?.roof === 'closed' ? 'indoor' : 'outdoor'];
     roof[0] += r.homeScore + r.awayScore;
     roof[1]++;
@@ -409,6 +423,18 @@ console.log(
 console.log(`\n${misses} stat(s) outside target range`);
 // The tables below are informational; a stat outside its range fails the run (and CI).
 if (misses) process.exitCode = 1;
+
+// What the Gazette writes about: a measure of play, not play itself, so it warns rather than fails.
+console.log("\nAdvanced numbers (warnings only): the Gazette's measures against the NFL's");
+const ADV: [string, number, number, number][] = [
+  ['EPA per play', adv.epa / adv.plays, -0.05, 0.05],
+  ['EPA per dropback', adv.passEpa / adv.dropbacks, 0, 0.12],
+  ['EPA per rush', adv.rushEpa / adv.rushes, -0.15, -0.02],
+  ['success rate', adv.success / adv.plays, 0.42, 0.48],
+  ['explosive rate', adv.explosive / adv.plays, 0.07, 0.11],
+];
+for (const [k, v, lo, hi] of ADV)
+  console.log(k.padEnd(18), v.toFixed(3).padStart(8), `  ${lo}–${hi}`, v < lo || v > hi ? '  ⚠' : '');
 
 console.log('\nSchemes (informational, per team-game): offense gains, defense allows');
 console.log(

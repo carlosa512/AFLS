@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { coachingGrades } from '../../engine/coaching';
 import { createLeague } from '../../engine/generate';
+import { deliverMail } from '../../engine/inbox';
 import { GM_START_AGES, gmStartProblem, startingGm, type StartingGm } from '../../engine/gm';
 import { medicalGrades } from '../../engine/medical';
 import { teamRatings } from '../../engine/roster';
@@ -12,6 +13,18 @@ import { store } from '../store';
 import { VersionTag } from '../versionHistory';
 
 type Grades = Map<number, { rank: number; grade: string }>;
+
+/**
+ * The league for a new career, with its first day's mail already filed: the owner's welcome and the head coach's
+ * rundown are dated to the day you take the job, so they can't wait for the first thing you do (which may be a week
+ * played). The same seed rebuilds the preview's league, staffs included, with the picked club as the user's.
+ */
+export function startCareer(seed: string, teamId: number, gm?: StartingGm) {
+  // Every new career has practice squads (0.2.0).
+  const league = createLeague({ seed, userTeamId: teamId, inheritStaff: true, gm, personnel: true });
+  deliverMail(league);
+  return league;
+}
 
 /** You start as the club's GM: a fold-out shows who that is and lets you change the name and starting age. */
 export function StartingGmFields({ value, onChange }: { value: StartingGm; onChange: (gm: StartingGm) => void }) {
@@ -86,9 +99,8 @@ export function NewGame() {
 
   const start = () => {
     if (picked === null || !gm || gmProblem) return;
-    // The same seed rebuilds the same league, staffs included, now with the picked club as the user's.
     live.clear();
-    store.set(createLeague({ seed, userTeamId: picked, inheritStaff: true, gm, personnel: true }));
+    store.set(startCareer(seed, picked, gm));
   };
 
   const pickedTeam = picked === null ? null : preview.teams[picked];

@@ -23,6 +23,58 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'run it all for you unless you take over, and existing careers can switch it on at their next offseason.',
   },
   {
+    version: '0.1.20',
+    date: '2026-10-26',
+    title: 'The Arena Gazette does the numbers',
+    text:
+      'The Gazette now writes a numbers column every three weeks, plus a playoff preview and a season wrap: who ' +
+      'leads the league in EPA per play, success rate, explosive plays and pressure, which quarterbacks add the most ' +
+      'per dropback, who is climbing, and where your club stands. The game now counts these numbers on every play, ' +
+      'without changing how a single one plays out.',
+  },
+  {
+    version: '0.1.19',
+    date: '2026-10-26',
+    title: "Your director's recommendations",
+    text:
+      "The weekly market report is gone: SNN covers the league's trades. Instead your director of scouting writes " +
+      'four times a year with two to four moves for us: three weeks before the deadline and in deadline week (add ' +
+      'for a playoff push, sell when the season is slipping away, or one of each), when the league year opens and ' +
+      'when free agency does. Each pick says why, what it might cost, and opens the trade table or free agency.',
+  },
+  {
+    version: '0.1.18',
+    date: '2026-10-26',
+    title: 'A quieter offseason inbox',
+    text:
+      'When your deal is up, the owner offers you an extension instead of signing it for you: accept it, or turn ' +
+      'it down and go into the GM job market. His new-year letter now carries his verdict, that offer and the ' +
+      'budgets in one place. Firings, hires, extensions and hot seats around the league arrive as one SNN digest ' +
+      'per offseason step, SNN and the Gazette have their own badges, and GM profiles say more about who is out of ' +
+      'work, who has won what and who is under pressure.',
+  },
+  {
+    version: '0.1.17',
+    date: '2026-10-26',
+    title: 'Interim coaches, tidied up',
+    text:
+      'A club without a GM still settles its interim head coach when the league year opens, so no team goes a ' +
+      'season without a coordinator. Clubs no longer hold money back for a coordinator their interim is covering, ' +
+      'a position move credits the interim running that side, and a late coaching change around the league is ' +
+      'no longer lost when the weekly roundup has already gone out.',
+  },
+  {
+    version: '0.1.16',
+    date: '2026-10-26',
+    title: 'Mail that tells you more',
+    text:
+      'A new job opens with a welcome from the owner (what he expects and what you can spend) and a rundown from ' +
+      'your head coach: where the offense and defense rank, who they run through and which young players to watch. ' +
+      'When a head coach is fired, the owner says why and what it cost, and a coordinator promoted to interim keeps ' +
+      "running his side of the ball. Opposition reports are shorter, offers from other clubs show those clubs' " +
+      'colours, firings around the league come as one weekly roundup, and your director says what each trade means for you.',
+  },
+  {
     version: '0.1.15',
     date: '2026-10-26',
     title: 'Choose who you are',

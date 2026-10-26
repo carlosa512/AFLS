@@ -38,6 +38,11 @@ const earlyPicks = (l: League, r: TradeRecord) =>
     .flatMap((s) => s.picks)
     .map((id) => l.draftPicks.find((p) => p.id === id)!)
     .filter((p) => p.round <= 2);
+/** The deal's best player on our scouts' read: the name a story or a note leads with. */
+export function leadPlayer(l: League, r: TradeRecord): number {
+  const rating = (id: number) => perceive(l, l.userTeamId, l.players[id]).ovr;
+  return r.sides.flatMap((s) => s.players).sort((a, b) => rating(b) - rating(a) || a - b)[0];
+}
 const identity = (r: TradeRecord) =>
   r.sides
     .map(
@@ -46,6 +51,8 @@ const identity = (r: TradeRecord) =>
     )
     .sort()
     .join('_');
+/** What makes a trade story's id: the director checks it to know SNN already ran the deal. */
+export const tradeIdentity = identity;
 
 /** Non-overlapping editions: fortnightly normally, weekly for the final two trading weeks.
  * A separate deadline-day slot only covers new activity on that day, never week 9 again.
@@ -110,8 +117,7 @@ export function keyTradeNews(l: League, week: number): Draft[] {
   if (!window) return [];
   const division = l.teams[l.userTeamId].division;
   const rating = (id: number) => perceive(l, l.userTeamId, l.players[id]).ovr;
-  const leadPlayer = (r: TradeRecord) =>
-    r.sides.flatMap((s) => s.players).sort((a, b) => rating(b) - rating(a) || a - b)[0];
+  const lead = (r: TradeRecord) => leadPlayer(l, r);
   const candidates = (l.market?.history ?? []).filter(
     (r) =>
       r.season === l.season &&
@@ -121,11 +127,11 @@ export function keyTradeNews(l: League, week: number): Draft[] {
       !r.sides.some((s) => s.teamId === l.userTeamId) &&
       complete(l, r) &&
       r.sides.some((s) => s.players.length) &&
-      (r.kind === 'star' || earlyPicks(l, r).length > 0 || rating(leadPlayer(r)) >= 13),
+      (r.kind === 'star' || earlyPicks(l, r).length > 0 || rating(lead(r)) >= 13),
   );
   candidates.sort(
     (a, b) =>
-      rating(leadPlayer(b)) - rating(leadPlayer(a)) ||
+      rating(lead(b)) - rating(lead(a)) ||
       Number(b.sides.some((s) => l.teams[s.teamId].division === division)) -
         Number(a.sides.some((s) => l.teams[s.teamId].division === division)) ||
       Number(b.kind === 'star') - Number(a.kind === 'star') ||
@@ -133,7 +139,7 @@ export function keyTradeNews(l: League, week: number): Draft[] {
   );
   const deal = candidates[0];
   if (!deal) return [];
-  const playerId = leadPlayer(deal);
+  const playerId = lead(deal);
   const seller = deal.sides.find((s) => s.players.includes(playerId))!;
   const buyer = deal.sides.find((s) => s !== seller)!;
   const position =
@@ -154,6 +160,12 @@ export function keyTradeNews(l: League, week: number): Draft[] {
     rec.w + rec.l + rec.t
       ? `The ${l.teams[buyer.teamId].name} are ${rec.w}–${rec.l}${rec.t ? `–${rec.t}` : ''}${timing}.`
       : '';
+  // Why the seller let him go, when its record says it: a club at .500 or worse is selling.
+  const sold = computeRecords(l).get(seller.teamId);
+  const selling =
+    sold && sold.w + sold.l + sold.t && sold.w + sold.t / 2 <= (sold.w + sold.l + sold.t) / 2
+      ? ` The ${l.teams[seller.teamId].name}, ${sold.w}–${sold.l}${sold.t ? `–${sold.t}` : ''}, are selling.`
+      : '';
   return [
     {
       id: `${tradeNewsSlot(l, week)}trade:${identity(deal)}`,
@@ -165,7 +177,7 @@ export function keyTradeNews(l: League, week: number): Draft[] {
       subject: `${l.teams[buyer.teamId].name} land ${person(l, playerId)} in deal with ${l.teams[seller.teamId].name}`,
       body: [
         opening + (deal.week !== week ? ` The deal was completed in Week ${deal.week}.` : ''),
-        `${price}${context ? ` ${context}` : ''}`,
+        `${price}${context ? ` ${context}` : ''}${selling}`,
       ].join('\n\n'),
       tradeReport: {
         exchanges: deal.sides.map((s, i) => ({ teamId: deal.sides[1 - i].teamId, receives: assets(l, s) })),

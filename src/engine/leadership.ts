@@ -5,6 +5,8 @@ import {
   chairHolder,
   coachMandate,
   coachName,
+  coachRoom,
+  coachSeverance,
   installInterimHeadCoach,
   ownerDismissHeadCoach,
   ownerTrigger,
@@ -14,7 +16,7 @@ import {
 } from './coaching';
 import { managesTeam } from './employment';
 import { logTransaction } from './finance/cap';
-import { appointDirectorAsGm, appointGm, careerDate, endGmAppointment, makeGmPermanent, teamGm } from './gm';
+import { appointDirectorAsGm, appointGm, careerDate, endGmAppointment, extendGm, makeGmPermanent, teamGm } from './gm';
 import { drawInSeason, drawOffseason, heatSoFar, ownerBag, seasonHeat, talentRanks } from './ownerBag';
 import { gmRecord } from './records';
 import { clamp, Rng } from './rng';
@@ -33,6 +35,7 @@ import type {
 } from './types';
 const name = (gm: GeneralManager) => `${gm.firstName} ${gm.lastName}`;
 const head = (l: League, id: number) => chairHolder(teamCoaches(l, id), { role: 'headCoach' });
+const recordText = (r: { w: number; l: number; t: number }) => `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;
 const pct = (r: { w: number; l: number; t: number }) => (r.w + r.t / 2) / Math.max(1, r.w + r.l + r.t);
 
 /** Club service and head-coach service differ after an internal promotion. */
@@ -109,7 +112,6 @@ export function leadershipNewYear(l: League): void {
   for (const t of l.teams) {
     if (t.leadershipReview?.season === l.season) continue;
     const gm = teamGm(l, t.id);
-    if (!gm) continue;
     const rng = new Rng(`${l.seed}:leadership:${l.season}:${t.id}`);
     let hc = head(l, t.id);
     // An interim the owner has just offered the permanent job is not reviewed again in the same breath.
@@ -130,6 +132,8 @@ export function leadershipNewYear(l: League): void {
       });
       hc = head(l, t.id);
     }
+    // The owner settles an interim even while the club has no GM; the rest of the review needs one.
+    if (!gm) continue;
     const review: LeadershipReview = {
       season: l.season,
       week: 0,
@@ -207,7 +211,8 @@ export function leadershipNewYear(l: League): void {
             privateText: review.reason,
           });
       }
-      if (a.through < l.season) {
+      // The user's own deal becomes an offer to answer (`beginGmSearch`), never a silent extension.
+      if (a.through < l.season && gm.id !== l.userGmId) {
         a.through = l.season + (review.outcome === 'warning' ? 0 : 2);
         leadershipEvent(l, {
           teamId: t.id,
@@ -263,8 +268,12 @@ export function gmOfferTerms(l: League, offer: GmJobOffer): GmJobTerms {
   if (offer.terms) return offer.terms;
   const appeal = gmJobAppeal(l, offer.teamId),
     trigger = ownerTrigger(l, offer.teamId);
-  const expectation =
-    appeal < 0.4
+  // A GM staying on hears about the direction, not a new hire's brief.
+  const expectation = offer.extension
+    ? offer.through === l.season
+      ? 'Show clear progress this season, or the owner makes a change.'
+      : 'Keep the club moving forward: the owner likes the direction.'
+    : appeal < 0.4
       ? trigger > 1.2
         ? 'Show clear progress this season. Ownership expects the rebuild to move quickly.'
         : 'Build a competitive roster and show progress over your first two seasons.'
@@ -310,6 +319,19 @@ function justLeft(l: League, user: GeneralManager, teamId: number): boolean {
   const last = user.appointments.at(-1);
   return last?.teamId === teamId && last.end?.season === l.season;
 }
+/** A GM without a job always has one way back into the game. */
+function userJobOffers(l: League, offers: GmJobOffer[]): void {
+  const user = l.gms[l.userGmId];
+  if (user.teamId === null) {
+    // Keep one way back into the game. A quiet market makes this a conditional replacement,
+    // so rejecting the offer never manufactures a firing or another league vacancy.
+    const open = vacancies(l).filter((t) => !justLeft(l, user, t.id));
+    const pool = open.length ? open : l.teams.filter((t) => !justLeft(l, user, t.id));
+    const worst = pool.sort((a, b) => gmJobAppeal(l, a.id) - gmJobAppeal(l, b.id) || a.id - b.id)[0];
+    if (worst)
+      offers.push(jobOffer(l, worst.id, open.length || worst.gmId === null ? {} : { replacesGmId: worst.gmId }));
+  }
+}
 export function beginGmSearch(l: League): void {
   if (l.leadership.search?.season === l.season) return;
   const user = l.gms[l.userGmId],
@@ -323,15 +345,23 @@ export function beginGmSearch(l: League): void {
       offers.push(jobOffer(l, user.teamId!, { incumbent: true }));
     else endGmAppointment(l, user.id, 'expired');
   }
-  if (user.teamId === null) {
-    // Keep one way back into the game. A quiet market makes this a conditional replacement,
-    // so rejecting the offer never manufactures a firing or another league vacancy.
-    const open = vacancies(l).filter((t) => !justLeft(l, user, t.id));
-    const pool = open.length ? open : l.teams.filter((t) => !justLeft(l, user, t.id));
-    const worst = pool.sort((a, b) => gmJobAppeal(l, a.id) - gmJobAppeal(l, b.id) || a.id - b.id)[0];
-    if (worst)
-      offers.push(jobOffer(l, worst.id, open.length || worst.gmId === null ? {} : { replacesGmId: worst.gmId }));
-  }
+  // The owner keeps a GM whose deal ran out: the user answers an offer, through this season only on a warning.
+  const review =
+    incumbent && !incumbent.interim && user.teamId !== null ? l.teams[user.teamId].leadershipReview : undefined;
+  if (
+    incumbent &&
+    review?.season === l.season &&
+    incumbent.through < l.season &&
+    ['back', 'warning', 'coachChange'].includes(review.outcome)
+  )
+    offers.push(
+      jobOffer(l, user.teamId!, {
+        incumbent: true,
+        extension: true,
+        through: review.outcome === 'warning' ? l.season : l.season + 2,
+      }),
+    );
+  userJobOffers(l, offers);
   l.leadership.search = { season: l.season, round: vacancies(l).length || offers.length ? 0 : 3, offers };
   additionalOffers(l);
   if (l.leadership.search.round === 3) for (const team of l.teams) coverDirector(l, team.id);
@@ -341,9 +371,22 @@ export function pendingGmOffers(l: League): boolean {
   const s = l.leadership.search;
   return l.phase === 'resign' && !!s && s.season === l.season && s.offers.some((o) => s.round < o.expiresRound);
 }
+/** The owner's open offer to extend the user in his job, if there is one. */
+export function userExtensionOffer(l: League): GmJobOffer | undefined {
+  const s = l.leadership.search;
+  return pendingGmOffers(l) ? s!.offers.find((o) => o.extension && s!.round < o.expiresRound) : undefined;
+}
 export function declineGmOffers(l: League): void {
   const s = l.leadership.search;
   if (!s || l.phase !== 'resign') throw new Error('The staffing window is closed.');
+  if (userExtensionOffer(l)) {
+    // Turning down the extension ends the job: the deal ran out and the GM walks into the market.
+    endGmAppointment(l, l.userGmId, 'expired');
+    s.offers = [];
+    userJobOffers(l, s.offers);
+    additionalOffers(l);
+    return;
+  }
   s.offers = [];
   s.playerDeclined = true;
   while (s.round < 3) advanceGmHiringRound(l);
@@ -356,6 +399,18 @@ export function acceptGmOffer(l: League, teamId: number): void {
     throw new Error('This GM offer is no longer available.');
   const user = l.gms[l.userGmId],
     sitting = teamGm(l, teamId);
+  if (offer.extension) {
+    extendGm(l, user.id, offer.through);
+    user.appointments.at(-1)!.terms = JSON.parse(JSON.stringify(gmOfferTerms(l, offer)));
+    leadershipEvent(l, {
+      teamId,
+      kind: 'gmExtended',
+      gmId: user.id,
+      report: `${l.teams[teamId].abbrev} extended GM ${name(user)} through ${offer.through}.`,
+    });
+    search.offers = [];
+    return;
+  }
   const changingClub = user.teamId !== teamId;
   if (offer.incumbent && user.teamId === teamId) makeGmPermanent(l, user.id, offer.through);
   else {
@@ -478,6 +533,58 @@ function lostLast(l: League, teamId: number): boolean {
   return g.homeId === teamId ? homeScore < awayScore : awayScore < homeScore;
 }
 
+/** Losses in a row, back from the club's latest finished game this season. */
+function losingStreak(l: League, teamId: number): number {
+  const games = l.games
+    .filter((g) => g.season === l.season && g.result && (g.homeId === teamId || g.awayId === teamId))
+    .sort((a, b) => b.week - a.week);
+  let n = 0;
+  for (const g of games) {
+    const { homeScore, awayScore } = g.result!;
+    if (g.homeId === teamId ? homeScore < awayScore : awayScore < homeScore) n++;
+    else break;
+  }
+  return n;
+}
+
+const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const inWords = (n: number) => WORDS[n] ?? String(n);
+const money = (k: number) => (k >= 1000 ? `$${(k / 1000).toFixed(2)}M` : `$${Math.round(k)}K`);
+
+/**
+ * The owner's letter when he lets our head coach go in season: the record, whose fault (the roster's talent rank
+ * against the results, as his marble bag reads it), who runs the team now, the audition and the bill. `rank` is
+ * `talentRanks` (0 = the league's best roster). The letter always opens "I've let … go." (the mail's subject).
+ */
+export function interimLetter(
+  l: League,
+  teamId: number,
+  fired: Coach,
+  interim: Coach,
+  severance: number,
+  rank: number,
+): string {
+  const rec = computeRecords(l).get(teamId) ?? { w: 0, l: 0, t: 0 };
+  const record = recordText(rec);
+  const streak = losingStreak(l, teamId);
+  const side = interim.actingAs === 'offCoord' ? 'offense' : 'defense';
+  const left = Math.max(0, 17 - (rec.w + rec.l + rec.t));
+  const room = coachRoom(l, teamId);
+  return [
+    `I've let ${coachName(fired)} go. We're ${record}${streak >= 3 ? `, and we've lost ${inWords(streak)} straight` : ''}.`,
+    rank < 16 ? `This roster is better than ${record}.` : `I know the roster is thin, but we've gone backwards.`,
+    interim.actingAs
+      ? `${coachName(interim)}, our ${side === 'offense' ? 'offensive' : 'defensive'} coordinator, takes over for the rest of the season and keeps running the ${side} himself.`
+      : `${coachName(interim)} takes over for the rest of the season.`,
+    `Consider the last ${left === 1 ? 'game' : `${inWords(left)} games`} his audition; you and I decide in the offseason whether he stays.`,
+    severance > 0
+      ? `His severance is ${money(severance)}, out of the coaching budget.${room < 0 ? ` That puts us ${money(-room)} over this year.` : ''}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 /** How often an owner on a lost season reaches into the bag after a loss: tuned to the NFL's in-season firings. */
 const OWNER_REACH = 0.4;
 
@@ -553,6 +660,7 @@ export function leadershipWeek(l: League): void {
       leadershipCoachTenure(l, hc) >= 1 &&
       drawn.coach
     ) {
+      const severance = coachSeverance(l, hc);
       const interim = installInterimHeadCoach(l, t.id);
       if (interim)
         leadershipEvent(l, {
@@ -560,6 +668,9 @@ export function leadershipWeek(l: League): void {
           kind: 'coachInterim',
           coachId: interim.id,
           report: `${t.abbrev} dismissed ${coachName(hc)} and named ${coachName(interim)} interim head coach. Reports suggest the rest of the season will serve as an audition.`,
+          privateText: managesTeam(l, t.id)
+            ? interimLetter(l, t.id, hc, interim, severance, (ranks ??= talentRanks(l)).get(t.id)!)
+            : undefined,
         });
     }
   }

@@ -151,6 +151,14 @@ export const STAT_KEYS = [
   'penaltyYds',
   /** Quarterback hit late, low or high, and the flag accepted. */
   'roughingDrawn',
+  /** Pass attempts, sacks and scrambles: the plays a quarterback drops back on (`analytics.ts`). */
+  'dropbacks',
+  /** Expected points added, on the passer for a dropback and the ball carrier for a designed run. */
+  'epa',
+  /** Successful plays by the NFL's rule (`isSuccess`), credited like `epa`. */
+  'successes',
+  /** Snaps rushing the passer: a front player or the rush rotation on a dropback. */
+  'rushSnaps',
 ] as const;
 export type StatKey = (typeof STAT_KEYS)[number];
 export type StatLine = Partial<Record<StatKey, number>>;
@@ -585,6 +593,8 @@ export interface Coach {
   career?: CoachSeason[];
   /** A temporary leadership appointment; conversion to permanent is always explicit. */
   interim?: boolean;
+  /** An interim head coach promoted from a coordinator chair still runs it until the offseason. */
+  actingAs?: 'offCoord' | 'defCoord';
   /** Observed interim takeovers survive dismissal, permanent hiring and retirement. */
   interimAppointments?: { season: number; teamId: number; week: number }[];
   /** A former player: his playing career is that player's record in `league.players`. */
@@ -977,11 +987,55 @@ export interface LeadershipEvent {
   privateText?: string;
 }
 
+/** The Arena Gazette's tables (`gazette.ts`), saved with the column as they read when filed. */
+export type GazetteUnit = 'epa' | 'pct' | 'perDropback' | 'rushSuccess' | 'pressureRate';
+export interface GazetteRow {
+  teamId: number;
+  playerId?: number;
+  name: string;
+  value: number;
+  rank: number;
+}
+export interface GazetteTable {
+  title: string;
+  unit: GazetteUnit;
+  players?: true;
+  /** Lower is better (a defense's numbers allowed). */
+  lowerBetter?: true;
+  rows: GazetteRow[];
+}
+
+/** One of the director's recommendations, as it read when filed. */
+export interface AdviceRow {
+  kind: 'buy' | 'sell' | 'sign';
+  playerId: number;
+  /** His club when filed; null for a free agent. */
+  teamId: number | null;
+  name: string;
+  position: Position;
+  why: string;
+  /** The director's ballpark: "likely a 4th", "about $8.5M a year". */
+  price: string;
+  /** For a sale: the club to open talks with (it asked about him, or it's buying). */
+  partnerId?: number;
+}
+
+export interface CarouselRow {
+  group: 'out' | 'hired' | 'extended' | 'hotSeat' | 'coaches';
+  teamId: number;
+  gmId?: number;
+  coachId?: number;
+  name: string;
+  line: string;
+}
+
 export interface GmJobOffer {
   teamId: number;
   through: number;
   expiresRound: number;
   incumbent?: boolean;
+  /** The owner's offer to extend the user in the job he already holds: accept, or decline and go into the job market. */
+  extension?: boolean;
   /** A quiet-year conditional offer replaces this incumbent only on acceptance. */
   replacesGmId?: number;
   terms?: GmJobTerms;
@@ -1115,12 +1169,24 @@ export interface InboxMessage {
   /** The week it's dated (0 in the offseason). */
   week: number;
   from: string;
+  /** Another club's front office wrote it (offers, deals): the inbox draws it in that club's colours. */
+  fromTeamId?: number;
   /** The sender's staff card, when one of the team's own staff signs it. */
   fromCard?: { kind: 'coach' | 'scout' | 'medic'; id: number };
   category: InboxCategory;
   subject: string;
   body: string;
   leagueReport?: LeagueNewsReport;
+  /** The head coach's rundown for a new GM, as filed: unit ranks on our scouts' read (1 = the league's best), key players, prospects. */
+  rundown?: { offenseRank: number; defenseRank: number; offense: number[]; defense: number[]; prospects: number[] };
+  /** The director's market report: per trade (in `marketTrades` order), his note on what it means for us and whether SNN ran it, as filed. */
+  marketNotes?: { note?: string; snn?: true }[];
+  /** The Arena Gazette's numbers column (`gazette.ts`): its edition and tables, as filed. */
+  gazette?: { edition: string; tables: GazetteTable[] };
+  /** The director's recommendations, as they read when filed (`directorAdvice.ts`). */
+  advice?: { lean?: 'buy' | 'targeted' | 'sell'; rows: AdviceRow[] };
+  /** SNN's offseason front-office digest, as it read when filed: one row per change around the league. */
+  carousel?: CarouselRow[];
   tradeReport?: {
     period?: string;
     exchanges: { teamId: number; receives: string }[];
@@ -1136,6 +1202,23 @@ export interface InboxMessage {
 }
 
 export type PlayoffRound = 'WC' | 'DIV' | 'CONF' | 'FINAL';
+
+/** A side's advanced numbers for one game, as the offense (`analytics.ts`); its defense's are the opponent's. */
+export interface AdvancedStats {
+  /** Dropbacks and designed runs that counted (kneels and spikes aside). */
+  plays: number;
+  success: number;
+  epa: number;
+  explosive: number;
+  dropbacks: number;
+  passSuccess: number;
+  passEpa: number;
+  rushes: number;
+  rushSuccess: number;
+  rushEpa: number;
+  /** Dropbacks with a pass rusher getting home or forcing the quarterback off his spot. */
+  pressured: number;
+}
 
 export interface TeamGameStats {
   firstDowns: number;
@@ -1164,6 +1247,8 @@ export interface TeamGameStats {
   redZoneTd: number;
   /** Seconds of possession. */
   top: number;
+  /** Advanced numbers (`analytics.ts`); games before v52 have none. */
+  adv?: AdvancedStats;
 }
 
 /** The fouls the engine calls (see `FOULS` in `officials.ts`). */

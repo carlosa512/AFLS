@@ -14,6 +14,9 @@ import { byeTeams, resultsWeek, stripGames } from './strip';
 import { hurtList, wornDown } from './injuries';
 import { gameStory } from './game';
 import { standingsSortValue } from './screens/Standings';
+import { coordinatorFor } from './training';
+import { installInterimHeadCoach, teamCoaches } from '../engine/coaching';
+import { startCareer } from './screens/NewGame';
 import { TEAM_COLS, teamRank, teamStatSeasons } from './screens/TeamStats';
 import { defaultTradeTab, stickyTradeTab } from './screens/Trades';
 import { tradeDesk } from './tradeDesk';
@@ -415,5 +418,29 @@ describe('standings sort', () => {
     expect(byPf.map((x) => x.r.pf)).toEqual([...byPf].map((x) => x.r.pf).sort((a, b) => b - a));
     const back = sortRows(byPf, { key: 'rank', desc: false }, ({ r, i }, k) => standingsSortValue(r, k, i));
     expect(back.map((x) => x.r.teamId)).toEqual(d.teams.map((r) => r.teamId));
+  });
+});
+
+describe('starting a career', () => {
+  it('opens the inbox with the owner’s welcome and the head coach’s rundown, unread, before anything is played', () => {
+    const league = startCareer('first-day', 9);
+    expect(league.userTeamId).toBe(9);
+    const ids = (league.inbox ?? []).filter((m) => !m.read).map((m) => m.id.split(':')[0] + ':' + m.id.split(':')[2]);
+    expect(ids).toContain(`owner:welcome`);
+    expect(ids.some((id) => id.startsWith('rundown:'))).toBe(true);
+  });
+});
+
+describe('a position move’s scheme reason under an interim', () => {
+  it('names the head coach still running the defense', () => {
+    const league = createLeague({ seed: 'acting-reason' });
+    league.phase = 'regular';
+    league.week = 11;
+    league.teams[4].staffBudgetMult = 3;
+    const dc = teamCoaches(league, 4).find((c) => c.role === 'defCoord')!;
+    dc.youth = 20;
+    dc.veterans = 20;
+    installInterimHeadCoach(league, 4);
+    expect(coordinatorFor(league, 4, 'LB')?.coach.id).toBe(dc.id);
   });
 });

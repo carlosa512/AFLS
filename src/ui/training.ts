@@ -5,7 +5,7 @@
  * with the engine. Mirrors ui/coaching.ts.
  */
 import { placeAt, returnHome, slotOf } from '../engine/roster';
-import { chairHolder, teamCoaches } from '../engine/coaching';
+import { coordinatorOf, teamCoaches } from '../engine/coaching';
 import { reasonLine } from '../engine/inbox';
 import { knockFor, knockWord, targetsFor } from '../engine/familiarity';
 import { POSITION_NAMES } from '../engine/positions';
@@ -96,7 +96,7 @@ const DEFENDERS: ReadonlySet<Position> = new Set(['DT', 'EDGE', 'LB', 'CB', 'S']
 /** The coordinator whose scheme a plan serves, with whether he's new this year (for a scheme reason). */
 export function coordinatorFor(league: League, teamId: number, to: Position): ReasonRead['coordinator'] {
   // The same split the coaches' read makes: defenders answer to the defensive coordinator.
-  const coach = chairHolder(teamCoaches(league, teamId), { role: DEFENDERS.has(to) ? 'defCoord' : 'offCoord' });
+  const coach = coordinatorOf(teamCoaches(league, teamId), DEFENDERS.has(to) ? 'defCoord' : 'offCoord');
   return coach ? { coach, isNew: coach.since === league.season } : undefined;
 }
 
