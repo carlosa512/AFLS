@@ -1368,6 +1368,11 @@ export function concussionRetireChance(p: Player, season: number): number {
 export const PRACTICE_RATE = 0.0055;
 /** Share of practice injuries that come from contact (most are strains). */
 const PRACTICE_CONTACT = 0.25;
+/**
+ * A practice squad player's share of the practice field's risk: he runs the scout team, not a starter's full load of
+ * team periods, so he gets hurt there half as often (an AFLS call; his called-up games carry their full risk).
+ */
+export const practiceLoad = (p: Player): number => (p.squad?.kind === 'practiceSquad' ? 0.5 : 1);
 
 /**
  * After a week's games: time heals (every injury from before this week loses a week, every reserve
@@ -1409,7 +1414,7 @@ export function injuryWeek(league: League): void {
     const d = dept(p.teamId);
     const f = riskFactors(league, p, d);
     // A worn-down body practices tired.
-    const worn = (1 + Math.max(0, 85 - (p.condition ?? 100)) / 25) * care(p).practice;
+    const worn = (1 + Math.max(0, 85 - (p.condition ?? 100)) / 25) * care(p).practice * practiceLoad(p);
     const contact = PRACTICE_RATE * PRACTICE_CONTACT * f.contact * worn;
     const soft = PRACTICE_RATE * (1 - PRACTICE_CONTACT) * f.soft * worn;
     const roll = rng.next();

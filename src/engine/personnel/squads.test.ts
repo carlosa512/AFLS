@@ -4,7 +4,7 @@ import { capSheet, capSpace, releasePlayer } from '../finance/cap';
 import { capHit } from '../finance/contract';
 import { inSeasonReserve, spendable } from '../offseason/ai';
 import { contenderScore } from '../offseason/negotiation';
-import { irProblem } from '../injuries';
+import { irProblem, practiceLoad } from '../injuries';
 import { migrateLeague } from '../migrate';
 import { activeRoster, isAvailable, practiceSquad, syncDepthChart } from '../roster';
 import { Rng } from '../rng';
@@ -57,6 +57,16 @@ function open53() {
   p.teamId = null;
   p.contract = null;
 }
+
+describe('squad practice risk', () => {
+  it('a squad player carries half the practice field risk of a player on the 53', () => {
+    const l = createLeague({ seed: 'squad-practice', personnel: true });
+    const squad = practiceSquad(l, 0)[0];
+    const active = activeRoster(l, 0)[0];
+    expect(practiceLoad(active)).toBe(1);
+    expect(practiceLoad(squad)).toBe(0.5);
+  });
+});
 
 describe('squad eligibility and agreements', () => {
   it('assigns overlapping slots independently of signing order and explains both expanded limits', () => {
