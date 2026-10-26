@@ -11,7 +11,8 @@ import { dealAdvice } from '../engine/trade/advice';
 import type { Game, InboxMessage, League, TradeOffer } from '../engine/types';
 import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
-import { aboutOf, Folded, MessageBody } from './screens/Inbox';
+import { aboutOf, clubOf, Folded, MessageBody, SenderAvatar } from './screens/Inbox';
+import { badgeOn, contrast } from './color';
 import { MailCards, weekBack, weeksMissed } from './mail';
 
 // Fallbacks, tried in order until one has what a test needs: an opening league that commits as a settled one does
@@ -314,17 +315,20 @@ describe('the opposition report', () => {
     expect(count).toBeGreaterThanOrEqual(1);
     expect(count).toBeLessThanOrEqual(2);
     expect(html).toContain('Unit leaders');
-    expect(html).toContain('Our scouts place');
+    expect(html).toMatch(/(Our|Their) .* \(\d+(st|nd|rd|th)\) vs/);
     expect(html).toMatch(/Our offense vs their defense|Their offense vs our defense/);
     expect(html).not.toContain('mail-matchup-score');
   });
-  it('explains unit percentiles and does not invent early-season statistics', () => {
+  it('reads each matchup in one line and does not invent early-season statistics', () => {
     const league = createLeague({ seed: 'inbox' });
     deliverMail(league);
     const report = league.inbox!.find((m) => m.category === 'matchup')!;
     const html = renderToStaticMarkup(<MailCards league={league} message={report} />);
-    expect(html).toContain('Higher unit percentiles mean a stronger group');
-    expect(html).toContain('Not enough games yet');
+    expect(html).not.toContain('Higher unit percentiles');
+    expect(html).not.toContain('Not enough games yet');
+    expect(html).not.toContain('percentile');
+    expect(html).toMatch(/\((\d+)(st|nd|rd|th)\) vs (our|their) .* \((\d+)(st|nd|rd|th)\): /);
+    expect(html).not.toContain('mail-focus-facts');
     expect(html).not.toMatch(/NaN|Infinity|71th/);
   });
 });
@@ -533,5 +537,54 @@ describe('SNN deal evidence', () => {
     expect(html).toContain('Receives');
     expect(html).toContain('2028 first-round pick');
     expect(html).toMatch(new RegExp(`<button[^>]*class="linklike"[^>]*>${name}</button>`));
+  });
+});
+
+describe('mail from another club', () => {
+  const l = createLeague({ seed: 'club-colours' });
+  const other = (l.userTeamId + 7) % 32;
+  const msg = (fromTeamId?: number): InboxMessage => ({
+    id: 'x',
+    season: l.season,
+    phase: 'regular',
+    week: 3,
+    from: fromTeamId === undefined ? 'Maureen Rose, Director of scouting' : 'Somewhere front office',
+    category: 'trades',
+    subject: 's',
+    body: 'b',
+    read: false,
+    actions: [],
+    fromTeamId,
+  });
+  it('shows mail from another club in its colours with its abbreviation', () => {
+    expect(clubOf(l, msg(other))?.id).toBe(other);
+    const html = renderToStaticMarkup(<SenderAvatar league={l} m={msg(other)} initials="SF" />);
+    expect(html).toContain(`>${l.teams[other].abbrev}<`);
+    expect(html.toLowerCase()).toContain(`background:${badgeOn(l.teams[other].colors[0]).bg.toLowerCase()}`);
+  });
+  it('keeps our own staff, and our own club, in the category colours', () => {
+    expect(clubOf(l, msg())).toBeNull();
+    expect(clubOf(l, msg(l.userTeamId))).toBeNull();
+    const html = renderToStaticMarkup(<SenderAvatar league={l} m={msg()} initials="MR" />);
+    expect(html).toContain('>MR<');
+    expect(html).toContain('cat-trades');
+  });
+  it('keeps every club’s initials readable', () => {
+    for (const t of l.teams) {
+      const { bg, ink } = badgeOn(t.colors[0]);
+      expect(contrast(bg, ink)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
+describe('the head coach’s rundown', () => {
+  it('lists our key players and prospects as links', () => {
+    const league = createLeague({ seed: 'onboarding-card' });
+    deliverMail(league);
+    const m = league.inbox!.find((x) => x.id.startsWith('rundown:'))!;
+    const html = renderToStaticMarkup(<MailCards league={league} message={m} />);
+    for (const id of [...m.rundown!.offense, ...m.rundown!.defense, ...m.rundown!.prospects])
+      expect(html).toContain(league.players[id].lastName);
+    expect(html).toContain('Prospects to watch');
   });
 });

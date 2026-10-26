@@ -5,6 +5,8 @@ import {
   chairHolder,
   coachMandate,
   coachName,
+  coachRoom,
+  coachSeverance,
   installInterimHeadCoach,
   ownerDismissHeadCoach,
   ownerTrigger,
@@ -33,6 +35,7 @@ import type {
 } from './types';
 const name = (gm: GeneralManager) => `${gm.firstName} ${gm.lastName}`;
 const head = (l: League, id: number) => chairHolder(teamCoaches(l, id), { role: 'headCoach' });
+const recordText = (r: { w: number; l: number; t: number }) => `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;
 const pct = (r: { w: number; l: number; t: number }) => (r.w + r.t / 2) / Math.max(1, r.w + r.l + r.t);
 
 /** Club service and head-coach service differ after an internal promotion. */
@@ -478,6 +481,58 @@ function lostLast(l: League, teamId: number): boolean {
   return g.homeId === teamId ? homeScore < awayScore : awayScore < homeScore;
 }
 
+/** Losses in a row, back from the club's latest finished game this season. */
+function losingStreak(l: League, teamId: number): number {
+  const games = l.games
+    .filter((g) => g.season === l.season && g.result && (g.homeId === teamId || g.awayId === teamId))
+    .sort((a, b) => b.week - a.week);
+  let n = 0;
+  for (const g of games) {
+    const { homeScore, awayScore } = g.result!;
+    if (g.homeId === teamId ? homeScore < awayScore : awayScore < homeScore) n++;
+    else break;
+  }
+  return n;
+}
+
+const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const inWords = (n: number) => WORDS[n] ?? String(n);
+const money = (k: number) => (k >= 1000 ? `$${(k / 1000).toFixed(2)}M` : `$${Math.round(k)}K`);
+
+/**
+ * The owner's letter when he lets our head coach go in season: the record, whose fault (the roster's talent rank
+ * against the results, as his marble bag reads it), who runs the team now, the audition and the bill. `rank` is
+ * `talentRanks` (0 = the league's best roster). The letter always opens "I've let … go." (the mail's subject).
+ */
+export function interimLetter(
+  l: League,
+  teamId: number,
+  fired: Coach,
+  interim: Coach,
+  severance: number,
+  rank: number,
+): string {
+  const rec = computeRecords(l).get(teamId) ?? { w: 0, l: 0, t: 0 };
+  const record = recordText(rec);
+  const streak = losingStreak(l, teamId);
+  const side = interim.actingAs === 'offCoord' ? 'offense' : 'defense';
+  const left = Math.max(0, 17 - (rec.w + rec.l + rec.t));
+  const room = coachRoom(l, teamId);
+  return [
+    `I've let ${coachName(fired)} go. We're ${record}${streak >= 3 ? `, and we've lost ${inWords(streak)} straight` : ''}.`,
+    rank < 16 ? `This roster is better than ${record}.` : `I know the roster is thin, but we've gone backwards.`,
+    interim.actingAs
+      ? `${coachName(interim)}, our ${side === 'offense' ? 'offensive' : 'defensive'} coordinator, takes over for the rest of the season and keeps running the ${side} himself.`
+      : `${coachName(interim)} takes over for the rest of the season.`,
+    `Consider the last ${left === 1 ? 'game' : `${inWords(left)} games`} his audition; you and I decide in the offseason whether he stays.`,
+    severance > 0
+      ? `His severance is ${money(severance)}, out of the coaching budget.${room < 0 ? ` That puts us ${money(-room)} over this year.` : ''}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 /** How often an owner on a lost season reaches into the bag after a loss: tuned to the NFL's in-season firings. */
 const OWNER_REACH = 0.4;
 
@@ -553,6 +608,7 @@ export function leadershipWeek(l: League): void {
       leadershipCoachTenure(l, hc) >= 1 &&
       drawn.coach
     ) {
+      const severance = coachSeverance(l, hc);
       const interim = installInterimHeadCoach(l, t.id);
       if (interim)
         leadershipEvent(l, {
@@ -560,6 +616,9 @@ export function leadershipWeek(l: League): void {
           kind: 'coachInterim',
           coachId: interim.id,
           report: `${t.abbrev} dismissed ${coachName(hc)} and named ${coachName(interim)} interim head coach. Reports suggest the rest of the season will serve as an audition.`,
+          privateText: managesTeam(l, t.id)
+            ? interimLetter(l, t.id, hc, interim, severance, (ranks ??= talentRanks(l)).get(t.id)!)
+            : undefined,
         });
     }
   }

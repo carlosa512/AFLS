@@ -14,6 +14,7 @@ import { byeTeams, resultsWeek, stripGames } from './strip';
 import { hurtList, wornDown } from './injuries';
 import { gameStory } from './game';
 import { standingsSortValue } from './screens/Standings';
+import { startCareer } from './screens/NewGame';
 import { TEAM_COLS, teamRank, teamStatSeasons } from './screens/TeamStats';
 import { defaultTradeTab, stickyTradeTab } from './screens/Trades';
 import { tradeDesk } from './tradeDesk';
@@ -415,5 +416,15 @@ describe('standings sort', () => {
     expect(byPf.map((x) => x.r.pf)).toEqual([...byPf].map((x) => x.r.pf).sort((a, b) => b - a));
     const back = sortRows(byPf, { key: 'rank', desc: false }, ({ r, i }, k) => standingsSortValue(r, k, i));
     expect(back.map((x) => x.r.teamId)).toEqual(d.teams.map((r) => r.teamId));
+  });
+});
+
+describe('starting a career', () => {
+  it('opens the inbox with the owner’s welcome and the head coach’s rundown, unread, before anything is played', () => {
+    const league = startCareer('first-day', 9);
+    expect(league.userTeamId).toBe(9);
+    const ids = (league.inbox ?? []).filter((m) => !m.read).map((m) => m.id.split(':')[0] + ':' + m.id.split(':')[2]);
+    expect(ids).toContain(`owner:welcome`);
+    expect(ids.some((id) => id.startsWith('rundown:'))).toBe(true);
   });
 });

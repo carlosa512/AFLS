@@ -129,7 +129,7 @@ function evidence(all: Map<number, Totals>, teamId: number, title: string, offen
     games: s.games,
   };
 }
-const ordinal = (n: number) =>
+export const ordinal = (n: number) =>
   `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] ?? 'th')}`;
 export function focusMatchups(l: League, opponent: number): MatchupFocus[] {
   const { attack, defend } = keyMatchups(l, opponent);
@@ -174,21 +174,23 @@ export function focusMatchups(l: League, opponent: number): MatchupFocus[] {
       : advantage
         ? `Results edge: ${advantage === 'ours' ? 'ours' : 'theirs'}`
         : 'Fine margins';
-    const offName = `${side === 'attack' ? 'our' : 'their'} ${matchup.offense.title.toLowerCase().replace(/^qb/, 'quarterback')}`;
+    const offName = `${side === 'attack' ? 'Our' : 'Their'} ${matchup.offense.title.toLowerCase().replace(/^qb/, 'quarterback')}`;
     const defName = `${side === 'attack' ? 'their' : 'our'} ${matchup.defense.title.toLowerCase()}`;
-    const read = `Our scouts place ${offName} in the ${ordinal(Math.round(matchup.offense.score * 100))} percentile and ${defName} in the ${ordinal(Math.round(matchup.defense.score * 100))}.`;
+    const rank = (score: number) => ordinal(Math.round(score * 100));
+    // One line: the two units' places on our read (league percentiles), and what that adds up to.
+    const read = `${offName} (${rank(matchup.offense.score)}) vs ${defName} (${rank(matchup.defense.score)})`;
     const conclusion = film
-      ? `${Math.abs(gap) >= 0.4 ? 'That is a clear opening' : 'There is a small opening'} for ${film === 'ours' ? 'us' : 'them'} on this read.`
+      ? `${Math.abs(gap) >= 0.4 ? 'a clear' : 'a small'} opening for ${film === 'ours' ? 'us' : 'them'}.`
       : advantage
-        ? `The grades are close, but the season results offer a stronger case for ${advantage === 'ours' ? 'us' : 'them'} here.`
-        : 'Neither group has a clear advantage on film.';
+        ? `close on film; the results favour ${advantage === 'ours' ? 'us' : 'them'}.`
+        : 'even on film.';
     const caution =
       film && statGap * gap < 0 && Math.abs(statGap) >= 4
-        ? ' The season results point the other way, so treat the film edge cautiously.'
+        ? ' The results say otherwise.'
         : Math.abs(gap) >= 0.4 && off?.rank && def?.rank && Math.abs(statGap) <= 4
-          ? ' The team results are more evenly matched than the scouting grades suggest.'
+          ? ' The results are closer than that.'
           : '';
 
-    return { side, matchup, offenseId, defenseId, advantage, label, why: `${read} ${conclusion}${caution}`, facts };
+    return { side, matchup, offenseId, defenseId, advantage, label, why: `${read}: ${conclusion}${caution}`, facts };
   });
 }

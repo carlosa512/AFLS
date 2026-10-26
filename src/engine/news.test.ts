@@ -563,6 +563,21 @@ describe('SNN trade reporting', () => {
     deliverMail(l);
     expect(l.inbox.find((x) => x.id === m.id)!.tradeReport).toEqual(saved);
   });
+  it('adds the seller’s record when it is selling at .500 or worse', () => {
+    const { l, p, deal } = marketLeague();
+    l.games.push(
+      game(l, 1, 5, 1, 10, 24),
+      game(l, 1, 6, 2, 10, 24),
+      game(l, 1, 7, 3, 10, 24),
+      game(l, 1, 8, 4, 24, 10),
+    );
+    l.market!.history = [deal];
+    p.teamId = 2;
+    const [m] = keyTradeNews(l, 8);
+    expect(m.body).toContain(`The ${l.teams[1].name}, 1–3, are selling.`);
+    l.games = l.games.filter((g) => g.homeId !== 1);
+    expect(keyTradeNews(l, 8)[0].body).not.toContain('are selling');
+  });
   it('skips an incomplete asset history instead of silently dropping part of the price', () => {
     const { l, deal } = marketLeague();
     deal.sides[1].picks = [99999999];

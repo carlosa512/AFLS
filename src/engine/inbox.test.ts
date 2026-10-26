@@ -6,6 +6,7 @@ import { createLeague, generatePlayer } from './generate';
 import { applyInjury, IR_MIN_WEEKS, manageInjuries, NEED, placeOnIr } from './injuries';
 import { signPlayer } from './offseason/negotiation';
 import { Rng } from './rng';
+import { migrateLeague } from './migrate';
 import {
   aPosition,
   archiveMail,
@@ -35,7 +36,13 @@ import {
   threads,
   unitReads,
   unreadCount,
+  marketMail,
+  snnRan,
+  tradeAngle,
+  tradeRecordFor,
 } from './inbox';
+import { emptyMarket } from './trade/execute';
+import { tradeIdentity } from './tradeNews';
 import { isMedicExpiring, teamMedics } from './medical';
 import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
@@ -47,7 +54,17 @@ import { playerOvr } from './positions';
 import { answerEnquiry, counterOffer, openOffers, TRADE_DEADLINE_WEEK } from './trade';
 import type { TradeProposal } from './trade/rules';
 import { changePosition, passMove, setCoachesDecide, startMove, suggestMove } from './training';
-import type { GameResult, League, MoveReason, Player, Position, Ratings, TeamGameStats, TradeOffer } from './types';
+import type {
+  Game,
+  GameResult,
+  League,
+  MoveReason,
+  Player,
+  Position,
+  Ratings,
+  TeamGameStats,
+  TradeOffer,
+} from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
@@ -57,12 +74,17 @@ describe('inbox', () => {
   it('files one opposition report a week, however often it is delivered', () => {
     deliverMail(league);
     deliverMail(league);
-    expect(league.inbox!.map((m) => m.id)).toEqual([`matchup:${league.season}:1`]);
-    expect(unreadCount(league)).toBe(1);
+    // A new game opens with the owner's welcome and the head coach's rundown, then the week's report.
+    expect(league.inbox!.map((m) => m.id)).toEqual([
+      `owner:${league.season}:welcome:${league.userTeamId}:0`,
+      `rundown:${league.season}:${league.userTeamId}:0`,
+      `matchup:${league.season}:1`,
+    ]);
+    expect(unreadCount(league)).toBe(3);
   });
 
   it('keeps the report current without making it a management task', () => {
-    const report = league.inbox![0];
+    const report = league.inbox!.find((m) => m.category === 'matchup')!;
     expect(mailSubject(report)).toEqual({ kind: 'matchup', season: league.season, week: 1 });
     expect(needsYou(league, report)).toBe(false);
     expect(briefingCurrent(league, report)).toBe(true);
@@ -122,7 +144,7 @@ describe('inbox', () => {
       awards: ['award'],
       trades: ['trade', 'deadline', 'market', 'marketRecap'],
       league: ['race', 'news', 'leadership'],
-      staff: ['leadership', 'gmOffer'],
+      staff: ['leadership', 'gmOffer', 'owner', 'rundown'],
     };
     for (const m of league.inbox!) {
       const s = mailSubject(m)!;
@@ -163,9 +185,11 @@ describe('inbox', () => {
       expect(needsYou(league, m)).toBe(true);
     }
     deliverMail(league);
-    expect(league.inbox!.filter((m) => m.id.startsWith('owner:') || m.id.startsWith('staff:'))).toHaveLength(
-      1 + deals.length,
-    );
+    expect(
+      league.inbox!.filter(
+        (m) => m.season === league.season && (m.id.startsWith('owner:') || m.id.startsWith('staff:')),
+      ),
+    ).toHaveLength(1 + deals.length);
   });
 
   it("folds a day of agents' letters into one, and leaves other mail as it is", () => {
@@ -463,10 +487,10 @@ describe('mail through a season', () => {
     const reports = league.inbox!.filter((m) => m.id.startsWith('matchup:'));
     expect(reports.length).toBeGreaterThan(10);
     for (const m of reports) {
-      expect(m.body).toMatch(/^We face the .* in (week \d+|the )/);
-      expect(m.body).toMatch(
-        /(Our scouts see their .* as the softest unit they have|On what our scouts have seen, their .* looks? like the softest unit they have|no obvious soft spot)/,
-      );
+      expect(m.body).toMatch(/^We (host|visit|meet) the .* in (week \d+|the )/);
+      expect(m.body).toMatch(/(the soft spot and their .* (is|are) the threat|No unit stands out)/);
+      // Short: the opener and the read, two or three sentences.
+      expect(m.body.split('\n\n')[0].split(/(?<=\.) /).length).toBeLessThanOrEqual(3);
       expect(m.body).not.toMatch(/we'll go after them|linebackers is/);
     }
   });
@@ -1139,5 +1163,221 @@ describe('short positions in the inbox', () => {
     expect(needsYou(l, m)).toBe(true);
     releasePlayer(l, fa);
     expect(needsYou(l, m)).toBe(false);
+  });
+});
+
+describe('mail from another club', () => {
+  it('v49 backfills the sending club on other front offices’ mail', () => {
+    const l = createLeague({ seed: 'club-backfill' });
+    const t = l.teams[7];
+    const base = {
+      season: l.season,
+      phase: 'regular' as const,
+      week: 3,
+      category: 'trades' as const,
+      read: true,
+      actions: [],
+    };
+    l.inbox = [
+      { ...base, id: 'a', from: `${t.city} ${t.name} front office`, subject: 'Offer', body: '' },
+      { ...base, id: 'b', from: 'The owner', subject: 'Hi', body: '' },
+    ];
+    l.version = 46;
+    const up = migrateLeague(l)!;
+    expect(up.inbox![0].fromTeamId).toBe(7);
+    expect(up.inbox![1].fromTeamId).toBeUndefined();
+  });
+});
+
+describe('the director’s read on a trade', () => {
+  const setup = () => {
+    const l = createLeague({ seed: 'director-angle' });
+    l.phase = 'regular';
+    l.week = 5;
+    l.market = emptyMarket();
+    l.games = [];
+    const me = l.teams[l.userTeamId];
+    const rival = l.teams.find((t) => t.id !== me.id && t.division === me.division)!;
+    const far = l.teams.filter((t) => t.division !== me.division && t.conference !== me.conference);
+    const [seller, buyer] = far;
+    const p = Object.values(l.players).find((p) => p.teamId === seller.id && p.position === 'LB')!;
+    const pick = l.draftPicks.find((d) => d.ownerId === buyer.id && d.round === 3)!;
+    const record = (buyerId: number, week = 4) => ({
+      season: l.season,
+      phase: 'regular' as const,
+      week,
+      kind: 'rental' as const,
+      sides: [
+        { teamId: seller.id, players: [p.id], picks: [] },
+        { teamId: buyerId, players: [], picks: [pick.id] },
+      ] as import('./types').TradeRecord['sides'],
+    });
+    return { l, me, rival, seller, buyer, p, record };
+  };
+  it('flags a division rival buying', () => {
+    const { l, rival, record } = setup();
+    expect(tradeAngle(l, record(rival.id), 4)).toBe('A division rival got stronger at LB.');
+  });
+  it('sets a price for one of ours at the position', () => {
+    const { l, me, buyer, record } = setup();
+    const ours = Object.values(l.players).find((p) => p.teamId === me.id && p.position === 'LB')!;
+    l.market!.status[ours.id] = 'listed';
+    expect(tradeAngle(l, record(buyer.id), 4)).toBe(`A marker for what ${ours.lastName} could fetch.`);
+  });
+  it('notes we play the seller soon', () => {
+    const { l, me, seller, buyer, record } = setup();
+    l.games.push({ id: l.nextGameId++, season: l.season, week: 6, homeId: me.id, awayId: seller.id } as Game);
+    expect(tradeAngle(l, record(buyer.id), 4)).toBe(`We play the ${seller.name} in Week 6, without him.`);
+  });
+  it('says nothing when there is no angle', () => {
+    const { l, buyer, record } = setup();
+    expect(tradeAngle(l, record(buyer.id), 4)).toBeNull();
+  });
+  it('marks a trade SNN ran and says so in the report', () => {
+    const { l, buyer, seller, record } = setup();
+    const r = record(buyer.id);
+    l.market!.history = [r];
+    l.transactions.push({
+      season: l.season,
+      phase: 'regular',
+      week: 4,
+      teamIds: [buyer.id, seller.id],
+      kind: 'trade',
+      text: 'x',
+    });
+    expect(snnRan(l, r)).toBe(false);
+    const base = {
+      season: l.season,
+      phase: 'regular' as const,
+      week: 4,
+      read: true,
+      actions: [],
+      body: '',
+      subject: '',
+    };
+    l.inbox = [{ ...base, id: `press:${l.season}:4:trade:${tradeIdentity(r)}`, from: 'SNN', category: 'league' }];
+    expect(snnRan(l, r)).toBe(true);
+    expect(marketMail(l, new Set())[0].body).toContain('SNN has already covered it');
+  });
+  it('keeps the notes the report was filed with, whatever happens afterwards', () => {
+    const { l, me, buyer, seller, record } = setup();
+    const r = record(buyer.id);
+    l.market!.history = [r];
+    l.transactions.push({
+      season: l.season,
+      phase: 'regular',
+      week: 4,
+      teamIds: [buyer.id, seller.id],
+      kind: 'trade',
+      text: 'x',
+    });
+    l.games.push({ id: l.nextGameId++, season: l.season, week: 6, homeId: me.id, awayId: seller.id } as Game);
+    const [m] = marketMail(l, new Set());
+    expect(m.marketNotes).toEqual([{ note: `We play the ${seller.name} in Week 6, without him.` }]);
+    l.games = [];
+    l.inbox = [{ ...m, read: false, id: `press:${l.season}:4:trade:${tradeIdentity(r)}` }];
+    expect(m.marketNotes).toEqual([{ note: `We play the ${seller.name} in Week 6, without him.` }]);
+  });
+  it('maps two deals between the same clubs in one week to their own records', () => {
+    const { l, buyer, seller, record } = setup();
+    const a = record(buyer.id),
+      b = { ...record(buyer.id), kind: 'buy' as const };
+    l.market!.history = [a, b];
+    const t = {
+      season: l.season,
+      phase: 'regular' as const,
+      week: 4,
+      teamIds: [buyer.id, seller.id],
+      kind: 'trade' as const,
+      text: 'x',
+    };
+    expect(tradeRecordFor(l, t, 0)).toBe(a);
+    expect(tradeRecordFor(l, t, 1)).toBe(b);
+  });
+});
+
+describe('arriving at a club', () => {
+  const fresh = () => {
+    const l = createLeague({ seed: 'onboarding' });
+    deliverMail(l);
+    return l;
+  };
+  it('opens with the owner’s welcome, then the head coach’s rundown, then the opposition report, all unread', () => {
+    const l = fresh();
+    const ids = l.inbox!.map((m) => m.id);
+    const welcome = ids.findIndex((id) => id.startsWith(`owner:${l.season}:welcome:`));
+    const rundown = ids.findIndex((id) => id.startsWith(`rundown:${l.season}:`));
+    const matchup = ids.findIndex((id) => id.startsWith('matchup:'));
+    expect(welcome).toBeGreaterThanOrEqual(0);
+    expect(rundown).toBeGreaterThan(welcome);
+    expect(matchup).toBeGreaterThan(rundown);
+    expect(l.inbox![welcome].from).toBe('The owner');
+    expect(l.inbox![welcome].read).toBe(false);
+    expect(l.inbox![rundown].from).toMatch(/Head coach$/);
+    expect(l.inbox![rundown].read).toBe(false);
+  });
+  it('welcomes once per job', () => {
+    const l = fresh();
+    const n = l.inbox!.length;
+    deliverMail(l);
+    expect(l.inbox!.filter((m) => m.id.includes(':welcome:'))).toHaveLength(1);
+    expect(l.inbox!.length).toBe(n);
+  });
+  it('says what the owner expects and what we have to spend', () => {
+    const l = fresh();
+    const m = l.inbox!.find((x) => x.id.includes(':welcome:'))!;
+    expect(m.body).toMatch(/playoffs|wildcard|progress/);
+    expect(m.body).toMatch(/coaching/);
+    expect(m.body).not.toMatch(/undefined|NaN/);
+  });
+  it('the rundown names only our players, prospects 24 or younger, with both units ranked', () => {
+    const l = fresh();
+    const m = l.inbox!.find((x) => x.id.startsWith('rundown:'))!;
+    const r = m.rundown!;
+    for (const id of [...r.offense, ...r.defense, ...r.prospects]) expect(l.players[id].teamId).toBe(l.userTeamId);
+    expect(r.offense.length).toBeGreaterThan(0);
+    expect(r.offense.length).toBeLessThanOrEqual(3);
+    expect(r.defense.length).toBeLessThanOrEqual(3);
+    for (const id of r.prospects) expect(l.players[id].age).toBeLessThanOrEqual(24);
+    for (const rank of [r.offenseRank, r.defenseRank]) {
+      expect(rank).toBeGreaterThanOrEqual(1);
+      expect(rank).toBeLessThanOrEqual(32);
+    }
+    expect(m.body).toContain(`${r.offenseRank}`);
+  });
+  it('a new job brings a new welcome and rundown; the yearly letter does not double the welcome', () => {
+    const l = fresh();
+    const gm = l.gms[l.userGmId];
+    const to = (l.userTeamId + 9) % 32;
+    gm.appointments.push({
+      teamId: to,
+      start: { season: l.season, phase: l.phase, week: l.week },
+      interim: false,
+      through: l.season + 2,
+    });
+    gm.teamId = to;
+    l.userTeamId = to;
+    deliverMail(l);
+    expect(l.inbox!.filter((m) => m.id.includes(':welcome:'))).toHaveLength(2);
+    expect(l.inbox!.filter((m) => m.id.startsWith('rundown:'))).toHaveLength(2);
+  });
+  it('a job taken as the league year opens sends the welcome instead of the yearly letter', () => {
+    const l = createLeague({ seed: 'onboarding-resign' });
+    l.season++;
+    l.phase = 'resign';
+    l.week = 0;
+    const gm = l.gms[l.userGmId];
+    const to = (l.userTeamId + 5) % 32;
+    gm.appointments.push({
+      teamId: to,
+      start: { season: l.season, phase: 'resign', week: 0 },
+      interim: false,
+      through: l.season + 2,
+    });
+    gm.teamId = to;
+    l.userTeamId = to;
+    deliverMail(l);
+    expect(l.inbox!.some((m) => m.id.startsWith(`owner:${l.season}:welcome:${to}:`))).toBe(true);
+    expect(l.inbox!.some((m) => m.id === `owner:${l.season}:${to}`)).toBe(false);
   });
 });

@@ -208,12 +208,12 @@ describe('migration and collection', () => {
     expect(migrateLeague(loaded)).toEqual(league);
   });
 
-  it('a v47 save migrates to v48 untouched', () => {
+  it('a v47 save migrates to the current version untouched', () => {
     league.version = 47;
     const before = copy(league);
     migrateLeague(league);
     expect({ ...league, version: 47 }).toEqual(before);
-    expect(league.version).toBe(48);
+    expect(league.version).toBe(SAVE_VERSION);
   });
 
   it('collects membership once on game completion without changing experience or statistical appearances', () => {

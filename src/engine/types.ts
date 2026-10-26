@@ -585,6 +585,8 @@ export interface Coach {
   career?: CoachSeason[];
   /** A temporary leadership appointment; conversion to permanent is always explicit. */
   interim?: boolean;
+  /** An interim head coach promoted from a coordinator chair still runs it until the offseason. */
+  actingAs?: 'offCoord' | 'defCoord';
   /** Observed interim takeovers survive dismissal, permanent hiring and retirement. */
   interimAppointments?: { season: number; teamId: number; week: number }[];
   /** A former player: his playing career is that player's record in `league.players`. */
@@ -1113,12 +1115,18 @@ export interface InboxMessage {
   /** The week it's dated (0 in the offseason). */
   week: number;
   from: string;
+  /** Another club's front office wrote it (offers, deals): the inbox draws it in that club's colours. */
+  fromTeamId?: number;
   /** The sender's staff card, when one of the team's own staff signs it. */
   fromCard?: { kind: 'coach' | 'scout' | 'medic'; id: number };
   category: InboxCategory;
   subject: string;
   body: string;
   leagueReport?: LeagueNewsReport;
+  /** The head coach's rundown for a new GM, as filed: unit ranks on our scouts' read (1 = the league's best), key players, prospects. */
+  rundown?: { offenseRank: number; defenseRank: number; offense: number[]; defense: number[]; prospects: number[] };
+  /** The director's market report: per trade (in `marketTrades` order), his note on what it means for us and whether SNN ran it, as filed. */
+  marketNotes?: { note?: string; snn?: true }[];
   tradeReport?: {
     period?: string;
     exchanges: { teamId: number; receives: string }[];

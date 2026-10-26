@@ -8,7 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { chairHolder, coachName, teamCoaches, teamScheme } from '../../engine/coaching';
+import { coachName, coordinatorOf, teamCoaches, teamScheme } from '../../engine/coaching';
 import { POSITION_NAMES } from '../../engine/positions';
 import { PERSONNEL_LABEL, spotsFor, type TeamScheme } from '../../engine/schemes';
 import { capSheet, isOffseason } from '../../engine/finance/cap';
@@ -80,8 +80,8 @@ function CoordinatorLink({ c }: { c: Coach }) {
 /** What the coordinators run: it decides the spots and how many start at each position. */
 function SchemeStrip({ league, teamId, scheme }: { league: League; teamId: number; scheme: TeamScheme }) {
   const staff = teamCoaches(league, teamId);
-  const oc = chairHolder(staff, { role: 'offCoord' });
-  const dc = chairHolder(staff, { role: 'defCoord' });
+  const oc = coordinatorOf(staff, 'offCoord');
+  const dc = coordinatorOf(staff, 'defCoord');
   const defense = [scheme.front.label, scheme.coverage?.label].filter(Boolean).join(' · ');
   return (
     <div className="scheme-strip">

@@ -71,6 +71,7 @@ import {
   teamScheme,
   TYPICAL,
   type Chair,
+  coordinatorOf,
 } from '../../engine/coaching';
 import { kickCoaching } from '../../engine/match/lineup';
 import { coachRecord, formatRecord } from '../../engine/records';
@@ -1086,6 +1087,38 @@ function TheirOpenChair({ chair }: { chair: Chair }) {
 }
 const mine = (league: League) => teamCoaches(league, league.userTeamId);
 
+/** The head coach still running the side of the ball he was promoted from: the chair isn't open, he's covering it. */
+const actingIn = (staff: readonly Coach[], chair: Chair): Coach | null =>
+  (chair.role === 'offCoord' || chair.role === 'defCoord') && !chairHolder(staff, chair)
+    ? coordinatorOf(staff, chair.role)
+    : null;
+
+function ActingChair({ chair, hc, onFind }: { chair: Chair; hc: Coach; onFind?: () => void }) {
+  return (
+    <li className="staff-card coach-card">
+      <div className="staff-head">
+        <div>
+          <b className="staff-name">
+            <CoachLink c={hc} />
+          </b>
+          <span className="muted small">{coachTitle(chair)} · acting</span>
+        </div>
+      </div>
+      <p className="small staff-note">
+        The interim head coach is also running the {chair.role === 'offCoord' ? 'offense' : 'defense'} until the
+        offseason.
+      </p>
+      {onFind && (
+        <div className="staff-actions">
+          <button className="btn btn-sm" onClick={onFind}>
+            Find {withArticle(chairNoun(chair))}
+          </button>
+        </div>
+      )}
+    </li>
+  );
+}
+
 function OpenChair({
   chair,
   staying,
@@ -1565,7 +1598,7 @@ export function CoachesScreen({ league }: { league: League }) {
   const pct = budget > 0 ? Math.min(100, Math.max(0, (payroll / budget) * 100)) : 100;
 
   // ── the one next step ──
-  const emptyNow = CHAIRS.filter((ch) => !chairHolder(mine, ch));
+  const emptyNow = CHAIRS.filter((ch) => !chairHolder(mine, ch) && !actingIn(mine, ch));
   // The chair whose loss costs the players you actually have the most (growth for the young, aging for the old).
   const costliest = (chairs: Chair[]) =>
     [...chairs]
@@ -1798,15 +1831,29 @@ export function CoachesScreen({ league }: { league: League }) {
                     {chairs.flatMap((ch) => {
                       const key = `${ch.role}-${ch.room ?? ''}`;
                       if (viewTeam !== teamId) {
-                        const holder = chairHolder(teamCoaches(league, viewTeam), ch);
+                        const theirs = teamCoaches(league, viewTeam);
+                        const holder = chairHolder(theirs, ch);
+                        const acting = actingIn(theirs, ch);
                         return holder
                           ? [<Member key={holder.id} league={league} c={holder} open={false} />]
-                          : [<TheirOpenChair key={`open-${key}`} chair={ch} />];
+                          : acting
+                            ? [<ActingChair key={`acting-${key}`} chair={ch} hc={acting} />]
+                            : [<TheirOpenChair key={`open-${key}`} chair={ch} />];
                       }
                       const cards = seated(ch).map((c) => (
                         <Member key={c.id} league={league} c={c} open={open} outlook={forecast.get(c.id)} />
                       ));
-                      if (!chairHolder(staying, ch)) {
+                      const acting = actingIn(staying, ch);
+                      if (acting)
+                        cards.push(
+                          <ActingChair
+                            key={`acting-${key}`}
+                            chair={ch}
+                            hc={acting}
+                            onFind={() => showCandidates(targetOf(ch))}
+                          />,
+                        );
+                      else if (!chairHolder(staying, ch)) {
                         const gone = leavers.find((c) => sameChair(chairOf(c), ch));
                         cards.push(
                           <OpenChair
@@ -2088,10 +2135,10 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
                         <Rival league={league} c={chairHolder(staff, { role: 'headCoach' })} />
                       </td>
                       <td>
-                        <Rival league={league} c={chairHolder(staff, { role: 'offCoord' })} />
+                        <Rival league={league} c={coordinatorOf(staff, 'offCoord')} />
                       </td>
                       <td>
-                        <Rival league={league} c={chairHolder(staff, { role: 'defCoord' })} />
+                        <Rival league={league} c={coordinatorOf(staff, 'defCoord')} />
                       </td>
                     </tr>
                   );

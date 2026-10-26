@@ -8,10 +8,19 @@ import {
   declineGmOffers,
   leadershipCoachTenure,
   leadershipNewYear,
+  interimLetter,
   leadershipWeek,
 } from './leadership';
 import { leadershipMail } from './inbox';
-import { coachMarket, hireCoach, releaseCoach, protectCoach, teamCoaches } from './coaching';
+import {
+  coachRoom,
+  installInterimHeadCoach,
+  coachMarket,
+  hireCoach,
+  releaseCoach,
+  protectCoach,
+  teamCoaches,
+} from './coaching';
 import { employed, managesTeam, withLeagueAi } from './employment';
 import { migrateLeague } from './migrate';
 import { teamStaff } from './staff';
@@ -215,5 +224,197 @@ describe('GM leadership and searches', () => {
     expect(loaded.version).toBe(SAVE_VERSION);
     expect(loaded.transactions.at(-1)!.text).not.toContain('PRIVATE');
     expect(loaded.leadership.events).toEqual([]);
+  });
+});
+
+describe('the owner’s letter when our head coach goes', () => {
+  /** Week 11, our club `won` games won then the rest lost, `streak` of them at the end. */
+  const midseason = (wins: number, losses: number) => {
+    const l = world();
+    l.phase = 'regular';
+    l.week = 11;
+    l.games = [];
+    const t = l.userTeamId;
+    const results = [...Array(wins).fill(true), ...Array(losses).fill(false)] as boolean[];
+    results.forEach((won, i) =>
+      l.games.push({
+        id: l.nextGameId++,
+        season: l.season,
+        week: i + 1,
+        homeId: t,
+        awayId: (t + 1) % 32,
+        result: won ? { homeScore: 24, awayScore: 10 } : { homeScore: 10, awayScore: 24 },
+      } as Game),
+    );
+    l.teams[t].staffBudgetMult = 3;
+    return l;
+  };
+  const fire = (l: League) => {
+    const t = l.userTeamId;
+    const dc = teamCoaches(l, t).find((c) => c.role === 'defCoord')!;
+    dc.youth = 20;
+    dc.veterans = 20;
+    const fired = teamCoaches(l, t).find((c) => c.role === 'headCoach')!;
+    const interim = installInterimHeadCoach(l, t)!;
+    return { t, fired, interim };
+  };
+  it('writes the owner letter: record, streak, interim, audition, severance', () => {
+    const l = midseason(3, 7);
+    const { t, fired, interim } = fire(l);
+    const text = interimLetter(l, t, fired, interim, 5580, 8);
+    expect(text.startsWith(`I've let ${fired.firstName} ${fired.lastName} go.`)).toBe(true);
+    expect(text).toContain('3–7');
+    expect(text).toContain('seven straight');
+    expect(text).toContain('better than 3–7');
+    expect(text).toContain(`${interim.firstName} ${interim.lastName}`);
+    expect(text).toContain('keeps running the defense');
+    expect(text).toContain('last seven games');
+    expect(text).toContain('$5.58M');
+  });
+  it('says "the last game" when one is left', () => {
+    const l = midseason(4, 12);
+    const { t, fired, interim } = fire(l);
+    const text = interimLetter(l, t, fired, interim, 5580, 8);
+    expect(text).toContain('Consider the last game his audition');
+  });
+  it('leaves out a streak under three and says the roster is thin in the bottom half', () => {
+    const l = midseason(0, 0);
+    const t = l.userTeamId;
+    const res = [false, false, true, false, false];
+    res.forEach((won, i) =>
+      l.games.push({
+        id: l.nextGameId++,
+        season: l.season,
+        week: i + 1,
+        homeId: t,
+        awayId: (t + 1) % 32,
+        result: won ? { homeScore: 24, awayScore: 10 } : { homeScore: 10, awayScore: 24 },
+      } as Game),
+    );
+    const { fired, interim } = fire(l);
+    const text = interimLetter(l, t, fired, interim, 5580, 24);
+    expect(text).not.toContain('straight');
+    expect(text).toContain('thin');
+  });
+  it('does not claim a market interim keeps a coordinator job', () => {
+    const l = midseason(2, 8);
+    const { t, fired, interim } = fire(l);
+    delete interim.actingAs;
+    expect(interimLetter(l, t, fired, interim, 5580, 8)).not.toContain('keeps running');
+  });
+  it('says when the severance puts the coaching budget over', () => {
+    const l = midseason(2, 8);
+    const { t, fired, interim } = fire(l);
+    l.teams[t].staffBudgetMult = 0.2;
+    expect(coachRoom(l, t)).toBeLessThan(0);
+    expect(interimLetter(l, t, fired, interim, 5580, 8)).toMatch(/over this year/);
+  });
+  it('sends the letter as owner mail with an owner subject; another club gets the public line', () => {
+    const l = world();
+    const ours = l.userTeamId;
+    const other = (ours + 5) % 32;
+    for (const [id, teamId] of [
+      [1, ours],
+      [2, other],
+    ])
+      l.leadership.events.push({
+        id,
+        date: { season: l.season, phase: 'regular', week: 11 },
+        teamId,
+        kind: 'coachInterim',
+        report: `${l.teams[teamId].abbrev} dismissed A B and named C D interim head coach.`,
+        privateText: teamId === ours ? "I've let A B go. We're 2–8." : undefined,
+      });
+    const mail = leadershipMail(l, new Set());
+    const mine = mail.find((m) => m.id.endsWith(':1'))!;
+    expect(mine.from).toBe('The owner');
+    expect(mine.subject).toBe("I've let A B go");
+    expect(mine.body).toBe("I've let A B go. We're 2–8.");
+    const theirs = mail.find((m) => m.id.endsWith(':2'))!;
+    expect(theirs.from).toBe('SNN league desk');
+    expect(theirs.body).toBe(l.leadership.events[1].report);
+  });
+});
+
+describe('the weekly roundup of changes around the league', () => {
+  const event = (
+    l: League,
+    id: number,
+    teamId: number,
+    kind: 'coachInterim' | 'gmDismissed' | 'gmHired',
+    week = 12,
+  ) => {
+    const e = {
+      id,
+      date: { season: l.season, phase: 'regular' as const, week },
+      teamId,
+      kind,
+      report: `${l.teams[teamId].abbrev} ${kind} report ${id}.`,
+    };
+    l.leadership.events.push(e);
+    return e;
+  };
+  const others = (l: League) => l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+  it('gathers other clubs’ in-season changes of one week into one SNN roundup', () => {
+    const l = world();
+    const [a, b] = others(l);
+    const ea = event(l, 1, a, 'coachInterim');
+    const eb = event(l, 2, b, 'coachInterim');
+    const mail = leadershipMail(l, new Set());
+    expect(mail).toHaveLength(1);
+    expect(mail[0].id).toBe(`leadership-week:${l.season}:12`);
+    expect(mail[0].from).toBe('SNN league desk');
+    expect(mail[0].subject).toBe(`Coaching changes: ${l.teams[a].abbrev}, ${l.teams[b].abbrev}`);
+    expect(mail[0].body).toContain(ea.report);
+    expect(mail[0].body).toContain(eb.report);
+  });
+  it('names GM-only weeks and mixed weeks, each club once', () => {
+    const l = world();
+    const [a, b] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    event(l, 2, a, 'gmHired');
+    event(l, 3, b, 'gmDismissed');
+    expect(leadershipMail(l, new Set())[0].subject).toBe(
+      `Front-office changes: ${l.teams[a].abbrev}, ${l.teams[b].abbrev}`,
+    );
+    const m = world();
+    event(m, 1, a, 'gmDismissed');
+    event(m, 2, a, 'coachInterim');
+    event(m, 3, b, 'coachInterim');
+    expect(leadershipMail(m, new Set())[0].subject).toBe(
+      `Changes around the league: ${m.teams[a].abbrev}, ${m.teams[b].abbrev}`,
+    );
+  });
+  it('keeps one club’s GM change as one story, not a roundup', () => {
+    const l = world();
+    const [a] = others(l);
+    const fired = event(l, 1, a, 'gmDismissed');
+    const hired = event(l, 2, a, 'gmHired');
+    const mail = leadershipMail(l, new Set());
+    expect(mail).toHaveLength(1);
+    expect(mail[0].subject).toBe(fired.report);
+    expect(mail[0].body).toBe(`${fired.report}\n\n${hired.report}`);
+  });
+  it('keeps a single change as its own story and our own club apart', () => {
+    const l = world();
+    const [a] = others(l);
+    const ea = event(l, 1, a, 'coachInterim');
+    event(l, 2, l.userTeamId, 'coachInterim');
+    const mail = leadershipMail(l, new Set());
+    expect(mail).toHaveLength(2);
+    const story = mail.find((m) => m.id === `leadership:${l.season}:1`)!;
+    expect(story.subject).toBe(ea.report);
+    expect(mail.find((m) => m.id === `leadership:${l.season}:2`)!.from).toBe('The owner');
+  });
+  it('does not refile a story an old save already delivered, nor a filed roundup', () => {
+    const l = world();
+    const [a, b, c] = others(l);
+    event(l, 1, a, 'coachInterim');
+    const eb = event(l, 2, b, 'coachInterim');
+    const mail = leadershipMail(l, new Set([`leadership:${l.season}:1`]));
+    expect(mail).toHaveLength(1);
+    expect(mail[0].subject).toBe(eb.report);
+    event(l, 3, c, 'coachInterim');
+    expect(leadershipMail(l, new Set([`leadership-week:${l.season}:12`]))).toHaveLength(0);
   });
 });
