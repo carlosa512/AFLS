@@ -50,17 +50,12 @@ export function NewGame() {
             Take over a <em>franchise.</em>
           </h1>
           <p>
-            Run a football club the way a general manager does. Your scouts only see so much, so every rating is their
-            read, sharper on players they've watched. Hire coordinators whose schemes and habits shape every call, a
-            medical staff that decides how fast players heal, and a scouting department that decides who you can trust
-            on draft day. Bargain with 31 front offices that each have their own plans, keep the cap sheet honest, and
-            move players to new positions when the depth chart runs thin.
+            Run a football club the way a GM does. Your scouts only see so much, your coaches' habits shape every call,
+            and 31 rival front offices are working their own plans.
           </p>
           <p>
-            Every snap plays out from real matchups, blockers against rushers and receivers against their corner, in
-            wind, rain and snow, in front of officiating crews with their own tendencies. Your inbox carries the story:
-            recaps, scouting reports, agents, the owner and the league's news. Ratings run 1–20: 10 is a solid backup,
-            16+ a star. Each club shows its roster overall and the grades of the staff you'd inherit.
+            Every snap plays out from real matchups, in wind, rain and snow, and your inbox tells the story. Ratings run
+            1–20: 10 is a solid backup, 16+ a star.
           </p>
         </div>
 
