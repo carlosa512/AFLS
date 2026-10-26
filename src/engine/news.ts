@@ -1,9 +1,9 @@
 /** Selective public reporting. No hidden ratings, random copy, or simulation side effects. */
-import { computeRecords, divisionStandings, winPct, type TeamRecord } from './season/standings';
+import { divisionStandings, winPct, type TeamRecord } from './season/standings';
 import { isDeadlineDay } from './trade/rules';
 import type { InboxMessage, League } from './types';
 import { keyTradeNews, rumorNews, tradeNewsSlot } from './tradeNews';
-import { teamStatContext, teamStatRows, divisionTable } from './newsContext';
+import { teamStatRows, divisionTable } from './newsContext';
 export { rookieImpactMail } from './rookieReport';
 
 type Draft = Omit<InboxMessage, 'read'>;
@@ -166,7 +166,6 @@ export function leagueNews(l: League, have: Set<string>): Draft[] {
   const slot = `press:${l.season}:${week}:`;
   if ([...have].some((id) => id.startsWith(slot))) return [];
   const now = through(l, week);
-  const records = computeRecords(now);
   const division = l.teams[l.userTeamId].division;
   if (week >= 10) {
     const previous = through(l, week - 1);
@@ -207,49 +206,6 @@ export function leagueNews(l: League, have: Set<string>): Draft[] {
   }
   const trade = keyTradeNews(now, week);
   if (trade.length) return trade;
-  // Fixed team-game checkpoints keep features occasional, and handle byes without calling week 9 eight games.
-  const candidates = l.teams.flatMap((t) => {
-    const count = played(now, t.id).length;
-    const last = l.history.find((h) => h.season === l.season - 1)?.records[t.id];
-    if (![8, 12, 17].includes(count) || !last) return [];
-    // A checkpoint is news only in the week this club reached it, not after a later bye.
-    if (!played(now, t.id).some((g) => g.week === week)) return [];
-    const r = records.get(t.id)!;
-    const up = last.w <= 6 && pct(r) >= 0.75;
-    const down = last.w >= 10 && pct(r) <= 0.375;
-    if (!up && !down) return [];
-    return [{ t, count, last, r, up }];
-  });
-  candidates.sort(
-    (a, b) =>
-      Number(b.t.division === division) - Number(a.t.division === division) ||
-      Math.abs(pct(b.r) - pct(b.last)) - Math.abs(pct(a.r) - pct(a.last)) ||
-      a.t.id - b.t.id,
-  );
-  const c = candidates[0];
-  if (!c) return rumorNews(now, week);
-  const checkpoint = played(now, c.t.id).sort((a, b) => a.week - b.week);
-  const earlier = c.count === 12 ? computeRecords(through(l, checkpoint[7].week)).get(c.t.id)! : null;
-  const recent = earlier
-    ? ` They went ${record({ w: c.r.w - earlier.w, l: c.r.l - earlier.l, t: c.r.t - earlier.t })} over their last four games.`
-    : '';
-  const subject =
-    c.count === 17
-      ? `${c.t.name} finish ${record(c.r)} after last year's ${record(c.last)}`
-      : c.count === 12
-        ? `${c.t.name}: ${record(c.r)} with five games left`
-        : `${c.t.name}: ${record(c.r)} after a ${record(c.last)} season`;
-  return [
-    {
-      id: `${slot}trajectory:${c.t.id}:${c.count}`,
-      season: l.season,
-      phase: 'regular',
-      week,
-      from: 'The Arena Gazette',
-      category: 'league',
-      subject,
-      body: `${teamName(l, c.t.id)} ${c.count === 17 ? `finish the regular season ${record(c.r)}` : `are ${record(c.r)} through ${c.count} games`}, after finishing last season ${record(c.last)}.${recent}${c.count === 8 ? (c.up ? ' The results have turned sharply upward.' : ' Last year’s winning record has given way to a difficult season.') : ''} ${teamStatContext(now, c.t.id, c.up ? 'up' : 'down')}`.trim(),
-      actions: [{ kind: 'team', teamId: c.t.id }, { kind: 'standings' }],
-    },
-  ];
+  // The Gazette's turnaround stories are a story angle in its numbers column now (`gazette.ts`).
+  return rumorNews(now, week);
 }

@@ -21,7 +21,7 @@ import {
   teamPlayers,
   teamRatings,
 } from '../roster';
-import type { League, Player } from '../types';
+import type { GameResult, League, Player } from '../types';
 import { initialPersonnelState, PERSONNEL_RULES } from './rules';
 import { creditService, initialService, recordGameService, rollService, serviceSeasons } from './service';
 
@@ -246,6 +246,17 @@ describe('migration and collection', () => {
     expect(p.service).toEqual(before);
   });
 
+  /** The advanced numbers (`analytics.ts`) only count: strip them so the baseline still pins everything that plays. */
+  const withoutAnalytics = (r: GameResult): GameResult => {
+    const c = copy(r);
+    delete c.home.adv;
+    delete c.away.adv;
+    for (const [id, line] of Object.entries(c.playerStats)) {
+      for (const key of ['dropbacks', 'epa', 'successes', 'rushSnaps'] as const) delete line[key];
+      if (!Object.keys(line).length) delete c.playerStats[Number(id)];
+    }
+    return c;
+  };
   it('leaves unrelated seeded generation and match results unchanged', () => {
     const l = createLeague({ seed: 'personnel-compat' });
     const result = simulateGame(l, l.games[0], { keepPlays: false });
@@ -256,7 +267,7 @@ describe('migration and collection', () => {
       players: hash(l.players),
       rng: l.rngState,
       games: hash(l.games),
-      result: hash(result),
+      result: hash(withoutAnalytics(result)),
       charts: hash(l.teams.map((t) => t.depthChart)),
     }).toEqual(BASELINE);
   });

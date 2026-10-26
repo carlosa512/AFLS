@@ -148,7 +148,7 @@ describe('inbox', () => {
       medical: ['injury', 'cleared'],
       awards: ['award'],
       trades: ['trade', 'deadline', 'market', 'marketRecap', 'advice'],
-      league: ['race', 'news', 'leadership'],
+      league: ['race', 'news', 'leadership', 'gazette'],
       staff: ['leadership', 'gmOffer', 'owner', 'rundown'],
     };
     for (const m of league.inbox!) {
@@ -545,6 +545,20 @@ describe('mail through a season', () => {
       all < 10 ? ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'][all] : String(all),
     );
     expect(deadlineDayTrades(league).length).toBeLessThanOrEqual(all);
+  });
+
+  it('files the Gazette’s numbers column at its checkpoints, the playoff preview and the wrap', () => {
+    const ids = league.inbox!.filter((m) => m.id.startsWith(`gazette:${league.season}:`)).map((m) => m.id);
+    expect(ids).toEqual(
+      ['w4', 'w7', 'w10', 'w13', 'w16', 'preview', 'wrap'].map((e) => `gazette:${league.season}:${e}`),
+    );
+    for (const m of league.inbox!.filter((x) => x.id.startsWith('gazette:'))) {
+      expect(m.from).toBe('The Arena Gazette');
+      expect(mailSubject(m)).toEqual({ kind: 'gazette', season: league.season });
+      expect(m.gazette!.tables.length).toBeGreaterThanOrEqual(2);
+      expect(needsYou(league, m)).toBe(false);
+    }
+    expect(league.inbox!.some((m) => m.id.includes('trajectory'))).toBe(false);
   });
 
   it('clears a player we wrote about once he is healthy, and only him', () => {

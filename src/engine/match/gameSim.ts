@@ -59,6 +59,7 @@ import type {
   TeamGameStats,
 } from '../types';
 import { MAX_STATS } from '../types';
+import { isExplosive, isSuccess, playEpa, type PlayState } from '../analytics';
 import {
   gameWeather,
   staminaDrain,
@@ -332,6 +333,19 @@ function emptyTeamStats(): TeamGameStats {
     redZoneAtt: 0,
     redZoneTd: 0,
     top: 0,
+    adv: {
+      plays: 0,
+      success: 0,
+      epa: 0,
+      explosive: 0,
+      dropbacks: 0,
+      passSuccess: 0,
+      passEpa: 0,
+      rushes: 0,
+      rushSuccess: 0,
+      rushEpa: 0,
+      pressured: 0,
+    },
   };
 }
 
@@ -664,6 +678,68 @@ class GameSim {
   private spot(yardLine = this.yardLine, side: Side = this.offense): string {
     if (yardLine === 50) return 'midfield';
     return yardLine < 50 ? `${this.abbrev(side)} ${yardLine}` : `${this.abbrev((1 - side) as Side)} ${100 - yardLine}`;
+  }
+
+  /** Adds to a stat line without the wear `credit` applies: the advanced numbers only count, they never touch play. */
+  private tally(p: Player, key: StatKey, value: number) {
+    const line = (this.playerStats[p.id] ??= {});
+    line[key] = (line[key] ?? 0) + value;
+  }
+
+  /**
+   * A dropback or designed run that counted, in the open measures (`analytics.ts`): EPA and success for the side and
+   * its passer or ball carrier, explosives, pressure. Reads the play and the state around it; draws nothing.
+   */
+  private countAdvanced(side: Side, s: Situation, scoreBefore: [number, number], result: PlayResult) {
+    const adv = this.teamStats[side].adv!;
+    const before: PlayState = {
+      down: s.down,
+      distance: s.distance,
+      yardLine: s.yardLine,
+      offense: side,
+      score: scoreBefore,
+    };
+    const after: PlayState = {
+      down: this.down,
+      distance: this.distance,
+      yardLine: this.yardLine,
+      offense: this.offense,
+      score: [this.score[0], this.score[1]],
+    };
+    const epa = playEpa(before, after);
+    const touchdown = this.score[side] - scoreBefore[side] >= 6;
+    const success = !result.turnover && isSuccess(s.down, s.distance, result.yards, touchdown);
+    const dropback = result.kind !== 'run';
+    const lost = !!result.turnover;
+    const explosive = dropback
+      ? result.kind === 'scramble'
+        ? isExplosive('run', result.yards, false, lost)
+        : isExplosive('pass', result.yards, !!result.complete, lost)
+      : isExplosive('run', result.yards, false, lost);
+    adv.plays++;
+    adv.epa += epa;
+    if (success) adv.success++;
+    if (explosive) adv.explosive++;
+    const carrier = dropback ? this.lineups[side].qb : result.stats.entries.find(([, key]) => key === 'rushAtt')?.[0];
+    if (dropback) {
+      // Who rushed the passer on it: the front on the field and the rotation, once each (pressure-rate samples).
+      const defSide = (1 - side) as Side;
+      const front = this.fields[defSide][1].filter((p) => p.position === 'EDGE' || p.position === 'DT');
+      for (const p of new Set([...front, ...this.lineups[defSide].rushRotation])) this.tally(p, 'rushSnaps', 1);
+      adv.dropbacks++;
+      adv.passEpa += epa;
+      if (success) adv.passSuccess++;
+      if (result.stats.entries.some(([, key]) => key === 'pressures')) adv.pressured++;
+    } else {
+      adv.rushes++;
+      adv.rushEpa += epa;
+      if (success) adv.rushSuccess++;
+    }
+    if (carrier) {
+      if (dropback) this.tally(carrier, 'dropbacks', 1);
+      this.tally(carrier, 'epa', epa);
+      if (success) this.tally(carrier, 'successes', 1);
+    }
   }
 
   private countSnap(p: Player) {
@@ -1786,6 +1862,7 @@ class GameSim {
     const beforePlays = this.teamStats[offSide].plays;
     const beforeTurnovers = this.teamStats[offSide].turnovers;
     const beforePoints = this.score[offSide];
+    const scoreBefore: [number, number] = [this.score[0], this.score[1]];
     const defensiveSide = (1 - offSide) as Side;
     const shotEvent = this.designedShot
       ? this.coachReports
@@ -1793,6 +1870,7 @@ class GameSim {
           ?.events.at(-1)
       : undefined;
     this.resolve(result);
+    if (this.teamStats[offSide].plays > beforePlays) this.countAdvanced(offSide, s, scoreBefore, result);
     if (
       this.teamStats[offSide].plays > beforePlays &&
       s.quarter >= 4 &&
@@ -3236,6 +3314,11 @@ class GameSim {
           break;
         }
       }
+    // The advanced numbers are measures: three decimals keep every saved box score small.
+    const thousandth = (v: number) => Math.round(v * 1000) / 1000;
+    for (const ts of [home, away])
+      if (ts.adv) for (const k of ['epa', 'passEpa', 'rushEpa'] as const) ts.adv[k] = thousandth(ts.adv[k]);
+    for (const line of Object.values(this.playerStats)) if (line.epa !== undefined) line.epa = thousandth(line.epa);
     return {
       ...(this.coachReports.length || reactions.length ? { coaching: [...this.coachReports, ...reactions] } : {}),
       ...(Object.keys(this.formOut).length ? { form: this.formOut } : {}),

@@ -156,6 +156,8 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 50) league.version = 50;
   // v51: optional `InboxMessage.advice`, the director's recommendations; filed market reports stay as they were.
   if (league.version < 51) league.version = 51;
+  // v52: optional `TeamGameStats.adv` and the advanced stat keys; games played before have none (a dash).
+  if (league.version < 52) league.version = 52;
   return league;
 }
 

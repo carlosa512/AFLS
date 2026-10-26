@@ -3982,6 +3982,10 @@ button.tip-pill {
 .mail-table th {
   padding: 5px 6px;
 }
+/* A ranked table that leaves out the middle of the league: a dashed rule where the ranks jump. */
+.mail-table tr.mail-gap td {
+  border-top: 2px dashed var(--line);
+}
 .mail-top td:nth-child(-n + 3) {
   width: 1%;
   white-space: nowrap;

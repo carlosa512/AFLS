@@ -151,6 +151,14 @@ export const STAT_KEYS = [
   'penaltyYds',
   /** Quarterback hit late, low or high, and the flag accepted. */
   'roughingDrawn',
+  /** Pass attempts, sacks and scrambles: the plays a quarterback drops back on (`analytics.ts`). */
+  'dropbacks',
+  /** Expected points added, on the passer for a dropback and the ball carrier for a designed run. */
+  'epa',
+  /** Successful plays by the NFL's rule (`isSuccess`), credited like `epa`. */
+  'successes',
+  /** Snaps rushing the passer: a front player or the rush rotation on a dropback. */
+  'rushSnaps',
 ] as const;
 export type StatKey = (typeof STAT_KEYS)[number];
 export type StatLine = Partial<Record<StatKey, number>>;
@@ -977,6 +985,24 @@ export interface LeadershipEvent {
   privateText?: string;
 }
 
+/** The Arena Gazette's tables (`gazette.ts`), saved with the column as they read when filed. */
+export type GazetteUnit = 'epa' | 'pct' | 'perDropback' | 'rushSuccess' | 'pressureRate';
+export interface GazetteRow {
+  teamId: number;
+  playerId?: number;
+  name: string;
+  value: number;
+  rank: number;
+}
+export interface GazetteTable {
+  title: string;
+  unit: GazetteUnit;
+  players?: true;
+  /** Lower is better (a defense's numbers allowed). */
+  lowerBetter?: true;
+  rows: GazetteRow[];
+}
+
 /** One of the director's recommendations, as it read when filed. */
 export interface AdviceRow {
   kind: 'buy' | 'sell' | 'sign';
@@ -1153,6 +1179,8 @@ export interface InboxMessage {
   rundown?: { offenseRank: number; defenseRank: number; offense: number[]; defense: number[]; prospects: number[] };
   /** The director's market report: per trade (in `marketTrades` order), his note on what it means for us and whether SNN ran it, as filed. */
   marketNotes?: { note?: string; snn?: true }[];
+  /** The Arena Gazette's numbers column (`gazette.ts`): its edition and tables, as filed. */
+  gazette?: { edition: string; tables: GazetteTable[] };
   /** The director's recommendations, as they read when filed (`directorAdvice.ts`). */
   advice?: { lean?: 'buy' | 'targeted' | 'sell'; rows: AdviceRow[] };
   /** SNN's offseason front-office digest, as it read when filed: one row per change around the league. */
@@ -1172,6 +1200,23 @@ export interface InboxMessage {
 }
 
 export type PlayoffRound = 'WC' | 'DIV' | 'CONF' | 'FINAL';
+
+/** A side's advanced numbers for one game, as the offense (`analytics.ts`); its defense's are the opponent's. */
+export interface AdvancedStats {
+  /** Dropbacks and designed runs that counted (kneels and spikes aside). */
+  plays: number;
+  success: number;
+  epa: number;
+  explosive: number;
+  dropbacks: number;
+  passSuccess: number;
+  passEpa: number;
+  rushes: number;
+  rushSuccess: number;
+  rushEpa: number;
+  /** Dropbacks with a pass rusher getting home or forcing the quarterback off his spot. */
+  pressured: number;
+}
 
 export interface TeamGameStats {
   firstDowns: number;
@@ -1200,6 +1245,8 @@ export interface TeamGameStats {
   redZoneTd: number;
   /** Seconds of possession. */
   top: number;
+  /** Advanced numbers (`analytics.ts`); games before v52 have none. */
+  adv?: AdvancedStats;
 }
 
 /** The fouls the engine calls (see `FOULS` in `officials.ts`). */

@@ -4,6 +4,7 @@ import { deliverMail, mailForOffer, offerMailId, threads } from '../engine/inbox
 import { applyInjury, NEED } from '../engine/injuries';
 import { chooseCover } from '../engine/roster';
 import { createLeague } from '../engine/generate';
+import { endGmAppointment } from '../engine/gm';
 import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
 import { talksOf } from '../engine/trade/talks';
@@ -706,5 +707,56 @@ describe('the director’s advice card', () => {
       mine: { players: [ours[0].id], picks: [] },
       theirs: { players: [], picks: [] },
     });
+  });
+});
+
+describe('the Gazette’s numbers card', () => {
+  it('shows each table with links, values and our row marked', () => {
+    const l = createLeague({ seed: 'gazette-card' });
+    const qb = Object.values(l.players).find((p) => p.position === 'QB' && p.teamId !== null)!;
+    const other = (l.userTeamId + 1) % 32;
+    const message: InboxMessage = {
+      id: `gazette:${l.season}:w4`,
+      season: l.season,
+      phase: 'regular',
+      week: 4,
+      from: 'The Arena Gazette',
+      category: 'league',
+      subject: 's',
+      body: 'b',
+      read: false,
+      actions: [],
+      gazette: {
+        edition: 'w4',
+        tables: [
+          {
+            title: 'Offense: EPA per play',
+            unit: 'epa',
+            rows: [
+              { teamId: other, name: l.teams[other].name, value: 0.214, rank: 1 },
+              { teamId: l.userTeamId, name: l.teams[l.userTeamId].name, value: -0.05, rank: 20 },
+            ],
+          },
+          {
+            title: 'Quarterbacks: EPA per dropback',
+            unit: 'perDropback',
+            players: true,
+            rows: [
+              { teamId: qb.teamId!, playerId: qb.id, name: `${qb.firstName} ${qb.lastName}`, value: 0.31, rank: 1 },
+            ],
+          },
+        ],
+      },
+    };
+    const html = renderToStaticMarkup(<MailCards league={l} message={message} />);
+    expect(html).toContain('Offense: EPA per play');
+    expect(html).toContain('0.21');
+    expect(html).toContain('−0.05');
+    expect(html).toContain('is-user');
+    expect(html).toContain(qb.lastName);
+    expect(html).toContain('Quarterbacks: EPA per dropback');
+    // Between jobs, no club is ours.
+    endGmAppointment(l, l.userGmId, 'dismissed');
+    expect(renderToStaticMarkup(<MailCards league={l} message={message} />)).not.toContain('is-user');
   });
 });

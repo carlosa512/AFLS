@@ -70,9 +70,10 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 
 - [x] **Referees** · **Already in** (hooks into #2): seventeen officiating crews with hidden tendencies that
       multiply the engine's penalty rolls (`officials.ts`, `docs/OFFICIALS.md`).
-- [ ] **Full news and media outlets** · **Partial** (hooks into #13): SNN division headlines, Arena Gazette
-      trajectory features and rookie impact reports join the inbox; broader coverage and narrative arcs remain
-      future work. See `docs/NEWS.md`.
+- [ ] **Full news and media outlets** · **Partial** (hooks into #13): SNN division headlines, trade stories and the
+      offseason front-office digest, the Arena Gazette's numbers column (EPA, success rate and explosives, counted
+      by the engine) and rookie impact reports join the inbox; a Stats screen tab for the advanced numbers and
+      narrative arcs remain future work. See `docs/NEWS.md`.
 - [x] **Staff avatars and the women staff flag** · **Already in** (hooks into #11): drawn staff avatars
       (`staffAvatar.tsx`, `docs/AVATARS.md`). Scouts and medics can be women (`woman`, drawn with the name in
       `identity.ts`), but coaches never are.

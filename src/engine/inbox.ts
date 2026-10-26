@@ -1,6 +1,7 @@
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
 import { adviceFor, adviceMoment } from './directorAdvice';
+import { editionAt, gazetteFor } from './gazette';
 import { recordAdvicePublications } from './coachDecisions';
 import {
   coachAdviceObservation,
@@ -656,6 +657,7 @@ export type MailSubject =
   | { kind: 'carousel'; season: number }
   | { kind: 'frontOffice'; season: number }
   | { kind: 'advice'; season: number; moment: string }
+  | { kind: 'gazette'; season: number }
   | { kind: 'faWrap'; season: number }
   | { kind: 'market'; season: number; phase: Phase; week: number }
   | { kind: 'marketRecap'; season: number }
@@ -683,6 +685,7 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
   if (category === 'leadership') return { kind: 'leadership', season, eventId: Number(a) };
   if (category === 'leadership-phase') return { kind: 'frontOffice', season };
   if (category === 'advice') return { kind: 'advice', season, moment: a };
+  if (category === 'gazette') return { kind: 'gazette', season };
   if (category === 'gm-offer') return { kind: 'gmOffer', season, teamId: Number(a) };
   const player = m.actions.find((x) => x.kind === 'player');
   const playerId = player?.kind === 'player' ? player.playerId : -1;
@@ -1416,6 +1419,29 @@ export function tradeAngle(league: League, r: TradeRecord, week: number): string
   if (!next) return null;
   const them = next.homeId === us.id ? next.awayId : next.homeId;
   return `We play the ${league.teams[them].name} in Week ${next.week}, ${them === seller.teamId ? 'without him' : "and he'll be there"}.`;
+}
+
+/** The Arena Gazette's numbers column at its checkpoints (`gazette.ts`): public, so it files with or without a job. */
+function gazetteMail(league: League, have: Set<string>): Draft[] {
+  const edition = editionAt(league);
+  const id = `gazette:${league.season}:${edition}`;
+  if (!edition || have.has(id)) return [];
+  const g = gazetteFor(league);
+  if (!g) return [];
+  return [
+    {
+      id,
+      season: league.season,
+      phase: league.phase,
+      week: league.phase === 'regular' ? league.week - 1 : league.week,
+      from: 'The Arena Gazette',
+      category: 'league',
+      subject: g.subject,
+      body: g.body,
+      gazette: { edition: g.edition, tables: g.tables },
+      actions: [{ kind: 'standings' }],
+    },
+  ];
 }
 
 /** The director's recommendations at the four moments he writes (`directorAdvice.ts`). */
@@ -2617,6 +2643,7 @@ export function deliverMail(league: League): void {
   }
   fresh.push(
     ...leagueNews(league, have),
+    ...gazetteMail(league, have),
     ...(employed(league) ? rookieImpactMail(league, draftClassOf(league, league.season), director(league)) : []),
     ...leadershipMail(league, have),
   );
