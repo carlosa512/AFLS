@@ -76,6 +76,7 @@ const userTeam = (league: League) => league.teams[league.userTeamId];
 export function yourListings(ctx: TradeContext): Listing[] {
   const { league } = ctx;
   const user = userTeam(league);
+  if (!user) return []; // A GM between jobs has no roster to put on the market.
   const status = league.market?.status ?? {};
   return rosterOf(ctx, user.id)
     .filter(

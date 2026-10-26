@@ -77,6 +77,7 @@ describe('inbox', () => {
     // Make the MVP's team the user's, so there is an award to announce.
     const mvp = seasonAwards(league, league.season)!.winners.mvp!;
     league.userTeamId = mvp.teamId!;
+    league.userGmId = league.teams[league.userTeamId].gmId!;
     logTransaction(
       league,
       'trade',
@@ -120,7 +121,8 @@ describe('inbox', () => {
       medical: ['injury', 'cleared'],
       awards: ['award'],
       trades: ['trade', 'deadline', 'market', 'marketRecap'],
-      league: ['race', 'news'],
+      league: ['race', 'news', 'leadership'],
+      staff: ['leadership', 'gmOffer'],
     };
     for (const m of league.inbox!) {
       const s = mailSubject(m)!;
@@ -138,7 +140,7 @@ describe('inbox', () => {
     simToEndOfSeason(league);
     beginOffseason(league);
     deliverMail(league);
-    const owner = league.inbox!.find((m) => m.id === `owner:${league.season}`)!;
+    const owner = league.inbox!.find((m) => m.id === `owner:${league.season}:${league.userTeamId}`)!;
     expect(owner.category).toBe('staff');
     expect(owner.body).toContain(`budgets for ${league.season}`);
     expect(mailSubject(owner)).toEqual({ kind: 'owner', season: league.season });
@@ -283,7 +285,9 @@ describe('inbox', () => {
     expect(year.filter((m) => m.category === 'retirement')).toHaveLength(retired.length);
     // The NFL's combine wraps up just before free agency opens: not yet.
     expect(league.inbox!.some((m) => m.id === `scouting:${league.season}:combine`)).toBe(false);
-    advanceOffseason(league);
+    do {
+      advanceOffseason(league);
+    } while (league.phase === 'resign');
     deliverMail(league);
     const combine = league.inbox!.find((m) => m.id === `scouting:${league.season}:combine`)!;
     expect(combine.phase).toBe('freeAgency');
@@ -347,7 +351,9 @@ describe('inbox', () => {
     const day = league.inbox!.find((m) => m.id === `scouting:${league.season}:draft`)!;
     expect(needsYou(league, day)).toBe(true);
     expect(league.inbox!.some((m) => m.id === `scouting:${league.season}:class`)).toBe(false);
-    advanceOffseason(league);
+    do {
+      advanceOffseason(league);
+    } while (league.phase === 'resign');
     deliverMail(league);
     expect(needsYou(league, day)).toBe(false);
     const picks = draftClassOf(league, league.season);
@@ -556,6 +562,7 @@ describe('position moves in the inbox', () => {
     while (base.phase !== 'draft') advanceOffseason(base);
     const team = base.teams.find((t) => suggestMove(base, t.id))!;
     base.userTeamId = team.id;
+    base.userGmId = team.gmId!;
     base.inbox = [];
     const pick = suggestMove(base, team.id)!;
     playerId = pick.player.id;

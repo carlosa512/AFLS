@@ -2764,6 +2764,9 @@ details.more > summary {
 .staff-bar.over i {
   background: var(--loss);
 }
+.owner-mandates p {
+  margin: 0.4rem 0 0;
+}
 .staff-lede {
   margin: 10px 0 0;
 }
@@ -4285,4 +4288,200 @@ button.tip-pill {
 }
 .personnel-deadline p {
   margin: 5px 0;
+}
+
+/* General managers share staff portraits and cards; career information stays readable on a phone. */
+.gm-career-overview .gm-overview-person {
+  margin-bottom: 18px;
+}
+.gm-overview-person {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.gm-overview-person h2 {
+  margin: 3px 0;
+  font-size: var(--step-3);
+}
+.gm-figures {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+  padding: 15px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.gm-figures > div {
+  display: grid;
+  gap: 5px;
+}
+.gm-figures b {
+  font-family: var(--font-display);
+  font-size: var(--step-3);
+  line-height: 1.1;
+}
+.gm-card-heading {
+  min-width: 0;
+  padding-right: 20px;
+}
+.gm-card-heading h2 {
+  font-size: var(--step-3);
+  overflow-wrap: anywhere;
+}
+.gm-card-heading .eyebrow {
+  color: inherit;
+  opacity: 0.85;
+}
+.gm-you {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+}
+.gm-you-inline {
+  margin-left: 8px;
+}
+.gm-style-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.gm-style-notes .tag-pill {
+  white-space: normal;
+}
+.gm-timeline {
+  list-style: none;
+  margin: 0 0 0 6px;
+  padding: 0 0 0 18px;
+  border-left: 2px solid var(--line);
+}
+.gm-timeline > li {
+  position: relative;
+  padding: 0 0 18px;
+}
+.gm-timeline > li:last-child {
+  padding-bottom: 0;
+}
+.gm-timeline > li::before {
+  content: '';
+  position: absolute;
+  left: -24px;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--field);
+  border: 2px solid var(--surface);
+}
+.gm-timeline-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.gm-timeline p {
+  margin: 5px 0;
+}
+.gm-coaches {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.gm-coaches > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.gm-directory-intro {
+  margin: 5px 0 0;
+  font-weight: 400;
+}
+.gm-filters {
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.gm-directory-table td:first-child {
+  min-width: 210px;
+}
+.gm-empty {
+  padding: 20px 0;
+}
+@media (max-width: 520px) {
+  .gm-overview-person {
+    gap: 12px;
+  }
+  .gm-overview-person h2,
+  .gm-card-heading h2 {
+    font-size: var(--step-2);
+  }
+  .gm-figures b {
+    font-size: var(--step-2);
+  }
+  .gm-profile-facts {
+    gap: 12px 18px;
+  }
+}
+
+.gm-job-offers,
+.gm-news,
+.gm-public-roster {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.gm-job-offers li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.gm-news li {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.gm-news p {
+  margin: 0.3rem 0 0;
+}
+.gm-public-roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.8rem;
+}
+
+.gm-appointment-line,
+.gm-search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+.gm-appointment-line .staff-link {
+  vertical-align: middle;
+}
+.gm-job-offers > .gm-offer {
+  display: block;
+  padding: 16px 0;
+}
+.gm-offer h3,
+.gm-offer p {
+  margin: 8px 0;
+}
+.gm-offer ul {
+  margin-bottom: 16px;
+}
+.gm-offer ul li {
+  display: list-item;
+  padding: 0;
+  border: 0;
+}
+.coach-takeovers {
+  padding-left: 20px;
 }

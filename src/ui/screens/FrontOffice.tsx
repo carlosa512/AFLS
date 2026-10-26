@@ -1,5 +1,6 @@
 import { PracticeSquad } from './PracticeSquad';
 import { useEffect, useRef, useState } from 'react';
+import { GeneralManagers } from './GeneralManagers';
 import { capSpace } from '../../engine/finance/cap';
 import { lastSeason, yearsLeft } from '../../engine/finance/contract';
 import { fifthYearOptionValue } from '../../engine/finance/market';
@@ -69,7 +70,17 @@ import { Waivers } from './Waivers';
 import { LinkedText, type Who } from '../moves';
 import { store } from '../store';
 
-export type OfficeTab = 'resign' | 'fa' | 'squad' | 'waivers' | 'draft' | 'trades' | 'coaches' | 'staff' | 'medical';
+export type OfficeTab =
+  | 'resign'
+  | 'fa'
+  | 'squad'
+  | 'waivers'
+  | 'draft'
+  | 'trades'
+  | 'coaches'
+  | 'staff'
+  | 'medical'
+  | 'gms';
 
 export const defaultOfficeTab = (league: League): OfficeTab =>
   league.phase === 'resign' ? 'resign' : league.phase === 'draft' ? 'draft' : 'fa';
@@ -1051,6 +1062,7 @@ export function FrontOffice({
     ['coaches', 'Coaches'],
     ['staff', 'Scouts'],
     ['medical', 'Medical'],
+    ['gms', 'GMs'],
   ];
   if (league.personnel?.enabled) TABS.splice(2, 0, ['waivers', 'Waiver wire'], ['squad', 'Practice squad']);
   // Seven tabs scroll on a phone: keep the one you're on (or were sent to) in view.
@@ -1142,6 +1154,7 @@ export function FrontOffice({
       {active === 'coaches' && <CoachesScreen league={league} />}
       {active === 'staff' && <StaffScreen league={league} />}
       {active === 'medical' && <MedicalScreen league={league} />}
+      {active === 'gms' && <GeneralManagers league={league} />}
       {talking !== null && league.players[talking] && (
         <NegotiationDialog league={league} player={league.players[talking]} onClose={() => setTalking(null)} />
       )}

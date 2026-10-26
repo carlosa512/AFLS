@@ -10,6 +10,7 @@
  * uses its own seeded Rngs, so it never shifts the league's main random stream.
  */
 import { TEAM_SEEDS } from './data/teams';
+import { recruitmentProblem } from './employment';
 import { BASE_CAP } from './finance/market';
 import { ROSTER_TEMPLATE } from './positions';
 import { newIdentity } from './identity';
@@ -167,6 +168,10 @@ export type StaffMove = 'hire' | 'extend' | 'release';
 
 /** Why a move can't happen right now, or null. */
 export function staffMoveProblem(league: League, teamId: number, s: Staff, move: StaffMove, years = 2): string | null {
+  if (move === 'hire') {
+    const recruitment = recruitmentProblem(league, teamId, s.teamId);
+    if (recruitment) return recruitment;
+  }
   if (!staffWindowOpen(league)) return 'Staff moves open in the re-sign window and free agency.';
   const { He, His, him } = pron(s);
   if (move === 'release') return s.teamId === teamId ? null : `${He} doesn’t work for you.`;
@@ -188,6 +193,11 @@ export function staffMoveProblem(league: League, teamId: number, s: Staff, move:
 
 function signStaff(league: League, teamId: number, s: Staff, years: number): void {
   touch();
+  const last = s.appointments?.at(-1);
+  if (!last || last.end || last.teamId !== teamId || last.role !== s.role) {
+    if (last && !last.end) last.end = staffDate(league);
+    (s.appointments ??= []).push({ teamId, role: s.role, start: staffDate(league) });
+  }
   s.teamId = teamId;
   s.contract = { salary: staffAsk(league, s, years), through: league.season + years - 1 };
 }
@@ -248,6 +258,53 @@ function dismiss(league: League, s: Staff): void {
   );
   s.teamId = null;
   s.contract = null;
+  closeStaffAppointment(league, s, 'released');
+}
+
+const staffDate = (league: League) => ({
+  season: league.season,
+  phase: league.phase,
+  week: league.phase === 'regular' || league.phase === 'playoffs' ? league.week : 0,
+});
+
+function closeStaffAppointment(league: League, s: Staff, reason: 'released' | 'promoted' | 'gm'): void {
+  const last = s.appointments?.at(-1);
+  if (last && !last.end) {
+    last.end = staffDate(league);
+    last.reason = reason;
+  }
+}
+
+/** A department's own scouts can rise into its vacant director chair without changing identity. */
+export function promoteScoutToDirector(league: League, teamId: number, staffId: number, years = 2): void {
+  const s = league.staff[staffId];
+  if (!staffWindowOpen(league) && league.phase !== 'regular')
+    throw new Error('Scouting promotions open during the season or hiring window.');
+  if (!s || s.teamId !== teamId || s.role === 'director') throw new Error('Choose one of this team’s scouts.');
+  if (teamStaff(league, teamId).some((x) => x.role === 'director')) throw new Error('The director chair is occupied.');
+  if (!Number.isInteger(years) || years < 1 || years > 3) throw new Error('Staff contracts run for 1–3 years.');
+  const asDirector: Staff = { ...s, role: 'director' };
+  const freed = s.contract && s.contract.through >= league.season ? s.contract.salary : 0;
+  if (staffAsk(league, asDirector, years) > staffRoom(league, teamId) + freed)
+    throw new Error('The director’s contract exceeds the staff budget.');
+  closeStaffAppointment(league, s, 'promoted');
+  s.role = 'director';
+  delete s.focus;
+  signStaff(league, teamId, s, years);
+  logStaff(league, teamId, `${league.teams[teamId].abbrev} promoted ${staffName(s)} to director of scouting`);
+}
+
+/** A promotion into football leadership is a departure, not a dismissal with severance. */
+export function departForGm(league: League, staffId: number): Staff {
+  const s = league.staff[staffId];
+  if (!s || s.role !== 'director') throw new Error('Only a scouting director can become a GM.');
+  closeStaffAppointment(league, s, 'gm');
+  const snapshot = structuredClone(s);
+  snapshot.teamId = null;
+  snapshot.contract = null;
+  delete league.staff[staffId];
+  touch();
+  return snapshot;
 }
 
 // ───────── generation ─────────

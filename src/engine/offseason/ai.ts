@@ -674,12 +674,13 @@ export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
     while (activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos])
       if (!signMinimum(league, team, rng, pos)) break;
   }
-  // A specialist two years past his prime gets a younger leg to beat in camp, the best one left: with one kicker and one
-  // punter a team, a young one otherwise reached a roster only through the draft, and old ones kept their jobs (8.3
-  // K/P starters aged 38+ of 64 in the careers check; NFL 2019-25 about 2.6). The weaker of the two goes below.
+  // A specialist past his prime gets a younger leg to beat in camp, the best one left: with one kicker and one punter
+  // a team, a young one otherwise reached a roster only through the draft, and old ones kept their jobs (8.3 K/P
+  // starters aged 38+ of 64 in the careers check; NFL 2019-25 about 2.6). From two years past it, a league whose
+  // front offices change hands still sat at the check's ceiling of 8. The weaker of the two goes below.
   for (const pos of Object.keys(KEEP_MAX) as Position[]) {
     const mine = activeRoster(league, team.id).filter((p) => p.position === pos);
-    if (mine.length === 1 && mine[0].age >= PEAK_END[pos] + 2)
+    if (mine.length === 1 && mine[0].age >= PEAK_END[pos] + 1)
       signMinimum(league, team, rng, pos, Infinity, mine[0].age);
   }
   aiCutdown(league, team);

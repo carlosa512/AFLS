@@ -386,7 +386,18 @@ for (let s = 0; s < seasons; s++) {
       if (id === chairsBefore.get(t.id)!.get(chairKey(ch))) continue;
       changed[ch.role]++;
       if (ch.role !== 'headCoach') continue;
-      const past = (league.coaches[id]?.career ?? []).filter((cs) => cs.season < league.season);
+      const career = (league.coaches[id]?.career ?? []).filter((cs) => cs.season < league.season);
+      // Keeping last season's internal interim is a promotion, not rehiring a former head coach.
+      const retainedInterim = career.some(
+        (cs) =>
+          cs.role === 'headCoach' &&
+          cs.teamId === t.id &&
+          cs.season === league.season - 1 &&
+          (cs.record?.fromWeek ?? 1) > 1,
+      );
+      const past = retainedInterim
+        ? career.filter((cs) => cs.season !== league.season - 1 || cs.role !== 'headCoach')
+        : career;
       if (past.some((cs) => cs.role === 'headCoach')) hcFrom.retread++;
       else if (past.at(-1)?.role === 'offCoord' || past.at(-1)?.role === 'defCoord') hcFrom.coordinator++;
       else hcFrom.other++;

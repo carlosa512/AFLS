@@ -15,6 +15,8 @@ A player's or a team's name always opens his card or the team's page, and looks 
 - **Teams:** `TeamLink`. `chip` puts the colour chip before the name in tables and lists, never in a sentence.
   `full` gives "Dallas Stampede" instead of "Stampede". `sub` puts a record or note under the name, outside the
   link.
+- **GMs:** `GmLink` (`ui/gm.tsx`) opens the same GM card from the directory, team, cap, trade and home
+  screens. `avatar` adds the person's stable SVG portrait. The Front Office's GMs tab is `#/office/gms`.
 - **Not links, on purpose:** the player card's own header, the "signed" toast, a name inside a checkbox label
   (a link there steals the click), and a page's own heading (it doesn't link to itself).
 

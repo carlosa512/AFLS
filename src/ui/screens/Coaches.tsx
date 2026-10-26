@@ -1,3 +1,5 @@
+import { managesTeam } from '../../engine/employment';
+import { TeamLink } from '../components';
 import { QUIRKS, type QuirkId } from '../../engine/quirks';
 import { activeCoachQuirks, coachHabitChangeText, COACH_QUIRKS, type CoachQuirkId } from '../../engine/coachQuirks';
 /**
@@ -29,6 +31,7 @@ import {
   coachingGrades,
   coachMarket,
   coachMoveProblem,
+  coachMandate,
   coachName,
   coachPayroll,
   coachResignForecast,
@@ -488,7 +491,7 @@ function RoleGuide({ roles }: { roles: CoachRole[] }) {
 }
 
 /**
- * A coach's record in one line: his teams' results in the seasons he finished on their staff, with the
+ * A coach's record in one line: results earned while he held each role, with the
  * head-coaching seasons counted on their own (that's the record people quote). The seasons are on his card.
  */
 function CoachRecord({ league, c }: { league: League; c: Coach }) {
@@ -496,7 +499,7 @@ function CoachRecord({ league, c }: { league: League; c: Coach }) {
   if (!all.seasons.length) return null;
   const head = coachRecord(league, c, ['headCoach']);
   const main = head.seasons.length ? head : all;
-  const yrs = main.seasons.length;
+  const yrs = new Set(main.seasons.map((s) => s.season)).size;
   const extras = [
     main.playoffTrips ? `${main.playoffTrips} playoff trip${main.playoffTrips > 1 ? 's' : ''}` : '',
     main.titles ? `${main.titles} title${main.titles > 1 ? 's' : ''}` : '',
@@ -510,7 +513,7 @@ function CoachRecord({ league, c }: { league: League; c: Coach }) {
   );
 }
 
-/** Every season a coach finished on a staff, newest first, with his team's record. */
+/** Each season and role, newest first, including a partial season before a departure or promotion. */
 function CareerTable({ league, c }: { league: League; c: Coach }) {
   return (
     <div className="table-scroll">
@@ -526,10 +529,15 @@ function CareerTable({ league, c }: { league: League; c: Coach }) {
         </thead>
         <tbody>
           {coachRecord(league, c).seasons.map((s) => (
-            <tr key={s.season}>
+            <tr key={`${s.season}:${s.teamId}:${s.role}:${s.room ?? ''}`}>
               <td className="num">{s.season}</td>
               <td>{league.teams[s.teamId].abbrev}</td>
-              <td>{coachTitle(s)}</td>
+              <td>
+                {c.interimAppointments?.some((a) => a.season === s.season && a.teamId === s.teamId) &&
+                s.role === 'headCoach'
+                  ? 'Interim head coach'
+                  : coachTitle(s)}
+              </td>
               <td className="num">{formatRecord(s.regular)}</td>
               <td className={s.champion ? 'tone-good' : 'muted'}>
                 {s.playoffs ? `${s.finish} (${s.playoffs.w}–${s.playoffs.l})` : s.finish || '–'}
@@ -543,7 +551,7 @@ function CareerTable({ league, c }: { league: League; c: Coach }) {
 }
 
 /** A coach's name that opens his card; `avatar` puts his picture beside it, as in a list. */
-function CoachLink({ c, className, avatar }: { c: Coach; className?: string; avatar?: boolean }) {
+export function CoachLink({ c, className, avatar }: { c: Coach; className?: string; avatar?: boolean }) {
   const nav = useNav();
   return (
     <button
@@ -595,6 +603,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
           <StaffAvatar person={c} size={128} />
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
+              {c.interim ? 'Interim ' : ''}
               {coachTitle(c)}
               {team ? ` · ${team.city} ${team.name}` : retired ? ' · Retired' : ' · On the market'}
             </span>
@@ -645,6 +654,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
           </span>
         )}
       </div>
+      {team && <OwnerMandates league={league} teamId={team.id} coachId={c.id} />}
       <SchemeRow league={league} c={c} preview={c.teamId === null && !retired} />
       <CoachTags c={c} />
       {!!c.quirkLog?.length && (
@@ -682,6 +692,16 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
         </p>
       )}
       <Section id="coach-career" title="Career">
+        {career === 'coach' && !!c.interimAppointments?.length && (
+          <ul className="coach-takeovers">
+            {[...c.interimAppointments].reverse().map((a) => (
+              <li key={`${a.season}:${a.teamId}:${a.week}`}>
+                {a.season} · Week {a.week}: took over as interim head coach of{' '}
+                <TeamLink team={league.teams[a.teamId]} full />.
+              </li>
+            ))}
+          </ul>
+        )}
         {player && (
           <div className="seg seg-sm" role="group" aria-label="Which career">
             <button aria-pressed={career === 'coach'} onClick={() => setCareer('coach')}>
@@ -720,7 +740,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
           </>
         ) : (
           <p className="muted small" style={{ margin: 0 }}>
-            No finished seasons on a staff yet.
+            No games on a staff yet.
           </p>
         )}
       </Section>
@@ -895,6 +915,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
         </span>
       </div>
       <SchemeRow league={league} c={c} compact />
+      {c.teamId !== null && <OwnerMandates league={league} teamId={c.teamId} coachId={c.id} />}
       <CoachTags c={c} />
       <VisionLine league={league} c={c} />
       {c.role !== 'headCoach' && (
@@ -1422,6 +1443,32 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
 }
 
 /** Your owner: how he spends, and how far past the budget he'll go this year for the men who run the team. */
+export function OwnerMandates({ league, teamId, coachId }: { league: League; teamId: number; coachId?: number }) {
+  if (!managesTeam(league, teamId)) return null;
+  const promises = teamCoaches(league, teamId).flatMap((coach) => {
+    const mandate = coachMandate(league, coach);
+    return mandate && (coachId === undefined || coach.id === coachId) ? [{ coach, mandate }] : [];
+  });
+  if (!promises.length) return null;
+  return (
+    <div className="callout owner-mandates" aria-label="Owner mandates">
+      <b>Owner mandate</b>
+      {promises.map(({ coach, mandate }) => (
+        <div key={coach.id}>
+          <p>
+            <CoachLink c={coach} /> stays as {coachTitle(coach).toLowerCase()} through <b>{mandate.through}</b>.
+          </p>
+          <p className="small">{mandate.reason}</p>
+          <p className="small muted">
+            Already under contract. Salary counts toward the coaching budget. This chair stays filled for the promised
+            period.
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OwnerLine({ league }: { league: League }) {
   const teamId = league.userTeamId;
   const head = ownerLeeway(league, teamId, { role: 'headCoach' });
@@ -1429,12 +1476,15 @@ function OwnerLine({ league }: { league: League }) {
   const spend = ownerBudgetNote(league.teams[teamId].staffBudgetMult);
   const chairs = coord.amount > 0 ? 'a head coach or an offensive or defensive coordinator' : 'a new head coach';
   return (
-    <p className="muted small staff-lede">
-      <b>Owner:</b> {spend === 'Big-spending owner' ? 'a big spender. ' : spend ? 'on a tight budget. ' : ''}
-      {head.amount > 0
-        ? `He’ll add up to ${money(Math.max(head.amount, coord.amount))} past the budget this year for ${chairs} (${head.why}).`
-        : `He won’t go past the budget this year: ${head.why}.`}
-    </p>
+    <>
+      <p className="muted small staff-lede">
+        <b>Owner:</b> {spend === 'Big-spending owner' ? 'a big spender. ' : spend ? 'on a tight budget. ' : ''}
+        {head.amount > 0
+          ? `He’ll add up to ${money(Math.max(head.amount, coord.amount))} past the budget this year for ${chairs} (${head.why}).`
+          : `He won’t go past the budget this year: ${head.why}.`}
+      </p>
+      <OwnerMandates league={league} teamId={teamId} />
+    </>
   );
 }
 

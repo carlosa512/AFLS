@@ -41,12 +41,14 @@ export function moveIndex(league: League): MoveIndexes {
     coach: build([...Object.values(league.coaches), ...Object.values(league.retiredCoaches)], 'coach'),
     scout: build(Object.values(league.staff), 'scout'),
     medic: build(Object.values(league.medics), 'medic'),
+    gm: build(Object.values(league.gms), 'gm'),
   };
 }
 
 /** The indexes a transaction's names can come from: always players, plus the staff its kind is about. */
 const STAFF_OF: Partial<Record<Transaction['kind'], Exclude<Who['kind'], 'team'>>> = {
   coach: 'coach',
+  gm: 'gm',
   staff: 'scout',
   medical: 'medic',
 };
@@ -135,6 +137,7 @@ export function nameIndex(league: League): MoveIndex {
   add([...Object.values(league.coaches), ...Object.values(league.retiredCoaches)], 'coach');
   add(Object.values(league.staff), 'scout');
   add(Object.values(league.medics), 'medic');
+  add(Object.values(league.gms), 'gm');
   // A nickname two teams share (a mod's) stays plain, like a shared person's name.
   const teamKeys = new Set<string>();
   for (const t of league.teams) {
@@ -163,7 +166,9 @@ function personOf(league: League, w: Who): { firstName: string; lastName: string
         ? (league.coaches[w.id] ?? league.retiredCoaches[w.id])
         : w.kind === 'scout'
           ? league.staff[w.id]
-          : league.medics[w.id];
+          : w.kind === 'gm'
+            ? league.gms[w.id]
+            : league.medics[w.id];
 }
 
 /**

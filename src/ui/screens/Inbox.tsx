@@ -1,3 +1,4 @@
+import { canReadMail } from '../../engine/inbox';
 import { useEffect, useState } from 'react';
 import {
   archiveMail,
@@ -53,6 +54,8 @@ const KIND_TAGS: Partial<Record<NonNullable<ReturnType<typeof mailSubject>>['kin
   race: 'Playoff race',
   deadline: 'Trade deadline',
   offer: 'Offer',
+  gmOffer: 'GM offer',
+  leadership: 'Leadership',
   market: 'Market',
   marketRecap: 'Deadline recap',
   owner: 'Owner',
@@ -80,6 +83,8 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
       return a.pos ? `Free agents at ${a.pos}` : 'Free agency';
     case 'coaches':
       return 'Coaches';
+    case 'gms':
+      return 'GM careers and jobs';
     case 'staff':
       return 'Scouting staff';
     case 'cap':
@@ -155,7 +160,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ ids: string[]; what: 'archived' | 'deleted' | 'restored' } | null>(null);
 
-  const live = [...(league.inbox ?? [])].reverse().filter((m) => !m.deleted);
+  const live = [...(league.inbox ?? [])].reverse().filter((m) => !m.deleted && canReadMail(league, m));
   const inbox = live.filter(inInbox);
   const archived = live.filter((m) => m.archived);
   const needs = new Set(inbox.filter((m) => needsYou(league, m)).map((m) => m.id));

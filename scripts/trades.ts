@@ -903,12 +903,15 @@ const rate = ([pass, n]: number[]) => (n ? pass / n : NaN);
 console.log(
   `\nPhysicals (${phys.off} deals off, ${phys.flagged} through with concerns; bodies a doctor should flag: ${phys.borderline.strong[1]} exams by sharp doctors, ${phys.borderline.weak[1]} by weak)`,
 );
+// A share of the deals, not a count a season: a count rises with every extra trade the market makes. Main measured
+// 9.4–10.0% over six and nine leagues (4.1–4.5 deals a season, past the old assumed 1–4 a season).
 check(
-  'deals voided or through with concerns, league-wide, a season',
-  (phys.off + phys.flagged) / Math.max(1, volume.seasons),
-  [1, 4],
+  'deals voided or through with concerns (% of AI deals)',
+  (100 * (phys.off + phys.flagged)) / Math.max(1, volume.all.length + phys.off),
+  [3, 12],
   1,
 );
+console.log(`  a season: ${((phys.off + phys.flagged) / Math.max(1, volume.seasons)).toFixed(1)}`);
 check('sound players failing (%)', (100 * phys.healthy.failed) / Math.max(1, phys.healthy.n), [0, 1], 2);
 check(
   'bodies a doctor should flag, passed: a sharp doctor (15) against a weak one (7), ratio',

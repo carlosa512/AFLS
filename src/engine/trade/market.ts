@@ -72,7 +72,7 @@ export function gmActivity(league: League, team: Team): number {
 
 /** Most trades a team makes in a regular season (an All-In GM one more), and in a whole league year. */
 const SEASON_CAP = 3;
-const YEAR_CAP = 5;
+const YEAR_CAP = 6;
 
 /** Deals too small to count against a front office's limits: a pick swap, a late pick for a player it was cutting. */
 const MINOR = new Set<TradeRecord['kind']>(['futureSwap', 'cutdown', 'casualty']);

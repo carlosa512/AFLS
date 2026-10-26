@@ -12,6 +12,7 @@ import { CapChart, capPct, ContractActions, SquadActions, thruLabel } from '../c
 import { money, weeklyMoney } from '../format';
 import { Ovr, ScoutedCeiling, seenOvr, viewOf } from '../scouting';
 import { moveIndex, MoveText } from '../moves';
+import { GmLink } from '../gm';
 
 /** The contracts table's columns ("% of cap" sorts as the cap hit: same order). */
 type ContractSort = 'name' | 'pos' | 'age' | 'ability' | 'cap' | 'apy' | 'thru' | 'gtd' | 'dead' | 'saves';
@@ -81,6 +82,11 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                 <TeamLink team={team} full />
                 {!isUser && ` · GM style: ${team.gm.archetype}`}
               </span>
+              {team.gmId !== null && (
+                <div className="muted small">
+                  GM: <GmLink league={league} gm={league.gms[team.gmId]} />
+                </div>
+              )}
             </div>
           </div>
         }

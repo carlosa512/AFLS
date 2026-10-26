@@ -5,6 +5,8 @@ import { coachTeachingWeek, updateCoachAdvice } from './coachDecisions';
  * champion, and rolling the league into the next season.
  */
 import { awardSeason, awardWeek } from './awards';
+import { leadershipWeek } from './leadership';
+import { withLeagueAi } from './employment';
 import { simulateGame, startGame, type LiveGame } from './match/gameSim';
 import { developWeek } from './development';
 import { applyInjury, injuryWeek } from './injuries';
@@ -18,7 +20,8 @@ import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { computeRecords } from './season/standings';
 import { addStats } from './stats';
-import { recordCoachSeasons, teamCoaches } from './coaching';
+import { captureManagement, creditManagement } from './service';
+import { teamCoaches } from './coaching';
 import { playoffSummary } from './records';
 import { noteElevationInjuries, settlePostseasonElevationPay } from './personnel/elevations';
 import { recordGameService, serviceRoster } from './personnel/service';
@@ -66,6 +69,7 @@ export function recordResult(league: League, game: Game, result: GameResult): vo
   // Condition and diagnoses are carried by the players, not the game record.
   const { condition, diagnoses, ...kept } = result;
   game.result = kept;
+  creditManagement(league, game);
   for (const [id, c] of Object.entries(condition ?? {})) {
     const p = league.players[Number(id)];
     if (p && c < (p.condition ?? 100)) p.condition = c;
@@ -111,15 +115,29 @@ function creditTeam(player: Player, season: number, teamId: number) {
 export function playGame(league: League, game: Game): void {
   if (game.result) return;
   playEarlierGames(league, game);
+  captureManagement(league, game);
   prepareGame(league, game);
-  recordResult(league, game, simulateGame(league, game, { keepPlays: true, playoff: !!game.playoffRound }));
+  recordResult(
+    league,
+    game,
+    simulateGame(league, game, {
+      keepPlays: true,
+      playoff: !!game.playoffRound,
+      ...(league.simulationSalt ? { seed: `${league.seed}:${league.simulationSalt}:${game.season}:${game.id}` } : {}),
+    }),
+  );
 }
 
 /** Begin a game to be watched play by play; finish it with recordResult, then playWeek. */
 export function startLiveGame(league: League, game: Game): LiveGame {
+  if (game.result) throw new Error('This game has already been played.');
   playEarlierGames(league, game);
+  captureManagement(league, game);
   prepareGame(league, game);
-  return startGame(league, game, { playoff: !!game.playoffRound });
+  return startGame(league, game, {
+    playoff: !!game.playoffRound,
+    ...(league.simulationSalt ? { seed: `${league.seed}:${league.simulationSalt}:${game.season}:${game.id}` } : {}),
+  });
 }
 
 /** A Sunday live game cannot resolve Friday waivers before an unplayed Thursday game. */
@@ -133,6 +151,9 @@ function playEarlierGames(league: League, game: Game): void {
 
 /** Play every game in the current week, then advance the calendar. Returns the games played. */
 export function playWeek(league: League): Game[] {
+  return withLeagueAi(league, () => playWeekControlled(league));
+}
+function playWeekControlled(league: League): Game[] {
   if (league.phase === 'complete') return [];
   // Offers you didn't answer lapse when you play on.
   expireOffers(league);
@@ -158,6 +179,7 @@ export function playWeek(league: League): Game[] {
     developWeek(league, gamesInWeek(league));
   }
   league.week++;
+  leadershipWeek(league);
   // The league moves the games worth watching into prime time, on the NFL's notice.
   if (league.phase === 'regular') flexWeek(league);
   // What's on the desk was judged before the week moved: judge it again in the state you'd accept in.
@@ -186,12 +208,20 @@ function finishSeason(league: League) {
     records: Object.fromEntries([...records].map(([id, r]) => [id, { w: r.w, l: r.l, t: r.t }])),
     playoffs: playoffSummary(league, league.season),
   });
-  recordCoachSeasons(league);
   league.phase = 'complete';
 }
 
-export function simToEndOfRegularSeason(league: League) {
-  while (league.phase === 'regular') playWeek(league);
+export function simToEndOfRegularSeason(league: League, stopForJob = false) {
+  const appointment = league.gms[league.userGmId]?.appointments.length;
+  const team = league.gms[league.userGmId]?.teamId;
+  while (league.phase === 'regular') {
+    playWeek(league);
+    if (
+      stopForJob &&
+      (league.gms[league.userGmId]?.teamId !== team || league.gms[league.userGmId]?.appointments.length !== appointment)
+    )
+      break;
+  }
 }
 
 export function simToEndOfSeason(league: League) {

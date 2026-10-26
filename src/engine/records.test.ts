@@ -25,11 +25,30 @@ describe('records', () => {
     const gm = gmRecord(league);
     expect(gm.seasons).toHaveLength(1);
     expect(gm.regular).toEqual({ ...summary.records[league.userTeamId] });
+    // Clubs that changed staff in season split it: an interim head coach, the coordinator moved up behind him,
+    // the man hired into the chair left open. Everyone else carries the club's whole season.
+    const changed = new Set(league.leadership.events.filter((e) => e.date.phase === 'regular').map((e) => e.teamId));
+    const games = (r: { w: number; l: number; t: number }) => r.w + r.l + r.t;
     for (const c of Object.values(league.coaches)) {
       if (c.teamId === null) continue;
       const rec = coachRecord(league, c);
-      expect(rec.seasons.map((s) => s.teamId)).toEqual([c.teamId]);
-      expect(rec.regular).toEqual({ ...summary.records[c.teamId] });
+      if (changed.has(c.teamId)) expect(games(rec.regular)).toBeLessThanOrEqual(games(summary.records[c.teamId]));
+      else {
+        expect(rec.seasons.map((s) => s.teamId)).toEqual([c.teamId]);
+        expect(rec.regular).toEqual({ ...summary.records[c.teamId] });
+      }
+    }
+    // Every game is on exactly one head coach's record, including the man dismissed during the season.
+    for (const t of league.teams) {
+      const heads = [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)]
+        .flatMap((c) => coachRecord(league, c, ['headCoach']).seasons)
+        .filter((s) => s.teamId === t.id && s.season === summary.season);
+      const sum = heads.reduce((r, s) => ({ w: r.w + s.regular.w, l: r.l + s.regular.l, t: r.t + s.regular.t }), {
+        w: 0,
+        l: 0,
+        t: 0,
+      });
+      expect(sum).toEqual({ ...summary.records[t.id] });
     }
   });
 

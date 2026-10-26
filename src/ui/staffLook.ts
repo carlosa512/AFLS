@@ -6,7 +6,7 @@ export type Garment = 'hoodie' | 'quarterzip' | 'polo' | 'tee' | 'jacket' | 'bla
 export type Headwear = 'none' | 'cap' | 'visor' | 'beanie';
 export type Gear = 'headset' | 'credential' | 'stethoscope' | 'cross' | 'whistle' | 'none';
 export type Hair = 'bun' | 'ponytail' | 'bob' | 'long';
-export type StaffFamily = 'coach' | 'strength' | 'scout' | 'director' | 'medical';
+export type StaffFamily = 'coach' | 'strength' | 'scout' | 'director' | 'medical' | 'gm';
 export type StaffDay = 'game' | 'cold' | 'hot' | 'offseason';
 
 export interface StaffLook {
@@ -41,6 +41,12 @@ const WARDROBE: Record<StaffFamily, Outfit[]> = {
     ['polo', 'none', 'credential'],
   ],
   director: [['blazer', 'none', 'credential']], // the Director always wears the suit
+  gm: [
+    ['blazer', 'none', 'none'],
+    ['quarterzip', 'none', 'credential'],
+    ['polo', 'none', 'credential'],
+    ['jacket', 'none', 'none'],
+  ],
   medical: [
     ['polo', 'none', 'cross'],
     ['scrubs', 'none', 'stethoscope'],
@@ -53,6 +59,7 @@ const OFFSEASON: Record<StaffFamily, Outfit> = {
   strength: ['tee', 'none', 'whistle'], // the offseason program is his busiest stretch
   scout: ['blazer', 'none', 'credential'],
   director: ['blazer', 'none', 'credential'],
+  gm: ['blazer', 'none', 'none'],
   medical: ['labcoat', 'none', 'stethoscope'],
 };
 const HAIRS: Hair[] = ['bun', 'ponytail', 'bob', 'long'];
@@ -60,7 +67,7 @@ const MEN_HEADS = 5;
 const WOMEN_HEADS = 3;
 
 /** Which wardrobe a chair dresses from. Role names never repeat across coaches, scouts and medics. */
-export const STAFF_FAMILY: Record<CoachRole | StaffRole | MedicRole, StaffFamily> = {
+export const STAFF_FAMILY: Record<CoachRole | StaffRole | MedicRole, Exclude<StaffFamily, 'gm'>> = {
   headCoach: 'coach',
   offCoord: 'coach',
   defCoord: 'coach',

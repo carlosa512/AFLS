@@ -36,6 +36,7 @@ const OFFICE_TABS: readonly OfficeTab[] = [
   'coaches',
   'staff',
   'medical',
+  'gms',
 ];
 const STATS_TABS: readonly StatsTab[] = ['leaders', 'players', 'teams', 'records', 'awards', 'officials'];
 const PLAIN = ['home', 'schedule', 'standings', 'playoffs', 'compare', 'live'] as const;
