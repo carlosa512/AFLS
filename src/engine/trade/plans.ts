@@ -7,7 +7,6 @@
 import { ageShift } from '../aging';
 import { chairHolder, hotSeat, ownerTrigger, teamCoaches } from '../coaching';
 import { isExpired, yearsLeft } from '../finance/contract';
-import { teamGm } from '../gm';
 import { contenderScore } from '../offseason/negotiation';
 import { ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { clamp } from '../rng';
@@ -90,9 +89,6 @@ function scoreOf(ctx: TradeContext, team: Team): number {
     // A first-year head coach is building.
     if (hc.since === league.season) s -= 0.05;
   }
-  // A club that changed its head coach or GM in season has given up on the year: the interims see it out while
-  // the front office sells (an interim's own seat is cold, so the hot-seat sell-off above no longer fires).
-  if (league.phase === 'regular' && (hc?.interim || teamGm(league, team.id)?.appointments.at(-1)?.interim)) s -= 0.15;
   const roster = rosterOf(ctx, team.id);
   if (starterAge(league, team) >= OLD_ROSTER && s < 0) s -= 0.1;
   // Without a quarterback there's nothing to push for.

@@ -150,9 +150,9 @@ describe('GM leadership and searches', () => {
       badYears(l);
       l.seed += n;
       l.phase = 'regular';
-      l.week = 9;
+      l.week = 11;
       l.games = [];
-      for (let w = 1; w <= 8; w++)
+      for (let w = 1; w <= 10; w++)
         for (let t = 0; t < 32; t += 2)
           l.games.push({
             id: l.nextGameId++,

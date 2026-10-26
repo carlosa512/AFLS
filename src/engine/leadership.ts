@@ -19,6 +19,7 @@ import { drawInSeason, drawOffseason, heatSoFar, ownerBag, seasonHeat, talentRan
 import { gmRecord } from './records';
 import { clamp, Rng } from './rng';
 import { computeRecords } from './season/standings';
+import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import { ensureStaffed, promoteScoutToDirector, staffValue, teamStaff } from './staff';
 import type {
   Coach,
@@ -473,14 +474,16 @@ function lostLast(l: League, teamId: number): boolean {
 }
 
 /** How often an owner on a lost season reaches into the bag after a loss: tuned to the NFL's in-season firings. */
-const OWNER_REACH = 0.3;
+const OWNER_REACH = 0.4;
 
 /**
- * In-season reviews, week by week from the eighth: only after a loss, only on a pace of .300 or worse, and only
- * now and then, so a bad month is not a verdict. At most one GM and one head-coach change per club per season.
+ * In-season reviews, week by week once the trade deadline has passed: only after a loss, only on a pace of .300 or
+ * worse, and only now and then, so a bad month is not a verdict. Most NFL clubs sell at the deadline and change
+ * coaches after it; a change just before it also rewrote the deadline's buyers and sellers. At most one GM and one
+ * head-coach change per club per season.
  */
 export function leadershipWeek(l: League): void {
-  if (l.phase !== 'regular' || l.week < 8 || l.week > 18) return;
+  if (l.phase !== 'regular' || l.week <= TRADE_DEADLINE_WEEK + 1 || l.week > 18) return;
   const records = computeRecords(l);
   let ranks: Map<number, number> | undefined;
   for (const t of l.teams) {
