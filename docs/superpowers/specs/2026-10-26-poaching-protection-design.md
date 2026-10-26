@@ -40,10 +40,12 @@ squad moves. Regular season only (weeks 1–18).
 **Losing a player.** When one of your squad players is poached, your head coach sends one short mail: who went, to
 which club, and that he's on their 53 now.
 
-**AI poaching.** An AI club considers poaching only when it's short at a position (healthy players on its 53 below
-`STARTERS`, two for QB) and it has room on its 53 and cap room above its in-season reserve. It picks the best
-unprotected squad player at that position by its own read, only if he reads better than its best healthy option
-there and the best free agent. At most one poaching offer a week per club.
+**AI poaching.** AI clubs poach where they already pick injury cover after each game (`coverPositions` in
+`injuries.ts`): if another club's unprotected squad player reads at least a point better, by their own read, than
+the free agent they would sign, they make a poaching offer instead and hold that place on the 53 until the week's
+settle. At the settle, a club still short at a position makes the same call against its best healthy option and the
+best free agent. At most one offer a club a week; cap room above the in-season reserve; never a cut to make room.
+(Revised during the build: the injury cycle fills every hole before the settle, so a settle-only trigger never fired.)
 
 **Frequency.** No public league-wide count was found. AFLS target, labeled as an estimate: rare but real, 0.5–3
 poaches per club a season (16–96 league-wide). The audit checks it.

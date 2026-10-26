@@ -7,6 +7,7 @@ import { activeRoster, practiceSquad } from '../roster';
 import { perceive } from '../scouting';
 import type { League } from '../types';
 import { STARTERS } from '../positions';
+import { deliverMail, mailSubject } from '../inbox';
 import { manageInjuries } from '../injuries';
 import { Rng } from '../rng';
 import { elevationRecords, nextTeamGame, planElevation } from './elevations';
@@ -317,5 +318,24 @@ describe('AI poaching', () => {
     expect(offers().filter((o) => o.teamId === 0)).toHaveLength(0);
     submitAIPoachOffers(l, true);
     expect(offers().filter((o) => o.teamId === 0)).toHaveLength(1);
+  });
+});
+
+describe('losing a squad player', () => {
+  it('sends one mail from the head coach, once', () => {
+    const club = apart(0);
+    room(club);
+    const p = target(0);
+    submitPoachOffer(l, { playerId: p.id, teamId: club, years: 1 });
+    settleWeek(l);
+    expect(p.teamId).toBe(club);
+    deliverMail(l);
+    deliverMail(l);
+    const mail = (l.inbox ?? []).filter((m) => m.id.startsWith('squadPoach:'));
+    expect(mail).toHaveLength(1);
+    expect(mail[0].from).toMatch(/Head coach|Coaching staff/);
+    expect(mail[0].subject).toContain(p.lastName);
+    expect(mail[0].subject).toContain(l.teams[club].name);
+    expect(mailSubject(mail[0])).toEqual({ kind: 'squadPoach', season: l.season, week: l.week, playerId: p.id });
   });
 });
