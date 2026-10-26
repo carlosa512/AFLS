@@ -1,3 +1,8 @@
+import { GmAvatar } from './gm';
+import { employed } from '../engine/employment';
+import { pendingGmOffers } from '../engine/leadership';
+import { GeneralManagers } from './screens/GeneralManagers';
+import { PublicRoster, SpectatorHome } from './screens/GmEmployment';
 import { useEffect, useState } from 'react';
 import { gamesInWeek, playWeek, simToEndOfRegularSeason, simToEndOfSeason, userGame } from '../engine/league';
 import {
@@ -18,6 +23,7 @@ import { BoxScore } from './screens/BoxScore';
 import { CoachCard } from './screens/Coaches';
 import { MedicCard } from './screens/Medical';
 import { ScoutCard } from './screens/Staff';
+import { GmCard } from './screens/GeneralManagers';
 import { Compare } from './screens/Compare';
 import { GameViewer } from './screens/GameViewer';
 import { LiveGame } from './screens/LiveGame';
@@ -25,7 +31,7 @@ import { live, useLive } from './live';
 import { Home } from './screens/Home';
 import { Inbox } from './screens/Inbox';
 import { NewGame } from './screens/NewGame';
-import { PlayerCard } from './screens/PlayerCard';
+import { PlayerCard, PublicPlayerCard } from './screens/PlayerCard';
 import { Playoffs } from './screens/Playoffs';
 import { Finances } from './screens/Finances';
 import { FrontOffice } from './screens/FrontOffice';
@@ -83,6 +89,8 @@ function offseasonStep(league: League): Step | null {
         then: { view: 'office', tab: 'resign' },
       };
     case 'resign':
+      if (pendingGmOffers(league))
+        return { label: 'Review GM offers', run: () => {}, then: { view: 'office', tab: 'gms' } };
       return { label: 'Open free agency', run: (l) => advanceOffseason(l), then: { view: 'office', tab: 'fa' } };
     case 'freeAgency':
       return league.faDay < FA_DAYS
@@ -103,6 +111,7 @@ function primaryActionLabel(league: League): string {
   const step = offseasonStep(league);
   if (step) return step.label;
   if (live.inProgress()) return 'Resume live game';
+  if (!employed(league)) return `Simulate ${weekLabel(league.week)}`;
   const label = weekLabel(league.week);
   if (league.phase === 'playoffs') return `Play ${label}`;
   // Playing on ends deadline day: say so, it's the last chance to trade until the new league year.
@@ -187,7 +196,11 @@ export function App() {
       setPlayerId(null);
       setStaffCard({ kind, id });
     },
-    openTeam: (teamId) => navigate({ view: 'roster', teamId }),
+    openTeam: (teamId) => {
+      setStaffCard(null);
+      setPlayerId(null);
+      navigate({ view: 'roster', teamId });
+    },
     compareIds,
     toggleCompare: (id) =>
       setCompareIds((ids) =>
@@ -196,6 +209,7 @@ export function App() {
     clearCompare: () => setCompareIds([]),
   };
 
+  const hasJob = employed(league);
   const userTeam = league.teams[league.userTeamId];
   // A team id typed into the address bar may not exist.
   const teamOr = (teamId: number | undefined) =>
@@ -222,7 +236,7 @@ export function App() {
     }
     // Your game plays out live; the rest of the week is simulated when it ends.
     if (live.inProgress()) return navigate({ view: 'live' });
-    const game = userGame(league);
+    const game = hasJob ? userGame(league) : undefined;
     if (game && !game.result) {
       live.start(league, game);
       navigate({ view: 'live' });
@@ -238,7 +252,7 @@ export function App() {
     league.phase === 'regular'
       ? {
           label: 'Sim to playoffs',
-          fn: simToEndOfRegularSeason,
+          fn: (l) => simToEndOfRegularSeason(l, true),
           title: 'Sim the rest of the regular season?',
           body: "Every remaining regular-season game is simulated, yours included, and you won't watch them. This can't be undone.",
           ok: 'Sim to playoffs',
@@ -256,7 +270,7 @@ export function App() {
         : step
           ? {
               label: 'Sim offseason…',
-              fn: simOffseason,
+              fn: (l) => simOffseason(l, true),
               title: 'Let the AI run your offseason?',
               body: 'Your front office makes every call through to week 1: re-signings, tags, free agency, the draft and cuts. You can review every move on the Cap screen afterwards.',
               ok: 'Sim to week 1',
@@ -275,11 +289,15 @@ export function App() {
       <header className="topbar">
         <div className="wrap topbar-inner">
           <div className="brand">
-            <TeamChip team={userTeam} large />
+            <>
+              {hasJob ? (
+                <TeamChip team={userTeam} large />
+              ) : (
+                <GmAvatar league={league} gm={league.gms[league.userGmId]} size={44} />
+              )}
+            </>
             <div className="brand-text">
-              <strong>
-                {userTeam.city} {userTeam.name}
-              </strong>
+              <strong>{hasJob ? `${userTeam.city} ${userTeam.name}` : 'Between GM jobs'}</strong>
               <span>
                 {league.season} ·{' '}
                 {league.phase === 'regular' || league.phase === 'playoffs'
@@ -287,7 +305,7 @@ export function App() {
                   : PHASE_LABELS[league.phase]}
                 {league.phase === 'freeAgency' ? ` (day ${league.faDay})` : ''} ·{' '}
                 {isOffseasonPhase(league) ? `${resultsSeason(league)}: ` : ''}
-                {recordText(record)}
+                {hasJob ? recordText(record) : 'League spectator'}
               </span>
             </div>
             <VersionTag />
@@ -317,7 +335,7 @@ export function App() {
           )}
         </div>
         <nav className="wrap tabs" aria-label="Sections">
-          {TABS.map((t) => (
+          {TABS.filter((t) => hasJob || t.view !== 'cap').map((t) => (
             <button
               key={t.view}
               className="tab"
@@ -330,7 +348,7 @@ export function App() {
                 )
               }
             >
-              {t.label}
+              {!hasJob && t.view === 'office' ? 'GM careers' : !hasJob && t.view === 'roster' ? 'Teams' : t.label}
               {t.view === 'inbox' && unread > 0 && <span className="tab-badge"> ({unread})</span>}
             </button>
           ))}
@@ -370,13 +388,24 @@ export function App() {
       )}
 
       <main className="wrap">
-        {route.view === 'home' && <Home league={league} />}
-        {route.view === 'roster' && <Roster league={league} teamId={teamOr(route.teamId)} />}
-        {route.view === 'cap' && <Finances league={league} teamId={teamOr(route.teamId)} />}
+        {route.view === 'home' && (hasJob ? <Home league={league} /> : <SpectatorHome league={league} />)}
+        {route.view === 'roster' &&
+          (hasJob ? (
+            <Roster league={league} teamId={teamOr(route.teamId)} />
+          ) : (
+            <PublicRoster league={league} teamId={teamOr(route.teamId)} />
+          ))}
+        {route.view === 'cap' &&
+          (hasJob ? <Finances league={league} teamId={teamOr(route.teamId)} /> : <GeneralManagers league={league} />)}
         {route.view === 'inbox' && (
           <Inbox key={`${route.messageId ?? ''}:${route.focus ?? ''}`} league={league} messageId={route.messageId} />
         )}
-        {route.view === 'office' && <FrontOffice league={league} tab={route.tab} pos={route.pos} sub={route.sub} />}
+        {route.view === 'office' &&
+          (hasJob ? (
+            <FrontOffice league={league} tab={route.tab} pos={route.pos} sub={route.sub} />
+          ) : (
+            <GeneralManagers league={league} />
+          ))}
         {route.view === 'schedule' && <Schedule league={league} />}
         {route.view === 'standings' && <Standings league={league} />}
         {route.view === 'stats' && <Stats league={league} tab={route.tab} />}
@@ -413,9 +442,13 @@ export function App() {
         </div>
       )}
 
-      {playerId !== null && league.players[playerId] && (
-        <PlayerCard league={league} player={league.players[playerId]} onClose={() => setPlayerId(null)} />
-      )}
+      {playerId !== null &&
+        league.players[playerId] &&
+        (hasJob ? (
+          <PlayerCard league={league} player={league.players[playerId]} onClose={() => setPlayerId(null)} />
+        ) : (
+          <PublicPlayerCard league={league} player={league.players[playerId]} onClose={() => setPlayerId(null)} />
+        ))}
       {staffCard?.kind === 'coach' && (league.coaches[staffCard.id] ?? league.retiredCoaches[staffCard.id]) && (
         <CoachCard
           league={league}
@@ -428,6 +461,9 @@ export function App() {
       )}
       {staffCard?.kind === 'medic' && league.medics[staffCard.id] && (
         <MedicCard league={league} medic={league.medics[staffCard.id]} onClose={() => setStaffCard(null)} />
+      )}
+      {staffCard?.kind === 'gm' && league.gms[staffCard.id] && (
+        <GmCard key={staffCard.id} league={league} gm={league.gms[staffCard.id]} onClose={() => setStaffCard(null)} />
       )}
     </NavContext.Provider>
   );

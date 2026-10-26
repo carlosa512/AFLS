@@ -77,7 +77,16 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 - [ ] **Deep scouting network** · **Partial** (hooks into #9): scouting departments with ratings, budgets and a
       market (`staff.ts`) and per-scout reads (`readFor`). No regional network yet.
 - [ ] **Owner and job security** · **Partial** (hooks into #11 and #12): owners have market budgets, patience and a
-      yearly letter, and AI head coaches get fired from the hot seat (`coaching.ts`). Your own job is never at risk.
+      yearly letter, and AI head coaches get fired from the hot seat (`coaching.ts`). Phase 1 adds persistent GM
+      identities and appointment histories, scout → director → GM promotion functions, and per-game GM/coach
+      career records with save migration. Phase 2 adds GM cards, stable SVG portraits, a sortable league GM
+      directory and career overview, with links from team, cap and trade screens. Phase 3 adds owner retention
+      mandates with signed coach contracts, shared player/AI staffing restrictions and visible owner explanations.
+      Joint GM/coach reviews now drive GM dismissals, renewals, midseason interims, director succession and offseason
+      hiring rounds. The player can lose the job, accept another offer or spectate while unemployed. Private staffing
+      briefings stay with the current club; other teams appear through reported moves and qualified rumors. Owners
+      judge through a marble bag (`ownerBag.ts`): bad seasons add heat to the GM or head coach, patience is spent and
+      never endless, and in-season reviews run week by week. Broader midseason player recruitment remains in progress.
 - [x] **Schedule weather forecasts (fog of war)** · **Already in** (hooks into #5): forecasts at three stages with
       calibrated rain chances on the schedule and the next-game card (`forecast` in `weather.ts`). Trend arrows and a
       staff hook are not built yet (`docs/WEATHER.md`).

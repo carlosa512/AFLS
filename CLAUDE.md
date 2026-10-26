@@ -143,7 +143,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `schemes.ts` what coordinators run: offenses (personnel, run/pass mix, targets, play action), fronts
     and coverages, the depth-chart spots they name (LT, SLOT, NT…) and scheme fit. The engine reads them
     through `teamScheme()` in `coaching.ts`; every lean trades something, so league totals stay in range
-  - `records.ts` team, coach and GM records, all looked up from `league.history`
+  - `gm.ts` persistent GM identities, observed appointments, scouting-director promotions and management
+    tendencies that follow the person; `service.ts` captures each game's staff and credits their actual
+    results, preserving partial seasons and former jobs. `records.ts` reads those careers, with
+    `league.history` as the fallback for legacy entries. `leadership.ts` runs the owners' reviews (offseason and week by
+    week), GM searches and succession; `ownerBag.ts` is each owner's marble bag: calm marbles for patience, heat on the
+    GM and head coach from losing seasons (blame split by roster talent against results), drawn at each review
   - `inbox.ts` the user's mail (awards, injuries, expiring deals, retirements, scouting, opposition reports and recaps,
     trades, the playoff race, the owner's letter, staff deals, coaches hired away, the coaching carousel, free agency):
     `deliverMail` runs after every `store.mutate` and files what's new, each message keyed by what it's

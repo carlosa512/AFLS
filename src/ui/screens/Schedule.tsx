@@ -1,3 +1,5 @@
+import { employed } from '../../engine/employment';
+import { live } from '../live';
 import { useState } from 'react';
 import { gamesInWeek } from '../../engine/league';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
@@ -105,6 +107,7 @@ function MySchedule({ league }: { league: League }) {
 }
 
 function WeekView({ league }: { league: League }) {
+  const nav = useNav();
   const maxWeek = Math.max(...league.games.filter((g) => g.season === league.season).map((g) => g.week));
   const [week, setWeek] = useState(Math.min(Math.max(1, league.week - 1), maxWeek));
   const games = gamesInWeek(league, week);
@@ -158,6 +161,19 @@ function WeekView({ league }: { league: League }) {
                   <TeamLink team={league.teams[g.homeId]} chip />
                 </span>
                 <span className="muted small">{kickoffText(league, g)}</span>
+                {!employed(league) &&
+                  g.week === league.week &&
+                  (league.phase === 'regular' || league.phase === 'playoffs') && (
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => {
+                        live.start(league, g);
+                        nav.go({ view: 'live' });
+                      }}
+                    >
+                      Watch live
+                    </button>
+                  )}
               </div>
             ))}
         </div>
@@ -167,13 +183,13 @@ function WeekView({ league }: { league: League }) {
 }
 
 export function Schedule({ league }: { league: League }) {
-  const [mode, setMode] = useState<'mine' | 'week'>('mine');
+  const [mode, setMode] = useState<'mine' | 'week'>(employed(league) ? 'mine' : 'week');
   return (
     <Panel
       title="Schedule"
       action={
         <div className="seg" role="group" aria-label="Schedule view">
-          <button aria-pressed={mode === 'mine'} onClick={() => setMode('mine')}>
+          <button disabled={!employed(league)} aria-pressed={mode === 'mine'} onClick={() => setMode('mine')}>
             My team
           </button>
           <button aria-pressed={mode === 'week'} onClick={() => setMode('week')}>

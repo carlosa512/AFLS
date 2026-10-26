@@ -1,3 +1,4 @@
+import { employed } from '../../engine/employment';
 import { useEffect, useRef } from 'react';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import type { League } from '../../engine/types';
@@ -60,7 +61,7 @@ export function LiveGame({ league }: { league: League }) {
   };
 
   const result = s.finished ? game.result : undefined;
-  const userIsHome = game.homeId === league.userTeamId;
+  const userIsHome = !employed(league) || game.homeId === league.userTeamId;
   const us = result ? (userIsHome ? result.homeScore : result.awayScore) : 0;
   const them = result ? (userIsHome ? result.awayScore : result.homeScore) : 0;
   const verdict = us > them ? 'W' : us < them ? 'L' : 'T';
@@ -140,7 +141,7 @@ export function LiveGame({ league }: { league: League }) {
                 className={`res-${verdict}`}
                 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--step-3)', lineHeight: 1 }}
               >
-                {verdict}
+                {employed(league) ? verdict : 'Final'}
               </span>
               <span
                 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--step-3)', fontWeight: 800, lineHeight: 1 }}

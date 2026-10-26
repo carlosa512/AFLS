@@ -8,7 +8,17 @@
  * same AI when simulating straight through (`simOffseason`).
  */
 import { retireChance } from '../aging';
-import { coachingForPlayer, coachWindowCloses, developCoaches, ensureCoached, noteCoachOverspend } from '../coaching';
+import { ageGms } from '../gm';
+import { employed, withLeagueAi } from '../employment';
+import { advanceGmHiringRound, enforceCoachChanges, leadershipNewYear, pendingGmOffers } from '../leadership';
+import {
+  coachingForPlayer,
+  coachWindowCloses,
+  developCoaches,
+  ensureCoached,
+  noteCoachOverspend,
+  ownerRetentionReviews,
+} from '../coaching';
 import { beginYear, developBlock, playedShare, recordRatings, trueUp } from '../development';
 import { concussionRetireChance, delegates, injuriesNewYear, injuryRetireChance, manageInjuries } from '../injuries';
 import { developMedics, ensureMedical, medicalWindowCloses } from '../medical';
@@ -53,6 +63,7 @@ export function beginOffseason(league: League): void {
   const carry = league.teams.map((t) => Math.max(0, capSheet(league, t.id).space));
 
   league.season++;
+  ageGms(league);
   // The cap's path is drawn on its own stream: on the shared one, any change in what a season draws
   // reshuffled every later cap (a revenue shock landing or not), and the offseason audit's numbers with it.
   league.caps[league.season] = nextCap(new Rng(`${league.seed}:cap:${league.season}`), league.caps[last]);
@@ -133,14 +144,30 @@ export function beginOffseason(league: League): void {
   league.negotiations = {};
   for (const team of league.teams) syncDepthChart(league, team);
   league.rngState = rng.getState();
+  // Promised coaches are contracted before the player or any AI GM reaches the staffing window.
+  ownerRetentionReviews(league);
+  leadershipNewYear(league);
   // The new league year opens the trade market: deals agreed over the winter, cap casualties, stars on the move.
-  marketMoment(league, 'leagueYear');
+  withLeagueAi(league, () => marketMoment(league, 'leagueYear'));
 }
 
 /** Problems the user must fix before the calendar can move on (the season's weeks included). */
 export function offseasonBlockers(league: League): string[] {
+  if (pendingGmOffers(league))
+    return ['Review your GM offers: accept a position or choose to sit out before leaving the staffing window.'];
+  if (!employed(league)) return [];
   const issues: string[] = [];
   const teamId = league.userTeamId;
+  const leadership = league.teams[teamId].leadershipReview;
+  if (
+    league.phase === 'resign' &&
+    leadership?.season === league.season &&
+    leadership.outcome === 'coachChange' &&
+    Object.values(league.coaches).some(
+      (c) => c.id === leadership.coachId && c.teamId === teamId && c.role === 'headCoach',
+    )
+  )
+    issues.push('The owner requires a different head coach before free agency opens.');
   // A team must be under the cap every week of the season, not just at kickoff. (The playoffs pay nothing more
   // and sign nobody, so a team that got there under the cap isn't stopped there.) Restructures wait for the
   // offseason; a release frees what's left of a deal that isn't guaranteed.
@@ -180,14 +207,23 @@ function openFreeAgency(league: League): void {
 
 /** Move the offseason one step. With `autoUser`, the user's team is run by the AI too. */
 export function advanceOffseason(league: League, opts: { autoUser?: boolean } = {}): Phase {
+  if (!opts.autoUser && pendingGmOffers(league))
+    throw new Error('Review your GM offers before leaving the staffing window.');
+  return withLeagueAi(league, () => advanceOffseasonControlled(league, opts));
+}
+function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }): Phase {
   // Offers you didn't answer lapse at the next calendar step.
   expireOffers(league);
   resetContenderCache(league);
   const rng = new Rng(league.rngState);
-  const auto = !!opts.autoUser;
+  const auto = !!opts.autoUser || !employed(league);
   const ai = league.teams.filter((t) => auto || t.id !== league.userTeamId);
   switch (league.phase) {
     case 'resign':
+      while (league.leadership.search && league.leadership.search.round < 3) {
+        advanceGmHiringRound(league, { autoUser: !!opts.autoUser });
+      }
+      enforceCoachChanges(league, auto);
       for (const team of ai) aiResignWindow(league, team, rng);
       if (!auto) {
         // Undecided options lapse at the deadline.
@@ -251,9 +287,14 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
 }
 
 /** From the end of a season to week 1 of the next, with every team (yours too) run by the AI. */
-export function simOffseason(league: League): void {
+export function simOffseason(league: League, stopForJobs = false): void {
+  const beforeTeam = league.gms[league.userGmId]?.teamId;
   if (league.phase === 'complete') beginOffseason(league);
-  for (let guard = 0; guard < 20 && league.phase !== 'regular'; guard++) advanceOffseason(league, { autoUser: true });
+  for (let guard = 0; guard < 24 && league.phase !== 'regular'; guard++) {
+    if (stopForJobs && league.gms[league.userGmId]?.teamId !== beforeTeam) return;
+    if (stopForJobs && league.leadership.search?.offers.length && league.leadership.search.round < 2) return;
+    advanceOffseason(league, { autoUser: true });
+  }
 }
 
 /** Run an RNG-using step with the league's own generator, saving its state afterwards. */

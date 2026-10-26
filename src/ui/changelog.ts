@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.1.14',
+    date: '2026-10-26',
+    title: 'GM careers and owners who judge',
+    text:
+      'Every GM is a real person with a card, a portrait and a career record, and new GMs come up from scouting ' +
+      'directors. Owners now judge you and your head coach on the results: a bad year costs patience, a run of ' +
+      'them costs a job, in the offseason or after the trade deadline. If you are fired, you stay in the league, ' +
+      'watch games and take the best offer that comes, usually from a club that needs rebuilding.',
+  },
+  {
     version: '0.1.13',
     date: '2026-10-26',
     title: 'A new front page and this history',

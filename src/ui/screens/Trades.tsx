@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { capHit, isExpired, lastSeason } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
+import { GmLink } from '../gm';
 import {
   counterOffer,
   evaluateTrade,
@@ -322,6 +323,11 @@ function TradeTable({ league }: { league: League }) {
                 Trade with the <TeamLink team={partner} full />
               </h2>
               <span className="muted small">
+                {partner.gmId !== null && (
+                  <>
+                    <GmLink league={league} gm={league.gms[partner.gmId]} /> ·{' '}
+                  </>
+                )}
                 GM style: {partner.gm.archetype} ·{' '}
                 {partner.gm.pickChart === 'johnson'
                   ? 'old-school pick chart (prizes top picks)'

@@ -10,6 +10,10 @@ import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
+import { careerDate, initializeGms } from './gm';
+import { beginGmSearch, gmOfferTerms } from './leadership';
+import { ownerBag, talentRanks } from './ownerBag';
+import { captureManagement, creditManagement } from './service';
 import { addQbProtection, generateCrews } from './officials';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
@@ -79,7 +83,89 @@ export function migrateLeague(league: League): League | null {
     }
     league.version = 41;
   }
+  // v42–46: GM careers, written as v41–45 on their branch before main's v41 (coach habits) shipped. Every step
+  // is safe to repeat, so a save from that branch replays them; v46 also gives it the coach habits it skipped.
+  if (league.version < 42) toV42(league);
+  if (league.version < 43) {
+    // Existing saves receive no invented promises or changes to their current contracts.
+    for (const team of league.teams) team.ownerMandates ??= [];
+    league.version = 43;
+  }
+  if (league.version < 44) {
+    league.leadership ??= { nextEventId: 1, events: [] };
+    for (const m of league.inbox ?? []) if (m.category !== 'league') m.organizationId ??= league.userTeamId;
+    // Old owner-retention headlines contained internal instructions. Public history keeps only the move.
+    for (const tx of league.transactions)
+      if (tx.kind === 'coach' && /owner retained/.test(tx.text)) tx.text = tx.text.split(': ')[0];
+    league.version = 44;
+  }
+  if (league.version < 45) {
+    for (const e of league.leadership.events) {
+      if (e.kind !== 'coachInterim' || e.coachId === undefined) continue;
+      const c = league.coaches[e.coachId] ?? league.retiredCoaches[e.coachId];
+      if (
+        c &&
+        !c.interimAppointments?.some(
+          (a) => a.season === e.date.season && a.teamId === e.teamId && a.week === e.date.week,
+        )
+      )
+        (c.interimAppointments ??= []).push({ season: e.date.season, teamId: e.teamId, week: e.date.week });
+    }
+    for (const o of league.leadership.search?.offers ?? []) {
+      o.expiresRound = 3;
+      o.terms ??= gmOfferTerms(league, o);
+    }
+    if (
+      league.phase === 'resign' &&
+      league.gms[league.userGmId].teamId === null &&
+      !league.leadership.search?.offers.length
+    ) {
+      delete league.leadership.search;
+      beginGmSearch(league);
+    }
+    league.version = 45;
+  }
+  if (league.version < 46) {
+    // Owners remember the losing runs already on file: each bag replays the current people's last three seasons.
+    const ranks = talentRanks(league);
+    for (const t of league.teams) ownerBag(league, t, ranks);
+    for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches ?? {})]) {
+      generateCoachQuirks(league.seed, c);
+      const p = c.playerId !== undefined ? league.players[c.playerId] : undefined;
+      if (p) inheritCoachQuirk(league.seed, c, p);
+    }
+    league.version = 46;
+  }
   return league;
+}
+
+/** v42: give the fixed-franchise user's known career a person; other incumbents start being observed now. */
+function toV42(league: League): void {
+  // Tests and mod tools can downgrade a newer document; never erase records already present.
+  if (!league.gms?.[league.userGmId]) {
+    initializeGms(league);
+    const user = league.gms[league.userGmId];
+    user.career = league.history
+      .filter((h) => h.records[league.userTeamId])
+      .map((h) => ({ season: h.season, teamId: league.userTeamId }));
+    const first = user.career[0]?.season ?? league.season;
+    if (first < league.season) user.appointments[0].start = { season: first, phase: 'regular', week: 1 };
+    // The legacy game allowed staff changes only in the offseason. Its current coaches' roles are
+    // therefore known for this season, but we cannot identify the historical AI GMs from team traits.
+    if (!league.history.some((h) => h.season === league.season)) {
+      for (const game of league.games
+        .filter((g) => g.season === league.season && g.result)
+        .sort((a, b) => a.week - b.week || a.id - b.id)) {
+        const management = captureManagement(league, game);
+        for (const side of [management.home, management.away]) if (side.gmId !== league.userGmId) side.gmId = null;
+        creditManagement(league, game);
+      }
+    }
+  }
+  for (const s of Object.values(league.staff))
+    if (s.teamId !== null && !s.appointments)
+      s.appointments = [{ teamId: s.teamId, role: s.role, start: careerDate(league) }];
+  league.version = 42;
 }
 
 /** Saves made before the switch to real NFL markets (same ids and divisions). */

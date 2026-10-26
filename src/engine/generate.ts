@@ -1,4 +1,7 @@
 import { generateCoachingWorld } from './coaching';
+import { initializeGms } from './gm';
+import { generateGm } from './gmTraits';
+export { generateGm } from './gmTraits';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
 import { ATTRIBUTE_PROFILES, BODY, JERSEY_RANGES, overall, playerOvr, ROSTER_TEMPLATE, STARTERS } from './positions';
 import { ageShift } from './aging';
@@ -35,7 +38,7 @@ import { generateTraits } from './traits';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 41;
+export const SAVE_VERSION = 46;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -588,85 +591,6 @@ export function fitPayroll(players: Player[], season: number, target: number, ma
   raise((p) => (priced(p) ? Math.min(top(p), 3.5 * worth.get(p)!) : 3 * min(p)));
 }
 
-const GM_ARCHETYPES: GmTraits[] = [
-  {
-    archetype: 'Cap Magician',
-    winNow: 0.7,
-    capAggression: 0.9,
-    pickChart: 'analytics',
-    futureDiscount: 0.2,
-    loyalty: 0.8,
-    stubbornness: 0.3,
-  },
-  {
-    archetype: 'All-In',
-    winNow: 0.95,
-    capAggression: 0.7,
-    pickChart: 'johnson',
-    futureDiscount: 0.38,
-    loyalty: 0.4,
-    stubbornness: 0.2,
-  },
-  {
-    archetype: 'Draft and Develop',
-    winNow: 0.35,
-    capAggression: 0.2,
-    pickChart: 'analytics',
-    futureDiscount: 0.18,
-    loyalty: 0.6,
-    stubbornness: 0.5,
-  },
-  {
-    archetype: 'Can-Kicker',
-    winNow: 0.75,
-    capAggression: 0.85,
-    pickChart: 'johnson',
-    futureDiscount: 0.3,
-    loyalty: 0.5,
-    stubbornness: 0.3,
-  },
-  {
-    archetype: 'Hard-Liner',
-    winNow: 0.55,
-    capAggression: 0.3,
-    pickChart: 'johnson',
-    futureDiscount: 0.3,
-    loyalty: 0.2,
-    stubbornness: 0.9,
-  },
-  {
-    archetype: 'Pick Hoarder',
-    winNow: 0.2,
-    capAggression: 0.2,
-    pickChart: 'analytics',
-    futureDiscount: 0.15,
-    loyalty: 0.3,
-    stubbornness: 0.6,
-  },
-  {
-    archetype: 'Balanced',
-    winNow: 0.5,
-    capAggression: 0.5,
-    pickChart: 'johnson',
-    futureDiscount: 0.25,
-    loyalty: 0.5,
-    stubbornness: 0.5,
-  },
-];
-
-export function generateGm(rng: Rng): GmTraits {
-  const a = rng.pick(GM_ARCHETYPES);
-  const j = (v: number) => Math.round(clamp(v + rng.normal(0, 0.08), 0, 1) * 100) / 100;
-  return {
-    ...a,
-    winNow: j(a.winNow),
-    capAggression: j(a.capAggression),
-    loyalty: j(a.loyalty),
-    stubbornness: j(a.stubbornness),
-    futureDiscount: clamp(j(a.futureDiscount), 0.15, 0.4),
-  };
-}
-
 /** Each team's seven picks in the `season` draft. */
 export function createDraftPicks(league: League, season: number): void {
   for (const team of league.teams) {
@@ -726,6 +650,10 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     week: 1,
     phase: 'regular',
     userTeamId: options.userTeamId ?? 0,
+    userGmId: 0,
+    gms: {},
+    nextGmId: 1,
+    leadership: { nextEventId: 1, events: [] },
     caps: { [season]: SALARY_CAP },
     conferences: CONFERENCES.map((c) => ({ ...c })),
     divisions: DIVISIONS.map((d) => ({ ...d })),
@@ -774,9 +702,11 @@ export function createLeague(options: NewLeagueOptions = {}): League {
       postJune1Used: 0,
       taggedId: null,
       gm: generateGm(rng),
+      gmId: null,
       staffBudgetMult: 1,
       staffDead: [],
       coachDead: [],
+      ownerMandates: [],
       medicalDead: [],
     };
     league.teams.push(team);
@@ -826,6 +756,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   for (let y = 1; y <= MAX_FUTURE_DRAFT_YEARS; y++) createDraftPicks(league, season + y);
   league.games = generateSchedule(league, rng);
   league.rngState = rng.getState();
+  initializeGms(league, true);
   // Scouting departments, coaching and medical staffs and the officiating crews draw from their own
   // seeded streams: the players and schedule above are unchanged by them. Inheriting builds every club's
   // staff as an AI club's (no user while they're hired), so the same seed gives the same staffs whoever is picked.

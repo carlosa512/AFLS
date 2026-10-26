@@ -33,6 +33,7 @@ import { coachValue } from './coachRatings';
 export { coachValue } from './coachRatings';
 import type { AgingFamily } from './attributes';
 import { agingFamily } from './aging';
+import { recruitmentProblem } from './employment';
 import { logTransaction } from './finance/cap';
 import { BASE_CAP } from './finance/market';
 import { OVR_WEIGHTS, ROSTER_TEMPLATE } from './positions';
@@ -49,8 +50,20 @@ import {
   type TeamScheme,
 } from './schemes';
 import { IDLE_MAX, ownerTilt, staffWindowOpen, type ResignOutlook, type StaffMove } from './staff';
-import type { Attribute, Coach, CoachRole, CoachRoom, CoachStyle, League, Player, Position, Team } from './types';
+import type {
+  Attribute,
+  Coach,
+  CoachRole,
+  CoachRoom,
+  CoachStyle,
+  League,
+  OwnerCoachMandate,
+  Player,
+  Position,
+  Team,
+} from './types';
 import { POSITIONS } from './types';
+import { computeRecords } from './season/standings';
 
 export const COACH_ROOMS: CoachRoom[] = ['QB', 'RB', 'WR', 'OL', 'DL', 'LB', 'DB'];
 export const ROOM_OF: Record<Position, CoachRoom | null> = {
@@ -407,8 +420,19 @@ export function headCoachVision(league: League, hc: Coach): Vision {
 /** Who held a chair on a team at the end of last season, read off careers (he may have moved on, or retired). */
 function lastSeasonHolder(league: League, teamId: number, role: CoachRole): Coach | undefined {
   const last = league.season - 1;
-  const held = (c: Coach) => !!c.career?.some((cs) => cs.season === last && cs.teamId === teamId && cs.role === role);
-  return Object.values(league.coaches).find(held) ?? Object.values(league.retiredCoaches).find(held);
+  let latest: Coach | undefined;
+  let through = -1;
+  for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)]) {
+    const spell = c.career?.find((cs) => cs.season === last && cs.teamId === teamId && cs.role === role);
+    if (!spell) continue;
+    // A legacy row describes the season-end holder. New rows distinguish actual partial seasons.
+    const week = spell.record?.throughWeek ?? Infinity;
+    if (week > through) {
+      latest = c;
+      through = week;
+    }
+  }
+  return latest;
 }
 
 /** How a coordinator fits his head coach's vision: 1 is what he wants, 0 the opposite. Null for other chairs, or with no head coach. */
@@ -620,6 +644,81 @@ export function coachSeverance(league: League, c: Coach): number {
 
 // ───────── moves ─────────
 
+/** Active promises name the person and chair; retirement never transfers protection to a replacement. */
+export function coachMandate(league: League, c: Coach): OwnerCoachMandate | undefined {
+  if (c.teamId === null || !league.coaches[c.id]) return undefined;
+  return [...league.teams[c.teamId].ownerMandates]
+    .reverse()
+    .find((m) => m.coachId === c.id && m.through >= league.season && sameChair(m, c));
+}
+
+export function ownerCoachProblem(league: League, c: Coach): string | null {
+  const mandate = coachMandate(league, c);
+  return mandate
+    ? `Owner mandate: ${coachName(c)} stays as ${titleLower(c)} through ${mandate.through}. ${mandate.reason}`
+    : null;
+}
+
+/** Make the promise concrete before any GM can act. The committed salary is part of normal payroll. */
+export function protectCoach(league: League, coachId: number, through: number, reason: string): OwnerCoachMandate {
+  const c = league.coaches[coachId];
+  if (!c || c.teamId === null) throw new Error('An owner can only retain a coach currently on their staff.');
+  if (!Number.isInteger(through) || through < league.season) throw new Error('The promise must cover this season.');
+  if (c.interim) throw new Error('An interim needs a permanent offer before an owner can promise another season.');
+  const existing = coachMandate(league, c);
+  if (existing && existing.through >= through) return existing;
+  const salary =
+    isCoachExpiring(league, c) || !c.contract
+      ? Math.max(c.contract?.salary ?? 0, coachAsk(league, c, 1))
+      : c.contract.salary;
+  c.contract = { salary, through: Math.max(c.contract?.through ?? through, through) };
+  const mandate: OwnerCoachMandate = {
+    coachId,
+    ...chairOf(c),
+    issued: { season: league.season, phase: league.phase, week: league.week },
+    through,
+    reason,
+  };
+  league.teams[c.teamId].ownerMandates.push(mandate);
+  logTransaction(
+    league,
+    'coach',
+    [c.teamId],
+    `${league.teams[c.teamId].abbrev} retained ${titleLower(c)} ${coachName(c)} through ${through}`,
+  );
+  return mandate;
+}
+
+/** A small retention decision ahead of GM staffing moves; joint GM/coach accountability comes next. */
+export function ownerRetentionReviews(league: League): void {
+  if (league.phase !== 'resign') throw new Error('Owner retention reviews open with the new league year.');
+  for (const team of league.teams) {
+    if (team.ownerReviewSeason === league.season) continue;
+    team.ownerReviewSeason = league.season;
+    const hc = chairHolder(teamCoaches(league, team.id), { role: 'headCoach' });
+    if (!hc || hc.interim || coachMandate(league, hc)) continue;
+    // A promised extra chance is reviewed the year after; it must not roll forward indefinitely.
+    if (team.ownerMandates.some((m) => m.coachId === hc.id && m.through === league.season - 1)) continue;
+    const rec = lastRecord(league, team.id);
+    if (!rec || rec.w + rec.l + rec.t !== 17 || rec.w >= 9 || rec.w < 5) continue;
+    const tenure = league.season - (hc.since ?? league.season);
+    const previous = league.history.find((h) => h.season === league.season - 2)?.records[team.id];
+    const firstYear = tenure === 1;
+    const progress = previous && rec.w >= previous.w + 2;
+    if (!firstYear && !progress) continue;
+    const rng = new Rng(`${league.seed}:owner-retention:${league.season}:${team.id}`);
+    if (!rng.chance(clamp(0.3 / ownerTrigger(league, team.id), 0.2, 0.6))) continue;
+    protectCoach(
+      league,
+      hc.id,
+      league.season,
+      firstYear
+        ? `One season is not enough to judge the program after ${recordText(rec)}. The owner wants another year.`
+        : `The team improved from ${recordText(previous!)} to ${recordText(rec)}. The owner wants another year.`,
+    );
+  }
+}
+
 /** The man in this coach's chair on a team, other than him and not on his way out. */
 const sitting = (league: League, teamId: number, c: Coach) =>
   teamCoaches(league, teamId).find(
@@ -635,6 +734,9 @@ export function coachMoveProblem(
   years = 2,
   budget = true,
 ): string | null {
+  if (move === 'release' && c.teamId === teamId && ownerCoachProblem(league, c)) return ownerCoachProblem(league, c);
+  if (move === 'hire' && recruitmentProblem(league, teamId, c.teamId))
+    return recruitmentProblem(league, teamId, c.teamId);
   if (!staffWindowOpen(league)) return 'Coaching moves open in the re-sign window and free agency.';
   if (move === 'release') return c.teamId === teamId ? null : 'He doesn’t work for you.';
   if (years < 1 || years > maxYears(c.role))
@@ -653,6 +755,10 @@ export function coachMoveProblem(
 
 /** Why `c` can't replace the man in his chair right now, or null (`budget` as in `coachMoveProblem`). Dismissing him frees his salary but books severance. */
 export function replaceProblem(league: League, teamId: number, c: Coach, years = 2, budget = true): string | null {
+  const protectedHolder = sitting(league, teamId, c);
+  if (protectedHolder && ownerCoachProblem(league, protectedHolder)) return ownerCoachProblem(league, protectedHolder);
+  const recruitment = recruitmentProblem(league, teamId, c.teamId);
+  if (recruitment) return recruitment;
   if (!staffWindowOpen(league)) return 'Coaching moves open in the re-sign window and free agency.';
   if (c.teamId !== null) return 'He isn’t available.';
   if (years < 1 || years > maxYears(c.role))
@@ -675,6 +781,7 @@ function signCoach(league: League, teamId: number, c: Coach, years: number): voi
   if (c.teamId !== teamId) c.since = league.season;
   c.teamId = teamId;
   c.contract = { salary: coachAsk(league, c, years), through: league.season + years - 1 };
+  if (staffWindowOpen(league)) delete c.interim;
 }
 
 /**
@@ -738,10 +845,14 @@ export function replaceCoach(league: League, teamId: number, coachId: number, ye
 }
 
 function dismiss(league: League, c: Coach, why?: string): void {
+  const problem = ownerCoachProblem(league, c);
+  if (problem) throw new Error(problem);
   touch();
   const teamId = c.teamId!;
   const team = league.teams[teamId];
   const owed = coachSeverance(league, c);
+  if (team.coachDepartures?.season !== league.season) team.coachDepartures = { season: league.season, ids: [] };
+  if (!team.coachDepartures.ids.includes(c.id)) team.coachDepartures.ids.push(c.id);
   if (owed > 0) team.coachDead.push({ season: league.season, amount: owed, name: coachName(c) });
   logCoach(
     league,
@@ -752,6 +863,7 @@ function dismiss(league: League, c: Coach, why?: string): void {
   c.lastJob = `${coachTitle(c)}, ${team.abbrev}${why ? ` (${why})` : ''}`;
   c.teamId = null;
   c.contract = null;
+  delete c.interim;
   delete c.since;
 }
 
@@ -783,11 +895,18 @@ export function asPromoted(league: League, c: Coach, chair: Chair): Coach {
   return up;
 }
 
-/** Coaches one rung below a chair who could step up into it for this team: its own, the market's and, with `poach`, other staffs' (a team can't block a promotion). */
+/** Candidates one rung below: its own, the market's and, with `poach`, other staffs'. Owner promises and the in-season recruitment rule still apply. */
 function risers(league: League, teamId: number, chair: Chair, poach: boolean): Coach[] {
   return Object.values(league.coaches).filter((c) => {
     const up = promotionFor(c);
-    if (!up || !sameChair(up, chair) || !c.career?.length) return false;
+    if (
+      !up ||
+      !sameChair(up, chair) ||
+      !c.career?.length ||
+      coachMandate(league, c) ||
+      recruitmentProblem(league, teamId, c.teamId)
+    )
+      return false;
     return c.teamId === null || c.teamId === teamId || (poach && c.since !== league.season);
   });
 }
@@ -798,6 +917,8 @@ const owedNow = (league: League, c: Coach) =>
 
 /** He steps up into the chair above his own on `teamId`'s staff: off another staff with no severance (he chose to go), or within his own. */
 function promoteInto(league: League, teamId: number, c: Coach, years: number): void {
+  const problem = ownerCoachProblem(league, c) ?? recruitmentProblem(league, teamId, c.teamId);
+  if (problem) throw new Error(problem);
   touch();
   const chair = promotionFor(c)!;
   const from = c.teamId;
@@ -819,6 +940,8 @@ function promoteInto(league: League, teamId: number, c: Coach, years: number): v
 
 /** Why your coach can't step up into the chair above his right now, or null (`budget` as in `coachMoveProblem`). */
 export function promotionProblem(league: League, teamId: number, c: Coach, years = 2, budget = true): string | null {
+  const protectedCoach = ownerCoachProblem(league, c);
+  if (protectedCoach) return protectedCoach;
   if (!staffWindowOpen(league)) return 'Coaching moves open in the re-sign window and free agency.';
   if (c.teamId !== teamId) return 'He doesn’t work for you.';
   const chair = promotionFor(c);
@@ -845,16 +968,6 @@ export function promoteCoach(league: League, teamId: number, coachId: number, ye
 export const coachOfPlayer = (league: League, playerId: number): Coach | undefined =>
   Object.values(league.coaches).find((c) => c.playerId === playerId) ??
   Object.values(league.retiredCoaches).find((c) => c.playerId === playerId);
-
-/** When a season ends, every coach on a staff is credited with it, in the chair he holds now. */
-export function recordCoachSeasons(league: League): void {
-  for (const c of Object.values(league.coaches)) {
-    if (c.teamId === null) continue;
-    const career = (c.career ??= []);
-    if (career.some((s) => s.season === league.season)) continue;
-    career.push({ season: league.season, teamId: c.teamId, role: c.role, ...(c.room ? { room: c.room } : {}) });
-  }
-}
 
 // ───────── generation ─────────
 
@@ -1337,9 +1450,10 @@ export function scapegoat(rec: { w: number; l: number; t: number }): number {
 /** One AI team's window: the hot seat, expiring deals and every open chair. Returns who it let go, so it won't hire them back. */
 function aiCoachMoves(league: League, team: Team, rng: Rng): Set<number> {
   // Whoever the team lets go now is not its candidate for the same chair a minute later.
-  const gone = new Set<number>();
+  const gone = new Set<number>(team.coachDepartures?.season === league.season ? team.coachDepartures.ids : []);
   const staff = () => teamCoaches(league, team.id);
   const decide = (c: Coach) => {
+    if (coachMandate(league, c)) return;
     const years = rng.int(1, maxYears(c.role));
     const keep =
       coachValue(c) >= roleGoal(league, team, c.role) - 2 &&
@@ -1360,6 +1474,8 @@ function aiCoachMoves(league: League, team: Team, rng: Rng): Set<number> {
       0.6 * coachAsk(league, hc, 2);
   if (
     hc &&
+    team.leadershipReview?.season !== league.season &&
+    !coachMandate(league, hc) &&
     rec &&
     affordable &&
     rng.chance(ownerTrigger(league, team.id) * hotSeat(rec, league.season - (hc.since ?? league.season)))
@@ -1382,6 +1498,56 @@ function aiCoachMoves(league: League, team: Team, rng: Rng): Set<number> {
   return gone;
 }
 
+/** Owner action used by joint reviews. A promised coach stays and the replacement must be affordable. */
+export function ownerDismissHeadCoach(league: League, teamId: number): Coach | null {
+  const hc = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
+  if (!hc || coachMandate(league, hc) || !canLetGo(league, teamId, hc)) return null;
+  const record = league.phase === 'regular' ? computeRecords(league).get(teamId) : lastRecord(league, teamId);
+  dismiss(
+    league,
+    hc,
+    record ? `after a ${recordText(record)} ${league.phase === 'regular' ? 'start' : 'season'}` : undefined,
+  );
+  return hc;
+}
+
+export function canOwnerDismissHeadCoach(league: League, teamId: number): boolean {
+  const hc = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
+  return !!hc && !coachMandate(league, hc) && canLetGo(league, teamId, hc);
+}
+
+/** Midseason succession uses this club's coordinators, then the unemployed market; never another staff. */
+export function installInterimHeadCoach(league: League, teamId: number): Coach | null {
+  if (league.phase !== 'regular') throw new Error('Interim head coaches are appointed during the season.');
+  const old = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
+  if (old && !ownerDismissHeadCoach(league, teamId)) return null;
+  const internal = teamCoaches(league, teamId)
+    .filter((c) => (c.role === 'offCoord' || c.role === 'defCoord') && !coachMandate(league, c))
+    .sort((a, b) => coachValue(b) - coachValue(a))[0];
+  if (internal) promoteInto(league, teamId, internal, 1);
+  fillChairs(
+    league,
+    league.teams[teamId],
+    new Rng(`${league.seed}:interim-coaches:${league.season}:${league.week}:${teamId}`),
+  );
+  const hc = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
+  if (hc) {
+    hc.interim = true;
+    hc.contract!.through = league.season;
+    (hc.interimAppointments ??= []).push({ season: league.season, teamId, week: league.week });
+  }
+  return hc;
+}
+
+/** A separate, explicit offseason decision resolves an interim; expiry alone grants no permanent job. */
+export function resolveInterimHeadCoach(league: League, c: Coach, keep: boolean): void {
+  if (!staffWindowOpen(league) || !c.interim || c.teamId === null) throw new Error('No interim review is due.');
+  if (keep) {
+    signCoach(league, c.teamId, c, 2);
+    delete c.interim;
+  } else dismiss(league, c);
+}
+
 /** Who a new head coach keeps, before fit: a coordinator who fits what he wants is worth up to +0.3 (the NFL keeps about one in five). */
 const KEEP_FOR_NEW: Record<CoachRole, number> = {
   headCoach: 1,
@@ -1394,8 +1560,9 @@ const KEEP_FOR_NEW: Record<CoachRole, number> = {
 
 /** The owner pays a coach off only if what's left covers a typical man in his chair and keeps money aside for every chair not yet paid for (`spare`). */
 const canLetGo = (league: League, teamId: number, c: Coach) =>
+  !coachMandate(league, c) &&
   spare(league, teamId, chairOf(c)) + owedNow(league, c) - coachSeverance(league, c) >=
-  BASE_ASK[c.role] * (capOf(league) / BASE_CAP);
+    BASE_ASK[c.role] * (capOf(league) / BASE_CAP);
 
 /**
  * A new head coach brings his own people: a coordinator who fits his vision sometimes stays, one who
@@ -1404,7 +1571,7 @@ const canLetGo = (league: League, teamId: number, c: Coach) =>
  */
 function cleanHouse(league: League, team: Team, hc: Coach, rng: Rng, gone: Set<number>): void {
   for (const c of [...teamCoaches(league, team.id)]) {
-    if (c === hc || c.since === league.season) continue;
+    if (c === hc || c.since === league.season || coachMandate(league, c)) continue;
     const years = rng.int(1, maxYears(c.role));
     const expiring = isCoachExpiring(league, c);
     const wanted = rng.chance(KEEP_FOR_NEW[c.role] + 0.3 * (visionFit(league, hc, c) ?? 0));
@@ -1472,7 +1639,13 @@ interface Hire {
  * to a man one rung below: the team's own, the market's or, with `poach` (the window), another staff's. The
  * chair he leaves opens in turn, and a new head coach then picks his staff (`cleanHouse`).
  */
-function fillChairs(league: League, team: Team, rng: Rng, gone: Set<number> = new Set(), poach = false): void {
+function fillChairs(
+  league: League,
+  team: Team,
+  rng: Rng,
+  gone: Set<number> = new Set(team.coachDepartures?.season === league.season ? team.coachDepartures.ids : []),
+  poach = false,
+): void {
   const open = () => CHAIRS.filter((ch) => !chairHolder(teamCoaches(league, team.id), ch));
   // A chair is tried once: a promotion only ever opens chairs further down the list.
   const tried: Chair[] = [];

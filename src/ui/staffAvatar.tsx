@@ -192,7 +192,7 @@ export function staffDay(league: League | null, teamId: number | null): StaffDay
 
 type Person = Coach | Staff | Medic;
 /** Which records a family's people are kept in: their ids are only unique within one. */
-const RECORDS: Record<StaffFamily, 'coaches' | 'staff' | 'medics'> = {
+const RECORDS: Record<Exclude<StaffFamily, 'gm'>, 'coaches' | 'staff' | 'medics'> = {
   coach: 'coaches',
   strength: 'coaches',
   director: 'staff',
