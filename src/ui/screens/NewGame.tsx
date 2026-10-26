@@ -53,7 +53,6 @@ export function StartingGmFields({ value, onChange }: { value: StartingGm; onCha
             onChange={(e) => onChange({ ...value, age: e.target.value === '' ? NaN : Number(e.target.value) })}
           />
         </label>
-        <p className="small muted">Your age shows on your card and goes up each year. You can rename yourself later.</p>
         {problem && <p className="small muted">{problem}</p>}
       </div>
     </details>
