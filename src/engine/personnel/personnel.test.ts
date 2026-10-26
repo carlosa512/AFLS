@@ -23,16 +23,7 @@ import {
 } from '../roster';
 import type { League, Player } from '../types';
 import { initialPersonnelState, PERSONNEL_RULES } from './rules';
-import {
-  archiveService,
-  historicalActives,
-  incompleteServiceSeason,
-  activeGames,
-  creditPostseasonPension,
-  creditService,
-  initialService,
-  serviceTotals,
-} from './service';
+import { creditService, initialService, recordGameService, rollService, serviceSeasons } from './service';
 
 const template = createLeague({ seed: 'personnel-foundation' });
 const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v));
@@ -42,120 +33,72 @@ beforeEach(() => {
 });
 const rookie = (): Player => ({ ...copy(template.players[1]), experience: 0, service: initialService(0, 2025) });
 
-describe('service is membership, not statistical appearances or calendar experience', () => {
-  it('requires six regular-season games for accrued service and three for salary/pension', () => {
+describe('service is one counter: seasons with six games on the 53 or IR', () => {
+  it('five games is no season, six is one', () => {
     const p = rookie();
-    for (let w = 1; w <= 2; w++) creditService(p, 2026, w, 'active', false);
-    expect(serviceTotals(p.service!)).toEqual({ accrued: 0, salary: 0, pension: 0 });
-    creditService(p, 2026, 3, 'active', false);
-    expect(serviceTotals(p.service!)).toEqual({ accrued: 0, salary: 1, pension: 1 });
-    for (let w = 4; w <= 6; w++) creditService(p, 2026, w, 'active', false);
-    expect(serviceTotals(p.service!)).toEqual({ accrued: 1, salary: 1, pension: 1 });
-    expect(activeGames(p.service!.seasons[2026])).toBe(0);
+    for (let w = 1; w <= 5; w++) creditService(p, 2026, w);
+    expect(serviceSeasons(p, 2027)).toBe(0);
+    creditService(p, 2026, 6);
+    expect(serviceSeasons(p, 2027)).toBe(1);
+    expect(serviceSeasons(p, 2026)).toBe(0); // the season in progress never counts
     expect(p.experience).toBe(0);
     expect(p.stats).toEqual({});
   });
 
-  it('credits IR toward accrued/pension service but not minimum-salary service', () => {
-    const p = rookie();
-    for (let w = 1; w <= 6; w++) creditService(p, 2026, w, 'injuredReserve');
-    expect(serviceTotals(p.service!)).toEqual({ accrued: 1, salary: 0, pension: 1 });
-    expect(activeGames(p.service!.seasons[2026])).toBe(0);
+  it('IR and elevated weeks count, squad weeks and byes do not', () => {
+    const l = copy(template);
+    const g = l.games.find((g) => g.week === 1)!;
+    const [ir, up, squad] = activeRoster(l, g.homeId).slice(-3);
+    const roster = [
+      { playerId: ir.id, list: 'injuredReserve' as const },
+      { playerId: up.id, list: 'elevated' as const },
+    ];
+    for (const p of [ir, up, squad]) p.service = initialService(0, 2025);
+    for (let week = 1; week <= 6; week++) {
+      g.week = week;
+      g.serviceRoster = copy(roster);
+      recordGameService(l, g);
+    }
+    expect(serviceSeasons(ir, 2027)).toBe(1);
+    expect(serviceSeasons(up, 2027)).toBe(1);
+    expect(serviceSeasons(squad, 2027)).toBe(0);
   });
 
-  it('combines IR and roster time without awarding a season twice', () => {
+  it('the same week twice counts once, and weeks outside 1–18 throw', () => {
     const p = rookie();
-    for (let w = 1; w <= 3; w++) creditService(p, 2026, w, 'active', true);
-    for (let w = 4; w <= 18; w++) creditService(p, 2026, w, 'injuredReserve');
-    expect(serviceTotals(p.service!)).toEqual({ accrued: 1, salary: 1, pension: 1 });
-    expect(activeGames(p.service!.seasons[2026])).toBe(3);
+    for (let i = 0; i < 6; i++) creditService(p, 2026, 1);
+    expect(serviceSeasons(p, 2027)).toBe(0);
+    expect(() => creditService(p, 2026, 19)).toThrow();
+    expect(() => creditService(p, 2026, 1.5)).toThrow();
   });
 
-  it('squad time earns no ordinary service; elevated time does', () => {
-    const p = rookie();
-    for (let w = 1; w <= 18; w++) creditService(p, 2026, w, w % 2 ? 'practiceSquad' : 'practiceSquadInjured');
-    expect(p.service!.seasons).toEqual({});
-    for (let w = 1; w <= 3; w++) creditService(p, 2026, w, 'elevated', false);
-    expect(serviceTotals(p.service!)).toEqual({ accrued: 0, salary: 1, pension: 1 });
-  });
-
-  it('deduplicates repeated games, including a player changing teams during the week', () => {
-    const p = rookie();
-    creditService(p, 2026, 1, 'active', true);
-    p.teamId = 2;
-    creditService(p, 2026, 1, 'active', true);
-    expect(activeGames(p.service!.seasons[2026])).toBe(1);
-    expect(serviceTotals(p.service!)).toEqual({ accrued: 0, salary: 0, pension: 0 });
-    expect(() => creditService(p, 2026, 19, 'active')).toThrow();
-    expect(() => creditService(p, 2026, 1.5, 'active')).toThrow();
-  });
-
-  it('keeps unknown dressing history distinct from zero and separates seasons', () => {
-    const p = rookie();
-    for (let w = 1; w <= 6; w++) creditService(p, 2026, w, 'active');
-    for (let w = 1; w <= 6; w++) creditService(p, 2027, w, 'active', true);
-    expect(activeGames(p.service!.seasons[2026])).toBeUndefined();
-    expect(activeGames(p.service!.seasons[2027])).toBe(6);
-    expect(serviceTotals(p.service!, 2026)).toEqual({ accrued: 1, salary: 1, pension: 1 });
-    expect(serviceTotals(p.service!)).toEqual({ accrued: 2, salary: 2, pension: 2 });
-  });
-
-  it('marks historical experience as an estimate and does not count it again', () => {
+  it('starts from experience and never counts a season already in the baseline', () => {
     const p = rookie();
     p.service = initialService(4, 2025);
-    creditService(p, 2025, 1, 'active');
-    expect(p.service.seasons).toEqual({});
-    expect(p.service.baseline[4]).toBe(true);
-    expect(serviceTotals(p.service)).toEqual({ accrued: 4, salary: 4, pension: 4 });
-    expect(initialService(0, 2025).baseline[4]).toBe(false);
+    for (let w = 1; w <= 6; w++) creditService(p, 2025, w);
+    expect(p.service).toEqual([2025, 4, 0]);
+    expect(serviceSeasons(p, 2026)).toBe(4);
   });
 
-  it('includes postseason membership only in pension service, once per round', () => {
+  it('rollService keeps the count and clears the weeks', () => {
     const p = rookie();
-    creditService(p, 2026, 17, 'active', false);
-    creditService(p, 2026, 18, 'active', false);
-    creditPostseasonPension(p, 2026, 'WC');
-    creditPostseasonPension(p, 2026, 'WC');
-    expect(serviceTotals(p.service!)).toEqual({ accrued: 0, salary: 0, pension: 1 });
-    expect(activeGames(p.service!.seasons[2026])).toBe(0);
+    for (let w = 1; w <= 6; w++) creditService(p, 2026, w);
+    rollService(p, 2026);
+    expect(p.service).toEqual([2026, 1, 0]);
+    expect(serviceSeasons(p, 2027)).toBe(1);
+    rollService(p, 2026);
+    expect(p.service).toEqual([2026, 1, 0]);
+    expect(copy(p.service)).toEqual(p.service);
   });
 
-  it('archives completed seasons without losing credit, known actives or replay protection', () => {
-    const p = rookie();
-    for (let w = 1; w <= 6; w++) creditService(p, 2026, w, 'active', true);
-    const before = serviceTotals(p.service!);
-    archiveService(p.service!, 2026);
-    expect(p.service!.seasons).toEqual({});
-    expect(serviceTotals(p.service!)).toEqual(before);
-    expect(historicalActives(p.service!, 2026)).toBe(6);
-    creditService(p, 2026, 7, 'active', true);
-    archiveService(p.service!, 2026);
-    expect(historicalActives(p.service!, 2026)).toBe(6);
-    expect(serviceTotals(p.service!)).toEqual(before);
-    creditService(p, 2027, 1, 'active', true);
-    expect(serviceTotals(p.service!, 2026)).toEqual(before);
-  });
-
-  it('preserves incomplete and unknown history through archival and JSON reload', () => {
-    const p = rookie();
-    p.service!.seasons[2026] = [0, 0, 0, null, 0, true];
-    archiveService(p.service!, 2026);
-    const loaded = copy(p.service!);
-    expect(historicalActives(loaded, 2026)).toBeUndefined();
-    expect(incompleteServiceSeason(loaded, 2026)).toBe(true);
-    expect(serviceTotals(loaded)).toEqual({ accrued: 0, salary: 0, pension: 0 });
-  });
-
-  it('keeps unobserved seasons unknown when archiving across a career gap', () => {
-    const p = rookie();
-    for (let w = 1; w <= 6; w++) creditService(p, 2028, w, 'active', true);
-    archiveService(p.service!, 2028);
-    const loaded = copy(p.service!);
-    expect(loaded.history.slice(0, 2)).toEqual([null, null]);
-    expect(historicalActives(loaded, 2026)).toBeUndefined();
-    expect(historicalActives(loaded, 2028)).toBe(6);
-    expect(serviceTotals(loaded, 2027)).toEqual({ accrued: 0, salary: 0, pension: 0 });
-    expect(serviceTotals(loaded)).toEqual({ accrued: 1, salary: 1, pension: 1 });
+  it('playoff games credit nothing', () => {
+    const l = copy(template);
+    const g = { ...l.games[0], playoffRound: 'WC' as const, week: 19 };
+    const p = activeRoster(l, g.homeId)[0];
+    p.service = initialService(0, 2025);
+    g.serviceRoster = [{ playerId: p.id, list: 'active' }];
+    recordGameService(l, g);
+    expect(p.service).toEqual([2025, 0, 0]);
   });
 });
 
@@ -271,8 +214,7 @@ describe('migration and collection', () => {
     const before = p.experience;
     playGame(league, g);
     const service = copy(p.service);
-    expect(p.service!.seasons[2026][0]).toBe(1 << (g.week - 1));
-    expect(activeGames(p.service!.seasons[2026])).toBeUndefined();
+    expect(p.service![2]).toBe(1 << (g.week - 1));
     expect(p.experience).toBe(before);
     recordResult(league, g, g.result!);
     expect(p.service).toEqual(service);
@@ -289,7 +231,7 @@ describe('migration and collection', () => {
     // Settlement uses the saved kickoff snapshot, even if the employer changed while viewing the game.
     const result = simulateGame(copy(template), copy(template.games[0]), { keepPlays: false });
     recordResult(league, g, result);
-    expect(p.service!.seasons[2026][1]).toBe(1 << (g.week - 1));
+    expect(p.service![2]).toBe(1 << (g.week - 1));
     const before = copy(p.service);
     const playoff = { ...g, id: -1, week: 19, playoffRound: 'WC' as const, result: undefined };
     recordResult(league, playoff, result);

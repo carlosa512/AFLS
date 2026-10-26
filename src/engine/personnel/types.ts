@@ -91,37 +91,16 @@ export interface SquadOffer {
 
 export type RosterList = 'active' | 'injuredReserve' | SquadMembership['kind'] | 'waivers' | 'unattached' | 'retired';
 
-/** Named tuples keep thousands of service records small in exported JSON saves. */
-export type ServiceSeason = [
-  accruedWeeks: number,
-  salaryWeeks: number,
-  pensionWeeks: number,
-  /** null means the dressing list was not recorded, rather than zero game-day activations. */
-  activeWeeks: number | null,
-  postseasonPension?: number,
-  incomplete?: true,
-];
-
-export interface ServiceTotals {
-  accrued: number;
-  salary: number;
-  pension: number;
-}
-
-export interface PlayerService {
-  /** Prior history is deliberately not reconstructed from statistical appearances. */
-  baseline: [throughSeason: number, accrued: number, salary: number, pension: number, estimated: boolean];
-  seasons: Record<number, ServiceSeason>;
-  /** Completed-season flags and active counts, encoded by archiveService (never weekly snapshots). */
-  /** Index zero is baseline's throughSeason + 1; null denotes an unobserved season. */
-  history: (number | null)[];
-}
+/**
+ * Seasons of service: completed seasons with six or more regular-season games on the 53 (or called up) or IR,
+ * through `through`, plus a bitmask of credited weeks in season `through + 1`. A tuple keeps thousands small.
+ */
+export type PlayerService = [through: number, seasons: number, weeks: number];
 
 /** Only kept while a game is in progress, so live-game roster edits cannot rewrite service. */
 export interface ServiceAssignment {
   playerId: number;
-  list: 'active' | 'injuredReserve' | 'elevated' | 'squadContinuation';
-  dressed?: boolean;
+  list: 'active' | 'injuredReserve' | 'elevated';
 }
 
 /** A planned call-up reserves cap room; only a filed call-up consumes a use and earns pay. */

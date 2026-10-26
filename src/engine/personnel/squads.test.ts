@@ -12,7 +12,7 @@ import { rosterOf, tradeContext } from '../trade/context';
 import type { League, Player } from '../types';
 import { squadCategory, squadFit, squadRates } from './eligibility';
 import { ensureSquads, settleSquadPayroll, squadPayroll } from './payroll';
-import { archiveService, creditService, initialService } from './service';
+import { creditService, initialService } from './service';
 import { ensureSquadSupply, formPracticeSquads, resolveSquadOffers, squadCandidates } from './squadMarket';
 import {
   acceptSquadOffer,
@@ -70,20 +70,14 @@ describe('squad eligibility and agreements', () => {
     expect(squadFit(l, [...base.slice(1), ...developmental, ...veterans, candidate(6)])).toMatch(/six unrestricted/);
     expect(squadFit(l, [...legal, candidate()])).toMatch(/16/);
   });
-  it('uses known actives in the lone accrued season and keeps unknown historical actives conservative', () => {
-    const p = candidate();
-    p.service = initialService(0, 2024);
-    for (let w = 1; w <= 8; w++) creditService(p, 2025, w, 'active', true);
-    expect(squadCategory(l, p)).toBe('base');
-    archiveService(p.service, 2025);
-    expect(squadCategory(l, p)).toBe('base');
+  it('0 seasons is base, 1–2 developmental, 3+ veteran', () => {
+    expect(squadCategory(l, candidate(0))).toBe('base');
     expect(squadCategory(l, candidate(1))).toBe('developmental');
+    expect(squadCategory(l, candidate(2))).toBe('developmental');
     expect(squadCategory(l, candidate(3))).toBe('veteran');
-  });
-  it('rejects a ninth known activation for base eligibility', () => {
-    const p = candidate();
-    p.service = initialService(0, 2024);
-    for (let w = 1; w <= 9; w++) creditService(p, 2025, w, 'active', true);
+    const p = candidate(0);
+    p.service = initialService(0, l.season - 2);
+    for (let w = 1; w <= 9; w++) creditService(p, l.season - 1, w); // last season counts before it is rolled
     expect(squadCategory(l, p)).toBe('developmental');
   });
   it('checks pay ranges, finite pay, draft rights, employer and physical before any mutation', () => {
