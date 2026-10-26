@@ -60,18 +60,46 @@ const DEPARTURES = {
   permanent: 'Offered permanent job',
 } as const;
 
-function GmNameEditor({league, gm, onDone}: {league:League;gm:GeneralManager;onDone:()=>void}) {
-  const [first, setFirst] = useState(gm.firstName), [last, setLast] = useState(gm.lastName);
+function GmNameEditor({ league, gm, onDone }: { league: League; gm: GeneralManager; onDone: () => void }) {
+  const [first, setFirst] = useState(gm.firstName),
+    [last, setLast] = useState(gm.lastName);
   const problem = gmNameProblem(league, gm.id, first, last);
-  return <form className="identity-edit" aria-label="Edit your GM name" onSubmit={(e) => {
-    e.preventDefault(); if (problem) return;
-    store.mutate((l) => editGmName(l, gm.id, first, last)); onDone();
-  }}>
-    <label><span className="eyebrow">First name</span><input autoFocus className="text-input" value={first} maxLength={24} onChange={(e)=>setFirst(e.target.value)} /></label>
-    <label><span className="eyebrow">Last name</span><input className="text-input" value={last} maxLength={24} onChange={(e)=>setLast(e.target.value)} /></label>
-    <div className="row"><button type="button" className="btn btn-sm btn-ghost" onClick={onDone}>Cancel</button><button className="btn btn-sm btn-primary" disabled={!!problem}>Save name</button></div>
-    {problem && <p className="muted small">{problem}</p>}
-  </form>;
+  return (
+    <form
+      className="identity-edit"
+      aria-label="Edit your GM name"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (problem) return;
+        store.mutate((l) => editGmName(l, gm.id, first, last));
+        onDone();
+      }}
+    >
+      <label>
+        <span className="eyebrow">First name</span>
+        <input
+          autoFocus
+          className="text-input"
+          value={first}
+          maxLength={24}
+          onChange={(e) => setFirst(e.target.value)}
+        />
+      </label>
+      <label>
+        <span className="eyebrow">Last name</span>
+        <input className="text-input" value={last} maxLength={24} onChange={(e) => setLast(e.target.value)} />
+      </label>
+      <div className="row">
+        <button type="button" className="btn btn-sm btn-ghost" onClick={onDone}>
+          Cancel
+        </button>
+        <button className="btn btn-sm btn-primary" disabled={!!problem}>
+          Save name
+        </button>
+      </div>
+      {problem && <p className="muted small">{problem}</p>}
+    </form>
+  );
 }
 
 export function GmCard({ league, gm, onClose }: { league: League; gm: GeneralManager; onClose: () => void }) {
@@ -97,9 +125,17 @@ export function GmCard({ league, gm, onClose }: { league: League; gm: GeneralMan
         </>
       }
     >
-      {you && <Section id="gm-name" title="Your GM name">
-        {editingName ? <GmNameEditor league={league} gm={gm} onDone={()=>setEditingName(false)} /> : <button className="btn btn-sm" onClick={()=>setEditingName(true)}>Edit your GM name</button>}
-      </Section>}
+      {you && (
+        <Section id="gm-name" title="Your GM name">
+          {editingName ? (
+            <GmNameEditor league={league} gm={gm} onDone={() => setEditingName(false)} />
+          ) : (
+            <button className="btn btn-sm" onClick={() => setEditingName(true)}>
+              Edit your GM name
+            </button>
+          )}
+        </Section>
+      )}
       <div className="facts gm-profile-facts">
         <span className="fact">
           <span className="eyebrow">Status</span>
@@ -125,9 +161,7 @@ export function GmCard({ league, gm, onClose }: { league: League; gm: GeneralMan
       <Section id="gm-approach" title={you ? 'Your approach' : 'Public perception'}>
         <div className="gm-style-notes">
           {gmStyleNotes(league, gm).map((note) => (
-            <p key={note}>
-              {note}
-            </p>
+            <p key={note}>{note}</p>
           ))}
         </div>
       </Section>

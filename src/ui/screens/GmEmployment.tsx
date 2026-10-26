@@ -43,7 +43,15 @@ export function GmJobs({ league }: { league: League }) {
     <Panel title={employed(league) ? 'Your appointment' : 'Between GM jobs'}>
       <div className="gm-appointment-line">
         <GmLink league={league} gm={user} avatar />
-        <span>{user.teamId !== null ? <>This is you, GM of <TeamLink team={league.teams[user.teamId]} full />.</> : <>This is you. Your career continues in this league.</>}</span>
+        <span>
+          {user.teamId !== null ? (
+            <>
+              This is you, GM of <TeamLink team={league.teams[user.teamId]} full />.
+            </>
+          ) : (
+            <>This is you. Your career continues in this league.</>
+          )}
+        </span>
       </div>
       {review && managesTeam(league, user.teamId!) && (
         <div className="callout">
@@ -53,28 +61,55 @@ export function GmJobs({ league }: { league: League }) {
       )}
       {active && (user.teamId === null || user.appointments.at(-1)?.interim) && (
         <>
-          <p>Review the owner's terms before accepting. You can keep an offer while considering other openings during the staffing window.</p>
+          <p>
+            Review the owner's terms before accepting. You can keep an offer while considering other openings during the
+            staffing window.
+          </p>
           <ul className="gm-job-offers">
             {search.offers.map((o) => {
               const terms = gmOfferTerms(league, o);
-              return <li key={o.teamId} className="gm-offer">
-                <h3><TeamLink team={league.teams[o.teamId]} full /></h3>
-                <p>{o.incumbent ? 'Permanent appointment' : 'GM position'} through {o.through}</p>
-                <b>Owner expectations</b>
-                <p>{terms.expectation}</p>
-                <ul>{terms.staffing.map((line) => <li key={line}>{line}</li>)}</ul>
-                <button className="btn btn-primary btn-sm" onClick={() => store.mutate((l) => acceptGmOffer(l, o.teamId))}>Accept terms and join</button>
-              </li>;
+              return (
+                <li key={o.teamId} className="gm-offer">
+                  <h3>
+                    <TeamLink team={league.teams[o.teamId]} full />
+                  </h3>
+                  <p>
+                    {o.incumbent ? 'Permanent appointment' : 'GM position'} through {o.through}
+                  </p>
+                  <b>Owner expectations</b>
+                  <p>{terms.expectation}</p>
+                  <ul>
+                    {terms.staffing.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => store.mutate((l) => acceptGmOffer(l, o.teamId))}
+                  >
+                    Accept terms and join
+                  </button>
+                </li>
+              );
             })}
           </ul>
           <div className="gm-search-actions">
-            {search.round < 2 && <button className="btn btn-sm" onClick={() => store.mutate((l) => advanceGmHiringRound(l))}>Consider other openings</button>}
-            <button className="btn btn-sm btn-ghost" onClick={() => store.mutate((l) => declineGmOffers(l))}>Decline offers and sit out</button>
+            {search.round < 2 && (
+              <button className="btn btn-sm" onClick={() => store.mutate((l) => advanceGmHiringRound(l))}>
+                Consider other openings
+              </button>
+            )}
+            <button className="btn btn-sm btn-ghost" onClick={() => store.mutate((l) => declineGmOffers(l))}>
+              Decline offers and sit out
+            </button>
           </div>
         </>
       )}
-      {!active && !employed(league) && <p className="muted">Watch games or simulate this season. The next staffing window brings another chance to return.</p>}
-
+      {!active && !employed(league) && (
+        <p className="muted">
+          Watch games or simulate this season. The next staffing window brings another chance to return.
+        </p>
+      )}
     </Panel>
   );
 }

@@ -44,12 +44,24 @@ export function GmLink({ league, gm, avatar = false }: { league: League; gm: Gen
 
 /** Tendencies are described in words; the user's choices are never attributed to their unused AI profile. */
 export function gmStyleNotes(league: League, gm: GeneralManager): string[] {
-  if (gm.id === league.userGmId) return [gm.teamId === null ? 'Your career continues between appointments.' : 'You set the roster strategy, spending and draft priorities.'];
-  const record = gmRecord(league, gm), games = record.regular.w + record.regular.l + record.regular.t;
-  if (record.titles) return [`A championship-winning executive with ${record.titles === 1 ? 'a title' : `${record.titles} titles`} on the résumé.`];
-  if (record.playoffTrips >= 2) return [`An established front-office leader with ${record.playoffTrips} playoff appearances.`];
-  if (games >= 34 && record.regular.w / games < 0.4) return ['The record has raised questions about whether this GM can build a consistent winner.'];
+  if (gm.id === league.userGmId)
+    return [
+      gm.teamId === null
+        ? 'Your career continues between appointments.'
+        : 'You set the roster strategy, spending and draft priorities.',
+    ];
+  const record = gmRecord(league, gm),
+    games = record.regular.w + record.regular.l + record.regular.t;
+  if (record.titles)
+    return [
+      `A championship-winning executive with ${record.titles === 1 ? 'a title' : `${record.titles} titles`} on the résumé.`,
+    ];
+  if (record.playoffTrips >= 2)
+    return [`An established front-office leader with ${record.playoffTrips} playoff appearances.`];
+  if (games >= 34 && record.regular.w / games < 0.4)
+    return ['The record has raised questions about whether this GM can build a consistent winner.'];
   if (record.playoffTrips) return ['Has taken a team to the playoffs; the next test is building sustained success.'];
-  if (gm.origin === 'director') return ['Known first as a scouting evaluator, now building a reputation running a front office.'];
+  if (gm.origin === 'director')
+    return ['Known first as a scouting evaluator, now building a reputation running a front office.'];
   return ['Still building a public track record as the league watches this front office take shape.'];
 }
