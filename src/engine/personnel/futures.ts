@@ -107,7 +107,7 @@ export function signFuturesDeals(league: League): void {
  */
 export function castoffRetireChance(p: Pick<Player, 'potential' | 'age'>): number {
   const base =
-    p.potential < 7 ? 0.85 : p.potential < 8.5 ? 0.6 : p.potential < 10 ? 0.35 : p.potential < 12 ? 0.15 : 0.05;
+    p.potential < 7 ? 0.88 : p.potential < 8.5 ? 0.66 : p.potential < 10 ? 0.4 : p.potential < 12 ? 0.16 : 0.05;
   return Math.min(0.92, Math.max(0.03, base + (p.age >= 29 ? 0.15 : 0)));
 }
 
