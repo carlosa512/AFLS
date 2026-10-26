@@ -153,7 +153,7 @@ const schemeTally = (key: string, t: TeamGameStats, pts: number) => {
 const lean = (v: number) => (v >= 0.35 ? 'high' : v <= -0.35 ? 'low' : 'mid');
 
 /** The league's advanced numbers (`analytics.ts`), both sides of every game. */
-const adv = { plays: 0, epa: 0, success: 0, explosive: 0, dropbacks: 0, passEpa: 0, rushes: 0, rushEpa: 0, explRun: 0 };
+const adv = { plays: 0, epa: 0, success: 0, explosive: 0, dropbacks: 0, passEpa: 0, rushes: 0, rushEpa: 0 };
 
 const t0 = Date.now();
 for (let s = 0; s < seasons; s++) {

@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { editionAt, gazetteFor, playerAdvanced } from './gazette';
+import { editionAt, gazetteFor, lastColumnWeek, playerAdvanced } from './gazette';
 import { createLeague } from './generate';
 import { playWeek } from './league';
 import type { League } from './types';
@@ -65,6 +65,58 @@ describe('the Gazette’s editions', () => {
         if (g.awayId === star.id) g.result.away.adv!.epa += 40;
       }
     expect(gazetteFor(l)!.subject).toContain(star.name);
+  });
+  it('names a stingy defense as the best, not as the one allowing the most', () => {
+    const l = copy(week7);
+    const wall = l.teams.find((t) => t.id !== l.userTeamId)!;
+    for (const g of l.games)
+      if (g.result?.home.adv && g.season === l.season) {
+        if (g.homeId === wall.id) g.result.away.adv!.epa -= 40;
+        if (g.awayId === wall.id) g.result.home.adv.epa -= 40;
+      }
+    const { subject } = gazetteFor(l)!;
+    expect(subject).toContain(wall.name);
+    expect(subject).toContain('defense');
+    expect(subject).not.toContain('allowed');
+  });
+  it('never claims a cause the numbers can’t show', () => {
+    for (const l of [week4, week7])
+      expect(gazetteFor(l)!.body).not.toMatch(/\bwhy\b|score their way|keeps them in games/);
+  });
+  it('compares only with a column that was actually filed', () => {
+    expect(lastColumnWeek(week7)).toBeNull(); // nothing was delivered in this league
+    const l = copy(week7);
+    l.inbox = [
+      {
+        id: `gazette:${l.season}:w4`,
+        season: l.season,
+        phase: 'regular',
+        week: 4,
+        from: 'The Arena Gazette',
+        category: 'league',
+        subject: 's',
+        body: 'b',
+        read: true,
+        actions: [],
+      },
+    ];
+    expect(lastColumnWeek(l)).toBe(4);
+    expect(gazetteFor(week7)!.body).not.toMatch(/Since the/);
+  });
+  it('shows our best qualifying player in a player table, wherever he ranks', () => {
+    const qb = gazetteFor(week4)!.tables.find((t) => t.unit === 'perDropback')!;
+    const ours = [...playerAdvanced(week4, week4.season).entries()].filter(
+      ([, p]) => p.teamId === week4.userTeamId && p.dropbacks >= 12 * p.games,
+    );
+    if (ours.length) expect(qb.rows.some((r) => r.teamId === week4.userTeamId)).toBe(true);
+  });
+  it('samples a player on the games he played', () => {
+    const players = playerAdvanced(week4, week4.season);
+    const [id, p] = [...players.entries()].find(([, x]) => x.dropbacks > 0)!;
+    const played = week4.games.filter(
+      (g) => g.season === week4.season && !g.playoffRound && g.result?.home.adv && g.result.playerStats[id],
+    ).length;
+    expect(p.games).toBe(played);
   });
   it('says nothing it cannot support when older games have no numbers', () => {
     const l = copy(week4);

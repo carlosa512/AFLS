@@ -4,6 +4,7 @@ import { deliverMail, mailForOffer, offerMailId, threads } from '../engine/inbox
 import { applyInjury, NEED } from '../engine/injuries';
 import { chooseCover } from '../engine/roster';
 import { createLeague } from '../engine/generate';
+import { endGmAppointment } from '../engine/gm';
 import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
 import { talksOf } from '../engine/trade/talks';
@@ -754,5 +755,8 @@ describe('the Gazette’s numbers card', () => {
     expect(html).toContain('is-user');
     expect(html).toContain(qb.lastName);
     expect(html).toContain('Quarterbacks: EPA per dropback');
+    // Between jobs, no club is ours.
+    endGmAppointment(l, l.userGmId, 'dismissed');
+    expect(renderToStaticMarkup(<MailCards league={l} message={message} />)).not.toContain('is-user');
   });
 });

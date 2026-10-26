@@ -122,6 +122,7 @@ import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
 import { OfferCard } from './offers';
+import { employed } from '../engine/employment';
 import { tradeDesk, type DeskDraft } from './tradeDesk';
 import { GmLink } from './gm';
 import {
@@ -293,6 +294,8 @@ const gazetteValue = (t: GazetteTable, v: number) =>
 
 /** The Gazette's tables as filed: rank, club or player, the number; a gap where the middle of the league is left out. */
 function GazetteCards({ league, tables }: { league: League; tables: GazetteTable[] }) {
+  // Our row stands out only while we run a club (between jobs, none is ours).
+  const mine = employed(league);
   return (
     <>
       {tables.map((t) => (
@@ -307,7 +310,7 @@ function GazetteCards({ league, tables }: { league: League; tables: GazetteTable
                     <tr
                       key={`${r.teamId}:${r.playerId ?? ''}`}
                       className={
-                        [!t.players && r.teamId === league.userTeamId ? 'is-user' : '', gap ? 'mail-gap' : '']
+                        [mine && r.teamId === league.userTeamId ? 'is-user' : '', gap ? 'mail-gap' : '']
                           .filter(Boolean)
                           .join(' ') || undefined
                       }

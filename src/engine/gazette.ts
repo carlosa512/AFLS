@@ -14,7 +14,6 @@ export type { GazetteTable };
 export type Edition = 'w4' | 'w7' | 'w10' | 'w13' | 'w16' | 'preview' | 'wrap';
 
 const WEEKLY: Record<number, Edition> = { 4: 'w4', 7: 'w7', 10: 'w10', 13: 'w13', 16: 'w16' };
-const WEEK_OF: Partial<Record<Edition, number>> = { w4: 4, w7: 7, w10: 10, w13: 13, w16: 16 };
 
 /** The edition due now: the week just played is a checkpoint, the playoffs haven't started, or the final is over. */
 export function editionAt(league: League): Edition | null {
@@ -80,7 +79,7 @@ export function teamAdvanced(
 
 export interface PlayerAdvanced {
   teamId: number;
-  /** His club's games with advanced numbers: the samples are per team game. */
+  /** Games he played that carry advanced numbers: the samples are per game. */
   games: number;
   dropbacks: number;
   epa: number;
@@ -92,7 +91,6 @@ export interface PlayerAdvanced {
 
 /** Each player's season so far in the advanced numbers, with his latest club. */
 export function playerAdvanced(league: League, season = league.season): Map<number, PlayerAdvanced> {
-  const teams = teamAdvanced(league, season);
   const out = new Map<number, PlayerAdvanced>();
   for (const g of league.games) {
     const r = g.result;
@@ -110,6 +108,8 @@ export function playerAdvanced(league: League, season = league.season): Map<numb
         pressures: 0,
       };
       p.teamId = teamId;
+      // Samples are per game he played: a traded player's games at both clubs, not his new club's count.
+      p.games++;
       p.dropbacks += line.dropbacks ?? 0;
       p.epa += line.epa ?? 0;
       p.successes += line.successes ?? 0;
@@ -119,7 +119,6 @@ export function playerAdvanced(league: League, season = league.season): Map<numb
       out.set(Number(id), p);
     }
   }
-  for (const p of out.values()) p.games = teams.get(p.teamId)?.games ?? 0;
   return out;
 }
 
@@ -146,14 +145,14 @@ const TEAM: Record<string, TeamMeasure> = {
     value: (t) => per(t.off.success, t.off.plays),
   },
   defEpa: {
-    phrase: 'EPA per play allowed',
+    phrase: 'defense by EPA per play',
     title: 'Defense: EPA per play allowed',
     unit: 'epa',
     lowerBetter: true,
     value: (t) => per(t.def.epa, t.def.plays),
   },
   defSuccess: {
-    phrase: 'success rate allowed',
+    phrase: 'defense by success rate',
     title: 'Defense: success rate allowed',
     unit: 'pct',
     lowerBetter: true,
@@ -172,7 +171,7 @@ const TEAM: Record<string, TeamMeasure> = {
     value: (t) => per(t.off.explosive, t.off.plays),
   },
   defExplosive: {
-    phrase: 'explosive plays allowed',
+    phrase: 'stopping explosive plays',
     title: 'Explosive plays allowed',
     unit: 'pct',
     lowerBetter: true,
@@ -240,15 +239,19 @@ function playerTable(league: League, players: Map<number, PlayerAdvanced>, m: Pl
       return [];
     })
     .sort((a, b) => b.value - a.value || a.playerId - b.playerId)
-    .slice(0, 10)
-    .map((r, i) => {
+    .map((r, i) => ({ ...r, rank: i + 1 }))
+    // The top ten, and our best qualifying player wherever he ranks.
+    .filter(
+      (r, _, all) => r.rank <= 10 || (employed(league) && r === all.find((x) => x.p.teamId === league.userTeamId)),
+    )
+    .map((r) => {
       const pl = league.players[r.playerId];
       return {
         teamId: r.p.teamId,
         playerId: r.playerId,
         name: `${pl.firstName} ${pl.lastName}`,
         value: r.value,
-        rank: i + 1,
+        rank: r.rank,
       };
     });
   const title =
@@ -274,13 +277,26 @@ function fullRank(stats: Map<number, TeamAdvanced>, m: TeamMeasure, teamId: numb
   return vs.findIndex((x) => x.id === teamId) + 1;
 }
 
+/** The week of the latest Gazette column filed this season, as the league read it; null before the first. */
+export function lastColumnWeek(league: League): number | null {
+  const filed = (league.inbox ?? []).filter(
+    (m) => m.id.startsWith(`gazette:${league.season}:w`) && m.week < league.week - 1,
+  );
+  return filed.length ? Math.max(...filed.map((m) => m.week)) : null;
+}
+
+const recordOf = (league: League, teamId: number) => {
+  const r = computeRecords(league).get(teamId)!;
+  return `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;
+};
+
 interface Story {
   subject: string;
   lead: string;
 }
 
 /** The story: the first of the column's conditions that holds. */
-function story(league: League, edition: Edition, stats: Map<number, TeamAdvanced>, measures: TeamMeasure[]): Story {
+function story(league: League, stats: Map<number, TeamAdvanced>, measures: TeamMeasure[]): Story {
   const m = measures[0];
   const full = [...stats.entries()]
     .map(([id, t]) => ({ id, v: m.value(t) }))
@@ -309,11 +325,10 @@ function story(league: League, edition: Edition, stats: Map<number, TeamAdvanced
         };
       }
     }
-  // 3. The biggest mover on offense since the last column.
-  const order: Edition[] = ['w4', 'w7', 'w10', 'w13', 'w16'];
-  const prev = order[order.indexOf(edition) - 1];
-  if (prev && WEEK_OF[prev]) {
-    const then = teamAdvanced(league, league.season, WEEK_OF[prev]);
+  // 3. The biggest mover on offense since the last column the league actually read.
+  const since = lastColumnWeek(league);
+  const then = since === null ? null : teamAdvanced(league, league.season, since);
+  if (then && [...then.values()].every((t) => t.games >= MIN_TEAM_GAMES)) {
     const off = TEAM.offEpa;
     const moves = league.teams
       .map((t) => ({ t, from: fullRank(then, off, t.id), to: fullRank(stats, off, t.id) }))
@@ -322,7 +337,7 @@ function story(league: League, edition: Edition, stats: Map<number, TeamAdvanced
     if (big && Math.abs(big.from - big.to) >= 10)
       return {
         subject: `The ${name(big.t)} ${big.to < big.from ? 'climb' : 'slide'} from ${ordinal(big.from)} to ${ordinal(big.to)} on offense`,
-        lead: `Since the last column the ${name(big.t)} have gone from ${ordinal(big.from)} to ${ordinal(big.to)} in EPA per play, ${big.to < big.from ? 'the biggest climb in the league' : 'the steepest fall in the league'}.`,
+        lead: `Since the Week ${since} column the ${name(big.t)} have gone from ${ordinal(big.from)} to ${ordinal(big.to)} in EPA per play, ${big.to < big.from ? 'the biggest climb in the league' : 'the steepest fall in the league'}.`,
       };
   }
   // 4. A split between the two sides of the ball.
@@ -332,7 +347,7 @@ function story(league: League, edition: Edition, stats: Map<number, TeamAdvanced
     if ((o <= 5 && d > stats.size - 5) || (d <= 5 && o > stats.size - 5))
       return {
         subject: `The ${name(t)}: ${o <= 5 ? 'top-five offense, bottom-five defense' : 'top-five defense, bottom-five offense'}`,
-        lead: `The ${name(t)} are ${ordinal(o)} in EPA per play on offense and ${ordinal(d)} on defense: ${o <= 5 ? 'they score their way through games the defense lets slip' : 'the defense keeps them in games the offense can’t win'}.`,
+        lead: `The ${name(t)} are ${ordinal(o)} in EPA per play on offense and ${ordinal(d)} on defense, and ${recordOf(league, t.id)}: few clubs are this lopsided.`,
       };
   }
   // 5. A turnaround from last season.
@@ -348,7 +363,7 @@ function story(league: League, edition: Edition, stats: Map<number, TeamAdvanced
       if ((was.w <= 6 && p >= 0.75) || (was.w >= 10 && p <= 0.375))
         return {
           subject: `The ${name(t)}, ${is.w}–${is.l}${is.t ? `–${is.t}` : ''} after a ${was.w}–${was.l} season`,
-          lead: `The ${name(t)} are ${is.w}–${is.l}${is.t ? `–${is.t}` : ''}, after going ${was.w}–${was.l} last season. The numbers say why: ${ordinal(fullRank(stats, TEAM.offEpa, t.id))} in EPA per play on offense, ${ordinal(fullRank(stats, TEAM.defEpa, t.id))} on defense.`,
+          lead: `The ${name(t)} are ${is.w}–${is.l}${is.t ? `–${is.t}` : ''}, after going ${was.w}–${was.l} last season. By the numbers: ${ordinal(fullRank(stats, TEAM.offEpa, t.id))} in EPA per play on offense, ${ordinal(fullRank(stats, TEAM.defEpa, t.id))} on defense.`,
         };
     }
   }
@@ -362,9 +377,24 @@ function story(league: League, edition: Edition, stats: Map<number, TeamAdvanced
     }),
     { pass: 0, db: 0, rush: 0, r: 0 },
   );
+  const pass = per(all.pass, all.db),
+    rush = per(all.rush, all.r);
+  // Last season at the same point, when its games carry the numbers.
+  const before = teamAdvanced(league, league.season - 1, league.week - 1);
+  const prior = [...before.values()].reduce((a, t) => ({ p: a.p + t.off.passEpa, d: a.d + t.off.dropbacks }), {
+    p: 0,
+    d: 0,
+  });
+  const lastYear = prior.d ? ` Dropbacks were worth ${epa(per(prior.p, prior.d))} at this point last season.` : '';
   return {
     subject: 'The league by the numbers',
-    lead: `Across the league, a dropback is worth ${epa(per(all.pass, all.db))} expected points and a run ${epa(per(all.rush, all.r))}. The gap is why teams throw.`,
+    lead: `Across the league, a dropback is worth ${epa(pass)} expected points and a run ${epa(rush)}.${
+      pass - rush >= 0.05
+        ? ' Passing is the more efficient way to move the ball.'
+        : rush - pass >= 0.02
+          ? ' Runs are out-earning dropbacks, which is rare.'
+          : ''
+    }${lastYear}`,
   };
 }
 
@@ -390,7 +420,7 @@ export function gazetteFor(
       ? previewStory(league, stats, seeds!)
       : edition === 'wrap'
         ? wrapStory(league, stats)
-        : story(league, edition, stats, measures);
+        : story(league, stats, measures);
   const context = tables
     .filter((t) => t.rows.length > 1)
     .map((t) => {
@@ -439,6 +469,10 @@ function wrapStory(league: League, stats: Map<number, TeamAdvanced>): Story {
   const champ = league.teams[final.result.homeScore > final.result.awayScore ? final.homeId : final.awayId];
   return {
     subject: `The season in numbers: how the ${name(champ)} won it`,
-    lead: `The ${name(champ)} won the title with the ${ordinal(fullRank(stats, TEAM.offEpa, champ.id))} offense and the ${ordinal(fullRank(stats, TEAM.defEpa, champ.id))} defense by EPA per play.`,
+    lead: `The ${name(champ)} won the title with the ${ordinal(fullRank(stats, TEAM.offEpa, champ.id))} offense and the ${ordinal(fullRank(stats, TEAM.defEpa, champ.id))} defense by EPA per play.${
+      employed(league) && champ.id !== league.userTeamId
+        ? ` The ${name(league.teams[league.userTeamId])} finished ${ordinal(fullRank(stats, TEAM.offEpa, league.userTeamId))} on offense and ${ordinal(fullRank(stats, TEAM.defEpa, league.userTeamId))} on defense.`
+        : ''
+    }`,
   };
 }
