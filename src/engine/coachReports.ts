@@ -90,6 +90,81 @@ function shotHighlight(game: Game, report: CoachGameReport): string | undefined 
   return undefined;
 }
 
+const QUARTER = ['first', 'second', 'third', 'fourth'];
+const quarterName = (q: number) => (q > 4 ? 'overtime' : `the ${QUARTER[q - 1]} quarter`);
+/** Our margin on a logged play, from the reporting team's side. */
+const marginFor = (game: Game, teamId: number) => (p: { homeScore: number; awayScore: number }) =>
+  teamId === game.homeId ? p.homeScore - p.awayScore : p.awayScore - p.homeScore;
+const finalMargin = (game: Game, teamId: number) => marginFor(game, teamId)(game.result!);
+
+/** A two-point try off the chart is rare enough to tell every time, with how it came out. */
+function twoPointHighlight(game: Game, report: CoachGameReport): string | undefined {
+  const event = report.events.find((e) => e.quirk === 'goesForTwo');
+  const plays = game.result?.plays ?? [];
+  if (!event) return;
+  const play = plays.find(
+    // The try is logged at the touchdown's clock; one try a team at a time, so the clock finds it.
+    (p) => p.quarter === event.quarter && p.clock === event.clock && p.text.startsWith('Two-point attempt'),
+  );
+  if (!play) return;
+  const good = /GOOD/.test(play.text);
+  const before = marginFor(game, report.teamId)(play) - (good ? 2 : 0);
+  const spot = before < 0 ? `down ${-before}` : before > 0 ? `up ${before}` : 'tied';
+  const after = before + 2;
+  const result = good
+    ? `it was good${after === 0 ? ' to tie it' : after < 0 ? `, cutting it to ${-after}` : `, putting us up ${after}`}`
+    : 'it failed';
+  return `went for two ${spot} in ${quarterName(play.quarter)}, and ${result}.`;
+}
+
+/** Passing on a long kick is only worth a line when the game came down to about a field goal. */
+function longKickHighlight(game: Game, report: CoachGameReport): string | undefined {
+  const event = report.events.find((e) => e.quirk === 'distrustsLongKick');
+  if (!event || !game.result) return;
+  const margin = Math.abs(finalMargin(game, report.teamId));
+  if (margin > 3) return;
+  const instead = /went for it/.test(event.text) ? 'went for it' : 'punted';
+  return `passed on a long field goal in ${quarterName(event.quarter)} and ${instead} instead, in a game decided by ${margin === 0 ? 'nothing' : margin === 1 ? 'a point' : `${margin} points`}.`;
+}
+
+/** A prevent shell earns a mention when it let them score late anyway: the frustrating part of the habit. */
+function preventHighlight(game: Game, report: CoachGameReport): string | undefined {
+  if (report.role !== 'defCoord' || !(report.uses.playsPrevent ?? 0) || !game.result) return;
+  const margin = marginFor(game, report.teamId);
+  const plays = game.result.plays ?? [];
+  const scored = plays.findIndex((p, i) => {
+    if (p.offense === report.teamId || !p.scoring || p.quarter !== 4 || p.clock > 240) return false;
+    const before = i > 0 ? margin(plays[i - 1]) : 0;
+    return before >= 9 && before <= 16;
+  });
+  if (scored < 0) return;
+  return finalMargin(game, report.teamId) > 0
+    ? 'sat back in a prevent shell with our two-score lead late, and they drove for a score anyway.'
+    : 'sat back in a prevent shell with our two-score lead late, and they came back on it.';
+}
+
+/** The quicker pace is only news when it bought points before the half or a comeback. */
+function tempoHighlight(game: Game, report: CoachGameReport): string | undefined {
+  if (report.role !== 'offCoord' || (report.uses.upTempo ?? 0) < 3 || !game.result) return;
+  const margin = marginFor(game, report.teamId);
+  const plays = game.result.plays ?? [];
+  const won = finalMargin(game, report.teamId) > 0;
+  if (won && plays.some((p) => p.quarter === 4 && margin(p) < 0))
+    return 'pushed the tempo while we trailed in the fourth quarter, and we came back to win.';
+  if (
+    plays.some(
+      (p) =>
+        p.offense === report.teamId &&
+        p.scoring &&
+        p.quarter === 2 &&
+        p.clock <= 150 &&
+        /touchdown|TOUCHDOWN/.test(p.text),
+    )
+  )
+    return 'pushed the tempo before the half, and we scored a touchdown before the break.';
+  return undefined;
+}
+
 /** Match facts retain event-time identities, including after a coach leaves. */
 function observationFrom(
   game: Game,
@@ -114,6 +189,11 @@ function observationFrom(
     const shot = shotHighlight(game, r);
     if (shot) return `${role(r)} ${shot}`;
   }
+  for (const highlight of [twoPointHighlight, preventHighlight, tempoHighlight, longKickHighlight])
+    for (const r of reports) {
+      const text = highlight(game, r);
+      if (text) return `${role(r)} ${text}`;
+    }
   for (const r of reports) {
     const event = r.events.find(
       (e) =>

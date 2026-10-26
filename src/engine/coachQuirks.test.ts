@@ -35,7 +35,8 @@ import { simulateGame, startGame } from './match/gameSim';
 import { migrateLeague } from './migrate';
 import { syncDepthChart, teamPlayers, isAvailable } from './roster';
 import { Rng } from './rng';
-import type { Coach, League } from './types';
+import type { Coach, League, PlayLogEntry } from './types';
+import type { CoachQuirkId } from './coachQuirks';
 
 const clone = <T>(x: T): T => structuredClone(x);
 let world: League;
@@ -641,5 +642,107 @@ describe('second-wave habits', () => {
     expect(roomCare(hard).practice).toBeLessThan(1.2);
     const p = teamPlayers(world, 0).find((x) => x.position === 'WR')!;
     expect(coachPlayerFit(hard, p)).toBeGreaterThan(coachPlayerFit(example(), p));
+  });
+});
+
+describe('recaps of the second-wave habits', () => {
+  const setup = (role: Coach['role']) => {
+    const l = clone(world),
+      g = clone(l.games.find((g) => g.homeId === l.userTeamId)!);
+    g.result = simulateGame(l, g);
+    const c = teamCoaches(l, l.userTeamId).find((c) => c.role === role)!;
+    const report = {
+      coachId: c.id,
+      name: 'Sam Caller',
+      role,
+      teamId: l.userTeamId,
+      opportunities: {},
+      choices: {},
+      uses: {} as Record<string, number>,
+      events: [] as { quirk: CoachQuirkId; quarter: number; clock: number; text: string }[],
+    };
+    g.result.coaching = [report];
+    const play = (over: Partial<PlayLogEntry>): PlayLogEntry => ({
+      quarter: 1,
+      clock: 600,
+      offense: l.userTeamId,
+      down: 1,
+      distance: 10,
+      yardLine: 25,
+      text: 'Run for 3 yards.',
+      homeScore: 0,
+      awayScore: 0,
+      ...over,
+    });
+    return { l, g, report, play, result: g.result };
+  };
+  it('tells a two-point try with its score and result', () => {
+    const { l, g, report, play, result } = setup('headCoach');
+    report.events.push({ quirk: 'goesForTwo', quarter: 3, clock: 400, text: 'Went for two.' });
+    result.plays = [play({ quarter: 3, clock: 400, text: 'Two-point attempt is GOOD.', homeScore: 15, awayScore: 21 })];
+    expect(userCoachGameObservation(l, g)).toContain(
+      'went for two down 8 in the third quarter, and it was good, cutting it to 6',
+    );
+    result.plays = [play({ quarter: 3, clock: 400, text: 'Two-point attempt fails.', homeScore: 13, awayScore: 21 })];
+    expect(userCoachGameObservation(l, g)).toContain('and it failed');
+  });
+  it('mentions a passed-up long kick only in a game decided by a field goal or less', () => {
+    const { l, g, report, result } = setup('headCoach');
+    report.events.push({
+      quirk: 'distrustsLongKick',
+      quarter: 2,
+      clock: 300,
+      text: 'Passed on a long field goal and punted instead.',
+    });
+    result.homeScore = 20;
+    result.awayScore = 17;
+    expect(userCoachGameObservation(l, g)).toContain(
+      'passed on a long field goal in the second quarter and punted instead, in a game decided by 3 points',
+    );
+    result.homeScore = 30;
+    expect(userCoachGameObservation(l, g)).toBe('');
+  });
+  it('mentions a prevent shell only when they scored against it late', () => {
+    const { l, g, report, play, result } = setup('defCoord');
+    report.uses.playsPrevent = 4;
+    const opp = g.awayId;
+    result.homeScore = 24;
+    result.awayScore = 17;
+    result.plays = [
+      play({ quarter: 4, clock: 230, homeScore: 24, awayScore: 10 }),
+      play({
+        quarter: 4,
+        clock: 90,
+        offense: opp,
+        scoring: true,
+        text: 'Pass for 12 yards, TOUCHDOWN',
+        homeScore: 24,
+        awayScore: 16,
+      }),
+    ];
+    expect(userCoachGameObservation(l, g)).toContain(
+      'prevent shell with our two-score lead late, and they drove for a score anyway',
+    );
+    result.awayScore = 25;
+    expect(userCoachGameObservation(l, g)).toContain('and they came back on it');
+    result.plays = [play({ quarter: 4, clock: 230, homeScore: 24, awayScore: 10 })];
+    expect(userCoachGameObservation(l, g)).toBe('');
+  });
+  it('mentions the tempo only when it bought a touchdown before the half or a comeback', () => {
+    const { l, g, report, play, result } = setup('offCoord');
+    report.uses.upTempo = 6;
+    result.homeScore = 10;
+    result.awayScore = 20;
+    result.plays = [play({ quarter: 2, clock: 600 })];
+    expect(userCoachGameObservation(l, g)).toBe('');
+    result.plays = [play({ quarter: 2, clock: 40, scoring: true, text: 'Pass for 9 yards, TOUCHDOWN', homeScore: 7 })];
+    expect(userCoachGameObservation(l, g)).toContain(
+      'pushed the tempo before the half, and we scored a touchdown before the break',
+    );
+    result.homeScore = 24;
+    result.plays = [play({ quarter: 4, clock: 500, homeScore: 10, awayScore: 20 })];
+    expect(userCoachGameObservation(l, g)).toContain(
+      'pushed the tempo while we trailed in the fourth quarter, and we came back to win',
+    );
   });
 });
