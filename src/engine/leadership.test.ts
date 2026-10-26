@@ -13,7 +13,7 @@ import {
   pendingGmOffers,
   userExtensionOffer,
 } from './leadership';
-import { leadershipMail } from './inbox';
+import { leadershipMail, mailSubject } from './inbox';
 import {
   coachRoom,
   coordinatorOf,
@@ -29,7 +29,7 @@ import { migrateLeague } from './migrate';
 import { teamStaff } from './staff';
 import { releaseStaff } from './staff';
 import { advanceOffseason, beginOffseason } from './offseason';
-import type { Game, League, SeasonSummary } from './types';
+import type { Game, League, LeadershipEvent, SeasonSummary } from './types';
 const world = () => createLeague({ seed: 'gm-carousel-tests' });
 const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 function badYears(l: League) {
@@ -588,5 +588,84 @@ describe('your contract offer', () => {
     leadershipNewYear(l);
     expect(gm.appointments.at(-1)!.through).toBe(l.season + 2);
     expect(l.leadership.events.some((e) => e.kind === 'gmExtended' && e.gmId === gm.id)).toBe(true);
+  });
+});
+
+describe('the offseason carousel digest', () => {
+  const event = (
+    l: League,
+    id: number,
+    teamId: number,
+    kind: LeadershipEvent['kind'],
+    phase: 'resign' | 'freeAgency' = 'resign',
+  ) => {
+    const gm = l.gms[l.teams[teamId].gmId!];
+    const e: LeadershipEvent = {
+      id,
+      date: { season: l.season, phase, week: 0 },
+      teamId,
+      kind,
+      gmId: gm.id,
+      report: `${l.teams[teamId].abbrev} ${kind} report ${id}.`,
+    };
+    l.leadership.events.push(e);
+    return e;
+  };
+  const others = (l: League) => l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+  it('gathers other clubs’ events of one offseason step into one SNN digest', () => {
+    const l = world();
+    const [a, b, c, d] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    event(l, 2, b, 'gmDismissed');
+    event(l, 3, a, 'gmHired');
+    event(l, 4, c, 'warning');
+    event(l, 5, d, 'gmExtended');
+    const mail = leadershipMail(l, new Set());
+    expect(mail).toHaveLength(1);
+    expect(mail[0].id).toBe(`leadership-phase:${l.season}:resign:1-5`);
+    expect(mail[0].from).toBe('SNN league desk');
+    expect(mail[0].subject).toBe('Front-office carousel: 2 GMs out, 1 hired, 1 on the hot seat');
+    expect(mail[0].carousel!.map((r) => r.group)).toEqual(['out', 'out', 'hired', 'extended', 'hotSeat']);
+    expect(mail[0].carousel!.find((r) => r.group === 'hotSeat')!.line).toBe('prove-it season');
+    expect(mailSubject({ ...mail[0], read: false })).toEqual({ kind: 'frontOffice', season: l.season });
+  });
+  it('never puts our own club in the digest', () => {
+    const l = world();
+    const [a, b] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    event(l, 2, l.userTeamId, 'gmHired');
+    event(l, 3, b, 'gmDismissed');
+    const digest = leadershipMail(l, new Set()).find((m) => m.id.startsWith('leadership-phase'))!;
+    expect(digest.carousel!.some((r) => r.teamId === l.userTeamId)).toBe(false);
+  });
+  it('files nothing twice for a save that already had single mails', () => {
+    const l = world();
+    const [a, b, c] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    event(l, 2, b, 'gmDismissed');
+    event(l, 3, c, 'gmDismissed');
+    const mail = leadershipMail(l, new Set([`leadership:${l.season}:1`]));
+    expect(mail).toHaveLength(1);
+    expect(mail[0].carousel!.map((r) => r.teamId)).toEqual([b, c]);
+  });
+  it('starts a new digest for events after the first was filed', () => {
+    const l = world();
+    const [a, b, c, d] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    event(l, 2, b, 'gmDismissed');
+    const first = leadershipMail(l, new Set())[0].id;
+    event(l, 3, c, 'gmHired');
+    event(l, 4, d, 'gmHired');
+    const next = leadershipMail(l, new Set([first]));
+    expect(next.map((m) => m.id)).toEqual([`leadership-phase:${l.season}:resign:3-4`]);
+  });
+  it('keeps a lone event as its own story, and steps apart', () => {
+    const l = world();
+    const [a, b] = others(l);
+    const lone = event(l, 1, a, 'gmRetired');
+    event(l, 2, b, 'gmHired', 'freeAgency');
+    const mail = leadershipMail(l, new Set());
+    expect(mail).toHaveLength(2);
+    expect(mail[0].subject).toBe(lone.report);
   });
 });

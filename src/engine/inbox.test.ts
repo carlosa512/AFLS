@@ -327,6 +327,8 @@ describe('inbox', () => {
   it('reports the coaching carousel, and a coach hired away until his chair is filled', () => {
     const changes = headCoachChanges(league);
     expect(league.inbox!.some((m) => m.id === `league:${league.season}:carousel`)).toBe(changes.length > 0);
+    for (const m of league.inbox!.filter((m) => m.id === `league:${league.season}:carousel`))
+      expect(m.from).toBe('SNN league desk');
     for (const x of changes) {
       expect(x.coach.role).toBe('headCoach');
       expect(x.coach.teamId).toBe(x.teamId);

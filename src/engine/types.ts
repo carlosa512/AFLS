@@ -977,6 +977,15 @@ export interface LeadershipEvent {
   privateText?: string;
 }
 
+export interface CarouselRow {
+  group: 'out' | 'hired' | 'extended' | 'hotSeat' | 'coaches';
+  teamId: number;
+  gmId?: number;
+  coachId?: number;
+  name: string;
+  line: string;
+}
+
 export interface GmJobOffer {
   teamId: number;
   through: number;
@@ -1129,6 +1138,8 @@ export interface InboxMessage {
   rundown?: { offenseRank: number; defenseRank: number; offense: number[]; defense: number[]; prospects: number[] };
   /** The director's market report: per trade (in `marketTrades` order), his note on what it means for us and whether SNN ran it, as filed. */
   marketNotes?: { note?: string; snn?: true }[];
+  /** SNN's offseason front-office digest, as it read when filed: one row per change around the league. */
+  carousel?: CarouselRow[];
   tradeReport?: {
     period?: string;
     exchanges: { teamId: number; receives: string }[];

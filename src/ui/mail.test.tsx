@@ -588,3 +588,34 @@ describe('the head coach’s rundown', () => {
     expect(html).toContain('Prospects to watch');
   });
 });
+
+describe('SNN’s offseason front-office digest', () => {
+  it('shows the changes grouped, with clubs and GMs linked', () => {
+    const l = createLeague({ seed: 'digest-card' });
+    const [a, b] = [1, 2].map((i) => (l.userTeamId + i) % 32);
+    const gm = l.gms[l.teams[a].gmId!];
+    const message: InboxMessage = {
+      id: `leadership-phase:${l.season}:resign:1-2`,
+      season: l.season,
+      phase: 'resign',
+      week: 0,
+      from: 'SNN league desk',
+      category: 'league',
+      subject: 'Front-office carousel: 1 GM out, 1 on the hot seat',
+      body: 'b',
+      read: false,
+      actions: [],
+      carousel: [
+        { group: 'out', teamId: a, gmId: gm.id, name: `${gm.firstName} ${gm.lastName}`, line: 'let go after 3–14' },
+        { group: 'hotSeat', teamId: b, name: 'Pat Doe', line: 'prove-it season' },
+      ],
+    };
+    const html = renderToStaticMarkup(<MailCards league={l} message={message} />);
+    expect(html).toContain('Out');
+    expect(html).toContain('Hot seat');
+    expect(html).not.toContain('Hired');
+    expect(html).toContain('let go after 3–14');
+    expect(html).toContain(l.teams[a].name);
+    expect(html).toContain(gm.lastName);
+  });
+});
