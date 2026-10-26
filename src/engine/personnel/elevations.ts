@@ -3,7 +3,6 @@ import { activeRoster, practiceSquad } from '../roster';
 import { perceive } from '../scouting';
 import type { Game, League, Player } from '../types';
 import { STARTERS } from '../positions';
-import { elevationDeadline, elevationReversion, personnelTime } from './calendar';
 import { serviceSeasons } from './service';
 import { settleSquadPayroll } from './payroll';
 import { PERSONNEL_RULES } from './rules';
@@ -71,7 +70,7 @@ export function elevationProblem(l: League, p: Player, g: Game | undefined, fili
     return 'Choose a healthy player from this club’s practice squad.';
   if (p.squad.agreement.season !== l.season) return 'This squad agreement belongs to another season.';
   if (p.injury || p.retired || p.waiver) return 'The player must be medically cleared.';
-  if (personnelTime(l) > elevationDeadline(g)) return 'The call-up deadline has passed.';
+  if (g.personnel?.elevationsFiled && !filing) return 'Call-ups for this game are already filed.';
   if (gameElevations(l, g, p.teamId).some((e) => e.playerId === p.id && e !== filing))
     return 'Already called up for this game.';
   if (gameElevations(l, g, p.teamId).filter((e) => e !== filing).length >= PERSONNEL_RULES.elevationsPerGame)
@@ -92,15 +91,13 @@ export function planElevation(l: League, p: Player, g: Game): void {
     teamId: p.teamId!,
     gameId: g.id,
     status: 'planned',
-    deadline: elevationDeadline(g),
-    revertsAt: elevationReversion(g),
     additionalCap: elevationCost(l, p, g),
     weeklyPay: p.squad!.agreement!.weeklyPay,
   });
 }
 export function cancelElevation(l: League, p: Player, g: Game): void {
   const e = gameElevations(l, g, p.teamId!).find((e) => e.playerId === p.id);
-  if (!e || e.status !== 'planned' || personnelTime(l) >= e.deadline || g.personnel?.lists)
+  if (!e || e.status !== 'planned' || g.personnel?.elevationsFiled || g.personnel?.lists)
     throw new Error('This call-up is already filed and cannot be cancelled.');
   // No payroll or use was earned by a cancelled plan.
   e.status = 'cancelled';
@@ -135,25 +132,11 @@ export function personnelMoveLock(l: League, p: Player): string | null {
     return 'Cancel the planned call-up before changing this contract.';
   return null;
 }
-export function nextElevationEvent(l: League): number | undefined {
-  const times = elevationRecords(l).flatMap((e) =>
-    e.status === 'planned' ? [e.deadline] : e.status === 'active' ? [e.revertsAt] : [],
-  );
-  return times.length ? Math.min(...times) : undefined;
-}
-/** Apply one clock boundary, once. Underlying squad places remain reserved throughout a call-up. */
-export function settleElevationEvents(l: League, minute: number): void {
-  const records = elevationRecords(l);
-  for (const e of records) {
+/** File a game's planned call-ups when it is prepared: each is rechecked, then becomes active or is cancelled. */
+export function fileGameElevations(l: League, g: Game): void {
+  for (const e of elevationRecords(l)) {
+    if (e.gameId !== g.id || e.status !== 'planned') continue;
     const p = l.players[e.playerId];
-    const g = l.games.find((g) => g.season === l.season && g.id === e.gameId);
-    if (!g) continue;
-    if (e.status === 'active' && e.revertsAt <= minute) {
-      if (!g.result) throw new Error('Play the earlier game before settling its call-ups.');
-      e.status = 'reverted';
-      logTransaction(l, 'elevation', [e.teamId], `${p.firstName} ${p.lastName} returned to the practice squad`);
-    }
-    if (e.status !== 'planned' || e.deadline > minute) continue;
     const issue = elevationProblem(l, p, g, e);
     if (issue) {
       e.status = 'cancelled';
@@ -169,6 +152,15 @@ export function settleElevationEvents(l: League, minute: number): void {
       [e.teamId],
       `${l.teams[e.teamId].abbrev} called up ${p.position} ${p.firstName} ${p.lastName} for one game`,
     );
+  }
+}
+/** Once the game is played every call-up returns to the practice squad, with no waivers. */
+export function revertElevations(l: League, g: Game): void {
+  for (const e of elevationRecords(l)) {
+    if (e.gameId !== g.id || e.status !== 'active') continue;
+    const p = l.players[e.playerId];
+    e.status = 'reverted';
+    logTransaction(l, 'elevation', [e.teamId], `${p.firstName} ${p.lastName} returned to the practice squad`);
   }
 }
 /** AI adds immediate help only; user signings/call-ups require an explicit instruction. */

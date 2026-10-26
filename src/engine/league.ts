@@ -25,7 +25,7 @@ import { teamCoaches } from './coaching';
 import { playoffSummary } from './records';
 import { recordGameService, serviceRoster } from './personnel/service';
 import { gameTime } from './personnel/calendar';
-import { preparePersonnelGame, syncPersonnelTime } from './personnel/flow';
+import { finishPersonnelGame, preparePersonnelGame, syncPersonnel } from './personnel/flow';
 import type { Game, GameResult, League, Player } from './types';
 
 export function gamesInWeek(league: League, week = league.week): Game[] {
@@ -65,6 +65,7 @@ export function recordResult(league: League, game: Game, result: GameResult): vo
   if (game.result) return;
   if (league.personnel?.enabled && !game.serviceRoster) throw new Error('Prepare the game before recording a result.');
   recordGameService(league, game);
+  finishPersonnelGame(league, game);
   // Condition and diagnoses are carried by the players, not the game record.
   const { condition, diagnoses, ...kept } = result;
   game.result = kept;
@@ -190,7 +191,7 @@ function playWeekControlled(league: League): Game[] {
     if (!scheduleNextRound(league)) finishSeason(league);
   }
   prunePlayLogs(league);
-  syncPersonnelTime(league);
+  syncPersonnel(league);
   return games;
 }
 

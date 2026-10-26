@@ -5,7 +5,6 @@ import { perceive } from '../scouting';
 import type { Game, League, Player, Team } from '../types';
 import { POSITIONS } from '../types';
 import { logTransaction } from '../finance/cap';
-import { gameTime, personnelTime } from './calendar';
 import { gameElevations } from './elevations';
 import type { GameDayList, GameDayPlan } from './types';
 
@@ -113,7 +112,7 @@ export function gameDayProblem(l: League, g: Game, teamId: number, plan = gameDa
 }
 export function gameDayEditProblem(l: League, g: Game): string | null {
   if (!l.personnel?.enabled) return 'Personnel transactions are not active.';
-  if (g.result || g.personnel?.lists || personnelTime(l) >= gameTime(g) - 90) return 'The game-day list is locked.';
+  if (g.result || g.personnel?.lists) return 'The game-day list is locked.';
   return null;
 }
 export function setGameDayPlan(l: League, g: Game, teamId: number, plan: GameDayPlan): void {

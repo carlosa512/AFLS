@@ -19,7 +19,6 @@ import {
 } from './contract';
 import { BASE_CAP, minSalary } from './market';
 import { queueWaiver, waiverApplies } from '../personnel/waivers';
-import { personnelTime, waiverDeadline } from '../personnel/calendar';
 import { elevationCap, personnelMoveLock } from '../personnel/elevations';
 import { squadPayroll } from '../personnel/payroll';
 import { inviteSquadReturn } from '../personnel/squads';
@@ -148,7 +147,7 @@ export interface ReleasePreview extends DeadMoneySplit {
   postJune1: boolean;
   /** Designation available (pre-June 1 window, under the limit)? */
   canDesignate: boolean;
-  waiver?: { assigned: DeadMoneySplit; deadline: number };
+  waiver?: { assigned: DeadMoneySplit };
 }
 
 export function releasePreview(league: League, player: Player, designatePostJune1 = false): ReleasePreview {
@@ -172,7 +171,6 @@ export function releasePreview(league: League, player: Player, designatePostJune
               postJune1,
               trade: true,
             }),
-            deadline: waiverDeadline(personnelTime(league)),
           },
         }
       : {}),

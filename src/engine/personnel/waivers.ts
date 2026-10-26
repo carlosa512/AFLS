@@ -10,7 +10,8 @@ import { Rng } from '../rng';
 import { computeRecords, winPct } from '../season/standings';
 import type { Contract, League, Player } from '../types';
 import { POSITIONS } from '../types';
-import { personnelClock, personnelTime, TRADE_DEADLINE_MINUTE, waiverDeadline } from './calendar';
+import { personnelClock } from './calendar';
+import { TRADE_DEADLINE_WEEK } from '../trade/rules';
 import { ensureService, serviceSeasons } from './service';
 import type { WaiverClaim, WaiverEntry, WaiverResult } from './types';
 import { PERSONNEL_RULES } from './rules';
@@ -43,11 +44,13 @@ export function ensureWaivers(league: League) {
   personnelClock(league);
   const state = (league.personnel.waivers ??= {
     nextId: 1,
+    batch: 0,
     originalOrder: { season: league.season, teams: originalWaiverOrder(league) },
     pending: [],
     claims: [],
     results: [],
   });
+  state.batch ??= 0;
   if (state.originalOrder.season !== league.season) {
     if (state.pending.length) throw new Error('Settle last season’s waivers before opening a new league year.');
     state.originalOrder = { season: league.season, teams: originalWaiverOrder(league) };
@@ -88,7 +91,7 @@ export function waiverApplies(league: League, p: Player): boolean {
   if (
     league.phase === 'playoffs' ||
     league.phase === 'complete' ||
-    (league.phase === 'regular' && personnelTime(league) > TRADE_DEADLINE_MINUTE)
+    (league.phase === 'regular' && league.week > TRADE_DEADLINE_WEEK)
   )
     return true;
   // Completed seasons only: the current year cannot vest the exception early.
@@ -106,7 +109,7 @@ export function queueWaiver(league: League, p: Player, preview: ReleasePreview):
     playerId: p.id,
     fromTeamId: from,
     season: league.season,
-    deadline: waiverDeadline(personnelTime(league)),
+    batch: state.batch,
     contract: structuredClone(p.contract),
     paid,
     paidBefore: weeksPaid(league),
@@ -143,7 +146,7 @@ export function assignedContract(entry: WaiverEntry): Contract {
 }
 
 /** Pure validation against the actual award state, including every year of cap commitments. */
-export function claimProblem(league: League, claim: WaiverClaim, resolving = false): string | null {
+export function claimProblem(league: League, claim: WaiverClaim): string | null {
   if (!league.personnel?.enabled) return 'Waivers are not enabled.';
   if (
     claim.automatic &&
@@ -153,8 +156,6 @@ export function claimProblem(league: League, claim: WaiverClaim, resolving = fal
     return 'The AI front office has filled its waiver plan for this window.';
   const entry = league.personnel.waivers?.pending.find((e) => e.id === claim.entryId);
   if (!entry) return 'This waiver has already settled.';
-  if (personnelTime(league) > entry.deadline || (!resolving && personnelTime(league) === entry.deadline))
-    return 'The claim deadline has passed.';
   const p = league.players[entry.playerId];
   if (!p || p.waiver?.id !== entry.id || p.retired) return 'The player is no longer available.';
   if (!league.teams[claim.teamId] || entry.fromTeamId === claim.teamId)
@@ -224,7 +225,7 @@ export function setWaiverClaim(league: League, claim: WaiverClaim): void {
 export function cancelWaiverClaim(league: League, entryId: number, teamId: number): void {
   const state = league.personnel?.waivers;
   const entry = state?.pending.find((e) => e.id === entryId);
-  if (!state || !entry || personnelTime(league) >= entry.deadline) throw new Error('The claim is no longer editable.');
+  if (!state || !entry) throw new Error('The claim is no longer editable.');
   state.claims = state.claims.filter((c) => c.entryId !== entryId || c.teamId !== teamId);
 }
 
@@ -236,11 +237,7 @@ export function reorderWaiverClaims(league: League, teamId: number, entryIds: nu
     !state ||
     entryIds.length !== own.length ||
     new Set(entryIds).size !== entryIds.length ||
-    own.some(
-      (c) =>
-        !entryIds.includes(c.entryId) ||
-        !state.pending.some((e) => e.id === c.entryId && e.deadline > personnelTime(league)),
-    )
+    own.some((c) => !entryIds.includes(c.entryId) || !state.pending.some((e) => e.id === c.entryId))
   )
     throw new Error('Claim preferences no longer match the open notices.');
   state.claims = state.claims.map((c) => (c.teamId === teamId ? { ...c, preference: entryIds.indexOf(c.entryId) } : c));
@@ -260,12 +257,12 @@ function book(league: League, entry: WaiverEntry, split: { thisYear: number; nex
       });
 }
 
-/** A batch is immutable. Cuts caused by awards enter a later notice and cannot clear recursively. */
-export function resolveWaiverBatch(league: League, deadline: number): WaiverResult[] {
+/** Resolve every entry posted in batch `closing` or earlier. Cuts caused by awards join the next batch. */
+export function resolveWaiverBatch(league: League, closing: number): WaiverResult[] {
   const state = ensureWaivers(league);
-  const batch = state.pending.filter((e) => e.deadline === deadline).sort((a, b) => a.playerId - b.playerId);
+  const batch = state.pending.filter((e) => e.batch <= closing).sort((a, b) => a.playerId - b.playerId);
+  state.batch = Math.max(state.batch, closing + 1);
   if (!batch.length) return [];
-  if (personnelTime(league) > deadline) throw new Error('Process overdue notices in chronological order.');
   if (batch.some((e) => league.players[e.playerId]?.waiver?.id !== e.id))
     throw new Error('Waiver membership is inconsistent.');
   const ids = new Set(batch.map((e) => e.id));
@@ -273,7 +270,6 @@ export function resolveWaiverBatch(league: League, deadline: number): WaiverResu
   const reasons = new Map<number, string>();
   const order = waiverOrder(league); // Freeze priority for the entire notice.
   const byId = new Map(batch.map((e) => [e.id, e]));
-  personnelClock(league).minute = deadline;
   for (const teamId of order) {
     const groups = new Set<string>();
     const claims = state.claims
@@ -289,7 +285,7 @@ export function resolveWaiverBatch(league: League, deadline: number): WaiverResu
           reasons.set(claim.entryId, 'An earlier alternative in this group was awarded.');
         continue;
       }
-      const problem = claimProblem(league, claim, true);
+      const problem = claimProblem(league, claim);
       if (problem) {
         if (teamId === league.userTeamId) reasons.set(claim.entryId, problem);
         continue;
@@ -357,7 +353,7 @@ export function resolveWaiverBatch(league: League, deadline: number): WaiverResu
       fromTeamId: entry.fromTeamId,
       toTeamId,
       season: entry.season,
-      deadline,
+      batch: entry.batch,
       ...(reasons.has(entry.id) ? { userReason: reasons.get(entry.id) } : {}),
     });
   }
@@ -365,6 +361,5 @@ export function resolveWaiverBatch(league: League, deadline: number): WaiverResu
   state.claims = state.claims.filter((c) => !ids.has(c.entryId));
   state.results.push(...results);
   state.results = state.results.slice(-96);
-  personnelClock(league).minute = deadline;
   return results;
 }

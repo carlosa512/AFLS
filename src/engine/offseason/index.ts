@@ -55,7 +55,7 @@ import {
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
 import { rollService } from '../personnel/service';
 import { personnelClock } from '../personnel/calendar';
-import { nextWaiverDeadline, settleOffseasonWaivers, syncPersonnelTime } from '../personnel/flow';
+import { settleOffseasonWaivers, syncPersonnel, waiversPending } from '../personnel/flow';
 import { ensureWaivers } from '../personnel/waivers';
 
 export const FA_DAYS = 5;
@@ -288,7 +288,7 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
             const missing = Math.max(0, 53 - activeRoster(league, team.id).length);
             if (missing) aiCapCompliance(league, team, missing * minSalary(1, league.caps[league.season]));
           }
-          if (nextWaiverDeadline(league) === undefined) break;
+          if (!waiversPending(league)) break;
           settleOffseasonWaivers(league, auto);
         }
         for (const team of ai) fillCampRoster(league, team, rng);
@@ -321,7 +321,7 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
   // Offers filed at this step's market moment are judged again on the state you'll accept in: camp's cuts,
   // signings and the phase switch (roster limits in season) can turn a bid its own team made into a refusal.
   recheckOffers(league);
-  syncPersonnelTime(league);
+  syncPersonnel(league);
   league.rngState = rng.getState();
   return league.phase;
 }

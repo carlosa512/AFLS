@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { capSheet, capSpace, releasePlayer } from '../finance/cap';
 import { createLeague, SAVE_VERSION } from '../generate';
-import { playWeek, startLiveGame } from '../league';
+import { playGame, playWeek, startLiveGame } from '../league';
 import { migrateLeague } from '../migrate';
 import { advanceOffseason } from '../offseason';
 import { freeAgents, makeOffer, offerProblem, signPlayer } from '../offseason/negotiation';
@@ -10,16 +10,9 @@ import { activeRoster, isAvailable, rosterList } from '../roster';
 import { playerTradeBlocker } from '../trade/rules';
 import type { Contract, GameResult, League, Player } from '../types';
 import { submitAIClaims } from './ai';
-import {
-  DAY,
-  gameTime,
-  managementTime,
-  personnelClock,
-  personnelTime,
-  TRADE_DEADLINE_MINUTE,
-  waiverDeadline,
-} from './calendar';
-import { advanceNextPersonnelEvent, advancePersonnelTo, nextDeadlineBlocker, nextWaiverDeadline } from './flow';
+import { gameTime, personnelClock } from './calendar';
+import { settleOffseasonWaivers, settleWaivers, settleWeek } from './flow';
+import { TRADE_DEADLINE_WEEK } from '../trade/rules';
 import { initialService } from './service';
 import {
   assignedContract,
@@ -106,14 +99,14 @@ describe('preserved contracts and financial settlement', () => {
     const before = capSheet(l, 3);
     expect(before.dead).toBeGreaterThanOrEqual(e.release.thisYear);
     const next = capSheet(l, 3, 2027).used;
-    resolveWaiverBatch(l, e.deadline);
+    resolveWaiverBatch(l, e.batch);
     expect(p.contract).toBeNull();
     expect(p.waiver).toBeUndefined();
     expect(freeAgents(l)).toContain(p);
     expect(capSheet(l, 3).used).toBeCloseTo(before.used, 0);
     expect(capSheet(l, 3, 2027).used).toBeCloseTo(next, 0);
     const settled = copy(l);
-    expect(resolveWaiverBatch(l, e.deadline)).toEqual([]);
+    expect(resolveWaiverBatch(l, e.batch)).toEqual([]);
     expect(l).toEqual(settled);
   });
 
@@ -124,7 +117,7 @@ describe('preserved contracts and financial settlement', () => {
     const held = capSheet(l, 3).used;
     const receiver = capSheet(l, 1).used;
     setWaiverClaim(l, claim(e.id));
-    resolveWaiverBatch(l, e.deadline);
+    resolveWaiverBatch(l, e.batch);
     expect(p.teamId).toBe(1);
     expect(p.contract!.bonuses).toEqual([]);
     expect(p.contract!.years).toEqual(
@@ -138,7 +131,6 @@ describe('preserved contracts and financial settlement', () => {
 
   it('retains already-paid salary and transfers only the unpaid guaranteed balance in season', () => {
     l.week = 8;
-    personnelClock(l).minute = managementTime(l);
     const p = player();
     const e = waive(p);
     room(1);
@@ -147,7 +139,7 @@ describe('preserved contracts and financial settlement', () => {
     expect(assigned.years[0].guaranteed).toBe(Math.round(800 - (1000 * 7) / 18));
     expect(assigned.years[0].paidBefore).toBe(7);
     setWaiverClaim(l, claim(e.id));
-    resolveWaiverBatch(l, e.deadline);
+    resolveWaiverBatch(l, e.batch);
     expect(p.contract).toEqual(assigned);
     expect(l.teams[3].deadMoney.filter((d) => d.season === 2026 && d.playerId === p.id)[0].amount).toBe(
       Math.round(400 + (1000 * 7) / 18),
@@ -183,10 +175,10 @@ describe('veteran eligibility, league priority and preferences', () => {
     p.service = initialService(3, 2025);
     p.service[2] = 63; // six games this season do not vest the exception early
     expect(waiverApplies(l, p)).toBe(true);
-    personnelClock(l).minute = TRADE_DEADLINE_MINUTE;
+    l.week = TRADE_DEADLINE_WEEK;
     p.service = initialService(4, 2025);
     expect(waiverApplies(l, p)).toBe(false);
-    personnelClock(l).minute++;
+    l.week = TRADE_DEADLINE_WEEK + 1; // releases after the trade deadline week always use waivers
     expect(waiverApplies(l, p)).toBe(true);
   });
 
@@ -254,9 +246,9 @@ describe('veteran eligibility, league priority and preferences', () => {
     reverse.personnel!.waivers!.claims.reverse();
     reverse.personnel!.waivers!.pending.reverse();
     const original = waiverOrder(l);
-    const results = resolveWaiverBatch(l, a.deadline);
+    const results = resolveWaiverBatch(l, a.batch);
     expect(results.map((r) => r.toTeamId)).toEqual([1, 1]);
-    expect(resolveWaiverBatch(reverse, a.deadline)).toEqual(results);
+    expect(resolveWaiverBatch(reverse, a.batch)).toEqual(results);
     expect(waiverOrder(l)).toEqual(original);
   });
 
@@ -270,7 +262,7 @@ describe('veteran eligibility, league priority and preferences', () => {
     expect(() => reorderWaiverClaims(l, 1, [b.id])).toThrow();
     expect(l).toEqual(before);
     reorderWaiverClaims(l, 1, [b.id, a.id]);
-    resolveWaiverBatch(l, a.deadline);
+    resolveWaiverBatch(l, a.batch);
     expect(l.players[b.playerId].teamId).toBe(1);
     expect(l.players[a.playerId].teamId).toBeNull();
   });
@@ -302,9 +294,9 @@ describe('atomic validation and notice boundaries', () => {
     cut.contract!.bonuses = [];
     cut.contract!.years.forEach((y) => (y.guaranteed = 0));
     setWaiverClaim(l, claim(e.id, 1, [cut.id]));
-    resolveWaiverBatch(l, e.deadline);
+    resolveWaiverBatch(l, e.batch);
     const follow = l.personnel!.waivers!.pending.find((x) => x.playerId === cut.id)!;
-    expect(follow.deadline).toBeGreaterThan(e.deadline);
+    expect(follow.batch).toBeGreaterThan(e.batch);
     expect(cut.contract).not.toBeNull();
     expect(freeAgents(l)).not.toContain(cut);
     expect(l.players[e.playerId].teamId).toBe(1);
@@ -318,7 +310,7 @@ describe('atomic validation and notice boundaries', () => {
     setWaiverClaim(l, claim(e.id, 2, [cut.id]));
     setWaiverClaim(l, claim(e.id, 1));
     const c = copy(cut.contract);
-    resolveWaiverBatch(l, e.deadline);
+    resolveWaiverBatch(l, e.batch);
     expect(cut.teamId).toBe(2);
     expect(cut.contract).toEqual(c);
   });
@@ -330,7 +322,7 @@ describe('atomic validation and notice boundaries', () => {
     cut.contract!.years.forEach((y) => (y.guaranteed = 0));
     setWaiverClaim(l, claim(e.id, 1, [cut.id]));
     cut.teamId = 2;
-    resolveWaiverBatch(l, e.deadline);
+    resolveWaiverBatch(l, e.batch);
     expect(l.players[e.playerId].teamId).toBeNull();
     expect(cut.teamId).toBe(2);
   });
@@ -344,7 +336,7 @@ describe('atomic validation and notice boundaries', () => {
     l.teams[1].carryover += budget - capSpace(l, 1);
     setWaiverClaim(l, claim(a.id, 1, [], 0));
     setWaiverClaim(l, claim(b.id, 1, [], 1));
-    resolveWaiverBatch(l, a.deadline);
+    resolveWaiverBatch(l, a.batch);
     expect([l.players[a.playerId].teamId, l.players[b.playerId].teamId]).toEqual([1, null]);
     expect(capSpace(l, 1)).toBeGreaterThanOrEqual(0);
   });
@@ -355,7 +347,7 @@ describe('atomic validation and notice boundaries', () => {
     setWaiverClaim(l, claim(e.id));
     const loaded = migrateLeague(copy(l))!;
     expect(loaded.version).toBe(SAVE_VERSION);
-    expect(resolveWaiverBatch(loaded, e.deadline)).toEqual(resolveWaiverBatch(l, e.deadline));
+    expect(resolveWaiverBatch(loaded, e.batch)).toEqual(resolveWaiverBatch(l, e.batch));
     expect(loaded).toEqual(l);
   });
 
@@ -363,14 +355,13 @@ describe('atomic validation and notice boundaries', () => {
     const e = waive();
     const before = copy(l);
     waiverOrder(l);
-    nextDeadlineBlocker(l);
     claimProblem(l, claim(e.id));
     assignedContract(e);
     expect(l).toEqual(before);
-    personnelClock(l).minute = e.deadline;
-    const atDeadline = copy(l);
-    expect(() => setWaiverClaim(l, claim(e.id))).toThrow(/deadline/);
-    expect(l).toEqual(atDeadline);
+    resolveWaiverBatch(l, e.batch);
+    const settled = copy(l);
+    expect(() => setWaiverClaim(l, claim(e.id))).toThrow(/settled/);
+    expect(l).toEqual(settled);
   });
 });
 
@@ -380,7 +371,7 @@ describe('AI and calendar integration', () => {
     for (const key of Object.keys(p.ratings) as (keyof Player['ratings'])[]) p.ratings[key] = 19;
     p.age = 23;
     const e = waive(p);
-    submitAIClaims(l, e.deadline);
+    submitAIClaims(l, e.batch);
     const claims = l.personnel!.waivers!.claims;
     expect(claims.length).toBeGreaterThan(0);
     expect(claims.some((c) => c.teamId === l.userTeamId)).toBe(false);
@@ -390,9 +381,9 @@ describe('AI and calendar integration', () => {
       expect(c.minCapSpace).toBeGreaterThan(0);
     }
     const again = copy(l);
-    submitAIClaims(again, e.deadline);
+    submitAIClaims(again, e.batch);
     expect(again.personnel!.waivers!.claims).toEqual(claims);
-    advancePersonnelTo(l, e.deadline);
+    settleWaivers(l);
     const winner = p.teamId!;
     expect(winner).not.toBeNull();
     expect(activeRoster(l, winner)).toHaveLength(53);
@@ -404,7 +395,7 @@ describe('AI and calendar integration', () => {
     for (const key of Object.keys(p.ratings) as (keyof Player['ratings'])[]) p.ratings[key] = 20;
     p.contract!.years[0].base = 250_000;
     const e = waive(p);
-    submitAIClaims(l, e.deadline);
+    submitAIClaims(l, e.batch);
     expect(l.personnel!.waivers!.claims).toEqual([]);
   });
 
@@ -416,8 +407,8 @@ describe('AI and calendar integration', () => {
     entries.forEach((e, preference) => setWaiverClaim(l, { ...claim(e.id, 1, [], preference), automatic: true }));
     const manual = copy(l);
     manual.personnel!.waivers!.claims.forEach((c) => delete c.automatic);
-    expect(resolveWaiverBatch(l, entries[0].deadline).filter((r) => r.toTeamId === 1)).toHaveLength(2);
-    expect(resolveWaiverBatch(manual, entries[0].deadline).filter((r) => r.toTeamId === 1)).toHaveLength(3);
+    expect(resolveWaiverBatch(l, entries[0].batch).filter((r) => r.toTeamId === 1)).toHaveLength(2);
+    expect(resolveWaiverBatch(manual, entries[0].batch).filter((r) => r.toTeamId === 1)).toHaveLength(3);
   });
 
   it('AI cannot detect true potential through its claim selection', () => {
@@ -430,36 +421,67 @@ describe('AI and calendar integration', () => {
     // Fix observable scouting inputs through identical perceived ranges: the claim test compares current-grade-only vets.
     a.players[p.id].age = 30;
     b.players[p.id].age = 30;
-    submitAIClaims(a, e.deadline);
-    submitAIClaims(b, e.deadline);
+    submitAIClaims(a, e.batch);
+    submitAIClaims(b, e.batch);
     expect(a.personnel!.waivers!.claims).toEqual(b.personnel!.waivers!.claims);
   });
 
-  it('uses daily notices with at least 24 hours of exposure', () => {
-    for (const now of [0, 960, 961, 6 * DAY + 1215, -10 * DAY]) {
-      expect(waiverDeadline(now) - now).toBeGreaterThanOrEqual(DAY);
-      expect(((waiverDeadline(now) % DAY) + DAY) % DAY).toBe(960);
-    }
-  });
-
-  it('shared live-game preparation resolves due notices before kickoff', () => {
-    const e = waive();
-    const game = [...l.games].sort((a, b) => gameTime(a) - gameTime(b))[0];
-    startLiveGame(l, game);
+  it("a release before kickoff resolves before that week's first game", () => {
+    const p = player();
+    const e = waive(p);
+    const first = [...l.games].filter((g) => g.week === 1).sort((a, b) => gameTime(a) - gameTime(b))[0];
+    startLiveGame(l, first);
     expect(l.personnel!.waivers!.pending.some((x) => x.id === e.id)).toBe(false);
-    expect(personnelTime(l)).toBe(gameTime(game));
+    expect(l.personnel!.waivers!.results.some((r) => r.entryId === e.id)).toBe(true);
+    expect(p.waiver).toBeUndefined();
   });
 
-  it('plays earlier games before a Sunday live game and blocks skipping an unplayed kickoff', () => {
+  it("a release after the week's first kickoff waits for next week", () => {
+    const week = l.games.filter((g) => g.week === 1).sort((a, b) => gameTime(a) - gameTime(b));
+    playGame(l, week[0]);
+    const later = week.find((g) => !g.result && !g.personnel?.lists)!;
+    const e = waive(player(later.homeId));
+    playGame(l, later);
+    expect(l.personnel!.waivers!.pending.some((x) => x.id === e.id)).toBe(true);
+    playWeek(l);
+    expect(l.week).toBe(2);
+    expect(l.personnel!.waivers!.pending.some((x) => x.id === e.id)).toBe(true);
+    const next = l.games.filter((g) => g.week === 2).sort((a, b) => gameTime(a) - gameTime(b))[0];
+    playGame(l, next);
+    expect(l.personnel!.waivers!.pending.some((x) => x.id === e.id)).toBe(false);
+  });
+
+  it('settling twice in a week does nothing, also after a JSON reload', () => {
+    const first = waive();
+    settleWeek(l);
+    expect(l.personnel!.waivers!.pending.some((x) => x.id === first.id)).toBe(false);
+    const second = waive(player(5));
+    settleWeek(l);
+    expect(l.personnel!.waivers!.pending.some((x) => x.id === second.id)).toBe(true);
+    const loaded = migrateLeague(copy(l))!;
+    settleWeek(loaded);
+    expect(loaded.personnel!.waivers!.pending.some((x) => x.id === second.id)).toBe(true);
+    expect(loaded).toEqual(l);
+  });
+
+  it('a week-18 release settles at the first playoff game, or when the season ends', () => {
+    l.week = 18;
+    settleWeek(l);
+    const e = waive();
+    l.phase = 'playoffs';
+    l.week = 19;
+    settleWeek(l);
+    expect(l.personnel!.waivers!.pending.some((x) => x.id === e.id)).toBe(false);
+    const late = waive(player(6));
+    settleOffseasonWaivers(l); // what beginOffseason runs before the league year turns
+    expect(l.personnel!.waivers!.pending.some((x) => x.id === late.id)).toBe(false);
+  });
+
+  it('plays earlier games before a Sunday live game', () => {
     const game = l.games.find((g) => g.week === 1 && g.kickoff?.day === 'sun')!;
     startLiveGame(l, game);
     expect(l.games.filter((g) => g.week === 1 && gameTime(g) < gameTime(game)).every((g) => !!g.result)).toBe(true);
     expect(() => waive(player(game.homeId))).toThrow(/Finish the game/);
-    // The 90-minute active-list deadline has frozen the early clubs. Release from a later club instead.
-    const later = l.games.find((g) => g.week === 1 && !g.personnel?.lists)!;
-    waive(player(later.homeId));
-    expect(nextDeadlineBlocker(l)).toMatch(/earlier games/);
-    expect(() => advanceNextPersonnelEvent(l)).toThrow(/earlier games/);
   });
 
   it('does not run camp development twice when pausing for cutdown claims', () => {
@@ -502,7 +524,7 @@ describe('AI and calendar integration', () => {
     expect(l.phase).toBe('regular');
     expect(p.teamId).toBe(l.userTeamId);
     expect(activeRoster(l, l.userTeamId)).toHaveLength(53);
-    expect(nextWaiverDeadline(l)).toBeUndefined();
+    expect(l.personnel!.waivers!.pending).toHaveLength(0);
     expect(l.personnel!.waivers!.results.some((r) => r.playerId === cut.id)).toBe(true);
   });
 
@@ -512,7 +534,6 @@ describe('AI and calendar integration', () => {
     waive(p);
     playWeek(l);
     expect(p.service![2]).toBe(0);
-    expect(nextWaiverDeadline(l) === undefined || nextWaiverDeadline(l)! > personnelTime(l)).toBe(true);
   });
 });
 
@@ -524,13 +545,13 @@ describe('conditional practice squad return plans', () => {
     setWaiverClaim(l, { ...claim(e.id, 0, [cut.id]), squadReturnIds: [cut.id] });
     expect(l.personnel!.squads!.returns.some((o) => o.playerId === cut.id)).toBe(false);
     const reload = copy(l);
-    resolveWaiverBatch(l, e.deadline);
-    resolveWaiverBatch(reload, e.deadline);
+    resolveWaiverBatch(l, e.batch);
+    resolveWaiverBatch(reload, e.batch);
     expect(JSON.stringify(copy(l)) === JSON.stringify(copy(reload))).toBe(true);
     expect(l.players[e.playerId].teamId).toBe(0);
     expect(cut.squad).toBeUndefined();
     expect(cut.waiver).toBeDefined();
-    expect(l.personnel!.waivers!.pending.find((x) => x.playerId === cut.id)!.deadline).toBeGreaterThan(e.deadline);
+    expect(l.personnel!.waivers!.pending.find((x) => x.playerId === cut.id)!.batch).toBeGreaterThan(e.batch);
     expect(l.personnel!.squads!.returns.some((o) => o.playerId === cut.id)).toBe(true);
   });
   it('leaves both the roster and return instructions alone when a higher-priority club wins', () => {
@@ -541,7 +562,7 @@ describe('conditional practice squad return plans', () => {
     room(0);
     setWaiverClaim(l, claim(e.id, 0));
     setWaiverClaim(l, { ...claim(e.id, 1, [cut.id]), squadReturnIds: [cut.id] });
-    resolveWaiverBatch(l, e.deadline);
+    resolveWaiverBatch(l, e.batch);
     expect(cut.teamId).toBe(1);
     expect(cut.waiver).toBeUndefined();
     expect(l.personnel!.squads!.returns.some((o) => o.playerId === cut.id)).toBe(false);

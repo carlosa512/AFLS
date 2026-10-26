@@ -5,12 +5,11 @@ import { releasePlayer } from '../engine/finance/cap';
 import { initialService } from '../engine/personnel/service';
 import { ensureWaivers, setWaiverClaim } from '../engine/personnel/waivers';
 import { activeRoster } from '../engine/roster';
-import { personnelClock } from '../engine/personnel/calendar';
 import { hashToRoute, routeToHash } from './routes';
 import { Waivers } from './screens/Waivers';
 
 describe('waiver desk', () => {
-  it('shows per-player decision times only when the visible players belong to different batches', () => {
+  it('shows one decision line for the wire, never per-player times or a clock to advance', () => {
     const l = createLeague({ seed: 'waiver-decision-times' });
     l.personnel!.enabled = true;
     for (const teamId of [3, 4]) {
@@ -19,10 +18,11 @@ describe('waiver desk', () => {
         .at(-1)!;
       p.service = initialService(0, l.season - 1);
       releasePlayer(l, p);
-      if (teamId === 3) personnelClock(l).minute += 60;
     }
-    expect(new Set(l.personnel!.waivers!.pending.map((e) => e.deadline)).size).toBe(2);
-    expect(renderToStaticMarkup(<Waivers league={l} />)).toContain('Decision time');
+    const html = renderToStaticMarkup(<Waivers league={l} />);
+    expect(html).toContain('Decided before Week 1 kickoff');
+    expect(html).not.toContain('Decision time');
+    expect(html).not.toContain('Advance roster clock');
   });
   it('routes directly to the wire', () => {
     expect(hashToRoute('#/office/waivers')).toEqual({ view: 'office', tab: 'waivers' });
@@ -65,10 +65,9 @@ describe('waiver desk', () => {
     expect(withHiddenClaim).toContain('released by other teams');
     expect(withHiddenClaim).toContain('Available to claim');
     expect(withHiddenClaim).toContain('Your released players');
-    expect(withHiddenClaim).toContain('Next decisions');
+    expect(withHiddenClaim).toContain('Decided before Week 1 kickoff');
     expect(withHiddenClaim).toContain('Your actions');
     expect(withHiddenClaim).toContain('Plan claim');
-    expect(withHiddenClaim).toContain('No games are played.');
     expect(withHiddenClaim).not.toContain('Deadline</');
     expect(withHiddenClaim).toContain('Contract ends');
   });

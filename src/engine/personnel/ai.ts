@@ -12,10 +12,10 @@ import { PERSONNEL_RULES } from './rules';
 import type { WaiverClaim } from './types';
 
 /** All clubs decide against the same pre-award world. No hidden OVR/potential or buyer iteration advantage. */
-export function submitAIClaims(league: League, deadline: number, autoUser = false): void {
+export function submitAIClaims(league: League, closing: number, autoUser = false): void {
   const state = league.personnel?.waivers;
   if (!league.personnel?.enabled || !state) return;
-  const entries = state.pending.filter((e) => e.deadline === deadline);
+  const entries = state.pending.filter((e) => e.batch <= closing);
   const key = aiWaiverWindowKey(league);
   if (state.aiWindow?.key !== key) state.aiWindow = { key, awards: {} };
   for (const team of [...league.teams].sort((a, b) => a.id - b.id)) {

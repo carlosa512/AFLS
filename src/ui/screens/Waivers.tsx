@@ -11,14 +11,13 @@ import {
   setWaiverClaim,
   waiverOrder,
 } from '../../engine/personnel/waivers';
-import { personnelLabel } from '../../engine/personnel/calendar';
-import { advanceNextPersonnelEvent, nextDeadlineBlocker, nextWaiverDeadline } from '../../engine/personnel/flow';
 import { Dialog, Panel, PlayerLink, SortTh, sortRows, TeamLink, useSort } from '../components';
 import { Ovr, seenOvr } from '../scouting';
 import { money } from '../format';
 import { store } from '../store';
 import { liveLock } from '../live';
 import { RosterMovePicker } from '../rosterMoves';
+import { waiverDecision } from '../personnel';
 
 export function Waivers({ league }: { league: League }) {
   const [filter, setFilter] = useState<'available' | 'mine' | 'released'>('available');
@@ -33,9 +32,7 @@ export function Waivers({ league }: { league: League }) {
       </Panel>
     );
   const teamId = league.userTeamId;
-  const deadline = nextWaiverDeadline(league);
   const lock = liveLock();
-  const clockProblem = lock ?? nextDeadlineBlocker(league);
   const mine = state?.claims.filter((c) => c.teamId === teamId).sort((a, b) => a.preference - b.preference) ?? [];
   const pending = state?.pending ?? [];
   const visible = pending.filter((e) =>
@@ -57,11 +54,9 @@ export function Waivers({ league }: { league: League }) {
       case 'cap':
         return capHit(assignedContract(e), league.season);
       case 'deadline':
-        return e.deadline;
+        return e.batch;
     }
   });
-  // One shared decision time belongs above the table. Different batches still need their own times.
-  const showDates = new Set(rows.map((e) => e.deadline)).size > 1;
   const entry = pending.find((e) => e.id === editing);
   const old = mine.find((c) => c.entryId === editing);
   const plan: WaiverClaim | undefined = entry
@@ -126,23 +121,12 @@ export function Waivers({ league }: { league: League }) {
             </button>
           ))}
         </div>
-        {deadline !== undefined && (
+        {pending.length > 0 && (
           <div className="personnel-deadline">
-            <div className="row">
-              <span>
-                Next decisions: <b>{personnelLabel(deadline)}</b>
-              </span>
-              <button
-                className="btn"
-                disabled={!!clockProblem}
-                title={clockProblem ?? undefined}
-                onClick={() => store.mutate(advanceNextPersonnelEvent)}
-              >
-                Advance roster clock
-              </button>
-            </div>
-            <p className="small muted">Resolves claims at that time. No games are played.</p>
-            {clockProblem && <p className="small muted">{clockProblem}</p>}
+            <p>
+              <b>{waiverDecision(league)}</b>
+            </p>
+            <p className="small muted">Every open claim is decided together, by waiver priority.</p>
           </div>
         )}
         {!rows.length ? (
@@ -162,7 +146,6 @@ export function Waivers({ league }: { league: League }) {
                   <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} />
                   <SortTh label="Overall" k="ovr" sort={sort} onSort={onSort} />
                   <SortTh label="Cap cost this season" k="cap" sort={sort} onSort={onSort} />
-                  {showDates && <SortTh label="Decision time" k="deadline" sort={sort} onSort={onSort} />}
                   <th>{filter === 'released' ? 'Status' : 'Your actions'}</th>
                 </tr>
               </thead>
@@ -186,7 +169,6 @@ export function Waivers({ league }: { league: League }) {
                         {money(capHit(assignedContract(e), league.season))}
                         <div className="small muted">Contract ends {lastSeason(e.contract)}</div>
                       </td>
-                      {showDates && <td>{personnelLabel(e.deadline)}</td>}
                       <td>
                         {filter === 'released' ? (
                           <div className="small muted waiver-reason">
@@ -300,7 +282,7 @@ export function Waivers({ league }: { league: League }) {
               : 'Keep everyone if there is room for the new player.'}
           </p>
           <p className="small muted">
-            Decided at {personnelLabel(entry.deadline)}. “Save claim” files your plan; it does not advance time.
+            {waiverDecision(league)}. “Save claim” files your plan; it does not advance time.
           </p>
           {planProblem && (
             <p className="callout callout-bad" role="status">

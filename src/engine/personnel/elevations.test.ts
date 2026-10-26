@@ -8,8 +8,8 @@ import { simulateGame } from '../match/gameSim';
 import { buildLineup } from '../match/lineup';
 import { migrateLeague } from '../migrate';
 import type { Game, Injury, League, Player, Position } from '../types';
-import { advancePersonnelTo, preparePersonnelGame } from './flow';
-import { DAY, elevationDeadline, elevationReversion, gameTime, personnelTime } from './calendar';
+import { fileElevations, preparePersonnelGame, settleWeek } from './flow';
+import { gameTime } from './calendar';
 import {
   cancelElevation,
   elevationCap,
@@ -66,7 +66,7 @@ function player(pos?: Position): Player {
 }
 function file(p: Player) {
   planElevation(l, p, g);
-  advancePersonnelTo(l, elevationDeadline(g));
+  fileElevations(l, g);
 }
 function playWith(p: Player) {
   file(p);
@@ -89,7 +89,7 @@ function nextGame(p: Player, week: number, playoff = false) {
   l.games = [next];
   l.week = week;
   l.phase = playoff ? 'playoffs' : 'regular';
-  l.personnel!.clock = { season: l.season, minute: (week - 1) * 7 * DAY + 16 * 60, cutdown: true };
+  l.personnel!.clock = { season: l.season, cutdown: true };
   g = next;
   return next;
 }
@@ -124,8 +124,9 @@ describe('temporary call-ups and durable history', () => {
     l.teams[g.homeId].carryover -= capSpace(l, g.homeId);
     expect(elevationProblem(l, c, g)).toMatch(/cap room/);
     expect(elevationProblem(l, practiceSquad(l, g.awayId)[0], { ...g, awayId: 31 })).toBeTruthy();
-    l.personnel!.clock = { season: l.season, minute: elevationDeadline(g) + 1, cutdown: true };
-    expect(elevationProblem(l, c, g)).toMatch(/deadline/);
+    l.teams[g.homeId].carryover += 100_000;
+    preparePersonnelGame(l, g);
+    expect(elevationProblem(l, c, g)).toMatch(/locked/);
   });
   it('filing earns pay and consumes a use even when the player is inactive; repeat settlement and reload are stable', () => {
     const p = player();
@@ -140,14 +141,13 @@ describe('temporary call-ups and durable history', () => {
     expect(g.result!.playerStats[p.id]?.snaps ?? 0).toBe(0);
     expect(p.service![2]).toBe(1 << (g.week - 1)); // a filed call-up earns the week, dressed or not
     expect(elevationCap(l, g.homeId)).toBe(charged);
-    advancePersonnelTo(l, elevationReversion(g));
     expect(elevationRecords(l).find((e) => e.playerId === p.id)!.status).toBe('reverted');
     expect(practiceSquad(l, g.homeId)).toContain(p);
     expect(activeRoster(l, g.homeId)).toHaveLength(53);
     const restored = JSON.parse(JSON.stringify(l));
-    advancePersonnelTo(restored, personnelTime(restored));
+    settleWeek(restored);
     const before = JSON.stringify(restored);
-    advancePersonnelTo(restored, personnelTime(restored));
+    settleWeek(restored);
     expect(JSON.stringify(restored)).toBe(before);
   });
   it('rejects a fourth regular use, keeps postseason uses separate and cannot erase history through a same-club re-sign', () => {
@@ -155,14 +155,12 @@ describe('temporary call-ups and durable history', () => {
     for (let week = 1; week <= 3; week++) {
       if (week > 1) nextGame(p, week);
       playWith(p);
-      advancePersonnelTo(l, elevationReversion(g));
     }
     nextGame(p, 4);
     expect(elevationProblem(l, p, g)).toMatch(/three/);
     nextGame(p, 19, true);
     expect(elevationProblem(l, p, g)).toBeNull();
     playWith(p);
-    advancePersonnelTo(l, elevationReversion(g));
     expect(elevationUses(l, p)).toBe(3);
     nextGame(p, 5);
     delete p.injury; // this test is about call-up history; injured squad players cannot be released
@@ -175,12 +173,26 @@ describe('temporary call-ups and durable history', () => {
     expect(elevationUses(l, p)).toBe(0);
     expect(elevationProblem(l, p, g)).toBeNull();
   });
-  it('uses game-specific business-day returns, including Monday across the week boundary', () => {
-    const days = { thu: 1, sat: 2, sun: 1, mon: 1 } as const;
-    for (const [day, offset] of Object.entries(days)) {
-      const game = { ...g, kickoff: { day: day as 'thu' | 'sat' | 'sun' | 'mon', et: 20 * 60 } };
-      expect(elevationReversion(game) - Math.floor(gameTime(game) / DAY) * DAY).toBe(offset * DAY + 16 * 60);
-    }
+  it('a call-up files at its game and is back on the squad before the next week', () => {
+    const p = player();
+    planElevation(l, p, g);
+    const record = () => elevationRecords(l).find((e) => e.playerId === p.id)!;
+    expect(record().status).toBe('planned');
+    expect(elevationUses(l, p)).toBe(0);
+    playGame(l, g);
+    expect(record().status).toBe('reverted');
+    expect(elevationUses(l, p)).toBe(1);
+    expect(practiceSquad(l, g.homeId)).toContain(p);
+    expect(activeRoster(l, g.homeId).map((x) => x.id)).not.toContain(p.id);
+  });
+  it('a planned call-up can be cancelled until its game is prepared, not after', () => {
+    const p = player();
+    planElevation(l, p, g);
+    cancelElevation(l, p, g);
+    expect(elevationRecords(l).find((e) => e.playerId === p.id)!.status).toBe('cancelled');
+    planElevation(l, p, g);
+    preparePersonnelGame(l, g);
+    expect(() => cancelElevation(l, p, g)).toThrow(/filed/);
   });
   it('an injured squad member keeps his weekly pay and his place', () => {
     const p = player();
@@ -217,7 +229,7 @@ describe('temporary call-ups and durable history', () => {
     const before = capSpace(l, g.homeId);
     planElevation(l, p, g);
     p.injury = injury();
-    advancePersonnelTo(l, elevationDeadline(g));
+    fileElevations(l, g);
     expect(elevationUses(l, p)).toBe(0);
     expect(elevationCap(l, g.homeId)).toBe(0);
     expect(capSpace(l, g.homeId)).toBeCloseTo(before);
@@ -226,7 +238,6 @@ describe('temporary call-ups and durable history', () => {
   it('a same-week permanent promotion absorbs the call-up check instead of charging it twice', () => {
     const p = player('QB');
     playWith(p);
-    advancePersonnelTo(l, elevationReversion(g));
     delete p.injury;
     releasePlayer(
       l,
@@ -293,10 +304,10 @@ describe('frozen game-day lists and every match path', () => {
       /emergency/,
     );
   });
-  it('freezes both lists at the 90-minute boundary and keeps a late-injured player off every unit', () => {
+  it('freezes both lists when the game is prepared and keeps a late-injured player off every unit', () => {
     const day = gameDayPreview(l, g, g.homeId);
     const target = l.players[day.dressedIds[0]];
-    advancePersonnelTo(l, gameTime(g) - 90);
+    preparePersonnelGame(l, g);
     expect(g.personnel?.lists).toBeDefined();
     expect(() => setGameDayPlan(l, g, g.homeId, { dressedIds: day.dressedIds })).toThrow(/locked/);
     target.injury = injury();
@@ -310,7 +321,7 @@ describe('frozen game-day lists and every match path', () => {
     setGameDayPlan(l, g, g.homeId, { dressedIds: day.dressedIds });
     const target = l.players[day.dressedIds[0]];
     target.injury = injury();
-    advancePersonnelTo(l, gameTime(g) - 90);
+    preparePersonnelGame(l, g);
     expect(g.personnel!.lists![g.homeId].dressedIds).not.toContain(target.id);
     expect(activeRoster(l, g.homeId)).toHaveLength(53);
     expect(() => setGameDayPlan(l, { ...g, personnel: { plans: {} } }, g.homeId, { dressedIds: [] })).toThrow();

@@ -9,8 +9,8 @@ import {
 } from '../../engine/awards';
 import { champion, userGame } from '../../engine/league';
 import { capSheet } from '../../engine/finance/cap';
-import { nextWaiverDeadline } from '../../engine/personnel/flow';
-import { personnelLabel } from '../../engine/personnel/calendar';
+import { waiversPending } from '../../engine/personnel/flow';
+import { waiverDecision } from '../personnel';
 import { autoCutdown, FA_DAYS } from '../../engine/offseason';
 import { expiringPlayers } from '../../engine/offseason/ai';
 import { formatRecord, gmRecord } from '../../engine/records';
@@ -655,8 +655,7 @@ function OffseasonHome({ league }: { league: League }) {
 
 function WaiverNotice({ league }: { league: League }) {
   const nav = useNav();
-  const deadline = nextWaiverDeadline(league);
-  if (!league.personnel?.enabled || deadline === undefined) return null;
+  if (!league.personnel?.enabled || !waiversPending(league)) return null;
   return (
     <Panel
       title="Personnel notice"
@@ -667,7 +666,7 @@ function WaiverNotice({ league }: { league: League }) {
       }
     >
       <p>
-        {league.personnel.waivers!.pending.length} players awaiting waivers. Next notice: {personnelLabel(deadline)}.
+        {league.personnel.waivers!.pending.length} players awaiting waivers. {waiverDecision(league)}.
       </p>
       <p className="small muted">
         Review claims before continuing. Your players are released only if a claim you submitted wins.

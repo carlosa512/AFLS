@@ -4,7 +4,8 @@ export interface PersonnelState {
   /** Remains off until the complete transaction lifecycle is available. */
   enabled: boolean;
   profile: 'afls-2026-v1';
-  clock?: { season: number; minute: number; cutdown: boolean };
+  /** `settledWeek`: waivers settle once a week, before its first kickoff. */
+  clock?: { season: number; cutdown: boolean; settledWeek?: number };
   squads?: {
     season: number;
     offers: SquadOffer[];
@@ -25,6 +26,8 @@ export interface PersonnelState {
   };
   waivers?: {
     nextId: number;
+    /** The open batch: new releases join it, and a settle resolves every batch before the next one. */
+    batch: number;
     originalOrder: { season: number; teams: number[] };
     pending: WaiverEntry[];
     claims: WaiverClaim[];
@@ -53,7 +56,7 @@ export interface WaiverEntry {
   playerId: number;
   fromTeamId: number;
   season: number;
-  deadline: number;
+  batch: number;
   contract: import('../types').Contract;
   /** Financial state frozen at the release request, not recalculated after the clock moves. */
   paid: number;
@@ -69,7 +72,7 @@ export interface WaiverResult {
   fromTeamId: number;
   toTeamId: number | null;
   season: number;
-  deadline: number;
+  batch: number;
   /** Only the user's own unsuccessful instructions are retained; opposing bids stay private. */
   userReason?: string;
 }
@@ -108,8 +111,6 @@ export interface Elevation {
   teamId: number;
   gameId: number;
   status: 'planned' | 'active' | 'reverted' | 'cancelled';
-  deadline: number;
-  revertsAt: number;
   /** Frozen at filing, in $K. Extra cap replaces, rather than duplicates, the squad check. */
   additionalCap: number;
   creditedToContract?: true;

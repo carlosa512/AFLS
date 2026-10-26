@@ -7,7 +7,7 @@ import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { capSpace } from '../src/engine/finance/cap';
 import { activeRoster } from '../src/engine/roster';
 import { submitAIClaims } from '../src/engine/personnel/ai';
-import { advanceNextPersonnelEvent, nextWaiverDeadline } from '../src/engine/personnel/flow';
+import { settleWaivers, waiversPending } from '../src/engine/personnel/flow';
 import { PERSONNEL_RULES } from '../src/engine/personnel/rules';
 import type { League } from '../src/engine/types';
 
@@ -41,21 +41,20 @@ for (let trial = 0; trial < count; trial++) {
   advanceOffseason(league, { autoUser: true });
   const state = league.personnel!.waivers!;
   const pending = state.pending.length;
-  const deadline = nextWaiverDeadline(league);
-  if (deadline !== undefined) submitAIClaims(league, deadline, true);
+  if (waiversPending(league)) submitAIClaims(league, state.batch, true);
   const submitted = state.claims.length;
   const clubs = new Set(state.claims.map((c) => c.teamId)).size;
   let notices = 0;
-  while (nextWaiverDeadline(league) !== undefined && notices < 128) {
+  while (waiversPending(league) && notices < 128) {
     const reloaded = JSON.parse(JSON.stringify(league)) as League;
-    advanceNextPersonnelEvent(league, true);
-    advanceNextPersonnelEvent(reloaded, true);
+    settleWaivers(league, true);
+    settleWaivers(reloaded, true);
     // Compare saved data, not absent-vs-undefined runtime properties; never build a multi-MB assertion diff.
     assert.equal(savedHash(reloaded), savedHash(league), 'A JSON reload changed the notice outcome');
     legal(league);
     notices++;
   }
-  assert.equal(nextWaiverDeadline(league), undefined, 'Cutdown claim churn did not settle');
+  assert.equal(waiversPending(league), false, 'Cutdown claim churn did not settle');
   assert(Object.values(state.aiWindow?.awards ?? {}).every((n) => n <= PERSONNEL_RULES.maxAIWaiverAddsPerWindow));
   advanceOffseason(league, { autoUser: true });
   legal(league, true);

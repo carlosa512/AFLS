@@ -107,7 +107,7 @@ describe('squad eligibility and agreements', () => {
     releasePlayer(l, p);
     expect(() => sign(p)).toThrow(/cleared/);
     const e = l.personnel!.waivers!.pending[0];
-    resolveWaiverBatch(l, e.deadline);
+    resolveWaiverBatch(l, e.batch);
     expect(p.contract).toBeNull();
     sign(p);
     expect(p.squad?.agreement?.weeklyPay).toBe(13.75);
@@ -182,7 +182,7 @@ describe('earned and projected squad payroll', () => {
       .at(-1)!;
     cut.service = initialService(0, l.season - 1);
     l.phase = 'preseason';
-    l.personnel!.clock = { season: l.season, minute: -100, cutdown: true };
+    l.personnel!.clock = { season: l.season, cutdown: true };
     const saved = JSON.stringify(l);
     expect(() => promoteSquadPlayer(l, p, { playerId: cut.id, action: 'squad' })).toThrow(/waiver notices/);
     expect(JSON.stringify(l)).toBe(saved);
@@ -234,7 +234,7 @@ describe('earned and projected squad payroll', () => {
     expect(squadPayroll(l, 0).earned).toBe(3 * 13.75);
     const guaranteed = p.contract!.years[0].guaranteed;
     releasePlayer(l, p);
-    resolveWaiverBatch(l, l.personnel!.waivers!.pending[0].deadline);
+    resolveWaiverBatch(l, l.personnel!.waivers!.pending[0].batch);
     expect(
       squadPayroll(l, 0).earned +
         l.teams[0].deadMoney.filter((d) => d.playerId === p.id).reduce((s, d) => s + d.amount, 0),
@@ -257,7 +257,7 @@ describe('earned and projected squad payroll', () => {
       promoteSquadPlayer(l, p);
       expect(squadPayroll(l, 0).earned).toBe(0);
       releasePlayer(l, p);
-      resolveWaiverBatch(l, l.personnel!.waivers!.pending[0].deadline);
+      resolveWaiverBatch(l, l.personnel!.waivers!.pending[0].batch);
       sign(p);
     }
     expect(squadPayroll(l, 0).earned).toBe(0);

@@ -21,7 +21,6 @@ import {
   gameDayProblem,
   setGameDayPlan,
 } from '../engine/personnel/gameDay';
-import { elevationDeadline, personnelLabel, personnelTime } from '../engine/personnel/calendar';
 import { POSITIONS } from '../engine/types';
 import { playingHurt } from '../engine/roster';
 import type { League, Player } from '../engine/types';
@@ -30,6 +29,16 @@ import { liveLock } from './live';
 import { Ovr, viewOf } from './scouting';
 import { money, weeklyMoney } from './format';
 import { store } from './store';
+
+/** When the wire's open claims are decided: one settle point a week, before its first kickoff. */
+export function waiverDecision(league: League): string {
+  if (league.phase === 'preseason') return 'Decided when camp ends';
+  if (league.phase !== 'regular' && league.phase !== 'playoffs') return 'Decided at the next offseason step';
+  const clock = league.personnel?.clock;
+  const settled = clock?.season === league.season && clock.settledWeek === league.week;
+  if (league.phase === 'playoffs' || (settled && league.week >= 18)) return 'Decided before the next game';
+  return `Decided before Week ${settled ? league.week + 1 : league.week} kickoff`;
+}
 
 // Native option labels are plain text: anchors cannot be nested in an option.
 const optionName = (p: Player) => `${p.firstName} ${p.lastName}`;
@@ -45,7 +54,7 @@ export function CallupAction({ league, player }: { league: League; player: Playe
     return (
       <button
         className="btn btn-sm"
-        disabled={existing.status !== 'planned' || personnelTime(league) >= existing.deadline || !!liveLock()}
+        disabled={existing.status !== 'planned' || !!g.personnel?.elevationsFiled || !!liveLock()}
         title={
           existing.status === 'planned' ? 'Cancel this planned call-up' : 'Filed for this game; returns automatically'
         }
@@ -116,7 +125,7 @@ export function CallupAction({ league, player }: { league: League; player: Playe
             {g.playoffRound
               ? 'Playoff call-ups have no three-game limit.'
               : `${3 - elevationUses(league, player)} regular-season call-ups remain before this game.`}{' '}
-            File by {personnelLabel(elevationDeadline(g))}. He returns automatically without waivers.
+            Files at kickoff; back on the practice squad after the game.
           </p>
           {issue && <p role="alert">{issue}</p>}
         </Dialog>
@@ -212,7 +221,7 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
       {calls.map((e) => (
         <p key={e.playerId}>
           <PlayerLink league={league} player={league.players[e.playerId]} /> ·{' '}
-          {e.status === 'planned' ? 'Planned call-up' : 'Filed call-up'} · returns {personnelLabel(e.revertsAt)}
+          {e.status === 'planned' ? 'Planned call-up' : 'Filed call-up'} · back on the practice squad after the game
         </p>
       ))}
       {day.emergencyQbId !== undefined && (

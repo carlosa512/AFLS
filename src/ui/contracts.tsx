@@ -28,7 +28,6 @@ import { Dialog, PlayerLink } from './components';
 import { liveLock } from './live';
 import { money, weeklyMoney } from './format';
 import { waiverApplies } from '../engine/personnel/waivers';
-import { personnelLabel } from '../engine/personnel/calendar';
 import {
   inviteSquadReturn,
   promoteSquadPlayer,
@@ -39,7 +38,7 @@ import {
 import { store } from './store';
 import { activeRoster } from '../engine/roster';
 import type { RosterMove } from '../engine/personnel/rosterMoves';
-import { CallupAction } from './personnel';
+import { CallupAction, waiverDecision } from './personnel';
 import { RosterMovePicker } from './rosterMoves';
 
 const name = (p: Player) => `${p.firstName} ${p.lastName}`;
@@ -212,7 +211,7 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
       )}
       {preview.waiver && (
         <>
-          <p className="small">If another club claims him · {personnelLabel(preview.waiver.deadline)}</p>
+          <p className="small">If another club claims him · {waiverDecision(league).toLowerCase()}</p>
           <div className="facts">
             <Num label={`Dead money ${league.season} if claimed`} value={preview.waiver.assigned.thisYear} />
             <Num label={`Dead money ${league.season + 1} if claimed`} value={preview.waiver.assigned.nextYear} />
