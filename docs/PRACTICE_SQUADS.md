@@ -2,10 +2,10 @@
 
 ## Status
 
-Steps 1–4 are in: service time, waivers, practice squad formation and pay, one-game call-ups and game-day active
-lists. They run only in careers created with `createLeague({ personnel: true })`; ordinary careers stay off until
-step 5 (poaching and the two automatic protections) and step 6 (the yearly lifecycle) ship. Save version 47 adds
-the `afls-2026-v1` profile, switched off. The seven-step plan is `superpowers/plans/2026-10-25-practice-squads.md`.
+Steps 1–5 are in: service time, waivers, practice squad formation and pay, one-game call-ups, game-day active
+lists, and poaching with two weekly protections. They run only in careers created with `createLeague({ personnel: true })`; ordinary careers stay off until
+step 6 (the yearly lifecycle) and step 7 (activation) ship. Save version 47 adds
+the `afls-2026-v1` profile, switched off; 48 adds the poaching state. The seven-step plan is `superpowers/plans/2026-10-25-practice-squads.md`.
 
 On 2026-10-26 the rules were trimmed for play (`superpowers/specs/2026-10-26-personnel-trim-design.md`): one
 service counter instead of three CBA credits, weekly settle points instead of an Eastern-minute clock, plain
@@ -17,9 +17,8 @@ Fun and low micromanagement come first when two designs are plausible. NFL rules
 departures are labeled. Each save stores its profile id: a later rule change introduces a new profile instead of
 rewriting existing careers.
 
-The planned protection rule (step 5) is two players per week, chosen automatically by the scouts' estimated
-ceiling, with optional pins that override the choice and a weekly lock so protection can't cycle through the
-squad. The same rule applies to every club. This is an AFLS house rule.
+Protection is an AFLS house rule: two players a week, chosen automatically by the scouts' estimated ceiling, with
+optional pins and a weekly lock so it can't cycle through the squad. The same rule applies to every club.
 
 ## Rules: profile afls-2026-v1
 
@@ -42,26 +41,8 @@ squad. The same rule applies to every club. This is an AFLS house rule.
 | Re-sign block | Leaving and rejoining the same club after a filed call-up blocks further call-ups there that year | Original CBA wording |
 | Game-day list | 47 active, or 48 with eight primary-position linemen. Staff choose automatically; you can change it. It locks when the game is prepared | NFL |
 | Emergency QB | A healthy QB on the 53, outside the active list, with exactly two QBs active. Enters only when both are out | NFL |
-
-## Rules queued for later steps
-
-| Step | Work before switching on |
-| --- | --- |
-| 5: poaching and protection | Player choice, opponent cutoffs, three salary weeks and three roster-count games, offsets. The two automatic protections above, with no routine prompt and no cycling |
-| 6: lifecycle | Practice and coaching integration, squad injured list and return, playoff transaction rules, expiry and reserve/futures contracts |
-| 7: activation | Inbox, usability pass, audits, then on for new careers |
-
-## Verification
-
-- Engine: `personnel/personnel.test.ts` (service, lists, migration, the seeded fingerprint against main),
-  `waivers.test.ts` (contracts, priority, settle points, claims), `squads.test.ts`, `elevations.test.ts`.
-  Screens: `ui/squads.test.tsx`, `ui/waivers.test.tsx`.
-- Audits on enabled worlds: `npm run waivers -- 2` (cutdown wire, rosters at 53, reload determinism),
-  `npm run squads -- 2` (formation, pay, a season and offseason), `npm run elevations -- 2` (call-ups across two
-  seasons), `npm run squad-careers` (career outcomes). Ordinary careers are checked by the existing
-  `npm run offseason` and `npm run sim`.
-- After the trim (2026-10-26): both waiver worlds reached 53 on every opening roster (29 awards over 9 settles,
-  27 over 6), squads and call-ups reported no invariant failures, and the seeded fingerprint matched `origin/main`.
-
-The research behind the squad AI's mix of veterans and projects is in
-[practice-squad-outcomes.md](research/practice-squad-outcomes.md).
+| Protection | Two squad players a club a week: "Always protect" pins first (at most two), then the club's own best estimated ceilings (`perceive(...).potMid`, never `potential`). Locked at the week's settle; later pin changes wait a week; a protected player who leaves leaves his slot empty until then | AFLS house rule |
+| Poaching | Any club can sign another club's unprotected squad player to its 53: a minimum deal for his service, one or two years. He always accepts. Regular season only; not from the club you play this week; needs an open place on the 53 and cap room, rechecked at the settle. Two offers: the longer deal, then waiver priority. A planned call-up is cancelled | NFL shape, AFLS timing |
+| Poaching cost | Three weeks of base guaranteed on the new deal; cut early and the rest is dead money. No roster-count obligation | AFLS trim of the NFL's three checks and three roster games |
+| AI poaching | Where an AI club picks injury cover, an unprotected squad player elsewhere who reads a point better than the free agent it would sign; his place on the 53 is held until the settle. At the settle, a club still short makes the same call. One offer a club a week, above its in-season reserve, never a cut. Target 0.5–3 a club a season (an AFLS estimate; no public NFL count) | AFLS |
+| Losing a player | One mail from your head coach when a club signs your squad player | AFLS |

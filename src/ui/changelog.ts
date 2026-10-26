@@ -13,6 +13,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.1.15',
+    date: '2026-10-26',
+    title: 'Choose who you are',
+    text:
+      'New Game now shows the GM you start as: change the name and pick a starting age from 30 to 45. Rename ' +
+      'yourself any time with the pencil on your GM card, the same one player cards have.',
+  },
+  {
     version: '0.1.14',
     date: '2026-10-26',
     title: 'GM careers and owners who judge',

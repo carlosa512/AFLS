@@ -45,8 +45,8 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       issue is flagged by `npm run offseason`: some teams start a season short of 53. Staged personnel development
       careers now add waivers and practice squad formation, scouted AI offers, separate payroll and post-waiver
       roster funding, temporary call-ups and game-day active lists (`personnel/`), with the rules trimmed for play
-      (weekly settle points, one service counter; `docs/PRACTICE_SQUADS.md`). Poaching and protection come next,
-      then the yearly lifecycle; the feature stays off for ordinary careers until then.
+      (weekly settle points, one service counter; `docs/PRACTICE_SQUADS.md`). Poaching with two weekly protections
+      is in; the yearly lifecycle comes next, and the feature stays off for ordinary careers until then.
 
 ## The feel
 

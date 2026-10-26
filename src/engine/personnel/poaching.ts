@@ -75,8 +75,7 @@ export function protectedIds(league: League, teamId: number): number[] {
   return (locked.ids[teamId] ?? []).filter((id) => onSquad(league, teamId, id));
 }
 
-export const pinnedIds = (league: League, teamId: number): number[] =>
-  league.personnel?.poaching?.pins[teamId] ?? [];
+export const pinnedIds = (league: League, teamId: number): number[] => league.personnel?.poaching?.pins[teamId] ?? [];
 
 export function setPin(league: League, teamId: number, playerId: number, on: boolean): void {
   if (!onSquad(league, teamId, playerId)) throw new Error('Only players on your practice squad can be protected.');
