@@ -1096,6 +1096,8 @@ export interface InboxMessage {
   /** The week it's dated (0 in the offseason). */
   week: number;
   from: string;
+  /** Another club's front office wrote it (offers, deals): the inbox draws it in that club's colours. */
+  fromTeamId?: number;
   /** The sender's staff card, when one of the team's own staff signs it. */
   fromCard?: { kind: 'coach' | 'scout' | 'medic'; id: number };
   category: InboxCategory;

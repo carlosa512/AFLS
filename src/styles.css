@@ -3592,6 +3592,13 @@ button.tip-pill {
   background: color-mix(in srgb, var(--cat) 60%, #0d1210);
   flex: none;
 }
+.inbox-row.is-club {
+  box-shadow: inset 3px 0 0 var(--club);
+}
+.mail-tag-club {
+  background: var(--surface-2);
+  color: var(--ink);
+}
 .mail-av-lg {
   width: 44px;
   height: 44px;

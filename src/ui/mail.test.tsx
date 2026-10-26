@@ -11,7 +11,8 @@ import { dealAdvice } from '../engine/trade/advice';
 import type { Game, InboxMessage, League, TradeOffer } from '../engine/types';
 import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
-import { aboutOf, Folded, MessageBody } from './screens/Inbox';
+import { aboutOf, clubOf, Folded, MessageBody, SenderAvatar } from './screens/Inbox';
+import { badgeOn, contrast } from './color';
 import { MailCards, weekBack, weeksMissed } from './mail';
 
 // Fallbacks, tried in order until one has what a test needs: an opening league that commits as a settled one does
@@ -533,5 +534,42 @@ describe('SNN deal evidence', () => {
     expect(html).toContain('Receives');
     expect(html).toContain('2028 first-round pick');
     expect(html).toMatch(new RegExp(`<button[^>]*class="linklike"[^>]*>${name}</button>`));
+  });
+});
+
+describe('mail from another club', () => {
+  const l = createLeague({ seed: 'club-colours' });
+  const other = (l.userTeamId + 7) % 32;
+  const msg = (fromTeamId?: number): InboxMessage => ({
+    id: 'x',
+    season: l.season,
+    phase: 'regular',
+    week: 3,
+    from: fromTeamId === undefined ? 'Maureen Rose, Director of scouting' : 'Somewhere front office',
+    category: 'trades',
+    subject: 's',
+    body: 'b',
+    read: false,
+    actions: [],
+    fromTeamId,
+  });
+  it('shows mail from another club in its colours with its abbreviation', () => {
+    expect(clubOf(l, msg(other))?.id).toBe(other);
+    const html = renderToStaticMarkup(<SenderAvatar league={l} m={msg(other)} initials="SF" />);
+    expect(html).toContain(`>${l.teams[other].abbrev}<`);
+    expect(html.toLowerCase()).toContain(`background:${badgeOn(l.teams[other].colors[0]).bg.toLowerCase()}`);
+  });
+  it('keeps our own staff, and our own club, in the category colours', () => {
+    expect(clubOf(l, msg())).toBeNull();
+    expect(clubOf(l, msg(l.userTeamId))).toBeNull();
+    const html = renderToStaticMarkup(<SenderAvatar league={l} m={msg()} initials="MR" />);
+    expect(html).toContain('>MR<');
+    expect(html).toContain('cat-trades');
+  });
+  it('keeps every club’s initials readable', () => {
+    for (const t of l.teams) {
+      const { bg, ink } = badgeOn(t.colors[0]);
+      expect(contrast(bg, ink)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

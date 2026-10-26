@@ -137,7 +137,12 @@ export function migrateLeague(league: League): League | null {
     league.version = 46;
   }
   // v47: optional `Coach.actingAs` and `InboxMessage.fromTeamId`; nothing to rewrite for an acting coordinator.
-  if (league.version < 47) league.version = 47;
+  if (league.version < 47) {
+    // Mail from another club's front office learns which club, so the inbox can draw it in its colours.
+    const clubs = new Map(league.teams.map((t) => [`${t.city} ${t.name} front office`, t.id]));
+    for (const m of league.inbox ?? []) if (clubs.has(m.from)) m.fromTeamId = clubs.get(m.from);
+    league.version = 47;
+  }
   return league;
 }
 

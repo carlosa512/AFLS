@@ -13,7 +13,8 @@ import {
   threads,
   type MailThread,
 } from '../../engine/inbox';
-import type { InboxAction, InboxCategory, InboxMessage, League } from '../../engine/types';
+import type { InboxAction, InboxCategory, InboxMessage, League, Team } from '../../engine/types';
+import { badgeOn } from '../color';
 import { useNav } from '../App';
 import { PHASE_LABELS, weekLabel } from '../format';
 import { InjuryTag } from '../injuries';
@@ -118,6 +119,44 @@ function sender(from: string): { name: string; role: string; initials: string } 
     role: role.join(', '),
     initials: (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase(),
   };
+}
+
+/** The club that wrote it, when it's another club's front office (never ours). */
+export function clubOf(league: League, m: InboxMessage): Team | null {
+  return m.fromTeamId !== undefined && m.fromTeamId !== league.userTeamId ? (league.teams[m.fromTeamId] ?? null) : null;
+}
+
+/** The sender's badge: another club in its own colours with its abbreviation; our staff and the press by category. */
+export function SenderAvatar({
+  league,
+  m,
+  initials,
+  large,
+}: {
+  league: League;
+  m: InboxMessage;
+  initials: string;
+  large?: boolean;
+}) {
+  const club = clubOf(league, m);
+  const size = large ? ' mail-av-lg' : '';
+  if (!club) {
+    return (
+      <span className={`mail-av${size} cat-${m.category}`} aria-hidden="true">
+        {initials}
+      </span>
+    );
+  }
+  const { bg, ink } = badgeOn(club.colors[0]);
+  return (
+    <span
+      className={`mail-av${size} mail-av-club`}
+      style={{ background: bg, color: ink, boxShadow: `0 0 0 2px ${club.colors[1]}` }}
+      aria-hidden="true"
+    >
+      {club.abbrev}
+    </span>
+  );
 }
 
 /** Who a message is about: its players, the staff member who signs it, the coach it reports gone. Their names link first. */
@@ -325,16 +364,16 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                   const who = sender(label.from);
                   const lead = t.messages[0];
                   const isUnread = t.messages.some((m) => !m.read);
+                  const club = clubOf(league, lead);
                   return (
                     <button
                       key={t.key}
-                      className={`inbox-row${isUnread ? ' is-unread' : ''}`}
+                      className={`inbox-row${isUnread ? ' is-unread' : ''}${club ? ' is-club' : ''}`}
+                      style={club ? ({ '--club': club.colors[0] } as React.CSSProperties) : undefined}
                       aria-current={t.key === openKey ? 'true' : undefined}
                       onClick={() => read(t)}
                     >
-                      <span className={`mail-av cat-${lead.category}`} aria-hidden="true">
-                        {who.initials}
-                      </span>
+                      <SenderAvatar league={league} m={lead} initials={who.initials} />
                       <span style={{ minWidth: 0 }}>
                         <span className="inbox-from">
                           {isUnread && (
@@ -348,6 +387,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                         <span className="inbox-subject">{label.subject}</span>
                       </span>
                       <span className="inbox-tags">
+                        {club && <span className="mail-tag mail-tag-club">Other club</span>}
                         <span className={`mail-tag cat-${lead.category}`}>{tagOf(lead)}</span>
                         {t.messages.some((m) => needs.has(m.id)) && <span className="needs-pill">Needs you</span>}
                       </span>
@@ -653,9 +693,7 @@ function MessageHead({
   const who = sender(from);
   return (
     <header className="inbox-head">
-      <span className={`mail-av mail-av-lg cat-${m.category}`} aria-hidden="true">
-        {who.initials}
-      </span>
+      <SenderAvatar league={league} m={m} initials={who.initials} large />
       <div style={{ minWidth: 0 }}>
         <div className="small">
           {m.fromCard ? (

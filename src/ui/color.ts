@@ -52,6 +52,16 @@ export function mix(a: string, b: string, t: number): string {
 export const tint = (hex: string, t: number) => mix(hex, '#FFFFFF', t);
 export const shade = (hex: string, t: number) => mix(hex, DARK, t);
 
+/** A team-coloured badge with readable initials: the colour itself, or a shade darker when neither ink reads on it. */
+export function badgeOn(hex: string): { bg: string; ink: string } {
+  for (let t = 0; t < 1; t += 0.1) {
+    const bg = t ? shade(hex, t) : hex;
+    const ink = readableOn(bg, '#ffffff');
+    if (contrast(bg, ink) >= MIN_CONTRAST) return { bg, ink };
+  }
+  return { bg: DARK, ink: LIGHT };
+}
+
 export interface TeamColors {
   primary: string;
   secondary: string;

@@ -6,6 +6,7 @@ import { createLeague, generatePlayer } from './generate';
 import { applyInjury, IR_MIN_WEEKS, manageInjuries, NEED, placeOnIr } from './injuries';
 import { signPlayer } from './offseason/negotiation';
 import { Rng } from './rng';
+import { migrateLeague } from './migrate';
 import {
   aPosition,
   archiveMail,
@@ -1139,5 +1140,28 @@ describe('short positions in the inbox', () => {
     expect(needsYou(l, m)).toBe(true);
     releasePlayer(l, fa);
     expect(needsYou(l, m)).toBe(false);
+  });
+});
+
+describe('mail from another club', () => {
+  it('v47 backfills the sending club on other front offices’ mail', () => {
+    const l = createLeague({ seed: 'club-backfill' });
+    const t = l.teams[7];
+    const base = {
+      season: l.season,
+      phase: 'regular' as const,
+      week: 3,
+      category: 'trades' as const,
+      read: true,
+      actions: [],
+    };
+    l.inbox = [
+      { ...base, id: 'a', from: `${t.city} ${t.name} front office`, subject: 'Offer', body: '' },
+      { ...base, id: 'b', from: 'The owner', subject: 'Hi', body: '' },
+    ];
+    l.version = 46;
+    const up = migrateLeague(l)!;
+    expect(up.inbox![0].fromTeamId).toBe(7);
+    expect(up.inbox![1].fromTeamId).toBeUndefined();
   });
 });
