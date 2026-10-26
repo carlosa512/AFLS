@@ -189,7 +189,8 @@ the worst.
 
 Development runs once a year with the coaches a player finished the season with, so a hire takes
 effect at the next league year's development. Free agents have no coaches: their year is neutral.
-A new career starts with a full, typical staff: the first development pass comes before the first
+A new career inherits the club's full staff, graded on New Game beside its roster (scripts and tests keep a
+typical one, `inheritStaff` in `createLeague`): the first development pass comes before the first
 re-sign window, so an empty chair there would cost a year you couldn't prevent. The first decisions
 are the deals that run out after one season.
 
