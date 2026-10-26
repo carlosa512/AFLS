@@ -5,7 +5,7 @@ import type { Game, League, Player } from '../types';
 import { STARTERS } from '../positions';
 import { elevationDeadline, elevationReversion, personnelTime } from './calendar';
 import { serviceSeasons } from './service';
-import { invalidateSquadPayroll, settleSquadPayroll } from './payroll';
+import { settleSquadPayroll } from './payroll';
 import { PERSONNEL_RULES } from './rules';
 import type { Elevation } from './types';
 
@@ -37,20 +37,18 @@ export function nextTeamGame(l: League, teamId: number): Game | undefined {
     .sort((a, b) => a.week - b.week || a.id - b.id)[0];
 }
 /** CBA 2026–30 minimums; later years follow the cap, like practice-squad rates. */
-export function elevationMinimum(l: League, p: Player, down = false): number {
+export function elevationMinimum(l: League, p: Player): number {
   const credited = serviceSeasons(p, l.season);
   const tier = credited < 4 ? credited : credited < 7 ? 4 : 5;
   const year = Math.max(2026, Math.min(2030, l.season));
-  const value =
-    (down ? [515, 540, 565, 590, 615, 665] : [885, 1005, 1075, 1145, 1215, 1300])[tier] +
-    (year - 2026) * (down ? 25 : 45);
+  const value = [885, 1005, 1075, 1145, 1215, 1300][tier] + (year - 2026) * 45;
   const scale = l.season > 2030 ? l.caps[l.season] / (l.caps[2030] ?? l.caps[l.season] / 1.07 ** (l.season - 2030)) : 1;
   return cents((value * scale) / 18);
 }
 export function elevationCost(l: League, p: Player, g: Game): number {
   return g.playoffRound ? 0 : cents(Math.max(0, elevationMinimum(l, p) - (p.squad?.agreement?.weeklyPay ?? 0)));
 }
-/** Regular-season charges already earned plus planned commitments; postseason benefits are outside the cap. */
+/** Regular-season charges already earned plus planned commitments; playoff call-ups cost nothing. */
 export function elevationCap(l: League, teamId: number, season = l.season): number {
   if (season !== l.season) return 0;
   return cents(
@@ -197,53 +195,6 @@ export function planAIElevations(l: League, g: Game, autoUser = false): void {
     }
   }
 }
-/** Salary continuation is separate from the squad agreement and cannot be erased by re-signing. */
-export function noteElevationInjuries(l: League, g: Game): void {
-  for (const e of gameElevations(l, g, g.homeId).concat(gameElevations(l, g, g.awayId))) {
-    const p = l.players[e.playerId];
-    if (!p.injury || !p.squad?.agreement) continue;
-    p.squad.continuation ??= {
-      season: l.season,
-      fromWeek: g.week + 1,
-      weeklyPay: Math.max(e.weeklyPay, elevationMinimum(l, p, true)),
-      paidThrough: g.week,
-    };
-    invalidateSquadPayroll(l);
-  }
-}
-/** Prior game memberships, including elevations, determine half/full late-round postseason pay. */
-export function settlePostseasonElevationPay(l: League, g: Game): void {
-  if (!g.playoffRound || !g.result) return;
-  const year = Math.max(2026, Math.min(2030, l.season)) - 2026;
-  for (const e of elevationRecords(l).filter(
-    (e) => e.gameId === g.id && e.status !== 'planned' && e.status !== 'cancelled',
-  )) {
-    const prior = l.games.filter(
-      (other) =>
-        other.season === l.season &&
-        other.id !== g.id &&
-        other.result &&
-        other.personnel?.lists?.[e.teamId] &&
-        [...other.personnel.lists[e.teamId].dressedIds, ...other.personnel.lists[e.teamId].inactiveIds].includes(
-          e.playerId,
-        ),
-    ).length;
-    const champion = g.result.homeScore > g.result.awayScore ? g.homeId : g.awayId;
-    // AFLS simplifies the wildcard divisional-winner distinction to the higher standard payment.
-    const full =
-      g.playoffRound === 'FINAL'
-        ? (champion === e.teamId ? 188 : 113) + 10 * year
-        : g.playoffRound === 'CONF'
-          ? 87 + 6 * year
-          : 64.5 + 6 * year;
-    e.postseasonPay = cents(
-      full *
-        (['CONF', 'FINAL'].includes(g.playoffRound) && prior < 3 ? 0.5 : 1) *
-        (l.season > 2030 ? 1.07 ** (l.season - 2030) : 1),
-    );
-  }
-}
-
 /** A same-week NFL contract already contains the game check. Move its filed extra out of the squad cap ledger. */
 export function elevationPromotionCredit(l: League, p: Player, settle = false): number {
   const rows = elevationRecords(l).filter(

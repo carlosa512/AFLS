@@ -19,10 +19,8 @@ import {
   elevationRecords,
   elevationUses,
   gameElevations,
-  noteElevationInjuries,
   planAIElevations,
   planElevation,
-  settlePostseasonElevationPay,
 } from './elevations';
 import { autoGameDay, dressingLimit, gameDayPool, gameDayPreview, gameDayProblem, setGameDayPlan } from './gameDay';
 import { acceptSquadOffer, promoteSquadPlayer, releaseSquadPlayer, squadPromotionPreview } from './squads';
@@ -184,32 +182,22 @@ describe('temporary call-ups and durable history', () => {
       expect(elevationReversion(game) - Math.floor(gameTime(game) / DAY) * DAY).toBe(offset * DAY + 16 * 60);
     }
   });
-  it('preserves the declared use when injured after filing, pays down-rate continuation and releases future charges on clearance', () => {
+  it('an injured squad member keeps his weekly pay and his place', () => {
     const p = player();
     file(p);
     p.injury = injury();
-    noteElevationInjuries(l, g);
     expect(elevationUses(l, p)).toBe(1);
     expect(gameDayPreview(l, g, g.homeId).dressedIds).not.toContain(p.id);
-    expect(p.squad!.continuation!.weeklyPay).toBeGreaterThan(p.squad!.agreement!.weeklyPay);
-    const projected = squadPayroll(l, g.homeId).projected;
-    l.week = 2;
     settleSquadPayroll(l);
     const earned = squadPayroll(l, g.homeId).earned;
-    expect(earned).toBeGreaterThan(0);
-    delete p.injury;
+    l.week = 3;
     settleSquadPayroll(l);
-    expect(p.squad!.continuation).toBeUndefined();
-    expect(squadPayroll(l, g.homeId).projected).toBeLessThan(projected);
-  });
-  it('postseason injuries never create a negative remaining regular-season payroll', () => {
-    const p = player('QB');
-    nextGame(p, 19, true);
-    file(p);
-    p.injury = injury(19);
-    noteElevationInjuries(l, g);
-    expect(squadPayroll(l, g.homeId).projected).toBe(0);
-    expect(squadPayroll(l, g.homeId).total).toBeGreaterThanOrEqual(0);
+    const weekly = practiceSquad(l, g.homeId).reduce((sum, x) => sum + x.squad!.agreement!.weeklyPay, 0);
+    expect(practiceSquad(l, g.homeId)).toContain(p);
+    // Two more weeks of the whole squad's checks, his at his usual rate: no injury top-up.
+    expect(squadPayroll(l, g.homeId).earned).toBeCloseTo(earned + 2 * weekly, 3);
+    expect(p.squad!.kind).toBe('practiceSquad');
+    expect(JSON.stringify(p.squad)).not.toContain('continuation');
   });
   it('upgrades a prepared v44 development game to a legal active list without inventing finished-game history', () => {
     g.serviceRoster = activeRoster(l, g.homeId).map((p) => ({ playerId: p.id, list: 'active' }));
@@ -221,7 +209,6 @@ describe('temporary call-ups and durable history', () => {
     p.service = initialService(0, 2025);
     expect(elevationMinimum(l, p)).toBeCloseTo(885 / 18, 2);
     p.service = initialService(7, 2025);
-    expect(elevationMinimum(l, p, true)).toBeCloseTo(665 / 18, 2);
     l.season = 2027;
     expect(elevationMinimum(l, p)).toBeCloseTo(1345 / 18, 2);
   });
@@ -255,17 +242,15 @@ describe('temporary call-ups and durable history', () => {
     expect(elevationCap(l, g.homeId)).toBe(0);
     expect(elevationRecords(l).find((e) => e.playerId === p.id)!.creditedToContract).toBe(true);
   });
-  it('records postseason benefits without a cap charge, with half-pay for a new late-round call-up', () => {
+  it('a playoff call-up charges no cap and records no pay', () => {
     const p = player('QB');
     nextGame(p, 21, true);
     g.playoffRound = 'CONF';
     playWith(p);
     const entry = elevationRecords(l).find((e) => e.playerId === p.id)!;
-    expect(entry.postseasonPay).toBe(43.5);
+    expect(entry.additionalCap).toBe(0);
     expect(elevationCap(l, g.homeId)).toBe(0);
-    const before = JSON.stringify(entry);
-    settlePostseasonElevationPay(l, g);
-    expect(JSON.stringify(entry)).toBe(before);
+    expect(Object.keys(entry)).not.toContain('postseasonPay');
   });
   it('migrates old careers without turning on personnel or inventing prior game-day lists', () => {
     const old = createLeague({ seed: 'elevation-migration' });

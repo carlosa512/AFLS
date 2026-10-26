@@ -23,7 +23,6 @@ import { addStats } from './stats';
 import { captureManagement, creditManagement } from './service';
 import { teamCoaches } from './coaching';
 import { playoffSummary } from './records';
-import { noteElevationInjuries, settlePostseasonElevationPay } from './personnel/elevations';
 import { recordGameService, serviceRoster } from './personnel/service';
 import { gameTime } from './personnel/calendar';
 import { preparePersonnelGame, syncPersonnelTime } from './personnel/flow';
@@ -79,8 +78,6 @@ export function recordResult(league: League, game: Game, result: GameResult): vo
     const hurt = diagnoses?.[playerId];
     if (p && hurt) applyInjury(league, p, hurt.injury, hurt.scar);
   }
-  noteElevationInjuries(league, game);
-  settlePostseasonElevationPay(league, game);
   // Form and the marbles a game drops in a player's bag (playoffs too: a big game leaves a mark).
   for (const [id, line] of Object.entries(result.playerStats)) {
     const player = league.players[Number(id)];

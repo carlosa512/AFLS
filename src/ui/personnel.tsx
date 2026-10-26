@@ -97,7 +97,7 @@ export function CallupAction({ league, player }: { league: League; player: Playe
           </p>
           <p>
             {g.playoffRound
-              ? 'Postseason pay is outside the salary cap.'
+              ? 'Playoff call-ups cost nothing against the cap.'
               : `His pay for this game is ${weeklyMoney(elevationMinimum(league, player))}, replacing the normal squad check.`}
           </p>
           <div className="facts">

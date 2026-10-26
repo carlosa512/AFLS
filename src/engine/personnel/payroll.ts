@@ -45,12 +45,6 @@ export function squadPayroll(league: League, teamId: number, season = league.sea
     const total = totals.get(p.teamId)!;
     total.earned += Math.max(0, week - Math.max(a.paidThrough, a.startWeek - 1)) * a.weeklyPay;
     total.projected += (18 - Math.max(week, a.startWeek - 1)) * a.weeklyPay;
-    const continuation = p.squad?.continuation;
-    if (p.injury && continuation?.season === season) {
-      const extra = Math.max(0, continuation.weeklyPay - a.weeklyPay);
-      total.earned += Math.max(0, week - Math.max(continuation.paidThrough, continuation.fromWeek - 1)) * extra;
-      total.projected += Math.max(0, 18 - Math.max(week, continuation.fromWeek - 1)) * extra;
-    }
   }
   for (const pay of totals.values()) {
     pay.total = cents(pay.earned + pay.projected);
@@ -80,17 +74,6 @@ export function settleSquadPayroll(league: League): void {
       payroll.earned[p.teamId] = cents((payroll.earned[p.teamId] ?? 0) + count * a.weeklyPay);
       payroll.receipts[key(p.teamId, p.id)] = a.weeklyPay;
       a.paidThrough = week;
-    }
-    const continuation = p.squad?.continuation;
-    if (continuation?.season === league.season) {
-      if (!p.injury) delete p.squad!.continuation;
-      else {
-        const checks = Math.max(0, week - Math.max(continuation.paidThrough, continuation.fromWeek - 1));
-        payroll.earned[p.teamId] = cents(
-          (payroll.earned[p.teamId] ?? 0) + checks * Math.max(0, continuation.weeklyPay - a.weeklyPay),
-        );
-        continuation.paidThrough = week;
-      }
     }
   }
 }
@@ -132,6 +115,5 @@ export function promotionCredit(league: League, p: Player, settle = false): numb
   return credit;
 }
 
-/** Current injury-continuation rate for contract displays; call-up top-ups are shown separately. */
-export const weeklySquadPay = (p: Player) =>
-  p.injury && p.squad?.continuation ? p.squad.continuation.weeklyPay : (p.squad?.agreement?.weeklyPay ?? 0);
+/** An injured squad member keeps his usual check; call-up top-ups are shown separately. */
+export const weeklySquadPay = (p: Player) => p.squad?.agreement?.weeklyPay ?? 0;

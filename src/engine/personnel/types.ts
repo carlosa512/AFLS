@@ -77,7 +77,6 @@ export interface WaiverResult {
 /** Active and IR continue to use the existing employer and `ir` record. */
 export interface SquadMembership {
   kind: 'practiceSquad' | 'practiceSquadInjured';
-  continuation?: { season: number; fromWeek: number; weeklyPay: number; paidThrough: number };
   agreement?: { season: number; weeklyPay: number; startWeek: number; paidThrough: number };
 }
 
@@ -115,7 +114,6 @@ export interface Elevation {
   additionalCap: number;
   creditedToContract?: true;
   weeklyPay: number;
-  postseasonPay?: number;
   reason?: string;
 }
 export interface GameDayPlan {

@@ -237,10 +237,9 @@ export function PracticeSquad({ league }: { league: League }) {
             {veterans}/6 veteran slots.
           </p>
           <p className="small muted">
-            A standard spot covers players with no accrued seasons, or only one accrued season with fewer than nine
-            known game-day activations. An accrued season means at least six regular-season games on the main roster or
-            injured reserve. Other players with up to two accrued seasons can use an experience exception; veterans use
-            the veteran slots.
+            A standard spot covers players with no seasons of service. A season of service means at least six
+            regular-season games on the main roster, called up or on injured reserve. Players with one or two seasons
+            use the special slots; three or more makes a veteran.
           </p>
         </details>
         {window && <p className="callout">{window}</p>}
