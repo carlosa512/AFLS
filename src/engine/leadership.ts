@@ -413,8 +413,10 @@ function hireForTeam(l: League, t: Team, rng: Rng): void {
     .map((s) => ({ s, score: 0.33 + 0.018 * staffValue(s) + (s.teamId === t.id ? 0.05 : 0) + rng.normal(0, 0.14) }))
     .sort((a, b) => b.score - a.score);
   // About one new GM in seven is a former GM getting another chance (NFL hires 2020–2025): owners mostly give new
-  // blood a shot. Comparing one former GM against the best of every director in the league never let him win.
-  const retread = former && (!directors.length || rng.chance(clamp(0.08 + 0.5 * (former.score - 0.3), 0.04, 0.35)));
+  // blood a shot. The odds read his record, not the shortlist's luck: the pool of former GMs grows every year.
+  const retread =
+    former &&
+    (!directors.length || rng.chance(clamp(0.04 + 0.45 * (gmCandidateScore(l, t.id, former.g) - 0.3), 0.03, 0.3)));
   if (retread) {
     appointGm(l, t.id, former.g.id, { through: l.season + 2 });
     recordHire(l, t, former.g);
@@ -470,8 +472,8 @@ function lostLast(l: League, teamId: number): boolean {
   return g.homeId === teamId ? homeScore < awayScore : awayScore < homeScore;
 }
 
-/** How often an owner on a lost season reaches into the bag after a loss: tuned so the league fires about one GM in season a year. */
-const OWNER_REACH = 0.25;
+/** How often an owner on a lost season reaches into the bag after a loss: tuned to the NFL's in-season firings. */
+const OWNER_REACH = 0.3;
 
 /**
  * In-season reviews, week by week from the eighth: only after a loss, only on a pace of .300 or worse, and only
@@ -498,8 +500,12 @@ export function leadershipWeek(l: League): void {
     const coachAlready = l.leadership.events.some(
       (e) => e.teamId === t.id && e.date.season === l.season && e.kind === 'coachInterim',
     );
-    const drawn = drawInSeason(ownerBag(l, t), heatSoFar(l, t, rec, (ranks ??= talentRanks(l)).get(t.id)!), rng);
-    const fireGm = drawn.gm && !a.interim && !gmAlready && tenure >= 2;
+    const bag = ownerBag(l, t),
+      extra = heatSoFar(l, t, rec, (ranks ??= talentRanks(l)).get(t.id)!);
+    const drawn = drawInSeason(bag, extra, rng);
+    // A GM fired in season is rarer than a head coach (NFL: one every year or two, against two coaches a year):
+    // his marble has to come out twice.
+    const fireGm = drawn.gm && drawInSeason(bag, extra, rng).gm && !a.interim && !gmAlready && tenure >= 2;
     if (fireGm) {
       const hc = head(l, t.id);
       if (hc && !hc.interim && rng.chance(0.6))

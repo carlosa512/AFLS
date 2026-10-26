@@ -110,9 +110,15 @@ if (args.includes('--worker')) {
           l.gms[e.gmId].origin === 'director' &&
           l.gms[e.gmId].appointments.length === 1,
       ).length,
-      experiencedGms: events.filter(
-        (e) => e.kind === 'gmHired' && e.gmId && e.gmId !== userId && l.gms[e.gmId].appointments.length > 1,
-      ).length,
+      // Former GMs hired permanently: an interim confirmed in the same chair is not another chance elsewhere.
+      experiencedGms: events.filter((e) => {
+        if (e.kind !== 'gmHired' || !e.gmId || e.gmId === userId) return false;
+        const jobs = l.gms[e.gmId].appointments;
+        const now = jobs.map((a) => a.teamId === e.teamId && !a.interim).lastIndexOf(true);
+        const before = jobs.slice(0, Math.max(0, now));
+        const confirmed = before.at(-1)?.teamId === e.teamId && before.at(-1)?.interim;
+        return now >= 0 && !confirmed && before.some((a) => !a.interim);
+      }).length,
       offersWhileOut,
       champion: l.teams[summary.championId].abbrev,
       kickoff,
