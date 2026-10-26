@@ -53,6 +53,8 @@ import {
 } from './offseason/ai';
 import { ROSTER_MAX, signPlayer } from './offseason/negotiation';
 import { aiPoachCover, heldForPoaching } from './personnel/poaching';
+import { squadCover } from './personnel/cover';
+import { promoteSquadPlayer, squadPromotionPreview } from './personnel/squads';
 import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
 import { clamp, Rng } from './rng';
@@ -1595,6 +1597,19 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     const pos =
       short ??
       POSITIONS.map((p) => ({ p, gap: (healthy.get(p) ?? 0) - KEEP_MIN[p] })).sort((a, b) => a.gap - b.gap)[0].p;
+    // Practice squads on: a short absence is a call-up at kickoff; a longer one promotes the club's own squad player
+    // when it reads him at least as well as the best free agent (never for you: signings stay yours).
+    if (short) {
+      const fromSquad = squadCover(league, team.id, short);
+      if (fromSquad === 'callup') {
+        stuck.add(short);
+        continue;
+      }
+      if (fromSquad && open && !squadPromotionPreview(league, fromSquad).problem) {
+        promoteSquadPlayer(league, fromSquad);
+        continue;
+      }
+    }
     // Only a deal that fits under the cap: a team out of room plays short-handed (the lineup borrows a fill-in).
     // It makes sure a signing fits before it cuts a man to make a spot, or it would release him for a deal it
     // can't make (and leave a street free agent it can't afford on the market).
