@@ -21,6 +21,7 @@ import { serviceSeasons } from './service';
 import { squadMinimumContract } from './squads';
 import type { PersonnelState, PoachOffer, PoachResult } from './types';
 import { waiverOrder } from './waivers';
+import { REGULAR_SEASON_WEEKS } from '../season/schedule';
 
 const PROTECTIONS = 2;
 
@@ -85,14 +86,24 @@ export function setPin(league: League, teamId: number, playerId: number, on: boo
   state.pins[teamId] = on ? [...pins, playerId] : pins;
 }
 
-/** Protected now: this week's locked list once the week has settled, otherwise the list it will lock. */
+/**
+ * Protection lists are public once locked: other clubs (and their AI) see the latest lock, never the picks a club's
+ * private scouting would make next. A club sees its own coming picks before they lock.
+ */
 export function protectedThisWeek(league: League, teamId: number): number[] {
+  if (teamId === league.userTeamId && league.personnel?.poaching?.locked.week !== league.week)
+    return protectionPicks(league, teamId);
   return shielded(league, teamId);
 }
 function shielded(league: League, teamId: number): number[] {
-  return league.personnel?.poaching?.locked.week === league.week
-    ? protectedIds(league, teamId)
-    : protectionPicks(league, teamId);
+  return (league.personnel?.poaching?.locked.ids[teamId] ?? []).filter((id) => onSquad(league, teamId, id));
+}
+
+/** True once the last regular-season settle is done: an offer could no longer resolve. */
+function noSettleLeft(league: League): boolean {
+  if (league.phase !== 'regular') return true;
+  const settled = league.personnel?.clock?.season === league.season ? league.personnel.clock.settledWeek : undefined;
+  return league.week > REGULAR_SEASON_WEEKS || (league.week === REGULAR_SEASON_WEEKS && settled === league.week);
 }
 
 /** The minimum for his service, one or two years, with three weeks of base guaranteed (cut early: dead money). */
@@ -103,20 +114,17 @@ export function poachContract(league: League, p: Player, years: 1 | 2): Contract
   return c;
 }
 
-const thisWeeksGame = (league: League, teamId: number) => {
-  const g = nextTeamGame(league, teamId);
-  return g && g.week === league.week ? g : undefined;
-};
-
 export function poachProblem(league: League, offer: PoachOffer, resolving = false): string | null {
   if (!league.personnel?.enabled) return 'Personnel transactions are not active.';
   if (league.phase !== 'regular') return 'Practice squad players can be signed away in the regular season only.';
+  if (noSettleLeft(league)) return 'The regular season has no settle left for squad signings.';
   const p = league.players[offer.playerId];
   if (!p || p.teamId === null || p.squad?.kind !== 'practiceSquad' || !p.squad.agreement || p.teamId === offer.teamId)
     return "Only another club's practice squad players can be signed this way.";
   if (offer.years !== 1 && offer.years !== 2) return 'Offer one or two years.';
   if (shielded(league, p.teamId).includes(p.id)) return 'He is protected this week.';
-  const g = thisWeeksGame(league, offer.teamId);
+  // The game the settle will see: the club's next unplayed one, even before this week's settle has run.
+  const g = nextTeamGame(league, offer.teamId);
   if (g && (g.homeId === p.teamId || g.awayId === p.teamId)) return 'You play them this week.';
   // A plan that hasn't filed is cancelled when he leaves; a filed call-up or a locked game list holds him.
   const planned = elevationRecords(league).some((e) => e.playerId === p.id && e.status === 'planned');
@@ -181,7 +189,8 @@ export function resolvePoaching(league: League): PoachResult[] {
   const players = [...new Set(state.offers.map((o) => o.playerId))].sort((a, b) => a - b);
   for (const playerId of players) {
     const p = league.players[playerId];
-    const fromTeamId = p.teamId!;
+    // Released since the offer: every offer lapses (poachProblem says why); -1 marks no club.
+    const fromTeamId = p.teamId ?? -1;
     const ranked = state.offers
       .filter((o) => o.playerId === playerId)
       .sort((a, b) => b.years - a.years || order.indexOf(a.teamId) - order.indexOf(b.teamId));
@@ -207,7 +216,8 @@ const POACH_MARGIN = 1;
 
 /** Waiting offers hold places on the club's 53 and the positions they'll fill until the settle. */
 export function heldForPoaching(league: League, teamId: number): { places: number; positions: Set<Position> } {
-  const offers = league.personnel?.poaching?.offers.filter((o) => o.teamId === teamId) ?? [];
+  const offers =
+    league.phase === 'regular' ? (league.personnel?.poaching?.offers.filter((o) => o.teamId === teamId) ?? []) : [];
   return { places: offers.length, positions: new Set(offers.map((o) => league.players[o.playerId].position)) };
 }
 
@@ -220,6 +230,8 @@ function bestPoach(league: League, teamId: number, pos: Position, bar: number): 
     const shield = shielded(league, t.id);
     for (const p of practiceSquad(league, t.id)) {
       if (p.position !== pos || p.injury || shield.includes(p.id)) continue;
+      // Another club is already after him: a likely lapse, and a place held for nothing.
+      if (league.personnel?.poaching?.offers.some((o) => o.playerId === p.id)) continue;
       const ovr = read(p);
       if (ovr < bar + POACH_MARGIN || (best && (ovr < best.ovr || (ovr === best.ovr && p.id > best.offer.playerId))))
         continue;

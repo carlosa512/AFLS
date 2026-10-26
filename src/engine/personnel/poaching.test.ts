@@ -11,7 +11,7 @@ import { deliverMail, mailSubject } from '../inbox';
 import { manageInjuries } from '../injuries';
 import { Rng } from '../rng';
 import { elevationRecords, nextTeamGame, planElevation } from './elevations';
-import { settleWeek } from './flow';
+import { settleWeek, syncPersonnel } from './flow';
 import {
   lockProtections,
   poachContract,
@@ -125,7 +125,8 @@ describe('poaching', () => {
   it("a protected player can't be poached", () => {
     const from = apart(0);
     room(0);
-    const star = l.players[protectionPicks(l, from)[0]];
+    lockProtections(l); // lists are public once locked
+    const star = l.players[protectedIds(l, from)[0]];
     expect(poachProblem(l, { playerId: star.id, teamId: 0, years: 1 })).toMatch(/protected/);
   });
 
@@ -337,5 +338,119 @@ describe('losing a squad player', () => {
     expect(mail[0].subject).toContain(p.lastName);
     expect(mail[0].subject).toContain(l.teams[club].name);
     expect(mailSubject(mail[0])).toEqual({ kind: 'squadPoach', season: l.season, week: l.week, playerId: p.id });
+  });
+});
+
+describe('review fixes', () => {
+  const offers = () => l.personnel?.poaching?.offers ?? [];
+  const retire = (teamId: number, pos: string) => {
+    for (const p of activeRoster(l, teamId).filter((x) => x.position === pos))
+      Object.assign(p, { teamId: null, contract: null, retired: true });
+  };
+
+  it('no offers once the last regular-season settle is done, and none carry into the playoffs', () => {
+    l.week = 18;
+    settleWeek(l);
+    room(0);
+    const from = l.teams.find(
+      (t) =>
+        t.id !== 0 &&
+        !l.games.some((g) => g.week === 18 && [g.homeId, g.awayId].includes(t.id) && [g.homeId, g.awayId].includes(0)),
+    )!.id;
+    expect(poachProblem(l, { playerId: target(from).id, teamId: 0, years: 1 })).toMatch(/season/);
+    l.personnel!.poaching!.offers.push({ playerId: target(from).id, teamId: 3, years: 1 });
+    l.phase = 'playoffs';
+    l.week = 19;
+    expect(heldForPoaching(l, 3).places).toBe(0);
+    syncPersonnel(l);
+    expect(offers()).toHaveLength(0);
+  });
+
+  it("an offer for a player on the club's next opponent is refused when made", () => {
+    // After this week's games, before the next settle: the next game is next week's.
+    for (const g of l.games.filter((g) => g.week === 1)) g.result = {} as never;
+    const g = nextTeamGame(l, 0)!;
+    expect(g.week).toBe(2);
+    const opp = g.homeId === 0 ? g.awayId : g.homeId;
+    room(0);
+    expect(poachProblem(l, { playerId: target(opp).id, teamId: 0, years: 1 })).toMatch(/play them/);
+  });
+
+  it('AI clubs skip a player another club already offered for', () => {
+    const clubs = l.teams
+      .map((t) => t.id)
+      .filter((id) => id !== 0)
+      .slice(0, 6);
+    for (const id of clubs) retire(id, 'WR');
+    for (const p of Object.values(l.players)) if (p.teamId === null && p.position === 'WR') p.retired = true;
+    submitAIPoachOffers(l);
+    const ids = offers().map((o) => o.playerId);
+    expect(ids.length).toBeGreaterThan(1);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('an AI club whose offer lapsed fills the place it held at the settle', () => {
+    const club = apart(0);
+    room(club); // 52, the 53rd place held for a poach
+    const meets = (a: number, b: number) => {
+      const g = nextTeamGame(l, a)!;
+      return g.homeId === b || g.awayId === b;
+    };
+    const from = l.teams.find((t) => t.id !== 0 && t.id !== club && !meets(0, t.id) && !meets(club, t.id))!.id;
+    const p = target(from);
+    l.personnel!.poaching = {
+      season: l.season,
+      offers: [{ playerId: p.id, teamId: club, years: 1 }],
+      results: [],
+      locked: { week: -1, ids: {} },
+      pins: {},
+    };
+    room(0);
+    submitPoachOffer(l, { playerId: p.id, teamId: 0, years: 2 }); // we outbid
+    expect(activeRoster(l, club)).toHaveLength(52);
+    settleWeek(l);
+    expect(p.teamId).toBe(0);
+    expect(activeRoster(l, club)).toHaveLength(53);
+  });
+
+  it('a held place never makes an AI club cut a player', () => {
+    const club = apart(0);
+    const wr = activeRoster(l, club)
+      .filter((x) => x.position === 'WR')
+      .at(-1)!;
+    Object.assign(wr, { teamId: null, contract: null, retired: true }); // 52
+    l.personnel!.poaching = {
+      season: l.season,
+      offers: [{ playerId: target(0).id, teamId: club, years: 1 }],
+      results: [],
+      locked: { week: -1, ids: {} },
+      pins: {},
+    };
+    for (const p of activeRoster(l, club).filter((x) => x.position === 'TE'))
+      p.injury = {
+        type: 'Ankle sprain',
+        severity: 'moderate',
+        weeksRemaining: 1,
+        estimate: [1, 1],
+        season: l.season,
+        week: 1,
+        where: 'game',
+      };
+    const before = activeRoster(l, club).map((p) => p.id);
+    manageInjuries(l, l.teams[club], new Rng('held'));
+    const after = new Set(activeRoster(l, club).map((p) => p.id));
+    expect(before.every((id) => after.has(id))).toBe(true);
+  });
+
+  it('the loss mail still arrives after the last regular-season week', () => {
+    const club = apart(0);
+    room(club);
+    const p = target(0);
+    submitPoachOffer(l, { playerId: p.id, teamId: club, years: 1 });
+    settleWeek(l);
+    l.phase = 'playoffs';
+    l.week = 19;
+    deliverMail(l);
+    expect((l.inbox ?? []).some((m) => m.id.startsWith('squadPoach:'))).toBe(true);
   });
 });

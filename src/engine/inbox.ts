@@ -2211,7 +2211,9 @@ export function deliverMail(league: League): void {
         ...flexMail(league, have),
       );
     }
-    if (league.phase === 'regular') fresh.push(...deadlineMail(league, have), ...squadPoachMail(league, have));
+    if (league.phase === 'regular') fresh.push(...deadlineMail(league, have));
+    // The week-18 settle runs in the same step that starts the playoffs.
+    if (league.phase === 'regular' || league.phase === 'playoffs') fresh.push(...squadPoachMail(league, have));
     if (league.phase === 'regular' || league.phase === 'resign') fresh.push(...marketMail(league, have));
     if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
       fresh.push(...marketRecapMail(league, have));

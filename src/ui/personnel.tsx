@@ -460,7 +460,7 @@ export function SquadSignings({ league }: { league: League }) {
   const state = league.personnel?.poaching;
   const mine = state?.offers.filter((o) => o.teamId === league.userTeamId) ?? [];
   const recent = (state?.results ?? [])
-    .filter((r) => r.toTeamId !== null)
+    .filter((r) => r.toTeamId !== null && r.season === league.season)
     .slice(-10)
     .reverse();
   return (

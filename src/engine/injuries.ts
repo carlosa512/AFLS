@@ -1562,7 +1562,7 @@ function releaseCovers(league: League, team: Team): void {
  * a minimum deal, cutting to make room. Without it (your staff) nobody is signed or cut.
  * `roster` is the team as it stood before this pass (re-read only once a move changes it).
  */
-function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], sign: boolean): void {
+function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], sign: boolean, poach = true): void {
   releaseCovers(league, team);
   let current = roster.filter((p) => p.teamId === team.id && !p.ir && !p.squad);
   // Positions nobody on the roster can cover, when this pass can't sign: left short.
@@ -1603,8 +1603,10 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     const budget = Math.min(room, inSeasonReserve(league, team.id));
     // Priced once: a cut to make room sends a man at another position to the market, not one this pick weighs.
     const pick = needSigning(league, team, pos, budget);
-    if (open && aiPoachCover(league, team.id, pos, pick?.player)) continue;
+    if (poach && open && aiPoachCover(league, team.id, pos, pick?.player)) continue;
     if (!pick && !minimumFits(league, pos, room)) return;
+    // A place held for a poaching offer is never a reason to cut a man.
+    if (!open && current.length < ROSTER_MAX) return;
     if (!open && !cutForRoom(league, team, pos)) return;
     if (pick) {
       signPlayer(league, pick.player, team.id, pick.offer);
@@ -1612,6 +1614,12 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     }
     if (!signMinimum(league, team, rng, pos, room)) return;
   }
+}
+
+/** AI only: cover and fill the 53 again, e.g. after a poaching offer it held a place for has lapsed. */
+export function refillRoster(league: League, team: Team): void {
+  const rng = new Rng(`${league.seed}:${league.season}:${league.week}:refill:${team.id}`);
+  coverPositions(league, team, rng, teamPlayers(league, team.id), true, false);
 }
 
 /**

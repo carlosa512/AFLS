@@ -16,11 +16,13 @@ let failures = 0;
 for (let i = 0; i < count; i++) {
   const l = createLeague({ seed: `poaching-audit-${i}`, personnel: true, userTeamId: 0 });
   let poached = 0;
+  let lapsed = 0;
   while (l.phase === 'regular') {
     const week = l.week;
     const games = l.games.filter((g) => g.season === l.season && g.week === week);
     playWeek(l);
     const state = l.personnel!.poaching;
+    lapsed += state?.results.filter((r) => r.week === week && r.season === l.season && r.toTeamId === null).length ?? 0;
     for (const r of state?.results.filter((r) => r.week === week && r.toTeamId !== null) ?? []) {
       poached++;
       assert.equal(state!.locked.week, week, 'Protections were not locked for the week');
@@ -43,10 +45,12 @@ for (let i = 0; i < count; i++) {
       assert.equal(hash(copy), settled, 'A second settle in the same week changed the save');
     }
   }
+  // Nothing may wait into the playoffs: an offer there would never resolve and would block cover.
+  assert.equal(l.personnel!.poaching?.offers.length ?? 0, 0, 'A poaching offer outlived the regular season');
   const ok = poached >= BAND[0] && poached <= BAND[1];
   if (!ok) failures++;
   console.log(
-    `${ok ? '✓' : '✗'} ${l.seed}: ${poached} poaches in a season (target ${BAND[0]}–${BAND[1]}); rosters, cap, protections, opponents and re-settles legal`,
+    `${ok ? '✓' : '✗'} ${l.seed}: ${poached} poaches in a season (target ${BAND[0]}–${BAND[1]}), ${lapsed} lapsed offers; rosters, cap, protections, opponents and re-settles legal`,
   );
 }
 console.log(`${failures} poaching number(s) outside target range`);

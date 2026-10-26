@@ -6,7 +6,7 @@ import { squadCandidates } from '../engine/personnel/squadMarket';
 import { squadRates } from '../engine/personnel/eligibility';
 import { practiceSquad } from '../engine/roster';
 import { contractLabel } from './contracts';
-import { protectionPicks, setPin } from '../engine/personnel/poaching';
+import { lockProtections, protectionPicks, setPin } from '../engine/personnel/poaching';
 import { PoachAction, ProtectionCell } from './personnel';
 import { hashToRoute, routeToHash } from './routes';
 import { PracticeSquad } from './screens/PracticeSquad';
@@ -59,8 +59,16 @@ describe('practice squad desk', () => {
     const shielded = l.players[protectionPicks(l, 7)[0]];
     const open = theirs.find((p) => !protectionPicks(l, 7).includes(p.id))!;
     expect(renderToStaticMarkup(<PoachAction league={l} player={open} />)).toContain('Sign to our 53');
+    lockProtections(l);
     expect(renderToStaticMarkup(<PoachAction league={l} player={shielded} />)).toContain('Protected');
     expect(renderToStaticMarkup(<PoachAction league={l} player={practiceSquad(l, 0)[0]} />)).toBe('');
     expect(renderToStaticMarkup(<PracticeSquad league={l} />)).toContain('Squad signings');
+  });
+  it("shows other clubs' protections only once the week has locked them", () => {
+    const l = createLeague({ seed: 'squad-ui-poach', personnel: true, userTeamId: 0 });
+    const top = l.players[protectionPicks(l, 7)[0]];
+    expect(renderToStaticMarkup(<PoachAction league={l} player={top} />)).toContain('Sign to our 53');
+    lockProtections(l);
+    expect(renderToStaticMarkup(<PoachAction league={l} player={top} />)).toContain('Protected');
   });
 });

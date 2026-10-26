@@ -10,6 +10,13 @@ import { submitAIClaims } from './ai';
 import { gameTime, personnelClock } from './calendar';
 import { ensureWaivers, resolveWaiverBatch } from './waivers';
 import { lockProtections, resolvePoaching, submitAIPoachOffers } from './poaching';
+import { refillRoster } from '../injuries';
+
+/** A club that signed someone at this settle has its place filled already. */
+const resolvedForTeam = (league: League, teamId: number) =>
+  (league.personnel?.poaching?.results ?? []).some(
+    (r) => r.toTeamId === teamId && r.season === league.season && r.week === league.week,
+  );
 import type { WaiverResult } from './types';
 
 export const waiversPending = (league: League): boolean => !!league.personnel?.waivers?.pending.length;
@@ -37,7 +44,14 @@ export function settleWeek(league: League): void {
   if (league.phase === 'regular') {
     lockProtections(league);
     submitAIPoachOffers(league);
-    resolvePoaching(league);
+    // An AI club whose offer lapsed fills the place it held, so it never plays a man short for it.
+    const lapsed = new Set(
+      resolvePoaching(league)
+        .filter((r) => r.toTeamId === null && r.teamId !== league.userTeamId)
+        .map((r) => r.teamId),
+    );
+    for (const teamId of [...lapsed].sort((a, b) => a - b))
+      if (!resolvedForTeam(league, teamId)) refillRoster(league, league.teams[teamId]);
   }
   clock.settledWeek = league.week;
 }
@@ -89,6 +103,8 @@ export function finishPersonnelGame(league: League, game: Game): void {
 /** After each week and calendar step: pay the squads and, in season, fill open squad places. */
 export function syncPersonnel(league: League): void {
   if (!league.personnel?.enabled) return;
+  // Offers can only resolve at a regular-season settle: none waits into the playoffs or the offseason.
+  if (league.phase !== 'regular' && league.personnel.poaching?.offers.length) league.personnel.poaching.offers = [];
   settleSquadPayroll(league);
   if (league.phase === 'regular') formPracticeSquads(league);
 }
