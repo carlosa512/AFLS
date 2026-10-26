@@ -40,13 +40,12 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       windows, with player fit, career history and staff reports (`docs/COACH_QUIRKS.md`). HC/OC/DC numeric ratings
       still do not directly supply a general game-day quality edge; the special teams coordinator has one
       (`specialTeamsEdge`).
-- [ ] **12. AI teams that manage their rosters sensibly** · **Partial**: AI front offices draft, sign, cut, trade and
-      stay cap-legal (`offseason/ai.ts`), keeping a cap reserve for the season by their GM's cap style. One known
-      issue is flagged by `npm run offseason`: some teams start a season short of 53. Staged personnel development
-      careers now add waivers and practice squad formation, scouted AI offers, separate payroll and post-waiver
-      roster funding, temporary call-ups and game-day active lists (`personnel/`), with the rules trimmed for play
-      (weekly settle points, one service counter; `docs/PRACTICE_SQUADS.md`). Poaching with two weekly protections
-      is in; the yearly lifecycle comes next, and the feature stays off for ordinary careers until then.
+- [x] **12. AI teams that manage their rosters sensibly** · **Done** (0.2.0): AI front offices draft, sign, cut, trade
+      and stay cap-legal (`offseason/ai.ts`), keeping a cap reserve for the season by their GM's cap style. Practice
+      squads (`personnel/`, `docs/PRACTICE_SQUADS.md`), on for every new career, give them ready cover: waivers on a
+      weekly settle, one-game call-ups for short absences, promotions for long ones, poaching with two weekly
+      protections, and futures deals that keep squads into the next season. `npm run offseason` now holds every club
+      at 53 at kickoff (roster min >= 50 and nobody under 53 with cap room, both strict).
 
 ## The feel
 

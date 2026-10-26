@@ -2,10 +2,11 @@
 
 ## Status
 
-Steps 1–5 are in: service time, waivers, practice squad formation and pay, one-game call-ups, game-day active
-lists, and poaching with two weekly protections. They run only in careers created with `createLeague({ personnel: true })`; ordinary careers stay off until
-step 6 (the yearly lifecycle) and step 7 (activation) ship. Save version 47 adds
-the `afls-2026-v1` profile, switched off; 48 adds the poaching state. The seven-step plan is `superpowers/plans/2026-10-25-practice-squads.md`.
+All seven steps are in (0.2.0): service time, waivers, squad formation and pay, one-game call-ups, game-day active
+lists, poaching with two weekly protections, futures deals, AI and staff use of the squad, the mail, the roster's
+squad view, and activation. Every new career has practice squads; an existing career is offered them once at its next
+offseason (mail and the squad desk, until camp), and once on they stay on. Save versions: 47 adds the `afls-2026-v1`
+profile, 48 the poaching state, 49 futures choices, the switch-on offer and `Team.autoSquad`.
 
 On 2026-10-26 the rules were trimmed for play (`superpowers/specs/2026-10-26-personnel-trim-design.md`): one
 service counter instead of three CBA credits, weekly settle points instead of an Eastern-minute clock, plain
@@ -46,3 +47,25 @@ optional pins and a weekly lock so it can't cycle through the squad. The same ru
 | Poaching cost | Three weeks of base guaranteed on the new deal; cut early and the rest is dead money. No roster-count obligation | AFLS trim of the NFL's three checks and three roster games |
 | AI poaching | Where an AI club picks injury cover, an unprotected squad player elsewhere who reads a point better than the free agent it would sign; his place on the 53 is held until the settle. At the settle, a club still short makes the same call. One offer a club a week, above its in-season reserve, never a cut. Target 0.5–3 a club a season (an AFLS estimate; no public NFL count) | AFLS |
 | Losing a player | One mail from your head coach when a club signs your squad player | AFLS |
+| Futures deals | Once a club's season is over it can keep its own squad players on a minimum one-year deal for next season (at most ten); they join the offseason roster at the new league year, the rest become free agents. AI clubs and your staff keep those whose estimated ceiling reaches their backups' level. Your director mails the picks and who signed | NFL reserve/futures, own squad only |
+| Castoffs | Last year's unkept squad players still unsigned when camp ends may leave football: likely for a low ceiling, unlikely for a prospect, likelier past 28, never certain or zero | AFLS (keeps the free-agent pool steady) |
+| Squad cover | AI clubs (and your staff's call-ups) cover a short absence, back within two weeks, with a call-up instead of a signing; a long one promotes the club's own squad player when it reads him at least as well as the best free agent | AFLS |
+| Your staff | On by default: refill open squad places, plan call-ups when you're short, pick futures. Never promotes, signs to the 53 or cuts for you. A switch on the squad desk | AFLS |
+| Supply | New players are generated only for places the free-agent pool can't fill (cuts and expired deals come first) | AFLS |
+
+## Verification
+
+- Engine: `personnel/personnel.test.ts` (service, lists, migration, the seeded fingerprint against main),
+  `waivers.test.ts` (contracts, priority, settle points, claims), `squads.test.ts`, `elevations.test.ts`,
+  `poaching.test.ts` (protection, offers, the guarantee, AI poaching, review regressions), `futures.test.ts`
+  (futures deals, castoffs), `cover.test.ts` (AI squad cover), `staff.test.ts`, `mail.test.ts`, `activation.test.ts`.
+  Screens: `ui/squads.test.tsx`, `ui/waivers.test.tsx`.
+- Audits, all on worlds with practice squads on: `npm run waivers -- 2` (cutdown wire, rosters at 53, reload
+  determinism), `npm run squads -- 2` (formation, pay, a season and offseason), `npm run elevations -- 2` (call-ups
+  across two seasons), `npm run poaching -- 2` (a season of poaching: legality every week, 16–96 a season),
+  `npm run squad-careers` (career outcomes), and `npm run offseason` (every club at 53 at kickoff, strict).
+- At 0.2.0: poaching 62 and 56 a season; `offseason -- 2` 0 numbers outside range with free agents 298–342 at
+  kickoff; the save carries a named practice squad allowance (`scripts/save-budget.ts`).
+
+The research behind the squad AI's mix of veterans and projects is in
+[practice-squad-outcomes.md](research/practice-squad-outcomes.md).
