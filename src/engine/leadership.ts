@@ -112,6 +112,8 @@ export function leadershipNewYear(l: League): void {
     if (!gm) continue;
     const rng = new Rng(`${l.seed}:leadership:${l.season}:${t.id}`);
     let hc = head(l, t.id);
+    // An interim the owner has just offered the permanent job is not reviewed again in the same breath.
+    let confirmed = false;
     if (hc?.interim) {
       const service = hc.career
         ?.filter((c) => c.season === l.season - 1 && c.role === 'headCoach' && c.teamId === t.id)
@@ -119,6 +121,7 @@ export function leadershipNewYear(l: League): void {
       const keep = rng.chance(service && pct(service.regular) >= 0.4 ? 0.75 : 0.3);
       const id = hc.id;
       resolveInterimHeadCoach(l, hc, keep);
+      confirmed = keep;
       leadershipEvent(l, {
         teamId: t.id,
         coachId: id,
@@ -159,11 +162,13 @@ export function leadershipNewYear(l: League): void {
     const heat = rec && !last?.playoffs?.[t.id] ? seasonHeat(rec) : 0;
     const draws = heat ? heat + (a.through < l.season ? 1 : 0) : 0;
     const drawn = drawOffseason(gmProtected ? { ...bag, gm: 0 } : bag, draws, rng);
-    const coachGoes = drawn.coach && !!hc && canOwnerDismissHeadCoach(l, t.id) && leadershipCoachTenure(l, hc) >= 1;
+    const coachGoes =
+      drawn.coach && !!hc && !confirmed && canOwnerDismissHeadCoach(l, t.id) && leadershipCoachTenure(l, hc) >= 1;
     if (drawn.gm && !gmProtected) {
       // The coach goes too when his own marble came out; otherwise a new GM usually inherits him.
       const keepCoach =
-        hc && (coachMandate(l, hc) || (!coachGoes && (leadershipCoachTenure(l, hc) < 2 || rng.chance(0.6))));
+        hc &&
+        (coachMandate(l, hc) || confirmed || (!coachGoes && (leadershipCoachTenure(l, hc) < 2 || rng.chance(0.6))));
       review.outcome = keepCoach ? 'gmChange' : 'bothChange';
       review.reason = keepCoach
         ? 'The owner is changing the front office and keeping the head coach for this season.'
