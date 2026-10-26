@@ -77,8 +77,11 @@ import { isExpiring, ownerBudgetNote, resignForecast, ROLE_LABEL, staffWindowOpe
 import { careerLine } from './stats';
 import { isDeadlineDay, openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './trade';
 import { activeLearning, formerPositions, moveProblem, reasonWords, suggestMove } from './training';
+import { leadPlayer, tradeIdentity } from './tradeNews';
 import type {
   Coach,
+  TradeRecord,
+  Transaction,
   LeadershipEvent,
   CoachRole,
   CoachRoom,
@@ -1310,6 +1313,78 @@ export function marketRumors(league: League, season: number, phase: Phase, week:
   );
 }
 
+/**
+ * The market history's record of a logged trade: same moment and the same two clubs. `nth` is the transaction's place
+ * among that pair's trades at that moment, so two deals between the same clubs in one week each find their own.
+ */
+export function tradeRecordFor(league: League, t: Transaction, nth: number): TradeRecord | undefined {
+  const pair = [...t.teamIds].sort((a, b) => a - b).join('-');
+  return (league.market?.history ?? []).filter(
+    (r) =>
+      r.season === t.season &&
+      r.phase === t.phase &&
+      r.week === t.week &&
+      r.sides
+        .map((s) => s.teamId)
+        .sort((a, b) => a - b)
+        .join('-') === pair,
+  )[nth];
+}
+
+/** A trade's place among the same two clubs' trades logged before it in `list`, for `tradeRecordFor`. */
+export function sameMoment(list: Transaction[], i: number): number {
+  const pair = (t: Transaction) => [...t.teamIds].sort((a, b) => a - b).join('-');
+  return list.slice(0, i).filter((t) => pair(t) === pair(list[i])).length;
+}
+
+/** SNN already ran this deal as a story (its id carries the deal's identity). */
+export function snnRan(league: League, r: TradeRecord): boolean {
+  const key = `trade:${tradeIdentity(r)}`;
+  return (league.inbox ?? []).some((m) => m.id.endsWith(key));
+}
+
+/**
+ * The director's one line on what a league trade means for us, or null when it means nothing: a division rival
+ * bought, it prices one of ours at the position (on our block, or in an offer made to us), or we play one of the
+ * clubs within three weeks of `week`. Only what we can see: our own players' statuses, offers to us, the schedule.
+ */
+export function tradeAngle(league: League, r: TradeRecord, week: number): string | null {
+  const lead = leadPlayer(league, r);
+  if (lead === undefined) return null;
+  const p = league.players[lead];
+  const seller = r.sides.find((s) => s.players.includes(lead))!;
+  const buyer = r.sides.find((s) => s !== seller)!;
+  const us = league.teams[league.userTeamId];
+  if (buyer.teamId !== us.id && league.teams[buyer.teamId].division === us.division)
+    return `A division rival got stronger at ${p.position}.`;
+  const offered = new Set(
+    (league.market?.offers ?? [])
+      .filter((o) => o.season === league.season && o.status === 'pending')
+      .flatMap((o) => o.sides[1].players),
+  );
+  const ours = Object.values(league.players).find(
+    (x) =>
+      x.teamId === us.id &&
+      x.position === p.position &&
+      (league.market?.status[x.id] === 'listed' || offered.has(x.id)),
+  );
+  if (ours) return `A marker for what ${ours.lastName} could fetch.`;
+  const next = league.games
+    .filter(
+      (g) =>
+        g.season === league.season &&
+        !g.playoffRound &&
+        g.week > week &&
+        g.week <= week + 3 &&
+        (g.homeId === us.id || g.awayId === us.id),
+    )
+    .sort((a, b) => a.week - b.week)
+    .find((g) => [seller.teamId, buyer.teamId].includes(g.homeId === us.id ? g.awayId : g.homeId));
+  if (!next) return null;
+  const them = next.homeId === us.id ? next.awayId : next.homeId;
+  return `We play the ${league.teams[them].name} in Week ${next.week}, ${them === seller.teamId ? 'without him' : "and he'll be there"}.`;
+}
+
 /** Weeks of the regular season the director writes up: from week 5 to the deadline week (deadline day has its own mail). */
 const DIGEST_FROM = 5;
 
@@ -1318,14 +1393,19 @@ const DIGEST_FROM = 5;
  * hearing, and how far off the deadline is. Weekly from week 5 to the deadline, and once as the league year opens. A
  * moment with nothing to report sends nothing.
  */
-function marketMail(league: League, have: Set<string>): Draft[] {
+export function marketMail(league: League, have: Set<string>): Draft[] {
   const { season, phase } = league;
   const weekly = phase === 'regular' && league.week >= DIGEST_FROM && league.week <= TRADE_DEADLINE_WEEK;
   if (!weekly && phase !== 'resign') return [];
   const week = phase === 'regular' ? league.week : 0;
   const id = `market:${season}:${phase}:${week}`;
   if (have.has(id)) return [];
-  const trades = marketTrades(league, season, phase, week).length;
+  const logged = marketTrades(league, season, phase, week);
+  const trades = logged.length;
+  const covered = logged.filter((t, i) => {
+    const r = tradeRecordFor(league, t, sameMoment(logged, i));
+    return r && snnRan(league, r);
+  }).length;
   const rumors = marketRumors(league, season, phase, week).length;
   if (!trades && !rumors) return [];
   const dealt = trades
@@ -1353,7 +1433,11 @@ function marketMail(league: League, have: Set<string>): Draft[] {
           : trades
             ? `Market report: ${plural(trades, 'trade')} this week`
             : 'Market report: the rumor mill',
-      body: `${dealt}${phase === 'resign' ? ' as the league year opened' : ' this week'}${heard}.${deadline}`,
+      body: `${dealt}${phase === 'resign' ? ' as the league year opened' : ' this week'}${heard}.${deadline}${
+        covered
+          ? ` SNN has already covered ${covered === trades ? (trades === 1 ? 'it' : 'them') : `${small(covered)} of them`}; what ${trades === 1 ? 'it means' : 'each means'} for us is below.`
+          : ''
+      }`,
       actions: [{ kind: 'trades' }],
     },
   ];

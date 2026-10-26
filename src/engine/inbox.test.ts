@@ -36,7 +36,13 @@ import {
   threads,
   unitReads,
   unreadCount,
+  marketMail,
+  snnRan,
+  tradeAngle,
+  tradeRecordFor,
 } from './inbox';
+import { emptyMarket } from './trade/execute';
+import { tradeIdentity } from './tradeNews';
 import { isMedicExpiring, teamMedics } from './medical';
 import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
@@ -48,7 +54,17 @@ import { playerOvr } from './positions';
 import { answerEnquiry, counterOffer, openOffers, TRADE_DEADLINE_WEEK } from './trade';
 import type { TradeProposal } from './trade/rules';
 import { changePosition, passMove, setCoachesDecide, startMove, suggestMove } from './training';
-import type { GameResult, League, MoveReason, Player, Position, Ratings, TeamGameStats, TradeOffer } from './types';
+import type {
+  Game,
+  GameResult,
+  League,
+  MoveReason,
+  Player,
+  Position,
+  Ratings,
+  TeamGameStats,
+  TradeOffer,
+} from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
@@ -1163,5 +1179,93 @@ describe('mail from another club', () => {
     const up = migrateLeague(l)!;
     expect(up.inbox![0].fromTeamId).toBe(7);
     expect(up.inbox![1].fromTeamId).toBeUndefined();
+  });
+});
+
+describe('the director’s read on a trade', () => {
+  const setup = () => {
+    const l = createLeague({ seed: 'director-angle' });
+    l.phase = 'regular';
+    l.week = 5;
+    l.market = emptyMarket();
+    l.games = [];
+    const me = l.teams[l.userTeamId];
+    const rival = l.teams.find((t) => t.id !== me.id && t.division === me.division)!;
+    const far = l.teams.filter((t) => t.division !== me.division && t.conference !== me.conference);
+    const [seller, buyer] = far;
+    const p = Object.values(l.players).find((p) => p.teamId === seller.id && p.position === 'LB')!;
+    const pick = l.draftPicks.find((d) => d.ownerId === buyer.id && d.round === 3)!;
+    const record = (buyerId: number, week = 4) => ({
+      season: l.season,
+      phase: 'regular' as const,
+      week,
+      kind: 'rental' as const,
+      sides: [
+        { teamId: seller.id, players: [p.id], picks: [] },
+        { teamId: buyerId, players: [], picks: [pick.id] },
+      ] as import('./types').TradeRecord['sides'],
+    });
+    return { l, me, rival, seller, buyer, p, record };
+  };
+  it('flags a division rival buying', () => {
+    const { l, rival, record } = setup();
+    expect(tradeAngle(l, record(rival.id), 4)).toBe('A division rival got stronger at LB.');
+  });
+  it('sets a price for one of ours at the position', () => {
+    const { l, me, buyer, record } = setup();
+    const ours = Object.values(l.players).find((p) => p.teamId === me.id && p.position === 'LB')!;
+    l.market!.status[ours.id] = 'listed';
+    expect(tradeAngle(l, record(buyer.id), 4)).toBe(`A marker for what ${ours.lastName} could fetch.`);
+  });
+  it('notes we play the seller soon', () => {
+    const { l, me, seller, buyer, record } = setup();
+    l.games.push({ id: l.nextGameId++, season: l.season, week: 6, homeId: me.id, awayId: seller.id } as Game);
+    expect(tradeAngle(l, record(buyer.id), 4)).toBe(`We play the ${seller.name} in Week 6, without him.`);
+  });
+  it('says nothing when there is no angle', () => {
+    const { l, buyer, record } = setup();
+    expect(tradeAngle(l, record(buyer.id), 4)).toBeNull();
+  });
+  it('marks a trade SNN ran and says so in the report', () => {
+    const { l, buyer, seller, record } = setup();
+    const r = record(buyer.id);
+    l.market!.history = [r];
+    l.transactions.push({
+      season: l.season,
+      phase: 'regular',
+      week: 4,
+      teamIds: [buyer.id, seller.id],
+      kind: 'trade',
+      text: 'x',
+    });
+    expect(snnRan(l, r)).toBe(false);
+    const base = {
+      season: l.season,
+      phase: 'regular' as const,
+      week: 4,
+      read: true,
+      actions: [],
+      body: '',
+      subject: '',
+    };
+    l.inbox = [{ ...base, id: `press:${l.season}:4:trade:${tradeIdentity(r)}`, from: 'SNN', category: 'league' }];
+    expect(snnRan(l, r)).toBe(true);
+    expect(marketMail(l, new Set())[0].body).toContain('SNN has already covered it');
+  });
+  it('maps two deals between the same clubs in one week to their own records', () => {
+    const { l, buyer, seller, record } = setup();
+    const a = record(buyer.id),
+      b = { ...record(buyer.id), kind: 'buy' as const };
+    l.market!.history = [a, b];
+    const t = {
+      season: l.season,
+      phase: 'regular' as const,
+      week: 4,
+      teamIds: [buyer.id, seller.id],
+      kind: 'trade' as const,
+      text: 'x',
+    };
+    expect(tradeRecordFor(l, t, 0)).toBe(a);
+    expect(tradeRecordFor(l, t, 1)).toBe(b);
   });
 });

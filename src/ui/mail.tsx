@@ -64,6 +64,10 @@ import {
   freeAgencyMoves,
   marketRumors,
   marketTrades,
+  sameMoment,
+  snnRan,
+  tradeAngle,
+  tradeRecordFor,
   seasonDeals,
   headCoachChanges,
   mailSubject,
@@ -1507,11 +1511,18 @@ function MarketCards({ league, s }: { league: League; s: Extract<MailSubject, { 
     <>
       {trades.length > 0 && (
         <Card title={s.phase === 'resign' ? 'Trades as the league year opened' : 'Trades this week'}>
-          {trades.map((t, i) => (
-            <p key={i} className="small" style={{ margin: '4px 0' }}>
-              <MoveText move={t} index={moves} />
-            </p>
-          ))}
+          {trades.map((t, i) => {
+            // What it means for us, and whether SNN already told the story (the director doesn't retell it).
+            const r = tradeRecordFor(league, t, sameMoment(trades, i));
+            const angle = r && tradeAngle(league, r, s.phase === 'regular' ? s.week : 0);
+            return (
+              <p key={i} className="small" style={{ margin: '4px 0' }}>
+                <MoveText move={t} index={moves} />
+                {angle && <span className="muted"> {angle}</span>}
+                {r && snnRan(league, r) && <span className="muted"> (SNN ran the story)</span>}
+              </p>
+            );
+          })}
         </Card>
       )}
       {rumors.length > 0 && (
