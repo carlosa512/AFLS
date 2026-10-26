@@ -256,6 +256,21 @@ export function PracticeSquad({ league }: { league: League }) {
             use the special slots; three or more makes a veteran.
           </p>
         </details>
+        {mine && (
+          <label className="row small">
+            <input
+              type="checkbox"
+              checked={league.teams[teamId].autoSquad !== false}
+              onChange={(e) =>
+                store.mutate((l) => {
+                  if (e.target.checked) delete l.teams[l.userTeamId].autoSquad;
+                  else l.teams[l.userTeamId].autoSquad = false;
+                })
+              }
+            />
+            Staff run the squad: refill open places, plan call-ups when we're short, pick futures deals
+          </label>
+        )}
         {window && <p className="callout">{window}</p>}
         {message && (
           <p role="status" className="callout">

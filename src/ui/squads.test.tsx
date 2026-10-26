@@ -78,4 +78,8 @@ describe('practice squad desk', () => {
     expect(html).toContain('Next season');
     expect(html).toMatch(/Keep(ing)? for next season/);
   });
+  it('has the staff switch, on by default', () => {
+    const l = createLeague({ seed: 'squad-ui-staff', personnel: true, userTeamId: 0 });
+    expect(renderToStaticMarkup(<PracticeSquad league={l} />)).toMatch(/checked=""[^>]*\/>Staff run the squad/);
+  });
 });

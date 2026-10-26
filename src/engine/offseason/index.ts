@@ -55,7 +55,7 @@ import {
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
 import { rollService } from '../personnel/service';
 import { personnelClock } from '../personnel/calendar';
-import { settleOffseasonWaivers, syncPersonnel, waiversPending } from '../personnel/flow';
+import { settleOffseasonWaivers, staffHandlesSquad, syncPersonnel, waiversPending } from '../personnel/flow';
 import { ensureWaivers } from '../personnel/waivers';
 
 export const FA_DAYS = 5;
@@ -308,7 +308,7 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
           break; // Give the manager the complete league-wide cutdown wire before awarding anyone.
         }
       }
-      if (league.personnel?.enabled) formPracticeSquads(league, auto);
+      if (league.personnel?.enabled) formPracticeSquads(league, auto || staffHandlesSquad(league));
       league.phase = 'regular';
       league.week = 1;
       league.faDay = 0;

@@ -19,6 +19,10 @@ const resolvedForTeam = (league: League, teamId: number) =>
   );
 import type { WaiverResult } from './types';
 
+/** Your staff run your practice squad (refills, call-ups, futures) unless you've taken it over. */
+export const staffHandlesSquad = (league: League): boolean =>
+  !!league.personnel?.enabled && league.teams[league.userTeamId]?.autoSquad !== false;
+
 export const waiversPending = (league: League): boolean => !!league.personnel?.waivers?.pending.length;
 
 /**
@@ -68,7 +72,7 @@ export function settleOffseasonWaivers(league: League, autoUser = false): void {
 /** File a game's call-ups: AI clubs plan theirs, then every plan is rechecked once. */
 export function fileElevations(league: League, game: Game, autoUser = false): void {
   if (game.personnel?.elevationsFiled) return;
-  planAIElevations(league, game, autoUser);
+  planAIElevations(league, game, autoUser || staffHandlesSquad(league));
   fileGameElevations(league, game);
   (game.personnel ??= { plans: {} }).elevationsFiled = true;
 }
@@ -106,5 +110,5 @@ export function syncPersonnel(league: League): void {
   // Offers can only resolve at a regular-season settle: none waits into the playoffs or the offseason.
   if (league.phase !== 'regular' && league.personnel.poaching?.offers.length) league.personnel.poaching.offers = [];
   settleSquadPayroll(league);
-  if (league.phase === 'regular') formPracticeSquads(league);
+  if (league.phase === 'regular') formPracticeSquads(league, staffHandlesSquad(league));
 }
