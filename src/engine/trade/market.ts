@@ -14,6 +14,7 @@
  * injuries and weather.
  */
 import { capSpace, logTransaction } from '../finance/cap';
+import { teamGm } from '../gm';
 import { departmentFor } from '../medical';
 import { aiCutdown, capCut, cutChoice } from '../offseason/ai';
 import { resetContenderCache, rosterLimit, ROSTER_MAX } from '../offseason/negotiation';
@@ -61,13 +62,28 @@ const ARCHETYPE_ACTIVITY: Record<string, number> = {
   'Hard-Liner': 0.25,
 };
 
-/** Each GM's own appetite: his archetype's, jittered per team from the league seed (not stored, like the owner's trigger). */
+/**
+ * Each GM's own appetite: his archetype's, jittered per team from the league seed (not stored, like the owner's
+ * trigger), and keener in his first league year in a new job: a new GM reshapes the roster he inherited.
+ */
 export function gmActivity(league: League, team: Team): number {
   return clamp(
-    (ARCHETYPE_ACTIVITY[team.gm.archetype] ?? 0.5) + new Rng(`${league.seed}:gm-activity:${team.id}`).normal(0, 0.08),
+    (ARCHETYPE_ACTIVITY[team.gm.archetype] ?? 0.5) +
+      new Rng(`${league.seed}:gm-activity:${team.id}`).normal(0, 0.08) +
+      (newInJob(league, team) ? NEW_GM_ACTIVITY : 0),
     0.05,
     1,
   );
+}
+
+/** A new GM's extra appetite in his first league year; tuned so a league that changes GMs trades as one that doesn't. */
+const NEW_GM_ACTIVITY = 0.3;
+
+/** Hired this league year (opening incumbents were already in the job). */
+function newInJob(league: League, team: Team): boolean {
+  const gm = teamGm(league, team.id);
+  const job = gm?.appointments.at(-1);
+  return !!job && gm!.origin !== 'opening' && job.start.season === league.season;
 }
 
 /** Most trades a team makes in a regular season (an All-In GM one more), and in a whole league year. */
