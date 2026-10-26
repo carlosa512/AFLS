@@ -1,3 +1,4 @@
+import { squadReserve } from '../personnel/squads';
 /**
  * AI front offices. Decisions come from numeric GM traits plus the roster in front of them:
  * who to keep, who to tag, who to chase in free agency, and how to get under the cap.
@@ -125,7 +126,8 @@ export const spendable = (league: League, teamId: number) =>
   rookieReserve(league, teamId) -
   fillReserve(league, teamId) -
   inSeasonReserve(league, teamId) -
-  voidReserve(league, teamId);
+  voidReserve(league, teamId) -
+  squadReserve(league, teamId);
 
 /**
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
@@ -694,6 +696,13 @@ export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
   // Get legal before topping up (the minimums above can tip a team over, and the cut that fixes it opens a spot),
   // then sign only deals that fit, so the 53 fills without going back over.
   aiCapCompliance(league, team);
+  fillCampRoster(league, team, rng);
+  payAhead(league, team);
+  syncDepthChart(league, team);
+}
+
+/** Waiver holds can prevent a camp fill. Once they settle, top up without repeating cuts or camp decisions. */
+export function fillCampRoster(league: League, team: Team, rng: Rng): void {
   // A position a cap cut left short fills first, then the 53 fills with whoever's best.
   const short = (pos: Position) =>
     activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos];
@@ -705,7 +714,6 @@ export function aiTrainingCamp(league: League, team: Team, rng: Rng): void {
     capSpace(league, team.id) >= minSalary(1, league.caps[league.season])
   )
     if (!signMinimum(league, team, rng, undefined, capSpace(league, team.id))) break;
-  payAhead(league, team);
   syncDepthChart(league, team);
 }
 
@@ -724,7 +732,11 @@ const PAY_AHEAD_CUSHION = 0.01;
  */
 export function payAhead(league: League, team: Team): void {
   const season = league.season;
-  let extra = capSpace(league, team.id) - inSeasonReserve(league, team.id) - PAY_AHEAD_CUSHION * league.caps[season];
+  let extra =
+    capSpace(league, team.id) -
+    inSeasonReserve(league, team.id) -
+    squadReserve(league, team.id) -
+    PAY_AHEAD_CUSHION * league.caps[season];
   if (extra < 1) return;
   const next = (p: Player) => yearOf(p.contract!, season + 1);
   const floor = (p: Player) => minSalary(p.experience + 1, capFor(league, season + 1));

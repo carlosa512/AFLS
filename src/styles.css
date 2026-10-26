@@ -1943,6 +1943,7 @@ tr.void-year td {
 }
 .dialog {
   width: min(520px, 100%);
+  white-space: normal;
   background: var(--surface);
   color: var(--ink);
   border-radius: 14px;
@@ -4248,6 +4249,54 @@ button.tip-pill {
   }
 }
 
+.cap-squad {
+  fill: var(--marker);
+  background: var(--marker);
+}
+
+.personnel-help {
+  margin-block: 12px;
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+.personnel-help summary {
+  cursor: pointer;
+  font-weight: 600;
+  width: fit-content;
+}
+.personnel-help p {
+  max-width: 80ch;
+  margin-block: 8px;
+}
+.waiver-reason {
+  max-width: 30ch;
+  white-space: normal;
+}
+
+.personnel-spend {
+  width: 100%;
+  max-width: 250px;
+  height: 7px;
+  accent-color: var(--field);
+}
+.roster-move-plan label {
+  display: grid;
+  gap: 5px;
+  font-size: var(--step--1);
+  flex: 1;
+  min-width: 160px;
+}
+.roster-move-plan select {
+  width: 100%;
+  min-width: 0;
+}
+.personnel-deadline {
+  margin-block: 14px;
+}
+.personnel-deadline p {
+  margin: 5px 0;
+}
+
 /* General managers share staff portraits and cards; career information stays readable on a phone. */
 .gm-career-overview .gm-overview-person {
   margin-bottom: 18px;
@@ -4442,4 +4491,17 @@ button.tip-pill {
 }
 .coach-takeovers {
   padding-left: 20px;
+}
+
+/* New Game: the GM you start as folds out from the start bar. */
+.starting-gm summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.starting-gm .identity-edit {
+  margin-top: 8px;
+}
+.starting-gm .identity-edit > p {
+  grid-column: 1 / -1;
+  margin: 0;
 }

@@ -1,3 +1,4 @@
+import { preparePersonnelGame } from '../personnel/flow';
 /**
  * Play-by-play game simulation.
  *
@@ -337,6 +338,7 @@ function emptyTeamStats(): TeamGameStats {
 const short = (p: Player) => `${p.firstName[0]}.${p.lastName}`;
 
 export function simulateGame(league: League, game: Game, options: SimOptions = {}): GameResult {
+  preparePersonnelGame(league, game);
   return new GameSim(league, game, options).run();
 }
 
@@ -349,6 +351,7 @@ export interface LiveGame {
 }
 
 export function startGame(league: League, game: Game, options: SimOptions = {}): LiveGame {
+  preparePersonnelGame(league, game);
   const sim = new GameSim(league, game, { ...options, keepPlays: true });
   return {
     next: () => sim.next(),
@@ -553,7 +556,10 @@ class GameSim {
     this.crew = options.crew === undefined ? gameCrew(league, game) : (options.crew ?? undefined);
     this.calls = crewCalls(this.crew);
     const team = (id: number) => league.teams[id];
-    this.lineups = [buildLineup(league, team(game.homeId)), buildLineup(league, team(game.awayId))];
+    this.lineups = [
+      buildLineup(league, team(game.homeId), undefined, game),
+      buildLineup(league, team(game.awayId), undefined, game),
+    ];
     this.syncKnocks();
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
     this.qbLeans = this.leans();
@@ -798,7 +804,7 @@ class GameSim {
         `Injury: ${this.abbrev(side)} ${p.position} ${short(p)} (${injuryLabel(injury.type).toLowerCase()}) is out for the game.`,
       );
       const qb = this.lineups[side].qb;
-      this.lineups[side] = buildLineup(this.league, this.lineups[side].team, this.out);
+      this.lineups[side] = buildLineup(this.league, this.lineups[side].team, this.out, this.game);
       this.syncKnocks();
       this.fields[side] = units(this.lineups[side]);
       if (this.lineups[side].qb !== qb) this.qbLeans = this.leans();

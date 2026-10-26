@@ -233,6 +233,8 @@ export function offerCharge(league: League, player: Player, teamId: number, offe
 /** Problems that make an offer impossible regardless of the player's opinion. */
 export function offerProblem(league: League, player: Player, teamId: number, offer: Offer): string | null {
   if (player.retired) return 'He has retired.';
+  if (player.waiver) return 'He must clear waivers before negotiating a new contract.';
+  if (player.squad) return 'Practice squad players need a roster promotion, not a regular contract extension.';
   if (league.draftClass.includes(player.id)) return 'Draft prospects can only be drafted.';
   if (player.teamId !== null && player.teamId !== teamId) return 'He is under contract with another team.';
   if (league.phase === 'playoffs' || league.phase === 'complete')
@@ -255,6 +257,7 @@ export function offerProblem(league: League, player: Player, teamId: number, off
 }
 
 export function negotiationFor(league: League, player: Player, teamId: number): Negotiation {
+  if (player.waiver) return { playerId: player.id, teamId, patience: 0, status: 'open' };
   const existing = league.negotiations[player.id];
   if (existing && existing.teamId === teamId) {
     // Talks that broke down reopen in the next phase of the calendar.
@@ -320,6 +323,8 @@ export function signPlayer(
   offer: Offer,
   kind: Contract['kind'] = 'veteran',
 ): void {
+  if (player.squad) throw new Error('Practice squad players need a roster promotion.');
+  if (player.waiver) throw new Error('This player is still on waivers.');
   const own = player.teamId === teamId;
   const extension = own && !!player.contract && !isExpired(player.contract, league.season);
   // Re-signing after a deal ran out: its remaining bonus money (void years included) is dead.
@@ -362,7 +367,9 @@ export function signPlayer(
 /** Free agents: unsigned, not retired, not in the draft class. */
 export function freeAgents(league: League): Player[] {
   const prospects = new Set(league.draftClass);
-  return Object.values(league.players).filter((p) => p.teamId === null && !p.retired && !prospects.has(p.id));
+  return Object.values(league.players).filter(
+    (p) => p.teamId === null && !p.retired && !p.squad && !p.waiver && !prospects.has(p.id),
+  );
 }
 
 /**

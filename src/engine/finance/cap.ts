@@ -4,7 +4,7 @@
  */
 import { STARTERS } from '../positions';
 import { clamp, type Rng } from '../rng';
-import { teamPlayers } from '../roster';
+import { onGameRoster, teamPlayers } from '../roster';
 import type { Contract, League, Phase, Player, Team, Transaction } from '../types';
 import { OFFSEASON_PHASES, POSITIONS } from '../types';
 import {
@@ -18,6 +18,10 @@ import {
   type RestructurePreview,
 } from './contract';
 import { BASE_CAP, minSalary } from './market';
+import { queueWaiver, waiverApplies } from '../personnel/waivers';
+import { elevationCap, personnelMoveLock } from '../personnel/elevations';
+import { squadPayroll } from '../personnel/payroll';
+import { inviteSquadReturn } from '../personnel/squads';
 
 export const POST_JUNE1_LIMIT = 2;
 /** Projected yearly cap growth for future-year planning. */
@@ -72,6 +76,9 @@ export interface CapSheet {
   /** Cap hits that count (top 51 in the offseason). */
   active: number;
   dead: number;
+  /** Included in dead while pending, then replaced by the actual release/assignment charge. */
+  waiverHold?: number;
+  practiceSquad?: number;
   used: number;
   space: number;
   rosterSize: number;
@@ -96,10 +103,17 @@ export function capSheet(
   let hits = roster.map((p) => (p.contract ? capHit(p.contract, season) : 0)).sort((a, b) => b - a);
   if (top51) hits = hits.slice(0, 51);
   const active = hits.reduce((a, b) => a + b, 0);
-  const dead = deadMoneyIn(team, season);
+  // Pending guarantees remain reserved until a claim transfers them or a clearance books the release.
+  const holds = league.personnel?.waivers?.pending.filter((e) => e.fromTeamId === teamId) ?? [];
+  const waiverHold = holds.reduce(
+    (sum, e) => sum + (season === e.season ? e.release.thisYear : season === e.season + 1 ? e.release.nextYear : 0),
+    0,
+  );
+  const dead = deadMoneyIn(team, season) + waiverHold;
   const carryover = season === league.season ? team.carryover : 0;
   const cap = capFor(league, season);
-  const used = active + dead;
+  const practiceSquad = squadPayroll(league, teamId, season).total + elevationCap(league, teamId, season);
+  const used = active + dead + practiceSquad;
   // Injured reserve still counts on the cap, but not toward the roster limit.
   return {
     season,
@@ -107,9 +121,11 @@ export function capSheet(
     carryover,
     active,
     dead,
+    ...(waiverHold > 0 ? { waiverHold } : {}),
+    ...(practiceSquad > 0 ? { practiceSquad } : {}),
     used,
     space: cap + carryover - used,
-    rosterSize: roster.filter((p) => !p.ir).length,
+    rosterSize: roster.filter(onGameRoster).length,
     top51,
   };
 }
@@ -131,24 +147,48 @@ export interface ReleasePreview extends DeadMoneySplit {
   postJune1: boolean;
   /** Designation available (pre-June 1 window, under the limit)? */
   canDesignate: boolean;
+  waiver?: { assigned: DeadMoneySplit };
 }
 
 export function releasePreview(league: League, player: Player, designatePostJune1 = false): ReleasePreview {
+  const personnelLock = personnelMoveLock(league, player);
+  if (personnelLock) throw new Error(personnelLock);
+  if (player.waiver) throw new Error('This player is already on waivers.');
   const team = league.teams[player.teamId!];
   const auto = autoPostJune1(league.phase);
   const canDesignate = !auto && team.postJune1Used < POST_JUNE1_LIMIT;
   const postJune1 = auto || (designatePostJune1 && canDesignate);
   const split = deadMoney(player.contract!, league.season, { paid: paidShare(league, player.contract!), postJune1 });
-  return { ...split, postJune1, canDesignate };
+  return {
+    ...split,
+    postJune1,
+    canDesignate,
+    ...(waiverApplies(league, player)
+      ? {
+          waiver: {
+            assigned: deadMoney(player.contract!, league.season, {
+              paid: paidShare(league, player.contract!),
+              postJune1,
+              trade: true,
+            }),
+          },
+        }
+      : {}),
+  };
 }
 
 /** Why a release isn't allowed right now, or null if it is. */
 export function releaseBlocker(league: League, player: Player): string | null {
+  const personnelLock = personnelMoveLock(league, player);
+  if (personnelLock) return personnelLock;
+  if (player.waiver) return 'This player is already on waivers.';
+  if (player.squad) return 'Practice squad releases use the personnel system.';
   if (player.teamId === null || !player.contract) return 'Not under contract.';
   if (league.phase === 'playoffs' || league.phase === 'complete')
     return 'Roster moves reopen when the new league year begins.';
   if (league.phase === 'regular') {
-    const left = teamPlayers(league, player.teamId).filter((p) => p.position === player.position).length - 1;
+    const left =
+      teamPlayers(league, player.teamId).filter((p) => !p.squad && p.position === player.position).length - 1;
     if (left < STARTERS[player.position])
       return `Keep at least ${STARTERS[player.position]} ${player.position} on the roster during the season.`;
   }
@@ -157,8 +197,18 @@ export function releaseBlocker(league: League, player: Player): string | null {
 
 /** Cut a player: he becomes a free agent and the team books the dead money. */
 export function releasePlayer(league: League, player: Player, designatePostJune1 = false): ReleasePreview {
+  const personnelLock = personnelMoveLock(league, player);
+  if (personnelLock) throw new Error(personnelLock);
+  if (player.waiver) throw new Error('This player is already on waivers.');
+  if (player.squad) throw new Error('Practice squad releases use the personnel system.');
   if (player.teamId === null || !player.contract) throw new Error('Player is not under contract');
   const preview = releasePreview(league, player, designatePostJune1);
+  if (league.personnel?.enabled && player.teamId !== league.userTeamId && !player.injury)
+    inviteSquadReturn(league, player.teamId, player);
+  if (waiverApplies(league, player)) {
+    queueWaiver(league, player, preview);
+    return preview;
+  }
   const team = league.teams[player.teamId];
   const note = preview.postJune1 && !autoPostJune1(league.phase) ? 'Released (post-June 1)' : 'Released';
   if (preview.thisYear > 0)
@@ -180,6 +230,7 @@ export function releasePlayer(league: League, player: Player, designatePostJune1
 
 /** Why a restructure isn't possible right now, or null if it is. */
 export function restructureBlocker(league: League, player: Player): string | null {
+  if (player.waiver) return 'The contract cannot change while on waivers.';
   const c = player.contract;
   if (!c) return 'Not under contract.';
   if (c.kind === 'rookie') return 'Rookie-scale deals can’t be restructured.';

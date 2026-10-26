@@ -1167,7 +1167,7 @@ describe('short positions in the inbox', () => {
 });
 
 describe('mail from another club', () => {
-  it('v47 backfills the sending club on other front offices’ mail', () => {
+  it('v49 backfills the sending club on other front offices’ mail', () => {
     const l = createLeague({ seed: 'club-backfill' });
     const t = l.teams[7];
     const base = {

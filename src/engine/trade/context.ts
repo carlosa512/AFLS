@@ -6,6 +6,7 @@
  */
 import type { Coaching } from '../coaching';
 import { capSheet } from '../finance/cap';
+import { onGameRoster } from '../roster';
 import { leagueMarket, minSalary, type Market } from '../finance/market';
 import { ROSTER_MAX } from '../offseason/negotiation';
 import { playerOvr } from '../positions';
@@ -18,7 +19,7 @@ import type { PlayerRead } from './value';
 
 export interface TradeContext {
   league: League;
-  /** Every player on each team (injured reserve included), built in one pass over the league. */
+  /** NFL roster players (IR included, practice squads excluded), built in one pass. */
   rosters: Map<number, Player[]>;
   /** Each front office's read of a player, computed once. */
   view: (teamId: number, p: Player) => PlayerView;
@@ -67,7 +68,7 @@ export interface TradeContext {
 
 function rostersOf(league: League): Map<number, Player[]> {
   const rosters = new Map<number, Player[]>(league.teams.map((t) => [t.id, []]));
-  for (const p of Object.values(league.players)) if (p.teamId !== null) rosters.get(p.teamId)?.push(p);
+  for (const p of Object.values(league.players)) if (p.teamId !== null && !p.squad) rosters.get(p.teamId)?.push(p);
   return rosters;
 }
 
@@ -132,7 +133,7 @@ export const rosterOf = (ctx: TradeContext, teamId: number): Player[] => ctx.ros
 export function spendable(ctx: TradeContext, teamId: number): number {
   const { league } = ctx;
   if (league.phase === 'regular' || league.phase === 'playoffs') return capRoom(ctx, teamId);
-  const open = Math.max(0, ROSTER_MAX - rosterOf(ctx, teamId).filter((p) => !p.ir).length);
+  const open = Math.max(0, ROSTER_MAX - rosterOf(ctx, teamId).filter(onGameRoster).length);
   return capRoom(ctx, teamId) - open * minSalary(0, ctx.market.cap);
 }
 

@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.1.15',
+    version: '0.1.16',
     date: '2026-10-26',
     title: 'Mail that tells you more',
     text:
@@ -22,6 +22,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'When a head coach is fired, the owner says why and what it cost, and a coordinator promoted to interim keeps ' +
       "running his side of the ball. Opposition reports are shorter, offers from other clubs show those clubs' " +
       'colours, firings around the league come as one weekly roundup, and your director says what each trade means for you.',
+  },
+  {
+    version: '0.1.15',
+    date: '2026-10-26',
+    title: 'Choose who you are',
+    text:
+      'New Game now shows the GM you start as: change the name and pick a starting age from 30 to 45. Rename ' +
+      'yourself any time with the pencil on your GM card, the same one player cards have.',
   },
   {
     version: '0.1.14',

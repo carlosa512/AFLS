@@ -22,7 +22,10 @@ const renderCard = (league: ReturnType<typeof world>, gm: GeneralManager) =>
 describe('GM cards and directory', () => {
   it('offers name editing only on the human card and describes other GMs through public perception', () => {
     const l = world();
-    expect(renderCard(l, l.gms[l.userGmId])).toContain('Edit your GM name');
+    const own = renderCard(l, l.gms[l.userGmId]);
+    expect(own).toContain('Edit your GM name');
+    expect(own).toContain('✎'); // the same pencil as a player card, not a button inside the card
+    expect(own).not.toContain('>Edit your GM name</button>');
     const other = renderCard(l, l.gms[l.teams[1].gmId!]);
     expect(other).not.toContain('Edit your GM name');
     expect(other).toContain('Public perception');

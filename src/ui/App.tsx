@@ -5,6 +5,7 @@ import { GeneralManagers } from './screens/GeneralManagers';
 import { PublicRoster, SpectatorHome } from './screens/GmEmployment';
 import { useEffect, useState } from 'react';
 import { gamesInWeek, playWeek, simToEndOfRegularSeason, simToEndOfSeason, userGame } from '../engine/league';
+import { waiversPending } from '../engine/personnel/flow';
 import {
   advanceOffseason,
   beginOffseason,
@@ -101,6 +102,20 @@ function offseasonStep(league: League): Step | null {
         ? { label: 'Start training camp', run: (l) => advanceOffseason(l), then: { view: 'cap' } }
         : { label: 'Finish the draft', run: (l) => advanceOffseason(l), then: { view: 'cap' } };
     case 'preseason':
+      if (league.personnel?.enabled) {
+        if (!league.personnel.clock?.cutdown)
+          return {
+            label: 'Submit the 53 and open cutdown claims',
+            run: (l) => advanceOffseason(l),
+            then: { view: 'office', tab: 'waivers' },
+          };
+        if (waiversPending(league))
+          return {
+            label: 'Resolve claims and start the season',
+            run: (l) => advanceOffseason(l),
+            then: { view: 'home' },
+          };
+      }
       return { label: `Start the ${league.season} season`, run: (l) => advanceOffseason(l), then: { view: 'home' } };
     default:
       return null;

@@ -26,7 +26,18 @@ export type Route =
   | { view: 'watch'; gameId: number; back: Route }
   | { view: 'live' };
 
-const OFFICE_TABS: readonly OfficeTab[] = ['resign', 'fa', 'draft', 'trades', 'coaches', 'staff', 'medical', 'gms'];
+const OFFICE_TABS: readonly OfficeTab[] = [
+  'resign',
+  'fa',
+  'squad',
+  'waivers',
+  'draft',
+  'trades',
+  'coaches',
+  'staff',
+  'medical',
+  'gms',
+];
 const STATS_TABS: readonly StatsTab[] = ['leaders', 'players', 'teams', 'records', 'awards', 'officials'];
 const PLAIN = ['home', 'schedule', 'standings', 'playoffs', 'compare', 'live'] as const;
 
