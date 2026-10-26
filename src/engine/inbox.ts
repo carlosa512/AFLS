@@ -1,5 +1,5 @@
 import { employed, managesTeam } from './employment';
-import { gmOfferTerms } from './leadership';
+import { gmOfferTerms, userExtensionOffer } from './leadership';
 import { recordAdvicePublications } from './coachDecisions';
 import {
   coachAdviceObservation,
@@ -109,6 +109,7 @@ import type {
   TradeOffer,
   TradeSide,
 } from './types';
+import { OFFSEASON_PHASES } from './types';
 
 /** Saves keep the latest messages only, like the transaction log. */
 const KEEP = 300;
@@ -783,6 +784,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
           (o) => o.teamId === s.teamId && league.leadership.search!.round < o.expiresRound,
         )
       );
+    case 'owner':
+      return !!userExtensionOffer(league);
     case 'matchup':
     case 'injury':
     case 'deadline':
@@ -1827,6 +1830,22 @@ function ownerMail(league: League, have: Set<string>): Draft[] {
   if (have.has(id) || [...have].some((x) => x.startsWith(`owner:${season}:welcome:${league.userTeamId}:`))) return [];
   const team = league.teams[league.userTeamId];
   const { marketLine, leeway, patience, promises } = ownerVoice(league, team);
+  // One letter for the league year: the verdict on the GM, his contract if it's up, then the budgets.
+  const review = team.leadershipReview?.season === season ? team.leadershipReview : undefined;
+  const offer = userExtensionOffer(league);
+  const subject = offer
+    ? `Your contract: an offer through ${offer.through}`
+    : review?.outcome === 'warning'
+      ? 'The new league year: I expect progress'
+      : review?.outcome === 'coachChange'
+        ? 'The new league year: we need a new head coach'
+        : 'The new league year';
+  const verdict = review && review.outcome !== 'back' ? `${review.reason} ` : '';
+  const contract = !offer
+    ? ''
+    : offer.through === season
+      ? `Your deal is up. One more year, through ${offer.through}, and we'll talk again. `
+      : `Your deal is up. I'd like you back through ${offer.through}; let me know. `;
   return [
     {
       id,
@@ -1835,9 +1854,9 @@ function ownerMail(league: League, have: Set<string>): Draft[] {
       week: 0,
       from: 'The owner',
       category: 'staff',
-      subject: 'A letter from the owner',
-      body: `A new league year starts today, and the budgets for ${season} are below. ${marketLine} ${leeway}${patience}${promises ? ` ${promises}` : ''}`,
-      actions: [{ kind: 'coaches' }, { kind: 'cap' }],
+      subject,
+      body: `${verdict}${contract}A new league year starts today, and the budgets for ${season} are below. ${marketLine} ${leeway}${patience}${promises ? ` ${promises}` : ''}`,
+      actions: [...(offer ? [{ kind: 'gms' as const }] : []), { kind: 'coaches' }, { kind: 'cap' }],
     },
   ];
 }
@@ -2352,6 +2371,9 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
     if (have.has(id)) continue;
     const personal = e.gmId === league.userGmId;
     const inside = managesTeam(league, e.teamId);
+    // The owner's letter for the league year carries our own verdict and contract: no straggling mails about them.
+    if (inside && OFFSEASON_PHASES.includes(e.date.phase) && ['warning', 'coachChange', 'gmExtended'].includes(e.kind))
+      continue;
     if (!inside && !personal && e.date.phase === 'regular') {
       if (covered(e)) continue;
       const key = `${e.date.season}:${e.date.week}`;
@@ -2416,7 +2438,8 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
   if (league.phase === 'resign' && search && search.round < 3)
     for (const o of search.offers) {
       const id = `gm-offer:${search.season}:${o.teamId}`;
-      if (!have.has(id))
+      // The owner's letter for the league year is the extension offer's mail.
+      if (!have.has(id) && !o.extension)
         out.push({
           id,
           season: league.season,
