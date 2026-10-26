@@ -65,7 +65,7 @@ function prepareGame(league: League, game: Game) {
 export function recordResult(league: League, game: Game, result: GameResult): void {
   if (game.result) return;
   if (league.personnel?.enabled && !game.serviceRoster) throw new Error('Prepare the game before recording a result.');
-  recordGameService(league, game, result);
+  recordGameService(league, game);
   // Condition and diagnoses are carried by the players, not the game record.
   const { condition, diagnoses, ...kept } = result;
   game.result = kept;

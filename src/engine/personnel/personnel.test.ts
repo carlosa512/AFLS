@@ -187,8 +187,8 @@ describe('migration and collection', () => {
     expect(league.version).toBe(SAVE_VERSION);
   });
 
-  it('upgrades a main v41 save to v42 without modifying roster, contract, ratings, chart or RNG data', () => {
-    league.version = 41;
+  it('upgrades a main v46 save to v47 without modifying roster, contract, ratings, chart or RNG data', () => {
+    league.version = 46;
     delete league.personnel;
     for (const p of Object.values(league.players)) delete p.service;
     const t = league.teams[0];
@@ -201,7 +201,7 @@ describe('migration and collection', () => {
     const stripped = copy(league);
     delete stripped.personnel;
     for (const p of Object.values(stripped.players)) delete p.service;
-    stripped.version = 41;
+    stripped.version = 46;
     expect(stripped).toEqual(before);
     expect(migrateLeague(league)).toEqual(copy(league));
     const loaded = copy(league);

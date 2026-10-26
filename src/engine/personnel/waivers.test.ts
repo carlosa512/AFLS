@@ -181,7 +181,7 @@ describe('veteran eligibility, league priority and preferences', () => {
     p.service = initialService(4, 2025);
     expect(waiverApplies(l, p)).toBe(false);
     p.service = initialService(3, 2025);
-    p.service.seasons[2026] = [63, 63, 63, null];
+    p.service[2] = 63; // six games this season do not vest the exception early
     expect(waiverApplies(l, p)).toBe(true);
     personnelClock(l).minute = TRADE_DEADLINE_MINUTE;
     p.service = initialService(4, 2025);
@@ -511,7 +511,7 @@ describe('AI and calendar integration', () => {
     p.contract!.years[0].base = 250_000;
     waive(p);
     playWeek(l);
-    expect(p.service!.seasons[2026]?.[0] ?? 0).toBe(0);
+    expect(p.service![2]).toBe(0);
     expect(nextWaiverDeadline(l) === undefined || nextWaiverDeadline(l)! > personnelTime(l)).toBe(true);
   });
 });

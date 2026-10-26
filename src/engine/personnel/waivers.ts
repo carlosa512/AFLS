@@ -11,7 +11,7 @@ import { computeRecords, winPct } from '../season/standings';
 import type { Contract, League, Player } from '../types';
 import { POSITIONS } from '../types';
 import { personnelClock, personnelTime, TRADE_DEADLINE_MINUTE, waiverDeadline } from './calendar';
-import { ensureService, serviceTotals } from './service';
+import { ensureService, serviceSeasons } from './service';
 import type { WaiverClaim, WaiverEntry, WaiverResult } from './types';
 import { PERSONNEL_RULES } from './rules';
 import { squadReturnProblem } from './rosterMoves';
@@ -91,9 +91,8 @@ export function waiverApplies(league: League, p: Player): boolean {
     (league.phase === 'regular' && personnelTime(league) > TRADE_DEADLINE_MINUTE)
   )
     return true;
-  // Use completed pension service. Current-year service does not vest the exception early.
-  const service = p.service;
-  return (service ? serviceTotals(service, league.season - 1).pension : p.experience) < 4;
+  // Completed seasons only: the current year cannot vest the exception early.
+  return serviceSeasons(p, league.season) < 4;
 }
 
 export function queueWaiver(league: League, p: Player, preview: ReleasePreview): void {

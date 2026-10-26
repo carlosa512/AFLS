@@ -7,7 +7,7 @@ import { STARTERS } from '../positions';
 import type { Contract, League, Player } from '../types';
 import type { SquadOffer } from './types';
 import { squadFit, squadRates, squadCategory, squadFormationCost } from './eligibility';
-import { ensureService, initialService, serviceTotals } from './service';
+import { ensureService, serviceSeasons } from './service';
 import { ensureSquads, promotionCredit, settleSquadPayroll, squadPayWeek, startSquadPay } from './payroll';
 import { executeRosterMove, squadReturnProblem, type RosterMove } from './rosterMoves';
 
@@ -134,11 +134,7 @@ export function releaseSquadPlayer(league: League, p: Player): void {
 }
 
 export function squadPromotionContract(league: League, p: Player): Contract {
-  const salarySeasons = serviceTotals(
-    p.service ?? initialService(p.experience, league.season - 1),
-    league.season - 1,
-  ).salary;
-  const salary = minSalary(salarySeasons, league.caps[league.season]);
+  const salary = minSalary(serviceSeasons(p, league.season), league.caps[league.season]);
   const c = buildContract(
     { years: 1, total: salary, signingBonus: 0, guaranteedBase: 0, voidYears: 0 },
     league.season,

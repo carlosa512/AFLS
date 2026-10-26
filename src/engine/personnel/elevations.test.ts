@@ -26,7 +26,7 @@ import {
 } from './elevations';
 import { autoGameDay, dressingLimit, gameDayPool, gameDayPreview, gameDayProblem, setGameDayPlan } from './gameDay';
 import { acceptSquadOffer, promoteSquadPlayer, releaseSquadPlayer, squadPromotionPreview } from './squads';
-import { initialService, historicalActives } from './service';
+import { initialService } from './service';
 import { settleSquadPayroll, squadPayroll } from './payroll';
 
 const template = createLeague({ seed: 'call-up-tests', personnel: true, userTeamId: 0 });
@@ -140,8 +140,7 @@ describe('temporary call-ups and durable history', () => {
     const charged = elevationCap(l, g.homeId);
     playGame(l, g);
     expect(g.result!.playerStats[p.id]?.snaps ?? 0).toBe(0);
-    expect(historicalActives(p.service!, 2026)).toBe(0);
-    expect(p.service!.seasons[2026][1]).toBe(1);
+    expect(p.service![2]).toBe(1 << (g.week - 1)); // a filed call-up earns the week, dressed or not
     expect(elevationCap(l, g.homeId)).toBe(charged);
     advancePersonnelTo(l, elevationReversion(g));
     expect(elevationRecords(l).find((e) => e.playerId === p.id)!.status).toBe('reverted');
@@ -216,7 +215,6 @@ describe('temporary call-ups and durable history', () => {
     g.serviceRoster = activeRoster(l, g.homeId).map((p) => ({ playerId: p.id, list: 'active' }));
     preparePersonnelGame(l, g);
     expect(g.personnel?.lists?.[g.homeId].dressedIds.length).toBeLessThanOrEqual(48);
-    expect(g.serviceRoster!.every((x) => x.dressed !== undefined)).toBe(true);
   });
   it('uses credited salary service for current and future pay tables', () => {
     const p = player();
@@ -268,11 +266,10 @@ describe('temporary call-ups and durable history', () => {
     const before = JSON.stringify(entry);
     settlePostseasonElevationPay(l, g);
     expect(JSON.stringify(entry)).toBe(before);
-    expect(p.service!.seasons[2026][4]).toBe(4);
   });
   it('migrates old careers without turning on personnel or inventing prior game-day lists', () => {
     const old = createLeague({ seed: 'elevation-migration' });
-    old.version = 41;
+    old.version = 46;
     const before = JSON.stringify(old.players);
     const m = migrateLeague(old)!;
     expect(m.version).toBe(SAVE_VERSION);
@@ -340,7 +337,7 @@ describe('frozen game-day lists and every match path', () => {
     playWith(p);
     expect(g.result!.playerStats[p.id].snaps).toBeGreaterThan(0);
     expect(g.result!.playerTeams[p.id]).toBe(g.homeId);
-    expect(historicalActives(p.service!, 2026)).toBe(1);
+    expect(p.service![2]).toBe(1 << (g.week - 1));
     expect(activeRoster(l, g.homeId)).toHaveLength(53);
     expect(p.contract).toBeNull();
     expect(JSON.stringify(l.teams[g.homeId].depthChart)).toBe(chart);

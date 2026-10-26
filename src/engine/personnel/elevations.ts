@@ -4,7 +4,7 @@ import { perceive } from '../scouting';
 import type { Game, League, Player } from '../types';
 import { STARTERS } from '../positions';
 import { elevationDeadline, elevationReversion, personnelTime } from './calendar';
-import { initialService, serviceTotals } from './service';
+import { serviceSeasons } from './service';
 import { invalidateSquadPayroll, settleSquadPayroll } from './payroll';
 import { PERSONNEL_RULES } from './rules';
 import type { Elevation } from './types';
@@ -38,7 +38,7 @@ export function nextTeamGame(l: League, teamId: number): Game | undefined {
 }
 /** CBA 2026–30 minimums; later years follow the cap, like practice-squad rates. */
 export function elevationMinimum(l: League, p: Player, down = false): number {
-  const credited = serviceTotals(p.service ?? initialService(p.experience, l.season - 1), l.season - 1).salary;
+  const credited = serviceSeasons(p, l.season);
   const tier = credited < 4 ? credited : credited < 7 ? 4 : 5;
   const year = Math.max(2026, Math.min(2030, l.season));
   const value =

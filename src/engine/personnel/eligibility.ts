@@ -1,22 +1,12 @@
 import type { League, Player } from '../types';
-import { initialService, historicalActives, serviceTotals } from './service';
+import { serviceSeasons } from './service';
 
 export type SquadCategory = 'base' | 'developmental' | 'veteran';
 
-/** Completed accrued seasons govern eligibility, not calendar experience or games in a box score. */
+/** Completed seasons of service govern eligibility, not calendar experience or games in a box score. */
 export function squadCategory(league: League, p: Player): SquadCategory {
-  const service = p.service ?? initialService(p.experience, league.season - 1);
-  const accrued = serviceTotals(service, league.season - 1).accrued;
-  if (accrued === 0) return 'base';
-  if (accrued === 1 && service.baseline[1] === 0) {
-    // The lone accrued season must have a known dressing list. Unknown history uses an expanded slot.
-    for (let year = service.baseline[0] + 1; year < league.season; year++) {
-      if (serviceTotals(service, year).accrued <= serviceTotals(service, year - 1).accrued) continue;
-      const actives = historicalActives(service, year);
-      if (actives !== undefined && actives < 9) return 'base';
-    }
-  }
-  return accrued <= 2 ? 'developmental' : 'veteran';
+  const seasons = serviceSeasons(p, league.season);
+  return seasons === 0 ? 'base' : seasons <= 2 ? 'developmental' : 'veteran';
 }
 
 /** Assign base-eligible players first: flexible players never consume a scarce expanded slot. */
