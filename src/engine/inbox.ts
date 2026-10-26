@@ -68,7 +68,8 @@ import { draftComplete, reachOrSteal } from './offseason/draft';
 import { rookieCost, ROSTER_MAX } from './offseason/negotiation';
 import { knowledge, leaguePercentile, perceive, scoutReportParts } from './scouting';
 import { POSITION_NAMES } from './positions';
-import { activeRoster, chooseCover, starters, teamPlayers, isAvailable, slotOf } from './roster';
+import { activeRoster, chooseCover, practiceSquad, starters, teamPlayers, isAvailable, slotOf } from './roster';
+import { futuresKept, futuresWindowOpen } from './personnel/futures';
 import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { ROUND_NAMES } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
@@ -143,6 +144,56 @@ function doctor(league: League): Sender {
   return m
     ? { from: `${m.firstName} ${m.lastName}, Head team doctor`, fromCard: { kind: 'medic', id: m.id } }
     : { from: 'Medical staff' };
+}
+
+/** Our season is over: the scouts' futures picks, kept by staff unless you change them. Once a season. */
+function futuresMail(league: League, have: Set<string>): Draft[] {
+  const user = league.userTeamId;
+  if (!futuresWindowOpen(league, user) || !practiceSquad(league, user).length) return [];
+  const id = `futures:${league.season}:${user}`;
+  if (have.has(id)) return [];
+  const picks = futuresKept(league, user).map((x) => league.players[x]);
+  const staff = league.teams[user].autoSquad !== false;
+  return [
+    {
+      id,
+      season: league.season,
+      phase: league.phase,
+      week: league.week,
+      ...director(league),
+      category: 'scouting',
+      subject: picks.length ? `Squad players worth keeping: ${picks.length}` : 'Nobody on the squad to keep',
+      body: picks.length
+        ? `Our season is over, so practice squad deals end at the new league year. We'd keep ${list(picks.map(fullName))} on futures deals: minimum contracts for next season. ${staff ? 'Staff will sign them unless you change it on the squad desk.' : 'Mark them on the squad desk before the new league year.'}`
+        : "Our season is over and the practice squad deals end at the new league year. On our read nobody there reaches our backups' level, so we'd let them go.",
+      actions: [
+        ...picks.slice(0, 3).map((p) => ({ kind: 'player' as const, playerId: p.id })),
+        { kind: 'team', teamId: user },
+      ],
+    },
+  ];
+}
+
+/** The new league year: who signed a futures deal with us. */
+function futuresKeptMail(league: League, have: Set<string>): Draft[] {
+  const f = league.personnel?.futures;
+  const ids = f && f.season === league.season - 1 ? (f.signed?.[league.userTeamId] ?? []) : [];
+  const id = `futuresKept:${league.season}`;
+  if (!ids.length || have.has(id)) return [];
+  const players = ids.map((x) => league.players[x]);
+  return [
+    {
+      id,
+      season: league.season,
+      phase: league.phase,
+      week: 0,
+      ...director(league),
+      category: 'contracts',
+      subject: `Kept from the practice squad: ${players.length}`,
+      body: `${list(players.map(fullName))} signed futures deals and join the offseason roster. The rest of last year's squad are free agents.`,
+      actions: players.slice(0, 3).map((p) => ({ kind: 'player' as const, playerId: p.id })),
+    },
+  ];
 }
 
 /** Another club signed one of our practice squad players to its 53: the head coach says so, once. */
@@ -642,7 +693,9 @@ export type MailSubject =
   | { kind: 'positionMoved'; season: number; playerId: number }
   | { kind: 'covering'; season: number; week: number; playerId: number; pos: Position }
   | { kind: 'shortHanded'; season: number; week: number; pos: Position }
-  | { kind: 'squadPoach'; season: number; week: number; playerId: number };
+  | { kind: 'squadPoach'; season: number; week: number; playerId: number }
+  | { kind: 'futures'; season: number }
+  | { kind: 'futuresKept'; season: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -727,6 +780,10 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'covering', season, week: Number(a), playerId: Number(b), pos: rest[0] as Position };
     case 'short':
       return { kind: 'shortHanded', season, week: Number(a), pos: b as Position };
+    case 'futures':
+      return { kind: 'futures', season };
+    case 'futuresKept':
+      return { kind: 'futuresKept', season };
     case 'squadPoach':
       return { kind: 'squadPoach', season, week: Number(a), playerId: Number(b) };
     case 'position':
@@ -2188,7 +2245,13 @@ export function deliverMail(league: League): void {
       ...offerMail(league, have),
     );
     if (league.phase === 'resign')
-      fresh.push(...ownerMail(league, have), ...staffDealsMail(league, have), ...newYearMail(league, have));
+      fresh.push(
+        ...ownerMail(league, have),
+        ...staffDealsMail(league, have),
+        ...newYearMail(league, have),
+        ...futuresKeptMail(league, have),
+      );
+    if (league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...futuresMail(league, have));
     // Free agency's first day: the window's coaching moves are done.
     if (league.phase === 'freeAgency')
       fresh.push(...combineMail(league, have), ...poachedMail(league, have), ...carouselMail(league, have));

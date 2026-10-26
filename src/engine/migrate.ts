@@ -145,6 +145,7 @@ export function migrateLeague(league: League): League | null {
     league.version = 47;
   }
   if (league.version < 48) league.version = 48; // v48: optional personnel.poaching, created when a career first settles a week
+  if (league.version < 49) league.version = 49; // v49: optional futures choices, the switch-on offer and Team.autoSquad
   return league;
 }
 

@@ -27,6 +27,7 @@ import { playingHurt } from '../engine/roster';
 import type { League, Player } from '../engine/types';
 import { Dialog, Panel, PlayerLink, TeamLink, SortTh, sortRows, useSort } from './components';
 import { liveLock } from './live';
+import { futuresKept, futuresWindowOpen, setFuturesKeep } from '../engine/personnel/futures';
 import {
   cancelPoachOffer,
   pinnedIds,
@@ -487,5 +488,21 @@ export function SquadSignings({ league }: { league: League }) {
         <p className="small muted">No squad signings yet this season.</p>
       )}
     </Panel>
+  );
+}
+
+/** Once your season is over: keep him for next season on a futures deal (a minimum contract), or let him go. */
+export function FuturesCell({ league, player }: { league: League; player: Player }) {
+  const teamId = player.teamId;
+  if (teamId === null || teamId !== league.userTeamId || !futuresWindowOpen(league, teamId)) return null;
+  const kept = futuresKept(league, teamId).includes(player.id);
+  return (
+    <button
+      className="btn btn-sm"
+      aria-pressed={kept}
+      onClick={() => store.mutate((l) => setFuturesKeep(l, teamId, player.id, !kept))}
+    >
+      {kept ? 'Keeping for next season' : 'Keep for next season'}
+    </button>
   );
 }

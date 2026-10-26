@@ -701,6 +701,8 @@ export interface Team {
   medicalDead: StaffSeverance[];
   /** False when the user manages injuries by hand (IR moves, replacements). AI teams always delegate. */
   autoInjuries?: boolean;
+  /** Practice squads: false when you run the squad yourself (refills, call-ups, futures). Absent: your staff does. */
+  autoSquad?: false;
   /** Injured-reserve return designations used, by league year (`IR_RETURNS` per season). */
   irReturns?: Record<number, number>;
   /**

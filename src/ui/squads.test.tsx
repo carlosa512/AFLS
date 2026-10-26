@@ -71,4 +71,11 @@ describe('practice squad desk', () => {
     lockProtections(l);
     expect(renderToStaticMarkup(<PoachAction league={l} player={top} />)).toContain('Protected');
   });
+  it('once your season is over, your rows offer keeping a player for next season', () => {
+    const l = createLeague({ seed: 'squad-ui-futures', personnel: true, userTeamId: 0 });
+    l.phase = 'complete';
+    const html = renderToStaticMarkup(<PracticeSquad league={l} />);
+    expect(html).toContain('Next season');
+    expect(html).toMatch(/Keep(ing)? for next season/);
+  });
 });

@@ -17,7 +17,8 @@ import { SquadActions } from '../contracts';
 import { money, weeklyMoney } from '../format';
 import { liveLock } from '../live';
 import { Ovr, ScoutedCeiling, seenOvr, viewOf } from '../scouting';
-import { GameDayPanel, PoachAction, ProtectionCell, SquadSignings } from '../personnel';
+import { FuturesCell, GameDayPanel, PoachAction, ProtectionCell, SquadSignings } from '../personnel';
+import { futuresWindowOpen } from '../../engine/personnel/futures';
 import { elevationUses } from '../../engine/personnel/elevations';
 import { store } from '../store';
 
@@ -50,6 +51,7 @@ export function PracticeSquad({ league }: { league: League }) {
   const expanded = members.filter((p) => squadCategory(league, p) !== 'base').length;
   const veterans = members.filter((p) => squadCategory(league, p) === 'veteran').length;
   const mine = teamId === league.userTeamId;
+  const offseason = futuresWindowOpen(league, league.userTeamId);
   const lock = liveLock();
   const window = lock ?? squadWindowProblem(league);
   const offers = league.personnel.squads?.offers.filter((o) => o.teamId === league.userTeamId) ?? [];
@@ -93,7 +95,7 @@ export function PracticeSquad({ league }: { league: League }) {
             ).map(([key, label]) => (
               <SortTh key={key} label={label} k={key} sort={sort} onSort={onSort} />
             ))}
-            {!market && <th>{mine ? 'Protection' : 'Sign'}</th>}
+            {!market && <th>{mine ? (offseason ? 'Next season' : 'Protection') : 'Sign'}</th>}
             {mine && <th>{market ? 'Offer' : 'Moves'}</th>}
           </tr>
         </thead>
@@ -143,7 +145,13 @@ export function PracticeSquad({ league }: { league: League }) {
                 )}
                 {!market && (
                   <td>
-                    {mine ? <ProtectionCell league={league} player={p} /> : <PoachAction league={league} player={p} />}
+                    {!mine ? (
+                      <PoachAction league={league} player={p} />
+                    ) : offseason ? (
+                      <FuturesCell league={league} player={p} />
+                    ) : (
+                      <ProtectionCell league={league} player={p} />
+                    )}
                   </td>
                 )}
                 {mine && (

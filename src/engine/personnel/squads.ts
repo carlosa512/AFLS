@@ -8,6 +8,7 @@ import type { Contract, League, Player } from '../types';
 import type { SquadOffer } from './types';
 import { squadFit, squadRates, squadCategory, squadFormationCost } from './eligibility';
 import { ensureService, serviceSeasons } from './service';
+import { signFuturesDeals } from './futures';
 import { ensureSquads, promotionCredit, settleSquadPayroll, squadPayWeek, startSquadPay } from './payroll';
 import { executeRosterMove, squadReturnProblem, type RosterMove } from './rosterMoves';
 
@@ -241,6 +242,8 @@ export function promoteSquadPlayer(league: League, p: Player, move?: RosterMove)
 
 /** Called after the old employer's coaching/development pass; future rights are a later lifecycle step. */
 export function expireSquadContracts(league: League): void {
+  // Kept players sign first; then every other agreement ends and its player becomes a free agent.
+  signFuturesDeals(league);
   for (const p of Object.values(league.players)) {
     if (!p.squad) continue;
     delete p.squad;
