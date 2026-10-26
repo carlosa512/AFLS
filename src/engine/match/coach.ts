@@ -172,9 +172,13 @@ export function fourthDown(s: Situation, rng: Rng): FourthDown {
   if (s.distance <= 1 && s.yardLine >= 40) return rng.chance(goOdds(s, 0.7)) ? 'go' : inRange ? 'fg' : 'punt';
   if (s.distance <= 2 && s.yardLine >= 55 && yardsToGoal > 3)
     return rng.chance(goOdds(s, 0.75)) ? 'go' : inRange ? 'fg' : 'punt';
-  if (s.distance <= 1 && s.yardLine >= 30) return rng.chance(goOdds(s, 0.25)) ? 'go' : 'punt';
+  // Fourth-and-2 around midfield: the analytics era goes about half the time (NFL 2023–24: 1.40–1.47 tries a
+  // team-game in all, where 0.25 and 0.3 below, with no midfield case, left the league near 1.2 and kicking more).
+  if (s.distance <= 2 && s.yardLine >= 45) return rng.chance(goOdds(s, 0.55)) ? 'go' : 'punt';
+  if (s.distance <= 1 && s.yardLine >= 30) return rng.chance(goOdds(s, 0.45)) ? 'go' : 'punt';
   if (s.distance <= 4 && s.yardLine >= 60 && yardsToGoal > 3)
-    return rng.chance(goOdds(s, 0.3)) ? 'go' : s.fgMakeProb >= 0.55 ? 'fg' : 'punt';
+    return rng.chance(goOdds(s, 0.5)) ? 'go' : s.fgMakeProb >= 0.55 ? 'fg' : 'punt';
+  if (s.distance <= 4 && s.yardLine >= 45 && s.fgMakeProb < 0.55) return rng.chance(goOdds(s, 0.3)) ? 'go' : 'punt';
 
   if (comfortable) return 'fg';
   // No-man's land: a long kick, a short punt, or go for it. Coin-flip kicks are for the end of games.
@@ -182,7 +186,7 @@ export function fourthDown(s: Situation, rng: Rng): FourthDown {
   if (s.fgMakeProb >= 0.55 && s.distance > 4)
     return rng.chance((s.fgMakeProb - 0.5) / (COMFORTABLE - 0.5)) ? 'fg' : 'punt';
   if (s.yardLine >= 62 && s.distance <= 4) return 'go';
-  if (s.yardLine >= 66 && s.distance <= 7 && rng.chance(goOdds(s, 0.4))) return 'go';
+  if (s.yardLine >= 66 && s.distance <= 7 && rng.chance(goOdds(s, 0.5))) return 'go';
   return 'punt';
 }
 

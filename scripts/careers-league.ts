@@ -3,7 +3,7 @@
  * and collect what the audit judges, from the steady state (the second half of the run). The audit
  * runs one of these per seed in its own process and pools them.
  */
-import { coachingFor, NEUTRAL, staffScore, teamCoaches } from '../src/engine/coaching';
+import { coachingForPlayer, NEUTRAL, staffScore, teamCoaches } from '../src/engine/coaching';
 import { developPlayer, playedShare, rollInputs, trueUp } from '../src/engine/development';
 import { createLeague } from '../src/engine/generate';
 import { simToEndOfSeason } from '../src/engine/league';
@@ -87,7 +87,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     if (s >= steadyFrom) {
       for (const p of Object.values(league.players)) {
         if (p.retired || p.teamId === null) continue;
-        const c = coachingFor(league, p.teamId, p.position);
+        const c = coachingForPlayer(league, p);
         if (p.position === 'K' || p.position === 'P') {
           out.ledger.kpGrowth.push(c.rate);
           out.ledger.kpCraft.push(c.decline.technical);

@@ -348,14 +348,36 @@ describe('offers to you', () => {
     // A bid left to lapse keeps its team off him for two moments; putting him on the block answers it, and the
     // listing's call is "always made". A bid you declined keeps its wait.
     const l = fresh();
-    // Two bids from different teams for your players: play on until the desk has them.
-    const bids = () => packaged(l).filter((o) => o.sides[1].players.length);
-    const twoTeams = () => new Set(bids().map((o) => o.teamId)).size >= 2;
-    while (!twoTeams() && l.phase === 'regular' && l.week <= 9) playWeek(l);
-    const lapsed = bids()[0];
-    const declined = bids().find((o) => o.teamId !== lapsed?.teamId);
-    expect(declined, 'two bids for your players on the desk').toBeDefined();
-    if (!declined) return;
+    // This tests the response to pending bids, not their random arrival frequency. Build two
+    // real packages using the normal buyer/pricing rules; game outcomes need not make them arrive together.
+    const ctx = tradeContext(l);
+    const bids: TradeOffer[] = [];
+    for (const player of activeRoster(l, l.userTeamId)) {
+      for (const buyer of l.teams) {
+        if (buyer.id === l.userTeamId || bids.some((o) => o.teamId === buyer.id)) continue;
+        const proposal = bidFor(ctx, buyer, player);
+        if (!proposal) continue;
+        bids.push({
+          id: l.market!.nextOfferId++,
+          teamId: buyer.id,
+          sides: proposal.sides,
+          kind: 'user',
+          reason: 'bid',
+          season: l.season,
+          phase: l.phase,
+          week: l.week,
+          moment: l.market!.moment,
+          status: 'pending',
+          patience: 2,
+          worth: quickValue(ctx, buyer, proposal.sides[0]),
+        });
+        break;
+      }
+      if (bids.length === 2) break;
+    }
+    expect(bids, 'two valid buyer packages for different players and teams').toHaveLength(2);
+    const [lapsed, declined] = bids;
+    l.market!.offers = bids;
     const desk = JSON.stringify(l);
     declineOffer(l, declined.id);
     playWeek(l);

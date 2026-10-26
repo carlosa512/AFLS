@@ -444,7 +444,7 @@ function Message({
   );
 }
 
-function MessageBody({
+export function MessageBody({
   league,
   m,
   index,
@@ -460,11 +460,38 @@ function MessageBody({
   const actions = m.actions.filter((a) => !skip.includes(a.kind));
   return (
     <>
-      {m.body.split(/\n\s*\n/).map((paragraph, i) => (
-        <p className="inbox-body" key={i}>
-          <LinkedText league={league} text={paragraph} about={aboutOf(league, m)} index={index} />
-        </p>
-      ))}
+      {m.body
+        .split(/\n\s*\n/)
+        .filter((paragraph) => paragraph !== m.coachNote?.text)
+        .map((paragraph, i) => (
+          <p className="inbox-body" key={i}>
+            <LinkedText league={league} text={paragraph} about={aboutOf(league, m)} index={index} />
+          </p>
+        ))}
+      {m.coachNote && (
+        <aside
+          className="coach-note"
+          aria-label={
+            m.coachNote.kind === 'revisit'
+              ? 'Coach trial reconsideration'
+              : m.coachNote.kind === 'followup'
+                ? 'Coach follow-up'
+                : 'Coach recommendation'
+          }
+        >
+          <div className="eyebrow">
+            {m.coachNote.kind === 'revisit'
+              ? 'Reconsidering the trial'
+              : m.coachNote.kind === 'followup'
+                ? 'Following up'
+                : 'From the staff'}{' '}
+            · {m.coachNote.coachName}
+          </div>
+          <p className="inbox-body">
+            <LinkedText league={league} text={m.coachNote.text} about={aboutOf(league, m)} index={index} />
+          </p>
+        </aside>
+      )}
       <MailCards league={league} message={m} />
       {actions.length > 0 && (
         <div className="row">

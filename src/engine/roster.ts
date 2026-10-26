@@ -1,7 +1,9 @@
+import { coachOrder } from './coachDecisions';
+import { teamCoaches } from './coaching';
 import { skill } from './attributes';
 import { slotOvr } from './familiarity';
 import { STARTERS } from './positions';
-import type { DepthChart, Injury, League, Player, PlayingAt, Position, Team } from './types';
+import type { Coach, DepthChart, Injury, League, Player, PlayingAt, Position, Team } from './types';
 import { POSITIONS } from './types';
 
 export function teamPlayers(league: League, teamId: number): Player[] {
@@ -24,11 +26,15 @@ export const isAvailable = (p: Player) => !p.ir && (!p.injury || playingHurt(p.i
  * Depth chart ordered by what each player is worth where he lines up: his own position, or the one `playingAt`
  * puts him at (his worth there carries the out-of-position knock, so he ranks among its own players by it).
  */
-export function buildAutoDepthChart(players: Player[], playingAt: Record<number, PlayingAt> = {}): DepthChart {
+export function buildAutoDepthChart(
+  players: Player[],
+  playingAt: Record<number, PlayingAt> = {},
+  staff: readonly Coach[] = [],
+): DepthChart {
   const chart = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as Player[]])) as Record<Position, Player[]>;
   for (const p of players) chart[playingAt[p.id]?.pos ?? p.position].push(p);
   const out = {} as DepthChart;
-  for (const pos of POSITIONS) out[pos] = chart[pos].sort((a, b) => slotOvr(b, pos) - slotOvr(a, pos)).map((p) => p.id);
+  for (const pos of POSITIONS) out[pos] = coachOrder(chart[pos], pos, staff).map((p) => p.id);
   out.OL = lineOrder(out.OL.map((id) => players.find((p) => p.id === id)!)).map((p) => p.id);
   return out;
 }
@@ -65,7 +71,7 @@ export function syncDepthChart(league: League, team: Team): void {
     }
   const at = team.playingAt ?? {};
   if (team.autoDepth) {
-    team.depthChart = buildAutoDepthChart(players, at);
+    team.depthChart = buildAutoDepthChart(players, at, teamCoaches(league, team.id));
     return;
   }
   const placed = new Set<number>();
