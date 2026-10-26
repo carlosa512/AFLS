@@ -2113,7 +2113,11 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
       week: e.date.week,
       from: inside || (personal && e.kind === 'gmDismissed') ? 'The owner' : 'SNN league desk',
       category: inside || personal ? 'staff' : 'league',
-      subject: e.report,
+      // The owner's own letter opens "I've let … go.": that's his subject, not the public headline.
+      subject:
+        inside && e.kind === 'coachInterim' && e.privateText?.includes(' go.')
+          ? e.privateText.slice(0, e.privateText.indexOf(' go.') + 3)
+          : e.report,
       body: (inside || (personal && e.kind === 'gmDismissed')) && e.privateText ? e.privateText : e.report,
       actions: [{ kind: 'gms' }],
     });
