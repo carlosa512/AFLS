@@ -1569,6 +1569,8 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
   let current = roster.filter((p) => p.teamId === team.id && !p.ir && !p.squad);
   // Positions nobody on the roster can cover, when this pass can't sign: left short.
   const stuck = new Set<Position>();
+  // Call-ups promised this pass (two a game at most).
+  let promised = 0;
   for (let guard = 0; guard < 12; guard++) {
     if (guard > 0) current = activeRoster(league, team.id);
     const healthy = new Map<Position, number>();
@@ -1600,9 +1602,10 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     // Practice squads on: a short absence is a call-up at kickoff; a longer one promotes the club's own squad player
     // when it reads him at least as well as the best free agent (never for you: signings stay yours).
     if (short) {
-      const fromSquad = squadCover(league, team.id, short);
+      const fromSquad = squadCover(league, team.id, short, promised);
       if (fromSquad === 'callup') {
         stuck.add(short);
+        promised++;
         continue;
       }
       if (fromSquad && open && !squadPromotionPreview(league, fromSquad).problem) {

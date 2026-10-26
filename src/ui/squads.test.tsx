@@ -95,6 +95,7 @@ describe('practice squad desk', () => {
     const l = createLeague({ seed: 'squad-ui-switch' });
     expect(renderToStaticMarkup(<PracticeSquad league={l} />)).toMatch(/disabled=""[^>]*>Turn on practice squads/);
     l.phase = 'freeAgency';
+    l.personnel!.offered = l.season; // the offseason that made the offer
     expect(renderToStaticMarkup(<PracticeSquad league={l} />)).not.toMatch(/disabled=""[^>]*>Turn on practice squads/);
   });
 });

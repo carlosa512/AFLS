@@ -65,6 +65,18 @@ export function setFuturesKeep(league: League, teamId: number, playerId: number,
 }
 
 /**
+ * Before the new league year ages anyone: a club without explicit choices keeps the picks its staff show now (the
+ * list the director's mail and the squad desk promise), not a list recomputed after aging and retirements.
+ */
+export function freezeFuturesPicks(league: League): void {
+  if (!league.personnel?.enabled) return;
+  if (league.personnel.futures?.season !== league.season)
+    league.personnel.futures = { season: league.season, kept: {} };
+  const kept = league.personnel.futures!.kept;
+  for (const team of league.teams) kept[team.id] ??= keptFor(league, team.id, league.season);
+}
+
+/**
  * At the new league year (the season has already turned): kept players still on their squad sign a minimum
  * one-year deal for this season and join the offseason roster. Called before the remaining agreements expire.
  */
@@ -76,7 +88,8 @@ export function signFuturesDeals(league: League): void {
   for (const team of league.teams) {
     for (const id of keptFor(league, team.id, last)) {
       const p = league.players[id];
-      p.contract = squadMinimumContract(league, p, 1);
+      // A whole new season: never prorated (beginOffseason still reads last season as fully paid here).
+      p.contract = squadMinimumContract(league, p, 1, false);
       delete p.squad;
       (signed[team.id] ??= []).push(id);
       kept.add(id);

@@ -136,7 +136,7 @@ export function releaseSquadPlayer(league: League, p: Player): void {
 
 /** A minimum NFL deal for a squad player moving to a 53, his own club's or another's: the year's weeks already
  * paid are prorated out of year one. */
-export function squadMinimumContract(league: League, p: Player, years: number): Contract {
+export function squadMinimumContract(league: League, p: Player, years: number, prorate = true): Contract {
   const salary = minSalary(serviceSeasons(p, league.season), league.caps[league.season]);
   const c = buildContract(
     { years, total: salary * years, signingBonus: 0, guaranteedBase: 0, voidYears: 0 },
@@ -145,6 +145,7 @@ export function squadMinimumContract(league: League, p: Player, years: number): 
     salary,
     league.phase === 'regular' ? league.week : 0,
   );
+  if (!prorate) return c;
   const y = c.years[0];
   y.base = Math.round(y.base * (1 - paidFraction(league)));
   y.paidBefore = league.phase === 'regular' ? league.week - 1 : 0;

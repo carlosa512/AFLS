@@ -149,9 +149,9 @@ function doctor(league: League): Sender {
 
 /** Existing careers: the league office offers practice squads once, at the start of the offseason. */
 function personnelOfferMail(league: League, have: Set<string>): Draft[] {
-  if (!league.personnel?.offered || league.personnel.enabled) return [];
+  if (league.personnel?.offered !== league.season || league.personnel.enabled) return [];
   const id = `personnelOffer:${league.season}`;
-  if (have.has(id) || (league.inbox ?? []).some((m) => m.id.startsWith('personnelOffer:'))) return [];
+  if (have.has(id)) return [];
   return [
     {
       id,
@@ -2359,8 +2359,8 @@ export function deliverMail(league: League): void {
         ...personnelOfferMail(league, have),
       );
     if (league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...futuresMail(league, have));
-    if (league.phase === 'preseason' || league.phase === 'regular' || league.phase === 'playoffs')
-      fresh.push(...waiverMail(league, have));
+    // Waivers run in every phase but the gap after the final: news arrives the step it happens.
+    if (league.phase !== 'complete') fresh.push(...waiverMail(league, have));
     if (league.phase === 'regular') fresh.push(...callupsUsedMail(league, have));
     // Free agency's first day: the window's coaching moves are done.
     if (league.phase === 'freeAgency')

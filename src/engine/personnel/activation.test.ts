@@ -15,6 +15,16 @@ describe('switching practice squads on', () => {
     expect(canTurnOnPersonnel(on)).toMatch(/already/);
   });
 
+  it('the offer is for one offseason only: a later one cannot turn them on', () => {
+    const l = createLeague({ seed: 'activation-once' });
+    l.phase = 'resign';
+    expect(canTurnOnPersonnel(l)).toMatch(/offer/);
+    l.personnel!.offered = l.season;
+    expect(canTurnOnPersonnel(l)).toBeNull();
+    l.season++;
+    expect(canTurnOnPersonnel(l)).toMatch(/offer/);
+  });
+
   it('an old career gets the offer once at its offseason; turned on before camp, squads form at camp', () => {
     const l = createLeague({ seed: 'activation-old' });
     simToEndOfSeason(l);

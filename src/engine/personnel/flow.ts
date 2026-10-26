@@ -48,14 +48,15 @@ export function settleWeek(league: League): void {
   if (league.phase === 'regular') {
     lockProtections(league);
     submitAIPoachOffers(league);
-    // An AI club whose offer lapsed fills the place it held, so it never plays a man short for it.
-    const lapsed = new Set(
-      resolvePoaching(league)
-        .filter((r) => r.toTeamId === null && r.teamId !== league.userTeamId)
-        .map((r) => r.teamId),
-    );
-    for (const teamId of [...lapsed].sort((a, b) => a - b))
-      if (!resolvedForTeam(league, teamId)) refillRoster(league, league.teams[teamId]);
+    // An AI club whose offer lapsed fills the place it held; one that lost a squad player covers again (a call-up it
+    // was counting on may have gone with him). Neither plays a man short for it.
+    const results = resolvePoaching(league);
+    const refill = new Set([
+      ...results.filter((r) => r.toTeamId === null && !resolvedForTeam(league, r.teamId)).map((r) => r.teamId),
+      ...results.filter((r) => r.toTeamId !== null).map((r) => r.fromTeamId),
+    ]);
+    for (const teamId of [...refill].sort((a, b) => a - b))
+      if (teamId !== league.userTeamId && league.teams[teamId]) refillRoster(league, league.teams[teamId]);
   }
   clock.settledWeek = league.week;
 }

@@ -1,5 +1,6 @@
 import { capSpace, logTransaction } from '../finance/cap';
-import { activeRoster, practiceSquad } from '../roster';
+import { activeRoster, isAvailable, practiceSquad } from '../roster';
+import { NEED } from '../injuries';
 import { perceive } from '../scouting';
 import type { Game, League, Player } from '../types';
 import { STARTERS } from '../positions';
@@ -176,11 +177,12 @@ export function planAIElevations(l: League, g: Game, autoUser = false): void {
     const candidates = practiceSquad(l, teamId)
       .map((p) => {
         const read = perceive(l, teamId, p);
-        const healthy = roster.filter((x) => x.position === p.position && !x.injury);
+        const healthy = roster.filter((x) => x.position === p.position && isAvailable(x));
         const own = healthy.map((x) => perceive(l, teamId, x).ovr).sort((a, b) => b - a);
-        const need = p.position === 'QB' ? 2 : STARTERS[p.position];
-        const improvement = read.ovr - (own[Math.min(need - 1, own.length - 1)] ?? 0);
-        return { p, score: (healthy.length < need ? 20 : 0) + improvement };
+        const starters = p.position === 'QB' ? 2 : STARTERS[p.position];
+        const improvement = read.ovr - (own[Math.min(starters - 1, own.length - 1)] ?? 0);
+        // Short of what injury cover counts as enough (NEED): the call-up that cover was promised.
+        return { p, score: (healthy.length < NEED[p.position] ? 20 : 0) + improvement };
       })
       .filter(({ p, score }) => score > 0.5 && !elevationProblem(l, p, g))
       .sort((a, b) => b.score - a.score || a.p.id - b.p.id);

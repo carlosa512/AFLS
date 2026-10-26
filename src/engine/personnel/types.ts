@@ -34,8 +34,8 @@ export interface PersonnelState {
     /** Squad players whose deals ended unkept: the ones still unsigned when camp ends may leave football. */
     released?: number[];
   };
-  /** The one-time offer to switch practice squads on was made (existing careers). */
-  offered?: true;
+  /** The league year whose offseason offered practice squads to this existing career (the only one that can). */
+  offered?: number;
   /** Step 5: other clubs signing squad players to their 53, and each club's two weekly protections. */
   poaching?: {
     season: number;

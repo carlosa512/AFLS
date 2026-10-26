@@ -6,6 +6,7 @@ import { perceive } from '../scouting';
 import type { League } from '../types';
 import {
   castoffRetireChance,
+  freezeFuturesPicks,
   futuresKept,
   futuresPicks,
   futuresWindowOpen,
@@ -13,6 +14,8 @@ import {
   setFuturesKeep,
 } from './futures';
 import { expireSquadContracts } from './squads';
+import { minSalary } from '../finance/market';
+import { serviceSeasons } from './service';
 
 const template = createLeague({ seed: 'futures-tests', personnel: true, userTeamId: 0 });
 const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v));
@@ -21,12 +24,14 @@ beforeEach(() => {
   l = copy(template);
   l.phase = 'complete';
 });
-/** What beginOffseason does around the expiry: the new league year, then squads end. */
+/** What beginOffseason does around the expiry: picks freeze, the new league year, then squads end (the phase is still
+ * 'complete' there, as in beginOffseason). */
 function newLeagueYear() {
+  freezeFuturesPicks(l);
   l.season++;
   l.caps[l.season] = l.caps[l.season - 1];
-  l.phase = 'resign';
   expireSquadContracts(l);
+  l.phase = 'resign';
 }
 const bar = (teamId: number, pos: string) => {
   const on = new Set(activeRoster(l, teamId).map((p) => p.id));
@@ -70,6 +75,9 @@ describe('futures deals', () => {
     expect(k.contract!.kind).toBe('minimum');
     expect(k.contract!.years[0].season).toBe(l.season);
     expect(k.contract!.years).toHaveLength(1);
+    // A full season's minimum for his service: nothing of next year is paid yet.
+    expect(k.contract!.years[0].base).toBe(minSalary(serviceSeasons(k, l.season), l.caps[l.season]));
+    expect(k.contract!.years[0].paidBefore ?? 0).toBe(0);
     expect(activeRoster(l, 0)).toContain(k);
     expect(l.players[drop.id].teamId).toBeNull();
   });
@@ -83,8 +91,11 @@ describe('futures deals', () => {
     expect(keep.contract).toBeNull();
   });
 
-  it('AI clubs keep their picks at the new league year', () => {
+  it('AI clubs keep the picks shown when their season ended, even if aging would change them', () => {
     const picks = futuresPicks(l, 5);
+    freezeFuturesPicks(l);
+    // Aging and depth changes after the freeze don't reshuffle the list.
+    for (const id of picks) l.players[id].potential = 1;
     newLeagueYear();
     for (const id of picks) expect(l.players[id].teamId).toBe(5);
   });

@@ -7,6 +7,8 @@ import { ensureWaivers } from './waivers';
 export function canTurnOnPersonnel(league: League): string | null {
   if (!league.personnel) return 'This save has no personnel profile.';
   if (league.personnel.enabled) return 'Practice squads are already on in this career.';
+  if (league.personnel.offered !== league.season)
+    return 'The offer to turn on practice squads comes once, at the offseason after an update adds them.';
   if (!['resign', 'freeAgency', 'draft'].includes(league.phase))
     return 'Practice squads can be turned on in the offseason, before training camp.';
   return null;

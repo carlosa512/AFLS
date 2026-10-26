@@ -1,7 +1,7 @@
 import { formPracticeSquads } from '../personnel/squadMarket';
 import { settleSquadPayroll } from '../personnel/payroll';
 import { expireSquadContracts } from '../personnel/squads';
-import { retireCastoffs } from '../personnel/futures';
+import { freezeFuturesPicks, retireCastoffs } from '../personnel/futures';
 /**
  * The offseason calendar. `beginOffseason` opens the new league year (cap growth, ageing,
  * the draft order); `advanceOffseason` moves one step at a time:
@@ -65,6 +65,8 @@ export const FA_DAYS = 5;
 export function beginOffseason(league: League): void {
   if (league.phase !== 'complete') throw new Error('The season is not finished');
   settleOffseasonWaivers(league);
+  // Futures picks freeze before anyone ages: the list the director's mail promised is the list that signs.
+  freezeFuturesPicks(league);
   settleSquadPayroll(league);
   expireOffers(league);
   resetContenderCache(league);
@@ -141,7 +143,8 @@ export function beginOffseason(league: League): void {
   }
   expireSquadContracts(league);
   // Careers from before practice squads get one offer to switch them on (the squad desk, until camp).
-  if (league.personnel && !league.personnel.enabled && !league.personnel.offered) league.personnel.offered = true;
+  if (league.personnel && !league.personnel.enabled && league.personnel.offered === undefined)
+    league.personnel.offered = league.season;
   injuriesNewYear(league);
   resetScouting(league);
   developStaff(league);

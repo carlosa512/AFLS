@@ -76,4 +76,10 @@ describe('personnel mail', () => {
     expect(mail('callups:')).toHaveLength(1);
     expect(mail('callups:')[0].body).toMatch(/contract/);
   });
+  it('waiver news in the offseason arrives when it happens, not at camp', () => {
+    l.phase = 'freeAgency';
+    ensureWaivers(l).results.push(result({ entryId: 12 }));
+    deliverMail(l);
+    expect(mail('waiverClaim:')).toHaveLength(1);
+  });
 });
