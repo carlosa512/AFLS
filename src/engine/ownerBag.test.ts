@@ -40,8 +40,8 @@ describe("the owner's marble bag", () => {
     expect(coachBlame(0, 32, rec(4))).toBeGreaterThan(0.6);
     expect(coachBlame(31, 32, rec(4))).toBeLessThan(0.5);
     for (const rank of [0, 15, 31]) {
-      expect(coachBlame(rank, 32, rec(0))).toBeLessThanOrEqual(0.8);
-      expect(coachBlame(rank, 32, rec(8))).toBeGreaterThanOrEqual(0.2);
+      expect(coachBlame(rank, 32, rec(0))).toBeLessThanOrEqual(0.85);
+      expect(coachBlame(rank, 32, rec(8))).toBeGreaterThanOrEqual(0.35);
     }
   });
 

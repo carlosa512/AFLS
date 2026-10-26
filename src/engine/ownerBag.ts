@@ -42,13 +42,15 @@ export function talentRanks(l: League): Map<number, number> {
 
 /**
  * The head coach's share of a losing season. He owns how far the team fell short of its roster (a top roster
- * should win .750); the GM owns how far the roster he built sits below .500. Never all on one side.
+ * should win .750); the GM owns how far the roster he built sits below .500. Never all on one side, and the coach
+ * always carries at least a third: owners change coaches more often than GMs (NFL about seven a year against four),
+ * and a league that changed fewer coaches than that traded less at the deadline, with fewer new schemes to fit.
  */
 export function coachBlame(rank: number, teams: number, rec: Rec): number {
   const expected = 0.75 - (0.5 * rank) / Math.max(1, teams - 1);
   const coach = Math.max(0, expected - pct(rec)),
     gm = Math.max(0, 0.5 - expected);
-  return coach + gm ? clamp(coach / (coach + gm), 0.2, 0.8) : 0.5;
+  return coach + gm ? clamp(coach / (coach + gm), 0.35, 0.85) : 0.5;
 }
 
 /** Whether he was this club's head coach that season: his game-by-game record, or his hire date when a save has none. */
