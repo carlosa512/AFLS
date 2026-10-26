@@ -234,3 +234,34 @@ Before final balance, revisit the unusually patient Carolina owner in A, prolong
 the dominance of director hires and the observed rarity of midseason GM dismissal. Broader seeds
 should guide tuning; these two careers establish lifecycle correctness and expose the first balance
 questions, rather than proving final NFL-like rates.
+
+## Owner marble bag (calibration, delivery step 8)
+
+The first paired run raised four questions: a patient owner kept a GM through 3–14 and 2–15, the dismissed player
+never got another offer, directors took 31 of 32 jobs, and no GM was fired in season. Owners now judge through a
+marble bag (`ownerBag.ts`, save version 45), the same idea as the concussion protocol and the quirk bag:
+
+- Calm marbles are patience: 7 for the quickest trigger, 12 for the most patient (`ownerTrigger`).
+- A losing season adds heat: 8–9 one marble, 6–7 wins two, 4–5 three, fewer four. The head coach owns how far the
+  team fell short of its roster (talent rank sets the expectation, .750 to .250); the GM owns how far the roster he
+  built sits below .500. Each side's share is 20–80%. A first season in the job counts half.
+- At the offseason review the owner draws one marble per heat marble last season added (one more when the GM's
+  contract is up), without replacement. A heat marble changes that person; calm marbles drawn are spent for good,
+  so a losing run always ends. A playoff trip skips the draw, halves the heat and returns two calm; a winning season
+  returns one and cools each side by one. New GMs keep two complete seasons of protection: until then the owner
+  reviews only the head coach and spends no patience on the GM.
+- In season, from week 8, a club at .300 or worse is reviewed after a loss about three times in ten: one marble,
+  put back, with this season's heat so far added. A GM's marble must come out twice.
+- About one permanent hire in seven goes to a former GM (NFL 2020–2025), with odds from his record rather than the
+  best noisy score in a pool that grows every year. An unemployed player keeps one guaranteed offer from the weakest
+  open jobs; a second is now likely.
+
+Same seed, ten seasons each (A / B): GM dismissals 3.9 / 3.9 a year (NFL about four), in-season GM dismissals
+0.5 / 0.2 a year (NFL about one every two years), interim head coaches 1.4 / 1.5 a year (NFL about two), former GMs
+5 of 34 and 8 of 40 permanent hires. The player was fired twice in each run and always received at least one offer
+(A: 2 and 1; B: 2, then 2): A after an 0–8 start in 2031, in season, and again at Baltimore after 4–13, 6–11, 4–13;
+B after a 5–12 at Carolina in 2033 following three winning-or-.500 seasons. The six-season offseason audit stays
+inside every band (5.7 new head coaches a season against 4.5–9.5).
+
+`npm run screens -- --save <save.json> --out <dir>` loads a save into the real app in headless Chromium and
+captures the home, GM directory and cards, inbox, coaches, roster, cap, standings and phone layouts.
