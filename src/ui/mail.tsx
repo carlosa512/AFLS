@@ -120,6 +120,7 @@ import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
 import { OfferCard } from './offers';
+import { GmLink } from './gm';
 import {
   familiarityTone,
   learnLine,
@@ -199,6 +200,8 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <PoachedCards league={league} s={s} live={needsYou(league, message)} />;
     case 'carousel':
       return <CarouselCards league={league} s={s} />;
+    case 'frontOffice':
+      return message.carousel ? <FrontOfficeCards league={league} rows={message.carousel} /> : null;
     case 'faWrap':
       return <FaWrapCards league={league} s={s} />;
     case 'market':
@@ -264,6 +267,47 @@ function TradeNewsCards({ league, report }: { league: League; report: NonNullabl
 }
 
 /** The standings and statistical evidence as they were when the headline was filed. */
+const FRONT_OFFICE_GROUPS: [NonNullable<InboxMessage['carousel']>[number]['group'], string][] = [
+  ['out', 'Out'],
+  ['hired', 'Hired'],
+  ['extended', 'Extended'],
+  ['hotSeat', 'Hot seat'],
+  ['coaches', 'Interim head coaches'],
+];
+
+/** SNN's offseason digest: who left, who came in, who signed on and who starts the year under pressure. */
+function FrontOfficeCards({ league, rows }: { league: League; rows: NonNullable<InboxMessage['carousel']> }) {
+  return (
+    <Card title="Around the league">
+      <div className="table-scroll">
+        <table className="mail-table">
+          {FRONT_OFFICE_GROUPS.filter(([g]) => rows.some((r) => r.group === g)).map(([g, label]) => (
+            <tbody key={g}>
+              <tr>
+                <th colSpan={3}>{label}</th>
+              </tr>
+              {rows
+                .filter((r) => r.group === g)
+                .map((r, i) => {
+                  const gm = r.gmId === undefined ? undefined : league.gms[r.gmId];
+                  return (
+                    <tr key={i} className={r.teamId === league.userTeamId ? 'is-user' : undefined}>
+                      <td>
+                        <TeamLink team={league.teams[r.teamId]} />
+                      </td>
+                      <td>{gm ? <GmLink league={league} gm={gm} /> : r.name}</td>
+                      <td className="muted">{r.line}</td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          ))}
+        </table>
+      </div>
+    </Card>
+  );
+}
+
 function LeagueNewsCards({ league, report }: { league: League; report: NonNullable<InboxMessage['leagueReport']> }) {
   const view = report.table ?? 'division';
   if (view === 'division')

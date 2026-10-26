@@ -107,9 +107,26 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
 const dateLabel = (m: InboxMessage) =>
   `${m.season} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
 
-/** "Sean Evans, Head coach" → name and role; "Kyle James's agent" → the agent; "The owner" → O. */
-function sender(from: string): { name: string; role: string; initials: string } {
+/** Outlets and offices get a fixed badge: initials of "SNN league desk" would read "SD". */
+const OUTLET_BADGES: Record<string, string> = {
+  'SNN league desk': 'SNN',
+  'SNN — Sports News Network': 'SNN',
+  'The Arena Gazette': 'GAZ',
+  'League office': 'LO',
+  'The owner': 'OWN',
+  SNN: 'SNN',
+  'Front office': 'FO',
+  'Coaching staff': 'CS',
+  'Scouting department': 'SCT',
+  'Director of scouting': 'DIR',
+  'Medical staff': 'MED',
+  'Your players': 'PLY',
+};
+
+/** "Sean Evans, Head coach" → name and role; "Kyle James's agent" → the agent; an outlet → its badge. */
+export function sender(from: string): { name: string; role: string; initials: string } {
   const [name, ...role] = from.split(', ');
+  if (OUTLET_BADGES[from]) return { name, role: '', initials: OUTLET_BADGES[from] };
   const words = name
     .replace(/'s agent$/, '')
     .replace(/^The /, '')

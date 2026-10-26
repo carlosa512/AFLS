@@ -1,5 +1,5 @@
 import { employed, managesTeam } from './employment';
-import { gmOfferTerms } from './leadership';
+import { gmOfferTerms, userExtensionOffer } from './leadership';
 import { recordAdvicePublications } from './coachDecisions';
 import {
   coachAdviceObservation,
@@ -93,6 +93,7 @@ import type {
   Coach,
   TradeRecord,
   Transaction,
+  CarouselRow,
   LeadershipEvent,
   CoachRole,
   CoachRoom,
@@ -109,6 +110,7 @@ import type {
   TradeOffer,
   TradeSide,
 } from './types';
+import { OFFSEASON_PHASES } from './types';
 
 /** Saves keep the latest messages only, like the transaction log. */
 const KEEP = 300;
@@ -651,6 +653,7 @@ export type MailSubject =
   | { kind: 'staffDeals'; season: number; people: StaffRef[] }
   | { kind: 'poached'; season: number; coachId: number; chair: Chair }
   | { kind: 'carousel'; season: number }
+  | { kind: 'frontOffice'; season: number }
   | { kind: 'faWrap'; season: number }
   | { kind: 'market'; season: number; phase: Phase; week: number }
   | { kind: 'marketRecap'; season: number }
@@ -676,6 +679,7 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
   const [category, s, a, b, ...rest] = m.id.split(':');
   const season = Number(s);
   if (category === 'leadership') return { kind: 'leadership', season, eventId: Number(a) };
+  if (category === 'leadership-phase') return { kind: 'frontOffice', season };
   if (category === 'gm-offer') return { kind: 'gmOffer', season, teamId: Number(a) };
   const player = m.actions.find((x) => x.kind === 'player');
   const playerId = player?.kind === 'player' ? player.playerId : -1;
@@ -783,6 +787,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
           (o) => o.teamId === s.teamId && league.leadership.search!.round < o.expiresRound,
         )
       );
+    case 'owner':
+      return !!userExtensionOffer(league);
     case 'matchup':
     case 'injury':
     case 'deadline':
@@ -1827,6 +1833,28 @@ function ownerMail(league: League, have: Set<string>): Draft[] {
   if (have.has(id) || [...have].some((x) => x.startsWith(`owner:${season}:welcome:${league.userTeamId}:`))) return [];
   const team = league.teams[league.userTeamId];
   const { marketLine, leeway, patience, promises } = ownerVoice(league, team);
+  // One letter for the league year: the verdict on the GM, his contract if it's up, then the budgets.
+  const review = team.leadershipReview?.season === season ? team.leadershipReview : undefined;
+  const offer = userExtensionOffer(league);
+  const subject = offer
+    ? `Your contract: an offer through ${offer.through}`
+    : review?.outcome === 'warning'
+      ? 'The new league year: I expect progress'
+      : review?.outcome === 'coachChange'
+        ? 'The new league year: we need a new head coach'
+        : 'The new league year';
+  // The review's reason is written about the owner; his letter says it himself.
+  const verdict =
+    review?.outcome === 'warning'
+      ? "I expect clear progress this season. If results don't improve, I'll review your job again. "
+      : review?.outcome === 'coachChange'
+        ? "I'm keeping you, but we need a different head coach before free agency opens. "
+        : '';
+  const contract = !offer
+    ? ''
+    : offer.through === season
+      ? `Your deal is up. One more year, through ${offer.through}, and we'll talk again. `
+      : `Your deal is up. I'd like you back through ${offer.through}; let me know. `;
   return [
     {
       id,
@@ -1835,9 +1863,9 @@ function ownerMail(league: League, have: Set<string>): Draft[] {
       week: 0,
       from: 'The owner',
       category: 'staff',
-      subject: 'A letter from the owner',
-      body: `A new league year starts today, and the budgets for ${season} are below. ${marketLine} ${leeway}${patience}${promises ? ` ${promises}` : ''}`,
-      actions: [{ kind: 'coaches' }, { kind: 'cap' }],
+      subject,
+      body: `${verdict}${contract}A new league year starts today, and the budgets for ${season} are below. ${marketLine} ${leeway}${patience}${promises ? ` ${promises}` : ''}`,
+      actions: [...(offer ? [{ kind: 'gms' as const }] : []), { kind: 'coaches' }, { kind: 'cap' }],
     },
   ];
 }
@@ -2031,7 +2059,7 @@ function carouselMail(league: League, have: Set<string>): Draft[] {
       season: league.season,
       phase: 'freeAgency',
       week: 0,
-      from: 'League office',
+      from: 'SNN league desk',
       category: 'league',
       subject: `Coaching carousel: ${n} new head coach${n === 1 ? '' : 'es'}`,
       body: `${count(n)} team${n === 1 ? ' has a' : 's have'} new head coach${n === 1 ? '' : 'es'} for ${league.season}${ours ? ', ours among them' : ''}.${near ? ` ${near === 1 ? 'One is' : `${count(near)} are`} in the ${league.divisions[team.division].name}.` : ''}`,
@@ -2333,6 +2361,60 @@ function coverMail(league: League, have: Set<string>): Draft[] {
 }
 
 /** Only your club sends private instructions. Outside reporting never quotes its decision file. */
+/** The note that a new GM inherits the head coach (`recordHire`) is a `warning` naming the coach: never a hot seat. */
+export const isCoachNote = (e: LeadershipEvent) => e.kind === 'warning' && e.coachId !== undefined;
+
+const CAROUSEL_GROUPS: CarouselRow['group'][] = ['out', 'hired', 'extended', 'hotSeat', 'coaches'];
+
+/** One change in SNN's offseason digest, in public words: the record a GM was let go after, never the owner's reason. */
+function carouselRow(league: League, e: LeadershipEvent): CarouselRow {
+  const gm = e.gmId === undefined ? undefined : league.gms[e.gmId];
+  const coach = e.coachId === undefined ? undefined : league.coaches[e.coachId];
+  const who = { teamId: e.teamId, name: gm ? `${gm.firstName} ${gm.lastName}` : coach ? coachName(coach) : '' };
+  const last = league.history.find((h) => h.season === e.date.season - 1)?.records[e.teamId];
+  switch (e.kind) {
+    case 'gmDismissed':
+      return {
+        group: 'out',
+        ...who,
+        gmId: e.gmId,
+        line: last ? `let go after ${last.w}–${last.l}${last.t ? `–${last.t}` : ''}` : 'let go',
+      };
+    case 'gmRetired':
+      return { group: 'out', ...who, gmId: e.gmId, line: 'retired' };
+    case 'gmHired':
+      return {
+        group: 'hired',
+        ...who,
+        gmId: e.gmId,
+        line: gm?.appointments.filter((a) => a.teamId === e.teamId).at(-1)?.interim ? 'interim GM' : 'new GM',
+      };
+    case 'gmExtended':
+      return {
+        group: 'extended',
+        ...who,
+        gmId: e.gmId,
+        line: `through ${gm?.appointments.at(-1)?.through ?? ''}`.trim(),
+      };
+    case 'warning':
+      return { group: 'hotSeat', ...who, gmId: e.gmId, line: 'prove-it season' };
+    case 'coachChange':
+      return { group: 'hotSeat', ...who, gmId: e.gmId, line: 'pressure to change the coaching staff' };
+    default:
+      return {
+        group: 'coaches',
+        ...who,
+        coachId: e.coachId,
+        line:
+          e.kind === 'coachPermanent'
+            ? 'interim made permanent'
+            : e.kind === 'coachDismissed'
+              ? 'interim let go'
+              : e.report,
+      };
+  }
+}
+
 export function leadershipMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
   // Other clubs' in-season changes are gathered by week into one SNN roundup (a lone change stays its own story).
@@ -2347,15 +2429,46 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
       const [from, to] = range.split('-').map(Number);
       return e.id >= from && e.id <= to;
     });
+  // Offseason changes are gathered the same way by step (`leadership-phase:season:phase:first-last`).
+  const steps = new Map<string, LeadershipEvent[]>();
+  const coveredStep = (e: LeadershipEvent) =>
+    [...have].some((id) => {
+      const [kind, season, phase, range] = id.split(':');
+      if (kind !== 'leadership-phase' || Number(season) !== e.date.season || phase !== e.date.phase) return false;
+      const [from, to] = range.split('-').map(Number);
+      return e.id >= from && e.id <= to;
+    });
   for (const e of league.leadership.events) {
     const id = `leadership:${e.date.season}:${e.id}`;
     if (have.has(id)) continue;
     const personal = e.gmId === league.userGmId;
     const inside = managesTeam(league, e.teamId);
+    // A change already carried by a roundup stays there, even once we run that club. Only changes from before we
+    // took over were ever rounded up: a roundup's id range can span one of our own.
+    const joined = Math.max(
+      -1,
+      ...league.leadership.events
+        .filter((x) => x.kind === 'gmHired' && x.gmId === league.userGmId && x.teamId === e.teamId)
+        .map((x) => x.id),
+    );
+    const outsideThen = !personal && (!inside || e.id < joined);
+    if (outsideThen && (covered(e) || coveredStep(e))) continue;
+    // The owner's letter for the league year carries our own verdict and contract: no straggling mails about them,
+    // also after the user turns the extension down and the club is no longer his.
+    if (
+      (inside || personal) &&
+      OFFSEASON_PHASES.includes(e.date.phase) &&
+      ['warning', 'coachChange', 'gmExtended'].includes(e.kind)
+    )
+      continue;
     if (!inside && !personal && e.date.phase === 'regular') {
-      if (covered(e)) continue;
       const key = `${e.date.season}:${e.date.week}`;
       weeks.set(key, [...(weeks.get(key) ?? []), e]);
+      continue;
+    }
+    if (!inside && !personal && OFFSEASON_PHASES.includes(e.date.phase)) {
+      const key = `${e.date.season}:${e.date.phase}`;
+      steps.set(key, [...(steps.get(key) ?? []), e]);
       continue;
     }
     out.push({
@@ -2412,11 +2525,69 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
       actions: [{ kind: 'gms' }],
     });
   }
+  for (const [key, events] of steps) {
+    const e = events[0];
+    const ids = events.map((x) => x.id);
+    const id =
+      events.length === 1
+        ? `leadership:${e.date.season}:${e.id}`
+        : `leadership-phase:${key}:${Math.min(...ids)}-${Math.max(...ids)}`;
+    if (have.has(id)) continue;
+    if (events.length === 1) {
+      out.push({
+        id,
+        season: e.date.season,
+        phase: e.date.phase,
+        week: e.date.week,
+        from: 'SNN league desk',
+        category: 'league',
+        subject: e.report,
+        body: e.report,
+        actions: [{ kind: 'gms' }],
+      });
+      continue;
+    }
+    // A new GM told to keep the head coach is part of his hire, not a hot seat.
+    const keeps = new Set(events.filter(isCoachNote).map((x) => x.gmId));
+    const rows = events
+      .filter((x) => !isCoachNote(x))
+      .map((x) => carouselRow(league, x))
+      .map((r) => (r.group === 'hired' && keeps.has(r.gmId) ? { ...r, line: 'new GM, keeps the head coach' } : r))
+      .sort((a, b) => CAROUSEL_GROUPS.indexOf(a.group) - CAROUSEL_GROUPS.indexOf(b.group));
+    const n = (g: CarouselRow['group']) => rows.filter((r) => r.group === g).length;
+    const parts = [
+      n('out') && `${n('out')} GM${n('out') === 1 ? '' : 's'} out`,
+      n('hired') && `${n('hired')} hired`,
+      n('hotSeat') && `${n('hotSeat')} on the hot seat`,
+      n('extended') && `${n('extended')} extended`,
+      n('coaches') && `${n('coaches')} interim call${n('coaches') === 1 ? '' : 's'}`,
+    ].filter(Boolean);
+    const lead = [
+      n('out') && `${count(n('out'))} club${n('out') === 1 ? '' : 's'} parted with a GM.`,
+      n('hired') && `${count(n('hired'))} new GM${n('hired') === 1 ? '' : 's'} took over.`,
+      n('extended') && `${count(n('extended'))} signed on for more.`,
+      n('hotSeat') && `${count(n('hotSeat'))} start${n('hotSeat') === 1 ? 's' : ''} the year under pressure.`,
+      n('coaches') && `${count(n('coaches'))} interim head coach${n('coaches') === 1 ? '' : 'es'} learned their fate.`,
+    ].filter(Boolean);
+    out.push({
+      id,
+      season: e.date.season,
+      phase: e.date.phase,
+      week: e.date.week,
+      from: 'SNN league desk',
+      category: 'league',
+      subject: `Front-office carousel: ${parts.slice(0, 3).join(', ')}`,
+      body: lead.join(' '),
+      carousel: rows,
+      actions: [{ kind: 'gms' }],
+    });
+  }
   const search = league.leadership.search;
   if (league.phase === 'resign' && search && search.round < 3)
     for (const o of search.offers) {
       const id = `gm-offer:${search.season}:${o.teamId}`;
-      if (!have.has(id))
+      // The owner's letter for the league year is the extension offer's mail.
+      if (!have.has(id) && !o.extension)
         out.push({
           id,
           season: league.season,

@@ -1,17 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from './generate';
-import { endGmAppointment } from './gm';
+import { appointGm, endGmAppointment } from './gm';
 import {
   acceptGmOffer,
   advanceGmHiringRound,
   beginGmSearch,
   declineGmOffers,
+  gmOfferTerms,
   leadershipCoachTenure,
+  leadershipEvent,
   leadershipNewYear,
   interimLetter,
   leadershipWeek,
+  pendingGmOffers,
+  userExtensionOffer,
 } from './leadership';
-import { leadershipMail } from './inbox';
+import { leadershipMail, mailSubject } from './inbox';
 import {
   coachRoom,
   coordinatorOf,
@@ -27,7 +31,7 @@ import { migrateLeague } from './migrate';
 import { teamStaff } from './staff';
 import { releaseStaff } from './staff';
 import { advanceOffseason, beginOffseason } from './offseason';
-import type { Game, League, SeasonSummary } from './types';
+import type { Game, League, LeadershipEvent, SeasonSummary } from './types';
 const world = () => createLeague({ seed: 'gm-carousel-tests' });
 const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 function badYears(l: League) {
@@ -500,5 +504,247 @@ describe('a roundup week with a late change', () => {
         report: 'r',
       });
     expect(leadershipMail(l, new Set([`leadership-week:${l.season}:12`]))).toHaveLength(0);
+  });
+});
+
+describe('your contract offer', () => {
+  /** The user's deal ran out last season; no history, so the owner keeps everyone. */
+  function expiring() {
+    const l = world();
+    l.phase = 'resign';
+    l.gms[l.userGmId].appointments.at(-1)!.through = l.season - 1;
+    delete l.leadership.search;
+    return l;
+  }
+  it('offers the user an extension instead of extending silently', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    const o = userExtensionOffer(l)!;
+    expect(o).toMatchObject({ teamId: l.userTeamId, through: l.season + 2, incumbent: true, extension: true });
+    expect(l.leadership.search!.offers[0]).toBe(o);
+    expect(l.gms[l.userGmId].appointments.at(-1)!.through).toBe(l.season - 1);
+    expect(l.leadership.events.some((e) => e.kind === 'gmExtended' && e.gmId === l.userGmId)).toBe(false);
+    expect(pendingGmOffers(l)).toBe(true);
+    expect(() => advanceOffseason(l)).toThrow(/offer/);
+  });
+  it('makes a one-year prove-it offer on a warning', () => {
+    const l = expiring();
+    const t = l.teams[l.userTeamId];
+    t.leadershipReview = { season: l.season, week: 0, gmId: l.userGmId, outcome: 'warning', reason: 'Progress.' };
+    beginGmSearch(l);
+    expect(userExtensionOffer(l)!.through).toBe(l.season);
+  });
+  it('accepting extends the deal and files the public line', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    l.knowledge[10] = 1;
+    acceptGmOffer(l, l.userTeamId);
+    expect(l.gms[l.userGmId].appointments.at(-1)!.through).toBe(l.season + 2);
+    expect(l.leadership.events.at(-1)).toMatchObject({ kind: 'gmExtended', gmId: l.userGmId });
+    expect(l.knowledge[10]).toBe(1);
+    expect(pendingGmOffers(l)).toBe(false);
+  });
+  it('declining ends the job and still guarantees a way back, never at our old club', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    const old = l.userTeamId;
+    declineGmOffers(l);
+    const user = l.gms[l.userGmId];
+    expect(user.teamId).toBeNull();
+    expect(user.appointments.at(-1)!.reason).toBe('expired');
+    const offers = l.leadership.search!.offers;
+    expect(offers.length).toBeGreaterThan(0);
+    expect(offers.every((o) => o.teamId !== old && !o.extension)).toBe(true);
+    expect(l.leadership.search!.playerDeclined).toBeFalsy();
+    expect(pendingGmOffers(l)).toBe(true);
+  });
+  it('sim offseason accepts the extension', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    advanceGmHiringRound(l, { autoUser: true });
+    expect(l.gms[l.userGmId].appointments.at(-1)!.through).toBe(l.season + 2);
+    expect(l.gms[l.userGmId].teamId).toBe(l.userTeamId);
+  });
+  it('makes no extension offer when the owner lets the user go', () => {
+    const l = expiring();
+    l.teams[l.userTeamId].leadershipReview = {
+      season: l.season,
+      week: 0,
+      gmId: l.userGmId,
+      outcome: 'gmChange',
+      reason: 'Change.',
+    };
+    beginGmSearch(l);
+    expect(userExtensionOffer(l)).toBeUndefined();
+  });
+  it('gives an interim user the permanent offer, never an extension', () => {
+    const l = expiring();
+    l.gms[l.userGmId].appointments.at(-1)!.interim = true;
+    leadershipNewYear(l);
+    expect(l.leadership.search!.offers.some((o) => o.extension)).toBe(false);
+  });
+  it('writes the extension’s terms for a GM staying on, not a new hire', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    expect(gmOfferTerms(l, userExtensionOffer(l)!).expectation).toBe(
+      'Keep the club moving forward: the owner likes the direction.',
+    );
+    const w = expiring();
+    w.teams[w.userTeamId].leadershipReview = {
+      season: w.season,
+      week: 0,
+      gmId: w.userGmId,
+      outcome: 'warning',
+      reason: 'Progress.',
+    };
+    beginGmSearch(w);
+    expect(gmOfferTerms(w, userExtensionOffer(w)!).expectation).toBe(
+      'Show clear progress this season, or the owner makes a change.',
+    );
+  });
+  it('carries an open extension offer through the v50 upgrade', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    const old = copy(l);
+    old.version = 49;
+    const loaded = migrateLeague(old)!;
+    expect(loaded.version).toBe(SAVE_VERSION);
+    expect(SAVE_VERSION).toBeGreaterThanOrEqual(50);
+    expect(userExtensionOffer(loaded)).toEqual(userExtensionOffer(l));
+  });
+  it('still extends AI GMs in place', () => {
+    const l = expiring();
+    const gm = l.gms[l.teams.find((t) => t.id !== l.userTeamId)!.gmId!];
+    gm.appointments.at(-1)!.through = l.season - 1;
+    leadershipNewYear(l);
+    expect(gm.appointments.at(-1)!.through).toBe(l.season + 2);
+    expect(l.leadership.events.some((e) => e.kind === 'gmExtended' && e.gmId === gm.id)).toBe(true);
+  });
+});
+
+describe('the offseason carousel digest', () => {
+  const event = (
+    l: League,
+    id: number,
+    teamId: number,
+    kind: LeadershipEvent['kind'],
+    phase: 'resign' | 'freeAgency' = 'resign',
+  ) => {
+    const gm = l.gms[l.teams[teamId].gmId!];
+    const e: LeadershipEvent = {
+      id,
+      date: { season: l.season, phase, week: 0 },
+      teamId,
+      kind,
+      gmId: gm.id,
+      report: `${l.teams[teamId].abbrev} ${kind} report ${id}.`,
+    };
+    l.leadership.events.push(e);
+    return e;
+  };
+  const others = (l: League) => l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+  it('gathers other clubs’ events of one offseason step into one SNN digest', () => {
+    const l = world();
+    const [a, b, c, d] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    event(l, 2, b, 'gmDismissed');
+    event(l, 3, a, 'gmHired');
+    event(l, 4, c, 'warning');
+    event(l, 5, d, 'gmExtended');
+    const mail = leadershipMail(l, new Set());
+    expect(mail).toHaveLength(1);
+    expect(mail[0].id).toBe(`leadership-phase:${l.season}:resign:1-5`);
+    expect(mail[0].from).toBe('SNN league desk');
+    expect(mail[0].subject).toBe('Front-office carousel: 2 GMs out, 1 hired, 1 on the hot seat');
+    expect(mail[0].carousel!.map((r) => r.group)).toEqual(['out', 'out', 'hired', 'extended', 'hotSeat']);
+    expect(mail[0].carousel!.find((r) => r.group === 'hotSeat')!.line).toBe('prove-it season');
+    expect(mailSubject({ ...mail[0], read: false })).toEqual({ kind: 'frontOffice', season: l.season });
+  });
+  it('never puts our own club in the digest', () => {
+    const l = world();
+    const [a, b] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    event(l, 2, l.userTeamId, 'gmHired');
+    event(l, 3, b, 'gmDismissed');
+    const digest = leadershipMail(l, new Set()).find((m) => m.id.startsWith('leadership-phase'))!;
+    expect(digest.carousel!.some((r) => r.teamId === l.userTeamId)).toBe(false);
+  });
+  it('files nothing twice for a save that already had single mails', () => {
+    const l = world();
+    const [a, b, c] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    event(l, 2, b, 'gmDismissed');
+    event(l, 3, c, 'gmDismissed');
+    const mail = leadershipMail(l, new Set([`leadership:${l.season}:1`]));
+    expect(mail).toHaveLength(1);
+    expect(mail[0].carousel!.map((r) => r.teamId)).toEqual([b, c]);
+  });
+  it('starts a new digest for events after the first was filed', () => {
+    const l = world();
+    const [a, b, c, d] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    event(l, 2, b, 'gmDismissed');
+    const first = leadershipMail(l, new Set())[0].id;
+    event(l, 3, c, 'gmHired');
+    event(l, 4, d, 'gmHired');
+    const next = leadershipMail(l, new Set([first]));
+    expect(next.map((m) => m.id)).toEqual([`leadership-phase:${l.season}:resign:3-4`]);
+  });
+  it('never re-files a digested event as owner mail once we run that club', () => {
+    const l = world();
+    const [a, b] = others(l);
+    const fired = event(l, 1, a, 'gmDismissed');
+    fired.privateText = 'The owner’s private reason.';
+    event(l, 2, b, 'gmDismissed');
+    const digest = leadershipMail(l, new Set())[0];
+    l.phase = 'resign';
+    endGmAppointment(l, l.teams[a].gmId!, 'dismissed');
+    endGmAppointment(l, l.userGmId, 'dismissed');
+    appointGm(l, a, l.userGmId, { through: l.season + 2 });
+    l.userTeamId = a;
+    l.leadership.nextEventId = 10; // past the hand-made events above
+    leadershipEvent(l, { teamId: a, kind: 'gmHired', gmId: l.userGmId, report: 'Hired.' });
+    const later = leadershipMail(l, new Set([digest.id]));
+    expect(later.some((m) => m.body.includes('private reason'))).toBe(false);
+    expect(later.some((m) => m.id === `leadership:${l.season}:1`)).toBe(false);
+  });
+  it('still files our own change when its id falls inside another club’s roundup', () => {
+    const l = world();
+    const [a, b] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    const ours = event(l, 2, l.userTeamId, 'coachPermanent');
+    event(l, 3, b, 'gmDismissed');
+    const digest = leadershipMail(l, new Set()).find((m) => m.id.startsWith('leadership-phase'))!;
+    expect(digest.id).toBe(`leadership-phase:${l.season}:resign:1-3`);
+    expect(leadershipMail(l, new Set([digest.id])).map((m) => m.id)).toEqual([`leadership:${l.season}:${ours.id}`]);
+  });
+  it('lists a new GM told to keep the head coach as a hire, not a hot seat', () => {
+    const l = world();
+    const [a, b] = others(l);
+    event(l, 1, a, 'gmHired');
+    const note = event(l, 2, a, 'warning');
+    note.coachId = teamCoaches(l, a).find((c) => c.role === 'headCoach')!.id;
+    event(l, 3, b, 'gmDismissed');
+    const digest = leadershipMail(l, new Set())[0];
+    expect(digest.subject).not.toContain('hot seat');
+    expect(digest.carousel!.map((r) => r.group)).toEqual(['out', 'hired']);
+    expect(digest.carousel!.find((r) => r.group === 'hired')!.line).toBe('new GM, keeps the head coach');
+  });
+  it('calls an interim GM hire what it is', () => {
+    const l = world();
+    const [a, b] = others(l);
+    event(l, 1, a, 'gmHired');
+    event(l, 2, b, 'gmDismissed');
+    l.gms[l.teams[a].gmId!].appointments.at(-1)!.interim = true;
+    expect(leadershipMail(l, new Set())[0].carousel!.find((r) => r.group === 'hired')!.line).toBe('interim GM');
+  });
+  it('keeps a lone event as its own story, and steps apart', () => {
+    const l = world();
+    const [a, b] = others(l);
+    const lone = event(l, 1, a, 'gmRetired');
+    event(l, 2, b, 'gmHired', 'freeAgency');
+    const mail = leadershipMail(l, new Set());
+    expect(mail).toHaveLength(2);
+    expect(mail[0].subject).toBe(lone.report);
   });
 });

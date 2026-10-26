@@ -34,6 +34,18 @@ reporting explains the league. Delivery still happens after `store.mutate`; the 
   marked "(SNN ran the story)" and the report's opening says so, rather than retelling it.
 - Other clubs' in-season coaching and front-office changes reach the inbox as one SNN roundup per week ("Coaching
   changes: HOU, CIN"); a lone change stays its own story, and our own club's come from the owner.
+- Other clubs' offseason front-office changes (GMs let go, retired, hired or extended, hot-seat reporting, interim
+  head-coach calls) arrive as one SNN digest per offseason step: "Front-office carousel: 4 GMs out, 3 hired, 6 on
+  the hot seat", a short lead and a grouped table (Out, Hired, Extended, Hot seat, Interim head coaches) saved with
+  the mail. The id names the events it carried (`leadership-phase:season:phase:first-last`), so a later change starts
+  a new digest and a save that filed single stories gets nothing twice. A lone change stays its own story. The
+  coaching carousel is SNN's too; the league office keeps official notices about our club.
+- The owner sends one letter per league year: his verdict when it isn't plain "back", the user's contract when it's
+  up, then the budgets. Our own offseason warning, coach-change and extension events send no other mail. When the
+  user's deal has run out and the owner keeps him, it is an offer, not a silent extension: two years, one on a
+  warning. It is Needs you and blocks the staffing window; declining ends the job and opens the GM job market, with
+  the guaranteed way back and never the old club.
+- Outlets carry fixed badges in the inbox (SNN, GAZ, LO, OWN) rather than initials of their names.
 - One public headline at most is selected for the latest fully completed regular-season week. There is
   no minimum quota. Division stories take precedence, then key trades, trajectory features and public rumors.
   Trade editions cover non-overlapping windows: Weeks 1–2, 3–4, 5–6, 7–8, then Week 9. A separate

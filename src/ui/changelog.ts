@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.1.18',
+    date: '2026-10-26',
+    title: 'A quieter offseason inbox',
+    text:
+      'When your deal is up, the owner offers you an extension instead of signing it for you: accept it, or turn ' +
+      'it down and go into the GM job market. His new-year letter now carries his verdict, that offer and the ' +
+      'budgets in one place. Firings, hires, extensions and hot seats around the league arrive as one SNN digest ' +
+      'per offseason step, SNN and the Gazette have their own badges, and GM profiles say more about who is out of ' +
+      'work, who has won what and who is under pressure.',
+  },
+  {
     version: '0.1.17',
     date: '2026-10-26',
     title: 'Interim coaches, tidied up',

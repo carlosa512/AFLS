@@ -1,4 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import {
+  acceptGmOffer,
+  beginGmSearch,
+  declineGmOffers,
+  leadershipEvent,
+  leadershipNewYear,
+  userExtensionOffer,
+} from './leadership';
 import { seasonAwards } from './awards';
 import { coachTitle, isCoachExpiring, teamCoaches } from './coaching';
 import { logTransaction, releasePlayer } from './finance/cap';
@@ -309,6 +317,9 @@ describe('inbox', () => {
     expect(year.filter((m) => m.category === 'retirement')).toHaveLength(retired.length);
     // The NFL's combine wraps up just before free agency opens: not yet.
     expect(league.inbox!.some((m) => m.id === `scouting:${league.season}:combine`)).toBe(false);
+    // Our GM's deal is up: the owner's extension offer must be answered before the window closes.
+    const extension = userExtensionOffer(league);
+    if (extension) acceptGmOffer(league, extension.teamId);
     do {
       advanceOffseason(league);
     } while (league.phase === 'resign');
@@ -323,6 +334,8 @@ describe('inbox', () => {
   it('reports the coaching carousel, and a coach hired away until his chair is filled', () => {
     const changes = headCoachChanges(league);
     expect(league.inbox!.some((m) => m.id === `league:${league.season}:carousel`)).toBe(changes.length > 0);
+    for (const m of league.inbox!.filter((m) => m.id === `league:${league.season}:carousel`))
+      expect(m.from).toBe('SNN league desk');
     for (const x of changes) {
       expect(x.coach.role).toBe('headCoach');
       expect(x.coach.teamId).toBe(x.teamId);
@@ -1379,5 +1392,94 @@ describe('arriving at a club', () => {
     deliverMail(l);
     expect(l.inbox!.some((m) => m.id.startsWith(`owner:${l.season}:welcome:${to}:`))).toBe(true);
     expect(l.inbox!.some((m) => m.id === `owner:${l.season}:${to}`)).toBe(false);
+  });
+});
+
+describe('the owner’s letter for the new league year', () => {
+  /** The user's deal ran out last season and the window has opened. */
+  function window(review?: 'warning') {
+    const l = createLeague({ seed: 'owner-letter' });
+    l.phase = 'resign';
+    l.gms[l.userGmId].appointments.at(-1)!.through = l.season - 1;
+    delete l.leadership.search;
+    if (review) {
+      l.teams[l.userTeamId].leadershipReview = {
+        season: l.season,
+        week: 0,
+        gmId: l.userGmId,
+        outcome: review,
+        reason: 'The owner expects clear progress this season.',
+      };
+      beginGmSearch(l);
+    } else leadershipNewYear(l);
+    deliverMail(l);
+    return l;
+  }
+  const ownerMail = (l: League) => l.inbox!.filter((m) => m.from === 'The owner');
+  it('puts the verdict, the offer and the budgets in one letter', () => {
+    const l = window();
+    const owner = ownerMail(l);
+    expect(owner).toHaveLength(1);
+    expect(owner[0].subject).toBe(`Your contract: an offer through ${l.season + 2}`);
+    expect(owner[0].body).toContain(`I'd like you back through ${l.season + 2}`);
+    expect(owner[0].body).toContain(`budgets for ${l.season}`);
+    expect(owner[0].actions[0]).toEqual({ kind: 'gms' });
+    expect(needsYou(l, owner[0])).toBe(true);
+  });
+  it('offers one year on a warning, and says so', () => {
+    const l = window('warning');
+    const [letter] = ownerMail(l);
+    expect(letter.subject).toBe(`Your contract: an offer through ${l.season}`);
+    expect(letter.body).toContain('I expect clear progress this season.');
+    expect(letter.body).not.toContain('The owner');
+    expect(letter.body).toContain(`One more year, through ${l.season}`);
+  });
+  it('names a warning in the subject when no offer is open', () => {
+    const l = createLeague({ seed: 'owner-letter' });
+    l.phase = 'resign';
+    l.teams[l.userTeamId].leadershipReview = {
+      season: l.season,
+      week: 0,
+      gmId: l.userGmId,
+      outcome: 'warning',
+      reason: 'The owner expects clear progress this season.',
+    };
+    deliverMail(l);
+    const [letter] = ownerMail(l);
+    expect(letter.subject).toBe('The new league year: I expect progress');
+    expect(needsYou(l, letter)).toBe(false);
+  });
+  it('sends no separate owner mail for our warning or extension', () => {
+    const l = window();
+    leadershipEvent(l, {
+      teamId: l.userTeamId,
+      kind: 'warning',
+      gmId: l.userGmId,
+      report: 'League sources suggest our GM could be entering a prove-it season.',
+      privateText: 'Progress.',
+    });
+    acceptGmOffer(l, l.userTeamId);
+    deliverMail(l);
+    expect(ownerMail(l)).toHaveLength(1);
+    expect(l.inbox!.some((m) => /League sources|extended GM/.test(m.subject) && m.category !== 'league')).toBe(false);
+    expect(needsYou(l, ownerMail(l)[0])).toBe(false);
+  });
+  it('files nothing about our own prove-it year after we decline the extension', () => {
+    const l = window('warning');
+    leadershipEvent(l, {
+      teamId: l.userTeamId,
+      kind: 'warning',
+      gmId: l.userGmId,
+      report: 'League sources suggest our GM could be entering a prove-it season.',
+      privateText: 'Progress.',
+    });
+    declineGmOffers(l);
+    deliverMail(l);
+    expect(l.inbox!.some((m) => /prove-it/.test(m.subject + m.body))).toBe(false);
+  });
+  it('keeps Needs you after a reload mid-window', () => {
+    const l = JSON.parse(JSON.stringify(window())) as League;
+    expect(needsYou(l, ownerMail(l)[0])).toBe(true);
+    expect(() => advanceOffseason(l)).toThrow(/extension offer/);
   });
 });
