@@ -6,6 +6,7 @@ import {
   advanceGmHiringRound,
   beginGmSearch,
   declineGmOffers,
+  gmOfferTerms,
   leadershipCoachTenure,
   leadershipEvent,
   leadershipNewYear,
@@ -582,6 +583,35 @@ describe('your contract offer', () => {
     leadershipNewYear(l);
     expect(l.leadership.search!.offers.some((o) => o.extension)).toBe(false);
   });
+  it('writes the extension’s terms for a GM staying on, not a new hire', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    expect(gmOfferTerms(l, userExtensionOffer(l)!).expectation).toBe(
+      'Keep the club moving forward: the owner likes the direction.',
+    );
+    const w = expiring();
+    w.teams[w.userTeamId].leadershipReview = {
+      season: w.season,
+      week: 0,
+      gmId: w.userGmId,
+      outcome: 'warning',
+      reason: 'Progress.',
+    };
+    beginGmSearch(w);
+    expect(gmOfferTerms(w, userExtensionOffer(w)!).expectation).toBe(
+      'Show clear progress this season, or the owner makes a change.',
+    );
+  });
+  it('carries an open extension offer through the v50 upgrade', () => {
+    const l = expiring();
+    leadershipNewYear(l);
+    const old = copy(l);
+    old.version = 49;
+    const loaded = migrateLeague(old)!;
+    expect(loaded.version).toBe(SAVE_VERSION);
+    expect(SAVE_VERSION).toBeGreaterThanOrEqual(50);
+    expect(userExtensionOffer(loaded)).toEqual(userExtensionOffer(l));
+  });
   it('still extends AI GMs in place', () => {
     const l = expiring();
     const gm = l.gms[l.teams.find((t) => t.id !== l.userTeamId)!.gmId!];
@@ -699,6 +729,14 @@ describe('the offseason carousel digest', () => {
     expect(digest.subject).not.toContain('hot seat');
     expect(digest.carousel!.map((r) => r.group)).toEqual(['out', 'hired']);
     expect(digest.carousel!.find((r) => r.group === 'hired')!.line).toBe('new GM, keeps the head coach');
+  });
+  it('calls an interim GM hire what it is', () => {
+    const l = world();
+    const [a, b] = others(l);
+    event(l, 1, a, 'gmHired');
+    event(l, 2, b, 'gmDismissed');
+    l.gms[l.teams[a].gmId!].appointments.at(-1)!.interim = true;
+    expect(leadershipMail(l, new Set())[0].carousel!.find((r) => r.group === 'hired')!.line).toBe('interim GM');
   });
   it('keeps a lone event as its own story, and steps apart', () => {
     const l = world();

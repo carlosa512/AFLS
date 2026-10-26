@@ -1843,7 +1843,13 @@ function ownerMail(league: League, have: Set<string>): Draft[] {
       : review?.outcome === 'coachChange'
         ? 'The new league year: we need a new head coach'
         : 'The new league year';
-  const verdict = review && review.outcome !== 'back' ? `${review.reason} ` : '';
+  // The review's reason is written about the owner; his letter says it himself.
+  const verdict =
+    review?.outcome === 'warning'
+      ? "I expect clear progress this season. If results don't improve, I'll review your job again. "
+      : review?.outcome === 'coachChange'
+        ? "I'm keeping you, but we need a different head coach before free agency opens. "
+        : '';
   const contract = !offer
     ? ''
     : offer.through === season
@@ -2377,7 +2383,12 @@ function carouselRow(league: League, e: LeadershipEvent): CarouselRow {
     case 'gmRetired':
       return { group: 'out', ...who, gmId: e.gmId, line: 'retired' };
     case 'gmHired':
-      return { group: 'hired', ...who, gmId: e.gmId, line: 'new GM' };
+      return {
+        group: 'hired',
+        ...who,
+        gmId: e.gmId,
+        line: gm?.appointments.filter((a) => a.teamId === e.teamId).at(-1)?.interim ? 'interim GM' : 'new GM',
+      };
     case 'gmExtended':
       return {
         group: 'extended',

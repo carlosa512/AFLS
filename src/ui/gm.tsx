@@ -69,6 +69,12 @@ function perceptionLead(league: League, gm: GeneralManager, record: Career): str
   const { him, his } = pron(gm);
   const seasons = [...record.seasons].sort((a, b) => a.season - b.season);
   const last = gm.appointments.at(-1);
+  if (gm.retired || last?.reason === 'retired') {
+    const n = seasons.length;
+    return n
+      ? `Retired after ${(COUNT[n] ?? String(n)).toLowerCase()} season${n === 1 ? '' : 's'} running a front office.`
+      : 'Retired from front-office work.';
+  }
   if (gm.teamId === null && last?.end) {
     const club = league.teams[last.teamId].abbrev;
     const worked = seasons.filter((s) => s.teamId === last.teamId).at(-1);
@@ -102,13 +108,16 @@ function perceptionLead(league: League, gm: GeneralManager, record: Career): str
   let streak = 0;
   while (streak < seasons.length && trips(seasons[seasons.length - 1 - streak])) streak++;
   if (streak >= 3) return `${COUNT[streak] ?? streak} straight playoff trips.`;
-  const pressure = league.leadership.events.some(
+  const pressure = league.leadership.events.find(
     (e) =>
       e.gmId === gm.id &&
       e.date.season === league.season &&
       ((e.kind === 'warning' && e.coachId === undefined) || e.kind === 'coachChange'),
   );
-  if (pressure && gm.teamId !== null) return `Starts ${league.season} under pressure from ownership.`;
+  if (pressure && gm.teamId !== null)
+    return pressure.date.phase === 'regular' || pressure.date.phase === 'playoffs'
+      ? 'Under pressure from ownership.'
+      : `Starts ${league.season} under pressure from ownership.`;
   return undefined;
 }
 

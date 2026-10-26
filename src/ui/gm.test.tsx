@@ -364,6 +364,28 @@ describe('GM public perception', () => {
     expect(asking).toContain('Your job with the Summit ends.');
     expect(asking).toContain('Yes, end my job');
   });
+  it('says a retired GM retired, however long ago', () => {
+    const { l, gm } = career([
+      [2026, 9, 8],
+      [2027, 10, 7],
+    ]);
+    endGmAppointment(l, gm.id, 'retired');
+    gm.retired = true;
+    l.season += 3;
+    expect(gmStyleNotes(l, gm)[0]).toBe('Retired after two seasons running a front office.');
+  });
+  it('says "under pressure" without "starts" for a warning in the season', () => {
+    const { l, gm, t } = career([[2026, 9, 8]]);
+    l.leadership.events.push({
+      id: 97,
+      date: { season: l.season, phase: 'regular', week: 9 },
+      teamId: t.id,
+      kind: 'warning',
+      gmId: gm.id,
+      report: 'League sources suggest pressure.',
+    });
+    expect(gmStyleNotes(l, gm)[0]).toBe('Under pressure from ownership.');
+  });
   it('adds tenure or the best year as a second line, never more', () => {
     const long = career([
       [2026, 9, 8],

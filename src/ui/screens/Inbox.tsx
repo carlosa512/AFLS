@@ -114,6 +114,13 @@ const OUTLET_BADGES: Record<string, string> = {
   'The Arena Gazette': 'GAZ',
   'League office': 'LO',
   'The owner': 'OWN',
+  SNN: 'SNN',
+  'Front office': 'FO',
+  'Coaching staff': 'CS',
+  'Scouting department': 'SCT',
+  'Director of scouting': 'DIR',
+  'Medical staff': 'MED',
+  'Your players': 'PLY',
 };
 
 /** "Sean Evans, Head coach" → name and role; "Kyle James's agent" → the agent; an outlet → its badge. */

@@ -627,6 +627,13 @@ describe('outlet badges', () => {
     ['The Arena Gazette', 'GAZ'],
     ['League office', 'LO'],
     ['The owner', 'OWN'],
+    ['SNN', 'SNN'],
+    ['Front office', 'FO'],
+    ['Coaching staff', 'CS'],
+    ['Scouting department', 'SCT'],
+    ['Director of scouting', 'DIR'],
+    ['Medical staff', 'MED'],
+    ['Your players', 'PLY'],
   ])('draws %s as %s', (from, badge) => expect(sender(from).initials).toBe(badge));
   it('keeps people’s initials', () => expect(sender('Nick Holland, Director of scouting').initials).toBe('NH'));
 });

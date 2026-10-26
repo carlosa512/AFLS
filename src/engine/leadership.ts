@@ -268,8 +268,12 @@ export function gmOfferTerms(l: League, offer: GmJobOffer): GmJobTerms {
   if (offer.terms) return offer.terms;
   const appeal = gmJobAppeal(l, offer.teamId),
     trigger = ownerTrigger(l, offer.teamId);
-  const expectation =
-    appeal < 0.4
+  // A GM staying on hears about the direction, not a new hire's brief.
+  const expectation = offer.extension
+    ? offer.through === l.season
+      ? 'Show clear progress this season, or the owner makes a change.'
+      : 'Keep the club moving forward: the owner likes the direction.'
+    : appeal < 0.4
       ? trigger > 1.2
         ? 'Show clear progress this season. Ownership expects the rebuild to move quickly.'
         : 'Build a competitive roster and show progress over your first two seasons.'

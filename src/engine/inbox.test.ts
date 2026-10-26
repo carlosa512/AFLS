@@ -1430,7 +1430,8 @@ describe('the owner’s letter for the new league year', () => {
     const l = window('warning');
     const [letter] = ownerMail(l);
     expect(letter.subject).toBe(`Your contract: an offer through ${l.season}`);
-    expect(letter.body).toContain('The owner expects clear progress this season.');
+    expect(letter.body).toContain('I expect clear progress this season.');
+    expect(letter.body).not.toContain('The owner');
     expect(letter.body).toContain(`One more year, through ${l.season}`);
   });
   it('names a warning in the subject when no offer is open', () => {
