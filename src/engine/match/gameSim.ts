@@ -2576,7 +2576,9 @@ class GameSim {
     let c = 0;
     if (man && depth !== 'deep' && this.has(defender, 'physicalJammer')) c += 3;
     if (depth === 'short' && this.has(defender, 'baitsQB')) c -= 0.5;
-    if (!man && this.has(defender, 'spotDrop')) c += depth === 'short' ? 3 : -2.5;
+    // Short zone throws are his; beyond them he gives up less than he takes away. At −2.5 the net fell to the
+    // effect audit's floor (z −2.0) once fourth-down tries and quicker tempos changed the throws he sees.
+    if (!man && this.has(defender, 'spotDrop')) c += depth === 'short' ? 3 : -1.5;
     if (this.has(defender, 'offMan')) c += depth === 'deep' ? 1.5 : depth === 'short' ? -1.5 : 0;
     if (earlyDown && this.has(defender, 'peeks')) c -= 2;
     return c;

@@ -390,3 +390,7 @@ seasons), in-season trades were 16.0 a season on main and 16.3 here. Deals voide
 were 3.2 on main's default world but 4.3 and 3.8 in two other main worlds (band 1–4), so main sits at that
 ceiling too. With every coaching piece off, this build plays main's games exactly. A three-league run can
 land either number outside its band in any world; that calibration belongs to the trade market.
+
+Spot-Drop Coverer (a linebacker's habit) sat at the effect audit's floor once the fourth-down and tempo changes
+moved which throws he sees: z −2.0 against main's −2.6. His penalty beyond the short zone went from −2.5 to −1.5
+coverage points; he still trades, and the audit reads −2.5 again.
