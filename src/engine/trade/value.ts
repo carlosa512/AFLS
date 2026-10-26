@@ -157,13 +157,17 @@ export function pickValue(league: League, pick: DraftPick, gm: GmTraits, ctx?: T
  * knows what the league pays for one: a seller's floor is counted in this, so a GM whose chart prizes
  * picks can't be talked into taking less than the league would pay for his player.
  */
+/** The league's going rate for a pick at this overall slot in the coming draft: the curve `goingRate` discounts by years out. */
+export function slotRate(slot: number): number {
+  return Math.exp(0.75 * Math.log(jimmyJohnson(slot)) + 0.25 * Math.log(fitzgeraldSpielberger(slot)));
+}
+
 export function goingRate(league: League, pick: DraftPick, ctx?: TradeContext): number {
   const hit = ctx?.goingRates?.get(pick.id);
   if (hit !== undefined) return hit;
   const slot = pickOverall(league, pick, ctx);
   const yearsOut = Math.max(0, pick.season - nextDraftSeason(league));
-  const value =
-    Math.exp(0.75 * Math.log(jimmyJohnson(slot)) + 0.25 * Math.log(fitzgeraldSpielberger(slot))) * 0.75 ** yearsOut;
+  const value = slotRate(slot) * 0.75 ** yearsOut;
   if (ctx) (ctx.goingRates ??= new Map()).set(pick.id, value);
   return value;
 }
