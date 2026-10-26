@@ -50,7 +50,7 @@ export function coachBlame(rank: number, teams: number, rec: Rec): number {
   const expected = 0.75 - (0.5 * rank) / Math.max(1, teams - 1);
   const coach = Math.max(0, expected - pct(rec)),
     gm = Math.max(0, 0.5 - expected);
-  return coach + gm ? clamp(coach / (coach + gm), 0.35, 0.85) : 0.5;
+  return coach + gm ? clamp(coach / (coach + gm), 0.3, 0.85) : 0.5;
 }
 
 /** Whether he was this club's head coach that season: his game-by-game record, or his hire date when a save has none. */

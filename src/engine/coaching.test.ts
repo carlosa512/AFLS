@@ -327,8 +327,10 @@ describe('coaching staffs and moves', () => {
       l.teams[user].staffBudgetMult = 1;
       l.teams[user].staffBudgetMult = (coachPayroll(l, user) + room) / coachBudget(l, user);
     };
-    // A chair whose man's deal is up is open to a hire: the budget decides.
-    const expiring = teamCoaches(l, user).find((c) => isCoachExpiring(l, c))!;
+    // A chair whose man's deal is up is open to a hire: the budget decides. An assistant's chair, where the owner
+    // never goes over (for a head coach or coordinator he might, `ownerLeeway`).
+    const leadership = ['headCoach', 'offCoord', 'defCoord'];
+    const expiring = teamCoaches(l, user).find((c) => isCoachExpiring(l, c) && !leadership.includes(c.role))!;
     const hire = coachMarket(l).find((c) => sameChair(chairOf(c), chairOf(expiring)))!;
     setRoom(coachAsk(l, hire) - 50);
     expect(coachMoveProblem(l, user, hire, 'hire')).toMatch(/Over your coaching budget/);

@@ -72,7 +72,11 @@ export function initializeGms(league: League, newWorld = false): void {
           teamId: team.id,
           start: careerDate(league),
           interim: false,
-          through: league.season + 2,
+          // Opening deals end in different years, as around the NFL; all ending together put every owner's
+          // renewal review in the same offseason and changed nine GMs at once. Yours runs the usual two seasons.
+          through:
+            league.season +
+            (team.id === league.userTeamId ? 2 : new Rng(`${league.seed}:gm:contract:${team.id}`).int(0, 3)),
           ...(newWorld && team.id !== league.userTeamId ? { priorSeasons: rng.int(0, 6) } : {}),
         },
       ],
