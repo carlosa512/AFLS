@@ -623,6 +623,7 @@ describe('SNN’s offseason front-office digest', () => {
 describe('outlet badges', () => {
   it.each([
     ['SNN league desk', 'SNN'],
+    ['SNN — Sports News Network', 'SNN'],
     ['The Arena Gazette', 'GAZ'],
     ['League office', 'LO'],
     ['The owner', 'OWN'],

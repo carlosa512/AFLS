@@ -1,5 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { acceptGmOffer, beginGmSearch, leadershipEvent, leadershipNewYear, userExtensionOffer } from './leadership';
+import {
+  acceptGmOffer,
+  beginGmSearch,
+  declineGmOffers,
+  leadershipEvent,
+  leadershipNewYear,
+  userExtensionOffer,
+} from './leadership';
 import { seasonAwards } from './awards';
 import { coachTitle, isCoachExpiring, teamCoaches } from './coaching';
 import { logTransaction, releasePlayer } from './finance/cap';
@@ -1455,6 +1462,19 @@ describe('the owner’s letter for the new league year', () => {
     expect(ownerMail(l)).toHaveLength(1);
     expect(l.inbox!.some((m) => /League sources|extended GM/.test(m.subject) && m.category !== 'league')).toBe(false);
     expect(needsYou(l, ownerMail(l)[0])).toBe(false);
+  });
+  it('files nothing about our own prove-it year after we decline the extension', () => {
+    const l = window('warning');
+    leadershipEvent(l, {
+      teamId: l.userTeamId,
+      kind: 'warning',
+      gmId: l.userGmId,
+      report: 'League sources suggest our GM could be entering a prove-it season.',
+      privateText: 'Progress.',
+    });
+    declineGmOffers(l);
+    deliverMail(l);
+    expect(l.inbox!.some((m) => /prove-it/.test(m.subject + m.body))).toBe(false);
   });
   it('keeps Needs you after a reload mid-window', () => {
     const l = JSON.parse(JSON.stringify(window())) as League;

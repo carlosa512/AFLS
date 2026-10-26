@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from './generate';
-import { endGmAppointment } from './gm';
+import { appointGm, endGmAppointment } from './gm';
 import {
   acceptGmOffer,
   advanceGmHiringRound,
   beginGmSearch,
   declineGmOffers,
   leadershipCoachTenure,
+  leadershipEvent,
   leadershipNewYear,
   interimLetter,
   leadershipWeek,
@@ -658,6 +659,46 @@ describe('the offseason carousel digest', () => {
     event(l, 4, d, 'gmHired');
     const next = leadershipMail(l, new Set([first]));
     expect(next.map((m) => m.id)).toEqual([`leadership-phase:${l.season}:resign:3-4`]);
+  });
+  it('never re-files a digested event as owner mail once we run that club', () => {
+    const l = world();
+    const [a, b] = others(l);
+    const fired = event(l, 1, a, 'gmDismissed');
+    fired.privateText = 'The owner’s private reason.';
+    event(l, 2, b, 'gmDismissed');
+    const digest = leadershipMail(l, new Set())[0];
+    l.phase = 'resign';
+    endGmAppointment(l, l.teams[a].gmId!, 'dismissed');
+    endGmAppointment(l, l.userGmId, 'dismissed');
+    appointGm(l, a, l.userGmId, { through: l.season + 2 });
+    l.userTeamId = a;
+    l.leadership.nextEventId = 10; // past the hand-made events above
+    leadershipEvent(l, { teamId: a, kind: 'gmHired', gmId: l.userGmId, report: 'Hired.' });
+    const later = leadershipMail(l, new Set([digest.id]));
+    expect(later.some((m) => m.body.includes('private reason'))).toBe(false);
+    expect(later.some((m) => m.id === `leadership:${l.season}:1`)).toBe(false);
+  });
+  it('still files our own change when its id falls inside another club’s roundup', () => {
+    const l = world();
+    const [a, b] = others(l);
+    event(l, 1, a, 'gmDismissed');
+    const ours = event(l, 2, l.userTeamId, 'coachPermanent');
+    event(l, 3, b, 'gmDismissed');
+    const digest = leadershipMail(l, new Set()).find((m) => m.id.startsWith('leadership-phase'))!;
+    expect(digest.id).toBe(`leadership-phase:${l.season}:resign:1-3`);
+    expect(leadershipMail(l, new Set([digest.id])).map((m) => m.id)).toEqual([`leadership:${l.season}:${ours.id}`]);
+  });
+  it('lists a new GM told to keep the head coach as a hire, not a hot seat', () => {
+    const l = world();
+    const [a, b] = others(l);
+    event(l, 1, a, 'gmHired');
+    const note = event(l, 2, a, 'warning');
+    note.coachId = teamCoaches(l, a).find((c) => c.role === 'headCoach')!.id;
+    event(l, 3, b, 'gmDismissed');
+    const digest = leadershipMail(l, new Set())[0];
+    expect(digest.subject).not.toContain('hot seat');
+    expect(digest.carousel!.map((r) => r.group)).toEqual(['out', 'hired']);
+    expect(digest.carousel!.find((r) => r.group === 'hired')!.line).toBe('new GM, keeps the head coach');
   });
   it('keeps a lone event as its own story, and steps apart', () => {
     const l = world();

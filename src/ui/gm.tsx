@@ -103,7 +103,10 @@ function perceptionLead(league: League, gm: GeneralManager, record: Career): str
   while (streak < seasons.length && trips(seasons[seasons.length - 1 - streak])) streak++;
   if (streak >= 3) return `${COUNT[streak] ?? streak} straight playoff trips.`;
   const pressure = league.leadership.events.some(
-    (e) => e.gmId === gm.id && e.date.season === league.season && (e.kind === 'warning' || e.kind === 'coachChange'),
+    (e) =>
+      e.gmId === gm.id &&
+      e.date.season === league.season &&
+      ((e.kind === 'warning' && e.coachId === undefined) || e.kind === 'coachChange'),
   );
   if (pressure && gm.teamId !== null) return `Starts ${league.season} under pressure from ownership.`;
   return undefined;

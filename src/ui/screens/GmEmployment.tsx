@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { employed, managesTeam } from '../../engine/employment';
 import { acceptGmOffer, advanceGmHiringRound, declineGmOffers, gmOfferTerms } from '../../engine/leadership';
 import { gamesInWeek } from '../../engine/league';
@@ -32,6 +33,27 @@ export function LeadershipReports({ league, teamId }: { league: League; teamId?:
         ))}
       </ul>
     </Panel>
+  );
+}
+/** Turning the extension down ends the job, so it takes a second click. */
+export function ExtensionDecline({ teamName, confirming = false }: { teamName: string; confirming?: boolean }) {
+  const [asking, setAsking] = useState(confirming);
+  if (!asking)
+    return (
+      <button className="btn btn-sm btn-ghost" onClick={() => setAsking(true)}>
+        Decline and enter the job market
+      </button>
+    );
+  return (
+    <span className="gm-decline-confirm">
+      Your job with the {teamName} ends.{' '}
+      <button className="btn btn-sm btn-danger" onClick={() => store.mutate((l) => declineGmOffers(l))}>
+        Yes, end my job
+      </button>{' '}
+      <button className="btn btn-sm btn-ghost" onClick={() => setAsking(false)}>
+        Keep it
+      </button>
+    </span>
   );
 }
 export function GmJobs({ league }: { league: League }) {
@@ -76,13 +98,7 @@ export function GmJobs({ league }: { league: League }) {
             >
               Accept the extension
             </button>
-            <button
-              className="btn btn-sm btn-ghost"
-              title={`Your job with the ${league.teams[extension.teamId].name} ends.`}
-              onClick={() => store.mutate((l) => declineGmOffers(l))}
-            >
-              Decline and enter the job market
-            </button>
+            <ExtensionDecline teamName={league.teams[extension.teamId].name} />
           </div>
         </div>
       )}

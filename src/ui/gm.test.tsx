@@ -14,7 +14,7 @@ import { lookOf } from './staffAvatar';
 import { staffLook } from './staffLook';
 import { linkedSegments, moveIndex, nameIndex } from './moves';
 import { leadershipNewYear } from '../engine/leadership';
-import { GmJobs, LeadershipReports, PublicRoster } from './screens/GmEmployment';
+import { ExtensionDecline, GmJobs, LeadershipReports, PublicRoster } from './screens/GmEmployment';
 
 const world = () => createLeague({ seed: 'gm-cards' });
 const renderCard = (league: ReturnType<typeof world>, gm: GeneralManager) =>
@@ -342,6 +342,27 @@ describe('GM public perception', () => {
       report: 'League sources suggest a prove-it season.',
     });
     expect(gmStyleNotes(l, gm)[0]).toBe(`Starts ${l.season} under pressure from ownership.`);
+  });
+  it('does not read a new GM’s head-coach note as pressure', () => {
+    const { l, gm, t } = career([[2026, 9, 8]]);
+    l.leadership.events.push({
+      id: 98,
+      date: { season: l.season, phase: 'resign', week: 0 },
+      teamId: t.id,
+      kind: 'warning',
+      gmId: gm.id,
+      coachId: teamCoaches(l, t.id)[0].id,
+      report: 'Reports suggest the new GM is expected to work with the existing head coach.',
+    });
+    expect(gmStyleNotes(l, gm)[0]).not.toContain('under pressure');
+  });
+  it('asks before declining the extension ends the job', () => {
+    expect(renderToStaticMarkup(<ExtensionDecline teamName="Summit" confirming={false} />)).toContain(
+      'Decline and enter the job market',
+    );
+    const asking = renderToStaticMarkup(<ExtensionDecline teamName="Summit" confirming />);
+    expect(asking).toContain('Your job with the Summit ends.');
+    expect(asking).toContain('Yes, end my job');
   });
   it('adds tenure or the best year as a second line, never more', () => {
     const long = career([

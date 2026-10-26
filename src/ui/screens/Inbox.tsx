@@ -110,6 +110,7 @@ const dateLabel = (m: InboxMessage) =>
 /** Outlets and offices get a fixed badge: initials of "SNN league desk" would read "SD". */
 const OUTLET_BADGES: Record<string, string> = {
   'SNN league desk': 'SNN',
+  'SNN — Sports News Network': 'SNN',
   'The Arena Gazette': 'GAZ',
   'League office': 'LO',
   'The owner': 'OWN',

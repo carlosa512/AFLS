@@ -2355,6 +2355,9 @@ function coverMail(league: League, have: Set<string>): Draft[] {
 }
 
 /** Only your club sends private instructions. Outside reporting never quotes its decision file. */
+/** The note that a new GM inherits the head coach (`recordHire`) is a `warning` naming the coach: never a hot seat. */
+export const isCoachNote = (e: LeadershipEvent) => e.kind === 'warning' && e.coachId !== undefined;
+
 const CAROUSEL_GROUPS: CarouselRow['group'][] = ['out', 'hired', 'extended', 'hotSeat', 'coaches'];
 
 /** One change in SNN's offseason digest, in public words: the record a GM was let go after, never the owner's reason. */
@@ -2429,17 +2432,30 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
     if (have.has(id)) continue;
     const personal = e.gmId === league.userGmId;
     const inside = managesTeam(league, e.teamId);
-    // The owner's letter for the league year carries our own verdict and contract: no straggling mails about them.
-    if (inside && OFFSEASON_PHASES.includes(e.date.phase) && ['warning', 'coachChange', 'gmExtended'].includes(e.kind))
+    // A change already carried by a roundup stays there, even once we run that club. Only changes from before we
+    // took over were ever rounded up: a roundup's id range can span one of our own.
+    const joined = Math.max(
+      -1,
+      ...league.leadership.events
+        .filter((x) => x.kind === 'gmHired' && x.gmId === league.userGmId && x.teamId === e.teamId)
+        .map((x) => x.id),
+    );
+    const outsideThen = !personal && (!inside || e.id < joined);
+    if (outsideThen && (covered(e) || coveredStep(e))) continue;
+    // The owner's letter for the league year carries our own verdict and contract: no straggling mails about them,
+    // also after the user turns the extension down and the club is no longer his.
+    if (
+      (inside || personal) &&
+      OFFSEASON_PHASES.includes(e.date.phase) &&
+      ['warning', 'coachChange', 'gmExtended'].includes(e.kind)
+    )
       continue;
     if (!inside && !personal && e.date.phase === 'regular') {
-      if (covered(e)) continue;
       const key = `${e.date.season}:${e.date.week}`;
       weeks.set(key, [...(weeks.get(key) ?? []), e]);
       continue;
     }
     if (!inside && !personal && OFFSEASON_PHASES.includes(e.date.phase)) {
-      if (coveredStep(e)) continue;
       const key = `${e.date.season}:${e.date.phase}`;
       steps.set(key, [...(steps.get(key) ?? []), e]);
       continue;
@@ -2520,8 +2536,12 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
       });
       continue;
     }
+    // A new GM told to keep the head coach is part of his hire, not a hot seat.
+    const keeps = new Set(events.filter(isCoachNote).map((x) => x.gmId));
     const rows = events
+      .filter((x) => !isCoachNote(x))
       .map((x) => carouselRow(league, x))
+      .map((r) => (r.group === 'hired' && keeps.has(r.gmId) ? { ...r, line: 'new GM, keeps the head coach' } : r))
       .sort((a, b) => CAROUSEL_GROUPS.indexOf(a.group) - CAROUSEL_GROUPS.indexOf(b.group));
     const n = (g: CarouselRow['group']) => rows.filter((r) => r.group === g).length;
     const parts = [
