@@ -269,6 +269,27 @@ describe('veteran eligibility, league priority and preferences', () => {
 });
 
 describe('atomic validation and notice boundaries', () => {
+  it('a user claim with two cuts is rejected and changes nothing', () => {
+    const e = waive();
+    const [x, y] = activeRoster(l, l.userTeamId).filter((p) => p.position === 'WR');
+    const before = copy(l);
+    expect(() => setWaiverClaim(l, claim(e.id, l.userTeamId, [x.id, y.id]))).toThrow(/at most one/);
+    expect(() => setWaiverClaim(l, { ...claim(e.id, l.userTeamId, [x.id]), group: 'two-ways' })).toThrow(
+      /groups are not available/,
+    );
+    expect(l).toEqual(before);
+  });
+
+  it('a user claim with one cut and a squad invite still works', () => {
+    const e = waive();
+    const cut = activeRoster(l, l.userTeamId)
+      .filter((p) => p.position === 'WR')
+      .at(-1)!;
+    const plan = { ...claim(e.id, l.userTeamId, [cut.id]), squadReturnIds: [cut.id] };
+    const issue = claimProblem(l, plan);
+    expect(issue === null || !/at most one|groups/.test(issue)).toBe(true);
+  });
+
   it('rejects a full-roster claim without changing any state', () => {
     const e = waive();
     const before = copy(l);

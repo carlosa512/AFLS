@@ -156,6 +156,11 @@ export function claimProblem(league: League, claim: WaiverClaim): string | null 
     return 'The AI front office has filled its waiver plan for this window.';
   const entry = league.personnel.waivers?.pending.find((e) => e.id === claim.entryId);
   if (!entry) return 'This waiver has already settled.';
+  // Your claims stay simple: one optional release each. Alternative groups are an AI planning tool.
+  if (claim.teamId === league.userTeamId && !claim.automatic) {
+    if (claim.cutIds.length > 1) return 'Name at most one player to release for this claim.';
+    if (claim.group) return 'Alternative groups are not available for your claims.';
+  }
   const p = league.players[entry.playerId];
   if (!p || p.waiver?.id !== entry.id || p.retired) return 'The player is no longer available.';
   if (!league.teams[claim.teamId] || entry.fromTeamId === claim.teamId)
