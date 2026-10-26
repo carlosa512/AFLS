@@ -244,3 +244,116 @@ describe('GM portraits', () => {
     expect(gmStyleNotes(l, gm)).toHaveLength(1);
   });
 });
+
+describe('GM public perception', () => {
+  type Year = [season: number, w: number, l: number, finish?: 'title' | 'final' | 'div'];
+  /** Another club's GM with these seasons at his first club. */
+  function career(years: Year[], seed = 'perception') {
+    const l = createLeague({ seed });
+    const t = l.teams.find((x) => x.id !== l.userTeamId)!;
+    const gm = l.gms[t.gmId!];
+    gm.career = years.map(([season, w, lo, finish]) => ({
+      season,
+      teamId: t.id,
+      record: {
+        fromWeek: 1,
+        throughWeek: 18,
+        regular: { w, l: lo, t: 0 },
+        playoffs:
+          finish === 'title'
+            ? { w: 4, l: 0, round: 'FINAL' }
+            : finish === 'final'
+              ? { w: 3, l: 1, round: 'FINAL' }
+              : finish === 'div'
+                ? { w: 1, l: 1, round: 'DIV' }
+                : null,
+        champion: finish === 'title',
+      },
+    }));
+    gm.appointments.at(-1)!.start = { season: years[0]?.[0] ?? l.season, phase: 'resign', week: 0 };
+    delete gm.appointments.at(-1)!.priorSeasons;
+    l.season = (years.at(-1)?.[0] ?? l.season) + 1;
+    return { l, gm, t };
+  }
+  it('says why a GM is out of work', () => {
+    const { l, gm, t } = career([
+      [2026, 10, 7],
+      [2027, 3, 14],
+    ]);
+    endGmAppointment(l, gm.id, 'dismissed');
+    gm.woman = true;
+    expect(gmStyleNotes(l, gm)[0]).toBe(`Out of work since ${t.abbrev} let her go after a 3–14 season.`);
+  });
+  it('says when a deal ran out, and how long ago', () => {
+    const { l, gm, t } = career([[2026, 9, 8]]);
+    endGmAppointment(l, gm.id, 'expired');
+    expect(gmStyleNotes(l, gm)[0]).toBe(`Left ${t.abbrev} when his deal ran out after 2026; available.`);
+    l.season += 2;
+    expect(gmStyleNotes(l, gm)[0]).toBe('Hasn’t run a front office since 2026.');
+  });
+  it('tells champions apart', () => {
+    expect(
+      gmStyleNotes(
+        ...(({ l, gm }) => [l, gm] as const)(
+          career([
+            [2026, 13, 4, 'title'],
+            [2027, 10, 7],
+            [2028, 14, 3, 'title'],
+          ]),
+        ),
+      )[0],
+    ).toBe('Two titles in three years.');
+    const slide = career([
+      [2026, 12, 5, 'title'],
+      [2027, 6, 11],
+      [2028, 3, 14],
+    ]);
+    expect(gmStyleNotes(slide.l, slide.gm)[0]).toBe('Won it all in 2026; 9–25 since.');
+    const once = career([
+      [2026, 12, 5, 'title'],
+      [2027, 10, 7],
+    ]);
+    expect(gmStyleNotes(once.l, once.gm)[0]).toBe('A title in 2026 on the résumé.');
+  });
+  it('notes deep runs', () => {
+    const close = career([
+      [2026, 9, 8],
+      [2027, 13, 4, 'final'],
+    ]);
+    expect(gmStyleNotes(close.l, close.gm)[0]).toBe('One win from a title in 2027.');
+    const steady = career([
+      [2026, 11, 6, 'div'],
+      [2027, 11, 6, 'div'],
+      [2028, 12, 5, 'div'],
+    ]);
+    expect(gmStyleNotes(steady.l, steady.gm)[0]).toBe('Three straight playoff trips.');
+  });
+  it('puts a public warning on the hot seat', () => {
+    const { l, gm, t } = career([
+      [2026, 9, 8],
+      [2027, 6, 11],
+    ]);
+    l.leadership.events.push({
+      id: 99,
+      date: { season: l.season, phase: 'resign', week: 0 },
+      teamId: t.id,
+      kind: 'warning',
+      gmId: gm.id,
+      report: 'League sources suggest a prove-it season.',
+    });
+    expect(gmStyleNotes(l, gm)[0]).toBe(`Starts ${l.season} under pressure from ownership.`);
+  });
+  it('adds tenure or the best year as a second line, never more', () => {
+    const long = career([
+      [2026, 9, 8],
+      [2027, 10, 7],
+      [2028, 8, 9],
+      [2029, 9, 8],
+    ]);
+    const notes = gmStyleNotes(long.l, long.gm);
+    expect(notes).toHaveLength(2);
+    expect(notes[1]).toBe(`In his fifth year in ${long.t.city}.`);
+    const short = career([[2026, 13, 4, 'div']]);
+    expect(gmStyleNotes(short.l, short.gm)[1]).toBe('Best year: 13–4 in 2026.');
+  });
+});
