@@ -208,6 +208,14 @@ describe('migration and collection', () => {
     expect(migrateLeague(loaded)).toEqual(league);
   });
 
+  it('a v47 save migrates to v48 untouched', () => {
+    league.version = 47;
+    const before = copy(league);
+    migrateLeague(league);
+    expect({ ...league, version: 47 }).toEqual(before);
+    expect(league.version).toBe(48);
+  });
+
   it('collects membership once on game completion without changing experience or statistical appearances', () => {
     const g = league.games[0];
     const p = activeRoster(league, g.homeId).at(-1)!;

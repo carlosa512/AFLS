@@ -24,6 +24,18 @@ export interface PersonnelState {
     /** A same-club departure after use cannot erase the season's restriction. */
     blocked: Record<string, true>;
   };
+  /** Step 5: other clubs signing squad players to their 53, and each club's two weekly protections. */
+  poaching?: {
+    season: number;
+    /** Pending offers; another club's stay private. */
+    offers: PoachOffer[];
+    /** Public outcomes, the latest 96. */
+    results: PoachResult[];
+    /** This week's protections by club, locked at the week's settle. */
+    locked: { week: number; ids: Record<number, number[]> };
+    /** "Always protect", per club, at most two, kept while the player stays on that squad. */
+    pins: Record<number, number[]>;
+  };
   waivers?: {
     nextId: number;
     /** The open batch: new releases join it, and a settle resolves every batch before the next one. */
@@ -128,4 +140,22 @@ export interface GameDayList {
   inactiveIds: number[];
   elevatedIds: number[];
   emergencyQbId?: number;
+}
+
+export interface PoachOffer {
+  playerId: number;
+  teamId: number;
+  years: 1 | 2;
+}
+
+export interface PoachResult {
+  playerId: number;
+  fromTeamId: number;
+  /** null: no club signed him, and `reason` says why this club's offer failed. */
+  toTeamId: number | null;
+  /** The club whose offer this result answers. */
+  teamId: number;
+  season: number;
+  week: number;
+  reason?: string;
 }

@@ -144,6 +144,7 @@ export function migrateLeague(league: League): League | null {
     for (const p of Object.values(league.players)) ensureService(p, league.season);
     league.version = 47;
   }
+  if (league.version < 48) league.version = 48; // v48: optional personnel.poaching, created when a career first settles a week
   return league;
 }
 
