@@ -897,8 +897,9 @@ export const coachTrendLabel = (age: number) => (age < 35 ? 'Rising' : age < 55 
 /** A play-caller's style: most coaches sit near the middle, a few are known for something. */
 function rollStyle(rng: Rng, role: CoachRole): CoachStyle | undefined {
   // `|| 0` keeps −0 out of saves (a JSON round trip would turn it into 0).
-  const roll = () => Math.round(clamp(rng.normal(0, 0.45), -1, 1) * 20) / 20 || 0;
-  if (role === 'headCoach') return { fourthDown: roll() };
+  const roll = (mean = 0) => Math.round(clamp(rng.normal(mean, 0.45), -1, 1) * 20) / 20 || 0;
+  // Head coaches lean a little aggressive, as the analytics-era NFL does: more go-for-it men than kickers.
+  if (role === 'headCoach') return { fourthDown: roll(0.1) };
   if (role === 'offCoord') return { passLean: roll() };
   return undefined;
 }

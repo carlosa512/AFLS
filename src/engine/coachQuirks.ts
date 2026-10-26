@@ -9,6 +9,11 @@ type Info = {
   tone: 'good' | 'bad' | 'style';
   effect: string;
   qualityBiased?: boolean;
+  /**
+   * Marbles in his bag (3 if unset; for a quality-biased habit, added to what his quality gives, never below 1).
+   * Style habits draw from fewer so each is a minority's trait (about one chair in five), not half the league's.
+   */
+  marbles?: number;
 };
 export const COACH_QUIRKS = {
   clingsToTimeouts: {
@@ -16,30 +21,49 @@ export const COACH_QUIRKS = {
     role: 'headCoach',
     tone: 'bad',
     effect: 'Sometimes saves a defensive timeout through another snap late in a close game.',
+    marbles: 2,
   },
   stopsTheClock: {
     label: 'Stops the Clock Early',
     role: 'headCoach',
     tone: 'style',
     effect: 'Starts spending defensive timeouts a little earlier to preserve another possession.',
+    marbles: 2,
   },
   takesThePoints: {
     label: 'Takes the Points',
     role: 'headCoach',
     tone: 'style',
     effect: 'Sometimes chooses the comfortable field goal on short fourth downs near the goal line.',
+    marbles: 2,
   },
   backsHisOffense: {
     label: 'Backs His Offense',
     role: 'headCoach',
     tone: 'style',
     effect: 'More willing to trust his offense on fourth down inside the three.',
+    marbles: 2,
+  },
+  goesForTwo: {
+    label: 'Goes for Two',
+    role: 'headCoach',
+    tone: 'style',
+    effect: 'Follows the analytics chart into a two-point try in a few high-leverage second-half spots.',
+    marbles: 2,
+  },
+  distrustsLongKick: {
+    label: 'Distrusts the Long Kick',
+    role: 'headCoach',
+    tone: 'style',
+    effect: 'Would rather punt or go for it than try a long field goal, unless his kicker has the leg for it.',
+    marbles: 2,
   },
   settlesForThree: {
     label: 'Settles for Three',
     role: 'offCoord',
     tone: 'style',
     effect: 'Favors safer early-down calls once inside comfortable field-goal range.',
+    marbles: 2,
   },
   shotPlayArchitect: {
     label: 'Shot-Play Architect',
@@ -53,65 +77,126 @@ export const COACH_QUIRKS = {
     role: 'offCoord',
     tone: 'style',
     effect: 'Protects narrow fourth-quarter leads with safer calls earlier.',
+    marbles: 2,
   },
   scriptedOpening: {
     label: 'Scripted Opening',
     role: 'offCoord',
     tone: 'good',
     effect: 'Creates slightly better passing windows on his first six offensive snaps.',
+    marbles: 2,
+  },
+  attacksEndZone: {
+    label: 'Attacks the End Zone',
+    role: 'offCoord',
+    tone: 'style',
+    effect: 'Throws a little more, and a little farther, on early downs inside the 20.',
+    marbles: 2,
+  },
+  upTempo: {
+    label: 'Up-Tempo',
+    role: 'offCoord',
+    tone: 'style',
+    effect: 'Goes no-huddle earlier when trailing and in any two-minute drive before the half.',
+    marbles: 2,
   },
   thirdDownHeat: {
     label: 'Third-Down Heat',
     role: 'defCoord',
     tone: 'style',
     effect: 'Sends a little more pressure on third-and-long, leaving the usual coverage risks.',
+    marbles: 2,
   },
   trustsCoverage: {
     label: 'Trusts His Coverage',
     role: 'defCoord',
     tone: 'style',
     effect: 'Favors coverage over pressure on third-and-long.',
+    marbles: 2,
   },
   crowdsTheLine: {
     label: 'Crowds the Line',
     role: 'defCoord',
     tone: 'style',
     effect: 'More often anticipates a run on early short-yardage downs.',
+    marbles: 2,
   },
   protectsDeep: {
     label: 'Protects Against the Deep Ball',
     role: 'defCoord',
     tone: 'style',
     effect: 'Protecting a late lead, closes deep windows but concedes a little underneath.',
+    marbles: 2,
+  },
+  playsPrevent: {
+    label: 'Plays Prevent',
+    role: 'defCoord',
+    tone: 'bad',
+    effect: 'Sits soft with a two-score lead late: takes away the deep ball but gives up quick yards underneath.',
+    marbles: 2,
+  },
+  disguisesCoverages: {
+    label: 'Disguises Coverages',
+    qualityBiased: true,
+    role: 'defCoord',
+    tone: 'good',
+    effect:
+      'Muddies the picture on obvious passing downs: a little more pressure gets home and more throws are misread.',
+    marbles: -1,
   },
   earnYourReps: {
     label: 'Earn Your Reps',
     role: 'positionCoach',
     tone: 'style',
     effect: 'Favors preparation in close selection calls; hard workers fit his teaching better than coasters.',
+    marbles: 2,
   },
   trustsVeterans: {
     label: 'Trusts His Veterans',
     role: 'positionCoach',
     tone: 'style',
     effect: 'Favors experience in close selection calls and gets a little more from veteran preparation.',
+    marbles: 2,
   },
   patientTeacher: {
     label: 'Patient Teacher',
     role: 'positionCoach',
     tone: 'good',
     effect: 'Helps young players learn and gives them more time to develop.',
+    marbles: 2,
   },
   techniqueStickler: {
     label: 'Technique Stickler',
     role: 'positionCoach',
     tone: 'good',
     effect: 'Occasionally works against an established negative playing habit in his room.',
+    marbles: 2,
+  },
+  keepsThemFresh: {
+    label: 'Keeps Them Fresh',
+    role: 'positionCoach',
+    tone: 'good',
+    effect: 'His room recovers better between games and picks up fewer practice injuries.',
+    marbles: 2,
+  },
+  runsHardPractices: {
+    label: 'Runs Hard Practices',
+    role: 'positionCoach',
+    tone: 'style',
+    effect: 'His room develops a little faster, at a slightly higher risk of practice injuries.',
+    marbles: 2,
   },
 } as const satisfies Record<string, Info>;
 export type CoachQuirkId = keyof typeof COACH_QUIRKS;
 export const COACH_QUIRK_IDS = Object.keys(COACH_QUIRKS) as CoachQuirkId[];
 export const COACH_ACTIVE_MAX = 2;
+/** Habits that pull against each other: a coach picks up one of a pair, never both at once. */
+const OPPOSITES: Partial<Record<CoachQuirkId, CoachQuirkId>> = {
+  settlesForThree: 'attacksEndZone',
+  attacksEndZone: 'settlesForThree',
+  keepsThemFresh: 'runsHardPractices',
+  runsHardPractices: 'keepsThemFresh',
+};
 const HELD_MAX = 4;
 const ROOMS: Record<Position, string | null> = {
   QB: 'QB',
@@ -145,9 +230,9 @@ function habitMarbles(c: Coach, id: CoachQuirkId): number {
   if (info.qualityBiased) {
     const quality = coachValue(c);
     const base = quality >= 12 ? 3 : quality >= 9.5 ? 2 : 1;
-    return base + Math.min(1, Math.floor(evidence / 16));
+    return Math.max(1, base + (info.marbles ?? 0)) + Math.min(1, Math.floor(evidence / 16));
   }
-  return 3 + Math.min(2, Math.floor(evidence / 8));
+  return (info.marbles ?? 3) + Math.min(2, Math.floor(evidence / 8));
 }
 export function coachBag(c: Coach): Record<string, number> {
   const bag: Record<string, number> = { blank: c.age >= 55 ? 48 : 30 };
@@ -174,6 +259,8 @@ export function drawCoachMarbles(c: Coach, rng: Rng, n: number, stamp?: { season
     const grip = held[id] ?? 0;
     if (fix && (!grip || (grip === 3 && !rng.chance(0.5)))) continue;
     if (!fix && (grip === 3 || (!grip && Object.keys(held).length >= HELD_MAX))) continue;
+    const opposite = OPPOSITES[id];
+    if (!fix && !grip && opposite && held[opposite]) continue;
     const next = clamp(grip + (fix ? -1 : 1), 0, 3);
     if (next) held[id] = next;
     else delete held[id];
@@ -295,5 +382,16 @@ export function coachPlayerFit(c: Coach | undefined, p: Player): number {
   if (active.includes('earnYourReps') && p.traits.workEthic <= 7.5 && p.traits.temperament <= 7) fit -= 0.01;
   if (active.includes('trustsVeterans')) fit += p.age >= 29 ? 0.02 : p.age <= 24 ? -0.01 : 0;
   if (active.includes('patientTeacher') && p.age <= 25) fit += 0.025;
+  if (active.includes('runsHardPractices')) fit += 0.02;
   return clamp(fit, -0.05, 0.05);
+}
+/**
+ * What a room's coach does to its bodies between games: practice injury odds (×) and a share of lost condition
+ * won back each week (+). Both mild: a medical staff and a player's own fitness still decide most of it.
+ */
+export function roomCare(c: Coach | undefined): { practice: number; recovery: number } {
+  const active = c ? activeCoachQuirks(c) : [];
+  if (active.includes('keepsThemFresh')) return { practice: 0.88, recovery: 0.03 };
+  if (active.includes('runsHardPractices')) return { practice: 1.12, recovery: 0 };
+  return { practice: 1, recovery: 0 };
 }

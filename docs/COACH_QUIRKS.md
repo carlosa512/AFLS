@@ -39,17 +39,26 @@ Coaches carry habits that form and fade through their careers. Their ratings sti
 their schemes and styles still describe their general football preferences. A quirk affects a particular
 decision or teaching situation. Reports describe recorded decisions and outcomes rather than rolling stories.
 
-## Initial pools
+## Pools
 
-There are **four types per role**, not four quirks on every person. Position coaches can become coordinators,
+There are **six types per role**, not six quirks on every person. Position coaches can become coordinators,
 and coordinators can become head coaches. They keep held habits, including inactive ones.
 
 | Role | Quirks |
 |---|---|
-| Head coach | Clings to Timeouts; Stops the Clock Early; Takes the Points; Backs His Offense |
-| Offensive coordinator | Settles for Three; Shot-Play Architect; Goes Into a Shell; Scripted Opening |
-| Defensive coordinator | Third-Down Heat; Trusts His Coverage; Crowds the Line; Protects Against the Deep Ball |
-| Position coach | Earn Your Reps; Trusts His Veterans; Patient Teacher; Technique Stickler |
+| Head coach | Clings to Timeouts; Stops the Clock Early; Takes the Points; Backs His Offense; Goes for Two; Distrusts the Long Kick |
+| Offensive coordinator | Settles for Three; Shot-Play Architect; Goes Into a Shell; Scripted Opening; Attacks the End Zone; Up-Tempo |
+| Defensive coordinator | Third-Down Heat; Trusts His Coverage; Crowds the Line; Protects Against the Deep Ball; Plays Prevent; Disguises Coverages |
+| Position coach | Earn Your Reps; Trusts His Veterans; Patient Teacher; Technique Stickler; Keeps Them Fresh; Runs Hard Practices |
+
+**Rarity.** Each habit is a minority's trait. Style habits put two marbles in a bag, not three, so each one
+sits in roughly 13–28% of its chairs. Settles for Three was in 44% of offensive coordinators' chairs on three
+marbles, and it pushed the league's field-goal attempts past the 2.0 ceiling. Plays Prevent and the common good
+habits carry two as well. Disguises Coverages is quality-biased like Shot-Play Architect but one marble rarer
+(about one defensive coordinator in ten). A test holds every habit under three chairs in ten across four leagues.
+
+**Opposites.** Settles for Three and Attacks the End Zone, and Keeps Them Fresh and Runs Hard Practices, pull
+against each other: a coach who holds one never forms the other.
 
 Medical, scouting, strength and special-teams coaching pools are not included in this pass.
 
@@ -95,15 +104,40 @@ coordinator's play calls. The match snapshots staff at kickoff, so changes outsi
   small chance to prefer a short throw over an ordinary deep call.
 - **Goes Into a Shell:** with a narrow fourth-quarter lead and more than three minutes left, a similar safer
   call preference. The two caution adjustments together cannot exceed −0.10 pass probability.
+- **Goes for Two:** follows the analytics chart into a two-point try where the default call kicks: down eight
+  after the touchdown in the second half, and the fourth quarter's chart (−2, +1, +5) in the third. An 80%
+  chance in those spots.
+- **Distrusts the Long Kick:** on an ordinary fourth down where the default call tries a field goal his kicker
+  makes less than three times in four, a 60% chance to punt instead (or go for it on fourth and two or less).
+  He trusts a kicker with a field-goal skill of 14 or more, or a Boomer Leg, and kicks as usual. Never on a
+  forced end-of-half or late-game kick.
 - **Shot-Play Architect:** eligible ordinary early downs from the offense's 25 to 65, at least three yards to
   gain: a 5.5% chance to commit a designed deep pass, up to twice per game. A thrown deep pass receives +0.5
   separation contest points. Pressure, sacks, scrambles, inaccurate throws and coverage can waste the call.
   A committed shot consumes its budget even if no pass reaches a receiver. A canceled pre-snap play does not.
 - **Scripted Opening:** +0.25 separation on eligible passes in the first six offensive snaps.
+- **Attacks the End Zone:** ordinary early downs from the 20 to the 4: pass probability +0.03 and a 12% chance
+  to turn an ordinary short throw into an intermediate one. Lighter than Settles for Three, on purpose.
+- **Up-Tempo:** a quicker pace between snaps (18–26 seconds, against a normal 28–38 and a hurry-up's 8–16)
+  when trailing in the fourth quarter, down nine or more late in the third, and on any drive in the last two
+  and a half minutes of the first half. A full hurry-up on those snaps was worth over a point a game to both
+  sides, so it is a quicker tempo, not the two-minute drill.
 - **Third-Down Heat / Trusts His Coverage:** small changes to third-and-long pressure choices; existing blitz
   protection and coverage tradeoffs resolve the outcome. No sack/completion bonuses.
 - **Crowds the Line:** small run-defense call preference on ordinary early short-yardage downs.
 - **Protects Against the Deep Ball:** protecting a late one-score lead, deep separation −0.3 and short +0.15.
+- **Plays Prevent:** leading by 9–16 in the last four minutes, a 60% chance each snap to sit in a soft shell:
+  coverage call, a three-man rush (pressure −0.8), deep separation −0.5, intermediate +0.4 and short +0.8.
+  It rarely loses the game, which is the frustration: it gives up quick yards when the lead should be safe.
+- **Disguises Coverages:** on obvious passing downs (third and seven or more, second and ten or more), pressure
+  +0.6 contest points and interception odds ×1.15. Quality-biased and rare.
+
+Position-room habits change bodies, not play calls:
+
+- **Keeps Them Fresh:** his room's practice injury odds ×0.88 and three points more of lost condition back
+  each week (`roomCare`, read by `injuryWeek`).
+- **Runs Hard Practices:** +0.02 development fit for everyone in his room (`coachPlayerFit`) and practice
+  injury odds ×1.12.
 
 These are initial tuning values. `npm run coach-quirks -- 100` runs matched fixed-roster experiments for each
 game-day habit separately. It reports opportunities, actual uses, stat deltas and changed winners. It does not
@@ -323,3 +357,36 @@ A genuine v40 save with sixteen completed matches and five filed messages migrat
 those results, mail, players, contracts or league RNG. A second migration was idempotent, and the next simulated
 week was identical across reload. Browser checks of the single-file build covered a new career, a live match,
 autosave/reload, old-backup import, v41-backup download and mobile layout. Formatting and typecheck passed.
+
+## Second wave and the fourth-down review — October 26, 2026
+
+The first coach-quirks build failed CI's sim on field-goal attempts (2.002 against a 2.0 ceiling, main at
+1.989). Matched games put the cause on the two habits that add kicks, Settles for Three and Shot-Play
+Architect, held at 44% and 23% of offensive coordinators' chairs. The trades and head-coach-carousel failures
+reproduced as world noise on main too.
+
+The base engine was the other half. It went for it on fourth down 1.23 times a team-game against the NFL's
+1.40–1.47 (2023–24), so its drives ended in kicks and punts. The fourth-down calls now go for it more on fourth
+and short around midfield and on fourth and medium in opponent territory, head coaches' appetite is rolled
+around +0.1 instead of 0, and the sim checks fourth-down tries against 1.3–1.6. To hold plays, and the season
+leaders, where they were, a normal tempo's time between snaps went from 27–38 to 28–38 seconds.
+
+Matched experiment, 2,000 games per habit, both teams carrying it (per team-game):
+
+| Habit | Points Δ | FG attempts Δ |
+|---|---:|---:|
+| Goes for Two | −0.01 | −0.01 |
+| Distrusts the Long Kick | −0.28 | −0.12 |
+| Attacks the End Zone | +0.05 | −0.02 |
+| Up-Tempo | +0.49 | +0.05 |
+| Plays Prevent | +0.03 | 0.00 |
+| Disguises Coverages | −0.12 | +0.02 |
+
+30-season sim after the change: 22.14 points, 62.13 plays, 1.88 field-goal attempts and 1.43 fourth-down tries
+a team-game, every league stat and season-leader row inside its range.
+
+The trades check's two near misses are the market's own edges, not this work's. Over twelve leagues (36
+seasons), in-season trades were 16.0 a season on main and 16.3 here. Deals voided or through with concerns
+were 3.2 on main's default world but 4.3 and 3.8 in two other main worlds (band 1–4), so main sits at that
+ceiling too. With every coaching piece off, this build plays main's games exactly. A three-league run can
+land either number outside its band in any world; that calibration belongs to the trade market.

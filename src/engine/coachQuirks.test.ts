@@ -8,6 +8,8 @@ import {
   coachQuirksOffseason,
   coachQuirksWeek,
   COACH_QUIRK_IDS,
+  COACH_QUIRKS,
+  roomCare,
   drawCoachMarbles,
   generateCoachQuirks,
   inheritCoachQuirk,
@@ -18,7 +20,16 @@ import { coachAdviceObservation, userCoachGameObservation } from './coachReports
 import { asPromoted, coachingForPlayer, teamCoaches } from './coaching';
 import { createLeague, SAVE_VERSION } from './generate';
 import { recordResult } from './league';
-import { habitCalls, canDeferTimeout, shortGoalDecision, fourthDownHabit } from './match/coachHabits';
+import {
+  habitCalls,
+  canDeferTimeout,
+  shortGoalDecision,
+  fourthDownHabit,
+  longKickHabit,
+  twoPointHabit,
+  twoPointSpot,
+  upTempoEligible,
+} from './match/coachHabits';
 import type { Situation } from './match/coach';
 import { simulateGame, startGame } from './match/gameSim';
 import { migrateLeague } from './migrate';
@@ -57,10 +68,10 @@ const situation: Situation = {
 };
 
 describe('coaching habit identity and persistence', () => {
-  it('has exactly four types for every initial role, without extending excluded departments', () => {
+  it('has exactly six types for every initial role, without extending excluded departments', () => {
     for (const role of ['headCoach', 'offCoord', 'defCoord', 'positionCoach'] as const)
-      expect(coachQuirkPool(role)).toHaveLength(4);
-    expect(COACH_QUIRK_IDS).toHaveLength(16);
+      expect(coachQuirkPool(role)).toHaveLength(6);
+    expect(COACH_QUIRK_IDS).toHaveLength(24);
     expect(coachQuirkPool('strengthCoach')).toEqual([]);
     expect(coachQuirkPool('stCoord')).toEqual([]);
   });
@@ -125,7 +136,8 @@ describe('coaching habit identity and persistence', () => {
     expect(coachBag(c).shotPlayArchitect).toBe(3);
     c.quirkEvidence = { shotPlayArchitect: 32, scriptedOpening: 32 };
     expect(coachBag(c).shotPlayArchitect).toBe(4);
-    expect(coachBag(c).scriptedOpening).toBe(5);
+    // Two marbles of its own (good habits are a minority's trait too), plus experience's two.
+    expect(coachBag(c).scriptedOpening).toBe(4);
   });
   it('builds initial habit histories from final budget-fitted ratings', () => {
     for (const seed of ['coach-rarity-14', 'coach-rarity-16']) {
@@ -534,5 +546,100 @@ describe('player fit, recommendations and teaching', () => {
     for (let i = 0; i < 20; i++) coachTeachingWeek(l, [c], [p]);
     expect(p.quirkBag['fix:looseCarriage']).toBeLessThanOrEqual(6);
     expect(p.quirks.looseCarriage).toBe(2);
+  });
+});
+
+describe('second-wave habits', () => {
+  it('keeps every habit a minority trait: no habit in more than three chairs in ten', () => {
+    const held: Record<string, number> = {};
+    const chairs: Record<string, number> = {};
+    // Four leagues: one league's 32 chairs per role are too few to read a share from.
+    const leagues = [world, ...[1, 2, 3].map((i) => createLeague({ seed: `coach-share-${i}` }))];
+    for (const c of leagues.flatMap((l) => Object.values(l.coaches))) {
+      if (c.teamId === null) continue;
+      chairs[c.role] = (chairs[c.role] ?? 0) + 1;
+      for (const q of activeCoachQuirks(c)) held[q] = (held[q] ?? 0) + 1;
+    }
+    for (const id of COACH_QUIRK_IDS) expect((held[id] ?? 0) / chairs[COACH_QUIRKS[id].role]).toBeLessThan(0.3);
+  });
+  it('never forms both habits of an opposed pair', () => {
+    const c = example();
+    c.role = 'offCoord';
+    c.quirks = { settlesForThree: 2 };
+    c.quirkBag = { attacksEndZone: 5 };
+    drawCoachMarbles(c, new Rng('opposed'), 5);
+    expect(c.quirks.attacksEndZone).toBeUndefined();
+    const p = example();
+    p.quirks = { keepsThemFresh: 1 };
+    p.quirkBag = { runsHardPractices: 5 };
+    drawCoachMarbles(p, new Rng('opposed-room'), 5);
+    expect(p.quirks.runsHardPractices).toBeUndefined();
+  });
+  it('goes for two only in the chart spots the default call leaves to the kick', () => {
+    const third = { ...situation, quarter: 3, clock: 400 };
+    expect(twoPointSpot({ ...third, scoreDiff: -8 })).toBe(true);
+    expect(twoPointSpot({ ...third, scoreDiff: -2 })).toBe(true);
+    expect(twoPointSpot({ ...third, scoreDiff: -7 })).toBe(false);
+    expect(twoPointSpot({ ...situation, quarter: 2, scoreDiff: -8 })).toBe(false);
+    // The fourth quarter's chart already goes for two at -2: nothing for the habit to add there.
+    expect(twoPointSpot({ ...third, quarter: 4, scoreDiff: -2 })).toBe(false);
+    expect(twoPointSpot({ ...third, quarter: 4, scoreDiff: -8 })).toBe(true);
+    const rng = new Rng('two');
+    expect(twoPointHabit({ ...third, scoreDiff: -8 }, new Set(), rng).goes).toBe(false);
+    let goes = 0;
+    for (let i = 0; i < 500; i++)
+      goes += Number(twoPointHabit({ ...third, scoreDiff: -8 }, new Set(['goesForTwo']), rng).goes);
+    expect(goes).toBeGreaterThan(350);
+  });
+  it('passes on a long kick only for a kicker he does not trust, and never on a forced one', () => {
+    const s = { ...situation, down: 4, distance: 6, yardLine: 66, fgMakeProb: 0.62 };
+    const habit = new Set(['distrustsLongKick'] as const);
+    const rng = new Rng('long');
+    let passes = 0;
+    for (let i = 0; i < 500; i++) passes += Number(longKickHabit(s, 'fg', habit, false, rng).passes);
+    expect(passes).toBeGreaterThan(250);
+    expect(passes).toBeLessThan(350);
+    for (let i = 0; i < 200; i++) expect(longKickHabit(s, 'fg', habit, true, rng).decision).toBe('fg');
+    expect(longKickHabit({ ...s, fgMakeProb: 0.9 }, 'fg', habit, false, rng).eligible).toBe(false);
+    expect(longKickHabit({ ...s, quarter: 4, clock: 60 }, 'fg', habit, false, rng).eligible).toBe(false);
+    expect(longKickHabit({ ...s, quarter: 2, clock: 30 }, 'fg', habit, false, rng).eligible).toBe(false);
+    const short = { ...s, distance: 2 };
+    for (let i = 0; i < 50; i++) {
+      const d = longKickHabit(short, 'fg', habit, false, rng).decision;
+      expect(d === 'go' || d === 'fg').toBe(true);
+    }
+  });
+  it('limits the new calling effects to their situations', () => {
+    expect(upTempoEligible({ ...situation, quarter: 2, clock: 140 })).toBe(true);
+    expect(upTempoEligible({ ...situation, quarter: 2, clock: 400 })).toBe(false);
+    expect(upTempoEligible({ ...situation, quarter: 3, clock: 200, scoreDiff: -10 })).toBe(true);
+    expect(upTempoEligible({ ...situation, quarter: 3, clock: 200, scoreDiff: -4 })).toBe(false);
+    expect(upTempoEligible({ ...situation, quarter: 4, clock: 600, scoreDiff: -4 })).toBe(true);
+    expect(upTempoEligible({ ...situation, quarter: 4, clock: 600, scoreDiff: 4 })).toBe(false);
+    expect(upTempoEligible({ ...situation, quarter: 1, scoreDiff: -10 })).toBe(false);
+    const attack = new Set(['attacksEndZone'] as const);
+    expect(habitCalls({ ...situation, yardLine: 85 }, attack, new Set(), 10).passShift).toBeCloseTo(0.03);
+    expect(habitCalls({ ...situation, yardLine: 50 }, attack, new Set(), 10).passShift).toBe(0);
+    const prevent = new Set(['playsPrevent'] as const);
+    expect(
+      habitCalls({ ...situation, quarter: 4, clock: 200, scoreDiff: -10 }, new Set(), prevent, 10).preventShell,
+    ).toBe(true);
+    expect(
+      habitCalls({ ...situation, quarter: 4, clock: 200, scoreDiff: -4 }, new Set(), prevent, 10).preventShell,
+    ).toBe(false);
+    const disguise = new Set(['disguisesCoverages'] as const);
+    expect(habitCalls({ ...situation, down: 3, distance: 9 }, new Set(), disguise, 10).disguise).toBe(true);
+    expect(habitCalls({ ...situation, down: 1, distance: 10 }, new Set(), disguise, 10).disguise).toBe(false);
+  });
+  it('changes a room’s practice risk and recovery mildly, in opposite directions', () => {
+    const fresh = { ...example(), quirks: { keepsThemFresh: 2 } };
+    const hard = { ...example(), quirks: { runsHardPractices: 2 } };
+    expect(roomCare(undefined)).toEqual({ practice: 1, recovery: 0 });
+    expect(roomCare(fresh).practice).toBeLessThan(1);
+    expect(roomCare(fresh).recovery).toBeGreaterThan(0);
+    expect(roomCare(hard).practice).toBeGreaterThan(1);
+    expect(roomCare(hard).practice).toBeLessThan(1.2);
+    const p = teamPlayers(world, 0).find((x) => x.position === 'WR')!;
+    expect(coachPlayerFit(hard, p)).toBeGreaterThan(coachPlayerFit(example(), p));
   });
 });

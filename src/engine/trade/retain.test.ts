@@ -20,7 +20,7 @@ import {
   tradeProblem,
 } from '.';
 import { quickValue } from './deals';
-import { marginFor } from './judge';
+import { floorShare, marginFor } from './judge';
 import { nowWeight } from './value';
 import type { TradeProposal } from './rules';
 
@@ -155,9 +155,11 @@ describe('retained salary', () => {
       if (!deal) continue;
       closed++;
       expect(deal.proposal.sides[1].retain?.[p.id]).toBe(kept);
-      // Most of the money comes back to it in picks, on top of what a buyer with room pays.
-      expect(quickValue(mctx, m.teams[c.seller], deal.proposal.sides[0]) - c.paid).toBeGreaterThan(
-        0.5 * POINTS_PER_K * kept!,
+      // The money comes back to it in picks, on top of what a buyer with room pays: at least the seller's floor share
+      // of it. Between front offices a rental's kept salary is priced at that share (35% by week 5, 20% on deadline
+      // day), so a fixed half failed whenever a selling team took its floor, as one of these deals does.
+      expect(quickValue(mctx, m.teams[c.seller], deal.proposal.sides[0]) - c.paid).toBeGreaterThanOrEqual(
+        floorShare(m, m.teams[c.seller], p, false) * POINTS_PER_K * kept!,
       );
     }
     expect(closed).toBeGreaterThanOrEqual(cases.length / 2);

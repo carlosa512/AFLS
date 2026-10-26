@@ -8,7 +8,17 @@
  */
 import { skill, useKnocks } from '../attributes';
 import { activeCoachQuirks, type CoachQuirkId } from '../coachQuirks';
-import { habitCalls, canDeferTimeout, canStopEarly, shortGoalDecision, fourthDownHabit } from './coachHabits';
+import {
+  habitCalls,
+  canDeferTimeout,
+  canStopEarly,
+  shortGoalDecision,
+  fourthDownHabit,
+  longKickHabit,
+  twoPointHabit,
+  upTempoEligible,
+  UP_TEMPO_RUNOFF,
+} from './coachHabits';
 import { callerStyle, teamCoaches, type CallerStyle } from '../coaching';
 import {
   CONTACT_RISK,
@@ -381,6 +391,9 @@ class GameSim {
   private safePass = false;
   private openingWindow = false;
   private deepProtection = false;
+  private endZoneShot = false;
+  private disguise = false;
+  private preventShell = false;
   private habits(side: Side, role: Coach['role']): ReadonlySet<CoachQuirkId> {
     return this.gameHabits[side].get(role) ?? this.noHabits;
   }
@@ -1039,7 +1052,17 @@ class GameSim {
     const lineup = this.lineups[side];
     const s: Situation = { ...this.situation(), scoreDiff: this.score[side] - this.score[(1 - side) as Side] };
     this.snapshot = null;
-    if (coach.goForTwo(s)) {
+    const two = twoPointHabit(s, this.habits(side, 'headCoach'), this.habitRng);
+    if (two.eligible)
+      this.evidence(
+        side,
+        'headCoach',
+        'goesForTwo',
+        two.goes,
+        two.goes,
+        two.goes ? 'Went for two where the analytics chart says to.' : undefined,
+      );
+    if (coach.goForTwo(s) || two.goes) {
       const ok = this.rng.chance(clamp(0.47 + 0.01 * (skill(lineup.qb, 'shortAccuracy') - 12), 0.35, 0.6));
       if (ok) this.addPoints(side, 2);
       this.setAnim(side, 'two', 98, ok ? 102 : 99);
@@ -1588,15 +1611,24 @@ class GameSim {
       } else if (coach.shouldSpike(s)) return this.spike();
     }
     if (this.clockRunning) {
-      const t = coach.tempo(this.situation());
+      const now = this.situation();
+      const t = coach.tempo(now);
+      let fast = false;
+      if (upTempoEligible(now)) {
+        fast = this.habits(this.offense, 'offCoord').has('upTempo');
+        this.evidence(this.offense, 'offCoord', 'upTempo', fast, fast);
+      }
       this.preSnapRunoff(
-        t === 'hurry'
-          ? this.rng.int(8, 16)
-          : t === 'milk'
-            ? this.rng.int(coach.MILK_RUNOFF_MIN, 41)
-            : // 27–38 s between snaps at a normal tempo puts plays a game mid-band (NFL 61–65); at 28–38
-              // the league sat on the floor, and its passing leaders under theirs.
-              this.rng.int(27, 38),
+        fast
+          ? this.rng.int(...UP_TEMPO_RUNOFF)
+          : t === 'hurry'
+            ? this.rng.int(8, 16)
+            : t === 'milk'
+              ? this.rng.int(coach.MILK_RUNOFF_MIN, 41)
+              : // 28–38 s between snaps at a normal tempo puts plays a game mid-band (NFL 61–65). It was 27–38
+                // while coaches punted more: the analytics era's fourth-down tries keep drives alive, and at 27
+                // the league ran half a play a team-game more, its fifth-best rushers and receivers over theirs.
+                this.rng.int(28, 38),
       );
     }
     if (this.clock <= 0 && !this.untimed) return;
@@ -1631,6 +1663,27 @@ class GameSim {
           backs ? 'Trusted the offense on fourth down near the goal line.' : undefined,
         );
       }
+      const kicker = this.lineups[offSide].k;
+      const long = longKickHabit(
+        s,
+        decision,
+        this.habits(offSide, 'headCoach'),
+        skill(kicker, 'fieldGoal') >= 14 || this.has(kicker, 'boomerLeg'),
+        this.habitRng,
+      );
+      if (long.eligible) {
+        decision = long.decision;
+        this.evidence(
+          offSide,
+          'headCoach',
+          'distrustsLongKick',
+          decision !== 'fg',
+          long.passes,
+          long.passes
+            ? `Passed on a long field goal and ${decision === 'go' ? 'went for it' : 'punted'} instead.`
+            : undefined,
+        );
+      }
       if (decision === 'punt') return this.punt();
       if (decision === 'fg') return this.fieldGoal();
     }
@@ -1648,6 +1701,13 @@ class GameSim {
     if (heat) defCall = 'blitz';
     if (coverage) defCall = 'passD';
     if (crowd) defCall = 'runD';
+    // A prevent shell most snaps, not every one: the frustration is that it shows up when it shouldn't.
+    this.preventShell = calls.preventShell && this.habitRng.chance(0.6);
+    if (this.preventShell) defCall = 'passD';
+    if (calls.prevent) this.evidence(this.def, 'defCoord', 'playsPrevent', this.preventShell, this.preventShell);
+    this.disguise = calls.disguise;
+    if (calls.obvious) this.evidence(this.def, 'defCoord', 'disguisesCoverages', calls.disguise, calls.disguise);
+    if (calls.redZone) this.evidence(this.offense, 'offCoord', 'attacksEndZone', calls.endZoneShot, calls.endZoneShot);
     if (calls.third) {
       this.evidence(this.def, 'defCoord', 'thirdDownHeat', defCall === 'blitz', heat);
       this.evidence(this.def, 'defCoord', 'trustsCoverage', defCall !== 'blitz', coverage);
@@ -1659,6 +1719,7 @@ class GameSim {
     this.safePass = calls.safeDepth;
     this.openingWindow = calls.opening;
     this.deepProtection = calls.protectDeep;
+    this.endZoneShot = calls.endZoneShot;
     this.pressureBy = null;
     const passing = this.rng.chance(clamp(coach.passProbability(s) + calls.passShift, 0, 1)) || this.designedShot;
     const result = passing ? this.passPlay(s, defCall) : this.runPlay(s, defCall);
@@ -2069,7 +2130,16 @@ class GameSim {
     const front = [...def.dt, ...def.edge];
     const quirkRush = this.rushQuirks(off, def, s, defCall === 'blitz');
     const pressureDelta =
-      def.passRush + rushAdj - off.passBlock - pickup - homeAdj - off.scheme.offense.release + quirkRush;
+      def.passRush +
+      rushAdj -
+      off.passBlock -
+      pickup -
+      homeAdj -
+      off.scheme.offense.release +
+      quirkRush +
+      // A disguised look buys the rush a beat; a prevent shell rushes three.
+      (this.disguise ? 0.6 : 0) -
+      (this.preventShell ? 0.8 : 0);
     const pressured = rng.chance(clamp(0.3 + 0.035 * pressureDelta, 0.1, 0.65));
 
     if (pressured) {
@@ -2117,7 +2187,9 @@ class GameSim {
       ? 'deep'
       : this.safePass && ordinaryDepth === 'deep' && this.habitRng.chance(0.1)
         ? 'short'
-        : ordinaryDepth;
+        : this.endZoneShot && ordinaryDepth === 'short' && this.habitRng.chance(0.12)
+          ? 'medium'
+          : ordinaryDepth;
     // He leaves before the deep route comes open.
     if (depth === 'deep' && !pressured && this.has(qb, 'bailsEarly') && rng.chance(0.15)) return this.scramble(def, s);
     // Targets: [receiver, base weight by depth, coverage defender]
@@ -2205,6 +2277,8 @@ class GameSim {
     if (this.designedShot && depth === 'deep') sep += 0.5;
     if (this.openingWindow) sep += 0.25;
     if (this.deepProtection) sep += depth === 'deep' ? -0.3 : depth === 'short' ? 0.15 : 0;
+    // Prevent: everything in front of the deep shell is open.
+    if (this.preventShell) sep += depth === 'deep' ? -0.5 : depth === 'medium' ? 0.4 : 0.8;
     // Near the goal the call counts for more; a blitz leaves the same man coverage behind it anywhere.
     sep += defCall === 'blitz' ? 1.5 : { base: 0, runD: 0.8, passD: -1.2 }[defCall] * (1 + RED_ZONE_CALL * tight);
     // Defenses roll coverage toward a mismatch, so a receiver far better than his man still gets open
@@ -2260,7 +2334,8 @@ class GameSim {
       (pressured ? 1.6 : 1) *
       (coverage?.ints ?? 1) *
       this.riskyThrow(qb, receiver, depth, !coverage?.man) *
-      this.undercut(def, depth, !coverage?.man);
+      this.undercut(def, depth, !coverage?.man) *
+      (this.disguise ? 1.15 : 1);
 
     const [sideLabel, lane] = rng.pick(PASS_LANES);
     const depthLabel = `${depth} ${sideLabel}`;
