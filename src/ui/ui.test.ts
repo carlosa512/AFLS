@@ -14,6 +14,8 @@ import { byeTeams, resultsWeek, stripGames } from './strip';
 import { hurtList, wornDown } from './injuries';
 import { gameStory } from './game';
 import { standingsSortValue } from './screens/Standings';
+import { coordinatorFor } from './training';
+import { installInterimHeadCoach, teamCoaches } from '../engine/coaching';
 import { startCareer } from './screens/NewGame';
 import { TEAM_COLS, teamRank, teamStatSeasons } from './screens/TeamStats';
 import { defaultTradeTab, stickyTradeTab } from './screens/Trades';
@@ -426,5 +428,19 @@ describe('starting a career', () => {
     const ids = (league.inbox ?? []).filter((m) => !m.read).map((m) => m.id.split(':')[0] + ':' + m.id.split(':')[2]);
     expect(ids).toContain(`owner:welcome`);
     expect(ids.some((id) => id.startsWith('rundown:'))).toBe(true);
+  });
+});
+
+describe('a position move’s scheme reason under an interim', () => {
+  it('names the head coach still running the defense', () => {
+    const league = createLeague({ seed: 'acting-reason' });
+    league.phase = 'regular';
+    league.week = 11;
+    league.teams[4].staffBudgetMult = 3;
+    const dc = teamCoaches(league, 4).find((c) => c.role === 'defCoord')!;
+    dc.youth = 20;
+    dc.veterans = 20;
+    installInterimHeadCoach(league, 4);
+    expect(coordinatorFor(league, 4, 'LB')?.coach.id).toBe(dc.id);
   });
 });

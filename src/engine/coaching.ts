@@ -1294,6 +1294,9 @@ function leaveFootball(league: League, c: Coach): void {
     c.teamId = null;
     c.contract = null;
     delete c.since;
+    // Out of football: no interim appointment, no chair he's covering.
+    delete c.interim;
+    delete c.actingAs;
     league.retiredCoaches[c.id] = c;
   }
   delete league.coaches[c.id];
@@ -1618,13 +1621,22 @@ const reserveFor = (league: League, role: CoachRole) => 0.66 * BASE_ASK[role] * 
  * `withOwner` is false), less money set aside for every other chair not yet paid for this year (empty, or its man's
  * deal is up). Every AI money decision reads it.
  */
-function spare(league: League, teamId: number, except: Chair, withOwner = true, teachersFirst = false): number {
+/**
+ * Chairs a hire must leave money for: empty or up for renewal. A coordinator chair the interim head coach is still
+ * running isn't empty: nobody will be hired into it this season.
+ */
+export function unpaidChairs(league: League, teamId: number, except: Chair): Chair[] {
   const staff = teamCoaches(league, teamId);
-  const unpaid = CHAIRS.filter((ch) => {
+  return CHAIRS.filter((ch) => {
     if (sameChair(ch, except)) return false;
-    const holder = chairHolder(staff, ch);
-    return !holder || isCoachExpiring(league, holder);
+    const holder =
+      ch.role === 'offCoord' || ch.role === 'defCoord' ? coordinatorOf(staff, ch.role) : chairHolder(staff, ch);
+    return !holder || (holder.role === ch.role && isCoachExpiring(league, holder));
   });
+}
+
+function spare(league: League, teamId: number, except: Chair, withOwner = true, teachersFirst = false): number {
+  const unpaid = unpaidChairs(league, teamId, except);
   // Hiring a head coach or coordinator, a GM keeps a typical teacher's pay aside for every open teaching chair: the
   // big names don't get to starve the rooms (going past the budget for them is the owner's call, `ownerLeeway`).
   const aside = (role: CoachRole) =>

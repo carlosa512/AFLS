@@ -2337,12 +2337,23 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
   // Other clubs' in-season changes are gathered by week into one SNN roundup (a lone change stays its own story).
   const weeks = new Map<string, LeadershipEvent[]>();
+  // A filed roundup names the events it carried (`leadership-week:season:week:first-last`), so a change that comes in
+  // after it still gets filed; an older roundup id (no range) stands for its whole week.
+  const covered = (e: LeadershipEvent) =>
+    [...have].some((id) => {
+      const [kind, season, week, range] = id.split(':');
+      if (kind !== 'leadership-week' || Number(season) !== e.date.season || Number(week) !== e.date.week) return false;
+      if (!range) return true;
+      const [from, to] = range.split('-').map(Number);
+      return e.id >= from && e.id <= to;
+    });
   for (const e of league.leadership.events) {
     const id = `leadership:${e.date.season}:${e.id}`;
     if (have.has(id)) continue;
     const personal = e.gmId === league.userGmId;
     const inside = managesTeam(league, e.teamId);
     if (!inside && !personal && e.date.phase === 'regular') {
+      if (covered(e)) continue;
       const key = `${e.date.season}:${e.date.week}`;
       weeks.set(key, [...(weeks.get(key) ?? []), e]);
       continue;
@@ -2365,7 +2376,11 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
   }
   for (const [key, events] of weeks) {
     const e = events[0];
-    const id = events.length === 1 ? `leadership:${e.date.season}:${e.id}` : `leadership-week:${key}`;
+    const ids = events.map((x) => x.id);
+    const id =
+      events.length === 1
+        ? `leadership:${e.date.season}:${e.id}`
+        : `leadership-week:${key}:${Math.min(...ids)}-${Math.max(...ids)}`;
     if (have.has(id)) continue;
     // One club's change (a GM fired and his successor named is two events) stays its own story.
     if (new Set(events.map((x) => x.teamId)).size === 1) {

@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.1.17',
+    date: '2026-10-26',
+    title: 'Interim coaches, tidied up',
+    text:
+      'A club without a GM still settles its interim head coach when the league year opens, so no team goes a ' +
+      'season without a coordinator. Clubs no longer hold money back for a coordinator their interim is covering, ' +
+      'a position move credits the interim running that side, and a late coaching change around the league is ' +
+      'no longer lost when the weekly roundup has already gone out.',
+  },
+  {
     version: '0.1.16',
     date: '2026-10-26',
     title: 'Mail that tells you more',

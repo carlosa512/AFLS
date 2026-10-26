@@ -19,6 +19,7 @@ import {
   coachingFrom,
   coachingParts,
   coordinatorOf,
+  unpaidChairs,
   installInterimHeadCoach,
   resolveInterimHeadCoach,
   teamScheme,
@@ -960,6 +961,22 @@ describe('an interim head coach keeps his coordinator job', () => {
     resolveInterimHeadCoach(l, dc, true);
     expect(dc.actingAs).toBeUndefined();
     expect(coordinatorOf(teamCoaches(l, 3), 'defCoord')).toBeNull();
+  });
+  it('leaves no acting chair on a coach who retires', () => {
+    const l = midseason();
+    const dc = best(l, 'defCoord');
+    installInterimHeadCoach(l, 3);
+    dc.age = 90;
+    dc.career = [{ season: l.season, teamId: 3, role: 'defCoord' }];
+    developCoaches(l);
+    expect(l.retiredCoaches[dc.id]).toBeDefined();
+    expect(l.retiredCoaches[dc.id].actingAs).toBeUndefined();
+  });
+  it('keeps no money aside for the chair the interim covers', () => {
+    const l = midseason();
+    best(l, 'defCoord');
+    installInterimHeadCoach(l, 3);
+    expect(unpaidChairs(l, 3, { role: 'stCoord' }).some((ch) => ch.role === 'defCoord')).toBe(false);
   });
   it('never acts as coordinator when the interim came from the market', () => {
     const l = midseason();
