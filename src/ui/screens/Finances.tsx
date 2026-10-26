@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { squadPayroll } from '../../engine/personnel/payroll';
+import { elevationCap } from '../../engine/personnel/elevations';
+import { squadPayroll, weeklySquadPay } from '../../engine/personnel/payroll';
 import { capSheet, deadMoneyIn, isOffseason, POST_JUNE1_LIMIT, releasePreview } from '../../engine/finance/cap';
 import { capHit, guaranteedFrom, lastSeason } from '../../engine/finance/contract';
 import { onGameRoster, teamPlayers } from '../../engine/roster';
@@ -115,6 +116,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
               <span className="small muted">
                 {money(squadPayroll(league, teamId).earned)} owed so far ·{' '}
                 {money(squadPayroll(league, teamId).projected)} for future weeks
+                {elevationCap(league, teamId) > 0 && <> · {money(elevationCap(league, teamId))} for game call-ups</>}
               </span>
             </span>
           )}
@@ -338,7 +340,7 @@ export function SquadContracts({ league, players, isUser }: { league: League; pl
                     <PlayerLink league={league} player={p} avatar={26} />
                   </td>
                   <td>{p.position}</td>
-                  <td className="num">{weeklyMoney(p.squad!.agreement!.weeklyPay)}</td>
+                  <td className="num">{weeklyMoney(weeklySquadPay(p))}</td>
                   <td className="num">
                     <Ovr league={league} player={p} />
                   </td>

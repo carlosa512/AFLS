@@ -20,6 +20,7 @@ import {
 import { BASE_CAP, minSalary } from './market';
 import { queueWaiver, waiverApplies } from '../personnel/waivers';
 import { personnelTime, waiverDeadline } from '../personnel/calendar';
+import { elevationCap, personnelMoveLock } from '../personnel/elevations';
 import { squadPayroll } from '../personnel/payroll';
 import { inviteSquadReturn } from '../personnel/squads';
 
@@ -112,7 +113,7 @@ export function capSheet(
   const dead = deadMoneyIn(team, season) + waiverHold;
   const carryover = season === league.season ? team.carryover : 0;
   const cap = capFor(league, season);
-  const practiceSquad = squadPayroll(league, teamId, season).total;
+  const practiceSquad = squadPayroll(league, teamId, season).total + elevationCap(league, teamId, season);
   const used = active + dead + practiceSquad;
   // Injured reserve still counts on the cap, but not toward the roster limit.
   return {
@@ -151,6 +152,8 @@ export interface ReleasePreview extends DeadMoneySplit {
 }
 
 export function releasePreview(league: League, player: Player, designatePostJune1 = false): ReleasePreview {
+  const personnelLock = personnelMoveLock(league, player);
+  if (personnelLock) throw new Error(personnelLock);
   if (player.waiver) throw new Error('This player is already on waivers.');
   const team = league.teams[player.teamId!];
   const auto = autoPostJune1(league.phase);
@@ -178,6 +181,8 @@ export function releasePreview(league: League, player: Player, designatePostJune
 
 /** Why a release isn't allowed right now, or null if it is. */
 export function releaseBlocker(league: League, player: Player): string | null {
+  const personnelLock = personnelMoveLock(league, player);
+  if (personnelLock) return personnelLock;
   if (player.waiver) return 'This player is already on waivers.';
   if (player.squad) return 'Practice squad releases use the personnel system.';
   if (player.teamId === null || !player.contract) return 'Not under contract.';
@@ -194,6 +199,8 @@ export function releaseBlocker(league: League, player: Player): string | null {
 
 /** Cut a player: he becomes a free agent and the team books the dead money. */
 export function releasePlayer(league: League, player: Player, designatePostJune1 = false): ReleasePreview {
+  const personnelLock = personnelMoveLock(league, player);
+  if (personnelLock) throw new Error(personnelLock);
   if (player.waiver) throw new Error('This player is already on waivers.');
   if (player.squad) throw new Error('Practice squad releases use the personnel system.');
   if (player.teamId === null || !player.contract) throw new Error('Player is not under contract');

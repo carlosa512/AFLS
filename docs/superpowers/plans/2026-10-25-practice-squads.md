@@ -164,11 +164,11 @@ Moves use preview/validate/commit functions. Validate everything before mutation
 
 **Depends on:** PR 3. **Files:** personnel elevations; `roster.ts`, `league.ts`, `match/gameSim.ts` and lineup consumers, `finance/`, home/roster/player screens.
 
-- [ ] Separate temporary elevation from signing to the 53; preserve club-specific use history and verified re-sign restrictions.
-- [ ] Persist a legal 47/48 dressing list and eight-OL requirement, plus verified emergency-QB treatment. Audit every match selection path.
-- [ ] Allow up to two elevations into the permitted 54/55 list; lock at the right deadline and schedule reversion.
-- [ ] Settle pay and service even without snaps. Handle pregame and in-game injuries.
-- [ ] Display remaining uses, pay effects, dressing status and when permanent promotion is required.
+- [x] Separate temporary elevation from signing to the 53; preserve club-specific use history and verified re-sign restrictions.
+- [x] Persist a legal 47/48 dressing list and eight-OL requirement, plus verified emergency-QB treatment. Audit every match selection path.
+- [x] Allow up to two elevations into the permitted 54/55 list; lock at the right deadline and schedule reversion.
+- [x] Settle pay and service even without snaps. Handle pregame and in-game injuries.
+- [x] Display remaining uses, pay effects, dressing status and when permanent promotion is required.
 
 **Acceptance:** a prohibited fourth use fails; permanent promotion requires space; playoffs use the correct separate limits; live and batch simulation share eligibility and settlement behavior.
 
@@ -265,7 +265,7 @@ Use executed CBA language and current amendments to establish NFL facts; summari
 
 ## Implementation progress
 
-Step 1 is implemented on `feature/practice-squad-foundation`: save version 41, disabled rules profile, list boundaries, observed service and legacy estimates. Verification is recorded in `docs/PRACTICE_SQUADS.md`: targeted tests and typecheck pass, the six-season roster audit and trade audit report zero out-of-range numbers, and the ten-season simulation matches the unchanged baseline including its existing rushing-leader threshold failure. Step 2 is implemented on `feature/practice-squad-waivers`: save version 42, contract-preserving notices, ordered/conditional claims, scouted AI decisions, chronological game guards and the waiver desk. The complete profile remains off for normal careers. The enabled AI audit is `npm run waivers -- 2`; Step 3 is implemented on `feature/practice-squad-contracts`: save version 43, squad eligibility/agreements, simultaneous market rounds, contingent return invitations, weekly payroll and promotion, AI formation budgets and the squad desk. Verification and staging limits are recorded in `docs/PRACTICE_SQUADS.md`. Step 4 (elevations/game-day lists) is next.
+Step 1 is implemented on `feature/practice-squad-foundation`: save version 41, disabled rules profile, list boundaries, observed service and legacy estimates. Verification is recorded in `docs/PRACTICE_SQUADS.md`: targeted tests and typecheck pass, the six-season roster audit and trade audit report zero out-of-range numbers, and the ten-season simulation matches the unchanged baseline including its existing rushing-leader threshold failure. Step 2 is implemented on `feature/practice-squad-waivers`: save version 42, contract-preserving notices, ordered/conditional claims, scouted AI decisions, chronological game guards and the waiver desk. The complete profile remains off for normal careers. The enabled AI audit is `npm run waivers -- 2`; Step 3 is implemented on `feature/practice-squad-contracts`: save version 43, squad eligibility/agreements, simultaneous market rounds, contingent return invitations, weekly payroll and promotion, AI formation budgets and the squad desk. Verification and staging limits are recorded in `docs/PRACTICE_SQUADS.md`. Step 4 is implemented on `feature/practice-squad-elevations`: save version 45, call-up plans and filing, durable club history, legal active lists, restricted emergency QB, pay/service/continuation, chronological returns, shared live/batch guards and game-day controls. Explicit AFLS choices and validation live in `docs/PRACTICE_SQUADS.md`. Step 5 (poaching and two automatic protections) is next.
 
 ## Original first implementation action
 

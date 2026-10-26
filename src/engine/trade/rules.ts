@@ -8,6 +8,7 @@ import { minSalary } from '../finance/market';
 import { capHit, deadMoney, isExpired } from '../finance/contract';
 import { rosterLimit } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
+import { personnelMoveLock } from '../personnel/elevations';
 import { onGameRoster } from '../roster';
 import { personnelTime, TRADE_DEADLINE_MINUTE } from '../personnel/calendar';
 import { Rng } from '../rng';
@@ -49,6 +50,8 @@ export const isTradeSeason = (league: League) =>
 
 /** Why a player can't be traded at all, by league rules: what every screen can show. */
 export function playerTradeBlocker(league: League, p: Player): string | null {
+  const personnelLock = personnelMoveLock(league, p);
+  if (personnelLock) return personnelLock;
   if (p.waiver) return 'On waivers.';
   if (p.squad) return 'Practice squad players cannot be traded.';
   if (!p.contract || isExpired(p.contract, league.season)) return 'Not under contract.';

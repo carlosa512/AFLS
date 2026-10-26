@@ -196,7 +196,7 @@ function save() {
         completed: rows.length,
         profile: l.personnel?.profile,
         limits: [
-          'No automatic temporary elevations or poaching until their later lifecycle steps.',
+          'Temporary elevations are enabled; automatic poaching remains a later lifecycle step.',
           'Starter weeks are depth-chart snapshots, not official game starts.',
           'Personnel is enabled; user club uses the same AI during offseasons.',
         ],

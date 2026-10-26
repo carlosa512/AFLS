@@ -1,3 +1,4 @@
+import { personnelMoveLock, markSquadDeparture, elevationPromotionCredit } from './elevations';
 import { capSpace, logTransaction, paidFraction } from '../finance/cap';
 import { capHit, buildContract } from '../finance/contract';
 import { minSalary } from '../finance/market';
@@ -108,6 +109,8 @@ export function acceptSquadOffer(league: League, offer: SquadOffer): void {
 }
 
 export function squadReleaseProblem(league: League, p: Player): string | null {
+  const lock = personnelMoveLock(league, p);
+  if (lock) return lock;
   if (!p.squad?.agreement || p.teamId === null) return 'Not on a practice squad contract.';
   if (p.injury) return 'An injured squad player stays paid until medically cleared.';
   return squadWindowProblem(league);
@@ -118,6 +121,7 @@ export function releaseSquadPlayer(league: League, p: Player): void {
   if (problem) throw new Error(problem);
   settleSquadPayroll(league);
   const id = p.teamId!;
+  markSquadDeparture(league, p);
   delete p.squad;
   p.teamId = null;
   p.contract = null;
@@ -165,6 +169,8 @@ export function squadPromotionPreview(
       !onGameRoster(cut) ||
       !cut.contract;
     if (invalid) return { contract, additionalCap: 0, problem: 'Choose a player from your main roster.' };
+    const moveLock = personnelMoveLock(league, cut);
+    if (moveLock) return { contract, additionalCap: 0, problem: moveLock };
     if (move.action === 'squad') {
       const issue = squadReturnProblem(league, p.teamId, cut, p.id);
       if (issue) return { contract, additionalCap: 0, problem: issue };
@@ -191,12 +197,15 @@ export function squadPromotionPreview(
   }
   const contract = squadPromotionContract(league, p);
   const a = p.squad?.agreement;
-  const saved = a ? (18 - squadPayWeek(league)) * a.weeklyPay + promotionCredit(league, p) : 0;
+  const saved = a
+    ? (18 - squadPayWeek(league)) * a.weeklyPay + promotionCredit(league, p) + elevationPromotionCredit(league, p)
+    : 0;
   const additionalCap = capHit(contract, league.season) - saved;
   const problem =
     !a || p.teamId === null
       ? 'Not on a practice squad contract.'
-      : (squadWindowProblem(league) ??
+      : (personnelMoveLock(league, p) ??
+        (league.phase === 'playoffs' ? null : squadWindowProblem(league)) ??
         (p.injury
           ? 'The player must be medically cleared.'
           : activeRoster(league, p.teamId).length >= 53
@@ -212,6 +221,8 @@ export function promoteSquadPlayer(league: League, p: Player, move?: RosterMove)
   if (preview.problem) throw new Error(preview.problem);
   if (move) executeRosterMove(league, move);
   promotionCredit(league, p, true);
+  elevationPromotionCredit(league, p, true);
+  markSquadDeparture(league, p);
   delete p.squad;
   p.contract = preview.contract;
   syncDepthChart(league, league.teams[p.teamId!]);

@@ -4,7 +4,7 @@ import { capSheet } from '../../engine/finance/cap';
 import { yearOf } from '../../engine/finance/contract';
 import type { League, Player } from '../../engine/types';
 import { squadCategory, squadRates } from '../../engine/personnel/eligibility';
-import { squadPayroll } from '../../engine/personnel/payroll';
+import { squadPayroll, weeklySquadPay } from '../../engine/personnel/payroll';
 import {
   cancelSquadOffer,
   squadOfferProblem,
@@ -17,9 +17,11 @@ import { SquadActions } from '../contracts';
 import { money, weeklyMoney } from '../format';
 import { liveLock } from '../live';
 import { Ovr, ScoutedCeiling, seenOvr, viewOf } from '../scouting';
+import { GameDayPanel } from '../personnel';
+import { elevationUses } from '../../engine/personnel/elevations';
 import { store } from '../store';
 
-type Key = 'name' | 'pos' | 'age' | 'ovr' | 'upside' | 'category' | 'pay';
+type Key = 'name' | 'pos' | 'age' | 'ovr' | 'upside' | 'category' | 'pay' | 'calls';
 const categoryLabel = { base: 'Standard', developmental: 'Experience exception', veteran: 'Veteran' };
 
 export function PracticeSquad({ league }: { league: League }) {
@@ -37,7 +39,7 @@ export function PracticeSquad({ league }: { league: League }) {
   const members = practiceSquad(league, teamId);
   const pay = squadPayroll(league, teamId);
   const sheet = capSheet(league, teamId);
-  const weeklyPay = members.reduce((sum, p) => sum + (p.squad?.agreement?.weeklyPay ?? 0), 0);
+  const weeklyPay = members.reduce((sum, p) => sum + weeklySquadPay(p), 0);
   const weeklyPayroll =
     weeklyPay +
     teamPlayers(league, teamId).reduce((sum, p) => {
@@ -66,8 +68,10 @@ export function PracticeSquad({ league }: { league: League }) {
         return viewOf(league, p).potMid;
       case 'category':
         return squadCategory(league, p);
+      case 'calls':
+        return elevationUses(league, p, teamId);
       case 'pay':
-        return p.squad?.agreement?.weeklyPay ?? rates[p.id] ?? squadRates(league, p).min;
+        return p.squad ? weeklySquadPay(p) : (rates[p.id] ?? squadRates(league, p).min);
     }
   };
   const table = (players: Player[], market: boolean) => (
@@ -84,6 +88,7 @@ export function PracticeSquad({ league }: { league: League }) {
                 ['upside', 'Scouted ceiling'],
                 ['category', 'Eligibility'],
                 ['pay', 'Weekly pay'],
+                ...(!market ? [['calls', 'Call-ups'] as [Key, string]] : []),
               ] as [Key, string][]
             ).map(([key, label]) => (
               <SortTh key={key} label={label} k={key} sort={sort} onSort={onSort} />
@@ -125,9 +130,16 @@ export function PracticeSquad({ league }: { league: League }) {
                       onChange={(e) => setRates({ ...rates, [p.id]: Number(e.target.value) / 1000 })}
                     />
                   ) : (
-                    weeklyMoney(market ? rate.min : (p.squad?.agreement?.weeklyPay ?? 0))
+                    weeklyMoney(market ? rate.min : weeklySquadPay(p))
                   )}
                 </td>
+                {!market && (
+                  <td>
+                    {league.phase === 'playoffs'
+                      ? 'Unlimited'
+                      : `${Math.max(0, 3 - elevationUses(league, p, teamId))} left`}
+                  </td>
+                )}
                 {mine && (
                   <td>
                     {market ? (
@@ -174,7 +186,7 @@ export function PracticeSquad({ league }: { league: League }) {
       >
         <p>
           <TeamLink team={league.teams[teamId]} full /> · Up to 16 players train with your team outside the main roster.
-          To use one in a game, sign him to the 53-man roster.
+          Use up to two for one game with a temporary call-up, or sign a player to the 53-man roster.
         </p>
         <p className="small muted">
           Squad deals pay by the week. Releasing a player stops later checks. Moving a player off the main roster
@@ -238,6 +250,7 @@ export function PracticeSquad({ league }: { league: League }) {
           </p>
         )}
       </Panel>
+      <GameDayPanel league={league} teamId={teamId} />
       <Panel title={`Squad roster · ${members.length} players`}>
         {members.length ? (
           table(members, false)

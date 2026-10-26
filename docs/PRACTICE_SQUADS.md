@@ -2,7 +2,7 @@
 
 ## Status
 
-Steps 1–3 implement service/list foundations, the personnel calendar and waivers, and practice squad formation/contracts/payroll. Save version 44 retains the disabled-by-default `afls-2026-v1` profile. Ordinary careers stay off until elevations, protections/poaching and the complete yearly lifecycle ship. Development worlds can opt in with `createLeague({ personnel: true })`; existing development saves keep their enabled flag. The seven-step plan is in `superpowers/plans/2026-10-25-practice-squads.md`.
+Steps 1–4 implement service/list foundations, the personnel calendar and waivers, practice squad formation/contracts/payroll, temporary elevations and game-day active lists. Save version 45 retains the disabled-by-default `afls-2026-v1` profile. Ordinary careers stay off until protections/poaching and the complete yearly lifecycle ship. Development worlds can opt in with `createLeague({ personnel: true })`; existing development saves keep their enabled flag. The seven-step plan is in `superpowers/plans/2026-10-25-practice-squads.md`.
 
 ## Design authority
 
@@ -18,17 +18,17 @@ The planned AFLS protection rule is two players per management week, automatical
 | List membership | `rosterList` derives active/IR from existing employer and IR records; the new discriminated `squad` record identifies practice squad or squad injured. Retired/unattached players cannot play. Squad status takes precedence over stale IR metadata, keeping contradictory imported data off the field | AFLS compatibility design |
 | Ordinary 53 | `activeRoster` counts active-list members regardless of injury; excludes IR and both squad lists. No cap-obligation changes are implied by excluding a list | AFLS compatibility design |
 | Practice | Healthy ordinary squad members can be queried as practice participants; squad injured and IR cannot. Integration into training/injury decisions remains step 6 | AFLS design |
-| Match eligibility | Non-elevated squad members cannot be selected through charts, special teams, returner overrides or emergency hurt fallbacks. Elevation/game-day-list support arrives in step 4 | AFLS boundary invariant |
+| Match eligibility | Non-elevated squad members cannot be selected through charts, special teams, returner overrides or emergency hurt fallbacks. Step 4 adds frozen dressing lists and match-only elevated depth | AFLS boundary invariant |
 | Accrued season | Six regular-season game dates on active/inactive or IR membership. Five does not qualify; six does. Ordinary squad time and postseason games do not qualify | [CBA Article 8 §1](https://overthecap.com/collective-bargaining-agreement/article/8/section/1) |
-| Salary-credited season | Three regular-season game dates on active/inactive membership, including standard elevations when implemented. IR does not count. Three roster games and no snaps still qualify | [CBA Article 26 §2](https://overthecap.com/collective-bargaining-agreement/article/26/section/2), [Article 33 §5](https://overthecap.com/collective-bargaining-agreement/article/33/section/5) |
+| Salary-credited season | Three regular-season game dates on active/inactive membership, including standard elevations. IR does not count. Three roster games and no snaps still qualify | [CBA Article 26 §2](https://overthecap.com/collective-bargaining-agreement/article/26/section/2), [Article 33 §5](https://overthecap.com/collective-bargaining-agreement/article/33/section/5) |
 | Pension-credited season | Three qualifying regular/postseason game dates, including IR. Two regular games plus a playoff game qualify for pension, but not a salary-credited or accrued season | [NFLPA credited-service guidance](https://nflpa.com/active-players/faq/what-is-a-credited-season-and-what-does-it-mean-to-be-vested) |
 | No service from a bye | No game means no service credit. A future poaching roster obligation may count a bye; that is a different rule | Game-date service definitions above |
 | No duplicate service | Regular-season credit is deduplicated by season/week and postseason pension credit by round. A repeated result or midweek trade cannot double-credit it | AFLS deterministic settlement contract |
 | Historical estimates | Generated/legacy calendar experience initializes estimated prior accrued, salary and pension totals. This does not invent observed past game-day lists. Rookies start at zero without an estimated-history flag | AFLS migration policy |
-| Unknown active list | Until step 4 records who dressed, observed roster membership cannot establish game-day actives. An unknown active mask makes the active count unknown, never a false zero | AFLS evidence boundary |
+| Unknown active list | Step 4 records who dressed for new enabled games. Historical unknown active masks stay unknown, never a false zero | AFLS evidence boundary |
 | Contract/trade boundary | Squad members cannot be traded or signed through ordinary FA/extension shortcuts. Later squad transactions must use their own validators | Planned transaction separation |
 
-Accrual intentionally covers statuses supported by AFLS. PUP/NFI, holdouts, injury settlements and elevated-player salary-continuation exceptions require their relevant lifecycle implementation; they are not inferred from the current injury flags.
+Accrual intentionally covers statuses supported by AFLS. PUP/NFI, holdouts and injury settlements require their relevant lifecycle implementation; they are not inferred from the current injury flags.
 
 ## Service storage and collection
 
@@ -139,7 +139,7 @@ The squad desk at `#/office/squad` shows all clubs' squads, category use, precis
 
 ### Year boundary and staged limits
 
-The old squad employer remains attached through the offseason coaching/development roll, then the agreement expires and the player becomes unattached. No future-contract rights are invented. Injured squad members remain on ordinary squad agreements and stay paid; they cannot be sent through NFL IR or released until cleared. Squad injured-list moves, settlements, futures, postseason squad salary treatment and full expiry rules arrive in step 6. Step 3's ledger deliberately covers regular-season checks only; it does not claim full NFL postseason accounting. Temporary elevations and dressed lists remain step 4; two weekly automatic protections and poaching remain step 5.
+The old squad employer remains attached through the offseason coaching/development roll, then the agreement expires and the player becomes unattached. No future-contract rights are invented. Injured squad members remain on ordinary squad agreements and stay paid; they cannot be sent through NFL IR or released until cleared. Squad injured-list moves, settlements, futures, postseason squad salary treatment and full expiry rules arrive in step 6. Step 3's ledger deliberately covers regular-season checks only; it does not claim full NFL postseason accounting. Step 4 adds temporary elevations, dressed lists and regular-season elevation injury continuation; two weekly automatic protections and poaching remain step 5.
 
 ### Step 3 verification
 
@@ -171,3 +171,50 @@ Validation includes combined promotion previews and exact posted cap changes, fu
 ## NFL roles and balance research (v0.1.17)
 
 [Modern NFL usage, outcome definitions, reproducible data analysis and ten-season study](research/practice-squad-outcomes.md) inform the unsigned reserve pool and squad AI. Formation now mixes experience levels, follows positional demand and values ready cover alongside projects. This changes balance, not the stored rule profile or existing player ceilings. Active-roster contracts also show sortable Ability pills.
+
+
+## Step 4: one-game call-ups and active lists (v0.1.18)
+
+### Implemented boundaries
+
+- Plans reserve the additional cap cost but earn no pay or use until filed. They can be cancelled before the filing deadline. Filing revalidates ownership, health, limits and cap; a failed plan releases its reservation and records the reason.
+- Two call-ups can expand a 53-player roster to 54/55 for a game. Each player gets three regular-season uses **per club**, with unlimited postseason uses while continuously under the agreement. The original squad place stays reserved: AFLS avoids forced cuts on automatic return.
+- A call-up does not create an NFL contract or permanent 53 place. Permanent promotion still needs a legal roster/cap plan. Same-week promotion absorbs the call-up check into the NFL contract rather than charging both.
+- Per-game plans can be made early. Sunday filing is Saturday at 4 PM ET; Thursday/Saturday/Monday filing is game-day 4 PM, bounded by the 90-minute dressing deadline for unusually early kickoffs. Plans file automatically as football time advances.
+- Return is 4 PM on the next Monday–Friday business day. Thursday → Friday, Saturday/Sunday → Monday, Monday → Tuesday. AFLS has no holiday calendar. Events settle in order with waivers; another club's game cannot prematurely revert a call-up.
+- Ready players are limited to 47, or 48 with eight **primary-position OL**. Staff chooses a legal list automatically; the user can change it. The clock freezes the list 90 minutes before kickoff and persists the dressed/inactive/elevated snapshot. If an earlier saved choice has become unavailable, staff supplies a legal replacement list and records the adjustment. AFLS blocks manual lists below 26 ready players when that many are available, preventing an empty game roster. A later injury consumes the declared place but keeps that player off every match path.
+- Emergency QB must be healthy, on the permanent 53 and outside the ordinary active list, with exactly two QBs active. He enters only after both active QBs are unavailable, and never joins other units as a free extra player. AFLS's in-game injury model does not implement return-to-play after a player is ruled out, so the NFL emergency-QB re-entry procedure is not separately simulated.
+- Match-only charts include selected call-ups without rewriting the user's permanent depth chart. Every starter, substitution, defensive rotation, kick unit, returner override and injury fallback uses the frozen eligibility list. Live and batch games share preparation, service and settlement.
+- Filed players earn their game check and service even if inactive or without snaps. Regular-season dressing records known active counts. Emergency QB active evidence requires actual scrimmage participation. IR and elevated-injury continuation retain their distinct service definitions.
+- Regular-season extra pay replaces the squad check, using credited salary service and the 2026–30 CBA minimum tables, then cap growth. The ledger follows AFLS's existing eighteen-check season convention. Football injury during a call-up preserves down-rate salary continuation while unavailable, without rewriting the base squad agreement. Earned money stays; future continuation reservations disappear on medical clearance. No negative future regular-season pay can arise in the playoffs.
+- Postseason call-ups record non-cap postseason benefits. AFLS uses the higher wildcard payment for every wildcard call-up; late-round newcomers receive half pay until they have three prior club game memberships. Broader postseason squad checks, injured-list placement, settlements and expiry remain step 6.
+- Under AFLS's conservative anti-churn rule, leaving and rejoining the **same club** after a filed use blocks further temporary call-ups that league year. Another club has separate history. This deliberately follows the original CBA restriction rather than the conflicting reset wording on the Operations summary; a release/re-sign is never a free refresh of uses.
+
+### Player controls and compatibility
+
+The squad desk, squad contracts and player card offer **Call up** separately from **Sign to 53**. The confirmation shows the unchanged 53 count, extra pay, cap space before/after, remaining uses and filing/return timing. Main roster and squad desk include an automatic game-day list with optional dressing controls; Home links to preparation. Identical rounded scouting endpoints display a single pill value (`10.2`, not `10.2–10.2`).
+
+Save version 45 adds optional call-up history and per-game active lists. Disabled careers retain their original player, contract, schedule, depth and match behavior. Old games never receive invented dressing history. An uncompleted prepared development game receives the new legal list when restarted; JSON reload retains filed uses, pay, pending plans and return deadlines. The stored rule profile remains staged and disabled for ordinary careers.
+
+### Sources and explicit AFLS choices
+
+[Article 33 §5](https://overthecap.com/collective-bargaining-agreement/article/33) supplies the base elevation, return, service, continuation and original same-club restriction. [Tampa Bay's current explanation](https://www.buccaneers.com/news/bucs-use-final-practice-squad-elevation-option-ifeatu-melifonwu) confirms the amended three-regular/unlimited-postseason limits. [NFL Operations](https://operations.nfl.com/calendar-events/nfl-free-agency/contract-language) covers the 47/48 and 53/55 boundaries but contains conflicting re-sign wording. [Minnesota's 2025 rules refresher](https://www.vikings.com/news/roster-cuts-reductions-rules-refresher-nfl-2025) confirms the emergency QB must be on the 53. [Article 26 §1](https://overthecap.com/collective-bargaining-agreement/article/26/section/1) supplies up/down salaries; [Article 37 §2](https://overthecap.com/collective-bargaining-agreement/article/37/section/2) and [§4](https://overthecap.com/collective-bargaining-agreement/article/37/section/4) supply postseason benefits. Reserved squad places, holiday omission, early-kickoff filing, the wildcard simplification and conservative re-sign handling are AFLS choices.
+
+Rate-stat minimum opportunities were logged in `MVP.md` as a separate follow-up. This step records call-up snaps and service correctly; it does not change passer-rating/completion-percentage qualification or awards.
+
+### Development handoff
+
+Current branch: `feature/practice-squad-elevations`. Step 4 implementation is present; final browser acceptance and refreshed screenshots are still pending. The existing hosted gallery shows v0.1.17 and must not be treated as verification of the new call-up controls.
+
+Completed local verification:
+
+- 141 targeted personnel/UI tests passed after the final game-day clock changes. An earlier broader 198-test run also passed the finance and trade suites.
+- Typecheck and production build passed.
+- Two complete enabled seasons: 570 games, 264 and 268 filed call-ups, no elevation integration failures (`npm run elevations -- 2`).
+- Two squad/payroll career audits passed formation, a season, offseason and four further weeks (`npm run squads -- 2`).
+- Six-season offseason audit: zero numbers outside the target ranges. Existing retired-player save-growth warning remains.
+- Ten-season match calibration reproduces the known baseline rushing-leader #5 result: 1,412 yards against the 1,400 ceiling. No thresholds were changed.
+
+The attempted browser capture did not execute: automatic approval review could not complete because the account usage limit was reached. This was an infrastructure/review failure, not an unsafe-action finding. No new browser or screenshot verification is claimed.
+
+Resume by exercising call-up planning/cancellation, cap previews, reload, dressing controls, live-game filing, automatic return, exhausted uses and mobile layout in a development career (`createLeague({ personnel: true })`). Review the explicit AFLS choices above, then refresh the existing private gallery. Step 5 remains poaching and two automatic weekly protections with optional user pins. Rate-stat qualification remains a separate follow-up in `MVP.md`.

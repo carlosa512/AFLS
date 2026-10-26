@@ -39,6 +39,7 @@ import {
 import { store } from './store';
 import { activeRoster } from '../engine/roster';
 import type { RosterMove } from '../engine/personnel/rosterMoves';
+import { CallupAction } from './personnel';
 import { RosterMovePicker } from './rosterMoves';
 
 const name = (p: Player) => `${p.firstName} ${p.lastName}`;
@@ -250,6 +251,7 @@ export function SquadActions({ league, player }: { league: League; player: Playe
   const release = lock ?? squadReleaseProblem(league, player);
   return (
     <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+      <CallupAction league={league} player={player} />
       <button
         className="btn btn-sm"
         disabled={!!lock}

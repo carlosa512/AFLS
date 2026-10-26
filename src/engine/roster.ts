@@ -47,10 +47,15 @@ export const isAvailable = (p: Player) => onGameRoster(p) && (!p.injury || playi
  * Depth chart ordered by what each player is worth where he lines up: his own position, or the one `playingAt`
  * puts him at (his worth there carries the out-of-position knock, so he ranks among its own players by it).
  */
-export function buildAutoDepthChart(players: Player[], playingAt: Record<number, PlayingAt> = {}): DepthChart {
+export function buildAutoDepthChart(
+  players: Player[],
+  playingAt: Record<number, PlayingAt> = {},
+  elevated: ReadonlySet<number> = new Set(),
+): DepthChart {
   const chart = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as Player[]])) as Record<Position, Player[]>;
   // Retain ordinary IR chart entries for old saves, but never admit a squad member as emergency depth.
-  for (const p of players) if (!p.squad && !p.retired) chart[playingAt[p.id]?.pos ?? p.position].push(p);
+  for (const p of players)
+    if ((!p.squad || elevated.has(p.id)) && !p.retired) chart[playingAt[p.id]?.pos ?? p.position].push(p);
   const out = {} as DepthChart;
   for (const pos of POSITIONS) out[pos] = chart[pos].sort((a, b) => slotOvr(b, pos) - slotOvr(a, pos)).map((p) => p.id);
   out.OL = lineOrder(out.OL.map((id) => players.find((p) => p.id === id)!)).map((p) => p.id);

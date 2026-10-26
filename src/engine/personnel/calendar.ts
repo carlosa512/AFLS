@@ -51,3 +51,17 @@ export function personnelLabel(minute: number): string {
 }
 
 export const TRADE_DEADLINE_MINUTE = 9 * WEEK + DEADLINE_TIME;
+
+/** Sunday call-ups file Saturday; other game days file that day. Early kickoffs always file before dressing. */
+export function elevationDeadline(game: Game): number {
+  const kickoff = gameTime(game);
+  const day = Math.floor(kickoff / DAY);
+  return Math.min((day - ((game.kickoff?.day ?? 'sun') === 'sun' ? 1 : 0)) * DAY + DEADLINE_TIME, kickoff - 90);
+}
+
+/** No holiday calendar in AFLS: business days are Monday–Friday in the shared Eastern football clock. */
+export function elevationReversion(game: Game): number {
+  let day = Math.floor(gameTime(game) / DAY) + 1;
+  while ([4, 5].includes(((day % 7) + 7) % 7)) day++;
+  return day * DAY + DEADLINE_TIME;
+}

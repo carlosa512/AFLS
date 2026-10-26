@@ -5,7 +5,14 @@ import type { SeasonAwards, WeeklyAwards } from './awards';
  */
 import type { QuirkId } from './quirks';
 import type { RngState } from './rng';
-import type { PersonnelState, PlayerService, ServiceAssignment, SquadMembership } from './personnel/types';
+import type {
+  PersonnelState,
+  PlayerService,
+  ServiceAssignment,
+  SquadMembership,
+  GameDayPlan,
+  GameDayList,
+} from './personnel/types';
 import type { Weather } from './weather';
 
 export const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE', 'LB', 'CB', 'S', 'K', 'P'] as const;
@@ -812,7 +819,8 @@ export interface Transaction {
     | 'coach'
     | 'injury'
     | 'medical'
-    | 'position';
+    | 'position'
+    | 'elevation';
   text: string;
 }
 
@@ -1053,6 +1061,8 @@ export interface Kickoff {
 }
 
 export interface Game {
+  /** Staff/user plans stay editable until 90 minutes before kickoff; lists are immutable game snapshots. */
+  personnel?: { plans: Record<number, GameDayPlan>; elevationsFiled?: true; lists?: Record<number, GameDayList> };
   /** Membership at kickoff, cleared when service is settled with the result. */
   serviceRoster?: ServiceAssignment[];
   id: number;

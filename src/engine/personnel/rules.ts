@@ -4,6 +4,8 @@ import type { PersonnelState } from './types';
 export const PERSONNEL_RULES = Object.freeze({
   id: 'afls-2026-v1' as const,
   squadLimit: 16,
+  elevationsPerGame: 2,
+  regularElevations: 3,
   weeklyProtections: 2,
   automaticProtection: 'scoutedCeiling' as const,
   accruedGames: 6,

@@ -17,6 +17,12 @@ export interface PersonnelState {
       credits?: Record<string, number>;
     };
   };
+  elevations?: {
+    season: number;
+    records: Elevation[];
+    /** A same-club departure after use cannot erase the season's restriction. */
+    blocked: Record<string, true>;
+  };
   waivers?: {
     nextId: number;
     originalOrder: { season: number; teams: number[] };
@@ -71,6 +77,7 @@ export interface WaiverResult {
 /** Active and IR continue to use the existing employer and `ir` record. */
 export interface SquadMembership {
   kind: 'practiceSquad' | 'practiceSquadInjured';
+  continuation?: { season: number; fromWeek: number; weeklyPay: number; paidThrough: number };
   agreement?: { season: number; weeklyPay: number; startWeek: number; paidThrough: number };
 }
 
@@ -113,5 +120,34 @@ export interface PlayerService {
 /** Only kept while a game is in progress, so live-game roster edits cannot rewrite service. */
 export interface ServiceAssignment {
   playerId: number;
-  list: 'active' | 'injuredReserve';
+  list: 'active' | 'injuredReserve' | 'elevated' | 'squadContinuation';
+  dressed?: boolean;
+}
+
+/** A planned call-up reserves cap room; only a filed call-up consumes a use and earns pay. */
+export interface Elevation {
+  playerId: number;
+  teamId: number;
+  gameId: number;
+  status: 'planned' | 'active' | 'reverted' | 'cancelled';
+  deadline: number;
+  revertsAt: number;
+  /** Frozen at filing, in $K. Extra cap replaces, rather than duplicates, the squad check. */
+  additionalCap: number;
+  creditedToContract?: true;
+  weeklyPay: number;
+  postseasonPay?: number;
+  reason?: string;
+}
+export interface GameDayPlan {
+  /** Omitted means staff chooses. Explicit choices are validated again at kickoff. */
+  dressedIds?: number[];
+  emergencyQbId?: number;
+}
+export interface GameDayList {
+  teamId: number;
+  dressedIds: number[];
+  inactiveIds: number[];
+  elevatedIds: number[];
+  emergencyQbId?: number;
 }

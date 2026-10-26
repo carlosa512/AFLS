@@ -1,3 +1,4 @@
+import { personnelMoveLock } from './elevations';
 import { capSheet, logTransaction, paidShare, releasePlayer, releasePreview, weeksPaid } from '../finance/cap';
 import type { ReleasePreview } from '../finance/cap';
 import { deadMoney, isExpired } from '../finance/contract';
@@ -167,6 +168,8 @@ export function claimProblem(league: League, claim: WaiverClaim, resolving = fal
     return 'Squad return plans must name a player released by this claim.';
   const roster = activeRoster(league, claim.teamId);
   const cuts = claim.cutIds.map((id) => league.players[id]);
+  const lockedCut = cuts.find((p) => p && personnelMoveLock(league, p));
+  if (lockedCut) return personnelMoveLock(league, lockedCut);
   if (cuts.some((c) => !c || c.teamId !== claim.teamId || !c.contract || c.waiver || c.squad || c.ir))
     return 'A conditional release is no longer on this roster.';
   for (const id of claim.squadReturnIds ?? []) {

@@ -454,7 +454,10 @@ describe('AI and calendar integration', () => {
     const game = l.games.find((g) => g.week === 1 && g.kickoff?.day === 'sun')!;
     startLiveGame(l, game);
     expect(l.games.filter((g) => g.week === 1 && gameTime(g) < gameTime(game)).every((g) => !!g.result)).toBe(true);
-    waive();
+    expect(() => waive(player(game.homeId))).toThrow(/Finish the game/);
+    // The 90-minute active-list deadline has frozen the early clubs. Release from a later club instead.
+    const later = l.games.find((g) => g.week === 1 && !g.personnel?.lists)!;
+    waive(player(later.homeId));
     expect(nextDeadlineBlocker(l)).toMatch(/earlier games/);
     expect(() => advanceNextPersonnelEvent(l)).toThrow(/earlier games/);
   });

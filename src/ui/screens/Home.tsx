@@ -103,6 +103,7 @@ function UnitBars({ a, b, league }: { a: Team; b: Team; league: League }) {
 }
 
 function NextGame({ league }: { league: League }) {
+  const nav = useNav();
   const records = computeRecords(league);
   const user = league.teams[league.userTeamId];
   const game = league.phase === 'complete' ? undefined : userGame(league);
@@ -160,6 +161,13 @@ function NextGame({ league }: { league: League }) {
         Crew: <CrewNote league={league} game={game} />
       </p>
       <TheirInjuries league={league} opp={opp} game={game} />
+      {league.personnel?.enabled && !game.result && (
+        <p>
+          <button className="btn btn-sm" onClick={() => nav.go({ view: 'roster', teamId: user.id })}>
+            Prepare game-day roster
+          </button>
+        </p>
+      )}
       <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
         {game.neutral
           ? 'Neutral site.'

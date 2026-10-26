@@ -1,5 +1,5 @@
 import { rosterList } from '../roster';
-import type { Game, League, Player, PlayoffRound } from '../types';
+import type { Game, GameResult, League, Player, PlayoffRound } from '../types';
 import { PERSONNEL_RULES } from './rules';
 import type { PlayerService, ServiceAssignment, ServiceSeason, ServiceTotals } from './types';
 
@@ -78,19 +78,36 @@ export function serviceRoster(league: League, game: Game): ServiceAssignment[] {
   for (const p of Object.values(league.players)) {
     if (p.teamId !== game.homeId && p.teamId !== game.awayId) continue;
     const list = rosterList(p);
-    if (list === 'active' || list === 'injuredReserve') out.push({ playerId: p.id, list });
+    const day = game.personnel?.lists?.[p.teamId!];
+    const dressed = day ? day.dressedIds.includes(p.id) : undefined;
+    if (list === 'active' || list === 'injuredReserve')
+      out.push({ playerId: p.id, list, ...(dressed !== undefined ? { dressed } : {}) });
+    else if (day?.elevatedIds.includes(p.id)) out.push({ playerId: p.id, list: 'elevated', dressed });
+    else if (p.squad?.continuation && p.injury) out.push({ playerId: p.id, list: 'squadContinuation', dressed: false });
   }
   return out;
 }
 
 /** Settle membership before game injuries and the weekly IR/FA passes can change it. */
-export function recordGameService(league: League, game: Game): void {
+export function recordGameService(league: League, game: Game, result?: GameResult): void {
   if (game.season !== league.season) return;
-  for (const { playerId, list } of game.serviceRoster ?? serviceRoster(league, game)) {
+  for (const { playerId, list, dressed } of game.serviceRoster ?? serviceRoster(league, game)) {
     const p = league.players[playerId];
     if (!p) continue;
     if (game.playoffRound) creditPostseasonPension(p, game.season, game.playoffRound);
-    else creditService(p, game.season, game.week, list);
+    else if (list === 'squadContinuation') {
+      const row = (ensureService(p, game.season).seasons[game.season] ??= [0, 0, 0, 0]);
+      row[2] |= 1 << (game.week - 1);
+    } else {
+      const emergency = Object.values(game.personnel?.lists ?? {}).some((r) => r.emergencyQbId === playerId);
+      creditService(
+        p,
+        game.season,
+        game.week,
+        list,
+        emergency ? (result?.playerStats[playerId]?.snaps ?? 0) > 0 : dressed,
+      );
+    }
   }
   delete game.serviceRoster;
 }

@@ -18,6 +18,7 @@ import { computeRecords } from './season/standings';
 import { addStats } from './stats';
 import { recordCoachSeasons } from './coaching';
 import { playoffSummary } from './records';
+import { noteElevationInjuries, settlePostseasonElevationPay } from './personnel/elevations';
 import { recordGameService, serviceRoster } from './personnel/service';
 import { gameTime } from './personnel/calendar';
 import { preparePersonnelGame, syncPersonnelTime } from './personnel/flow';
@@ -59,7 +60,7 @@ function prepareGame(league: League, game: Game) {
 export function recordResult(league: League, game: Game, result: GameResult): void {
   if (game.result) return;
   if (league.personnel?.enabled && !game.serviceRoster) throw new Error('Prepare the game before recording a result.');
-  recordGameService(league, game);
+  recordGameService(league, game, result);
   // Condition and diagnoses are carried by the players, not the game record.
   const { condition, diagnoses, ...kept } = result;
   game.result = kept;
@@ -72,6 +73,8 @@ export function recordResult(league: League, game: Game, result: GameResult): vo
     const hurt = diagnoses?.[playerId];
     if (p && hurt) applyInjury(league, p, hurt.injury, hurt.scar);
   }
+  noteElevationInjuries(league, game);
+  settlePostseasonElevationPay(league, game);
   // Form and the marbles a game drops in a player's bag (playoffs too: a big game leaves a mark).
   for (const [id, line] of Object.entries(result.playerStats)) {
     const player = league.players[Number(id)];

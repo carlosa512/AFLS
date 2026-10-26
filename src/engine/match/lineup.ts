@@ -2,9 +2,10 @@ import { skill, useKnocks } from '../attributes';
 import { specialTeamsEdge, teamScheme } from '../coaching';
 import type { TeamScheme } from '../schemes';
 import { knockFor, slotOvr } from '../familiarity';
-import { isAvailable, onGameRoster } from '../roster';
+import { isAvailable, onGameRoster, playingHurt } from '../roster';
 import { temperOffset } from '../traits';
-import type { League, Player, Position, Team } from '../types';
+import type { Game, League, Player, Position, Team } from '../types';
+import { gameDayTeam } from '../personnel/gameDay';
 import { POSITIONS } from '../types';
 
 /** The 22 starters plus the depth the engine draws on, with unit composites. */
@@ -96,8 +97,8 @@ export function kickCoaching(edge: number): { flags: number; kickoff: number; pu
  * A kick unit: one backup from each position in turn (a linebacker, a safety, a corner, a tight end…)
  * until there are ten, so the unit mixes like an NFL one; starters only when the backups run out.
  */
-function coverUnit(league: League, team: Team, out: ReadonlySet<number>): Player[] {
-  const ok = (id: number) => !out.has(id) && !!league.players[id] && isAvailable(league.players[id]);
+function coverUnit(league: League, team: Team, out: ReadonlySet<number>, available = isAvailable): Player[] {
+  const ok = (id: number) => !out.has(id) && !!league.players[id] && available(league.players[id]);
   const lanes = ST_POOL.map(([pos, starters]) => team.depthChart[pos].filter(ok).slice(starters));
   const unit: Player[] = [];
   for (let round = 0; unit.length < ST_SIZE && lanes.some((l) => l.length > round); round++) {
@@ -142,7 +143,33 @@ const FILL_IN: Record<Position, Position[]> = {
  * few healthy players borrows from its neighbours (`FILL_IN`), never using anyone twice, except that
  * one healthy specialist can both kick and punt.
  */
-export function buildLineup(league: League, team: Team, out: ReadonlySet<number> = new Set()): Lineup {
+export function buildLineup(league: League, team: Team, out: ReadonlySet<number> = new Set(), game?: Game): Lineup {
+  const day = game?.personnel?.lists?.[team.id];
+  if (game && day) team = gameDayTeam(league, game, team);
+  const dressed = day ? new Set(day.dressedIds) : undefined;
+  if (day)
+    out = new Set([
+      ...out,
+      ...[...day.dressedIds, ...(day.emergencyQbId === undefined ? [] : [day.emergencyQbId])].filter(
+        (id) => league.players[id]?.injury && !playingHurt(league.players[id].injury),
+      ),
+    ]);
+  const allowed = (p: Player) =>
+    dressed
+      ? dressed.has(p.id) &&
+        p.teamId === team.id &&
+        !p.retired &&
+        !p.ir &&
+        (!p.squad || day!.elevatedIds.includes(p.id))
+      : onGameRoster(p);
+  const available = (p: Player) => allowed(p) && (!p.injury || playingHurt(p.injury));
+  const emergency = day?.emergencyQbId;
+  const emergencyReady =
+    emergency !== undefined &&
+    !out.has(emergency) &&
+    !team.depthChart.QB.some(
+      (id) => id !== emergency && !out.has(id) && league.players[id] && available(league.players[id]),
+    );
   const scheme = teamScheme(league, team.id);
   const personnel = scheme.offense.personnel;
   // How many each position dresses for the engine, and how many it can't do without.
@@ -161,14 +188,14 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     P: [1, 1],
   };
   const used = new Set<number>();
-  const fit = (id: number) => !out.has(id) && !used.has(id) && !!league.players[id] && isAvailable(league.players[id]);
+  const fit = (id: number) => !out.has(id) && !used.has(id) && !!league.players[id] && available(league.players[id]);
   const take = (players: Player[]) => players.forEach((p) => used.add(p.id));
   // First every position's own healthy players, so a fill-in never takes another position's starter.
   const at = {} as Record<Position, Player[]>;
   for (const pos of POSITIONS)
     take(
       (at[pos] = team.depthChart[pos]
-        .filter(fit)
+        .filter((id) => fit(id) || (pos === 'QB' && id === emergency && emergencyReady))
         .slice(0, want[pos][0])
         .map((id) => league.players[id])),
     );
@@ -187,7 +214,7 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     if (!list.length && (pos === 'K' || pos === 'P')) list.push(...at[pos === 'K' ? 'P' : 'K'].slice(0, 1));
     if (list.length < need) {
       const hurt = team.depthChart[pos]
-        .filter((id) => !out.has(id) && !used.has(id) && !!league.players[id] && onGameRoster(league.players[id]))
+        .filter((id) => !out.has(id) && !used.has(id) && !!league.players[id] && allowed(league.players[id]))
         .slice(0, need - list.length)
         .map((id) => league.players[id]);
       take(hurt);
@@ -197,7 +224,7 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
     // even a man already on the field.
     if (list.length === 0) {
       const anyone = POSITIONS.flatMap((from) => team.depthChart[from]).filter(
-        (id) => !out.has(id) && league.players[id] && onGameRoster(league.players[id]),
+        (id) => !out.has(id) && league.players[id] && allowed(league.players[id]),
       );
       const best = anyone.map((id) => league.players[id]).sort((a, b) => slotOvr(b, pos) - slotOvr(a, pos))[0];
       if (best) list.push(best);
@@ -229,6 +256,7 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
       rotation.map((r) => r.p),
       fit,
       knocks,
+      available,
     );
   } finally {
     useKnocks(prev);
@@ -245,6 +273,7 @@ function assemble(
   rushRotation: Player[],
   fit: (id: number) => boolean,
   knocks: ReadonlyMap<number, number>,
+  available: (p: Player) => boolean,
 ): Lineup {
   const personnel = scheme.offense.personnel;
   const front = scheme.front;
@@ -259,9 +288,9 @@ function assemble(
   const best = (pool: Player[]) => pool.reduce((a, b) => (skill(b, 'returns') > skill(a, 'returns') ? b : a));
   const picked = (id: number | undefined) => {
     const p = id === undefined ? undefined : league.players[id];
-    return p && p.teamId === team.id && !out.has(p.id) && isAvailable(p) ? p : undefined;
+    return p && p.teamId === team.id && !out.has(p.id) && available(p) ? p : undefined;
   };
-  const st = coverUnit(league, team, out);
+  const st = coverUnit(league, team, out, available);
   const stCoach = specialTeamsEdge(league, team.id);
   // The kick unit's wings: the first healthy backup lineman and the second tight end (the first, if not).
   const backupOl = team.depthChart.OL.map((id) => league.players[id]).find((p) => p && fit(p.id));

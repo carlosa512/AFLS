@@ -69,7 +69,9 @@ export function Ovr({ league, player, decimals = 1 }: { league: League; player: 
 /** Keep a scout's full range visible, using the same rating bands as overall. */
 export function ScoutedCeiling({ league, player }: { league: League; player: Player }) {
   const v = viewOf(league, player);
-  const range = `${v.potLo.toFixed(1)}–${v.potHi.toFixed(1)}`;
+  const lo = v.potLo.toFixed(1);
+  const hi = v.potHi.toFixed(1);
+  const range = lo === hi ? lo : `${lo}–${hi}`;
   return (
     <span className={`rating ${band(v.potMid)}`} title={`Your scouts' estimate of his best future overall: ${range}`}>
       {range}

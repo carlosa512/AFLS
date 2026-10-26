@@ -1,3 +1,4 @@
+import { GameDayPanel } from '../personnel';
 import {
   useEffect,
   useLayoutEffect,
@@ -374,6 +375,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
 
   return (
     <>
+      <GameDayPanel league={league} teamId={teamId} />
       <Panel
         title={
           <div className="row">
