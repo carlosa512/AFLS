@@ -4,6 +4,7 @@ import { createLeague } from '../generate';
 import { deliverMail } from '../inbox';
 import { simToEndOfSeason } from '../league';
 import { beginOffseason, simOffseason } from '../offseason';
+import { payAhead } from '../offseason/ai';
 import { practiceSquad } from '../roster';
 import { canTurnOnPersonnel, turnOnPersonnel } from './activation';
 
@@ -42,5 +43,13 @@ describe('switching practice squads on', () => {
       expect(capSpace(l, t.id)).toBeGreaterThanOrEqual(-0.001);
     }
     expect(l.teams.filter((t) => practiceSquad(l, t.id).length > 0).length).toBeGreaterThanOrEqual(30);
+    // Camp's pay-ahead held room for a full veteran squad; once squads formed, what they didn't cost was paid ahead too.
+    const again = structuredClone(l);
+    again.phase = 'preseason';
+    for (const t of again.teams) {
+      const before = capSpace(again, t.id);
+      payAhead(again, t);
+      expect(capSpace(again, t.id)).toBeCloseTo(before, 3);
+    }
   }, 300_000);
 });

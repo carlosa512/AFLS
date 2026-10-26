@@ -48,7 +48,7 @@ import { expireOffers, marketMoment, recheckOffers, TRADE_DEADLINE_WEEK } from '
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
-import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp, fillCampRoster } from './ai';
+import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp, fillCampRoster, payAhead } from './ai';
 import {
   aiDraftChoice,
   draftComplete,
@@ -327,6 +327,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
       }
       if (league.personnel?.enabled) {
         formPracticeSquads(league, auto || staffHandlesSquad(league));
+        // Camp's pay-ahead held room for a full squad of veterans; whatever the squad didn't cost is paid ahead now.
+        for (const team of ai) payAhead(league, team);
         // Camp is over: last year's squad castoffs nobody wanted may leave football.
         retireCastoffs(league);
       }
