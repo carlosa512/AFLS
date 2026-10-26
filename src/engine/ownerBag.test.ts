@@ -8,7 +8,7 @@ import type { League, OwnerBag, SeasonSummary } from './types';
 const rec = (w: number) => ({ w, l: 17 - w, t: 0 });
 const bag = (b: Partial<OwnerBag>): OwnerBag => ({
   season: 0,
-  calm: 8,
+  calm: 6,
   gm: 0,
   coach: 0,
   gmId: 0,
@@ -48,8 +48,8 @@ describe("the owner's marble bag", () => {
   it('gives a patient owner more calm marbles than a quick one', () => {
     const l = createLeague({ seed: 'owner-bag-calm' });
     const calms = l.teams.map((t) => ownerCalm(l, t.id));
-    expect(Math.min(...calms)).toBeGreaterThanOrEqual(7);
-    expect(Math.max(...calms)).toBeLessThanOrEqual(12);
+    expect(Math.min(...calms)).toBeGreaterThanOrEqual(5);
+    expect(Math.max(...calms)).toBeLessThanOrEqual(9);
     expect(new Set(calms).size).toBeGreaterThan(1);
   });
 
@@ -99,7 +99,8 @@ describe("the owner's marble bag", () => {
       }
       if (survived === 5) longRuns++;
     }
-    expect(quiet / 400).toBeLessThan(0.15);
+    // One heat marble against an average owner's six calm ones: about one time in seven.
+    expect(quiet / 400).toBeLessThan(0.2);
     expect(longRuns / 400).toBeLessThan(0.03);
   });
 

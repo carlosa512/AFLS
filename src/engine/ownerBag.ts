@@ -3,7 +3,7 @@
  * built up. Like the concussion protocol and the quirk bag, it is drawn from rather than rolled against,
  * so the odds come from what is in it:
  *
- * - Calm marbles are the owner's patience: 7 for the quickest trigger, 12 for the most patient.
+ * - Calm marbles are the owner's patience: 5 for the quickest trigger, 9 for the most patient.
  * - Every losing season puts heat in, more for a worse one (8–9 one marble, 2–15 four). Who it goes to
  *   depends on the roster: a talented roster losing is on the head coach, a thin one on the GM.
  * - At the review the owner draws one marble for each one last season put in. A heat marble is a change;
@@ -20,8 +20,11 @@ import type { Coach, League, OwnerBag, Team } from './types';
 type Rec = { w: number; l: number; t: number };
 const pct = (r: Rec) => (r.w + r.t / 2) / Math.max(1, r.w + r.l + r.t);
 
-/** Patience in marbles: ×0.5 (patient) … ×1.5 (quick trigger) on `ownerTrigger` gives 12 … 7. */
-export const ownerCalm = (l: League, teamId: number) => Math.round(4 + 4 / ownerTrigger(l, teamId));
+/**
+ * Patience in marbles: ×0.5 (patient) … ×1.5 (quick trigger) on `ownerTrigger` gives 9 … 5. Any more and a 7–10 or
+ * 6–11 season rarely cost a head coach his job, and the league's carousel ran below the NFL's seven a year.
+ */
+export const ownerCalm = (l: League, teamId: number) => Math.round(3 + 3 / ownerTrigger(l, teamId));
 
 /** Heat a season puts in: none for a winning one, one for 8–9, two for 6–7 wins, three for 4–5, four below. */
 export function seasonHeat(rec: Rec): number {

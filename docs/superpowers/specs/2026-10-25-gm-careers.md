@@ -241,7 +241,7 @@ The first paired run raised four questions: a patient owner kept a GM through 3�
 never got another offer, directors took 31 of 32 jobs, and no GM was fired in season. Owners now judge through a
 marble bag (`ownerBag.ts`, save version 45), the same idea as the concussion protocol and the quirk bag:
 
-- Calm marbles are patience: 7 for the quickest trigger, 12 for the most patient (`ownerTrigger`).
+- Calm marbles are patience: 5 for the quickest trigger, 9 for the most patient (`ownerTrigger`).
 - A losing season adds heat: 8–9 one marble, 6–7 wins two, 4–5 three, fewer four. The head coach owns how far the
   team fell short of its roster (talent rank sets the expectation, .750 to .250); the GM owns how far the roster he
   built sits below .500. Each side's share is 20–80%. A first season in the job counts half.
