@@ -1,4 +1,4 @@
-import { GameDayPanel } from '../personnel';
+import { GameDayPanel, SquadList } from '../personnel';
 import { GmLink } from '../gm';
 import {
   useEffect,
@@ -337,6 +337,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
   const players = teamPlayers(league, teamId).filter((p) => !p.squad);
   const scheme = teamScheme(league, teamId);
   const [announcement, setAnnouncement] = useState('');
+  const [view, setView] = useState<'53' | 'squad'>('53');
   // The depth chart is the default; any other column shows the whole roster as one sorted list.
   const [sort, toggleSort, setSort] = useSort<RosterSort>({ key: 'depth', desc: false });
   const onSort = (key: RosterSort, desc: boolean) =>
@@ -399,12 +400,23 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
         action={<TeamPicker league={league} value={teamId} onChange={nav.openTeam} id="roster-team" />}
       >
         {league.personnel?.enabled && (
-          <p>
-            <button className="linklike" onClick={() => nav.go({ view: 'office', tab: 'squad' })}>
+          <div className="row">
+            <div className="seg" role="group" aria-label="Roster view">
+              {(
+                [
+                  ['53', '53'],
+                  ['squad', 'Practice squad'],
+                ] as const
+              ).map(([key, label]) => (
+                <button key={key} aria-pressed={view === key} onClick={() => setView(key)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button className="linklike small" onClick={() => nav.go({ view: 'office', tab: 'squad' })}>
               Practice squad desk
-            </button>{' '}
-            · Squad agreements are separate from this depth chart.
-          </p>
+            </button>
+          </div>
         )}
         <div className="facts">
           <span className="fact">
@@ -448,147 +460,151 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
         </div>
       </Panel>
 
-      <Panel
-        title={grouped ? 'Depth chart' : 'Roster'}
-        action={
-          isUser ? (
-            <span className="row" style={{ gap: 14 }}>
-              <label
-                className="row"
-                style={{ gap: 6, cursor: 'pointer' }}
-                title="Your medical staff moves long injuries to injured reserve, brings players back when there's room, and lines up a spare player at a position that runs short. Signings and cuts stay yours."
-              >
-                <input
-                  type="checkbox"
-                  id="auto-injuries"
-                  checked={team.autoInjuries !== false}
-                  onChange={(e) => setAutoInjuries(teamId, e.target.checked)}
-                />
-                Staff handles injuries
-              </label>
-              <label className="row" style={{ gap: 6, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  id="auto-depth"
-                  checked={team.autoDepth}
-                  onChange={(e) => setAuto(teamId, e.target.checked)}
-                />
-                Auto-sort by rating
-              </label>
-            </span>
-          ) : undefined
-        }
-      >
-        {grouped && <SchemeStrip league={league} teamId={teamId} scheme={scheme} />}
-        {grouped && isUser && <Returners league={league} team={team} />}
-        {!grouped && (
-          <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
-            Showing the whole roster sorted by a column.{' '}
-            <button className="linklike" onClick={() => onSort('depth', false)}>
-              Back to the depth chart
-            </button>
-          </p>
-        )}
-        {isUser && grouped && (
-          <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
-            Starters sit above the yellow line, in the spots your coordinators' schemes use. Drag a player by the{' '}
-            <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns
-            auto-sort off for your team. In a pinch, "Play at…" lines a player up at another position (auto-sort keeps
-            him there): out of position he takes a knock, smaller in his own room or at a spot he has played.
-          </p>
-        )}
-        <span className="visually-hidden" aria-live="polite">
-          {announcement}
-        </span>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <SortTh label="Depth" k="depth" sort={sort} onSort={onSort} desc={false} />
-                <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
-                <SortTh label="OVR" k="ovr" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="Stars" k="stars" sort={sort} onSort={onSort} />
-                <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
-                <SortTh label="Fitness" k="fitness" sort={sort} onSort={onSort} />
-                <th>Key ratings</th>
-                <SortTh label="Cap hit" k="cap" sort={sort} onSort={onSort} className="num" />
-                <SortTh label="Thru" k="thru" sort={sort} onSort={onSort} className="num" />
-                <th>{resultsSeason(league)} stats</th>
-              </tr>
-            </thead>
-            <tbody className={drag ? 'drag-active' : undefined}>
-              {!grouped &&
-                sortRows(
-                  POSITIONS.flatMap((pos) =>
-                    team.depthChart[pos].map((id) => league.players[id]).filter((p): p is Player => !!p),
-                  ),
-                  sort,
-                  (p, key) => rosterSortValue(league, p, key),
-                ).map((p) => {
-                  const slot = slotOf(league, p);
-                  const ids = shownDepth(league, team, slot);
-                  return (
-                    <RosterRow
-                      key={p.id}
-                      league={league}
-                      player={p}
-                      slot={slot}
-                      index={ids.indexOf(p.id)}
-                      count={ids.length}
-                      editable={false}
-                      grouped={false}
-                      scheme={scheme}
-                      dragging={false}
-                      onGrip={() => {}}
-                      onKeyMove={() => {}}
-                    />
-                  );
-                })}
-              {grouped &&
-                POSITIONS.map((pos) => {
-                  // While dragging, show the order the drop would produce.
-                  const ids =
-                    drag?.pos === pos && drag.to === pos
-                      ? reorder(shownDepth(league, team, pos), drag.from, drag.over)
-                      : shownDepth(league, team, pos);
-                  // Dragged over another group: that group lights up as the drop target.
-                  const target = !!drag && drag.to === pos && drag.to !== drag.pos;
-                  return [
-                    <tr className={`group-row${target ? ' drop-target' : ''}`} key={`g-${pos}`}>
-                      <td colSpan={10}>
-                        <span className="group-label">
-                          {POSITION_NAMES[pos]} · {groupNote(scheme, pos)}
-                        </span>
-                      </td>
-                    </tr>,
-                    ...ids.map((id, i) => {
-                      const p = league.players[id] ?? players.find((x) => x.id === id);
-                      if (!p) return null;
-                      const committed = shownDepth(league, team, pos).indexOf(id);
-                      return (
-                        <RosterRow
-                          key={id}
-                          league={league}
-                          player={p}
-                          slot={pos}
-                          index={i}
-                          count={ids.length}
-                          editable={isUser}
-                          grouped
-                          scheme={scheme}
-                          dragging={drag?.id === id}
-                          onGrip={(e) => start(pos, committed, id, e)}
-                          onKeyMove={(to) => keyMove(p, pos, committed, to)}
-                          onPlayAt={(to) => lineUp(p, to)}
-                        />
-                      );
-                    }),
-                  ];
-                })}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
+      {view === 'squad' && league.personnel?.enabled ? (
+        <SquadList league={league} teamId={teamId} />
+      ) : (
+        <Panel
+          title={grouped ? 'Depth chart' : 'Roster'}
+          action={
+            isUser ? (
+              <span className="row" style={{ gap: 14 }}>
+                <label
+                  className="row"
+                  style={{ gap: 6, cursor: 'pointer' }}
+                  title="Your medical staff moves long injuries to injured reserve, brings players back when there's room, and lines up a spare player at a position that runs short. Signings and cuts stay yours."
+                >
+                  <input
+                    type="checkbox"
+                    id="auto-injuries"
+                    checked={team.autoInjuries !== false}
+                    onChange={(e) => setAutoInjuries(teamId, e.target.checked)}
+                  />
+                  Staff handles injuries
+                </label>
+                <label className="row" style={{ gap: 6, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    id="auto-depth"
+                    checked={team.autoDepth}
+                    onChange={(e) => setAuto(teamId, e.target.checked)}
+                  />
+                  Auto-sort by rating
+                </label>
+              </span>
+            ) : undefined
+          }
+        >
+          {grouped && <SchemeStrip league={league} teamId={teamId} scheme={scheme} />}
+          {grouped && isUser && <Returners league={league} team={team} />}
+          {!grouped && (
+            <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
+              Showing the whole roster sorted by a column.{' '}
+              <button className="linklike" onClick={() => onSort('depth', false)}>
+                Back to the depth chart
+              </button>
+            </p>
+          )}
+          {isUser && grouped && (
+            <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
+              Starters sit above the yellow line, in the spots your coordinators' schemes use. Drag a player by the{' '}
+              <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns
+              auto-sort off for your team. In a pinch, "Play at…" lines a player up at another position (auto-sort keeps
+              him there): out of position he takes a knock, smaller in his own room or at a spot he has played.
+            </p>
+          )}
+          <span className="visually-hidden" aria-live="polite">
+            {announcement}
+          </span>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <SortTh label="Depth" k="depth" sort={sort} onSort={onSort} desc={false} />
+                  <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
+                  <SortTh label="OVR" k="ovr" sort={sort} onSort={onSort} className="num" />
+                  <SortTh label="Stars" k="stars" sort={sort} onSort={onSort} />
+                  <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
+                  <SortTh label="Fitness" k="fitness" sort={sort} onSort={onSort} />
+                  <th>Key ratings</th>
+                  <SortTh label="Cap hit" k="cap" sort={sort} onSort={onSort} className="num" />
+                  <SortTh label="Thru" k="thru" sort={sort} onSort={onSort} className="num" />
+                  <th>{resultsSeason(league)} stats</th>
+                </tr>
+              </thead>
+              <tbody className={drag ? 'drag-active' : undefined}>
+                {!grouped &&
+                  sortRows(
+                    POSITIONS.flatMap((pos) =>
+                      team.depthChart[pos].map((id) => league.players[id]).filter((p): p is Player => !!p),
+                    ),
+                    sort,
+                    (p, key) => rosterSortValue(league, p, key),
+                  ).map((p) => {
+                    const slot = slotOf(league, p);
+                    const ids = shownDepth(league, team, slot);
+                    return (
+                      <RosterRow
+                        key={p.id}
+                        league={league}
+                        player={p}
+                        slot={slot}
+                        index={ids.indexOf(p.id)}
+                        count={ids.length}
+                        editable={false}
+                        grouped={false}
+                        scheme={scheme}
+                        dragging={false}
+                        onGrip={() => {}}
+                        onKeyMove={() => {}}
+                      />
+                    );
+                  })}
+                {grouped &&
+                  POSITIONS.map((pos) => {
+                    // While dragging, show the order the drop would produce.
+                    const ids =
+                      drag?.pos === pos && drag.to === pos
+                        ? reorder(shownDepth(league, team, pos), drag.from, drag.over)
+                        : shownDepth(league, team, pos);
+                    // Dragged over another group: that group lights up as the drop target.
+                    const target = !!drag && drag.to === pos && drag.to !== drag.pos;
+                    return [
+                      <tr className={`group-row${target ? ' drop-target' : ''}`} key={`g-${pos}`}>
+                        <td colSpan={10}>
+                          <span className="group-label">
+                            {POSITION_NAMES[pos]} · {groupNote(scheme, pos)}
+                          </span>
+                        </td>
+                      </tr>,
+                      ...ids.map((id, i) => {
+                        const p = league.players[id] ?? players.find((x) => x.id === id);
+                        if (!p) return null;
+                        const committed = shownDepth(league, team, pos).indexOf(id);
+                        return (
+                          <RosterRow
+                            key={id}
+                            league={league}
+                            player={p}
+                            slot={pos}
+                            index={i}
+                            count={ids.length}
+                            editable={isUser}
+                            grouped
+                            scheme={scheme}
+                            dragging={drag?.id === id}
+                            onGrip={(e) => start(pos, committed, id, e)}
+                            onKeyMove={(to) => keyMove(p, pos, committed, to)}
+                            onPlayAt={(to) => lineUp(p, to)}
+                          />
+                        );
+                      }),
+                    ];
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      )}
     </>
   );
 }

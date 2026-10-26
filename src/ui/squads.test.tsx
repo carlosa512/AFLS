@@ -7,7 +7,7 @@ import { squadRates } from '../engine/personnel/eligibility';
 import { practiceSquad } from '../engine/roster';
 import { contractLabel } from './contracts';
 import { lockProtections, protectionPicks, setPin } from '../engine/personnel/poaching';
-import { PoachAction, ProtectionCell } from './personnel';
+import { PoachAction, ProtectionCell, SquadList } from './personnel';
 import { hashToRoute, routeToHash } from './routes';
 import { PracticeSquad } from './screens/PracticeSquad';
 
@@ -81,5 +81,14 @@ describe('practice squad desk', () => {
   it('has the staff switch, on by default', () => {
     const l = createLeague({ seed: 'squad-ui-staff', personnel: true, userTeamId: 0 });
     expect(renderToStaticMarkup(<PracticeSquad league={l} />)).toMatch(/checked=""[^>]*\/>Staff run the squad/);
+  });
+  it("lists any club's practice squad through your scouts' read", () => {
+    const l = createLeague({ seed: 'squad-ui-view', personnel: true, userTeamId: 0 });
+    for (const teamId of [0, 9]) {
+      const html = renderToStaticMarkup(<SquadList league={l} teamId={teamId} />);
+      expect(html).toContain('Practice squad');
+      for (const p of practiceSquad(l, teamId)) expect(html).toContain(p.lastName);
+      expect(html).toContain('Scouted ceiling');
+    }
   });
 });
