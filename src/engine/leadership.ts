@@ -524,7 +524,7 @@ export function interimLetter(
     interim.actingAs
       ? `${coachName(interim)}, our ${side === 'offense' ? 'offensive' : 'defensive'} coordinator, takes over for the rest of the season and keeps running the ${side} himself.`
       : `${coachName(interim)} takes over for the rest of the season.`,
-    `Consider the last ${inWords(left)} games his audition; you and I decide in the offseason whether he stays.`,
+    `Consider the last ${left === 1 ? 'game' : `${inWords(left)} games`} his audition; you and I decide in the offseason whether he stays.`,
     severance > 0
       ? `His severance is ${money(severance)}, out of the coaching budget.${room < 0 ? ` That puts us ${money(-room)} over this year.` : ''}`
       : '',

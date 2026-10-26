@@ -1402,10 +1402,13 @@ export function marketMail(league: League, have: Set<string>): Draft[] {
   if (have.has(id)) return [];
   const logged = marketTrades(league, season, phase, week);
   const trades = logged.length;
-  const covered = logged.filter((t, i) => {
+  // The director's notes are written when the report is filed: a later schedule, block or SNN story doesn't rewrite them.
+  const marketNotes = logged.map((t, i) => {
     const r = tradeRecordFor(league, t, sameMoment(logged, i));
-    return r && snnRan(league, r);
-  }).length;
+    const note = r ? tradeAngle(league, r, week) : null;
+    return { ...(note ? { note } : {}), ...(r && snnRan(league, r) ? { snn: true as const } : {}) };
+  });
+  const covered = marketNotes.filter((n) => n.snn).length;
   const rumors = marketRumors(league, season, phase, week).length;
   if (!trades && !rumors) return [];
   const dealt = trades
@@ -1427,6 +1430,7 @@ export function marketMail(league: League, have: Set<string>): Draft[] {
       week,
       ...director(league),
       category: 'trades',
+      marketNotes,
       subject:
         phase === 'resign'
           ? 'Market report: the league year opens'
@@ -2218,22 +2222,23 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
   }
   for (const [key, events] of weeks) {
     const e = events[0];
-    if (events.length === 1) {
+    const id = events.length === 1 ? `leadership:${e.date.season}:${e.id}` : `leadership-week:${key}`;
+    if (have.has(id)) continue;
+    // One club's change (a GM fired and his successor named is two events) stays its own story.
+    if (new Set(events.map((x) => x.teamId)).size === 1) {
       out.push({
-        id: `leadership:${e.date.season}:${e.id}`,
+        id,
         season: e.date.season,
         phase: e.date.phase,
         week: e.date.week,
         from: 'SNN league desk',
         category: 'league',
         subject: e.report,
-        body: e.report,
+        body: events.map((x) => x.report).join('\n\n'),
         actions: [{ kind: 'gms' }],
       });
       continue;
     }
-    const id = `leadership-week:${key}`;
-    if (have.has(id)) continue;
     const coaches = events.some((x) => x.kind.startsWith('coach'));
     const gms = events.some((x) => x.kind.startsWith('gm'));
     const clubs = [...new Set(events.map((x) => league.teams[x.teamId].abbrev))].join(', ');

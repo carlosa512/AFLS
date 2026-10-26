@@ -1252,6 +1252,25 @@ describe('the director’s read on a trade', () => {
     expect(snnRan(l, r)).toBe(true);
     expect(marketMail(l, new Set())[0].body).toContain('SNN has already covered it');
   });
+  it('keeps the notes the report was filed with, whatever happens afterwards', () => {
+    const { l, me, buyer, seller, record } = setup();
+    const r = record(buyer.id);
+    l.market!.history = [r];
+    l.transactions.push({
+      season: l.season,
+      phase: 'regular',
+      week: 4,
+      teamIds: [buyer.id, seller.id],
+      kind: 'trade',
+      text: 'x',
+    });
+    l.games.push({ id: l.nextGameId++, season: l.season, week: 6, homeId: me.id, awayId: seller.id } as Game);
+    const [m] = marketMail(l, new Set());
+    expect(m.marketNotes).toEqual([{ note: `We play the ${seller.name} in Week 6, without him.` }]);
+    l.games = [];
+    l.inbox = [{ ...m, read: false, id: `press:${l.season}:4:trade:${tradeIdentity(r)}` }];
+    expect(m.marketNotes).toEqual([{ note: `We play the ${seller.name} in Week 6, without him.` }]);
+  });
   it('maps two deals between the same clubs in one week to their own records', () => {
     const { l, buyer, seller, record } = setup();
     const a = record(buyer.id),

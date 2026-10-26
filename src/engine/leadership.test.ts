@@ -271,6 +271,12 @@ describe('the owner’s letter when our head coach goes', () => {
     expect(text).toContain('last seven games');
     expect(text).toContain('$5.58M');
   });
+  it('says "the last game" when one is left', () => {
+    const l = midseason(4, 12);
+    const { t, fired, interim } = fire(l);
+    const text = interimLetter(l, t, fired, interim, 5580, 8);
+    expect(text).toContain('Consider the last game his audition');
+  });
   it('leaves out a streak under three and says the roster is thin in the bottom half', () => {
     const l = midseason(0, 0);
     const t = l.userTeamId;
@@ -378,6 +384,16 @@ describe('the weekly roundup of changes around the league', () => {
     expect(leadershipMail(m, new Set())[0].subject).toBe(
       `Changes around the league: ${m.teams[a].abbrev}, ${m.teams[b].abbrev}`,
     );
+  });
+  it('keeps one club’s GM change as one story, not a roundup', () => {
+    const l = world();
+    const [a] = others(l);
+    const fired = event(l, 1, a, 'gmDismissed');
+    const hired = event(l, 2, a, 'gmHired');
+    const mail = leadershipMail(l, new Set());
+    expect(mail).toHaveLength(1);
+    expect(mail[0].subject).toBe(fired.report);
+    expect(mail[0].body).toBe(`${fired.report}\n\n${hired.report}`);
   });
   it('keeps a single change as its own story and our own club apart', () => {
     const l = world();

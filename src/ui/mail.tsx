@@ -64,10 +64,6 @@ import {
   freeAgencyMoves,
   marketRumors,
   marketTrades,
-  sameMoment,
-  snnRan,
-  tradeAngle,
-  tradeRecordFor,
   seasonDeals,
   headCoachChanges,
   mailSubject,
@@ -204,7 +200,7 @@ export function MailCards({ league, message }: { league: League; message: InboxM
     case 'faWrap':
       return <FaWrapCards league={league} s={s} />;
     case 'market':
-      return <MarketCards league={league} s={s} />;
+      return <MarketCards league={league} s={s} notes={message.marketNotes} />;
     case 'marketRecap':
       return <MarketRecapCards league={league} s={s} />;
     case 'positionOffer':
@@ -1500,7 +1496,15 @@ function BuyersSellers({ league }: { league: League }) {
 }
 
 /** The director's digest: the moment's trades with their reasons, what his people are hearing, who's buying and selling. */
-function MarketCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'market' }> }) {
+function MarketCards({
+  league,
+  s,
+  notes,
+}: {
+  league: League;
+  s: Extract<MailSubject, { kind: 'market' }>;
+  notes?: InboxMessage['marketNotes'];
+}) {
   const trades = marketTrades(league, s.season, s.phase, s.week);
   const rumors = marketRumors(league, s.season, s.phase, s.week);
   const moves = moveIndex(league);
@@ -1511,18 +1515,14 @@ function MarketCards({ league, s }: { league: League; s: Extract<MailSubject, { 
     <>
       {trades.length > 0 && (
         <Card title={s.phase === 'resign' ? 'Trades as the league year opened' : 'Trades this week'}>
-          {trades.map((t, i) => {
-            // What it means for us, and whether SNN already told the story (the director doesn't retell it).
-            const r = tradeRecordFor(league, t, sameMoment(trades, i));
-            const angle = r && tradeAngle(league, r, s.phase === 'regular' ? s.week : 0);
-            return (
-              <p key={i} className="small" style={{ margin: '4px 0' }}>
-                <MoveText move={t} index={moves} />
-                {angle && <span className="muted"> {angle}</span>}
-                {r && snnRan(league, r) && <span className="muted"> (SNN ran the story)</span>}
-              </p>
-            );
-          })}
+          {trades.map((t, i) => (
+            // What it meant for us when the report was filed, and whether SNN had already told the story.
+            <p key={i} className="small" style={{ margin: '4px 0' }}>
+              <MoveText move={t} index={moves} />
+              {notes?.[i]?.note && <span className="muted"> {notes[i].note}</span>}
+              {notes?.[i]?.snn && <span className="muted"> (SNN ran the story)</span>}
+            </p>
+          ))}
         </Card>
       )}
       {rumors.length > 0 && (

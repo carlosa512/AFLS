@@ -1104,6 +1104,8 @@ export interface InboxMessage {
   subject: string;
   body: string;
   leagueReport?: LeagueNewsReport;
+  /** The director's market report: per trade (in `marketTrades` order), his note on what it means for us and whether SNN ran it, as filed. */
+  marketNotes?: { note?: string; snn?: true }[];
   tradeReport?: {
     period?: string;
     exchanges: { teamId: number; receives: string }[];
