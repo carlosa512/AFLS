@@ -1,5 +1,6 @@
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
+import { adviceFor } from './directorAdvice';
 import { recordAdvicePublications } from './coachDecisions';
 import {
   coachAdviceObservation,
@@ -654,6 +655,7 @@ export type MailSubject =
   | { kind: 'poached'; season: number; coachId: number; chair: Chair }
   | { kind: 'carousel'; season: number }
   | { kind: 'frontOffice'; season: number }
+  | { kind: 'advice'; season: number; moment: string }
   | { kind: 'faWrap'; season: number }
   | { kind: 'market'; season: number; phase: Phase; week: number }
   | { kind: 'marketRecap'; season: number }
@@ -680,6 +682,7 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
   const season = Number(s);
   if (category === 'leadership') return { kind: 'leadership', season, eventId: Number(a) };
   if (category === 'leadership-phase') return { kind: 'frontOffice', season };
+  if (category === 'advice') return { kind: 'advice', season, moment: a };
   if (category === 'gm-offer') return { kind: 'gmOffer', season, teamId: Number(a) };
   const player = m.actions.find((x) => x.kind === 'player');
   const playerId = player?.kind === 'player' ? player.playerId : -1;
@@ -1421,64 +1424,29 @@ export function tradeAngle(league: League, r: TradeRecord, week: number): string
   return `We play the ${league.teams[them].name} in Week ${next.week}, ${them === seller.teamId ? 'without him' : "and he'll be there"}.`;
 }
 
-/** Weeks of the regular season the director writes up: from week 5 to the deadline week (deadline day has its own mail). */
-const DIGEST_FROM = 5;
-
 /**
  * The director of scouting's market digest: the trades around the league since the last one, what his people are
  * hearing, and how far off the deadline is. Weekly from week 5 to the deadline, and once as the league year opens. A
  * moment with nothing to report sends nothing.
  */
-export function marketMail(league: League, have: Set<string>): Draft[] {
-  const { season, phase } = league;
-  const weekly = phase === 'regular' && league.week >= DIGEST_FROM && league.week <= TRADE_DEADLINE_WEEK;
-  if (!weekly && phase !== 'resign') return [];
-  const week = phase === 'regular' ? league.week : 0;
-  const id = `market:${season}:${phase}:${week}`;
+/** The director's recommendations at the four moments he writes (`directorAdvice.ts`). */
+function directorAdviceMail(league: League, have: Set<string>): Draft[] {
+  const advice = adviceFor(league);
+  if (!advice) return [];
+  const id = `advice:${league.season}:${advice.moment}`;
   if (have.has(id)) return [];
-  const logged = marketTrades(league, season, phase, week);
-  const trades = logged.length;
-  // The director's notes are written when the report is filed: a later schedule, block or SNN story doesn't rewrite them.
-  const marketNotes = logged.map((t, i) => {
-    const r = tradeRecordFor(league, t, sameMoment(logged, i));
-    const note = r ? tradeAngle(league, r, week) : null;
-    return { ...(note ? { note } : {}), ...(r && snnRan(league, r) ? { snn: true as const } : {}) };
-  });
-  const covered = marketNotes.filter((n) => n.snn).length;
-  const rumors = marketRumors(league, season, phase, week).length;
-  if (!trades && !rumors) return [];
-  const dealt = trades
-    ? `${count(trades)} trade${trades === 1 ? '' : 's'} went through around the league`
-    : 'No trades went through around the league';
-  const heard = rumors
-    ? `, and we're hearing ${rumors === 1 ? 'one more name' : `${count(rumors).toLowerCase()} more names`} that could move`
-    : '';
-  const left = TRADE_DEADLINE_WEEK - league.week;
-  const deadline =
-    phase === 'regular'
-      ? ` The deadline is the day after week ${TRADE_DEADLINE_WEEK}${left ? `, ${left === 1 ? 'a week' : `${count(left).toLowerCase()} weeks`} from now` : ': this is the last week before it'}.`
-      : '';
   return [
     {
       id,
-      season,
-      phase,
-      week,
+      season: league.season,
+      phase: league.phase,
+      week: league.phase === 'regular' ? league.week : 0,
       ...director(league),
       category: 'trades',
-      marketNotes,
-      subject:
-        phase === 'resign'
-          ? 'Market report: the league year opens'
-          : trades
-            ? `Market report: ${plural(trades, 'trade')} this week`
-            : 'Market report: the rumor mill',
-      body: `${dealt}${phase === 'resign' ? ' as the league year opened' : ' this week'}${heard}.${deadline}${
-        covered
-          ? ` SNN has already covered ${covered === trades ? (trades === 1 ? 'it' : 'them') : `${small(covered)} of them`}; what ${trades === 1 ? 'it means' : 'each means'} for us is below.`
-          : ''
-      }`,
-      actions: [{ kind: 'trades' }],
+      subject: advice.subject,
+      body: advice.body,
+      advice: { ...(advice.lean ? { lean: advice.lean } : {}), rows: advice.rows },
+      actions: [advice.moment === 'fa' || advice.moment === 'resign' ? { kind: 'fa' } : { kind: 'trades' }],
     },
   ];
 }
@@ -1534,12 +1502,11 @@ export const deadlineDayTrades = (league: League, season = league.season) =>
   );
 
 /**
- * The league office's word on the trade deadline: the week before, the week of, and deadline day itself (the
- * day after the deadline week, as in the NFL: the last day to deal, and the market's busiest).
+ * The league office's word on deadline day (the day after the deadline week, as in the NFL: the last day to deal,
+ * and the market's busiest). The weeks before are the director's (`directorAdvice.ts`).
  */
 function deadlineMail(league: League, have: Set<string>): Draft[] {
-  const weeks = TRADE_DEADLINE_WEEK - league.week;
-  const key = isDeadlineDay(league) ? 'day' : weeks === 0 || weeks === 1 ? String(weeks) : null;
+  const key = isDeadlineDay(league) ? 'day' : null;
   const id = `deadline:${league.season}:${key}`;
   if (!key || have.has(id)) return [];
   const w = TRADE_DEADLINE_WEEK;
@@ -2653,7 +2620,7 @@ export function deliverMail(league: League): void {
     if (league.phase === 'regular') fresh.push(...deadlineMail(league, have));
     // The week-18 settle runs in the same step that starts the playoffs.
     if (league.phase === 'regular' || league.phase === 'playoffs') fresh.push(...squadPoachMail(league, have));
-    if (league.phase === 'regular' || league.phase === 'resign') fresh.push(...marketMail(league, have));
+    fresh.push(...directorAdviceMail(league, have));
     if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
       fresh.push(...marketRecapMail(league, have));
   }

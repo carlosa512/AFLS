@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
+import { endGmAppointment } from './gm';
 import {
+  adviceFor,
   adviceLean,
   adviceNeeds,
   buyTargets,
@@ -168,5 +170,58 @@ describe('the director’s picks', () => {
     expect(rows.length).toBeGreaterThan(0);
     for (const r of rows) expect(r.teamId).toBeNull();
     expect(faTargets(l, 4, -1)).toEqual([]);
+  });
+});
+
+describe('the director’s mail', () => {
+  const at = (week: number) => {
+    const l = world();
+    l.phase = 'regular';
+    l.week = week;
+    l.market = emptyMarket();
+    return l;
+  };
+  it('files at week 6 and deadline week only, never late', () => {
+    expect(adviceFor(at(6))!.moment).toBe('w6');
+    expect(adviceFor(at(9))!.moment).toBe('w9');
+    for (const w of [5, 7, 8, 10]) expect(adviceFor(at(w))).toBeNull();
+  });
+  it('says we hold when nothing clears the bar', () => {
+    const l = at(9);
+    for (const t of l.teams) t.stance = { mode: 'contend', since: 0 };
+    const a = adviceFor(l)!;
+    expect(a.lean).toBe('buy'); // nobody has played: every club is level
+    expect(a.rows).toEqual([]);
+    expect(a.subject).toBe('Deadline week: we hold');
+    expect(a.body).toContain('Nothing worth chasing; we hold.');
+  });
+  it('opens with where we stand and says when the deadline is', () => {
+    const a = adviceFor(at(6))!;
+    expect(a.body).toMatch(/^(We're|At) /);
+    expect(a.body).toContain('The deadline is the day after week 9.');
+  });
+  it('stays quiet while we have no job', () => {
+    const l = at(6);
+    endGmAppointment(l, l.userGmId, 'dismissed');
+    expect(adviceFor(l)).toBeNull();
+  });
+  it('files the offseason mails only when there is someone to recommend', () => {
+    const l = world();
+    l.phase = 'freeAgency';
+    l.faDay = 1;
+    expect(adviceFor(l)).toBeNull(); // a new league has no free agents
+    const pos = adviceNeeds(l)[0].position;
+    for (const p of Object.values(l.players)
+      .filter((p) => p.position === pos && p.teamId !== null && p.teamId !== l.userTeamId)
+      .slice(0, 6)) {
+      p.teamId = null;
+      l.knowledge[p.id] = 1;
+    }
+    const a = adviceFor(l, 1e9)!;
+    expect(a.moment).toBe('fa');
+    expect(a.rows.length).toBeGreaterThan(0);
+    expect(a.subject).toMatch(/^Free agency: (one fit|\w+ fits)$/);
+    l.faDay = 2;
+    expect(adviceFor(l, 1e9)).toBeNull();
   });
 });

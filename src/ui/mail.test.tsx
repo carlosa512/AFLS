@@ -336,7 +336,7 @@ describe('the opposition report', () => {
 describe('current briefings without a task badge', () => {
   it('keeps the deadline card live until trading closes', () => {
     const league = createLeague({ seed: 'deadline-briefing' });
-    league.week = 8;
+    league.week = 10; // deadline day: the league office's only deadline notice
     deliverMail(league);
     const message = league.inbox!.find((m) => m.id.startsWith('deadline:'))!;
     expect(message).toBeDefined();

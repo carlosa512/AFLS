@@ -1153,6 +1153,8 @@ export interface InboxMessage {
   rundown?: { offenseRank: number; defenseRank: number; offense: number[]; defense: number[]; prospects: number[] };
   /** The director's market report: per trade (in `marketTrades` order), his note on what it means for us and whether SNN ran it, as filed. */
   marketNotes?: { note?: string; snn?: true }[];
+  /** The director's recommendations, as they read when filed (`directorAdvice.ts`). */
+  advice?: { lean?: 'buy' | 'targeted' | 'sell'; rows: AdviceRow[] };
   /** SNN's offseason front-office digest, as it read when filed: one row per change around the league. */
   carousel?: CarouselRow[];
   tradeReport?: {

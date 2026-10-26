@@ -13,7 +13,7 @@ import { viewCache } from './scouting';
 import { computeRecords, conferenceSeeds, type TeamRecord } from './season/standings';
 import { spendable, tradeContext } from './trade/context';
 import { stanceOf, teamNeeds, type Need } from './trade/plans';
-import { salaryToTake } from './trade/rules';
+import { salaryToTake, TRADE_DEADLINE_WEEK } from './trade/rules';
 import { marketValue, slotRate } from './trade/value';
 import type { AdviceRow, League, Player, Position, Stance } from './types';
 
@@ -279,3 +279,91 @@ export function faTargets(league: League, max: number, room?: number): AdviceRow
   );
 }
 
+export type AdviceMoment = 'w6' | 'w9' | 'resign' | 'fa';
+
+/** The moment the league is at, if it's one the director writes at. Never a moment already gone by. */
+export function adviceMoment(league: League): AdviceMoment | null {
+  if (league.phase === 'regular' && league.week === TRADE_DEADLINE_WEEK - 3) return 'w6';
+  if (league.phase === 'regular' && league.week === TRADE_DEADLINE_WEEK) return 'w9';
+  if (league.phase === 'resign') return 'resign';
+  if (league.phase === 'freeAgency' && league.faDay === 1) return 'fa';
+  return null;
+}
+
+export interface Advice {
+  moment: AdviceMoment;
+  subject: string;
+  body: string;
+  lean?: AdviceLean;
+  rows: AdviceRow[];
+}
+
+const ORDINALS = ['', 'top', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'];
+const games = (n: number) => (n === 0.5 ? 'half a game' : n === 1 ? 'a game' : `${n} games`);
+
+/** Where we stand, in the director's words: the opening line of an in-season mail. */
+function standing(race: ReturnType<typeof raceFor>, lean: AdviceLean): string {
+  const r = race.record;
+  const rec = `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;
+  if (lean === 'buy')
+    return race.seed
+      ? `We're ${rec} and hold the ${ORDINALS[race.seed]} seed: time to add.`
+      : race.gamesBack === 0
+        ? `At ${rec} we're level with the last playoff spot: time to add.`
+        : `At ${rec} we're ${games(race.gamesBack)} out of the last playoff spot: time to add.`;
+  if (lean === 'targeted')
+    return `At ${rec} we're ${games(race.gamesBack)} out of the last spot: one upgrade, and one player we can spare.`;
+  return `At ${rec} we're ${games(race.gamesBack)} out. I'd sell.`;
+}
+
+/**
+ * What the director writes at this moment, or null: nothing outside the four moments, nothing while we have no job,
+ * and no offseason mail without a name in it. `room` overrides our cap room (tests).
+ */
+export function adviceFor(league: League, room?: number): Advice | null {
+  const moment = adviceMoment(league);
+  if (!moment || !employed(league)) return null;
+  if (moment === 'resign' || moment === 'fa') {
+    const rows =
+      moment === 'resign'
+        ? [...expiringTargets(league, 2), ...buyTargets(league, { rentals: false, max: 1, room })]
+        : faTargets(league, 4, room);
+    if (!rows.length) return null;
+    const n = rows.length;
+    return moment === 'resign'
+      ? {
+          moment,
+          rows,
+          subject: "Before free agency: who's about to be available",
+          body: 'Free agency opens after the re-sign window. These are the names I would watch.',
+        }
+      : {
+          moment,
+          rows,
+          subject: `Free agency: ${n === 1 ? 'one fit' : `${COUNT[n].toLowerCase()} fits`}`,
+          body: 'Free agency is open. These fit our needs and our cap.',
+        };
+  }
+  const race = raceFor(league);
+  const lean = adviceLean(race.gamesBack);
+  const rows =
+    lean === 'buy'
+      ? buyTargets(league, { rentals: true, max: 3, room })
+      : lean === 'targeted'
+        ? [...buyTargets(league, { rentals: false, max: 1, room }), ...sellCandidates(league, 'targeted', 1)]
+        : sellCandidates(league, 'sell', 3);
+  const prefix = moment === 'w6' ? 'Three weeks to the deadline' : 'Deadline week';
+  const buys = rows.filter((r) => r.kind === 'buy').length;
+  const subject = !rows.length
+    ? `${prefix}: we hold`
+    : lean === 'sell'
+      ? `${prefix}: what we could sell`
+      : lean === 'targeted' && buys && buys < rows.length
+        ? `${prefix}: one in, one out`
+        : buys === rows.length
+          ? `${prefix}: ${buys === 1 ? 'one upgrade' : `${COUNT[buys].toLowerCase()} upgrades`}`
+          : `${prefix}: ${rows.length === 1 ? 'one move' : `${COUNT[rows.length].toLowerCase()} moves`}`;
+  const deadline = moment === 'w6' ? ` The deadline is the day after week ${TRADE_DEADLINE_WEEK}.` : '';
+  const body = `${standing(race, lean)}${deadline}${rows.length ? '' : ' Nothing worth chasing; we hold.'}`;
+  return { moment, lean, rows, subject, body };
+}
