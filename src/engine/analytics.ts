@@ -14,19 +14,30 @@ export interface PlayState {
 }
 
 /**
- * Expected points on first and ten by field position, shaped on the NFL's averages (nflfastR-style curves): a
- * touchback is worth a little under half a point, midfield two, the opponent's 1 about six.
+ * Expected points on first and ten by field position: the next score in the half, fitted to this engine's own
+ * games (about 40,000 plays) so a league of average offenses adds about nothing a play, as the NFL's does. The shape
+ * is the NFL's: a little under one point at the 25, about two and a half at midfield, flattening near the goal.
  */
 const FIRST_DOWN: readonly [number, number][] = [
-  [1, -1.2],
-  [20, 0.4],
-  [50, 2.0],
-  [80, 3.9],
-  [90, 4.6],
-  [99, 6.0],
+  [1, -0.3],
+  [15, 0.65],
+  [25, 0.97],
+  [35, 1.63],
+  [45, 2.43],
+  [55, 2.87],
+  [65, 3.49],
+  [75, 4.17],
+  [85, 4.4],
+  [99, 5.4],
 ];
-/** A later down costs points, more with distance to go; never more than this. */
-const DOWN_CAP = 2.5;
+/**
+ * The fit measures the next score from a play; EPA adds up play by play within drives, which ends scoring drives and
+ * turnovers a little differently. Lowering the whole table by this much brings a league-average offense back to
+ * about nothing added a play (`npm run sim` prints the league's numbers).
+ */
+const LEVEL = 0.45;
+/** A later down costs points, more with distance to go (fitted the same way); never more than a punt's worth. */
+const DOWN_CAP = 3.4;
 
 function firstAndTen(yardLine: number): number {
   const y = Math.min(99, Math.max(1, yardLine));
@@ -44,13 +55,13 @@ function firstAndTen(yardLine: number): number {
 export function expectedPoints(down: number, distance: number, yardLine: number): number {
   const cost =
     down === 2
-      ? 0.25 + 0.05 * Math.max(0, distance - 3)
+      ? 0.2 + 0.07 * Math.max(0, distance - 4)
       : down === 3
-        ? 0.6 + 0.12 * Math.max(0, distance - 1)
+        ? 0.55 + 0.12 * Math.max(0, distance - 1)
         : down >= 4
-          ? 1.2 + 0.15 * distance
+          ? 2.2 + 0.2 * Math.max(0, distance - 1)
           : 0;
-  return firstAndTen(yardLine) - Math.min(DOWN_CAP, cost);
+  return firstAndTen(yardLine) - LEVEL - Math.min(DOWN_CAP, cost);
 }
 
 const ep = (s: PlayState) => expectedPoints(s.down, s.distance, s.yardLine);

@@ -7,15 +7,22 @@ reporting explains the league. Delivery still happens after `store.mutate`; the 
 
 - SNN — Sports News Network reports late division-lead changes in the user's division. It uses the same
   standings and tiebreakers as the standings screen and never turns provisional first place into a clinch.
-- The Arena Gazette reports substantial reversals from last season. At 8, 12 or 17 team games, a club
-  with at most six wins last year qualifies at a .750 winning percentage; a club with at least ten wins
-  qualifies at .375 or below. Division relevance comes first, then the largest percentage change, then
-  team ID for a deterministic tie. These are editorial thresholds, not simulation effects.
-- Features add a meaningful year-over-year change in scoring per game, points allowed per game, passing yards per game or
-  third-down conversion rate. Per-game and rate comparisons account for different season lengths. Ranks
-  require league-wide samples (six games now, eight last year); missing prior box scores never become zeros.
-  Defensive declines are described as lost ground (or a collapse for a substantial deterioration), rather
-  than presenting higher points allowed as an improvement. Division stories locate your team in the race and can report a losing streak or an ended winning streak.
+- The Arena Gazette is the numbers desk (`gazette.ts`): SNN reports what happened, the Gazette explains it with the
+  open measures in `analytics.ts`: EPA per play and per dropback (the stand-ins for DVOA and QBR, which are
+  proprietary), success rate (40% of the distance on first down, 60% on second, all of it on third and fourth) and
+  explosive plays (runs of 10+, completions of 20+). The match engine counts them as each play resolves
+  (`TeamGameStats.adv`; `dropbacks`, `epa`, `successes`, `rushSnaps` on players) and they never move play. Expected
+  points come from a fixed table fitted to the engine's own games; `npm run sim` prints the league's numbers against
+  the NFL's as warnings.
+- A column runs after weeks 4, 7, 10, 13 and 16, with a playoff preview and a season wrap: filed only at its moment
+  (no backfill), with or without a job, never Needs you. Each has one story, chosen by the first condition that
+  holds (a club leading a measure by a quarter of the spread to tenth; our club top or bottom three; the biggest
+  offensive mover since the last column, ten places or more; a top-five offense with a bottom-five defense or the
+  reverse; a turnaround from last season (.750 after six wins or fewer, .375 after ten or more); otherwise the
+  league's state), a paragraph on the tables and a line locating our club, then two or three tables on rotating
+  themes (top five, bottom three and our row; players top ten). Samples: every club needs three counted games; a
+  passer 12 dropbacks, a rusher 6 carries and a pass rusher 15 rush snaps per team game. Tables are saved with the
+  column. The turnaround replaced the Gazette's old trajectory stories.
 - SNN lead-change stories finish with one supporting table: division standings or the featured team’s
   current stats, with year-over-year comparisons reserved for exceptional changes. The choice is saved
   with the article and alternates deterministically when neither view has a special claim. Stories add the

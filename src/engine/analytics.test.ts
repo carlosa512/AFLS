@@ -6,9 +6,9 @@ const at = (down: number, distance: number, yardLine: number, offense: 0 | 1 = 0
 
 describe('expected points', () => {
   it('anchors on first and ten and climbs with field position', () => {
-    expect(expectedPoints(1, 10, 20)).toBeCloseTo(0.4, 2);
-    expect(expectedPoints(1, 10, 50)).toBeCloseTo(2.0, 2);
-    expect(expectedPoints(1, 10, 99)).toBeCloseTo(6.0, 2);
+    expect(expectedPoints(1, 10, 25)).toBeCloseTo(0.52, 2);
+    expect(expectedPoints(1, 10, 55)).toBeCloseTo(2.42, 2);
+    expect(expectedPoints(1, 10, 99)).toBeCloseTo(4.95, 2);
     for (let y = 2; y < 100; y++) expect(expectedPoints(1, 10, y)).toBeGreaterThan(expectedPoints(1, 10, y - 1));
   });
   it('costs a later down and a longer distance', () => {

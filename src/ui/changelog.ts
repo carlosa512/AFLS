@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.1.20',
+    date: '2026-10-26',
+    title: 'The Arena Gazette does the numbers',
+    text:
+      'The Gazette now writes a numbers column every three weeks, plus a playoff preview and a season wrap: who ' +
+      'leads the league in EPA per play, success rate, explosive plays and pressure, which quarterbacks add the most ' +
+      'per dropback, who is climbing, and where your club stands. The game now counts these numbers on every play, ' +
+      'without changing how a single one plays out.',
+  },
+  {
     version: '0.1.19',
     date: '2026-10-26',
     title: "Your director's recommendations",
