@@ -14,6 +14,7 @@ import {
 import { leadershipMail } from './inbox';
 import {
   coachRoom,
+  coordinatorOf,
   installInterimHeadCoach,
   coachMarket,
   hireCoach,
@@ -362,7 +363,7 @@ describe('the weekly roundup of changes around the league', () => {
     const eb = event(l, 2, b, 'coachInterim');
     const mail = leadershipMail(l, new Set());
     expect(mail).toHaveLength(1);
-    expect(mail[0].id).toBe(`leadership-week:${l.season}:12`);
+    expect(mail[0].id).toBe(`leadership-week:${l.season}:12:1-2`);
     expect(mail[0].from).toBe('SNN league desk');
     expect(mail[0].subject).toBe(`Coaching changes: ${l.teams[a].abbrev}, ${l.teams[b].abbrev}`);
     expect(mail[0].body).toContain(ea.report);
@@ -415,6 +416,89 @@ describe('the weekly roundup of changes around the league', () => {
     expect(mail).toHaveLength(1);
     expect(mail[0].subject).toBe(eb.report);
     event(l, 3, c, 'coachInterim');
+    expect(leadershipMail(l, new Set([`leadership-week:${l.season}:12`]))).toHaveLength(0);
+  });
+});
+
+describe('an interim at a club with no GM', () => {
+  it('is still reviewed as the league year opens, and his acting chair ends', () => {
+    const l = world();
+    l.phase = 'regular';
+    l.week = 11;
+    const t = (l.userTeamId + 3) % 32;
+    l.teams[t].staffBudgetMult = 3;
+    const dc = teamCoaches(l, t).find((c) => c.role === 'defCoord')!;
+    dc.youth = 20;
+    dc.veterans = 20;
+    const hc = installInterimHeadCoach(l, t)!;
+    expect(hc.actingAs).toBe('defCoord');
+    endGmAppointment(l, l.teams[t].gmId!, 'dismissed');
+    l.season++;
+    l.phase = 'resign';
+    leadershipNewYear(l);
+    expect(hc.interim).toBeUndefined();
+    expect(hc.actingAs).toBeUndefined();
+    expect(
+      l.leadership.events.some((e) => e.teamId === t && (e.kind === 'coachPermanent' || e.kind === 'coachDismissed')),
+    ).toBe(true);
+    expect(coordinatorOf(teamCoaches(l, t), 'defCoord')?.id === hc.id && hc.role === 'headCoach').toBe(false);
+  });
+});
+
+describe('a roundup week with a late change', () => {
+  it('files a change that arrives after the week’s roundup went out, and nothing twice', () => {
+    const l = world();
+    const others = l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+    const push = (id: number, teamId: number) =>
+      l.leadership.events.push({
+        id,
+        date: { season: l.season, phase: 'regular', week: 12 },
+        teamId,
+        kind: 'coachInterim',
+        report: `${l.teams[teamId].abbrev} report ${id}.`,
+      });
+    push(1, others[0]);
+    push(2, others[1]);
+    const first = leadershipMail(l, new Set());
+    expect(first).toHaveLength(1);
+    push(3, others[2]);
+    const later = leadershipMail(l, new Set(first.map((m) => m.id)));
+    expect(later).toHaveLength(1);
+    expect(later[0].body).toBe(`${l.teams[others[2]].abbrev} report 3.`);
+    expect(leadershipMail(l, new Set([...first, ...later].map((m) => m.id)))).toHaveLength(0);
+  });
+  it('files one club’s GM change once, however often mail is delivered', () => {
+    const l = world();
+    const [a] = l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+    for (const [id, kind] of [
+      [1, 'gmDismissed'],
+      [2, 'gmHired'],
+    ] as const)
+      l.leadership.events.push({
+        id,
+        date: { season: l.season, phase: 'regular', week: 12 },
+        teamId: a,
+        kind,
+        report: `report ${id}.`,
+      });
+    const first = leadershipMail(l, new Set());
+    expect(first).toHaveLength(1);
+    expect(leadershipMail(l, new Set(first.map((m) => m.id)))).toHaveLength(0);
+  });
+  it('treats an old roundup id as covering its whole week', () => {
+    const l = world();
+    const [a, b] = l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+    for (const [id, teamId] of [
+      [1, a],
+      [2, b],
+    ])
+      l.leadership.events.push({
+        id,
+        date: { season: l.season, phase: 'regular', week: 12 },
+        teamId,
+        kind: 'coachInterim',
+        report: 'r',
+      });
     expect(leadershipMail(l, new Set([`leadership-week:${l.season}:12`]))).toHaveLength(0);
   });
 });

@@ -112,7 +112,6 @@ export function leadershipNewYear(l: League): void {
   for (const t of l.teams) {
     if (t.leadershipReview?.season === l.season) continue;
     const gm = teamGm(l, t.id);
-    if (!gm) continue;
     const rng = new Rng(`${l.seed}:leadership:${l.season}:${t.id}`);
     let hc = head(l, t.id);
     // An interim the owner has just offered the permanent job is not reviewed again in the same breath.
@@ -133,6 +132,8 @@ export function leadershipNewYear(l: League): void {
       });
       hc = head(l, t.id);
     }
+    // The owner settles an interim even while the club has no GM; the rest of the review needs one.
+    if (!gm) continue;
     const review: LeadershipReview = {
       season: l.season,
       week: 0,

@@ -22,7 +22,7 @@ import { coachPlayerFit, positionCoachFor } from './coachQuirks';
  */
 import { AGING, agingFamily, declineOnset } from './aging';
 import { skill } from './attributes';
-import { chairHolder, coachingFor, coachingForPlayer, teamCoaches, teamScheme } from './coaching';
+import { coachingFor, coordinatorOf, coachingForPlayer, teamCoaches, teamScheme } from './coaching';
 import { logTransaction } from './finance/cap';
 import { isExpired, yearsLeft } from './finance/contract';
 import { leagueMarket, marketApy, resetLeagueMarket } from './finance/market';
@@ -447,7 +447,7 @@ export function conversionRead(
   const fitTo = fitAt(scheme, p, to);
   const fitFrom = fitAt(scheme, p, p.position) ?? 0;
   const chair = DEFENSE.has(to) ? 'defCoord' : 'offCoord';
-  const coach = chairHolder(teamCoaches(league, teamId), { role: chair });
+  const coach = coordinatorOf(teamCoaches(league, teamId), chair);
   const coordinator = coach ? { coach, isNew: coach.since === season } : undefined;
   if (fitTo !== null)
     add(
