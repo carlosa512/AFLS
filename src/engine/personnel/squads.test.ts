@@ -278,8 +278,12 @@ describe('simultaneous market and world generation', () => {
   it('supplies base-eligible candidates rather than treating every young expanded-slot player as enough', () => {
     l.teams = l.teams.slice(0, 1);
     for (let i = 0; i < 80; i++) candidate(2);
+    const open = 16 - practiceSquad(l, 0).length;
     ensureSquadSupply(l);
-    expect(squadCandidates(l).filter((p) => squadCategory(l, p) === 'base')).toHaveLength(80);
+    // Enough standard-spot players for half the open places, and no spare pile: cuts fill the rest.
+    const base = squadCandidates(l).filter((p) => squadCategory(l, p) === 'base').length;
+    expect(base).toBeGreaterThanOrEqual(Math.ceil(open / 2));
+    expect(base).toBeLessThanOrEqual(Math.max(open, 1));
   });
   it('counts long-time squad players by accrued service when replenishing the pool', () => {
     l.teams = l.teams.slice(0, 1);

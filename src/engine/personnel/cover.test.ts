@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createLeague } from '../generate';
+import { createLeague, generatePlayer } from '../generate';
 import { freeAgents } from '../offseason/negotiation';
 import { activeRoster, practiceSquad } from '../roster';
 import { perceive } from '../scouting';
@@ -75,7 +75,16 @@ describe('AI cover uses the practice squad', () => {
   it('a long absence with a better free agent available is left to free agency', () => {
     const { team, pos } = setup();
     starter(team, pos).injury = hurt(8);
-    const fa = freeAgents(l).find((f) => f.position === pos)!;
+    const fa = generatePlayer(new Rng('cover-fa'), {
+      id: l.nextPlayerId++,
+      position: pos,
+      quality: 10,
+      age: 26,
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
+    fa.contract = null;
+    l.players[fa.id] = fa;
     for (const k of Object.keys(fa.ratings) as (keyof Player['ratings'])[]) fa.ratings[k] = 20;
     fa.injury = undefined;
     expect(perceive(l, team, fa).ovr).toBeGreaterThan(10);
