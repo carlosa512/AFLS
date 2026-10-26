@@ -977,6 +977,21 @@ export interface LeadershipEvent {
   privateText?: string;
 }
 
+/** One of the director's recommendations, as it read when filed. */
+export interface AdviceRow {
+  kind: 'buy' | 'sell' | 'sign';
+  playerId: number;
+  /** His club when filed; null for a free agent. */
+  teamId: number | null;
+  name: string;
+  position: Position;
+  why: string;
+  /** The director's ballpark: "likely a 4th", "about $8.5M a year". */
+  price: string;
+  /** For a sale: the club to open talks with (it asked about him, or it's buying). */
+  partnerId?: number;
+}
+
 export interface CarouselRow {
   group: 'out' | 'hired' | 'extended' | 'hotSeat' | 'coaches';
   teamId: number;
