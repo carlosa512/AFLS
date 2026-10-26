@@ -12,7 +12,7 @@ import { ageGms } from '../gm';
 import { employed, withLeagueAi } from '../employment';
 import { advanceGmHiringRound, enforceCoachChanges, leadershipNewYear, pendingGmOffers } from '../leadership';
 import {
-  coachingFor,
+  coachingForPlayer,
   coachWindowCloses,
   developCoaches,
   ensureCoached,
@@ -87,7 +87,7 @@ export function beginOffseason(league: League): void {
     trueUp(league, p);
     beginYear(league, own, p, {
       playedShare: playedShare(p, last),
-      ...coachingFor(league, p.teamId, p.position),
+      ...coachingForPlayer(league, p),
       bodyAs: bodyAs(p),
     });
     p.age++;

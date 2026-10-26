@@ -1,3 +1,4 @@
+import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
 /**
  * Save upgrades. Each step takes a league saved by an older build and reshapes it in place,
  * so careers survive engine changes instead of being thrown away.
@@ -74,21 +75,31 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 38) league.version = 38; // v38: optional SNN standings and team-stat snapshots; existing letters keep their text
   if (league.version < 39) league.version = 39; // v39: optional trade-news snapshots on newly filed SNN articles
   if (league.version < 40) league.version = 40; // v40: optional news table choice and trade edition labels
-  if (league.version < 41) toV41(league);
-  if (league.version < 42) {
+  if (league.version < 41) {
+    for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches ?? {})]) {
+      generateCoachQuirks(league.seed, c);
+      const p = c.playerId !== undefined ? league.players[c.playerId] : undefined;
+      if (p) inheritCoachQuirk(league.seed, c, p);
+    }
+    league.version = 41;
+  }
+  // v42–46: GM careers, written as v41–45 on their branch before main's v41 (coach habits) shipped. Every step
+  // is safe to repeat, so a save from that branch replays them; v46 also gives it the coach habits it skipped.
+  if (league.version < 42) toV42(league);
+  if (league.version < 43) {
     // Existing saves receive no invented promises or changes to their current contracts.
     for (const team of league.teams) team.ownerMandates ??= [];
-    league.version = 42;
+    league.version = 43;
   }
-  if (league.version < 43) {
+  if (league.version < 44) {
     league.leadership ??= { nextEventId: 1, events: [] };
     for (const m of league.inbox ?? []) if (m.category !== 'league') m.organizationId ??= league.userTeamId;
     // Old owner-retention headlines contained internal instructions. Public history keeps only the move.
     for (const tx of league.transactions)
       if (tx.kind === 'coach' && /owner retained/.test(tx.text)) tx.text = tx.text.split(': ')[0];
-    league.version = 43;
+    league.version = 44;
   }
-  if (league.version < 44) {
+  if (league.version < 45) {
     for (const e of league.leadership.events) {
       if (e.kind !== 'coachInterim' || e.coachId === undefined) continue;
       const c = league.coaches[e.coachId] ?? league.retiredCoaches[e.coachId];
@@ -112,19 +123,24 @@ export function migrateLeague(league: League): League | null {
       delete league.leadership.search;
       beginGmSearch(league);
     }
-    league.version = 44;
+    league.version = 45;
   }
-  if (league.version < 45) {
+  if (league.version < 46) {
     // Owners remember the losing runs already on file: each bag replays the current people's last three seasons.
     const ranks = talentRanks(league);
     for (const t of league.teams) ownerBag(league, t, ranks);
-    league.version = 45;
+    for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches ?? {})]) {
+      generateCoachQuirks(league.seed, c);
+      const p = c.playerId !== undefined ? league.players[c.playerId] : undefined;
+      if (p) inheritCoachQuirk(league.seed, c, p);
+    }
+    league.version = 46;
   }
   return league;
 }
 
-/** v41: give the fixed-franchise user's known career a person; other incumbents start being observed now. */
-function toV41(league: League): void {
+/** v42: give the fixed-franchise user's known career a person; other incumbents start being observed now. */
+function toV42(league: League): void {
   // Tests and mod tools can downgrade a newer document; never erase records already present.
   if (!league.gms?.[league.userGmId]) {
     initializeGms(league);
@@ -149,7 +165,7 @@ function toV41(league: League): void {
   for (const s of Object.values(league.staff))
     if (s.teamId !== null && !s.appointments)
       s.appointments = [{ teamId: s.teamId, role: s.role, start: careerDate(league) }];
-  league.version = 41;
+  league.version = 42;
 }
 
 /** Saves made before the switch to real NFL markets (same ids and divisions). */

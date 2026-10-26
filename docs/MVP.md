@@ -36,8 +36,10 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
 - [x] **10. Trades with AI teams** · **Done**: one judge for every deal, with pick charts, contract value and seller
       floors (`trade/judge.ts`, `value.ts`). `npm run trades` fails on lopsided deals and exploit probes.
 - [ ] **11. Coaches (HC, OC, DC) whose ratings affect results** · **Partial**: their ratings (youth, veterans) drive
-      development and aging, and their style and schemes change how games are called. But no HC/OC/DC rating makes a
-      team better on game day; only the special teams coordinator has a game-day edge (`specialTeamsEdge`).
+      development and aging. Their styles, schemes and evolving quirks affect game decisions and specific execution
+      windows, with player fit, career history and staff reports (`docs/COACH_QUIRKS.md`). HC/OC/DC numeric ratings
+      still do not directly supply a general game-day quality edge; the special teams coordinator has one
+      (`specialTeamsEdge`).
 - [ ] **12. AI teams that manage their rosters sensibly** · **Partial**: AI front offices draft, sign, cut, trade and
       stay cap-legal (`offseason/ai.ts`), keeping a cap reserve for the season by their GM's cap style. One known
       issue is flagged by `npm run offseason`: some teams start a season short of 53.

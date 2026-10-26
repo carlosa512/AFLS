@@ -32,6 +32,7 @@
  * are printed, never counted, so CI stays green until someone fixes the engine; each one disappears
  * from the output when its fix lands. Do not loosen a band to hide one: add a line here instead.
  */
+import { SAVE_SIZE_BUDGET, SAVE_FEATURE_ALLOWANCES } from './save-budget';
 import { fork } from 'node:child_process';
 import {
   coachBudget,
@@ -514,6 +515,13 @@ for (let s = 0; s < seasons; s++) {
   // the first save by up to 130 KB from one engine change to the next: 6200 when it missed them, 6330 when it reached
   // the final (0.1.5, players growth 610-788, 12765 at the end). The first-season ceiling is 6450, a playoff run over
   // the 6300 it was before.
+  // Feature growth is explicit rather than a moving baseline: see save-budget.ts.
+  if (s === 0)
+    console.log(
+      `  save feature allowances: ${Object.entries(SAVE_FEATURE_ALLOWANCES)
+        .map(([name, b]) => `${name} +${b.firstSeason} KB first season / +${b.retainedSeasons} KB retained`)
+        .join('; ')}`,
+    );
   const dSave = prevSave && {
     total: save.total - prevSave.total,
     players: save.players - prevSave.players,
@@ -522,7 +530,7 @@ for (let s = 0; s < seasons; s++) {
     weekly: save.weekly - prevSave.weekly,
   };
   console.log(
-    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? 6450 : 13500, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, 1100, 0)}` : ''} · ${check('games KB', save.games, 0, 6500, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800, 0)} · ${check('retired added', dSave.retired, 0, 320, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
+    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, SAVE_SIZE_BUDGET.annualGrowth, 0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800, 0)} · ${check('retired added', dSave.retired, 0, 320, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
   if (dSave) playerGrowth.push(dSave.players);
   prevSave = save;

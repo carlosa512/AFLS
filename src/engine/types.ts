@@ -4,6 +4,7 @@ import type { SeasonAwards, WeeklyAwards } from './awards';
  * can be saved, loaded, exported and modded without custom (de)serializers.
  */
 import type { QuirkId } from './quirks';
+import type { CoachQuirkId } from './coachQuirks';
 import type { RngState } from './rng';
 import type { Weather } from './weather';
 
@@ -479,7 +480,68 @@ export interface ServiceRecord {
 }
 
 /** A member of a team's coaching staff (or a candidate on the market). */
+export interface CoachGameReport {
+  /** At most four accepted late-game calls, independent of replay retention and habit modifiers. */
+  defensiveDecisions?: {
+    quarter: number;
+    clock: number;
+    down: number;
+    distance: number;
+    call: 'base' | 'runD' | 'passD' | 'blitz';
+    outcome: 'fourthDownStop' | 'turnover' | 'touchdownAllowed';
+    text: string;
+    marginBefore: number;
+    marginAfter: number;
+  }[];
+  coachId: number;
+  name: string;
+  role: CoachRole;
+  teamId: number;
+  opportunities: Partial<Record<CoachQuirkId, number>>;
+  choices: Partial<Record<CoachQuirkId, number>>;
+  uses: Partial<Record<CoachQuirkId, number>>;
+  events: { quirk: CoachQuirkId; quarter: number; clock: number; text: string; outcome?: string }[];
+}
+export interface CoachAdvice {
+  /** Durable publication stamps survive mail deletion and history trimming. */
+  noted?: Partial<Record<'offer' | 'followup' | 'revisit', number>>;
+  review?: { week: number; promising: boolean; adopted: boolean };
+  revisit?: { week: number; text: string };
+  season: number;
+  week: number;
+  coachId: number;
+  coachName: string;
+  position: Position;
+  playerId: number;
+  playerName: string;
+  aheadId: number;
+  aheadName: string;
+  reason: string;
+  applied: boolean;
+  baselineGames: number;
+  baselineStats?: StatLine;
+  resolved?: string;
+}
+
 export interface Coach {
+  teachingBlock?: string;
+  teachingNote?: {
+    season: number;
+    week: number;
+    playerId: number;
+    playerName: string;
+    habit: QuirkId;
+    coachName: string;
+    receptive: boolean;
+  };
+  quirks?: Partial<Record<CoachQuirkId, number>>;
+  quirkBag?: Record<string, number>;
+  quirkEvidence?: Partial<Record<CoachQuirkId, number>>;
+  quirkLog?: { id: CoachQuirkId; grip: number; from?: number; season: number; week: number }[];
+  quirkOrigin?: { id: CoachQuirkId; playerId: number; source: string };
+  quirkYear?: number;
+  quirkWeek?: string;
+  quirkIntroduced?: string[];
   id: number;
   firstName: string;
   lastName: string;
@@ -562,6 +624,14 @@ export interface PlayingAt {
 }
 
 export interface Team {
+  coachAdvice?: CoachAdvice[];
+  /** Season-long suppression is independent of the six readable threads and the coach who proposed them. */
+  coachAdviceMemory?: {
+    season: number;
+    players: number[];
+    pairs: string[];
+    positions: Partial<Record<Position, number>>;
+  };
   id: number;
   city: string;
   name: string;
@@ -1013,6 +1083,10 @@ export interface LeagueNewsReport {
 export interface InboxMessage {
   /** Internal correspondence belongs to the club, even after its GM changes jobs. */
   organizationId?: number;
+  /** Stable coaching thread observation, used only to avoid repeating it in other mail. */
+  coachNoteKey?: string;
+  /** Snapshot of a staff recommendation within an existing report, also retained in body for search. */
+  coachNote?: { coachId: number; coachName: string; text: string; kind: 'recommendation' | 'followup' | 'revisit' };
   /** Built from what the message is about, so delivering twice can't duplicate it. */
   id: string;
   season: number;
@@ -1152,6 +1226,8 @@ export interface PlayLogEntry {
 }
 
 export interface GameResult {
+  /** Event-time coaching evidence; independent of replay retention. */
+  coaching?: CoachGameReport[];
   homeScore: number;
   awayScore: number;
   overtime: boolean;

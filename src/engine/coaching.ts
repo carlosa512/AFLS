@@ -22,6 +22,15 @@
  * agency, like scouts. All coaching randomness uses its own seeded Rngs: it never shifts the
  * league's main random stream, and a migrated save gets the same coaches as a new league.
  */
+import {
+  coachPlayerFit,
+  coachQuirksOffseason,
+  generateCoachQuirks,
+  inheritCoachQuirk,
+  positionCoachFor,
+} from './coachQuirks';
+import { coachValue } from './coachRatings';
+export { coachValue } from './coachRatings';
 import type { AgingFamily } from './attributes';
 import { agingFamily } from './aging';
 import { recruitmentProblem } from './employment';
@@ -272,6 +281,21 @@ export function coachingFor(league: League, teamId: number | null, position: Pos
   return teamId === null ? NEUTRAL : coachingFrom(teamCoaches(league, teamId), position);
 }
 
+/** A small fit adjustment within the same staff caps; annual targets remain fixed once rolled. */
+export function coachingForPlayer(league: League, p: Player, position: Position = p.position): Coaching {
+  const base = coachingFor(league, p.teamId, position);
+  if (p.teamId === null) return base;
+  const fit = coachPlayerFit(positionCoachFor(teamCoaches(league, p.teamId), position), p);
+  return {
+    rate: clamp(base.rate * (1 + fit), ...RATE_RANGE),
+    decline: {
+      physical: base.decline.physical,
+      technical: clamp(base.decline.technical * (1 - fit * 0.5), ...DECLINE_RANGE),
+      mental: clamp(base.decline.mental * (1 - fit * 0.5), ...DECLINE_RANGE),
+    },
+  };
+}
+
 /** Share of a position's overall in each family of ratings: how much a family's decline costs him. */
 const FAMILY_SHARE: Record<Position, Record<AgingFamily, number>> = Object.fromEntries(
   POSITIONS.map((pos) => {
@@ -461,19 +485,6 @@ const BASE_ASK: Record<CoachRole, number> = {
 const TERM: Record<number, number> = { 1: 1.1, 2: 1, 3: 0.95, 4: 0.92, 5: 0.9 };
 /** Longest deal a role signs: head coaches get the long contracts. */
 export const maxYears = (role: CoachRole) => (role === 'headCoach' ? 5 : 3);
-/** How much of a coach's worth is youth development (the rest is veteran care), by what his job leans on. */
-const YOUTH_SHARE: Record<CoachRole, number> = {
-  headCoach: 0.5,
-  offCoord: 0.6,
-  defCoord: 0.6,
-  positionCoach: 0.55,
-  strengthCoach: 0.35,
-  stCoord: 0.5,
-};
-
-/** One number for a coach's quality in his role. */
-export const coachValue = (c: Pick<Coach, 'role' | 'youth' | 'veterans'>) =>
-  YOUTH_SHARE[c.role] * c.youth + (1 - YOUTH_SHARE[c.role]) * c.veterans;
 
 const capOf = (league: League, season = league.season) => league.caps[season] ?? BASE_CAP;
 
@@ -999,8 +1010,9 @@ export const coachTrendLabel = (age: number) => (age < 35 ? 'Rising' : age < 55 
 /** A play-caller's style: most coaches sit near the middle, a few are known for something. */
 function rollStyle(rng: Rng, role: CoachRole): CoachStyle | undefined {
   // `|| 0` keeps −0 out of saves (a JSON round trip would turn it into 0).
-  const roll = () => Math.round(clamp(rng.normal(0, 0.45), -1, 1) * 20) / 20 || 0;
-  if (role === 'headCoach') return { fourthDown: roll() };
+  const roll = (mean = 0) => Math.round(clamp(rng.normal(mean, 0.45), -1, 1) * 20) / 20 || 0;
+  // Head coaches lean a little aggressive, as the analytics-era NFL does: more go-for-it men than kickers.
+  if (role === 'headCoach') return { fourthDown: roll(0.1) };
   if (role === 'offCoord') return { passLean: roll() };
   return undefined;
 }
@@ -1023,6 +1035,7 @@ function newCoach(league: League, rng: Rng, chair: Chair, youth: number, veteran
   if (style) c.style = style;
   const scheme = rollScheme(league.seed, c);
   if (scheme) c.scheme = scheme;
+  generateCoachQuirks(league.seed, c);
   league.coaches[c.id] = c;
   touch();
   return c;
@@ -1163,6 +1176,13 @@ export function generateCoachingWorld(league: League): void {
       priciest.contract!.salary = coachAsk(league, priciest, priciest.contract!.through - league.season + 1);
     }
   }
+  // Budget fitting above establishes the initial ratings, not a career decline. Build
+  // habit prehistories from those final qualities so formation weights reflect the actual staff.
+  for (const c of Object.values(league.coaches).filter((c) => c.teamId !== null)) {
+    delete c.quirks;
+    delete c.quirkBag;
+    generateCoachQuirks(league.seed, c);
+  }
   touch();
   refreshMarket(league, rng);
 }
@@ -1236,6 +1256,7 @@ function exPlayerCoach(league: League, p: Player, base: Entry): void {
     p.age,
   );
   Object.assign(c, { firstName: p.firstName, lastName: p.lastName, playerId: p.id });
+  inheritCoachQuirk(league.seed, c, p, { season: league.season, week: 0 });
 }
 
 /** Share of the unhired market that drifts out of football at the new league year. */
@@ -1267,6 +1288,7 @@ export function developCoaches(league: League, retirees: readonly Player[] = [])
   touch();
   const rng = new Rng(`${league.seed}:coach:dev:${league.season}`);
   for (const c of Object.values(league.coaches)) {
+    coachQuirksOffseason(league, c);
     c.age++;
     const t = trend(c.age);
     c.youth = Math.round(clamp(c.youth + rng.normal(t, 0.5), 1, 20));

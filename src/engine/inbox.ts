@@ -1,5 +1,12 @@
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms } from './leadership';
+import { recordAdvicePublications } from './coachDecisions';
+import {
+  coachAdviceObservation,
+  userCoachGameObservation,
+  teachingObservation,
+  positionTeachingNote,
+} from './coachReports';
 /**
  * The user's inbox: mail from the league office, agents and the team's own staff, the way a
  * manager's desk fills up in Football Manager. Nothing in the sim sends mail. `deliverMail` looks
@@ -860,6 +867,7 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
     read = `${soft}, while ${best}. ${capital(OPENING[weak.g.title])}, but ${CATCH[strong.g.title]}.`;
   }
   const stakes = matchupStakes(league, opp.id);
+  const coaching = coachAdviceObservation(league);
   return [
     {
       id,
@@ -868,9 +876,28 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
       week: league.week,
       ...headCoach(league),
       category: 'matchup',
+      ...(coaching
+        ? {
+            coachNoteKey: coaching.key,
+            coachNote: {
+              coachId: coaching.coachId,
+              coachName: coaching.coachName,
+              text: coaching.text,
+              kind: coaching.kind,
+            },
+          }
+        : {}),
       subject: stakes?.subject ?? `Opposition report: ${teamName(opp)}`,
-      body: `${opener} ${stakes?.body ?? ''}${read}`,
-      actions: [{ kind: 'team', teamId: opp.id }],
+      body: `${opener} ${stakes?.body ?? ''}${read}${coaching ? `\n\n${coaching.text}` : ''}`,
+      actions: [
+        { kind: 'team', teamId: opp.id },
+        ...(coaching
+          ? [
+              { kind: 'player' as const, playerId: coaching.playerId },
+              { kind: 'team' as const, teamId: league.userTeamId },
+            ]
+          : []),
+      ],
     },
   ];
 }
@@ -1180,6 +1207,11 @@ function recapMail(league: League, have: Set<string>): Draft[] {
     !game.playoffRound &&
     theirRecord.w + theirRecord.l + theirRecord.t >= 6 &&
     (theirRecord.w + theirRecord.t / 2) / (theirRecord.w + theirRecord.l + theirRecord.t) >= 0.75;
+  const coaching =
+    userCoachGameObservation(league, game, headCoach(league).fromCard?.id) || teachingObservation(league);
+  const resultWithReaction = coaching
+    ? `${result.slice(0, -1)}; ${coaching.replace(/^Our /, 'our ').replace(/^The /, 'the ')}`
+    : result;
   const headline =
     us > them && strongOpponent
       ? us - them >= 14
@@ -1197,7 +1229,7 @@ function recapMail(league: League, have: Set<string>): Draft[] {
       ...headCoach(league),
       category: 'matchup',
       subject: `${headline}: ${win.team.name} ${win.pts}, ${lose.team.name} ${lose.pts}`,
-      body: `${result} ${takeaway}${potg}`,
+      body: `${resultWithReaction} ${takeaway}${potg}`,
       actions: [{ kind: 'game', gameId: game.id }],
     },
   ];
@@ -1916,7 +1948,7 @@ function positionOfferMail(league: League, have: Set<string>): Draft[] {
   if (!pick) return [];
   const { player: p, read, why } = pick;
   const from = p.position;
-  const reason = `${reasonLine(why, read.to, read.coordinator)}. `;
+  const reason = `${reasonLine(why, read.to, read.coordinator)}. ${positionTeachingNote(league, p, read.to)}`;
   const ahead = read.ahead ? `, ahead of ${fullName(read.ahead)}` : '';
   const role = read.role === 'starter' ? `he would start at ${read.to}${ahead}` : `he would be depth at ${read.to}`;
   return [
@@ -2115,6 +2147,7 @@ const order = (m: Draft) => m.season * 1000 + PHASE_ORDER.indexOf(m.phase) * 100
 export function deliverMail(league: League): void {
   const first = !league.inbox;
   const inbox = (league.inbox ??= []);
+  recordAdvicePublications(league, inbox);
   const have = new Set(inbox.filter((m) => canReadMail(league, m)).map((m) => m.id));
   const fresh: Draft[] = [];
   if (employed(league)) {
@@ -2176,6 +2209,7 @@ export function deliverMail(league: League): void {
       ...(m.category !== 'league' && employed(league) ? { organizationId: league.userTeamId } : {}),
     })),
   );
+  recordAdvicePublications(league, due);
   // A newly reconstructed historical story may predate mail already filed. Evict chronologically.
   inbox.sort((a, b) => order(a) - order(b));
   const removed = inbox.splice(0, Math.max(0, inbox.length - KEEP));

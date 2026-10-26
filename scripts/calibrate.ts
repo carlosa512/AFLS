@@ -41,6 +41,8 @@ const TARGETS: Record<string, [number, number]> = {
   redZoneTrips: [3.0, 3.4],
   redZonePct: [50, 60],
   fgAtt: [1.6, 2.0],
+  // Fourth-down tries a team-game (NFL 2023: 1.47, 2024: 1.40; UW–Madison's season recaps).
+  fourthAtt: [1.3, 1.6],
   fgPct: [83, 88],
   punts: [3.6, 4.4],
   penalties: [5.5, 7],
@@ -205,6 +207,7 @@ for (let s = 0; s < seasons; s++) {
       add('thirdAtt', t.thirdDownAtt);
       add('thirdConv', t.thirdDownConv);
       add('redZoneAtt', t.redZoneAtt);
+      add('fourthAtt', t.fourthDownAtt);
       add('redZoneTd', t.redZoneTd);
       add('penalties', t.penalties);
       add(
@@ -287,6 +290,7 @@ const results: Record<string, number> = {
   redZoneTrips: per('redZoneAtt'),
   redZonePct: (100 * sum.redZoneTd) / sum.redZoneAtt,
   fgAtt: per('fgAtt'),
+  fourthAtt: per('fourthAtt'),
   fgPct: (100 * sum.fgMade) / sum.fgAtt,
   punts: per('punts'),
   penalties: per('penalties'),

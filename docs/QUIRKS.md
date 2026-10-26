@@ -1,5 +1,7 @@
 # Quirks — design sketch
 
+Coaching habits now have their own role-aware registry and lifecycle; see [Coaching quirks](COACH_QUIRKS.md).
+
 Status: **steps 1–3 built, plus a fine-tuning pass** (§7): the bag, grip, 83 quirks (every Tier A quirk), the engine hooks,
 scouting, the player card, AI front offices valuing what their scouts see, game states (Rattled,
 Shaken, kicking slumps) and event, season and scheme marbles. Goal: FM-style player habits ("Stares down his first read",
