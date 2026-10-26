@@ -1,3 +1,5 @@
+import { coachQuirksWeek, recordCoachEvidence } from './coachQuirks';
+import { coachTeachingWeek, updateCoachAdvice } from './coachDecisions';
 /**
  * Season orchestration: playing weeks, moving into the playoffs, crowning a
  * champion, and rolling the league into the next season.
@@ -9,14 +11,14 @@ import { applyInjury, injuryWeek } from './injuries';
 import { simOffseason } from './offseason';
 import { quirkWeek, recordForm } from './quirks';
 import { expireOffers, marketMoment, recheckOffers, weekMoment } from './trade';
-import { syncDepthChart } from './roster';
+import { syncDepthChart, teamPlayers, isAvailable } from './roster';
 import { flexWeek } from './season/flex';
 import { trainingWeek } from './training';
 import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { computeRecords } from './season/standings';
 import { addStats } from './stats';
-import { recordCoachSeasons } from './coaching';
+import { recordCoachSeasons, teamCoaches } from './coaching';
 import { playoffSummary } from './records';
 import { noteElevationInjuries, settlePostseasonElevationPay } from './personnel/elevations';
 import { recordGameService, serviceRoster } from './personnel/service';
@@ -80,6 +82,7 @@ export function recordResult(league: League, game: Game, result: GameResult): vo
     const player = league.players[Number(id)];
     if (player) recordForm(league, player, game.week, line, result.form?.[Number(id)]);
   }
+  recordCoachEvidence(league, result.coaching);
   if (game.playoffRound) return; // Season stat totals are regular season only.
   for (const [id, line] of Object.entries(result.playerStats)) {
     const player = league.players[Number(id)];
@@ -138,6 +141,14 @@ export function playWeek(league: League): Game[] {
   if (league.personnel?.enabled) games.sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);
   for (const g of games) playGame(league, g);
   injuryWeek(league);
+  coachQuirksWeek(league);
+  if (league.phase === 'regular')
+    for (const team of league.teams) {
+      const staff = teamCoaches(league, team.id);
+      const available = teamPlayers(league, team.id).filter(isAvailable);
+      coachTeachingWeek(league, staff, available);
+      updateCoachAdvice(league, team, staff, available);
+    }
   if (league.phase === 'regular') {
     awardWeek(league, league.week);
     aiTrades(league);

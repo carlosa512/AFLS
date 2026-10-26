@@ -29,6 +29,8 @@
  * week leaves every other stream in the league exactly where it was.
  */
 import { declineOnset } from './aging';
+import { positionCoachFor, roomCare } from './coachQuirks';
+import { teamCoaches } from './coaching';
 import { capSpace, logTransaction, paidFraction } from './finance/cap';
 import { lastSeason } from './finance/contract';
 import {
@@ -654,11 +656,12 @@ export function snapCost(p: Player): number {
 }
 
 /** Share of lost condition a week of rest gives back: fitness, sports science and age decide it. */
-export function weeklyRecovery(p: Player, dept: Department): number {
+export function weeklyRecovery(p: Player, dept: Department, coachBonus = 0): number {
   return clamp(
     0.68 +
       0.02 * (p.traits.naturalFitness - TRAIT_MEAN) +
-      conditionBonus(dept.science) -
+      conditionBonus(dept.science) +
+      coachBonus -
       0.01 * Math.max(0, p.age - 30),
     0.4,
     0.95,
@@ -1374,6 +1377,9 @@ export function injuryWeek(league: League): void {
   const depts = new Map<number | null, Department>();
   const dept = (teamId: number | null) =>
     depts.get(teamId) ?? depts.set(teamId, departmentFor(league, teamId)).get(teamId)!;
+  // His position coach's habits: how hard the room practices and how well it recovers.
+  const care = (p: Player) =>
+    p.teamId === null ? roomCare(undefined) : roomCare(positionCoachFor(teamCoaches(league, p.teamId), p.position));
   for (const p of Object.values(league.players)) {
     if (p.retired) continue;
     const inj = p.injury;
@@ -1387,7 +1393,7 @@ export function injuryWeek(league: League): void {
     }
     if (p.ir && (p.ir.season < season || p.ir.week <= week)) p.ir.weeks++;
     if (p.condition !== undefined && p.condition < 100) {
-      const c = p.condition + (100 - p.condition) * weeklyRecovery(p, dept(p.teamId));
+      const c = p.condition + (100 - p.condition) * weeklyRecovery(p, dept(p.teamId), care(p).recovery);
       if (c >= 99.5) delete p.condition;
       else p.condition = Math.round(c * 10) / 10;
     }
@@ -1400,7 +1406,7 @@ export function injuryWeek(league: League): void {
     const d = dept(p.teamId);
     const f = riskFactors(league, p, d);
     // A worn-down body practices tired.
-    const worn = 1 + Math.max(0, 85 - (p.condition ?? 100)) / 25;
+    const worn = (1 + Math.max(0, 85 - (p.condition ?? 100)) / 25) * care(p).practice;
     const contact = PRACTICE_RATE * PRACTICE_CONTACT * f.contact * worn;
     const soft = PRACTICE_RATE * (1 - PRACTICE_CONTACT) * f.soft * worn;
     const roll = rng.next();

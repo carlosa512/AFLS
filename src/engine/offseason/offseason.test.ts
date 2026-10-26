@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { capSpace } from '../finance/cap';
 import { capHit, isExpired } from '../finance/contract';
 import { leagueMarket, marketApy, maxBonusShare, minSalary, rookieApy } from '../finance/market';
-import { createLeague, rookieContract } from '../generate';
+import { createLeague, generatePlayer, rookieContract } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr, STARTERS } from '../positions';
 import { activeRoster, teamPlayers } from '../roster';
@@ -146,6 +146,17 @@ describe('offseason calendar', () => {
     const old = activeRoster(league, team.id).find((p) => p.position === 'K')!;
     old.age = 38;
     for (const k of Object.keys(old.ratings) as (keyof typeof old.ratings)[]) old.ratings[k] = 4;
+    // The replacement is part of this scenario, rather than an accident of the preceding
+    // season's injuries/cuts. Coaching habits can legitimately change that season's path.
+    const candidate = generatePlayer(new Rng('camp-leg-candidate'), {
+      id: league.nextPlayerId++,
+      position: 'K',
+      quality: 6,
+      age: 25,
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
+    league.players[candidate.id] = candidate;
     const legs = freeAgents(league).filter((p) => p.position === 'K' && p.age < old.age && !p.injury);
     expect(Math.max(...legs.map(playerOvr)), 'a better free-agent kicker').toBeGreaterThan(playerOvr(old));
     aiTrainingCamp(league, team, new Rng('camp-leg'));

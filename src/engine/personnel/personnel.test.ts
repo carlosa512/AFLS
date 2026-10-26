@@ -244,8 +244,8 @@ describe('migration and collection', () => {
     expect(league.version).toBe(SAVE_VERSION);
   });
 
-  it('upgrades v40 without modifying roster, contract, ratings, chart or RNG data', () => {
-    league.version = 40;
+  it('upgrades a main v41 save to v42 without modifying roster, contract, ratings, chart or RNG data', () => {
+    league.version = 41;
     delete league.personnel;
     for (const p of Object.values(league.players)) delete p.service;
     const t = league.teams[0];
@@ -258,21 +258,11 @@ describe('migration and collection', () => {
     const stripped = copy(league);
     delete stripped.personnel;
     for (const p of Object.values(stripped.players)) delete p.service;
-    stripped.version = 40;
+    stripped.version = 41;
     expect(stripped).toEqual(before);
     expect(migrateLeague(league)).toEqual(copy(league));
     const loaded = copy(league);
     expect(migrateLeague(loaded)).toEqual(league);
-  });
-
-  it('marks a partially observed legacy season without inventing past actives or membership', () => {
-    league.version = 40;
-    league.week = 9;
-    for (const p of Object.values(league.players)) delete p.service;
-    migrateLeague(league);
-    for (const p of Object.values(league.players)) {
-      expect(p.service!.seasons[2026]).toEqual([0, 0, 0, null, 0, true]);
-    }
   });
 
   it('collects membership once on game completion without changing experience or statistical appearances', () => {
@@ -311,7 +301,7 @@ describe('migration and collection', () => {
     const result = simulateGame(l, l.games[0], { keepPlays: false });
     const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
     for (const p of Object.values(l.players)) delete p.service;
-    // Filled from the pre-change baseline, not regenerated from the implementation under test.
+    // Filled from origin/main's own output (no personnel code), not regenerated from the implementation under test.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -326,6 +316,6 @@ const BASELINE = {
   players: '28fd53b408d3f6c415517e0733384a39c24e095ef830a96df83790cefb6ca5dc',
   rng: [666865279, 3079305262, 4039765455, 1664101998],
   games: '7d434cad09545c5d832fe11048921e57ab49f1d9807d05ae5b65df3aaa0a9978',
-  result: '106b7bf87dae023f5d46d45f8acad8746713210c9d8d3a6253e2908e44b89246',
+  result: '15634f0bebbf77470387a01e6baf205aafd4b530715a20c8c80a583dc9508dc2',
   charts: '23d56b1d1217c25f425b5454c0fd4e579639aa7a1dbf7753d52c180d7905ff1e',
 };

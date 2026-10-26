@@ -1,3 +1,4 @@
+import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
 /**
  * Save upgrades. Each step takes a league saved by an older build and reshapes it in place,
  * so careers survive engine changes instead of being thrown away.
@@ -73,24 +74,19 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 39) league.version = 39; // v39: optional trade-news snapshots on newly filed SNN articles
   if (league.version < 40) league.version = 40; // v40: optional news table choice and trade edition labels
   if (league.version < 41) {
-    league.personnel = initialPersonnelState();
-    for (const p of Object.values(league.players)) {
-      const service = ensureService(p, league.season);
-      // Earlier membership in a mid-season legacy save was never recorded. Preserve that uncertainty.
-      if (
-        (league.phase === 'regular' && league.week > 1) ||
-        league.phase === 'playoffs' ||
-        league.phase === 'complete'
-      ) {
-        service.seasons[league.season] ??= [0, 0, 0, null, 0, true];
-      }
+    for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches ?? {})]) {
+      generateCoachQuirks(league.seed, c);
+      const p = c.playerId !== undefined ? league.players[c.playerId] : undefined;
+      if (p) inheritCoachQuirk(league.seed, c, p);
     }
     league.version = 41;
   }
-  if (league.version < 42) league.version = 42; // optional waiver/clock state, initialized only for enabled personnel
-  if (league.version < 43) league.version = 43; // optional squad agreements and payroll, lazy for enabled careers
-  if (league.version < 44) league.version = 44; // optional squad-return instructions on winning waiver claims
-  if (league.version < 45) league.version = 45; // optional call-up history and frozen game-day lists; never reconstruct old actives
+  if (league.version < 42) {
+    // Practice squads, waivers and call-ups stay off for existing careers; every player gets a service record.
+    league.personnel = initialPersonnelState();
+    for (const p of Object.values(league.players)) ensureService(p, league.season);
+    league.version = 42;
+  }
   return league;
 }
 

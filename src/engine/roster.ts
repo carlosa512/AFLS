@@ -1,7 +1,9 @@
+import { coachOrder } from './coachDecisions';
+import { teamCoaches } from './coaching';
 import { skill } from './attributes';
 import { slotOvr } from './familiarity';
 import { STARTERS } from './positions';
-import type { DepthChart, Injury, League, Player, PlayingAt, Position, Team } from './types';
+import type { Coach, DepthChart, Injury, League, Player, PlayingAt, Position, Team } from './types';
 import { POSITIONS } from './types';
 import type { RosterList } from './personnel/types';
 
@@ -50,6 +52,7 @@ export const isAvailable = (p: Player) => onGameRoster(p) && (!p.injury || playi
 export function buildAutoDepthChart(
   players: Player[],
   playingAt: Record<number, PlayingAt> = {},
+  staff: readonly Coach[] = [],
   elevated: ReadonlySet<number> = new Set(),
 ): DepthChart {
   const chart = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as Player[]])) as Record<Position, Player[]>;
@@ -57,7 +60,7 @@ export function buildAutoDepthChart(
   for (const p of players)
     if ((!p.squad || elevated.has(p.id)) && !p.retired) chart[playingAt[p.id]?.pos ?? p.position].push(p);
   const out = {} as DepthChart;
-  for (const pos of POSITIONS) out[pos] = chart[pos].sort((a, b) => slotOvr(b, pos) - slotOvr(a, pos)).map((p) => p.id);
+  for (const pos of POSITIONS) out[pos] = coachOrder(chart[pos], pos, staff).map((p) => p.id);
   out.OL = lineOrder(out.OL.map((id) => players.find((p) => p.id === id)!)).map((p) => p.id);
   return out;
 }
@@ -94,7 +97,7 @@ export function syncDepthChart(league: League, team: Team): void {
     }
   const at = team.playingAt ?? {};
   if (team.autoDepth) {
-    team.depthChart = buildAutoDepthChart(players, at);
+    team.depthChart = buildAutoDepthChart(players, at, teamCoaches(league, team.id));
     return;
   }
   const placed = new Set<number>();

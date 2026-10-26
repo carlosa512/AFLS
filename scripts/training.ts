@@ -14,7 +14,7 @@
  *   npm run training          # 3 seasons
  *   npm run training -- 5
  */
-import { coachingFor } from '../src/engine/coaching';
+import { coachingForPlayer } from '../src/engine/coaching';
 import { developPlayer, developWeek, playedShare, RELEASE, rollInputs, trueUp } from '../src/engine/development';
 import { createLeague } from '../src/engine/generate';
 import { gamesInWeek, playWeek } from '../src/engine/league';
@@ -114,7 +114,7 @@ const takeOnce = () => {
       clone,
       rollInputs({
         playedShare: playedShare(p, league.season),
-        ...coachingFor(league, p.teamId, p.position),
+        ...coachingForPlayer(league, p),
         bodyAs: bodyAs(p),
       }),
     );

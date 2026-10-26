@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createLeague, generatePlayer, SAVE_VERSION } from '../generate';
 import { Rng } from '../rng';
-import { activeRoster, practiceSquad } from '../roster';
+import { activeRoster, practiceSquad, syncDepthChart } from '../roster';
 import { capSpace, releasePlayer } from '../finance/cap';
 import { playGame, recordResult, startLiveGame } from '../league';
 import { simulateGame } from '../match/gameSim';
@@ -168,6 +168,7 @@ describe('temporary call-ups and durable history', () => {
     advancePersonnelTo(l, elevationReversion(g));
     expect(elevationUses(l, p)).toBe(3);
     nextGame(p, 5);
+    delete p.injury; // this test is about call-up history; injured squad players cannot be released
     releaseSquadPlayer(l, p);
     acceptSquadOffer(l, { teamId: g.homeId, playerId: p.id, weeklyPay: 13.75 });
     expect(elevationProblem(l, p, g)).toMatch(/re-sign/);
@@ -271,7 +272,7 @@ describe('temporary call-ups and durable history', () => {
   });
   it('migrates old careers without turning on personnel or inventing prior game-day lists', () => {
     const old = createLeague({ seed: 'elevation-migration' });
-    old.version = 44;
+    old.version = 41;
     const before = JSON.stringify(old.players);
     const m = migrateLeague(old)!;
     expect(m.version).toBe(SAVE_VERSION);
@@ -334,6 +335,7 @@ describe('frozen game-day lists and every match path', () => {
   });
   it('a selected squad QB plays with stats and service; its original depth chart and 53 never change', () => {
     const p = player('QB');
+    syncDepthChart(l, l.teams[g.homeId]); // the coach-ordered chart main keeps, before any game
     const chart = JSON.stringify(l.teams[g.homeId].depthChart);
     playWith(p);
     expect(g.result!.playerStats[p.id].snaps).toBeGreaterThan(0);
