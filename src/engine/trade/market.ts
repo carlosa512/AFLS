@@ -45,7 +45,7 @@ import { marketValue, salaryWeight } from './value';
 export type Moment = 'leagueYear' | 'faDay' | 'camp' | 'week' | 'deadline';
 
 /** How busy each moment is against an ordinary early-season week (weeks 7–8 run at twice it). */
-const MOMENT_ACTIVITY: Record<Moment, number> = { leagueYear: 2, faDay: 0.5, camp: 1.2, week: 0.35, deadline: 4.5 };
+const MOMENT_ACTIVITY: Record<Moment, number> = { leagueYear: 2, faDay: 0.5, camp: 1.2, week: 0.35, deadline: 5.5 };
 
 /** The one league-wide knob, tuned so the market lands on the NFL's volumes (`npm run trades`). */
 export const TRADE_VOLUME = 0.28;
