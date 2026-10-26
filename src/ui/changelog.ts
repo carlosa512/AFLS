@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.1.19',
+    date: '2026-10-26',
+    title: "Your director's recommendations",
+    text:
+      "The weekly market report is gone: SNN covers the league's trades. Instead your director of scouting writes " +
+      'four times a year with two to four moves for us: three weeks before the deadline and in deadline week (add ' +
+      'for a playoff push, sell when the season is slipping away, or one of each), when the league year opens and ' +
+      'when free agency does. Each pick says why, what it might cost, and opens the trade table or free agency.',
+  },
+  {
     version: '0.1.18',
     date: '2026-10-26',
     title: 'A quieter offseason inbox',

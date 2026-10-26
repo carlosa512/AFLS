@@ -154,6 +154,8 @@ export function migrateLeague(league: League): League | null {
   }
   // v50: optional `GmJobOffer.extension` and `InboxMessage.carousel`; an older save's GM was already extended.
   if (league.version < 50) league.version = 50;
+  // v51: optional `InboxMessage.advice`, the director's recommendations; filed market reports stay as they were.
+  if (league.version < 51) league.version = 51;
   return league;
 }
 

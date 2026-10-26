@@ -28,10 +28,16 @@ reporting explains the league. Delivery still happens after `store.mutate`; the 
   pick or a strong scouted player, and complete asset records. Public rumors use recorded shopping/interest only; completed moves and
   closed windows suppress stale rumors. The user's own deals keep their personal confirmation instead. When the
   seller has played and sits at .500 or worse, the story adds its record: "The Squall, 1–3, are selling."
-- SNN tells a trade's story; the director of scouting's market report says what it means for us, one note per
-  trade at most, the first that applies: a division rival bought; it prices one of ours at the position (on our
-  block, or in an offer made to us); we play the seller or the buyer within three weeks. A trade SNN already ran is
-  marked "(SNN ran the story)" and the report's opening says so, rather than retelling it.
+- SNN tells the league's trade stories. The director of scouting doesn't retell them: four times a year he
+  recommends two to four moves for us (`directorAdvice.ts`): three weeks before the deadline (week 6), in deadline
+  week, when the league year opens (other clubs' players whose deals have run out, and a trade target) and on free
+  agency's first day (the free agents our cap can carry). In season he leans from the playoff race: holding a seed or
+  within a game, add; two or three games out, one in and one out; further, sell (players clubs asked about first,
+  then veteran starters on expiring deals). Each pick is read through our scouts (knowledge 0.35 or more), comes from
+  what is public (a club the market shows selling, a shopping rumor; never a private trade block), and carries one
+  line on why, a ballpark ("likely a 4th", "asking about $6.2M a year") and a button that loads the trade table or
+  opens free agency. With nothing worth it, the in-season mail says "we hold" and the offseason one isn't filed.
+  The league office's only deadline notice is deadline day's.
 - Other clubs' in-season coaching and front-office changes reach the inbox as one SNN roundup per week ("Coaching
   changes: HOU, CIN"); a lone change stays its own story, and our own club's come from the owner.
 - Other clubs' offseason front-office changes (GMs let go, retired, hired or extended, hot-seat reporting, interim

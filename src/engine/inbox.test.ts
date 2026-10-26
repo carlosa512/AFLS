@@ -31,8 +31,6 @@ import {
   keyMatchups,
   mailForOffer,
   mailSubject,
-  marketRumors,
-  marketTrades,
   markAllRead,
   memberTitle,
   needsYou,
@@ -44,7 +42,6 @@ import {
   threads,
   unitReads,
   unreadCount,
-  marketMail,
   snnRan,
   tradeAngle,
   tradeRecordFor,
@@ -150,7 +147,7 @@ describe('inbox', () => {
       matchup: ['matchup', 'recap'],
       medical: ['injury', 'cleared'],
       awards: ['award'],
-      trades: ['trade', 'deadline', 'market', 'marketRecap'],
+      trades: ['trade', 'deadline', 'market', 'marketRecap', 'advice'],
       league: ['race', 'news', 'leadership'],
       staff: ['leadership', 'gmOffer', 'owner', 'rundown'],
     };
@@ -508,37 +505,34 @@ describe('mail through a season', () => {
     }
   });
 
-  it('reminds us of the trade deadline the week before, the week of and on deadline day, until it passes', () => {
-    const before = league.inbox!.find((m) => m.id === `deadline:${league.season}:1`)!;
-    const now = league.inbox!.find((m) => m.id === `deadline:${league.season}:0`)!;
+  it('marks deadline day only: the director’s mails carry the weeks before', () => {
+    expect(league.inbox!.filter((m) => m.id.startsWith('deadline:')).map((m) => m.id)).toEqual([
+      `deadline:${league.season}:day`,
+    ]);
     const day = league.inbox!.find((m) => m.id === `deadline:${league.season}:day`)!;
-    expect(before.week).toBe(TRADE_DEADLINE_WEEK - 1);
-    expect(now.week).toBe(TRADE_DEADLINE_WEEK);
     // Deadline day is the day after the deadline week: trades are still open.
     expect(day.week).toBe(TRADE_DEADLINE_WEEK + 1);
     expect(mailSubject(day)).toEqual({ kind: 'deadline', season: league.season, weeksLeft: 'day' });
     expect(day.body).toContain(`Once week ${TRADE_DEADLINE_WEEK + 1} is played`);
-    // Each briefing stays current until deadline day has gone by: the week-of reminder still does on deadline day.
-    for (const m of [now, day]) {
-      expect(needsAt.get(m.id)![0]).toBe(true);
-      expect(needsAt.get(m.id)!.at(-1)).toBe(false);
-    }
-    expect(needsAt.get(now.id)!.filter(Boolean)).toHaveLength(2);
+    expect(needsAt.get(day.id)![0]).toBe(true);
+    expect(needsAt.get(day.id)!.at(-1)).toBe(false);
   });
 
-  it("sends the director's market report weekly up to the deadline, then a recap once it has passed", () => {
-    const reports = league.inbox!.filter((m) => m.id.startsWith(`market:${league.season}:regular:`));
-    expect(reports.length).toBeGreaterThan(0);
-    for (const m of reports) {
-      const s = mailSubject(m)!;
-      if (s.kind !== 'market') throw new Error(m.id);
-      expect(s.week).toBeGreaterThanOrEqual(5);
-      expect(s.week).toBeLessThanOrEqual(TRADE_DEADLINE_WEEK);
-      // It reports what the market did the week before, never our own trades.
-      const trades = marketTrades(league, s.season, s.phase, s.week);
-      expect(trades.length + marketRumors(league, s.season, s.phase, s.week).length).toBeGreaterThan(0);
-      for (const t of trades) expect(t.teamIds).not.toContain(user);
+  it("sends the director's advice three weeks out and in deadline week instead of a market report, then a recap", () => {
+    expect(league.inbox!.some((m) => m.id.startsWith(`market:${league.season}:regular:`))).toBe(false);
+    for (const moment of ['w6', 'w9']) {
+      const m = league.inbox!.find((x) => x.id === `advice:${league.season}:${moment}`)!;
+      expect(mailSubject(m)).toEqual({ kind: 'advice', season: league.season, moment });
       expect(m.from).toContain('Director of scouting');
+      expect(m.week).toBe(moment === 'w6' ? TRADE_DEADLINE_WEEK - 3 : TRADE_DEADLINE_WEEK);
+      expect(m.advice!.rows.length).toBeLessThanOrEqual(4);
+      for (const r of m.advice!.rows) {
+        expect(r.why.length).toBeGreaterThan(0);
+        expect(r.price.length).toBeGreaterThan(0);
+        if (r.kind === 'buy') expect(r.teamId).not.toBe(user);
+        if (r.kind === 'sell') expect(r.teamId).toBe(user);
+      }
+      expect(needsYou(league, m)).toBe(false);
     }
     const recap = league.inbox!.find((m) => m.id === `market:${league.season}:recap`)!;
     expect(recap.week).toBeGreaterThan(TRADE_DEADLINE_WEEK + 1);
@@ -1270,26 +1264,6 @@ describe('the director’s read on a trade', () => {
     };
     l.inbox = [{ ...base, id: `press:${l.season}:4:trade:${tradeIdentity(r)}`, from: 'SNN', category: 'league' }];
     expect(snnRan(l, r)).toBe(true);
-    expect(marketMail(l, new Set())[0].body).toContain('SNN has already covered it');
-  });
-  it('keeps the notes the report was filed with, whatever happens afterwards', () => {
-    const { l, me, buyer, seller, record } = setup();
-    const r = record(buyer.id);
-    l.market!.history = [r];
-    l.transactions.push({
-      season: l.season,
-      phase: 'regular',
-      week: 4,
-      teamIds: [buyer.id, seller.id],
-      kind: 'trade',
-      text: 'x',
-    });
-    l.games.push({ id: l.nextGameId++, season: l.season, week: 6, homeId: me.id, awayId: seller.id } as Game);
-    const [m] = marketMail(l, new Set());
-    expect(m.marketNotes).toEqual([{ note: `We play the ${seller.name} in Week 6, without him.` }]);
-    l.games = [];
-    l.inbox = [{ ...m, read: false, id: `press:${l.season}:4:trade:${tradeIdentity(r)}` }];
-    expect(m.marketNotes).toEqual([{ note: `We play the ${seller.name} in Week 6, without him.` }]);
   });
   it('maps two deals between the same clubs in one week to their own records', () => {
     const { l, buyer, seller, record } = setup();

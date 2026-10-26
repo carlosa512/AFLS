@@ -98,6 +98,7 @@ import { allSeeds, PLAYOFF_ROUNDS, ROUND_NAMES } from '../engine/season/playoffs
 import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { statLine } from '../engine/stats';
 import type {
+  AdviceRow,
   Coach,
   DealKind,
   Game,
@@ -110,7 +111,7 @@ import type {
   Staff,
   Team,
 } from '../engine/types';
-import { stanceOf } from '../engine/trade';
+import { stanceOf, tradeWindow } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
 import { PlayerAvatar, PlayerLink, TeamChip, TeamLink, sortRows, SortTh, useSort } from './components';
@@ -120,6 +121,7 @@ import { InjuryTag } from './injuries';
 import { seenOvr } from './scouting';
 import { honorLine } from './screens/Stats';
 import { OfferCard } from './offers';
+import { tradeDesk, type DeskDraft } from './tradeDesk';
 import { GmLink } from './gm';
 import {
   familiarityTone,
@@ -200,6 +202,8 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <PoachedCards league={league} s={s} live={needsYou(league, message)} />;
     case 'carousel':
       return <CarouselCards league={league} s={s} />;
+    case 'advice':
+      return message.advice ? <AdviceCards league={league} rows={message.advice.rows} /> : null;
     case 'frontOffice':
       return message.carousel ? <FrontOfficeCards league={league} rows={message.carousel} /> : null;
     case 'faWrap':
@@ -266,7 +270,82 @@ function TradeNewsCards({ league, report }: { league: League; report: NonNullabl
   );
 }
 
-/** The standings and statistical evidence as they were when the headline was filed. */
+/**
+ * The trade table a pick opens on, or null once the player has moved on from where the director found him: a buy
+ * asks their club for him, a sale offers him to the club that asked (else a buyer).
+ */
+export function adviceDraft(league: League, row: AdviceRow): DeskDraft | null {
+  const p = league.players[row.playerId];
+  if (!p || p.retired || row.kind === 'sign' || p.teamId !== row.teamId || tradeWindow(league)) return null;
+  const none = { players: [], picks: [] };
+  if (row.kind === 'buy') return { partnerId: row.teamId!, mine: none, theirs: { players: [p.id], picks: [] } };
+  if (row.partnerId === undefined) return null;
+  return { partnerId: row.partnerId, mine: { players: [p.id], picks: [] }, theirs: none };
+}
+
+const ADVICE_TITLES: Record<AdviceRow['kind'], string> = { buy: 'To add', sell: 'To move', sign: 'To sign' };
+
+/** The director's picks: who, why, his ballpark, and the button that starts the move. */
+function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
+  const nav = useNav();
+  const kinds = (['buy', 'sell', 'sign'] as const).filter((k) => rows.some((r) => r.kind === k));
+  return (
+    <>
+      {kinds.map((kind) => (
+        <Card key={kind} title={ADVICE_TITLES[kind]}>
+          <div className="table-scroll">
+            <table className="mail-table">
+              <tbody>
+                {rows
+                  .filter((r) => r.kind === kind)
+                  .map((r) => {
+                    const p = league.players[r.playerId];
+                    const draft = adviceDraft(league, r);
+                    const free = r.kind === 'sign' && p && p.teamId === null && !p.retired;
+                    return (
+                      <tr key={r.playerId}>
+                        <td>
+                          <span className="small muted">{r.position} </span>
+                          {p ? <PlayerLink league={league} player={p} pos={false} /> : r.name}
+                          <div className="small muted">
+                            {r.teamId === null ? 'Free agent' : <TeamLink team={league.teams[r.teamId]} />}
+                          </div>
+                        </td>
+                        <td>{r.why}</td>
+                        <td className="num">{r.price}</td>
+                        <td>
+                          {draft && (
+                            <button
+                              className="btn btn-sm"
+                              onClick={() => {
+                                tradeDesk.put(draft);
+                                nav.go({ view: 'office', tab: 'trades', sub: 'table' });
+                              }}
+                            >
+                              Open talks
+                            </button>
+                          )}
+                          {free && (
+                            <button
+                              className="btn btn-sm"
+                              onClick={() => nav.go({ view: 'office', tab: 'fa', pos: r.position })}
+                            >
+                              Free agency
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ))}
+    </>
+  );
+}
+
 const FRONT_OFFICE_GROUPS: [NonNullable<InboxMessage['carousel']>[number]['group'], string][] = [
   ['out', 'Out'],
   ['hired', 'Hired'],
@@ -308,6 +387,7 @@ function FrontOfficeCards({ league, rows }: { league: League; rows: NonNullable<
   );
 }
 
+/** The standings and statistical evidence as they were when the headline was filed. */
 function LeagueNewsCards({ league, report }: { league: League; report: NonNullable<InboxMessage['leagueReport']> }) {
   const view = report.table ?? 'division';
   if (view === 'division')

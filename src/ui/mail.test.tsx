@@ -8,12 +8,12 @@ import { playWeek } from '../engine/league';
 import { answerEnquiry, openOffers } from '../engine/trade';
 import { talksOf } from '../engine/trade/talks';
 import { dealAdvice } from '../engine/trade/advice';
-import type { Game, InboxMessage, League, TradeOffer } from '../engine/types';
+import type { AdviceRow, Game, InboxMessage, League, TradeOffer } from '../engine/types';
 import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
 import { aboutOf, clubOf, Folded, MessageBody, sender, SenderAvatar } from './screens/Inbox';
 import { badgeOn, contrast } from './color';
-import { MailCards, weekBack, weeksMissed } from './mail';
+import { adviceDraft, MailCards, weekBack, weeksMissed } from './mail';
 
 // Fallbacks, tried in order until one has what a test needs: an opening league that commits as a settled one does
 // files fewer swap offers to you (none of trades-0..9 had one with players both ways by week 9 once rentals for
@@ -336,7 +336,7 @@ describe('the opposition report', () => {
 describe('current briefings without a task badge', () => {
   it('keeps the deadline card live until trading closes', () => {
     const league = createLeague({ seed: 'deadline-briefing' });
-    league.week = 8;
+    league.week = 10; // deadline day: the league office's only deadline notice
     deliverMail(league);
     const message = league.inbox!.find((m) => m.id.startsWith('deadline:'))!;
     expect(message).toBeDefined();
@@ -636,4 +636,75 @@ describe('outlet badges', () => {
     ['Your players', 'PLY'],
   ])('draws %s as %s', (from, badge) => expect(sender(from).initials).toBe(badge));
   it('keeps people’s initials', () => expect(sender('Nick Holland, Director of scouting').initials).toBe('NH'));
+});
+
+describe('the director’s advice card', () => {
+  const l = createLeague({ seed: 'advice-card' });
+  const theirs = Object.values(l.players).find((p) => p.teamId !== null && p.teamId !== l.userTeamId)!;
+  const ours = Object.values(l.players).filter((p) => p.teamId === l.userTeamId);
+  const buy = {
+    kind: 'buy' as const,
+    playerId: theirs.id,
+    teamId: theirs.teamId,
+    name: `${theirs.firstName} ${theirs.lastName}`,
+    position: theirs.position,
+    why: 'A starter at our weakest spot.',
+    price: 'likely a 4th',
+  };
+  const sell = {
+    kind: 'sell' as const,
+    playerId: ours[0].id,
+    teamId: l.userTeamId,
+    name: `${ours[0].firstName} ${ours[0].lastName}`,
+    position: ours[0].position,
+    why: 'Two clubs have asked about him.',
+    price: 'likely a 6th',
+    partnerId: theirs.teamId!,
+  };
+  const message = (rows: AdviceRow[]): InboxMessage => ({
+    id: `advice:${l.season}:w6`,
+    season: l.season,
+    phase: 'regular',
+    week: 6,
+    from: 'Scouting department',
+    category: 'trades',
+    subject: 's',
+    body: 'b',
+    read: false,
+    actions: [],
+    advice: { lean: 'targeted', rows },
+  });
+  it('shows each pick with its reason, ballpark and button', () => {
+    const html = renderToStaticMarkup(<MailCards league={l} message={message([buy, sell])} />);
+    expect(html).toContain(theirs.lastName);
+    expect(html).toContain('A starter at our weakest spot.');
+    expect(html).toContain('likely a 4th');
+    expect(html).toContain('To add');
+    expect(html).toContain('To move');
+    expect(html.match(/Open talks/g)).toHaveLength(2);
+  });
+  it('drops the button, not the row, once a player has moved on', () => {
+    const moved = { ...buy, teamId: (theirs.teamId! + 1) % 32 };
+    const html = renderToStaticMarkup(<MailCards league={l} message={message([moved])} />);
+    expect(html).toContain(theirs.lastName);
+    expect(html).not.toContain('Open talks');
+    expect(adviceDraft(l, moved)).toBeNull();
+  });
+  it('drops the talks button once the trade window has closed', () => {
+    const closed = createLeague({ seed: 'advice-card' });
+    closed.phase = 'complete';
+    expect(adviceDraft(closed, buy)).toBeNull();
+  });
+  it('loads the trade table with the pick', () => {
+    expect(adviceDraft(l, buy)).toEqual({
+      partnerId: theirs.teamId,
+      mine: { players: [], picks: [] },
+      theirs: { players: [theirs.id], picks: [] },
+    });
+    expect(adviceDraft(l, sell)).toEqual({
+      partnerId: theirs.teamId,
+      mine: { players: [ours[0].id], picks: [] },
+      theirs: { players: [], picks: [] },
+    });
+  });
 });

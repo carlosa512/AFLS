@@ -977,6 +977,21 @@ export interface LeadershipEvent {
   privateText?: string;
 }
 
+/** One of the director's recommendations, as it read when filed. */
+export interface AdviceRow {
+  kind: 'buy' | 'sell' | 'sign';
+  playerId: number;
+  /** His club when filed; null for a free agent. */
+  teamId: number | null;
+  name: string;
+  position: Position;
+  why: string;
+  /** The director's ballpark: "likely a 4th", "about $8.5M a year". */
+  price: string;
+  /** For a sale: the club to open talks with (it asked about him, or it's buying). */
+  partnerId?: number;
+}
+
 export interface CarouselRow {
   group: 'out' | 'hired' | 'extended' | 'hotSeat' | 'coaches';
   teamId: number;
@@ -1138,6 +1153,8 @@ export interface InboxMessage {
   rundown?: { offenseRank: number; defenseRank: number; offense: number[]; defense: number[]; prospects: number[] };
   /** The director's market report: per trade (in `marketTrades` order), his note on what it means for us and whether SNN ran it, as filed. */
   marketNotes?: { note?: string; snn?: true }[];
+  /** The director's recommendations, as they read when filed (`directorAdvice.ts`). */
+  advice?: { lean?: 'buy' | 'targeted' | 'sell'; rows: AdviceRow[] };
   /** SNN's offseason front-office digest, as it read when filed: one row per change around the league. */
   carousel?: CarouselRow[];
   tradeReport?: {
