@@ -77,7 +77,7 @@ import type { CapRun } from './offseason-league';
 
 const seasons = Number(process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seed') ?? 3);
 const SEED = process.argv.includes('--seed') ? process.argv[process.argv.indexOf('--seed') + 1] : 'offseason-audit';
-const league = createLeague({ seed: SEED });
+const league = createLeague({ seed: SEED, personnel: true });
 
 /**
  * More leagues for the cap-space drift check, each in its own process while this one plays: one league's median is
