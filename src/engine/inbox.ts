@@ -70,6 +70,7 @@ import { knowledge, leaguePercentile, perceive, scoutReportParts } from './scout
 import { POSITION_NAMES } from './positions';
 import { activeRoster, chooseCover, practiceSquad, starters, teamPlayers, isAvailable, slotOf } from './roster';
 import { futuresKept, futuresWindowOpen } from './personnel/futures';
+import { elevationUses } from './personnel/elevations';
 import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { ROUND_NAMES } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
@@ -144,6 +145,79 @@ function doctor(league: League): Sender {
   return m
     ? { from: `${m.firstName} ${m.lastName}, Head team doctor`, fromCard: { kind: 'medic', id: m.id } }
     : { from: 'Medical staff' };
+}
+
+/** Waivers that concern you: a claim you made, won or lost, and a player you released, claimed or cleared. */
+function waiverMail(league: League, have: Set<string>): Draft[] {
+  const user = league.userTeamId;
+  const out: Draft[] = [];
+  for (const r of league.personnel?.waivers?.results ?? []) {
+    if (r.season !== league.season) continue;
+    const p = league.players[r.playerId];
+    if (!p) continue;
+    const won = r.toTeamId === user && r.fromTeamId !== user;
+    if (won || r.userReason) {
+      const id = `waiverClaim:${r.season}:${r.entryId}`;
+      if (have.has(id)) continue;
+      out.push({
+        id,
+        season: r.season,
+        phase: league.phase,
+        week: league.week,
+        ...director(league),
+        category: 'contracts',
+        subject: won ? `We claimed ${fullName(p)}` : `Our claim for ${fullName(p)} didn't win`,
+        body: won
+          ? `${fullName(p)} is ours off waivers from the ${league.teams[r.fromTeamId].name}, on the contract he already had.`
+          : `${r.userReason} ${fullName(p)} ${r.toTeamId === null ? 'cleared waivers and is a free agent.' : `went to the ${league.teams[r.toTeamId].name}.`}`,
+        actions: [{ kind: 'player', playerId: p.id }],
+      });
+    } else if (r.fromTeamId === user) {
+      const id = `waiverOut:${r.season}:${r.entryId}`;
+      if (have.has(id)) continue;
+      out.push({
+        id,
+        season: r.season,
+        phase: league.phase,
+        week: league.week,
+        ...director(league),
+        category: 'contracts',
+        subject:
+          r.toTeamId === null
+            ? `${fullName(p)} cleared waivers`
+            : `${fullName(p)} was claimed by the ${league.teams[r.toTeamId].name}`,
+        body:
+          r.toTeamId === null
+            ? `Nobody claimed ${fullName(p)}, so he's a free agent and his release is booked to our cap.`
+            : `The ${league.teams[r.toTeamId].city} ${league.teams[r.toTeamId].name} claimed ${fullName(p)} and take on his contract.`,
+        actions: [{ kind: 'player', playerId: p.id }],
+      });
+    }
+  }
+  return out;
+}
+
+/** A squad player of ours has used his third regular-season call-up: he needs a contract to play again. */
+function callupsUsedMail(league: League, have: Set<string>): Draft[] {
+  const user = league.userTeamId;
+  const out: Draft[] = [];
+  for (const p of practiceSquad(league, user)) {
+    if (elevationUses(league, p, user) < 3) continue;
+    const id = `callups:${league.season}:${p.id}`;
+    if (have.has(id)) continue;
+    out.push({
+      id,
+      season: league.season,
+      phase: league.phase,
+      week: league.week,
+      ...headCoach(league),
+      category: 'contracts',
+      subject: `${fullName(p)} has used his three call-ups`,
+      body: `That was ${fullName(p)}'s third regular-season call-up. To play him again this season we'd need to sign him to a contract on the 53.`,
+      actions: [{ kind: 'player', playerId: p.id }],
+    });
+  }
+  return out;
 }
 
 /** Our season is over: the scouts' futures picks, kept by staff unless you change them. Once a season. */
@@ -695,6 +769,9 @@ export type MailSubject =
   | { kind: 'shortHanded'; season: number; week: number; pos: Position }
   | { kind: 'squadPoach'; season: number; week: number; playerId: number }
   | { kind: 'futures'; season: number }
+  | { kind: 'waiverClaim'; season: number; entryId: number }
+  | { kind: 'waiverOut'; season: number; entryId: number }
+  | { kind: 'callups'; season: number; playerId: number }
   | { kind: 'futuresKept'; season: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
@@ -780,6 +857,12 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'covering', season, week: Number(a), playerId: Number(b), pos: rest[0] as Position };
     case 'short':
       return { kind: 'shortHanded', season, week: Number(a), pos: b as Position };
+    case 'waiverClaim':
+      return { kind: 'waiverClaim', season, entryId: Number(a) };
+    case 'waiverOut':
+      return { kind: 'waiverOut', season, entryId: Number(a) };
+    case 'callups':
+      return { kind: 'callups', season, playerId: Number(a) };
     case 'futures':
       return { kind: 'futures', season };
     case 'futuresKept':
@@ -2252,6 +2335,9 @@ export function deliverMail(league: League): void {
         ...futuresKeptMail(league, have),
       );
     if (league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...futuresMail(league, have));
+    if (league.phase === 'preseason' || league.phase === 'regular' || league.phase === 'playoffs')
+      fresh.push(...waiverMail(league, have));
+    if (league.phase === 'regular') fresh.push(...callupsUsedMail(league, have));
     // Free agency's first day: the window's coaching moves are done.
     if (league.phase === 'freeAgency')
       fresh.push(...combineMail(league, have), ...poachedMail(league, have), ...carouselMail(league, have));
