@@ -261,7 +261,7 @@ Same seed, ten seasons each (A / B): GM dismissals 3.9 / 3.9 a year (NFL about f
 5 of 34 and 8 of 40 permanent hires. The player was fired twice in each run and always received at least one offer
 (A: 2 and 1; B: 2, then 2): A after an 0–8 start in 2031, in season, and again at Baltimore after 4–13, 6–11, 4–13;
 B after a 5–12 at Carolina in 2033 following three winning-or-.500 seasons. The six-season offseason audit stays
-inside every band (5.7 new head coaches a season against 4.5–9.5).
+inside every band (6.7 new head coaches a season against 4.5–9.5; the NFL averages 7).
 
 `npm run screens -- --save <save.json> --out <dir>` loads a save into the real app in headless Chromium and
 captures the home, GM directory and cards, inbox, coaches, roster, cap, standings and phone layouts.
