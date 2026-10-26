@@ -128,6 +128,14 @@ const CHECKS = {
     secs: 40,
     summary: /\d+ personnel invariant failures/,
   },
+  // Practice squad poaching: legal every week, and how often it happens (docs/PRACTICE_SQUADS.md).
+  poaching: {
+    cmd: ['npm', 'run', 'poaching', '--', '2'],
+    cores: 1,
+    secs: 180,
+    summary: /\d+ poaching number\(s\) outside target range/,
+    detail: /✗/,
+  },
 } satisfies Record<string, Check>;
 
 type Name = keyof typeof CHECKS;
@@ -143,8 +151,8 @@ const NAMES = Object.keys(CHECKS) as Name[];
  */
 const RULES: [RegExp, Name[]][] = [
   [
-    /^src\/engine\/(personnel\/|roster\.ts|finance\/|offseason\/|league\.ts|trade\/)|^scripts\/(waivers|squads)\.ts$/,
-    ['waivers', 'squads'],
+    /^src\/engine\/(personnel\/|roster\.ts|finance\/|offseason\/|league\.ts|trade\/|injuries\.ts)|^scripts\/(waivers|squads|poaching)\.ts$/,
+    ['waivers', 'squads', 'poaching'],
   ],
   // Every change is formatted, whatever it touches (Prettier skips what .prettierignore lists).
   [/./, ['format']],

@@ -52,6 +52,7 @@ import {
   signMinimum,
 } from './offseason/ai';
 import { ROSTER_MAX, signPlayer } from './offseason/negotiation';
+import { aiPoachCover, heldForPoaching } from './personnel/poaching';
 import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
 import { clamp, Rng } from './rng';
@@ -1571,9 +1572,11 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     const healthy = new Map<Position, number>();
     for (const p of current)
       if (isAvailable(p)) healthy.set(slotOf(league, p), (healthy.get(slotOf(league, p)) ?? 0) + 1);
-    const short = POSITIONS.filter((pos) => !stuck.has(pos) && (healthy.get(pos) ?? 0) < NEED[pos]).sort(
-      (a, b) => (healthy.get(a) ?? 0) / NEED[a] - (healthy.get(b) ?? 0) / NEED[b],
-    )[0];
+    // Practice squads on: a poaching offer waiting for the settle holds its place and covers its position.
+    const held = heldForPoaching(league, team.id);
+    const short = POSITIONS.filter(
+      (pos) => !stuck.has(pos) && !held.positions.has(pos) && (healthy.get(pos) ?? 0) < NEED[pos],
+    ).sort((a, b) => (healthy.get(a) ?? 0) / NEED[a] - (healthy.get(b) ?? 0) / NEED[b])[0];
     if (short) {
       const cover = chooseCover(league, team, short, NEED);
       if (cover) {
@@ -1586,7 +1589,7 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
       stuck.add(short);
       continue;
     }
-    const open = current.length < ROSTER_MAX;
+    const open = current.length + held.places < ROSTER_MAX;
     if (!short && !open) return;
     // Room on the roster and nobody short: fill the spot where depth is thinnest against a full roster.
     const pos =
@@ -1600,6 +1603,7 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     const budget = Math.min(room, inSeasonReserve(league, team.id));
     // Priced once: a cut to make room sends a man at another position to the market, not one this pick weighs.
     const pick = needSigning(league, team, pos, budget);
+    if (open && aiPoachCover(league, team.id, pos, pick?.player)) continue;
     if (!pick && !minimumFits(league, pos, room)) return;
     if (!open && !cutForRoom(league, team, pos)) return;
     if (pick) {

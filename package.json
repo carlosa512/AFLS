@@ -30,6 +30,7 @@
     "squads": "tsx scripts/squads.ts",
     "squad-careers": "tsx scripts/squad-careers.ts",
     "elevations": "tsx scripts/elevations.ts",
+    "poaching": "tsx scripts/poaching.ts",
     "gm:playthrough": "tsx scripts/gm-playthrough.ts",
     "gm:ten-years": "tsx scripts/gm-ten-years.ts",
     "screens": "tsx scripts/screens.ts",

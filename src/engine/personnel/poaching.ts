@@ -2,9 +2,13 @@ import { capSpace, logTransaction } from '../finance/cap';
 import { capHit } from '../finance/contract';
 import { minSalary } from '../finance/market';
 import { freeJersey } from '../generate';
-import { activeRoster, practiceSquad, syncDepthChart, teamPlayers } from '../roster';
+import { inSeasonReserve } from '../offseason/ai';
+import { freeAgents } from '../offseason/negotiation';
+import { STARTERS } from '../positions';
+import { activeRoster, isAvailable, practiceSquad, syncDepthChart, teamPlayers } from '../roster';
 import { perceive } from '../scouting';
-import type { Contract, League, Player } from '../types';
+import type { Contract, League, Player, Position } from '../types';
+import { POSITIONS } from '../types';
 import {
   cancelPlannedElevations,
   elevationRecords,
@@ -193,5 +197,78 @@ export function resolvePoaching(league: League): PoachResult[] {
   return results;
 }
 
-/** AI clubs' offers for the week (Task 3). */
-export function submitAIPoachOffers(_league: League, _autoUser = false): void {}
+/** Another club's squad player must read this much better than the cover a club could otherwise sign. */
+const POACH_MARGIN = 1;
+
+/** Waiting offers hold places on the club's 53 and the positions they'll fill until the settle. */
+export function heldForPoaching(league: League, teamId: number): { places: number; positions: Set<Position> } {
+  const offers = league.personnel?.poaching?.offers.filter((o) => o.teamId === teamId) ?? [];
+  return { places: offers.length, positions: new Set(offers.map((o) => league.players[o.playerId].position)) };
+}
+
+/** The best unprotected squad player elsewhere at `pos`, by this club's read, beating `bar` and affordable. */
+function bestPoach(league: League, teamId: number, pos: Position, bar: number): PoachOffer | undefined {
+  const read = (p: Player) => perceive(league, teamId, p).ovr;
+  let best: { offer: PoachOffer; ovr: number } | undefined;
+  for (const t of league.teams) {
+    if (t.id === teamId) continue;
+    const shield = shielded(league, t.id);
+    for (const p of practiceSquad(league, t.id)) {
+      if (p.position !== pos || p.injury || shield.includes(p.id)) continue;
+      const ovr = read(p);
+      if (ovr < bar + POACH_MARGIN || (best && (ovr < best.ovr || (ovr === best.ovr && p.id > best.offer.playerId))))
+        continue;
+      const offer: PoachOffer = { playerId: p.id, teamId, years: 1 };
+      if (poachProblem(league, offer)) continue;
+      if (
+        capSpace(league, teamId) - capHit(poachContract(league, p, 1), league.season) <
+        inSeasonReserve(league, teamId)
+      )
+        continue;
+      best = { offer, ovr };
+    }
+  }
+  return best?.offer;
+}
+
+/**
+ * AI injury cover with practice squads on: where a club would sign a free agent, another club's unprotected squad
+ * player who reads a point better is the call instead. His place on the 53 waits for the week's settle. One offer
+ * a club a week; never a cut to make room.
+ */
+export function aiPoachCover(league: League, teamId: number, pos: Position, freeAgent?: Player): boolean {
+  if (!league.personnel?.enabled || league.phase !== 'regular') return false;
+  const state = ensurePoaching(league);
+  if (state.offers.some((o) => o.teamId === teamId)) return false;
+  if (activeRoster(league, teamId).length >= 53) return false;
+  const offer = bestPoach(league, teamId, pos, freeAgent ? perceive(league, teamId, freeAgent).ovr : 0);
+  if (offer) state.offers.push(offer);
+  return !!offer;
+}
+
+/**
+ * At the settle, the same call for a club still short at a position: the best squad player elsewhere must beat its
+ * best healthy option there and the best free agent by a point.
+ */
+export function submitAIPoachOffers(league: League, autoUser = false): void {
+  if (league.phase !== 'regular') return;
+  const state = ensurePoaching(league);
+  const market = freeAgents(league);
+  for (const team of [...league.teams].sort((a, b) => a.id - b.id)) {
+    if (team.id === league.userTeamId && !autoUser) continue;
+    if (state.offers.some((o) => o.teamId === team.id)) continue;
+    const roster = activeRoster(league, team.id);
+    if (roster.length >= 53) continue;
+    const read = (p: Player) => perceive(league, team.id, p).ovr;
+    for (const pos of POSITIONS) {
+      const healthy = roster.filter((p) => p.position === pos && isAvailable(p));
+      if (healthy.length >= (pos === 'QB' ? 2 : STARTERS[pos])) continue;
+      const bar = Math.max(0, ...healthy.map(read), ...market.filter((f) => f.position === pos).map(read));
+      const offer = bestPoach(league, team.id, pos, bar);
+      if (offer) {
+        state.offers.push(offer);
+        break;
+      }
+    }
+  }
+}
