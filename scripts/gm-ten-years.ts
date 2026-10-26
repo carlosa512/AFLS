@@ -87,6 +87,8 @@ if (args.includes('--worker')) {
       hadFired = true;
     }
     writeFileSync(resolve(output, `review-${label}-${season}.json`), JSON.stringify(l));
+    // Jobs on the table at the first hiring round while the player is out of work (the policy takes the first).
+    const offersWhileOut = l.gms[userId].teamId === null ? (l.leadership.search?.offers.length ?? 0) : null;
     for (let r = 0; r < 3; r++) advanceGmHiringRound(l, { autoUser: true });
     deliverMail(l);
     const events = l.leadership.events.slice(eventStart);
@@ -108,6 +110,10 @@ if (args.includes('--worker')) {
           l.gms[e.gmId].origin === 'director' &&
           l.gms[e.gmId].appointments.length === 1,
       ).length,
+      experiencedGms: events.filter(
+        (e) => e.kind === 'gmHired' && e.gmId && e.gmId !== userId && l.gms[e.gmId].appointments.length > 1,
+      ).length,
+      offersWhileOut,
       champion: l.teams[summary.championId].abbrev,
       kickoff,
     };

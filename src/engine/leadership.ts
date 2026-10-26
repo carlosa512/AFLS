@@ -5,7 +5,6 @@ import {
   chairHolder,
   coachMandate,
   coachName,
-  hotSeat,
   installInterimHeadCoach,
   ownerDismissHeadCoach,
   ownerTrigger,
@@ -16,6 +15,7 @@ import {
 import { managesTeam } from './employment';
 import { logTransaction } from './finance/cap';
 import { appointDirectorAsGm, appointGm, careerDate, endGmAppointment, makeGmPermanent, teamGm } from './gm';
+import { drawInSeason, drawOffseason, heatSoFar, ownerBag, seasonHeat, talentRanks } from './ownerBag';
 import { gmRecord } from './records';
 import { clamp, Rng } from './rng';
 import { computeRecords } from './season/standings';
@@ -52,30 +52,6 @@ export function leadershipEvent(l: League, event: Omit<LeadershipEvent, 'id' | '
   if (!['warning', 'coachChange'].includes(e.kind))
     logTransaction(l, e.kind.startsWith('gm') ? 'gm' : 'coach', [e.teamId], e.report);
   return e;
-}
-
-/** Losing rebuilds receive two complete seasons. Improvement, playoff trips and fresh hires buy time. */
-export function gmDismissalChance(l: League, teamId: number): number {
-  const gm = teamGm(l, teamId);
-  if (!gm) return 0;
-  const a = gm.appointments.at(-1)!;
-  const tenure = l.season - a.start.season + (a.priorSeasons ?? 0);
-  if (tenure < 3 || a.interim) return 0;
-  const rows = l.history
-    .filter((h) => h.season >= Math.max(a.start.season, l.season - 3) && h.season < l.season)
-    .sort((a, b) => a.season - b.season);
-  const last = rows.at(-1);
-  if (!last) return 0;
-  const rec = last.records[teamId];
-  if (!rec || pct(rec) >= 0.56 || last.playoffs?.[teamId]) return 0;
-  const avg = rows.reduce((s, h) => s + pct(h.records[teamId]), 0) / rows.length;
-  const prior = rows.at(-2)?.records[teamId];
-  const improving = prior && rec.w >= prior.w + 3;
-  let chance = avg < 0.3 ? 0.7 : avg < 0.4 ? 0.48 : avg < 0.48 ? 0.28 : tenure >= 5 ? 0.14 : 0.04;
-  if (improving) chance *= 0.3;
-  if (rec.w <= 3) chance += 0.12;
-  if (rows.some((h) => h.playoffs?.[teamId])) chance *= 0.45;
-  return clamp(chance * ownerTrigger(l, teamId), 0, 0.88);
 }
 
 function dismissGm(l: League, t: Team, why: string) {
@@ -125,9 +101,10 @@ function recordHire(l: League, t: Team, gm: GeneralManager) {
     });
 }
 
-/** Offseason decisions are made together before staffing or searches. No GM receives a second hot-seat roll. */
+/** Offseason decisions are made together before staffing or searches: one draw from each owner's bag (`ownerBag.ts`). */
 export function leadershipNewYear(l: League): void {
   if (l.phase !== 'resign') throw new Error('Leadership reviews open in the re-sign window.');
+  let ranks: Map<number, number> | undefined;
   for (const t of l.teams) {
     if (t.leadershipReview?.season === l.season) continue;
     const gm = teamGm(l, t.id);
@@ -171,10 +148,21 @@ export function leadershipNewYear(l: League): void {
       });
       continue;
     }
-    const chance = gmDismissalChance(l, t.id);
-    const rec = l.history.find((h) => h.season === l.season - 1)?.records[t.id];
-    if (rng.chance(chance)) {
-      const keepCoach = hc && (coachMandate(l, hc) || leadershipCoachTenure(l, hc) < 2 || rng.chance(0.35));
+    const bag = ownerBag(l, t, (ranks ??= talentRanks(l)));
+    const last = l.history.find((h) => h.season === l.season - 1);
+    const rec = last?.records[t.id];
+    const tenure = l.season - a.start.season + (a.priorSeasons ?? 0);
+    // New GMs get two complete seasons: until then the owner reviews only the head coach, and spends no patience on the GM.
+    const gmProtected = tenure < 3;
+    // A playoff trip buys a year. Otherwise a worse season gets a harder look, and a GM whose deal is up one more.
+    const heat = rec && !last?.playoffs?.[t.id] ? seasonHeat(rec) : 0;
+    const draws = heat ? heat + (a.through < l.season ? 1 : 0) : 0;
+    const drawn = drawOffseason(gmProtected ? { ...bag, gm: 0 } : bag, draws, rng);
+    const coachGoes = drawn.coach && !!hc && canOwnerDismissHeadCoach(l, t.id) && leadershipCoachTenure(l, hc) >= 1;
+    if (drawn.gm && !gmProtected) {
+      // The coach goes too when his own marble came out; otherwise a new GM usually inherits him.
+      const keepCoach =
+        hc && (coachMandate(l, hc) || (!coachGoes && (leadershipCoachTenure(l, hc) < 2 || rng.chance(0.6))));
       review.outcome = keepCoach ? 'gmChange' : 'bothChange';
       review.reason = keepCoach
         ? 'The owner is changing the front office and keeping the head coach for this season.'
@@ -189,12 +177,7 @@ export function leadershipNewYear(l: League): void {
       else if (hc) ownerDismissHeadCoach(l, t.id);
       dismissGm(l, t, review.reason);
     } else {
-      const tenure = l.season - a.start.season + (a.priorSeasons ?? 0);
-      const hcChance =
-        hc && rec && canOwnerDismissHeadCoach(l, t.id)
-          ? ownerTrigger(l, t.id) * hotSeat(rec, leadershipCoachTenure(l, hc))
-          : 0;
-      if (hc && rng.chance(hcChance)) {
+      if (hc && coachGoes) {
         review.outcome = 'coachChange';
         review.reason = 'The owner is retaining you but requires a different head coach before free agency.';
         leadershipEvent(l, {
@@ -308,9 +291,10 @@ function additionalOffers(l: League): void {
   for (const t of rng.shuffle(vacancies(l))) {
     if (search.offers.length >= 3) break;
     if (search.offers.some((o) => o.teamId === t.id) || justLeft(l, user, t.id)) continue;
+    // One job is already guaranteed (`beginGmSearch`); a second usually follows, more often for a better record.
     const interest = clamp(
       0.1 + 0.85 * (gmCandidateScore(l, t.id, user) - 0.25) - 0.15 * gmJobAppeal(l, t.id),
-      0.04,
+      0.3,
       0.8,
     );
     if (rng.chance(interest)) search.offers.push(jobOffer(l, t.id));
@@ -428,7 +412,10 @@ function hireForTeam(l: League, t: Team, rng: Rng): void {
     .filter((s) => s.role === 'director')
     .map((s) => ({ s, score: 0.33 + 0.018 * staffValue(s) + (s.teamId === t.id ? 0.05 : 0) + rng.normal(0, 0.14) }))
     .sort((a, b) => b.score - a.score);
-  if (former && (!directors.length || former.score > directors[0].score)) {
+  // About one new GM in seven is a former GM getting another chance (NFL hires 2020–2025): owners mostly give new
+  // blood a shot. Comparing one former GM against the best of every director in the league never let him win.
+  const retread = former && (!directors.length || rng.chance(clamp(0.08 + 0.5 * (former.score - 0.3), 0.04, 0.35)));
+  if (retread) {
     appointGm(l, t.id, former.g.id, { through: l.season + 2 });
     recordHire(l, t, former.g);
   } else {
@@ -473,10 +460,27 @@ export function enforceCoachChanges(l: League, autoUser: boolean): void {
   }
 }
 
-/** Reviews occur between completed weeks. At most one GM and one HC decision per club per season. */
+/** The club's latest finished game this season was a loss. */
+function lostLast(l: League, teamId: number): boolean {
+  const g = l.games
+    .filter((g) => g.season === l.season && g.result && (g.homeId === teamId || g.awayId === teamId))
+    .sort((a, b) => b.week - a.week)[0];
+  if (!g?.result) return false;
+  const { homeScore, awayScore } = g.result;
+  return g.homeId === teamId ? homeScore < awayScore : awayScore < homeScore;
+}
+
+/** How often an owner on a lost season reaches into the bag after a loss: tuned so the league fires about one GM in season a year. */
+const OWNER_REACH = 0.25;
+
+/**
+ * In-season reviews, week by week from the eighth: only after a loss, only on a pace of .300 or worse, and only
+ * now and then, so a bad month is not a verdict. At most one GM and one head-coach change per club per season.
+ */
 export function leadershipWeek(l: League): void {
-  if (l.phase !== 'regular' || ![9, 13, 17].includes(l.week)) return;
+  if (l.phase !== 'regular' || l.week < 8 || l.week > 18) return;
   const records = computeRecords(l);
+  let ranks: Map<number, number> | undefined;
   for (const t of l.teams) {
     if (t.leadershipWeek?.season === l.season && t.leadershipWeek.week === l.week) continue;
     t.leadershipWeek = { season: l.season, week: l.week };
@@ -484,8 +488,9 @@ export function leadershipWeek(l: League): void {
     if (!gm) continue;
     const a = gm.appointments.at(-1)!,
       rec = records.get(t.id)!;
-    if (rec.w + rec.l + rec.t < 8 || pct(rec) > 0.22) continue;
+    if (rec.w + rec.l + rec.t < 6 || pct(rec) > 0.3 || !lostLast(l, t.id)) continue;
     const rng = new Rng(`${l.seed}:leadership-week:${l.season}:${l.week}:${t.id}`);
+    if (!rng.chance(OWNER_REACH)) continue;
     const tenure = l.season - a.start.season + (a.priorSeasons ?? 0);
     const gmAlready = l.leadership.events.some(
       (e) => e.teamId === t.id && e.date.season === l.season && e.kind === 'gmDismissed',
@@ -493,12 +498,8 @@ export function leadershipWeek(l: League): void {
     const coachAlready = l.leadership.events.some(
       (e) => e.teamId === t.id && e.date.season === l.season && e.kind === 'coachInterim',
     );
-    const prior = l.history
-      .filter((h) => h.season >= l.season - 2)
-      .map((h) => h.records[t.id])
-      .filter(Boolean);
-    const badHistory = prior.length > 0 && prior.reduce((s, r) => s + pct(r), 0) / prior.length < 0.4;
-    const fireGm = !a.interim && !gmAlready && tenure >= 2 && badHistory && rng.chance(0.14 * ownerTrigger(l, t.id));
+    const drawn = drawInSeason(ownerBag(l, t), heatSoFar(l, t, rec, (ranks ??= talentRanks(l)).get(t.id)!), rng);
+    const fireGm = drawn.gm && !a.interim && !gmAlready && tenure >= 2;
     if (fireGm) {
       const hc = head(l, t.id);
       if (hc && !hc.interim && rng.chance(0.6))
@@ -536,7 +537,7 @@ export function leadershipWeek(l: League): void {
       !hc.interim &&
       !coachMandate(l, hc) &&
       leadershipCoachTenure(l, hc) >= 1 &&
-      rng.chance(0.14 * ownerTrigger(l, t.id))
+      drawn.coach
     ) {
       const interim = installInterimHeadCoach(l, t.id);
       if (interim)

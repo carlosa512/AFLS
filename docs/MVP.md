@@ -82,8 +82,9 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       mandates with signed coach contracts, shared player/AI staffing restrictions and visible owner explanations.
       Joint GM/coach reviews now drive GM dismissals, renewals, midseason interims, director succession and offseason
       hiring rounds. The player can lose the job, accept another offer or spectate while unemployed. Private staffing
-      briefings stay with the current club; other teams appear through reported moves and qualified rumors. Long-run
-      tuning and broader midseason player recruitment remain in progress.
+      briefings stay with the current club; other teams appear through reported moves and qualified rumors. Owners
+      judge through a marble bag (`ownerBag.ts`): bad seasons add heat to the GM or head coach, patience is spent and
+      never endless, and in-season reviews run week by week. Broader midseason player recruitment remains in progress.
 - [x] **Schedule weather forecasts (fog of war)** · **Already in** (hooks into #5): forecasts at three stages with
       calibrated rain chances on the schedule and the next-game card (`forecast` in `weather.ts`). Trend arrows and a
       staff hook are not built yet (`docs/WEATHER.md`).

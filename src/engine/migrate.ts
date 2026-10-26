@@ -11,6 +11,7 @@ import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
 import { careerDate, initializeGms } from './gm';
 import { beginGmSearch, gmOfferTerms } from './leadership';
+import { ownerBag, talentRanks } from './ownerBag';
 import { captureManagement, creditManagement } from './service';
 import { addQbProtection, generateCrews } from './officials';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
@@ -112,6 +113,12 @@ export function migrateLeague(league: League): League | null {
       beginGmSearch(league);
     }
     league.version = 44;
+  }
+  if (league.version < 45) {
+    // Owners remember the losing runs already on file: each bag replays the current people's last three seasons.
+    const ranks = talentRanks(league);
+    for (const t of league.teams) ownerBag(league, t, ranks);
+    league.version = 45;
   }
   return league;
 }

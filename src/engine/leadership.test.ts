@@ -6,7 +6,6 @@ import {
   advanceGmHiringRound,
   beginGmSearch,
   declineGmOffers,
-  gmDismissalChance,
   leadershipCoachTenure,
   leadershipNewYear,
   leadershipWeek,
@@ -82,28 +81,6 @@ describe('GM leadership and searches', () => {
     expect(l.phase).toBe('regular');
     expect(employed(l)).toBe(false);
     expect(l.teams.every((t) => t.gmId !== null)).toBe(true);
-  });
-  it('gives a rebuilding hire time, protects success and puts sustained failure at risk', () => {
-    const l = world();
-    l.season++;
-    l.phase = 'resign';
-    l.history.push({
-      season: l.season - 1,
-      championId: 1,
-      runnerUpId: 2,
-      records: { 0: { w: 1, l: 16, t: 0 } },
-    } as SeasonSummary);
-    expect(gmDismissalChance(l, 0)).toBe(0);
-    l.season += 2;
-    l.history.push({
-      season: l.season - 1,
-      championId: 1,
-      runnerUpId: 2,
-      records: { 0: { w: 3, l: 14, t: 0 } },
-    } as SeasonSummary);
-    expect(gmDismissalChance(l, 0)).toBeGreaterThan(0.4);
-    l.history.at(-1)!.records[0] = { w: 11, l: 6, t: 0 };
-    expect(gmDismissalChance(l, 0)).toBe(0);
   });
   it('reviews once, changes GMs, preserves owner-backed coaches and fills vacancies through real directors', () => {
     const l = world();

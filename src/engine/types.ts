@@ -609,6 +609,8 @@ export interface Team {
   ownerReviewSeason?: number;
   leadershipReview?: LeadershipReview;
   leadershipWeek?: { season: number; week: number };
+  /** The owner's patience and the heat on the GM and head coach (`ownerBag.ts`). */
+  ownerBag?: OwnerBag;
   /** Severance owed to dismissed medical staff, charged to the medical budget. */
   medicalDead: StaffSeverance[];
   /** False when the user manages injuries by hand (IR moves, replacements). AI teams always delegate. */
@@ -843,6 +845,17 @@ export interface GeneralManager {
   /** Opening incumbents are supplied with the world; all later entrants come from scouting directors. */
   origin: 'opening' | 'director';
   scouting?: Staff;
+}
+
+/** The owner's marble bag (`ownerBag.ts`). Heat belongs to the people named; a new face starts clean. */
+export interface OwnerBag {
+  /** The last finished season whose result went in. */
+  season: number;
+  calm: number;
+  gm: number;
+  coach: number;
+  gmId: number | null;
+  coachId: number | null;
 }
 
 export interface LeadershipReview {
