@@ -60,6 +60,7 @@ const KIND_TAGS: Partial<Record<NonNullable<ReturnType<typeof mailSubject>>['kin
   market: 'Market',
   marketRecap: 'Deadline recap',
   advice: 'Advice',
+  gazette: 'Numbers',
   owner: 'Owner',
   carousel: 'Coaching',
   faWrap: 'Free agency',

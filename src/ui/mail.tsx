@@ -99,6 +99,7 @@ import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { statLine } from '../engine/stats';
 import type {
   AdviceRow,
+  GazetteTable,
   Coach,
   DealKind,
   Game,
@@ -202,6 +203,8 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <PoachedCards league={league} s={s} live={needsYou(league, message)} />;
     case 'carousel':
       return <CarouselCards league={league} s={s} />;
+    case 'gazette':
+      return message.gazette ? <GazetteCards league={league} tables={message.gazette.tables} /> : null;
     case 'advice':
       return message.advice ? <AdviceCards league={league} rows={message.advice.rows} /> : null;
     case 'frontOffice':
@@ -281,6 +284,57 @@ export function adviceDraft(league: League, row: AdviceRow): DeskDraft | null {
   if (row.kind === 'buy') return { partnerId: row.teamId!, mine: none, theirs: { players: [p.id], picks: [] } };
   if (row.partnerId === undefined) return null;
   return { partnerId: row.partnerId, mine: { players: [p.id], picks: [] }, theirs: none };
+}
+
+const gazetteValue = (t: GazetteTable, v: number) =>
+  t.unit === 'epa' || t.unit === 'perDropback'
+    ? `${v < 0 ? '−' : ''}${Math.abs(v).toFixed(2)}`
+    : `${Math.round(v * 100)}%`;
+
+/** The Gazette's tables as filed: rank, club or player, the number; a gap where the middle of the league is left out. */
+function GazetteCards({ league, tables }: { league: League; tables: GazetteTable[] }) {
+  return (
+    <>
+      {tables.map((t) => (
+        <Card key={t.title} title={t.title}>
+          <div className="table-scroll">
+            <table className="mail-table">
+              <tbody>
+                {t.rows.map((r, i) => {
+                  const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+                  const gap = i > 0 && r.rank > t.rows[i - 1].rank + 1;
+                  return (
+                    <tr
+                      key={`${r.teamId}:${r.playerId ?? ''}`}
+                      className={
+                        [!t.players && r.teamId === league.userTeamId ? 'is-user' : '', gap ? 'mail-gap' : '']
+                          .filter(Boolean)
+                          .join(' ') || undefined
+                      }
+                    >
+                      <td className="num small muted">{r.rank}</td>
+                      <td>
+                        {p ? <PlayerLink league={league} player={p} pos={false} /> : t.players ? r.name : null}
+                        {t.players ? (
+                          <span className="small muted">
+                            {' '}
+                            <TeamLink team={league.teams[r.teamId]} />
+                          </span>
+                        ) : (
+                          <TeamLink team={league.teams[r.teamId]} />
+                        )}
+                      </td>
+                      <td className="num">{gazetteValue(t, r.value)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ))}
+    </>
+  );
 }
 
 const ADVICE_TITLES: Record<AdviceRow['kind'], string> = { buy: 'To add', sell: 'To move', sign: 'To sign' };

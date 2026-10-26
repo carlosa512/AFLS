@@ -7,7 +7,9 @@
 import { employed } from './employment';
 import { ordinal } from './opposition';
 import { computeRecords, conferenceSeeds } from './season/standings';
-import type { AdvancedStats, League, Team } from './types';
+import type { AdvancedStats, GazetteTable, GazetteUnit, League, Team } from './types';
+
+export type { GazetteTable };
 
 export type Edition = 'w4' | 'w7' | 'w10' | 'w13' | 'w16' | 'preview' | 'wrap';
 
@@ -119,23 +121,6 @@ export function playerAdvanced(league: League, season = league.season): Map<numb
   }
   for (const p of out.values()) p.games = teams.get(p.teamId)?.games ?? 0;
   return out;
-}
-
-export type GazetteUnit = 'epa' | 'pct' | 'perDropback' | 'rushSuccess' | 'pressureRate';
-export interface GazetteRow {
-  teamId: number;
-  playerId?: number;
-  name: string;
-  value: number;
-  rank: number;
-}
-export interface GazetteTable {
-  title: string;
-  unit: GazetteUnit;
-  players?: true;
-  /** Lower is better (a defense's numbers allowed). */
-  lowerBetter?: true;
-  rows: GazetteRow[];
 }
 
 interface TeamMeasure {

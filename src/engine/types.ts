@@ -985,6 +985,24 @@ export interface LeadershipEvent {
   privateText?: string;
 }
 
+/** The Arena Gazette's tables (`gazette.ts`), saved with the column as they read when filed. */
+export type GazetteUnit = 'epa' | 'pct' | 'perDropback' | 'rushSuccess' | 'pressureRate';
+export interface GazetteRow {
+  teamId: number;
+  playerId?: number;
+  name: string;
+  value: number;
+  rank: number;
+}
+export interface GazetteTable {
+  title: string;
+  unit: GazetteUnit;
+  players?: true;
+  /** Lower is better (a defense's numbers allowed). */
+  lowerBetter?: true;
+  rows: GazetteRow[];
+}
+
 /** One of the director's recommendations, as it read when filed. */
 export interface AdviceRow {
   kind: 'buy' | 'sell' | 'sign';
@@ -1161,6 +1179,8 @@ export interface InboxMessage {
   rundown?: { offenseRank: number; defenseRank: number; offense: number[]; defense: number[]; prospects: number[] };
   /** The director's market report: per trade (in `marketTrades` order), his note on what it means for us and whether SNN ran it, as filed. */
   marketNotes?: { note?: string; snn?: true }[];
+  /** The Arena Gazette's numbers column (`gazette.ts`): its edition and tables, as filed. */
+  gazette?: { edition: string; tables: GazetteTable[] };
   /** The director's recommendations, as they read when filed (`directorAdvice.ts`). */
   advice?: { lean?: 'buy' | 'targeted' | 'sell'; rows: AdviceRow[] };
   /** SNN's offseason front-office digest, as it read when filed: one row per change around the league. */

@@ -53,67 +53,6 @@ const rank = (
   };
 };
 
-/** Prefer a league-leading reversal, then the largest directional change in these four areas.
- * Each scale is a meaningful football change, so 10 percentage points can be compared with 7 PPG.
- */
-export function teamStatContext(l: League, teamId: number, direction: 'up' | 'down' | 'standout' = 'standout'): string {
-  const now = measures(l, l.season);
-  const last = measures(l, l.season - 1);
-  const current = now.get(teamId)!;
-  const prior = last.get(teamId)!;
-  if (!current.games) return '';
-  const choices = metrics.flatMap((m) => {
-    const value = current[m.key];
-    const before = prior[m.key];
-    if (value === null) return [];
-    const comparable = prior.games >= 8 && before !== null;
-    const delta = comparable ? value - before : 0;
-    return [
-      {
-        m,
-        value,
-        before,
-        comparable,
-        delta,
-        rank: rank(now, m.key, value, 6, m.low),
-        oldRank: comparable ? rank(last, m.key, before, 8, m.low) : null,
-      },
-    ];
-  });
-  const benefit = (x: (typeof choices)[number]) => x.delta * (x.m.low ? -1 : 1);
-  const directional = choices.some((x) =>
-    direction === 'up' ? benefit(x) > 0 : direction === 'down' ? benefit(x) < 0 : false,
-  );
-  choices.sort((a, b) => {
-    const leader = (x: typeof a) => Number(x.rank?.place === 1 && (x.oldRank?.place ?? 0) >= 16);
-    const change = (x: typeof a) =>
-      (directional ? (direction === 'down' ? -benefit(x) : benefit(x)) : Math.abs(benefit(x))) / x.m.scale;
-    return leader(b) - leader(a) || change(b) - change(a);
-  });
-  const c = choices[0];
-  if (!c) return '';
-  const rankWords = c.rank ? ` (${c.rank.tied ? 'tied ' : ''}${ordinal(c.rank.place)} in the league)` : '';
-  const oldRankWords = c.oldRank ? ` (${c.oldRank.tied ? 'tied ' : ''}${ordinal(c.oldRank.place)})` : '';
-  if (c.comparable && Math.abs(c.delta) > 0.0001) {
-    const from = `${c.m.format(c.before!)}${oldRankWords} last season`;
-    const to = `${c.m.format(c.value)}${rankWords} this season`;
-    if (c.m.key === 'allowed') {
-      const collapse = c.delta >= 10 || (c.delta >= 7 && (c.oldRank?.place ?? 99) <= 8 && (c.rank?.place ?? 0) >= 24);
-      const change = c.delta > 0 ? (collapse ? 'has fallen off a cliff' : 'has lost ground') : 'has tightened up';
-      return `Their defense ${change}: they are allowing ${c.m.format(c.value)} points per game${rankWords} this season, compared with ${from}.`;
-    }
-    const gap =
-      c.m.key === 'third'
-        ? `, a ${Math.abs(c.delta * 100).toFixed(1)} percentage-point ${c.delta > 0 ? 'increase' : 'drop'}`
-        : '';
-    return `Their ${c.m.label} ${c.delta > 0 ? 'have risen' : 'have fallen'} from ${from} to ${to}${gap}.`;
-  }
-  if (c.m.key === 'allowed') return `They are allowing ${c.m.format(c.value)} points per game${rankWords}.`;
-  return c.m.key === 'third'
-    ? `They are converting ${c.m.format(c.value)} of third downs${rankWords}.`
-    : `They are averaging ${c.m.format(c.value)} ${c.m.label}${rankWords}.`;
-}
-
 /** Keep the evidence behind an SNN story at its original date. */
 export function teamStatRows(l: League, teamId: number): LeagueNewsReport['stats'] {
   const current = measures(l, l.season);
