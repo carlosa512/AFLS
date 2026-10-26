@@ -14,7 +14,8 @@ before building further. The feature stays off for ordinary careers (`createLeag
 
 1. **Merge `origin/main` into the branch.** Resolve `generate.ts`, `migrate.ts`, `roster.ts` (main's
    coach-ordered depth charts win; personnel's list filters wrap them), `package.json`, `package-lock.json`
-   (regenerate with `npm install`). Version: take main's and bump once at the end of this work.
+   (regenerate with `npm install`). Version: take main's 0.1.13 (its changelog test ties the version to
+   `ui/changelog.ts`); the PR that finally lands the feature bumps it, not this branch.
 2. **Collapse the save steps.** Main owns v41 (coach quirks). The branch's v41–45 steps become one v42 step
    that builds the trimmed shape from a v41 save. Saves made on the GPT branch (v41–45 without coach quirks)
    are development-only and are not supported.
@@ -46,13 +47,13 @@ expanded, 6 veterans). The "one season with under 9 dressed games" route to base
   `elevationDeadline`, `elevationReversion`, `advanceNextPersonnelEvent`, `nextDeadlineBlocker`, the
   "Advance roster clock" button).
 - `PersonnelState.clock` keeps only `{ season, cutdown }`. A waiver entry stores the stage it was posted in
-  (`season` + `week`, with offseason phases as their own stages) instead of a minute deadline.
+  as a batch number (`batch`) instead of a minute deadline; a settle resolves every batch posted before it.
 - **Settle points:** (a) before the first game of a week is prepared (batch or live), (b) each offseason
   phase advance, (c) the camp continue action (cutdown wire). At a settle point: AI submits claims,
   every pending entry resolves in one batch by priority, then AI cutdown replacements post for the next
   stage. Users can edit claims any time before the settle point.
 - Trade deadline: the existing week-based deadline, no minute check in `trade/rules.ts`.
-- Call-ups: planned any time before the week's settle point, filed at the settle point (AI plans its own
+- Call-ups: planned any time before the week's settle point, filed when their game is prepared (AI plans its own
   then), returned automatically when the game's result is recorded. Game-day lists lock at kickoff.
 - Screens say "Decided before Week N kickoff" / "Decided when camp ends" instead of clock times.
 
