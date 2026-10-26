@@ -6,7 +6,7 @@
 import { employed } from './employment';
 import { isExpired, lastSeason, yearsLeft } from './finance/contract';
 import { leagueMarket, marketApy } from './finance/market';
-import { freeAgents } from './offseason/negotiation';
+import { demand, freeAgents } from './offseason/negotiation';
 import { STARTERS } from './positions';
 import { teamPlayers } from './roster';
 import { viewCache } from './scouting';
@@ -137,11 +137,15 @@ export function buyTargets(league: League, opts: { rentals: boolean; max: number
     const left = yearsLeft(p.contract!, league.season);
     if (left <= 1 && !opts.rentals) return [];
     if (salaryToTake(league, p) > room) return [];
-    // A division rival's player is the last call, as for AI buyers.
-    const rival = league.teams[p.teamId!].division === us.division ? 0.3 : 1;
-    return [{ p, need, gain, rank, left, score: need.urgency * Math.min(gain, 4) * (1 + left / 3) * rival }];
+    const rival = league.teams[p.teamId!].division === us.division;
+    return [{ p, need, gain, rank, left, rival, score: need.urgency * Math.min(gain, 4) * (1 + left / 3) }];
   });
-  return bestPerPosition(scored, opts.max).map(({ p, need, rank, left }) =>
+  // A division rival's player is the last call: only where no one outside the division clears the bar.
+  const clear = new Set(scored.filter((x) => !x.rival).map((x) => x.p.position));
+  return bestPerPosition(
+    scored.filter((x) => !x.rival || !clear.has(x.p.position)),
+    opts.max,
+  ).map(({ p, need, rank, left }) =>
     row(
       p,
       'buy',
@@ -157,12 +161,20 @@ export function buyTargets(league: League, opts: { rentals: boolean; max: number
   );
 }
 
-/** The first club the market shows buying: who we'd call to sell. */
-const buyer = (league: League) =>
-  league.teams.find((t) => t.id !== league.userTeamId && stanceOf(t) === 'contend') ??
-  league.teams.find((t) => t.id !== league.userTeamId)!;
+/** Who we'd call to sell: a club the market shows buying, outside our division if there is one. */
+function buyer(league: League) {
+  const us = league.teams[league.userTeamId];
+  const others = league.teams.filter((t) => t.id !== us.id);
+  const outside = others.filter((t) => t.division !== us.division);
+  return (
+    outside.find((t) => stanceOf(t) === 'contend') ??
+    others.find((t) => stanceOf(t) === 'contend') ??
+    outside[0] ??
+    others[0]
+  );
+}
 
-/** Clubs that asked about each of our players this season: offers and enquiries made to us, and interest rumors. */
+/** Clubs that asked us about each of our players this season: the offers and enquiries made to us. */
 function askedAbout(league: League): Map<number, number[]> {
   const asked = new Map<number, number[]>();
   const add = (playerId: number, club: number) => {
@@ -173,9 +185,6 @@ function askedAbout(league: League): Map<number, number[]> {
     if (o.season !== league.season) continue;
     for (const id of o.sides.find((s) => s.teamId === league.userTeamId)?.players ?? []) add(id, o.teamId);
   }
-  for (const r of league.market?.rumors ?? [])
-    if (r.kind === 'interest' && r.season === league.season && league.players[r.playerId]?.teamId === league.userTeamId)
-      add(r.playerId, r.teamIds[0]);
   return asked;
 }
 
@@ -189,9 +198,12 @@ export function sellCandidates(league: League, lean: AdviceLean, max: number): A
     view = viewCache(league),
     to = buyer(league);
   const ours = teamPlayers(league, league.userTeamId).filter(
-    (p) => !p.ir && !!p.contract && !isExpired(p.contract, league.season),
+    (p) =>
+      !p.ir && !!p.contract && !isExpired(p.contract, league.season) && league.market?.status[p.id] !== 'untouchable',
   );
-  const price = (p: Player) => pickRoundFor(league, marketValue(ctx, to, p));
+  const us = league.teams[league.userTeamId];
+  // Our read of our own player (exact), never the buyer's private one.
+  const price = (p: Player) => pickRoundFor(league, marketValue(ctx, us, p));
   const out: AdviceRow[] = [];
   for (const [id, clubs] of askedAbout(league)) {
     const p = league.players[id];
@@ -262,9 +274,10 @@ export function expiringTargets(league: League, max: number): AdviceRow[] {
 /** The best free agents at our needs whose asking price fits our room. */
 export function faTargets(league: League, max: number, room?: number): AdviceRow[] {
   if (!employed(league)) return [];
-  const market = leagueMarket(league);
   const space = room ?? spendable(tradeContext(league), league.userTeamId);
-  const pool = freeAgents(league).filter((p) => marketApy(market, p) <= space);
+  // The agent's ask, not the market rate: it's what we'd have to find room for.
+  const ask = (p: Player) => demand(league, p, league.userTeamId).askApy;
+  const pool = freeAgents(league).filter((p) => ask(p) <= space);
   const scored = upgrades(league, pool, viewCache(league)).map((x) => ({
     ...x,
     score: x.need.urgency * Math.min(x.gain, 4),
@@ -274,7 +287,7 @@ export function faTargets(league: League, max: number, room?: number): AdviceRow
       p,
       'sign',
       need.reason === 'hole' ? `We're short at ${p.position}; he'd start.` : `He'd start for us at ${p.position}.`,
-      `asking about ${perYear(marketApy(market, p))}`,
+      `asking about ${perYear(ask(p))}`,
     ),
   );
 }
@@ -301,19 +314,21 @@ export interface Advice {
 const ORDINALS = ['', 'top', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'];
 const games = (n: number) => (n === 0.5 ? 'half a game' : n === 1 ? 'a game' : `${n} games`);
 
-/** Where we stand, in the director's words: the opening line of an in-season mail. */
-function standing(race: ReturnType<typeof raceFor>, lean: AdviceLean): string {
+/** Where we stand, in the director's words, and what that means given what he found: the mail's opening line. */
+function standing(race: ReturnType<typeof raceFor>, lean: AdviceLean, rows: AdviceRow[]): string {
   const r = race.record;
   const rec = `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;
-  if (lean === 'buy')
-    return race.seed
-      ? `We're ${rec} and hold the ${ORDINALS[race.seed]} seed: time to add.`
-      : race.gamesBack === 0
-        ? `At ${rec} we're level with the last playoff spot: time to add.`
-        : `At ${rec} we're ${games(race.gamesBack)} out of the last playoff spot: time to add.`;
-  if (lean === 'targeted')
-    return `At ${rec} we're ${games(race.gamesBack)} out of the last spot: one upgrade, and one player we can spare.`;
-  return `At ${rec} we're ${games(race.gamesBack)} out. I'd sell.`;
+  const where = race.seed
+    ? `We're ${rec} and hold the ${ORDINALS[race.seed]} seed`
+    : race.gamesBack === 0
+      ? `At ${rec} we're level with the last playoff spot`
+      : `At ${rec} we're ${games(race.gamesBack)} out of the last playoff spot`;
+  if (!rows.length) return `${where}. Nothing worth chasing; we hold.`;
+  if (lean === 'buy') return `${where}: time to add.`;
+  if (lean === 'sell') return `${where}. I'd sell.`;
+  const buys = rows.some((x) => x.kind === 'buy'),
+    sells = rows.some((x) => x.kind === 'sell');
+  return `${where}: ${buys && sells ? 'one upgrade, and one player we can spare' : buys ? 'one upgrade worth making' : 'one player we can spare'}.`;
 }
 
 /**
@@ -364,6 +379,6 @@ export function adviceFor(league: League, room?: number): Advice | null {
           ? `${prefix}: ${buys === 1 ? 'one upgrade' : `${COUNT[buys].toLowerCase()} upgrades`}`
           : `${prefix}: ${rows.length === 1 ? 'one move' : `${COUNT[rows.length].toLowerCase()} moves`}`;
   const deadline = moment === 'w6' ? ` The deadline is the day after week ${TRADE_DEADLINE_WEEK}.` : '';
-  const body = `${standing(race, lean)}${deadline}${rows.length ? '' : ' Nothing worth chasing; we hold.'}`;
+  const body = `${standing(race, lean, rows)}${deadline}`;
   return { moment, lean, rows, subject, body };
 }

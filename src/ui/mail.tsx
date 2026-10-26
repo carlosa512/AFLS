@@ -111,7 +111,7 @@ import type {
   Staff,
   Team,
 } from '../engine/types';
-import { stanceOf } from '../engine/trade';
+import { stanceOf, tradeWindow } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
 import { PlayerAvatar, PlayerLink, TeamChip, TeamLink, sortRows, SortTh, useSort } from './components';
@@ -270,14 +270,13 @@ function TradeNewsCards({ league, report }: { league: League; report: NonNullabl
   );
 }
 
-/** The standings and statistical evidence as they were when the headline was filed. */
 /**
  * The trade table a pick opens on, or null once the player has moved on from where the director found him: a buy
  * asks their club for him, a sale offers him to the club that asked (else a buyer).
  */
 export function adviceDraft(league: League, row: AdviceRow): DeskDraft | null {
   const p = league.players[row.playerId];
-  if (!p || p.retired || row.kind === 'sign' || p.teamId !== row.teamId) return null;
+  if (!p || p.retired || row.kind === 'sign' || p.teamId !== row.teamId || tradeWindow(league)) return null;
   const none = { players: [], picks: [] };
   if (row.kind === 'buy') return { partnerId: row.teamId!, mine: none, theirs: { players: [p.id], picks: [] } };
   if (row.partnerId === undefined) return null;
@@ -388,6 +387,7 @@ function FrontOfficeCards({ league, rows }: { league: League; rows: NonNullable<
   );
 }
 
+/** The standings and statistical evidence as they were when the headline was filed. */
 function LeagueNewsCards({ league, report }: { league: League; report: NonNullable<InboxMessage['leagueReport']> }) {
   const view = report.table ?? 'division';
   if (view === 'division')

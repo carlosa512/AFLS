@@ -17,8 +17,10 @@ import { perceive } from './scouting';
 import { teamPlayers } from './roster';
 import { computeRecords } from './season/standings';
 import { emptyMarket } from './trade/execute';
-import { slotRate } from './trade/value';
-import type { League } from './types';
+import { tradeContext } from './trade/context';
+import { demand } from './offseason/negotiation';
+import { marketValue, slotRate } from './trade/value';
+import type { League, Player } from './types';
 
 const world = () => createLeague({ seed: 'director-advice' });
 /** Every club 5–3; ours as given. */
@@ -136,6 +138,76 @@ describe('the director’s picks', () => {
     expect(first.why).toMatch(/asked about him/);
     expect(first.partnerId).toBe(club);
   });
+  it('never suggests selling a player we marked Untouchable', () => {
+    const l = midseason();
+    const ours = teamPlayers(l, l.userTeamId).find((p) => p.position === 'WR')!;
+    const club = (l.userTeamId + 3) % 32;
+    l.market!.offers.push({
+      id: 901,
+      teamId: club,
+      sides: [
+        { teamId: club, players: [], picks: [] },
+        { teamId: l.userTeamId, players: [ours.id], picks: [] },
+      ],
+      kind: 'enquiry',
+      reason: 'enquiry',
+      season: l.season,
+      phase: 'regular',
+      week: 5,
+      moment: 0,
+      status: 'declined',
+      patience: 0,
+      worth: 0,
+    });
+    l.market!.status[ours.id] = 'untouchable';
+    expect(sellCandidates(l, 'sell', 3).map((r) => r.playerId)).not.toContain(ours.id);
+  });
+  it('counts only clubs that asked us, not rumors about a player’s old club', () => {
+    const l = midseason();
+    const ours = teamPlayers(l, l.userTeamId)[0];
+    l.market!.rumors.push({
+      id: 'i1',
+      season: l.season,
+      phase: 'regular',
+      week: 4,
+      kind: 'interest',
+      teamIds: [(l.userTeamId + 5) % 32],
+      playerId: ours.id,
+      text: 'interest',
+    });
+    expect(sellCandidates(l, 'sell', 3).some((r) => /asked about/.test(r.why))).toBe(false);
+  });
+  it('prices a sale on our read and offers it to a club outside our division', () => {
+    const l = midseason();
+    const rows = sellCandidates(l, 'sell', 3);
+    expect(rows.length).toBeGreaterThan(0);
+    const ctx = tradeContext(l);
+    for (const r of rows) {
+      expect(r.price).toBe(pickRoundFor(l, marketValue(ctx, l.teams[l.userTeamId], l.players[r.playerId])));
+      expect(l.teams[r.partnerId!].division).not.toBe(l.teams[l.userTeamId].division);
+    }
+  });
+  it('prefers a target outside our division, and takes a rival only when nothing else clears the bar', () => {
+    const l = midseason();
+    const pos = adviceNeeds(l)[0].position;
+    const division = l.teams[l.userTeamId].division;
+    const read = (p: Player) => perceive(l, l.userTeamId, p).ovr;
+    const atPos = Object.values(l.players)
+      .filter((p) => p.position === pos && p.teamId !== null && p.teamId !== l.userTeamId)
+      .sort((a, b) => read(b) - read(a));
+    const rival = atPos.find((p) => l.teams[p.teamId!].division === division)!;
+    const other = atPos.find((p) => l.teams[p.teamId!].division !== division && read(p) < read(rival))!;
+    for (const p of [rival, other]) {
+      l.knowledge[p.id] = 1;
+      l.teams[p.teamId!].stance = { mode: 'rebuild', since: 0 };
+    }
+    const at = () => buyTargets(l, { rentals: true, max: 4, room: 1e9 }).find((r) => r.position === pos)?.playerId;
+    if (read(other) - read(rival) > -0.01) return; // the world's reads tie: nothing to show
+    expect(at()).toBe(other.id);
+    l.teams[other.teamId!].stance = { mode: 'contend', since: 0 };
+    // Now only the rival's club sells at that spot: one of its players is the pick.
+    expect(l.players[at()!].teamId).toBe(rival.teamId);
+  });
   it('only ever sells our own players', () => {
     const l = midseason();
     for (const lean of ['sell', 'targeted'] as const)
@@ -168,7 +240,14 @@ describe('the director’s picks', () => {
     }
     const rows = faTargets(l, 4, 1e9);
     expect(rows.length).toBeGreaterThan(0);
-    for (const r of rows) expect(r.teamId).toBeNull();
+    for (const r of rows) {
+      expect(r.teamId).toBeNull();
+      const ask = demand(l, l.players[r.playerId], l.userTeamId).askApy;
+      expect(r.price).toBe(`asking about $${(ask / 1000).toFixed(1)}M a year`);
+      // Room for the market rate but not his ask: not a fit.
+      const market = demand(l, l.players[r.playerId], l.userTeamId).market;
+      if (ask > market) expect(faTargets(l, 4, ask - 1).some((x) => x.playerId === r.playerId)).toBe(false);
+    }
     expect(faTargets(l, 4, -1)).toEqual([]);
   });
 });
@@ -194,6 +273,7 @@ describe('the director’s mail', () => {
     expect(a.rows).toEqual([]);
     expect(a.subject).toBe('Deadline week: we hold');
     expect(a.body).toContain('Nothing worth chasing; we hold.');
+    expect(a.body).not.toMatch(/time to add|I'd sell|we can spare/);
   });
   it('opens with where we stand and says when the deadline is', () => {
     const a = adviceFor(at(6))!;

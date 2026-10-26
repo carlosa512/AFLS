@@ -690,6 +690,11 @@ describe('the director’s advice card', () => {
     expect(html).not.toContain('Open talks');
     expect(adviceDraft(l, moved)).toBeNull();
   });
+  it('drops the talks button once the trade window has closed', () => {
+    const closed = createLeague({ seed: 'advice-card' });
+    closed.phase = 'complete';
+    expect(adviceDraft(closed, buy)).toBeNull();
+  });
   it('loads the trade table with the pick', () => {
     expect(adviceDraft(l, buy)).toEqual({
       partnerId: theirs.teamId,

@@ -1,6 +1,6 @@
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
-import { adviceFor } from './directorAdvice';
+import { adviceFor, adviceMoment } from './directorAdvice';
 import { recordAdvicePublications } from './coachDecisions';
 import {
   coachAdviceObservation,
@@ -1370,12 +1370,6 @@ export function tradeRecordFor(league: League, t: Transaction, nth: number): Tra
   )[nth];
 }
 
-/** A trade's place among the same two clubs' trades logged before it in `list`, for `tradeRecordFor`. */
-export function sameMoment(list: Transaction[], i: number): number {
-  const pair = (t: Transaction) => [...t.teamIds].sort((a, b) => a - b).join('-');
-  return list.slice(0, i).filter((t) => pair(t) === pair(list[i])).length;
-}
-
 /** SNN already ran this deal as a story (its id carries the deal's identity). */
 export function snnRan(league: League, r: TradeRecord): boolean {
   const key = `trade:${tradeIdentity(r)}`;
@@ -1424,17 +1418,14 @@ export function tradeAngle(league: League, r: TradeRecord, week: number): string
   return `We play the ${league.teams[them].name} in Week ${next.week}, ${them === seller.teamId ? 'without him' : "and he'll be there"}.`;
 }
 
-/**
- * The director of scouting's market digest: the trades around the league since the last one, what his people are
- * hearing, and how far off the deadline is. Weekly from week 5 to the deadline, and once as the league year opens. A
- * moment with nothing to report sends nothing.
- */
 /** The director's recommendations at the four moments he writes (`directorAdvice.ts`). */
 function directorAdviceMail(league: League, have: Set<string>): Draft[] {
+  // The moment is cheap to read; the picks are not. Check the id first so a filed mail costs nothing per click.
+  const moment = adviceMoment(league);
+  const id = `advice:${league.season}:${moment}`;
+  if (!moment || have.has(id)) return [];
   const advice = adviceFor(league);
   if (!advice) return [];
-  const id = `advice:${league.season}:${advice.moment}`;
-  if (have.has(id)) return [];
   return [
     {
       id,
