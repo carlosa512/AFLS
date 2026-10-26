@@ -102,6 +102,11 @@ export function cancelElevation(l: League, p: Player, g: Game): void {
   // No payroll or use was earned by a cancelled plan.
   e.status = 'cancelled';
 }
+/** He left the squad before his game: a plan that never filed costs nothing and uses nothing. */
+export function cancelPlannedElevations(l: League, p: Player, reason: string): void {
+  for (const e of elevationRecords(l))
+    if (e.playerId === p.id && e.status === 'planned') Object.assign(e, { status: 'cancelled', reason });
+}
 export function markSquadDeparture(l: League, p: Player): void {
   if (!l.personnel?.enabled || p.teamId === null) return;
   if (

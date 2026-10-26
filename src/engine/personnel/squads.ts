@@ -133,10 +133,12 @@ export function releaseSquadPlayer(league: League, p: Player): void {
   );
 }
 
-export function squadPromotionContract(league: League, p: Player): Contract {
+/** A minimum NFL deal for a squad player moving to a 53, his own club's or another's: the year's weeks already
+ * paid are prorated out of year one. */
+export function squadMinimumContract(league: League, p: Player, years: number): Contract {
   const salary = minSalary(serviceSeasons(p, league.season), league.caps[league.season]);
   const c = buildContract(
-    { years: 1, total: salary, signingBonus: 0, guaranteedBase: 0, voidYears: 0 },
+    { years, total: salary * years, signingBonus: 0, guaranteedBase: 0, voidYears: 0 },
     league.season,
     'minimum',
     salary,
@@ -145,6 +147,13 @@ export function squadPromotionContract(league: League, p: Player): Contract {
   const y = c.years[0];
   y.base = Math.round(y.base * (1 - paidFraction(league)));
   y.paidBefore = league.phase === 'regular' ? league.week - 1 : 0;
+  return c;
+}
+
+export function squadPromotionContract(league: League, p: Player): Contract {
+  const salary = minSalary(serviceSeasons(p, league.season), league.caps[league.season]);
+  const c = squadMinimumContract(league, p, 1);
+  const y = c.years[0];
   // At least the current NFL check is earned, including when immediately cut again.
   y.guaranteed = Math.min(y.base, Math.ceil(Math.max(salary / 18, promotionCredit(league, p))));
   return c;

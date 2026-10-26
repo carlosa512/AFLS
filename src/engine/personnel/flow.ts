@@ -9,6 +9,7 @@ import type { Game, League } from '../types';
 import { submitAIClaims } from './ai';
 import { gameTime, personnelClock } from './calendar';
 import { ensureWaivers, resolveWaiverBatch } from './waivers';
+import { lockProtections, resolvePoaching, submitAIPoachOffers } from './poaching';
 import type { WaiverResult } from './types';
 
 export const waiversPending = (league: League): boolean => !!league.personnel?.waivers?.pending.length;
@@ -33,6 +34,11 @@ export function settleWeek(league: League): void {
   const clock = personnelClock(league);
   if (clock.settledWeek === league.week) return;
   settleWaivers(league);
+  if (league.phase === 'regular') {
+    lockProtections(league);
+    submitAIPoachOffers(league);
+    resolvePoaching(league);
+  }
   clock.settledWeek = league.week;
 }
 
