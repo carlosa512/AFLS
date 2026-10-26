@@ -1104,6 +1104,8 @@ export interface InboxMessage {
   subject: string;
   body: string;
   leagueReport?: LeagueNewsReport;
+  /** The head coach's rundown for a new GM, as filed: unit ranks on our scouts' read (1 = the league's best), key players, prospects. */
+  rundown?: { offenseRank: number; defenseRank: number; offense: number[]; defense: number[]; prospects: number[] };
   /** The director's market report: per trade (in `marketTrades` order), his note on what it means for us and whether SNN ran it, as filed. */
   marketNotes?: { note?: string; snn?: true }[];
   tradeReport?: {

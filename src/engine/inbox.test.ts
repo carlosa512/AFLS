@@ -74,12 +74,17 @@ describe('inbox', () => {
   it('files one opposition report a week, however often it is delivered', () => {
     deliverMail(league);
     deliverMail(league);
-    expect(league.inbox!.map((m) => m.id)).toEqual([`matchup:${league.season}:1`]);
-    expect(unreadCount(league)).toBe(1);
+    // A new game opens with the owner's welcome and the head coach's rundown, then the week's report.
+    expect(league.inbox!.map((m) => m.id)).toEqual([
+      `owner:${league.season}:welcome:${league.userTeamId}:0`,
+      `rundown:${league.season}:${league.userTeamId}:0`,
+      `matchup:${league.season}:1`,
+    ]);
+    expect(unreadCount(league)).toBe(3);
   });
 
   it('keeps the report current without making it a management task', () => {
-    const report = league.inbox![0];
+    const report = league.inbox!.find((m) => m.category === 'matchup')!;
     expect(mailSubject(report)).toEqual({ kind: 'matchup', season: league.season, week: 1 });
     expect(needsYou(league, report)).toBe(false);
     expect(briefingCurrent(league, report)).toBe(true);
@@ -139,7 +144,7 @@ describe('inbox', () => {
       awards: ['award'],
       trades: ['trade', 'deadline', 'market', 'marketRecap'],
       league: ['race', 'news', 'leadership'],
-      staff: ['leadership', 'gmOffer'],
+      staff: ['leadership', 'gmOffer', 'owner', 'rundown'],
     };
     for (const m of league.inbox!) {
       const s = mailSubject(m)!;
@@ -180,9 +185,11 @@ describe('inbox', () => {
       expect(needsYou(league, m)).toBe(true);
     }
     deliverMail(league);
-    expect(league.inbox!.filter((m) => m.id.startsWith('owner:') || m.id.startsWith('staff:'))).toHaveLength(
-      1 + deals.length,
-    );
+    expect(
+      league.inbox!.filter(
+        (m) => m.season === league.season && (m.id.startsWith('owner:') || m.id.startsWith('staff:')),
+      ),
+    ).toHaveLength(1 + deals.length);
   });
 
   it("folds a day of agents' letters into one, and leaves other mail as it is", () => {
@@ -480,10 +487,10 @@ describe('mail through a season', () => {
     const reports = league.inbox!.filter((m) => m.id.startsWith('matchup:'));
     expect(reports.length).toBeGreaterThan(10);
     for (const m of reports) {
-      expect(m.body).toMatch(/^We face the .* in (week \d+|the )/);
-      expect(m.body).toMatch(
-        /(Our scouts see their .* as the softest unit they have|On what our scouts have seen, their .* looks? like the softest unit they have|no obvious soft spot)/,
-      );
+      expect(m.body).toMatch(/^We (host|visit|meet) the .* in (week \d+|the )/);
+      expect(m.body).toMatch(/(the soft spot and their .* (is|are) the threat|No unit stands out)/);
+      // Short: the opener and the read, two or three sentences.
+      expect(m.body.split('\n\n')[0].split(/(?<=\.) /).length).toBeLessThanOrEqual(3);
       expect(m.body).not.toMatch(/we'll go after them|linebackers is/);
     }
   });
@@ -1286,5 +1293,91 @@ describe('the director’s read on a trade', () => {
     };
     expect(tradeRecordFor(l, t, 0)).toBe(a);
     expect(tradeRecordFor(l, t, 1)).toBe(b);
+  });
+});
+
+describe('arriving at a club', () => {
+  const fresh = () => {
+    const l = createLeague({ seed: 'onboarding' });
+    deliverMail(l);
+    return l;
+  };
+  it('opens with the owner’s welcome, then the head coach’s rundown, then the opposition report, all unread', () => {
+    const l = fresh();
+    const ids = l.inbox!.map((m) => m.id);
+    const welcome = ids.findIndex((id) => id.startsWith(`owner:${l.season}:welcome:`));
+    const rundown = ids.findIndex((id) => id.startsWith(`rundown:${l.season}:`));
+    const matchup = ids.findIndex((id) => id.startsWith('matchup:'));
+    expect(welcome).toBeGreaterThanOrEqual(0);
+    expect(rundown).toBeGreaterThan(welcome);
+    expect(matchup).toBeGreaterThan(rundown);
+    expect(l.inbox![welcome].from).toBe('The owner');
+    expect(l.inbox![welcome].read).toBe(false);
+    expect(l.inbox![rundown].from).toMatch(/Head coach$/);
+    expect(l.inbox![rundown].read).toBe(false);
+  });
+  it('welcomes once per job', () => {
+    const l = fresh();
+    const n = l.inbox!.length;
+    deliverMail(l);
+    expect(l.inbox!.filter((m) => m.id.includes(':welcome:'))).toHaveLength(1);
+    expect(l.inbox!.length).toBe(n);
+  });
+  it('says what the owner expects and what we have to spend', () => {
+    const l = fresh();
+    const m = l.inbox!.find((x) => x.id.includes(':welcome:'))!;
+    expect(m.body).toMatch(/playoffs|wildcard|progress/);
+    expect(m.body).toMatch(/coaching/);
+    expect(m.body).not.toMatch(/undefined|NaN/);
+  });
+  it('the rundown names only our players, prospects 24 or younger, with both units ranked', () => {
+    const l = fresh();
+    const m = l.inbox!.find((x) => x.id.startsWith('rundown:'))!;
+    const r = m.rundown!;
+    for (const id of [...r.offense, ...r.defense, ...r.prospects]) expect(l.players[id].teamId).toBe(l.userTeamId);
+    expect(r.offense.length).toBeGreaterThan(0);
+    expect(r.offense.length).toBeLessThanOrEqual(3);
+    expect(r.defense.length).toBeLessThanOrEqual(3);
+    for (const id of r.prospects) expect(l.players[id].age).toBeLessThanOrEqual(24);
+    for (const rank of [r.offenseRank, r.defenseRank]) {
+      expect(rank).toBeGreaterThanOrEqual(1);
+      expect(rank).toBeLessThanOrEqual(32);
+    }
+    expect(m.body).toContain(`${r.offenseRank}`);
+  });
+  it('a new job brings a new welcome and rundown; the yearly letter does not double the welcome', () => {
+    const l = fresh();
+    const gm = l.gms[l.userGmId];
+    const to = (l.userTeamId + 9) % 32;
+    gm.appointments.push({
+      teamId: to,
+      start: { season: l.season, phase: l.phase, week: l.week },
+      interim: false,
+      through: l.season + 2,
+    });
+    gm.teamId = to;
+    l.userTeamId = to;
+    deliverMail(l);
+    expect(l.inbox!.filter((m) => m.id.includes(':welcome:'))).toHaveLength(2);
+    expect(l.inbox!.filter((m) => m.id.startsWith('rundown:'))).toHaveLength(2);
+  });
+  it('a job taken as the league year opens sends the welcome instead of the yearly letter', () => {
+    const l = createLeague({ seed: 'onboarding-resign' });
+    l.season++;
+    l.phase = 'resign';
+    l.week = 0;
+    const gm = l.gms[l.userGmId];
+    const to = (l.userTeamId + 5) % 32;
+    gm.appointments.push({
+      teamId: to,
+      start: { season: l.season, phase: 'resign', week: 0 },
+      interim: false,
+      through: l.season + 2,
+    });
+    gm.teamId = to;
+    l.userTeamId = to;
+    deliverMail(l);
+    expect(l.inbox!.some((m) => m.id.startsWith(`owner:${l.season}:welcome:${to}:`))).toBe(true);
+    expect(l.inbox!.some((m) => m.id === `owner:${l.season}:${to}`)).toBe(false);
   });
 });

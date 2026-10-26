@@ -28,6 +28,7 @@ import {
 import {
   CHAIRS,
   chairHolder,
+  coachBudget,
   coachName,
   coachMandate,
   coachResignForecast,
@@ -62,7 +63,7 @@ import {
 } from './injuries';
 import { knockFor, knockWord } from './familiarity';
 import { userGame } from './league';
-import { isMedicExpiring, MEDIC_ROLE_LABEL, medicResignForecast, teamMedics } from './medical';
+import { isMedicExpiring, MEDIC_ROLE_LABEL, medicalBudget, medicResignForecast, teamMedics } from './medical';
 import { expiringPlayers } from './offseason/ai';
 import { draftComplete, reachOrSteal } from './offseason/draft';
 import { rookieCost, ROSTER_MAX } from './offseason/negotiation';
@@ -73,7 +74,17 @@ import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { ROUND_NAMES } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { computeRecords, conferenceSeeds, playoffRace, type RaceStatus } from './season/standings';
-import { isExpiring, ownerBudgetNote, resignForecast, ROLE_LABEL, staffWindowOpen, teamStaff } from './staff';
+import {
+  isExpiring,
+  ownerBudgetNote,
+  resignForecast,
+  ROLE_LABEL,
+  staffBudget,
+  staffWindowOpen,
+  teamStaff,
+} from './staff';
+import { talentRanks } from './ownerBag';
+import { ordinal } from './opposition';
 import { careerLine } from './stats';
 import { isDeadlineDay, openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './trade';
 import { activeLearning, formerPositions, moveProblem, reasonWords, suggestMove } from './training';
@@ -609,6 +620,7 @@ export type MailSubject =
   | { kind: 'race'; season: number; level: 'spot' | 'division' | 'bye' | 'out' }
   | { kind: 'flex'; season: number; gameId: number }
   | { kind: 'owner'; season: number }
+  | { kind: 'rundown'; season: number }
   | { kind: 'staffDeals'; season: number; people: StaffRef[] }
   | { kind: 'poached'; season: number; coachId: number; chair: Chair }
   | { kind: 'carousel'; season: number }
@@ -680,6 +692,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'flex', season, gameId: Number(a) };
     case 'owner':
       return { kind: 'owner', season };
+    case 'rundown':
+      return { kind: 'rundown', season };
     case 'staff':
       if (a === 'deals') return { kind: 'staffDeals', season, people: b ? b.split('.').map(refOf) : [] };
       return {
@@ -818,15 +832,6 @@ function groupKnowledge(league: League, team: Team, positions: Position[]): numb
  * What a soft unit means for us, and what a strong one costs us, by group: where the chances should
  * be, never a plan the sim doesn't run.
  */
-const OPENING: Record<string, string> = {
-  Quarterback: 'there are mistakes to be had from their quarterback if we get to him',
-  Backfield: 'they should struggle to run it, which puts the game on their quarterback',
-  Receivers: 'their receivers should not trouble our secondary much',
-  'Offensive line': 'there should be pressure to be had up front',
-  'Defensive front': 'there should be room to run and time to throw',
-  Linebackers: 'the middle of their defense is where they are thinnest',
-  Secondary: 'there may be opportunities downfield',
-};
 const CATCH: Record<string, string> = {
   Quarterback: 'he can punish any mistake in coverage',
   Backfield: 'their back can carry a game if we let him get going',
@@ -858,18 +863,13 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
   const known =
     (groupKnowledge(league, opp, weak.g.positions) + groupKnowledge(league, opp, strong.g.positions)) / 2 >= 0.7;
   const occasion = game.playoffRound ? `the ${ROUND_NAMES[game.playoffRound]}` : `week ${league.week}`;
-  const where = game.neutral ? 'on a neutral field' : home ? 'at home' : 'on the road';
-  const opener = `We face the ${teamName(opp)} ${where} in ${occasion}.`;
-  let read: string;
-  if (strong.score - weak.score < EVEN_UNITS)
-    read = `${known ? 'Our scouts grade their units about even: there is no obvious soft spot' : 'On what our scouts have seen, there is no obvious soft spot: they look about even across the board'}, so this one will come down to who executes.`;
-  else {
-    const soft = known
-      ? `Our scouts see their ${weak.g.phrase} as the softest unit they have`
-      : `On what our scouts have seen, their ${weak.g.phrase} ${weak.g.plural ? 'look' : 'looks'} like the softest unit they have`;
-    const best = `their ${strong.g.phrase} ${strong.g.plural ? 'are' : 'is'} the strength of the team`;
-    read = `${soft}, while ${best}. ${capital(OPENING[weak.g.title])}, but ${CATCH[strong.g.title]}.`;
-  }
+  const opener = `We ${game.neutral ? 'meet' : home ? 'host' : 'visit'} the ${teamName(opp)}${game.neutral ? ' on a neutral field' : ''} in ${occasion}.`;
+  // One read, said plainly; a thin file only adds that we haven't seen much of them.
+  const read =
+    (strong.score - weak.score < EVEN_UNITS
+      ? 'No unit stands out on our read; this one comes down to execution.'
+      : `Their ${weak.g.phrase} ${weak.g.plural ? 'are' : 'is'} the soft spot and their ${strong.g.phrase} ${strong.g.plural ? 'are' : 'is'} the threat: ${CATCH[strong.g.title]}.`) +
+    (known ? '' : " We haven't seen much of them yet.");
   const stakes = matchupStakes(league, opp.id);
   const coaching = coachAdviceObservation(league);
   return [
@@ -1640,11 +1640,114 @@ const recordIn = (league: League, season: number, teamId: number) =>
  * budget he'll go, in his words rather than a number (`ownerLeeway`): a sharp reader can tell a contender's
  * owner who wants a title from one who wants the budget kept.
  */
-function ownerMail(league: League, have: Set<string>): Draft[] {
-  const { season } = league;
-  const id = `owner:${season}:${league.userTeamId}`;
-  if (have.has(id)) return [];
+/** The user's appointment at the club he runs, when it began right now (a new game, a new job): -1 otherwise. */
+function arrival(league: League): number {
+  const gm = league.gms[league.userGmId];
+  const i = (gm?.appointments.length ?? 0) - 1;
+  const a = gm?.appointments[i];
+  if (!a || a.teamId !== league.userTeamId) return -1;
+  const { season, phase, week } = a.start;
+  return season === league.season && phase === league.phase && week === league.week ? i : -1;
+}
+
+/**
+ * The owner's welcome on the GM's first day at a club: last season, what he expects of this roster (his own read of
+ * it, the talent rank his marble bag weighs), the money, and how far past the budget he'll go. Its budgets card is
+ * the yearly letter's, which it stands in for that league year.
+ */
+function welcomeMail(league: League, have: Set<string>): Draft[] {
+  const at = arrival(league);
   const team = league.teams[league.userTeamId];
+  const id = `owner:${league.season}:welcome:${team.id}:${at}`;
+  if (at < 0 || have.has(id)) return [];
+  const last = recordIn(league, league.season - 1, team.id);
+  const rank = talentRanks(league).get(team.id) ?? 16;
+  const expect =
+    rank < 8
+      ? 'This roster should be in the playoffs, and I expect it to be.'
+      : rank < 20
+        ? 'I want us competing for a wildcard spot.'
+        : 'I know this roster needs work. I want to see progress.';
+  const { marketLine, leeway, patience, promises } = ownerVoice(league, team);
+  const money = `You have ${millions(coachBudget(league, team.id))} for coaching, ${millions(staffBudget(league, team.id))} for scouting and ${millions(medicalBudget(league, team.id))} for the medical staff, with ${millions(capSpace(league, team.id))} of cap room.`;
+  return [
+    {
+      id,
+      season: league.season,
+      phase: league.phase,
+      week: league.phase === 'regular' || league.phase === 'playoffs' ? league.week : 0,
+      from: 'The owner',
+      category: 'staff',
+      subject: `Welcome to ${team.city}`,
+      body: [
+        `Welcome to the ${team.name}. ${last ? `We went ${recordWords(last)} last season.` : 'This is a fresh start for all of us.'} ${expect}`,
+        `${money} ${marketLine} ${leeway}${patience}${promises ? ` ${promises}` : ''}`.replace(/\s+/g, ' ').trim(),
+      ].join('\n\n'),
+      actions: [{ kind: 'coaches' }, { kind: 'cap' }],
+    },
+  ];
+}
+
+/**
+ * The head coach's rundown on the GM's first day: where our offense and defense rank on our scouts' read (every
+ * team's starters, `unitTable`), the players each side runs through, and the young players with the most room to grow.
+ */
+function rundownMail(league: League, have: Set<string>): Draft[] {
+  const at = arrival(league);
+  const team = league.teams[league.userTeamId];
+  const id = `rundown:${league.season}:${team.id}:${at}`;
+  if (at < 0 || have.has(id)) return [];
+  const table = unitTable(league);
+  const OFFENSE = GROUPS.slice(0, 4);
+  const side = (from: number, to: number) => table.map((row) => row.slice(from, to).reduce((a, b) => a + b, 0));
+  const rankOf = (scores: number[]) => 1 + scores.filter((x) => x > scores[team.id]).length;
+  const offenseRank = rankOf(side(0, OFFENSE.length));
+  const defenseRank = rankOf(side(OFFENSE.length, GROUPS.length));
+  const ovr = (p: Player) => perceive(league, team.id, p).ovr;
+  const best = (groups: typeof GROUPS) =>
+    groups
+      .flatMap((g) => g.positions.flatMap((pos) => starters(league, team, pos)))
+      .sort((a, b) => ovr(b) - ovr(a) || a.id - b.id)
+      .slice(0, 3)
+      .map((p) => p.id);
+  const offense = best(OFFENSE);
+  const defense = best(GROUPS.slice(OFFENSE.length));
+  const named = new Set([...offense, ...defense]);
+  const prospects = teamPlayers(league, team.id)
+    .filter((p) => p.age <= 24 && !named.has(p.id))
+    .map((p) => ({ p, room: perceive(league, team.id, p).potMid - ovr(p) }))
+    .filter((x) => x.room >= 1.5)
+    .sort((a, b) => b.room - a.room || a.p.id - b.p.id)
+    .slice(0, 3)
+    .map((x) => x.p.id);
+  const verdict =
+    offenseRank <= 10 && defenseRank <= 10
+      ? "There's talent on both sides of the ball."
+      : offenseRank <= 10 && defenseRank > 22
+        ? "We'll have to win games with the offense."
+        : defenseRank <= 10 && offenseRank > 22
+          ? 'The defense will have to carry us.'
+          : offenseRank > 22 && defenseRank > 22
+            ? "There's work to do on both sides of the ball."
+            : '';
+  return [
+    {
+      id,
+      season: league.season,
+      phase: league.phase,
+      week: league.phase === 'regular' || league.phase === 'playoffs' ? league.week : 0,
+      ...headCoach(league),
+      category: 'staff',
+      subject: 'Where the roster stands',
+      body: `Here's the roster as our scouts read it: the offense ranks ${ordinal(offenseRank)} in the league and the defense ${ordinal(defenseRank)}.${verdict ? ` ${verdict}` : ''} The players each side runs through, and the young ones worth watching, are below.`,
+      rundown: { offenseRank, defenseRank, offense, defense, prospects },
+      actions: [{ kind: 'team', teamId: team.id }],
+    },
+  ];
+}
+
+function ownerVoice(league: League, team: Team) {
+  const { season } = league;
   const market = ownerBudgetNote(team.staffBudgetMult);
   const marketLine =
     market === 'Big-spending owner'
@@ -1684,6 +1787,16 @@ function ownerMail(league: League, have: Set<string>): Draft[] {
         : [];
     })
     .join(' ');
+  return { marketLine, leeway, patience, promises };
+}
+
+function ownerMail(league: League, have: Set<string>): Draft[] {
+  const { season } = league;
+  const id = `owner:${season}:${league.userTeamId}`;
+  // A GM who arrived this league year already has the owner's welcome, with the same budgets.
+  if (have.has(id) || [...have].some((x) => x.startsWith(`owner:${season}:welcome:${league.userTeamId}:`))) return [];
+  const team = league.teams[league.userTeamId];
+  const { marketLine, leeway, patience, promises } = ownerVoice(league, team);
   return [
     {
       id,
@@ -2287,7 +2400,11 @@ export function deliverMail(league: League): void {
   const have = new Set(inbox.filter((m) => canReadMail(league, m)).map((m) => m.id));
   const fresh: Draft[] = [];
   if (employed(league)) {
+    // A new GM's first mail: the owner's welcome, then the head coach's rundown, before anything else that day.
+    const hello = [...welcomeMail(league, have), ...rundownMail(league, have)];
+    for (const m of hello) have.add(m.id);
     fresh.push(
+      ...hello,
       ...awardMail(league, have),
       ...injuryMail(league, have),
       ...tradeMail(league, have),
@@ -2341,7 +2458,8 @@ export function deliverMail(league: League): void {
   inbox.push(
     ...due.map((m) => ({
       ...m,
-      read: first,
+      // A new game files what's already happened as read; the welcome and the rundown are the first things to open.
+      read: first && !m.id.includes(':welcome:') && !m.id.startsWith('rundown:'),
       ...(m.category !== 'league' && employed(league) ? { organizationId: league.userTeamId } : {}),
     })),
   );

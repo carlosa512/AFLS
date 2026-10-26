@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.1.15',
+    date: '2026-10-26',
+    title: 'Mail that tells you more',
+    text:
+      'A new job opens with a welcome from the owner (what he expects and what you can spend) and a rundown from ' +
+      'your head coach: where the offense and defense rank, who they run through and which young players to watch. ' +
+      'When a head coach is fired, the owner says why and what it cost, and a coordinator promoted to interim keeps ' +
+      "running his side of the ball. Opposition reports are shorter, offers from other clubs show those clubs' " +
+      'colours, firings around the league come as one weekly roundup, and your director says what each trade means for you.',
+  },
+  {
     version: '0.1.14',
     date: '2026-10-26',
     title: 'GM careers and owners who judge',

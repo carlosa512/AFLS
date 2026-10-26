@@ -315,17 +315,20 @@ describe('the opposition report', () => {
     expect(count).toBeGreaterThanOrEqual(1);
     expect(count).toBeLessThanOrEqual(2);
     expect(html).toContain('Unit leaders');
-    expect(html).toContain('Our scouts place');
+    expect(html).toMatch(/(Our|Their) .* \(\d+(st|nd|rd|th)\) vs/);
     expect(html).toMatch(/Our offense vs their defense|Their offense vs our defense/);
     expect(html).not.toContain('mail-matchup-score');
   });
-  it('explains unit percentiles and does not invent early-season statistics', () => {
+  it('reads each matchup in one line and does not invent early-season statistics', () => {
     const league = createLeague({ seed: 'inbox' });
     deliverMail(league);
     const report = league.inbox!.find((m) => m.category === 'matchup')!;
     const html = renderToStaticMarkup(<MailCards league={league} message={report} />);
-    expect(html).toContain('Higher unit percentiles mean a stronger group');
-    expect(html).toContain('Not enough games yet');
+    expect(html).not.toContain('Higher unit percentiles');
+    expect(html).not.toContain('Not enough games yet');
+    expect(html).not.toContain('percentile');
+    expect(html).toMatch(/\((\d+)(st|nd|rd|th)\) vs (our|their) .* \((\d+)(st|nd|rd|th)\): /);
+    expect(html).not.toContain('mail-focus-facts');
     expect(html).not.toMatch(/NaN|Infinity|71th/);
   });
 });
@@ -571,5 +574,17 @@ describe('mail from another club', () => {
       const { bg, ink } = badgeOn(t.colors[0]);
       expect(contrast(bg, ink)).toBeGreaterThanOrEqual(4.5);
     }
+  });
+});
+
+describe('the head coach’s rundown', () => {
+  it('lists our key players and prospects as links', () => {
+    const league = createLeague({ seed: 'onboarding-card' });
+    deliverMail(league);
+    const m = league.inbox!.find((x) => x.id.startsWith('rundown:'))!;
+    const html = renderToStaticMarkup(<MailCards league={league} message={m} />);
+    for (const id of [...m.rundown!.offense, ...m.rundown!.defense, ...m.rundown!.prospects])
+      expect(html).toContain(league.players[id].lastName);
+    expect(html).toContain('Prospects to watch');
   });
 });

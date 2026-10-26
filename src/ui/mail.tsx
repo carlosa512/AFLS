@@ -191,6 +191,8 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <RaceCards league={league} s={s} />;
     case 'owner':
       return <OwnerCards league={league} s={s} />;
+    case 'rundown':
+      return message.rundown ? <RundownCards league={league} r={message.rundown} /> : null;
     case 'staffDeals':
       return <StaffDealsCards league={league} s={s} live={needsYou(league, message)} />;
     case 'poached':
@@ -668,10 +670,6 @@ function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
   const focuses = focusMatchups(league, opp.id);
   return (
     <Card title="Key matchups">
-      <p className="small muted" style={{ margin: '-4px 0 10px' }}>
-        The clearest openings and risks on our scouts' read. Higher unit percentiles mean a stronger group; the team
-        results below provide context.
-      </p>
       {focuses.map((f) => (
         <section className="mail-focus" key={`${f.side}:${f.matchup.title}`}>
           <div className="mail-matchup-head">
@@ -686,7 +684,7 @@ function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
             </span>
           </div>
           <p className="small">{f.why}</p>
-          {f.facts.length > 0 ? (
+          {f.facts.length > 0 && (
             <div className="mail-focus-facts">
               {f.facts.map((fact) => (
                 <div key={fact.teamId}>
@@ -703,10 +701,6 @@ function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="small muted">
-              Not enough games yet for a reliable statistical comparison. This is a scouting read.
-            </p>
           )}
           <div className="mail-focus-leaders">
             <span className="small muted">Unit leaders</span>
@@ -1715,6 +1709,34 @@ function BudgetTile({ label, budget, used, note }: { label: string; budget: numb
 }
 
 /** The year's budgets, as they stand now. The letter itself says how far past them the owner will go. */
+/** The head coach's rundown: the players each side runs through, and the young ones with room to grow, as filed. */
+function RundownCards({ league, r }: { league: League; r: NonNullable<InboxMessage['rundown']> }) {
+  const team = league.teams[league.userTeamId];
+  const list = (ids: number[]) =>
+    ids
+      .filter((id) => league.players[id])
+      .map((id) => {
+        const p = league.players[id];
+        return (
+          <p key={id} className="small" style={{ margin: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <PlayerAvatar player={p} team={team} size={24} /> <PlayerLink league={league} player={p} pos={false} />{' '}
+            <span className="muted">
+              {p.position} · {p.age}
+            </span>
+          </p>
+        );
+      });
+  return (
+    <>
+      <div className="mail-tiles">
+        <Card title={`Offense · ${ordinal(r.offenseRank)}`}>{list(r.offense)}</Card>
+        <Card title={`Defense · ${ordinal(r.defenseRank)}`}>{list(r.defense)}</Card>
+      </div>
+      {r.prospects.length > 0 && <Card title="Prospects to watch">{list(r.prospects)}</Card>}
+    </>
+  );
+}
+
 function OwnerCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'owner' }> }) {
   if (s.season !== league.season) return null;
   const user = league.userTeamId;
