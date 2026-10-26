@@ -594,8 +594,9 @@ buyer's physical. Picks have no physical.
   through a game), still told as agreed → physical → result.
 - AI↔AI failed physicals make the news ("The Ravens' trade for Maxx Okoro is off after a failed
   physical").
-- Target: 1–4 deals voided or renegotiated a season league-wide (*assumed*: voids are rare but real),
-  and under 1% of healthy players failing.
+- Target: 3–12% of AI deals voided or renegotiated (*assumed*: voids are rare but real; about one player trade in
+  ten, 9.4–10% measured on the 0.1.13 engine), and under 1% of healthy players failing. It was 1–4 deals a season,
+  a count that rose with trade volume and sat on its own ceiling once the league traded at the NFL's pace.
 
 ### 8. Coaches, scouts, doctors and owners in the deal
 
@@ -811,7 +812,7 @@ autopilot, and flag every number outside its range ▲/▼ (non-zero exit), like
 | | A week | ≤ 2 (4 in deadline week) |
 | | After the deadline, or for an Untouchable | 0 |
 | | Listing a player draws an offer within 2 market moments | If any team needs his position |
-| Physicals | Deals voided or renegotiated, league-wide | 1–4 a season |
+| Physicals | Deals voided or renegotiated, league-wide | 3–12% of AI deals |
 | | Healthy players (no current injury, no severe history) failing | < 1% |
 | | Strong doctors (diagnosis ≥ 15) vs weak (≤ 8): fragile players bought who miss 4+ weeks the next season | Strong clearly lower |
 | Rumors | Planted share overall / from league sources | ≤ 25% / ≤ 5% |
