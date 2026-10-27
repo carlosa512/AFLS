@@ -24,6 +24,10 @@ mark on every pick in the draft history), gets its own brainstorm and spec once 
 5. **Performance counts, not only playing time:** how well he played against players rated like him.
 6. **It settles when his team's season ends:** after week 18 if they miss the playoffs, after their last playoff
    game if they make it. Not at the new league year.
+7. **Rawer prospects, and a bust can slip (added after the first careers run).** With the class as it was, a
+   first-rounder entered already at a solid starter's level, so a stalled ceiling never made a bust (4.4% busted).
+   Prospects now come in 0.75 rawer with 0.75 more room (`RAW` in `draft.ts`), and a player under 26 whose ceiling
+   settled under him slips toward it, a point a year at most (`rollYear`, past a 0.3 dead zone).
 
 ## The settle
 
@@ -43,12 +47,14 @@ once a season (`ceilingShifts[season]` present means done), so a re-run never se
 
 - `SWING` by year in the league (0, 1, 2): about 1.6, 1.1, 0.6. Tunable.
 - `lean` is the sum of three parts, each small:
-  - **Work ethic:** `k × (workEthic − TRAIT_MEAN)`, the biggest part (about ±0.8 at the extremes).
+  - **Work ethic:** `0.02 × (workEthic − TRAIT_MEAN)`, about ±0.2 at the extremes. Work ethic already sets how fast
+    he grows, so a bigger lean doubled its effect past the careers audit's range (the first run's 0.085 put the
+    work-ethic gap at 26 at 1.6 against 0.3–1).
   - **How well he played:** his season against players rated like him (below), about ±0.4 at the extremes.
   - **Playing time and coaching:** a little up for a starter's snaps (`seasonRole`), a little down for a year
-    that barely saw the field; his coaches' development rate (`coachingFor`) tilts it slightly.
-- The ceiling may fall below his current overall. He then stops growing (`rollYear` reads `max(0, gap)`); no
-  rating is taken away. A bust is a player who never got better.
+    that barely saw the field; his coaches' development rate tilts it slightly (`0.1 × (rate − 1)`, for the same reason).
+- The ceiling may fall below his current overall. He then stops growing, and past a 0.3 dead zone slips toward it,
+  a point a year at most (decision 7).
 
 **How well he played:** the measure `PRODUCTION` in `scouting.ts` already defines per position (passer rating,
 yards, pressures…), compared not to a league-average starter but to the players at his position rated about the
@@ -144,5 +150,4 @@ finished item, per `docs/VERSIONING.md`). `CLAUDE.md`'s `development.ts` line no
 ## Out of scope
 
 - The draft screen's new look and the draft-history hit or miss mark (the second spec).
-- Ratings that fall for a young player (a bust stalls; he doesn't regress).
 - New AI behaviour: AI teams react through the reads they already have.

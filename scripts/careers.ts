@@ -22,6 +22,7 @@ import { CHAIRS, coachingFrom, NEUTRAL, type Coaching } from '../src/engine/coac
 import { ceilingShift, COACH_LEAN, SNAP_LEAN, workLean } from '../src/engine/ceiling';
 import { CEILING_SWING, developPlayer } from '../src/engine/development';
 import { generatePlayer } from '../src/engine/generate';
+import { RAW } from '../src/engine/offseason/draft';
 import { playerOvr } from '../src/engine/positions';
 import { clamp, Rng } from '../src/engine/rng';
 import type { Coach, Player, Position, Traits } from '../src/engine/types';
@@ -90,12 +91,13 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
     const p = generatePlayer(rng, {
       id: 900000 + i,
       position: pos,
-      quality: rng.normal(11, 1.2),
+      quality: rng.normal(11, 1.2) - RAW,
       age: 21,
       teamId: null,
       jerseysUsed: new Set(),
     });
-    const growth = Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
+    const growth =
+      RAW + Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = clamp(playerOvr(p) + growth, 1, 20);
     const row: number[] = [];
     const attrs: Record<string, number[]> = Object.fromEntries(Object.keys(out.attr).map((a) => [a, []]));
@@ -347,7 +349,7 @@ console.log(
   `draft: ${check('first-round busts %', rate(firsts, false), 25, 40, 1)} (${firsts.length} picks) · ${check('Day 3 solid starters %', rate(day3, true), 8, 20, 1)} (${day3.length} picks)`,
 );
 console.log(
-  `  ceilings: mean |shift| by year ${[0, 1, 2].map((y) => swing(y).toFixed(2)).join(' / ')} · ${check('swing shrinks year by year', shrinking, 1, 1, 0)} · ${check('work ethic top vs bottom third, mean shift', ethicGap, 0.5, 2.5)}`,
+  `  ceilings: mean |shift| by year ${[0, 1, 2].map((y) => swing(y).toFixed(2)).join(' / ')} · ${check('swing shrinks year by year', shrinking, 1, 1, 0)} · ${check('work ethic top vs bottom third, mean shift', ethicGap, 0.1, 0.6)}`,
 );
 console.log(
   `${check('QB1s aged 35+ %', mean(steady.qb35), 4, 22, 1)} · ${check('RB1s aged 30+ %', mean(steady.rb30), 0, 8, 1)} · ${check('K/P starters aged 38+ (of 64)', mean(steady.k38), 1, 8, 1)}`,

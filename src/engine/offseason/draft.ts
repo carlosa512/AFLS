@@ -28,6 +28,8 @@ import { POSITIONS } from '../types';
 import { ensureService } from '../personnel/service';
 
 export const DRAFT_CLASS_SIZE = 260;
+/** How far under his ready-to-play self a prospect comes in, given back as room to grow (overall points). */
+export const RAW = 0.75;
 /** How far the league consensus sits from the truth (sd of its grade and of its ceiling). */
 export const CONSENSUS_SD = { grade: 1, ceiling: 1.4 };
 
@@ -41,7 +43,9 @@ export function generateDraftClass(league: League, rng: Rng): void {
     // A class a little stronger than a new league's roster would need on its own (13.7 at the top): once the
     // generated veterans have retired, the draft alone carries the league, and at 13.5 it settled starters about
     // 0.3 below where a new league starts (`npm run careers`, starter OVR by season).
-    const quality = clamp(13.7 - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** 0.6 + rng.normal(0, 0.9), 4, 16);
+    // Prospects come in raw (`RAW`): a first-rounder usually needs two or three years to become a solid starter, so a
+    // ceiling that settles under him (`ceiling.ts`) is a bust, not a starter who stopped improving.
+    const quality = clamp(13.7 - RAW - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** 0.6 + rng.normal(0, 0.9), 4, 16);
     const position = rng.weighted(CLASS_MIX, ([, w]) => w)[0];
     const p = generatePlayer(rng, {
       id: league.nextPlayerId++,
@@ -56,7 +60,8 @@ export function generateDraftClass(league: League, rng: Rng): void {
     p.origin = collegeOrigin(league.seed, p.id, bandForRank(i + 1));
     ensureService(p, league.season);
     // Most prospects grow a point or three; a few boom, some never move.
-    const growth = Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
+    const growth =
+      RAW + Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = Math.round(clamp(playerOvr(p) + growth, playerOvr(p), 20) * 10) / 10;
     // Scouts see a noisy grade and an even noisier ceiling; noisier still on less film (a small school, the Pathway).
     const film = Math.sqrt(filmScale(p));

@@ -98,6 +98,12 @@ function reps(age: number, share: number): number {
   const weight = clamp((age - 20) / 4, 0.25, 1);
   return 1 + weight * (-0.35 + 0.55 * share);
 }
+/**
+ * The most a young player slips in a year toward a ceiling settled under him, and how far under it must sit first: a
+ * ceiling is kept to a tenth and a year's noise can lift him a hair past it, which is no reason to slip.
+ */
+const MAX_SLIP = 1;
+const SLIP_SLACK = 0.3;
 /** Keeps league-wide growth where it was before reps counted (most young players are backups). */
 const GROWTH_NORM = 1.1;
 
@@ -131,9 +137,15 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
   // Growth (or prime-years drift), in overall points.
   let delta: number;
   if (age < 26) {
-    const gap = Math.max(0, player.potential - overall(player.ratings, pos));
+    const gap = player.potential - overall(player.ratings, pos);
+    const pace = rng.float(0.15, 0.5);
+    // A ceiling the league settled under him (`ceiling.ts`): he slips toward it, a point a year at most. Same draw.
     delta =
-      gap * clamp(rng.float(0.15, 0.5) * growthMult(traits) * reps(age, ctx.playedShare) * rate * GROWTH_NORM, 0, 0.8);
+      gap >= 0
+        ? gap * clamp(pace * growthMult(traits) * reps(age, ctx.playedShare) * rate * GROWTH_NORM, 0, 0.8)
+        : gap < -SLIP_SLACK
+          ? Math.max(-MAX_SLIP, (gap + SLIP_SLACK) * pace * 2)
+          : 0;
   } else delta = rng.normal(0, 0.4);
   // Spread it so the overall moves by `delta`: weighted toward the families still growing.
   let shareSum = 0;
