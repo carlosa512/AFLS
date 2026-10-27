@@ -46,7 +46,7 @@ const ROSTER_SPOT = 15;
 /** A player the league values at about a mid first or more is a star... */
 export const STAR = 1000;
 /** ...and only goes for a first-round pick or an asset worth at least this share of him. */
-const CENTREPIECE = 0.45;
+export const CENTREPIECE = 0.45;
 
 export interface JudgeOpts {
   /** Judging the user's proposal: the GM wants a small win (his stubbornness), and at least 25 points. */
