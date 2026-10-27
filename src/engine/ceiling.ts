@@ -31,7 +31,16 @@ export const COACH_LEAN = 0.1;
 /** How well he played, at most, either way. */
 const PLAY_LEAN = 0.4;
 /** A starter's snaps lean up a little; a year that barely saw the field leans down. */
-export const SNAP_LEAN = { starter: 0.1, idle: -0.15 };
+export const SNAP_LEAN = { starter: 0.05, idle: -0.05 };
+/**
+ * Hype: a projection far past where he is now is the scouts' best case, and the league tends to bring it down. Past
+ * `HYPE_GAP` points of growth still to come, each point leans the ceiling down by `HYPE_LEAN`. It lands on the
+ * class's biggest projections, so it is what lets a first-rounder fall short of his slot (docs/research/draft-outcomes.md).
+ */
+const HYPE_GAP = 3;
+const HYPE_LEAN = 0.5;
+/** The hype part of the lean for a ceiling `potential` over an overall `ovr`. */
+export const hypeLean = (potential: number, ovr: number) => -HYPE_LEAN * Math.max(0, potential - ovr - HYPE_GAP);
 /** Peers it takes to judge a line, and how far (overall points) the search may widen to find them. */
 const PEERS = 8;
 const PEER_REACH = 3;
@@ -100,7 +109,7 @@ export function ceilingLean(league: League, p: Player, season: number, peers: Pe
     snaps = share >= 0.6 ? SNAP_LEAN.starter : share < 0.2 ? SNAP_LEAN.idle : 0;
   }
   const coached = COACH_LEAN * (coachingForPlayer(league, p).rate - 1);
-  return work + playLean(p, season, peers) + snaps + coached;
+  return work + playLean(p, season, peers) + snaps + coached + hypeLean(p.potential, overall(p.ratings, p.position));
 }
 
 /**

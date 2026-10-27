@@ -29,7 +29,7 @@ export { PEAK_END } from './aging';
  * draft-day ceiling is a best guess, and the league settles it (`ceiling.ts`), a lot in year one, little by
  * year three.
  */
-export const CEILING_SWING: readonly number[] = [1.6, 1.1, 0.6];
+export const CEILING_SWING: readonly number[] = [2.2, 1.5, 0.8];
 
 /** Which of his settling years this league year is (an index into `CEILING_SWING`), or null once he is 26 or past his third. */
 export function settleYear(p: Pick<Player, 'age' | 'experience'>): number | null {

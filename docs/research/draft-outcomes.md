@@ -24,11 +24,14 @@ round, higher late in it and at quarterback.
 
 ## What AFLS uses
 
-A pick **hits** when his true overall reaches a **solid starter** at his position by 27: the 30th percentile of
-the league's starters there, the scout report's "solid starter" tier (`tierOf` in `scouting.ts`). That sits
-between the strict and loose counts above.
+A pick is judged against what his round is for, by his true overall at 27 against the league's starters at his
+position (the scout report's tiers, `tierOf` in `scouting.ts`):
 
-- **First-round busts** (never hit): **25–40%**, centred on about 1 in 3.
-- **Day 3 hits** (rounds 4–7): **8–20%**, between the 40-start count and the looser one.
+- **A first-rounder busts** when he never reaches a **high-end starter** (the 60th percentile of starters): a top
+  pick is meant to be more than a starter. **25–40%**, tuned toward the top: on draft day nobody has seen him
+  against the pros. A plain "solid starter" line can't be the test here: the class's first round carries ceilings
+  about 3.5 points above it, so almost none would ever miss it (4.9% in the first careers runs).
+- **A Day 3 pick (rounds 4–7) hits** when he reaches a **solid starter** (the 30th percentile). **8–20%**, between
+  the 40-start count and the looser one.
 
 `npm run careers` checks both.

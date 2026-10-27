@@ -28,6 +28,12 @@ mark on every pick in the draft history), gets its own brainstorm and spec once 
    first-rounder entered already at a solid starter's level, so a stalled ceiling never made a bust (4.4% busted).
    Prospects now come in 0.75 rawer with 0.75 more room (`RAW` in `draft.ts`), and a player under 26 whose ceiling
    settled under him slips toward it, a point a year at most (`rollYear`, past a 0.3 dead zone).
+8. **A first-rounder is judged against his slot (owner's call after the prototypes).** Neither settling nor noisier
+   draft reads nor a flatter class top could make a third of first-rounders miss a solid starter: teams draft on
+   ceiling, and round 1's true ceilings sit about 3.5 points above that line. So a first-round bust is one who never
+   becomes a high-end starter (60th percentile), and ceilings are vaguer: `SWING` 2.2, 1.5, 0.8, and hype (each point
+   of growth still to come past three leans the ceiling down by 0.5, `hypeLean`). Tuned toward 40%: nobody has seen
+   him against the pros.
 
 ## The settle
 
@@ -119,9 +125,9 @@ rosters and cap health across seasons. No range is loosened to get there.
 
 New rows in `npm run careers`, each failing on its own when it leaves its range:
 
-- **First-round busts:** first-rounders who never reach a solid starter's overall at their position by age 27:
-  the 30th percentile of the league's starters there, the scout report's "solid starter" tier (`tierOf`). Target
-  25–40%.
+- **First-round busts:** first-rounders who never reach a high-end starter's overall at their position by age 27:
+  the 60th percentile of the league's starters there, the scout report's "high-end starter" tier (`tierOf`). Target
+  25–40%, tuned toward 40% (decision 8).
 - **Late-round steals:** picks from rounds 4–7 who do. Target 8–20%.
 - **Settling:** the mean absolute shift by year shrinks (year one > year two > year three), and high work ethic
   settles above low.

@@ -199,13 +199,13 @@ describe('unsettledSpread', () => {
   });
 
   it('counts every swing still to come', () => {
-    expect(CEILING_SWING).toEqual([1.6, 1.1, 0.6]);
-    expect(unsettledSpread(rookie({}), league.season)).toBeCloseTo(Math.hypot(1.6, 1.1, 0.6), 9);
+    expect(CEILING_SWING).toEqual([2.2, 1.5, 0.8]);
+    expect(unsettledSpread(rookie({}), league.season)).toBeCloseTo(Math.hypot(2.2, 1.5, 0.8), 9);
     expect(unsettledSpread(rookie({ ceilingShifts: { [league.season]: 0 } }), league.season)).toBeCloseTo(
-      Math.hypot(1.1, 0.6),
+      Math.hypot(1.5, 0.8),
       9,
     );
-    expect(unsettledSpread(rookie({ experience: 2 }), league.season)).toBeCloseTo(0.6, 9);
+    expect(unsettledSpread(rookie({ experience: 2 }), league.season)).toBeCloseTo(0.8, 9);
   });
 
   it('is nothing once he is past it', () => {

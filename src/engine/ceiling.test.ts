@@ -113,6 +113,14 @@ describe('the lean', () => {
     expect(Number.isFinite(ceilingLean(te.league, te.p, te.league.season, peers()))).toBe(true);
   });
 
+  it('a big projection leans down: the hype above a three-point gap', () => {
+    const { league, p } = rookie('ceiling-hype');
+    const at = (gap: number) =>
+      ceilingLean(league, { ...copy(p), potential: playerOvr(p) + gap }, league.season, new Map());
+    expect(at(2) - at(3)).toBeCloseTo(0, 9);
+    expect(at(3) - at(6)).toBeCloseTo(1.5, 9);
+  });
+
   it('high work ethic settles above low', () => {
     const { league, p } = rookie('ceiling-we');
     const mean = (we: number) => {

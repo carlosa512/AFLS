@@ -19,7 +19,7 @@
  */
 import { fork } from 'node:child_process';
 import { CHAIRS, coachingFrom, NEUTRAL, type Coaching } from '../src/engine/coaching';
-import { ceilingShift, COACH_LEAN, SNAP_LEAN, workLean } from '../src/engine/ceiling';
+import { ceilingShift, COACH_LEAN, hypeLean, SNAP_LEAN, workLean } from '../src/engine/ceiling';
 import { CEILING_SWING, developPlayer } from '../src/engine/development';
 import { generatePlayer } from '../src/engine/generate';
 import { RAW } from '../src/engine/offseason/draft';
@@ -111,7 +111,8 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
       const year = age - 21;
       if (year < CEILING_SWING.length) {
         const snaps = playedShare >= 0.6 ? SNAP_LEAN.starter : playedShare < 0.2 ? SNAP_LEAN.idle : 0;
-        const lean = workLean(p.traits.workEthic) + snaps + COACH_LEAN * (coaching.rate - 1);
+        const lean =
+          workLean(p.traits.workEthic) + snaps + COACH_LEAN * (coaching.rate - 1) + hypeLean(p.potential, playerOvr(p));
         p.potential = Math.min(
           20,
           p.potential + ceilingShift(new Rng(`careers:ceiling:${pos}:${i}:${age}`), year, lean),
@@ -346,7 +347,7 @@ const third = Math.floor(byEthic.length / 3);
 const ethicGap = mean(byEthic.slice(-third).map((s) => s.shift)) - mean(byEthic.slice(0, third).map((s) => s.shift));
 const shrinking = swing(0) > swing(1) && swing(1) > swing(2) ? 1 : 0;
 console.log(
-  `draft: ${check('first-round busts %', rate(firsts, false), 25, 40, 1)} (${firsts.length} picks) · ${check('Day 3 solid starters %', rate(day3, true), 8, 20, 1)} (${day3.length} picks)`,
+  `draft: ${check('first-round busts (never a high-end starter) %', rate(firsts, false), 25, 40, 1)} (${firsts.length} picks) · ${check('Day 3 solid starters %', rate(day3, true), 8, 20, 1)} (${day3.length} picks)`,
 );
 console.log(
   `  ceilings: mean |shift| by year ${[0, 1, 2].map((y) => swing(y).toFixed(2)).join(' / ')} · ${check('swing shrinks year by year', shrinking, 1, 1, 0)} · ${check('work ethic top vs bottom third, mean shift', ethicGap, 0.1, 0.6)}`,

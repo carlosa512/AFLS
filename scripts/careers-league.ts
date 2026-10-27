@@ -40,8 +40,9 @@ export interface LeagueRun {
   starterAges: { position: Position; age: number }[];
   /**
    * Every pick from the drafts this run held whose class is old enough to judge (five league years on): his round,
-   * and whether his true overall reached a solid starter's at his position (the 30th percentile of its starters,
-   * the scout report's tier) by 27 (docs/research/draft-outcomes.md).
+   * and whether his true overall reached the line for his round by 27: a high-end starter's at his position (the
+   * 60th percentile of its starters) for a first-rounder, a solid starter's (the 30th) for anyone else
+   * (docs/research/draft-outcomes.md).
    */
   drafts: { round: number; hit: boolean }[];
   /** Every settled ceiling of those picks: the year in the league it settled in, the change and his work ethic. */
@@ -143,18 +144,22 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     }
     while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
     out.starterOvr.push(mean(starters().map(playerOvr)));
-    // A pick hits once his true overall reaches a solid starter's at his position by 27.
-    const bar = new Map<Position, number>();
+    // A first-rounder hits once his true overall reaches a high-end starter's at his position by 27 (the 60th
+    // percentile of its starters: what a first-round pick is for); any later pick once he reaches a solid starter's
+    // (the 30th). The scout report's tiers (`tierOf`) draw the same lines.
+    const bars = new Map<Position, { solid: number; high: number }>();
     for (const pos of POSITIONS) {
       const ovrs = starters()
         .filter((p) => p.position === pos)
         .map(playerOvr)
         .sort((a, b) => a - b);
-      bar.set(pos, ovrs[Math.floor(0.3 * ovrs.length)]);
+      bars.set(pos, { solid: ovrs[Math.floor(0.3 * ovrs.length)], high: ovrs[Math.floor(0.6 * ovrs.length)] });
     }
-    for (const p of Object.values(league.players))
-      if (!p.retired && p.draft && p.draft.season >= firstDraft && p.age <= 27 && playerOvr(p) >= bar.get(p.position)!)
-        hits.add(p.id);
+    for (const p of Object.values(league.players)) {
+      if (p.retired || !p.draft || p.draft.season < firstDraft || p.age > 27) continue;
+      const bar = bars.get(p.position)!;
+      if (playerOvr(p) >= (p.draft.round === 1 ? bar.high : bar.solid)) hits.add(p.id);
+    }
     if (s >= steadyFrom) {
       const first = (pos: Position) => league.teams.map((t) => league.players[t.depthChart[pos][0]]);
       out.steady.qb35.push((100 * first('QB').filter((p) => p.age >= 35).length) / 32);
