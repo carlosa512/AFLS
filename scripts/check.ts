@@ -95,7 +95,7 @@ const CHECKS = {
   size: {
     cmd: ['npm', 'run', 'size'],
     cores: 1,
-    secs: 240,
+    secs: 420,
     summary: /\d+ number\(s\) outside target range/,
     detail: /✗/,
   },
@@ -189,7 +189,7 @@ const RULES: [RegExp, Name[]][] = [
   [/^src\/engine\/(?!.*\.test\.ts$)(weather|data\/stadiums|match\/|generate|season\/schedule)/, ['weather']],
   [/^scripts\/weather\.ts$/, ['weather']],
   // Size: the curves and edges, the gem, and what builds the leagues and plays the games they're measured in.
-  [/^src\/engine\/(?!.*\.test\.ts$)(size|match\/|generate|traits)/, ['size']],
+  [/^src\/engine\/(?!.*\.test\.ts$)(size|match\/|generate)/, ['size']],
   [/^scripts\/size\.ts$/, ['size']],
   // Crews: their tendencies and rotation, the penalty rolls they multiply, and what builds the leagues and schedules.
   [/^src\/engine\/(?!.*\.test\.ts$)(officials|match\/|generate|season\/schedule|offseason\/index)/, ['crews']],

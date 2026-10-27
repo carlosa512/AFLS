@@ -60,7 +60,7 @@ console.log(
 );
 
 // ── The cap ──
-const leagues: League[] = [0, 1].map((i) => createLeague({ seed: `size-fx-${i}` }));
+const leagues: League[] = [0, 1, 2, 3].map((i) => createLeague({ seed: `size-fx-${i}` }));
 const everyone = leagues.flatMap((l) => Object.values(l.players));
 const pairs: [Lever, Position[], Position[]][] = [
   ['contested', ['WR', 'TE', 'RB'], ['CB', 'S', 'LB']],

@@ -32,7 +32,7 @@ Three of its mechanics change to fit the project's rules:
 | --- | --- | --- |
 | Size "boosts agility" in play | Size nudges ratings at generation only; in play it acts only where size itself decides | Agility is already a rating; a second boost double-counts |
 | Multiply draft grade by a Size Fit Score | Each GM has a hidden size bias, applied to his own read | Size is public; teams differ in how they weigh it; no global multiplier |
-| Store `heightPercentile`, `rareGem` | Derived from height, weight and position when needed | No stored copy that can disagree with the measurement; no migration for it |
+| Store `heightPercentile`, `rareGem` | The percentile is derived from height, weight and position when needed; the gem is `Player.playsBig` | No stored copy of a measurement that can disagree with it |
 
 ## The module: `src/engine/size.ts`
 
@@ -78,8 +78,11 @@ the long ones outside. K and P are centred on today's `BODY` ranges.
 
 ### Existing saves
 
-Players keep their heights and weights (their hidden traits are seeded from them; re-rolling would reshuffle them).
-`Player` keeps its shape: no `SAVE_VERSION` bump in this phase.
+`SAVE_VERSION` 55 moves every player of an older save from his flat roll onto his position's curve at the same
+standing (`toCurve`: how far up the old range he sat becomes as many sd from the median), so each keeps his rank and
+the league is centred on the medians phase 2's edges are measured from. Hidden traits and the combine are stored, so
+nothing else about him moves. (Found in phase 2's review: left on the flat rolls, an older save's EDGEs sat 14 lb
+under the new median and every offence would have gained on the run.)
 
 ## Phase 2: Engine
 
@@ -98,7 +101,11 @@ Players keep their heights and weights (their hidden traits are seeded from them
 
 Rules:
 
-- Each edge is 0 at equal (or median) size, scales linearly with the gap in the lever's units and caps at ±2.
+- Each edge measures each player from his own position's median (a median WR on a median CB is level, though WRs run
+  half an inch taller), scales linearly with the gap in the lever's units and caps at ±2.
+- Length is height: the combine's arm length is not read (it follows height closely; one measure keeps the edges
+  centred and simple).
+- The gem protects whichever side holds it: a loss for the holder is halved, and so is the other side's gain over him.
 - Edges are antisymmetric where both sides are players (`edge(a, b) = −edge(b, a)`), so league totals hold.
 - `lanes` has no opponent player: it reads the QB's height z alone, centred on the QB median.
 
