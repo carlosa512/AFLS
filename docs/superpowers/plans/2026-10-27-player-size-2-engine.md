@@ -10,6 +10,9 @@ their position medians) and the nudge. `gameSim.ts` adds edges where both player
 trenches once per game from both lineups). `traits.ts` rolls `playsBig` on the trait stream. A new `npm run size`
 check proves each lever moves its stat and totals hold.
 
+> **Built with two changes:** the nudge was dropped (see the spec's phase 2 "Size and ratings"), and `playsBig` is
+> `Player.playsBig` rolled from the player's own stream (v55 rolls it for older saves), not a `Traits` field.
+
 **Spec:** `docs/superpowers/specs/2026-10-27-player-size-design.md` (Phase 2).
 
 ## Global Constraints

@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.3',
+    date: '2026-10-27',
+    title: 'Size matters on the field',
+    text:
+      'A tall receiver now wins more jump balls over a small corner, a heavy line moves a light front, a short-armed ' +
+      'tackle has a harder time with a speed rusher, and a short passer finds fewer lanes downfield. Each edge is ' +
+      'small and only the extremes feel it, so a great small player still wins most of his battles, and now and then ' +
+      'an undersized one plays bigger than his size.',
+  },
+  {
     version: '0.2.2',
     date: '2026-10-27',
     title: 'Real NFL builds',
