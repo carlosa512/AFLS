@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.2.8',
+    version: '0.2.10',
     date: '2026-10-27',
     title: 'Draft busts and late bloomers',
     text:
@@ -22,6 +22,26 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'first-rounders stall where they are. A rookie shows a wide ceiling range that tightens as he settles, his ' +
       'scout report says how far along he is, and your head coach or director writes when one of your young ' +
       'players hits a wall or breaks out.',
+  },
+  {
+    version: '0.2.9',
+    date: '2026-10-27',
+    title: 'Hire coaches off other staffs',
+    text:
+      'Like AI teams, you can now hire another team’s coach for the job one rung above his: a position coach as your ' +
+      'coordinator, a coordinator as your head coach. Offer the job from his profile, or tick "Include other staffs" ' +
+      'in the head coach and coordinator candidates. His team can’t block a promotion, but it only works in the ' +
+      're-sign window and free agency, and never for a man his team hired this year.',
+  },
+  {
+    version: '0.2.8',
+    date: '2026-10-27',
+    title: 'No side of the ball left without a coach',
+    text:
+      'When your offensive or defensive coordinator chair is empty, your head coach now runs that side himself: his ' +
+      'own scheme, and teaching a little below his usual level. A switch on the open chair turns it off. And your ' +
+      'owner will always find enough to hire the cheapest coordinator on the market, even after a losing season, ' +
+      'so a tight budget can no longer leave you stuck with nobody.',
   },
   {
     version: '0.2.7',

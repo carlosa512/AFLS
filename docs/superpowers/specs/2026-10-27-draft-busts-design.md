@@ -86,7 +86,7 @@ would.
 
 ## Save shape
 
-Two optional fields: `Player.ceilingShifts` and `DevYear.potential`. Bump `SAVE_VERSION` (56 to 57) with a no-op
+Two optional fields: `Player.ceilingShifts` and `DevYear.potential`. Bump `SAVE_VERSION` (57 to 58; main took 57 for `Coach.coverOff`) with a no-op
 step in `migrate.ts`: an old save has no shifts (its players settle from their next season end) and its open years
 read the player's ceiling, as they did.
 

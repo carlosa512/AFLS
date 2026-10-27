@@ -48,6 +48,9 @@ import {
   ownerTriggerNote,
   ownerTrigger,
   promoteCoach,
+  poachCoach,
+  poachProblem,
+  poachable,
   promotionFor,
   promotionProblem,
   visionFit,
@@ -72,6 +75,8 @@ import {
   TYPICAL,
   type Chair,
   coordinatorOf,
+  coveringHeadCoach,
+  setHeadCoachCover,
 } from '../../engine/coaching';
 import { kickCoaching } from '../../engine/match/lineup';
 import { coachRecord, formatRecord } from '../../engine/records';
@@ -389,6 +394,10 @@ const OWNER_YES: Partial<Record<OwnerReason, string[]>> = {
   newCoach: ['“The fans need a reason to believe. Bring him in.”', '“New era, new head coach. I’ll find the money.”'],
   bigMarket: ['“This city expects the best. Done.”', '“We can afford it. Make it happen.”'],
   stretch: ['“Fine, I’ll stretch it this once.”', '“Just this once. Don’t make it a habit.”'],
+  emptyChair: [
+    '“We can’t play without a coordinator. I’ll cover it, but only enough for that.”',
+    '“Fill the chair. I’ll find the money for the job, not for a star.”',
+  ],
 };
 const OWNER_NO: Record<OwnerReason | 'limit', string[]> = {
   assistant: [
@@ -404,6 +413,7 @@ const OWNER_NO: Record<OwnerReason | 'limit', string[]> = {
   newCoach: [],
   bigMarket: [],
   stretch: [],
+  emptyChair: [],
 };
 const pickLine = (lines: string[], seed: number) => lines[Math.abs(seed) % lines.length];
 
@@ -676,6 +686,9 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
         </Section>
       )}
       <VisionLine league={league} c={c} />
+      {!retired && c.teamId !== null && c.teamId !== league.userTeamId && promotionFor(c) && (
+        <PoachOffer league={league} c={c} />
+      )}
       {!retired && (
         <FitLine
           league={league}
@@ -1073,7 +1086,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
 }
 
 /** An empty chair at another club: just that it's empty. */
-function TheirOpenChair({ chair }: { chair: Chair }) {
+function TheirOpenChair({ chair, cover }: { chair: Chair; cover: Coach | null }) {
   return (
     <li className="staff-card vacant coach-card">
       <div className="staff-head">
@@ -1082,9 +1095,18 @@ function TheirOpenChair({ chair }: { chair: Chair }) {
           <span className="muted small">{coachTitle(chair)}</span>
         </div>
       </div>
+      {cover && (
+        <p className="small staff-note">
+          Head coach <CoachLink c={cover} /> is running the {sideNoun(chair)} himself.
+        </p>
+      )}
     </li>
   );
 }
+const sideNoun = (chair: Chair) => (chair.role === 'offCoord' ? 'offense' : 'defense');
+/** The head coach covering an empty coordinator chair, if this is one. */
+const coverOf = (staff: readonly Coach[], chair: Chair): Coach | null =>
+  chair.role === 'offCoord' || chair.role === 'defCoord' ? coveringHeadCoach(staff, chair.role) : null;
 const mine = (league: League) => teamCoaches(league, league.userTeamId);
 
 /** The head coach still running the side of the ball he was promoted from: the chair isn't open, he's covering it. */
@@ -1130,6 +1152,9 @@ function OpenChair({
   leaving?: Coach;
   onFind: () => void;
 }) {
+  const side = chair.role === 'offCoord' || chair.role === 'defCoord' ? chair.role : null;
+  const hc = side ? chairHolder(staying, { role: 'headCoach' }) : null;
+  const covering = side ? coveringHeadCoach(staying, side) : null;
   return (
     <li className="staff-card vacant coach-card">
       <div className="staff-head">
@@ -1144,8 +1169,24 @@ function OpenChair({
             <CoachLink c={leaving} /> leaves.{' '}
           </>
         )}
+        {covering && (
+          <>
+            Head coach <CoachLink c={covering} /> runs the {sideNoun(chair)} himself, teaching it a little below his own
+            level.{' '}
+          </>
+        )}
         {vacancyText(staying, chair)}
       </p>
+      {side && hc && (
+        <label className="small cover-switch">
+          <input
+            type="checkbox"
+            checked={!!covering}
+            onChange={(e) => store.mutate((l) => setHeadCoachCover(l, l.userTeamId, side, e.target.checked))}
+          />{' '}
+          Head coach runs the {sideNoun(chair)}
+        </label>
+      )}
       <div className="staff-actions">
         <button className="btn btn-sm" onClick={onFind}>
           Find {withArticle(chairNoun(chair))}
@@ -1271,7 +1312,10 @@ function RoomRow({
                   <tr key={p.source}>
                     <td>
                       {partLabel(p)}
-                      <span className="muted small part-who">{p.coach ? <CoachLink c={p.coach} /> : 'Vacant'}</span>
+                      <span className="muted small part-who">
+                        {p.coach ? <CoachLink c={p.coach} /> : 'Vacant'}
+                        {p.covering && ' (head coach, covering)'}
+                      </span>
                     </td>
                     <td className={`num ${growthTone(p.growth)}`}>{signedPct(p.growth)}</td>
                     <td className={`num ${agingTone(p.aging)}`}>{signedPct(p.aging)}</td>
@@ -1312,6 +1356,104 @@ function RoomRow({
 }
 
 // ───────── candidates ─────────
+
+/**
+ * Offer another staff's coach the job one rung up on yours (`poachCoach`): the AI's rules, the owner asked past the
+ * budget as for a promotion. Disabled with the reason when the move isn't open.
+ */
+function PoachOffer({ league, c }: { league: League; c: Coach }) {
+  const teamId = league.userTeamId;
+  const up = promotionFor(c);
+  const announce = useContext(Announce);
+  const [ask, setAsk] = useState(false);
+  if (!up) return null;
+  const problem = poachProblem(league, teamId, c, 2, false);
+  const over = problem ? 0 : moveOverspend(league, teamId, c, 2, 'poach');
+  const pay = coachAsk(league, asPromoted(league, c, up), 2);
+  const title = coachTitle(up).toLowerCase();
+  const from = c.teamId !== null ? league.teams[c.teamId].abbrev : '';
+  const go = () => {
+    store.mutate((l) => poachCoach(l, l.userTeamId, c.id, 2));
+    announce(`Hired ${coachName(c)} from ${from} as ${title}.`, 'mine');
+  };
+  return (
+    <>
+      <div className="staff-actions">
+        <button
+          className="btn btn-sm btn-primary"
+          disabled={!!problem}
+          title={problem ?? undefined}
+          aria-label={`Offer ${coachName(c)} the ${title} job · ${money(pay)}/yr for 2 years`}
+          onClick={() => (over > 0 ? setAsk(true) : go())}
+        >
+          Offer the {title} job · {money(pay)}/yr
+        </button>
+      </div>
+      {problem ? (
+        <p className="small muted staff-why">
+          <CoachNote league={league} text={problem} />
+        </p>
+      ) : (
+        <p className="small muted staff-why">
+          A promotion: {from} can’t block it, and no severance is owed.
+          {over > 0 && ' It goes past your coaching budget: the owner decides.'}
+        </p>
+      )}
+      {ask && (
+        <OwnerDialog
+          league={league}
+          chair={up}
+          over={over}
+          seed={c.id + league.season}
+          action={`Hire · ${money(pay)}/yr`}
+          onApprove={go}
+          onClose={() => setAsk(false)}
+        />
+      )}
+    </>
+  );
+}
+
+/** Another staff's coach in the candidates list, shown as he'd be one rung up on yours. */
+function PoachCandidate({ league, c }: { league: League; c: Coach }) {
+  const up = promotionFor(c)!;
+  const as = asPromoted(league, c, up);
+  return (
+    <li className="staff-card coach-card">
+      <div className="staff-head">
+        <div className="staff-who">
+          <StaffAvatar person={c} size={56} />
+          <div>
+            <CoachLink c={c} className="staff-name" />
+            <span className="muted small">
+              {coachTitle(c)}, {league.teams[c.teamId!].abbrev}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="facts">
+        <StaffSkill label="Youth development" value={c.youth} />
+        <StaffSkill label="Veteran care" value={c.veterans} />
+        <span className="fact">
+          <span className="eyebrow">Age</span>
+          <span className="staff-age">
+            <b className="num">{c.age}</b> <Trend age={c.age} />
+          </span>
+        </span>
+        <span className="fact">
+          <span className="eyebrow">Asks</span>
+          <span className="staff-age">
+            <b className="num">{money(coachAsk(league, as, 2))}</b> <span className="muted small">/ yr for 2 yrs</span>
+          </span>
+        </span>
+      </div>
+      <SchemeRow league={league} c={as} compact />
+      <CoachTags c={c} />
+      {up.role !== 'headCoach' && <FitLine league={league} c={as} hc={yourHeadCoach(league)} whose="your" promoted />}
+      <PoachOffer league={league} c={c} />
+    </li>
+  );
+}
 
 function Candidate({ league, c, open }: { league: League; c: Coach; open: boolean }) {
   const teamId = league.userTeamId;
@@ -1558,6 +1700,7 @@ export function CoachesScreen({ league }: { league: League }) {
   const [side, setSide] = useState<Side>('both');
   const [sort, setSort] = useState<Sort>('roster');
   const [showAll, setShowAll] = useState(false);
+  const [otherStaffs, setOtherStaffs] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('');
   // Whose staff the staff panel shows: yours, or any club's to look at.
@@ -1692,17 +1835,25 @@ export function CoachesScreen({ league }: { league: League }) {
   }
 
   // ── candidates ──
-  const wanted = coachMarket(league).filter(
-    (c) =>
-      ROLES_OF[tab].includes(c.role) &&
-      (tab !== 'position' || room === 'any' || c.room === room) &&
-      (tab !== 'coord' || side === 'both' || c.role === side),
-  );
-  const ranked = wanted
-    .map((c) => ({
+  const fits = (c: Pick<Coach, 'role' | 'room'>) =>
+    ROLES_OF[tab].includes(c.role) &&
+    (tab !== 'position' || room === 'any' || c.room === room) &&
+    (tab !== 'coord' || side === 'both' || c.role === side);
+  // Other staffs' coaches, judged as they'd be one rung up on yours (`poachable`); only for the chairs above a room.
+  const poached =
+    otherStaffs && open
+      ? poachable(league, teamId).map((c) => ({ c, as: asPromoted(league, c, promotionFor(c)!) }))
+      : [];
+  const ranked = [
+    ...coachMarket(league)
+      .filter(fits)
+      .map((c) => ({ c, as: c })),
+    ...poached.filter((x) => fits(x.as)),
+  ]
+    .map(({ c, as }) => ({
       c,
-      score: sort === 'roster' ? gainScore(previewCoachHire(league, teamId, c, 2), counts) : 0,
-      value: coachValue(c),
+      score: sort === 'roster' ? gainScore(previewCoachHire(league, teamId, as, 2), counts) : 0,
+      value: coachValue(as),
     }))
     .sort((a, b) => b.score - a.score || b.value - a.value);
   const candidates = sort === 'roster' ? ranked : [...ranked].sort((a, b) => b.value - a.value);
@@ -1838,7 +1989,7 @@ export function CoachesScreen({ league }: { league: League }) {
                           ? [<Member key={holder.id} league={league} c={holder} open={false} />]
                           : acting
                             ? [<ActingChair key={`acting-${key}`} chair={ch} hc={acting} />]
-                            : [<TheirOpenChair key={`open-${key}`} chair={ch} />];
+                            : [<TheirOpenChair key={`open-${key}`} chair={ch} cover={coverOf(theirs, ch)} />];
                       }
                       const cards = seated(ch).map((c) => (
                         <Member key={c.id} league={league} c={c} open={open} outlook={forecast.get(c.id)} />
@@ -1940,6 +2091,22 @@ export function CoachesScreen({ league }: { league: League }) {
                   Highest rated
                 </button>
               </div>
+              {(tab === 'head' || tab === 'coord') && (
+                <label
+                  className="small cover-switch"
+                  title="Coaches on other staffs, for the chair one rung above theirs: a position coach as your coordinator, a coordinator as your head coach. Only in the re-sign window and free agency."
+                >
+                  <input
+                    type="checkbox"
+                    checked={otherStaffs}
+                    onChange={(e) => {
+                      setOtherStaffs(e.target.checked);
+                      setShowAll(false);
+                    }}
+                  />{' '}
+                  Include other staffs
+                </label>
+              )}
             </div>
             <p className="muted small" style={{ marginTop: 0 }}>
               {sort === 'roster'
@@ -1954,9 +2121,13 @@ export function CoachesScreen({ league }: { league: League }) {
             ) : (
               <>
                 <ul className="staff-grid">
-                  {shown.map(({ c }) => (
-                    <Candidate key={c.id} league={league} c={c} open={open} />
-                  ))}
+                  {shown.map(({ c }) =>
+                    c.teamId === null ? (
+                      <Candidate key={c.id} league={league} c={c} open={open} />
+                    ) : (
+                      <PoachCandidate key={c.id} league={league} c={c} />
+                    ),
+                  )}
                 </ul>
                 {candidates.length > LIMIT && (
                   <button

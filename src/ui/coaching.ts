@@ -145,6 +145,8 @@ export interface RoomPart {
   source: Source;
   chair: Chair;
   coach: Coach | null;
+  /** The head coach, covering an empty coordinator chair. */
+  covering?: boolean;
   growth: number;
   aging: number;
 }
@@ -172,6 +174,7 @@ export function roomParts(coaches: readonly Coach[], room: Room): RoomPart[] {
         source: part.source,
         chair: part.chair,
         coach: part.coach,
+        covering: part.covering,
         growth: 0,
         aging: 0,
       };

@@ -2866,6 +2866,12 @@ details.more > summary {
 .staff-preview {
   font-weight: 600;
 }
+.cover-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
 .staff-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2974,6 +2980,10 @@ details.more > summary {
   color: var(--muted);
 }
 .candidate-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
   margin-bottom: 10px;
 }
 .preview-line {

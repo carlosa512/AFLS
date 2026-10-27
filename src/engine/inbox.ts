@@ -1991,6 +1991,7 @@ function ownerVoice(league: League, team: Team) {
     lastYear: 'We went past the coaching budget last year. This year I want it kept.',
     tight: "This market can't carry a dollar more than the budgets below.",
     losing: `Not after a ${rec} season: stay inside the coaching budget.`,
+    emptyChair: "I won't leave a side of the ball without a coordinator, but that's as far as I'll go.",
     assistant: '',
   }[stance.reason];
   const trigger = ownerTriggerNote(ownerTrigger(league, team.id));
