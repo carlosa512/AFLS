@@ -65,12 +65,18 @@ function entryOvr(p: Player): number {
   return first === undefined ? overall(p.ratings, p.position) : startOvr(p, first);
 }
 
+/** What capping a standard normal at +1 takes off its mean. */
+const CAP_GIVEBACK = 0.0833;
+
 /** The shift one settle draws: around `lean`, as wide as year `year`'s swing, its rise capped, to a tenth. */
 export function ceilingShift(rng: Rng, year: number, lean: number): number {
   // The league can make a player more than his scouts' read, but a settle lifts him at most one swing past his lean:
   // the full upper tail made a superstar out of nowhere often enough to push the season's top receivers past the
   // NFL's record (`npm run careers`, leaders). The downside keeps its whole tail: that is where busts come from.
-  return round1(Math.min(lean + CEILING_SWING[year], rng.normal(lean, CEILING_SWING[year])));
+  // Capping the tail takes about a twelfth of a swing off the average (E[(Z − 1)+] = φ(1) − (1 − Φ(1)) ≈ 0.0833), and
+  // the league's talent with it, so that much is handed back to every settle.
+  const swing = CEILING_SWING[year];
+  return round1(Math.min(lean + swing, rng.normal(lean, swing)) + CAP_GIVEBACK * swing);
 }
 
 /** Everyone's `season` with enough of a line to compare, by position. Built once per settle pass. */

@@ -134,10 +134,19 @@ describe('the lean', () => {
     let low = 0;
     for (let i = 0; i < 2000; i++) {
       const shift = ceilingShift(new Rng(`cap:${i}`), 0, 0.3);
-      expect(shift).toBeLessThanOrEqual(0.3 + CEILING_SWING[0] + 0.05);
+      expect(shift).toBeLessThanOrEqual(0.3 + 1.09 * CEILING_SWING[0] + 0.05);
       if (shift < 0.3 - CEILING_SWING[0] - 0.05) low++;
     }
     expect(low).toBeGreaterThan(150);
+  });
+
+  it('the cap trims the top tail without moving the average', () => {
+    for (const year of [0, 1, 2]) {
+      let sum = 0;
+      const n = 20000;
+      for (let i = 0; i < n; i++) sum += ceilingShift(new Rng(`mean:${year}:${i}`), year, 0.3);
+      expect(sum / n).toBeCloseTo(0.3, 1);
+    }
   });
 
   it('high work ethic settles above low', () => {
