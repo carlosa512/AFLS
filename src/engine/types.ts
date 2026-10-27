@@ -177,6 +177,8 @@ export interface Player {
   age: number;
   heightIn: number;
   weightLb: number;
+  /** Plays bigger than his size: an outlier build costs him half (`sizeEdge`). Hidden like a trait; absent for most. */
+  playsBig?: true;
   jersey: number;
   /** Years of pro experience (0 = rookie). */
   experience: number;

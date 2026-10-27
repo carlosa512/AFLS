@@ -3,8 +3,8 @@ import { createLeague, generatePlayer } from './generate';
 import { Rng } from './rng';
 import { teamPlayers } from './roster';
 import { changePosition } from './training';
-import { isOutlier, rollSize, SIZE, sizeLimits, sizeZ } from './size';
-import { POSITIONS } from './types';
+import { isOutlier, massEdge, rollSize, SIZE, sizeEdge, sizeLimits, sizeNudge, sizeZ } from './size';
+import { POSITIONS, type Player, type Position, type Ratings } from './types';
 
 const stats = (xs: number[]) => {
   const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -97,5 +97,74 @@ describe('generation', () => {
     ol.weightLb = 380;
     changePosition(l, ol, 'DT');
     expect(ol.weightLb).toBe(sizeLimits('DT').w[1]);
+  });
+});
+
+describe('sizeEdge', () => {
+  const at = (position: Position, heightIn: number, weightLb: number, playsBig = false) =>
+    ({
+      position,
+      heightIn,
+      weightLb,
+      ...(playsBig ? { playsBig: true } : {}),
+      ratings: { speed: 10 },
+    }) as unknown as Player;
+  const median = (pos: Position) => at(pos, SIZE[pos].h[0], SIZE[pos].w[0]);
+
+  it('is zero when both builds sit at their medians', () => {
+    expect(sizeEdge(median('WR'), 'contested', median('CB'))).toBe(0);
+    expect(sizeEdge(median('TE'), 'contested', median('S'))).toBe(0);
+    expect(sizeEdge(median('RB'), 'contact', median('LB'))).toBe(0);
+    expect(sizeEdge(median('WR'), 'press', median('CB'))).toBe(0);
+    expect(sizeEdge(median('DT'), 'leverage', median('OL'))).toBe(0);
+    expect(sizeEdge(median('EDGE'), 'edgeLength', median('OL'))).toBe(0);
+    expect(sizeEdge(median('QB'), 'lanes')).toBe(0);
+    expect(massEdge([median('OL'), median('OL')], [median('DT'), median('EDGE')])).toBe(0);
+  });
+
+  it('gives a tall receiver the jump ball over a small corner, capped at two points', () => {
+    const wr = at('WR', 77, 215);
+    const cb = at('CB', 69.5, 182);
+    expect(sizeEdge(wr, 'contested', cb)).toBe(2);
+    expect(sizeEdge(cb, 'contested', wr)).toBe(-2);
+    const close = at('WR', 74, 200);
+    expect(sizeEdge(close, 'contested', median('CB'))).toBeCloseTo(-sizeEdge(median('CB'), 'contested', close), 10);
+  });
+
+  it('halves a loss for a player who plays bigger than his size, and never adds a gain', () => {
+    const wr = at('WR', 77, 215);
+    expect(sizeEdge(at('CB', 69.5, 182, true), 'contested', wr)).toBe(-1);
+    expect(sizeEdge(at('WR', 77, 215, true), 'contested', at('CB', 69.5, 182))).toBe(2);
+  });
+
+  it('gives the short tackle trouble, the short tackle on a DT leverage, and a tall QB his lanes', () => {
+    expect(sizeEdge(median('EDGE'), 'edgeLength', at('OL', 74, 313))).toBeGreaterThan(0);
+    expect(sizeEdge(at('DT', 73, 300), 'leverage', at('OL', 78, 313))).toBeGreaterThan(0);
+    expect(sizeEdge(at('QB', 71, 210), 'lanes')).toBeLessThan(0);
+    expect(sizeEdge(at('QB', 77, 235), 'lanes')).toBeGreaterThan(0);
+    expect(massEdge([at('OL', 77, 340)], [at('DT', 75, 290)])).toBeGreaterThan(0);
+  });
+});
+
+describe('sizeNudge', () => {
+  const make = (v: number) => ({ speed: v, agility: v, strength: v }) as Ratings;
+
+  it('leaves a median build alone and moves both tails the same amount', () => {
+    const r = make(10);
+    sizeNudge(r, 0);
+    sizeNudge(r, -0.4);
+    expect([r.speed, r.agility, r.strength]).toEqual([10, 10, 10]);
+    const lo = make(10);
+    const hi = make(10);
+    sizeNudge(lo, -1);
+    sizeNudge(hi, 1);
+    expect([lo.speed, lo.agility, lo.strength]).toEqual([11, 11, 9]);
+    expect([hi.speed, hi.agility, hi.strength]).toEqual([9, 9, 11]);
+  });
+
+  it('stays on the 1–20 scale', () => {
+    const top = make(20);
+    sizeNudge(top, -2);
+    expect([top.speed, top.agility, top.strength]).toEqual([20, 20, 19]);
   });
 });

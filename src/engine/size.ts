@@ -5,7 +5,7 @@
  * for a corner?" goes through it, so a table change moves every reader at once.
  */
 import { clamp, type Rng } from './rng';
-import type { Player, Position } from './types';
+import type { Player, Position, Ratings } from './types';
 
 /** [mean, sd] for height (inches) and weight (pounds) at each position. */
 export const SIZE: Record<Position, { h: [number, number]; w: [number, number] }> = {
@@ -68,4 +68,67 @@ export function rollSize(rng: Rng, pos: Position): { heightIn: number; weightLb:
   const at = ([mean, sd]: [number, number], z: number, [lo, hi]: [number, number]) =>
     clamp(Math.round(mean + sd * clamp(z, -TAIL, TAIL)), lo, hi);
   return { heightIn: at(h, zh, lim.h), weightLb: at(w, zw, lim.w) };
+}
+
+/**
+ * What a new player's build does to his ratings: the small ones come out a step quicker and lighter in the hands, the
+ * big ones the reverse. Whole points only, a full point from one sd out, rounded away from zero on both sides alike
+ * so a small player and a big one the same distance out move the same amount. It ships with the matchup edges below,
+ * which price that speed back: alone it gave small players at speed-weighted positions a free overall.
+ */
+export function sizeNudge(ratings: Ratings, z: number): void {
+  const x = clamp(-z / 2, -1, 1);
+  const d = Math.sign(x) * Math.round(Math.abs(x));
+  if (!d) return;
+  ratings.speed = clamp(ratings.speed + d, 1, 20);
+  ratings.agility = clamp(ratings.agility + d, 1, 20);
+  ratings.strength = clamp(ratings.strength - d, 1, 20);
+}
+
+/** The moments size decides on the field (see the spec's phase 2 table). */
+export type Lever = 'contested' | 'press' | 'edgeLength' | 'leverage' | 'contact' | 'lanes';
+
+/** Most a build is worth at one moment, in rating points: a modifier, never a gate. */
+export const EDGE_CAP = 2;
+/** How far apart two builds must be for the full edge: about two sd. */
+const FULL_HEIGHT = 5;
+const FULL_LINE_HEIGHT = 4.4;
+const FULL_WEIGHT = 30;
+const FULL_QB_HEIGHT = 4;
+
+type Build = Pick<Player, 'position' | 'heightIn' | 'weightLb'>;
+/** Inches or pounds over his own position's median: two medians are level whatever their positions. */
+const devH = (p: Build) => p.heightIn - SIZE[p.position].h[0];
+const devW = (p: Build) => p.weightLb - SIZE[p.position].w[0];
+const points = (gap: number, full: number) => clamp((EDGE_CAP * gap) / full, -EDGE_CAP, EDGE_CAP);
+
+/** The rusher's side of a pass-rush matchup: what his build (and his speed, for length) wins against the blocker. */
+function rushEdge(rusher: Player, blocker: Build, lever: 'edgeLength' | 'leverage'): number {
+  if (lever === 'leverage') return points(devH(blocker) - devH(rusher), FULL_LINE_HEIGHT);
+  // A short-armed tackle loses to speed most: the faster the rusher, the more a missing inch costs.
+  const speed = clamp((rusher.ratings.speed - 6) / 8, 0.5, 1.5);
+  return points(-devH(blocker) * speed, FULL_LINE_HEIGHT);
+}
+
+/**
+ * What `p`'s build is worth against `opp` at one moment, in rating points (positive helps `p`). Zero when both sit at
+ * their positions' medians; the same gap the other way round is the same edge the other way. A player who plays
+ * bigger than his size gives up half of what he'd lose, and gains nothing extra.
+ */
+export function sizeEdge(p: Player, lever: Lever, opp?: Player): number {
+  let e: number;
+  if (lever === 'lanes') e = points(devH(p), FULL_QB_HEIGHT);
+  else if (!opp) return 0;
+  else if (lever === 'contested') e = points(devH(p) - devH(opp), FULL_HEIGHT);
+  else if (lever === 'press' || lever === 'contact') e = points(devW(p) - devW(opp), FULL_WEIGHT);
+  else e = p.position === 'OL' ? -rushEdge(opp, p, lever) : rushEdge(p, opp, lever);
+  // `+ 0` turns a median's -0 into 0.
+  return (e < 0 && p.playsBig ? e / 2 : e) + 0;
+}
+
+/** The line's weight against the front's, from the offense's side: who moves whom at the point of attack. */
+export function massEdge(line: readonly Build[], front: readonly Build[]): number {
+  if (!line.length || !front.length) return 0;
+  const mean = (ps: readonly Build[]) => ps.reduce((n, p) => n + devW(p), 0) / ps.length;
+  return points(mean(line) - mean(front), FULL_WEIGHT);
 }
