@@ -280,7 +280,8 @@ describe('migration and collection', () => {
     // Filled from origin/main's own output (no personnel code), not regenerated from the implementation under test.
     // `players` and `result` re-taken with player size (0.2.2): new builds reseed hidden traits; the stream, charts
     // and schedule still match main, which is what proves the size roll costs the same two draws. `result` again with
-    // the DT's wrap-up at the line, and with the size edges.
+    // the DT's wrap-up at the line, and with the size edges. `charts` and `result` again with spot fit,
+    // which lines the starters up by build.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -295,6 +296,6 @@ const BASELINE = {
   players: '99c29d8827408c9a6e16fc2310b98e8be049982c2a26091d2f58be065907d8f8',
   rng: [666865279, 3079305262, 4039765455, 1664101998],
   games: '7d434cad09545c5d832fe11048921e57ab49f1d9807d05ae5b65df3aaa0a9978',
-  result: '2f869cf8f75edfd30ba7d26e69d7e11424e4c103d37b5cb1f790af9d0cbe5deb',
-  charts: '23d56b1d1217c25f425b5454c0fd4e579639aa7a1dbf7753d52c180d7905ff1e',
+  result: '6765981735b568f405fec651eb82f97e5973496d4a869c51698c1ddbd80ebeee',
+  charts: 'c037cb8b7ac2ddbd4f182d7604a51beb0c9a450149c11afd651236e470a4a5f7',
 };
