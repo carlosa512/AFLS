@@ -12,7 +12,7 @@
 import { isOutlier, sizeZ } from './size';
 import { ATTRIBUTE_INFO, type AgingFamily } from './attributes';
 import { declineOnset } from './aging';
-import { repsSoFar } from './development';
+import { repsSoFar, unsettledSpread } from './development';
 import { ATTRIBUTE_PROFILES, overall, OVR_WEIGHTS, POSITION_NAMES, STARTERS } from './positions';
 import { activeQuirks, formingQuirks, QUIRKS, type QuirkId, type QuirkTone } from './quirks';
 import { clamp, Rng } from './rng';
@@ -125,6 +125,11 @@ export interface PlayerView {
   /** Projected ceiling, on the overall scale. Collapses to the overall once he's done growing. */
   potLo: number;
   potHi: number;
+  /**
+   * The top of the read without what the league has still to settle (`unsettledSpread`): where the scouts think he
+   * is headed. The range is wider while he settles; a verdict ("he could become…") reads this.
+   */
+  potHiRead: number;
   /** Best single guess at the ceiling, and how far off (1 sd) the overall and ceiling guesses tend to be. */
   potMid: number;
   ovrSd: number;
@@ -195,6 +200,7 @@ export function perceive(league: League, teamId: number, p: Player): PlayerView 
 
   let potLo = ovrLo;
   let potHi = ovrHi;
+  let potHiRead = ovrHi;
   let potMid = ovr;
   let potSd = ovrSd;
   if (p.age < 26) {
@@ -203,8 +209,11 @@ export function perceive(league: League, teamId: number, p: Player): PlayerView 
     const u = (0.5 + 0.35 * room) * (1 - 0.6 * k) * accPot;
     // Overrate him now and you'll overrate his ceiling too.
     const center = p.potential + (ovr - overall(p.ratings, p.position)) + 0.8 * u * zPot;
-    potLo = clamp(Math.max(ovr, center - u), 1, 20);
-    potHi = clamp(Math.max(potLo, center + u), 1, 20);
+    // What the league has still to settle widens the range, not the guess (`ceiling.ts`).
+    const w = Math.hypot(u, unsettledSpread(p, league.season));
+    potLo = clamp(Math.max(ovr, center - w), 1, 20);
+    potHi = clamp(Math.max(potLo, center + w), 1, 20);
+    potHiRead = clamp(Math.max(clamp(Math.max(ovr, center - u), 1, 20), center + u), 1, 20);
     potMid = clamp(Math.max(ovr, center), 1, 20);
     potSd = Math.sqrt(ovrSd ** 2 + (0.8 * u) ** 2);
   }
@@ -217,6 +226,7 @@ export function perceive(league: League, teamId: number, p: Player): PlayerView 
     ovrHi,
     potLo,
     potHi,
+    potHiRead,
     potMid,
     ovrSd,
     potSd,
@@ -1187,6 +1197,23 @@ export interface ScoutReport {
   notes: string[];
 }
 
+/**
+ * Where a young player stands in settling his ceiling (`ceiling.ts`), as `teamId` reads him: a projection in year
+ * one; in years two and three, which way the read has moved since he came in (a point or more), or that it looks
+ * about settled by year three. Nothing past that, or for a quiet year two.
+ */
+export function settleNote(league: League, teamId: number, p: Player, view: PlayerView): string | null {
+  if (p.age >= 26 || p.experience > 2) return null;
+  if (p.experience === 0 && !Object.keys(p.ceilingShifts ?? {}).length)
+    return 'Still a projection: his first season will tell us a lot about his ceiling.';
+  const settled = Object.values(p.ceilingShifts ?? {}).reduce((a, b) => a + b, 0);
+  const then = perceive(league, teamId, { ...p, potential: p.potential - settled }).potMid;
+  const moved = view.potMid - then;
+  if (moved <= -1) return 'His ceiling read has come down since he came into the league.';
+  if (moved >= 1) return 'His ceiling read has gone up since he came into the league.';
+  return p.experience === 2 ? 'His ceiling looks about settled.' : null;
+}
+
 /** The tone a report leads with when it has to pick between a player's habits: a flaw first, then a plus, then a style. */
 const HABIT_ORDER: Record<QuirkTone, number> = { bad: 0, good: 1, style: 2 };
 
@@ -1202,7 +1229,7 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   const view = perceive(league, teamId, p);
   const pos = p.position === 'OL' ? 'offensive lineman' : POSITION_NAMES[p.position].toLowerCase();
   const now = tierOf(league, p.position, view.ovr);
-  const ceiling = tierOf(league, p.position, view.potHi);
+  const ceiling = tierOf(league, p.position, view.potHiRead);
   const young = p.age < 26;
   // Growth that won't change his standing still matters to a contract: say so when there is some.
   const growing = young && ceiling >= now && view.potHi - view.ovr >= 1.5;
@@ -1418,6 +1445,8 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   // His build last, so it never crowds out a habit the staff has seen.
   const build = buildNote(league, teamId, p);
   if (build) notes.push(build);
+  const settling = settleNote(league, teamId, p, view);
+  if (settling) notes.push(settling);
   return { verdict: said, game, notes };
 }
 
