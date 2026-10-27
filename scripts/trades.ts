@@ -294,7 +294,9 @@ function runProbes(base: League) {
   const fresh = () => clone(base);
   const best = (l: League, teamId: number) =>
     teamPlayers(l, teamId)
-      .filter((p) => !playerTradeBlocker(l, p))
+      // No kickers or punters: your only specialist can't go either (a league rule, which costs no patience), so a probe
+      // that sent him would be refused before value or policy came into it.
+      .filter((p) => !playerTradeBlocker(l, p) && p.position !== 'K' && p.position !== 'P')
       .sort((a, b) => playerOvr(b) - playerOvr(a));
   // A star the way his GM counts one (`STAR`, on its own read), and one whose departure breaks no roster rule: a punter
   // who is the club's only punter is refused before the GM hears a word, so a probe aimed at him tests nothing.
@@ -306,16 +308,20 @@ function runProbes(base: League) {
         teamPlayers(l, teamId).filter((q) => q.position === p.position).length > STARTERS[p.position],
     );
   };
-  const ai = base.teams.find((t) => t.id !== USER && starIn(base, t.id))!.id;
+  // Not a division rival: in season he won't hand you a player whatever you offer, so the probes would test that alone.
+  const ai = base.teams.find(
+    (t) => t.id !== USER && t.division !== base.teams[USER].division && starIn(base, t.id),
+  )!.id;
   const starOf = (l: League) => starIn(l, ai)!;
   const picksOf = (l: League, teamId: number, round?: number) =>
     l.draftPicks.filter((p) => p.ownerId === teamId && p.playerId === undefined && (!round || p.round === round));
   const accepts = (l: League, proposal: TradeProposal) => evaluateTrade(l, proposal).accepts;
-  // Room on both rosters and under your cap, so only value and policy are in play: a trade your cap forbids is a league
-  // rule, refused before the GM hears it, and an opening league paid like a settled one leaves you little room.
+  // Room on both rosters and under both caps, so only value and policy are in play: a trade either cap forbids is a
+  // league rule, refused before the GM hears it (taking three salaries for one put the AI over on two seeds), and an
+  // opening league paid like a settled one leaves little room.
   const room = (l: League) => {
     for (const id of [USER, ai]) for (const p of best(l, id).slice(-3)) p.teamId = null;
-    l.teams[USER].carryover = l.caps[l.season];
+    for (const id of [USER, ai]) l.teams[id].carryover = l.caps[l.season];
   };
 
   {

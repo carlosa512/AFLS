@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.7',
+    date: '2026-10-27',
+    title: 'Trade checks test every deal on its merits',
+    text:
+      'Nothing changes in play. The checks that try to trick general managers into bad deals now deal with a team ' +
+      'outside your division, leave both sides room under the cap and never send a kicker or punter, so every ' +
+      'answer comes from what the GM thinks of the deal rather than a league rule.',
+  },
+  {
     version: '0.2.6',
     date: '2026-10-27',
     title: 'Sharper trade checks',
