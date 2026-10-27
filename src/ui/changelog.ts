@@ -15,11 +15,20 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.7',
     date: '2026-10-27',
-    title: 'Sharper trade tests',
+    title: 'Trade checks test every deal on its merits',
     text:
-      'Behind the scenes: the checks that try to cheat AI general managers in trades (junk for a star, three ' +
-      'average players for one great one, pestering one GM all week) now test against a real star on a team outside ' +
-      'your division, so they catch what they are meant to. Nothing changes in how trades play.',
+      'Nothing changes in play. The checks that try to trick general managers into bad deals now deal with a team ' +
+      'outside your division, leave both sides room under the cap and never send a kicker or punter, so every ' +
+      'answer comes from what the GM thinks of the deal rather than a league rule.',
+  },
+  {
+    version: '0.2.6',
+    date: '2026-10-27',
+    title: 'Sharper trade checks',
+    text:
+      'Nothing changes in play. The checks that try to trick general managers into bad deals now aim at real stars ' +
+      'and real mid-level starters in every league, so a pass means the GM truly said no. Two leagues had looked ' +
+      'open to tricks: on a closer look, the GMs there were judging fairly all along.',
   },
   {
     version: '0.2.5',

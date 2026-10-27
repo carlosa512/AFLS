@@ -38,6 +38,7 @@ import { playerOvr, STARTERS } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
 import { teamPlayers } from '../src/engine/roster';
 import {
+  CENTREPIECE,
   evaluateTrade,
   executeTrade,
   goingRate,
@@ -51,6 +52,7 @@ import {
   playerTradeBlocker,
   proposeTrade,
   setTradeStatus,
+  STAR,
   teamNeeds,
   ASKS,
   CONCERNS,
@@ -292,27 +294,31 @@ function runProbes(base: League) {
   const fresh = () => clone(base);
   const best = (l: League, teamId: number) =>
     teamPlayers(l, teamId)
-      // No kickers or punters: a club's only specialist can't go at all (a league rule, which costs no patience), so a
-      // probe that sent one either way would be refused before value or policy came into it.
+      // No kickers or punters: your only specialist can't go either (a league rule, which costs no patience), so a probe
+      // that sent him would be refused before value or policy came into it.
       .filter((p) => !playerTradeBlocker(l, p) && p.position !== 'K' && p.position !== 'P')
       .sort((a, b) => playerOvr(b) - playerOvr(a));
-  // A star is the best player his club would mind losing: one it values below nothing is an overpaid contract it may
-  // fairly give away.
-  const starOf = (l: League, teamId: number) => {
+  // A star the way his GM counts one (`STAR`, on its own read), and one whose departure breaks no roster rule: a punter
+  // who is the club's only punter is refused before the GM hears a word, so a probe aimed at him tests nothing.
+  const starIn = (l: League, teamId: number) => {
     const ctx = tradeContext(l);
-    return best(l, teamId).find((p) => playerValue(l, p, l.teams[teamId], { ctx }) > 0);
+    return best(l, teamId).find(
+      (p) =>
+        marketValue(ctx, l.teams[teamId], p) >= STAR &&
+        teamPlayers(l, teamId).filter((q) => q.position === p.position).length > STARTERS[p.position],
+    );
   };
-  // Not a division rival: he won't hand you a player in season whatever you offer, so the probes would test that alone.
-  const ai = base.teams.find((t) => {
-    if (t.id === USER || t.division === base.teams[USER].division) return false;
-    const star = starOf(base, t.id);
-    return !!star && playerOvr(star) >= 15;
-  })!.id;
+  // Not a division rival: in season he won't hand you a player whatever you offer, so the probes would test that alone.
+  const ai = base.teams.find(
+    (t) => t.id !== USER && t.division !== base.teams[USER].division && starIn(base, t.id),
+  )!.id;
+  const starOf = (l: League) => starIn(l, ai)!;
   const picksOf = (l: League, teamId: number, round?: number) =>
     l.draftPicks.filter((p) => p.ownerId === teamId && p.playerId === undefined && (!round || p.round === round));
   const accepts = (l: League, proposal: TradeProposal) => evaluateTrade(l, proposal).accepts;
   // Room on both rosters and under both caps, so only value and policy are in play: a trade either cap forbids is a
-  // league rule, refused before the GM hears it, and an opening league paid like a settled one leaves little room.
+  // league rule, refused before the GM hears it (taking three salaries for one put the AI over on two seeds), and an
+  // opening league paid like a settled one leaves little room.
   const room = (l: League) => {
     for (const id of [USER, ai]) for (const p of best(l, id).slice(-3)) p.teamId = null;
     for (const id of [USER, ai]) l.teams[id].carryover = l.caps[l.season];
@@ -321,7 +327,7 @@ function runProbes(base: League) {
   {
     const l = fresh();
     room(l);
-    const star = starOf(l, ai)!;
+    const star = starOf(l);
     const junk = best(l, USER)
       .slice(-5)
       .map((p) => p.id);
@@ -342,15 +348,13 @@ function runProbes(base: League) {
   {
     const l = fresh();
     room(l);
-    const star = starOf(l, ai)!;
-    // Each worth less than the star in his GM's eyes: a young player he'd pay more for is an overpay, not quantity for
-    // quality.
+    const star = starOf(l);
+    // Mid starters each below the centrepiece line: a young starter on a rookie deal at a premium spot can be worth
+    // more than the star on his own, and buying with him is a fair price, not quantity buying quality.
     const ctx = tradeContext(l);
-    const worth = playerValue(l, star, l.teams[ai], { ctx });
+    const line = CENTREPIECE * marketValue(ctx, l.teams[ai], star);
     const mids = best(l, USER)
-      .filter(
-        (p) => p.position !== star.position && playerOvr(p) < 13.5 && playerValue(l, p, l.teams[ai], { ctx }) < worth,
-      )
+      .filter((p) => p.position !== star.position && playerOvr(p) < 13.5 && marketValue(ctx, l.teams[ai], p) < line)
       .slice(0, 3)
       .map((p) => p.id);
     probes.push({
@@ -466,7 +470,7 @@ function runProbes(base: League) {
             .map((p) => p.id),
           picks: [],
         },
-        { teamId: ai, players: [starOf(l, ai)!.id], picks: [] },
+        { teamId: ai, players: [starOf(l).id], picks: [] },
       ],
     };
     const answers = Array.from({ length: 20 }, () => proposeTrade(l, proposal).message);
@@ -477,7 +481,7 @@ function runProbes(base: League) {
   }
   {
     const l = fresh();
-    const star = starOf(l, ai)!;
+    const star = starOf(l);
     star.injury = {
       type: 'hamstring',
       severity: 'moderate',

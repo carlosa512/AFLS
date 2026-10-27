@@ -17,6 +17,7 @@ export { dealAdvice, type Advice } from './advice';
 export { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
 export { executeTrade } from './execute';
 export {
+  CENTREPIECE,
   evaluateTrade,
   heldPick,
   judge,
@@ -24,6 +25,7 @@ export {
   suggestSweetener,
   type JudgeOpts,
   type Judgement,
+  STAR,
   type TradeVerdict,
 } from './judge';
 export { dealFor, dumpFor, keepToFit, TAGS, type Deal } from './deals';
