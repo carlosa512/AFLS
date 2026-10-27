@@ -145,3 +145,17 @@ export function rollGem(
 ): boolean {
   return isOutlier(p) && new Rng(`gem:${p.id}:${p.firstName} ${p.lastName}`).next() < GEM_RATE;
 }
+
+/**
+ * What the front's builds win in the pass rush against this line, in rating points from the defense's side: each end
+ * against the tackle across from him (RE on the left tackle, LE on the right; `ol` in spot order LT, LG, C, RG, RT),
+ * each tackle against the guards and center. Missing players are skipped; an empty matchup is level.
+ */
+export function rushSizeEdge(ol: readonly Player[], edge: readonly Player[], dt: readonly Player[]): number {
+  const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+  const tackles = [ol[0], ol[4]];
+  const outside = edge.flatMap((e, i) => (tackles[i] ? [sizeEdge(e, 'edgeLength', tackles[i])] : []));
+  const interior = ol.slice(1, 4);
+  const inside = dt.flatMap((d) => interior.map((b) => sizeEdge(d, 'leverage', b)));
+  return (mean(outside) + mean(inside)) / 2 + 0;
+}

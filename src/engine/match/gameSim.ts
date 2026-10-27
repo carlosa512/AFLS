@@ -1,3 +1,4 @@
+import { massEdge, rushSizeEdge, sizeEdge } from '../size';
 import { preparePersonnelGame } from '../personnel/flow';
 /**
  * Play-by-play game simulation.
@@ -2093,7 +2094,9 @@ class GameSim {
     const tight = shrink(yardsToGoal);
     const boxAdj = { base: 0, runD: 1.5, passD: -1.5, blitz: 0.6 }[defCall] * (1 + RED_ZONE_CALL * tight);
     const homeAdj = this.offense === 0 ? this.homeEdge : -this.homeEdge;
-    const lineDelta = fade(off.runBlock - (def.runStop + boxAdj) + homeAdj, tight);
+    // Weight moves weight at the point of attack: the line's against the front's.
+    const mass = 0.5 * massEdge(off.ol, [...def.dt, ...def.edge]);
+    const lineDelta = fade(off.runBlock - (def.runStop + boxAdj) + homeAdj + mass, tight);
     const rusherSkill = skill(rusher, outside ? 'outsideRun' : 'insideRun');
 
     // Outside runs also have to get around the edge defenders.
@@ -2107,11 +2110,17 @@ class GameSim {
     );
     if (yards > 4) {
       // Past the line: beat the best linebacker's tackle, then outrun the deep safety.
-      const lbTackle = Math.max(...def.lb.map((p) => skill(p, 'tackling')));
+      const lb = def.lb.reduce<Player | undefined>(
+        (best, p) => (!best || skill(p, 'tackling') > skill(best, 'tackling') ? p : best),
+        undefined,
+      );
+      const lbTackle = lb ? skill(lb, 'tackling') : -Infinity;
+      // A heavy back runs through a light linebacker's tackle; a light one bounces off a big one.
+      const contact = lb ? sizeEdge(rusher, 'contact', lb) : 0;
       const speed = skill(rusher, 'longSpeed');
       const pBreak = clamp(
         0.2 +
-          0.015 * (skill(rusher, 'breakTackles') - lbTackle) +
+          0.015 * (skill(rusher, 'breakTackles') - lbTackle + contact) +
           0.012 * (speed - skill(def.s[0], 'pursuit')) +
           lean.breakaway,
         0.08,
@@ -2221,6 +2230,8 @@ class GameSim {
       homeAdj -
       off.scheme.offense.release +
       quirkRush +
+      // Length on the edge and leverage inside: a short tackle on a speed rusher, a squat tackle under a tall guard.
+      rushSizeEdge(off.ol, def.edge, def.dt) +
       // A disguised look buys the rush a beat; a prevent shell rushes three.
       (this.disguise ? 0.6 : 0) -
       (this.preventShell ? 0.8 : 0);
@@ -2342,6 +2353,8 @@ class GameSim {
     // A receiver who sells his stem beats man coverage; one who can't get off the jam doesn't.
     if (man && this.has(receiver, 'stemsDB')) sep += 2.5;
     if (man && depth !== 'deep' && this.has(receiver, 'getsJammed')) sep -= 2.5;
+    // At the line in man, weight wins the jam: a light receiver gets rerouted by a big corner.
+    if (man && depth !== 'deep') sep += 0.5 * sizeEdge(receiver, 'press', defender);
     if (coverage) sep += coverage.sep[depth === 'short' ? 0 : depth === 'medium' ? 1 : 2];
     if (depth === 'short') sep += scheme.quick;
     // Play action off a run game the defense respects: the linebackers bite and the windows behind them open.
@@ -2374,7 +2387,9 @@ class GameSim {
     const rawAcc =
       skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy') +
       fast -
-      1.5 * ghosts;
+      1.5 * ghosts +
+      // Over the middle and downfield a short passer throws through his own line; a tall one sees over it.
+      (depth === 'short' ? 0 : sizeEdge(qb, 'lanes'));
     const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
     let air: number;
     if (isBack && depth === 'short') air = rng.int(-3, 4);
@@ -2410,7 +2425,11 @@ class GameSim {
       Math.exp(
         -0.07 * (decisions - 12) -
           0.05 * (acc - 12) +
-          0.065 * (skill(defender, 'ballSkills') + this.ballHawk(defender, !coverage?.man, depth) - 8) -
+          0.065 *
+            (skill(defender, 'ballSkills') +
+              this.ballHawk(defender, !coverage?.man, depth) +
+              (sep < 1 ? sizeEdge(defender, 'contested', receiver) : 0) -
+              8) -
           0.05 * sep +
           // A ball-hawking safety lurks over the top.
           (depth === 'short' ? 0 : 0.05 * (skill(def.s[0], 'ballSkills') - 12)),
@@ -2472,7 +2491,8 @@ class GameSim {
       gain = yardsToGoal;
     } else {
       tackler = rng.chance(0.6) ? defender : this.pickTackler(def, air + 4);
-      const yacSkill = skill(receiver, 'afterCatch') - skill(tackler, 'tackling');
+      const yacSkill =
+        skill(receiver, 'afterCatch') - skill(tackler, 'tackling') + sizeEdge(receiver, 'contact', tackler);
       let yac = Math.max(
         0,
         rng.normal(
@@ -2675,7 +2695,8 @@ class GameSim {
     if (this.has(receiver, 'bodyCatcher')) p -= 0.05;
     if (this.has(receiver, 'shortArm')) p -= 0.07;
     if (this.has(defender, 'catchPoint')) p += 0.04;
-    return p;
+    // Above the rim: the taller man wins the jump ball, counted like a point of hands.
+    return p + 0.012 * sizeEdge(receiver, 'contested', defender);
   }
 
   /** Yards after the catch the receiver's and tackler's quirks add. */

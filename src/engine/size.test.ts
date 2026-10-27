@@ -5,7 +5,7 @@ import { playerOvr } from './positions';
 import { Rng } from './rng';
 import { teamPlayers } from './roster';
 import { changePosition } from './training';
-import { isOutlier, massEdge, rollGem, rollSize, SIZE, sizeEdge, sizeLimits, sizeNudge, sizeZ } from './size';
+import { isOutlier, massEdge, rollGem, rushSizeEdge, rollSize, SIZE, sizeEdge, sizeLimits, sizeNudge, sizeZ } from './size';
 import { POSITIONS, type Player, type Position, type Ratings } from './types';
 
 const stats = (xs: number[]) => {
@@ -210,5 +210,22 @@ describe('the rare gem and the nudge at creation', () => {
     const m = migrateLeague(l)!;
     expect(m.version).toBe(SAVE_VERSION);
     expect(Object.values(m.players).map((p) => [p.id, p.playsBig ?? false])).toEqual(before);
+  });
+});
+
+describe('rushSizeEdge', () => {
+  const at = (position: Position, heightIn: number, weightLb = SIZE[position].w[0]) =>
+    ({ position, heightIn, weightLb, ratings: { speed: 12 } }) as unknown as Player;
+  const line = (h: number) => [at('OL', h), at('OL', 76.75), at('OL', 76.75), at('OL', 76.75), at('OL', h)];
+
+  it('is zero for median units and grows against short tackles', () => {
+    expect(rushSizeEdge(line(76.75), [at('EDGE', 76.5), at('EDGE', 76.5)], [at('DT', 75.5)])).toBe(0);
+    expect(rushSizeEdge(line(74), [at('EDGE', 76.5), at('EDGE', 76.5)], [at('DT', 75.5)])).toBeGreaterThan(0);
+  });
+
+  it('copes with missing players without NaN', () => {
+    expect(rushSizeEdge([], [], [])).toBe(0);
+    expect(rushSizeEdge(line(74).slice(0, 2), [at('EDGE', 76.5)], [])).not.toBeNaN();
+    expect(rushSizeEdge(line(74), [], [at('DT', 73), at('DT', 73), at('DT', 73)])).toBeGreaterThan(0);
   });
 });
