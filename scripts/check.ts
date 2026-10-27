@@ -91,6 +91,14 @@ const CHECKS = {
     summary: /\d+ number\(s\) outside target range/,
     detail: /[▲▼✗]/,
   },
+  // Player size: the curves, the rare gem, the edges' cap, each lever replayed on the same games, totals centred.
+  size: {
+    cmd: ['npm', 'run', 'size'],
+    cores: 1,
+    secs: 240,
+    summary: /\d+ number\(s\) outside target range/,
+    detail: /✗/,
+  },
   // Officiating crews: the league stays at baseline, the crews spread like the NFL's, the rotation and drift hold.
   crews: {
     cmd: ['npm', 'run', 'crews'],
@@ -180,6 +188,9 @@ const RULES: [RegExp, Name[]][] = [
   // Weather: the rolls and their effects, and what builds the leagues and schedules they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(weather|data\/stadiums|match\/|generate|season\/schedule)/, ['weather']],
   [/^scripts\/weather\.ts$/, ['weather']],
+  // Size: the curves and edges, the gem, and what builds the leagues and plays the games they're measured in.
+  [/^src\/engine\/(?!.*\.test\.ts$)(size|match\/|generate|traits)/, ['size']],
+  [/^scripts\/size\.ts$/, ['size']],
   // Crews: their tendencies and rotation, the penalty rolls they multiply, and what builds the leagues and schedules.
   [/^src\/engine\/(?!.*\.test\.ts$)(officials|match\/|generate|season\/schedule|offseason\/index)/, ['crews']],
   [/^scripts\/crews\.ts$/, ['crews']],

@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
-import { playerOvr } from './positions';
 import { Rng } from './rng';
 import { teamPlayers } from './roster';
 import { changePosition } from './training';
-import { isOutlier, massEdge, rollGem, rushSizeEdge, rollSize, SIZE, sizeEdge, sizeLimits, sizeNudge, sizeZ } from './size';
-import { POSITIONS, type Player, type Position, type Ratings } from './types';
+import {
+  isOutlier,
+  massEdge,
+  rollGem,
+  rushSizeEdge,
+  rollSize,
+  SIZE,
+  sizeEdge,
+  sizeLimits,
+  sizeZ,
+} from './size';
+import { POSITIONS, type Player, type Position } from './types';
 
 const stats = (xs: number[]) => {
   const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -148,30 +157,7 @@ describe('sizeEdge', () => {
   });
 });
 
-describe('sizeNudge', () => {
-  const make = (v: number) => ({ speed: v, agility: v, strength: v }) as Ratings;
-
-  it('leaves a median build alone and moves both tails the same amount', () => {
-    const r = make(10);
-    sizeNudge(r, 0);
-    sizeNudge(r, -0.4);
-    expect([r.speed, r.agility, r.strength]).toEqual([10, 10, 10]);
-    const lo = make(10);
-    const hi = make(10);
-    sizeNudge(lo, -1);
-    sizeNudge(hi, 1);
-    expect([lo.speed, lo.agility, lo.strength]).toEqual([11, 11, 9]);
-    expect([hi.speed, hi.agility, hi.strength]).toEqual([9, 9, 11]);
-  });
-
-  it('stays on the 1–20 scale', () => {
-    const top = make(20);
-    sizeNudge(top, -2);
-    expect([top.speed, top.agility, top.strength]).toEqual([20, 20, 19]);
-  });
-});
-
-describe('the rare gem and the nudge at creation', () => {
+describe('the rare gem', () => {
   const make = (pos: (typeof POSITIONS)[number], i: number) =>
     generatePlayer(new Rng(`size-gem:${pos}:${i}`), {
       id: 4_000_000 + i,
@@ -190,16 +176,6 @@ describe('the rare gem and the nudge at creation', () => {
     expect(rate).toBeLessThan(0.3);
     expect(players.filter((p) => p.playsBig && !isOutlier(p))).toEqual([]);
     expect(rollGem(players[0])).toBe(rollGem(players[0]));
-  });
-
-  it('brings small corners out quicker, and never leaves potential below overall', () => {
-    const build = (p: Player) => (sizeZ(p).h + sizeZ(p).w) / 2;
-    const corners = players.filter((p) => p.position === 'CB');
-    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-    expect(mean(corners.filter((p) => build(p) < -1).map((p) => p.ratings.speed))).toBeGreaterThan(
-      mean(corners.filter((p) => build(p) > 1).map((p) => p.ratings.speed)),
-    );
-    for (const p of players) expect(p.potential).toBeGreaterThanOrEqual(playerOvr(p));
   });
 
   it('rolls the gem for an older save from the same stream a new league uses', () => {
