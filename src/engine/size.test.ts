@@ -2,20 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
 import { Rng } from './rng';
-import { teamPlayers } from './roster';
-import { changePosition } from './training';
-import {
-  isOutlier,
-  massEdge,
-  rollGem,
-  rushSizeEdge,
-  rollSize,
-  SIZE,
-  sizeEdge,
-  sizeLimits,
-  sizeZ,
-} from './size';
-import { POSITIONS, type Player, type Position } from './types';
+import { lineOrder, spotOrder, teamPlayers } from './roster';
+import { changePosition, conversionRead } from './training';
+import { isOutlier, massEdge, rollGem, rushSizeEdge, rollSize, SIZE, sizeEdge, sizeLimits, sizeZ } from './size';
+import { ATTRIBUTES, POSITIONS, type Player, type Position, type Ratings } from './types';
 
 const stats = (xs: number[]) => {
   const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -203,5 +193,85 @@ describe('rushSizeEdge', () => {
     expect(rushSizeEdge([], [], [])).toBe(0);
     expect(rushSizeEdge(line(74).slice(0, 2), [at('EDGE', 76.5)], [])).not.toBeNaN();
     expect(rushSizeEdge(line(74), [], [at('DT', 73), at('DT', 73), at('DT', 73)])).toBeGreaterThan(0);
+  });
+});
+
+describe('spot fit', () => {
+  let n = 0;
+  const player = (
+    position: Position,
+    heightIn: number,
+    weightLb: number,
+    set: Partial<Record<string, number>> = {},
+  ) => {
+    const ratings = Object.fromEntries(ATTRIBUTES.map((a) => [a, 12])) as Ratings;
+    Object.assign(ratings, set);
+    return { id: ++n, position, heightIn, weightLb, ratings, traits: {} } as unknown as Player;
+  };
+
+  it('puts the tall corners outside and the small one at nickel, behind them the bench as it was', () => {
+    const [small, tall, mid, bench] = [
+      player('CB', 69, 182),
+      player('CB', 74, 200),
+      player('CB', 72, 195),
+      player('CB', 70, 185),
+    ];
+    expect(spotOrder([small, tall, mid, bench], 'CB').map((p) => p.id)).toEqual([tall.id, mid.id, small.id, bench.id]);
+  });
+
+  it('keeps an elite small corner outside', () => {
+    const star = player('CB', 69, 182, { coverage: 19, agility: 18 });
+    const [a, b] = [player('CB', 74, 200), player('CB', 73, 198)];
+    expect(spotOrder([star, a, b], 'CB').slice(0, 2)).toContain(star);
+  });
+
+  it('puts the big receivers at X and Z and the small one in the slot', () => {
+    const [small, big, mid] = [player('WR', 69, 180), player('WR', 76, 215), player('WR', 73, 200)];
+    expect(spotOrder([small, big, mid], 'WR').map((p) => p.id)).toEqual([big.id, mid.id, small.id]);
+  });
+
+  it('plays the heavier tackle over the nose', () => {
+    const [light, heavy] = [player('DT', 74, 290), player('DT', 76, 335)];
+    expect(spotOrder([heavy, light], 'DT').map((p) => p.id)).toEqual([light.id, heavy.id]);
+  });
+
+  it('sends the long lineman to tackle when protection is level', () => {
+    const line = [
+      player('OL', 79, 315),
+      player('OL', 76, 315),
+      player('OL', 76, 315),
+      player('OL', 74, 315),
+      player('OL', 76, 315),
+    ];
+    const order = lineOrder(line);
+    expect([order[0], order[4]]).toContain(line[0]);
+    expect([order[0], order[4]]).not.toContain(line[3]);
+  });
+
+  it('never changes who starts', () => {
+    const corners = Array.from({ length: 6 }, (_, i) => player('CB', 68 + i, 185 + 3 * i, { coverage: 10 + i }));
+    const sorted = spotOrder(corners, 'CB');
+    expect(new Set(sorted.slice(0, 3))).toEqual(new Set(corners.slice(0, 3)));
+    expect(sorted.slice(3)).toEqual(corners.slice(3));
+  });
+});
+
+describe('a move for his build', () => {
+  it("reads a linebacker's build on a backup safety as a reason, and a median safety's as none", () => {
+    const l = createLeague({ seed: 'size-build-move' });
+    const team = l.teams[0].id;
+    const safeties = teamPlayers(l, team).filter((p) => p.position === 'S');
+    const backup = safeties.find((p) => l.teams[0].depthChart.S.indexOf(p.id) >= 2) ?? safeties.at(-1)!;
+    for (const a of ['tackling', 'runStop', 'awareness', 'coverage', 'speed', 'passRush'] as const)
+      backup.ratings[a] = 18;
+    // The safeties ahead of him stay ahead: a backup's move costs his old room nothing.
+    for (const p of safeties.filter((x) => x !== backup))
+      for (const a of ['coverage', 'awareness', 'tackling', 'speed', 'catching', 'runStop'] as const) p.ratings[a] = 20;
+    backup.heightIn = 74;
+    backup.weightLb = 242;
+    expect(conversionRead(l, backup, 'LB').motives.map((m) => m.reason)).toContain('build');
+    backup.heightIn = SIZE.S.h[0];
+    backup.weightLb = SIZE.S.w[0];
+    expect(conversionRead(l, backup, 'LB').motives.map((m) => m.reason)).not.toContain('build');
   });
 });

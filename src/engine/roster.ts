@@ -3,6 +3,7 @@ import { teamCoaches } from './coaching';
 import { skill } from './attributes';
 import { slotOvr } from './familiarity';
 import { STARTERS } from './positions';
+import { sizeEdge, typicalAt } from './size';
 import type { Coach, DepthChart, Injury, League, Player, PlayingAt, Position, Team } from './types';
 import { POSITIONS } from './types';
 import type { RosterList } from './personnel/types';
@@ -60,9 +61,29 @@ export function buildAutoDepthChart(
   for (const p of players)
     if ((!p.squad || elevated.has(p.id)) && !p.retired) chart[playingAt[p.id]?.pos ?? p.position].push(p);
   const out = {} as DepthChart;
-  for (const pos of POSITIONS) out[pos] = coachOrder(chart[pos], pos, staff).map((p) => p.id);
+  for (const pos of POSITIONS) out[pos] = spotOrder(coachOrder(chart[pos], pos, staff), pos).map((p) => p.id);
   out.OL = lineOrder(out.OL.map((id) => players.find((p) => p.id === id)!)).map((p) => p.id);
   return out;
+}
+
+/**
+ * Where the starters line up, by build: the corners who hold up best against a typical X and Z play outside and the
+ * other starter covers the slot, the receivers who win best against a typical corner play X and Z and the other
+ * works the slot, and the heavier tackle plays over the nose. Who starts is the overall's call; this only says where,
+ * and the bench behind them stays in its order.
+ */
+export function spotOrder(players: Player[], pos: Position): Player[] {
+  const n = STARTERS[pos];
+  const starters = players.slice(0, n);
+  const rest = players.slice(n);
+  const outsideFirst = (score: (p: Player) => number) => {
+    const out = [...starters].sort((a, b) => score(b) - score(a)).slice(0, 2);
+    return [...out, ...starters.filter((p) => !out.includes(p)), ...rest];
+  };
+  if (pos === 'CB') return outsideFirst((p) => skill(p, 'coverage') + sizeEdge(p, 'contested', typicalAt('WR')));
+  if (pos === 'WR') return outsideFirst((p) => skill(p, 'deepRoutes') + sizeEdge(p, 'contested', typicalAt('CB')));
+  if (pos === 'DT' && starters.length === 2) return [...[...starters].sort((a, b) => a.weightLb - b.weightLb), ...rest];
+  return players;
 }
 
 /**
@@ -73,7 +94,9 @@ export function buildAutoDepthChart(
 export function lineOrder(ol: Player[]): Player[] {
   const five = ol.slice(0, 5);
   if (five.length < 5) return ol;
-  const byPass = [...five].sort((a, b) => skill(b, 'passPro') - skill(a, 'passPro'));
+  // Length counts outside: a tackle faces the edge rusher's speed, and a short-armed one is a guard.
+  const outside = (p: Player) => skill(p, 'passPro') + sizeEdge(p, 'edgeLength', typicalAt('EDGE'));
+  const byPass = [...five].sort((a, b) => outside(b) - outside(a));
   const [lt, rt] = byPass;
   const inside = five.filter((p) => p !== lt && p !== rt);
   const c = inside.reduce((a, b) => (skill(b, 'discipline') > skill(a, 'discipline') ? b : a));

@@ -292,7 +292,7 @@ export interface Learning {
  * Why a team teaches a player a new position. A move needs one: "he's a little better there" isn't a
  * reason to spend a year teaching him (`training.ts`, `motivesFor`).
  */
-export type MoveReason = 'hole' | 'nextYear' | 'scheme' | 'upside' | 'reps' | 'age' | 'upgrade';
+export type MoveReason = 'hole' | 'nextYear' | 'scheme' | 'upside' | 'reps' | 'age' | 'upgrade' | 'build';
 
 /** A position change, made on cut-down day of league year `season`. */
 export interface PositionMove {

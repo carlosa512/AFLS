@@ -144,3 +144,8 @@ export function rushSizeEdge(ol: readonly Player[], edge: readonly Player[], dt:
   const inside = dt.flatMap((d) => interior.map((b) => sizeEdge(d, 'leverage', b)));
   return (mean(outside) + mean(inside)) / 2 + 0;
 }
+
+/** A median build at `pos` with an ordinary step: the opponent a depth-chart spot faces on a typical Sunday. */
+export function typicalAt(pos: Position): Player {
+  return { position: pos, heightIn: SIZE[pos].h[0], weightLb: SIZE[pos].w[0], ratings: { speed: 12 } } as Player;
+}

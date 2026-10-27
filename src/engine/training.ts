@@ -30,7 +30,7 @@ import { KEEP_MIN } from './offseason/ai';
 import { trueUp } from './development';
 import { conversionOf, targetsFor, type Conversion } from './familiarity';
 import { OVR_WEIGHTS, overall, playerOvr, STARTERS } from './positions';
-import { sizeLimits } from './size';
+import { sizeLimits, sizeZ } from './size';
 import { fillBag, QUIRKS_FOR, type QuirkId } from './quirks';
 import { fitContests, type TeamScheme } from './schemes';
 import { clamp, Rng } from './rng';
@@ -307,7 +307,8 @@ export type Verdict = 'worth' | 'ifNeeded' | 'not';
  * - **upside**: a young player whose game already plays better there, with a place in its lineup;
  * - **reps**: a young player stuck behind starters who aren't going anywhere would start there, and grow with the snaps;
  * - **age**: his legs are going and the new job asks less of them, so the move extends his career;
- * - **upgrade**: he'd be clearly better than the starter there (a point or more), at no cost to his own room.
+ * - **upgrade**: he'd be clearly better than the starter there (a point or more), at no cost to his own room;
+ * - **build**: his body is an outlier where he plays and typical where he'd go, and his game holds up there.
  */
 export interface Motive {
   reason: MoveReason;
@@ -474,6 +475,13 @@ export function conversionRead(
   add('age', 0.7, aging && role === 'starter' && (diff >= 0 || !starterHome) && net >= -0.3);
   // A clear upgrade, from a room that can spare him: the bigger the gap, the stronger.
   add('upgrade', clamp(0.3 + 0.2 * gainTo, 0.5, 0.9), role === 'starter' && gainTo >= 1 && lossFrom <= 0.2);
+  // His build: an outlier where he plays and about typical where he'd go (the 240-pound safety, the 255-pound
+  // backer), with a game that already holds up there and a room that can spare him.
+  const here = sizeZ(p);
+  const there2 = sizeZ(p, to);
+  const outlier = Math.max(Math.abs(here.h), Math.abs(here.w)) > 1.3;
+  const fits = Math.max(Math.abs(there2.h), Math.abs(there2.w)) <= 0.8;
+  add('build', 0.6, outlier && fits && role === 'starter' && diff >= -1 && lossFrom <= 0.3);
   // Preferences can rank existing supported motives, never manufacture a valid conversion.
   const teacher = positionCoachFor(teamCoaches(league, teamId), to);
   const fit = coachPlayerFit(teacher, p);
@@ -526,6 +534,8 @@ export function reasonWords(reason: MoveReason, to: Position): string {
       return 'to extend his career';
     case 'upgrade':
       return `an upgrade at ${to}`;
+    case 'build':
+      return `his build fits ${to}`;
   }
 }
 
@@ -563,6 +573,8 @@ export function motiveWeight(league: League, team: Team, m: Motive, read: Conver
       return 0.4 + 0.4 * winNow + 0.2 * loyalty;
     case 'upgrade':
       return 0.5 + 0.3 * winNow;
+    case 'build':
+      return 0.6;
   }
 }
 
