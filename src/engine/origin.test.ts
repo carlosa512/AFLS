@@ -104,7 +104,25 @@ describe('every new player has an origin', () => {
     expect(hash(Object.values(l.players))).toBe(MAIN_LEAGUE);
     generateDraftClass(l, new Rng('fp-class'));
     expect(hash(l.draftClass.map((id) => l.players[id]))).toBe(MAIN_CLASS);
-    for (const p of Object.values(l.players)) expect(ORIGINS[p.origin!]?.kind).toBe('college');
+    for (const p of Object.values(l.players)) expect(ORIGINS[p.origin!]?.kind).not.toBeUndefined();
+  });
+
+  it('starts a league with a few Pathway and CFL players already in it, and colleges for everyone else', () => {
+    const l = createLeague({ seed: 'start-mix' });
+    const all = Object.values(l.players);
+    const kind = (k: string) => all.filter((p) => ORIGINS[p.origin!].kind === k);
+    // About 0.5% and 1% of the league (AFLS estimates): no flood of arrivals later to catch up.
+    expect(kind('pathway').length).toBeGreaterThanOrEqual(3);
+    expect(kind('pathway').length).toBeLessThanOrEqual(16);
+    expect(kind('cfl').length).toBeGreaterThanOrEqual(10);
+    expect(kind('cfl').length).toBeLessThanOrEqual(32);
+    expect(kind('college').length).toBe(all.length - kind('pathway').length - kind('cfl').length);
+    // Pathway players are young depth, never a top-round pick.
+    for (const p of kind('pathway')) {
+      expect(p.age).toBeLessThanOrEqual(26);
+      expect(p.draft?.round ?? 7).toBeGreaterThanOrEqual(4);
+    }
+    for (const p of kind('cfl')) expect(p.age).toBeGreaterThanOrEqual(24);
   });
 
   it('a top-32 prospect is almost always from a power school', () => {
@@ -151,7 +169,7 @@ describe('v54 migration', () => {
     const b = migrateLeague(old())!;
     expect(a.version).toBe(SAVE_VERSION);
     for (const p of Object.values(a.players)) {
-      expect(ORIGINS[p.origin!].kind).toBe('college');
+      expect(ORIGINS[p.origin!]).toBeDefined();
       expect(b.players[p.id].origin).toBe(p.origin);
     }
   });
@@ -162,7 +180,7 @@ describe('v54 migration', () => {
     delete p.draft;
     p.retired = true;
     p.teamId = null;
-    expect(ORIGINS[migrateLeague(l)!.players[p.id].origin!].kind).toBe('college');
+    expect(ORIGINS[migrateLeague(l)!.players[p.id].origin!]).toBeDefined();
   });
 
   it('keeps an existing career on afls-2026-v1', () => {

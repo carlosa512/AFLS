@@ -86,6 +86,10 @@ undrafted lands near FBS 89%, FCS 7.5%, small 3%, inside the real roster split.
 - **Starting league** (`createLeague`) and **generated free agents** (`offseason/ai.ts`, `personnel/squadMarket.ts`):
   the rank band from where his overall sits among his position's players (top fifth: the 1–32 row, and so on);
   generated depth free agents use the undrafted row.
+- **Already in the league** (a new league or a migrated save): the players the Pathway and the CFL sent in earlier
+  years are there from the start, so arrivals don't all bleed in at once. About 0.5% of players are Pathway (young
+  depth at the program's positions, never a top-three-round pick) and about 1% CFL (24 and older, never the top
+  band), both AFLS estimates. These are existing players relabeled on their own stream: no player is added.
 - **Pathway class:** origin `pathway` plus a country.
 - **CFL veterans:** origin `CFL`.
 

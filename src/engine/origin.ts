@@ -6,7 +6,7 @@
  * roll moves. Tier odds by band reproduce the real draft (2025: 87% power conferences, 10% Group of 5, 3% FCS) and
  * opening-day rosters (FBS 88%, FCS 8%, Division II 2.4%): small schools come in mostly undrafted.
  */
-import { COLLEGES_BY_TIER, ORIGINS, type Origin, type OriginTier } from './data/origins';
+import { CFL_ORIGIN, COLLEGES_BY_TIER, ORIGINS, PATHWAY_ORIGINS, type Origin, type OriginTier } from './data/origins';
 import { Rng } from './rng';
 import { playerOvr } from './positions';
 import type { League, Player } from './types';
@@ -54,8 +54,29 @@ export function filmScale(p: Player): number {
   return o.kind === 'pathway' ? FILM.pathway : FILM[o.tier!];
 }
 
+/** Positions the Pathway's converts play (`offseason/arrivals.ts` weighs them for new classes). */
+const PATHWAY_POSITIONS = new Set(['DT', 'EDGE', 'OL', 'TE', 'RB', 'LB', 'P', 'K']);
 /**
- * A school for every player who has none (a new league, an older save), on his own stream: a drafted player's band
+ * A league already has the players the Pathway and the CFL sent in earlier years, so they don't all arrive at once:
+ * about 0.5% Pathway (young depth at the program's positions) and 1% CFL (veterans, rarely a top pick). The odds
+ * are per eligible player (AFLS estimates, tuned to those shares in tests).
+ */
+const PATHWAY_ODDS = 0.025;
+const CFL_ODDS = 0.016;
+
+/** A Pathway country or the CFL for a player already in the league, or undefined for a college. */
+function outsideOrigin(seed: string, p: Player, band: RankBand): number | undefined {
+  const rng = new Rng(`${seed}:origin-kind:${p.id}`);
+  const x = rng.next();
+  if (band >= 2 && p.age <= 26 && (!p.draft || p.draft.round >= 4) && PATHWAY_POSITIONS.has(p.position)) {
+    if (x < PATHWAY_ODDS) return rng.pick(PATHWAY_ORIGINS);
+  }
+  if (band >= 1 && p.age >= 24 && x >= 0.5 && x < 0.5 + CFL_ODDS) return CFL_ORIGIN;
+  return undefined;
+}
+
+/**
+ * An origin for every player who has none (a new league, an older save), on his own streams: a drafted player's band
  * from his round, anyone else's from where he stands among his position's players.
  */
 export function fillOrigins(league: League): void {
@@ -67,7 +88,7 @@ export function fillOrigins(league: League): void {
     group.forEach((p, i) => {
       if (p.origin !== undefined) return;
       const band = p.draft ? bandForDraftRound(p.draft.round) : bandForShare(i / group.length);
-      p.origin = collegeOrigin(league.seed, p.id, band);
+      p.origin = outsideOrigin(league.seed, p, band) ?? collegeOrigin(league.seed, p.id, band);
     });
   }
 }
