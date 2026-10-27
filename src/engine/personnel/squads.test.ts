@@ -439,3 +439,15 @@ describe('the international place (profile v2)', () => {
     for (const t of l.teams) expect(practiceSquad(l, t.id).length).toBeLessThanOrEqual(17);
   });
 });
+
+describe('squad supply on v2', () => {
+  it('makes no new players for the international place: only a Pathway player can take it', () => {
+    const w = createLeague({ seed: 'squad-supply-v2', personnel: true });
+    const full = w.teams.filter((t) => practiceSquad(w, t.id).length >= 16).length;
+    expect(full).toBe(w.teams.length);
+    for (const p of squadCandidates(w)) p.retired = true;
+    const before = w.nextPlayerId;
+    ensureSquadSupply(w);
+    expect(w.nextPlayerId).toBe(before);
+  });
+});

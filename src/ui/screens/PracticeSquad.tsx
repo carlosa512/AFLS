@@ -1,4 +1,4 @@
-import { isPathway } from '../../engine/offseason/arrivals';
+import { isPathway } from '../../engine/origin';
 import { OriginTag } from '../origin';
 import { squadPlaces } from '../../engine/personnel/rules';
 import { useState } from 'react';
@@ -221,7 +221,8 @@ export function PracticeSquad({ league }: { league: League }) {
         action={<TeamPicker league={league} value={teamId} onChange={setTeamId} id="squad-team" />}
       >
         <p>
-          <TeamLink team={league.teams[teamId]} full /> · Up to 16 players train with your team outside the main roster.
+          <TeamLink team={league.teams[teamId]} full /> · Up to 16 players
+          {places > 16 ? ', plus one International Pathway player,' : ''} train with your team outside the main roster.
           Use up to two for one game with a temporary call-up, or sign a player to the 53-man roster.
         </p>
         <p className="small muted">

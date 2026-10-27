@@ -1,5 +1,5 @@
 import type { League, Player } from '../types';
-import { isPathway } from '../offseason/arrivals';
+import { isPathway } from '../origin';
 import { hasInternationalPlace } from './rules';
 import { serviceSeasons } from './service';
 

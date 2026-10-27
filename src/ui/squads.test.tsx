@@ -109,6 +109,7 @@ describe('the international place on the squad desk', () => {
     const html = renderToStaticMarkup(<PracticeSquad league={l} />);
     expect(html).toContain('tag-pathway');
     expect(html).toContain(arrivals[0].lastName);
+    expect(html).toContain('Up to 16 players, plus one International Pathway player, train with your team');
   });
 
   it('shows no Pathway list on a v1 career', () => {

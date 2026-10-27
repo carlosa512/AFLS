@@ -114,7 +114,7 @@ export function beginOffseason(league: League): void {
     });
     p.age++;
     p.experience++;
-    delete p.cflSeasons; // a season down here: film counts as any veteran's now
+    delete p.cflSeasons; // a league year down here, signed or not: his experience now carries the film
     // Age and form, or a body (`injuryRetireChance`) or a head (`concussionRetireChance`) that can't take any more, in one roll.
     const body = injuryRetireChance(p, league.season);
     const head = concussionRetireChance(p, league.season);

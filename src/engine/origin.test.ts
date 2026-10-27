@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CFL_ORIGIN, ORIGINS, PATHWAY_ORIGINS, type OriginTier } from './data/origins';
+import { CFL_ORIGIN, ORIGINS, PATHWAY_ORIGINS, type Origin, type OriginTier } from './data/origins';
 import {
   bandForDraftRound,
   bandForRank,
@@ -185,5 +185,32 @@ describe('v54 migration', () => {
 
   it('keeps an existing career on afls-2026-v1', () => {
     expect(migrateLeague(old())!.personnel!.profile).toBe('afls-2026-v1');
+  });
+});
+
+describe('review follow-ups', () => {
+  it('a save migrated during the draft gives prospects colleges by class rank, never the Pathway', () => {
+    const l = createLeague({ seed: 'mig-draft' });
+    generateDraftClass(l, new Rng('mig-draft-class'));
+    for (const p of Object.values(l.players)) delete p.origin;
+    l.version = 53;
+    const up = migrateLeague(l)!;
+    const prospects = up.draftClass.map((id) => up.players[id]);
+    for (const p of prospects) expect(ORIGINS[p.origin!].kind).toBe('college');
+    const byConsensus = [...prospects].sort(
+      (a, b) =>
+        0.6 * b.scouting!.grade + 0.4 * b.scouting!.ceiling - (0.6 * a.scouting!.grade + 0.4 * a.scouting!.ceiling),
+    );
+    for (const [i, p] of byConsensus.entries()) expect(p.origin).toBe(collegeOrigin(up.seed, p.id, bandForRank(i + 1)));
+  });
+
+  it('a mod college with no tier reads as a big program, not NaN', () => {
+    const table = ORIGINS as Origin[];
+    table.push({ name: 'Mod State', kind: 'college' });
+    try {
+      expect(filmScale({ origin: table.length - 1 } as Player)).toBe(1);
+    } finally {
+      table.pop();
+    }
   });
 });

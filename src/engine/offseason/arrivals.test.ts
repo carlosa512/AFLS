@@ -50,6 +50,7 @@ describe('CFL veterans', () => {
       expect(p.age).toBeLessThanOrEqual(29);
       expect(p.experience).toBe(0);
       expect(squadCategory(l, p)).toBe('base');
+      expect(Math.round(p.potential * 10)).toBeCloseTo(p.potential * 10, 9);
     }
     const kept = north[0];
     kept.retired = false;

@@ -1,4 +1,4 @@
-import { squadPlaces } from './rules';
+import { PERSONNEL_RULES, squadPlaces } from './rules';
 import { collegeOrigin } from '../origin';
 import { generatePlayer } from '../generate';
 import { capSpace } from '../finance/cap';
@@ -43,7 +43,8 @@ const SUPPLY_WEIGHT: Record<Position, number> = {
 /** World supply is independent of the main RNG and never takes a player or dollar from an existing 53. */
 export function ensureSquadSupply(league: League): void {
   const openings = league.teams.reduce(
-    (sum, t) => sum + Math.max(0, squadPlaces(league) - practiceSquad(league, t.id).length),
+    // The standard 16 only: the international place is for a Pathway player, and the Pathway class supplies those.
+    (sum, t) => sum + Math.max(0, PERSONNEL_RULES.squadLimit - practiceSquad(league, t.id).length),
     0,
   );
   // Cuts and expired squad deals fill the pool first; new players cover only what's still missing, so the free-agent

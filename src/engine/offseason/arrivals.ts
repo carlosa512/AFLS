@@ -3,7 +3,7 @@
  * with the undrafted) and veterans of the Canadian league (the January-February window, at the new league year).
  * Each class runs on its own stream, so no other roll moves.
  */
-import { CFL_ORIGIN, ORIGINS, PATHWAY_ORIGINS } from '../data/origins';
+import { CFL_ORIGIN, PATHWAY_ORIGINS } from '../data/origins';
 import { recordRatings } from '../development';
 import { generatePlayer } from '../generate';
 import { ensureService } from '../personnel/service';
@@ -43,7 +43,7 @@ const CFL_MIX: [Position, number][] = [
   ['P', 0.3],
 ];
 
-export const isPathway = (p: Player) => p.origin !== undefined && ORIGINS[p.origin]?.kind === 'pathway';
+export { isPathway } from '../origin';
 
 function arrival(league: League, rng: Rng, position: Position, quality: number, age: number): Player {
   const p = generatePlayer(rng, {
@@ -81,7 +81,7 @@ export function cflArrivals(league: League): Player[] {
   for (let i = 0; i < CFL_ARRIVALS; i++) {
     const quality = rng.chance(1 / 6) ? rng.float(10, 12.5) : rng.float(7, 10);
     const p = arrival(league, rng, rng.weighted(CFL_MIX, ([, w]) => w)[0], quality, rng.int(24, 29));
-    p.potential = Math.min(20, playerOvr(p) + rng.float(0, 0.8));
+    p.potential = Math.round(Math.min(20, playerOvr(p) + rng.float(0, 0.8)) * 10) / 10;
     p.origin = CFL_ORIGIN;
     p.cflSeasons = rng.int(1, 4);
     recordRatings(p, league.season);

@@ -145,7 +145,7 @@ The "supply" rule (new players only where the pool can't fill places) and castof
 
 ## Storage and migration
 
-- `Player.origin?: number` (index into `ORIGINS`) and, for a CFL arrival until his first NFL season,
+- `Player.origin?: number` (index into `ORIGINS`) and, for a CFL arrival until his first league year here (signed or not),
   `Player.cflSeasons?: number`.
 - **`SAVE_VERSION` 53 → 54**, with a `migrate.ts` step: every player (retired too) without an origin gets one from the
   same stream and tables. The rank band comes from his draft round (round 1: 1–32; rounds 2–3: 33–100; 4–7:

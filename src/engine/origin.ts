@@ -33,10 +33,11 @@ export const bandForShare = (share: number): RankBand => (share < 0.2 ? 0 : shar
 export function collegeOrigin(seed: string, playerId: number, band: RankBand): number {
   const rng = new Rng(`${seed}:origin:${playerId}`);
   const tier = rng.weighted(TIERS, (t) => TIER_ODDS[band][TIERS.indexOf(t)]);
-  return rng.weighted(COLLEGES_BY_TIER[tier], (i) => ORIGINS[i].weight!);
+  return rng.weighted(COLLEGES_BY_TIER[tier], (i) => ORIGINS[i].weight ?? 1);
 }
 
 export const originOf = (p: Player): Origin | undefined => (p.origin === undefined ? undefined : ORIGINS[p.origin]);
+export const isPathway = (p: Player) => originOf(p)?.kind === 'pathway';
 
 /** Share of a big program's film the league has on a prospect (AFLS estimate). */
 export const FILM: Record<OriginTier | 'pathway', number> = {
@@ -51,7 +52,8 @@ export const FILM: Record<OriginTier | 'pathway', number> = {
 export function filmScale(p: Player): number {
   const o = originOf(p);
   if (!o || o.kind === 'cfl') return 1;
-  return o.kind === 'pathway' ? FILM.pathway : FILM[o.tier!];
+  // A mod's college with no tier reads as a big program rather than breaking the scouting numbers.
+  return o.kind === 'pathway' ? FILM.pathway : (FILM[o.tier ?? 'power'] ?? 1);
 }
 
 /** Positions the Pathway's converts play (`offseason/arrivals.ts` weighs them for new classes). */
@@ -80,6 +82,15 @@ function outsideOrigin(seed: string, p: Player, band: RankBand): number | undefi
  * from his round, anyone else's from where he stands among his position's players.
  */
 export function fillOrigins(league: League): void {
+  // A save opened during the draft: its prospects draw like any class, by consensus rank, and never as the Pathway.
+  const prospects = league.draftClass
+    .map((id) => league.players[id])
+    .filter((p) => p?.scouting && p.origin === undefined)
+    .sort(
+      (a, b) =>
+        0.6 * b.scouting!.grade + 0.4 * b.scouting!.ceiling - (0.6 * a.scouting!.grade + 0.4 * a.scouting!.ceiling),
+    );
+  prospects.forEach((p, i) => (p.origin = collegeOrigin(league.seed, p.id, bandForRank(i + 1))));
   const players = Object.values(league.players);
   for (const position of POSITIONS) {
     const group = players
