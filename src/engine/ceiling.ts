@@ -41,7 +41,7 @@ export const SNAP_LEAN = { starter: 0.05, idle: -0.05 };
  * draft day (in every one, it drained the league's talent).
  */
 const HYPE_GAP = 3;
-const HYPE_LEAN = 1;
+const HYPE_LEAN = 1.4;
 /** The hype part of the lean for a ceiling `potential` over the overall `ovr` he came into the league with. */
 export const hypeLean = (potential: number, ovr: number) => -HYPE_LEAN * Math.max(0, potential - ovr - HYPE_GAP);
 /** Peers it takes to judge a line, and how far (overall points) the search may widen to find them. */

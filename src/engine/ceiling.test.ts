@@ -119,7 +119,7 @@ describe('the lean', () => {
     p.ratingHistory = { [league.season - 1]: ATTRIBUTES.map(() => 10) };
     const at = (potential: number) => ceilingLean(league, { ...copy(p), potential }, league.season, new Map());
     expect(at(12) - at(13)).toBeCloseTo(0, 9);
-    expect(at(13) - at(16)).toBeCloseTo(3, 9);
+    expect(at(13) - at(16)).toBeCloseTo(4.2, 9);
     // Growing fast doesn't dodge it: the same ceiling leans the same with today's ratings a point higher.
     const grown = copy(p);
     for (const a of ATTRIBUTES) grown.ratings[a] += 1;
