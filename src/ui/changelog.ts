@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.1',
+    date: '2026-10-27',
+    title: 'Where they came from',
+    text:
+      'Every player now has a school on his card and on the draft board. Most come from the big programs, but small ' +
+      'schools turn up, mostly as undrafted free agents, and your scouts see less of them, so their ranges start ' +
+      'wider. Each spring an International Pathway class joins the pool after the draft, with a practice squad place ' +
+      'kept for one of them in new careers, and a few veterans come south from the Canadian league each offseason.',
+  },
+  {
     version: '0.2.0',
     date: '2026-10-26',
     title: 'Practice squads',

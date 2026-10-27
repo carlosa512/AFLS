@@ -91,6 +91,11 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       briefings stay with the current club; other teams appear through reported moves and qualified rumors. Owners
       judge through a marble bag (`ownerBag.ts`): bad seasons add heat to the GM or head coach, patience is spent and
       never endless, and in-season reviews run week by week. Broader midseason player recruitment remains in progress.
+- [x] **Player origins** · **Already in** (hooks into #9): every player has a school, an International Pathway country
+      or the CFL (`data/origins.ts`, `origin.ts`), on his card and the draft board. Tiers follow the real draft and
+      rosters; small schools and the Pathway start on less film (`knowledge`). A Pathway class arrives after each
+      draft (with a reserved practice squad place on profile `afls-2026-v2`) and CFL veterans at each new league year.
+      Spec: `docs/superpowers/specs/2026-10-27-player-origins-design.md`.
 - [x] **Schedule weather forecasts (fog of war)** · **Already in** (hooks into #5): forecasts at three stages with
       calibrated rain chances on the schedule and the next-game card (`forecast` in `weather.ts`). Trend arrows and a
       staff hook are not built yet (`docs/WEATHER.md`).
