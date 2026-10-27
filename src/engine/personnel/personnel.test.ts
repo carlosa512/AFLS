@@ -1,3 +1,4 @@
+import { toCurve } from '../size';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { createLeague, SAVE_VERSION } from '../generate';
@@ -197,6 +198,8 @@ describe('migration and collection', () => {
     const p = league.players[t.depthChart.QB[0]];
     p.ir = { season: 2026, week: 1, weeks: 0 };
     const before = copy(league);
+    // v55 moves builds onto the curves; nothing else changes.
+    for (const p of Object.values(before.players)) toCurve(p);
     expect(migrateLeague(league)).toBe(league);
     const stripped = copy(league);
     delete stripped.personnel;
@@ -211,6 +214,7 @@ describe('migration and collection', () => {
   it('a v47 save migrates to the current version untouched', () => {
     league.version = 47;
     const before = copy(league);
+    for (const p of Object.values(before.players)) toCurve(p);
     migrateLeague(league);
     expect({ ...league, version: 47 }).toEqual(before);
     expect(league.version).toBe(SAVE_VERSION);

@@ -16,6 +16,7 @@ import { beginGmSearch, gmOfferTerms } from './leadership';
 import { ownerBag, talentRanks } from './ownerBag';
 import { captureManagement, creditManagement } from './service';
 import { addQbProtection, generateCrews } from './officials';
+import { toCurve } from './size';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
@@ -166,6 +167,11 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 54) {
     fillOrigins(league);
     league.version = 54;
+  }
+  // v55: builds move from the old flat ranges onto each position's curve, every player keeping his rank (`toCurve`).
+  if (league.version < 55) {
+    for (const p of Object.values(league.players)) toCurve(p);
+    league.version = 55;
   }
   return league;
 }

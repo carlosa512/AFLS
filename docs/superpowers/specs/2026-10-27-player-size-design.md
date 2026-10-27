@@ -78,8 +78,11 @@ the long ones outside. K and P are centred on today's `BODY` ranges.
 
 ### Existing saves
 
-Players keep their heights and weights (their hidden traits are seeded from them; re-rolling would reshuffle them).
-`Player` keeps its shape: no `SAVE_VERSION` bump in this phase.
+`SAVE_VERSION` 55 moves every player of an older save from his flat roll onto his position's curve at the same
+standing (`toCurve`: how far up the old range he sat becomes as many sd from the median), so each keeps his rank and
+the league is centred on the medians phase 2's edges are measured from. Hidden traits and the combine are stored, so
+nothing else about him moves. (Found in phase 2's review: left on the flat rolls, an older save's EDGEs sat 14 lb
+under the new median and every offence would have gained on the run.)
 
 ## Phase 2: Engine
 

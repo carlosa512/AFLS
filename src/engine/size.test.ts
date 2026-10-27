@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createLeague, generatePlayer } from './generate';
+import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
+import { migrateLeague } from './migrate';
 import { Rng } from './rng';
 import { teamPlayers } from './roster';
 import { changePosition } from './training';
-import { isOutlier, rollSize, SIZE, sizeLimits, sizeZ } from './size';
+import { FLAT_BODY, isOutlier, rollSize, SIZE, sizeLimits, sizeZ } from './size';
 import { POSITIONS } from './types';
 
 const stats = (xs: number[]) => {
@@ -97,5 +98,32 @@ describe('generation', () => {
     ol.weightLb = 380;
     changePosition(l, ol, 'DT');
     expect(ol.weightLb).toBe(sizeLimits('DT').w[1]);
+  });
+});
+
+describe('an older save', () => {
+  it("moves the flat builds onto each position's curve, keeping every player's rank", () => {
+    const l = createLeague({ seed: 'size-v55-flat' });
+    const rng = new Rng('flat');
+    for (const p of Object.values(l.players)) {
+      const [hMin, hMax, wMin, wMax] = FLAT_BODY[p.position];
+      p.heightIn = rng.int(hMin, hMax);
+      p.weightLb = rng.int(wMin, wMax);
+    }
+    const before = Object.values(l.players).map((p) => ({ id: p.id, pos: p.position, h: p.heightIn, w: p.weightLb }));
+    l.version = 54;
+    const m = migrateLeague(l)!;
+    expect(m.version).toBe(SAVE_VERSION);
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    for (const pos of ['OL', 'EDGE', 'CB', 'WR'] as const) {
+      const ps = Object.values(m.players).filter((p) => p.position === pos);
+      expect(Math.abs(mean(ps.map((p) => p.heightIn)) - SIZE[pos].h[0]), pos).toBeLessThan(0.6);
+      expect(Math.abs(mean(ps.map((p) => p.weightLb)) - SIZE[pos].w[0]), pos).toBeLessThan(5);
+    }
+    // A taller man before is never shorter after.
+    for (const a of before.slice(0, 300))
+      for (const b of before.slice(0, 300))
+        if (a.pos === b.pos && a.h < b.h)
+          expect(m.players[a.id].heightIn).toBeLessThanOrEqual(m.players[b.id].heightIn);
   });
 });

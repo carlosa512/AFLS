@@ -69,3 +69,39 @@ export function rollSize(rng: Rng, pos: Position): { heightIn: number; weightLb:
     clamp(Math.round(mean + sd * clamp(z, -TAIL, TAIL)), lo, hi);
   return { heightIn: at(h, zh, lim.h), weightLb: at(w, zw, lim.w) };
 }
+
+/**
+ * The flat ranges builds were rolled from before 0.2.2 (`[minH, maxH, minW, maxW]`, every value equally likely). Kept
+ * only to move an older save's players onto the curves (`toCurve`).
+ */
+export const FLAT_BODY: Record<Position, [number, number, number, number]> = {
+  QB: [72, 78, 205, 245],
+  RB: [67, 73, 190, 235],
+  WR: [69, 77, 175, 225],
+  TE: [75, 79, 240, 265],
+  OL: [75, 80, 295, 340],
+  DT: [73, 78, 290, 335],
+  EDGE: [74, 79, 245, 280],
+  LB: [72, 76, 225, 255],
+  CB: [69, 74, 180, 205],
+  S: [70, 75, 195, 220],
+  K: [69, 75, 180, 220],
+  P: [72, 77, 195, 230],
+};
+
+/**
+ * An older save's player, moved from his flat roll to the same standing on his position's curve: how far up the flat
+ * range he sat becomes as many sd from the median, so every player keeps his rank and the league is centred on the
+ * medians the matchup edges are measured from. His hidden traits and combine are stored, so nothing else moves.
+ */
+export function toCurve(p: Player): void {
+  const [hMin, hMax, wMin, wMax] = FLAT_BODY[p.position];
+  const lim = sizeLimits(p.position);
+  const move = (x: number, lo: number, hi: number, [mean, sd]: [number, number], [a, b]: [number, number]) => {
+    // A whole-number uniform roll: its mean and its spread.
+    const z = (x - (lo + hi) / 2) / Math.sqrt(((hi - lo + 1) ** 2 - 1) / 12);
+    return clamp(Math.round(mean + sd * clamp(z, -TAIL, TAIL)), a, b);
+  };
+  p.heightIn = move(p.heightIn, hMin, hMax, SIZE[p.position].h, lim.h);
+  p.weightLb = move(p.weightLb, wMin, wMax, SIZE[p.position].w, lim.w);
+}

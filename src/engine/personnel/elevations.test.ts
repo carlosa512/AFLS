@@ -1,3 +1,4 @@
+import { toCurve } from '../size';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createLeague, generatePlayer, SAVE_VERSION } from '../generate';
 import { Rng } from '../rng';
@@ -277,7 +278,10 @@ describe('temporary call-ups and durable history', () => {
   it('migrates old careers without turning on personnel or inventing prior game-day lists', () => {
     const old = createLeague({ seed: 'elevation-migration' });
     old.version = 46;
-    const before = JSON.stringify(old.players);
+    // v55 moves builds onto the curves; nothing else about a player changes.
+    const curved = JSON.parse(JSON.stringify(old.players)) as typeof old.players;
+    for (const p of Object.values(curved)) toCurve(p);
+    const before = JSON.stringify(curved);
     const m = migrateLeague(old)!;
     expect(m.version).toBe(SAVE_VERSION);
     expect(m.personnel?.enabled).toBe(false);
