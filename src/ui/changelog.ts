@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.4',
+    date: '2026-10-27',
+    title: 'The right body in the right spot',
+    text:
+      'An auto-sorted depth chart now lines your starters up by build: the tall corners outside with the small one at ' +
+      'nickel, the big receivers at X and Z with the quick one in the slot, the heavier tackle over the nose, and the ' +
+      'longest lineman at tackle. Who starts is still decided by how good they are. Your coaches can also suggest a ' +
+      'move when a player is built for another position, like a heavy safety who looks like a linebacker.',
+  },
+  {
     version: '0.2.3',
     date: '2026-10-27',
     title: 'Size matters on the field',

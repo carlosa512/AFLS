@@ -2335,6 +2335,8 @@ export function reasonLine(reason: MoveReason, to: Position, coordinator?: { coa
       return `Extends his career: ${to} asks less of his legs`;
     case 'upgrade':
       return `A clear upgrade at ${to}`;
+    case 'build':
+      return `His build fits ${to}`;
   }
 }
 
@@ -2382,7 +2384,7 @@ function positionOfferMail(league: League, have: Set<string>): Draft[] {
   ];
 }
 
-const MOVE_REASONS: MoveReason[] = ['hole', 'nextYear', 'scheme', 'upside', 'reps', 'age', 'upgrade'];
+const MOVE_REASONS: MoveReason[] = ['hole', 'nextYear', 'scheme', 'upside', 'reps', 'age', 'upgrade', 'build'];
 
 /**
  * The news line of a player's latest move and the reason it gave: his plan is gone once he has moved, but the

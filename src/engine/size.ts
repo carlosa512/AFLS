@@ -149,6 +149,11 @@ export function rushSizeEdge(ol: readonly Player[], edge: readonly Player[], dt:
   return (mean(outside) + mean(inside)) / 2 + 0;
 }
 
+/** A median build at `pos` with an ordinary step: the opponent a depth-chart spot faces on a typical Sunday. */
+export function typicalAt(pos: Position): Player {
+  return { position: pos, heightIn: SIZE[pos].h[0], weightLb: SIZE[pos].w[0], ratings: { speed: 12 } } as Player;
+}
+
 /**
  * The flat ranges builds were rolled from before 0.2.2 (`[minH, maxH, minW, maxW]`, every value equally likely). Kept
  * only to move an older save's players onto the curves (`toCurve`).

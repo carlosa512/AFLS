@@ -1,8 +1,10 @@
 import { coachOrder } from './coachDecisions';
-import { teamCoaches } from './coaching';
+import { teamCoaches, teamScheme } from './coaching';
+import { spotsFor } from './schemes';
 import { skill } from './attributes';
 import { slotOvr } from './familiarity';
 import { STARTERS } from './positions';
+import { sizeEdge, typicalAt } from './size';
 import type { Coach, DepthChart, Injury, League, Player, PlayingAt, Position, Team } from './types';
 import { POSITIONS } from './types';
 import type { RosterList } from './personnel/types';
@@ -54,15 +56,38 @@ export function buildAutoDepthChart(
   playingAt: Record<number, PlayingAt> = {},
   staff: readonly Coach[] = [],
   elevated: ReadonlySet<number> = new Set(),
+  wrSpots = 3,
 ): DepthChart {
   const chart = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as Player[]])) as Record<Position, Player[]>;
   // Retain ordinary IR chart entries for old saves, but never admit a squad member as emergency depth.
   for (const p of players)
     if ((!p.squad || elevated.has(p.id)) && !p.retired) chart[playingAt[p.id]?.pos ?? p.position].push(p);
   const out = {} as DepthChart;
-  for (const pos of POSITIONS) out[pos] = coachOrder(chart[pos], pos, staff).map((p) => p.id);
+  for (const pos of POSITIONS) out[pos] = spotOrder(coachOrder(chart[pos], pos, staff), pos, wrSpots).map((p) => p.id);
   out.OL = lineOrder(out.OL.map((id) => players.find((p) => p.id === id)!)).map((p) => p.id);
   return out;
+}
+
+/**
+ * Where the starters line up, by build: the corners who hold up best against a typical X and Z play outside and the
+ * other starter covers the slot, and the receivers who win best against a typical corner play X and Z and the other
+ * works the slot. An offense with two receiver spots (12 personnel) has no slot, so nothing moves: its third receiver
+ * doesn't play, and size never sends a better one there. Who starts is the overall's call; this only says where, and
+ * the bench behind them stays in its order.
+ */
+export function spotOrder(players: Player[], pos: Position, wrSpots = 3): Player[] {
+  const n = pos === 'WR' ? Math.min(STARTERS.WR, wrSpots) : STARTERS[pos];
+  const starters = players.slice(0, n);
+  const rest = players.slice(n);
+  // The two outside keep the coaches' order between them: the first spot draws the most looks and the bracket, and
+  // size only says outside or slot (ranking them by it made a deep threat the number one and ran up leaders' yards).
+  const outsideFirst = (score: (p: Player) => number) => {
+    const out = new Set([...starters].sort((a, b) => score(b) - score(a)).slice(0, 2));
+    return [...starters.filter((p) => out.has(p)), ...starters.filter((p) => !out.has(p)), ...rest];
+  };
+  if (pos === 'CB') return outsideFirst((p) => skill(p, 'coverage') + sizeEdge(p, 'contested', typicalAt('WR')));
+  if (pos === 'WR') return outsideFirst((p) => skill(p, 'deepRoutes') + sizeEdge(p, 'contested', typicalAt('CB')));
+  return players;
 }
 
 /**
@@ -73,7 +98,9 @@ export function buildAutoDepthChart(
 export function lineOrder(ol: Player[]): Player[] {
   const five = ol.slice(0, 5);
   if (five.length < 5) return ol;
-  const byPass = [...five].sort((a, b) => skill(b, 'passPro') - skill(a, 'passPro'));
+  // Length counts outside: a tackle faces the edge rusher's speed, and a short-armed one is a guard.
+  const outside = (p: Player) => skill(p, 'passPro') - sizeEdge(typicalAt('EDGE'), 'edgeLength', p);
+  const byPass = [...five].sort((a, b) => outside(b) - outside(a));
   const [lt, rt] = byPass;
   const inside = five.filter((p) => p !== lt && p !== rt);
   const c = inside.reduce((a, b) => (skill(b, 'discipline') > skill(a, 'discipline') ? b : a));
@@ -97,7 +124,13 @@ export function syncDepthChart(league: League, team: Team): void {
     }
   const at = team.playingAt ?? {};
   if (team.autoDepth) {
-    team.depthChart = buildAutoDepthChart(players, at, teamCoaches(league, team.id));
+    team.depthChart = buildAutoDepthChart(
+      players,
+      at,
+      teamCoaches(league, team.id),
+      undefined,
+      wrSpotsOf(league, team.id),
+    );
     return;
   }
   const placed = new Set<number>();
@@ -292,4 +325,9 @@ export function editPlayerIdentity(league: League, playerId: number, edit: Playe
   p.firstName = firstName;
   p.lastName = lastName;
   p.jersey = edit.jersey;
+}
+
+/** How many receivers a team's offense lines up (two in 12 personnel), for where spot fit may move them. */
+export function wrSpotsOf(league: League, teamId: number): number {
+  return spotsFor(teamScheme(league, teamId), 'WR').length;
 }

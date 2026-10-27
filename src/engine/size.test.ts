@@ -3,10 +3,10 @@ import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
 import { simulateGame } from './match/gameSim';
 import { Rng } from './rng';
-import { teamPlayers } from './roster';
+import { lineOrder, spotOrder, teamPlayers } from './roster';
 import { buildLineup } from './match/lineup';
 import { teamCoaches } from './coaching';
-import { changePosition } from './training';
+import { changePosition, conversionRead } from './training';
 import {
   FLAT_BODY,
   isOutlier,
@@ -19,7 +19,7 @@ import {
   sizeLimits,
   sizeZ,
 } from './size';
-import { POSITIONS, type Player, type Position } from './types';
+import { ATTRIBUTES, POSITIONS, type Player, type Position, type Ratings } from './types';
 
 const stats = (xs: number[]) => {
   const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -252,6 +252,102 @@ describe('an older save', () => {
       for (const b of before.slice(0, 300))
         if (a.pos === b.pos && a.h < b.h)
           expect(m.players[a.id].heightIn).toBeLessThanOrEqual(m.players[b.id].heightIn);
+  });
+});
+
+describe('spot fit', () => {
+  let n = 0;
+  const player = (
+    position: Position,
+    heightIn: number,
+    weightLb: number,
+    set: Partial<Record<string, number>> = {},
+  ) => {
+    const ratings = Object.fromEntries(ATTRIBUTES.map((a) => [a, 12])) as Ratings;
+    Object.assign(ratings, set);
+    return { id: ++n, position, heightIn, weightLb, ratings, traits: {} } as unknown as Player;
+  };
+
+  it('puts the tall corners outside and the small one at nickel, behind them the bench as it was', () => {
+    const [small, tall, mid, bench] = [
+      player('CB', 69, 182),
+      player('CB', 74, 200),
+      player('CB', 72, 195),
+      player('CB', 70, 185),
+    ];
+    expect(spotOrder([small, tall, mid, bench], 'CB').map((p) => p.id)).toEqual([tall.id, mid.id, small.id, bench.id]);
+  });
+
+  it('keeps an elite small corner outside', () => {
+    const star = player('CB', 69, 182, { coverage: 19, agility: 18 });
+    const [a, b] = [player('CB', 74, 200), player('CB', 73, 198)];
+    expect(spotOrder([star, a, b], 'CB').slice(0, 2)).toContain(star);
+  });
+
+  it('puts the big receivers at X and Z and the small one in the slot', () => {
+    const [small, big, mid] = [player('WR', 69, 180), player('WR', 76, 215), player('WR', 73, 200)];
+    expect(spotOrder([small, big, mid], 'WR').map((p) => p.id)).toEqual([big.id, mid.id, small.id]);
+  });
+
+  it('leaves an offense with two receiver spots as the coaches set it', () => {
+    const [small, big, mid] = [player('WR', 69, 180), player('WR', 76, 215), player('WR', 73, 200)];
+    expect(spotOrder([small, mid, big], 'WR', 2).map((p) => p.id)).toEqual([small.id, mid.id, big.id]);
+  });
+
+  it("keeps the coaches' first receiver first when he plays outside", () => {
+    // The first receiver draws the most looks and the bracket: size says outside or slot, never who's the number one.
+    const [small, big, mid] = [player('WR', 69, 180), player('WR', 76, 215), player('WR', 73, 200)];
+    expect(spotOrder([mid, big, small], 'WR').map((p) => p.id)).toEqual([mid.id, big.id, small.id]);
+  });
+
+  it('copes with short rooms', () => {
+    const one = [player('CB', 69, 182)];
+    expect(spotOrder(one, 'CB')).toEqual(one);
+    const two = [player('CB', 69, 182), player('CB', 74, 200)];
+    expect(new Set(spotOrder(two, 'CB'))).toEqual(new Set(two));
+    expect(spotOrder([], 'WR')).toEqual([]);
+    const dt = [player('DT', 74, 290)];
+    expect(spotOrder(dt, 'DT')).toEqual(dt);
+  });
+
+  it('sends the long lineman to tackle when protection is level', () => {
+    const line = [
+      player('OL', 79, 315),
+      player('OL', 76, 315),
+      player('OL', 76, 315),
+      player('OL', 74, 315),
+      player('OL', 76, 315),
+    ];
+    const order = lineOrder(line);
+    expect([order[0], order[4]]).toContain(line[0]);
+    expect([order[0], order[4]]).not.toContain(line[3]);
+  });
+
+  it('never changes who starts', () => {
+    const corners = Array.from({ length: 6 }, (_, i) => player('CB', 68 + i, 185 + 3 * i, { coverage: 10 + i }));
+    const sorted = spotOrder(corners, 'CB');
+    expect(new Set(sorted.slice(0, 3))).toEqual(new Set(corners.slice(0, 3)));
+    expect(sorted.slice(3)).toEqual(corners.slice(3));
+  });
+});
+
+describe('a move for his build', () => {
+  it("reads a linebacker's build on a backup safety as a reason, and a median safety's as none", () => {
+    const l = createLeague({ seed: 'size-build-move' });
+    const team = l.teams[0].id;
+    const safeties = teamPlayers(l, team).filter((p) => p.position === 'S');
+    const backup = safeties.find((p) => l.teams[0].depthChart.S.indexOf(p.id) >= 2) ?? safeties.at(-1)!;
+    for (const a of ['tackling', 'runStop', 'awareness', 'coverage', 'speed', 'passRush'] as const)
+      backup.ratings[a] = 18;
+    // The safeties ahead of him stay ahead: a backup's move costs his old room nothing.
+    for (const p of safeties.filter((x) => x !== backup))
+      for (const a of ['coverage', 'awareness', 'tackling', 'speed', 'catching', 'runStop'] as const) p.ratings[a] = 20;
+    backup.heightIn = 74;
+    backup.weightLb = 242;
+    expect(conversionRead(l, backup, 'LB').motives.map((m) => m.reason)).toContain('build');
+    backup.heightIn = SIZE.S.h[0];
+    backup.weightLb = SIZE.S.w[0];
+    expect(conversionRead(l, backup, 'LB').motives.map((m) => m.reason)).not.toContain('build');
   });
 });
 
