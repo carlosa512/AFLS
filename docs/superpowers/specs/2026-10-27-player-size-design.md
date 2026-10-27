@@ -32,7 +32,7 @@ Three of its mechanics change to fit the project's rules:
 | --- | --- | --- |
 | Size "boosts agility" in play | Size nudges ratings at generation only; in play it acts only where size itself decides | Agility is already a rating; a second boost double-counts |
 | Multiply draft grade by a Size Fit Score | Each GM has a hidden size bias, applied to his own read | Size is public; teams differ in how they weigh it; no global multiplier |
-| Store `heightPercentile`, `rareGem` | Derived from height, weight and position when needed | No stored copy that can disagree with the measurement; no migration for it |
+| Store `heightPercentile`, `rareGem` | The percentile is derived from height, weight and position when needed; the gem is `Player.playsBig` | No stored copy of a measurement that can disagree with it |
 
 ## The module: `src/engine/size.ts`
 
@@ -101,30 +101,27 @@ under the new median and every offence would have gained on the run.)
 
 Rules:
 
-- Each edge is 0 at equal (or median) size, scales linearly with the gap in the lever's units and caps at ±2.
+- Each edge measures each player from his own position's median (a median WR on a median CB is level, though WRs run
+  half an inch taller), scales linearly with the gap in the lever's units and caps at ±2.
+- Length is height: the combine's arm length is not read (it follows height closely; one measure keeps the edges
+  centred and simple).
+- The gem protects whichever side holds it: a loss for the holder is halved, and so is the other side's gain over him.
 - Edges are antisymmetric where both sides are players (`edge(a, b) = −edge(b, a)`), so league totals hold.
 - `lanes` has no opponent player: it reads the QB's height z alone, centred on the QB median.
 
-### Size and ratings (moved here from phase 1)
+### Size and ratings (dropped)
 
-At generation, a composite `z = (zh + zw) / 2` nudges ratings, with no new draws:
-
-- light or short (`z < 0`): speed and agility up to +1, strength up to −1;
-- heavy or tall: the reverse;
-- linear in `z`, full at `|z| = 2`; paired so the position's OVR moves by under 0.3 on average. A median player is
-  untouched.
-
-Moved out of phase 1 when it was built: alone, it lifts the overall of small players at positions whose overall reads
-speed but not strength (WR, CB, S, LB), so lineups start more of them with nothing yet costing them for it; a 10-season
-sim had gross passing at 236.3 yards a game against main's 233.8. It ships with the levers below, which price that
-speed back, and is tuned with them. Potential moves with the overall the nudge shifts, never left below it.
+The spec had size nudge speed, agility and strength at creation. Built with phase 2 and measured, it moved the overall
+of about a third of new players, and with it the league's contracts, rosters and cap room (six seeded tests moved,
+the 10-season sim leaned to offence) while the centred edges below held the league where it was. Dropped: size acts
+on the field, through the edges, and on the depth chart (phase 3). Restoring it is one call in `generatePlayer`.
 
 ### The rare gem
 
-A new hidden trait, `Traits.playsBig` (boolean): rolled once at generation, only for outliers (`isOutlier`), at about
-1 in 4 of them, on the trait's own seeded stream (`traits:${id}:…`, so the league stream is untouched). It halves a
-negative edge and never adds a positive one. `SAVE_VERSION` bumps by one; the upgrade sets `playsBig: false` for
-every existing player.
+A new hidden flag, `Player.playsBig` (optional, on the player rather than in `Traits`, which every reader treats as numbers): rolled once at generation, only for outliers (`isOutlier`), at about
+1 in 4 of them, on the player's own seeded stream (`gem:${id}:…`, so the league stream is untouched). It halves a
+negative edge and never adds a positive one. `SAVE_VERSION` bumps by one; the upgrade rolls it from the same stream, so an older save gets the gems a new league
+would.
 
 ### Check: `npm run size`
 

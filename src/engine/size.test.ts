@@ -1,13 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
+import { simulateGame } from './match/gameSim';
 import { Rng } from './rng';
 import { teamPlayers } from './roster';
 import { buildLineup } from './match/lineup';
 import { teamCoaches } from './coaching';
 import { changePosition } from './training';
-import { FLAT_BODY, isOutlier, rollSize, SIZE, sizeLimits, sizeZ } from './size';
-import { POSITIONS } from './types';
+import {
+  FLAT_BODY,
+  isOutlier,
+  massEdge,
+  rollGem,
+  rushSizeEdge,
+  rollSize,
+  SIZE,
+  sizeEdge,
+  sizeLimits,
+  sizeZ,
+} from './size';
+import { POSITIONS, type Player, type Position } from './types';
 
 const stats = (xs: number[]) => {
   const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -100,6 +112,119 @@ describe('generation', () => {
     ol.weightLb = 380;
     changePosition(l, ol, 'DT');
     expect(ol.weightLb).toBe(sizeLimits('DT').w[1]);
+  });
+});
+
+describe('sizeEdge', () => {
+  const at = (position: Position, heightIn: number, weightLb: number, playsBig = false) =>
+    ({
+      position,
+      heightIn,
+      weightLb,
+      ...(playsBig ? { playsBig: true } : {}),
+      ratings: { speed: 10 },
+    }) as unknown as Player;
+  const median = (pos: Position) => at(pos, SIZE[pos].h[0], SIZE[pos].w[0]);
+
+  it('is zero when both builds sit at their medians', () => {
+    expect(sizeEdge(median('WR'), 'contested', median('CB'))).toBe(0);
+    expect(sizeEdge(median('TE'), 'contested', median('S'))).toBe(0);
+    expect(sizeEdge(median('RB'), 'contact', median('LB'))).toBe(0);
+    expect(sizeEdge(median('WR'), 'press', median('CB'))).toBe(0);
+    expect(sizeEdge(median('DT'), 'leverage', median('OL'))).toBe(0);
+    expect(sizeEdge(median('EDGE'), 'edgeLength', median('OL'))).toBe(0);
+    expect(sizeEdge(median('QB'), 'lanes')).toBe(0);
+    expect(massEdge([median('OL'), median('OL')], [median('DT'), median('EDGE')])).toBe(0);
+  });
+
+  it('gives a tall receiver the jump ball over a small corner, capped at two points', () => {
+    const wr = at('WR', 77, 215);
+    const cb = at('CB', 69.5, 182);
+    expect(sizeEdge(wr, 'contested', cb)).toBe(2);
+    expect(sizeEdge(cb, 'contested', wr)).toBe(-2);
+    const close = at('WR', 74, 200);
+    expect(sizeEdge(close, 'contested', median('CB'))).toBeCloseTo(-sizeEdge(median('CB'), 'contested', close), 10);
+  });
+
+  it('halves a loss for a player who plays bigger than his size, and never adds a gain', () => {
+    const wr = at('WR', 77, 215);
+    expect(sizeEdge(at('CB', 69.5, 182, true), 'contested', wr)).toBe(-1);
+    expect(sizeEdge(at('WR', 77, 215, true), 'contested', at('CB', 69.5, 182))).toBe(2);
+    // The gem protects whichever side holds it: the receiver's gain over a gem corner is halved too.
+    expect(sizeEdge(wr, 'contested', at('CB', 69.5, 182, true))).toBe(1);
+    expect(sizeEdge(median('EDGE'), 'edgeLength', at('OL', 72, 300, true))).toBeCloseTo(
+      sizeEdge(median('EDGE'), 'edgeLength', at('OL', 72, 300)) / 2,
+      10,
+    );
+  });
+
+  it('gives the short tackle trouble, the short tackle on a DT leverage, and a tall QB his lanes', () => {
+    expect(sizeEdge(median('EDGE'), 'edgeLength', at('OL', 74, 313))).toBeGreaterThan(0);
+    expect(sizeEdge(at('DT', 73, 300), 'leverage', at('OL', 78, 313))).toBeGreaterThan(0);
+    expect(sizeEdge(at('QB', 71, 210), 'lanes')).toBeLessThan(0);
+    expect(sizeEdge(at('QB', 77, 235), 'lanes')).toBeGreaterThan(0);
+    expect(massEdge([at('OL', 77, 340)], [at('DT', 75, 290)])).toBeGreaterThan(0);
+  });
+});
+
+describe('the rare gem', () => {
+  const make = (pos: (typeof POSITIONS)[number], i: number) =>
+    generatePlayer(new Rng(`size-gem:${pos}:${i}`), {
+      id: 4_000_000 + i,
+      position: pos,
+      quality: 11,
+      age: 22,
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
+  const players = Array.from({ length: 4_000 }, (_, i) => make(POSITIONS[i % 10], i));
+
+  it('makes about a quarter of the outliers play bigger than their size, and nobody else', () => {
+    const outliers = players.filter((p) => isOutlier(p));
+    const rate = outliers.filter((p) => p.playsBig).length / outliers.length;
+    expect(rate).toBeGreaterThan(0.2);
+    expect(rate).toBeLessThan(0.3);
+    expect(players.filter((p) => p.playsBig && !isOutlier(p))).toEqual([]);
+    expect(rollGem(players[0])).toBe(rollGem(players[0]));
+  });
+
+  it('rolls the gem for an older save from the same stream a new league uses', () => {
+    const l = createLeague({ seed: 'size-v55' });
+    const before = Object.values(l.players).map((p) => [p.id, p.playsBig ?? false]);
+    for (const p of Object.values(l.players)) delete p.playsBig;
+    l.version = 55;
+    const m = migrateLeague(l)!;
+    expect(m.version).toBe(SAVE_VERSION);
+    expect(Object.values(m.players).map((p) => [p.id, p.playsBig ?? false])).toEqual(before);
+  });
+});
+
+describe('rushSizeEdge', () => {
+  const at = (position: Position, heightIn: number, weightLb = SIZE[position].w[0]) =>
+    ({ position, heightIn, weightLb, ratings: { speed: 12 } }) as unknown as Player;
+  const line = (h: number) => [at('OL', h), at('OL', 76.75), at('OL', 76.75), at('OL', 76.75), at('OL', h)];
+
+  it('is zero for median units and grows against short tackles', () => {
+    expect(rushSizeEdge(line(76.75), [at('EDGE', 76.5), at('EDGE', 76.5)], [at('DT', 75.5)])).toBe(0);
+    expect(rushSizeEdge(line(74), [at('EDGE', 76.5), at('EDGE', 76.5)], [at('DT', 75.5)])).toBeGreaterThan(0);
+  });
+
+  it('copes with missing players without NaN', () => {
+    expect(rushSizeEdge([], [], [])).toBe(0);
+    expect(rushSizeEdge(line(74).slice(0, 2), [at('EDGE', 76.5)], [])).not.toBeNaN();
+    expect(rushSizeEdge(line(74), [], [at('DT', 73), at('DT', 73), at('DT', 73)])).toBeGreaterThan(0);
+  });
+
+  it('plays a real game with a line two men short without a NaN', () => {
+    const l = createLeague({ seed: 'size-short-line' });
+    const team = l.teams[0];
+    team.autoDepth = false;
+    team.depthChart.OL = team.depthChart.OL.slice(0, 2);
+    team.depthChart.DT = team.depthChart.DT.slice(0, 3);
+    const game = l.games.find((g) => g.homeId === team.id || g.awayId === team.id)!;
+    const r = simulateGame(l, game, { keepPlays: false });
+    for (const side of [r.home, r.away])
+      for (const v of [side.passYds, side.rushYds, side.sacked]) expect(Number.isFinite(v)).toBe(true);
   });
 });
 

@@ -69,6 +69,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in
   `match/gameSim.ts`. Nothing may be flagged. `npm run check` runs it (with `--effects`) when the
   quirks module, the match engine or what builds a league changes.
+- `npm run size` — player size: builds against each position's curve, the rare gem's rate, no edge past its cap,
+  each lever replayed on the same games with one group's builds two sd out (it must move its own stat the right way),
+  and the league at its medians against the league as built (totals must hold). Run it after changing `size.ts`, the
+  match engine or what builds a league. Nothing may be flagged.
 - `npm run weather` — roll many seasons of weather and check it looks like the NFL's (wind, rain and snow,
   roofs), that shown rain chances come true as often as they say, that `TYPICAL` in `weather.ts` is still
   the season's average, and that each condition, replayed on the same games, cuts passing and kicking by
@@ -162,7 +166,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
   - `size.ts` height and weight: each position's bell curve (`SIZE`, from combine percentiles), the roll (`rollSize`,
-    the same two draws the flat rolls cost), `sizeZ` (the only size z-score). Spec: `docs/superpowers/specs/2026-10-27-player-size-design.md`
+    the same two draws the flat rolls cost), `sizeZ` (the only size z-score), the matchup edges the engine adds where
+    size decides (`sizeEdge`: contested balls, the jam, a passer's lanes, contact; `rushSizeEdge` and `massEdge` in
+    the trenches; each in rating points, capped at ±2, zero between medians) and the rare gem (`Player.playsBig`, from
+    `rollGem`: an outlier who loses half of what his build costs). Spec: `docs/superpowers/specs/2026-10-27-player-size-design.md`
   - `identity.ts` names for new people (players by position, staff by chair, referees): a heritage drawn
     from `data/heritage.ts`, then names from `data/names.ts` for that heritage and generation; scouts and
     medics can be women (drawn with the name). Costs the caller's stream exactly two draws. Heritage is

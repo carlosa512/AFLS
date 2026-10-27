@@ -1,4 +1,4 @@
-import { toCurve } from './size';
+import { rollGem, toCurve } from './size';
 import { describe, expect, it } from 'vitest';
 import { headCoachVision } from './coaching';
 import { createLeague, SAVE_VERSION } from './generate';
@@ -278,9 +278,12 @@ describe('v41 migration', () => {
     l.week = 2;
     const old = legacy(l);
     const rng = copy(old.rngState);
-    // v55 moves builds onto the curves; nothing else about a player changes.
+    // v55 moves builds onto the curves and v56 rolls the gem; nothing else about a player changes.
     const players = copy(old.players);
-    for (const p of Object.values(players)) toCurve(p);
+    for (const p of Object.values(players)) {
+      toCurve(p);
+      if (rollGem(p)) p.playsBig = true;
+    }
     const history = copy(old.history);
     const traits = copy(old.teams.map((t) => t.gm));
     const up = migrateLeague(old)!;

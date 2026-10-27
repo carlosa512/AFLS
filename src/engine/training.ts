@@ -30,7 +30,7 @@ import { KEEP_MIN } from './offseason/ai';
 import { trueUp } from './development';
 import { conversionOf, targetsFor, type Conversion } from './familiarity';
 import { OVR_WEIGHTS, overall, playerOvr, STARTERS } from './positions';
-import { sizeLimits } from './size';
+import { rollGem, sizeLimits } from './size';
 import { fillBag, QUIRKS_FOR, type QuirkId } from './quirks';
 import { fitContests, type TeamScheme } from './schemes';
 import { clamp, Rng } from './rng';
@@ -273,6 +273,9 @@ export function changePosition(league: League, p: Player, to: Position): void {
   if (p.quirkBag) p.quirkBag = fillBag(p, coachingFor(league, p.teamId, to).rate);
   const [lo, hi] = sizeLimits(to).w;
   p.weightLb = clamp(p.weightLb, lo, hi);
+  // The gem is read against the position he plays: drawn from his own stream, so only the gate can change.
+  if (rollGem(p)) p.playsBig = true;
+  else delete p.playsBig;
   resetLeagueMarket(league);
   if (p.teamId === null) return;
   const team = league.teams[p.teamId];

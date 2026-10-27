@@ -5,7 +5,7 @@ import type { StartingGm } from './gm';
 import { generateGm } from './gmTraits';
 export { generateGm } from './gmTraits';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
-import { rollSize } from './size';
+import { rollGem, rollSize } from './size';
 import { ATTRIBUTE_PROFILES, JERSEY_RANGES, overall, playerOvr, ROSTER_TEMPLATE, STARTERS } from './positions';
 import { ageShift } from './aging';
 import { recordRatings } from './development';
@@ -46,7 +46,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 55;
+export const SAVE_VERSION = 56;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -141,6 +141,7 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
   generateQuirks(player);
   // Seeded by the player himself: adding measurables never shifts the league's random stream.
   player.combine = generateCombine(player);
+  if (rollGem(player)) player.playsBig = true;
   return player;
 }
 
