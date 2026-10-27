@@ -2155,6 +2155,15 @@ tr.void-year td {
   background: color-mix(in srgb, var(--win) 18%, var(--surface));
   color: color-mix(in srgb, var(--win) 75%, var(--ink));
 }
+/* Origins from outside the college game (ui/origin.tsx): their own colors, so they stand out on a card or a board. */
+.tag-pathway {
+  background: color-mix(in srgb, var(--b4) 18%, var(--surface));
+  color: color-mix(in srgb, var(--b4) 75%, var(--ink));
+}
+.tag-cfl {
+  background: color-mix(in srgb, var(--tie) 20%, var(--surface));
+  color: color-mix(in srgb, var(--tie) 75%, var(--ink));
+}
 .field-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

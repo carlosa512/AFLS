@@ -1,3 +1,4 @@
+import { OriginTag, originName } from '../origin';
 import { PracticeSquad } from './PracticeSquad';
 import { useEffect, useRef, useState } from 'react';
 import { GeneralManagers } from './GeneralManagers';
@@ -527,7 +528,18 @@ function FreeAgents({
 
 // ───────── draft ─────────
 
-type BoardSort = 'rank' | 'mine' | 'pos' | 'age' | 'drill' | 'grade' | 'ceiling' | 'stars' | 'consensus' | 'known';
+type BoardSort =
+  | 'rank'
+  | 'mine'
+  | 'pos'
+  | 'age'
+  | 'school'
+  | 'drill'
+  | 'grade'
+  | 'ceiling'
+  | 'stars'
+  | 'consensus'
+  | 'known';
 
 /** The combine drills the board's drill column can show, with their short headers. */
 const BOARD_DRILLS = [
@@ -572,19 +584,21 @@ function Draft({ league }: { league: League }) {
           ? POSITIONS.indexOf(p.position)
           : key === 'age'
             ? p.age
-            : key === 'drill'
-              ? (p.combine?.[drill] ?? (sort.desc ? -Infinity : Infinity))
-              : key === 'grade'
-                ? v.ovr
-                : key === 'ceiling'
-                  ? v.potMid
-                  : key === 'stars'
-                    ? starsOf(league, p, 'league', v).ability
-                    : key === 'consensus'
-                      ? p.scouting!.grade
-                      : key === 'known'
-                        ? v.knowledge
-                        : rank.get(p.id)!;
+            : key === 'school'
+              ? originName(p)
+              : key === 'drill'
+                ? (p.combine?.[drill] ?? (sort.desc ? -Infinity : Infinity))
+                : key === 'grade'
+                  ? v.ovr
+                  : key === 'ceiling'
+                    ? v.potMid
+                    : key === 'stars'
+                      ? starsOf(league, p, 'league', v).ability
+                      : key === 'consensus'
+                        ? p.scouting!.grade
+                        : key === 'known'
+                          ? v.knowledge
+                          : rank.get(p.id)!;
     },
   );
   const onClock = league.phase === 'draft' ? nextPick(league) : undefined;
@@ -714,6 +728,7 @@ function Draft({ league }: { league: League }) {
                   <SortTh label="Player" k="rank" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
                   <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
                   <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
+                  <SortTh label="School" k="school" sort={sort} onSort={onSort} desc={false} />
                   <SortTh
                     label={BOARD_DRILLS.find(([k]) => k === drill)![1]}
                     k="drill"
@@ -744,6 +759,9 @@ function Draft({ league }: { league: League }) {
                       </td>
                       <td>{p.position}</td>
                       <td className="num">{p.age}</td>
+                      <td>
+                        <OriginTag player={p} />
+                      </td>
                       <BoardDrillCell player={p} drill={drill} />
                       <td className="num">
                         <Ovr league={league} player={p} />
