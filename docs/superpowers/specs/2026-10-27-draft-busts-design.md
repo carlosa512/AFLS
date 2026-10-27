@@ -31,9 +31,11 @@ mark on every pick in the draft history), gets its own brainstorm and spec once 
 8. **A first-rounder is judged against his slot (owner's call after the prototypes).** Neither settling nor noisier
    draft reads nor a flatter class top could make a third of first-rounders miss a solid starter: teams draft on
    ceiling, and round 1's true ceilings sit about 3.5 points above that line. So a first-round bust is one who never
-   becomes a high-end starter (60th percentile), and ceilings are vaguer: `SWING` 2.2, 1.5, 0.8, and hype (each point
-   of growth still to come past three leans the ceiling down by 0.5, `hypeLean`). Tuned toward 40%: nobody has seen
-   him against the pros.
+   becomes a high-end starter (60th percentile), and ceilings are vaguer: `SWING` 2.2, 1.5, 0.8, and hype: in his first
+   season's settle only, each point of ceiling past three over his entry overall leans it down by 1.4 (`hypeLean`).
+   The class gets 0.9 more room to grow (`HYPE_ROOM`) and a top of 13.95 (from 13.7) for the talent hype takes back.
+   Aimed at the upper part of 25–40%, since nobody has seen him against the pros. Careers, 8 seasons: 34.9%
+   first-round busts, 17.6% Day 3 hits, starters 12.71–12.91, every row in range.
 
 ## The settle
 
