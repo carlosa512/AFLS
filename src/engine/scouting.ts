@@ -1340,8 +1340,6 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   if (produced && game.length < 3) game.push(produced);
 
   const notes: string[] = [];
-  const build = buildNote(league, teamId, p);
-  if (build) notes.push(build);
   // His habits, as far as we know them, in at most two sentences: what has changed this year is news,
   // so a habit he picked up lately is told as news rather than listed twice; of the rest, the two
   // settled ones that matter most (a flaw before a plus, a plus before a style); then, with a sentence
@@ -1415,6 +1413,9 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   const said = versatile
     ? `${verdict.slice(0, -1)}, ${versatile.tone === 'good' ? 'who can play anywhere' : 'at his best at his own position'}.`
     : verdict;
+  // His build last, so it never crowds out a habit the staff has seen.
+  const build = buildNote(league, teamId, p);
+  if (build) notes.push(build);
   return { verdict: said, game, notes };
 }
 
@@ -1516,16 +1517,16 @@ const GEM_KNOWLEDGE = 0.6;
 export function buildNote(league: League, teamId: number, p: Player): string | null {
   if (!isOutlier(p)) return null;
   const z = sizeZ(p);
-  const dim = Math.abs(z.h) >= Math.abs(z.w) ? 'h' : 'w';
-  const words = BUILD_WORDS[`${p.position}:${dim}${z[dim] < 0 ? '-' : '+'}`];
+  // The measure furthest out that has something to say at his position, then the other.
+  const dims = (Math.abs(z.h) >= Math.abs(z.w) ? ['h', 'w'] : ['w', 'h']) as ('h' | 'w')[];
+  const dim = dims.find((d) => Math.abs(z[d]) > 1.3 && BUILD_WORDS[`${p.position}:${d}${z[d] < 0 ? '-' : '+'}`]);
+  const words = dim && BUILD_WORDS[`${p.position}:${dim}${z[dim] < 0 ? '-' : '+'}`];
+  // Playing bigger than his size is a small or light player's story; a big one has nothing to make up.
+  const small = Math.min(z.h, z.w) < -1.3;
   const k = knowledge(league, teamId, p);
+  const draw = () => new Rng(`${league.seed}:gem-read:${teamId}:${p.id}`).next();
   const seen =
-    k >= 1
-      ? !!p.playsBig
-      : k >= GEM_KNOWLEDGE &&
-        (p.playsBig
-          ? new Rng(`${league.seed}:gem-read:${teamId}:${p.id}`).next() < k
-          : new Rng(`${league.seed}:gem-read:${teamId}:${p.id}`).next() < 0.08 * (1 - k));
+    small && (k >= 1 ? !!p.playsBig : k >= GEM_KNOWLEDGE && (p.playsBig ? draw() < k : draw() < 0.08 * (1 - k)));
   if (!words) return seen ? 'He plays bigger than his size.' : null;
-  return `${words}${seen ? ', but he plays bigger than his size' : ''}.`;
+  return `${words}${seen && dim && z[dim] < 0 ? ', but he plays bigger than his size' : ''}.`;
 }

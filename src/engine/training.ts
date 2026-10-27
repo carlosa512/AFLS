@@ -577,7 +577,8 @@ export function motiveWeight(league: League, team: Team, m: Motive, read: Conver
     case 'upgrade':
       return 0.5 + 0.3 * winNow;
     case 'build':
-      return 0.6;
+      // Every front office acts on a body that fits another job as readily as its coaches see it.
+      return 1;
   }
 }
 

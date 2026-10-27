@@ -72,7 +72,16 @@ import { draftComplete, reachOrSteal } from './offseason/draft';
 import { rookieCost, ROSTER_MAX } from './offseason/negotiation';
 import { knowledge, leaguePercentile, perceive, scoutReportParts } from './scouting';
 import { POSITION_NAMES } from './positions';
-import { activeRoster, chooseCover, practiceSquad, starters, teamPlayers, isAvailable, slotOf } from './roster';
+import {
+  activeRoster,
+  chooseCover,
+  isAvailable,
+  practiceSquad,
+  slotOf,
+  starters,
+  teamPlayers,
+  wrSpotsOf,
+} from './roster';
 import { futuresKept, futuresWindowOpen } from './personnel/futures';
 import { elevationUses } from './personnel/elevations';
 import { isPrimeTime, kickoffLabel } from './season/kickoff';
@@ -1057,14 +1066,15 @@ const EVEN_UNITS = 0.12;
  * on the nickel), when it's enough to decide a contested ball: heights are public, so this needs no scouting.
  */
 export function heightMismatch(league: League, opp: Team): string | null {
-  const starters = (team: Team, pos: Position) =>
+  // Who will be out there: available players, and only the receiver spots their offense lines up (no slot in 12).
+  const starters = (team: Team, pos: Position, n: number) =>
     team.depthChart[pos]
-      .slice(0, 3)
       .map((id) => league.players[id])
-      .filter((p): p is Player => !!p);
-  const corners = starters(league.teams[league.userTeamId], 'CB');
+      .filter((p): p is Player => !!p && isAvailable(p))
+      .slice(0, n);
+  const corners = starters(league.teams[league.userTeamId], 'CB', 3);
   let best: { wr: Player; cb: Player; spot: string; edge: number } | null = null;
-  starters(opp, 'WR').forEach((wr, i) => {
+  starters(opp, 'WR', wrSpotsOf(league, opp.id)).forEach((wr, i) => {
     const cb = corners[i];
     const edge = cb ? sizeEdge(wr, 'contested', cb) : 0;
     if (cb && edge >= 1.5 && (!best || edge > best.edge)) best = { wr, cb, spot: ['X', 'Z', 'slot'][i], edge };

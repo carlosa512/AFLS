@@ -291,9 +291,19 @@ describe('spot fit', () => {
     expect(spotOrder([small, big, mid], 'WR').map((p) => p.id)).toEqual([big.id, mid.id, small.id]);
   });
 
-  it('plays the heavier tackle over the nose', () => {
-    const [light, heavy] = [player('DT', 74, 290), player('DT', 76, 335)];
-    expect(spotOrder([heavy, light], 'DT').map((p) => p.id)).toEqual([light.id, heavy.id]);
+  it('only chooses X against Z for an offense with two receiver spots', () => {
+    const [small, big, mid] = [player('WR', 69, 180), player('WR', 76, 215), player('WR', 73, 200)];
+    expect(spotOrder([small, mid, big], 'WR', 2).map((p) => p.id)).toEqual([mid.id, small.id, big.id]);
+  });
+
+  it('copes with short rooms', () => {
+    const one = [player('CB', 69, 182)];
+    expect(spotOrder(one, 'CB')).toEqual(one);
+    const two = [player('CB', 69, 182), player('CB', 74, 200)];
+    expect(new Set(spotOrder(two, 'CB'))).toEqual(new Set(two));
+    expect(spotOrder([], 'WR')).toEqual([]);
+    const dt = [player('DT', 74, 290)];
+    expect(spotOrder(dt, 'DT')).toEqual(dt);
   });
 
   it('sends the long lineman to tackle when protection is level', () => {
@@ -361,13 +371,24 @@ describe('size in words', () => {
     expect(buildNote(l, l.userTeamId, cb)).not.toMatch(/plays bigger/);
   });
 
-  it('flags a hand-sorted chart that plays a small corner outside', () => {
+  it("flags a hand-sorted chart that plays a small corner outside, where auto-sort wouldn't", () => {
     const team = l.teams[l.userTeamId];
     team.autoDepth = false;
-    const outside = l.players[team.depthChart.CB[0]];
+    const cbs = team.depthChart.CB.slice(0, 3).map((id) => l.players[id]);
+    for (const p of cbs) {
+      for (const a of ['coverage', 'agility', 'awareness', 'speed'] as const) p.ratings[a] = 12;
+      p.heightIn = SIZE.CB.h[0];
+      p.weightLb = SIZE.CB.w[0];
+      delete p.injury;
+    }
+    const outside = cbs[0];
     outside.heightIn = 68;
     outside.weightLb = 178;
     expect(spotNotes(l, l.userTeamId).map((n) => n.playerId)).toContain(outside.id);
+    // An elite small corner: the auto-sort keeps him outside too, so the coach says nothing.
+    outside.ratings.coverage = 20;
+    outside.ratings.agility = 19;
+    expect(spotNotes(l, l.userTeamId).map((n) => n.playerId)).not.toContain(outside.id);
     team.autoDepth = true;
     expect(spotNotes(l, l.userTeamId)).toEqual([]);
   });
@@ -382,9 +403,10 @@ describe('size in words', () => {
     p.heightIn = SIZE.CB.h[0];
     p.weightLb = SIZE.CB.w[0];
     expect(score(1)).toBe(score(0));
-    expect(sizeBias(7)).toBe(sizeBias(7));
-    expect(sizeBias(7)).toBeGreaterThanOrEqual(0);
-    expect(sizeBias(7)).toBeLessThan(1);
+    expect(sizeBias('a', 7)).toBe(sizeBias('a', 7));
+    expect(sizeBias('a', 7)).not.toBe(sizeBias('b', 7));
+    expect(sizeBias('a', 7)).toBeGreaterThanOrEqual(0);
+    expect(sizeBias('a', 7)).toBeLessThan(1);
   });
 });
 

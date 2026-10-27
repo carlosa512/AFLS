@@ -28,6 +28,16 @@ report), `gmTraits.ts` `sizeBias` (derived from the GM's id), applied in `offsea
 - The opposition report's height line is its own paragraph, as the coaching note is: the report's opening stays two
   or three sentences.
 
+## Review fixes
+
+- The coach's notes run the same auto-sort on the same available starters and speak only where it would move a player
+  for his build (an elite small corner it keeps outside draws nothing); the nose note is gone with the nose reorder.
+- The opposition line reads available players and only the receiver spots the opponent lines up (no slot in 12).
+- `sizeBias` is seeded by the league too, so a franchise's GM differs from world to world; your own auto-pick carries
+  no bias.
+- The gem is a small or light player's story: never said of a big build. The build sentence comes last in the notes,
+  after any habit. The tag's direction is in its text for screen readers, with the right article.
+
 ## Review Focus
 
 1. Another club's player: the gem read must never be the truth by default (seeded on knowledge).

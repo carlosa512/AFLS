@@ -209,7 +209,8 @@ export function aiDraftChoice(
   const pool = availableProspects(league);
   const depth = positionDepth(league, teamId);
   const gmId = league.teams[teamId].gmId;
-  const bias = gmId == null ? 0 : sizeBias(gmId);
+  // Your own auto-pick reads the board as your scouts do, with no hidden taste of the GM chair.
+  const bias = gmId == null || teamId === league.userTeamId ? 0 : sizeBias(league.seed, gmId);
   let best = pool[0];
   let bestScore = -Infinity;
   for (const p of pool) {
