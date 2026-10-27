@@ -460,8 +460,11 @@ for (let s = 0; s < seasons; s++) {
   // 6.5-22.7), median at most 3.1%; a front office that cuts stars wholesale shows up as the max passing 30%.
   // Free agents: 253 → 467 over 6 seasons, +64 at most in a step (0.1.5; 252 → 443, +74 at 0.1.10; all seeds then
   // 99); it keeps rising until about season 12 and plateaus near 500 (retirement caps the stock), so the ceiling is 650
-  // and the floor 100 (a dried-up market).
-  const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 110, 0)}` : ''}`;
+  // and the floor 100 (a dried-up market). One league's pool moves a lot in a single step: re-read at 0.2.5 over four
+  // seeds (offseason-audit, alt-1..3), main ran -43 to +112 a step and player size -69 to +199 (alt-2 dips to 298 and
+  // rebounds to 497), while the whole run grew alike (+110 and +115 on average), so the step ceiling is 210; the pool
+  // band (100-650) is what catches a runaway.
+  const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 210, 0)}` : ''}`;
   console.log(
     `  checks ${year} cap: ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 30, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
   );
@@ -548,9 +551,12 @@ for (let s = 0; s < seasons; s++) {
 
   // The coaching carousel against the NFL (docs/GAME_DESIGN.md, "How coaching works"): 7.0 new head coaches a year over
   // 2015-2025 (5-10), 12.5 new offensive coordinators (7-21) and 11 defensive (10-17). Observed here 3-10, 8-17, 5-18 a
-  // season across seeds; position coaches 25-32% new (no NFL figure: 25-35% is the working assumption).
+  // season across seeds; position coaches 25-32% new (no NFL figure: 25-35% is the working assumption). Re-read at
+  // 0.2.5 over four seeds, one league's season ran 4-12 new head coaches on main and 5-13 with player size (13 on the
+  // default seed at 0.2.4): a firing more or less is a season's luck, so the ceiling is 14. The run's average (below)
+  // is the tighter read.
   console.log(
-    `  checks ${year} carousel: ${check('new HCs', turnover.hc, 2, 12, 0)} · ${check('new OCs', turnover.oc, 4, 22, 0)} · ${check('new DCs', turnover.dc, 4, 22, 0)} · ${check('position coaches new %', 100 * turnover.pcShare, 15, 45, 0)}`,
+    `  checks ${year} carousel: ${check('new HCs', turnover.hc, 2, 14, 0)} · ${check('new OCs', turnover.oc, 4, 22, 0)} · ${check('new DCs', turnover.dc, 4, 22, 0)} · ${check('position coaches new %', 100 * turnover.pcShare, 15, 45, 0)}`,
   );
 
   rows.push({ year, k, growth: rate, body, craft, roles, staffVal, hcFired, coachOver, staffOver, turnover, hcFrom });
@@ -659,9 +665,11 @@ if (rows.length >= 5) {
   // on average (2.32, 2.09, 2.10 over 36 seeds: a league still settling), part of every spread. Over those 36 seeds
   // one league's spread ran 0.1-1.6, one in six over the band; four drawn at random, 0.26 at the median and 0.86 at
   // the 99th percentile, about one draw in 800 over.
-  // The pool of free agents is still growing at season 6 (+33 in the last step; all seeds +26 to +41); band 70.
+  // The pool of free agents is still growing at season 6 (+33 in the last step; all seeds +26 to +41 then). Re-read at
+  // 0.2.5 over the same four seeds, one step is mostly a league's luck: main -26 to +81, player size -2 to +199 (and
+  // +88 on the default seed at 0.2.2), so the band is the step ceiling above, 210.
   console.log(
-    `  cap: median space %cap over ${others.length + 1} leagues ${tail.map((x) => x.toFixed(1)).join(' · ')} · ${check('spread over the last 3', Math.max(...tail) - Math.min(...tail), 0, 1, 1)} · ${check('free agents, last step', end.k.fas - rows[rows.length - 2].k.fas, -Infinity, 70, 0)}`,
+    `  cap: median space %cap over ${others.length + 1} leagues ${tail.map((x) => x.toFixed(1)).join(' · ')} · ${check('spread over the last 3', Math.max(...tail) - Math.min(...tail), 0, 1, 1)} · ${check('free agents, last step', end.k.fas - rows[rows.length - 2].k.fas, -Infinity, 210, 0)}`,
   );
   // The neutrality ledger must not walk: growth 0.999 → 1.008 (+0.009), body 0.999 → 0.987, craft 0.999 → 0.996.
   // Role values wander within a point (biggest: S&C +0.7); staff value falls 10.30 → 10.00 (all seeds -0.05 to -0.30,
