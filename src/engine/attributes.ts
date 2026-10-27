@@ -231,7 +231,10 @@ export const CONTESTS = {
   runDefense: {
     label: 'Holding the point',
     positions: ['DT', 'EDGE'],
-    weights: { runStop: 0.6, strength: 0.25, tackling: 0.1, awareness: 0.05 },
+    // Tackling is the finish at the point: at 0.1 a DT's sat at the audit's floor and any reshuffled world (new
+    // builds reseed traits) left it reading "no effect". Taken from run stopping, his strongest hook; an edge rates
+    // both the same, so the unit's average barely moves.
+    weights: { runStop: 0.55, strength: 0.25, tackling: 0.15, awareness: 0.05 },
     decides: 'yards at the line on runs',
   },
   setEdge: {
