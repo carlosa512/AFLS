@@ -123,3 +123,11 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       shift comes through different rosters (drafts, signings). Find why buyers deal earlier (when their interest in a
       target reaches the weekly threshold; star trades 21 against 11 on the fixed seeds), and whether a 30% floor is
       too tight for a main that sits at 32–35%.
+
+## Follow-up: head-coach firings in one season
+
+- [ ] `npm run offseason -- 6` fails "HCs fired" (0–11 in one offseason) on the player-origins branch (0.2.1): 12 in
+      2032 after 1, 5, 6, 8 and 3. The run's total is 35 on both that branch and main (range 18–54) and new head
+      coaches a season read 7.5 (4.5–9.5): the same rate, bunched into one year after a quiet one. Owners never read
+      origins; the shift comes through different results. Decide whether a per-season cap checked in one league is
+      the right test (a run-wide rate already guards the level), or find what lines up that many hot seats at once.
