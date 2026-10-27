@@ -10,6 +10,10 @@ import {
   originOf,
   type RankBand,
 } from './origin';
+import { createLeague } from './generate';
+import { playerOvr } from './positions';
+import { generateDraftClass } from './offseason/draft';
+import { Rng } from './rng';
 import type { Player } from './types';
 
 const tierOf = (id: number) => ORIGINS[id].tier as OriginTier;
@@ -80,5 +84,54 @@ describe('film by origin', () => {
     expect(filmScale(withOrigin())).toBe(1);
     expect(filmScale(withOrigin(99999))).toBe(1);
     expect(originOf(withOrigin(99999))).toBeUndefined();
+  });
+});
+
+describe('every new player has an origin', () => {
+  const hash = (ps: Player[]) => {
+    let h = 0;
+    for (const p of ps)
+      for (const v of Object.values(p.ratings)) h = (h * 31 + Math.round(v * 1000) + p.id) % 1000000007;
+    return h;
+  };
+  // Taken on main before origins: an origin draw runs on its own stream, so no rating moves.
+  const MAIN_LEAGUE = 122606184;
+  const MAIN_CLASS = 950578803;
+
+  it('gives every player of a new league and a draft class a college, without moving a rating', () => {
+    const l = createLeague({ seed: 'fp-origins' });
+    expect(hash(Object.values(l.players))).toBe(MAIN_LEAGUE);
+    generateDraftClass(l, new Rng('fp-class'));
+    expect(hash(l.draftClass.map((id) => l.players[id]))).toBe(MAIN_CLASS);
+    for (const p of Object.values(l.players)) expect(ORIGINS[p.origin!]?.kind).toBe('college');
+  });
+
+  it('a top-32 prospect is almost always from a power school', () => {
+    const l = createLeague({ seed: 'top32' });
+    let power = 0;
+    let n = 0;
+    for (let c = 0; c < 6; c++) {
+      generateDraftClass(l, new Rng(`top32:${c}`));
+      for (const id of l.draftClass.slice(0, 32)) {
+        n++;
+        if (originOf(l.players[id])?.tier === 'power') power++;
+      }
+    }
+    expect(power / n).toBeGreaterThan(0.93);
+  });
+
+  it('small-school prospects get a noisier consensus grade', () => {
+    const l = createLeague({ seed: 'noise' });
+    const miss: Record<string, number[]> = { power: [], small: [] };
+    for (let c = 0; c < 30; c++) {
+      generateDraftClass(l, new Rng(`noise:${c}`));
+      for (const id of l.draftClass) {
+        const p = l.players[id];
+        const t = originOf(p)!.tier!;
+        if (t === 'power' || t === 'small') miss[t].push(Math.abs(p.scouting!.grade - playerOvr(p)));
+      }
+    }
+    const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
+    expect(mean(miss.small)).toBeGreaterThan(mean(miss.power) * 1.15);
   });
 });

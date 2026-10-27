@@ -261,7 +261,11 @@ describe('migration and collection', () => {
     const l = createLeague({ seed: 'personnel-compat' });
     const result = simulateGame(l, l.games[0], { keepPlays: false });
     const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
-    for (const p of Object.values(l.players)) delete p.service;
+    // Fields added after this baseline (service, origin) are left out; everything else must match main.
+    for (const p of Object.values(l.players)) {
+      delete p.service;
+      delete p.origin;
+    }
     // Filled from origin/main's own output (no personnel code), not regenerated from the implementation under test.
     expect({
       players: hash(l.players),

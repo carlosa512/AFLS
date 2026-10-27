@@ -3,6 +3,7 @@
  * from last season's standings and playoff exits, AI boards that blend talent, position
  * value and need, and slotted rookie contracts.
  */
+import { bandForRank, collegeOrigin, filmScale } from '../origin';
 import { recordRatings } from '../development';
 import { logTransaction } from '../finance/cap';
 import {
@@ -48,14 +49,17 @@ export function generateDraftClass(league: League, rng: Rng): void {
       jerseysUsed: new Set(),
     });
     p.experience = 0;
+    // The generator makes the class best first, so the loop index is his rank (the consensus below reads origin).
+    p.origin = collegeOrigin(league.seed, p.id, bandForRank(i + 1));
     ensureService(p, league.season);
     // Most prospects grow a point or three; a few boom, some never move.
     const growth = Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = Math.round(clamp(playerOvr(p) + growth, playerOvr(p), 20) * 10) / 10;
-    // Scouts see a noisy grade and an even noisier ceiling.
+    // Scouts see a noisy grade and an even noisier ceiling; noisier still on less film (a small school, the Pathway).
+    const film = Math.sqrt(filmScale(p));
     p.scouting = {
-      grade: Math.round((playerOvr(p) + rng.normal(0, CONSENSUS_SD.grade)) * 2) / 2,
-      ceiling: Math.round((p.potential + rng.normal(0, CONSENSUS_SD.ceiling)) * 2) / 2,
+      grade: Math.round((playerOvr(p) + rng.normal(0, CONSENSUS_SD.grade / film)) * 2) / 2,
+      ceiling: Math.round((p.potential + rng.normal(0, CONSENSUS_SD.ceiling / film)) * 2) / 2,
     };
     recordRatings(p, league.season);
     league.players[p.id] = p;

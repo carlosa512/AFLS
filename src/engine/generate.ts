@@ -1,3 +1,4 @@
+import { bandForDraftRound, bandForShare, collegeOrigin } from './origin';
 import { generateCoachingWorld } from './coaching';
 import { applyStartingGm, initializeGms } from './gm';
 import type { StartingGm } from './gm';
@@ -751,6 +752,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   // Contracts are priced against the whole league's talent, so they come after every roster exists.
   const market = leagueMarket(league);
   draftHistory(rng, league, season, talent);
+  originsForNewLeague(league);
   for (const team of league.teams) {
     const roster = Object.values(league.players).filter((p) => p.teamId === team.id);
     for (const p of roster) {
@@ -795,4 +797,19 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   for (const p of Object.values(league.players)) ensureService(p, season);
   if (options.personnel) formPracticeSquads(league, true);
   return league;
+}
+
+/**
+ * Schools for a new league's players, on their own streams (no other roll moves): a drafted veteran's band from his
+ * round, an undrafted one's from where he stands at his position.
+ */
+function originsForNewLeague(league: League): void {
+  const players = Object.values(league.players);
+  for (const position of POSITIONS) {
+    const group = players.filter((p) => p.position === position).sort((a, b) => playerOvr(b) - playerOvr(a));
+    group.forEach((p, i) => {
+      const band = p.draft ? bandForDraftRound(p.draft.round) : bandForShare(i / group.length);
+      p.origin = collegeOrigin(league.seed, p.id, band);
+    });
+  }
 }

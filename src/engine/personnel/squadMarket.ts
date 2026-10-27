@@ -1,3 +1,4 @@
+import { collegeOrigin } from '../origin';
 import { generatePlayer } from '../generate';
 import { capSpace } from '../finance/cap';
 import { inSeasonReserve } from '../offseason/ai';
@@ -63,6 +64,7 @@ export function ensureSquadSupply(league: League): void {
     });
     // Calendar experience can include prior practice-squad seasons with no accrued NFL service.
     p.experience = experience;
+    p.origin = collegeOrigin(league.seed, p.id, 3);
     p.service = initialService(veteran ? experience : 0, league.season - 1);
     // Most unsigned reserves project as depth. Rare young breakouts survive; no change to drafted/cut players.
     const upside = veteran ? rng.float(0, 0.8) : rng.float(0.2, 2.2) + (rng.chance(0.025) ? rng.float(2, 4) : 0);

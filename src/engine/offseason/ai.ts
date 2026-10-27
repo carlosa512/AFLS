@@ -1,3 +1,4 @@
+import { collegeOrigin } from '../origin';
 import { squadReserve } from '../personnel/squads';
 /**
  * AI front offices. Decisions come from numeric GM traits plus the roster in front of them:
@@ -555,6 +556,7 @@ function streetFreeAgent(league: League, position: Position, rng: Rng, maxAge = 
     teamId: null,
     jerseysUsed: new Set(),
   });
+  p.origin = collegeOrigin(league.seed, p.id, 3);
   recordRatings(p, league.season);
   league.players[p.id] = p;
   return p;
