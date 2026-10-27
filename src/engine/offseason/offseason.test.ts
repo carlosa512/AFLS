@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { capSpace } from '../finance/cap';
-import { capHit, isExpired } from '../finance/contract';
+import { capFor, capSpace } from '../finance/cap';
+import { capHit, isExpired, yearOf } from '../finance/contract';
 import { leagueMarket, marketApy, maxBonusShare, minSalary, rookieApy } from '../finance/market';
 import { createLeague, generatePlayer, rookieContract } from '../generate';
 import { simToEndOfSeason } from '../league';
@@ -118,9 +118,23 @@ describe('offseason calendar', () => {
     // next year's books are lighter for it.
     const league = fresh();
     beginOffseason(league);
-    const team = league.teams.find((t) => t.id !== league.userTeamId)!;
-    aiTrainingCamp(league, team, new Rng('pay-ahead'));
+    // A club holding enough of next year's veteran salary above the minimums to pay ahead what this test hands it
+    // (two points of the cap, and one to spare): one that holds less pays what it can, and that's a different test.
     const cap = league.caps[league.season];
+    const convertible = (teamId: number) =>
+      activeRoster(league, teamId)
+        .filter((p) => p.contract?.kind === 'veteran')
+        .reduce((s, p) => {
+          const y = yearOf(p.contract!, league.season + 1);
+          const floor = minSalary(p.experience + 1, capFor(league, league.season + 1));
+          return s + (y && !y.void ? Math.max(0, y.base - floor) : 0);
+        }, 0);
+    // Camp pays ahead too, so the room left to convert is read once it is done.
+    const team = league.teams.find((t) => {
+      if (t.id === league.userTeamId) return false;
+      aiTrainingCamp(league, t, new Rng('pay-ahead'));
+      return convertible(t.id) >= 0.03 * cap;
+    })!;
     const past = () => capSpace(league, team.id) - inSeasonReserve(league, team.id);
     team.carryover += Math.max(0, Math.round(0.03 * cap - past()));
     const total = (p: (typeof league.players)[number]) =>
