@@ -195,12 +195,11 @@ yearly step but would make about 15% of ratings jitter ±1 every week.
 5. **True-up.** At the next new league year any unreleased remainder lands, then the next year is
    rolled.
 
-**The split (built):** `RELEASE` in `development.ts`: 0.57 at the new league year, a twentieth each over
-the program (as the draft closes) and camp (cut-down day), the remaining 0.33 across the 18 weeks. (Half in
-March was the first try; it put one AI team's dead money at 31% of a low cap year in `offseason`'s seeded run,
-since veterans fading in season get sold at the deadline and their bonuses land as next year's dead money.
-Three fifths kept every band; settling ceilings (draft busts) left more young players stalled, whose weekly
-steps are too small to show, and 0.57 brings the young players moving in season back over three in ten.) At
+**The split (built):** `RELEASE` in `development.ts`: three fifths at the new league year, a twentieth
+each over the program (as the draft closes) and camp (cut-down day), the remaining three tenths across
+the 18 weeks. (Half in March was the first try; it put one AI team's dead money at 31% of a low cap
+year in `offseason`'s seeded run, since veterans fading in season get sold at the deadline and their
+bonuses land as next year's dead money. Three fifths keeps every band.) At
 1/0/0/0 the code path is the old one-jump `developPlayer`, nothing is stored and the league is
 identical; the PR shipped there first (green), then moved the dial. A week he played releases a full
 week's share; a week he sat (benched, hurt, unsigned) releases the bench's reps against a starter's
@@ -577,7 +576,7 @@ squad (the real home of bench youngsters' reps).
 - **E Weekly development** (built): the dial sums to 1; a year released in steps lands exactly where one
   jump would, for every player whose label, ceiling and injury file were left alone that year; ratings on
   the integer scale every week; the share of young rostered players whose ratings moved in season (0 at
-  1/0/0/0, 0.3 or more at the split; a scar doesn't count).
+  1/0/0/0, 0.25 or more at the split, since busts stall by design (`ceiling.ts`); a scar doesn't count).
 - **F Focus cohort.**
 - **G Practice extremes:** all-Light worse than Normal; Hard bounded by the bank; camp band.
 - **H Twin leagues** (AI moves on vs off).
