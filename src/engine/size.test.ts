@@ -287,9 +287,19 @@ describe('spot fit', () => {
     expect(spotOrder([small, big, mid], 'WR').map((p) => p.id)).toEqual([big.id, mid.id, small.id]);
   });
 
-  it('plays the heavier tackle over the nose', () => {
-    const [light, heavy] = [player('DT', 74, 290), player('DT', 76, 335)];
-    expect(spotOrder([heavy, light], 'DT').map((p) => p.id)).toEqual([light.id, heavy.id]);
+  it('only chooses X against Z for an offense with two receiver spots', () => {
+    const [small, big, mid] = [player('WR', 69, 180), player('WR', 76, 215), player('WR', 73, 200)];
+    expect(spotOrder([small, mid, big], 'WR', 2).map((p) => p.id)).toEqual([mid.id, small.id, big.id]);
+  });
+
+  it('copes with short rooms', () => {
+    const one = [player('CB', 69, 182)];
+    expect(spotOrder(one, 'CB')).toEqual(one);
+    const two = [player('CB', 69, 182), player('CB', 74, 200)];
+    expect(new Set(spotOrder(two, 'CB'))).toEqual(new Set(two));
+    expect(spotOrder([], 'WR')).toEqual([]);
+    const dt = [player('DT', 74, 290)];
+    expect(spotOrder(dt, 'DT')).toEqual(dt);
   });
 
   it('sends the long lineman to tackle when protection is level', () => {

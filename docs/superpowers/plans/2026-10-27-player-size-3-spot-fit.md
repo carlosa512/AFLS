@@ -52,4 +52,8 @@
 - [ ] `npm run training`, `npm run size`; CI runs the rest.
 - [ ] Version 0.2.4, changelog; PR on phase 2's branch.
 
+Review fixes: an offense with two receiver spots (12 personnel) only chooses X against Z (its third receiver
+doesn't play, so size never benches a better one); the nose reorder is gone (the engine reads the front's mass as a
+unit, so it changed nothing on the field); AI front offices weigh `build` at 1, so they act on it as your coaches do.
+
 The coach's note on a hand-sorted chart ("he's a nickel") is a screen: it moved to phase 4.

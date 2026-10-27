@@ -1,4 +1,4 @@
-import { buildAutoDepthChart, activeRoster, playingHurt } from '../roster';
+import { buildAutoDepthChart, wrSpotsOf, activeRoster, playingHurt } from '../roster';
 import { teamCoaches } from '../coaching';
 import { STARTERS } from '../positions';
 import { perceive } from '../scouting';
@@ -30,6 +30,7 @@ export function recommendedGameDay(l: League, g: Game, teamId: number): GameDayL
     team.playingAt,
     teamCoaches(l, teamId),
     new Set(gameElevations(l, g, teamId).map((e) => e.playerId)),
+    wrSpotsOf(l, teamId),
   );
   const order = (pos: (typeof POSITIONS)[number]) => [
     ...new Set([...(team.autoDepth ? chart[pos] : team.depthChart[pos]).filter((id) => ids.has(id)), ...chart[pos]]),
@@ -171,7 +172,7 @@ export function gameDayTeam(l: League, g: Game, team: Team): Team {
   if (list.emergencyQbId !== undefined) selected.add(list.emergencyQbId);
   const pool = [...selected].map((id) => l.players[id]).filter(Boolean);
   const elevated = new Set(list.elevatedIds);
-  const auto = buildAutoDepthChart(pool, team.playingAt, teamCoaches(l, team.id), elevated);
+  const auto = buildAutoDepthChart(pool, team.playingAt, teamCoaches(l, team.id), elevated, wrSpotsOf(l, team.id));
   const depthChart = team.autoDepth
     ? auto
     : (Object.fromEntries(
