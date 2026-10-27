@@ -178,6 +178,8 @@ export function migrateLeague(league: League): League | null {
     for (const p of Object.values(league.players)) if (rollGem(p)) p.playsBig = true;
     league.version = 56;
   }
+  // v57: optional `Coach.coverOff`; a head coach covers an empty coordinator chair by default.
+  if (league.version < 57) league.version = 57;
   return league;
 }
 
