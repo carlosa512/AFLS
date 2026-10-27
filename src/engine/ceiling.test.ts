@@ -1,0 +1,115 @@
+import { describe, expect, it } from 'vitest';
+import { ceilingLean, ceilingShift, peerTable, playLean, settleCeiling, type PeerTable } from './ceiling';
+import { createLeague } from './generate';
+import { playerOvr } from './positions';
+import { Rng } from './rng';
+import type { League, Player, StatLine } from './types';
+import { ATTRIBUTES } from './types';
+
+const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
+const QB_LINE: StatLine = { gp: 16, passAtt: 520, passCmp: 330, passYds: 3900, passTd: 26, passInt: 10 };
+
+/** A league and one of its young players at `pos`, made a rookie this season. */
+function rookie(seed: string, pos = 'QB'): { league: League; p: Player } {
+  const league = createLeague({ seed });
+  const p = Object.values(league.players).find((x) => x.position === pos && x.teamId !== null)!;
+  p.age = 22;
+  p.experience = 0;
+  delete p.ceilingShifts;
+  return { league, p };
+}
+
+/** A player rated `ovr` across the board at the start of `season`. */
+const ratedAt = (p: Player, season: number, ovr: number) =>
+  ((p.ratingHistory ??= {})[season] = ATTRIBUTES.map(() => ovr));
+
+describe('settleCeiling', () => {
+  it('the same seed settles the same shift', () => {
+    const a = rookie('ceiling-a');
+    const b = rookie('ceiling-a');
+    const season = a.league.season;
+    expect(settleCeiling(a.league, a.p, season, peerTable(a.league, season))).toBe(true);
+    settleCeiling(b.league, b.p, season, peerTable(b.league, season));
+    expect(a.p.ceilingShifts![season]).toBe(b.p.ceilingShifts![season]);
+    expect(a.p.potential).toBe(b.p.potential);
+  });
+
+  it('settles once a season', () => {
+    const { league, p } = rookie('ceiling-once');
+    const peers = peerTable(league, league.season);
+    settleCeiling(league, p, league.season, peers);
+    const after = p.potential;
+    expect(settleCeiling(league, p, league.season, peers)).toBe(false);
+    expect(p.potential).toBe(after);
+  });
+
+  it('skips players 26 and over and players past their third year', () => {
+    const { league, p } = rookie('ceiling-skip');
+    const peers = peerTable(league, league.season);
+    const old = { ...copy(p), age: 26 };
+    const vet = { ...copy(p), experience: 3 };
+    expect(settleCeiling(league, old, league.season, peers)).toBe(false);
+    expect(settleCeiling(league, vet, league.season, peers)).toBe(false);
+    expect(old.ceilingShifts).toBeUndefined();
+    expect(vet.potential).toBe(p.potential);
+  });
+
+  it('can drop the ceiling below his overall, and no rating moves', () => {
+    let below = 0;
+    const base = rookie('ceiling-drop');
+    for (let i = 0; i < 60; i++) {
+      const { league } = base;
+      const p = copy(base.p);
+      p.id = 100000 + i; // a stream of his own each time
+      p.traits.workEthic = 1;
+      p.potential = playerOvr(p) + 0.3;
+      const ratings = { ...p.ratings };
+      settleCeiling(league, p, league.season, new Map());
+      expect(p.ratings).toEqual(ratings);
+      expect(p.potential).toBeLessThanOrEqual(20);
+      if (p.potential < playerOvr(p)) below++;
+    }
+    expect(below).toBeGreaterThan(20);
+  });
+});
+
+describe('the lean', () => {
+  /** Peer quarterbacks rated 9–17 whose passer rating rises a step (6 points) per overall point. */
+  const peers = (): PeerTable =>
+    new Map([['QB', Array.from({ length: 90 }, (_, i) => ({ ovr: 9 + (i % 9), measure: 60 + 6 * (i % 9) }))]]);
+
+  it('reads peers rated like him, not the league', () => {
+    const { league, p } = rookie('ceiling-peers');
+    const season = league.season;
+    p.stats[season] = QB_LINE; // a passer rating in the 90s: about a 14's line on this table
+    ratedAt(p, season, 10);
+    const low = playLean(p, season, peers());
+    ratedAt(p, season, 15);
+    const high = playLean(p, season, peers());
+    expect(low).toBeGreaterThan(0);
+    expect(high).toBeLessThan(0);
+    expect(Math.abs(low)).toBeLessThanOrEqual(0.4);
+  });
+
+  it('positions without a rule and short seasons lean 0 on play', () => {
+    const te = rookie('ceiling-te', 'TE');
+    te.p.stats[te.league.season] = { gp: 16, rec: 40, recYds: 500 };
+    expect(playLean(te.p, te.league.season, peers())).toBe(0);
+    const qb = rookie('ceiling-short');
+    qb.p.stats[qb.league.season] = { gp: 3, passAtt: 20, passCmp: 12, passYds: 150 };
+    expect(playLean(qb.p, qb.league.season, peers())).toBe(0);
+    expect(Number.isFinite(ceilingLean(te.league, te.p, te.league.season, peers()))).toBe(true);
+  });
+
+  it('high work ethic settles above low', () => {
+    const { league, p } = rookie('ceiling-we');
+    const mean = (we: number) => {
+      const q = { ...copy(p), traits: { ...p.traits, workEthic: we } };
+      const lean = ceilingLean(league, q, league.season, new Map());
+      let sum = 0;
+      for (let i = 0; i < 400; i++) sum += ceilingShift(new Rng(`we:${i}`), 0, lean);
+      return sum / 400;
+    };
+    expect(mean(18) - mean(3)).toBeGreaterThan(1);
+  });
+});

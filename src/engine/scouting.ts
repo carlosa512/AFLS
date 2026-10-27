@@ -908,7 +908,7 @@ export function starRating(
  * reference group), the gap that counts as a clear step above or below a league-average starter
  * (`step`), and the words for the line itself.
  */
-interface Production {
+export interface Production {
   measure: (s: StatLine) => number;
   lowIsGood?: boolean;
   /** A low measure says nothing (a corner nobody throws at), so only a high one is reported. */
@@ -922,6 +922,8 @@ const perGame = (s: StatLine, k: keyof StatLine) => ((s[k] as number | undefined
 const n = (s: StatLine, k: keyof StatLine) => (s[k] as number | undefined) ?? 0;
 const big = (x: number) => x.toLocaleString('en-US');
 const pl = (x: number, word: string) => `${x} ${word}${x === 1 ? '' : 's'}`;
+/** How a season at `pos` is measured against others' (passer rating, yards a carry…), or none at a position without one. */
+export const productionRule = (pos: Position): Production | undefined => PRODUCTION[pos];
 const PRODUCTION: Partial<Record<Position, Production>> = {
   QB: {
     measure: passerRating,
