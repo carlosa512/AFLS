@@ -48,7 +48,10 @@ export function knowledge(league: League, teamId: number, p: Player): number {
   // Pathway gets less of it (`filmScale`). A CFL veteran's seasons up north count half until he plays one here.
   const film = isProspect(p)
     ? (0.2 + 0.15 * clamp((p.scouting!.grade - 6) / 8, 0, 1)) * filmScale(p)
-    : Math.min(0.9, 0.45 + 0.08 * (p.experience + (p.experience === 0 ? (p.cflSeasons ?? 0) / 2 : 0)));
+    : p.experience === 0
+      ? // A rookie off the board or the Pathway: his origin's share of film still counts until he plays.
+        Math.min(0.9, 0.45 + 0.04 * (p.cflSeasons ?? 0)) * filmScale(p)
+      : Math.min(0.9, 0.45 + 0.08 * p.experience);
   const scouted = teamId === league.userTeamId ? (league.knowledge[p.id] ?? 0) : aiScouted(league, teamId, p, film);
   return Math.max(film, scouted);
 }

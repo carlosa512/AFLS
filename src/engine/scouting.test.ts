@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CFL_ORIGIN, COLLEGES_BY_TIER, PATHWAY_ORIGINS } from './data/origins';
+import { pathwayClass } from './offseason/arrivals';
 import { generateDraftClass } from './offseason/draft';
 import { Rng } from './rng';
 import { createLeague, SAVE_VERSION } from './generate';
@@ -419,3 +420,14 @@ describe('film by origin', () => {
 function generateDraftClassForTest(l: League): void {
   generateDraftClass(l, new Rng('film-class'));
 }
+
+describe('film for arrivals', () => {
+  it('a real Pathway arrival is read less clearly than a power-school rookie', () => {
+    const l = createLeague({ seed: 'pathway-film' });
+    const ai = (l.userTeamId + 1) % 32;
+    const arrival = pathwayClass(l)[0];
+    const rookie = { ...arrival, origin: COLLEGES_BY_TIER.power[0] } as Player;
+    expect(knowledge(l, ai, arrival)).toBeLessThan(knowledge(l, ai, rookie));
+    expect(knowledge(l, ai, arrival)).toBeCloseTo(0.45 * 0.4, 5);
+  });
+});

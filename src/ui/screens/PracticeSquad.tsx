@@ -1,3 +1,5 @@
+import { isPathway } from '../../engine/offseason/arrivals';
+import { OriginTag } from '../origin';
 import { squadPlaces } from '../../engine/personnel/rules';
 import { useState } from 'react';
 import { practiceSquad, teamPlayers } from '../../engine/roster';
@@ -199,6 +201,8 @@ export function PracticeSquad({ league }: { league: League }) {
     </div>
   );
   const places = squadPlaces(league);
+  // Who can take the international place (v2): unattached Pathway players with no service.
+  const pathway = places > 16 ? squadCandidates(league).filter((p) => isPathway(p)) : [];
   const runRound = (staff = false) => {
     let ours = 0;
     store.mutate((l) => {
@@ -263,6 +267,17 @@ export function PracticeSquad({ league }: { league: League }) {
             <b className={sheet.space < 0 ? 'tone-bad' : undefined}>{money(sheet.space)}</b>
           </span>
         </div>
+        {places > 16 && pathway.length > 0 && (
+          <p className="small">
+            Pathway players available for the international place:{' '}
+            {pathway.map((p, i) => (
+              <span key={p.id}>
+                {i > 0 && ', '}
+                <PlayerLink league={league} player={p} /> <OriginTag player={p} />
+              </span>
+            ))}
+          </p>
+        )}
         <details className="personnel-help">
           <summary>Player limits</summary>
           <p>You can carry up to 16 players. A full squad is optional.</p>

@@ -408,7 +408,12 @@ describe('screen contract', () => {
     );
     expect(reads).toEqual([]);
     const shown = files.filter((f) => /<OriginTag\b/.test(src(f))).sort();
-    expect(shown).toEqual([join('src/ui/screens', 'FrontOffice.tsx'), join('src/ui/screens', 'PlayerCard.tsx')]);
+    // The squad desk lists who can take the international place (profile v2).
+    expect(shown).toEqual([
+      join('src/ui/screens', 'FrontOffice.tsx'),
+      join('src/ui/screens', 'PlayerCard.tsx'),
+      join('src/ui/screens', 'PracticeSquad.tsx'),
+    ]);
     expect(src(join('src/ui/screens', 'FrontOffice.tsx'))).toContain('label="School"');
   });
 
