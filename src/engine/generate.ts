@@ -5,7 +5,8 @@ import type { StartingGm } from './gm';
 import { generateGm } from './gmTraits';
 export { generateGm } from './gmTraits';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
-import { ATTRIBUTE_PROFILES, BODY, JERSEY_RANGES, overall, playerOvr, ROSTER_TEMPLATE, STARTERS } from './positions';
+import { rollSize } from './size';
+import { ATTRIBUTE_PROFILES, JERSEY_RANGES, overall, playerOvr, ROSTER_TEMPLATE, STARTERS } from './positions';
 import { ageShift } from './aging';
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
@@ -45,7 +46,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 54;
+export const SAVE_VERSION = 55;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -114,18 +115,18 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
   const ovr = overall(ratings, position);
   const growthYears = Math.max(0, 26 - age);
   const potential = clamp(ovr + growthYears * rng.float(0.2, 1.3) + rng.float(0, 0.8), ovr, 20);
-  const [hMin, hMax, wMin, wMax] = BODY[position];
   const experience = Math.max(0, age - 22 + rng.int(-1, 0));
 
   const { firstName, lastName } = newIdentity(rng, { kind: 'player', position });
+  // Drawn where the old flat rolls were, so names and jerseys keep their draws.
+  const build = rollSize(rng, position);
   const player: Player = {
     id: spec.id,
     firstName,
     lastName,
     position,
     age,
-    heightIn: rng.int(hMin, hMax),
-    weightLb: rng.int(wMin, wMax),
+    ...build,
     jersey: pickJersey(rng, position, spec.jerseysUsed),
     experience,
     ratings,

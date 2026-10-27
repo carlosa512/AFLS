@@ -143,22 +143,6 @@ export const STARTERS: Record<Position, number> = {
   P: 1,
 };
 
-/** Height (inches) and weight (lbs) ranges per position: [hMin, hMax, wMin, wMax]. */
-export const BODY: Record<Position, [number, number, number, number]> = {
-  QB: [72, 78, 205, 245],
-  RB: [67, 73, 190, 235],
-  WR: [69, 77, 175, 225],
-  TE: [75, 79, 240, 265],
-  OL: [75, 80, 295, 340],
-  DT: [73, 78, 290, 335],
-  EDGE: [74, 79, 245, 280],
-  LB: [72, 76, 225, 255],
-  CB: [69, 74, 180, 205],
-  S: [70, 75, 195, 220],
-  K: [69, 75, 180, 220],
-  P: [72, 77, 195, 230],
-};
-
 /** Market-value multiplier by position (QB = 1). Drives contract demands. */
 export const POSITION_VALUE: Record<Position, number> = {
   QB: 1,

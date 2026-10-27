@@ -105,7 +105,7 @@ describe('retained salary', () => {
     // of it), each with a buyer that has the room and buys him outright.
     // Two leagues: one opening league holds as few as four such players (its last-year deals paid past their market,
     // fewer have a roomy buyer), too few to read half of them closing.
-    const cases: { league: string; seller: number; player: number; buyer: number; paid: number }[] = [];
+    const cases: { league: string; seller: number; player: number; buyer: number; floor: number }[] = [];
     for (const league of [base, second()]) {
       const l: League = JSON.parse(league);
       const ctx = tradeContext(l);
@@ -122,15 +122,21 @@ describe('retained salary', () => {
               capRoom(ctx, t.id) >= salaryToTake(l, p) + 2000 &&
               dealFor(ctx, t, p),
           );
-          const outright = buyer && dealFor(ctx, buyer, p);
-          if (outright)
+          if (buyer && dealFor(ctx, buyer, p)) {
+            const alone: TradeProposal = {
+              sides: [
+                { teamId: buyer.id, players: [], picks: [] },
+                { teamId: seller.id, players: [p.id], picks: [] },
+              ],
+            };
             cases.push({
               league,
               seller: seller.id,
               player: p.id,
               buyer: buyer.id,
-              paid: quickValue(ctx, seller, outright.proposal.sides[0]),
+              floor: judge(ctx, seller.id, alone).need,
             });
+          }
         }
       }
     }
@@ -155,10 +161,12 @@ describe('retained salary', () => {
       if (!deal) continue;
       closed++;
       expect(deal.proposal.sides[1].retain?.[p.id]).toBe(kept);
-      // The money comes back to it in picks, on top of what a buyer with room pays: at least the seller's floor share
-      // of it. Between front offices a rental's kept salary is priced at that share (35% by week 5, 20% on deadline
-      // day), so a fixed half failed whenever a selling team took its floor, as one of these deals does.
-      expect(quickValue(mctx, m.teams[c.seller], deal.proposal.sides[0]) - c.paid).toBeGreaterThanOrEqual(
+      // The money comes back to it in picks, on top of its floor for the player alone: at least the seller's floor
+      // share of it. Between front offices a rental's kept salary is priced at that share (35% by week 5, 20% on
+      // deadline day), so a fixed half failed whenever a selling team took its floor, as one of these deals does.
+      // Measured from the floor, not from what a buyer with room paid: that deal haggles to its own spot above the
+      // floor, and the slack it happened to leave isn't owed again.
+      expect(quickValue(mctx, m.teams[c.seller], deal.proposal.sides[0]) - c.floor).toBeGreaterThanOrEqual(
         floorShare(m, m.teams[c.seller], p, false) * POINTS_PER_K * kept!,
       );
     }

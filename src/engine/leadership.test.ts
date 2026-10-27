@@ -372,6 +372,8 @@ describe('the weekly roundup of changes around the league', () => {
     expect(mail[0].subject).toBe(`Coaching changes: ${l.teams[a].abbrev}, ${l.teams[b].abbrev}`);
     expect(mail[0].body).toContain(ea.report);
     expect(mail[0].body).toContain(eb.report);
+    // Read back as league leadership news, like the single stories it gathers.
+    expect(mailSubject({ ...mail[0], read: false })).toEqual({ kind: 'leadership', season: l.season, eventId: 1 });
   });
   it('names GM-only weeks and mixed weeks, each club once', () => {
     const l = world();
@@ -399,6 +401,7 @@ describe('the weekly roundup of changes around the league', () => {
     expect(mail).toHaveLength(1);
     expect(mail[0].subject).toBe(fired.report);
     expect(mail[0].body).toBe(`${fired.report}\n\n${hired.report}`);
+    expect(mailSubject({ ...mail[0], read: false })).toEqual({ kind: 'leadership', season: l.season, eventId: 1 });
   });
   it('keeps a single change as its own story and our own club apart', () => {
     const l = world();

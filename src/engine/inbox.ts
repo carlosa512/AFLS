@@ -834,6 +834,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
   const [category, s, a, b, ...rest] = m.id.split(':');
   const season = Number(s);
   if (category === 'leadership') return { kind: 'leadership', season, eventId: Number(a) };
+  // A week's changes filed together (`leadership-week:season:week:first-last`) are the same league news, led by the first.
+  if (category === 'leadership-week') return { kind: 'leadership', season, eventId: Number(b.split('-')[0]) };
   if (category === 'leadership-phase') return { kind: 'frontOffice', season };
   if (category === 'advice') return { kind: 'advice', season, moment: a };
   if (category === 'gazette') return { kind: 'gazette', season };

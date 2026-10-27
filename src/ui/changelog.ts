@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.2',
+    date: '2026-10-27',
+    title: 'Real NFL builds',
+    text:
+      'New players now come in NFL shapes: most corners stand around six feet, with the odd 5\'8" one at one end and ' +
+      'a 6\'3" one at the other, and every position follows its own curve. Players already in your league keep ' +
+      'their builds.',
+  },
+  {
     version: '0.2.1',
     date: '2026-10-27',
     title: 'Where they came from',

@@ -29,7 +29,8 @@ import { leagueMarket, marketApy, resetLeagueMarket } from './finance/market';
 import { KEEP_MIN } from './offseason/ai';
 import { trueUp } from './development';
 import { conversionOf, targetsFor, type Conversion } from './familiarity';
-import { BODY, OVR_WEIGHTS, overall, playerOvr, STARTERS } from './positions';
+import { OVR_WEIGHTS, overall, playerOvr, STARTERS } from './positions';
+import { sizeLimits } from './size';
 import { fillBag, QUIRKS_FOR, type QuirkId } from './quirks';
 import { fitContests, type TeamScheme } from './schemes';
 import { clamp, Rng } from './rng';
@@ -270,7 +271,7 @@ export function changePosition(league: League, p: Player, to: Position): void {
   for (const id of Object.keys(p.quirks ?? {}) as QuirkId[]) if (!pool.has(id)) delete p.quirks![id];
   if (p.quirks && !Object.keys(p.quirks).length) delete p.quirks;
   if (p.quirkBag) p.quirkBag = fillBag(p, coachingFor(league, p.teamId, to).rate);
-  const [, , lo, hi] = BODY[to];
+  const [lo, hi] = sizeLimits(to).w;
   p.weightLb = clamp(p.weightLb, lo, hi);
   resetLeagueMarket(league);
   if (p.teamId === null) return;

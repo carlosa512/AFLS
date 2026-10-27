@@ -161,6 +161,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `needsYou` works out from the league as it is now whether a message still asks something (nothing
     stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
+  - `size.ts` height and weight: each position's bell curve (`SIZE`, from combine percentiles), the roll (`rollSize`,
+    the same two draws the flat rolls cost), `sizeZ` (the only size z-score). Spec: `docs/superpowers/specs/2026-10-27-player-size-design.md`
   - `identity.ts` names for new people (players by position, staff by chair, referees): a heritage drawn
     from `data/heritage.ts`, then names from `data/names.ts` for that heritage and generation; scouts and
     medics can be women (drawn with the name). Costs the caller's stream exactly two draws. Heritage is

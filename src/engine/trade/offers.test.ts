@@ -23,6 +23,7 @@ import {
   openOffers,
   playerTradeBlocker,
   proposeTrade,
+  resolveExam,
   salaryToTake,
   setTradeStatus,
   shopPlayer,
@@ -303,6 +304,8 @@ describe('offers to you', () => {
         offer.id,
         result.release.map((p) => p.id),
       );
+    // A physical with concerns is still the offer as made: taking him anyway leaves the risk with you.
+    if (!result.ok && result.exam) result = resolveExam(l, 'anyway');
     expect(result.ok).toBe(true);
     expect(l.market!.offers.find((o) => o.id === offer.id)!.status).toBe('accepted');
     for (const id of offer.sides[0].players) expect(l.players[id].teamId).toBe(l.userTeamId);
