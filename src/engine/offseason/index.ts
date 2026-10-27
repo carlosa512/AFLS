@@ -62,6 +62,7 @@ import {
 } from './draft';
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
 import { rollService } from '../personnel/service';
+import { settleFinished } from '../ceiling';
 import { personnelClock } from '../personnel/calendar';
 import { settleOffseasonWaivers, staffHandlesSquad, syncPersonnel, waiversPending } from '../personnel/flow';
 import { ensureWaivers } from '../personnel/waivers';
@@ -71,6 +72,8 @@ export const FA_DAYS = 5;
 /** The new league year: cap, carryover, ageing and retirements, the draft order and class, the schedule. */
 export function beginOffseason(league: League): void {
   if (league.phase !== 'complete') throw new Error('The season is not finished');
+  // A ceiling a season-end pass missed (an older save, a player who arrived late) settles before anyone ages.
+  settleFinished(league);
   settleOffseasonWaivers(league);
   // Futures picks freeze before anyone ages: the list the director's mail promised is the list that signs.
   freezeFuturesPicks(league);

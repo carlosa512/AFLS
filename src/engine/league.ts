@@ -18,6 +18,7 @@ import { flexWeek } from './season/flex';
 import { trainingWeek } from './training';
 import { playoffGames, scheduleNextRound, winnerOf } from './season/playoffs';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
+import { settleFinished } from './ceiling';
 import { computeRecords } from './season/standings';
 import { addStats } from './stats';
 import { captureManagement, creditManagement } from './service';
@@ -190,6 +191,8 @@ function playWeekControlled(league: League): Game[] {
   } else if (league.phase === 'playoffs') {
     if (!scheduleNextRound(league)) finishSeason(league);
   }
+  // Whoever's season just ended has his ceiling settled (out of the playoffs at week 18, then each round's losers).
+  settleFinished(league);
   prunePlayLogs(league);
   syncPersonnel(league);
   return games;

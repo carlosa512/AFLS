@@ -13,6 +13,7 @@ import { CEILING_SWING, playedShare, settleYear } from './development';
 import { overall } from './positions';
 import { clamp, Rng } from './rng';
 import { productionRule, seasonRole } from './scouting';
+import { allSeeds, playoffGames, winnerOf } from './season/playoffs';
 import { TRAIT_MEAN } from './traits';
 import type { League, Player, Position, Ratings } from './types';
 import { ATTRIBUTES } from './types';
@@ -111,4 +112,31 @@ export function settleCeiling(league: League, p: Player, season: number, peers: 
   p.potential = Math.max(1, Math.min(20, round1(before + shift)));
   (p.ceilingShifts ??= {})[season] = round1(p.potential - before);
   return true;
+}
+
+/** Teams still playing this postseason: the seeds, less every loser of a playoff game played. */
+function stillPlaying(league: League): Set<number> {
+  const alive = new Set(allSeeds(league).flat());
+  for (const g of playoffGames(league)) {
+    const won = g.result ? winnerOf(g) : null;
+    if (won !== null) alive.delete(won === g.homeId ? g.awayId : g.homeId);
+  }
+  return alive;
+}
+
+/**
+ * Settle everyone whose season is over: nobody during the regular season; in the playoffs, every player whose team
+ * is out (or who has no team); once the final is played (and at the new league year, for anyone a pass missed),
+ * everyone. Each player once a season, so it runs after every week that could end a team's year.
+ */
+export function settleFinished(league: League): void {
+  if (league.phase !== 'playoffs' && league.phase !== 'complete') return;
+  const season = league.season;
+  const alive = league.phase === 'playoffs' ? stillPlaying(league) : new Set<number>();
+  let peers: PeerTable | undefined;
+  for (const p of Object.values(league.players)) {
+    if (p.retired || settleYear(p) === null || p.ceilingShifts?.[season] !== undefined) continue;
+    if (p.teamId !== null && alive.has(p.teamId)) continue;
+    settleCeiling(league, p, season, (peers ??= peerTable(league, season)));
+  }
 }

@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { ceilingLean, ceilingShift, peerTable, playLean, settleCeiling, type PeerTable } from './ceiling';
+import {
+  ceilingLean,
+  ceilingShift,
+  peerTable,
+  playLean,
+  settleCeiling,
+  settleFinished,
+  type PeerTable,
+} from './ceiling';
+import { settleYear } from './development';
+import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
+import { beginOffseason } from './offseason';
+import { allSeeds } from './season/playoffs';
 import { createLeague } from './generate';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
@@ -111,5 +123,54 @@ describe('the lean', () => {
       return sum / 400;
     };
     expect(mean(18) - mean(3)).toBeGreaterThan(1);
+  });
+});
+
+describe("when a team's season ends", () => {
+  // One league played through its season in steps; each test picks up where the last left off.
+  const league = createLeague({ seed: 'ceiling-season' });
+  const season = league.season;
+  const young = () => Object.values(league.players).filter((p) => !p.retired && settleYear(p) !== null);
+  let cut: Player;
+
+  it('week 18 settles the teams out of the playoffs, not a bye team', () => {
+    simToEndOfRegularSeason(league);
+    expect(league.phase).toBe('playoffs');
+    const seeds = allSeeds(league);
+    const inPlayoffs = new Set(seeds.flat());
+    const byes = new Set(seeds.map((c) => c[0]));
+    const out = young().filter((p) => p.teamId !== null && !inPlayoffs.has(p.teamId));
+    const bye = young().filter((p) => p.teamId !== null && byes.has(p.teamId));
+    expect(out.length).toBeGreaterThan(0);
+    expect(bye.length).toBeGreaterThan(0);
+    for (const p of out) expect(p.ceilingShifts?.[season]).toBeDefined();
+    for (const p of bye) expect(p.ceilingShifts?.[season]).toBeUndefined();
+    // A player let go by a club still playing settles at the next pass, once.
+    cut = bye[0];
+    cut.teamId = null;
+  });
+
+  it('a player cut after week 18 settles once', () => {
+    playWeek(league);
+    const once = cut.ceilingShifts?.[season];
+    expect(once).toBeDefined();
+    const potential = cut.potential;
+    settleFinished(league);
+    expect(cut.ceilingShifts![season]).toBe(once);
+    expect(cut.potential).toBe(potential);
+  });
+
+  it('the playoffs settle each loser and the final settles the rest', () => {
+    simToEndOfSeason(league);
+    expect(young().length).toBeGreaterThan(100);
+    for (const p of young()) expect(p.ceilingShifts?.[season]).toBeDefined();
+  });
+
+  it('the new league year settles anyone left', () => {
+    const p = young()[0];
+    p.potential -= p.ceilingShifts![season];
+    delete p.ceilingShifts![season];
+    beginOffseason(league);
+    expect(p.ceilingShifts?.[season]).toBeDefined();
   });
 });
