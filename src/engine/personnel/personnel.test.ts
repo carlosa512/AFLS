@@ -261,15 +261,16 @@ describe('migration and collection', () => {
     const l = createLeague({ seed: 'personnel-compat' });
     const result = simulateGame(l, l.games[0], { keepPlays: false });
     const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
-    // Fields added after this baseline (service, origin) are left out; everything else must match main.
+    // Fields added after this baseline (service, origin, playsBig) are left out; everything else must match main.
     for (const p of Object.values(l.players)) {
       delete p.service;
       delete p.origin;
+      delete p.playsBig;
     }
     // Filled from origin/main's own output (no personnel code), not regenerated from the implementation under test.
     // `players` and `result` re-taken with player size (0.2.2): new builds reseed hidden traits; the stream, charts
     // and schedule still match main, which is what proves the size roll costs the same two draws. `result` again with
-    // the DT's wrap-up at the line.
+    // the DT's wrap-up at the line, and with the size edges.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -284,6 +285,6 @@ const BASELINE = {
   players: '99c29d8827408c9a6e16fc2310b98e8be049982c2a26091d2f58be065907d8f8',
   rng: [666865279, 3079305262, 4039765455, 1664101998],
   games: '7d434cad09545c5d832fe11048921e57ab49f1d9807d05ae5b65df3aaa0a9978',
-  result: 'bc2cc1af7e0599d4d5cc2983248eab438ca3c18ca84856013bd4fade0451716d',
+  result: 'c05db87ba766fedadea6b2350bc7cc1d15e1b0d66bf8291adcd013b3e9dc5ea3',
   charts: '23d56b1d1217c25f425b5454c0fd4e579639aa7a1dbf7753d52c180d7905ff1e',
 };
