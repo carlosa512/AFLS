@@ -5,7 +5,7 @@ import type { StartingGm } from './gm';
 import { generateGm } from './gmTraits';
 export { generateGm } from './gmTraits';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
-import { rollSize } from './size';
+import { rollGem, rollSize, sizeNudge, sizeZ } from './size';
 import { ATTRIBUTE_PROFILES, JERSEY_RANGES, overall, playerOvr, ROSTER_TEMPLATE, STARTERS } from './positions';
 import { ageShift } from './aging';
 import { recordRatings } from './development';
@@ -46,7 +46,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 54;
+export const SAVE_VERSION = 55;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -114,12 +114,18 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
   const ratings = generateRatings(rng, position, spec.quality);
   const ovr = overall(ratings, position);
   const growthYears = Math.max(0, 26 - age);
-  const potential = clamp(ovr + growthYears * rng.float(0.2, 1.3) + rng.float(0, 0.8), ovr, 20);
+  const rolled = clamp(ovr + growthYears * rng.float(0.2, 1.3) + rng.float(0, 0.8), ovr, 20);
   const experience = Math.max(0, age - 22 + rng.int(-1, 0));
 
   const { firstName, lastName } = newIdentity(rng, { kind: 'player', position });
   // Drawn where the old flat rolls were, so names and jerseys keep their draws.
   const build = rollSize(rng, position);
+  // His build shades his speed and strength after the roll, so his ceiling moves with the overall it shifted: the
+  // nudge never leaves potential under what he already is.
+  const z = sizeZ({ position, ...build });
+  sizeNudge(ratings, (z.h + z.w) / 2);
+  const nudged = overall(ratings, position);
+  const potential = clamp(rolled + nudged - ovr, nudged, 20);
   const player: Player = {
     id: spec.id,
     firstName,
@@ -141,6 +147,7 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
   generateQuirks(player);
   // Seeded by the player himself: adding measurables never shifts the league's random stream.
   player.combine = generateCombine(player);
+  if (rollGem(player)) player.playsBig = true;
   return player;
 }
 

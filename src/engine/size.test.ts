@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createLeague, generatePlayer } from './generate';
+import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
+import { migrateLeague } from './migrate';
+import { playerOvr } from './positions';
 import { Rng } from './rng';
 import { teamPlayers } from './roster';
 import { changePosition } from './training';
-import { isOutlier, massEdge, rollSize, SIZE, sizeEdge, sizeLimits, sizeNudge, sizeZ } from './size';
+import { isOutlier, massEdge, rollGem, rollSize, SIZE, sizeEdge, sizeLimits, sizeNudge, sizeZ } from './size';
 import { POSITIONS, type Player, type Position, type Ratings } from './types';
 
 const stats = (xs: number[]) => {
@@ -166,5 +168,47 @@ describe('sizeNudge', () => {
     const top = make(20);
     sizeNudge(top, -2);
     expect([top.speed, top.agility, top.strength]).toEqual([20, 20, 19]);
+  });
+});
+
+describe('the rare gem and the nudge at creation', () => {
+  const make = (pos: (typeof POSITIONS)[number], i: number) =>
+    generatePlayer(new Rng(`size-gem:${pos}:${i}`), {
+      id: 4_000_000 + i,
+      position: pos,
+      quality: 11,
+      age: 22,
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
+  const players = Array.from({ length: 4_000 }, (_, i) => make(POSITIONS[i % 10], i));
+
+  it('makes about a quarter of the outliers play bigger than their size, and nobody else', () => {
+    const outliers = players.filter((p) => isOutlier(p));
+    const rate = outliers.filter((p) => p.playsBig).length / outliers.length;
+    expect(rate).toBeGreaterThan(0.2);
+    expect(rate).toBeLessThan(0.3);
+    expect(players.filter((p) => p.playsBig && !isOutlier(p))).toEqual([]);
+    expect(rollGem(players[0])).toBe(rollGem(players[0]));
+  });
+
+  it('brings small corners out quicker, and never leaves potential below overall', () => {
+    const build = (p: Player) => (sizeZ(p).h + sizeZ(p).w) / 2;
+    const corners = players.filter((p) => p.position === 'CB');
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    expect(mean(corners.filter((p) => build(p) < -1).map((p) => p.ratings.speed))).toBeGreaterThan(
+      mean(corners.filter((p) => build(p) > 1).map((p) => p.ratings.speed)),
+    );
+    for (const p of players) expect(p.potential).toBeGreaterThanOrEqual(playerOvr(p));
+  });
+
+  it('rolls the gem for an older save from the same stream a new league uses', () => {
+    const l = createLeague({ seed: 'size-v55' });
+    const before = Object.values(l.players).map((p) => [p.id, p.playsBig ?? false]);
+    for (const p of Object.values(l.players)) delete p.playsBig;
+    l.version = 54;
+    const m = migrateLeague(l)!;
+    expect(m.version).toBe(SAVE_VERSION);
+    expect(Object.values(m.players).map((p) => [p.id, p.playsBig ?? false])).toEqual(before);
   });
 });

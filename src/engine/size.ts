@@ -4,7 +4,7 @@
  * that build says against his position. `sizeZ` is the only z-score in the codebase: everything that asks "is he big
  * for a corner?" goes through it, so a table change moves every reader at once.
  */
-import { clamp, type Rng } from './rng';
+import { clamp, Rng } from './rng';
 import type { Player, Position, Ratings } from './types';
 
 /** [mean, sd] for height (inches) and weight (pounds) at each position. */
@@ -131,4 +131,17 @@ export function massEdge(line: readonly Build[], front: readonly Build[]): numbe
   if (!line.length || !front.length) return 0;
   const mean = (ps: readonly Build[]) => ps.reduce((n, p) => n + devW(p), 0) / ps.length;
   return points(mean(line) - mean(front), FULL_WEIGHT);
+}
+
+/** How many outliers play bigger than their size. */
+const GEM_RATE = 0.25;
+
+/**
+ * Whether an outlier build plays bigger than it is: drawn from the player's own stream (like his combine), so a new
+ * league and a migrated save give the same answer and the league's stream never moves.
+ */
+export function rollGem(
+  p: Pick<Player, 'id' | 'firstName' | 'lastName' | 'position' | 'heightIn' | 'weightLb'>,
+): boolean {
+  return isOutlier(p) && new Rng(`gem:${p.id}:${p.firstName} ${p.lastName}`).next() < GEM_RATE;
 }
