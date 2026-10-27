@@ -8,7 +8,9 @@
  */
 import { COLLEGES_BY_TIER, ORIGINS, type Origin, type OriginTier } from './data/origins';
 import { Rng } from './rng';
-import type { Player } from './types';
+import { playerOvr } from './positions';
+import type { League, Player } from './types';
+import { POSITIONS } from './types';
 
 /** Rows of the tier table: ranks 1–32, 33–100, 101–224, then 225 and undrafted. */
 export type RankBand = 0 | 1 | 2 | 3;
@@ -50,4 +52,22 @@ export function filmScale(p: Player): number {
   const o = originOf(p);
   if (!o || o.kind === 'cfl') return 1;
   return o.kind === 'pathway' ? FILM.pathway : FILM[o.tier!];
+}
+
+/**
+ * A school for every player who has none (a new league, an older save), on his own stream: a drafted player's band
+ * from his round, anyone else's from where he stands among his position's players.
+ */
+export function fillOrigins(league: League): void {
+  const players = Object.values(league.players);
+  for (const position of POSITIONS) {
+    const group = players
+      .filter((p) => p.position === position)
+      .sort((a, b) => playerOvr(b) - playerOvr(a) || a.id - b.id);
+    group.forEach((p, i) => {
+      if (p.origin !== undefined) return;
+      const band = p.draft ? bandForDraftRound(p.draft.round) : bandForShare(i / group.length);
+      p.origin = collegeOrigin(league.seed, p.id, band);
+    });
+  }
 }

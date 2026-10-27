@@ -10,7 +10,8 @@ import {
   originOf,
   type RankBand,
 } from './origin';
-import { createLeague } from './generate';
+import { createLeague, SAVE_VERSION } from './generate';
+import { migrateLeague } from './migrate';
 import { playerOvr } from './positions';
 import { generateDraftClass } from './offseason/draft';
 import { Rng } from './rng';
@@ -133,5 +134,38 @@ describe('every new player has an origin', () => {
     }
     const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
     expect(mean(miss.small)).toBeGreaterThan(mean(miss.power) * 1.15);
+  });
+});
+
+describe('v54 migration', () => {
+  const old = () => {
+    const l = createLeague({ seed: 'mig-origins' });
+    for (const p of Object.values(l.players)) delete p.origin;
+    l.personnel!.profile = 'afls-2026-v1';
+    l.version = 53;
+    return l;
+  };
+
+  it('gives every player an origin, the same one every time', () => {
+    const a = migrateLeague(old())!;
+    const b = migrateLeague(old())!;
+    expect(a.version).toBe(SAVE_VERSION);
+    for (const p of Object.values(a.players)) {
+      expect(ORIGINS[p.origin!].kind).toBe('college');
+      expect(b.players[p.id].origin).toBe(p.origin);
+    }
+  });
+
+  it('migrates a retired player with no draft record', () => {
+    const l = old();
+    const p = Object.values(l.players)[0];
+    delete p.draft;
+    p.retired = true;
+    p.teamId = null;
+    expect(ORIGINS[migrateLeague(l)!.players[p.id].origin!].kind).toBe('college');
+  });
+
+  it('keeps an existing career on afls-2026-v1', () => {
+    expect(migrateLeague(old())!.personnel!.profile).toBe('afls-2026-v1');
   });
 });
