@@ -1,3 +1,4 @@
+import { squadPlaces } from './rules';
 import { collegeOrigin } from '../origin';
 import { generatePlayer } from '../generate';
 import { capSpace } from '../finance/cap';
@@ -41,7 +42,10 @@ const SUPPLY_WEIGHT: Record<Position, number> = {
 
 /** World supply is independent of the main RNG and never takes a player or dollar from an existing 53. */
 export function ensureSquadSupply(league: League): void {
-  const openings = league.teams.reduce((sum, t) => sum + Math.max(0, 16 - practiceSquad(league, t.id).length), 0);
+  const openings = league.teams.reduce(
+    (sum, t) => sum + Math.max(0, squadPlaces(league) - practiceSquad(league, t.id).length),
+    0,
+  );
   // Cuts and expired squad deals fill the pool first; new players cover only what's still missing, so the free-agent
   // pool doesn't grow every season (a spare 64 a round once pushed it past the offseason audit's band).
   const candidates = squadCandidates(league);
@@ -139,7 +143,7 @@ export function formPracticeSquads(league: League, autoUser = false): number {
     for (const team of [...league.teams].sort((a, b) => a.id - b.id)) {
       if (team.id === league.userTeamId && !autoUser) continue;
       const existing = practiceSquad(league, team.id);
-      const open = 16 - existing.length;
+      const open = squadPlaces(league) - existing.length;
       if (open <= 0) continue;
       const budget = capSpace(league, team.id) - inSeasonReserve(league, team.id);
       const healthy = activeRoster(league, team.id).filter((p) => !p.injury);

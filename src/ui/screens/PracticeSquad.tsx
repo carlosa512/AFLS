@@ -1,3 +1,4 @@
+import { squadPlaces } from '../../engine/personnel/rules';
 import { useState } from 'react';
 import { practiceSquad, teamPlayers } from '../../engine/roster';
 import { capSheet } from '../../engine/finance/cap';
@@ -197,13 +198,14 @@ export function PracticeSquad({ league }: { league: League }) {
       </table>
     </div>
   );
+  const places = squadPlaces(league);
   const runRound = (staff = false) => {
     let ours = 0;
     store.mutate((l) => {
       formPracticeSquads(l, staff);
       ours = practiceSquad(l, l.userTeamId).length;
     });
-    setMessage(`Your squad now has ${ours} of 16 players.`);
+    setMessage(`Your squad now has ${ours} of ${places} players.`);
   };
   const candidates = squadCandidates(league).filter(
     (p) => !query || `${p.position} ${p.firstName} ${p.lastName}`.toLowerCase().includes(query.toLowerCase()),
@@ -225,7 +227,9 @@ export function PracticeSquad({ league }: { league: League }) {
         <div className="facts">
           <span className="fact">
             <span className="eyebrow">Players</span>
-            <b>{members.length}/16</b>
+            <b>
+              {members.length}/{places}
+            </b>
           </span>
           <span className="fact">
             <span className="eyebrow">Squad weekly pay</span>
@@ -262,6 +266,7 @@ export function PracticeSquad({ league }: { league: League }) {
         <details className="personnel-help">
           <summary>Player limits</summary>
           <p>You can carry up to 16 players. A full squad is optional.</p>
+          {places > 16 && <p>One more place is kept for an International Pathway player with no seasons of service.</p>}
           <p>
             Most players use a standard spot. More experienced players use special slots: {expanded}/10 used, including{' '}
             {veterans}/6 veteran slots.
@@ -310,7 +315,7 @@ export function PracticeSquad({ league }: { league: League }) {
             <span className="row">
               <button
                 className="btn"
-                disabled={!!window || members.length >= 16}
+                disabled={!!window || members.length >= places}
                 title={window ?? 'Your staff chooses affordable prospects using its scouting reports'}
                 onClick={() => runRound(true)}
               >

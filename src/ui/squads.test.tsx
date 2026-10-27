@@ -27,7 +27,8 @@ describe('practice squad desk', () => {
     expect(JSON.stringify(l)).toBe(before);
     for (const text of [
       'Player limits',
-      '16/16',
+      '16/17',
+      'International Pathway',
       'Squad weekly pay',
       'Squad season cost',
       '$13,750',

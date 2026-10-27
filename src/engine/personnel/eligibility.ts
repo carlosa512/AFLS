@@ -1,4 +1,6 @@
 import type { League, Player } from '../types';
+import { isPathway } from '../offseason/arrivals';
+import { hasInternationalPlace } from './rules';
 import { serviceSeasons } from './service';
 
 export type SquadCategory = 'base' | 'developmental' | 'veteran';
@@ -10,8 +12,16 @@ export function squadCategory(league: League, p: Player): SquadCategory {
 }
 
 /** Assign base-eligible players first: flexible players never consume a scarce expanded slot. */
-export function squadFit(league: League, players: readonly Player[]): string | null {
-  if (players.length > 16) return 'Practice squads have at most 16 players.';
+export function squadFit(league: League, all: readonly Player[]): string | null {
+  // On v2 one Pathway player with no service may sit in the reserved place, outside the 16.
+  const reserved = hasInternationalPlace(league)
+    ? all.find((p) => isPathway(p) && squadCategory(league, p) === 'base')
+    : undefined;
+  const players = reserved ? all.filter((p) => p !== reserved) : all;
+  if (players.length > 16)
+    return reserved || !hasInternationalPlace(league)
+      ? 'Practice squads have at most 16 players.'
+      : 'Practice squads have at most 16 players, plus one International Pathway player.';
   const categories = players.map((p) => squadCategory(league, p));
   if (categories.filter((c) => c === 'veteran').length > 6)
     return 'At most six unrestricted veterans may join the practice squad.';

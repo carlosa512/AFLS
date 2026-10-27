@@ -12,6 +12,9 @@ On 2026-10-26 the rules were trimmed for play (`superpowers/specs/2026-10-26-per
 service counter instead of three CBA credits, weekly settle points instead of an Eastern-minute clock, plain
 call-up pay, no injury pay continuation, one release per claim. What follows describes the trimmed rules.
 
+Profile `afls-2026-v2` (0.2.1, new careers): v1 plus one place kept for an International Pathway player
+(`docs/superpowers/specs/2026-10-27-player-origins-design.md`). Careers that started earlier keep v1.
+
 ## Design authority
 
 Fun and low micromanagement come first when two designs are plausible. NFL rules are the foundation; AFLS
@@ -29,6 +32,7 @@ optional pins and a weekly lock so it can't cycle through the squad. The same ru
 | Match eligibility | A squad member plays only when called up for that game. Charts, special teams, returners and injury fallbacks never pick one up otherwise | AFLS |
 | Service | One counter: completed seasons with six or more regular-season games on the 53, called up, or on IR. Squad weeks, byes and playoff games earn nothing; a week counts once. `PlayerService` is `[through, seasons, weeks]`, seeded from calendar experience | NFL accrued season, simplified |
 | Squad places | 16. Players with no seasons of service take a standard spot; one or two seasons use the 10 special slots; three or more makes a veteran, at most 6 | NFL eligibility categories, simplified to the counter |
+| International place (v2) | One more place, outside the 16, for a Pathway player with no seasons of service. AI clubs (and your staff) fill it with the best Pathway player their scouts see; the formation reserve still covers only the 16 | NFL since 2024 (17th international spot) |
 | Squad pay | Weekly, separate from an NFL contract: the CBA's rates through 2030 (2026: $13,750 standard, $18,350–$22,850 veterans), then scaled with the cap. No bonuses, no guaranteed weeks. A signing commits the current week's check | CBA table; AFLS accounting |
 | Squad injuries | An injured squad member keeps his weekly check and his place, and can't be released until cleared. On the practice field he carries half a 53 player's risk (scout team, not a starter's load); a called-up game carries the full risk | AFLS |
 | Promotion | A free place on the 53, medical clearance and cap room: a new one-year minimum contract for his seasons of service. This week's squad check is credited | NFL; AFLS accounting |

@@ -1,3 +1,4 @@
+import { PERSONNEL_RULES } from './rules';
 import { personnelMoveLock, markSquadDeparture, elevationPromotionCredit } from './elevations';
 import { capSpace, logTransaction, paidFraction } from '../finance/cap';
 import { capHit, buildContract } from '../finance/contract';
@@ -21,12 +22,15 @@ export function squadWindowProblem(league: League): string | null {
   return null;
 }
 
-/** Reserved before AI NFL spending, independently of the injury/trade reserve. */
+/**
+ * Reserved before AI NFL spending, independently of the injury/trade reserve. The standard 16 only: most clubs never
+ * fill the international place (13 Pathway players a year), and its one weekly check is in-season money.
+ */
 export function squadReserve(league: League, teamId: number): number {
   if (!league.personnel?.enabled || ['regular', 'playoffs', 'complete'].includes(league.phase)) return 0;
   const squad = practiceSquad(league, teamId);
   const veterans = squad.filter((p) => squadCategory(league, p) === 'veteran').length;
-  return squadFormationCost(league, 16 - squad.length, 6 - veterans);
+  return squadFormationCost(league, PERSONNEL_RULES.squadLimit - squad.length, 6 - veterans);
 }
 
 export function squadOfferProblem(league: League, offer: SquadOffer): string | null {
