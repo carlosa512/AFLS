@@ -95,7 +95,7 @@ export function lineOrder(ol: Player[]): Player[] {
   const five = ol.slice(0, 5);
   if (five.length < 5) return ol;
   // Length counts outside: a tackle faces the edge rusher's speed, and a short-armed one is a guard.
-  const outside = (p: Player) => skill(p, 'passPro') + sizeEdge(p, 'edgeLength', typicalAt('EDGE'));
+  const outside = (p: Player) => skill(p, 'passPro') - sizeEdge(typicalAt('EDGE'), 'edgeLength', p);
   const byPass = [...five].sort((a, b) => outside(b) - outside(a));
   const [lt, rt] = byPass;
   const inside = five.filter((p) => p !== lt && p !== rt);

@@ -87,18 +87,20 @@ const devH = (p: Build) => p.heightIn - SIZE[p.position].h[0];
 const devW = (p: Build) => p.weightLb - SIZE[p.position].w[0];
 const points = (gap: number, full: number) => clamp((EDGE_CAP * gap) / full, -EDGE_CAP, EDGE_CAP);
 
-/** The rusher's side of a pass-rush matchup: what his build (and his speed, for length) wins against the blocker. */
-function rushEdge(rusher: Player, blocker: Build, lever: 'edgeLength' | 'leverage'): number {
+/**
+ * The rusher's side of a pass-rush matchup. Inside, the shorter man wins the leverage; outside, a short tackle gives
+ * up the corner (the rusher's speed is already in his rush, so length is the tackle's build alone).
+ */
+function rushEdge(rusher: Build, blocker: Build, lever: 'edgeLength' | 'leverage'): number {
   if (lever === 'leverage') return points(devH(blocker) - devH(rusher), FULL_LINE_HEIGHT);
-  // A short-armed tackle loses to speed most: the faster the rusher, the more a missing inch costs.
-  const speed = clamp((rusher.ratings.speed - 6) / 8, 0.5, 1.5);
-  return points(-devH(blocker) * speed, FULL_LINE_HEIGHT);
+  return points(-devH(blocker), FULL_LINE_HEIGHT);
 }
 
 /**
  * What `p`'s build is worth against `opp` at one moment, in rating points (positive helps `p`). Zero when both sit at
  * their positions' medians; the same gap the other way round is the same edge the other way. A player who plays
- * bigger than his size gives up half of what he'd lose, and gains nothing extra.
+ * bigger than his size, on either side, gives up half of what he'd lose, and gains nothing extra. In the pass rush
+ * `p` is the rusher and `opp` the blocker.
  */
 export function sizeEdge(p: Player, lever: Lever, opp?: Player): number {
   let e: number;
@@ -106,9 +108,11 @@ export function sizeEdge(p: Player, lever: Lever, opp?: Player): number {
   else if (!opp) return 0;
   else if (lever === 'contested') e = points(devH(p) - devH(opp), FULL_HEIGHT);
   else if (lever === 'press' || lever === 'contact') e = points(devW(p) - devW(opp), FULL_WEIGHT);
-  else e = p.position === 'OL' ? -rushEdge(opp, p, lever) : rushEdge(p, opp, lever);
+  else e = rushEdge(p, opp, lever);
+  if (e < 0 && p.playsBig) e /= 2;
+  else if (e > 0 && opp?.playsBig) e /= 2;
   // `+ 0` turns a median's -0 into 0.
-  return (e < 0 && p.playsBig ? e / 2 : e) + 0;
+  return e + 0;
 }
 
 /** The line's weight against the front's, from the offense's side: who moves whom at the point of attack. */
@@ -148,4 +152,40 @@ export function rushSizeEdge(ol: readonly Player[], edge: readonly Player[], dt:
 /** A median build at `pos` with an ordinary step: the opponent a depth-chart spot faces on a typical Sunday. */
 export function typicalAt(pos: Position): Player {
   return { position: pos, heightIn: SIZE[pos].h[0], weightLb: SIZE[pos].w[0], ratings: { speed: 12 } } as Player;
+}
+
+/**
+ * The flat ranges builds were rolled from before 0.2.2 (`[minH, maxH, minW, maxW]`, every value equally likely). Kept
+ * only to move an older save's players onto the curves (`toCurve`).
+ */
+export const FLAT_BODY: Record<Position, [number, number, number, number]> = {
+  QB: [72, 78, 205, 245],
+  RB: [67, 73, 190, 235],
+  WR: [69, 77, 175, 225],
+  TE: [75, 79, 240, 265],
+  OL: [75, 80, 295, 340],
+  DT: [73, 78, 290, 335],
+  EDGE: [74, 79, 245, 280],
+  LB: [72, 76, 225, 255],
+  CB: [69, 74, 180, 205],
+  S: [70, 75, 195, 220],
+  K: [69, 75, 180, 220],
+  P: [72, 77, 195, 230],
+};
+
+/**
+ * An older save's player, moved from his flat roll to the same standing on his position's curve: how far up the flat
+ * range he sat becomes as many sd from the median, so every player keeps his rank and the league is centred on the
+ * medians the matchup edges are measured from. His hidden traits and combine are stored, so nothing else moves.
+ */
+export function toCurve(p: Player): void {
+  const [hMin, hMax, wMin, wMax] = FLAT_BODY[p.position];
+  const lim = sizeLimits(p.position);
+  const move = (x: number, lo: number, hi: number, [mean, sd]: [number, number], [a, b]: [number, number]) => {
+    // A whole-number uniform roll: its mean and its spread.
+    const z = (x - (lo + hi) / 2) / Math.sqrt(((hi - lo + 1) ** 2 - 1) / 12);
+    return clamp(Math.round(mean + sd * clamp(z, -TAIL, TAIL)), a, b);
+  };
+  p.heightIn = move(p.heightIn, hMin, hMax, SIZE[p.position].h, lim.h);
+  p.weightLb = move(p.weightLb, wMin, wMax, SIZE[p.position].w, lim.w);
 }

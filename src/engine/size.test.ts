@@ -1,10 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
+import { simulateGame } from './match/gameSim';
 import { Rng } from './rng';
 import { lineOrder, spotOrder, teamPlayers } from './roster';
 import { changePosition, conversionRead } from './training';
-import { isOutlier, massEdge, rollGem, rushSizeEdge, rollSize, SIZE, sizeEdge, sizeLimits, sizeZ } from './size';
+import {
+  FLAT_BODY,
+  isOutlier,
+  massEdge,
+  rollGem,
+  rushSizeEdge,
+  rollSize,
+  SIZE,
+  sizeEdge,
+  sizeLimits,
+  sizeZ,
+} from './size';
 import { ATTRIBUTES, POSITIONS, type Player, type Position, type Ratings } from './types';
 
 const stats = (xs: number[]) => {
@@ -136,6 +148,12 @@ describe('sizeEdge', () => {
     const wr = at('WR', 77, 215);
     expect(sizeEdge(at('CB', 69.5, 182, true), 'contested', wr)).toBe(-1);
     expect(sizeEdge(at('WR', 77, 215, true), 'contested', at('CB', 69.5, 182))).toBe(2);
+    // The gem protects whichever side holds it: the receiver's gain over a gem corner is halved too.
+    expect(sizeEdge(wr, 'contested', at('CB', 69.5, 182, true))).toBe(1);
+    expect(sizeEdge(median('EDGE'), 'edgeLength', at('OL', 72, 300, true))).toBeCloseTo(
+      sizeEdge(median('EDGE'), 'edgeLength', at('OL', 72, 300)) / 2,
+      10,
+    );
   });
 
   it('gives the short tackle trouble, the short tackle on a DT leverage, and a tall QB his lanes', () => {
@@ -172,7 +190,7 @@ describe('the rare gem', () => {
     const l = createLeague({ seed: 'size-v55' });
     const before = Object.values(l.players).map((p) => [p.id, p.playsBig ?? false]);
     for (const p of Object.values(l.players)) delete p.playsBig;
-    l.version = 54;
+    l.version = 55;
     const m = migrateLeague(l)!;
     expect(m.version).toBe(SAVE_VERSION);
     expect(Object.values(m.players).map((p) => [p.id, p.playsBig ?? false])).toEqual(before);
@@ -193,6 +211,45 @@ describe('rushSizeEdge', () => {
     expect(rushSizeEdge([], [], [])).toBe(0);
     expect(rushSizeEdge(line(74).slice(0, 2), [at('EDGE', 76.5)], [])).not.toBeNaN();
     expect(rushSizeEdge(line(74), [], [at('DT', 73), at('DT', 73), at('DT', 73)])).toBeGreaterThan(0);
+  });
+
+  it('plays a real game with a line two men short without a NaN', () => {
+    const l = createLeague({ seed: 'size-short-line' });
+    const team = l.teams[0];
+    team.autoDepth = false;
+    team.depthChart.OL = team.depthChart.OL.slice(0, 2);
+    team.depthChart.DT = team.depthChart.DT.slice(0, 3);
+    const game = l.games.find((g) => g.homeId === team.id || g.awayId === team.id)!;
+    const r = simulateGame(l, game, { keepPlays: false });
+    for (const side of [r.home, r.away])
+      for (const v of [side.passYds, side.rushYds, side.sacked]) expect(Number.isFinite(v)).toBe(true);
+  });
+});
+
+describe('an older save', () => {
+  it("moves the flat builds onto each position's curve, keeping every player's rank", () => {
+    const l = createLeague({ seed: 'size-v55-flat' });
+    const rng = new Rng('flat');
+    for (const p of Object.values(l.players)) {
+      const [hMin, hMax, wMin, wMax] = FLAT_BODY[p.position];
+      p.heightIn = rng.int(hMin, hMax);
+      p.weightLb = rng.int(wMin, wMax);
+    }
+    const before = Object.values(l.players).map((p) => ({ id: p.id, pos: p.position, h: p.heightIn, w: p.weightLb }));
+    l.version = 54;
+    const m = migrateLeague(l)!;
+    expect(m.version).toBe(SAVE_VERSION);
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    for (const pos of ['OL', 'EDGE', 'CB', 'WR'] as const) {
+      const ps = Object.values(m.players).filter((p) => p.position === pos);
+      expect(Math.abs(mean(ps.map((p) => p.heightIn)) - SIZE[pos].h[0]), pos).toBeLessThan(0.6);
+      expect(Math.abs(mean(ps.map((p) => p.weightLb)) - SIZE[pos].w[0]), pos).toBeLessThan(5);
+    }
+    // A taller man before is never shorter after.
+    for (const a of before.slice(0, 300))
+      for (const b of before.slice(0, 300))
+        if (a.pos === b.pos && a.h < b.h)
+          expect(m.players[a.id].heightIn).toBeLessThanOrEqual(m.players[b.id].heightIn);
   });
 });
 
