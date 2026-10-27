@@ -4,6 +4,8 @@ import { migrateLeague } from './migrate';
 import { simulateGame } from './match/gameSim';
 import { Rng } from './rng';
 import { lineOrder, spotOrder, teamPlayers } from './roster';
+import { buildLineup } from './match/lineup';
+import { teamCoaches } from './coaching';
 import { changePosition, conversionRead } from './training';
 import {
   FLAT_BODY,
@@ -340,5 +342,24 @@ describe('a move for his build', () => {
     backup.heightIn = SIZE.S.h[0];
     backup.weightLb = SIZE.S.w[0];
     expect(conversionRead(l, backup, 'LB').motives.map((m) => m.reason)).not.toContain('build');
+  });
+});
+
+describe('a four-wide offense down to two receivers', () => {
+  it('builds its lineup without a slot receiver to read', () => {
+    const l = createLeague({ seed: 'size-four-wide' });
+    const team = l.teams[0];
+    const oc = teamCoaches(l, team.id).find((c) => c.role === 'offCoord')!;
+    oc.scheme = { ...oc.scheme, offense: 'airRaid' };
+    // Everyone who could line up wide is out but two receivers: no slot to block on the run.
+    const wrs = teamPlayers(l, team.id).filter((p) => p.position === 'WR');
+    const out = new Set([
+      ...wrs.slice(2).map((p) => p.id),
+      ...teamPlayers(l, team.id)
+        .filter((p) => p.position === 'TE' || p.position === 'RB' || p.position === 'CB' || p.position === 'S')
+        .map((p) => p.id),
+    ]);
+    const lineup = buildLineup(l, team, out);
+    expect(Number.isFinite(lineup.runBlock)).toBe(true);
   });
 });
