@@ -24,6 +24,18 @@ export interface PersonnelState {
     /** A same-club departure after use cannot erase the season's restriction. */
     blocked: Record<string, true>;
   };
+  /** Step 6: own squad players kept for next season on futures deals, by club, for the season whose squads they are. */
+  futures?: {
+    season: number;
+    /** Your (or a club's) explicit choices; absent: the staff's picks. */
+    kept: Record<number, number[]>;
+    /** Who actually signed at the new league year, by club (read by the mail). */
+    signed?: Record<number, number[]>;
+    /** Squad players whose deals ended unkept: the ones still unsigned when camp ends may leave football. */
+    released?: number[];
+  };
+  /** The league year whose offseason offered practice squads to this existing career (the only one that can). */
+  offered?: number;
   /** Step 5: other clubs signing squad players to their 53, and each club's two weekly protections. */
   poaching?: {
     season: number;

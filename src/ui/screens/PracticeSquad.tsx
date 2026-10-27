@@ -17,7 +17,9 @@ import { SquadActions } from '../contracts';
 import { money, weeklyMoney } from '../format';
 import { liveLock } from '../live';
 import { Ovr, ScoutedCeiling, seenOvr, viewOf } from '../scouting';
-import { GameDayPanel, PoachAction, ProtectionCell, SquadSignings } from '../personnel';
+import { FuturesCell, GameDayPanel, PoachAction, ProtectionCell, SquadSignings } from '../personnel';
+import { futuresWindowOpen } from '../../engine/personnel/futures';
+import { canTurnOnPersonnel, turnOnPersonnel } from '../../engine/personnel/activation';
 import { elevationUses } from '../../engine/personnel/elevations';
 import { store } from '../store';
 
@@ -30,12 +32,27 @@ export function PracticeSquad({ league }: { league: League }) {
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
   const [sort, onSort] = useSort<Key>({ key: 'upside', desc: true });
-  if (!league.personnel?.enabled)
+  if (!league.personnel?.enabled) {
+    const blocked = canTurnOnPersonnel(league);
     return (
       <Panel title="Practice squad">
         <p>Personnel transactions are not active in this career yet.</p>
+        <p className="small muted">
+          Practice squads add up to 16 players a club, waivers, one-game call-ups and squad signings between clubs. Once
+          on, they stay on for this career.
+        </p>
+        <button
+          className="btn btn-primary"
+          disabled={!!blocked}
+          title={blocked ?? undefined}
+          onClick={() => store.mutate(turnOnPersonnel)}
+        >
+          Turn on practice squads
+        </button>
+        {blocked && <p className="small muted">{blocked}</p>}
       </Panel>
     );
+  }
   const members = practiceSquad(league, teamId);
   const pay = squadPayroll(league, teamId);
   const sheet = capSheet(league, teamId);
@@ -50,6 +67,7 @@ export function PracticeSquad({ league }: { league: League }) {
   const expanded = members.filter((p) => squadCategory(league, p) !== 'base').length;
   const veterans = members.filter((p) => squadCategory(league, p) === 'veteran').length;
   const mine = teamId === league.userTeamId;
+  const offseason = futuresWindowOpen(league, league.userTeamId);
   const lock = liveLock();
   const window = lock ?? squadWindowProblem(league);
   const offers = league.personnel.squads?.offers.filter((o) => o.teamId === league.userTeamId) ?? [];
@@ -93,7 +111,7 @@ export function PracticeSquad({ league }: { league: League }) {
             ).map(([key, label]) => (
               <SortTh key={key} label={label} k={key} sort={sort} onSort={onSort} />
             ))}
-            {!market && <th>{mine ? 'Protection' : 'Sign'}</th>}
+            {!market && <th>{mine ? (offseason ? 'Next season' : 'Protection') : 'Sign'}</th>}
             {mine && <th>{market ? 'Offer' : 'Moves'}</th>}
           </tr>
         </thead>
@@ -143,7 +161,13 @@ export function PracticeSquad({ league }: { league: League }) {
                 )}
                 {!market && (
                   <td>
-                    {mine ? <ProtectionCell league={league} player={p} /> : <PoachAction league={league} player={p} />}
+                    {!mine ? (
+                      <PoachAction league={league} player={p} />
+                    ) : offseason ? (
+                      <FuturesCell league={league} player={p} />
+                    ) : (
+                      <ProtectionCell league={league} player={p} />
+                    )}
                   </td>
                 )}
                 {mine && (
@@ -248,6 +272,21 @@ export function PracticeSquad({ league }: { league: League }) {
             use the special slots; three or more makes a veteran.
           </p>
         </details>
+        {mine && (
+          <label className="row small">
+            <input
+              type="checkbox"
+              checked={league.teams[teamId].autoSquad !== false}
+              onChange={(e) =>
+                store.mutate((l) => {
+                  if (e.target.checked) delete l.teams[l.userTeamId].autoSquad;
+                  else l.teams[l.userTeamId].autoSquad = false;
+                })
+              }
+            />
+            Staff run the squad: refill open places, plan call-ups when we're short, pick futures deals
+          </label>
+        )}
         {window && <p className="callout">{window}</p>}
         {message && (
           <p role="status" className="callout">

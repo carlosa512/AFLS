@@ -395,6 +395,25 @@ describe('frozen game-day lists and every match path', () => {
     expect(lineup.qb.id).toBe(emergency.id);
     expect(lineup.st.map((p) => p.id)).not.toContain(emergency.id);
   });
+  it('names no emergency QB when a third QB dresses at another position', () => {
+    // A staff "Play at…" can line a spare QB up at RB; dressed there he is still a third active QB.
+    const team = l.teams[g.homeId];
+    const roster = activeRoster(l, g.homeId);
+    const qbs = roster.filter((p) => p.position === 'QB');
+    for (const p of roster.filter((p) => p.position === 'K').slice(0, 4 - qbs.length)) p.position = 'QB';
+    const spare = activeRoster(l, g.homeId).filter((p) => p.position === 'QB')[2];
+    team.playingAt = {
+      ...team.playingAt,
+      [spare.id]: { pos: 'RB', by: 'staff', since: { season: l.season, week: 1 } },
+    };
+    syncDepthChart(l, team);
+    team.autoDepth = false;
+    team.depthChart.RB = [spare.id, ...team.depthChart.RB.filter((id) => id !== spare.id)];
+    const day = gameDayPreview(l, g, g.homeId);
+    expect(day.dressedIds).toContain(spare.id);
+    expect(gameDayProblem(l, g, g.homeId, day)).toBeNull();
+    expect(() => preparePersonnelGame(l, g)).not.toThrow();
+  });
   it('live and batch games share the same lineup, pay and results after reload', () => {
     const p = player('QB');
     planElevation(l, p, g);

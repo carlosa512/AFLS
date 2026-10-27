@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { capSpace } from '../engine/finance/cap';
 import { capHit } from '../engine/finance/contract';
-import { activeRoster } from '../engine/roster';
+import { activeRoster, practiceSquad } from '../engine/roster';
 import {
   cancelElevation,
   elevationCost,
@@ -27,6 +27,7 @@ import { playingHurt } from '../engine/roster';
 import type { League, Player } from '../engine/types';
 import { Dialog, Panel, PlayerLink, TeamLink, SortTh, sortRows, useSort } from './components';
 import { liveLock } from './live';
+import { futuresKept, futuresWindowOpen, setFuturesKeep } from '../engine/personnel/futures';
 import {
   cancelPoachOffer,
   pinnedIds,
@@ -36,7 +37,8 @@ import {
   setPin,
   submitPoachOffer,
 } from '../engine/personnel/poaching';
-import { Ovr, viewOf } from './scouting';
+import { Ovr, ScoutedCeiling, seenOvr, viewOf } from './scouting';
+import { squadCategory } from '../engine/personnel/eligibility';
 import { money, weeklyMoney } from './format';
 import { store } from './store';
 
@@ -485,6 +487,93 @@ export function SquadSignings({ league }: { league: League }) {
         ))
       ) : (
         <p className="small muted">No squad signings yet this season.</p>
+      )}
+    </Panel>
+  );
+}
+
+/** Once your season is over: keep him for next season on a futures deal (a minimum contract), or let him go. */
+export function FuturesCell({ league, player }: { league: League; player: Player }) {
+  const teamId = player.teamId;
+  if (teamId === null || teamId !== league.userTeamId || !futuresWindowOpen(league, teamId)) return null;
+  const kept = futuresKept(league, teamId).includes(player.id);
+  return (
+    <button
+      className="btn btn-sm"
+      aria-pressed={kept}
+      onClick={() => store.mutate((l) => setFuturesKeep(l, teamId, player.id, !kept))}
+    >
+      {kept ? 'Keeping for next season' : 'Keep for next season'}
+    </button>
+  );
+}
+
+type SquadKey = 'name' | 'pos' | 'age' | 'ovr' | 'upside' | 'category';
+const SQUAD_CATEGORY = { base: 'Standard', developmental: 'Experience exception', veteran: 'Veteran' };
+
+/** A club's practice squad as your scouts see it: wide ranges on players they haven't watched. */
+export function SquadList({ league, teamId }: { league: League; teamId: number }) {
+  const [sort, onSort] = useSort<SquadKey>({ key: 'upside', desc: true });
+  const members = practiceSquad(league, teamId);
+  const value = (p: Player, key: SquadKey): string | number => {
+    switch (key) {
+      case 'name':
+        return `${p.lastName} ${p.firstName}`;
+      case 'pos':
+        return p.position;
+      case 'age':
+        return p.age;
+      case 'ovr':
+        return seenOvr(league, p);
+      case 'upside':
+        return viewOf(league, p).potMid;
+      case 'category':
+        return squadCategory(league, p);
+    }
+  };
+  return (
+    <Panel title={`Practice squad · ${members.length} players`}>
+      {members.length ? (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                {(
+                  [
+                    ['name', 'Player'],
+                    ['pos', 'Pos'],
+                    ['age', 'Age'],
+                    ['ovr', 'Overall'],
+                    ['upside', 'Scouted ceiling'],
+                    ['category', 'Eligibility'],
+                  ] as [SquadKey, string][]
+                ).map(([key, label]) => (
+                  <SortTh key={key} label={label} k={key} sort={sort} onSort={onSort} />
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sortRows(members, sort, value).map((p) => (
+                <tr key={p.id}>
+                  <td className="sticky-col">
+                    <PlayerLink league={league} player={p} />
+                  </td>
+                  <td>{p.position}</td>
+                  <td className="num">{p.age}</td>
+                  <td className="num">
+                    <Ovr league={league} player={p} />
+                  </td>
+                  <td className="num">
+                    <ScoutedCeiling league={league} player={p} />
+                  </td>
+                  <td>{SQUAD_CATEGORY[squadCategory(league, p)]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="muted">No practice squad players.</p>
       )}
     </Panel>
   );

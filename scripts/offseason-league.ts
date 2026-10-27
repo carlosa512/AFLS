@@ -16,7 +16,7 @@ export interface CapRun {
 
 const seed = process.env.OFFSEASON_SEED!;
 const seasons = Number(process.env.OFFSEASON_SEASONS);
-const league = createLeague({ seed });
+const league = createLeague({ seed, personnel: true });
 const space: number[][] = [];
 for (let s = 0; s < seasons; s++) {
   simToEndOfSeason(league);

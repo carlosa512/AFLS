@@ -77,7 +77,7 @@ import type { CapRun } from './offseason-league';
 
 const seasons = Number(process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seed') ?? 3);
 const SEED = process.argv.includes('--seed') ? process.argv[process.argv.indexOf('--seed') + 1] : 'offseason-audit';
-const league = createLeague({ seed: SEED });
+const league = createLeague({ seed: SEED, personnel: true });
 
 /**
  * More leagues for the cap-space drift check, each in its own process while this one plays: one league's median is
@@ -136,17 +136,8 @@ const warn = (issue: string, where: string) => void (known[issue] ??= []).push(w
 
 // The mechanisms below were traced by replaying the baseline run (src/ is untouched by this audit).
 //
-// Short rosters: a team ends training camp far below 53 (2028: ATL at 43, enters camp at 44 players and $1.0M over
-// the cap). aiCapCompliance (offseason/ai.ts) needs room for the missing players, but a GM with low capAggression
-// (ATL 0.07) only restructures when "desperate" (more than 4% of the cap short), so it releases instead, ranked by
-// this-year savings alone. The first release is a QB whose $66.4M cap hit books $63.2M of dead money (saves $3.2M),
-// then three cheap players, until the roster sits at the sum of KEEP_MIN (42) and nobody else can be cut. The top-up
-// loop then finds less than one minimum deal of room and stops. Tuning gap, not a crash: every positional minimum holds.
-const ISSUE_SHORT_ROSTER = 'short rosters at kickoff (band: roster minimum >= 50)';
-// Refill order: aiTrainingCamp tops the roster up to 53 BEFORE its last aiCapCompliance pass, so a player that pass
-// releases is never replaced (2028: PHI enters camp at 53 and $6.3M over, releases one player, ends at 52 with $20.8M
-// free; 2031 is the same). The mid-camp compliance and top-up do nothing because nobody is missing. Ordering bug.
-const ISSUE_SHORT_WITH_ROOM = 'team under 53 with cap room for a minimum deal at kickoff (band: 0)';
+// Short rosters and a team under 53 with room at kickoff (an AI camp ordering gap) were known issues here until
+// practice squads (0.2.0): the cutdown wire, post-waiver funding and squad promotions now leave every club at 53.
 // Save growth: retired players are flagged retired (offseason/index.ts) but never removed, and each keeps its ratings,
 // ratingHistory, stats and combine while generateDraftClass adds 260 players a year. The players blob grows about
 // 430 KB a season for good (3.9 MB of retired players by 2039); the live players level off near 3.5 MB. The 650 KB band
@@ -261,7 +252,6 @@ const chairSnap = (l: League) =>
   );
 let chairsBefore = chairSnap(league);
 
-const KEEP_TOTAL = Object.values(KEEP_MIN).reduce((a, b) => a + b, 0); // 42: the roster floor nobody can be cut below
 const SCOUT_MAX = Object.values(STAFF_SLOTS).reduce((a, b) => a + b, 0); // 8
 const ROLES = ['headCoach', 'offCoord', 'defCoord', 'strengthCoach', 'stCoord', 'positionCoach'];
 const ROLE_NAMES = ['HC', 'OC', 'DC', 'S&C', 'ST', 'PC'];
@@ -446,28 +436,14 @@ for (let s = 0; s < seasons; s++) {
   // Over cap 0: every front office must be legal when the games start (obs 0 in all 24 seed-seasons).
   // At free agency and the draft, at most 1: one of 24 seed-seasons had a team over (alt-3 2028), so 0 would flake.
   // "new year" and "preseason" are transient (2 and 1-11 teams over) and not judged.
-  // Roster max 53 always (obs). Roster min: the floor is the sum of KEEP_MIN (42), the least a team can be cut to;
-  // the sensible band (>= 50) fails today (obs 43 in 2028, 48 on alt-2 2031): a known issue, see the top of the file.
-  // Under 53 with room for a minimum deal: 0 is sensible but fails (8 of 24 seed-seasons, always one team, another known
-  // issue), so the counted band is the interim 1.
+  // Roster max 53 always (obs). Roster min 50 and nobody under 53 with room for a minimum deal: strict since practice
+  // squads (0.2.0) give clubs ready cover, futures keepers and in-season promotions (obs 53 and 0 in every season; before
+  // them 43 and one team a season in 8 of 24 seed-seasons, the old known issues).
   // Holes / below keep-min / bad depth spots 0: a roster missing a starter's position, or a depth chart that names a
   // player who retired or left, breaks games (obs 0 everywhere).
   console.log(
-    `  checks ${year} roster: ${check('max', k.rosterMax, ROSTER_MAX, ROSTER_MAX, 0)} · ${check('min', k.rosterMin, KEEP_TOTAL, ROSTER_MAX, 0)} · under 53: ${k.short.length} · ${check('under 53 with cap room', withRoom.length, 0, 1, 0)} · ${check('position holes', k.holes, 0, 0, 0)} · ${check('below keep-min', k.belowKeep, 0, 0, 0)} · ${check('bad depth-chart spots', k.badDepth, 0, 0, 0)}`,
+    `  checks ${year} roster: ${check('max', k.rosterMax, ROSTER_MAX, ROSTER_MAX, 0)} · ${check('min', k.rosterMin, 50, ROSTER_MAX, 0)} · under 53: ${k.short.length} · ${check('under 53 with cap room', withRoom.length, 0, 0, 0)} · ${check('position holes', k.holes, 0, 0, 0)} · ${check('below keep-min', k.belowKeep, 0, 0, 0)} · ${check('bad depth-chart spots', k.badDepth, 0, 0, 0)}`,
   );
-  if (k.rosterMin < 50)
-    warn(
-      ISSUE_SHORT_ROSTER,
-      `${year}: ${k.short
-        .filter((t) => t.size < 50)
-        .map((t) => `${t.abbrev} ${t.size} (${M(t.space)} room)`)
-        .join(', ')}`,
-    );
-  if (withRoom.length)
-    warn(
-      ISSUE_SHORT_WITH_ROOM,
-      `${year}: ${withRoom.map((t) => `${t.abbrev} ${t.size} (${M(t.space)} room)`).join(', ')}`,
-    );
 
   // Cap space as a share of the cap (the cap grows ~8% a year). Median: 3.8, 2.6, 3.4, then 3.3, 1.9, 2.6% (0.1.5);
   // 3.2, 4.2, 3.8, then 4.0, 3.6, 4.0 with last-year deals paid past their market and a planned in-season reserve
@@ -530,7 +506,7 @@ for (let s = 0; s < seasons; s++) {
     weekly: save.weekly - prevSave.weekly,
   };
   console.log(
-    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, SAVE_SIZE_BUDGET.annualGrowth, 0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800, 0)} · ${check('retired added', dSave.retired, 0, 320, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
+    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, SAVE_SIZE_BUDGET.annualGrowth, 0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800 + SAVE_FEATURE_ALLOWANCES.practiceSquads.playersGrowth + SAVE_FEATURE_ALLOWANCES.analytics.playersGrowth, 0)} · ${check('retired added', dSave.retired, 0, 320 + SAVE_FEATURE_ALLOWANCES.practiceSquads.retiredAdded, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
   if (dSave) playerGrowth.push(dSave.players);
   prevSave = save;

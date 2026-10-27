@@ -56,8 +56,8 @@ export function recommendedGameDay(l: League, g: Game, teamId: number): GameDayL
     dressedIds,
     inactiveIds: all.filter((p) => !selected.has(p.id)).map((p) => p.id),
     elevatedIds: gameElevations(l, g, teamId).map((e) => e.playerId),
-    ...(emergencyQbId !== undefined &&
-    qb.slice(0, 2).filter((id) => selected.has(id) && l.players[id].position === 'QB').length === 2
+    // Counted the way `gameDayProblem` counts: a QB dressed at another spot (a staff "Play at…") is still a third QB.
+    ...(emergencyQbId !== undefined && dressedIds.filter((id) => l.players[id].position === 'QB').length === 2
       ? { emergencyQbId }
       : {}),
   };

@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.0',
+    date: '2026-10-26',
+    title: 'Practice squads',
+    text:
+      'Every club now carries a practice squad of up to 16. Call players up for a game, sign them to the 53, or lose ' +
+      'them to clubs that sign them away: your two best are protected each week. Cuts go on waivers, decided before ' +
+      "each week's first kickoff. When your season ends, keep the squad players you like for next year. Your staff " +
+      'run it all for you unless you take over, and existing careers can switch it on at their next offseason.',
+  },
+  {
     version: '0.1.20',
     date: '2026-10-26',
     title: 'The Arena Gazette does the numbers',

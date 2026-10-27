@@ -41,9 +41,14 @@ const SUPPLY_WEIGHT: Record<Position, number> = {
 /** World supply is independent of the main RNG and never takes a player or dollar from an existing 53. */
 export function ensureSquadSupply(league: League): void {
   const openings = league.teams.reduce((sum, t) => sum + Math.max(0, 16 - practiceSquad(league, t.id).length), 0);
+  // Cuts and expired squad deals fill the pool first; new players cover only what's still missing, so the free-agent
+  // pool doesn't grow every season (a spare 64 a round once pushed it past the offseason audit's band).
   const candidates = squadCandidates(league);
-  let baseMissing = Math.max(0, openings + 64 - candidates.filter((p) => squadCategory(league, p) === 'base').length);
-  const missing = Math.max(0, openings + 64 - candidates.length);
+  let baseMissing = Math.max(
+    0,
+    Math.ceil(openings / 2) - candidates.filter((p) => squadCategory(league, p) === 'base').length,
+  );
+  const missing = Math.max(0, openings - candidates.length);
   const rng = new Rng(`${league.seed}:squad-pool:${league.season}:${league.nextPlayerId}`);
   for (let i = 0; i < missing || baseMissing > 0; i++) {
     const veteran = rng.chance(0.25);

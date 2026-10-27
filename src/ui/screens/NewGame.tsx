@@ -20,7 +20,8 @@ type Grades = Map<number, { rank: number; grade: string }>;
  * played). The same seed rebuilds the preview's league, staffs included, with the picked club as the user's.
  */
 export function startCareer(seed: string, teamId: number, gm?: StartingGm) {
-  const league = createLeague({ seed, userTeamId: teamId, inheritStaff: true, gm });
+  // Every new career has practice squads (0.2.0).
+  const league = createLeague({ seed, userTeamId: teamId, inheritStaff: true, gm, personnel: true });
   deliverMail(league);
   return league;
 }
@@ -77,6 +78,8 @@ export function NewGame() {
   // a project (a contender or a rebuild) is the decision this screen is for. Just the headline, no unit breakdown.
   // The staffs' grades are the ones every screen shows; you inherit the club's staff, so they're part of the choice.
   const [seed] = useState(() => Math.random().toString(36).slice(2, 10));
+  // Practice squads are on for every new career; the preview skips them (they change no club's overall or staff
+  // grades, checked when they were switched on) and opens about three times faster.
   const preview = useMemo(() => createLeague({ seed, inheritStaff: true }), [seed]);
   const [picked, setPicked] = useState<number | null>(null);
   // Per club: switching clubs offers that club's GM, keeping any edits you made to another's.

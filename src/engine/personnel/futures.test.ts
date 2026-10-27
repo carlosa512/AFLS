@@ -1,0 +1,145 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createLeague } from '../generate';
+import { deliverMail } from '../inbox';
+import { activeRoster, practiceSquad } from '../roster';
+import { perceive } from '../scouting';
+import type { League } from '../types';
+import {
+  castoffRetireChance,
+  freezeFuturesPicks,
+  futuresKept,
+  futuresPicks,
+  futuresWindowOpen,
+  retireCastoffs,
+  setFuturesKeep,
+} from './futures';
+import { expireSquadContracts } from './squads';
+import { minSalary } from '../finance/market';
+import { serviceSeasons } from './service';
+
+const template = createLeague({ seed: 'futures-tests', personnel: true, userTeamId: 0 });
+const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v));
+let l: League;
+beforeEach(() => {
+  l = copy(template);
+  l.phase = 'complete';
+});
+/** What beginOffseason does around the expiry: picks freeze, the new league year, then squads end (the phase is still
+ * 'complete' there, as in beginOffseason). */
+function newLeagueYear() {
+  freezeFuturesPicks(l);
+  l.season++;
+  l.caps[l.season] = l.caps[l.season - 1];
+  expireSquadContracts(l);
+  l.phase = 'resign';
+}
+const bar = (teamId: number, pos: string) => {
+  const on = new Set(activeRoster(l, teamId).map((p) => p.id));
+  const depth = l.teams[teamId].depthChart[pos as 'QB'].filter((id) => on.has(id));
+  const last = depth.at(-1);
+  return last === undefined ? 0 : perceive(l, teamId, l.players[last]).ovr;
+};
+
+describe('futures deals', () => {
+  it('the window opens when the season is over, not before', () => {
+    expect(futuresWindowOpen(l, 3)).toBe(true);
+    l.phase = 'regular';
+    expect(futuresWindowOpen(l, 3)).toBe(false);
+  });
+
+  it('AI picks reach the club’s backup level by its own read, best first, at most 10', () => {
+    for (const t of l.teams) {
+      const picks = futuresPicks(l, t.id);
+      expect(picks.length).toBeLessThanOrEqual(10);
+      for (const id of picks) {
+        const p = l.players[id];
+        expect(p.teamId).toBe(t.id);
+        expect(perceive(l, t.id, p).potMid).toBeGreaterThanOrEqual(bar(t.id, p.position));
+      }
+      const pots = picks.map((id) => perceive(l, t.id, l.players[id]).potMid);
+      expect(pots).toEqual([...pots].sort((a, b) => b - a));
+    }
+  });
+
+  it('your marks survive a reload and become minimum deals for next season; the rest become free agents', () => {
+    const [keep, also, drop] = practiceSquad(l, 0);
+    setFuturesKeep(l, 0, keep.id, true);
+    setFuturesKeep(l, 0, also.id, true);
+    for (const id of futuresKept(l, 0)) if (![keep.id, also.id].includes(id)) setFuturesKeep(l, 0, id, false);
+    l = copy(l);
+    expect(futuresKept(l, 0).sort()).toEqual([keep.id, also.id].sort());
+    newLeagueYear();
+    const k = l.players[keep.id];
+    expect(k.teamId).toBe(0);
+    expect(k.squad).toBeUndefined();
+    expect(k.contract!.kind).toBe('minimum');
+    expect(k.contract!.years[0].season).toBe(l.season);
+    expect(k.contract!.years).toHaveLength(1);
+    // A full season's minimum for his service: nothing of next year is paid yet.
+    expect(k.contract!.years[0].base).toBe(minSalary(serviceSeasons(k, l.season), l.caps[l.season]));
+    expect(k.contract!.years[0].paidBefore ?? 0).toBe(0);
+    expect(activeRoster(l, 0)).toContain(k);
+    expect(l.players[drop.id].teamId).toBeNull();
+  });
+
+  it('a kept player who has left the squad gets nothing', () => {
+    const [keep] = practiceSquad(l, 0);
+    setFuturesKeep(l, 0, keep.id, true);
+    keep.squad = undefined;
+    keep.teamId = null;
+    newLeagueYear();
+    expect(keep.contract).toBeNull();
+  });
+
+  it('AI clubs keep the picks shown when their season ended, even if aging would change them', () => {
+    const picks = futuresPicks(l, 5);
+    freezeFuturesPicks(l);
+    // Aging and depth changes after the freeze don't reshuffle the list.
+    for (const id of picks) l.players[id].potential = 1;
+    newLeagueYear();
+    for (const id of picks) expect(l.players[id].teamId).toBe(5);
+  });
+
+  it('your director writes once when the window opens, and once at the new league year', () => {
+    deliverMail(l);
+    deliverMail(l);
+    expect((l.inbox ?? []).filter((m) => m.id.startsWith('futures:'))).toHaveLength(1);
+    newLeagueYear();
+    deliverMail(l);
+    deliverMail(l);
+    expect((l.inbox ?? []).filter((m) => m.id.startsWith('futuresKept:'))).toHaveLength(1);
+  });
+});
+
+describe('squad castoffs nobody signed by the end of camp', () => {
+  it('the chance is never zero or certain, and falls as the ceiling rises', () => {
+    const p = practiceSquad(l, 3)[0];
+    const at = (potential: number, age = 23) => castoffRetireChance({ ...p, potential, age });
+    expect(at(5)).toBeGreaterThan(at(9));
+    expect(at(9)).toBeGreaterThan(at(14));
+    for (const pot of [3, 5, 8, 11, 16]) {
+      expect(at(pot)).toBeGreaterThan(0);
+      expect(at(pot)).toBeLessThan(1);
+    }
+    expect(at(9, 30)).toBeGreaterThan(at(9, 23));
+  });
+
+  it('low ceilings mostly leave football, high ones mostly stay; signed ones are untouched; the same every time', () => {
+    newLeagueYear();
+    const released = l.personnel!.futures!.released ?? [];
+    expect(released.length).toBeGreaterThan(100);
+    const signed = l.players[released[0]];
+    signed.teamId = 4;
+    signed.contract = { ...l.players[activeRoster(l, 4)[0].id].contract! };
+    const again = copy(l);
+    retireCastoffs(l);
+    retireCastoffs(again);
+    expect(released.map((id) => !!l.players[id].retired)).toEqual(released.map((id) => !!again.players[id].retired));
+    expect(signed.retired).toBeFalsy();
+    const rate = (ids: number[]) => ids.filter((id) => l.players[id].retired).length / Math.max(1, ids.length);
+    const low = released.filter((id) => l.players[id].potential < 8 && id !== signed.id);
+    const high = released.filter((id) => l.players[id].potential >= 11 && id !== signed.id);
+    expect(rate(low)).toBeGreaterThan(rate(high));
+    expect(rate(low)).toBeLessThan(1);
+  });
+});

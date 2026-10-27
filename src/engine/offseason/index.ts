@@ -1,6 +1,7 @@
 import { formPracticeSquads } from '../personnel/squadMarket';
 import { settleSquadPayroll } from '../personnel/payroll';
 import { expireSquadContracts } from '../personnel/squads';
+import { freezeFuturesPicks, retireCastoffs } from '../personnel/futures';
 /**
  * The offseason calendar. `beginOffseason` opens the new league year (cap growth, ageing,
  * the draft order); `advanceOffseason` moves one step at a time:
@@ -47,7 +48,7 @@ import { expireOffers, marketMoment, recheckOffers, TRADE_DEADLINE_WEEK } from '
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
-import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp, fillCampRoster } from './ai';
+import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp, fillCampRoster, payAhead } from './ai';
 import {
   aiDraftChoice,
   draftComplete,
@@ -61,7 +62,7 @@ import {
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
 import { rollService } from '../personnel/service';
 import { personnelClock } from '../personnel/calendar';
-import { settleOffseasonWaivers, syncPersonnel, waiversPending } from '../personnel/flow';
+import { settleOffseasonWaivers, staffHandlesSquad, syncPersonnel, waiversPending } from '../personnel/flow';
 import { ensureWaivers } from '../personnel/waivers';
 
 export const FA_DAYS = 5;
@@ -70,6 +71,8 @@ export const FA_DAYS = 5;
 export function beginOffseason(league: League): void {
   if (league.phase !== 'complete') throw new Error('The season is not finished');
   settleOffseasonWaivers(league);
+  // Futures picks freeze before anyone ages: the list the director's mail promised is the list that signs.
+  freezeFuturesPicks(league);
   settleSquadPayroll(league);
   expireOffers(league);
   resetContenderCache(league);
@@ -145,6 +148,9 @@ export function beginOffseason(league: League): void {
     quirkOffseason(league, p);
   }
   expireSquadContracts(league);
+  // Careers from before practice squads get one offer to switch them on (the squad desk, until camp).
+  if (league.personnel && !league.personnel.enabled && league.personnel.offered === undefined)
+    league.personnel.offered = league.season;
   injuriesNewYear(league);
   resetScouting(league);
   developStaff(league);
@@ -319,7 +325,13 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
           break; // Give the manager the complete league-wide cutdown wire before awarding anyone.
         }
       }
-      if (league.personnel?.enabled) formPracticeSquads(league, auto);
+      if (league.personnel?.enabled) {
+        formPracticeSquads(league, auto || staffHandlesSquad(league));
+        // Camp's pay-ahead held room for a full squad of veterans; whatever the squad didn't cost is paid ahead now.
+        for (const team of ai) payAhead(league, team);
+        // Camp is over: last year's squad castoffs nobody wanted may leave football.
+        retireCastoffs(league);
+      }
       league.phase = 'regular';
       league.week = 1;
       league.faDay = 0;

@@ -19,6 +19,10 @@ const resolvedForTeam = (league: League, teamId: number) =>
   );
 import type { WaiverResult } from './types';
 
+/** Your staff run your practice squad (refills, call-ups, futures) unless you've taken it over. */
+export const staffHandlesSquad = (league: League): boolean =>
+  !!league.personnel?.enabled && league.teams[league.userTeamId]?.autoSquad !== false;
+
 export const waiversPending = (league: League): boolean => !!league.personnel?.waivers?.pending.length;
 
 /**
@@ -44,14 +48,15 @@ export function settleWeek(league: League): void {
   if (league.phase === 'regular') {
     lockProtections(league);
     submitAIPoachOffers(league);
-    // An AI club whose offer lapsed fills the place it held, so it never plays a man short for it.
-    const lapsed = new Set(
-      resolvePoaching(league)
-        .filter((r) => r.toTeamId === null && r.teamId !== league.userTeamId)
-        .map((r) => r.teamId),
-    );
-    for (const teamId of [...lapsed].sort((a, b) => a - b))
-      if (!resolvedForTeam(league, teamId)) refillRoster(league, league.teams[teamId]);
+    // An AI club whose offer lapsed fills the place it held; one that lost a squad player covers again (a call-up it
+    // was counting on may have gone with him). Neither plays a man short for it.
+    const results = resolvePoaching(league);
+    const refill = new Set([
+      ...results.filter((r) => r.toTeamId === null && !resolvedForTeam(league, r.teamId)).map((r) => r.teamId),
+      ...results.filter((r) => r.toTeamId !== null).map((r) => r.fromTeamId),
+    ]);
+    for (const teamId of [...refill].sort((a, b) => a - b))
+      if (teamId !== league.userTeamId && league.teams[teamId]) refillRoster(league, league.teams[teamId]);
   }
   clock.settledWeek = league.week;
 }
@@ -68,7 +73,7 @@ export function settleOffseasonWaivers(league: League, autoUser = false): void {
 /** File a game's call-ups: AI clubs plan theirs, then every plan is rechecked once. */
 export function fileElevations(league: League, game: Game, autoUser = false): void {
   if (game.personnel?.elevationsFiled) return;
-  planAIElevations(league, game, autoUser);
+  planAIElevations(league, game, autoUser || staffHandlesSquad(league));
   fileGameElevations(league, game);
   (game.personnel ??= { plans: {} }).elevationsFiled = true;
 }
@@ -106,5 +111,5 @@ export function syncPersonnel(league: League): void {
   // Offers can only resolve at a regular-season settle: none waits into the playoffs or the offseason.
   if (league.phase !== 'regular' && league.personnel.poaching?.offers.length) league.personnel.poaching.offers = [];
   settleSquadPayroll(league);
-  if (league.phase === 'regular') formPracticeSquads(league);
+  if (league.phase === 'regular') formPracticeSquads(league, staffHandlesSquad(league));
 }

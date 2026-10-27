@@ -53,6 +53,8 @@ import {
 } from './offseason/ai';
 import { ROSTER_MAX, signPlayer } from './offseason/negotiation';
 import { aiPoachCover, heldForPoaching } from './personnel/poaching';
+import { squadCover } from './personnel/cover';
+import { promoteSquadPlayer, squadPromotionPreview } from './personnel/squads';
 import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
 import { clamp, Rng } from './rng';
@@ -1366,6 +1368,11 @@ export function concussionRetireChance(p: Player, season: number): number {
 export const PRACTICE_RATE = 0.0055;
 /** Share of practice injuries that come from contact (most are strains). */
 const PRACTICE_CONTACT = 0.25;
+/**
+ * A practice squad player's share of the practice field's risk: he runs the scout team, not a starter's full load of
+ * team periods, so he gets hurt there half as often (an AFLS call; his called-up games carry their full risk).
+ */
+export const practiceLoad = (p: Player): number => (p.squad?.kind === 'practiceSquad' ? 0.5 : 1);
 
 /**
  * After a week's games: time heals (every injury from before this week loses a week, every reserve
@@ -1407,7 +1414,7 @@ export function injuryWeek(league: League): void {
     const d = dept(p.teamId);
     const f = riskFactors(league, p, d);
     // A worn-down body practices tired.
-    const worn = (1 + Math.max(0, 85 - (p.condition ?? 100)) / 25) * care(p).practice;
+    const worn = (1 + Math.max(0, 85 - (p.condition ?? 100)) / 25) * care(p).practice * practiceLoad(p);
     const contact = PRACTICE_RATE * PRACTICE_CONTACT * f.contact * worn;
     const soft = PRACTICE_RATE * (1 - PRACTICE_CONTACT) * f.soft * worn;
     const roll = rng.next();
@@ -1567,6 +1574,8 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
   let current = roster.filter((p) => p.teamId === team.id && !p.ir && !p.squad);
   // Positions nobody on the roster can cover, when this pass can't sign: left short.
   const stuck = new Set<Position>();
+  // Call-ups promised this pass (two a game at most).
+  let promised = 0;
   for (let guard = 0; guard < 12; guard++) {
     if (guard > 0) current = activeRoster(league, team.id);
     const healthy = new Map<Position, number>();
@@ -1595,6 +1604,20 @@ function coverPositions(league: League, team: Team, rng: Rng, roster: Player[], 
     const pos =
       short ??
       POSITIONS.map((p) => ({ p, gap: (healthy.get(p) ?? 0) - KEEP_MIN[p] })).sort((a, b) => a.gap - b.gap)[0].p;
+    // Practice squads on: a short absence is a call-up at kickoff; a longer one promotes the club's own squad player
+    // when it reads him at least as well as the best free agent (never for you: signings stay yours).
+    if (short) {
+      const fromSquad = squadCover(league, team.id, short, promised);
+      if (fromSquad === 'callup') {
+        stuck.add(short);
+        promised++;
+        continue;
+      }
+      if (fromSquad && open && !squadPromotionPreview(league, fromSquad).problem) {
+        promoteSquadPlayer(league, fromSquad);
+        continue;
+      }
+    }
     // Only a deal that fits under the cap: a team out of room plays short-handed (the lineup borrows a fill-in).
     // It makes sure a signing fits before it cuts a man to make a spot, or it would release him for a deal it
     // can't make (and leave a street free agent it can't afford on the market).

@@ -158,6 +158,8 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 51) league.version = 51;
   // v52: optional `TeamGameStats.adv` and the advanced stat keys; games played before have none (a dash).
   if (league.version < 52) league.version = 52;
+  // v53: optional practice squad futures choices, the one-time switch-on offer and `Team.autoSquad`.
+  if (league.version < 53) league.version = 53;
   return league;
 }
 

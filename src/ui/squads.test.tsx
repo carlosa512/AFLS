@@ -7,7 +7,7 @@ import { squadRates } from '../engine/personnel/eligibility';
 import { practiceSquad } from '../engine/roster';
 import { contractLabel } from './contracts';
 import { lockProtections, protectionPicks, setPin } from '../engine/personnel/poaching';
-import { PoachAction, ProtectionCell } from './personnel';
+import { PoachAction, ProtectionCell, SquadList } from './personnel';
 import { hashToRoute, routeToHash } from './routes';
 import { PracticeSquad } from './screens/PracticeSquad';
 
@@ -70,5 +70,32 @@ describe('practice squad desk', () => {
     expect(renderToStaticMarkup(<PoachAction league={l} player={top} />)).toContain('Sign to our 53');
     lockProtections(l);
     expect(renderToStaticMarkup(<PoachAction league={l} player={top} />)).toContain('Protected');
+  });
+  it('once your season is over, your rows offer keeping a player for next season', () => {
+    const l = createLeague({ seed: 'squad-ui-futures', personnel: true, userTeamId: 0 });
+    l.phase = 'complete';
+    const html = renderToStaticMarkup(<PracticeSquad league={l} />);
+    expect(html).toContain('Next season');
+    expect(html).toMatch(/Keep(ing)? for next season/);
+  });
+  it('has the staff switch, on by default', () => {
+    const l = createLeague({ seed: 'squad-ui-staff', personnel: true, userTeamId: 0 });
+    expect(renderToStaticMarkup(<PracticeSquad league={l} />)).toMatch(/checked=""[^>]*\/>Staff run the squad/);
+  });
+  it("lists any club's practice squad through your scouts' read", () => {
+    const l = createLeague({ seed: 'squad-ui-view', personnel: true, userTeamId: 0 });
+    for (const teamId of [0, 9]) {
+      const html = renderToStaticMarkup(<SquadList league={l} teamId={teamId} />);
+      expect(html).toContain('Practice squad');
+      for (const p of practiceSquad(l, teamId)) expect(html).toContain(p.lastName);
+      expect(html).toContain('Scouted ceiling');
+    }
+  });
+  it('an old career can turn practice squads on from the desk in the offseason only', () => {
+    const l = createLeague({ seed: 'squad-ui-switch' });
+    expect(renderToStaticMarkup(<PracticeSquad league={l} />)).toMatch(/disabled=""[^>]*>Turn on practice squads/);
+    l.phase = 'freeAgency';
+    l.personnel!.offered = l.season; // the offseason that made the offer
+    expect(renderToStaticMarkup(<PracticeSquad league={l} />)).not.toMatch(/disabled=""[^>]*>Turn on practice squads/);
   });
 });

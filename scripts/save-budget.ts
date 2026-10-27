@@ -13,6 +13,24 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // Measured first-season increase ~570 KB (6,227 -> 6,797), including changed game records.
   // Two retained seasons need two game-evidence allowances; coach/advice history is bounded.
   coachQuirks: { firstSeason: 800, retainedSeasons: 1600, games: 800, annualGrowth: 100 },
+  // 512 squad players (16 a club), their service records, squad deals and the personnel ledgers: first season measured
+  // 8,003 KB against 7,250 (0.2.0); the retained-seasons save about 1,000 KB more than before (15,320 and 16,124 KB
+  // against 15,100 over six seasons); players growth 862 KB a season against 800 (castoffs retire but, like every
+  // retiree, stay in the save until retirees are pruned).
+  // Games carry each club's frozen game-day list (47-48 dressed, the inactives, call-ups): 7,065-7,336 KB against main's
+  // 6,673-6,892 over four worlds. Castoffs who retire add about 70 retirees a season: 281-321 against main's 173-253.
+  practiceSquads: {
+    firstSeason: 900,
+    retainedSeasons: 1100,
+    games: 300,
+    annualGrowth: 0,
+    playersGrowth: 80,
+    retiredAdded: 40,
+  },
+  // Per-game advanced stats (EPA, success, explosives: TeamGameStats.adv) and the Gazette's numbers desk, on top of
+  // practice squads: measured with both at 8,229 KB first season against 8,150, 16,625 KB retained against 16,200,
+  // players growth 902 KB against 880 (0.2.0 merge). A modest allowance agreed by the owner, not a leak.
+  analytics: { firstSeason: 300, retainedSeasons: 700, games: 0, annualGrowth: 0, playersGrowth: 40 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(
