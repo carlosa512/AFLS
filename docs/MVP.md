@@ -114,20 +114,3 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       minimum clearly without hiding a player's actual statistics. Verify early-season and partial-season
       samples, traded players and postseason scopes. A 2-for-2 passer must not lead a season rate category.
       Current Stats sorting already has a per-player-GP qualification; that is an incomplete foundation.
-
-## Follow-up: trade-deadline timing
-
-- [ ] `npm run trades` reads the deadline-day share of in-season AI trades at 25–30% on the player-origins branch
-      (0.2.1) against 32–35% on main, with the same number of trades: more deals land in weeks 2–8. On fresh seeds
-      (`--seed fresh`, 4 leagues) the two read 34% and 35%. Trade code never reads origins or free agents, so the
-      shift comes through different rosters (drafts, signings). Find why buyers deal earlier (when their interest in a
-      target reaches the weekly threshold; star trades 21 against 11 on the fixed seeds), and whether a 30% floor is
-      too tight for a main that sits at 32–35%.
-
-## Follow-up: head-coach firings in one season
-
-- [ ] `npm run offseason -- 6` fails "HCs fired" (0–11 in one offseason) on the player-origins branch (0.2.1): 12 in
-      2032 after 1, 5, 6, 8 and 3. The run's total is 35 on both that branch and main (range 18–54) and new head
-      coaches a season read 7.5 (4.5–9.5): the same rate, bunched into one year after a quiet one. Owners never read
-      origins; the shift comes through different results. Decide whether a per-season cap checked in one league is
-      the right test (a run-wide rate already guards the level), or find what lines up that many hot seats at once.
