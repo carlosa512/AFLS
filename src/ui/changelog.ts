@@ -17,9 +17,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     date: '2026-10-27',
     title: 'Real NFL builds',
     text:
-      'New players now come in NFL shapes. Most corners stand around six feet, but a 5\'9" one turns up now and then, ' +
-      'usually a step quicker for it, and heavy linemen come in a little stronger. Every position follows its own ' +
-      'curve. Players already in your league keep their builds.',
+      'New players now come in NFL shapes. Most corners stand around six feet, but a 5\'9" one turns up now and then, and ' +
+      'every position follows its own curve. Players already in your league keep their builds.',
   },
   {
     version: '0.2.1',

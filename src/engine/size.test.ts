@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague, generatePlayer } from './generate';
-import { playerOvr } from './positions';
 import { Rng } from './rng';
 import { teamPlayers } from './roster';
 import { changePosition } from './training';
-import { isOutlier, rollSize, SIZE, sizeLimits, sizeNudge, sizeZ } from './size';
-import { POSITIONS, type Ratings } from './types';
+import { isOutlier, rollSize, SIZE, sizeLimits, sizeZ } from './size';
+import { POSITIONS } from './types';
 
 const stats = (xs: number[]) => {
   const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -70,45 +69,6 @@ describe('sizeZ and isOutlier', () => {
   });
 });
 
-describe('sizeNudge', () => {
-  const make = (v: number) => ({ speed: v, agility: v, strength: v }) as Ratings;
-
-  it('leaves a median build alone', () => {
-    const r = make(10);
-    sizeNudge(r, 0);
-    expect([r.speed, r.agility, r.strength]).toEqual([10, 10, 10]);
-    sizeNudge(r, -0.4);
-    expect([r.speed, r.agility, r.strength]).toEqual([10, 10, 10]);
-  });
-
-  it('makes small players quicker and big ones stronger', () => {
-    const small = make(10);
-    sizeNudge(small, -2);
-    expect([small.speed, small.agility, small.strength]).toEqual([11, 11, 9]);
-    const big = make(10);
-    sizeNudge(big, 2);
-    expect([big.speed, big.agility, big.strength]).toEqual([9, 9, 11]);
-  });
-
-  it('is symmetric at the rounding edge', () => {
-    const lo = make(10);
-    const hi = make(10);
-    sizeNudge(lo, -1);
-    sizeNudge(hi, 1);
-    expect(lo.speed - 10).toBe(10 - hi.speed);
-    expect(lo.strength - 10).toBe(10 - hi.strength);
-  });
-
-  it('stays on the 1–20 scale', () => {
-    const top = make(20);
-    sizeNudge(top, -2);
-    expect([top.speed, top.agility, top.strength]).toEqual([20, 20, 19]);
-    const bottom = make(1);
-    sizeNudge(bottom, -2);
-    expect([bottom.speed, bottom.agility, bottom.strength]).toEqual([2, 2, 1]);
-  });
-});
-
 describe('generation', () => {
   const make = (pos: (typeof POSITIONS)[number], i: number) =>
     generatePlayer(new Rng(`size-gen:${pos}:${i}`), {
@@ -129,24 +89,6 @@ describe('generation', () => {
     // The old flat roll stopped at 5'9" and 6'2": the tails are what the curve adds.
     expect(corners.some((p) => p.heightIn < 69)).toBe(true);
     expect(corners.some((p) => p.heightIn > 74)).toBe(true);
-  });
-
-  it('brings small corners out quicker', () => {
-    const build = (p: (typeof corners)[number]) => {
-      const z = sizeZ(p);
-      return (z.h + z.w) / 2;
-    };
-    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-    const small = corners.filter((p) => build(p) < -1).map((p) => p.ratings.speed);
-    const big = corners.filter((p) => build(p) > 1).map((p) => p.ratings.speed);
-    expect(mean(small)).toBeGreaterThan(mean(big));
-  });
-
-  it('never leaves potential below overall', () => {
-    for (let i = 0; i < 2_000; i++) {
-      const p = make(POSITIONS[i % POSITIONS.length], i);
-      expect(p.potential).toBeGreaterThanOrEqual(playerOvr(p));
-    }
   });
 
   it('clamps weight to the new curve on a position move', () => {

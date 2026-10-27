@@ -5,7 +5,7 @@
  * for a corner?" goes through it, so a table change moves every reader at once.
  */
 import { clamp, type Rng } from './rng';
-import type { Player, Position, Ratings } from './types';
+import type { Player, Position } from './types';
 
 /** [mean, sd] for height (inches) and weight (pounds) at each position. */
 export const SIZE: Record<Position, { h: [number, number]; w: [number, number] }> = {
@@ -68,19 +68,4 @@ export function rollSize(rng: Rng, pos: Position): { heightIn: number; weightLb:
   const at = ([mean, sd]: [number, number], z: number, [lo, hi]: [number, number]) =>
     clamp(Math.round(mean + sd * clamp(z, -TAIL, TAIL)), lo, hi);
   return { heightIn: at(h, zh, lim.h), weightLb: at(w, zw, lim.w) };
-}
-
-/**
- * What a build does to a new player's ratings: the small ones come out a step quicker and lighter in the hands, the
- * big ones the reverse. Paired so the league's overall doesn't drift (the build is centred on his position), and
- * whole points only: a full point from one sd out. Rounded away from zero on both sides alike, so a small player
- * and a big one the same distance out move the same amount.
- */
-export function sizeNudge(ratings: Ratings, z: number): void {
-  const x = clamp(-z / 2, -1, 1);
-  const d = Math.sign(x) * Math.round(Math.abs(x));
-  if (!d) return;
-  ratings.speed = clamp(ratings.speed + d, 1, 20);
-  ratings.agility = clamp(ratings.agility + d, 1, 20);
-  ratings.strength = clamp(ratings.strength - d, 1, 20);
 }

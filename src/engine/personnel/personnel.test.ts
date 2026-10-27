@@ -267,6 +267,8 @@ describe('migration and collection', () => {
       delete p.origin;
     }
     // Filled from origin/main's own output (no personnel code), not regenerated from the implementation under test.
+    // `players` and `result` re-taken with player size (0.2.2): new builds reseed hidden traits; the stream, charts
+    // and schedule still match main, which is what proves the size roll costs the same two draws.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -278,9 +280,9 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: '28fd53b408d3f6c415517e0733384a39c24e095ef830a96df83790cefb6ca5dc',
+  players: '99c29d8827408c9a6e16fc2310b98e8be049982c2a26091d2f58be065907d8f8',
   rng: [666865279, 3079305262, 4039765455, 1664101998],
   games: '7d434cad09545c5d832fe11048921e57ab49f1d9807d05ae5b65df3aaa0a9978',
-  result: '15634f0bebbf77470387a01e6baf205aafd4b530715a20c8c80a583dc9508dc2',
+  result: '0097f215982cea11ad6de9fe2eccb6a930f1e6412eef93795fe23f4a10fe6e30',
   charts: '23d56b1d1217c25f425b5454c0fd4e579639aa7a1dbf7753d52c180d7905ff1e',
 };
