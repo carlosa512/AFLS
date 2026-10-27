@@ -862,10 +862,12 @@ check(
   share((r) => r.kind === 'swap'),
   [5, 15],
 );
+// Nine seasons (three leagues, three each) are a small sample: re-read at 0.2.5 over four seeds (trades, trades-alt,
+// trades-2, trades-3), main ran 3.0-4.8 a season and player size 2.4-4.7, so the ceiling is 5.
 check(
   'cap dumps, a season',
   volume.all.filter((r) => r.kind === 'dump').length / Math.max(1, volume.seasons),
-  [1, 4],
+  [1, 5],
   1,
 );
 check(
