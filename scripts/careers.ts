@@ -22,7 +22,7 @@ import { CHAIRS, coachingFrom, NEUTRAL, type Coaching } from '../src/engine/coac
 import { ceilingShift, COACH_LEAN, hypeLean, SNAP_LEAN, workLean } from '../src/engine/ceiling';
 import { CEILING_SWING, developPlayer } from '../src/engine/development';
 import { generatePlayer } from '../src/engine/generate';
-import { RAW } from '../src/engine/offseason/draft';
+import { HYPE_ROOM, RAW } from '../src/engine/offseason/draft';
 import { playerOvr } from '../src/engine/positions';
 import { clamp, Rng } from '../src/engine/rng';
 import type { Coach, Player, Position, Traits } from '../src/engine/types';
@@ -97,9 +97,14 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
       jerseysUsed: new Set(),
     });
     const growth =
-      RAW + Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
+      RAW +
+      HYPE_ROOM +
+      Math.abs(rng.normal(0, 1)) * 2.1 +
+      rng.float(0, 0.8) +
+      (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = clamp(playerOvr(p) + growth, 1, 20);
     const row: number[] = [];
+    const entry = playerOvr(p);
     const attrs: Record<string, number[]> = Object.fromEntries(Object.keys(out.attr).map((a) => [a, []]));
     for (const age of AGES) {
       p.age = age;
@@ -112,7 +117,7 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
       if (year < CEILING_SWING.length) {
         const snaps = playedShare >= 0.6 ? SNAP_LEAN.starter : playedShare < 0.2 ? SNAP_LEAN.idle : 0;
         const lean =
-          workLean(p.traits.workEthic) + snaps + COACH_LEAN * (coaching.rate - 1) + hypeLean(p.potential, playerOvr(p));
+          workLean(p.traits.workEthic) + snaps + COACH_LEAN * (coaching.rate - 1) + hypeLean(p.potential, entry);
         p.potential = Math.min(
           20,
           p.potential + ceilingShift(new Rng(`careers:ceiling:${pos}:${i}:${age}`), year, lean),

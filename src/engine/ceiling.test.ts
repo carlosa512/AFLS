@@ -113,12 +113,17 @@ describe('the lean', () => {
     expect(Number.isFinite(ceilingLean(te.league, te.p, te.league.season, peers()))).toBe(true);
   });
 
-  it('a big projection leans down: the hype above a three-point gap', () => {
+  it('a big projection leans down: the hype past three points over his entry overall', () => {
     const { league, p } = rookie('ceiling-hype');
-    const at = (gap: number) =>
-      ceilingLean(league, { ...copy(p), potential: playerOvr(p) + gap }, league.season, new Map());
-    expect(at(2) - at(3)).toBeCloseTo(0, 9);
-    expect(at(3) - at(6)).toBeCloseTo(1.5, 9);
+    // He came into the league rated 10 across the board, whatever he has grown to since.
+    p.ratingHistory = { [league.season - 1]: ATTRIBUTES.map(() => 10) };
+    const at = (potential: number) => ceilingLean(league, { ...copy(p), potential }, league.season, new Map());
+    expect(at(12) - at(13)).toBeCloseTo(0, 9);
+    expect(at(13) - at(16)).toBeCloseTo(2.1, 9);
+    // Growing fast doesn't dodge it: the same ceiling leans the same with today's ratings a point higher.
+    const grown = copy(p);
+    for (const a of ATTRIBUTES) grown.ratings[a] += 1;
+    expect(ceilingLean(league, { ...grown, potential: 16 }, league.season, new Map())).toBeCloseTo(at(16), 9);
   });
 
   it('high work ethic settles above low', () => {

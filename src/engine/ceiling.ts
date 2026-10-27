@@ -33,13 +33,15 @@ const PLAY_LEAN = 0.4;
 /** A starter's snaps lean up a little; a year that barely saw the field leans down. */
 export const SNAP_LEAN = { starter: 0.05, idle: -0.05 };
 /**
- * Hype: a projection far past where he is now is the scouts' best case, and the league tends to bring it down. Past
- * `HYPE_GAP` points of growth still to come, each point leans the ceiling down by `HYPE_LEAN`. It lands on the
- * class's biggest projections, so it is what lets a first-rounder fall short of his slot (docs/research/draft-outcomes.md).
+ * Hype: a ceiling far past where he came into the league is the scouts' best case, and the league tends to bring it
+ * down. Past `HYPE_GAP` points over his entry overall, each point leans the ceiling down by `HYPE_LEAN`. It lands on
+ * the class's biggest projections, so it is what lets a first-rounder fall short of his slot
+ * (docs/research/draft-outcomes.md). Measured from his entry, not today, so a fast grower (a hard worker, a good
+ * staff) doesn't dodge it and count his edge twice.
  */
 const HYPE_GAP = 3;
-const HYPE_LEAN = 0.5;
-/** The hype part of the lean for a ceiling `potential` over an overall `ovr`. */
+const HYPE_LEAN = 0.7;
+/** The hype part of the lean for a ceiling `potential` over the overall `ovr` he came into the league with. */
 export const hypeLean = (potential: number, ovr: number) => -HYPE_LEAN * Math.max(0, potential - ovr - HYPE_GAP);
 /** Peers it takes to judge a line, and how far (overall points) the search may widen to find them. */
 const PEERS = 8;
@@ -52,6 +54,14 @@ function startOvr(p: Player, season: number): number {
   const then = p.ratingHistory?.[season];
   if (!then) return overall(p.ratings, p.position);
   return overall(Object.fromEntries(ATTRIBUTES.map((a, i) => [a, then[i]])) as Ratings, p.position);
+}
+
+/** His overall when he came into the league: the first league year his ratings were noted, or today's. */
+function entryOvr(p: Player): number {
+  const first = Object.keys(p.ratingHistory ?? {})
+    .map(Number)
+    .sort((a, b) => a - b)[0];
+  return first === undefined ? overall(p.ratings, p.position) : startOvr(p, first);
 }
 
 /** The shift one settle draws: around `lean`, as wide as year `year`'s swing, to a tenth. */
@@ -109,7 +119,7 @@ export function ceilingLean(league: League, p: Player, season: number, peers: Pe
     snaps = share >= 0.6 ? SNAP_LEAN.starter : share < 0.2 ? SNAP_LEAN.idle : 0;
   }
   const coached = COACH_LEAN * (coachingForPlayer(league, p).rate - 1);
-  return work + playLean(p, season, peers) + snaps + coached + hypeLean(p.potential, overall(p.ratings, p.position));
+  return work + playLean(p, season, peers) + snaps + coached + hypeLean(p.potential, entryOvr(p));
 }
 
 /**
