@@ -38,6 +38,7 @@ import { playerOvr, STARTERS } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
 import { teamPlayers } from '../src/engine/roster';
 import {
+  CENTREPIECE,
   evaluateTrade,
   executeTrade,
   goingRate,
@@ -51,6 +52,7 @@ import {
   playerTradeBlocker,
   proposeTrade,
   setTradeStatus,
+  STAR,
   teamNeeds,
   ASKS,
   CONCERNS,
@@ -294,7 +296,18 @@ function runProbes(base: League) {
     teamPlayers(l, teamId)
       .filter((p) => !playerTradeBlocker(l, p))
       .sort((a, b) => playerOvr(b) - playerOvr(a));
-  const ai = base.teams.find((t) => t.id !== USER && best(base, t.id)[0] && playerOvr(best(base, t.id)[0]) >= 15)!.id;
+  // A star the way his GM counts one (`STAR`, on its own read), and one whose departure breaks no roster rule: a punter
+  // who is the club's only punter is refused before the GM hears a word, so a probe aimed at him tests nothing.
+  const starIn = (l: League, teamId: number) => {
+    const ctx = tradeContext(l);
+    return best(l, teamId).find(
+      (p) =>
+        marketValue(ctx, l.teams[teamId], p) >= STAR &&
+        teamPlayers(l, teamId).filter((q) => q.position === p.position).length > STARTERS[p.position],
+    );
+  };
+  const ai = base.teams.find((t) => t.id !== USER && starIn(base, t.id))!.id;
+  const starOf = (l: League) => starIn(l, ai)!;
   const picksOf = (l: League, teamId: number, round?: number) =>
     l.draftPicks.filter((p) => p.ownerId === teamId && p.playerId === undefined && (!round || p.round === round));
   const accepts = (l: League, proposal: TradeProposal) => evaluateTrade(l, proposal).accepts;
@@ -308,7 +321,7 @@ function runProbes(base: League) {
   {
     const l = fresh();
     room(l);
-    const star = best(l, ai)[0];
+    const star = starOf(l);
     const junk = best(l, USER)
       .slice(-5)
       .map((p) => p.id);
@@ -329,9 +342,13 @@ function runProbes(base: League) {
   {
     const l = fresh();
     room(l);
-    const star = best(l, ai)[0];
+    const star = starOf(l);
+    // Mid starters each below the centrepiece line: a young starter on a rookie deal at a premium spot can be worth
+    // more than the star on his own, and buying with him is a fair price, not quantity buying quality.
+    const ctx = tradeContext(l);
+    const line = CENTREPIECE * marketValue(ctx, l.teams[ai], star);
     const mids = best(l, USER)
-      .filter((p) => p.position !== star.position && playerOvr(p) < 13.5)
+      .filter((p) => p.position !== star.position && playerOvr(p) < 13.5 && marketValue(ctx, l.teams[ai], p) < line)
       .slice(0, 3)
       .map((p) => p.id);
     probes.push({
@@ -447,7 +464,7 @@ function runProbes(base: League) {
             .map((p) => p.id),
           picks: [],
         },
-        { teamId: ai, players: [best(l, ai)[0].id], picks: [] },
+        { teamId: ai, players: [starOf(l).id], picks: [] },
       ],
     };
     const answers = Array.from({ length: 20 }, () => proposeTrade(l, proposal).message);
@@ -458,7 +475,7 @@ function runProbes(base: League) {
   }
   {
     const l = fresh();
-    const star = best(l, ai)[0];
+    const star = starOf(l);
     star.injury = {
       type: 'hamstring',
       severity: 'moderate',
