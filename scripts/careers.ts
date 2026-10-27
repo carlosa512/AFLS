@@ -117,7 +117,10 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
       if (year < CEILING_SWING.length) {
         const snaps = playedShare >= 0.6 ? SNAP_LEAN.starter : playedShare < 0.2 ? SNAP_LEAN.idle : 0;
         const lean =
-          workLean(p.traits.workEthic) + snaps + COACH_LEAN * (coaching.rate - 1) + hypeLean(p.potential, entry);
+          workLean(p.traits.workEthic) +
+          snaps +
+          COACH_LEAN * (coaching.rate - 1) +
+          (year === 0 ? hypeLean(p.potential, entry) : 0);
         p.potential = Math.min(
           20,
           p.potential + ceilingShift(new Rng(`careers:ceiling:${pos}:${i}:${age}`), year, lean),

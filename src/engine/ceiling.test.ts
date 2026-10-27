@@ -119,11 +119,15 @@ describe('the lean', () => {
     p.ratingHistory = { [league.season - 1]: ATTRIBUTES.map(() => 10) };
     const at = (potential: number) => ceilingLean(league, { ...copy(p), potential }, league.season, new Map());
     expect(at(12) - at(13)).toBeCloseTo(0, 9);
-    expect(at(13) - at(16)).toBeCloseTo(2.1, 9);
+    expect(at(13) - at(16)).toBeCloseTo(3, 9);
     // Growing fast doesn't dodge it: the same ceiling leans the same with today's ratings a point higher.
     const grown = copy(p);
     for (const a of ATTRIBUTES) grown.ratings[a] += 1;
     expect(ceilingLean(league, { ...grown, potential: 16 }, league.season, new Map())).toBeCloseTo(at(16), 9);
+    // Draft-day hype is settled in his first season: a second-year player's big ceiling doesn't lean on it.
+    const second = { ...copy(p), experience: 1 };
+    const later = (potential: number) => ceilingLean(league, { ...second, potential }, league.season, new Map());
+    expect(later(13) - later(16)).toBeCloseTo(0, 9);
   });
 
   it('high work ethic settles above low', () => {

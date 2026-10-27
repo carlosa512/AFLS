@@ -37,10 +37,11 @@ export const SNAP_LEAN = { starter: 0.05, idle: -0.05 };
  * down. Past `HYPE_GAP` points over his entry overall, each point leans the ceiling down by `HYPE_LEAN`. It lands on
  * the class's biggest projections, so it is what lets a first-rounder fall short of his slot
  * (docs/research/draft-outcomes.md). Measured from his entry, not today, so a fast grower (a hard worker, a good
- * staff) doesn't dodge it and count his edge twice.
+ * staff) doesn't dodge it and count his edge twice; and only in his first season's settle, the one that answers
+ * draft day (in every one, it drained the league's talent).
  */
 const HYPE_GAP = 3;
-const HYPE_LEAN = 0.7;
+const HYPE_LEAN = 1;
 /** The hype part of the lean for a ceiling `potential` over the overall `ovr` he came into the league with. */
 export const hypeLean = (potential: number, ovr: number) => -HYPE_LEAN * Math.max(0, potential - ovr - HYPE_GAP);
 /** Peers it takes to judge a line, and how far (overall points) the search may widen to find them. */
@@ -119,7 +120,8 @@ export function ceilingLean(league: League, p: Player, season: number, peers: Pe
     snaps = share >= 0.6 ? SNAP_LEAN.starter : share < 0.2 ? SNAP_LEAN.idle : 0;
   }
   const coached = COACH_LEAN * (coachingForPlayer(league, p).rate - 1);
-  return work + playLean(p, season, peers) + snaps + coached + hypeLean(p.potential, entryOvr(p));
+  const hype = settleYear(p) === 0 ? hypeLean(p.potential, entryOvr(p)) : 0;
+  return work + playLean(p, season, peers) + snaps + coached + hype;
 }
 
 /**
