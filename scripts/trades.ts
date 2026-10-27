@@ -21,7 +21,7 @@
  * 6. Volume and mix: trades in season, the share on deadline day, the offseason's, what kinds, and
  *    how few go between division rivals, against the NFL's.
  *
- *   npm run trades          # 3 leagues, 3 seasons each (and 45 more priced to deadline day)
+ *   npm run trades          # 4 leagues, 3 seasons each (and 44 more priced to deadline day)
  *   npm run trades -- 4
  *   npm run trades -- --seasons 6
  *   npm run trades -- --seed x   # leagues x-0, x-1… instead of trades-0…: another world, the same code
@@ -84,10 +84,15 @@ import {
   probePrices,
 } from './trades-prices';
 
+/**
+ * Leagues played for volume, fairness and offers. Four, not three: over three (about 140 in-season trades) one league
+ * whose buyers all dealt a week early moved the deadline-day share five points (0.2.1: 30% on the origins branch, 35%
+ * on main, the same number of trades). The fourth is taken from the price leagues, so the run is barely longer.
+ */
 const LEAGUES = Number(
   process.argv
     .slice(2)
-    .find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seasons' && all[i - 1] !== '--seed') ?? 3,
+    .find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seasons' && all[i - 1] !== '--seed') ?? 4,
 );
 /** `--verbose`: every priced player and every AI trade, not just one example per bucket. */
 const VERBOSE = process.argv.includes('--verbose');
