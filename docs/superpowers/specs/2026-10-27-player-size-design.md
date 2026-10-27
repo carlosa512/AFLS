@@ -142,9 +142,9 @@ The same `sizeEdge` the engine uses, so the chart and the games agree and nothin
 | WR | by overall | best `contested` edge at X; the shortest of the three in SLOT |
 | DT | by overall | heaviest at NT; the shorter at the 3-technique, where `leverage` applies |
 
-- A hand-sorted chart is never changed. The head coach adds a note when a starter's expected edge at his spot is
-  −1 or worse: *"Moore is giving up five inches outside; he's a nickel."*
-- `training.ts` gets a new `MoveReason`, `size` (a 230 lb safety to LB, a corner losing deep to S, a 255 lb LB to
+- A hand-sorted chart is never changed. The head coach's note when a starter's expected edge at his spot is −1 or
+  worse (*"Moore is giving up five inches outside; he's a nickel."*) is a screen, built in phase 4.
+- `training.ts` gets a new `MoveReason`, `build` (a 230 lb safety to LB, a corner losing deep to S, a 255 lb LB to
   EDGE). The planner's rules are unchanged: flips on cut-down day, the cooldown, learning time. AI teams use the same
   planner.
 - Tests: auto-sort puts tall corners outside and short-armed linemen inside; `npm run training` checks every size
