@@ -71,17 +71,19 @@ export function buildAutoDepthChart(
 /**
  * Where the starters line up, by build: the corners who hold up best against a typical X and Z play outside and the
  * other starter covers the slot, and the receivers who win best against a typical corner play X and Z and the other
- * works the slot. An offense with two receiver spots (12 personnel) only chooses X against Z: its third receiver
- * doesn't play, so size never sends a better one there. Who starts is the overall's call; this only says where, and
+ * works the slot. An offense with two receiver spots (12 personnel) has no slot, so nothing moves: its third receiver
+ * doesn't play, and size never sends a better one there. Who starts is the overall's call; this only says where, and
  * the bench behind them stays in its order.
  */
 export function spotOrder(players: Player[], pos: Position, wrSpots = 3): Player[] {
   const n = pos === 'WR' ? Math.min(STARTERS.WR, wrSpots) : STARTERS[pos];
   const starters = players.slice(0, n);
   const rest = players.slice(n);
+  // The two outside keep the coaches' order between them: the first spot draws the most looks and the bracket, and
+  // size only says outside or slot (ranking them by it made a deep threat the number one and ran up leaders' yards).
   const outsideFirst = (score: (p: Player) => number) => {
-    const out = [...starters].sort((a, b) => score(b) - score(a)).slice(0, 2);
-    return [...out, ...starters.filter((p) => !out.includes(p)), ...rest];
+    const out = new Set([...starters].sort((a, b) => score(b) - score(a)).slice(0, 2));
+    return [...starters.filter((p) => out.has(p)), ...starters.filter((p) => !out.has(p)), ...rest];
   };
   if (pos === 'CB') return outsideFirst((p) => skill(p, 'coverage') + sizeEdge(p, 'contested', typicalAt('WR')));
   if (pos === 'WR') return outsideFirst((p) => skill(p, 'deepRoutes') + sizeEdge(p, 'contested', typicalAt('CB')));

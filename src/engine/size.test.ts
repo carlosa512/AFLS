@@ -293,9 +293,15 @@ describe('spot fit', () => {
     expect(spotOrder([small, big, mid], 'WR').map((p) => p.id)).toEqual([big.id, mid.id, small.id]);
   });
 
-  it('only chooses X against Z for an offense with two receiver spots', () => {
+  it('leaves an offense with two receiver spots as the coaches set it', () => {
     const [small, big, mid] = [player('WR', 69, 180), player('WR', 76, 215), player('WR', 73, 200)];
-    expect(spotOrder([small, mid, big], 'WR', 2).map((p) => p.id)).toEqual([mid.id, small.id, big.id]);
+    expect(spotOrder([small, mid, big], 'WR', 2).map((p) => p.id)).toEqual([small.id, mid.id, big.id]);
+  });
+
+  it("keeps the coaches' first receiver first when he plays outside", () => {
+    // The first receiver draws the most looks and the bracket: size says outside or slot, never who's the number one.
+    const [small, big, mid] = [player('WR', 69, 180), player('WR', 76, 215), player('WR', 73, 200)];
+    expect(spotOrder([mid, big, small], 'WR').map((p) => p.id)).toEqual([mid.id, big.id, small.id]);
   });
 
   it('copes with short rooms', () => {
