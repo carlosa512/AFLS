@@ -81,8 +81,11 @@ read the player's ceiling, as they did.
 Never a number, always through the user's view (`viewOf`), under `docs/UI.md`'s fog-of-war list.
 
 - **The ceiling read follows.** Scouts already read a ceiling as truth plus noise (`scouting.ts:205`), so a
-  settled ceiling moves the read with no new code. The range also widens by the swing still to come (the sum of
-  the remaining years' `SWING`): a rookie's ceiling range is honestly wide and tightens as he settles.
+  settled ceiling moves the read with no new code. The range also widens by the swing still to come (the root of
+  the remaining years' `SWING` squared, combined with the read's own half-width the same way): a rookie's ceiling
+  range is honestly wide and tightens as he settles. The centre doesn't move, so boards and valuations read the
+  same; the scout report's "could become" tier reads the range without the unsettled part, so a rookie isn't
+  called a future star for being unsettled.
 - **Mail** (`inbox.ts`), one message per player per season, keyed so it never doubles up, when your own young
   player's ceiling read (`viewOf` before and after the shift) moved a point or more:
   - Down: the head coach, direct. "He's hit a wall. What you see now is about what you'll get."
@@ -110,15 +113,16 @@ rosters and cap health across seasons. No range is loosened to get there.
 
 New rows in `npm run careers`, each failing on its own when it leaves its range:
 
-- **First-round busts:** first-rounders who never reach a league-average starter's overall at their position
-  (the `reference` the scout report's tiers read) by age 27. Target about 1 in 3.
-- **Late-round steals:** picks from rounds 4–7 who do.
+- **First-round busts:** first-rounders who never reach a solid starter's overall at their position by age 27:
+  the 30th percentile of the league's starters there, the scout report's "solid starter" tier (`tierOf`). Target
+  25–40%.
+- **Late-round steals:** picks from rounds 4–7 who do. Target 8–20%.
 - **Settling:** the mean absolute shift by year shrinks (year one > year two > year three), and high work ethic
   settles above low.
 
-Both rates come from a sourced study first: `docs/research/draft-outcomes.md` (NFL first-round and Day 3 outcome
-rates, with what "reliable starter" means in each source), written before the check lands, and the ranges are set
-from it. The first-round range starts from 25–40% unless the sources say otherwise.
+Both ranges come from `docs/research/draft-outcomes.md`: NFL first-round bust rates run from about 13% to 44% by slot
+and definition (quarterbacks highest, linemen lowest); about 10% of Day 3 picks become regular starters (40 starts in
+five years), about 23% on a looser count.
 
 Unit tests (`development.test.ts` or a new `ceiling.test.ts`):
 
