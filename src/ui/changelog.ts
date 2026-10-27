@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.6',
+    date: '2026-10-27',
+    title: 'Sharper trade tests',
+    text:
+      'Behind the scenes: the checks that try to cheat AI general managers in trades (junk for a star, three ' +
+      'average players for one great one, pestering one GM all week) now test against a real star on a team outside ' +
+      'your division, so they catch what they are meant to. Nothing changes in how trades play.',
+  },
+  {
     version: '0.2.5',
     date: '2026-10-27',
     title: 'Scouts talk about size',

@@ -292,23 +292,36 @@ function runProbes(base: League) {
   const fresh = () => clone(base);
   const best = (l: League, teamId: number) =>
     teamPlayers(l, teamId)
-      .filter((p) => !playerTradeBlocker(l, p))
+      // No kickers or punters: a club's only specialist can't go at all (a league rule, which costs no patience), so a
+      // probe that sent one either way would be refused before value or policy came into it.
+      .filter((p) => !playerTradeBlocker(l, p) && p.position !== 'K' && p.position !== 'P')
       .sort((a, b) => playerOvr(b) - playerOvr(a));
-  const ai = base.teams.find((t) => t.id !== USER && best(base, t.id)[0] && playerOvr(best(base, t.id)[0]) >= 15)!.id;
+  // A star is the best player his club would mind losing: one it values below nothing is an overpaid contract it may
+  // fairly give away.
+  const starOf = (l: League, teamId: number) => {
+    const ctx = tradeContext(l);
+    return best(l, teamId).find((p) => playerValue(l, p, l.teams[teamId], { ctx }) > 0);
+  };
+  // Not a division rival: he won't hand you a player in season whatever you offer, so the probes would test that alone.
+  const ai = base.teams.find((t) => {
+    if (t.id === USER || t.division === base.teams[USER].division) return false;
+    const star = starOf(base, t.id);
+    return !!star && playerOvr(star) >= 15;
+  })!.id;
   const picksOf = (l: League, teamId: number, round?: number) =>
     l.draftPicks.filter((p) => p.ownerId === teamId && p.playerId === undefined && (!round || p.round === round));
   const accepts = (l: League, proposal: TradeProposal) => evaluateTrade(l, proposal).accepts;
-  // Room on both rosters and under your cap, so only value and policy are in play: a trade your cap forbids is a league
-  // rule, refused before the GM hears it, and an opening league paid like a settled one leaves you little room.
+  // Room on both rosters and under both caps, so only value and policy are in play: a trade either cap forbids is a
+  // league rule, refused before the GM hears it, and an opening league paid like a settled one leaves little room.
   const room = (l: League) => {
     for (const id of [USER, ai]) for (const p of best(l, id).slice(-3)) p.teamId = null;
-    l.teams[USER].carryover = l.caps[l.season];
+    for (const id of [USER, ai]) l.teams[id].carryover = l.caps[l.season];
   };
 
   {
     const l = fresh();
     room(l);
-    const star = best(l, ai)[0];
+    const star = starOf(l, ai)!;
     const junk = best(l, USER)
       .slice(-5)
       .map((p) => p.id);
@@ -329,9 +342,15 @@ function runProbes(base: League) {
   {
     const l = fresh();
     room(l);
-    const star = best(l, ai)[0];
+    const star = starOf(l, ai)!;
+    // Each worth less than the star in his GM's eyes: a young player he'd pay more for is an overpay, not quantity for
+    // quality.
+    const ctx = tradeContext(l);
+    const worth = playerValue(l, star, l.teams[ai], { ctx });
     const mids = best(l, USER)
-      .filter((p) => p.position !== star.position && playerOvr(p) < 13.5)
+      .filter(
+        (p) => p.position !== star.position && playerOvr(p) < 13.5 && playerValue(l, p, l.teams[ai], { ctx }) < worth,
+      )
       .slice(0, 3)
       .map((p) => p.id);
     probes.push({
@@ -447,7 +466,7 @@ function runProbes(base: League) {
             .map((p) => p.id),
           picks: [],
         },
-        { teamId: ai, players: [best(l, ai)[0].id], picks: [] },
+        { teamId: ai, players: [starOf(l, ai)!.id], picks: [] },
       ],
     };
     const answers = Array.from({ length: 20 }, () => proposeTrade(l, proposal).message);
@@ -458,7 +477,7 @@ function runProbes(base: League) {
   }
   {
     const l = fresh();
-    const star = best(l, ai)[0];
+    const star = starOf(l, ai)!;
     star.injury = {
       type: 'hamstring',
       severity: 'moderate',

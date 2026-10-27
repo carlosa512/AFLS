@@ -830,6 +830,10 @@ Exploit probes, each must fail to profit:
 - trading for an injured star in season;
 - reading the hidden cooldown or a GM's candor off any screen or message (no week counts, no numbers).
 
+The probes deal with a club outside your division, with room on both rosters and under both caps, for a star his
+club values above nothing (an overpaid one it may fairly give away), and send no kicker or punter either way (a
+club's only specialist can't go, by rule): only value and policy decide them, never a league rule.
+
 Plus the performance budgets above.
 
 **`scripts/check.ts`:** `trades` runs for `src/engine/trade/**`, `offseason/**`, `finance/**`,
