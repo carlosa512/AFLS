@@ -76,15 +76,6 @@ the long ones outside. K and P are centred on today's `BODY` ranges.
 - Both clamp at ±2.5 sd and round to whole inches and pounds.
 - `BODY` is replaced by `SIZE`; `training.ts`'s weight clamp on a position move uses mean ± 2.5 sd of the new position.
 
-### Size and ratings
-
-After the roll, a composite `z = (zh + zw) / 2` nudges ratings, with no new draws:
-
-- light or short (`z < 0`): speed and agility up to +1, strength up to −1;
-- heavy or tall: the reverse;
-- linear in `z`, full at `|z| = 2`; paired so the position's OVR moves by under 0.3 on average. A median player is
-  untouched.
-
 ### Existing saves
 
 Players keep their heights and weights (their hidden traits are seeded from them; re-rolling would reshuffle them).
@@ -110,6 +101,20 @@ Rules:
 - Each edge is 0 at equal (or median) size, scales linearly with the gap in the lever's units and caps at ±2.
 - Edges are antisymmetric where both sides are players (`edge(a, b) = −edge(b, a)`), so league totals hold.
 - `lanes` has no opponent player: it reads the QB's height z alone, centred on the QB median.
+
+### Size and ratings (moved here from phase 1)
+
+At generation, a composite `z = (zh + zw) / 2` nudges ratings, with no new draws:
+
+- light or short (`z < 0`): speed and agility up to +1, strength up to −1;
+- heavy or tall: the reverse;
+- linear in `z`, full at `|z| = 2`; paired so the position's OVR moves by under 0.3 on average. A median player is
+  untouched.
+
+Moved out of phase 1 when it was built: alone, it lifts the overall of small players at positions whose overall reads
+speed but not strength (WR, CB, S, LB), so lineups start more of them with nothing yet costing them for it; a 10-season
+sim had gross passing at 236.3 yards a game against main's 233.8. It ships with the levers below, which price that
+speed back, and is tuned with them. Potential moves with the overall the nudge shifts, never left below it.
 
 ### The rare gem
 

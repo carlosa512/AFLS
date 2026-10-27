@@ -12,6 +12,9 @@ size yet; that is phase 2.
 
 **Tech Stack:** TypeScript, Vitest.
 
+> **Built with one change:** the size nudge (`sizeNudge`, its tests and the potential rebase) moved to phase 2;
+> see the spec's phase 2 "Size and ratings". Nudge items below were not built.
+
 **Spec:** `docs/superpowers/specs/2026-10-27-player-size-design.md` (sections "The module" and "Phase 1").
 
 ## Global Constraints
