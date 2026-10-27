@@ -178,6 +178,8 @@ export function migrateLeague(league: League): League | null {
     for (const p of Object.values(league.players)) if (rollGem(p)) p.playsBig = true;
     league.version = 56;
   }
+  // v57: optional `Player.ceilingShifts` and `DevYear.potential`; an open year without one reads the player's ceiling.
+  if (league.version < 57) league.version = 57;
   return league;
 }
 
