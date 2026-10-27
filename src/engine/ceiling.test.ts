@@ -122,7 +122,7 @@ describe('the lean', () => {
       for (let i = 0; i < 400; i++) sum += ceilingShift(new Rng(`we:${i}`), 0, lean);
       return sum / 400;
     };
-    expect(mean(18) - mean(3)).toBeGreaterThan(1);
+    expect(mean(18) - mean(3)).toBeGreaterThan(0.2);
   });
 });
 

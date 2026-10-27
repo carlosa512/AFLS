@@ -21,12 +21,17 @@ import { ATTRIBUTES } from './types';
 /** Each position's players with enough of a season: overall at its start and what they produced. */
 export type PeerTable = Map<Position, { ovr: number; measure: number }[]>;
 
-/** Work ethic's lean per trait point: about ±0.8 at the trait's ends. */
-const WORK_LEAN = 0.085;
+/**
+ * Work ethic's lean per trait point: about ±0.2 at the trait's ends. Small, because work ethic already sets how
+ * fast he grows (`growthMult`): the careers audit's work-ethic gap at 26 (0.3–1) holds only with a light lean.
+ */
+const WORK_LEAN = 0.02;
+/** His coaches' development rate leans it a little, for the same reason (the audit's coaching gap, 0.12–0.4). */
+export const COACH_LEAN = 0.1;
 /** How well he played, at most, either way. */
 const PLAY_LEAN = 0.4;
 /** A starter's snaps lean up a little; a year that barely saw the field leans down. */
-const SNAP_LEAN = { starter: 0.1, idle: -0.15 };
+export const SNAP_LEAN = { starter: 0.1, idle: -0.15 };
 /** Peers it takes to judge a line, and how far (overall points) the search may widen to find them. */
 const PEERS = 8;
 const PEER_REACH = 3;
@@ -79,9 +84,12 @@ export function playLean(p: Player, season: number, peers: PeerTable): number {
   return 0;
 }
 
+/** Work ethic's part of the lean: the biggest, and the one a scout who knows his makeup can see coming. */
+export const workLean = (workEthic: number) => WORK_LEAN * (workEthic - TRAIT_MEAN);
+
 /** Which way his `season` leans his ceiling, in overall points: work ethic, play, snaps, coaching. */
 export function ceilingLean(league: League, p: Player, season: number, peers: PeerTable): number {
-  const work = WORK_LEAN * (p.traits.workEthic - TRAIT_MEAN);
+  const work = workLean(p.traits.workEthic);
   // Snaps where the position keeps a measure (no role: he didn't play); games suited up for where it doesn't.
   let snaps: number;
   if (productionRule(p.position)) {
@@ -91,7 +99,7 @@ export function ceilingLean(league: League, p: Player, season: number, peers: Pe
     const share = playedShare(p, season);
     snaps = share >= 0.6 ? SNAP_LEAN.starter : share < 0.2 ? SNAP_LEAN.idle : 0;
   }
-  const coached = 0.5 * (coachingForPlayer(league, p).rate - 1);
+  const coached = COACH_LEAN * (coachingForPlayer(league, p).rate - 1);
   return work + playLean(p, season, peers) + snaps + coached;
 }
 

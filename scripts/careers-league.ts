@@ -38,6 +38,14 @@ export interface LeagueRun {
   leaders: Record<string, number[][]>;
   /** Final starters' positions and ages. */
   starterAges: { position: Position; age: number }[];
+  /**
+   * Every pick from the drafts this run held whose class is old enough to judge (five league years on): his round,
+   * and whether his true overall reached a solid starter's at his position (the 30th percentile of its starters,
+   * the scout report's tier) by 27 (docs/research/draft-outcomes.md).
+   */
+  drafts: { round: number; hit: boolean }[];
+  /** Every settled ceiling of those picks: the year in the league it settled in, the change and his work ethic. */
+  shifts: { year: number; shift: number; workEthic: number }[];
 }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
@@ -56,7 +64,11 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     coached: { all: [], best: [], worst: [] },
     leaders: {},
     starterAges: [],
+    drafts: [],
+    shifts: [],
   };
+  const firstDraft = league.season + 1;
+  const hits = new Set<number>();
   const starters = () =>
     league.teams.flatMap((t) =>
       POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => league.players[id])),
@@ -131,6 +143,18 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     }
     while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
     out.starterOvr.push(mean(starters().map(playerOvr)));
+    // A pick hits once his true overall reaches a solid starter's at his position by 27.
+    const bar = new Map<Position, number>();
+    for (const pos of POSITIONS) {
+      const ovrs = starters()
+        .filter((p) => p.position === pos)
+        .map(playerOvr)
+        .sort((a, b) => a - b);
+      bar.set(pos, ovrs[Math.floor(0.3 * ovrs.length)]);
+    }
+    for (const p of Object.values(league.players))
+      if (!p.retired && p.draft && p.draft.season >= firstDraft && p.age <= 27 && playerOvr(p) >= bar.get(p.position)!)
+        hits.add(p.id);
     if (s >= steadyFrom) {
       const first = (pos: Position) => league.teams.map((t) => league.players[t.depthChart[pos][0]]);
       out.steady.qb35.push((100 * first('QB').filter((p) => p.age >= 35).length) / 32);
@@ -140,6 +164,12 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
   }
   out.awareness[1] = awareness();
   out.starterAges = starters().map((p) => ({ position: p.position, age: p.age }));
+  for (const p of Object.values(league.players)) {
+    if (!p.draft || p.draft.season < firstDraft) continue;
+    if (p.draft.season <= league.season - 5) out.drafts.push({ round: p.draft.round, hit: hits.has(p.id) });
+    for (const [season, shift] of Object.entries(p.ceilingShifts ?? {}))
+      out.shifts.push({ year: Number(season) - p.draft.season, shift, workEthic: p.traits.workEthic });
+  }
   return out;
 }
 

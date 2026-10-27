@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.8',
+    date: '2026-10-27',
+    title: 'Draft busts and late bloomers',
+    text:
+      "A prospect's ceiling is now a best guess on draft day. Over his first three seasons it settles, a lot in " +
+      'year one and less after: hard workers and players who outplay their grades tend to rise, and some ' +
+      'first-rounders stall where they are. A rookie shows a wide ceiling range that tightens as he settles, his ' +
+      'scout report says how far along he is, and your head coach or director writes when one of your young ' +
+      'players hits a wall or breaks out.',
+  },
+  {
     version: '0.2.7',
     date: '2026-10-27',
     title: 'Trade checks test every deal on its merits',
