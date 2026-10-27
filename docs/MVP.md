@@ -114,3 +114,12 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       minimum clearly without hiding a player's actual statistics. Verify early-season and partial-season
       samples, traded players and postseason scopes. A 2-for-2 passer must not lead a season rate category.
       Current Stats sorting already has a per-player-GP qualification; that is an incomplete foundation.
+
+## Follow-up: trade-deadline timing
+
+- [ ] `npm run trades` reads the deadline-day share of in-season AI trades at 25–30% on the player-origins branch
+      (0.2.1) against 32–35% on main, with the same number of trades: more deals land in weeks 2–8. On fresh seeds
+      (`--seed fresh`, 4 leagues) the two read 34% and 35%. Trade code never reads origins or free agents, so the
+      shift comes through different rosters (drafts, signings). Find why buyers deal earlier (when their interest in a
+      target reaches the weekly threshold; star trades 21 against 11 on the fixed seeds), and whether a 30% floor is
+      too tight for a main that sits at 32–35%.
