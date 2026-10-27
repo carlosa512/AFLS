@@ -2122,7 +2122,7 @@ class GameSim {
       );
       const lbTackle = lb ? skill(lb, 'tackling') : -Infinity;
       // A heavy back runs through a light linebacker's tackle; a light one bounces off a big one.
-      const contact = lb ? sizeEdge(rusher, 'contact', lb) : 0;
+      const contact = lb ? 2 * sizeEdge(rusher, 'contact', lb) : 0;
       const speed = skill(rusher, 'longSpeed');
       const pBreak = clamp(
         0.2 +
@@ -2363,7 +2363,7 @@ class GameSim {
     if (man && this.has(receiver, 'stemsDB')) sep += 2.5;
     if (man && depth !== 'deep' && this.has(receiver, 'getsJammed')) sep -= 2.5;
     // At the line in man, weight wins the jam: a light receiver gets rerouted by a big corner.
-    if (man && depth !== 'deep') sep += 0.5 * sizeEdge(receiver, 'press', defender);
+    if (man && depth !== 'deep') sep += sizeEdge(receiver, 'press', defender);
     if (coverage) sep += coverage.sep[depth === 'short' ? 0 : depth === 'medium' ? 1 : 2];
     if (depth === 'short') sep += scheme.quick;
     // Play action off a run game the defense respects: the linebackers bite and the windows behind them open.
