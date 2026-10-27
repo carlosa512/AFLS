@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { createLeague, generatePlayer } from './generate';
+import { playerOvr } from './positions';
 import { Rng } from './rng';
+import { teamPlayers } from './roster';
+import { changePosition } from './training';
 import { isOutlier, rollSize, SIZE, sizeLimits, sizeNudge, sizeZ } from './size';
 import { POSITIONS, type Ratings } from './types';
 
@@ -102,5 +106,54 @@ describe('sizeNudge', () => {
     const bottom = make(1);
     sizeNudge(bottom, -2);
     expect([bottom.speed, bottom.agility, bottom.strength]).toEqual([2, 2, 1]);
+  });
+});
+
+describe('generation', () => {
+  const make = (pos: (typeof POSITIONS)[number], i: number) =>
+    generatePlayer(new Rng(`size-gen:${pos}:${i}`), {
+      id: 3_000_000 + i,
+      position: pos,
+      quality: 11,
+      age: 22,
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
+  const corners = Array.from({ length: 2_000 }, (_, i) => make('CB', i));
+
+  it('rolls new players from the bell curve', () => {
+    const short = corners.filter((p) => p.heightIn <= 69).length / corners.length;
+    expect(short).toBeGreaterThan(0.11);
+    expect(short).toBeLessThan(0.17);
+    expect(Math.min(...corners.map((p) => p.heightIn))).toBeGreaterThanOrEqual(sizeLimits('CB').h[0]);
+    // The old flat roll stopped at 5'9" and 6'2": the tails are what the curve adds.
+    expect(corners.some((p) => p.heightIn < 69)).toBe(true);
+    expect(corners.some((p) => p.heightIn > 74)).toBe(true);
+  });
+
+  it('brings small corners out quicker', () => {
+    const build = (p: (typeof corners)[number]) => {
+      const z = sizeZ(p);
+      return (z.h + z.w) / 2;
+    };
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    const small = corners.filter((p) => build(p) < -1).map((p) => p.ratings.speed);
+    const big = corners.filter((p) => build(p) > 1).map((p) => p.ratings.speed);
+    expect(mean(small)).toBeGreaterThan(mean(big));
+  });
+
+  it('never leaves potential below overall', () => {
+    for (let i = 0; i < 2_000; i++) {
+      const p = make(POSITIONS[i % POSITIONS.length], i);
+      expect(p.potential).toBeGreaterThanOrEqual(playerOvr(p));
+    }
+  });
+
+  it('clamps weight to the new curve on a position move', () => {
+    const l = createLeague({ seed: 'size-move' });
+    const ol = teamPlayers(l, 0).find((p) => p.position === 'OL')!;
+    ol.weightLb = 380;
+    changePosition(l, ol, 'DT');
+    expect(ol.weightLb).toBe(sizeLimits('DT').w[1]);
   });
 });
