@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.5',
+    date: '2026-10-27',
+    title: 'Scouts talk about size',
+    text:
+      'Scout reports now say what an unusual build means ("undersized for an outside corner; the slot suits him"), and ' +
+      'a Size outlier tag marks those players on the card and at the combine. Good scouts can tell when a small ' +
+      'player plays bigger than his size. Your head coach speaks up when a hand-made depth chart puts the wrong build ' +
+      'in a spot, opposition reports point out a big height edge, and some general managers now pass on undersized ' +
+      'prospects that others will gladly take.',
+  },
+  {
     version: '0.2.4',
     date: '2026-10-27',
     title: 'The right body in the right spot',

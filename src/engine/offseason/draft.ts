@@ -3,6 +3,8 @@
  * from last season's standings and playoff exits, AI boards that blend talent, position
  * value and need, and slotted rookie contracts.
  */
+import { sizeZ } from '../size';
+import { sizeBias } from '../gmTraits';
 import { pathwayClass } from './arrivals';
 import { bandForRank, collegeOrigin, filmScale } from '../origin';
 import { recordRatings } from '../development';
@@ -182,8 +184,13 @@ export function boardScore(
   board: Board,
   rng: Rng,
   round: number,
+  sizeBias = 0,
 ): number {
   let score = 0.6 * board.grade + 0.4 * board.ceiling + POSITION_PREMIUM[p.position] + rng.normal(0, 0.6);
+  // A GM who wants measurables marks the undersized prospect down, the further under the more: a point of board
+  // value at most, so a great small player still goes early.
+  const z = sizeZ(p);
+  score -= sizeBias * clamp(-Math.min(z.h, z.w) - 1.3, 0, 1);
   const mine = depth[p.position];
   if (mine.length < STARTERS[p.position] + 1) score += 1;
   else if ((mine[STARTERS[p.position] - 1] ?? 0) < Math.min(11, board.grade)) score += 0.8;
@@ -201,10 +208,13 @@ export function aiDraftChoice(
 ): Player {
   const pool = availableProspects(league);
   const depth = positionDepth(league, teamId);
+  const gmId = league.teams[teamId].gmId;
+  // Your own auto-pick reads the board as your scouts do, with no hidden taste of the GM chair.
+  const bias = gmId == null || teamId === league.userTeamId ? 0 : sizeBias(league.seed, gmId);
   let best = pool[0];
   let bestScore = -Infinity;
   for (const p of pool) {
-    const score = boardScore(depth, p, boardFrom(boards, league, teamId, p), rng, round);
+    const score = boardScore(depth, p, boardFrom(boards, league, teamId, p), rng, round, bias);
     if (score > bestScore) {
       best = p;
       bestScore = score;

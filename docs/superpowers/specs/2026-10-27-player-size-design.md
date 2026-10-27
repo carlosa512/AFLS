@@ -170,9 +170,10 @@ The same `sizeEdge` the engine uses, so the chart and the games agree and nothin
   *"Their X is 6'4"; Moore gives up five inches. Consider the safety over the top."* It never promises a tactic the
   engine doesn't run.
 
-**AI front offices.** A new GM tendency, `GmTraits.sizeBias` in [−1, 1]: "measurables" GMs mark outliers down in the
-draft, free agency and trades; "tape" GMs ignore size. Applied to the team's own read, never true ratings; it follows
-the person between jobs like the other tendencies. `SAVE_VERSION` bumps; the upgrade seeds it per GM.
+**AI front offices.** Each GM has a size bias in [0, 1) (`sizeBias`, derived from his id on its own seeded stream, so
+it follows the person without a save change): a "measurables" GM marks an undersized prospect down on his draft board,
+up to a point of board value; a "tape" GM doesn't. Free agency and trades are left alone (the retained-salary market
+proved sensitive to small valuation changes).
 
 Checks: the `ui.test.ts` screen contract (no percentile, no trait value rendered); `npm run trades` and `offseason`
 unflagged; a test that a measurables GM drafts outliers later than a tape GM.

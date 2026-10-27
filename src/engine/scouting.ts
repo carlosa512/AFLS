@@ -9,6 +9,7 @@
  * the same error shrinks toward the truth instead of being re-rolled. Part of the error belongs to
  * the reader himself: a new scout brings his own opinions.
  */
+import { isOutlier, sizeZ } from './size';
 import { ATTRIBUTE_INFO, type AgingFamily } from './attributes';
 import { declineOnset } from './aging';
 import { repsSoFar } from './development';
@@ -1412,6 +1413,9 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   const said = versatile
     ? `${verdict.slice(0, -1)}, ${versatile.tone === 'good' ? 'who can play anywhere' : 'at his best at his own position'}.`
     : verdict;
+  // His build last, so it never crowds out a habit the staff has seen.
+  const build = buildNote(league, teamId, p);
+  if (build) notes.push(build);
   return { verdict: said, game, notes };
 }
 
@@ -1469,4 +1473,60 @@ export function generateCombine(p: Player): Combine {
   if (!skips[4]) c.shuttle = round(clamp(shuttle - 0.025 * da + 0.05 * noise[6], 3.85, 5.1), 0.01);
   if (!skips[5]) c.cone = round(clamp(cone - 0.04 * da + 0.08 * noise[7], 6.4, 8.4), 0.01);
   return c;
+}
+
+/** What a build means at a position, by the measure that's out and which way: words, never a number. */
+const BUILD_WORDS: Partial<Record<`${Position}:${'h' | 'w'}${'+' | '-'}`, string>> = {
+  'CB:h-': 'Undersized for an outside corner; the slot suits him',
+  'CB:h+': 'A long corner, built to match big receivers outside',
+  'CB:w+': 'Heavy for a corner: strong at the jam, a step slow to turn',
+  'CB:w-': 'Light for a corner; bigger receivers can move him off the line',
+  'WR:h+': 'A big target who wins the ball above the rim',
+  'WR:h-': 'Small for a receiver: he wins with quickness, not catch radius',
+  'WR:w-': 'Light for a receiver; a physical corner can reroute him',
+  'TE:h+': 'A tall target in the red zone',
+  'TE:w-': 'Light for a tight end: more receiver than blocker',
+  'OL:h-': 'Short for a tackle: guard or center is his home',
+  'OL:h+': 'Tackle length',
+  'OL:w+': 'A mauler: the mass to move a front, if not to move his feet',
+  'OL:w-': 'Light for a lineman; power rushers can walk him back',
+  'DT:h-': 'Short for a tackle, which wins him leverage inside',
+  'DT:w+': 'A true nose: the mass to hold up two blockers',
+  'DT:w-': 'Light for a tackle: quick off the ball, movable in the run game',
+  'EDGE:h+': 'Long for an edge rusher',
+  'EDGE:w-': 'Light for an end: a speed rusher who can be moved in the run game',
+  'EDGE:w+': 'Heavy for an end: a run stopper first',
+  'LB:w-': 'Light for a linebacker: runs and covers, struggles to take on blocks',
+  'LB:w+': 'Built like an end',
+  'S:w+': 'Built like a linebacker',
+  'S:h-': 'Small for a safety; tall receivers are a problem in the deep half',
+  'QB:h-': 'Short for a passer: the middle of the field is harder for him to see',
+  'QB:h+': 'Tall enough to see over his line',
+  'RB:w+': 'A big back who runs through contact',
+  'RB:w-': 'Light for a back: he goes around tacklers, not through them',
+};
+
+/** How sure a club must be of a player before it calls him a gem (or thinks it has found one). */
+const GEM_KNOWLEDGE = 0.6;
+
+/**
+ * One sentence on his build, when it is an outlier at his position (heights and weights are public; the words are the
+ * staff's): what it means, and whether he plays bigger than it. That last part is a read: our own players are known;
+ * on another club's, a sharp read sees it, a thin one misses it, and now and then one sees a gem that isn't there.
+ */
+export function buildNote(league: League, teamId: number, p: Player): string | null {
+  if (!isOutlier(p)) return null;
+  const z = sizeZ(p);
+  // The measure furthest out that has something to say at his position, then the other.
+  const dims = (Math.abs(z.h) >= Math.abs(z.w) ? ['h', 'w'] : ['w', 'h']) as ('h' | 'w')[];
+  const dim = dims.find((d) => Math.abs(z[d]) > 1.3 && BUILD_WORDS[`${p.position}:${d}${z[d] < 0 ? '-' : '+'}`]);
+  const words = dim && BUILD_WORDS[`${p.position}:${dim}${z[dim] < 0 ? '-' : '+'}`];
+  // Playing bigger than his size is a small or light player's story; a big one has nothing to make up.
+  const small = Math.min(z.h, z.w) < -1.3;
+  const k = knowledge(league, teamId, p);
+  const draw = () => new Rng(`${league.seed}:gem-read:${teamId}:${p.id}`).next();
+  const seen =
+    small && (k >= 1 ? !!p.playsBig : k >= GEM_KNOWLEDGE && (p.playsBig ? draw() < k : draw() < 0.08 * (1 - k)));
+  if (!words) return seen ? 'He plays bigger than his size.' : null;
+  return `${words}${seen && dim && z[dim] < 0 ? ', but he plays bigger than his size' : ''}.`;
 }

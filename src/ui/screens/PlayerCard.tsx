@@ -86,6 +86,7 @@ import {
   StarScaleToggle,
   Stars,
   schemeFitOf,
+  SizeTag,
   starsOf,
   useStarScale,
   viewOf,
@@ -724,7 +725,8 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           <span className="eyebrow">Size</span>
           <b className="num">
             {heightFt(p.heightIn)}, {p.weightLb}
-          </b>
+          </b>{' '}
+          <SizeTag player={p} />
         </span>
         <span className="fact">
           <span className="eyebrow">School</span>

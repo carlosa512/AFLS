@@ -3,7 +3,11 @@ import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
 import { simulateGame } from './match/gameSim';
 import { Rng } from './rng';
-import { lineOrder, spotOrder, teamPlayers } from './roster';
+import { lineOrder, spotNotes, spotOrder, teamPlayers } from './roster';
+import { buildNote } from './scouting';
+import { heightMismatch } from './inbox';
+import { boardScore } from './offseason/draft';
+import { sizeBias } from './gmTraits';
 import { buildLineup } from './match/lineup';
 import { teamCoaches } from './coaching';
 import { changePosition, conversionRead } from './training';
@@ -348,6 +352,88 @@ describe('a move for his build', () => {
     backup.heightIn = SIZE.S.h[0];
     backup.weightLb = SIZE.S.w[0];
     expect(conversionRead(l, backup, 'LB').motives.map((m) => m.reason)).not.toContain('build');
+  });
+});
+
+describe('size in words', () => {
+  const l = createLeague({ seed: 'size-words' });
+  const mine = (pos: Position) => teamPlayers(l, l.userTeamId).find((p) => p.position === pos)!;
+
+  it('says something only about an outlier build, and never a number', () => {
+    const cb = mine('CB');
+    cb.heightIn = SIZE.CB.h[0];
+    cb.weightLb = SIZE.CB.w[0];
+    expect(buildNote(l, l.userTeamId, cb)).toBeNull();
+    cb.heightIn = 68;
+    const note = buildNote(l, l.userTeamId, cb)!;
+    expect(note).toMatch(/slot/);
+    expect(note).not.toMatch(/\d/);
+  });
+
+  it("tells our own player's gem, plainly", () => {
+    const cb = mine('CB');
+    cb.heightIn = 68;
+    cb.playsBig = true;
+    expect(buildNote(l, l.userTeamId, cb)).toMatch(/plays bigger than his size/);
+    delete cb.playsBig;
+    expect(buildNote(l, l.userTeamId, cb)).not.toMatch(/plays bigger/);
+  });
+
+  it("flags a hand-sorted chart that plays a small corner outside, where auto-sort wouldn't", () => {
+    const team = l.teams[l.userTeamId];
+    team.autoDepth = false;
+    const cbs = team.depthChart.CB.slice(0, 3).map((id) => l.players[id]);
+    for (const p of cbs) {
+      for (const a of ['coverage', 'agility', 'awareness', 'speed'] as const) p.ratings[a] = 12;
+      p.heightIn = SIZE.CB.h[0];
+      p.weightLb = SIZE.CB.w[0];
+      delete p.injury;
+    }
+    const outside = cbs[0];
+    outside.heightIn = 68;
+    outside.weightLb = 178;
+    expect(spotNotes(l, l.userTeamId).map((n) => n.playerId)).toContain(outside.id);
+    // An elite small corner: the auto-sort keeps him outside too, so the coach says nothing.
+    outside.ratings.coverage = 20;
+    outside.ratings.agility = 19;
+    expect(spotNotes(l, l.userTeamId).map((n) => n.playerId)).not.toContain(outside.id);
+    team.autoDepth = true;
+    expect(spotNotes(l, l.userTeamId)).toEqual([]);
+  });
+
+  it('marks an undersized prospect down on a measurables GM’s board, never on a tape GM’s', () => {
+    const p = mine('CB');
+    p.heightIn = 68;
+    const board = { grade: 12, ceiling: 13 };
+    const depth = Object.fromEntries(POSITIONS.map((x) => [x, [12, 12, 12, 12]])) as Record<Position, number[]>;
+    const score = (bias: number) => boardScore(depth, p, board, new Rng('same'), 2, bias);
+    expect(score(1)).toBeLessThan(score(0));
+    p.heightIn = SIZE.CB.h[0];
+    p.weightLb = SIZE.CB.w[0];
+    expect(score(1)).toBe(score(0));
+    expect(sizeBias('a', 7)).toBe(sizeBias('a', 7));
+    expect(sizeBias('a', 7)).not.toBe(sizeBias('b', 7));
+    expect(sizeBias('a', 7)).toBeGreaterThanOrEqual(0);
+    expect(sizeBias('a', 7)).toBeLessThan(1);
+  });
+});
+
+describe('the opposition report', () => {
+  it('names the height their receiver has on our corner, only when it decides a jump ball', () => {
+    const l = createLeague({ seed: 'size-opposition' });
+    const opp = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const x = l.players[opp.depthChart.WR[0]];
+    const cb = l.players[l.teams[l.userTeamId].depthChart.CB[0]];
+    for (const p of [...opp.depthChart.WR, ...l.teams[l.userTeamId].depthChart.CB].map((id) => l.players[id])) {
+      p.heightIn = SIZE[p.position].h[0];
+      p.weightLb = SIZE[p.position].w[0];
+    }
+    expect(heightMismatch(l, opp)).toBeNull();
+    x.heightIn = 77;
+    cb.heightIn = 69;
+    expect(heightMismatch(l, opp)).toBe(
+      `Their X receiver ${x.firstName} ${x.lastName} has 8 inches on ${cb.firstName} ${cb.lastName}: a contested ball between them is his to win.`,
+    );
   });
 });
 

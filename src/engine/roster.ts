@@ -327,6 +327,33 @@ export function editPlayerIdentity(league: League, playerId: number, edit: Playe
   p.jersey = edit.jersey;
 }
 
+/**
+ * The head coach's word on a hand-sorted chart (the screen names the player): a starter the auto-sort would move off
+ * his spot for his build, a corner it would play at nickel or a tackle it would play inside. It runs the same order
+ * on the same available starters, so an elite small corner it keeps outside draws no note. Nothing under auto-sort.
+ */
+export function spotNotes(league: League, teamId: number): { playerId: number; text: string }[] {
+  const team = league.teams[teamId];
+  if (team.autoDepth) return [];
+  const at = (pos: Position) =>
+    team.depthChart[pos].map((id) => league.players[id]).filter((p): p is Player => !!p && isAvailable(p));
+  const out: { playerId: number; text: string }[] = [];
+  const cbs = at('CB').slice(0, STARTERS.CB);
+  const outside = new Set(spotOrder(cbs, 'CB').slice(0, 2));
+  for (const p of cbs.slice(0, 2))
+    if (!outside.has(p) && sizeEdge(p, 'contested', typicalAt('WR')) <= -1)
+      out.push({ playerId: p.id, text: "is giving up height outside; he's a nickel." });
+  const ol = at('OL').slice(0, STARTERS.OL);
+  if (ol.length === STARTERS.OL) {
+    const order = lineOrder(ol);
+    const tackles = new Set([order[0], order[4]]);
+    for (const p of [ol[0], ol[4]])
+      if (!tackles.has(p) && sizeEdge(typicalAt('EDGE'), 'edgeLength', p) >= 1)
+        out.push({ playerId: p.id, text: "is short for tackle; he's a guard." });
+  }
+  return out;
+}
+
 /** How many receivers a team's offense lines up (two in 12 personnel), for where spot fit may move them. */
 export function wrSpotsOf(league: League, teamId: number): number {
   return spotsFor(teamScheme(league, teamId), 'WR').length;

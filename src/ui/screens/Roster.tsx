@@ -20,6 +20,7 @@ import {
   isAvailable,
   placeAt,
   slotOf,
+  spotNotes,
   teamPlayers,
 } from '../../engine/roster';
 import { activeLearning, familiarity } from '../../engine/training';
@@ -512,6 +513,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
               him there): out of position he takes a knock, smaller in his own room or at a spot he has played.
             </p>
           )}
+          {isUser && grouped && <SpotNotes league={league} teamId={teamId} />}
           <span className="visually-hidden" aria-live="polite">
             {announcement}
           </span>
@@ -776,5 +778,24 @@ function PlayAt({ p, slot, onPick }: { p: Player; slot: Position; onPick: (pos: 
           </option>
         ))}
     </select>
+  );
+}
+
+/** The head coach's word on a hand-sorted chart where a starter's build costs him at his spot. */
+function SpotNotes({ league, teamId }: { league: League; teamId: number }) {
+  const notes = spotNotes(league, teamId);
+  if (!notes.length) return null;
+  return (
+    <ul
+      className="muted"
+      style={{ marginTop: 0, fontSize: 'var(--step--1)' }}
+      aria-label="Head coach on your depth chart"
+    >
+      {notes.map((n) => (
+        <li key={n.playerId}>
+          Head coach: <PlayerLink league={league} player={league.players[n.playerId]} /> {n.text}
+        </li>
+      ))}
+    </ul>
   );
 }

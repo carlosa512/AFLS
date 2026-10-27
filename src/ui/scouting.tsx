@@ -23,6 +23,7 @@ import {
   type AttributeGroup,
 } from '../engine/attributes';
 import { overall, OVR_WEIGHTS } from '../engine/positions';
+import { isOutlier, sizeZ } from '../engine/size';
 import { repsSoFar } from '../engine/development';
 import { fitContests, fitGrade, spotsFor, type FitGrade, type TeamScheme } from '../engine/schemes';
 import {
@@ -729,7 +730,7 @@ export function CombinePanel({ player: p }: { player: Player }) {
         </span>
         <span className="fact">
           <span className="eyebrow">Weight</span>
-          <b className="num">{p.weightLb}</b>
+          <b className="num">{p.weightLb}</b> <SizeTag player={p} />
         </span>
         <span className="fact">
           <span className="eyebrow">Arms</span>
@@ -836,4 +837,33 @@ export function rosterFit(
     }
   }
   return { good, poor, asked };
+}
+
+/** Each position as a tag says it ("short for a cornerback"). */
+const SIZE_NOUN: Record<Position, string> = {
+  QB: 'a quarterback',
+  RB: 'a running back',
+  WR: 'a receiver',
+  TE: 'a tight end',
+  OL: 'a lineman',
+  DT: 'a defensive tackle',
+  EDGE: 'an edge rusher',
+  LB: 'a linebacker',
+  CB: 'a cornerback',
+  S: 'a safety',
+  K: 'a kicker',
+  P: 'a punter',
+};
+
+/** "Size outlier" beside a build out in a tail at his position, and which way: a public measurement, said in words. */
+export function SizeTag({ player }: { player: Player }) {
+  if (!isOutlier(player)) return null;
+  const z = sizeZ(player);
+  const way = Math.abs(z.h) >= Math.abs(z.w) ? (z.h < 0 ? 'short' : 'tall') : z.w < 0 ? 'light' : 'heavy';
+  const said = `${way} for ${SIZE_NOUN[player.position]}`;
+  return (
+    <span className="tag-pill" title={said[0].toUpperCase() + said.slice(1)}>
+      Size outlier<span className="visually-hidden">: {said}</span>
+    </span>
+  );
 }
