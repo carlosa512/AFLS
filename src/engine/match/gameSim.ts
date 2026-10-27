@@ -276,6 +276,12 @@ const LEAD_BACK_CARRIES = 14;
  * game, so the plays themselves give it back and league scoring holds (docs/PENALTIES.md, Phase 2).
  */
 const RUN_BASE = 3.86;
+/** A starting DT's open-field tackling, on average (10.0 across opening leagues), and yards a point is worth at the line. */
+const DT_WRAP = 10;
+const DT_WRAP_PER_POINT = 0.05;
+/** Mean of `f` over a unit; a unit with nobody in it reads as typical. */
+const avgOf = (ps: readonly Player[], f: (p: Player) => number) =>
+  ps.length ? ps.reduce((n, p) => n + f(p), 0) / ps.length : DT_WRAP;
 
 /** A flag thrown during a play: the foul, who drew it, and how far downfield a spot foul happened. */
 interface LiveFoul {
@@ -2132,6 +2138,9 @@ class GameSim {
         if (rng.chance(clamp(0.18 + 0.008 * (speed - 12), 0.05, 0.3))) yards += rng.exponential(26);
       }
     }
+    // A run stopped at the line is a tackle too: tackles who wrap up hold a short gain short, ones who don't give up
+    // the extra yard. Centred on a typical starter, so the league's carries don't move.
+    if (yards < 4) yards -= DT_WRAP_PER_POINT * (avgOf(def.dt, (p) => skill(p, 'tackling')) - DT_WRAP);
     yards = Math.round(Math.max(yards, -6));
     // He falls forward: a short gain often gets one more yard.
     if (yards >= -1 && yards <= 3 && this.has(rusher, 'finishesForward') && rng.chance(0.5)) yards++;
