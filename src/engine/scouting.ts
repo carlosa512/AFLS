@@ -1232,7 +1232,7 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   const ceiling = tierOf(league, p.position, view.potHiRead);
   const young = p.age < 26;
   // Growth that won't change his standing still matters to a contract: say so when there is some.
-  const growing = young && ceiling >= now && view.potHi - view.ovr >= 1.5;
+  const growing = young && ceiling >= now && view.potHiRead - view.ovr >= 1.5;
   const ovrHalf = (view.ovrHi - view.ovrLo) / 2;
   // A wide range is said up front, where it colours the verdict, not just in a footnote.
   const rough = !view.exact && ovrHalf > 1.1;

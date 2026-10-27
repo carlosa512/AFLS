@@ -462,6 +462,20 @@ describe('a ceiling still settling', () => {
     }
   });
 
+  it("a rookie's verdict, room to grow included, ignores what is still to settle", () => {
+    // Two rookies alike in all but his first season's settle (same experience, so the same knowledge).
+    const verdicts = (p: Player) =>
+      [undefined, { [league.season]: 0 }].map(
+        (ceilingShifts) =>
+          scoutReportParts(league, league.userTeamId, { ...copy(p), experience: 0, ceilingShifts }).verdict,
+      );
+    // Rookies already at their ceiling: only what is still to settle could make "room still to grow" of them.
+    for (const p of theirs.slice(0, 60).map((x) => ({ ...copy(x), potential: playerOvr(x) - 0.5 }))) {
+      const [fresh, settled] = verdicts(p);
+      expect(fresh).toBe(settled);
+    }
+  });
+
   it('says where a young player stands in settling', () => {
     const p = theirs[0];
     const note = (over: Partial<Player>) => {
