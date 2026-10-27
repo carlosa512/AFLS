@@ -1,3 +1,4 @@
+import { fillOrigins } from './origin';
 import { generateCoachingWorld } from './coaching';
 import { applyStartingGm, initializeGms } from './gm';
 import type { StartingGm } from './gm';
@@ -44,7 +45,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 53;
+export const SAVE_VERSION = 54;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -751,6 +752,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   // Contracts are priced against the whole league's talent, so they come after every roster exists.
   const market = leagueMarket(league);
   draftHistory(rng, league, season, talent);
+  fillOrigins(league);
   for (const team of league.teams) {
     const roster = Object.values(league.players).filter((p) => p.teamId === team.id);
     for (const p of roster) {

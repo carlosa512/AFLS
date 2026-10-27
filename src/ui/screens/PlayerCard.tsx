@@ -1,3 +1,4 @@
+import { OriginTag } from '../origin';
 import { useEffect, useRef, useState } from 'react';
 import { honorBadges, playerHonors } from '../../engine/awards';
 import { POSITION_NAMES } from '../../engine/positions';
@@ -723,6 +724,12 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           <span className="eyebrow">Size</span>
           <b className="num">
             {heightFt(p.heightIn)}, {p.weightLb}
+          </b>
+        </span>
+        <span className="fact">
+          <span className="eyebrow">School</span>
+          <b>
+            <OriginTag player={p} />
           </b>
         </span>
         <span className="fact">

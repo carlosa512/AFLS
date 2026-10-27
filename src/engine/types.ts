@@ -227,6 +227,10 @@ export interface Player {
    * (a trade or a mid-season signing); a one-team season's line is simply `stats[season]`.
    */
   splitStats?: Record<number, Record<number, StatLine>>;
+  /** Index into `ORIGINS` (`data/origins.ts`): his college, Pathway country or the CFL. Public; never read by play. */
+  origin?: number;
+  /** CFL arrivals with no NFL season yet: seasons up north, counted as half film by `knowledge`. */
+  cflSeasons?: number;
   /** Optional picture URL (or data: URI) supplied by a roster mod; the UI shows a placeholder otherwise. */
   portrait?: string;
   /** What he is hurt with right now, if anything (see `injuries.ts`). */

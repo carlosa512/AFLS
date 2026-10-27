@@ -402,6 +402,21 @@ describe('screen contract', () => {
     expect(bad).toEqual([]);
   });
 
+  it('shows origins only through OriginTag, on the player card and the draft board', () => {
+    const reads = files.filter(
+      (f) => f !== join('src/ui', 'origin.tsx') && /\bORIGINS\b|\boriginOf\(|\b(p|player)\.origin\b/.test(src(f)),
+    );
+    expect(reads).toEqual([]);
+    const shown = files.filter((f) => /<OriginTag\b/.test(src(f))).sort();
+    // The squad desk lists who can take the international place (profile v2).
+    expect(shown).toEqual([
+      join('src/ui/screens', 'FrontOffice.tsx'),
+      join('src/ui/screens', 'PlayerCard.tsx'),
+      join('src/ui/screens', 'PracticeSquad.tsx'),
+    ]);
+    expect(src(join('src/ui/screens', 'FrontOffice.tsx'))).toContain('label="School"');
+  });
+
   it('builds team dropdowns only with TeamPicker', () => {
     const bad = files.filter((f) => /\[\.\.\.league\.teams\]\s*\.(sort|filter)/.test(src(f)));
     expect(bad).toEqual([]);

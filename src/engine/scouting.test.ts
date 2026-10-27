@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { CFL_ORIGIN, COLLEGES_BY_TIER, PATHWAY_ORIGINS } from './data/origins';
+import { pathwayClass } from './offseason/arrivals';
+import { generateDraftClass } from './offseason/draft';
+import { Rng } from './rng';
 import { createLeague, SAVE_VERSION } from './generate';
 import { simToEndOfSeason } from './league';
 import { migrateLeague } from './migrate';
@@ -368,5 +372,62 @@ describe('perceived team strength', () => {
     const after = perceivedTeamRatings(league, league.userTeamId, rival).defense.value;
     const truthAfter = teamRatings(league, rival).defense;
     expect(after).toBeCloseTo(before + (truthAfter - truthBefore), 1);
+  });
+});
+
+describe('film by origin', () => {
+  const l = createLeague({ seed: 'film-origin' });
+  generateDraftClassForTest(l);
+  const prospect = l.players[l.draftClass[40]];
+  const ai = (l.userTeamId + 1) % 32;
+  const at = (origin: number) => {
+    prospect.origin = origin;
+    return knowledge(l, ai, prospect);
+  };
+
+  it('prospects on less film start less known: power > group5 > fcs > small > pathway', () => {
+    const ks = [
+      COLLEGES_BY_TIER.power[0],
+      COLLEGES_BY_TIER.group5[0],
+      COLLEGES_BY_TIER.fcs[0],
+      COLLEGES_BY_TIER.small[0],
+      PATHWAY_ORIGINS[0],
+    ].map(at);
+    for (let i = 1; i < ks.length; i++) expect(ks[i]).toBeLessThan(ks[i - 1]);
+  });
+
+  it('own players stay exact and a visit still narrows a Pathway prospect', () => {
+    prospect.origin = PATHWAY_ORIGINS[0];
+    const before = knowledge(l, l.userTeamId, prospect);
+    scoutPlayer(l, prospect.id);
+    expect(knowledge(l, l.userTeamId, prospect)).toBeGreaterThan(before);
+    const own = Object.values(l.players).find((p) => p.teamId === l.userTeamId)!;
+    own.origin = PATHWAY_ORIGINS[0];
+    expect(knowledge(l, l.userTeamId, own)).toBe(1);
+  });
+
+  it('a CFL veteran sits between a rookie and an NFL veteran with the same years', () => {
+    const vet = Object.values(l.players).find((p) => p.teamId === ai && p.experience === 4)!;
+    const nfl = knowledge(l, l.userTeamId, vet);
+    const cfl = { ...vet, experience: 0, cflSeasons: 4, origin: CFL_ORIGIN } as Player;
+    const rookie = { ...vet, experience: 0, origin: COLLEGES_BY_TIER.power[0] } as Player;
+    expect(knowledge(l, l.userTeamId, cfl)).toBeCloseTo(0.45 + 0.08 * 2, 5);
+    expect(knowledge(l, l.userTeamId, cfl)).toBeLessThan(nfl);
+    expect(knowledge(l, l.userTeamId, cfl)).toBeGreaterThan(knowledge(l, l.userTeamId, rookie));
+  });
+});
+
+function generateDraftClassForTest(l: League): void {
+  generateDraftClass(l, new Rng('film-class'));
+}
+
+describe('film for arrivals', () => {
+  it('a real Pathway arrival is read less clearly than a power-school rookie', () => {
+    const l = createLeague({ seed: 'pathway-film' });
+    const ai = (l.userTeamId + 1) % 32;
+    const arrival = pathwayClass(l)[0];
+    const rookie = { ...arrival, origin: COLLEGES_BY_TIER.power[0] } as Player;
+    expect(knowledge(l, ai, arrival)).toBeLessThan(knowledge(l, ai, rookie));
+    expect(knowledge(l, ai, arrival)).toBeCloseTo(0.45 * 0.4, 5);
   });
 });

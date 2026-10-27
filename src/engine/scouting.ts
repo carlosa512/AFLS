@@ -18,6 +18,7 @@ import { clamp, Rng } from './rng';
 import { knockFor } from './familiarity';
 import { headline, slotOf, starters, teamRatings, UNIT_POSITIONS } from './roster';
 import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
+import { filmScale } from './origin';
 import { passerRating } from './stats';
 import { TEMPER_POSITIONS, TRAIT_MEAN } from './traits';
 import type { Attribute, Combine, League, Player, Position, Ratings, StatLine, Team, Traits } from './types';
@@ -43,10 +44,14 @@ export const isProspect = (p: Player) => !!p.scouting && !p.draft && p.teamId ==
  */
 export function knowledge(league: League, teamId: number, p: Player): number {
   if (p.teamId === teamId) return 1;
-  // Higher-graded prospects get more exposure (bowl games, TV), so start better known.
+  // Higher-graded prospects get more exposure (bowl games, TV), so start better known; a small school or the
+  // Pathway gets less of it (`filmScale`). A CFL veteran's seasons up north count half until he plays one here.
   const film = isProspect(p)
-    ? 0.2 + 0.15 * clamp((p.scouting!.grade - 6) / 8, 0, 1)
-    : Math.min(0.9, 0.45 + 0.08 * p.experience);
+    ? (0.2 + 0.15 * clamp((p.scouting!.grade - 6) / 8, 0, 1)) * filmScale(p)
+    : p.experience === 0
+      ? // A rookie off the board or the Pathway: his origin's share of film still counts until he plays.
+        Math.min(0.9, 0.45 + 0.04 * (p.cflSeasons ?? 0)) * filmScale(p)
+      : Math.min(0.9, 0.45 + 0.08 * p.experience);
   const scouted = teamId === league.userTeamId ? (league.knowledge[p.id] ?? 0) : aiScouted(league, teamId, p, film);
   return Math.max(film, scouted);
 }

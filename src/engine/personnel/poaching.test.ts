@@ -260,6 +260,8 @@ describe('AI poaching', () => {
   it('an AI club short at a position poaches the best unprotected fit by its own read', () => {
     const club = aiClub();
     shortOfReceivers(club);
+    // A settle locks protections before AI clubs make offers; "unprotected" means not on the locked list.
+    lockProtections(l);
     submitAIPoachOffers(l);
     const mine = offers().filter((o) => o.teamId === club);
     expect(mine).toHaveLength(1);

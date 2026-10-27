@@ -31,6 +31,11 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // practice squads: measured with both at 8,229 KB first season against 8,150, 16,625 KB retained against 16,200,
   // players growth 902 KB against 880 (0.2.0 merge). A modest allowance agreed by the owner, not a leak.
   analytics: { firstSeason: 300, retainedSeasons: 700, games: 0, annualGrowth: 0, playersGrowth: 40 },
+  // Player origins (0.2.1): a school index on every player, `cflSeasons` on CFL arrivals, and the yearly Pathway class
+  // (13) and CFL veterans (6) who join the pool. Measured on offseason-audit over six seasons against main: first season
+  // 8,351 KB against 8,198, retained 12,997-16,557 KB against 12,809-16,521, players growth 923 KB against 862 in the
+  // first full year (675-754 against 669-748 after). A small allowance agreed by the owner, not a leak.
+  origins: { firstSeason: 200, retainedSeasons: 200, games: 0, annualGrowth: 0, playersGrowth: 60 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(

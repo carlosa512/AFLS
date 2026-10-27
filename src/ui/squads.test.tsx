@@ -10,6 +10,7 @@ import { lockProtections, protectionPicks, setPin } from '../engine/personnel/po
 import { PoachAction, ProtectionCell, SquadList } from './personnel';
 import { hashToRoute, routeToHash } from './routes';
 import { PracticeSquad } from './screens/PracticeSquad';
+import { pathwayClass } from '../engine/offseason/arrivals';
 
 describe('practice squad desk', () => {
   it('has a direct route and explains disabled careers', () => {
@@ -27,7 +28,8 @@ describe('practice squad desk', () => {
     expect(JSON.stringify(l)).toBe(before);
     for (const text of [
       'Player limits',
-      '16/16',
+      '16/17',
+      'International Pathway',
       'Squad weekly pay',
       'Squad season cost',
       '$13,750',
@@ -97,5 +99,23 @@ describe('practice squad desk', () => {
     l.phase = 'freeAgency';
     l.personnel!.offered = l.season; // the offseason that made the offer
     expect(renderToStaticMarkup(<PracticeSquad league={l} />)).not.toMatch(/disabled=""[^>]*>Turn on practice squads/);
+  });
+});
+
+describe('the international place on the squad desk', () => {
+  it('lists the Pathway players who can take it, with their pill', () => {
+    const l = createLeague({ seed: 'squad-ui-pathway', personnel: true });
+    const arrivals = pathwayClass(l);
+    const html = renderToStaticMarkup(<PracticeSquad league={l} />);
+    expect(html).toContain('tag-pathway');
+    expect(html).toContain(arrivals[0].lastName);
+    expect(html).toContain('Up to 16 players, plus one International Pathway player, train with your team');
+  });
+
+  it('shows no Pathway list on a v1 career', () => {
+    const l = createLeague({ seed: 'squad-ui-pathway', personnel: true });
+    l.personnel!.profile = 'afls-2026-v1';
+    pathwayClass(l);
+    expect(renderToStaticMarkup(<PracticeSquad league={l} />)).not.toContain('Pathway players available');
   });
 });

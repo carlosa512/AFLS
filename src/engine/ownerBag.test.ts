@@ -70,6 +70,19 @@ describe("the owner's marble bag", () => {
     expect(after.coach).toBeLessThanOrEqual(Math.floor(two.coach / 2));
   });
 
+  it('lets old heat fade: a long losing run carries at most about two seasons of it', () => {
+    const l = createLeague({ seed: 'owner-bag-fade' });
+    const t = l.teams[0];
+    ownerBag(l, t);
+    season(l, 3);
+    const one = { ...ownerBag(l, t) };
+    for (let y = 0; y < 5; y++) season(l, 3);
+    const six = ownerBag(l, t);
+    // Without fading, six seasons of 3–14 would be six seasons of heat; the owner judges the recent ones.
+    expect(six.gm + six.coach).toBeLessThanOrEqual(2 * (one.gm + one.coach));
+    expect(six.gm + six.coach).toBeGreaterThan(one.gm + one.coach);
+  });
+
   it('starts a new GM clean, with the owner’s patience back', () => {
     const l = createLeague({ seed: 'owner-bag-new-gm' });
     const t = l.teams[0];

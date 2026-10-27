@@ -25,6 +25,8 @@ import {
   submitSquadOffer,
 } from './squads';
 import { resolveWaiverBatch } from './waivers';
+import { PATHWAY_ORIGINS } from '../data/origins';
+import { hasInternationalPlace, initialPersonnelState, squadPlaces } from './rules';
 
 const template = createLeague({ seed: 'squad-contracts' });
 let l: League;
@@ -395,5 +397,57 @@ describe('simultaneous market and world generation', () => {
     expect(loaded.personnel?.enabled).toBe(false);
     expect(loaded.personnel?.squads).toBeUndefined();
     expect(ensureSquads.bind(null, loaded)).toThrow(/not active/);
+  });
+});
+
+describe('the international place (profile v2)', () => {
+  const pathway = (experience = 0) => {
+    const p = candidate(experience);
+    p.origin = PATHWAY_ORIGINS[0];
+    return p;
+  };
+  const sixteen = () => Array.from({ length: 16 }, () => candidate());
+
+  it('new careers start on afls-2026-v2, with 17 places', () => {
+    expect(initialPersonnelState().profile).toBe('afls-2026-v2');
+    expect(hasInternationalPlace(l)).toBe(true);
+    expect(squadPlaces(l)).toBe(17);
+  });
+
+  it('v2: a 17th player fits only when he is a Pathway player with no service', () => {
+    expect(squadFit(l, [...sixteen(), pathway()])).toBeNull();
+    expect(squadFit(l, [...sixteen(), candidate()])).not.toBeNull();
+    expect(squadFit(l, [...sixteen(), pathway(1)])).not.toBeNull();
+    expect(squadFit(l, [...sixteen(), pathway(), pathway()])).not.toBeNull();
+  });
+
+  it('v1: still 16, and a Pathway player takes a standard place', () => {
+    l.personnel!.profile = 'afls-2026-v1';
+    expect(hasInternationalPlace(l)).toBe(false);
+    expect(squadPlaces(l)).toBe(16);
+    expect(squadFit(l, [...sixteen(), pathway()])).not.toBeNull();
+    expect(squadFit(l, [...sixteen().slice(1), pathway()])).toBeNull();
+  });
+
+  it('AI clubs fill the international place from the Pathway pool on v2', () => {
+    for (let i = 0; i < 6; i++) pathway();
+    formPracticeSquads(l);
+    // A full standard squad plus a Pathway player: only the reserved place allows the 17th.
+    const seventeen = l.teams.filter((t) => practiceSquad(l, t.id).length === 17);
+    expect(seventeen.length).toBeGreaterThan(0);
+    for (const t of seventeen) expect(practiceSquad(l, t.id).some((p) => p.origin === PATHWAY_ORIGINS[0])).toBe(true);
+    for (const t of l.teams) expect(practiceSquad(l, t.id).length).toBeLessThanOrEqual(17);
+  });
+});
+
+describe('squad supply on v2', () => {
+  it('makes no new players for the international place: only a Pathway player can take it', () => {
+    const w = createLeague({ seed: 'squad-supply-v2', personnel: true });
+    const full = w.teams.filter((t) => practiceSquad(w, t.id).length >= 16).length;
+    expect(full).toBe(w.teams.length);
+    for (const p of squadCandidates(w)) p.retired = true;
+    const before = w.nextPlayerId;
+    ensureSquadSupply(w);
+    expect(w.nextPlayerId).toBe(before);
   });
 });

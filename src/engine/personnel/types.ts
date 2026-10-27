@@ -1,9 +1,12 @@
+/** Each career keeps the rules profile it started with (`rules.ts`). */
+export type PersonnelProfile = 'afls-2026-v1' | 'afls-2026-v2';
+
 /** Saved state for staged personnel transactions; normal careers stay off until the lifecycle is complete. */
 export interface PersonnelState {
   version: 1;
   /** Remains off until the complete transaction lifecycle is available. */
   enabled: boolean;
-  profile: 'afls-2026-v1';
+  profile: PersonnelProfile;
   /** `settledWeek`: waivers settle once a week, before its first kickoff. */
   clock?: { season: number; cutdown: boolean; settledWeek?: number };
   squads?: {

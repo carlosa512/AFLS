@@ -1,3 +1,4 @@
+import { fillOrigins } from './origin';
 import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
 /**
  * Save upgrades. Each step takes a league saved by an older build and reshapes it in place,
@@ -29,7 +30,7 @@ import { generateQuirks } from './quirks';
 import { generateTraits } from './traits';
 import type { Injury, League, StatLine, TradeMarket } from './types';
 import { POSITIONS } from './types';
-import { initialPersonnelState } from './personnel/rules';
+import { initialPersonnelState, PERSONNEL_RULES } from './personnel/rules';
 import { ensureService } from './personnel/service';
 
 /** Returns the upgraded league, or null if the save is from a newer (unknown) version. */
@@ -140,7 +141,7 @@ export function migrateLeague(league: League): League | null {
   }
   if (league.version < 47) {
     // Practice squads, waivers and call-ups stay off for existing careers; every player gets a service record.
-    league.personnel = initialPersonnelState();
+    league.personnel = initialPersonnelState(PERSONNEL_RULES.id);
     for (const p of Object.values(league.players)) ensureService(p, league.season);
     league.version = 47;
   }
@@ -160,6 +161,12 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 52) league.version = 52;
   // v53: optional practice squad futures choices, the one-time switch-on offer and `Team.autoSquad`.
   if (league.version < 53) league.version = 53;
+  // v54: `Player.origin` for everyone (seeded, from draft round or standing), optional `cflSeasons`; profile v2 is
+  // for new careers only, so a migrated career keeps its own.
+  if (league.version < 54) {
+    fillOrigins(league);
+    league.version = 54;
+  }
   return league;
 }
 

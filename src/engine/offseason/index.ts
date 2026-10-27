@@ -1,3 +1,4 @@
+import { cflArrivals } from './arrivals';
 import { formPracticeSquads } from '../personnel/squadMarket';
 import { settleSquadPayroll } from '../personnel/payroll';
 import { expireSquadContracts } from '../personnel/squads';
@@ -113,6 +114,7 @@ export function beginOffseason(league: League): void {
     });
     p.age++;
     p.experience++;
+    delete p.cflSeasons; // a league year down here, signed or not: his experience now carries the film
     // Age and form, or a body (`injuryRetireChance`) or a head (`concussionRetireChance`) that can't take any more, in one roll.
     const body = injuryRetireChance(p, league.season);
     const head = concussionRetireChance(p, league.season);
@@ -159,6 +161,7 @@ export function beginOffseason(league: League): void {
   crewsNewYear(league);
 
   generateDraftClass(league, rng);
+  cflArrivals(league);
   league.games = league.games.filter((g) => g.season >= last);
   // Last season's games keep their box scores and scoring plays; full replays are for the season being played.
   for (const g of league.games) if (g.result?.plays) g.result.plays = g.result.plays.filter((p) => p.scoring);

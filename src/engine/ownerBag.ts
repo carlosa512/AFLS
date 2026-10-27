@@ -4,8 +4,9 @@
  * so the odds come from what is in it:
  *
  * - Calm marbles are the owner's patience: 5 for the quickest trigger, 9 for the most patient.
- * - Every losing season puts heat in, more for a worse one (8–9 one marble, 2–15 four). Who it goes to
- *   depends on the roster: a talented roster losing is on the head coach, a thin one on the GM.
+ * - Every losing season puts heat in, more for a worse one (8–9 one marble, 2–15 four), and the heat already in
+ *   fades by half. Who it goes to depends on the roster: a talented roster losing is on the head coach, a thin
+ *   one on the GM.
  * - At the review the owner draws one marble for each one last season put in. A heat marble is a change;
  *   a calm one is spent and never goes back, so a losing run always ends. Winning puts calm back.
  *
@@ -113,9 +114,12 @@ export function ownerBag(l: League, t: Team, ranks?: Map<number, number>): Owner
       bag.coach = Math.max(0, bag.coach - 1);
       bag.calm = Math.min(ownerCalm(l, t.id), bag.calm + 1);
     } else {
+      // Old heat fades by half each season: the owner judges the last couple of years, not the whole tenure. Kept
+      // whole, a mediocre club's heat only grew, so reviews got harsher every year of a league and a year-six owner
+      // changed 14 of 17 losing clubs (`npm run offseason`, 12 head coaches in one offseason).
       const split = heatSplit(l, t, s, rec, (ranks ??= talentRanks(l)).get(t.id)!);
-      bag.gm += split.gm;
-      bag.coach += split.coach;
+      bag.gm = Math.floor(bag.gm / 2) + split.gm;
+      bag.coach = Math.floor(bag.coach / 2) + split.coach;
     }
   }
   bag.season = Math.max(bag.season, last);

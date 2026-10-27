@@ -1,3 +1,5 @@
+import { PERSONNEL_RULES, squadPlaces } from './rules';
+import { collegeOrigin } from '../origin';
 import { generatePlayer } from '../generate';
 import { capSpace } from '../finance/cap';
 import { inSeasonReserve } from '../offseason/ai';
@@ -40,7 +42,11 @@ const SUPPLY_WEIGHT: Record<Position, number> = {
 
 /** World supply is independent of the main RNG and never takes a player or dollar from an existing 53. */
 export function ensureSquadSupply(league: League): void {
-  const openings = league.teams.reduce((sum, t) => sum + Math.max(0, 16 - practiceSquad(league, t.id).length), 0);
+  const openings = league.teams.reduce(
+    // The standard 16 only: the international place is for a Pathway player, and the Pathway class supplies those.
+    (sum, t) => sum + Math.max(0, PERSONNEL_RULES.squadLimit - practiceSquad(league, t.id).length),
+    0,
+  );
   // Cuts and expired squad deals fill the pool first; new players cover only what's still missing, so the free-agent
   // pool doesn't grow every season (a spare 64 a round once pushed it past the offseason audit's band).
   const candidates = squadCandidates(league);
@@ -63,6 +69,7 @@ export function ensureSquadSupply(league: League): void {
     });
     // Calendar experience can include prior practice-squad seasons with no accrued NFL service.
     p.experience = experience;
+    p.origin = collegeOrigin(league.seed, p.id, 3);
     p.service = initialService(veteran ? experience : 0, league.season - 1);
     // Most unsigned reserves project as depth. Rare young breakouts survive; no change to drafted/cut players.
     const upside = veteran ? rng.float(0, 0.8) : rng.float(0.2, 2.2) + (rng.chance(0.025) ? rng.float(2, 4) : 0);
@@ -137,7 +144,7 @@ export function formPracticeSquads(league: League, autoUser = false): number {
     for (const team of [...league.teams].sort((a, b) => a.id - b.id)) {
       if (team.id === league.userTeamId && !autoUser) continue;
       const existing = practiceSquad(league, team.id);
-      const open = 16 - existing.length;
+      const open = squadPlaces(league) - existing.length;
       if (open <= 0) continue;
       const budget = capSpace(league, team.id) - inSeasonReserve(league, team.id);
       const healthy = activeRoster(league, team.id).filter((p) => !p.injury);

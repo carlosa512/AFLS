@@ -1,3 +1,6 @@
+import { isPathway } from '../../engine/origin';
+import { OriginTag } from '../origin';
+import { squadPlaces } from '../../engine/personnel/rules';
 import { useState } from 'react';
 import { practiceSquad, teamPlayers } from '../../engine/roster';
 import { capSheet } from '../../engine/finance/cap';
@@ -197,13 +200,16 @@ export function PracticeSquad({ league }: { league: League }) {
       </table>
     </div>
   );
+  const places = squadPlaces(league);
+  // Who can take the international place (v2): unattached Pathway players with no service.
+  const pathway = places > 16 ? squadCandidates(league).filter((p) => isPathway(p)) : [];
   const runRound = (staff = false) => {
     let ours = 0;
     store.mutate((l) => {
       formPracticeSquads(l, staff);
       ours = practiceSquad(l, l.userTeamId).length;
     });
-    setMessage(`Your squad now has ${ours} of 16 players.`);
+    setMessage(`Your squad now has ${ours} of ${places} players.`);
   };
   const candidates = squadCandidates(league).filter(
     (p) => !query || `${p.position} ${p.firstName} ${p.lastName}`.toLowerCase().includes(query.toLowerCase()),
@@ -215,7 +221,8 @@ export function PracticeSquad({ league }: { league: League }) {
         action={<TeamPicker league={league} value={teamId} onChange={setTeamId} id="squad-team" />}
       >
         <p>
-          <TeamLink team={league.teams[teamId]} full /> · Up to 16 players train with your team outside the main roster.
+          <TeamLink team={league.teams[teamId]} full /> · Up to 16 players
+          {places > 16 ? ', plus one International Pathway player,' : ''} train with your team outside the main roster.
           Use up to two for one game with a temporary call-up, or sign a player to the 53-man roster.
         </p>
         <p className="small muted">
@@ -225,7 +232,9 @@ export function PracticeSquad({ league }: { league: League }) {
         <div className="facts">
           <span className="fact">
             <span className="eyebrow">Players</span>
-            <b>{members.length}/16</b>
+            <b>
+              {members.length}/{places}
+            </b>
           </span>
           <span className="fact">
             <span className="eyebrow">Squad weekly pay</span>
@@ -259,9 +268,21 @@ export function PracticeSquad({ league }: { league: League }) {
             <b className={sheet.space < 0 ? 'tone-bad' : undefined}>{money(sheet.space)}</b>
           </span>
         </div>
+        {places > 16 && pathway.length > 0 && (
+          <p className="small">
+            Pathway players available for the international place:{' '}
+            {pathway.map((p, i) => (
+              <span key={p.id}>
+                {i > 0 && ', '}
+                <PlayerLink league={league} player={p} /> <OriginTag player={p} />
+              </span>
+            ))}
+          </p>
+        )}
         <details className="personnel-help">
           <summary>Player limits</summary>
           <p>You can carry up to 16 players. A full squad is optional.</p>
+          {places > 16 && <p>One more place is kept for an International Pathway player with no seasons of service.</p>}
           <p>
             Most players use a standard spot. More experienced players use special slots: {expanded}/10 used, including{' '}
             {veterans}/6 veteran slots.
@@ -310,7 +331,7 @@ export function PracticeSquad({ league }: { league: League }) {
             <span className="row">
               <button
                 className="btn"
-                disabled={!!window || members.length >= 16}
+                disabled={!!window || members.length >= places}
                 title={window ?? 'Your staff chooses affordable prospects using its scouting reports'}
                 onClick={() => runRound(true)}
               >
