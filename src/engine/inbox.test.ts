@@ -130,7 +130,10 @@ describe('inbox', () => {
   });
 
   it("passes on the doctor's word about our injured players, with his estimate", () => {
-    const hurt = league.inbox!.filter((m) => m.category === 'medical');
+    // The doctor's mail: the head coach's notes on who covers a short position file under medical too.
+    const hurt = league.inbox!.filter(
+      (m) => m.category === 'medical' && ['injury', 'cleared'].includes(mailSubject(m)!.kind),
+    );
     const out = teamPlayers(league, league.userTeamId).filter((p) => p.injury && p.injury.estimate[1] >= 1);
     expect(out.length).toBeGreaterThan(0);
     for (const p of out)
@@ -145,7 +148,7 @@ describe('inbox', () => {
   it('reads back what every message is about', () => {
     const kinds: Record<string, string[]> = {
       matchup: ['matchup', 'recap'],
-      medical: ['injury', 'cleared'],
+      medical: ['injury', 'cleared', 'covering', 'shortHanded'],
       awards: ['award'],
       trades: ['trade', 'deadline', 'market', 'marketRecap', 'advice'],
       league: ['race', 'news', 'leadership', 'gazette'],

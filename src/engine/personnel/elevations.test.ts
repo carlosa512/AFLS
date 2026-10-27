@@ -166,6 +166,7 @@ describe('temporary call-ups and durable history', () => {
     const p = player('QB');
     for (let week = 1; week <= 3; week++) {
       if (week > 1) nextGame(p, week);
+      delete p.injury; // a knock in one of these games isn't what this test is about
       playWith(p);
     }
     nextGame(p, 4);
