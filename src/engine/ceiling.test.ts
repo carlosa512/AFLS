@@ -8,7 +8,7 @@ import {
   settleFinished,
   type PeerTable,
 } from './ceiling';
-import { settleYear } from './development';
+import { CEILING_SWING, settleYear } from './development';
 import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { beginOffseason } from './offseason';
 import { allSeeds } from './season/playoffs';
@@ -128,6 +128,16 @@ describe('the lean', () => {
     const second = { ...copy(p), experience: 1 };
     const later = (potential: number) => ceilingLean(league, { ...second, potential }, league.season, new Map());
     expect(later(13) - later(16)).toBeCloseTo(0, 9);
+  });
+
+  it('a settle lifts a ceiling at most one swing past its lean, and can drop it further', () => {
+    let low = 0;
+    for (let i = 0; i < 2000; i++) {
+      const shift = ceilingShift(new Rng(`cap:${i}`), 0, 0.3);
+      expect(shift).toBeLessThanOrEqual(0.3 + CEILING_SWING[0] + 0.05);
+      if (shift < 0.3 - CEILING_SWING[0] - 0.05) low++;
+    }
+    expect(low).toBeGreaterThan(150);
   });
 
   it('high work ethic settles above low', () => {

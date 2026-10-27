@@ -65,9 +65,12 @@ function entryOvr(p: Player): number {
   return first === undefined ? overall(p.ratings, p.position) : startOvr(p, first);
 }
 
-/** The shift one settle draws: around `lean`, as wide as year `year`'s swing, to a tenth. */
+/** The shift one settle draws: around `lean`, as wide as year `year`'s swing, its rise capped, to a tenth. */
 export function ceilingShift(rng: Rng, year: number, lean: number): number {
-  return round1(rng.normal(lean, CEILING_SWING[year]));
+  // The league can make a player more than his scouts' read, but a settle lifts him at most one swing past his lean:
+  // the full upper tail made a superstar out of nowhere often enough to push the season's top receivers past the
+  // NFL's record (`npm run careers`, leaders). The downside keeps its whole tail: that is where busts come from.
+  return round1(Math.min(lean + CEILING_SWING[year], rng.normal(lean, CEILING_SWING[year])));
 }
 
 /** Everyone's `season` with enough of a line to compare, by position. Built once per settle pass. */
