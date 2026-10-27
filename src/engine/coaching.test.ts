@@ -9,6 +9,9 @@ import {
   promoteCoach,
   promotionFor,
   promotionProblem,
+  poachCoach,
+  poachProblem,
+  poachable,
   ROOM_OF,
   visionFit,
   CHAIRS,
@@ -836,6 +839,45 @@ describe('an owner and an empty coordinator chair', () => {
     if (dear) expect(coachMoveProblem(l, user, dear, 'hire', 1)).toMatch(/won’t leave the defense/);
     // Never for an assistant's chair.
     expect(ownerLeeway(l, user, { role: 'positionCoach', room: 'QB' }).amount).toBe(0);
+  });
+});
+
+describe('hiring a coach off another staff', () => {
+  it('takes him one rung up into an open chair, on the rules AI teams poach by', () => {
+    const l = offseason('user-poach');
+    l.phase = 'freeAgency';
+    const user = l.userTeamId;
+    l.teams[user].staffBudgetMult = 3;
+    const target = Object.values(l.coaches).find(
+      (c) =>
+        c.teamId !== null &&
+        c.teamId !== user &&
+        c.role === 'positionCoach' &&
+        promotionFor(c)?.role === 'defCoord' &&
+        !!c.career?.length &&
+        c.since !== l.season,
+    )!;
+    const from = target.teamId!;
+    // His chair above is taken on your staff until you open it.
+    expect(poachProblem(l, user, target)).toMatch(/holds that chair/);
+    releaseCoach(l, user, chairHolder(teamCoaches(l, user), { role: 'defCoord' })!.id);
+    expect(poachable(l, user)).toContain(target);
+    // Out of the window, never.
+    expect(poachProblem({ ...l, phase: 'draft' }, user, target)).toMatch(/re-sign window/);
+    // Never a man his team only just hired, nor one with no chair above his, nor your own.
+    expect(poachProblem(l, user, { ...target, since: l.season })).toMatch(/only just hired/);
+    const sc = Object.values(l.coaches).find((c) => c.teamId === from && c.role === 'strengthCoach')!;
+    expect(poachProblem(l, user, sc)).toMatch(/only leaves for a promotion/);
+    const own = teamCoaches(l, user).find((c) => c.role === 'positionCoach')!;
+    expect(poachProblem(l, user, own)).toMatch(/isn’t on another staff/);
+    expect(poachProblem(l, user, target)).toBeNull();
+    poachCoach(l, user, target.id, 2);
+    expect(target).toMatchObject({ teamId: user, role: 'defCoord' });
+    expect(target.room).toBeUndefined();
+    // His old room is open on their staff; they owe nothing and book no severance.
+    expect(teamCoaches(l, from)).not.toContain(target);
+    expect(teamCoaches(l, user)).toContain(target);
+    expect(l.teams[from].coachDead.some((d) => d.name.includes(target.lastName))).toBe(false);
   });
 });
 

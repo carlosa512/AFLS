@@ -675,11 +675,13 @@ export function moveOverspend(
   teamId: number,
   c: Coach,
   years: number,
-  move: StaffMove | 'replace' | 'promote',
+  move: StaffMove | 'replace' | 'promote' | 'poach',
 ): number {
-  if (move === 'promote')
+  if (move === 'promote' || move === 'poach')
     return (
-      coachAsk(league, asPromoted(league, c, promotionFor(c)!), years) - owedNow(league, c) - coachRoom(league, teamId)
+      coachAsk(league, asPromoted(league, c, promotionFor(c)!), years) -
+      (move === 'promote' ? owedNow(league, c) : 0) -
+      coachRoom(league, teamId)
     );
   const holder = move === 'replace' ? sitting(league, teamId, c) : null;
   return coachAsk(league, c, years) - coachRoom(league, teamId) - (holder ? freedBy(league, holder) : 0);
@@ -1038,6 +1040,43 @@ export function promotionProblem(league: League, teamId: number, c: Coach, years
   if (holder) return `${coachName(holder)} holds that chair: dismiss him first.`;
   return budget ? budgetProblem(league, teamId, chair, moveOverspend(league, teamId, c, years, 'promote')) : null;
 }
+
+/**
+ * Why you can't hire another staff's coach one rung up right now, or null (`budget` as in `coachMoveProblem`). The rules
+ * AI teams poach by (`risers`): only into the chair above his, in the window, never a man his team hired this year or
+ * one his owner has promised to keep. He leaves with no severance: he chose to go.
+ */
+export function poachProblem(league: League, teamId: number, c: Coach, years = 2, budget = true): string | null {
+  if (c.teamId === null || c.teamId === teamId) return 'He isn’t on another staff.';
+  const protectedCoach = ownerCoachProblem(league, c);
+  if (protectedCoach) return protectedCoach;
+  const recruitment = recruitmentProblem(league, teamId, c.teamId);
+  if (recruitment) return recruitment;
+  if (!staffWindowOpen(league)) return 'Coaching moves open in the re-sign window and free agency.';
+  const chair = promotionFor(c);
+  if (!chair) return 'Another staff’s coach only leaves for a promotion, and there’s no chair above his.';
+  if (!c.career?.length) return 'He needs a season in his chair first.';
+  if (c.since === league.season) return `${league.teams[c.teamId].abbrev} only just hired him.`;
+  if (years < 1 || years > maxYears(chair.role))
+    return `A ${COACH_ROLE_LABEL[chair.role].toLowerCase()} signs for 1–${maxYears(chair.role)} years.`;
+  const holder = teamCoaches(league, teamId).find((x) => sameChair(chairOf(x), chair) && !isCoachExpiring(league, x));
+  if (holder) return `${coachName(holder)} holds that chair: dismiss him first.`;
+  return budget ? budgetProblem(league, teamId, chair, moveOverspend(league, teamId, c, years, 'poach')) : null;
+}
+
+/** Hire another staff's coach into the open chair above his (`poachProblem`). His old chair opens on their staff. */
+export function poachCoach(league: League, teamId: number, coachId: number, years = 2): void {
+  const c = league.coaches[coachId];
+  const problem = poachProblem(league, teamId, c, years);
+  if (problem) throw new Error(problem);
+  promoteInto(league, teamId, c, years);
+}
+
+/** Other staffs' coaches you could hire one rung up now, budget aside: the user's view of what AI teams poach from. */
+export const poachable = (league: League, teamId: number): Coach[] =>
+  Object.values(league.coaches).filter(
+    (c) => c.teamId !== null && c.teamId !== teamId && !poachProblem(league, teamId, c, 2, false),
+  );
 
 /** Promote one of your coaches into the open chair above his: a new deal at that chair's going rate, and his old chair opens. */
 export function promoteCoach(league: League, teamId: number, coachId: number, years = 2): void {

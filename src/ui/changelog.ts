@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.9',
+    date: '2026-10-27',
+    title: 'Hire coaches off other staffs',
+    text:
+      'Like AI teams, you can now hire another team’s coach for the job one rung above his: a position coach as your ' +
+      'coordinator, a coordinator as your head coach. Offer the job from his profile, or tick "Include other staffs" ' +
+      'in the head coach and coordinator candidates. His team can’t block a promotion, but it only works in the ' +
+      're-sign window and free agency, and never for a man his team hired this year.',
+  },
+  {
     version: '0.2.8',
     date: '2026-10-27',
     title: 'No side of the ball left without a coach',
