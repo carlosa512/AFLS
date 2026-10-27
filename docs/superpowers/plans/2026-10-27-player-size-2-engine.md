@@ -32,11 +32,11 @@ check proves each lever moves its stat and totals hold.
 | Lever | Players | Gap (a − b, deviations) | Full ±2 at | Applied |
 | --- | --- | --- | --- | --- |
 | `contested` | receiver vs his defender | height, inches | 5 in | `pComplete += 0.012 × edge` inside `contested()`; `pInt` exponent `− 0.065 × edge` |
-| `press` | receiver vs defender, man, not deep | weight, lb | 30 lb | `sep += 0.5 × edge` |
+| `press` | receiver vs defender, man, not deep | weight, lb | 30 lb | `sep += edge` |
 | `edgeLength` | each EDGE vs the tackle across (RE–LT, LE–RT) | tackle height dev (negated), inches, × rusher speed factor `clamp((speed − 6) / 8, 0.5, 1.5)` | 4.4 in | per game: `pressureDelta += 0.5 × mean edge` |
 | `leverage` | each DT vs the guards and center (mean) | blocker height dev − DT height dev, inches (shorter wins) | 4.4 in | per game: `pressureDelta += 0.5 × mean edge` |
 | `mass` | OL mean weight dev vs DT+EDGE mean weight dev | lb | 30 lb | per game: `lineDelta += 0.5 × edge` (offense's view) |
-| `contact` | ball carrier vs tackler | weight, lb | 30 lb | runs: `pBreak += 0.015 × edge`; catches: `yacSkill += edge` |
+| `contact` | ball carrier vs tackler | weight, lb | 30 lb | runs: `pBreak += 0.03 × edge`; catches: `yacSkill += edge` |
 | `lanes` | QB alone | height dev, inches | 4 in | `rawAcc += edge` on medium and deep throws |
 
 Batted passes don't exist in the engine: `lanes` is accuracy only (the spec's batted balls are out of scope).
