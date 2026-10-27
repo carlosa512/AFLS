@@ -211,7 +211,7 @@ export function developPlayer(rng: Rng, player: Player, ctx: DevContext): void {
  * spring program, in camp, and across the season's weeks. They sum to 1. At 1/0/0/0 the whole year lands
  * in March, the game as it was: every number below is a dial walked away from that one step at a time.
  */
-export const RELEASE = { newYear: 0.6, program: 0.05, camp: 0.05, season: 0.3 };
+export const RELEASE = { newYear: 0.57, program: 0.05, camp: 0.05, season: 0.33 };
 
 /**
  * The inputs a year is rolled with. When the year is kept to land in steps, the coaching numbers are
