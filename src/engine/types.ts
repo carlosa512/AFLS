@@ -601,6 +601,8 @@ export interface Coach {
   interim?: boolean;
   /** An interim head coach promoted from a coordinator chair still runs it until the offseason. */
   actingAs?: 'offCoord' | 'defCoord';
+  /** A head coach runs a side whose coordinator chair is empty, unless his team switched it off for that side. */
+  coverOff?: ('offCoord' | 'defCoord')[];
   /** Observed interim takeovers survive dismissal, permanent hiring and retirement. */
   interimAppointments?: { season: number; teamId: number; week: number }[];
   /** A former player: his playing career is that player's record in `league.players`. */

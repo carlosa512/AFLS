@@ -72,6 +72,8 @@ import {
   TYPICAL,
   type Chair,
   coordinatorOf,
+  coveringHeadCoach,
+  setHeadCoachCover,
 } from '../../engine/coaching';
 import { kickCoaching } from '../../engine/match/lineup';
 import { coachRecord, formatRecord } from '../../engine/records';
@@ -389,6 +391,10 @@ const OWNER_YES: Partial<Record<OwnerReason, string[]>> = {
   newCoach: ['“The fans need a reason to believe. Bring him in.”', '“New era, new head coach. I’ll find the money.”'],
   bigMarket: ['“This city expects the best. Done.”', '“We can afford it. Make it happen.”'],
   stretch: ['“Fine, I’ll stretch it this once.”', '“Just this once. Don’t make it a habit.”'],
+  emptyChair: [
+    '“We can’t play without a coordinator. I’ll cover it, but only enough for that.”',
+    '“Fill the chair. I’ll find the money for the job, not for a star.”',
+  ],
 };
 const OWNER_NO: Record<OwnerReason | 'limit', string[]> = {
   assistant: [
@@ -404,6 +410,7 @@ const OWNER_NO: Record<OwnerReason | 'limit', string[]> = {
   newCoach: [],
   bigMarket: [],
   stretch: [],
+  emptyChair: [],
 };
 const pickLine = (lines: string[], seed: number) => lines[Math.abs(seed) % lines.length];
 
@@ -1073,7 +1080,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
 }
 
 /** An empty chair at another club: just that it's empty. */
-function TheirOpenChair({ chair }: { chair: Chair }) {
+function TheirOpenChair({ chair, cover }: { chair: Chair; cover: Coach | null }) {
   return (
     <li className="staff-card vacant coach-card">
       <div className="staff-head">
@@ -1082,9 +1089,18 @@ function TheirOpenChair({ chair }: { chair: Chair }) {
           <span className="muted small">{coachTitle(chair)}</span>
         </div>
       </div>
+      {cover && (
+        <p className="small staff-note">
+          Head coach <CoachLink c={cover} /> is running the {sideNoun(chair)} himself.
+        </p>
+      )}
     </li>
   );
 }
+const sideNoun = (chair: Chair) => (chair.role === 'offCoord' ? 'offense' : 'defense');
+/** The head coach covering an empty coordinator chair, if this is one. */
+const coverOf = (staff: readonly Coach[], chair: Chair): Coach | null =>
+  chair.role === 'offCoord' || chair.role === 'defCoord' ? coveringHeadCoach(staff, chair.role) : null;
 const mine = (league: League) => teamCoaches(league, league.userTeamId);
 
 /** The head coach still running the side of the ball he was promoted from: the chair isn't open, he's covering it. */
@@ -1130,6 +1146,9 @@ function OpenChair({
   leaving?: Coach;
   onFind: () => void;
 }) {
+  const side = chair.role === 'offCoord' || chair.role === 'defCoord' ? chair.role : null;
+  const hc = side ? chairHolder(staying, { role: 'headCoach' }) : null;
+  const covering = side ? coveringHeadCoach(staying, side) : null;
   return (
     <li className="staff-card vacant coach-card">
       <div className="staff-head">
@@ -1144,8 +1163,24 @@ function OpenChair({
             <CoachLink c={leaving} /> leaves.{' '}
           </>
         )}
+        {covering && (
+          <>
+            Head coach <CoachLink c={covering} /> runs the {sideNoun(chair)} himself, teaching it a little below his own
+            level.{' '}
+          </>
+        )}
         {vacancyText(staying, chair)}
       </p>
+      {side && hc && (
+        <label className="small cover-switch">
+          <input
+            type="checkbox"
+            checked={!!covering}
+            onChange={(e) => store.mutate((l) => setHeadCoachCover(l, l.userTeamId, side, e.target.checked))}
+          />{' '}
+          Head coach runs the {sideNoun(chair)}
+        </label>
+      )}
       <div className="staff-actions">
         <button className="btn btn-sm" onClick={onFind}>
           Find {withArticle(chairNoun(chair))}
@@ -1271,7 +1306,10 @@ function RoomRow({
                   <tr key={p.source}>
                     <td>
                       {partLabel(p)}
-                      <span className="muted small part-who">{p.coach ? <CoachLink c={p.coach} /> : 'Vacant'}</span>
+                      <span className="muted small part-who">
+                        {p.coach ? <CoachLink c={p.coach} /> : 'Vacant'}
+                        {p.covering && ' (head coach, covering)'}
+                      </span>
                     </td>
                     <td className={`num ${growthTone(p.growth)}`}>{signedPct(p.growth)}</td>
                     <td className={`num ${agingTone(p.aging)}`}>{signedPct(p.aging)}</td>
@@ -1838,7 +1876,7 @@ export function CoachesScreen({ league }: { league: League }) {
                           ? [<Member key={holder.id} league={league} c={holder} open={false} />]
                           : acting
                             ? [<ActingChair key={`acting-${key}`} chair={ch} hc={acting} />]
-                            : [<TheirOpenChair key={`open-${key}`} chair={ch} />];
+                            : [<TheirOpenChair key={`open-${key}`} chair={ch} cover={coverOf(theirs, ch)} />];
                       }
                       const cards = seated(ch).map((c) => (
                         <Member key={c.id} league={league} c={c} open={open} outlook={forecast.get(c.id)} />

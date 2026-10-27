@@ -209,6 +209,34 @@ export function coordinatorOf(coaches: readonly Coach[], role: 'offCoord' | 'def
   return chairHolder(coaches, { role }) ?? coaches.find((c) => c.role === 'headCoach' && c.actingAs === role) ?? null;
 }
 
+/** Rating points a head coach gives up running a side himself: he has a whole team to run as well. */
+const COVER_COST = 3;
+
+/**
+ * The head coach running a side whose coordinator chair is empty, as his team has it by default, or null (the chair
+ * is filled, there's no head coach, or the switch is off). Hiring into the chair ends the cover (`signCoach`).
+ */
+export function coveringHeadCoach(coaches: readonly Coach[], role: 'offCoord' | 'defCoord'): Coach | null {
+  if (coordinatorOf(coaches, role)) return null;
+  const hc = chairHolder(coaches, { role: 'headCoach' });
+  return hc && !hc.coverOff?.includes(role) ? hc : null;
+}
+
+/** Who runs a side of the ball: its coordinator, else the head coach covering for him. */
+export const sideCoach = (coaches: readonly Coach[], role: 'offCoord' | 'defCoord'): Coach | null =>
+  coordinatorOf(coaches, role) ?? coveringHeadCoach(coaches, role);
+
+/** Turn the head coach's cover of an empty coordinator chair on or off (on by default). */
+export function setHeadCoachCover(league: League, teamId: number, role: 'offCoord' | 'defCoord', on: boolean): void {
+  const hc = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
+  if (!hc) return;
+  touch();
+  const off = (hc.coverOff ?? []).filter((r) => r !== role);
+  if (!on) off.push(role);
+  if (off.length) hc.coverOff = off;
+  else delete hc.coverOff;
+}
+
 /** Which chair each source is for a player at this position (null: nobody covers him from there). */
 function sourceChair(source: Source, position: Position): Chair | null {
   if (source === 'headCoach') return { role: 'headCoach' };
@@ -226,6 +254,8 @@ export interface Contribution {
   source: Source;
   chair: Chair;
   coach: Coach | null;
+  /** The head coach, running this side because its coordinator chair is empty (`coveringHeadCoach`). */
+  covering?: boolean;
   /** Share of each blend this coach carries for the player (0 when he has no say). */
   weight: Record<'growth' | 'body' | 'craft', number>;
   /** His part of the growth and decline changes (fractions: +0.05 = 5% faster growth). */
@@ -241,19 +271,19 @@ export interface Contribution {
  * `DECLINE_RANGE`): past them, more rating buys nothing.
  */
 export function coachingParts(coaches: readonly Coach[], position: Position): Contribution[] {
-  const parts: { source: Source; chair: Chair; coach: Coach | null }[] = [];
+  const parts: { source: Source; chair: Chair; coach: Coach | null; covering?: boolean }[] = [];
   for (const source of SOURCES) {
     const chair = sourceChair(source, position);
-    if (chair)
-      parts.push({
-        source,
-        chair,
-        coach:
-          chair.role === 'offCoord' || chair.role === 'defCoord'
-            ? coordinatorOf(coaches, chair.role)
-            : chairHolder(coaches, chair),
-      });
+    if (!chair) continue;
+    if (chair.role === 'offCoord' || chair.role === 'defCoord') {
+      const seated = coordinatorOf(coaches, chair.role);
+      const cover = seated ? null : coveringHeadCoach(coaches, chair.role);
+      parts.push(cover ? { source, chair, coach: cover, covering: true } : { source, chair, coach: seated });
+    } else parts.push({ source, chair, coach: chairHolder(coaches, chair) });
   }
+  // A covering head coach teaches the side at a discount, never worse than the empty chair he fills.
+  const rated = (p: (typeof parts)[number], k: 'youth' | 'veterans') =>
+    !p.coach ? VACANT : p.covering ? Math.max(VACANT, p.coach[k] - COVER_COST) : p.coach[k];
   const totals = { growth: 0, body: 0, craft: 0 };
   for (const p of parts) for (const k of ['growth', 'body', 'craft'] as const) totals[k] += INFLUENCE[k][p.source];
   return parts.map((p) => {
@@ -262,8 +292,8 @@ export function coachingParts(coaches: readonly Coach[], position: Position): Co
       body: INFLUENCE.body[p.source] / totals.body,
       craft: INFLUENCE.craft[p.source] / totals.craft,
     };
-    const youth = p.coach?.youth ?? VACANT;
-    const veterans = p.coach?.veterans ?? VACANT;
+    const youth = rated(p, 'youth');
+    const veterans = rated(p, 'veterans');
     return {
       ...p,
       weight: w,
@@ -358,25 +388,30 @@ const NO_STYLE: CallerStyle = { passLean: 0, fourthDown: 0 };
 
 /**
  * The offensive coordinator calls the plays and the head coach decides fourth downs: one owner per
- * tendency, so what a card says is what the game does. An empty chair calls a league-average game.
+ * tendency, so what a card says is what the game does. A head coach covering an empty chair calls his own vision's
+ * lean; an empty chair nobody covers calls a league-average game.
  */
 export function callerStyle(league: League, teamId: number): CallerStyle {
   if (!league.coaches) return NO_STYLE;
   const staff = teamCoaches(league, teamId);
+  const cover = coveringHeadCoach(staff, 'offCoord');
   return {
-    passLean: coordinatorOf(staff, 'offCoord')?.style?.passLean ?? 0,
+    passLean: cover ? headCoachVision(league, cover).pass : (coordinatorOf(staff, 'offCoord')?.style?.passLean ?? 0),
     fourthDown: chairHolder(staff, { role: 'headCoach' })?.style?.fourthDown ?? 0,
   };
 }
 
 /**
  * A team's schemes: the offensive coordinator's offense, the defensive coordinator's front and coverage.
- * An empty chair runs the league-average base (Pro Style, a 4-3 with no coverage lean).
+ * A head coach covering an empty chair runs his own vision there (`headCoachVision`): his offense if he has one, the
+ * defense he wants. An empty chair nobody covers runs the league-average base (Pro Style, a 4-3 with no coverage lean).
  */
 export function teamScheme(league: League, teamId: number): TeamScheme {
   const staff = league.coaches ? teamCoaches(league, teamId) : [];
-  const oc = coordinatorOf(staff, 'offCoord')?.scheme;
-  const dc = coordinatorOf(staff, 'defCoord')?.scheme;
+  const ocCover = coveringHeadCoach(staff, 'offCoord');
+  const dcCover = coveringHeadCoach(staff, 'defCoord');
+  const oc = ocCover ? { offense: ocCover.scheme?.offense } : coordinatorOf(staff, 'offCoord')?.scheme;
+  const dc = dcCover ? headCoachVision(league, dcCover).defense : coordinatorOf(staff, 'defCoord')?.scheme;
   return {
     offense: oc?.offense ? OFF_SCHEMES[oc.offense] : BASE_OFFENSE,
     front: FRONTS[dc?.front ?? 'fourThree'],
@@ -563,7 +598,8 @@ export type OwnerReason =
   | 'winNow'
   | 'newCoach'
   | 'bigMarket'
-  | 'stretch';
+  | 'stretch'
+  | 'emptyChair';
 
 /** What an owner will add past the coaching budget for one chair this year ($K), and why. */
 export interface OwnerStance {
@@ -580,6 +616,30 @@ export interface OwnerStance {
  * never for an assistant and never two years running. AI owners and yours answer alike.
  */
 export function ownerLeeway(league: League, teamId: number, chair: Chair): OwnerStance {
+  const stance = usualLeeway(league, teamId, chair);
+  const gap = emptyChairGap(league, teamId, chair);
+  if (gap <= stance.amount) return stance;
+  const side = chair.role === 'offCoord' ? 'offense' : 'defense';
+  return { amount: gap, reason: 'emptyChair', why: `he won’t leave the ${side} without a coordinator` };
+}
+
+/**
+ * An empty coordinator chair the budget can't fill: what the cheapest man on the market would take past the room
+ * left. Whatever else he thinks of the budget, no owner leaves a side of the ball without a coordinator, so a team
+ * can always hire someone (not anyone). Zero for any other chair, a filled one, or when the room covers it.
+ */
+function emptyChairGap(league: League, teamId: number, chair: Chair): number {
+  if (chair.role !== 'offCoord' && chair.role !== 'defCoord') return 0;
+  const staff = teamCoaches(league, teamId);
+  const seated = coordinatorOf(staff, chair.role);
+  if (seated && !isCoachExpiring(league, seated)) return 0;
+  const asks = coachMarket(league)
+    .filter((c) => c.role === chair.role)
+    .map((c) => coachAsk(league, c, 1));
+  return asks.length ? Math.max(0, Math.min(...asks) - coachRoom(league, teamId)) : 0;
+}
+
+function usualLeeway(league: League, teamId: number, chair: Chair): OwnerStance {
   const team = league.teams[teamId];
   const no = (reason: OwnerReason, why: string): OwnerStance => ({ amount: 0, reason, why });
   if (!LEADERSHIP.has(chair.role))
@@ -798,9 +858,14 @@ function signCoach(league: League, teamId: number, c: Coach, years: number): voi
     delete c.interim;
     delete c.actingAs;
   }
-  // A coordinator hired into a chair the interim head coach was covering takes it over.
+  // A coordinator hired into a chair the head coach was covering takes it over; the next vacancy starts covered again.
   if (c.role === 'offCoord' || c.role === 'defCoord')
-    for (const hc of teamCoaches(league, teamId)) if (hc.actingAs === c.role) delete hc.actingAs;
+    for (const hc of teamCoaches(league, teamId)) {
+      if (hc.actingAs === c.role) delete hc.actingAs;
+      const off = hc.coverOff?.filter((r) => r !== c.role);
+      if (off?.length) hc.coverOff = off;
+      else delete hc.coverOff;
+    }
 }
 
 /**

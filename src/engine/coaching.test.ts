@@ -19,6 +19,8 @@ import {
   coachingFrom,
   coachingParts,
   coordinatorOf,
+  coveringHeadCoach,
+  setHeadCoachCover,
   unpaidChairs,
   installInterimHeadCoach,
   resolveInterimHeadCoach,
@@ -742,12 +744,102 @@ describe('play-calling style', () => {
     hc.style = { fourthDown: 0.6 };
     oc.style = { passLean: 0.5 };
     expect(callerStyle(l, team.id)).toEqual({ passLean: 0.5, fourthDown: 0.6 });
-    // Without a coordinator the offense calls a league-average game.
+    // Without a coordinator the head coach calls his own vision's lean; with his cover switched off, a
+    // league-average game.
     delete l.coaches[oc.id];
-    expect(callerStyle(copy(l), team.id)).toEqual({ passLean: 0, fourthDown: 0.6 });
+    const empty = copy(l);
+    expect(callerStyle(empty, team.id)).toEqual({ passLean: headCoachVision(empty, hc).pass, fourthDown: 0.6 });
+    empty.coaches[hc.id].coverOff = ['offCoord'];
+    expect(callerStyle(copy(empty), team.id)).toEqual({ passLean: 0, fourthDown: 0.6 });
     expect(chairHolder(teamCoaches(l, team.id), { role: 'defCoord' })!.style).toBeUndefined();
   });
+});
 
+describe('a head coach covering an empty coordinator chair', () => {
+  it('teaches the side a little below his level, never worse than the empty chair, and only while switched on', () => {
+    const noDC = (hc: Partial<Coach>) => staffOf(TYPICAL, { headCoach: hc }).filter((c) => c.role !== 'defCoord');
+    const covered = coachingFrom(noDC({ youth: 16, veterans: 16 }), 'LB');
+    const off = coachingFrom(noDC({ youth: 16, veterans: 16, coverOff: ['defCoord'] }), 'LB');
+    expect(covered.rate).toBeGreaterThan(off.rate);
+    expect(covered.decline.technical).toBeLessThan(off.decline.technical);
+    // He counts at his rating less three: a 16 covering beats the empty chair (6), short of a 16 sitting in it.
+    const seated = coachingFrom(staffOf(TYPICAL, { headCoach: { youth: 16 }, defCoord: { youth: 16 } }), 'LB');
+    expect(covered.rate).toBeLessThan(seated.rate);
+    const part = coachingParts(noDC({ youth: 16, veterans: 16 }), 'LB').find((p) => p.source === 'coordinator')!;
+    expect(part).toMatchObject({ covering: true });
+    // A weak head coach covering is no worse than nobody.
+    const weak = (coverOff?: ('offCoord' | 'defCoord')[]) =>
+      coachingParts(noDC({ youth: 5, veterans: 5, coverOff }), 'LB').find((p) => p.source === 'coordinator')!;
+    expect(weak().growth).toBeCloseTo(weak(['defCoord']).growth, 10);
+    // He never covers the other side's players, nor a filled chair.
+    expect(coachingFrom(noDC({ youth: 16, veterans: 16 }), 'WR')).toEqual(
+      coachingFrom(noDC({ youth: 16, veterans: 16, coverOff: ['defCoord'] }), 'WR'),
+    );
+  });
+
+  it('runs the defense he wants, and hiring into the chair ends the cover and resets the switch', () => {
+    const l = offseason('hc-cover');
+    l.phase = 'freeAgency';
+    const user = l.userTeamId;
+    const hc = chairHolder(teamCoaches(l, user), { role: 'headCoach' })!;
+    releaseCoach(l, user, chairHolder(teamCoaches(l, user), { role: 'defCoord' })!.id);
+    expect(coveringHeadCoach(teamCoaches(l, user), 'defCoord')).toBe(hc);
+    const v = headCoachVision(l, hc);
+    expect(teamScheme(l, user).front).toBe(FRONTS[v.defense.front ?? 'fourThree']);
+    setHeadCoachCover(l, user, 'defCoord', false);
+    expect(coveringHeadCoach(teamCoaches(l, user), 'defCoord')).toBeNull();
+    expect(teamScheme(l, user).front).toBe(FRONTS.fourThree);
+    setHeadCoachCover(l, user, 'defCoord', true);
+    expect(hc.coverOff).toBeUndefined();
+    setHeadCoachCover(l, user, 'defCoord', false);
+    // The AI's chair-filling still sees the chair as open: the cover is no reason not to hire.
+    expect(unpaidChairs(l, user, { role: 'headCoach' }).some((ch) => ch.role === 'defCoord')).toBe(true);
+    l.teams[user].staffBudgetMult = 3;
+    const pick = coachMarket(l).find((c) => c.role === 'defCoord')!;
+    hireCoach(l, user, pick.id, 1);
+    expect(coveringHeadCoach(teamCoaches(l, user), 'defCoord')).toBeNull();
+    expect(hc.coverOff).toBeUndefined();
+  });
+});
+
+describe('an owner and an empty coordinator chair', () => {
+  it('pays what the cheapest coordinator asks past the room, even after a losing season, but never for an upgrade', () => {
+    const l = offseason('owner-empty-chair');
+    l.phase = 'freeAgency';
+    const user = l.userTeamId;
+    const last = l.history.find((h) => h.season === l.season - 1)!;
+    last.records[user] = { w: 4, l: 13, t: 0 };
+    if (last.playoffs) delete last.playoffs[user];
+    l.teams[user].coachOverspent = l.season - 1;
+    const dc = chairHolder(teamCoaches(l, user), { role: 'defCoord' })!;
+    if (isCoachExpiring(l, dc)) dc.contract!.through = l.season;
+    const team = l.teams[user];
+    const setRoom = (room: number) => {
+      team.coachDead = team.coachDead.filter((d) => d.name !== 'test');
+      team.coachDead.push({ season: l.season, amount: coachRoom(l, user) - room, name: 'test' });
+    };
+    // A filled chair: the usual rules, and after a losing season and last year's overspend, nothing.
+    setRoom(0);
+    expect(ownerLeeway(l, user, { role: 'defCoord' }).amount).toBe(0);
+    releaseCoach(l, user, dc.id);
+    setRoom(0);
+    const cheapest = Math.min(
+      ...coachMarket(l)
+        .filter((c) => c.role === 'defCoord')
+        .map((c) => coachAsk(l, c, 1)),
+    );
+    expect(ownerLeeway(l, user, { role: 'defCoord' })).toMatchObject({ amount: cheapest, reason: 'emptyChair' });
+    const pick = coachMarket(l).find((c) => c.role === 'defCoord' && coachAsk(l, c, 1) === cheapest)!;
+    expect(coachMoveProblem(l, user, pick, 'hire', 1)).toBeNull();
+    // Not a star: a dearer man is still over what he'll add.
+    const dear = coachMarket(l).find((c) => c.role === 'defCoord' && coachAsk(l, c, 1) > cheapest + 100);
+    if (dear) expect(coachMoveProblem(l, user, dear, 'hire', 1)).toMatch(/won’t leave the defense/);
+    // Never for an assistant's chair.
+    expect(ownerLeeway(l, user, { role: 'positionCoach', room: 'QB' }).amount).toBe(0);
+  });
+});
+
+describe('play-calling style on the field', () => {
   it('changes the mix in ordinary situations, never the end of a half or a game', () => {
     const s: Situation = {
       quarter: 1,

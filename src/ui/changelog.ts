@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.8',
+    date: '2026-10-27',
+    title: 'No side of the ball left without a coach',
+    text:
+      'When your offensive or defensive coordinator chair is empty, your head coach now runs that side himself: his ' +
+      'own scheme, and teaching a little below his usual level. A switch on the open chair turns it off. And your ' +
+      'owner will always find enough to hire the cheapest coordinator on the market, even after a losing season, ' +
+      'so a tight budget can no longer leave you stuck with nobody.',
+  },
+  {
     version: '0.2.7',
     date: '2026-10-27',
     title: 'Trade checks test every deal on its merits',
