@@ -3,6 +3,7 @@
  * from last season's standings and playoff exits, AI boards that blend talent, position
  * value and need, and slotted rookie contracts.
  */
+import { pathwayClass } from './arrivals';
 import { bandForRank, collegeOrigin, filmScale } from '../origin';
 import { recordRatings } from '../development';
 import { logTransaction } from '../finance/cap';
@@ -267,13 +268,15 @@ export function reachOrSteal(d: { pick: number; rank?: number }): 'reach' | 'ste
   return gap >= 12 ? 'reach' : gap <= -12 ? 'steal' : null;
 }
 
-/** Undrafted prospects join the free-agent pool; the next far-future draft's picks are created. */
+/** Undrafted prospects and the Pathway class join the free-agent pool; the next far-future draft's picks are created. */
 export function finishDraft(league: League): void {
   for (const id of league.draftClass) {
     const p = league.players[id];
     if (p && p.teamId === null) delete p.scouting;
   }
   league.draftClass = [];
+  // The Pathway class signs after its pro day, with the undrafted.
+  pathwayClass(league);
   if (!league.draftPicks.some((p) => p.season === league.season + MAX_FUTURE_DRAFT_YEARS))
     createDraftPicks(league, league.season + MAX_FUTURE_DRAFT_YEARS);
   league.draftPicks = league.draftPicks.filter((p) => p.season > league.season - 2);
