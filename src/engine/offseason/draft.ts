@@ -34,7 +34,7 @@ export const RAW = 0.75;
  * Room to grow on top of that: the hype lean (`ceiling.ts`) takes back the biggest projections, and this gives the
  * class's talent back, so the league's starters hold (`npm run careers`).
  */
-export const HYPE_ROOM = 0.6;
+export const HYPE_ROOM = 0.9;
 /** How far the league consensus sits from the truth (sd of its grade and of its ceiling). */
 export const CONSENSUS_SD = { grade: 1, ceiling: 1.4 };
 
