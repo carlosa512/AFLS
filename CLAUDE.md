@@ -169,7 +169,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     the same two draws the flat rolls cost), `sizeZ` (the only size z-score), the matchup edges the engine adds where
     size decides (`sizeEdge`: contested balls, the jam, a passer's lanes, contact; `rushSizeEdge` and `massEdge` in
     the trenches; each in rating points, capped at ±2, zero between medians) and the rare gem (`Player.playsBig`, from
-    `rollGem`: an outlier who loses half of what his build costs). Spec: `docs/superpowers/specs/2026-10-27-player-size-design.md`
+    `rollGem`: an outlier who loses half of what his build costs). Size on screens and in the AI: `buildNote` (the scout
+    report's sentence on an outlier build), `spotNotes` in `roster.ts`, `heightMismatch` in the opposition report,
+    `sizeBias` in `gmTraits.ts` on the draft board. Spec: `docs/superpowers/specs/2026-10-27-player-size-design.md`
   - `identity.ts` names for new people (players by position, staff by chair, referees): a heritage drawn
     from `data/heritage.ts`, then names from `data/names.ts` for that heritage and generation; scouts and
     medics can be women (drawn with the name). Costs the caller's stream exactly two draws. Heritage is

@@ -80,3 +80,11 @@ export function generateGm(rng: Rng): GmTraits {
     futureDiscount: clamp(j(a.futureDiscount), 0.15, 0.4),
   };
 }
+
+/**
+ * How much a GM marks an undersized prospect down (0: he trusts the tape; near 1: he wants measurables). Drawn from
+ * his own stream, so it follows the person between jobs without being stored, and adding it moved no other draw.
+ */
+export function sizeBias(gmId: number): number {
+  return new Rng(`size-bias:${gmId}`).next();
+}

@@ -1,3 +1,4 @@
+import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
 import { adviceFor, adviceMoment } from './directorAdvice';
@@ -1052,6 +1053,29 @@ const CATCH: Record<string, string> = {
 const EVEN_UNITS = 0.12;
 
 /**
+ * Their receiver with the most height on the corner across from him (X on our first corner, Z on the second, the slot
+ * on the nickel), when it's enough to decide a contested ball: heights are public, so this needs no scouting.
+ */
+export function heightMismatch(league: League, opp: Team): string | null {
+  const starters = (team: Team, pos: Position) =>
+    team.depthChart[pos]
+      .slice(0, 3)
+      .map((id) => league.players[id])
+      .filter((p): p is Player => !!p);
+  const corners = starters(league.teams[league.userTeamId], 'CB');
+  let best: { wr: Player; cb: Player; spot: string; edge: number } | null = null;
+  starters(opp, 'WR').forEach((wr, i) => {
+    const cb = corners[i];
+    const edge = cb ? sizeEdge(wr, 'contested', cb) : 0;
+    if (cb && edge >= 1.5 && (!best || edge > best.edge)) best = { wr, cb, spot: ['X', 'Z', 'slot'][i], edge };
+  });
+  if (!best) return null;
+  const { wr, cb, spot } = best as { wr: Player; cb: Player; spot: string };
+  const inches = wr.heightIn - cb.heightIn;
+  return `Their ${spot} receiver ${fullName(wr)} has ${inches} inch${inches === 1 ? '' : 'es'} on ${fullName(cb)}: a contested ball between them is his to win.`;
+}
+
+/**
  * The head coach's opposition report for this week's game: a briefing on our scouts' read of their
  * starters. Where they look soft and what that opens up, their best unit and what it costs us,
  * said with the confidence the read allows: decisive when we know them, qualified when we don't.
@@ -1079,6 +1103,7 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
     (known ? '' : " We haven't seen much of them yet.");
   const stakes = matchupStakes(league, opp.id);
   const coaching = coachAdviceObservation(league);
+  const mismatch = heightMismatch(league, opp);
   return [
     {
       id,
@@ -1099,7 +1124,7 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
           }
         : {}),
       subject: stakes?.subject ?? `Opposition report: ${teamName(opp)}`,
-      body: `${opener} ${stakes?.body ?? ''}${read}${coaching ? `\n\n${coaching.text}` : ''}`,
+      body: `${opener} ${stakes?.body ?? ''}${read}${mismatch ? `\n\n${mismatch}` : ''}${coaching ? `\n\n${coaching.text}` : ''}`,
       actions: [
         { kind: 'team', teamId: opp.id },
         ...(coaching

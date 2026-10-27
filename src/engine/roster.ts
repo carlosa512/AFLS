@@ -316,3 +316,28 @@ export function editPlayerIdentity(league: League, playerId: number, edit: Playe
   p.lastName = lastName;
   p.jersey = edit.jersey;
 }
+
+/**
+ * The head coach's word on a hand-sorted chart (the screen names the player) where a starter's build costs him at his spot: a small corner
+ * outside, a short tackle, a light nose. Nothing while auto-sort lines them up, and only past a point of edge.
+ */
+export function spotNotes(league: League, teamId: number): { playerId: number; text: string }[] {
+  const team = league.teams[teamId];
+  if (team.autoDepth) return [];
+  const at = (pos: Position) => team.depthChart[pos].map((id) => league.players[id]).filter((p): p is Player => !!p);
+  const out: { playerId: number; text: string }[] = [];
+  for (const p of at('CB').slice(0, 2))
+    if (sizeEdge(p, 'contested', typicalAt('WR')) <= -1)
+      out.push({ playerId: p.id, text: "is giving up height outside; he's a nickel." });
+  const ol = at('OL');
+  for (const p of [ol[0], ol[4]])
+    if (p && sizeEdge(typicalAt('EDGE'), 'edgeLength', p) >= 1)
+      out.push({ playerId: p.id, text: "is short for tackle; he's a guard." });
+  const [dt, nose] = at('DT');
+  if (dt && nose && dt.weightLb - nose.weightLb >= 25)
+    out.push({
+      playerId: nose.id,
+      text: 'is light to play over the nose; the heavier tackle has the mass for it.',
+    });
+  return out;
+}

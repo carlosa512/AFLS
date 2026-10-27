@@ -22,7 +22,8 @@ import {
   relevantAttributes,
   type AttributeGroup,
 } from '../engine/attributes';
-import { overall, OVR_WEIGHTS } from '../engine/positions';
+import { overall, OVR_WEIGHTS, POSITION_NAMES } from '../engine/positions';
+import { isOutlier, sizeZ } from '../engine/size';
 import { repsSoFar } from '../engine/development';
 import { fitContests, fitGrade, spotsFor, type FitGrade, type TeamScheme } from '../engine/schemes';
 import {
@@ -729,7 +730,7 @@ export function CombinePanel({ player: p }: { player: Player }) {
         </span>
         <span className="fact">
           <span className="eyebrow">Weight</span>
-          <b className="num">{p.weightLb}</b>
+          <b className="num">{p.weightLb}</b> <SizeTag player={p} />
         </span>
         <span className="fact">
           <span className="eyebrow">Arms</span>
@@ -836,4 +837,16 @@ export function rosterFit(
     }
   }
   return { good, poor, asked };
+}
+
+/** "Size outlier" beside a build out in a tail at his position, and which way: a public measurement, said in words. */
+export function SizeTag({ player }: { player: Player }) {
+  if (!isOutlier(player)) return null;
+  const z = sizeZ(player);
+  const way = Math.abs(z.h) >= Math.abs(z.w) ? (z.h < 0 ? 'Short' : 'Tall') : z.w < 0 ? 'Light' : 'Heavy';
+  return (
+    <span className="tag-pill" title={`${way} for a ${POSITION_NAMES[player.position].toLowerCase()}`}>
+      Size outlier
+    </span>
+  );
 }
