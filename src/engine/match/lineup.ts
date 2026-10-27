@@ -312,7 +312,8 @@ function assemble(
     personnel === '12'
       ? olRun * 0.74 + skill(tes[0], 'runBlocking') * 0.14 + skill(te2, 'runBlocking') * 0.12
       : personnel === '10'
-        ? olRun * 0.9 + skill(slot, 'runBlocking') * 0.1
+        ? // Four wide down to two receivers has no slot to block: the line carries the run alone.
+          olRun * 0.9 + (slot ? skill(slot, 'runBlocking') : olRun) * 0.1
         : olRun * 0.8 + skill(tes[0], 'runBlocking') * 0.2;
   const coverRun = scheme.coverage?.runAdj ?? 0;
 
