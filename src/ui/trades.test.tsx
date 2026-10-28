@@ -6,7 +6,7 @@ import { deskState, type Advice } from '../engine/trade';
 import { emptyMarket } from '../engine/trade/execute';
 import { teamPlayers } from '../engine/roster';
 import type { TradeOffer } from '../engine/types';
-import { OfferCard, StaffStrip, talksWords, WantsPills } from './offers';
+import { BlockPanel, OfferCard, StaffStrip, talksWords, WantsPills } from './offers';
 import { ASKS, tradeContext } from '../engine/trade';
 import { AssetList, TradeDesk } from './screens/Trades';
 import { TabBoundary } from './boundary';
@@ -128,5 +128,41 @@ describe('the trade partner card', () => {
     expect(talksWords(l, rival.id)).toBe('Nearly done talking this week');
     l.market.talks[rival.id].asks = ASKS;
     expect(talksWords(l, rival.id)).toBe("We're done talking this week.");
+  });
+});
+
+describe('your block', () => {
+  it('opens with cards for players you listed or locked, never a practice squad player', () => {
+    const l = createLeague({ seed: 'block-cards', personnel: true });
+    l.market = emptyMarket();
+    expect(renderToStaticMarkup(<BlockPanel league={l} />)).not.toContain('office-card');
+    const listed = teamPlayers(l, l.userTeamId).find((p) => p.contract)!;
+    const [squad] = practiceSquad(l, l.userTeamId);
+    l.market.status = { [listed.id]: 'listed', [squad.id]: 'listed' };
+    let html = renderToStaticMarkup(<BlockPanel league={l} />);
+    const card = html.slice(html.indexOf('card-row'), html.indexOf('Sort your block'));
+    expect(card).toContain(listed.lastName);
+    expect(html.match(/office-card/g)).toHaveLength(1);
+    expect(html).not.toContain('team asking');
+    const rival = l.teams.find((t) => t.id !== l.userTeamId)!;
+    l.market.offers.push({
+      id: 1,
+      teamId: rival.id,
+      sides: [
+        { teamId: rival.id, players: [], picks: [] },
+        { teamId: l.userTeamId, players: [listed.id], picks: [] },
+      ],
+      kind: 'buy',
+      reason: 'bid',
+      season: l.season,
+      phase: l.phase,
+      week: l.week,
+      moment: 0,
+      status: 'declined',
+      patience: 2,
+      worth: 100,
+    });
+    html = renderToStaticMarkup(<BlockPanel league={l} />);
+    expect(html).toContain('1 team asking');
   });
 });

@@ -10,6 +10,7 @@ import { teamPlayers } from '../engine/roster';
 import {
   acceptOffer,
   answerEnquiry,
+  askedAbout,
   askPrice,
   dealAdvice,
   declineOffer,
@@ -39,7 +40,7 @@ import { LinkedText, nameIndex } from './moves';
 import { useNav } from './App';
 import { Panel, PlayerAvatar, PlayerLink, SortSeg, sortRows, TeamChip, useSort } from './components';
 import { money, playerName } from './format';
-import { Pill, type PillTone } from './office';
+import { CardRow, OfficeCard, Pill, type PillTone } from './office';
 import { Ovr, seenOvr } from './scouting';
 import { store } from './store';
 import { tradeDesk } from './tradeDesk';
@@ -493,6 +494,13 @@ export function BlockPanel({ league }: { league: League }) {
     });
     setNote(message);
   };
+  // The ones you've made a call on, as cards: on the block first, then untouchable.
+  const status = league.market?.status ?? {};
+  const marked = [
+    ...players.filter((p) => status[p.id] === 'listed'),
+    ...players.filter((p) => status[p.id] === 'untouchable'),
+  ];
+  const asked = askedAbout(league);
   return (
     <Panel title={<h2>Your block</h2>}>
       <p className="muted small">
@@ -503,6 +511,33 @@ export function BlockPanel({ league }: { league: League }) {
         <p className="callout" role="status">
           {note}
         </p>
+      )}
+      {marked.length > 0 && (
+        <CardRow label="Listed and untouchable">
+          {marked.map((p) => {
+            const blocked = playerTradeBlocker(league, p);
+            const n = [...asked.values()].filter((ids) => ids.includes(p.id)).length;
+            return (
+              <OfficeCard key={p.id}>
+                <PlayerLink league={league} player={p} avatar={28} />
+                <span className="row" style={{ gap: 6 }}>
+                  <span className="muted small">{p.position}</span>
+                  <Ovr league={league} player={p} />
+                  {n > 0 && <Pill tone="good">{n === 1 ? '1 team asking' : `${n} teams asking`}</Pill>}
+                </span>
+                <StatusPicker league={league} player={p} />
+                <button
+                  className="btn btn-sm"
+                  disabled={!!blocked || league.market?.shopped[p.id] === league.market?.moment}
+                  title={blocked ?? undefined}
+                  onClick={() => shop(p)}
+                >
+                  Shop
+                </button>
+              </OfficeCard>
+            );
+          })}
+        </CardRow>
       )}
       <SortSeg label="Sort your block" options={LIST_SORT_OPTIONS} sort={sort} onSort={onSort} />
       <ul className="plain-list">
