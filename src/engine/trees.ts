@@ -141,13 +141,19 @@ export const FADED_SEASONS = 4;
 
 const headSeasons = (c: Coach) => (c.career ?? []).filter((r) => r.role === 'headCoach');
 const isActiveHead = (c: Coach) => c.role === 'headCoach' && c.teamId !== null;
-const becameHead = (c: Coach) => isActiveHead(c) || headSeasons(c).length > 0;
 
-/** A head coach's own men (three seasons on his staff while he ran it) who went on to run a club. */
+/**
+ * A head coach's own men (three seasons on his staff while he ran it) who went on to run a club: after their years
+ * under him, so a former head coach who later served as his coordinator isn't his disciple.
+ */
 function headDisciples(league: League, rootId: number): Coach[] {
   return (index(league).headMen.get(rootId) ?? [])
     .map((id) => coachById(league, id))
-    .filter((c): c is Coach => !!c && becameHead(c))
+    .filter((c): c is Coach => {
+      if (!c) return false;
+      const last = linksOf(league, c.id).find((k) => k.mentorId === rootId)?.last ?? -Infinity;
+      return headSeasons(c).some((r) => r.season > last) || (last === -Infinity && isActiveHead(c));
+    })
     .sort((a, b) => a.id - b.id);
 }
 
@@ -306,9 +312,9 @@ export function seedFoundingTrees(league: League): void {
 /** A new head coach keeps his own men more often (added to the chance in `cleanHouse`). */
 export const TREE_KEEP = 0.25;
 /** Hiring scores are lower-is-better: a man linked to the hiring head coach scores this much better. */
-export const TREE_PULL = 0.5;
+export const TREE_PULL = 0.3;
 /** Head-coach searches: a hot tree's disciples score better, a withering one's worse. */
-export const TREE_STANDING: Record<TreeStanding, number> = { hot: -0.4, steady: -0.15, withering: 0.4, faded: 0 };
+export const TREE_STANDING: Record<TreeStanding, number> = { hot: -0.25, steady: -0.05, withering: 0.4, faded: 0 };
 /** The chance a new coordinator runs his main mentor's scheme instead of his own. */
 export const TREE_SCHEME = 0.5;
 

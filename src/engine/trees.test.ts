@@ -141,7 +141,7 @@ describe('trees, branches and standing', () => {
     headed(a, 2, [now - 6, now - 5, now - 4, now - 3, now - 2, now - 1], 9, 8);
     headed(b, 3, [now - 3], 9, 8);
     served(a, x, 2, now - 3);
-    served(a, y, 2, now);
+    served(a, y, 2, now - 1);
     headed(x, 4, [now - 1], 9, 8);
     headed(y, 5, [now - 1], 9, 8);
     expect(treeOf(l, r.id)!.branches).toEqual([a.id]);
@@ -313,5 +313,22 @@ describe('the carousel', () => {
     oc.career = [2020, 2021, 2022].map((s) => row(s, 4, 'offCoord'));
     expect(linksOf(l, a.id).some((k) => k.mentorId === oc.id)).toBe(true);
     expect(hasTree(l, oc.id)).toBe(false);
+  });
+
+  it('never counts a man who ran a club before he served under him', () => {
+    const { l, c } = blank();
+    const [hc, a, b] = c;
+    hc.career = [2020, 2021, 2022].map((s) => row(s, 4, 'headCoach'));
+    // a was a head coach first, then three seasons on hc's staff; b went the other way.
+    a.career = [row(2018, 7, 'headCoach'), ...[2020, 2021, 2022].map((s) => row(s, 4, 'offCoord'))];
+    b.career = [...[2020, 2021, 2022].map((s) => row(s, 4, 'defCoord')), row(2023, 8, 'headCoach')];
+    const third = c[3];
+    third.career = [
+      ...[2020, 2021, 2022].map((s) => row(s, 4, 'positionCoach', { room: 'QB' })),
+      row(2024, 9, 'headCoach'),
+    ];
+    expect(hasTree(l, hc.id)).toBe(true); // b and third
+    third.career = third.career.filter((r) => r.role !== 'headCoach');
+    expect(hasTree(l, hc.id)).toBe(false); // a doesn't count
   });
 });
