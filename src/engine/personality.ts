@@ -4,9 +4,11 @@
  * dials his agent negotiates with (0–1). Nothing here is stored: a name is worked out whenever a screen or a letter
  * needs it, so it follows the player as he changes (docs/superpowers/specs/2026-10-28-personality-relationships-design.md §1).
  */
+import { leadFactor, standingFactor } from './mentoring';
+import { activeRoster, starters } from './roster';
 import { characterRead } from './scouting';
 import { TRAIT_MEAN } from './traits';
-import type { League, Personality, Player, Traits } from './types';
+import type { League, Personality, Player, Position, Traits } from './types';
 
 /** Everything a personality reads. */
 export interface Character extends Traits, Personality {}
@@ -45,11 +47,12 @@ export type PersonalityName =
 
 /**
  * The parts of a character whose job has shipped. A name or a sentence never leans on one that doesn't do anything
- * yet: leadership arrives with mentoring, controversy with feuds.
+ * yet: controversy arrives with feuds.
  */
 export const TRAITS_ON: ReadonlySet<CharacterKey> = new Set<CharacterKey>([
   'workEthic',
   'temperament',
+  'leads',
   'poise',
   'sportsmanship',
   'loyalty',
@@ -192,4 +195,40 @@ export function personalityRead(
   const read = characterRead(league, teamId, p);
   if (!read) return null;
   return { name: personalityOf(read), line: characterLine(read), hedged: !read.exact && read.sd > 1.2 };
+}
+
+const OFFENSE: readonly Position[] = ['QB', 'RB', 'WR', 'TE', 'OL'];
+const DEFENSE: readonly Position[] = ['DT', 'EDGE', 'LB', 'CB', 'S'];
+
+/**
+ * Camp opens: each club names three captains, the men its staff think the room follows (their read of leadership,
+ * times standing): a starter on offense, one on defense, and one for the kicking game from the kicker, the punter or
+ * a player who starts on neither side. A story and the top of the Leaders list; captaincy itself does nothing.
+ */
+export function nameCaptains(league: League): void {
+  for (const team of league.teams) {
+    const rate = (p: Player) =>
+      leadFactor(characterRead(league, team.id, p)?.leads ?? TRAIT_MEAN) * standingFactor(league, p);
+    const best = (ps: Player[]) => [...ps].sort((a, b) => rate(b) - rate(a) || a.id - b.id)[0];
+    const side = (positions: readonly Position[]) => positions.flatMap((pos) => starters(league, team, pos));
+    const offense = best(side(OFFENSE));
+    const defense = best(side(DEFENSE));
+    const starting = new Set([...side(OFFENSE), ...side(DEFENSE)].map((p) => p.id));
+    const kicking = best(activeRoster(league, team.id).filter((p) => !starting.has(p.id)));
+    if (!offense || !defense || !kicking) continue;
+    team.captains = { season: league.season, offense: offense.id, defense: defense.id, specialTeams: kicking.id };
+  }
+}
+
+/** Beyond the captains, up to five more men the staff read as leaders of the room (the Leaders list). */
+export function leadersOf(league: League, teamId: number): Player[] {
+  const c = league.teams[teamId].captains;
+  const captains = c?.season === league.season ? [c.offense, c.defense, c.specialTeams] : [];
+  return activeRoster(league, teamId)
+    .filter((p) => !captains.includes(p.id))
+    .map((p) => ({ p, leads: characterRead(league, teamId, p)?.leads ?? TRAIT_MEAN }))
+    .filter((x) => x.leads >= 14)
+    .sort((a, b) => b.leads - a.leads || a.p.id - b.p.id)
+    .slice(0, 5)
+    .map((x) => x.p);
 }

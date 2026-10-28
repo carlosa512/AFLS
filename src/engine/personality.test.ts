@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import {
   characterLine,
+  leadersOf,
+  nameCaptains,
   personalityOf,
   personalityTone,
   TRAITS_ON,
@@ -68,8 +70,10 @@ describe('personality', () => {
   });
 
   it('never names a trait whose job has not shipped', () => {
-    const off: PersonalityName[] = ['Born Leader', 'Quiet Pro', 'Locker-Room Lawyer', 'Volatile', 'Diva'];
-    for (const p of players) expect(off).not.toContain(personalityOf(trueCharacter(p)));
+    const off: PersonalityName[] = ['Locker-Room Lawyer', 'Volatile', 'Diva'];
+    const names = players.map((p) => personalityOf(trueCharacter(p)));
+    for (const n of names) expect(off).not.toContain(n);
+    expect(names).toContain('Born Leader');
   });
 
   it.each<[PersonalityName, Partial<Character>]>([
@@ -99,8 +103,9 @@ describe('personality', () => {
     expect(characterLine(average({ workEthic: 18, temperament: 17 }))).toBe('Outworks everyone and keeps his cool.');
     expect(characterLine(average({ poise: 3 }))).toBe('Tightens up when it counts.');
     expect(characterLine(average())).toBe('Nothing about him stands out.');
-    // Leadership's job hasn't shipped: it stays out of the sentence until it has.
-    expect(characterLine(average({ leads: 19 }))).toBe('Nothing about him stands out.');
+    expect(characterLine(average({ leads: 19 }))).toBe('The room follows him.');
+    // Controversy's job hasn't shipped: it stays out of the sentence until it has.
+    expect(characterLine(average({ controversy: 19 }))).toBe('Nothing about him stands out.');
     for (const p of players) expect(characterLine(trueCharacter(p))).not.toMatch(/marble|trait|z-score|\bsd\b/i);
   });
 
@@ -109,5 +114,31 @@ describe('personality', () => {
     expect(personalityTone('Dirty Player')).toBe('warn');
     expect(personalityTone('Ring Chaser')).toBe('neutral');
     expect(personalityTone('Even-Keeled')).toBe('neutral');
+  });
+
+  it('names three different captains at camp: a starter on each side, and one for the kicking game', () => {
+    const l = createLeague({ seed: 'captains' });
+    nameCaptains(l);
+    for (const t of l.teams) {
+      const c = t.captains!;
+      expect(c.season).toBe(l.season);
+      expect(new Set([c.offense, c.defense, c.specialTeams]).size).toBe(3);
+      expect(['QB', 'RB', 'WR', 'TE', 'OL']).toContain(l.players[c.offense].position);
+      expect(['DT', 'EDGE', 'LB', 'CB', 'S']).toContain(l.players[c.defense].position);
+      for (const id of [c.offense, c.defense, c.specialTeams]) expect(l.players[id].teamId).toBe(t.id);
+    }
+  });
+
+  it("lists up to five more men the room follows, captains aside, by the staff's read", () => {
+    const l = createLeague({ seed: 'captains' });
+    nameCaptains(l);
+    const c = l.teams[0].captains!;
+    const more = leadersOf(l, 0);
+    expect(more.length).toBeLessThanOrEqual(5);
+    for (const p of more) {
+      expect([c.offense, c.defense, c.specialTeams]).not.toContain(p.id);
+      expect(p.teamId).toBe(0);
+      expect(p.traits.leads).toBeGreaterThanOrEqual(12);
+    }
   });
 });
