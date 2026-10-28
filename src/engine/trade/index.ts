@@ -15,7 +15,7 @@
  */
 export { dealAdvice, staffTake, type Advice, type AdviceTone, type StaffTake } from './advice';
 export { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
-export { askedAbout, deskState, type DeskHeadline, type DeskState } from './desk';
+export { askedAbout, deskState, pickerFits, shoppingOf, type DeskHeadline, type DeskState } from './desk';
 export { executeTrade } from './execute';
 export {
   CENTREPIECE,

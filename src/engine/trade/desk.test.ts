@@ -3,7 +3,11 @@ import { createLeague } from '../generate';
 import { teamPlayers } from '../roster';
 import type { League, Phase, TradeOffer } from '../types';
 import { emptyMarket } from './execute';
-import { askedAbout, deskState } from './desk';
+import { askedAbout, deskState, pickerFits } from './desk';
+import { tradeContext } from './context';
+import { scoutedNeeds, updateStances } from './plans';
+import { playerTradeBlocker } from './rules';
+import { practiceSquad } from '../roster';
 
 /** A league at a point in the year, with an empty market. */
 function at(phase: Phase, week = 1): League {
@@ -103,5 +107,66 @@ describe('the trade desk', () => {
     const l = at('regular', 3);
     delete l.market;
     expect(deskState(l)).toMatchObject({ headline: 'quiet', offers: 0, listed: 0, untouchable: 0, asking: 0 });
+  });
+});
+
+describe('what fits', () => {
+  const setup = () => {
+    const l = createLeague({ seed: 'fits-0', personnel: true });
+    l.market = emptyMarket();
+    updateStances(tradeContext(l));
+    return { l, rival: rivalOf(l) };
+  };
+  const shop = (l: League, teamId: number, playerId: number) =>
+    l.market!.rumors.push({
+      id: `s${playerId}`,
+      season: l.season,
+      phase: l.phase,
+      week: l.week,
+      kind: 'shopping',
+      teamIds: [teamId],
+      playerId,
+      text: '',
+    });
+
+  it('lists the players they are shopping first', () => {
+    const { l, rival } = setup();
+    const target = teamPlayers(l, rival.id).find((p) => p.contract && !playerTradeBlocker(l, p))!;
+    shop(l, rival.id, target.id);
+    expect(pickerFits(l, tradeContext(l), rival.id, 'theirs')[0].id).toBe(target.id);
+  });
+
+  it('offers your players at the positions they want, at most eight', () => {
+    const { l, rival } = setup();
+    const ctx = tradeContext(l);
+    const wants = scoutedNeeds(ctx, l.userTeamId, rival).needs.map((n) => n.position);
+    const fits = pickerFits(l, ctx, rival.id, 'yours');
+    expect(fits.length).toBeLessThanOrEqual(8);
+    for (const p of fits) {
+      expect(p.teamId).toBe(l.userTeamId);
+      expect(wants).toContain(p.position);
+    }
+  });
+
+  it('never lists a player who cannot be traded', () => {
+    const { l, rival } = setup();
+    const [squad] = practiceSquad(l, rival.id);
+    shop(l, rival.id, squad.id);
+    const ctx = tradeContext(l);
+    for (const side of ['yours', 'theirs'] as const)
+      for (const p of pickerFits(l, ctx, rival.id, side)) expect(playerTradeBlocker(l, p)).toBeNull();
+    expect(pickerFits(l, ctx, rival.id, 'theirs').map((p) => p.id)).not.toContain(squad.id);
+  });
+
+  it('is empty when nobody needs anything and nobody is shopping', () => {
+    const { l, rival } = setup();
+    l.phase = 'regular';
+    l.week = 1;
+    // On our read every one of their starters is better than anyone's: they need nothing.
+    const ctx = tradeContext(l);
+    const view = ctx.view;
+    ctx.view = (teamId, p) => (p.teamId === rival.id ? { ...view(teamId, p), ovr: 25 } : view(teamId, p));
+    expect(scoutedNeeds(ctx, l.userTeamId, rival).needs).toEqual([]);
+    expect(pickerFits(l, ctx, rival.id, 'yours')).toEqual([]);
   });
 });

@@ -4,10 +4,11 @@
  * calendar and the league's stance words. Never `market.interest`: what AI clubs watch is their business.
  */
 import { isOffseason } from '../finance/cap';
-import type { League } from '../types';
+import type { League, Player } from '../types';
+import { rosterOf, type TradeContext } from './context';
 import { openOffers } from './offers';
-import { isBuyer } from './plans';
-import { isDeadlineDay, TRADE_DEADLINE_WEEK, tradeWindow } from './rules';
+import { isBuyer, scoutedNeeds } from './plans';
+import { isDeadlineDay, playerTradeBlocker, TRADE_DEADLINE_WEEK, tradeWindow } from './rules';
 
 export type DeskHeadline = 'exam' | 'offers' | 'deadlineDay' | 'closed' | 'quiet';
 
@@ -93,4 +94,39 @@ export function deskState(league: League): DeskState {
   if (closed) return { ...base, headline: 'closed', text: closed, urgent: false };
   const buyers = league.teams.filter((t) => t.id !== user && isBuyer(t)).length;
   return { ...base, headline: 'quiet', text: `No calls waiting · ${buyers} teams are buying`, urgent: false };
+}
+
+/** This league year's players a team is said to be shopping, latest first, still on its roster. */
+export function shoppingOf(league: League, teamId: number): Player[] {
+  const ids = (league.market?.rumors ?? [])
+    .filter((r) => r.kind === 'shopping' && r.season === league.season && r.teamIds[0] === teamId)
+    .map((r) => r.playerId)
+    .reverse();
+  return [...new Set(ids)].map((id) => league.players[id]).filter((p) => p?.teamId === teamId);
+}
+
+/** How many players the picker's Fits chip lists. */
+const FITS = 8;
+
+/**
+ * What the trade table's picker opens on, on your read only. Their side: the players they're said to be shopping,
+ * then their best two at each of your needs. Your side: your best three at each of their needs. Never a player the
+ * rules won't let move.
+ */
+export function pickerFits(league: League, ctx: TradeContext, partnerId: number, side: 'yours' | 'theirs'): Player[] {
+  const user = league.userTeamId;
+  const seen = (p: Player) => ctx.view(user, p).ovr;
+  const from = side === 'theirs' ? partnerId : user;
+  const wants = scoutedNeeds(ctx, user, league.teams[side === 'theirs' ? user : partnerId]).needs;
+  const roster = rosterOf(ctx, from).filter((p) => !playerTradeBlocker(league, p));
+  const out: Player[] =
+    side === 'theirs' ? shoppingOf(league, partnerId).filter((p) => !playerTradeBlocker(league, p)) : [];
+  for (const need of wants) {
+    const best = roster
+      .filter((p) => p.position === need.position)
+      .sort((a, b) => seen(b) - seen(a))
+      .slice(0, side === 'theirs' ? 2 : 3);
+    for (const p of best) if (!out.includes(p)) out.push(p);
+  }
+  return out.slice(0, FITS);
 }

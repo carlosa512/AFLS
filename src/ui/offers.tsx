@@ -24,6 +24,7 @@ import {
   ASKS,
   peekTalks,
   scoutedNeeds,
+  shoppingOf,
   stanceOf,
   staffTake,
   talkRefusal,
@@ -613,15 +614,6 @@ export function talksWords(league: League, teamId: number): string {
   const refusal = talkRefusal(league.market, teamId);
   if (refusal) return refusal;
   return ASKS - peekTalks(league.market, teamId).asks === 1 ? 'Nearly done talking this week' : 'Taking proposals';
-}
-
-/** This league year's players a team is said to be shopping, latest first, still on its roster. */
-export function shoppingOf(league: League, teamId: number): Player[] {
-  const ids = (league.market?.rumors ?? [])
-    .filter((r) => r.kind === 'shopping' && r.season === league.season && r.teamIds[0] === teamId)
-    .map((r) => r.playerId)
-    .reverse();
-  return [...new Set(ids)].map((id) => league.players[id]).filter((p) => p?.teamId === teamId);
 }
 
 const STANCE_ORDER: Stance[] = ['contend', 'bubble', 'retool', 'rebuild'];
