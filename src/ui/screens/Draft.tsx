@@ -28,6 +28,7 @@ import {
   TeamPicker,
   useSort,
 } from '../components';
+import { CardRow, Fact, Facts, OfficeCard, OfficeHero } from '../office';
 import { OriginTag, originName } from '../origin';
 import {
   combineRows,
@@ -486,40 +487,26 @@ const pickName = (pk: DraftPick) => `Round ${pk.round}, No. ${pk.overall}`;
  * last few picks as a ticker, and where your next pick stands.
  */
 function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockState, { kind: 'none' }> }) {
-  const visits = (
-    <span className="fact">
-      <span className="eyebrow">Scouting visits left</span>
-      <b className="num">{league.scoutPoints}</b>
-    </span>
-  );
+  const visits = <Fact label="Scouting visits left">{league.scoutPoints}</Fact>;
   if (clock.kind === 'preview')
     return (
-      <Panel className="draft-clock" title={<h2>{league.season} draft class</h2>}>
-        <div className="facts">
-          <span className="fact">
-            <span className="eyebrow">Prospects</span>
-            <b className="num">{clock.prospects}</b>
-          </span>
-          <span className="fact">
-            <span className="eyebrow">Your first pick</span>
-            <b>{clock.firstPick ? pickName(clock.firstPick) : 'None'}</b>
-          </span>
+      <OfficeHero headline={`${league.season} draft class`}>
+        <Facts>
+          <Fact label="Prospects">{clock.prospects}</Fact>
+          <Fact label="Your first pick">{clock.firstPick ? pickName(clock.firstPick) : 'None'}</Fact>
           {visits}
-        </div>
-      </Panel>
+        </Facts>
+      </OfficeHero>
     );
   const order = draftOrder(league);
   const mine = order.filter((pk) => pk.ownerId === league.userTeamId);
   if (clock.kind === 'done')
     return (
-      <Panel className="draft-clock" title={<h2>The draft is complete</h2>}>
-        <div className="facts">
-          <span className="fact">
-            <span className="eyebrow">Your picks made</span>
-            <b className="num">{mine.filter((pk) => pk.playerId !== undefined).length}</b>
-          </span>
-        </div>
-      </Panel>
+      <OfficeHero headline="The draft is complete">
+        <Facts>
+          <Fact label="Your picks made">{mine.filter((pk) => pk.playerId !== undefined).length}</Fact>
+        </Facts>
+      </OfficeHero>
     );
   const { pick, userUp, myNext } = clock;
   const team = league.teams[pick.ownerId];
@@ -528,19 +515,15 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
     .slice(-3)
     .reverse();
   return (
-    <Panel
-      className={`draft-clock${userUp ? ' is-up' : ''}`}
-      title={
-        <div className="row draft-clock-head">
-          <TeamChip team={team} large />
-          <div>
-            <span className="eyebrow">
-              Round {pick.round} · Pick {pick.overall}
-            </span>
-            <h2>{userUp ? "You're on the clock" : `${team.name} on the clock`}</h2>
-          </div>
-        </div>
+    <OfficeHero
+      urgent={userUp}
+      team={team}
+      eyebrow={
+        <>
+          Round {pick.round} · Pick {pick.overall}
+        </>
       }
+      headline={userUp ? "You're on the clock" : `${team.name} on the clock`}
       action={
         <span className="row" style={{ gap: 8 }}>
           {userUp ? (
@@ -582,27 +565,21 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
           })}
         </ol>
       )}
-      <div className="facts">
-        <span className="fact">
-          <span className="eyebrow">Your next pick</span>
-          <b>
-            {myNext ? (
-              <>
-                No. {myNext.overall}
-                {!userUp && <span className="muted small"> ({myNext.overall! - pick.overall!} away)</span>}
-              </>
-            ) : (
-              'None left'
-            )}
-          </b>
-        </span>
-        <span className="fact">
-          <span className="eyebrow">Your picks left</span>
-          <b className="num">{mine.filter((pk) => pk.playerId === undefined).length}</b>
-        </span>
+      <Facts>
+        <Fact label="Your next pick">
+          {myNext ? (
+            <>
+              No. {myNext.overall}
+              {!userUp && <span className="muted small"> ({myNext.overall! - pick.overall!} away)</span>}
+            </>
+          ) : (
+            'None left'
+          )}
+        </Fact>
+        <Fact label="Your picks left">{mine.filter((pk) => pk.playerId === undefined).length}</Fact>
         {visits}
-      </div>
-    </Panel>
+      </Facts>
+    </OfficeHero>
   );
 }
 
@@ -621,9 +598,9 @@ function StaffTop5({
   const top = [...pool].sort((a, b) => gaps.get(a.id)!.ours - gaps.get(b.id)!.ours).slice(0, 5);
   return (
     <Panel title="Your staff's top 5">
-      <div className="prospect-cards">
+      <CardRow label="Your staff's top 5">
         {top.map((p) => (
-          <div key={p.id} className="prospect-card">
+          <OfficeCard key={p.id}>
             <PlayerLink league={league} player={p} avatar={28} />
             <span className="muted small">
               {p.position} · <OriginTag player={p} />
@@ -640,9 +617,9 @@ function StaffTop5({
                 Draft
               </button>
             )}
-          </div>
+          </OfficeCard>
         ))}
-      </div>
+      </CardRow>
     </Panel>
   );
 }

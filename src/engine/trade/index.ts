@@ -13,8 +13,9 @@
  * - `talks.ts`: your dealings with each GM (proposals a moment, cooldowns, trust)
  * - `context.ts`: one decision pass's cache
  */
-export { dealAdvice, type Advice } from './advice';
+export { dealAdvice, staffTake, type Advice, type AdviceTone, type StaffTake } from './advice';
 export { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
+export { askedAbout, deskState, pickerFits, shoppingOf, type DeskHeadline, type DeskState } from './desk';
 export { executeTrade } from './execute';
 export {
   CENTREPIECE,
@@ -49,12 +50,13 @@ export {
   type AcceptResult,
   type CounterResult,
 } from './offers';
-export { ASKS, peekTalks } from './talks';
+export { ASKS, peekTalks, talkRefusal } from './talks';
 export { CONCERNS, examine, FAIL, findings, physicals, worstResult } from './physicals';
 export {
   isBuyer,
   isSeller,
   reloading,
+  scoutedNeeds,
   stanceFor,
   stanceOf,
   stanceScore,

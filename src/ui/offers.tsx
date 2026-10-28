@@ -10,6 +10,7 @@ import { teamPlayers } from '../engine/roster';
 import {
   acceptOffer,
   answerEnquiry,
+  askedAbout,
   askPrice,
   dealAdvice,
   declineOffer,
@@ -20,16 +21,28 @@ import {
   resolveExam,
   setTradeStatus,
   shopPlayer,
+  ASKS,
+  peekTalks,
+  scoutedNeeds,
+  shoppingOf,
   stanceOf,
+  staffTake,
+  talkRefusal,
+  tradeContext,
+  type Need,
+  type TradeContext,
   tradeWindow,
   type Advice,
+  type StaffTake,
 } from '../engine/trade';
-import type { League, Player, Stance, TradeOffer, TradeRecord, TradeSide, TradeStatus } from '../engine/types';
+import type { League, Player, Stance, Team, TradeOffer, TradeRecord, TradeSide, TradeStatus } from '../engine/types';
 import { POSITIONS } from '../engine/types';
 import { LinkedText, nameIndex } from './moves';
 import { useNav } from './App';
-import { Panel, PlayerAvatar, PlayerLink, SortSeg, sortRows, TeamChip, useSort } from './components';
+import { Panel, PlayerAvatar, PlayerLink, SortSeg, sortRows, TeamChip, TeamLink, useSort } from './components';
+import { GmLink } from './gm';
 import { money, playerName } from './format';
+import { CardRow, OfficeCard, Pill, type PillTone } from './office';
 import { Ovr, seenOvr } from './scouting';
 import { store } from './store';
 import { tradeDesk } from './tradeDesk';
@@ -55,6 +68,51 @@ const WHO: Record<Advice['who'], string> = {
   scouts: 'Pro scouts',
   medical: 'Medical',
   cap: 'Cap',
+};
+
+const VOICE_TONE: Record<Advice['tone'], PillTone | undefined> = {
+  good: 'good',
+  warn: 'warn',
+  bad: 'bad',
+  note: undefined,
+};
+const TAKE: Record<StaffTake, [string, PillTone | undefined]> = {
+  likes: ['Staff likes it', 'good'],
+  split: ['Split', undefined],
+  against: ['Staff against', 'bad'],
+};
+
+/** Your staff's word on a deal: their take first, then each voice, coloured by whether it's for or against. */
+export function StaffStrip({ league, advice }: { league: League; advice: readonly Advice[] }) {
+  if (!advice.length) return null;
+  // One index for every line: building it reads the whole league.
+  const names = nameIndex(league);
+  const [take, tone] = TAKE[staffTake(advice)];
+  return (
+    <div className="staff-strip">
+      <Pill tone={tone} className="staff-take">
+        {take}
+      </Pill>
+      {advice.map((a, i) => (
+        <div key={i} className="staff-line">
+          <Pill tone={VOICE_TONE[a.tone]}>{WHO[a.who]}</Pill>
+          <span className="small">
+            <LinkedText league={league} text={a.line} index={names} />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** What kind of call an offer is, in a word. */
+const KIND: Record<TradeOffer['reason'], string> = {
+  bid: 'Bid',
+  pitch: 'Pitch',
+  dump: 'Dump',
+  enquiry: 'Enquiry',
+  shop: 'Answering your shop',
+  counter: 'Counter',
 };
 
 /** A deal's side as the trade table holds it. */
@@ -221,8 +279,6 @@ export function OfferCard({
   const open = openOffers(league).some((o) => o.id === offer.id);
   const enquiry = offer.kind === 'enquiry';
   const advice = enquiry ? [] : dealAdvice(league, offer.sides);
-  // One index for every note: building it reads the whole league.
-  const names = advice.length ? nameIndex(league) : undefined;
   const reply = replyOf(league, offer);
 
   const accept = (ids: number[] = []) => {
@@ -260,17 +316,16 @@ export function OfferCard({
     setTone(choice === 'notForSale' || result.offer !== null ? 'good' : 'bad');
   };
 
-  const when = (
+  const when = open ? (
+    <Pill tone="early">{lapse(league)}</Pill>
+  ) : (
     <span className="muted small">
-      {open
-        ? lapse(league)
-        : offer.status === 'pending'
-          ? 'This offer is no longer open.'
-          : (offer.outcome ?? FALLBACK[offer.status])}
+      {offer.status === 'pending' ? 'This offer is no longer open.' : (offer.outcome ?? FALLBACK[offer.status])}
     </span>
   );
   return (
     <Panel
+      className="offer-card"
       title={
         compact ? (
           when
@@ -279,7 +334,10 @@ export function OfferCard({
             <TeamChip team={team} />
             <div>
               <h3 style={{ margin: 0 }}>{subject}</h3>
-              {when}
+              <span className="pill-row">
+                <Pill>{KIND[offer.reason]}</Pill>
+                {when}
+              </span>
             </div>
           </div>
         )
@@ -298,15 +356,7 @@ export function OfferCard({
           </div>
         </div>
       )}
-      {advice.length > 0 && (
-        <ul className="plain-list small">
-          {advice.map((a, i) => (
-            <li key={i}>
-              <b>{WHO[a.who]}:</b> <LinkedText league={league} text={a.line} index={names} />
-            </li>
-          ))}
-        </ul>
-      )}
+      <StaffStrip league={league} advice={advice} />
       {release && (
         <div className="notice">
           <p style={{ marginTop: 0 }}>To make room, release:</p>
@@ -446,6 +496,13 @@ export function BlockPanel({ league }: { league: League }) {
     });
     setNote(message);
   };
+  // The ones you've made a call on, as cards: on the block first, then untouchable.
+  const status = league.market?.status ?? {};
+  const marked = [
+    ...players.filter((p) => status[p.id] === 'listed'),
+    ...players.filter((p) => status[p.id] === 'untouchable'),
+  ];
+  const asked = askedAbout(league);
   return (
     <Panel title={<h2>Your block</h2>}>
       <p className="muted small">
@@ -456,6 +513,33 @@ export function BlockPanel({ league }: { league: League }) {
         <p className="callout" role="status">
           {note}
         </p>
+      )}
+      {marked.length > 0 && (
+        <CardRow label="Listed and untouchable">
+          {marked.map((p) => {
+            const blocked = playerTradeBlocker(league, p);
+            const n = [...asked.values()].filter((ids) => ids.includes(p.id)).length;
+            return (
+              <OfficeCard key={p.id}>
+                <PlayerLink league={league} player={p} avatar={28} />
+                <span className="row" style={{ gap: 6 }}>
+                  <span className="muted small">{p.position}</span>
+                  <Ovr league={league} player={p} />
+                  {n > 0 && <Pill tone="good">{n === 1 ? '1 team asking' : `${n} teams asking`}</Pill>}
+                </span>
+                <StatusPicker league={league} player={p} />
+                <button
+                  className="btn btn-sm"
+                  disabled={!!blocked || league.market?.shopped[p.id] === league.market?.moment}
+                  title={blocked ?? undefined}
+                  onClick={() => shop(p)}
+                >
+                  Shop
+                </button>
+              </OfficeCard>
+            );
+          })}
+        </CardRow>
       )}
       <SortSeg label="Sort your block" options={LIST_SORT_OPTIONS} sort={sort} onSort={onSort} />
       <ul className="plain-list">
@@ -486,42 +570,129 @@ export function BlockPanel({ league }: { league: League }) {
   );
 }
 
-const STANCE: Record<Stance, string> = {
+export const STANCE: Record<Stance, string> = {
   contend: 'Buying',
   bubble: 'Listening',
   retool: 'Selling veterans',
   rebuild: 'Selling',
 };
 
-/** What the league is saying, and who's buying and selling (in words). */
-export function MarketPanel({ league }: { league: League }) {
-  const rumors = [...(league.market?.rumors ?? [])].reverse().slice(0, 20);
-  const ai = league.teams.filter((t) => t.id !== league.userTeamId && t.stance);
+const NEED_PILL: Record<Need['reason'], [string, PillTone | undefined]> = {
+  hole: [' · hole', 'warn'],
+  upgrade: ['', undefined],
+  nextYear: [' · next year', 'early'],
+};
+
+/**
+ * What a team wants on your pro scouts' read (`scoutedNeeds`), never its own: the three most pressing positions,
+ * and a word when they've barely seen the team. Pass `ctx` when drawing many teams, so they share one read.
+ */
+export function WantsPills({ league, team, ctx }: { league: League; team: Team; ctx?: TradeContext }) {
+  const { needs, littleFilm } = scoutedNeeds(ctx ?? tradeContext(league), league.userTeamId, team);
   return (
-    <div className="grid-2">
-      <Panel title={<h2>Around the league</h2>}>
-        {rumors.length ? (
-          <ul className="plain-list">
-            {rumors.map((r) => (
-              <li key={r.id}>
-                {r.text} <span className="muted small">{r.phase === 'regular' ? `Week ${r.week}` : r.season}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="muted">Quiet so far.</p>
-        )}
-      </Panel>
-      <Panel title={<h2>Who's dealing</h2>}>
-        {(['contend', 'bubble', 'retool', 'rebuild'] as Stance[]).map((mode) => {
-          const teams = ai.filter((t) => stanceOf(t) === mode);
-          return teams.length ? (
-            <p key={mode}>
-              <b>{STANCE[mode]}:</b> {teams.map((t) => t.name).join(', ')}
-            </p>
-          ) : null;
-        })}
-      </Panel>
+    <span className="pill-row">
+      {needs.length ? (
+        needs.slice(0, 3).map((n) => {
+          const [suffix, tone] = NEED_PILL[n.reason];
+          return (
+            <Pill key={n.position} tone={tone}>
+              {n.position}
+              {suffix}
+            </Pill>
+          );
+        })
+      ) : (
+        <span className="muted small">No pressing needs</span>
+      )}
+      {littleFilm && <span className="muted small">our scouts barely know them</span>}
+    </span>
+  );
+}
+
+/** Whether a GM is still taking your proposals this week, in words: never how many you have left. */
+export function talksWords(league: League, teamId: number): string {
+  const refusal = talkRefusal(league.market, teamId);
+  if (refusal) return refusal;
+  return ASKS - peekTalks(league.market, teamId).asks === 1 ? 'Nearly done talking this week' : 'Taking proposals';
+}
+
+const STANCE_ORDER: Stance[] = ['contend', 'bubble', 'retool', 'rebuild'];
+
+/** Every other front office as a card, grouped by who's buying and selling, beside what the league is saying. */
+export function MarketPanel({ league }: { league: League }) {
+  const nav = useNav();
+  const rumors = [...(league.market?.rumors ?? [])].reverse().slice(0, 20);
+  const ai = league.teams.filter((t) => t.id !== league.userTeamId);
+  // One read for all 31 cards: the needs read rates every starter in the league.
+  const ctx = tradeContext(league);
+  const asked = askedAbout(league);
+  const open = (team: Team) => {
+    tradeDesk.put({ partnerId: team.id, mine: { players: [], picks: [] }, theirs: { players: [], picks: [] } });
+    nav.go({ view: 'office', tab: 'trades', sub: 'table' });
+  };
+  return (
+    <div className="home-grid">
+      <div className="home-cell span-8">
+        <Panel title={<h2>Front offices</h2>}>
+          {STANCE_ORDER.map((mode) => {
+            const teams = ai.filter((t) => stanceOf(t) === mode);
+            if (!teams.length) return null;
+            return (
+              <section key={mode} className="gm-group">
+                <div className="eyebrow">{STANCE[mode]}</div>
+                <div className="gm-grid">
+                  {teams.map((t) => {
+                    const [shopping] = shoppingOf(league, t.id);
+                    const askedFor = (asked.get(t.id) ?? []).map((id) => league.players[id]);
+                    return (
+                      <OfficeCard key={t.id}>
+                        <TeamLink team={t} chip full />
+                        {t.gmId !== null && <GmLink league={league} gm={league.gms[t.gmId]} />}
+                        <span className="pill-row">
+                          <Pill>{STANCE[mode]}</Pill>
+                        </span>
+                        <span>
+                          <span className="eyebrow">Wants (our read)</span>{' '}
+                          <WantsPills league={league} team={t} ctx={ctx} />
+                        </span>
+                        {shopping && (
+                          <span className="small">
+                            Shopping <PlayerLink league={league} player={shopping} pos />
+                          </span>
+                        )}
+                        {askedFor.length > 0 && (
+                          <span className="small">
+                            Asked about <PlayerLink league={league} player={askedFor[0]} pos />
+                            {askedFor.length > 1 && ` and ${askedFor.length - 1} more`}
+                          </span>
+                        )}
+                        <button className="btn btn-sm" onClick={() => open(t)}>
+                          Open table
+                        </button>
+                      </OfficeCard>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </Panel>
+      </div>
+      <div className="home-cell span-4">
+        <Panel title={<h2>Around the league</h2>}>
+          {rumors.length ? (
+            <ul className="plain-list">
+              {rumors.map((r) => (
+                <li key={r.id}>
+                  {r.text} <span className="muted small">{r.phase === 'regular' ? `Week ${r.week}` : r.season}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">Quiet so far.</p>
+          )}
+        </Panel>
+      </div>
     </div>
   );
 }

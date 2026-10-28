@@ -2260,42 +2260,6 @@ tr.void-year td {
 .meter i.yes {
   background: var(--win);
 }
-.asset-list {
-  display: grid;
-  gap: 2px;
-  max-height: 460px;
-  overflow-y: auto;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px;
-}
-.asset-list .eyebrow {
-  margin: 6px 0 2px;
-}
-.asset {
-  display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: var(--step--1);
-}
-.asset:has(> .asset-name:nth-child(2)) {
-  grid-template-columns: auto minmax(0, 1fr);
-}
-.asset.on {
-  background: color-mix(in srgb, var(--marker) 18%, var(--surface));
-}
-.asset.blocked {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.asset-name {
-  display: grid;
-  min-width: 0;
-}
 @media (prefers-reduced-motion: reduce) {
   .meter i {
     transition: none;
@@ -2583,19 +2547,216 @@ details.more > summary {
   align-items: center;
 }
 
-/* ───────── draft room ───────── */
-/* The hero: your own pick on the clock wears the marker's gold, so draft day can't miss it. */
-.draft-clock.is-up {
+/* ───────── office kit ───────── */
+/* Every Front Office tab's hero (ui/office.tsx): gold when something is waiting on you, so it can't be missed. */
+.office-hero.is-urgent {
   box-shadow:
     inset 0 0 0 2px var(--marker),
     var(--shadow);
 }
-.draft-clock-head h2 {
+.office-hero-head h2 {
   font-family: var(--font-display);
   font-size: var(--step-3);
   line-height: 1;
   margin: 2px 0 0;
 }
+.card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.office-card {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  min-width: 0;
+}
+/* On a phone the cards swipe sideways instead of stacking five screens tall. */
+@media (max-width: 600px) {
+  .card-row {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 72%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 4px;
+  }
+  .office-card {
+    scroll-snap-align: start;
+  }
+}
+.office-card .tag-pill {
+  margin-left: 0;
+}
+
+/* ───────── trade desk ───────── */
+/* Who you're dealing with, under the GM line on the trade table: stance, wants, who they're shopping, talks. */
+.partner-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-top: 6px;
+}
+.partner-fact {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.partner-facts .tag-pill,
+.office-card .tag-pill,
+.staff-strip .tag-pill {
+  margin-left: 0;
+}
+/* Your staff's word on a deal: the take on top, then one line per voice. */
+.staff-strip {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  margin: 10px 0;
+}
+.staff-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.staff-take {
+  font-weight: 700;
+}
+/* A status picker on a card fills its width, so all three choices fit on a phone. */
+.office-card .seg {
+  display: flex;
+  width: 100%;
+}
+.office-card .seg button {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  padding-inline: 6px;
+}
+@media (max-width: 600px) {
+  .card-row:has(.seg) {
+    grid-auto-columns: 88%;
+  }
+}
+/* The trade table: the deal as it stands on top, the picker that adds to it below. */
+.deal-slip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 12px 0;
+}
+.deal-side h3 {
+  margin: 0 0 6px;
+}
+.deal-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.deal-item > .deal-remove {
+  margin-left: auto;
+}
+.picker {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.picker-controls {
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+.picker-search {
+  flex: 1 1 200px;
+  max-width: 320px;
+}
+.picker-chips {
+  flex-wrap: wrap;
+}
+.picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.5em auto 5em 6.5em 7em;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+.picker-row > :last-child {
+  justify-self: end;
+}
+.picker-row .player-link > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.picker-row .player-link {
+  min-width: 0;
+}
+.picker-blocked {
+  grid-column: 6;
+  text-align: right;
+  white-space: normal;
+}
+.pick-grid {
+  display: grid;
+  gap: 6px;
+}
+.pick-grid-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.pick-grid-row > .num {
+  min-width: 3em;
+}
+.pick-grid button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--surface);
+}
+@media (max-width: 600px) {
+  .deal-slip {
+    grid-template-columns: 1fr;
+  }
+  .picker-row {
+    grid-template-columns: minmax(0, 1fr) auto 4.5em auto;
+  }
+  .picker-age,
+  .picker-thru {
+    display: none;
+  }
+  .picker-blocked {
+    grid-column: auto;
+    max-width: 8em;
+    font-size: 0.72rem;
+  }
+}
+/* The Market: every front office as a card, a group per stance. */
+.gm-group + .gm-group {
+  margin-top: 16px;
+}
+.gm-group > .eyebrow {
+  margin-bottom: 8px;
+}
+.gm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+@media (max-width: 600px) {
+  .gm-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ───────── draft room ───────── */
 .draft-ticker {
   list-style: none;
   margin: 0 0 14px;
@@ -2611,37 +2772,6 @@ details.more > summary {
 }
 .draft-ticker li:first-child {
   font-weight: 700;
-}
-.prospect-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-}
-.prospect-card {
-  display: grid;
-  gap: 6px;
-  align-content: start;
-  padding: 12px;
-  border-radius: var(--radius);
-  background: var(--surface-2);
-  min-width: 0;
-}
-/* On a phone the five cards swipe sideways instead of stacking five screens tall. */
-@media (max-width: 600px) {
-  .prospect-cards {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: 72%;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    padding-bottom: 4px;
-  }
-  .prospect-card {
-    scroll-snap-align: start;
-  }
-}
-.prospect-card .tag-pill {
-  margin-left: 0;
 }
 .prospect-grade {
   display: flex;
