@@ -173,6 +173,13 @@ export function beginOffseason(league: League): void {
   resetScouting(league);
   developStaff(league);
   developCoaches(league, retirees);
+  // His card keeps who mentored him; what mentors moved only mattered while he played (and to the clubs that might
+  // hire him to coach, just above).
+  for (const p of retirees) {
+    delete p.shifts;
+    delete p.shiftedLast;
+    delete p.lostMentor;
+  }
   developMedics(league);
   crewsNewYear(league);
 
