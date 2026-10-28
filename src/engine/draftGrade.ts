@@ -57,7 +57,10 @@ export function pickMark(league: League, p: Player): PickMark | null {
 export function lockVerdicts(league: League): void {
   for (const p of Object.values(league.players)) {
     if (!p.draft || !p.scouting || p.draft.verdict) continue;
-    if (league.season - p.draft.season >= VERDICT_YEARS) p.draft.verdict = liveVerdict(league, p);
+    if (league.season - p.draft.season < VERDICT_YEARS) continue;
+    p.draft.verdict = liveVerdict(league, p);
+    // A retiree kept his ceiling's changes only for this verdict.
+    if (p.retired) delete p.ceilingShifts;
   }
 }
 

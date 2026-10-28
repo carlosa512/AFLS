@@ -156,6 +156,9 @@ export function beginOffseason(league: League): void {
       delete p.mentorWeeks;
       delete p.mentorSetByYou;
       delete p.mentorBank;
+      delete p.tagCount;
+      // His ceiling's changes only grade his pick (`draftGrade.ts`): kept until its verdict locks, if there is one.
+      if (!p.draft || !p.scouting || p.draft.verdict) delete p.ceilingShifts;
       for (const t of [...(p.ties ?? [])]) endTie(league, p, t.with);
       retirees.push(p);
       continue;

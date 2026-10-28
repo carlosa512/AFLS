@@ -25,6 +25,7 @@ import {
 import { availableProspects, draftOrder, draftPlayer, nextPick, simDraft } from './draft';
 import { askOffer, demand, freeAgents, makeOffer, rookieCost, rookieReserve } from './negotiation';
 import { Rng } from '../rng';
+import { lockVerdicts } from '../draftGrade';
 
 /** One league played to the end of its first season, then cloned per test (JSON keeps it cheap). */
 const base = (() => {
@@ -47,6 +48,30 @@ describe('offseason calendar', () => {
     // The champion picks last in every round.
     expect(order[31].originalTeamId).toBe(league.history[0].championId);
     expect(availableProspects(league).length).toBe(260);
+  });
+
+  it('trims a retiree of what only a playing career reads, and keeps a ceiling change his pick still needs', () => {
+    const league = fresh();
+    const [vet, young] = Object.values(league.players).filter((p) => p.teamId !== null && p.position === 'LB');
+    for (const p of [vet, young]) {
+      p.age = 45; // both retire at the new league year
+      p.tagCount = 1;
+      p.ceilingShifts = { [league.season - 1]: 1 };
+    }
+    // A made-up veteran's draft line has no read to grade; the young man's pick is still two years from its verdict.
+    delete vet.scouting;
+    young.draft = { season: league.season - 1, round: 1, pick: 5, teamId: 1 };
+    young.scouting = { grade: 12, ceiling: 16 };
+    beginOffseason(league);
+    expect(vet.retired && young.retired).toBe(true);
+    expect(vet.tagCount).toBeUndefined();
+    expect(vet.ceilingShifts).toBeUndefined();
+    expect(young.ceilingShifts).toEqual({ [league.season - 2]: 1 });
+    // Once his verdict locks, nothing reads them.
+    league.season += 2;
+    lockVerdicts(league);
+    expect(young.draft.verdict).toBeDefined();
+    expect(young.ceilingShifts).toBeUndefined();
   });
 
   it("keeps last season's box scores and scoring plays and drops their full replays", () => {
