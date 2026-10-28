@@ -6,6 +6,8 @@
  * `Coach.career` (and `pastUnder`, the founding trees' pre-league years); nothing about a tree is stored.
  */
 import { ROOM_OF } from './coaching';
+import { newIdentity } from './identity';
+import { Rng } from './rng';
 import type { Coach, CoachRoom, CoachSeason, League, Position } from './types';
 
 export const LINK_SEASONS = 3;
@@ -227,4 +229,62 @@ export function standingOf(league: League, tree: Tree): TreeStanding {
   const cold = share(now - WITHERING.seasons);
   if (cold !== null && cold <= WITHERING.share && fired >= WITHERING.fired) return 'withering';
   return 'steady';
+}
+
+// ───────── the first trees ─────────
+
+/**
+ * A new league starts with a few trees, as the NFL always has some: three or four founding roots, one or two of them
+ * retired legends, each with two of today's head coaches and a few coordinators or position coaches who worked under
+ * him before the league began. That history goes in `Coach.pastUnder`, never in a career row, so nobody's record
+ * counts it. On its own stream, and only once (an upgraded save gets what a new league from its seed would).
+ */
+export function seedFoundingTrees(league: League): void {
+  const all = Object.values(league.coaches);
+  if (all.some((c) => c.pastUnder?.length)) return;
+  const rng = new Rng(`${league.seed}:trees:init`);
+  const heads = all.filter(isActiveHead).sort((a, b) => a.id - b.id);
+  const staff = all
+    .filter((c) => c.teamId !== null && (c.role === 'offCoord' || c.role === 'defCoord' || c.role === 'positionCoach'))
+    .sort((a, b) => a.id - b.id);
+  const roots = rng.int(3, 4);
+  const legends = rng.int(1, 2);
+  const used = new Set<number>();
+  const take = <T extends Coach>(pool: T[], n: number, ok: (c: T) => boolean = () => true): T[] => {
+    const free = pool.filter((c) => !used.has(c.id) && ok(c));
+    const out: T[] = [];
+    while (out.length < n && free.length) {
+      const c = free.splice(rng.int(0, free.length - 1), 1)[0];
+      used.add(c.id);
+      out.push(c);
+    }
+    return out;
+  };
+  const founders: Coach[] = take(heads, roots - legends, (c) => c.age >= 55);
+  while (founders.length < roots) {
+    const { firstName, lastName } = newIdentity(rng, { kind: 'coach', role: 'headCoach' });
+    const legend: Coach = {
+      id: league.nextCoachId++,
+      firstName,
+      lastName,
+      role: 'headCoach',
+      age: rng.int(66, 80),
+      youth: rng.int(12, 17),
+      veterans: rng.int(12, 17),
+      teamId: null,
+      contract: null,
+    };
+    league.retiredCoaches[legend.id] = legend;
+    founders.push(legend);
+  }
+  for (const root of founders) {
+    for (const d of take(heads, 2))
+      (d.pastUnder ??= []).push({
+        coachId: root.id,
+        role: rng.chance(0.5) ? 'offCoord' : 'defCoord',
+        seasons: rng.int(3, 6),
+      });
+    for (const d of take(staff, rng.int(1, 3)))
+      (d.pastUnder ??= []).push({ coachId: root.id, role: d.role, seasons: rng.int(3, 6) });
+  }
 }

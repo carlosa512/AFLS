@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
-import { disciplesOf, hasTree, linksOf, liveTrees, mainMentor, standingOf, treeFor, treeOf } from './trees';
+import {
+  disciplesOf,
+  hasTree,
+  linksOf,
+  liveTrees,
+  mainMentor,
+  seedFoundingTrees,
+  standingOf,
+  treeFor,
+  treeOf,
+} from './trees';
+import { migrateLeague } from './migrate';
 import type { Coach, CoachRole, League } from './types';
 
 /** A league whose coaches' careers are cleared, so each test writes exactly the history it means. */
@@ -185,5 +196,47 @@ describe('trees, branches and standing', () => {
     const live = liveTrees(l);
     expect(live.map((t) => t.rootId)).toContain(r.id);
     expect(live.find((t) => t.rootId === r.id)!.activeHeadCoaches.sort()).toEqual([x.id, y.id].sort());
+  });
+});
+
+describe('founding trees', () => {
+  const shape = (l: League) =>
+    liveTrees(l)
+      .map((t) => ({ disciples: [...t.disciples].sort(), heads: [...t.activeHeadCoaches].sort() }))
+      .sort((a, b) => a.heads[0] - b.heads[0]);
+
+  it('starts a new league with three or four live trees, six to eight head coaches in them', () => {
+    const l = createLeague({ seed: 'founding' });
+    const live = liveTrees(l);
+    expect(live.length).toBeGreaterThanOrEqual(3);
+    expect(live.length).toBeLessThanOrEqual(4);
+    const heads = new Set(live.flatMap((t) => t.activeHeadCoaches));
+    expect(heads.size).toBeGreaterThanOrEqual(6);
+    expect(heads.size).toBeLessThanOrEqual(8);
+    // At least one is a retired legend's.
+    expect(live.some((t) => l.retiredCoaches[t.rootId])).toBe(true);
+    // Founding history lives in pastUnder only: no career row before the league began.
+    for (const c of [...Object.values(l.coaches), ...Object.values(l.retiredCoaches)])
+      for (const r of c.career ?? []) expect(r.season).toBeGreaterThanOrEqual(l.season);
+  });
+
+  it('is the same for the same seed, and an upgraded save gets the trees a new league would', () => {
+    const a = createLeague({ seed: 'founding-2' });
+    const b = createLeague({ seed: 'founding-2' });
+    expect(shape(a)).toEqual(shape(b));
+    const legends = Object.values(b.retiredCoaches).filter((c) => !c.career?.length);
+    for (const c of legends) delete b.retiredCoaches[c.id];
+    for (const c of Object.values(b.coaches)) delete c.pastUnder;
+    b.nextCoachId = Math.min(...legends.map((c) => c.id));
+    b.version = 62;
+    const up = migrateLeague(b)!;
+    expect(shape(up)).toEqual(shape(a));
+  });
+
+  it('seeds nothing twice', () => {
+    const l = createLeague({ seed: 'founding-3' });
+    const before = shape(l);
+    seedFoundingTrees(l);
+    expect(shape(l)).toEqual(before);
   });
 });
