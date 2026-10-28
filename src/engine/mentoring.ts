@@ -187,23 +187,44 @@ export function mentoringWeek(league: League): void {
 }
 
 /**
- * The new league year, before his year is rolled: what he learned lands (a point at most per trait), the count starts
- * again, and a player who is turning 25 is on his own from here.
+ * The new league year, before anyone's year is rolled: every pair's season is banked, then the whole league's banks
+ * are re-centred so that, trait by trait, they sum to zero. Mentors move players against each other, never the league
+ * as a whole: without it a season's noise, and young hotheads taking less from their mentors (controversy runs against
+ * temper), would walk the league's averages away over a long save (`npm run training` holds them within ±0.02).
  */
-export function settleMentoring(league: League, p: Player): void {
+export function mentoringYearEnd(league: League): void {
   const last = league.season - 1;
-  const m = p.mentor === undefined ? undefined : league.players[p.mentor];
-  if (m && (p.mentorWeeks ?? 0) > 0) {
-    bank(league, p, m, p.mentorWeeks!);
-    remember(p, m.id, last);
+  const banked: Player[] = [];
+  for (const p of Object.values(league.players)) {
+    if (p.retired) continue;
+    const m = p.mentor === undefined ? undefined : league.players[p.mentor];
+    if (m && (p.mentorWeeks ?? 0) > 0) {
+      bank(league, p, m, p.mentorWeeks!);
+      remember(p, m.id, last);
+    }
+    if (p.mentor !== undefined) p.mentorWeeks = 0;
+    if (p.mentorBank) banked.push(p);
   }
+  if (!banked.length) return;
+  for (const k of SHIFTED) {
+    // A point a year at most, then the year's average taken back out (twice, in case the cap bit).
+    for (const p of banked) p.mentorBank![k] = clamp(p.mentorBank![k] ?? 0, -1, 1);
+    for (let pass = 0; pass < 2; pass++) {
+      const mean = banked.reduce((sum, p) => sum + p.mentorBank![k]!, 0) / banked.length;
+      for (const p of banked) p.mentorBank![k] = clamp(p.mentorBank![k]! - mean, -1, 1);
+    }
+  }
+}
+
+/** The new league year, for one player, before his year is rolled: what he learned lands; past 24 he's on his own. */
+export function settleMentoring(_league: League, p: Player): void {
   delete p.shiftedLast;
   delete p.lostMentor;
   if (p.mentorBank) {
     const shifts = (p.shifts ??= {});
-    const landed: Player['shiftedLast'] = { season: league.season };
+    const landed: Player['shiftedLast'] = { season: _league.season };
     for (const k of SHIFTED) {
-      const d = clamp(p.mentorBank[k] ?? 0, -1, 1);
+      const d = p.mentorBank[k] ?? 0;
       if (!d) continue;
       shifts[k] = (shifts[k] ?? 0) + d;
       landed[k] = d;
@@ -211,7 +232,6 @@ export function settleMentoring(league: League, p: Player): void {
     delete p.mentorBank;
     if (Object.keys(landed).length > 1) p.shiftedLast = landed;
   }
-  if (p.mentor !== undefined) p.mentorWeeks = 0;
   if (p.age + 1 > YOUNG_AGES[1]) {
     delete p.mentor;
     delete p.mentorWeeks;

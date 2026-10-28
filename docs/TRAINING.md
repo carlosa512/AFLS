@@ -452,7 +452,8 @@ point a year), read through `workEthicOf`, `temperamentOf` and `poiseOf` with th
 (`Player.shifts`). How much rubs off is the mentor's leadership times his standing, times how much the young player
 lets in (high controversy takes less). Shifts land only at the new league year, after last year's development has
 landed and before the new year is rolled, so a year released in steps reads the traits it was rolled with; a pair
-that splits mid-season banks its share (`Player.mentorBank`). `npm run training` section M holds each league average
+that splits mid-season banks its share (`Player.mentorBank`). Each new league year the whole league's banks are re-centred to sum to zero per trait
+(`mentoringYearEnd`): mentors move players against each other, never the league as a whole. `npm run training` section M holds each league average
 within ±0.02 and any one player to a point a year.
 
 ### The rules as agreed
