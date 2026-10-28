@@ -22,6 +22,7 @@
  * agency, like scouts. All coaching randomness uses its own seeded Rngs: it never shifts the
  * league's main random stream, and a migrated save gets the same coaches as a new league.
  */
+import { inheritedScheme, keepBonus, mainMentor, treeLean } from './trees';
 import { workEthicOf } from './traits';
 import {
   coachPlayerFit,
@@ -459,8 +460,11 @@ export function headCoachVision(league: League, hc: Coach): Vision {
   const oc = stayed ? lastSeasonHolder(league, hc.teamId!, 'offCoord') : undefined;
   const dc = stayed ? lastSeasonHolder(league, hc.teamId!, 'defCoord') : undefined;
   const defense = dc?.scheme?.front ? dc.scheme : hc.scheme?.front ? hc.scheme : taste;
+  const own = oc?.style?.passLean ?? hc.style?.passLean ?? clamp(0.8 * (hc.style?.fourthDown ?? 0) + lean, -1, 1);
+  // A head coach building his own staff leans toward the offense his mentor ran (`trees.ts`).
+  const mentorLean = stayed ? undefined : mainMentor(league, hc.id)?.style?.passLean;
   return {
-    pass: oc?.style?.passLean ?? hc.style?.passLean ?? clamp(0.8 * (hc.style?.fourthDown ?? 0) + lean, -1, 1),
+    pass: mentorLean === undefined ? own : clamp(0.5 * own + 0.5 * mentorLean, -1, 1),
     defense: { front: defense.front, coverage: defense.coverage },
     pressure: pressureOf(defense),
   };
@@ -979,7 +983,8 @@ export function asPromoted(league: League, c: Coach, chair: Chair): Coach {
   if (Object.keys(style).length) up.style = style;
   const scheme = rollScheme(league.seed, up);
   if (scheme && !(chair.role === 'offCoord' ? c.scheme?.offense : c.scheme?.front))
-    up.scheme = { ...c.scheme, ...scheme };
+    // A first coordinator's job: he often runs what his mentor ran (`trees.ts`).
+    up.scheme = { ...c.scheme, ...scheme, ...inheritedScheme(league, c, chair.role) };
   return up;
 }
 
@@ -1707,7 +1712,7 @@ function cleanHouse(league: League, team: Team, hc: Coach, rng: Rng, gone: Set<n
     if (c === hc || c.since === league.season || coachMandate(league, c)) continue;
     const years = rng.int(1, maxYears(c.role));
     const expiring = isCoachExpiring(league, c);
-    const wanted = rng.chance(KEEP_FOR_NEW[c.role] + 0.3 * (visionFit(league, hc, c) ?? 0));
+    const wanted = rng.chance(KEEP_FOR_NEW[c.role] + 0.3 * (visionFit(league, hc, c) ?? 0) + keepBonus(league, hc, c));
     const keep = expiring
       ? wanted && coachAsk(league, c, years) <= spare(league, team.id, chairOf(c))
       : wanted || !canLetGo(league, team.id, c);
@@ -1838,6 +1843,8 @@ function fillChairs(
             : x.c.career.some((cs) => cs.role === chair.role)
               ? -PROVEN
               : 0) +
+      // His people, and the tree a head-coach candidate comes from (`trees.ts`).
+      treeLean(league, hc ?? null, x.c, chair.role) +
       rng.normal(0, 0.6);
     const pick = pool.map((x) => ({ x, s: score(x) })).sort((a, b) => a.s - b.s)[0]?.x;
     if (pick && pick.as !== pick.c) promoteInto(league, team.id, pick.c, years);

@@ -6,12 +6,15 @@ import {
   linksOf,
   liveTrees,
   mainMentor,
+  keepBonus,
   seedFoundingTrees,
+  treeLean,
   standingOf,
   treeFor,
   treeOf,
 } from './trees';
 import { migrateLeague } from './migrate';
+import { asPromoted, headCoachVision } from './coaching';
 import type { Coach, CoachRole, League } from './types';
 
 /** A league whose coaches' careers are cleared, so each test writes exactly the history it means. */
@@ -238,5 +241,64 @@ describe('founding trees', () => {
     const before = shape(l);
     seedFoundingTrees(l);
     expect(shape(l)).toEqual(before);
+  });
+});
+
+describe('the carousel', () => {
+  it('keeps a new head coach’s own man more often, and ranks him first in a search', () => {
+    const { l, c } = blank();
+    const [hc, mine, stranger] = c;
+    mine.pastUnder = [{ coachId: hc.id, role: 'offCoord', seasons: 4 }];
+    expect(keepBonus(l, hc, mine)).toBeGreaterThan(0);
+    expect(keepBonus(l, hc, stranger)).toBe(0);
+    expect(treeLean(l, hc, mine, 'offCoord')).toBeLessThan(treeLean(l, hc, stranger, 'offCoord'));
+  });
+
+  it('follows a tree’s standing in head-coach searches: hot ahead, withering behind', () => {
+    const { l, c } = blank();
+    const [r, a, b, cand] = c;
+    const now = l.season;
+    for (const d of [a, b, cand]) d.pastUnder = [{ coachId: r.id, role: 'offCoord', seasons: 4 }];
+    const rec = (w: number, lo: number) => ({
+      record: { fromWeek: 1, throughWeek: 18, regular: { w, l: lo, t: 0 }, playoffs: null, champion: false },
+    });
+    for (const d of [a, b]) {
+      d.career = [now - 3, now - 2, now - 1].map((s) => row(s, d === a ? 2 : 3, 'headCoach', rec(12, 5)));
+      d.role = 'headCoach';
+      d.teamId = d === a ? 2 : 3;
+    }
+    const hot = treeLean(l, null, cand, 'headCoach');
+    for (const d of [a, b]) {
+      d.career = [now - 5, now - 4, now - 3, now - 2].map((s) => row(s, d === a ? 2 : 3, 'headCoach', rec(5, 12)));
+      d.role = 'offCoord';
+      d.teamId = null;
+    }
+    const withering = treeLean(l, null, cand, 'headCoach');
+    expect(hot).toBeLessThan(0);
+    expect(withering).toBeGreaterThan(0);
+    expect(treeLean(l, null, cand, 'offCoord')).toBe(0); // only head-coach searches read standing
+  });
+
+  it('carries a mentor’s scheme on about half the time, the same answer every time', () => {
+    const l = createLeague({ seed: 'tree-schemes' });
+    const hcs = Object.values(l.coaches).filter((x) => x.role === 'headCoach');
+    const mentor = Object.values(l.coaches).find((x) => x.role === 'offCoord' && x.scheme?.offense)!;
+    mentor.role = 'headCoach';
+    let same = 0;
+    let n = 0;
+    const pcs = Object.values(l.coaches).filter((x) => x.role === 'positionCoach' && x.room === 'QB');
+    // History first: the tree index is kept for the calendar step, as it is in play.
+    for (const pc of pcs) pc.pastUnder = [{ coachId: mentor.id, role: 'positionCoach', seasons: 4 }];
+    for (const pc of pcs) {
+      const up = asPromoted(l, pc, { role: 'offCoord' });
+      expect(asPromoted(l, pc, { role: 'offCoord' }).scheme).toEqual(up.scheme);
+      n++;
+      if (up.scheme?.offense === mentor.scheme!.offense) same++;
+    }
+    expect(n).toBeGreaterThan(10);
+    expect(same / n).toBeGreaterThan(0.35);
+    expect(hcs.length).toBeGreaterThan(0);
+    const hc = hcs[0];
+    expect(headCoachVision(l, hc)).toEqual(headCoachVision(l, hc));
   });
 });

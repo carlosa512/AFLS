@@ -5,10 +5,9 @@
  * press, which counts a single season, on purpose: trees should be rare and earned. Everything is worked out from
  * `Coach.career` (and `pastUnder`, the founding trees' pre-league years); nothing about a tree is stored.
  */
-import { ROOM_OF } from './coaching';
 import { newIdentity } from './identity';
 import { Rng } from './rng';
-import type { Coach, CoachRoom, CoachSeason, League, Position } from './types';
+import type { Coach, CoachRole, CoachRoom, CoachSeason, League } from './types';
 
 export const LINK_SEASONS = 3;
 
@@ -21,11 +20,8 @@ export interface Link {
   last: number;
 }
 
-const OFFENSE_ROOMS: ReadonlySet<CoachRoom> = new Set(
-  (Object.entries(ROOM_OF) as [Position, CoachRoom | null][])
-    .filter(([pos, room]) => room && ['QB', 'RB', 'WR', 'TE', 'OL'].includes(pos))
-    .map(([, room]) => room!),
-);
+// The rooms on offense (`ROOM_OF` in coaching.ts; spelled out here because coaching.ts reads this module).
+const OFFENSE_ROOMS: ReadonlySet<CoachRoom> = new Set<CoachRoom>(['QB', 'RB', 'WR', 'OL']);
 
 const everyone = (league: League): Coach[] => [
   ...Object.values(league.coaches),
@@ -287,4 +283,42 @@ export function seedFoundingTrees(league: League): void {
     for (const d of take(staff, rng.int(1, 3)))
       (d.pastUnder ??= []).push({ coachId: root.id, role: d.role, seasons: rng.int(3, 6) });
   }
+}
+
+// ───────── the carousel ─────────
+
+/** A new head coach keeps his own men more often (added to the chance in `cleanHouse`). */
+export const TREE_KEEP = 0.25;
+/** Hiring scores are lower-is-better: a man linked to the hiring head coach scores this much better. */
+export const TREE_PULL = 0.5;
+/** Head-coach searches: a hot tree's disciples score better, a withering one's worse. */
+export const TREE_STANDING: Record<TreeStanding, number> = { hot: -0.4, steady: -0.15, withering: 0.4, faded: 0 };
+/** The chance a new coordinator runs his main mentor's scheme instead of his own. */
+export const TREE_SCHEME = 0.5;
+
+const linked = (league: League, c: Coach, mentor: Coach) => linksOf(league, c.id).some((k) => k.mentorId === mentor.id);
+
+/** What `cleanHouse` adds to the chance a new head coach keeps a man: his own men stay more often. */
+export const keepBonus = (league: League, hc: Coach, c: Coach) => (linked(league, c, hc) ? TREE_KEEP : 0);
+
+/**
+ * What a candidate's tree adds to a hiring score (lower is better): a head coach reaches for his own people, and a
+ * head-coach search leans on the standing of the tree a candidate comes from.
+ */
+export function treeLean(league: League, hc: Coach | null, c: Coach, role: CoachRole): number {
+  let lean = hc && linked(league, c, hc) ? -TREE_PULL : 0;
+  if (role === 'headCoach') {
+    const tree = treeFor(league, c.id);
+    if (tree) lean += TREE_STANDING[standingOf(league, tree)];
+  }
+  return lean;
+}
+
+/** A new coordinator's scheme: his main mentor's about half the time (a pure roll of the seed and his id). */
+export function inheritedScheme(league: League, c: Coach, role: CoachRole): Coach['scheme'] | undefined {
+  if (role !== 'offCoord' && role !== 'defCoord') return undefined;
+  const m = mainMentor(league, c.id);
+  if (!m?.scheme || !new Rng(`${league.seed}:treeScheme:${c.id}:${role}`).chance(TREE_SCHEME)) return undefined;
+  if (role === 'offCoord') return m.scheme.offense ? { offense: m.scheme.offense } : undefined;
+  return m.scheme.front ? { front: m.scheme.front, coverage: m.scheme.coverage } : undefined;
 }
