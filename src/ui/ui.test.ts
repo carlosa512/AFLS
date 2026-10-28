@@ -41,6 +41,7 @@ describe('routes', () => {
       { view: 'stats', tab: 'teams' },
       { view: 'stats', tab: 'awards' },
       { view: 'standings' },
+      { view: 'locker' },
       { view: 'live' },
     ];
     for (const r of routes) expect(hashToRoute(routeToHash(r))).toEqual(r);
@@ -375,7 +376,10 @@ describe('screen contract', () => {
   it('keeps engine words off the screen', () => {
     // Players read football words: never a marble, a trait or a z-score (spec §5.5).
     // Comments are for developers and may say "trait"; only what renders counts.
-    const copy = (f: string) => src(f).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+    const copy = (f: string) =>
+      src(f)
+        .replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')
+        .replace(/^import[\s\S]*?from '[^']*';$/gm, '');
     const bad = files.filter((f) => /['"`>][^'"`<{}\n]*\b(marbles?|traits?|z-score)\b/i.test(copy(f)));
     expect(bad).toEqual([]);
   });

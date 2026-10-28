@@ -18,6 +18,7 @@ export type Route =
   // `sub` is the trades tab's own view (#/office/trades/block), so Back and deep links work there too.
   | { view: 'office'; tab?: OfficeTab; pos?: Position; sub?: TradeTab }
   | { view: 'schedule' }
+  | { view: 'locker' }
   | { view: 'standings' }
   | { view: 'stats'; tab?: StatsTab }
   | { view: 'playoffs' }
@@ -39,7 +40,7 @@ const OFFICE_TABS: readonly OfficeTab[] = [
   'gms',
 ];
 const STATS_TABS: readonly StatsTab[] = ['leaders', 'players', 'teams', 'records', 'awards', 'officials'];
-const PLAIN = ['home', 'schedule', 'standings', 'playoffs', 'compare', 'live'] as const;
+const PLAIN = ['home', 'schedule', 'standings', 'playoffs', 'compare', 'live', 'locker'] as const;
 
 export function routeToHash(route: Route): string {
   switch (route.view) {

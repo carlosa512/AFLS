@@ -22,6 +22,7 @@ import { Dialog, TeamChip } from './components';
 import { isOffseasonPhase, PHASE_LABELS, recordText, resultsSeason, weekLabel } from './format';
 import { BoxScore } from './screens/BoxScore';
 import { CoachCard } from './screens/Coaches';
+import { LockerRoom } from './screens/LockerRoom';
 import { MedicCard } from './screens/Medical';
 import { ScoutCard } from './screens/Staff';
 import { GmCard } from './screens/GeneralManagers';
@@ -54,6 +55,7 @@ const TABS: { view: Route['view']; label: string }[] = [
   { view: 'home', label: 'Home' },
   { view: 'roster', label: 'Roster' },
   { view: 'cap', label: 'Cap' },
+  { view: 'locker', label: 'Locker Room' },
   { view: 'inbox', label: 'Inbox' },
   { view: 'office', label: 'Front office' },
   { view: 'schedule', label: 'Schedule' },
@@ -354,7 +356,7 @@ export function App() {
           )}
         </div>
         <nav className="wrap tabs" aria-label="Sections">
-          {TABS.filter((t) => hasJob || t.view !== 'cap').map((t) => (
+          {TABS.filter((t) => hasJob || (t.view !== 'cap' && t.view !== 'locker')).map((t) => (
             <button
               key={t.view}
               className="tab"
@@ -416,6 +418,7 @@ export function App() {
           ))}
         {route.view === 'cap' &&
           (hasJob ? <Finances league={league} teamId={teamOr(route.teamId)} /> : <GeneralManagers league={league} />)}
+        {route.view === 'locker' && hasJob && <LockerRoom league={league} />}
         {route.view === 'inbox' && (
           <Inbox key={`${route.messageId ?? ''}:${route.focus ?? ''}`} league={league} messageId={route.messageId} />
         )}
