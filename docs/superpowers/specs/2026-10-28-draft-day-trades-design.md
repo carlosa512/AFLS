@@ -82,8 +82,9 @@ by passing on its man now). So it says yes when:
 - The buyer offers its own pick plus the cheapest add-on that both `judge`s accept: a later pick in this draft
   first, then a future pick (next year's round one later, the NFL's "round a year"). A win-now GM (high
   `futureDiscount`) reaches for the future pick first, because it costs him least.
-- `judge` gets a new option, `covet` (points): added to the buyer's `get` and to the seller's `give`. Nothing else in
-  `judge` changes, so a draft deal goes through the same floors, margins and refusals as every other deal.
+- `judge` reads covet itself in the `draft` phase (`draftCovet`): added to the buyer's `get` and to the seller's
+  `give`. Nothing else in `judge` changes, so a draft deal goes through the same floors, margins and refusals as every
+  other deal, whoever proposes it.
 
 ### When it runs
 
@@ -133,7 +134,7 @@ Ellis." A trade record carries kind `draft` (`TAGS.draft = 'draft-day trade'`).
   price"). A team that can't make it work stays quiet. Once per pick on the clock (`market.calledAhead`, the overall
   it was used at). If none: "No one ahead of you will move their pick for what you have."
 - **Any proposal for a pick this draft** (the trade table, a counter, an accepted ask) is judged with the AI side's
-  covet for its own pick in this draft: `judge(..., { covet })` from `covetFor(ctx, team, pick)`. A team with its man
+  covet for its own pick in this draft (`judge` reads `draftCovet` itself). A team with its man
   on the board asks more or says no; one in a tier deals.
 - **Lapsing, in general:** `lapseUsedPicks(league)` runs inside `draftPlayer`. Any pending offer to you with a pick
   that has now been used (on either side) closes: status `expired`, outcome "It lapsed when the pick was made." (or
@@ -171,10 +172,10 @@ Ellis." A trade record carries kind `draft` (`TAGS.draft = 'draft-day trade'`).
 
 ## Files
 
-- `src/engine/trade/draft.ts` (new): covet (`covetFor`), `draftCalls`, `clockOffers`, `shopPick`, `callAhead`,
+- `src/engine/trade/draft.ts` (new): covet (`draftCovet`), `draftCalls`, `clockOffers`, `shopPick`, `callAhead`,
   `lapseUsedPicks`.
-- `src/engine/trade/judge.ts`: the `covet` option; `evaluateTrade` and `proposeTrade` pass the AI side's covet for a
-  pick in this draft.
+- `src/engine/trade/judge.ts`: `judge` adds `draftCovet` in the draft (so `evaluateTrade`, `proposeTrade` and offers get
+  it too).
 - `src/engine/trade/deals.ts`: `pickSwapFor` in the `draft` phase; `TAGS.draft`.
 - `src/engine/trade/market.ts`: `draft` kind in `MINOR`.
 - `src/engine/trade/offers.ts`: reason `draft`; skip `draft` in the lapse cooldown.

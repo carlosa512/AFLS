@@ -134,6 +134,16 @@ export function availableProspects(league: League): Player[] {
 
 export { POSITION_PREMIUM };
 
+/** Each available prospect's consensus rank among those still on the board (1 = best): about where he'll go from here. */
+export function availableRanks(league: League): Map<number, number> {
+  return new Map(
+    availableProspects(league)
+      .map((p) => ({ id: p.id, v: boardValue(p) }))
+      .sort((a, b) => b.v - a.v || a.id - b.id)
+      .map((x, i) => [x.id, i + 1]),
+  );
+}
+
 /** A team's overalls by position, best first. */
 export function positionDepth(league: League, teamId: number): Record<Position, number[]> {
   const out = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as number[]])) as Record<Position, number[]>;
@@ -192,16 +202,19 @@ function boardFrom(memo: BoardMemo, league: League, teamId: number, p: Player): 
   return b;
 }
 
-/** A front office's board score for a prospect: its read of talent and upside, position value, need. */
+/**
+ * A front office's board score for a prospect: its read of talent and upside, position value, need. With no `rng` it
+ * leaves out the pick-day noise (a trade call weighs the board as it stands), in the same order, so picks don't move.
+ */
 export function boardScore(
   depth: Record<Position, number[]>,
   p: Player,
   board: Board,
-  rng: Rng,
+  rng: Rng | null,
   round: number,
   sizeBias = 0,
 ): number {
-  let score = 0.6 * board.grade + 0.4 * board.ceiling + POSITION_PREMIUM[p.position] + rng.normal(0, 0.6);
+  let score = 0.6 * board.grade + 0.4 * board.ceiling + POSITION_PREMIUM[p.position] + (rng ? rng.normal(0, 0.6) : 0);
   // A GM who wants measurables marks the undersized prospect down, the further under the more: a point of board
   // value at most, so a great small player still goes early.
   const z = sizeZ(p);

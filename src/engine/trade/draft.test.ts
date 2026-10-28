@@ -4,9 +4,15 @@ import { deliverMail, offerWords } from '../inbox';
 import { simToEndOfSeason } from '../league';
 import { migrateLeague } from '../migrate';
 import { advanceOffseason, beginOffseason } from '../offseason';
-import { draftOrder } from '../offseason/draft';
+import { boardOf, boardScore, draftOrder, nextPick, positionDepth, simDraft } from '../offseason/draft';
+import { clamp, Rng } from '../rng';
 import type { League, TradeOffer } from '../types';
+import { tradeContext } from './context';
+import { COVET_MAX, COVET_SCALE, draftCovet, draftTrades, expectedAt } from './draft';
 import { emptyMarket } from './execute';
+import { judge } from './judge';
+import type { TradeProposal } from './rules';
+import { pickValue } from './value';
 
 /** One league played through a season and walked to draft day, cloned per test. */
 const atDraft = (() => {
@@ -115,5 +121,121 @@ describe('save v60', () => {
     expect(up.version).toBe(60);
     expect(up.players[prospects[0].id].draft!.via).toBe(used[0].originalTeamId);
     expect(up.players[prospects[1].id].draft!.via).toBeUndefined();
+  });
+});
+
+/** The first 32 picks of seed 'draft-trades' on main before draft-day trades (`simDraft`, rng 'baseline'). */
+const BASELINE = [
+  1805, 1775, 1803, 1770, 1771, 1802, 1781, 1799, 1776, 1786, 1842, 1772, 1782, 1773, 1791, 1831, 1796, 1774, 1809,
+  1844, 1834, 1828, 1778, 1795, 1787, 1793, 1806, 1797, 1813, 1839, 1919, 1798,
+];
+
+/** The pick on the clock (an AI team's) and another AI team's pick `ahead` slots later. */
+function clockAnd(league: League, ahead: number) {
+  const order = draftOrder(league).filter((p) => p.playerId === undefined);
+  const clock = order.find((p) => p.ownerId !== league.userTeamId)!;
+  const later = order.find(
+    (p) => p.overall! >= clock.overall! + ahead && p.ownerId !== clock.ownerId && p.ownerId !== league.userTeamId,
+  )!;
+  // Make the clock pick the next one: earlier picks are used up.
+  for (const p of order) if (p.overall! < clock.overall!) p.playerId = -1;
+  return { clock, later };
+}
+const swap = (clock: { id: number; ownerId: number }, later: { id: number; ownerId: number }): TradeProposal => ({
+  sides: [
+    { teamId: later.ownerId, players: [], picks: [later.id] },
+    { teamId: clock.ownerId, players: [], picks: [clock.id] },
+  ],
+});
+
+describe('covet', () => {
+  it('boardScore with no rng adds no noise', () => {
+    const l = draftDay();
+    const p = l.draftClass.map((id) => l.players[id])[0];
+    const t = l.teams[1];
+    const board = boardOf(l, t.id, p);
+    const depth = positionDepth(l, t.id);
+    const noisy = boardScore(depth, p, board, new Rng('same'), 1);
+    const clean = boardScore(depth, p, board, null, 1);
+    expect(noisy - clean).toBeCloseTo(new Rng('same').normal(0, 0.6), 9);
+  });
+
+  it('leaves the draft as it was when no trade happens', () => {
+    const l = draftDay();
+    draftTrades.off = true;
+    try {
+      simDraft(l, new Rng('baseline'), { stopAtUser: false, limit: 32 });
+    } finally {
+      draftTrades.off = false;
+    }
+    expect(
+      draftOrder(l)
+        .slice(0, 32)
+        .map((p) => p.playerId),
+    ).toEqual(BASELINE);
+  });
+
+  it('is zero outside the draft and for you', () => {
+    const l = draftDay();
+    const { clock, later } = clockAnd(l, 6);
+    const ctx = tradeContext(l);
+    const userSide: TradeProposal = {
+      sides: [
+        { teamId: l.userTeamId, players: [], picks: [] },
+        { teamId: clock.ownerId, players: [], picks: [clock.id] },
+      ],
+    };
+    expect(draftCovet(ctx, l.userTeamId, userSide)).toEqual({ get: 0, give: 0 });
+    l.phase = 'preseason';
+    expect(draftCovet(tradeContext(l), clock.ownerId, swap(clock, later))).toEqual({ get: 0, give: 0 });
+  });
+
+  it('makes the team on the clock want more the further it would slide', () => {
+    const l = draftDay();
+    const { clock, later: near } = clockAnd(l, 1);
+    const far = draftOrder(l).find((p) => p.overall! >= clock.overall! + 25 && p.ownerId !== clock.ownerId)!;
+    const ctx = tradeContext(l);
+    const give = (pk: typeof near) => draftCovet(ctx, clock.ownerId, swap(clock, pk)).give;
+    expect(give(far)).toBeGreaterThan(0);
+    expect(give(near)).toBeLessThanOrEqual(give(far));
+  });
+
+  it("is what judge adds to each side's stakes", () => {
+    const l = draftDay();
+    const { clock, later } = clockAnd(l, 8);
+    const ctx = tradeContext(l);
+    const deal = swap(clock, later);
+    const on = judge(ctx, clock.ownerId, deal);
+    const covet = draftCovet(ctx, clock.ownerId, deal);
+    draftTrades.off = true;
+    try {
+      const off = judge(tradeContext(l), clock.ownerId, deal);
+      expect(on.give - off.give).toBeCloseTo(covet.give, 6);
+      expect(on.get - off.get).toBeCloseTo(covet.get, 6);
+    } finally {
+      draftTrades.off = false;
+    }
+  });
+
+  it('gives a buyer the gap between its man now and its best at its own pick, on its own chart', () => {
+    const l = draftDay();
+    const { clock, later } = clockAnd(l, 8);
+    const buyer = l.teams[later.ownerId];
+    buyer.gm.archetype = 'Balanced';
+    const ctx = tradeContext(l);
+    const gap = expectedAt(l, buyer.id, clock).score - expectedAt(l, buyer.id, later).score;
+    const want = pickValue(l, clock, buyer.gm, ctx) * clamp(gap / COVET_SCALE, 0, COVET_MAX);
+    expect(draftCovet(ctx, buyer.id, swap(clock, later)).get).toBeGreaterThanOrEqual(want - 1e-6);
+    expect(nextPick(l)!.id).toBe(clock.id);
+  });
+
+  it('makes a Pick Hoarder value picks coming in more', () => {
+    const l = draftDay();
+    const { clock, later } = clockAnd(l, 8);
+    const seller = l.teams[clock.ownerId];
+    seller.gm.archetype = 'Balanced';
+    const balanced = draftCovet(tradeContext(l), seller.id, swap(clock, later)).get;
+    seller.gm.archetype = 'Pick Hoarder';
+    expect(draftCovet(tradeContext(l), seller.id, swap(clock, later)).get).toBeGreaterThan(balanced);
   });
 });
