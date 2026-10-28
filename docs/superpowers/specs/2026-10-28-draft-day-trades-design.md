@@ -65,7 +65,7 @@ staying where it is:
 3. **A tier break:** covet clears `COVET_MIN`.
 4. **Distance:** within the next 10 picks. A jump of more than 8 spots only for a QB, with a covet at least twice
    `COVET_MIN`.
-5. **Limits:** at most 2 trade-ups a team per draft; never for a K or P before round 5 (`specialistPenalty`).
+5. **Limits:** at most 3 trade-ups a team per draft (tuned from 2: the limit held volume under the NFL's); never for a K or P before round 5 (`specialistPenalty`).
 6. **It takes him:** a team that trades up drafts the player it moved up for (its pick skips `aiDraftChoice`).
 
 ### A trade-down needs a reason (one of these)

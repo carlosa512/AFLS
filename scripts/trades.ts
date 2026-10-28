@@ -20,6 +20,9 @@
  *
  * 6. Volume and mix: trades in season, the share on deadline day, the offseason's, what kinds, and
  *    how few go between division rivals, against the NFL's.
+ * 8. Draft day: trades a draft (and with a first), speed a pick, whether a team that moved up took the player it
+ *    moved up for, positions, prices against the Jimmy Johnson chart, QB trade-ups and who trades down, against the
+ *    NFL's draft-trade record (docs/TRADES.md, Phase 4).
  *
  *   npm run trades          # 3 leagues, 3 seasons each (and 45 more priced to deadline day)
  *   npm run trades -- 4
@@ -33,7 +36,9 @@ import { yearsLeft } from '../src/engine/finance/contract';
 import { createLeague } from '../src/engine/generate';
 import { gamesInWeek, playWeek, simToEndOfSeason } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
+import { draftOrder, nextPick, simDraft } from '../src/engine/offseason/draft';
 import { freeAgents, signPlayer } from '../src/engine/offseason/negotiation';
+import { expectedAt } from '../src/engine/trade/draft';
 import { playerOvr, STARTERS } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
 import { teamPlayers } from '../src/engine/roster';
@@ -43,6 +48,7 @@ import {
   executeTrade,
   goingRate,
   isDeadlineDay,
+  jimmyJohnson,
   judge,
   marketMoment,
   marketValue,
@@ -210,6 +216,22 @@ dealWatch.onClose = (ctx, deal, proposal) => {
   if (ctx.league !== live) return;
   const { league } = ctx;
   const reads = [0, 1].map((i) => sideRead(ctx, deal, proposal, i));
+  // Draft deals answer to the same evaluator, but they're picks on a board, not the player market: they face the
+  // own-eyes check here and are read in their own section (8), not in the market's gaps, ledgers and mix.
+  if (league.phase === 'draft') {
+    reads.forEach((r, i) => {
+      if (r.own < -1)
+        fair.cheese.push(
+          `${r.team.abbrev} lost ${(-r.own).toFixed(0)} in its own eyes on draft day (${deal.kind}, side ${i})`,
+        );
+    });
+    const clock = nextPick(league)!;
+    if (deal.kind === 'draft') {
+      const buyer = proposal.sides.find((s) => !s.picks.includes(clock.id))!.teamId;
+      draftDay.wanted.set(clock.id, expectedAt(league, buyer, clock).best?.id);
+    }
+    return;
+  }
   const parts = proposal.sides.map((side) => sends(ctx, side));
   const stakes = parts.flat().reduce((a, b) => a + Math.abs(b), 0);
   const gap = Math.abs(reads[0].truth) / Math.max(stakes, 100);
@@ -566,6 +588,69 @@ const volume = {
 };
 const speedOff: number[] = [];
 
+// ───────── 8. Draft day ─────────
+
+const draftDay = {
+  records: [] as TradeRecord[],
+  /** The prospect each trade-up was for, by the pick it bought (read as the deal closed). */
+  wanted: new Map<number, number | undefined>(),
+  perDraft: [] as number[],
+  withFirst: [] as number[],
+  qbUps: [] as number[],
+  tookHim: [0, 0],
+  premium: { up: [0, 0], stay: [0, 0] },
+  priceRatios: [] as number[],
+  downs: { flat: 0, all: 0 },
+  flatTeams: [] as number[],
+  ms: [] as number[],
+};
+/** Picks from later drafts that moved on draft day (ids are unique for a league's life). */
+const futurePicks = new Set<number>();
+const PREMIUM_POS = new Set(['QB', 'EDGE', 'OL', 'CB', 'WR']);
+/** A pick on the Jimmy Johnson chart at its slot, future picks 25% off a year (as the prices section reads them). */
+const jjPoints = (league: League, pk: DraftPick) =>
+  jimmyJohnson(pk.overall ?? (pk.round - 1) * 32 + 16) * 0.75 ** Math.max(0, pk.season - league.season);
+
+/** One finished draft, read from its picks and the deals made during it. */
+function readDraft(league: League, records: readonly TradeRecord[]) {
+  const pickOf = (id: number) => league.draftPicks.find((p) => p.id === id)!;
+  draftDay.perDraft.push(records.length);
+  draftDay.withFirst.push(
+    records.filter((r) => r.sides.some((s) => s.picks.some((id) => pickOf(id).round === 1))).length,
+  );
+  const flat = new Set(
+    league.teams.filter((t) => t.gm.pickChart === 'analytics' || t.gm.archetype === 'Pick Hoarder').map((t) => t.id),
+  );
+  draftDay.flatTeams.push(flat.size / league.teams.length);
+  let qb = 0;
+  const moved = new Set<number>();
+  for (const r of records.filter((x) => x.kind === 'draft')) {
+    const bought = pickOf(r.sides[1].picks[0]);
+    moved.add(bought.id);
+    const p = league.players[bought.playerId!];
+    draftDay.tookHim[1]++;
+    if (draftDay.wanted.get(bought.id) === p.id) draftDay.tookHim[0]++;
+    draftDay.premium.up[1]++;
+    if (PREMIUM_POS.has(p.position)) draftDay.premium.up[0]++;
+    if (p.position === 'QB' && bought.overall! <= 16) qb++;
+    if (bought.round === 1)
+      draftDay.priceRatios.push(
+        r.sides[0].picks.reduce((s, id) => s + jjPoints(league, pickOf(id)), 0) / jjPoints(league, bought),
+      );
+    draftDay.downs.all++;
+    if (flat.has(r.sides[1].teamId)) draftDay.downs.flat++;
+  }
+  draftDay.qbUps.push(qb);
+  for (const r of records)
+    for (const x of r.sides) for (const id of x.picks) if (pickOf(id).season > league.season) futurePicks.add(id);
+  for (const pk of league.draftPicks.filter(
+    (x) => x.season === league.season && x.playerId !== undefined && !moved.has(x.id),
+  )) {
+    draftDay.premium.stay[1]++;
+    if (PREMIUM_POS.has(league.players[pk.playerId!].position)) draftDay.premium.stay[0]++;
+  }
+}
+
 /**
  * Every trade a step made: value it in the truth, and check both teams after. New trades are told
  * apart by identity, not position: the history keeps five seasons, so older ones drop off its front.
@@ -583,6 +668,12 @@ function audit(after: League): TradeRecord[] {
   const fresh = (after.market?.history ?? []).filter((r) => !audited.has(r));
   for (const record of fresh) {
     audited.add(record);
+    // A draft deal is picks only (nothing on the books moves, and `judge` holds it to the cap). Read after the whole
+    // draft, every team has just signed its rookies before camp's cuts: not a trade's doing.
+    if (record.phase === 'draft') {
+      draftDay.records.push(record);
+      continue;
+    }
     if (record.physicals?.some((x) => x.result === 'concerns')) phys.flagged++;
     volume.all.push(record);
     checkHealth(
@@ -755,19 +846,31 @@ for (let i = 0; i < LEAGUES; i++) {
     desk.afterDeadline += freshOffers(league, label).length;
     // The offseason, step by step, each step's trades audited as it goes.
     beginOffseason(league);
-    let offseason = audit(league).length;
+    let offseason = audit(league).filter((r) => r.phase !== 'draft').length;
     offers += freshOffers(league, label).length;
     if (timing) {
       const copy = clone(league);
       speedOff.push(cpuMs(() => marketMoment(copy, 'leagueYear')));
     }
     for (let guard = 0; guard < 20 && league.phase !== 'regular'; guard++) {
+      const drafting = league.phase === 'draft';
+      if (timing && drafting) {
+        const copy = clone(league);
+        const picks = draftOrder(copy).filter((p) => p.playerId === undefined).length;
+        draftDay.ms.push(cpuMs(() => simDraft(copy, new Rng('timing'), { stopAtUser: false })) / Math.max(1, picks));
+      }
       if (timing && (league.phase === 'freeAgency' || league.phase === 'preseason')) {
         const copy = clone(league);
         speedOff.push(cpuMs(() => marketMoment(copy, league.phase === 'freeAgency' ? 'faDay' : 'camp')));
       }
       advanceOffseason(league, { autoUser: true });
-      offseason += audit(league).length;
+      const step = audit(league);
+      offseason += step.filter((r) => r.phase !== 'draft').length;
+      if (drafting)
+        readDraft(
+          league,
+          step.filter((r) => r.phase === 'draft'),
+        );
       offers += freshOffers(league, label).length;
     }
     volume.offseason.push(offseason);
@@ -953,6 +1056,36 @@ console.log('\nSpeed');
 check('one verdict, warm cache (ms)', speed.judge, [0, 0.6], 3);
 check('one week of the market (ms, median)', median(speed.week), [0, 120], 1);
 check('one offseason market moment (ms, median)', median(speedOff), [0, 300], 1);
+
+const pct = (x: number[]) => (100 * x[0]) / Math.max(1, x[1]);
+console.log(
+  `\nDraft day (${draftDay.perDraft.length} drafts, ${draftDay.records.length} deals: ${draftDay.records.filter((r) => r.kind === 'draft').length} moves up, ${draftDay.records.filter((r) => r.kind === 'futureSwap').length} future-for-current swaps)`,
+);
+check('draft trades a draft', mean(draftDay.perDraft), [35, 45], 1);
+check('…with a first-round pick', mean(draftDay.withFirst), [3, 9], 1);
+check('ms a pick (median, one whole draft)', median(draftDay.ms), [0, 3], 2);
+check('trade-ups where the buyer took its man (%)', pct(draftDay.tookHim), [90, 100], 1);
+check(
+  'trade-up picks at a premium position (%) − stay-put (%)',
+  pct(draftDay.premium.up) - pct(draftDay.premium.stay),
+  [0.1, Infinity],
+  1,
+);
+check('round-1 price ÷ JJ chart (median, mover)', median(draftDay.priceRatios), [0.95, 1.25], 2);
+check('QB trade-ups into the top 16, a draft', mean(draftDay.qbUps), [0.3, 2], 1);
+check(
+  'trade-downs by analytics GMs or Pick Hoarders (%) − their share (%)',
+  (100 * draftDay.downs.flat) / Math.max(1, draftDay.downs.all) - 100 * mean(draftDay.flatTeams),
+  [0, Infinity],
+  1,
+);
+note(
+  'deals with a future pick in them, a draft',
+  (
+    draftDay.records.filter((r) => r.sides.some((x) => x.picks.some((id) => futurePicks.has(id)))).length /
+    Math.max(1, draftDay.perDraft.length)
+  ).toFixed(1),
+);
 
 console.log(`\n${misses} number(s) outside target range`);
 process.exit(misses ? 1 : 0);

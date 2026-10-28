@@ -27,7 +27,7 @@ import type { DraftPick, League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
 import { ensureService } from '../personnel/service';
 import { tradeContext } from '../trade/context';
-import { draftCalls, draftedInto, draftTrades, lapseUsedPicks } from '../trade/draft';
+import { draftBoards, draftCalls, draftedInto, draftTrades, lapseUsedPicks } from '../trade/draft';
 
 export const DRAFT_CLASS_SIZE = 260;
 /** How far under his ready-to-play self a prospect comes in, given back as room to grow (overall points). */
@@ -303,7 +303,8 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
 /** Make picks until it's the user's turn, `limit` picks are made, or the draft ends. Returns the picks made. */
 export function simDraft(league: League, rng: Rng, opts: { stopAtUser: boolean; limit?: number }): DraftPick[] {
   const made: DraftPick[] = [];
-  const boards: BoardMemo = new Map();
+  // The boards the phones read are the ones the picks are made from: one read of each prospect a team.
+  const boards: BoardMemo = draftTrades.off ? new Map() : draftBoards(league);
   // One trade context for the run: picks only add a rookie to a roster (`draftedInto`), trades refresh it.
   const ctx = draftTrades.off ? null : tradeContext(league);
   for (let pick = nextPick(league); pick; pick = nextPick(league)) {

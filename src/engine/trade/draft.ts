@@ -41,8 +41,20 @@ export const draftTrades: { off?: boolean } = {};
 /** Board points that make a full share of covet (about a round's drop in grade), and the most a pick's value grows by it. */
 export const COVET_SCALE = 2;
 export const COVET_MAX = 0.6;
-/** The tier break a team needs before it calls about moving up: its man must stand this far above its best later. */
-export const COVET_MIN = 0.8;
+/**
+ * The tier break a team needs before it calls about moving up, by round: its man must stand this far above its best
+ * later. Late-round boards bunch up (the gaps between prospects shrink), so the bar comes down with them.
+ */
+export const COVET_MIN_BY_ROUND = [0.8, 0.4, 0.3, 0.15, 0.15, 0.15, 0.15];
+export const covetMin = (round: number) => COVET_MIN_BY_ROUND[Math.min(round, COVET_MIN_BY_ROUND.length) - 1];
+/** Round 1's bar, the strictest. */
+export const COVET_MIN = COVET_MIN_BY_ROUND[0];
+/**
+ * What the team on the clock asks over its chart for the pick, by round: the buyer needs it now, and NFL movers pay
+ * at or above the Jimmy Johnson chart early (ESPN: in every pick-only QB trade-up the mover overpaid). On day 3 the
+ * stakes are small and the asks come down.
+ */
+export const ON_THE_CLOCK = [0.12, 0.1, 0.06, 0.03, 0.03, 0.03, 0.03];
 /** What a Pick Hoarder adds to every pick coming in, and a team with three or more holes. */
 export const HOARDER_PICKS = 0.1;
 export const MANY_HOLES = 0.05;
@@ -62,6 +74,8 @@ interface DraftMemo {
   bias: Map<number, number>;
   expected: Map<string, { best: Player | null; score: number }>;
   clock: DraftPick | undefined;
+  /** The picks after the one on the clock, as far as anyone looks to move up. */
+  ahead: DraftPick[];
 }
 const memos = new WeakMap<League, DraftMemo>();
 
@@ -85,6 +99,7 @@ function memoOf(league: League): DraftMemo {
       bias: new Map(),
       expected: new Map(),
       clock: undefined,
+      ahead: [],
     };
     memos.set(league, m);
   }
@@ -107,12 +122,16 @@ function memoOf(league: League): DraftMemo {
     }
     m.seen = last;
     m.clock = nextPick(league);
+    m.ahead = picksAhead(league, WINDOW);
     m.ranks = availableRanks(league);
     m.pool = availableProspects(league);
     m.expected.clear();
   }
   return m;
 }
+
+/** This draft's boards by team, kept for the whole draft: `simDraft` picks from the same ones. */
+export const draftBoards = (league: League): BoardMemo => memoOf(league).boards;
 
 /** A team's own board entry for a prospect, kept for the draft. */
 function boardFor(league: League, teamId: number, p: Player) {
@@ -231,7 +250,11 @@ export function draftCovet(ctx: TradeContext, teamId: number, proposal: TradePro
   let get = 0;
   let give = 0;
   if (eIn && (!eOut || eIn.overall! < eOut.overall!)) get += points(eIn, eOut ?? kept);
-  if (eOut && (!eIn || eOut.overall! < eIn.overall!)) give += points(eOut, eIn ?? kept);
+  if (eOut && (!eIn || eOut.overall! < eIn.overall!)) {
+    give += points(eOut, eIn ?? kept);
+    if (eOut.id === memoOf(league).clock?.id)
+      give += ON_THE_CLOCK[Math.min(eOut.round, ON_THE_CLOCK.length) - 1] * pickValue(league, eOut, team.gm, ctx);
+  }
   const coming = theirs.picks.reduce((s, id) => s + pickValue(league, pickOf(ctx, id)!, team.gm, ctx), 0);
   if (team.gm.archetype === 'Pick Hoarder') get += HOARDER_PICKS * coming;
   if (teamNeeds(ctx, team).filter((n) => n.urgency >= HOLE).length >= 3) get += MANY_HOLES * coming;
@@ -246,9 +269,9 @@ export const PREMIUM: ReadonlySet<Position> = new Set<Position>(['QB', 'EDGE', '
 export const WINDOW = 10;
 export const LONG_JUMP = 8;
 /** Trade-ups a team makes in one draft at most. */
-export const MAX_TRADE_UPS = 2;
+export const MAX_TRADE_UPS = 3;
 /** The chance a pick's phones ring with a future-for-current pick swap ("our 2028 2nd for your 3rd now"). */
-export const DRAFT_SWAP_RATE = 0.03;
+export const DRAFT_SWAP_RATE = 0.1;
 /** Calls made before one pick, and add-ons tried in each. */
 const CALLS = 3;
 const ADD_ONS = 3;
@@ -282,15 +305,17 @@ export function tradeUpReason(ctx: TradeContext, team: Team, own: DraftPick): { 
   if (!thin(depth, pos) && weakest >= boardFor(league, team.id, target).grade && !PREMIUM.has(pos)) return null;
   const rank = memoOf(league).ranks.get(target.id) ?? Infinity;
   const between = new Set(
-    picksAhead(league, before - 1)
+    memoOf(league)
+      .ahead.slice(0, before - 1)
       .map((p) => p.ownerId)
       .filter((id) => id !== team.id),
   );
   const run = [...between].filter((id) => thin(depthOf(league, id), pos)).length >= 2;
   if (rank > before && !(run && rank <= before + 3)) return null;
   const gap = score - expectedAt(league, team.id, own, new Set([target.id])).score;
-  if (gap < COVET_MIN) return null;
-  if (before > LONG_JUMP && !(pos === 'QB' && gap >= 2 * COVET_MIN)) return null;
+  const min = covetMin(clock.round);
+  if (gap < min) return null;
+  if (before > LONG_JUMP && !(pos === 'QB' && gap >= 2 * min)) return null;
   return { target, gap };
 }
 
@@ -351,7 +376,7 @@ export function draftCalls(ctx: TradeContext, rng: Rng): { buyer: number; target
   const seller = league.teams[clock.ownerId];
   const seen = new Set<number>([seller.id, league.userTeamId]);
   const calls: { team: Team; own: DraftPick; target: Player; gap: number }[] = [];
-  for (const own of picksAhead(league, WINDOW)) {
+  for (const own of memoOf(league).ahead) {
     if (seen.has(own.ownerId)) continue;
     seen.add(own.ownerId);
     const team = league.teams[own.ownerId];
