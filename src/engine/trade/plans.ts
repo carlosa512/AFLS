@@ -9,6 +9,7 @@ import { chairHolder, hotSeat, ownerTrigger, teamCoaches } from '../coaching';
 import { isExpired, yearsLeft } from '../finance/contract';
 import { contenderScore } from '../offseason/negotiation';
 import { ROSTER_TEMPLATE, STARTERS } from '../positions';
+import { starters } from '../roster';
 import { clamp } from '../rng';
 import { computeRecords, conferenceSeeds, winPct, type TeamRecord } from '../season/standings';
 import type { League, Player, Position, Stance, Team, TradeMarket } from '../types';
@@ -169,11 +170,15 @@ const healthy = (league: League, p: Player) =>
 
 /** The league's median starter at each position: the bar a team's weakest starter is measured against. */
 export function starterLine(ctx: TradeContext): Record<Position, number> {
-  if (ctx.starterLine) return ctx.starterLine;
+  return (ctx.starterLine ??= lineOn(ctx, (p) => ovrOf(ctx, p)));
+}
+
+/** The league's median starter at each position, with players rated by `ovr`: the truth or one club's read. */
+function lineOn(ctx: TradeContext, ovr: (p: Player) => number): Record<Position, number> {
   const all = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as number[]])) as Record<Position, number[]>;
   for (const t of ctx.league.teams) {
     const mine = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as number[]])) as Record<Position, number[]>;
-    for (const p of rosterOf(ctx, t.id)) mine[p.position].push(ovrOf(ctx, p));
+    for (const p of rosterOf(ctx, t.id)) mine[p.position].push(ovr(p));
     for (const pos of POSITIONS) all[pos].push(...mine[pos].sort((a, b) => b - a).slice(0, STARTERS[pos]));
   }
   const line = {} as Record<Position, number>;
@@ -181,7 +186,7 @@ export function starterLine(ctx: TradeContext): Record<Position, number> {
     const xs = all[pos].sort((a, b) => a - b);
     line[pos] = xs[xs.length >> 1] ?? 10;
   }
-  return (ctx.starterLine = line);
+  return line;
 }
 
 const underContract = (league: League, p: Player) => !!p.contract && !isExpired(p.contract, league.season);
@@ -190,18 +195,31 @@ const underContract = (league: League, p: Player) => !!p.contract && !isExpired(
 export function teamNeeds(ctx: TradeContext, team: Team): Need[] {
   const memo = (ctx.needs ??= new Map()).get(team.id);
   if (memo) return memo;
-  const { league } = ctx;
-  const line = starterLine(ctx);
+  const out = needsOn(ctx.league, rosterOf(ctx, team.id), starterLine(ctx), (p) => ovrOf(ctx, p));
+  ctx.needs.set(team.id, out);
+  return out;
+}
+
+/**
+ * The needs rules for one roster, with players rated by `ovr` against the league's median starter `line`:
+ * the team's own exact read (`teamNeeds`) or another club's scouting of it (`scoutedNeeds`).
+ */
+export function needsOn(
+  league: League,
+  roster: readonly Player[],
+  line: Record<Position, number>,
+  ovr: (p: Player) => number,
+): Need[] {
   const out: Need[] = [];
   const lookAhead = league.phase !== 'regular' || league.week >= 6;
   for (const pos of POSITIONS) {
-    const room = rosterOf(ctx, team.id).filter((p) => p.position === pos && underContract(league, p));
-    const fit = room.filter((p) => healthy(league, p)).sort((a, b) => ovrOf(ctx, b) - ovrOf(ctx, a));
+    const room = roster.filter((p) => p.position === pos && underContract(league, p));
+    const fit = room.filter((p) => healthy(league, p)).sort((a, b) => ovr(b) - ovr(a));
     const S = STARTERS[pos];
     let need: Need | null = null;
     if (fit.length < S) need = { position: pos, urgency: 1, reason: 'hole' };
     else {
-      const gap = line[pos] + 0.5 - ovrOf(ctx, fit[S - 1]);
+      const gap = line[pos] + 0.5 - ovr(fit[S - 1]);
       if (gap > 0) need = { position: pos, urgency: clamp(gap / 3, 0, 1) * NEED_WEIGHT[pos], reason: 'upgrade' };
     }
     // Starters whose deals end this year are next year's holes.
@@ -209,9 +227,27 @@ export function teamNeeds(ctx: TradeContext, team: Team): Need[] {
       need = { position: pos, urgency: 0.3 * NEED_WEIGHT[pos], reason: 'nextYear' };
     if (need && need.urgency > 0.1) out.push(need);
   }
-  out.sort((a, b) => b.urgency - a.urgency);
-  ctx.needs.set(team.id, out);
-  return out;
+  return out.sort((a, b) => b.urgency - a.urgency);
+}
+
+/** Below this much film on a team's starters, on average, a club's read of its needs is a guess. */
+const LITTLE_FILM = 0.35;
+
+/**
+ * What `viewerId`'s pro scouts think `team` needs: the same rules as `teamNeeds`, on their read of its roster and
+ * of the league's starters, so a screen can say what a rival wants without leaking his own exact read.
+ */
+export function scoutedNeeds(ctx: TradeContext, viewerId: number, team: Team): { needs: Need[]; littleFilm: boolean } {
+  const seen = (p: Player) => ctx.view(viewerId, p).ovr;
+  const lines = (ctx.viewLines ??= new Map());
+  let line = lines.get(viewerId);
+  if (!line) lines.set(viewerId, (line = lineOn(ctx, seen)));
+  const known = POSITIONS.flatMap((pos) => starters(ctx.league, team, pos)).map((p) => ctx.view(viewerId, p).knowledge);
+  const film = known.reduce((s, k) => s + k, 0) / Math.max(1, known.length);
+  return {
+    needs: needsOn(ctx.league, rosterOf(ctx, team.id), line, seen),
+    littleFilm: !known.length || film < LITTLE_FILM,
+  };
 }
 
 // ───────── the trade block ─────────

@@ -55,6 +55,7 @@ export {
   isBuyer,
   isSeller,
   reloading,
+  scoutedNeeds,
   stanceFor,
   stanceOf,
   stanceScore,
