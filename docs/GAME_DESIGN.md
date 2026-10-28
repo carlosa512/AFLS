@@ -132,6 +132,10 @@ the real-world ranges in the research doc.
 | Injury resistance | How often his body breaks; it fades past his physical prime, slower for a durable body (`docs/INJURIES.md`) |
 | Natural fitness | How much condition a game costs and how fast it comes back, how fast he heals, and how much a severe injury takes for good |
 | Versatility | How big a knock he takes lined up out of position, and a little of how fast he learns a new one (`docs/TRAINING.md` §4.8) |
+| Leadership | How much the room follows him: it does its job once mentoring lands (`docs/superpowers/specs/2026-10-28-personality-relationships-design.md`) |
+| Poise | How he holds up when it counts: a shaky player picks up Sees Ghosts, Bails Early or the yips more readily, a poised one Ice-Water Veins, and sheds the bad ones faster |
+| Controversy | How readily he says it out loud: it does its job once feuds land |
+| Sportsmanship | How clean he plays: a dirty player draws the late hits (roughing the passer, unnecessary roughness, face masks); temperament keeps the pre-snap flags and the taunting after the whistle |
 
 Other traits from the research (consistency, big-game play, adaptability) wait for the
 systems they would drive, such as per-game form and schemes. "No engine hook, no trait" applies to
@@ -143,6 +147,11 @@ stands out:
 - Work ethic: Model pro, Driven, Coasts, Needs a push.
 - Durability: Built to last, Wears down early.
 - Temperament: Hothead, Even-keeled.
+
+**Every player has a personality**, FM-style: one name read off his character (Consummate Pro, Clutch, Mercenary,
+Ring Chaser, Company Man, Dirty Player, Jittery, Coaster and so on, about 18 in all), with one sentence on what stands
+out ("Outworks everyone and keeps his cool."). It's your scouts' read, so it can be wrong, and it's dashed while it's
+early word. On the player card it takes the place of the work ethic and temperament tags.
 
 The projection scout judges makeup and body; the evaluator sees the flags. Reads carry the same
 seeded, reader-owned error as ratings, are never exact for another club's player, and are marked

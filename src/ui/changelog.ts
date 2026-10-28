@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.14',
+    date: '2026-10-28',
+    title: 'Personalities',
+    text:
+      'Every player now has a personality your scouts can put a name to: a Consummate Pro, a Mercenary, a Ring ' +
+      'Chaser, a Clutch kicker or a Jittery one, a Dirty Player, a Company Man. The player card shows the name and ' +
+      "one sentence on what stands out, and it's only your scouts' read, so it can be early word or wrong. Dirty " +
+      'players draw the late-hit flags, and players who tighten up when it counts pick up bad habits under pressure ' +
+      'more easily than the steady ones.',
+  },
+  {
     version: '0.2.13',
     date: '2026-10-28',
     title: 'The trade desk',
