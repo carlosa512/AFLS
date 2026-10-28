@@ -159,6 +159,21 @@ describe('mentoring: pairs and seasons', () => {
     expect(kid.mentoredBy?.length).toBeGreaterThan(0);
   });
 
+  it('keeps what landed only for your own players, whose letters read it', () => {
+    const l = fresh();
+    const [ours, theirs] = [l.userTeamId, (l.userTeamId + 1) % 32].map(
+      (t) => Object.values(l.players).find((p) => p.teamId === t && p.age < 24)!,
+    );
+    l.season++;
+    for (const p of [ours, theirs]) {
+      p.mentorBank = { workEthic: 0.6 };
+      settleMentoring(l, p);
+      expect(p.shifts?.workEthic).toBe(0.6);
+    }
+    expect(ours.shiftedLast).toEqual({ season: l.season, workEthic: 0.6 });
+    expect(theirs.shiftedLast).toBeUndefined();
+  });
+
   it('leaves a room without a veteran unpaired', () => {
     const l = fresh();
     for (const p of activeRoster(l, 3)) {
