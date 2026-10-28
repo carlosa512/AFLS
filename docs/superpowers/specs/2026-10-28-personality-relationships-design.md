@@ -198,6 +198,10 @@ So a Born Leader who starts pulls hard, and a Born Leader who coasts is the most
 6-season league each league average within ±0.02. If starters (who skew hard-working) still pull the average up,
 the first lever is to weigh standing less. The owner signs off on `npm run careers`.
 
+**As built (PR 2):** each new league year the season's banked shifts are re-centred so they sum to zero per trait
+(`mentoringYearEnd`). One league over six seasons drifted by up to 0.04 from noise alone, plus a small real bias:
+young hotheads score high on controversy, so they take less from their mentors.
+
 ---
 
 ## 3. Relationships

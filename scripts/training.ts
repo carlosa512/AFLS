@@ -95,6 +95,7 @@ interface Once {
   position: Position;
   potential: number;
   injuries: number;
+  shifts: string;
 }
 let once = new Map<number, Once>();
 let compared = 0;
@@ -125,6 +126,7 @@ const takeOnce = () => {
       position: p.position,
       potential: clone.potential,
       injuries: p.injuries?.length ?? 0,
+      shifts: JSON.stringify(p.shifts ?? {}),
     });
   }
 };
@@ -132,7 +134,14 @@ const compareOnce = () => {
   for (const p of live(league)) {
     const o = once.get(p.id);
     // A new label, a scar (which can also lower the ceiling) or a new body: not the same year any more.
-    if (!o || o.position !== p.position || o.potential !== p.potential || o.injuries !== (p.injuries?.length ?? 0))
+    // Mentoring that landed at the new league year makes it another year too (his traits moved before it was rolled).
+    if (
+      !o ||
+      o.position !== p.position ||
+      o.potential !== p.potential ||
+      o.injuries !== (p.injuries?.length ?? 0) ||
+      o.shifts !== JSON.stringify(p.shifts ?? {})
+    )
       continue;
     const clone = structuredClone(p);
     trueUp(league, clone);

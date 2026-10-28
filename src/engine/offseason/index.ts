@@ -64,7 +64,7 @@ import {
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
 import { rollService } from '../personnel/service';
 import { settleFinished } from '../ceiling';
-import { settleMentoring } from '../mentoring';
+import { mentoringYearEnd, settleMentoring } from '../mentoring';
 import { nameCaptains } from '../personality';
 import { personnelClock } from '../personnel/calendar';
 import { settleOffseasonWaivers, staffHandlesSquad, syncPersonnel, waiversPending } from '../personnel/flow';
@@ -102,6 +102,8 @@ export function beginOffseason(league: League): void {
   setDraftOrder(league, last);
   noteCoachOverspend(league);
 
+  // Every mentoring pair's season is banked and re-centred before anyone's year is rolled.
+  mentoringYearEnd(league);
   const retirees: Player[] = [];
   for (const p of Object.values(league.players)) {
     if (p.retired) continue;

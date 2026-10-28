@@ -6,6 +6,7 @@ import {
   leadFactor,
   MAX_MENTEES,
   mentoringWeek,
+  mentoringYearEnd,
   mentorShift,
   planMentors,
   positionBonus,
@@ -149,6 +150,7 @@ describe('mentoring: pairs and seasons', () => {
     kid.mentorWeeks = 18;
     kid.mentorBank = { workEthic: 0.9, temperament: -0.8 };
     l.season++;
+    mentoringYearEnd(l);
     settleMentoring(l, kid);
     expect(Math.abs(kid.shifts!.workEthic!)).toBeLessThanOrEqual(1);
     expect(Math.abs(kid.shifts!.temperament!)).toBeLessThanOrEqual(1);
@@ -181,5 +183,20 @@ describe('mentoring: pairs and seasons', () => {
     planMentors(l, team);
     expect(kid.mentor).toBeUndefined();
     expect(() => setMentor(l, kid.id, kid.id)).toThrow();
+  });
+
+  it('moves players against each other, never the league as a whole', () => {
+    const l = fresh();
+    l.phase = 'regular';
+    for (let w = 0; w < 18; w++) mentoringWeek(l);
+    l.season++;
+    mentoringYearEnd(l);
+    const banked = Object.values(l.players).filter((p) => p.mentorBank);
+    expect(banked.length).toBeGreaterThan(100);
+    for (const k of ['workEthic', 'temperament', 'poise'] as const) {
+      const total = banked.reduce((s, p) => s + (p.mentorBank![k] ?? 0), 0);
+      expect(Math.abs(total / banked.length)).toBeLessThan(1e-4);
+      for (const p of banked) expect(Math.abs(p.mentorBank![k] ?? 0)).toBeLessThanOrEqual(1);
+    }
   });
 });
