@@ -113,6 +113,8 @@ const KIND: Record<TradeOffer['reason'], string> = {
   enquiry: 'Enquiry',
   shop: 'Answering your shop',
   counter: 'Counter',
+  draft: 'Draft day',
+  ask: 'Their price',
 };
 
 /** A deal's side as the trade table holds it. */
@@ -256,7 +258,11 @@ export const showNote = (note: string | null, offer: TradeOffer): note is string
 
 /** When an offer lapses, in words. */
 const lapse = (league: League) =>
-  league.phase === 'regular' ? `Open until you play week ${league.week}.` : 'Open until your next step.';
+  league.phase === 'regular'
+    ? `Open until you play week ${league.week}.`
+    : league.phase === 'draft'
+      ? 'Gone when the pick is made.'
+      : 'Open until your next step.';
 
 /** An offer on your desk: what he sends and wants, your staff's word, and your answer. `compact` drops the heading and his words (the inbox message already says them). */
 export function OfferCard({

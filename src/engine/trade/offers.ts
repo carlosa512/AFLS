@@ -34,6 +34,7 @@ import {
 } from './deals';
 import { emptyMarket, executeTrade } from './execute';
 import { evaluateTrade, floorShare, judge, marginFor, suggestSweetener } from './judge';
+import { lapseUsedPicks } from './draft';
 import { teamNeeds, tradeBlock, untouchables, wanted, type BlockEntry } from './plans';
 import {
   freshlySigned,
@@ -240,7 +241,7 @@ function offerKind(ctx: TradeContext, [his, yours]: TradeOffer['sides']): DealKi
 }
 
 /** File an offer from `team` (sides [his, yours]), or null if it may not be made now. */
-function file(
+export function file(
   ctx: TradeContext,
   market: TradeMarket,
   team: Team,
@@ -583,6 +584,8 @@ function settle(
     if (league.players[id]?.teamId === league.userTeamId) releasePlayer(league, league.players[id]);
   executeTrade(league, { sides }, { ...meta, physicals: exams });
   aiCutdown(league, ai, rosterLimit(league));
+  // Draft-day offers on a pick that just moved are off.
+  lapseUsedPicks(league);
   const offer = opts.offerId !== undefined ? offerById(league, opts.offerId) : undefined;
   delete market.exam;
   nudgeTrust(market, ai.id, 0.03);
