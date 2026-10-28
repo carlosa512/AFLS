@@ -10,6 +10,7 @@ import { advanceOffseason, beginOffseason } from './offseason';
 import { overall, playerOvr } from './positions';
 import { starters, teamPlayers, teamRatings } from './roster';
 import {
+  characterRead,
   perceivedTeamRatings,
   generateCombine,
   isProspect,
@@ -26,6 +27,7 @@ import {
 } from './scouting';
 import type { League, Player } from './types';
 import { ATTRIBUTES } from './types';
+import { personalityRead } from './personality';
 
 const width = (league: League, p: Player) => {
   const v = perceive(league, league.userTeamId, p);
@@ -496,5 +498,109 @@ describe('a ceiling still settling', () => {
     );
     expect(note({ experience: 1, ceilingShifts: { [league.season - 1]: 0.2 } })).toBeNull();
     expect(note({ age: 27, experience: 5 })).toBeNull();
+  });
+});
+
+describe('character reads', () => {
+  const league = createLeague({ seed: 'char-read-stable' });
+  const known = Object.values(league.players)
+    .filter((p) => p.teamId !== null && p.teamId !== 0)
+    .filter((p) => {
+      const k = knowledge(league, 0, p);
+      return k >= 0.5 && k < 1;
+    })
+    .slice(0, 8);
+
+  it('keeps every older guess where it was', () => {
+    const r = (x: number) => Math.round(x * 1000) / 1000;
+    const six = known.map((p) => {
+      const c = characterRead(league, 0, p)!;
+      return [c.workEthic, c.durability, c.temperament, c.injuryResistance, c.naturalFitness, c.versatility].map(r);
+    });
+    expect(six).toMatchInlineSnapshot(`
+      [
+        [
+          12.556,
+          9.131,
+          12.238,
+          10.742,
+          4.306,
+          8.267,
+        ],
+        [
+          9.713,
+          10.728,
+          1.429,
+          9.312,
+          9.752,
+          14.298,
+        ],
+        [
+          17.33,
+          8.73,
+          11.544,
+          8.72,
+          12.136,
+          15.706,
+        ],
+        [
+          10.01,
+          5.206,
+          13.755,
+          6.266,
+          12.974,
+          14.06,
+        ],
+        [
+          8.306,
+          15.352,
+          17.319,
+          13.356,
+          10.768,
+          11.638,
+        ],
+        [
+          9.925,
+          8.149,
+          11.809,
+          13.514,
+          8.243,
+          9.782,
+        ],
+        [
+          12.762,
+          4.224,
+          9.791,
+          10.429,
+          13.038,
+          5.679,
+        ],
+        [
+          12.553,
+          10.15,
+          9.268,
+          4.067,
+          11.965,
+          10.389,
+        ],
+      ]
+    `);
+  });
+
+  it('reads the new character on the same streams, after the old ones', () => {
+    const read = characterRead(league, 0, known[0])!;
+    for (const k of ['leads', 'poise', 'controversy', 'sportsmanship'] as const)
+      expect(read[k]).toBeGreaterThanOrEqual(1);
+    for (const k of ['loyalty', 'winning', 'greed', 'patience'] as const) {
+      expect(read[k]).toBeGreaterThanOrEqual(0);
+      expect(read[k]).toBeLessThanOrEqual(1);
+    }
+    expect(characterRead(league, 0, known[0])).toEqual(read);
+    const named = personalityRead(league, 0, known[0])!;
+    expect(named.name).toBeTruthy();
+    expect(named.line).toMatch(/\.$/);
+    const stranger = Object.values(league.players).find((p) => !characterRead(league, 0, p))!;
+    expect(stranger).toBeDefined();
+    expect(personalityRead(league, 0, stranger)).toBeNull();
   });
 });

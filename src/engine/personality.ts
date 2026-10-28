@@ -4,8 +4,9 @@
  * dials his agent negotiates with (0–1). Nothing here is stored: a name is worked out whenever a screen or a letter
  * needs it, so it follows the player as he changes (docs/superpowers/specs/2026-10-28-personality-relationships-design.md §1).
  */
+import { characterRead } from './scouting';
 import { TRAIT_MEAN } from './traits';
-import type { Personality, Player, Traits } from './types';
+import type { League, Personality, Player, Traits } from './types';
 
 /** Everything a personality reads. */
 export interface Character extends Traits, Personality {}
@@ -154,3 +155,17 @@ export const trueCharacter = (p: Pick<Player, 'traits' | 'personality'>): Charac
   ...p.traits,
   ...p.personality,
 });
+
+/**
+ * What `teamId`'s scouts call him, from their own read, or null until they know him well enough. Hedged while the read
+ * is still loose (the same rule as the makeup notes).
+ */
+export function personalityRead(
+  league: League,
+  teamId: number,
+  p: Player,
+): { name: PersonalityName; line: string; hedged: boolean } | null {
+  const read = characterRead(league, teamId, p);
+  if (!read) return null;
+  return { name: personalityOf(read), line: characterLine(read), hedged: !read.exact && read.sd > 1.2 };
+}
