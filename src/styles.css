@@ -2663,6 +2663,21 @@ details.more > summary {
 .staff-take {
   font-weight: 700;
 }
+/* A status picker on a card fills its width, so all three choices fit on a phone. */
+.office-card .seg {
+  display: flex;
+  width: 100%;
+}
+.office-card .seg button {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  padding-inline: 6px;
+}
+@media (max-width: 600px) {
+  .card-row:has(.seg) {
+    grid-auto-columns: 88%;
+  }
+}
 /* The Market: every front office as a card, a group per stance. */
 .gm-group + .gm-group {
   margin-top: 16px;

@@ -487,18 +487,12 @@ const pickName = (pk: DraftPick) => `Round ${pk.round}, No. ${pk.overall}`;
  * last few picks as a ticker, and where your next pick stands.
  */
 function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockState, { kind: 'none' }> }) {
-  const visits = (
-    <Fact label="Scouting visits left">
-      <span className="num">{league.scoutPoints}</span>
-    </Fact>
-  );
+  const visits = <Fact label="Scouting visits left">{league.scoutPoints}</Fact>;
   if (clock.kind === 'preview')
     return (
       <OfficeHero headline={`${league.season} draft class`}>
         <Facts>
-          <Fact label="Prospects">
-            <span className="num">{clock.prospects}</span>
-          </Fact>
+          <Fact label="Prospects">{clock.prospects}</Fact>
           <Fact label="Your first pick">{clock.firstPick ? pickName(clock.firstPick) : 'None'}</Fact>
           {visits}
         </Facts>
@@ -510,9 +504,7 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
     return (
       <OfficeHero headline="The draft is complete">
         <Facts>
-          <Fact label="Your picks made">
-            <span className="num">{mine.filter((pk) => pk.playerId !== undefined).length}</span>
-          </Fact>
+          <Fact label="Your picks made">{mine.filter((pk) => pk.playerId !== undefined).length}</Fact>
         </Facts>
       </OfficeHero>
     );
@@ -584,9 +576,7 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
             'None left'
           )}
         </Fact>
-        <Fact label="Your picks left">
-          <span className="num">{mine.filter((pk) => pk.playerId === undefined).length}</span>
-        </Fact>
+        <Fact label="Your picks left">{mine.filter((pk) => pk.playerId === undefined).length}</Fact>
         {visits}
       </Facts>
     </OfficeHero>

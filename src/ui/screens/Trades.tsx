@@ -204,18 +204,10 @@ export function TradeDesk({ league }: { league: League }) {
         <Fact label="Deadline" note={state.deadline.note}>
           {state.deadline.value}
         </Fact>
-        <Fact label="Offers waiting">
-          <span className="num">{state.offers}</span>
-        </Fact>
-        <Fact label="On your block">
-          <span className="num">{state.listed}</span>
-        </Fact>
-        <Fact label="Untouchable">
-          <span className="num">{state.untouchable}</span>
-        </Fact>
-        <Fact label="Teams asking about your players">
-          <span className="num">{state.asking}</span>
-        </Fact>
+        <Fact label="Offers waiting">{state.offers}</Fact>
+        <Fact label="On your block">{state.listed}</Fact>
+        <Fact label="Untouchable">{state.untouchable}</Fact>
+        <Fact label="Teams asking about your players">{state.asking}</Fact>
       </Facts>
     </OfficeHero>
   );
@@ -264,9 +256,10 @@ export function Trades({ league, tab }: { league: League; tab?: TradeTab }) {
  * said to be shopping, and whether they're still taking your calls this week. Public signals and your view only.
  */
 function PartnerFacts({ league, partner }: { league: League; partner: Team }) {
-  // One read per partner and moment: the needs read rates every starter in the league.
+  // One read per partner, moment and deal: the needs read rates every starter in the league.
   const moment = league.market?.moment;
-  const ctx = useMemo(() => tradeContext(league), [league, partner.id, moment, league.week, league.phase]);
+  const deals = league.transactions.length;
+  const ctx = useMemo(() => tradeContext(league), [league, partner.id, moment, deals, league.week, league.phase]);
   const shopping = shoppingOf(league, partner.id).slice(0, 3);
   return (
     <div className="partner-facts">
