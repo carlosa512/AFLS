@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.12',
+    date: '2026-10-28',
+    title: 'Trades open with a practice squad',
+    text:
+      'The trade table no longer blanks the whole game in a league with practice squads: squad players show on ' +
+      'each side as untradable, marked practice squad. And if a front office tab ever breaks again, it shows what ' +
+      'went wrong with a Try again button, while the rest of the game keeps working.',
+  },
+  {
     version: '0.2.11',
     date: '2026-10-28',
     title: 'The draft room',
