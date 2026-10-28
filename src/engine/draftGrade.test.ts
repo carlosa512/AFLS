@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { lockVerdicts, pickMark, verdictFor } from './draftGrade';
+import { GAP_LINE, lockVerdicts, pickMark, riskOf, staffBoardValue, staffGaps, verdictFor } from './draftGrade';
 import { createLeague } from './generate';
 import { migrateLeague } from './migrate';
+import { availableProspects, generateDraftClass } from './offseason/draft';
+import { Rng } from './rng';
+import { perceive, type PlayerView } from './scouting';
 import type { League, Player } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
@@ -91,5 +94,68 @@ describe('lockVerdicts', () => {
     expect(loaded.version).toBe(59);
     expect(loaded.players[old.id].draft!.verdict).toBeDefined();
     expect(loaded.players[recent.id].draft!.verdict).toBeUndefined();
+  });
+});
+
+/** A view with just what the risk read looks at. */
+const view = (ovr: number, potMid: number, potHi: number, potSd: number) =>
+  ({ ovr, potMid, potHi, potSd }) as PlayerView;
+
+describe('riskOf', () => {
+  it('calls a ready, well-read prospect safe and a raw or loosely read one boom-or-bust', () => {
+    expect(riskOf(view(12, 12.5, 13, 1.4)).word).toBe('safe');
+    expect(riskOf(view(8, 14, 17, 1.6)).word).toBe('boom-or-bust');
+    expect(riskOf(view(11, 12, 15, 2.6)).word).toBe('boom-or-bust');
+    expect(riskOf(view(10, 14, 16, 2)).word).toBeNull();
+    const r = riskOf(view(10, 14, 16, 2));
+    expect(r.lo).toBeLessThanOrEqual(r.mid);
+    expect(r.mid).toBeLessThanOrEqual(r.hi);
+  });
+
+  it('gives each word to roughly a fifth of a class', () => {
+    const l = createLeague({ seed: 'risk' });
+    generateDraftClass(l, new Rng('risk-class'));
+    const words = availableProspects(l).map((p) => riskOf(perceive(l, l.userTeamId, p)).word);
+    const share = (w: string) => words.filter((x) => x === w).length / words.length;
+    expect(share('safe')).toBeGreaterThan(0.12);
+    expect(share('safe')).toBeLessThan(0.3);
+    expect(share('boom-or-bust')).toBeGreaterThan(0.12);
+    expect(share('boom-or-bust')).toBeLessThan(0.3);
+  });
+});
+
+describe('staffGaps', () => {
+  const classOf = (seed: string) => {
+    const l = createLeague({ seed });
+    generateDraftClass(l, new Rng(`${seed}-class`));
+    return l;
+  };
+
+  it('ranks a small pool on both boards, the gaps summing to nothing', () => {
+    const l = classOf('gap-small');
+    const pool = availableProspects(l).slice(0, 3);
+    const gaps = [...staffGaps(l, pool).values()];
+    expect(gaps.map((g) => g.ours).sort()).toEqual([1, 2, 3]);
+    expect(gaps.map((g) => g.consensus).sort()).toEqual([1, 2, 3]);
+    expect(gaps.reduce((s, g) => s + g.diff, 0)).toBe(0);
+    expect(gaps.every((g) => g.tag === null)).toBe(true);
+  });
+
+  it('marks a prospect the staff likes a dozen spots more than the league a sleeper, and the reverse a fade', () => {
+    const l = classOf('gap-big');
+    const pool = availableProspects(l).slice(0, 40);
+    // Our top prospect, whom the consensus ranks 20th of the 40.
+    const byOurs = [...pool].sort((a, b) => staffBoardValue(l, b) - staffBoardValue(l, a));
+    const star = byOurs[0];
+    const others = pool.filter((p) => p !== star);
+    // Five points a rank: wider than any position's premium, so the consensus order is the one set here.
+    others.forEach((p, i) => (p.scouting = { grade: 200 - 5 * i, ceiling: 200 - 5 * i }));
+    star.scouting = { grade: 200 - 5 * 18.5, ceiling: 200 - 5 * 18.5 };
+    const g = staffGaps(l, pool).get(star.id)!;
+    expect(g.ours).toBe(1);
+    expect(g.consensus).toBe(20);
+    expect(g).toMatchObject({ diff: 19, tag: 'sleeper' });
+    const fade = [...staffGaps(l, pool).values()].find((x) => x.diff <= -GAP_LINE);
+    if (fade) expect(fade.tag).toBe('fade');
   });
 });
