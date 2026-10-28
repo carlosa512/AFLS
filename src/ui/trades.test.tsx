@@ -8,7 +8,8 @@ import { teamPlayers } from '../engine/roster';
 import type { TradeOffer } from '../engine/types';
 import { BlockPanel, MarketPanel, OfferCard, StaffStrip, talksWords, WantsPills } from './offers';
 import { ASKS, tradeContext, updateStances } from '../engine/trade';
-import { AssetList, TradeDesk } from './screens/Trades';
+import { AssetList, DealSlip, TradeDesk } from './screens/Trades';
+import { pickLabel } from '../engine/trade';
 import { TabBoundary } from './boundary';
 
 describe('trade table', () => {
@@ -182,5 +183,37 @@ describe('the market', () => {
     const l = createLeague({ seed: 'market-new' });
     delete l.market;
     expect(renderToStaticMarkup(<MarketPanel league={l} />)).toContain('Quiet so far.');
+  });
+});
+
+describe('the deal slip', () => {
+  it('lists each player and pick with a remove button, and says how to add when empty', () => {
+    const l = createLeague({ seed: 'deal-slip' });
+    const p = teamPlayers(l, l.userTeamId).find((x) => x.contract)!;
+    const pick = l.draftPicks.find((x) => x.ownerId === l.userTeamId && x.playerId === undefined)!;
+    const html = renderToStaticMarkup(
+      <DealSlip
+        league={l}
+        teamId={l.userTeamId}
+        label="You send"
+        picked={{ players: [p.id], picks: [pick.id] }}
+        onChange={() => {}}
+      />,
+    );
+    expect(html).toContain(p.lastName);
+    expect(html).toContain(pickLabel(l, pick));
+    expect(html).toContain(`aria-label="Remove ${p.firstName} ${p.lastName}"`);
+    expect(html).toContain(`aria-label="Remove ${pickLabel(l, pick)}"`);
+    expect(
+      renderToStaticMarkup(
+        <DealSlip
+          league={l}
+          teamId={l.userTeamId}
+          label="You send"
+          picked={{ players: [], picks: [] }}
+          onChange={() => {}}
+        />,
+      ),
+    ).toContain('Add from the picker below.');
   });
 });

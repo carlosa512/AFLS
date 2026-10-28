@@ -129,6 +129,69 @@ export function AssetList({
   );
 }
 
+/** One side of the deal as it stands: each player and pick on a line, and a button to take it back out. */
+export function DealSlip({
+  league,
+  teamId,
+  label,
+  picked,
+  onChange,
+}: {
+  league: League;
+  teamId: number;
+  label: string;
+  picked: Picked;
+  onChange: (p: Picked) => void;
+}) {
+  const team = league.teams[teamId];
+  const picks = picked.picks.map((id) => league.draftPicks.find((pk) => pk.id === id)).filter((pk) => pk !== undefined);
+  return (
+    <div className="deal-side">
+      <h3>{label}</h3>
+      {picked.players.length + picks.length === 0 ? (
+        <p className="muted small">Add from the picker below.</p>
+      ) : (
+        <ul className="plain-list">
+          {picked.players.map((id) => {
+            const p = league.players[id];
+            const name = `${p.firstName} ${p.lastName}`;
+            return (
+              <li key={id} className="deal-item">
+                <span className="muted small">{p.position}</span>
+                <PlayerAvatar player={p} team={team} size={24} />
+                <PlayerLink league={league} player={p} short />
+                <Ovr league={league} player={p} />
+                <span className="num small">
+                  {p.contract ? money(Math.round(capHit(p.contract, league.season))) : 'practice squad'}
+                </span>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  aria-label={`Remove ${name}`}
+                  onClick={() => onChange({ ...picked, players: toggle(picked.players, id) })}
+                >
+                  ×
+                </button>
+              </li>
+            );
+          })}
+          {picks.map((pk) => (
+            <li key={pk.id} className="deal-item">
+              <span>{pickLabel(league, pk)}</span>
+              <button
+                className="btn btn-sm btn-ghost"
+                aria-label={`Remove ${pickLabel(league, pk)}`}
+                onClick={() => onChange({ ...picked, picks: toggle(picked.picks, pk.id) })}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /**
  * Salary you keep paying for each player you send (*eat salary*): it lands on your cap as dead money
  * this season and comes off his new team's base, so a team that couldn't fit him can, and pays more.
@@ -437,6 +500,20 @@ function TradeTable({ league }: { league: League }) {
           />
         }
       >
+        <div className="deal-slip">
+          <div>
+            <DealSlip league={league} teamId={userId} label="You send" picked={a} onChange={setMine} />
+            <KeepPaying league={league} picked={a} onChange={setMine} />
+          </div>
+          <div>
+            <DealSlip league={league} teamId={partnerId} label="You get" picked={b} onChange={setTheirs} />
+            {Object.entries(b.retain ?? {}).map(([id, v]) => (
+              <p key={id} className="muted small">
+                The {partner.name} keep paying {money(v)} of {league.players[Number(id)].lastName}'s salary this season.
+              </p>
+            ))}
+          </div>
+        </div>
         <div className="trade-verdict" aria-live="polite">
           <div className="meter" role="img" aria-label={`Their view of the offer: ${mood}`}>
             <i style={{ width: `${fill * 100}%` }} className={verdict?.accepts ? 'yes' : ''} />
@@ -494,20 +571,8 @@ function TradeTable({ league }: { league: League }) {
           )}
         </div>
         <div className="grid-2">
-          <div>
-            <h3>You send</h3>
-            <KeepPaying league={league} picked={a} onChange={setMine} />
-            <AssetList league={league} teamId={userId} picked={a} onChange={setMine} />
-          </div>
-          <div>
-            <h3>You get</h3>
-            {Object.entries(b.retain ?? {}).map(([id, v]) => (
-              <p key={id} className="muted small">
-                The {partner.name} keep paying {money(v)} of {league.players[Number(id)].lastName}'s salary this season.
-              </p>
-            ))}
-            <AssetList league={league} teamId={partnerId} picked={b} onChange={setTheirs} />
-          </div>
+          <AssetList league={league} teamId={userId} picked={a} onChange={setMine} />
+          <AssetList league={league} teamId={partnerId} picked={b} onChange={setTheirs} />
         </div>
         <p className="muted small" style={{ marginBottom: 0 }}>
           Traded players take their salary with them; any bonus money stays on your cap as dead money. Teams want a
