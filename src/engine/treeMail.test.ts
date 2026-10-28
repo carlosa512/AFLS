@@ -41,8 +41,12 @@ describe('tree news', () => {
     a.career = [
       ...[s - 6, s - 5, s - 4].map((x) => ({ season: x, teamId: 20, role: 'offCoord' as const })),
       { season: s - 2, teamId: a.teamId!, role: 'headCoach' as const },
+      { season: s - 1, teamId: a.teamId!, role: 'headCoach' as const },
     ];
-    b.career = [...[s - 6, s - 5, s - 4].map((x) => ({ season: x, teamId: 20, role: 'defCoord' as const }))];
+    b.career = [
+      ...[s - 6, s - 5, s - 4].map((x) => ({ season: x, teamId: 20, role: 'defCoord' as const })),
+      { season: s - 1, teamId: b.teamId!, role: 'headCoach' as const },
+    ];
     deliverMail(l);
     expect(mail(l, `tree:${l.season}:born:${root.id}`)).toHaveLength(1);
   });

@@ -169,9 +169,12 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
     .filter((r) => r.season > last)
     .map((r) => r.season);
   if (isActiveHead(c) && !seasons.includes(league.season)) seasons.push(league.season);
-  // A founding disciple was already running his club before the league began.
-  if (last === -Infinity && isActiveHead(c)) seasons.push(-Infinity);
-  return seasons;
+  // Established only: his second season in charge or later (a first-year man fired in a year makes nobody a tree).
+  const ran = new Set(seasons);
+  const established = seasons.filter((x) => ran.has(x - 1));
+  // A founding disciple was already established in his club before the league began.
+  if (last === -Infinity && isActiveHead(c)) established.push(-Infinity, league.season);
+  return established;
 }
 
 /** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
