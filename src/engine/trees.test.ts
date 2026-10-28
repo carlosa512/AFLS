@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
-import { disciplesOf, linksOf, mainMentor } from './trees';
+import { disciplesOf, hasTree, linksOf, liveTrees, mainMentor, standingOf, treeFor, treeOf } from './trees';
 import type { Coach, CoachRole, League } from './types';
 
 /** A league whose coaches' careers are cleared, so each test writes exactly the history it means. */
@@ -10,6 +10,10 @@ function blank(): { l: League; c: Coach[] } {
   for (const x of c) {
     x.career = [];
     delete x.pastUnder;
+    // Nobody holds a chair until a test says so.
+    x.role = 'positionCoach';
+    x.room = 'QB';
+    x.teamId = null;
   }
   return { l, c };
 }
@@ -74,5 +78,112 @@ describe('coaching tree links', () => {
     oc.pastUnder = [{ coachId: hc.id, role: 'offCoord', seasons: 4 }];
     expect(linksOf(l, oc.id)).toEqual([expect.objectContaining({ mentorId: hc.id, seasons: 4, as: 'headCoach' })]);
     expect(mainMentor(l, oc.id)?.id).toBe(hc.id);
+  });
+});
+
+describe('trees, branches and standing', () => {
+  /** `d` spent three seasons as `m`'s offensive coordinator at `team`, ending the season before `from`. */
+  const served = (m: Coach, d: Coach, team: number, from: number) => {
+    for (const s of [from - 3, from - 2, from - 1]) {
+      (m.career ??= []).push(row(s, team, 'headCoach'));
+      (d.career ??= []).push(row(s, team, 'offCoord'));
+    }
+  };
+  const rec = (w: number, l: number) => ({
+    record: { fromWeek: 1, throughWeek: 18, regular: { w, l, t: 0 }, playoffs: null, champion: false },
+  });
+  /** `c` was head coach at `team` for these seasons with this record each year. */
+  const headed = (c: Coach, team: number, seasons: number[], w: number, l: number) => {
+    for (const s of seasons) (c.career ??= []).push(row(s, team, 'headCoach', rec(w, l)));
+  };
+  const active = (c: Coach, team: number) => {
+    c.role = 'headCoach';
+    c.teamId = team;
+  };
+  const off = (c: Coach) => {
+    c.role = 'offCoord';
+    c.teamId = null;
+  };
+
+  it('is a tree only once two of his men have become head coaches', () => {
+    const { l, c } = blank();
+    const [r, a, b] = c;
+    const now = l.season;
+    served(r, a, 1, now - 6);
+    served(r, b, 1, now - 3);
+    headed(a, 2, [now - 3, now - 2, now - 1], 9, 8);
+    expect(hasTree(l, r.id)).toBe(false);
+    headed(b, 3, [now - 1], 9, 8);
+    expect(hasTree(l, r.id)).toBe(true);
+    expect(treeOf(l, r.id)!.disciples.sort()).toEqual([a.id, b.id].sort());
+  });
+
+  it('nests a disciple’s own tree as a branch, without looping on odd data', () => {
+    const { l, c } = blank();
+    const [r, a, b, x, y] = c;
+    const now = l.season;
+    served(r, a, 1, now - 9);
+    served(r, b, 1, now - 6);
+    headed(a, 2, [now - 6, now - 5, now - 4, now - 3, now - 2, now - 1], 9, 8);
+    headed(b, 3, [now - 3], 9, 8);
+    served(a, x, 2, now - 3);
+    served(a, y, 2, now);
+    headed(x, 4, [now - 1], 9, 8);
+    headed(y, 5, [now - 1], 9, 8);
+    expect(treeOf(l, r.id)!.branches).toEqual([a.id]);
+    // A loop in hand-made history: each counts the other as a mentor.
+    (r.pastUnder ??= []).push({ coachId: a.id, role: 'offCoord', seasons: 4 });
+    expect(treeOf(l, r.id)).not.toBeNull();
+    expect(treeFor(l, x.id)?.rootId).toBe(a.id);
+  });
+
+  it('runs hot, steady, withering or faded on its head coaches’ results', () => {
+    const { l, c } = blank();
+    const [r, a, b] = c;
+    const now = l.season;
+    served(r, a, 1, now - 6);
+    served(r, b, 1, now - 6);
+    const years = [now - 5, now - 4, now - 3, now - 2, now - 1];
+    headed(a, 2, years, 11, 6);
+    headed(b, 3, years, 10, 7);
+    active(a, 2);
+    active(b, 3);
+    expect(standingOf(l, treeOf(l, r.id)!)).toBe('hot');
+    a.career = a.career!.filter((x) => x.role !== 'headCoach');
+    b.career = b.career!.filter((x) => x.role !== 'headCoach');
+    headed(a, 2, years, 7, 10);
+    headed(b, 3, years, 7, 10);
+    expect(standingOf(l, treeOf(l, r.id)!)).toBe('steady'); // losing, but nobody fired
+    // Both fired after their last losing season: gone from the chair.
+    a.career = a.career!.filter((x) => x.season !== now - 1);
+    b.career = b.career!.filter((x) => x.season !== now - 1);
+    off(a);
+    off(b);
+    expect(standingOf(l, treeOf(l, r.id)!)).toBe('withering');
+    for (const x of [a, b]) x.career = x.career!.filter((k) => k.role !== 'headCoach' || k.season <= now - 5);
+    expect(standingOf(l, treeOf(l, r.id)!)).toBe('faded');
+  });
+
+  it('keeps a retired legend’s tree alive through his disciples’ disciples', () => {
+    const { l, c } = blank();
+    const [r, a, b, x, y] = c;
+    const now = l.season;
+    served(r, a, 1, now - 12);
+    served(r, b, 1, now - 12);
+    headed(a, 2, [now - 12, now - 11], 8, 9);
+    headed(b, 3, [now - 12], 8, 9);
+    served(a, x, 2, now - 6);
+    served(a, y, 2, now - 6);
+    headed(x, 4, [now - 1], 9, 8);
+    headed(y, 5, [now - 1], 9, 8);
+    active(x, 4);
+    active(y, 5);
+    off(a);
+    off(b);
+    delete l.coaches[r.id];
+    l.retiredCoaches[r.id] = r;
+    const live = liveTrees(l);
+    expect(live.map((t) => t.rootId)).toContain(r.id);
+    expect(live.find((t) => t.rootId === r.id)!.activeHeadCoaches.sort()).toEqual([x.id, y.id].sort());
   });
 });

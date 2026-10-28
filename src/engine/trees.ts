@@ -33,6 +33,8 @@ const weeks = (r: CoachSeason) => (r.record ? r.record.throughWeek - r.record.fr
 
 interface Index {
   links: Map<number, Link[]>;
+  /** The same links read the other way: each mentor's men. */
+  disciples: Map<number, number[]>;
 }
 const cache = new WeakMap<League, { key: string; index: Index }>();
 
@@ -77,7 +79,10 @@ function build(league: League): Index {
     const kept = [...tally.values()].filter((t) => t.seasons >= LINK_SEASONS);
     if (kept.length) links.set(c.id, kept);
   }
-  return { links };
+  const disciples = new Map<number, number[]>();
+  for (const [id, ls] of links)
+    for (const k of ls) disciples.set(k.mentorId, [...(disciples.get(k.mentorId) ?? []), id]);
+  return { links, disciples };
 }
 
 /** The tree index for the league as it is now (careers only change at hires and season's end). */
@@ -105,11 +110,121 @@ export function mainMentor(league: League, coachId: number): Coach | undefined {
 
 /** Everyone linked to `mentorId`. */
 export function disciplesOf(league: League, mentorId: number): Coach[] {
+  return (index(league).disciples.get(mentorId) ?? [])
+    .map((id) => coachById(league, id))
+    .filter((c): c is Coach => !!c)
+    .sort((a, b) => a.id - b.id);
+}
+
+// ───────── trees ─────────
+
+export type TreeStanding = 'hot' | 'steady' | 'withering' | 'faded';
+
+export interface Tree {
+  rootId: number;
+  /** His linked men who became head coaches. */
+  disciples: number[];
+  /** Disciples with trees of their own. */
+  branches: number[];
+  /** Head coaches in the league now from anywhere in the tree, branches included (the root himself aside). */
+  activeHeadCoaches: number[];
+}
+
+/** Hot on a .550 run over three seasons; withering on .450 or worse over five with two or more fired; faded after four bare. */
+export const HOT = { seasons: 3, share: 0.55 };
+export const WITHERING = { seasons: 5, share: 0.45, fired: 2 };
+export const FADED_SEASONS = 4;
+
+const headSeasons = (c: Coach) => (c.career ?? []).filter((r) => r.role === 'headCoach');
+const isActiveHead = (c: Coach) => c.role === 'headCoach' && c.teamId !== null;
+const becameHead = (c: Coach) => isActiveHead(c) || headSeasons(c).length > 0;
+
+const headDisciples = (league: League, rootId: number) => disciplesOf(league, rootId).filter(becameHead);
+
+/** Two of his men have become head coaches: he has a tree. */
+export const hasTree = (league: League, coachId: number) => headDisciples(league, coachId).length >= 2;
+
+/** Everyone in a tree below its root, branches included, each once (odd histories can loop). */
+function descendants(league: League, rootId: number): Coach[] {
+  const seen = new Set([rootId]);
   const out: Coach[] = [];
-  for (const [id, links] of index(league).links)
-    if (links.some((k) => k.mentorId === mentorId)) {
-      const c = coachById(league, id);
-      if (c) out.push(c);
-    }
-  return out.sort((a, b) => a.id - b.id);
+  const queue = [rootId];
+  while (queue.length) {
+    for (const d of disciplesOf(league, queue.shift()!))
+      if (!seen.has(d.id)) {
+        seen.add(d.id);
+        out.push(d);
+        queue.push(d.id);
+      }
+  }
+  return out;
+}
+
+export function treeOf(league: League, rootId: number): Tree | null {
+  const disciples = headDisciples(league, rootId);
+  if (disciples.length < 2) return null;
+  return {
+    rootId,
+    disciples: disciples.map((d) => d.id),
+    branches: disciples.filter((d) => hasTree(league, d.id)).map((d) => d.id),
+    activeHeadCoaches: descendants(league, rootId)
+      .filter(isActiveHead)
+      .map((d) => d.id),
+  };
+}
+
+/**
+ * The trees alive now (two or more active head coaches), each counted once: a live tree inside another live tree's
+ * branches is part of that one (the press called Shanahan and McVay one tree).
+ */
+export function liveTrees(league: League): Tree[] {
+  const roots = everyone(league).filter((c) => hasTree(league, c.id));
+  const live = roots.map((c) => treeOf(league, c.id)!).filter((t) => t.activeHeadCoaches.length >= 2);
+  const inside = new Set<number>();
+  for (const t of live) for (const d of descendants(league, t.rootId)) inside.add(d.id);
+  return live.filter((t) => !inside.has(t.rootId));
+}
+
+/** The nearest tree a coach belongs to: up his main branch until someone has one. */
+export function treeFor(league: League, coachId: number): Tree | null {
+  const seen = new Set<number>();
+  let at = mainMentor(league, coachId);
+  while (at && !seen.has(at.id)) {
+    seen.add(at.id);
+    if (hasTree(league, at.id)) return treeOf(league, at.id);
+    at = mainMentor(league, at.id);
+  }
+  return null;
+}
+
+/** How a tree is doing, from its head coaches' results (spec §4.6). */
+export function standingOf(league: League, tree: Tree): TreeStanding {
+  const now = league.season;
+  const men = descendants(league, tree.rootId);
+  const rows = men.flatMap((c) => headSeasons(c).map((r) => ({ c, r })));
+  const lastHead = Math.max(-Infinity, ...rows.map((x) => x.r.season));
+  if (!men.some(isActiveHead) && lastHead <= now - FADED_SEASONS) return 'faded';
+  const share = (from: number) => {
+    let w = 0;
+    let games = 0;
+    for (const { r } of rows)
+      if (r.season >= from && r.season < now && r.record) {
+        const g = r.record.regular;
+        w += g.w + 0.5 * g.t;
+        games += g.w + g.l + g.t;
+      }
+    return games ? w / games : null;
+  };
+  const hot = share(now - HOT.seasons);
+  if (hot !== null && hot >= HOT.share) return 'hot';
+  // Fired: his last season in a head coach's chair was a losing one, in the window, and he isn't in one now.
+  const fired = men.filter((c) => {
+    if (isActiveHead(c)) return false;
+    const last = headSeasons(c).sort((a, b) => b.season - a.season)[0];
+    const g = last?.record?.regular;
+    return !!last && last.season >= now - WITHERING.seasons && !!g && g.w < g.l;
+  }).length;
+  const cold = share(now - WITHERING.seasons);
+  if (cold !== null && cold <= WITHERING.share && fired >= WITHERING.fired) return 'withering';
+  return 'steady';
 }
