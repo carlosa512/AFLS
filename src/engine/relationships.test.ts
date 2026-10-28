@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { releasePlayer } from './finance/cap';
 import { createLeague } from './generate';
 import { signPlayer } from './offseason/negotiation';
 import { askOffer, demand } from './offseason/negotiation';
-import { addTie, endFeudsOutsideRoom, noteDeparture } from './relationships';
+import { addTie, clubFeeling, coachedBy, endFeudsOutsideRoom, noteDeparture, rapport } from './relationships';
+import { simToEndOfSeason } from './league';
+import { advanceOffseason, beginOffseason } from './offseason';
+import { seasonRole } from './scouting';
+import { teamCoaches } from './coaching';
 import { activeRoster } from './roster';
 import type { League, Player } from './types';
 
@@ -49,5 +53,62 @@ describe('how a player left', () => {
     p.position = 'S';
     endFeudsOutsideRoom(l, p);
     expect(q.ties ?? []).toHaveLength(0);
+  });
+});
+
+describe('rapport, homecomings and grudges, read off history', () => {
+  let l: League;
+  beforeAll(() => {
+    l = fresh('rapport');
+    for (let i = 0; i < 2; i++) {
+      simToEndOfSeason(l);
+      beginOffseason(l);
+      while (l.phase !== 'regular') advanceOffseason(l, { autoUser: true });
+    }
+  }, 240_000);
+
+  /** A player who started both seasons on one club, and the head coach there both seasons. */
+  const twoYearStarter = () => {
+    const [a, b] = [l.season - 2, l.season - 1];
+    for (const p of Object.values(l.players)) {
+      const t = p.statTeams?.[a]?.at(-1);
+      if (t === undefined || p.statTeams?.[b]?.at(-1) !== t) continue;
+      if (seasonRole(l, p, a)?.role !== 'starter' || seasonRole(l, p, b)?.role !== 'starter') continue;
+      const hc = Object.values(l.coaches).find(
+        (c) =>
+          c.role === 'headCoach' &&
+          [a, b].every((s) => c.career?.some((r) => r.season === s && r.teamId === t && r.role === 'headCoach')),
+      );
+      if (hc) return { p, hc, teamId: t };
+    }
+    throw new Error('no two-year starter found');
+  };
+
+  it('builds rapport over two good seasons under a coach, and not one', () => {
+    const { p, hc } = twoYearStarter();
+    expect(coachedBy(l, p, hc, l.season - 1)).toBe(true);
+    expect(rapport(l, p, hc)).toBe('good');
+    const once = { ...p, statTeams: { [l.season - 1]: p.statTeams![l.season - 1] } };
+    expect(rapport(l, once, hc)).toBeNull();
+  });
+
+  it('sours on the head coach whose club cut him', () => {
+    const { p, hc, teamId } = twoYearStarter();
+    const cut = { ...p, left: [{ teamId, season: l.season - 1, how: 'cut' as const }] };
+    expect(rapport(l, cut, hc)).toBe('sour');
+  });
+
+  it('holds a grudge three seasons against a club that cut or traded him, and feels at home where he walked from', () => {
+    const { p, teamId } = twoYearStarter();
+    expect(clubFeeling(l, { ...p, left: [{ teamId, season: l.season - 2, how: 'traded' }] }, teamId)).toBe('grudge');
+    expect(clubFeeling(l, { ...p, left: [{ teamId, season: l.season - 4, how: 'cut' }] }, teamId)).toBeNull();
+    expect(clubFeeling(l, { ...p, left: [{ teamId, season: l.season, how: 'walked' }] }, teamId)).toBe('home');
+    expect(clubFeeling(l, p, (teamId + 1) % 32)).toBeNull();
+  });
+
+  it('never counts a coach who was on another club', () => {
+    const { p, teamId } = twoYearStarter();
+    const other = teamCoaches(l, (teamId + 1) % 32).find((c) => c.role === 'headCoach')!;
+    expect(rapport(l, p, other)).toBeNull();
   });
 });

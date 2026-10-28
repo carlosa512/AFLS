@@ -4,7 +4,10 @@
  * grudges are worked out from history whenever they're needed; friendships and feuds are stored, three at most per
  * player. They lean on habits and contracts, and the match engine never reads them.
  */
-import type { Departure, League, Player, Tie } from './types';
+import { ROOM_OF } from './coaching';
+import { seasonRole } from './scouting';
+import { positionIn } from './training';
+import type { Coach, Departure, League, Player, Position, Tie } from './types';
 
 const MAX_LEFT = 3;
 export const MAX_TIES = 3;
@@ -60,4 +63,68 @@ export function endFeudsOutsideRoom(league: League, p: Player): void {
     const q = league.players[t.with];
     if (t.kind === 'feud' && (!q || !sameRoom(p, q))) endTie(league, p, t.with);
   }
+}
+
+// ───────── coaches and clubs: worked out from history ─────────
+
+const OFFENSE: ReadonlySet<Position> = new Set(['QB', 'RB', 'WR', 'TE', 'OL']);
+const KICKERS: ReadonlySet<Position> = new Set(['K', 'P']);
+
+/** Was `c` his head coach, his side's coordinator or his room's position coach in `season`? */
+export function coachedBy(_league: League, p: Player, c: Coach, season: number): boolean {
+  const clubs = p.statTeams?.[season] ?? [];
+  if (!clubs.length) return false;
+  const pos = positionIn(p, season);
+  return (c.career ?? []).some(
+    (r) =>
+      r.season === season &&
+      clubs.includes(r.teamId) &&
+      (r.role === 'headCoach' ||
+        (r.role === 'offCoord' && OFFENSE.has(pos)) ||
+        (r.role === 'defCoord' && !OFFENSE.has(pos) && !KICKERS.has(pos)) ||
+        (r.role === 'stCoord' && KICKERS.has(pos)) ||
+        (r.role === 'positionCoach' && r.room === ROOM_OF[pos])),
+  );
+}
+
+const headCoachOf = (c: Coach, teamId: number, season: number) =>
+  (c.career ?? []).some((r) => r.season === season && r.teamId === teamId && r.role === 'headCoach');
+
+const played = (league: League, p: Player, season: number) => {
+  const role = seasonRole(league, p, season)?.role;
+  return role === 'starter' || role === 'rotation';
+};
+
+/**
+ * How a player feels about a coach, from their seasons together. Sour if the coach ran a club that cut or traded him,
+ * or benched him (a starter one year, a backup the next, healthy); good after two or more seasons under him in which he
+ * played; otherwise nothing. Never stored: worked out from careers whenever it's needed.
+ */
+export function rapport(league: League, p: Player, c: Coach): 'good' | 'sour' | null {
+  for (const d of p.left ?? [])
+    if (d.how !== 'walked' && (headCoachOf(c, d.teamId, d.season) || headCoachOf(c, d.teamId, d.season - 1)))
+      return 'sour';
+  const seasons = Object.keys(p.statTeams ?? {})
+    .map(Number)
+    .filter((s) => coachedBy(league, p, c, s));
+  for (const s of seasons) {
+    const before = seasonRole(league, p, s - 1)?.role;
+    const now = seasonRole(league, p, s);
+    if (before === 'starter' && now?.role === 'backup' && (p.stats[s]?.gp ?? 0) >= 10) return 'sour';
+  }
+  return seasons.filter((s) => played(league, p, s)).length >= 2 ? 'good' : null;
+}
+
+/** Seasons a grudge lasts. */
+export const GRUDGE_SEASONS = 3;
+
+/**
+ * How he feels about a club he left: a grudge for three seasons if it cut or traded him; home if he walked away after
+ * playing there (a starter or a rotation player in his last season). Null for anywhere else.
+ */
+export function clubFeeling(league: League, p: Player, teamId: number): 'home' | 'grudge' | null {
+  const d = [...(p.left ?? [])].reverse().find((x) => x.teamId === teamId);
+  if (!d) return null;
+  if (d.how !== 'walked') return league.season - d.season <= GRUDGE_SEASONS ? 'grudge' : null;
+  return played(league, p, d.season - 1) ? 'home' : null;
 }
