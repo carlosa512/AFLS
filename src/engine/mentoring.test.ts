@@ -195,7 +195,7 @@ describe('mentoring: pairs and seasons', () => {
     expect(banked.length).toBeGreaterThan(100);
     for (const k of ['workEthic', 'temperament', 'poise'] as const) {
       const total = banked.reduce((s, p) => s + (p.mentorBank![k] ?? 0), 0);
-      expect(Math.abs(total / banked.length)).toBeLessThan(1e-4);
+      expect(Math.abs(total / banked.length)).toBeLessThan(0.005); // to the rounding
       for (const p of banked) expect(Math.abs(p.mentorBank![k] ?? 0)).toBeLessThanOrEqual(1);
     }
   });

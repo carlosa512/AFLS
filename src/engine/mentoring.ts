@@ -227,6 +227,8 @@ export function mentoringYearEnd(league: League): void {
       for (const p of banked) p.mentorBank![k] = clamp(p.mentorBank![k]! - mean, -1, 1);
     }
   }
+  // Two decimals is all a trait needs, and a long save keeps every shift: no 0.12345678901 in the file.
+  for (const p of banked) for (const k of SHIFTED) p.mentorBank![k] = Math.round(p.mentorBank![k]! * 100) / 100;
 }
 
 /** The new league year, for one player, before his year is rolled: what he learned lands; past 24 he's on his own. */
@@ -239,7 +241,7 @@ export function settleMentoring(_league: League, p: Player): void {
     for (const k of SHIFTED) {
       const d = p.mentorBank[k] ?? 0;
       if (!d) continue;
-      shifts[k] = (shifts[k] ?? 0) + d;
+      shifts[k] = Math.round(((shifts[k] ?? 0) + d) * 100) / 100;
       landed[k] = d;
     }
     delete p.mentorBank;
