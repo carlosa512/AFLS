@@ -139,6 +139,12 @@ describe('rapport, homecomings and grudges, read off history', () => {
     expect(contractLean(l, merc, other)).toEqual({ value: 1, walkAway: 1, ask: 1 });
   });
 
+  it('draws a man to an old coach at another club, never to the coaches he already has', () => {
+    const { p, teamId } = twoYearStarter();
+    const home = { ...p, id: p.id + 2_000_000, teamId };
+    expect(contractLean(l, home, teamId).value).toBe(1);
+  });
+
   it('puts fix marbles in the bag for rapport and temper marbles for a feud', () => {
     const { p, hc } = twoYearStarter();
     expect(rapport(l, p, hc)).toBe('good');
@@ -265,5 +271,22 @@ describe('speaking out', () => {
     let any = false;
     for (let s = 0; s < 20; s++) any ||= speaksOut(l, loud, l.season + s, 'cut');
     expect(any).toBe(true);
+  });
+
+  it('lets a retired man keep his mentor on his card and drop the rest', () => {
+    const l = fresh('retire-trim');
+    const [vet, kid] = activeRoster(l, 1).filter((x) => x.position === 'LB');
+    vet.age = 45; // he retires at the new league year
+    vet.left = [{ teamId: 3, season: l.season - 1, how: 'cut' }];
+    vet.shifts = { workEthic: 0.5 };
+    vet.mentoredBy = [{ id: kid.id, from: l.season - 2, to: l.season - 1 }];
+    addTie(l, vet, kid, 'friend');
+    l.phase = 'complete';
+    beginOffseason(l);
+    expect(vet.retired).toBe(true);
+    expect(vet.left).toBeUndefined();
+    expect(vet.shifts).toBeUndefined();
+    expect(vet.ties).toBeUndefined();
+    expect(vet.mentoredBy).toHaveLength(1);
   });
 });
