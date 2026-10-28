@@ -1,4 +1,4 @@
-import { lockerMail } from './lockerMail';
+import { lockerMail, recapAside } from './lockerMail';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
@@ -1438,7 +1438,7 @@ function recapMail(league: League, have: Set<string>): Draft[] {
   const line = p ? statBlurb(p, r.playerStats[p.id] ?? {}) : '';
   const potg = !p
     ? ''
-    : ` ${r.playerTeams[p.id] === user ? fullName(p) : `Their ${p.position} ${fullName(p)}`} was the player of the game${line ? `, with ${line}` : ''}.`;
+    : ` ${r.playerTeams[p.id] === user ? fullName(p) : `Their ${p.position} ${fullName(p)}`} was the player of the game${line ? `, with ${line}` : ''}${recapAside(league, p, { won: us > them, margin: Math.abs(us - them) })}.`;
   const [win, lose] =
     us >= them
       ? [

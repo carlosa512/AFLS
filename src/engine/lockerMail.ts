@@ -6,7 +6,9 @@
  */
 import { ROOM_OF, teamCoaches } from './coaching';
 import { personalityOf, personalityTone, trueCharacter } from './personality';
-import { speakEvents, speaksOut, type SpeakEvent } from './relationships';
+import { personalityRead } from './personality';
+import { clubFeeling, rapport, speakEvents, speaksOut, type SpeakEvent } from './relationships';
+import { perceive } from './scouting';
 import type { Coach, InboxMessage, League, Player } from './types';
 
 type Draft = Omit<InboxMessage, 'read'>;
@@ -151,10 +153,140 @@ function speakMail(league: League, have: Set<string>): Draft[] {
   return out;
 }
 
+/** Your position coach on a feud in his room (each pair once a season). */
+function feudMail(league: League, have: Set<string>, ours: Player[]): Draft[] {
+  const out: Draft[] = [];
+  for (const a of ours)
+    for (const t of a.ties ?? []) {
+      const b = league.players[t.with];
+      if (t.kind !== 'feud' || t.since !== league.season || !b || b.id < a.id || b.teamId !== a.teamId) continue;
+      const id = `feud:${league.season}:${a.id}:${b.id}`;
+      if (have.has(id)) continue;
+      const why =
+        t.why === 'benched'
+          ? ' It started when the job changed hands.'
+          : t.why === 'snubbed'
+            ? ' It started with the new contract.'
+            : '';
+      out.push({
+        id,
+        season: league.season,
+        phase: league.phase,
+        week: league.week,
+        ...roomCoach(league, a),
+        category: 'staff',
+        subject: `${a.lastName} and ${b.lastName} don't see eye to eye`,
+        body: `${fullName(a)} and ${fullName(b)} don't see eye to eye.${why} I'll keep it off the field, but it's in the room and you should know.`,
+        actions: [{ kind: 'player', playerId: a.id }],
+      });
+    }
+  return out;
+}
+
+/** The head coach when a man's friend is cut or traded away this season. */
+function friendGoneMail(league: League, have: Set<string>, ours: Player[]): Draft[] {
+  const out: Draft[] = [];
+  for (const a of ours)
+    for (const t of a.ties ?? []) {
+      const b = league.players[t.with];
+      const gone = b?.left?.find(
+        (d) => d.teamId === league.userTeamId && d.season === league.season && d.how !== 'walked',
+      );
+      if (t.kind !== 'friend' || !b || !gone || b.teamId === league.userTeamId) continue;
+      const id = `friend:${league.season}:left:${a.id}:${b.id}`;
+      if (have.has(id)) continue;
+      out.push({
+        id,
+        season: league.season,
+        phase: league.phase,
+        week: league.week,
+        ...headCoach(league),
+        category: 'staff',
+        subject: `${a.lastName} takes ${b.lastName}'s ${gone.how === 'cut' ? 'release' : 'trade'} hard`,
+        body: `${fullName(a)} took ${fullName(b)}'s ${gone.how === 'cut' ? 'release' : 'trade'} hard. They were close. He'll be fine, but give him a week.`,
+        actions: [{ kind: 'player', playerId: a.id }],
+      });
+    }
+  return out;
+}
+
+/** Free agency: agents of men who'd like to come home, and men who did well under one of our coaches (two of each). */
+function freeAgentMail(league: League, have: Set<string>): Draft[] {
+  if (league.phase !== 'freeAgency') return [];
+  const user = league.userTeamId;
+  const pool = Object.values(league.players)
+    .filter((p) => p.teamId === null && !p.retired && p.contract === null && p.experience > 0)
+    .map((p) => ({ p, ovr: perceive(league, user, p).ovr }))
+    .sort((a, b) => b.ovr - a.ovr)
+    .map((x) => x.p);
+  const coaches = teamCoaches(league, user);
+  const out: Draft[] = [];
+  let home = 0;
+  let pull = 0;
+  for (const p of pool) {
+    if (home < 2 && clubFeeling(league, p, user) === 'home') {
+      const id = `home:${league.season}:${p.id}`;
+      if (!have.has(id)) {
+        home++;
+        out.push({
+          id,
+          season: league.season,
+          phase: league.phase,
+          week: 0,
+          from: `${p.lastName}'s agent`,
+          category: 'contracts',
+          subject: `${fullName(p)} would like to come home`,
+          body: `My client has never stopped thinking of your club as home. If there's a fair deal there, ${p.firstName} would rather sign it with you than anyone.`,
+          actions: [{ kind: 'player', playerId: p.id }],
+        });
+      }
+    }
+    const coach = pull < 2 ? coaches.find((c) => rapport(league, p, c) === 'good') : undefined;
+    if (coach) {
+      const id = `rapport:${league.season}:${p.id}`;
+      if (!have.has(id)) {
+        pull++;
+        out.push({
+          id,
+          season: league.season,
+          phase: league.phase,
+          week: 0,
+          ...headCoach(league),
+          category: 'contracts',
+          subject: `${fullName(p)} asked about us`,
+          body: `${fullName(p)} asked about joining us. He played well for ${fullName(coach)} and would like to again.`,
+          actions: [{ kind: 'player', playerId: p.id }],
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * A recap's aside on its player of the game, only when the box score backs it: a revenge game (he beat or starred
+ * against a club that cut or traded him) and a clutch one (ours, read as Clutch, in a one-score win).
+ */
+export function recapAside(league: League, p: Player, game: { won: boolean; margin: number }): string {
+  const user = league.userTeamId;
+  if (p.teamId !== user && clubFeeling(league, p, user) === 'grudge') {
+    const how = [...(p.left ?? [])].reverse().find((d) => d.teamId === user)?.how;
+    return how === 'traded' ? ', against the club that traded him away' : ', against the club that cut him';
+  }
+  if (p.teamId === user && game.won && game.margin <= 8 && personalityRead(league, user, p)?.name === 'Clutch')
+    return '. He wanted the ball late';
+  return '';
+}
+
 /** Everything new from the locker room, for `deliverMail`. */
 export function lockerMail(league: League, have: Set<string>): Draft[] {
-  const out: Draft[] = [...speakMail(league, have)];
   const ours = Object.values(league.players).filter((p) => p.teamId === league.userTeamId && !p.retired);
+  const out: Draft[] = [
+    ...speakMail(league, have),
+    ...feudMail(league, have, ours),
+    ...friendGoneMail(league, have, ours),
+    ...freeAgentMail(league, have),
+  ];
   if (league.phase === 'resign')
     for (const p of ours) {
       const a = took(league, p, have);

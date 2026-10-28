@@ -6,6 +6,7 @@ import { CharacterFact, lockerLine } from './scouting';
 import { LockerRoom } from './screens/LockerRoom';
 import { nameCaptains } from '../engine/personality';
 import { mentoringWeek } from '../engine/mentoring';
+import { addTie } from '../engine/relationships';
 
 describe('the character block', () => {
   const league = createLeague({ seed: 'character-card' });
@@ -55,5 +56,29 @@ describe('the locker room', () => {
     expect(lockerLine(league, past)).toBe(`Learned from ${vet.firstName} ${vet.lastName} (2027–29)`);
     const plain = ours.find((p) => p.mentor === undefined && !p.mentoredBy)!;
     expect(lockerLine(league, plain)).toBeNull();
+  });
+
+  it('shows friendships and feuds in the room, and the card picks the one line that matters most', () => {
+    const l = createLeague({ seed: 'locker-ties' });
+    mentoringWeek(l);
+    const mine = Object.values(l.players).filter((p) => p.teamId === l.userTeamId);
+    const kid = mine.find((p) => p.mentor !== undefined)!;
+    const room = mine.filter((p) => p.position === kid.position && p.id !== kid.id && p.id !== kid.mentor);
+    addTie(l, kid, room[0], 'feud');
+    const [x, y] = mine.filter((p) => p.position === 'OL');
+    addTie(l, x, y, 'friend');
+    const html = renderToStaticMarkup(<LockerRoom league={l} />);
+    expect(html).toContain('In the room');
+    expect(html).toContain('don’t see eye to eye');
+    expect(html).toContain(room[0].lastName);
+    expect(html).toContain('close');
+    // A feud outranks the mentor on the card.
+    expect(lockerLine(l, kid)).toBe(`Doesn’t see eye to eye with ${room[0].firstName} ${room[0].lastName}`);
+    expect(lockerLine(l, x)).toBe(`Close with ${y.firstName} ${y.lastName}`);
+    // Another club's man: only a grudge against us shows.
+    const theirs = Object.values(l.players).find((p) => p.teamId !== null && p.teamId !== l.userTeamId)!;
+    expect(lockerLine(l, theirs)).toBeNull();
+    theirs.left = [{ teamId: l.userTeamId, season: l.season, how: 'cut' }];
+    expect(lockerLine(l, theirs)).toBe('Still sore about how we let him go');
   });
 });
