@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
 import { practiceSquad } from '../engine/roster';
-import { AssetList } from './screens/Trades';
+import { deskState } from '../engine/trade';
+import { AssetList, TradeDesk } from './screens/Trades';
 import { TabBoundary } from './boundary';
 
 describe('trade table', () => {
@@ -35,5 +36,23 @@ describe('front office tab boundary', () => {
       </TabBoundary>,
     );
     expect(html).toBe('<p>the table</p>');
+  });
+});
+
+describe('trade desk hero', () => {
+  it('says what needs you and the facts behind it', () => {
+    const l = createLeague({ seed: 'desk-hero', personnel: true });
+    const html = renderToStaticMarkup(<TradeDesk league={l} />);
+    expect(html).toContain('office-hero');
+    expect(html).toContain(deskState(l).text);
+    for (const label of [
+      'Deadline',
+      'Offers waiting',
+      'On your block',
+      'Untouchable',
+      'Teams asking about your players',
+    ])
+      expect(html).toContain(label);
+    expect(html).toContain('Build a trade');
   });
 });

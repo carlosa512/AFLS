@@ -9,6 +9,7 @@ import { teamPlayers } from '../../engine/roster';
 import { GmLink } from '../gm';
 import {
   counterOffer,
+  deskState,
   evaluateTrade,
   isDeadlineDay,
   maxRetain,
@@ -42,6 +43,7 @@ import { LinkedText } from '../moves';
 import { BlockPanel, ExamPanel, HistoryPanel, MarketPanel, OffersPanel } from '../offers';
 import { store } from '../store';
 import { tradeDesk, type Picked } from '../tradeDesk';
+import { Fact, Facts, OfficeHero } from '../office';
 
 const empty = (): Picked => ({ players: [], picks: [] });
 const toggle = (list: number[], id: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
@@ -163,6 +165,48 @@ export function stickyTradeTab(held: TradeTab | undefined, tab: TradeTab | undef
   return tab ?? held ?? defaultTradeTab(league);
 }
 
+/** The trade desk's hero: what needs you now, and the facts behind it (`deskState`, your view only). */
+export function TradeDesk({ league }: { league: League }) {
+  const nav = useNav();
+  const state = deskState(league);
+  return (
+    <OfficeHero
+      eyebrow="Trade desk"
+      headline={state.text}
+      urgent={state.urgent}
+      action={
+        state.offers > 0 ? (
+          <button className="btn btn-primary" onClick={() => nav.go({ view: 'office', tab: 'trades', sub: 'offers' })}>
+            Answer offers
+          </button>
+        ) : (
+          <button className="btn btn-primary" onClick={() => nav.go({ view: 'office', tab: 'trades', sub: 'table' })}>
+            Build a trade
+          </button>
+        )
+      }
+    >
+      <Facts>
+        <Fact label="Deadline" note={state.deadline.note}>
+          {state.deadline.value}
+        </Fact>
+        <Fact label="Offers waiting">
+          <span className="num">{state.offers}</span>
+        </Fact>
+        <Fact label="On your block">
+          <span className="num">{state.listed}</span>
+        </Fact>
+        <Fact label="Untouchable">
+          <span className="num">{state.untouchable}</span>
+        </Fact>
+        <Fact label="Teams asking about your players">
+          <span className="num">{state.asking}</span>
+        </Fact>
+      </Facts>
+    </OfficeHero>
+  );
+}
+
 export function Trades({ league, tab }: { league: League; tab?: TradeTab }) {
   const nav = useNav();
   const pending = openOffers(league).length;
@@ -183,6 +227,7 @@ export function Trades({ league, tab }: { league: League; tab?: TradeTab }) {
   ];
   return (
     <>
+      <TradeDesk league={league} />
       <div className="seg" role="group" aria-label="Trades" style={{ marginBottom: 12 }}>
         {views.map(([v, label]) => (
           <button key={v} aria-pressed={view === v} onClick={() => nav.go({ view: 'office', tab: 'trades', sub: v })}>
