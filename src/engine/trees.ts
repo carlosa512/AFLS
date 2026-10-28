@@ -33,6 +33,8 @@ interface Index {
   links: Map<number, Link[]>;
   /** The same links read the other way: each mentor's men. */
   disciples: Map<number, number[]>;
+  /** Only the men who worked under him while he was a head coach: the ones a tree is made of. */
+  headMen: Map<number, number[]>;
 }
 const cache = new WeakMap<League, { key: string; index: Index }>();
 
@@ -78,9 +80,13 @@ function build(league: League): Index {
     if (kept.length) links.set(c.id, kept);
   }
   const disciples = new Map<number, number[]>();
+  const headMen = new Map<number, number[]>();
   for (const [id, ls] of links)
-    for (const k of ls) disciples.set(k.mentorId, [...(disciples.get(k.mentorId) ?? []), id]);
-  return { links, disciples };
+    for (const k of ls) {
+      disciples.set(k.mentorId, [...(disciples.get(k.mentorId) ?? []), id]);
+      if (k.as === 'headCoach') headMen.set(k.mentorId, [...(headMen.get(k.mentorId) ?? []), id]);
+    }
+  return { links, disciples, headMen };
 }
 
 /** The tree index for the league as it is now (careers only change at hires and season's end). */
@@ -137,7 +143,17 @@ const headSeasons = (c: Coach) => (c.career ?? []).filter((r) => r.role === 'hea
 const isActiveHead = (c: Coach) => c.role === 'headCoach' && c.teamId !== null;
 const becameHead = (c: Coach) => isActiveHead(c) || headSeasons(c).length > 0;
 
-const headDisciples = (league: League, rootId: number) => disciplesOf(league, rootId).filter(becameHead);
+/** A head coach's own men (three seasons on his staff while he ran it) who went on to run a club. */
+function headDisciples(league: League, rootId: number): Coach[] {
+  return (index(league).headMen.get(rootId) ?? [])
+    .map((id) => coachById(league, id))
+    .filter((c): c is Coach => !!c && becameHead(c))
+    .sort((a, b) => a.id - b.id);
+}
+
+/** A head coach's own men, whether or not they ran a club: a tree's branches run through them. */
+const headMen = (league: League, rootId: number): Coach[] =>
+  (index(league).headMen.get(rootId) ?? []).map((id) => coachById(league, id)).filter((c): c is Coach => !!c);
 
 /** Two of his men have become head coaches: he has a tree. */
 export const hasTree = (league: League, coachId: number) => headDisciples(league, coachId).length >= 2;
@@ -148,7 +164,7 @@ function descendants(league: League, rootId: number): Coach[] {
   const out: Coach[] = [];
   const queue = [rootId];
   while (queue.length) {
-    for (const d of disciplesOf(league, queue.shift()!))
+    for (const d of headMen(league, queue.shift()!))
       if (!seen.has(d.id)) {
         seen.add(d.id);
         out.push(d);

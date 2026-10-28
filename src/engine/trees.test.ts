@@ -301,4 +301,17 @@ describe('the carousel', () => {
     const hc = hcs[0];
     expect(headCoachVision(l, hc)).toEqual(headCoachVision(l, hc));
   });
+
+  it('counts only head coaches’ men toward a tree, never a coordinator’s', () => {
+    const { l, c } = blank();
+    const [oc, a, b] = c;
+    oc.role = 'offCoord';
+    for (const d of [a, b]) {
+      d.career = [2020, 2021, 2022].map((s) => row(s, 4, 'positionCoach', { room: 'QB' }));
+      d.career.push(row(2023, d === a ? 5 : 6, 'headCoach'));
+    }
+    oc.career = [2020, 2021, 2022].map((s) => row(s, 4, 'offCoord'));
+    expect(linksOf(l, a.id).some((k) => k.mentorId === oc.id)).toBe(true);
+    expect(hasTree(l, oc.id)).toBe(false);
+  });
 });
