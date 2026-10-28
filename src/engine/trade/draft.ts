@@ -15,6 +15,7 @@ import {
   availableRanks,
   boardOf,
   boardScore,
+  draftOrder,
   nextPick,
   picksAhead,
   positionDepth,
@@ -22,15 +23,17 @@ import {
 } from '../offseason/draft';
 import { STARTERS } from '../positions';
 import { clamp, type Rng } from '../rng';
-import type { DraftPick, League, Player, Position, Team, Transaction } from '../types';
-import { pickOf, refreshAfterTrade, type TradeContext } from './context';
-import { TAGS, pickSwapFor, type Deal } from './deals';
-import { executeTrade } from './execute';
+import type { Advice } from './advice';
+import type { DraftPick, League, Player, Position, Team, TradeOffer, Transaction } from '../types';
+import { pickOf, refreshAfterTrade, tradeContext, type TradeContext } from './context';
+import { TAGS, pickSwapFor, quickValue, type Deal } from './deals';
+import { emptyMarket, executeTrade } from './execute';
 import { judge } from './judge';
 import { dealWatch } from './market';
+import { file, openOffers } from './offers';
 import { teamNeeds } from './plans';
-import type { TradeProposal } from './rules';
-import { pickValue } from './value';
+import { tradeWindow, type TradeProposal, type TradeSide } from './rules';
+import { goingRate, pickValue } from './value';
 
 /** A switch for the checks and tests: with it on, the draft runs with no trades and covet is zero. */
 export const draftTrades: { off?: boolean } = {};
@@ -311,6 +314,7 @@ function closeDraftDeal(ctx: TradeContext, deal: Deal): void {
   dealWatch.onClose?.(ctx, deal, deal.proposal);
   pickMoved(ctx.league, deal.proposal);
   executeTrade(ctx.league, deal.proposal, { kind: deal.kind, tag: deal.tag });
+  lapseUsedPicks(ctx.league);
   refreshAfterTrade(
     ctx,
     deal.proposal.sides.map((s) => s.teamId),
@@ -398,15 +402,226 @@ export function draftCalls(ctx: TradeContext, rng: Rng): { buyer: number; target
 }
 
 /**
- * Offers to you hang on their picks: once a pick in one is used, it lapses (no cooldown: nobody turned anybody down).
+ * Offers to you hang on their picks: once a pick in one is used it lapses, and once one has moved to another team it's
+ * off. No cooldown either way: nobody turned anybody down.
  */
 export function lapseUsedPicks(league: League): void {
+  const byId = (id: number) => league.draftPicks.find((p) => p.id === id);
   for (const o of league.market?.offers ?? []) {
-    if (o.status !== 'pending') continue;
-    const used = (ids: readonly number[]) =>
-      ids.some((id) => league.draftPicks.find((p) => p.id === id)?.playerId !== undefined);
-    if (!used(o.sides[0].picks) && !used(o.sides[1].picks)) continue;
-    o.status = 'expired';
-    o.outcome = used(o.sides[1].picks) ? 'It lapsed when you picked.' : 'It lapsed when the pick was made.';
+    if (o.status !== 'pending' || !(o.sides[0].picks.length || o.sides[1].picks.length)) continue;
+    const used = (side: TradeSide) => side.picks.some((id) => byId(id)?.playerId !== undefined);
+    const moved = (side: TradeSide) => side.picks.some((id) => byId(id)?.ownerId !== side.teamId);
+    if (used(o.sides[0]) || used(o.sides[1])) {
+      o.status = 'expired';
+      o.outcome = used(o.sides[1]) ? 'It lapsed when you picked.' : 'It lapsed when the pick was made.';
+    } else if (moved(o.sides[0]) || moved(o.sides[1])) {
+      o.status = 'withdrawn';
+      o.outcome = 'A pick in it has moved since, so it’s off the table.';
+    }
   }
+}
+
+// ───────── calls to you ─────────
+
+/** Open offers and asks to you that hang on a pick of this draft: the draft room shows them under the clock. */
+export function draftDayOffers(league: League): TradeOffer[] {
+  if (league.phase !== 'draft') return [];
+  const live = (id: number) => {
+    const pk = league.draftPicks.find((p) => p.id === id);
+    return !!pk && pk.season === league.season && pk.playerId === undefined;
+  };
+  return openOffers(league).filter((o) => [...o.sides[0].picks, ...o.sides[1].picks].some(live));
+}
+
+/** Draft offers to you a pick on the clock, and the most that answer when you shop it or call the teams ahead. */
+const CLOCK_OFFERS = 2;
+const SHOP_OFFERS = 3;
+/** Add-ons a team tries when it builds an offer to you or names its price. */
+const YOUR_ADD_ONS = 6;
+
+const sideOf = (teamId: number, picks: number[]): TradeSide => ({ teamId, players: [], picks });
+
+/**
+ * A team's or your unused picks after `after` in this draft, and next year's, that are big enough to matter (`fits`),
+ * cheapest first to `valuer`.
+ */
+function addOnsOf(
+  ctx: TradeContext,
+  teamId: number,
+  after: DraftPick,
+  valuer: Team,
+  fits: (pk: DraftPick) => boolean,
+): DraftPick[] {
+  const { league } = ctx;
+  return league.draftPicks
+    .filter(
+      (pk) =>
+        pk.ownerId === teamId &&
+        pk.playerId === undefined &&
+        (pk.season === league.season + 1 || (pk.season === league.season && pk.overall! > after.overall!)) &&
+        fits(pk),
+    )
+    .sort((a, b) => pickValue(league, a, valuer.gm, ctx) - pickValue(league, b, valuer.gm, ctx))
+    .slice(0, YOUR_ADD_ONS);
+}
+
+/**
+ * What `team` offers to move up from `own` to your pick: its pick and the cheapest add-on its own judge takes against
+ * you, never less than the league's going rate for your pick ([his, yours]), or null.
+ */
+function moveUpOffer(ctx: TradeContext, team: Team, own: DraftPick, yours: DraftPick): TradeProposal | null {
+  const { league } = ctx;
+  const user = league.teams[league.userTeamId];
+  const floor = goingRate(league, yours, ctx);
+  const short = floor - goingRate(league, own, ctx);
+  for (const extra of [null, ...addOnsOf(ctx, team.id, own, team, (pk) => goingRate(league, pk, ctx) >= short)]) {
+    const proposal: TradeProposal = {
+      sides: [sideOf(team.id, extra ? [own.id, extra.id] : [own.id]), sideOf(user.id, [yours.id])],
+    };
+    if (quickValue(ctx, user, proposal.sides[0]) < floor) continue;
+    if (judge(ctx, team.id, proposal, { vsUser: true }).accepts) return proposal;
+  }
+  return null;
+}
+
+/** The teams behind your pick on the clock that would move up to it, with their offers, the best for you first. */
+function movingUp(ctx: TradeContext, yours: DraftPick, skip: ReadonlySet<number>) {
+  const { league } = ctx;
+  const user = league.teams[league.userTeamId];
+  const seen = new Set<number>([league.userTeamId, ...skip]);
+  const out: { team: Team; proposal: TradeProposal; value: number }[] = [];
+  for (const own of picksAhead(league, WINDOW)) {
+    if (seen.has(own.ownerId)) continue;
+    seen.add(own.ownerId);
+    const team = league.teams[own.ownerId];
+    if (!tradeUpReason(ctx, team, own)) continue;
+    const proposal = moveUpOffer(ctx, team, own, yours);
+    if (proposal) out.push({ team, proposal, value: quickValue(ctx, user, proposal.sides[0]) });
+  }
+  return out.sort((a, b) => b.value - a.value);
+}
+
+/** Your pick, when you're on the clock. */
+const yourClock = (league: League) => {
+  const pick = nextPick(league);
+  return pick && pick.ownerId === league.userTeamId ? pick : undefined;
+};
+
+/**
+ * The calls you get on the clock: the teams behind you that want to move up for their man, at most two, once a pick.
+ * The draft room's controls call it when the draft stops at your pick; simming the rest never does.
+ */
+export function clockOffers(league: League): TradeOffer[] {
+  const pick = yourClock(league);
+  const market = (league.market ??= emptyMarket());
+  if (!pick || market.clockPick === pick.id || tradeWindow(league) || draftTrades.off) return [];
+  market.clockPick = pick.id;
+  const ctx = tradeContext(league);
+  return movingUp(ctx, pick, new Set())
+    .slice(0, CLOCK_OFFERS)
+    .map((c) => file(ctx, market, c.team, 'draft', c.proposal, 'draft'))
+    .filter((o): o is TradeOffer => !!o);
+}
+
+/** *Shop this pick*: every team that would move up to it answers now; the best three come back. Once a pick. */
+export function shopPick(league: League): { offers: TradeOffer[]; message: string } {
+  const pick = yourClock(league);
+  if (!pick) return { offers: [], message: "You're not on the clock." };
+  const market = (league.market ??= emptyMarket());
+  if (market.shoppedPick === pick.id) return { offers: [], message: `You've already shopped No. ${pick.overall}.` };
+  market.shoppedPick = pick.id;
+  const ctx = tradeContext(league);
+  const offering = new Set(
+    market.offers.filter((o) => o.status === 'pending' && o.sides[1].picks.includes(pick.id)).map((o) => o.teamId),
+  );
+  const offers = movingUp(ctx, pick, offering)
+    .slice(0, SHOP_OFFERS)
+    .map((c) => file(ctx, market, c.team, 'shop', c.proposal, 'draft'))
+    .filter((o): o is TradeOffer => !!o);
+  return {
+    offers,
+    message: offers.length
+      ? `${offers.length} team${offers.length > 1 ? 's' : ''} came back with an offer for No. ${pick.overall}.`
+      : `Nobody wants to move up to No. ${pick.overall}.`,
+  };
+}
+
+/**
+ * *Call teams ahead*: the teams holding the picks just before your next one each name their price for theirs, your
+ * pick plus the cheapest add-on of yours they'd take (their covet counted); the three cheapest for you come back.
+ * Once while a pick is on the clock.
+ */
+export function callAhead(league: League): { offers: TradeOffer[]; message: string } {
+  const clock = nextPick(league);
+  const mine = draftOrder(league).find((p) => p.ownerId === league.userTeamId && p.playerId === undefined);
+  if (!clock || !mine) return { offers: [], message: 'You have no pick coming.' };
+  if (mine.id === clock.id) return { offers: [], message: "You're on the clock: shop this pick instead." };
+  const market = (league.market ??= emptyMarket());
+  if (market.calledAhead === clock.overall) return { offers: [], message: "You've already called around this pick." };
+  market.calledAhead = clock.overall;
+  const ctx = tradeContext(league);
+  const user = league.teams[league.userTeamId];
+  const seen = new Set<number>([user.id]);
+  const asks: { team: Team; proposal: TradeProposal; cost: number }[] = [];
+  for (const theirs of draftOrder(league)) {
+    if (theirs.playerId !== undefined || theirs.overall! >= mine.overall! || theirs.overall! < mine.overall! - WINDOW)
+      continue;
+    if (seen.has(theirs.ownerId)) continue;
+    seen.add(theirs.ownerId);
+    const team = league.teams[theirs.ownerId];
+    const alone: TradeProposal = { sides: [sideOf(team.id, [theirs.id]), sideOf(user.id, [mine.id])] };
+    const ask = judge(ctx, team.id, alone, { vsUser: true });
+    if (ask.problem || ask.refusal) continue;
+    const short = ask.need - ask.get;
+    const fits = (pk: DraftPick) => pickValue(league, pk, team.gm, ctx) >= 0.8 * short;
+    for (const extra of [null, ...addOnsOf(ctx, user.id, mine, team, fits)]) {
+      const yours = sideOf(user.id, extra ? [mine.id, extra.id] : [mine.id]);
+      const proposal: TradeProposal = { sides: [sideOf(team.id, [theirs.id]), yours] };
+      if (!judge(ctx, team.id, proposal, { vsUser: true }).accepts) continue;
+      asks.push({ team, proposal, cost: quickValue(ctx, user, yours) });
+      break;
+    }
+  }
+  const offers = asks
+    .sort((a, b) => a.cost - b.cost)
+    .slice(0, SHOP_OFFERS)
+    .map((a) => file(ctx, market, a.team, 'ask', a.proposal, 'draft'))
+    .filter((o): o is TradeOffer => !!o);
+  return {
+    offers,
+    message: offers.length
+      ? `${offers.length} team${offers.length > 1 ? 's' : ''} gave you their price.`
+      : 'No one ahead of you will move their pick for what you have.',
+  };
+}
+
+/**
+ * Your director's word on a draft deal, from your own board: how far down it is to the best you'd likely still get
+ * at the later pick, or that the earlier pick makes your top choice sure. Null when no pick of this draft moves.
+ */
+export function draftLine(league: League, [theirs, yours]: readonly [TradeSide, TradeSide]): Advice | null {
+  if (league.phase !== 'draft') return null;
+  const ofDraft = (side: TradeSide) =>
+    side.picks
+      .map((id) => league.draftPicks.find((p) => p.id === id)!)
+      .filter((p) => p && p.season === league.season && p.overall !== undefined && p.playerId === undefined)
+      .sort((a, b) => a.overall! - b.overall!)[0];
+  const out = ofDraft(yours);
+  const inn = ofDraft(theirs);
+  if (!out && !inn) return null;
+  const me = league.userTeamId;
+  if (inn && (!out || inn.overall! < out.overall!))
+    return { who: 'scouts', line: `At No. ${inn.overall} we'd be sure of our top choice.`, tone: 'good' };
+  if (!inn) return null;
+  const at = expectedAt(league, me, inn).best;
+  if (!at) return null;
+  const mine = memoOf(league)
+    .pool.map((p) => boardBase(league, me, p, inn.round))
+    .sort((a, b) => b - a);
+  const k = Math.max(1, mine.findIndex((s) => s <= boardBase(league, me, at, inn.round)) + 1);
+  return {
+    who: 'scouts',
+    line: `At No. ${inn.overall} we'd still likely get one of our top ${k}.`,
+    tone: k <= 3 ? 'good' : k <= 8 ? 'note' : 'warn',
+  };
 }

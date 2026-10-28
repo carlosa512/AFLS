@@ -3,7 +3,7 @@ import { createLeague } from '../generate';
 import { deliverMail, offerWords } from '../inbox';
 import { simToEndOfSeason } from '../league';
 import { migrateLeague } from '../migrate';
-import { advanceOffseason, beginOffseason } from '../offseason';
+import { advanceOffseason, beginOffseason, draftForUser, draftToEnd, draftToUserPick } from '../offseason';
 import {
   availableRanks,
   boardOf,
@@ -24,15 +24,21 @@ import {
   draftCovet,
   draftTrades,
   expectedAt,
+  callAhead,
+  clockOffers,
+  draftLine,
   LONG_JUMP,
+  shopPick,
   tradeUpReason,
   WINDOW,
 } from './draft';
 import { emptyMarket } from './execute';
-import { judge } from './judge';
+import { evaluateTrade, judge } from './judge';
+import { quickValue } from './deals';
+import { acceptOffer, openOffers } from './offers';
 import { dealWatch, MINOR } from './market';
 import type { TradeProposal } from './rules';
-import { pickValue } from './value';
+import { goingRate, pickValue } from './value';
 
 /** One league played through a season and walked to draft day, cloned per test. */
 const atDraft = (() => {
@@ -336,5 +342,145 @@ describe('AI trades before each pick', () => {
 
   it("doesn't count draft deals against a team's trade limits", () => {
     expect(MINOR.has('draft')).toBe(true);
+  });
+});
+
+/** Draft day walked to your first pick that draws offers (the draft room's Sim to my pick makes them). */
+function toOfferedPick(): League {
+  const l = draftDay();
+  for (let tries = 0; tries < 7; tries++) {
+    draftToUserPick(l);
+    if (!nextPick(l)) break;
+    if (openOffers(l).some((o) => o.reason === 'draft')) return l;
+    draftForUser(l);
+  }
+  throw new Error('No pick of yours drew an offer');
+}
+const onYourPick = (l: League) => openOffers(l).filter((o) => o.sides[1].picks.includes(nextPick(l)!.id));
+
+describe('offers to you on the clock', () => {
+  it('brings at most 2, one a team, each at the going rate for your pick or better', () => {
+    const l = toOfferedPick();
+    const offers = onYourPick(l).filter((o) => o.reason === 'draft');
+    expect(offers.length).toBeGreaterThan(0);
+    expect(offers.length).toBeLessThanOrEqual(2);
+    expect(new Set(offers.map((o) => o.teamId)).size).toBe(offers.length);
+    const ctx = tradeContext(l);
+    const user = l.teams[l.userTeamId];
+    for (const o of offers)
+      expect(quickValue(ctx, user, o.sides[0])).toBeGreaterThanOrEqual(goingRate(l, nextPick(l)!, ctx) - 1e-6);
+  });
+
+  it('makes them once a pick, after a save and load too', () => {
+    const l = toOfferedPick();
+    expect(clockOffers(l)).toHaveLength(0);
+    const loaded: League = JSON.parse(JSON.stringify(l));
+    expect(clockOffers(loaded)).toHaveLength(0);
+  });
+
+  it('lets them lapse quietly when the rest is simmed, and makes no more', () => {
+    const l = toOfferedPick();
+    const ids = onYourPick(l).map((o) => o.id);
+    const before = l.market!.offers.length;
+    draftToEnd(l);
+    for (const id of ids) {
+      const o = l.market!.offers.find((x) => x.id === id)!;
+      expect(o.status).toBe('expired');
+      expect(o.outcome).toBe('It lapsed when you picked.');
+      expect(l.market!.talks[o.teamId]?.cooldowns ?? {}).toEqual({});
+    }
+    expect(l.market!.offers.slice(before).filter((o) => o.reason === 'draft')).toHaveLength(0);
+  });
+
+  it('closes the other offer on your pick when you accept one', () => {
+    const l = toOfferedPick();
+    const pick = nextPick(l)!;
+    const [first] = onYourPick(l);
+    const other = l.teams.find((t) => t.id !== first.teamId && t.id !== l.userTeamId)!;
+    const later = draftOrder(l).find((p) => p.ownerId === other.id && p.playerId === undefined)!;
+    const second = pickOffer(l, other.id, [later.id], [pick.id], 'draft');
+    expect(acceptOffer(l, first.id).ok).toBe(true);
+    expect(openOffers(l).map((o) => o.id)).not.toContain(second.id);
+    expect(second.status).not.toBe('pending');
+  });
+
+  it('moves on to your next pick when you hold two in a row', () => {
+    const l = toOfferedPick();
+    const pick = nextPick(l)!;
+    const next = draftOrder(l).find((p) => p.overall === pick.overall! + 1)!;
+    next.ownerId = l.userTeamId;
+    const ids = onYourPick(l).map((o) => o.id);
+    draftForUser(l);
+    for (const id of ids) expect(l.market!.offers.find((x) => x.id === id)!.status).toBe('expired');
+    expect(l.market!.clockPick).toBe(next.id);
+  });
+
+  it('says why when you have no pick to shop or call about', () => {
+    const l = draftDay();
+    const other = l.teams.find((t) => t.id !== l.userTeamId)!;
+    for (const p of draftOrder(l)) if (p.ownerId === l.userTeamId) p.ownerId = other.id;
+    expect(callAhead(l).message).toBe('You have no pick coming.');
+    expect(shopPick(l).message).toBe("You're not on the clock.");
+  });
+
+  it('shops a pick once, skipping the teams already offering', () => {
+    const l = toOfferedPick();
+    const offering = new Set(onYourPick(l).map((o) => o.teamId));
+    const shop = shopPick(l);
+    for (const o of shop.offers) {
+      expect(offering.has(o.teamId)).toBe(false);
+      expect(o.reason).toBe('shop');
+    }
+    expect(shopPick(l).message).toMatch(/already shopped/);
+  });
+
+  it('calls only the teams picking before your next pick, each at a price it takes', () => {
+    const l = draftDay();
+    const mine = draftOrder(l).find((p) => p.ownerId === l.userTeamId && p.playerId === undefined)!;
+    const res = callAhead(l);
+    const ctx = tradeContext(l);
+    for (const o of res.offers) {
+      expect(o.reason).toBe('ask');
+      const theirs = l.draftPicks.find((p) => p.id === o.sides[0].picks[0])!;
+      expect(theirs.overall!).toBeLessThan(mine.overall!);
+      expect(o.sides[1].picks).toContain(mine.id);
+      expect(judge(ctx, o.teamId, { sides: o.sides }, { vsUser: true }).accepts).toBe(true);
+    }
+    expect(callAhead(l).message).toBe("You've already called around this pick.");
+  });
+
+  it('makes a team on the clock with its man on the board ask more of you', () => {
+    const l = draftDay();
+    const { clock } = clockAnd(l, 1);
+    const mine = draftOrder(l).find((p) => p.ownerId === l.userTeamId && p.overall! > clock.overall!)!;
+    const proposal: TradeProposal = {
+      sides: [
+        { teamId: l.userTeamId, players: [], picks: [mine.id] },
+        { teamId: clock.ownerId, players: [], picks: [clock.id] },
+      ],
+    };
+    const covet = evaluateTrade(l, proposal).shortfall;
+    draftTrades.off = true;
+    try {
+      expect(covet).toBeGreaterThan(evaluateTrade(l, proposal).shortfall);
+    } finally {
+      draftTrades.off = false;
+    }
+  });
+
+  it("gives your director's word from your own board", () => {
+    const l = toOfferedPick();
+    const [o] = onYourPick(l);
+    const line = draftLine(l, o.sides)!;
+    expect(line.who).toBe('scouts');
+    const m = line.line.match(/^At No\. (\d+) we'd still likely get one of our top (\d+)\.$/)!;
+    expect(m).not.toBeNull();
+    // The best still likely there at the later pick, ranked on your own board (your scouts' read).
+    const later = l.draftPicks.find((p) => p.overall === Number(m[1]) && p.season === l.season)!;
+    const at = expectedAt(l, l.userTeamId, later).best!;
+    const mine = (p: { id: number }) => boardOf(l, l.userTeamId, l.players[p.id]);
+    expect(mine(at)).toBeDefined();
+    const k = Number(m[2]);
+    expect(line.tone).toBe(k <= 3 ? 'good' : k <= 8 ? 'note' : 'warn');
   });
 });
