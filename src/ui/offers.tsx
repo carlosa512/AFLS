@@ -38,7 +38,8 @@ import type { League, Player, Stance, Team, TradeOffer, TradeRecord, TradeSide, 
 import { POSITIONS } from '../engine/types';
 import { LinkedText, nameIndex } from './moves';
 import { useNav } from './App';
-import { Panel, PlayerAvatar, PlayerLink, SortSeg, sortRows, TeamChip, useSort } from './components';
+import { Panel, PlayerAvatar, PlayerLink, SortSeg, sortRows, TeamChip, TeamLink, useSort } from './components';
+import { GmLink } from './gm';
 import { money, playerName } from './format';
 import { CardRow, OfficeCard, Pill, type PillTone } from './office';
 import { Ovr, seenOvr } from './scouting';
@@ -623,35 +624,83 @@ export function shoppingOf(league: League, teamId: number): Player[] {
   return [...new Set(ids)].map((id) => league.players[id]).filter((p) => p?.teamId === teamId);
 }
 
-/** What the league is saying, and who's buying and selling (in words). */
+const STANCE_ORDER: Stance[] = ['contend', 'bubble', 'retool', 'rebuild'];
+
+/** Every other front office as a card, grouped by who's buying and selling, beside what the league is saying. */
 export function MarketPanel({ league }: { league: League }) {
+  const nav = useNav();
   const rumors = [...(league.market?.rumors ?? [])].reverse().slice(0, 20);
-  const ai = league.teams.filter((t) => t.id !== league.userTeamId && t.stance);
+  const ai = league.teams.filter((t) => t.id !== league.userTeamId);
+  // One read for all 31 cards: the needs read rates every starter in the league.
+  const ctx = tradeContext(league);
+  const asked = askedAbout(league);
+  const open = (team: Team) => {
+    tradeDesk.put({ partnerId: team.id, mine: { players: [], picks: [] }, theirs: { players: [], picks: [] } });
+    nav.go({ view: 'office', tab: 'trades', sub: 'table' });
+  };
   return (
-    <div className="grid-2">
-      <Panel title={<h2>Around the league</h2>}>
-        {rumors.length ? (
-          <ul className="plain-list">
-            {rumors.map((r) => (
-              <li key={r.id}>
-                {r.text} <span className="muted small">{r.phase === 'regular' ? `Week ${r.week}` : r.season}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="muted">Quiet so far.</p>
-        )}
-      </Panel>
-      <Panel title={<h2>Who's dealing</h2>}>
-        {(['contend', 'bubble', 'retool', 'rebuild'] as Stance[]).map((mode) => {
-          const teams = ai.filter((t) => stanceOf(t) === mode);
-          return teams.length ? (
-            <p key={mode}>
-              <b>{STANCE[mode]}:</b> {teams.map((t) => t.name).join(', ')}
-            </p>
-          ) : null;
-        })}
-      </Panel>
+    <div className="home-grid">
+      <div className="home-cell span-8">
+        <Panel title={<h2>Front offices</h2>}>
+          {STANCE_ORDER.map((mode) => {
+            const teams = ai.filter((t) => stanceOf(t) === mode);
+            if (!teams.length) return null;
+            return (
+              <section key={mode} className="gm-group">
+                <div className="eyebrow">{STANCE[mode]}</div>
+                <div className="gm-grid">
+                  {teams.map((t) => {
+                    const [shopping] = shoppingOf(league, t.id);
+                    const askedFor = (asked.get(t.id) ?? []).map((id) => league.players[id]);
+                    return (
+                      <OfficeCard key={t.id}>
+                        <TeamLink team={t} chip full />
+                        {t.gmId !== null && <GmLink league={league} gm={league.gms[t.gmId]} />}
+                        <span className="pill-row">
+                          <Pill>{STANCE[mode]}</Pill>
+                        </span>
+                        <span>
+                          <span className="eyebrow">Wants (our read)</span>{' '}
+                          <WantsPills league={league} team={t} ctx={ctx} />
+                        </span>
+                        {shopping && (
+                          <span className="small">
+                            Shopping <PlayerLink league={league} player={shopping} pos />
+                          </span>
+                        )}
+                        {askedFor.length > 0 && (
+                          <span className="small">
+                            Asked about <PlayerLink league={league} player={askedFor[0]} pos />
+                            {askedFor.length > 1 && ` and ${askedFor.length - 1} more`}
+                          </span>
+                        )}
+                        <button className="btn btn-sm" onClick={() => open(t)}>
+                          Open table
+                        </button>
+                      </OfficeCard>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </Panel>
+      </div>
+      <div className="home-cell span-4">
+        <Panel title={<h2>Around the league</h2>}>
+          {rumors.length ? (
+            <ul className="plain-list">
+              {rumors.map((r) => (
+                <li key={r.id}>
+                  {r.text} <span className="muted small">{r.phase === 'regular' ? `Week ${r.week}` : r.season}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">Quiet so far.</p>
+          )}
+        </Panel>
+      </div>
     </div>
   );
 }

@@ -2628,6 +2628,59 @@ details.more > summary {
   margin-left: 0;
 }
 
+/* ───────── trade desk ───────── */
+/* Who you're dealing with, under the GM line on the trade table: stance, wants, who they're shopping, talks. */
+.partner-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-top: 6px;
+}
+.partner-fact {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.partner-facts .tag-pill,
+.office-card .tag-pill,
+.staff-strip .tag-pill {
+  margin-left: 0;
+}
+/* Your staff's word on a deal: the take on top, then one line per voice. */
+.staff-strip {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  margin: 10px 0;
+}
+.staff-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.staff-take {
+  font-weight: 700;
+}
+/* The Market: every front office as a card, a group per stance. */
+.gm-group + .gm-group {
+  margin-top: 16px;
+}
+.gm-group > .eyebrow {
+  margin-bottom: 8px;
+}
+.gm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+@media (max-width: 600px) {
+  .gm-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ───────── draft room ───────── */
 .draft-ticker {
   list-style: none;

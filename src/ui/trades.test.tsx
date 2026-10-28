@@ -6,8 +6,8 @@ import { deskState, type Advice } from '../engine/trade';
 import { emptyMarket } from '../engine/trade/execute';
 import { teamPlayers } from '../engine/roster';
 import type { TradeOffer } from '../engine/types';
-import { BlockPanel, OfferCard, StaffStrip, talksWords, WantsPills } from './offers';
-import { ASKS, tradeContext } from '../engine/trade';
+import { BlockPanel, MarketPanel, OfferCard, StaffStrip, talksWords, WantsPills } from './offers';
+import { ASKS, tradeContext, updateStances } from '../engine/trade';
 import { AssetList, TradeDesk } from './screens/Trades';
 import { TabBoundary } from './boundary';
 
@@ -164,5 +164,23 @@ describe('your block', () => {
     });
     html = renderToStaticMarkup(<BlockPanel league={l} />);
     expect(html).toContain('1 team asking');
+  });
+});
+
+describe('the market', () => {
+  it('is every other front office as a card, grouped by who is buying and selling', () => {
+    const l = createLeague({ seed: 'market-cards' });
+    updateStances(tradeContext(l));
+    l.market = emptyMarket();
+    const html = renderToStaticMarkup(<MarketPanel league={l} />);
+    expect(html.match(/class="office-card/g)).toHaveLength(l.teams.length - 1);
+    expect(html).toMatch(/Buying|Listening|Selling/);
+    expect(html).toContain('Quiet so far.');
+    expect(html).not.toContain("Who's dealing");
+  });
+  it('draws before the market exists', () => {
+    const l = createLeague({ seed: 'market-new' });
+    delete l.market;
+    expect(renderToStaticMarkup(<MarketPanel league={l} />)).toContain('Quiet so far.');
   });
 });
