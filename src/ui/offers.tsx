@@ -21,8 +21,10 @@ import {
   setTradeStatus,
   shopPlayer,
   stanceOf,
+  staffTake,
   tradeWindow,
   type Advice,
+  type StaffTake,
 } from '../engine/trade';
 import type { League, Player, Stance, TradeOffer, TradeRecord, TradeSide, TradeStatus } from '../engine/types';
 import { POSITIONS } from '../engine/types';
@@ -30,6 +32,7 @@ import { LinkedText, nameIndex } from './moves';
 import { useNav } from './App';
 import { Panel, PlayerAvatar, PlayerLink, SortSeg, sortRows, TeamChip, useSort } from './components';
 import { money, playerName } from './format';
+import { Pill, type PillTone } from './office';
 import { Ovr, seenOvr } from './scouting';
 import { store } from './store';
 import { tradeDesk } from './tradeDesk';
@@ -55,6 +58,51 @@ const WHO: Record<Advice['who'], string> = {
   scouts: 'Pro scouts',
   medical: 'Medical',
   cap: 'Cap',
+};
+
+const VOICE_TONE: Record<Advice['tone'], PillTone | undefined> = {
+  good: 'good',
+  warn: 'warn',
+  bad: 'bad',
+  note: undefined,
+};
+const TAKE: Record<StaffTake, [string, PillTone | undefined]> = {
+  likes: ['Staff likes it', 'good'],
+  split: ['Split', undefined],
+  against: ['Staff against', 'bad'],
+};
+
+/** Your staff's word on a deal: their take first, then each voice, coloured by whether it's for or against. */
+export function StaffStrip({ league, advice }: { league: League; advice: readonly Advice[] }) {
+  if (!advice.length) return null;
+  // One index for every line: building it reads the whole league.
+  const names = nameIndex(league);
+  const [take, tone] = TAKE[staffTake(advice)];
+  return (
+    <div className="staff-strip">
+      <Pill tone={tone} className="staff-take">
+        {take}
+      </Pill>
+      {advice.map((a, i) => (
+        <div key={i} className="staff-line">
+          <Pill tone={VOICE_TONE[a.tone]}>{WHO[a.who]}</Pill>
+          <span className="small">
+            <LinkedText league={league} text={a.line} index={names} />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** What kind of call an offer is, in a word. */
+const KIND: Record<TradeOffer['reason'], string> = {
+  bid: 'Bid',
+  pitch: 'Pitch',
+  dump: 'Dump',
+  enquiry: 'Enquiry',
+  shop: 'Answering your shop',
+  counter: 'Counter',
 };
 
 /** A deal's side as the trade table holds it. */
@@ -221,8 +269,6 @@ export function OfferCard({
   const open = openOffers(league).some((o) => o.id === offer.id);
   const enquiry = offer.kind === 'enquiry';
   const advice = enquiry ? [] : dealAdvice(league, offer.sides);
-  // One index for every note: building it reads the whole league.
-  const names = advice.length ? nameIndex(league) : undefined;
   const reply = replyOf(league, offer);
 
   const accept = (ids: number[] = []) => {
@@ -260,17 +306,16 @@ export function OfferCard({
     setTone(choice === 'notForSale' || result.offer !== null ? 'good' : 'bad');
   };
 
-  const when = (
+  const when = open ? (
+    <Pill tone="early">{lapse(league)}</Pill>
+  ) : (
     <span className="muted small">
-      {open
-        ? lapse(league)
-        : offer.status === 'pending'
-          ? 'This offer is no longer open.'
-          : (offer.outcome ?? FALLBACK[offer.status])}
+      {offer.status === 'pending' ? 'This offer is no longer open.' : (offer.outcome ?? FALLBACK[offer.status])}
     </span>
   );
   return (
     <Panel
+      className="offer-card"
       title={
         compact ? (
           when
@@ -279,7 +324,10 @@ export function OfferCard({
             <TeamChip team={team} />
             <div>
               <h3 style={{ margin: 0 }}>{subject}</h3>
-              {when}
+              <span className="pill-row">
+                <Pill>{KIND[offer.reason]}</Pill>
+                {when}
+              </span>
             </div>
           </div>
         )
@@ -298,15 +346,7 @@ export function OfferCard({
           </div>
         </div>
       )}
-      {advice.length > 0 && (
-        <ul className="plain-list small">
-          {advice.map((a, i) => (
-            <li key={i}>
-              <b>{WHO[a.who]}:</b> <LinkedText league={league} text={a.line} index={names} />
-            </li>
-          ))}
-        </ul>
-      )}
+      <StaffStrip league={league} advice={advice} />
       {release && (
         <div className="notice">
           <p style={{ marginTop: 0 }}>To make room, release:</p>

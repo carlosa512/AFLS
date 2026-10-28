@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
 import { practiceSquad } from '../engine/roster';
-import { deskState } from '../engine/trade';
+import { deskState, type Advice } from '../engine/trade';
+import { emptyMarket } from '../engine/trade/execute';
+import { teamPlayers } from '../engine/roster';
+import type { TradeOffer } from '../engine/types';
+import { OfferCard, StaffStrip } from './offers';
 import { AssetList, TradeDesk } from './screens/Trades';
 import { TabBoundary } from './boundary';
 
@@ -54,5 +58,50 @@ describe('trade desk hero', () => {
     ])
       expect(html).toContain(label);
     expect(html).toContain('Build a trade');
+  });
+});
+
+describe('offer cards', () => {
+  const l = createLeague({ seed: 'offer-cards' });
+  it('the staff strip leads with the take and tones each voice', () => {
+    const advice: Advice[] = [
+      { who: 'coach', line: 'X would start for us at CB.', tone: 'good' },
+      { who: 'cap', line: 'Cap room after: -$1.0M.', tone: 'bad' },
+    ];
+    const html = renderToStaticMarkup(<StaffStrip league={l} advice={advice} />);
+    expect(html.indexOf('Staff against')).toBeLessThan(html.indexOf('Head coach'));
+    expect(html).toContain('tag-pill tag-good">Head coach');
+    expect(html).toContain('tag-pill tag-bad">Cap');
+    expect(renderToStaticMarkup(<StaffStrip league={l} advice={[]} />)).toBe('');
+  });
+  it("a bid shows its kind and your staff's take, and reading it changes nothing", () => {
+    l.market = emptyMarket();
+    const rival = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const mine = teamPlayers(l, l.userTeamId).find((p) => p.contract)!;
+    const theirs = teamPlayers(l, rival.id).find((p) => p.contract)!;
+    const offer: TradeOffer = {
+      id: 1,
+      teamId: rival.id,
+      sides: [
+        { teamId: rival.id, players: [theirs.id], picks: [] },
+        { teamId: l.userTeamId, players: [mine.id], picks: [] },
+      ],
+      kind: 'swap',
+      reason: 'bid',
+      season: l.season,
+      phase: l.phase,
+      week: l.week,
+      moment: 0,
+      status: 'pending',
+      patience: 2,
+      worth: 100,
+    };
+    l.market.offers.push(offer);
+    const before = JSON.stringify(l);
+    const html = renderToStaticMarkup(<OfferCard league={l} offer={offer} />);
+    expect(JSON.stringify(l)).toBe(before);
+    expect(html).toContain('offer-card');
+    expect(html).toContain('>Bid<');
+    expect(html).toMatch(/Staff likes it|Split|Staff against/);
   });
 });

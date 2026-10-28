@@ -202,7 +202,7 @@ describe('staff notes on an offer', () => {
     );
     expect(named.length, 'a note naming a player').toBeGreaterThan(0);
     const html = renderToStaticMarkup(<OfferCard league={league} offer={offer} />);
-    const list = html.slice(html.indexOf('plain-list small'));
+    const list = html.slice(html.indexOf('staff-strip'));
     expect(list).toContain(`>${named[0].firstName} ${named[0].lastName}</button>`);
   });
 });
