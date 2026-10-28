@@ -18,7 +18,7 @@ import {
   rookieContract,
 } from '../generate';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
-import { clamp, type Rng } from '../rng';
+import { clamp, Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth } from '../scouting';
 import { POSITION_PREMIUM, specialistPenalty } from './positionValue';
@@ -26,6 +26,8 @@ import { computeRecords, winPct } from '../season/standings';
 import type { DraftPick, League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
 import { ensureService } from '../personnel/service';
+import { tradeContext } from '../trade/context';
+import { draftBoards, draftCalls, draftedInto, draftTrades, lapseUsedPicks } from '../trade/draft';
 
 export const DRAFT_CLASS_SIZE = 260;
 /** How far under his ready-to-play self a prospect comes in, given back as room to grow (overall points). */
@@ -45,13 +47,15 @@ export function generateDraftClass(league: League, rng: Rng): void {
   league.draftClass = [];
   for (let i = 0; i < DRAFT_CLASS_SIZE; i++) {
     // A steep top, a long flat middle: a few day-one starters, many projects.
-    // A class a little stronger than a new league's roster would need on its own (13.95 at the top): once the
+    // A class a little stronger than a new league's roster would need on its own (14.1 at the top): once the
     // generated veterans have retired, the draft alone carries the league, and at 13.5 it settled starters about
     // 0.3 below where a new league starts (`npm run careers`, starter OVR by season). Settling ceilings and hype
-    // (`ceiling.ts`) take a little back, which the quarter point over the old 13.7 returns.
+    // (`ceiling.ts`) take a little back, which the quarter point over the old 13.7 returned; at 13.95 the drafted
+    // league settled at 12.67, two hundredths over the floor, so any reshuffle of who goes where (a draft-day
+    // trade) tipped it under. 14.1 settles it near 12.8 (seasons 10-16, eight seeds).
     // Prospects come in raw (`RAW`): a first-rounder usually needs two or three years to become a solid starter, so a
     // ceiling that settles under him (`ceiling.ts`) is a bust, not a starter who stopped improving.
-    const quality = clamp(13.95 - RAW - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** 0.6 + rng.normal(0, 0.9), 4, 16);
+    const quality = clamp(14.1 - RAW - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** 0.6 + rng.normal(0, 0.9), 4, 16);
     const position = rng.weighted(CLASS_MIX, ([, w]) => w)[0];
     const p = generatePlayer(rng, {
       id: league.nextPlayerId++,
@@ -126,6 +130,13 @@ export function draftOrder(league: League): DraftPick[] {
 
 export const nextPick = (league: League) => draftOrder(league).find((p) => p.playerId === undefined);
 
+/** The `n` picks after the one on the clock, in order. */
+export function picksAhead(league: League, n: number): DraftPick[] {
+  return draftOrder(league)
+    .filter((p) => p.playerId === undefined)
+    .slice(1, n + 1);
+}
+
 export function availableProspects(league: League): Player[] {
   return league.draftClass
     .map((id) => league.players[id])
@@ -133,6 +144,16 @@ export function availableProspects(league: League): Player[] {
 }
 
 export { POSITION_PREMIUM };
+
+/** Each available prospect's consensus rank among those still on the board (1 = best): about where he'll go from here. */
+export function availableRanks(league: League): Map<number, number> {
+  return new Map(
+    availableProspects(league)
+      .map((p) => ({ id: p.id, v: boardValue(p) }))
+      .sort((a, b) => b.v - a.v || a.id - b.id)
+      .map((x, i) => [x.id, i + 1]),
+  );
+}
 
 /** A team's overalls by position, best first. */
 export function positionDepth(league: League, teamId: number): Record<Position, number[]> {
@@ -192,16 +213,19 @@ function boardFrom(memo: BoardMemo, league: League, teamId: number, p: Player): 
   return b;
 }
 
-/** A front office's board score for a prospect: its read of talent and upside, position value, need. */
+/**
+ * A front office's board score for a prospect: its read of talent and upside, position value, need. With no `rng` it
+ * leaves out the pick-day noise (a trade call weighs the board as it stands), in the same order, so picks don't move.
+ */
 export function boardScore(
   depth: Record<Position, number[]>,
   p: Player,
   board: Board,
-  rng: Rng,
+  rng: Rng | null,
   round: number,
   sizeBias = 0,
 ): number {
-  let score = 0.6 * board.grade + 0.4 * board.ceiling + POSITION_PREMIUM[p.position] + rng.normal(0, 0.6);
+  let score = 0.6 * board.grade + 0.4 * board.ceiling + POSITION_PREMIUM[p.position] + (rng ? rng.normal(0, 0.6) : 0);
   // A GM who wants measurables marks the undersized prospect down, the further under the more: a point of board
   // value at most, so a great small player still goes early.
   const z = sizeZ(p);
@@ -244,6 +268,7 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
   const team = league.teams[pick.ownerId];
   pick.playerId = player.id;
   pick.consRank = consensusRank(league, player);
+  const via = pick.originalTeamId !== pick.ownerId ? pick.originalTeamId : undefined;
   player.teamId = team.id;
   player.contract = rookieContract(pick.overall!, league.season, league.caps[league.season]);
   player.draft = {
@@ -252,6 +277,8 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
     pick: pick.overall!,
     teamId: team.id,
     rank: pick.consRank,
+    ...(via !== undefined ? { via } : {}),
+    ...(pick.moved ? { deal: pick.moved } : {}),
   };
   player.jersey = freeJersey(
     player.position,
@@ -267,19 +294,34 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
     league,
     'draft',
     [team.id],
-    `${team.abbrev} drafted ${player.position} ${player.firstName} ${player.lastName} (round ${pick.round}, No. ${pick.overall})`,
+    `${team.abbrev} drafted ${player.position} ${player.firstName} ${player.lastName} (round ${pick.round}, No. ${pick.overall}${
+      via !== undefined ? `, via ${league.teams[via].abbrev}` : ''
+    })`,
   );
+  // Offers to you that hang on this pick end with it.
+  lapseUsedPicks(league);
 }
 
 /** Make picks until it's the user's turn, `limit` picks are made, or the draft ends. Returns the picks made. */
 export function simDraft(league: League, rng: Rng, opts: { stopAtUser: boolean; limit?: number }): DraftPick[] {
   const made: DraftPick[] = [];
-  const boards: BoardMemo = new Map();
+  // The boards the phones read are the ones the picks are made from: one read of each prospect a team.
+  const boards: BoardMemo = draftTrades.off ? new Map() : draftBoards(league);
+  // One trade context for the run: picks only add a rookie to a roster (`draftedInto`), trades refresh it.
+  const ctx = draftTrades.off ? null : tradeContext(league);
   for (let pick = nextPick(league); pick; pick = nextPick(league)) {
     if (opts.stopAtUser && pick.ownerId === league.userTeamId) break;
     if (made.length === opts.limit) break;
-    draftPlayer(league, pick, aiDraftChoice(league, pick.ownerId, rng, pick.round, boards));
-    made.push(pick);
+    // Before an AI pick the phones ring, on their own stream: the draft's own picks don't move unless a trade does.
+    const call =
+      ctx && pick.ownerId !== league.userTeamId
+        ? draftCalls(ctx, new Rng(`${league.seed}:draft-trades:${league.season}:${pick.overall}`))
+        : null;
+    const now = nextPick(league)!;
+    const player = call ? league.players[call.target] : aiDraftChoice(league, now.ownerId, rng, now.round, boards);
+    draftPlayer(league, now, player);
+    if (ctx) draftedInto(ctx, now.ownerId, player);
+    made.push(now);
   }
   return made;
 }

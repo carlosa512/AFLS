@@ -232,12 +232,12 @@ export function mentoringYearEnd(league: League): void {
 }
 
 /** The new league year, for one player, before his year is rolled: what he learned lands; past 24 he's on his own. */
-export function settleMentoring(_league: League, p: Player): void {
+export function settleMentoring(league: League, p: Player): void {
   delete p.shiftedLast;
   delete p.lostMentor;
   if (p.mentorBank) {
     const shifts = (p.shifts ??= {});
-    const landed: Player['shiftedLast'] = { season: _league.season };
+    const landed: Player['shiftedLast'] = { season: league.season };
     for (const k of SHIFTED) {
       const d = p.mentorBank[k] ?? 0;
       if (!d) continue;
@@ -245,11 +245,12 @@ export function settleMentoring(_league: League, p: Player): void {
       landed[k] = d;
     }
     delete p.mentorBank;
-    if (Object.keys(landed).length > 1) p.shiftedLast = landed;
+    // Only your own club's letters read it, so other clubs' players don't carry it in the save.
+    if (Object.keys(landed).length > 1 && p.teamId === league.userTeamId) p.shiftedLast = landed;
   }
   if (p.age + 1 > YOUNG_AGES[1]) {
-    const m = p.mentor === undefined ? undefined : _league.players[p.mentor];
-    if (m) friendsAfter(_league, p, m);
+    const m = p.mentor === undefined ? undefined : league.players[p.mentor];
+    if (m) friendsAfter(league, p, m);
     delete p.mentor;
     delete p.mentorWeeks;
     delete p.mentorSetByYou;

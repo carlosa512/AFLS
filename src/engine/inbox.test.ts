@@ -151,8 +151,8 @@ describe('inbox', () => {
       medical: ['injury', 'cleared', 'covering', 'shortHanded'],
       awards: ['award'],
       trades: ['trade', 'deadline', 'market', 'marketRecap', 'advice'],
-      league: ['race', 'news', 'leadership', 'gazette'],
-      staff: ['leadership', 'gmOffer', 'owner', 'rundown'],
+      league: ['race', 'news', 'leadership', 'gazette', 'locker'],
+      staff: ['leadership', 'gmOffer', 'owner', 'rundown', 'locker'],
     };
     for (const m of league.inbox!) {
       const s = mailSubject(m)!;

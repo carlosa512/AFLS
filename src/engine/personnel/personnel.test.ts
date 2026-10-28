@@ -281,7 +281,7 @@ describe('migration and collection', () => {
     // `players` and `result` re-taken with player size (0.2.2): new builds reseed hidden traits; the stream, charts
     // and schedule still match main, which is what proves the size roll costs the same two draws. `result` again with
     // the DT's wrap-up at the line, and with the size edges. `charts` and `result` again with spot fit,
-    // which lines the starters up by build. `players` and `result` again with personality (0.2.14): four more hidden
+    // which lines the starters up by build. `players` and `result` again with personality (0.2.15): four more hidden
     // traits per player, and sportsmanship in place of temper on the dirty fouls; the stream, games and charts still
     // match, so the new traits cost no draw from the league's stream.
     expect({

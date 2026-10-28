@@ -57,9 +57,9 @@ export function Fact({ label, children, note }: { label: string; children: React
 }
 
 /** Cards in a row: they wrap on a desktop and swipe sideways on a phone. */
-export function CardRow({ children, label }: { children: ReactNode; label?: string }) {
+export function CardRow({ children, label, className }: { children: ReactNode; label?: string; className?: string }) {
   return (
-    <div className="card-row" aria-label={label}>
+    <div className={`card-row${className ? ` ${className}` : ''}`} aria-label={label}>
       {children}
     </div>
   );

@@ -16,6 +16,7 @@ import { contenderScore, rosterLimit } from '../offseason/negotiation';
 import { clamp } from '../rng';
 import type { DraftPick, League, Player, Team } from '../types';
 import { pickOf, rosterOf, tradeContext, type TradeContext } from './context';
+import { draftCovet } from './draft';
 import { untouchables } from './plans';
 import { peekTalks, talkRefusal, TRUST_MARGIN } from './talks';
 import {
@@ -287,8 +288,10 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const cuts = Math.max(0, over(now - mine.players.length + theirs.players.length) - over(now));
   // Salary kept by the sender: a cost to it, a saving to the buyer, weighed by cap room like this year's salary (`nowWeight`).
   const thisYear = nowWeight(ctx, teamId);
-  const get = pickIn + gain - cuts * ROSTER_SPOT + thisYear * POINTS_PER_K * retainedBy(theirs);
-  const give = pickOut + loss + thisYear * POINTS_PER_K * retainedBy(mine);
+  // On draft day a pick is also the player it buys: its man now against its best later (`draftCovet`).
+  const covet = draftCovet(ctx, teamId, proposal);
+  const get = pickIn + gain - cuts * ROSTER_SPOT + thisYear * POINTS_PER_K * retainedBy(theirs) + covet.get;
+  const give = pickOut + loss + thisYear * POINTS_PER_K * retainedBy(mine) + covet.give;
   const trust = opts.vsUser ? peekTalks(league.market, teamId).trust : 0;
   const margin =
     (opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser, trust)) +
