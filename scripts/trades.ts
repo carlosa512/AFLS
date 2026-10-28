@@ -881,9 +881,12 @@ for (let i = 0; i < LEAGUES; i++) {
 
 // The other price leagues, in seed order so the output reads the same every run.
 const leagueIndex = (seed: string) => Number(seed.slice(seed.lastIndexOf('-') + 1));
+/** The price leagues' first seasons, week 1 through deadline day: pooled into the in-season volume check. */
+const pricedInSeason: number[] = [];
 for (const run of (await (priceRuns ?? priceTheRest())).sort((a, b) => leagueIndex(a.seed) - leagueIndex(b.seed))) {
   addPrices('preseason', run.preseason);
   addPrices('deadline', run.deadline);
+  pricedInSeason.push(run.inSeason);
 }
 console.log(
   `\nPrices (median JJ points at projected slots, future picks 25% off a year; every eligible player in ${PRICE_LEAGUES} leagues' first season, depth an even sample; examples below)`,
@@ -951,7 +954,17 @@ for (const r of volume.all) kinds.set(r.kind, (kinds.get(r.kind) ?? 0) + 1);
 console.log(
   `\nVolume and mix (${volume.all.length} AI trades over ${volume.seasons} seasons: ${[...kinds].map(([k, n]) => `${n} ${k}`).join(', ')})`,
 );
-check('trades in season (week 1 to deadline day), a season', mean(volume.inSeason), [15, 25], 1);
+// Judged over every season played to the deadline: the audit's own nine and the price leagues' first seasons. Nine
+// alone swung 14.9-18.7 a season between seeds of the same code (0.2.15), so one seed's luck decided the check.
+check(
+  `trades in season (week 1 to deadline day), a season (${volume.inSeason.length + pricedInSeason.length} seasons)`,
+  mean([...volume.inSeason, ...pricedInSeason]),
+  [15, 25],
+  1,
+);
+console.log(
+  `  in season, this audit's leagues ${mean(volume.inSeason).toFixed(1)} · the price leagues' first seasons ${mean(pricedInSeason).toFixed(1)}`,
+);
 // The leagues' seasons in order, so a drift over a long run shows (league by league, season by season).
 const byYear = Array.from({ length: SEASONS }, (_, y) => mean(volume.inSeason.filter((_, k) => k % SEASONS === y)));
 console.log(`  in season, by year of the run: ${byYear.map((x) => x.toFixed(1)).join(' · ')}`);
