@@ -3,6 +3,7 @@
  * and collect what the audit judges, from the steady state (the second half of the run). The audit
  * runs one of these per seed in its own process and pools them.
  */
+import { workEthicOf } from '../src/engine/traits';
 import { coachingForPlayer, NEUTRAL, staffScore, teamCoaches } from '../src/engine/coaching';
 import { developPlayer, playedShare, rollInputs, trueUp } from '../src/engine/development';
 import { createLeague } from '../src/engine/generate';
@@ -219,7 +220,8 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     if (!p.draft || p.draft.season < firstDraft) continue;
     if (p.draft.season <= league.season - 5) out.drafts.push({ round: p.draft.round, hit: hits.has(p.id) });
     for (const [season, shift] of Object.entries(p.ceilingShifts ?? {}))
-      out.shifts.push({ year: Number(season) - p.draft.season, shift, workEthic: p.traits.workEthic });
+      // The work ethic the game reads (mentoring included), as `ceiling.ts` does.
+      out.shifts.push({ year: Number(season) - p.draft.season, shift, workEthic: workEthicOf(p) });
   }
   return out;
 }

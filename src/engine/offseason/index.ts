@@ -156,6 +156,11 @@ export function beginOffseason(league: League): void {
       delete p.mentorSetByYou;
       delete p.mentorBank;
       for (const t of [...(p.ties ?? [])]) endTie(league, p, t.with);
+      // His card keeps who mentored him; how he left clubs and what mentors moved only mattered while he played.
+      delete p.left;
+      delete p.shifts;
+      delete p.shiftedLast;
+      delete p.lostMentor;
       retirees.push(p);
       continue;
     }

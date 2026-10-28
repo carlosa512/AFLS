@@ -344,7 +344,10 @@ function leanFor(league: League, p: Player, teamId: number): Lean {
   let walkAway = 1;
   let ask = 1;
   const coaches = coachesOf(league, p, teamId);
-  if (coaches.some((c) => rapport(league, p, c) === 'good')) value *= 1.02 + 0.02 * p.personality.loyalty;
+  // An old coach at another club draws him; the coaches he has now are his club's loyalty term's business (most
+  // starters get on with theirs, and a bonus there would quietly keep everyone off the market).
+  if (p.teamId !== teamId && coaches.some((c) => rapport(league, p, c) === 'good'))
+    value *= 1.02 + 0.02 * p.personality.loyalty;
   const hc = coaches.find((c) => c.role === 'headCoach');
   if (hc && rapport(league, p, hc) === 'sour') value *= 0.97;
   const merc = mercenary(p);
