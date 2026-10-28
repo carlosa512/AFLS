@@ -9,6 +9,7 @@ import { personalityOf, personalityTone, trueCharacter } from './personality';
 import { personalityRead } from './personality';
 import { clubFeeling, rapport, speakEvents, speaksOut, type SpeakEvent } from './relationships';
 import { perceive } from './scouting';
+import { linksOf, treeOf } from './trees';
 import type { Coach, InboxMessage, League, Player } from './types';
 
 type Draft = Omit<InboxMessage, 'read'>;
@@ -278,6 +279,118 @@ export function recapAside(league: League, p: Player, game: { won: boolean; marg
   return '';
 }
 
+// ───────── coaching trees on SNN ─────────
+
+const coachName = (league: League, id: number) => {
+  const c = league.coaches[id] ?? league.retiredCoaches[id];
+  return c ? fullName(c) : 'a coach';
+};
+/** The season a coach first ran a club (founding trees' men count as before the league began). */
+const firstHeadSeason = (c: Coach) =>
+  Math.min(Infinity, ...(c.career ?? []).filter((r) => r.role === 'headCoach').map((r) => r.season));
+
+function snn(league: League, id: string, subject: string, body: string): Draft {
+  return {
+    id,
+    season: league.season,
+    phase: league.phase,
+    week: league.week,
+    from: 'SNN league desk',
+    category: 'league',
+    subject,
+    body,
+    actions: [{ kind: 'coaches' }],
+  };
+}
+
+/** SNN on the coaching trees: one born, a mentor meeting his disciple for the first time, a root retiring. */
+function treeMail(league: League, have: Set<string>): Draft[] {
+  const out: Draft[] = [];
+  const everyone = [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)];
+  for (const root of everyone) {
+    const tree = treeOf(league, root.id);
+    if (!tree) continue;
+    // Born: his second man to run a club started this season (founding trees were born before the league).
+    const starts = tree.disciples
+      .map((id) => league.coaches[id] ?? league.retiredCoaches[id])
+      .map((d) => (d && (d.career ?? []).some((r) => r.role === 'headCoach') ? firstHeadSeason(d) : -Infinity))
+      .sort((a, b) => a - b);
+    const born = `tree:${league.season}:born:${root.id}`;
+    if (starts[1] === league.season && !have.has(born))
+      out.push(
+        snn(
+          league,
+          born,
+          `A ${root.lastName} tree`,
+          `With ${coachName(league, tree.disciples[1])} taking over a club, ${fullName(root)} now has two former assistants running teams of their own. Around the league they're calling it the ${root.lastName} tree.`,
+        ),
+      );
+    // Retired: the root of a live tree left the game this offseason.
+    const retired = `tree:${league.season}:retired:${root.id}`;
+    const last = Math.max(-Infinity, ...(root.career ?? []).map((r) => r.season));
+    if (
+      league.retiredCoaches[root.id] &&
+      last === league.season - 1 &&
+      tree.activeHeadCoaches.length >= 2 &&
+      !have.has(retired)
+    )
+      out.push(
+        snn(
+          league,
+          retired,
+          `${fullName(root)} retires`,
+          `${fullName(root)} has retired. His tree carries on: ${tree.activeHeadCoaches.map((id) => coachName(league, id)).join(', ')} still run clubs.`,
+        ),
+      );
+  }
+  // The week before: a mentor and his disciple face each other as head coaches for the first time.
+  if (league.phase === 'regular') {
+    const headOf = (teamId: number) => teamCoaches(league, teamId).find((c) => c.role === 'headCoach');
+    for (const g of league.games) {
+      if (g.week !== league.week || g.result || g.season !== league.season) continue;
+      const [a, b] = [headOf(g.homeId), headOf(g.awayId)];
+      if (!a || !b) continue;
+      const pair = linksOf(league, b.id).some((k) => k.mentorId === a.id && k.as === 'headCoach')
+        ? [a, b]
+        : linksOf(league, a.id).some((k) => k.mentorId === b.id && k.as === 'headCoach')
+          ? [b, a]
+          : null;
+      if (!pair) continue;
+      const [mentor, disciple] = pair;
+      const id = `tree:meet:${mentor.id}:${disciple.id}`;
+      if (have.has(id)) continue;
+      out.push(
+        snn(
+          league,
+          id,
+          `${mentor.lastName} meets his old assistant`,
+          `${fullName(mentor)} faces ${fullName(disciple)}, who worked under him for years, for the first time as rival head coaches this week.`,
+        ),
+      );
+    }
+  }
+  return out;
+}
+
+/** How many have left our staff to run a club in the five seasons up to this one (the poached letter's line). */
+export function headCoachesOffStaff(league: League, teamId: number): number {
+  let n = 0;
+  for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)]) {
+    const rows = c.career ?? [];
+    if (
+      rows.some(
+        (r) =>
+          r.role === 'headCoach' &&
+          r.teamId !== teamId &&
+          r.season >= league.season - 4 &&
+          rows.some((x) => x.teamId === teamId && x.role !== 'headCoach' && x.season === r.season - 1),
+      )
+    )
+      n++;
+  }
+  return n;
+}
+
 /** Everything new from the locker room, for `deliverMail`. */
 export function lockerMail(league: League, have: Set<string>): Draft[] {
   const ours = Object.values(league.players).filter((p) => p.teamId === league.userTeamId && !p.retired);
@@ -286,6 +399,7 @@ export function lockerMail(league: League, have: Set<string>): Draft[] {
     ...feudMail(league, have, ours),
     ...friendGoneMail(league, have, ours),
     ...freeAgentMail(league, have),
+    ...treeMail(league, have),
   ];
   if (league.phase === 'resign')
     for (const p of ours) {

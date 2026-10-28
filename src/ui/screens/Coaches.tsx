@@ -1,3 +1,4 @@
+import { liveTrees, mainMentor, standingOf, treeFor, treeOf, type TreeStanding } from '../../engine/trees';
 import { managesTeam } from '../../engine/employment';
 import { TeamLink } from '../components';
 import { QUIRKS, type QuirkId } from '../../engine/quirks';
@@ -593,6 +594,67 @@ function CoachNote({ league, text }: { league: League; text: string }) {
 }
 
 /** A coach's full card, like a player's: his ratings, what he runs, his deal and every season he has coached. */
+/** A tree's standing, in words (never a number). */
+function standingWords(league: League, standing: TreeStanding): string {
+  if (standing === 'hot')
+    return liveTrees(league).filter((t) => standingOf(league, t) === 'hot').length > 1
+      ? 'one of the hottest trees in the league'
+      : 'the hottest tree in the league';
+  return standing === 'steady'
+    ? 'a respected tree'
+    : standing === 'withering'
+      ? 'hasn’t produced a winner in years'
+      : 'one of the great trees of its day';
+}
+
+/** Who a coach learned under, and his own tree if he has one. Nothing for a coach with no links. */
+function CoachTree({ league, coach: c }: { league: League; coach: Coach }) {
+  const nav = useNav();
+  const mentor = mainMentor(league, c.id);
+  const own = treeOf(league, c.id);
+  const within = treeFor(league, c.id);
+  const findCoach = (id: number) => league.coaches[id] ?? league.retiredCoaches[id];
+  const link = (x: Coach) => (
+    <button className="linklike" onClick={() => nav.openStaff('coach', x.id)}>
+      {coachName(x)}
+    </button>
+  );
+  // A former player coaching for the head coach he played for.
+  const hc = c.teamId === null ? undefined : teamCoaches(league, c.teamId).find((x) => x.role === 'headCoach');
+  const played = c.playerId === undefined ? undefined : league.players[c.playerId];
+  const playedFor =
+    hc &&
+    hc !== c &&
+    played &&
+    Object.entries(played.statTeams ?? {}).some(([s, teams]) =>
+      (hc.career ?? []).some((r) => r.role === 'headCoach' && r.season === Number(s) && teams.includes(r.teamId)),
+    );
+  if (!mentor && !own && !playedFor) return null;
+  const root = within && within.rootId !== mentor?.id ? findCoach(within.rootId) : undefined;
+  return (
+    <Section id="coach-tree" title="Coaching tree">
+      {mentor && (
+        <p>
+          Learned under {link(mentor)}
+          {root ? <>, in the {root.lastName} tree</> : null}.
+        </p>
+      )}
+      {playedFor && hc && <p>Played for {link(hc)}, now coaches for him.</p>}
+      {own && (
+        <>
+          <p>His own tree: {standingWords(league, standingOf(league, own))}.</p>
+          <ul className="plain-list">
+            {own.disciples.map((id) => {
+              const d = findCoach(id);
+              return d ? <li key={id}>{link(d)}</li> : null;
+            })}
+          </ul>
+        </>
+      )}
+    </Section>
+  );
+}
+
 export function CoachCard({ league, coach: c, onClose }: { league: League; coach: Coach; onClose: () => void }) {
   const nav = useNav();
   const team = c.teamId !== null ? league.teams[c.teamId] : null;
@@ -705,6 +767,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
           Last job: {c.lastJob}
         </p>
       )}
+      <CoachTree league={league} coach={c} />
       <Section id="coach-career" title="Career">
         {career === 'coach' && !!c.interimAppointments?.length && (
           <ul className="coach-takeovers">
