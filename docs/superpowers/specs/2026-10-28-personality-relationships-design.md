@@ -64,7 +64,8 @@ workers the whole league's work ethic would creep up (`docs/TRAINING.md` §8 hol
 It also makes the Born Leader who coasts, the most dangerous mentor, more common.
 
 Code names avoid two words already taken: `coaching.ts` has `pressureOf()` (how much a defense blitzes) and a
-`LEADERSHIP` set (the head coach and coordinators). Screens say "poise" and "leadership".
+`LEADERSHIP` set (the head coach and coordinators). Screens never name a trait; where text needs the idea it says
+"poise" or "leadership" in a sentence.
 
 The existing character traits keep their places: work ethic, temperament and the others on `Traits`; loyalty,
 winning, greed and patience on `Personality` (0–1). The names below read all ten as z-scores.
@@ -96,7 +97,8 @@ checked in order and the first match wins (z = how many sd from the league avera
 | 18 | Even-Keeled | everyone else |
 
 **Spread:** a unit test generates a league and pins the shares: Even-Keeled 20–35%, every other name 1.5–9%. The
-thresholds above are a starting point; the test decides.
+thresholds above are a starting point; the test decides. Until PR 3 some names are switched off (§6.4), so the test
+checks the names switched on at that point.
 
 **A name can change**, but only through mentoring (§2), which shifts work ethic, temperament and poise. A Coaster who
 becomes a Quiet Pro is a story: *"He's grown up."*
@@ -171,6 +173,8 @@ shift = clamp(RATE × weeksTogether / 18 × pull × takes × (mentor − player)
   times his standing (starter 1, rotation 0.7, backup 0.4).
 - **takes** (how much sticks): lower for a young player with high controversy (Divas and the Volatile take less).
 - **cuts both ways:** a mentor below the young player on a trait pulls him down.
+- **RATE** is one constant, tuned so a full season with a strong mentor far apart on a trait reaches the 1-point cap,
+  and checked against the guard in §2.5.
 
 So a Born Leader who starts pulls hard, and a Born Leader who coasts is the most dangerous mentor in the building.
 
@@ -268,7 +272,8 @@ barely moves the save.
 
 A coach is **linked** to a head coach after **3+ seasons on his staff** (any chair), or to a coordinator after 3+
 seasons as a position coach on that coordinator's side of the ball. A shorter stop is a line on his résumé, not a
-branch. Links are worked out from `Coach.career` (and `pastUnder`, §4.5) by `coachTree(league, id)` in a new
+branch. This is deliberately stricter than the NFL press, which counts a single season (Brandon Staley's one year as
+McVay's DC puts him in McVay's tree): the owner wants trees to be rare and earned. Links are worked out from `Coach.career` (and `pastUnder`, §4.5) by `coachTree(league, id)` in a new
 `trees.ts`, cached once per league year (careers only change at hires and season's end).
 
 A coach's **main branch** is the head coach he served under longest (most recent breaks a tie).
@@ -314,8 +319,33 @@ record (`records.ts`) is inflated. Old saves get the same seeding when they upgr
 
 The research behind the targets below is in `docs/research/coaching-trees.md`.
 
-*Pending: the research pass on real NFL trees (how many live trees at once, link tenure, share of head-coach hires
-from trees, how fast trees rise and fade) is in progress. This section gets its targets before the spec is final.*
+Sources and our own estimates are in `docs/research/coaching-trees.md`. A tree's active head coaches include its
+branches (disciples' disciples), the way Walsh's tree still counted McVay. `npm run careers` (four leagues, 16
+seasons) checks these:
+
+| Measure | Target | Why |
+| --- | --- | --- |
+| Live trees (2+ active head coaches) | 2–5 in a league at any time | 4–5 in 2025 on loose links; one big tree at a time before 2017 |
+| The biggest tree | 3–6 active head coaches | Reid's 4–5; our 3-season links keep trees under Shanahan/McVay's 11 |
+| Head coaches in a live tree | 15–40% of the 32 | strict counts, well under the press's loose ones |
+| Head-coach hires from a tree | 10–35% over a decade; a hot tree up to 40% of one offseason | about one hire in five from the hottest tree; 4 of 10 at the 2026 peak |
+| New trees born | 1–4 per league over 16 seasons | about one disciple in five to eight starts his own |
+| Founding trees still alive at season 16 | at least one per league (through any branch) | trees outlive their roots by 20–30 years |
+
+**Standing thresholds** (combined win share of the tree's active head coaches):
+
+| Standing | Rule | Real-world anchor |
+| --- | --- | --- |
+| Hot | .550 or better over the last 3 seasons | McVay's disciples .582, Reid's .550 |
+| Withering | .450 or worse over the last 5 seasons, with 2+ disciples fired in that time | Belichick's .413 |
+| Steady | anything between | |
+| Faded | no active head coach in the tree, branches included, for 4 seasons | Dungy's tree after Tomlin |
+
+**At the start:** 3–4 founding roots, one or two of them retired legends, each with two active head coaches, so 6–8
+of the 32 head coaches start in a tree.
+
+The size of the search boost and knock (§4.4) is tuned until the hire share lands in its range; it is not a number
+from the research.
 
 ### 4.7 The story
 
@@ -385,9 +415,10 @@ you step in.
 
 ### 5.5 Words
 
-Screens and letters talk like football people. A screen-contract test in `ui/ui.test.ts` lists words that must never
-reach a screen: *marble, trait, z-score, standing, link, score, shift, roll*. Every PR in this design ends with a
-wording pass over its new text.
+Screens and letters talk like football people. A screen-contract test in `ui/ui.test.ts` lists the words from under
+the hood that must never reach a screen: *marble, trait, z-score*, and code names such as `workEthic` or `leads`.
+The list stays short on purpose: words like *score*, *standings* or *shift* are everyday football and must stay
+usable. Every PR in this design ends with a wording pass over its new text.
 
 ---
 
@@ -395,7 +426,7 @@ wording pass over its new text.
 
 ### 6.1 Save
 
-One `SAVE_VERSION` bump (59 → 60) in PR 1 adds the four traits (rolled from each player's seed). Each later PR that
+One `SAVE_VERSION` bump in PR 1 adds the four traits (rolled from each player's seed). Each later PR that
 adds a field bumps again with its own `migrate.ts` step: empty lists for players, founding trees seeded for coaches
 (PR 4). Old saves are upgraded, never thrown away. `League` stays plain JSON.
 
