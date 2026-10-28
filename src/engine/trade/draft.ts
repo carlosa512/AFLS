@@ -76,6 +76,8 @@ interface DraftMemo {
   clock: DraftPick | undefined;
   /** The picks after the one on the clock, as far as anyone looks to move up. */
   ahead: DraftPick[];
+  /** Your scouting visits left when your board was read: a visit mid-draft changes your read. */
+  visits: number;
 }
 const memos = new WeakMap<League, DraftMemo>();
 
@@ -100,8 +102,15 @@ function memoOf(league: League): DraftMemo {
       expected: new Map(),
       clock: undefined,
       ahead: [],
+      visits: league.scoutPoints,
     };
     memos.set(league, m);
+  }
+  if (m.visits !== league.scoutPoints) {
+    m.visits = league.scoutPoints;
+    m.boards.delete(league.userTeamId);
+    m.scores.delete(league.userTeamId);
+    m.expected.clear();
   }
   if (m.seen !== last || !m.clock) {
     // The new lines since the last read, back to the one seen (a long gap, or a trimmed log, reads everyone again).
@@ -288,7 +297,7 @@ const thin = (depth: Record<Position, number[]>, pos: Position) => depth[pos].le
  * Why `team` would move up from `own` to the pick on the clock, or null: its man is at a position it needs or a
  * premium one, he likely won't last to its pick (the consensus has him inside the picks before it, or just past
  * them with a run on his position coming), and he stands a tier above its best there. A jump past `LONG_JUMP` is
- * for a quarterback it wants badly; two trade-ups a draft at most; no specialist before round 5.
+ * for a quarterback it wants badly; three trade-ups a draft at most; no specialist before round 5.
  */
 export function tradeUpReason(ctx: TradeContext, team: Team, own: DraftPick): { target: Player; gap: number } | null {
   const { league } = ctx;

@@ -16,8 +16,10 @@ import {
 } from '../offseason/draft';
 import { clamp, Rng } from '../rng';
 import type { League, TradeOffer } from '../types';
+import { scoutPlayer } from '../scouting';
 import { tradeContext } from './context';
 import {
+  boardBase,
   COVET_MAX,
   COVET_MIN,
   COVET_SCALE,
@@ -498,5 +500,17 @@ describe('the cap and pick trades', () => {
     expect(tradeProblem(l, withPlayer)).toMatch(/over the cap/);
     l.phase = 'freeAgency';
     expect(tradeProblem(l, swap(clock, later))).toMatch(/over the cap/);
+  });
+});
+
+describe('your board mid-draft', () => {
+  it('reads a scouting visit made during the draft', () => {
+    const l = draftDay();
+    const p = l.draftClass.map((id) => l.players[id]).find((x) => x.teamId === null)!;
+    boardBase(l, l.userTeamId, p, 1);
+    l.scoutPoints = Math.max(1, l.scoutPoints);
+    scoutPlayer(l, p.id);
+    const fresh = boardScore(positionDepth(l, l.userTeamId), p, boardOf(l, l.userTeamId, p), null, 1);
+    expect(boardBase(l, l.userTeamId, p, 1)).toBeCloseTo(fresh, 9);
   });
 });
