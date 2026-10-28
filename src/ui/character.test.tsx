@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
-import { characterRead } from '../engine/scouting';
 import { personalityRead } from '../engine/personality';
 import { CharacterFact } from './scouting';
 
@@ -19,7 +18,7 @@ describe('the character block', () => {
   });
 
   it('says Unknown for a player your scouts have not met', () => {
-    const p = Object.values(league.players).find((x) => !characterRead(league, league.userTeamId, x))!;
+    const p = Object.values(league.players).find((x) => !personalityRead(league, league.userTeamId, x))!;
     const html = renderToStaticMarkup(<CharacterFact league={league} player={p} />);
     expect(html).toContain('Unknown');
   });
