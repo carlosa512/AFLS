@@ -46,7 +46,7 @@ import { tradeDesk, type Picked } from '../tradeDesk';
 const empty = (): Picked => ({ players: [], picks: [] });
 const toggle = (list: number[], id: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
-function AssetList({
+export function AssetList({
   league,
   teamId,
   picked,
@@ -67,6 +67,8 @@ function AssetList({
   const row = (p: Player) => {
     const blocked = playerTradeBlocker(league, p);
     const on = picked.players.includes(p.id);
+    // Practice squad players have a weekly agreement, not a contract: no term and no cap hit to show.
+    const c = p.contract;
     return (
       <label key={p.id} className={`asset${on ? ' on' : ''}${blocked ? ' blocked' : ''}`} title={blocked ?? undefined}>
         <input
@@ -80,11 +82,11 @@ function AssetList({
           <PlayerLink league={league} player={p} short />
           <span className="muted small">
             {p.position} · {p.age} ·{' '}
-            {isExpired(p.contract!, league.season) ? 'expiring' : `thru ${lastSeason(p.contract!)}`}
+            {!c ? 'practice squad' : isExpired(c, league.season) ? 'expiring' : `thru ${lastSeason(c)}`}
           </span>
         </span>
         <Ovr league={league} player={p} />
-        <span className="num small">{money(Math.round(capHit(p.contract!, league.season)))}</span>
+        <span className="num small">{c ? money(Math.round(capHit(c, league.season))) : '—'}</span>
       </label>
     );
   };

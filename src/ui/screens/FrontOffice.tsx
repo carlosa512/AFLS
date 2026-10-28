@@ -20,6 +20,7 @@ import { pron } from '../../engine/pronouns';
 import { resignForecast, staffName, staffWindowOpen } from '../../engine/staff';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
+import { TabBoundary } from '../boundary';
 import { useNav } from '../App';
 import { Panel, PositionFilter, PlayerLink, SortTh, sortRows, TeamChip, useSort, type SortState } from '../components';
 import { attentionText, coachAttention } from '../coaching';
@@ -575,19 +576,22 @@ export function FrontOffice({
           )}
         </div>
       )}
-      {active === 'resign' && <Resign league={league} negotiate={(p) => setTalking(p.id)} />}
-      {active === 'fa' && (
-        // Keyed by the position a link asked for, so following another link resets the filter.
-        <FreeAgents key={pos ?? 'ALL'} league={league} start={pos} negotiate={(p) => setTalking(p.id)} />
-      )}
-      {active === 'draft' && <Draft league={league} />}
-      {active === 'waivers' && <Waivers league={league} />}
-      {active === 'squad' && <PracticeSquad league={league} />}
-      {active === 'trades' && <Trades league={league} tab={sub} />}
-      {active === 'coaches' && <CoachesScreen league={league} />}
-      {active === 'staff' && <StaffScreen league={league} />}
-      {active === 'medical' && <MedicalScreen league={league} />}
-      {active === 'gms' && <GeneralManagers league={league} />}
+      {/* One broken tab shows its error, not a blank app; keyed so another tab starts clean. */}
+      <TabBoundary key={active} name={TABS.find(([k]) => k === active)?.[1] ?? 'This tab'}>
+        {active === 'resign' && <Resign league={league} negotiate={(p) => setTalking(p.id)} />}
+        {active === 'fa' && (
+          // Keyed by the position a link asked for, so following another link resets the filter.
+          <FreeAgents key={pos ?? 'ALL'} league={league} start={pos} negotiate={(p) => setTalking(p.id)} />
+        )}
+        {active === 'draft' && <Draft league={league} />}
+        {active === 'waivers' && <Waivers league={league} />}
+        {active === 'squad' && <PracticeSquad league={league} />}
+        {active === 'trades' && <Trades league={league} tab={sub} />}
+        {active === 'coaches' && <CoachesScreen league={league} />}
+        {active === 'staff' && <StaffScreen league={league} />}
+        {active === 'medical' && <MedicalScreen league={league} />}
+        {active === 'gms' && <GeneralManagers league={league} />}
+      </TabBoundary>
       {talking !== null && league.players[talking] && (
         <NegotiationDialog league={league} player={league.players[talking]} onClose={() => setTalking(null)} />
       )}
