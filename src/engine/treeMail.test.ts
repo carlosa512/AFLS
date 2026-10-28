@@ -37,7 +37,9 @@ describe('tree news', () => {
     const heads = Object.values(l.coaches).filter((c) => c.role === 'headCoach' && c.teamId !== null);
     const [root, a, b] = heads;
     const s = l.season;
-    root.career = [s - 6, s - 5, s - 4].map((x) => ({ season: x, teamId: 20, role: 'headCoach' as const }));
+    // A winner: a tree grows only from a .500 head coach.
+    const record = { fromWeek: 1, throughWeek: 18, regular: { w: 11, l: 6, t: 0 }, playoffs: null, champion: false };
+    root.career = [s - 6, s - 5, s - 4].map((x) => ({ season: x, teamId: 20, role: 'headCoach' as const, record }));
     a.career = [
       ...[s - 6, s - 5, s - 4].map((x) => ({ season: x, teamId: 20, role: 'offCoord' as const })),
       { season: s - 2, teamId: a.teamId!, role: 'headCoach' as const },

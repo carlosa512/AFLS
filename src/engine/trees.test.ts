@@ -43,6 +43,11 @@ const row = (
   ...extra,
 });
 
+/** A winning season's record (10-7): a tree grows only from a .500 head coach. */
+const won = {
+  record: { fromWeek: 1, throughWeek: 18, regular: { w: 10, l: 7, t: 0 }, playoffs: null, champion: false },
+};
+
 describe('coaching tree links', () => {
   it('needs three seasons together on a head coach’s staff', () => {
     const { l, c } = blank();
@@ -96,16 +101,16 @@ describe('coaching tree links', () => {
 });
 
 describe('trees, branches and standing', () => {
-  /** `d` spent three seasons as `m`'s offensive coordinator at `team`, ending the season before `from`. */
-  const served = (m: Coach, d: Coach, team: number, from: number) => {
-    for (const s of [from - 3, from - 2, from - 1]) {
-      (m.career ??= []).push(row(s, team, 'headCoach'));
-      (d.career ??= []).push(row(s, team, 'offCoord'));
-    }
-  };
   const rec = (w: number, l: number) => ({
     record: { fromWeek: 1, throughWeek: 18, regular: { w, l, t: 0 }, playoffs: null, champion: false },
   });
+  /** `d` spent three seasons as `m`'s offensive coordinator at `team`, ending the season before `from`; `m` won. */
+  const served = (m: Coach, d: Coach, team: number, from: number, w = 10, lost = 7) => {
+    for (const s of [from - 3, from - 2, from - 1]) {
+      (m.career ??= []).push(row(s, team, 'headCoach', rec(w, lost)));
+      (d.career ??= []).push(row(s, team, 'offCoord'));
+    }
+  };
   /** `c` was head coach at `team` for these seasons with this record each year. */
   const headed = (c: Coach, team: number, seasons: number[], w: number, l: number) => {
     for (const s of seasons) (c.career ??= []).push(row(s, team, 'headCoach', rec(w, l)));
@@ -130,6 +135,20 @@ describe('trees, branches and standing', () => {
     headed(b, 3, [now - 2, now - 1], 9, 8);
     expect(hasTree(l, r.id)).toBe(true);
     expect(treeOf(l, r.id)!.disciples.sort()).toEqual([a.id, b.id].sort());
+  });
+
+  it('grows only from a winner: .500 or better over three seasons in charge', () => {
+    const { l, c } = blank();
+    const [r, a, b] = c;
+    const now = l.season;
+    served(r, a, 1, now - 6, 6, 11);
+    served(r, b, 1, now - 3, 6, 11);
+    headed(a, 2, [now - 3, now - 2, now - 1], 9, 8);
+    headed(b, 3, [now - 2, now - 1], 9, 8);
+    expect(hasTree(l, r.id)).toBe(false); // 6-11 three years running: good teachers, no tree
+    // Three winning seasons more and he's a .500 coach: now his men make a tree.
+    headed(r, 1, [now - 10, now - 9, now - 8], 13, 4);
+    expect(hasTree(l, r.id)).toBe(true);
   });
 
   it('nests a disciple’s own tree as a branch, without looping on odd data', () => {
@@ -318,7 +337,7 @@ describe('the carousel', () => {
   it('never counts a man who ran a club before he served under him', () => {
     const { l, c } = blank();
     const [hc, a, b] = c;
-    hc.career = [2020, 2021, 2022].map((s) => row(s, 4, 'headCoach'));
+    hc.career = [2020, 2021, 2022].map((s) => row(s, 4, 'headCoach', won));
     // a was a head coach first, then three seasons on hc's staff; b went the other way.
     a.career = [row(2018, 7, 'headCoach'), ...[2020, 2021, 2022].map((s) => row(s, 4, 'offCoord'))];
     b.career = [
@@ -340,7 +359,7 @@ describe('the carousel', () => {
   it('is a tree only once two of his men have run clubs in the same season', () => {
     const { l, c } = blank();
     const [hc, a, b] = c;
-    hc.career = [2010, 2011, 2012].map((s) => row(s, 4, 'headCoach'));
+    hc.career = [2010, 2011, 2012].map((s) => row(s, 4, 'headCoach', won));
     a.career = [
       ...[2010, 2011, 2012].map((s) => row(s, 4, 'offCoord')),
       row(2014, 7, 'headCoach'),
@@ -359,7 +378,7 @@ describe('the carousel', () => {
   it('waits until both men are established: a second season in charge, at the same time', () => {
     const { l, c } = blank();
     const [hc, a, b] = c;
-    hc.career = [2010, 2011, 2012].map((s) => row(s, 4, 'headCoach'));
+    hc.career = [2010, 2011, 2012].map((s) => row(s, 4, 'headCoach', won));
     a.career = [
       ...[2010, 2011, 2012].map((s) => row(s, 4, 'offCoord')),
       row(2014, 7, 'headCoach'),

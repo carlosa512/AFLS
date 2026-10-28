@@ -6,6 +6,7 @@
  * `Coach.career` (and `pastUnder`, the founding trees' pre-league years); nothing about a tree is stored.
  */
 import { newIdentity } from './identity';
+import { coachRecord, winPct } from './records';
 import { Rng } from './rng';
 import type { Coach, CoachRole, CoachRoom, CoachSeason, League } from './types';
 
@@ -35,6 +36,8 @@ interface Index {
   disciples: Map<number, number[]>;
   /** Only the men who worked under him while he was a head coach: the ones a tree is made of. */
   headMen: Map<number, number[]>;
+  /** When each root proved himself a winner (`winnerSince`), until his head-coach seasons change. */
+  winners: Map<number, { seasons: number; since: number | null }>;
 }
 const cache = new WeakMap<League, { key: string; index: Index }>();
 
@@ -86,7 +89,7 @@ function build(league: League): Index {
       disciples.set(k.mentorId, [...(disciples.get(k.mentorId) ?? []), id]);
       if (k.as === 'headCoach') headMen.set(k.mentorId, [...(headMen.get(k.mentorId) ?? []), id]);
     }
-  return { links, disciples, headMen };
+  return { links, disciples, headMen, winners: new Map() };
 }
 
 /** The tree index for the league as it is now (careers only change at hires and season's end). */
@@ -178,28 +181,66 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
 }
 
 /** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
-export function treeBornSeason(league: League, coachId: number): number | null {
+/** A tree grows from a winner: .500 or better over three seasons or more as a head coach. */
+export const WINNER = { seasons: 3, share: 0.5 };
+
+/**
+ * The season by which he had proved himself a winner as a head coach (his team's record stands in for an old season
+ * kept without his own), or null if he never has. A founding root won before the league began: always. Real trees
+ * grow from winners (Walsh, Parcells, Reid, Shanahan); a losing coach whose assistants get jobs is a good teacher.
+ */
+function winnerSince(league: League, rootId: number): number | null {
+  const idx = index(league);
+  const root = coachById(league, rootId);
+  const rows = (root?.career ?? []).filter((r) => r.role === 'headCoach').length;
+  const hit = idx.winners.get(rootId);
+  if (hit && hit.seasons === rows) return hit.since;
+  let since: number | null = null;
+  const founding = (idx.headMen.get(rootId) ?? []).some(
+    (id) => linksOf(league, id).find((k) => k.mentorId === rootId)?.last === -Infinity,
+  );
+  if (founding) since = -Infinity;
+  else if (root) {
+    const seasons = [...coachRecord(league, root, ['headCoach']).seasons].sort((a, b) => a.season - b.season);
+    const r = { w: 0, l: 0, t: 0 };
+    const counted = new Set<number>();
+    for (const x of seasons) {
+      r.w += x.regular.w;
+      r.l += x.regular.l;
+      r.t += x.regular.t;
+      counted.add(x.season);
+      if (counted.size >= WINNER.seasons && winPct(r) >= WINNER.share) {
+        since = x.season;
+        break;
+      }
+    }
+  }
+  idx.winners.set(rootId, { seasons: rows, since });
+  return since;
+}
+
+/** The seasons two or more of his men ran clubs at once, both established. */
+function sideBySide(league: League, coachId: number): number[] {
   const count = new Map<number, number>();
   for (const d of headDisciples(league, coachId))
     for (const s of new Set(seasonsInCharge(league, d, coachId))) count.set(s, (count.get(s) ?? 0) + 1);
-  const born = [...count].filter(([, n]) => n >= 2).map(([s]) => s);
+  return [...count].filter(([, n]) => n >= 2).map(([s]) => s);
+}
+
+/** The season his tree was born (two of his men in charge at once, once he had won), or null if it hasn't been. */
+export function treeBornSeason(league: League, coachId: number): number | null {
+  const since = winnerSince(league, coachId);
+  if (since === null) return null;
+  const born = sideBySide(league, coachId).filter((s) => s >= since);
   return born.length ? Math.min(...born) : null;
 }
 
 /**
- * He has a tree once two of his men have run clubs in the same season, as the press recognizes one: a man whose
- * assistants run clubs one after another, never side by side, is a good teacher, not a tree.
+ * He has a tree once two of his men have run clubs in the same season, as the press recognizes one, and he is a
+ * winner: a man whose assistants run clubs one after another, never side by side, or who never won himself, is a good
+ * teacher, not a tree.
  */
-export function hasTree(league: League, coachId: number): boolean {
-  const count = new Map<number, number>();
-  for (const d of headDisciples(league, coachId))
-    for (const s of new Set(seasonsInCharge(league, d, coachId))) {
-      const n = (count.get(s) ?? 0) + 1;
-      if (n >= 2) return true;
-      count.set(s, n);
-    }
-  return false;
-}
+export const hasTree = (league: League, coachId: number): boolean => treeBornSeason(league, coachId) !== null;
 
 /** Everyone in a tree below its root, branches included, each once (odd histories can loop). */
 function descendants(league: League, rootId: number): Coach[] {
