@@ -6,7 +6,7 @@
  * Lessons from Football Manager complaints (see docs/research): demands never inflate just
  * because you countered; patience is the only thing a lowball offer costs.
  */
-import { noteDeparture } from '../relationships';
+import { noteDeparture, snubCheck } from '../relationships';
 import { accelerateProration, capSpace, logTransaction, paidFraction, paidShare, weeksPaid } from '../finance/cap';
 import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft } from '../finance/contract';
 import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears } from '../finance/market';
@@ -348,6 +348,8 @@ export function signPlayer(
   }
   player.contract = prospectiveContract(league, player, teamId, offer, kind);
   player.teamId = teamId;
+  // Paid over a starter in his room who's still on an older deal: it may not go down well.
+  if (own && kind !== 'tag') snubCheck(league, player);
   if (kind !== 'tag') player.tagCount = 0; // a new deal ends any run of consecutive tags
   delete league.negotiations[player.id];
   const team = league.teams[teamId];

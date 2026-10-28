@@ -65,6 +65,7 @@ import { resetContenderCache, ROSTER_MAX } from './negotiation';
 import { rollService } from '../personnel/service';
 import { settleFinished } from '../ceiling';
 import { mentoringYearEnd, settleMentoring } from '../mentoring';
+import { endTie, tiesOffseason } from '../relationships';
 import { nameCaptains } from '../personality';
 import { personnelClock } from '../personnel/calendar';
 import { settleOffseasonWaivers, staffHandlesSquad, syncPersonnel, waiversPending } from '../personnel/flow';
@@ -154,6 +155,7 @@ export function beginOffseason(league: League): void {
       delete p.mentorWeeks;
       delete p.mentorSetByYou;
       delete p.mentorBank;
+      for (const t of [...(p.ties ?? [])]) endTie(league, p, t.with);
       retirees.push(p);
       continue;
     }
@@ -163,6 +165,8 @@ export function beginOffseason(league: League): void {
     recordRatings(p, league.season);
     quirkOffseason(league, p);
   }
+  // Friendships and feuds: old ones settle or end, rooms roll for new ones.
+  tiesOffseason(league);
   // Picks three league years back get their verdict now: the year's development is in, their ceilings have settled.
   lockVerdicts(league);
   expireSquadContracts(league);

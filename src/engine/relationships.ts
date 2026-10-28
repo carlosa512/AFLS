@@ -4,8 +4,13 @@
  * grudges are worked out from history whenever they're needed; friendships and feuds are stored, three at most per
  * player. They lean on habits and contracts, and the match engine never reads them.
  */
-import { ROOM_OF } from './coaching';
-import { seasonRole } from './scouting';
+import { activeCoachQuirks } from './coachQuirks';
+import { ROOM_OF, teamCoaches } from './coaching';
+import { addMarbles, QUIRKS, QUIRKS_FOR, type QuirkInfo } from './quirks';
+import { Rng } from './rng';
+import { activeRoster, starters } from './roster';
+import { characterRead, seasonRole } from './scouting';
+import { temperamentOf, TRAIT_MEAN } from './traits';
 import { positionIn } from './training';
 import type { Coach, Departure, League, Player, Position, Tie } from './types';
 
@@ -127,4 +132,128 @@ export function clubFeeling(league: League, p: Player, teamId: number): 'home' |
   if (!d) return null;
   if (d.how !== 'walked') return league.season - d.season <= GRUDGE_SEASONS ? 'grudge' : null;
   return played(league, p, d.season - 1) ? 'home' : null;
+}
+
+// ───────── friendships and feuds ─────────
+
+/** Starting odds (tuned against `npm run offseason`: about one feud a team, a few friendships). */
+export const FEUD_BASE = 0.01;
+export const FRIEND_BASE = 0.25;
+export const SETTLE_BASE = 0.35;
+const SD = 3.5;
+
+const z = (x: number) => (x - TRAIT_MEAN) / SD;
+const pairKey = (a: Player, b: Player) => (a.id < b.id ? `${a.id}:${b.id}` : `${b.id}:${a.id}`);
+
+/** The habits a short fuse feeds at his position (`temper: true`). */
+const temperHabits = (p: Player) => QUIRKS_FOR[p.position].filter((id) => (QUIRKS[id] as QuirkInfo).temper);
+
+/** Leaders in a room calm it: each man the staff read as one (leadership a spread up) takes 15% off, to 40% at most. */
+function leaderCalm(league: League, room: Player[]): number {
+  const teamId = room[0]?.teamId;
+  if (teamId === null || teamId === undefined) return 1;
+  const leaders = room.filter((x) => z(characterRead(league, teamId, x)?.leads ?? TRAIT_MEAN) >= 1).length;
+  return Math.max(0.4, 1 - 0.15 * leaders);
+}
+
+/** A position coach with the Patient Teacher habit keeps his room calmer. */
+function teacherCalm(league: League, p: Player): number {
+  if (p.teamId === null) return 1;
+  const c = teamCoaches(league, p.teamId).find((x) => x.role === 'positionCoach' && x.room === ROOM_OF[p.position]);
+  return c && activeCoachQuirks(c).includes('patientTeacher') ? 0.7 : 1;
+}
+
+/** A year's odds that two men in a room fall out: controversy and short fuses on either side, calmed by leaders. */
+export function feudOdds(league: League, a: Player, b: Player, room: Player[]): number {
+  const stir = 0.5 * (z(a.traits.controversy) + z(b.traits.controversy));
+  const fuse = 0.4 * (z(temperamentOf(a)) + z(temperamentOf(b)));
+  return FEUD_BASE * Math.exp(stir - fuse) * leaderCalm(league, room) * teacherCalm(league, a);
+}
+
+/** A feud begins: each man picks up a temper marble on top of the odds. */
+function startFeud(league: League, a: Player, b: Player, why?: Tie['why']): void {
+  if (!addTie(league, a, b, 'feud', why)) return;
+  addMarbles(league, a, temperHabits(a));
+  addMarbles(league, b, temperHabits(b));
+}
+
+/** Seasons two men have shared a position room (same club, same position, by `statTeams` and their moves). */
+function seasonsTogether(a: Player, b: Player): number {
+  let n = 0;
+  for (const [season, clubs] of Object.entries(a.statTeams ?? {})) {
+    const s = Number(season);
+    const theirs = b.statTeams?.[s] ?? [];
+    if (clubs.some((t) => theirs.includes(t)) && positionIn(a, s) === positionIn(b, s)) n++;
+  }
+  return n;
+}
+
+/** Was he benched last season: a starter the season before, a backup last season, with a full season played? */
+function benched(league: League, p: Player): boolean {
+  const last = league.season - 1;
+  return (
+    seasonRole(league, p, last - 1)?.role === 'starter' &&
+    seasonRole(league, p, last)?.role === 'backup' &&
+    (p.stats[last]?.gp ?? 0) >= 10
+  );
+}
+
+/**
+ * The new league year, once rosters are settled: feuds where the two no longer share a room end; the rest may settle
+ * (likelier with calm tempers, leaders in the room, and time); then each room rolls for new feuds (a benching last
+ * season triples the odds) and for friendships between men four seasons or more in it together.
+ */
+export function tiesOffseason(league: League): void {
+  const season = league.season;
+  for (const p of Object.values(league.players)) if (!p.retired && p.ties) endFeudsOutsideRoom(league, p);
+  for (const team of league.teams) {
+    const byPos = new Map<Position, Player[]>();
+    for (const p of activeRoster(league, team.id)) byPos.set(p.position, [...(byPos.get(p.position) ?? []), p]);
+    for (const room of byPos.values()) {
+      const calm = leaderCalm(league, room);
+      for (let i = 0; i < room.length; i++)
+        for (let j = i + 1; j < room.length; j++) {
+          const [a, b] = [room[i], room[j]];
+          const rng = new Rng(`${league.seed}:ties:${season}:${pairKey(a, b)}`);
+          const tie = a.ties?.find((t) => t.with === b.id);
+          if (tie?.kind === 'feud') {
+            const cool = Math.max(0, z(temperamentOf(a))) + Math.max(0, z(temperamentOf(b)));
+            const settle = Math.min(
+              0.9,
+              SETTLE_BASE + 0.1 * cool + 0.05 * Math.round((1 - calm) / 0.15) + 0.1 * (season - tie.since),
+            );
+            if (rng.chance(settle)) endTie(league, a, b.id);
+            continue;
+          }
+          const sat = benched(league, a) && seasonRole(league, b, season - 1)?.role === 'starter';
+          const satB = benched(league, b) && seasonRole(league, a, season - 1)?.role === 'starter';
+          const odds = feudOdds(league, a, b, room) * (sat || satB ? 3 : 1);
+          if (rng.chance(odds)) {
+            startFeud(league, sat ? a : b, sat ? b : a, sat || satB ? 'benched' : undefined);
+            continue;
+          }
+          if (!tie && seasonsTogether(a, b) >= 4) {
+            const friendly =
+              FRIEND_BASE * (1 + 0.5 * ((a.personality.loyalty - 0.5) / 0.22 + (b.personality.loyalty - 0.5) / 0.22));
+            if (rng.chance(Math.min(0.6, Math.max(0.05, friendly)))) addTie(league, a, b, 'friend');
+          }
+        }
+    }
+  }
+}
+
+/**
+ * A man signs a new deal: a roommate who starts, still on an older deal and now paid less than him, may take it
+ * personally (a feud at triple the odds, remembered as a snub).
+ */
+export function snubCheck(league: League, signed: Player): void {
+  if (signed.teamId === null || !signed.contract) return;
+  const team = league.teams[signed.teamId];
+  const room = activeRoster(league, team.id).filter((x) => x.position === signed.position);
+  for (const r of starters(league, team, signed.position)) {
+    if (r.id === signed.id || !r.contract || r.contract.signedSeason >= league.season) continue;
+    if (r.contract.apy >= signed.contract.apy || r.ties?.some((t) => t.with === signed.id)) continue;
+    const rng = new Rng(`${league.seed}:ties:${league.season}:${pairKey(signed, r)}:snub`);
+    if (rng.chance(3 * feudOdds(league, signed, r, room))) startFeud(league, r, signed, 'snubbed');
+  }
 }
