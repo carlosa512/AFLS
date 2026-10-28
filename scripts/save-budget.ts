@@ -41,6 +41,10 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // on offseason-audit after trimming (this year's shifts kept for your own players only, retirees dropping theirs):
   // players growth 1,020 KB against 980 in the first year, 17,151 KB retained against 17,100. Agreed by the owner.
   mentoring: { firstSeason: 0, retainedSeasons: 150, games: 0, annualGrowth: 0, playersGrowth: 70 },
+  // Relationships (0.2.17): how a player left his last three clubs (`left`, for grudges and homecomings) and his
+  // friendships and feuds (`ties`, three at most). Measured on offseason-audit after six seasons: 58 KB and 24 KB of
+  // player fields; the retained save 17,279 KB against 17,250. Agreed by the owner.
+  relationships: { firstSeason: 0, retainedSeasons: 100, games: 0, annualGrowth: 0, playersGrowth: 0 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(
