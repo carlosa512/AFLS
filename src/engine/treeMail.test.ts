@@ -39,7 +39,7 @@ describe('tree news', () => {
     const s = l.season;
     // A winner: a tree grows only from a .500 head coach.
     const record = { fromWeek: 1, throughWeek: 18, regular: { w: 11, l: 6, t: 0 }, playoffs: null, champion: false };
-    root.career = [s - 7, s - 6, s - 5, s - 4].map((x) => ({
+    root.career = [s - 8, s - 7, s - 6, s - 5, s - 4].map((x) => ({
       season: x,
       teamId: 20,
       role: 'headCoach' as const,

@@ -176,7 +176,7 @@ describe('trees, branches and standing', () => {
     const now = l.season;
     served(r, a, 1, now - 10);
     served(r, b, 1, now - 10);
-    headed(r, 1, [now - 14], 10, 7); // a fourth winning season: a tree grows from a proven winner
+    headed(r, 1, [now - 15, now - 14], 10, 7); // five winning seasons: a tree grows from a proven winner
     const years = [now - 9, now - 8, now - 7, now - 6, now - 5, now - 4, now - 3, now - 2, now - 1];
     headed(a, 2, years, 11, 6);
     headed(b, 3, years, 10, 7);
@@ -204,7 +204,7 @@ describe('trees, branches and standing', () => {
     const now = l.season;
     served(r, a, 1, now - 12);
     served(r, b, 1, now - 12);
-    headed(r, 1, [now - 16], 10, 7); // a fourth winning season
+    headed(r, 1, [now - 17, now - 16], 10, 7); // five winning seasons
     headed(a, 2, [now - 12, now - 11, now - 10, now - 9], 8, 9);
     headed(b, 3, [now - 12, now - 11, now - 10, now - 9], 8, 9);
     served(a, x, 2, now - 6);
@@ -339,7 +339,7 @@ describe('the carousel', () => {
   it('never counts a man who ran a club before he served under him', () => {
     const { l, c } = blank();
     const [hc, a, b] = c;
-    hc.career = [2019, 2020, 2021, 2022].map((s) => row(s, 4, 'headCoach', won));
+    hc.career = [2018, 2019, 2020, 2021, 2022].map((s) => row(s, 4, 'headCoach', won));
     // a was a head coach first, then three seasons on hc's staff; b went the other way.
     a.career = [row(2018, 7, 'headCoach'), ...[2020, 2021, 2022].map((s) => row(s, 4, 'offCoord'))];
     b.career = [
@@ -365,7 +365,7 @@ describe('the carousel', () => {
   it('is a tree only once two of his men have run clubs side by side, two seasons', () => {
     const { l, c } = blank();
     const [hc, a, b] = c;
-    hc.career = [2009, 2010, 2011, 2012].map((s) => row(s, 4, 'headCoach', won));
+    hc.career = [2008, 2009, 2010, 2011, 2012].map((s) => row(s, 4, 'headCoach', won));
     a.career = [
       ...[2010, 2011, 2012].map((s) => row(s, 4, 'offCoord')),
       ...[2014, 2015, 2016, 2017].map((s) => row(s, 7, 'headCoach')),
@@ -383,7 +383,7 @@ describe('the carousel', () => {
   it('waits until both men are established: a second season in charge, at the same time', () => {
     const { l, c } = blank();
     const [hc, a, b] = c;
-    hc.career = [2009, 2010, 2011, 2012].map((s) => row(s, 4, 'headCoach', won));
+    hc.career = [2008, 2009, 2010, 2011, 2012].map((s) => row(s, 4, 'headCoach', won));
     a.career = [
       ...[2010, 2011, 2012].map((s) => row(s, 4, 'offCoord')),
       row(2014, 7, 'headCoach'),

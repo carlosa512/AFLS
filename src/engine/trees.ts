@@ -181,8 +181,8 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
 }
 
 /** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
-/** A tree grows from a winner: .500 or better over four seasons or more as a head coach. */
-export const WINNER = { seasons: 4, share: 0.5 };
+/** A tree grows from a winner: .500 or better over five seasons or more as a head coach. */
+export const WINNER = { seasons: 5, share: 0.5 };
 /** Seasons two of his men must run clubs side by side, both established, while he is a winner: a run, not a moment. */
 export const SIDE_BY_SIDE = 2;
 
