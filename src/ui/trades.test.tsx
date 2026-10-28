@@ -1,29 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
-import { practiceSquad } from '../engine/roster';
-import { deskState, type Advice } from '../engine/trade';
+import { practiceSquad, teamPlayers } from '../engine/roster';
+import { ASKS, deskState, pickerFits, pickLabel, tradeContext, updateStances, type Advice } from '../engine/trade';
 import { emptyMarket } from '../engine/trade/execute';
-import { teamPlayers } from '../engine/roster';
 import type { TradeOffer } from '../engine/types';
 import { BlockPanel, MarketPanel, OfferCard, StaffStrip, talksWords, WantsPills } from './offers';
-import { ASKS, tradeContext, updateStances } from '../engine/trade';
-import { AssetList, DealSlip, TradeDesk } from './screens/Trades';
-import { pickLabel } from '../engine/trade';
+import { AssetPicker, DealSlip, TradeDesk } from './screens/Trades';
 import { TabBoundary } from './boundary';
-
-describe('trade table', () => {
-  // Practice squad players are on a team with no contract (a weekly agreement instead): the asset
-  // list read their contract and blanked the whole app.
-  it("lists a team's practice squad players as untradable", () => {
-    const l = createLeague({ seed: 'trades-squad', personnel: true });
-    expect(practiceSquad(l, l.userTeamId).length).toBeGreaterThan(0);
-    const html = renderToStaticMarkup(
-      <AssetList league={l} teamId={l.userTeamId} picked={{ players: [], picks: [] }} onChange={() => {}} />,
-    );
-    expect(html).toContain('Practice squad players cannot be traded.');
-  });
-});
 
 describe('front office tab boundary', () => {
   it('turns a render error into a message naming the tab', () => {
@@ -215,5 +199,78 @@ describe('the deal slip', () => {
         />,
       ),
     ).toContain('Add from the picker below.');
+  });
+});
+
+describe('the picker', () => {
+  const setup = () => {
+    const l = createLeague({ seed: 'picker-0', personnel: true });
+    l.market = emptyMarket();
+    updateStances(tradeContext(l));
+    const rival = l.teams.find((t) => t.id !== l.userTeamId)!;
+    return { l, rival };
+  };
+  const none: { players: number[]; picks: number[] } = { players: [], picks: [] };
+  const render = (
+    l: ReturnType<typeof setup>['l'],
+    partnerId: number,
+    start?: Parameters<typeof AssetPicker>[0]['start'],
+    theirs = none,
+  ) =>
+    renderToStaticMarkup(
+      <AssetPicker
+        league={l}
+        partnerId={partnerId}
+        mine={none}
+        theirs={theirs}
+        onMine={() => {}}
+        onTheirs={() => {}}
+        start={start}
+      />,
+    );
+  /** The list item that names a player. */
+  const rowOf = (html: string, lastName: string) => html.split('<li').find((x) => x.includes(lastName)) ?? '';
+
+  it('opens on what fits their side', () => {
+    const { l, rival } = setup();
+    const fits = pickerFits(l, tradeContext(l), rival.id, 'theirs');
+    const html = render(l, rival.id);
+    if (fits.length) for (const p of fits) expect(html).toContain(p.lastName);
+    else expect(html).toContain('Nothing stands out: pick a position.');
+  });
+
+  it('lists a position, and search finds anyone whatever the chip', () => {
+    const { l, rival } = setup();
+    const theirs = teamPlayers(l, rival.id);
+    const kicker = theirs.find((p) => p.position === 'K')!;
+    const qb = theirs.find((p) => p.position === 'QB')!;
+    const html = render(l, rival.id, { chip: 'K' });
+    expect(html).toContain(kicker.lastName);
+    expect(rowOf(html, qb.lastName)).toBe('');
+    expect(render(l, rival.id, { chip: 'K', query: qb.lastName.toLowerCase() })).toContain(qb.lastName);
+  });
+
+  it('shows their picks as a grid', () => {
+    const { l, rival } = setup();
+    const html = render(l, rival.id, { chip: 'picks' });
+    for (const pk of l.draftPicks.filter((x) => x.ownerId === rival.id && x.playerId === undefined))
+      expect(html).toContain(`title="${pickLabel(l, pk)}"`);
+  });
+
+  // 0.2.12: practice squad players have no contract, and listing them blanked the app.
+  it('shows a practice squad player as untradable, with no Add', () => {
+    const { l, rival } = setup();
+    const [squad] = practiceSquad(l, l.userTeamId);
+    const html = render(l, rival.id, { side: 'yours', chip: squad.position });
+    const row = rowOf(html, squad.lastName);
+    expect(row).toContain('Practice squad players cannot be traded.');
+    expect(row).not.toContain('>Add<');
+  });
+
+  it('marks a player already in the deal', () => {
+    const { l, rival } = setup();
+    const kicker = teamPlayers(l, rival.id).find((p) => p.position === 'K')!;
+    const html = render(l, rival.id, { chip: 'K' }, { players: [kicker.id], picks: [] });
+    expect(rowOf(html, kicker.lastName)).toContain('Added ✓');
   });
 });

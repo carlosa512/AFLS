@@ -15,6 +15,7 @@ import {
   isDeadlineDay,
   maxRetain,
   openOffers,
+  pickerFits,
   pickLabel,
   playerTradeBlocker,
   proposeTrade,
@@ -26,7 +27,8 @@ import {
   tradeWindow,
   type TradeProposal,
 } from '../../engine/trade';
-import type { League, Player, Team } from '../../engine/types';
+import type { League, Position, Team } from '../../engine/types';
+import { POSITIONS } from '../../engine/types';
 import { useNav } from '../nav';
 import {
   Panel,
@@ -62,69 +64,170 @@ import { Fact, Facts, OfficeHero, Pill } from '../office';
 const empty = (): Picked => ({ players: [], picks: [] });
 const toggle = (list: number[], id: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
-export function AssetList({
+export type Chip = 'fits' | Position | 'picks';
+
+/**
+ * Where you add to the deal: your players or theirs, opening on what fits (`pickerFits`), a position at a time, the
+ * picks as a grid, or a name search across the whole side. One line a player; a player the rules won't let move says
+ * why instead of offering Add.
+ */
+export function AssetPicker({
   league,
-  teamId,
-  picked,
-  onChange,
+  partnerId,
+  mine,
+  theirs,
+  onMine,
+  onTheirs,
+  start,
 }: {
   league: League;
-  teamId: number;
-  picked: Picked;
-  onChange: (p: Picked) => void;
+  partnerId: number;
+  mine: Picked;
+  theirs: Picked;
+  onMine: (p: Picked) => void;
+  onTheirs: (p: Picked) => void;
+  /** Where the picker starts (tests): which side, which chip, what search. */
+  start?: { side?: 'yours' | 'theirs'; chip?: Chip; query?: string };
 }) {
-  const team = league.teams[teamId];
-  // By position, best first within each group, like a depth chart; or by OVR or cap hit.
+  const userId = league.userTeamId;
+  const [side, setSide] = useState<'yours' | 'theirs'>(start?.side ?? 'theirs');
+  const [chip, setChip] = useState<Chip>(start?.chip ?? 'fits');
+  const [query, setQuery] = useState(start?.query ?? '');
   const [sort, onSort] = useSort<ListSort>({ key: 'pos', desc: false });
-  const players = sortRows(teamPlayers(league, teamId), sort, (p, key) => listSortValue(league, p, key));
+  // A new partner starts a new search; the chip stays.
+  const [searchFor, setSearchFor] = useState(partnerId);
+  if (searchFor !== partnerId) {
+    setSearchFor(partnerId);
+    setQuery('');
+  }
+  const moment = league.market?.moment;
+  const deals = league.transactions.length;
+  const ctx = useMemo(() => tradeContext(league), [league, partnerId, moment, deals, league.week, league.phase]);
+  const teamId = side === 'yours' ? userId : partnerId;
+  const team = league.teams[teamId];
+  const picked = side === 'yours' ? mine : theirs;
+  const onChange = side === 'yours' ? onMine : onTheirs;
+  const roster = teamPlayers(league, teamId);
+  const positions = POSITIONS.filter((pos) => roster.some((p) => p.position === pos));
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? roster.filter((p) => p.firstName.toLowerCase().includes(q) || p.lastName.toLowerCase().includes(q))
+    : chip === 'fits'
+      ? pickerFits(league, ctx, partnerId, side)
+      : chip === 'picks'
+        ? []
+        : roster.filter((p) => p.position === chip);
+  // Fits keeps its own order (shopped first, then by need); everything else sorts.
+  const rows = !q && chip === 'fits' ? shown : sortRows(shown, sort, (p, key) => listSortValue(league, p, key));
   const picks = league.draftPicks
-    .filter((p) => p.ownerId === teamId && p.playerId === undefined)
-    .sort((a, b) => a.season - b.season || a.round - b.round);
-  const row = (p: Player) => {
-    const blocked = playerTradeBlocker(league, p);
-    const on = picked.players.includes(p.id);
-    // Practice squad players have a weekly agreement, not a contract: no term and no cap hit to show.
-    const c = p.contract;
-    return (
-      <label key={p.id} className={`asset${on ? ' on' : ''}${blocked ? ' blocked' : ''}`} title={blocked ?? undefined}>
-        <input
-          type="checkbox"
-          checked={on}
-          disabled={!!blocked}
-          onChange={() => onChange({ ...picked, players: toggle(picked.players, p.id) })}
-        />
-        <PlayerAvatar player={p} team={team} size={24} />
-        <span className="asset-name">
-          <PlayerLink league={league} player={p} short />
-          <span className="muted small">
-            {p.position} · {p.age} ·{' '}
-            {!c ? 'practice squad' : isExpired(c, league.season) ? 'expiring' : `thru ${lastSeason(c)}`}
-          </span>
-        </span>
-        <Ovr league={league} player={p} />
-        <span className="num small">{c ? money(Math.round(capHit(c, league.season))) : '—'}</span>
-      </label>
-    );
-  };
+    .filter((pk) => pk.ownerId === teamId && pk.playerId === undefined)
+    .sort((x, y) => x.season - y.season || x.round - y.round);
+  const seasons = [...new Set(picks.map((pk) => pk.season))];
+  const chips: [Chip, string][] = [
+    ['fits', 'Fits'],
+    ...positions.map((pos): [Chip, string] => [pos, pos]),
+    ['picks', 'Picks'],
+  ];
   return (
-    <div className="asset-list">
-      <div className="eyebrow">Draft picks</div>
-      {picks.map((pk) => {
-        const on = picked.picks.includes(pk.id);
-        return (
-          <label key={pk.id} className={`asset${on ? ' on' : ''}`}>
-            <input
-              type="checkbox"
-              checked={on}
-              onChange={() => onChange({ ...picked, picks: toggle(picked.picks, pk.id) })}
-            />
-            <span className="asset-name">{pickLabel(league, pk)}</span>
-          </label>
-        );
-      })}
-      <div className="eyebrow">Players</div>
-      <SortSeg label={`Sort ${team.name} players`} options={LIST_SORT_OPTIONS} sort={sort} onSort={onSort} />
-      {players.map(row)}
+    <div className="picker">
+      <div className="row picker-controls">
+        <div className="seg seg-sm" role="group" aria-label="Whose players">
+          <button aria-pressed={side === 'theirs'} onClick={() => setSide('theirs')}>
+            Their players
+          </button>
+          <button aria-pressed={side === 'yours'} onClick={() => setSide('yours')}>
+            Your players
+          </button>
+        </div>
+        <input
+          type="search"
+          className="picker-search"
+          aria-label="Search players"
+          placeholder="Search by name"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+      <div className="seg seg-sm picker-chips" role="group" aria-label="Show">
+        {chips.map(([k, label]) => (
+          <button key={k} aria-pressed={!q && chip === k} onClick={() => (setChip(k), setQuery(''))}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {!q && chip === 'picks' ? (
+        picks.length ? (
+          <div className="pick-grid">
+            {seasons.map((season) => (
+              <div key={season} className="pick-grid-row">
+                <span className="muted small num">{season}</span>
+                {picks
+                  .filter((pk) => pk.season === season)
+                  .map((pk) => (
+                    <button
+                      key={pk.id}
+                      className="btn btn-sm"
+                      aria-pressed={picked.picks.includes(pk.id)}
+                      title={pickLabel(league, pk)}
+                      onClick={() => onChange({ ...picked, picks: toggle(picked.picks, pk.id) })}
+                    >
+                      R{pk.round}
+                    </button>
+                  ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="muted small">No picks left to trade.</p>
+        )
+      ) : (
+        <>
+          {(q || chip !== 'fits') && (
+            <SortSeg label={`Sort ${team.name} players`} options={LIST_SORT_OPTIONS} sort={sort} onSort={onSort} />
+          )}
+          {rows.length ? (
+            <ul className="plain-list picker-list">
+              {rows.map((p) => {
+                const blocked = playerTradeBlocker(league, p);
+                const added = picked.players.includes(p.id);
+                return (
+                  <li key={p.id} className="picker-row">
+                    <PlayerLink league={league} player={p} avatar={26} short />
+                    <span className="muted small">{p.position}</span>
+                    <span className="num small picker-age">{p.age}</span>
+                    <Ovr league={league} player={p} />
+                    <span className="num small">
+                      {p.contract ? money(Math.round(capHit(p.contract, league.season))) : ''}
+                    </span>
+                    <span className="muted small picker-thru">
+                      {!p.contract
+                        ? 'practice squad'
+                        : isExpired(p.contract, league.season)
+                          ? 'expiring'
+                          : `thru ${lastSeason(p.contract)}`}
+                    </span>
+                    {blocked ? (
+                      <span className="muted small picker-blocked">{blocked}</span>
+                    ) : (
+                      <button
+                        className={`btn btn-sm${added ? '' : ' btn-primary'}`}
+                        aria-pressed={added}
+                        onClick={() => onChange({ ...picked, players: toggle(picked.players, p.id) })}
+                      >
+                        {added ? 'Added ✓' : 'Add'}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="muted small">
+              {q ? 'Nobody by that name.' : chip === 'fits' ? 'Nothing stands out: pick a position.' : 'Nobody here.'}
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -570,10 +673,7 @@ function TradeTable({ league }: { league: League }) {
             />
           )}
         </div>
-        <div className="grid-2">
-          <AssetList league={league} teamId={userId} picked={a} onChange={setMine} />
-          <AssetList league={league} teamId={partnerId} picked={b} onChange={setTheirs} />
-        </div>
+        <AssetPicker league={league} partnerId={partnerId} mine={a} theirs={b} onMine={setMine} onTheirs={setTheirs} />
         <p className="muted small" style={{ marginBottom: 0 }}>
           Traded players take their salary with them; any bonus money stays on your cap as dead money. Teams want a
           small win in their own eyes, and each GM hears only a few proposals from you a week.
