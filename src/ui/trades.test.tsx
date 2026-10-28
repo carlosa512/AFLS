@@ -6,7 +6,8 @@ import { deskState, type Advice } from '../engine/trade';
 import { emptyMarket } from '../engine/trade/execute';
 import { teamPlayers } from '../engine/roster';
 import type { TradeOffer } from '../engine/types';
-import { OfferCard, StaffStrip } from './offers';
+import { OfferCard, StaffStrip, talksWords, WantsPills } from './offers';
+import { ASKS, tradeContext } from '../engine/trade';
 import { AssetList, TradeDesk } from './screens/Trades';
 import { TabBoundary } from './boundary';
 
@@ -103,5 +104,29 @@ describe('offer cards', () => {
     expect(html).toContain('offer-card');
     expect(html).toContain('>Bid<');
     expect(html).toMatch(/Staff likes it|Split|Staff against/);
+  });
+});
+
+describe('the trade partner card', () => {
+  const l = createLeague({ seed: 'partner-card' });
+  const rival = l.teams.find((t) => t.id !== l.userTeamId)!;
+  it("shows what a rival wants on your scouts' read, and says when they barely know him", () => {
+    const html = renderToStaticMarkup(<WantsPills league={l} team={rival} />);
+    expect(html).toMatch(/tag-pill|No pressing needs/);
+    expect(html).not.toContain('barely know');
+    const ctx = tradeContext(l);
+    const view = ctx.view;
+    ctx.view = (teamId, p) => (p.teamId === rival.id ? { ...view(teamId, p), knowledge: 0.2 } : view(teamId, p));
+    expect(renderToStaticMarkup(<WantsPills league={l} team={rival} ctx={ctx} />)).toContain(
+      'our scouts barely know them',
+    );
+  });
+  it('says in words whether he is still taking proposals', () => {
+    l.market = emptyMarket();
+    expect(talksWords(l, rival.id)).toBe('Taking proposals');
+    l.market.talks[rival.id] = { moment: 0, asks: ASKS - 1, trust: 0, cooldowns: {} };
+    expect(talksWords(l, rival.id)).toBe('Nearly done talking this week');
+    l.market.talks[rival.id].asks = ASKS;
+    expect(talksWords(l, rival.id)).toBe("We're done talking this week.");
   });
 });

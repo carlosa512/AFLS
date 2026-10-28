@@ -20,13 +20,20 @@ import {
   resolveExam,
   setTradeStatus,
   shopPlayer,
+  ASKS,
+  peekTalks,
+  scoutedNeeds,
   stanceOf,
   staffTake,
+  talkRefusal,
+  tradeContext,
+  type Need,
+  type TradeContext,
   tradeWindow,
   type Advice,
   type StaffTake,
 } from '../engine/trade';
-import type { League, Player, Stance, TradeOffer, TradeRecord, TradeSide, TradeStatus } from '../engine/types';
+import type { League, Player, Stance, Team, TradeOffer, TradeRecord, TradeSide, TradeStatus } from '../engine/types';
 import { POSITIONS } from '../engine/types';
 import { LinkedText, nameIndex } from './moves';
 import { useNav } from './App';
@@ -526,12 +533,60 @@ export function BlockPanel({ league }: { league: League }) {
   );
 }
 
-const STANCE: Record<Stance, string> = {
+export const STANCE: Record<Stance, string> = {
   contend: 'Buying',
   bubble: 'Listening',
   retool: 'Selling veterans',
   rebuild: 'Selling',
 };
+
+const NEED_PILL: Record<Need['reason'], [string, PillTone | undefined]> = {
+  hole: [' · hole', 'warn'],
+  upgrade: ['', undefined],
+  nextYear: [' · next year', 'early'],
+};
+
+/**
+ * What a team wants on your pro scouts' read (`scoutedNeeds`), never its own: the three most pressing positions,
+ * and a word when they've barely seen the team. Pass `ctx` when drawing many teams, so they share one read.
+ */
+export function WantsPills({ league, team, ctx }: { league: League; team: Team; ctx?: TradeContext }) {
+  const { needs, littleFilm } = scoutedNeeds(ctx ?? tradeContext(league), league.userTeamId, team);
+  return (
+    <span className="pill-row">
+      {needs.length ? (
+        needs.slice(0, 3).map((n) => {
+          const [suffix, tone] = NEED_PILL[n.reason];
+          return (
+            <Pill key={n.position} tone={tone}>
+              {n.position}
+              {suffix}
+            </Pill>
+          );
+        })
+      ) : (
+        <span className="muted small">No pressing needs</span>
+      )}
+      {littleFilm && <span className="muted small">our scouts barely know them</span>}
+    </span>
+  );
+}
+
+/** Whether a GM is still taking your proposals this week, in words: never how many you have left. */
+export function talksWords(league: League, teamId: number): string {
+  const refusal = talkRefusal(league.market, teamId);
+  if (refusal) return refusal;
+  return ASKS - peekTalks(league.market, teamId).asks === 1 ? 'Nearly done talking this week' : 'Taking proposals';
+}
+
+/** This league year's players a team is said to be shopping, latest first, still on its roster. */
+export function shoppingOf(league: League, teamId: number): Player[] {
+  const ids = (league.market?.rumors ?? [])
+    .filter((r) => r.kind === 'shopping' && r.season === league.season && r.teamIds[0] === teamId)
+    .map((r) => r.playerId)
+    .reverse();
+  return [...new Set(ids)].map((id) => league.players[id]).filter((p) => p?.teamId === teamId);
+}
 
 /** What the league is saying, and who's buying and selling (in words). */
 export function MarketPanel({ league }: { league: League }) {

@@ -3,12 +3,13 @@
  * GM's reaction, the cap impact for both teams and the dead money you'd book before you propose),
  * your block, the market's talk and the history.
  */
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { capHit, isExpired, lastSeason } from '../../engine/finance/contract';
 import { teamPlayers } from '../../engine/roster';
 import { GmLink } from '../gm';
 import {
   counterOffer,
+  dealAdvice,
   deskState,
   evaluateTrade,
   isDeadlineDay,
@@ -18,11 +19,13 @@ import {
   playerTradeBlocker,
   proposeTrade,
   suggestSweetener,
+  stanceOf,
   tradeCapImpact,
+  tradeContext,
   tradeWindow,
   type TradeProposal,
 } from '../../engine/trade';
-import type { League, Player } from '../../engine/types';
+import type { League, Player, Team } from '../../engine/types';
 import { useNav } from '../nav';
 import {
   Panel,
@@ -40,10 +43,21 @@ import { money } from '../format';
 import { Ovr } from '../scouting';
 import { liveLock } from '../live';
 import { LinkedText } from '../moves';
-import { BlockPanel, ExamPanel, HistoryPanel, MarketPanel, OffersPanel } from '../offers';
+import {
+  BlockPanel,
+  ExamPanel,
+  HistoryPanel,
+  MarketPanel,
+  OffersPanel,
+  shoppingOf,
+  STANCE,
+  StaffStrip,
+  talksWords,
+  WantsPills,
+} from '../offers';
 import { store } from '../store';
 import { tradeDesk, type Picked } from '../tradeDesk';
-import { Fact, Facts, OfficeHero } from '../office';
+import { Fact, Facts, OfficeHero, Pill } from '../office';
 
 const empty = (): Picked => ({ players: [], picks: [] });
 const toggle = (list: number[], id: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
@@ -245,6 +259,37 @@ export function Trades({ league, tab }: { league: League; tab?: TradeTab }) {
   );
 }
 
+/**
+ * Who you're dealing with: whether they're buying or selling, what they want on your scouts' read, who they're
+ * said to be shopping, and whether they're still taking your calls this week. Public signals and your view only.
+ */
+function PartnerFacts({ league, partner }: { league: League; partner: Team }) {
+  // One read per partner and moment: the needs read rates every starter in the league.
+  const moment = league.market?.moment;
+  const ctx = useMemo(() => tradeContext(league), [league, partner.id, moment, league.week, league.phase]);
+  const shopping = shoppingOf(league, partner.id).slice(0, 3);
+  return (
+    <div className="partner-facts">
+      <Pill>{STANCE[stanceOf(partner)]}</Pill>
+      <span className="partner-fact">
+        <span className="eyebrow">Wants (our read)</span> <WantsPills league={league} team={partner} ctx={ctx} />
+      </span>
+      {shopping.length > 0 && (
+        <span className="partner-fact">
+          <span className="eyebrow">Shopping</span>{' '}
+          {shopping.map((p, i) => (
+            <span key={p.id}>
+              {i > 0 && ', '}
+              <PlayerLink league={league} player={p} pos />
+            </span>
+          ))}
+        </span>
+      )}
+      <span className="muted small">{talksWords(league, partner.id)}</span>
+    </div>
+  );
+}
+
 function TradeTable({ league }: { league: League }) {
   const userId = league.userTeamId;
   const others = league.teams.filter((t) => t.id !== userId).sort((a, b) => a.city.localeCompare(b.city));
@@ -380,6 +425,7 @@ function TradeTable({ league }: { league: League }) {
                   ? 'old-school pick chart (prizes top picks)'
                   : 'analytics pick chart (values Day 2 picks highly)'}
               </span>
+              <PartnerFacts league={league} partner={partner} />
             </div>
           </div>
         }
@@ -444,6 +490,15 @@ function TradeTable({ league }: { league: League }) {
               Clear
             </button>
           </span>
+          {a.players.length + a.picks.length > 0 && b.players.length + b.picks.length > 0 && (
+            <StaffStrip
+              league={league}
+              advice={dealAdvice(league, [
+                { teamId: partnerId, ...b },
+                { teamId: userId, ...a },
+              ])}
+            />
+          )}
         </div>
         <div className="grid-2">
           <div>
