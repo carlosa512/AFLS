@@ -231,7 +231,7 @@ describe('founding trees', () => {
     for (const c of legends) delete b.retiredCoaches[c.id];
     for (const c of Object.values(b.coaches)) delete c.pastUnder;
     b.nextCoachId = Math.min(...legends.map((c) => c.id));
-    b.version = 62;
+    b.version = 63;
     const up = migrateLeague(b)!;
     expect(shape(up)).toEqual(shape(a));
   });

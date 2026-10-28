@@ -341,7 +341,7 @@ for (let s = 0; s < seasons; s++) {
   const r23 = avg(picks.filter((pk) => pk.round > 1).map((pk) => worth(pk.playerId!)));
   const reach = avg(picks.filter((pk) => pk.consRank !== undefined).map((pk) => Math.abs(pk.overall! - pk.consRank!)));
   console.log(
-    `  draft: R1 worth ${r1.toFixed(2)} · R2-3 ${r23.toFixed(2)} · best-8 staffs ${pickWorth(byStaff.slice(0, 8)).toFixed(2)} vs worst-8 ${pickWorth(byStaff.slice(-8)).toFixed(2)} · avg |slot - consensus rank| ${reach.toFixed(1)}`,
+    `  draft: R1 worth ${r1.toFixed(2)} · R2-3 ${r23.toFixed(2)} · best-8 staffs ${pickWorth(byStaff.slice(0, 8)).toFixed(2)} vs worst-8 ${pickWorth(byStaff.slice(-8)).toFixed(2)} · avg |slot - consensus rank| ${reach.toFixed(1)} · draft-day trades ${(league.market?.history ?? []).filter((r) => r.season === league.season && r.phase === 'draft').length}`,
   );
   const employed = Object.values(league.staff).filter((st) => st.teamId !== null);
   const scores = league.teams.map((t) => departmentScore(league, t.id));
@@ -509,7 +509,7 @@ for (let s = 0; s < seasons; s++) {
     weekly: save.weekly - prevSave.weekly,
   };
   console.log(
-    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, SAVE_SIZE_BUDGET.annualGrowth, 0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800 + SAVE_FEATURE_ALLOWANCES.practiceSquads.playersGrowth + SAVE_FEATURE_ALLOWANCES.analytics.playersGrowth + SAVE_FEATURE_ALLOWANCES.origins.playersGrowth, 0)} · ${check('retired added', dSave.retired, 0, 320 + SAVE_FEATURE_ALLOWANCES.practiceSquads.retiredAdded, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
+    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, SAVE_SIZE_BUDGET.annualGrowth, 0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800 + SAVE_FEATURE_ALLOWANCES.practiceSquads.playersGrowth + SAVE_FEATURE_ALLOWANCES.analytics.playersGrowth + SAVE_FEATURE_ALLOWANCES.origins.playersGrowth + SAVE_FEATURE_ALLOWANCES.mentoring.playersGrowth, 0)} · ${check('retired added', dSave.retired, 0, 320 + SAVE_FEATURE_ALLOWANCES.practiceSquads.retiredAdded, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
   if (dSave) playerGrowth.push(dSave.players);
   prevSave = save;

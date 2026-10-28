@@ -257,7 +257,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `offers.ts` (bids, pitches, dumps, enquiries on their own stream; accept, decline, counter, your
     players' statuses, shop, ask a price; they lapse when you advance the calendar), your dealings with
     each GM in `talks.ts` (about four proposals a moment, cooldowns, trust), your staff's word on a
-    deal in `advice.ts` (your view only); `TradeContext`, one decision pass's cache ·
+    deal in `advice.ts` (your view only); draft day in `draft.ts` (covet: a team's man at the earlier pick
+    against its best at the later one on its own board, which `judge` adds in the `draft` phase; the AI's
+    trade-ups before each pick for an NFL reason, offers to you on the clock, *Shop this pick*, *Call teams
+    ahead*, offers lapsing with their pick); `TradeContext`, one decision pass's cache ·
     `migrate.ts` save upgrades
 - `src/ui/` — React screens. State is one mutable `League` in `ui/store.ts`; call
   `store.mutate(fn)` to change it (triggers re-render + IndexedDB autosave). **Every screen follows

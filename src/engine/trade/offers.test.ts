@@ -282,6 +282,16 @@ describe('offers to you', () => {
     expect(sound.status).toBe('pending');
   });
 
+  it('pulls an offer whose player has no deal any more (his contract ran out), without judging it', () => {
+    const l = fresh();
+    const offer = packaged(l).find((o) => o.sides.some((s) => s.players.length))!;
+    const id = offer.sides.find((s) => s.players.length)!.players[0];
+    l.players[id].contract = null;
+    expect(() => recheckOffers(l)).not.toThrow();
+    expect(offer.status).toBe('withdrawn');
+    expect(offer.outcome).toMatch(/pulled it/i);
+  });
+
   it('never asks for an Untouchable', () => {
     const l = fresh();
     const ids = activeRoster(l, l.userTeamId).map((p) => p.id);

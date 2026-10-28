@@ -51,6 +51,7 @@ import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
 import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp, fillCampRoster, payAhead } from './ai';
+import { clockOffers } from '../trade/draft';
 import {
   aiDraftChoice,
   draftComplete,
@@ -156,11 +157,6 @@ export function beginOffseason(league: League): void {
       delete p.mentorSetByYou;
       delete p.mentorBank;
       for (const t of [...(p.ties ?? [])]) endTie(league, p, t.with);
-      // His card keeps who mentored him; how he left clubs and what mentors moved only mattered while he played.
-      delete p.left;
-      delete p.shifts;
-      delete p.shiftedLast;
-      delete p.lostMentor;
       retirees.push(p);
       continue;
     }
@@ -184,6 +180,14 @@ export function beginOffseason(league: League): void {
   resetScouting(league);
   developStaff(league);
   developCoaches(league, retirees);
+  // His card keeps who mentored him; how he left clubs and what mentors moved only mattered while he played (and to the
+  // clubs that might hire him to coach, just above).
+  for (const p of retirees) {
+    delete p.left;
+    delete p.shifts;
+    delete p.shiftedLast;
+    delete p.lostMentor;
+  }
   developMedics(league);
   crewsNewYear(league);
 
@@ -312,7 +316,11 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
       aiFreeAgencyDay(league, rng, { includeUser: auto });
       marketMoment(league, 'faDay');
       if (league.faDay < FA_DAYS) league.faDay++;
-      else league.phase = 'draft';
+      else {
+        league.phase = 'draft';
+        // The draft can open on your pick.
+        clockOffers(league);
+      }
       break;
     case 'draft':
       simDraft(league, rng, { stopAtUser: false });
@@ -402,10 +410,18 @@ function withRng<T>(league: League, fn: (rng: Rng) => T): T {
 }
 
 /** Draft room controls for the user. */
-export const draftNextPick = (league: League) =>
-  withRng(league, (rng) => simDraft(league, rng, { stopAtUser: true, limit: 1 }));
-export const draftToUserPick = (league: League) =>
-  withRng(league, (rng) => simDraft(league, rng, { stopAtUser: true }));
+// When the draft stops at your pick, the teams that want to move up call (`clockOffers`): once a pick, never while
+// the rest is simmed.
+export const draftNextPick = (league: League) => {
+  const made = withRng(league, (rng) => simDraft(league, rng, { stopAtUser: true, limit: 1 }));
+  clockOffers(league);
+  return made;
+};
+export const draftToUserPick = (league: League) => {
+  const made = withRng(league, (rng) => simDraft(league, rng, { stopAtUser: true }));
+  clockOffers(league);
+  return made;
+};
 export const draftToEnd = (league: League) => withRng(league, (rng) => simDraft(league, rng, { stopAtUser: false }));
 export function draftForUser(league: League, playerId?: number): void {
   const pick = nextPick(league);
@@ -415,6 +431,7 @@ export function draftForUser(league: League, playerId?: number): void {
       ? league.players[playerId]
       : withRng(league, (rng) => aiDraftChoice(league, pick.ownerId, rng, pick.round));
   draftPlayer(league, pick, player);
+  clockOffers(league);
 }
 
 /** Training camp shortcut: let the AI make your cuts (and sign fill-ins at the minimum). */

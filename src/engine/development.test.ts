@@ -99,7 +99,7 @@ describe('hidden traits', () => {
   });
 
   it('gives an old save the four new traits from each player’s own seed, and leaves the rest alone', () => {
-    const league = createLeague({ seed: 'v60' });
+    const league = createLeague({ seed: 'v61' });
     const before = Object.values(league.players).map((p) => ({ ...p.traits }));
     for (const p of Object.values(league.players)) {
       const t = p.traits as Partial<Traits>;
@@ -108,7 +108,7 @@ describe('hidden traits', () => {
       delete t.controversy;
       delete t.sportsmanship;
     }
-    league.version = 59;
+    league.version = 60;
     const up = migrateLeague(league)!;
     Object.values(up.players).forEach((p, i) => {
       expect(p.traits.leads).toBeGreaterThanOrEqual(1);

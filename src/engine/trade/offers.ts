@@ -34,6 +34,7 @@ import {
 } from './deals';
 import { emptyMarket, executeTrade } from './execute';
 import { evaluateTrade, floorShare, judge, marginFor, suggestSweetener } from './judge';
+import { lapseUsedPicks } from './draft';
 import { teamNeeds, tradeBlock, untouchables, wanted, type BlockEntry } from './plans';
 import {
   freshlySigned,
@@ -240,7 +241,7 @@ function offerKind(ctx: TradeContext, [his, yours]: TradeOffer['sides']): DealKi
 }
 
 /** File an offer from `team` (sides [his, yours]), or null if it may not be made now. */
-function file(
+export function file(
   ctx: TradeContext,
   market: TradeMarket,
   team: Team,
@@ -402,10 +403,13 @@ export function recheckOffers(league: League): void {
   if (!pending.length) return;
   const ctx = tradeContext(league);
   for (const o of pending) {
+    // A player who left, or whose deal ran out at the new league year, can't be traded: the offer goes without a look.
     const ok =
-      o.kind === 'enquiry'
+      stillThere(league, o) &&
+      o.sides.every((s) => s.players.every((id) => league.players[id]?.contract)) &&
+      (o.kind === 'enquiry'
         ? bidFor(ctx, league.teams[o.teamId], league.players[o.sides[1].players[0]]) !== null
-        : judge(ctx, o.teamId, { sides: o.sides }, { rosterCuts: true }).accepts;
+        : judge(ctx, o.teamId, { sides: o.sides }, { rosterCuts: true }).accepts);
     if (ok) continue;
     o.status = 'withdrawn';
     o.outcome = 'They pulled it before it reached you.';
@@ -583,6 +587,8 @@ function settle(
     if (league.players[id]?.teamId === league.userTeamId) releasePlayer(league, league.players[id]);
   executeTrade(league, { sides }, { ...meta, physicals: exams });
   aiCutdown(league, ai, rosterLimit(league));
+  // Draft-day offers on a pick that just moved are off.
+  lapseUsedPicks(league);
   const offer = opts.offerId !== undefined ? offerById(league, opts.offerId) : undefined;
   delete market.exam;
   nudgeTrust(market, ai.id, 0.03);

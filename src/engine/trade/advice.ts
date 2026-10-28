@@ -8,6 +8,7 @@ import { STARTERS } from '../positions';
 import { starters, teamPlayers } from '../roster';
 import { characterNotes, perceive } from '../scouting';
 import type { League, Player, TradeSide } from '../types';
+import { draftLine } from './draft';
 import { tradeCapImpact } from './rules';
 
 /** How a line reads for the deal: good news, a worry, a reason against, or just a fact. */
@@ -86,6 +87,9 @@ export function dealAdvice(league: League, [theirs, yours]: readonly [TradeSide,
     const risk = injuryRisk(league, user.id, p);
     if (risk.known) out.push({ who: 'medical', line: `${name(p)}: ${risk.line}`, tone: MEDICAL_TONE[risk.tier] });
   }
+  // On draft day, the director reads our board for what a pick deal costs or buys us.
+  const draft = draftLine(league, [theirs, yours]);
+  if (draft) out.push(draft);
   const [mine] = tradeCapImpact(league, { sides: [yours, theirs] });
   out.push({
     who: 'cap',
