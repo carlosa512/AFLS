@@ -38,6 +38,8 @@ export interface QuirkInfo {
   rare?: boolean;
   /** A hothead draws extra marbles for it (low temperament). */
   temper?: boolean;
+  /** Pressure decides it: a player without poise draws more of the bad ones, a poised one more of the good. */
+  poise?: 'bad' | 'good';
 }
 
 const RECEIVERS: readonly Position[] = ['WR', 'TE'];
@@ -87,6 +89,7 @@ export const QUIRKS = {
     tone: 'bad',
     clause: 'leaves the pocket at the first sign of pressure',
     effect: 'Scrambles more, and cuts deep throws short.',
+    poise: 'bad',
   },
   patsTheBall: {
     label: 'Pat-The-Rock',
@@ -102,6 +105,7 @@ export const QUIRKS = {
     clause: 'gets rattled once he has been hit, and forces throws after that',
     effect:
       'After his second sack in a game: worse decisions and accuracy, more interceptions. A beating carries into the next game.',
+    poise: 'bad',
   },
   hardCount: {
     label: 'Hard-Count Fiend',
@@ -588,6 +592,7 @@ export const QUIRKS = {
     tone: 'good',
     clause: 'is at his best when the game is on the line',
     effect: 'More accurate on fourth-quarter kicks in close games.',
+    poise: 'good',
   },
   yips: {
     label: 'Yips Susceptibility',
@@ -596,6 +601,7 @@ export const QUIRKS = {
     clause: 'loses his nerve after a big miss',
     effect:
       'Shakier for the rest of a game after a miss; a miss late in a close game starts a slump of up to three weeks.',
+    poise: 'bad',
   },
   boomerLeg: {
     label: 'Boomer Leg',
@@ -706,12 +712,14 @@ export const BLANKS: [number, number, number] = [96, 154, 240];
  * A fresh bag for the league year. Every quirk his position can draw gets a few marbles (style ones a
  * few more); a hard worker draws more of the good ones, a coaster and a hothead more of the bad.
  * Each quirk he holds also gets fix marbles: more against bad habits, more again with a good
- * position coach (`coachRate`, his staff's growth rate) and a hard worker.
+ * position coach (`coachRate`, his staff's growth rate) and a hard worker. Poise leans the habits pressure decides
+ * (Sees Ghosts, Bails Early, the yips, Ice-Water Veins) both ways.
  */
 export function fillBag(p: Player, coachRate = 1): Record<string, number> {
   const bag: Record<string, number> = { blank: Math.round(blanksFor(p.age) * (isSpecial(p) ? SPECIAL_BLANKS : 1)) };
   const work = p.traits.workEthic - TRAIT_MEAN;
   const coach = clamp(Math.round((coachRate - 1) * 8), -1, 2);
+  const nerve = (p.traits.poise - TRAIT_MEAN) / 3.5;
   for (const id of QUIRKS_FOR[p.position]) {
     const q = QUIRKS[id];
     const info: QuirkInfo = q;
@@ -720,9 +728,15 @@ export function fillBag(p: Player, coachRate = 1): Record<string, number> {
     if (q.tone === 'bad') n += Math.round(Math.max(0, -work) / 3) + (p.traits.temperament <= 7 ? 1 : 0);
     // A short fuse feeds the habits that draw flags.
     if (info.temper && p.traits.temperament <= 7) n += 2;
+    // Poise feeds the habits pressure decides: the shaky draw more of the bad ones, the steady more of the good.
+    if (info.poise === 'bad') n += nerve <= -1.5 ? 2 : nerve <= -1 ? 1 : 0;
+    if (info.poise === 'good' && nerve >= 1) n += 1;
     bag[id] = n;
     if (p.quirks?.[id])
-      bag[`fix:${id}`] = q.tone === 'bad' ? Math.max(2, FIX[0] + coach + (work >= 3 ? 1 : 0)) : FIX[1];
+      bag[`fix:${id}`] =
+        q.tone === 'bad'
+          ? Math.max(2, FIX[0] + coach + (work >= 3 ? 1 : 0) + (info.poise === 'bad' && nerve >= 1 ? 1 : 0))
+          : FIX[1];
   }
   return bag;
 }

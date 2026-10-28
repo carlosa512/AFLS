@@ -72,7 +72,15 @@ import {
 } from '../weather';
 import * as coach from './coach';
 import type { DefenseCall, PassDepth, Situation } from './coach';
-import { activePlayers, buildLineup, discipline, KICK_FLAG_PER_POINT, RETURN_COACH, type Lineup } from './lineup';
+import {
+  activePlayers,
+  buildLineup,
+  discipline,
+  KICK_FLAG_PER_POINT,
+  RETURN_COACH,
+  roughness,
+  type Lineup,
+} from './lineup';
 
 type Side = 0 | 1; // 0 = home, 1 = away
 
@@ -3043,18 +3051,19 @@ class GameSim {
 
   /**
    * Personal fouls: a hit on the passer late, low or high; a tackle finished with a late shot, a face
-   * mask or a horse collar; a sack celebrated in someone's face. Each leans on the temper and the
-   * Awareness of the man who did it (`discipline`), and roughing on how closely the crew protects the
-   * passer and how decorated he is (`starLean`).
+   * mask or a horse collar; a sack celebrated in someone's face. The hits during a play lean on how clean the man who
+   * did it plays (`roughness`: his sportsmanship), the celebration after the whistle on his temper (`discipline`), and
+   * roughing on how closely the crew protects the passer and how decorated he is (`starLean`).
    */
   private personalFouls(result: PlayResult, fouls: LiveFoul[]) {
     const { all, qbProtection } = this.calls;
     const loose = (p: Player, typical: number) => Math.exp(-0.06 * (discipline(p) - typical));
+    const dirty = (p: Player, typical: number) => Math.exp(-0.06 * (roughness(p) - typical));
     const rusher = result.kind === 'sack' ? result.rusher : result.kind === 'pass' ? this.pressureBy : null;
     if (
       rusher &&
       this.rng.chance(
-        ROUGHING * loose(rusher, DL_DISCIPLINE) * all * qbProtection * this.star(this.lineups[this.offense].qb),
+        ROUGHING * dirty(rusher, DL_DISCIPLINE) * all * qbProtection * this.star(this.lineups[this.offense].qb),
       )
     ) {
       fouls.push({ foul: 'roughingPasser', by: rusher });
@@ -3062,9 +3071,9 @@ class GameSim {
     if (result.turnover) return;
     const tacklers = result.stats.entries.filter(([, key]) => key === 'tackles').map(([p]) => p);
     if (tacklers.length) {
-      const temper = tacklers.reduce((sum, p) => sum + loose(p, TACKLER_DISCIPLINE), 0) / tacklers.length;
-      const pRough = UNNECESSARY_ROUGHNESS * temper * all;
-      const pMask = FACE_MASK * temper * all;
+      const late = tacklers.reduce((sum, p) => sum + dirty(p, TACKLER_DISCIPLINE), 0) / tacklers.length;
+      const pRough = UNNECESSARY_ROUGHNESS * late * all;
+      const pMask = FACE_MASK * late * all;
       const roll = this.rng.next();
       const foul: Foul | null =
         roll < pRough

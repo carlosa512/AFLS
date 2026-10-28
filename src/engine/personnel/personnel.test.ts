@@ -281,7 +281,9 @@ describe('migration and collection', () => {
     // `players` and `result` re-taken with player size (0.2.2): new builds reseed hidden traits; the stream, charts
     // and schedule still match main, which is what proves the size roll costs the same two draws. `result` again with
     // the DT's wrap-up at the line, and with the size edges. `charts` and `result` again with spot fit,
-    // which lines the starters up by build.
+    // which lines the starters up by build. `players` and `result` again with personality (0.2.15): four more hidden
+    // traits per player, and sportsmanship in place of temper on the dirty fouls; the stream, games and charts still
+    // match, so the new traits cost no draw from the league's stream.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -293,9 +295,9 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: '99c29d8827408c9a6e16fc2310b98e8be049982c2a26091d2f58be065907d8f8',
+  players: 'a979f91370ea89de72689ffa5851d834210ae3e4c70d9c04929fafd03056b78c',
   rng: [666865279, 3079305262, 4039765455, 1664101998],
   games: '7d434cad09545c5d832fe11048921e57ab49f1d9807d05ae5b65df3aaa0a9978',
-  result: '7aad2f8b773e8ac0f77d16d2c42d1c8ebea7c6d6e8885faa8c3d9c5380a98fb3',
+  result: '98c11a3b3f0ae9c151cf9c000ee03eaf96d5ed4989a06af7687f107ba0ab6370',
   charts: '736837cb684778fb3965956ea01fc36726cc948ed00cd33c883ccd9bd78d4457',
 };

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { downValue, takesPenalty } from './match/coach';
 import { simulateGame } from './match/gameSim';
-import { buildLineup } from './match/lineup';
+import { buildLineup, discipline, roughness } from './match/lineup';
 import { enforce, FOUL_KINDS, FOULS } from './penalties';
 
 const at = (yardLine: number, down = 1, toGo = 10) => ({ yardLine, down, lineToGain: Math.min(100, yardLine + toGo) });
@@ -94,6 +94,22 @@ describe('personal fouls', () => {
   const games = league.games
     .filter((g) => g.week <= 6)
     .map((g) => ({ g, r: simulateGame(league, g, { keepPlays: true }) }));
+
+  it('charges roughness to sportsmanship and pre-snap flags to temperament', () => {
+    const p = league.players[league.teams[0].depthChart.EDGE[0]];
+    const base = { ...p.traits };
+    p.traits = { ...base, sportsmanship: 3 };
+    const dirty = roughness(p);
+    const keyed = discipline(p);
+    p.traits = { ...base, sportsmanship: 18 };
+    expect(roughness(p)).toBeGreaterThan(dirty + 4);
+    expect(discipline(p)).toBe(keyed);
+    p.traits = { ...base, temperament: 3 };
+    const hot = roughness(p);
+    p.traits = { ...base, temperament: 18 };
+    expect(roughness(p)).toBe(hot);
+    p.traits = base;
+  });
 
   it('credits the quarterback with every roughing call his defense drew', () => {
     let calls = 0;

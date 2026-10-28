@@ -46,7 +46,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 60;
+export const SAVE_VERSION = 61;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -134,7 +134,18 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
     teamId: spec.teamId,
     contract: null,
     personality: generatePersonality(rng),
-    traits: { workEthic: 0, durability: 0, temperament: 0, injuryResistance: 0, naturalFitness: 0, versatility: 0 },
+    traits: {
+      workEthic: 0,
+      durability: 0,
+      temperament: 0,
+      injuryResistance: 0,
+      naturalFitness: 0,
+      versatility: 0,
+      leads: 0,
+      poise: 0,
+      controversy: 0,
+      sportsmanship: 0,
+    },
     stats: {},
   };
   player.traits = generateTraits(player);

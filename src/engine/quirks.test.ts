@@ -52,6 +52,21 @@ function player(i: number, age = 27, experience = 5): Player {
 }
 
 describe('quirks', () => {
+  it('feeds the pressure habits from poise, both ways', () => {
+    const qb = player(40);
+    delete qb.quirks;
+    qb.traits = { ...qb.traits, poise: 3 };
+    const shaky = fillBag(qb).seesGhosts;
+    qb.traits = { ...qb.traits, poise: 10 };
+    expect(shaky).toBe(fillBag(qb).seesGhosts + 2);
+    const k = { ...player(41), position: 'K' as const, quirks: { yips: 1 } };
+    k.traits = { ...k.traits, poise: 17 };
+    const calm = fillBag(k);
+    k.traits = { ...k.traits, poise: 10 };
+    expect(calm.iceWater).toBe(fillBag(k).iceWater + 1);
+    expect(calm['fix:yips']).toBe(fillBag(k)['fix:yips'] + 1);
+  });
+
   it('every quirk belongs to a position, and every position can draw some', () => {
     for (const id of QUIRK_IDS) expect(QUIRKS[id].positions.length).toBeGreaterThan(0);
     for (const ids of Object.values(QUIRKS_FOR)) expect(ids.length).toBeGreaterThanOrEqual(2);

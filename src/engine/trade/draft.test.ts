@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createLeague } from '../generate';
+import { createLeague, SAVE_VERSION } from '../generate';
 import { deliverMail, offerWords } from '../inbox';
 import { simToEndOfSeason } from '../league';
 import { migrateLeague } from '../migrate';
@@ -147,16 +147,17 @@ describe('save v60', () => {
     const old = JSON.parse(JSON.stringify(l)) as League;
     old.version = 59;
     const up = migrateLeague(old)!;
-    expect(up.version).toBe(60);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(up.players[prospects[0].id].draft!.via).toBe(used[0].originalTeamId);
     expect(up.players[prospects[1].id].draft!.via).toBeUndefined();
   });
 });
 
 /** The first 32 picks of seed 'draft-trades' with main's draft code (class top 14.1; `simDraft`, rng 'baseline'). */
+// Re-taken with personality (0.2.15): the season before draft day plays out differently with four more traits.
 const BASELINE = [
-  1805, 1775, 1803, 1770, 1802, 1781, 1804, 1771, 1776, 1786, 1842, 1772, 1782, 1773, 1791, 1784, 1806, 1819, 1796,
-  1844, 1834, 1778, 1787, 1793, 1798, 1794, 1774, 1831, 1799, 1839, 1820, 1873,
+  1801, 1822, 1820, 1819, 1792, 1799, 1788, 1859, 1787, 1803, 1851, 1798, 1789, 1848, 1826, 1813, 1808, 1836, 1791,
+  1795, 1790, 1918, 1793, 1804, 1832, 1823, 1861, 1815, 1845, 1816, 1824, 1809,
 ];
 
 /** The pick on the clock (an AI team's) and another AI team's pick `ahead` slots later. */

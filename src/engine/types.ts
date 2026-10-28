@@ -435,6 +435,14 @@ export interface Traits {
   naturalFitness: number;
   /** Versatility: how well he plays away from his own position, and how fast he learns a new one (`familiarity.ts`). */
   versatility: number;
+  /** Leadership: how much the room follows him (mentoring, captains, calming a feud). */
+  leads: number;
+  /** Poise: how he holds up when it counts (the pressure habits in his marble bag). */
+  poise: number;
+  /** Controversy: how readily he says it out loud (feuds, speaking out). */
+  controversy: number;
+  /** Sportsmanship: how clean he plays (roughing, unnecessary roughness, face masks). */
+  sportsmanship: number;
 }
 
 export type StaffRole = 'director' | 'collegeScout' | 'proScout';

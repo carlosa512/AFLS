@@ -22,7 +22,18 @@ import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
 import { filmScale } from './origin';
 import { passerRating } from './stats';
 import { TEMPER_POSITIONS, TRAIT_MEAN } from './traits';
-import type { Attribute, Combine, League, Player, Position, Ratings, StatLine, Team, Traits } from './types';
+import type {
+  Attribute,
+  Combine,
+  League,
+  Personality,
+  Player,
+  Position,
+  Ratings,
+  StatLine,
+  Team,
+  Traits,
+} from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
 /** Scouting visits a front office gets per league year. */
@@ -373,8 +384,11 @@ const CHARACTER_ERROR = 4;
  */
 export const INJURY_ERROR = 6;
 
-/** A front office's read of a player's hidden makeup, on the traits' 1–20 scale. Engine-only: screens get words. */
-export interface CharacterRead extends Traits {
+/**
+ * A front office's read of a player's hidden makeup, on the traits' 1–20 scale, and of what he wants from a deal (the
+ * agent's dials, 0–1). Engine-only: screens get words.
+ */
+export interface CharacterRead extends Traits, Personality {
   /** How far off (1 sd) these guesses tend to be. */
   sd: number;
   exact: boolean;
@@ -388,7 +402,7 @@ export interface CharacterRead extends Traits {
  */
 export function characterRead(league: League, teamId: number, p: Player): CharacterRead | null {
   const k = knowledge(league, teamId, p);
-  if (k >= 1) return { ...p.traits, sd: 0, exact: true };
+  if (k >= 1) return { ...p.traits, ...p.personality, sd: 0, exact: true };
   if (k < CHARACTER_KNOWLEDGE) return null;
   const domain: Domain = isProspect(p) ? 'college' : 'pro';
   const staff = league.teams[teamId] ? teamStaff(league, teamId) : null;
@@ -409,14 +423,33 @@ export function characterRead(league: League, teamId: number, p: Player): Charac
   const temperament = guess(p.traits.temperament, sdEval, evaluator);
   // Another club's medical file stays closed: how often a body breaks is the hardest thing to see.
   const sdBody = INJURY_ERROR * Math.max(1 - k, 0.3) * (proj ? accuracy(proj.rating) : 1);
+  const injuryResistance = guess(p.traits.injuryResistance, sdBody, projector);
+  const naturalFitness = guess(p.traits.naturalFitness, sdEval, evaluator);
+  // Seen in practice and on film when he lines up somewhere new: the evaluator's call.
+  const versatility = guess(p.traits.versatility, sdEval, evaluator);
+  // Drawn after the older guesses, so adding them moved no club's read of anything it already judged. Leadership and
+  // controversy come out in a sit-down; poise and sportsmanship show on film.
+  const leads = guess(p.traits.leads, sdProj, projector);
+  const controversy = guess(p.traits.controversy, sdProj, projector);
+  const poise = guess(p.traits.poise, sdEval, evaluator);
+  const sportsmanship = guess(p.traits.sportsmanship, sdEval, evaluator);
+  // What he wants from a deal, on its own 0–1 scale: the same error, shrunk to fit.
+  const dial = (truth: number) => clamp(truth + (sdProj / 19) * (0.8 * team.normal() + 0.6 * projector.normal()), 0, 1);
   return {
     workEthic,
     durability,
     temperament,
-    injuryResistance: guess(p.traits.injuryResistance, sdBody, projector),
-    naturalFitness: guess(p.traits.naturalFitness, sdEval, evaluator),
-    // Seen in practice and on film when he lines up somewhere new: the evaluator's call.
-    versatility: guess(p.traits.versatility, sdEval, evaluator),
+    injuryResistance,
+    naturalFitness,
+    versatility,
+    leads,
+    poise,
+    controversy,
+    sportsmanship,
+    loyalty: dial(p.personality.loyalty),
+    winning: dial(p.personality.winning),
+    greed: dial(p.personality.greed),
+    patience: dial(p.personality.patience),
     sd: Math.max(sdProj, sdEval),
     exact: false,
   };
@@ -432,8 +465,11 @@ export function projectedCeiling(ovr: number, ceiling: number, workEthic?: numbe
 }
 
 export interface CharacterNote {
-  /** What it reads: his makeup (most notes), or how he travels between positions (a football trait, not character). */
-  about?: 'versatility';
+  /**
+   * What it reads: his makeup (untagged notes), his work ethic or temper (which the personality line on the card now
+   * covers), or how he travels between positions (a football trait, not character).
+   */
+  about?: 'versatility' | 'work' | 'temper';
   label: string;
   tone: 'good' | 'warn';
   /** What it means for him, as a sentence. */
@@ -503,12 +539,15 @@ export function characterNotes(league: League, teamId: number, p: Player): Chara
           : 'coasts at times, so the decline may hit him harder',
       ),
     );
+  // The card's personality line says this now; the scout's report still uses the clause.
+  for (const n of notes) n.about = 'work';
   if (read.durability >= 14) notes.push(note('Built to last', 'good', 'his body is built to last'));
   else if (read.durability <= 7) notes.push(note('Wears down early', 'warn', 'his body may wear down early'));
   if (TEMPER_POSITIONS.has(p.position)) {
-    if (read.temperament <= 7) notes.push(note('Hothead', 'warn', 'has a short fuse, so his line draws more flags'));
+    if (read.temperament <= 7)
+      notes.push({ ...note('Hothead', 'warn', 'has a short fuse, so his line draws more flags'), about: 'temper' });
     else if (read.temperament >= 14.5)
-      notes.push(note('Even-keeled', 'good', 'even-keeled, so he rarely draws a flag'));
+      notes.push({ ...note('Even-keeled', 'good', 'even-keeled, so he rarely draws a flag'), about: 'temper' });
   }
   if (read.versatility >= 15)
     notes.push({

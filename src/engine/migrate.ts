@@ -196,6 +196,21 @@ export function migrateLeague(league: League): League | null {
     }
     league.version = 60;
   }
+  // v61: four more hidden traits (leadership, poise, controversy, sportsmanship), rolled from each player's own seed after
+  // the others, as a new league rolls them.
+  if (league.version < 61) {
+    for (const p of Object.values(league.players))
+      if (p.traits.leads === undefined) {
+        const t = generateTraits(p);
+        Object.assign(p.traits, {
+          leads: t.leads,
+          poise: t.poise,
+          controversy: t.controversy,
+          sportsmanship: t.sportsmanship,
+        });
+      }
+    league.version = 61;
+  }
   return league;
 }
 

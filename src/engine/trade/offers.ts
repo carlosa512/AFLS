@@ -403,10 +403,13 @@ export function recheckOffers(league: League): void {
   if (!pending.length) return;
   const ctx = tradeContext(league);
   for (const o of pending) {
+    // A player who left, or whose deal ran out at the new league year, can't be traded: the offer goes without a look.
     const ok =
-      o.kind === 'enquiry'
+      stillThere(league, o) &&
+      o.sides.every((s) => s.players.every((id) => league.players[id]?.contract)) &&
+      (o.kind === 'enquiry'
         ? bidFor(ctx, league.teams[o.teamId], league.players[o.sides[1].players[0]]) !== null
-        : judge(ctx, o.teamId, { sides: o.sides }, { rosterCuts: true }).accepts;
+        : judge(ctx, o.teamId, { sides: o.sides }, { rosterCuts: true }).accepts);
     if (ok) continue;
     o.status = 'withdrawn';
     o.outcome = 'They pulled it before it reached you.';

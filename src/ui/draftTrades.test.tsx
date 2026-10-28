@@ -33,8 +33,11 @@ describe('draft room on draft day', () => {
     const l = offered();
     const html = renderToStaticMarkup(<Draft league={l} />);
     const n = draftDayOffers(l).length;
+    // The banner counts the offers for the pick on the clock; the cards show every live one (an earlier call can still
+    // be open on a later pick of yours).
+    const here = draftDayOffers(l).filter((o) => o.sides[1].picks.includes(nextPick(l)!.id)).length;
     expect(html).toContain(
-      `${n > 1 ? `${n} teams want` : '1 team wants'} No. ${nextPick(l)!.overall} · gone when you pick`,
+      `${here > 1 ? `${here} teams want` : '1 team wants'} No. ${nextPick(l)!.overall} · gone when you pick`,
     );
     expect(html.match(/class="[^"]*offer-card/g)?.length).toBe(n);
     expect(html).toContain('Shop this pick');
