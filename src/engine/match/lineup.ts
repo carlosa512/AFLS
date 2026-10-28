@@ -3,7 +3,7 @@ import { specialTeamsEdge, teamScheme } from '../coaching';
 import type { TeamScheme } from '../schemes';
 import { knockFor, slotOvr } from '../familiarity';
 import { isAvailable, onGameRoster, playingHurt } from '../roster';
-import { temperOffset } from '../traits';
+import { sportsOffset, temperOffset } from '../traits';
 import type { Game, League, Player, Position, Team } from '../types';
 import { gameDayTeam } from '../personnel/gameDay';
 import { POSITIONS } from '../types';
@@ -113,6 +113,12 @@ function coverUnit(league: League, team: Team, out: ReadonlySet<number>, availab
 
 /** A lineman's discipline: his football IQ, plus or minus his temper (a hothead jumps early and grabs). */
 export const discipline = (p: Player) => skill(p, 'discipline') + temperOffset(p.traits);
+
+/**
+ * How clean he plays: the same football IQ, with his sportsmanship in place of his temper. A dirty player lands the late
+ * hit and grabs the face mask; it's a different thing from jumping early.
+ */
+export const roughness = (p: Player) => skill(p, 'discipline') + sportsOffset(p.traits);
 
 const avg = (players: Player[], f: (p: Player) => number) =>
   players.reduce((sum, p) => sum + f(p), 0) / Math.max(1, players.length);
