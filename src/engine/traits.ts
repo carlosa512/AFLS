@@ -39,6 +39,13 @@ export function generateTraits(p: Pick<Player, 'id' | 'firstName' | 'lastName' |
   const fitness = 0.25 * work + 0.2 * body + 0.947 * rng.normal();
   // Drawn last for the same reason. Versatility is its own gift: a football mind that picks up a new job.
   const versatile = rng.normal();
+  // Drawn last for the same reason. Leadership stands alone: mentors are picked by it, and a lean on work ethic would
+  // lift the whole league's (docs/superpowers/specs/2026-10-28-personality-relationships-design.md §1.1).
+  const leads = rng.normal();
+  const poise = rng.normal();
+  // Hotheads say it out loud and play past the whistle; the calm ones tend not to.
+  const controversy = -0.3 * temper + 0.954 * rng.normal();
+  const sportsmanship = 0.3 * temper + 0.954 * rng.normal();
   return {
     workEthic: roll(work),
     durability: roll(body),
@@ -46,6 +53,10 @@ export function generateTraits(p: Pick<Player, 'id' | 'firstName' | 'lastName' |
     injuryResistance: roll(resist),
     naturalFitness: roll(fitness),
     versatility: roll(versatile),
+    leads: roll(leads),
+    poise: roll(poise),
+    controversy: roll(controversy),
+    sportsmanship: roll(sportsmanship),
   };
 }
 
@@ -79,3 +90,6 @@ export const TEMPER_POSITIONS: ReadonlySet<Position> = new Set(['OL', 'DT', 'EDG
 
 /** Discipline points a lineman's temperament adds or costs: about ±3 at the extremes. */
 export const temperOffset = (t: Traits) => 0.3 * (t.temperament - TRAIT_MEAN);
+
+/** Points a player's sportsmanship adds or costs on the dirty fouls (roughing, unnecessary roughness, face mask): about ±3. */
+export const sportsOffset = (t: Pick<Traits, 'sportsmanship'>) => 0.3 * (t.sportsmanship - TRAIT_MEAN);

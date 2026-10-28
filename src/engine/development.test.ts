@@ -67,6 +67,114 @@ function growth(pos: Position, age: number, years: number, vary: (p: Player) => 
 }
 
 describe('hidden traits', () => {
+  it('rolls leadership, poise, controversy and sportsmanship after the others', () => {
+    const league = createLeague({ seed: 'traits-new' });
+    const players = Object.values(league.players);
+    const keys = ['leads', 'poise', 'controversy', 'sportsmanship'] as const;
+    for (const p of players)
+      for (const k of keys) expect(Number.isInteger(p.traits[k]) && p.traits[k] >= 1 && p.traits[k] <= 20).toBe(true);
+    for (const k of keys) expect(Math.abs(mean(players.map((p) => p.traits[k])) - TRAIT_MEAN)).toBeLessThan(0.3);
+    const temp = players.map((p) => p.traits.temperament);
+    expect(
+      corr(
+        temp,
+        players.map((p) => p.traits.controversy),
+      ),
+    ).toBeLessThan(-0.15);
+    expect(
+      corr(
+        temp,
+        players.map((p) => p.traits.sportsmanship),
+      ),
+    ).toBeGreaterThan(0.15);
+    // Mentors are chosen by leadership: it must not lean on work ethic (spec §1.1).
+    expect(
+      Math.abs(
+        corr(
+          players.map((p) => p.traits.workEthic),
+          players.map((p) => p.traits.leads),
+        ),
+      ),
+    ).toBeLessThan(0.08);
+  });
+
+  it('gives an old save the four new traits from each player’s own seed, and leaves the rest alone', () => {
+    const league = createLeague({ seed: 'v60' });
+    const before = Object.values(league.players).map((p) => ({ ...p.traits }));
+    for (const p of Object.values(league.players)) {
+      const t = p.traits as Partial<Traits>;
+      delete t.leads;
+      delete t.poise;
+      delete t.controversy;
+      delete t.sportsmanship;
+    }
+    league.version = 59;
+    const up = migrateLeague(league)!;
+    Object.values(up.players).forEach((p, i) => {
+      expect(p.traits.leads).toBeGreaterThanOrEqual(1);
+      expect(p.traits).toEqual(before[i]);
+      expect(p.traits.leads).toBe(generateTraits(p).leads);
+    });
+  });
+
+  it('keeps the six older traits exactly as they were rolled', () => {
+    const league = createLeague({ seed: 'traits-new' });
+    const six = Object.values(league.players)
+      .slice(0, 5)
+      .map((p) => [
+        p.traits.workEthic,
+        p.traits.durability,
+        p.traits.temperament,
+        p.traits.injuryResistance,
+        p.traits.naturalFitness,
+        p.traits.versatility,
+      ]);
+    expect(six).toMatchInlineSnapshot(`
+      [
+        [
+          14,
+          10,
+          14,
+          11,
+          9,
+          4,
+        ],
+        [
+          5,
+          9,
+          9,
+          12,
+          9,
+          6,
+        ],
+        [
+          8,
+          6,
+          11,
+          9,
+          12,
+          9,
+        ],
+        [
+          14,
+          17,
+          8,
+          15,
+          11,
+          14,
+        ],
+        [
+          12,
+          8,
+          11,
+          15,
+          4,
+          12,
+        ],
+      ]
+    `);
+  });
+
   it('are seeded by the player, on the 1–20 scale, and independent of talent', () => {
     const league = createLeague({ seed: 'traits-a' });
     const again = createLeague({ seed: 'traits-a' });
