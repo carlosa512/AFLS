@@ -48,7 +48,7 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // Coaching trees (0.2.18): founding coaches' pre-league staffs (`pastUnder`); trees themselves are read off careers,
   // never stored. Trees move who coaches where, and so the whole world: measured on offseason-audit, players growth
   // 1,051-1,067 KB against main's 1,037 (more retirees kept, until retirees are pruned) and the retained save 17,352 KB
-  // against 17,350, with retirees now dropping their tag count and settled ceiling changes. Agreed by the owner.
+  // against 17,350, with retirees now dropping their tag count. Agreed by the owner.
   coachingTrees: { firstSeason: 0, retainedSeasons: 150, games: 0, annualGrowth: 0, playersGrowth: 50 },
 };
 

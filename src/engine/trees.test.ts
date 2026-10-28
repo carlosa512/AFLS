@@ -137,7 +137,7 @@ describe('trees, branches and standing', () => {
     expect(treeOf(l, r.id)!.disciples.sort()).toEqual([a.id, b.id].sort());
   });
 
-  it('grows only from a winner: .500 or better over three seasons in charge', () => {
+  it('grows only from a winner: .550 or better over five seasons in charge', () => {
     const { l, c } = blank();
     const [r, a, b] = c;
     const now = l.season;
@@ -146,8 +146,8 @@ describe('trees, branches and standing', () => {
     headed(a, 2, [now - 4, now - 3, now - 2, now - 1], 9, 8);
     headed(b, 3, [now - 4, now - 3, now - 2, now - 1], 9, 8);
     expect(hasTree(l, r.id)).toBe(false); // 6-11 six years running: good teachers, no tree
-    // Three big seasons before those and he's a .500 coach: now his men make a tree.
-    headed(r, 1, [now - 14, now - 13, now - 12], 15, 2);
+    // Four big seasons before those and he's a .550 coach: now his men make a tree.
+    headed(r, 1, [now - 15, now - 14, now - 13, now - 12], 15, 2);
     expect(hasTree(l, r.id)).toBe(true);
   });
 
@@ -298,6 +298,23 @@ describe('the carousel', () => {
     expect(hot).toBeLessThan(0);
     expect(withering).toBeGreaterThan(0);
     expect(treeLean(l, null, cand, 'offCoord')).toBe(0); // only head-coach searches read standing
+  });
+
+  it('cools on a tree that has already filled a head-coach job this offseason', () => {
+    const { l, c } = blank();
+    const [r, a, b, cand] = c;
+    const now = l.season;
+    for (const d of [a, b, cand]) d.pastUnder = [{ coachId: r.id, role: 'offCoord', seasons: 4 }];
+    for (const d of [a, b]) {
+      d.career = [now - 3, now - 2, now - 1].map((s) => row(s, d === a ? 2 : 3, 'headCoach'));
+      d.role = 'headCoach';
+      d.teamId = d === a ? 2 : 3;
+      d.since = now - 3;
+    }
+    const before = treeLean(l, null, cand, 'headCoach');
+    a.since = now; // a club just hired one of his men
+    expect(treeLean(l, null, cand, 'headCoach')).toBeGreaterThan(before);
+    expect(treeLean(l, null, cand, 'offCoord')).toBe(0);
   });
 
   it('carries a mentor’s scheme on about half the time, the same answer every time', () => {

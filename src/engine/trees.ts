@@ -181,8 +181,8 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
 }
 
 /** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
-/** A tree grows from a winner: .500 or better over five seasons or more as a head coach. */
-export const WINNER = { seasons: 5, share: 0.5 };
+/** A tree grows from a winner: .550 or better over five seasons or more as a head coach. */
+export const WINNER = { seasons: 5, share: 0.55 };
 /** Seasons two of his men must run clubs side by side, both established, while he is a winner: a run, not a moment. */
 export const SIDE_BY_SIDE = 2;
 
@@ -411,6 +411,8 @@ export const TREE_KEEP = 0.25;
 export const TREE_PULL = 0.3;
 /** Head-coach searches: a hot tree's disciples score better, a withering one's worse. */
 export const TREE_STANDING: Record<TreeStanding, number> = { hot: -0.15, steady: -0.05, withering: 0.4, faded: 0 };
+/** Each head coach a tree has already given a club this offseason: owners rarely hire twice from one tree in a cycle. */
+export const TREE_CROWD = 0.3;
 /** The chance a new coordinator runs his main mentor's scheme instead of his own. */
 export const TREE_SCHEME = 0.5;
 
@@ -427,7 +429,11 @@ export function treeLean(league: League, hc: Coach | null, c: Coach, role: Coach
   let lean = hc && linked(league, c, hc) ? -TREE_PULL : 0;
   if (role === 'headCoach') {
     const tree = treeFor(league, c.id);
-    if (tree) lean += TREE_STANDING[standingOf(league, tree)];
+    if (tree)
+      lean +=
+        TREE_STANDING[standingOf(league, tree)] +
+        TREE_CROWD *
+          tree.activeHeadCoaches.filter((id) => id !== c.id && league.coaches[id]?.since === league.season).length;
   }
   return lean;
 }
