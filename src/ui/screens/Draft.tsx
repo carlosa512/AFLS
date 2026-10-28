@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import {
   clockState,
+  markOrder,
+  pickMark,
   riskOf,
   staffBoardValue,
   staffGaps,
+  verdictRecord,
   type ClockState,
   type Gap,
+  type PickMark,
   type Risk,
 } from '../../engine/draftGrade';
 import { draftForUser, draftNextPick, draftToEnd, draftToUserPick } from '../../engine/offseason';
@@ -305,8 +309,28 @@ function YourPicks({ league }: { league: League }) {
       </table>
     </div>
   );
+  const record = verdictRecord(league, teamId);
   return (
     <Panel title="Your picks">
+      {record.length > 0 && (
+        <ul className="verdict-record">
+          {record.map((y) => (
+            <li key={y.season}>
+              <b>{y.season}</b>{' '}
+              {(
+                [
+                  [y.steal, 'steal', 'steals'],
+                  [y.hit, 'hit', 'hits'],
+                  [y.miss, 'miss', 'misses'],
+                ] as const
+              )
+                .filter(([n]) => n)
+                .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
+                .join(', ')}
+            </li>
+          ))}
+        </ul>
+      )}
       {now.length ? (
         table(now)
       ) : (
@@ -341,12 +365,13 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
   const [team, setTeam] = useState<number | 'all'>(league.userTeamId);
   const [pickedYear, setYear] = useState<number | 'all' | null>(null);
   const [pickedRound, setRound] = useState<number | 'all' | null>(null);
+  const [sort, onSort] = useSort<'pick' | 'verdict'>({ key: 'pick', desc: false });
   if (!years.length) return null;
   // One team's history is short enough to show whole; the league's goes a year and a round at a time.
   const year = pickedYear ?? (team === 'all' ? years[0] : 'all');
   const following = live !== undefined && year === league.season;
   const round = pickedRound ?? (team !== 'all' ? 'all' : following ? live : 1);
-  const rows = drafted
+  const filtered = drafted
     .filter(
       (p) =>
         (team === 'all' || p.draft!.teamId === team) &&
@@ -358,6 +383,14 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
         b.draft!.season - a.draft!.season ||
         (following ? b.draft!.pick - a.draft!.pick : a.draft!.pick - b.draft!.pick),
     );
+  const marks = new Map(filtered.map((p) => [p.id, pickMark(league, p)]));
+  // Pick order is the draft's own (newest first while following the clock); a second click turns it around.
+  const rows =
+    sort.key === 'verdict'
+      ? sortRows(filtered, sort, (p) => markOrder(marks.get(p.id)!))
+      : sort.desc
+        ? [...filtered].reverse()
+        : filtered;
   return (
     <Panel className="draft-history">
       <Section id="draft-history" title="Draft history">
@@ -398,8 +431,9 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
               <thead>
                 <tr>
                   {year === 'all' && <th className="num">Year</th>}
-                  <th className="num">Pick</th>
+                  <SortTh label="Pick" k="pick" sort={sort} onSort={onSort} desc={false} className="num" />
                   <th className="sticky-col">Player</th>
+                  <SortTh label="Verdict" k="verdict" sort={sort} onSort={onSort} desc={false} />
                   <th>Pos</th>
                   <th>Team</th>
                   <th className="num" title="Where the league consensus ranked him in his class when he was taken">
@@ -423,8 +457,10 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
                       </td>
                       <td className="sticky-col">
                         <PlayerLink league={league} player={p} />
-                        {value === 'reach' && <span className="tag-pill tag-warn">reach</span>}
-                        {value === 'steal' && <span className="tag-pill tag-good">steal</span>}
+                        <DraftDayPill value={value} />
+                      </td>
+                      <td>
+                        <VerdictPill mark={marks.get(p.id)!} />
                       </td>
                       <td>{p.position}</td>
                       <td>
@@ -543,8 +579,7 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
                 <TeamChip team={league.teams[pk.ownerId]} />
                 <span className="muted small">{p.position}</span>
                 <PlayerLink league={league} player={p} />
-                {value === 'reach' && <span className="tag-pill tag-warn">reach</span>}
-                {value === 'steal' && <span className="tag-pill tag-good">steal</span>}
+                <DraftDayPill value={value} />
               </li>
             );
           })}
@@ -647,6 +682,48 @@ function GapPill({ gap }: { gap: Gap }) {
       title={`Your staff: #${gap.ours}. League consensus: #${gap.consensus}.`}
     >
       {gap.tag === 'sleeper' ? `Sleeper ${arrow}` : gap.tag === 'fade' ? `Fade ${arrow}` : arrow}
+    </span>
+  );
+}
+
+/** Draft day's own judgment: taken a dozen picks ahead of the consensus (a reach) or after it (value). */
+function DraftDayPill({ value }: { value: 'reach' | 'steal' | null }) {
+  if (value === 'reach')
+    return (
+      <span className="tag-pill tag-warn" title="Taken a dozen picks or more ahead of his consensus rank">
+        reach
+      </span>
+    );
+  if (value === 'steal')
+    return (
+      <span className="tag-pill tag-good" title="Taken a dozen picks or more after his consensus rank">
+        value
+      </span>
+    );
+  return null;
+}
+
+const VERDICT_TEXT = { steal: 'Steal', hit: 'Hit', miss: 'Miss' } as const;
+const VERDICT_TONE = { steal: ' tag-good', hit: '', miss: ' tag-bad' } as const;
+
+/**
+ * How a pick turned out in your scouts' eyes: solid once locked after his third season, dashed while it's an early
+ * read, grey before his rookie season is in.
+ */
+function VerdictPill({ mark }: { mark: PickMark | null }) {
+  if (!mark) return null;
+  if (!mark.verdict)
+    return (
+      <span className="tag-pill tag-inactive verdict-pill" title="His rookie season isn't in yet">
+        Too early
+      </span>
+    );
+  return (
+    <span
+      className={`tag-pill verdict-pill${VERDICT_TONE[mark.verdict]}${mark.locked ? '' : ' tag-early verdict-early'}`}
+      title={mark.locked ? 'Judged after his third season' : 'Early read: locks after his third season'}
+    >
+      {VERDICT_TEXT[mark.verdict]}
     </span>
   );
 }

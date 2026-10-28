@@ -147,3 +147,28 @@ export function clockState(league: League): ClockState {
   if (!league.draftClass.length) return { kind: 'none' };
   return { kind: 'preview', prospects: availableProspects(league).length, firstPick: mine() };
 }
+
+/** One draft year of a team's locked verdicts. */
+export interface VerdictYear {
+  season: number;
+  steal: number;
+  hit: number;
+  miss: number;
+}
+
+/** A team's record on its locked picks, a draft year at a time, newest first; years with none locked are left out. */
+export function verdictRecord(league: League, teamId: number): VerdictYear[] {
+  const years = new Map<number, VerdictYear>();
+  for (const p of Object.values(league.players)) {
+    const v = p.draft?.teamId === teamId && p.scouting ? p.draft.verdict : undefined;
+    if (!v) continue;
+    const s = p.draft!.season;
+    if (!years.has(s)) years.set(s, { season: s, steal: 0, hit: 0, miss: 0 });
+    years.get(s)![v]++;
+  }
+  return [...years.values()].sort((a, b) => b.season - a.season);
+}
+
+/** Sort order for a pick's mark: steals first, then hits, misses, and picks too early to judge. */
+export const markOrder = (m: PickMark | null) =>
+  m?.verdict === 'steal' ? 0 : m?.verdict === 'hit' ? 1 : m?.verdict === 'miss' ? 2 : 3;

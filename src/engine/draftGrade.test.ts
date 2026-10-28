@@ -8,6 +8,7 @@ import {
   staffBoardValue,
   staffGaps,
   verdictFor,
+  verdictRecord,
 } from './draftGrade';
 import { createLeague } from './generate';
 import { migrateLeague } from './migrate';
@@ -210,5 +211,23 @@ describe('clockState', () => {
     if (s.kind === 'live') expect(s.pick).toBe(nextPick(l));
     for (let pick = nextPick(l); pick; pick = nextPick(l)) draftPlayer(l, pick, availableProspects(l)[0]);
     expect(clockState(l)).toEqual({ kind: 'done' });
+  });
+});
+
+describe('verdictRecord', () => {
+  it("counts the user's locked picks by draft year, newest first, and leaves out the rest", () => {
+    const league = createLeague({ seed: 'dg-record' });
+    const s = league.season;
+    const ps = drafted(league, [s - 4, s - 4, s - 3, s - 3, s - 1]);
+    for (const p of ps) p.draft!.teamId = league.userTeamId;
+    ps[0].draft!.verdict = 'steal';
+    ps[1].draft!.verdict = 'miss';
+    ps[2].draft!.verdict = 'hit';
+    ps[3].draft!.teamId = (league.userTeamId + 1) % 32;
+    ps[3].draft!.verdict = 'hit';
+    expect(verdictRecord(league, league.userTeamId)).toEqual([
+      { season: s - 3, steal: 0, hit: 1, miss: 0 },
+      { season: s - 4, steal: 1, hit: 0, miss: 1 },
+    ]);
   });
 });
