@@ -36,7 +36,8 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       settle over a player's first three seasons (`ceiling.ts`, 0.2.10), so about a third of first-rounders bust and
       some Day 3 picks break out (`npm run careers`, `docs/research/draft-outcomes.md`).
 - [x] **10. Trades with AI teams** · **Done**: one judge for every deal, with pick charts, contract value and seller
-      floors (`trade/judge.ts`, `value.ts`). `npm run trades` fails on lopsided deals and exploit probes.
+      floors (`trade/judge.ts`, `value.ts`). `npm run trades` fails on lopsided deals and exploit probes. Draft day
+      (0.2.14): AI trade-ups and trade-downs before each pick, and offers to you on the clock (`trade/draft.ts`).
 - [ ] **11. Coaches (HC, OC, DC) whose ratings affect results** · **Partial**: their ratings (youth, veterans) drive
       development and aging. Their styles, schemes and evolving quirks affect game decisions and specific execution
       windows, with player fit, career history and staff reports (`docs/COACH_QUIRKS.md`). HC/OC/DC numeric ratings

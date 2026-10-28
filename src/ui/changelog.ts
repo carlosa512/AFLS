@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.14',
+    date: '2026-10-28',
+    title: 'Draft-day trades',
+    text:
+      'Picks move on draft day. AI teams trade up for the players they want before they are gone, and trade down ' +
+      "when they'd rather have more picks. When you're on the clock, teams that want your pick call with offers that " +
+      'end the moment you pick; you can shop your pick to the league or call the teams ahead of you to move up. ' +
+      'Draft history shows who a pick came from and the deal that moved it.',
+  },
+  {
     version: '0.2.13',
     date: '2026-10-28',
     title: 'The trade desk',

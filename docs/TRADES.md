@@ -60,7 +60,7 @@ Items marked *assumed* had no source and are design choices.
 | --- | --- | --- |
 | Opens | New league year (mid-March, 4 p.m. ET) | `resign` phase (the league year flips at `beginOffseason`) |
 | Super Bowl → league year | Deals agreed but not official until the league year (Stafford–Goff, Jan → Mar 2021) | Closed (`complete`) |
-| Draft | Picks trade on the clock (round 1 is 8–10 minutes a pick) | Allowed in `draft`, but no AI ever trades during it |
+| Draft | Picks trade on the clock (round 1 is 8–10 minutes a pick) | Allowed in `draft`: the AI trades up and down before each pick, and calls you while you're on the clock |
 | Deadline | Tuesday after week 9, 4 p.m. ET (Nov 5 2024, Nov 4 2025, Nov 10 2026; it followed week 8 until 2023) | Closed once week 10 is next. The AI still trades after week 9's games, but you can't |
 | After the deadline | No trades until March; every release goes through waivers | Closed (no waivers in AFLS) |
 | Cutdown | 90 → 53, late August | `preseason` |
@@ -1501,6 +1501,20 @@ would need recalibrating.
 
 **Done when:** 35–45 trades a draft, 3–9 with a first-round pick; under 3 ms a pick; draft quality in
 `offseason` unchanged.
+
+#### Phase 4: what landed
+
+- **Built:** before each pick the AI looks for a trade-up to a prospect it covets (a tier break on its own
+  board, `COVET_MIN`), priced on each GM's own chart, with future picks in the mix and a few future-for-current
+  swaps (`DRAFT_SWAP_RATE`). You get offers while you're on the clock (they end when you pick), can shop your
+  pick or call teams ahead, and draft history shows where each pick came from.
+- **Measured** (`npm run trades`, 9 drafts, 169 deals): 18.8 trades a draft, 7.2 with a first-round pick,
+  2.94 ms a pick, the buyer took its man every time, round-1 prices 1.14× the Jimmy Johnson chart, premium
+  positions 20 points above teams that stayed put, 0.56 QB trade-ups into the top 16 a draft, analytics and
+  Pick Hoarder GMs trading down more than their share. `npm run offseason -- 6` shows 10–25 a draft.
+- **Short of target:** volume. Rounds 1–2 trade near the NFL's rate; rounds 3–7 trade far less, since the tier
+  break is the same in every round while later boards are flatter. The check shows these numbers without
+  failing until the owner decides (`QUESTIONS.md`).
 
 ### Phase 5: memory, media and mind games
 
