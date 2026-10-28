@@ -10,7 +10,7 @@ import {
   verdictFor,
   verdictRecord,
 } from './draftGrade';
-import { createLeague } from './generate';
+import { createLeague, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { availableProspects, draftPlayer, generateDraftClass, nextPick, simDraft } from './offseason/draft';
@@ -103,7 +103,7 @@ describe('lockVerdicts', () => {
     const saved = copy(league);
     saved.version = 58;
     const loaded = migrateLeague(saved)!;
-    expect(loaded.version).toBe(59);
+    expect(loaded.version).toBe(SAVE_VERSION);
     expect(loaded.players[old.id].draft!.verdict).toBeDefined();
     expect(loaded.players[recent.id].draft!.verdict).toBeUndefined();
   });
