@@ -47,13 +47,14 @@ export type PersonalityName =
 
 /**
  * The parts of a character whose job has shipped. A name or a sentence never leans on one that doesn't do anything
- * yet: controversy arrives with feuds.
+ * yet (leadership arrived with mentoring, controversy with feuds; all ten are in now).
  */
 export const TRAITS_ON: ReadonlySet<CharacterKey> = new Set<CharacterKey>([
   'workEthic',
   'temperament',
   'leads',
   'poise',
+  'controversy',
   'sportsmanship',
   'loyalty',
   'winning',

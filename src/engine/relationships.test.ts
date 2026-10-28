@@ -15,6 +15,7 @@ import {
   noteDeparture,
   rapport,
   snubCheck,
+  speaksOut,
   tiesOffseason,
 } from './relationships';
 import { endPair } from './mentoring';
@@ -231,5 +232,20 @@ describe('friendships and feuds', () => {
     kid.mentoredBy = [{ id: vet.id, from: l.season - 1, to: l.season - 1 }];
     endPair(l, kid);
     expect(kid.ties?.find((t) => t.with === vet.id)?.kind).toBe('friend');
+  });
+});
+
+describe('speaking out', () => {
+  it('is for the outspoken only, and the same answer every time', () => {
+    const l = fresh('speak');
+    const [a] = activeRoster(l, 1);
+    const quiet = { ...a, traits: { ...a.traits, controversy: 9 } };
+    expect(speaksOut(l, quiet, l.season, 'traded')).toBe(false);
+    const loud = { ...a, traits: { ...a.traits, controversy: 20 } };
+    const first = speaksOut(l, loud, l.season, 'traded');
+    expect(speaksOut(l, loud, l.season, 'traded')).toBe(first);
+    let any = false;
+    for (let s = 0; s < 20; s++) any ||= speaksOut(l, loud, l.season + s, 'cut');
+    expect(any).toBe(true);
   });
 });

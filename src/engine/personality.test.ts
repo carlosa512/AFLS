@@ -70,10 +70,11 @@ describe('personality', () => {
   });
 
   it('never names a trait whose job has not shipped', () => {
-    const off: PersonalityName[] = ['Locker-Room Lawyer', 'Volatile', 'Diva'];
+    // Every trait has its job now: all eighteen names are in play.
+    expect([...TRAITS_ON].sort()).toEqual([...ALL].sort());
     const names = players.map((p) => personalityOf(trueCharacter(p)));
-    for (const n of names) expect(off).not.toContain(n);
-    expect(names).toContain('Born Leader');
+    for (const n of ['Born Leader', 'Locker-Room Lawyer', 'Volatile', 'Diva'] as PersonalityName[])
+      expect(names).toContain(n);
   });
 
   it.each<[PersonalityName, Partial<Character>]>([
@@ -104,8 +105,7 @@ describe('personality', () => {
     expect(characterLine(average({ poise: 3 }))).toBe('Tightens up when it counts.');
     expect(characterLine(average())).toBe('Nothing about him stands out.');
     expect(characterLine(average({ leads: 19 }))).toBe('The room follows him.');
-    // Controversy's job hasn't shipped: it stays out of the sentence until it has.
-    expect(characterLine(average({ controversy: 19 }))).toBe('Nothing about him stands out.');
+    expect(characterLine(average({ controversy: 19 }))).toBe('Says what he thinks, to anyone.');
     for (const p of players) expect(characterLine(trueCharacter(p))).not.toMatch(/marble|trait|z-score|\bsd\b/i);
   });
 

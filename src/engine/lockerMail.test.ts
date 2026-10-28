@@ -3,6 +3,7 @@ import { createLeague } from './generate';
 import { deliverMail } from './inbox';
 import { mentoringWeek } from './mentoring';
 import { nameCaptains } from './personality';
+import { noteDeparture, speaksOut } from './relationships';
 import type { League, Player } from './types';
 
 const BANNED = /marble|\btraits?\b|z-score/i;
@@ -65,5 +66,33 @@ describe('locker room letters', () => {
     expect(m).toHaveLength(1);
     const c = l.teams[l.userTeamId].captains!;
     for (const id of [c.offense, c.defense, c.specialTeams]) expect(m[0].body).toContain(l.players[id].lastName);
+  });
+
+  it('SNN carries a player who speaks out after we trade him, once, and never a quiet one', () => {
+    const { l } = world();
+    l.phase = 'regular';
+    const ours = Object.values(l.players).filter((p) => p.teamId === l.userTeamId);
+    let loud: Player | undefined;
+    for (const p of ours) {
+      p.traits = { ...p.traits, controversy: 20 };
+      if (speaksOut(l, p, l.season, 'traded')) {
+        loud = p;
+        break;
+      }
+    }
+    expect(loud).toBeDefined();
+    noteDeparture(l, loud!, l.userTeamId, 'traded');
+    loud!.teamId = (l.userTeamId + 1) % 32;
+    const quiet = ours.find((p) => p !== loud)!;
+    quiet.traits = { ...quiet.traits, controversy: 5 };
+    noteDeparture(l, quiet, l.userTeamId, 'cut');
+    deliverMail(l);
+    deliverMail(l);
+    const m = mail(l, `speak:${l.season}:${loud!.id}:traded`);
+    expect(m).toHaveLength(1);
+    expect(m[0].from).toBe('SNN league desk');
+    expect(m[0].body).toContain(loud!.lastName);
+    expect(m[0].body).not.toMatch(BANNED);
+    expect(mail(l, `speak:${l.season}:${quiet.id}:`)).toHaveLength(0);
   });
 });

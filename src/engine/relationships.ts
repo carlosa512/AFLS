@@ -360,3 +360,34 @@ function leanFor(league: League, p: Player, teamId: number): Lean {
   }
   return { value, walkAway, ask };
 }
+
+// ───────── speaking out ─────────
+
+export type SpeakEvent = 'benched' | 'traded' | 'cut' | 'snubbed';
+
+/**
+ * After a benching, a trade, a release or a snub, does an outspoken man say so in public? Only the outspoken
+ * (controversy half a spread up or more), and the louder the likelier. A pure function of the seed: the same answer
+ * every time it's asked.
+ */
+export function speaksOut(league: League, p: Player, season: number, kind: SpeakEvent): boolean {
+  const loud = z(p.traits.controversy);
+  if (loud < 0.5) return false;
+  return new Rng(`${league.seed}:speak:${season}:${p.id}:${kind}`).chance(
+    Math.min(0.8, Math.max(0, 0.15 + 0.25 * loud)),
+  );
+}
+
+/** What happened to him this season that he might speak out about: read off what's saved, nothing stored for it. */
+export function speakEvents(league: League, p: Player): { kind: SpeakEvent; teamId: number }[] {
+  const out: { kind: SpeakEvent; teamId: number }[] = [];
+  for (const d of p.left ?? [])
+    if (d.season === league.season && d.how !== 'walked')
+      out.push({ kind: d.how === 'cut' ? 'cut' : 'traded', teamId: d.teamId });
+  if (p.teamId !== null && league.phase === 'resign' && benched(league, p))
+    out.push({ kind: 'benched', teamId: p.teamId });
+  for (const t of p.ties ?? [])
+    if (t.kind === 'feud' && t.why === 'snubbed' && t.since === league.season && p.teamId !== null)
+      out.push({ kind: 'snubbed', teamId: p.teamId });
+  return out;
+}

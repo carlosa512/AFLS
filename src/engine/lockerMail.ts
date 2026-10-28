@@ -6,6 +6,7 @@
  */
 import { ROOM_OF, teamCoaches } from './coaching';
 import { personalityOf, personalityTone, trueCharacter } from './personality';
+import { speakEvents, speaksOut, type SpeakEvent } from './relationships';
 import type { Coach, InboxMessage, League, Player } from './types';
 
 type Draft = Omit<InboxMessage, 'read'>;
@@ -112,9 +113,47 @@ function captains(league: League, have: Set<string>): Draft | null {
   };
 }
 
+const SAID: Record<SpeakEvent, (p: Player, club: string) => string> = {
+  traded: (p, club) =>
+    `"I gave that place everything," ${p.lastName} said of the ${club}. "They'll see what they let go."`,
+  cut: (p, club) => `"They never gave me a real chance," ${p.lastName} said after the ${club} let him go.`,
+  benched: (p, club) =>
+    `"I'm a starter in this league," ${p.lastName} said of losing his job with the ${club}. "I'll prove it."`,
+  snubbed: (p, club) =>
+    `"You see who they pay," ${p.lastName} said of the ${club}'s latest deal. "That tells you everything."`,
+};
+
+/** SNN on a player speaking out: ours, or one who left us in the last three seasons. Neutral reporting, his words. */
+function speakMail(league: League, have: Set<string>): Draft[] {
+  const user = league.userTeamId;
+  const out: Draft[] = [];
+  for (const p of Object.values(league.players)) {
+    if (p.retired) continue;
+    const ours = p.teamId === user || p.left?.some((d) => d.teamId === user && league.season - d.season <= 3);
+    if (!ours) continue;
+    for (const e of speakEvents(league, p)) {
+      const id = `speak:${league.season}:${p.id}:${e.kind}`;
+      if (have.has(id) || !speaksOut(league, p, league.season, e.kind)) continue;
+      const club = league.teams[e.teamId];
+      out.push({
+        id,
+        season: league.season,
+        phase: league.phase,
+        week: league.week,
+        from: 'SNN league desk',
+        category: 'league',
+        subject: `${fullName(p)} speaks out`,
+        body: `${fullName(p)} didn't keep it to himself. ${SAID[e.kind](p, `${club.city} ${club.name}`)}`,
+        actions: [{ kind: 'player', playerId: p.id }],
+      });
+    }
+  }
+  return out;
+}
+
 /** Everything new from the locker room, for `deliverMail`. */
 export function lockerMail(league: League, have: Set<string>): Draft[] {
-  const out: Draft[] = [];
+  const out: Draft[] = [...speakMail(league, have)];
   const ours = Object.values(league.players).filter((p) => p.teamId === league.userTeamId && !p.retired);
   if (league.phase === 'resign')
     for (const p of ours) {
