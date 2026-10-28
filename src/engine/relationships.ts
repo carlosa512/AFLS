@@ -149,9 +149,9 @@ export function clubFeeling(league: League, p: Player, teamId: number): 'home' |
 
 // ───────── friendships and feuds ─────────
 
-/** Starting odds (tuned against `npm run offseason`: about one feud a team, a few friendships). */
-export const FEUD_BASE = 0.01;
-export const FRIEND_BASE = 0.25;
+/** Tuned against `npm run offseason` (six seasons): about one feud a team, a few friendships. */
+export const FEUD_BASE = 0.006;
+export const FRIEND_BASE = 0.2;
 export const SETTLE_BASE = 0.35;
 const SD = 3.5;
 
@@ -245,7 +245,8 @@ export function tiesOffseason(league: League): void {
             startFeud(league, sat ? a : b, sat ? b : a, sat || satB ? 'benched' : undefined);
             continue;
           }
-          if (!tie && seasonsTogether(a, b) >= 4) {
+          // A pair gets one chance at a friendship: the year they reach four seasons in the room together.
+          if (!tie && seasonsTogether(a, b) === 4) {
             const friendly =
               FRIEND_BASE * (1 + 0.5 * ((a.personality.loyalty - 0.5) / 0.22 + (b.personality.loyalty - 0.5) / 0.22));
             if (rng.chance(Math.min(0.6, Math.max(0.05, friendly)))) addTie(league, a, b, 'friend');

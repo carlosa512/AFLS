@@ -576,7 +576,7 @@ for (let s = 0; s < seasons; s++) {
           .reduce((n, p) => n + (p.ties?.filter((x) => x.kind === 'friend').length ?? 0), 0) / 2,
     );
     console.log(
-      `  checks ${year} locker room: ${check('feuds/team', avg(feuds), 0.5, 1.8)} · ${check('teams past 3 feuds', feuds.filter((n) => n > 3).length / feuds.length, 0, 0.1)} · ${check('friendships/team', avg(friends), 1.5, 6)}`,
+      `  checks ${year} locker room: ${check('feuds/team', avg(feuds), 0.5, 1.8)} · ${check('teams past 3 feuds', feuds.filter((n) => n > 3).length / feuds.length, 0, 0.1)} · ${s >= 3 ? check('friendships/team', avg(friends), 1.5, 6) : `friendships/team ${avg(friends).toFixed(2)} (forming: four seasons together first)`}`,
     );
   }
 
