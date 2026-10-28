@@ -346,3 +346,28 @@ describe('save migration to v5', () => {
     expect(migrateLeague(copy(up))).toEqual(up);
   });
 });
+
+describe('a ceiling settled under him', () => {
+  /** Mean overall change in a year for 300 22-year-olds whose ceilings sit `gap` from where they are. */
+  const year = (gap: number) => {
+    let sum = 0;
+    for (let i = 0; i < 300; i++) {
+      const p = rookie('WR', 22, i);
+      p.potential = playerOvr(p) + gap;
+      const before = playerOvr(p);
+      developPlayer(new Rng(`settled:${i}`), p, { playedShare: 1 });
+      sum += playerOvr(p) - before;
+    }
+    return sum / 300;
+  };
+
+  it('slips toward it, a point a year at most', () => {
+    expect(year(-0.5)).toBeLessThan(-0.05);
+    expect(year(-4)).toBeLessThan(year(-0.5));
+    expect(year(-4)).toBeGreaterThan(-1.1);
+  });
+
+  it('holds a player sitting at his ceiling', () => {
+    expect(Math.abs(year(0))).toBeLessThan(0.1);
+  });
+});

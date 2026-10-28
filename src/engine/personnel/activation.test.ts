@@ -42,7 +42,9 @@ describe('switching practice squads on', () => {
     for (const t of l.teams) {
       expect(capSpace(l, t.id)).toBeGreaterThanOrEqual(-0.001);
     }
-    expect(l.teams.filter((t) => practiceSquad(l, t.id).length > 0).length).toBeGreaterThanOrEqual(30);
+    // Most clubs form one at camp; a few with no room or no one worth keeping don't. Across leagues it runs 26–31 of
+    // 32 (seeds activation-old, sq-2, sq-3 on main before the draft-busts change: 31, 26, 30).
+    expect(l.teams.filter((t) => practiceSquad(l, t.id).length > 0).length).toBeGreaterThanOrEqual(26);
     // Camp's pay-ahead held room for a full veteran squad; once squads formed, what they didn't cost was paid ahead too.
     const again = structuredClone(l);
     again.phase = 'preseason';

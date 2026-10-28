@@ -209,6 +209,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     (`changePosition`, the one writer of `player.position`), the coaches' read with its reason
     (`conversionRead`: no move without a `MoveReason`), and the same planner for your suggestion and AI teams
     (`suggestMove`, `planMoves`). A mover's body keeps aging as his first position (`DevContext.bodyAs`)
+  - `ceiling.ts` ceilings that settle in the league: over a player's first three seasons his true ceiling moves when
+    his team's season ends (`settleFinished`, from `playWeek` and the new league year), on its own stream, leaned by
+    work ethic, how he played against players rated like him (`playLean`), snaps and coaching; `ceilingShifts` keeps
+    each change (hidden: no screen reads it). The swing table and the spread still to come (`CEILING_SWING`,
+    `unsettledSpread`, which widens a scout's ceiling range) live in `development.ts`
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)

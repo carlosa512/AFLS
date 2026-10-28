@@ -21,6 +21,7 @@ import {
   scoutReportParts,
   seasonNote,
   seasonRole,
+  settleNote,
   starRating,
 } from './scouting';
 import type { League, Player } from './types';
@@ -429,5 +430,71 @@ describe('film for arrivals', () => {
     const rookie = { ...arrival, origin: COLLEGES_BY_TIER.power[0] } as Player;
     expect(knowledge(l, ai, arrival)).toBeLessThan(knowledge(l, ai, rookie));
     expect(knowledge(l, ai, arrival)).toBeCloseTo(0.45 * 0.4, 5);
+  });
+});
+
+describe('a ceiling still settling', () => {
+  const league = createLeague({ seed: 'scouting-settle' });
+  const theirs = Object.values(league.players).filter(
+    (p) => p.teamId !== null && p.teamId !== league.userTeamId && p.age <= 23,
+  );
+  const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
+  /** The same player in his third year, before and after its settle (the last he has): all else equal. */
+  const pair = (p: Player) => [
+    { ...copy(p), experience: 2, ceilingShifts: undefined },
+    { ...copy(p), experience: 2, ceilingShifts: { [league.season]: 0 } },
+  ];
+
+  it("a rookie's ceiling range is wider than a settled player's, centred the same", () => {
+    for (const p of theirs.slice(0, 20)) {
+      const [fresh, settled] = pair(p).map((x) => perceive(league, league.userTeamId, x));
+      expect(fresh.potMid).toBeCloseTo(settled.potMid, 9);
+      expect(fresh.potHi - fresh.potLo).toBeGreaterThan(settled.potHi - settled.potLo);
+      expect(fresh.potHiRead).toBeCloseTo(settled.potHi, 9);
+      expect(settled.potHiRead).toBe(settled.potHi);
+    }
+  });
+
+  it('the verdict reads the range without the unsettled part', () => {
+    for (const p of theirs.slice(0, 20)) {
+      const [fresh, settled] = pair(p).map((x) => scoutReportParts(league, league.userTeamId, x).verdict);
+      expect(fresh).toBe(settled);
+    }
+  });
+
+  it("a rookie's verdict, room to grow included, ignores what is still to settle", () => {
+    // Two rookies alike in all but his first season's settle (same experience, so the same knowledge).
+    const verdicts = (p: Player) =>
+      [undefined, { [league.season]: 0 }].map(
+        (ceilingShifts) =>
+          scoutReportParts(league, league.userTeamId, { ...copy(p), experience: 0, ceilingShifts }).verdict,
+      );
+    // Rookies already at their ceiling: only what is still to settle could make "room still to grow" of them.
+    for (const p of theirs.slice(0, 60).map((x) => ({ ...copy(x), potential: playerOvr(x) - 0.5 }))) {
+      const [fresh, settled] = verdicts(p);
+      expect(fresh).toBe(settled);
+    }
+  });
+
+  it('says where a young player stands in settling', () => {
+    const p = theirs[0];
+    const note = (over: Partial<Player>) => {
+      const q = { ...copy(p), ...over };
+      return settleNote(league, league.userTeamId, q, perceive(league, league.userTeamId, q));
+    };
+    expect(note({ experience: 0, ceilingShifts: undefined })).toBe(
+      'Still a projection: his first season will tell us a lot about his ceiling.',
+    );
+    expect(note({ experience: 2, ceilingShifts: { [league.season - 1]: 0.1 } })).toBe(
+      'His ceiling looks about settled.',
+    );
+    expect(note({ experience: 1, ceilingShifts: { [league.season - 1]: -2.5 } })).toBe(
+      'His ceiling read has come down since he came into the league.',
+    );
+    expect(note({ experience: 1, ceilingShifts: { [league.season - 1]: 2.5 } })).toBe(
+      'His ceiling read has gone up since he came into the league.',
+    );
+    expect(note({ experience: 1, ceilingShifts: { [league.season - 1]: 0.2 } })).toBeNull();
+    expect(note({ age: 27, experience: 5 })).toBeNull();
   });
 });

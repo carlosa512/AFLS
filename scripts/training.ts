@@ -216,10 +216,13 @@ check('release shares sum to', RELEASE.newYear + RELEASE.program + RELEASE.camp 
 check(`years released in steps that missed the one-jump result (of ${compared})`, drifted, [0, 0]);
 check('ratings off the 1–20 integer scale (player-weeks)', offScale, [0, 0]);
 const inSeason = youngInSeason ? movedInSeason / youngInSeason : 0;
+// The floor guards that a season's share of each year shows week by week. A quarter, not three in ten: settling
+// ceilings (`ceiling.ts`) leave some young players stalled at a ceiling the league brought down, and a bust that
+// stopped growing is the design, not a release that failed (owner's call, Oct 27 2026; 0.28 at 0.6/0.3 with busts).
 check(
   'young rostered players whose ratings moved in season (share)',
   inSeason,
-  RELEASE.season > 0 ? [0.3, 1] : [0, 0],
+  RELEASE.season > 0 ? [0.25, 1] : [0, 0],
   2,
 );
 

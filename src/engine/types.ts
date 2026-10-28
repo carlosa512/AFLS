@@ -193,6 +193,11 @@ export interface Player {
   ratings: Ratings;
   /** Hidden ceiling for overall rating (1–20). Revealed only through scouting. */
   potential: number;
+  /**
+   * How his ceiling settled in each of his first league years (season → change, true, in overall points;
+   * `ceiling.ts`). Hidden like the ceiling: no screen reads it. Present means that season has settled.
+   */
+  ceilingShifts?: Record<number, number>;
   /** null for free agents and retired players. */
   teamId: number | null;
   /** Free agents have no contract. */
@@ -265,6 +270,8 @@ export interface DevYear {
   rate?: number;
   decline?: number[];
   bodyAs?: Position;
+  /** The ceiling the year was rolled with, under 26 (a settle during the year moves only the next roll). Missing before v57. */
+  potential?: number;
   /** Share of the year released so far (0–1). */
   done: number;
   /** Integer change applied so far to each rating, in `ATTRIBUTES` order; trailing zeros are dropped (missing = 0). */

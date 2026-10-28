@@ -818,6 +818,7 @@ export type MailSubject =
   | { kind: 'marketRecap'; season: number }
   | { kind: 'positionOffer'; season: number; playerId: number; to: Position }
   | { kind: 'positionMoved'; season: number; playerId: number }
+  | { kind: 'ceiling'; season: number; playerId: number }
   | { kind: 'covering'; season: number; week: number; playerId: number; pos: Position }
   | { kind: 'shortHanded'; season: number; week: number; pos: Position }
   | { kind: 'squadPoach'; season: number; week: number; playerId: number }
@@ -932,6 +933,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'futuresKept', season };
     case 'squadPoach':
       return { kind: 'squadPoach', season, week: Number(a), playerId: Number(b) };
+    case 'ceiling':
+      return { kind: 'ceiling', season, playerId: Number(a) };
     case 'position':
       return a === 'offer'
         ? { kind: 'positionOffer', season, playerId: Number(b), to: rest[0] as Position }
@@ -2484,6 +2487,43 @@ function positionMovedMail(league: League, have: Set<string>): Draft[] {
 }
 
 /**
+ * A young player's ceiling settled and moved our read by a point or more (`ceiling.ts`): the head coach when he has
+ * stalled, the director when he is outplaying his grades. The condition is our read before and after, never the
+ * true change; once per player and season.
+ */
+function ceilingMail(league: League, have: Set<string>): Draft[] {
+  const { season } = league;
+  const team = league.teams[league.userTeamId];
+  const out: Draft[] = [];
+  for (const p of teamPlayers(league, team.id)) {
+    const shift = p.ceilingShifts?.[season];
+    const id = `ceiling:${season}:${p.id}`;
+    if (shift === undefined || p.retired || have.has(id)) continue;
+    const now = perceive(league, team.id, p).potMid;
+    const moved = now - perceive(league, team.id, { ...p, potential: p.potential - shift }).potMid;
+    if (Math.abs(moved) < 1) continue;
+    const down = moved < 0;
+    out.push({
+      id,
+      season,
+      phase: league.phase,
+      week: league.phase === 'regular' ? league.week : 0,
+      ...(down ? headCoach(league) : director(league)),
+      category: 'staff',
+      subject: down ? `${fullName(p)} has hit a wall` : `${fullName(p)} is outplaying his grades`,
+      body: down
+        ? "He's hit a wall. What you see now is about what you'll get from him."
+        : "He's outplaying his grades. We may have had his ceiling too low.",
+      actions: [
+        { kind: 'player', playerId: p.id },
+        { kind: 'team', teamId: team.id },
+      ],
+    });
+  }
+  return out;
+}
+
+/**
  * The head coach on a short position: who the staff lined up there (once per move), or that it's short with nobody on
  * the roster good enough to cover, pointing to free agency there (once while it stays short).
  */
@@ -2835,6 +2875,8 @@ export function deliverMail(league: League): void {
     if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...positionOfferMail(league, have));
     if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
       fresh.push(...positionMovedMail(league, have));
+    // Ceilings settle as each team's season ends.
+    if (league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...ceilingMail(league, have));
     if ((league.phase === 'draft' && draftComplete(league)) || league.phase === 'preseason')
       fresh.push(...draftClassMail(league, have));
     if (league.phase === 'regular' || league.phase === 'playoffs') {

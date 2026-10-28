@@ -576,7 +576,7 @@ squad (the real home of bench youngsters' reps).
 - **E Weekly development** (built): the dial sums to 1; a year released in steps lands exactly where one
   jump would, for every player whose label, ceiling and injury file were left alone that year; ratings on
   the integer scale every week; the share of young rostered players whose ratings moved in season (0 at
-  1/0/0/0, 0.3 or more at the split; a scar doesn't count).
+  1/0/0/0, 0.25 or more at the split, since busts stall by design (`ceiling.ts`); a scar doesn't count).
 - **F Focus cohort.**
 - **G Practice extremes:** all-Light worse than Normal; Hard bounded by the bank; camp band.
 - **H Twin leagues** (AI moves on vs off).

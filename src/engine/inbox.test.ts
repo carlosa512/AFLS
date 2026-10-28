@@ -1474,3 +1474,43 @@ describe('the owner’s letter for the new league year', () => {
     expect(() => advanceOffseason(l)).toThrow(/extension offer/);
   });
 });
+
+describe('ceiling mail', () => {
+  const setup = (shift: number) => {
+    const league = createLeague({ seed: 'ceiling-mail' });
+    league.phase = 'playoffs';
+    const young = Object.values(league.players).filter(
+      (p) => p.age <= 23 && p.potential - playerOvr(p) >= 4 && p.experience <= 2,
+    );
+    const mine = young.find((p) => p.teamId === league.userTeamId)!;
+    const theirs = young.find((p) => p.teamId !== null && p.teamId !== league.userTeamId)!;
+    for (const p of [mine, theirs]) p.ceilingShifts = { [league.season]: shift };
+    deliverMail(league);
+    const mail = (p: { id: number }) => league.inbox!.filter((m) => m.id === `ceiling:${league.season}:${p.id}`);
+    return { league, mine, theirs, mail };
+  };
+
+  it('the head coach writes when a young player’s read drops a point', () => {
+    const { mine, theirs, mail } = setup(-3);
+    expect(mail(mine)).toHaveLength(1);
+    expect(mail(mine)[0].from).toMatch(/Head coach|Coaching staff/);
+    expect(mail(mine)[0].subject).toBe(`${mine.firstName} ${mine.lastName} has hit a wall`);
+    expect(mail(theirs)).toHaveLength(0);
+  });
+
+  it('the director writes when it rises', () => {
+    const { mine, mail } = setup(3);
+    expect(mail(mine)).toHaveLength(1);
+    expect(mail(mine)[0].from).toMatch(/Director of scouting|Scouting department/);
+    expect(mail(mine)[0].body).toBe("He's outplaying his grades. We may have had his ceiling too low.");
+  });
+
+  it('says nothing under a point, and files once', () => {
+    const quiet = setup(0.3);
+    expect(quiet.mail(quiet.mine)).toHaveLength(0);
+    const { league, mine, mail } = setup(-3);
+    deliverMail(league);
+    expect(mail(mine)).toHaveLength(1);
+    expect(mailSubject(mail(mine)[0])).toEqual({ kind: 'ceiling', season: league.season, playerId: mine.id });
+  });
+});

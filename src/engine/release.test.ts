@@ -6,11 +6,14 @@ import {
   developBlock,
   developPlayer,
   developWeek,
+  CEILING_SWING,
   playedShare,
   RELEASE,
   rollInputs,
   trueUp,
+  unsettledSpread,
   weekWeight,
+  yearTargets,
 } from './development';
 import { createLeague } from './generate';
 import { Rng } from './rng';
@@ -140,5 +143,73 @@ describe('roll once, release in steps', () => {
     expect(weekWeight(24, false)).toBeCloseTo(0.65 / 1.2, 5);
     expect(weekWeight(21, false)).toBeGreaterThan(0.85);
     expect(weekWeight(30, false)).toBeLessThan(0.6);
+  });
+});
+
+describe('a ceiling that settles mid-year', () => {
+  const split = { newYear: 0.5, program: 0.05, camp: 0.05, season: 0.4 };
+
+  it('a year rolled before its ceiling settles lands, in steps, where one jump would', () => {
+    withSplit(split, () => {
+      for (const move of [2, -2]) {
+        const fresh = createLeague({ seed: 'release-settle' });
+        const ps = Object.values(fresh.players)
+          .filter((p) => p.teamId !== null && p.age <= 23)
+          .slice(0, 40);
+        for (const p of ps) {
+          const { rng, ctx } = year(fresh, p);
+          const once = copy(p);
+          developPlayer(rng(), once, ctx);
+          beginYear(fresh, rng(), p, ctx);
+          p.age++;
+          // The ceiling settles after the year was rolled: only next year's roll may read it.
+          p.potential = Math.max(1, Math.min(20, p.potential + move));
+          developBlock(fresh, 'program');
+          trueUp(fresh, p);
+          expect(p.ratings).toEqual(once.ratings);
+        }
+      }
+    });
+  });
+
+  it('an open year from a v56 save reads the player ceiling', () => {
+    withSplit(split, () => {
+      const fresh = createLeague({ seed: 'release-settle' });
+      const p = Object.values(fresh.players).find((x) => x.teamId !== null && x.age <= 22)!;
+      const { rng, ctx } = year(fresh, p);
+      beginYear(fresh, rng(), p, ctx);
+      p.age++;
+      expect(p.dev?.potential).toBe(p.potential);
+      const kept = yearTargets(fresh, p);
+      delete p.dev!.potential;
+      expect(yearTargets(fresh, p)).toEqual(kept);
+    });
+  });
+});
+
+describe('unsettledSpread', () => {
+  const league = createLeague({ seed: 'release' });
+  const base = Object.values(league.players).find((p) => p.age <= 23)!;
+  const rookie = (over: Partial<Player>) => ({
+    ...copy(base),
+    age: 22,
+    experience: 0,
+    ceilingShifts: undefined,
+    ...over,
+  });
+
+  it('counts every swing still to come', () => {
+    expect(CEILING_SWING).toEqual([2.2, 1.5, 0.8]);
+    expect(unsettledSpread(rookie({}), league.season)).toBeCloseTo(Math.hypot(2.2, 1.5, 0.8), 9);
+    expect(unsettledSpread(rookie({ ceilingShifts: { [league.season]: 0 } }), league.season)).toBeCloseTo(
+      Math.hypot(1.5, 0.8),
+      9,
+    );
+    expect(unsettledSpread(rookie({ experience: 2 }), league.season)).toBeCloseTo(0.8, 9);
+  });
+
+  it('is nothing once he is past it', () => {
+    expect(unsettledSpread(rookie({ experience: 3 }), league.season)).toBe(0);
+    expect(unsettledSpread(rookie({ age: 26 }), league.season)).toBe(0);
   });
 });

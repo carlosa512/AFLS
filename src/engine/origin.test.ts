@@ -95,9 +95,11 @@ describe('every new player has an origin', () => {
       for (const v of Object.values(p.ratings)) h = (h * 31 + Math.round(v * 1000) + p.id) % 1000000007;
     return h;
   };
-  // Taken on main before origins: an origin draw runs on its own stream, so no rating moves.
+  // Taken on main before origins: an origin draw runs on its own stream, so no rating moves. The class's was taken
+  // again when prospects came in rawer, with a stronger top (`RAW`, `HYPE_ROOM`, draft busts): origins still move
+  // none of its ratings.
   const MAIN_LEAGUE = 122606184;
-  const MAIN_CLASS = 950578803;
+  const MAIN_CLASS = 105353970;
 
   it('gives every player of a new league and a draft class a college, without moving a rating', () => {
     const l = createLeague({ seed: 'fp-origins' });

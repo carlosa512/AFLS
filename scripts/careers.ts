@@ -19,8 +19,10 @@
  */
 import { fork } from 'node:child_process';
 import { CHAIRS, coachingFrom, NEUTRAL, type Coaching } from '../src/engine/coaching';
-import { developPlayer } from '../src/engine/development';
+import { ceilingShift, COACH_LEAN, hypeLean, SNAP_LEAN, workLean } from '../src/engine/ceiling';
+import { CEILING_SWING, developPlayer } from '../src/engine/development';
 import { generatePlayer } from '../src/engine/generate';
+import { HYPE_ROOM, RAW } from '../src/engine/offseason/draft';
 import { playerOvr } from '../src/engine/positions';
 import { clamp, Rng } from '../src/engine/rng';
 import type { Coach, Player, Position, Traits } from '../src/engine/types';
@@ -89,20 +91,41 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
     const p = generatePlayer(rng, {
       id: 900000 + i,
       position: pos,
-      quality: rng.normal(11, 1.2),
+      quality: rng.normal(11, 1.2) - RAW,
       age: 21,
       teamId: null,
       jerseysUsed: new Set(),
     });
-    const growth = Math.abs(rng.normal(0, 1)) * 2.1 + rng.float(0, 0.8) + (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
+    const growth =
+      RAW +
+      HYPE_ROOM +
+      Math.abs(rng.normal(0, 1)) * 2.1 +
+      rng.float(0, 0.8) +
+      (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = clamp(playerOvr(p) + growth, 1, 20);
     const row: number[] = [];
+    const entry = playerOvr(p);
     const attrs: Record<string, number[]> = Object.fromEntries(Object.keys(out.attr).map((a) => [a, []]));
     for (const age of AGES) {
       p.age = age;
       row.push(playerOvr(p));
       for (const a of Object.keys(attrs)) attrs[a].push(p.ratings[a as keyof Player['ratings']]);
       developPlayer(new Rng(`careers:dev:${pos}:${i}:${age}`), p, { playedShare, ...coaching });
+      // His season's end settles his ceiling (`ceiling.ts`), leaned the way a league leans it: his work ethic, a
+      // starter's snaps (or a bench's), his coaches.
+      const year = age - 21;
+      if (year < CEILING_SWING.length) {
+        const snaps = playedShare >= 0.6 ? SNAP_LEAN.starter : playedShare < 0.2 ? SNAP_LEAN.idle : 0;
+        const lean =
+          workLean(p.traits.workEthic) +
+          snaps +
+          COACH_LEAN * (coaching.rate - 1) +
+          (year === 0 ? hypeLean(p.potential, entry) : 0);
+        p.potential = Math.min(
+          20,
+          p.potential + ceilingShift(new Rng(`careers:ceiling:${pos}:${i}:${age}`), year, lean),
+        );
+      }
     }
     out.ovr.push(row);
     for (const a of Object.keys(attrs)) out.attr[a].push(attrs[a]);
@@ -318,6 +341,25 @@ console.log(
 // Research: 13.9% of QB peak seasons came at 35+ (recent leagues have had 3–7 QB1s that old, up to
 // 22%); a few kickers and punters play to 40. Across four leagues the engine before coaching sat at
 // 18.5% and 7.4 (the old 16% and 7 ceilings were fit to one seed, which happened to read 14.1 and 6.6).
+// Draft outcomes (docs/research/draft-outcomes.md): about a third of first-rounders never reach a solid starter's
+// overall by 27; a Day 3 pick sometimes does. Ceilings settle over three years, the swing shrinking, makeup leaning.
+const drafts = pool((r) => r.drafts);
+const rate = (picks: { hit: boolean }[], hit: boolean) =>
+  (100 * picks.filter((d) => d.hit === hit).length) / Math.max(1, picks.length);
+const firsts = drafts.filter((d) => d.round === 1);
+const day3 = drafts.filter((d) => d.round >= 4);
+const shifts = pool((r) => r.shifts);
+const swing = (year: number) => mean(shifts.filter((s) => s.year === year).map((s) => Math.abs(s.shift)));
+const byEthic = [...shifts].sort((a, b) => a.workEthic - b.workEthic);
+const third = Math.floor(byEthic.length / 3);
+const ethicGap = mean(byEthic.slice(-third).map((s) => s.shift)) - mean(byEthic.slice(0, third).map((s) => s.shift));
+const shrinking = swing(0) > swing(1) && swing(1) > swing(2) ? 1 : 0;
+console.log(
+  `draft: ${check('first-round busts (never a high-end starter) %', rate(firsts, false), 25, 40, 1)} (${firsts.length} picks) · ${check('Day 3 solid starters %', rate(day3, true), 8, 20, 1)} (${day3.length} picks)`,
+);
+console.log(
+  `  ceilings: mean |shift| by year ${[0, 1, 2].map((y) => swing(y).toFixed(2)).join(' / ')} · ${check('swing shrinks year by year', shrinking, 1, 1, 0)} · ${check('work ethic top vs bottom third, mean shift', ethicGap, 0.1, 0.6)}`,
+);
 console.log(
   `${check('QB1s aged 35+ %', mean(steady.qb35), 4, 22, 1)} · ${check('RB1s aged 30+ %', mean(steady.rb30), 0, 8, 1)} · ${check('K/P starters aged 38+ (of 64)', mean(steady.k38), 1, 8, 1)}`,
 );

@@ -180,6 +180,8 @@ export function migrateLeague(league: League): League | null {
   }
   // v57: optional `Coach.coverOff`; a head coach covers an empty coordinator chair by default.
   if (league.version < 57) league.version = 57;
+  // v58: optional `Player.ceilingShifts` and `DevYear.potential`; an open year without one reads the player's ceiling.
+  if (league.version < 58) league.version = 58;
   return league;
 }
 

@@ -22,6 +22,31 @@ import { ATTRIBUTES } from './types';
 
 export { PEAK_END } from './aging';
 
+// ───────── settling ceilings ─────────
+
+/**
+ * How far a young player's true ceiling can still move, 1 sd, in each of his first three league years: a
+ * draft-day ceiling is a best guess, and the league settles it (`ceiling.ts`), a lot in year one, little by
+ * year three.
+ */
+export const CEILING_SWING: readonly number[] = [2.2, 1.5, 0.8];
+
+/** Which of his settling years this league year is (an index into `CEILING_SWING`), or null once he is 26 or past his third. */
+export function settleYear(p: Pick<Player, 'age' | 'experience'>): number | null {
+  return p.age < 26 && p.experience >= 0 && p.experience < CEILING_SWING.length ? p.experience : null;
+}
+
+/**
+ * The spread his ceiling still has to settle, 1 sd: the swings of the years to come (this season's while it
+ * hasn't settled), combined as independent draws are. A scout's ceiling range widens by it (`perceive`).
+ */
+export function unsettledSpread(p: Pick<Player, 'age' | 'experience' | 'ceilingShifts'>, season: number): number {
+  const year = settleYear(p);
+  if (year === null) return 0;
+  const from = p.ceilingShifts?.[season] !== undefined ? year + 1 : year;
+  return Math.hypot(...CEILING_SWING.slice(from));
+}
+
 /** Note a player's ratings at the start of a league year, for his development history. */
 export function recordRatings(player: Player, season: number): void {
   (player.ratingHistory ??= {})[season] = ATTRIBUTES.map((a) => player.ratings[a]);
@@ -73,6 +98,12 @@ function reps(age: number, share: number): number {
   const weight = clamp((age - 20) / 4, 0.25, 1);
   return 1 + weight * (-0.35 + 0.55 * share);
 }
+/**
+ * The most a young player slips in a year toward a ceiling settled under him, and how far under it must sit first: a
+ * ceiling is kept to a tenth and a year's noise can lift him a hair past it, which is no reason to slip.
+ */
+const MAX_SLIP = 1;
+const SLIP_SLACK = 0.3;
 /** Keeps league-wide growth where it was before reps counted (most young players are backups). */
 const GROWTH_NORM = 1.1;
 
@@ -106,9 +137,15 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
   // Growth (or prime-years drift), in overall points.
   let delta: number;
   if (age < 26) {
-    const gap = Math.max(0, player.potential - overall(player.ratings, pos));
+    const gap = player.potential - overall(player.ratings, pos);
+    const pace = rng.float(0.15, 0.5);
+    // A ceiling the league settled under him (`ceiling.ts`): he slips toward it, a point a year at most. Same draw.
     delta =
-      gap * clamp(rng.float(0.15, 0.5) * growthMult(traits) * reps(age, ctx.playedShare) * rate * GROWTH_NORM, 0, 0.8);
+      gap >= 0
+        ? gap * clamp(pace * growthMult(traits) * reps(age, ctx.playedShare) * rate * GROWTH_NORM, 0, 0.8)
+        : gap < -SLIP_SLACK
+          ? Math.max(-MAX_SLIP, (gap + SLIP_SLACK) * pace * 2)
+          : 0;
   } else delta = rng.normal(0, 0.4);
   // Spread it so the overall moves by `delta`: weighted toward the families still growing.
   let shareSum = 0;
@@ -221,6 +258,8 @@ export function beginYear(league: League, rng: Rng, p: Player, ctx: DevContext):
     ...(p.age < 26 && ctx.rate !== undefined ? { rate: ctx.rate } : {}),
     ...(fading && ctx.decline ? { decline: FAMILIES.map((f) => ctx.decline![f] ?? 1) } : {}),
     ...(ctx.bodyAs ? { bodyAs: ctx.bodyAs } : {}),
+    // His ceiling can settle before the year has landed (`ceiling.ts`): the year keeps the one it was rolled with.
+    ...(p.age < 26 ? { potential: p.potential } : {}),
     done: 0,
     applied,
   };
@@ -235,7 +274,9 @@ export function yearTargets(league: League, p: Player): number[] {
   const ratings = { ...p.ratings };
   ATTRIBUTES.forEach((a, i) => (ratings[a] -= d.applied[i] ?? 0));
   // His age ticks over right after the roll, so all year he is a year older than he was rolled at.
-  const rolled: Rolled = { age: p.age - 1, position: p.position, potential: p.potential, traits: p.traits, ratings };
+  // A year from before v57 kept no ceiling: nothing settled under it, so the player's is the one it was rolled with.
+  const potential = d.potential ?? p.potential;
+  const rolled: Rolled = { age: p.age - 1, position: p.position, potential, traits: p.traits, ratings };
   const decline = d.decline && Object.fromEntries(FAMILIES.map((f, i) => [f, d.decline![i]]));
   return rollYear(yearStream(league, d.season, p.id), rolled, {
     playedShare: d.share ?? Math.min(1, (d.games ?? 0) / SEASON_GAMES),

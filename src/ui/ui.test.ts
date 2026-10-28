@@ -397,7 +397,7 @@ describe('screen contract', () => {
     // A screen shows its own club's view only (docs/UI.md, "Fog of war"). ui/scouting.tsx is the one place that
     // reads true ratings, and only for an exact view of your own player (his rating changes). Hidden traits have
     // their own guard in engine/development.test.ts, which scans this file too, so the pattern leaves them out.
-    const truth = /\b(p|player)\.ratings\b|\bplayerOvr\b|\.potential\b|\bweeksRemaining\b/;
+    const truth = /\b(p|player)\.ratings\b|\bplayerOvr\b|\.potential\b|\bweeksRemaining\b|\bceilingShifts\b/;
     const bad = files.filter((f) => f !== join('src/ui', 'scouting.tsx') && truth.test(src(f)));
     expect(bad).toEqual([]);
   });
