@@ -1,4 +1,5 @@
 /** Coaching habits use their own streams; adding a habit never reshuffles the coaching market. */
+import { temperamentOf, workEthicOf } from './traits';
 import { coachValue } from './coachRatings';
 import { clamp, Rng } from './rng';
 import type { Coach, CoachGameReport, CoachRole, League, Player, Position } from './types';
@@ -377,9 +378,9 @@ export function positionCoachFor(staff: readonly Coach[], position: Position): C
 export function coachPlayerFit(c: Coach | undefined, p: Player): number {
   if (!c) return 0;
   const active = activeCoachQuirks(c);
-  const work = clamp((p.traits.workEthic - 10.5) / 9.5, -1, 1);
+  const work = clamp((workEthicOf(p) - 10.5) / 9.5, -1, 1);
   let fit = active.includes('earnYourReps') ? 0.035 * work : 0;
-  if (active.includes('earnYourReps') && p.traits.workEthic <= 7.5 && p.traits.temperament <= 7) fit -= 0.01;
+  if (active.includes('earnYourReps') && workEthicOf(p) <= 7.5 && temperamentOf(p) <= 7) fit -= 0.01;
   if (active.includes('trustsVeterans')) fit += p.age >= 29 ? 0.02 : p.age <= 24 ? -0.01 : 0;
   if (active.includes('patientTeacher') && p.age <= 25) fit += 0.025;
   if (active.includes('runsHardPractices')) fit += 0.02;

@@ -153,6 +153,13 @@ Ring Chaser, Company Man, Dirty Player, Jittery, Coaster and so on, about 18 in 
 out ("Outworks everyone and keeps his cool."). It's your scouts' read, so it can be wrong, and it's dashed while it's
 early word. On the player card it takes the place of the work ethic and temperament tags.
 
+**Mentoring and the locker room.** A veteran (27, or five years in the league) can mentor up to two players aged
+21–24 on his club. Over a season together on the 53 the young player's work ethic, temper and poise move toward the
+mentor's own, good or bad, at most a point a year each; a leader who starts pulls hardest, and a Born Leader who
+coasts is the most dangerous mentor in the building. Your position coaches pair your players unless you take it on.
+Each club names three captains at camp. The Locker Room tab shows your leaders and your mentoring pairs, in your
+coaches' words.
+
 The projection scout judges makeup and body; the evaluator sees the flags. Reads carry the same
 seeded, reader-owned error as ratings, are never exact for another club's player, and are marked
 "early word" (dashed tags) while they're still loose. The player card adds a career outlook ("His

@@ -217,7 +217,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `development.ts` yearly growth and decline · `aging.ts` the one aging table (development,
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks ·
     `personality.ts` the personality name and one-sentence character line read off traits and agent dials (never stored;
-    `TRAITS_ON` keeps a trait out of names until its job ships), `personalityRead` for a team's view
+    `TRAITS_ON` keeps a trait out of names until its job ships), `personalityRead` for a team's view, captains
+    (`nameCaptains`) · `mentoring.ts` veterans mentoring players 21–24: work ethic, temperament and poise move at most a
+    point a year (`Player.shifts`, read through `workEthicOf`/`temperamentOf`/`poiseOf`, never `traits` directly),
+    landing at the new league year; one planner for your staff and AI teams (`planMentors`) · `lockerMail.ts` the
+    locker room's letters
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a

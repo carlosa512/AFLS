@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.16',
+    date: '2026-10-28',
+    title: 'Mentors and captains',
+    text:
+      "Veterans now mentor young players. Over a season together a young player picks up his mentor's work ethic, " +
+      "temper and poise, the good and the bad, a little at a time. Your position coaches pair them unless you'd " +
+      'rather pick, and the new Locker Room tab shows who leads your room, your captains and how each pair is going. ' +
+      'Your coaches write when a young player is learning, when he loses his mentor, and when he has grown up.',
+  },
+  {
     version: '0.2.15',
     date: '2026-10-28',
     title: 'Personalities',

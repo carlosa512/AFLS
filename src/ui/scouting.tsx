@@ -257,6 +257,25 @@ export function KnowledgeMeter({ value }: { value: number }) {
 /** What your scouts say about a player's makeup: words only, and only once they know him well enough. */
 export const makeupOf = (league: League, p: Player): CharacterNotes => characterNotes(league, league.userTeamId, p);
 
+/**
+ * The one extra line the card gives a player of yours, the thing that matters most about his place in the room: his
+ * mentor now, or the one he learned from. Null when there's nothing to say, or he isn't yours.
+ */
+export function lockerLine(league: League, p: Player): string | null {
+  if (p.teamId !== league.userTeamId) return null;
+  const name = (id: number) => {
+    const m = league.players[id];
+    return m ? `${m.firstName} ${m.lastName}` : null;
+  };
+  if (p.mentor !== undefined && name(p.mentor)) return `Learning from ${name(p.mentor)}`;
+  const last = p.mentoredBy?.at(-1);
+  if (last && name(last.id)) {
+    const years = last.from === last.to ? `${last.from}` : `${last.from}–${String(last.to).slice(-2)}`;
+    return `Learned from ${name(last.id)} (${years})`;
+  }
+  return null;
+}
+
 const TONE_CLASS = { good: 'tag-good', warn: 'tag-warn', neutral: 'tag-pill' } as const;
 
 /** What your scouts call a player's character: a name and one sentence, or null until they know him. */
@@ -287,6 +306,7 @@ export function CharacterFact({ league, player }: { league: League; player: Play
             </TipPill>
           </span>
           <span className="muted small">{character.line}</span>
+          {lockerLine(league, player) && <span className="small">{lockerLine(league, player)}</span>}
           <MakeupPills notes={rest} hedged={makeup.hedged} />
         </>
       )}

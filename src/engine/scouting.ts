@@ -21,7 +21,7 @@ import { headline, slotOf, starters, teamRatings, UNIT_POSITIONS } from './roste
 import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
 import { filmScale } from './origin';
 import { passerRating } from './stats';
-import { TEMPER_POSITIONS, TRAIT_MEAN } from './traits';
+import { effectiveTraits, poiseOf, TEMPER_POSITIONS, temperamentOf, TRAIT_MEAN, workEthicOf } from './traits';
 import type {
   Attribute,
   Combine,
@@ -402,7 +402,8 @@ export interface CharacterRead extends Traits, Personality {
  */
 export function characterRead(league: League, teamId: number, p: Player): CharacterRead | null {
   const k = knowledge(league, teamId, p);
-  if (k >= 1) return { ...p.traits, ...p.personality, sd: 0, exact: true };
+  // Scouts see the man as he is now: what mentors have moved counts (`effectiveTraits`).
+  if (k >= 1) return { ...effectiveTraits(p), ...p.personality, sd: 0, exact: true };
   if (k < CHARACTER_KNOWLEDGE) return null;
   const domain: Domain = isProspect(p) ? 'college' : 'pro';
   const staff = league.teams[teamId] ? teamStaff(league, teamId) : null;
@@ -418,9 +419,9 @@ export function characterRead(league: League, teamId: number, p: Player): Charac
   const evaluator = new Rng(`${league.seed}:view:${teamId}:${p.id}:temper:${evalr?.by?.id ?? 0}`);
   const guess = (truth: number, sd: number, own: Rng) =>
     clamp(truth + sd * (0.8 * team.normal() + 0.6 * own.normal()), 1, 20);
-  const workEthic = guess(p.traits.workEthic, sdProj, projector);
+  const workEthic = guess(workEthicOf(p), sdProj, projector);
   const durability = guess(p.traits.durability, sdProj, projector);
-  const temperament = guess(p.traits.temperament, sdEval, evaluator);
+  const temperament = guess(temperamentOf(p), sdEval, evaluator);
   // Another club's medical file stays closed: how often a body breaks is the hardest thing to see.
   const sdBody = INJURY_ERROR * Math.max(1 - k, 0.3) * (proj ? accuracy(proj.rating) : 1);
   const injuryResistance = guess(p.traits.injuryResistance, sdBody, projector);
@@ -431,7 +432,7 @@ export function characterRead(league: League, teamId: number, p: Player): Charac
   // controversy come out in a sit-down; poise and sportsmanship show on film.
   const leads = guess(p.traits.leads, sdProj, projector);
   const controversy = guess(p.traits.controversy, sdProj, projector);
-  const poise = guess(p.traits.poise, sdEval, evaluator);
+  const poise = guess(poiseOf(p), sdEval, evaluator);
   const sportsmanship = guess(p.traits.sportsmanship, sdEval, evaluator);
   // What he wants from a deal, on its own 0–1 scale: the same error, shrunk to fit.
   const dial = (truth: number) => clamp(truth + (sdProj / 19) * (0.8 * team.normal() + 0.6 * projector.normal()), 0, 1);

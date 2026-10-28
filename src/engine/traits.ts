@@ -60,11 +60,24 @@ export function generateTraits(p: Pick<Player, 'id' | 'firstName' | 'lastName' |
   };
 }
 
+/** The traits a mentor can move (`mentoring.ts`). */
+export type Shifted = 'workEthic' | 'temperament' | 'poise';
+
+type Shiftable = Pick<Player, 'traits' | 'shifts'>;
+const shifted = (p: Shiftable, k: Shifted) => clamp(p.traits[k] + (p.shifts?.[k] ?? 0), 1, 20);
+
 /**
- * A player's work ethic as the game reads it. Today it is the trait itself; mentoring (docs/TRAINING.md §8)
- * will add a small, bounded offset here, so new readers go through this rather than `traits.workEthic`.
+ * A player's work ethic, temperament and poise as the game reads them: the trait plus what mentors have moved
+ * (`Player.shifts`). The trait itself never changes (`npm run careers` relies on that), so every reader goes through
+ * these.
  */
-export const workEthicOf = (p: Pick<Player, 'traits'>) => p.traits.workEthic;
+export const workEthicOf = (p: Shiftable) => shifted(p, 'workEthic');
+export const temperamentOf = (p: Shiftable) => shifted(p, 'temperament');
+export const poiseOf = (p: Shiftable) => shifted(p, 'poise');
+
+/** All his traits as the game reads them, for code that takes a whole `Traits`. */
+export const effectiveTraits = (p: Shiftable): Traits =>
+  p.shifts ? { ...p.traits, workEthic: workEthicOf(p), temperament: temperamentOf(p), poise: poiseOf(p) } : p.traits;
 
 /** Growth multiplier: about ×0.4 for the laziest player, ×1.6 for the hardest worker. Averages 1. */
 export const growthMult = (t: Traits) => 1 + 0.065 * (t.workEthic - TRAIT_MEAN);
@@ -87,9 +100,6 @@ export const learnMult = (t: Pick<Traits, 'versatility'>) => clamp(1 + 0.03 * (t
 
 /** Positions whose discipline the engine reads (the `discipline` contest): the lines. */
 export const TEMPER_POSITIONS: ReadonlySet<Position> = new Set(['OL', 'DT', 'EDGE']);
-
-/** Discipline points a lineman's temperament adds or costs: about ±3 at the extremes. */
-export const temperOffset = (t: Traits) => 0.3 * (t.temperament - TRAIT_MEAN);
 
 /** Points a player's sportsmanship adds or costs on the dirty fouls (roughing, unnecessary roughness, face mask): about ±3. */
 export const sportsOffset = (t: Pick<Traits, 'sportsmanship'>) => 0.3 * (t.sportsmanship - TRAIT_MEAN);

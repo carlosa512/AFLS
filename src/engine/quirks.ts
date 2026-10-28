@@ -20,7 +20,7 @@ import { coachingFor, teamScheme } from './coaching';
 import { playerOvr } from './positions';
 import { isAvailable } from './roster';
 import { clamp, Rng } from './rng';
-import { TRAIT_MEAN } from './traits';
+import { poiseOf, temperamentOf, TRAIT_MEAN, workEthicOf } from './traits';
 import type { League, Player, Position, StatKey, StatLine } from './types';
 
 export type QuirkTone = 'good' | 'bad' | 'style';
@@ -717,17 +717,17 @@ export const BLANKS: [number, number, number] = [96, 154, 240];
  */
 export function fillBag(p: Player, coachRate = 1): Record<string, number> {
   const bag: Record<string, number> = { blank: Math.round(blanksFor(p.age) * (isSpecial(p) ? SPECIAL_BLANKS : 1)) };
-  const work = p.traits.workEthic - TRAIT_MEAN;
+  const work = workEthicOf(p) - TRAIT_MEAN;
   const coach = clamp(Math.round((coachRate - 1) * 8), -1, 2);
-  const nerve = (p.traits.poise - TRAIT_MEAN) / 3.5;
+  const nerve = (poiseOf(p) - TRAIT_MEAN) / 3.5;
   for (const id of QUIRKS_FOR[p.position]) {
     const q = QUIRKS[id];
     const info: QuirkInfo = q;
     let n = info.rare ? 1 : q.tone === 'style' ? 3 : 2;
     if (q.tone === 'good') n += Math.round(Math.max(0, work) / 3);
-    if (q.tone === 'bad') n += Math.round(Math.max(0, -work) / 3) + (p.traits.temperament <= 7 ? 1 : 0);
+    if (q.tone === 'bad') n += Math.round(Math.max(0, -work) / 3) + (temperamentOf(p) <= 7 ? 1 : 0);
     // A short fuse feeds the habits that draw flags.
-    if (info.temper && p.traits.temperament <= 7) n += 2;
+    if (info.temper && temperamentOf(p) <= 7) n += 2;
     // Poise feeds the habits pressure decides: the shaky draw more of the bad ones, the steady more of the good.
     if (info.poise === 'bad') n += nerve <= -1.5 ? 2 : nerve <= -1 ? 1 : 0;
     if (info.poise === 'good' && nerve >= 1) n += 1;

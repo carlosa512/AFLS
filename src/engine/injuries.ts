@@ -70,7 +70,7 @@ import {
   teamPlayers,
 } from './roster';
 import { characterRead, type CharacterRead } from './scouting';
-import { TRAIT_MEAN } from './traits';
+import { TRAIT_MEAN, workEthicOf } from './traits';
 import type {
   Attribute,
   ConcussionProtocol,
@@ -1064,7 +1064,7 @@ export const braceWait = (inj: Injury, brace: Brace) =>
 /** Share of the layoff a fast-track takes off at a typical department; better physios take more. */
 export const fastTrackCut = (physio: number) => clamp(0.25 + 0.01 * (physio - TYPICAL), 0.15, 0.35);
 /** How much of the program he really does: a hard worker all of it, a coaster about half (the risk stays the same). */
-const commitment = (p: Player) => clamp(0.75 + 0.06 * (p.traits.workEthic - TRAIT_MEAN), 0.5, 1);
+const commitment = (p: Player) => clamp(0.75 + 0.06 * (workEthicOf(p) - TRAIT_MEAN), 0.5, 1);
 
 export interface TreatmentAnswer {
   yes: boolean;

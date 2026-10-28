@@ -1,3 +1,4 @@
+import { lockerMail } from './lockerMail';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
@@ -827,7 +828,9 @@ export type MailSubject =
   | { kind: 'waiverClaim'; season: number; entryId: number }
   | { kind: 'waiverOut'; season: number; entryId: number }
   | { kind: 'callups'; season: number; playerId: number }
-  | { kind: 'futuresKept'; season: number };
+  | { kind: 'futuresKept'; season: number }
+  // The locker room's letters (lockerMail.ts): mentors, a grown-up player, captains. Nothing on them is asked of you.
+  | { kind: 'locker'; season: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -935,6 +938,10 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'squadPoach', season, week: Number(a), playerId: Number(b) };
     case 'ceiling':
       return { kind: 'ceiling', season, playerId: Number(a) };
+    case 'mentor':
+    case 'persona':
+    case 'captains':
+      return { kind: 'locker', season };
     case 'position':
       return a === 'offer'
         ? { kind: 'positionOffer', season, playerId: Number(b), to: rest[0] as Position }
@@ -2874,6 +2881,7 @@ export function deliverMail(league: League): void {
       ...injuryMail(league, have),
       ...tradeMail(league, have),
       ...offerMail(league, have),
+      ...lockerMail(league, have),
     );
     if (league.phase === 'resign')
       fresh.push(

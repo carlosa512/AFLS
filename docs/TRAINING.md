@@ -444,7 +444,19 @@ FM's "where do the points go", on top of weekly development:
 - **Same locks as you:** cooldown, slots, the mover's trade lock. Learners are never on an AI
   trade block.
 
-## 8. Mentoring (later; hooks now)
+## 8. Mentoring (built in 0.2.15)
+
+**Built** (`mentoring.ts`, spec `docs/superpowers/specs/2026-10-28-personality-relationships-design.md` §2). What
+changed from the rules below: mentors move three traits, not one (work ethic, temperament and poise, each at most a
+point a year), read through `workEthicOf`, `temperamentOf` and `poiseOf` with the shift stored beside the trait
+(`Player.shifts`). How much rubs off is the mentor's leadership times his standing, times how much the young player
+lets in (high controversy takes less). Shifts land only at the new league year, after last year's development has
+landed and before the new year is rolled, so a year released in steps reads the traits it was rolled with; a pair
+that splits mid-season banks its share (`Player.mentorBank`). Each new league year the whole league's banks are re-centred to sum to zero per trait
+(`mentoringYearEnd`): mentors move players against each other, never the league as a whole. `npm run training` section M holds each league average
+within ±0.02 and any one player to a point a year.
+
+### The rules as agreed
 
 The agreed rules, kept small and hard to game, for you and the AI alike:
 - **Small:** work ethic moves at most 1 point a year, only for players about 21-24.

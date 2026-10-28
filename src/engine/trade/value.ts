@@ -12,6 +12,7 @@
  * - Market value: the same through a league-average lens, what the league would pay. Sellers hold
  *   out for most of it, so a starter never goes for a seventh-round pick.
  */
+import { workEthicOf } from '../traits';
 import { ageShift } from '../aging';
 import { CONTESTS } from '../attributes';
 import { coachingFor, effectOf, teamScheme, type Coaching } from '../coaching';
@@ -323,7 +324,7 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
   const own = playerOvr(p);
   const young = p.age <= 25;
   // His real game: today's overall, half the growth his work ethic will really get out of him, his habits.
-  const ceiling = young ? projectedCeiling(own, p.potential, p.traits.workEthic) : p.potential;
+  const ceiling = young ? projectedCeiling(own, p.potential, workEthicOf(p)) : p.potential;
   const real = effective(p.age, own, ceiling) + trueQuirkWorth(p);
   let seen = real;
   let ovr = own;
@@ -394,7 +395,7 @@ export function outlookFor(
   const { league } = ctx;
   const own = ovrOf(ctx, p);
   const young = p.age <= 25;
-  const realGap = young ? Math.max(0, projectedCeiling(own, p.potential, p.traits.workEthic) - own) : 0;
+  const realGap = young ? Math.max(0, projectedCeiling(own, p.potential, workEthicOf(p)) - own) : 0;
   let ovr = own;
   let gap = realGap;
   // The scouts' read of his character (work ethic, body), once: the full read may have it already.

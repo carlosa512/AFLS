@@ -30,6 +30,8 @@ import {
   MAX_LEARNERS,
   trainingWeek,
 } from '../src/engine/training';
+import { SHIFTED } from '../src/engine/mentoring';
+import type { Shifted } from '../src/engine/traits';
 import type { League, Phase, Position } from '../src/engine/types';
 import { ATTRIBUTES } from '../src/engine/types';
 
@@ -93,6 +95,7 @@ interface Once {
   position: Position;
   potential: number;
   injuries: number;
+  shifts: string;
 }
 let once = new Map<number, Once>();
 let compared = 0;
@@ -123,6 +126,7 @@ const takeOnce = () => {
       position: p.position,
       potential: clone.potential,
       injuries: p.injuries?.length ?? 0,
+      shifts: JSON.stringify(p.shifts ?? {}),
     });
   }
 };
@@ -130,13 +134,27 @@ const compareOnce = () => {
   for (const p of live(league)) {
     const o = once.get(p.id);
     // A new label, a scar (which can also lower the ceiling) or a new body: not the same year any more.
-    if (!o || o.position !== p.position || o.potential !== p.potential || o.injuries !== (p.injuries?.length ?? 0))
+    // Mentoring that landed at the new league year makes it another year too (his traits moved before it was rolled).
+    if (
+      !o ||
+      o.position !== p.position ||
+      o.potential !== p.potential ||
+      o.injuries !== (p.injuries?.length ?? 0) ||
+      o.shifts !== JSON.stringify(p.shifts ?? {})
+    )
       continue;
     const clone = structuredClone(p);
     trueUp(league, clone);
     compared++;
     if (ATTRIBUTES.some((a, i) => clone.ratings[a] !== o.ratings[i])) drifted++;
   }
+};
+
+// M: mentoring. Mentors move work ethic, temper and poise at most a point a year, and never lift the league as a whole.
+let mentorMax = 0;
+const mentorMean = (k: Shifted) => {
+  const ps = live(league).filter((p) => p.teamId !== null);
+  return ps.reduce((sum, p) => sum + (p.shifts?.[k] ?? 0), 0) / Math.max(1, ps.length);
 };
 
 for (let s = 0; s < SEASONS; s++) {
@@ -191,6 +209,9 @@ for (let s = 0; s < SEASONS; s++) {
   takeOnce();
   beginOffseason(league);
   afterStep('newYear');
+  // M: what mentoring landed this new league year.
+  for (const p of live(league))
+    for (const k of SHIFTED) mentorMax = Math.max(mentorMax, Math.abs(p.shiftedLast?.[k] ?? 0));
   while (phase() !== 'regular') {
     const was = phase();
     advanceOffseason(league, { autoUser: true });
@@ -225,6 +246,12 @@ check(
   RELEASE.season > 0 ? [0.25, 1] : [0, 0],
   2,
 );
+
+console.log(
+  `\nM. Mentoring (${SEASONS} seasons, ${live(league).filter((p) => p.mentor !== undefined).length} pair(s) now)`,
+);
+for (const k of SHIFTED) check(`${k}: league average moved by mentors`, mentorMean(k), [-0.02, 0.02], 3);
+check('most any trait moved for one player in a year', mentorMax, [0, 1], 2);
 
 console.log(`\nJ. Speed and size`);
 check(
