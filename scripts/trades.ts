@@ -91,6 +91,7 @@ import {
   type Prices,
   probePrices,
 } from './trades-prices';
+import { shareLeagues, type ShareRun } from './trades-share';
 
 const LEAGUES = Number(
   process.argv
@@ -124,6 +125,13 @@ const clone = (l: League): League => JSON.parse(JSON.stringify(l));
 const PRICE_LEAGUES = Math.max(48, LEAGUES);
 /** The other price leagues, started once the speed section is timed (on a shared core the timings would read slow). */
 let priceRuns: Promise<PriceRun[]> | undefined;
+/** Three more leagues, for the deadline-day share alone (`trades-share.ts`), started with the price leagues. */
+let shareRuns: Promise<ShareRun[]> | undefined;
+const shareTheRest = () =>
+  shareLeagues(
+    [0, 1, 2].map((k) => `${SEED}-share-${k}`),
+    SEASONS,
+  );
 const priceTheRest = () =>
   priceLeagues(
     Array.from({ length: PRICE_LEAGUES - LEAGUES }, (_, k) => `${SEED}-${LEAGUES + k}`),
@@ -875,7 +883,10 @@ for (let i = 0; i < LEAGUES; i++) {
     }
     volume.offseason.push(offseason);
     desk.perYear.push(offers);
-    if (timing) priceRuns = priceTheRest();
+    if (timing) {
+      priceRuns = priceTheRest();
+      shareRuns = shareTheRest();
+    }
   }
 }
 
@@ -968,13 +979,13 @@ console.log(
 // The leagues' seasons in order, so a drift over a long run shows (league by league, season by season).
 const byYear = Array.from({ length: SEASONS }, (_, y) => mean(volume.inSeason.filter((_, k) => k % SEASONS === y)));
 console.log(`  in season, by year of the run: ${byYear.map((x) => x.toFixed(1)).join(' · ')}`);
+// The audit's nine seasons and three more leagues' (`trades-share.ts`): nine alone hold about 45 deadline-day deals.
+const shares = await (shareRuns ?? shareTheRest());
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 check(
-  'share of them on deadline day (%)',
-  (100 * volume.deadline) /
-    Math.max(
-      1,
-      volume.inSeason.reduce((a, b) => a + b, 0),
-    ),
+  `share of them on deadline day (%) (${volume.inSeason.length + shares.length * SEASONS} seasons)`,
+  (100 * (volume.deadline + sum(shares.flatMap((r) => r.deadlineDay)))) /
+    Math.max(1, sum(volume.inSeason) + sum(shares.flatMap((r) => r.inSeason))),
   [30, 50],
 );
 check('trades in the offseason (league year to camp), a year', mean(volume.offseason), [15, 35], 1);
