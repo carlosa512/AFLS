@@ -30,17 +30,7 @@ import {
 import type { League, Position, Team } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../nav';
-import {
-  Panel,
-  PlayerAvatar,
-  PlayerLink,
-  SortSeg,
-  sortRows,
-  TeamChip,
-  TeamLink,
-  TeamPicker,
-  useSort,
-} from '../components';
+import { Panel, PlayerLink, SortSeg, sortRows, TeamChip, TeamLink, TeamPicker, useSort } from '../components';
 import { LIST_SORT_OPTIONS, listSortValue, type ListSort } from '../offers';
 import { money } from '../format';
 import { Ovr } from '../scouting';
@@ -192,8 +182,7 @@ export function AssetPicker({
                 const added = picked.players.includes(p.id);
                 return (
                   <li key={p.id} className="picker-row">
-                    <PlayerLink league={league} player={p} avatar={26} short />
-                    <span className="muted small">{p.position}</span>
+                    <PlayerLink league={league} player={p} avatar={26} pos short />
                     <span className="num small picker-age">{p.age}</span>
                     <Ovr league={league} player={p} />
                     <span className="num small">
@@ -235,18 +224,15 @@ export function AssetPicker({
 /** One side of the deal as it stands: each player and pick on a line, and a button to take it back out. */
 export function DealSlip({
   league,
-  teamId,
   label,
   picked,
   onChange,
 }: {
   league: League;
-  teamId: number;
   label: string;
   picked: Picked;
   onChange: (p: Picked) => void;
 }) {
-  const team = league.teams[teamId];
   const picks = picked.picks.map((id) => league.draftPicks.find((pk) => pk.id === id)).filter((pk) => pk !== undefined);
   return (
     <div className="deal-side">
@@ -260,15 +246,13 @@ export function DealSlip({
             const name = `${p.firstName} ${p.lastName}`;
             return (
               <li key={id} className="deal-item">
-                <span className="muted small">{p.position}</span>
-                <PlayerAvatar player={p} team={team} size={24} />
-                <PlayerLink league={league} player={p} short />
+                <PlayerLink league={league} player={p} avatar={24} pos short />
                 <Ovr league={league} player={p} />
                 <span className="num small">
                   {p.contract ? money(Math.round(capHit(p.contract, league.season))) : 'practice squad'}
                 </span>
                 <button
-                  className="btn btn-sm btn-ghost"
+                  className="btn btn-sm btn-ghost deal-remove"
                   aria-label={`Remove ${name}`}
                   onClick={() => onChange({ ...picked, players: toggle(picked.players, id) })}
                 >
@@ -281,7 +265,7 @@ export function DealSlip({
             <li key={pk.id} className="deal-item">
               <span>{pickLabel(league, pk)}</span>
               <button
-                className="btn btn-sm btn-ghost"
+                className="btn btn-sm btn-ghost deal-remove"
                 aria-label={`Remove ${pickLabel(league, pk)}`}
                 onClick={() => onChange({ ...picked, picks: toggle(picked.picks, pk.id) })}
               >
@@ -605,11 +589,11 @@ function TradeTable({ league }: { league: League }) {
       >
         <div className="deal-slip">
           <div>
-            <DealSlip league={league} teamId={userId} label="You send" picked={a} onChange={setMine} />
+            <DealSlip league={league} label="You send" picked={a} onChange={setMine} />
             <KeepPaying league={league} picked={a} onChange={setMine} />
           </div>
           <div>
-            <DealSlip league={league} teamId={partnerId} label="You get" picked={b} onChange={setTheirs} />
+            <DealSlip league={league} label="You get" picked={b} onChange={setTheirs} />
             {Object.entries(b.retain ?? {}).map(([id, v]) => (
               <p key={id} className="muted small">
                 The {partner.name} keep paying {money(v)} of {league.players[Number(id)].lastName}'s salary this season.

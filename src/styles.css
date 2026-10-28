@@ -2260,42 +2260,6 @@ tr.void-year td {
 .meter i.yes {
   background: var(--win);
 }
-.asset-list {
-  display: grid;
-  gap: 2px;
-  max-height: 460px;
-  overflow-y: auto;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px;
-}
-.asset-list .eyebrow {
-  margin: 6px 0 2px;
-}
-.asset {
-  display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: var(--step--1);
-}
-.asset:has(> .asset-name:nth-child(2)) {
-  grid-template-columns: auto minmax(0, 1fr);
-}
-.asset.on {
-  background: color-mix(in srgb, var(--marker) 18%, var(--surface));
-}
-.asset.blocked {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.asset-name {
-  display: grid;
-  min-width: 0;
-}
 @media (prefers-reduced-motion: reduce) {
   .meter i {
     transition: none;
@@ -2676,6 +2640,102 @@ details.more > summary {
 @media (max-width: 600px) {
   .card-row:has(.seg) {
     grid-auto-columns: 88%;
+  }
+}
+/* The trade table: the deal as it stands on top, the picker that adds to it below. */
+.deal-slip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 12px 0;
+}
+.deal-side h3 {
+  margin: 0 0 6px;
+}
+.deal-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.deal-item > .deal-remove {
+  margin-left: auto;
+}
+.picker {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.picker-controls {
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+.picker-search {
+  flex: 1 1 200px;
+  max-width: 320px;
+}
+.picker-chips {
+  flex-wrap: wrap;
+}
+.picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.5em auto 5em 6.5em 7em;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+.picker-row > :last-child {
+  justify-self: end;
+}
+.picker-row .player-link > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.picker-row .player-link {
+  min-width: 0;
+}
+.picker-blocked {
+  grid-column: 6;
+  text-align: right;
+  white-space: normal;
+}
+.pick-grid {
+  display: grid;
+  gap: 6px;
+}
+.pick-grid-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.pick-grid-row > .num {
+  min-width: 3em;
+}
+.pick-grid button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--surface);
+}
+@media (max-width: 600px) {
+  .deal-slip {
+    grid-template-columns: 1fr;
+  }
+  .picker-row {
+    grid-template-columns: minmax(0, 1fr) auto 4.5em auto;
+  }
+  .picker-age,
+  .picker-thru {
+    display: none;
+  }
+  .picker-blocked {
+    grid-column: auto;
+    max-width: 8em;
+    font-size: 0.72rem;
   }
 }
 /* The Market: every front office as a card, a group per stance. */

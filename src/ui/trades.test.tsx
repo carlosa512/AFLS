@@ -176,13 +176,7 @@ describe('the deal slip', () => {
     const p = teamPlayers(l, l.userTeamId).find((x) => x.contract)!;
     const pick = l.draftPicks.find((x) => x.ownerId === l.userTeamId && x.playerId === undefined)!;
     const html = renderToStaticMarkup(
-      <DealSlip
-        league={l}
-        teamId={l.userTeamId}
-        label="You send"
-        picked={{ players: [p.id], picks: [pick.id] }}
-        onChange={() => {}}
-      />,
+      <DealSlip league={l} label="You send" picked={{ players: [p.id], picks: [pick.id] }} onChange={() => {}} />,
     );
     expect(html).toContain(p.lastName);
     expect(html).toContain(pickLabel(l, pick));
@@ -190,13 +184,7 @@ describe('the deal slip', () => {
     expect(html).toContain(`aria-label="Remove ${pickLabel(l, pick)}"`);
     expect(
       renderToStaticMarkup(
-        <DealSlip
-          league={l}
-          teamId={l.userTeamId}
-          label="You send"
-          picked={{ players: [], picks: [] }}
-          onChange={() => {}}
-        />,
+        <DealSlip league={l} label="You send" picked={{ players: [], picks: [] }} onChange={() => {}} />,
       ),
     ).toContain('Add from the picker below.');
   });

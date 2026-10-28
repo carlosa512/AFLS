@@ -21,7 +21,9 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'day or a quiet week, with the deadline and your block at a glance. Offers lead with the kind of call and your ' +
       "staff's take: the head coach, scouts, doctors and cap each say if they like it. The trade table shows what the " +
       "other club wants on your scouts' read, who it's shopping and whether it's still taking calls; your listed " +
-      'players sit on cards with how many teams have asked; and the Market shows every front office on one page.',
+      'players sit on cards with how many teams have asked; and the Market shows every front office on one page. ' +
+      'The trade table is a deal slip: you add players and picks from a picker that opens on the ones that fit, ' +
+      'filter by position or search by name, and remove anything with one tap.',
   },
   {
     version: '0.2.12',
