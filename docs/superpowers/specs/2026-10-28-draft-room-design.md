@@ -83,7 +83,7 @@ export interface PickMark { verdict: PickVerdict | null; locked: boolean } // nu
 
 ## Staff vs consensus (`staffGap`)
 
-- Your board rank (`myBoardValue` order over the available class) minus consensus rank. Positive = your staff likes
+- Consensus rank minus your board rank (`myBoardValue` order over the available class). Positive = your staff likes
   him more.
 - **Always a pill:** grey "▲3" / "▼5" / "=" under 12 spots; green "Sleeper ▲14" at 12 or more; amber "Fade ▼13" at
   −12 or less (the same 12-pick line as `reachOrSteal`).
