@@ -1,4 +1,5 @@
 import { activeCoachQuirks, coachPlayerFit, positionCoachFor } from './coachQuirks';
+import { workEthicOf } from './traits';
 import { slotOvr } from './familiarity';
 import { STARTERS } from './positions';
 import { QUIRKS, type QuirkId } from './quirks';
@@ -45,7 +46,7 @@ function adviceMemory(league: League, team: Team): NonNullable<Team['coachAdvice
 export function selectionPreference(c: Coach | undefined, p: Player): number {
   if (!c) return 0;
   const q = activeCoachQuirks(c);
-  let n = q.includes('earnYourReps') ? (0.15 * (p.traits.workEthic - 10.5)) / 9.5 : 0;
+  let n = q.includes('earnYourReps') ? (0.15 * (workEthicOf(p) - 10.5)) / 9.5 : 0;
   if (q.includes('trustsVeterans')) n += p.experience >= 5 ? 0.12 : p.experience <= 1 ? -0.06 : 0;
   if (q.includes('patientTeacher') && p.age <= 25) n += 0.04;
   return Math.max(-0.2, Math.min(0.2, n));
@@ -57,7 +58,7 @@ export function coachOrder(players: Player[], position: Position, staff: readonl
 }
 export function selectionReason(c: Coach, p: Player, ahead: Player): string {
   const q = activeCoachQuirks(c);
-  if (q.includes('earnYourReps') && p.traits.workEthic > ahead.traits.workEthic)
+  if (q.includes('earnYourReps') && workEthicOf(p) > workEthicOf(ahead))
     return 'trusts his preparation in a close selection decision';
   if (q.includes('trustsVeterans') && p.experience > ahead.experience)
     return 'favors his experience in a close selection decision';
@@ -278,7 +279,7 @@ export function coachTeachingWeek(league: League, staff: readonly Coach[], avail
             Math.abs(slotOvr(other, p.position) - slotOvr(p, p.position)) <= 0.5,
         );
         if (!peer) continue;
-        if (p.traits.workEthic > peer.traits.workEthic + 3) add('earnYourReps');
+        if (workEthicOf(p) > workEthicOf(peer) + 3) add('earnYourReps');
         if (p.experience > peer.experience + 3) add('trustsVeterans');
       }
     if (!activeCoachQuirks(c).includes('techniqueStickler')) continue;
@@ -292,7 +293,7 @@ export function coachTeachingWeek(league: League, staff: readonly Coach[], avail
     if (!candidates.length) continue;
     const rng = new Rng(`${league.seed}:coach-teaching:${c.id}:${stamp}`);
     const { p, id } = rng.pick(candidates);
-    if (!rng.chance(0.35 + 0.15 * (p.traits.workEthic / 20))) continue;
+    if (!rng.chance(0.35 + 0.15 * (workEthicOf(p) / 20))) continue;
     // fillBag is handled by the player's existing weekly/offseason path; an empty bag here
     // would remove all ordinary draws, so only intervene once a bag exists.
     if (!p.quirkBag) continue;
@@ -305,7 +306,7 @@ export function coachTeachingWeek(league: League, staff: readonly Coach[], avail
       playerName: `${p.firstName} ${p.lastName}`,
       habit: id,
       coachName: `${c.firstName} ${c.lastName}`,
-      receptive: coachPlayerFit(c, p) >= 0 && p.traits.workEthic >= 10.5,
+      receptive: coachPlayerFit(c, p) >= 0 && workEthicOf(p) >= 10.5,
     };
   }
 }

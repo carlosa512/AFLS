@@ -256,6 +256,18 @@ export interface Player {
   learning?: Learning;
   /** Every position change, oldest first. The first `from` is the body's position: its physical aging stays his. */
   moves?: PositionMove[];
+  /** His mentor (a veteran on his club), while he's 21–24 (`mentoring.ts`). */
+  mentor?: number;
+  /** Weeks this season he and his mentor have both been on the active 53. */
+  mentorWeeks?: number;
+  /** You chose this mentor: your staff leave the pair alone. */
+  mentorSetByYou?: true;
+  /** What mentors have moved, beside the traits themselves (which never change); read through `workEthicOf` and co. */
+  shifts?: Partial<Record<'workEthic' | 'temperament' | 'poise', number>>;
+  /** What a pair that split this season taught him, waiting for the new league year to land. */
+  mentorBank?: Partial<Record<'workEthic' | 'temperament' | 'poise', number>>;
+  /** Who mentored him, and when (the last two), for his card. */
+  mentoredBy?: { id: number; from: number; to: number }[];
   /** This league year's development, rolled once and still landing in steps (`development.ts`). Gone once the year has landed. */
   dev?: DevYear;
 }
@@ -747,6 +759,10 @@ export interface Team {
    * team only; AI teams always do). `passed`: suggestions turned down, player id → league year.
    */
   training?: { coachesDecide?: boolean; passed?: Record<number, number> };
+  /** You pair your own mentors; without it your position coaches do. */
+  mentoringByYou?: true;
+  /** The captains named at camp. */
+  captains?: { season: number; offense: number; defense: number; specialTeams: number };
   /**
    * Where the front office sees itself (`trade/plans.ts`) and the league year it got there: kept so
    * a team on the line doesn't flip between buying and selling from one week to the next.

@@ -22,6 +22,7 @@
  * agency, like scouts. All coaching randomness uses its own seeded Rngs: it never shifts the
  * league's main random stream, and a migrated save gets the same coaches as a new league.
  */
+import { workEthicOf } from './traits';
 import {
   coachPlayerFit,
   coachQuirksOffseason,
@@ -1365,7 +1366,7 @@ function exPlayerCoach(league: League, p: Player, base: Entry): void {
   if (!room || p.experience < 4) return;
   const rng = new Rng(`${league.seed}:to-coach:${p.id}`);
   const iq = p.ratings.awareness - 10;
-  const work = p.traits.workEthic - 10;
+  const work = workEthicOf(p) - 10;
   if (!rng.chance(clamp(TO_COACH + 0.006 * iq + 0.006 * work, 0.01, 0.15))) return;
   const sameSide = COACH_ROOMS.filter((r) => r !== room && OFFENSE_ROOMS.has(r) === OFFENSE_ROOMS.has(room));
   // His playing years teach what a coach his age has learned on the sidelines.

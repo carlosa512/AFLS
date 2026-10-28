@@ -3,7 +3,7 @@ import { specialTeamsEdge, teamScheme } from '../coaching';
 import type { TeamScheme } from '../schemes';
 import { knockFor, slotOvr } from '../familiarity';
 import { isAvailable, onGameRoster, playingHurt } from '../roster';
-import { sportsOffset, temperOffset } from '../traits';
+import { sportsOffset, temperamentOf, TRAIT_MEAN } from '../traits';
 import type { Game, League, Player, Position, Team } from '../types';
 import { gameDayTeam } from '../personnel/gameDay';
 import { POSITIONS } from '../types';
@@ -111,8 +111,8 @@ function coverUnit(league: League, team: Team, out: ReadonlySet<number>, availab
   return unit;
 }
 
-/** A lineman's discipline: his football IQ, plus or minus his temper (a hothead jumps early and grabs). */
-export const discipline = (p: Player) => skill(p, 'discipline') + temperOffset(p.traits);
+/** A lineman's discipline: his football IQ, plus or minus his temper, about ±3 (a hothead jumps early and grabs). */
+export const discipline = (p: Player) => skill(p, 'discipline') + 0.3 * (temperamentOf(p) - TRAIT_MEAN);
 
 /**
  * How clean he plays: the same football IQ, with his sportsmanship in place of his temper. A dirty player lands the late

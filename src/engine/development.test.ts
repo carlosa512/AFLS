@@ -23,7 +23,7 @@ import {
   projectedCeiling,
   scoutReport,
 } from './scouting';
-import { generateTraits, TRAIT_MEAN } from './traits';
+import { effectiveTraits, generateTraits, poiseOf, temperamentOf, TRAIT_MEAN, workEthicOf } from './traits';
 import type { League, Player, Position, Traits } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
@@ -196,6 +196,19 @@ describe('hidden traits', () => {
 });
 
 describe('development', () => {
+  it('reads a mentored trait through its accessor, and development feels it', () => {
+    const p = rookie('WR', 22, 1, { workEthic: 10 });
+    p.shifts = { workEthic: 1, temperament: -1, poise: 0.5 };
+    expect(workEthicOf(p)).toBe(11);
+    expect(temperamentOf(p)).toBe(p.traits.temperament - 1);
+    expect(poiseOf(p)).toBe(p.traits.poise + 0.5);
+    expect(effectiveTraits(p).workEthic).toBe(11);
+    expect(p.traits.workEthic).toBe(10); // traits never change
+    const shifted = growth('WR', 21, 5, (x) => (x.shifts = { workEthic: 4 }));
+    const plain = growth('WR', 21, 5, () => {});
+    expect(shifted).toBeGreaterThan(plain);
+  });
+
   it('rewards work ethic and reps while young, and nothing grows after 25', () => {
     const driven = growth('WR', 21, 5, (p) => (p.traits.workEthic = 17));
     const coasts = growth('WR', 21, 5, (p) => (p.traits.workEthic = 4));

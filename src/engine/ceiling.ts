@@ -14,7 +14,7 @@ import { overall } from './positions';
 import { clamp, Rng } from './rng';
 import { productionRule, seasonRole } from './scouting';
 import { allSeeds, playoffGames, winnerOf } from './season/playoffs';
-import { TRAIT_MEAN } from './traits';
+import { TRAIT_MEAN, workEthicOf } from './traits';
 import type { League, Player, Position, Ratings } from './types';
 import { ATTRIBUTES } from './types';
 
@@ -118,7 +118,7 @@ export const workLean = (workEthic: number) => WORK_LEAN * (workEthic - TRAIT_ME
 
 /** Which way his `season` leans his ceiling, in overall points: work ethic, play, snaps, coaching. */
 export function ceilingLean(league: League, p: Player, season: number, peers: PeerTable): number {
-  const work = workLean(p.traits.workEthic);
+  const work = workLean(workEthicOf(p));
   // Snaps where the position keeps a measure (no role: he didn't play); games suited up for where it doesn't.
   let snaps: number;
   if (productionRule(p.position)) {

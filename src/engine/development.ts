@@ -16,7 +16,7 @@ import type { AgingFamily } from './attributes';
 import { ATTRIBUTE_PROFILES, OVR_WEIGHTS, overall } from './positions';
 import { clamp, Rng } from './rng';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
-import { declineMult, growthMult } from './traits';
+import { declineMult, effectiveTraits, growthMult } from './traits';
 import type { Attribute, DevYear, Game, League, Player, Position } from './types';
 import { ATTRIBUTES } from './types';
 
@@ -118,7 +118,7 @@ const FAMILY_LOSS: Record<AgingFamily, number> = { physical: 1.2, technical: 1, 
 const MENTAL_GROWTH = 0.06;
 
 /** What the roll reads of a player: his ratings as they stood when the year was rolled. */
-type Rolled = Pick<Player, 'age' | 'position' | 'potential' | 'traits' | 'ratings'>;
+type Rolled = Pick<Player, 'age' | 'position' | 'potential' | 'traits' | 'shifts' | 'ratings'>;
 
 /**
  * Roll one year of development: the change each rating is headed for (in `ATTRIBUTES` order, 0 for a
@@ -128,7 +128,9 @@ type Rolled = Pick<Player, 'age' | 'position' | 'potential' | 'traits' | 'rating
 export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
   const age = player.age;
   const pos = player.position;
-  const traits = player.traits;
+  // What mentors have moved counts (`effectiveTraits`); shifts only land at the new league year, so a year re-rolled
+  // in steps reads the same traits it was first rolled with.
+  const traits = effectiveTraits(player);
   const rate = ctx.rate ?? 1;
   const profile = ATTRIBUTE_PROFILES[pos];
   const weights = OVR_WEIGHTS[pos];
@@ -276,7 +278,14 @@ export function yearTargets(league: League, p: Player): number[] {
   // His age ticks over right after the roll, so all year he is a year older than he was rolled at.
   // A year from before v57 kept no ceiling: nothing settled under it, so the player's is the one it was rolled with.
   const potential = d.potential ?? p.potential;
-  const rolled: Rolled = { age: p.age - 1, position: p.position, potential, traits: p.traits, ratings };
+  const rolled: Rolled = {
+    age: p.age - 1,
+    position: p.position,
+    potential,
+    traits: p.traits,
+    shifts: p.shifts,
+    ratings,
+  };
   const decline = d.decline && Object.fromEntries(FAMILIES.map((f, i) => [f, d.decline![i]]));
   return rollYear(yearStream(league, d.season, p.id), rolled, {
     playedShare: d.share ?? Math.min(1, (d.games ?? 0) / SEASON_GAMES),
