@@ -36,6 +36,11 @@ mark on every pick in the draft history), gets its own brainstorm and spec once 
    The class gets 0.9 more room to grow (`HYPE_ROOM`) and a top of 13.95 (from 13.7) for the talent hype takes back.
    Aimed at the upper part of 25–40%, since nobody has seen him against the pros. Careers, 8 seasons: 34.9%
    first-round busts, 17.6% Day 3 hits, starters 12.71–12.91, every row in range.
+9. **A settle's rise is capped (from CI's 16-season careers run).** The full upper tail made too many superstars out of
+   nowhere: the season's top receiving yards averaged 2,021 against the 1,995 ceiling. A settle now lifts a ceiling at
+   most one swing past its lean (`ceilingShift`), and hands every settle back the twelfth of a swing that the cap takes
+   off the average (`CAP_GIVEBACK` 0.0833), since without it league talent fell to 12.46 against the 12.65 floor. The
+   downside keeps its whole tail: that is where busts come from.
 
 ## The settle
 
