@@ -76,7 +76,7 @@ import {
   CombinePanel,
   DevelopmentChart,
   KnowledgeMeter,
-  MakeupPills,
+  CharacterFact,
   makeupOf,
   potentialText,
   QuirkPills,
@@ -738,16 +738,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           <span className="eyebrow">Experience</span>
           <b className="num">{isProspect(p) ? 'Prospect' : p.experience === 0 ? 'Rookie' : `${p.experience} yr`}</b>
         </span>
-        <span className="fact">
-          <span className="eyebrow">{makeup.known && makeup.hedged ? 'Makeup · early word' : 'Makeup'}</span>
-          {!makeup.known ? (
-            <span className="muted">Unknown</span>
-          ) : makeup.notes.length === 0 ? (
-            <span className="muted">Nothing stands out</span>
-          ) : (
-            <MakeupPills notes={makeup.notes} hedged={makeup.hedged} />
-          )}
-        </span>
+        <CharacterFact league={league} player={p} />
         <span className="fact">
           <span className="eyebrow">Habits</span>
           {!habits.known ? (

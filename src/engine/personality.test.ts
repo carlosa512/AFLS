@@ -3,6 +3,7 @@ import { createLeague } from './generate';
 import {
   characterLine,
   personalityOf,
+  personalityTone,
   TRAITS_ON,
   trueCharacter,
   type Character,
@@ -101,5 +102,12 @@ describe('personality', () => {
     // Leadership's job hasn't shipped: it stays out of the sentence until it has.
     expect(characterLine(average({ leads: 19 }))).toBe('Nothing about him stands out.');
     for (const p of players) expect(characterLine(trueCharacter(p))).not.toMatch(/marble|trait|z-score|\bsd\b/i);
+  });
+
+  it('tints a name by what it means for a club: good, a warning, or neither', () => {
+    expect(personalityTone('Consummate Pro')).toBe('good');
+    expect(personalityTone('Dirty Player')).toBe('warn');
+    expect(personalityTone('Ring Chaser')).toBe('neutral');
+    expect(personalityTone('Even-Keeled')).toBe('neutral');
   });
 });

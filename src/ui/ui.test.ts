@@ -372,6 +372,14 @@ describe('screen contract', () => {
     expect(bad).toEqual([]);
   });
 
+  it('keeps engine words off the screen', () => {
+    // Players read football words: never a marble, a trait or a z-score (spec §5.5).
+    // Comments are for developers and may say "trait"; only what renders counts.
+    const copy = (f: string) => src(f).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+    const bad = files.filter((f) => /['"`>][^'"`<{}\n]*\b(marbles?|traits?|z-score)\b/i.test(copy(f)));
+    expect(bad).toEqual([]);
+  });
+
   it('renders team names only through TeamLink', () => {
     const bad = files.filter((f) => /<TeamLabel|linklike team-inline" onClick=\{\(\) => nav\.openTeam/.test(src(f)));
     expect(bad).toEqual([]);

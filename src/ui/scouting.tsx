@@ -46,6 +46,7 @@ import type { Attribute, Combine, League, Player, Position, Ratings } from '../e
 import { ATTRIBUTES } from '../engine/types';
 import { Rating, TipPill } from './components';
 import { QUIRKS } from '../engine/quirks';
+import { personalityRead, personalityTone } from '../engine/personality';
 import { band, heightFt, resultsSeason } from './format';
 import { store } from './store';
 
@@ -255,6 +256,43 @@ export function KnowledgeMeter({ value }: { value: number }) {
 
 /** What your scouts say about a player's makeup: words only, and only once they know him well enough. */
 export const makeupOf = (league: League, p: Player): CharacterNotes => characterNotes(league, league.userTeamId, p);
+
+const TONE_CLASS = { good: 'tag-good', warn: 'tag-warn', neutral: 'tag-pill' } as const;
+
+/** What your scouts call a player's character: a name and one sentence, or null until they know him. */
+export const characterOf = (league: League, p: Player) => personalityRead(league, league.userTeamId, p);
+
+/**
+ * The card's makeup fact: his personality, the one sentence behind it, then whatever else stands out (his body, how he
+ * travels between positions). Work ethic and temper aren't repeated as tags: the personality line already says them.
+ */
+export function CharacterFact({ league, player }: { league: League; player: Player }) {
+  const makeup = makeupOf(league, player);
+  const character = characterOf(league, player);
+  const rest = makeup.notes.filter((n) => n.about !== 'work' && n.about !== 'temper');
+  return (
+    <span className="fact">
+      <span className="eyebrow">{makeup.known && makeup.hedged ? 'Makeup · early word' : 'Makeup'}</span>
+      {!character ? (
+        <span className="muted">Unknown</span>
+      ) : (
+        <>
+          <span className="pill-row">
+            <TipPill
+              className={`${TONE_CLASS[personalityTone(character.name)]}${character.hedged ? ' tag-early' : ''}`}
+              tip={character.hedged ? `Early word: ${character.line}` : character.line}
+            >
+              {character.name}
+              {character.hedged && <span className="visually-hidden"> (early word)</span>}
+            </TipPill>
+          </span>
+          <span className="muted small">{character.line}</span>
+          <MakeupPills notes={rest} hedged={makeup.hedged} />
+        </>
+      )}
+    </span>
+  );
+}
 
 /**
  * Makeup as pills. The word carries the meaning and the tint only backs it up; early word gets a

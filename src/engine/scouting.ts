@@ -465,8 +465,11 @@ export function projectedCeiling(ovr: number, ceiling: number, workEthic?: numbe
 }
 
 export interface CharacterNote {
-  /** What it reads: his makeup (most notes), or how he travels between positions (a football trait, not character). */
-  about?: 'versatility';
+  /**
+   * What it reads: his makeup (untagged notes), his work ethic or temper (which the personality line on the card now
+   * covers), or how he travels between positions (a football trait, not character).
+   */
+  about?: 'versatility' | 'work' | 'temper';
   label: string;
   tone: 'good' | 'warn';
   /** What it means for him, as a sentence. */
@@ -536,12 +539,15 @@ export function characterNotes(league: League, teamId: number, p: Player): Chara
           : 'coasts at times, so the decline may hit him harder',
       ),
     );
+  // The card's personality line says this now; the scout's report still uses the clause.
+  for (const n of notes) n.about = 'work';
   if (read.durability >= 14) notes.push(note('Built to last', 'good', 'his body is built to last'));
   else if (read.durability <= 7) notes.push(note('Wears down early', 'warn', 'his body may wear down early'));
   if (TEMPER_POSITIONS.has(p.position)) {
-    if (read.temperament <= 7) notes.push(note('Hothead', 'warn', 'has a short fuse, so his line draws more flags'));
+    if (read.temperament <= 7)
+      notes.push({ ...note('Hothead', 'warn', 'has a short fuse, so his line draws more flags'), about: 'temper' });
     else if (read.temperament >= 14.5)
-      notes.push(note('Even-keeled', 'good', 'even-keeled, so he rarely draws a flag'));
+      notes.push({ ...note('Even-keeled', 'good', 'even-keeled, so he rarely draws a flag'), about: 'temper' });
   }
   if (read.versatility >= 15)
     notes.push({

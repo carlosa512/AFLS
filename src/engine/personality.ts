@@ -123,6 +123,30 @@ export function personalityOf(c: Character, on: ReadonlySet<CharacterKey> = TRAI
   return RULES.find((r) => r.needs.every((k) => on.has(k)) && r.holds(z))?.name ?? 'Even-Keeled';
 }
 
+const GOOD: ReadonlySet<PersonalityName> = new Set([
+  'Born Leader',
+  'Consummate Pro',
+  'Clutch',
+  'Company Man',
+  'Driven',
+  'Quiet Pro',
+]);
+const WARN: ReadonlySet<PersonalityName> = new Set([
+  'Locker-Room Lawyer',
+  'Dirty Player',
+  'Volatile',
+  'Diva',
+  'Jittery',
+  'Mercenary',
+  'Hothead',
+  'Coaster',
+]);
+
+/** How a name reads to a club, for its tint: a plus, a warning, or neither (a Ring Chaser is only a fact). */
+export function personalityTone(name: PersonalityName): 'good' | 'warn' | 'neutral' {
+  return GOOD.has(name) ? 'good' : WARN.has(name) ? 'warn' : 'neutral';
+}
+
 /** What a scout says about each part, at either end. */
 const PHRASES: Record<CharacterKey, [high: string, low: string]> = {
   workEthic: ['outworks everyone', 'has to be pushed'],
