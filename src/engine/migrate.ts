@@ -1,3 +1,4 @@
+import { lockVerdicts } from './draftGrade';
 import { fillOrigins } from './origin';
 import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
 /**
@@ -182,6 +183,11 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 57) league.version = 57;
   // v58: optional `Player.ceilingShifts` and `DevYear.potential`; an open year without one reads the player's ceiling.
   if (league.version < 58) league.version = 58;
+  // v59: optional `draft.verdict`, locked from today's read for every pick already past its third season.
+  if (league.version < 59) {
+    lockVerdicts(league);
+    league.version = 59;
+  }
   return league;
 }
 

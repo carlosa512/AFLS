@@ -19,6 +19,9 @@ import type { Weather } from './weather';
 export const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE', 'LB', 'CB', 'S', 'K', 'P'] as const;
 export type Position = (typeof POSITIONS)[number];
 
+/** How a draft pick turned out against what its round should produce (`draftGrade.ts`). */
+export type PickVerdict = 'steal' | 'hit' | 'miss';
+
 /** All attributes use a 1–20 scale (FM-style) to avoid rating inflation. */
 export const ATTRIBUTES = [
   'speed',
@@ -204,7 +207,8 @@ export interface Player {
   contract: Contract | null;
   retired?: boolean;
   /** `rank`: where the consensus ranked him in his class when he was taken (kept here because old picks are pruned). */
-  draft?: { season: number; round: number; pick: number; teamId: number; rank?: number };
+  /** `verdict`: how the pick turned out in your scouts' eyes, locked after his third season (`draftGrade.ts`). */
+  draft?: { season: number; round: number; pick: number; teamId: number; rank?: number; verdict?: PickVerdict };
   /** Times franchise-tagged (each consecutive tag costs more). */
   tagCount?: number;
   /** Draft prospects: the league-wide consensus read of overall and ceiling (true ratings stay hidden). AI boards use it. */

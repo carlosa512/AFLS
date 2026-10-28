@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.11',
+    date: '2026-10-28',
+    title: 'The draft room',
+    text:
+      'Draft day has a war room: who is on the clock (gold when it is you), the last few picks, and your next one. ' +
+      "Your staff's top five sit right under it. On the big board, a bar runs from each prospect's grade now to his " +
+      'ceiling, so a safe pick and a boom-or-bust project look different at a glance, and a pill says where your ' +
+      'staff parts from the league: a sleeper you like more, a fade you like less. Draft history marks how every pick ' +
+      "turned out in your scouts' eyes: an early read for two seasons, then a hit, a miss or a steal for good.",
+  },
+  {
     version: '0.2.10',
     date: '2026-10-27',
     title: 'Draft busts and late bloomers',

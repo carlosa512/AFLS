@@ -2583,6 +2583,137 @@ details.more > summary {
   align-items: center;
 }
 
+/* ───────── draft room ───────── */
+/* The hero: your own pick on the clock wears the marker's gold, so draft day can't miss it. */
+.draft-clock.is-up {
+  box-shadow:
+    inset 0 0 0 2px var(--marker),
+    var(--shadow);
+}
+.draft-clock-head h2 {
+  font-family: var(--font-display);
+  font-size: var(--step-3);
+  line-height: 1;
+  margin: 2px 0 0;
+}
+.draft-ticker {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.draft-ticker li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.draft-ticker li:first-child {
+  font-weight: 700;
+}
+.prospect-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.prospect-card {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  min-width: 0;
+}
+/* On a phone the five cards swipe sideways instead of stacking five screens tall. */
+@media (max-width: 600px) {
+  .prospect-cards {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 72%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 4px;
+  }
+  .prospect-card {
+    scroll-snap-align: start;
+  }
+}
+.prospect-card .tag-pill {
+  margin-left: 0;
+}
+.prospect-grade {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+/* The floor-to-ceiling bar on the 1–20 scale: solid to the likely ceiling, faded to the top of the range. */
+.risk {
+  display: inline-grid;
+  gap: 2px;
+  min-width: 90px;
+  width: 100%;
+  max-width: 140px;
+}
+.risk-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--line) 70%, transparent);
+}
+.risk-solid,
+.risk-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  min-width: 3px;
+}
+.risk-solid {
+  background: var(--field);
+}
+.risk-fade {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--field) 55%, transparent), transparent);
+}
+.risk-word {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.risk-safe {
+  color: color-mix(in srgb, var(--win) 75%, var(--ink));
+}
+.risk-boom-or-bust {
+  color: color-mix(in srgb, var(--tie) 62%, var(--ink));
+}
+.gap-pill {
+  margin-left: 0;
+  white-space: nowrap;
+}
+.board-notes {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+/* A verdict still being read is faded as well as dashed, so the locked ones stand out down a column. */
+.verdict-pill {
+  margin-left: 0;
+}
+.verdict-early {
+  opacity: 0.7;
+}
+.verdict-record {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+
 /* ───────── scouting staff ───────── */
 /* Five front-office tabs don't fit a phone side by side: tighten them, and scroll inside the bar as a last resort. */
 .office-bar {

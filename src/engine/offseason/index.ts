@@ -1,3 +1,4 @@
+import { lockVerdicts } from '../draftGrade';
 import { cflArrivals } from './arrivals';
 import { formPracticeSquads } from '../personnel/squadMarket';
 import { settleSquadPayroll } from '../personnel/payroll';
@@ -152,6 +153,8 @@ export function beginOffseason(league: League): void {
     recordRatings(p, league.season);
     quirkOffseason(league, p);
   }
+  // Picks three league years back get their verdict now: the year's development is in, their ceilings have settled.
+  lockVerdicts(league);
   expireSquadContracts(league);
   // Careers from before practice squads get one offer to switch them on (the squad desk, until camp).
   if (league.personnel && !league.personnel.enabled && league.personnel.offered === undefined)
