@@ -2583,19 +2583,52 @@ details.more > summary {
   align-items: center;
 }
 
-/* ───────── draft room ───────── */
-/* The hero: your own pick on the clock wears the marker's gold, so draft day can't miss it. */
-.draft-clock.is-up {
+/* ───────── office kit ───────── */
+/* Every Front Office tab's hero (ui/office.tsx): gold when something is waiting on you, so it can't be missed. */
+.office-hero.is-urgent {
   box-shadow:
     inset 0 0 0 2px var(--marker),
     var(--shadow);
 }
-.draft-clock-head h2 {
+.office-hero-head h2 {
   font-family: var(--font-display);
   font-size: var(--step-3);
   line-height: 1;
   margin: 2px 0 0;
 }
+.card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.office-card {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  min-width: 0;
+}
+/* On a phone the cards swipe sideways instead of stacking five screens tall. */
+@media (max-width: 600px) {
+  .card-row {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 72%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 4px;
+  }
+  .office-card {
+    scroll-snap-align: start;
+  }
+}
+.office-card .tag-pill {
+  margin-left: 0;
+}
+
+/* ───────── draft room ───────── */
 .draft-ticker {
   list-style: none;
   margin: 0 0 14px;
@@ -2611,37 +2644,6 @@ details.more > summary {
 }
 .draft-ticker li:first-child {
   font-weight: 700;
-}
-.prospect-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-}
-.prospect-card {
-  display: grid;
-  gap: 6px;
-  align-content: start;
-  padding: 12px;
-  border-radius: var(--radius);
-  background: var(--surface-2);
-  min-width: 0;
-}
-/* On a phone the five cards swipe sideways instead of stacking five screens tall. */
-@media (max-width: 600px) {
-  .prospect-cards {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: 72%;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    padding-bottom: 4px;
-  }
-  .prospect-card {
-    scroll-snap-align: start;
-  }
-}
-.prospect-card .tag-pill {
-  margin-left: 0;
 }
 .prospect-grade {
   display: flex;
