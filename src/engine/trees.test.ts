@@ -325,10 +325,21 @@ describe('the carousel', () => {
     const third = c[3];
     third.career = [
       ...[2020, 2021, 2022].map((s) => row(s, 4, 'positionCoach', { room: 'QB' })),
-      row(2024, 9, 'headCoach'),
+      row(2023, 9, 'headCoach'),
     ];
     expect(hasTree(l, hc.id)).toBe(true); // b and third
     third.career = third.career.filter((r) => r.role !== 'headCoach');
     expect(hasTree(l, hc.id)).toBe(false); // a doesn't count
+  });
+
+  it('is a tree only once two of his men have run clubs in the same season', () => {
+    const { l, c } = blank();
+    const [hc, a, b] = c;
+    hc.career = [2010, 2011, 2012].map((s) => row(s, 4, 'headCoach'));
+    a.career = [...[2010, 2011, 2012].map((s) => row(s, 4, 'offCoord')), row(2014, 7, 'headCoach')];
+    b.career = [...[2010, 2011, 2012].map((s) => row(s, 4, 'defCoord')), row(2016, 8, 'headCoach')];
+    expect(hasTree(l, hc.id)).toBe(false); // never at the same time
+    b.career.push(row(2014, 8, 'headCoach'));
+    expect(hasTree(l, hc.id)).toBe(true);
   });
 });

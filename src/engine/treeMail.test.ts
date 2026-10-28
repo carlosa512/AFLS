@@ -28,15 +28,22 @@ describe('tree news', () => {
     expect(m[0].body).not.toMatch(BANNED);
   });
 
-  it('SNN marks a tree born when a second disciple becomes a head coach', () => {
+  it('SNN marks a tree born the first season two of his men run clubs at once, and not for a founding tree', () => {
+    const founded = createLeague({ seed: 'tree-born' });
+    deliverMail(founded);
+    expect((founded.inbox ?? []).filter((m) => m.id.includes(':born:'))).toHaveLength(0); // founding trees are older
     const l = createLeague({ seed: 'tree-born' });
-    const t = liveTrees(l)[0];
-    // Make the second disciple's head-coaching start this season.
-    const d = l.coaches[t.disciples[1]];
-    d.career = [{ season: l.season, teamId: d.teamId!, role: 'headCoach' }];
-    const first = l.coaches[t.disciples[0]];
-    first.career = [{ season: l.season - 2, teamId: first.teamId!, role: 'headCoach' }];
+    for (const c of Object.values(l.coaches)) delete c.pastUnder;
+    const heads = Object.values(l.coaches).filter((c) => c.role === 'headCoach' && c.teamId !== null);
+    const [root, a, b] = heads;
+    const s = l.season;
+    root.career = [s - 6, s - 5, s - 4].map((x) => ({ season: x, teamId: 20, role: 'headCoach' as const }));
+    a.career = [
+      ...[s - 6, s - 5, s - 4].map((x) => ({ season: x, teamId: 20, role: 'offCoord' as const })),
+      { season: s - 2, teamId: a.teamId!, role: 'headCoach' as const },
+    ];
+    b.career = [...[s - 6, s - 5, s - 4].map((x) => ({ season: x, teamId: 20, role: 'defCoord' as const }))];
     deliverMail(l);
-    expect(mail(l, `tree:${l.season}:born:${t.rootId}`)).toHaveLength(1);
+    expect(mail(l, `tree:${l.season}:born:${root.id}`)).toHaveLength(1);
   });
 });

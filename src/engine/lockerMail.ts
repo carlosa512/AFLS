@@ -9,7 +9,7 @@ import { personalityOf, personalityTone, trueCharacter } from './personality';
 import { personalityRead } from './personality';
 import { clubFeeling, rapport, speakEvents, speaksOut, type SpeakEvent } from './relationships';
 import { perceive } from './scouting';
-import { linksOf, treeOf } from './trees';
+import { linksOf, treeBornSeason, treeOf } from './trees';
 import type { Coach, InboxMessage, League, Player } from './types';
 
 type Draft = Omit<InboxMessage, 'read'>;
@@ -285,9 +285,6 @@ const coachName = (league: League, id: number) => {
   const c = league.coaches[id] ?? league.retiredCoaches[id];
   return c ? fullName(c) : 'a coach';
 };
-/** The season a coach first ran a club (founding trees' men count as before the league began). */
-const firstHeadSeason = (c: Coach) =>
-  Math.min(Infinity, ...(c.career ?? []).filter((r) => r.role === 'headCoach').map((r) => r.season));
 
 function snn(league: League, id: string, subject: string, body: string): Draft {
   return {
@@ -310,13 +307,9 @@ function treeMail(league: League, have: Set<string>): Draft[] {
   for (const root of everyone) {
     const tree = treeOf(league, root.id);
     if (!tree) continue;
-    // Born: his second man to run a club started this season (founding trees were born before the league).
-    const starts = tree.disciples
-      .map((id) => league.coaches[id] ?? league.retiredCoaches[id])
-      .map((d) => (d && (d.career ?? []).some((r) => r.role === 'headCoach') ? firstHeadSeason(d) : -Infinity))
-      .sort((a, b) => a - b);
+    // Born: this is the first season two of his men run clubs at once (founding trees were born before the league).
     const born = `tree:${league.season}:born:${root.id}`;
-    if (starts[1] === league.season && !have.has(born))
+    if (treeBornSeason(league, root.id) === league.season && !have.has(born))
       out.push(
         snn(
           league,

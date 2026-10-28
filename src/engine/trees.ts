@@ -152,7 +152,8 @@ function headDisciples(league: League, rootId: number): Coach[] {
     .filter((c): c is Coach => {
       if (!c) return false;
       const last = linksOf(league, c.id).find((k) => k.mentorId === rootId)?.last ?? -Infinity;
-      return headSeasons(c).some((r) => r.season > last) || (last === -Infinity && isActiveHead(c));
+      // Running a club now counts as after, even before the season has credited him a game.
+      return headSeasons(c).some((r) => r.season > last) || (isActiveHead(c) && league.season > last);
     })
     .sort((a, b) => a.id - b.id);
 }
@@ -161,8 +162,41 @@ function headDisciples(league: League, rootId: number): Coach[] {
 const headMen = (league: League, rootId: number): Coach[] =>
   (index(league).headMen.get(rootId) ?? []).map((id) => coachById(league, id)).filter((c): c is Coach => !!c);
 
-/** Two of his men have become head coaches: he has a tree. */
-export const hasTree = (league: League, coachId: number) => headDisciples(league, coachId).length >= 2;
+/** The seasons a disciple ran a club after his years under `rootId` (a founding disciple's current job counts). */
+function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
+  const last = linksOf(league, c.id).find((k) => k.mentorId === rootId)?.last ?? -Infinity;
+  const seasons = headSeasons(c)
+    .filter((r) => r.season > last)
+    .map((r) => r.season);
+  if (isActiveHead(c) && !seasons.includes(league.season)) seasons.push(league.season);
+  // A founding disciple was already running his club before the league began.
+  if (last === -Infinity && isActiveHead(c)) seasons.push(-Infinity);
+  return seasons;
+}
+
+/** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
+export function treeBornSeason(league: League, coachId: number): number | null {
+  const count = new Map<number, number>();
+  for (const d of headDisciples(league, coachId))
+    for (const s of new Set(seasonsInCharge(league, d, coachId))) count.set(s, (count.get(s) ?? 0) + 1);
+  const born = [...count].filter(([, n]) => n >= 2).map(([s]) => s);
+  return born.length ? Math.min(...born) : null;
+}
+
+/**
+ * He has a tree once two of his men have run clubs in the same season, as the press recognizes one: a man whose
+ * assistants run clubs one after another, never side by side, is a good teacher, not a tree.
+ */
+export function hasTree(league: League, coachId: number): boolean {
+  const count = new Map<number, number>();
+  for (const d of headDisciples(league, coachId))
+    for (const s of new Set(seasonsInCharge(league, d, coachId))) {
+      const n = (count.get(s) ?? 0) + 1;
+      if (n >= 2) return true;
+      count.set(s, n);
+    }
+  return false;
+}
 
 /** Everyone in a tree below its root, branches included, each once (odd histories can loop). */
 function descendants(league: League, rootId: number): Coach[] {
@@ -181,8 +215,8 @@ function descendants(league: League, rootId: number): Coach[] {
 }
 
 export function treeOf(league: League, rootId: number): Tree | null {
+  if (!hasTree(league, rootId)) return null;
   const disciples = headDisciples(league, rootId);
-  if (disciples.length < 2) return null;
   return {
     rootId,
     disciples: disciples.map((d) => d.id),
@@ -314,7 +348,7 @@ export const TREE_KEEP = 0.25;
 /** Hiring scores are lower-is-better: a man linked to the hiring head coach scores this much better. */
 export const TREE_PULL = 0.3;
 /** Head-coach searches: a hot tree's disciples score better, a withering one's worse. */
-export const TREE_STANDING: Record<TreeStanding, number> = { hot: -0.25, steady: -0.05, withering: 0.4, faded: 0 };
+export const TREE_STANDING: Record<TreeStanding, number> = { hot: -0.15, steady: -0.05, withering: 0.4, faded: 0 };
 /** The chance a new coordinator runs his main mentor's scheme instead of his own. */
 export const TREE_SCHEME = 0.5;
 
