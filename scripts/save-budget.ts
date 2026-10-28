@@ -36,6 +36,11 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // 8,351 KB against 8,198, retained 12,997-16,557 KB against 12,809-16,521, players growth 923 KB against 862 in the
   // first full year (675-754 against 669-748 after). A small allowance agreed by the owner, not a leak.
   origins: { firstSeason: 200, retainedSeasons: 200, games: 0, annualGrowth: 0, playersGrowth: 60 },
+  // Mentoring (0.2.16): each mentored player's trait shifts beside his traits, who mentored him (for his card) and the
+  // pair's week count, about 63 KB of player fields a season (shifts 29, mentoredBy 25, mentor and mentorWeeks 9). Measured
+  // on offseason-audit after trimming (this year's shifts kept for your own players only, retirees dropping theirs):
+  // players growth 1,020 KB against 980 in the first year, 17,151 KB retained against 17,100. Agreed by the owner.
+  mentoring: { firstSeason: 0, retainedSeasons: 150, games: 0, annualGrowth: 0, playersGrowth: 70 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(
