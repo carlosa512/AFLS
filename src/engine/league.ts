@@ -1,3 +1,4 @@
+import { mentoringWeek } from './mentoring';
 import { coachQuirksWeek, recordCoachEvidence } from './coachQuirks';
 import { coachTeachingWeek, updateCoachAdvice } from './coachDecisions';
 /**
@@ -174,6 +175,7 @@ function playWeekControlled(league: League): Game[] {
     aiTrades(league);
     quirkWeek(league);
     trainingWeek(league);
+    mentoringWeek(league);
     // The week's share of each player's year lands, more for a man who played (the user's live game included).
     developWeek(league, gamesInWeek(league));
   }

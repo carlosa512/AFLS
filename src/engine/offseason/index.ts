@@ -64,6 +64,8 @@ import {
 import { resetContenderCache, ROSTER_MAX } from './negotiation';
 import { rollService } from '../personnel/service';
 import { settleFinished } from '../ceiling';
+import { settleMentoring } from '../mentoring';
+import { nameCaptains } from '../personality';
 import { personnelClock } from '../personnel/calendar';
 import { settleOffseasonWaivers, staffHandlesSquad, syncPersonnel, waiversPending } from '../personnel/flow';
 import { ensureWaivers } from '../personnel/waivers';
@@ -111,6 +113,8 @@ export function beginOffseason(league: League): void {
     const own = new Rng(`${league.seed}:dev:${league.season}:${p.id}`);
     // Whatever of last year hadn't landed lands first; then this year is rolled and its March share released.
     trueUp(league, p);
+    // What mentors taught him lands now: after last year's development has landed, before this year's is rolled.
+    settleMentoring(league, p);
     beginYear(league, own, p, {
       playedShare: playedShare(p, last),
       ...coachingForPlayer(league, p),
@@ -144,6 +148,10 @@ export function beginOffseason(league: League): void {
       delete p.learning;
       delete p.dev;
       delete p.ratingHistory;
+      delete p.mentor;
+      delete p.mentorWeeks;
+      delete p.mentorSetByYou;
+      delete p.mentorBank;
       retirees.push(p);
       continue;
     }
@@ -329,6 +337,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
         ensureStaffed(league, { autoUser: auto });
         ensureCoached(league, { autoUser: auto });
         ensureMedical(league, { autoUser: auto });
+        // With the 53 set, each club names its captains.
+        nameCaptains(league);
         if (league.personnel?.enabled) {
           personnelClock(league).cutdown = true;
           break; // Give the manager the complete league-wide cutdown wire before awarding anyone.

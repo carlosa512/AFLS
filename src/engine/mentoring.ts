@@ -1,0 +1,216 @@
+/**
+ * Mentoring: a veteran on the active 53 helps a young teammate grow up. What rubs off is the veteran's own work ethic,
+ * temper and poise, good or bad, at most a point a year each, for players 21–24 (docs/TRAINING.md §8, and
+ * docs/superpowers/specs/2026-10-28-personality-relationships-design.md §2). How much depends on how much the room
+ * listens to him (his leadership and his standing) and on how much the young player lets in. Mentors are picked by
+ * leadership and standing only, never by work ethic, so the league as a whole doesn't drift.
+ */
+import { activeRoster } from './roster';
+import { characterRead, seasonRole } from './scouting';
+import { formerPositions } from './training';
+import { clamp } from './rng';
+import { poiseOf, temperamentOf, TRAIT_MEAN, workEthicOf, type Shifted } from './traits';
+import type { League, Player, Position } from './types';
+
+export const MENTOR_MIN_AGE = 27;
+export const MENTOR_MIN_SEASONS = 5;
+export const YOUNG_AGES: [number, number] = [21, 24];
+export const MAX_MENTEES = 2;
+/** Tuned so a starting Born Leader two spreads apart on a trait reaches the point-a-year cap in a full season. */
+export const RATE = 0.6;
+export const POSITION_BONUS = 1.12;
+export const SEASON_WEEKS = 18;
+const SD = 3.5;
+
+export const SHIFTED: readonly Shifted[] = ['workEthic', 'temperament', 'poise'];
+const valueOf: Record<Shifted, (p: Player) => number> = {
+  workEthic: workEthicOf,
+  temperament: temperamentOf,
+  poise: poiseOf,
+};
+
+/** Old enough, or long enough in the league, to have something to pass on. */
+export const canMentor = (p: Player) => p.age >= MENTOR_MIN_AGE || p.experience >= MENTOR_MIN_SEASONS;
+
+/** Young enough to still be shaped by one. */
+export const canBeMentored = (p: Player) => p.age >= YOUNG_AGES[0] && p.age <= YOUNG_AGES[1];
+
+/** How much the room listens to a man of this leadership: about ×0.3 for the quietest, ×1.5 for a Born Leader. */
+export const leadFactor = (leads: number) => clamp(0.9 + (0.4 * (leads - TRAIT_MEAN)) / SD, 0.3, 1.5);
+
+/** A starter's word carries; a backup's less. Read from last season's snaps; no line counts as a backup. */
+export function standingFactor(league: League, p: Player): number {
+  const role = seasonRole(league, p)?.role;
+  return role === 'starter' ? 1 : role === 'rotation' ? 0.7 : 0.4;
+}
+
+/** How much sticks: a young player who stirs the room (high controversy) takes less from anyone. */
+export const takes = (p: Player) => clamp(1 - (0.3 * Math.max(0, p.traits.controversy - TRAIT_MEAN)) / SD, 0.4, 1);
+
+/** A mentor who plays, or has played, the young player's position knows his job best. */
+export const positionBonus = (_league: League, mentor: Player, young: Player) =>
+  mentor.position === young.position || formerPositions(mentor).includes(young.position) ? POSITION_BONUS : 1;
+
+/** What `weeks` together move, per trait: toward the mentor's own, either way, a point at most. */
+export function mentorShift(league: League, mentor: Player, young: Player, weeks: number): Record<Shifted, number> {
+  const pull =
+    RATE *
+    (weeks / SEASON_WEEKS) *
+    leadFactor(mentor.traits.leads) *
+    standingFactor(league, mentor) *
+    takes(young) *
+    positionBonus(league, mentor, young);
+  const out = {} as Record<Shifted, number>;
+  for (const k of SHIFTED)
+    out[k] = weeks > 0 ? clamp((pull * (valueOf[k](mentor) - valueOf[k](young))) / SD, -1, 1) : 0;
+  return out;
+}
+
+// ───────── pairs ─────────
+
+const OFFENSE: ReadonlySet<Position> = new Set(['QB', 'RB', 'WR', 'TE', 'OL']);
+const sideOf = (pos: Position) => (OFFENSE.has(pos) ? 'offense' : pos === 'K' || pos === 'P' ? 'kicking' : 'defense');
+
+/** Is the pair still a pair: the mentor around, on the young player's club, and the young player still young? */
+function stillPaired(league: League, young: Player): boolean {
+  const m = young.mentor === undefined ? undefined : league.players[young.mentor];
+  return !!m && !m.retired && m.teamId !== null && m.teamId === young.teamId && canBeMentored(young);
+}
+
+/** Keep the record of who mentored him (the last two pairs), extending a pair that runs on. */
+function remember(young: Player, mentorId: number, season: number): void {
+  const log = (young.mentoredBy ??= []);
+  const last = log.find((e) => e.id === mentorId && e.to >= season - 1);
+  if (last) last.to = Math.max(last.to, season);
+  else log.push({ id: mentorId, from: season, to: season });
+  if (log.length > 2) log.splice(0, log.length - 2);
+}
+
+/** Bank what `weeks` together taught him; it lands at the new league year (`settleMentoring`). */
+function bank(league: League, young: Player, mentor: Player, weeks: number): void {
+  if (weeks <= 0) return;
+  const s = mentorShift(league, mentor, young, weeks);
+  const b = (young.mentorBank ??= {});
+  for (const k of SHIFTED) b[k] = (b[k] ?? 0) + s[k];
+}
+
+/**
+ * End a pair: what they managed together is banked and remembered. Development already rolled this year off his
+ * traits as they stood, so nothing moves before the new league year.
+ */
+export function endPair(league: League, young: Player): void {
+  const m = young.mentor === undefined ? undefined : league.players[young.mentor];
+  if (m && (young.mentorWeeks ?? 0) > 0) {
+    bank(league, young, m, young.mentorWeeks!);
+    remember(young, m.id, league.season);
+  }
+  delete young.mentor;
+  delete young.mentorWeeks;
+  delete young.mentorSetByYou;
+}
+
+/**
+ * Pair a club's young players with mentors: valid pairs and pairs you set stay; the rest go youngest first to the free
+ * mentor the staff rate highest (leadership read times standing), same position first, then the same side of the
+ * ball. Your club's staff do this unless you've taken it on (`Team.mentoringByYou`). Never picks by work ethic.
+ */
+export function planMentors(league: League, teamId: number): void {
+  const roster = activeRoster(league, teamId);
+  const team = league.teams[teamId];
+  const load = new Map<number, number>();
+  for (const p of roster) if (p.mentor !== undefined) load.set(p.mentor, (load.get(p.mentor) ?? 0) + 1);
+  if (teamId === league.userTeamId && team.mentoringByYou) return;
+  const score = new Map<number, number>();
+  const mentors = roster.filter(canMentor);
+  for (const m of mentors)
+    score.set(m.id, leadFactor(characterRead(league, teamId, m)?.leads ?? TRAIT_MEAN) * standingFactor(league, m));
+  const young = roster
+    .filter((p) => canBeMentored(p) && p.mentor === undefined && !p.mentorSetByYou)
+    .sort((a, b) => a.age - b.age || a.id - b.id);
+  for (const y of young) {
+    const pick = mentors
+      .filter((m) => m.id !== y.id && (load.get(m.id) ?? 0) < MAX_MENTEES)
+      .sort(
+        (a, b) =>
+          Number(b.position === y.position) - Number(a.position === y.position) ||
+          Number(sideOf(b.position) === sideOf(y.position)) - Number(sideOf(a.position) === sideOf(y.position)) ||
+          score.get(b.id)! - score.get(a.id)! ||
+          a.id - b.id,
+      )[0];
+    if (!pick) continue;
+    y.mentor = pick.id;
+    y.mentorWeeks = 0;
+    load.set(pick.id, (load.get(pick.id) ?? 0) + 1);
+  }
+}
+
+/** A regular-season week: broken pairs end, empty places fill, and every pair on the active 53 banks a week. */
+export function mentoringWeek(league: League): void {
+  for (const p of Object.values(league.players)) {
+    if (p.mentor !== undefined && !stillPaired(league, p)) endPair(league, p);
+    // Your choice for him leaves with him: a club that trades for him pairs him its own way.
+    if (p.mentorSetByYou && p.teamId !== league.userTeamId) delete p.mentorSetByYou;
+  }
+  for (const team of league.teams) {
+    planMentors(league, team.id);
+    const active = new Set(activeRoster(league, team.id).map((p) => p.id));
+    for (const id of active) {
+      const p = league.players[id];
+      // IR pauses a pair: the week only counts with both on the 53.
+      if (p.mentor !== undefined && active.has(p.mentor)) p.mentorWeeks = (p.mentorWeeks ?? 0) + 1;
+    }
+  }
+}
+
+/**
+ * The new league year, before his year is rolled: what he learned lands (a point at most per trait), the count starts
+ * again, and a player who is turning 25 is on his own from here.
+ */
+export function settleMentoring(league: League, p: Player): void {
+  const last = league.season - 1;
+  const m = p.mentor === undefined ? undefined : league.players[p.mentor];
+  if (m && (p.mentorWeeks ?? 0) > 0) {
+    bank(league, p, m, p.mentorWeeks!);
+    remember(p, m.id, last);
+  }
+  if (p.mentorBank) {
+    const shifts = (p.shifts ??= {});
+    for (const k of SHIFTED) {
+      const d = clamp(p.mentorBank[k] ?? 0, -1, 1);
+      if (d) shifts[k] = (shifts[k] ?? 0) + d;
+    }
+    delete p.mentorBank;
+  }
+  if (p.mentor !== undefined) p.mentorWeeks = 0;
+  if (p.age + 1 > YOUNG_AGES[1]) {
+    delete p.mentor;
+    delete p.mentorWeeks;
+    delete p.mentorSetByYou;
+  }
+}
+
+/** You pick a mentor for one of your young players (null: none). A pair you set is left alone by your staff. */
+export function setMentor(league: League, youngId: number, mentorId: number | null): void {
+  const y = league.players[youngId];
+  const m = mentorId === null ? undefined : league.players[mentorId];
+  if (!y || !canBeMentored(y)) throw new Error('Only a player 21 to 24 can have a mentor.');
+  if (m) {
+    if (m.id === y.id || !canMentor(m)) throw new Error('A mentor needs to be 27, or five years in the league.');
+    if (m.teamId !== y.teamId) throw new Error('A mentor has to be on the same club.');
+    const load = Object.values(league.players).filter((p) => p.mentor === m.id && p.id !== y.id).length;
+    if (load >= MAX_MENTEES) throw new Error('He already has two players to look after.');
+  }
+  if (y.mentor !== m?.id) endPair(league, y);
+  if (m) {
+    y.mentor = m.id;
+    y.mentorWeeks ??= 0;
+  }
+  y.mentorSetByYou = true;
+}
+
+/** Take on pairing your own mentors, or hand it back to your position coaches. */
+export function setMentoringByYou(league: League, on: boolean): void {
+  const team = league.teams[league.userTeamId];
+  if (on) team.mentoringByYou = true;
+  else delete team.mentoringByYou;
+}
