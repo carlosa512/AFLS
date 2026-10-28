@@ -154,10 +154,10 @@ describe('save v60', () => {
 });
 
 /** The first 32 picks of seed 'draft-trades' with main's draft code (class top 14.1; `simDraft`, rng 'baseline'). */
-// Re-taken with personality (0.2.15): the season before draft day plays out differently with four more traits.
+// Re-taken with personality (0.2.15) and mentoring (0.2.16): the season before draft day plays out differently.
 const BASELINE = [
-  1801, 1822, 1820, 1819, 1792, 1799, 1788, 1859, 1787, 1803, 1851, 1798, 1789, 1848, 1826, 1813, 1808, 1836, 1791,
-  1795, 1790, 1918, 1793, 1804, 1832, 1823, 1861, 1815, 1845, 1816, 1824, 1809,
+  1801, 1822, 1820, 1819, 1792, 1799, 1788, 1787, 1808, 1803, 1859, 1798, 1832, 1848, 1851, 1813, 1823, 1836, 1789,
+  1861, 1795, 1918, 1790, 1810, 1816, 1791, 1793, 1815, 1804, 1868, 1824, 1809,
 ];
 
 /** The pick on the clock (an AI team's) and another AI team's pick `ahead` slots later. */
