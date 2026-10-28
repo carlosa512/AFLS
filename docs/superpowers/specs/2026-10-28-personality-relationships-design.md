@@ -75,30 +75,30 @@ winning, greed and patience on `Personality` (0–1). The names below read all t
 `personalityOf(traits, personality)` in a new `personality.ts` returns one name. Nothing is stored. The rules are
 checked in order and the first match wins (z = how many sd from the league average):
 
-| # | Name | Rule (starting thresholds) |
+| # | Name | Rule (thresholds as tuned in PR 1) |
 | --- | --- | --- |
 | 1 | Locker-Room Lawyer | leadership ≥ +1.0 and controversy ≥ +1.0: the room listens, and he stirs it |
 | 2 | Born Leader | leadership ≥ +1.5 |
-| 3 | Dirty Player | sportsmanship ≤ −1.5 |
+| 3 | Dirty Player | sportsmanship ≤ −1.75 |
 | 4 | Volatile | temperament ≤ −1.0 and controversy ≥ +1.0 |
 | 5 | Diva | greed ≥ +1.0 and controversy ≥ +0.5 |
 | 6 | Consummate Pro | work ethic ≥ +1.0, temperament ≥ +0.5, sportsmanship ≥ 0 |
 | 7 | Clutch | poise ≥ +1.5 |
-| 8 | Jittery | poise ≤ −1.5 |
-| 9 | Mercenary | greed ≥ +1.0 and loyalty ≤ −0.5 |
+| 8 | Jittery | poise ≤ −1.6 |
+| 9 | Mercenary | greed ≥ +0.9 and loyalty ≤ −0.45 |
 | 10 | Ring Chaser | winning ≥ +1.0 and loyalty ≤ −0.5 |
-| 11 | Company Man | loyalty ≥ +1.5 |
+| 11 | Company Man | loyalty ≥ +1.35 |
 | 12 | Hothead | temperament ≤ −1.5 |
 | 13 | Driven | work ethic ≥ +1.0 and winning ≥ +0.5 |
-| 14 | Fiery Competitor | winning ≥ +1.0 and temperament ≤ −0.5 |
-| 15 | Quiet Pro | work ethic ≥ +1.0 and leadership ≤ −0.5 |
-| 16 | Coaster | work ethic ≤ −1.0 |
-| 17 | Easygoing | greed ≤ −0.5, patience ≥ +0.5, winning ≤ 0 |
+| 14 | Fiery Competitor | winning ≥ +0.7 and temperament ≤ −0.25 |
+| 15 | Quiet Pro | work ethic ≥ +0.75 and leadership ≤ −0.25 |
+| 16 | Coaster | work ethic ≤ −1.25 |
+| 17 | Easygoing | greed ≤ −0.4, patience ≥ +0.4, winning ≤ 0 |
 | 18 | Even-Keeled | everyone else |
 
 **Spread:** a unit test generates a league and pins the shares: Even-Keeled 20–35%, every other name 1.5–9%. The
 thresholds above are a starting point; the test decides. Until PR 3 some names are switched off (§6.4), so the test
-checks the names switched on at that point.
+checks the names switched on at that point, with Even-Keeled allowed up to 45% while five names are off.
 
 **A name can change**, but only through mentoring (§2), which shifts work ethic, temperament and poise. A Coaster who
 becomes a Quiet Pro is a story: *"He's grown up."*
