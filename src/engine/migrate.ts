@@ -188,9 +188,17 @@ export function migrateLeague(league: League): League | null {
     lockVerdicts(league);
     league.version = 59;
   }
-  // v60: four more hidden traits (leadership, poise, controversy, sportsmanship), rolled from each player's own seed after
-  // the others, as a new league rolls them.
+  // v60: optional `draft.via`/`deal`, `DraftPick.moved` and the market's draft-day marks; `via` from the picks still kept.
   if (league.version < 60) {
+    for (const pk of league.draftPicks) {
+      const p = pk.playerId !== undefined ? league.players[pk.playerId] : undefined;
+      if (p?.draft && pk.originalTeamId !== pk.ownerId) p.draft.via = pk.originalTeamId;
+    }
+    league.version = 60;
+  }
+  // v61: four more hidden traits (leadership, poise, controversy, sportsmanship), rolled from each player's own seed after
+  // the others, as a new league rolls them.
+  if (league.version < 61) {
     for (const p of Object.values(league.players))
       if (p.traits.leads === undefined) {
         const t = generateTraits(p);
@@ -201,7 +209,7 @@ export function migrateLeague(league: League): League | null {
           sportsmanship: t.sportsmanship,
         });
       }
-    league.version = 60;
+    league.version = 61;
   }
   return league;
 }
