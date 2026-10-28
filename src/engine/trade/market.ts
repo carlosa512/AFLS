@@ -75,7 +75,7 @@ const SEASON_CAP = 3;
 const YEAR_CAP = 6;
 
 /** Deals too small to count against a front office's limits: a pick swap, a late pick for a player it was cutting. */
-const MINOR = new Set<TradeRecord['kind']>(['futureSwap', 'cutdown', 'casualty']);
+export const MINOR = new Set<TradeRecord['kind']>(['futureSwap', 'cutdown', 'casualty', 'draft']);
 
 function capped(league: League, market: TradeMarket, team: Team): boolean {
   const mine = market.history.filter(

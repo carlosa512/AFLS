@@ -442,7 +442,11 @@ const PATIENT_GM = 0.22;
  */
 export function pickSwapFor(ctx: TradeContext, team: Team, among: readonly Team[]): Deal | null {
   const { league } = ctx;
-  if (team.gm.futureDiscount < NOW_GM || (league.phase !== 'resign' && league.phase !== 'freeAgency')) return null;
+  if (
+    team.gm.futureDiscount < NOW_GM ||
+    (league.phase !== 'resign' && league.phase !== 'freeAgency' && league.phase !== 'draft')
+  )
+    return null;
   const draft = nextDraftSeason(league);
   const future = picksOf(ctx, team.id, team).filter((p) => p.season === draft + 1 && p.round >= 2 && p.round <= 5);
   for (const partner of among.filter((t) => t.id !== team.id && t.gm.futureDiscount <= PATIENT_GM)) {

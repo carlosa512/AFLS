@@ -18,7 +18,7 @@ import {
   rookieContract,
 } from '../generate';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
-import { clamp, type Rng } from '../rng';
+import { clamp, Rng } from '../rng';
 import { syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth } from '../scouting';
 import { POSITION_PREMIUM, specialistPenalty } from './positionValue';
@@ -26,6 +26,8 @@ import { computeRecords, winPct } from '../season/standings';
 import type { DraftPick, League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
 import { ensureService } from '../personnel/service';
+import { tradeContext } from '../trade/context';
+import { draftCalls, draftedInto, draftTrades, lapseUsedPicks } from '../trade/draft';
 
 export const DRAFT_CLASS_SIZE = 260;
 /** How far under his ready-to-play self a prospect comes in, given back as room to grow (overall points). */
@@ -125,6 +127,13 @@ export function draftOrder(league: League): DraftPick[] {
 }
 
 export const nextPick = (league: League) => draftOrder(league).find((p) => p.playerId === undefined);
+
+/** The `n` picks after the one on the clock, in order. */
+export function picksAhead(league: League, n: number): DraftPick[] {
+  return draftOrder(league)
+    .filter((p) => p.playerId === undefined)
+    .slice(1, n + 1);
+}
 
 export function availableProspects(league: League): Player[] {
   return league.draftClass
@@ -257,6 +266,7 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
   const team = league.teams[pick.ownerId];
   pick.playerId = player.id;
   pick.consRank = consensusRank(league, player);
+  const via = pick.originalTeamId !== pick.ownerId ? pick.originalTeamId : undefined;
   player.teamId = team.id;
   player.contract = rookieContract(pick.overall!, league.season, league.caps[league.season]);
   player.draft = {
@@ -265,6 +275,8 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
     pick: pick.overall!,
     teamId: team.id,
     rank: pick.consRank,
+    ...(via !== undefined ? { via } : {}),
+    ...(pick.moved ? { deal: pick.moved } : {}),
   };
   player.jersey = freeJersey(
     player.position,
@@ -280,19 +292,33 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
     league,
     'draft',
     [team.id],
-    `${team.abbrev} drafted ${player.position} ${player.firstName} ${player.lastName} (round ${pick.round}, No. ${pick.overall})`,
+    `${team.abbrev} drafted ${player.position} ${player.firstName} ${player.lastName} (round ${pick.round}, No. ${pick.overall}${
+      via !== undefined ? `, via ${league.teams[via].abbrev}` : ''
+    })`,
   );
+  // Offers to you that hang on this pick end with it.
+  lapseUsedPicks(league);
 }
 
 /** Make picks until it's the user's turn, `limit` picks are made, or the draft ends. Returns the picks made. */
 export function simDraft(league: League, rng: Rng, opts: { stopAtUser: boolean; limit?: number }): DraftPick[] {
   const made: DraftPick[] = [];
   const boards: BoardMemo = new Map();
+  // One trade context for the run: picks only add a rookie to a roster (`draftedInto`), trades refresh it.
+  const ctx = draftTrades.off ? null : tradeContext(league);
   for (let pick = nextPick(league); pick; pick = nextPick(league)) {
     if (opts.stopAtUser && pick.ownerId === league.userTeamId) break;
     if (made.length === opts.limit) break;
-    draftPlayer(league, pick, aiDraftChoice(league, pick.ownerId, rng, pick.round, boards));
-    made.push(pick);
+    // Before an AI pick the phones ring, on their own stream: the draft's own picks don't move unless a trade does.
+    const call =
+      ctx && pick.ownerId !== league.userTeamId
+        ? draftCalls(ctx, new Rng(`${league.seed}:draft-trades:${league.season}:${pick.overall}`))
+        : null;
+    const now = nextPick(league)!;
+    const player = call ? league.players[call.target] : aiDraftChoice(league, now.ownerId, rng, now.round, boards);
+    draftPlayer(league, now, player);
+    if (ctx) draftedInto(ctx, now.ownerId, player);
+    made.push(now);
   }
   return made;
 }

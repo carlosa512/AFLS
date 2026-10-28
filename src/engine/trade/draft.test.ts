@@ -4,13 +4,33 @@ import { deliverMail, offerWords } from '../inbox';
 import { simToEndOfSeason } from '../league';
 import { migrateLeague } from '../migrate';
 import { advanceOffseason, beginOffseason } from '../offseason';
-import { boardOf, boardScore, draftOrder, nextPick, positionDepth, simDraft } from '../offseason/draft';
+import {
+  availableRanks,
+  boardOf,
+  boardScore,
+  draftOrder,
+  nextPick,
+  picksAhead,
+  positionDepth,
+  simDraft,
+} from '../offseason/draft';
 import { clamp, Rng } from '../rng';
 import type { League, TradeOffer } from '../types';
 import { tradeContext } from './context';
-import { COVET_MAX, COVET_SCALE, draftCovet, draftTrades, expectedAt } from './draft';
+import {
+  COVET_MAX,
+  COVET_MIN,
+  COVET_SCALE,
+  draftCovet,
+  draftTrades,
+  expectedAt,
+  LONG_JUMP,
+  tradeUpReason,
+  WINDOW,
+} from './draft';
 import { emptyMarket } from './execute';
 import { judge } from './judge';
+import { dealWatch, MINOR } from './market';
 import type { TradeProposal } from './rules';
 import { pickValue } from './value';
 
@@ -237,5 +257,84 @@ describe('covet', () => {
     const balanced = draftCovet(tradeContext(l), seller.id, swap(clock, later)).get;
     seller.gm.archetype = 'Pick Hoarder';
     expect(draftCovet(tradeContext(l), seller.id, swap(clock, later)).get).toBeGreaterThan(balanced);
+  });
+});
+
+/** Round 1 played with trades on, every AI draft deal read as it closes. */
+const roundOne = (() => {
+  const l = draftDay();
+  const closed: { buyer: number; seller: number; pick: number; target: number | undefined; accepts: boolean[] }[] = [];
+  dealWatch.onClose = (ctx, deal, proposal) => {
+    if (deal.kind !== 'draft') return;
+    const clock = nextPick(ctx.league)!;
+    const b = proposal.sides.find((s) => !s.picks.includes(clock.id))!.teamId;
+    closed.push({
+      buyer: b,
+      seller: clock.ownerId,
+      pick: clock.id,
+      target: expectedAt(ctx.league, b, clock).best?.id,
+      accepts: proposal.sides.map((side) => judge(ctx, side.teamId, proposal).accepts),
+    });
+  };
+  try {
+    simDraft(l, new Rng('round-one'), { stopAtUser: false, limit: 32 });
+  } finally {
+    delete dealWatch.onClose;
+  }
+  return { l, closed };
+})();
+
+describe('AI trades before each pick', () => {
+  it('trades up only with a reason: a man likely gone, a tier break, need or premium, a short jump', () => {
+    const l = draftDay();
+    let checked = 0;
+    for (let i = 0; i < 32; i++) {
+      const clock = nextPick(l)!;
+      const ranks = availableRanks(l);
+      for (const pk of picksAhead(l, WINDOW)) {
+        if (pk.ownerId === l.userTeamId || pk.ownerId === clock.ownerId) continue;
+        const why = tradeUpReason(tradeContext(l), l.teams[pk.ownerId], pk);
+        if (!why) continue;
+        checked++;
+        const before = pk.overall! - clock.overall!;
+        expect(ranks.get(why.target.id)!).toBeLessThanOrEqual(before + 3);
+        expect(why.gap).toBeGreaterThanOrEqual(COVET_MIN);
+        if (before > LONG_JUMP) expect(why.target.position).toBe('QB');
+        if (why.target.position === 'K' || why.target.position === 'P') expect(clock.round).toBeGreaterThanOrEqual(5);
+      }
+      draftTrades.off = true;
+      simDraft(l, new Rng(`step-${i}`), { stopAtUser: false, limit: 1 });
+      draftTrades.off = false;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it('makes deals in round 1 that both sides accept, and the team that moved up takes its man', () => {
+    const { l, closed } = roundOne;
+    expect(closed.length).toBeGreaterThan(0);
+    for (const c of closed) {
+      expect(c.accepts).toEqual([true, true]);
+      const pick = l.draftPicks.find((p) => p.id === c.pick)!;
+      expect(pick.ownerId).toBe(c.buyer);
+      expect(pick.playerId).toBe(c.target);
+    }
+  });
+
+  it('never trades into your pick', () => {
+    const { l } = roundOne;
+    for (const r of l.market!.history.filter((x) => x.kind === 'draft'))
+      expect(r.sides.map((s) => s.teamId)).not.toContain(l.userTeamId);
+  });
+
+  it('keeps who a pick came from on the player it was used on', () => {
+    const { l, closed } = roundOne;
+    const p = l.players[l.draftPicks.find((x) => x.id === closed[0].pick)!.playerId!];
+    expect(p.draft!.via).toBeDefined();
+    expect(p.draft!.deal!.from).toBe(closed[0].seller);
+    expect(p.draft!.deal!.got.length).toBeGreaterThan(0);
+  });
+
+  it("doesn't count draft deals against a team's trade limits", () => {
+    expect(MINOR.has('draft')).toBe(true);
   });
 });
