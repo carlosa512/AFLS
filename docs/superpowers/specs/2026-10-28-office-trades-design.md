@@ -90,8 +90,9 @@ The lines' wording does not change (`mail.test.tsx` reads them).
   on deadline day "Today"; after it, "Passed"; in the offseason, "Week 9" with the note "open all offseason"; in the
   playoffs, "Reopens in the new league year".
   *Offers waiting*, *On your block*, *Untouchable* (from `league.market.status`), *Teams asking about your players*.
-- **Teams asking** counts distinct teams from public signals only: this league year's `interest` rumors naming one of
-  your players, plus pending offers and enquiries (`openOffers`) that ask for one. Never `league.market.interest`.
+- **Teams asking** counts distinct teams from public signals only: this league year's offers and enquiries to you
+  (`league.market.offers`, any status) that ask for one of your players. The rumor mill never names your players
+  (`market.ts` leaves them out), and `league.market.interest` is never read.
 
 ## The trade desk (Trades tab)
 
