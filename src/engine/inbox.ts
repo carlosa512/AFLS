@@ -1,3 +1,4 @@
+import { lockerMail } from './lockerMail';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
@@ -2852,6 +2853,7 @@ export function deliverMail(league: League): void {
       ...injuryMail(league, have),
       ...tradeMail(league, have),
       ...offerMail(league, have),
+      ...lockerMail(league, have),
     );
     if (league.phase === 'resign')
       fresh.push(

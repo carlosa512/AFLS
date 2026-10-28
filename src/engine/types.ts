@@ -268,6 +268,10 @@ export interface Player {
   mentorBank?: Partial<Record<'workEthic' | 'temperament' | 'poise', number>>;
   /** Who mentored him, and when (the last two), for his card. */
   mentoredBy?: { id: number; from: number; to: number }[];
+  /** What mentoring moved at the last new league year, for the letters that year. */
+  shiftedLast?: { season: number } & Partial<Record<'workEthic' | 'temperament' | 'poise', number>>;
+  /** His mentor left the club mid-pair (for the head coach's letter). */
+  lostMentor?: { id: number; season: number; week: number };
   /** This league year's development, rolled once and still landing in steps (`development.ts`). Gone once the year has landed. */
   dev?: DevYear;
 }

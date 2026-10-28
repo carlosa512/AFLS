@@ -165,7 +165,13 @@ export function planMentors(league: League, teamId: number): void {
 /** A regular-season week: broken pairs end, empty places fill, and every pair on the active 53 banks a week. */
 export function mentoringWeek(league: League): void {
   for (const p of Object.values(league.players)) {
-    if (p.mentor !== undefined && !stillPaired(league, p)) endPair(league, p);
+    if (p.mentor !== undefined && !stillPaired(league, p)) {
+      const m = league.players[p.mentor];
+      // He left the club (a trade, a release): the young player's coaches will want you to know.
+      if (m && !m.retired && m.teamId !== p.teamId)
+        p.lostMentor = { id: m.id, season: league.season, week: league.week };
+      endPair(league, p);
+    }
     // Your choice for him leaves with him: a club that trades for him pairs him its own way.
     if (p.mentorSetByYou && p.teamId !== league.userTeamId) delete p.mentorSetByYou;
   }
@@ -191,13 +197,19 @@ export function settleMentoring(league: League, p: Player): void {
     bank(league, p, m, p.mentorWeeks!);
     remember(p, m.id, last);
   }
+  delete p.shiftedLast;
+  delete p.lostMentor;
   if (p.mentorBank) {
     const shifts = (p.shifts ??= {});
+    const landed: Player['shiftedLast'] = { season: league.season };
     for (const k of SHIFTED) {
       const d = clamp(p.mentorBank[k] ?? 0, -1, 1);
-      if (d) shifts[k] = (shifts[k] ?? 0) + d;
+      if (!d) continue;
+      shifts[k] = (shifts[k] ?? 0) + d;
+      landed[k] = d;
     }
     delete p.mentorBank;
+    if (Object.keys(landed).length > 1) p.shiftedLast = landed;
   }
   if (p.mentor !== undefined) p.mentorWeeks = 0;
   if (p.age + 1 > YOUNG_AGES[1]) {
