@@ -113,6 +113,8 @@ const KIND: Record<TradeOffer['reason'], string> = {
   enquiry: 'Enquiry',
   shop: 'Answering your shop',
   counter: 'Counter',
+  draft: 'Draft day',
+  ask: 'Their price',
 };
 
 /** A deal's side as the trade table holds it. */

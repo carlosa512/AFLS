@@ -188,6 +188,14 @@ export function migrateLeague(league: League): League | null {
     lockVerdicts(league);
     league.version = 59;
   }
+  // v60: optional `draft.via`/`deal`, `DraftPick.moved` and the market's draft-day marks; `via` from the picks still kept.
+  if (league.version < 60) {
+    for (const pk of league.draftPicks) {
+      const p = pk.playerId !== undefined ? league.players[pk.playerId] : undefined;
+      if (p?.draft && pk.originalTeamId !== pk.ownerId) p.draft.via = pk.originalTeamId;
+    }
+    league.version = 60;
+  }
   return league;
 }
 

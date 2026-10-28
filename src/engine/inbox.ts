@@ -1198,7 +1198,22 @@ export function offerWords(league: League, offer: TradeOffer): { subject: string
   const hisMan = his.players[0] !== undefined ? league.players[his.players[0]] : null;
   const name = (p: Player) => `${p.position} ${fullName(p)}`;
   const close = offer.final ? ' That is our final offer.' : '';
+  // A pick deal names the pick it's about: yours on the clock, or theirs when they give their price.
+  const slot = (side: TradeSide) => {
+    const pk = league.draftPicks.find((p) => side.picks.includes(p.id) && p.season === league.season && p.overall);
+    return pk ? `No. ${pk.overall}` : 'your pick';
+  };
   switch (offer.reason) {
+    case 'draft':
+      return {
+        subject: `The ${team.name} want to move up to ${slot(yours)}`,
+        body: `${capital(packageWords(league, his, NO_PROJ))} for ${slot(yours)}, now.${close}`,
+      };
+    case 'ask':
+      return {
+        subject: `The ${team.name}' price for ${slot(his)}`,
+        body: `For ${slot(his)} we'd want ${packageWords(league, yours, NO_PROJ)}.`,
+      };
     case 'enquiry':
       return {
         subject: `The ${team.name} ask about ${name(yourMan!)}`,
@@ -1220,6 +1235,11 @@ export function offerWords(league: League, offer: TradeOffer): { subject: string
         body: `We've looked at your counter. ${packageWords(league, his, NO_PROJ)} for ${packageWords(league, yours, NO_PROJ)}, and we have a deal.${close}`,
       };
     case 'shop':
+      if (!yourMan)
+        return {
+          subject: `The ${team.name} answer your call about ${slot(yours)}`,
+          body: `You're shopping ${slot(yours)}. Our best: ${packageWords(league, his, NO_PROJ)}.${close}`,
+        };
       return {
         subject: `The ${team.name} answer your call about ${name(yourMan!)}`,
         body: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his, NO_PROJ)}.${close}`,
@@ -1270,6 +1290,8 @@ function offerMail(league: League, have: Set<string>): Draft[] {
   for (const offer of league.market?.offers ?? []) {
     const id = offerMailId(league, offer);
     if (filed.has(`offer:${offer.season}:${offer.id}`) || offer.status !== 'pending') continue;
+    // Draft-day offers and asks end with the pick: the draft room shows them, the inbox would show them dead.
+    if (offer.reason === 'draft' || offer.reason === 'ask') continue;
     const team = league.teams[offer.teamId];
     const { subject, body } = offerWords(league, offer);
     const about = [...offer.sides[1].players, ...offer.sides[0].players][0];

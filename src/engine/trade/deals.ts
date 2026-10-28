@@ -147,6 +147,7 @@ export const TAGS: Record<DealKind, string> = {
   futureSwap: 'future pick swap',
   cutdown: 'cut-down deal',
   casualty: 'cap casualty',
+  draft: 'draft-day trade',
   user: '',
 };
 
