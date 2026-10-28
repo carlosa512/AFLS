@@ -290,8 +290,12 @@ export const LONG_JUMP = 8;
 export const MAX_TRADE_UPS = 3;
 /** The chance a pick's phones ring with a future-for-current pick swap ("our 2028 2nd for your 3rd now"). */
 export const DRAFT_SWAP_RATE = 0.05;
-/** The rounds a team will put next year's pick into a trade-up: the NFL's future picks go into first-round moves. */
-export const FUTURE_ROUNDS = 1;
+/**
+ * The last pick a team will put next year's pick into a trade-up for: the NFL's future picks go into moves up the
+ * board's top half (5-6 deals a year), while a late first is bought with this draft's picks, unless it's for a
+ * quarterback (Mahomes at 10 and Jackson at 32 both cost a future pick).
+ */
+export const FUTURE_TOP = 16;
 /** Calls made before one pick, and add-ons tried in each. */
 const CALLS = 3;
 const ADD_ONS = 3;
@@ -424,8 +428,8 @@ export function draftCalls(ctx: TradeContext, rng: Rng): { buyer: number; target
       // The cheapest add-on in the buyer's eyes among those that cover most of what the seller is short.
       const short = ask.need - ask.get;
       // This draft's later picks, cheapest in the buyer's eyes among those that cover most of what the seller is
-      // short. A future pick is the last resort, and only for a move in the first two rounds: NFL teams rarely put
-      // next year's picks into a draft-day deal (5-6 a year), and almost never for a day-3 pick.
+      // short. A future pick is the last resort, and only for a move into the top half of the first round: NFL teams
+      // rarely put next year's picks into a draft-day deal (5-6 a year), and almost never for a day-3 pick.
       const covers = (pk: DraftPick) =>
         pk.ownerId === team.id &&
         pk.playerId === undefined &&
@@ -438,7 +442,7 @@ export function draftCalls(ctx: TradeContext, rng: Rng): { buyer: number; target
         league.draftPicks.filter((pk) => covers(pk) && pk.season === league.season && pk.overall! > own.overall!),
       );
       const later =
-        clock.round <= FUTURE_ROUNDS
+        clock.overall! <= FUTURE_TOP || (clock.round === 1 && target.position === 'QB')
           ? cheapest(league.draftPicks.filter((pk) => covers(pk) && pk.season === league.season + 1))
           : [];
       const tries = [...now, ...later].map((pk) => [pk]);

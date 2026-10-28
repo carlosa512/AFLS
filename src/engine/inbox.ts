@@ -1,4 +1,4 @@
-import { lockerMail, recapAside } from './lockerMail';
+import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
@@ -948,6 +948,10 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
     case 'home':
     case 'rapport':
       return { kind: 'locker', season };
+    // SNN on coaching trees; a mentor meeting his disciple is filed once ever (`tree:meet:…`), so its season is the
+    // message's own.
+    case 'tree':
+      return { kind: 'locker', season: s === 'meet' ? m.season : season };
     case 'position':
       return a === 'offer'
         ? { kind: 'positionOffer', season, playerId: Number(b), to: rest[0] as Position }
@@ -2169,6 +2173,13 @@ export function promotionCandidates(league: League, chair: Chair): Coach[] {
  * The head coach's word when another team hires one of our coaches into a bigger chair (`fillChairs` can
  * raid a staff for a promotion, and the NFL lets no team block one). His chair stays open until we fill it.
  */
+/** The staff line on a head-coaching hire: the third off our staff in five years, and so on (`lockerMail.ts`). */
+function offStaff(league: League, now: string): string {
+  if (now !== 'head coach') return '';
+  const n = headCoachesOffStaff(league, league.userTeamId);
+  return n >= 3 ? ` That makes him the ${nth(n)} head coach off our staff in five years.` : '';
+}
+
 function poachedMail(league: League, have: Set<string>): Draft[] {
   const user = league.userTeamId;
   const out: Draft[] = [];
@@ -2201,7 +2212,7 @@ function poachedMail(league: League, have: Set<string>): Draft[] {
       ...headCoach(league),
       category: 'staff',
       subject: `${coachName(c)} leaves for the ${hirer.name}`,
-      body: `The ${teamName(hirer)} have hired ${coachName(c)}, our ${was}, as their ${now}. It's a promotion, not a lateral move, so we couldn't block it. That leaves our ${was} chair open: ${fill} before free agency ends.`,
+      body: `The ${teamName(hirer)} have hired ${coachName(c)}, our ${was}, as their ${now}. It's a promotion, not a lateral move, so we couldn't block it.${offStaff(league, now)} That leaves our ${was} chair open: ${fill} before free agency ends.`,
       actions: [{ kind: 'coaches' }],
     });
   }

@@ -170,6 +170,15 @@ home or a friend a few percent less; a Mercenary ignores both). The outspoken sp
 trade, a release or a snub. You see it in your coaches' words: on the Locker Room tab, in one line on the card, in
 the mail and in recaps (a revenge game, a clutch one) when the box score backs it.
 
+**Coaching trees.** A coach is linked to a man he worked under only after three seasons on his staff (or three as a
+position coach under his side's coordinator), stricter than the press's one season so trees stay rare. A head coach
+has a tree once two of his men have become head coaches; a disciple who produces two of his own starts a branch. Each
+tree runs hot, steady, withering or faded on its head coaches' results (`docs/research/coaching-trees.md`). A new
+league starts with three or four founding trees, some from retired legends. The carousel reads them: a new head coach
+keeps and hires his own people more often, head-coach searches favour a hot tree's disciples and pass over a
+withering one's, and a new coordinator often runs his mentor's scheme. The coach card shows his tree in words, and
+SNN covers a tree being born, a mentor meeting his disciple for the first time, and a root retiring.
+
 The projection scout judges makeup and body; the evaluator sees the flags. Reads carry the same
 seeded, reader-owned error as ratings, are never exact for another club's player, and are marked
 "early word" (dashed tags) while they're still loose. The player card adds a career outlook ("His
@@ -442,7 +451,7 @@ average in the box score. Spec and later phases: `docs/OFFICIALS.md`.
 - Awards: player of the week and month, season awards (MVP, rookie and position honours), all-league
   teams and a hall of fame. Weekly and monthly awards need each week's stats saved as it's played
   (season totals and the last season's box scores are all that's kept today).
-- Player morale and personality, media and owner goals; a coaching hall of fame and coaching trees,
+- Player morale, media and owner goals; a coaching hall of fame (coaching trees and personality are built),
   tempo and two-point tendencies.
 - Modding: league import/export, an in-game editor, real-roster mods.
 - Desktop packaging (Tauri) → itch.io prototype → Steam Early Access.

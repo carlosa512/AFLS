@@ -45,6 +45,11 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // friendships and feuds (`ties`, three at most). Measured on offseason-audit after six seasons: 58 KB and 24 KB of
   // player fields; the retained save 17,279 KB against 17,250. Agreed by the owner.
   relationships: { firstSeason: 0, retainedSeasons: 100, games: 0, annualGrowth: 0, playersGrowth: 0 },
+  // Coaching trees (0.2.18): founding coaches' pre-league staffs (`pastUnder`); trees themselves are read off careers,
+  // never stored. Trees move who coaches where, and so the whole world: measured on offseason-audit, players growth
+  // 1,051-1,067 KB against main's 1,037 (more retirees kept, until retirees are pruned) and the retained save 17,352 KB
+  // against 17,350, with retirees now dropping their tag count. Agreed by the owner.
+  coachingTrees: { firstSeason: 0, retainedSeasons: 150, games: 0, annualGrowth: 0, playersGrowth: 50 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(

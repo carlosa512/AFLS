@@ -156,6 +156,7 @@ export function beginOffseason(league: League): void {
       delete p.mentorWeeks;
       delete p.mentorSetByYou;
       delete p.mentorBank;
+      delete p.tagCount;
       for (const t of [...(p.ties ?? [])]) endTie(league, p, t.with);
       retirees.push(p);
       continue;

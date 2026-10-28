@@ -49,6 +49,16 @@ describe('offseason calendar', () => {
     expect(availableProspects(league).length).toBe(260);
   });
 
+  it('trims a retiree of what only a playing career reads', () => {
+    const league = fresh();
+    const vet = Object.values(league.players).find((p) => p.teamId !== null && p.position === 'LB')!;
+    vet.age = 45; // he retires at the new league year
+    vet.tagCount = 1;
+    beginOffseason(league);
+    expect(vet.retired).toBe(true);
+    expect(vet.tagCount).toBeUndefined();
+  });
+
   it("keeps last season's box scores and scoring plays and drops their full replays", () => {
     const league = fresh();
     const mine = league.games.find((g) => g.homeId === league.userTeamId && g.result)!;

@@ -26,7 +26,7 @@ import {
   draftCovet,
   draftTrades,
   expectedAt,
-  FUTURE_ROUNDS,
+  FUTURE_TOP,
   callAhead,
   clockOffers,
   draftLine,
@@ -519,7 +519,7 @@ describe('your board mid-draft', () => {
 });
 
 describe('future picks on draft day', () => {
-  it('go only into first-round trade-ups, as a last resort', () => {
+  it('go only into trade-ups into the top half of the first round, or for a first-round QB, as a last resort', () => {
     const l = draftDay();
     simDraft(l, new Rng('whole'), { stopAtUser: false });
     const pk = (id: number) => l.draftPicks.find((p) => p.id === id)!;
@@ -527,6 +527,7 @@ describe('future picks on draft day', () => {
     expect(ups.length).toBeGreaterThan(0);
     for (const r of ups)
       if (r.sides[0].picks.some((id) => pk(id).season > l.season))
-        expect(pk(r.sides[1].picks[0]).round).toBeLessThanOrEqual(FUTURE_ROUNDS);
+        if (l.players[pk(r.sides[1].picks[0]).playerId!].position !== 'QB')
+          expect(pk(r.sides[1].picks[0]).overall).toBeLessThanOrEqual(FUTURE_TOP);
   });
 });

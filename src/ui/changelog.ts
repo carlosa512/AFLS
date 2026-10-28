@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.18',
+    date: '2026-10-28',
+    title: 'Coaching trees',
+    text:
+      "Coaches come from somewhere now. Three seasons on a head coach's staff puts a man in his tree, and once two " +
+      'of his assistants run clubs of their own the league calls it a tree. Trees run hot or wither on their head ' +
+      "coaches' results, a few founding trees are there from the start, and new ones grow over a long save. A new " +
+      'head coach brings his own people, hot trees get the interviews, and coordinators often run what their mentor ' +
+      "ran. The coach card shows a coach's tree, and SNN covers trees being born and old mentors meeting their " +
+      'disciples.',
+  },
+  {
     version: '0.2.17',
     date: '2026-10-28',
     title: 'The locker room',

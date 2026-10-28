@@ -662,6 +662,8 @@ export interface Coach {
   lastJob?: string;
   /** Observed service by season, team and role; legacy rows look up the team's historical record. */
   career?: CoachSeason[];
+  /** Pre-league years on a founding coach's staff (`trees.ts`), kept apart from `career` so no record counts them. */
+  pastUnder?: { coachId: number; role: CoachRole; seasons: number }[];
   /** A temporary leadership appointment; conversion to permanent is always explicit. */
   interim?: boolean;
   /** An interim head coach promoted from a coordinator chair still runs it until the offseason. */

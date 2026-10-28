@@ -125,7 +125,7 @@ const clone = (l: League): League => JSON.parse(JSON.stringify(l));
 const PRICE_LEAGUES = Math.max(48, LEAGUES);
 /** The other price leagues, started once the speed section is timed (on a shared core the timings would read slow). */
 let priceRuns: Promise<PriceRun[]> | undefined;
-/** Three more leagues, for the deadline-day share alone (`trades-share.ts`), started with the price leagues. */
+/** Three more leagues, for the deadline-day share and QB trade-ups alone (`trades-share.ts`), started with the price leagues. */
 let shareRuns: Promise<ShareRun[]> | undefined;
 const shareTheRest = () =>
   shareLeagues(
@@ -1096,7 +1096,9 @@ check(
   1,
 );
 check('round-1 price ÷ JJ chart (median, mover)', median(draftDay.priceRatios), [0.95, 1.25], 2);
-check('QB trade-ups into the top 16, a draft', mean(draftDay.qbUps), [0.3, 2], 1);
+// The audit's nine drafts and the share leagues' (`trades-share.ts`): nine alone hold about three of these.
+const qbUps = [...draftDay.qbUps, ...shares.flatMap((r) => r.qbUps)];
+check(`QB trade-ups into the top 16, a draft (${qbUps.length} drafts)`, mean(qbUps), [0.3, 2], 1);
 check(
   'trade-downs by analytics GMs or Pick Hoarders (%) − their share (%)',
   (100 * draftDay.downs.flat) / Math.max(1, draftDay.downs.all) - 100 * mean(draftDay.flatTeams),

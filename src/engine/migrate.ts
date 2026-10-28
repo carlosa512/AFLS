@@ -1,3 +1,4 @@
+import { seedFoundingTrees } from './trees';
 import { lockVerdicts } from './draftGrade';
 import { fillOrigins } from './origin';
 import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
@@ -216,6 +217,11 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 62) league.version = 62;
   // v63: `Player.left` (how he left his last clubs) and `Player.ties` (friendships and feuds): optional, empty to start.
   if (league.version < 63) league.version = 63;
+  // v64: coaching trees (`Coach.pastUnder`, optional): a few founding trees, seeded as a new league from this seed would.
+  if (league.version < 64) {
+    seedFoundingTrees(league);
+    league.version = 64;
+  }
   return league;
 }
 
