@@ -22,7 +22,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       "front offices price picks. When you're on the clock, teams that want your pick call you: their offers sit " +
       "under the clock with your staff's word, and they're gone once you pick. Shop this pick asks the league " +
       'yourself, and Call teams ahead gets the price of the picks just before yours. Draft history shows who a pick ' +
-      'came from and the deal behind a draft-day trade.',
+      'came from and the deal behind a draft-day trade. Draft classes are a little stronger, so a league holds its ' +
+      'talent once its first generation of veterans has retired.',
   },
   {
     version: '0.2.13',

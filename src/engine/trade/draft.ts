@@ -68,6 +68,8 @@ interface DraftMemo {
   boards: BoardMemo;
   ranks: Map<number, number>;
   pool: Player[];
+  /** The available prospects in consensus order (rank 1 first). */
+  ranked: Player[];
   /** Each team's depth and its noise-free board scores by prospect and round, until a log line names the team. */
   depth: Map<number, Record<Position, number[]>>;
   scores: Map<number, Map<number, number>>;
@@ -96,6 +98,7 @@ function memoOf(league: League): DraftMemo {
       boards: new Map(),
       ranks: new Map(),
       pool: [],
+      ranked: [],
       depth: new Map(),
       scores: new Map(),
       bias: new Map(),
@@ -134,6 +137,7 @@ function memoOf(league: League): DraftMemo {
     m.ahead = picksAhead(league, WINDOW);
     m.ranks = availableRanks(league);
     m.pool = availableProspects(league);
+    m.ranked = [...m.pool].sort((a, b) => m.ranks.get(a.id)! - m.ranks.get(b.id)!);
     m.expected.clear();
   }
   return m;
@@ -203,8 +207,10 @@ export function expectedAt(
   const before = picksBefore(league, pick);
   let best: Player | null = null;
   let score = -Infinity;
-  for (const p of m.pool) {
-    if ((m.ranks.get(p.id) ?? Infinity) <= before || skip?.has(p.id)) continue;
+  // A board leans on the consensus, so a team's best still there sits near the top of what's left: the next
+  // `SCAN` on the consensus board past the picks before it, not the whole class.
+  for (const p of m.ranked.slice(Math.max(0, before), before + SCAN)) {
+    if (skip?.has(p.id)) continue;
     const s = boardBase(league, teamId, p, pick.round);
     if (s > score) {
       best = p;
@@ -215,6 +221,9 @@ export function expectedAt(
   m.expected.set(key, out);
   return out;
 }
+
+/** How far down the consensus board past the picks before it a team looks for its best still there. */
+const SCAN = 30;
 
 const NONE = { get: 0, give: 0 };
 
@@ -281,8 +290,8 @@ export const LONG_JUMP = 8;
 export const MAX_TRADE_UPS = 3;
 /** The chance a pick's phones ring with a future-for-current pick swap ("our 2028 2nd for your 3rd now"). */
 export const DRAFT_SWAP_RATE = 0.05;
-/** The rounds a team will put next year's pick into a trade-up (the NFL's future picks go into early moves). */
-export const FUTURE_ROUNDS = 2;
+/** The rounds a team will put next year's pick into a trade-up: the NFL's future picks go into first-round moves. */
+export const FUTURE_ROUNDS = 1;
 /** Calls made before one pick, and add-ons tried in each. */
 const CALLS = 3;
 const ADD_ONS = 3;
@@ -303,7 +312,7 @@ const thin = (depth: Record<Position, number[]>, pos: Position) => depth[pos].le
  */
 export function tradeUpReason(ctx: TradeContext, team: Team, own: DraftPick): { target: Player; gap: number } | null {
   const { league } = ctx;
-  const clock = nextPick(league);
+  const clock = memoOf(league).clock;
   if (!clock || own.overall === undefined) return null;
   const before = own.overall - clock.overall!;
   if (before < 1 || before > WINDOW || tradeUps(league, team.id) >= MAX_TRADE_UPS) return null;
@@ -407,8 +416,11 @@ export function draftCalls(ctx: TradeContext, rng: Rng): { buyer: number; target
     let deal: TradeProposal | null = null;
     const alone = offer([own.id]);
     const ask = judge(ctx, seller.id, alone, { rosterCuts: true });
-    if (accepts(alone)) deal = alone;
-    else if (!ask.problem && !ask.refusal) {
+    const bid = judge(ctx, team.id, alone, { rosterCuts: true });
+    // What the buyer has to spare beyond his own pick, in his own eyes: an add-on worth more to him never clears.
+    const spare = bid.get - bid.need;
+    if (ask.accepts && bid.accepts) deal = alone;
+    else if (!ask.problem && !ask.refusal && !bid.problem && !bid.refusal && spare > 0) {
       // The cheapest add-on in the buyer's eyes among those that cover most of what the seller is short.
       const short = ask.need - ask.get;
       // This draft's later picks, cheapest in the buyer's eyes among those that cover most of what the seller is
@@ -418,7 +430,8 @@ export function draftCalls(ctx: TradeContext, rng: Rng): { buyer: number; target
         pk.ownerId === team.id &&
         pk.playerId === undefined &&
         pk.id !== own.id &&
-        pickValue(league, pk, seller.gm, ctx) >= 0.8 * short;
+        pickValue(league, pk, seller.gm, ctx) >= 0.8 * short &&
+        pickValue(league, pk, team.gm, ctx) <= spare;
       const cheapest = (pks: DraftPick[]) =>
         pks.sort((a, b) => pickValue(league, a, team.gm, ctx) - pickValue(league, b, team.gm, ctx)).slice(0, ADD_ONS);
       const now = cheapest(

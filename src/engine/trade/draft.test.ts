@@ -26,6 +26,7 @@ import {
   draftCovet,
   draftTrades,
   expectedAt,
+  FUTURE_ROUNDS,
   callAhead,
   clockOffers,
   draftLine,
@@ -152,10 +153,10 @@ describe('save v60', () => {
   });
 });
 
-/** The first 32 picks of seed 'draft-trades' on main before draft-day trades (`simDraft`, rng 'baseline'). */
+/** The first 32 picks of seed 'draft-trades' with main's draft code (class top 14.1; `simDraft`, rng 'baseline'). */
 const BASELINE = [
-  1805, 1775, 1803, 1770, 1771, 1802, 1781, 1799, 1776, 1786, 1842, 1772, 1782, 1773, 1791, 1831, 1796, 1774, 1809,
-  1844, 1834, 1828, 1778, 1795, 1787, 1793, 1806, 1797, 1813, 1839, 1919, 1798,
+  1805, 1775, 1803, 1770, 1802, 1781, 1804, 1771, 1776, 1786, 1842, 1772, 1782, 1773, 1791, 1784, 1806, 1819, 1796,
+  1844, 1834, 1778, 1787, 1793, 1798, 1794, 1774, 1831, 1799, 1839, 1820, 1873,
 ];
 
 /** The pick on the clock (an AI team's) and another AI team's pick `ahead` slots later. */
@@ -516,7 +517,7 @@ describe('your board mid-draft', () => {
 });
 
 describe('future picks on draft day', () => {
-  it('go only into trade-ups in the first two rounds, as a last resort', () => {
+  it('go only into first-round trade-ups, as a last resort', () => {
     const l = draftDay();
     simDraft(l, new Rng('whole'), { stopAtUser: false });
     const pk = (id: number) => l.draftPicks.find((p) => p.id === id)!;
@@ -524,6 +525,6 @@ describe('future picks on draft day', () => {
     expect(ups.length).toBeGreaterThan(0);
     for (const r of ups)
       if (r.sides[0].picks.some((id) => pk(id).season > l.season))
-        expect(pk(r.sides[1].picks[0]).round).toBeLessThanOrEqual(2);
+        expect(pk(r.sides[1].picks[0]).round).toBeLessThanOrEqual(FUTURE_ROUNDS);
   });
 });

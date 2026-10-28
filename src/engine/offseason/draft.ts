@@ -47,13 +47,15 @@ export function generateDraftClass(league: League, rng: Rng): void {
   league.draftClass = [];
   for (let i = 0; i < DRAFT_CLASS_SIZE; i++) {
     // A steep top, a long flat middle: a few day-one starters, many projects.
-    // A class a little stronger than a new league's roster would need on its own (13.95 at the top): once the
+    // A class a little stronger than a new league's roster would need on its own (14.1 at the top): once the
     // generated veterans have retired, the draft alone carries the league, and at 13.5 it settled starters about
     // 0.3 below where a new league starts (`npm run careers`, starter OVR by season). Settling ceilings and hype
-    // (`ceiling.ts`) take a little back, which the quarter point over the old 13.7 returns.
+    // (`ceiling.ts`) take a little back, which the quarter point over the old 13.7 returned; at 13.95 the drafted
+    // league settled at 12.67, two hundredths over the floor, so any reshuffle of who goes where (a draft-day
+    // trade) tipped it under. 14.1 settles it near 12.8 (seasons 10-16, eight seeds).
     // Prospects come in raw (`RAW`): a first-rounder usually needs two or three years to become a solid starter, so a
     // ceiling that settles under him (`ceiling.ts`) is a bust, not a starter who stopped improving.
-    const quality = clamp(13.95 - RAW - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** 0.6 + rng.normal(0, 0.9), 4, 16);
+    const quality = clamp(14.1 - RAW - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** 0.6 + rng.normal(0, 0.9), 4, 16);
     const position = rng.weighted(CLASS_MIX, ([, w]) => w)[0];
     const p = generatePlayer(rng, {
       id: league.nextPlayerId++,

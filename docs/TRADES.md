@@ -529,9 +529,9 @@ The draft runs pick by pick (`simDraft`), and before each AI pick the phones rin
 - **Picks carry no salary on draft day:** a deal of picks alone skips the cap check there (`tradeProblem`), so a team that has
   just signed its rookies and sits over the cap until camp's cuts can still trade picks.
 - **The price:** the buyer's pick, then the cheapest of its later picks this draft (in its own eyes) among
-  those that cover most of what the seller is short. Next year's pick is the last resort, and only for a move
-  in the first two rounds (`FUTURE_ROUNDS`): the NFL sees 5–6 trades a year mix current and future picks,
-  and they go into early moves.
+  those that cover most of what the seller is short, and that the buyer can spare. Next year's pick is the last resort, and only for a
+  first-round move (`FUTURE_ROUNDS`): the NFL sees 5–6 trades a year mix current and future picks, and they
+  go into first-round moves.
 - **Future for current:** at some picks a GM who wants help now swaps next year's pick for this year's a
   round later ("our 2028 2nd for your 3rd now", `pickSwapFor`).
 - **Draft deals don't count** against a team's trade limits (`MINOR`).
@@ -1542,11 +1542,16 @@ Measured (`npm run trades`, three leagues of three drafts; `npm run offseason --
   where boards bunch up), a premium on the pick on the clock (12% in round 1, 10% in round 2, 5% in round 3, none on day
   3), three trade-ups a team a draft (two held volume under the NFL's), future-for-current swaps at one pick
   in twenty.
+- **Stronger draft classes (the careers check):** the class's top grade went from 13.95 to 14.1. Once a new
+  league's generated veterans retire (by season 12), the draft alone carries the league: at 13.95 drafted
+  starters settled at about 12.67, two hundredths over `npm run careers`' floor, and main passed only by luck
+  of its four seeds (eight seeds read 12.63). Any reshuffle of who goes where, as draft-day trades make,
+  tipped it under. At 14.1 the league settles near 12.8.
 - **Picks carry no salary on draft day:** teams that just signed their rookies sit over the cap until camp's
   cuts; they can still trade picks.
 - **Future picks:** at first about 29 deals a draft carried one: buyers paid with next year's picks because
   their discount made them cheap in their own eyes. Now a buyer pays with this draft's later picks, and next
-  year's only as a last resort in rounds 1–2: about 7–9 a draft (owner's call: closer to the NFL's 5–6).
+  year's only as a last resort in round 1: about 7 a draft (owner's call: closer to the NFL's 5–6).
 
 ### Phase 5: memory, media and mind games
 

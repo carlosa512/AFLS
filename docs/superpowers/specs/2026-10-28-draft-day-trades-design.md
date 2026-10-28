@@ -79,6 +79,9 @@ by passing on its man now). So it says yes when:
 
 ### The price
 
+Owner's later calls: future picks only in round 1 (about 7 a draft, near the NFL's 5–6), and draft classes a little
+stronger (14.1 at the top) so `npm run careers` holds once a new league's generated veterans retire.
+
 - The buyer offers its own pick plus the cheapest add-on that both `judge`s accept: a later pick in this draft
   first, then a future pick (next year's round one later, the NFL's "round a year"). A win-now GM (high
   `futureDiscount`) reaches for the future pick first, because it costs him least.
