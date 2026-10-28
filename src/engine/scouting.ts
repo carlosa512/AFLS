@@ -1142,7 +1142,7 @@ const TIERS: Tier[] = [
   { role: 'A camp-body', becomes: 'a camp body' },
 ];
 
-function tierOf(league: League, pos: Position, ovr: number): number {
+export function tierOf(league: League, pos: Position, ovr: number): number {
   const ref = reference(league);
   const sp = percentile(ref.starters[pos], ovr);
   if (sp >= 0.9) return 0;
