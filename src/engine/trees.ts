@@ -36,8 +36,8 @@ interface Index {
   disciples: Map<number, number[]>;
   /** Only the men who worked under him while he was a head coach: the ones a tree is made of. */
   headMen: Map<number, number[]>;
-  /** When each root proved himself a winner (`winnerSince`), until his head-coach seasons change. */
-  winners: Map<number, { seasons: number; since: number | null }>;
+  /** The seasons each root was a winner (`winningSeasons`), until his head-coach seasons change. */
+  winners: Map<number, { seasons: number; winning: Set<number> | 'always' }>;
 }
 const cache = new WeakMap<League, { key: string; index: Index }>();
 
@@ -183,23 +183,26 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
 /** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
 /** A tree grows from a winner: .500 or better over three seasons or more as a head coach. */
 export const WINNER = { seasons: 3, share: 0.5 };
+/** Seasons two of his men must run clubs side by side, both established, while he is a winner. */
+export const SIDE_BY_SIDE = 2;
 
 /**
- * The season by which he had proved himself a winner as a head coach (his team's record stands in for an old season
- * kept without his own), or null if he never has. A founding root won before the league began: always. Real trees
- * grow from winners (Walsh, Parcells, Reid, Shanahan); a losing coach whose assistants get jobs is a good teacher.
+ * The seasons by which he was a winner as a head coach, his record up to and including each (his team's record
+ * stands in for an old season kept without his own), or 'always' for a founding root, who won before the league
+ * began. Real trees grow from winners (Walsh, Parcells, Reid, Shanahan); a losing coach whose assistants get jobs is a
+ * good teacher, not a tree.
  */
-function winnerSince(league: League, rootId: number): number | null {
+function winningSeasons(league: League, rootId: number): Set<number> | 'always' {
   const idx = index(league);
   const root = coachById(league, rootId);
   const rows = (root?.career ?? []).filter((r) => r.role === 'headCoach').length;
   const hit = idx.winners.get(rootId);
-  if (hit && hit.seasons === rows) return hit.since;
-  let since: number | null = null;
+  if (hit && hit.seasons === rows) return hit.winning;
+  let winning: Set<number> | 'always' = new Set();
   const founding = (idx.headMen.get(rootId) ?? []).some(
     (id) => linksOf(league, id).find((k) => k.mentorId === rootId)?.last === -Infinity,
   );
-  if (founding) since = -Infinity;
+  if (founding) winning = 'always';
   else if (root) {
     const seasons = [...coachRecord(league, root, ['headCoach']).seasons].sort((a, b) => a.season - b.season);
     const r = { w: 0, l: 0, t: 0 };
@@ -209,36 +212,51 @@ function winnerSince(league: League, rootId: number): number | null {
       r.l += x.regular.l;
       r.t += x.regular.t;
       counted.add(x.season);
-      if (counted.size >= WINNER.seasons && winPct(r) >= WINNER.share) {
-        since = x.season;
-        break;
-      }
+      if (counted.size >= WINNER.seasons && winPct(r) >= WINNER.share) winning.add(x.season);
     }
   }
-  idx.winners.set(rootId, { seasons: rows, since });
-  return since;
+  idx.winners.set(rootId, { seasons: rows, winning });
+  return winning;
 }
 
-/** The seasons two or more of his men ran clubs at once, both established. */
+/** Whether he was a winner as of `season`: his record through the last season he was a head coach by then. */
+function winnerAsOf(league: League, rootId: number, season: number): boolean {
+  const winning = winningSeasons(league, rootId);
+  if (winning === 'always') return true;
+  const root = coachById(league, rootId);
+  const last = Math.max(
+    -Infinity,
+    ...(root?.career ?? []).filter((r) => r.role === 'headCoach' && r.season <= season).map((r) => r.season),
+  );
+  return winning.has(last);
+}
+
+/** The seasons two or more of his men ran clubs at once, both established, oldest first. */
 function sideBySide(league: League, coachId: number): number[] {
   const count = new Map<number, number>();
   for (const d of headDisciples(league, coachId))
     for (const s of new Set(seasonsInCharge(league, d, coachId))) count.set(s, (count.get(s) ?? 0) + 1);
-  return [...count].filter(([, n]) => n >= 2).map(([s]) => s);
-}
-
-/** The season his tree was born (two of his men in charge at once, once he had won), or null if it hasn't been. */
-export function treeBornSeason(league: League, coachId: number): number | null {
-  const since = winnerSince(league, coachId);
-  if (since === null) return null;
-  const born = sideBySide(league, coachId).filter((s) => s >= since);
-  return born.length ? Math.min(...born) : null;
+  return [...count]
+    .filter(([, n]) => n >= 2)
+    .map(([s]) => s)
+    .sort((a, b) => a - b);
 }
 
 /**
- * He has a tree once two of his men have run clubs in the same season, as the press recognizes one, and he is a
- * winner: a man whose assistants run clubs one after another, never side by side, or who never won himself, is a good
- * teacher, not a tree.
+ * The season his tree was born, or null if it hasn't been: the second season two of his men ran clubs side by side,
+ * both established, while he was a winner. One passing season of two disciples in charge isn't a tree; a run is.
+ */
+export function treeBornSeason(league: League, coachId: number): number | null {
+  const seasons = sideBySide(league, coachId).filter((s) => winnerAsOf(league, coachId, s));
+  if (seasons.length < SIDE_BY_SIDE) return null;
+  // A founding tree's men were already side by side before the league began: it was born then, not this season.
+  return seasons[0] === -Infinity ? -Infinity : seasons[SIDE_BY_SIDE - 1];
+}
+
+/**
+ * He has a tree once two of his men have run clubs side by side for two seasons while he was a winner, as the press
+ * recognizes one: a man whose assistants run clubs one after another, or who never won himself, is a good teacher,
+ * not a tree.
  */
 export const hasTree = (league: League, coachId: number): boolean => treeBornSeason(league, coachId) !== null;
 

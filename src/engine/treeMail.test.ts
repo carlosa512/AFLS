@@ -28,7 +28,7 @@ describe('tree news', () => {
     expect(m[0].body).not.toMatch(BANNED);
   });
 
-  it('SNN marks a tree born the first season two of his men run clubs at once, and not for a founding tree', () => {
+  it('SNN marks a tree born the second season two of his men run clubs side by side, and not for a founding tree', () => {
     const founded = createLeague({ seed: 'tree-born' });
     deliverMail(founded);
     expect((founded.inbox ?? []).filter((m) => m.id.includes(':born:'))).toHaveLength(0); // founding trees are older
@@ -47,6 +47,7 @@ describe('tree news', () => {
     ];
     b.career = [
       ...[s - 6, s - 5, s - 4].map((x) => ({ season: x, teamId: 20, role: 'defCoord' as const })),
+      { season: s - 2, teamId: b.teamId!, role: 'headCoach' as const },
       { season: s - 1, teamId: b.teamId!, role: 'headCoach' as const },
     ];
     deliverMail(l);
