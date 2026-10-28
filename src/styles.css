@@ -2679,6 +2679,11 @@ details.more > summary {
   margin-left: 0;
   white-space: nowrap;
 }
+.board-notes {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
 
 /* ───────── scouting staff ───────── */
 /* Five front-office tabs don't fit a phone side by side: tighten them, and scroll inside the bar as a last resort. */

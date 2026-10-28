@@ -9,13 +9,7 @@ import {
   type Risk,
 } from '../../engine/draftGrade';
 import { draftForUser, draftNextPick, draftToEnd, draftToUserPick } from '../../engine/offseason';
-import {
-  availableProspects,
-  boardValue,
-  draftOrder,
-  reachOrSteal,
-  ROUNDS,
-} from '../../engine/offseason/draft';
+import { availableProspects, draftOrder, reachOrSteal, ROUNDS } from '../../engine/offseason/draft';
 import type { DraftPick, League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import {
@@ -40,26 +34,12 @@ import {
   Ovr,
   QuirkPills,
   quirksOf,
-  potentialText,
   ScoutButton,
-  Stars,
-  starsOf,
   viewOf,
 } from '../scouting';
 import { store } from '../store';
 
-type BoardSort =
-  | 'rank'
-  | 'mine'
-  | 'pos'
-  | 'age'
-  | 'school'
-  | 'drill'
-  | 'grade'
-  | 'ceiling'
-  | 'stars'
-  | 'consensus'
-  | 'known';
+type BoardSort = 'rank' | 'mine' | 'pos' | 'school' | 'drill' | 'grade' | 'ceiling' | 'gap' | 'known';
 
 /** The combine drills the board's drill column can show, with their short headers. */
 const BOARD_DRILLS = [
@@ -83,8 +63,8 @@ export function Draft({ league }: { league: League }) {
   // A new filter or ranking starts back at the top of the board.
   useEffect(() => setShown(BOARD_PAGE), [pos, sort]);
   const all = availableProspects(league);
-  // Consensus rank across the whole class: roughly where the league will take him.
-  const rank = new Map([...all].sort((a, b) => boardValue(b) - boardValue(a)).map((p, i) => [p.id, i + 1]));
+  // Both boards across the whole class: the consensus rank is roughly where the league will take him.
+  const gaps = staffGaps(league, all);
   // Sort the whole class before paging it, so "fastest" or "best ceiling" reaches past the first page.
   const prospects = sortRows(
     all.filter((p) => pos === 'ALL' || p.position === pos),
@@ -95,28 +75,23 @@ export function Draft({ league }: { league: League }) {
         ? staffBoardValue(league, p)
         : key === 'pos'
           ? POSITIONS.indexOf(p.position)
-          : key === 'age'
-            ? p.age
-            : key === 'school'
-              ? originName(p)
-              : key === 'drill'
-                ? (p.combine?.[drill] ?? (sort.desc ? -Infinity : Infinity))
-                : key === 'grade'
-                  ? v.ovr
-                  : key === 'ceiling'
-                    ? v.potMid
-                    : key === 'stars'
-                      ? starsOf(league, p, 'league', v).ability
-                      : key === 'consensus'
-                        ? p.scouting!.grade
-                        : key === 'known'
-                          ? v.knowledge
-                          : rank.get(p.id)!;
+          : key === 'school'
+            ? originName(p)
+            : key === 'drill'
+              ? (p.combine?.[drill] ?? (sort.desc ? -Infinity : Infinity))
+              : key === 'grade'
+                ? v.ovr
+                : key === 'ceiling'
+                  ? v.potMid
+                  : key === 'gap'
+                    ? gaps.get(p.id)!.diff
+                    : key === 'known'
+                      ? v.knowledge
+                      : gaps.get(p.id)!.consensus;
     },
   );
   const clock = clockState(league);
   const userUp = clock.kind === 'live' && clock.userUp;
-  const gaps = staffGaps(league, all);
   const hasHistory = Object.values(league.players).some((p) => p.draft && p.scouting);
 
   return (
@@ -177,13 +152,13 @@ export function Draft({ league }: { league: League }) {
             <details className="more">
               <summary>How to read the board</summary>
               <p className="muted small">
-                <b>Your grade</b> and <b>ceiling</b> are your scouts' estimates (a dashed grade is a guess).{' '}
-                <b>Makeup</b> shows once your scouts know a prospect, usually after a visit or two ("?" means not yet;
-                dashed tags are early word). <b>Habits</b> are what shows on film: a few in the tape, more with visits.{' '}
-                <b>Consensus</b> is how the rest of the league rates him. Rivals blend it with their own scouts' reads,
-                and trust their scouts more when those scouts are good, so he can go earlier or later than his rank.
-                When your read beats the consensus, you've found a sleeper; when it's worse, let someone else take the
-                bust.
+                <b>Your grade</b> is your scouts' estimate (a dashed grade is a guess). <b>Risk</b> runs from that grade
+                to his ceiling: solid to where your scouts think he lands, faded to the best case. Short and solid is a
+                ready player, long and fading a project; <b>Safe</b> and <b>Boom-or-bust</b> mark the ends. The number
+                before his name is his <b>consensus</b> rank, roughly where the league will take him; the pill says how
+                far your staff's board parts from it (▲ when your staff likes him more). A dozen spots or more makes him
+                a <b>Sleeper</b> or a <b>Fade</b>. <b>Notes</b> are his makeup and his habits on film, once your scouts
+                know him ("?" means not yet; dashed tags are early word).
               </p>
             </details>
             <div className="table-scroll">
@@ -192,7 +167,6 @@ export function Draft({ league }: { league: League }) {
                   <tr>
                     <SortTh label="Player" k="rank" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
                     <SortTh label="Pos" k="pos" sort={sort} onSort={onSort} desc={false} />
-                    <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
                     <SortTh label="School" k="school" sort={sort} onSort={onSort} desc={false} />
                     <SortTh
                       label={BOARD_DRILLS.find(([k]) => k === drill)![1]}
@@ -203,12 +177,10 @@ export function Draft({ league }: { league: League }) {
                       className="num"
                     />
                     <SortTh label="Your grade" k="grade" sort={sort} onSort={onSort} className="num" />
-                    <SortTh label="Ceiling" k="ceiling" sort={sort} onSort={onSort} className="num" />
-                    <SortTh label="Stars" k="stars" sort={sort} onSort={onSort} />
-                    <SortTh label="Consensus" k="consensus" sort={sort} onSort={onSort} className="num" />
+                    <SortTh label="Risk" k="ceiling" sort={sort} onSort={onSort} />
+                    <SortTh label="Consensus" k="gap" sort={sort} onSort={onSort} />
                     <SortTh label="Known" k="known" sort={sort} onSort={onSort} />
-                    <th>Makeup</th>
-                    <th>Habits</th>
+                    <th>Notes</th>
                     <th className="sticky-end" />
                   </tr>
                 </thead>
@@ -219,11 +191,10 @@ export function Draft({ league }: { league: League }) {
                       <tr key={p.id}>
                         <td className="sticky-col">
                           {/* The rank rides in the sticky cell: as a column of its own, the name would slide over it. */}
-                          <span className="board-rank muted small">{rank.get(p.id)}</span>
+                          <span className="board-rank muted small">{gaps.get(p.id)!.consensus}</span>
                           <PlayerLink league={league} player={p} avatar={26} />
                         </td>
                         <td>{p.position}</td>
-                        <td className="num">{p.age}</td>
                         <td>
                           <OriginTag player={p} />
                         </td>
@@ -231,21 +202,20 @@ export function Draft({ league }: { league: League }) {
                         <td className="num">
                           <Ovr league={league} player={p} />
                         </td>
-                        <td className="num">{potentialText(v)}</td>
                         <td>
-                          <Stars s={starsOf(league, p, 'league', v)} size={13} />
+                          <RiskBar risk={riskOf(v)} />
                         </td>
-                        <td className="num">
-                          <Rating value={p.scouting!.grade} decimals={1} />
+                        <td>
+                          <GapPill gap={gaps.get(p.id)!} />
                         </td>
                         <td>
                           <KnowledgeMeter value={v.knowledge} />
                         </td>
                         <td>
-                          <BoardMakeup league={league} player={p} />
-                        </td>
-                        <td>
-                          <BoardHabits league={league} player={p} />
+                          <span className="board-notes">
+                            <BoardMakeup league={league} player={p} />
+                            <BoardHabits league={league} player={p} />
+                          </span>
                         </td>
                         {/* Pinned right, so Scout and Draft stay in reach on a phone without scrolling the table. */}
                         <td className="sticky-end">
