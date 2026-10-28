@@ -2626,6 +2626,20 @@ details.more > summary {
   background: var(--surface-2);
   min-width: 0;
 }
+/* On a phone the five cards swipe sideways instead of stacking five screens tall. */
+@media (max-width: 600px) {
+  .prospect-cards {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 72%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 4px;
+  }
+  .prospect-card {
+    scroll-snap-align: start;
+  }
+}
 .prospect-card .tag-pill {
   margin-left: 0;
 }

@@ -216,10 +216,7 @@ export function Draft({ league }: { league: League }) {
                           <KnowledgeMeter value={v.knowledge} />
                         </td>
                         <td>
-                          <span className="board-notes">
-                            <BoardMakeup league={league} player={p} />
-                            <BoardHabits league={league} player={p} />
-                          </span>
+                          <BoardNotes league={league} player={p} />
                         </td>
                         {/* Pinned right, so Scout and Draft stay in reach on a phone without scrolling the table. */}
                         <td className="sticky-end">
@@ -724,6 +721,22 @@ function VerdictPill({ mark }: { mark: PickMark | null }) {
       title={mark.locked ? 'Judged after his third season' : 'Early read: locks after his third season'}
     >
       {VERDICT_TEXT[mark.verdict]}
+    </span>
+  );
+}
+
+/** Makeup then habits in one cell: a single "?" while your scouts know neither. */
+function BoardNotes({ league, player }: { league: League; player: Player }) {
+  if (!makeupOf(league, player).known && !quirksOf(league, player).known)
+    return (
+      <span className="muted" title="Not known yet: a scouting visit or two">
+        ?<span className="visually-hidden">Not known yet</span>
+      </span>
+    );
+  return (
+    <span className="board-notes">
+      <BoardMakeup league={league} player={player} />
+      <BoardHabits league={league} player={player} />
     </span>
   );
 }
