@@ -20,6 +20,9 @@
  *
  * 6. Volume and mix: trades in season, the share on deadline day, the offseason's, what kinds, and
  *    how few go between division rivals, against the NFL's.
+ * 7. Draft day (TRADES.md, Phase 4): how many picks move in a draft and how many firsts, the price of moving up
+ *    in round 1 against the Jimmy Johnson chart, trade-ups for premium positions and quarterbacks, who trades
+ *    down, whether a team that moved up took the player it moved up for, and the cost of a pick.
  *
  *   npm run trades          # 3 leagues, 3 seasons each (and 45 more priced to deadline day)
  *   npm run trades -- 4
@@ -33,6 +36,7 @@ import { yearsLeft } from '../src/engine/finance/contract';
 import { createLeague } from '../src/engine/generate';
 import { gamesInWeek, playWeek, simToEndOfSeason } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
+import { nextPick, simDraft } from '../src/engine/offseason/draft';
 import { freeAgents, signPlayer } from '../src/engine/offseason/negotiation';
 import { playerOvr, STARTERS } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
@@ -43,11 +47,13 @@ import {
   executeTrade,
   goingRate,
   isDeadlineDay,
+  jimmyJohnson,
   judge,
   marketMoment,
   marketValue,
   nextDraftSeason,
   pickChartValue,
+  pickOverall,
   pickValue,
   playerTradeBlocker,
   proposeTrade,
@@ -72,6 +78,7 @@ import {
   type TradeProposal,
   weekMoment,
 } from '../src/engine/trade';
+import { PREMIUM, tradeUpReason } from '../src/engine/trade/draft';
 import type { DraftPick, GmTraits, League, TradeOffer, TradeRecord } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import {
@@ -106,6 +113,17 @@ const check = (label: string, value: number, [lo, hi]: [number, number], digits 
   const range = lo === -Infinity ? `≤${hi}` : hi === Infinity ? `≥${lo}` : `${lo}–${hi}`;
   console.log(
     `  ${label.padEnd(52)} ${Number.isFinite(value) ? value.toFixed(digits).padStart(8) : '     n/a'}   ${range}${ok ? '' : !Number.isFinite(value) || value < lo ? '  ▼ LOW' : '  ▲ HIGH'}`,
+  );
+};
+/**
+ * A number against a target that isn't enforced yet: draft day's targets wait on the owner's call on tuning the
+ * draft-day AI (QUESTIONS.md), so a miss is marked but doesn't fail the run.
+ */
+const watch = (label: string, value: number, [lo, hi]: [number, number], digits = 0) => {
+  const ok = Number.isFinite(value) && value >= lo && value <= hi;
+  const range = lo === -Infinity ? `≤${hi}` : hi === Infinity ? `≥${lo}` : `${lo}–${hi}`;
+  console.log(
+    `  ${label.padEnd(52)} ${Number.isFinite(value) ? value.toFixed(digits).padStart(8) : '     n/a'}   ${range}${ok ? '' : '  ◇ off target (not failed)'}`,
   );
 };
 /** A number shown for reading, never failed: bad business that a GM's scouts or situation explain. */
@@ -209,6 +227,7 @@ function sideRead(ctx: TradeContext, deal: Deal, proposal: TradeProposal, i: num
 dealWatch.onClose = (ctx, deal, proposal) => {
   if (ctx.league !== live) return;
   const { league } = ctx;
+  if (league.phase === 'draft' && deal.kind === 'draft') watchTradeUp(ctx, proposal);
   const reads = [0, 1].map((i) => sideRead(ctx, deal, proposal, i));
   const parts = proposal.sides.map((side) => sends(ctx, side));
   const stakes = parts.flat().reduce((a, b) => a + Math.abs(b), 0);
@@ -584,6 +603,10 @@ function audit(after: League): TradeRecord[] {
   for (const record of fresh) {
     audited.add(record);
     if (record.physicals?.some((x) => x.result === 'concerns')) phys.flagged++;
+    // Draft deals are picks for picks: they move no salary and are read on their own (section 9). The step that made
+    // them also signed the whole draft class, which leaves a few teams over the cap until camp with or without a
+    // trade (seeds trades-0, x1, x2: 4, 5 and 3 teams either way), so a health read after it would blame the deal.
+    if (record.phase === 'draft') continue;
     volume.all.push(record);
     checkHealth(
       after,
@@ -704,6 +727,95 @@ function probePhysicals(league: League): void {
   }
 }
 
+// ───────── 9. Draft day ─────────
+
+/** A trade-up as it closed: the pick it bought, who moved up for whom, and the price in Jimmy Johnson points. */
+interface TradeUp {
+  league: League;
+  clockId: number;
+  buyer: number;
+  seller: number;
+  target?: number;
+  overall: number;
+  round: number;
+  /** What the mover sent (future picks at their projected slots, 25% off a year) ÷ the pick it got, on the JJ chart. */
+  ratio: number;
+}
+const draftDay = {
+  drafts: 0,
+  trades: 0,
+  firsts: 0,
+  futures: 0,
+  ups: [] as TradeUp[],
+  /** Trade-ups read once their draft was done. */
+  read: [] as { took: boolean; premium: boolean; qbTop16: boolean; ratio?: number }[],
+  stayPut: { premium: 0, n: 0 },
+  /** Trade-downs by GMs on the analytics chart or Pick Hoarders, and their share of the league's GMs. */
+  flatSellers: 0,
+  flatShare: [] as number[],
+  sellers: new Map<string, number>(),
+  msPerPick: [] as number[],
+};
+
+/** The team that moves up is the one calling: read its man the way `draftCalls` did, before the deal goes through. */
+function watchTradeUp(ctx: TradeContext, proposal: TradeProposal) {
+  const { league } = ctx;
+  const clock = nextPick(league);
+  const picks = proposal.sides[0].picks.map((id) => league.draftPicks.find((p) => p.id === id)!);
+  const own = picks.find((pk) => pk.season === league.season && pk.overall !== undefined);
+  if (!clock || !own || !proposal.sides[1].picks.includes(clock.id)) return;
+  const sent = picks.reduce(
+    (sum, pk) => sum + jimmyJohnson(pickOverall(league, pk, ctx)) * 0.75 ** Math.max(0, pk.season - league.season),
+    0,
+  );
+  draftDay.ups.push({
+    league,
+    clockId: clock.id,
+    buyer: proposal.sides[0].teamId,
+    seller: proposal.sides[1].teamId,
+    target: tradeUpReason(ctx, league.teams[proposal.sides[0].teamId], own)?.target.id,
+    overall: clock.overall!,
+    round: clock.round,
+    ratio: sent / jimmyJohnson(clock.overall!),
+  });
+}
+
+/** A draft just done: its deals (every trade made while the draft ran) and what the trade-ups' picks became. */
+function readDraft(league: League, records: TradeRecord[], label: string) {
+  draftDay.drafts++;
+  const deals = records.filter((r) => r.phase === 'draft');
+  const pickOf = (id: number) => league.draftPicks.find((p) => p.id === id);
+  const picks = (r: TradeRecord) => r.sides.flatMap((x) => x.picks.map(pickOf)).filter((pk) => pk !== undefined);
+  draftDay.trades += deals.length;
+  draftDay.firsts += deals.filter((r) => picks(r).some((pk) => pk.season === league.season && pk.round === 1)).length;
+  draftDay.futures += deals.filter((r) => picks(r).some((pk) => pk.season > league.season)).length;
+  const ups = draftDay.ups.filter((u) => u.league === league && pickOf(u.clockId)?.season === league.season);
+  draftDay.ups = draftDay.ups.filter((u) => !ups.includes(u));
+  const bought = new Set(ups.map((u) => u.clockId));
+  const flat = (id: number) =>
+    league.teams[id].gm.archetype === 'Pick Hoarder' || league.teams[id].gm.pickChart === 'analytics';
+  draftDay.flatShare.push(league.teams.filter((t) => flat(t.id)).length / league.teams.length);
+  for (const u of ups) {
+    const pk = pickOf(u.clockId)!;
+    const p = pk.playerId !== undefined ? league.players[pk.playerId] : undefined;
+    draftDay.read.push({
+      took: !!p && pk.ownerId === u.buyer && p.id === u.target,
+      premium: !!p && PREMIUM.has(p.position),
+      qbTop16: p?.position === 'QB' && u.overall <= 16,
+      ratio: u.round === 1 ? u.ratio : undefined,
+    });
+    if (flat(u.seller)) draftDay.flatSellers++;
+    const t = league.teams[u.seller];
+    const key = `${label} ${t.abbrev} (${t.gm.archetype}, ${t.gm.pickChart})`;
+    draftDay.sellers.set(key, (draftDay.sellers.get(key) ?? 0) + 1);
+  }
+  for (const pk of league.draftPicks) {
+    if (pk.season !== league.season || pk.playerId === undefined || bought.has(pk.id)) continue;
+    draftDay.stayPut.n++;
+    if (PREMIUM.has(league.players[pk.playerId].position)) draftDay.stayPut.premium++;
+  }
+}
+
 // ───────── run ─────────
 
 for (let i = 0; i < LEAGUES; i++) {
@@ -766,8 +878,19 @@ for (let i = 0; i < LEAGUES; i++) {
         const copy = clone(league);
         speedOff.push(cpuMs(() => marketMoment(copy, league.phase === 'freeAgency' ? 'faDay' : 'camp')));
       }
+      const phase = league.phase;
+      if (timing && phase === 'draft') {
+        // The whole draft on a copy, the phones ringing before every pick: its cost a pick.
+        const copy = clone(league);
+        let made = 0;
+        const ms = cpuMs(() => (made = simDraft(copy, new Rng('draft-speed'), { stopAtUser: false }).length));
+        draftDay.msPerPick.push(ms / Math.max(1, made));
+      }
       advanceOffseason(league, { autoUser: true });
-      offseason += audit(league).length;
+      const fresh = audit(league);
+      // The draft's own trades are counted on their own (section 9), not as the offseason market's.
+      offseason += fresh.filter((r) => r.phase !== 'draft').length;
+      if (phase === 'draft') readDraft(league, fresh, label);
       offers += freshOffers(league, label).length;
     }
     volume.offseason.push(offseason);
@@ -948,6 +1071,50 @@ check(
 console.log('\nProbes (each must fail)');
 for (const p of probes) console.log(`  ${p.worked ? '✗ WORKED' : '✓ failed'}  ${p.label}`);
 check('exploits that worked', probes.filter((p) => p.worked).length, [0, 0]);
+
+const ups = draftDay.read;
+const pct = (f: (u: (typeof ups)[number]) => boolean) => (100 * ups.filter(f).length) / Math.max(1, ups.length);
+console.log(
+  `\nDraft day (${draftDay.drafts} drafts, ${draftDay.trades} deals, ${ups.length} trade-ups; targets shown, not failed: see QUESTIONS.md)`,
+);
+// The NFL's drafts of 2015-2025: about 40 trades a draft (34-49), 4-8 of them moving a first-round pick.
+watch('draft trades a draft', draftDay.trades / Math.max(1, draftDay.drafts), [35, 45], 1);
+watch('…with a first-round pick', draftDay.firsts / Math.max(1, draftDay.drafts), [3, 9], 1);
+watch('ms a pick (median)', median(draftDay.msPerPick), [0, 3], 2);
+watch(
+  'trade-ups where the buyer took its man (%)',
+  pct((u) => u.took),
+  [90, 100],
+);
+// ESPN's 242 trade-ups: 38% of those picks went to premium positions, under 30% for teams that stayed put.
+watch(
+  'trade-up picks at a premium position (%) − stay-put (%)',
+  pct((u) => u.premium) - (100 * draftDay.stayPut.premium) / Math.max(1, draftDay.stayPut.n),
+  [0.1, Infinity],
+  1,
+);
+// Movers pay over the JJ chart in round 1 (Massey and Thaler: the steep chart still undercharges for the top).
+watch(
+  'round-1 price ÷ JJ chart (median, mover)',
+  median(ups.flatMap((u) => (u.ratio === undefined ? [] : [u.ratio]))),
+  [0.95, 1.25],
+  2,
+);
+watch(
+  'QB trade-ups into the top 16, a draft',
+  ups.filter((u) => u.qbTop16).length / Math.max(1, draftDay.drafts),
+  [0.3, 2],
+  2,
+);
+watch(
+  'trade-downs by analytics or Pick Hoarder GMs (%) − their share of teams (%)',
+  (100 * draftDay.flatSellers) / Math.max(1, ups.length) - 100 * mean(draftDay.flatShare),
+  [0, Infinity],
+  1,
+);
+note('draft deals with a future pick, a draft', (draftDay.futures / Math.max(1, draftDay.drafts)).toFixed(1));
+for (const [team, n] of [...draftDay.sellers].sort((a, b) => b[1] - a[1]).slice(0, 5))
+  console.log(`    traded down ${n}×  ${team}`);
 
 console.log('\nSpeed');
 check('one verdict, warm cache (ms)', speed.judge, [0, 0.6], 3);

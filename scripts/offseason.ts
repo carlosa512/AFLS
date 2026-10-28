@@ -340,6 +340,17 @@ for (let s = 0; s < seasons; s++) {
   const r1 = avg(picks.filter((pk) => pk.round === 1).map((pk) => worth(pk.playerId!)));
   const r23 = avg(picks.filter((pk) => pk.round > 1).map((pk) => worth(pk.playerId!)));
   const reach = avg(picks.filter((pk) => pk.consRank !== undefined).map((pk) => Math.abs(pk.overall! - pk.consRank!)));
+  // Draft-day trades on their own line (info: npm run trades reads them against the NFL's).
+  const draftDeals = (league.market?.history ?? []).filter((r) => r.season === league.season && r.phase === 'draft');
+  const firstRound = draftDeals.filter((r) =>
+    r.sides.some((x) =>
+      x.picks.some((id) => {
+        const pk = league.draftPicks.find((p) => p.id === id);
+        return pk?.season === league.season && pk.round === 1;
+      }),
+    ),
+  ).length;
+  console.log(`  draft-day trades: ${draftDeals.length} (${firstRound} with a first-round pick)`);
   console.log(
     `  draft: R1 worth ${r1.toFixed(2)} · R2-3 ${r23.toFixed(2)} · best-8 staffs ${pickWorth(byStaff.slice(0, 8)).toFixed(2)} vs worst-8 ${pickWorth(byStaff.slice(-8)).toFixed(2)} · avg |slot - consensus rank| ${reach.toFixed(1)}`,
   );
