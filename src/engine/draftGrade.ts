@@ -4,9 +4,9 @@
  * has settled), a prospect's risk, and where the staff's board parts from the league's consensus.
  */
 import { employed } from './employment';
-import { boardValue, POSITION_PREMIUM } from './offseason/draft';
+import { availableProspects, boardValue, draftOrder, nextPick, POSITION_PREMIUM } from './offseason/draft';
 import { perceive, tierOf, type PlayerView } from './scouting';
-import type { League, Player, PickVerdict } from './types';
+import type { DraftPick, League, Player, PickVerdict } from './types';
 
 export type { PickVerdict };
 
@@ -129,4 +129,21 @@ export function staffGaps(league: League, pool: Player[]): Map<number, Gap> {
       ];
     }),
   );
+}
+
+/** What the draft room's hero shows: nothing, the class ahead, a pick on the clock, or the draft done. */
+export type ClockState =
+  | { kind: 'none' }
+  | { kind: 'preview'; prospects: number; firstPick?: DraftPick }
+  | { kind: 'live'; pick: DraftPick; userUp: boolean; myNext?: DraftPick }
+  | { kind: 'done' };
+
+export function clockState(league: League): ClockState {
+  const mine = () => draftOrder(league).find((pk) => pk.ownerId === league.userTeamId && pk.playerId === undefined);
+  if (league.phase === 'draft') {
+    const pick = nextPick(league);
+    return pick ? { kind: 'live', pick, userUp: pick.ownerId === league.userTeamId, myNext: mine() } : { kind: 'done' };
+  }
+  if (!league.draftClass.length) return { kind: 'none' };
+  return { kind: 'preview', prospects: availableProspects(league).length, firstPick: mine() };
 }

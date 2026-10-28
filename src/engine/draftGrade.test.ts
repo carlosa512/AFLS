@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { GAP_LINE, lockVerdicts, pickMark, riskOf, staffBoardValue, staffGaps, verdictFor } from './draftGrade';
+import {
+  clockState,
+  GAP_LINE,
+  lockVerdicts,
+  pickMark,
+  riskOf,
+  staffBoardValue,
+  staffGaps,
+  verdictFor,
+} from './draftGrade';
 import { createLeague } from './generate';
 import { migrateLeague } from './migrate';
-import { availableProspects, generateDraftClass } from './offseason/draft';
+import { advanceOffseason, beginOffseason } from './offseason';
+import { availableProspects, draftPlayer, generateDraftClass, nextPick, simDraft } from './offseason/draft';
+import { simToEndOfSeason } from './league';
 import { Rng } from './rng';
 import { perceive, type PlayerView } from './scouting';
 import type { League, Player } from './types';
@@ -157,5 +168,47 @@ describe('staffGaps', () => {
     expect(g).toMatchObject({ diff: 19, tag: 'sleeper' });
     const fade = [...staffGaps(l, pool).values()].find((x) => x.diff <= -GAP_LINE);
     if (fade) expect(fade.tag).toBe('fade');
+  });
+});
+
+describe('clockState', () => {
+  /** One league played through a season, cloned per test. */
+  const played = (() => {
+    const league = createLeague({ seed: 'clock' });
+    simToEndOfSeason(league);
+    return JSON.stringify(league);
+  })();
+  const fresh = (): League => JSON.parse(played);
+  const toDraft = () => {
+    const l = fresh();
+    beginOffseason(l);
+    while (l.phase !== 'draft') advanceOffseason(l);
+    return l;
+  };
+
+  it('has no class to show in a new league before its first offseason', () => {
+    const l = createLeague({ seed: 'clock-new' });
+    expect(l.draftClass).toHaveLength(0);
+    expect(clockState(l)).toEqual({ kind: 'none' });
+  });
+
+  it("previews the class before the draft, with the user's first pick", () => {
+    const l = fresh();
+    beginOffseason(l);
+    const s = clockState(l);
+    expect(s.kind).toBe('preview');
+    if (s.kind !== 'preview') return;
+    expect(s.prospects).toBe(availableProspects(l).length);
+    expect(s.firstPick?.ownerId).toBe(l.userTeamId);
+  });
+
+  it("puts the user on the clock when the next pick is theirs, and counts the draft done when it's over", () => {
+    const l = toDraft();
+    simDraft(l, new Rng('clock-draft'), { stopAtUser: true });
+    const s = clockState(l);
+    expect(s).toMatchObject({ kind: 'live', userUp: true });
+    if (s.kind === 'live') expect(s.pick).toBe(nextPick(l));
+    for (let pick = nextPick(l); pick; pick = nextPick(l)) draftPlayer(l, pick, availableProspects(l)[0]);
+    expect(clockState(l)).toEqual({ kind: 'done' });
   });
 });
