@@ -1,8 +1,10 @@
 import { canMentor, MAX_MENTEES, mentorShift, setMentor, setMentoringByYou } from '../../engine/mentoring';
-import { leadersOf, personalityRead } from '../../engine/personality';
+import { leadersOf } from '../../engine/personality';
 import { activeRoster } from '../../engine/roster';
-import type { League, Player } from '../../engine/types';
+import type { League, Player, Position } from '../../engine/types';
+import { POSITION_NAMES } from '../../engine/positions';
 import { PlayerLink, Section } from '../components';
+import { PersonalityPill } from '../scouting';
 import { store } from '../store';
 
 /** How a pair is going, in your coaches' words. */
@@ -26,7 +28,15 @@ export function LockerRoom({ league }: { league: League }) {
   const young = roster.filter((p) => p.age >= 21 && p.age <= 24).sort((a, b) => a.age - b.age || a.id - b.id);
   const load = (id: number) => roster.filter((p) => p.mentor === id).length;
   const byCoaches = !team.mentoringByYou;
-  const name = (p: Player) => personalityRead(league, team.id, p)?.name;
+  // Friendships and feuds inside our rooms, each pair once, by position.
+  const byPos = new Map<Position, { a: Player; b: Player; kind: 'friend' | 'feud' }[]>();
+  for (const a of roster)
+    for (const t of a.ties ?? []) {
+      const b = league.players[t.with];
+      if (!b || b.teamId !== team.id || b.id < a.id) continue;
+      byPos.set(a.position, [...(byPos.get(a.position) ?? []), { a, b, kind: t.kind }]);
+    }
+  const rooms = [...byPos.entries()];
 
   return (
     <div className="screen">
@@ -44,8 +54,8 @@ export function LockerRoom({ league }: { league: League }) {
             ).map(([role, id]) => (
               <li key={role}>
                 <span className="eyebrow">{role} captain</span>{' '}
-                <PlayerLink league={league} player={league.players[id]} pos />
-                {name(league.players[id]) && <span className="muted"> · {name(league.players[id])}</span>}
+                <PlayerLink league={league} player={league.players[id]} pos />{' '}
+                <PersonalityPill league={league} player={league.players[id]} />
               </li>
             ))}
           </ul>
@@ -58,8 +68,7 @@ export function LockerRoom({ league }: { league: League }) {
             <ul className="plain-list">
               {leaders.map((p) => (
                 <li key={p.id}>
-                  <PlayerLink league={league} player={p} pos />
-                  {name(p) && <span className="muted"> · {name(p)}</span>}
+                  <PlayerLink league={league} player={p} pos /> <PersonalityPill league={league} player={p} />
                 </li>
               ))}
             </ul>
@@ -119,6 +128,25 @@ export function LockerRoom({ league }: { league: League }) {
               })}
             </tbody>
           </table>
+        )}
+      </Section>
+      <Section id="locker-room-ties" title="In the room">
+        {rooms.length === 0 ? (
+          <p className="muted">No friendships or feuds our coaches would mention.</p>
+        ) : (
+          rooms.map(([pos, ties]) => (
+            <div key={pos}>
+              <h3>{POSITION_NAMES[pos]}</h3>
+              <ul className="plain-list">
+                {ties.map(({ a, b, kind }) => (
+                  <li key={`${a.id}:${b.id}`}>
+                    <PlayerLink league={league} player={a} /> and <PlayerLink league={league} player={b} />
+                    {kind === 'feud' ? ' don’t see eye to eye' : ' are close'}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
         )}
       </Section>
     </div>

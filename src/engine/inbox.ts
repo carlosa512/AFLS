@@ -1,4 +1,4 @@
-import { lockerMail } from './lockerMail';
+import { lockerMail, recapAside } from './lockerMail';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
@@ -829,7 +829,8 @@ export type MailSubject =
   | { kind: 'waiverOut'; season: number; entryId: number }
   | { kind: 'callups'; season: number; playerId: number }
   | { kind: 'futuresKept'; season: number }
-  // The locker room's letters (lockerMail.ts): mentors, a grown-up player, captains. Nothing on them is asked of you.
+  // The locker room's letters (lockerMail.ts): mentors, a grown-up player, captains, feuds and friends, a player who
+  // speaks out, homecomings. Nothing on them is asked of you.
   | { kind: 'locker'; season: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
@@ -941,6 +942,11 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
     case 'mentor':
     case 'persona':
     case 'captains':
+    case 'speak':
+    case 'feud':
+    case 'friend':
+    case 'home':
+    case 'rapport':
       return { kind: 'locker', season };
     case 'position':
       return a === 'offer'
@@ -1466,7 +1472,7 @@ function recapMail(league: League, have: Set<string>): Draft[] {
   const line = p ? statBlurb(p, r.playerStats[p.id] ?? {}) : '';
   const potg = !p
     ? ''
-    : ` ${r.playerTeams[p.id] === user ? fullName(p) : `Their ${p.position} ${fullName(p)}`} was the player of the game${line ? `, with ${line}` : ''}.`;
+    : ` ${r.playerTeams[p.id] === user ? fullName(p) : `Their ${p.position} ${fullName(p)}`} was the player of the game${line ? `, with ${line}` : ''}${recapAside(league, p, { won: us > them, margin: Math.abs(us - them) })}.`;
   const [win, lose] =
     us >= them
       ? [

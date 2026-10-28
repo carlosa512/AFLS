@@ -559,6 +559,27 @@ for (let s = 0; s < seasons; s++) {
     `  checks ${year} carousel: ${check('new HCs', turnover.hc, 2, 14, 0)} · ${check('new OCs', turnover.oc, 4, 22, 0)} · ${check('new DCs', turnover.dc, 4, 22, 0)} · ${check('position coaches new %', 100 * turnover.pcShare, 15, 45, 0)}`,
   );
 
+  // The locker room (docs/superpowers/specs/2026-10-28-personality-relationships-design.md §3): about one feud a team,
+  // most rooms without one, a team rarely past three; a few friendships a team.
+  {
+    const rostered = Object.values(league.players).filter((p) => p.teamId !== null && !p.retired);
+    const feuds = league.teams.map(
+      (t) =>
+        rostered
+          .filter((p) => p.teamId === t.id)
+          .reduce((n, p) => n + (p.ties?.filter((x) => x.kind === 'feud').length ?? 0), 0) / 2,
+    );
+    const friends = league.teams.map(
+      (t) =>
+        rostered
+          .filter((p) => p.teamId === t.id)
+          .reduce((n, p) => n + (p.ties?.filter((x) => x.kind === 'friend').length ?? 0), 0) / 2,
+    );
+    console.log(
+      `  checks ${year} locker room: ${check('feuds/team', avg(feuds), 0.5, 1.8)} · ${check('teams past 3 feuds', feuds.filter((n) => n > 3).length / feuds.length, 0, 0.1)} · ${s >= 3 ? check('friendships/team', avg(friends), 1.5, 6) : `friendships/team ${avg(friends).toFixed(2)} (forming: four seasons together first)`}`,
+    );
+  }
+
   rows.push({ year, k, growth: rate, body, craft, roles, staffVal, hcFired, coachOver, staffOver, turnover, hcFrom });
 }
 

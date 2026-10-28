@@ -6,6 +6,7 @@
  * Lessons from Football Manager complaints (see docs/research): demands never inflate just
  * because you countered; patience is the only thing a lowball offer costs.
  */
+import { contractLean, noteDeparture, snubCheck } from '../relationships';
 import { accelerateProration, capSpace, logTransaction, paidFraction, paidShare, weeksPaid } from '../finance/cap';
 import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft } from '../finance/contract';
 import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears } from '../finance/market';
@@ -94,12 +95,16 @@ export function demand(league: League, player: Player, teamId: number): Demand {
   const own = isOwnTeam(player, teamId);
   const min = minSalary(player.experience, m.cap);
   const pressure = own ? 0 : marketPressure(league);
+  const lean = contractLean(league, player, teamId);
   return {
     market,
-    askApy: Math.max(min, Math.round(market * (1 + p.greed * 0.15))),
+    askApy: Math.max(min, Math.round(market * (1 + p.greed * 0.15) * lean.ask)),
     askYears: preferredYears(player),
     askGtdPct: Math.round(guaranteeAsk(m, player) * 100) / 100,
-    walkAway: Math.max(min, market * (0.9 + 0.08 * p.greed) * (own ? 1 - 0.07 * p.loyalty : 1) * (1 - pressure)),
+    walkAway: Math.max(
+      min,
+      market * (0.9 + 0.08 * p.greed) * (own ? 1 - 0.07 * p.loyalty : 1) * (1 - pressure) * lean.walkAway,
+    ),
     patience: 1 + Math.round(p.patience * 3),
   };
 }
@@ -117,7 +122,7 @@ export function offerValue(
   const term = 1 - 0.03 * Math.abs(offer.years - d.askYears);
   const win = p.winning * (contenderScore(league, teamId) - 0.5) * 0.12;
   const loyal = isOwnTeam(player, teamId) ? p.loyalty * 0.05 : 0;
-  return offer.apy * gtd * term * (1 + win + loyal);
+  return offer.apy * gtd * term * (1 + win + loyal) * contractLean(league, player, teamId).value;
 }
 
 /** The offer that matches the agent's ask exactly. */
@@ -338,8 +343,17 @@ export function signPlayer(
       playerId: player.id,
       note: 'Salary paid before extension',
     });
+  // A free agent signing somewhere new walked away from his last club, unless it cut or traded him.
+  if (!own) {
+    const seasons = Object.keys(player.statTeams ?? {}).map(Number);
+    const last = seasons.length ? player.statTeams![Math.max(...seasons)].at(-1) : undefined;
+    if (last !== undefined && last !== teamId && !player.left?.some((d) => d.teamId === last))
+      noteDeparture(league, player, last, 'walked');
+  }
   player.contract = prospectiveContract(league, player, teamId, offer, kind);
   player.teamId = teamId;
+  // Paid over a starter in his room who's still on an older deal: it may not go down well.
+  if (own && kind !== 'tag') snubCheck(league, player);
   if (kind !== 'tag') player.tagCount = 0; // a new deal ends any run of consecutive tags
   delete league.negotiations[player.id];
   const team = league.teams[teamId];

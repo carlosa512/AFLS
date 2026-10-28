@@ -66,6 +66,7 @@ import { resetContenderCache, ROSTER_MAX } from './negotiation';
 import { rollService } from '../personnel/service';
 import { settleFinished } from '../ceiling';
 import { mentoringYearEnd, settleMentoring } from '../mentoring';
+import { endTie, relationshipMarbles, tiesOffseason } from '../relationships';
 import { nameCaptains } from '../personality';
 import { personnelClock } from '../personnel/calendar';
 import { settleOffseasonWaivers, staffHandlesSquad, syncPersonnel, waiversPending } from '../personnel/flow';
@@ -155,6 +156,7 @@ export function beginOffseason(league: League): void {
       delete p.mentorWeeks;
       delete p.mentorSetByYou;
       delete p.mentorBank;
+      for (const t of [...(p.ties ?? [])]) endTie(league, p, t.with);
       retirees.push(p);
       continue;
     }
@@ -163,7 +165,11 @@ export function beginOffseason(league: League): void {
     if (p.contract && !isExpired(p.contract, league.season)) trimPast(p.contract, league.season);
     recordRatings(p, league.season);
     quirkOffseason(league, p);
+    // His coaches, his old club and his feuds lean the new bag.
+    relationshipMarbles(league, p);
   }
+  // Friendships and feuds: old ones settle or end, rooms roll for new ones.
+  tiesOffseason(league);
   // Picks three league years back get their verdict now: the year's development is in, their ceilings have settled.
   lockVerdicts(league);
   expireSquadContracts(league);
@@ -174,9 +180,10 @@ export function beginOffseason(league: League): void {
   resetScouting(league);
   developStaff(league);
   developCoaches(league, retirees);
-  // His card keeps who mentored him; what mentors moved only mattered while he played (and to the clubs that might
-  // hire him to coach, just above).
+  // His card keeps who mentored him; how he left clubs and what mentors moved only mattered while he played (and to the
+  // clubs that might hire him to coach, just above).
   for (const p of retirees) {
+    delete p.left;
     delete p.shifts;
     delete p.shiftedLast;
     delete p.lostMentor;

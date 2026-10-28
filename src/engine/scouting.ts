@@ -1060,12 +1060,20 @@ interface SeasonReference {
   /** A league-average starter's volume stat, the stand-in for snaps where there are none. */
   volume: number;
 }
-const productionCache = new WeakMap<League, { season: number; ref: Partial<Record<Position, SeasonReference>> }>();
+// Finished seasons keep one table each, so reading several in turn (rapport, a career's roles) doesn't rebuild them; the
+// season still being played keeps the one slot it always had (its stats are still coming in).
+type ProductionTable = Partial<Record<Position, SeasonReference>>;
+const finishedCache = new WeakMap<League, Map<number, ProductionTable>>();
+const productionCache = new WeakMap<League, { season: number; ref: ProductionTable }>();
 
 /** A league-average starter at each position last season: the league's starting-sized group by snaps (or volume), averaged. */
 function productionReference(league: League, season: number): Partial<Record<Position, SeasonReference>> {
-  const hit = productionCache.get(league);
-  if (hit && hit.season === season) return hit.ref;
+  const done = season < league.season;
+  let seasons = finishedCache.get(league);
+  if (!seasons) finishedCache.set(league, (seasons = new Map()));
+  const live = productionCache.get(league);
+  const hit = done ? seasons.get(season) : live?.season === season ? live.ref : undefined;
+  if (hit) return hit;
   const lines: Partial<Record<Position, StatLine[]>> = {};
   for (const p of Object.values(league.players)) {
     const s = p.stats[season];
@@ -1088,7 +1096,8 @@ function productionReference(league: League, season: number): Partial<Record<Pos
       volume: mean(rule.volume, group),
     };
   }
-  productionCache.set(league, { season, ref });
+  if (done) seasons.set(season, ref);
+  else productionCache.set(league, { season, ref });
   return ref;
 }
 

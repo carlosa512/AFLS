@@ -6,16 +6,18 @@ import { CharacterFact, lockerLine } from './scouting';
 import { LockerRoom } from './screens/LockerRoom';
 import { nameCaptains } from '../engine/personality';
 import { mentoringWeek } from '../engine/mentoring';
+import { addTie } from '../engine/relationships';
 
 describe('the character block', () => {
   const league = createLeague({ seed: 'character-card' });
 
-  it('names your player and says one sentence, in place of the work and temper tags', () => {
+  it('names your player, with what it means kept for the hover, in place of the work and temper tags', () => {
     const p = Object.values(league.players).find((x) => x.teamId === league.userTeamId)!;
     const read = personalityRead(league, league.userTeamId, p)!;
     const html = renderToStaticMarkup(<CharacterFact league={league} player={p} />);
     expect(html).toContain(read.name);
-    expect(html).toContain(read.line);
+    // Like a habit or a coach's quirk: the name on the card, the meaning only when you look into it.
+    expect(html).not.toContain(read.line);
     for (const tag of ['Model pro', 'Driven', 'Coasts', 'Needs a push', 'Hothead', 'Even-keeled'])
       expect(html).not.toContain(`>${tag}<`);
   });
@@ -45,6 +47,15 @@ describe('the locker room', () => {
     expect(html).not.toMatch(/\b\d+\.\d+\b/); // no numbers from under the hood
   });
 
+  it("names a leader's personality as a pill you hover for its meaning", () => {
+    const html = renderToStaticMarkup(<LockerRoom league={league} />);
+    const c = league.teams[league.userTeamId].captains!;
+    const read = personalityRead(league, league.userTeamId, league.players[c.offense]);
+    if (!read) return;
+    expect(html).toMatch(new RegExp(`<button[^>]*>${read.name}`));
+    expect(html).not.toContain(read.line);
+  });
+
   it('gives the card one line about his mentor, now or before', () => {
     const kid = ours.find((p) => p.mentor !== undefined)!;
     expect(lockerLine(league, kid)).toBe(
@@ -55,5 +66,29 @@ describe('the locker room', () => {
     expect(lockerLine(league, past)).toBe(`Learned from ${vet.firstName} ${vet.lastName} (2027–29)`);
     const plain = ours.find((p) => p.mentor === undefined && !p.mentoredBy)!;
     expect(lockerLine(league, plain)).toBeNull();
+  });
+
+  it('shows friendships and feuds in the room, and the card picks the one line that matters most', () => {
+    const l = createLeague({ seed: 'locker-ties' });
+    mentoringWeek(l);
+    const mine = Object.values(l.players).filter((p) => p.teamId === l.userTeamId);
+    const kid = mine.find((p) => p.mentor !== undefined)!;
+    const room = mine.filter((p) => p.position === kid.position && p.id !== kid.id && p.id !== kid.mentor);
+    addTie(l, kid, room[0], 'feud');
+    const [x, y] = mine.filter((p) => p.position === 'OL');
+    addTie(l, x, y, 'friend');
+    const html = renderToStaticMarkup(<LockerRoom league={l} />);
+    expect(html).toContain('In the room');
+    expect(html).toContain('don’t see eye to eye');
+    expect(html).toContain(room[0].lastName);
+    expect(html).toContain('close');
+    // A feud outranks the mentor on the card.
+    expect(lockerLine(l, kid)).toBe(`Doesn’t see eye to eye with ${room[0].firstName} ${room[0].lastName}`);
+    expect(lockerLine(l, x)).toBe(`Close with ${y.firstName} ${y.lastName}`);
+    // Another club's man: only a grudge against us shows.
+    const theirs = Object.values(l.players).find((p) => p.teamId !== null && p.teamId !== l.userTeamId)!;
+    expect(lockerLine(l, theirs)).toBeNull();
+    theirs.left = [{ teamId: l.userTeamId, season: l.season, how: 'cut' }];
+    expect(lockerLine(l, theirs)).toBe('Still sore about how we let him go');
   });
 });

@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.17',
+    date: '2026-10-28',
+    title: 'The locker room',
+    text:
+      'Players remember. They warm to a coach they played well for and sour on one who benched or cut them; they ' +
+      'come home cheaper and hold a grudge against a club that let them go. Men in the same position room become ' +
+      "friends over the years, or fall out, especially when one takes the other's job or gets paid over him. Your " +
+      'position coaches tell you about it, the Locker Room tab shows who is close and who is not, outspoken players ' +
+      'say their piece on SNN, and recaps note a revenge game or a clutch one.',
+  },
+  {
     version: '0.2.16',
     date: '2026-10-28',
     title: 'Mentors and captains',

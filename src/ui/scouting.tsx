@@ -47,6 +47,7 @@ import { ATTRIBUTES } from '../engine/types';
 import { Rating, TipPill } from './components';
 import { QUIRKS } from '../engine/quirks';
 import { personalityRead, personalityTone } from '../engine/personality';
+import { clubFeeling } from '../engine/relationships';
 import { band, heightFt, resultsSeason } from './format';
 import { store } from './store';
 
@@ -258,21 +259,30 @@ export function KnowledgeMeter({ value }: { value: number }) {
 export const makeupOf = (league: League, p: Player): CharacterNotes => characterNotes(league, league.userTeamId, p);
 
 /**
- * The one extra line the card gives a player of yours, the thing that matters most about his place in the room: his
- * mentor now, or the one he learned from. Null when there's nothing to say, or he isn't yours.
+ * The one extra line the card gives, the thing that matters most about his place in a room, in this order: a feud,
+ * his mentor now (or the one he learned from), a close friend. For your players only; for anyone else, only a grudge
+ * against your club (you can't see inside other rooms).
  */
 export function lockerLine(league: League, p: Player): string | null {
-  if (p.teamId !== league.userTeamId) return null;
   const name = (id: number) => {
     const m = league.players[id];
     return m ? `${m.firstName} ${m.lastName}` : null;
   };
+  if (p.teamId !== league.userTeamId) {
+    if (p.retired || clubFeeling(league, p, league.userTeamId) !== 'grudge') return null;
+    const how = [...(p.left ?? [])].reverse().find((d) => d.teamId === league.userTeamId)?.how;
+    return how === 'traded' ? 'Still sore about how we traded him away' : 'Still sore about how we let him go';
+  }
+  const feud = p.ties?.find((t) => t.kind === 'feud' && name(t.with));
+  if (feud) return `Doesn’t see eye to eye with ${name(feud.with)}`;
   if (p.mentor !== undefined && name(p.mentor)) return `Learning from ${name(p.mentor)}`;
   const last = p.mentoredBy?.at(-1);
   if (last && name(last.id)) {
     const years = last.from === last.to ? `${last.from}` : `${last.from}–${String(last.to).slice(-2)}`;
     return `Learned from ${name(last.id)} (${years})`;
   }
+  const friend = p.ties?.find((t) => t.kind === 'friend' && name(t.with));
+  if (friend) return `Close with ${name(friend.with)}`;
   return null;
 }
 
@@ -285,6 +295,24 @@ export const characterOf = (league: League, p: Player) => personalityRead(league
  * The card's makeup fact: his personality, the one sentence behind it, then whatever else stands out (his body, how he
  * travels between positions). Work ethic and temper aren't repeated as tags: the personality line already says them.
  */
+/**
+ * A player's personality as your scouts name it: the name on a pill, and what it means only when you hover or tap it
+ * (like a habit or a coach's quirk). Nothing when they haven't met him.
+ */
+export function PersonalityPill({ league, player }: { league: League; player: Player }) {
+  const character = characterOf(league, player);
+  if (!character) return null;
+  return (
+    <TipPill
+      className={`${TONE_CLASS[personalityTone(character.name)]}${character.hedged ? ' tag-early' : ''}`}
+      tip={character.hedged ? `Early word: ${character.line}` : character.line}
+    >
+      {character.name}
+      {character.hedged && <span className="visually-hidden"> (early word)</span>}
+    </TipPill>
+  );
+}
+
 export function CharacterFact({ league, player }: { league: League; player: Player }) {
   const makeup = makeupOf(league, player);
   const character = characterOf(league, player);
@@ -297,15 +325,8 @@ export function CharacterFact({ league, player }: { league: League; player: Play
       ) : (
         <>
           <span className="pill-row">
-            <TipPill
-              className={`${TONE_CLASS[personalityTone(character.name)]}${character.hedged ? ' tag-early' : ''}`}
-              tip={character.hedged ? `Early word: ${character.line}` : character.line}
-            >
-              {character.name}
-              {character.hedged && <span className="visually-hidden"> (early word)</span>}
-            </TipPill>
+            <PersonalityPill league={league} player={player} />
           </span>
-          <span className="muted small">{character.line}</span>
           {lockerLine(league, player) && <span className="small">{lockerLine(league, player)}</span>}
           <MakeupPills notes={rest} hedged={makeup.hedged} />
         </>

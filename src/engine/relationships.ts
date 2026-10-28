@@ -1,0 +1,398 @@
+/**
+ * Relationships: who a player gets on with, who he doesn't, and how he feels about the clubs he has played for
+ * (docs/superpowers/specs/2026-10-28-personality-relationships-design.md §3). Rapport with a coach, homecomings and
+ * grudges are worked out from history whenever they're needed; friendships and feuds are stored, three at most per
+ * player. They lean on habits and contracts, and the match engine never reads them.
+ */
+import { activeCoachQuirks } from './coachQuirks';
+import { ROOM_OF, teamCoaches } from './coaching';
+import { addMarbles, QUIRKS, QUIRKS_FOR, type QuirkInfo } from './quirks';
+import { Rng } from './rng';
+import { activeRoster, starters } from './roster';
+import { characterRead, seasonRole } from './scouting';
+import { temperamentOf, TRAIT_MEAN } from './traits';
+import { positionIn } from './training';
+import type { Coach, Departure, League, Player, Position, Tie } from './types';
+
+const MAX_LEFT = 3;
+export const MAX_TIES = 3;
+
+// ───────── how he left ─────────
+
+/** He left `teamId` (cut, traded, or walked as a free agent): one entry per club per season, the newest three kept. */
+export function noteDeparture(league: League, p: Player, teamId: number, how: Departure['how']): void {
+  const left = (p.left ??= []);
+  if (!left.some((d) => d.teamId === teamId && d.season === league.season))
+    left.push({ teamId, season: league.season, how });
+  if (left.length > MAX_LEFT) left.splice(0, left.length - MAX_LEFT);
+  // Leaving the club is leaving the room: his feuds there are over.
+  for (const t of [...(p.ties ?? [])]) if (t.kind === 'feud') endTie(league, p, t.with);
+}
+
+// ───────── ties ─────────
+
+/** Same club, same position: the men competing for the same snaps. */
+export const sameRoom = (a: Player, b: Player) =>
+  a.teamId !== null && a.teamId === b.teamId && a.position === b.position;
+
+/** End whatever tie two players have, on both sides. */
+export function endTie(league: League, a: Player, withId: number): void {
+  const b = league.players[withId];
+  a.ties = a.ties?.filter((t) => t.with !== withId);
+  if (!a.ties?.length) delete a.ties;
+  if (b) {
+    b.ties = b.ties?.filter((t) => t.with !== a.id);
+    if (!b.ties?.length) delete b.ties;
+  }
+}
+
+/**
+ * Tie two players, on both sides. A feud replaces a friendship between the same two; nobody holds more than three.
+ * False when there was no room.
+ */
+export function addTie(league: League, a: Player, b: Player, kind: Tie['kind'], why?: Tie['why']): boolean {
+  if (a.id === b.id) return false;
+  const existing = a.ties?.find((t) => t.with === b.id);
+  if (existing?.kind === kind) return false;
+  if (existing) endTie(league, a, b.id);
+  if ((a.ties?.length ?? 0) >= MAX_TIES || (b.ties?.length ?? 0) >= MAX_TIES) return false;
+  const tie = (other: Player): Tie => ({ kind, with: other.id, since: league.season, ...(why ? { why } : {}) });
+  (a.ties ??= []).push(tie(b));
+  (b.ties ??= []).push(tie(a));
+  return true;
+}
+
+/** A position move or a trade can take a man out of the room: his feuds with anyone no longer in it end. */
+export function endFeudsOutsideRoom(league: League, p: Player): void {
+  for (const t of [...(p.ties ?? [])]) {
+    const q = league.players[t.with];
+    if (t.kind === 'feud' && (!q || !sameRoom(p, q))) endTie(league, p, t.with);
+  }
+}
+
+// ───────── coaches and clubs: worked out from history ─────────
+
+const OFFENSE: ReadonlySet<Position> = new Set(['QB', 'RB', 'WR', 'TE', 'OL']);
+const KICKERS: ReadonlySet<Position> = new Set(['K', 'P']);
+
+/** Was `c` his head coach, his side's coordinator or his room's position coach in `season`? */
+export function coachedBy(_league: League, p: Player, c: Coach, season: number): boolean {
+  const clubs = p.statTeams?.[season] ?? [];
+  if (!clubs.length) return false;
+  const pos = positionIn(p, season);
+  return (c.career ?? []).some(
+    (r) =>
+      r.season === season &&
+      clubs.includes(r.teamId) &&
+      (r.role === 'headCoach' ||
+        (r.role === 'offCoord' && OFFENSE.has(pos)) ||
+        (r.role === 'defCoord' && !OFFENSE.has(pos) && !KICKERS.has(pos)) ||
+        (r.role === 'stCoord' && KICKERS.has(pos)) ||
+        (r.role === 'positionCoach' && r.room === ROOM_OF[pos])),
+  );
+}
+
+const headCoachOf = (c: Coach, teamId: number, season: number) =>
+  (c.career ?? []).some((r) => r.season === season && r.teamId === teamId && r.role === 'headCoach');
+
+const played = (league: League, p: Player, season: number) => {
+  const role = seasonRole(league, p, season)?.role;
+  return role === 'starter' || role === 'rotation';
+};
+
+/**
+ * How a player feels about a coach, from their seasons together. Sour if the coach ran a club that cut or traded him,
+ * or benched him (a starter one year, a backup the next, healthy); good after two or more seasons under him in which he
+ * played; otherwise nothing. Never stored: worked out from careers whenever it's needed.
+ */
+const rapportCache = new WeakMap<League, { season: number; map: Map<string, 'good' | 'sour' | null> }>();
+
+export function rapport(league: League, p: Player, c: Coach): 'good' | 'sour' | null {
+  // History only grows at the new league year (and with a departure): remembered for the season.
+  let cache = rapportCache.get(league);
+  if (!cache || cache.season !== league.season)
+    rapportCache.set(league, (cache = { season: league.season, map: new Map() }));
+  const key = `${p.id}:${c.id}:${p.left?.length ?? 0}:${Object.keys(p.statTeams ?? {}).length}`;
+  let r = cache.map.get(key);
+  if (r === undefined) cache.map.set(key, (r = rapportNow(league, p, c)));
+  return r;
+}
+
+function rapportNow(league: League, p: Player, c: Coach): 'good' | 'sour' | null {
+  for (const d of p.left ?? [])
+    if (d.how !== 'walked' && (headCoachOf(c, d.teamId, d.season) || headCoachOf(c, d.teamId, d.season - 1)))
+      return 'sour';
+  const seasons = Object.keys(p.statTeams ?? {})
+    .map(Number)
+    .filter((s) => coachedBy(league, p, c, s));
+  for (const s of seasons) {
+    const before = seasonRole(league, p, s - 1)?.role;
+    const now = seasonRole(league, p, s);
+    if (before === 'starter' && now?.role === 'backup' && (p.stats[s]?.gp ?? 0) >= 10) return 'sour';
+  }
+  return seasons.filter((s) => played(league, p, s)).length >= 2 ? 'good' : null;
+}
+
+/** Seasons a grudge lasts. */
+export const GRUDGE_SEASONS = 3;
+
+/**
+ * How he feels about a club he left: a grudge for three seasons if it cut or traded him; home if he walked away after
+ * playing there (a starter or a rotation player in his last season). Null for anywhere else.
+ */
+export function clubFeeling(league: League, p: Player, teamId: number): 'home' | 'grudge' | null {
+  const d = [...(p.left ?? [])].reverse().find((x) => x.teamId === teamId);
+  if (!d) return null;
+  if (d.how !== 'walked') return league.season - d.season <= GRUDGE_SEASONS ? 'grudge' : null;
+  return played(league, p, d.season - 1) ? 'home' : null;
+}
+
+// ───────── friendships and feuds ─────────
+
+/** Tuned against `npm run offseason` (six seasons): about one feud a team, a few friendships. */
+export const FEUD_BASE = 0.006;
+export const FRIEND_BASE = 0.2;
+export const SETTLE_BASE = 0.35;
+const SD = 3.5;
+
+const z = (x: number) => (x - TRAIT_MEAN) / SD;
+const pairKey = (a: Player, b: Player) => (a.id < b.id ? `${a.id}:${b.id}` : `${b.id}:${a.id}`);
+
+/** The habits a short fuse feeds at his position (`temper: true`). */
+const temperHabits = (p: Player) => QUIRKS_FOR[p.position].filter((id) => (QUIRKS[id] as QuirkInfo).temper);
+
+/** Leaders in a room calm it: each man the staff read as one (leadership a spread up) takes 15% off, to 40% at most. */
+function leaderCalm(league: League, room: Player[]): number {
+  const teamId = room[0]?.teamId;
+  if (teamId === null || teamId === undefined) return 1;
+  const leaders = room.filter((x) => z(characterRead(league, teamId, x)?.leads ?? TRAIT_MEAN) >= 1).length;
+  return Math.max(0.4, 1 - 0.15 * leaders);
+}
+
+/** A position coach with the Patient Teacher habit keeps his room calmer. */
+function teacherCalm(league: League, p: Player): number {
+  if (p.teamId === null) return 1;
+  const c = teamCoaches(league, p.teamId).find((x) => x.role === 'positionCoach' && x.room === ROOM_OF[p.position]);
+  return c && activeCoachQuirks(c).includes('patientTeacher') ? 0.7 : 1;
+}
+
+/** A year's odds that two men in a room fall out: controversy and short fuses on either side, calmed by leaders. */
+export function feudOdds(league: League, a: Player, b: Player, room: Player[]): number {
+  const stir = 0.5 * (z(a.traits.controversy) + z(b.traits.controversy));
+  const fuse = 0.4 * (z(temperamentOf(a)) + z(temperamentOf(b)));
+  return FEUD_BASE * Math.exp(stir - fuse) * leaderCalm(league, room) * teacherCalm(league, a);
+}
+
+/** A feud begins: each man picks up a temper marble on top of the odds. */
+function startFeud(league: League, a: Player, b: Player, why?: Tie['why']): void {
+  if (!addTie(league, a, b, 'feud', why)) return;
+  addMarbles(league, a, temperHabits(a));
+  addMarbles(league, b, temperHabits(b));
+}
+
+/** Seasons two men have shared a position room (same club, same position, by `statTeams` and their moves). */
+function seasonsTogether(a: Player, b: Player): number {
+  let n = 0;
+  for (const [season, clubs] of Object.entries(a.statTeams ?? {})) {
+    const s = Number(season);
+    const theirs = b.statTeams?.[s] ?? [];
+    if (clubs.some((t) => theirs.includes(t)) && positionIn(a, s) === positionIn(b, s)) n++;
+  }
+  return n;
+}
+
+/** Was he benched last season: a starter the season before, a backup last season, with a full season played? */
+function benched(league: League, p: Player): boolean {
+  const last = league.season - 1;
+  return (
+    seasonRole(league, p, last - 1)?.role === 'starter' &&
+    seasonRole(league, p, last)?.role === 'backup' &&
+    (p.stats[last]?.gp ?? 0) >= 10
+  );
+}
+
+/**
+ * The new league year, once rosters are settled: feuds where the two no longer share a room end; the rest may settle
+ * (likelier with calm tempers, leaders in the room, and time); then each room rolls for new feuds (a benching last
+ * season triples the odds) and for friendships between men four seasons or more in it together.
+ */
+export function tiesOffseason(league: League): void {
+  const season = league.season;
+  for (const p of Object.values(league.players)) if (!p.retired && p.ties) endFeudsOutsideRoom(league, p);
+  for (const team of league.teams) {
+    const byPos = new Map<Position, Player[]>();
+    for (const p of activeRoster(league, team.id)) byPos.set(p.position, [...(byPos.get(p.position) ?? []), p]);
+    for (const room of byPos.values()) {
+      const calm = leaderCalm(league, room);
+      for (let i = 0; i < room.length; i++)
+        for (let j = i + 1; j < room.length; j++) {
+          const [a, b] = [room[i], room[j]];
+          const rng = new Rng(`${league.seed}:ties:${season}:${pairKey(a, b)}`);
+          const tie = a.ties?.find((t) => t.with === b.id);
+          if (tie?.kind === 'feud') {
+            const cool = Math.max(0, z(temperamentOf(a))) + Math.max(0, z(temperamentOf(b)));
+            const settle = Math.min(
+              0.9,
+              SETTLE_BASE + 0.1 * cool + 0.05 * Math.round((1 - calm) / 0.15) + 0.1 * (season - tie.since),
+            );
+            if (rng.chance(settle)) endTie(league, a, b.id);
+            continue;
+          }
+          const sat = benched(league, a) && seasonRole(league, b, season - 1)?.role === 'starter';
+          const satB = benched(league, b) && seasonRole(league, a, season - 1)?.role === 'starter';
+          const odds = feudOdds(league, a, b, room) * (sat || satB ? 3 : 1);
+          if (rng.chance(odds)) {
+            startFeud(league, sat ? a : b, sat ? b : a, sat || satB ? 'benched' : undefined);
+            continue;
+          }
+          // A pair gets one chance at a friendship: the year they reach four seasons in the room together.
+          if (!tie && seasonsTogether(a, b) === 4) {
+            const friendly =
+              FRIEND_BASE * (1 + 0.5 * ((a.personality.loyalty - 0.5) / 0.22 + (b.personality.loyalty - 0.5) / 0.22));
+            if (rng.chance(Math.min(0.6, Math.max(0.05, friendly)))) addTie(league, a, b, 'friend');
+          }
+        }
+    }
+  }
+}
+
+/**
+ * A man signs a new deal: a roommate who starts, still on an older deal and now paid less than him, may take it
+ * personally (a feud at triple the odds, remembered as a snub).
+ */
+export function snubCheck(league: League, signed: Player): void {
+  if (signed.teamId === null || !signed.contract) return;
+  const team = league.teams[signed.teamId];
+  const room = activeRoster(league, team.id).filter((x) => x.position === signed.position);
+  for (const r of starters(league, team, signed.position)) {
+    if (r.id === signed.id || !r.contract || r.contract.signedSeason >= league.season) continue;
+    if (r.contract.apy >= signed.contract.apy || r.ties?.some((t) => t.with === signed.id)) continue;
+    const rng = new Rng(`${league.seed}:ties:${league.season}:${pairKey(signed, r)}:snub`);
+    if (rng.chance(3 * feudOdds(league, signed, r, room))) startFeud(league, r, signed, 'snubbed');
+  }
+}
+
+// ───────── what they change ─────────
+
+/** The coaches who coach him at a club now: its head coach, his side's coordinator and his room's position coach. */
+function coachesOf(league: League, p: Player, teamId: number): Coach[] {
+  const pos = p.position;
+  return teamCoaches(league, teamId).filter(
+    (c) =>
+      c.role === 'headCoach' ||
+      (c.role === 'offCoord' && OFFENSE.has(pos)) ||
+      (c.role === 'defCoord' && !OFFENSE.has(pos) && !KICKERS.has(pos)) ||
+      (c.role === 'stCoord' && KICKERS.has(pos)) ||
+      (c.role === 'positionCoach' && c.room === ROOM_OF[pos]),
+  );
+}
+
+/** Greedy and not loyal: friendships and old clubs don't move his price. */
+const mercenary = (p: Player) =>
+  (p.personality.greed - 0.5) / 0.289 >= 1 && (p.personality.loyalty - 0.5) / 0.22 <= -0.5;
+
+/**
+ * The new league year's bag, after it's filled: a coach he gets on with keeps after his bad habits (a fix marble each,
+ * two at most); so does being home, in his first season back; and each feud he's in feeds his temper habits.
+ */
+export function relationshipMarbles(league: League, p: Player): void {
+  if (!p.quirkBag || p.teamId === null) return;
+  const bag = p.quirkBag;
+  const bad = Object.keys(p.quirks ?? {}).filter((id) => QUIRKS[id as keyof typeof QUIRKS]?.tone === 'bad');
+  const fix = (n: number) => {
+    let left = n;
+    for (const id of bad) {
+      if (left <= 0) break;
+      bag[`fix:${id}`] = (bag[`fix:${id}`] ?? 0) + 1;
+      left--;
+    }
+  };
+  if (coachesOf(league, p, p.teamId).some((c) => rapport(league, p, c) === 'good')) fix(2);
+  if (p.contract?.signedSeason === league.season && clubFeeling(league, p, p.teamId) === 'home') fix(1);
+  const feuds = p.ties?.filter((t) => t.kind === 'feud').length ?? 0;
+  if (feuds) for (const id of temperHabits(p)) bag[id] = (bag[id] ?? 0) + feuds;
+}
+
+/**
+ * How his ties lean a deal with `teamId`, as multipliers on what an offer is worth to him (`value`), his walk-away
+ * price and his opening ask: good rapport with its coaches draws him (more for a loyal man), sour rapport with its head
+ * coach puts him off; a friend there draws him, or keeps him home; a club he walked from as a starter is home; one that
+ * cut or traded him in the last three seasons pays more. A Mercenary ignores friends and home.
+ */
+type Lean = { value: number; walkAway: number; ask: number };
+const leanCache = new WeakMap<
+  League,
+  { step: string; byPlayer: Map<number, { sig: string; byTeam: Map<number, Lean> }> }
+>();
+
+export function contractLean(league: League, p: Player, teamId: number): Lean {
+  // Free agency asks this for every club an offer is weighed for, every day: kept through the phase (coaches have
+  // moved by then), per player, until his club, his departures, his ties or where his friends play change.
+  const step = `${league.season}:${league.phase}:${league.week}`;
+  let cache = leanCache.get(league);
+  if (!cache || cache.step !== step) leanCache.set(league, (cache = { step, byPlayer: new Map() }));
+  let sig = `${p.teamId}:${p.left?.length ?? 0}`;
+  for (const t of p.ties ?? []) sig += `:${t.kind[0]}${t.with}@${league.players[t.with]?.teamId}`;
+  let mine = cache.byPlayer.get(p.id);
+  if (!mine || mine.sig !== sig) cache.byPlayer.set(p.id, (mine = { sig, byTeam: new Map() }));
+  let lean = mine.byTeam.get(teamId);
+  if (!lean) mine.byTeam.set(teamId, (lean = leanFor(league, p, teamId)));
+  return lean;
+}
+
+function leanFor(league: League, p: Player, teamId: number): Lean {
+  let value = 1;
+  let walkAway = 1;
+  let ask = 1;
+  const coaches = coachesOf(league, p, teamId);
+  // An old coach at another club draws him; the coaches he has now are his club's loyalty term's business (most
+  // starters get on with theirs, and a bonus there would quietly keep everyone off the market).
+  if (p.teamId !== teamId && coaches.some((c) => rapport(league, p, c) === 'good'))
+    value *= 1.02 + 0.02 * p.personality.loyalty;
+  const hc = coaches.find((c) => c.role === 'headCoach');
+  if (hc && rapport(league, p, hc) === 'sour') value *= 0.97;
+  const merc = mercenary(p);
+  const friendThere = p.ties?.some((t) => t.kind === 'friend' && league.players[t.with]?.teamId === teamId);
+  if (friendThere && !merc) {
+    if (p.teamId === teamId) walkAway *= 0.97;
+    else value *= 1.02;
+  }
+  const feeling = clubFeeling(league, p, teamId);
+  if (feeling === 'home' && !merc) walkAway *= 0.97;
+  if (feeling === 'grudge') {
+    ask *= 1.05;
+    walkAway *= 1.05;
+  }
+  return { value, walkAway, ask };
+}
+
+// ───────── speaking out ─────────
+
+export type SpeakEvent = 'benched' | 'traded' | 'cut' | 'snubbed';
+
+/**
+ * After a benching, a trade, a release or a snub, does an outspoken man say so in public? Only the outspoken
+ * (controversy half a spread up or more), and the louder the likelier. A pure function of the seed: the same answer
+ * every time it's asked.
+ */
+export function speaksOut(league: League, p: Player, season: number, kind: SpeakEvent): boolean {
+  const loud = z(p.traits.controversy);
+  if (loud < 0.5) return false;
+  return new Rng(`${league.seed}:speak:${season}:${p.id}:${kind}`).chance(
+    Math.min(0.8, Math.max(0, 0.15 + 0.25 * loud)),
+  );
+}
+
+/** What happened to him this season that he might speak out about: read off what's saved, nothing stored for it. */
+export function speakEvents(league: League, p: Player): { kind: SpeakEvent; teamId: number }[] {
+  const out: { kind: SpeakEvent; teamId: number }[] = [];
+  for (const d of p.left ?? [])
+    if (d.season === league.season && d.how !== 'walked')
+      out.push({ kind: d.how === 'cut' ? 'cut' : 'traded', teamId: d.teamId });
+  if (p.teamId !== null && league.phase === 'resign' && benched(league, p))
+    out.push({ kind: 'benched', teamId: p.teamId });
+  for (const t of p.ties ?? [])
+    if (t.kind === 'feud' && t.why === 'snubbed' && t.since === league.season && p.teamId !== null)
+      out.push({ kind: 'snubbed', teamId: p.teamId });
+  return out;
+}

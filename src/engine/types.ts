@@ -283,6 +283,10 @@ export interface Player {
   shiftedLast?: { season: number } & Partial<Record<'workEthic' | 'temperament' | 'poise', number>>;
   /** His mentor left the club mid-pair (for the head coach's letter). */
   lostMentor?: { id: number; season: number; week: number };
+  /** How he left his last three clubs (`relationships.ts`): homecomings and grudges are read off it. */
+  left?: Departure[];
+  /** Friendships and feuds, three at most (`relationships.ts`). */
+  ties?: Tie[];
   /** This league year's development, rolled once and still landing in steps (`development.ts`). Gone once the year has landed. */
   dev?: DevYear;
 }
@@ -421,6 +425,21 @@ export interface Combine {
   /** Vertical and broad jump, inches. */
   vertical?: number;
   broad?: number;
+}
+
+/** How a player left a club. */
+export interface Departure {
+  teamId: number;
+  season: number;
+  how: 'cut' | 'traded' | 'walked';
+}
+
+/** A friendship or a feud with another player; a feud an event started remembers what started it. */
+export interface Tie {
+  kind: 'friend' | 'feud';
+  with: number;
+  since: number;
+  why?: 'benched' | 'snubbed';
 }
 
 export interface Personality {

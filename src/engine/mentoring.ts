@@ -5,10 +5,11 @@
  * listens to him (his leadership and his standing) and on how much the young player lets in. Mentors are picked by
  * leadership and standing only, never by work ethic, so the league as a whole doesn't drift.
  */
+import { addTie } from './relationships';
 import { activeRoster } from './roster';
 import { characterRead, seasonRole } from './scouting';
 import { formerPositions } from './training';
-import { clamp } from './rng';
+import { clamp, Rng } from './rng';
 import { poiseOf, temperamentOf, TRAIT_MEAN, workEthicOf, type Shifted } from './traits';
 import type { League, Player, Position } from './types';
 
@@ -94,6 +95,17 @@ function bank(league: League, young: Player, mentor: Player, weeks: number): voi
   for (const k of SHIFTED) b[k] = (b[k] ?? 0) + s[k];
 }
 
+/** The chance a pair two seasons or more together stays close for good (`relationships.ts`). */
+export const MENTOR_FRIENDS = 0.25;
+
+/** Two seasons or more together, and they may stay close for good (a seeded roll, once per pair). */
+function friendsAfter(league: League, young: Player, mentor: Player): void {
+  const spell = young.mentoredBy?.find((e) => e.id === mentor.id);
+  if (!spell || spell.to - spell.from < 1) return;
+  if (new Rng(`${league.seed}:mentorFriends:${young.id}:${mentor.id}`).chance(MENTOR_FRIENDS))
+    addTie(league, young, mentor, 'friend');
+}
+
 /**
  * End a pair: what they managed together is banked and remembered. Development already rolled this year off his
  * traits as they stood, so nothing moves before the new league year.
@@ -104,6 +116,7 @@ export function endPair(league: League, young: Player): void {
     bank(league, young, m, young.mentorWeeks!);
     remember(young, m.id, league.season);
   }
+  if (m) friendsAfter(league, young, m);
   delete young.mentor;
   delete young.mentorWeeks;
   delete young.mentorSetByYou;
@@ -236,6 +249,8 @@ export function settleMentoring(league: League, p: Player): void {
     if (Object.keys(landed).length > 1 && p.teamId === league.userTeamId) p.shiftedLast = landed;
   }
   if (p.age + 1 > YOUNG_AGES[1]) {
+    const m = p.mentor === undefined ? undefined : league.players[p.mentor];
+    if (m) friendsAfter(league, p, m);
     delete p.mentor;
     delete p.mentorWeeks;
     delete p.mentorSetByYou;

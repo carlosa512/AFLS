@@ -1,3 +1,4 @@
+import { endFeudsOutsideRoom } from './relationships';
 import { coachPlayerFit, positionCoachFor } from './coachQuirks';
 /**
  * Position moves: coaches teaching a player a new position over time (docs/TRAINING.md §4). Nobody is
@@ -288,6 +289,8 @@ export function changePosition(league: League, p: Player, to: Position): void {
     list.splice(at < 0 ? list.length : at, 0, p.id);
     team.depthChart[to] = list;
   }
+  // A new position is a new room: his feuds in the old one are over.
+  endFeudsOutsideRoom(league, p);
   syncDepthChart(league, team);
   logTransaction(
     league,

@@ -2,6 +2,7 @@
  * Team cap sheets and the moves that change them. Cap used in a league year is the sum of the
  * roster's cap hits plus dead money; in the offseason only the 51 largest hits count.
  */
+import { noteDeparture } from '../relationships';
 import { STARTERS } from '../positions';
 import { clamp, type Rng } from '../rng';
 import { onGameRoster, teamPlayers } from '../roster';
@@ -203,6 +204,8 @@ export function releasePlayer(league: League, player: Player, designatePostJune1
   if (player.squad) throw new Error('Practice squad releases use the personnel system.');
   if (player.teamId === null || !player.contract) throw new Error('Player is not under contract');
   const preview = releasePreview(league, player, designatePostJune1);
+  // Cut: the club he'll remember it of, waivers or not.
+  noteDeparture(league, player, player.teamId, 'cut');
   if (league.personnel?.enabled && player.teamId !== league.userTeamId && !player.injury)
     inviteSquadReturn(league, player.teamId, player);
   if (waiverApplies(league, player)) {
