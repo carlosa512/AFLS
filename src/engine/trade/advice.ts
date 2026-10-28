@@ -10,10 +10,28 @@ import { characterNotes, perceive } from '../scouting';
 import type { League, Player, TradeSide } from '../types';
 import { tradeCapImpact } from './rules';
 
+/** How a line reads for the deal: good news, a worry, a reason against, or just a fact. */
+export type AdviceTone = 'good' | 'warn' | 'bad' | 'note';
+
 export interface Advice {
   who: 'coach' | 'scouts' | 'medical' | 'cap';
   line: string;
+  tone: AdviceTone;
 }
+
+/** The staff's lines summed up: they like it, they're split, or they're against it. */
+export type StaffTake = 'likes' | 'split' | 'against';
+
+/** Against when a reason against outweighs the good news; for when nothing worries anyone and something is good. */
+export function staffTake(advice: readonly Advice[]): StaffTake {
+  const count = (t: AdviceTone) => advice.filter((a) => a.tone === t).length;
+  const [good, warn, bad] = [count('good'), count('warn'), count('bad')];
+  if (bad > 0 && good <= bad) return 'against';
+  if (bad === 0 && warn === 0 && good > 0) return 'likes';
+  return 'split';
+}
+
+const MEDICAL_TONE = { Low: 'good', Medium: 'warn', High: 'bad' } as const;
 
 const name = (p: Player) => `${p.firstName} ${p.lastName}`;
 const money = (k: number) => `${k < 0 ? '-' : ''}$${(Math.abs(k) / 1000).toFixed(1)}M`;
@@ -34,6 +52,7 @@ export function dealAdvice(league: League, [theirs, yours]: readonly [TradeSide,
       line: starts
         ? `${name(p)} would start for us at ${p.position}.`
         : `${name(p)} would be depth for us at ${p.position}.`,
+      tone: starts ? 'good' : 'note',
     });
   }
   for (const p of outgoing) {
@@ -45,9 +64,13 @@ export function dealAdvice(league: League, [theirs, yours]: readonly [TradeSide,
     const next = room
       .filter((q) => !starters(league, user, p.position).some((s) => s.id === q.id))
       .sort((a, b) => seen(b) - seen(a))[0];
-    if (!next) out.push({ who: 'coach', line: `We'd have nobody behind ${name(p)} at ${p.position}.` });
+    if (!next) out.push({ who: 'coach', line: `We'd have nobody behind ${name(p)} at ${p.position}.`, tone: 'bad' });
     else if (seen(next) < seen(p) - 2)
-      out.push({ who: 'coach', line: `We'd be thin at ${p.position} without ${name(p)}: ${name(next)} is next up.` });
+      out.push({
+        who: 'coach',
+        line: `We'd be thin at ${p.position} without ${name(p)}: ${name(next)} is next up.`,
+        tone: 'warn',
+      });
   }
   for (const p of incoming) {
     const view = perceive(league, user.id, p);
@@ -59,14 +82,15 @@ export function dealAdvice(league: League, [theirs, yours]: readonly [TradeSide,
       makeup.known && makeup.notes[0]
         ? ` ${makeup.notes[0].line}`
         : ' We haven’t seen enough of him to judge his makeup.';
-    out.push({ who: 'scouts', line: `We have ${name(p)} at ${read} overall.${words}` });
+    out.push({ who: 'scouts', line: `We have ${name(p)} at ${read} overall.${words}`, tone: 'note' });
     const risk = injuryRisk(league, user.id, p);
-    if (risk.known) out.push({ who: 'medical', line: `${name(p)}: ${risk.line}` });
+    if (risk.known) out.push({ who: 'medical', line: `${name(p)}: ${risk.line}`, tone: MEDICAL_TONE[risk.tier] });
   }
   const [mine] = tradeCapImpact(league, { sides: [yours, theirs] });
   out.push({
     who: 'cap',
     line: `Cap room after: ${money(Math.round(mine.space))}${mine.dead > 0 ? `, and ${money(Math.round(mine.dead))} of dead money on our books` : ''}.`,
+    tone: mine.space < 0 ? 'bad' : mine.dead > 0 ? 'warn' : 'good',
   });
   return out;
 }

@@ -13,7 +13,7 @@
  * - `talks.ts`: your dealings with each GM (proposals a moment, cooldowns, trust)
  * - `context.ts`: one decision pass's cache
  */
-export { dealAdvice, type Advice } from './advice';
+export { dealAdvice, staffTake, type Advice, type AdviceTone, type StaffTake } from './advice';
 export { capRoom, rosterOf, tradeContext, type TradeContext } from './context';
 export { executeTrade } from './execute';
 export {
