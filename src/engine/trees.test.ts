@@ -129,10 +129,10 @@ describe('trees, branches and standing', () => {
     const [r, a, b] = c;
     const now = l.season;
     served(r, a, 1, now - 6);
-    served(r, b, 1, now - 3);
-    headed(a, 2, [now - 3, now - 2, now - 1], 9, 8);
+    served(r, b, 1, now - 4);
+    headed(a, 2, [now - 4, now - 3, now - 2, now - 1], 9, 8);
     expect(hasTree(l, r.id)).toBe(false);
-    headed(b, 3, [now - 3, now - 2, now - 1], 9, 8);
+    headed(b, 3, [now - 4, now - 3, now - 2, now - 1], 9, 8);
     expect(hasTree(l, r.id)).toBe(true);
     expect(treeOf(l, r.id)!.disciples.sort()).toEqual([a.id, b.id].sort());
   });
@@ -141,10 +141,10 @@ describe('trees, branches and standing', () => {
     const { l, c } = blank();
     const [r, a, b] = c;
     const now = l.season;
-    served(r, a, 1, now - 6, 6, 11);
-    served(r, b, 1, now - 3, 6, 11);
-    headed(a, 2, [now - 3, now - 2, now - 1], 9, 8);
-    headed(b, 3, [now - 3, now - 2, now - 1], 9, 8);
+    served(r, a, 1, now - 8, 6, 11);
+    served(r, b, 1, now - 5, 6, 11);
+    headed(a, 2, [now - 4, now - 3, now - 2, now - 1], 9, 8);
+    headed(b, 3, [now - 4, now - 3, now - 2, now - 1], 9, 8);
     expect(hasTree(l, r.id)).toBe(false); // 6-11 six years running: good teachers, no tree
     // Three big seasons before those and he's a .500 coach: now his men make a tree.
     headed(r, 1, [now - 14, now - 13, now - 12], 15, 2);
@@ -158,11 +158,11 @@ describe('trees, branches and standing', () => {
     served(r, a, 1, now - 9);
     served(r, b, 1, now - 6);
     headed(a, 2, [now - 6, now - 5, now - 4, now - 3, now - 2, now - 1], 9, 8);
-    headed(b, 3, [now - 4, now - 3, now - 2], 9, 8);
-    served(a, x, 2, now - 3);
-    served(a, y, 2, now - 3);
-    headed(x, 4, [now - 3, now - 2, now - 1], 9, 8);
-    headed(y, 5, [now - 3, now - 2, now - 1], 9, 8);
+    headed(b, 3, [now - 5, now - 4, now - 3, now - 2], 9, 8);
+    served(a, x, 2, now - 4);
+    served(a, y, 2, now - 4);
+    headed(x, 4, [now - 4, now - 3, now - 2, now - 1], 9, 8);
+    headed(y, 5, [now - 4, now - 3, now - 2, now - 1], 9, 8);
     expect(treeOf(l, r.id)!.branches).toEqual([a.id]);
     // A loop in hand-made history: each counts the other as a mentor.
     (r.pastUnder ??= []).push({ coachId: a.id, role: 'offCoord', seasons: 4 });
@@ -174,9 +174,9 @@ describe('trees, branches and standing', () => {
     const { l, c } = blank();
     const [r, a, b] = c;
     const now = l.season;
-    served(r, a, 1, now - 8);
-    served(r, b, 1, now - 8);
-    const years = [now - 7, now - 6, now - 5, now - 4, now - 3, now - 2, now - 1];
+    served(r, a, 1, now - 10);
+    served(r, b, 1, now - 10);
+    const years = [now - 9, now - 8, now - 7, now - 6, now - 5, now - 4, now - 3, now - 2, now - 1];
     headed(a, 2, years, 11, 6);
     headed(b, 3, years, 10, 7);
     active(a, 2);
@@ -203,8 +203,8 @@ describe('trees, branches and standing', () => {
     const now = l.season;
     served(r, a, 1, now - 12);
     served(r, b, 1, now - 12);
-    headed(a, 2, [now - 12, now - 11, now - 10], 8, 9);
-    headed(b, 3, [now - 12, now - 11, now - 10], 8, 9);
+    headed(a, 2, [now - 12, now - 11, now - 10, now - 9], 8, 9);
+    headed(b, 3, [now - 12, now - 11, now - 10, now - 9], 8, 9);
     served(a, x, 2, now - 6);
     served(a, y, 2, now - 6);
     headed(x, 4, [now - 3, now - 2, now - 1], 9, 8);
@@ -345,6 +345,7 @@ describe('the carousel', () => {
       row(2023, 8, 'headCoach'),
       row(2024, 8, 'headCoach'),
       row(2025, 8, 'headCoach'),
+      row(2026, 8, 'headCoach'),
     ];
     const third = c[3];
     third.career = [
@@ -352,29 +353,28 @@ describe('the carousel', () => {
       row(2023, 9, 'headCoach'),
       row(2024, 9, 'headCoach'),
       row(2025, 9, 'headCoach'),
+      row(2026, 9, 'headCoach'),
     ];
     expect(hasTree(l, hc.id)).toBe(true); // b and third
     third.career = third.career.filter((r) => r.role !== 'headCoach');
     expect(hasTree(l, hc.id)).toBe(false); // a doesn't count
   });
 
-  it('is a tree only once two of his men have run clubs side by side, two seasons', () => {
+  it('is a tree only once two of his men have run clubs side by side, three seasons', () => {
     const { l, c } = blank();
     const [hc, a, b] = c;
     hc.career = [2010, 2011, 2012].map((s) => row(s, 4, 'headCoach', won));
     a.career = [
       ...[2010, 2011, 2012].map((s) => row(s, 4, 'offCoord')),
-      row(2014, 7, 'headCoach'),
-      row(2015, 7, 'headCoach'),
-      row(2016, 7, 'headCoach'),
+      ...[2014, 2015, 2016, 2017].map((s) => row(s, 7, 'headCoach')),
     ];
     b.career = [
       ...[2010, 2011, 2012].map((s) => row(s, 4, 'defCoord')),
-      row(2017, 8, 'headCoach'),
       row(2018, 8, 'headCoach'),
+      row(2019, 8, 'headCoach'),
     ];
     expect(hasTree(l, hc.id)).toBe(false); // never at the same time
-    b.career.push(row(2014, 8, 'headCoach'), row(2015, 8, 'headCoach'), row(2016, 8, 'headCoach'));
+    b.career.push(...[2014, 2015, 2016, 2017].map((s) => row(s, 8, 'headCoach')));
     expect(hasTree(l, hc.id)).toBe(true);
   });
 
@@ -389,8 +389,8 @@ describe('the carousel', () => {
     ];
     b.career = [...[2010, 2011, 2012].map((s) => row(s, 4, 'defCoord')), row(2015, 8, 'headCoach')];
     expect(hasTree(l, hc.id)).toBe(false); // b's first season: not yet
-    b.career.push(row(2016, 8, 'headCoach'), row(2017, 8, 'headCoach'));
-    a.career.push(row(2016, 7, 'headCoach'), row(2017, 7, 'headCoach'));
+    b.career.push(...[2016, 2017, 2018].map((s) => row(s, 8, 'headCoach')));
+    a.career.push(...[2016, 2017, 2018].map((s) => row(s, 7, 'headCoach')));
     expect(hasTree(l, hc.id)).toBe(true);
   });
 });

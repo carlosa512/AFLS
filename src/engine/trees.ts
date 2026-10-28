@@ -183,8 +183,8 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
 /** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
 /** A tree grows from a winner: .500 or better over three seasons or more as a head coach. */
 export const WINNER = { seasons: 3, share: 0.5 };
-/** Seasons two of his men must run clubs side by side, both established, while he is a winner. */
-export const SIDE_BY_SIDE = 2;
+/** Seasons two of his men must run clubs side by side, both established, while he is a winner: a run, not a moment. */
+export const SIDE_BY_SIDE = 3;
 
 /**
  * The seasons by which he was a winner as a head coach, his record up to and including each (his team's record
@@ -243,18 +243,18 @@ function sideBySide(league: League, coachId: number): number[] {
 }
 
 /**
- * The season his tree was born, or null if it hasn't been: the second season two of his men ran clubs side by side,
- * both established, while he was a winner. One passing season of two disciples in charge isn't a tree; a run is.
+ * The season his tree was born, or null if it hasn't been: the third season two of his men ran clubs side by side,
+ * both established, while he was a winner. A season or two of two disciples in charge isn't a tree; a run is.
  */
 export function treeBornSeason(league: League, coachId: number): number | null {
   const seasons = sideBySide(league, coachId).filter((s) => winnerAsOf(league, coachId, s));
-  if (seasons.length < SIDE_BY_SIDE) return null;
-  // A founding tree's men were already side by side before the league began: it was born then, not this season.
-  return seasons[0] === -Infinity ? -Infinity : seasons[SIDE_BY_SIDE - 1];
+  // A founding tree's men were already side by side before the league began: it was born then, its run behind it.
+  if (seasons[0] === -Infinity) return -Infinity;
+  return seasons.length >= SIDE_BY_SIDE ? seasons[SIDE_BY_SIDE - 1] : null;
 }
 
 /**
- * He has a tree once two of his men have run clubs side by side for two seasons while he was a winner, as the press
+ * He has a tree once two of his men have run clubs side by side for three seasons while he was a winner, as the press
  * recognizes one: a man whose assistants run clubs one after another, or who never won himself, is a good teacher,
  * not a tree.
  */
