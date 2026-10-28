@@ -110,6 +110,23 @@ export function endPair(league: League, young: Player): void {
 }
 
 /**
+ * How highly a club's staff rate a veteran as a mentor: their read of his leadership times his standing. Both only move
+ * season to season (standing is last season's snaps), so the rating is kept for the season.
+ */
+const ratings = new WeakMap<League, Map<string, number>>();
+function staffRating(league: League, teamId: number, m: Player): number {
+  let cache = ratings.get(league);
+  if (!cache) ratings.set(league, (cache = new Map()));
+  const key = `${league.season}:${teamId}:${m.id}`;
+  let r = cache.get(key);
+  if (r === undefined) {
+    r = leadFactor(characterRead(league, teamId, m)?.leads ?? TRAIT_MEAN) * standingFactor(league, m);
+    cache.set(key, r);
+  }
+  return r;
+}
+
+/**
  * Pair a club's young players with mentors: valid pairs and pairs you set stay; the rest go youngest first to the free
  * mentor the staff rate highest (leadership read times standing), same position first, then the same side of the
  * ball. Your club's staff do this unless you've taken it on (`Team.mentoringByYou`). Never picks by work ethic.
@@ -120,13 +137,14 @@ export function planMentors(league: League, teamId: number): void {
   const load = new Map<number, number>();
   for (const p of roster) if (p.mentor !== undefined) load.set(p.mentor, (load.get(p.mentor) ?? 0) + 1);
   if (teamId === league.userTeamId && team.mentoringByYou) return;
-  const score = new Map<number, number>();
-  const mentors = roster.filter(canMentor);
-  for (const m of mentors)
-    score.set(m.id, leadFactor(characterRead(league, teamId, m)?.leads ?? TRAIT_MEAN) * standingFactor(league, m));
   const young = roster
     .filter((p) => canBeMentored(p) && p.mentor === undefined && !p.mentorSetByYou)
     .sort((a, b) => a.age - b.age || a.id - b.id);
+  // Most weeks nobody new needs a mentor: don't rate the room for nothing.
+  if (!young.length) return;
+  const score = new Map<number, number>();
+  const mentors = roster.filter(canMentor);
+  for (const m of mentors) score.set(m.id, staffRating(league, teamId, m));
   for (const y of young) {
     const pick = mentors
       .filter((m) => m.id !== y.id && (load.get(m.id) ?? 0) < MAX_MENTEES)
