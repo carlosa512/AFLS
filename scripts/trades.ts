@@ -1079,12 +1079,13 @@ check(
   [0, Infinity],
   1,
 );
-note(
+// The NFL sees 5-6 trades a year mix current and future picks; on draft day they go into early moves.
+check(
   'deals with a future pick in them, a draft',
-  (
-    draftDay.records.filter((r) => r.sides.some((x) => x.picks.some((id) => futurePicks.has(id)))).length /
-    Math.max(1, draftDay.perDraft.length)
-  ).toFixed(1),
+  draftDay.records.filter((r) => r.sides.some((x) => x.picks.some((id) => futurePicks.has(id)))).length /
+    Math.max(1, draftDay.perDraft.length),
+  [3, 9],
+  1,
 );
 
 console.log(`\n${misses} number(s) outside target range`);

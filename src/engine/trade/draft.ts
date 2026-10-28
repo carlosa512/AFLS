@@ -45,7 +45,7 @@ export const COVET_MAX = 0.6;
  * The tier break a team needs before it calls about moving up, by round: its man must stand this far above its best
  * later. Late-round boards bunch up (the gaps between prospects shrink), so the bar comes down with them.
  */
-export const COVET_MIN_BY_ROUND = [0.8, 0.4, 0.3, 0.15, 0.15, 0.15, 0.15];
+export const COVET_MIN_BY_ROUND = [0.8, 0.35, 0.25, 0.1, 0.1, 0.1, 0.1];
 export const covetMin = (round: number) => COVET_MIN_BY_ROUND[Math.min(round, COVET_MIN_BY_ROUND.length) - 1];
 /** Round 1's bar, the strictest. */
 export const COVET_MIN = COVET_MIN_BY_ROUND[0];
@@ -54,7 +54,7 @@ export const COVET_MIN = COVET_MIN_BY_ROUND[0];
  * at or above the Jimmy Johnson chart early (ESPN: in every pick-only QB trade-up the mover overpaid). On day 3 the
  * stakes are small and the asks come down.
  */
-export const ON_THE_CLOCK = [0.12, 0.1, 0.06, 0.03, 0.03, 0.03, 0.03];
+export const ON_THE_CLOCK = [0.12, 0.1, 0.05, 0, 0, 0, 0];
 /** What a Pick Hoarder adds to every pick coming in, and a team with three or more holes. */
 export const HOARDER_PICKS = 0.1;
 export const MANY_HOLES = 0.05;
@@ -280,7 +280,9 @@ export const LONG_JUMP = 8;
 /** Trade-ups a team makes in one draft at most. */
 export const MAX_TRADE_UPS = 3;
 /** The chance a pick's phones ring with a future-for-current pick swap ("our 2028 2nd for your 3rd now"). */
-export const DRAFT_SWAP_RATE = 0.1;
+export const DRAFT_SWAP_RATE = 0.05;
+/** The rounds a team will put next year's pick into a trade-up (the NFL's future picks go into early moves). */
+export const FUTURE_ROUNDS = 2;
 /** Calls made before one pick, and add-ons tried in each. */
 const CALLS = 3;
 const ADD_ONS = 3;
@@ -409,19 +411,26 @@ export function draftCalls(ctx: TradeContext, rng: Rng): { buyer: number; target
     else if (!ask.problem && !ask.refusal) {
       // The cheapest add-on in the buyer's eyes among those that cover most of what the seller is short.
       const short = ask.need - ask.get;
-      const addOns = league.draftPicks
-        .filter(
-          (pk) =>
-            pk.ownerId === team.id &&
-            pk.playerId === undefined &&
-            pk.id !== own.id &&
-            (pk.season === league.season + 1 || (pk.season === league.season && pk.overall! > own.overall!)) &&
-            pickValue(league, pk, seller.gm, ctx) >= 0.8 * short,
-        )
-        .sort((a, b) => pickValue(league, a, team.gm, ctx) - pickValue(league, b, team.gm, ctx))
-        .slice(0, ADD_ONS);
-      for (const pk of addOns) {
-        const tried = offer([own.id, pk.id]);
+      // This draft's later picks, cheapest in the buyer's eyes among those that cover most of what the seller is
+      // short. A future pick is the last resort, and only for a move in the first two rounds: NFL teams rarely put
+      // next year's picks into a draft-day deal (5-6 a year), and almost never for a day-3 pick.
+      const covers = (pk: DraftPick) =>
+        pk.ownerId === team.id &&
+        pk.playerId === undefined &&
+        pk.id !== own.id &&
+        pickValue(league, pk, seller.gm, ctx) >= 0.8 * short;
+      const cheapest = (pks: DraftPick[]) =>
+        pks.sort((a, b) => pickValue(league, a, team.gm, ctx) - pickValue(league, b, team.gm, ctx)).slice(0, ADD_ONS);
+      const now = cheapest(
+        league.draftPicks.filter((pk) => covers(pk) && pk.season === league.season && pk.overall! > own.overall!),
+      );
+      const later =
+        clock.round <= FUTURE_ROUNDS
+          ? cheapest(league.draftPicks.filter((pk) => covers(pk) && pk.season === league.season + 1))
+          : [];
+      const tries = [...now, ...later].map((pk) => [pk]);
+      for (const extra of tries) {
+        const tried = offer([own.id, ...extra.map((pk) => pk.id)]);
         if (accepts(tried)) {
           deal = tried;
           break;

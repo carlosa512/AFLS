@@ -528,8 +528,10 @@ The draft runs pick by pick (`simDraft`), and before each AI pick the phones rin
   down to 3% on day 3): NFL movers pay at or above the Jimmy Johnson chart.
 - **Picks carry no salary on draft day:** a deal of picks alone skips the cap check there (`tradeProblem`), so a team that has
   just signed its rookies and sits over the cap until camp's cuts can still trade picks.
-- **The price:** the buyer's pick, then the cheapest add-on in its eyes among those that cover most of what
-  the seller is short: a later pick this draft or next year's (a win-now GM's future pick costs him least).
+- **The price:** the buyer's pick, then the cheapest of its later picks this draft (in its own eyes) among
+  those that cover most of what the seller is short. Next year's pick is the last resort, and only for a move
+  in the first two rounds (`FUTURE_ROUNDS`): the NFL sees 5–6 trades a year mix current and future picks,
+  and they go into early moves.
 - **Future for current:** at some picks a GM who wants help now swaps next year's pick for this year's a
   round later ("our 2028 2nd for your 3rd now", `pickSwapFor`).
 - **Draft deals don't count** against a team's trade limits (`MINOR`).
@@ -1524,7 +1526,8 @@ Measured (`npm run trades -- 1`, three drafts; `npm run offseason -- 6`):
 
 | Number | Measured | Range |
 | --- | --- | --- |
-| Trades a draft | 42.7 | 35–45 |
+| Trades a draft | 41 (8 leagues) | 35–45 |
+| Deals with a future pick, a draft | 7.1 | 3–9 |
 | …with a first-round pick | 6.3 | 3–9 |
 | Time a pick, one whole draft | 2.7 ms | under 3 |
 | Trade-ups where the team took the player it moved up for | 100% | 90%+ |
@@ -1535,14 +1538,15 @@ Measured (`npm run trades -- 1`, three drafts; `npm run offseason -- 6`):
 | AI draft deals a side lost in its own eyes | 0 | 0 |
 | Draft quality (R1 worth, R2–3, slot vs consensus) | in range every season | unchanged |
 
-- **Tuning:** a tier-break bar by round (0.8 board points in round 1 down to 0.15 on day 3, where boards
-  bunch up), a premium on the pick on the clock (12% in round 1 down to 3%), three trade-ups a team a draft
-  (two held volume under the NFL's), future-for-current swaps at one pick in ten.
+- **Tuning:** a tier-break bar by round (0.8 board points in round 1 down to 0.1 on day 3, where boards
+  bunch up), a premium on the pick on the clock (12% in round 1, 10% in round 2, 5% in round 3, none on day
+  3), three trade-ups a team a draft (two held volume under the NFL's), future-for-current swaps at one pick
+  in twenty.
 - **Picks carry no salary on draft day:** teams that just signed their rookies sit over the cap until camp's
   cuts; they can still trade picks.
-- **A finding for later:** about 29 deals a draft carry a future pick, against the NFL's 5–6 a year. Buyers
-  pay with discounted future picks because they cost them least in their own eyes. Preferring this draft's
-  picks first cut it to about 18 and pushed volume under 35, so it stays an info line.
+- **Future picks:** at first about 29 deals a draft carried one: buyers paid with next year's picks because
+  their discount made them cheap in their own eyes. Now a buyer pays with this draft's later picks, and next
+  year's only as a last resort in rounds 1–2: about 7 a draft (owner's call: closer to the NFL's 5–6).
 
 ### Phase 5: memory, media and mind games
 

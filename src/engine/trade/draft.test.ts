@@ -514,3 +514,16 @@ describe('your board mid-draft', () => {
     expect(boardBase(l, l.userTeamId, p, 1)).toBeCloseTo(fresh, 9);
   });
 });
+
+describe('future picks on draft day', () => {
+  it('go only into trade-ups in the first two rounds, as a last resort', () => {
+    const l = draftDay();
+    simDraft(l, new Rng('whole'), { stopAtUser: false });
+    const pk = (id: number) => l.draftPicks.find((p) => p.id === id)!;
+    const ups = l.market!.history.filter((r) => r.kind === 'draft' && r.season === l.season);
+    expect(ups.length).toBeGreaterThan(0);
+    for (const r of ups)
+      if (r.sides[0].picks.some((id) => pk(id).season > l.season))
+        expect(pk(r.sides[1].picks[0]).round).toBeLessThanOrEqual(2);
+  });
+});
