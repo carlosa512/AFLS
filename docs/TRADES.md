@@ -1517,6 +1517,33 @@ would need recalibrating.
 **Done when:** 35–45 trades a draft, 3–9 with a first-round pick; under 3 ms a pick; draft quality in
 `offseason` unchanged.
 
+#### Phase 4: what landed
+
+Section 6 as built (`trade/draft.ts`; spec `docs/superpowers/specs/2026-10-28-draft-day-trades-design.md`).
+Measured (`npm run trades -- 1`, three drafts; `npm run offseason -- 6`):
+
+| Number | Measured | Range |
+| --- | --- | --- |
+| Trades a draft | 42.7 | 35–45 |
+| …with a first-round pick | 6.3 | 3–9 |
+| Time a pick, one whole draft | 2.7 ms | under 3 |
+| Trade-ups where the team took the player it moved up for | 100% | 90%+ |
+| Trade-up picks at a premium position, over picks that stayed put | +31 points | above 0 |
+| Round-1 price, what the mover paid on the Jimmy Johnson chart | 1.14× | 0.95–1.25× |
+| QB trade-ups into the top 16, a draft | 0.3 | 0.3–2 |
+| Trade-downs by analytics GMs and Pick Hoarders, over their share of teams | +16.5 points | above 0 |
+| AI draft deals a side lost in its own eyes | 0 | 0 |
+| Draft quality (R1 worth, R2–3, slot vs consensus) | in range every season | unchanged |
+
+- **Tuning:** a tier-break bar by round (0.8 board points in round 1 down to 0.15 on day 3, where boards
+  bunch up), a premium on the pick on the clock (12% in round 1 down to 3%), three trade-ups a team a draft
+  (two held volume under the NFL's), future-for-current swaps at one pick in ten.
+- **Picks carry no salary on draft day:** teams that just signed their rookies sit over the cap until camp's
+  cuts; they can still trade picks.
+- **A finding for later:** about 29 deals a draft carry a future pick, against the NFL's 5–6 a year. Buyers
+  pay with discounted future picks because they cost them least in their own eyes. Preferring this draft's
+  picks first cut it to about 18 and pushed volume under 35, so it stays an info line.
+
 ### Phase 5: memory, media and mind games
 
 1. GM trust in you (section 5), drifting back to neutral.
