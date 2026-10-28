@@ -224,7 +224,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     locker room's letters · `relationships.ts` how a player left each club (`Player.left`), friendships and feuds
     (`Player.ties`, three at most, inside a position room), and what's worked out from history (rapport with a coach,
     homecomings, grudges); their marbles (`relationshipMarbles`) and price nudges (`contractLean`, read by `demand` and
-    `offerValue`), and who speaks out (`speaksOut`)
+    `offerValue`), and who speaks out (`speaksOut`) · `trees.ts` coaching trees worked out from careers (three-season links,
+    `Coach.pastUnder` for founding trees only), standing, and the carousel's terms (`keepBonus`, `treeLean`,
+    `inheritedScheme`) that `coaching.ts` reads
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a

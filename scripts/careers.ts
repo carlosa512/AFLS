@@ -442,5 +442,22 @@ console.log(
       (pos) => `${pos} ${mean(starterAges.filter((p) => p.position === pos).map((p) => p.age)).toFixed(1)}`,
     ).join(' · '),
 );
+// Coaching trees against the NFL (spec §4.6, docs/research/coaching-trees.md).
+{
+  const t = runs.map((r) => r.trees);
+  const all = (f: (x: LeagueRun['trees']) => number[]) => t.flatMap(f);
+  const hires = t.flatMap((x) => x.hires);
+  const fromTree =
+    hires.reduce((n, h) => n + h.fromTree, 0) /
+    Math.max(
+      1,
+      hires.reduce((n, h) => n + h.total, 0),
+    );
+  // One offseason's share is judged only where five or more clubs changed head coach (fewer is a coin flip).
+  const busiest = Math.max(0, ...hires.filter((h) => h.total >= 5).map((h) => h.mostFromOne / h.total));
+  console.log(
+    `coaching trees: ${check('live trees', mean(all((x) => x.live)), 2, 5, 1)} · ${check('biggest (steady)', mean(t.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in an offseason', busiest, 0, 0.4)} · ${check('trees born per league', mean(t.map((x) => x.born)), 1, 4, 1)} · ${check('founding trees alive at the end (fewest)', Math.min(...t.map((x) => x.foundingAlive)), 1, Infinity, 0)}`,
+  );
+}
 console.log(`\n${misses} number(s) outside target range`);
 if (misses) process.exitCode = 1;

@@ -8,6 +8,7 @@ import { developPlayer, playedShare, rollInputs, trueUp } from '../src/engine/de
 import { createLeague } from '../src/engine/generate';
 import { simToEndOfSeason } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
+import { hasTree, liveTrees, treeFor, treeOf } from '../src/engine/trees';
 import { playerOvr, STARTERS } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
 import { bodyAs } from '../src/engine/training';
@@ -47,6 +48,19 @@ export interface LeagueRun {
   drafts: { round: number; hit: boolean }[];
   /** Every settled ceiling of those picks: the year in the league it settled in, the change and his work ethic. */
   shifts: { year: number; shift: number; workEthic: number }[];
+  /**
+   * Coaching trees, season by season (spec §4.6): live trees, the biggest one's active head coaches, the share of head
+   * coaches in a live tree; each offseason's new head coaches and how many came from a tree (and the most from one);
+   * trees born during the run, and founding trees still alive at the end.
+   */
+  trees: {
+    live: number[];
+    biggest: number[];
+    inTreeShare: number[];
+    hires: { total: number; fromTree: number; mostFromOne: number }[];
+    born: number;
+    foundingAlive: number;
+  };
 }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
@@ -67,7 +81,17 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     starterAges: [],
     drafts: [],
     shifts: [],
+    trees: { live: [], biggest: [], inTreeShare: [], hires: [], born: 0, foundingAlive: 0 },
   };
+  const headCoaches = () =>
+    new Map(league.teams.map((t) => [t.id, teamCoaches(league, t.id).find((c) => c.role === 'headCoach')?.id]));
+  const founding = liveTrees(league).map((t) => t.rootId);
+  const rootsAtStart = new Set(
+    [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)]
+      .filter((c) => hasTree(league, c.id))
+      .map((c) => c.id),
+  );
+  const bornRoots = new Set<number>();
   const firstDraft = league.season + 1;
   const hits = new Set<number>();
   const starters = () =>
@@ -142,8 +166,28 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
       const bucket = b.age <= 25 ? '21-25' : b.age <= 29 ? '26-29' : b.age <= 33 ? '30-33' : '34+';
       out.deltas[bucket].push(playerOvr(p) - b.ovr);
     }
+    const hcBefore = headCoaches();
     while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
     out.starterOvr.push(mean(starters().map(playerOvr)));
+    {
+      const live = liveTrees(league);
+      out.trees.live.push(live.length);
+      out.trees.biggest.push(Math.max(0, ...live.map((t) => t.activeHeadCoaches.length)));
+      out.trees.inTreeShare.push(new Set(live.flatMap((t) => t.activeHeadCoaches)).size / league.teams.length);
+      const hired = [...headCoaches()]
+        .filter(([team, id]) => id !== undefined && hcBefore.get(team) !== id)
+        .map(([, id]) => id!);
+      const fromTree = hired.map((id) => treeFor(league, id)?.rootId).filter((r): r is number => r !== undefined);
+      const perTree = new Map<number, number>();
+      for (const r of fromTree) perTree.set(r, (perTree.get(r) ?? 0) + 1);
+      out.trees.hires.push({
+        total: hired.length,
+        fromTree: fromTree.length,
+        mostFromOne: Math.max(0, ...perTree.values()),
+      });
+      for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)])
+        if (!rootsAtStart.has(c.id) && hasTree(league, c.id)) bornRoots.add(c.id);
+    }
     // A first-rounder hits once his true overall reaches a high-end starter's at his position by 27 (the 60th
     // percentile of its starters: what a first-round pick is for); any later pick once he reaches a solid starter's
     // (the 30th). The scout report's tiers (`tierOf`) draw the same lines.
@@ -168,6 +212,8 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     }
   }
   out.awareness[1] = awareness();
+  out.trees.born = bornRoots.size;
+  out.trees.foundingAlive = founding.filter((id) => (treeOf(league, id)?.activeHeadCoaches.length ?? 0) > 0).length;
   out.starterAges = starters().map((p) => ({ position: p.position, age: p.age }));
   for (const p of Object.values(league.players)) {
     if (!p.draft || p.draft.season < firstDraft) continue;
