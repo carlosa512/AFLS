@@ -181,10 +181,10 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
 }
 
 /** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
-/** A tree grows from a winner: .500 or better over three seasons or more as a head coach. */
-export const WINNER = { seasons: 3, share: 0.5 };
+/** A tree grows from a winner: .500 or better over four seasons or more as a head coach. */
+export const WINNER = { seasons: 4, share: 0.5 };
 /** Seasons two of his men must run clubs side by side, both established, while he is a winner: a run, not a moment. */
-export const SIDE_BY_SIDE = 3;
+export const SIDE_BY_SIDE = 2;
 
 /**
  * The seasons by which he was a winner as a head coach, his record up to and including each (his team's record
@@ -243,8 +243,8 @@ function sideBySide(league: League, coachId: number): number[] {
 }
 
 /**
- * The season his tree was born, or null if it hasn't been: the third season two of his men ran clubs side by side,
- * both established, while he was a winner. A season or two of two disciples in charge isn't a tree; a run is.
+ * The season his tree was born, or null if it hasn't been: the second season two of his men ran clubs side by side,
+ * both established, while he was a winner. One passing season of two disciples in charge isn't a tree; a run is.
  */
 export function treeBornSeason(league: League, coachId: number): number | null {
   const seasons = sideBySide(league, coachId).filter((s) => winnerAsOf(league, coachId, s));
@@ -254,7 +254,7 @@ export function treeBornSeason(league: League, coachId: number): number | null {
 }
 
 /**
- * He has a tree once two of his men have run clubs side by side for three seasons while he was a winner, as the press
+ * He has a tree once two of his men have run clubs side by side for two seasons while he was a winner, as the press
  * recognizes one: a man whose assistants run clubs one after another, or who never won himself, is a good teacher,
  * not a tree.
  */
