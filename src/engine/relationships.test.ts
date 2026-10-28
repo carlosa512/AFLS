@@ -139,6 +139,29 @@ describe('rapport, homecomings and grudges, read off history', () => {
     expect(contractLean(l, merc, other)).toEqual({ value: 1, walkAway: 1, ask: 1 });
   });
 
+  it('keeps a lean through free agency, but reads it again when his friend signs somewhere', () => {
+    const { p, teamId } = twoYearStarter();
+    const other = (teamId + 7) % 32;
+    const friend = activeRoster(l, other)[0];
+    const pal = {
+      ...p,
+      id: p.id + 3_000_000,
+      teamId: null,
+      ties: [{ kind: 'friend' as const, with: friend.id, since: l.season }],
+    };
+    const was = { phase: l.phase, faDay: l.faDay, team: friend.teamId };
+    l.phase = 'freeAgency';
+    l.faDay = 1;
+    expect(contractLean(l, pal, other).value).toBeGreaterThan(1);
+    // A day later his friend has signed with another club: the pull goes with him.
+    l.faDay = 2;
+    friend.teamId = (other + 1) % 32;
+    expect(contractLean(l, pal, other).value).toBe(1);
+    expect(contractLean(l, pal, friend.teamId).value).toBeGreaterThan(1);
+    Object.assign(l, { phase: was.phase, faDay: was.faDay });
+    friend.teamId = was.team;
+  });
+
   it('draws a man to an old coach at another club, never to the coaches he already has', () => {
     const { p, teamId } = twoYearStarter();
     const home = { ...p, id: p.id + 2_000_000, teamId };

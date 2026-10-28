@@ -326,12 +326,13 @@ const leanCache = new WeakMap<
 >();
 
 export function contractLean(league: League, p: Player, teamId: number): Lean {
-  // Free agency asks this for every offer it weighs: kept for the calendar step, per player, until his club, his
-  // departures or his ties change.
-  const step = `${league.season}:${league.phase}:${league.week}:${league.faDay}`;
+  // Free agency asks this for every club an offer is weighed for, every day: kept through the phase (coaches have
+  // moved by then), per player, until his club, his departures, his ties or where his friends play change.
+  const step = `${league.season}:${league.phase}:${league.week}`;
   let cache = leanCache.get(league);
   if (!cache || cache.step !== step) leanCache.set(league, (cache = { step, byPlayer: new Map() }));
-  const sig = `${p.teamId}:${p.left?.length ?? 0}:${p.ties?.length ?? 0}`;
+  let sig = `${p.teamId}:${p.left?.length ?? 0}`;
+  for (const t of p.ties ?? []) sig += `:${t.kind[0]}${t.with}@${league.players[t.with]?.teamId}`;
   let mine = cache.byPlayer.get(p.id);
   if (!mine || mine.sig !== sig) cache.byPlayer.set(p.id, (mine = { sig, byTeam: new Map() }));
   let lean = mine.byTeam.get(teamId);
