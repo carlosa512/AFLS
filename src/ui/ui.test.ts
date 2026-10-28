@@ -410,11 +410,11 @@ describe('screen contract', () => {
     const shown = files.filter((f) => /<OriginTag\b/.test(src(f))).sort();
     // The squad desk lists who can take the international place (profile v2).
     expect(shown).toEqual([
-      join('src/ui/screens', 'FrontOffice.tsx'),
+      join('src/ui/screens', 'Draft.tsx'),
       join('src/ui/screens', 'PlayerCard.tsx'),
       join('src/ui/screens', 'PracticeSquad.tsx'),
     ]);
-    expect(src(join('src/ui/screens', 'FrontOffice.tsx'))).toContain('label="School"');
+    expect(src(join('src/ui/screens', 'Draft.tsx'))).toContain('label="School"');
   });
 
   it('builds team dropdowns only with TeamPicker', () => {

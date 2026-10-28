@@ -1,3 +1,4 @@
+import { POSITION_NAMES } from '../engine/positions';
 import {
   useEffect,
   useId,
@@ -11,7 +12,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { gamesInWeek } from '../engine/league';
-import type { Game, League, Player, Team } from '../engine/types';
+import type { Game, League, Player, Position, Team } from '../engine/types';
+import { POSITIONS } from '../engine/types';
 import { gameWeather, type Forecast, type Weather } from '../engine/weather';
 import { inkOn, kitFor, shade, tint, type TeamColors } from './color';
 import { band, gameWeatherText, playerName, severityText, shortName } from './format';
@@ -899,5 +901,29 @@ export function SortTh<K extends string>({
         </span>
       </button>
     </th>
+  );
+}
+
+/** The position filter on the draft board and the free-agent list. */
+export function PositionFilter({
+  value,
+  onChange,
+}: {
+  value: Position | 'ALL';
+  onChange: (v: Position | 'ALL') => void;
+}) {
+  return (
+    <select
+      aria-label="Filter by position"
+      value={value}
+      onChange={(e) => onChange(e.target.value as Position | 'ALL')}
+    >
+      <option value="ALL">All positions</option>
+      {POSITIONS.map((p) => (
+        <option key={p} value={p}>
+          {POSITION_NAMES[p]}
+        </option>
+      ))}
+    </select>
   );
 }
