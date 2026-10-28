@@ -221,7 +221,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     (`nameCaptains`) · `mentoring.ts` veterans mentoring players 21–24: work ethic, temperament and poise move at most a
     point a year (`Player.shifts`, read through `workEthicOf`/`temperamentOf`/`poiseOf`, never `traits` directly),
     landing at the new league year; one planner for your staff and AI teams (`planMentors`) · `lockerMail.ts` the
-    locker room's letters
+    locker room's letters · `relationships.ts` how a player left each club (`Player.left`), friendships and feuds
+    (`Player.ties`, three at most, inside a position room), and what's worked out from history (rapport with a coach,
+    homecomings, grudges); their marbles (`relationshipMarbles`) and price nudges (`contractLean`, read by `demand` and
+    `offerValue`), and who speaks out (`speaksOut`)
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a

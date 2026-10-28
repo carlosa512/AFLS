@@ -160,6 +160,16 @@ coasts is the most dangerous mentor in the building. Your position coaches pair 
 Each club names three captains at camp. The Locker Room tab shows your leaders and your mentoring pairs, in your
 coaches' words.
 
+**Relationships.** Players remember. A player builds rapport with a coach over two good seasons under him and sours on
+one who benched, cut or traded him; he feels at home at a club he walked away from after starting there, and holds a
+grudge for three seasons against one that cut or traded him. Men four seasons or more in a position room together
+can become friends; two in a room can fall out (likelier between the outspoken and the short-fused, rarer with
+leaders in the room, three times as likely after one took the other's job or got paid over him). These lean on habits
+(fix marbles from a coach he trusts, temper marbles from a feud) and, a little, on contracts (a grudge costs 5% more,
+home or a friend a few percent less; a Mercenary ignores both). The outspoken speak out on SNN after a benching, a
+trade, a release or a snub. You see it in your coaches' words: on the Locker Room tab, in one line on the card, in
+the mail and in recaps (a revenge game, a clutch one) when the box score backs it.
+
 The projection scout judges makeup and body; the evaluator sees the flags. Reads carry the same
 seeded, reader-owned error as ratings, are never exact for another club's player, and are marked
 "early word" (dashed tags) while they're still loose. The player card adds a career outlook ("His
