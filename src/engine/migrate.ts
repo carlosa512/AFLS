@@ -206,6 +206,8 @@ export function migrateLeague(league: League): League | null {
   // v61: mentoring (`Player.mentor`, `mentorWeeks`, `mentorSetByYou`, `shifts`, `mentorBank`, `mentoredBy`, `shiftedLast`,
   // `lostMentor`) and `Team.mentoringByYou`, `Team.captains`: all optional, nothing to fill in. Pairs form in week one.
   if (league.version < 61) league.version = 61;
+  // v62: `Player.left` (how he left his last clubs) and `Player.ties` (friendships and feuds): optional, empty to start.
+  if (league.version < 62) league.version = 62;
   return league;
 }
 

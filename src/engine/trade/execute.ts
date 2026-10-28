@@ -1,4 +1,5 @@
 /** Moving the assets. The sending team books the bonus money still on each traded contract; the new team takes the salary. */
+import { noteDeparture } from '../relationships';
 import { autoPostJune1, logTransaction, paidShare, weeksPaid } from '../finance/cap';
 import { deadMoney } from '../finance/contract';
 import { aiExtendArrival } from '../offseason/ai';
@@ -79,6 +80,7 @@ export function executeTrade(
       }
       c.bonuses = [];
       c.years = c.years.filter((y) => !y.void);
+      noteDeparture(league, p, side.teamId, 'traded');
       p.teamId = to;
       p.jersey = freeJersey(
         p.position,
