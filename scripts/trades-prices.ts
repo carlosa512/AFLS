@@ -34,6 +34,7 @@ import {
   salaryToTake,
   setTradeStatus,
   tradeContext,
+  TRADE_DEADLINE_WEEK,
   type TradeContext,
   type TradeProposal,
 } from '../src/engine/trade';
@@ -206,11 +207,16 @@ export function guardBest(league: League) {
     setTradeStatus(league, p.id, 'untouchable');
 }
 
-/** A league's first season priced as the audit prices its own: before it, and on deadline day. */
+/**
+ * A league's first season priced as the audit prices its own: before it, and on deadline day. It plays on through
+ * deadline day too, so its in-season trades count toward the volume check (nine seasons alone are a small sample).
+ */
 export interface PriceRun {
   seed: string;
   preseason: Prices;
   deadline: Prices;
+  /** AI trades from week 1 through deadline day, as the audit counts its own leagues'. */
+  inSeason: number;
 }
 
 function priceLeague(seed: string, verbose: boolean): PriceRun {
@@ -218,7 +224,11 @@ function priceLeague(seed: string, verbose: boolean): PriceRun {
   const preseason = probePrices(league, 'preseason', false, verbose);
   guardBest(league);
   while (league.phase === 'regular' && !isDeadlineDay(league)) playWeek(league);
-  return { seed, preseason, deadline: probePrices(league, 'deadline', false, verbose) };
+  const deadline = probePrices(league, 'deadline', false, verbose);
+  while (league.phase === 'regular' && (league.week <= TRADE_DEADLINE_WEEK + 1 || isDeadlineDay(league)))
+    playWeek(league);
+  const inSeason = (league.market?.history ?? []).filter((r) => r.phase === 'regular').length;
+  return { seed, preseason, deadline, inSeason };
 }
 
 /**
