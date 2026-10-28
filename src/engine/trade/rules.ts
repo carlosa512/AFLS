@@ -220,10 +220,13 @@ export function tradeProblem(
   }
   const ctx = opts.ctx ?? tradeContext(league);
   const impact = tradeCapImpact(league, proposal, ctx);
+  // On draft day picks carry no salary: a deal of picks alone leaves both books as they were, and a team that has
+  // just signed its rookies can sit over the cap until camp's cuts. Any other time an over-cap team gets compliant first.
+  const salary = league.phase !== 'draft' || proposal.sides.some((s) => s.players.length);
   for (const [i, side] of proposal.sides.entries()) {
     const other = proposal.sides[1 - i];
     const team = league.teams[side.teamId];
-    if (impact[i].space < 0) return `${team.name} would be over the cap after this trade.`;
+    if (salary && impact[i].space < 0) return `${team.name} would be over the cap after this trade.`;
     const roster = rosterOf(ctx, side.teamId);
     const size = roster.filter(onGameRoster).length - side.players.length + other.players.length;
     if (size > rosterLimit(league) && !opts.rosterCuts && side.teamId === league.userTeamId)

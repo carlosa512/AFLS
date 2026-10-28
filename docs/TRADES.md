@@ -60,7 +60,7 @@ Items marked *assumed* had no source and are design choices.
 | --- | --- | --- |
 | Opens | New league year (mid-March, 4 p.m. ET) | `resign` phase (the league year flips at `beginOffseason`) |
 | Super Bowl → league year | Deals agreed but not official until the league year (Stafford–Goff, Jan → Mar 2021) | Closed (`complete`) |
-| Draft | Picks trade on the clock (round 1 is 8–10 minutes a pick) | Allowed in `draft`, but no AI ever trades during it |
+| Draft | Picks trade on the clock (round 1 is 8–10 minutes a pick) | Allowed in `draft`; AI teams trade up and down, and call you on the clock (Phase 4) |
 | Deadline | Tuesday after week 9, 4 p.m. ET (Nov 5 2024, Nov 4 2025, Nov 10 2026; it followed week 8 until 2023) | Closed once week 10 is next. The AI still trades after week 9's games, but you can't |
 | After the deadline | No trades until March; every release goes through waivers | Closed (no waivers in AFLS) |
 | Cutdown | 90 → 53, late August | `preseason` |
@@ -505,28 +505,45 @@ shown, centred). A low-candor GM plants rumors and bluffs often; a straight shoo
 
 ### 6. Draft day
 
-The draft runs pick by pick (`simDraft`), so the market gets a moment before each pick.
+The draft runs pick by pick (`simDraft`), and before each AI pick the phones ring (`draftCalls` in
+`trade/draft.ts`, on its own stream: a draft with no trades picks exactly as it did). Spec:
+`docs/superpowers/specs/2026-10-28-draft-day-trades-design.md`.
 
-- **AI trade-ups.** A team within the next 10 picks whose top board prospect will likely be gone
-  before its turn covets him:
-  - "likely gone" is judged from the consensus rank (`consensusRank`) against the picks between;
-  - covet = its board score for him minus the best it expects at its own pick (`boardScore`), above a
-    threshold.
-
-  It offers its pick plus the cheapest add-on, often a future pick. The team on the clock accepts on
-  its own chart (`judge`). Analytics GMs value later picks more, so they move down more; Pick
-  Hoarders most of all.
-- **Odds by round:** round 1 is busiest, then round 2. Target 35–45 trades a draft, 3–9 of them
-  involving a first-round pick.
-- **You on the clock:** up to 2 trade-up offers land as a banner in the draft room, and they expire
-  when you pick. *Shop this pick* asks the league. You can still build your own (trades are already
-  allowed in the `draft` phase).
-- **Future for current** deals happen here too: "our 2028 2nd for your 3rd now."
-- **Draft history** already lists traded picks ("traded to") and "via" labels. A pick moved during
-  the draft shows its new owner and the deal.
-
-Cost: candidate checks are cheap (consensus ranks and cached boards); at most 3 trade checks per
-pick. Target: under 3 ms a pick.
+- **Covet** is what a pick is worth beyond its chart on draft day: a team's man at the earlier pick against
+  the best it expects at the later one, on its own board (`boardOf`, no pick-day noise), as a share of the
+  earlier pick's value on its own chart. "Expected at a pick" is its best among the prospects the consensus
+  ranks past the picks before it. `judge` adds covet to both sides in the `draft` phase, so every draft deal
+  (the AI's, offers to you, your proposals, counters) goes through the one evaluator.
+- **A trade-up needs an NFL reason**, all of: its man plays a position it needs or a premium one (QB, EDGE,
+  OL, CB, WR; ESPN's 242 trade-ups took them 38% of the time against under 30% for teams that stayed put);
+  he likely won't last (his consensus rank among the available is inside the picks before its turn, or just
+  past them with two teams in between thin at his position); he stands a tier above its best at its own pick
+  (a bar that comes down by round, since late boards bunch up); it picks within the next 10, and jumps more
+  than 8 only for a QB it wants badly; at most three trade-ups a draft; no specialist before round 5. It
+  takes the player it moved up for.
+- **A trade-down** is the team on the clock saying yes on its own chart with its covet as a cost: it sees a
+  tier (a player almost as good later), its flat chart prizes the extra pick (analytics GMs), it has three
+  or more holes, or it's a Pick Hoarder (a little extra on every pick coming in).
+  It holds the leverage on the clock and asks a premium for the pick (12% of its value in round 1, coming
+  down to 3% on day 3): NFL movers pay at or above the Jimmy Johnson chart.
+- **Picks carry no salary on draft day:** a deal of picks alone skips the cap check there (`tradeProblem`), so a team that has
+  just signed its rookies and sits over the cap until camp's cuts can still trade picks.
+- **The price:** the buyer's pick, then the cheapest of its later picks this draft (in its own eyes) among
+  those that cover most of what the seller is short, and that the buyer can spare. Next year's pick is the last resort, and only for a
+  first-round move (`FUTURE_ROUNDS`): the NFL sees 5–6 trades a year mix current and future picks, and they
+  go into first-round moves.
+- **Future for current:** at some picks a GM who wants help now swaps next year's pick for this year's a
+  round later ("our 2028 2nd for your 3rd now", `pickSwapFor`).
+- **Draft deals don't count** against a team's trade limits (`MINOR`).
+- **You on the clock:** the teams that would move up to your pick call, at most 2, never below the league's
+  going rate for it: a gold line in the clock hero and their offer cards under it, with your director's word
+  from your own board ("At No. 35 we'd still likely get one of our top 4"). *Shop this pick* asks the league
+  yourself (the best 3, once a pick). *Call teams ahead*, while you wait, gets the price of the picks just
+  before yours (the 3 cheapest, once a pick on the clock). Any pick made (yours, Auto-pick, Sim the rest)
+  ends the offers on it quietly, with no cooldown; an offer whose pick moves is off. They're never mailed.
+  Simming never makes offers to you.
+- **Draft history** shows "via" and a *Draft-day trade* pill that opens the deal ("CHI sent No. 12 for
+  No. 18 and No. 82"), stored on the player (`draft.via`, `draft.deal`).
 
 ### 7. Rules and guardrails (enforced outside value)
 
@@ -1501,6 +1518,40 @@ would need recalibrating.
 
 **Done when:** 35–45 trades a draft, 3–9 with a first-round pick; under 3 ms a pick; draft quality in
 `offseason` unchanged.
+
+#### Phase 4: what landed
+
+Section 6 as built (`trade/draft.ts`; spec `docs/superpowers/specs/2026-10-28-draft-day-trades-design.md`).
+Measured (`npm run trades`, three leagues of three drafts; `npm run offseason -- 6`):
+
+| Number | Measured | Range |
+| --- | --- | --- |
+| Trades a draft | 40.8 | 35–45 |
+| …with a first-round pick | 6.9 | 3–9 |
+| …with a future pick | 8.8 | 3–9 (NFL 5–6) |
+| Time a pick, one whole draft | 2.3 ms | under 3 |
+| Trade-ups where the team took the player it moved up for | 100% | 90%+ |
+| Trade-up picks at a premium position, over picks that stayed put | +27 points | above 0 |
+| Round-1 price, what the mover paid on the Jimmy Johnson chart | 1.17× | 0.95–1.25× |
+| QB trade-ups into the top 16, a draft | 0.4 | 0.3–2 |
+| Trade-downs by analytics GMs and Pick Hoarders, over their share of teams | +25.6 points | above 0 |
+| AI draft deals a side lost in its own eyes | 0 | 0 |
+| Draft quality (R1 worth, R2–3, slot vs consensus) | in range every season | unchanged |
+
+- **Tuning:** a tier-break bar by round (0.8 board points in round 1, 0.3 and 0.2 in rounds 2–3, 0.1 on day 3,
+  where boards bunch up), a premium on the pick on the clock (12% in round 1, 10% in round 2, 5% in round 3, none on day
+  3), three trade-ups a team a draft (two held volume under the NFL's), future-for-current swaps at one pick
+  in twenty.
+- **Stronger draft classes (the careers check):** the class's top grade went from 13.95 to 14.1. Once a new
+  league's generated veterans retire (by season 12), the draft alone carries the league: at 13.95 drafted
+  starters settled at about 12.67, two hundredths over `npm run careers`' floor, and main passed only by luck
+  of its four seeds (eight seeds read 12.63). Any reshuffle of who goes where, as draft-day trades make,
+  tipped it under. At 14.1 the league settles near 12.8.
+- **Picks carry no salary on draft day:** teams that just signed their rookies sit over the cap until camp's
+  cuts; they can still trade picks.
+- **Future picks:** at first about 29 deals a draft carried one: buyers paid with next year's picks because
+  their discount made them cheap in their own eyes. Now a buyer pays with this draft's later picks, and next
+  year's only as a last resort in round 1: about 7 a draft (owner's call: closer to the NFL's 5–6).
 
 ### Phase 5: memory, media and mind games
 

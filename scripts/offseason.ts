@@ -341,7 +341,7 @@ for (let s = 0; s < seasons; s++) {
   const r23 = avg(picks.filter((pk) => pk.round > 1).map((pk) => worth(pk.playerId!)));
   const reach = avg(picks.filter((pk) => pk.consRank !== undefined).map((pk) => Math.abs(pk.overall! - pk.consRank!)));
   console.log(
-    `  draft: R1 worth ${r1.toFixed(2)} · R2-3 ${r23.toFixed(2)} · best-8 staffs ${pickWorth(byStaff.slice(0, 8)).toFixed(2)} vs worst-8 ${pickWorth(byStaff.slice(-8)).toFixed(2)} · avg |slot - consensus rank| ${reach.toFixed(1)}`,
+    `  draft: R1 worth ${r1.toFixed(2)} · R2-3 ${r23.toFixed(2)} · best-8 staffs ${pickWorth(byStaff.slice(0, 8)).toFixed(2)} vs worst-8 ${pickWorth(byStaff.slice(-8)).toFixed(2)} · avg |slot - consensus rank| ${reach.toFixed(1)} · draft-day trades ${(league.market?.history ?? []).filter((r) => r.season === league.season && r.phase === 'draft').length}`,
   );
   const employed = Object.values(league.staff).filter((st) => st.teamId !== null);
   const scores = league.teams.map((t) => departmentScore(league, t.id));

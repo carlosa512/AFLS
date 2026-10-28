@@ -14,7 +14,8 @@ import {
 } from '../../engine/draftGrade';
 import { draftForUser, draftNextPick, draftToEnd, draftToUserPick } from '../../engine/offseason';
 import { availableProspects, draftOrder, reachOrSteal, ROUNDS } from '../../engine/offseason/draft';
-import type { DraftPick, League, Player, Position } from '../../engine/types';
+import { callAhead, draftDayOffers, shopPick } from '../../engine/trade/draft';
+import type { DraftPick, League, PickDeal, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import {
   Panel,
@@ -28,6 +29,7 @@ import {
   TeamPicker,
   useSort,
 } from '../components';
+import { OfferCard } from '../offers';
 import { CardRow, Fact, Facts, OfficeCard, OfficeHero } from '../office';
 import { OriginTag, originName } from '../origin';
 import {
@@ -97,6 +99,7 @@ export function Draft({ league }: { league: League }) {
   );
   const clock = clockState(league);
   const userUp = clock.kind === 'live' && clock.userUp;
+  const offers = draftDayOffers(league);
   const hasHistory = Object.values(league.players).some((p) => p.draft && p.scouting);
 
   return (
@@ -104,6 +107,16 @@ export function Draft({ league }: { league: League }) {
       {clock.kind !== 'none' && (
         <div className="home-cell span-12">
           <DraftClock league={league} clock={clock} />
+        </div>
+      )}
+
+      {offers.length > 0 && (
+        <div className="home-cell span-12">
+          <CardRow label="Draft-day offers" className="draft-offers">
+            {offers.map((o) => (
+              <OfferCard key={o.id} league={league} offer={o} />
+            ))}
+          </CardRow>
         </div>
       )}
 
@@ -463,6 +476,8 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
                       <td>{p.position}</td>
                       <td>
                         <TeamChip team={league.teams[d.teamId]} />
+                        {d.via !== undefined && <span className="muted small"> via {league.teams[d.via].abbrev}</span>}
+                        {d.deal && <DealPill league={league} pick={d.pick} deal={d.deal} />}
                       </td>
                       <td className="num">{d.rank !== undefined ? `#${d.rank}` : '–'}</td>
                       <td className="num">{p.scouting ? <Rating value={p.scouting.grade} decimals={1} /> : '–'}</td>
@@ -479,6 +494,18 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
   );
 }
 
+/** A pick traded on draft day: a pill that opens the deal in one line (a tap on a phone, where nothing hovers). */
+function DealPill({ league, pick, deal }: { league: League; pick: number; deal: PickDeal }) {
+  return (
+    <details className="deal-pill">
+      <summary className="tag-pill">Draft-day trade</summary>
+      <span className="muted small">
+        {league.teams[deal.from].abbrev} sent No. {pick} for {deal.got.join(' and ')}.
+      </span>
+    </details>
+  );
+}
+
 /** "Round 2, No. 41" for a pick on the order. */
 const pickName = (pk: DraftPick) => `Round ${pk.round}, No. ${pk.overall}`;
 
@@ -487,6 +514,8 @@ const pickName = (pk: DraftPick) => `Round ${pk.round}, No. ${pk.overall}`;
  * last few picks as a ticker, and where your next pick stands.
  */
 function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockState, { kind: 'none' }> }) {
+  // What the league said when you shopped your pick or called the teams ahead, until the pick on the clock moves.
+  const [heard, setHeard] = useState<{ at: number; text: string } | null>(null);
   const visits = <Fact label="Scouting visits left">{league.scoutPoints}</Fact>;
   if (clock.kind === 'preview')
     return (
@@ -510,6 +539,15 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
     );
   const { pick, userUp, myNext } = clock;
   const team = league.teams[pick.ownerId];
+  const market = league.market;
+  const onYours = userUp ? draftDayOffers(league).filter((o) => o.sides[1].picks.includes(pick.id)) : [];
+  const ask = (call: typeof shopPick) => {
+    let text = '';
+    store.mutate((l) => {
+      text = call(l).message;
+    });
+    setHeard({ at: pick.id, text });
+  };
   const recent = order
     .filter((pk) => pk.playerId !== undefined)
     .slice(-3)
@@ -527,14 +565,24 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
       action={
         <span className="row" style={{ gap: 8 }}>
           {userUp ? (
-            <button className="btn" onClick={() => store.mutate((l) => draftForUser(l))}>
-              Auto-pick for me
-            </button>
+            <>
+              <button className="btn" onClick={() => store.mutate((l) => draftForUser(l))}>
+                Auto-pick for me
+              </button>
+              <button className="btn" disabled={market?.shoppedPick === pick.id} onClick={() => ask(shopPick)}>
+                Shop this pick
+              </button>
+            </>
           ) : (
             <>
               <button className="btn" onClick={() => store.mutate(draftNextPick)}>
                 Next pick
               </button>
+              {myNext && (
+                <button className="btn" disabled={market?.calledAhead === pick.overall} onClick={() => ask(callAhead)}>
+                  Call teams ahead
+                </button>
+              )}
               {myNext && (
                 <button className="btn btn-primary" onClick={() => store.mutate(draftToUserPick)}>
                   Sim to my pick
@@ -548,6 +596,16 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
         </span>
       }
     >
+      {onYours.length > 0 && (
+        <p className="callout callout-gold" role="status">
+          {onYours.length > 1 ? `${onYours.length} teams want` : '1 team wants'} No. {pick.overall} · gone when you pick
+        </p>
+      )}
+      {heard?.at === pick.id && (
+        <p className="muted small" role="status">
+          {heard.text}
+        </p>
+      )}
       {recent.length > 0 && (
         <ol className="draft-ticker" aria-label="Latest picks">
           {recent.map((pk) => {
@@ -557,6 +615,9 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
               <li key={pk.id}>
                 <span className="muted small num">No. {pk.overall}</span>
                 <TeamChip team={league.teams[pk.ownerId]} />
+                {pk.originalTeamId !== pk.ownerId && (
+                  <span className="muted small">via {league.teams[pk.originalTeamId].abbrev}</span>
+                )}
                 <span className="muted small">{p.position}</span>
                 <PlayerLink league={league} player={p} />
                 <DraftDayPill value={value} />

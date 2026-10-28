@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.2.15',
+    version: '0.2.16',
     date: '2026-10-28',
     title: 'Mentors and captains',
     text:
@@ -23,7 +23,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'Your coaches write when a young player is learning, when he loses his mentor, and when he has grown up.',
   },
   {
-    version: '0.2.14',
+    version: '0.2.15',
     date: '2026-10-28',
     title: 'Personalities',
     text:
@@ -32,6 +32,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       "one sentence on what stands out, and it's only your scouts' read, so it can be early word or wrong. Dirty " +
       'players draw the late-hit flags, and players who tighten up when it counts pick up bad habits under pressure ' +
       'more easily than the steady ones.',
+  },
+  {
+    version: '0.2.14',
+    date: '2026-10-28',
+    title: 'Draft-day trades',
+    text:
+      "The draft trades now. Teams move up when the player they want most won't last to their pick, and move down " +
+      'when they see a player almost as good later, prize the extra pick, or have holes to fill, priced the way NFL ' +
+      "front offices price picks. When you're on the clock, teams that want your pick call you: their offers sit " +
+      "under the clock with your staff's word, and they're gone once you pick. Shop this pick asks the league " +
+      'yourself, and Call teams ahead gets the price of the picks just before yours. Draft history shows who a pick ' +
+      'came from and the deal behind a draft-day trade. Draft classes are a little stronger, so a league holds its ' +
+      'talent once its first generation of veterans has retired.',
   },
   {
     version: '0.2.13',

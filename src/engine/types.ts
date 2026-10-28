@@ -208,7 +208,18 @@ export interface Player {
   retired?: boolean;
   /** `rank`: where the consensus ranked him in his class when he was taken (kept here because old picks are pruned). */
   /** `verdict`: how the pick turned out in your scouts' eyes, locked after his third season (`draftGrade.ts`). */
-  draft?: { season: number; round: number; pick: number; teamId: number; rank?: number; verdict?: PickVerdict };
+  draft?: {
+    season: number;
+    round: number;
+    pick: number;
+    teamId: number;
+    rank?: number;
+    verdict?: PickVerdict;
+    /** The team that held the pick first, when it came from another team. */
+    via?: number;
+    /** A pick moved during the draft: the team that sent it and what it got, as pick labels. */
+    deal?: PickDeal;
+  };
   /** Times franchise-tagged (each consecutive tag costs more). */
   tagCount?: number;
   /** Draft prospects: the league-wide consensus read of overall and ceiling (true ratings stay hidden). AI boards use it. */
@@ -800,6 +811,8 @@ export type DealKind =
   | 'futureSwap'
   | 'cutdown'
   | 'casualty'
+  /** A pick moved during the draft. */
+  | 'draft'
   | 'user';
 
 /** One player's exam by the buyer's doctor (`trade/physicals.ts`); `note` is the doctor's words. */
@@ -857,8 +870,11 @@ export interface TradeOffer {
   sides: [TradeSide, TradeSide];
   /** What the deal is; an enquiry carries no package ("Is your CB available?"). */
   kind: DealKind | 'enquiry';
-  /** Why he called: he wants your player, he's selling one you need, he needs cap room, he's answering your shop or your counter. */
-  reason: 'bid' | 'pitch' | 'dump' | 'enquiry' | 'shop' | 'counter';
+  /**
+   * Why he called: he wants your player, he's selling one you need, he needs cap room, he's answering your shop or
+   * your counter, he wants to move up to your pick on the clock (`draft`), or his price for his pick (`ask`).
+   */
+  reason: 'bid' | 'pitch' | 'dump' | 'enquiry' | 'shop' | 'counter' | 'draft' | 'ask';
   season: number;
   phase: Phase;
   week: number;
@@ -927,6 +943,12 @@ export interface TradeMarket {
   shopped: Record<number, number>;
   /** A deal of yours waiting on your call after its physical. */
   exam?: TradeExam;
+  /** The pick (id) of yours the draft-day offers were last made for: once a pick. */
+  clockPick?: number;
+  /** The pick (id) you last shopped on the clock. */
+  shoppedPick?: number;
+  /** The overall on the clock when you last called the teams ahead of you. */
+  calledAhead?: number;
 }
 
 export interface DeadMoney {
@@ -1112,6 +1134,14 @@ export interface DraftPick {
   playerId?: number;
   /** Where the league consensus ranked that player in his class: reach or steal. */
   consRank?: number;
+  /** Moved during the draft: who sent it and what it got (copied to the player it's used on). */
+  moved?: PickDeal;
+}
+
+/** A pick traded during the draft: the team that sent it and what it got for it, as pick labels ("No. 18"). */
+export interface PickDeal {
+  from: number;
+  got: string[];
 }
 
 /** A user negotiation with a player (re-signing or free agency). Asks are derived, not stored. */
