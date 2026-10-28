@@ -224,14 +224,32 @@ describe('friendships and feuds', () => {
     expect(marbles(b)).toBeGreaterThan(mb);
   });
 
-  it('turns a mentoring pair of two seasons or more into a friendship', () => {
+  it('turns some mentoring pairs of two seasons or more into friendships, and never a shorter one', () => {
     const l = fresh('feuds-mentor');
-    const [vet, kid] = room(l, 1, 'LB');
-    kid.mentor = vet.id;
-    kid.mentorWeeks = 5;
-    kid.mentoredBy = [{ id: vet.id, from: l.season - 1, to: l.season - 1 }];
-    endPair(l, kid);
-    expect(kid.ties?.find((t) => t.with === vet.id)?.kind).toBe('friend');
+    const lbs = room(l, 1, 'LB');
+    const vet = lbs[0];
+    let friends = 0;
+    let n = 0;
+    for (const kid of [...room(l, 1, 'CB'), ...room(l, 1, 'S'), ...room(l, 1, 'WR'), ...room(l, 1, 'OL')]) {
+      kid.mentor = vet.id;
+      kid.mentorWeeks = 5;
+      kid.mentoredBy = [{ id: vet.id, from: l.season - 1, to: l.season - 1 }];
+      delete kid.ties;
+      delete vet.ties;
+      endPair(l, kid);
+      n++;
+      const ties = (kid as Player).ties as Player['ties'];
+      if (ties?.some((t) => t.with === vet.id && t.kind === 'friend')) friends++;
+    }
+    expect(friends).toBeGreaterThan(0);
+    expect(friends).toBeLessThan(n);
+    const short = lbs[1];
+    short.mentor = vet.id;
+    short.mentorWeeks = 5;
+    delete short.mentoredBy;
+    delete vet.ties;
+    endPair(l, short);
+    expect(short.ties ?? []).toHaveLength(0);
   });
 });
 

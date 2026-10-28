@@ -9,7 +9,7 @@ import { addTie } from './relationships';
 import { activeRoster } from './roster';
 import { characterRead, seasonRole } from './scouting';
 import { formerPositions } from './training';
-import { clamp } from './rng';
+import { clamp, Rng } from './rng';
 import { poiseOf, temperamentOf, TRAIT_MEAN, workEthicOf, type Shifted } from './traits';
 import type { League, Player, Position } from './types';
 
@@ -95,10 +95,15 @@ function bank(league: League, young: Player, mentor: Player, weeks: number): voi
   for (const k of SHIFTED) b[k] = (b[k] ?? 0) + s[k];
 }
 
-/** Two seasons or more together and they're friends for good (`relationships.ts`). */
+/** The chance a pair two seasons or more together stays close for good (`relationships.ts`). */
+export const MENTOR_FRIENDS = 0.25;
+
+/** Two seasons or more together, and they may stay close for good (a seeded roll, once per pair). */
 function friendsAfter(league: League, young: Player, mentor: Player): void {
   const spell = young.mentoredBy?.find((e) => e.id === mentor.id);
-  if (spell && spell.to - spell.from >= 1) addTie(league, young, mentor, 'friend');
+  if (!spell || spell.to - spell.from < 1) return;
+  if (new Rng(`${league.seed}:mentorFriends:${young.id}:${mentor.id}`).chance(MENTOR_FRIENDS))
+    addTie(league, young, mentor, 'friend');
 }
 
 /**
