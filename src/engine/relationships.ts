@@ -105,7 +105,20 @@ const played = (league: League, p: Player, season: number) => {
  * or benched him (a starter one year, a backup the next, healthy); good after two or more seasons under him in which he
  * played; otherwise nothing. Never stored: worked out from careers whenever it's needed.
  */
+const rapportCache = new WeakMap<League, { season: number; map: Map<string, 'good' | 'sour' | null> }>();
+
 export function rapport(league: League, p: Player, c: Coach): 'good' | 'sour' | null {
+  // History only grows at the new league year (and with a departure): remembered for the season.
+  let cache = rapportCache.get(league);
+  if (!cache || cache.season !== league.season)
+    rapportCache.set(league, (cache = { season: league.season, map: new Map() }));
+  const key = `${p.id}:${c.id}:${p.left?.length ?? 0}:${Object.keys(p.statTeams ?? {}).length}`;
+  let r = cache.map.get(key);
+  if (r === undefined) cache.map.set(key, (r = rapportNow(league, p, c)));
+  return r;
+}
+
+function rapportNow(league: League, p: Player, c: Coach): 'good' | 'sour' | null {
   for (const d of p.left ?? [])
     if (d.how !== 'walked' && (headCoachOf(c, d.teamId, d.season) || headCoachOf(c, d.teamId, d.season - 1)))
       return 'sour';
@@ -256,4 +269,94 @@ export function snubCheck(league: League, signed: Player): void {
     const rng = new Rng(`${league.seed}:ties:${league.season}:${pairKey(signed, r)}:snub`);
     if (rng.chance(3 * feudOdds(league, signed, r, room))) startFeud(league, r, signed, 'snubbed');
   }
+}
+
+// ───────── what they change ─────────
+
+/** The coaches who coach him at a club now: its head coach, his side's coordinator and his room's position coach. */
+function coachesOf(league: League, p: Player, teamId: number): Coach[] {
+  const pos = p.position;
+  return teamCoaches(league, teamId).filter(
+    (c) =>
+      c.role === 'headCoach' ||
+      (c.role === 'offCoord' && OFFENSE.has(pos)) ||
+      (c.role === 'defCoord' && !OFFENSE.has(pos) && !KICKERS.has(pos)) ||
+      (c.role === 'stCoord' && KICKERS.has(pos)) ||
+      (c.role === 'positionCoach' && c.room === ROOM_OF[pos]),
+  );
+}
+
+/** Greedy and not loyal: friendships and old clubs don't move his price. */
+const mercenary = (p: Player) =>
+  (p.personality.greed - 0.5) / 0.289 >= 1 && (p.personality.loyalty - 0.5) / 0.22 <= -0.5;
+
+/**
+ * The new league year's bag, after it's filled: a coach he gets on with keeps after his bad habits (a fix marble each,
+ * two at most); so does being home, in his first season back; and each feud he's in feeds his temper habits.
+ */
+export function relationshipMarbles(league: League, p: Player): void {
+  if (!p.quirkBag || p.teamId === null) return;
+  const bag = p.quirkBag;
+  const bad = Object.keys(p.quirks ?? {}).filter((id) => QUIRKS[id as keyof typeof QUIRKS]?.tone === 'bad');
+  const fix = (n: number) => {
+    let left = n;
+    for (const id of bad) {
+      if (left <= 0) break;
+      bag[`fix:${id}`] = (bag[`fix:${id}`] ?? 0) + 1;
+      left--;
+    }
+  };
+  if (coachesOf(league, p, p.teamId).some((c) => rapport(league, p, c) === 'good')) fix(2);
+  if (p.contract?.signedSeason === league.season && clubFeeling(league, p, p.teamId) === 'home') fix(1);
+  const feuds = p.ties?.filter((t) => t.kind === 'feud').length ?? 0;
+  if (feuds) for (const id of temperHabits(p)) bag[id] = (bag[id] ?? 0) + feuds;
+}
+
+/**
+ * How his ties lean a deal with `teamId`, as multipliers on what an offer is worth to him (`value`), his walk-away
+ * price and his opening ask: good rapport with its coaches draws him (more for a loyal man), sour rapport with its head
+ * coach puts him off; a friend there draws him, or keeps him home; a club he walked from as a starter is home; one that
+ * cut or traded him in the last three seasons pays more. A Mercenary ignores friends and home.
+ */
+type Lean = { value: number; walkAway: number; ask: number };
+const leanCache = new WeakMap<
+  League,
+  { step: string; byPlayer: Map<number, { sig: string; byTeam: Map<number, Lean> }> }
+>();
+
+export function contractLean(league: League, p: Player, teamId: number): Lean {
+  // Free agency asks this for every offer it weighs: kept for the calendar step, per player, until his club, his
+  // departures or his ties change.
+  const step = `${league.season}:${league.phase}:${league.week}:${league.faDay}`;
+  let cache = leanCache.get(league);
+  if (!cache || cache.step !== step) leanCache.set(league, (cache = { step, byPlayer: new Map() }));
+  const sig = `${p.teamId}:${p.left?.length ?? 0}:${p.ties?.length ?? 0}`;
+  let mine = cache.byPlayer.get(p.id);
+  if (!mine || mine.sig !== sig) cache.byPlayer.set(p.id, (mine = { sig, byTeam: new Map() }));
+  let lean = mine.byTeam.get(teamId);
+  if (!lean) mine.byTeam.set(teamId, (lean = leanFor(league, p, teamId)));
+  return lean;
+}
+
+function leanFor(league: League, p: Player, teamId: number): Lean {
+  let value = 1;
+  let walkAway = 1;
+  let ask = 1;
+  const coaches = coachesOf(league, p, teamId);
+  if (coaches.some((c) => rapport(league, p, c) === 'good')) value *= 1.02 + 0.02 * p.personality.loyalty;
+  const hc = coaches.find((c) => c.role === 'headCoach');
+  if (hc && rapport(league, p, hc) === 'sour') value *= 0.97;
+  const merc = mercenary(p);
+  const friendThere = p.ties?.some((t) => t.kind === 'friend' && league.players[t.with]?.teamId === teamId);
+  if (friendThere && !merc) {
+    if (p.teamId === teamId) walkAway *= 0.97;
+    else value *= 1.02;
+  }
+  const feeling = clubFeeling(league, p, teamId);
+  if (feeling === 'home' && !merc) walkAway *= 0.97;
+  if (feeling === 'grudge') {
+    ask *= 1.05;
+    walkAway *= 1.05;
+  }
+  return { value, walkAway, ask };
 }

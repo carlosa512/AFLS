@@ -65,7 +65,7 @@ import { resetContenderCache, ROSTER_MAX } from './negotiation';
 import { rollService } from '../personnel/service';
 import { settleFinished } from '../ceiling';
 import { mentoringYearEnd, settleMentoring } from '../mentoring';
-import { endTie, tiesOffseason } from '../relationships';
+import { endTie, relationshipMarbles, tiesOffseason } from '../relationships';
 import { nameCaptains } from '../personality';
 import { personnelClock } from '../personnel/calendar';
 import { settleOffseasonWaivers, staffHandlesSquad, syncPersonnel, waiversPending } from '../personnel/flow';
@@ -164,6 +164,8 @@ export function beginOffseason(league: League): void {
     if (p.contract && !isExpired(p.contract, league.season)) trimPast(p.contract, league.season);
     recordRatings(p, league.season);
     quirkOffseason(league, p);
+    // His coaches, his old club and his feuds lean the new bag.
+    relationshipMarbles(league, p);
   }
   // Friendships and feuds: old ones settle or end, rooms roll for new ones.
   tiesOffseason(league);

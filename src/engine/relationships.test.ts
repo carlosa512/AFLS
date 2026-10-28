@@ -7,6 +7,8 @@ import {
   addTie,
   clubFeeling,
   coachedBy,
+  contractLean,
+  relationshipMarbles,
   endFeudsOutsideRoom,
   feudOdds,
   MAX_TIES,
@@ -117,6 +119,36 @@ describe('rapport, homecomings and grudges, read off history', () => {
     expect(clubFeeling(l, { ...p, left: [{ teamId, season: l.season - 4, how: 'cut' }] }, teamId)).toBeNull();
     expect(clubFeeling(l, { ...p, left: [{ teamId, season: l.season, how: 'walked' }] }, teamId)).toBe('home');
     expect(clubFeeling(l, p, (teamId + 1) % 32)).toBeNull();
+  });
+
+  it('nudges the price: grudges dearer, home and friends cheaper, a Mercenary unmoved', () => {
+    const { p, teamId } = twoYearStarter();
+    const other = (teamId + 5) % 32;
+    expect(contractLean(l, p, other)).toEqual({ value: 1, walkAway: 1, ask: 1 });
+    const grudge = { ...p, left: [{ teamId: other, season: l.season - 1, how: 'cut' as const }] };
+    expect(contractLean(l, grudge, other).ask).toBeCloseTo(1.05);
+    expect(contractLean(l, grudge, other).walkAway).toBeCloseTo(1.05);
+    const home = { ...p, left: [{ teamId, season: l.season, how: 'walked' as const }], teamId: null };
+    expect(contractLean(l, home, teamId).walkAway).toBeLessThan(1);
+    const friend = activeRoster(l, other)[0];
+    const pal = { ...p, ties: [{ kind: 'friend' as const, with: friend.id, since: l.season }] };
+    expect(contractLean(l, pal, other).value).toBeGreaterThan(1);
+    // Personality never changes in play, and the price is cached on that: another man, not the same one remade.
+    const merc = { ...pal, id: pal.id + 1_000_000, personality: { ...p.personality, greed: 0.95, loyalty: 0.2 } };
+    expect(contractLean(l, merc, other)).toEqual({ value: 1, walkAway: 1, ask: 1 });
+  });
+
+  it('puts fix marbles in the bag for rapport and temper marbles for a feud', () => {
+    const { p, hc } = twoYearStarter();
+    expect(rapport(l, p, hc)).toBe('good');
+    const bad = (Object.keys(QUIRKS) as (keyof typeof QUIRKS)[]).find(
+      (id) => QUIRKS[id].tone === 'bad' && QUIRKS_FOR[p.position].includes(id),
+    )!;
+    const x = structuredClone(p);
+    x.quirks = { [bad]: 1 };
+    x.quirkBag = { blank: 10, [`fix:${bad}`]: 5 };
+    relationshipMarbles(l, x);
+    expect(x.quirkBag[`fix:${bad}`]).toBeGreaterThan(5);
   });
 
   it('never counts a coach who was on another club', () => {
