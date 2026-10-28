@@ -295,6 +295,24 @@ export const characterOf = (league: League, p: Player) => personalityRead(league
  * The card's makeup fact: his personality, the one sentence behind it, then whatever else stands out (his body, how he
  * travels between positions). Work ethic and temper aren't repeated as tags: the personality line already says them.
  */
+/**
+ * A player's personality as your scouts name it: the name on a pill, and what it means only when you hover or tap it
+ * (like a habit or a coach's quirk). Nothing when they haven't met him.
+ */
+export function PersonalityPill({ league, player }: { league: League; player: Player }) {
+  const character = characterOf(league, player);
+  if (!character) return null;
+  return (
+    <TipPill
+      className={`${TONE_CLASS[personalityTone(character.name)]}${character.hedged ? ' tag-early' : ''}`}
+      tip={character.hedged ? `Early word: ${character.line}` : character.line}
+    >
+      {character.name}
+      {character.hedged && <span className="visually-hidden"> (early word)</span>}
+    </TipPill>
+  );
+}
+
 export function CharacterFact({ league, player }: { league: League; player: Player }) {
   const makeup = makeupOf(league, player);
   const character = characterOf(league, player);
@@ -307,15 +325,8 @@ export function CharacterFact({ league, player }: { league: League; player: Play
       ) : (
         <>
           <span className="pill-row">
-            <TipPill
-              className={`${TONE_CLASS[personalityTone(character.name)]}${character.hedged ? ' tag-early' : ''}`}
-              tip={character.hedged ? `Early word: ${character.line}` : character.line}
-            >
-              {character.name}
-              {character.hedged && <span className="visually-hidden"> (early word)</span>}
-            </TipPill>
+            <PersonalityPill league={league} player={player} />
           </span>
-          <span className="muted small">{character.line}</span>
           {lockerLine(league, player) && <span className="small">{lockerLine(league, player)}</span>}
           <MakeupPills notes={rest} hedged={makeup.hedged} />
         </>
