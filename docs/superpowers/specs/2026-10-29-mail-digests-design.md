@@ -191,6 +191,15 @@ register and never put real people's words in the game):
 Each sender keeps the voice `inbox.ts` gives it: the head coach direct and a bit dry, position coaches plain and
 about their own room, the director analytical and hedged.
 
+### Built for every voice in the game
+
+The picker is not the locker room's alone. `voice.ts` takes any sender's bank (lines with conditions, a register,
+the sender's id for his motto and his recent lines) and knows nothing about mail kinds, so every place the game
+speaks can move onto it later: recaps, opposition reports, the director's advice, the doctor, agents, the owner,
+SNN and the Gazette, scout reports, and players writing for themselves. Chunk A builds the picker and the three
+banks it needs (head coach, position coaches, director on waivers); the rollout to the rest is its own chunk (V),
+one sender at a time.
+
 Sample lines (illustrative; the banks are written in the implementation):
 
 - Verdict, nothing new: "Quiet room. The kind I like heading into October."
@@ -254,7 +263,7 @@ today stay, so old saves' letters keep their cards and kinds.
 | `src/engine/lockerReport.ts` | new: the four check-ins, sections, verdict |
 | `src/engine/waiverMail.ts` | new: the day's waiver letter, moved out of `inbox.ts` and extended |
 | `src/engine/staffNotes.ts` | new: the weekly staff-notes letter |
-| `src/engine/mailVoice.ts` | new: the line picker (conditions, specificity, stable tie-break, recent-line skip) and each head coach's motto |
+| `src/engine/voice.ts` | new: the line picker for any sender (conditions, specificity, stable tie-break, recent-line skip) and each coach's motto |
 | `src/engine/lockerMail.ts` | drop `took`, `grownUp`, `gone`, `captains`, `feudMail`, `friendGoneMail` from delivery (their conditions move to the report) |
 | `src/engine/inbox.ts` | call the new letters; `positionMovedMail` becomes one letter; recap and matchup stop carrying coaching notes; `mailSubject`, `needsYou`, `FOLDED` |
 | `src/engine/types.ts` | `sections`, `covered` on `InboxMessage` |
@@ -282,11 +291,17 @@ Mail never changes the sim, so no sims: `npm run typecheck` and the touched test
 
 ## Out of scope (later chunks)
 
-- Who should be captain, and the Locker Room screen's table (chunk D).
-- Staff faces and club colours on our own mail (chunk B).
-- Contract letters you act on in place (chunk C).
-- The director's upgrade advice (chunk E).
-- SNN's speaking-out stories (chunk F).
+Build order agreed with the owner: **A → C → G → V**, then B, D, E, F. Each gets its own design.
+
+- **C.** Contract letters you act on in place: agents' and staff letters with re-sign, let walk and extend.
+- **G.** Players speak for themselves: asking for an extension they've earned, unhappy about playing time, hold-ins
+  and holdouts. A sim system (the roadmap's "Morale and holdouts", `docs/GAME_DESIGN.md`), with AI clubs' players
+  too, so it gets sim checks of its own.
+- **V.** Every place the game speaks moves onto `voice.ts`, one sender at a time.
+- **B.** Staff faces and club colours on our own mail.
+- **D.** Who should be captain, and the Locker Room screen's table.
+- **E.** The director's upgrade advice.
+- **F.** SNN's speaking-out stories.
 
 ## Sources for the voice
 
