@@ -5,7 +5,9 @@ import { applyInjury, NEED } from '../engine/injuries';
 import { chooseCover } from '../engine/roster';
 import { createLeague } from '../engine/generate';
 import { endGmAppointment } from '../engine/gm';
-import { playWeek } from '../engine/league';
+import { playWeek, simToEndOfSeason } from '../engine/league';
+import { beginOffseason, setLettingWalk } from '../engine/offseason';
+import { expiringPlayers } from '../engine/offseason/ai';
 import { answerEnquiry, openOffers } from '../engine/trade';
 import { talksOf } from '../engine/trade/talks';
 import { dealAdvice } from '../engine/trade/advice';
@@ -14,7 +16,7 @@ import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
 import { aboutOf, clubOf, Folded, MessageBody, sender, SenderAvatar } from './screens/Inbox';
 import { badgeOn, contrast } from './color';
-import { adviceDraft, MailCards, weekBack, weeksMissed } from './mail';
+import { adviceDraft, MailCards, Person, weekBack, weeksMissed } from './mail';
 
 // Fallbacks, tried in order until one has what a test needs: an opening league that commits as a settled one does
 // files fewer swap offers to you (none of trades-0..9 had one with players both ways by week 9 once rentals for
@@ -798,5 +800,119 @@ describe('a letter with sections', () => {
     // Each row's name is a player link (a button that opens his card), not plain text.
     expect(html).toMatch(new RegExp(`class="linklike"[^>]*><span>${a.position} ${a.firstName} ${a.lastName}`));
     expect(html).toMatch(new RegExp(`class="linklike"[^>]*><span>${b.position} ${b.firstName} ${b.lastName}`));
+  });
+});
+
+describe('the contracts letter', () => {
+  let base = '';
+  const resign = (): League => {
+    if (!base) {
+      const l = createLeague({ seed: 'contract-ui' });
+      simToEndOfSeason(l);
+      deliverMail(l);
+      beginOffseason(l);
+      deliverMail(l);
+      base = JSON.stringify(l);
+    }
+    return JSON.parse(base);
+  };
+  const letter = (l: League) => l.inbox!.find((m) => m.id.startsWith('expiring:'))!;
+  const html = (l: League) =>
+    renderToStaticMarkup(
+      <MessageBody league={l} m={letter(l)} index={nameIndex(l)} act={() => {}} onNegotiate={() => {}} />,
+    );
+
+  it('offers sign, tag, let walk and negotiate on an undecided row', () => {
+    const l = resign();
+    const out = html(l);
+    expect(out).toContain('Sign at ask');
+    expect(out).toContain('Let walk');
+    expect(out).toContain('Negotiate');
+    expect(out).toMatch(/Tag \$/);
+  });
+
+  it('shows what happened once a row is decided', () => {
+    const l = resign();
+    const [p] = expiringPlayers(l, l.userTeamId);
+    setLettingWalk(l, p.id, true);
+    expect(html(l)).toContain('Letting him walk');
+    expect(html(l)).toContain('Keep talking');
+  });
+
+  it("disables Sign at ask with the reason when it won't fit", () => {
+    const l = resign();
+    // Spend the cap: a huge dead-money charge this season leaves no room.
+    l.teams[l.userTeamId].deadMoney.push({ season: l.season, amount: 400000, playerId: -1, note: 'test' });
+    const out = html(l);
+    expect(out).toMatch(
+      /disabled=""[^>]*title="[^"]+"[^>]*>Sign at ask|title="[^"]+"[^>]*disabled=""[^>]*>Sign at ask/,
+    );
+  });
+});
+
+describe('the staff contracts letter', () => {
+  it('offers Let go beside Extend, with a call on each, while the window is open', () => {
+    const l = createLeague({ seed: 'staff-letgo' });
+    simToEndOfSeason(l);
+    deliverMail(l);
+    beginOffseason(l);
+    deliverMail(l);
+    const m = l.inbox!.find((x) => x.id.startsWith(`staff:${l.season}:deals`));
+    if (!m) return;
+    const out = renderToStaticMarkup(<MessageBody league={l} m={m} index={nameIndex(l)} act={() => {}} />);
+    expect(out).toContain('Let go');
+    expect(out).toMatch(
+      /Worth the raise|Keep him|Fair price|budget|better for the money|better on the market|steep raise|owner/,
+    );
+  });
+
+  it('asks before letting the head coach go', () => {
+    const l = createLeague({ seed: 'staff-letgo' });
+    const c = Object.values(l.coaches).find((x) => x.teamId === l.userTeamId && x.role === 'headCoach')!;
+    const out = renderToStaticMarkup(
+      <Person
+        confirming
+        row={{
+          key: 'c',
+          kind: 'coach',
+          id: c.id,
+          person: c,
+          name: `${c.firstName} ${c.lastName}`,
+          title: 'Head coach',
+          age: c.age,
+          ratings: [],
+          salary: 1000,
+          ask: 1000,
+          letGo: { go: () => {}, confirm: "You'll need a new head coach before camp." },
+        }}
+      />,
+    );
+    expect(out).toContain(`Let ${c.firstName} ${c.lastName} go?`);
+    expect(out).toContain('need a new head coach before camp.');
+  });
+
+  it("disables Let go with the reason when he can't be let go", () => {
+    const l = createLeague({ seed: 'staff-letgo' });
+    const c = Object.values(l.coaches).find((x) => x.teamId === l.userTeamId && x.role === 'headCoach')!;
+    const out = renderToStaticMarkup(
+      <Person
+        row={{
+          key: 'c',
+          kind: 'coach',
+          id: c.id,
+          person: c,
+          name: 'X',
+          title: 'Head coach',
+          age: c.age,
+          ratings: [],
+          salary: 1000,
+          ask: 1000,
+          letGo: { go: () => {}, problem: 'The owner wants him kept.' },
+        }}
+      />,
+    );
+    expect(out).toMatch(
+      /disabled=""[^>]*title="The owner wants him kept."|title="The owner wants him kept."[^>]*disabled=""/,
+    );
   });
 });

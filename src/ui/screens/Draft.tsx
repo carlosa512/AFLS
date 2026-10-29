@@ -19,6 +19,7 @@ import type { DraftPick, League, PickDeal, Player, Position } from '../../engine
 import { POSITIONS } from '../../engine/types';
 import {
   Panel,
+  Dialog,
   PlayerLink,
   PositionFilter,
   Rating,
@@ -590,9 +591,7 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
               )}
             </>
           )}
-          <button className="btn btn-ghost" onClick={() => store.mutate(draftToEnd)}>
-            Sim the rest (AI picks for you)
-          </button>
+          <SimTheRest />
         </span>
       }
     >
@@ -831,4 +830,46 @@ function BoardHabits({ league, player }: { league: League; player: Player }) {
       </span>
     );
   return <QuirkPills notes={h.notes} limit={1} oneLine />;
+}
+
+/** What auto-drafting does, said once for the top bar's Auto-draft… and the draft room's Sim the rest. */
+export const AUTO_DRAFT = {
+  title: 'Let the AI make the rest of the picks?',
+  body: "The AI makes every remaining pick, yours included. This can't be undone.",
+};
+
+/** The draft room's Sim the rest: it asks first, since it makes your picks too. */
+export function SimTheRest({ confirming = false }: { confirming?: boolean }) {
+  const [asking, setAsking] = useState(confirming);
+  return (
+    <>
+      <button className="btn btn-ghost" onClick={() => setAsking(true)}>
+        Sim the rest (AI picks for you)
+      </button>
+      {asking && (
+        <Dialog
+          title={AUTO_DRAFT.title}
+          onClose={() => setAsking(false)}
+          footer={
+            <>
+              <button className="btn" onClick={() => setAsking(false)} data-autofocus>
+                I&apos;ll pick
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setAsking(false);
+                  store.mutate(draftToEnd);
+                }}
+              >
+                Auto-draft
+              </button>
+            </>
+          }
+        >
+          <p style={{ margin: 0 }}>{AUTO_DRAFT.body}</p>
+        </Dialog>
+      )}
+    </>
+  );
 }

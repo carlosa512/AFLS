@@ -4291,6 +4291,13 @@ button.tip-pill {
   justify-content: flex-end;
   text-align: right;
 }
+.mail-row-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
 .mail-row-note {
   grid-column: 1 / -1;
   margin: 0;

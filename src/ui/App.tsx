@@ -10,6 +10,7 @@ import {
   advanceOffseason,
   beginOffseason,
   draftComplete,
+  draftToEnd,
   FA_DAYS,
   offseasonBlockers,
   simOffseason,
@@ -19,6 +20,7 @@ import { computeRecords } from '../engine/season/standings';
 import { isDeadlineDay } from '../engine/trade';
 import type { League } from '../engine/types';
 import { Dialog, TeamChip } from './components';
+import { AUTO_DRAFT } from './screens/Draft';
 import { isOffseasonPhase, PHASE_LABELS, recordText, resultsSeason, weekLabel } from './format';
 import { BoxScore } from './screens/BoxScore';
 import { CoachCard } from './screens/Coaches';
@@ -83,7 +85,7 @@ interface Step {
 }
 
 /** The one obvious next action in the offseason calendar. */
-function offseasonStep(league: League): Step | null {
+export function offseasonStep(league: League): Step | null {
   switch (league.phase) {
     case 'complete':
       return {
@@ -106,7 +108,8 @@ function offseasonStep(league: League): Step | null {
     case 'draft':
       return draftComplete(league)
         ? { label: 'Start training camp', run: (l) => advanceOffseason(l), then: { view: 'cap' } }
-        : { label: 'Finish the draft', run: (l) => advanceOffseason(l), then: { view: 'cap' } };
+        : // Picks still to make: take him to the draft room. Auto-drafting is the second button, and it asks first.
+          { label: 'Go to the draft', run: () => {}, then: { view: 'office', tab: 'draft' } };
     case 'preseason':
       if (league.personnel?.enabled) {
         if (!league.personnel.clock?.cutdown)
@@ -288,17 +291,27 @@ export function App() {
             ok: 'Sim to the title',
             cancel: 'Keep playing',
           }
-        : step
+        : league.phase === 'draft' && !draftComplete(league)
           ? {
-              label: 'Sim offseason…',
-              fn: (l) => simOffseason(l, true),
-              title: 'Let the AI run your offseason?',
-              body: 'Your front office makes every call through to week 1: re-signings, tags, free agency, the draft and cuts. You can review every move on the Cap screen afterwards.',
-              ok: 'Sim to week 1',
-              cancel: "I'll do it myself",
-              then: { view: 'home' },
+              label: 'Auto-draft…',
+              fn: draftToEnd,
+              title: AUTO_DRAFT.title,
+              body: AUTO_DRAFT.body,
+              ok: 'Auto-draft',
+              cancel: "I'll pick",
+              then: { view: 'office', tab: 'draft' },
             }
-          : null;
+          : step
+            ? {
+                label: 'Sim offseason…',
+                fn: (l) => simOffseason(l, true),
+                title: 'Let the AI run your offseason?',
+                body: 'Your front office makes every call through to week 1: re-signings, tags, free agency, the draft and cuts. You can review every move on the Cap screen afterwards.',
+                ok: 'Sim to week 1',
+                cancel: "I'll do it myself",
+                then: { view: 'home' },
+              }
+            : null;
 
   const pendingGames = gamesInWeek(league).filter((g) => !g.result).length;
   const tabOf = (r: Route): Route['view'] =>

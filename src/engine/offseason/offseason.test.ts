@@ -8,10 +8,20 @@ import { playerOvr, STARTERS } from '../positions';
 import { activeRoster, teamPlayers } from '../roster';
 import type { League } from '../types';
 import { POSITIONS } from '../types';
-import { advanceOffseason, beginOffseason, draftNextPick, FA_DAYS, offseasonBlockers, simOffseason } from '.';
+import {
+  advanceOffseason,
+  beginOffseason,
+  draftNextPick,
+  FA_DAYS,
+  lettingWalk,
+  offseasonBlockers,
+  setLettingWalk,
+  simOffseason,
+} from '.';
 import {
   aiOffer,
   aiResignWindow,
+  resignCall,
   aiTrainingCamp,
   applyFranchiseTag,
   expiringPlayers,
@@ -446,5 +456,70 @@ describe('camp signings', () => {
     );
     expect(cheap.map((p) => `${p.position} ${p.firstName} ${p.lastName}`)).toEqual([]);
     expect(star.teamId).toBeNull();
+  });
+});
+
+describe('the re-sign call', () => {
+  it("the AI's re-sign window decides as it always has (pinned)", () => {
+    const league = fresh();
+    beginOffseason(league);
+    const rng = new Rng('resign-pin');
+    const out: Record<string, { kept: number[]; tagged: number[] }> = {};
+    for (const t of league.teams) {
+      if (t.id === league.userTeamId) continue;
+      const expiring = expiringPlayers(league, t.id);
+      aiResignWindow(league, t, rng);
+      const stayed = expiring.filter((p) => p.teamId === t.id && !isExpired(p.contract!, league.season));
+      out[t.abbrev] = {
+        kept: stayed.filter((p) => p.contract!.kind !== 'tag').map((p) => p.id),
+        tagged: stayed.filter((p) => p.contract!.kind === 'tag').map((p) => p.id),
+      };
+    }
+    expect(out).toMatchSnapshot();
+  });
+
+  it('reads each expiring player as keep, tag or walk, with a reason', () => {
+    const league = fresh();
+    beginOffseason(league);
+    let tagged = false;
+    for (const t of league.teams) {
+      for (const p of expiringPlayers(league, t.id)) {
+        const r = resignCall(league, t.id, p);
+        expect(['keep', 'tag', 'walk']).toContain(r.call);
+        if (r.call === 'walk') expect(['fading', 'age', 'backup']).toContain(r.reason);
+        else expect(['starter', 'young', 'depth']).toContain(r.reason);
+        if (r.call === 'tag' && !tagged) {
+          // One tag a year: once it's used on someone else, a tag call reads keep.
+          const other = expiringPlayers(league, t.id).find((q) => q.id !== p.id && !tagBlocker(league, q));
+          if (other) {
+            applyFranchiseTag(league, other);
+            expect(resignCall(league, t.id, p).call).toBe('keep');
+            tagged = true;
+          }
+        }
+      }
+    }
+    const old = expiringPlayers(league, league.userTeamId)[0];
+    old.age = 40;
+    expect(resignCall(league, league.userTeamId, old)).toMatchObject({ call: 'walk', reason: 'age' });
+  });
+
+  it('lets a player walk, and takes it back, for this window only', () => {
+    const league = fresh();
+    beginOffseason(league);
+    const [p] = expiringPlayers(league, league.userTeamId);
+    expect(lettingWalk(league, p.id)).toBe(false);
+    setLettingWalk(league, p.id, true);
+    expect(lettingWalk(league, p.id)).toBe(true);
+    setLettingWalk(league, p.id, false);
+    expect(lettingWalk(league, p.id)).toBe(false);
+    setLettingWalk(league, p.id, true);
+    league.season++;
+    expect(lettingWalk(league, p.id)).toBe(false);
+    league.season--;
+    const signed = teamPlayers(league, league.userTeamId).find(
+      (q) => q.contract && !isExpired(q.contract, league.season),
+    )!;
+    expect(() => setLettingWalk(league, signed.id, true)).toThrow();
   });
 });

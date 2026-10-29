@@ -296,6 +296,40 @@ export function expiringPlayers(league: League, teamId: number): Player[] {
     .sort((a, b) => playerOvr(b) - playerOvr(a));
 }
 
+export type ResignReason = 'starter' | 'young' | 'depth' | 'fading' | 'age' | 'backup';
+
+/**
+ * A club's call on one of its expiring players: keep him, tag him, or let him walk, and why. Kept on where he's
+ * headed: a fading veteran has to beat the room's future, a climbing one is worth his raise. The AI's re-sign window
+ * keeps whoever this doesn't send walking (`depth` grows as it re-signs); our staff's contracts letter reads the same
+ * call. A tag is the call for a keeper the market pays at the top, young enough, with the tag still open: the AI
+ * tosses a coin on it, our staff just say so.
+ */
+export function resignCall(
+  league: League,
+  teamId: number,
+  p: Player,
+  depth: Record<Position, number[]> = depthOutlooks(league, league.teams[teamId]),
+  wn = winNow(league, league.teams[teamId]),
+): { call: 'keep' | 'tag' | 'walk'; reason: ResignReason; ahead: number } {
+  const ovr = playerOvr(p);
+  const ahead = teamOutlook(league, teamId, p, wn);
+  const mine = depth[p.position];
+  const starterBar = mine[STARTERS[p.position] - 1] ?? 0;
+  // A team knows its own players' games; their ceilings are still its scouts' judgment.
+  const view = p.age <= 25 ? perceive(league, teamId, p) : null;
+  const young = !!view && projectedCeiling(ovr, view.potMid, characterRead(league, teamId, p)?.workEthic) >= 12;
+  const starter = ahead >= starterBar - 0.5;
+  const thin = mine.length < KEEP_MIN[p.position];
+  const age = p.age - ageShift(p.position);
+  if (age > 33) return { call: 'walk', reason: 'age', ahead };
+  if (!starter && !young && !thin) return { call: 'walk', reason: ahead < ovr ? 'fading' : 'backup', ahead };
+  const reason: ResignReason = starter ? 'starter' : young ? 'young' : 'depth';
+  const tier = payTier(p.position, positionRank(leagueMarket(league), p));
+  const tag = tier >= 0.75 && age <= 30 && !tagBlocker(league, p);
+  return { call: tag ? 'tag' : 'keep', reason, ahead };
+}
+
 /** The AI's re-sign window: options, extensions for keepers, a tag for a star who won't sign. */
 export function aiResignWindow(league: League, team: Team, rng: Rng): void {
   aiFifthYearOptions(league, team);
@@ -306,17 +340,9 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
   const budget = () =>
     spendable(league, team.id) + (openSpots(league, team.id) > 0 ? topMinimum(league.caps[league.season]) : 0);
   for (const p of expiringPlayers(league, team.id)) {
-    const ovr = playerOvr(p);
-    // Kept on where he's headed: a fading veteran has to beat the room's future, a climbing one is worth his raise.
-    const ahead = teamOutlook(league, team.id, p, wn);
+    const { call, ahead } = resignCall(league, team.id, p, depth, wn);
+    if (call === 'walk') continue;
     const mine = depth[p.position];
-    const starterBar = mine[STARTERS[p.position] - 1] ?? 0;
-    // A team knows its own players' games; their ceilings are still its scouts' judgment.
-    const view = p.age <= 25 ? perceive(league, team.id, p) : null;
-    const young = !!view && projectedCeiling(ovr, view.potMid, characterRead(league, team.id, p)?.workEthic) >= 12;
-    const keeper =
-      (ahead >= starterBar - 0.5 || young || mine.length < KEEP_MIN[p.position]) && p.age - ageShift(p.position) <= 33;
-    if (!keeper) continue;
     const offer = aiOffer(league, team, p, rng, needGain(depth, p, ahead + quirkWorth(league, team.id, p)));
     offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
     const d = demand(league, p, team.id);

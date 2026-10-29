@@ -2,6 +2,7 @@ import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
 import { lockerReportMail } from './lockerReport';
 import { director, doctor, headCoach, type Draft } from './senders';
 import { waiverLetterNeedsYou, waiverMail } from './waiverMail';
+import { contractLetterNeedsYou, contractMail } from './contractMail';
 import { recentBodies, say, toldKeys, type Line } from './voice';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
@@ -448,26 +449,12 @@ function setbackMail(league: League, have: Set<string>): Draft[] {
   return out;
 }
 
-/** The start of the league year: deals that are up and players who retired. */
+/** The start of the league year: players who retired. */
 function newYearMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
   const { season } = league;
   const team = league.teams[league.userTeamId];
-  for (const p of expiringPlayers(league, team.id)) {
-    const id = `contracts:${season}:${p.id}`;
-    if (have.has(id)) continue;
-    out.push({
-      id,
-      season,
-      phase: 'resign',
-      week: 0,
-      from: `${fullName(p)}'s agent`,
-      category: 'contracts',
-      subject: `${fullName(p)}'s contract is up`,
-      body: `My client's deal with the ${teamName(team)} has run out. He's open to staying, and we'd like to hear your offer during the re-sign window. Once free agency opens, he'll listen to the rest of the league.`,
-      actions: [{ kind: 'player', playerId: p.id }, { kind: 'resign' }],
-    });
-  }
+  // Expiring deals go in the director's contracts letter (`contractMail.ts`); old saves keep their agents' letters.
   const last = season - 1;
   for (const p of Object.values(league.players)) {
     // Retired this offseason after finishing last season with us.
@@ -764,7 +751,8 @@ export type MailSubject =
   | { kind: 'lockerReport'; season: number; checkin: 'camp' | 'cutdown' | 'deadline' | 'end' }
   | { kind: 'waivers'; season: number; week: number }
   | { kind: 'staffNotes'; season: number; week: number }
-  | { kind: 'positionMoves'; season: number };
+  | { kind: 'positionMoves'; season: number }
+  | { kind: 'expiring'; season: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -893,6 +881,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'staffNotes', season, week: Number(a) };
     case 'positions':
       return { kind: 'positionMoves', season };
+    case 'expiring':
+      return { kind: 'expiring', season };
     case 'position':
       return a === 'offer'
         ? { kind: 'positionOffer', season, playerId: Number(b), to: rest[0] as Position }
@@ -937,6 +927,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       return false;
     case 'waivers':
       return waiverLetterNeedsYou(league, m.sections);
+    case 'expiring':
+      return contractLetterNeedsYou(league, m.sections);
     case 'contract':
       return league.phase === 'resign' && expiringPlayers(league, user).some((p) => p.id === s.playerId);
     case 'combine':
@@ -2885,6 +2877,7 @@ export function deliverMail(league: League): void {
         ...ownerMail(league, have),
         ...staffDealsMail(league, have),
         ...newYearMail(league, have),
+        ...contractMail(league, have),
         ...futuresKeptMail(league, have),
         ...personnelOfferMail(league, have),
       );

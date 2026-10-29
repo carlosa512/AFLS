@@ -4,15 +4,15 @@ import { deliverMail, mailSubject } from './inbox';
 import { migrateLeague } from './migrate';
 import type { InboxMessage } from './types';
 
-describe('save v65', () => {
+describe('save v65 and v66', () => {
   it('a v64 save loads at 65 with its inbox as it was', () => {
     const l = createLeague({ seed: 'v65' });
     deliverMail(l);
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(65);
-    expect(up.version).toBe(65);
+    expect(SAVE_VERSION).toBe(66);
+    expect(up.version).toBe(66);
     expect(up.inbox).toEqual(before);
   });
 });
