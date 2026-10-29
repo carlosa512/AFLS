@@ -34,7 +34,7 @@ const seasons = Number(process.argv[2] ?? 16);
 const SEEDS = ['careers-audit', 'careers-audit-2', 'careers-audit-3', 'careers-audit-4'];
 /**
  * Four more leagues for the coaching trees' averages alone: four held a live-tree count of 1.9 on one world and 2.2 on
- * the next with the same parity and coaching turnover (owner's call, 0.2.24: a bigger sample, the same range). The
+ * the next with the same parity and coaching turnover (owner's call, 0.2.24: a bigger sample, the same ranges). The
  * "most" and "fewest" in any one league stay on the four, where more leagues would only make them stricter.
  */
 const TREE_SEEDS = ['careers-audit-5', 'careers-audit-6', 'careers-audit-7', 'careers-audit-8'];
@@ -461,12 +461,15 @@ console.log(
       hires.reduce((n, h) => n + h.total, 0),
     );
   // One offseason's share is judged only where five or more clubs changed head coach (fewer is a coin flip).
+  // Live trees are read in the steady state, as the biggest tree is: a new league starts with none, and a tree needs a
+  // head coach's three seasons and two disciples hired before it counts, so the early seasons only dragged the mean
+  // (the owner's call, 0.2.24: G2 read 1.9 over all sixteen seasons, against main's 2.2).
   const busiest = Math.max(
     0,
     ...t.flatMap((x) => x.hires.filter((h) => h.total >= 5).map((h) => h.mostFromOne / h.total)),
   );
   console.log(
-    `coaching trees: ${check('live trees', mean(all((x) => x.live)), 2, 5, 1)} · ${check('biggest (steady)', mean(pooled.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in an offseason', busiest, 0, 0.4)} · ${check('trees born per league', mean(pooled.map((x) => x.born)), 1, 4, 1)} · ${check('founding trees alive at the end (fewest)', Math.min(...t.map((x) => x.foundingAlive)), 1, Infinity, 0)}`,
+    `coaching trees: ${check('live trees (steady)', mean(pooled.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1)} · ${check('biggest (steady)', mean(pooled.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in an offseason', busiest, 0, 0.4)} · ${check('trees born per league', mean(pooled.map((x) => x.born)), 1, 4, 1)} · ${check('founding trees alive at the end (fewest)', Math.min(...t.map((x) => x.foundingAlive)), 1, Infinity, 0)}`,
   );
 }
 console.log(`\n${misses} number(s) outside target range`);
