@@ -236,6 +236,8 @@ export function migrateLeague(league: League): League | null {
   }
   // v68: `Morale.talk` (players speaking up, G3) and the talk jolts: optional, absent to start.
   if (league.version < 68) league.version = 68;
+  // v69: `DevYear.mood` (G2's growth tilt): optional, absent to start; a year rolled before it lands untilted.
+  if (league.version < 69) league.version = 69;
   return league;
 }
 

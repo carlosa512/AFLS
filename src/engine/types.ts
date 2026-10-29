@@ -374,6 +374,8 @@ export interface DevYear {
   bodyAs?: Position;
   /** The ceiling the year was rolled with, under 26 (a settle during the year moves only the next roll). Missing before v57. */
   potential?: number;
+  /** His mood's tilt on a growth year so far (G2, `MOOD_TILT`), four places; absent at 0. */
+  mood?: number;
   /** Share of the year released so far (0–1). */
   done: number;
   /** Integer change applied so far to each rating, in `ATTRIBUTES` order; trailing zeros are dropped (missing = 0). */

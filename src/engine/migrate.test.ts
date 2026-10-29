@@ -14,8 +14,8 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(68);
-    expect(up.version).toBe(68);
+    expect(SAVE_VERSION).toBe(69);
+    expect(up.version).toBe(69);
     expect(up.inbox).toEqual(before);
   });
 });
@@ -27,7 +27,7 @@ describe('save v67', () => {
     delete l.moraleAt;
     l.version = 66;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(68);
+    expect(up.version).toBe(69);
     const ctx = moraleContext(up);
     for (const p of Object.values(up.players)) {
       if (p.teamId === null) {
@@ -66,8 +66,21 @@ describe('save v68', () => {
     const before = JSON.stringify(Object.values(l.players).map((p) => p.morale ?? null));
     l.version = 67;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(68);
+    expect(up.version).toBe(69);
     expect(JSON.stringify(Object.values(up.players).map((p) => p.morale ?? null))).toBe(before);
+  });
+});
+
+describe('save v69', () => {
+  it('loads a v68 save with every open year as it was, and no tilt added', () => {
+    const l = createLeague({ seed: 'v69' });
+    const p = Object.values(l.players).find((x) => x.teamId !== null)!;
+    p.dev = { season: l.season, games: 10, rate: 1, potential: p.potential, done: 0.6, applied: [1] };
+    const before = JSON.stringify(Object.values(l.players).map((x) => x.dev ?? null));
+    l.version = 68;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(69);
+    expect(JSON.stringify(Object.values(up.players).map((x) => x.dev ?? null))).toBe(before);
   });
 });
 
