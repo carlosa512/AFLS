@@ -62,7 +62,7 @@ const moments: [string, (l: League) => boolean][] = [
   ['deadline', (l) => l.phase === 'regular' && l.week >= TRADE_DEADLINE_WEEK && l.season === startSeason],
   // The stretch run: a few weeks of the staff's notes behind it.
   ['late', (l) => l.phase === 'regular' && l.week >= 15 && l.season === startSeason],
-  ['end', (l) => l.phase === 'resign'],
+  ['end', (l) => l.phase === 'resign' && employed(l)],
   ['camp', (l) => l.phase === 'preseason'],
   // Cut-down day: the wire is full of other clubs' releases.
   ['wire', (l) => l.phase === 'preseason' && (l.personnel?.waivers?.pending.length ?? 0) > 0],

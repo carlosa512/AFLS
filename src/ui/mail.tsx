@@ -41,7 +41,10 @@ import {
   medicName,
   medicResignForecast,
 } from '../engine/medical';
-import { demand, rookieCost, ROSTER_MAX } from '../engine/offseason/negotiation';
+import { askOffer, demand, makeOffer, offerProblem, rookieCost, ROSTER_MAX } from '../engine/offseason/negotiation';
+import { applyFranchiseTag, tagBlocker, tagValue } from '../engine/offseason/ai';
+import { setLettingWalk } from '../engine/offseason';
+import { contractDecision } from '../engine/contractMail';
 import { coachSchemeLabel } from '../engine/schemes';
 import {
   extendStaff,
@@ -2671,17 +2674,34 @@ function PositionMovedCards({ league, s }: { league: League; s: Extract<MailSubj
  * A letter's tables, as filed (the locker room report, the waiver letter, the staff's notes, position changes): one
  * card per section, its line above, a row per player with his name linked and the writer's note beneath. Columns sort.
  */
-export function MailSections({ league, sections }: { league: League; sections: MailSection[] }) {
+export function MailSections({
+  league,
+  sections,
+  onNegotiate,
+}: {
+  league: League;
+  sections: MailSection[];
+  /** Open contract talks with a player (the contracts letter's Negotiate). */
+  onNegotiate?: (playerId: number) => void;
+}) {
   return (
     <>
       {sections.map((sec, i) => (
-        <SectionCard key={i} league={league} section={sec} />
+        <SectionCard key={i} league={league} section={sec} onNegotiate={onNegotiate} />
       ))}
     </>
   );
 }
 
-function SectionCard({ league, section }: { league: League; section: MailSection }) {
+function SectionCard({
+  league,
+  section,
+  onNegotiate,
+}: {
+  league: League;
+  section: MailSection;
+  onNegotiate?: (playerId: number) => void;
+}) {
   const [sort, onSort] = useSort<string>({ key: 'none', desc: false });
   const cols = section.columns ?? [];
   const rows =
@@ -2712,11 +2732,23 @@ function SectionCard({ league, section }: { league: League; section: MailSection
                   {facts && <span className="small muted"> {facts}</span>}
                 </div>
                 <div className="mail-row-side">
-                  {r.cells.length > 1 && <span className="small">{r.cells.at(-1)}</span>}
+                  {r.contract ? (
+                    <span className={`tag-pill ${CALL_TONE[r.cells.at(-1)!] ?? ''}`}>{r.cells.at(-1)}</span>
+                  ) : (
+                    r.cells.length > 1 && <span className="small">{r.cells.at(-1)}</span>
+                  )}
                   {r.claim && <ClaimButton league={league} entryId={r.claim.entryId} />}
                 </div>
                 {r.note && <p className="mail-row-note">{r.note}</p>}
                 {r.claim && <ClaimProblem league={league} entryId={r.claim.entryId} />}
+                {r.contract && (
+                  <ContractControls
+                    league={league}
+                    playerId={r.contract.playerId}
+                    call={r.cells.at(-1)!}
+                    onNegotiate={onNegotiate}
+                  />
+                )}
               </li>
             );
           })}
@@ -2797,5 +2829,88 @@ function ClaimProblem({ league, entryId }: { league: League; entryId: number }) 
     <p className="mail-row-note small">
       {/roster move/.test(problem) ? 'We need a roster spot first: pick who goes on the Waiver wire screen.' : problem}
     </p>
+  );
+}
+
+/**
+ * A contracts-letter row's buttons, read from the league as it is: while the re-sign window is open and he has no
+ * decision, sign at his ask, tag, let him walk or negotiate (the same calls the Re-sign screen makes); otherwise what
+ * happened to him.
+ */
+/** The staff's call on a contracts-letter row, as a pill. */
+const CALL_TONE: Record<string, string> = { Keep: 'tag-good', Tag: 'tag-warn', 'Let walk': '' };
+
+function ContractControls({
+  league,
+  playerId,
+  call,
+  onNegotiate,
+}: {
+  league: League;
+  playerId: number;
+  /** The staff's call as filed (Keep, Tag, Let walk): its button leads. */
+  call: string;
+  onNegotiate?: (playerId: number) => void;
+}) {
+  const p = league.players[playerId];
+  if (!p) return null;
+  const user = league.userTeamId;
+  const decided = contractDecision(league, playerId);
+  if (decided === 'signed' && p.contract)
+    return <p className="mail-row-note small">Re-signed thru {lastSeason(p.contract)}</p>;
+  if (decided === 'tagged') return <p className="mail-row-note small">Tagged for {league.season}</p>;
+  if (decided === 'broken') return <p className="mail-row-note small">Talks broken off</p>;
+  if (league.phase !== 'resign') {
+    if (p.teamId !== null && p.teamId !== user)
+      return (
+        <p className="mail-row-note small">
+          Signed with the <TeamLink team={league.teams[p.teamId]} />
+        </p>
+      );
+    return <p className="mail-row-note small">{p.retired ? 'Retired' : 'Walked in free agency'}</p>;
+  }
+  if (decided === 'walking')
+    return (
+      <div className="mail-row-actions">
+        <span className="muted small">Letting him walk</span>
+        <button className="btn btn-sm" onClick={() => store.mutate((l) => setLettingWalk(l, playerId, false))}>
+          Keep talking
+        </button>
+      </div>
+    );
+  const ask = askOffer(demand(league, p, user));
+  const signProblem = offerProblem(league, p, user, ask);
+  const tagProblem = tagBlocker(league, p);
+  return (
+    <div className="mail-row-actions">
+      <button
+        className={`btn btn-sm${call === 'Keep' ? ' btn-primary' : ''}`}
+        disabled={!!signProblem}
+        title={signProblem ?? undefined}
+        onClick={() => store.mutate((l) => void makeOffer(l, l.players[playerId], l.userTeamId, ask))}
+      >
+        Sign at ask
+      </button>
+      <button
+        className={`btn btn-sm${call === 'Tag' ? ' btn-primary' : ''}`}
+        disabled={!!tagProblem}
+        title={tagProblem ?? 'One-year deal, fully guaranteed'}
+        onClick={() => store.mutate((l) => applyFranchiseTag(l, l.players[playerId]))}
+      >
+        Tag {money(tagValue(league, p))}
+      </button>
+      <button
+        className={`btn btn-sm${call === 'Let walk' ? ' btn-primary' : ''}`}
+        onClick={() => store.mutate((l) => setLettingWalk(l, playerId, true))}
+      >
+        Let walk
+      </button>
+      {onNegotiate && (
+        <button className="btn btn-sm" onClick={() => onNegotiate(playerId)}>
+          Negotiate
+        </button>
+      )}
+      {signProblem && <span className="muted small">{signProblem}</span>}
+    </div>
   );
 }

@@ -5,7 +5,9 @@ import { applyInjury, NEED } from '../engine/injuries';
 import { chooseCover } from '../engine/roster';
 import { createLeague } from '../engine/generate';
 import { endGmAppointment } from '../engine/gm';
-import { playWeek } from '../engine/league';
+import { playWeek, simToEndOfSeason } from '../engine/league';
+import { beginOffseason, setLettingWalk } from '../engine/offseason';
+import { expiringPlayers } from '../engine/offseason/ai';
 import { answerEnquiry, openOffers } from '../engine/trade';
 import { talksOf } from '../engine/trade/talks';
 import { dealAdvice } from '../engine/trade/advice';
@@ -798,5 +800,52 @@ describe('a letter with sections', () => {
     // Each row's name is a player link (a button that opens his card), not plain text.
     expect(html).toMatch(new RegExp(`class="linklike"[^>]*><span>${a.position} ${a.firstName} ${a.lastName}`));
     expect(html).toMatch(new RegExp(`class="linklike"[^>]*><span>${b.position} ${b.firstName} ${b.lastName}`));
+  });
+});
+
+describe('the contracts letter', () => {
+  let base = '';
+  const resign = (): League => {
+    if (!base) {
+      const l = createLeague({ seed: 'contract-ui' });
+      simToEndOfSeason(l);
+      deliverMail(l);
+      beginOffseason(l);
+      deliverMail(l);
+      base = JSON.stringify(l);
+    }
+    return JSON.parse(base);
+  };
+  const letter = (l: League) => l.inbox!.find((m) => m.id.startsWith('expiring:'))!;
+  const html = (l: League) =>
+    renderToStaticMarkup(
+      <MessageBody league={l} m={letter(l)} index={nameIndex(l)} act={() => {}} onNegotiate={() => {}} />,
+    );
+
+  it('offers sign, tag, let walk and negotiate on an undecided row', () => {
+    const l = resign();
+    const out = html(l);
+    expect(out).toContain('Sign at ask');
+    expect(out).toContain('Let walk');
+    expect(out).toContain('Negotiate');
+    expect(out).toMatch(/Tag \$/);
+  });
+
+  it('shows what happened once a row is decided', () => {
+    const l = resign();
+    const [p] = expiringPlayers(l, l.userTeamId);
+    setLettingWalk(l, p.id, true);
+    expect(html(l)).toContain('Letting him walk');
+    expect(html(l)).toContain('Keep talking');
+  });
+
+  it("disables Sign at ask with the reason when it won't fit", () => {
+    const l = resign();
+    // Spend the cap: a huge dead-money charge this season leaves no room.
+    l.teams[l.userTeamId].deadMoney.push({ season: l.season, amount: 400000, playerId: -1, note: 'test' });
+    const out = html(l);
+    expect(out).toMatch(
+      /disabled=""[^>]*title="[^"]+"[^>]*>Sign at ask|title="[^"]+"[^>]*disabled=""[^>]*>Sign at ask/,
+    );
   });
 });

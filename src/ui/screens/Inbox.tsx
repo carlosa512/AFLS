@@ -1,5 +1,5 @@
 import { canReadMail } from '../../engine/inbox';
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import {
   archiveMail,
   archiveRead,
@@ -19,10 +19,14 @@ import { useNav } from '../App';
 import { PHASE_LABELS, weekLabel } from '../format';
 import { InjuryTag } from '../injuries';
 import { MailCards, MailSections } from '../mail';
+import { NegotiationDialog } from '../negotiation';
 import { LinkedText, nameIndex, type MoveIndex, type Who } from '../moves';
 import { store } from '../store';
 
 type Show = 'all' | 'unread' | 'needs' | 'archived';
+
+/** The inbox screen's "open talks with him": the contracts letter's Negotiate opens the Re-sign screen's dialog here. */
+const NegotiateContext = createContext<((playerId: number) => void) | undefined>(undefined);
 
 const TYPES: [InboxCategory | 'all', string][] = [
   ['all', 'All types'],
@@ -225,6 +229,8 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
   const [type, setType] = useState<InboxCategory | 'all'>('all');
   const [query, setQuery] = useState('');
   const [openKey, setOpenKey] = useState<string | null>(null);
+  // Contract talks opened from a letter, over the inbox (as the Front office opens them over the Re-sign screen).
+  const [talking, setTalking] = useState<number | null>(null);
   const [undo, setUndo] = useState<{ ids: string[]; what: 'archived' | 'deleted' | 'restored' } | null>(null);
 
   const live = [...(league.inbox ?? [])].reverse().filter((m) => !m.deleted && canReadMail(league, m));
@@ -312,187 +318,192 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
   const tidyable = inbox.some((m) => m.read && !needs.has(m.id));
 
   return (
-    <section className={`panel inbox${open ? ' has-open' : ''}`}>
-      <div className="inbox-panes">
-        <div className="inbox-list-pane">
-          <div className="inbox-tools">
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <h2 style={{ margin: 0 }}>Messages</h2>
-              <span className="row" style={{ gap: 6 }}>
-                <button
-                  className="btn btn-sm"
-                  disabled={!tidyable}
-                  title="Archive every message you've read that no longer needs you"
-                  onClick={tidy}
-                >
-                  Archive read
-                </button>
-                <button className="btn btn-sm" disabled={!unread} onClick={() => store.mutate(markAllRead)}>
-                  ✓ Mark all read
-                </button>
-              </span>
-            </div>
-            {undo && undo.ids.length > 0 && (
-              <div className="inbox-undo" role="status">
-                <span>
-                  {undo.what === 'restored'
-                    ? 'Moved back to the inbox'
-                    : undo.what === 'archived'
-                      ? 'Archived'
-                      : 'Deleted'}
-                  : {undo.ids.length} message{undo.ids.length === 1 ? '' : 's'}.
-                </span>
-                <button className="linklike" onClick={undoIt}>
-                  Undo
-                </button>
-              </div>
-            )}
-            <div className="seg inbox-show" role="group" aria-label="Show">
-              {filters.map(([key, label, n]) => (
-                <button key={key} aria-pressed={show === key} onClick={() => setShow(key)}>
-                  {label} <span className="num">{n}</span>
-                </button>
-              ))}
-            </div>
-            <div className="inbox-search">
-              <input
-                type="search"
-                aria-label="Search messages"
-                placeholder="Search messages"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              <select
-                aria-label="Message type"
-                value={type}
-                onChange={(e) => setType(e.target.value as InboxCategory | 'all')}
-              >
-                {TYPES.map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="inbox-list" aria-label="Messages">
-            {shown.length === 0 && (
-              <p className="muted" style={{ padding: '12px 14px', margin: 0 }}>
-                {show === 'archived'
-                  ? 'Nothing archived.'
-                  : inbox.length === 0
-                    ? 'Nothing here yet.'
-                    : 'Nothing matches. Switch to All to see every message.'}
-              </p>
-            )}
-            {groupByDate(shown).map((g) => (
-              <div key={g.label}>
-                <div className="inbox-group eyebrow">{g.label}</div>
-                {g.threads.map((t) => {
-                  const label = threadLabel(t);
-                  const who = sender(label.from);
-                  const lead = t.messages[0];
-                  const isUnread = t.messages.some((m) => !m.read);
-                  const club = clubOf(league, lead);
-                  return (
-                    <button
-                      key={t.key}
-                      className={`inbox-row${isUnread ? ' is-unread' : ''}${club ? ' is-club' : ''}`}
-                      style={club ? ({ '--club': club.colors[0] } as React.CSSProperties) : undefined}
-                      aria-current={t.key === openKey ? 'true' : undefined}
-                      onClick={() => read(t)}
-                    >
-                      <SenderAvatar league={league} m={lead} initials={who.initials} />
-                      <span style={{ minWidth: 0 }}>
-                        <span className="inbox-from">
-                          {isUnread && (
-                            <>
-                              <span className="unread-dot" aria-hidden="true" />
-                              <span className="visually-hidden">Unread: </span>
-                            </>
-                          )}
-                          {label.from}
-                        </span>
-                        <span className="inbox-subject">{label.subject}</span>
-                      </span>
-                      <span className="inbox-tags">
-                        {club && <span className="mail-tag mail-tag-club">Other club</span>}
-                        <span className={`mail-tag cat-${lead.category}`}>{tagOf(lead)}</span>
-                        {t.messages.some((m) => needs.has(m.id)) && <span className="needs-pill">Needs you</span>}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <article className="inbox-message" aria-live="polite">
-          {open ? (
-            <>
-              <div className="inbox-nav">
-                <button className="btn btn-sm btn-ghost inbox-back" onClick={() => setOpenKey(null)}>
-                  ‹ Inbox
-                </button>
-                <span className="row inbox-file" style={{ gap: 4 }}>
-                  {open.messages[0].archived ? (
-                    <button className="btn btn-sm btn-ghost" onClick={() => file(open, 'restored')}>
-                      Move to inbox
-                    </button>
-                  ) : (
-                    <button className="btn btn-sm btn-ghost" onClick={() => file(open, 'archived')}>
-                      Archive
-                    </button>
-                  )}
-                  <button className="btn btn-sm btn-ghost" onClick={() => file(open, 'deleted')}>
-                    Delete
+    <NegotiateContext.Provider value={setTalking}>
+      <section className={`panel inbox${open ? ' has-open' : ''}`}>
+        <div className="inbox-panes">
+          <div className="inbox-list-pane">
+            <div className="inbox-tools">
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <h2 style={{ margin: 0 }}>Messages</h2>
+                <span className="row" style={{ gap: 6 }}>
+                  <button
+                    className="btn btn-sm"
+                    disabled={!tidyable}
+                    title="Archive every message you've read that no longer needs you"
+                    onClick={tidy}
+                  >
+                    Archive read
+                  </button>
+                  <button className="btn btn-sm" disabled={!unread} onClick={() => store.mutate(markAllRead)}>
+                    ✓ Mark all read
                   </button>
                 </span>
-                {at >= 0 && (
-                  <span className="row" style={{ gap: 4 }}>
-                    <span className="muted small">
-                      {at + 1} of {shown.length}
-                    </span>
-                    <button
-                      className="btn btn-sm btn-ghost"
-                      disabled={at <= 0}
-                      onClick={() => read(shown[at - 1])}
-                      aria-label="Newer message"
-                    >
-                      ▲
-                    </button>
-                    <button
-                      className="btn btn-sm btn-ghost"
-                      disabled={at >= shown.length - 1}
-                      onClick={() => read(shown[at + 1])}
-                      aria-label="Older message"
-                    >
-                      ▼
+              </div>
+              {undo && undo.ids.length > 0 && (
+                <div className="inbox-undo" role="status">
+                  <span>
+                    {undo.what === 'restored'
+                      ? 'Moved back to the inbox'
+                      : undo.what === 'archived'
+                        ? 'Archived'
+                        : 'Deleted'}
+                    : {undo.ids.length} message{undo.ids.length === 1 ? '' : 's'}.
+                  </span>
+                  <button className="linklike" onClick={undoIt}>
+                    Undo
+                  </button>
+                </div>
+              )}
+              <div className="seg inbox-show" role="group" aria-label="Show">
+                {filters.map(([key, label, n]) => (
+                  <button key={key} aria-pressed={show === key} onClick={() => setShow(key)}>
+                    {label} <span className="num">{n}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="inbox-search">
+                <input
+                  type="search"
+                  aria-label="Search messages"
+                  placeholder="Search messages"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+                <select
+                  aria-label="Message type"
+                  value={type}
+                  onChange={(e) => setType(e.target.value as InboxCategory | 'all')}
+                >
+                  {TYPES.map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="inbox-list" aria-label="Messages">
+              {shown.length === 0 && (
+                <p className="muted" style={{ padding: '12px 14px', margin: 0 }}>
+                  {show === 'archived'
+                    ? 'Nothing archived.'
+                    : inbox.length === 0
+                      ? 'Nothing here yet.'
+                      : 'Nothing matches. Switch to All to see every message.'}
+                </p>
+              )}
+              {groupByDate(shown).map((g) => (
+                <div key={g.label}>
+                  <div className="inbox-group eyebrow">{g.label}</div>
+                  {g.threads.map((t) => {
+                    const label = threadLabel(t);
+                    const who = sender(label.from);
+                    const lead = t.messages[0];
+                    const isUnread = t.messages.some((m) => !m.read);
+                    const club = clubOf(league, lead);
+                    return (
+                      <button
+                        key={t.key}
+                        className={`inbox-row${isUnread ? ' is-unread' : ''}${club ? ' is-club' : ''}`}
+                        style={club ? ({ '--club': club.colors[0] } as React.CSSProperties) : undefined}
+                        aria-current={t.key === openKey ? 'true' : undefined}
+                        onClick={() => read(t)}
+                      >
+                        <SenderAvatar league={league} m={lead} initials={who.initials} />
+                        <span style={{ minWidth: 0 }}>
+                          <span className="inbox-from">
+                            {isUnread && (
+                              <>
+                                <span className="unread-dot" aria-hidden="true" />
+                                <span className="visually-hidden">Unread: </span>
+                              </>
+                            )}
+                            {label.from}
+                          </span>
+                          <span className="inbox-subject">{label.subject}</span>
+                        </span>
+                        <span className="inbox-tags">
+                          {club && <span className="mail-tag mail-tag-club">Other club</span>}
+                          <span className={`mail-tag cat-${lead.category}`}>{tagOf(lead)}</span>
+                          {t.messages.some((m) => needs.has(m.id)) && <span className="needs-pill">Needs you</span>}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <article className="inbox-message" aria-live="polite">
+            {open ? (
+              <>
+                <div className="inbox-nav">
+                  <button className="btn btn-sm btn-ghost inbox-back" onClick={() => setOpenKey(null)}>
+                    ‹ Inbox
+                  </button>
+                  <span className="row inbox-file" style={{ gap: 4 }}>
+                    {open.messages[0].archived ? (
+                      <button className="btn btn-sm btn-ghost" onClick={() => file(open, 'restored')}>
+                        Move to inbox
+                      </button>
+                    ) : (
+                      <button className="btn btn-sm btn-ghost" onClick={() => file(open, 'archived')}>
+                        Archive
+                      </button>
+                    )}
+                    <button className="btn btn-sm btn-ghost" onClick={() => file(open, 'deleted')}>
+                      Delete
                     </button>
                   </span>
+                  {at >= 0 && (
+                    <span className="row" style={{ gap: 4 }}>
+                      <span className="muted small">
+                        {at + 1} of {shown.length}
+                      </span>
+                      <button
+                        className="btn btn-sm btn-ghost"
+                        disabled={at <= 0}
+                        onClick={() => read(shown[at - 1])}
+                        aria-label="Newer message"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        className="btn btn-sm btn-ghost"
+                        disabled={at >= shown.length - 1}
+                        onClick={() => read(shown[at + 1])}
+                        aria-label="Older message"
+                      >
+                        ▼
+                      </button>
+                    </span>
+                  )}
+                </div>
+                {open.messages.length === 1 ? (
+                  <Message
+                    league={league}
+                    m={open.messages[0]}
+                    needs={needs.has(open.messages[0].id)}
+                    index={names!}
+                    act={act}
+                  />
+                ) : (
+                  <Folded league={league} t={open} needs={needs} index={names!} act={act} focusId={messageId} />
                 )}
-              </div>
-              {open.messages.length === 1 ? (
-                <Message
-                  league={league}
-                  m={open.messages[0]}
-                  needs={needs.has(open.messages[0].id)}
-                  index={names!}
-                  act={act}
-                />
-              ) : (
-                <Folded league={league} t={open} needs={needs} index={names!} act={act} focusId={messageId} />
-              )}
-            </>
-          ) : (
-            <p className="muted" style={{ margin: 0 }}>
-              Pick a message to read it.
-            </p>
-          )}
-        </article>
-      </div>
-    </section>
+              </>
+            ) : (
+              <p className="muted" style={{ margin: 0 }}>
+                Pick a message to read it.
+              </p>
+            )}
+          </article>
+        </div>
+      </section>
+      {talking !== null && league.players[talking] && (
+        <NegotiationDialog league={league} player={league.players[talking]} onClose={() => setTalking(null)} />
+      )}
+    </NegotiateContext.Provider>
   );
 }
 
@@ -535,13 +546,18 @@ export function MessageBody({
   index,
   act,
   skip = [],
+  onNegotiate,
 }: {
   league: League;
   m: InboxMessage;
   index: MoveIndex;
   act: (a: InboxAction) => void;
   skip?: InboxAction['kind'][];
+  /** Open contract talks over the inbox (the contracts letter); defaults to the inbox screen's own. */
+  onNegotiate?: (playerId: number) => void;
 }) {
+  const fromInbox = useContext(NegotiateContext);
+  const negotiate = onNegotiate ?? fromInbox;
   const actions = m.actions.filter((a) => !skip.includes(a.kind));
   return (
     <>
@@ -553,7 +569,7 @@ export function MessageBody({
             <LinkedText league={league} text={paragraph} about={aboutOf(league, m)} index={index} />
           </p>
         ))}
-      {m.sections && <MailSections league={league} sections={m.sections} />}
+      {m.sections && <MailSections league={league} sections={m.sections} onNegotiate={negotiate} />}
       {m.coachNote && !m.sections && (
         <aside
           className="coach-note"
