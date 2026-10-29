@@ -29,9 +29,9 @@ Chunk A (digests, `voice.ts`, `MailSection`) is merged; this builds on it.
 
 ### What it is
 
-From the director of scouting (`director` in `senders.ts`), category `contracts`, id `contracts:{season}`, filed
-once as the re-sign window opens. `covered` lists the old per-player ids (`contract:{season}:{playerId}`) for every
-row, and the old `contractMail` stops filing per-player letters (old saves keep the ones they have; `mailSubject`
+From the director of scouting (`director` in `senders.ts`), category `contracts`, id `expiring:{season}`, filed
+once as the re-sign window opens. `covered` lists the old per-player ids (`contracts:{season}:{playerId}`) for every
+row, and `newYearMail` stops filing the per-player agents' letters (old saves keep the ones they have; `mailSubject`
 still reads them).
 
 Subject: "Contracts up: N players, our calls". Body: one opener through `say` (director's voice, analytical and
@@ -123,7 +123,7 @@ Extend checks.
 | `src/engine/offseason/ai.ts` | `resignCall`, `ResignReason`; `aiResignWindow` uses it |
 | `src/engine/offseason/index.ts` | `setLettingWalk`; the walk list clears when the window closes |
 | `src/engine/contractMail.ts` | new: the players' letter (rows, calls, notes, `needsYou`) |
-| `src/engine/inbox.ts` | call the new letter; the per-player agents' letters stop; `mailSubject`, `needsYou`, `KIND_TAGS` |
+| `src/engine/inbox.ts` | call the new letter; `newYearMail`'s per-player agents' letters stop; `mailSubject` (`expiring:`), `needsYou`, `KIND_TAGS` |
 | `src/engine/types.ts` | `Team.lettingWalk`; `MailSection` row `contract` |
 | `src/engine/generate.ts`, `migrate.ts` | `SAVE_VERSION` 66 and its step |
 | `src/ui/mail.tsx` | contract rows and their buttons; Let go and the call line on staff rows |
