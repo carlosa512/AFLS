@@ -147,10 +147,11 @@ describe('contract talks (G2)', () => {
     expect(sour.walkAway / base.walkAway).toBeCloseTo(1.1, 9);
   });
 
-  it('a happy one asks up to 5% less', () => {
+  it('a happy one asks no less: a hometown discount is rare (his mood buys patience, not price)', () => {
     const { l } = setup();
     const p = pick(l);
-    expect(ask(l, p, 10).askApy / ask(l, p, 0).askApy).toBeCloseTo(0.95, 2);
+    expect(ask(l, p, 10).askApy).toBe(ask(l, p, 0).askApy);
+    expect(ask(l, p, 10).walkAway).toBe(ask(l, p, 0).walkAway);
   });
 
   it('gives a round of patience more past Very good, one less past Very poor, never under one', () => {

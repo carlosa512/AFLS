@@ -91,15 +91,16 @@ export function contenderScore(league: League, teamId: number): number {
 const isOwnTeam = (player: Player, teamId: number) => player.teamId === teamId;
 
 /**
- * His mood at his own club (G2): an unhappy man makes it pay to keep him (up to 10% on his ask and walk-away), a happy
- * one gives a little back (up to 5%); a round of patience more past Very good, one less past Very poor. Another club and
- * a free agent's talks don't read it (what he thinks of clubs he left is `contractLean`'s).
+ * His mood at his own club (G2): an unhappy man makes it pay to keep him (up to 10% on his ask and walk-away); a happy
+ * one gives time, not money (a hometown discount is rare, and one cut AI clubs' QB trade-ups by keeping starters cheap:
+ * the owner's call, 0.2.24): a round of patience more past Very good, one less past Very poor. Another club and a free
+ * agent's talks don't read it (what he thinks of clubs he left is `contractLean`'s).
  */
 function moodTerms(league: League, player: Player, own: boolean): { price: number; patience: number } {
   if (!own) return { price: 1, patience: 0 };
   const lean = moodLean(moraleLevel(league, player));
   return {
-    price: lean < 0 ? 1 + 0.1 * -lean : 1 - 0.05 * lean,
+    price: lean < 0 ? 1 + 0.1 * -lean : 1,
     patience: lean <= -0.5 ? -1 : lean >= 0.5 ? 1 : 0,
   };
 }

@@ -19,7 +19,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     text:
       'A player’s mood now counts. Young players grow a little faster when they’re happy and slower when they’re not, ' +
       'everyone plays a touch better or worse on game day, a happy player learns a new position faster, and an ' +
-      'unhappy one asks more to re-sign with less patience. The Locker Room and the head coach’s report say who it’s ' +
+      'unhappy one asks more to re-sign with less patience (a happy one is more patient). The Locker Room and the head coach’s report say who it’s ' +
       'costing.',
   },
   {
