@@ -12,7 +12,7 @@ import { playerOvr, STARTERS } from './positions';
 import { clamp } from './rng';
 import { activeRoster } from './roster';
 import { seasonRole } from './scouting';
-import { computeRecords, type TeamRecord } from './season/standings';
+import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, MoraleJolt, Player, Position } from './types';
 
@@ -317,3 +317,118 @@ export function moraleView(league: League, p: Player): MoraleView | null {
     level,
   };
 }
+
+// ───────── the step ─────────
+
+const round = (v: number) => Math.round(v * 1000) / 1000;
+
+/** How far a week moves him toward his target: volatile men swing faster. */
+const rateOf = (p: Player) => clamp(0.25 - 0.05 * z(temperamentOf(p)), 0.15, 0.4);
+
+/** Every rostered player at his target with no jolts: a new league, or a save from before morale. */
+export function seedMorale(league: League): void {
+  const ctx = moraleContext(league);
+  for (const p of Object.values(league.players))
+    if (p.teamId !== null && !p.retired && !p.morale)
+      p.morale = { level: round(moraleTarget(moraleFactors(league, p, ctx))), jolts: [] };
+  league.moraleAt = moraleClock(league);
+}
+
+/** The big moments since his last step, each felt once a league year (`seen`). */
+function newJolts(league: League, p: Player, ctx: MoraleContext, week: number, spot: (teamId: number) => boolean) {
+  const m = p.morale!;
+  const season = league.season;
+  const seen = (m.seen ??= []);
+  const out: Jolt[] = [];
+  const add = (key: string, kind: MoraleJolt, size: number) => {
+    const k = `${season}:${key}`;
+    if (seen.includes(k)) return;
+    seen.push(k);
+    out.push({ kind, size: Math.round(size * 100) / 100, season, week });
+  };
+  const teamId = p.teamId!;
+  const wasStarter = () => !!p.stats[season - 1] && seasonRole(league, p, season - 1)?.role === 'starter';
+  // Benched: a starter last season who isn't one now, by his snaps once his club has three games in (while he's been
+  // dressing), or at the new league year when his room has passed him.
+  const played = games(ctx.records.get(teamId));
+  if (played >= 3 && (p.stats[season]?.gp ?? 0) >= played - 1) {
+    const now = actualRole(league, p, ctx);
+    if (now !== null && now < 2 && wasStarter()) add('benched', 'benched', -3);
+  } else if (week === 0 && expectedRole(p, ctx) < 2 && wasStarter()) add('benched', 'benched', -3);
+  for (const t of p.ties ?? []) {
+    const b = league.players[t.with];
+    if (!b) continue;
+    // Snubbed: a roommate on a bigger new deal, the feud `relationships.ts` remembers; the lower-paid side feels it.
+    if (
+      t.kind === 'feud' &&
+      t.why === 'snubbed' &&
+      t.since === season &&
+      b.teamId === teamId &&
+      (p.contract?.apy ?? 0) < (b.contract?.apy ?? 0)
+    )
+      add(`snub:${b.id}`, 'snubbed', -2 * (0.5 + p.personality.greed));
+    // A friend cut or traded away from this club this league year: the one left behind feels it.
+    if (
+      t.kind === 'friend' &&
+      b.teamId !== teamId &&
+      b.left?.some((d) => d.teamId === teamId && d.season === season && d.how !== 'walked')
+    )
+      add(`gone:${b.id}`, 'friendGone', -2);
+  }
+  const c = p.contract;
+  if (c && c.signedSeason === season && m.apy !== undefined && c.apy > m.apy) add('paid', 'paid', 3);
+  if (isCaptain(league, p)) add('captain', 'captain', 2);
+  if (league.phase === 'regular' && spot(teamId)) add('playoffs', 'playoffs', 2);
+  return out;
+}
+
+/**
+ * One step of the league's moods at a point on morale's clock: new jolts, old ones faded (the four biggest kept), and
+ * the level moved part of the way to its target. A step already taken (`moraleAt`) is not taken again.
+ */
+export function moraleAdvance(league: League, clock: number): void {
+  if (league.moraleAt !== undefined && clock <= league.moraleAt) return;
+  league.moraleAt = clock;
+  const ctx = moraleContext(league);
+  const prospects = new Set(league.draftClass);
+  const week = clock - league.season * YEAR;
+  const spots = new Map<number, boolean>();
+  const spot = (teamId: number) => {
+    if (!spots.has(teamId)) spots.set(teamId, playoffRace(league, teamId).spot);
+    return spots.get(teamId)!;
+  };
+  for (const p of Object.values(league.players)) {
+    if (p.retired || prospects.has(p.id)) {
+      delete p.morale;
+      continue;
+    }
+    if (p.teamId === null) {
+      // A free agent wants a job, and carries nothing else with him.
+      if (!p.morale) continue;
+      p.morale.jolts = [];
+      p.morale.level = round(p.morale.level + rateOf(p) * (-1 - p.morale.level));
+      continue;
+    }
+    const target = moraleTarget(moraleFactors(league, p, ctx));
+    // A new arrival (a draft pick, a first deal) starts where he stands.
+    const m = (p.morale ??= { level: round(target), jolts: [] });
+    if (m.seen) m.seen = m.seen.filter((k) => k.startsWith(`${league.season}:`));
+    m.jolts.push(...newJolts(league, p, ctx, week, spot));
+    const live = m.jolts
+      .map((j) => ({ j, size: Math.abs(liveSize(j, clock)) }))
+      .filter((x) => x.size >= 0.25)
+      .sort((a, b) => b.size - a.size)
+      .slice(0, 4)
+      .map((x) => x.j);
+    m.jolts = m.jolts.filter((j) => live.includes(j));
+    if (!m.seen?.length) delete m.seen;
+    m.level = round(m.level + rateOf(p) * (target - m.level));
+    if (p.contract) m.apy = p.contract.apy;
+  }
+}
+
+/** A regular-season or playoff week, after its games. */
+export const moraleWeek = (league: League) => moraleAdvance(league, moraleClock(league, true));
+
+/** An offseason calendar step (the new league year, each free-agency day, the draft, camp), after it has run. */
+export const moraleStep = (league: League) => moraleAdvance(league, moraleClock(league));

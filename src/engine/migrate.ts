@@ -1,3 +1,4 @@
+import { seedMorale } from './morale';
 import { seedFoundingTrees } from './trees';
 import { lockVerdicts } from './draftGrade';
 import { fillOrigins } from './origin';
@@ -227,6 +228,12 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 65) league.version = 65;
   // v66: optional `Team.lettingWalk` (the re-sign window's walk list): nothing to fill in.
   if (league.version < 66) league.version = 66;
+  // v67: `Player.morale` and `League.moraleAt`: every rostered player starts at his target, with no jolts (none are
+  // invented from history).
+  if (league.version < 67) {
+    seedMorale(league);
+    league.version = 67;
+  }
   return league;
 }
 

@@ -1,3 +1,4 @@
+import { moraleStep } from '../morale';
 import { lockVerdicts } from '../draftGrade';
 import { cflArrivals } from './arrivals';
 import { formPracticeSquads } from '../personnel/squadMarket';
@@ -238,6 +239,8 @@ export function beginOffseason(league: League): void {
   leadershipNewYear(league);
   // The new league year opens the trade market: deals agreed over the winter, cap casualties, stars on the move.
   withLeagueAi(league, () => marketMoment(league, 'leagueYear'));
+  // The new league year's moods: who was passed in his room, who left, what the winter's deals say.
+  moraleStep(league);
 }
 
 /** Problems the user must fix before the calendar can move on (the season's weeks included). */
@@ -415,6 +418,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
   recheckOffers(league);
   syncPersonnel(league);
   league.rngState = rng.getState();
+  // A signing, a release or the C lands on a mood the step it happens.
+  moraleStep(league);
   return league.phase;
 }
 

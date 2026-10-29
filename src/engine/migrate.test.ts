@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from './generate';
 import { deliverMail, mailSubject } from './inbox';
 import { migrateLeague } from './migrate';
+import { moraleContext, moraleFactors, moraleTarget } from './morale';
 import type { InboxMessage } from './types';
 
 describe('save v65 and v66', () => {
@@ -11,9 +12,30 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(66);
-    expect(up.version).toBe(66);
+    expect(SAVE_VERSION).toBe(67);
+    expect(up.version).toBe(67);
     expect(up.inbox).toEqual(before);
+  });
+});
+
+describe('save v67', () => {
+  it('starts every rostered player at his target with no jolts, and no one else', () => {
+    const l = createLeague({ seed: 'v67' });
+    for (const p of Object.values(l.players)) delete p.morale;
+    delete l.moraleAt;
+    l.version = 66;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(67);
+    const ctx = moraleContext(up);
+    for (const p of Object.values(up.players)) {
+      if (p.teamId === null) {
+        expect(p.morale).toBeUndefined();
+        continue;
+      }
+      expect(p.morale!.jolts).toEqual([]);
+      expect(p.morale!.level).toBeCloseTo(moraleTarget(moraleFactors(up, p, ctx)));
+    }
+    expect(Object.values(up.players).some((p) => p.morale!.level !== 0)).toBe(true);
   });
 });
 

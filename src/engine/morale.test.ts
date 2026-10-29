@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
+import { simToEndOfSeason } from './league';
+import { beginOffseason } from './offseason';
 import {
+  liveSize,
+  moraleAdvance,
+  moraleClock,
+  moraleLevel,
+  moraleWeek,
   MORALE_WORDS,
   moraleContext,
   moraleFactors,
@@ -195,3 +202,107 @@ describe('morale: what a screen may see', () => {
     expect(moraleView(league, { ...mine, morale: undefined })).toBeNull();
   });
 });
+
+describe('morale: moving the mood', () => {
+  it('starts every rostered player of a new league at his target, with no jolts', () => {
+    const l = createLeague({ seed: 'morale-seed' });
+    const ctx = moraleContext(l);
+    for (const p of Object.values(l.players)
+      .filter((x) => x.teamId !== null)
+      .slice(0, 50)) {
+      expect(p.morale!.jolts).toEqual([]);
+      expect(p.morale!.level).toBeCloseTo(moraleTarget(moraleFactors(l, p, ctx)));
+    }
+  });
+
+  it('takes a week once: a second call for the same week changes nothing', () => {
+    const l = createLeague({ seed: 'morale-once' });
+    for (const p of Object.values(l.players)) if (p.morale) p.morale.level = 8;
+    moraleWeek(l);
+    const once = JSON.stringify(Object.values(l.players).map((p) => p.morale));
+    moraleWeek(l);
+    expect(JSON.stringify(Object.values(l.players).map((p) => p.morale))).toBe(once);
+  });
+
+  it('walks a level toward its target and never out of range', () => {
+    const l = createLeague({ seed: 'morale-walk' });
+    const p = activeRoster(l, 3)[0];
+    const target = moraleTarget(moraleFactors(l, p));
+    p.morale = { level: target > 0 ? -10 : 10, jolts: [] };
+    const start = moraleClock(l);
+    let gap = Math.abs(p.morale.level - target);
+    for (let w = 1; w <= 40; w++) {
+      moraleAdvance(l, start + w);
+      const now = Math.abs(p.morale.level - target);
+      expect(now).toBeLessThanOrEqual(gap + 1e-9);
+      expect(Math.abs(moraleLevel(l, p))).toBeLessThanOrEqual(10);
+      gap = now;
+    }
+    expect(gap).toBeLessThan(0.1);
+  });
+
+  it('halves a jolt every two weeks, drops it once it is small, and keeps four at most', () => {
+    const j = { kind: 'benched' as const, size: -3, season: 2026, week: 10 };
+    const at = 2026 * 32 + 10;
+    expect(liveSize(j, at)).toBe(-3);
+    expect(liveSize(j, at + 2)).toBeCloseTo(-1.5);
+    const l = createLeague({ seed: 'morale-jolts' });
+    const p = activeRoster(l, 2)[0];
+    const clock = moraleClock(l);
+    const week = clock - l.season * 32;
+    p.morale = {
+      level: 0,
+      jolts: [
+        { kind: 'paid', size: 3, season: l.season, week },
+        { kind: 'captain', size: 2, season: l.season, week },
+        { kind: 'playoffs', size: 2, season: l.season, week },
+        { kind: 'friendGone', size: -2, season: l.season, week },
+        { kind: 'benched', size: -0.5, season: l.season, week },
+      ],
+    };
+    moraleAdvance(l, clock + 1);
+    expect(p.morale.jolts.map((x) => x.kind)).toEqual(['paid', 'captain', 'playoffs', 'friendGone']);
+    moraleAdvance(l, clock + 12);
+    expect(p.morale.jolts).toEqual([]);
+  });
+
+  it('sets a free agent at wanting a job, and keeps no mood for retired players or prospects', () => {
+    const l = createLeague({ seed: 'morale-fa' });
+    const [fa, gone] = activeRoster(l, 4);
+    fa.teamId = null;
+    fa.contract = null;
+    fa.morale = { level: 5, jolts: [{ kind: 'paid', size: 3, season: l.season, week: 0 }] };
+    gone.teamId = null;
+    gone.retired = true;
+    const start = moraleClock(l);
+    for (let w = 1; w <= 30; w++) moraleAdvance(l, start + w);
+    expect(fa.morale.jolts).toEqual([]);
+    expect(fa.morale.level).toBeCloseTo(-1, 1);
+    expect(gone.morale).toBeUndefined();
+  });
+});
+
+describe('morale: a season played', () => {
+  const l = createLeague({ seed: 'morale-season' });
+  simToEndOfSeason(l);
+  beginOffseason(l);
+
+  it('benches a starter whose room passed him at the new league year, once', () => {
+    const benched = Object.values(l.players).filter((p) => p.morale?.jolts.some((j) => j.kind === 'benched'));
+    expect(benched.length).toBeGreaterThan(0);
+    for (const p of benched) expect(p.morale!.jolts.filter((j) => j.kind === 'benched')).toHaveLength(1);
+    const clock = moraleClock(l);
+    moraleAdvance(l, clock);
+    for (const p of benched) expect(p.morale!.jolts.filter((j) => j.kind === 'benched')).toHaveLength(1);
+  });
+
+  it('keeps every level in range through a season', () => {
+    for (const p of Object.values(l.players)) {
+      if (!p.morale) continue;
+      expect(Math.abs(p.morale.level)).toBeLessThanOrEqual(10);
+      expect(Math.abs(moraleLevel(l, p))).toBeLessThanOrEqual(10);
+      expect(p.morale.jolts.length).toBeLessThanOrEqual(4);
+    }
+    for (const id of l.draftClass) expect(l.players[id].morale).toBeUndefined();
+  });
+}, 60_000);
