@@ -43,10 +43,10 @@ import {
   medicName,
   medicResignForecast,
 } from '../engine/medical';
-import { askOffer, demand, makeOffer, offerProblem, rookieCost, ROSTER_MAX } from '../engine/offseason/negotiation';
+import { askOffer, demand, makeOffer, rookieCost, ROSTER_MAX } from '../engine/offseason/negotiation';
 import { applyFranchiseTag, tagBlocker, tagValue } from '../engine/offseason/ai';
 import { setLettingWalk } from '../engine/offseason';
-import { contractDecision } from '../engine/contractMail';
+import { contractDecision, liveCall, signAtAskProblem } from '../engine/contractMail';
 import { coachSchemeLabel } from '../engine/schemes';
 import {
   extendStaff,
@@ -1984,8 +1984,8 @@ interface PersonRow {
   extend?: { problem: string | null; go: () => void };
   /** The front office's one-line call on him (`staffCall`), while his deal is up. */
   call?: string;
-  /** Let him go; `confirm` asks first (the head coach). */
-  letGo?: { go: () => void; confirm?: string };
+  /** Let him go; `confirm` asks first (the head coach); `problem` is why he can't be, as his screen says. */
+  letGo?: { go: () => void; confirm?: string; problem?: string | null };
 }
 
 /** One of our people: who he is, his public ratings, the money, and what happens to him. */
@@ -2043,7 +2043,12 @@ export function Person({ row, confirming = false }: { row: PersonRow; confirming
           </button>
         )}
         {row.letGo && (
-          <button className="btn btn-sm" onClick={() => (row.letGo!.confirm ? setAsking(true) : row.letGo!.go())}>
+          <button
+            className="btn btn-sm"
+            disabled={!!row.letGo.problem}
+            title={row.letGo.problem ?? undefined}
+            onClick={() => (row.letGo!.confirm ? setAsking(true) : row.letGo!.go())}
+          >
             Let go
           </button>
         )}
@@ -2139,6 +2144,7 @@ function StaffDealsCards({
           letGo: up
             ? {
                 go: () => store.mutate((l) => releaseCoach(l, l.userTeamId, c.id)),
+                problem: coachMoveProblem(league, user, c, 'release'),
                 confirm:
                   c.role === 'headCoach'
                     ? "You'll need a new head coach before camp, and his staff may follow him out."
@@ -2182,7 +2188,12 @@ function StaffDealsCards({
                 { ask: staffAsk(league, x, 2), overBudget: !!staffMoveProblem(league, user, x, 'extend', 2) },
               )
             : undefined,
-          letGo: up ? { go: () => store.mutate((l) => releaseStaff(l, l.userTeamId, x.id)) } : undefined,
+          letGo: up
+            ? {
+                go: () => store.mutate((l) => releaseStaff(l, l.userTeamId, x.id)),
+                problem: staffMoveProblem(league, user, x, 'release'),
+              }
+            : undefined,
         },
       ];
     }
@@ -2219,7 +2230,12 @@ function StaffDealsCards({
               { ask: medicAsk(league, m, 2), overBudget: !!medicMoveProblem(league, user, m, 'extend', 2) },
             )
           : undefined,
-        letGo: up ? { go: () => store.mutate((l) => releaseMedic(l, l.userTeamId, m.id)) } : undefined,
+        letGo: up
+          ? {
+              go: () => store.mutate((l) => releaseMedic(l, l.userTeamId, m.id)),
+              problem: medicMoveProblem(league, user, m, 'release'),
+            }
+          : undefined,
       },
     ];
   });
@@ -2804,7 +2820,7 @@ function SectionCard({
                 </div>
                 <div className="mail-row-side">
                   {r.contract ? (
-                    <span className={`tag-pill ${CALL_TONE[r.cells.at(-1)!] ?? ''}`}>{r.cells.at(-1)}</span>
+                    <CallPill league={league} playerId={r.contract.playerId} filed={r.cells.at(-1)!} />
                   ) : (
                     r.cells.length > 1 && <span className="small">{r.cells.at(-1)}</span>
                   )}
@@ -2816,7 +2832,7 @@ function SectionCard({
                   <ContractControls
                     league={league}
                     playerId={r.contract.playerId}
-                    call={r.cells.at(-1)!}
+                    call={liveCall(league, r.contract.playerId, r.cells.at(-1)!)}
                     onNegotiate={onNegotiate}
                   />
                 )}
@@ -2908,8 +2924,12 @@ function ClaimProblem({ league, entryId }: { league: League; entryId: number }) 
  * decision, sign at his ask, tag, let him walk or negotiate (the same calls the Re-sign screen makes); otherwise what
  * happened to him.
  */
-/** The staff's call on a contracts-letter row, as a pill. */
+/** The staff's call on a contracts-letter row, as a pill: as it stands now (a spent tag turns Tag into Keep). */
 const CALL_TONE: Record<string, string> = { Keep: 'tag-good', Tag: 'tag-warn', 'Let walk': '' };
+function CallPill({ league, playerId, filed }: { league: League; playerId: number; filed: string }) {
+  const call = liveCall(league, playerId, filed);
+  return <span className={`tag-pill ${CALL_TONE[call] ?? ''}`}>{call}</span>;
+}
 
 function ContractControls({
   league,
@@ -2950,7 +2970,7 @@ function ContractControls({
       </div>
     );
   const ask = askOffer(demand(league, p, user));
-  const signProblem = offerProblem(league, p, user, ask);
+  const signProblem = signAtAskProblem(league, p);
   const tagProblem = tagBlocker(league, p);
   return (
     <div className="mail-row-actions">

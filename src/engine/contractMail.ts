@@ -6,8 +6,8 @@
  */
 import { isExpired } from './finance/contract';
 import { lettingWalk } from './offseason';
-import { expiringPlayers, resignCall, type ResignReason } from './offseason/ai';
-import { demand } from './offseason/negotiation';
+import { expiringPlayers, resignCall, tagBlocker, type ResignReason } from './offseason/ai';
+import { askOffer, demand, offerProblem, offerValue } from './offseason/negotiation';
 import { teamPlayers } from './roster';
 import { perceive } from './scouting';
 import { director, type Draft } from './senders';
@@ -31,6 +31,29 @@ export function contractDecision(league: League, playerId: number): 'signed' | '
   const n = league.negotiations[playerId];
   if (n?.teamId === user && n.status === 'broken' && n.brokenPhase === league.phase) return 'broken';
   return null;
+}
+
+/**
+ * Why Sign at ask can't go through right now, or null when it will: the checks `makeOffer` runs, read without touching
+ * the league (talks broken off, the cap and roster, and whether his own ask still clears what he'd walk away for).
+ */
+export function signAtAskProblem(league: League, p: Player): string | null {
+  const user = league.userTeamId;
+  const n = league.negotiations[p.id];
+  if (n?.teamId === user && n.status === 'broken') return 'His agent isn’t taking calls right now.';
+  const d = demand(league, p, user);
+  const ask = askOffer(d);
+  const problem = offerProblem(league, p, user, ask);
+  if (problem) return problem;
+  if (offerValue(league, p, user, ask, d) < d.walkAway)
+    return "He won't sign at his opening ask with us right now: negotiate.";
+  return null;
+}
+
+/** The staff's call as it stands: a Tag call reads as Keep once the year's tag is spent or he can't be tagged. */
+export function liveCall(league: League, playerId: number, filed: string): string {
+  const p = league.players[playerId];
+  return filed === 'Tag' && p && tagBlocker(league, p) ? 'Keep' : filed;
 }
 
 interface NoteFact {

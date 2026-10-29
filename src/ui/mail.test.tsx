@@ -890,4 +890,29 @@ describe('the staff contracts letter', () => {
     expect(out).toContain(`Let ${c.firstName} ${c.lastName} go?`);
     expect(out).toContain('need a new head coach before camp.');
   });
+
+  it("disables Let go with the reason when he can't be let go", () => {
+    const l = createLeague({ seed: 'staff-letgo' });
+    const c = Object.values(l.coaches).find((x) => x.teamId === l.userTeamId && x.role === 'headCoach')!;
+    const out = renderToStaticMarkup(
+      <Person
+        row={{
+          key: 'c',
+          kind: 'coach',
+          id: c.id,
+          person: c,
+          name: 'X',
+          title: 'Head coach',
+          age: c.age,
+          ratings: [],
+          salary: 1000,
+          ask: 1000,
+          letGo: { go: () => {}, problem: 'The owner wants him kept.' },
+        }}
+      />,
+    );
+    expect(out).toMatch(
+      /disabled=""[^>]*title="The owner wants him kept."|title="The owner wants him kept."[^>]*disabled=""/,
+    );
+  });
 });

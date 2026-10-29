@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { contractDecision } from './contractMail';
+import { contractDecision, liveCall, signAtAskProblem } from './contractMail';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject, needsYou } from './inbox';
 import { simToEndOfSeason } from './league';
@@ -106,5 +106,26 @@ describe('the contracts letter', () => {
       });
     deliverMail(l);
     expect(letters(l)).toHaveLength(0);
+  });
+
+  it("Sign at ask says when he won't take his own ask, and only then", () => {
+    const l = fresh();
+    for (const p of expiringPlayers(l, l.userTeamId)) {
+      const probe = fresh();
+      const q = probe.players[p.id];
+      const problem = signAtAskProblem(probe, q);
+      const r = makeOffer(probe, q, probe.userTeamId, askOffer(demand(probe, q, probe.userTeamId)));
+      expect(r.accepted, `${q.lastName}: ${problem}`).toBe(problem === null);
+    }
+  });
+
+  it('a Tag call reads as Keep once the tag is spent', () => {
+    const l = fresh();
+    const [a, b] = expiringPlayers(l, l.userTeamId).filter((p) => !tagBlocker(l, p));
+    if (!a || !b) return;
+    expect(liveCall(l, b.id, 'Tag')).toBe('Tag');
+    applyFranchiseTag(l, a);
+    expect(liveCall(l, b.id, 'Tag')).toBe('Keep');
+    expect(liveCall(l, b.id, 'Let walk')).toBe('Let walk');
   });
 });
