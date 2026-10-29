@@ -3,6 +3,9 @@ import { createLeague } from './generate';
 import { simToEndOfSeason } from './league';
 import { beginOffseason } from './offseason';
 import {
+  addJolt,
+  DOWN_REASONS,
+  promisesScore,
   liveSize,
   moraleAdvance,
   moraleClock,
@@ -366,5 +369,46 @@ describe('morale reads the league without leaving anything behind', () => {
     const p = activeRoster(l, 6).find((x) => x.position === 'K')!;
     for (const k of Object.keys(p.ratings) as (keyof typeof p.ratings)[]) p.ratings[k] = 20;
     expect(leagueMarket(l).ovrs.K[0]).toBeCloseTo(playerOvr(p));
+  });
+});
+
+describe('morale: what promises leave behind (G3)', () => {
+  const l = createLeague({ seed: 'morale-promises' });
+  const base = activeRoster(l, 7)[0];
+  const withTalk = (kept?: number, broken?: number): Player => ({
+    ...base,
+    morale: { level: 0, talk: { club: 7, ...(kept ? { kept } : {}), ...(broken ? { broken } : {}) } },
+  });
+
+  it('scores kept and broken promises he remembers, clamped', () => {
+    expect(promisesScore({ ...base, morale: { level: 0 } })).toBe(0);
+    expect(promisesScore(withTalk(1))).toBe(0.5);
+    expect(promisesScore(withTalk(0, 1))).toBe(-1.5);
+    expect(promisesScore(withTalk(0, 3))).toBe(-3);
+    expect(promisesScore(withTalk(4))).toBe(1);
+  });
+
+  it('names a broken promise and a lost trust as reasons that weigh on him', () => {
+    const at = moraleClock(l);
+    const p: Player = { ...withTalk(), morale: { level: 0, jolts: [{ kind: 'broken', size: -4, at }] } };
+    expect(moraleReasons(l, p, { ...ZERO }, at)).toContain('You broke your word');
+    expect(moraleReasons(l, p, { ...ZERO, promises: -1.5 }, at)).toContain("Doesn't trust your word");
+    for (const r of ['You broke your word', "Doesn't trust your word", "Didn't like your answer", 'Feels ignored'])
+      expect(DOWN_REASONS.has(r)).toBe(true);
+    expect(DOWN_REASONS.has('You kept your word')).toBe(false);
+  });
+
+  it('keeps four jolts at most when one is added', () => {
+    const at = moraleClock(l);
+    const p: Player = { ...base, morale: { level: 0 } };
+    for (const [kind, size] of [
+      ['paid', 3],
+      ['captain', 2],
+      ['reassured', 1],
+      ['kept', 2],
+      ['broken', -4],
+    ] as const)
+      addJolt(p, kind, size, at);
+    expect(p.morale!.jolts!.map((j) => j.kind).sort()).toEqual(['broken', 'captain', 'kept', 'paid']);
   });
 });

@@ -294,7 +294,56 @@ export interface Player {
 }
 
 /** A big moment that jolts a player's mood, then fades (`morale.ts`). */
-export type MoraleJolt = 'benched' | 'snubbed' | 'friendGone' | 'paid' | 'captain' | 'playoffs';
+export type MoraleJolt =
+  | 'benched'
+  | 'snubbed'
+  | 'friendGone'
+  | 'paid'
+  | 'captain'
+  | 'playoffs'
+  // G3: a talk's answer and what became of a promise (`playerTalks.ts`).
+  | 'promised'
+  | 'kept'
+  | 'broken'
+  | 'reassured'
+  | 'firm'
+  | 'ignored';
+
+/** What an unhappy player asks his club about (`playerTalks.ts`). */
+export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud';
+/** How a club answers him. */
+export type TalkReply = 'promise' | 'reassure' | 'firm';
+
+/** His talks with his club: an open ask, the last answer, an open promise, and what he remembers (`playerTalks.ts`). */
+export interface Talk {
+  /** The club this record is with: leaving it breaks an open promise and clears the record. */
+  club: number;
+  /** He's asked and not been answered yet (your club only: an AI GM answers at once). */
+  ask?: { cause: TalkCause; at: number };
+  /** The clock his mood first read Poor or worse in the current run (cleared when it lifts). */
+  downSince?: number;
+  /** The last answer, when, and the ask it answered: the six-step quiet after it, and what the letter shows. */
+  answered?: { reply: TalkReply | 'ignored'; at: number; ask: number };
+  /**
+   * An open promise. A snaps promise counts its games: `role` asked for, `left` games to keep it in, `games` and `snaps`
+   * since it was made, and where his club's games and his snaps stood at the last check (`seen`). A deal promise is
+   * `due` at a clock.
+   */
+  promise?: {
+    kind: 'snaps' | 'deal';
+    made: number;
+    due?: number;
+    role?: number;
+    left?: number;
+    games?: number;
+    snaps?: number;
+    seen?: { season: number; games: number; snaps: number };
+  };
+  /** Reassurances this league year; promises kept and broken that he still remembers. */
+  reassured?: number;
+  kept?: number;
+  broken?: number;
+}
 
 export interface Morale {
   /** −10…+10, the slow part of his mood; the words are bands of it plus his live jolts. */
@@ -305,6 +354,8 @@ export interface Morale {
   seen?: string[];
   /** The APY of the last deal he was seen on, to tell a raise when he signs. */
   apy?: number;
+  /** His talks with his club (G3); absent for most players. */
+  talk?: Talk;
 }
 
 /** A year of development on its way: the roll's inputs (its targets come back from the seed) and what has landed so far. */
