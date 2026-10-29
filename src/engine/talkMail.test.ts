@@ -31,6 +31,25 @@ describe('your players’ letters', () => {
     expect(mailSubject(mine[0])).toEqual({ kind: 'talk', season: l.season, clock: l.moraleAt, playerId: p.id });
   });
 
+  it('groups the players who speak up the same step into one message, a row each', () => {
+    const l = createLeague({ seed: 'talk-mail' });
+    const a = asking(l, l.userTeamId, 'deal', 0);
+    const b = asking(l, l.userTeamId, 'snaps', 1);
+    deliverMail(l);
+    const mine = letters(l);
+    expect(mine).toHaveLength(1);
+    const [m] = mine;
+    expect(m.id).toBe(`talk:${l.season}:${l.moraleAt}`);
+    expect(m.sections![0].rows.map((r) => r.talk?.playerId)).toEqual([a.id, b.id]);
+    for (const r of m.sections![0].rows) expect(r.note!.length).toBeGreaterThan(20);
+    expect(m.body).not.toMatch(/\d/);
+    expect(needsYou(l, m)).toBe(true);
+    answerTalk(l, a.id, 'reassure');
+    expect(needsYou(l, m)).toBe(true);
+    answerTalk(l, b.id, 'firm');
+    expect(needsYou(l, m)).toBe(false);
+  });
+
   it('needs you until you answer', () => {
     const l = createLeague({ seed: 'talk-mail' });
     const p = asking(l, l.userTeamId, 'deal');

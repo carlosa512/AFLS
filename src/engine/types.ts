@@ -1339,6 +1339,8 @@ export interface MailSection {
     claim?: { entryId: number };
     /** An expiring player the row acts on (the contracts letter): its buttons are drawn from the league as it is. */
     contract?: { playerId: number };
+    /** A player who spoke up (a step's players' letters): his answers are drawn from his talk record. */
+    talk?: { playerId: number; clock: number };
   }[];
 }
 

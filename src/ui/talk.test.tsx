@@ -6,7 +6,7 @@ import { deliverMail } from '../engine/inbox';
 import { answerTalk } from '../engine/playerTalks';
 import { activeRoster } from '../engine/roster';
 import type { TalkCause } from '../engine/types';
-import { MailCards } from './mail';
+import { MailCards, MailSections } from './mail';
 import { NavContext, type Nav } from './nav';
 
 const nav = { openPlayer: () => {}, openTeam: () => {}, go: () => {}, openStaff: () => {} } as unknown as Nav;
@@ -19,6 +19,22 @@ function letter(cause: TalkCause) {
   deliverMail(l);
   return { l, p, m: l.inbox!.find((x) => x.id.startsWith('talk:'))! };
 }
+
+describe('two players the same step', () => {
+  it('reads as one message, each with his own answers', () => {
+    const l = createLeague({ seed: 'talk-ui' });
+    const [a, b] = activeRoster(l, l.userTeamId);
+    a.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'deal', at: l.moraleAt! } } };
+    b.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
+    deliverMail(l);
+    const m = l.inbox!.find((x) => x.id.startsWith('talk:'))!;
+    const html = render(<MailSections league={l} sections={m.sections!} />);
+    expect(html.match(/Reassure him/g)).toHaveLength(2);
+    expect(html.match(/Promise a new deal/g)).toHaveLength(1);
+    expect(html).toContain(a.lastName);
+    expect(html).toContain(b.lastName);
+  });
+});
 
 describe('a player’s letter', () => {
   it('offers the promise he asked for, reassurance and a firm line', () => {

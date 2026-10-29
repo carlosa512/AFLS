@@ -4,14 +4,22 @@
  * from the league as it is (`talkCard`), so nothing about it is stored on the message.
  */
 import { canPromise } from './playerTalks';
-import { TALK_ANSWER, TALK_CLOSE, TALK_LETTER, TALK_SUBJECT, type LetterFact } from './playerVoice';
+import {
+  TALK_ANSWER,
+  TALK_CLOSE,
+  TALK_GROUP_LEAD,
+  TALK_GROUP_SUBJECT,
+  TALK_LETTER,
+  TALK_SUBJECT,
+  type LetterFact,
+} from './playerVoice';
 import { yearsLeft } from './finance/contract';
 import { STARTERS } from './positions';
 import { computeRecords } from './season/standings';
 import { playerSender, type Draft } from './senders';
 import { TRAIT_MEAN } from './traits';
 import type { League, Player, TalkCause } from './types';
-import { recentBodies, say } from './voice';
+import { say } from './voice';
 
 const z = (v: number) => (v - TRAIT_MEAN) / 3.5;
 /** How he talks: an outspoken man sharper, a calm one plainer. */
@@ -32,49 +40,90 @@ function letterFact(league: League, p: Player, cause: TalkCause, record: LetterF
   };
 }
 
+/** His past letters, alone or in a step's group: what he'd rather not say again. */
+function pastLetters(league: League, playerId?: number, n = 6): string[] {
+  const out: string[] = [];
+  for (const m of league.inbox ?? []) {
+    if (!m.id.startsWith('talk:')) continue;
+    if (m.sections) {
+      for (const r of m.sections[0]?.rows ?? [])
+        if (r.note && (playerId === undefined || r.talk?.playerId === playerId)) out.push(r.note);
+    } else if (playerId === undefined || m.id.endsWith(`:${playerId}`)) out.push(m.body);
+  }
+  return out.slice(-n);
+}
+
+/**
+ * Your players' letters: one message a step. A man alone writes his own letter; when two speak up the same step they
+ * come as one message, a row each with his words and his own answers, so a busy week is one thing to read.
+ */
 export function talkMail(league: League, have: Set<string>): Draft[] {
   const askers = Object.values(league.players).filter((p) => p.morale?.talk?.ask && p.teamId === league.userTeamId);
-  const ids = askers.map((p) => `talk:${league.season}:${p.morale!.talk!.ask!.at}:${p.id}`);
-  if (ids.every((id) => have.has(id))) return [];
+  const steps = new Map<number, Player[]>();
+  for (const p of askers) {
+    const at = p.morale!.talk!.ask!.at;
+    steps.set(at, [...(steps.get(at) ?? []), p]);
+  }
+  const idOf = (at: number, group: Player[]) =>
+    group.length === 1 ? `talk:${league.season}:${at}:${group[0].id}` : `talk:${league.season}:${at}`;
+  const due = [...steps].filter(([at, group]) => !have.has(idOf(at, group)));
+  if (!due.length) return [];
   const r = computeRecords(league).get(league.userTeamId);
   const share = r && r.w + r.l + r.t >= 3 ? (r.w + r.t / 2) / (r.w + r.l + r.t) : 0.5;
   const record = share >= 0.6 ? 'winning' : share <= 0.4 ? 'losing' : 'even';
-  // The last few players' letters, any player's: two letters side by side never say the same thing.
-  const recent = (league.inbox ?? [])
-    .filter((m) => m.id.startsWith('talk:'))
-    .slice(-6)
-    .map((m) => m.body);
-  const out: Draft[] = [];
-  askers.forEach((p, i) => {
-    const id = ids[i];
-    if (have.has(id)) return;
+  // The last few letters, any player's: two letters side by side never say the same thing.
+  const recent = pastLetters(league);
+  const letter = (p: Player) => {
     const ask = p.morale!.talk!.ask!;
-    const sender = playerSender(p);
+    const key = `talk:${league.season}:${ask.at}:${p.id}`;
     const fact = letterFact(league, p, ask.cause, record);
     // Nor does a man repeat his own last letters.
-    const avoid = [...recent, ...recentBodies(league, sender.from, 3)];
-    const opening = say(TALK_LETTER, fact, { key: id, slot: 'letter', recent: avoid });
+    const avoid = [...recent, ...pastLetters(league, p.id, 3)];
+    const opening = say(TALK_LETTER, fact, { key, slot: 'letter', recent: avoid });
     const close = say(TALK_CLOSE, fact, {
-      key: id,
+      key,
       slot: 'close',
       recent: avoid.map((b) => b.split(/(?<=[.?!]) /).at(-1)!),
     });
     const body = `${opening} ${close}`;
     recent.push(body);
     if (recent.length > 6) recent.shift();
-    out.push({
-      id,
-      season: league.season,
-      phase: league.phase,
-      week: league.phase === 'regular' || league.phase === 'playoffs' ? league.week : 0,
-      ...sender,
-      category: 'staff',
-      subject: TALK_SUBJECT[ask.cause],
-      body,
-      actions: [{ kind: 'player', playerId: p.id }],
-    });
+    return body;
+  };
+  const base = {
+    season: league.season,
+    phase: league.phase,
+    week: league.phase === 'regular' || league.phase === 'playoffs' ? league.week : 0,
+    category: 'staff' as const,
+  };
+  return due.map(([at, group]): Draft => {
+    if (group.length === 1) {
+      const p = group[0];
+      return {
+        ...base,
+        id: idOf(at, group),
+        ...playerSender(p),
+        subject: TALK_SUBJECT[p.morale!.talk!.ask!.cause],
+        body: letter(p),
+        actions: [{ kind: 'player', playerId: p.id }],
+      };
+    }
+    const rows = group.map((p) => ({
+      playerId: p.id,
+      cells: [`${p.firstName} ${p.lastName}`, TALK_SUBJECT[p.morale!.talk!.ask!.cause]],
+      note: letter(p),
+      talk: { playerId: p.id, clock: at },
+    }));
+    return {
+      ...base,
+      id: idOf(at, group),
+      from: 'Your players',
+      subject: say(TALK_GROUP_SUBJECT, { n: group.length }, { key: idOf(at, group), slot: 'subject' }),
+      body: say(TALK_GROUP_LEAD, { n: group.length }, { key: idOf(at, group), slot: 'lead' }),
+      sections: [{ title: 'Who wants a word', rows }],
+      actions: [{ kind: 'locker' }],
+    };
   });
-  return out;
 }
 
 export interface TalkCardView {
@@ -97,7 +146,7 @@ const SAID: Record<string, string> = {
 };
 
 /** What a player's letter shows now, read off the league: your players only. */
-export function talkCard(league: League, s: { season: number; clock: number; playerId: number }): TalkCardView {
+export function talkCard(league: League, s: { clock: number; playerId: number }): TalkCardView {
   const p = league.players[s.playerId];
   const t = p?.morale?.talk;
   if (!p || p.teamId !== league.userTeamId || !t) return { state: 'closed' };
@@ -110,7 +159,18 @@ export function talkCard(league: League, s: { season: number; clock: number; pla
   const line = say(
     TALK_ANSWER,
     { cause: cause ?? 'losing', reply: a.reply, ...manner(p) },
-    { key: `talk:${s.season}:${s.clock}:${p.id}`, slot: 'answer' },
+    { key: `talk:${Math.floor(s.clock / 32)}:${s.clock}:${p.id}`, slot: 'answer' },
   );
   return { state: 'answered', cause, said, line };
+}
+
+/** Does a players' letter still ask something: any of its men still waiting on your answer? */
+export function talkNeedsYou(
+  league: League,
+  m: { id: string; sections?: { rows: { talk?: { playerId: number; clock: number } }[] }[] },
+): boolean {
+  const [, , clock, playerId] = m.id.split(':');
+  if (playerId !== undefined)
+    return talkCard(league, { clock: Number(clock), playerId: Number(playerId) }).state === 'open';
+  return !!m.sections?.some((sec) => sec.rows.some((r) => r.talk && talkCard(league, r.talk).state === 'open'));
 }

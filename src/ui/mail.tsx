@@ -174,7 +174,10 @@ export function MailCards({ league, message }: { league: League; message: InboxM
     case 'contract':
       return <ContractCards league={league} s={s} live={needsYou(league, message)} />;
     case 'talk':
-      return <TalkCards league={league} s={s} />;
+      // A step's group shows each man's answers in his own row (`MailSections`); a letter alone, below his words.
+      return s.playerId === undefined ? null : (
+        <TalkCards league={league} s={{ clock: s.clock, playerId: s.playerId }} />
+      );
     case 'retirement':
       return <RetirementCards league={league} s={s} />;
     case 'combine':
@@ -608,7 +611,7 @@ function RookieImpactCards({ league, report }: { league: League; report: NonNull
 }
 
 /** A player's letter (G3): your three answers while it's open, what you said and his reply once it's answered. */
-function TalkCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'talk' }> }) {
+function TalkCards({ league, s }: { league: League; s: { clock: number; playerId: number } }) {
   const card = talkCard(league, s);
   const answer = (reply: TalkReply) => store.mutate((l) => answerTalk(l, s.playerId, reply));
   if (card.state === 'closed')
@@ -2870,6 +2873,7 @@ function SectionCard({
                   {r.claim && <ClaimButton league={league} entryId={r.claim.entryId} />}
                 </div>
                 {r.note && <p className="mail-row-note">{r.note}</p>}
+                {r.talk && <TalkCards league={league} s={r.talk} />}
                 {r.claim && <ClaimProblem league={league} entryId={r.claim.entryId} />}
                 {r.contract && (
                   <ContractControls

@@ -99,8 +99,10 @@ would have done anyway keeps them. No letters, and nothing about another club's 
 
 ## Your letters
 
-- **Filed by `deliverMail`** from the ask on file (the sim never sends mail): one letter per ask, from the player
-  himself, id `talk:{season}:{clock}:{playerId}`, filed with the locker room's mail. It **needs you** while the ask is
+- **Filed by `deliverMail`** from the asks on file (the sim never sends mail), **one message a step**: a man alone
+  writes his own letter (id `talk:{season}:{clock}:{playerId}`, from the player himself); when two speak up the same
+  step they come as one message ("Two players want a word", id `talk:{season}:{clock}`), a row each with his letter
+  and his own buttons, so a busy week is one thing to read (the owner's call). It **needs you** while any of its asks is
   open.
 - **His words** come from a new bank, `playerVoice.ts`, through `say`: the opening by his cause, sharper from an
   outspoken man (controversy) and plainer from a calm one, with what he wants in his own terms ("I want to be out there
