@@ -166,7 +166,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
     const now = p.mentor === undefined ? undefined : league.players[p.mentor];
     mentoring.push({
       playerId: p.id,
-      cells: [fullName(p), now ? fullName(now) : 'None yet', `lost ${fullName(was)}`],
+      cells: [fullName(p), now ? `now with ${fullName(now)}` : 'no mentor yet', `lost ${fullName(was)}`],
       note: say(
         MENTOR_LOST,
         { name: p.lastName, mentor: fullName(was), now: now ? fullName(now) : null, byYou: !!team.mentoringByYou },
@@ -174,6 +174,9 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       ),
     });
   }
+  // The pairs that work are a count in the section's line; only the ones that don't get a row.
+  const going = { 'learning well': 0, 'early days': 0 };
+  const suggested = new Map<number, number>();
   if (checkin !== 'end')
     for (const p of ours) {
       if (p.mentor === undefined || mentoring.some((r) => r.playerId === p.id)) continue;
@@ -181,24 +184,36 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       if (!m) continue;
       const status = mentorStatus(league, p);
       const bad = status === 'not taking' || status === 'picking up his bad habits';
-      if (bad) struggling++;
-      const better = bad ? betterMentor(league, user, p) : undefined;
+      if (!bad) {
+        going[status as keyof typeof going]++;
+        continue;
+      }
+      struggling++;
+      const better = betterMentor(league, user, p, suggested);
+      if (better) suggested.set(better.id, (suggested.get(better.id) ?? 0) + 1);
       mentoring.push({
         playerId: p.id,
-        cells: [fullName(p), fullName(m), status],
-        ...(better && bad
-          ? {
-              note: say(
-                MENTOR_SUGGEST,
-                { name: p.lastName, mentor: m.lastName, better: fullName(better), status },
-                at(`suggest:${p.id}`),
-              ),
-            }
-          : {}),
+        cells: [fullName(p), `mentored by ${fullName(m)}`, status],
+        note: say(
+          MENTOR_SUGGEST,
+          { name: p.lastName, mentor: m.lastName, better: better ? fullName(better) : null, status },
+          at(`suggest:${p.id}`),
+        ),
       });
     }
+  const pairsLine = [
+    going['learning well'] && `${going['learning well']} learning well`,
+    going['early days'] && `${going['early days']} too early to tell`,
+  ]
+    .filter(Boolean)
+    .join(', ');
   if (mentoring.length)
-    sections.push({ title: 'Mentoring', columns: ['Player', 'Mentor', "How it's going"], rows: mentoring });
+    sections.push({
+      title: 'Mentoring',
+      ...(pairsLine ? { lead: `The other pairs: ${pairsLine}.` } : {}),
+      columns: ['Player', 'Mentor', "How it's going"],
+      rows: mentoring,
+    });
 
   // Friction: feuds that started this season, each once. A feud told before that's still on goes in the verdict.
   const friction: MailSection['rows'] = [];
@@ -299,7 +314,9 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       ...sender,
       category: 'staff',
       subject: SUBJECT[checkin],
-      body: motto && !verdict.includes(motto) ? `${verdict} ${motto}` : verdict,
+      body:
+        (motto && !verdict.includes(motto) ? `${verdict} ${motto}` : verdict) +
+        (!mentoring.length && pairsLine ? `\n\nThe mentoring pairs: ${pairsLine}.` : ''),
       ...(sections.length ? { sections } : {}),
       covered,
       actions: [{ kind: 'locker' }],

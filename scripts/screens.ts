@@ -196,7 +196,7 @@ async function main() {
   const save = JSON.parse(raw) as {
     userTeamId: number;
     teams: { id: number; abbrev: string }[];
-    inbox?: { id: string; deleted?: boolean }[];
+    inbox?: { id: string; deleted?: boolean; organizationId?: number }[];
   };
   const shownTeam = teamAbbrev
     ? save.teams.find((t) => t.abbrev.toLowerCase() === teamAbbrev.toLowerCase())
@@ -250,7 +250,10 @@ async function main() {
     if (mailPrefixes) {
       const page = await newPage(DESKTOP, false);
       const phone = await newPage(PHONE, true);
-      const inbox = (save.inbox ?? []).filter((m) => !m.deleted);
+      // Mail the GM can read now: not deleted, and his own club's (a former club's letters stay with it).
+      const inbox = (save.inbox ?? []).filter(
+        (m) => !m.deleted && (m.organizationId === undefined || m.organizationId === save.userTeamId),
+      );
       for (const prefix of mailPrefixes) {
         const m = [...inbox].reverse().find((x) => x.id.startsWith(prefix));
         if (!m) {
@@ -259,12 +262,15 @@ async function main() {
         }
         const slug = prefix.replace(/[^a-z0-9]+/gi, '-').replace(/-+$/, '');
         const hash = `#/inbox/${encodeURIComponent(m.id)}`;
+        await goTo(page, '#/', 'main');
         await goTo(page, hash, 'main article');
         // The letter alone: the inbox list beside it runs to thousands of pixels.
         await page
           .locator('main article')
           .first()
           .screenshot({ path: file(`mail-${slug}`) });
+        // The inbox opens a message as it mounts: go Home first, or the phone stays on the last one.
+        await goTo(phone, '#/', 'main');
         await goTo(phone, hash, 'main article');
         await shootPage(phone, PHONE, file(`mail-${slug}-phone`));
       }

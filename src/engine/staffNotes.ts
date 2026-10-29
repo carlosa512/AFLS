@@ -6,6 +6,7 @@
  */
 import { coachAdviceObservation, teachingNoteFor } from './coachReports';
 import { COACH_ROLE_LABEL } from './coaching';
+import { QUIRKS, type QuirkId } from './quirks';
 import { headCoach, type Draft } from './senders';
 import type { InboxAction, League, MailSection } from './types';
 import { recentBodies, say, type Line } from './voice';
@@ -21,6 +22,41 @@ const OPENER: readonly Line<{ calls: number; habits: number }>[] = [
   { when: (f) => f.habits > 0, reads: 1, text: () => "What we're working on in practice this week." },
   { when: (f) => f.habits > 0, reads: 1, text: () => 'A note from practice: one of my coaches has a project.' },
   { text: () => 'From the staff room this week.' },
+];
+
+interface HabitFact {
+  coach: string;
+  player: string;
+  habit: QuirkId;
+  receptive: boolean;
+}
+
+/** A coach working on a player's bad habit, in the staff's words: what the habit does, and whether it's sticking. */
+const HABIT: readonly Line<HabitFact>[] = [
+  {
+    when: (f) => f.receptive,
+    reads: 1,
+    text: (f) =>
+      `${f.coach} has ${f.player} on it in practice: he ${QUIRKS[f.habit].clause}. He's taking to the work; it should stick.`,
+  },
+  {
+    when: (f) => f.receptive,
+    reads: 1,
+    text: (f) =>
+      `${f.coach} is fixing ${f.player}'s "${QUIRKS[f.habit].label}": he ${QUIRKS[f.habit].clause}. Good student. We'll see it soon.`,
+  },
+  {
+    when: (f) => !f.receptive,
+    reads: 1,
+    text: (f) =>
+      `${f.coach} is working with ${f.player} on it: he ${QUIRKS[f.habit].clause}. Old habit. It'll take time.`,
+  },
+  {
+    when: (f) => !f.receptive,
+    reads: 1,
+    text: (f) =>
+      `${f.coach} has a project in ${f.player}: he ${QUIRKS[f.habit].clause}. Don't expect it gone by Sunday.`,
+  },
 ];
 
 export function staffNotesMail(league: League, have: Set<string>): Draft[] {
@@ -49,7 +85,16 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
     rows.push({
       playerId: habit.playerId,
       cells: [name(habit.playerId), `${habit.coachName}, ${chair(habit.coachId)}`],
-      note: habit.text,
+      note: say(
+        HABIT,
+        {
+          coach: league.coaches[habit.coachId]?.lastName ?? habit.coachName,
+          player: league.players[habit.playerId]?.lastName ?? '',
+          habit: habit.habit,
+          receptive: habit.receptive,
+        },
+        { key: id, slot: 'habit', recent: recentBodies(league, headCoach(league).from) },
+      ),
     });
   const sender = headCoach(league);
   const actions: InboxAction[] = [

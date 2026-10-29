@@ -42,6 +42,21 @@ export const VERDICT: readonly (Line<VerdictFact> & { motto?: true })[] = [
       `${f.standing} still aren't talking. Not on the field yet. If it gets there, you'll hear it from me before you hear it from SNN.`,
   },
   {
+    when: (f) => !!f.standing && f.newFeuds === 0,
+    reads: 3,
+    text: (f) => `${f.standing} still aren't speaking. It hasn't cost us a snap, and I'm keeping it that way.`,
+  },
+  {
+    when: (f) => !!f.standing && f.newFeuds === 0,
+    reads: 3,
+    text: (f) => `Same as last time with ${f.standing}: cold, but professional. The rest of the room is fine.`,
+  },
+  {
+    when: (f) => f.newFeuds > 0 && f.friends > 0,
+    reads: 2,
+    text: () => "Mixed bag. Some new friendships, some guys who can't stand each other. That's a football team.",
+  },
+  {
     when: (f) => f.newFeuds > 0 && f.lost > 0 && !!f.lostName,
     reads: 3,
     text: (f) =>
@@ -181,25 +196,43 @@ export const MENTOR_LOST: readonly Line<LostFact>[] = [
 export interface SuggestFact {
   name: string;
   mentor: string;
-  better: string;
+  /** A veteran who'd suit him better, or null when there's nobody in the room right now. */
+  better: string | null;
   status: 'not taking' | 'picking up his bad habits';
 }
 
 export const MENTOR_SUGGEST: readonly Line<SuggestFact>[] = [
   {
-    when: (f) => f.status === 'picking up his bad habits',
+    when: (f) => !f.better && f.status === 'picking up his bad habits',
+    reads: 2,
+    text: (f) =>
+      `${f.mentor} is rubbing off on ${f.name} the wrong way. I don't have a better fit in the room right now.`,
+  },
+  {
+    when: (f) => !f.better && f.status === 'picking up his bad habits',
+    reads: 2,
+    text: (f) =>
+      `${f.name} is taking the wrong lessons from ${f.mentor}. If we add a vet at his spot, I'd make the switch.`,
+  },
+  {
+    when: (f) => !f.better && f.status === 'not taking',
+    reads: 2,
+    text: (f) => `${f.name} and ${f.mentor} haven't clicked. Nobody else in the room is a better fit yet.`,
+  },
+  {
+    when: (f) => !!f.better && f.status === 'picking up his bad habits',
     reads: 1,
     text: (f) =>
       `${f.name} is picking up the wrong things from ${f.mentor}. I'd move him to ${f.better} before it sticks.`,
   },
   {
-    when: (f) => f.status === 'not taking',
+    when: (f) => !!f.better && f.status === 'not taking',
     reads: 1,
     text: (f) =>
       `${f.name} isn't hearing ${f.mentor}. Wrong voice for him. ${f.better} has the patience; I'd pair them.`,
   },
   {
-    when: (f) => f.status === 'not taking',
+    when: (f) => !!f.better && f.status === 'not taking',
     reads: 1,
     text: (f) => `It's not clicking between ${f.name} and ${f.mentor}. ${f.better} would be my pick.`,
   },

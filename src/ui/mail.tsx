@@ -2702,7 +2702,8 @@ function SectionCard({ league, section }: { league: League; section: MailSection
             const p = r.playerId === undefined ? undefined : league.players[r.playerId];
             const facts = r.cells
               .slice(1, -1)
-              .map((c, k) => (cols[k + 1] ? `${cols[k + 1]} ${c}` : c))
+              // Numbers carry their column's name ("Age 22"); words read on their own.
+              .map((c, k) => (cols[k + 1] && /^[\d$]/.test(c) ? `${cols[k + 1]} ${c}` : c))
               .join(' · ');
             return (
               <li key={j} className="mail-row">

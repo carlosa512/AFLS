@@ -83,7 +83,7 @@ describe('the staff-notes letter', () => {
     deliverMail(l);
     const [m] = notes(l);
     expect(m).toBeDefined();
-    expect(m.sections![0].rows[0].note).toMatch(/Peeks in the Backfield habit/);
+    expect(m.sections![0].rows[0].note).toMatch(/peeks into the backfield|Peeks in the Backfield/i);
     expect(m.sections![0].rows[0].playerId).toBe(p.id);
     for (const r of l.inbox!.filter((x) => x.id.startsWith('recap:')))
       expect(r.body).not.toMatch(/focused coaching attention/);

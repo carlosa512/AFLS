@@ -299,9 +299,15 @@ export function mentorStatus(
  * A veteran in the room who'd do more for a young player than his mentor is (the staff's suggestion when a pair isn't
  * taking): free to take him, and one the staff expect him to learn well from. None when nobody would.
  */
-export function betterMentor(league: League, teamId: number, young: Player): Player | undefined {
+export function betterMentor(
+  league: League,
+  teamId: number,
+  young: Player,
+  /** Mentees already suggested to each veteran in this read, so one man isn't offered to more than he can take. */
+  suggested: ReadonlyMap<number, number> = new Map(),
+): Player | undefined {
   const roster = activeRoster(league, teamId);
-  const load = new Map<number, number>();
+  const load = new Map(suggested);
   for (const p of roster) if (p.mentor !== undefined) load.set(p.mentor, (load.get(p.mentor) ?? 0) + 1);
   const weeks = Math.max(4, young.mentorWeeks ?? 0);
   const now = young.mentor === undefined ? undefined : league.players[young.mentor];
