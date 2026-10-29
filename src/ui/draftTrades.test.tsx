@@ -6,7 +6,8 @@ import { advanceOffseason, beginOffseason, draftForUser, draftNextPick, draftToU
 import { nextPick } from '../engine/offseason/draft';
 import { draftDayOffers } from '../engine/trade/draft';
 import type { League } from '../engine/types';
-import { Draft } from './screens/Draft';
+import { offseasonStep } from './App';
+import { Draft, SimTheRest } from './screens/Draft';
 
 const atDraft = (() => {
   const league = createLeague({ seed: 'draft-trades' });
@@ -71,5 +72,26 @@ describe('draft room on draft day', () => {
     expect(html).toContain(`via ${other.abbrev}`);
     expect(html).toContain('Draft-day trade');
     expect(html).toContain(`${other.abbrev} sent No. 5 for No. 9 and ${l.season + 1} round 2.`);
+  });
+});
+
+describe('no auto-picks by accident', () => {
+  it("the top bar's draft button opens the draft room and picks nothing", () => {
+    const l = draftDay();
+    const made = l.draftPicks.filter((p) => p.playerId !== undefined).length;
+    const step = offseasonStep(l)!;
+    expect(step.label).toBe('Go to the draft');
+    step.run(l);
+    expect(l.phase).toBe('draft');
+    expect(l.draftPicks.filter((p) => p.playerId !== undefined).length).toBe(made);
+    expect(step.then).toEqual({ view: 'office', tab: 'draft' });
+  });
+
+  it("the draft room's Sim the rest asks first", () => {
+    const l = draftDay();
+    const html = renderToStaticMarkup(<SimTheRest confirming />);
+    expect(html).toContain('Let the AI make the rest of the picks?');
+    expect(html).toContain('yours included');
+    expect(l.phase).toBe('draft');
   });
 });
