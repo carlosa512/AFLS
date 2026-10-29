@@ -13,6 +13,7 @@ import { clamp } from './rng';
 import { activeRoster } from './roster';
 import { seasonRole } from './scouting';
 import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
+import { talkStep } from './playerTalks';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, MoraleJolt, Player, Position } from './types';
 
@@ -485,6 +486,8 @@ export function moraleAdvance(league: League, clock: number): void {
     if (p.contract) m.apy = p.contract.apy;
   }
   rememberClinches(league, clinched, spots);
+  // Then they talk: asks, answers, promises (G3).
+  talkStep(league, ctx, clock, week, newYear);
 }
 
 /** His jolts after a step: the faded-out dropped, the four biggest kept, newest last; none is nothing in the save. */
