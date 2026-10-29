@@ -1,5 +1,6 @@
 import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
 import { lockerReportMail } from './lockerReport';
+import { talkCard, talkMail } from './talkMail';
 import { director, doctor, headCoach, type Draft } from './senders';
 import { waiverLetterNeedsYou, waiverMail } from './waiverMail';
 import { contractLetterNeedsYou, contractMail } from './contractMail';
@@ -752,7 +753,9 @@ export type MailSubject =
   | { kind: 'waivers'; season: number; week: number }
   | { kind: 'staffNotes'; season: number; week: number }
   | { kind: 'positionMoves'; season: number }
-  | { kind: 'expiring'; season: number };
+  | { kind: 'expiring'; season: number }
+  // A player of yours speaking up (talkMail.ts): it needs you while his ask is open.
+  | { kind: 'talk'; season: number; clock: number; playerId: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -875,6 +878,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'locker', season: s === 'meet' ? m.season : season };
     case 'locker':
       return { kind: 'lockerReport', season, checkin: a as 'camp' | 'cutdown' | 'deadline' | 'end' };
+    case 'talk':
+      return { kind: 'talk', season, clock: Number(a), playerId: Number(b) };
     case 'waivers':
       return { kind: 'waivers', season, week: Number(b) };
     case 'staffNotes':
@@ -929,6 +934,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       return waiverLetterNeedsYou(league, m.sections);
     case 'expiring':
       return contractLetterNeedsYou(league, m.sections);
+    case 'talk':
+      return talkCard(league, s).state === 'open';
     case 'contract':
       return league.phase === 'resign' && expiringPlayers(league, user).some((p) => p.id === s.playerId);
     case 'combine':
@@ -2871,6 +2878,7 @@ export function deliverMail(league: League): void {
       ...offerMail(league, have),
       ...lockerMail(league, have),
       ...lockerReportMail(league, have),
+      ...talkMail(league, have),
     );
     if (league.phase === 'resign')
       fresh.push(

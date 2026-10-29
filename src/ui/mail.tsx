@@ -118,6 +118,7 @@ import type {
   RookieReportRow,
   Staff,
   Team,
+  TalkReply,
 } from '../engine/types';
 import { stanceOf, tradeWindow } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
@@ -144,6 +145,8 @@ import {
   verdictTone,
 } from './training';
 import { store } from './store';
+import { answerTalk } from '../engine/playerTalks';
+import { talkCard } from '../engine/talkMail';
 import { setWaiverClaim } from '../engine/personnel/waivers';
 import { wireClaim } from '../engine/waiverMail';
 
@@ -170,6 +173,8 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <AwardCards league={league} s={s} />;
     case 'contract':
       return <ContractCards league={league} s={s} live={needsYou(league, message)} />;
+    case 'talk':
+      return <TalkCards league={league} s={s} />;
     case 'retirement':
       return <RetirementCards league={league} s={s} />;
     case 'combine':
@@ -598,6 +603,44 @@ function RookieImpactCards({ league, report }: { league: League; report: NonNull
         Work for {league.teams[report.teamId].name} only. Snaps count scrimmage downs; kicking work is listed
         separately.
       </p>
+    </Card>
+  );
+}
+
+/** A player's letter (G3): your three answers while it's open, what you said and his reply once it's answered. */
+function TalkCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'talk' }> }) {
+  const card = talkCard(league, s);
+  const answer = (reply: TalkReply) => store.mutate((l) => answerTalk(l, s.playerId, reply));
+  if (card.state === 'closed')
+    return (
+      <Card>
+        <span className="muted small">This talk is closed.</span>
+      </Card>
+    );
+  if (card.state === 'answered')
+    return (
+      <Card>
+        <p style={{ margin: 0 }}>{card.said}</p>
+        <p className="muted" style={{ margin: 0 }}>
+          “{card.line}”
+        </p>
+      </Card>
+    );
+  return (
+    <Card title="Your answer">
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        {card.canPromise && (
+          <button className="btn btn-sm" onClick={() => answer('promise')}>
+            {card.cause === 'deal' ? 'Promise a new deal' : 'Promise more snaps'}
+          </button>
+        )}
+        <button className="btn btn-sm" onClick={() => answer('reassure')}>
+          Reassure him
+        </button>
+        <button className="btn btn-sm" onClick={() => answer('firm')}>
+          Be firm
+        </button>
+      </div>
     </Card>
   );
 }
