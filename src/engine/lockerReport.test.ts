@@ -45,6 +45,80 @@ const old = (id: string, l: League): InboxMessage => ({
   actions: [],
 });
 
+describe('the locker room report: morale', () => {
+  const moody = (l: League) => {
+    for (const p of ours(l)) p.morale = { level: 2, jolts: [] };
+    const [a, b] = ours(l);
+    a.morale = { level: -2, jolts: [] };
+    b.morale = { level: -5, jolts: [] };
+    return [a, b];
+  };
+
+  it("lists who's down, worst first, each with the coach's note", () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    const [poor, worse] = moody(l);
+    deliverMail(l);
+    const [m] = reports(l);
+    const rows = section(m, 'Morale')!.rows;
+    expect(rows.map((r) => r.playerId).slice(0, 2)).toEqual([worse.id, poor.id]);
+    expect(rows[0].cells).toContain('Very poor');
+    for (const r of rows) expect(r.note?.length).toBeGreaterThan(10);
+    expect(m.covered).toContain(`morale:${l.season}:cutdown:${worse.id}:down`);
+    expect(text(m)).not.toMatch(BANNED);
+    for (const r of rows) expect([...r.cells.slice(1), r.note].join(' ')).not.toMatch(/\d/);
+  });
+
+  it('tells only what changed by the next report: who slipped, and who came around', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    const [poor, worse] = moody(l);
+    deliverMail(l);
+    poor.morale = { level: 2, jolts: [] };
+    const fresh = ours(l)[2];
+    fresh.morale = { level: -4, jolts: [] };
+    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    deliverMail(l);
+    const m = reports(l).find((x) => x.id.endsWith(':deadline'))!;
+    const rows = section(m, 'Morale')!.rows;
+    const ids = rows.map((r) => r.playerId);
+    // Still down since last time: told already, not again.
+    expect(ids).not.toContain(worse.id);
+    expect(ids).toContain(fresh.id);
+    expect(rows.find((r) => r.playerId === poor.id)?.cells).toContain('Good');
+  });
+
+  it('names the worst six, and points to the Locker Room for the rest', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    for (const [i, p] of ours(l).entries()) p.morale = { level: i < 9 ? -2 - i * 0.1 : 0, jolts: [] };
+    deliverMail(l);
+    const s = section(reports(l)[0], 'Morale')!;
+    expect(s.rows).toHaveLength(6);
+    expect(s.lead).toMatch(/Locker Room/);
+    expect(s.lead).not.toMatch(/\d/);
+  });
+
+  it('leaves the section out when nobody is down or flying', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    for (const p of ours(l)) p.morale = { level: 0, jolts: [] };
+    deliverMail(l);
+    expect(section(reports(l)[0], 'Morale')).toBeUndefined();
+  });
+
+  it('puts the section after the captains and before the mentoring', () => {
+    const l = copy(template);
+    at(l, 'preseason');
+    nameCaptains(l);
+    moody(l);
+    deliverMail(l);
+    const titles = reports(l)[0].sections!.map((s) => s.title);
+    expect(titles.indexOf('Morale')).toBeGreaterThan(titles.indexOf('Captains and leaders'));
+    if (titles.includes('Mentoring')) expect(titles.indexOf('Morale')).toBeLessThan(titles.indexOf('Mentoring'));
+  });
+});
+
 describe('the locker room report', () => {
   it('six lost mentors file no one-off letters, and the next report lists all six', () => {
     const l = copy(template);
@@ -142,6 +216,7 @@ describe('the locker room report', () => {
     for (const p of ours(l)) {
       delete p.mentor;
       delete p.ties;
+      p.morale = { level: 0, jolts: [] };
     }
     at(l, 'regular', 1);
     deliverMail(l);

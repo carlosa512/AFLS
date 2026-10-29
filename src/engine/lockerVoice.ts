@@ -27,10 +27,18 @@ export interface VerdictFact {
   struggling: number;
   friends: number;
   grew: number;
+  /** Men whose mood reads Poor or worse. */
+  unhappy: number;
 }
 
 const quiet = (f: VerdictFact) =>
-  f.newFeuds === 0 && !f.standing && f.lost === 0 && f.struggling === 0 && f.friends === 0 && f.grew === 0;
+  f.newFeuds === 0 &&
+  !f.standing &&
+  f.lost === 0 &&
+  f.struggling === 0 &&
+  f.friends === 0 &&
+  f.grew === 0 &&
+  f.unhappy < 3;
 const month = (c: Checkin) => (c === 'camp' ? 'the season' : c === 'cutdown' ? 'September' : 'the stretch run');
 
 /** `motto: true` lines close with the coach's saying. */
@@ -82,6 +90,12 @@ export const VERDICT: readonly (Line<VerdictFact> & { motto?: true })[] = [
     when: (f) => f.checkin === 'end' && f.grew > 0,
     reads: 2,
     text: () => "The best thing that happened this year didn't show up in the box score. A few of our kids grew up.",
+  },
+  { when: (f) => f.unhappy >= 3, reads: 1, text: () => "A few guys are down. I'm on it." },
+  {
+    when: (f) => f.unhappy >= 3,
+    reads: 1,
+    text: () => "Some unhappy faces in there. Nothing I can't handle, but you should know who.",
   },
   { when: (f) => f.newFeuds > 0, reads: 1, text: () => "Room's fine, but there's friction to keep an eye on." },
   { when: (f) => f.newFeuds > 0, reads: 1, text: () => "One spot of friction in the room. It's being handled." },
@@ -318,4 +332,88 @@ export const GREW_UP: readonly Line<GrewFact>[] = [
     reads: 1,
     text: (f) => `A year ago I'd have told you ${f.name} was "${f.was}". He's grown up. "${f.is}" fits him now.`,
   },
+];
+
+// ───────── morale ─────────
+
+export interface MoraleNoteFact {
+  name: string;
+  /** What weighs on him most, as the morale screen words it (`moraleReasons`), or null. */
+  reason: string | null;
+  /** One of the happiest in the room, for the good-news rows. */
+  happy: boolean;
+  /** Down at the last report, himself again now. */
+  back?: boolean;
+}
+
+export const MORALE_NOTE: readonly Line<MoraleNoteFact>[] = [
+  { when: (f) => !!f.back, reads: 3, text: () => "He's come around. Whatever it was, it's behind him." },
+  { when: (f) => !!f.back, reads: 3, text: (f) => `${f.name} is back to himself. Good.` },
+  { when: (f) => f.happy, reads: 1, text: () => "Couldn't be happier." },
+  { when: (f) => f.happy, reads: 1, text: (f) => `${f.name} is flying. I'd take a room full of him.` },
+  {
+    when: (f) => f.reason === 'Wants more snaps',
+    reads: 2,
+    text: (f) => `${f.name} is sulking about snaps. I'd talk to him before it spreads.`,
+  },
+  {
+    when: (f) => f.reason === 'Wants more snaps',
+    reads: 2,
+    text: (f) => `${f.name} thinks he should be on the field more. He's got a case.`,
+  },
+  {
+    when: (f) => f.reason === 'Wants a new deal',
+    reads: 2,
+    text: () => "He's watching what the market pays. It's on his mind.",
+  },
+  {
+    when: (f) => f.reason === 'Wants a new deal',
+    reads: 2,
+    text: (f) => `${f.name} knows what guys at his spot are getting. He hasn't said it to me, but he will.`,
+  },
+  { when: (f) => f.reason === 'Wants a new deal', reads: 2, text: () => "It's the contract. It usually is." },
+  {
+    when: (f) => f.reason === 'Wants a new deal',
+    reads: 2,
+    text: (f) => `${f.name} thinks he's underpaid. He plays like it doesn't bother him, for now.`,
+  },
+  { when: (f) => f.reason === 'The losing is wearing on him', reads: 2, text: () => 'The losing is getting to him.' },
+  {
+    when: (f) => f.reason === 'The losing is wearing on him',
+    reads: 2,
+    text: (f) => `${f.name} didn't come here to lose. It shows.`,
+  },
+  { when: (f) => f.reason === 'A feud in the room', reads: 2, text: () => 'The feud is wearing on him.' },
+  {
+    when: (f) => f.reason === 'Still stung by the benching',
+    reads: 2,
+    text: () => "He hasn't got over losing the job. Give it time.",
+  },
+  {
+    when: (f) => f.reason === 'Noticed who got paid',
+    reads: 2,
+    text: () => 'He saw the new deal down the hall. He noticed.',
+  },
+  { when: (f) => f.reason === 'Misses a friend who left', reads: 2, text: () => 'He misses his buddy. It will pass.' },
+  { when: (f) => f.reason === 'Hard to please', reads: 2, text: () => "That's just him. Nothing's ever quite right." },
+  { text: (f) => `${f.name} is down. I'm keeping an eye on it.` },
+  { text: () => "He's not himself. I'll find out why." },
+];
+
+export interface MoraleLeadFact {
+  /** Men down who didn't make the letter's list. */
+  more: number;
+}
+
+/** The line over a long Morale list: the letter names the worst, the Locker Room screen has the rest. */
+export const MORALE_LEAD: readonly Line<MoraleLeadFact>[] = [
+  {
+    when: (f) => f.more === 1,
+    reads: 1,
+    text: () => 'These are the ones I worry about. One more is down too; the Locker Room has him.',
+  },
+  {
+    text: (f) => `These are the ones I worry about. ${count(f.more)} more are down too; the Locker Room has them all.`,
+  },
+  { text: (f) => `The worst of it. ${count(f.more)} others are down a bit; it's all on the Locker Room screen.` },
 ];

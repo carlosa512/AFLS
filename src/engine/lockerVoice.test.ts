@@ -9,6 +9,7 @@ import {
   GREW_UP,
   MENTOR_LOST,
   MENTOR_SUGGEST,
+  MORALE_NOTE,
   VERDICT,
   type VerdictFact,
 } from './lockerVoice';
@@ -43,6 +44,7 @@ const quiet: VerdictFact = {
   struggling: 0,
   friends: 0,
   grew: 0,
+  unhappy: 0,
 };
 
 describe("the head coach's voice", () => {
@@ -114,9 +116,20 @@ describe("the head coach's voice", () => {
       say(FRICTION, {}, { key: 'k', slot: 'f' }),
       say(GETTING_ALONG, { a: 'Arnold', b: 'Vincent', gone: 'traded' }, { key: 'k', slot: 'g' }),
       say(GREW_UP, { name: 'Carter', mentor: 'Cedric Tate' }, { key: 'k', slot: 'u' }),
+      say(VERDICT, { ...quiet, unhappy: 3 }, { key: 'k', slot: 'v' }),
+      ...['Wants more snaps', 'Wants a new deal', 'The losing is wearing on him', null].map((reason) =>
+        say(MORALE_NOTE, { name: 'Davis', reason, happy: false }, { key: 'k', slot: 'm' }),
+      ),
+      say(MORALE_NOTE, { name: 'Davis', reason: null, happy: true }, { key: 'k', slot: 'h' }),
+      say(MORALE_NOTE, { name: 'Davis', reason: null, happy: false, back: true }, { key: 'k', slot: 'b' }),
     ];
+    expect(say(VERDICT, { ...quiet, unhappy: 3 }, { key: 'k', slot: 'v' })).toMatch(/down|unhappy/i);
+    expect(
+      say(MORALE_NOTE, { name: 'Davis', reason: 'Wants more snaps', happy: false }, { key: 'k', slot: 'm' }),
+    ).toMatch(/snaps|field/);
     for (const s of samples) {
       expect(s.length).toBeGreaterThan(10);
+      expect(s).not.toMatch(/\d/);
       expect(s).not.toMatch(BANNED);
       for (const nick of RESERVED_NICKNAMES) expect(s).not.toMatch(new RegExp(`\\b${nick}\\b`, 'i'));
     }
