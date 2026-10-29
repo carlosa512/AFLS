@@ -8,12 +8,8 @@ import { gmOfferTerms, userExtensionOffer } from './leadership';
 import { adviceFor, adviceMoment } from './directorAdvice';
 import { editionAt, gazetteFor } from './gazette';
 import { recordAdvicePublications } from './coachDecisions';
-import {
-  coachAdviceObservation,
-  userCoachGameObservation,
-  teachingObservation,
-  positionTeachingNote,
-} from './coachReports';
+import { userCoachGameObservation, positionTeachingNote } from './coachReports';
+import { staffNotesMail } from './staffNotes';
 /**
  * The user's inbox: mail from the league office, agents and the team's own staff, the way a
  * manager's desk fills up in Football Manager. Nothing in the sim sends mail. `deliverMail` looks
@@ -1078,7 +1074,6 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
       : `Their ${weak.g.phrase} ${weak.g.plural ? 'are' : 'is'} the soft spot and their ${strong.g.phrase} ${strong.g.plural ? 'are' : 'is'} the threat: ${CATCH[strong.g.title]}.`) +
     (known ? '' : " We haven't seen much of them yet.");
   const stakes = matchupStakes(league, opp.id);
-  const coaching = coachAdviceObservation(league);
   const mismatch = heightMismatch(league, opp);
   return [
     {
@@ -1088,28 +1083,9 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
       week: league.week,
       ...headCoach(league),
       category: 'matchup',
-      ...(coaching
-        ? {
-            coachNoteKey: coaching.key,
-            coachNote: {
-              coachId: coaching.coachId,
-              coachName: coaching.coachName,
-              text: coaching.text,
-              kind: coaching.kind,
-            },
-          }
-        : {}),
       subject: stakes?.subject ?? `Opposition report: ${teamName(opp)}`,
-      body: `${opener} ${stakes?.body ?? ''}${read}${mismatch ? `\n\n${mismatch}` : ''}${coaching ? `\n\n${coaching.text}` : ''}`,
-      actions: [
-        { kind: 'team', teamId: opp.id },
-        ...(coaching
-          ? [
-              { kind: 'player' as const, playerId: coaching.playerId },
-              { kind: 'team' as const, teamId: league.userTeamId },
-            ]
-          : []),
-      ],
+      body: `${opener} ${stakes?.body ?? ''}${read}${mismatch ? `\n\n${mismatch}` : ''}`,
+      actions: [{ kind: 'team', teamId: opp.id }],
     },
   ];
 }
@@ -1443,8 +1419,9 @@ function recapMail(league: League, have: Set<string>): Draft[] {
     !game.playoffRound &&
     theirRecord.w + theirRecord.l + theirRecord.t >= 6 &&
     (theirRecord.w + theirRecord.t / 2) / (theirRecord.w + theirRecord.l + theirRecord.t) >= 0.75;
-  const coaching =
-    userCoachGameObservation(league, game, headCoach(league).fromCard?.id) || teachingObservation(league);
+  // The game's own coaching (a timeout call, protecting a lead) is about the game, so it rides with the result. What
+  // the staff are working on in the week goes in their own letter (`staffNotes.ts`).
+  const coaching = userCoachGameObservation(league, game, headCoach(league).fromCard?.id);
   const resultWithReaction = coaching
     ? `${result.slice(0, -1)}; ${coaching.replace(/^Our /, 'our ').replace(/^The /, 'the ')}`
     : result;
@@ -2934,6 +2911,7 @@ export function deliverMail(league: League): void {
         ...coverMail(league, have),
         ...raceMail(league, have),
         ...matchupMail(league, have),
+        ...staffNotesMail(league, have),
         ...flexMail(league, have),
       );
     }
