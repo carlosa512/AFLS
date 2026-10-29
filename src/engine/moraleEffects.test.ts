@@ -108,3 +108,68 @@ describe('game day (G2)', () => {
     expect(play(true)).toBe(play(true));
   }, 60_000);
 });
+
+const { learnRate } = await import('./training');
+const { demand } = await import('./offseason/negotiation');
+const { minSalary, leagueMarket } = await import('./finance/market');
+type Player = import('./types').Player;
+
+describe('practice (G2)', () => {
+  it('learns a new position up to 15% faster happy, slower unhappy', () => {
+    const { l, team } = setup();
+    const p = l.players[team.depthChart.S[0]];
+    const at = (level: number) => ((p.morale = { level, jolts: [] }), learnRate(l, p, 'CB'));
+    expect(at(0)).toBeGreaterThan(0.4);
+    expect(at(0)).toBeLessThan(1.7);
+    expect(at(10) / at(0)).toBeCloseTo(1.15, 9);
+    expect(at(-10) / at(0)).toBeCloseTo(0.85, 9);
+  });
+});
+
+describe('contract talks (G2)', () => {
+  /** A starter on your team whose market is well above the minimum. */
+  const pick = (l: League) =>
+    Object.values(l.players)
+      .filter((p) => p.teamId === l.userTeamId && p.contract)
+      .sort((a, b) => b.contract!.apy - a.contract!.apy)[0];
+  const ask = (l: League, p: Player, level: number, teamId = p.teamId!) => {
+    p.morale = { level, jolts: [] };
+    return demand(l, p, teamId);
+  };
+
+  it('an unhappy man asks his own club up to 10% more, and walks away higher', () => {
+    const { l } = setup();
+    const p = pick(l);
+    const base = ask(l, p, 0);
+    const sour = ask(l, p, -10);
+    expect(base.walkAway).toBeGreaterThan(minSalary(p.experience, leagueMarket(l).cap) * 2);
+    expect(sour.askApy / base.askApy).toBeCloseTo(1.1, 2);
+    expect(sour.walkAway / base.walkAway).toBeCloseTo(1.1, 9);
+  });
+
+  it('a happy one asks up to 5% less', () => {
+    const { l } = setup();
+    const p = pick(l);
+    expect(ask(l, p, 10).askApy / ask(l, p, 0).askApy).toBeCloseTo(0.95, 2);
+  });
+
+  it('gives a round of patience more past Very good, one less past Very poor, never under one', () => {
+    const { l } = setup();
+    const p = pick(l);
+    const base = ask(l, p, 0).patience;
+    expect(ask(l, p, 4).patience).toBe(base + 1);
+    expect(ask(l, p, -4).patience).toBe(Math.max(1, base - 1));
+    expect(ask(l, p, 2).patience).toBe(base);
+    p.personality.patience = 0;
+    expect(ask(l, p, -10).patience).toBe(1);
+  });
+
+  it('another club and a free agent ask the same whatever his mood', () => {
+    const { l } = setup();
+    const p = pick(l);
+    const other = (p.teamId! + 3) % 32;
+    expect(ask(l, p, -10, other)).toEqual(ask(l, p, 0, other));
+    p.teamId = null;
+    expect(ask(l, p, -10, l.userTeamId)).toEqual(ask(l, p, 0, l.userTeamId));
+  });
+});

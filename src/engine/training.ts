@@ -39,6 +39,7 @@ import { activeRoster, isAvailable, syncDepthChart, teamPlayers } from './roster
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { rosterOf, tradeContext, type TradeContext } from './trade/context';
 import { learnMult, workEthicOf } from './traits';
+import { moodLean, moraleLevel } from './morale';
 import type { Attribute, Coach, League, Learning, MoveReason, Player, Position, Team } from './types';
 import { OFFSEASON_PHASES, POSITIONS } from './types';
 
@@ -115,6 +116,9 @@ export function familiarity(p: Player): Familiarity | null {
 
 // ───────── the learning clock ─────────
 
+/** How much faster (or slower) a man learns a new position at the extremes of his mood (G2). */
+const MOOD_LEARN = 0.15;
+
 /**
  * How fast he learns, per learning-week: the new room's coaching, his age, his work ethic, his
  * versatility and his own hidden pace (1 when the coaches estimate, so an estimate never gives the pace away). 0.3–2.
@@ -123,8 +127,10 @@ export function learnRate(league: League, p: Player, to: Position, pace = 1): nu
   const coach = coachingForPlayer(league, p, to).rate;
   const age = Math.max(0.6, 1 - 0.02 * Math.max(0, p.age - 24));
   const ethic = clamp(1 + 0.03 * (workEthicOf(p) - 10.5), 0.7, 1.3);
+  // A happy man works harder at it, an unhappy one goes through the motions (G2).
+  const mood = 1 + MOOD_LEARN * moodLean(moraleLevel(league, p));
   // Mentoring (docs/TRAINING.md §8) multiplies in here later; until then it is 1.
-  return clamp(coach * age * ethic * learnMult(p.traits) * pace, 0.3, 2);
+  return clamp(coach * age * ethic * mood * learnMult(p.traits) * pace, 0.3, 2);
 }
 
 /** Learning-weeks a block gives this move (spring has no live contact). */
