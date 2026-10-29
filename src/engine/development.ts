@@ -351,7 +351,8 @@ function growthMean(league: League): number {
  */
 function tiltStep(league: League, p: Player, share: number, mean: number): void {
   const d = p.dev!;
-  if (d.potential === undefined || MOOD_TILT.growth <= 0) return;
+  // No mood on record (never rostered): nothing to tilt by, as `growthMean` leaves him out.
+  if (d.potential === undefined || !p.morale || MOOD_TILT.growth <= 0) return;
   const tilting = RELEASE.program + RELEASE.camp + RELEASE.season;
   const next =
     Math.round(((d.mood ?? 0) + (MOOD_TILT.growth * share * moodPull(moraleLevel(league, p), mean)) / tilting) * 1e4) /

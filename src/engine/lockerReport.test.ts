@@ -81,6 +81,16 @@ describe('the locker room report: morale', () => {
     expect(rows.find((r) => r.playerId === poor.id)!.note).not.toMatch(/practice|game day|his work/);
   });
 
+  it('tells what it costs him when a broken promise is what weighs on him', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    const [, worse] = moody(l);
+    worse.morale = { level: -5, jolts: [{ kind: 'broken', size: -4, at: l.moraleAt! }] };
+    deliverMail(l);
+    const row = section(reports(l)[0], 'Morale')!.rows.find((r) => r.playerId === worse.id)!;
+    expect(row.note).toMatch(/practice|game day|his work/);
+  });
+
   it('tells only what changed by the next report: who slipped, and who came around', () => {
     const l = copy(template);
     at(l, 'regular', 3);

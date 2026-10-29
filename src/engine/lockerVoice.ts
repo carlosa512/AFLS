@@ -351,6 +351,11 @@ export interface MoraleNoteFact {
 export const MORALE_NOTE: readonly Line<MoraleNoteFact>[] = [
   // What it's costing him (G2): the reason and the cost together, then the cost alone.
   {
+    when: (f) => !!f.costing && f.reason === 'You broke your word',
+    reads: 3,
+    text: (f) => `${f.name} took you at your word, and he's stopped working like it. It shows in practice.`,
+  },
+  {
     when: (f) => !!f.costing && f.reason === 'Wants more snaps',
     reads: 3,
     text: (f) => `${f.name} is sulking about snaps, and it's showing in practice.`,
@@ -377,12 +382,12 @@ export const MORALE_NOTE: readonly Line<MoraleNoteFact>[] = [
   },
   { when: (f) => !!f.costing, reads: 2.5, text: (f) => `Whatever's eating ${f.name}, it's in his work now.` },
   {
-    when: (f) => f.reason === 'You broke your word',
+    when: (f) => !f.costing && f.reason === 'You broke your word',
     reads: 3,
     text: (f) => `You told ${f.name} he'd get it. He's still waiting.`,
   },
   {
-    when: (f) => f.reason === 'You broke your word',
+    when: (f) => !f.costing && f.reason === 'You broke your word',
     reads: 3,
     text: (f) => `${f.name} took you at your word. That's gone now, and the room saw it.`,
   },

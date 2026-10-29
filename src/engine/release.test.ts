@@ -328,6 +328,18 @@ describe("mood tilts a young player's year (G2)", () => {
     for (const p of growers) expect(p.ratings).toEqual(jump(p, 0).ratings);
   });
 
+  it('tilts nobody who has no mood on record', () => {
+    const { league, growers, jump } = setup();
+    // The young players' mean is −10 among these, so a man with no mood would otherwise read as happy.
+    const [none] = growers;
+    for (const p of growers) p.morale = { level: -10, jolts: [] };
+    delete none.morale;
+    developBlock(league, 'program');
+    developBlock(league, 'camp');
+    for (let w = 0; w < 18; w++) developWeek(league, []);
+    expect(none.ratings).toEqual(jump(none, 0).ratings);
+  });
+
   it('keeps a growth year open until it has landed in full', () => {
     const { league, growers } = setup();
     developBlock(league, 'program');
