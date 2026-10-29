@@ -272,6 +272,17 @@ describe('talks: promises kept and broken', () => {
     expect(p.morale!.talk?.club ?? p.teamId).toBe(p.teamId);
   });
 
+  it('does not blame you for another club’s broken promise when he arrives', () => {
+    const l = fresh();
+    const other = (l.userTeamId + 1) % 32;
+    const p = activeRoster(l, other)[0];
+    p.morale = { level: 0, talk: { club: other, promise: { kind: 'deal', made: l.moraleAt!, due: l.moraleAt! + 40 } } };
+    p.teamId = l.userTeamId;
+    talkStep(l, played(l, 1), l.moraleAt! + 1, 9, false);
+    expect(kinds(p)).not.toContain('broken');
+    expect(p.morale!.talk).toBeUndefined();
+  });
+
   it('fades what he remembers at the new league year', () => {
     const l = fresh();
     const p = activeRoster(l, l.userTeamId)[0];

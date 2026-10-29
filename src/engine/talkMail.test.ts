@@ -51,6 +51,9 @@ describe('your players’ letters', () => {
     expect(needsYou(l, m)).toBe(true);
     answerTalk(l, a.id, 'reassure');
     expect(needsYou(l, m)).toBe(true);
+    // Answering one of the two files nothing new: the step's letter is already on file.
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
     answerTalk(l, b.id, 'firm');
     expect(needsYou(l, m)).toBe(false);
   });

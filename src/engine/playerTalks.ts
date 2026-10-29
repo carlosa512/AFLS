@@ -200,7 +200,8 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
     if (!m) continue;
     // A new club is a clean slate; leaving with a promise open breaks it.
     if (m.talk && m.talk.club !== p.teamId) {
-      if (m.talk.promise) addJolt(p, 'broken', -4, clock);
+      // The club that broke it is the one he left: arriving at yours, it isn't yours to answer for on your screens.
+      if (m.talk.promise && p.teamId !== yourClub(league)) addJolt(p, 'broken', -4, clock);
       delete m.talk;
     }
     if (p.teamId === null) continue;

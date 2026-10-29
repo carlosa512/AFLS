@@ -59,7 +59,13 @@ export function talkMail(league: League, have: Set<string>): Draft[] {
   }
   const idOf = (at: number, group: Player[]) =>
     group.length === 1 ? `talk:${league.season}:${at}:${group[0].id}` : `talk:${league.season}:${at}`;
-  const due = [...steps].filter(([at, group]) => !have.has(idOf(at, group)));
+  // A step's letter is filed once, whatever it held: answering one of a pair leaves the other in that same letter.
+  const filed = (at: number) => {
+    const step = `talk:${league.season}:${at}`;
+    for (const id of have) if (id === step || id.startsWith(`${step}:`)) return true;
+    return false;
+  };
+  const due = [...steps].filter(([at]) => !filed(at));
   if (!due.length) return [];
   const r = computeRecords(league).get(league.userTeamId);
   const share = r && r.w + r.l + r.t >= 3 ? (r.w + r.t / 2) / (r.w + r.l + r.t) : 0.5;
