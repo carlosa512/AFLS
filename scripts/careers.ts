@@ -32,27 +32,33 @@ import { LEADER_TARGETS, overRecordAllowed } from './leaders';
 
 const seasons = Number(process.argv[2] ?? 16);
 const SEEDS = ['careers-audit', 'careers-audit-2', 'careers-audit-3', 'careers-audit-4'];
+/**
+ * Four more leagues for the coaching trees' averages alone: four held a live-tree count of 1.9 on one world and 2.2 on
+ * the next with the same parity and coaching turnover (owner's call, 0.2.24: a bigger sample, the same range). The
+ * "most" and "fewest" in any one league stay on the four, where more leagues would only make them stricter.
+ */
+const TREE_SEEDS = ['careers-audit-5', 'careers-audit-6', 'careers-audit-7', 'careers-audit-8'];
 // Part 2's leagues start first, each in its own process, and play while Part 1 runs here.
-const leagues: Promise<LeagueRun>[] = SEEDS.map(
-  (seed) =>
-    new Promise((resolve, reject) => {
-      const child = fork(new URL('./careers-league.ts', import.meta.url).pathname, [], {
-        env: { ...process.env, CAREERS_SEED: seed, CAREERS_SEASONS: String(seasons) },
-      });
-      let done = false;
-      child.once('message', (run) => {
-        done = true;
-        resolve(run as LeagueRun);
-        child.kill();
-      });
-      child.once('error', reject);
-      // A worker that dies before reporting (a crash, or the OOM killer's signal) fails the audit by name.
-      child.once(
-        'exit',
-        (code, signal) => done || reject(new Error(`league ${seed} exited (${signal ?? code}) before reporting`)),
-      );
-    }),
-);
+const leagueRun = (seed: string): Promise<LeagueRun> =>
+  new Promise((resolve, reject) => {
+    const child = fork(new URL('./careers-league.ts', import.meta.url).pathname, [], {
+      env: { ...process.env, CAREERS_SEED: seed, CAREERS_SEASONS: String(seasons) },
+    });
+    let done = false;
+    child.once('message', (run) => {
+      done = true;
+      resolve(run as LeagueRun);
+      child.kill();
+    });
+    child.once('error', reject);
+    // A worker that dies before reporting (a crash, or the OOM killer's signal) fails the audit by name.
+    child.once(
+      'exit',
+      (code, signal) => done || reject(new Error(`league ${seed} exited (${signal ?? code}) before reporting`)),
+    );
+  });
+const leagues = SEEDS.map(leagueRun);
+const treeLeagues = TREE_SEEDS.map(leagueRun);
 const COHORT = 1200;
 let misses = 0;
 
@@ -445,8 +451,9 @@ console.log(
 // Coaching trees against the NFL (spec §4.6, docs/research/coaching-trees.md).
 {
   const t = runs.map((r) => r.trees);
-  const all = (f: (x: LeagueRun['trees']) => number[]) => t.flatMap(f);
-  const hires = t.flatMap((x) => x.hires);
+  const pooled = [...t, ...(await Promise.all(treeLeagues)).map((r) => r.trees)];
+  const all = (f: (x: LeagueRun['trees']) => number[]) => pooled.flatMap(f);
+  const hires = pooled.flatMap((x) => x.hires);
   const fromTree =
     hires.reduce((n, h) => n + h.fromTree, 0) /
     Math.max(
@@ -454,9 +461,12 @@ console.log(
       hires.reduce((n, h) => n + h.total, 0),
     );
   // One offseason's share is judged only where five or more clubs changed head coach (fewer is a coin flip).
-  const busiest = Math.max(0, ...hires.filter((h) => h.total >= 5).map((h) => h.mostFromOne / h.total));
+  const busiest = Math.max(
+    0,
+    ...t.flatMap((x) => x.hires.filter((h) => h.total >= 5).map((h) => h.mostFromOne / h.total)),
+  );
   console.log(
-    `coaching trees: ${check('live trees', mean(all((x) => x.live)), 2, 5, 1)} · ${check('biggest (steady)', mean(t.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in an offseason', busiest, 0, 0.4)} · ${check('trees born per league', mean(t.map((x) => x.born)), 1, 4, 1)} · ${check('founding trees alive at the end (fewest)', Math.min(...t.map((x) => x.foundingAlive)), 1, Infinity, 0)}`,
+    `coaching trees: ${check('live trees', mean(all((x) => x.live)), 2, 5, 1)} · ${check('biggest (steady)', mean(pooled.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in an offseason', busiest, 0, 0.4)} · ${check('trees born per league', mean(pooled.map((x) => x.born)), 1, 4, 1)} · ${check('founding trees alive at the end (fewest)', Math.min(...t.map((x) => x.foundingAlive)), 1, Infinity, 0)}`,
   );
 }
 console.log(`\n${misses} number(s) outside target range`);
