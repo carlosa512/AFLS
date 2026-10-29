@@ -32,6 +32,7 @@ import { Panel, PlayerLink, SortTh, sortRows, TeamChip, TeamPicker, useSort } fr
 import { thruLabel } from '../contracts';
 import { ATTR_LABELS, band, keyAttributes, money, recordText, resultsSeason } from '../format';
 import { FitnessCell, fitnessSort, InjuryTag } from '../injuries';
+import { MoodCell, moodSortValue } from '../morale';
 import { perceivedTeamRatings } from '../../engine/scouting';
 import { Ovr, repsOf, schemeFitOf, seenOvr, Stars, starsOf, TeamUnit, viewOf } from '../scouting';
 import { store } from '../store';
@@ -304,7 +305,7 @@ function useDepthDrag(teamId: number, lineUpAt: (id: number, pos: Position, inde
   return { drag, start };
 }
 
-type RosterSort = 'depth' | 'name' | 'ovr' | 'stars' | 'age' | 'fitness' | 'cap' | 'thru';
+type RosterSort = 'depth' | 'name' | 'ovr' | 'stars' | 'age' | 'fitness' | 'mood' | 'cap' | 'thru';
 
 /** What each column sorts by: your scouts' view, never the true ratings. */
 function rosterSortValue(league: League, p: Player, key: RosterSort): number | string {
@@ -319,6 +320,8 @@ function rosterSortValue(league: League, p: Player, key: RosterSort): number | s
       return p.age;
     case 'fitness':
       return fitnessSort(league, p);
+    case 'mood':
+      return moodSortValue(league, p);
     case 'cap':
       return p.contract ? capHit(p.contract, league.season) : -1;
     case 'thru':
@@ -527,6 +530,8 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                   <SortTh label="Stars" k="stars" sort={sort} onSort={onSort} />
                   <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
                   <SortTh label="Fitness" k="fitness" sort={sort} onSort={onSort} />
+                  {/* Your players only: how a rival's room feels is its business. */}
+                  {isUser && <SortTh label="Mood" k="mood" sort={sort} onSort={onSort} />}
                   <th>Key ratings</th>
                   <SortTh label="Cap hit" k="cap" sort={sort} onSort={onSort} className="num" />
                   <SortTh label="Thru" k="thru" sort={sort} onSort={onSort} className="num" />
@@ -572,7 +577,7 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
                     const target = !!drag && drag.to === pos && drag.to !== drag.pos;
                     return [
                       <tr className={`group-row${target ? ' drop-target' : ''}`} key={`g-${pos}`}>
-                        <td colSpan={10}>
+                        <td colSpan={isUser ? 11 : 10}>
                           <span className="group-label">
                             {POSITION_NAMES[pos]} · {groupNote(scheme, pos)}
                           </span>
@@ -736,6 +741,11 @@ function RosterRow({
       <td>
         <FitnessCell league={league} p={p} />
       </td>
+      {mine && (
+        <td>
+          <MoodCell league={league} player={p} />
+        </td>
+      )}
       <td>
         <span className="row" style={{ gap: 10, flexWrap: 'nowrap' }}>
           {keyAttributes(p.position).map((a) => (

@@ -414,6 +414,12 @@ describe('screen contract', () => {
     expect(bad).toEqual([]);
   });
 
+  it('reads moods only through moraleView', () => {
+    // A mood is your own players' only (fog of war), in words: no screen reads the stored level or its jolts.
+    const bad = files.filter((f) => /\.morale\b|\bmoraleLevel\b|\bmoraleFactors\b/.test(src(f)));
+    expect(bad).toEqual([]);
+  });
+
   it('shows origins only through OriginTag, on the player card and the draft board', () => {
     const reads = files.filter(
       (f) => f !== join('src/ui', 'origin.tsx') && /\bORIGINS\b|\boriginOf\(|\b(p|player)\.origin\b/.test(src(f)),

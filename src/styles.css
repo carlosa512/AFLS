@@ -4868,3 +4868,92 @@ button.tip-pill {
   display: block;
   margin: 4px 0 0;
 }
+
+/* ───────── morale ───────── */
+/* Seven steps, red through amber to green: the smiley's face and the pill's edge. */
+:root {
+  --mood-1: #c23b2e;
+  --mood-2: #df6237;
+  --mood-3: #e8913a;
+  --mood-4: #d6b43f;
+  --mood-5: #9cbd48;
+  --mood-6: #58ac57;
+  --mood-7: #2d9a5d;
+  --mood-ink: #1b1f1c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --mood-1: #ff6f62;
+    --mood-2: #f2844f;
+    --mood-3: #f0a54a;
+    --mood-4: #dfc55b;
+    --mood-5: #acd15e;
+    --mood-6: #6dc77b;
+    --mood-7: #3fbf80;
+  }
+}
+:root[data-theme='dark'] {
+  --mood-1: #ff6f62;
+  --mood-2: #f2844f;
+  --mood-3: #f0a54a;
+  --mood-4: #dfc55b;
+  --mood-5: #acd15e;
+  --mood-6: #6dc77b;
+  --mood-7: #3fbf80;
+}
+.mood-face {
+  display: inline-block;
+  vertical-align: middle;
+  flex: none;
+}
+.mood-face .mood-ink {
+  fill: var(--mood-ink);
+  stroke: var(--mood-ink);
+}
+.mood-face path.mood-ink {
+  fill: none;
+}
+.mood-word {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.mood-room {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tag-pill.mood-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.tag-pill.mood-1 {
+  border-color: var(--mood-1);
+  background: color-mix(in srgb, var(--mood-1) 18%, transparent);
+}
+.tag-pill.mood-2 {
+  border-color: var(--mood-2);
+  background: color-mix(in srgb, var(--mood-2) 18%, transparent);
+}
+.tag-pill.mood-3 {
+  border-color: var(--mood-3);
+  background: color-mix(in srgb, var(--mood-3) 18%, transparent);
+}
+.tag-pill.mood-4 {
+  border-color: var(--mood-4);
+  background: color-mix(in srgb, var(--mood-4) 18%, transparent);
+}
+.tag-pill.mood-5 {
+  border-color: var(--mood-5);
+  background: color-mix(in srgb, var(--mood-5) 18%, transparent);
+}
+.tag-pill.mood-6 {
+  border-color: var(--mood-6);
+  background: color-mix(in srgb, var(--mood-6) 18%, transparent);
+}
+.tag-pill.mood-7 {
+  border-color: var(--mood-7);
+  background: color-mix(in srgb, var(--mood-7) 18%, transparent);
+}
