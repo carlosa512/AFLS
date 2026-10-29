@@ -1229,7 +1229,9 @@ export type InboxAction =
   | { kind: 'medical' }
   | { kind: 'trades' }
   | { kind: 'cap' }
-  | { kind: 'standings' };
+  | { kind: 'standings' }
+  | { kind: 'locker' }
+  | { kind: 'waivers' };
 
 /** Public, event-time facts retained with a rookie checkpoint letter. */
 export interface RookieReportRow {
@@ -1253,6 +1255,22 @@ export interface LeagueNewsReport {
   stats: { label: string; current: string; previous: string; currentRank: string; previousRank: string }[];
 }
 
+/** One table in a letter: a title, a line above it, and a row per player in the writer's words. */
+export interface MailSection {
+  title: string;
+  lead?: string;
+  columns?: string[];
+  rows: {
+    playerId?: number;
+    /** In column order, plain text; the first is the player's name when there is one. */
+    cells: string[];
+    /** A sentence under the row. */
+    note?: string;
+    /** A waiver claim the row offers (the waiver letter's wire). */
+    claim?: { entryId: number };
+  }[];
+}
+
 export interface InboxMessage {
   /** Internal correspondence belongs to the club, even after its GM changes jobs. */
   organizationId?: number;
@@ -1262,6 +1280,8 @@ export interface InboxMessage {
   coachNote?: { coachId: number; coachName: string; text: string; kind: 'recommendation' | 'followup' | 'revisit' };
   /** Built from what the message is about, so delivering twice can't duplicate it. */
   id: string;
+  /** A letter's tables (the locker room report, the waiver letter…), as they read when filed. */
+  sections?: MailSection[];
   /** A digest's record of what it told (old one-off letters' ids among them), so the next one doesn't tell it again. */
   covered?: string[];
   season: number;

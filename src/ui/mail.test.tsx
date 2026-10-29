@@ -760,3 +760,43 @@ describe('the Gazette’s numbers card', () => {
     expect(renderToStaticMarkup(<MailCards league={l} message={message} />)).not.toContain('is-user');
   });
 });
+
+describe('a letter with sections', () => {
+  it('draws each section with its rows, names linked and notes beneath', () => {
+    const league = createLeague({ seed: 'sections' });
+    const [a, b] = Object.values(league.players).filter((p) => p.teamId === league.userTeamId);
+    const m: InboxMessage = {
+      id: 'locker:2028:camp',
+      season: league.season,
+      phase: 'preseason',
+      week: 0,
+      from: 'Coach, Head coach',
+      category: 'staff',
+      subject: 'The room',
+      body: 'Quiet room.',
+      read: true,
+      actions: [],
+      sections: [
+        {
+          title: 'Mentoring',
+          columns: ['Player', 'How it is going'],
+          rows: [{ playerId: a.id, cells: [`${a.firstName} ${a.lastName}`, 'learning well'], note: 'A good fit.' }],
+        },
+        {
+          title: 'Friction',
+          lead: 'One to watch.',
+          rows: [{ playerId: b.id, cells: [`${b.firstName} ${b.lastName}`] }],
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(<MessageBody league={league} m={m} index={nameIndex(league)} act={() => {}} />);
+    expect(html).toContain('Mentoring');
+    expect(html).toContain('Friction');
+    expect(html).toContain('One to watch.');
+    expect(html).toContain('A good fit.');
+    expect(html).toContain('learning well');
+    // Each row's name is a player link (a button that opens his card), not plain text.
+    expect(html).toMatch(new RegExp(`class="linklike"[^>]*><span>${a.position} ${a.firstName} ${a.lastName}`));
+    expect(html).toMatch(new RegExp(`class="linklike"[^>]*><span>${b.position} ${b.firstName} ${b.lastName}`));
+  });
+});

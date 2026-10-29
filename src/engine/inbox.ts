@@ -831,7 +831,13 @@ export type MailSubject =
   | { kind: 'futuresKept'; season: number }
   // The locker room's letters (lockerMail.ts): mentors, a grown-up player, captains, feuds and friends, a player who
   // speaks out, homecomings. Nothing on them is asked of you.
-  | { kind: 'locker'; season: number };
+  | { kind: 'locker'; season: number }
+  // The digests that replaced one-off letters: the locker room report, the day's waivers, the staff's notes, the
+  // day's position changes.
+  | { kind: 'lockerReport'; season: number; checkin: 'camp' | 'cutdown' | 'deadline' | 'end' }
+  | { kind: 'waivers'; season: number; week: number }
+  | { kind: 'staffNotes'; season: number; week: number }
+  | { kind: 'positionMoves'; season: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -952,6 +958,14 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
     // message's own.
     case 'tree':
       return { kind: 'locker', season: s === 'meet' ? m.season : season };
+    case 'locker':
+      return { kind: 'lockerReport', season, checkin: a as 'camp' | 'cutdown' | 'deadline' | 'end' };
+    case 'waivers':
+      return { kind: 'waivers', season, week: Number(b) };
+    case 'staffNotes':
+      return { kind: 'staffNotes', season, week: Number(a) };
+    case 'positions':
+      return { kind: 'positionMoves', season };
     case 'position':
       return a === 'offer'
         ? { kind: 'positionOffer', season, playerId: Number(b), to: rest[0] as Position }

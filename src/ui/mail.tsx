@@ -105,6 +105,7 @@ import type {
   Game,
   InboxMessage,
   League,
+  MailSection,
   Medic,
   Player,
   Position,
@@ -2660,6 +2661,70 @@ function PositionMovedCards({ league, s }: { league: League; s: Extract<MailSubj
           </span>
         }
       />
+    </Card>
+  );
+}
+
+/**
+ * A letter's tables, as filed (the locker room report, the waiver letter, the staff's notes, position changes): one
+ * card per section, its line above, a row per player with his name linked and the writer's note beneath. Columns sort.
+ */
+export function MailSections({ league, sections }: { league: League; sections: MailSection[] }) {
+  return (
+    <>
+      {sections.map((sec, i) => (
+        <SectionCard key={i} league={league} section={sec} />
+      ))}
+    </>
+  );
+}
+
+function SectionCard({ league, section }: { league: League; section: MailSection }) {
+  const [sort, onSort] = useSort<string>({ key: 'none', desc: false });
+  const cols = section.columns ?? [];
+  const rows =
+    sort.key === 'none'
+      ? section.rows
+      : sortRows(section.rows, sort, (r, k) => {
+          const cell = r.cells[Number(k)] ?? '';
+          const n = Number(cell.replace(/[^0-9.-]/g, ''));
+          return cell !== '' && /^[\d$.,\s%-]+[MK]?$/.test(cell) && Number.isFinite(n) ? n : cell;
+        });
+  return (
+    <Card title={section.title}>
+      {section.lead && <p className="inbox-body">{section.lead}</p>}
+      <div className="table-scroll">
+        <table className="mail-table">
+          {cols.length > 0 && (
+            <thead>
+              <tr>
+                {cols.map((c, k) =>
+                  cols.length > 1 ? (
+                    <SortTh key={k} label={c} k={String(k)} sort={sort} onSort={onSort} desc={false} />
+                  ) : (
+                    <th key={k}>{c}</th>
+                  ),
+                )}
+              </tr>
+            </thead>
+          )}
+          <tbody>
+            {rows.map((r, j) => {
+              const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+              return (
+                <tr key={j}>
+                  {r.cells.map((c, k) => (
+                    <td key={k}>
+                      {k === 0 && p ? <PlayerLink league={league} player={p} pos /> : c}
+                      {k === r.cells.length - 1 && r.note && <div className="small muted">{r.note}</div>}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </Card>
   );
 }

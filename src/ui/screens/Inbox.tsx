@@ -18,7 +18,7 @@ import { badgeOn } from '../color';
 import { useNav } from '../App';
 import { PHASE_LABELS, weekLabel } from '../format';
 import { InjuryTag } from '../injuries';
-import { MailCards } from '../mail';
+import { MailCards, MailSections } from '../mail';
 import { LinkedText, nameIndex, type MoveIndex, type Who } from '../moves';
 import { store } from '../store';
 
@@ -66,6 +66,10 @@ const KIND_TAGS: Partial<Record<NonNullable<ReturnType<typeof mailSubject>>['kin
   faWrap: 'Free agency',
   positionOffer: 'Training',
   positionMoved: 'Training',
+  positionMoves: 'Training',
+  lockerReport: 'Locker room',
+  waivers: 'Waivers',
+  staffNotes: 'Staff',
 };
 
 /** A tag says what kind of message it is: a recap or the playoff race reads as such, whatever its category. */
@@ -103,6 +107,10 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
       return 'Trades';
     case 'standings':
       return 'Standings';
+    case 'locker':
+      return 'Locker room';
+    case 'waivers':
+      return 'Waiver wire';
   }
 }
 
@@ -264,6 +272,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
     else if (a.kind === 'game') nav.openGame(a.gameId);
     else if (a.kind === 'standings') nav.go({ view: 'standings' });
     else if (a.kind === 'cap') nav.go({ view: 'cap' });
+    else if (a.kind === 'locker') nav.go({ view: 'locker' });
     else if (a.kind === 'fa') nav.go({ view: 'office', tab: 'fa', pos: a.pos });
     else nav.go({ view: 'office', tab: a.kind });
   };
@@ -532,7 +541,8 @@ export function MessageBody({
             <LinkedText league={league} text={paragraph} about={aboutOf(league, m)} index={index} />
           </p>
         ))}
-      {m.coachNote && (
+      {m.sections && <MailSections league={league} sections={m.sections} />}
+      {m.coachNote && !m.sections && (
         <aside
           className="coach-note"
           aria-label={
