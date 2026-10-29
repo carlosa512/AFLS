@@ -6,6 +6,7 @@ import { isAvailable, onGameRoster, playingHurt } from '../roster';
 import { sportsOffset, temperamentOf, TRAIT_MEAN } from '../traits';
 import type { Game, League, Player, Position, Team } from '../types';
 import { gameDayTeam } from '../personnel/gameDay';
+import { moodPull, moraleLevel } from '../morale';
 import { POSITIONS } from '../types';
 
 /** The 22 starters plus the depth the engine draws on, with unit composites. */
@@ -48,7 +49,10 @@ export interface Lineup {
   blockDiscipline: number;
   /** The special teams coordinator's edge, in rating points against a typical coach (`specialTeamsEdge`). */
   stCoach: number;
-  /** Players lined up away from their own position, and the knock each takes on every skill (`knockFor`). */
+  /**
+   * Players lined up away from their own position, and the knock each takes on every skill (`knockFor`); on game day,
+   * less each man's mood edge (G2), so a happy man's entry can be a boost.
+   */
   knocks: ReadonlyMap<number, number>;
   /** Unit composites on the 1–20 scale. */
   passBlock: number;
@@ -149,7 +153,20 @@ const FILL_IN: Record<Position, Position[]> = {
  * few healthy players borrows from its neighbours (`FILL_IN`), never using anyone twice, except that
  * one healthy specialist can both kick and punt.
  */
-export function buildLineup(league: League, team: Team, out: ReadonlySet<number> = new Set(), game?: Game): Lineup {
+/** Rating points a mood is worth on game day at the extremes (G2): measured against the league's, so totals hold. */
+const MOOD_EDGE = 0.5;
+
+/**
+ * `mean` is the league's mood at kickoff (`moraleMean`): the sim passes it, and each man in the lineup plays up or down
+ * by his mood against it. Without it (tests, a lineup read anywhere else) there is no edge.
+ */
+export function buildLineup(
+  league: League,
+  team: Team,
+  out: ReadonlySet<number> = new Set(),
+  game?: Game,
+  mean?: number,
+): Lineup {
   const day = game?.personnel?.lists?.[team.id];
   if (game && day) team = gameDayTeam(league, game, team);
   const dressed = day ? new Set(day.dressedIds) : undefined;
@@ -250,6 +267,13 @@ export function buildLineup(league: League, team: Team, out: ReadonlySet<number>
   const knocks = new Map<number, number>();
   for (const [p, mine] of slots)
     if (!mine.includes(p.position)) knocks.set(p.id, Math.max(...mine.map((pos) => knockFor(p, pos))));
+  if (mean !== undefined)
+    for (const p of slots.keys()) {
+      const edge = MOOD_EDGE * moodPull(moraleLevel(league, p), mean);
+      const k = (knocks.get(p.id) ?? 0) - edge;
+      if (k) knocks.set(p.id, k);
+      else knocks.delete(p.id);
+    }
   // The unit composites below are read with the knocks on.
   const prev = useKnocks(knocks);
   try {

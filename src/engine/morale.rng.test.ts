@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
-// Morale reads the league and draws nothing: a season with it switched off must play out the same, game for game.
+// Morale reads the league and draws nothing: a season with it switched off must play out the same, game for game. G2
+// gives moods their effects, read only through `moodLean` and `moodPull`; held at zero here, so what this checks is
+// that the moods themselves still draw nothing (`moraleEffects.test.ts` shows the effects, switched on, change a game).
 const on = vi.hoisted(() => ({ value: true }));
 vi.mock('./morale', async (load) => {
   const real = await load<typeof import('./morale')>();
   return {
     ...real,
+    moodLean: () => 0,
+    moodPull: () => 0,
     moraleWeek: (l: Parameters<typeof real.moraleWeek>[0]) => on.value && real.moraleWeek(l),
     moraleStep: (l: Parameters<typeof real.moraleStep>[0]) => on.value && real.moraleStep(l),
   };
