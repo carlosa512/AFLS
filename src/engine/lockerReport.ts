@@ -206,7 +206,11 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
     morale.push({
       playerId: p.id,
       cells: [fullName(p), view.word],
-      note: say(MORALE_NOTE, { name: p.lastName, reason, happy, back: isBack }, at(`morale:${p.id}`)),
+      note: say(
+        MORALE_NOTE,
+        { name: p.lastName, reason, happy, back: isBack, costing: !happy && !isBack && view.effect === 'costing' },
+        at(`morale:${p.id}`),
+      ),
     });
   }
   // Every man down (or flying) now is on file for the next report to compare with, listed here or not.

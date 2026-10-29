@@ -86,6 +86,29 @@ describe('the Locker Room’s Morale section', () => {
   });
 });
 
+describe('the Locker Room’s word on what moods do (G2)', () => {
+  it('says once what moods do, and marks whom it costs and lifts', () => {
+    const l = createLeague({ seed: 'morale-ui-effects' });
+    const roster = activeRoster(l, l.userTeamId);
+    roster.forEach((p) => (p.morale = { level: 2, jolts: [] }));
+    roster[0].morale = { level: -4, jolts: [] };
+    roster[1].morale = { level: -2, jolts: [] };
+    roster[2].morale = { level: 5, jolts: [] };
+    const html = render(<LockerRoom league={l} />);
+    const count = (s: string) => html.split(s).length - 1;
+    expect(count('mood moves how he practices, grows and plays, and what he asks for in a new deal')).toBe(1);
+    expect(count('costing him in practice and on game day')).toBe(1);
+    expect(count('lifting his practice and his play')).toBe(1);
+    // On his own row: after his name, before the next man's.
+    const costing = html.indexOf('costing him in practice');
+    expect(html.lastIndexOf(roster[0].lastName, costing)).toBeGreaterThan(
+      html.lastIndexOf(roster[1].lastName, costing),
+    );
+    const lifting = html.indexOf('lifting his practice');
+    expect(html.lastIndexOf(roster[2].lastName, lifting)).toBeGreaterThan(-1);
+  });
+});
+
 describe('the Locker Room’s promises (G3)', () => {
   it('lists an open promise with the games left, and hides the block with none', () => {
     const l = createLeague({ seed: 'morale-ui-promises' });

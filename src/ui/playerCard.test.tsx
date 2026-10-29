@@ -66,6 +66,13 @@ describe('the player card: pills only up top', () => {
     expect(card(theirs.id)).not.toContain('Promised');
   });
 
+  it('says nothing on the card about what his mood costs him', () => {
+    const p = mine[5];
+    p.morale = { level: -4, jolts: [] };
+    const html = card(p.id);
+    expect(html).not.toMatch(/costing|lifting/i);
+  });
+
   it('shows no morale for another club’s player', () => {
     const theirs = activeRoster(league, (league.userTeamId + 1) % 32)[0];
     expect(card(theirs.id)).not.toContain('>Morale<');
