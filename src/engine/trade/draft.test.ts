@@ -45,7 +45,7 @@ import { goingRate, pickValue } from './value';
 
 /** One league played through a season and walked to draft day, cloned per test. */
 const atDraft = (() => {
-  const league = createLeague({ seed: 'draft-trades' });
+  const league = createLeague({ seed: 'draft-trades-b' });
   simToEndOfSeason(league);
   beginOffseason(league);
   while (league.phase !== 'draft') advanceOffseason(league, { autoUser: true });
@@ -153,12 +153,13 @@ describe('save v60', () => {
   });
 });
 
-/** The first 32 picks of seed 'draft-trades' with main's draft code (class top 14.1; `simDraft`, rng 'baseline'). */
+/** The first 32 picks of seed 'draft-trades-b' with main's draft code (`simDraft`, rng 'baseline'). */
 // Re-taken with personality (0.2.15), mentoring (0.2.16) and relationships (0.2.17): the season before draft day
-// plays out differently.
+// plays out differently. Again with moods that matter (0.2.24), on a new seed: the old one's draft drew no offer for
+// any of your picks, which the tests below need.
 const BASELINE = [
-  1801, 1822, 1820, 1819, 1792, 1799, 1788, 1787, 1808, 1803, 1859, 1798, 1832, 1848, 1851, 1813, 1826, 1836, 1789,
-  1861, 1824, 1918, 1790, 1810, 1814, 1791, 1793, 1823, 1804, 1816, 1795, 1809,
+  1788, 1785, 1783, 1797, 1781, 1879, 1789, 1787, 1823, 1813, 1796, 1802, 1793, 1807, 1799, 1811, 1814, 1851, 1808,
+  1794, 1791, 1786, 1782, 1795, 1810, 1801, 1784, 1869, 1815, 1916, 1875, 1835,
 ];
 
 /** The pick on the clock (an AI team's) and another AI team's pick `ahead` slots later. */

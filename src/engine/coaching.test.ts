@@ -348,7 +348,10 @@ describe('coaching staffs and moves', () => {
     setRoom(coachAsk(l, hire) + 50);
     expect(coachMoveProblem(l, user, hire, 'hire')).toBeNull();
     // Replacing a man with a year left frees half his salary (the other half is severance).
-    const holder = teamCoaches(l, user).find((c) => !isCoachExpiring(l, c) && c.contract!.through === l.season)!;
+    // Not the head coach: after a losing season the owner can mandate he stays, which is its own refusal.
+    const holder = teamCoaches(l, user).find(
+      (c) => c.role !== 'headCoach' && !isCoachExpiring(l, c) && c.contract!.through === l.season,
+    )!;
     expect(holder).toBeDefined();
     const freed = holder.contract!.salary - coachSeverance(l, holder);
     expect(freed).toBeGreaterThan(100);
