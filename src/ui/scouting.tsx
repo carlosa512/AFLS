@@ -259,31 +259,28 @@ export function KnowledgeMeter({ value }: { value: number }) {
 export const makeupOf = (league: League, p: Player): CharacterNotes => characterNotes(league, league.userTeamId, p);
 
 /**
- * The one extra line the card gives, the thing that matters most about his place in a room, in this order: a feud,
- * his mentor now (or the one he learned from), a close friend. For your players only; for anyone else, only a grudge
- * against your club (you can't see inside other rooms).
+ * His place in a room as the card's pills (the sentence behind each in its note): a feud, a close friend. For your
+ * players only; for anyone else, only a grudge against your club (you can't see inside other rooms). Who mentors whom
+ * is the Locker Room screen's to show.
  */
-export function lockerLine(league: League, p: Player): string | null {
+export function lockerPills(league: League, p: Player): { label: string; tip: string; tone: 'good' | 'warn' }[] {
   const name = (id: number) => {
     const m = league.players[id];
     return m ? `${m.firstName} ${m.lastName}` : null;
   };
   if (p.teamId !== league.userTeamId) {
-    if (p.retired || clubFeeling(league, p, league.userTeamId) !== 'grudge') return null;
+    if (p.retired || clubFeeling(league, p, league.userTeamId) !== 'grudge') return [];
     const how = [...(p.left ?? [])].reverse().find((d) => d.teamId === league.userTeamId)?.how;
-    return how === 'traded' ? 'Still sore about how we traded him away' : 'Still sore about how we let him go';
+    const tip = how === 'traded' ? 'Still sore about how we traded him away.' : 'Still sore about how we let him go.';
+    return [{ label: 'Holds a grudge', tip, tone: 'warn' }];
   }
+  const out: { label: string; tip: string; tone: 'good' | 'warn' }[] = [];
   const feud = p.ties?.find((t) => t.kind === 'feud' && name(t.with));
-  if (feud) return `Doesn’t see eye to eye with ${name(feud.with)}`;
-  if (p.mentor !== undefined && name(p.mentor)) return `Learning from ${name(p.mentor)}`;
-  const last = p.mentoredBy?.at(-1);
-  if (last && name(last.id)) {
-    const years = last.from === last.to ? `${last.from}` : `${last.from}–${String(last.to).slice(-2)}`;
-    return `Learned from ${name(last.id)} (${years})`;
-  }
+  if (feud)
+    out.push({ label: 'Feud in the room', tip: `Doesn’t see eye to eye with ${name(feud.with)}.`, tone: 'warn' });
   const friend = p.ties?.find((t) => t.kind === 'friend' && name(t.with));
-  if (friend) return `Close with ${name(friend.with)}`;
-  return null;
+  if (friend) out.push({ label: 'Close friend', tip: `Close with ${name(friend.with)}.`, tone: 'good' });
+  return out;
 }
 
 const TONE_CLASS = { good: 'tag-good', warn: 'tag-warn', neutral: 'tag-pill' } as const;
@@ -317,17 +314,34 @@ export function CharacterFact({ league, player }: { league: League; player: Play
   const makeup = makeupOf(league, player);
   const character = characterOf(league, player);
   const rest = makeup.notes.filter((n) => n.about !== 'work' && n.about !== 'temper');
+  const room = lockerPills(league, player);
   return (
     <span className="fact">
       <span className="eyebrow">{makeup.known && makeup.hedged ? 'Makeup · early word' : 'Makeup'}</span>
       {!character ? (
-        <span className="muted">Unknown</span>
+        <>
+          <span className="muted">Unknown</span>
+          {/* How he left us is on the record, whether or not we know his makeup. */}
+          {room.length > 0 && (
+            <span className="pill-row">
+              {room.map((x) => (
+                <TipPill key={x.label} className="tag-warn" tip={x.tip}>
+                  {x.label}
+                </TipPill>
+              ))}
+            </span>
+          )}
+        </>
       ) : (
         <>
           <span className="pill-row">
             <PersonalityPill league={league} player={player} />
+            {room.map((x) => (
+              <TipPill key={x.label} className={x.tone === 'good' ? 'tag-good' : 'tag-warn'} tip={x.tip}>
+                {x.label}
+              </TipPill>
+            ))}
           </span>
-          {lockerLine(league, player) && <span className="small">{lockerLine(league, player)}</span>}
           <MakeupPills notes={rest} hedged={makeup.hedged} />
         </>
       )}
