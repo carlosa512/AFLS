@@ -183,4 +183,19 @@ describe('the waiver letter', () => {
     expect(v.potMid).toBeLessThan(starterLine(tradeContext(l)).TE);
     expect(wire?.rows.map((r) => r.playerId)).toContain(kid.id);
   });
+
+  it('files a second letter when a later batch settles in the same offseason phase', () => {
+    l.phase = 'preseason';
+    l.week = 0;
+    ensureWaivers(l).results.push(
+      result({ entryId: 21, playerId: activeRoster(l, 0)[40].id, fromTeamId: 0, toTeamId: 4 }),
+    );
+    deliverMail(l);
+    ensureWaivers(l).batch++;
+    ensureWaivers(l).results.push(
+      result({ entryId: 22, playerId: activeRoster(l, 0)[41].id, fromTeamId: 0, toTeamId: 5, batch: 1 }),
+    );
+    deliverMail(l);
+    expect(letters()).toHaveLength(2);
+  });
 });

@@ -92,6 +92,9 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   const arrivingNow = [...have].some((x) => x.includes(':welcome:') && !filed.has(x));
   if (!checkin || arrivingNow || arrivedDuring(league, checkin)) return [];
   const { season } = league;
+  // The seasons whose news this report can tell: the season's end looks back on the one just played as well as the
+  // new league year's first days; every other check-in, this season.
+  const inWindow = (s: number) => s === season || s === footballSeason(league, checkin);
   const user = league.userTeamId;
   const id = `locker:${footballSeason(league, checkin)}:${checkin}`;
   const told = toldKeys(league);
@@ -111,7 +114,9 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   const sections: MailSection[] = [];
 
   // Captains and leaders: camp only.
-  if (checkin === 'camp' && team.captains?.season === season && fresh(`captains:${season}`)) {
+  // Captains and leaders: camp's report, or the season's first report when camp went by unseen (a sim straight to the
+  // season, a new GM).
+  if (checkin !== 'end' && team.captains?.season === season && fresh(`captains:${season}`)) {
     const c = team.captains;
     const starting = new Set(
       (['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE', 'LB', 'CB', 'S'] as const).flatMap((pos) =>
@@ -160,7 +165,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   for (const p of ours) {
     const l = p.lostMentor;
     const was = l && league.players[l.id];
-    if (!l || l.season !== season || !was || !fresh(`mentor:${l.season}:${l.week}:gone:${p.id}`)) continue;
+    if (!l || !inWindow(l.season) || !was || !fresh(`mentor:${l.season}:${l.week}:gone:${p.id}`)) continue;
     lost++;
     lostName ??= p.lastName;
     const now = p.mentor === undefined ? undefined : league.players[p.mentor];
@@ -221,8 +226,8 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   for (const a of ours)
     for (const t of a.ties ?? []) {
       const b = league.players[t.with];
-      if (t.kind !== 'feud' || t.since !== season || !b || b.id < a.id || b.teamId !== user) continue;
-      const key = `feud:${season}:${a.id}:${b.id}`;
+      if (t.kind !== 'feud' || !inWindow(t.since) || !b || b.id < a.id || b.teamId !== user) continue;
+      const key = `feud:${t.since}:${a.id}:${b.id}`;
       if (told.has(key) && !covered.includes(key)) {
         standing ??= `${a.lastName} and ${b.lastName}`;
         continue;
@@ -248,9 +253,9 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
     for (const t of a.ties ?? []) {
       const b = league.players[t.with];
       if (t.kind !== 'friend' || !b) continue;
-      const gone = b.left?.find((d) => d.teamId === user && d.season === season && d.how !== 'walked');
+      const gone = b.left?.find((d) => d.teamId === user && inWindow(d.season) && d.how !== 'walked');
       if (gone && b.teamId !== user) {
-        if (!fresh(`friend:${season}:left:${a.id}:${b.id}`)) continue;
+        if (!fresh(`friend:${gone.season}:left:${a.id}:${b.id}`)) continue;
         along.push({
           playerId: a.id,
           cells: [fullName(a), `${fullName(b)}, ${gone.how === 'cut' ? 'released' : 'traded'}`],
@@ -260,7 +265,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
             at(`gone:${a.id}:${b.id}`),
           ),
         });
-      } else if (t.since === season && b.teamId === user && a.id < b.id && fresh(`friend:${season}:${a.id}:${b.id}`))
+      } else if (inWindow(t.since) && b.teamId === user && a.id < b.id && fresh(`friend:${t.since}:${a.id}:${b.id}`))
         along.push({
           playerId: a.id,
           cells: [fullName(a), `with ${fullName(b)}`],

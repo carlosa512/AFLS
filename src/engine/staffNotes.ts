@@ -9,7 +9,7 @@ import { COACH_ROLE_LABEL } from './coaching';
 import { QUIRKS, type QuirkId } from './quirks';
 import { headCoach, type Draft } from './senders';
 import type { InboxAction, League, MailSection } from './types';
-import { recentBodies, say, type Line } from './voice';
+import { recentBodies, say, toldKeys, type Line } from './voice';
 
 const OPENER: readonly Line<{ calls: number; habits: number }>[] = [
   {
@@ -64,7 +64,11 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
   const id = `staffNotes:${league.season}:${league.week}`;
   if (have.has(id)) return [];
   const call = coachAdviceObservation(league);
-  const habit = teachingNoteFor(league);
+  // A coach keeps at a habit for weeks: tell it once (`covered`), not every week he's still on it.
+  const told = toldKeys(league);
+  const found = teachingNoteFor(league);
+  const habitKey = found && `teach:${league.season}:${found.coachId}:${found.playerId}:${found.habit}`;
+  const habit = found && !told.has(habitKey!) ? found : undefined;
   if (!call && !habit) return [];
   const chair = (coachId: number) => {
     const c = league.coaches[coachId];
@@ -121,6 +125,7 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
         { key: id, slot: 'opener', recent: recentBodies(league, sender.from) },
       ),
       sections: [{ title: 'From the staff', columns: ['Player', 'Coach'], rows }],
+      ...(habit ? { covered: [habitKey!] } : {}),
       ...(call
         ? {
             coachNoteKey: call.key,

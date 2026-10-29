@@ -2950,6 +2950,10 @@ export function deliverMail(league: League): void {
     })),
   );
   recordAdvicePublications(league, due);
+  // What digests told stays on file after their letters are evicted (this league year and the last).
+  const told = (league.mailTold ??= {});
+  for (const m of due) for (const k of m.covered ?? []) told[k] = m.season;
+  for (const [k, s] of Object.entries(told)) if (s < league.season - 1) delete told[k];
   // A newly reconstructed historical story may predate mail already filed. Evict chronologically.
   inbox.sort((a, b) => order(a) - order(b));
   const removed = inbox.splice(0, Math.max(0, inbox.length - KEEP));

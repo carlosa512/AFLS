@@ -154,7 +154,8 @@ export function waiverMail(league: League, have: Set<string>): Draft[] {
   const state = league.personnel?.waivers;
   if (!state) return [];
   const user = league.userTeamId;
-  const id = `waivers:${league.season}:${league.phase}:${league.week}`;
+  // One a day; the offseason's phases have no weeks, so the waiver batch tells one settle from the next.
+  const id = `waivers:${league.season}:${league.phase}:${league.week}:${state.batch}`;
   if (have.has(id)) return [];
   const told = toldKeys(league);
   for (const k of have) told.add(k);
@@ -162,7 +163,8 @@ export function waiverMail(league: League, have: Set<string>): Draft[] {
 
   const results = state.results.filter(
     (r) =>
-      r.season === league.season &&
+      // Last league year's settles too: a release that cleared as the year turned is still news.
+      r.season >= league.season - 1 &&
       league.players[r.playerId] &&
       (r.fromTeamId === user || r.toTeamId === user || !!r.userReason) &&
       !told.has(resultKey(league, r)),

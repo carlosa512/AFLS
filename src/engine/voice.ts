@@ -52,9 +52,12 @@ export function recentBodies(league: League, from: string, n = 5): string[] {
   return out;
 }
 
-/** Everything the inbox has already told: each message's id and whatever a digest says it covered. */
+/**
+ * Everything the inbox has already told: each message's id, whatever a digest says it covered, and the covered keys
+ * kept after their letters left a full inbox (`League.mailTold`).
+ */
 export function toldKeys(league: League): Set<string> {
-  const told = new Set<string>();
+  const told = new Set<string>(Object.keys(league.mailTold ?? {}));
   for (const m of league.inbox ?? []) {
     told.add(m.id);
     for (const k of m.covered ?? []) told.add(k);

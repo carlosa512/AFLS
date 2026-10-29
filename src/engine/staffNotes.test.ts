@@ -88,4 +88,28 @@ describe('the staff-notes letter', () => {
     for (const r of l.inbox!.filter((x) => x.id.startsWith('recap:')))
       expect(r.body).not.toMatch(/focused coaching attention/);
   });
+
+  it('tells a habit once, not every week the coach keeps at it', () => {
+    const l = copy(template);
+    l.phase = 'regular';
+    const c = teamCoaches(l, l.userTeamId).find((x) => x.role === 'positionCoach')!;
+    const p = teamPlayers(l, l.userTeamId)[5];
+    const note = (week: number) => {
+      c.teachingNote = {
+        season: l.season,
+        week,
+        playerId: p.id,
+        playerName: `${p.firstName} ${p.lastName}`,
+        habit: 'peeks',
+        coachName: `${c.firstName} ${c.lastName}`,
+        receptive: true,
+      };
+    };
+    note(l.week);
+    deliverMail(l);
+    l.week++;
+    note(l.week);
+    deliverMail(l);
+    expect(notes(l)).toHaveLength(1);
+  });
 });

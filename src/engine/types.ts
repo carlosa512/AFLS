@@ -1588,6 +1588,8 @@ export interface League {
   inbox?: InboxMessage[];
   /** Eviction boundary: older mail cannot return; same-date IDs distinguish removed mail from new arrivals. */
   mailFloor?: { date: number; ids: string[] };
+  /** What digest letters have told (their `covered` keys), by league year: it outlives the letters' eviction. */
+  mailTold?: Record<string, number>;
   negotiations: Record<number, Negotiation>;
   /** Free-agency day within the current offseason (0 before it opens). */
   faDay: number;

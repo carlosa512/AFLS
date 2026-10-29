@@ -206,3 +206,47 @@ describe('mentoring reads for the report', () => {
     }
   });
 });
+
+describe('the locker room report, across the calendar', () => {
+  it("the season's end tells what happened after the deadline", () => {
+    const l = copy(template);
+    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    deliverMail(l);
+    const [a, b] = ours(l).filter((p) => p.position === 'LB');
+    addTie(l, a, b, 'feud');
+    // The league year ticks over as the re-sign window opens.
+    l.season++;
+    at(l, 'resign');
+    deliverMail(l);
+    const [lo] = a.id < b.id ? [a, b] : [b, a];
+    expect(section(reports(l).at(-1)!, 'Friction')!.rows.map((r) => r.playerId)).toContain(lo.id);
+  });
+
+  it('names the captains in the first report of the season when camp went by unseen', () => {
+    const l = copy(template);
+    at(l, 'preseason');
+    nameCaptains(l);
+    at(l, 'regular', 2);
+    deliverMail(l);
+    const [m] = reports(l);
+    expect(m.id).toBe(`locker:${l.season}:cutdown`);
+    expect(section(m, 'Captains and leaders')).toBeDefined();
+    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    deliverMail(l);
+    expect(section(reports(l).at(-1)!, 'Captains and leaders')).toBeUndefined();
+  });
+
+  it('remembers what it told after the letter itself has left the inbox', () => {
+    const l = copy(template);
+    const [a, b] = ours(l).filter((p) => p.position === 'WR');
+    addTie(l, a, b, 'feud');
+    at(l, 'regular', 1);
+    deliverMail(l);
+    expect(section(reports(l)[0], 'Friction')).toBeDefined();
+    // A full inbox lets the report go.
+    l.inbox = l.inbox!.filter((m) => !m.id.startsWith('locker:'));
+    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    deliverMail(l);
+    expect(section(reports(l).at(-1)!, 'Friction')).toBeUndefined();
+  });
+});
