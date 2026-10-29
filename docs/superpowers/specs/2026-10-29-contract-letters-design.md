@@ -88,7 +88,7 @@ and talks not broken off. `needsYou` works it out from the league as it is (noth
 
 `Team.lettingWalk?: { season: number; ids: number[] }`: who you've decided to let go this window. It changes nothing
 in the engine: a player you don't re-sign walks when free agency opens, as now. It only records the decision, so the
-letter stops asking and the Re-sign screen can show "Letting him walk" on his row. Cleared when the window closes.
+letter stops asking and the Re-sign screen can show "Letting him walk" on his row. It's kept with its league year, so last year's list reads as empty and nothing has to clear it.
 `setLettingWalk(league, playerId, on)` in `offseason/index.ts` is the one writer. `SAVE_VERSION` 65 → 66 with a no-op
 step (the field is optional).
 
@@ -129,6 +129,8 @@ Extend checks.
 | `src/ui/mail.tsx` | contract rows and their buttons; Let go and the call line on staff rows |
 | `src/ui/screens/Inbox.tsx` | hosts `NegotiationDialog` |
 | `src/ui/screens/FrontOffice.tsx` | "Letting him walk" on the Re-sign table |
+| `src/ui/App.tsx` | the draft's main button opens the draft room; Auto-draft… with a confirm |
+| `src/ui/screens/Draft.tsx` | Sim the rest asks first |
 
 ## Testing
 
@@ -148,6 +150,24 @@ Extend checks.
 - **Old saves:** a v65 save loads; its folded agents' letters still open.
 
 Screenshots of both letters, desktop and phone, go to the owner before the PR.
+
+## The draft: no auto-picks by accident
+
+Asked for alongside this chunk (owner, Oct 29). During the draft, the top bar's main button reads "Finish the draft"
+and one click sims every remaining pick, ours included, with no warning (`offseasonStep` in `ui/App.tsx` runs
+`advanceOffseason`). The draft room's "Sim the rest (AI picks for you)" does the same with no warning either.
+
+- **The main button while picks remain** reads **Go to the draft** and only opens the draft room: no pick is made, the
+  phase doesn't move. Once the draft is complete it reads "Start training camp", as now.
+- **Auto-draft asks first.** While picks remain, the top bar's second button is **Auto-draft…**, a `SimAction` with
+  the same confirm dialog the other sims use: "Let the AI make the rest of the picks? The AI makes every remaining
+  pick, yours included. This can't be undone." Confirming runs `draftToEnd` and opens the draft room on the results.
+  (When the draft is complete, the second button is "Sim offseason…" again.)
+- **The draft room's "Sim the rest"** opens the same confirmation before it runs.
+- **Unchanged:** Sim to my pick, Next pick, and Auto-pick for me (one pick, the one on the clock, when you click it).
+
+Test: with picks remaining, the main button's step makes no pick and leaves the phase as `draft`; the auto-draft
+action is a `SimAction` with a confirm; the draft room's Sim the rest renders a confirm before `draftToEnd`.
 
 ## Out of scope
 
