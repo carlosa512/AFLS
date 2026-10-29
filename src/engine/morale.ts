@@ -7,7 +7,7 @@
  * pure function of the league and its history, and in G1 nothing reads it but the screens.
  */
 import { yearsLeft } from './finance/contract';
-import { leagueMarket, marketApy, type Market } from './finance/market';
+import { buildMarket, marketApy, type Market } from './finance/market';
 import { playerOvr, STARTERS } from './positions';
 import { clamp } from './rng';
 import { activeRoster } from './roster';
@@ -84,7 +84,8 @@ export function moraleContext(league: League): MoraleContext {
   }
   return {
     season,
-    market: leagueMarket(league),
+    // Built here, not read from `leagueMarket`: filling that cache would change what the AI's pay reads see.
+    market: buildMarket(league),
     records: computeRecords(league, season),
     lastShare,
     rooms,
@@ -203,6 +204,7 @@ export function moraleTarget(f: MoraleFactors): number {
 /** Morale steps in a league year: the offseason's calendar steps, then camp, then each week played. */
 const YEAR = 32;
 const REGULAR = 8;
+const CAMP = 7;
 
 /**
  * Where the league year stands on morale's clock, counting each offseason step as one week: the re-sign window 0,
@@ -224,11 +226,11 @@ export function moraleClock(league: League, played = false): number {
   return league.season * YEAR + step;
 }
 
-type Jolt = NonNullable<Player['morale']>['jolts'][number];
+type Jolt = NonNullable<NonNullable<Player['morale']>['jolts']>[number];
 
 /** What's left of a jolt: it halves every two weeks. */
 export function liveSize(j: Jolt, clock: number): number {
-  const since = Math.max(0, clock - (j.season * YEAR + j.week));
+  const since = Math.max(0, clock - j.at);
   return j.size * 0.5 ** (since / 2);
 }
 
@@ -236,7 +238,7 @@ export function liveSize(j: Jolt, clock: number): number {
 export function moraleLevel(league: League, p: Player, clock = league.moraleAt ?? moraleClock(league)): number {
   const m = p.morale;
   if (!m) return 0;
-  return clamp(m.level + m.jolts.reduce((t, j) => t + liveSize(j, clock), 0), -10, 10);
+  return clamp(m.level + (m.jolts ?? []).reduce((t, j) => t + liveSize(j, clock), 0), -10, 10);
 }
 
 // ───────── words ─────────
@@ -342,7 +344,7 @@ export function moraleView(league: League, p: Player, ctx?: MoraleContext): Mora
 // ───────── the step ─────────
 
 // `|| 0`: no −0 in the save (it reads back as 0, and a copy should equal its original).
-const round = (v: number) => Math.round(v * 1000) / 1000 || 0;
+const round = (v: number) => Math.round(v * 100) / 100 || 0;
 
 /** How far a week moves him toward his target: volatile men swing faster. */
 const rateOf = (p: Player) => clamp(0.25 - 0.05 * z(temperamentOf(p)), 0.15, 0.4);
@@ -352,13 +354,16 @@ export function seedMorale(league: League): void {
   const ctx = moraleContext(league);
   const clock = moraleClock(league);
   const week = clock - league.season * YEAR;
-  const spot = (teamId: number) => league.phase === 'regular' && playoffRace(league, teamId).spot;
+  // Clubs already in: their clinch is history, so it's on file before anyone's first step.
+  const spots = new Map(league.teams.map((t) => [t.id, league.phase === 'regular' && playoffRace(league, t.id).spot]));
+  rememberClinches(league, new Set(), spots);
+  const spot = () => false;
   for (const p of Object.values(league.players))
     if (p.teamId !== null && !p.retired && !p.morale) {
-      p.morale = { level: round(moraleTarget(moraleFactors(league, p, ctx))), jolts: [] };
+      p.morale = { level: round(moraleTarget(moraleFactors(league, p, ctx))) };
       // What already happened this league year (a captaincy, a benching, a friend cut) is history to a save from
       // before morale: mark it felt, so the first step doesn't announce it as news.
-      newJolts(league, p, ctx, week, spot);
+      newJolts(league, p, ctx, clock, week, spot);
       if (!p.morale.seen?.length) delete p.morale.seen;
       if (p.contract) p.morale.apy = p.contract.apy;
     }
@@ -366,16 +371,22 @@ export function seedMorale(league: League): void {
 }
 
 /** The big moments since his last step, each felt once a league year (`seen`). */
-function newJolts(league: League, p: Player, ctx: MoraleContext, week: number, spot: (teamId: number) => boolean) {
+function newJolts(
+  league: League,
+  p: Player,
+  ctx: MoraleContext,
+  clock: number,
+  week: number,
+  spot: (teamId: number) => boolean,
+) {
   const m = p.morale!;
   const season = league.season;
   const seen = (m.seen ??= []);
   const out: Jolt[] = [];
   const add = (key: string, kind: MoraleJolt, size: number) => {
-    const k = `${season}:${key}`;
-    if (seen.includes(k)) return;
-    seen.push(k);
-    out.push({ kind, size: Math.round(size * 100) / 100, season, week });
+    if (seen.includes(key)) return;
+    seen.push(key);
+    out.push({ kind, size: Math.round(size * 100) / 100, at: clock });
   };
   const teamId = p.teamId!;
   const wasStarter = () => !!p.stats[season - 1] && seasonRole(league, p, season - 1)?.role === 'starter';
@@ -408,8 +419,10 @@ function newJolts(league: League, p: Player, ctx: MoraleContext, week: number, s
   }
   const c = p.contract;
   if (c && c.signedSeason === season && m.apy !== undefined && c.apy > m.apy) add('paid', 'paid', 3);
-  if (isCaptain(league, p)) add('captain', 'captain', 2);
-  if (league.phase === 'regular' && spot(teamId)) add('playoffs', 'playoffs', 2);
+  // A club's moments land on everyone in the room the step they happen, and are kept once on the league, not on each
+  // man: the C at camp's step (the captains are named there), the playoffs the step his club clinches.
+  if (week === CAMP && isCaptain(league, p)) out.push({ kind: 'captain', size: 2, at: clock });
+  if (spot(teamId)) out.push({ kind: 'playoffs', size: 2, at: clock });
   return out;
 }
 
@@ -419,13 +432,18 @@ function newJolts(league: League, p: Player, ctx: MoraleContext, week: number, s
  */
 export function moraleAdvance(league: League, clock: number): void {
   if (league.moraleAt !== undefined && clock <= league.moraleAt) return;
+  // A new league year forgets what was felt in the last one (`seen` holds this year's events only).
+  const newYear = league.moraleAt === undefined || Math.floor(league.moraleAt / YEAR) < league.season;
   league.moraleAt = clock;
   const ctx = moraleContext(league);
   const prospects = new Set(league.draftClass);
   const week = clock - league.season * YEAR;
+  const clinched = clinchedBefore(league);
   const spots = new Map<number, boolean>();
+  // A club that clinched at an earlier step this season already had its moment.
   const spot = (teamId: number) => {
-    if (!spots.has(teamId)) spots.set(teamId, playoffRace(league, teamId).spot);
+    if (!spots.has(teamId))
+      spots.set(teamId, league.phase === 'regular' && !clinched.has(teamId) && playoffRace(league, teamId).spot);
     return spots.get(teamId)!;
   };
   for (const p of Object.values(league.players)) {
@@ -436,26 +454,43 @@ export function moraleAdvance(league: League, clock: number): void {
     if (p.teamId === null) {
       // A free agent wants a job, and carries nothing else with him.
       if (!p.morale) continue;
-      p.morale.jolts = [];
+      delete p.morale.jolts;
+      delete p.morale.seen;
       p.morale.level = round(p.morale.level + rateOf(p) * (-1 - p.morale.level));
       continue;
     }
     const target = moraleTarget(moraleFactors(league, p, ctx));
     // A new arrival (a draft pick, a first deal) starts where he stands.
-    const m = (p.morale ??= { level: round(target), jolts: [] });
-    if (m.seen) m.seen = m.seen.filter((k) => k.startsWith(`${league.season}:`));
-    m.jolts.push(...newJolts(league, p, ctx, week, spot));
-    const live = m.jolts
+    const m = (p.morale ??= { level: round(target) });
+    if (newYear) delete m.seen;
+    const jolts = [...(m.jolts ?? []), ...newJolts(league, p, ctx, clock, week, spot)];
+    const live = jolts
       .map((j) => ({ j, size: Math.abs(liveSize(j, clock)) }))
       .filter((x) => x.size >= 0.25)
       .sort((a, b) => b.size - a.size)
       .slice(0, 4)
       .map((x) => x.j);
-    m.jolts = m.jolts.filter((j) => live.includes(j));
+    // Nothing to remember is nothing in the save: an empty list costs bytes on every player.
+    const kept = jolts.filter((j) => live.includes(j));
+    if (kept.length) m.jolts = kept;
+    else delete m.jolts;
     if (!m.seen?.length) delete m.seen;
     m.level = round(m.level + rateOf(p) * (target - m.level));
     if (p.contract) m.apy = p.contract.apy;
   }
+  rememberClinches(league, clinched, spots);
+}
+
+/** Clubs that clinched a playoff place at an earlier step this season (`League.moraleClinched`). */
+function clinchedBefore(league: League): Set<number> {
+  const c = league.moraleClinched;
+  return new Set(c?.season === league.season ? c.teams : []);
+}
+
+function rememberClinches(league: League, before: Set<number>, now: Map<number, boolean>) {
+  const teams = [...before, ...[...now].filter(([, s]) => s).map(([id]) => id)].sort((a, b) => a - b);
+  if (teams.length) league.moraleClinched = { season: league.season, teams };
+  else delete league.moraleClinched;
 }
 
 /** A regular-season or playoff week, after its games. */

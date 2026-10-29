@@ -65,14 +65,22 @@ export function leagueMarket(league: League): Market {
   const key = `${league.season}:${league.phase}:${league.nextPlayerId}:${league.draftClass.length}`;
   const hit = marketCache.get(league);
   if (hit && hit.key === key) return hit.market;
+  const market = buildMarket(league);
+  marketCache.set(league, { key, market });
+  return market;
+}
+
+/**
+ * The comps as they stand right now, cached nowhere. For a reader that must leave no trace (`morale.ts`): the cache's
+ * key can't see ratings that move inside a phase, so whoever fills it first decides what the AI's pay reads see.
+ */
+export function buildMarket(league: League): Market {
   const ovrs = Object.fromEntries(POSITIONS.map((p) => [p, [] as number[]])) as Record<Position, number[]>;
   const prospects = new Set(league.draftClass);
   for (const p of Object.values(league.players))
     if (!p.retired && !prospects.has(p.id)) ovrs[p.position].push(playerOvr(p));
   for (const list of Object.values(ovrs)) list.sort((a, b) => b - a);
-  const market = { cap: league.caps[league.season], ovrs };
-  marketCache.set(league, { key, market });
-  return market;
+  return { cap: league.caps[league.season], ovrs };
 }
 
 /** Forget the pay comps: a position change moves a player between lists, which the cache key can't see. */

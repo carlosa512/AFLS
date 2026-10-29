@@ -34,7 +34,7 @@ describe('save v67', () => {
         expect(p.morale).toBeUndefined();
         continue;
       }
-      expect(p.morale!.jolts).toEqual([]);
+      expect(p.morale!.jolts).toBeUndefined();
       expect(p.morale!.level).toBeCloseTo(moraleTarget(moraleFactors(up, p, ctx)));
     }
     expect(Object.values(up.players).some((p) => p.morale!.level !== 0)).toBe(true);
@@ -55,7 +55,7 @@ describe('save v67 mid-season', () => {
     // The next step with nothing new: a captaincy named in camp, a benching or a friend cut before the save was
     // upgraded is history, not news.
     moraleAdvance(up, up.moraleAt! + 1);
-    const jolted = Object.values(up.players).filter((p) => p.morale?.jolts.length);
+    const jolted = Object.values(up.players).filter((p) => p.morale?.jolts?.length);
     expect(jolted).toEqual([]);
   }, 60_000);
 });

@@ -118,7 +118,7 @@ function step(run: () => void) {
   watching.length = 0;
   watching.push(...still);
   for (const p of rostered(league)) {
-    const fresh = p.morale!.jolts.some((j) => j.kind === 'benched' && j.season * 32 + j.week === clock);
+    const fresh = (p.morale!.jolts ?? []).some((j) => j.kind === 'benched' && j.at === clock);
     if (fresh && before.has(p.id))
       watching.push({ p, before: before.get(p.id)!, after: moraleLevel(league, p), steps: 0 });
   }

@@ -299,9 +299,9 @@ export type MoraleJolt = 'benched' | 'snubbed' | 'friendGone' | 'paid' | 'captai
 export interface Morale {
   /** −10…+10, the slow part of his mood; the words are bands of it plus his live jolts. */
   level: number;
-  /** Recent big moments, newest last; at most four. `size` is as it landed; `week` is the league year's morale clock. */
-  jolts: { kind: MoraleJolt; size: number; season: number; week: number }[];
-  /** This league year's events already felt (`kind:season:…`), so none jolts him twice. */
+  /** Recent big moments, newest last; at most four (absent: none). `at` is morale's clock when it landed. */
+  jolts?: { kind: MoraleJolt; size: number; at: number }[];
+  /** This league year's events already felt (`captain`, `snub:12`…), so none jolts him twice. */
   seen?: string[];
   /** The APY of the last deal he was seen on, to tell a raise when he signs. */
   apy?: number;
@@ -1577,6 +1577,8 @@ export interface League {
   phase: Phase;
   /** Morale's clock at its last step (`morale.ts`): a step already taken isn't taken twice. */
   moraleAt?: number;
+  /** Clubs that clinched a playoff place this season, so the playoffs jolt lands once (`morale.ts`). */
+  moraleClinched?: { season: number; teams: number[] };
   userTeamId: number;
   /** The user's persistent identity; does not change when a different team is viewed or managed. */
   userGmId: number;

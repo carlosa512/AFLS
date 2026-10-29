@@ -73,7 +73,7 @@ describe('the Locker Room’s Morale section', () => {
   it('gathers what is on the room’s mind, each reason with the men who feel it', () => {
     const roster = activeRoster(league, league.userTeamId);
     roster.forEach((p) => (p.morale = { level: 2, jolts: [] }));
-    roster[1].morale = { level: 1, jolts: [{ kind: 'paid', size: 3, season: league.season, week: 8 }] };
+    roster[1].morale = { level: 1, jolts: [{ kind: 'paid', size: 3, at: league.season * 32 + 8 }] };
     const html = render(<LockerRoom league={league} />);
     expect(html).toContain('On their minds');
     const at = html.indexOf('Just got paid');
