@@ -322,7 +322,7 @@ export interface Talk {
   ask?: { cause: TalkCause; at: number };
   /** The clock his mood first read Poor or worse in the current run (cleared when it lifts). */
   downSince?: number;
-  /** The last answer, when, and the ask it answered: the six-step quiet after it, and what the letter shows. */
+  /** The last answer, when, and the ask it answered: the eight-step quiet after it, and what the letter shows. */
   answered?: { reply: TalkReply | 'ignored'; at: number; ask: number };
   /**
    * An open promise. A snaps promise counts its games: `role` asked for, `left` games to keep it in, `games` and `snaps`

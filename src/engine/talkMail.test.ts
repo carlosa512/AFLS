@@ -96,6 +96,19 @@ describe('your players’ letters', () => {
     expect(letters(l).filter((x) => x.id.endsWith(`:${theirs.id}`))).toHaveLength(0);
   });
 
+  it('closes a letter while you are between jobs: its buttons would answer nothing', () => {
+    const l = createLeague({ seed: 'talk-mail' });
+    asking(l, l.userTeamId);
+    deliverMail(l);
+    const [m] = letters(l);
+    const pid = Number(m.id.split(':')[3]);
+    const s = { clock: l.moraleAt!, playerId: pid };
+    expect(talkCard(l, s).state).toBe('open');
+    l.gms[l.userGmId].teamId = null;
+    expect(talkCard(l, s).state).toBe('closed');
+    expect(needsYou(l, m)).toBe(false);
+  });
+
   it('varies what they say: ten players asking for a deal write at least six different letters', () => {
     const l = createLeague({ seed: 'talk-mail' });
     const askers = activeRoster(l, l.userTeamId).slice(0, 10);

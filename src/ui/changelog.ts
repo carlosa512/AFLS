@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.23',
+    date: '2026-10-29',
+    title: 'Letters close between jobs',
+    text: 'A player’s letter to you closes when you leave the club, instead of showing buttons that answer nothing.',
+  },
+  {
     version: '0.2.22',
     date: '2026-10-29',
     title: 'Players speak up',

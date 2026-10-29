@@ -3,6 +3,7 @@
  * filed by `deliverMail` like every letter. Its buttons answer through `answerTalk`; what a letter shows is worked out
  * from the league as it is (`talkCard`), so nothing about it is stored on the message.
  */
+import { employed } from './employment';
 import { canPromise } from './playerTalks';
 import { TALK_ANSWER, TALK_CLOSE, TALK_GROUP_SUBJECT, TALK_LETTER, TALK_SUBJECT, type LetterFact } from './playerVoice';
 import { yearsLeft } from './finance/contract';
@@ -153,7 +154,8 @@ const SAID: Record<string, string> = {
 export function talkCard(league: League, s: { clock: number; playerId: number }): TalkCardView {
   const p = league.players[s.playerId];
   const t = p?.morale?.talk;
-  if (!p || p.teamId !== league.userTeamId || !t) return { state: 'closed' };
+  // Between jobs nothing you'd press would answer him (`answerTalk` reads the same rule): the letter is closed.
+  if (!p || !employed(league) || p.teamId !== league.userTeamId || !t) return { state: 'closed' };
   if (t.ask?.at === s.clock) return { state: 'open', cause: t.ask.cause, canPromise: canPromise(t.ask.cause) };
   const a = t.answered;
   if (!a || a.ask !== s.clock) return { state: 'closed' };
