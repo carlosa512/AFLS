@@ -14,7 +14,7 @@
 import { agingFamily, AGING, declineOnset } from './aging';
 import type { AgingFamily } from './attributes';
 import { ATTRIBUTE_PROFILES, OVR_WEIGHTS, overall } from './positions';
-import { moodPull, moraleLevel, moraleMean } from './morale';
+import { moodPull, moraleLevel } from './morale';
 import { clamp, Rng } from './rng';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { declineMult, effectiveTraits, growthMult } from './traits';
@@ -329,6 +329,21 @@ function releaseTo(p: Player, targets: number[], s: number): void {
 }
 
 /**
+ * The mood of the young players growing now, on average: the tilt is measured against it, not the league's (young men
+ * run a little unhappier than veterans), so the league's growth as a whole holds. Worked out on the spot, never stored.
+ */
+function growthMean(league: League): number {
+  let sum = 0;
+  let n = 0;
+  for (const p of Object.values(league.players))
+    if (p.dev?.potential !== undefined && p.morale) {
+      sum += moraleLevel(league, p);
+      n++;
+    }
+  return n ? sum / n : 0;
+}
+
+/**
  * A step's worth of his mood on a growth year (rolled under 26): `share` is the step's nominal release, so the tilt sums
  * to `MOOD_TILT.growth × pull` over a year. A week he sat counts in full: his mood in practice counts whether or not he
  * dressed (reps already set how fast the year lands).
@@ -353,7 +368,7 @@ export function trueUp(league: League, p: Player): void {
 export function developBlock(league: League, block: 'program' | 'camp'): void {
   const share = RELEASE[block];
   if (share <= 0) return;
-  const mean = moraleMean(league);
+  const mean = growthMean(league);
   for (const p of Object.values(league.players))
     if (p.dev) {
       tiltStep(league, p, share, mean);
@@ -382,7 +397,7 @@ export function developWeek(league: League, games: readonly Game[]): void {
     busy.add(g.homeId).add(g.awayId);
     for (const [id, line] of Object.entries(g.result.playerStats)) if (line.gp) played.add(Number(id));
   }
-  const mean = moraleMean(league);
+  const mean = growthMean(league);
   for (const p of Object.values(league.players)) {
     if (!p.dev) continue;
     tiltStep(league, p, share, mean);

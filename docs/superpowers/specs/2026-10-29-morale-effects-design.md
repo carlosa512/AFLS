@@ -46,7 +46,7 @@ Development rolls a player's year once, at the new league year, and releases it 
   prime drift are the body's and are untouched.
 - **The tilt:** `p.dev.mood`, starting at 0. At each release step after March (the program, camp, and each regular
   season week) it adds `0.10 × share × pull / 0.4`, where `share` is that step's nominal release (0.05, 0.05, 0.3 / 18)
-  and `pull` his pull at that step. Over a whole year it sums to at most ±0.10. A week he sits counts the same as a week
+  and `pull` his pull at that step, measured against the mean of the young players growing (they run a little unhappier than veterans; against the league's mean the league's growth fell about 1%). Over a whole year it sums to at most ±0.10. A week he sits counts the same as a week
   he plays: his mood in practice counts whether or not he dressed (reps already set how fast the year lands).
 - **Where it lands:** each step lands `round(start + done × t × (1 + tilt))` for a rating whose year target `t` is
   positive; a falling rating (noise, a slip toward a settled ceiling) lands as today. So a happy year leaves him up to

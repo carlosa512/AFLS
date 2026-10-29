@@ -318,6 +318,16 @@ describe("mood tilts a young player's year (G2)", () => {
     }
   });
 
+  it('measures the tilt against the young players growing, so a room of sulking rookies grows as rolled', () => {
+    const { league, growers, jump } = setup();
+    // Every grower Very poor, the rest of the league Okay: against each other, none of them tilts.
+    for (const p of growers) p.morale = { level: -5, jolts: [] };
+    developBlock(league, 'program');
+    developBlock(league, 'camp');
+    for (let w = 0; w < 18; w++) developWeek(league, []);
+    for (const p of growers) expect(p.ratings).toEqual(jump(p, 0).ratings);
+  });
+
   it('keeps a growth year open until it has landed in full', () => {
     const { league, growers } = setup();
     developBlock(league, 'program');
