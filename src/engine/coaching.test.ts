@@ -538,6 +538,8 @@ describe('coaching staffs and moves', () => {
     );
   });
 
+  // Four whole seasons and offseasons: about 135s on one worker, on main as on G2, so past the 120s default (the
+  // owner's call, 0.2.24: 300s).
   it('keeps the coaching economy steady over several offseasons, with head coaches changing jobs', () => {
     const l = createLeague({ seed: 'coach-economy' });
     let fired = 0;
@@ -560,7 +562,7 @@ describe('coaching staffs and moves', () => {
       }
     }
     expect(fired).toBeGreaterThan(0);
-  });
+  }, 300_000);
 });
 
 describe('the coaching carousel', () => {
