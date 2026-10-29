@@ -125,11 +125,15 @@ const clone = (l: League): League => JSON.parse(JSON.stringify(l));
 const PRICE_LEAGUES = Math.max(48, LEAGUES);
 /** The other price leagues, started once the speed section is timed (on a shared core the timings would read slow). */
 let priceRuns: Promise<PriceRun[]> | undefined;
-/** Three more leagues, for the deadline-day share and QB trade-ups alone (`trades-share.ts`), started with the price leagues. */
+/**
+ * Six more leagues, for the deadline-day share and QB trade-ups alone (`trades-share.ts`), started with the price
+ * leagues. Three were too few for the trade-ups: about 2 in 18 drafts on one world, 6 on the next (owner's call, 0.2.24:
+ * a bigger sample, the same range).
+ */
 let shareRuns: Promise<ShareRun[]> | undefined;
 const shareTheRest = () =>
   shareLeagues(
-    [0, 1, 2].map((k) => `${SEED}-share-${k}`),
+    [0, 1, 2, 3, 4, 5].map((k) => `${SEED}-share-${k}`),
     SEASONS,
   );
 const priceTheRest = () =>

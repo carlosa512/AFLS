@@ -57,6 +57,13 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // 1,096). Each rounded up to the next 10 KB, plus 10. Agreed by the owner (Oct 29: allow it as measured, trim later
   // if needed).
   moraleTalks: { firstSeason: 70, retainedSeasons: 100, games: 0, annualGrowth: 0, playersGrowth: 30 },
+  // Moods that matter (0.2.24, G2): each young player's growth tilt (`DevYear.mood`, four places) while his year lands,
+  // and growth years kept open until no tilt could still move them. Measured on offseason-audit after trimming (a
+  // growth year closes early again once nothing it could still land would change: 1,188 -> 1,139 KB players growth):
+  // players growth 1,139 KB against 1,130, growth 1,201 KB against 1,200 in the second year, the retained save
+  // 17,620 KB against 17,600 at the sixth. Each rounded up to the next 10 KB, plus 10, as the spec allows (an
+  // allowance as measured when the budget needs it).
+  moraleEffects: { firstSeason: 0, retainedSeasons: 30, games: 0, annualGrowth: 20, playersGrowth: 20 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(
