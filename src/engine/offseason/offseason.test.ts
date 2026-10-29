@@ -448,3 +448,23 @@ describe('camp signings', () => {
     expect(star.teamId).toBeNull();
   });
 });
+
+describe('the re-sign call', () => {
+  it("the AI's re-sign window decides as it always has (pinned)", () => {
+    const league = fresh();
+    beginOffseason(league);
+    const rng = new Rng('resign-pin');
+    const out: Record<string, { kept: number[]; tagged: number[] }> = {};
+    for (const t of league.teams) {
+      if (t.id === league.userTeamId) continue;
+      const expiring = expiringPlayers(league, t.id);
+      aiResignWindow(league, t, rng);
+      const stayed = expiring.filter((p) => p.teamId === t.id && !isExpired(p.contract!, league.season));
+      out[t.abbrev] = {
+        kept: stayed.filter((p) => p.contract!.kind !== 'tag').map((p) => p.id),
+        tagged: stayed.filter((p) => p.contract!.kind === 'tag').map((p) => p.id),
+      };
+    }
+    expect(out).toMatchSnapshot();
+  });
+});
