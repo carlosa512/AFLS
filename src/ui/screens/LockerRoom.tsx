@@ -1,4 +1,4 @@
-import { canMentor, MAX_MENTEES, mentorShift, setMentor, setMentoringByYou } from '../../engine/mentoring';
+import { canMentor, MAX_MENTEES, mentorStatus, setMentor, setMentoringByYou } from '../../engine/mentoring';
 import { leadersOf } from '../../engine/personality';
 import { activeRoster } from '../../engine/roster';
 import type { League, Player, Position } from '../../engine/types';
@@ -6,15 +6,6 @@ import { POSITION_NAMES } from '../../engine/positions';
 import { PlayerLink, Section } from '../components';
 import { PersonalityPill } from '../scouting';
 import { store } from '../store';
-
-/** How a pair is going, in your coaches' words. */
-export function mentorStatus(league: League, young: Player): string {
-  const m = young.mentor === undefined ? undefined : league.players[young.mentor];
-  const weeks = young.mentorWeeks ?? 0;
-  if (!m || weeks < 4) return 'early days';
-  const s = mentorShift(league, m, young, weeks).workEthic;
-  return s >= 0.05 ? 'learning well' : s <= -0.05 ? 'picking up his bad habits' : 'not taking';
-}
 
 /**
  * Your locker room, the way your coaches see it: who leads it and who is mentoring whom. Your club only; you can't see

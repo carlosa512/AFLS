@@ -1,4 +1,5 @@
 import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
+import { lockerReportMail } from './lockerReport';
 import { director, doctor, headCoach, type Draft } from './senders';
 import { waiverLetterNeedsYou, waiverMail } from './waiverMail';
 import { recentBodies, say, toldKeys, type Line } from './voice';
@@ -2877,6 +2878,7 @@ export function deliverMail(league: League): void {
       ...tradeMail(league, have),
       ...offerMail(league, have),
       ...lockerMail(league, have),
+      ...lockerReportMail(league, have),
     );
     if (league.phase === 'resign')
       fresh.push(

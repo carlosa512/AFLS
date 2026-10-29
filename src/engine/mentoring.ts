@@ -282,3 +282,38 @@ export function setMentoringByYou(league: League, on: boolean): void {
   if (on) team.mentoringByYou = true;
   else delete team.mentoringByYou;
 }
+
+/** How a pair is going, in your coaches' words (the Locker Room screen and the locker room report). */
+export function mentorStatus(
+  league: League,
+  young: Player,
+): 'early days' | 'learning well' | 'not taking' | 'picking up his bad habits' {
+  const m = young.mentor === undefined ? undefined : league.players[young.mentor];
+  const weeks = young.mentorWeeks ?? 0;
+  if (!m || weeks < 4) return 'early days';
+  const s = mentorShift(league, m, young, weeks).workEthic;
+  return s >= 0.05 ? 'learning well' : s <= -0.05 ? 'picking up his bad habits' : 'not taking';
+}
+
+/**
+ * A veteran in the room who'd do more for a young player than his mentor is (the staff's suggestion when a pair isn't
+ * taking): free to take him, and one the staff expect him to learn well from. None when nobody would.
+ */
+export function betterMentor(league: League, teamId: number, young: Player): Player | undefined {
+  const roster = activeRoster(league, teamId);
+  const load = new Map<number, number>();
+  for (const p of roster) if (p.mentor !== undefined) load.set(p.mentor, (load.get(p.mentor) ?? 0) + 1);
+  const weeks = Math.max(4, young.mentorWeeks ?? 0);
+  const now = young.mentor === undefined ? undefined : league.players[young.mentor];
+  const current = now ? mentorShift(league, now, young, weeks).workEthic : 0;
+  return roster
+    .filter((m) => m.id !== young.id && m.id !== young.mentor && canMentor(m) && (load.get(m.id) ?? 0) < MAX_MENTEES)
+    .map((m) => ({ m, gain: mentorShift(league, m, young, weeks).workEthic }))
+    .filter((x) => x.gain >= 0.05 && x.gain > current)
+    .sort(
+      (a, b) =>
+        b.gain - a.gain ||
+        Number(b.m.position === young.position) - Number(a.m.position === young.position) ||
+        a.m.id - b.m.id,
+    )[0]?.m;
+}
