@@ -260,10 +260,3 @@ const TWO_TO_NINE = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 
 export const TALK_GROUP_SUBJECT: readonly Line<{ n: number }>[] = [
   { text: (f) => `${TWO_TO_NINE[f.n] ?? 'Some'} players want a word` },
 ];
-
-export const TALK_GROUP_LEAD: readonly Line<{ n: number }>[] = [
-  {
-    text: (f) =>
-      `${TWO_TO_NINE[f.n] ?? 'Some'} of your players asked for a word this week. Each one is below, with his own answer.`,
-  },
-];

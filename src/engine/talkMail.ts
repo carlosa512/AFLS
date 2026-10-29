@@ -4,19 +4,12 @@
  * from the league as it is (`talkCard`), so nothing about it is stored on the message.
  */
 import { canPromise } from './playerTalks';
-import {
-  TALK_ANSWER,
-  TALK_CLOSE,
-  TALK_GROUP_LEAD,
-  TALK_GROUP_SUBJECT,
-  TALK_LETTER,
-  TALK_SUBJECT,
-  type LetterFact,
-} from './playerVoice';
+import { TALK_ANSWER, TALK_CLOSE, TALK_GROUP_SUBJECT, TALK_LETTER, TALK_SUBJECT, type LetterFact } from './playerVoice';
 import { yearsLeft } from './finance/contract';
 import { STARTERS } from './positions';
 import { computeRecords } from './season/standings';
-import { playerSender, type Draft } from './senders';
+import { headCoach, type Draft } from './senders';
+import { TALK_GROUP_COACH, TALK_RELAY } from './lockerVoice';
 import { TRAIT_MEAN } from './traits';
 import type { League, Player, TalkCause } from './types';
 import { say } from './voice';
@@ -90,6 +83,7 @@ export function talkMail(league: League, have: Set<string>): Draft[] {
     if (recent.length > 6) recent.shift();
     return body;
   };
+  const coach = headCoach(league);
   const base = {
     season: league.season,
     phase: league.phase,
@@ -97,29 +91,33 @@ export function talkMail(league: League, have: Set<string>): Draft[] {
     category: 'staff' as const,
   };
   return due.map(([at, group]): Draft => {
+    // The head coach brings it to you: he's the one the player went to.
     if (group.length === 1) {
       const p = group[0];
+      const cause = p.morale!.talk!.ask!.cause;
+      const id = idOf(at, group);
+      const relay = say(TALK_RELAY, { name: `${p.firstName} ${p.lastName}`, cause }, { key: id, slot: 'relay' });
       return {
         ...base,
-        id: idOf(at, group),
-        ...playerSender(p),
-        subject: TALK_SUBJECT[p.morale!.talk!.ask!.cause],
-        body: letter(p),
+        id,
+        ...coach,
+        subject: `${p.lastName}: ${TALK_SUBJECT[cause].replace('my', 'his')}`,
+        body: `${relay} “${letter(p)}”`,
         actions: [{ kind: 'player', playerId: p.id }],
       };
     }
     const rows = group.map((p) => ({
       playerId: p.id,
       cells: [`${p.firstName} ${p.lastName}`, TALK_SUBJECT[p.morale!.talk!.ask!.cause]],
-      note: letter(p),
+      note: `“${letter(p)}”`,
       talk: { playerId: p.id, clock: at },
     }));
     return {
       ...base,
       id: idOf(at, group),
-      from: 'Your players',
+      ...coach,
       subject: say(TALK_GROUP_SUBJECT, { n: group.length }, { key: idOf(at, group), slot: 'subject' }),
-      body: say(TALK_GROUP_LEAD, { n: group.length }, { key: idOf(at, group), slot: 'lead' }),
+      body: say(TALK_GROUP_COACH, { n: group.length }, { key: idOf(at, group), slot: 'lead' }),
       sections: [{ title: 'Who wants a word', rows }],
       actions: [{ kind: 'locker' }],
     };

@@ -6,6 +6,7 @@ import { answerTalk } from './playerTalks';
 import { TALK_ANSWER, TALK_CLOSE, TALK_LETTER } from './playerVoice';
 import { activeRoster } from './roster';
 import { talkCard } from './talkMail';
+import { headCoach } from './senders';
 import type { League, Player, TalkCause } from './types';
 
 const BANNED = /marble|\btraits?\b|z-score|super bowl|\bAFC\b|\bNFC\b/i;
@@ -27,7 +28,10 @@ describe('your players’ letters', () => {
     const mine = letters(l);
     expect(mine).toHaveLength(1);
     expect(mine[0].id).toBe(`talk:${l.season}:${l.moraleAt}:${p.id}`);
-    expect(mine[0].from).toContain(p.lastName);
+    // The head coach brings it to you, in the player's own words.
+    expect(mine[0].from).toBe(headCoach(l).from);
+    expect(mine[0].body).toContain(p.lastName);
+    expect(mine[0].body).toMatch(/“.+”/);
     expect(mailSubject(mine[0])).toEqual({ kind: 'talk', season: l.season, clock: l.moraleAt, playerId: p.id });
   });
 
@@ -43,6 +47,7 @@ describe('your players’ letters', () => {
     expect(m.sections![0].rows.map((r) => r.talk?.playerId)).toEqual([a.id, b.id]);
     for (const r of m.sections![0].rows) expect(r.note!.length).toBeGreaterThan(20);
     expect(m.body).not.toMatch(/\d/);
+    expect(m.from).toBe(headCoach(l).from);
     expect(needsYou(l, m)).toBe(true);
     answerTalk(l, a.id, 'reassure');
     expect(needsYou(l, m)).toBe(true);
