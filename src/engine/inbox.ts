@@ -1,6 +1,7 @@
 import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
 import { director, doctor, headCoach, type Draft } from './senders';
 import { waiverLetterNeedsYou, waiverMail } from './waiverMail';
+import { recentBodies, say, toldKeys, type Line } from './voice';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
@@ -74,7 +75,7 @@ import { expiringPlayers } from './offseason/ai';
 import { draftComplete, reachOrSteal } from './offseason/draft';
 import { rookieCost, ROSTER_MAX } from './offseason/negotiation';
 import { knowledge, leaguePercentile, perceive, scoutReportParts } from './scouting';
-import { POSITION_NAMES } from './positions';
+import { POSITION_NAMES, STARTERS } from './positions';
 import {
   activeRoster,
   chooseCover,
@@ -2442,39 +2443,94 @@ function moveNews(league: League, p: Player): { when: Pick<Draft, 'phase' | 'wee
   };
 }
 
+const MOVES_OPENER: readonly Line<{ n: number; name: string; from: Position; to: Position; same: boolean }>[] = [
+  {
+    when: (f) => f.n > 1 && f.same,
+    reads: 2,
+    text: (f) => `${capital(small(f.n))} moves at cut-down, all ${f.from} to ${f.to}.`,
+  },
+  { when: (f) => f.n > 1, reads: 1, text: (f) => `${capital(small(f.n))} moves at cut-down. Who, and why.` },
+  { when: (f) => f.n > 1, reads: 1, text: (f) => `We made ${small(f.n)} position changes on cut-down day.` },
+  { text: (f) => `${f.name} made the switch on cut-down day.` },
+  { text: (f) => `One move at cut-down: ${f.name}, ${f.from} to ${f.to}.` },
+];
+
+/** Where a mover stands on the chart at his new spot: a starter, or his place in line. */
+function chartPlace(league: League, p: Player): string {
+  const at = league.teams[p.teamId!].depthChart[p.position].indexOf(p.id);
+  return at < 0 ? 'Not on it yet' : at < STARTERS[p.position] ? 'Starter' : `No. ${at + 1}`;
+}
+
 /**
- * One note for each of our players who changed position this league year (cut-down day is the only day anyone
- * does), the head coach's word that it is done: what changed, why, where he stands on the chart and the lock.
+ * The head coach's letter on the day's position changes (cut-down day is the only day anyone moves): a row per mover,
+ * from, to, why and where he stands on the chart, then the lock on trading him. One letter a day; a mover an old
+ * one-player note already told isn't told again.
  */
 function positionMovedMail(league: League, have: Set<string>): Draft[] {
   const { season } = league;
   const team = league.teams[league.userTeamId];
-  const out: Draft[] = [];
+  const told = toldKeys(league);
+  const days = new Map<string, { when: Pick<Draft, 'phase' | 'week'>; rows: { p: Player; reason?: MoveReason }[] }>();
   for (const p of teamPlayers(league, team.id)) {
     const move = p.moves?.at(-1);
-    const id = `position:${season}:moved:${p.id}`;
-    if (!move || move.season !== season || p.retired || have.has(id)) continue;
+    if (!move || move.season !== season || p.retired) continue;
+    if (have.has(`position:${season}:moved:${p.id}`) || told.has(`position:${season}:moved:${p.id}`)) continue;
     const news = moveNews(league, p);
     if (!news) continue;
-    const { when, reason } = news;
-    out.push({
+    const id = `positions:${season}:${news.when.phase}:${news.when.week}`;
+    if (have.has(id)) continue;
+    const day = days.get(id) ?? { when: news.when, rows: [] };
+    day.rows.push({ p, reason: news.reason });
+    days.set(id, day);
+  }
+  const sender = headCoach(league);
+  const recent = recentBodies(league, sender.from);
+  return [...days].map(([id, { when, rows }]) => {
+    const [first] = rows;
+    const move = first.p.moves!.at(-1)!;
+    const n = rows.length;
+    const opener = say(
+      MOVES_OPENER,
+      {
+        n,
+        name: fullName(first.p),
+        from: move.from,
+        to: move.to,
+        same: rows.every((r) => r.p.moves!.at(-1)!.from === move.from && r.p.position === move.to),
+      },
+      { key: id, slot: 'opener', recent },
+    );
+    const placed = team.autoDepth ? '' : ` ${n === 1 ? 'He is' : 'They are'} placed by rating on your depth chart.`;
+    const lock =
+      n === 1 ? " He can't be traded until the new league year." : " They can't be traded until the new league year.";
+    return {
       id,
       season,
       ...when,
-      ...headCoach(league),
-      category: 'staff',
-      subject: `${fullName(p)} is now ${aPosition(move.to)}`,
-      body:
-        `${fullName(p)} moved from ${posWord(move.from)} to ${posWord(move.to)} on cut-down day. ${reason ? `${reasonLine(reason, move.to)}. ` : ''}` +
-        `${team.autoDepth ? '' : `He is placed by rating on your ${move.to} depth chart. `}` +
-        "He can't be traded until the new league year.",
-      actions: [
-        { kind: 'player', playerId: p.id },
-        { kind: 'team', teamId: team.id },
+      ...sender,
+      category: 'staff' as const,
+      subject: n === 1 ? `${fullName(first.p)} is now ${aPosition(first.p.position)}` : `${n} players change position`,
+      body: `${opener}${placed}${lock}`,
+      sections: [
+        {
+          title: n === 1 ? 'The move' : 'The moves',
+          columns: ['Player', 'From', 'To', 'Why', 'On the chart'],
+          rows: rows.map(({ p, reason }) => ({
+            playerId: p.id,
+            cells: [
+              fullName(p),
+              p.moves!.at(-1)!.from,
+              p.position,
+              reason ? reasonLine(reason, p.position) : "The coaches' call",
+              chartPlace(league, p),
+            ],
+          })),
+        },
       ],
-    });
-  }
-  return out;
+      covered: rows.map(({ p }) => `position:${season}:moved:${p.id}`),
+      actions: [{ kind: 'team' as const, teamId: team.id }],
+    };
+  });
 }
 
 /**
@@ -2969,7 +3025,7 @@ export function archiveRead(league: League): void {
  * Kinds whose messages from the same day fold into one: a stack of agents' letters as the league year opens, a
  * week's injuries, the all-clears, retirements, our players' honors.
  */
-const FOLDED = new Set<MailSubject['kind']>(['contract', 'retirement', 'injury', 'cleared', 'award', 'positionMoved']);
+const FOLDED = new Set<MailSubject['kind']>(['contract', 'retirement', 'injury', 'cleared', 'award', 'positionMoved']); // old saves' one-player notes still fold
 
 /** A message, or the same day's messages of one kind folded together, newest first. */
 export interface MailThread {
