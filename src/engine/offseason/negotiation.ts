@@ -7,7 +7,8 @@
  * because you countered; patience is the only thing a lowball offer costs.
  */
 import { contractLean, noteDeparture, snubCheck } from '../relationships';
-import { moodLean, moraleLevel } from '../morale';
+import { moraleLevel } from '../morale';
+import { moodLean } from '../moodScale';
 import { accelerateProration, capSpace, logTransaction, paidFraction, paidShare, weeksPaid } from '../finance/cap';
 import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft } from '../finance/contract';
 import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears } from '../finance/market';

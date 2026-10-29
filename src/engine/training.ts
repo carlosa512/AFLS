@@ -39,7 +39,8 @@ import { activeRoster, isAvailable, syncDepthChart, teamPlayers } from './roster
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { rosterOf, tradeContext, type TradeContext } from './trade/context';
 import { learnMult, workEthicOf } from './traits';
-import { moodLean, moraleLevel } from './morale';
+import { moraleLevel } from './morale';
+import { moodLean } from './moodScale';
 import type { Attribute, Coach, League, Learning, MoveReason, Player, Position, Team } from './types';
 import { OFFSEASON_PHASES, POSITIONS } from './types';
 

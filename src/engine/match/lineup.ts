@@ -6,7 +6,8 @@ import { isAvailable, onGameRoster, playingHurt } from '../roster';
 import { sportsOffset, temperamentOf, TRAIT_MEAN } from '../traits';
 import type { Game, League, Player, Position, Team } from '../types';
 import { gameDayTeam } from '../personnel/gameDay';
-import { moodPull, moraleLevel } from '../morale';
+import { moraleLevel } from '../morale';
+import { moodPull } from '../moodScale';
 import { POSITIONS } from '../types';
 
 /** The 22 starters plus the depth the engine draws on, with unit composites. */

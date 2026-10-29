@@ -14,7 +14,8 @@
 import { agingFamily, AGING, declineOnset } from './aging';
 import type { AgingFamily } from './attributes';
 import { ATTRIBUTE_PROFILES, OVR_WEIGHTS, overall } from './positions';
-import { moodPull, moraleLevel } from './morale';
+import { moraleLevel } from './morale';
+import { moodPull } from './moodScale';
 import { clamp, Rng } from './rng';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { declineMult, effectiveTraits, growthMult } from './traits';

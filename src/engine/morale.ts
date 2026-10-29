@@ -9,6 +9,7 @@
 import { yearsLeft } from './finance/contract';
 import { buildMarket, marketApy, type Market } from './finance/market';
 import { playerOvr, STARTERS } from './positions';
+import { moodLean } from './moodScale';
 import { clamp } from './rng';
 import { activeRoster } from './roster';
 import { seasonRole } from './scouting';
@@ -248,16 +249,9 @@ export function moraleLevel(league: League, p: Player, clock = league.moraleAt ?
   return clamp(m.level + (m.jolts ?? []).reduce((t, j) => t + liveSize(j, clock), 0), -10, 10);
 }
 
-// ───────── the scale its effects read (G2) ─────────
+// ───────── the scale its effects read (G2): `moodScale.ts` ─────────
 
-/** His mood as −1…+1: Superb (≥ 6) is +1, Abysmal (≤ −6) −1, Okay about 0. Talks and position learning read it. */
-export const moodLean = (level: number): number => clamp(level / 6, -1, 1);
-
-/**
- * The lean measured against the league (`moraleMean`): growth and game day read it, so however happy the league runs,
- * its totals hold.
- */
-export const moodPull = (level: number, mean: number): number => clamp((level - mean) / 6, -1, 1);
+export { moodLean, moodPull } from './moodScale';
 
 /** The average mood of every rostered player right now: worked out on the spot, never stored or cached. */
 export function moraleMean(league: League): number {
