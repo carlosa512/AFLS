@@ -22,8 +22,8 @@ depth chart or a contract decision to keep a promise (that comes with G4).
 4. **AI clubs too:** every club's players speak up by the same rule, and each AI GM answers its own the same way you
    could (by its tendencies, no letters). Their promises are kept or broken by what happens; the AI doesn't act to
    keep them in G3.
-5. **Fixed deadlines, a big drop when broken:** snaps within four weeks, a new deal by the end of the next re-sign
-   window. A broken promise costs about twice what the promise gave, and he trusts your word less next time.
+5. **Fixed deadlines, a big drop when broken:** snaps within four games (about four weeks), a new deal by the end of
+   the next re-sign window. A broken promise costs about twice what the promise gave, and he trusts your word less next time.
 6. **Letters with reply buttons** (approach A): the talk lives in the inbox, like the contracts letter's buttons; no new
    talks screen.
 
@@ -71,12 +71,12 @@ The broken, firm, ignored and "Doesn't trust" reasons weigh on him (they join `D
 
 ## Promises: kept or broken
 
-**More snaps.** The promise records the role he expects (G1's `expectedRole`: starter or rotation), his season snaps
-and his club's games played when it's made. It's **kept** at the first in-season step where, since the promise, over
-at least two of his club's games, he has averaged the snap share of that role (a starter 60%, a rotation player 20% of
-a league-average starter's snaps per game, G1's live yardstick; a kicker or punter, games dressed). It's **broken** if
-that hasn't happened by its deadline: **four in-season weeks** after it's made, or **week four** when it's made in the
-offseason. Each step he's injured or on IR pushes the deadline back a week.
+**More snaps.** The promise records the role he expects (G1's `expectedRole`: starter or rotation). It's **kept** at
+the first in-season step where, over at least two of his club's games since the promise, he has averaged the snap share
+of that role (a starter 60%, a rotation player 20% of a league-average starter's snaps per game, G1's live yardstick; a
+kicker or punter, games dressed). It's **broken** if that hasn't happened within **his club's next four games** (the
+season's first four when it's made in the offseason). A game he misses hurt doesn't count against it, and a promise
+still open when a season ends carries its games left into the next.
 
 **A new deal.** **Kept** when he signs a new deal above his old one (G1's `paid` moment) before the deadline: the
 **end of the next re-sign window** (the window that's open, if he asks during one). **Broken** if the window closes
@@ -113,8 +113,9 @@ would have done anyway keeps them. No letters, and nothing about another club's 
 
 ## Where you see it (your players only)
 
-- **Locker Room:** a **Promises** list on the morale board: who you promised what, and by when ("Snaps by week 9",
-  "A new deal by the end of the re-sign window"), then this league year's kept and broken ones.
+- **Locker Room:** a **Promises** list on the morale board: who you promised what, and how long is left ("More snaps:
+  three games left", "A new deal by the end of the re-sign window"), then the ones kept or broken lately (while he
+  still feels it).
 - **Player card:** a pill beside Morale while a promise is open ("Promised snaps"), the deadline in its tooltip.
 - **The head coach's locker room report:** a kept or broken promise since the last report is a row in its Morale
   section, in his voice ("You told Davis he'd play. He's still waiting.").
@@ -125,14 +126,26 @@ would have done anyway keeps them. No letters, and nothing about another club's 
 ```ts
 // Player.morale (G1), one new optional field, absent for most players:
 talk?: {
+  /** The club this record is with: leaving it breaks an open promise and clears the record. */
+  club: number;
   /** He's asked and not been answered yet (your club only: an AI GM answers at once). */
   ask?: { cause: 'snaps' | 'deal' | 'losing' | 'feud'; at: number };
   /** The clock his mood first read Poor or worse in the current run (cleared when it lifts). */
   downSince?: number;
   /** The last answer and when: the six-step quiet after it, and what the letter shows. */
-  answered?: { reply: 'promise' | 'reassure' | 'firm' | 'ignored'; at: number };
-  /** An open promise. `role`, `snaps`, `games`: the snaps promise's terms and where he stood when it was made. */
-  promise?: { kind: 'snaps' | 'deal'; made: number; due: number; role?: number; snaps?: number; games?: number };
+  answered?: { reply: 'promise' | 'reassure' | 'firm' | 'ignored'; at: number; ask: number };
+  /** An open promise. A snaps promise counts its games: `role` asked for, `left` games to keep it in, `games` and `snaps`
+   * since it was made, and where his club's games and his snaps stood at the last check (`seen`). */
+  promise?: {
+    kind: 'snaps' | 'deal';
+    made: number;
+    due?: number;
+    role?: number;
+    left?: number;
+    games?: number;
+    snaps?: number;
+    seen?: { season: number; games: number; snaps: number };
+  };
   /** Reassurances this league year; promises kept and broken that he still remembers. */
   reassured?: number;
   kept?: number;
@@ -140,10 +153,13 @@ talk?: {
 };
 ```
 
-Every field is left out when empty, and `talk` itself when it holds nothing: G1 had to trim morale to fit the
-offseason check's save budget (17,500 KB; G1's local run measured 17,481), so **G3 has almost no room**: the plan
-measures it first, and a talk record must be a few bytes on the few players who have one. If it can't
-fit, stop and ask the owner rather than raise the budget.
+Every field is left out when empty, and `talk` itself when it holds nothing. **The save budget gets room for it (the
+owner's call):** G1 squeezed into the offseason check's 17,500 KB cap (its local run measured 17,481), so G3 adds a
+`morale` entry to `SAVE_FEATURE_ALLOWANCES` in `scripts/save-budget.ts`, like every feature that persists data: sized
+from a measurement on the offseason audit (G3's save against main's at each season), with a small margin and a comment
+saying what it holds, never a round number picked to get green. The component and growth checks stay as they are: an
+allowance is not permission for a leak. If the measured cost is more than about 50 KB retained, stop and show the owner
+before adding it.
 
 `SAVE_VERSION` 67 → 68; nothing to fill in (the field is optional and starts absent). New jolt kinds join
 `MoraleJolt`: `promised`, `kept`, `broken`, `reassured`, `firm`, `ignored`.
@@ -152,20 +168,21 @@ fit, stop and ask the owner rather than raise the budget.
 
 | File | Change |
 | --- | --- |
-| `src/engine/talks.ts` (new; `trade/talks.ts` is unrelated) | asks, the AI's answers, `answerTalk`, promise checks, the promises factor |
+| `src/engine/playerTalks.ts` (new; `trade/talks.ts` is unrelated) | asks, the AI's answers, `answerTalk`, promise checks, the promises factor |
 | `src/engine/morale.ts` | call the talk step inside `moraleAdvance`; the factor; new jolts and reasons; `moraleView` |
 | `src/engine/types.ts`, `generate.ts`, `migrate.ts` | `talk`, jolt kinds, save v68 |
 | `src/engine/playerVoice.ts` (new), `inbox.ts`, `senders.ts` | the letters, his words, a player as a sender, `needsYou` |
 | `src/engine/lockerReport.ts`, `lockerVoice.ts` | kept and broken promises in the report |
 | `src/ui/mail.tsx`, `src/ui/morale.tsx`, `screens/LockerRoom.tsx`, `screens/PlayerCard.tsx` | the buttons, the Promises list, the pill |
 | `scripts/morale.ts` | the new ranges |
+| `scripts/save-budget.ts` | the measured `morale` allowance |
 
 ## Checks
 
 - **Unit tests:** each cause and who asks (three steps down, the cooldown, two per club, worst first, no ask while a
   promise or an ask is open); each answer's jolt (trust, the halving reassurance, firm by temperament, ignored after two
-  steps); snaps promises kept by snaps (and not by a single game), broken at the deadline, the deadline pushed by
-  injury, an offseason promise due at week four; deal promises kept by a raise and broken when the window closes;
+  steps); snaps promises kept by snaps (and not by a single game), broken after four games, a game missed hurt not
+  counted, an offseason promise counted from week one, one open at a season's end carried over; deal promises kept by a raise and broken when the window closes;
   leaving the club breaks and clears; the AI's answer by its GM's tendencies; the letter's buttons, `needsYou` and what
   it shows once answered; nothing about another club's talks in any screen; the save step.
 - **`npm run morale`** gains (fixed here; never loosen one to get green):
@@ -173,9 +190,10 @@ fit, stop and ask the owner rather than raise the budget.
   - of promises made league-wide, between 25% and 75% kept;
   - G1's ranges all still hold (bands, underpaid starters, benchings, winning rooms, no drift).
 - **No play moves:** `morale.rng.test.ts` extended to talks: a season and an offseason with and without the talk step
-  play out the same, and nothing in `talks.ts` reads or fills a shared cache (G1's market lesson). CI's sim, careers,
+  play out the same, and nothing in `playerTalks.ts` reads or fills a shared cache (G1's market lesson). CI's sim, careers,
   audit and offseason checks must not move.
-- **Save budget:** the offseason check's six-season save stays under its cap.
+- **Save budget:** the offseason check's six-season save stays under its cap with the new, measured `morale`
+  allowance.
 - Screenshots on the owner's save before the PR: a letter before and after answering, the Locker Room's Promises list,
   the card's pill; desktop and phone, dark theme.
 
