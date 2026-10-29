@@ -41,6 +41,10 @@ export function LockerRoom({ league }: { league: League }) {
     .filter((m) => m.view.step >= 5)
     .sort((a, b) => b.view.level - a.view.level)
     .slice(0, 5);
+  // Promises (G3): the open ones, then the ones he still feels kept or broken.
+  const promised = moods.filter((m) => m.view.promise);
+  const keptLately = moods.filter((m) => m.view.reasons.includes('You kept your word'));
+  const brokenLately = moods.filter((m) => m.view.reasons.includes('You broke your word'));
   const spread = ([1, 2, 3, 4, 5, 6, 7] as const).map(
     (step) => [step, moods.filter((m) => m.view.step === step).length] as const,
   );
@@ -156,6 +160,46 @@ export function LockerRoom({ league }: { league: League }) {
                     </li>
                   ))}
                 </ul>
+              )}
+              {(promised.length > 0 || keptLately.length > 0 || brokenLately.length > 0) && (
+                <>
+                  <h4>Promises</h4>
+                  <ul className="plain-list mood-list">
+                    {promised.map(({ p, view }) => (
+                      <li key={p.id} className="mood-row">
+                        <MoodFace step={view.step} size={22} />
+                        <span className="mood-who">
+                          <PlayerLink league={league} player={p} pos />
+                        </span>
+                        <span className="mood-why">
+                          <span className="tag-pill">{view.promise!.text}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {keptLately.length > 0 && (
+                    <p className="small" style={{ margin: 0 }}>
+                      <span className="muted">Kept lately: </span>
+                      {keptLately.map(({ p }, i) => (
+                        <span key={p.id}>
+                          {i > 0 && ', '}
+                          <PlayerLink league={league} player={p} />
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                  {brokenLately.length > 0 && (
+                    <p className="small" style={{ margin: 0 }}>
+                      <span className="muted">Broken lately: </span>
+                      {brokenLately.map(({ p }, i) => (
+                        <span key={p.id}>
+                          {i > 0 && ', '}
+                          <PlayerLink league={league} player={p} />
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </div>

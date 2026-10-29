@@ -85,3 +85,23 @@ describe('the Locker Room’s Morale section', () => {
     expect(minds).not.toMatch(/Hard to please|Takes things in stride/);
   });
 });
+
+describe('the Locker Room’s promises (G3)', () => {
+  it('lists an open promise with the games left, and hides the block with none', () => {
+    const l = createLeague({ seed: 'morale-ui-promises' });
+    const roster = activeRoster(l, l.userTeamId);
+    roster.forEach((p) => (p.morale = { level: 2 }));
+    expect(render(<LockerRoom league={l} />)).not.toContain('<h4>Promises</h4>');
+    roster[0].morale = {
+      level: -2,
+      talk: {
+        club: l.userTeamId,
+        promise: { kind: 'snaps', made: l.moraleAt!, role: 2, left: 3, games: 1, snaps: 10 },
+      },
+    };
+    const html = render(<LockerRoom league={l} />);
+    expect(html).toContain('<h4>Promises</h4>');
+    expect(html).toContain('More snaps: three games left');
+    expect(html).toContain(roster[0].lastName);
+  });
+});

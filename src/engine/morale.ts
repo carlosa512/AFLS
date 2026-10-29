@@ -333,6 +333,19 @@ export interface MoraleView {
   reasons: string[];
   /** For sorting only: never shown. */
   level: number;
+  /** An open promise to him (G3), in words. */
+  promise?: { kind: 'snaps' | 'deal'; text: string };
+}
+
+const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+
+/** An open promise as a screen says it: how many games are left for snaps, the window for a deal. */
+function promiseText(p: Player): MoraleView['promise'] {
+  const pr = p.morale?.talk?.promise;
+  if (!pr) return undefined;
+  if (pr.kind === 'deal') return { kind: 'deal', text: 'A new deal by the end of the re-sign window' };
+  const left = Math.max(1, pr.left ?? 1);
+  return { kind: 'snaps', text: `More snaps: ${COUNT_WORDS[left] ?? left} game${left === 1 ? '' : 's'} left` };
 }
 
 const viewCache = new WeakMap<League, { key: string; ctx: MoraleContext }>();
@@ -355,6 +368,7 @@ export function moraleView(league: League, p: Player, ctx?: MoraleContext): Mora
     word: MORALE_WORDS[step],
     reasons: moraleReasons(league, p, moraleFactors(league, p, hit.ctx)),
     level,
+    ...(p.morale.talk?.promise ? { promise: promiseText(p) } : {}),
   };
 }
 

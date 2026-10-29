@@ -347,6 +347,26 @@ export interface MoraleNoteFact {
 }
 
 export const MORALE_NOTE: readonly Line<MoraleNoteFact>[] = [
+  {
+    when: (f) => f.reason === 'You broke your word',
+    reads: 3,
+    text: (f) => `You told ${f.name} he'd get it. He's still waiting.`,
+  },
+  {
+    when: (f) => f.reason === 'You broke your word',
+    reads: 3,
+    text: (f) => `${f.name} took you at your word. That's gone now, and the room saw it.`,
+  },
+  {
+    when: (f) => f.reason === 'You kept your word',
+    reads: 3,
+    text: (f) => `You kept your word to ${f.name}. The room noticed.`,
+  },
+  {
+    when: (f) => f.reason === 'You kept your word',
+    reads: 3,
+    text: (f) => `${f.name} got what you promised him. He won't forget it.`,
+  },
   { when: (f) => !!f.back, reads: 3, text: () => "He's come around. Whatever it was, it's behind him." },
   { when: (f) => !!f.back, reads: 3, text: (f) => `${f.name} is back to himself. Good.` },
   { when: (f) => f.happy, reads: 1, text: () => "Couldn't be happier." },
