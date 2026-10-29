@@ -16,7 +16,7 @@ import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
 import { aboutOf, clubOf, Folded, MessageBody, sender, SenderAvatar } from './screens/Inbox';
 import { badgeOn, contrast } from './color';
-import { adviceDraft, MailCards, weekBack, weeksMissed } from './mail';
+import { adviceDraft, MailCards, Person, weekBack, weeksMissed } from './mail';
 
 // Fallbacks, tried in order until one has what a test needs: an opening league that commits as a settled one does
 // files fewer swap offers to you (none of trades-0..9 had one with players both ways by week 9 once rentals for
@@ -847,5 +847,47 @@ describe('the contracts letter', () => {
     expect(out).toMatch(
       /disabled=""[^>]*title="[^"]+"[^>]*>Sign at ask|title="[^"]+"[^>]*disabled=""[^>]*>Sign at ask/,
     );
+  });
+});
+
+describe('the staff contracts letter', () => {
+  it('offers Let go beside Extend, with a call on each, while the window is open', () => {
+    const l = createLeague({ seed: 'staff-letgo' });
+    simToEndOfSeason(l);
+    deliverMail(l);
+    beginOffseason(l);
+    deliverMail(l);
+    const m = l.inbox!.find((x) => x.id.startsWith(`staff:${l.season}:deals`));
+    if (!m) return;
+    const out = renderToStaticMarkup(<MessageBody league={l} m={m} index={nameIndex(l)} act={() => {}} />);
+    expect(out).toContain('Let go');
+    expect(out).toMatch(
+      /Worth the raise|Keep him|Fair price|budget|better for the money|better on the market|steep raise|owner/,
+    );
+  });
+
+  it('asks before letting the head coach go', () => {
+    const l = createLeague({ seed: 'staff-letgo' });
+    const c = Object.values(l.coaches).find((x) => x.teamId === l.userTeamId && x.role === 'headCoach')!;
+    const out = renderToStaticMarkup(
+      <Person
+        confirming
+        row={{
+          key: 'c',
+          kind: 'coach',
+          id: c.id,
+          person: c,
+          name: `${c.firstName} ${c.lastName}`,
+          title: 'Head coach',
+          age: c.age,
+          ratings: [],
+          salary: 1000,
+          ask: 1000,
+          letGo: { go: () => {}, confirm: "You'll need a new head coach before camp." },
+        }}
+      />,
+    );
+    expect(out).toContain(`Let ${c.firstName} ${c.lastName} go?`);
+    expect(out).toContain('need a new head coach before camp.');
   });
 });

@@ -21,6 +21,7 @@ import {
   coachTitle,
   coachValue,
   extendCoach,
+  releaseCoach,
   hireCoach,
   isCoachExpiring,
   moveOverspend,
@@ -32,6 +33,7 @@ import {
 } from '../engine/coaching';
 import {
   extendMedic,
+  releaseMedic,
   isMedicExpiring,
   MEDIC_ROLE_LABEL,
   medicalBudget,
@@ -48,6 +50,7 @@ import { contractDecision } from '../engine/contractMail';
 import { coachSchemeLabel } from '../engine/schemes';
 import {
   extendStaff,
+  releaseStaff,
   isExpiring,
   resignForecast,
   ROLE_LABEL,
@@ -119,7 +122,8 @@ import type {
 import { stanceOf, tradeWindow } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
-import { PlayerAvatar, PlayerLink, TeamChip, TeamLink, sortRows, SortTh, useSort } from './components';
+import { Dialog, PlayerAvatar, PlayerLink, TeamChip, TeamLink, sortRows, SortTh, useSort } from './components';
+import { staffCall } from '../engine/staffCall';
 import { StaffAvatar } from './staffAvatar';
 import { band, money, ordinal, recordText, weekLabel } from './format';
 import { InjuryTag } from './injuries';
@@ -1978,11 +1982,16 @@ interface PersonRow {
   /** After the window: where he went. */
   outcome?: string;
   extend?: { problem: string | null; go: () => void };
+  /** The front office's one-line call on him (`staffCall`), while his deal is up. */
+  call?: string;
+  /** Let him go; `confirm` asks first (the head coach). */
+  letGo?: { go: () => void; confirm?: string };
 }
 
 /** One of our people: who he is, his public ratings, the money, and what happens to him. */
-function Person({ row }: { row: PersonRow }) {
+export function Person({ row, confirming = false }: { row: PersonRow; confirming?: boolean }) {
   const nav = useNav();
+  const [asking, setAsking] = useState(confirming);
   const o = row.outlook && OUTLOOK[row.outlook];
   return (
     <div className="mail-person mail-person-line">
@@ -1995,6 +2004,11 @@ function Person({ row }: { row: PersonRow }) {
           <span className="muted small" style={{ display: 'block' }}>
             {row.title} · age {row.age}
           </span>
+          {row.call && (
+            <span className="small" style={{ display: 'block' }}>
+              {row.call}
+            </span>
+          )}
         </span>
       </span>
       <span className="small mail-ratings">
@@ -2028,7 +2042,36 @@ function Person({ row }: { row: PersonRow }) {
             Extend 2 yr
           </button>
         )}
+        {row.letGo && (
+          <button className="btn btn-sm" onClick={() => (row.letGo!.confirm ? setAsking(true) : row.letGo!.go())}>
+            Let go
+          </button>
+        )}
       </span>
+      {asking && row.letGo?.confirm && (
+        <Dialog
+          title={`Let ${row.name} go?`}
+          onClose={() => setAsking(false)}
+          footer={
+            <>
+              <button className="btn" onClick={() => setAsking(false)} data-autofocus>
+                Keep him
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setAsking(false);
+                  row.letGo!.go();
+                }}
+              >
+                Let him go
+              </button>
+            </>
+          }
+        >
+          <p style={{ margin: 0 }}>{row.letGo.confirm}</p>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -2090,6 +2133,18 @@ function StaffDealsCards({
           outlook: up ? coachOutlook.get(c.id) : undefined,
           outcome: up ? undefined : outcomeOf(league, league.coaches[c.id], s.season),
           extend: up ? { problem, go: () => store.mutate((l) => extendCoach(l, l.userTeamId, c.id, 2)) } : undefined,
+          call: up
+            ? staffCall(league, { kind: 'coach', id: c.id }, { ask: coachAsk(league, c, 2), overBudget: !!problem })
+            : undefined,
+          letGo: up
+            ? {
+                go: () => store.mutate((l) => releaseCoach(l, l.userTeamId, c.id)),
+                confirm:
+                  c.role === 'headCoach'
+                    ? "You'll need a new head coach before camp, and his staff may follow him out."
+                    : undefined,
+              }
+            : undefined,
         },
       ];
     }
@@ -2120,6 +2175,14 @@ function StaffDealsCards({
                 go: () => store.mutate((l) => extendStaff(l, l.userTeamId, x.id, 2)),
               }
             : undefined,
+          call: up
+            ? staffCall(
+                league,
+                { kind: 'scout', id: x.id },
+                { ask: staffAsk(league, x, 2), overBudget: !!staffMoveProblem(league, user, x, 'extend', 2) },
+              )
+            : undefined,
+          letGo: up ? { go: () => store.mutate((l) => releaseStaff(l, l.userTeamId, x.id)) } : undefined,
         },
       ];
     }
@@ -2149,6 +2212,14 @@ function StaffDealsCards({
               go: () => store.mutate((l) => extendMedic(l, l.userTeamId, m.id, 2)),
             }
           : undefined,
+        call: up
+          ? staffCall(
+              league,
+              { kind: 'medic', id: m.id },
+              { ask: medicAsk(league, m, 2), overBudget: !!medicMoveProblem(league, user, m, 'extend', 2) },
+            )
+          : undefined,
+        letGo: up ? { go: () => store.mutate((l) => releaseMedic(l, l.userTeamId, m.id)) } : undefined,
       },
     ];
   });
