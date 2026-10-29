@@ -154,11 +154,12 @@ describe('contract talks (G2)', () => {
     expect(ask(l, p, 10).walkAway).toBe(ask(l, p, 0).walkAway);
   });
 
-  it('gives a round of patience more past Very good, one less past Very poor, never under one', () => {
+  it('takes a round of patience off past Very poor, never under one, and gives a happy man none extra', () => {
     const { l } = setup();
     const p = pick(l);
     const base = ask(l, p, 0).patience;
-    expect(ask(l, p, 4).patience).toBe(base + 1);
+    expect(ask(l, p, 4).patience).toBe(base);
+    expect(ask(l, p, 10).patience).toBe(base);
     expect(ask(l, p, -4).patience).toBe(Math.max(1, base - 1));
     expect(ask(l, p, 2).patience).toBe(base);
     p.personality.patience = 0;

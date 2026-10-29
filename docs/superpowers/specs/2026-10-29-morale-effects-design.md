@@ -15,7 +15,7 @@ Order stays G1 → G3 → G2 → G4. Hold-ins, holdouts and trade requests stay 
 ## Decisions (agreed with the owner)
 
 1. **Subtle.** At the extremes (Superb, Abysmal): ±0.5 of a rating point on game day, young players' growth ±10% over
-   a year, learning a new position ±15%, a contract ask up to 10% higher (unhappy; a happy man asks no less, the owner's call after CI: see Contract talks), patience ±1
+   a year, learning a new position ±15%, a contract ask up to 10% higher and a round less patience (unhappy; a happy man asks as he would anyway, the owner's call after CI: see Contract talks)
    round.
 2. **Growth week by week** (approach A, "mood tilts the year"): the year's roll is unchanged, no new draws. At each
    practice step his mood adds to a small tilt on the growth he's due this year; it lands with each step's release.
@@ -76,9 +76,9 @@ their own rules in `contractLean`):
 | His mood | Ask and walk-away | Patience |
 | --- | --- | --- |
 | lean < 0 | × (1 + 0.10 × −lean): up to 10% more at Abysmal | −1 round at Very poor or worse (lean ≤ −0.5), at least 1 |
-| lean > 0 | unchanged: a happy man gives time, not money | +1 round at Very good or better (lean ≥ 0.5) |
+| lean > 0 | unchanged | unchanged |
 
-A happy man's 5% discount was in the first draft; it kept AI clubs' starters cheap to re-sign, and QB trade-ups in the draft fell below their floor (24 drafts: 0.38 with it, 0.50 without, 0.50 on main), so the owner took it out. Walk-away keeps its floor at the minimum salary. AI clubs read the same `demand` (re-signing, `resignCall`, the
+The first draft gave a happy man a 5% discount and a round more patience. Both kept AI clubs' happy starters on their books, and QB trade-ups in the draft fell to about half of main's (0.26 a draft over 159 against about 0.5; with the talk terms off, 0.50), so the owner took the happy side out. Walk-away keeps its floor at the minimum salary. AI clubs read the same `demand` (re-signing, `resignCall`, the
 contracts letter), so an unhappy man is dearer to keep for everyone.
 
 ## Where you see it
