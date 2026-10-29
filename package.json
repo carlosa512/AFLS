@@ -25,6 +25,7 @@
     "weather": "tsx scripts/weather.ts",
     "size": "tsx scripts/size.ts",
     "crews": "tsx scripts/crews.ts",
+    "morale": "tsx scripts/morale.ts",
     "trades": "tsx scripts/trades.ts",
     "training": "tsx scripts/training.ts",
     "waivers": "tsx scripts/waivers.ts",
