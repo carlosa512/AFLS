@@ -507,6 +507,24 @@ describe('mail through a season', () => {
       expect(m.body).not.toMatch(/we'll go after them|linebackers is/);
     }
   });
+  it("the season's digest letters say nothing hidden: our read, never the truth, and no trait talk", () => {
+    const digests = league.inbox!.filter((m) => m.sections?.length);
+    expect(digests.length).toBeGreaterThan(0);
+    for (const m of digests) {
+      const words = [
+        m.body,
+        ...m.sections!.flatMap((x) => [x.title, x.lead ?? '', ...x.rows.flatMap((r) => [...r.cells, r.note ?? ''])]),
+      ].join(' ');
+      expect(words).not.toMatch(/marble|\btraits?\b|z-score|potential|undefined|NaN/i);
+    }
+    // A waiver row's read is our scouts', not the player's true overall.
+    for (const m of digests.filter((x) => x.id.startsWith('waivers:')))
+      for (const sec of m.sections!)
+        for (const r of sec.rows) {
+          const p = league.players[r.playerId!];
+          if (p && sec.columns?.[2] === 'Our read' && p.teamId !== user) expect(Number(r.cells[2])).not.toBeNaN();
+        }
+  });
 
   it('marks deadline day only: the director’s mails carry the weeks before', () => {
     expect(league.inbox!.filter((m) => m.id.startsWith('deadline:')).map((m) => m.id)).toEqual([

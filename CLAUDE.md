@@ -163,7 +163,13 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     promises a tactic the engine doesn't run. Each sender keeps a voice: the head coach direct, the
     director analytical and hedged, the doctor measured, agents advocates, the league office neutral. `mailSubject` reads that key back, and
     `needsYou` works out from the league as it is now whether a message still asks something (nothing
-    stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way
+    stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way. Digests replace one-off
+    letters: the head coach's locker room report at four check-ins (`lockerReport.ts`, its words in `lockerVoice.ts`),
+    the director's daily waiver letter (`waiverMail.ts`), the weekly staff notes (`staffNotes.ts`); a digest's tables
+    are `InboxMessage.sections` and what it told is `covered` (old one-off ids among them). Every sentence goes
+    through `voice.ts` (`say`: the most specific line that fits, a stable tie-break, no repeat of the sender's last
+    five letters); `senders.ts` signs them. `npm run mail-preview` builds saves at each moment and
+    `npm run screens -- --mail <prefixes>` shoots the letters
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
   - `size.ts` height and weight: each position's bell curve (`SIZE`, from combine percentiles), the roll (`rollSize`,
     the same two draws the flat rolls cost), `sizeZ` (the only size z-score), the matchup edges the engine adds where
