@@ -320,7 +320,8 @@ export function moraleView(league: League, p: Player): MoraleView | null {
 
 // ───────── the step ─────────
 
-const round = (v: number) => Math.round(v * 1000) / 1000;
+// `|| 0`: no −0 in the save (it reads back as 0, and a copy should equal its original).
+const round = (v: number) => Math.round(v * 1000) / 1000 || 0;
 
 /** How far a week moves him toward his target: volatile men swing faster. */
 const rateOf = (p: Player) => clamp(0.25 - 0.05 * z(temperamentOf(p)), 0.15, 0.4);
