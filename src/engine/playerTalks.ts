@@ -25,8 +25,8 @@ const YEAR = 32;
 const CAMP = 7;
 /** Steps in a row at Poor or worse before he asks (he asks on the third). */
 const DOWN_STEPS = 3;
-/** Steps after an answer before he asks again. */
-const QUIET = 6;
+/** Steps after an answer before he asks again (eight, the owner's call: six filled the inbox). */
+const QUIET = 8;
 /** Asks a club hears in one step. */
 const PER_CLUB = 2;
 /** Steps a letter waits for your answer before he takes the silence as one. */

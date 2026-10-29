@@ -3,11 +3,10 @@ import { RESERVED_NICKNAMES } from './data/teams';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject, needsYou } from './inbox';
 import { answerTalk } from './playerTalks';
-import { TALK_ANSWER, TALK_LETTER } from './playerVoice';
+import { TALK_ANSWER, TALK_CLOSE, TALK_LETTER } from './playerVoice';
 import { activeRoster } from './roster';
 import { talkCard } from './talkMail';
 import type { League, Player, TalkCause } from './types';
-import { say } from './voice';
 
 const BANNED = /marble|\btraits?\b|z-score|super bowl|\bAFC\b|\bNFC\b/i;
 
@@ -70,17 +69,55 @@ describe('your players’ letters', () => {
     expect(letters(l).filter((x) => x.id.endsWith(`:${theirs.id}`))).toHaveLength(0);
   });
 
-  it('says nothing it must not, in any cause or answer', () => {
-    const out: string[] = [];
-    for (const cause of ['snaps', 'deal', 'losing', 'feud'] as const)
-      for (const loud of [false, true])
-        for (const calm of [false, true]) {
-          out.push(
-            say(TALK_LETTER, { name: 'Davis', cause, loud, calm }, { key: `k${cause}${loud}${calm}`, slot: 'l' }),
-          );
-          for (const reply of ['promise', 'reassure', 'firm', 'ignored'] as const)
-            out.push(say(TALK_ANSWER, { cause, reply, loud, calm }, { key: `k${cause}${reply}`, slot: 'a' }));
-        }
+  it('varies what they say: ten players asking for a deal write at least six different letters', () => {
+    const l = createLeague({ seed: 'talk-mail' });
+    const askers = activeRoster(l, l.userTeamId).slice(0, 10);
+    askers.forEach(
+      (p, i) => (p.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'deal', at: l.moraleAt! - i } } }),
+    );
+    deliverMail(l);
+    const bodies = letters(l).map((m) => m.body);
+    expect(bodies).toHaveLength(10);
+    expect(new Set(bodies).size).toBeGreaterThanOrEqual(6);
+    // Two letters filed together never say the same thing.
+    for (let i = 1; i < bodies.length; i++) expect(bodies[i]).not.toBe(bodies[i - 1]);
+  });
+
+  it('never has a man repeat his last letter', () => {
+    const l = createLeague({ seed: 'talk-mail' });
+    const p = asking(l, l.userTeamId, 'deal');
+    deliverMail(l);
+    // Seven teammates' letters in between: more than the last few any letter looks back on.
+    for (let i = 1; i <= 7; i++) {
+      const q = asking(l, l.userTeamId, 'deal', i);
+      q.morale!.talk!.ask!.at = l.moraleAt! + i;
+      deliverMail(l);
+    }
+    p.morale!.talk!.ask = { cause: 'deal', at: l.moraleAt! + 9 };
+    deliverMail(l);
+    const mine = letters(l).filter((m) => m.id.endsWith(`:${p.id}`));
+    expect(mine).toHaveLength(2);
+    expect(mine[1].body).not.toBe(mine[0].body);
+  });
+
+  it('says nothing it must not, in any line of his words', () => {
+    const letter = {
+      name: 'Davis',
+      cause: 'deal' as const,
+      loud: true,
+      calm: true,
+      veteran: true,
+      young: false,
+      finalYear: true,
+      record: 'losing' as const,
+      starter: true,
+    };
+    const answer = { cause: 'deal' as const, reply: 'promise' as const, loud: true, calm: true };
+    const out = [
+      ...TALK_LETTER.map((l) => l.text(letter)),
+      ...TALK_CLOSE.map((l) => l.text(letter)),
+      ...TALK_ANSWER.map((l) => l.text(answer)),
+    ];
     for (const s of out) {
       expect(s.length).toBeGreaterThan(10);
       expect(s).not.toMatch(BANNED);

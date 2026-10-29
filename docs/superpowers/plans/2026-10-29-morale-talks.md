@@ -24,7 +24,7 @@ letters' buttons. It stores a small `talk` record on `Player.morale`, adds jolts
   filling `leagueMarket`'s cache; `buildMarket` is the pattern).
 - G3 changes no play: no club changes a lineup, a cut or a contract to keep a promise. Sim, careers, audit and offseason
   numbers must not move.
-- Numbers from the spec, verbatim: ask after **three steps in a row** at Poor or worse; **six steps** quiet after an
+- Numbers from the spec, verbatim: ask after **three steps in a row** at Poor or worse; **eight steps** quiet after an
   answer; **two asks per club per step**, unhappiest first (lowest `moraleLevel`, then lowest id); talk steps are
   regular-season and playoff weeks, the re-sign window (week index 0) and camp (week index 7). Promise +2 × trust
   (trust = `max(0, 1 − 0.25 × broken)`); kept +2; broken −4; reassure +1 halved for each reassurance this league year;
@@ -61,7 +61,7 @@ letters' buttons. It stores a small `talk` record on `Player.morale`, adds jolts
   counters re-seat on the new season); a deal promise made in season is due when next year's re-sign window closes.
   Test in Task 3.
 - **The inbox flood:** the re-sign window, camp and week one fall close together; the cap (two per club per step) and
-  the six-step quiet still hold across them, so your inbox gets at most two letters a step. Test in Task 2.
+  the eight-step quiet still hold across them, so your inbox gets at most two letters a step. Test in Task 2.
 - **A GM who changes clubs:** letters from your old club stop needing you (`canReadMail`), and your new club's players
   who asked their old AI GM aren't re-filed as your letters. Test in Task 5.
 

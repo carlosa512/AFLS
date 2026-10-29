@@ -42,7 +42,7 @@ At each morale step a player on a club's roster **asks** when all of these hold:
   | A feud in the room | `feud` | no |
   | anything else (Hard to please, Misses a friend who left…) | none: he doesn't ask | — |
 
-- he has **no open promise** and **no open ask**, and he wasn't answered in the **last six steps**;
+- he has **no open promise** and **no open ask**, and he wasn't answered in the **last eight steps** (six at first; the owner found it too much mail);
 - it's a step where players talk: a **regular-season or playoff week**, the **re-sign window** (the new league year's
   step) or **camp**. Not every free-agency day or the draft.
 
@@ -132,7 +132,7 @@ talk?: {
   ask?: { cause: 'snaps' | 'deal' | 'losing' | 'feud'; at: number };
   /** The clock his mood first read Poor or worse in the current run (cleared when it lifts). */
   downSince?: number;
-  /** The last answer and when: the six-step quiet after it, and what the letter shows. */
+  /** The last answer and when: the eight-step quiet after it, and what the letter shows. */
   answered?: { reply: 'promise' | 'reassure' | 'firm' | 'ignored'; at: number; ask: number };
   /** An open promise. A snaps promise counts its games: `role` asked for, `left` games to keep it in, `games` and `snaps`
    * since it was made, and where his club's games and his snaps stood at the last check (`seen`). */

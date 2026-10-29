@@ -164,17 +164,18 @@ describe('talks: the answers', () => {
     expect(answerTalk(l, p.id, 'reassure')).toBe(false);
   });
 
-  it('stays quiet for six steps after an answer', () => {
+  it('stays quiet for eight steps after an answer (the owner: less mail)', () => {
     const l = fresh();
     const p = sulker(l, l.userTeamId, 0, 'benched', -9);
     steps(l, 3);
     answerTalk(l, p.id, 'firm');
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       p.morale!.jolts = [{ kind: 'benched', size: -8, at: l.moraleAt! }];
       p.morale!.level = -9;
       steps(l, 1);
-      if (i < 5) expect(p.morale!.talk?.ask).toBeUndefined();
+      if (i < 7) expect(p.morale!.talk?.ask).toBeUndefined();
     }
+    expect(p.morale!.talk?.ask).toBeDefined();
   });
 
   it('is the same every time: a copy stepped alike asks and answers alike', () => {
