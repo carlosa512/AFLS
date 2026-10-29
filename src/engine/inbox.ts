@@ -1,4 +1,6 @@
 import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
+import { director, doctor, headCoach, type Draft } from './senders';
+import { waiverLetterNeedsYou, waiverMail } from './waiverMail';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
@@ -142,9 +144,6 @@ const GROUPS: { phrase: string; title: string; positions: Position[]; plural?: t
   { phrase: 'secondary', title: 'Secondary', positions: ['CB', 'S'] },
 ];
 
-type Draft = Omit<InboxMessage, 'read'>;
-type Sender = Pick<InboxMessage, 'from' | 'fromCard'>;
-
 const fullName = (p: Player) => `${p.firstName} ${p.lastName}`;
 const teamName = (t: Team) => `${t.city} ${t.name}`;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -156,26 +155,6 @@ const count = (n: number) =>
 const small = (n: number) => count(n).toLowerCase();
 const list = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-// The staff member who signs a message, with a link to their card (a department name when the chair is empty).
-function headCoach(league: League): Sender {
-  const c = teamCoaches(league, league.userTeamId).find((x) => x.role === 'headCoach');
-  return c
-    ? { from: `${c.firstName} ${c.lastName}, Head coach`, fromCard: { kind: 'coach', id: c.id } }
-    : { from: 'Coaching staff' };
-}
-function director(league: League): Sender {
-  const s = teamStaff(league, league.userTeamId).find((x) => x.role === 'director');
-  return s
-    ? { from: `${s.firstName} ${s.lastName}, Director of scouting`, fromCard: { kind: 'scout', id: s.id } }
-    : { from: 'Scouting department' };
-}
-function doctor(league: League): Sender {
-  const m = teamMedics(league, league.userTeamId).find((x) => x.role === 'doctor');
-  return m
-    ? { from: `${m.firstName} ${m.lastName}, Head team doctor`, fromCard: { kind: 'medic', id: m.id } }
-    : { from: 'Medical staff' };
-}
 
 /** Existing careers: the league office offers practice squads once, at the start of the offseason. */
 function personnelOfferMail(league: League, have: Set<string>): Draft[] {
@@ -195,56 +174,6 @@ function personnelOfferMail(league: League, have: Set<string>): Draft[] {
       actions: [{ kind: 'team', teamId: league.userTeamId }],
     },
   ];
-}
-
-/** Waivers that concern you: a claim you made, won or lost, and a player you released, claimed or cleared. */
-function waiverMail(league: League, have: Set<string>): Draft[] {
-  const user = league.userTeamId;
-  const out: Draft[] = [];
-  for (const r of league.personnel?.waivers?.results ?? []) {
-    if (r.season !== league.season) continue;
-    const p = league.players[r.playerId];
-    if (!p) continue;
-    const won = r.toTeamId === user && r.fromTeamId !== user;
-    if (won || r.userReason) {
-      const id = `waiverClaim:${r.season}:${r.entryId}`;
-      if (have.has(id)) continue;
-      out.push({
-        id,
-        season: r.season,
-        phase: league.phase,
-        week: league.week,
-        ...director(league),
-        category: 'contracts',
-        subject: won ? `We claimed ${fullName(p)}` : `Our claim for ${fullName(p)} didn't win`,
-        body: won
-          ? `${fullName(p)} is ours off waivers from the ${league.teams[r.fromTeamId].name}, on the contract he already had.`
-          : `${r.userReason} ${fullName(p)} ${r.toTeamId === null ? 'cleared waivers and is a free agent.' : `went to the ${league.teams[r.toTeamId].name}.`}`,
-        actions: [{ kind: 'player', playerId: p.id }],
-      });
-    } else if (r.fromTeamId === user) {
-      const id = `waiverOut:${r.season}:${r.entryId}`;
-      if (have.has(id)) continue;
-      out.push({
-        id,
-        season: r.season,
-        phase: league.phase,
-        week: league.week,
-        ...director(league),
-        category: 'contracts',
-        subject:
-          r.toTeamId === null
-            ? `${fullName(p)} cleared waivers`
-            : `${fullName(p)} was claimed by the ${league.teams[r.toTeamId].name}`,
-        body:
-          r.toTeamId === null
-            ? `Nobody claimed ${fullName(p)}, so he's a free agent and his release is booked to our cap.`
-            : `The ${league.teams[r.toTeamId].city} ${league.teams[r.toTeamId].name} claimed ${fullName(p)} and take on his contract.`,
-        actions: [{ kind: 'player', playerId: p.id }],
-      });
-    }
-  }
-  return out;
 }
 
 /** A squad player of ours has used his third regular-season call-up: he needs a contract to play again. */
@@ -1008,6 +937,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
     case 'injury':
     case 'deadline':
       return false;
+    case 'waivers':
+      return waiverLetterNeedsYou(league, m.sections);
     case 'contract':
       return league.phase === 'resign' && expiringPlayers(league, user).some((p) => p.id === s.playerId);
     case 'combine':

@@ -237,7 +237,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
       (m) =>
         (type === 'all' || m.category === type) &&
         (show === 'all' || show === 'archived' || (show === 'unread' ? !m.read : needs.has(m.id))) &&
-        (!q || `${m.subject} ${m.from} ${m.body}`.toLowerCase().includes(q)),
+        (!q || mailText(m).toLowerCase().includes(q)),
     ),
   );
   // The open thread stays open whatever the filters do to it (reading it takes it out of Unread).
@@ -494,6 +494,17 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
     </section>
   );
 }
+
+/** What search reads: the subject, the sender, the letter and its tables. */
+const mailText = (m: InboxMessage) =>
+  [
+    m.subject,
+    m.from,
+    m.body,
+    ...(m.sections ?? []).flatMap((s) => [s.title, s.lead, ...s.rows.flatMap((r) => [...r.cells, r.note])]),
+  ]
+    .filter(Boolean)
+    .join(' ');
 
 /** One message: its head, its text with everyone in it linked, its cards and its buttons. */
 function Message({

@@ -31,6 +31,7 @@ interface Locator {
   waitFor(options?: { state?: 'visible' | 'attached'; timeout?: number }): Promise<void>;
   count(): Promise<number>;
   textContent(): Promise<string | null>;
+  screenshot(options: { path: string }): Promise<unknown>;
 }
 interface Page {
   goto(url: string, options?: { waitUntil?: 'load' | 'networkidle' }): Promise<unknown>;
@@ -259,7 +260,11 @@ async function main() {
         const slug = prefix.replace(/[^a-z0-9]+/gi, '-').replace(/-+$/, '');
         const hash = `#/inbox/${encodeURIComponent(m.id)}`;
         await goTo(page, hash, 'main article');
-        await shootPage(page, DESKTOP, file(`mail-${slug}`));
+        // The letter alone: the inbox list beside it runs to thousands of pixels.
+        await page
+          .locator('main article')
+          .first()
+          .screenshot({ path: file(`mail-${slug}`) });
         await goTo(phone, hash, 'main article');
         await shootPage(phone, PHONE, file(`mail-${slug}-phone`));
       }

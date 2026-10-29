@@ -137,6 +137,8 @@ import {
   verdictTone,
 } from './training';
 import { store } from './store';
+import { setWaiverClaim } from '../engine/personnel/waivers';
+import { wireClaim } from '../engine/waiverMail';
 
 /** How many rows a list in a card shows before "See all". */
 const SHOW = 3;
@@ -2690,6 +2692,36 @@ function SectionCard({ league, section }: { league: League; section: MailSection
           const n = Number(cell.replace(/[^0-9.-]/g, ''));
           return cell !== '' && /^[\d$.,\s%-]+[MK]?$/.test(cell) && Number.isFinite(n) ? n : cell;
         });
+  // Rows the writer annotates (a note, a claim) read as a list: the facts on one line, his words in full beneath.
+  if (section.rows.some((r) => r.note || r.claim))
+    return (
+      <Card title={section.title}>
+        {section.lead && <p className="inbox-body">{section.lead}</p>}
+        <ul className="mail-rows">
+          {section.rows.map((r, j) => {
+            const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+            const facts = r.cells
+              .slice(1, -1)
+              .map((c, k) => (cols[k + 1] ? `${cols[k + 1]} ${c}` : c))
+              .join(' · ');
+            return (
+              <li key={j} className="mail-row">
+                <div className="mail-row-head">
+                  {p ? <PlayerLink league={league} player={p} pos /> : r.cells[0]}
+                  {facts && <span className="small muted"> {facts}</span>}
+                </div>
+                <div className="mail-row-side">
+                  {r.cells.length > 1 && <span className="small">{r.cells.at(-1)}</span>}
+                  {r.claim && <ClaimButton league={league} entryId={r.claim.entryId} />}
+                </div>
+                {r.note && <p className="mail-row-note">{r.note}</p>}
+                {r.claim && <ClaimProblem league={league} entryId={r.claim.entryId} />}
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+    );
   return (
     <Card title={section.title}>
       {section.lead && <p className="inbox-body">{section.lead}</p>}
@@ -2705,6 +2737,7 @@ function SectionCard({ league, section }: { league: League; section: MailSection
                     <th key={k}>{c}</th>
                   ),
                 )}
+                {section.rows.some((r) => r.claim) && <th aria-label="Claim" />}
               </tr>
             </thead>
           )}
@@ -2719,6 +2752,11 @@ function SectionCard({ league, section }: { league: League; section: MailSection
                       {k === r.cells.length - 1 && r.note && <div className="small muted">{r.note}</div>}
                     </td>
                   ))}
+                  {r.claim && (
+                    <td>
+                      <ClaimButton league={league} entryId={r.claim.entryId} />
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -2726,5 +2764,37 @@ function SectionCard({ league, section }: { league: League; section: MailSection
         </table>
       </div>
     </Card>
+  );
+}
+
+/** A wire row's claim, put in from the letter: the waiver screen's claim, with its reason when it can't go in. */
+function ClaimButton({ league, entryId }: { league: League; entryId: number }) {
+  const pending = league.personnel?.waivers?.pending.some((e) => e.id === entryId);
+  if (!pending) return <span className="muted small">Settled</span>;
+  const { claim, problem, claimed } = wireClaim(league, entryId);
+  if (claimed) return <span className="muted small">Claimed</span>;
+  return (
+    <>
+      <button
+        className="btn btn-sm btn-primary"
+        disabled={!!problem}
+        title={problem ?? undefined}
+        onClick={() => store.mutate((l) => setWaiverClaim(l, claim))}
+      >
+        Claim
+      </button>
+    </>
+  );
+}
+
+/** Why a wire row's claim can't go in yet, under its note: a full 53 is made room for on the waiver screen. */
+function ClaimProblem({ league, entryId }: { league: League; entryId: number }) {
+  if (!league.personnel?.waivers?.pending.some((e) => e.id === entryId)) return null;
+  const { problem, claimed } = wireClaim(league, entryId);
+  if (!problem || claimed) return null;
+  return (
+    <p className="mail-row-note small">
+      {/roster move/.test(problem) ? 'We need a roster spot first: pick who goes on the Waiver wire screen.' : problem}
+    </p>
   );
 }

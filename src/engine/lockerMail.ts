@@ -4,34 +4,16 @@
  * nothing doubles up, and never ask anything of you. Your position coaches write plainly about their own room; the
  * head coach writes about the whole team.
  */
-import { ROOM_OF, teamCoaches } from './coaching';
+import { teamCoaches } from './coaching';
+import { headCoach, roomCoach, type Draft } from './senders';
 import { personalityOf, personalityTone, trueCharacter } from './personality';
 import { personalityRead } from './personality';
 import { clubFeeling, rapport, speakEvents, speaksOut, type SpeakEvent } from './relationships';
 import { perceive } from './scouting';
 import { linksOf, treeBornSeason, treeOf } from './trees';
-import type { Coach, InboxMessage, League, Player } from './types';
-
-type Draft = Omit<InboxMessage, 'read'>;
-type Sender = Pick<InboxMessage, 'from' | 'fromCard'>;
+import type { League, Player } from './types';
 
 const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
-const signed = (c: Coach, title: string): Sender => ({
-  from: `${fullName(c)}, ${title}`,
-  fromCard: { kind: 'coach', id: c.id },
-});
-
-function headCoach(league: League): Sender {
-  const c = teamCoaches(league, league.userTeamId).find((x) => x.role === 'headCoach');
-  return c ? signed(c, 'Head coach') : { from: 'Coaching staff' };
-}
-
-/** The coach of his position room, or the head coach when the chair is empty. */
-function roomCoach(league: League, p: Player): Sender {
-  const room = ROOM_OF[p.position];
-  const c = teamCoaches(league, league.userTeamId).find((x) => x.role === 'positionCoach' && x.room === room);
-  return c ? signed(c, 'Position coach') : headCoach(league);
-}
 
 function took(league: League, p: Player, have: Set<string>): Draft | null {
   const id = `mentor:${league.season}:took:${p.id}`;

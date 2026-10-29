@@ -4267,6 +4267,44 @@ button.tip-pill {
 .mail-table th {
   padding: 5px 6px;
 }
+/* A letter's annotated rows (the waiver wire, the locker room report): facts, then the writer's words in full. */
+.mail-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.mail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.mail-row:first-child {
+  border-top: 0;
+}
+.mail-row-side {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: right;
+}
+.mail-row-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+}
+@media (max-width: 640px) {
+  .mail-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mail-row-side {
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
 /* A ranked table that leaves out the middle of the league: a dashed rule where the ranks jump. */
 .mail-table tr.mail-gap td {
   border-top: 2px dashed var(--line);
