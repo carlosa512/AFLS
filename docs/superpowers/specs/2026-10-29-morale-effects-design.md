@@ -53,8 +53,8 @@ Development rolls a player's year once, at the new league year, and releases it 
   10% further along on the ratings he was gaining, a miserable one up to 10% short, landing a little each week.
 - **No jitter:** a step adds at least 0.05 (or a sat week's ~0.009) to `done` and at most 0.0125 (0.004) to the tilt,
   so `done × (1 + tilt)` only rises and ratings never step back mid-year.
-- **Closing early:** a growth year that still tilts isn't closed before the season's last week (today a year whose
-  remainder rounds to nothing closes early); the true-up at the next new league year lands what's left, tilt included.
+- **Closing early:** a growth year isn't closed early (today a year whose remainder rounds to nothing closes early); it
+  closes when the season's last week lands it in full, tilt included, or at the true-up.
 
 ## Game day
 
@@ -112,10 +112,11 @@ Your players only (fog of war: through `moraleView`, never `p.morale`), in words
   play out the same with moods on or off (moods still draw nothing). A second test shows the effects, switched on, do
   change something.
 - **`npm run morale`** adds: the game-day edge's league mean within ±0.05 rating points and every edge within ±0.5; the
-  growth tilt's league mean at the year's end within ±0.01; young players who spent the year Good or better out-tilt
+  growth tilt's league mean late in the season (after week 17: the year closes in week 18) within ±0.01; young players who spent the year Good or better out-tilt
   those who spent it Poor or worse by at least 0.04.
-- **`npm run training`:** its one-jump replay applies the same tilt the stepped year built up; "a year released in steps
-  lands where one jump would" must still hold for every player left alone.
+- **`npm run training`:** holds the tilt at zero (`MOOD_TILT.growth`, a dial like `RELEASE`), so "a year released in
+  steps lands where one jump would" still holds for every player left alone; the tilt's own exactness (a tilted year
+  lands where one jump with the same tilt would) is `release.test.ts`'s, its size `npm run morale`'s.
 - **Play moves now, inside its ranges:** CI's planner runs `sim`, `careers`, `audit`, `offseason`, `training`, `trades`
   and the rest on these files. No range is loosened to get green; if one can't be met, stop and tell the owner why.
 - **Save budget:** one small number per young player with a year landing; measured in the plan, an allowance only if
