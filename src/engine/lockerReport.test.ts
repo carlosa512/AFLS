@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject } from './inbox';
 import { dueCheckin } from './lockerReport';
+import { moraleView } from './morale';
+import { playerOvr } from './positions';
 import { betterMentor, mentoringWeek, mentorStatus } from './mentoring';
 import { nameCaptains } from './personality';
 import { addTie } from './relationships';
@@ -43,6 +45,116 @@ const old = (id: string, l: League): InboxMessage => ({
   body: '',
   read: true,
   actions: [],
+});
+
+describe('the locker room report: morale', () => {
+  const moody = (l: League) => {
+    for (const p of ours(l)) p.morale = { level: 2, jolts: [] };
+    const [a, b] = ours(l);
+    a.morale = { level: -2, jolts: [] };
+    b.morale = { level: -5, jolts: [] };
+    return [a, b];
+  };
+
+  it("lists who's down, worst first, each with the coach's note", () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    const [poor, worse] = moody(l);
+    deliverMail(l);
+    const [m] = reports(l);
+    const rows = section(m, 'Morale')!.rows;
+    expect(rows.map((r) => r.playerId).slice(0, 2)).toEqual([worse.id, poor.id]);
+    expect(rows[0].cells).toContain('Very poor');
+    for (const r of rows) expect(r.note?.length).toBeGreaterThan(10);
+    expect(m.covered).toContain(`morale:${l.season}:cutdown:${worse.id}:down`);
+    expect(text(m)).not.toMatch(BANNED);
+    for (const r of rows) expect([...r.cells.slice(1), r.note].join(' ')).not.toMatch(/\d/);
+  });
+
+  it('tells only what changed by the next report: who slipped, and who came around', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    const [poor, worse] = moody(l);
+    deliverMail(l);
+    poor.morale = { level: 2, jolts: [] };
+    const fresh = ours(l)[2];
+    fresh.morale = { level: -4, jolts: [] };
+    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    deliverMail(l);
+    const m = reports(l).find((x) => x.id.endsWith(':deadline'))!;
+    const rows = section(m, 'Morale')!.rows;
+    const ids = rows.map((r) => r.playerId);
+    // Still down since last time: told already, not again.
+    expect(ids).not.toContain(worse.id);
+    expect(ids).toContain(fresh.id);
+    expect(rows.find((r) => r.playerId === poor.id)?.cells).toContain('Good');
+  });
+
+  it('names the worst six, and points to the Locker Room for the rest', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    for (const [i, p] of ours(l).entries()) p.morale = { level: i < 9 ? -2 - i * 0.1 : 0, jolts: [] };
+    deliverMail(l);
+    const s = section(reports(l)[0], 'Morale')!;
+    expect(s.rows).toHaveLength(6);
+    expect(s.lead).toMatch(/Locker Room/);
+    expect(s.lead).not.toMatch(/\d/);
+  });
+
+  it('names a man flying once, not every other report', () => {
+    const l = copy(template);
+    for (const p of ours(l)) p.morale = { level: 0, jolts: [] };
+    const star = ours(l)[0];
+    star.morale = { level: 8, jolts: [] };
+    at(l, 'preseason');
+    nameCaptains(l);
+    deliverMail(l);
+    at(l, 'regular', 3);
+    deliverMail(l);
+    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    deliverMail(l);
+    const named = reports(l).filter((m) => section(m, 'Morale')?.rows.some((r) => r.playerId === star.id));
+    expect(named.map((m) => m.id)).toEqual([`locker:${l.season}:camp`]);
+  });
+
+  it('reads reasons off the league as it is, not a screen’s cache', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    for (const p of ours(l)) p.morale = { level: 0, jolts: [] };
+    const qbs = ours(l)
+      .filter((p) => p.position === 'QB')
+      .sort((x, y) => playerOvr(y) - playerOvr(x));
+    const backup = qbs[1];
+    backup.morale = { level: -4, jolts: [] };
+    // He sat last season, as a backup does.
+    backup.stats[l.season - 1] = { gp: 10 } as Player['stats'][number];
+    // A screen reads the room while he's the backup; then the starter leaves inside the step.
+    expect(moraleView(l, backup)?.reasons).not.toContain('Wants more snaps');
+    qbs[0].teamId = null;
+    deliverMail(l);
+    const row = section(reports(l)[0], 'Morale')!.rows.find((r) => r.playerId === backup.id)!;
+    // Now the best quarterback on the roster, still on the bench: the letter says so.
+    expect(row.note).toMatch(/snaps|field/);
+  });
+
+  it('leaves the section out when nobody is down or flying', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    for (const p of ours(l)) p.morale = { level: 0, jolts: [] };
+    deliverMail(l);
+    expect(section(reports(l)[0], 'Morale')).toBeUndefined();
+  });
+
+  it('puts the section after the captains and before the mentoring', () => {
+    const l = copy(template);
+    at(l, 'preseason');
+    nameCaptains(l);
+    moody(l);
+    deliverMail(l);
+    const titles = reports(l)[0].sections!.map((s) => s.title);
+    expect(titles.indexOf('Morale')).toBeGreaterThan(titles.indexOf('Captains and leaders'));
+    if (titles.includes('Mentoring')) expect(titles.indexOf('Morale')).toBeLessThan(titles.indexOf('Mentoring'));
+  });
 });
 
 describe('the locker room report', () => {
@@ -142,6 +254,7 @@ describe('the locker room report', () => {
     for (const p of ours(l)) {
       delete p.mentor;
       delete p.ties;
+      p.morale = { level: 0, jolts: [] };
     }
     at(l, 'regular', 1);
     deliverMail(l);

@@ -102,6 +102,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   where one jump would for every player left alone that year, ratings on the scale all season, the tick's
   speed and what a save carries). Run it after changing `training.ts`, `familiarity.ts`, `development.ts`
   or the calendar steps that run them. Nothing may be flagged.
+- `npm run morale` — play four seasons and check the league's moods (`morale.ts`): band shares, underpaid
+  final-year starters reading Poor or worse, a benching's dip and recovery, winning rooms happier than losing ones,
+  no drift and no level out of range. Run it after changing `morale.ts`. Nothing may be flagged ✗.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -225,7 +228,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     retirement, contract asks and trade values all read it) · `traits.ts` hidden traits and their hooks ·
     `personality.ts` the personality name and one-sentence character line read off traits and agent dials (never stored;
     `TRAITS_ON` keeps a trait out of names until its job ships), `personalityRead` for a team's view, captains
-    (`nameCaptains`) · `mentoring.ts` veterans mentoring players 21–24: work ethic, temperament and poise move at most a
+    (`nameCaptains`) · `morale.ts` each player's mood: a weekly target (contract, role, team, locker room, promises
+    from G3, a resting level from his makeup), a level that moves part of the way there, fading jolts for big moments;
+    `moraleWeek` in `playWeek`, `moraleStep` at each offseason step, nothing drawn from any stream; screens read it only
+    through `moraleView` (your players only, in words) · `mentoring.ts` veterans mentoring players 21–24: work ethic, temperament and poise move at most a
     point a year (`Player.shifts`, read through `workEthicOf`/`temperamentOf`/`poiseOf`, never `traits` directly),
     landing at the new league year; one planner for your staff and AI teams (`planMentors`) · `lockerMail.ts` the
     locker room's letters · `relationships.ts` how a player left each club (`Player.left`), friendships and feuds

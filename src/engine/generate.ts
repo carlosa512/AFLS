@@ -1,3 +1,4 @@
+import { seedMorale } from './morale';
 import { seedFoundingTrees } from './trees';
 import { fillOrigins } from './origin';
 import { generateCoachingWorld } from './coaching';
@@ -47,7 +48,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 66;
+export const SAVE_VERSION = 67;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -804,6 +805,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   generateStaffWorld(league);
   generateCoachingWorld(league);
   seedFoundingTrees(league);
+  // Every player starts where he stands: no jolts, nothing drawn.
+  seedMorale(league);
   generateMedicalWorld(league);
   league.userTeamId = options.userTeamId ?? 0;
   generateCrews(league);

@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.21',
+    date: '2026-10-29',
+    title: 'Morale',
+    text:
+      'Every player has a mood now. His contract, his role, the team winning or losing and his friends and feuds all ' +
+      'move it, and big moments (a benching, a raise, the C, a friend cut) jolt it before they fade. A depth player ' +
+      "is glad of his spot; a starter kept off the field is not. You see your players' moods as smileys on the Roster " +
+      'and a morale board in the Locker Room (what is on their minds, who needs a word), as a pill on the player card, ' +
+      "and in the head coach's locker room report. The player card is cleaner up top: pills only. Morale doesn't change " +
+      'play yet.',
+  },
+  {
     version: '0.2.20',
     date: '2026-10-29',
     title: 'Contracts you can act on',

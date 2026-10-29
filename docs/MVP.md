@@ -98,6 +98,14 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       rosters; small schools and the Pathway start on less film (`knowledge`). A Pathway class arrives after each
       draft (with a reserved practice squad place on profile `afls-2026-v2`) and CFL veterans at each new league year.
       Spec: `docs/superpowers/specs/2026-10-27-player-origins-design.md`.
+- [ ] **Morale and holdouts** · **Partial** (hooks into #6 and #8): every rostered player has a mood (0.2.21,
+      `morale.ts`): a weekly target from his contract against his market, the role he plays against the one he expects
+      (a depth man accepts depth), his team's results and his locker room, around a resting level his makeup sets,
+      with fading jolts for big moments (a benching, a raise, the C, a friend cut). Your players' moods show as
+      smileys on the Roster and the Locker Room's morale board, a pill on the card, and in the head coach's locker
+      room report; `npm run morale` holds the league's moods to range. No effect on play yet: players speaking up and
+      promises (G3), effects on practice, play and talks (G2), and hold-ins, holdouts and trade requests (G4) are to
+      come. Spec: `docs/superpowers/specs/2026-10-29-morale-core-design.md`.
 - [x] **Schedule weather forecasts (fog of war)** · **Already in** (hooks into #5): forecasts at three stages with
       calibrated rain chances on the schedule and the next-game card (`forecast` in `weather.ts`). Trend arrows and a
       staff hook are not built yet (`docs/WEATHER.md`).

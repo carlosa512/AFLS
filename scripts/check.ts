@@ -144,6 +144,14 @@ const CHECKS = {
     summary: /\d+ poaching number\(s\) outside target range/,
     detail: /✗/,
   },
+  // Morale: the league's moods by band, underpaid starters, a benching's dip and recovery, winning rooms, no drift.
+  morale: {
+    cmd: ['npm', 'run', 'morale'],
+    cores: 1,
+    secs: 80,
+    summary: /\d+ number\(s\) outside target range/,
+    detail: /✗/,
+  },
 } satisfies Record<string, Check>;
 
 type Name = keyof typeof CHECKS;
@@ -206,6 +214,8 @@ const RULES: [RegExp, Name[]][] = [
     ['training'],
   ],
   [/^scripts\/training\.ts$/, ['training']],
+  // Morale: the moods and the league check that holds them to range.
+  [/^src\/engine\/morale\.ts$|^scripts\/morale\.ts$/, ['morale']],
   // The harness itself, dependencies and compiler settings can break anything.
   [/^scripts\/check\.ts$|^package(-lock)?\.json$|^tsconfig\.json$|^\.github\/workflows\//, NAMES],
 ];

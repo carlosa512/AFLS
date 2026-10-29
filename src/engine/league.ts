@@ -1,3 +1,4 @@
+import { moraleWeek } from './morale';
 import { mentoringWeek } from './mentoring';
 import { coachQuirksWeek, recordCoachEvidence } from './coachQuirks';
 import { coachTeachingWeek, updateCoachAdvice } from './coachDecisions';
@@ -179,6 +180,8 @@ function playWeekControlled(league: League): Game[] {
     // The week's share of each player's year lands, more for a man who played (the user's live game included).
     developWeek(league, gamesInWeek(league));
   }
+  // Moods move after the week's games and moves (morale draws nothing, so it can't shift what follows).
+  if (league.phase === 'regular' || league.phase === 'playoffs') moraleWeek(league);
   league.week++;
   leadershipWeek(league);
   // The league moves the games worth watching into prime time, on the NFL's notice.

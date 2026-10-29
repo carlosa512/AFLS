@@ -15,6 +15,8 @@ import {
   GREW_UP,
   MENTOR_LOST,
   MENTOR_SUGGEST,
+  MORALE_LEAD,
+  MORALE_NOTE,
   VERDICT,
   type Checkin,
   type VerdictFact,
@@ -25,6 +27,7 @@ import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import type { League, MailSection, Player } from './types';
 import { mottoOf, recentBodies, say, toldKeys } from './voice';
 import { teamCoaches } from './coaching';
+import { DOWN_REASONS, moraleContext, moraleView } from './morale';
 
 const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
 const ORDER: readonly Checkin[] = ['camp', 'cutdown', 'deadline', 'end'];
@@ -156,6 +159,56 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       });
     if (rows.length) sections.push({ title: 'Captains and leaders', columns: ['Player', 'Role', 'Our read'], rows });
   }
+
+  // Morale, as our staff see it (`moraleView`): who slipped since the last report, worst first; who came around; then
+  // a couple of the happiest. A man still down from last time was told then.
+  const fs = footballSeason(league, checkin);
+  const last = new Map<number, 'down' | 'up'>();
+  const earlier = ORDER.slice(0, ORDER.indexOf(checkin));
+  const prev = [...earlier].reverse().find((c) => told.has(`locker:${fs}:${c}`));
+  if (prev)
+    for (const k of told) {
+      const hit = k.match(/^morale:(\d+):(\w+):(\d+):(down|up)$/);
+      if (hit && Number(hit[1]) === fs && hit[2] === prev) last.set(Number(hit[3]), hit[4] as 'down' | 'up');
+    }
+  const moodCtx = moraleContext(league);
+  const moods = ours.flatMap((p) => {
+    const view = moraleView(league, p, moodCtx);
+    return view ? [{ p, view }] : [];
+  });
+  const down = moods.filter((m) => m.view.step <= 3).sort((a, b) => a.view.level - b.view.level || a.p.id - b.p.id);
+  const slipped = down.filter((m) => last.get(m.p.id) !== 'down');
+  const back = moods.filter((m) => m.view.step >= 4 && last.get(m.p.id) === 'down');
+  const flying = moods
+    .filter((m) => m.view.step >= 6 && last.get(m.p.id) !== 'up' && !back.includes(m))
+    .sort((a, b) => b.view.level - a.view.level || a.p.id - b.p.id)
+    .slice(0, 2);
+  const morale: MailSection['rows'] = [];
+  // The worst six by name: a letter is not the room's whole list (the Locker Room screen is).
+  const listed = slipped.slice(0, 6);
+  for (const { p, view } of [...listed, ...back, ...flying]) {
+    const isBack = back.some((m) => m.p.id === p.id);
+    const happy = !isBack && view.step >= 6;
+    const reason = view.reasons.find((r) => (happy ? !DOWN_REASONS.has(r) : DOWN_REASONS.has(r))) ?? null;
+    morale.push({
+      playerId: p.id,
+      cells: [fullName(p), view.word],
+      note: say(MORALE_NOTE, { name: p.lastName, reason, happy, back: isBack }, at(`morale:${p.id}`)),
+    });
+  }
+  // Every man down (or flying) now is on file for the next report to compare with, listed here or not.
+  for (const { p } of down) covered.push(`morale:${fs}:${checkin}:${p.id}:down`);
+  // Every man flying is on file, named this time or last, so a man up all season is named once.
+  for (const m of moods)
+    if (m.view.step >= 6 && !back.includes(m)) covered.push(`morale:${fs}:${checkin}:${m.p.id}:up`);
+  const more = slipped.length - listed.length;
+  if (morale.length)
+    sections.push({
+      title: 'Morale',
+      ...(more > 0 ? { lead: say(MORALE_LEAD, { more }, at('morale-lead')) } : {}),
+      columns: ['Player', 'Mood'],
+      rows: morale,
+    });
 
   // Mentoring: who lost his mentor since the last report, then every pair and how it's going.
   const mentoring: MailSection['rows'] = [];
@@ -305,6 +358,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
     struggling,
     friends: along.length,
     grew: grew.length,
+    unhappy: slipped.length,
   };
   const verdict = say(VERDICT, fact, at('verdict'));
   const asksMotto = VERDICT.find((l) => l.text(fact) === verdict)?.motto;

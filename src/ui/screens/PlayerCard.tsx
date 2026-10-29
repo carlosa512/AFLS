@@ -36,7 +36,9 @@ import type { League, Player, Position, StatLine } from '../../engine/types';
 import { OFFSEASON_PHASES } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
 import { chairNoun, playerCoachLine } from '../coaching';
-import { Dialog, Exact, PlayerAvatar, Section, Sheet } from '../components';
+import { Dialog, Exact, PlayerAvatar, Section, Sheet, TipPill } from '../components';
+import { moraleView } from '../../engine/morale';
+import { MoodPill } from '../morale';
 import { LinkedText, type Who } from '../moves';
 import { store } from '../store';
 import { TradeActions } from '../offers';
@@ -632,6 +634,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
   const makeup = makeupOf(league, p);
   const habits = quirksOf(league, p);
   const form = formNote(league, p);
+  const mood = moraleView(league, p);
   const fixed = fixedHabits(league, league.userTeamId, p);
   const timeline = habitTimeline(league, league.userTeamId, p).slice(0, 5);
   const reps = repsOf(league, p);
@@ -748,32 +751,33 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           ) : (
             <QuirkPills notes={habits.notes} />
           )}
-          {(['bad', 'good', 'style'] as const).map((tone) => {
-            const left = fixed.filter((f) => f.tone === tone);
-            // Your own players hide nothing: no "seems" about it.
-            const heading = view.exact && tone === 'bad' ? 'Has fixed' : FIXED_HEADING[tone];
-            return left.length ? (
-              <span key={tone} className="muted small">
-                {heading}: {left.map((f) => f.label).join(', ')}
-              </span>
-            ) : null;
-          })}
         </span>
         {form && (
           <span className="fact">
             <span className="eyebrow">Form</span>
-            <span className="tone-bad">{form}</span>
+            <span className="pill-row">
+              <span className="tag-pill tag-bad">{form}</span>
+            </span>
+          </span>
+        )}
+        {mood && (
+          <span className="fact">
+            <span className="eyebrow">Morale</span>
+            <span className="pill-row">
+              <MoodPill league={league} player={p} />
+            </span>
           </span>
         )}
         {fit && (
-          <span
-            className="fact"
-            title={`Your ${fitSide} leans on ${fit.skills.join(', ')}${view.exact ? '' : ' (as your scouts read him)'}.`}
-          >
+          <span className="fact">
             <span className="eyebrow">Fit · {fitScheme}</span>
-            <span className={fit.grade === 'Poor' ? 'tone-bad' : fit.grade === 'Ideal' ? 'tone-good' : undefined}>
-              {fit.grade}
-              <span className="muted small"> · {fit.skills.join(', ')}</span>
+            <span className="pill-row">
+              <TipPill
+                className={fit.grade === 'Poor' ? 'tag-bad' : fit.grade === 'Ideal' ? 'tag-good' : ''}
+                tip={`Your ${fitSide} leans on ${fit.skills.join(', ')}${view.exact ? '' : ' (as your scouts read him)'}.`}
+              >
+                {fit.grade}
+              </TipPill>
             </span>
           </span>
         )}
@@ -808,8 +812,18 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
         </div>
       )}
 
-      {timeline.length > 0 && (
+      {(timeline.length > 0 || fixed.length > 0) && (
         <Section id="habits" title="Habits over time" defaultOpen={false} className="muted small">
+          {(['bad', 'good', 'style'] as const).map((tone) => {
+            const left = fixed.filter((f) => f.tone === tone);
+            // Your own players hide nothing: no "seems" about it.
+            const heading = view.exact && tone === 'bad' ? 'Has fixed' : FIXED_HEADING[tone];
+            return left.length ? (
+              <p key={tone} style={{ margin: 0 }}>
+                {heading}: {left.map((f) => f.label).join(', ')}
+              </p>
+            ) : null;
+          })}
           <ul className="habit-timeline">
             {timeline.map((e) => (
               <li key={`${e.id}-${e.season}-${e.week}-${e.change}`}>
@@ -826,13 +840,6 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             ))}
           </ul>
         </Section>
-      )}
-
-      {!view.exact && (
-        <p className="muted small read-by">
-          <ReadBy league={league} view={view} p={p} />
-          {sitDownHint && ' A scouting visit doubles as a sit-down: it can take one or two to learn his makeup.'}
-        </p>
       )}
 
       <div className="card-actions">
@@ -860,6 +867,12 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           <b>{report.verdict}</b> {report.game.join(' ')}
         </p>
         {report.notes.length > 0 && <p>{report.notes.join(' ')}</p>}
+        {!view.exact && (
+          <p className="muted small read-by">
+            <ReadBy league={league} view={view} p={p} />
+            {sitDownHint && ' A scouting visit doubles as a sit-down: it can take one or two to learn his makeup.'}
+          </p>
+        )}
       </div>
 
       {!isProspect(p) && <HealthSection league={league} player={p} />}

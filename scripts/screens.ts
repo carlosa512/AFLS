@@ -11,6 +11,8 @@
  *
  *   --team  the club whose Roster (and, when you have a job, Cap) screen is shown; default: yours.
  *   --dark  the dark theme instead of the light one.
+ *   --screens  only these, desktop and phone each: a comma list of `roster`, `locker` (the Locker Room) and `card`
+ *              (your roster's first player's card).
  *   --mail  only letters: a comma list of message-id prefixes (`locker:,waivers:`); for each, the newest message
  *           whose id starts with it is opened in the inbox and shot on desktop and phone.
  *
@@ -78,6 +80,10 @@ const outOption = option('out');
 const teamAbbrev = option('team');
 const theme = flag('dark') ? 'dark' : 'light';
 const mailPrefixes = option('mail')
+  ?.split(',')
+  .map((x) => x.trim())
+  .filter(Boolean);
+const onlyScreens = option('screens')
   ?.split(',')
   .map((x) => x.trim())
   .filter(Boolean);
@@ -274,6 +280,27 @@ async function main() {
         await goTo(phone, hash, 'main article');
         await shootPage(phone, PHONE, file(`mail-${slug}-phone`));
       }
+    } else if (onlyScreens) {
+      const page = await newPage(DESKTOP, false);
+      const phone = await newPage(PHONE, true);
+      for (const name of onlyScreens)
+        for (const [p, viewport, suffix] of [
+          [page, DESKTOP, ''],
+          [phone, PHONE, '-phone'],
+        ] as const) {
+          if (name === 'roster' || name === 'card') {
+            await goTo(p, `#/roster/${save.userTeamId}`, 'main table, main .panel');
+            if (name === 'roster') await shootPage(p, viewport, file(`roster${suffix}`));
+            else {
+              await p.locator('main table tbody tr.depth-row button.linklike').first().click();
+              await shootCard(p, viewport, file(`card${suffix}`));
+              await closeCard(p);
+            }
+          } else if (name === 'locker') {
+            await goTo(p, '#/locker', 'main h1');
+            await shootPage(p, viewport, file(`locker${suffix}`));
+          } else console.warn(`No screen called "${name}" (roster, locker, card)`);
+        }
     } else {
       const page = await newPage(DESKTOP, false);
       // Between GM jobs: the top bar says so, and the team screens give way to spectator ones.
