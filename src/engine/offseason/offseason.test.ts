@@ -8,7 +8,16 @@ import { playerOvr, STARTERS } from '../positions';
 import { activeRoster, teamPlayers } from '../roster';
 import type { League } from '../types';
 import { POSITIONS } from '../types';
-import { advanceOffseason, beginOffseason, draftNextPick, FA_DAYS, offseasonBlockers, simOffseason } from '.';
+import {
+  advanceOffseason,
+  beginOffseason,
+  draftNextPick,
+  FA_DAYS,
+  lettingWalk,
+  offseasonBlockers,
+  setLettingWalk,
+  simOffseason,
+} from '.';
 import {
   aiOffer,
   aiResignWindow,
@@ -493,5 +502,24 @@ describe('the re-sign call', () => {
     const old = expiringPlayers(league, league.userTeamId)[0];
     old.age = 40;
     expect(resignCall(league, league.userTeamId, old)).toMatchObject({ call: 'walk', reason: 'age' });
+  });
+
+  it('lets a player walk, and takes it back, for this window only', () => {
+    const league = fresh();
+    beginOffseason(league);
+    const [p] = expiringPlayers(league, league.userTeamId);
+    expect(lettingWalk(league, p.id)).toBe(false);
+    setLettingWalk(league, p.id, true);
+    expect(lettingWalk(league, p.id)).toBe(true);
+    setLettingWalk(league, p.id, false);
+    expect(lettingWalk(league, p.id)).toBe(false);
+    setLettingWalk(league, p.id, true);
+    league.season++;
+    expect(lettingWalk(league, p.id)).toBe(false);
+    league.season--;
+    const signed = teamPlayers(league, league.userTeamId).find(
+      (q) => q.contract && !isExpired(q.contract, league.season),
+    )!;
+    expect(() => setLettingWalk(league, signed.id, true)).toThrow();
   });
 });

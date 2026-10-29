@@ -799,6 +799,8 @@ export interface Team {
   mentoringByYou?: true;
   /** The captains named at camp. */
   captains?: { season: number; offense: number; defense: number; specialTeams: number };
+  /** Expiring players you've decided to let walk this re-sign window (`setLettingWalk`). */
+  lettingWalk?: { season: number; ids: number[] };
   /**
    * Where the front office sees itself (`trade/plans.ts`) and the league year it got there: kept so
    * a team on the line doesn't flip between buying and selling from one week to the next.

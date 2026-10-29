@@ -225,6 +225,8 @@ export function migrateLeague(league: League): League | null {
   // v65: optional `sections` and `covered` on inbox messages (the digest letters) and `League.mailTold`: nothing to
   // fill in.
   if (league.version < 65) league.version = 65;
+  // v66: optional `Team.lettingWalk` (the re-sign window's walk list): nothing to fill in.
+  if (league.version < 66) league.version = 66;
   return league;
 }
 

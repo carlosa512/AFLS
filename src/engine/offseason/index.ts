@@ -50,7 +50,15 @@ import { expireOffers, marketMoment, recheckOffers, TRADE_DEADLINE_WEEK } from '
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
 import { POSITIONS } from '../types';
-import { aiCapCompliance, aiFreeAgencyDay, aiResignWindow, aiTrainingCamp, fillCampRoster, payAhead } from './ai';
+import {
+  aiCapCompliance,
+  aiFreeAgencyDay,
+  aiResignWindow,
+  aiTrainingCamp,
+  expiringPlayers,
+  fillCampRoster,
+  payAhead,
+} from './ai';
 import { clockOffers } from '../trade/draft';
 import {
   aiDraftChoice,
@@ -73,6 +81,26 @@ import { settleOffseasonWaivers, staffHandlesSquad, syncPersonnel, waiversPendin
 import { ensureWaivers } from '../personnel/waivers';
 
 export const FA_DAYS = 5;
+
+/**
+ * You've decided to let an expiring player walk (or changed your mind). Nothing in the sim reads it: a player you don't
+ * re-sign walks when free agency opens either way. It records the decision, so the contracts letter stops asking and
+ * the Re-sign screen says so. Kept with its league year: last year's list reads as empty.
+ */
+export function setLettingWalk(league: League, playerId: number, on: boolean): void {
+  const team = league.teams[league.userTeamId];
+  if (league.phase !== 'resign' || !expiringPlayers(league, team.id).some((p) => p.id === playerId))
+    throw new Error('Only an expiring player, in the re-sign window.');
+  const list = team.lettingWalk?.season === league.season ? team.lettingWalk.ids : [];
+  const ids = list.filter((id) => id !== playerId);
+  if (on) ids.push(playerId);
+  team.lettingWalk = { season: league.season, ids };
+}
+
+export const lettingWalk = (league: League, playerId: number): boolean => {
+  const w = league.teams[league.userTeamId].lettingWalk;
+  return w?.season === league.season && w.ids.includes(playerId);
+};
 
 /** The new league year: cap, carryover, ageing and retirements, the draft order and class, the schedule. */
 export function beginOffseason(league: League): void {

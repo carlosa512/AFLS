@@ -4,7 +4,7 @@ import { GeneralManagers } from './GeneralManagers';
 import { capSpace } from '../../engine/finance/cap';
 import { lastSeason, yearsLeft } from '../../engine/finance/contract';
 import { fifthYearOptionValue } from '../../engine/finance/market';
-import { FA_DAYS } from '../../engine/offseason';
+import { FA_DAYS, lettingWalk, setLettingWalk } from '../../engine/offseason';
 import {
   applyFranchiseTag,
   exerciseFifthYearOption,
@@ -177,19 +177,31 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
                           {broken ? 'Broken off' : n ? `${n.patience} left` : 'Open'}
                         </td>
                         <td>
-                          <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-                            <button className="btn btn-sm" onClick={() => negotiate(p)} disabled={broken}>
-                              Negotiate
-                            </button>
-                            <button
-                              className="btn btn-sm"
-                              disabled={!!blocker}
-                              title={blocker ?? 'One-year deal, fully guaranteed'}
-                              onClick={() => store.mutate((l) => applyFranchiseTag(l, l.players[p.id]))}
-                            >
-                              Tag {money(tagValue(league, p))}
-                            </button>
-                          </span>
+                          {lettingWalk(league, p.id) ? (
+                            <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                              <span className="muted small">Letting him walk</span>
+                              <button
+                                className="btn btn-sm"
+                                onClick={() => store.mutate((l) => setLettingWalk(l, p.id, false))}
+                              >
+                                Keep talking
+                              </button>
+                            </span>
+                          ) : (
+                            <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                              <button className="btn btn-sm" onClick={() => negotiate(p)} disabled={broken}>
+                                Negotiate
+                              </button>
+                              <button
+                                className="btn btn-sm"
+                                disabled={!!blocker}
+                                title={blocker ?? 'One-year deal, fully guaranteed'}
+                                onClick={() => store.mutate((l) => applyFranchiseTag(l, l.players[p.id]))}
+                              >
+                                Tag {money(tagValue(league, p))}
+                              </button>
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );
