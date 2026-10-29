@@ -35,7 +35,8 @@
     "gm:playthrough": "tsx scripts/gm-playthrough.ts",
     "gm:ten-years": "tsx scripts/gm-ten-years.ts",
     "screens": "tsx scripts/screens.ts",
-    "coach-gallery": "tsx scripts/coach-gallery.ts"
+    "coach-gallery": "tsx scripts/coach-gallery.ts",
+    "mail-preview": "tsx scripts/mail-preview.ts"
   },
   "dependencies": {
     "react": "19.3.1",

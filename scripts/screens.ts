@@ -11,6 +11,8 @@
  *
  *   --team  the club whose Roster (and, when you have a job, Cap) screen is shown; default: yours.
  *   --dark  the dark theme instead of the light one.
+ *   --mail  only letters: a comma list of message-id prefixes (`locker:,waivers:`); for each, the newest message
+ *           whose id starts with it is opened in the inbox and shot on desktop and phone.
  *
  * Playwright and Chromium are not project dependencies: they come from the machine (a global install,
  * found through NODE_PATH, or a local one). The server and the browser are closed when the run ends.
@@ -74,6 +76,10 @@ const savePath = option('save');
 const outOption = option('out');
 const teamAbbrev = option('team');
 const theme = flag('dark') ? 'dark' : 'light';
+const mailPrefixes = option('mail')
+  ?.split(',')
+  .map((x) => x.trim())
+  .filter(Boolean);
 if (!savePath || !outOption) {
   console.error('Usage: npm run screens -- --save <save.json> --out <dir> [--team <abbrev>] [--dark]');
   process.exit(2);
@@ -186,7 +192,11 @@ async function closeCard(page: Page) {
 
 async function main() {
   const raw = readFileSync(resolve(savePath!), 'utf8');
-  const save = JSON.parse(raw) as { userTeamId: number; teams: { id: number; abbrev: string }[] };
+  const save = JSON.parse(raw) as {
+    userTeamId: number;
+    teams: { id: number; abbrev: string }[];
+    inbox?: { id: string; deleted?: boolean }[];
+  };
   const shownTeam = teamAbbrev
     ? save.teams.find((t) => t.abbrev.toLowerCase() === teamAbbrev.toLowerCase())
     : save.teams[save.userTeamId];
@@ -236,59 +246,78 @@ async function main() {
   };
 
   try {
-    const page = await newPage(DESKTOP, false);
-    // Between GM jobs: the top bar says so, and the team screens give way to spectator ones.
-    const brand = (await page.locator('.brand-text strong').first().textContent()) ?? '';
-    const employed = !/Between GM jobs/i.test(brand);
-    const shoot = (name: string) => shootPage(page, DESKTOP, file(name));
-    const team = shownTeam.id;
+    if (mailPrefixes) {
+      const page = await newPage(DESKTOP, false);
+      const phone = await newPage(PHONE, true);
+      const inbox = (save.inbox ?? []).filter((m) => !m.deleted);
+      for (const prefix of mailPrefixes) {
+        const m = [...inbox].reverse().find((x) => x.id.startsWith(prefix));
+        if (!m) {
+          console.warn(`No message starts with "${prefix}"`);
+          continue;
+        }
+        const slug = prefix.replace(/[^a-z0-9]+/gi, '-').replace(/-+$/, '');
+        const hash = `#/inbox/${encodeURIComponent(m.id)}`;
+        await goTo(page, hash, 'main article');
+        await shootPage(page, DESKTOP, file(`mail-${slug}`));
+        await goTo(phone, hash, 'main article');
+        await shootPage(phone, PHONE, file(`mail-${slug}-phone`));
+      }
+    } else {
+      const page = await newPage(DESKTOP, false);
+      // Between GM jobs: the top bar says so, and the team screens give way to spectator ones.
+      const brand = (await page.locator('.brand-text strong').first().textContent()) ?? '';
+      const employed = !/Between GM jobs/i.test(brand);
+      const shoot = (name: string) => shootPage(page, DESKTOP, file(name));
+      const team = shownTeam.id;
 
-    await goTo(page, '#/', 'main h2, main h1, main .panel');
-    await shoot('home');
+      await goTo(page, '#/', 'main h2, main h1, main .panel');
+      await shoot('home');
 
-    await goTo(page, '#/office/gms', '.gm-directory-table');
-    await shoot('gm-directory');
+      await goTo(page, '#/office/gms', '.gm-directory-table');
+      await shoot('gm-directory');
 
-    // A GM other than you, from the directory.
-    await page.locator('.gm-directory-table tbody tr:not(.is-user) button.linklike').first().click();
-    await shootCard(page, DESKTOP, file('gm-card'));
-    await closeCard(page);
+      // A GM other than you, from the directory.
+      await page.locator('.gm-directory-table tbody tr:not(.is-user) button.linklike').first().click();
+      await shootCard(page, DESKTOP, file('gm-card'));
+      await closeCard(page);
 
-    // Your own GM card, from the career overview.
-    await page.locator('.gm-career-overview button.linklike').first().click();
-    await shootCard(page, DESKTOP, file('your-gm-card'));
-    await closeCard(page);
+      // Your own GM card, from the career overview.
+      await page.locator('.gm-career-overview button.linklike').first().click();
+      await shootCard(page, DESKTOP, file('your-gm-card'));
+      await closeCard(page);
 
-    await goTo(page, '#/inbox', 'main');
-    await shoot('inbox');
+      await goTo(page, '#/inbox', 'main');
+      await shoot('inbox');
 
-    if (employed) {
-      await goTo(page, '#/office/coaches', 'main');
-      await shoot('coaches');
-    }
+      if (employed) {
+        await goTo(page, '#/office/coaches', 'main');
+        await shoot('coaches');
+      }
 
-    await goTo(page, `#/roster/${team}`, 'main table, main .panel');
-    await shoot(employed && team === save.userTeamId ? 'roster' : `roster-${shownTeam.abbrev.toLowerCase()}`);
+      await goTo(page, `#/roster/${team}`, 'main table, main .panel');
+      await shoot(employed && team === save.userTeamId ? 'roster' : `roster-${shownTeam.abbrev.toLowerCase()}`);
 
-    if (employed) {
-      await goTo(page, `#/cap/${team}`, 'main .panel');
-      await shoot(team === save.userTeamId ? 'cap' : `cap-${shownTeam.abbrev.toLowerCase()}`);
-    }
+      if (employed) {
+        await goTo(page, `#/cap/${team}`, 'main .panel');
+        await shoot(team === save.userTeamId ? 'cap' : `cap-${shownTeam.abbrev.toLowerCase()}`);
+      }
 
-    await goTo(page, '#/standings', 'main table');
-    await shoot('standings');
+      await goTo(page, '#/standings', 'main table');
+      await shoot('standings');
 
-    // Phone: Home and a GM card.
-    const phone = await newPage(PHONE, true);
-    await goTo(phone, '#/', 'main h2, main h1, main .panel');
-    await shootPage(phone, PHONE, file('phone-home'));
-    await goTo(phone, '#/office/gms', '.gm-directory-table');
-    await phone.locator('.gm-directory-table tbody tr:not(.is-user) button.linklike').first().click();
-    await shootCard(phone, PHONE, file('phone-gm-card'));
+      // Phone: Home and a GM card.
+      const phone = await newPage(PHONE, true);
+      await goTo(phone, '#/', 'main h2, main h1, main .panel');
+      await shootPage(phone, PHONE, file('phone-home'));
+      await goTo(phone, '#/office/gms', '.gm-directory-table');
+      await phone.locator('.gm-directory-table tbody tr:not(.is-user) button.linklike').first().click();
+      await shootCard(phone, PHONE, file('phone-gm-card'));
 
-    // The dev server's error overlay means a screen failed to compile; a PNG of it is not a preview.
-    for (const p of [page, phone]) {
-      if ((await p.locator('vite-error-overlay').count()) > 0) problems.push('Vite error overlay on a screen');
+      // The dev server's error overlay means a screen failed to compile; a PNG of it is not a preview.
+      for (const p of [page, phone]) {
+        if ((await p.locator('vite-error-overlay').count()) > 0) problems.push('Vite error overlay on a screen');
+      }
     }
   } finally {
     await browser.close().catch(() => {});
