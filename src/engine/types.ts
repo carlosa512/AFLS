@@ -289,6 +289,22 @@ export interface Player {
   ties?: Tie[];
   /** This league year's development, rolled once and still landing in steps (`development.ts`). Gone once the year has landed. */
   dev?: DevYear;
+  /** His mood (`morale.ts`): rostered players and free agents only. Screens read it through `moraleView`. */
+  morale?: Morale;
+}
+
+/** A big moment that jolts a player's mood, then fades (`morale.ts`). */
+export type MoraleJolt = 'benched' | 'snubbed' | 'friendGone' | 'paid' | 'captain' | 'playoffs';
+
+export interface Morale {
+  /** −10…+10, the slow part of his mood; the words are bands of it plus his live jolts. */
+  level: number;
+  /** Recent big moments, newest last; at most four. `size` is as it landed; `week` is the league year's morale clock. */
+  jolts: { kind: MoraleJolt; size: number; season: number; week: number }[];
+  /** This league year's events already felt (`kind:season:…`), so none jolts him twice. */
+  seen?: string[];
+  /** The APY of the last deal he was seen on, to tell a raise when he signs. */
+  apy?: number;
 }
 
 /** A year of development on its way: the roll's inputs (its targets come back from the seed) and what has landed so far. */
@@ -1559,6 +1575,8 @@ export interface League {
   /** Next week to be played (1-based). */
   week: number;
   phase: Phase;
+  /** Morale's clock at its last step (`morale.ts`): a step already taken isn't taken twice. */
+  moraleAt?: number;
   userTeamId: number;
   /** The user's persistent identity; does not change when a different team is viewed or managed. */
   userGmId: number;
