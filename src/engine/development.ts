@@ -317,14 +317,20 @@ function releaseTo(p: Player, targets: number[], s: number): void {
   const to = Math.min(1, s);
   applyShare(p, targets, d.applied, to, d.mood ?? 0);
   d.done = to;
-  // A growth year stays open to the end: his mood can still tilt what's left of it.
+  // A growth year stays open while his mood could still tilt what's left of it: it closes early only once the year
+  // would land where he stands at the most a tilt can be either way (`MOOD_TILT.growth`; at 0 that's the plain rule).
+  const reach = d.potential === undefined ? [0] : [-MOOD_TILT.growth, MOOD_TILT.growth];
   if (
     to >= 1 ||
-    (d.potential === undefined &&
-      !ATTRIBUTES.some(
+    !reach.some((tilt) =>
+      ATTRIBUTES.some(
         (a, i) =>
-          targets[i] && Math.round(clamp(p.ratings[a] - (d.applied[i] ?? 0) + targets[i], 1, 20)) !== p.ratings[a],
-      ))
+          targets[i] &&
+          Math.round(
+            clamp(p.ratings[a] - (d.applied[i] ?? 0) + (targets[i] > 0 ? 1 + tilt : 1) * targets[i], 1, 20),
+          ) !== p.ratings[a],
+      ),
+    )
   )
     delete p.dev;
 }

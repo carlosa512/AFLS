@@ -340,12 +340,29 @@ describe("mood tilts a young player's year (G2)", () => {
     expect(none.ratings).toEqual(jump(none, 0).ratings);
   });
 
-  it('keeps a growth year open until it has landed in full', () => {
-    const { league, growers } = setup();
-    developBlock(league, 'program');
-    developBlock(league, 'camp');
-    for (const p of growers) expect(p.dev).toBeDefined();
-    for (let w = 0; w < 18; w++) developWeek(league, []);
-    for (const p of growers) expect(p.dev).toBeUndefined();
+  it('closes a growth year early only once no tilt could still move a rating', () => {
+    // Every rostered young player, so some have a year that's all but landed in March.
+    const league = createLeague({ seed: 'tilt-close' });
+    for (const p of Object.values(league.players)) p.morale = { level: 0, jolts: [] };
+    const young = Object.values(league.players).filter((p) => p.teamId !== null && p.age <= 25);
+    const jumps = new Map<number, [Player, Player]>();
+    for (const p of young) {
+      const { rng, ctx } = year(league, p);
+      const up = copy(p);
+      const down = copy(p);
+      developPlayer(rng(), up, { ...ctx, mood: 0.1 });
+      developPlayer(rng(), down, { ...ctx, mood: -0.1 });
+      jumps.set(p.id, [up, down]);
+      beginYear(league, rng(), p, ctx);
+      p.age++;
+    }
+    const closed = young.filter((p) => !p.dev);
+    // Closed early only when the most a mood could tilt it lands it where it stands, either way.
+    expect(closed.length).toBeGreaterThan(0);
+    for (const p of closed) {
+      const [up, down] = jumps.get(p.id)!;
+      expect(p.ratings).toEqual(up.ratings);
+      expect(p.ratings).toEqual(down.ratings);
+    }
   });
 });
