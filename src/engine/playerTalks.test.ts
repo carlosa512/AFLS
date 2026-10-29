@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
-import { moraleAdvance } from './morale';
-import { aiReply, answerTalk, canPromise, talksAt } from './playerTalks';
+import { moraleAdvance, moraleContext, type MoraleContext } from './morale';
+import { aiReply, answerTalk, canPromise, talksAt, talkStep } from './playerTalks';
 import { activeRoster } from './roster';
-import type { League, MoraleJolt, Player } from './types';
+import { POSITIONS, type League, type MoraleJolt, type Player } from './types';
 
 /**
  * A man made to sulk about one thing: a rookie (no contract grievance) with an average makeup, no ties, a mood at Very
@@ -185,5 +185,97 @@ describe('talks: the answers', () => {
     steps(b, 5);
     const talks = (l: League) => JSON.stringify(Object.values(l.players).map((p) => p.morale?.talk ?? null));
     expect(talks(a)).toBe(talks(b));
+  });
+});
+
+describe('talks: promises kept and broken', () => {
+  /** Every club `g` games in, a league-average starter at 60 snaps a game. */
+  function played(l: League, g: number): MoraleContext {
+    const ctx = moraleContext(l);
+    for (const r of ctx.records.values()) Object.assign(r, { w: g, l: 0, t: 0 });
+    for (const pos of POSITIONS) ctx.live[pos] = 60 * g;
+    return ctx;
+  }
+  const snapsAt = (l: League, p: Player, snaps: number) => (p.stats[l.season] = { ...p.stats[l.season], gp: 1, snaps });
+
+  function promised(l: League, cause: 'snaps' | 'deal' = 'snaps', index = 0) {
+    const p = sulker(l, l.userTeamId, index);
+    p.morale!.talk = { club: l.userTeamId, ask: { cause, at: l.moraleAt! } };
+    expect(answerTalk(l, p.id, 'promise')).toBe(true);
+    p.morale!.talk!.promise!.role = 2;
+    return p;
+  }
+  const kinds = (p: Player) => (p.morale!.jolts ?? []).map((j) => j.kind);
+
+  it('keeps a snaps promise on a starter’s snaps over two games, not one', () => {
+    const l = fresh();
+    const p = promised(l);
+    const c = l.moraleAt!;
+    snapsAt(l, p, 60);
+    talkStep(l, played(l, 1), c + 1, 9, false);
+    expect(p.morale!.talk!.promise).toBeDefined();
+    snapsAt(l, p, 120);
+    talkStep(l, played(l, 2), c + 2, 10, false);
+    expect(p.morale!.talk!.promise).toBeUndefined();
+    expect(p.morale!.talk!.kept).toBe(1);
+    expect(kinds(p)).toContain('kept');
+  });
+
+  it('breaks it after four games without the snaps; a game missed hurt does not count', () => {
+    const l = fresh();
+    const p = promised(l);
+    const c = l.moraleAt!;
+    p.injury = { type: 'Hamstring strain', weeksRemaining: 1 } as Player['injury'];
+    talkStep(l, played(l, 1), c + 1, 9, false);
+    expect(p.morale!.talk!.promise!.left).toBe(4);
+    delete p.injury;
+    for (let g = 2; g <= 4; g++) talkStep(l, played(l, g), c + g, 8 + g, false);
+    expect(p.morale!.talk!.promise!.left).toBe(1);
+    talkStep(l, played(l, 5), c + 5, 13, false);
+    expect(p.morale!.talk!.promise).toBeUndefined();
+    expect(p.morale!.talk!.broken).toBe(1);
+    expect(kinds(p)).toContain('broken');
+  });
+
+  it('carries a snaps promise’s games left across the season’s end', () => {
+    const l = fresh();
+    const p = promised(l);
+    const pr = p.morale!.talk!.promise!;
+    Object.assign(pr, { left: 2, seen: { season: l.season - 1, games: 16, snaps: 0 } });
+    talkStep(l, played(l, 0), l.moraleAt! + 1, 9, false);
+    expect(pr.left).toBe(2);
+    talkStep(l, played(l, 1), l.moraleAt! + 2, 10, false);
+    expect(p.morale!.talk!.promise!.left).toBe(1);
+  });
+
+  it('keeps a deal promise made in season with a raise in next year’s re-sign window, and breaks it when the window closes', () => {
+    const l = fresh();
+    const p = promised(l, 'deal');
+    const due = (l.season + 1) * 32 + 1;
+    expect(p.morale!.talk!.promise!.due).toBe(due);
+    const q = promised(l, 'deal', 1);
+    // Next league year: the re-sign window closes at `due`.
+    p.morale!.jolts = [{ kind: 'paid', size: 3, at: due }];
+    talkStep(l, played(l, 0), due, 1, false);
+    expect(p.morale!.talk!.kept).toBe(1);
+    expect(q.morale!.talk!.broken).toBe(1);
+  });
+
+  it('breaks an open promise when he is traded, and clears his record', () => {
+    const l = fresh();
+    const p = promised(l);
+    p.teamId = (l.userTeamId + 1) % 32;
+    talkStep(l, played(l, 1), l.moraleAt! + 1, 9, false);
+    expect(kinds(p)).toContain('broken');
+    expect(p.morale!.talk?.promise).toBeUndefined();
+    expect(p.morale!.talk?.club ?? p.teamId).toBe(p.teamId);
+  });
+
+  it('fades what he remembers at the new league year', () => {
+    const l = fresh();
+    const p = activeRoster(l, l.userTeamId)[0];
+    p.morale!.talk = { club: l.userTeamId, kept: 2, broken: 1, reassured: 3 };
+    talkStep(l, played(l, 0), (l.season + 1) * 32, 0, true);
+    expect(p.morale!.talk).toEqual({ club: l.userTeamId, kept: 1 });
   });
 });

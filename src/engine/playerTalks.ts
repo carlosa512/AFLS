@@ -83,6 +83,57 @@ export function gameCount(league: League, p: Player, ctx: MoraleContext): { game
   return { games: r ? r.w + r.l + r.t : 0, snaps: (kicker ? s?.gp : s?.snaps) ?? 0 };
 }
 
+/** The new league year: one kept and one broken promise forgotten, this year's reassurances cleared. */
+function fadeYear(t: Talk) {
+  for (const k of ['kept', 'broken'] as const) {
+    const n = (t[k] ?? 0) - 1;
+    if (n > 0) t[k] = n;
+    else delete t[k];
+  }
+  delete t.reassured;
+}
+
+/** A promise's end: a lift and a remembered kept one, or a drop and a remembered broken one. */
+function settle(p: Player, t: Talk, kept: boolean, clock: number) {
+  addJolt(p, kept ? 'kept' : 'broken', kept ? 2 : -4, clock);
+  const k = kept ? 'kept' : 'broken';
+  t[k] = (t[k] ?? 0) + 1;
+  delete t.promise;
+}
+
+/**
+ * Has the promise been kept or broken? Snaps: his club's games since it was made (all of a new season's: what was left
+ * carries over), not counting games he's hurt for; kept once, over two games or more, he's averaged the snaps of the
+ * role he was promised against a league-average starter's per game; broken when the games run out. A deal: kept by a
+ * raise before the re-sign window closes, broken when it closes without one.
+ */
+function checkPromise(league: League, p: Player, ctx: MoraleContext, clock: number, t: Talk) {
+  const pr = t.promise!;
+  if (pr.kind === 'deal') {
+    const paid = p.morale!.jolts?.some((j) => j.kind === 'paid' && j.at === clock);
+    if (paid && clock <= pr.due!) settle(p, t, true, clock);
+    else if (clock >= pr.due!) settle(p, t, false, clock);
+    return;
+  }
+  const now = gameCount(league, p, ctx);
+  const same = pr.seen?.season === league.season;
+  const dg = Math.max(0, now.games - (same ? pr.seen!.games : 0));
+  const ds = Math.max(0, now.snaps - (same ? pr.seen!.snaps : 0));
+  pr.seen = { season: league.season, ...now };
+  if (p.injury || p.ir) return;
+  pr.left = (pr.left ?? 0) - dg;
+  pr.games = (pr.games ?? 0) + dg;
+  pr.snaps = (pr.snaps ?? 0) + ds;
+  const kicker = p.position === 'K' || p.position === 'P';
+  const records = [...ctx.records.values()];
+  const meanGames = records.reduce((s, r) => s + r.w + r.l + r.t, 0) / Math.max(1, records.length);
+  const starter = ctx.live[p.position];
+  const perGame = kicker ? 1 : starter && meanGames > 0 ? starter / meanGames : 0;
+  const need = (pr.role ?? 0) >= 2 ? 0.6 : 0.2;
+  if (pr.games >= 2 && perGame > 0 && pr.snaps / pr.games / perGame >= need) settle(p, t, true, clock);
+  else if (pr.left <= 0) settle(p, t, false, clock);
+}
+
 /** An answer lands: the jolt it gives, the promise it makes, and the record of it. */
 function applyReply(
   league: League,
@@ -141,7 +192,6 @@ export function answerTalk(league: League, playerId: number, reply: TalkReply): 
  * then the new asks (two a club, the unhappiest first), answered at once at an AI club.
  */
 export function talkStep(league: League, ctx: MoraleContext, clock: number, week: number, newYear: boolean): void {
-  void newYear;
   const yours = yourClub(league);
   const candidates = new Map<number, { p: Player; level: number; cause: TalkCause }[]>();
   const asking = talksAt(league, week);
@@ -154,6 +204,8 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
       delete m.talk;
     }
     if (p.teamId === null) continue;
+    if (m.talk && newYear) fadeYear(m.talk);
+    if (m.talk?.promise) checkPromise(league, p, ctx, clock, m.talk);
     const level = moraleLevel(league, p, clock);
     if (moraleStepOf(level) <= 3) talkOf(p).downSince ??= clock;
     else if (m.talk) delete m.talk.downSince;
