@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.20',
+    date: '2026-10-29',
+    title: 'Contracts you can act on',
+    text:
+      'The re-sign window opens with one letter from your director: every expiring player, his ask, the market and ' +
+      "your staff's call (keep, tag or let him walk) with the reason. Sign at his ask, tag him, let him walk or " +
+      'negotiate right there in the inbox. The staff contracts letter adds Let go and a call on each coach, scout and ' +
+      'medic. And the draft no longer picks for you by accident: the top bar takes you to the draft room, and ' +
+      'auto-drafting asks first.',
+  },
+  {
     version: '0.2.19',
     date: '2026-10-29',
     title: 'Fewer, fuller letters',

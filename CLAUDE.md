@@ -165,7 +165,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `needsYou` works out from the league as it is now whether a message still asks something (nothing
     stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way. Digests replace one-off
     letters: the head coach's locker room report at four check-ins (`lockerReport.ts`, its words in `lockerVoice.ts`),
-    the director's daily waiver letter (`waiverMail.ts`), the weekly staff notes (`staffNotes.ts`); a digest's tables
+    the director's daily waiver letter (`waiverMail.ts`), the weekly staff notes (`staffNotes.ts`), the re-sign window's contracts letter (`contractMail.ts`: our call on
+    each player from `resignCall`, the AI's own rule, and buttons drawn live from the league); a digest's tables
     are `InboxMessage.sections` and what it told is `covered` (old one-off ids among them). Every sentence goes
     through `voice.ts` (`say`: the most specific line that fits, a stable tie-break, no repeat of the sender's last
     five letters); `senders.ts` signs them. `npm run mail-preview` builds saves at each moment and
