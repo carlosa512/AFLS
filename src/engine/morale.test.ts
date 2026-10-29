@@ -85,6 +85,22 @@ describe('morale: the factors', () => {
     expect(moraleFactors(league, s, ctx).role).toBeGreaterThanOrEqual(-3);
   });
 
+  it('reads a depth player who sits as content: he knows the starters are better', () => {
+    const ol = team0.filter((p) => p.position === 'OL').sort((a, b) => playerOvr(b) - playerOvr(a));
+    const ctx = moraleContext(league);
+    ctx.records.get(0)!.w = 3;
+    ctx.live.OL = 300;
+    // The seventh man in a five-starter room, a veteran with no snaps: depth, and he knows it.
+    expect(moraleFactors(league, { ...ol[STARTERS.OL + 1], experience: 5 }, ctx).role).toBe(0);
+    // A depth man who gets on the field anyway likes it.
+    const sixth = {
+      ...ol[STARTERS.OL + 1],
+      experience: 5,
+      stats: { [league.season]: { gp: 3, snaps: 150 } },
+    } as Player;
+    expect(moraleFactors(withPlayer(sixth), sixth, ctx).role).toBeGreaterThan(0);
+  });
+
   it('reads a backup with no games yet as content: no role to compare', () => {
     const backup = team0
       .filter((p) => p.position === 'WR')
@@ -188,6 +204,8 @@ describe('morale: the target and the words', () => {
     expect(reasons).toEqual(['Wants a new deal', 'Loving the winning', 'Wants more snaps']);
     for (const r of reasons) expect(r).not.toMatch(/\d/);
     expect(moraleReasons(league, p, { ...ZERO, contract: 0.5 })).toEqual([]);
+    // A man low by nature gets that as his reason, so nobody is down for nothing.
+    expect(moraleReasons(league, p, { ...ZERO, rest: -1.2 })).toEqual(['Hard to please']);
   });
 });
 

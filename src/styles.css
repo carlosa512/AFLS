@@ -4957,3 +4957,87 @@ button.tip-pill {
   border-color: var(--mood-7);
   background: color-mix(in srgb, var(--mood-7) 18%, transparent);
 }
+.morale-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+@media (min-width: 900px) {
+  .morale-board {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    align-items: start;
+  }
+}
+.morale-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.morale-card h4 {
+  margin: 6px 0 0;
+}
+.mood-room {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mood-room-word {
+  font-size: var(--step-2);
+  font-weight: 700;
+  line-height: 1.1;
+}
+.mood-strip {
+  display: flex;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  gap: 2px;
+}
+.mood-strip > span {
+  flex-basis: 0;
+}
+.mood-strip-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -6px;
+}
+.mood-minds li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 4px 0;
+}
+.mood-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 12rem) minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.mood-row:last-child {
+  border-bottom: 0;
+}
+.mood-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mood-why {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+@media (max-width: 600px) {
+  .mood-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .mood-why {
+    grid-column: 2;
+  }
+}

@@ -41,7 +41,7 @@ dominates. Scale: −10 (abysmal) to +10 (superb), 0 is Okay.
 | Factor | Reads | Range | Pulls down | Pulls up |
 | --- | --- | --- | --- | --- |
 | **Contract** | his APY against his market (`marketApy`, what an agent reads), scaled by his greed dial; ×1.5 in his deal's final year. Rookie deals count only from his third season (the NFL's extension window) | −4…+2 | well under his market | at or above it |
-| **Role** | the role he plays (`seasonRole` from his snaps: starter, rotation, backup, idle) against the role he expects (his standing in his position room on his own true overall, and his experience: veterans expect more than rookies). This season's snaps once three games are in; last season's before | −3…+1.5 | playing well under what he expects | as expected or more |
+| **Role** | the role he plays (`seasonRole` from his snaps: starter, rotation, backup, idle) against the role he expects: to start when he is among his room's best on his own true overall (a rookie only to rotate in), otherwise to be depth. A depth man knows who is ahead of him and is glad of the roster spot (the owner's call, Oct 29): only a starter kept off the field sulks about snaps, and from G3 a broken promise. This season's snaps once three games are in; last season's before | −3…+1.5 | a starter kept off the field | as expected, or a depth man who plays |
 | **Team** | our win share this season (last season's until week 4), scaled by his "wants to win" dial | −2…+2 | losing | winning |
 | **Locker room** | friends on the roster, a feud in his room, the captaincy, mentoring a young player | −1.5…+1.5 | a feud | a friend, the C, a mentee |
 | **Promises** | reserved for G3 (0 until then) | — | a broken promise | a kept one |

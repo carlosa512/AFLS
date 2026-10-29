@@ -97,15 +97,18 @@ export function moraleContext(league: League): MoraleContext {
 const ROLE_STEP = { starter: 2, rotation: 1, backup: 0 } as const;
 const roleStep = (share: number) => (share >= 0.6 ? 2 : share >= 0.2 ? 1 : 0);
 
-/** The role he expects: his standing in his room on the 53 by his own true overall, a step less as a rookie. */
+/**
+ * The role he expects: to start when he is among his room's best on the 53 by his own true overall (a rookie only to
+ * rotate in), otherwise to be depth. A depth man knows who is ahead of him: a roster spot is the job, and he doesn't sulk
+ * about sitting behind a better player. Only a starter kept off the field (or, from G3, a broken promise) wants snaps.
+ */
 export function expectedRole(p: Player, ctx: MoraleContext): number {
   if (p.teamId === null) return 0;
   const room = ctx.rooms.get(`${p.teamId}:${p.position}`) ?? [];
   const ovr = playerOvr(p);
   const rank = room.filter((o) => o > ovr + 1e-9).length;
-  const n = STARTERS[p.position];
-  const step = rank < n ? 2 : rank < Math.ceil(1.5 * n) ? 1 : 0;
-  return Math.max(0, step - (p.experience === 0 ? 1 : 0));
+  if (rank >= STARTERS[p.position]) return 0;
+  return p.experience === 0 ? 1 : 2;
 }
 
 /** The role he is playing: this season's snaps once his club has three games in, else last season's (null: no read). */
@@ -254,11 +257,13 @@ export function moraleStepOf(level: number): MoraleStep {
   return level >= 6 ? 7 : level >= 3 ? 6 : level >= 1 ? 5 : level > -1 ? 4 : level > -3 ? 3 : level > -6 ? 2 : 1;
 }
 
-const FACTOR_WORDS: Record<Exclude<keyof MoraleFactors, 'rest' | 'promises'>, [string, string]> = {
+const FACTOR_WORDS: Record<Exclude<keyof MoraleFactors, 'promises'>, [string, string]> = {
   contract: ['Wants a new deal', 'Happy with his deal'],
   role: ['Wants more snaps', 'Enjoying his role'],
   team: ['The losing is wearing on him', 'Loving the winning'],
   room: ['A feud in the room', 'Close with his teammates'],
+  // His makeup: a man who sits low or high for no reason the room can see still has one.
+  rest: ['Hard to please', 'Takes things in stride'],
 };
 
 const JOLT_WORDS: Record<MoraleJolt, string> = {
@@ -269,6 +274,17 @@ const JOLT_WORDS: Record<MoraleJolt, string> = {
   captain: 'Proud to wear the C',
   playoffs: 'Fired up for the playoffs',
 };
+
+/** The reasons that are his makeup, not his situation. */
+export const TEMPERAMENT_REASONS: ReadonlySet<string> = new Set(FACTOR_WORDS.rest);
+
+/** The reasons that weigh on a man (the rest lift him), for a screen's colouring. */
+export const DOWN_REASONS: ReadonlySet<string> = new Set([
+  ...Object.values(FACTOR_WORDS).map(([down]) => down),
+  JOLT_WORDS.benched,
+  JOLT_WORDS.snubbed,
+  JOLT_WORDS.friendGone,
+]);
 
 /** Why he feels the way he does: up to three plain phrases, the biggest first. */
 export function moraleReasons(

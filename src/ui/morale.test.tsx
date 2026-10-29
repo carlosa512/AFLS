@@ -65,8 +65,23 @@ describe('the Locker Room’s Morale section', () => {
     const html = render(<LockerRoom league={league} />);
     expect(html).toContain('<h3>Morale</h3>');
     expect(html.indexOf('<h3>Morale</h3>')).toBeLessThan(html.indexOf('<h3>Leaders</h3>'));
-    expect(html).toContain('The room is');
+    expect(html).toContain('mood-room-word');
     expect(html).toContain('Abysmal');
     expect(html).toContain(roster[0].lastName);
+  });
+
+  it('gathers what is on the room’s mind, each reason with the men who feel it', () => {
+    const roster = activeRoster(league, league.userTeamId);
+    roster.forEach((p) => (p.morale = { level: 2, jolts: [] }));
+    roster[1].morale = { level: 1, jolts: [{ kind: 'paid', size: 3, season: league.season, week: 8 }] };
+    const html = render(<LockerRoom league={league} />);
+    expect(html).toContain('On their minds');
+    const at = html.indexOf('Just got paid');
+    expect(at).toBeGreaterThan(-1);
+    expect(html.indexOf(roster[1].lastName, at)).toBeGreaterThan(at);
+    expect(html).toContain('mood-strip');
+    // His makeup is a reason on his own row, never a topic of the room.
+    const minds = html.slice(html.indexOf('On their minds'), html.indexOf('Needs a word'));
+    expect(minds).not.toMatch(/Hard to please|Takes things in stride/);
   });
 });
