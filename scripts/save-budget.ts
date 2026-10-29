@@ -50,6 +50,13 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // 1,051-1,067 KB against main's 1,037 (more retirees kept, until retirees are pruned) and the retained save 17,352 KB
   // against 17,350, with retirees now dropping their tag count. Agreed by the owner.
   coachingTrees: { firstSeason: 0, retainedSeasons: 150, games: 0, annualGrowth: 0, playersGrowth: 50 },
+  // Morale talks (0.2.22, G3): each player's talk record (`Morale.talk`: an open ask, his last answer, an open promise,
+  // what he remembers), league-wide since AI clubs answer their own. G1's moods (0.2.21) fit inside the budget without
+  // an allowance. Measured on offseason-audit against main over six seasons: +56 KB first season (8,629 against
+  // 8,573), retained +71 to +90 KB (17,571 against 17,481 at the sixth), players growth +14 KB at most (1,110 against
+  // 1,096). Each rounded up to the next 10 KB, plus 10. Agreed by the owner (Oct 29: allow it as measured, trim later
+  // if needed).
+  moraleTalks: { firstSeason: 70, retainedSeasons: 100, games: 0, annualGrowth: 0, playersGrowth: 30 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(
