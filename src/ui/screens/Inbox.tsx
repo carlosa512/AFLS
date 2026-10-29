@@ -70,6 +70,7 @@ const KIND_TAGS: Partial<Record<NonNullable<ReturnType<typeof mailSubject>>['kin
   lockerReport: 'Locker room',
   waivers: 'Waivers',
   staffNotes: 'Staff',
+  expiring: 'Contract',
 };
 
 /** A tag says what kind of message it is: a recap or the playoff race reads as such, whatever its category. */

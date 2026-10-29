@@ -1270,6 +1270,8 @@ export interface MailSection {
     note?: string;
     /** A waiver claim the row offers (the waiver letter's wire). */
     claim?: { entryId: number };
+    /** An expiring player the row acts on (the contracts letter): its buttons are drawn from the league as it is. */
+    contract?: { playerId: number };
   }[];
 }
 

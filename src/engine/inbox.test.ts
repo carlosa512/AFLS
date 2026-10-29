@@ -200,22 +200,22 @@ describe('inbox', () => {
     ).toHaveLength(1 + deals.length);
   });
 
-  it("folds a day of agents' letters into one, and leaves other mail as it is", () => {
+  it('files the contracts as one letter, and leaves other mail as it is', () => {
     const all = [...league.inbox!].reverse();
-    const letters = all.filter((m) => m.id.startsWith(`contracts:${league.season}:`));
     const list = threads(all);
-    const folded = list.find((t) => t.kind === 'contract')!;
-    expect(folded.messages).toEqual(letters);
-    if (letters.length > 1) expect(threadLabel(folded).subject).toBe(`${letters.length} contracts are up`);
+    expect(all.filter((m) => m.id.startsWith(`contracts:${league.season}:`))).toHaveLength(0);
+    const contracts = list.find((t) => t.kind === 'expiring');
+    if (expiringPlayers(league, league.userTeamId).length) expect(contracts?.messages).toHaveLength(1);
     // Every message is in exactly one thread, and kinds that don't fold stand alone.
     expect(list.flatMap((t) => t.messages)).toHaveLength(all.length);
     for (const t of list)
-      if (t.kind === 'owner' || t.kind === 'matchup' || t.kind === 'recap') expect(t.messages).toHaveLength(1);
+      if (t.kind === 'owner' || t.kind === 'matchup' || t.kind === 'recap' || t.kind === 'expiring')
+        expect(t.messages).toHaveLength(1);
   });
 
   it('archives and deletes, with an undo, and never files a deleted message again', () => {
     const l = copy(league);
-    const [first, second] = l.inbox!.filter((m) => m.id.startsWith(`contracts:${l.season}:`));
+    const [first, second] = l.inbox!.filter((m) => m.season === l.season);
     archiveMail(l, [first.id]);
     expect(l.inbox!.find((m) => m.id === first.id)).toMatchObject({ archived: true, read: true });
     // Archived mail is out of the inbox's unread count.
@@ -308,8 +308,9 @@ describe('inbox', () => {
 
   it('opens the league year with expiring deals and retirements, and the combine with free agency', () => {
     const year = league.inbox!.filter((m) => m.season === league.season && m.phase === 'resign');
-    const deals = year.filter((m) => m.category === 'contracts');
-    expect(deals).toHaveLength(expiringPlayers(league, league.userTeamId).length);
+    // One contracts letter for the window, asking until every expiring player has a decision.
+    const deals = year.filter((m) => m.id.startsWith('expiring:'));
+    expect(deals).toHaveLength(expiringPlayers(league, league.userTeamId).length ? 1 : 0);
     for (const m of deals) expect(needsYou(league, m)).toBe(true);
     const retired = Object.values(league.players).filter(
       (p) => p.retired && p.statTeams?.[league.season - 1]?.at(-1) === league.userTeamId,
@@ -327,7 +328,7 @@ describe('inbox', () => {
     const combine = league.inbox!.find((m) => m.id === `scouting:${league.season}:combine`)!;
     expect(combine.phase).toBe('freeAgency');
     expect(needsYou(league, combine)).toBe(league.scoutPoints > 0);
-    // Free agency closes the re-sign window: the agents' letters no longer ask anything.
+    // Free agency closes the re-sign window: the contracts letter no longer asks anything.
     for (const m of deals) expect(needsYou(league, m)).toBe(false);
   });
 
