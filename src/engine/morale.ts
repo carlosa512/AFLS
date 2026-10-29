@@ -248,6 +248,30 @@ export function moraleLevel(league: League, p: Player, clock = league.moraleAt ?
   return clamp(m.level + (m.jolts ?? []).reduce((t, j) => t + liveSize(j, clock), 0), -10, 10);
 }
 
+// ───────── the scale its effects read (G2) ─────────
+
+/** His mood as −1…+1: Superb (≥ 6) is +1, Abysmal (≤ −6) −1, Okay about 0. Talks and position learning read it. */
+export const moodLean = (level: number): number => clamp(level / 6, -1, 1);
+
+/**
+ * The lean measured against the league (`moraleMean`): growth and game day read it, so however happy the league runs,
+ * its totals hold.
+ */
+export const moodPull = (level: number, mean: number): number => clamp((level - mean) / 6, -1, 1);
+
+/** The average mood of every rostered player right now: worked out on the spot, never stored or cached. */
+export function moraleMean(league: League): number {
+  const clock = league.moraleAt ?? moraleClock(league);
+  let sum = 0;
+  let n = 0;
+  for (const p of Object.values(league.players))
+    if (p.teamId !== null && p.morale) {
+      sum += moraleLevel(league, p, clock);
+      n++;
+    }
+  return n ? sum / n : 0;
+}
+
 // ───────── words ─────────
 
 export type MoraleStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -335,6 +359,8 @@ export interface MoraleView {
   level: number;
   /** An open promise to him (G3), in words. */
   promise?: { kind: 'snaps' | 'deal'; text: string };
+  /** What his mood is doing to his work (G2), past Very good or Very poor; the Locker Room says it, the card doesn't. */
+  effect?: 'lifting' | 'costing';
 }
 
 const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
@@ -369,6 +395,11 @@ export function moraleView(league: League, p: Player, ctx?: MoraleContext): Mora
     reasons: moraleReasons(league, p, moraleFactors(league, p, hit.ctx)),
     level,
     ...(p.morale.talk?.promise ? { promise: promiseText(p) } : {}),
+    ...(moodLean(level) <= -0.5
+      ? { effect: 'costing' as const }
+      : moodLean(level) >= 0.5
+        ? { effect: 'lifting' as const }
+        : {}),
   };
 }
 
