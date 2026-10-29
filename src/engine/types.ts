@@ -1262,6 +1262,8 @@ export interface InboxMessage {
   coachNote?: { coachId: number; coachName: string; text: string; kind: 'recommendation' | 'followup' | 'revisit' };
   /** Built from what the message is about, so delivering twice can't duplicate it. */
   id: string;
+  /** A digest's record of what it told (old one-off letters' ids among them), so the next one doesn't tell it again. */
+  covered?: string[];
   season: number;
   phase: Phase;
   /** The week it's dated (0 in the offseason). */
