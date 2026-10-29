@@ -43,7 +43,7 @@ Locker Room screen and captains, the director's upgrades, SNN press) get their o
 | "Our captains" (`captains`) | Captains section of the camp report |
 | One letter per waiver result (`waiverMail` in `inbox.ts`) | One waiver letter per day: results plus on the wire now |
 | "2 players change position", folded (`positionMovedMail`, `FOLDED`) | One full letter with a table |
-| Coaching note inside the recap's opening (`userCoachGameObservation`, `teachingObservation`) | Weekly staff-notes letter |
+| Habit-work note spliced into the recap's opening (`teachingObservation`) | Weekly staff-notes letter (the game's own coaching calls, `userCoachGameObservation`, stay in the recap as their own sentence) |
 | Coaching note at the foot of the opposition report (`coachAdviceObservation`) | Weekly staff-notes letter |
 
 Unchanged in `lockerMail.ts`: SNN's speaking-out letters (chunk F reworks them), coaching trees on SNN, and the free
@@ -77,7 +77,7 @@ Each section shows only when it has rows. Order:
    personality (`personalityRead`, hedged when the read is loose). The camp report says why each captain has the C,
    from what our staff can see: years in the league, his read as a leader, whether he starts. (Who *should* be captain
    is chunk D; this section reports whoever `nameCaptains` picked.)
-2. **Mentoring.** Each pair and how it's going, in the Locker Room screen's words (learning well, slow, not taking).
+2. **Mentoring.** Each pair and how it's going, in the Locker Room screen's words (`mentorStatus`: early days, learning well, not taking, picking up his bad habits).
    Changes since the last report: a mentor cut, traded or retired, and who the staff paired the player with instead
    (or that he's waiting for one, when you run mentoring yourself). Where a pairing isn't taking, the staff's
    suggestion, from the same planner AI teams use (`planMentors` logic, read-only): another veteran in the room who'd
@@ -118,7 +118,7 @@ While players sit on waivers and a claim is still open to us, up to three rows:
   the starters. Raw, but our scouts see a starter in him by 25."), and our chance: our place in the claim order
   (`waiverOrder`) and a word for it (good chance, maybe, long shot) from how many clubs with priority over us are
   thin at that position too, on the public file (rosters are public).
-- **A Claim button** per row (the claim the waiver screen already makes, via `claimMove`), disabled with the reason
+- **A Claim button** per row (the claim the waiver screen already makes, via `setWaiverClaim` in `personnel/waivers.ts`), disabled with the reason
   (`claimProblem`) when we can't.
 - **Needs you:** the letter needs you while one of its listed players is still claimable by us. `needsYou` works it
   out from the league as it is; nothing stored.
@@ -139,15 +139,18 @@ From the head coach, category `staff`, id `staffNotes:{season}:{week}`. Filed on
 It collects what the recap and opposition report carry today:
 
 - the depth-chart recommendation and its follow-ups (`coachAdviceObservation`: recommendation, followup, revisit),
-- habit work on a player (`userCoachGameObservation`),
-- teaching notes (`teachingObservation`).
+- habit work on a player (`teachingObservation`: "Foster has focused coaching attention on Booker's Peeks in the
+  Backfield habit").
+
+`userCoachGameObservation` stays in the recap: it reads the game's own coaching (a timeout call, protecting a lead),
+so it is about the game. It becomes its own sentence after the result instead of being spliced into it.
 
 Each note is a line signed by the coach who made it (his name and chair), with a button to the player and one to
 the depth chart. The letter keeps `coachNoteKey` and `coachNote`, which `coachDecisions.ts` reads to know what the
 staff has already told you; that must keep working, so the key moves with the note and nothing is told twice.
 
-Recaps and opposition reports stop calling these functions. The recap's opening goes back to the result and the
-story (`gameStory`); the opposition report ends with its read and the height mismatch.
+The opposition report stops calling `coachAdviceObservation` and ends with its read and the height mismatch. The
+recap stops calling `teachingObservation`; its opening goes back to the result and the story (`gameStory`).
 
 ## Voice
 
@@ -281,7 +284,7 @@ Mail never changes the sim, so no sims: `npm run typecheck` and the touched test
 - **Empty sections hidden;** a quiet check-in still files with its verdict.
 - **On the wire:** lists only thin positions and high ceilings on our read; never our own release; at most three;
   needs you only while a listed player is claimable; the Claim button makes the same claim the waiver screen does.
-- **Staff notes:** recaps and opposition reports no longer contain the coaching sentences; the staff-notes letter
+- **Staff notes:** recaps no longer carry the habit-work sentence and opposition reports no longer carry the depth-chart note; the staff-notes letter
   carries `coachNoteKey`, and `coachDecisions` still finds what was told (its existing tests pass unchanged).
 - **Voice:** the same league builds the same letter twice; the most specific line wins over a general one; no line
   repeats within a coach's last five letters when another fits.
