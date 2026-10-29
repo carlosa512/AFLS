@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject } from './inbox';
 import { dueCheckin } from './lockerReport';
+import { moraleView } from './morale';
+import { playerOvr } from './positions';
 import { betterMentor, mentoringWeek, mentorStatus } from './mentoring';
 import { nameCaptains } from './personality';
 import { addTie } from './relationships';
@@ -97,6 +99,42 @@ describe('the locker room report: morale', () => {
     expect(s.rows).toHaveLength(6);
     expect(s.lead).toMatch(/Locker Room/);
     expect(s.lead).not.toMatch(/\d/);
+  });
+
+  it('names a man flying once, not every other report', () => {
+    const l = copy(template);
+    for (const p of ours(l)) p.morale = { level: 0, jolts: [] };
+    const star = ours(l)[0];
+    star.morale = { level: 8, jolts: [] };
+    at(l, 'preseason');
+    nameCaptains(l);
+    deliverMail(l);
+    at(l, 'regular', 3);
+    deliverMail(l);
+    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    deliverMail(l);
+    const named = reports(l).filter((m) => section(m, 'Morale')?.rows.some((r) => r.playerId === star.id));
+    expect(named.map((m) => m.id)).toEqual([`locker:${l.season}:camp`]);
+  });
+
+  it('reads reasons off the league as it is, not a screen’s cache', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    for (const p of ours(l)) p.morale = { level: 0, jolts: [] };
+    const qbs = ours(l)
+      .filter((p) => p.position === 'QB')
+      .sort((x, y) => playerOvr(y) - playerOvr(x));
+    const backup = qbs[1];
+    backup.morale = { level: -4, jolts: [] };
+    // He sat last season, as a backup does.
+    backup.stats[l.season - 1] = { gp: 10 } as Player['stats'][number];
+    // A screen reads the room while he's the backup; then the starter leaves inside the step.
+    expect(moraleView(l, backup)?.reasons).not.toContain('Wants more snaps');
+    qbs[0].teamId = null;
+    deliverMail(l);
+    const row = section(reports(l)[0], 'Morale')!.rows.find((r) => r.playerId === backup.id)!;
+    // Now the best quarterback on the roster, still on the bench: the letter says so.
+    expect(row.note).toMatch(/snaps|field/);
   });
 
   it('leaves the section out when nobody is down or flying', () => {

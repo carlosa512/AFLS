@@ -318,11 +318,16 @@ export interface MoraleView {
 
 const viewCache = new WeakMap<League, { key: string; ctx: MoraleContext }>();
 
-/** Your own players' mood in words, or null for anyone else's (the fog of war) and for a man with no mood yet. */
-export function moraleView(league: League, p: Player): MoraleView | null {
+/**
+ * Your own players' mood in words, or null for anyone else's (the fog of war) and for a man with no mood yet. `ctx`: a
+ * context the caller built for this pass (the locker report builds its own, so a letter never reads a screen's cache).
+ */
+export function moraleView(league: League, p: Player, ctx?: MoraleContext): MoraleView | null {
   if (p.teamId !== league.userTeamId || !p.morale) return null;
-  const key = `${league.season}:${league.phase}:${league.week}:${league.faDay}:${league.moraleAt}`;
-  let hit = viewCache.get(league);
+  // A signing, a cut or a trade inside a step changes the rooms the reasons read: the key sees the transactions too.
+  const last = league.transactions[league.transactions.length - 1];
+  const key = `${league.season}:${league.phase}:${league.week}:${league.faDay}:${league.moraleAt}:${league.transactions.length}:${last?.text ?? ''}`;
+  let hit = ctx ? { key, ctx } : viewCache.get(league);
   if (!hit || hit.key !== key) viewCache.set(league, (hit = { key, ctx: moraleContext(league) }));
   const level = moraleLevel(league, p);
   const step = moraleStepOf(level);
@@ -345,10 +350,19 @@ const rateOf = (p: Player) => clamp(0.25 - 0.05 * z(temperamentOf(p)), 0.15, 0.4
 /** Every rostered player at his target with no jolts: a new league, or a save from before morale. */
 export function seedMorale(league: League): void {
   const ctx = moraleContext(league);
+  const clock = moraleClock(league);
+  const week = clock - league.season * YEAR;
+  const spot = (teamId: number) => league.phase === 'regular' && playoffRace(league, teamId).spot;
   for (const p of Object.values(league.players))
-    if (p.teamId !== null && !p.retired && !p.morale)
+    if (p.teamId !== null && !p.retired && !p.morale) {
       p.morale = { level: round(moraleTarget(moraleFactors(league, p, ctx))), jolts: [] };
-  league.moraleAt = moraleClock(league);
+      // What already happened this league year (a captaincy, a benching, a friend cut) is history to a save from
+      // before morale: mark it felt, so the first step doesn't announce it as news.
+      newJolts(league, p, ctx, week, spot);
+      if (!p.morale.seen?.length) delete p.morale.seen;
+      if (p.contract) p.morale.apy = p.contract.apy;
+    }
+  league.moraleAt = clock;
 }
 
 /** The big moments since his last step, each felt once a league year (`seen`). */

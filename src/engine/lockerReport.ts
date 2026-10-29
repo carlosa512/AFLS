@@ -27,7 +27,7 @@ import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import type { League, MailSection, Player } from './types';
 import { mottoOf, recentBodies, say, toldKeys } from './voice';
 import { teamCoaches } from './coaching';
-import { DOWN_REASONS, moraleView } from './morale';
+import { DOWN_REASONS, moraleContext, moraleView } from './morale';
 
 const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
 const ORDER: readonly Checkin[] = ['camp', 'cutdown', 'deadline', 'end'];
@@ -171,8 +171,9 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       const hit = k.match(/^morale:(\d+):(\w+):(\d+):(down|up)$/);
       if (hit && Number(hit[1]) === fs && hit[2] === prev) last.set(Number(hit[3]), hit[4] as 'down' | 'up');
     }
+  const moodCtx = moraleContext(league);
   const moods = ours.flatMap((p) => {
-    const view = moraleView(league, p);
+    const view = moraleView(league, p, moodCtx);
     return view ? [{ p, view }] : [];
   });
   const down = moods.filter((m) => m.view.step <= 3).sort((a, b) => a.view.level - b.view.level || a.p.id - b.p.id);
@@ -197,7 +198,9 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   }
   // Every man down (or flying) now is on file for the next report to compare with, listed here or not.
   for (const { p } of down) covered.push(`morale:${fs}:${checkin}:${p.id}:down`);
-  for (const { p } of flying) covered.push(`morale:${fs}:${checkin}:${p.id}:up`);
+  // Every man flying is on file, named this time or last, so a man up all season is named once.
+  for (const m of moods)
+    if (m.view.step >= 6 && !back.includes(m)) covered.push(`morale:${fs}:${checkin}:${m.p.id}:up`);
   const more = slipped.length - listed.length;
   if (morale.length)
     sections.push({
