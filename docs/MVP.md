@@ -131,3 +131,50 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       minimum clearly without hiding a player's actual statistics. Verify early-season and partial-season
       samples, traded players and postseason scopes. A 2-for-2 passer must not lead a season rate category.
       Current Stats sorting already has a per-player-GP qualification; that is an incomplete foundation.
+
+## Follow-up: coaching trees run at the floor of their NFL bands
+
+- [ ] **Make coaching pedigree drive hiring, so trees form the way the NFL's do.** Every tree number sits at or near
+      the floor of its band (`npm run careers`, spec §4.6 in
+      `docs/superpowers/specs/2026-10-28-personality-relationships-design.md`), on main as well as with moods:
+      - **Live trees:** 2.2 a league on main (band 2–5).
+      - **Share of head coaches in a live tree:** 0.15–0.18 (band 0.15–0.4).
+      - **Share of head-coach hires that come from a tree:** 0.11–0.16 (band 0.10–0.35).
+      - **New trees born:** swings from 1.5 to 3.5 a league between worlds that play almost alike.
+
+      G2 tripped the live-tree floor (1.9) by reshuffling who wins, not through any mechanism. Parity and head-coach
+      turnover held: year-to-year record carryover 0.335 against 0.338, head-coach changes 6.9 against 7.1 a year. A
+      system this thin will keep tripping on unrelated changes, so the fix belongs in the hiring model, not in the
+      checks.
+
+      **Why trees are scarce (`trees.ts`, `coaching.ts`):**
+      1. **Head-coach searches ignore pedigree until a tree already exists.** `treeLean`'s standing term applies only
+         to a candidate already in a tree. The only win-share term in the search score (`HOT`) is for risers promoted
+         or poached from a club, not for market candidates. In the NFL, having coordinated under a winning head coach
+         is the strongest hiring signal, and it's how trees start: Shanahan to McVay, Reid's coordinators.
+      2. **Pedigree works backwards on price.** `coachAsk` charges up to about 20% more for a coach off a winning
+         staff (`PEDIGREE`). The search then drops anyone over the chair's budget, so a winner's assistants are harder
+         to hire, not easier.
+      3. **A birth needs a chain of rare events:**
+         - a 3-season link;
+         - a root at .550 or better over 5 seasons;
+         - two established disciples running clubs side by side for 2 seasons.
+
+         With so few births per league, every tree number swings with the world. The live-tree count is now read in
+         seasons 9–16 (0.2.24), because a new league starts with no trees and the early seasons only dragged the
+         mean; that measure stays.
+
+      **The solution:** model pedigree as demand, not only price.
+      - Head-coach and coordinator searches lean toward men who served 3+ seasons under a head coach who is a winner
+        (`winnerAsOf`), from the moment he is one, before any tree exists.
+      - The price premium follows that demand, so owners pay for pedigree rather than being priced out of it.
+
+      Calibrate against §4.6 so live trees sit mid-band (about 3 a league) on every world.
+
+      **Done when:**
+      - Across 8 worlds, every tree number in `npm run careers` sits inside its band with at least 10% of the band's
+        width to spare at each edge, and births vary less between worlds.
+      - `npm run offseason` keeps the coaching ledger steady (growth and decline ×1.00).
+      - Head-coach turnover stays near 7 a year.
+      - `npm run trades` doesn't move.
+      - No band is widened to get there.
