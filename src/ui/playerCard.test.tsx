@@ -52,6 +52,20 @@ describe('the player card: pills only up top', () => {
     expect(html).toMatch(/mood-pill[^>]*>.*Very poor/);
   });
 
+  it('pins an open promise beside his morale, for your players only', () => {
+    const p = mine[4];
+    p.morale = { level: -2 };
+    expect(facts(card(p.id))).not.toContain('Promised');
+    p.morale = {
+      level: -2,
+      talk: { club: league.userTeamId, promise: { kind: 'deal', made: league.moraleAt!, due: league.moraleAt! + 40 } },
+    };
+    expect(facts(card(p.id))).toContain('Promised a new deal');
+    const theirs = activeRoster(league, (league.userTeamId + 4) % 32)[0];
+    theirs.morale = { level: -2, talk: { club: theirs.teamId!, promise: { kind: 'deal', made: 0, due: 99999 } } };
+    expect(card(theirs.id)).not.toContain('Promised');
+  });
+
   it('shows no morale for another club’s player', () => {
     const theirs = activeRoster(league, (league.userTeamId + 1) % 32)[0];
     expect(card(theirs.id)).not.toContain('>Morale<');

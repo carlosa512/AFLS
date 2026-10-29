@@ -215,7 +215,7 @@ const RULES: [RegExp, Name[]][] = [
   ],
   [/^scripts\/training\.ts$/, ['training']],
   // Morale: the moods and the league check that holds them to range.
-  [/^src\/engine\/morale\.ts$|^scripts\/morale\.ts$/, ['morale']],
+  [/^src\/engine\/(morale|playerTalks)\.ts$|^scripts\/morale\.ts$/, ['morale']],
   // The harness itself, dependencies and compiler settings can break anything.
   [/^scripts\/check\.ts$|^package(-lock)?\.json$|^tsconfig\.json$|^\.github\/workflows\//, NAMES],
 ];

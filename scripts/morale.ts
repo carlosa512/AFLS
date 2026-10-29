@@ -8,12 +8,15 @@
  * 4. Winning rooms (.650 or better) average at least a step happier than losing ones (.350 or worse).
  * 5. Nothing runs away: the league's mean at week 18 stays within ±1.0 of the first season's, and no level leaves
  *    −10…+10.
+ * 6. Talks (G3): asks per club per season 4–30, every club counted alike (yours answered by the AI's rule, since nobody
+ *    clicks), and 25–75% of the promises that resolve are kept.
  *
  *   npm run morale                        # 4 seasons, seed morale-check
  *   npm run morale -- --seasons 6 --seed x
  */
 import { yearsLeft } from '../src/engine/finance/contract';
-import { leagueMarket, marketApy } from '../src/engine/finance/market';
+import { buildMarket, marketApy } from '../src/engine/finance/market';
+import { aiReply, answerTalk } from '../src/engine/playerTalks';
 import { createLeague } from '../src/engine/generate';
 import { playWeek } from '../src/engine/league';
 import {
@@ -58,7 +61,8 @@ let outOfRange = 0;
 
 function sample(atEnd: boolean) {
   const ctx = moraleContext(league);
-  const market = leagueMarket(league);
+  // Built, not read from `leagueMarket`: filling that cache would change the AI's pay reads, and so the league.
+  const market = buildMarket(league);
   const levels = new Map<number, number[]>();
   for (const p of rostered(league)) {
     const level = moraleLevel(league, p);
@@ -99,10 +103,35 @@ const watching: Watch[] = [];
 const done: Watch[] = [];
 let before = new Map<number, number>();
 
+// 6: talks, counted the step they happen.
+const asks = new Map<string, number>();
+let promisesMade = 0;
+let kept = 0;
+let broken = 0;
+function talks(clock: number) {
+  for (const p of rostered(league)) {
+    const t = p.morale!.talk;
+    const key = `${league.season}:${p.teamId}`;
+    // An AI club answers the step he asks; yours is answered here by the same rule.
+    if (t?.answered?.at === clock && t.answered.ask === clock) asks.set(key, (asks.get(key) ?? 0) + 1);
+    else if (t?.ask?.at === clock) {
+      asks.set(key, (asks.get(key) ?? 0) + 1);
+      answerTalk(league, p.id, aiReply(league, p.teamId!, t.ask.cause));
+    }
+    if (p.morale!.talk?.answered?.at === clock && p.morale!.talk.answered.reply === 'promise') promisesMade++;
+    for (const j of p.morale!.jolts ?? [])
+      if (j.at === clock) {
+        if (j.kind === 'kept') kept++;
+        if (j.kind === 'broken') broken++;
+      }
+  }
+}
+
 function step(run: () => void) {
   before = new Map(rostered(league).map((p) => [p.id, moraleLevel(league, p)]));
   run();
   const clock = league.moraleAt ?? moraleClock(league);
+  talks(clock);
   for (const p of Object.values(league.players)) {
     const m = p.morale;
     if (m && (Math.abs(m.level) > 10 || Math.abs(moraleLevel(league, p)) > 10)) outOfRange++;
@@ -171,6 +200,12 @@ check('Winning rooms minus losing rooms (mean of seasons)', mean(roomGap), [1, 2
 for (let i = 1; i < means.length; i++)
   check(`League mean at week 18, season ${i + 1} vs the first`, means[i] - means[0], [-1, 1]);
 check('Levels outside −10…+10', outOfRange, [0, 0], 0);
+check(`Talks: asks per club per season (${asks.size} club-seasons)`, mean([...asks.values()]), [4, 30]);
+check(
+  `Talks: promises kept, of those resolved (made ${promisesMade}, kept ${kept}, broken ${broken})`,
+  kept / Math.max(1, kept + broken),
+  [0.25, 0.75],
+);
 
 console.log(`\n${misses} number(s) outside target range`);
 process.exit(misses ? 1 : 0);

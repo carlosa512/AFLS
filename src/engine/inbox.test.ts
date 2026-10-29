@@ -433,9 +433,14 @@ describe('inbox', () => {
     // Never the same deal twice: the loss that hurts is not also "the richest around the league".
     if (fa.walked.length)
       expect(wrap.body.split(`${fa.walked[0].player.firstName} ${fa.walked[0].player.lastName}`).length).toBe(2);
-    // (The coaches' position suggestion is staff mail that may still ask, through the draft and camp.)
+    // (The coaches' position suggestion is staff mail that may still ask, through the draft and camp; so is a player who
+    // speaks up at camp, until you answer him.)
     for (const m of league.inbox!)
-      expect(needsYou(league, m) && m.category === 'staff' && mailSubject(m)?.kind !== 'positionOffer').toBe(false);
+      expect(
+        needsYou(league, m) &&
+          m.category === 'staff' &&
+          !['positionOffer', 'talk'].includes(mailSubject(m)?.kind ?? ''),
+      ).toBe(false);
   });
 
   it('marks everything read in one go', () => {

@@ -26,6 +26,7 @@ function play(withMorale: boolean) {
     rosters: Object.values(l.players).map((p) => [p.id, p.teamId, p.contract?.apy ?? null]),
     rng: l.rngState,
     moods: Object.values(l.players).filter((p) => p.morale).length,
+    talks: Object.values(l.players).filter((p) => p.morale?.talk?.answered).length,
   };
 }
 
@@ -36,6 +37,8 @@ describe('morale draws nothing', () => {
     expect(a.moods).toBeGreaterThan(1000);
     // Switched off, the draft class never got a mood: the switch did switch.
     expect(a.moods).toBeGreaterThan(b.moods);
+    // Talks ran too (G3): AI clubs answered their players, and still nothing played out differently.
+    expect(a.talks).toBeGreaterThan(0);
     expect(a.games).toEqual(b.games);
     expect(a.rosters).toEqual(b.rosters);
     expect(a.rng).toEqual(b.rng);

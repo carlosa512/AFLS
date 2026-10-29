@@ -103,9 +103,12 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       (a depth man accepts depth), his team's results and his locker room, around a resting level his makeup sets,
       with fading jolts for big moments (a benching, a raise, the C, a friend cut). Your players' moods show as
       smileys on the Roster and the Locker Room's morale board, a pill on the card, and in the head coach's locker
-      room report; `npm run morale` holds the league's moods to range. No effect on play yet: players speaking up and
-      promises (G3), effects on practice, play and talks (G2), and hold-ins, holdouts and trade requests (G4) are to
-      come. Spec: `docs/superpowers/specs/2026-10-29-morale-core-design.md`.
+      room report; `npm run morale` holds the league's moods to range. Players speak up (0.2.22, `playerTalks.ts`):
+      an unhappy man with a cause writes to you (a step's letters as one message), you promise, reassure or stand
+      firm, AI GMs answer theirs by their tendencies, and promises are kept or broken by what happens and remembered.
+      No effect on play yet: effects on practice, play and talks (G2), and hold-ins, holdouts and trade requests (G4)
+      are to come. Specs: `docs/superpowers/specs/2026-10-29-morale-core-design.md`,
+      `docs/superpowers/specs/2026-10-29-morale-talks-design.md`.
 - [x] **Schedule weather forecasts (fog of war)** · **Already in** (hooks into #5): forecasts at three stages with
       calibrated rain chances on the schedule and the next-game card (`forecast` in `weather.ts`). Trend arrows and a
       staff hook are not built yet (`docs/WEATHER.md`).

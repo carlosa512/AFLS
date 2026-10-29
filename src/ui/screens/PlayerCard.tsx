@@ -765,6 +765,11 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             <span className="eyebrow">Morale</span>
             <span className="pill-row">
               <MoodPill league={league} player={p} />
+              {mood.promise && (
+                <TipPill tip={mood.promise.text}>
+                  {mood.promise.kind === 'deal' ? 'Promised a new deal' : 'Promised snaps'}
+                </TipPill>
+              )}
             </span>
           </span>
         )}

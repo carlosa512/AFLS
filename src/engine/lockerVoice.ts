@@ -347,6 +347,26 @@ export interface MoraleNoteFact {
 }
 
 export const MORALE_NOTE: readonly Line<MoraleNoteFact>[] = [
+  {
+    when: (f) => f.reason === 'You broke your word',
+    reads: 3,
+    text: (f) => `You told ${f.name} he'd get it. He's still waiting.`,
+  },
+  {
+    when: (f) => f.reason === 'You broke your word',
+    reads: 3,
+    text: (f) => `${f.name} took you at your word. That's gone now, and the room saw it.`,
+  },
+  {
+    when: (f) => f.reason === 'You kept your word',
+    reads: 3,
+    text: (f) => `You kept your word to ${f.name}. The room noticed.`,
+  },
+  {
+    when: (f) => f.reason === 'You kept your word',
+    reads: 3,
+    text: (f) => `${f.name} got what you promised him. He won't forget it.`,
+  },
   { when: (f) => !!f.back, reads: 3, text: () => "He's come around. Whatever it was, it's behind him." },
   { when: (f) => !!f.back, reads: 3, text: (f) => `${f.name} is back to himself. Good.` },
   { when: (f) => f.happy, reads: 1, text: () => "Couldn't be happier." },
@@ -416,4 +436,40 @@ export const MORALE_LEAD: readonly Line<MoraleLeadFact>[] = [
     text: (f) => `These are the ones I worry about. ${count(f.more)} more are down too; the Locker Room has them all.`,
   },
   { text: (f) => `The worst of it. ${count(f.more)} others are down a bit; it's all on the Locker Room screen.` },
+];
+
+// ───────── players who want a word (G3) ─────────
+
+export interface RelayFact {
+  /** His full name. */
+  name: string;
+  cause: 'snaps' | 'deal' | 'losing' | 'feud';
+}
+
+const ABOUT: Record<RelayFact['cause'], string> = {
+  snaps: 'his snaps',
+  deal: 'his contract',
+  losing: 'the losing',
+  feud: 'a problem in his room',
+};
+
+/** The head coach bringing one player's ask to you: who, what about, then the player's own words. */
+export const TALK_RELAY: readonly Line<RelayFact>[] = [
+  { text: (f) => `${f.name} came to see me about ${ABOUT[f.cause]}. His words, not mine:` },
+  { text: (f) => `${f.name} stopped by my office about ${ABOUT[f.cause]}. Here's what he told me:` },
+  { text: (f) => `${f.name} wants a word with you about ${ABOUT[f.cause]}. In his words:` },
+];
+
+const TALLY = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+
+/** Two or more the same step: the head coach's line over their rows. */
+export const TALK_GROUP_COACH: readonly Line<{ n: number }>[] = [
+  {
+    text: (f) =>
+      `${TALLY[f.n] ?? 'A few'} guys came to see me this week. Here's what they said, in their words. They're waiting on you.`,
+  },
+  {
+    text: (f) =>
+      `I had ${(TALLY[f.n] ?? 'a few').toLowerCase()} players in my office this week. Each one is below, with what he wants from you.`,
+  },
 ];

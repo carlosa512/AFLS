@@ -234,6 +234,8 @@ export function migrateLeague(league: League): League | null {
     seedMorale(league);
     league.version = 67;
   }
+  // v68: `Morale.talk` (players speaking up, G3) and the talk jolts: optional, absent to start.
+  if (league.version < 68) league.version = 68;
   return league;
 }
 

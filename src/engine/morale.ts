@@ -13,6 +13,7 @@ import { clamp } from './rng';
 import { activeRoster } from './roster';
 import { seasonRole } from './scouting';
 import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
+import { talkStep } from './playerTalks';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, MoraleJolt, Player, Position } from './types';
 
@@ -190,9 +191,15 @@ export function moraleFactors(league: League, p: Player, ctx = moraleContext(lea
     role: roleScore(league, p, ctx),
     team: teamScore(p, ctx),
     room: roomScore(league, p, ctx),
-    promises: 0,
+    promises: promisesScore(p),
     rest: restScore(p),
   };
+}
+
+/** What promises he remembers leave behind: a little trust for each kept, a lot less for each broken (G3). */
+export function promisesScore(p: Player): number {
+  const t = p.morale?.talk;
+  return t ? clamp(0.5 * (t.kept ?? 0) - 1.5 * (t.broken ?? 0), -3, 1) : 0;
 }
 
 export function moraleTarget(f: MoraleFactors): number {
@@ -259,13 +266,14 @@ export function moraleStepOf(level: number): MoraleStep {
   return level >= 6 ? 7 : level >= 3 ? 6 : level >= 1 ? 5 : level > -1 ? 4 : level > -3 ? 3 : level > -6 ? 2 : 1;
 }
 
-const FACTOR_WORDS: Record<Exclude<keyof MoraleFactors, 'promises'>, [string, string]> = {
+const FACTOR_WORDS: Record<keyof MoraleFactors, [string, string]> = {
   contract: ['Wants a new deal', 'Happy with his deal'],
   role: ['Wants more snaps', 'Enjoying his role'],
   team: ['The losing is wearing on him', 'Loving the winning'],
   room: ['A feud in the room', 'Close with his teammates'],
   // His makeup: a man who sits low or high for no reason the room can see still has one.
   rest: ['Hard to please', 'Takes things in stride'],
+  promises: ["Doesn't trust your word", 'Trusts your word'],
 };
 
 const JOLT_WORDS: Record<MoraleJolt, string> = {
@@ -275,6 +283,12 @@ const JOLT_WORDS: Record<MoraleJolt, string> = {
   paid: 'Just got paid',
   captain: 'Proud to wear the C',
   playoffs: 'Fired up for the playoffs',
+  promised: 'Holding you to your word',
+  kept: 'You kept your word',
+  broken: 'You broke your word',
+  reassured: 'Feels valued',
+  firm: "Didn't like your answer",
+  ignored: 'Feels ignored',
 };
 
 /** The reasons that are his makeup, not his situation. */
@@ -286,6 +300,9 @@ export const DOWN_REASONS: ReadonlySet<string> = new Set([
   JOLT_WORDS.benched,
   JOLT_WORDS.snubbed,
   JOLT_WORDS.friendGone,
+  JOLT_WORDS.broken,
+  JOLT_WORDS.firm,
+  JOLT_WORDS.ignored,
 ]);
 
 /** Why he feels the way he does: up to three plain phrases, the biggest first. */
@@ -316,6 +333,19 @@ export interface MoraleView {
   reasons: string[];
   /** For sorting only: never shown. */
   level: number;
+  /** An open promise to him (G3), in words. */
+  promise?: { kind: 'snaps' | 'deal'; text: string };
+}
+
+const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+
+/** An open promise as a screen says it: how many games are left for snaps, the window for a deal. */
+function promiseText(p: Player): MoraleView['promise'] {
+  const pr = p.morale?.talk?.promise;
+  if (!pr) return undefined;
+  if (pr.kind === 'deal') return { kind: 'deal', text: 'A new deal by the end of the re-sign window' };
+  const left = Math.max(1, pr.left ?? 1);
+  return { kind: 'snaps', text: `More snaps: ${COUNT_WORDS[left] ?? left} game${left === 1 ? '' : 's'} left` };
 }
 
 const viewCache = new WeakMap<League, { key: string; ctx: MoraleContext }>();
@@ -338,6 +368,7 @@ export function moraleView(league: League, p: Player, ctx?: MoraleContext): Mora
     word: MORALE_WORDS[step],
     reasons: moraleReasons(league, p, moraleFactors(league, p, hit.ctx)),
     level,
+    ...(p.morale.talk?.promise ? { promise: promiseText(p) } : {}),
   };
 }
 
@@ -463,22 +494,34 @@ export function moraleAdvance(league: League, clock: number): void {
     // A new arrival (a draft pick, a first deal) starts where he stands.
     const m = (p.morale ??= { level: round(target) });
     if (newYear) delete m.seen;
-    const jolts = [...(m.jolts ?? []), ...newJolts(league, p, ctx, clock, week, spot)];
-    const live = jolts
-      .map((j) => ({ j, size: Math.abs(liveSize(j, clock)) }))
-      .filter((x) => x.size >= 0.25)
-      .sort((a, b) => b.size - a.size)
-      .slice(0, 4)
-      .map((x) => x.j);
-    // Nothing to remember is nothing in the save: an empty list costs bytes on every player.
-    const kept = jolts.filter((j) => live.includes(j));
-    if (kept.length) m.jolts = kept;
-    else delete m.jolts;
+    keepJolts(m, [...(m.jolts ?? []), ...newJolts(league, p, ctx, clock, week, spot)], clock);
     if (!m.seen?.length) delete m.seen;
     m.level = round(m.level + rateOf(p) * (target - m.level));
     if (p.contract) m.apy = p.contract.apy;
   }
   rememberClinches(league, clinched, spots);
+  // Then they talk: asks, answers, promises (G3).
+  talkStep(league, ctx, clock, week, newYear);
+}
+
+/** His jolts after a step: the faded-out dropped, the four biggest kept, newest last; none is nothing in the save. */
+function keepJolts(m: NonNullable<Player['morale']>, jolts: Jolt[], clock: number) {
+  const live = jolts
+    .map((j) => ({ j, size: Math.abs(liveSize(j, clock)) }))
+    .filter((x) => x.size >= 0.25)
+    .sort((a, b) => b.size - a.size)
+    .slice(0, 4)
+    .map((x) => x.j);
+  const kept = jolts.filter((j) => live.includes(j));
+  if (kept.length) m.jolts = kept;
+  else delete m.jolts;
+}
+
+/** A big moment between steps (a talk's answer, a promise's outcome): it joins his jolts by the same rule. */
+export function addJolt(p: Player, kind: MoraleJolt, size: number, at: number): void {
+  const m = p.morale;
+  if (!m) return;
+  keepJolts(m, [...(m.jolts ?? []), { kind, size: Math.round(size * 100) / 100, at }], at);
 }
 
 /** Clubs that clinched a playoff place at an earlier step this season (`League.moraleClinched`). */

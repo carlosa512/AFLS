@@ -137,6 +137,34 @@ describe('the locker room report: morale', () => {
     expect(row.note).toMatch(/snaps|field/);
   });
 
+  it('tells a kept promise too, though he is neither down nor flying', () => {
+    const l = copy(template);
+    for (const p of ours(l)) p.morale = { level: 0 };
+    at(l, 'regular', 3);
+    const p = ours(l)[3];
+    p.morale = { level: 0, jolts: [{ kind: 'kept', size: 2, at: l.moraleAt! }] };
+    deliverMail(l);
+    const row = section(reports(l)[0], 'Morale')?.rows.find((r) => r.playerId === p.id);
+    expect(row?.cells).toContain('Promise kept');
+  });
+
+  it('tells a broken promise once, in the next report', () => {
+    const l = copy(template);
+    for (const p of ours(l)) p.morale = { level: 0 };
+    at(l, 'regular', 3);
+    const p = ours(l)[2];
+    p.morale = { level: 0, jolts: [{ kind: 'broken', size: -4, at: l.moraleAt! }] };
+    deliverMail(l);
+    const rows = section(reports(l)[0], 'Morale')!.rows.filter((r) => r.playerId === p.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].note).toMatch(/waiting|word/);
+    expect(rows[0].note).not.toMatch(/\d/);
+    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    deliverMail(l);
+    const later = reports(l).find((m) => m.id.endsWith(':deadline'))!;
+    expect(section(later, 'Morale')?.rows.some((r) => r.playerId === p.id) ?? false).toBe(false);
+  });
+
   it('leaves the section out when nobody is down or flying', () => {
     const l = copy(template);
     at(l, 'regular', 3);

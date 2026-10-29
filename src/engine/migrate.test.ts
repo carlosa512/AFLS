@@ -14,8 +14,8 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(67);
-    expect(up.version).toBe(67);
+    expect(SAVE_VERSION).toBe(68);
+    expect(up.version).toBe(68);
     expect(up.inbox).toEqual(before);
   });
 });
@@ -27,7 +27,7 @@ describe('save v67', () => {
     delete l.moraleAt;
     l.version = 66;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(67);
+    expect(up.version).toBe(68);
     const ctx = moraleContext(up);
     for (const p of Object.values(up.players)) {
       if (p.teamId === null) {
@@ -58,6 +58,17 @@ describe('save v67 mid-season', () => {
     const jolted = Object.values(up.players).filter((p) => p.morale?.jolts?.length);
     expect(jolted).toEqual([]);
   }, 60_000);
+});
+
+describe('save v68', () => {
+  it('loads a v67 save with nothing added', () => {
+    const l = createLeague({ seed: 'v68' });
+    const before = JSON.stringify(Object.values(l.players).map((p) => p.morale ?? null));
+    l.version = 67;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(68);
+    expect(JSON.stringify(Object.values(up.players).map((p) => p.morale ?? null))).toBe(before);
+  });
 });
 
 describe('the new letters read back', () => {

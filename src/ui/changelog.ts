@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.22',
+    date: '2026-10-29',
+    title: 'Players speak up',
+    text:
+      'An unhappy player with a reason you could act on now writes to you, in his own words: he wants more snaps, a new ' +
+      'deal, an end to the losing or the feud in his room. Promise him what he asked for, reassure him, or be firm. ' +
+      'Promises are tracked to the game or the re-sign window and remembered: keep one and he trusts you, break one and ' +
+      'he trusts your next word less. Two players the same week come as one letter. The Locker Room and his card show ' +
+      "what you've promised, and AI clubs answer their own players the same way. Still no effect on play.",
+  },
+  {
     version: '0.2.21',
     date: '2026-10-29',
     title: 'Morale',

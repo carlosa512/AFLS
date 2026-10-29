@@ -11,6 +11,11 @@ import type { InboxMessage, League, Player } from './types';
 export type Draft = Omit<InboxMessage, 'read'>;
 export type Sender = Pick<InboxMessage, 'from' | 'fromCard'>;
 
+/** A player writing to you himself (G3's letters): his name and position, no staff card. */
+export function playerSender(p: Player): Sender {
+  return { from: `${p.firstName} ${p.lastName}, ${p.position}` };
+}
+
 export function headCoach(league: League): Sender {
   const c = teamCoaches(league, league.userTeamId).find((x) => x.role === 'headCoach');
   return c

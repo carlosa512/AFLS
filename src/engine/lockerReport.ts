@@ -184,9 +184,22 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
     .sort((a, b) => b.view.level - a.view.level || a.p.id - b.p.id)
     .slice(0, 2);
   const morale: MailSection['rows'] = [];
+  // A promise kept or broken since the last report comes first, told once; it's that man's row this time.
+  const promised = new Set<number>();
+  for (const { p } of moods)
+    for (const j of p.morale?.jolts ?? []) {
+      if ((j.kind !== 'kept' && j.kind !== 'broken') || !fresh(`promise:${fs}:${p.id}:${j.at}`)) continue;
+      promised.add(p.id);
+      const reason = j.kind === 'kept' ? 'You kept your word' : 'You broke your word';
+      morale.push({
+        playerId: p.id,
+        cells: [fullName(p), j.kind === 'kept' ? 'Promise kept' : 'Promise broken'],
+        note: say(MORALE_NOTE, { name: p.lastName, reason, happy: false }, at(`promise:${p.id}`)),
+      });
+    }
   // The worst six by name: a letter is not the room's whole list (the Locker Room screen is).
   const listed = slipped.slice(0, 6);
-  for (const { p, view } of [...listed, ...back, ...flying]) {
+  for (const { p, view } of [...listed, ...back, ...flying].filter((m) => !promised.has(m.p.id))) {
     const isBack = back.some((m) => m.p.id === p.id);
     const happy = !isBack && view.step >= 6;
     const reason = view.reasons.find((r) => (happy ? !DOWN_REASONS.has(r) : DOWN_REASONS.has(r))) ?? null;
