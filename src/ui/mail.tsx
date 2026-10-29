@@ -105,6 +105,7 @@ import type {
   Game,
   InboxMessage,
   League,
+  MailSection,
   Medic,
   Player,
   Position,
@@ -136,6 +137,8 @@ import {
   verdictTone,
 } from './training';
 import { store } from './store';
+import { setWaiverClaim } from '../engine/personnel/waivers';
+import { wireClaim } from '../engine/waiverMail';
 
 /** How many rows a list in a card shows before "See all". */
 const SHOW = 3;
@@ -2661,5 +2664,138 @@ function PositionMovedCards({ league, s }: { league: League; s: Extract<MailSubj
         }
       />
     </Card>
+  );
+}
+
+/**
+ * A letter's tables, as filed (the locker room report, the waiver letter, the staff's notes, position changes): one
+ * card per section, its line above, a row per player with his name linked and the writer's note beneath. Columns sort.
+ */
+export function MailSections({ league, sections }: { league: League; sections: MailSection[] }) {
+  return (
+    <>
+      {sections.map((sec, i) => (
+        <SectionCard key={i} league={league} section={sec} />
+      ))}
+    </>
+  );
+}
+
+function SectionCard({ league, section }: { league: League; section: MailSection }) {
+  const [sort, onSort] = useSort<string>({ key: 'none', desc: false });
+  const cols = section.columns ?? [];
+  const rows =
+    sort.key === 'none'
+      ? section.rows
+      : sortRows(section.rows, sort, (r, k) => {
+          const cell = r.cells[Number(k)] ?? '';
+          const n = Number(cell.replace(/[^0-9.-]/g, ''));
+          return cell !== '' && /^[\d$.,\s%-]+[MK]?$/.test(cell) && Number.isFinite(n) ? n : cell;
+        });
+  // Rows the writer annotates (a note, a claim) read as a list: the facts on one line, his words in full beneath.
+  if (section.rows.some((r) => r.note || r.claim))
+    return (
+      <Card title={section.title}>
+        {section.lead && <p className="inbox-body">{section.lead}</p>}
+        <ul className="mail-rows">
+          {section.rows.map((r, j) => {
+            const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+            const facts = r.cells
+              .slice(1, -1)
+              // Numbers carry their column's name ("Age 22"); words read on their own.
+              .map((c, k) => (cols[k + 1] && /^[\d$]/.test(c) ? `${cols[k + 1]} ${c}` : c))
+              .join(' · ');
+            return (
+              <li key={j} className="mail-row">
+                <div className="mail-row-head">
+                  {p ? <PlayerLink league={league} player={p} pos /> : r.cells[0]}
+                  {facts && <span className="small muted"> {facts}</span>}
+                </div>
+                <div className="mail-row-side">
+                  {r.cells.length > 1 && <span className="small">{r.cells.at(-1)}</span>}
+                  {r.claim && <ClaimButton league={league} entryId={r.claim.entryId} />}
+                </div>
+                {r.note && <p className="mail-row-note">{r.note}</p>}
+                {r.claim && <ClaimProblem league={league} entryId={r.claim.entryId} />}
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+    );
+  return (
+    <Card title={section.title}>
+      {section.lead && <p className="inbox-body">{section.lead}</p>}
+      <div className="table-scroll">
+        <table className="mail-table">
+          {cols.length > 0 && (
+            <thead>
+              <tr>
+                {cols.map((c, k) =>
+                  cols.length > 1 ? (
+                    <SortTh key={k} label={c} k={String(k)} sort={sort} onSort={onSort} desc={false} />
+                  ) : (
+                    <th key={k}>{c}</th>
+                  ),
+                )}
+                {section.rows.some((r) => r.claim) && <th aria-label="Claim" />}
+              </tr>
+            </thead>
+          )}
+          <tbody>
+            {rows.map((r, j) => {
+              const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+              return (
+                <tr key={j}>
+                  {r.cells.map((c, k) => (
+                    <td key={k}>
+                      {k === 0 && p ? <PlayerLink league={league} player={p} pos /> : c}
+                      {k === r.cells.length - 1 && r.note && <div className="small muted">{r.note}</div>}
+                    </td>
+                  ))}
+                  {r.claim && (
+                    <td>
+                      <ClaimButton league={league} entryId={r.claim.entryId} />
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+/** A wire row's claim, put in from the letter: the waiver screen's claim, with its reason when it can't go in. */
+function ClaimButton({ league, entryId }: { league: League; entryId: number }) {
+  const pending = league.personnel?.waivers?.pending.some((e) => e.id === entryId);
+  if (!pending) return <span className="muted small">Settled</span>;
+  const { claim, problem, claimed } = wireClaim(league, entryId);
+  if (claimed) return <span className="muted small">Claimed</span>;
+  return (
+    <>
+      <button
+        className="btn btn-sm btn-primary"
+        disabled={!!problem}
+        title={problem ?? undefined}
+        onClick={() => store.mutate((l) => setWaiverClaim(l, claim))}
+      >
+        Claim
+      </button>
+    </>
+  );
+}
+
+/** Why a wire row's claim can't go in yet, under its note: a full 53 is made room for on the waiver screen. */
+function ClaimProblem({ league, entryId }: { league: League; entryId: number }) {
+  if (!league.personnel?.waivers?.pending.some((e) => e.id === entryId)) return null;
+  const { problem, claimed } = wireClaim(league, entryId);
+  if (!problem || claimed) return null;
+  return (
+    <p className="mail-row-note small">
+      {/roster move/.test(problem) ? 'We need a roster spot first: pick who goes on the Waiver wire screen.' : problem}
+    </p>
   );
 }

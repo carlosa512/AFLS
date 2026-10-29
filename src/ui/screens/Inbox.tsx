@@ -18,7 +18,7 @@ import { badgeOn } from '../color';
 import { useNav } from '../App';
 import { PHASE_LABELS, weekLabel } from '../format';
 import { InjuryTag } from '../injuries';
-import { MailCards } from '../mail';
+import { MailCards, MailSections } from '../mail';
 import { LinkedText, nameIndex, type MoveIndex, type Who } from '../moves';
 import { store } from '../store';
 
@@ -66,6 +66,10 @@ const KIND_TAGS: Partial<Record<NonNullable<ReturnType<typeof mailSubject>>['kin
   faWrap: 'Free agency',
   positionOffer: 'Training',
   positionMoved: 'Training',
+  positionMoves: 'Training',
+  lockerReport: 'Locker room',
+  waivers: 'Waivers',
+  staffNotes: 'Staff',
 };
 
 /** A tag says what kind of message it is: a recap or the playoff race reads as such, whatever its category. */
@@ -103,6 +107,10 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
       return 'Trades';
     case 'standings':
       return 'Standings';
+    case 'locker':
+      return 'Locker room';
+    case 'waivers':
+      return 'Waiver wire';
   }
 }
 
@@ -229,7 +237,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
       (m) =>
         (type === 'all' || m.category === type) &&
         (show === 'all' || show === 'archived' || (show === 'unread' ? !m.read : needs.has(m.id))) &&
-        (!q || `${m.subject} ${m.from} ${m.body}`.toLowerCase().includes(q)),
+        (!q || mailText(m).toLowerCase().includes(q)),
     ),
   );
   // The open thread stays open whatever the filters do to it (reading it takes it out of Unread).
@@ -264,6 +272,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
     else if (a.kind === 'game') nav.openGame(a.gameId);
     else if (a.kind === 'standings') nav.go({ view: 'standings' });
     else if (a.kind === 'cap') nav.go({ view: 'cap' });
+    else if (a.kind === 'locker') nav.go({ view: 'locker' });
     else if (a.kind === 'fa') nav.go({ view: 'office', tab: 'fa', pos: a.pos });
     else nav.go({ view: 'office', tab: a.kind });
   };
@@ -486,6 +495,17 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
   );
 }
 
+/** What search reads: the subject, the sender, the letter and its tables. */
+const mailText = (m: InboxMessage) =>
+  [
+    m.subject,
+    m.from,
+    m.body,
+    ...(m.sections ?? []).flatMap((s) => [s.title, s.lead, ...s.rows.flatMap((r) => [...r.cells, r.note])]),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
 /** One message: its head, its text with everyone in it linked, its cards and its buttons. */
 function Message({
   league,
@@ -532,7 +552,8 @@ export function MessageBody({
             <LinkedText league={league} text={paragraph} about={aboutOf(league, m)} index={index} />
           </p>
         ))}
-      {m.coachNote && (
+      {m.sections && <MailSections league={league} sections={m.sections} />}
+      {m.coachNote && !m.sections && (
         <aside
           className="coach-note"
           aria-label={

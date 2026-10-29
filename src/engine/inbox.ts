@@ -1,16 +1,16 @@
 import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
+import { lockerReportMail } from './lockerReport';
+import { director, doctor, headCoach, type Draft } from './senders';
+import { waiverLetterNeedsYou, waiverMail } from './waiverMail';
+import { recentBodies, say, toldKeys, type Line } from './voice';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
 import { adviceFor, adviceMoment } from './directorAdvice';
 import { editionAt, gazetteFor } from './gazette';
 import { recordAdvicePublications } from './coachDecisions';
-import {
-  coachAdviceObservation,
-  userCoachGameObservation,
-  teachingObservation,
-  positionTeachingNote,
-} from './coachReports';
+import { userCoachGameObservation, positionTeachingNote } from './coachReports';
+import { staffNotesMail } from './staffNotes';
 /**
  * The user's inbox: mail from the league office, agents and the team's own staff, the way a
  * manager's desk fills up in Football Manager. Nothing in the sim sends mail. `deliverMail` looks
@@ -72,7 +72,7 @@ import { expiringPlayers } from './offseason/ai';
 import { draftComplete, reachOrSteal } from './offseason/draft';
 import { rookieCost, ROSTER_MAX } from './offseason/negotiation';
 import { knowledge, leaguePercentile, perceive, scoutReportParts } from './scouting';
-import { POSITION_NAMES } from './positions';
+import { POSITION_NAMES, STARTERS } from './positions';
 import {
   activeRoster,
   chooseCover,
@@ -142,9 +142,6 @@ const GROUPS: { phrase: string; title: string; positions: Position[]; plural?: t
   { phrase: 'secondary', title: 'Secondary', positions: ['CB', 'S'] },
 ];
 
-type Draft = Omit<InboxMessage, 'read'>;
-type Sender = Pick<InboxMessage, 'from' | 'fromCard'>;
-
 const fullName = (p: Player) => `${p.firstName} ${p.lastName}`;
 const teamName = (t: Team) => `${t.city} ${t.name}`;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -156,26 +153,6 @@ const count = (n: number) =>
 const small = (n: number) => count(n).toLowerCase();
 const list = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-// The staff member who signs a message, with a link to their card (a department name when the chair is empty).
-function headCoach(league: League): Sender {
-  const c = teamCoaches(league, league.userTeamId).find((x) => x.role === 'headCoach');
-  return c
-    ? { from: `${c.firstName} ${c.lastName}, Head coach`, fromCard: { kind: 'coach', id: c.id } }
-    : { from: 'Coaching staff' };
-}
-function director(league: League): Sender {
-  const s = teamStaff(league, league.userTeamId).find((x) => x.role === 'director');
-  return s
-    ? { from: `${s.firstName} ${s.lastName}, Director of scouting`, fromCard: { kind: 'scout', id: s.id } }
-    : { from: 'Scouting department' };
-}
-function doctor(league: League): Sender {
-  const m = teamMedics(league, league.userTeamId).find((x) => x.role === 'doctor');
-  return m
-    ? { from: `${m.firstName} ${m.lastName}, Head team doctor`, fromCard: { kind: 'medic', id: m.id } }
-    : { from: 'Medical staff' };
-}
 
 /** Existing careers: the league office offers practice squads once, at the start of the offseason. */
 function personnelOfferMail(league: League, have: Set<string>): Draft[] {
@@ -195,56 +172,6 @@ function personnelOfferMail(league: League, have: Set<string>): Draft[] {
       actions: [{ kind: 'team', teamId: league.userTeamId }],
     },
   ];
-}
-
-/** Waivers that concern you: a claim you made, won or lost, and a player you released, claimed or cleared. */
-function waiverMail(league: League, have: Set<string>): Draft[] {
-  const user = league.userTeamId;
-  const out: Draft[] = [];
-  for (const r of league.personnel?.waivers?.results ?? []) {
-    if (r.season !== league.season) continue;
-    const p = league.players[r.playerId];
-    if (!p) continue;
-    const won = r.toTeamId === user && r.fromTeamId !== user;
-    if (won || r.userReason) {
-      const id = `waiverClaim:${r.season}:${r.entryId}`;
-      if (have.has(id)) continue;
-      out.push({
-        id,
-        season: r.season,
-        phase: league.phase,
-        week: league.week,
-        ...director(league),
-        category: 'contracts',
-        subject: won ? `We claimed ${fullName(p)}` : `Our claim for ${fullName(p)} didn't win`,
-        body: won
-          ? `${fullName(p)} is ours off waivers from the ${league.teams[r.fromTeamId].name}, on the contract he already had.`
-          : `${r.userReason} ${fullName(p)} ${r.toTeamId === null ? 'cleared waivers and is a free agent.' : `went to the ${league.teams[r.toTeamId].name}.`}`,
-        actions: [{ kind: 'player', playerId: p.id }],
-      });
-    } else if (r.fromTeamId === user) {
-      const id = `waiverOut:${r.season}:${r.entryId}`;
-      if (have.has(id)) continue;
-      out.push({
-        id,
-        season: r.season,
-        phase: league.phase,
-        week: league.week,
-        ...director(league),
-        category: 'contracts',
-        subject:
-          r.toTeamId === null
-            ? `${fullName(p)} cleared waivers`
-            : `${fullName(p)} was claimed by the ${league.teams[r.toTeamId].name}`,
-        body:
-          r.toTeamId === null
-            ? `Nobody claimed ${fullName(p)}, so he's a free agent and his release is booked to our cap.`
-            : `The ${league.teams[r.toTeamId].city} ${league.teams[r.toTeamId].name} claimed ${fullName(p)} and take on his contract.`,
-        actions: [{ kind: 'player', playerId: p.id }],
-      });
-    }
-  }
-  return out;
 }
 
 /** A squad player of ours has used his third regular-season call-up: he needs a contract to play again. */
@@ -831,7 +758,13 @@ export type MailSubject =
   | { kind: 'futuresKept'; season: number }
   // The locker room's letters (lockerMail.ts): mentors, a grown-up player, captains, feuds and friends, a player who
   // speaks out, homecomings. Nothing on them is asked of you.
-  | { kind: 'locker'; season: number };
+  | { kind: 'locker'; season: number }
+  // The digests that replaced one-off letters: the locker room report, the day's waivers, the staff's notes, the
+  // day's position changes.
+  | { kind: 'lockerReport'; season: number; checkin: 'camp' | 'cutdown' | 'deadline' | 'end' }
+  | { kind: 'waivers'; season: number; week: number }
+  | { kind: 'staffNotes'; season: number; week: number }
+  | { kind: 'positionMoves'; season: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -952,6 +885,14 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
     // message's own.
     case 'tree':
       return { kind: 'locker', season: s === 'meet' ? m.season : season };
+    case 'locker':
+      return { kind: 'lockerReport', season, checkin: a as 'camp' | 'cutdown' | 'deadline' | 'end' };
+    case 'waivers':
+      return { kind: 'waivers', season, week: Number(b) };
+    case 'staffNotes':
+      return { kind: 'staffNotes', season, week: Number(a) };
+    case 'positions':
+      return { kind: 'positionMoves', season };
     case 'position':
       return a === 'offer'
         ? { kind: 'positionOffer', season, playerId: Number(b), to: rest[0] as Position }
@@ -994,6 +935,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
     case 'injury':
     case 'deadline':
       return false;
+    case 'waivers':
+      return waiverLetterNeedsYou(league, m.sections);
     case 'contract':
       return league.phase === 'resign' && expiringPlayers(league, user).some((p) => p.id === s.playerId);
     case 'combine':
@@ -1132,7 +1075,6 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
       : `Their ${weak.g.phrase} ${weak.g.plural ? 'are' : 'is'} the soft spot and their ${strong.g.phrase} ${strong.g.plural ? 'are' : 'is'} the threat: ${CATCH[strong.g.title]}.`) +
     (known ? '' : " We haven't seen much of them yet.");
   const stakes = matchupStakes(league, opp.id);
-  const coaching = coachAdviceObservation(league);
   const mismatch = heightMismatch(league, opp);
   return [
     {
@@ -1142,28 +1084,9 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
       week: league.week,
       ...headCoach(league),
       category: 'matchup',
-      ...(coaching
-        ? {
-            coachNoteKey: coaching.key,
-            coachNote: {
-              coachId: coaching.coachId,
-              coachName: coaching.coachName,
-              text: coaching.text,
-              kind: coaching.kind,
-            },
-          }
-        : {}),
       subject: stakes?.subject ?? `Opposition report: ${teamName(opp)}`,
-      body: `${opener} ${stakes?.body ?? ''}${read}${mismatch ? `\n\n${mismatch}` : ''}${coaching ? `\n\n${coaching.text}` : ''}`,
-      actions: [
-        { kind: 'team', teamId: opp.id },
-        ...(coaching
-          ? [
-              { kind: 'player' as const, playerId: coaching.playerId },
-              { kind: 'team' as const, teamId: league.userTeamId },
-            ]
-          : []),
-      ],
+      body: `${opener} ${stakes?.body ?? ''}${read}${mismatch ? `\n\n${mismatch}` : ''}`,
+      actions: [{ kind: 'team', teamId: opp.id }],
     },
   ];
 }
@@ -1497,8 +1420,9 @@ function recapMail(league: League, have: Set<string>): Draft[] {
     !game.playoffRound &&
     theirRecord.w + theirRecord.l + theirRecord.t >= 6 &&
     (theirRecord.w + theirRecord.t / 2) / (theirRecord.w + theirRecord.l + theirRecord.t) >= 0.75;
-  const coaching =
-    userCoachGameObservation(league, game, headCoach(league).fromCard?.id) || teachingObservation(league);
+  // The game's own coaching (a timeout call, protecting a lead) is about the game, so it rides with the result. What
+  // the staff are working on in the week goes in their own letter (`staffNotes.ts`).
+  const coaching = userCoachGameObservation(league, game, headCoach(league).fromCard?.id);
   const resultWithReaction = coaching
     ? `${result.slice(0, -1)}; ${coaching.replace(/^Our /, 'our ').replace(/^The /, 'the ')}`
     : result;
@@ -2497,39 +2421,94 @@ function moveNews(league: League, p: Player): { when: Pick<Draft, 'phase' | 'wee
   };
 }
 
+const MOVES_OPENER: readonly Line<{ n: number; name: string; from: Position; to: Position; same: boolean }>[] = [
+  {
+    when: (f) => f.n > 1 && f.same,
+    reads: 2,
+    text: (f) => `${capital(small(f.n))} moves at cut-down, all ${f.from} to ${f.to}.`,
+  },
+  { when: (f) => f.n > 1, reads: 1, text: (f) => `${capital(small(f.n))} moves at cut-down. Who, and why.` },
+  { when: (f) => f.n > 1, reads: 1, text: (f) => `We made ${small(f.n)} position changes on cut-down day.` },
+  { text: (f) => `${f.name} made the switch on cut-down day.` },
+  { text: (f) => `One move at cut-down: ${f.name}, ${f.from} to ${f.to}.` },
+];
+
+/** Where a mover stands on the chart at his new spot: a starter, or his place in line. */
+function chartPlace(league: League, p: Player): string {
+  const at = league.teams[p.teamId!].depthChart[p.position].indexOf(p.id);
+  return at < 0 ? 'Not on it yet' : at < STARTERS[p.position] ? 'Starter' : `No. ${at + 1}`;
+}
+
 /**
- * One note for each of our players who changed position this league year (cut-down day is the only day anyone
- * does), the head coach's word that it is done: what changed, why, where he stands on the chart and the lock.
+ * The head coach's letter on the day's position changes (cut-down day is the only day anyone moves): a row per mover,
+ * from, to, why and where he stands on the chart, then the lock on trading him. One letter a day; a mover an old
+ * one-player note already told isn't told again.
  */
 function positionMovedMail(league: League, have: Set<string>): Draft[] {
   const { season } = league;
   const team = league.teams[league.userTeamId];
-  const out: Draft[] = [];
+  const told = toldKeys(league);
+  const days = new Map<string, { when: Pick<Draft, 'phase' | 'week'>; rows: { p: Player; reason?: MoveReason }[] }>();
   for (const p of teamPlayers(league, team.id)) {
     const move = p.moves?.at(-1);
-    const id = `position:${season}:moved:${p.id}`;
-    if (!move || move.season !== season || p.retired || have.has(id)) continue;
+    if (!move || move.season !== season || p.retired) continue;
+    if (have.has(`position:${season}:moved:${p.id}`) || told.has(`position:${season}:moved:${p.id}`)) continue;
     const news = moveNews(league, p);
     if (!news) continue;
-    const { when, reason } = news;
-    out.push({
+    const id = `positions:${season}:${news.when.phase}:${news.when.week}`;
+    if (have.has(id)) continue;
+    const day = days.get(id) ?? { when: news.when, rows: [] };
+    day.rows.push({ p, reason: news.reason });
+    days.set(id, day);
+  }
+  const sender = headCoach(league);
+  const recent = recentBodies(league, sender.from);
+  return [...days].map(([id, { when, rows }]) => {
+    const [first] = rows;
+    const move = first.p.moves!.at(-1)!;
+    const n = rows.length;
+    const opener = say(
+      MOVES_OPENER,
+      {
+        n,
+        name: fullName(first.p),
+        from: move.from,
+        to: move.to,
+        same: rows.every((r) => r.p.moves!.at(-1)!.from === move.from && r.p.position === move.to),
+      },
+      { key: id, slot: 'opener', recent },
+    );
+    const placed = team.autoDepth ? '' : ` ${n === 1 ? 'He is' : 'They are'} placed by rating on your depth chart.`;
+    const lock =
+      n === 1 ? " He can't be traded until the new league year." : " They can't be traded until the new league year.";
+    return {
       id,
       season,
       ...when,
-      ...headCoach(league),
-      category: 'staff',
-      subject: `${fullName(p)} is now ${aPosition(move.to)}`,
-      body:
-        `${fullName(p)} moved from ${posWord(move.from)} to ${posWord(move.to)} on cut-down day. ${reason ? `${reasonLine(reason, move.to)}. ` : ''}` +
-        `${team.autoDepth ? '' : `He is placed by rating on your ${move.to} depth chart. `}` +
-        "He can't be traded until the new league year.",
-      actions: [
-        { kind: 'player', playerId: p.id },
-        { kind: 'team', teamId: team.id },
+      ...sender,
+      category: 'staff' as const,
+      subject: n === 1 ? `${fullName(first.p)} is now ${aPosition(first.p.position)}` : `${n} players change position`,
+      body: `${opener}${placed}${lock}`,
+      sections: [
+        {
+          title: n === 1 ? 'The move' : 'The moves',
+          columns: ['Player', 'From', 'To', 'Why', 'On the chart'],
+          rows: rows.map(({ p, reason }) => ({
+            playerId: p.id,
+            cells: [
+              fullName(p),
+              p.moves!.at(-1)!.from,
+              p.position,
+              reason ? reasonLine(reason, p.position) : "The coaches' call",
+              chartPlace(league, p),
+            ],
+          })),
+        },
       ],
-    });
-  }
-  return out;
+      covered: rows.map(({ p }) => `position:${season}:moved:${p.id}`),
+      actions: [{ kind: 'team' as const, teamId: team.id }],
+    };
+  });
 }
 
 /**
@@ -2899,6 +2878,7 @@ export function deliverMail(league: League): void {
       ...tradeMail(league, have),
       ...offerMail(league, have),
       ...lockerMail(league, have),
+      ...lockerReportMail(league, have),
     );
     if (league.phase === 'resign')
       fresh.push(
@@ -2933,6 +2913,7 @@ export function deliverMail(league: League): void {
         ...coverMail(league, have),
         ...raceMail(league, have),
         ...matchupMail(league, have),
+        ...staffNotesMail(league, have),
         ...flexMail(league, have),
       );
     }
@@ -2969,6 +2950,10 @@ export function deliverMail(league: League): void {
     })),
   );
   recordAdvicePublications(league, due);
+  // What digests told stays on file after their letters are evicted (this league year and the last).
+  const told = (league.mailTold ??= {});
+  for (const m of due) for (const k of m.covered ?? []) told[k] = m.season;
+  for (const [k, s] of Object.entries(told)) if (s < league.season - 1) delete told[k];
   // A newly reconstructed historical story may predate mail already filed. Evict chronologically.
   inbox.sort((a, b) => order(a) - order(b));
   const removed = inbox.splice(0, Math.max(0, inbox.length - KEEP));
@@ -3024,7 +3009,7 @@ export function archiveRead(league: League): void {
  * Kinds whose messages from the same day fold into one: a stack of agents' letters as the league year opens, a
  * week's injuries, the all-clears, retirements, our players' honors.
  */
-const FOLDED = new Set<MailSubject['kind']>(['contract', 'retirement', 'injury', 'cleared', 'award', 'positionMoved']);
+const FOLDED = new Set<MailSubject['kind']>(['contract', 'retirement', 'injury', 'cleared', 'award', 'positionMoved']); // old saves' one-player notes still fold
 
 /** A message, or the same day's messages of one kind folded together, newest first. */
 export interface MailThread {

@@ -1,5 +1,5 @@
 import { activeCoachQuirks, coachPlayerFit, positionCoachFor } from './coachQuirks';
-import { QUIRKS } from './quirks';
+import { QUIRKS, type QuirkId } from './quirks';
 import { adviceKey, advicePublishedWeek } from './coachDecisions';
 import type { CoachGameReport, Game, League, Player, Position } from './types';
 
@@ -273,13 +273,25 @@ export function coachAdviceObservation(league: League):
     }
   return undefined;
 }
-export function teachingObservation(league: League): string {
+/** One of our coaches working on a player's bad habit this week or last: the staff-notes letter's line. */
+export function teachingNoteFor(
+  league: League,
+):
+  | { coachId: number; coachName: string; playerId: number; habit: QuirkId; receptive: boolean; text: string }
+  | undefined {
   for (const c of Object.values(league.coaches)) {
     const n = c.teachingNote;
     if (c.teamId !== league.userTeamId || !n || n.season !== league.season || league.week - n.week > 1) continue;
-    return `${n.coachName} has focused coaching attention on ${n.playerName}'s ${QUIRKS[n.habit].label} habit; ${n.receptive ? 'his preparation gives that work a better chance to stick.' : 'the staff expects progress to take time.'}`;
+    return {
+      coachId: c.id,
+      coachName: n.coachName,
+      playerId: n.playerId,
+      habit: n.habit,
+      receptive: n.receptive,
+      text: `${n.coachName} has focused coaching attention on ${n.playerName}'s ${QUIRKS[n.habit].label} habit; ${n.receptive ? 'his preparation gives that work a better chance to stick.' : 'the staff expects progress to take time.'}`,
+    };
   }
-  return '';
+  return undefined;
 }
 
 /** A real teaching tradeoff in a conversion proposal, rather than a randomly invented dispute. */

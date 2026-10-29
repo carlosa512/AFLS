@@ -55,7 +55,7 @@ export function pickRoundFor(_league: League, value: number): string {
 }
 
 /** Below this, our scouts don't know a player well enough to put his name in a recommendation. */
-const MIN_KNOWLEDGE = 0.35;
+export const MIN_KNOWLEDGE = 0.35;
 /** An upgrade has to clear our current starter by this much on our read. */
 const MIN_GAIN = 0.5;
 /** The stances the market shows as selling: their players are fair game to ask about. */

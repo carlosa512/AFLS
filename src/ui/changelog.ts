@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.19',
+    date: '2026-10-29',
+    title: 'Fewer, fuller letters',
+    text:
+      'Your inbox stops piling up one-line letters. The head coach writes a locker room report four times a year (camp, ' +
+      "cut-down day, deadline week and the season's end): captains and leaders, mentoring pairs that aren't working and " +
+      "who he'd pair them with instead, friction, friendships and who grew up. Waiver news comes as one letter a day, " +
+      'with young players worth a claim at your thin spots, your place in line and a Claim button. Position changes ' +
+      "arrive in one letter, the staff's coaching notes get a weekly letter of their own, and game recaps stick to the game.",
+  },
+  {
     version: '0.2.18',
     date: '2026-10-28',
     title: 'Coaching trees',

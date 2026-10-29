@@ -30,12 +30,16 @@ function twice() {
 }
 
 describe('personnel mail', () => {
+  // The waiver letter itself is tested in `waiverMail.test.ts`; here, that personnel results reach it.
+  const rows = () => mail('waivers:').flatMap((m) => m.sections?.find((x) => x.title === 'What happened')?.rows ?? []);
+
   it('your waiver claim won, once', () => {
     ensureWaivers(l).results.push(result({ entryId: 7 }));
     twice();
-    expect(mail('waiverClaim:')).toHaveLength(1);
-    expect(mail('waiverClaim:')[0].subject).toMatch(/claimed/i);
-    expect(mailSubject(mail('waiverClaim:')[0])?.kind).toBe('waiverClaim');
+    expect(mail('waivers:')).toHaveLength(1);
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0].cells.at(-1)).toMatch(/Ours off waivers/);
+    expect(mailSubject(mail('waivers:')[0])?.kind).toBe('waivers');
   });
 
   it('your waiver claim lost, once, with the reason', () => {
@@ -43,8 +47,8 @@ describe('personnel mail', () => {
       result({ entryId: 8, toTeamId: 9, userReason: 'A club with higher waiver priority won.' }),
     );
     twice();
-    expect(mail('waiverClaim:')).toHaveLength(1);
-    expect(mail('waiverClaim:')[0].body).toContain('higher waiver priority');
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0].cells.at(-1)).toContain('higher waiver priority');
   });
 
   it('your released player claimed or cleared, once each', () => {
@@ -55,10 +59,12 @@ describe('personnel mail', () => {
       result({ entryId: 11, playerId: b, fromTeamId: 0, toTeamId: null }),
     );
     twice();
-    const out = mail('waiverOut:');
-    expect(out).toHaveLength(2);
-    expect(out.map((m) => m.subject).join(' ')).toMatch(/claimed/i);
-    expect(out.map((m) => m.subject).join(' ')).toMatch(/cleared/i);
+    const said = rows()
+      .map((r) => r.cells.at(-1))
+      .join(' ');
+    expect(rows()).toHaveLength(2);
+    expect(said).toMatch(/Claimed by/);
+    expect(said).toMatch(/Cleared/);
   });
 
   it("a squad player's third call-up used, once", () => {
@@ -80,6 +86,6 @@ describe('personnel mail', () => {
     l.phase = 'freeAgency';
     ensureWaivers(l).results.push(result({ entryId: 12 }));
     deliverMail(l);
-    expect(mail('waiverClaim:')).toHaveLength(1);
+    expect(rows()).toHaveLength(1);
   });
 });

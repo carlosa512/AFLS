@@ -222,6 +222,9 @@ export function migrateLeague(league: League): League | null {
     seedFoundingTrees(league);
     league.version = 64;
   }
+  // v65: optional `sections` and `covered` on inbox messages (the digest letters) and `League.mailTold`: nothing to
+  // fill in.
+  if (league.version < 65) league.version = 65;
   return league;
 }
 
