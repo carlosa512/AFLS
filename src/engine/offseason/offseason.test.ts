@@ -12,6 +12,7 @@ import { advanceOffseason, beginOffseason, draftNextPick, FA_DAYS, offseasonBloc
 import {
   aiOffer,
   aiResignWindow,
+  resignCall,
   aiTrainingCamp,
   applyFranchiseTag,
   expiringPlayers,
@@ -466,5 +467,31 @@ describe('the re-sign call', () => {
       };
     }
     expect(out).toMatchSnapshot();
+  });
+
+  it('reads each expiring player as keep, tag or walk, with a reason', () => {
+    const league = fresh();
+    beginOffseason(league);
+    let tagged = false;
+    for (const t of league.teams) {
+      for (const p of expiringPlayers(league, t.id)) {
+        const r = resignCall(league, t.id, p);
+        expect(['keep', 'tag', 'walk']).toContain(r.call);
+        if (r.call === 'walk') expect(['fading', 'age', 'backup']).toContain(r.reason);
+        else expect(['starter', 'young', 'depth']).toContain(r.reason);
+        if (r.call === 'tag' && !tagged) {
+          // One tag a year: once it's used on someone else, a tag call reads keep.
+          const other = expiringPlayers(league, t.id).find((q) => q.id !== p.id && !tagBlocker(league, q));
+          if (other) {
+            applyFranchiseTag(league, other);
+            expect(resignCall(league, t.id, p).call).toBe('keep');
+            tagged = true;
+          }
+        }
+      }
+    }
+    const old = expiringPlayers(league, league.userTeamId)[0];
+    old.age = 40;
+    expect(resignCall(league, league.userTeamId, old)).toMatchObject({ call: 'walk', reason: 'age' });
   });
 });
