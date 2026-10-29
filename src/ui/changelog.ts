@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.24',
+    date: '2026-10-29',
+    title: 'Moods matter',
+    text:
+      'A player’s mood now counts. Young players grow a little faster when they’re happy and slower when they’re not, ' +
+      'everyone plays a touch better or worse on game day, a happy player learns a new position faster, and an ' +
+      'unhappy one asks more to re-sign with less patience. The Locker Room and the head coach’s report say who it’s ' +
+      'costing.',
+  },
+  {
     version: '0.2.23',
     date: '2026-10-29',
     title: 'Letters close between jobs',

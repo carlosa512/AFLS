@@ -215,7 +215,11 @@ const RULES: [RegExp, Name[]][] = [
   ],
   [/^scripts\/training\.ts$/, ['training']],
   // Morale: the moods and the league check that holds them to range.
-  [/^src\/engine\/(morale|playerTalks)\.ts$|^scripts\/morale\.ts$/, ['morale']],
+  // G2's effects too: the growth tilt, the game-day edge, learning and talks it measures.
+  [
+    /^src\/engine\/(?!.*\.test\.ts$)(morale|playerTalks|development|match\/lineup|training|offseason\/negotiation)\.ts$|^scripts\/morale\.ts$/,
+    ['morale'],
+  ],
   // The harness itself, dependencies and compiler settings can break anything.
   [/^scripts\/check\.ts$|^package(-lock)?\.json$|^tsconfig\.json$|^\.github\/workflows\//, NAMES],
 ];
