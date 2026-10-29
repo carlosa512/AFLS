@@ -9,7 +9,7 @@ import {
   type PeerTable,
 } from './ceiling';
 import { CEILING_SWING, settleYear } from './development';
-import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
+import { simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { beginOffseason } from './offseason';
 import { allSeeds } from './season/playoffs';
 import { createLeague } from './generate';
@@ -187,7 +187,9 @@ describe("when a team's season ends", () => {
   });
 
   it('a player cut after week 18 settles once', () => {
-    playWeek(league);
+    // The next pass itself (`playWeek` runs it after the week's signings, which could put him back on a club still
+    // playing: a club short at his spot signs from the street).
+    settleFinished(league);
     const once = cut.ceilingShifts?.[season];
     expect(once).toBeDefined();
     const potential = cut.potential;

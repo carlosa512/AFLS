@@ -348,7 +348,10 @@ describe('coaching staffs and moves', () => {
     setRoom(coachAsk(l, hire) + 50);
     expect(coachMoveProblem(l, user, hire, 'hire')).toBeNull();
     // Replacing a man with a year left frees half his salary (the other half is severance).
-    const holder = teamCoaches(l, user).find((c) => !isCoachExpiring(l, c) && c.contract!.through === l.season)!;
+    // Not the head coach: after a losing season the owner can mandate he stays, which is its own refusal.
+    const holder = teamCoaches(l, user).find(
+      (c) => c.role !== 'headCoach' && !isCoachExpiring(l, c) && c.contract!.through === l.season,
+    )!;
     expect(holder).toBeDefined();
     const freed = holder.contract!.salary - coachSeverance(l, holder);
     expect(freed).toBeGreaterThan(100);
@@ -535,6 +538,8 @@ describe('coaching staffs and moves', () => {
     );
   });
 
+  // Four whole seasons and offseasons: about 135s on one worker, on main as on G2, so past the 120s default (the
+  // owner's call, 0.2.24: 300s).
   it('keeps the coaching economy steady over several offseasons, with head coaches changing jobs', () => {
     const l = createLeague({ seed: 'coach-economy' });
     let fired = 0;
@@ -557,7 +562,7 @@ describe('coaching staffs and moves', () => {
       }
     }
     expect(fired).toBeGreaterThan(0);
-  });
+  }, 300_000);
 });
 
 describe('the coaching carousel', () => {

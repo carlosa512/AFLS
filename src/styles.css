@@ -5033,11 +5033,16 @@ button.tip-pill {
   flex-wrap: wrap;
   gap: 4px;
 }
+/* What his mood is doing to his work (G2): its own line under the name and reasons. */
+.mood-effect {
+  grid-column: 2 / -1;
+}
 @media (max-width: 600px) {
   .mood-row {
     grid-template-columns: auto minmax(0, 1fr);
   }
-  .mood-why {
+  .mood-why,
+  .mood-effect {
     grid-column: 2;
   }
 }

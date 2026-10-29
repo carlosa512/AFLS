@@ -15,7 +15,15 @@
  *   npm run training -- 5
  */
 import { coachingForPlayer } from '../src/engine/coaching';
-import { developPlayer, developWeek, playedShare, RELEASE, rollInputs, trueUp } from '../src/engine/development';
+import {
+  developPlayer,
+  developWeek,
+  MOOD_TILT,
+  playedShare,
+  RELEASE,
+  rollInputs,
+  trueUp,
+} from '../src/engine/development';
 import { createLeague } from '../src/engine/generate';
 import { gamesInWeek, playWeek } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
@@ -36,6 +44,9 @@ import type { League, Phase, Position } from '../src/engine/types';
 import { ATTRIBUTES } from '../src/engine/types';
 
 const SEASONS = Number(process.argv[2] ?? 3);
+// This check holds the release to one jump, so it holds G2's mood tilt at zero: the tilt's own exactness (a tilted
+// year lands where one jump with the same tilt would) is release.test.ts's, its size `npm run morale`'s.
+MOOD_TILT.growth = 0;
 
 let misses = 0;
 const check = (label: string, value: number, [lo, hi]: [number, number], digits = 0) => {

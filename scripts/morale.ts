@@ -10,6 +10,9 @@
  *    −10…+10.
  * 6. Talks (G3): asks per club per season 4–30, every club counted alike (yours answered by the AI's rule, since nobody
  *    clicks), and 25–75% of the promises that resolve are kept.
+ * 7. Effects (G2): the game-day edge averages out (every week's league mean within ±0.05 rating points, none past ±0.5);
+ *    the growth tilt's league mean late in the season (after week 17: the year closes in week 18) within ±0.01, and young
+ *    players who spent the season Good or better out-tilt those who spent it Poor or worse by 0.04 or more.
  *
  *   npm run morale                        # 4 seasons, seed morale-check
  *   npm run morale -- --seasons 6 --seed x
@@ -27,6 +30,8 @@ import {
   moraleLevel,
   moraleStepOf,
   moraleTarget,
+  moodPull,
+  moraleMean,
 } from '../src/engine/morale';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { computeRecords } from '../src/engine/season/standings';
@@ -153,12 +158,42 @@ function step(run: () => void) {
   }
 }
 
+// 7: the effects (G2), read as the engine reads them.
+const edgeMeans: number[] = [];
+let edgeMax = 0;
+const tilts: number[] = [];
+const tiltUp: number[] = [];
+const tiltDown: number[] = [];
+let seasonLevels = new Map<number, number[]>();
+function effects() {
+  const m = moraleMean(league);
+  const edges = rostered(league).map((p) => 0.5 * moodPull(moraleLevel(league, p), m));
+  edgeMeans.push(mean(edges));
+  edgeMax = Math.max(edgeMax, ...edges.map(Math.abs));
+  for (const p of rostered(league))
+    if (p.dev?.potential !== undefined)
+      (seasonLevels.get(p.id) ?? seasonLevels.set(p.id, []).get(p.id)!).push(moraleLevel(league, p));
+}
+function readTilts() {
+  for (const p of rostered(league)) {
+    if (p.dev?.potential === undefined) continue;
+    const t = p.dev.mood ?? 0;
+    tilts.push(t);
+    const avg = mean(seasonLevels.get(p.id) ?? []);
+    if (avg >= 1) tiltUp.push(t);
+    else if (avg <= -1) tiltDown.push(t);
+  }
+  seasonLevels = new Map();
+}
+
 const t0 = Date.now();
 for (let s = 0; s < SEASONS; s++) {
   while (league.phase === 'regular' || league.phase === 'playoffs') {
     const week = league.week;
     const regular = league.phase === 'regular';
+    if (regular) effects();
     step(() => playWeek(league));
+    if (regular && week === 17) readTilts();
     if (regular && week === 9) sample(false);
     if (regular && week === 18) sample(true);
   }
@@ -205,6 +240,15 @@ check(
   `Talks: promises kept, of those resolved (made ${promisesMade}, kept ${kept}, broken ${broken})`,
   kept / Math.max(1, kept + broken),
   [0.25, 0.75],
+);
+check('Game-day edge: league mean (worst week)', Math.max(...edgeMeans.map(Math.abs)), [0, 0.05], 3);
+check('Game-day edge: largest', edgeMax, [0, 0.5], 3);
+check(`Growth tilt: league mean late in the season (n=${tilts.length})`, mean(tilts), [-0.01, 0.01], 4);
+check(
+  `Growth tilt: Good or better minus Poor or worse (n=${tiltUp.length}, ${tiltDown.length})`,
+  mean(tiltUp) - mean(tiltDown),
+  [0.04, 0.2],
+  3,
 );
 
 console.log(`\n${misses} number(s) outside target range`);

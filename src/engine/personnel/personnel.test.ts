@@ -284,7 +284,8 @@ describe('migration and collection', () => {
     // the DT's wrap-up at the line, and with the size edges. `charts` and `result` again with spot fit,
     // which lines the starters up by build. `players` and `result` again with personality (0.2.15): four more hidden
     // traits per player, and sportsmanship in place of temper on the dirty fouls; the stream, games and charts still
-    // match, so the new traits cost no draw from the league's stream.
+    // match, so the new traits cost no draw from the league's stream. `result` again with moods that matter (0.2.24):
+    // the game-day edge moves play; the stream, players, games and charts still match, so it costs no draw.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -299,6 +300,6 @@ const BASELINE = {
   players: 'a979f91370ea89de72689ffa5851d834210ae3e4c70d9c04929fafd03056b78c',
   rng: [666865279, 3079305262, 4039765455, 1664101998],
   games: '7d434cad09545c5d832fe11048921e57ab49f1d9807d05ae5b65df3aaa0a9978',
-  result: '98c11a3b3f0ae9c151cf9c000ee03eaf96d5ed4989a06af7687f107ba0ab6370',
+  result: '8fa4622c6f05dd07a660640bab6a702fcfe043a4c97b079ec6bceb57eb9f706a',
   charts: '736837cb684778fb3965956ea01fc36726cc948ed00cd33c883ccd9bd78d4457',
 };

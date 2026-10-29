@@ -9,6 +9,7 @@ import { preparePersonnelGame } from '../personnel/flow';
  * better teams win more often without making upsets impossible.
  */
 import { skill, useKnocks } from '../attributes';
+import { moraleMean } from '../morale';
 import { activeCoachQuirks, type CoachQuirkId } from '../coachQuirks';
 import {
   habitCalls,
@@ -585,9 +586,11 @@ class GameSim {
     this.crew = options.crew === undefined ? gameCrew(league, game) : (options.crew ?? undefined);
     this.calls = crewCalls(this.crew);
     const team = (id: number) => league.teams[id];
+    // The league's mood at kickoff: every lineup this game builds, the rebuild after an injury too, reads the same one.
+    this.moodMean = moraleMean(league);
     this.lineups = [
-      buildLineup(league, team(game.homeId), undefined, game),
-      buildLineup(league, team(game.awayId), undefined, game),
+      buildLineup(league, team(game.homeId), undefined, game, this.moodMean),
+      buildLineup(league, team(game.awayId), undefined, game, this.moodMean),
     ];
     this.syncKnocks();
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
@@ -615,6 +618,8 @@ class GameSim {
     return this.plays.slice(before);
   }
 
+  /** The league's mood at kickoff (G2's game-day edge is measured against it). */
+  private moodMean = 0;
   /** Both lineups' out-of-position knocks, kept in one map that every step reads through `skill`. */
   private knocks = new Map<number, number>();
   private syncKnocks() {
@@ -895,7 +900,7 @@ class GameSim {
         `Injury: ${this.abbrev(side)} ${p.position} ${short(p)} (${injuryLabel(injury.type).toLowerCase()}) is out for the game.`,
       );
       const qb = this.lineups[side].qb;
-      this.lineups[side] = buildLineup(this.league, this.lineups[side].team, this.out, this.game);
+      this.lineups[side] = buildLineup(this.league, this.lineups[side].team, this.out, this.game, this.moodMean);
       this.syncKnocks();
       this.fields[side] = units(this.lineups[side]);
       if (this.lineups[side].qb !== qb) this.qbLeans = this.leans();

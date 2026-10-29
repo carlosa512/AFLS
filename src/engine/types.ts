@@ -322,7 +322,7 @@ export interface Talk {
   ask?: { cause: TalkCause; at: number };
   /** The clock his mood first read Poor or worse in the current run (cleared when it lifts). */
   downSince?: number;
-  /** The last answer, when, and the ask it answered: the six-step quiet after it, and what the letter shows. */
+  /** The last answer, when, and the ask it answered: the eight-step quiet after it, and what the letter shows. */
   answered?: { reply: TalkReply | 'ignored'; at: number; ask: number };
   /**
    * An open promise. A snaps promise counts its games: `role` asked for, `left` games to keep it in, `games` and `snaps`
@@ -374,6 +374,8 @@ export interface DevYear {
   bodyAs?: Position;
   /** The ceiling the year was rolled with, under 26 (a settle during the year moves only the next roll). Missing before v57. */
   potential?: number;
+  /** His mood's tilt on a growth year so far (G2, `MOOD_TILT`), four places; absent at 0. */
+  mood?: number;
   /** Share of the year released so far (0–1). */
   done: number;
   /** Integer change applied so far to each rating, in `ATTRIBUTES` order; trailing zeros are dropped (missing = 0). */

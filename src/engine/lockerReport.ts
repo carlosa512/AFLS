@@ -186,7 +186,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   const morale: MailSection['rows'] = [];
   // A promise kept or broken since the last report comes first, told once; it's that man's row this time.
   const promised = new Set<number>();
-  for (const { p } of moods)
+  for (const { p, view } of moods)
     for (const j of p.morale?.jolts ?? []) {
       if ((j.kind !== 'kept' && j.kind !== 'broken') || !fresh(`promise:${fs}:${p.id}:${j.at}`)) continue;
       promised.add(p.id);
@@ -194,7 +194,11 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       morale.push({
         playerId: p.id,
         cells: [fullName(p), j.kind === 'kept' ? 'Promise kept' : 'Promise broken'],
-        note: say(MORALE_NOTE, { name: p.lastName, reason, happy: false }, at(`promise:${p.id}`)),
+        note: say(
+          MORALE_NOTE,
+          { name: p.lastName, reason, happy: false, costing: j.kind === 'broken' && view.effect === 'costing' },
+          at(`promise:${p.id}`),
+        ),
       });
     }
   // The worst six by name: a letter is not the room's whole list (the Locker Room screen is).
@@ -206,7 +210,11 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
     morale.push({
       playerId: p.id,
       cells: [fullName(p), view.word],
-      note: say(MORALE_NOTE, { name: p.lastName, reason, happy, back: isBack }, at(`morale:${p.id}`)),
+      note: say(
+        MORALE_NOTE,
+        { name: p.lastName, reason, happy, back: isBack, costing: !happy && !isBack && view.effect === 'costing' },
+        at(`morale:${p.id}`),
+      ),
     });
   }
   // Every man down (or flying) now is on file for the next report to compare with, listed here or not.

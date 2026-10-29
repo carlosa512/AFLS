@@ -18,6 +18,9 @@ import {
   moraleStepOf,
   moraleTarget,
   moraleView,
+  moodLean,
+  moodPull,
+  moraleMean,
   type MoraleFactors,
 } from './morale';
 import { playerOvr, STARTERS } from './positions';
@@ -410,5 +413,44 @@ describe('morale: what promises leave behind (G3)', () => {
     ] as const)
       addJolt(p, kind, size, at);
     expect(p.morale!.jolts!.map((j) => j.kind).sort()).toEqual(['broken', 'captain', 'kept', 'paid']);
+  });
+});
+
+describe('morale: the scale its effects read (G2)', () => {
+  it('leans −1…+1: Superb +1, Abysmal −1, Okay 0', () => {
+    expect(moodLean(6)).toBe(1);
+    expect(moodLean(10)).toBe(1);
+    expect(moodLean(-6)).toBe(-1);
+    expect(moodLean(0)).toBe(0);
+    expect(moodLean(3)).toBe(0.5);
+  });
+
+  it('pulls against the league: nothing at the mean', () => {
+    expect(moodPull(1, 1)).toBe(0);
+    expect(moodPull(4, 1)).toBe(0.5);
+    expect(moodPull(10, -2)).toBe(1);
+  });
+
+  it('averages the rostered players only', () => {
+    const l = structuredClone(league);
+    for (const p of Object.values(l.players)) if (p.teamId !== null) p.morale = { level: 2, jolts: [] };
+    // A free agent, unhappy as they come, doesn't count.
+    const id = Math.max(...Object.keys(l.players).map(Number)) + 1;
+    l.players[id] = { ...structuredClone(team0[0]), id, teamId: null, morale: { level: -10, jolts: [] } };
+    expect(moraleMean(l)).toBeCloseTo(2, 9);
+  });
+
+  it('tells a screen what it costs him, for your players only', () => {
+    const l = structuredClone(league);
+    const [p] = activeRoster(l, l.userTeamId);
+    p.morale = { level: -4, jolts: [] };
+    expect(moraleView(l, p)!.effect).toBe('costing');
+    p.morale = { level: 4, jolts: [] };
+    expect(moraleView(l, p)!.effect).toBe('lifting');
+    p.morale = { level: 0, jolts: [] };
+    expect(moraleView(l, p)!.effect).toBeUndefined();
+    const theirs = activeRoster(l, (l.userTeamId + 1) % 32)[0];
+    theirs.morale = { level: -8, jolts: [] };
+    expect(moraleView(l, theirs)).toBeNull();
   });
 });

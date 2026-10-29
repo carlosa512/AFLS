@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bodyAs } from './training';
 import { coachingFor } from './coaching';
 import {
@@ -6,6 +6,7 @@ import {
   developBlock,
   developPlayer,
   developWeek,
+  MOOD_TILT,
   CEILING_SWING,
   playedShare,
   RELEASE,
@@ -16,11 +17,16 @@ import {
   yearTargets,
 } from './development';
 import { createLeague } from './generate';
+import { playerOvr } from './positions';
 import { Rng } from './rng';
 import type { League, Player } from './types';
 import { ATTRIBUTES } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
+
+// These test the release itself: moods seeded by `createLeague` would tilt them (G2's tilt has its own tests below).
+beforeAll(() => (MOOD_TILT.growth = 0));
+afterAll(() => (MOOD_TILT.growth = 0.1));
 
 /** Run `fn` with the release split set to `split`, then put the dial back. */
 function withSplit(split: Partial<typeof RELEASE>, fn: () => void) {
@@ -211,5 +217,152 @@ describe('unsettledSpread', () => {
   it('is nothing once he is past it', () => {
     expect(unsettledSpread(rookie({ experience: 3 }), league.season)).toBe(0);
     expect(unsettledSpread(rookie({ age: 26 }), league.season)).toBe(0);
+  });
+});
+
+describe("mood tilts a young player's year (G2)", () => {
+  beforeAll(() => (MOOD_TILT.growth = 0.1));
+  afterAll(() => (MOOD_TILT.growth = 0));
+
+  /** A league whose moods are all Okay but 20 Superb and 20 Abysmal growers (mean 0), and ten happy veterans. */
+  function setup() {
+    const league = createLeague({ seed: 'tilt' });
+    for (const p of Object.values(league.players)) p.morale = { level: 0, jolts: [] };
+    const rostered = Object.values(league.players).filter((p) => p.teamId !== null);
+    const growers = rostered.filter((p) => p.age <= 23 && p.potential > playerOvr(p) + 1).slice(0, 40);
+    const happy = growers.slice(0, 20);
+    const sad = growers.slice(20);
+    const veterans = rostered.filter((p) => p.age >= 30).slice(0, 10);
+    for (const p of [...happy, ...veterans]) p.morale = { level: 10, jolts: [] };
+    for (const p of sad) p.morale = { level: -10, jolts: [] };
+    const before = new Map<number, Player>();
+    const inputs = new Map<number, ReturnType<typeof year>>();
+    for (const p of [...growers, ...veterans]) {
+      const y = year(league, p);
+      before.set(p.id, copy(p));
+      inputs.set(p.id, y);
+      beginYear(league, y.rng(), p, y.ctx);
+      p.age++;
+    }
+    /** The one jump from where he stood before the roll, with a tilt of `mood`. */
+    const jump = (p: Player, mood: number) => {
+      const o = copy(before.get(p.id)!);
+      const { rng, ctx } = inputs.get(p.id)!;
+      developPlayer(rng(), o, { ...ctx, mood });
+      return o;
+    };
+    return { league, happy, sad, veterans, growers, before, jump };
+  }
+
+  it('lands a Superb year where one jump with a +0.10 tilt would, an Abysmal one at −0.10', () => {
+    const { league, happy, sad, jump } = setup();
+    developBlock(league, 'program');
+    developBlock(league, 'camp');
+    for (let w = 0; w < 18; w++) developWeek(league, []);
+    for (const p of happy) expect(p.ratings).toEqual(jump(p, 0.1).ratings);
+    for (const p of sad) expect(p.ratings).toEqual(jump(p, -0.1).ratings);
+    // The tilt did something: some Superb year ends above where it would have without one.
+    expect(happy.some((p) => ATTRIBUTES.some((a) => p.ratings[a] > jump(p, 0).ratings[a]))).toBe(true);
+  });
+
+  it('tilts only the ratings he was gaining', () => {
+    const { growers, before, jump } = setup();
+    for (const p of growers)
+      for (const a of ATTRIBUTES) {
+        const flat = jump(p, 0).ratings[a] - before.get(p.id)!.ratings[a];
+        // A falling rating lands as rolled; a rising one (even a hair that rounds to nothing) only tilts his way.
+        if (flat < 0) {
+          expect(jump(p, 0.1).ratings[a]).toBe(jump(p, 0).ratings[a]);
+          expect(jump(p, -0.1).ratings[a]).toBe(jump(p, 0).ratings[a]);
+        }
+        expect(jump(p, 0.1).ratings[a]).toBeGreaterThanOrEqual(jump(p, 0).ratings[a]);
+        expect(jump(p, -0.1).ratings[a]).toBeLessThanOrEqual(jump(p, 0).ratings[a]);
+      }
+  });
+
+  it('keeps no tilt for a year rolled at 26 or older', () => {
+    const { league, veterans } = setup();
+    developBlock(league, 'program');
+    developBlock(league, 'camp');
+    for (const p of veterans) expect(p.dev?.mood).toBeUndefined();
+    for (let w = 0; w < 9; w++) developWeek(league, []);
+    for (const p of veterans) expect(p.dev?.mood).toBeUndefined();
+  });
+
+  it('never steps a rating back, though his mood turns mid-season', () => {
+    const { league, happy, growers } = setup();
+    const seen = new Map<number, number[][]>(growers.map((p) => [p.id, [ATTRIBUTES.map((a) => p.ratings[a])]]));
+    const record = () => {
+      for (const p of growers) seen.get(p.id)!.push(ATTRIBUTES.map((a) => p.ratings[a]));
+    };
+    developBlock(league, 'program');
+    record();
+    developBlock(league, 'camp');
+    record();
+    for (let w = 0; w < 18; w++) {
+      if (w === 9) for (const p of happy) p.morale = { level: -10, jolts: [] };
+      developWeek(league, []);
+      record();
+    }
+    for (const p of growers) {
+      const steps = seen.get(p.id)!;
+      const end = steps[steps.length - 1];
+      ATTRIBUTES.forEach((_, i) => {
+        const dir = Math.sign(end[i] - steps[0][i]);
+        for (let k = 1; k < steps.length; k++) {
+          expect(Number.isInteger(steps[k][i])).toBe(true);
+          if (dir >= 0) expect(steps[k][i]).toBeGreaterThanOrEqual(steps[k - 1][i]);
+          if (dir <= 0) expect(steps[k][i]).toBeLessThanOrEqual(steps[k - 1][i]);
+        }
+      });
+    }
+  });
+
+  it('measures the tilt against the young players growing, so a room of sulking rookies grows as rolled', () => {
+    const { league, growers, jump } = setup();
+    // Every grower Very poor, the rest of the league Okay: against each other, none of them tilts.
+    for (const p of growers) p.morale = { level: -5, jolts: [] };
+    developBlock(league, 'program');
+    developBlock(league, 'camp');
+    for (let w = 0; w < 18; w++) developWeek(league, []);
+    for (const p of growers) expect(p.ratings).toEqual(jump(p, 0).ratings);
+  });
+
+  it('tilts nobody who has no mood on record', () => {
+    const { league, growers, jump } = setup();
+    // The young players' mean is −10 among these, so a man with no mood would otherwise read as happy.
+    const [none] = growers;
+    for (const p of growers) p.morale = { level: -10, jolts: [] };
+    delete none.morale;
+    developBlock(league, 'program');
+    developBlock(league, 'camp');
+    for (let w = 0; w < 18; w++) developWeek(league, []);
+    expect(none.ratings).toEqual(jump(none, 0).ratings);
+  });
+
+  it('closes a growth year early only once no tilt could still move a rating', () => {
+    // Every rostered young player, so some have a year that's all but landed in March.
+    const league = createLeague({ seed: 'tilt-close' });
+    for (const p of Object.values(league.players)) p.morale = { level: 0, jolts: [] };
+    const young = Object.values(league.players).filter((p) => p.teamId !== null && p.age <= 25);
+    const jumps = new Map<number, [Player, Player]>();
+    for (const p of young) {
+      const { rng, ctx } = year(league, p);
+      const up = copy(p);
+      const down = copy(p);
+      developPlayer(rng(), up, { ...ctx, mood: 0.1 });
+      developPlayer(rng(), down, { ...ctx, mood: -0.1 });
+      jumps.set(p.id, [up, down]);
+      beginYear(league, rng(), p, ctx);
+      p.age++;
+    }
+    const closed = young.filter((p) => !p.dev);
+    // Closed early only when the most a mood could tilt it lands it where it stands, either way.
+    expect(closed.length).toBeGreaterThan(0);
+    for (const p of closed) {
+      const [up, down] = jumps.get(p.id)!;
+      expect(p.ratings).toEqual(up.ratings);
+      expect(p.ratings).toEqual(down.ratings);
+    }
   });
 });

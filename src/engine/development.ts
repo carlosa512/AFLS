@@ -14,6 +14,8 @@
 import { agingFamily, AGING, declineOnset } from './aging';
 import type { AgingFamily } from './attributes';
 import { ATTRIBUTE_PROFILES, OVR_WEIGHTS, overall } from './positions';
+import { moraleLevel } from './morale';
+import { moodPull } from './moodScale';
 import { clamp, Rng } from './rng';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { declineMult, effectiveTraits, growthMult } from './traits';
@@ -64,6 +66,8 @@ export interface DevContext {
    * physical tools keep that position's clock, so a move can't buy a younger body.
    */
   bodyAs?: Position;
+  /** A year's mood tilt (`DevYear.mood`, G2), for a one-jump replay: the ratings he was gaining land at `1 + mood`. */
+  mood?: number;
 }
 
 /** Regular-season games: a full season of reps. */
@@ -187,13 +191,14 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
  * what he had when the year was rolled (today's rating less what this year has applied). Integers only,
  * and monotone in `s`, so steps never jitter and the whole year lands exactly where one jump would.
  */
-function applyShare(player: Player, targets: number[], applied: number[], s: number): void {
+function applyShare(player: Player, targets: number[], applied: number[], s: number, tilt = 0): void {
   for (let i = 0; i < ATTRIBUTES.length; i++) {
     const t = targets[i];
     if (!t) continue;
     const attr = ATTRIBUTES[i];
     const start = player.ratings[attr] - (applied[i] ?? 0);
-    const want = Math.round(clamp(start + s * t, 1, 20)) - start;
+    // His mood tilts only what he's gaining (G2): a falling rating is the body's, or a slip, and lands as rolled.
+    const want = Math.round(clamp(start + s * (t > 0 ? 1 + tilt : 1) * t, 1, 20)) - start;
     player.ratings[attr] = start + want;
     applied[i] = want;
   }
@@ -203,7 +208,7 @@ function applyShare(player: Player, targets: number[], applied: number[], s: num
 
 /** One whole year of development in one step (the cohort scripts and tests). `rng` is the player's own stream for the year. */
 export function developPlayer(rng: Rng, player: Player, ctx: DevContext): void {
-  applyShare(player, rollYear(rng, player, ctx), [], 1);
+  applyShare(player, rollYear(rng, player, ctx), [], 1, ctx.mood ?? 0);
 }
 
 // ───────── roll once, release in steps ─────────
@@ -214,6 +219,13 @@ export function developPlayer(rng: Rng, player: Player, ctx: DevContext): void {
  * in March, the game as it was: every number below is a dial walked away from that one step at a time.
  */
 export const RELEASE = { newYear: 0.6, program: 0.05, camp: 0.05, season: 0.3 };
+
+/**
+ * How far a young player's mood tilts his year (G2, docs/superpowers/specs/2026-10-29-morale-effects-design.md): at
+ * most ±10% on the ratings he's gaining, built up a step at a time over the program, camp and the season's weeks, by
+ * his mood against the league's. A dial like `RELEASE`: the release's own checks hold it at 0.
+ */
+export const MOOD_TILT = { growth: 0.1 };
 
 /**
  * The inputs a year is rolled with. When the year is kept to land in steps, the coaching numbers are
@@ -303,16 +315,56 @@ export function yearTargets(league: League, p: Player): number[] {
 function releaseTo(p: Player, targets: number[], s: number): void {
   const d = p.dev!;
   const to = Math.min(1, s);
-  applyShare(p, targets, d.applied, to);
+  applyShare(p, targets, d.applied, to, d.mood ?? 0);
   d.done = to;
+  // A growth year stays open while his mood could still tilt what's left of it: it closes early only once the year
+  // would land where he stands at the most a tilt can be either way (`MOOD_TILT.growth`; at 0 that's the plain rule).
+  const reach = d.potential === undefined ? [0] : [-MOOD_TILT.growth, MOOD_TILT.growth];
   if (
     to >= 1 ||
-    !ATTRIBUTES.some(
-      (a, i) =>
-        targets[i] && Math.round(clamp(p.ratings[a] - (d.applied[i] ?? 0) + targets[i], 1, 20)) !== p.ratings[a],
+    !reach.some((tilt) =>
+      ATTRIBUTES.some(
+        (a, i) =>
+          targets[i] &&
+          Math.round(
+            clamp(p.ratings[a] - (d.applied[i] ?? 0) + (targets[i] > 0 ? 1 + tilt : 1) * targets[i], 1, 20),
+          ) !== p.ratings[a],
+      ),
     )
   )
     delete p.dev;
+}
+
+/**
+ * The mood of the young players growing now, on average: the tilt is measured against it, not the league's (young men
+ * run a little unhappier than veterans), so the league's growth as a whole holds. Worked out on the spot, never stored.
+ */
+function growthMean(league: League): number {
+  let sum = 0;
+  let n = 0;
+  for (const p of Object.values(league.players))
+    if (p.dev?.potential !== undefined && p.morale) {
+      sum += moraleLevel(league, p);
+      n++;
+    }
+  return n ? sum / n : 0;
+}
+
+/**
+ * A step's worth of his mood on a growth year (rolled under 26): `share` is the step's nominal release, so the tilt sums
+ * to `MOOD_TILT.growth × pull` over a year. A week he sat counts in full: his mood in practice counts whether or not he
+ * dressed (reps already set how fast the year lands).
+ */
+function tiltStep(league: League, p: Player, share: number, mean: number): void {
+  const d = p.dev!;
+  // No mood on record (never rostered): nothing to tilt by, as `growthMean` leaves him out.
+  if (d.potential === undefined || !p.morale || MOOD_TILT.growth <= 0) return;
+  const tilting = RELEASE.program + RELEASE.camp + RELEASE.season;
+  const next =
+    Math.round(((d.mood ?? 0) + (MOOD_TILT.growth * share * moodPull(moraleLevel(league, p), mean)) / tilting) * 1e4) /
+      1e4 || 0;
+  if (next) d.mood = next;
+  else delete d.mood;
 }
 
 /** Whatever of his year hasn't landed yet lands now: the next new league year, or a position change. */
@@ -324,7 +376,12 @@ export function trueUp(league: League, p: Player): void {
 export function developBlock(league: League, block: 'program' | 'camp'): void {
   const share = RELEASE[block];
   if (share <= 0) return;
-  for (const p of Object.values(league.players)) if (p.dev) releaseTo(p, yearTargets(league, p), p.dev.done + share);
+  const mean = growthMean(league);
+  for (const p of Object.values(league.players))
+    if (p.dev) {
+      tiltStep(league, p, share, mean);
+      releaseTo(p, yearTargets(league, p), p.dev.done + share);
+    }
 }
 
 /**
@@ -348,8 +405,10 @@ export function developWeek(league: League, games: readonly Game[]): void {
     busy.add(g.homeId).add(g.awayId);
     for (const [id, line] of Object.entries(g.result.playerStats)) if (line.gp) played.add(Number(id));
   }
+  const mean = growthMean(league);
   for (const p of Object.values(league.players)) {
     if (!p.dev) continue;
+    tiltStep(league, p, share, mean);
     const bye = p.teamId !== null && !busy.has(p.teamId);
     releaseTo(p, yearTargets(league, p), p.dev.done + share * weekWeight(p.age, played.has(p.id) || bye));
   }

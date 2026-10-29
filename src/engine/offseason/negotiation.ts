@@ -7,6 +7,8 @@
  * because you countered; patience is the only thing a lowball offer costs.
  */
 import { contractLean, noteDeparture, snubCheck } from '../relationships';
+import { moraleLevel } from '../morale';
+import { moodLean } from '../moodScale';
 import { accelerateProration, capSpace, logTransaction, paidFraction, paidShare, weeksPaid } from '../finance/cap';
 import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft } from '../finance/contract';
 import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears } from '../finance/market';
@@ -88,6 +90,20 @@ export function contenderScore(league: League, teamId: number): number {
 
 const isOwnTeam = (player: Player, teamId: number) => player.teamId === teamId;
 
+/**
+ * His mood at his own club (G2): an unhappy man makes it pay to keep him (up to 10% on his ask and walk-away), a happy
+ * one gives a little back (up to 5%); a round of patience more past Very good, one less past Very poor. Another club and
+ * a free agent's talks don't read it (what he thinks of clubs he left is `contractLean`'s).
+ */
+function moodTerms(league: League, player: Player, own: boolean): { price: number; patience: number } {
+  if (!own) return { price: 1, patience: 0 };
+  const lean = moodLean(moraleLevel(league, player));
+  return {
+    price: lean < 0 ? 1 + 0.1 * -lean : 1 - 0.05 * lean,
+    patience: lean <= -0.5 ? -1 : lean >= 0.5 ? 1 : 0,
+  };
+}
+
 export function demand(league: League, player: Player, teamId: number): Demand {
   const m = leagueMarket(league);
   const market = marketApy(m, player);
@@ -96,16 +112,17 @@ export function demand(league: League, player: Player, teamId: number): Demand {
   const min = minSalary(player.experience, m.cap);
   const pressure = own ? 0 : marketPressure(league);
   const lean = contractLean(league, player, teamId);
+  const mood = moodTerms(league, player, own);
   return {
     market,
-    askApy: Math.max(min, Math.round(market * (1 + p.greed * 0.15) * lean.ask)),
+    askApy: Math.max(min, Math.round(market * (1 + p.greed * 0.15) * lean.ask * mood.price)),
     askYears: preferredYears(player),
     askGtdPct: Math.round(guaranteeAsk(m, player) * 100) / 100,
     walkAway: Math.max(
       min,
-      market * (0.9 + 0.08 * p.greed) * (own ? 1 - 0.07 * p.loyalty : 1) * (1 - pressure) * lean.walkAway,
+      market * (0.9 + 0.08 * p.greed) * (own ? 1 - 0.07 * p.loyalty : 1) * (1 - pressure) * lean.walkAway * mood.price,
     ),
-    patience: 1 + Math.round(p.patience * 3),
+    patience: Math.max(1, 1 + Math.round(p.patience * 3) + mood.patience),
   };
 }
 

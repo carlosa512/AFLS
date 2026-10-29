@@ -344,16 +344,50 @@ export interface MoraleNoteFact {
   happy: boolean;
   /** Down at the last report, himself again now. */
   back?: boolean;
+  /** Very poor or worse: his mood is costing him in his work (G2). */
+  costing?: boolean;
 }
 
 export const MORALE_NOTE: readonly Line<MoraleNoteFact>[] = [
+  // What it's costing him (G2): the reason and the cost together, then the cost alone.
   {
-    when: (f) => f.reason === 'You broke your word',
+    when: (f) => !!f.costing && f.reason === 'You broke your word',
+    reads: 3,
+    text: (f) => `${f.name} took you at your word, and he's stopped working like it. It shows in practice.`,
+  },
+  {
+    when: (f) => !!f.costing && f.reason === 'Wants more snaps',
+    reads: 3,
+    text: (f) => `${f.name} is sulking about snaps, and it's showing in practice.`,
+  },
+  {
+    when: (f) => !!f.costing && f.reason === 'Wants a new deal',
+    reads: 3,
+    text: (f) => `${f.name} has the contract on his mind, and it's in his work. He's a step slow in practice.`,
+  },
+  {
+    when: (f) => !!f.costing && f.reason === 'The losing is wearing on him',
+    reads: 3,
+    text: (f) => `The losing has got into ${f.name}. You can see it on the practice field.`,
+  },
+  {
+    when: (f) => !!f.costing && f.reason === 'A feud in the room',
+    reads: 3,
+    text: (f) => `${f.name}'s feud is costing him. His mind isn't on the work.`,
+  },
+  {
+    when: (f) => !!f.costing,
+    reads: 2.5,
+    text: (f) => `${f.name} is down, and it's costing him in practice and on game day.`,
+  },
+  { when: (f) => !!f.costing, reads: 2.5, text: (f) => `Whatever's eating ${f.name}, it's in his work now.` },
+  {
+    when: (f) => !f.costing && f.reason === 'You broke your word',
     reads: 3,
     text: (f) => `You told ${f.name} he'd get it. He's still waiting.`,
   },
   {
-    when: (f) => f.reason === 'You broke your word',
+    when: (f) => !f.costing && f.reason === 'You broke your word',
     reads: 3,
     text: (f) => `${f.name} took you at your word. That's gone now, and the room saw it.`,
   },

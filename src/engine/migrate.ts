@@ -236,6 +236,18 @@ export function migrateLeague(league: League): League | null {
   }
   // v68: `Morale.talk` (players speaking up, G3) and the talk jolts: optional, absent to start.
   if (league.version < 68) league.version = 68;
+  // v69: `DevYear.mood` (G2's growth tilt): optional, absent to start; a year rolled before it lands untilted.
+  // Also v69: before 0.2.24 a free agent who walked with his old club's promise open took its "broken" hit, and kept it
+  // when a new club signed him, so your screens blamed you. One his own club broke is on his record (`talk.broken`).
+  if (league.version < 69) {
+    for (const p of Object.values(league.players)) {
+      const m = p.morale;
+      if (!m?.jolts?.some((j) => j.kind === 'broken') || m.talk?.broken) continue;
+      m.jolts = m.jolts.filter((j) => j.kind !== 'broken');
+      if (!m.jolts.length) delete m.jolts;
+    }
+    league.version = 69;
+  }
   return league;
 }
 

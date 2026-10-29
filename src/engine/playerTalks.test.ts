@@ -283,6 +283,22 @@ describe('talks: promises kept and broken', () => {
     expect(p.morale!.talk).toBeUndefined();
   });
 
+  it('does not blame you for another club’s promise when he walks in free agency and you sign him', () => {
+    const l = fresh();
+    const other = (l.userTeamId + 1) % 32;
+    const p = activeRoster(l, other)[0];
+    p.morale = { level: 0, talk: { club: other, promise: { kind: 'deal', made: l.moraleAt!, due: l.moraleAt! + 40 } } };
+    // He walks: a free agent keeps no jolts (G1), so the promise his old club left open costs nothing.
+    p.teamId = null;
+    talkStep(l, played(l, 1), l.moraleAt! + 1, 9, false);
+    expect(kinds(p)).not.toContain('broken');
+    expect(p.morale!.talk).toBeUndefined();
+    // You sign him the next step: nothing of theirs follows him in.
+    p.teamId = l.userTeamId;
+    talkStep(l, played(l, 1), l.moraleAt! + 2, 9, false);
+    expect(kinds(p)).not.toContain('broken');
+  });
+
   it('fades what he remembers at the new league year', () => {
     const l = fresh();
     const p = activeRoster(l, l.userTeamId)[0];
