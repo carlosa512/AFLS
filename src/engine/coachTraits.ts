@@ -73,10 +73,10 @@ export const cultureRoom = (hc: Pick<Coach, 'traits'>): number =>
 
 /**
  * Wanting the step up: a lifer (ambition at `lifer` or less) never takes it, a climber (`climber` or more) always does,
- * and anyone between says yes as often as (ambition − lifer) / 10, less `cool` a year past 55. A coordinator's chair
+ * and anyone between says yes as often as (ambition − lifer) / (climber − lifer), less `cool` a year past 55. A coordinator's chair
  * is a step easier to want than a head coach's.
  */
-export const STEP_UP = { headCoach: { lifer: 5, climber: 15 }, coordinator: { lifer: 3, climber: 13 }, cool: 0.05 };
+export const STEP_UP = { headCoach: { lifer: 6, climber: 11 }, coordinator: { lifer: 4, climber: 9 }, cool: 0.05 };
 
 /** Whether he wants the chair one rung up this offseason: one answer per season, the same for every club that asks. */
 export function wantsStepUp(seed: string, season: number, c: Coach, chair: CoachRole): boolean {
@@ -84,7 +84,7 @@ export function wantsStepUp(seed: string, season: number, c: Coach, chair: Coach
   const ambition = traitOf(c, 'ambition');
   if (ambition <= lifer) return false;
   if (ambition >= climber) return true;
-  const chance = (ambition - lifer) / 10 - STEP_UP.cool * Math.max(0, c.age - 55);
+  const chance = (ambition - lifer) / (climber - lifer) - STEP_UP.cool * Math.max(0, c.age - 55);
   return new Rng(`${seed}:wants:${season}:${c.id}:${chair}`).next() < chance;
 }
 
@@ -95,7 +95,7 @@ export function wantsStepUp(seed: string, season: number, c: Coach, chair: Coach
  * decision at camp `camp`. Kept between `min` and `max`.
  */
 export const STEP_DOWN = {
-  base: 0.3,
+  base: 0.15,
   perYear: 0.04,
   fired: 0.2,
   perAmbition: 0.05,

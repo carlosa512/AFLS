@@ -1,6 +1,6 @@
 /** What coaches' character does in the game (docs/superpowers/specs/2026-10-30-coach-character-design.md). */
 import { describe, expect, it } from 'vitest';
-import { adaptShare, headStints, stepsDown, wantsStepUp } from './coachTraits';
+import { adaptShare, headStints, STEP_UP, stepsDown, wantsStepUp } from './coachTraits';
 import {
   bentDefense,
   bentPassLean,
@@ -175,15 +175,18 @@ describe('wanting the step up', () => {
   const dc = (ambition: number, age = 45) => withTraits({ ...coachOf('defCoord'), age }, { ambition });
 
   it('never takes a lifer up, always a climber, and the same answer all offseason', () => {
-    expect(wantsStepUp('s', 2030, dc(5), 'headCoach')).toBe(false);
-    expect(wantsStepUp('s', 2030, dc(15), 'headCoach')).toBe(true);
-    const c = dc(10);
+    const { lifer, climber } = STEP_UP.headCoach;
+    expect(wantsStepUp('s', 2030, dc(lifer), 'headCoach')).toBe(false);
+    expect(wantsStepUp('s', 2030, dc(climber), 'headCoach')).toBe(true);
+    const c = dc((lifer + climber) / 2);
     expect(wantsStepUp('s', 2030, c, 'headCoach')).toBe(wantsStepUp('s', 2030, copyOf(c), 'headCoach'));
   });
 
-  it('says yes about (ambition − 5) / 10 of the time, less after 55', () => {
+  it('says yes as often as ambition sits between lifer and climber, less after 55', () => {
+    const { lifer, climber } = STEP_UP.headCoach;
+    const mid = (lifer + climber) / 2;
     const share = (age: number) =>
-      Array.from({ length: 1000 }, (_, id) => wantsStepUp('s', 2030, { ...dc(10, age), id }, 'headCoach')).filter(
+      Array.from({ length: 1000 }, (_, id) => wantsStepUp('s', 2030, { ...dc(mid, age), id }, 'headCoach')).filter(
         Boolean,
       ).length / 1000;
     expect(share(45)).toBeGreaterThan(0.45);
@@ -193,9 +196,9 @@ describe('wanting the step up', () => {
 
   it('is a step easier for a position coach taking a coordinator’s chair', () => {
     const pc = (ambition: number) => withTraits({ ...coachOf('positionCoach'), room: 'LB' }, { ambition });
-    expect(wantsStepUp('s', 2030, pc(4), 'defCoord')).toBe(wantsStepUp('s', 2030, pc(4), 'defCoord'));
-    expect(wantsStepUp('s', 2030, pc(3), 'defCoord')).toBe(false);
-    expect(wantsStepUp('s', 2030, pc(13), 'defCoord')).toBe(true);
+    expect(STEP_UP.coordinator.lifer).toBeLessThan(STEP_UP.headCoach.lifer);
+    expect(wantsStepUp('s', 2030, pc(STEP_UP.coordinator.lifer), 'defCoord')).toBe(false);
+    expect(wantsStepUp('s', 2030, pc(STEP_UP.coordinator.climber), 'defCoord')).toBe(true);
   });
 
   it('hires the best willing man, logs the top choice who said no, and never leaves a chair empty', () => {
