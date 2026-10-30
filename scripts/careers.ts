@@ -371,6 +371,11 @@ console.log(
 console.log(
   `${check('points per team-game', mean(steady.points), 21, 25)} · ${check('penalties', mean(steady.penalties), 5, 7)} · ${check('sacks', mean(steady.sacks), 2, 2.7)}`,
 );
+// A long league's spread of records, against a fresh league's in the sim check: reported until the NFL figure for a
+// league that has built its own rosters is agreed.
+console.log(
+  `win spread, SD of team wins (steady): ${mean(steady.winSpread).toFixed(2)} (NFL 3.0–3.3; reported, not judged)`,
+);
 // Grown-up stars must still lead the league like the NFL's do: the average #1 and #5 are held to the
 // ranges `npm run sim` uses for a fresh league. How often a leader passes the record is printed but not
 // judged: four leagues hold a handful of star careers, one elite quarterback and receiver can break it

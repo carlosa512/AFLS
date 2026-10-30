@@ -79,6 +79,14 @@ const INJURY_TARGETS: Record<string, [number, number]> = {
   'torn ACLs / team': [0.6, 1.5],
   'hamstrings / team': [3.5, 7],
 };
+
+// How much team strength decides (NFL 2015–24: betting favourites win 66–67%, a final margin sits about 13.5 points
+// either side of the line, team wins spread with an SD of 3.0–3.3). Strength is each team's overall at kickoff.
+const PARITY_TARGETS: Record<string, [number, number]> = {
+  'stronger team wins %': [65, 69],
+  'margin spread around strength': [13, 14.5],
+  'win spread (SD)': [3.0, 3.4],
+};
 const inj: Record<string, number> = {};
 const injAdd = (k: string, v = 1) => (inj[k] = (inj[k] ?? 0) + v);
 const bySeverity: Record<string, number> = {};
@@ -98,6 +106,8 @@ let favoriteWins = 0;
 /** Team-seasons with 30 or more rushing touchdowns (NFL: 3 of 160 in 2021–25, 8 of 861 since 1999; the most since 1999 is 32). */
 let rushTd30 = 0;
 let decided = 0;
+/** Each game's rating gap (home less away, at kickoff) and home margin, for how much strength decides. */
+const gaps: [number, number][] = [];
 /** Total points in games under a roof and in the open air (NFL: indoor games score almost 4 more). */
 const byRoof = { indoor: [0, 0], outdoor: [0, 0] };
 const winsByStrength: { rating: number; wins: number }[] = [];
@@ -179,6 +189,7 @@ for (let s = 0; s < seasons; s++) {
     roof[0] += r.homeScore + r.awayScore;
     roof[1]++;
     if (r.overtime) ot++;
+    gaps.push([ratings.get(g.homeId)! - ratings.get(g.awayId)!, r.homeScore - r.awayScore]);
     if (r.homeScore === r.awayScore) ties++;
     else {
       if (r.homeScore > r.awayScore) homeWins++;
@@ -331,16 +342,12 @@ console.log(`\nTime of possession check: ${(per('top') / 60).toFixed(1)} min per
 console.log(
   `Indoor games score ${(byRoof.indoor[0] / byRoof.indoor[1] - byRoof.outdoor[0] / byRoof.outdoor[1]).toFixed(1)} more points than outdoor ones (NFL ≈ 4)`,
 );
-console.log(`Better-rated team wins ${((100 * favoriteWins) / decided).toFixed(1)}% of decided games`);
 winsByStrength.sort((a, b) => b.rating - a.rating);
 const q = Math.floor(winsByStrength.length / 4);
 const avgWins = (arr: typeof winsByStrength) => (arr.reduce((s, x) => s + x.wins, 0) / arr.length).toFixed(1);
 console.log(
   `Avg wins by rating quartile (best→worst): ${[0, 1, 2, 3].map((i) => avgWins(winsByStrength.slice(i * q, (i + 1) * q))).join(' / ')}`,
 );
-const mean = winsByStrength.reduce((s, x) => s + x.wins, 0) / winsByStrength.length;
-const sd = Math.sqrt(winsByStrength.reduce((s, x) => s + (x.wins - mean) ** 2, 0) / winsByStrength.length);
-console.log(`Std dev of team wins: ${sd.toFixed(2)} (NFL ≈ 3.0–3.3)`);
 console.log(
   `Team-seasons with 30+ rushing TDs (informational): ${rushTd30} of ${seasons * 32} (NFL 2021–25: 3 of 160)`,
 );
@@ -418,6 +425,30 @@ console.log(
   `Injuries per rostered player-season by position (informational): ${Object.entries(byPosition)
     .map(([pos, b]) => `${pos} ${(b.hurt / b.players).toFixed(2)}`)
     .join(' · ')}`,
+);
+
+// Parity: margin against rating gap by least squares; the residual is the game's own randomness.
+const meanOf = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+const gx = meanOf(gaps.map(([x]) => x));
+const gy = meanOf(gaps.map(([, y]) => y));
+const slope = gaps.reduce((t, [x, y]) => t + (x - gx) * (y - gy), 0) / gaps.reduce((t, [x]) => t + (x - gx) ** 2, 0);
+const residual = Math.sqrt(meanOf(gaps.map(([x, y]) => (y - gy - slope * (x - gx)) ** 2)));
+const meanWins = meanOf(winsByStrength.map((x) => x.wins));
+const parityResults: Record<string, number> = {
+  'stronger team wins %': (100 * favoriteWins) / decided,
+  'margin spread around strength': residual,
+  'win spread (SD)': Math.sqrt(meanOf(winsByStrength.map((x) => (x.wins - meanWins) ** 2))),
+};
+console.log('\nParity');
+console.log('stat'.padEnd(30), 'sim'.padStart(8), '  NFL range');
+for (const [k, v] of Object.entries(parityResults)) {
+  const [lo, hi] = PARITY_TARGETS[k];
+  const ok = v >= lo && v <= hi;
+  if (!ok) misses++;
+  console.log(k.padEnd(30), v.toFixed(2).padStart(8), `  ${lo}–${hi}`, ok ? '' : v < lo ? '  ▼ LOW' : '  ▲ HIGH');
+}
+console.log(
+  `Points of margin per rating point ${slope.toFixed(1)}; margin strength predicts, SD ${(slope * Math.sqrt(meanOf(gaps.map(([x]) => (x - gx) ** 2)))).toFixed(1)} (NFL ≈ 5.5–6) (informational)`,
 );
 
 console.log(`\n${misses} stat(s) outside target range`);
