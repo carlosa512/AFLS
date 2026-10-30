@@ -7,6 +7,7 @@ import {
   callerStyle,
   coachAsk,
   coachAskTo,
+  cultureCalls,
   extendCoach,
   headCoachVision,
   isCoachExpiring,
@@ -17,6 +18,7 @@ import {
 } from './coaching';
 import { createLeague } from './generate';
 import { simToEndOfSeason } from './league';
+import { moraleContext, moraleFactors } from './morale';
 import { beginOffseason } from './offseason';
 import { TREE_PULL, treeLean } from './trees';
 import type { Coach, CoachTraits, League } from './types';
@@ -128,5 +130,37 @@ describe('adaptability', () => {
     expect(visionFit(l, hc, coord)!).toBeGreaterThan(stubborn);
     expect(callerStyle(l, team).passLean).toBeCloseTo(bentPassLean(coord, vision));
     expect(planUnder(l, coord).style?.passLean).toBeCloseTo(bentPassLean(coord, vision));
+  });
+});
+
+describe('discipline', () => {
+  const headOf = (l: League, team: number) => teamCoaches(l, team).find((c) => c.role === 'headCoach')!;
+
+  it('gives a disciplinarian fewer flags and a player’s coach more, a typical coach none', () => {
+    const l = createLeague({ seed: 'culture-calls' });
+    withTraits(headOf(l, 1), { discipline: 18 });
+    withTraits(headOf(l, 2), { discipline: 3 });
+    withTraits(headOf(l, 3), {});
+    expect(cultureCalls(l, 1)).toBeCloseTo(0.92);
+    expect(cultureCalls(l, 2)).toBeCloseTo(1.08);
+    expect(cultureCalls(l, 3)).toBe(1);
+  });
+
+  it('lifts the room under a player’s coach and quiets it under a disciplinarian', () => {
+    const l = createLeague({ seed: 'culture-room' });
+    withTraits(headOf(l, 2), { discipline: 3 });
+    withTraits(headOf(l, 1), { discipline: 18 });
+    const ctx = moraleContext(l);
+    expect(ctx.culture.get(2)).toBeCloseTo(0.5);
+    expect(ctx.culture.get(1)).toBeCloseTo(-0.5);
+    const p = l.players[l.teams[2].depthChart.QB[0]];
+    const base = moraleFactors(l, p, { ...ctx, culture: new Map() }).room;
+    expect(moraleFactors(l, p, ctx).room).toBeCloseTo(Math.min(1.5, base + 0.5));
+  });
+
+  it('keeps the league’s mood centred over a league of coaches', () => {
+    const ctx = moraleContext(createLeague({ seed: 'culture' }));
+    const xs = [...ctx.culture.values()];
+    expect(Math.abs(xs.reduce((a, b) => a + b, 0) / xs.length)).toBeLessThan(0.15);
   });
 });

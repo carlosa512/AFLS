@@ -22,7 +22,16 @@
  * agency, like scouts. All coaching randomness uses its own seeded Rngs: it never shifts the
  * league's main random stream, and a migrated save gets the same coaches as a new league.
  */
-import { adaptShare, coolAmbition, LOYAL, rollCoachTraits, traitLean, traitOf, traitsFromPlayer } from './coachTraits';
+import {
+  adaptShare,
+  coolAmbition,
+  cultureFlags,
+  LOYAL,
+  rollCoachTraits,
+  traitLean,
+  traitOf,
+  traitsFromPlayer,
+} from './coachTraits';
 import { inheritedScheme, keepBonus, mainMentor, treeLean } from './trees';
 import { workEthicOf } from './traits';
 import {
@@ -594,6 +603,12 @@ export function coachAsk(league: League, c: Coach, years = 2): number {
       (1 + PEDIGREE * pedigree(league, c)),
   );
 }
+/** A head coach's culture on game day: his multiplier on his team's pre-snap and personal fouls (1 without one). */
+export function cultureCalls(league: League, teamId: number): number {
+  const hc = league.coaches ? chairHolder(teamCoaches(league, teamId), { role: 'headCoach' }) : null;
+  return hc ? cultureFlags(hc) : 1;
+}
+
 /** What he asks a club, $K: a loyal man takes a little less to stay with his own, a hired gun a little more. */
 export function coachAskTo(league: League, c: Coach, years: number, teamId: number): number {
   const ask = coachAsk(league, c, years);

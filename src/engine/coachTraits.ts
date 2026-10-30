@@ -58,3 +58,15 @@ export function coolAmbition(c: Coach): void {
 
 /** How far a coordinator bends to his head coach's plan: none at 1, most of the way (0.8) at 20. */
 export const adaptShare = (c: Pick<Coach, 'traits'>): number => (0.8 * (traitOf(c, 'adaptability') - 1)) / 19;
+
+/**
+ * Discipline's hooks at the extremes (±2 sd), a head coach's only: his team's pre-snap and personal fouls 8% under
+ * (disciplinarian) or over (player's coach), and his players' room ±0.5. Centred: a typical head coach changes nothing.
+ */
+export const DISCIPLINE = { flags: 0.08, room: 0.5 };
+/** A head coach's multiplier on his team's pre-snap and personal fouls. */
+export const cultureFlags = (hc: Pick<Coach, 'traits'>): number =>
+  1 - DISCIPLINE.flags * traitLean(traitOf(hc, 'discipline'));
+/** What a head coach adds to his players' room factor: a player's coach lifts it, a disciplinarian quiets it. */
+export const cultureRoom = (hc: Pick<Coach, 'traits'>): number =>
+  -DISCIPLINE.room * traitLean(traitOf(hc, 'discipline'));
