@@ -1363,6 +1363,8 @@ export interface MailSection {
     contract?: { playerId: number };
     /** A player who spoke up (a step's players' letters): his answers are drawn from his talk record. */
     talk?: { playerId: number; clock: number };
+    /** A player the row offers contract talks with (the promises reminder's deals). */
+    negotiate?: { playerId: number };
   }[];
 }
 

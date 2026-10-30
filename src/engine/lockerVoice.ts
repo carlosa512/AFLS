@@ -507,3 +507,22 @@ export const TALK_GROUP_COACH: readonly Line<{ n: number }>[] = [
       `I had ${(TALLY[f.n] ?? 'a few').toLowerCase()} players in my office this week. Each one is below, with what he wants from you.`,
   },
 ];
+
+/** The season's-end reminder of promises (`promiseMail.ts`): its subject and the head coach's lead. */
+export const PROMISES_SUBJECT: readonly Line<{ n: number }>[] = [
+  { text: (f) => (f.n === 1 ? 'A promise to keep' : 'Promises to keep') },
+];
+export const PROMISES_LEAD: readonly Line<{ n: number }>[] = [
+  {
+    text: (f) =>
+      f.n === 1
+        ? "Season's done. Before the new year starts, here's the one promise we made a player that's still open."
+        : `Season's done. Before the new year starts, here are the ${f.n} promises we made players that are still open.`,
+  },
+  {
+    text: (f) =>
+      f.n === 1
+        ? "One thing to carry into the offseason: a promise we still owe. He hasn't forgotten it."
+        : `${f.n} things to carry into the offseason: promises we still owe. They haven't forgotten them.`,
+  },
+];
