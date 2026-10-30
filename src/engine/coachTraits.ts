@@ -57,7 +57,13 @@ export function coolAmbition(c: Coach): void {
 }
 
 /** How far a coordinator bends to his head coach's plan: none at 1, most of the way (0.8) at 20. */
-export const adaptShare = (c: Pick<Coach, 'traits'>): number => (0.8 * (traitOf(c, 'adaptability') - 1)) / 19;
+export const adaptShare = (c: Pick<Coach, 'traits'>): number => (ADAPT.max * (traitOf(c, 'adaptability') - 1)) / 19;
+/**
+ * Adaptability's dials: the most a coordinator bends (at 20), and the pass lean head coaches' visions run above
+ * coordinators' own plans across the league. An offensive coordinator bends toward his head coach's vision less that
+ * tilt, so the league's run/pass mix holds (`npm run sim`) while each one still moves toward what his head coach wants.
+ */
+export const ADAPT = { max: 0.8, tilt: 0.1 };
 
 /**
  * Discipline's hooks at the extremes (±2 sd), a head coach's only: his team's pre-snap and personal fouls 8% under
@@ -80,6 +86,8 @@ export const STEP_UP = { headCoach: { lifer: 6, climber: 11 }, coordinator: { li
 
 /** Whether he wants the chair one rung up this offseason: one answer per season, the same for every club that asks. */
 export function wantsStepUp(seed: string, season: number, c: Coach, chair: CoachRole): boolean {
+  // A head coach who just chose to coordinate again isn't back in head coach's talks the same offseason.
+  if (chair === 'headCoach' && c.steppedDown === season) return false;
   const { lifer, climber } = chair === 'headCoach' ? STEP_UP.headCoach : STEP_UP.coordinator;
   const ambition = traitOf(c, 'ambition');
   if (ambition <= lifer) return false;

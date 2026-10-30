@@ -156,10 +156,10 @@ describe('save v60', () => {
 /** The first 32 picks of seed 'draft-trades-b' with main's draft code (`simDraft`, rng 'baseline'). */
 // Re-taken with personality (0.2.15), mentoring (0.2.16) and relationships (0.2.17): the season before draft day
 // plays out differently. Again with moods that matter (0.2.24), on a new seed: the old one's draft drew no offer for
-// any of your picks, which the tests below need.
+// any of your picks, which the tests below need. Again with coaches' character (0.2.25): who coaches whom moves play.
 const BASELINE = [
-  1788, 1785, 1783, 1797, 1781, 1879, 1789, 1787, 1823, 1813, 1796, 1802, 1793, 1807, 1799, 1811, 1814, 1851, 1808,
-  1794, 1791, 1786, 1782, 1795, 1810, 1801, 1784, 1869, 1815, 1916, 1875, 1835,
+  1784, 1786, 1789, 1782, 1794, 1797, 1792, 1788, 1829, 1815, 1814, 1798, 1880, 1799, 1824, 1852, 1803, 1808, 1785,
+  1800, 1790, 1812, 1783, 1796, 1787, 1809, 1801, 1822, 1820, 1870, 1795, 1860,
 ];
 
 /** The pick on the clock (an AI team's) and another AI team's pick `ahead` slots later. */

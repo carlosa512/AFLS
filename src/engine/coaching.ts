@@ -23,6 +23,7 @@
  * league's main random stream, and a migrated save gets the same coaches as a new league.
  */
 import {
+  ADAPT,
   adaptShare,
   coolAmbition,
   cultureFlags,
@@ -480,7 +481,33 @@ export interface Vision {
  * coordinators' schemes), so hiring for fit pairs men up without thinning out any kind of offense or defense. Rolled
  * from his id: nothing stored, and the league's random stream never moves.
  */
+// A head coach's vision is read on every lineup and scheme (an adaptable coordinator bends to it): worked out once per
+// moment of the calendar and head coach as he is then.
+const visions = new WeakMap<League, Map<string, Vision>>();
 export function headCoachVision(league: League, hc: Coach): Vision {
+  const key = [
+    league.season,
+    league.phase,
+    league.week,
+    hc.id,
+    hc.teamId,
+    hc.since,
+    hc.style?.passLean,
+    hc.style?.fourthDown,
+    hc.scheme?.offense,
+    hc.scheme?.front,
+    hc.scheme?.coverage,
+  ].join(':');
+  let seen = visions.get(league);
+  if (!seen) visions.set(league, (seen = new Map()));
+  const hit = seen.get(key);
+  if (hit) return hit;
+  const v = visionNow(league, hc);
+  seen.set(key, v);
+  return v;
+}
+
+function visionNow(league: League, hc: Coach): Vision {
   const lean = new Rng(`${league.seed}:vision:${hc.id}`).normal(0, 0.27);
   const taste = rollScheme(`${league.seed}:taste`, { id: hc.id, role: 'defCoord' })!;
   const stayed = hc.teamId !== null && hc.since !== undefined && hc.since < league.season;
@@ -530,7 +557,7 @@ export function visionFit(league: League, hc: Coach | null, c: Coach, vision?: V
 /** An offensive coordinator's pass lean under a head coach: an adaptable one moves part of the way to what he wants. */
 export const bentPassLean = (oc: Coach, v: Vision): number => {
   const own = oc.style?.passLean ?? 0;
-  return own + adaptShare(oc) * (v.pass - own);
+  return own + adaptShare(oc) * (v.pass - ADAPT.tilt - own);
 };
 
 /**
@@ -1059,6 +1086,7 @@ export function stepDown(
       .sort((a, b) => a.season - b.season)
       .at(-1)?.teamId;
   Object.assign(c, asPromoted(league, c, { role: side }));
+  c.steppedDown = league.season;
   delete c.room;
   delete c.actingAs;
   touch();

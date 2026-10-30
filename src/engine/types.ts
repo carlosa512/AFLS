@@ -759,6 +759,8 @@ export interface Coach {
   contract: { salary: number; through: number } | null;
   /** His character (`coachTraits.ts`); a coach without it reads as typical. */
   traits?: CoachTraits;
+  /** The league year a fired head coach stepped down to coordinate: no head coach's talks for him that offseason. */
+  steppedDown?: number;
 }
 
 export type MedicRole = 'doctor' | 'physio' | 'scientist';

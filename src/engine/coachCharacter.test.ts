@@ -1,6 +1,6 @@
 /** What coaches' character does in the game (docs/superpowers/specs/2026-10-30-coach-character-design.md). */
 import { describe, expect, it } from 'vitest';
-import { adaptShare, headStints, STEP_UP, stepsDown, wantsStepUp } from './coachTraits';
+import { ADAPT, adaptShare, headStints, STEP_UP, stepsDown, wantsStepUp } from './coachTraits';
 import {
   bentDefense,
   bentPassLean,
@@ -105,7 +105,7 @@ describe('adaptability', () => {
     withTraits({ ...coachOf('offCoord'), style: { passLean } }, { adaptability });
 
   it('bends an adaptable OC’s pass lean toward the head coach, not a stubborn one’s', () => {
-    expect(bentPassLean(oc(20, -0.4), v(0.8))).toBeCloseTo(-0.4 + 0.8 * 1.2);
+    expect(bentPassLean(oc(20, -0.4), v(0.8))).toBeCloseTo(-0.4 + 0.8 * (1.2 - ADAPT.tilt));
     expect(bentPassLean(oc(1, -0.4), v(0.8))).toBeCloseTo(-0.4);
     expect(adaptShare(oc(20, 0))).toBeCloseTo(0.8);
   });
@@ -303,5 +303,28 @@ describe('stepping down', () => {
     expect(market.length).toBeGreaterThan(0);
     ensureCoached(l);
     expect(market.some((c) => c.role === 'offCoord')).toBe(true);
+  });
+});
+
+describe('review fixes', () => {
+  it('works out a head coach’s vision once per moment, not on every lineup', () => {
+    const l = createLeague({ seed: 'vision-cache' });
+    const hc = headOf(l, 3);
+    expect(headCoachVision(l, hc)).toBe(headCoachVision(l, hc));
+  });
+
+  it('keeps a man who just stepped down out of head-coach talks this offseason', () => {
+    const l = offseason('stepped-down');
+    const c = Object.values(l.coaches).find((x) => x.role === 'headCoach')!;
+    c.teamId = null;
+    c.contract = null;
+    c.career = [
+      { season: l.season - 4, teamId: 3, role: 'defCoord' },
+      { season: l.season - 1, teamId: 4, role: 'headCoach' },
+    ];
+    withTraits(c, { ambition: 20 });
+    expect(stepDown(l, c)).toBe(true);
+    expect(wantsStepUp(l.seed, l.season, c, 'headCoach')).toBe(false);
+    expect(wantsStepUp(l.seed, l.season + 1, c, 'headCoach')).toBe(true);
   });
 });
