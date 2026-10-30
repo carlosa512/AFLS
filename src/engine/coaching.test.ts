@@ -17,6 +17,7 @@ import {
   CHAIRS,
   chairHolder,
   coachAsk,
+  coachAskTo,
   coachBudget,
   coachingFor,
   coachingFrom,
@@ -57,6 +58,7 @@ import {
   teamCoaches,
   TYPICAL,
 } from './coaching';
+import { setTrait } from './coachTraits';
 import { developPlayer } from './development';
 import { FRONTS, OFF_SCHEMES } from './schemes';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
@@ -401,7 +403,7 @@ describe('coaching staffs and moves', () => {
     expect(coachMoveProblem(l, user, target, 'extend')).toMatch(/chair is taken/);
     // Money for the best of the rest and not much more: best first stays, the others are priced out.
     const best = [...rest].sort((a, b) => coachValue(b) - coachValue(a))[0];
-    const room = coachAsk(l, best) + 10;
+    const room = coachAskTo(l, best, 2, user) + 10;
     l.teams[user].staffBudgetMult = 1;
     l.teams[user].staffBudgetMult = (coachPayroll(l, user) + room) / coachBudget(l, user);
     const forecast = coachResignForecast(l, user);
@@ -751,6 +753,8 @@ describe('play-calling style', () => {
     expect(oc.style?.fourthDown).toBeUndefined();
     hc.style = { fourthDown: 0.6 };
     oc.style = { passLean: 0.5 };
+    // A stubborn coordinator calls his own lean (an adaptable one bends toward his head coach's: coachCharacter.test).
+    setTrait(oc, 'adaptability', 1);
     expect(callerStyle(l, team.id)).toEqual({ passLean: 0.5, fourthDown: 0.6 });
     // Without a coordinator the head coach calls his own vision's lean; with his cover switched off, a
     // league-average game.

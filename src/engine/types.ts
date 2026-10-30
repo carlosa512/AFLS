@@ -687,6 +687,21 @@ export interface CoachAdvice {
   resolved?: string;
 }
 
+/** A coach's character (`coachTraits.ts`): hidden, 1–20, shown only in words. */
+export interface CoachTraits {
+  /** Whether he goes after the step up, or stays put; whether a fired head coach waits for another or steps down. */
+  ambition: number;
+  /** How hard he answers his old boss's call, and how readily he re-signs (a little cheaper) with his club. */
+  loyalty: number;
+  /** Coordinators: how far he bends to his head coach's plan. */
+  adaptability: number;
+  /** Head coaches: a disciplinarian draws fewer flags and runs a quieter room; a player's coach the reverse. */
+  discipline: number;
+}
+
+/** `CoachTraits` as a save stores it (`packTraits`): ambition, loyalty, adaptability, discipline. */
+export type CoachTraitsPacked = [ambition: number, loyalty: number, adaptability: number, discipline: number];
+
 export interface Coach {
   teachingBlock?: string;
   teachingNote?: {
@@ -745,6 +760,11 @@ export interface Coach {
   playerId?: number;
   /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
   contract: { salary: number; through: number } | null;
+  /** His character (`coachTraits.ts`), packed as [ambition, loyalty, adaptability, discipline] to keep saves small; a
+   * coach without it reads as typical. Read through `traitOf`. */
+  traits?: CoachTraitsPacked;
+  /** The league year a fired head coach stepped down to coordinate: no head coach's talks for him that offseason. */
+  steppedDown?: number;
 }
 
 export type MedicRole = 'doctor' | 'physio' | 'scientist';

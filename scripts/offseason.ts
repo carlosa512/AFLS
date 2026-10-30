@@ -239,6 +239,7 @@ interface Row {
   turnover: { hc: number; oc: number; dc: number; pcShare: number };
   /** Where this year's new head coaches came from. */
   hcFrom: { retread: number; coordinator: number; other: number };
+  agency: { refusals: number; stepDowns: number; exHeads: number };
 }
 
 /** Who sits in every chair at kickoff, by team: the carousel is read off two of these. */
@@ -406,11 +407,26 @@ for (let s = 0; s < seasons; s++) {
   const poached = staffMoves.filter((m) => m.teamIds.length > 1).length;
   const coachOver = pay.filter((x) => x > 1).length;
   const coachMkt = coachMarket(league).length;
+  // Coaches' own say (agency): a club's top choice turning the job down, fired head coaches going back to coordinating,
+  // and how many former head coaches coordinate now. Read against docs/research/coaching-carousel.md; not checks.
+  const agency = {
+    refusals: staffMoves.filter((m) => /turned down .* talks/.test(m.text)).length,
+    stepDowns: staffMoves.filter((m) => /will look for coordinator jobs/.test(m.text)).length,
+    exHeads: coaches.filter(
+      (c: Coach) =>
+        c.teamId !== null &&
+        (c.role === 'offCoord' || c.role === 'defCoord') &&
+        (c.career ?? []).some((cs) => cs.role === 'headCoach'),
+    ).length,
+  };
   console.log(
     `  coaching: value ${ROLE_NAMES.map((n, i) => `${n} ${roles[i].toFixed(1)}`).join(' ')} · ledger growth x${rate.toFixed(3)} (u26) body x${body.toFixed(3)} craft x${craft.toFixed(3)} (28+) · team growth x${Math.min(...teamRate).toFixed(2)}–x${Math.max(...teamRate).toFixed(2)} · payroll ${(100 * avg(pay)).toFixed(0)}% (${(100 * Math.min(...pay)).toFixed(0)}–${(100 * Math.max(...pay)).toFixed(0)}%) · over budget ${coachOver} · chairs ${Math.min(...filled)}–${Math.max(...filled)} · HCs fired ${hcFired} hired ${hcHired} · market ${coachMkt}`,
   );
   console.log(
     `  carousel: new HC ${turnover.hc} (${hcFrom.coordinator} coordinators, ${hcFrom.retread} retreads, ${hcFrom.other} other) · new OC ${turnover.oc} · new DC ${turnover.dc} · new S&C ${changed.strengthCoach} · position coaches ${(100 * turnover.pcShare).toFixed(0)}% new · promoted from within ${promoted} · hired off another staff ${poached} · ex-players coaching ${exPlayers.length} (${exPlayers.filter((c) => c.role !== 'positionCoach').length} above position coach)`,
+  );
+  console.log(
+    `  agency: top choices who said no ${agency.refusals} · fired head coaches stepping down ${agency.stepDowns} · former head coaches coordinating ${agency.exHeads}`,
   );
   const drafted = count('draft');
   console.log(
@@ -580,7 +596,21 @@ for (let s = 0; s < seasons; s++) {
     );
   }
 
-  rows.push({ year, k, growth: rate, body, craft, roles, staffVal, hcFired, coachOver, staffOver, turnover, hcFrom });
+  rows.push({
+    year,
+    k,
+    growth: rate,
+    body,
+    craft,
+    roles,
+    staffVal,
+    hcFired,
+    coachOver,
+    staffOver,
+    turnover,
+    hcFrom,
+    agency,
+  });
 }
 
 console.log(
@@ -657,6 +687,15 @@ function carouselRun(): string {
     ),
     check('HC hires retreads %', (100 * rows.reduce((a, r) => a + r.hcFrom.retread, 0)) / hires, 10, 50, 0),
     check('…coordinators %', (100 * rows.reduce((a, r) => a + r.hcFrom.coordinator, 0)) / hires, 35, 85, 0),
+    // Agency, reported only: refusals and step-downs a season, step-downs per head coach fired.
+    `refusals/season ${per((r) => r.agency.refusals).toFixed(1)}`,
+    `step-downs/season ${per((r) => r.agency.stepDowns).toFixed(1)} (${(
+      (100 * rows.reduce((a, r) => a + r.agency.stepDowns, 0)) /
+      Math.max(
+        1,
+        rows.reduce((a, r) => a + r.hcFired, 0),
+      )
+    ).toFixed(0)}% of HCs fired)`,
   ].join(' · ');
 }
 

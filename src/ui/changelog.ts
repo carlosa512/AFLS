@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.25',
+    date: '2026-10-30',
+    title: 'Coaches with character',
+    text:
+      'Coaches now have ambition, loyalty, adaptability and discipline. Some chase a head coach’s job the first chance ' +
+      'they get and some are happy where they are; a fired head coach may go back to running a side of the ball. Clubs ' +
+      'want the assistants of winning head coaches, so coaching trees grow the way the NFL’s do. Each coach’s card says ' +
+      'what he’s like around the league.',
+  },
+  {
     version: '0.2.24',
     date: '2026-10-29',
     title: 'Moods matter',

@@ -316,7 +316,11 @@ function assemble(
   // Returners come from skill-position depth, not the starters' workload, unless the user picked them.
   const krPool = [rbs[1], wrs[3], wrs[2], cb[2]].filter(Boolean);
   const prPool = [wrs[2], wrs[3], cb[2], rbs[1]].filter(Boolean);
-  const best = (pool: Player[]) => pool.reduce((a, b) => (skill(b, 'returns') > skill(a, 'returns') ? b : a));
+  // A roster thinned by injuries mid-game can leave no backup returner: a starter goes back to field kicks.
+  const best = (pool: Player[]) =>
+    pool.length
+      ? pool.reduce((a, b) => (skill(b, 'returns') > skill(a, 'returns') ? b : a))
+      : (wrs[0] ?? rbs[0] ?? cb[0]);
   const picked = (id: number | undefined) => {
     const p = id === undefined ? undefined : league.players[id];
     return p && p.teamId === team.id && !out.has(p.id) && available(p) ? p : undefined;

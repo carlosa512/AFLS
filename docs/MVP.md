@@ -134,7 +134,7 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 
 ## Follow-up: coaching trees run at the floor of their NFL bands
 
-- [ ] **Make coaching pedigree drive hiring, so trees form the way the NFL's do.** Every tree number sits at or near
+- [x] **Make coaching pedigree drive hiring, so trees form the way the NFL's do.** Every tree number sits at or near
       the floor of its band (`npm run careers`, spec §4.6 in
       `docs/superpowers/specs/2026-10-28-personality-relationships-design.md`), on main as well as with moods:
       - **Live trees:** 2.2 a league on main (band 2–5).
@@ -178,3 +178,11 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       - Head-coach turnover stays near 7 a year.
       - `npm run trades` doesn't move.
       - No band is widened to get there.
+
+      **Done (0.2.25,** `docs/superpowers/specs/2026-10-30-coach-character-design.md`**):** coaches got character (ambition,
+      loyalty, adaptability, discipline) and a say in their careers; pedigree pulls in searches, the strongest pull
+      winning; a tree is born as a winner's second man is established in charge, at any time, from a .600 winner. 8-world
+      means, main → now: live trees 2.19 → 2.97, head coaches in a tree 0.17 → 0.21, hires from a tree 0.12 → 0.22, biggest
+      4.08 → 3.61, born 2.63 → 2.50 (6 of 8 worlds at 3), founding trees alive in every world; head-coach changes 7.2 a
+      year, year-to-year win correlation 0.335. The price premium stayed as it was: the budget wasn't what kept a winner's
+      men out (they were outscored).

@@ -12,6 +12,7 @@ import {
   chairHolder,
   chairOf,
   coachAsk,
+  coachAskTo,
   coachBudget,
   coachMarket,
   coachMoveProblem,
@@ -2180,12 +2181,16 @@ function StaffDealsCards({
             ['Vets', c.veterans],
           ],
           salary: c.contract?.salary ?? 0,
-          ask: coachAsk(league, c, 2),
+          ask: coachAskTo(league, c, 2, league.userTeamId),
           outlook: up ? coachOutlook.get(c.id) : undefined,
           outcome: up ? undefined : outcomeOf(league, league.coaches[c.id], s.season),
           extend: up ? { problem, go: () => store.mutate((l) => extendCoach(l, l.userTeamId, c.id, 2)) } : undefined,
           call: up
-            ? staffCall(league, { kind: 'coach', id: c.id }, { ask: coachAsk(league, c, 2), overBudget: !!problem })
+            ? staffCall(
+                league,
+                { kind: 'coach', id: c.id },
+                { ask: coachAskTo(league, c, 2, league.userTeamId), overBudget: !!problem },
+              )
             : undefined,
           letGo: up
             ? {
