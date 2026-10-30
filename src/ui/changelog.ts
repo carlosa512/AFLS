@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.27',
+    date: '2026-10-30',
+    title: 'Fewer sulkers',
+    text:
+      'Players are happier with deals that pay them close to their worth: only a man paid well under his market ' +
+      'complains, and a backup feels it less than a starter. A star still on his rookie deal wants his extension but ' +
+      'doesn’t turn bitter over it. And a player you’ve moved into the starting job no longer complains about snaps ' +
+      'before the season has even started.',
+  },
+  {
     version: '0.2.26',
     date: '2026-10-30',
     title: 'Being heard',
