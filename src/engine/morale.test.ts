@@ -159,7 +159,10 @@ describe('morale: the factors', () => {
       stats: { [league.season - 1]: { gp: 17, snaps: 20 } },
     } as Player;
     const charted = { ...team.depthChart, WR: [wr.id, ...team.depthChart.WR.filter((id) => id !== wr.id)] };
-    const l = { ...withPlayer(promoted), teams: league.teams.map((t) => (t.id === 0 ? { ...t, depthChart: charted } : t)) };
+    const l = {
+      ...withPlayer(promoted),
+      teams: league.teams.map((t) => (t.id === 0 ? { ...t, depthChart: charted } : t)),
+    };
     expect(moraleFactors(l, promoted, ctx).role).toBe(0);
     // Off the chart's starting spots, last season still reads.
     const benched = { ...charted, WR: [...charted.WR.filter((id) => id !== wr.id), wr.id] };
