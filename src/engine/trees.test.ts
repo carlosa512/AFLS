@@ -13,6 +13,7 @@ import {
   seedFoundingTrees,
   treeLean,
   standingOf,
+  treeBornSeason,
   treeFor,
   treeOf,
 } from './trees';
@@ -382,7 +383,7 @@ describe('the carousel', () => {
     expect(hasTree(l, hc.id)).toBe(false); // a doesn't count
   });
 
-  it('is a tree only once two of his men have run clubs side by side, two seasons', () => {
+  it('is a tree once two of his men have each been established in charge, at any time', () => {
     const { l, c } = blank();
     const [hc, a, b] = c;
     hc.career = [2008, 2009, 2010, 2011, 2012].map((s) => row(s, 4, 'headCoach', won));
@@ -395,12 +396,14 @@ describe('the carousel', () => {
       row(2018, 8, 'headCoach'),
       row(2019, 8, 'headCoach'),
     ];
-    expect(hasTree(l, hc.id)).toBe(false); // never at the same time
-    b.career.push(...[2014, 2015, 2016, 2017].map((s) => row(s, 8, 'headCoach')));
+    // Not side by side: a ran his club 2014–17 and b his 2018–19. Born when the second was established, b's 2019.
     expect(hasTree(l, hc.id)).toBe(true);
+    expect(treeBornSeason(l, hc.id)).toBe(2019);
+    b.career = b.career.filter((r) => r.season !== 2019);
+    expect(hasTree(l, hc.id)).toBe(false); // b's one season: not yet established
   });
 
-  it('waits until both men are established: a second season in charge, at the same time', () => {
+  it('waits until both men are established: a second season in charge', () => {
     const { l, c } = blank();
     const [hc, a, b] = c;
     hc.career = [2008, 2009, 2010, 2011, 2012].map((s) => row(s, 4, 'headCoach', won));

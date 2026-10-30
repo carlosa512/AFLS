@@ -184,8 +184,6 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
 /** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
 /** A tree grows from a winner: .550 or better over five seasons or more as a head coach. */
 export const WINNER = { seasons: 5, share: 0.55 };
-/** Seasons two of his men must run clubs side by side, both established, while he is a winner: a run, not a moment. */
-export const SIDE_BY_SIDE = 2;
 
 /**
  * The seasons by which he was a winner as a head coach, his record up to and including each (his team's record
@@ -286,27 +284,30 @@ export function pedigreeDemand(league: League, c: Coach): number {
 export const strongestPull = (p: { tie: number; standing: number; pedigree: number; riser: number; crowd: number }) =>
   Math.min(p.tie, Math.min(0, p.standing), p.pedigree, p.riser) + Math.max(0, p.standing) + p.crowd;
 
-/** The seasons two or more of his men ran clubs at once, both established, oldest first. */
-function sideBySide(league: League, coachId: number): number[] {
-  const count = new Map<number, number>();
-  for (const d of headDisciples(league, coachId))
-    for (const s of new Set(seasonsInCharge(league, d, coachId))) count.set(s, (count.get(s) ?? 0) + 1);
-  return [...count]
-    .filter(([, n]) => n >= 2)
-    .map(([s]) => s)
-    .sort((a, b) => a - b);
-}
-
 /**
- * The season his tree was born, or null if it hasn't been: the second season two of his men ran clubs side by side,
- * both established, while he was a winner. One passing season of two disciples in charge isn't a tree; a run is.
+ * The season his tree was born, or null if it hasn't been: the season his second man became an established head coach
+ * (his second season in charge after his years under him), at any time, while he was a winner. The press names a tree
+ * as its men become head coaches one after another (Reid's over the years), not only when two run clubs at once; two
+ * careers overlapping was a coin flip that swung births between leagues alike.
  */
 export function treeBornSeason(league: League, coachId: number): number | null {
-  const seasons = sideBySide(league, coachId).filter((s) => winnerAsOf(league, coachId, s));
-  // A founding tree's men were already side by side before the league began: it was born then, its run behind it.
-  if (seasons[0] === -Infinity) return -Infinity;
-  return seasons.length >= SIDE_BY_SIDE ? seasons[SIDE_BY_SIDE - 1] : null;
+  const firsts = headDisciples(league, coachId)
+    .map((d) => Math.min(...seasonsInCharge(league, d, coachId)))
+    .filter((s) => s < Infinity)
+    .sort((a, b) => a - b);
+  // A founding tree's men were established before the league began: it was born then.
+  if (firsts.length >= 2 && firsts[1] === -Infinity) return -Infinity;
+  for (let i = 1; i < firsts.length; i++) {
+    const born = firsts[i];
+    // Born once he's a winner as of the second man's arrival, or later while two of his men are established.
+    const later = [...new Set(headSeasonsOf(league, coachId))].filter((s) => s >= born).sort((a, b) => a - b);
+    for (const s of [born, ...later]) if (winnerAsOf(league, coachId, s)) return Math.max(s, born);
+  }
+  return null;
 }
+
+const headSeasonsOf = (league: League, coachId: number) =>
+  (coachById(league, coachId)?.career ?? []).filter((r) => r.role === 'headCoach').map((r) => r.season);
 
 /**
  * He has a tree once two of his men have run clubs side by side for two seasons while he was a winner, as the press
