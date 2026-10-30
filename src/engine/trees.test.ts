@@ -189,8 +189,14 @@ describe('trees, branches and standing', () => {
     expect(standingOf(l, treeOf(l, r.id)!)).toBe('hot');
     a.career = a.career!.filter((x) => x.role !== 'headCoach');
     b.career = b.career!.filter((x) => x.role !== 'headCoach');
-    headed(a, 2, years, 7, 10);
-    headed(b, 3, years, 7, 10);
+    // They won their first two seasons (the tree was born then), and have lost since.
+    for (const [d, team] of [
+      [a, 2],
+      [b, 3],
+    ] as const) {
+      headed(d, team, years.slice(0, 2), 12, 5);
+      headed(d, team, years.slice(2), 7, 10);
+    }
     expect(standingOf(l, treeOf(l, r.id)!)).toBe('steady'); // losing, but nobody fired
     // Both fired after their last losing season: gone from the chair.
     a.career = a.career!.filter((x) => x.season !== now - 1);
@@ -209,8 +215,8 @@ describe('trees, branches and standing', () => {
     served(r, a, 1, now - 12);
     served(r, b, 1, now - 12);
     headed(r, 1, [now - 17, now - 16], 10, 7); // five winning seasons
-    headed(a, 2, [now - 12, now - 11, now - 10, now - 9], 8, 9);
-    headed(b, 3, [now - 12, now - 11, now - 10, now - 9], 8, 9);
+    headed(a, 2, [now - 12, now - 11, now - 10, now - 9], 9, 8);
+    headed(b, 3, [now - 12, now - 11, now - 10, now - 9], 9, 8);
     served(a, x, 2, now - 6);
     served(a, y, 2, now - 6);
     headed(x, 4, [now - 3, now - 2, now - 1], 9, 8);
@@ -294,7 +300,11 @@ describe('the carousel', () => {
     }
     const hot = treeLean(l, null, cand, 'headCoach');
     for (const d of [a, b]) {
-      d.career = [now - 5, now - 4, now - 3, now - 2].map((s) => row(s, d === a ? 2 : 3, 'headCoach', rec(5, 12)));
+      // Two winning seasons first (his men had to win to make it a tree), then four losing ones, and fired.
+      d.career = [
+        ...[now - 7, now - 6].map((s) => row(s, d === a ? 2 : 3, 'headCoach', rec(12, 5))),
+        ...[now - 5, now - 4, now - 3, now - 2].map((s) => row(s, d === a ? 2 : 3, 'headCoach', rec(5, 12))),
+      ];
       d.role = 'offCoord';
       d.teamId = null;
     }
@@ -417,6 +427,27 @@ describe('the carousel', () => {
     b.career.push(...[2016, 2017, 2018].map((s) => row(s, 8, 'headCoach')));
     a.career.push(...[2016, 2017, 2018].map((s) => row(s, 7, 'headCoach')));
     expect(hasTree(l, hc.id)).toBe(true);
+  });
+
+  it('counts a man only once he wins in charge: a losing head coach spreads no tree', () => {
+    const { l, c } = blank();
+    const [hc, a, b] = c;
+    const went = (w: number, lo: number) => ({
+      record: { fromWeek: 1, throughWeek: 18, regular: { w, l: lo, t: 0 }, playoffs: null, champion: false },
+    });
+    hc.career = [2008, 2009, 2010, 2011, 2012].map((s) => row(s, 4, 'headCoach', won));
+    a.career = [
+      ...[2010, 2011, 2012].map((s) => row(s, 4, 'offCoord')),
+      ...[2014, 2015].map((s) => row(s, 7, 'headCoach', went(10, 7))),
+    ];
+    b.career = [
+      ...[2010, 2011, 2012].map((s) => row(s, 4, 'defCoord')),
+      ...[2016, 2017].map((s) => row(s, 8, 'headCoach', went(4, 13))),
+    ];
+    expect(hasTree(l, hc.id)).toBe(false); // b is established, but losing
+    // He turns it around: two 13-4 seasons after his two 4-13s bring him to .500 in charge, and the tree is born then.
+    b.career.push(row(2018, 8, 'headCoach', went(13, 4)), row(2019, 8, 'headCoach', went(13, 4)));
+    expect(treeBornSeason(l, hc.id)).toBe(2019);
   });
 });
 
