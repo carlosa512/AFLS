@@ -7,13 +7,20 @@
  */
 import { clamp, Rng } from './rng';
 import { temperamentOf, TRAIT_MEAN } from './traits';
-import type { Coach, CoachRole, CoachTraits, Player } from './types';
+import type { Coach, CoachRole, CoachTraits, CoachTraitsPacked, Player } from './types';
 
 const TRAIT_SD = 3.5;
 const roll = (v: number) => Math.round(clamp(v, 1, 20));
 
 /** A trait as the hooks read it: a coach without traits (or without this one) is typical. */
-export const traitOf = (c: Pick<Coach, 'traits'>, k: keyof CoachTraits): number => c.traits?.[k] ?? TRAIT_MEAN;
+const SLOT: Record<keyof CoachTraits, number> = { ambition: 0, loyalty: 1, adaptability: 2, discipline: 3 };
+export const traitOf = (c: Pick<Coach, 'traits'>, k: keyof CoachTraits): number => c.traits?.[SLOT[k]] ?? TRAIT_MEAN;
+/** Traits as a save stores them: four numbers, not four named fields (every coach, retired ones too, carries them). */
+export const packTraits = (t: CoachTraits): CoachTraitsPacked => [t.ambition, t.loyalty, t.adaptability, t.discipline];
+/** Change one of his traits in place (ambition cooling, a second firing). */
+export function setTrait(c: Pick<Coach, 'traits'>, k: keyof CoachTraits, v: number): void {
+  if (c.traits) c.traits[SLOT[k]] = v;
+}
 
 /** Every hook's scale: −1 at two sd below the mean (3.5), +1 at two above (17.5), 0 for a typical coach. */
 export const traitLean = (v: number): number => clamp((v - TRAIT_MEAN) / 7, -1, 1);
@@ -53,7 +60,7 @@ export function traitsFromPlayer(seed: string, c: Pick<Coach, 'id'>, p: Player):
 
 /** The new league year: ambition cools a point a year from 56. */
 export function coolAmbition(c: Coach): void {
-  if (c.traits && c.age >= 56) c.traits.ambition = Math.max(1, c.traits.ambition - 1);
+  if (c.age >= 56) setTrait(c, 'ambition', Math.max(1, traitOf(c, 'ambition') - 1));
 }
 
 /** How far a coordinator bends to his head coach's plan: none at 1, most of the way (0.8) at 20. */

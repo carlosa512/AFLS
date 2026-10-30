@@ -58,6 +58,7 @@ import {
   teamCoaches,
   TYPICAL,
 } from './coaching';
+import { setTrait } from './coachTraits';
 import { developPlayer } from './development';
 import { FRONTS, OFF_SCHEMES } from './schemes';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
@@ -753,7 +754,7 @@ describe('play-calling style', () => {
     hc.style = { fourthDown: 0.6 };
     oc.style = { passLean: 0.5 };
     // A stubborn coordinator calls his own lean (an adaptable one bends toward his head coach's: coachCharacter.test).
-    oc.traits = { ...oc.traits!, adaptability: 1 };
+    setTrait(oc, 'adaptability', 1);
     expect(callerStyle(l, team.id)).toEqual({ passLean: 0.5, fourthDown: 0.6 });
     // Without a coordinator the head coach calls his own vision's lean; with his cover switched off, a
     // league-average game.

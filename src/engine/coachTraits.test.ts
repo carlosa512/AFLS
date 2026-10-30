@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { coachCharacter, coolAmbition, rollCoachTraits, traitLean, traitOf, traitsFromPlayer } from './coachTraits';
+import {
+  coachCharacter,
+  coolAmbition,
+  packTraits,
+  rollCoachTraits,
+  traitLean,
+  traitOf,
+  traitsFromPlayer,
+} from './coachTraits';
 import { createLeague } from './generate';
 import { migrateLeague } from './migrate';
 import type { Coach, CoachTraits, Player } from './types';
@@ -17,7 +25,7 @@ const coach = (over: Partial<Coach> = {}): Coach => ({
   veterans: 10,
   teamId: null,
   contract: null,
-  traits: typical(),
+  traits: packTraits(typical()),
   ...over,
 });
 
@@ -61,12 +69,24 @@ describe('coach traits', () => {
   });
 
   it('cools ambition a point a year from 56', () => {
-    const c = coach({ age: 56, traits: { ...typical(), ambition: 12 } });
+    const c = coach({ age: 56, traits: packTraits({ ...typical(), ambition: 12 }) });
     coolAmbition(c);
-    expect(c.traits!.ambition).toBe(11);
+    expect(traitOf(c, 'ambition')).toBe(11);
     c.age = 55;
     coolAmbition(c);
-    expect(c.traits!.ambition).toBe(11);
+    expect(traitOf(c, 'ambition')).toBe(11);
+  });
+
+  it('stores a coach’s traits as four numbers (ambition, loyalty, adaptability, discipline): the save stays small', () => {
+    const l = createLeague({ seed: 'traits-packed' });
+    const c = Object.values(l.coaches)[0];
+    expect(c.traits).toEqual([
+      traitOf(c, 'ambition'),
+      traitOf(c, 'loyalty'),
+      traitOf(c, 'adaptability'),
+      traitOf(c, 'discipline'),
+    ]);
+    expect(packTraits({ ambition: 1, loyalty: 2, adaptability: 3, discipline: 4 })).toEqual([1, 2, 3, 4]);
   });
 
   it('gives every coach in a new league traits, legends included', () => {
@@ -88,7 +108,7 @@ describe('coach traits', () => {
 
 describe('the character box', () => {
   const as = (role: Coach['role'], t: Partial<CoachTraits>) =>
-    coach({ role, traits: { ambition: 10, loyalty: 10, adaptability: 10, discipline: 10, ...t } });
+    coach({ role, traits: packTraits({ ambition: 10, loyalty: 10, adaptability: 10, discipline: 10, ...t }) });
 
   it('names the most distinctive trait that acts in his chair', () => {
     expect(coachCharacter(as('defCoord', { ambition: 18, loyalty: 12 })).name).toBe('Climber');

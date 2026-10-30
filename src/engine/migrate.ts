@@ -20,7 +20,7 @@ import { ownerBag, talentRanks } from './ownerBag';
 import { captureManagement, creditManagement } from './service';
 import { addQbProtection, generateCrews } from './officials';
 import { rollGem, toCurve } from './size';
-import { rollCoachTraits, traitsFromPlayer } from './coachTraits';
+import { packTraits, rollCoachTraits, traitsFromPlayer } from './coachTraits';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
@@ -255,7 +255,9 @@ export function migrateLeague(league: League): League | null {
     for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches ?? {})]) {
       if (c.traits) continue;
       const p = c.playerId !== undefined ? league.players[c.playerId] : undefined;
-      c.traits = p?.traits && p.personality ? traitsFromPlayer(league.seed, c, p) : rollCoachTraits(league.seed, c);
+      c.traits = packTraits(
+        p?.traits && p.personality ? traitsFromPlayer(league.seed, c, p) : rollCoachTraits(league.seed, c),
+      );
     }
     league.version = 70;
   }

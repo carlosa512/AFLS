@@ -699,6 +699,9 @@ export interface CoachTraits {
   discipline: number;
 }
 
+/** `CoachTraits` as a save stores it (`packTraits`): ambition, loyalty, adaptability, discipline. */
+export type CoachTraitsPacked = [ambition: number, loyalty: number, adaptability: number, discipline: number];
+
 export interface Coach {
   teachingBlock?: string;
   teachingNote?: {
@@ -757,8 +760,9 @@ export interface Coach {
   playerId?: number;
   /** Salary in $K per league year, through the end of league year `through`. null while on the market. */
   contract: { salary: number; through: number } | null;
-  /** His character (`coachTraits.ts`); a coach without it reads as typical. */
-  traits?: CoachTraits;
+  /** His character (`coachTraits.ts`), packed as [ambition, loyalty, adaptability, discipline] to keep saves small; a
+   * coach without it reads as typical. Read through `traitOf`. */
+  traits?: CoachTraitsPacked;
   /** The league year a fired head coach stepped down to coordinate: no head coach's talks for him that offseason. */
   steppedDown?: number;
 }

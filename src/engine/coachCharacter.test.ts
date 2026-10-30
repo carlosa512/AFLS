@@ -1,6 +1,6 @@
 /** What coaches' character does in the game (docs/superpowers/specs/2026-10-30-coach-character-design.md). */
 import { describe, expect, it } from 'vitest';
-import { ADAPT, adaptShare, headStints, STEP_UP, stepsDown, wantsStepUp } from './coachTraits';
+import { ADAPT, adaptShare, packTraits, traitOf, headStints, STEP_UP, stepsDown, wantsStepUp } from './coachTraits';
 import {
   bentDefense,
   bentPassLean,
@@ -31,7 +31,7 @@ import type { Coach, CoachTraits, League } from './types';
 
 const typical = (): CoachTraits => ({ ambition: 10.5, loyalty: 10.5, adaptability: 10.5, discipline: 10.5 });
 const withTraits = (c: Coach, t: Partial<CoachTraits>) => {
-  c.traits = { ...typical(), ...t };
+  c.traits = packTraits({ ...typical(), ...t });
   return c;
 };
 const coachOf = (role: Coach['role']): Coach => ({
@@ -44,7 +44,7 @@ const coachOf = (role: Coach['role']): Coach => ({
   veterans: 10,
   teamId: null,
   contract: null,
-  traits: typical(),
+  traits: packTraits(typical()),
 });
 const copyOf = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 const headOf = (l: League, team: number) => teamCoaches(l, team).find((c) => c.role === 'headCoach')!;
@@ -289,7 +289,7 @@ describe('stepping down', () => {
     const hc = withTraits(headOf(l, user), { ambition: 12 });
     hc.career = [...rows('headCoach', (user + 1) % 32, 2020, 2021), ...rows('headCoach', user, l.season - 1)];
     releaseCoach(l, user, hc.id);
-    expect(hc.traits!.ambition).toBe(9);
+    expect(traitOf(hc, 'ambition')).toBe(9);
   });
 
   it('gives head coaches still unhired at camp another decision', () => {

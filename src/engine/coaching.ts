@@ -28,7 +28,9 @@ import {
   coolAmbition,
   cultureFlags,
   LOYAL,
+  packTraits,
   rollCoachTraits,
+  setTrait,
   traitLean,
   traitOf,
   headStints,
@@ -417,7 +419,7 @@ export function callerStyle(league: League, teamId: number): CallerStyle {
     passLean: cover
       ? headCoachVision(league, cover).pass
       : oc
-        ? hc
+        ? hc && hc !== oc
           ? bentPassLean(oc, headCoachVision(league, hc))
           : (oc.style?.passLean ?? 0)
         : 0,
@@ -439,7 +441,7 @@ export function teamScheme(league: League, teamId: number): TeamScheme {
   const hc = chairHolder(staff, { role: 'headCoach' });
   const dc = dcCover
     ? headCoachVision(league, dcCover).defense
-    : seatedDc && hc
+    : seatedDc && hc && hc !== seatedDc
       ? bentDefense(league.seed, seatedDc, hc.id, headCoachVision(league, hc))
       : seatedDc?.scheme;
   return {
@@ -573,7 +575,8 @@ export function bentDefense(seed: string, dc: Coach, hcId: number, v: Vision): C
 export function planUnder(league: League, c: Coach): Coach {
   if (c.teamId === null || (c.role !== 'offCoord' && c.role !== 'defCoord')) return c;
   const hc = chairHolder(teamCoaches(league, c.teamId), { role: 'headCoach' });
-  if (!hc) return c;
+  // An interim head coach still calling his side runs his own plan: there's nobody above him to bend to.
+  if (!hc || hc === c) return c;
   const v = headCoachVision(league, hc);
   return c.role === 'offCoord'
     ? { ...c, style: { ...c.style, passLean: bentPassLean(c, v) } }
@@ -1055,7 +1058,7 @@ function dismiss(league: League, c: Coach, why?: string): void {
   delete c.since;
   if (head) {
     // A second head coach's job lost humbles him; then he decides whether to wait for another or coordinate again.
-    if (headStints(c) === 2 && c.traits) c.traits.ambition = Math.max(1, c.traits.ambition - 3);
+    if (headStints(c) === 2) setTrait(c, 'ambition', Math.max(1, traitOf(c, 'ambition') - 3));
     if (stepsDown(league.seed, league.season, c, head.interim ? 'interim' : 'dismissed'))
       stepDown(league, c, { teamId, actingAs: head.actingAs });
   }
@@ -1313,7 +1316,7 @@ function newCoach(league: League, rng: Rng, chair: Chair, youth: number, veteran
   const scheme = rollScheme(league.seed, c);
   if (scheme) c.scheme = scheme;
   generateCoachQuirks(league.seed, c);
-  c.traits = rollCoachTraits(league.seed, c);
+  c.traits = packTraits(rollCoachTraits(league.seed, c));
   league.coaches[c.id] = c;
   touch();
   return c;
@@ -1534,7 +1537,7 @@ function exPlayerCoach(league: League, p: Player, base: Entry): void {
     p.age,
   );
   Object.assign(c, { firstName: p.firstName, lastName: p.lastName, playerId: p.id });
-  c.traits = traitsFromPlayer(league.seed, c, p);
+  c.traits = packTraits(traitsFromPlayer(league.seed, c, p));
   inheritCoachQuirk(league.seed, c, p, { season: league.season, week: 0 });
 }
 
