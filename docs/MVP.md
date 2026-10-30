@@ -111,7 +111,9 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       learns a new position faster, and an unhappy one asks his own club up to 10% more with less patience; the Locker
       Room and the coach's report say who it's costing. Being heard (0.2.26): a promise eases three quarters of the
       grievance it answers while it's open and a reassurance a quarter until he could ask again, and the head coach
-      reminds you of open promises when the season ends. Hold-ins, holdouts and trade requests (G4) are to come. Specs:
+      reminds you of open promises when the season ends. Fewer sulkers (0.2.27): paid 80% of his market or more a man has
+      no complaint (a backup feels half of one below it), a rookie-deal star's grievance is capped, and before a season's
+      games a man the depth chart starts reads as a starter. Hold-ins, holdouts and trade requests (G4) are to come. Specs:
       `docs/superpowers/specs/2026-10-29-morale-core-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-talks-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-effects-design.md`,
