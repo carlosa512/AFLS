@@ -74,6 +74,7 @@ import {
 import type { Coach, League, Phase } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import type { CapRun } from './offseason-league';
+import { chairKey, chairSnap, hcOrigin } from './carousel';
 
 const seasons = Number(process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seed') ?? 3);
 const SEED = process.argv.includes('--seed') ? process.argv[process.argv.indexOf('--seed') + 1] : 'offseason-audit';
@@ -242,15 +243,6 @@ interface Row {
   agency: { refusals: number; stepDowns: number; exHeads: number };
 }
 
-/** Who sits in every chair at kickoff, by team: the carousel is read off two of these. */
-const chairKey = (ch: (typeof CHAIRS)[number]) => `${ch.role}${ch.room ?? ''}`;
-const chairSnap = (l: League) =>
-  new Map(
-    l.teams.map((t) => [
-      t.id,
-      new Map(CHAIRS.map((ch) => [chairKey(ch), chairHolder(teamCoaches(l, t.id), ch)?.id ?? -1])),
-    ]),
-  );
 let chairsBefore = chairSnap(league);
 
 const SCOUT_MAX = Object.values(STAFF_SLOTS).reduce((a, b) => a + b, 0); // 8
@@ -379,21 +371,7 @@ for (let s = 0; s < seasons; s++) {
       if (id === chairsBefore.get(t.id)!.get(chairKey(ch))) continue;
       changed[ch.role]++;
       if (ch.role !== 'headCoach') continue;
-      const career = (league.coaches[id]?.career ?? []).filter((cs) => cs.season < league.season);
-      // Keeping last season's internal interim is a promotion, not rehiring a former head coach.
-      const retainedInterim = career.some(
-        (cs) =>
-          cs.role === 'headCoach' &&
-          cs.teamId === t.id &&
-          cs.season === league.season - 1 &&
-          (cs.record?.fromWeek ?? 1) > 1,
-      );
-      const past = retainedInterim
-        ? career.filter((cs) => cs.season !== league.season - 1 || cs.role !== 'headCoach')
-        : career;
-      if (past.some((cs) => cs.role === 'headCoach')) hcFrom.retread++;
-      else if (past.at(-1)?.role === 'offCoord' || past.at(-1)?.role === 'defCoord') hcFrom.coordinator++;
-      else hcFrom.other++;
+      hcFrom[hcOrigin(league, t, id)]++;
     }
   }
   chairsBefore = chairsNow;
@@ -527,7 +505,7 @@ for (let s = 0; s < seasons; s++) {
     weekly: save.weekly - prevSave.weekly,
   };
   console.log(
-    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · growth KB ${dSave.total.toFixed(0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800 + Object.values(SAVE_FEATURE_ALLOWANCES).reduce((sum, a) => sum + ('playersGrowth' in a ? a.playersGrowth : 0), 0), 0)} · ${check('retired added', dSave.retired, 0, 320 + SAVE_FEATURE_ALLOWANCES.practiceSquads.retiredAdded, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
+    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · growth KB ${dSave.total.toFixed(0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · players growth KB ${dSave.players.toFixed(0)} · ${check('retired added', dSave.retired, 0, 320 + SAVE_FEATURE_ALLOWANCES.practiceSquads.retiredAdded, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
   if (dSave) playerGrowth.push(dSave.players);
   if (dSave && s >= 2) saveGrowth.push(dSave.total);
@@ -632,6 +610,15 @@ if (playerGrowth.some((g) => g > 100)) {
 // The save's yearly growth, on average: a season's stored games keep its scoring plays, so one season reads up to about
 // 100 KB high or low by its history alone (the same league at the same scoring, 22.6 points a game either way, read
 // 1143 and 1303 in its third season). The budget holds per season; it's judged on the run's mean.
+// Players' growth the same way: the first season's runs highest (a new league's first retirements and its first
+// season's stat lines land at once, 1100-1161 KB against later seasons' 740-904), so it's judged on the run's mean.
+const PLAYERS_GROWTH_BUDGET =
+  800 +
+  Object.values(SAVE_FEATURE_ALLOWANCES).reduce((sum, a) => sum + ('playersGrowth' in a ? a.playersGrowth : 0), 0);
+if (playerGrowth.length)
+  console.log(
+    `players growth a season (mean of ${playerGrowth.length}, ${playerGrowth.map((g) => g.toFixed(0)).join(' ')}): ${check('KB', avg(playerGrowth), -Infinity, PLAYERS_GROWTH_BUDGET, 0)}`,
+  );
 if (saveGrowth.length)
   console.log(
     `save growth a season (mean of ${saveGrowth.length}, ${saveGrowth.map((g) => g.toFixed(0)).join(' ')}): ${check('KB', avg(saveGrowth), -Infinity, SAVE_SIZE_BUDGET.annualGrowth, 0)}`,
@@ -696,7 +683,7 @@ function carouselRun(): string {
       15,
       1,
     ),
-    check('HC hires retreads %', (100 * rows.reduce((a, r) => a + r.hcFrom.retread, 0)) / hires, 10, 50, 0),
+    `HC hires retreads % ${((100 * rows.reduce((a, r) => a + r.hcFrom.retread, 0)) / hires).toFixed(0)} (judged below, over every league)`,
     check('…coordinators %', (100 * rows.reduce((a, r) => a + r.hcFrom.coordinator, 0)) / hires, 35, 85, 0),
     // Agency, reported only: refusals and step-downs a season, step-downs per head coach fired.
     `refusals/season ${per((r) => r.agency.refusals).toFixed(1)}`,
@@ -716,6 +703,22 @@ if (rows.length >= 5) {
   const end = rows[rows.length - 1];
   // Every team of the four leagues a season, this one's and the others' (the upper middle, as for one league's).
   const others = await capRuns;
+  // Where new head coaches came from, pooled over this league and the extra ones: one league's 50-odd hires swing the
+  // retread share about 7 points either way (39-54% on the same code), four leagues' read it to about 3.
+  {
+    const own = rows.reduce((a, r) => ({ retread: a.retread + r.hcFrom.retread, all: a.all + r.turnover.hc }), {
+      retread: 0,
+      all: 0,
+    });
+    const retread = own.retread + others.reduce((a, o) => a + o.hcFrom.retread, 0);
+    const all = Math.max(
+      1,
+      own.all + others.reduce((a, o) => a + o.hcFrom.retread + o.hcFrom.coordinator + o.hcFrom.other, 0),
+    );
+    console.log(
+      `carousel over ${others.length + 1} leagues (${all} head-coach hires): ${check('HC hires retreads %', (100 * retread) / all, 10, 50, 0)}`,
+    );
+  }
   const tail = rows.slice(-3).map((r, j) => {
     const s = rows.length - 3 + j;
     const all = [...r.k.space.map((x) => (100 * x) / r.k.cap), ...others.flatMap((run) => run.space[s])];

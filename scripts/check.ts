@@ -44,7 +44,7 @@ const CHECKS = {
   typecheck: { cmd: ['npm', 'run', 'typecheck'], cores: 1, secs: 10, summary: /error TS\d+.*/ },
   test: { cmd: ['npm', 'test'], cores: CORES, secs: 55, summary: /Tests\s+.*/, detail: /FAIL|Error|Expected|Received/ },
   build: { cmd: ['npx', 'vite', 'build', '--logLevel', 'error'], cores: 1, secs: 15 },
-  sim: { cmd: ['npm', 'run', 'sim', '--', '30'], cores: 1, secs: 110, summary: /\d+ stat\(s\) outside target range/ },
+  sim: { cmd: ['npm', 'run', 'sim', '--', '60'], cores: 1, secs: 220, summary: /\d+ stat\(s\) outside target range/ },
   endings: {
     cmd: ['npm', 'run', 'endings', '--', '5000'],
     cores: 1,

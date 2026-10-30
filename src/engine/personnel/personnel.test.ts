@@ -287,7 +287,8 @@ describe('migration and collection', () => {
     // match, so the new traits cost no draw from the league's stream. `result` again with moods that matter (0.2.24):
     // the game-day edge moves play; the stream, players, games and charts still match, so it costs no draw. `result`
     // again with coaches' character (0.2.25): an adaptable coordinator bends his plan to his head coach's and a head
-    // coach's discipline scales flags; the stream, players, games and charts still match.
+    // coach's discipline scales flags; the stream, players, games and charts still match. `result` again with fewer
+    // sulkers (0.2.27): a fresh league's starters are happier against its mean; the rest still matches.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -302,6 +303,6 @@ const BASELINE = {
   players: 'a979f91370ea89de72689ffa5851d834210ae3e4c70d9c04929fafd03056b78c',
   rng: [666865279, 3079305262, 4039765455, 1664101998],
   games: '7d434cad09545c5d832fe11048921e57ab49f1d9807d05ae5b65df3aaa0a9978',
-  result: 'a0b5c7f03a7e9d3fe70342546b9a956309bd0015f43f381bd3b30a517606f225',
+  result: '39cb6568b33580cedd0301cd487ff269ac8c93737a772300cdb73d911aa10323',
   charts: '736837cb684778fb3965956ea01fc36726cc948ed00cd33c883ccd9bd78d4457',
 };

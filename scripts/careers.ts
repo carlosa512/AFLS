@@ -453,13 +453,19 @@ console.log(
       1,
       hires.reduce((n, h) => n + h.total, 0),
     );
-  // One offseason's share is judged only where five or more clubs changed head coach (fewer is a coin flip).
-  const busiest = Math.max(0, ...hires.filter((h) => h.total >= 5).map((h) => h.mostFromOne / h.total));
+  // One offseason's share is judged only where five or more clubs changed head coach (fewer is a coin flip). The NFL's
+  // 0.4 is one cycle's peak (2026: 4 of 10) in a decade; four leagues' 60-odd offseasons will meet a peak like it by
+  // chance, so the check reads the busy offseason (the 90th percentile), not the single busiest.
+  const shares = hires
+    .filter((h) => h.total >= 5)
+    .map((h) => h.mostFromOne / h.total)
+    .sort((x, y) => x - y);
+  const busiest = shares.length ? shares[Math.min(shares.length - 1, Math.floor(0.9 * shares.length))] : 0;
   // Live trees are read in the steady state, as the biggest tree is: a new league starts with none, and a tree needs a
   // head coach's three seasons and two disciples hired before it counts, so the early seasons only dragged the mean
   // (the owner's call, 0.2.24: G2 read 1.9 over all sixteen seasons, against main's 2.2).
   console.log(
-    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1)} · ${check('biggest (steady)', mean(t.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in an offseason', busiest, 0, 0.4)} · ${check('trees born per league', mean(t.map((x) => x.born)), 1, 4, 1)} · ${check('founding trees alive at the end (fewest)', Math.min(...t.map((x) => x.foundingAlive)), 1, Infinity, 0)}`,
+    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1)} · ${check('biggest (steady)', mean(t.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in a busy offseason (90th pct)', busiest, 0, 0.4)} · ${check('trees born per league', mean(t.map((x) => x.born)), 1, 4, 1)} · ${check('founding trees alive at the end (fewest)', Math.min(...t.map((x) => x.foundingAlive)), 1, Infinity, 0)}`,
   );
 }
 console.log(`\n${misses} number(s) outside target range`);
