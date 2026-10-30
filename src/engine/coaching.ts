@@ -22,6 +22,7 @@
  * agency, like scouts. All coaching randomness uses its own seeded Rngs: it never shifts the
  * league's main random stream, and a migrated save gets the same coaches as a new league.
  */
+import { coolAmbition, rollCoachTraits, traitsFromPlayer } from './coachTraits';
 import { inheritedScheme, keepBonus, mainMentor, treeLean } from './trees';
 import { workEthicOf } from './traits';
 import {
@@ -1166,6 +1167,7 @@ function newCoach(league: League, rng: Rng, chair: Chair, youth: number, veteran
   const scheme = rollScheme(league.seed, c);
   if (scheme) c.scheme = scheme;
   generateCoachQuirks(league.seed, c);
+  c.traits = rollCoachTraits(league.seed, c);
   league.coaches[c.id] = c;
   touch();
   return c;
@@ -1386,6 +1388,7 @@ function exPlayerCoach(league: League, p: Player, base: Entry): void {
     p.age,
   );
   Object.assign(c, { firstName: p.firstName, lastName: p.lastName, playerId: p.id });
+  c.traits = traitsFromPlayer(league.seed, c, p);
   inheritCoachQuirk(league.seed, c, p, { season: league.season, week: 0 });
 }
 
@@ -1423,6 +1426,7 @@ export function developCoaches(league: League, retirees: readonly Player[] = [])
   for (const c of Object.values(league.coaches)) {
     coachQuirksOffseason(league, c);
     c.age++;
+    coolAmbition(c);
     const t = trend(c.age);
     c.youth = Math.round(clamp(c.youth + rng.normal(t, 0.5), 1, 20));
     c.veterans = Math.round(clamp(c.veterans + rng.normal(t, 0.5), 1, 20));

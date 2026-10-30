@@ -5,6 +5,7 @@
  * press, which counts a single season, on purpose: trees should be rare and earned. Everything is worked out from
  * `Coach.career` (and `pastUnder`, the founding trees' pre-league years); nothing about a tree is stored.
  */
+import { rollCoachTraits } from './coachTraits';
 import { newIdentity } from './identity';
 import { coachRecord, winPct } from './records';
 import { Rng } from './rng';
@@ -388,6 +389,7 @@ export function seedFoundingTrees(league: League): void {
       teamId: null,
       contract: null,
     };
+    legend.traits = rollCoachTraits(league.seed, legend);
     league.retiredCoaches[legend.id] = legend;
     founders.push(legend);
   }

@@ -20,6 +20,7 @@ import { ownerBag, talentRanks } from './ownerBag';
 import { captureManagement, creditManagement } from './service';
 import { addQbProtection, generateCrews } from './officials';
 import { rollGem, toCurve } from './size';
+import { rollCoachTraits, traitsFromPlayer } from './coachTraits';
 import { createDraftPicks, generateGm, generatePersonality, MAX_FUTURE_DRAFT_YEARS, SAVE_VERSION } from './generate';
 import { Rng } from './rng';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
@@ -247,6 +248,16 @@ export function migrateLeague(league: League): League | null {
       if (!m.jolts.length) delete m.jolts;
     }
     league.version = 69;
+  }
+  // v70: `Coach.traits` (coaches with character): every coach gets what a new league from this seed would give him, a
+  // former player his own character carried in.
+  if (league.version < 70) {
+    for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches ?? {})]) {
+      if (c.traits) continue;
+      const p = c.playerId !== undefined ? league.players[c.playerId] : undefined;
+      c.traits = p?.traits && p.personality ? traitsFromPlayer(league.seed, c, p) : rollCoachTraits(league.seed, c);
+    }
+    league.version = 70;
   }
   return league;
 }
