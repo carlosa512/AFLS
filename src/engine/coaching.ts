@@ -1952,12 +1952,15 @@ function fillChairs(
     const overspend = (x: Hire) =>
       (OVERSPEND * Math.max(0, cost(x) - within)) / (BASE_ASK[chair.role] * (capOf(league) / BASE_CAP));
     const goal = roleGoal(league, team, chair.role);
+    // A riser off a winning staff is pulled up (a losing one held back): the pull side joins the strongest-pull rule in
+    // `treeLean`, with pedigree and his tree; the penalty side stays here.
+    const hot = (x: Hire) => (x.as !== x.c ? -HOT * (winShare(league, x.c.teamId) - 0.5) : 0);
     const score = (x: Hire) =>
       Math.abs(coachValue(x.as) - goal) +
       VISION_WEIGHT * (1 - (visionFit(league, hc, x.as, vision) ?? 1)) +
       overspend(x) +
       (x.as !== x.c
-        ? RISER_COST - HOT * (winShare(league, x.c.teamId) - 0.5) - (x.c.teamId === team.id ? INSIDER : 0)
+        ? RISER_COST + Math.max(0, hot(x)) - (x.c.teamId === team.id ? INSIDER : 0)
         : !LEADERSHIP.has(chair.role)
           ? 0
           : !x.c.career?.length
@@ -1966,7 +1969,7 @@ function fillChairs(
               ? -PROVEN
               : 0) +
       // His people, and the tree a head-coach candidate comes from (`trees.ts`).
-      treeLean(league, hc ?? null, x.c, chair.role) +
+      treeLean(league, hc ?? null, x.c, chair.role, Math.min(0, hot(x))) +
       rng.normal(0, 0.6);
     // Every candidate is scored (one noise draw each, the unwilling too), then the best who wants the job is hired.
     const ranked = pool.map((x) => ({ x, s: score(x) })).sort((a, b) => a.s - b.s);

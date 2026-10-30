@@ -7,6 +7,9 @@ import {
   liveTrees,
   mainMentor,
   keepBonus,
+  PEDIGREE_PULL,
+  pedigreeDemand,
+  strongestPull,
   seedFoundingTrees,
   treeLean,
   standingOf,
@@ -411,5 +414,91 @@ describe('the carousel', () => {
     b.career.push(...[2016, 2017, 2018].map((s) => row(s, 8, 'headCoach')));
     a.career.push(...[2016, 2017, 2018].map((s) => row(s, 7, 'headCoach')));
     expect(hasTree(l, hc.id)).toBe(true);
+  });
+});
+
+describe('pedigree', () => {
+  const rec = (w: number, lo: number) => ({
+    record: { fromWeek: 1, throughWeek: 18, regular: { w, l: lo, t: 0 }, playoffs: null, champion: false },
+  });
+  /** A head coach on team 2 for `seasons` seasons ending last season, at w–l each, and a man on his staff for `served`. */
+  function staff(w: number, lo: number, seasons: number, served: number[], s0?: number) {
+    const { l, c } = blank();
+    const [mentor, man, other] = c;
+    const now = l.season;
+    const first = s0 ?? now - seasons;
+    mentor.career = Array.from({ length: seasons }, (_, i) => row(first + i, 2, 'headCoach', rec(w, lo)));
+    mentor.role = 'headCoach';
+    man.career = served.map((s) => row(s, 2, 'positionCoach', { room: 'QB' as const }));
+    return { l, mentor, man, other, now };
+  }
+
+  it('is 0 under three seasons on a winner’s staff', () => {
+    const { l, man, now } = staff(12, 5, 6, []);
+    man.career = [now - 2, now - 1].map((s) => row(s, 2, 'positionCoach', { room: 'QB' as const }));
+    expect(pedigreeDemand(l, man)).toBe(0);
+  });
+
+  it('is more than 0 from the season his mentor becomes a winner, with no tree', () => {
+    const four = staff(11, 6, 4, []);
+    four.man.career = [1, 2, 3].map((k) => row(four.now - k, 2, 'positionCoach', { room: 'QB' as const }));
+    expect(pedigreeDemand(four.l, four.man)).toBe(0);
+    const five = staff(11, 6, 5, []);
+    five.man.career = [1, 2, 3].map((k) => row(five.now - k, 2, 'positionCoach', { room: 'QB' as const }));
+    expect(pedigreeDemand(five.l, five.man)).toBeGreaterThan(0);
+    expect(hasTree(five.l, five.mentor.id)).toBe(false);
+  });
+
+  it('is stronger under a stronger winner, and halves three seasons after he left', () => {
+    const served = (now: number) => [now - 3, now - 2, now - 1];
+    const strong = staff(13, 4, 6, []);
+    strong.man.career = served(strong.now).map((s) => row(s, 2, 'positionCoach', { room: 'QB' as const }));
+    const fair = staff(10, 7, 6, []);
+    fair.man.career = served(fair.now).map((s) => row(s, 2, 'positionCoach', { room: 'QB' as const }));
+    expect(pedigreeDemand(strong.l, strong.man)).toBe(1);
+    expect(pedigreeDemand(strong.l, strong.man)).toBeGreaterThan(pedigreeDemand(fair.l, fair.man));
+    const old = staff(13, 4, 9, []);
+    old.man.career = [old.now - 6, old.now - 5, old.now - 4].map((s) =>
+      row(s, 2, 'positionCoach', { room: 'QB' as const }),
+    );
+    expect(pedigreeDemand(old.l, old.man)).toBeCloseTo(0.5);
+  });
+
+  it('takes the best mentor, not the sum', () => {
+    const { l, man, other, now } = staff(13, 4, 6, []);
+    other.career = Array.from({ length: 6 }, (_, i) => row(now - 12 + i, 5, 'headCoach', rec(10, 7)));
+    other.role = 'headCoach';
+    man.career = [
+      ...[now - 9, now - 8, now - 7].map((s) => row(s, 5, 'positionCoach', { room: 'QB' as const })),
+      ...[now - 3, now - 2, now - 1].map((s) => row(s, 2, 'positionCoach', { room: 'QB' as const })),
+    ];
+    expect(pedigreeDemand(l, man)).toBe(1);
+  });
+
+  it('fades pre-league service to 0, and is pure', () => {
+    const { l, c } = blank();
+    const [root, man] = c;
+    man.pastUnder = [{ coachId: root.id, role: 'offCoord', seasons: 4 }];
+    expect(pedigreeDemand(l, man)).toBe(0);
+    const before = JSON.stringify(l);
+    expect(pedigreeDemand(l, man)).toBe(pedigreeDemand(l, man));
+    expect(JSON.stringify(l)).toBe(before);
+  });
+
+  it('pulls by the strongest of tie, standing, pedigree and riser, with penalties on top', () => {
+    expect(strongestPull({ tie: 0, standing: -0.15, pedigree: -0.5, riser: 0, crowd: 0 })).toBeCloseTo(-0.5);
+    expect(strongestPull({ tie: 0, standing: 0.4, pedigree: -0.5, riser: 0, crowd: 0 })).toBeCloseTo(-0.1);
+    expect(strongestPull({ tie: 0, standing: -0.15, pedigree: -0.5, riser: 0, crowd: 0.3 })).toBeCloseTo(-0.2);
+    expect(strongestPull({ tie: 0, standing: 0, pedigree: -0.5, riser: -0.6, crowd: 0 })).toBeCloseTo(-0.6);
+    expect(strongestPull({ tie: -0.3, standing: 0, pedigree: -0.15, riser: 0, crowd: 0 })).toBeCloseTo(-0.3);
+  });
+
+  it('weighs pedigree by chair: head coach most, coordinators less, assistants none', () => {
+    const { l, man, now } = staff(13, 4, 6, []);
+    man.career = [now - 3, now - 2, now - 1].map((s) => row(s, 2, 'positionCoach', { room: 'QB' as const }));
+    expect(treeLean(l, null, man, 'headCoach')).toBeCloseTo(-PEDIGREE_PULL.headCoach!);
+    expect(treeLean(l, null, man, 'offCoord')).toBeCloseTo(-PEDIGREE_PULL.offCoord!);
+    expect(treeLean(l, null, man, 'positionCoach')).toBe(0);
+    expect(treeLean(l, null, man, 'headCoach', -0.9)).toBeCloseTo(-0.9);
   });
 });
