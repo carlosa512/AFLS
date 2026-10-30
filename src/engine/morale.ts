@@ -17,7 +17,7 @@ import { computeRecords, playoffRace, type TeamRecord } from './season/standings
 import { cultureRoom } from './coachTraits';
 import { talkStep } from './playerTalks';
 import { temperamentOf, TRAIT_MEAN } from './traits';
-import type { League, MoraleJolt, Player, Position } from './types';
+import type { League, MoraleJolt, Player, Position, TalkCause } from './types';
 
 const TRAIT_SD = 3.5;
 const z = (v: number) => (v - TRAIT_MEAN) / TRAIT_SD;
@@ -196,14 +196,44 @@ function restScore(p: Player): number {
 }
 
 export function moraleFactors(league: League, p: Player, ctx = moraleContext(league)): MoraleFactors {
+  const clock = league.moraleAt ?? moraleClock(league);
+  // An answer eases the grievance it answered (G4): a grievance only, never what he's happy about.
+  const heard = (k: keyof MoraleFactors, v: number) => (v < 0 ? v * heardWeight(p, k, clock) : v);
   return {
-    contract: contractScore(league, p, ctx),
-    role: roleScore(league, p, ctx),
-    team: teamScore(p, ctx),
-    room: roomScore(league, p, ctx),
+    contract: heard('contract', contractScore(league, p, ctx)),
+    role: heard('role', roleScore(league, p, ctx)),
+    team: heard('team', teamScore(p, ctx)),
+    room: heard('room', roomScore(league, p, ctx)),
     promises: promisesScore(p),
     rest: restScore(p),
   };
+}
+
+/** Steps after an answer before he asks again (eight, the owner's call: six filled the inbox). */
+export const QUIET = 8;
+
+/** The factor behind each thing a man asks about. */
+export const CAUSE_FACTOR: Record<TalkCause, 'role' | 'contract' | 'team' | 'room'> = {
+  snaps: 'role',
+  deal: 'contract',
+  losing: 'team',
+  feud: 'room',
+};
+
+/**
+ * How much of a grievance still weighs on him once he's been answered (G4): an open promise leaves a quarter of what it
+ * promised to fix, less the more promises he's seen broken (four or more, all of it); a reassurance takes a quarter off
+ * the grievance it answered until he could ask again, an eighth the second time in a league year. 1: nothing eases it.
+ */
+export function heardWeight(p: Player, factor: keyof MoraleFactors, clock: number): number {
+  const t = p.morale?.talk;
+  if (!t) return 1;
+  let w = 1;
+  if (t.promise && CAUSE_FACTOR[t.promise.kind] === factor) w *= 1 - 0.75 * Math.max(0, 1 - 0.25 * (t.broken ?? 0));
+  const a = t.answered;
+  if (a?.reply === 'reassure' && a.cause && CAUSE_FACTOR[a.cause] === factor && clock < a.at + QUIET)
+    w *= 1 - 0.25 * 0.5 ** ((t.reassured ?? 1) - 1);
+  return w;
 }
 
 /** What promises he remembers leave behind: a little trust for each kept, a lot less for each broken (G3). */
@@ -318,6 +348,12 @@ const JOLT_WORDS: Record<MoraleJolt, string> = {
   ignored: 'Feels ignored',
 };
 
+/** While a promise is open, the grievance it answered reads as waiting on it (G4). */
+const WAITING: Partial<Record<keyof MoraleFactors, { kind: 'deal' | 'snaps'; text: string }>> = {
+  contract: { kind: 'deal', text: 'Waiting on his new deal' },
+  role: { kind: 'snaps', text: 'Waiting on his snaps' },
+};
+
 /** The reasons that are his makeup, not his situation. */
 export const TEMPERAMENT_REASONS: ReadonlySet<string> = new Set(FACTOR_WORDS.rest);
 
@@ -330,6 +366,7 @@ export const DOWN_REASONS: ReadonlySet<string> = new Set([
   JOLT_WORDS.broken,
   JOLT_WORDS.firm,
   JOLT_WORDS.ignored,
+  ...Object.values(WAITING).map((w) => w!.text),
 ]);
 
 /** Why he feels the way he does: up to three plain phrases, the biggest first. */
@@ -341,7 +378,11 @@ export function moraleReasons(
 ): string[] {
   const out: { text: string; size: number }[] = [];
   for (const [k, [down, up]] of Object.entries(FACTOR_WORDS) as [keyof typeof FACTOR_WORDS, [string, string]][])
-    if (Math.abs(f[k]) >= 0.75) out.push({ text: f[k] < 0 ? down : up, size: Math.abs(f[k]) });
+    if (Math.abs(f[k]) >= 0.75) {
+      const wait = WAITING[k];
+      const waiting = wait && p.morale?.talk?.promise?.kind === wait.kind;
+      out.push({ text: f[k] < 0 ? (waiting ? wait.text : down) : up, size: Math.abs(f[k]) });
+    }
   for (const j of p.morale?.jolts ?? []) {
     const size = Math.abs(liveSize(j, clock));
     if (size >= 0.75 && !out.some((o) => o.text === JOLT_WORDS[j.kind])) out.push({ text: JOLT_WORDS[j.kind], size });

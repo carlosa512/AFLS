@@ -22,6 +22,8 @@ import {
   moodPull,
   moraleMean,
   type MoraleFactors,
+  heardWeight,
+  QUIET,
 } from './morale';
 import { playerOvr, STARTERS } from './positions';
 import { leagueMarket, resetLeagueMarket } from './finance/market';
@@ -452,5 +454,80 @@ describe('morale: the scale its effects read (G2)', () => {
     const theirs = activeRoster(l, (l.userTeamId + 1) % 32)[0];
     theirs.morale = { level: -8, jolts: [] };
     expect(moraleView(l, theirs)).toBeNull();
+  });
+});
+
+describe('morale: being heard (G4 part 1)', () => {
+  /** An underpaid man on team 0 whose contract weighs on him, with no talks on file. */
+  function sour() {
+    const l = createLeague({ seed: 'morale-heard' });
+    const ctx = moraleContext(l);
+    const p = activeRoster(l, 0)
+      .filter((x) => x.morale)
+      .map((x) => ({ x, c: moraleFactors(l, x, ctx).contract }))
+      .sort((a, b) => a.c - b.c)[0].x;
+    delete p.morale!.talk;
+    const clock = l.moraleAt!;
+    const base = moraleFactors(l, p, ctx);
+    return { l, ctx, p, clock, base };
+  }
+
+  it('an open deal promise leaves a quarter of a negative contract factor', () => {
+    const { l, ctx, p, clock, base } = sour();
+    expect(base.contract).toBeLessThanOrEqual(-1);
+    p.morale!.talk = { club: p.teamId!, promise: { kind: 'deal', made: clock, due: clock + 20 } };
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(0.25 * base.contract, 9);
+  });
+
+  it('scales by trust: one broken leaves 0.4375, four or more all of it', () => {
+    const { l, ctx, p, clock, base } = sour();
+    p.morale!.talk = { club: p.teamId!, broken: 1, promise: { kind: 'deal', made: clock, due: clock + 20 } };
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(0.4375 * base.contract, 9);
+    p.morale!.talk.broken = 4;
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(base.contract, 9);
+  });
+
+  it('a reassurance takes a quarter off the factor it answered until the quiet ends, an eighth the second time', () => {
+    const { l, ctx, p, clock, base } = sour();
+    p.morale!.talk = {
+      club: p.teamId!,
+      reassured: 1,
+      answered: { reply: 'reassure', at: clock, ask: clock, cause: 'deal' },
+    };
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(0.75 * base.contract, 9);
+    p.morale!.talk.reassured = 2;
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(0.875 * base.contract, 9);
+    l.moraleAt = clock + QUIET;
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(base.contract, 9);
+  });
+
+  it('softens only the factor answered, never a positive one, nothing without a cause', () => {
+    const { l, ctx, p, clock, base } = sour();
+    p.morale!.talk = { club: p.teamId!, promise: { kind: 'snaps', made: clock, left: 4 } };
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(base.contract, 9);
+    expect(heardWeight(p, 'role', clock)).toBeCloseTo(0.25, 9);
+    p.morale!.talk = { club: p.teamId!, reassured: 1, answered: { reply: 'reassure', at: clock, ask: clock } };
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(base.contract, 9);
+    // A happy factor is never scaled down.
+    const happy = activeRoster(l, 0).find((x) => x.morale && moraleFactors(l, x, ctx).team > 0.2);
+    if (happy) {
+      const before = moraleFactors(l, happy, ctx).team;
+      happy.morale!.talk = {
+        club: happy.teamId!,
+        reassured: 1,
+        answered: { reply: 'reassure', at: clock, ask: clock, cause: 'losing' },
+      };
+      expect(moraleFactors(l, happy, ctx).team).toBeCloseTo(before, 9);
+    }
+  });
+
+  it('reads "Waiting on his new deal" while a deal promise is open', () => {
+    const { l, ctx, p, clock } = sour();
+    p.morale!.talk = { club: p.teamId!, broken: 4, promise: { kind: 'deal', made: clock, due: clock + 20 } };
+    const reasons = moraleReasons(l, p, moraleFactors(l, p, ctx));
+    expect(reasons).toContain('Waiting on his new deal');
+    expect(reasons).not.toContain('Wants a new deal');
+    expect(DOWN_REASONS.has('Waiting on his new deal')).toBe(true);
+    expect(DOWN_REASONS.has('Waiting on his snaps')).toBe(true);
   });
 });

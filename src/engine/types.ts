@@ -323,7 +323,7 @@ export interface Talk {
   /** The clock his mood first read Poor or worse in the current run (cleared when it lifts). */
   downSince?: number;
   /** The last answer, when, and the ask it answered: the eight-step quiet after it, and what the letter shows. */
-  answered?: { reply: TalkReply | 'ignored'; at: number; ask: number };
+  answered?: { reply: TalkReply | 'ignored'; at: number; ask: number; cause?: TalkCause };
   /**
    * An open promise. A snaps promise counts its games: `role` asked for, `left` games to keep it in, `games` and `snaps`
    * since it was made, and where his club's games and his snaps stood at the last check (`seen`). A deal promise is
