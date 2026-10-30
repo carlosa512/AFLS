@@ -7,7 +7,7 @@
  */
 import { clamp, Rng } from './rng';
 import { temperamentOf, TRAIT_MEAN } from './traits';
-import type { Coach, CoachTraits, Player } from './types';
+import type { Coach, CoachRole, CoachTraits, Player } from './types';
 
 const TRAIT_SD = 3.5;
 const roll = (v: number) => Math.round(clamp(v, 1, 20));
@@ -70,3 +70,20 @@ export const cultureFlags = (hc: Pick<Coach, 'traits'>): number =>
 /** What a head coach adds to his players' room factor: a player's coach lifts it, a disciplinarian quiets it. */
 export const cultureRoom = (hc: Pick<Coach, 'traits'>): number =>
   -DISCIPLINE.room * traitLean(traitOf(hc, 'discipline'));
+
+/**
+ * Wanting the step up: a lifer (ambition at `lifer` or less) never takes it, a climber (`climber` or more) always does,
+ * and anyone between says yes as often as (ambition − lifer) / 10, less `cool` a year past 55. A coordinator's chair
+ * is a step easier to want than a head coach's.
+ */
+export const STEP_UP = { headCoach: { lifer: 5, climber: 15 }, coordinator: { lifer: 3, climber: 13 }, cool: 0.05 };
+
+/** Whether he wants the chair one rung up this offseason: one answer per season, the same for every club that asks. */
+export function wantsStepUp(seed: string, season: number, c: Coach, chair: CoachRole): boolean {
+  const { lifer, climber } = chair === 'headCoach' ? STEP_UP.headCoach : STEP_UP.coordinator;
+  const ambition = traitOf(c, 'ambition');
+  if (ambition <= lifer) return false;
+  if (ambition >= climber) return true;
+  const chance = (ambition - lifer) / 10 - STEP_UP.cool * Math.max(0, c.age - 55);
+  return new Rng(`${seed}:wants:${season}:${c.id}:${chair}`).next() < chance;
+}

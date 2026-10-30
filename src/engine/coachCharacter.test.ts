@@ -1,6 +1,6 @@
 /** What coaches' character does in the game (docs/superpowers/specs/2026-10-30-coach-character-design.md). */
 import { describe, expect, it } from 'vitest';
-import { adaptShare } from './coachTraits';
+import { adaptShare, wantsStepUp } from './coachTraits';
 import {
   bentDefense,
   bentPassLean,
@@ -8,10 +8,14 @@ import {
   coachAsk,
   coachAskTo,
   cultureCalls,
+  ensureCoached,
   extendCoach,
   headCoachVision,
   isCoachExpiring,
+  ownerDismissHeadCoach,
   planUnder,
+  poachProblem,
+  promotionProblem,
   teamCoaches,
   visionFit,
   type Vision,
@@ -40,6 +44,8 @@ const coachOf = (role: Coach['role']): Coach => ({
   contract: null,
   traits: typical(),
 });
+const copyOf = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
+const headOf = (l: League, team: number) => teamCoaches(l, team).find((c) => c.role === 'headCoach')!;
 const offseason = (seed: string) => {
   const league = createLeague({ seed });
   simToEndOfSeason(league);
@@ -134,8 +140,6 @@ describe('adaptability', () => {
 });
 
 describe('discipline', () => {
-  const headOf = (l: League, team: number) => teamCoaches(l, team).find((c) => c.role === 'headCoach')!;
-
   it('gives a disciplinarian fewer flags and a player’s coach more, a typical coach none', () => {
     const l = createLeague({ seed: 'culture-calls' });
     withTraits(headOf(l, 1), { discipline: 18 });
@@ -162,5 +166,64 @@ describe('discipline', () => {
     const ctx = moraleContext(createLeague({ seed: 'culture' }));
     const xs = [...ctx.culture.values()];
     expect(Math.abs(xs.reduce((a, b) => a + b, 0) / xs.length)).toBeLessThan(0.15);
+  });
+});
+
+describe('wanting the step up', () => {
+  const dc = (ambition: number, age = 45) => withTraits({ ...coachOf('defCoord'), age }, { ambition });
+
+  it('never takes a lifer up, always a climber, and the same answer all offseason', () => {
+    expect(wantsStepUp('s', 2030, dc(5), 'headCoach')).toBe(false);
+    expect(wantsStepUp('s', 2030, dc(15), 'headCoach')).toBe(true);
+    const c = dc(10);
+    expect(wantsStepUp('s', 2030, c, 'headCoach')).toBe(wantsStepUp('s', 2030, copyOf(c), 'headCoach'));
+  });
+
+  it('says yes about (ambition − 5) / 10 of the time, less after 55', () => {
+    const share = (age: number) =>
+      Array.from({ length: 1000 }, (_, id) => wantsStepUp('s', 2030, { ...dc(10, age), id }, 'headCoach')).filter(
+        Boolean,
+      ).length / 1000;
+    expect(share(45)).toBeGreaterThan(0.45);
+    expect(share(45)).toBeLessThan(0.55);
+    expect(share(65)).toBe(0);
+  });
+
+  it('is a step easier for a position coach taking a coordinator’s chair', () => {
+    const pc = (ambition: number) => withTraits({ ...coachOf('positionCoach'), room: 'LB' }, { ambition });
+    expect(wantsStepUp('s', 2030, pc(4), 'defCoord')).toBe(wantsStepUp('s', 2030, pc(4), 'defCoord'));
+    expect(wantsStepUp('s', 2030, pc(3), 'defCoord')).toBe(false);
+    expect(wantsStepUp('s', 2030, pc(13), 'defCoord')).toBe(true);
+  });
+
+  it('hires the best willing man, logs the top choice who said no, and never leaves a chair empty', () => {
+    const l = offseason('step-up');
+    const lifers = new Set<number>();
+    for (const c of Object.values(l.coaches))
+      if (c.role === 'offCoord' || c.role === 'defCoord') lifers.add(withTraits(c, { ambition: 1 }).id);
+    const fired = l.teams.map((t) => t.id).filter((t) => t !== l.userTeamId && ownerDismissHeadCoach(l, t));
+    expect(fired.length).toBeGreaterThan(2);
+    ensureCoached(l);
+    for (const t of fired) {
+      const hc = headOf(l, t);
+      expect(hc).toBeDefined();
+      // Every coordinator is a lifer: the job went to a head coach on the market (or a journeyman), never a lifer.
+      expect(lifers.has(hc.id)).toBe(false);
+    }
+    expect(l.transactions.some((x) => /top choice, .* turned down head-coach talks\./.test(x.text))).toBe(true);
+  });
+
+  it('turns down your promotion or poach with the reason, the answer AI clubs get', () => {
+    const l = offseason('step-up-you');
+    const mine = withTraits(teamCoaches(l, l.userTeamId).find((c) => c.role === 'defCoord')!, { ambition: 1 });
+    expect(promotionProblem(l, l.userTeamId, mine)).toBe(
+      'He’s happy as defensive coordinator: he won’t take head-coach talks.',
+    );
+    const theirs = withTraits(teamCoaches(l, (l.userTeamId + 1) % 32).find((c) => c.role === 'offCoord')!, {
+      ambition: 1,
+    });
+    expect(poachProblem(l, l.userTeamId, theirs)).toBe(
+      'He’s happy as offensive coordinator: he won’t take head-coach talks.',
+    );
   });
 });

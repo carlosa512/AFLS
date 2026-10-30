@@ -31,6 +31,7 @@ import {
   traitLean,
   traitOf,
   traitsFromPlayer,
+  wantsStepUp,
 } from './coachTraits';
 import { inheritedScheme, keepBonus, mainMentor, treeLean } from './trees';
 import { workEthicOf } from './traits';
@@ -1109,6 +1110,9 @@ export function promotionProblem(league: League, teamId: number, c: Coach, years
     return `A ${COACH_ROLE_LABEL[chair.role].toLowerCase()} signs for 1–${maxYears(chair.role)} years.`;
   const holder = teamCoaches(league, teamId).find((x) => sameChair(chairOf(x), chair) && !isCoachExpiring(league, x));
   if (holder) return `${coachName(holder)} holds that chair: dismiss him first.`;
+  // He could move up: whether he wants to is his call (the same answer every club gets this offseason).
+  const no = refusal(league, c, chair);
+  if (no) return no;
   return budget ? budgetProblem(league, teamId, chair, moveOverspend(league, teamId, c, years, 'promote')) : null;
 }
 
@@ -1132,6 +1136,8 @@ export function poachProblem(league: League, teamId: number, c: Coach, years = 2
     return `A ${COACH_ROLE_LABEL[chair.role].toLowerCase()} signs for 1–${maxYears(chair.role)} years.`;
   const holder = teamCoaches(league, teamId).find((x) => sameChair(chairOf(x), chair) && !isCoachExpiring(league, x));
   if (holder) return `${coachName(holder)} holds that chair: dismiss him first.`;
+  const no = refusal(league, c, chair);
+  if (no) return no;
   return budget ? budgetProblem(league, teamId, chair, moveOverspend(league, teamId, c, years, 'poach')) : null;
 }
 
@@ -1914,7 +1920,19 @@ function fillChairs(
       // His people, and the tree a head-coach candidate comes from (`trees.ts`).
       treeLean(league, hc ?? null, x.c, chair.role) +
       rng.normal(0, 0.6);
-    const pick = pool.map((x) => ({ x, s: score(x) })).sort((a, b) => a.s - b.s)[0]?.x;
+    // Every candidate is scored (one noise draw each, the unwilling too), then the best who wants the job is hired.
+    const ranked = pool.map((x) => ({ x, s: score(x) })).sort((a, b) => a.s - b.s);
+    const willing = (x: Hire) => x.as === x.c || wantsStepUp(league.seed, league.season, x.c, chair.role);
+    const pick = ranked.find(({ x }) => willing(x))?.x;
+    const top = ranked[0]?.x;
+    if (top && top !== pick && LEADERSHIP.has(chair.role))
+      logCoach(
+        league,
+        team.id,
+        top.c,
+        `${team.abbrev}’s top choice, ${titleLower(top.c)} ${coachName(top.c)}, turned down ${stepUpJob(chair.role)} talks.`,
+        true,
+      );
     if (pick && pick.as !== pick.c) promoteInto(league, team.id, pick.c, years);
     else {
       // Nobody affordable: a journeyman takes the job on a one-year deal, so no chair stays empty. Rated about 6, he
@@ -1932,6 +1950,14 @@ function fillChairs(
     if (chair.role === 'headCoach' && poach)
       cleanHouse(league, team, chairHolder(teamCoaches(league, team.id), chair)!, rng, gone);
   }
+}
+
+const stepUpJob = (role: CoachRole) => (role === 'headCoach' ? 'head-coach' : 'coordinator');
+/** Why a coach turns down the chair above his, in his words, or null if he wants it this offseason. */
+function refusal(league: League, c: Coach, chair: Chair): string | null {
+  return wantsStepUp(league.seed, league.season, c, chair.role)
+    ? null
+    : `He’s happy as ${titleLower(c)}: he won’t take ${stepUpJob(chair.role)} talks.`;
 }
 
 /** Before the season: no AI team starts with an empty chair (vacancies from retirements). */
