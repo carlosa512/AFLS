@@ -52,6 +52,7 @@ import {
   poachCoach,
   poachProblem,
   poachable,
+  planUnder,
   promotionFor,
   promotionProblem,
   visionFit,
@@ -866,15 +867,19 @@ function SchemeRow({
   preview?: boolean;
 }) {
   if (c.role === 'stCoord') return <KickRow c={c} compact={compact} />;
+  // On a staff he runs his plan bent to his head coach's (an adaptable coordinator bends further): show what he runs.
+  const own = coachSchemeLabel(c);
+  c = planUnder(league, c);
   const label = coachSchemeLabel(c);
   if (!label) return null;
   const about = coachSchemeAbout(c);
+  const tip = own && own !== label ? `${about ?? label} His own: ${own}.` : (about ?? label);
   const side = c.role === 'offCoord' ? 'offense' : 'defense';
   const scheme = schemeWith(teamScheme(league, league.userTeamId), c);
   const fit = preview ? rosterFit(league, league.userTeamId, scheme, side) : null;
   return (
     <span className="scheme-row">
-      <TipPill className="scheme-pill" tip={about ?? label}>
+      <TipPill className="scheme-pill" tip={tip}>
         {label}
         {c.role === 'offCoord' && scheme.offense.personnel !== '11' ? ` · ${scheme.offense.personnel} personnel` : ''}
       </TipPill>

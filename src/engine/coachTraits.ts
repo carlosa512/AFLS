@@ -55,3 +55,6 @@ export function traitsFromPlayer(seed: string, c: Pick<Coach, 'id'>, p: Player):
 export function coolAmbition(c: Coach): void {
   if (c.traits && c.age >= 56) c.traits.ambition = Math.max(1, c.traits.ambition - 1);
 }
+
+/** How far a coordinator bends to his head coach's plan: none at 1, most of the way (0.8) at 20. */
+export const adaptShare = (c: Pick<Coach, 'traits'>): number => (0.8 * (traitOf(c, 'adaptability') - 1)) / 19;

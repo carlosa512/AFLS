@@ -1,6 +1,20 @@
 /** What coaches' character does in the game (docs/superpowers/specs/2026-10-30-coach-character-design.md). */
 import { describe, expect, it } from 'vitest';
-import { coachAsk, coachAskTo, extendCoach, isCoachExpiring, teamCoaches } from './coaching';
+import { adaptShare } from './coachTraits';
+import {
+  bentDefense,
+  bentPassLean,
+  callerStyle,
+  coachAsk,
+  coachAskTo,
+  extendCoach,
+  headCoachVision,
+  isCoachExpiring,
+  planUnder,
+  teamCoaches,
+  visionFit,
+  type Vision,
+} from './coaching';
 import { createLeague } from './generate';
 import { simToEndOfSeason } from './league';
 import { beginOffseason } from './offseason';
@@ -12,6 +26,18 @@ const withTraits = (c: Coach, t: Partial<CoachTraits>) => {
   c.traits = { ...typical(), ...t };
   return c;
 };
+const coachOf = (role: Coach['role']): Coach => ({
+  id: 9000,
+  firstName: 'Ray',
+  lastName: 'Holt',
+  role,
+  age: 45,
+  youth: 10,
+  veterans: 10,
+  teamId: null,
+  contract: null,
+  traits: typical(),
+});
 const offseason = (seed: string) => {
   const league = createLeague({ seed });
   simToEndOfSeason(league);
@@ -59,5 +85,48 @@ describe('loyalty', () => {
     const ask = coachAskTo(l, c, 2, user);
     extendCoach(l, user, c.id, 2);
     expect(c.contract!.salary).toBe(ask);
+  });
+});
+
+describe('adaptability', () => {
+  const v = (pass: number, front: 'threeFour' | 'fourThree' = 'threeFour') =>
+    ({ pass, defense: { front, coverage: 'cover3' }, pressure: 0 }) as Vision;
+  const oc = (adaptability: number, passLean: number) =>
+    withTraits({ ...coachOf('offCoord'), style: { passLean } }, { adaptability });
+
+  it('bends an adaptable OC’s pass lean toward the head coach, not a stubborn one’s', () => {
+    expect(bentPassLean(oc(20, -0.4), v(0.8))).toBeCloseTo(-0.4 + 0.8 * 1.2);
+    expect(bentPassLean(oc(1, -0.4), v(0.8))).toBeCloseTo(-0.4);
+    expect(adaptShare(oc(20, 0))).toBeCloseTo(0.8);
+  });
+
+  it('has an adaptable DC run the head coach’s front about as often as his share says', () => {
+    const dc = withTraits(
+      { ...coachOf('defCoord'), scheme: { front: 'fourThree', coverage: 'cover2' } },
+      {
+        adaptability: 20,
+      },
+    );
+    const runs = Array.from({ length: 400 }, (_, id) => bentDefense('s', dc, id, v(0))?.front === 'threeFour');
+    const share = runs.filter(Boolean).length / runs.length;
+    expect(share).toBeGreaterThan(0.7);
+    expect(share).toBeLessThan(0.9);
+    withTraits(dc, { adaptability: 1 });
+    expect(bentDefense('s', dc, 7, v(0))).toEqual(dc.scheme);
+  });
+
+  it('scores fit on the bent plan, and calls the game on it', () => {
+    const l = createLeague({ seed: 'adapt' });
+    const team = 5;
+    const hc = teamCoaches(l, team).find((c) => c.role === 'headCoach')!;
+    const coord = teamCoaches(l, team).find((c) => c.role === 'offCoord')!;
+    const vision = headCoachVision(l, hc);
+    coord.style = { ...coord.style, passLean: vision.pass > 0 ? -1 : 1 };
+    withTraits(coord, { adaptability: 1 });
+    const stubborn = visionFit(l, hc, coord)!;
+    withTraits(coord, { adaptability: 20 });
+    expect(visionFit(l, hc, coord)!).toBeGreaterThan(stubborn);
+    expect(callerStyle(l, team).passLean).toBeCloseTo(bentPassLean(coord, vision));
+    expect(planUnder(l, coord).style?.passLean).toBeCloseTo(bentPassLean(coord, vision));
   });
 });

@@ -22,7 +22,7 @@
  * agency, like scouts. All coaching randomness uses its own seeded Rngs: it never shifts the
  * league's main random stream, and a migrated save gets the same coaches as a new league.
  */
-import { coolAmbition, LOYAL, rollCoachTraits, traitLean, traitOf, traitsFromPlayer } from './coachTraits';
+import { adaptShare, coolAmbition, LOYAL, rollCoachTraits, traitLean, traitOf, traitsFromPlayer } from './coachTraits';
 import { inheritedScheme, keepBonus, mainMentor, treeLean } from './trees';
 import { workEthicOf } from './traits';
 import {
@@ -398,8 +398,16 @@ export function callerStyle(league: League, teamId: number): CallerStyle {
   if (!league.coaches) return NO_STYLE;
   const staff = teamCoaches(league, teamId);
   const cover = coveringHeadCoach(staff, 'offCoord');
+  const oc = coordinatorOf(staff, 'offCoord');
+  const hc = chairHolder(staff, { role: 'headCoach' });
   return {
-    passLean: cover ? headCoachVision(league, cover).pass : (coordinatorOf(staff, 'offCoord')?.style?.passLean ?? 0),
+    passLean: cover
+      ? headCoachVision(league, cover).pass
+      : oc
+        ? hc
+          ? bentPassLean(oc, headCoachVision(league, hc))
+          : (oc.style?.passLean ?? 0)
+        : 0,
     fourthDown: chairHolder(staff, { role: 'headCoach' })?.style?.fourthDown ?? 0,
   };
 }
@@ -414,7 +422,13 @@ export function teamScheme(league: League, teamId: number): TeamScheme {
   const ocCover = coveringHeadCoach(staff, 'offCoord');
   const dcCover = coveringHeadCoach(staff, 'defCoord');
   const oc = ocCover ? { offense: ocCover.scheme?.offense } : coordinatorOf(staff, 'offCoord')?.scheme;
-  const dc = dcCover ? headCoachVision(league, dcCover).defense : coordinatorOf(staff, 'defCoord')?.scheme;
+  const seatedDc = coordinatorOf(staff, 'defCoord');
+  const hc = chairHolder(staff, { role: 'headCoach' });
+  const dc = dcCover
+    ? headCoachVision(league, dcCover).defense
+    : seatedDc && hc
+      ? bentDefense(league.seed, seatedDc, hc.id, headCoachVision(league, hc))
+      : seatedDc?.scheme;
   return {
     offense: oc?.offense ? OFF_SCHEMES[oc.offense] : BASE_OFFENSE,
     front: FRONTS[dc?.front ?? 'fourThree'],
@@ -493,10 +507,38 @@ function lastSeasonHolder(league: League, teamId: number, role: CoachRole): Coac
 export function visionFit(league: League, hc: Coach | null, c: Coach, vision?: Vision): number | null {
   if (!hc || (c.role !== 'offCoord' && c.role !== 'defCoord')) return null;
   const v = vision ?? headCoachVision(league, hc);
-  if (c.role === 'offCoord') return 1 - Math.min(1, Math.abs((c.style?.passLean ?? 0) - v.pass) / 1.2);
+  // Read on the plan he'd run under this head coach: an adaptable man bends toward it (`bentPassLean`, `bentDefense`).
+  if (c.role === 'offCoord') return 1 - Math.min(1, Math.abs(bentPassLean(c, v) - v.pass) / 1.2);
+  const d = bentDefense(league.seed, c, hc.id, v);
   // The defense he wants by name, front first: matched on a single pressure scale, the rarest fronts would lose every
   // close call to a near enough one and fade from the league.
-  return (c.scheme?.front === v.defense.front ? 0.6 : 0) + (c.scheme?.coverage === v.defense.coverage ? 0.4 : 0);
+  return (d?.front === v.defense.front ? 0.6 : 0) + (d?.coverage === v.defense.coverage ? 0.4 : 0);
+}
+
+/** An offensive coordinator's pass lean under a head coach: an adaptable one moves part of the way to what he wants. */
+export const bentPassLean = (oc: Coach, v: Vision): number => {
+  const own = oc.style?.passLean ?? 0;
+  return own + adaptShare(oc) * (v.pass - own);
+};
+
+/**
+ * A defensive coordinator's front and coverage under a head coach: an adaptable one runs what the head coach wants as
+ * often as his share says, on a roll seeded by the pair (the same answer for as long as they work together).
+ */
+export function bentDefense(seed: string, dc: Coach, hcId: number, v: Vision): CoachScheme | undefined {
+  if (!v.defense.front || new Rng(`${seed}:adapt:${dc.id}:${hcId}`).next() >= adaptShare(dc)) return dc.scheme;
+  return { ...dc.scheme, front: v.defense.front, coverage: v.defense.coverage };
+}
+
+/** A coordinator as he runs it on his staff now (his plan bent to his head coach), or himself with no head coach. */
+export function planUnder(league: League, c: Coach): Coach {
+  if (c.teamId === null || (c.role !== 'offCoord' && c.role !== 'defCoord')) return c;
+  const hc = chairHolder(teamCoaches(league, c.teamId), { role: 'headCoach' });
+  if (!hc) return c;
+  const v = headCoachVision(league, hc);
+  return c.role === 'offCoord'
+    ? { ...c, style: { ...c.style, passLean: bentPassLean(c, v) } }
+    : { ...c, scheme: bentDefense(league.seed, c, hc.id, v) };
 }
 
 /** A vision in plain words, side by side: "a pass-first offense", "a defense that brings pressure", "balance". */
