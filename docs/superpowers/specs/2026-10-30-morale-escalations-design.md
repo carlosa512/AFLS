@@ -92,7 +92,8 @@ He reports but won't practice.
 
 He doesn't report to camp.
 
-- **Camp fine:** $50K a day of camp (the 2020 CBA's veteran rate), charged at camp's step as one fine: about $1.0M.
+- **Camp fine:** $50K a day of camp (the 2020 CBA's veteran rate) over about 45 days, charged as one fine when camp
+  ends with him still out: $2.25M (Chris Jones, 2023).
 - **The Reserve/Did Not Report list:** off the 53 (`rosterList` returns `didNotReport`), unavailable, not counted in
   roster limits. His club can sign a cover.
 - **Each regular-season week out:** his game check (1/18 of base) is withheld, and his club's cap charge drops by it
@@ -101,7 +102,7 @@ He doesn't report to camp.
   through `personnel/service.ts`.
 - **He gives in** once what he's lost (fines and withheld checks) reaches his limit: `base × (0.05 + 0.45 × resolve)`,
   `resolve = (greed + 1 − patience) / 2`. A calm man reports for week 1 having lost his camp fine; the most stubborn
-  holds out about nine weeks. Giving in: a −2 jolt ("Gave in"), and the talk counts as ended badly.
+  well-paid star holds out about seven weeks (Reddick, 2024: seven). Giving in: a −2 jolt ("Gave in"), and the talk counts as ended badly.
 - **It ends** with a deal (fines forgiven), a trade (a new club is a clean slate), a promise he takes, or giving in.
 - **Rust** as for a hold-in, from the week he reports.
 
@@ -148,8 +149,13 @@ Report, like IR. What's public shows for anyone's player where an injury shows: 
 ## Data
 
 - `Talk.answered.cause` (Part 1).
-- `Morale.dispute?: { kind: 'holdIn' | 'holdOut' | 'trade'; cause; since; public?; refused?; fined?; promise? }`.
-- `ContractYear.withheld?: number` (weeks of game checks withheld).
+- `Morale.dispute?: { kind: 'holdIn' | 'holdOut' | 'trade'; cause; since; out?; fined?; lost?; answered?; public?;
+  refused? }`, and `Morale.disputeEnd` (how the last one ended, for the letters).
+- `Talk.sour?: { cause; at; run; after? }` (a talk that ended badly and the Very poor steps since);
+  `Talk.promise.dispute?` (a promise made to end a dispute).
+- `Morale.rust?: { season; week }` (the first week back after missing camp).
+- `ContractYear.withheld?: number` (weeks of game checks withheld); `Player.lostAccrual?: number` (the season a
+  holdout lost).
 - `SAVE_VERSION` 71 (Part 1 needs no bump: an optional field old saves don't have); the upgrade step fills nothing.
 
 ## Checks
