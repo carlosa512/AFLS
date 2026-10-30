@@ -175,7 +175,23 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
   if (isActiveHead(c) && !seasons.includes(league.season)) seasons.push(league.season);
   // Established only: his second season in charge or later (a first-year man fired in a year makes nobody a tree).
   const ran = new Set(seasons);
-  const established = seasons.filter((x) => ran.has(x - 1));
+  // And winning: .500 or better in charge since his years under him, through that season (none on file counts). A
+  // losing head coach is a good teacher's pupil, not a branch: trees spread through the men who win.
+  const share = new Map<number, number>();
+  const r = { w: 0, l: 0, t: 0 };
+  for (const x of [...coachRecord(league, c, ['headCoach']).seasons]
+    .filter((y) => y.season > last)
+    .sort((p, q) => p.season - q.season)) {
+    r.w += x.regular.w;
+    r.l += x.regular.l;
+    r.t += x.regular.t;
+    share.set(x.season, winPct(r));
+  }
+  const winning = (x: number) => {
+    const known = [...share.keys()].filter((y) => y <= x);
+    return !known.length || share.get(Math.max(...known))! >= 0.5;
+  };
+  const established = seasons.filter((x) => ran.has(x - 1) && winning(x));
   // A founding disciple was already established in his club before the league began.
   if (last === -Infinity && isActiveHead(c)) established.push(-Infinity, league.season);
   return established;
@@ -310,9 +326,9 @@ const headSeasonsOf = (league: League, coachId: number) =>
   (coachById(league, coachId)?.career ?? []).filter((r) => r.role === 'headCoach').map((r) => r.season);
 
 /**
- * He has a tree once two of his men have run clubs side by side for two seasons while he was a winner, as the press
- * recognizes one: a man whose assistants run clubs one after another, or who never won himself, is a good teacher,
- * not a tree.
+ * He has a tree once two of his men are established head coaches with winning records in charge (at any time, not only
+ * side by side) while he was a winner, as the press recognizes one: a man who never won himself, or whose men lose when
+ * they get their own clubs, is a good teacher, not a tree.
  */
 export const hasTree = (league: League, coachId: number): boolean => treeBornSeason(league, coachId) !== null;
 

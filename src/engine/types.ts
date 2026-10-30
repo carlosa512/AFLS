@@ -323,7 +323,7 @@ export interface Talk {
   /** The clock his mood first read Poor or worse in the current run (cleared when it lifts). */
   downSince?: number;
   /** The last answer, when, and the ask it answered: the eight-step quiet after it, and what the letter shows. */
-  answered?: { reply: TalkReply | 'ignored'; at: number; ask: number };
+  answered?: { reply: TalkReply | 'ignored'; at: number; ask: number; cause?: TalkCause };
   /**
    * An open promise. A snaps promise counts its games: `role` asked for, `left` games to keep it in, `games` and `snaps`
    * since it was made, and where his club's games and his snaps stood at the last check (`seen`). A deal promise is
@@ -1363,6 +1363,8 @@ export interface MailSection {
     contract?: { playerId: number };
     /** A player who spoke up (a step's players' letters): his answers are drawn from his talk record. */
     talk?: { playerId: number; clock: number };
+    /** A player the row offers contract talks with (the promises reminder's deals). */
+    negotiate?: { playerId: number };
   }[];
 }
 

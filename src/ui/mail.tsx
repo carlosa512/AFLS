@@ -649,6 +649,29 @@ function TalkCards({ league, s }: { league: League; s: { clock: number; playerId
   );
 }
 
+/** A promised deal's row (the promises reminder): talks with him, once the calendar allows them. */
+function NegotiateButton({
+  league,
+  playerId,
+  onNegotiate,
+}: {
+  league: League;
+  playerId: number;
+  onNegotiate: (playerId: number) => void;
+}) {
+  const p = league.players[playerId];
+  if (!p || p.teamId !== league.userTeamId) return null;
+  if (league.phase === 'playoffs' || league.phase === 'complete')
+    return <p className="mail-row-note small muted">Talks open when the new league year begins.</p>;
+  return (
+    <div className="row" style={{ gap: 8 }}>
+      <button className="btn btn-sm" onClick={() => onNegotiate(playerId)}>
+        Negotiate
+      </button>
+    </div>
+  );
+}
+
 function Card({ title, children, className = '' }: { title?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <div className={`mail-card ${className}`}>
@@ -2879,6 +2902,9 @@ function SectionCard({
                 </div>
                 {r.note && <p className="mail-row-note">{r.note}</p>}
                 {r.talk && <TalkCards league={league} s={r.talk} />}
+                {r.negotiate && onNegotiate && (
+                  <NegotiateButton league={league} playerId={r.negotiate.playerId} onNegotiate={onNegotiate} />
+                )}
                 {r.claim && <ClaimProblem league={league} entryId={r.claim.entryId} />}
                 {r.contract && (
                   <ContractControls

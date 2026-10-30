@@ -233,13 +233,16 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `TRAITS_ON` keeps a trait out of names until its job ships), `personalityRead` for a team's view, captains
     (`nameCaptains`) · `morale.ts` each player's mood: a weekly target (contract, role, team, locker room, promises
     from G3, a resting level from his makeup), a level that moves part of the way there, fading jolts for big moments;
+    an answer eases the grievance it answered while it holds (`heardWeight`: an open promise, a reassurance until the
+    quiet ends);
     `moraleWeek` in `playWeek`, `moraleStep` at each offseason step, nothing drawn from any stream; screens read it only
     through `moraleView` (your players only, in words); its effects (G2) read one scale, `moodLean` (talks in `demand`,
     position learning in `learnRate`) or `moodPull` against `moraleMean` (the growth tilt, `DevYear.mood` and
     `MOOD_TILT` in `development.ts`; the game-day edge in `buildLineup`'s knocks) · `playerTalks.ts` players speaking up (G3): who asks (three
     steps down with a cause, two a club a step, eight steps' quiet after an answer), your answers (`answerTalk`) and the
     AI's (`aiReply`, by its GM's tendencies), promises kept or broken by what happens and remembered (`promisesScore`),
-    run at the end of each morale step; `talkMail.ts` files your letters (a step's letters as one message, `talkCard`
+    run at the end of each morale step; `promiseMail.ts` is the head coach's season's-end reminder of open promises;
+    `talkMail.ts` files your letters (a step's letters as one message, `talkCard`
     reads what a letter shows), his words in `playerVoice.ts` · `mentoring.ts` veterans mentoring players 21–24: work ethic, temperament and poise move at most a
     point a year (`Player.shifts`, read through `workEthicOf`/`temperamentOf`/`poiseOf`, never `traits` directly),
     landing at the new league year; one planner for your staff and AI teams (`planMentors`) · `lockerMail.ts` the

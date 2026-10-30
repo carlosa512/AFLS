@@ -264,6 +264,8 @@ const perRun = (n6: number) => Math.ceil((n6 * seasons) / 6);
 const gains = { best: [] as number[], worst: [] as number[] };
 const rows: Row[] = [];
 const playerGrowth: number[] = [];
+/** The whole save's growth each season from the third: judged on average (one season's games swing it ±100 KB). */
+const saveGrowth: number[] = [];
 let prevSave: { total: number; players: number; retired: number; awards: number; weekly: number } | undefined;
 
 const MEDIC_MAX = Object.values(MEDIC_SLOTS).reduce((a, b) => a + b, 0); // 4
@@ -525,9 +527,10 @@ for (let s = 0; s < seasons; s++) {
     weekly: save.weekly - prevSave.weekly,
   };
   console.log(
-    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · ${check('growth KB', dSave.total, -Infinity, SAVE_SIZE_BUDGET.annualGrowth, 0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800 + Object.values(SAVE_FEATURE_ALLOWANCES).reduce((sum, a) => sum + ('playersGrowth' in a ? a.playersGrowth : 0), 0), 0)} · ${check('retired added', dSave.retired, 0, 320 + SAVE_FEATURE_ALLOWANCES.practiceSquads.retiredAdded, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
+    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · growth KB ${dSave.total.toFixed(0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800 + Object.values(SAVE_FEATURE_ALLOWANCES).reduce((sum, a) => sum + ('playersGrowth' in a ? a.playersGrowth : 0), 0), 0)} · ${check('retired added', dSave.retired, 0, 320 + SAVE_FEATURE_ALLOWANCES.practiceSquads.retiredAdded, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
   if (dSave) playerGrowth.push(dSave.players);
+  if (dSave && s >= 2) saveGrowth.push(dSave.total);
   prevSave = save;
 
   // Coaching economy. Ledger growth for under-26s x0.999 → x1.025 → x1.008 (all seeds 0.970-1.025), body x0.987-0.999 and
@@ -625,6 +628,14 @@ if (playerGrowth.some((g) => g > 100)) {
 }
 
 // ───────── Whole-run checks ─────────
+
+// The save's yearly growth, on average: a season's stored games keep its scoring plays, so one season reads up to about
+// 100 KB high or low by its history alone (the same league at the same scoring, 22.6 points a game either way, read
+// 1143 and 1303 in its third season). The budget holds per season; it's judged on the run's mean.
+if (saveGrowth.length)
+  console.log(
+    `save growth a season (mean of ${saveGrowth.length}, ${saveGrowth.map((g) => g.toFixed(0)).join(' ')}): ${check('KB', avg(saveGrowth), -Infinity, SAVE_SIZE_BUDGET.annualGrowth, 0)}`,
+  );
 
 // Coaching helps young players, but only a little: +0.012 here (all seeds +0.012, +0.088, +0.047, +0.054) with a standard
 // error near 0.024 at n ~ 1100 an arm, so one seed cannot band it tightly. This is a sanity band (coaching neither hurts

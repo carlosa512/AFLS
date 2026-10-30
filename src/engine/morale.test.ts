@@ -22,6 +22,8 @@ import {
   moodPull,
   moraleMean,
   type MoraleFactors,
+  heardWeight,
+  QUIET,
 } from './morale';
 import { playerOvr, STARTERS } from './positions';
 import { leagueMarket, resetLeagueMarket } from './finance/market';
@@ -90,6 +92,55 @@ describe('morale: the factors', () => {
     ctx.live.WR = 300;
     expect(moraleFactors(league, s, ctx).role).toBeLessThan(0);
     expect(moraleFactors(league, s, ctx).role).toBeGreaterThanOrEqual(-3);
+  });
+
+  it("doesn't count the games a starter missed hurt against his role", () => {
+    const base = starter();
+    const ctx = moraleContext(league);
+    Object.assign(ctx.records.get(0)!, { w: 6, l: 2 });
+    ctx.live.WR = 480; // 60 snaps a game over eight games
+    // Hurt for six of eight, healthy again, a starter's snaps in the two he played.
+    const back = {
+      ...base,
+      experience: 4,
+      injuries: [{ type: 'Hamstring', severity: 'moderate', season: league.season, week: 2, weeks: 6 }],
+      stats: { [league.season]: { gp: 2, snaps: 120 } },
+    } as Player;
+    expect(moraleFactors(withPlayer(back), back, ctx).role).toBe(0);
+    // A healthy starter who sat those games is benched.
+    const sat = { ...back, injuries: [] } as Player;
+    expect(moraleFactors(withPlayer(sat), sat, ctx).role).toBeLessThan(0);
+    // Back but yet to play since: one healthy game is no read, so last season's role stands.
+    Object.assign(ctx.records.get(0)!, { w: 5, l: 2 });
+    ctx.live.WR = 420;
+    const none = { ...back, stats: { ...base.stats, [league.season]: { gp: 1, snaps: 60 } } } as Player;
+    expect(moraleFactors(withPlayer(none), none, ctx).role).toBe(0);
+  });
+
+  it('never reads a hurt backup as a starter: only regular-season weeks missed count, and never below the games he dressed', () => {
+    const ol = team0.filter((p) => p.position === 'OL').sort((a, b) => playerOvr(b) - playerOvr(a));
+    const ctx = moraleContext(league);
+    Object.assign(ctx.records.get(0)!, { w: 6, l: 2 });
+    ctx.live.OL = 480;
+    const backup = { ...ol[STARTERS.OL + 1], experience: 5 };
+    const hurt = (injuries: object[], gp: number, snaps: number) =>
+      ({ ...backup, injuries, stats: { [league.season]: { gp, snaps } } }) as Player;
+    // Played through a six-week injury, every game, a backup's snaps: still a backup, content.
+    const through = hurt([{ type: 'Ankle', severity: 'moderate', season: league.season, week: 2, weeks: 6 }], 8, 60);
+    expect(moraleFactors(withPlayer(through), through, ctx).role).toBe(0);
+    // Hurt in camp, healed before week 1: none of his eight games was missed.
+    const camp = hurt([{ type: 'Ankle', severity: 'moderate', season: league.season, week: 0, weeks: 1 }], 8, 60);
+    expect(moraleFactors(withPlayer(camp), camp, ctx).role).toBe(0);
+    // Two injuries over the same weeks count those weeks once.
+    const twice = hurt(
+      [
+        { type: 'Ankle', severity: 'moderate', season: league.season, week: 2, weeks: 3 },
+        { type: 'Knee', severity: 'moderate', season: league.season, week: 3, weeks: 3 },
+      ],
+      4,
+      30,
+    );
+    expect(moraleFactors(withPlayer(twice), twice, ctx).role).toBe(0);
   });
 
   it('reads a depth player who sits as content: he knows the starters are better', () => {
@@ -452,5 +503,80 @@ describe('morale: the scale its effects read (G2)', () => {
     const theirs = activeRoster(l, (l.userTeamId + 1) % 32)[0];
     theirs.morale = { level: -8, jolts: [] };
     expect(moraleView(l, theirs)).toBeNull();
+  });
+});
+
+describe('morale: being heard (G4 part 1)', () => {
+  /** An underpaid man on team 0 whose contract weighs on him, with no talks on file. */
+  function sour() {
+    const l = createLeague({ seed: 'morale-heard' });
+    const ctx = moraleContext(l);
+    const p = activeRoster(l, 0)
+      .filter((x) => x.morale)
+      .map((x) => ({ x, c: moraleFactors(l, x, ctx).contract }))
+      .sort((a, b) => a.c - b.c)[0].x;
+    delete p.morale!.talk;
+    const clock = l.moraleAt!;
+    const base = moraleFactors(l, p, ctx);
+    return { l, ctx, p, clock, base };
+  }
+
+  it('an open deal promise leaves a quarter of a negative contract factor', () => {
+    const { l, ctx, p, clock, base } = sour();
+    expect(base.contract).toBeLessThanOrEqual(-1);
+    p.morale!.talk = { club: p.teamId!, promise: { kind: 'deal', made: clock, due: clock + 20 } };
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(0.25 * base.contract, 9);
+  });
+
+  it('scales by trust: one broken leaves 0.4375, four or more all of it', () => {
+    const { l, ctx, p, clock, base } = sour();
+    p.morale!.talk = { club: p.teamId!, broken: 1, promise: { kind: 'deal', made: clock, due: clock + 20 } };
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(0.4375 * base.contract, 9);
+    p.morale!.talk.broken = 4;
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(base.contract, 9);
+  });
+
+  it('a reassurance takes a quarter off the factor it answered until the quiet ends, an eighth the second time', () => {
+    const { l, ctx, p, clock, base } = sour();
+    p.morale!.talk = {
+      club: p.teamId!,
+      reassured: 1,
+      answered: { reply: 'reassure', at: clock, ask: clock, cause: 'deal' },
+    };
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(0.75 * base.contract, 9);
+    p.morale!.talk.reassured = 2;
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(0.875 * base.contract, 9);
+    l.moraleAt = clock + QUIET;
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(base.contract, 9);
+  });
+
+  it('softens only the factor answered, never a positive one, nothing without a cause', () => {
+    const { l, ctx, p, clock, base } = sour();
+    p.morale!.talk = { club: p.teamId!, promise: { kind: 'snaps', made: clock, left: 4 } };
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(base.contract, 9);
+    expect(heardWeight(p, 'role', clock)).toBeCloseTo(0.25, 9);
+    p.morale!.talk = { club: p.teamId!, reassured: 1, answered: { reply: 'reassure', at: clock, ask: clock } };
+    expect(moraleFactors(l, p, ctx).contract).toBeCloseTo(base.contract, 9);
+    // A happy factor is never scaled down.
+    const happy = activeRoster(l, 0).find((x) => x.morale && moraleFactors(l, x, ctx).team > 0.2);
+    if (happy) {
+      const before = moraleFactors(l, happy, ctx).team;
+      happy.morale!.talk = {
+        club: happy.teamId!,
+        reassured: 1,
+        answered: { reply: 'reassure', at: clock, ask: clock, cause: 'losing' },
+      };
+      expect(moraleFactors(l, happy, ctx).team).toBeCloseTo(before, 9);
+    }
+  });
+
+  it('reads "Waiting on his new deal" while a deal promise is open', () => {
+    const { l, ctx, p, clock } = sour();
+    p.morale!.talk = { club: p.teamId!, broken: 4, promise: { kind: 'deal', made: clock, due: clock + 20 } };
+    const reasons = moraleReasons(l, p, moraleFactors(l, p, ctx));
+    expect(reasons).toContain('Waiting on his new deal');
+    expect(reasons).not.toContain('Wants a new deal');
+    expect(DOWN_REASONS.has('Waiting on his new deal')).toBe(true);
+    expect(DOWN_REASONS.has('Waiting on his snaps')).toBe(true);
   });
 });

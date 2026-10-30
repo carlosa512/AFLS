@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.26',
+    date: '2026-10-30',
+    title: 'Being heard',
+    text:
+      'When you promise a player a new deal or more snaps, he now eases off while he waits for it, and a reassurance ' +
+      'calms him for a while too; his reason reads “Waiting on his new deal” instead. Words alone still don’t fix a ' +
+      'pay complaint. When the season ends, the head coach sends a reminder of every promise you still owe.',
+  },
+  {
     version: '0.2.25',
     date: '2026-10-30',
     title: 'Coaches with character',

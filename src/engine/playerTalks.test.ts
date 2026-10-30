@@ -150,7 +150,7 @@ describe('talks: the answers', () => {
     expect(p.morale!.talk!.ask).toBeDefined();
     steps(l, 1);
     expect(p.morale!.talk!.ask).toBeUndefined();
-    expect(p.morale!.talk!.answered).toEqual({ reply: 'ignored', at: l.moraleAt, ask: at });
+    expect(p.morale!.talk!.answered).toEqual({ reply: 'ignored', at: l.moraleAt, ask: at, cause: 'snaps' });
     expect(p.morale!.jolts!.some((j) => j.kind === 'ignored' && j.size === -1)).toBe(true);
     const before = JSON.stringify(p.morale);
     expect(answerTalk(l, p.id, 'reassure')).toBe(false);
@@ -305,5 +305,20 @@ describe('talks: promises kept and broken', () => {
     p.morale!.talk = { club: l.userTeamId, kept: 2, broken: 1, reassured: 3 };
     talkStep(l, played(l, 0), (l.season + 1) * 32, 0, true);
     expect(p.morale!.talk).toEqual({ club: l.userTeamId, kept: 1 });
+  });
+});
+
+describe('talks: what an answer was about (G4)', () => {
+  it('records the ask it answered, an ignored letter too', () => {
+    const l = fresh();
+    const p = sulker(l, l.userTeamId, 0);
+    steps(l, 3);
+    const cause = p.morale!.talk!.ask!.cause;
+    expect(answerTalk(l, p.id, 'reassure')).toBe(true);
+    expect(p.morale!.talk!.answered?.cause).toBe(cause);
+    const q = sulker(l, l.userTeamId, 1);
+    q.morale!.talk = { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } };
+    steps(l, 2);
+    expect(q.morale!.talk?.answered).toMatchObject({ reply: 'ignored', cause: 'losing' });
   });
 });

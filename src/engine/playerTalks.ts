@@ -15,6 +15,7 @@ import {
   moraleLevel,
   moraleReasons,
   moraleStepOf,
+  QUIET,
   type MoraleContext,
   type MoraleFactors,
 } from './morale';
@@ -25,8 +26,6 @@ const YEAR = 32;
 const CAMP = 7;
 /** Steps in a row at Poor or worse before he asks (he asks on the third). */
 const DOWN_STEPS = 3;
-/** Steps after an answer before he asks again (eight, the owner's call: six filled the inbox). */
-const QUIET = 8;
 /** Asks a club hears in one step. */
 const PER_CLUB = 2;
 /** Steps a letter waits for your answer before he takes the silence as one. */
@@ -170,7 +169,7 @@ function applyReply(
     if (firm <= -0.01) addJolt(p, 'firm', firm, clock);
     if (reply === 'ignored') addJolt(p, 'ignored', -1, clock);
   }
-  t.answered = { reply, at: clock, ask: t.ask?.at ?? clock };
+  t.answered = { reply, at: clock, ask: t.ask?.at ?? clock, cause };
   delete t.ask;
 }
 
