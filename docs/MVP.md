@@ -109,10 +109,13 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       Moods matter (0.2.24, G2): a young player's growth tilts by his mood week by week (±10% a year), every lineup
       plays up to half a point up or down on game day (both against the league's mean, so totals hold), a happy man
       learns a new position faster, and an unhappy one asks his own club up to 10% more with less patience; the Locker
-      Room and the coach's report say who it's costing. Hold-ins, holdouts and trade requests (G4) are to come. Specs:
+      Room and the coach's report say who it's costing. Being heard (0.2.26): a promise eases three quarters of the
+      grievance it answers while it's open and a reassurance a quarter until he could ask again, and the head coach
+      reminds you of open promises when the season ends. Hold-ins, holdouts and trade requests (G4) are to come. Specs:
       `docs/superpowers/specs/2026-10-29-morale-core-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-talks-design.md`,
-      `docs/superpowers/specs/2026-10-29-morale-effects-design.md`.
+      `docs/superpowers/specs/2026-10-29-morale-effects-design.md`,
+      `docs/superpowers/specs/2026-10-30-morale-escalations-design.md`.
 - [x] **Schedule weather forecasts (fog of war)** · **Already in** (hooks into #5): forecasts at three stages with
       calibrated rain chances on the schedule and the next-game card (`forecast` in `weather.ts`). Trend arrows and a
       staff hook are not built yet (`docs/WEATHER.md`).
