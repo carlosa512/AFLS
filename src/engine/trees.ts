@@ -5,9 +5,10 @@
  * press, which counts a single season, on purpose: trees should be rare and earned. Everything is worked out from
  * `Coach.career` (and `pastUnder`, the founding trees' pre-league years); nothing about a tree is stored.
  */
+import { LOYAL, packTraits, rollCoachTraits, traitLean, traitOf } from './coachTraits';
 import { newIdentity } from './identity';
 import { coachRecord, winPct } from './records';
-import { Rng } from './rng';
+import { clamp, Rng } from './rng';
 import type { Coach, CoachRole, CoachRoom, CoachSeason, League } from './types';
 
 export const LINK_SEASONS = 3;
@@ -37,7 +38,7 @@ interface Index {
   /** Only the men who worked under him while he was a head coach: the ones a tree is made of. */
   headMen: Map<number, number[]>;
   /** The seasons each root was a winner (`winningSeasons`), until his head-coach seasons change. */
-  winners: Map<number, { seasons: number; winning: Set<number> | 'always' }>;
+  winners: Map<number, { seasons: number; winning: Set<number> | 'always'; share: Map<number, number> }>;
 }
 const cache = new WeakMap<League, { key: string; index: Index }>();
 
@@ -181,10 +182,8 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
 }
 
 /** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
-/** A tree grows from a winner: .550 or better over five seasons or more as a head coach. */
-export const WINNER = { seasons: 5, share: 0.55 };
-/** Seasons two of his men must run clubs side by side, both established, while he is a winner: a run, not a moment. */
-export const SIDE_BY_SIDE = 2;
+/** A tree grows from a clear winner: .600 or better over five seasons or more as a head coach. */
+export const WINNER = { seasons: 5, share: 0.6 };
 
 /**
  * The seasons by which he was a winner as a head coach, his record up to and including each (his team's record
@@ -193,12 +192,18 @@ export const SIDE_BY_SIDE = 2;
  * good teacher, not a tree.
  */
 function winningSeasons(league: League, rootId: number): Set<number> | 'always' {
+  return winnerRecord(league, rootId).winning;
+}
+
+/** `winningSeasons` and his win share through each head coach's season, worked out in one pass and cached. */
+function winnerRecord(league: League, rootId: number): { winning: Set<number> | 'always'; share: Map<number, number> } {
   const idx = index(league);
   const root = coachById(league, rootId);
   const rows = (root?.career ?? []).filter((r) => r.role === 'headCoach').length;
   const hit = idx.winners.get(rootId);
-  if (hit && hit.seasons === rows) return hit.winning;
+  if (hit && hit.seasons === rows) return hit;
   let winning: Set<number> | 'always' = new Set();
+  const share = new Map<number, number>();
   const founding = (idx.headMen.get(rootId) ?? []).some(
     (id) => linksOf(league, id).find((k) => k.mentorId === rootId)?.last === -Infinity,
   );
@@ -212,11 +217,13 @@ function winningSeasons(league: League, rootId: number): Set<number> | 'always' 
       r.l += x.regular.l;
       r.t += x.regular.t;
       counted.add(x.season);
+      share.set(x.season, winPct(r));
       if (counted.size >= WINNER.seasons && winPct(r) >= WINNER.share) winning.add(x.season);
     }
   }
-  idx.winners.set(rootId, { seasons: rows, winning });
-  return winning;
+  const out = { seasons: rows, winning, share };
+  idx.winners.set(rootId, out);
+  return out;
 }
 
 /** Whether he was a winner as of `season`: his record through the last season he was a head coach by then. */
@@ -231,27 +238,76 @@ function winnerAsOf(league: League, rootId: number, season: number): boolean {
   return winning.has(last);
 }
 
-/** The seasons two or more of his men ran clubs at once, both established, oldest first. */
-function sideBySide(league: League, coachId: number): number[] {
-  const count = new Map<number, number>();
-  for (const d of headDisciples(league, coachId))
-    for (const s of new Set(seasonsInCharge(league, d, coachId))) count.set(s, (count.get(s) ?? 0) + 1);
-  return [...count]
-    .filter(([, n]) => n >= 2)
-    .map(([s]) => s)
-    .sort((a, b) => a - b);
+// ───────── pedigree ─────────
+
+/**
+ * Pedigree: a bare winner's staff is worth `floor`, a `top` winner's (by his head coach's win share) the most; it halves
+ * every `halfLife` seasons after a man left the staff.
+ */
+export const PEDIGREE = { floor: 0.4, top: 0.7, halfLife: 3 };
+/** How hard pedigree pulls in a search by chair, in score points at full demand: head coaches most, assistants none. */
+export const PEDIGREE_PULL: Partial<Record<CoachRole, number>> = { headCoach: 0.8, offCoord: 0.3, defCoord: 0.3 };
+
+/**
+ * What owners make of a man's pedigree, 0–1: three seasons or more on a head coach's staff, once that head coach is a
+ * winner (from the season he becomes one, before any tree exists), stronger the more he won and fading since the man
+ * left. The best of his mentors counts. Pre-league service has faded (the founding trees' standing covers those men).
+ */
+export function pedigreeDemand(league: League, c: Coach): number {
+  let best = 0;
+  for (const k of linksOf(league, c.id)) {
+    if (k.as !== 'headCoach' || !Number.isFinite(k.last) || !winnerAsOf(league, k.mentorId, league.season)) continue;
+    const { winning, share } = winnerRecord(league, k.mentorId);
+    let strength = PEDIGREE.floor;
+    if (winning !== 'always') {
+      const mentor = coachById(league, k.mentorId);
+      const last = Math.max(
+        -Infinity,
+        ...(mentor?.career ?? [])
+          .filter((r) => r.role === 'headCoach' && r.season <= league.season)
+          .map((r) => r.season),
+      );
+      const pct = share.get(last) ?? WINNER.share;
+      strength += (1 - PEDIGREE.floor) * clamp((pct - WINNER.share) / (PEDIGREE.top - WINNER.share), 0, 1);
+    }
+    const fade = 0.5 ** (Math.max(0, league.season - 1 - k.last) / PEDIGREE.halfLife);
+    best = Math.max(best, strength * fade);
+  }
+  return best;
 }
 
 /**
- * The season his tree was born, or null if it hasn't been: the second season two of his men ran clubs side by side,
- * both established, while he was a winner. One passing season of two disciples in charge isn't a tree; a run is.
+ * The strongest pull wins: a hiring score takes the most negative of his tie to the hiring head coach, his tree's
+ * standing, pedigree and a riser's winning staff, never their sum; a withering tree and a tree that already landed a
+ * job this offseason still count against him.
+ */
+export const strongestPull = (p: { tie: number; standing: number; pedigree: number; riser: number; crowd: number }) =>
+  Math.min(p.tie, Math.min(0, p.standing), p.pedigree, p.riser) + Math.max(0, p.standing) + p.crowd;
+
+/**
+ * The season his tree was born, or null if it hasn't been: the season his second man became an established head coach
+ * (his second season in charge after his years under him), at any time, while he was a winner. The press names a tree
+ * as its men become head coaches one after another (Reid's over the years), not only when two run clubs at once; two
+ * careers overlapping was a coin flip that swung births between leagues alike.
  */
 export function treeBornSeason(league: League, coachId: number): number | null {
-  const seasons = sideBySide(league, coachId).filter((s) => winnerAsOf(league, coachId, s));
-  // A founding tree's men were already side by side before the league began: it was born then, its run behind it.
-  if (seasons[0] === -Infinity) return -Infinity;
-  return seasons.length >= SIDE_BY_SIDE ? seasons[SIDE_BY_SIDE - 1] : null;
+  const firsts = headDisciples(league, coachId)
+    .map((d) => Math.min(...seasonsInCharge(league, d, coachId)))
+    .filter((s) => s < Infinity)
+    .sort((a, b) => a - b);
+  // A founding tree's men were established before the league began: it was born then.
+  if (firsts.length >= 2 && firsts[1] === -Infinity) return -Infinity;
+  for (let i = 1; i < firsts.length; i++) {
+    const born = firsts[i];
+    // Born once he's a winner as of the second man's arrival, or later while two of his men are established.
+    const later = [...new Set(headSeasonsOf(league, coachId))].filter((s) => s >= born).sort((a, b) => a - b);
+    for (const s of [born, ...later]) if (winnerAsOf(league, coachId, s)) return Math.max(s, born);
+  }
+  return null;
 }
+
+const headSeasonsOf = (league: League, coachId: number) =>
+  (coachById(league, coachId)?.career ?? []).filter((r) => r.role === 'headCoach').map((r) => r.season);
 
 /**
  * He has a tree once two of his men have run clubs side by side for two seasons while he was a winner, as the press
@@ -388,6 +444,7 @@ export function seedFoundingTrees(league: League): void {
       teamId: null,
       contract: null,
     };
+    legend.traits = packTraits(rollCoachTraits(league.seed, legend));
     league.retiredCoaches[legend.id] = legend;
     founders.push(legend);
   }
@@ -410,7 +467,7 @@ export const TREE_KEEP = 0.25;
 /** Hiring scores are lower-is-better: a man linked to the hiring head coach scores this much better. */
 export const TREE_PULL = 0.3;
 /** Head-coach searches: a hot tree's disciples score better, a withering one's worse. */
-export const TREE_STANDING: Record<TreeStanding, number> = { hot: -0.15, steady: -0.05, withering: 0.4, faded: 0 };
+export const TREE_STANDING: Record<TreeStanding, number> = { hot: -0.7, steady: -0.35, withering: 0.4, faded: 0 };
 /** Each head coach a tree has already given a club this offseason: owners rarely hire twice from one tree in a cycle. */
 export const TREE_CROWD = 0.3;
 /** The chance a new coordinator runs his main mentor's scheme instead of his own. */
@@ -425,17 +482,23 @@ export const keepBonus = (league: League, hc: Coach, c: Coach) => (linked(league
  * What a candidate's tree adds to a hiring score (lower is better): a head coach reaches for his own people, and a
  * head-coach search leans on the standing of the tree a candidate comes from.
  */
-export function treeLean(league: League, hc: Coach | null, c: Coach, role: CoachRole): number {
-  let lean = hc && linked(league, c, hc) ? -TREE_PULL : 0;
+export function treeLean(league: League, hc: Coach | null, c: Coach, role: CoachRole, riserPull = 0): number {
+  // A loyal man answers his old boss's call; a hired gun barely hears it.
+  const tie = hc && linked(league, c, hc) ? -TREE_PULL * (1 + LOYAL.pull * traitLean(traitOf(c, 'loyalty'))) : 0;
+  let standing = 0;
+  let crowd = 0;
   if (role === 'headCoach') {
     const tree = treeFor(league, c.id);
-    if (tree)
-      lean +=
-        TREE_STANDING[standingOf(league, tree)] +
+    if (tree) {
+      standing = TREE_STANDING[standingOf(league, tree)];
+      crowd =
         TREE_CROWD *
-          tree.activeHeadCoaches.filter((id) => id !== c.id && league.coaches[id]?.since === league.season).length;
+        tree.activeHeadCoaches.filter((id) => id !== c.id && league.coaches[id]?.since === league.season).length;
+    }
   }
-  return lean;
+  const weight = PEDIGREE_PULL[role] ?? 0;
+  const pedigree = weight ? -weight * pedigreeDemand(league, c) : 0;
+  return strongestPull({ tie, standing, pedigree, riser: Math.min(0, riserPull), crowd });
 }
 
 /** A new coordinator's scheme: his main mentor's about half the time (a pure roll of the seed and his id). */

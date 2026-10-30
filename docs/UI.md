@@ -49,7 +49,7 @@ A screen shows what your club knows, nothing more (CLAUDE.md, "True vs. perceive
 
 - **Show:** `viewOf`, `Ovr`, `RangeValue`, `Stars` and `KnowledgeMeter` for players; `TeamUnit` over
   `perceivedTeamRatings` for a club's strength; an injury's `estimate`; `characterNotes`, `careerOutlook` and
-  `quirkNotes` in words.
+  `quirkNotes` in words; a coach's reputation (`coachCharacter`), public, in words.
 - **Origins** are public (like an injury) and show only through `OriginTag` (`ui/origin.tsx`): on the player card
   and the draft board's School column, not on rosters, free agency or stats tables. Pathway and CFL players get
   their own pills.

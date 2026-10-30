@@ -14,6 +14,7 @@ import { clamp } from './rng';
 import { activeRoster } from './roster';
 import { seasonRole } from './scouting';
 import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
+import { cultureRoom } from './coachTraits';
 import { talkStep } from './playerTalks';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, MoraleJolt, Player, Position } from './types';
@@ -44,6 +45,8 @@ export interface MoraleContext {
   live: Partial<Record<Position, number>>;
   /** Players mentoring a teammate. */
   mentors: Set<number>;
+  /** Each team's head coach's culture: what he adds to his players' room (`cultureRoom`). */
+  culture: Map<number, number>;
 }
 
 const games = (r: { w: number; l: number; t: number } | undefined) => (r ? r.w + r.l + r.t : 0);
@@ -84,6 +87,10 @@ export function moraleContext(league: League): MoraleContext {
     const group = list.sort((a, b) => b - a).slice(0, league.teams.length * STARTERS[pos]);
     if (group.length >= 8) live[pos] = group.reduce((t, s) => t + s, 0) / group.length;
   }
+  // The head coach sets the room's tone: a player's coach lifts it, a disciplinarian quiets it (`cultureRoom`).
+  const culture = new Map<number, number>();
+  for (const c of Object.values(league.coaches ?? {}))
+    if (c.role === 'headCoach' && c.teamId !== null && !culture.has(c.teamId)) culture.set(c.teamId, cultureRoom(c));
   return {
     season,
     // Built here, not read from `leagueMarket`: filling that cache would change what the AI's pay reads see.
@@ -93,6 +100,7 @@ export function moraleContext(league: League): MoraleContext {
     rooms,
     live,
     mentors,
+    culture,
   };
 }
 
@@ -176,7 +184,8 @@ function roomScore(league: League, p: Player, ctx: MoraleContext): number {
     Math.min(1, 0.5 * friends) -
     (feud ? 1 : 0) +
     (isCaptain(league, p) ? 0.75 : 0) +
-    (ctx.mentors.has(p.id) ? 0.25 : 0);
+    (ctx.mentors.has(p.id) ? 0.25 : 0) +
+    (ctx.culture.get(p.teamId) ?? 0);
   return clamp(score, -1.5, 1.5);
 }
 

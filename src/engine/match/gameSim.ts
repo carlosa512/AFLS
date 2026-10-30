@@ -22,7 +22,7 @@ import {
   upTempoEligible,
   UP_TEMPO_RUNOFF,
 } from './coachHabits';
-import { callerStyle, teamCoaches, type CallerStyle } from '../coaching';
+import { callerStyle, cultureCalls, teamCoaches, type CallerStyle } from '../coaching';
 import {
   CONTACT_RISK,
   fatigueMult,
@@ -497,6 +497,8 @@ class GameSim {
   private homeEdge: number;
   /** Each side's play-calling style (its coordinator's and head coach's). */
   private styles: [CallerStyle, CallerStyle];
+  /** Each head coach's culture: his multiplier on his team's pre-snap and personal fouls (`cultureCalls`). */
+  private culture: [number, number];
   private qbLeans: [number, number];
   /** Ball path attached to the next logged play. */
   private anim: Anim | null = null;
@@ -594,6 +596,7 @@ class GameSim {
     ];
     this.syncKnocks();
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
+    this.culture = [cultureCalls(league, game.homeId), cultureCalls(league, game.awayId)];
     this.qbLeans = this.leans();
     this.fields = [units(this.lineups[0]), units(this.lineups[1])];
     // Form carried in from last week: a quarterback still shaken, a kicker in a slump.
@@ -1952,6 +1955,7 @@ class GameSim {
       FALSE_START *
       Math.exp(-0.06 * (this.lineups[off].offenseDiscipline - OL_DISCIPLINE)) *
       (hardCount ? 1.15 : 1) *
+      this.culture[off] *
       this.calls.all;
     const dl = this.lineups[this.def];
     const dlFront = [...dl.dt, ...dl.edge];
@@ -1961,6 +1965,7 @@ class GameSim {
       (1 + 0.1 * this.count(dlFront, 'firstStep')) *
       (hardCount ? 1.3 : 1) *
       (1 + (hardCount ? 0.3 : 0.08) * this.count(dlFront, 'jumpHappy')) *
+      this.culture[this.def] *
       this.calls.all;
     if (roll < pFalseStart) {
       const by = this.committer('falseStart', null);
@@ -3061,7 +3066,9 @@ class GameSim {
    * roughing on how closely the crew protects the passer and how decorated he is (`starLean`).
    */
   private personalFouls(result: PlayResult, fouls: LiveFoul[]) {
-    const { all, qbProtection } = this.calls;
+    // Every foul here is the defense's: its head coach's culture scales them all (`cultureCalls`).
+    const { qbProtection } = this.calls;
+    const all = this.calls.all * this.culture[this.def];
     const loose = (p: Player, typical: number) => Math.exp(-0.06 * (discipline(p) - typical));
     const dirty = (p: Player, typical: number) => Math.exp(-0.06 * (roughness(p) - typical));
     const rusher = result.kind === 'sack' ? result.rusher : result.kind === 'pass' ? this.pressureBy : null;

@@ -33,7 +33,7 @@ import {
   tagBlocker,
 } from './ai';
 import { availableProspects, draftOrder, draftPlayer, nextPick, simDraft } from './draft';
-import { askOffer, demand, freeAgents, makeOffer, rookieCost, rookieReserve } from './negotiation';
+import { askOffer, demand, freeAgents, makeOffer, negotiationFor, rookieCost, rookieReserve } from './negotiation';
 import { Rng } from '../rng';
 
 /** One league played to the end of its first season, then cloned per test (JSON keeps it cheap). */
@@ -296,7 +296,10 @@ describe('negotiation', () => {
   it("signs a player who gets his ask, and doesn't raise the ask after a lowball", () => {
     const league = fresh();
     beginOffseason(league);
-    const player = expiringPlayers(league, league.userTeamId)[0];
+    // A player whose agent sits through one lowball (an unhappy one has less patience: that's tested on its own).
+    const player = expiringPlayers(league, league.userTeamId).find(
+      (p) => negotiationFor(league, p, league.userTeamId).patience > 1,
+    )!;
     const d = demand(league, player, league.userTeamId);
     const low = makeOffer(league, player, league.userTeamId, { ...askOffer(d), apy: Math.round(d.market * 0.8) });
     expect(low.accepted).toBe(false);
