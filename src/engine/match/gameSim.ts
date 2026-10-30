@@ -76,6 +76,7 @@ import type { DefenseCall, PassDepth, Situation } from './coach';
 import {
   activePlayers,
   buildLineup,
+  teamDay,
   discipline,
   KICK_FLAG_PER_POINT,
   RETURN_COACH,
@@ -98,6 +99,8 @@ export interface SimOptions {
   weather?: Weather;
   /** Override the officiating crew (defaults to the game's own, see `officials.ts`); null is a league-average crew. */
   crew?: Crew | null;
+  /** Override each team's day, home then away (defaults to the game's own draw, `teamDay`). */
+  days?: [home: number, away: number];
 }
 
 const QUARTER_SECONDS = 900;
@@ -567,8 +570,9 @@ class GameSim {
     private game: Game,
     private options: SimOptions,
   ) {
-    this.rng = new Rng(options.seed ?? `${league.seed}:${game.season}:${game.id}`);
-    this.habitRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:coach-habits`);
+    const seed = options.seed ?? `${league.seed}:${game.season}:${game.id}`;
+    this.rng = new Rng(seed);
+    this.habitRng = new Rng(`${seed}:coach-habits`);
     this.gameCoaches = [game.homeId, game.awayId].map((id) =>
       options.coachQuirks === false ? [] : teamCoaches(league, id).map((c) => ({ ...c, quirks: { ...c.quirks } })),
     ) as [Coach[], Coach[]];
@@ -577,9 +581,10 @@ class GameSim {
         staff.filter((c) => c.role !== 'positionCoach').map((c) => [c.role, new Set(activeCoachQuirks(c))]),
       );
     this.gameHabits = [habitsFor(this.gameCoaches[0]), habitsFor(this.gameCoaches[1])];
-    this.creditRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:credit`);
-    this.injuryRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:injury`);
-    this.flagRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:flags`);
+    this.creditRng = new Rng(`${seed}:credit`);
+    this.injuryRng = new Rng(`${seed}:injury`);
+    this.flagRng = new Rng(`${seed}:flags`);
+    this.days = options.days ?? [teamDay(seed, game.homeId), teamDay(seed, game.awayId)];
     this.homeEdge = game.neutral ? 0 : HOME_FIELD_EDGE;
     this.weather = options.weather ?? gameWeather(league, game);
     this.wx = weatherEffects(weatherAt(this.weather, 1));
@@ -591,8 +596,8 @@ class GameSim {
     // The league's mood at kickoff: every lineup this game builds, the rebuild after an injury too, reads the same one.
     this.moodMean = moraleMean(league);
     this.lineups = [
-      buildLineup(league, team(game.homeId), undefined, game, this.moodMean),
-      buildLineup(league, team(game.awayId), undefined, game, this.moodMean),
+      buildLineup(league, team(game.homeId), undefined, game, this.moodMean, this.days[0]),
+      buildLineup(league, team(game.awayId), undefined, game, this.moodMean, this.days[1]),
     ];
     this.syncKnocks();
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
@@ -623,6 +628,8 @@ class GameSim {
 
   /** The league's mood at kickoff (G2's game-day edge is measured against it). */
   private moodMean = 0;
+  /** Each team's day, home then away (`teamDay`): drawn once, so a rebuilt lineup plays the same one. */
+  private days: [number, number] = [0, 0];
   /** Both lineups' out-of-position knocks, kept in one map that every step reads through `skill`. */
   private knocks = new Map<number, number>();
   private syncKnocks() {
@@ -903,7 +910,14 @@ class GameSim {
         `Injury: ${this.abbrev(side)} ${p.position} ${short(p)} (${injuryLabel(injury.type).toLowerCase()}) is out for the game.`,
       );
       const qb = this.lineups[side].qb;
-      this.lineups[side] = buildLineup(this.league, this.lineups[side].team, this.out, this.game, this.moodMean);
+      this.lineups[side] = buildLineup(
+        this.league,
+        this.lineups[side].team,
+        this.out,
+        this.game,
+        this.moodMean,
+        this.days[side],
+      );
       this.syncKnocks();
       this.fields[side] = units(this.lineups[side]);
       if (this.lineups[side].qb !== qb) this.qbLeans = this.leans();

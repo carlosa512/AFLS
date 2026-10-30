@@ -9,6 +9,7 @@ import { gameDayTeam } from '../personnel/gameDay';
 import { moraleLevel } from '../morale';
 import { moodPull } from '../moodScale';
 import { POSITIONS } from '../types';
+import { Rng } from '../rng';
 
 /** The 22 starters plus the depth the engine draws on, with unit composites. */
 export interface Lineup {
@@ -52,7 +53,8 @@ export interface Lineup {
   stCoach: number;
   /**
    * Players lined up away from their own position, and the knock each takes on every skill (`knockFor`); on game day,
-   * less each man's mood edge (G2), so a happy man's entry can be a boost.
+   * less each man's mood edge (G2) and his team's day (`teamDay`), so a happy man's entry, or a sharp day's, can be a
+   * boost.
    */
   knocks: ReadonlyMap<number, number>;
   /** Unit composites on the 1–20 scale. */
@@ -158,8 +160,24 @@ const FILL_IN: Record<Position, Position[]> = {
 const MOOD_EDGE = 0.5;
 
 /**
+ * A team's day, in rating points either side (one standard deviation). Any given Sunday: a strong team sometimes plays
+ * flat and a weak one sharp, so a final margin sits about 13.5 points either side of what strength predicts, as the
+ * NFL's do around the line. It averages out, so league totals hold. (A team's day, not a player's form: `formFor`.)
+ */
+export const DAY_SD = 0.45;
+
+/**
+ * How team `teamId` plays in the game `gameSeed` names (the game's own seed): its own stream, so no other draw in the
+ * game moves, and a replay from the same seed plays the same day. Hidden: nothing shows it.
+ */
+export function teamDay(gameSeed: string, teamId: number): number {
+  return new Rng(`${gameSeed}:day:${teamId}`).normal(0, DAY_SD);
+}
+
+/**
  * `mean` is the league's mood at kickoff (`moraleMean`): the sim passes it, and each man in the lineup plays up or down
- * by his mood against it. Without it (tests, a lineup read anywhere else) there is no edge.
+ * by his mood against it. Without it (tests, a lineup read anywhere else) there is no edge. `today` is the team's day
+ * (`teamDay`): every man in the lineup plays that much better, or worse; anywhere but a game it's none.
  */
 export function buildLineup(
   league: League,
@@ -167,6 +185,7 @@ export function buildLineup(
   out: ReadonlySet<number> = new Set(),
   game?: Game,
   mean?: number,
+  today = 0,
 ): Lineup {
   const day = game?.personnel?.lists?.[team.id];
   if (game && day) team = gameDayTeam(league, game, team);
@@ -268,10 +287,10 @@ export function buildLineup(
   const knocks = new Map<number, number>();
   for (const [p, mine] of slots)
     if (!mine.includes(p.position)) knocks.set(p.id, Math.max(...mine.map((pos) => knockFor(p, pos))));
-  if (mean !== undefined)
+  if (mean !== undefined || today)
     for (const p of slots.keys()) {
-      const edge = MOOD_EDGE * moodPull(moraleLevel(league, p), mean);
-      const k = (knocks.get(p.id) ?? 0) - edge;
+      const edge = mean === undefined ? 0 : MOOD_EDGE * moodPull(moraleLevel(league, p), mean);
+      const k = (knocks.get(p.id) ?? 0) - edge - today;
       if (k) knocks.set(p.id, k);
       else knocks.delete(p.id);
     }
