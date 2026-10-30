@@ -615,9 +615,9 @@ const draftDay = {
   downs: { flat: 0, all: 0 },
   flatTeams: [] as number[],
   ms: [] as number[],
+  /** Deals with a pick from a later draft in them, read in their own draft (pick ids repeat across leagues). */
+  withFuture: 0,
 };
-/** Picks from later drafts that moved on draft day (ids are unique for a league's life). */
-const futurePicks = new Set<number>();
 const PREMIUM_POS = new Set(['QB', 'EDGE', 'OL', 'CB', 'WR']);
 /** A pick on the Jimmy Johnson chart at its slot, future picks 25% off a year (as the prices section reads them). */
 const jjPoints = (league: League, pk: DraftPick) =>
@@ -653,8 +653,9 @@ function readDraft(league: League, records: readonly TradeRecord[]) {
     if (flat.has(r.sides[1].teamId)) draftDay.downs.flat++;
   }
   draftDay.qbUps.push(qb);
-  for (const r of records)
-    for (const x of r.sides) for (const id of x.picks) if (pickOf(id).season > league.season) futurePicks.add(id);
+  draftDay.withFuture += records.filter((r) =>
+    r.sides.some((x) => x.picks.some((id) => pickOf(id).season > league.season)),
+  ).length;
   for (const pk of league.draftPicks.filter(
     (x) => x.season === league.season && x.playerId !== undefined && !moved.has(x.id),
   )) {
@@ -1112,8 +1113,7 @@ check(
 // The NFL sees 5-6 trades a year mix current and future picks; on draft day they go into early moves.
 check(
   'deals with a future pick in them, a draft',
-  draftDay.records.filter((r) => r.sides.some((x) => x.picks.some((id) => futurePicks.has(id)))).length /
-    Math.max(1, draftDay.perDraft.length),
+  draftDay.withFuture / Math.max(1, draftDay.perDraft.length),
   [3, 9],
   1,
 );

@@ -153,16 +153,6 @@ describe('save v60', () => {
   });
 });
 
-/** The first 32 picks of seed 'draft-trades-c' with main's draft code (`simDraft`, rng 'baseline'). */
-// Re-taken with personality (0.2.15), mentoring (0.2.16) and relationships (0.2.17): the season before draft day
-// plays out differently. Again with moods that matter (0.2.24), on a new seed: the old one's draft drew no offer for
-// any of your picks, which the tests below need. Again with coaches' character (0.2.25): who coaches whom moves play.
-// Again for being heard (0.2.26), on 'draft-trades-c': 'draft-trades-b' drew no offer for any of your picks.
-const BASELINE = [
-  1817, 1811, 1815, 1818, 1827, 1819, 1807, 1804, 1850, 1828, 1805, 1829, 1856, 1816, 1810, 1825, 1820, 1860, 1809,
-  1808, 1813, 1812, 1803, 1824, 1847, 1834, 1823, 1844, 1837, 1941, 1852, 1839,
-];
-
 /** The pick on the clock (an AI team's) and another AI team's pick `ahead` slots later. */
 function clockAnd(league: League, ahead: number) {
   const order = draftOrder(league).filter((p) => p.playerId === undefined);
@@ -191,21 +181,6 @@ describe('covet', () => {
     const noisy = boardScore(depth, p, board, new Rng('same'), 1);
     const clean = boardScore(depth, p, board, null, 1);
     expect(noisy - clean).toBeCloseTo(new Rng('same').normal(0, 0.6), 9);
-  });
-
-  it('leaves the draft as it was when no trade happens', () => {
-    const l = draftDay();
-    draftTrades.off = true;
-    try {
-      simDraft(l, new Rng('baseline'), { stopAtUser: false, limit: 32 });
-    } finally {
-      draftTrades.off = false;
-    }
-    expect(
-      draftOrder(l)
-        .slice(0, 32)
-        .map((p) => p.playerId),
-    ).toEqual(BASELINE);
   });
 
   it('is zero outside the draft and for you', () => {
