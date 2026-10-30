@@ -76,3 +76,120 @@ describe('save v71', () => {
     expect(Object.values(up.players).some((x) => x.morale?.dispute)).toBe(false);
   });
 });
+
+const { disputeStep, disputeKind, RUN_STEPS } = await import('./disputes');
+const { moraleContext, moraleFactors } = await import('./morale');
+const { yearsLeft } = await import('./finance/contract');
+const { answerTalk } = await import('./playerTalks');
+
+const YEAR = 32;
+
+/**
+ * A man on team `teamId` whose contract is his biggest grievance, with two years or fewer left and past his rookie
+ * deal, sitting at Very poor with a soured deal talk `run` steps old.
+ */
+function souredDeal(l: League, teamId = 1, run = RUN_STEPS - 1, nth = 0): Player {
+  const ctx = moraleContext(l);
+  const p = activeRoster(l, teamId)
+    .filter(
+      (x) =>
+        x.morale &&
+        !x.injury &&
+        x.contract &&
+        x.contract.kind !== 'rookie' &&
+        yearsLeft(x.contract, l.season) <= 2 &&
+        yearsLeft(x.contract, l.season) >= 1,
+    )
+    .map((x) => ({ x, f: moraleFactors(l, x, ctx) }))
+    .filter(({ f }) => f.contract < -0.75 && f.contract <= Math.min(f.role, f.team, f.room, f.rest))
+    .sort((a, b) => a.f.contract - b.f.contract)[nth].x;
+  p.morale = { level: -5, talk: { club: teamId, sour: { cause: 'deal', at: l.season * YEAR - 10, run } } };
+  return p;
+}
+
+/** Morale's clock at a week of this league year. */
+const at = (l: League, week: number) => l.season * YEAR + week;
+
+describe('disputes: who escalates (G4)', () => {
+  it('sours a talk answered firm or left unanswered, and a reassurance clears it', () => {
+    const { l } = base('sour');
+    const p = activeRoster(l, l.userTeamId).find((x) => x.morale)!;
+    p.morale!.talk = { club: l.userTeamId, ask: { cause: 'deal', at: l.moraleAt! } };
+    answerTalk(l, p.id, 'firm');
+    expect(p.morale!.talk!.sour).toEqual({ cause: 'deal', at: l.moraleAt, run: 0 });
+    p.morale!.talk!.ask = { cause: 'deal', at: l.moraleAt! };
+    answerTalk(l, p.id, 'reassure');
+    expect(p.morale!.talk!.sour).toBeUndefined();
+  });
+
+  it('starts a hold-in on the fourth Very poor step since, and a better step resets the count', () => {
+    const { l } = base('start');
+    const p = souredDeal(l);
+    p.personality.greed = 0.2;
+    disputeStep(l, moraleContext(l), at(l, 0), 0, false);
+    expect(p.morale!.dispute).toMatchObject({ kind: 'holdIn', cause: 'deal', since: at(l, 0) });
+    expect(p.morale!.talk!.sour).toBeUndefined();
+
+    const q = souredDeal(l, 2);
+    q.morale!.level = -1;
+    disputeStep(l, moraleContext(l), at(l, 1), 1, false);
+    expect(q.morale!.dispute).toBeUndefined();
+    expect(q.morale!.talk!.sour!.run).toBe(0);
+  });
+
+  it('starts a contract dispute only in the re-sign window to camp', () => {
+    const { l } = base('window');
+    const p = souredDeal(l);
+    disputeStep(l, moraleContext(l), at(l, 9), 9, false);
+    expect(p.morale!.dispute).toBeUndefined();
+    expect(p.morale!.talk!.sour!.run).toBe(RUN_STEPS);
+    disputeStep(l, moraleContext(l), at(l, 7), 7, false);
+    expect(p.morale!.dispute?.kind).toBeDefined();
+  });
+
+  it('needs a deal he can be extended out of', () => {
+    const { l } = base('extend');
+    const p = souredDeal(l);
+    p.contract!.years.push({ ...p.contract!.years.at(-1)!, season: p.contract!.years.at(-1)!.season + 1 });
+    p.contract!.years.push({ ...p.contract!.years.at(-1)!, season: p.contract!.years.at(-1)!.season + 1 });
+    disputeStep(l, moraleContext(l), at(l, 0), 0, false);
+    expect(p.morale!.dispute).toBeUndefined();
+  });
+
+  it('makes a greedy veteran starter a holdout, everyone else a hold-in', async () => {
+    const { l } = base('kind');
+    const p = souredDeal(l);
+    const ctx = moraleContext(l);
+    p.personality.greed = 0.6;
+    const { expectedRole } = await import('./morale');
+    expect(disputeKind(l, p, ctx)).toBe(expectedRole(p, ctx) === 2 ? 'holdOut' : 'holdIn');
+    p.personality.greed = 0.59;
+    expect(disputeKind(l, p, ctx)).toBe('holdIn');
+    // A rookie deal before its option year: a hold-in, however greedy.
+    p.personality.greed = 0.9;
+    p.contract!.kind = 'rookie';
+    expect(disputeKind(l, p, ctx)).toBe('holdIn');
+  });
+
+  it('starts one a club a step, the unhappiest first, and none for a hurt man', () => {
+    const { l } = base('one-a-club');
+    const a = souredDeal(l, 3, RUN_STEPS - 1, 0);
+    const b = souredDeal(l, 3, RUN_STEPS - 1, 1);
+    b.morale!.level = -7;
+    disputeStep(l, moraleContext(l), at(l, 0), 0, false);
+    expect(b.morale!.dispute).toBeDefined();
+    expect(a.morale!.dispute).toBeUndefined();
+    const c = souredDeal(l, 4);
+    c.injury = { weeksRemaining: 3 } as unknown as Player['injury'];
+    disputeStep(l, moraleContext(l), at(l, 1), 1, false);
+    expect(c.morale!.dispute).toBeUndefined();
+  });
+
+  it('starts nothing with the dial off', () => {
+    const { l } = base('off');
+    const p = souredDeal(l);
+    MOOD_ACTS.on = false;
+    disputeStep(l, moraleContext(l), at(l, 0), 0, false);
+    expect(p.morale!.dispute).toBeUndefined();
+  });
+});

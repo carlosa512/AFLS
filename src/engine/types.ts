@@ -443,8 +443,9 @@ export interface Talk {
     dispute?: DisputeKind;
   };
   /** A talk that ended badly (ignored, firm, a promise broken): about what, when, the Very poor steps since, and the
-   * dispute it followed when one ended without a deal (G4). */
-  sour?: { cause: TalkCause; at: number; run: number; after?: DisputeKind };
+   * dispute it followed when one ended without a deal, and `now` when a promise made to end one broke: it starts again
+   * at once (G4). */
+  sour?: { cause: TalkCause; at: number; run: number; after?: DisputeKind; now?: true };
   /** Reassurances this league year; promises kept and broken that he still remembers. */
   reassured?: number;
   kept?: number;
