@@ -5,7 +5,7 @@
  * press, which counts a single season, on purpose: trees should be rare and earned. Everything is worked out from
  * `Coach.career` (and `pastUnder`, the founding trees' pre-league years); nothing about a tree is stored.
  */
-import { rollCoachTraits } from './coachTraits';
+import { LOYAL, rollCoachTraits, traitLean, traitOf } from './coachTraits';
 import { newIdentity } from './identity';
 import { coachRecord, winPct } from './records';
 import { Rng } from './rng';
@@ -428,7 +428,8 @@ export const keepBonus = (league: League, hc: Coach, c: Coach) => (linked(league
  * head-coach search leans on the standing of the tree a candidate comes from.
  */
 export function treeLean(league: League, hc: Coach | null, c: Coach, role: CoachRole): number {
-  let lean = hc && linked(league, c, hc) ? -TREE_PULL : 0;
+  // A loyal man answers his old boss's call; a hired gun barely hears it.
+  let lean = hc && linked(league, c, hc) ? -TREE_PULL * (1 + LOYAL.pull * traitLean(traitOf(c, 'loyalty'))) : 0;
   if (role === 'headCoach') {
     const tree = treeFor(league, c.id);
     if (tree)

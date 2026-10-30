@@ -18,6 +18,12 @@ export const traitOf = (c: Pick<Coach, 'traits'>, k: keyof CoachTraits): number 
 /** Every hook's scale: −1 at two sd below the mean (3.5), +1 at two above (17.5), 0 for a typical coach. */
 export const traitLean = (v: number): number => clamp((v - TRAIT_MEAN) / 7, -1, 1);
 
+/**
+ * Loyalty's hooks, at the extremes (±2 sd): the pull of his old boss's call from half to one and a half times
+ * `TREE_PULL`, the re-sign chance ±0.15, and his ask to stay with his own club 5% under or over. All centred.
+ */
+export const LOYAL = { pull: 0.5, keep: 0.15, ask: 0.05 };
+
 /** His traits, on his own stream (`seed:coachTraits:id`), so adding them reshuffles nothing. The young are hungrier. */
 export function rollCoachTraits(seed: string, c: Pick<Coach, 'id' | 'age'>): CoachTraits {
   const rng = new Rng(`${seed}:coachTraits:${c.id}`);

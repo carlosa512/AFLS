@@ -22,7 +22,7 @@
  * agency, like scouts. All coaching randomness uses its own seeded Rngs: it never shifts the
  * league's main random stream, and a migrated save gets the same coaches as a new league.
  */
-import { coolAmbition, rollCoachTraits, traitsFromPlayer } from './coachTraits';
+import { coolAmbition, LOYAL, rollCoachTraits, traitLean, traitOf, traitsFromPlayer } from './coachTraits';
 import { inheritedScheme, keepBonus, mainMentor, treeLean } from './trees';
 import { workEthicOf } from './traits';
 import {
@@ -552,6 +552,11 @@ export function coachAsk(league: League, c: Coach, years = 2): number {
       (1 + PEDIGREE * pedigree(league, c)),
   );
 }
+/** What he asks a club, $K: a loyal man takes a little less to stay with his own, a hired gun a little more. */
+export function coachAskTo(league: League, c: Coach, years: number, teamId: number): number {
+  const ask = coachAsk(league, c, years);
+  return c.teamId === teamId ? Math.round(ask * (1 - LOYAL.ask * traitLean(traitOf(c, 'loyalty')))) : ask;
+}
 /** How much more a coach asks per unit of his staff's last win share over .500: off a 13–4 staff about a fifth more, off 4–13 a fifth less. */
 const PEDIGREE = 0.8;
 /** Last season's win share of the staff he finished it on, less .500 (0 if he wasn't on one): winners get raises and offers. */
@@ -690,7 +695,7 @@ export function moveOverspend(
       coachRoom(league, teamId)
     );
   const holder = move === 'replace' ? sitting(league, teamId, c) : null;
-  return coachAsk(league, c, years) - coachRoom(league, teamId) - (holder ? freedBy(league, holder) : 0);
+  return coachAskTo(league, c, years, teamId) - coachRoom(league, teamId) - (holder ? freedBy(league, holder) : 0);
 }
 
 /** Null if the move fits the budget, or the owner covers the overspend; otherwise what's wrong, with the owner's answer. */
@@ -859,9 +864,11 @@ const freedBy = (league: League, holder: Coach) => (holder.contract?.salary ?? 0
 
 function signCoach(league: League, teamId: number, c: Coach, years: number): void {
   touch();
+  // What he asks this club, read before he joins it: staying with his own is the loyal man's discount (`coachAskTo`).
+  const salary = coachAskTo(league, c, years, teamId);
   if (c.teamId !== teamId) c.since = league.season;
   c.teamId = teamId;
-  c.contract = { salary: coachAsk(league, c, years), through: league.season + years - 1 };
+  c.contract = { salary, through: league.season + years - 1 };
   if (staffWindowOpen(league)) {
     delete c.interim;
     delete c.actingAs;
@@ -1470,7 +1477,7 @@ export function coachResignForecast(
     (hire ? coachAsk(league, hire.c, hire.years) - (replaced ? freedBy(league, replaced) : 0) : 0);
   const out = new Map<number, ResignOutlook>();
   for (const c of mine.filter((x) => isCoachExpiring(league, x)).sort((a, b) => coachValue(b) - coachValue(a))) {
-    const ask = coachAsk(league, c, 2);
+    const ask = coachAskTo(league, c, 2, teamId);
     if (taken.some((ch) => sameChair(ch, chairOf(c)))) out.set(c.id, 'chair');
     else if (ask > room) out.set(c.id, 'budget');
     else {
@@ -1486,7 +1493,7 @@ export function coachResignForecast(
 export function coachRoomAfterResigns(league: League, teamId: number): number {
   let room = coachRoom(league, teamId);
   for (const [id, outlook] of coachResignForecast(league, teamId))
-    if (outlook === 'stays') room -= coachAsk(league, league.coaches[id], 2);
+    if (outlook === 'stays') room -= coachAskTo(league, league.coaches[id], 2, teamId);
   return room;
 }
 
@@ -1594,8 +1601,8 @@ function aiCoachMoves(league: League, team: Team, rng: Rng): Set<number> {
     const years = rng.int(1, maxYears(c.role));
     const keep =
       coachValue(c) >= roleGoal(league, team, c.role) - 2 &&
-      rng.chance(KEEP[c.role]) &&
-      coachAsk(league, c, years) <= spare(league, team.id, chairOf(c));
+      rng.chance(clamp(KEEP[c.role] + LOYAL.keep * traitLean(traitOf(c, 'loyalty')), 0, 0.98)) &&
+      coachAskTo(league, c, years, team.id) <= spare(league, team.id, chairOf(c));
     if (keep) signCoach(league, team.id, c, years);
     else {
       dismiss(league, c);
@@ -1718,7 +1725,7 @@ function cleanHouse(league: League, team: Team, hc: Coach, rng: Rng, gone: Set<n
     const expiring = isCoachExpiring(league, c);
     const wanted = rng.chance(KEEP_FOR_NEW[c.role] + 0.3 * (visionFit(league, hc, c) ?? 0) + keepBonus(league, hc, c));
     const keep = expiring
-      ? wanted && coachAsk(league, c, years) <= spare(league, team.id, chairOf(c))
+      ? wanted && coachAskTo(league, c, years, team.id) <= spare(league, team.id, chairOf(c))
       : wanted || !canLetGo(league, team.id, c);
     if (!keep) {
       dismiss(league, c, 'when a new head coach arrived');

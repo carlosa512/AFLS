@@ -17,6 +17,7 @@ import {
   CHAIRS,
   chairHolder,
   coachAsk,
+  coachAskTo,
   coachBudget,
   coachingFor,
   coachingFrom,
@@ -401,7 +402,7 @@ describe('coaching staffs and moves', () => {
     expect(coachMoveProblem(l, user, target, 'extend')).toMatch(/chair is taken/);
     // Money for the best of the rest and not much more: best first stays, the others are priced out.
     const best = [...rest].sort((a, b) => coachValue(b) - coachValue(a))[0];
-    const room = coachAsk(l, best) + 10;
+    const room = coachAskTo(l, best, 2, user) + 10;
     l.teams[user].staffBudgetMult = 1;
     l.teams[user].staffBudgetMult = (coachPayroll(l, user) + room) / coachBudget(l, user);
     const forecast = coachResignForecast(l, user);
