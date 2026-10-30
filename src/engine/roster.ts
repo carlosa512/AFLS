@@ -1,3 +1,4 @@
+import { onDidNotReport } from './disputeRead';
 import { coachOrder } from './coachDecisions';
 import { teamCoaches, teamScheme } from './coaching';
 import { spotsFor } from './schemes';
@@ -15,7 +16,8 @@ export function rosterList(p: Player): RosterList {
   if (p.waiver) return 'waivers';
   if (p.teamId === null) return 'unattached';
   if (p.squad) return p.squad.kind;
-  return p.ir ? 'injuredReserve' : 'active';
+  if (p.ir) return 'injuredReserve';
+  return onDidNotReport(p) ? 'didNotReport' : 'active';
 }
 
 /** Eligible list membership, independent of health (emergency injury fallbacks still need this). */

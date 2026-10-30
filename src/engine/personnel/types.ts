@@ -118,7 +118,14 @@ export interface SquadOffer {
   formerTeam?: true;
 }
 
-export type RosterList = 'active' | 'injuredReserve' | SquadMembership['kind'] | 'waivers' | 'unattached' | 'retired';
+export type RosterList =
+  | 'active'
+  | 'injuredReserve'
+  | 'didNotReport'
+  | SquadMembership['kind']
+  | 'waivers'
+  | 'unattached'
+  | 'retired';
 
 /**
  * Seasons of service: completed seasons with six or more regular-season games on the 53 (or called up) or IR,

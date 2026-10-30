@@ -62,6 +62,8 @@ export interface ContractYear {
   paidBefore?: number;
   /** A dummy year that exists only to spread bonus money; it voids before it is played. */
   void?: true;
+  /** Weekly game checks withheld from a holdout (G4): off his pay and his club's cap charge. */
+  withheld?: number;
 }
 
 /** Bonus money paid up front and spread evenly over at most five league years of cap. */
@@ -254,6 +256,8 @@ export interface Player {
   experience: number;
   /** Separate from calendar experience: accrued, minimum-salary and pension service. */
   service?: PlayerService;
+  /** The season a holdout who missed camp didn't accrue (G4; the CBA's report-30-days-before rule). */
+  lostAccrual?: number;
   /** Exclusive practice-squad list membership; ordinary active/IR membership remains implicit. */
   squad?: SquadMembership;
   /** Pending waivers are not free agency; the NFL contract remains intact until settlement. */
@@ -380,6 +384,32 @@ export type MoraleJolt =
   | 'firm'
   | 'ignored';
 
+/** A talk gone wrong, escalated (G4, `disputes.ts`): a hold-in, a holdout or a trade request. */
+export type DisputeKind = 'holdIn' | 'holdOut' | 'trade';
+/** Your answers to a dispute's letter. */
+export type DisputeChoice = 'negotiate' | 'promise' | 'firm' | 'shop' | 'refuse';
+/** How a dispute ended. */
+export type DisputeHow = 'signed' | 'traded' | 'promise' | 'gaveIn' | 'week1' | 'withdrawn' | 'released' | 'newYear';
+
+export interface Dispute {
+  kind: DisputeKind;
+  cause: TalkCause;
+  /** Morale's clock when it started. */
+  since: number;
+  /** A holdout on the Reserve/Did Not Report list (from camp's step): off the 53, unavailable. */
+  out?: true;
+  /** Camp fines, $K. */
+  fined?: number;
+  /** Fines plus withheld game checks, $K: what giving in reads. */
+  lost?: number;
+  /** Your letter's answer. */
+  answered?: { choice: DisputeChoice; at: number };
+  /** A trade request gone public: the clock it leaked (G4b). */
+  public?: number;
+  /** A trade request his club turned down (G4b). */
+  refused?: true;
+}
+
 /** What an unhappy player asks his club about (`playerTalks.ts`). */
 export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud';
 /** How a club answers him. */
@@ -409,7 +439,12 @@ export interface Talk {
     games?: number;
     snaps?: number;
     seen?: { season: number; games: number; snaps: number };
+    /** A promise made to end a dispute (G4): broken, the dispute starts again at once. */
+    dispute?: DisputeKind;
   };
+  /** A talk that ended badly (ignored, firm, a promise broken): about what, when, the Very poor steps since, and the
+   * dispute it followed when one ended without a deal (G4). */
+  sour?: { cause: TalkCause; at: number; run: number; after?: DisputeKind };
   /** Reassurances this league year; promises kept and broken that he still remembers. */
   reassured?: number;
   kept?: number;
@@ -427,6 +462,12 @@ export interface Morale {
   apy?: number;
   /** His talks with his club (G3); absent for most players. */
   talk?: Talk;
+  /** An open hold-in, holdout or trade request (G4, `disputes.ts`). */
+  dispute?: Dispute;
+  /** How his last dispute ended, for the letters. */
+  disputeEnd?: { kind: DisputeKind; since: number; how: DisputeHow; at: number };
+  /** Back after missing camp: the first regular-season week he's back (rust that week and the next). */
+  rust?: { season: number; week: number };
 }
 
 /** A year of development on its way: the roll's inputs (its targets come back from the seed) and what has landed so far. */
