@@ -134,7 +134,7 @@ resigns to take a coordinator job.
 - **The links:** `linksOf(league, c.id)` with `as === 'headCoach'`, so 3+ seasons on that man's staff while he was
   head coach.
 - **The mentor:** he counts once he's a winner as of this league year, by `winnerAsOf(league, mentorId,
-league.season)` (`WINNER`: .550 or better over 5+ head-coach seasons).
+league.season)` (`WINNER`: .600 or better over 5+ head-coach seasons; see "Step two" below).
 - **Strength:** 0.4 for a bare winner, rising in a straight line to 1.0 for a .700 winner, read from his head-coach
   win share through his last head-coach season by now (as `winnerAsOf` reads it). A founding
   root (`'always'`), who has no record, gets 0.4. Win shares are cached by season in `Index.winners`, so a search never
@@ -228,6 +228,22 @@ it. Hand counts are marked (est.).
 - **Parity:** head-coach changes about 7 a year, and year-to-year win-share correlation about 0.335 (measured by the
   plan's scratch runner).
 - **Trades** (`npm run trades`): doesn't move.
+
+## Step two: the birth rule (agreed with the owner after calibration)
+
+Tuning the hiring pulls alone left births swinging from 1 to 6 a league, worse with every stronger pull, because a tree
+needed two of a winner's men to run clubs **at the same time** for two seasons: a coin flip of two careers overlapping.
+The owner chose a simpler rule:
+
+- **A tree is born the season a winner's second man is established in charge** (his second season running a club after
+  his years under him), **at any time**, not side by side. That is how the press names a tree (the second head coach
+  off a staff), and how the trees spec's SNN line already read.
+- **The winner's bar rises to .600 over five seasons** (`WINNER`, was .550). Under the easier rule .550 made nearly every
+  winner a root (5+ births a league); .600 keeps births in the band, and pedigree chases the men worth chasing.
+- A live tree still needs two active head coaches, so nothing is inflated.
+
+Calibrated values: `PEDIGREE_PULL` head coach 0.8, coordinators 0.3; `TREE_STANDING` hot −0.7, steady −0.35;
+`TREE_CROWD` 0.3; `STEP_UP` head coach 6/11, coordinator 4/9 (odds scale between them); `STEP_DOWN.base` 0.15.
 
 ## Out of scope
 
