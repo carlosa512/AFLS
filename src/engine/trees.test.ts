@@ -49,7 +49,7 @@ const row = (
 
 /** A winning season's record (10-7): a tree grows only from a .500 head coach. */
 const won = {
-  record: { fromWeek: 1, throughWeek: 18, regular: { w: 10, l: 7, t: 0 }, playoffs: null, champion: false },
+  record: { fromWeek: 1, throughWeek: 18, regular: { w: 11, l: 6, t: 0 }, playoffs: null, champion: false },
 };
 
 describe('coaching tree links', () => {
@@ -109,7 +109,7 @@ describe('trees, branches and standing', () => {
     record: { fromWeek: 1, throughWeek: 18, regular: { w, l, t: 0 }, playoffs: null, champion: false },
   });
   /** `d` spent three seasons as `m`'s offensive coordinator at `team`, ending the season before `from`; `m` won. */
-  const served = (m: Coach, d: Coach, team: number, from: number, w = 10, lost = 7) => {
+  const served = (m: Coach, d: Coach, team: number, from: number, w = 11, lost = 6) => {
     for (const s of [from - 3, from - 2, from - 1]) {
       (m.career ??= []).push(row(s, team, 'headCoach', rec(w, lost)));
       (d.career ??= []).push(row(s, team, 'offCoord'));
@@ -141,7 +141,7 @@ describe('trees, branches and standing', () => {
     expect(treeOf(l, r.id)!.disciples.sort()).toEqual([a.id, b.id].sort());
   });
 
-  it('grows only from a winner: .550 or better over five seasons in charge', () => {
+  it('grows only from a winner: .600 or better over five seasons in charge', () => {
     const { l, c } = blank();
     const [r, a, b] = c;
     const now = l.season;
@@ -150,8 +150,8 @@ describe('trees, branches and standing', () => {
     headed(a, 2, [now - 4, now - 3, now - 2, now - 1], 9, 8);
     headed(b, 3, [now - 4, now - 3, now - 2, now - 1], 9, 8);
     expect(hasTree(l, r.id)).toBe(false); // 6-11 six years running: good teachers, no tree
-    // Four big seasons before those and he's a .550 coach: now his men make a tree.
-    headed(r, 1, [now - 15, now - 14, now - 13, now - 12], 15, 2);
+    // Four big seasons before those and he's a .600 coach: now his men make a tree.
+    headed(r, 1, [now - 15, now - 14, now - 13, now - 12], 17, 0);
     expect(hasTree(l, r.id)).toBe(true);
   });
 
