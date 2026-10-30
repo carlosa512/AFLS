@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coolAmbition, rollCoachTraits, traitLean, traitOf, traitsFromPlayer } from './coachTraits';
+import { coachCharacter, coolAmbition, rollCoachTraits, traitLean, traitOf, traitsFromPlayer } from './coachTraits';
 import { createLeague } from './generate';
 import { migrateLeague } from './migrate';
 import type { Coach, CoachTraits, Player } from './types';
@@ -83,5 +83,36 @@ describe('coach traits', () => {
     const up = migrateLeague(l)!;
     const got = [...Object.values(up.coaches), ...Object.values(up.retiredCoaches)];
     expect(Object.fromEntries(got.map((c) => [c.id, c.traits]))).toEqual(want);
+  });
+});
+
+describe('the character box', () => {
+  const as = (role: Coach['role'], t: Partial<CoachTraits>) =>
+    coach({ role, traits: { ambition: 10, loyalty: 10, adaptability: 10, discipline: 10, ...t } });
+
+  it('names the most distinctive trait that acts in his chair', () => {
+    expect(coachCharacter(as('defCoord', { ambition: 18, loyalty: 12 })).name).toBe('Climber');
+    expect(coachCharacter(as('headCoach', { discipline: 3 })).name).toBe('Player’s Coach');
+    expect(coachCharacter(as('defCoord', { discipline: 3 })).name).toBe('Steady Hand');
+    expect(coachCharacter(as('positionCoach', { adaptability: 20 })).name).toBe('Steady Hand');
+    expect(coachCharacter(as('offCoord', { loyalty: 2 })).name).toBe('Hired Gun');
+  });
+
+  it('adds the next trait’s line when it also stands out', () => {
+    expect(coachCharacter(as('defCoord', { ambition: 18, adaptability: 17 })).lines).toEqual([
+      'He wants his own team, and soon.',
+      'Runs whatever his head coach asks.',
+    ]);
+    expect(coachCharacter(as('defCoord', {})).lines).toEqual(['Nothing extreme: a pro’s pro.']);
+  });
+
+  it('never names a head coach a Lifer, but says what low ambition means', () => {
+    const ch = coachCharacter(as('headCoach', { ambition: 3 }));
+    expect(ch.name).not.toBe('Lifer');
+    expect(ch.lines).toContain('If he lost this job, he’d run a side of the ball again rather than wait.');
+  });
+
+  it('reads a retired coach by his last chair', () => {
+    expect(coachCharacter(as('defCoord', { adaptability: 3 })).name).toBe('True Believer');
   });
 });

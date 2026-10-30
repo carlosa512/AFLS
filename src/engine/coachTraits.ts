@@ -126,3 +126,55 @@ export function stepsDown(seed: string, season: number, c: Coach, when: 'dismiss
   );
   return new Rng(`${seed}:stepDown:${season}:${c.id}:${when}`).next() < chance;
 }
+
+// ───────── the character box ─────────
+
+type Side = 'high' | 'low';
+/** Each trait's name and line, high and low (spec §4). Ambition low names no head coach: he has the top job already. */
+const WORDS: Record<keyof CoachTraits, Record<Side, { name: string; line: string }>> = {
+  ambition: {
+    high: { name: 'Climber', line: 'He wants his own team, and soon.' },
+    low: { name: 'Lifer', line: 'Happy where he is; he doesn’t chase the next job.' },
+  },
+  loyalty: {
+    high: { name: 'Loyal Lieutenant', line: 'Answers when his old boss calls, and stays when he’s wanted.' },
+    low: { name: 'Hired Gun', line: 'Goes where the job is best; don’t count on a hometown discount.' },
+  },
+  adaptability: {
+    high: { name: 'Chameleon', line: 'Runs whatever his head coach asks.' },
+    low: { name: 'True Believer', line: 'Runs his own system wherever he goes.' },
+  },
+  discipline: {
+    high: { name: 'Disciplinarian', line: 'Runs a tight ship: few flags, a quieter room.' },
+    low: { name: 'Player’s Coach', line: 'His players love him; so do the officials’ flags.' },
+  },
+};
+const HEAD_LOW_AMBITION = 'If he lost this job, he’d run a side of the ball again rather than wait.';
+const ORDER: (keyof CoachTraits)[] = ['ambition', 'loyalty', 'adaptability', 'discipline'];
+
+/** The traits that do something in his chair: discipline only for head coaches, adaptability only for coordinators. */
+function acting(role: CoachRole): (keyof CoachTraits)[] {
+  if (role === 'headCoach') return ['ambition', 'loyalty', 'discipline'];
+  if (role === 'offCoord' || role === 'defCoord') return ['ambition', 'loyalty', 'adaptability'];
+  return ['ambition', 'loyalty'];
+}
+
+/**
+ * His reputation around the league in words: the name of the trait furthest from the middle (15 or more, 6 or less)
+ * among those that act in his chair, and its line with the next standout's. A retired coach is read by his last chair.
+ */
+export function coachCharacter(c: Pick<Coach, 'role' | 'traits'>): { name: string; lines: string[] } {
+  const standouts = acting(c.role)
+    .map((k) => ({ k, v: traitOf(c, k) }))
+    .filter(({ v }) => v >= 15 || v <= 6)
+    .sort((a, b) => Math.abs(b.v - 10.5) - Math.abs(a.v - 10.5) || ORDER.indexOf(a.k) - ORDER.indexOf(b.k))
+    .map(({ k, v }) => ({ k, side: (v >= 15 ? 'high' : 'low') as Side }));
+  const headLow = (s: { k: keyof CoachTraits; side: Side }) =>
+    c.role === 'headCoach' && s.k === 'ambition' && s.side === 'low';
+  const namer = standouts.find((s) => !headLow(s));
+  const lines = standouts.slice(0, 2).map((s) => (headLow(s) ? HEAD_LOW_AMBITION : WORDS[s.k][s.side].line));
+  return {
+    name: namer ? WORDS[namer.k][namer.side].name : 'Steady Hand',
+    lines: lines.length ? lines : ['Nothing extreme: a pro’s pro.'],
+  };
+}

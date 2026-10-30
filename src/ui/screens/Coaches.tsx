@@ -1,3 +1,4 @@
+import { coachCharacter } from '../../engine/coachTraits';
 import { liveTrees, mainMentor, standingOf, treeFor, treeOf, type TreeStanding } from '../../engine/trees';
 import { managesTeam } from '../../engine/employment';
 import { TeamLink } from '../components';
@@ -656,6 +657,19 @@ function CoachTree({ league, coach: c }: { league: League; coach: Coach }) {
   );
 }
 
+/** His reputation around the league, in words (`coachCharacter`): public, like the scout's report box for a player. */
+function CharacterBox({ c }: { c: Coach }) {
+  const { name, lines } = coachCharacter(c);
+  return (
+    <div className="report">
+      <span className="eyebrow">Around the league</span>
+      <p>
+        <b>{name}.</b> {lines.join(' ')}
+      </p>
+    </div>
+  );
+}
+
 export function CoachCard({ league, coach: c, onClose }: { league: League; coach: Coach; onClose: () => void }) {
   const nav = useNav();
   const team = c.teamId !== null ? league.teams[c.teamId] : null;
@@ -731,6 +745,7 @@ export function CoachCard({ league, coach: c, onClose }: { league: League; coach
       {team && <OwnerMandates league={league} teamId={team.id} coachId={c.id} />}
       <SchemeRow league={league} c={c} preview={c.teamId === null && !retired} />
       <CoachTags c={c} />
+      <CharacterBox c={c} />
       {!!c.quirkLog?.length && (
         <Section id="coach-habits" title="Habits over time" defaultOpen={false} className="muted small">
           <ul className="habit-timeline">
