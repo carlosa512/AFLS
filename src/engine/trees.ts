@@ -248,7 +248,7 @@ function winnerAsOf(league: League, rootId: number, season: number): boolean {
  */
 export const PEDIGREE = { floor: 0.4, top: 0.7, halfLife: 3 };
 /** How hard pedigree pulls in a search by chair, in score points at full demand: head coaches most, assistants none. */
-export const PEDIGREE_PULL: Partial<Record<CoachRole, number>> = { headCoach: 0.5, offCoord: 0.3, defCoord: 0.3 };
+export const PEDIGREE_PULL: Partial<Record<CoachRole, number>> = { headCoach: 0.8, offCoord: 0.3, defCoord: 0.3 };
 
 /**
  * What owners make of a man's pedigree, 0–1: three seasons or more on a head coach's staff, once that head coach is a
@@ -466,7 +466,7 @@ export const TREE_KEEP = 0.25;
 /** Hiring scores are lower-is-better: a man linked to the hiring head coach scores this much better. */
 export const TREE_PULL = 0.3;
 /** Head-coach searches: a hot tree's disciples score better, a withering one's worse. */
-export const TREE_STANDING: Record<TreeStanding, number> = { hot: -0.15, steady: -0.05, withering: 0.4, faded: 0 };
+export const TREE_STANDING: Record<TreeStanding, number> = { hot: -0.7, steady: -0.35, withering: 0.4, faded: 0 };
 /** Each head coach a tree has already given a club this offseason: owners rarely hire twice from one tree in a cycle. */
 export const TREE_CROWD = 0.3;
 /** The chance a new coordinator runs his main mentor's scheme instead of his own. */
