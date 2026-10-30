@@ -59,9 +59,12 @@ export function executeTrade(
       if (paid > 0) {
         const y = c.years.find((x) => x.season === league.season);
         if (y) {
+          // A holdout's withheld checks were never paid (G4): they stay off the old team's charge.
+          const held = y.withheld ? Math.round((y.base * y.withheld) / 18) : 0;
+          delete y.withheld;
           from.deadMoney.push({
             season: league.season,
-            amount: Math.round(y.base * paid),
+            amount: Math.round(y.base * paid) - held,
             playerId: id,
             note: 'Salary paid before trade',
           });

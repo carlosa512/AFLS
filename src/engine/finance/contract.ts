@@ -26,7 +26,10 @@ export function prorationIn(c: Contract, season: number): number {
 
 /** Cap charge for a league year while the player is on the roster. */
 export function capHit(c: Contract, season: number): number {
-  return (yearOf(c, season)?.base ?? 0) + prorationIn(c, season);
+  const y = yearOf(c, season);
+  // A holdout's withheld game checks come off his club's charge (G4).
+  const held = y?.withheld ? Math.round((y.base * y.withheld) / 18) : 0;
+  return (y?.base ?? 0) - held + prorationIn(c, season);
 }
 
 /** Real (non-void) seasons left, counting `season`. */

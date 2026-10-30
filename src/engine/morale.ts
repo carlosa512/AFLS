@@ -389,6 +389,7 @@ const JOLT_WORDS: Record<MoraleJolt, string> = {
   reassured: 'Feels valued',
   firm: "Didn't like your answer",
   ignored: 'Feels ignored',
+  gaveIn: 'Gave in on his holdout',
 };
 
 /** While a promise is open, the grievance it answered reads as waiting on it (G4). */
@@ -409,6 +410,7 @@ export const DOWN_REASONS: ReadonlySet<string> = new Set([
   JOLT_WORDS.broken,
   JOLT_WORDS.firm,
   JOLT_WORDS.ignored,
+  JOLT_WORDS.gaveIn,
   ...Object.values(WAITING).map((w) => w!.text),
 ]);
 

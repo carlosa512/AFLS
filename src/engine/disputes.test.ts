@@ -18,7 +18,7 @@ function base(seed = 'disputes') {
 }
 
 const holdout = (l: League, p: Player) => {
-  p.morale!.dispute = { kind: 'holdOut', cause: 'deal', since: l.moraleAt!, out: true };
+  p.morale!.dispute = { kind: 'holdOut', cause: 'deal', since: l.moraleAt!, out: true, club: p.teamId! };
 };
 
 describe('disputes: the lists and the readers (G4)', () => {
@@ -191,5 +191,116 @@ describe('disputes: who escalates (G4)', () => {
     MOOD_ACTS.on = false;
     disputeStep(l, moraleContext(l), at(l, 0), 0, false);
     expect(p.morale!.dispute).toBeUndefined();
+  });
+});
+
+const { CAMP_FINE, giveInLimit } = await import('./disputes');
+const { capHit, yearOf } = await import('./finance/contract');
+const { serviceSeasons, creditService } = await import('./personnel/service');
+
+/** A holdout started at the re-sign window on team `teamId`, his base set to `base` ($K). */
+function holdingOut(l: League, teamId = 1, base = 20_000): Player {
+  const p = souredDeal(l, teamId);
+  p.personality = { ...p.personality, greed: 1, patience: 0 };
+  yearOf(p.contract!, l.season)!.base = base;
+  p.morale!.dispute = { kind: 'holdOut', cause: 'deal', since: at(l, 0), club: teamId };
+  delete p.morale!.talk!.sour;
+  return p;
+}
+
+/** Runs dispute steps from week `from` to week `to` of this league year. */
+function run(l: League, from: number, to: number) {
+  for (let w = from; w <= to; w++) {
+    l.moraleAt = at(l, w);
+    disputeStep(l, moraleContext(l), at(l, w), w, false);
+  }
+}
+
+describe('disputes: a holdout runs and ends (G4)', () => {
+  it("sends a holdout to Did Not Report at camp's step", () => {
+    const { l } = base('camp');
+    const p = holdingOut(l);
+    run(l, 1, 6);
+    expect(p.morale!.dispute!.out).toBeUndefined();
+    run(l, 7, 7);
+    expect(p.morale!.dispute!.out).toBe(true);
+    expect(rosterList(p)).toBe('didNotReport');
+  });
+
+  it('fines a holdout still out when camp ends and costs him the accrued season', () => {
+    const { l } = base('fine');
+    const p = holdingOut(l);
+    run(l, 7, 8);
+    expect(p.morale!.dispute).toMatchObject({ fined: CAMP_FINE, lost: CAMP_FINE });
+    expect(CAMP_FINE).toBe(2250);
+    expect(p.lostAccrual).toBe(l.season);
+    for (let w = 1; w <= 8; w++) creditService(p, l.season, w);
+    expect(serviceSeasons(p, l.season + 1)).toBe(serviceSeasons(p, l.season));
+  });
+
+  it("withholds a game check each regular-season week he's out and credits his club's cap", () => {
+    const { l } = base('checks');
+    const p = holdingOut(l);
+    const before = capHit(p.contract!, l.season);
+    run(l, 7, 11);
+    expect(yearOf(p.contract!, l.season)!.withheld).toBe(3);
+    expect(capHit(p.contract!, l.season)).toBe(before - Math.round((20_000 * 3) / 18));
+    expect(p.morale!.dispute!.lost).toBe(CAMP_FINE + 3 * Math.round(20_000 / 18));
+  });
+
+  it('gives in at his limit, reports with rust, and sours the talk', () => {
+    const { l } = base('give-in');
+    const calm = holdingOut(l, 1, 5_000);
+    calm.personality = { ...calm.personality, greed: 0, patience: 1 };
+    const star = holdingOut(l, 2, 20_000);
+    expect(giveInLimit(l, star)).toBe(10_000);
+    run(l, 7, 8);
+    expect(calm.morale!.dispute).toBeUndefined();
+    expect(calm.morale!.disputeEnd).toMatchObject({ how: 'gaveIn', kind: 'holdOut' });
+    expect(calm.morale!.rust).toEqual({ season: l.season, week: 1 });
+    expect(calm.morale!.jolts?.some((j) => j.kind === 'gaveIn')).toBe(true);
+    expect(calm.morale!.talk!.sour).toMatchObject({ cause: 'deal', after: 'holdOut' });
+    run(l, 9, 26);
+    expect(star.morale!.disputeEnd?.how).toBe('gaveIn');
+    // $2.25M of fines, then $1.11M a week: past $10M after his seventh game check.
+    expect(star.morale!.rust).toEqual({ season: l.season, week: 8 });
+  });
+
+  it('ends a hold-in at week 1: he plays, with rust, and the talk sours', () => {
+    const { l } = base('week1');
+    const p = souredDeal(l);
+    p.morale!.dispute = { kind: 'holdIn', cause: 'deal', since: at(l, 2), club: 1 };
+    delete p.morale!.talk!.sour;
+    run(l, 7, 8);
+    expect(p.morale!.dispute).toBeUndefined();
+    expect(p.morale!.disputeEnd?.how).toBe('week1');
+    expect(p.morale!.rust).toEqual({ season: l.season, week: 1 });
+    expect(p.morale!.talk!.sour).toMatchObject({ after: 'holdIn' });
+  });
+
+  it('ends on a raise, a trade or a release', () => {
+    const { l } = base('ends');
+    const a = holdingOut(l, 1);
+    const b = holdingOut(l, 2);
+    const c = holdingOut(l, 3);
+    run(l, 7, 9);
+    a.morale!.jolts = [{ kind: 'paid', size: 3, at: at(l, 10) }];
+    b.teamId = 5;
+    c.teamId = null;
+    run(l, 10, 10);
+    expect(a.morale!.disputeEnd?.how).toBe('signed');
+    expect(b.morale!.disputeEnd?.how).toBe('traded');
+    expect(rosterList(b)).toBe('active');
+    expect(c.morale!.disputeEnd?.how).toBe('released');
+    expect([a, b, c].every((x) => !x.morale!.dispute)).toBe(true);
+  });
+
+  it('ends a holdout still out at the new league year', () => {
+    const { l } = base('new-year');
+    const p = holdingOut(l);
+    p.morale!.dispute!.since = at(l, 0) - 20;
+    l.moraleAt = at(l, 0);
+    disputeStep(l, moraleContext(l), at(l, 0), 0, true);
+    expect(p.morale!.disputeEnd?.how).toBe('newYear');
   });
 });

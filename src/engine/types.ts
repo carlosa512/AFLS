@@ -382,7 +382,9 @@ export type MoraleJolt =
   | 'broken'
   | 'reassured'
   | 'firm'
-  | 'ignored';
+  | 'ignored'
+  // G4: a holdout who gave in.
+  | 'gaveIn';
 
 /** A talk gone wrong, escalated (G4, `disputes.ts`): a hold-in, a holdout or a trade request. */
 export type DisputeKind = 'holdIn' | 'holdOut' | 'trade';
@@ -396,6 +398,8 @@ export interface Dispute {
   cause: TalkCause;
   /** Morale's clock when it started. */
   since: number;
+  /** The club it's with: leaving it (a trade, a release) ends the dispute. */
+  club: number;
   /** A holdout on the Reserve/Did Not Report list (from camp's step): off the 53, unavailable. */
   out?: true;
   /** Camp fines, $K. */
