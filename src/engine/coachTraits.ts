@@ -87,3 +87,42 @@ export function wantsStepUp(seed: string, season: number, c: Coach, chair: Coach
   const chance = (ambition - lifer) / 10 - STEP_UP.cool * Math.max(0, c.age - 55);
   return new Rng(`${seed}:wants:${season}:${c.id}:${chair}`).next() < chance;
 }
+
+/**
+ * Stepping down: a fired head coach either waits for another head coach's job or goes back to coordinating. The chance
+ * starts at `base`, rises `perYear` a year past 50 and by `fired` if he's lost a head coach's job before, falls
+ * `perAmbition` a point of ambition above 10 (rises below it); an interim who isn't kept adds `interim`, the second
+ * decision at camp `camp`. Kept between `min` and `max`.
+ */
+export const STEP_DOWN = {
+  base: 0.3,
+  perYear: 0.04,
+  fired: 0.2,
+  perAmbition: 0.05,
+  interim: 0.4,
+  camp: 0.2,
+  min: 0.05,
+  max: 0.9,
+};
+
+/** His head coach's jobs: runs of consecutive seasons in charge of one club. */
+export function headStints(c: Pick<Coach, 'career'>): number {
+  const rows = (c.career ?? []).filter((r) => r.role === 'headCoach').sort((a, b) => a.season - b.season);
+  return rows.filter((r, i) => i === 0 || r.teamId !== rows[i - 1].teamId || r.season > rows[i - 1].season + 1).length;
+}
+
+/** Whether a head coach out of a job goes back to coordinating now (`when`: just dismissed, an interim not kept, camp). */
+export function stepsDown(seed: string, season: number, c: Coach, when: 'dismissed' | 'interim' | 'camp'): boolean {
+  const k = STEP_DOWN;
+  const chance = clamp(
+    k.base +
+      k.perYear * Math.max(0, c.age - 50) +
+      (headStints(c) > 1 ? k.fired : 0) -
+      k.perAmbition * (traitOf(c, 'ambition') - 10) +
+      (when === 'interim' ? k.interim : 0) +
+      (when === 'camp' ? k.camp : 0),
+    k.min,
+    k.max,
+  );
+  return new Rng(`${seed}:stepDown:${season}:${c.id}:${when}`).next() < chance;
+}

@@ -30,6 +30,8 @@ import {
   rollCoachTraits,
   traitLean,
   traitOf,
+  headStints,
+  stepsDown,
   traitsFromPlayer,
   wantsStepUp,
 } from './coachTraits';
@@ -1006,6 +1008,7 @@ function dismiss(league: League, c: Coach, why?: string): void {
   if (problem) throw new Error(problem);
   touch();
   const teamId = c.teamId!;
+  const head = c.role === 'headCoach' ? { interim: !!c.interim, actingAs: c.actingAs } : null;
   const team = league.teams[teamId];
   const owed = coachSeverance(league, c);
   if (team.coachDepartures?.season !== league.season) team.coachDepartures = { season: league.season, ids: [] };
@@ -1023,6 +1026,51 @@ function dismiss(league: League, c: Coach, why?: string): void {
   delete c.interim;
   delete c.actingAs;
   delete c.since;
+  if (head) {
+    // A second head coach's job lost humbles him; then he decides whether to wait for another or coordinate again.
+    if (headStints(c) === 2 && c.traits) c.traits.ambition = Math.max(1, c.traits.ambition - 3);
+    if (stepsDown(league.seed, league.season, c, head.interim ? 'interim' : 'dismissed'))
+      stepDown(league, c, { teamId, actingAs: head.actingAs });
+  }
+}
+
+/**
+ * A head coach out of a job goes back to coordinating: his own side of the ball (the side he was acting for as an
+ * interim, else the last he coordinated), with the style and scheme that chair needs. False if he never coordinated:
+ * he waits for another head coach's job.
+ */
+export function stepDown(
+  league: League,
+  c: Coach,
+  from: { teamId?: number; actingAs?: Coach['actingAs'] } = {},
+): boolean {
+  const side =
+    c.actingAs ??
+    from.actingAs ??
+    (c.career ?? [])
+      .filter((r) => r.role === 'offCoord' || r.role === 'defCoord')
+      .sort((a, b) => a.season - b.season)
+      .at(-1)?.role;
+  if (side !== 'offCoord' && side !== 'defCoord') return false;
+  const teamId =
+    from.teamId ??
+    (c.career ?? [])
+      .filter((r) => r.role === 'headCoach')
+      .sort((a, b) => a.season - b.season)
+      .at(-1)?.teamId;
+  Object.assign(c, asPromoted(league, c, { role: side }));
+  delete c.room;
+  delete c.actingAs;
+  touch();
+  if (teamId !== undefined)
+    logCoach(
+      league,
+      teamId,
+      c,
+      `Former ${league.teams[teamId].abbrev} head coach ${coachName(c)} will look for coordinator jobs.`,
+      true,
+    );
+  return true;
 }
 
 // ───────── promotions ─────────
@@ -1964,6 +2012,9 @@ function refusal(league: League, c: Coach, chair: Chair): string | null {
 export function ensureCoached(league: League, opts: { autoUser?: boolean } = {}): void {
   const rng = new Rng(`${league.seed}:coach:camp:${league.season}`);
   for (const team of league.teams) if (opts.autoUser || team.id !== league.userTeamId) fillChairs(league, team, rng);
+  // Still unhired at camp: a head coach decides again whether to wait another year or coordinate (`stepsDown`).
+  for (const c of coachMarket(league))
+    if (c.role === 'headCoach' && stepsDown(league.seed, league.season, c, 'camp')) stepDown(league, c);
   // Camp closes the hiring season: some of the men nobody hired move on until next year.
   for (const c of coachMarket(league)) if (rng.chance(CAMP_DRIFT)) leaveFootball(league, c);
   touch();

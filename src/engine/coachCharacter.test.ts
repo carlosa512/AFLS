@@ -1,6 +1,6 @@
 /** What coaches' character does in the game (docs/superpowers/specs/2026-10-30-coach-character-design.md). */
 import { describe, expect, it } from 'vitest';
-import { adaptShare, wantsStepUp } from './coachTraits';
+import { adaptShare, headStints, stepsDown, wantsStepUp } from './coachTraits';
 import {
   bentDefense,
   bentPassLean,
@@ -16,6 +16,8 @@ import {
   planUnder,
   poachProblem,
   promotionProblem,
+  releaseCoach,
+  stepDown,
   teamCoaches,
   visionFit,
   type Vision,
@@ -225,5 +227,78 @@ describe('wanting the step up', () => {
     expect(poachProblem(l, l.userTeamId, theirs)).toBe(
       'He’s happy as offensive coordinator: he won’t take head-coach talks.',
     );
+  });
+});
+
+describe('stepping down', () => {
+  const rows = (role: Coach['role'], teamId: number, ...seasons: number[]) =>
+    seasons.map((season) => ({ season, teamId, role }));
+  const fired = (over: Partial<Coach> = {}, t: Partial<CoachTraits> = {}) =>
+    withTraits({ ...coachOf('headCoach'), ...over }, t);
+  const share = (make: (id: number) => Coach, when: 'dismissed' | 'interim' | 'camp' = 'dismissed') =>
+    Array.from({ length: 1000 }, (_, id) => stepsDown('s', 2030, make(id), when)).filter(Boolean).length / 1000;
+
+  it('steps down more often when old, fired before or unambitious; an interim most of all', () => {
+    const once = (id: number, age = 50, ambition = 10.5) =>
+      fired({ id, age, career: rows('headCoach', 3, 2028, 2029) }, { ambition });
+    const twice = (id: number) =>
+      fired({ id, career: [...rows('headCoach', 1, 2020, 2021), ...rows('headCoach', 3, 2028)] });
+    expect(share((id) => once(id, 62))).toBeGreaterThan(share((id) => once(id, 45)) + 0.2);
+    expect(share(twice)).toBeGreaterThan(share((id) => once(id)) + 0.1);
+    expect(share((id) => once(id, 50, 4))).toBeGreaterThan(share((id) => once(id, 50, 16)) + 0.3);
+    expect(share((id) => once(id), 'interim')).toBeGreaterThan(share((id) => once(id)) + 0.3);
+    expect(headStints(twice(1))).toBe(2);
+  });
+
+  it('moves him to his side’s coordinator chair with a scheme, and logs it', () => {
+    const l = offseason('step-down');
+    const c = Object.values(l.coaches).find((x) => x.role === 'headCoach')!;
+    c.teamId = null;
+    c.contract = null;
+    c.career = [...rows('defCoord', 3, 2020, 2021), ...rows('headCoach', 4, 2022, 2023)];
+    expect(stepDown(l, c)).toBe(true);
+    expect(c.role).toBe('defCoord');
+    expect(c.scheme?.front).toBeDefined();
+    expect(l.transactions.at(-1)!.text).toBe(
+      `Former ${l.teams[4].abbrev} head coach ${c.firstName} ${c.lastName} will look for coordinator jobs.`,
+    );
+  });
+
+  it('keeps a man who never coordinated waiting, and sends an interim back to his acting side', () => {
+    const l = offseason('step-down-2');
+    const [a, b] = Object.values(l.coaches).filter((x) => x.role === 'headCoach');
+    for (const c of [a, b]) {
+      c.teamId = null;
+      c.contract = null;
+      c.career = rows('headCoach', 4, 2022, 2023);
+    }
+    expect(stepDown(l, a)).toBe(false);
+    expect(a.role).toBe('headCoach');
+    b.actingAs = 'offCoord';
+    expect(stepDown(l, b)).toBe(true);
+    expect(b.role).toBe('offCoord');
+  });
+
+  it('drops ambition by 3 at his second firing, once', () => {
+    const l = offseason('second-firing');
+    const user = l.userTeamId;
+    l.teams[user].staffBudgetMult = 3;
+    const hc = withTraits(headOf(l, user), { ambition: 12 });
+    hc.career = [...rows('headCoach', (user + 1) % 32, 2020, 2021), ...rows('headCoach', user, l.season - 1)];
+    releaseCoach(l, user, hc.id);
+    expect(hc.traits!.ambition).toBe(9);
+  });
+
+  it('gives head coaches still unhired at camp another decision', () => {
+    const l = offseason('camp-step-down');
+    const market = Object.values(l.coaches).filter((c) => c.teamId === null && c.role === 'headCoach');
+    for (const c of market) {
+      c.career = [...rows('offCoord', 2, 2015, 2016), ...rows('headCoach', 2, 2017)];
+      withTraits(c, { ambition: 1 });
+      c.age = 64;
+    }
+    expect(market.length).toBeGreaterThan(0);
+    ensureCoached(l);
+    expect(market.some((c) => c.role === 'offCoord')).toBe(true);
   });
 });
