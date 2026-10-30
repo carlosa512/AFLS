@@ -49,6 +49,12 @@ The owner's players, worked through: Warren (contract −4, role −1.5) promise
 
 Data: `Talk.answered.cause` (what the answer was about; old records without it soften nothing).
 
+**A reminder at the season's end** (the owner's ask). When the season is complete, the head coach sends one letter,
+"Promises to keep": a row for each open promise to your players (a deal due by the end of the re-sign window; snaps with
+the games left, which carry into next season). A deal's row carries the contracts letter's live buttons (Negotiate). It
+reads as needing you while any deal on it is still open; no open promises, no letter. Your club only, while you have a
+job; filed once a season.
+
 Ships first, on its own: a fix (0.2.26).
 
 ## Part 2: who escalates
@@ -176,7 +182,8 @@ Report, like IR. What's public shows for anyone's player where an injury shows: 
 
 ## Three pull requests
 
-1. **Being heard** (Part 1), 0.2.26: the fix the owner sees now. Small; runs the morale check.
+1. **Being heard** (Part 1, with the season's-end reminder), 0.2.26: the fix the owner sees now. Small; runs the
+   morale check.
 2. **G4a: contract disputes and promises kept** (Parts 2–4, 6 and 7 for contracts), 0.2.27.
 3. **G4b: trade requests** (Part 5 and its letters and AI), 0.3.0: finishes the Morale and holdouts MVP item.
 
@@ -192,6 +199,7 @@ Report, like IR. What's public shows for anyone's player where an injury shows: 
 | `src/engine/offseason/ai.ts`, `roster.ts` (AI depth) | AI keeps promises |
 | `src/engine/trade/plans.ts`, `offers.ts`, `judge.ts`, `market.ts` | a public request: calls, low openers, the floor |
 | `src/engine/disputeMail.ts` (new), `lockerReport.ts`, `lockerVoice.ts`, `playerVoice.ts` | the letters |
+| `src/engine/promiseMail.ts` (new), `inbox.ts`, `src/ui/mail.tsx` | the season's-end promises reminder |
 | `src/ui/screens/LockerRoom.tsx`, `Roster.tsx`, player card | Disputes, Did Not Report, the public status |
 | `src/engine/types.ts`, `generate.ts`, `migrate.ts` | the data, save v71 |
 | `scripts/morale.ts`, `scripts/check.ts` | the new checks |

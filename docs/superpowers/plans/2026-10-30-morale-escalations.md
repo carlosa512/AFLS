@@ -112,6 +112,36 @@ it('reads "Waiting on his new deal" while a deal promise is open', () => {
 
 - [ ] **Step 5: Commit** ("Morale: an answer softens the grievance it answered").
 
+### Task 1b: The promises reminder at the season's end
+
+**Files:**
+
+- Create: `src/engine/promiseMail.ts`
+- Modify: `src/engine/lockerVoice.ts` (`PROMISES_SUBJECT`, `PROMISES_LEAD`: the head coach's lines, through `say`),
+  `src/engine/inbox.ts` (`MailSubject` `{ kind: 'promises'; season: number }`, `mailSubject` case `'promises'`,
+  `needsYou`, `deliverMail` adds `promiseMail`), `src/ui/mail.tsx` (the rows render through `MailSections`)
+- Test: `src/engine/promiseMail.test.ts`
+
+**Interfaces:**
+
+- Produces: `export function promiseMail(league: League, have: Set<string>): Draft[]` (id `promises:${league.season}`);
+  `export function promisesNeedYou(league: League, m: InboxMessage): boolean`.
+
+- [ ] **Step 1: Failing tests** (`promiseMail.test.ts`), on a league played to `phase === 'complete'` with open promises
+      set on your players:
+  - `it('files one letter when the season is complete, a row per open promise to your players')`: a deal row's note is
+    "A new deal by the end of the re-sign window" and carries `contract: { playerId }`; a snaps row says the games left
+    and that they carry into next season; another club's promised man has no row.
+  - `it('files nothing without an open promise, while unemployed, or twice')`.
+  - `it('needs you while a deal on it is still open')`: true, then false once he's signed (or the promise breaks).
+  - `it('reads its subject back')`: `mailSubject` of `promises:2029` is `{ kind: 'promises', season: 2029 }`.
+- [ ] **Step 2: Run, fail:** `npx vitest run src/engine/promiseMail.test.ts --maxWorkers=2`.
+- [ ] **Step 3: Implement** like `contractMail.ts` (sender `headCoach(league)`, category `staff`, `sections: [{ title:
+'Promises to keep', rows }]`, `actions: [{ kind: 'locker' }]`). Check that a `contract` row's live buttons offer
+      Negotiate for a man with two years left too; if `ContractCards` only knows expiring players, give it that one path.
+- [ ] **Step 4: Run, pass**, plus `src/ui/ui.test.ts` and typecheck.
+- [ ] **Step 5: Commit** ("Mail: the head coach's reminder of promises at the season's end").
+
 ### Task 2: Measure, document, ship PR 1
 
 **Files:** `docs/MVP.md` (the Morale line), `package.json` (0.2.26), `src/ui/changelog.ts`, `CLAUDE.md` (the
@@ -120,7 +150,8 @@ it('reads "Waiting on his new deal" while a deal promise is open', () => {
 - [ ] **Step 1:** `npm run morale`. Compare with Step 0. Everything else must stay ✓. If "Underpaid final-year starters"
       falls under 0.6 or "promises kept" leaves 25–75%, stop and bring the owner both runs' numbers; change nothing.
 - [ ] **Step 2:** Docs, version, changelog ("Players you promise a deal or reassure now feel it until the quiet runs
-      out"); `npm run format`; commit; push; open the PR (template if any); read CI; fix red.
+      out", and "The head coach reminds you of your open promises when the season ends"); `npm run format`; commit;
+      push; open the PR (template if any); read CI; fix red.
 
 ---
 
