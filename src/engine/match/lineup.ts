@@ -164,7 +164,7 @@ const MOOD_EDGE = 0.5;
  * flat and a weak one sharp, so a final margin sits about 13.5 points either side of what strength predicts, as the
  * NFL's do around the line. It averages out, so league totals hold. (A team's day, not a player's form: `formFor`.)
  */
-export const DAY_SD = 0.45;
+export const DAY_SD = 0.35;
 
 /**
  * How team `teamId` plays in the game `gameSeed` names (the game's own seed): its own stream, so no other draw in the
