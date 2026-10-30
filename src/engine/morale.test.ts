@@ -117,6 +117,32 @@ describe('morale: the factors', () => {
     expect(moraleFactors(withPlayer(none), none, ctx).role).toBe(0);
   });
 
+  it('never reads a hurt backup as a starter: only regular-season weeks missed count, and never below the games he dressed', () => {
+    const ol = team0.filter((p) => p.position === 'OL').sort((a, b) => playerOvr(b) - playerOvr(a));
+    const ctx = moraleContext(league);
+    Object.assign(ctx.records.get(0)!, { w: 6, l: 2 });
+    ctx.live.OL = 480;
+    const backup = { ...ol[STARTERS.OL + 1], experience: 5 };
+    const hurt = (injuries: object[], gp: number, snaps: number) =>
+      ({ ...backup, injuries, stats: { [league.season]: { gp, snaps } } }) as Player;
+    // Played through a six-week injury, every game, a backup's snaps: still a backup, content.
+    const through = hurt([{ type: 'Ankle', severity: 'moderate', season: league.season, week: 2, weeks: 6 }], 8, 60);
+    expect(moraleFactors(withPlayer(through), through, ctx).role).toBe(0);
+    // Hurt in camp, healed before week 1: none of his eight games was missed.
+    const camp = hurt([{ type: 'Ankle', severity: 'moderate', season: league.season, week: 0, weeks: 1 }], 8, 60);
+    expect(moraleFactors(withPlayer(camp), camp, ctx).role).toBe(0);
+    // Two injuries over the same weeks count those weeks once.
+    const twice = hurt(
+      [
+        { type: 'Ankle', severity: 'moderate', season: league.season, week: 2, weeks: 3 },
+        { type: 'Knee', severity: 'moderate', season: league.season, week: 3, weeks: 3 },
+      ],
+      4,
+      30,
+    );
+    expect(moraleFactors(withPlayer(twice), twice, ctx).role).toBe(0);
+  });
+
   it('reads a depth player who sits as content: he knows the starters are better', () => {
     const ol = team0.filter((p) => p.position === 'OL').sort((a, b) => playerOvr(b) - playerOvr(a));
     const ctx = moraleContext(league);

@@ -131,8 +131,7 @@ export function actualRole(league: League, p: Player, ctx: MoraleContext): numbe
     if (p.injury || p.ir) return null;
     // Nor are the games he missed hurt: his role is read off the games he could have played, and two of those at least
     // (a man just back hasn't been kept off the field yet).
-    const out = (p.injuries ?? []).filter((i) => i.season === ctx.season).reduce((t, i) => t + i.weeks, 0);
-    const available = Math.max(0, played - out);
+    const available = availableGames(p, ctx.season, played);
     if (available >= 2) {
       const s = p.stats[ctx.season];
       const kicker = p.position === 'K' || p.position === 'P';
@@ -144,6 +143,22 @@ export function actualRole(league: League, p: Player, ctx: MoraleContext): numbe
   if (!p.stats[ctx.season - 1]) return null;
   const last = seasonRole(league, p, ctx.season - 1);
   return last ? ROLE_STEP[last.role] : 0;
+}
+
+/**
+ * The games of his club's this season he could have played: the regular-season weeks his injuries kept him out, each
+ * week once (overlapping injuries, a camp injury healed before week 1), off his club's games, and never fewer than the
+ * games he dressed for (a man playing through one was there).
+ */
+function availableGames(p: Player, season: number, played: number): number {
+  const missed = new Set<number>();
+  for (const i of p.injuries ?? []) {
+    if (i.season !== season) continue;
+    // Read once he's healthy again, so every week of a past injury has gone by.
+    for (let w = Math.max(1, i.week); w <= i.week + i.weeks - 1; w++) missed.add(w);
+  }
+  const gp = p.stats[season]?.gp ?? 0;
+  return Math.min(played, Math.max(gp, played - missed.size));
 }
 
 function contractScore(league: League, p: Player, ctx: MoraleContext): number {
