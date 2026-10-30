@@ -94,6 +94,29 @@ describe('morale: the factors', () => {
     expect(moraleFactors(league, s, ctx).role).toBeGreaterThanOrEqual(-3);
   });
 
+  it("doesn't count the games a starter missed hurt against his role", () => {
+    const base = starter();
+    const ctx = moraleContext(league);
+    Object.assign(ctx.records.get(0)!, { w: 6, l: 2 });
+    ctx.live.WR = 480; // 60 snaps a game over eight games
+    // Hurt for six of eight, healthy again, a starter's snaps in the two he played.
+    const back = {
+      ...base,
+      experience: 4,
+      injuries: [{ type: 'Hamstring', severity: 'moderate', season: league.season, week: 2, weeks: 6 }],
+      stats: { [league.season]: { gp: 2, snaps: 120 } },
+    } as Player;
+    expect(moraleFactors(withPlayer(back), back, ctx).role).toBe(0);
+    // A healthy starter who sat those games is benched.
+    const sat = { ...back, injuries: [] } as Player;
+    expect(moraleFactors(withPlayer(sat), sat, ctx).role).toBeLessThan(0);
+    // Back but yet to play since: one healthy game is no read, so last season's role stands.
+    Object.assign(ctx.records.get(0)!, { w: 5, l: 2 });
+    ctx.live.WR = 420;
+    const none = { ...back, stats: { ...base.stats, [league.season]: { gp: 1, snaps: 60 } } } as Player;
+    expect(moraleFactors(withPlayer(none), none, ctx).role).toBe(0);
+  });
+
   it('reads a depth player who sits as content: he knows the starters are better', () => {
     const ol = team0.filter((p) => p.position === 'OL').sort((a, b) => playerOvr(b) - playerOvr(a));
     const ctx = moraleContext(league);

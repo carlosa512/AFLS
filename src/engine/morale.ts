@@ -129,11 +129,17 @@ export function actualRole(league: League, p: Player, ctx: MoraleContext): numbe
   if (played >= 3) {
     // Hurt, he isn't being kept off the field: no grievance to read.
     if (p.injury || p.ir) return null;
-    const s = p.stats[ctx.season];
-    const kicker = p.position === 'K' || p.position === 'P';
-    if (kicker) return roleStep((s?.gp ?? 0) / played);
-    const ref = ctx.live[p.position];
-    return ref ? roleStep((s?.snaps ?? 0) / ref) : null;
+    // Nor are the games he missed hurt: his role is read off the games he could have played, and two of those at least
+    // (a man just back hasn't been kept off the field yet).
+    const out = (p.injuries ?? []).filter((i) => i.season === ctx.season).reduce((t, i) => t + i.weeks, 0);
+    const available = Math.max(0, played - out);
+    if (available >= 2) {
+      const s = p.stats[ctx.season];
+      const kicker = p.position === 'K' || p.position === 'P';
+      if (kicker) return roleStep((s?.gp ?? 0) / available);
+      const ref = ctx.live[p.position];
+      return ref ? roleStep((s?.snaps ?? 0) / ((ref * available) / played)) : null;
+    }
   }
   if (!p.stats[ctx.season - 1]) return null;
   const last = seasonRole(league, p, ctx.season - 1);

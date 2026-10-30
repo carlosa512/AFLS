@@ -10,7 +10,7 @@ import { offseasonStep } from './App';
 import { Draft, SimTheRest } from './screens/Draft';
 
 const atDraft = (() => {
-  const league = createLeague({ seed: 'draft-trades-b' });
+  const league = createLeague({ seed: 'draft-trades-c' });
   simToEndOfSeason(league);
   beginOffseason(league);
   while (league.phase !== 'draft') advanceOffseason(league, { autoUser: true });
