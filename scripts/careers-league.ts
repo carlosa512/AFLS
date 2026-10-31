@@ -64,6 +64,8 @@ export interface LeagueRun {
    * coaches in a live tree; each offseason's new head coaches and how many came from a tree (and the most from one);
    * trees born during the run, and founding trees still alive at the end.
    */
+  /** Each season's win share by team, for how long a record lasts (against the NFL's carryover). */
+  records: number[][];
   trees: {
     live: number[];
     biggest: number[];
@@ -93,6 +95,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     drafts: [],
     shifts: [],
     trees: { live: [], biggest: [], inTreeShare: [], hires: [], born: 0, foundingAlive: 0 },
+    records: [],
   };
   const headCoaches = () =>
     new Map(league.teams.map((t) => [t.id, teamCoaches(league, t.id).find((c) => c.role === 'headCoach')?.id]));
@@ -114,6 +117,18 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
 
   for (let s = 0; s < seasons; s++) {
     simToEndOfSeason(league);
+    {
+      const wins = new Map(league.teams.map((t) => [t.id, 0]));
+      const games = regularSeasonGames(league);
+      for (const g of games) {
+        const r = g.result!;
+        const w = r.homeScore > r.awayScore ? g.homeId : r.awayScore > r.homeScore ? g.awayId : null;
+        if (w !== null) wins.set(w, wins.get(w)! + 1);
+        else for (const id of [g.homeId, g.awayId]) wins.set(id, wins.get(id)! + 0.5);
+      }
+      const played = (2 * games.length) / league.teams.length;
+      out.records.push(league.teams.map((t) => wins.get(t.id)! / played));
+    }
     if (s >= steadyFrom) {
       for (const [key, top] of Object.entries(seasonTops(league, league.season))) (out.leaders[key] ??= []).push(top);
       for (const g of league.games) {

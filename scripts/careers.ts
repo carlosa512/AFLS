@@ -376,6 +376,19 @@ console.log(
 console.log(
   `win spread, SD of team wins (steady): ${mean(steady.winSpread).toFixed(2)} (NFL 3.0–3.3; reported, not judged)`,
 );
+// How long a record lasts: a club's win share against its own one and three seasons on, from season 3 (a new league's
+// first two are its making). nflverse 2002–24: 0.34 and 0.18.
+const corr = (a: number[], b: number[]) => {
+  const ma = mean(a),
+    mb = mean(b);
+  const c = a.reduce((t, x, i) => t + (x - ma) * (b[i] - mb), 0);
+  return c / Math.sqrt(a.reduce((t, x) => t + (x - ma) ** 2, 0) * b.reduce((t, y) => t + (y - mb) ** 2, 0));
+};
+const carry = (lag: number) =>
+  mean(runs.flatMap((r) => r.records.slice(2, r.records.length - lag).map((w, i) => corr(w, r.records[i + 2 + lag]))));
+console.log(
+  `record carryover: 1 season ${carry(1).toFixed(2)}, 3 seasons ${carry(3).toFixed(2)} (NFL 0.34 and 0.18; reported)`,
+);
 // Grown-up stars must still lead the league like the NFL's do: the average #1 and #5 are held to the
 // ranges `npm run sim` uses for a fresh league. How often a leader passes the record is printed but not
 // judged: four leagues hold a handful of star careers, one elite quarterback and receiver can break it

@@ -262,6 +262,10 @@ const perRun = (n6: number) => Math.ceil((n6 * seasons) / 6);
 
 /** Young players' OVR gains under the best- and worst-8 coaching staffs, pooled over the run. */
 const gains = { best: [] as number[], worst: [] as number[] };
+/** Every club's depth-chart starters at a kickoff. */
+const kickoffStarters = (l: League) =>
+  l.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos])));
+let lastStarters = kickoffStarters(league);
 const rows: Row[] = [];
 const playerGrowth: number[] = [];
 /** The whole save's growth each season from the third: judged on average (one season's games swing it ±100 KB). */
@@ -325,6 +329,11 @@ for (let s = 0; s < seasons; s++) {
   }
   const year = league.season;
   const k = snaps.regular!;
+  // Last kickoff's starters out of football at this one: unsigned or retired.
+  const outOfFootball =
+    (100 * lastStarters.filter((id) => league.players[id].retired || league.players[id].teamId === null).length) /
+    lastStarters.length;
+  lastStarters = kickoffStarters(league);
   // The log is capped, so count this offseason's moves by date rather than by position in it.
   const moves = league.transactions.filter(
     (m) => m.season === league.season && m.phase !== 'regular' && m.phase !== 'playoffs',
@@ -459,8 +468,11 @@ for (let s = 0; s < seasons; s++) {
   // them 43 and one team a season in 8 of 24 seed-seasons, the old known issues).
   // Holes / below keep-min / bad depth spots 0: a roster missing a starter's position, or a depth chart that names a
   // player who retired or left, breaks games (obs 0 everywhere).
+  // Starters out of football: last kickoff's starters unsigned or retired at this one. nflverse 2021–24: 4.7–6.2% of a
+  // season's regular starters didn't play the next season, retirements and injuries included; before the late market
+  // (a club offering what it can fit, shopping past day 5) about 23% of expiring starters sat unsigned at kickoff.
   console.log(
-    `  checks ${year} roster: ${check('max', k.rosterMax, ROSTER_MAX, ROSTER_MAX, 0)} · ${check('min', k.rosterMin, 50, ROSTER_MAX, 0)} · under 53: ${k.short.length} · ${check('under 53 with cap room', withRoom.length, 0, 0, 0)} · ${check('position holes', k.holes, 0, 0, 0)} · ${check('below keep-min', k.belowKeep, 0, 0, 0)} · ${check('bad depth-chart spots', k.badDepth, 0, 0, 0)}`,
+    `  checks ${year} roster: ${check('starters out of football %', outOfFootball, 4, 7, 1)} · ${check('max', k.rosterMax, ROSTER_MAX, ROSTER_MAX, 0)} · ${check('min', k.rosterMin, 50, ROSTER_MAX, 0)} · under 53: ${k.short.length} · ${check('under 53 with cap room', withRoom.length, 0, 0, 0)} · ${check('position holes', k.holes, 0, 0, 0)} · ${check('below keep-min', k.belowKeep, 0, 0, 0)} · ${check('bad depth-chart spots', k.badDepth, 0, 0, 0)}`,
   );
 
   // Cap space as a share of the cap (the cap grows ~8% a year). Median: 3.8, 2.6, 3.4, then 3.3, 1.9, 2.6% (0.1.5);
