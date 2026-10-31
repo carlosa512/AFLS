@@ -2539,7 +2539,7 @@ class GameSim {
       let yac = Math.max(
         0,
         rng.normal(
-          { short: 3.2, medium: 2.15, deep: 1.75 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth),
+          { short: 2.8, medium: 1.75, deep: 1.35 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth),
           3,
         ),
       );
