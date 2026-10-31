@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.27',
+    date: '2026-10-31',
+    title: 'Every body is different',
+    text:
+      'Players now look like their builds. A slot receiver is lean, a lineman is big and wide, and a corner who weighs ' +
+      'like a safety looks like one. Each player has one of three head shapes for life, and on his card a tall player ' +
+      'for his position stands a little taller and a short one a little lower. List icons stay as they were.',
+  },
+  {
     version: '0.2.26',
     date: '2026-10-30',
     title: 'Being heard',

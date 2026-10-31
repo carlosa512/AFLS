@@ -1,0 +1,337 @@
+import { clamp } from '../engine/rng';
+import { sizeZ } from '../engine/size';
+import type { Player } from '../engine/types';
+import { pick } from './staffLook';
+
+// What a player's avatar looks like: the figure's paths, his build (from his weight), his head (picked once from
+// his id) and, on the card, his height against his position. Only what the card already shows: no ratings.
+// Each choice below was picked from rendered options (`docs/AVATARS.md`); don't undo one without a reason.
+
+// Paths share one 100x100 box. The player faces straight away from the viewer.
+// Football cues: tall, wide pads that overhang the arms; the pads lift the collar, so the head sits low.
+const EARS =
+  'M62.1 23.8 C65 23.2 66.1 26 65.6 29.3 C65.2 32.2 63.6 33.5 62.3 33.1 Z M37.9 23.8 C35 23.2 33.9 26 34.4 29.3 C34.8 32.2 36.4 33.5 37.7 33.1 Z';
+const NECK = 'M41.6 34 C41.8 39.6 41 43.8 38 47.8 L62 47.8 C59 43.8 58.2 39.6 58.4 34 Z';
+// thick neck, as wide as the jaw; soft shade under the skull and down each side
+const NECK_SIDES =
+  'M41.8 37 C42 40.6 41.4 44 38.8 47.6 L41.4 47.6 C42.8 44 43 40.6 42.8 37 Z M58.2 37 C58 40.6 58.6 44 61.2 47.6 L58.6 47.6 C57.2 44 57 40.6 57.2 37 Z';
+const NECK_SHADE = 'M42 39.2 C46.6 42 53.4 42 58 39.2 L57.9 41.6 C53.4 43.8 46.6 43.8 42.1 41.6 Z';
+// arms tuck under the pads and angle slightly away from the torso, so a sliver of background shows at the waist
+const ARM_L =
+  'M10.6 61.6 C8.2 68.4 8.6 76 11.6 83 C13.6 88 15.6 94 16.4 100 L22.6 100 C22 94 21.6 88 21.6 82 C21.8 76 23.4 70 25.4 65.6 Z';
+const ARM_R =
+  'M89.4 61.6 C91.8 68.4 91.4 76 88.4 83 C86.4 88 84.4 94 83.6 100 L77.4 100 C78 94 78.4 88 78.4 82 C78.2 76 76.6 70 74.6 65.6 Z';
+// the arm sits in shade under each pad's overhang
+const SLEEVE_SHADOW =
+  'M93.4 57.8 C90 59.8 84 60.6 78 60.2 L77.2 64.8 C83.6 65.2 89.6 63.8 92.4 61.4 Z M6.6 57.8 C10 59.8 16 60.6 22 60.2 L22.8 64.8 C16.4 65.2 10.4 63.8 7.6 61.4 Z';
+// pads: a tall shelf whose outer edges stick out past the arms
+const JERSEY =
+  'M40.6 44.6 C44 47.8 56 47.8 59.4 44.6 C62.4 44.4 65.6 42.4 70 42 L82 42.2 C90 42.6 93.6 46.6 93.8 51.4 L93.8 57.8 C90 59.8 84 60.6 78 60.2 C77.4 64 77 66 76.6 68 C75.6 78 74.8 88 74 100 L26 100 C25.2 88 24.4 78 23.4 68 C23 66 22.6 64 22 60.2 C16 60.6 10 59.8 6.2 57.8 L6.2 51.4 C6.4 46.6 10 42.6 18 42.2 L30 42 C34.4 42.4 37.6 44.4 40.6 44.6 Z';
+const COLLAR = 'M40.6 44.6 C44 47.8 56 47.8 59.4 44.6';
+const PAD_GLOSS = 'M69.4 43.4 C75 42.4 83.4 42.6 89 44.6 M30.6 43.4 C25 42.4 16.6 42.6 11 44.6';
+// two bands on each pad's outer face, the classic NFL sleeve stripe
+const BANDS_UPPER = 'M79.8 53.4 C85.2 54.4 90.6 53.8 93.4 52 M20.2 53.4 C14.8 54.4 9.4 53.8 6.6 52';
+const BANDS_LOWER = 'M79.6 56.6 C85 57.6 90.4 57 93.4 55.2 M20.4 56.6 C15 57.6 9.6 57 6.6 55.2';
+// the jersey hangs off the bottom edge of the shoulder pads' back plate
+const PAD_SHELF = 'M20 60.4 C34 64.6 66 64.6 80 60.4 L80 63.6 C66 67.8 34 67.8 20 63.6 Z';
+const FOLDS =
+  'M76.6 68 C74.6 78 73.6 88 74 100 L68 100 C69 88 71 78 76.6 68 Z M23.4 68 C25.4 78 26.4 88 26 100 L32 100 C31 88 29 78 23.4 68 Z';
+
+export interface HeadShape {
+  d: string;
+  ears: string;
+}
+/** Three outlines from behind, picked once per player: today's blocky head, a wide round one, a long one. */
+export const PLAYER_HEADS: readonly HeadShape[] = [
+  {
+    d: 'M50 10.4 C57.5 10.4 61.9 13.9 62.3 20.5 L62.5 32.4 C62.4 35.7 61.2 38.1 58.6 39.5 L57 40.3 L43 40.3 L41.4 39.5 C38.8 38.1 37.6 35.7 37.5 32.4 L37.7 20.5 C38.1 13.9 42.5 10.4 50 10.4 Z',
+    ears: EARS,
+  },
+  {
+    d: 'M50 11.4 C59.6 11.4 64.2 16.8 64.2 24.8 C64.2 32.2 61.6 37.6 57.4 40.2 L42.6 40.2 C38.4 37.6 35.8 32.2 35.8 24.8 C35.8 16.8 40.4 11.4 50 11.4 Z',
+    ears: 'M63.6 23.8 C66.5 23.2 67.6 26 67.1 29.3 C66.7 32.2 65.1 33.5 63.8 33.1 Z M36.4 23.8 C33.5 23.2 32.4 26 32.9 29.3 C33.3 32.2 34.9 33.5 36.2 33.1 Z',
+  },
+  {
+    d: 'M50 9.2 C56.4 9.2 60.2 12.6 60.4 19.2 L60.6 33.8 C60.4 37.6 58.6 39.8 55.4 40.6 L44.6 40.6 C41.4 39.8 39.6 37.6 39.4 33.8 L39.6 19.2 C39.8 12.6 43.6 9.2 50 9.2 Z',
+    ears: 'M60.2 23.8 C63.1 23.2 64.2 26 63.7 29.3 C63.3 32.2 61.7 33.5 60.4 33.1 Z M39.8 23.8 C36.9 23.2 35.8 26 36.3 29.3 C36.7 32.2 38.3 33.5 39.6 33.1 Z',
+  },
+];
+
+export type BuildName = 'lean' | 'athletic' | 'solid' | 'big' | 'heavy';
+export interface Build {
+  name: BuildName;
+  /** This build runs up to (not including) this weight, in pounds. */
+  under: number;
+  /** How much wider the neck runs into the pads. */
+  neck: number;
+  /** How far the shoulder line rises toward the collar: heavier men carry their pads higher. */
+  traps: number;
+  /** The body's width at each height, as [y, scale] knots (linear between): pads, chest, belly, waist. */
+  knots: readonly (readonly [number, number])[];
+}
+/**
+ * Five builds by real weight, the same ruler for every position, so a 212 lb corner is drawn like a safety.
+ * Every build has a waist, so even the heaviest reads as a man and not a wall.
+ */
+export const BUILDS: readonly Build[] = [
+  {
+    name: 'lean',
+    under: 205,
+    neck: 0.88,
+    traps: -0.6,
+    knots: [
+      [42, 0.83],
+      [60, 0.83],
+      [72, 0.79],
+      [80, 0.77],
+      [94, 0.74],
+    ],
+  },
+  {
+    name: 'athletic',
+    under: 230,
+    neck: 0.94,
+    traps: 0,
+    knots: [
+      [42, 0.9],
+      [60, 0.9],
+      [72, 0.87],
+      [80, 0.86],
+      [94, 0.82],
+    ],
+  },
+  {
+    name: 'solid',
+    under: 265,
+    neck: 1,
+    traps: 1,
+    knots: [
+      [42, 0.97],
+      [60, 0.97],
+      [72, 0.97],
+      [80, 0.97],
+      [94, 0.92],
+    ],
+  },
+  {
+    name: 'big',
+    under: 295,
+    neck: 1.08,
+    traps: 2,
+    knots: [
+      [42, 1.03],
+      [60, 1.03],
+      [72, 1.07],
+      [80, 1.08],
+      [94, 1],
+    ],
+  },
+  {
+    name: 'heavy',
+    under: Infinity,
+    neck: 1.16,
+    traps: 3,
+    knots: [
+      [42, 1.08],
+      [60, 1.08],
+      [72, 1.14],
+      [80, 1.16],
+      [94, 1.06],
+    ],
+  },
+];
+
+/** From this size an avatar shows his build and head (where the number appears); below it, everyone is alike. */
+export const BUILD_MIN_PX = 32;
+/** From this size (the card) he also stands taller or shorter. */
+export const HEIGHT_MIN_PX = 96;
+/** A built figure is zoomed out about the collar, so the wide builds show their width inside the ring. */
+const ZOOM = 0.88;
+/** How much bigger he's drawn per sd of height over his position's median, from his feet, and how far it goes. */
+const GROW_PER_SD = 0.026;
+const GROW_SD_MAX = 2.5;
+/** Arms keep a little more than today's gap at the waist, and the forearms swing out a touch (picked: "B"). */
+const ARM_GAP = 1.3;
+const ARM_SWING = 2;
+/** The plain figure's widest nameplate, in viewBox units. */
+export const NAMEPLATE_MAX = 40;
+
+export function buildOf(weightLb: number): Build {
+  return BUILDS.find((b) => weightLb < b.under) ?? BUILDS[BUILDS.length - 1];
+}
+
+/** His head, for life: picked from his id (one id space covers players and prospects). */
+export function headOf(player: Pick<Player, 'id'>): number {
+  return pick(String(player.id), 'head', PLAYER_HEADS.length);
+}
+
+/** How much bigger (or smaller) he's drawn for his height against his position: 1 at the median. */
+export function growOf(player: Pick<Player, 'position' | 'heightIn' | 'weightLb'>): number {
+  return 1 + clamp(sizeZ(player).h, -GROW_SD_MAX, GROW_SD_MAX) * GROW_PER_SD;
+}
+
+type Knots = readonly (readonly [number, number])[];
+function at(knots: Knots, y: number): number {
+  if (y <= knots[0][0]) return knots[0][1];
+  for (let i = 1; i < knots.length; i++) {
+    const [y1, s1] = knots[i];
+    const [y0, s0] = knots[i - 1];
+    if (y <= y1) return s0 + ((s1 - s0) * (y - y0)) / (y1 - y0);
+  }
+  return knots[knots.length - 1][1];
+}
+
+/** Rewrites every point of a path made of absolute M, C, L and Z commands (all the figure uses). */
+function warp(d: string, f: (x: number, y: number) => [number, number]): string {
+  return d
+    .replace(/([MCLZ])([^MCLZ]*)/g, (_, cmd: string, args: string) => {
+      const n = args.trim() ? args.trim().split(/\s+/).map(Number) : [];
+      const points: string[] = [];
+      for (let i = 0; i < n.length; i += 2) {
+        const [x, y] = f(n[i], n[i + 1]);
+        points.push(`${+x.toFixed(2)} ${+y.toFixed(2)}`);
+      }
+      return points.length ? `${cmd}${points.join(' ')} ` : `${cmd} `;
+    })
+    .trim();
+}
+
+// The paths stop at y 100. Zoomed out, or drawn shorter, that edge would show inside the circle, so it runs on.
+const foot = (y: number) => (y >= 99.9 ? 108 : y);
+
+/** Pads, jersey and shadows: the body's width at each height, the shoulder line rising toward the collar. */
+const bodyAt =
+  (b: Build) =>
+  (x: number, y: number): [number, number] => {
+    const d = Math.abs(x - 50);
+    const traps = y < 50 ? b.traps * Math.max(0, 1 - Math.max(0, d - 10) / 25) : 0;
+    return [50 + (x - 50) * at(b.knots, y), foot(y) - traps];
+  };
+/** The neck widens toward its base: a heavy man's neck runs straight into his traps. */
+const neckAt =
+  (b: Build) =>
+  (x: number, y: number): [number, number] => {
+    const s = 1 + (b.neck - 1) * Math.min(1, clamp((y - 34) / 12, 0, 1) * 0.6 + 0.4);
+    return [50 + (x - 50) * s, y];
+  };
+// the jersey's side and the arm's inner edge, as distance from the middle, on the plain figure
+const TORSO_EDGE: Knots = [
+  [60, 28],
+  [68, 26.6],
+  [78, 25.5],
+  [88, 24.7],
+  [100, 24],
+];
+const ARM_INNER: Knots = [
+  [65.6, 24.6],
+  [70, 26],
+  [76, 28.2],
+  [82, 28.4],
+  [88, 28.4],
+  [94, 28],
+  [100, 27.4],
+];
+/** Arms ride the jersey's side in or out, keep their gap to it, and thicken only a little (skinny arms read wrong). */
+const armAt =
+  (b: Build) =>
+  (x: number, y: number): [number, number] => {
+    const s = at(b.knots, y);
+    const thick = 1 + (s - 1) * 0.35;
+    const side = at(TORSO_EDGE, y);
+    const inner = at(ARM_INNER, y);
+    const out = (ARM_GAP - 1) * Math.max(0, inner - side) + (ARM_SWING * Math.max(0, y - 62)) / 38;
+    const d = side * s + (inner - side) + out + (Math.abs(x - 50) - inner) * thick;
+    return [50 + Math.sign(x - 50) * d, foot(y)];
+  };
+
+export interface Figure {
+  armL: string;
+  armR: string;
+  neck: string;
+  neckSides: string;
+  neckShade: string;
+  jersey: string;
+  padShelf: string;
+  folds: string;
+  padGloss: string;
+  sleeveShadow: string;
+  collar: string;
+  bandsUpper: string;
+  bandsLower: string;
+  /** The head's shadow below the collar. */
+  shadow: { cy: number; rx: number };
+  /** How much of the number's usual width fits his back (the number keeps its height). */
+  numberWidth: number;
+  /** The widest his nameplate may run, in viewBox units. */
+  plateMax: number;
+}
+
+const PLAIN: Figure = {
+  armL: ARM_L,
+  armR: ARM_R,
+  neck: NECK,
+  neckSides: NECK_SIDES,
+  neckShade: NECK_SHADE,
+  jersey: JERSEY,
+  padShelf: PAD_SHELF,
+  folds: FOLDS,
+  padGloss: PAD_GLOSS,
+  sleeveShadow: SLEEVE_SHADOW,
+  collar: COLLAR,
+  bandsUpper: BANDS_UPPER,
+  bandsLower: BANDS_LOWER,
+  shadow: { cy: 48.6, rx: 11 },
+  numberWidth: 1,
+  plateMax: NAMEPLATE_MAX,
+};
+
+function figureOf(b: Build): Figure {
+  const body = (d: string) => warp(d, bodyAt(b));
+  const neck = (d: string) => warp(d, neckAt(b));
+  const arm = (d: string) => warp(d, armAt(b));
+  return {
+    armL: arm(ARM_L),
+    armR: arm(ARM_R),
+    neck: neck(NECK),
+    neckSides: neck(NECK_SIDES),
+    neckShade: neck(NECK_SHADE),
+    jersey: body(JERSEY),
+    padShelf: body(PAD_SHELF),
+    folds: body(FOLDS),
+    padGloss: body(PAD_GLOSS),
+    sleeveShadow: body(SLEEVE_SHADOW),
+    collar: body(COLLAR),
+    bandsUpper: body(BANDS_UPPER),
+    bandsLower: body(BANDS_LOWER),
+    shadow: { cy: 48.6 - b.traps * 0.6, rx: 11 * b.neck },
+    numberWidth: Math.min(1, at(b.knots, 78) / 0.9),
+    plateMax: NAMEPLATE_MAX * Math.min(1, at(b.knots, 56)),
+  };
+}
+const FIGURES = new Map(BUILDS.map((b) => [b.name, figureOf(b)]));
+
+export interface PlayerLook {
+  /** Null in lists: today's plain figure. */
+  build: BuildName | null;
+  figure: Figure;
+  head: HeadShape;
+  /** The SVG transform for the figure (zoom and height), or undefined for the plain figure. */
+  transform?: string;
+}
+
+/** How `player` is drawn at `size`: plain in lists, his build and head from 32px, his height too on the card. */
+export function playerLook(
+  player: Pick<Player, 'id' | 'position' | 'heightIn' | 'weightLb'>,
+  size: number,
+): PlayerLook {
+  if (size < BUILD_MIN_PX) return { build: null, figure: PLAIN, head: PLAYER_HEADS[0] };
+  const build = buildOf(player.weightLb);
+  const grow = size >= HEIGHT_MIN_PX ? growOf(player) : 1;
+  return {
+    build: build.name,
+    figure: FIGURES.get(build.name)!,
+    head: PLAYER_HEADS[headOf(player)],
+    // from his feet for height, so the number never drops out of the ring; then the zoom about the collar
+    transform: `translate(50 100) scale(${+grow.toFixed(4)}) translate(-50 -100) translate(50 40) scale(${ZOOM}) translate(-50 -40)`,
+  };
+}
