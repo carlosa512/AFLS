@@ -51,6 +51,8 @@ export interface SteerArgs {
   man: boolean;
   /** A dropback: the back blocks or runs a checkdown, the line pass-protects. */
   dropback: boolean;
+  /** A handoff: the line drives its men off the ball, receivers stalk-block. */
+  run: boolean;
   /** Kicks in this pass: everyone holds his spot while the ball flies. */
   hold: boolean;
   dir: 1 | -1;
@@ -132,6 +134,59 @@ export function steer(a: SteerArgs): Float32Array {
     }
   }
 
+  // The matchups at the snap: each man up front gets the lineman nearest him across the field; spare linemen help on
+  // a dropback or climb to a linebacker on a run. On a run the receivers stalk the nearest defensive back.
+  const all = members.map((_, k) => k);
+  const pick = (pool: number[], k: number) => {
+    let best = -1;
+    let d = Infinity;
+    for (const j of pool) {
+      const dd = Math.abs(py[j] - py[k]) + 0.3 * Math.abs(px[j] - px[k]);
+      if (dd < d) [d, best] = [dd, j];
+    }
+    return best;
+  };
+  const linemen = all.filter((k) => offense[k] && members[k].role === 'OL');
+  // On a run the scripted tackler has already shed his block (that's how he makes the play): the line takes the rest.
+  const blockable = (k: number) => !a.run || steered[k];
+  const front = all.filter(
+    (k) => !offense[k] && blockable(k) && (members[k].role === 'DT' || members[k].role === 'EDGE'),
+  );
+  const backers = all.filter((k) => !offense[k] && blockable(k) && members[k].role === 'LB');
+  const dbs = all.filter((k) => !offense[k] && (members[k].role === 'CB' || members[k].role === 'S'));
+  /** Blocker index → the man he's on; defender index → the blockers on him. */
+  const blockOn = new Map<number, number>();
+  const blockers = new Map<number, number[]>();
+  const assign = (b: number, d: number) => {
+    blockOn.set(b, d);
+    blockers.set(d, [...(blockers.get(d) ?? []), b]);
+  };
+  /** Linemen who come off a double-team to a linebacker on a run. */
+  const climbs: number[] = [];
+  if (a.dropback || a.run) {
+    const open = new Set(linemen);
+    for (const d of [...front].sort((i, j) => py[i] - py[j])) {
+      const b = pick([...open], d);
+      if (b < 0) break;
+      assign(b, d);
+      open.delete(b);
+    }
+    // Spare linemen double the nearest man up front (a combo block on a run, climbing to a linebacker later).
+    for (const b of open) {
+      const d = pick(front.length ? front : backers, b);
+      if (d >= 0) assign(b, d);
+    }
+    if (a.run && backers.length) climbs.push(...[...open].filter((b) => blockOn.has(b)));
+    if (a.run)
+      for (const k of all)
+        if (offense[k] && steered[k] && (members[k].role === 'WR' || members[k].role === 'TE')) {
+          const d = pick(dbs, k);
+          if (d >= 0) assign(k, d);
+        }
+  }
+
+  const climbed = new Set<number>();
+
   const ballAt = (step: number): Pt => {
     const s = Math.max(0, Math.min(a.steps - 1, step));
     return { x: a.ball[s * 3], y: a.ball[s * 3 + 1] };
@@ -167,7 +222,28 @@ export function steer(a: SteerArgs): Float32Array {
         const m = members[k];
         const s0 = a.start.get(m.id)!;
         let goal: Pt = s0;
-        if (offense[k]) {
+        // A combo block's second man comes off the double a second after the handoff and climbs to a linebacker.
+        if (climbs.includes(k) && t > a.release + 1 && !climbed.has(k)) {
+          const lb = pick(backers, k);
+          if (lb >= 0) {
+            blockOn.set(k, lb);
+            blockers.set(lb, [...(blockers.get(lb) ?? []), k]);
+          }
+          climbed.add(k);
+        }
+        const on = blockOn.get(k);
+        if (offense[k] && on !== undefined && (m.role === 'OL' || (a.run && t > 0.4)) && !(a.dropback && released)) {
+          if (a.dropback && hk >= 0) {
+            // Pass set: a yard in front of his man, between him and the quarterback.
+            const dx = px[hk] - px[on];
+            const dy = py[hk] - py[on];
+            const d = Math.hypot(dx, dy) || 1;
+            goal = { x: px[on] + (dx / d) * 1.0, y: py[on] + (dy / d) * 1.0 };
+          } else {
+            // Drive block: square up on his man's near side and push.
+            goal = { x: px[on] - a.dir * 0.9, y: py[on] };
+          }
+        } else if (offense[k]) {
           if (a.dropback && released && (m.role === 'OL' || (m.role === 'RB' && !checkdowns.has(m.id)))) {
             // The ball's out: blockers hold where the block left them.
             goal = { x: px[k], y: py[k] };
@@ -213,7 +289,17 @@ export function steer(a: SteerArgs): Float32Array {
         const gx = goal.x - px[k];
         const gy = goal.y - py[k];
         const dist = Math.hypot(gx, gy);
-        const speed = SPEED[m.role] * Math.min(1, dist);
+        // Engaged: a blocked man only leans into his block, slowly toward the ball on a dropback, driven back on a run.
+        let top = SPEED[m.role];
+        if (!offense[k]) {
+          const holding = (blockers.get(k) ?? []).some((b) => Math.hypot(px[b] - px[k], py[b] - py[k]) < 1.7);
+          const live = a.dropback ? t < a.release + 0.3 : a.run && t < a.release + 1;
+          if (holding && live) {
+            top = a.dropback ? 1.2 : 1;
+            if (a.run) goal = { x: px[k] + a.dir * 1, y: py[k] };
+          }
+        }
+        const speed = top * Math.min(1, dist);
         const wx = dist > 0 ? (gx / dist) * speed : 0;
         const wy = (dist > 0 ? (gy / dist) * speed : 0) + (a.rng.next() * 2 - 1) * WOBBLE;
         const dvx = wx - vx[k];

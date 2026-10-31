@@ -85,6 +85,7 @@ export function stagePlay(args: {
     tackler,
     holder: e.kind && HOLDERS.has(e.kind) ? qb : null,
     dropback: !!e.kind && DROPBACKS.has(e.kind),
+    run: e.kind === 'run',
     man: !!(def.coverage && COVERAGES[def.coverage].man),
     hold: !segs.length || e.kind === 'kickoff' || e.kind === 'punt' || e.kind === 'fg' || e.kind === 'xp',
     dir,

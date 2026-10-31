@@ -346,6 +346,55 @@ describe('off the ball', () => {
     expect(routes).toBeGreaterThan(40);
   });
 
+  it('holds the pocket: blocked rushers stay off the quarterback for the first second and a half', () => {
+    let rushers = 0;
+    for (const kind of ['pass', 'incomplete', 'sack'])
+      for (const { p } of picks(kind)) {
+        const qb = p.roles.indexOf('QB');
+        const early = Math.min(p.steps - 1, Math.round(1.5 / p.dt));
+        p.ids.forEach((id, k) => {
+          if (p.offense[k] || p.keys.includes(id) || (p.roles[k] !== 'DT' && p.roles[k] !== 'EDGE')) return;
+          for (let st = 0; st <= early; st++) {
+            const d = Math.hypot(
+              p.pos[(st * 22 + k) * 2] - p.pos[(st * 22 + qb) * 2],
+              p.pos[(st * 22 + k) * 2 + 1] - p.pos[(st * 22 + qb) * 2 + 1],
+            );
+            expect(d).toBeGreaterThan(2.5);
+          }
+          rushers++;
+        });
+      }
+    expect(rushers).toBeGreaterThan(300);
+  });
+
+  it('sets the line: linemen are on a man (a rusher, or a linebacker on a run) a second in', () => {
+    let linemen = 0;
+    let engaged = 0;
+    for (const kind of ['pass', 'incomplete', 'sack', 'run'])
+      for (const { p } of picks(kind)) {
+        const st = Math.min(p.steps - 1, Math.round(1 / p.dt));
+        const front = kind === 'run' ? ['DT', 'EDGE', 'LB'] : ['DT', 'EDGE'];
+        const rushers = p.ids.map((_, k) => k).filter((k) => !p.offense[k] && front.includes(p.roles[k]));
+        p.ids.forEach((id, k) => {
+          if (p.roles[k] !== 'OL' || p.keys.includes(id)) return;
+          const near = Math.min(
+            ...rushers.map((j) =>
+              Math.hypot(
+                p.pos[(st * 22 + k) * 2] - p.pos[(st * 22 + j) * 2],
+                p.pos[(st * 22 + k) * 2 + 1] - p.pos[(st * 22 + j) * 2 + 1],
+              ),
+            ),
+          );
+          expect(near).toBeLessThan(4);
+          if (near < 2) engaged++;
+          linemen++;
+        });
+      }
+    expect(linemen).toBeGreaterThan(2000);
+    // Nearly all on a man; now and then one loses a moving defender for a moment, as real linemen do.
+    expect(engaged / linemen).toBeGreaterThan(0.98);
+  });
+
   it('moves the back on a dropback: he blocks or runs a checkdown, never stands still', () => {
     let backs = 0;
     for (const kind of ['pass', 'incomplete', 'sack'])
