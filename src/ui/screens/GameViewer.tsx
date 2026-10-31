@@ -41,7 +41,7 @@ export function restingSpot(plays: PlayLogEntry[], index: number, homeId: number
 }
 
 /** Line of scrimmage and line to gain in field coordinates, or null when no snap is set. */
-function downLines(
+export function downLines(
   e: PlayLogEntry | undefined,
   homeId: number,
 ): { los: number | null; gain: number | null } | undefined {
