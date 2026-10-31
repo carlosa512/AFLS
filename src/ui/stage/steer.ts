@@ -235,9 +235,12 @@ export function steer(a: SteerArgs): Float32Array {
         const r = nearestOf(k, (j) => !offense[j] && rusherAt[j]);
         return r < 0 || kickerIdx < 0 ? here : between(r, kickerIdx);
       }
+      if (a.kick === 'kickoff') {
+        // Set a yard off the receiving 40 until the ball comes down; then onto the returner, or pull up on a touchback.
+        if (!caught) return s0;
+        return a.carrier === null || retIdx < 0 ? { x: s0.x + a.dir * 6, y: s0.y } : { x: px[retIdx], y: py[retIdx] };
+      }
       if (caught && retIdx >= 0) return { x: px[retIdx], y: py[retIdx] };
-      // The running start: level with the ball as it's kicked.
-      if (a.kick === 'kickoff' && t < a.release) return { x: s0.x + a.dir * 5, y: s0.y };
       // Down the field in his lane, squeezing toward where the ball comes down.
       return { x: landX, y: s0.y + (landY - s0.y) * 0.35 };
     }
@@ -249,6 +252,8 @@ export function steer(a: SteerArgs): Float32Array {
       // A jammer rides the gunner down the field.
       if (g >= 0 && Math.abs(py[k] - ballY0) > 10) return { x: px[g] + a.dir * 1, y: py[g] };
     }
+    // A kickoff's setup zone holds until the ball comes down; on a touchback it stays put.
+    if (a.kick === 'kickoff' && (!caught || a.carrier === null)) return s0;
     if (!caught) {
       const g = a.kick === 'punt' ? nearestOf(k, (j) => isGunner[j]) : -1;
       if (g >= 0 && Math.abs(s0.y - ballY0) > 10) return { x: px[g] + a.dir * 1, y: py[g] };

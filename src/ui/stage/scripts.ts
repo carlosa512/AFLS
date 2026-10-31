@@ -115,8 +115,10 @@ export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[
     return [snap, hold({ x: snap.x1, y: snap.y1 }, 0.45), flight, ...segs.slice(a + 1).map(returnPace)];
   }
   if (e.kind === 'fg' || e.kind === 'xp') {
-    // The snap back to the holder, the hold, then the kick.
-    const kick = segs[0];
+    // The snap back to the holder, the hold, then the kick. The engine logs a field goal from the holder's spot and
+    // an extra point from the line, so both are read as kicked from seven yards behind the line.
+    const logged = segs[0];
+    const kick = e.kind === 'xp' ? { ...logged, x0: logged.x0 - dir * 7 } : logged;
     const line = { x: kick.x0 + dir * 7, y: kick.y0 };
     return [
       { x0: line.x, y0: line.y, x1: kick.x0, y1: kick.y0, peak: 0, dur: 0.4 },
@@ -177,6 +179,8 @@ export interface Scripted {
   release: number;
   /** A kick: when it comes down to the returner. */
   catchAt?: number;
+  /** When each scripted man's moment comes (the handoff, the throw, the catch, the sack, the tackle), from the snap. */
+  moments: Map<number, number>;
 }
 
 export function script(
@@ -187,7 +191,12 @@ export function script(
   dir: 1 | -1,
 ): Scripted {
   const keys = new Map<number, Keyframe[]>();
-  if (!segs.length) return { keys, carrier: null, tackler: null, release: 0 };
+  const moments = new Map<number, number>();
+  if (!segs.length) return { keys, carrier: null, tackler: null, release: 0, moments };
+  /** His moment: the first that comes, if he has two (a cover man who makes the tackle). */
+  const moment = (id: number | undefined, t: number) => {
+    if (id !== undefined && keys.has(id)) moments.set(id, Math.min(t, moments.get(id) ?? Infinity));
+  };
   const ts = times(segs);
   const total = ts[ts.length - 1][1];
   const end = pointAt(segs[segs.length - 1], 1);
@@ -214,6 +223,8 @@ export function script(
         if (qb !== undefined) set(qb, [at(ts[0][1], hand), at(total, toward(hand, start.get(qb)!, 1))]);
         set(carrier, [at(ts[0][1], hand), ...ride(segs, 1, segs.length - 1)]);
       }
+      moment(qb, ts[0][1]);
+      moment(carrier, ts[0][1]);
       break;
     }
     case 'scramble':
@@ -227,7 +238,10 @@ export function script(
         const beat = who.beat !== undefined ? start.get(who.beat) : undefined;
         const mid: Keyframe[] = beat ? [at(total * 0.6, toward(beat, end, 1))] : [];
         set(who.rush, [...mid, at(total, toward(end, start.get(who.rush)!, 0.6))]);
+        moment(who.rush, total * 0.6);
       }
+      // A sack's moment is the rush getting home; a scramble's, breaking out of the pocket.
+      moment(qb, e.kind === 'sack' ? total * 0.6 : e.kind === 'scramble' ? (ts[1]?.[1] ?? 0) : 0);
       break;
     case 'kickoff':
     case 'punt':
@@ -253,6 +267,8 @@ export function script(
         set(ret, [at(landT, land), ...ride(segs, a + 1, segs.length - 1)]);
         if (segs.length > a + 1) carrier = ret;
       }
+      moment(kicker, kickT);
+      moment(ret, landT);
       kickAt = kickT;
       catchAt = landT;
       break;
@@ -274,16 +290,20 @@ export function script(
         const after = e.kind === 'pass' ? ride(segs, 3, segs.length - 1) : [];
         set(target, [at(throwEnd * 0.55, stem), at(throwEnd, arrive), ...after]);
         if (e.kind === 'pass') carrier = target;
+        moment(target, ts[1]?.[1] ?? 0);
       }
+      moment(qb, ts[1]?.[1] ?? 0);
       if (e.kind === 'int' && who.take !== undefined && start.has(who.take)) {
         set(who.take, [at(throwEnd, land), ...ride(segs, 3, segs.length - 1)]);
         carrier = who.take;
+        moment(who.take, throwEnd);
       }
       if (who.cover !== undefined && who.cover !== who.take && start.has(who.cover)) {
         // Trailing the receiver: a yard and a half deeper than the catch (under it on a miss).
         const trail = e.kind === 'incomplete' ? 0.7 : 1.5;
         const spot = { x: land.x + dir * trail, y: land.y };
         set(who.cover, [at(throwEnd, spot), ...(e.kind === 'pass' ? [at(total, toward(end, spot, 2.5))] : [])]);
+        moment(who.cover, throwEnd);
       }
       break;
     }
@@ -313,8 +333,11 @@ export function script(
       const s0 = start.get(tackler)!;
       // Already scripted (the cover man on a catch): keep his path, and end it on the carrier.
       const before = keys.get(tackler)?.filter((k) => k.t < total) ?? [];
-      keys.set(tackler, [from(tackler), ...before.filter((k) => k.t > 0), at(total, toward(end, s0, 0.6))]);
+      // On a kickoff he's set with the rest until the ball comes down, then he takes his angle on the returner.
+      const set = e.kind === 'kickoff' && catchAt !== undefined && catchAt + 0.2 < total ? [at(catchAt + 0.2, s0)] : [];
+      keys.set(tackler, [from(tackler), ...set, ...before.filter((k) => k.t > 0), at(total, toward(end, s0, 0.6))]);
       tacklerId = tackler;
+      moment(tackler, total);
     }
   }
   // When the defense reads the ball out: the handoff, the throw (after the pocket), the scramble breaking out. A sack
@@ -329,5 +352,12 @@ export function script(
           : e.kind === 'sack'
             ? Infinity
             : 0;
-  return { keys, carrier: carrier ?? null, tackler: tacklerId, release, ...(catchAt !== undefined ? { catchAt } : {}) };
+  return {
+    keys,
+    carrier: carrier ?? null,
+    tackler: tacklerId,
+    release,
+    moments,
+    ...(catchAt !== undefined ? { catchAt } : {}),
+  };
 }

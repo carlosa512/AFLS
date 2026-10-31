@@ -532,6 +532,9 @@ export function GameViewer({
   const [speed, setSpeed] = useState(1);
   const [run, setRun] = useState(0); // bumps to replay the current play
   const [still, setStill] = useState(false);
+  // Whether the current play has finished on screen: until it has, its result, its line in the log and the score it
+  // put up stay hidden, so the words never get ahead of the picture.
+  const [told, setTold] = useState(false);
   const [pick, setPick] = useHighlightPick();
   const [viewPick, setViewPick] = useViewPick();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -565,6 +568,7 @@ export function GameViewer({
     clearTimeout(timer.current);
     setIndex(Math.max(0, Math.min(plays.length - 1, i)));
     setStill(skipped);
+    setTold(false);
     setRun((r) => r + 1);
     if (!keepPlaying) setPlaying(false);
   };
@@ -576,6 +580,7 @@ export function GameViewer({
     go(n, true);
   };
   const onDone = () => {
+    setTold(true);
     if (!playing) return;
     if (atEnd) return setPlaying(false);
     // A skipped batch has been shown: its hold was the pause, so the highlight follows at once.
@@ -596,8 +601,11 @@ export function GameViewer({
       else advanceFrom(index);
     }
   };
-  // Every play up to this one, newest first: nothing past the current play, so the log never spoils it.
-  const recent = plays.slice(0, index + 1).reverse();
+  // Every play up to this one, newest first: nothing past the current play (nor the current one, until it's been
+  // seen), so the log never spoils it.
+  const recent = plays.slice(0, told ? index + 1 : index).reverse();
+  /** The score on the board: the last play's until this one has been seen. */
+  const board = told ? entry : (plays[index - 1] ?? { homeScore: 0, awayScore: 0 });
   const quarterLabel = entry.quarter <= 4 ? `Q${entry.quarter}` : 'OT';
   const final = atEnd && !playing;
 
@@ -632,7 +640,7 @@ export function GameViewer({
                 {t.abbrev}
                 {entry.offense === t.id && entry.down ? <span className="vb-poss" aria-label="has the ball" /> : null}
               </span>
-              <span className="vb-score">{t.id === home.id ? entry.homeScore : entry.awayScore}</span>
+              <span className="vb-score">{t.id === home.id ? board.homeScore : board.awayScore}</span>
             </div>
           ))}
           <div className="vb-clock">
@@ -664,7 +672,7 @@ export function GameViewer({
 
         <div className="viewer-sit">
           <span className="num">{situation(entry, home, away) || ' '}</span>
-          <span className="viewer-tag">{playLabel(entry, home.id)}</span>
+          <span className="viewer-tag">{told ? playLabel(entry, home.id) : ''}</span>
         </div>
 
         <div className="viewer-controls">
@@ -702,13 +710,13 @@ export function GameViewer({
       <section className="panel">
         <div className="play-log" aria-label="Plays so far">
           {recent.map((p, i) => {
-            const idx = index - i;
+            const idx = index - i - (told ? 0 : 1);
             const team = p.offense === home.id ? home : away;
             return (
               // The whole card jumps to its play (the clock is the keyboard way in); a name opens the player.
               <div
                 key={idx}
-                className={`play-card${i === 0 ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
+                className={`play-card${i === 0 && told ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
                 onClick={() => go(idx)}
               >
                 <span className="pc-meta">

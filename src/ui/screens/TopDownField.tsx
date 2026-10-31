@@ -17,6 +17,10 @@ import { downLines } from './GameViewer';
 const DOT: Record<Layout, number> = { wide: 1.3, upright: 0.95 };
 /** Taps land within this many yards of a dot. */
 const REACH = 2.5;
+/** How far through a play a flag comes out. */
+const FLAG_AT = 0.4;
+/** A play a flag was thrown on, accepted or declined (a flag before the snap is its own play, `penalty`). */
+const FLAGGED = /PENALTY|declined/;
 
 /** Field (x, y) to the picture: sideways like the broadcast view, or upright with the offense attacking up. */
 interface View {
@@ -37,6 +41,21 @@ function fieldTransform(v: View): string {
   return v.layout === 'wide'
     ? `matrix(-1 0 0 -1 100 ${FIELD_W})`
     : `matrix(0 ${-v.dir} ${v.dir} 0 ${-v.dir * MID} ${v.dir * v.cx})`;
+}
+
+/**
+ * The officials on a kickoff, from the ball on the kicking 35: a pair on the sidelines at the kicking team's line
+ * (the receiving 40), a pair at the receiving 20, and one deep on the receiving goal line.
+ */
+function crew(ballX: number, dir: 1 | -1): [number, number][] {
+  const at = (yards: number) => ballX + dir * yards;
+  return [
+    [at(25), -1.2],
+    [at(25), FIELD_W + 1.2],
+    [at(45), -1.2],
+    [at(45), FIELD_W + 1.2],
+    [at(65), MID + 9],
+  ];
 }
 
 /** Plays the offense huddles before: every snap from scrimmage. Kick units and two-point tries line straight up. */
@@ -95,6 +114,9 @@ export function TopDownField({
   const svg = useRef<SVGSVGElement>(null);
   const fieldRef = useRef<SVGGElement>(null);
   const dotRefs = useRef(new Map<number, SVGGElement>());
+  const ringRefs = useRef(new Map<number, SVGCircleElement>());
+  const crewRef = useRef<SVGGElement>(null);
+  const flagRef = useRef<SVGGElement>(null);
   const ballRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
   const memory = useRef<Memory>({ spots: new Map(), ballX: null, ballY: MID, cx: 50, ended: null });
@@ -182,9 +204,13 @@ export function TopDownField({
           huddle: huddleFor(s),
           hurry: hurried(),
           seed: `${league.seed}:${game.id}:gap:${index}`,
+          change: entry?.kind === 'kickoff',
         })
       : null;
     const ballFrom = mem.ballX === null ? null : { x: mem.ballX, y: mem.ballY };
+    /** A key man's ring, only once his moment is about to come (`t` seconds from the snap): nothing gives the play away. */
+    const rings = (t: number) =>
+      s.keys.forEach((id, i) => ringRefs.current.get(id)?.setAttribute('opacity', t >= s.reveal[i] ? '1' : '0'));
 
     const camera = (ballX: number, seconds: number) => {
       if (layout !== 'upright') return;
@@ -218,6 +244,10 @@ export function TopDownField({
     /** The jog between plays, `t` seconds in. */
     const jog = (t: number, seconds: number) => {
       const g = gap!;
+      rings(-1);
+      // The officials walk out to their spots for a kickoff while the units change over.
+      crewRef.current?.setAttribute('opacity', Math.min(1, t / 2).toFixed(2));
+      flagRef.current?.setAttribute('opacity', '0');
       for (const m of g.moves) {
         const p = g.at(m, t);
         drawDot(m.id, p.x, p.y, p.opacity);
@@ -234,6 +264,10 @@ export function TopDownField({
     /** The play itself, at `step`. */
     const place = (step: number, seconds: number) => {
       camera(s.ball[step * 3], seconds);
+      rings(step === last ? Infinity : step * s.dt);
+      crewRef.current?.setAttribute('opacity', '1');
+      // A flag on the play: thrown partway through, from the official's spot near the line.
+      flagRef.current?.setAttribute('opacity', step === last || step * s.dt >= FLAG_AT * last * s.dt ? '1' : '0');
       for (let k = 0; k < n; k++) {
         const x = s.pos[(step * n + k) * 2];
         const y = s.pos[(step * n + k) * 2 + 1];
@@ -381,6 +415,45 @@ export function TopDownField({
           <rect x={-10} y={0} width={120} height={FIELD_W} fill="none" stroke="#fff" strokeWidth={0.3} />
           {lines && losLine(lines.los, '#5aa9ff')}
           {lines && losLine(lines.gain, '#ffd43b')}
+          {entry.kind === 'kickoff' && (
+            <g ref={crewRef} opacity={0}>
+              {crew(staged.ball[0], dir).map(([x, y], i) => (
+                <g key={i} transform={`translate(${x} ${y})`}>
+                  <circle r={dot * 0.8} fill="#f4f4f4" stroke="#111" strokeWidth={0.15} />
+                  <line
+                    x1={-dot * 0.3}
+                    y1={-dot * 0.75}
+                    x2={-dot * 0.3}
+                    y2={dot * 0.75}
+                    stroke="#111"
+                    strokeWidth={0.2}
+                  />
+                  <line
+                    x1={dot * 0.3}
+                    y1={-dot * 0.75}
+                    x2={dot * 0.3}
+                    y2={dot * 0.75}
+                    stroke="#111"
+                    strokeWidth={0.2}
+                  />
+                </g>
+              ))}
+            </g>
+          )}
+          {(entry.kind === 'penalty' || FLAGGED.test(entry.text)) && (
+            <g ref={flagRef} opacity={0} transform={`translate(${staged.ball[0] + dir * 1.5} ${staged.ball[1] + 3})`}>
+              <rect
+                x={-0.55}
+                y={-0.4}
+                width={1.1}
+                height={0.8}
+                rx={0.15}
+                fill="#ffd400"
+                stroke="#7a5d00"
+                strokeWidth={0.1}
+              />
+            </g>
+          )}
         </g>
         {leaving.map(([id, m]) => {
           const k2 = m.home ? homeKit : awayKit;
@@ -419,7 +492,19 @@ export function TopDownField({
               }}
               transform={`translate(${sx.toFixed(2)} ${sy.toFixed(2)})`}
             >
-              {keys.has(id) && <circle r={dot + 0.45} fill="none" stroke="#ffd43b" strokeWidth={0.28} />}
+              {keys.has(id) && (
+                <circle
+                  ref={(el) => {
+                    if (el) ringRefs.current.set(id, el);
+                    else ringRefs.current.delete(id);
+                  }}
+                  r={dot + 0.45}
+                  fill="none"
+                  stroke="#ffd43b"
+                  strokeWidth={0.28}
+                  opacity={0}
+                />
+              )}
               <circle r={dot} fill={k2.jersey} stroke={k2.trim} strokeWidth={0.18} />
               <text y={dot * 0.37} textAnchor="middle" fontSize={dot * 1.05} fontWeight={700} fill={k2.ink}>
                 {record.jerseys[id] ?? ''}

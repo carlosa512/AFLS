@@ -29,6 +29,12 @@ const OFFENSE_RING = 1.9;
 const DEFENSE_RING = 2.6;
 /** The scoring plays long enough to earn one (yards from scrimmage). */
 const BIG_SCORE = 20;
+/** Before a kickoff: off the field at a run, a moment on the sideline, and the kick units on (yards a second). */
+const CHANGE = 6;
+/** The longest anyone takes to get off, or on: past it, the whole change-over picks up. */
+const CHANGE_MAX = 7;
+/** A man coming off stands on the sideline this long (a range) before a man in both units goes back on. */
+const SIDELINE = [0.6, 1.4] as const;
 
 /**
  * Whether the play at `index` earns a celebration: a touchdown from 20 yards or more, any return score, an
@@ -70,6 +76,8 @@ export interface Move {
   leave: boolean;
   /** His own reaction: seconds before he sets off to the line, and to the huddle. */
   delay: number;
+  /** Seconds after the celebration when his last leg (to his spot, or off) begins: the huddle breaking, or his turn. */
+  start: number;
   gdelay: number;
   /** How far his path bows off a straight line (−1…1, of a few yards), to the line and to the huddle. */
   bow: number;
@@ -87,6 +95,9 @@ export interface Transition {
 }
 
 const benchY = (home: boolean) => (home ? -BENCH : FIELD_W + BENCH);
+/** Where a man reaches his sideline: drifting toward his team's bench area, each by his own line. */
+const benchAt = (x: number, rng: Rng, toward = 0.25, lo = -5, hi = 105) =>
+  Math.max(lo, Math.min(hi, x + (50 - x) * toward + (rng.next() * 2 - 1) * 4));
 
 /** `k` of the way from `a` to `b` on a gentle bend: off the straight line by `bow` of a few yards at the middle. */
 function along(a: Pt, b: Pt, k: number, bow: number): Pt {
@@ -120,6 +131,8 @@ export function transition(
     hurry?: boolean;
     /** No two men move alike, the same way every time this gap is shown. */
     seed?: string;
+    /** A kickoff next: everyone comes off to his sideline, and the kick units come on. */
+    change?: boolean;
   } = {},
 ): Transition {
   const { party, huddle } = opts;
@@ -140,7 +153,11 @@ export function transition(
   next.ids.forEach((id, k) => {
     const to = { x: next.pos[k * 2], y: next.pos[k * 2 + 1] };
     const was = prev.get(id);
-    const from = was ?? { x: Math.max(-8, Math.min(108, to.x)), y: benchY(next.home[k]) };
+    const from = was ?? {
+      // From the bench: on a change-over the kick units come from the team area, otherwise level with his spot.
+      x: opts.change ? benchAt(to.x, rng) : Math.max(-8, Math.min(108, to.x)),
+      y: benchY(next.home[k]),
+    };
     const at = { x: from.x, y: from.y };
     const { pace, ...way } = style();
     paceOf.set(id, pace);
@@ -155,6 +172,7 @@ export function transition(
       arrive: 0,
       enter: !was,
       leave: false,
+      start: 0,
       ...way,
     });
   });
@@ -163,7 +181,7 @@ export function transition(
       const { pace, ...way } = style();
       paceOf.set(id, pace);
       // Off toward his bench area (between the 30s), each by his own line, not straight across in a row.
-      const benchX = Math.max(-5, Math.min(105, was.x + (50 - was.x) * 0.25 + (rng.next() * 2 - 1) * 4));
+      const benchX = opts.change ? benchAt(was.x, rng, 0.4, 20, 80) : benchAt(was.x, rng);
       moves.push({
         id,
         home: was.home,
@@ -175,6 +193,7 @@ export function transition(
         arrive: 0,
         enter: false,
         leave: true,
+        start: 0,
         ...way,
       });
     }
@@ -223,15 +242,36 @@ export function transition(
   }
 
   const dist = (m: Move) => Math.hypot(m.to.x - m.hud.x, m.to.y - m.hud.y);
-  // Only men staying on can force a hustle (a change of possession): a sub coming from the bench jogs in at his own
-  // pace, and men going off walk off at theirs.
-  const longest = Math.max(0, ...moves.filter((m) => !m.enter && !m.leave).map(dist));
-  // A jog, unless the longest trip couldn't make it in time (a change of possession): then everyone hustles.
-  // Sized so the slowest of them (the pace below is scaled by each man's own, 0.8 at the least) still makes it.
-  const pace = Math.max(run, longest / (MAX_JOG * 0.8));
+  let pace: number;
+  if (opts.change) {
+    // The change-over before a kickoff: each man on the field runs off to his sideline (a man in both units stops
+    // there a moment, then goes back on); the kick units come on as the field clears, not all at once.
+    for (const m of moves)
+      if (!m.enter && !m.leave) m.hud = { x: benchAt(m.from.x, rng, 0.4, 20, 80), y: benchY(m.home) };
+    const off = (m: Move) => Math.hypot(m.hud.x - m.mid.x, m.hud.y - m.mid.y);
+    const offPace = Math.max(CHANGE, Math.max(0, ...moves.map((m) => (m.leave ? 0 : off(m)))) / (CHANGE_MAX * 0.8));
+    for (const m of moves) {
+      if (m.leave) continue;
+      if (m.enter) m.start = 1.2 + rng.next() * 1.8;
+      else {
+        m.gather = off(m) / (offPace * paceOf.get(m.id)!);
+        m.start = m.gdelay + m.gather + SIDELINE[0] + rng.next() * (SIDELINE[1] - SIDELINE[0]);
+      }
+    }
+    pace = Math.max(CHANGE, Math.max(0, ...moves.filter((m) => !m.leave).map(dist)) / (CHANGE_MAX * 0.8));
+    huddleTime = 0;
+  } else {
+    // Only men staying on can force a hustle (a change of possession): a sub coming from the bench jogs in at his own
+    // pace, and men going off walk off at theirs.
+    const longest = Math.max(0, ...moves.filter((m) => !m.enter && !m.leave).map(dist));
+    // A jog, unless the longest trip couldn't make it in time (a change of possession): then everyone hustles.
+    // Sized so the slowest of them (the pace below is scaled by each man's own, 0.8 at the least) still makes it.
+    pace = Math.max(run, longest / (MAX_JOG * 0.8));
+    for (const m of moves) if (!m.leave) m.start = huddleTime;
+  }
   for (const m of moves) m.arrive = dist(m) / (pace * paceOf.get(m.id)!);
   const duration =
-    celebrate + huddleTime + Math.max(0.6, ...moves.filter((m) => !m.leave).map((m) => m.delay + m.arrive)) + SET;
+    celebrate + Math.max(0.6, ...moves.filter((m) => !m.leave).map((m) => m.start + m.delay + m.arrive)) + SET;
 
   return {
     duration,
@@ -247,14 +287,14 @@ export function transition(
         return { x, y, opacity: m.enter ? 0.2 : 1 };
       }
       t -= celebrate;
-      if (t < huddleTime && !m.leave) {
-        // Into the huddle, then the call.
+      if (t < m.start) {
+        // Into the huddle (or off to the sideline), then the call (or his turn to go back on).
         const g = m.gather > 0 ? smooth(Math.min(1, Math.max(0, (t - m.gdelay) / m.gather))) : 1;
         const p = along(m.mid, m.hud, g, m.gbow);
-        return { ...p, opacity: m.enter ? Math.min(1, 0.2 + g * 1.6) : 1 };
+        return { ...p, opacity: m.enter && huddleTime ? Math.min(1, 0.2 + g * 1.6) : m.enter ? 0.2 : 1 };
       }
-      // The men going off head for the bench straight away; everyone else breaks the huddle.
-      if (!m.leave) t -= huddleTime;
+      // The men going off head for the bench straight away; everyone else breaks the huddle, or takes his turn.
+      t -= m.start;
       const k = m.arrive > 0 ? smooth(Math.min(1, Math.max(0, (t - m.delay) / m.arrive))) : 1;
       const { x, y } = along(m.hud, m.to, k, m.bow);
       // Fading in from the bench, fading out on the way to it.

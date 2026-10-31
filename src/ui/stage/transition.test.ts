@@ -236,3 +236,43 @@ describe('no two alike', () => {
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(2);
   });
 });
+
+describe('the change-over before a kickoff', () => {
+  // The offense that just scored, in the end zone, and the defense round it; the kick units are mostly other men.
+  const prev = new Map<number, Mark>(
+    Array.from({ length: 22 }, (_, i) => [i, mark(90 + (i % 5), 10 + (i % 11) * 3, i < 11)]),
+  );
+  // Ids 0–4 and 11–15 are in both units; 30–41 come on.
+  const ids = [...[0, 1, 2, 3, 4, 11, 12, 13, 14, 15], ...Array.from({ length: 12 }, (_, i) => 30 + i)];
+  const next = {
+    ids,
+    home: ids.map((id) => id < 11 || (id >= 30 && id < 36)),
+    pos: new Float32Array(ids.flatMap((_, i) => [i % 2 ? 60 : 65, 5 + (i % 11) * 4])),
+  };
+  const tr = transition(prev, next, { seed: 'k1', change: true });
+  const move = (id: number) => tr.moves.find((m) => m.id === id)!;
+
+  it('takes every man on the field to his own sideline, even one who goes back on', () => {
+    for (const id of [0, 1, 11, 12]) {
+      const m = move(id);
+      const there = tr.at(m, m.start - 0.01);
+      expect(there.y).toBeCloseTo(m.home ? -BENCH : FIELD_W + BENCH, 1);
+    }
+  });
+
+  it('brings the kick units on as the field clears, each in his own time, and sets them at their spots', () => {
+    const on = ids.filter((id) => id >= 30).map(move);
+    const starts = on.map((m) => m.start);
+    expect(Math.min(...starts)).toBeGreaterThan(1);
+    expect(Math.max(...starts) - Math.min(...starts)).toBeGreaterThan(0.5);
+    for (const m of tr.moves.filter((x) => !x.leave)) {
+      const end = tr.at(m, tr.duration);
+      expect(Math.hypot(end.x - m.to.x, end.y - m.to.y)).toBeLessThan(1e-6);
+    }
+  });
+
+  it('gives the moment a beat, but not forever', () => {
+    expect(tr.duration).toBeGreaterThan(6);
+    expect(tr.duration).toBeLessThan(20);
+  });
+});

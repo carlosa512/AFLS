@@ -145,21 +145,28 @@ function scrimmage(e: PlayLogEntry, cast: Cast, off: FieldScheme, def: FieldSche
   });
 }
 
+/**
+ * Today's kickoff (the NFL's from 2024, which the engine plays: touchbacks to the 35, a short kick out at the 40). The
+ * kicker alone behind the ball; his ten a yard short of the receiving 40, five each side; the receiving side's setup
+ * zone, its 35 to its 30, with seven on the front line; up to two returners deep in the landing zone. Nobody but the
+ * kicker and the returners moves until the ball comes down (`steer.ts`).
+ */
 function kickoff(cast: Cast, put: Put, face: Put, ballY: number) {
-  // Across is from the kicking side's view; the field is 53 wide and the ball sits in the middle.
-  const room = (n: number) => spread(n, Math.min(4.6, (FIELD_W - 2 * EDGE - 2) / Math.max(1, n - 1)));
+  // Across is from the kicking side's view; the ball sits in the middle of the field.
   const k = cast.offense.find((m) => m.role === 'K');
   const cover = cast.offense.filter((m) => m !== k);
   if (k) put(k.id, 7, 0);
-  // A few yards back, for the running start as the kicker approaches.
-  room(cover.length).forEach((a, i) => put(cover[i].id, 5, a + (MID - ballY)));
+  const lanes = [4, 9, 14, 19, 23];
+  cover.forEach((m, i) => face(m.id, 24, (i % 2 === 0 ? -1 : 1) * lanes[Math.floor(i / 2) % 5] + (MID - ballY)));
   const ret = cast.defense.find((m) => m.role === 'RET');
   const rest = cast.defense.filter((m) => m !== ret);
-  if (ret) face(ret.id, 60, 0);
-  const front = rest.slice(0, 5);
-  const back = rest.slice(5);
-  room(front.length).forEach((a, i) => face(front[i].id, 12, a));
-  room(back.length).forEach((a, i) => face(back[i].id, 25, a * 0.8));
+  if (ret) face(ret.id, 60, -3);
+  const front = rest.slice(0, 7);
+  const back = rest.slice(7, 9);
+  spread(front.length, 6).forEach((a, i) => face(front[i].id, 30, a));
+  back.forEach((m, i) => face(m.id, 34, (i === 0 ? -1 : 1) * 8));
+  // The second returner, beside the first.
+  rest.slice(9).forEach((m, i) => face(m.id, 57, 6 + i * 4));
 }
 
 function punt(e: PlayLogEntry, cast: Cast, put: Put, face: Put, ballX: number) {

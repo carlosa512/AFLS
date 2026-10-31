@@ -19,6 +19,8 @@ const HOLDERS: ReadonlySet<string> = new Set(['run', 'pass', 'incomplete', 'int'
 const DROPBACKS: ReadonlySet<string> = new Set(['pass', 'incomplete', 'int', 'sack', 'scramble']);
 /** A play with no path (a flag before the snap, a timeout): the line-up, held this long. */
 const STILL = 0.5;
+/** A key man's ring shows this long before his moment. */
+const REVEAL_LEAD = 0.4;
 
 export interface StagedPlay {
   /** Seconds a step. */
@@ -36,6 +38,8 @@ export interface StagedPlay {
   ball: Float32Array;
   /** The players the play was about: ringed and drawn on top. */
   keys: number[];
+  /** Per key: seconds from the snap when his ring shows, just before his moment, so the ring never gives the play away. */
+  reveal: number[];
   /** Who has the ball at the whistle. */
   carrier: number | null;
   /** Per id: the spot he lined up at (QB, OL, WR...). */
@@ -56,13 +60,15 @@ export function stagePlay(args: {
   const rng = new Rng(args.seed);
   const cast = castFor(record, plays, index, homeId);
   const dir: 1 | -1 = cast.offSide === 0 ? 1 : -1;
-  const ballX = e.from ?? (cast.offSide === 0 ? e.yardLine : 100 - e.yardLine);
+  // The line of scrimmage: a field goal is logged from the holder's spot, seven yards behind it.
+  const logged = e.from ?? (cast.offSide === 0 ? e.yardLine : 100 - e.yardLine);
+  const ballX = e.kind === 'fg' ? logged + dir * 7 : logged;
   const ballY = e.kind === 'kickoff' ? MID : args.snapY;
   const off = record.scheme[cast.offSide];
   const def = record.scheme[1 - cast.offSide];
   const start = lineUp(e, cast, off, def, ballX, ballY, dir, rng);
   const segs = stagedPath(e, homeId, args.snapY);
-  const { keys, carrier, tackler, release, catchAt } = script(e, cast, start, segs, dir);
+  const { keys, carrier, tackler, release, catchAt, moments } = script(e, cast, start, segs, dir);
   const flight = segs.find((sg) => sg.peak > 0);
   const kick = e.kind === 'kickoff' || e.kind === 'punt' ? e.kind : e.kind === 'fg' || e.kind === 'xp' ? 'fg' : null;
   const total = segs.reduce((t, s) => t + s.dur, 0) || STILL;
@@ -109,6 +115,7 @@ export function stagePlay(args: {
     pos,
     ball: ball.subarray(0, steps * 3),
     keys: [...keys.keys()],
+    reveal: [...keys.keys()].map((id) => Math.max(0, (moments.get(id) ?? 0) - REVEAL_LEAD)),
     carrier,
     roles: members.map((m) => m.role),
   };

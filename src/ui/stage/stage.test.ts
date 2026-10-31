@@ -551,16 +551,32 @@ describe('special teams', () => {
     expect(n).toBeGreaterThan(30);
   });
 
-  it('sends the kickoff coverage downfield in its lanes', () => {
-    for (const { e, p } of kickoffs) {
-      // A short kick (onside, out of bounds) travels too little for the coverage to run far.
+  it("lines a kickoff up by today's rules, and nobody but the kicker and returners moves until the ball comes down", () => {
+    let n = 0;
+    for (const { e, segs, p } of kickoffs) {
       if (/onside|out of bounds/i.test(e.text)) continue;
       const dir = p.home[0] ? 1 : -1;
+      const ballX = p.ball[0];
+      const depth = (k: number) => (at(p, 0, k).x - ballX) * dir;
       const cover = p.ids.map((_, k) => k).filter((k) => p.offense[k] && p.roles[k] !== 'K');
-      const mid = Math.round((p.steps - 1) * 0.7);
-      const gain = cover.reduce((sum, k) => sum + (at(p, mid, k).x - at(p, 0, k).x) * dir, 0) / cover.length;
-      expect(gain, e.text).toBeGreaterThan(20);
+      // The kicking ten a yard short of the receiving 40 (25 yards off the ball at the 35).
+      for (const k of cover) expect(depth(k)).toBeGreaterThanOrEqual(23.5);
+      for (const k of cover) expect(depth(k)).toBeLessThanOrEqual(25);
+      // Nine or more in the setup zone, the receiving 35 to the 30.
+      const receiving = p.ids.map((_, k) => k).filter((k) => !p.offense[k]);
+      expect(receiving.filter((k) => depth(k) >= 29.5 && depth(k) <= 35.5).length).toBeGreaterThanOrEqual(9);
+      const air = segs.findIndex((s) => s.peak > 0);
+      const land = Math.floor(segs.slice(0, air + 1).reduce((t, s) => t + s.dur, 0) / p.dt);
+      for (const k of [...cover, ...receiving]) {
+        if (p.roles[k] === 'RET' || depth(k) > 40) continue; // the returners
+        for (let st = 0; st < land; st += 5) {
+          const a = at(p, st, k);
+          expect(Math.hypot(a.x - at(p, 0, k).x, a.y - at(p, 0, k).y), e.text).toBeLessThan(0.5);
+        }
+      }
+      n++;
     }
+    expect(n).toBeGreaterThan(30);
   });
 
   it('releases the punt gunners at the snap', () => {
@@ -575,6 +591,24 @@ describe('special teams', () => {
       for (const k of gunners) expect((at(p, st, k).x - at(p, 0, k).x) * dir).toBeGreaterThan(15);
       n++;
     }
+    expect(n).toBeGreaterThan(30);
+  });
+
+  it('snaps a field goal and an extra point back to the holder, seven yards behind the line', () => {
+    let n = 0;
+    for (const kind of ['fg', 'xp'])
+      for (const { p } of kicks(kind)) {
+        const holder = p.roles.indexOf('P');
+        const line = p.ids.map((_, k) => k).filter((k) => p.offense[k] && p.roles[k] === 'OL');
+        const losX = p.ball[0];
+        // The ball starts at the line, among the linemen, and reaches the holder, seven yards back.
+        for (const k of line) expect(Math.abs(at(p, 0, k).x - losX)).toBeLessThan(1.5);
+        const h = at(p, 0, holder);
+        expect(Math.abs(h.x - losX)).toBeGreaterThan(6);
+        const snapped = Math.round(0.4 / p.dt);
+        expect(Math.hypot(p.ball[snapped * 3] - h.x, p.ball[snapped * 3 + 1] - h.y)).toBeLessThan(1);
+        n++;
+      }
     expect(n).toBeGreaterThan(30);
   });
 

@@ -1,5 +1,5 @@
 import { employed } from '../../engine/employment';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import type { League } from '../../engine/types';
 import { useNav } from '../App';
@@ -36,6 +36,8 @@ export function LiveGame({ league }: { league: League }) {
   const names = usePlayNames(league, game);
   const [pick, setPick] = useHighlightPick();
   const [viewPick, setViewPick] = useViewPick();
+  // The play whose finish has been shown: until then its result, its line in the log and its points stay hidden.
+  const [toldKey, setToldKey] = useState('');
   if (!s || !game) {
     return (
       <section className="panel stack">
@@ -55,6 +57,10 @@ export function LiveGame({ league }: { league: League }) {
   const home = league.teams[game.homeId];
   const away = league.teams[game.awayId];
   const entry = s.plays[s.current];
+  const playKey = `${s.gameId}:${s.current}`;
+  const told = toldKey === playKey || s.finished;
+  /** The score on the board: the last play's until this one has been seen. */
+  const board = told ? entry : (s.plays[s.current - 1] ?? { homeScore: 0, awayScore: 0 });
   const record = s.sim.field();
   const all22 = viewPick === 'all22' && !!record;
   const speeds = all22 ? [1, 2] : SPEEDS;
@@ -70,6 +76,7 @@ export function LiveGame({ league }: { league: League }) {
     step();
   };
   const onDone = () => {
+    setToldKey(playKey);
     clearTimeout(timer.current);
     if (!s.playing || s.finished) return;
     // A skipped batch's hold was the pause: the highlight follows at once.
@@ -93,7 +100,7 @@ export function LiveGame({ league }: { league: League }) {
   const them = result ? (userIsHome ? result.awayScore : result.homeScore) : 0;
   const verdict = us > them ? 'W' : us < them ? 'L' : 'T';
   // Every play so far, newest first, in a box that scrolls back to the kickoff.
-  const recent = s.plays.slice(0, s.current + 1).reverse();
+  const recent = s.plays.slice(0, told ? s.current + 1 : s.current).reverse();
 
   const broadcast = (
     <Field
@@ -119,7 +126,7 @@ export function LiveGame({ league }: { league: League }) {
                   <span className="vb-poss" aria-label="has the ball" />
                 ) : null}
               </span>
-              <span className="vb-score">{t.id === home.id ? entry.homeScore : entry.awayScore}</span>
+              <span className="vb-score">{t.id === home.id ? board.homeScore : board.awayScore}</span>
             </div>
           ))}
           <div className="vb-clock">
@@ -158,7 +165,7 @@ export function LiveGame({ league }: { league: League }) {
 
         <div className="viewer-sit">
           <span className="num">{situation(entry, home, away) || ' '}</span>
-          <span className="viewer-tag">{playLabel(entry, home.id)}</span>
+          <span className="viewer-tag">{told ? playLabel(entry, home.id) : ''}</span>
         </div>
 
         {!s.finished && (
@@ -223,8 +230,8 @@ export function LiveGame({ league }: { league: League }) {
             const team = p.offense === home.id ? home : away;
             return (
               <div
-                key={s.current - i}
-                className={`play-card${i === 0 ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
+                key={s.current - i - (told ? 0 : 1)}
+                className={`play-card${i === 0 && told ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
               >
                 <span className="pc-meta">
                   <TeamChip team={team} />
