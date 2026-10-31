@@ -1632,6 +1632,30 @@ select {
   letter-spacing: 0;
   font-family: var(--font-data);
 }
+/* Highlight level: one pill split three ways, the picked one lit like the play button. */
+.vc-levels {
+  display: inline-flex;
+  height: 44px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 3px;
+}
+.vc-level {
+  border: 0;
+  border-radius: 999px;
+  min-width: 44px;
+  padding: 0 10px;
+  background: none;
+  color: var(--scene-ink);
+  font-family: var(--font-data);
+  font-weight: 700;
+  font-size: var(--step--1);
+  cursor: pointer;
+}
+.vc-level.on {
+  background: var(--marker);
+  color: var(--marker-ink);
+}
 .vc-scrub {
   flex: 1 1 140px;
   min-width: 0;

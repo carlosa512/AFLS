@@ -6,7 +6,17 @@ import { useNav } from '../App';
 import { TeamChip } from '../components';
 import { gameClock, weekLabel } from '../format';
 import { live, useLive } from '../live';
-import { Field, playLabel, PlayText, restingSpot, situation, usePlayNames } from './GameViewer';
+import { shows } from '../highlights';
+import {
+  Field,
+  HighlightSwitch,
+  playLabel,
+  PlayText,
+  restingSpot,
+  situation,
+  useHighlightPick,
+  usePlayNames,
+} from './GameViewer';
 
 const SPEEDS = [1, 2, 4, 8];
 /** Pause between plays at 1×, so each snap can be read. */
@@ -20,6 +30,7 @@ export function LiveGame({ league }: { league: League }) {
 
   const game = s ? league.games.find((g) => g.id === s.gameId) : undefined;
   const names = usePlayNames(league, game);
+  const [pick, setPick] = useHighlightPick();
   if (!s || !game) {
     return (
       <section className="panel stack">
@@ -44,16 +55,23 @@ export function LiveGame({ league }: { league: League }) {
   const step = () => {
     if (!live.advance()) live.finish();
   };
+  /** Past the plays the highlight level skips (they land in the log together, still), or on to the next snap. */
+  const next = () => {
+    if (pick !== 'full' && live.skipTo((plays, i) => shows(plays, i, home.id, pick))) return;
+    step();
+  };
   const onDone = () => {
     clearTimeout(timer.current);
     if (!s.playing || s.finished) return;
-    timer.current = setTimeout(step, HOLD_MS / s.speed);
+    // A skipped batch's hold was the pause: the highlight follows at once.
+    if (s.still) return step();
+    timer.current = setTimeout(next, HOLD_MS / s.speed);
   };
   const togglePlay = () => {
     clearTimeout(timer.current);
     const playing = !s.playing;
     live.update({ playing });
-    if (playing) step();
+    if (playing) next();
   };
   const simToFinal = () => {
     clearTimeout(timer.current);
@@ -105,6 +123,7 @@ export function LiveGame({ league }: { league: League }) {
           restX={restingSpot(s.plays, s.current, home.id)}
           animKey={`live:${s.gameId}:${s.current}`}
           speed={s.speed}
+          still={s.still}
           onDone={onDone}
         />
 
@@ -125,6 +144,7 @@ export function LiveGame({ league }: { league: League }) {
             >
               {s.speed}×
             </button>
+            <HighlightSwitch value={pick} onChange={setPick} />
             <span className="live-label">Live</span>
             <button className="vc-skip" onClick={simToFinal}>
               Sim to final
