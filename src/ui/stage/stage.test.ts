@@ -395,6 +395,53 @@ describe('off the ball', () => {
     expect(engaged / linemen).toBeGreaterThan(0.98);
   });
 
+  it('gives a run time to develop: a handoff, the press to the line, then the burst', () => {
+    for (const { e, p } of picks('run')) {
+      const yards = Math.abs((e.to ?? 0) - (e.from ?? 0));
+      expect((p.steps - 1) * p.dt, e.text).toBeGreaterThanOrEqual(1.8 + Math.min(yards, 20) * 0.05);
+    }
+  });
+
+  it('reads the run: unblocked linebackers close on the carrier in the second after the handoff', () => {
+    let backers = 0;
+    let closing = 0;
+    for (const { p } of picks('run')) {
+      const c = p.carrier === null ? -1 : p.ids.indexOf(p.carrier);
+      if (c < 0) continue;
+      const handoff = Math.round(0.7 / p.dt);
+      const later = Math.min(p.steps - 1, handoff + Math.round(1 / p.dt));
+      const at = (st: number, k: number) =>
+        Math.hypot(
+          p.pos[(st * 22 + k) * 2] - p.pos[(st * 22 + c) * 2],
+          p.pos[(st * 22 + k) * 2 + 1] - p.pos[(st * 22 + c) * 2 + 1],
+        );
+      p.ids.forEach((id, k) => {
+        if (p.offense[k] || p.roles[k] !== 'LB' || p.keys.includes(id)) return;
+        backers++;
+        if (at(later, k) < at(handoff, k) - 1.5) closing++;
+      });
+    }
+    expect(backers).toBeGreaterThan(200);
+    expect(closing / backers).toBeGreaterThan(0.8);
+  });
+
+  it('moves the line on a run: nearly every lineman leaves his stance by a yard or more', () => {
+    let linemen = 0;
+    let moved = 0;
+    for (const { p } of picks('run')) {
+      const st = Math.min(p.steps - 1, Math.round(1.6 / p.dt));
+      p.ids.forEach((id, k) => {
+        if (p.roles[k] !== 'OL' || p.keys.includes(id)) return;
+        const d = Math.hypot(p.pos[(st * 22 + k) * 2] - p.pos[k * 2], p.pos[(st * 22 + k) * 2 + 1] - p.pos[k * 2 + 1]);
+        // Now and then one is stood up at the line: not every block wins.
+        if (d > 1) moved++;
+        linemen++;
+      });
+    }
+    expect(linemen).toBeGreaterThan(1000);
+    expect(moved / linemen).toBeGreaterThan(0.98);
+  });
+
   it('moves the back on a dropback: he blocks or runs a checkdown, never stands still', () => {
     let backs = 0;
     for (const kind of ['pass', 'incomplete', 'sack'])

@@ -96,6 +96,8 @@ export function steer(a: SteerArgs): Float32Array {
   const steered = members.map((m) => !a.scripted.has(m.id));
   const index = new Map(members.map((m, k) => [m.id, k]));
   const ballY0 = a.ball[1];
+  /** Which way across the field the play goes (from the offense's start to where the ball ends): the flow. */
+  const side = Math.sign(a.ball[(a.steps - 1) * 3 + 1] - ballY0) || 1;
   const ballX0 = a.ball[0];
 
   // Decoy routes for receivers not in the play, man assignments for corners.
@@ -186,6 +188,12 @@ export function steer(a: SteerArgs): Float32Array {
   }
 
   const climbed = new Set<number>();
+  /** Everyone who blocks on this play: the line, a back staying in, receivers stalking on a run. */
+  const blockerIdx = all.filter(
+    (k) =>
+      offense[k] &&
+      (members[k].role === 'OL' || (members[k].role === 'RB' && !checkdowns.has(members[k].id)) || blockOn.has(k)),
+  );
 
   const ballAt = (step: number): Pt => {
     const s = Math.max(0, Math.min(a.steps - 1, step));
@@ -240,8 +248,8 @@ export function steer(a: SteerArgs): Float32Array {
             const d = Math.hypot(dx, dy) || 1;
             goal = { x: px[on] + (dx / d) * 1.0, y: py[on] + (dy / d) * 1.0 };
           } else {
-            // Drive block: square up on his man's near side and push.
-            goal = { x: px[on] - a.dir * 0.9, y: py[on] };
+            // Drive block: square up on his man's near side, push, and work him toward the play side.
+            goal = { x: px[on] - a.dir * 0.9, y: py[on] + side * 0.8 };
           }
         } else if (offense[k]) {
           if (a.dropback && released && (m.role === 'OL' || (m.role === 'RB' && !checkdowns.has(m.id)))) {
@@ -275,7 +283,10 @@ export function steer(a: SteerArgs): Float32Array {
           }
         } else {
           const mark = marks.get(m.id);
-          if (released && t > a.release + 0.25) goal = chase;
+          if (released && t > a.release + (a.run ? 0.1 : 0.25)) goal = chase;
+          else if (a.run && t > 0.3 && (m.role === 'LB' || m.role === 'S'))
+            // Reading run on the mesh: step up and flow with the play before the ball is even handed off.
+            goal = { x: s0.x - a.dir * (m.role === 'LB' ? 1.5 : 3), y: s0.y + side * 2.5 };
           else if (m.role === 'DT' || m.role === 'EDGE') goal = hk >= 0 ? { x: px[hk], y: py[hk] } : ballAt(step);
           else if (mark !== undefined) {
             const q = index.get(mark)!;
@@ -285,20 +296,28 @@ export function steer(a: SteerArgs): Float32Array {
             goal = { x: ballX0 + a.dir * depth, y: s0.y };
           }
         }
+        // Engaged: a blocked man only leans into his block, slowly toward the ball on a dropback, driven back on a run.
+        let top = SPEED[m.role];
+        if (!offense[k]) {
+          // Held by whoever is on him (the matchups only aim the blockers): any blocker within reach.
+          const holding =
+            (a.dropback || a.run) && blockerIdx.some((b) => Math.hypot(px[b] - px[k], py[b] - py[k]) < 1.6);
+          const live = a.dropback ? t < a.release + 0.3 : a.run && t < a.release + 1;
+          if (holding && live) {
+            top = a.dropback ? 1.2 : 1;
+            // Contact takes his momentum: a blocked man stops, then leans into it.
+            const v = Math.hypot(vx[k], vy[k]);
+            if (v > top) {
+              vx[k] *= top / v;
+              vy[k] *= top / v;
+            }
+            if (a.run) goal = { x: px[k] + a.dir * 1, y: py[k] + side * 0.6 };
+          }
+        }
         // Steer: toward the goal at top speed, easing off inside a yard, within the acceleration limit.
         const gx = goal.x - px[k];
         const gy = goal.y - py[k];
         const dist = Math.hypot(gx, gy);
-        // Engaged: a blocked man only leans into his block, slowly toward the ball on a dropback, driven back on a run.
-        let top = SPEED[m.role];
-        if (!offense[k]) {
-          const holding = (blockers.get(k) ?? []).some((b) => Math.hypot(px[b] - px[k], py[b] - py[k]) < 1.7);
-          const live = a.dropback ? t < a.release + 0.3 : a.run && t < a.release + 1;
-          if (holding && live) {
-            top = a.dropback ? 1.2 : 1;
-            if (a.run) goal = { x: px[k] + a.dir * 1, y: py[k] };
-          }
-        }
         const speed = top * Math.min(1, dist);
         const wx = dist > 0 ? (gx / dist) * speed : 0;
         const wy = (dist > 0 ? (gy / dist) * speed : 0) + (a.rng.next() * 2 - 1) * WOBBLE;

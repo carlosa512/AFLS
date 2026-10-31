@@ -68,6 +68,8 @@ const hold = (p: { x: number; y: number }, dur: number): Seg => ({ x0: p.x, y0: 
 
 /** Seconds in the pocket before a sack gets home. */
 const SACK_HOLD = 1.8;
+/** The handoff, from the snap to the ball in the back's belly. */
+const MESH = 0.8;
 /** Before a scramble breaks out. */
 const SCRAMBLE_HOLD = 1.1;
 
@@ -75,7 +77,8 @@ const SCRAMBLE_HOLD = 1.1;
  * The ball's path as All-22 tells it. The broadcast view's path (`buildPath`) is the same ball, but a dropback there
  * goes straight from the drop to the throw or the sack: from above, routes need time to run. So a pass waits in the
  * pocket after the drop (longer for a deeper throw), a sack holds before the rush gets home, and a scramble holds
- * before the quarterback takes off. Every dropback here is: drop, hold, then the throw, the run or the sack.
+ * before the quarterback takes off. Every dropback here is: drop, hold, then the throw, the run or the sack. A run is
+ * the mesh, the press to the line while the back reads his blocks, then the burst.
  */
 export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
   const segs = buildPath(e, homeId, snapY);
@@ -89,6 +92,18 @@ export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[
       drop,
       hold({ x: drop.x1, y: drop.y1 }, Math.max(0.8, Math.min(1.6, 0.7 + depth * 0.035))),
       ...segs.slice(1),
+    ];
+  }
+  if (e.kind === 'run' && segs.length === 2) {
+    // The mesh, then the back presses the line reading his blocks, then bursts through the hole.
+    const hand = { x: segs[0].x1, y: segs[0].y1 };
+    const end = { x: segs[1].x1, y: segs[1].y1 };
+    const press = { x: hand.x + (end.x - hand.x) * 0.35, y: hand.y + (end.y - hand.y) * 0.5 };
+    const len = (p: { x: number; y: number }, q: { x: number; y: number }) => Math.hypot(q.x - p.x, q.y - p.y);
+    return [
+      { ...segs[0], dur: MESH },
+      { x0: hand.x, y0: hand.y, x1: press.x, y1: press.y, peak: 0, dur: Math.max(0.9, len(hand, press) / 4.5 + 0.5) },
+      { x0: press.x, y0: press.y, x1: end.x, y1: end.y, peak: 0, dur: Math.max(0.3, len(press, end) / 7) },
     ];
   }
   if (e.kind === 'sack' || e.kind === 'scramble') {
