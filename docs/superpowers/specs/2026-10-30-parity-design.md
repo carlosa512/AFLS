@@ -2,6 +2,9 @@
 
 Date: 2026-10-30, revised 2026-10-31 · Comes before #115 (fewer sulkers), which rebases on it
 
+NFL figures marked *nflverse* are measured from nflverse's public play-by-play and schedules (every regular-season play
+and closing line, 2015–2024; `github.com/nflverse/nflverse-data`), with the scratch scripts kept out of the repo.
+
 ## Why
 
 Every pull request this week tripped over a different line of the sim check: #5 rushing, red-zone trips, #1 receptions,
@@ -13,15 +16,18 @@ Measured on main (60 fresh leagues, `npm run sim -- 60`, and the four careers le
 
 | | Main | NFL |
 |---|---|---|
-| Margin that team strength predicts (SD) | 9.0 pts | about 5.5–6 (the closing line) |
-| Final margin's spread around it | 12.6 pts | about 13.5 |
-| Spread of team wins in a new league's season (SD) | 3.80 | 3.0–3.3 |
-| The same, seasons 9–16 of a long league | 3.17 | 3.0–3.3 |
+| Margin that team strength predicts (SD) | 9.0 pts | 6.0, the closing line (*nflverse* 2015–24) |
+| Final margin's spread around it | 12.6 pts | 12.8 around the line (*nflverse* 2015–24) |
+| Favourites win straight up | 70.2% (better-rated) | 66.4% (*nflverse* 2015–24) |
+| Spread of team wins in a new league's season (SD) | 3.80 | 3.09 (*nflverse* 2015–24) |
+| The same, seasons 9–16 of a long league | 3.17 | 3.09 |
 | Team seasons with 30+ rushing TDs (60 seasons) | 62 of 1,920 | 3 of 160 (2021–25) |
-| Average depth of a throw (air yards) | about 10.9 | 7.7 (2024) |
-| Share of throws 10–19 yards downfield | 36% | about 20% |
+| Average depth of a throw (air yards) | about 10.9 | 7.9 (*nflverse* 2019–24; 7.7 in 2024) |
+| Share of throws 10–19 yards downfield | 36% | 20.9% (*nflverse* 2019–24) |
 
-1. **A game's own randomness is a little small** (12.6 against 13.5): a strong team never has a flat day.
+1. **Strength decides too much** and a strong team never has a flat day: the margin strength predicts runs half again the
+   line's. (The first version also read the game's own randomness as too small, against a remembered 13.5; *nflverse*
+   puts the NFL's at 12.8 around the line, so the day is re-sized against that, below.)
 2. **A new league is built lopsided.** Team ratings at kickoff spread too wide, and a club's real record lifted its whole
    roster, depth included: strong clubs shrugged off injuries weak ones couldn't, so a new league pulled further apart
    all season (team strength's spread grew 20% from kickoff to the season's average; 4% in a long league). A long league,
@@ -46,8 +52,9 @@ Measured on main (60 fresh leagues, `npm run sim -- 60`, and the four careers le
 
 Each team draws a hidden form for each game, `teamDay` in `match/lineup.ts`: `normal(0, DAY_SD)` rating points on its
 own stream (`${gameSeed}:day:${teamId}`), applied to every man in its lineup through the knocks overlay, the same for a
-lineup rebuilt after an injury. `DAY_SD = 0.35`, sized so a margin sits about 13.3 points either side of what strength
-predicts. ("Day", not "form": form is a player's in this engine.)
+lineup rebuilt after an injury. ("Day", not "form": form is a player's in this engine.) `DAY_SD` was sized at 0.35
+against a remembered 13.5; it is re-sized once against the real 12.8, with strength read the way a line reads it (below,
+Checks), so it may come down. It stays for what it does to the season: strong teams' flat days.
 
 ## Stage 2: a new league built like a lived-in one (done)
 
@@ -63,11 +70,19 @@ predicts. ("Day", not "form": form is a player's in this engine.)
 
 ## Stage 3: the passing game's shape (to plan)
 
-**Targets.** Verified: average intended air yards **7.7** (NFL, 2024); throws of 20+ yards about **7.7 a game**, under
-**12%** of attempts since 2019; deep completion **36–40%** (35.9% over 2016–, 39.6% in 2025). The existing completion
-(63–66.5%) and yards-an-attempt (6.7–7.3) ranges stay. From those, an intermediate (10–19) share of about **20%** and
-short throws (under 10, behind the line included) about **68%** completing about **73%**; the plan pins these from a
-per-depth table it can reach, or the owner supplies one, before they are judged.
+**Targets** (*nflverse*, 2019–24 regular seasons, every throw with its air yards; 2023 and 2024 alone read the same):
+
+| Air yards | Share of throws | Completion | Yards an attempt | Interceptions | Yards after the catch |
+|---|---|---|---|---|---|
+| Behind the line | 16.6% | 81% | 4.7 | 0.8% | 9.1 |
+| 0–9 | 50.9% | 70% | 5.8 | 1.4% | 4.2 |
+| **All short (under 10)** | **67.5%** | **72.9%** | **5.5** | | |
+| **10–19** | **20.9%** | **54.9%** | **9.6** | **3.4%** | 3.7 |
+| **20+** | **11.6%** | **36.2%** | **12.2** | **6.3%** | 5.6 |
+| All | average air yards **7.9** | 64.9% | 7.15 | | 5.2 |
+
+The sim today: short 49.5% (79%, 5.1), 10–19 36% (60%, 9.8, 3.0%), 20+ 14.5% (38%, 12.5, 5.3%), average air yards about
+10.9. The totals (completion, yards an attempt) already sit inside their ranges because the errors cancel.
 
 **Levers**, all league-wide play calling and passing shape:
 
@@ -77,12 +92,20 @@ per-depth table it can reach, or the owner supplies one, before they are judged.
 - **Short throws as the NFL throws them:** screens and checkdowns behind the line as well as the quick game in front of
   it (the short air distribution), completing a little less often (`0.81` base today) and gaining more after the catch,
   the short game's yards coming from the run after it.
-- **Already in:** the first receiver is the first read (more of his looks underneath, fewer deep; #1 receptions 117 to
-  131, his share of the team's catches 24% to 26%, the NFL's typical leader 25–26%), and Air Coryell's shots come off the
-  drop, not play action (its description never claimed both).
+- **Already in:** Air Coryell's shots come off the drop, not play action (its description never claimed both).
+- **Reverted:** the first-read change. It rested on star receivers' target shares; *nflverse* puts a team's top receiver at
+  23.1% of its catches (22.4–24.2% a season) and the sim already read 24%. What the NFL has that the sim lacks is the
+  top end: its #1 catches about 135 (127–149) against team leaders' 84. If #1 receptions still reads low once the mix is
+  right, the lever is the receivers' own `targeting` (how much a receiver who gets open draws the ball), an attribute,
+  measured against that gap first; never a fixed share for a depth-chart slot.
 
-**Expected:** red-zone trips back inside 3.0–3.4 (drives less steady), the leaders near 12–13 yards a catch (#5
-receiving yards under 1,500), Air Coryell's 1.5-point edge narrowed. Measured, not assumed.
+**Expected:** drives less steady (red-zone trips down), the leaders near the NFL's 12–13 yards a catch (#5 receiving
+yards under 1,500), Air Coryell's 1.5-point edge narrowed. Measured, not assumed.
+
+**Red-zone trips, counted alike:** the sim counts a drive that snaps a play at the 20 or inside. Counted the same way
+from *nflverse*, the NFL ran 3.30, 3.62, 3.45, 3.25, 3.25 and 3.39 a team-game in 2019–24 (3.34 over 2021–24); the
+check's range (3.0–3.4) came from TeamRankings and drive tables that count differently. Whether the range follows the
+like-for-like count is the owner's call; until then it stands.
 
 ## Stage 4: the trees' winner bar (after Stage 3)
 
@@ -95,12 +118,14 @@ of players nobody on the staff has worked with) is a finding for the owner, not 
 
 ## Checks
 
-- **`npm run sim`**, Parity: the margin strength predicts (SD) 5.5–6.5 (against the closing line), the margin's spread
-  around it 13–14.5, the win spread 3.0–3.4. How often the better-rated team wins is shown, not judged: it follows from
-  the first two (about 63–64%), and betting favourites win more (66–67%) because a line knows more than a rating. (The
-  first version judged it at 65–69%; that contradicted the other two.)
-- **`npm run sim`**, Passing by depth (Stage 3): average air yards 7.2–8.2, the deep share 10–13%, deep completion
-  34–41%; the intermediate and short rows reported until their NFL figures are pinned, then judged.
+- **`npm run sim`**, Parity, with each game's strength read as a line reads it: both teams' overall before that week's
+  games (injuries in), not the season's kickoff. Judged against *nflverse* 2015–24: the margin strength predicts (SD)
+  5.5–6.5 (the line's 6.0), the margin's spread around it 12.3–13.3 (12.8; the first version's 13–14.5 rested on a
+  remembered 13.5), the win spread 3.0–3.4 (3.09). How often the favourite wins is shown (the NFL's 66.4%), not judged:
+  a line still knows more than a rating. (The first version judged the better-rated team at 65–69%.)
+- **`npm run sim`**, Passing by depth (Stage 3): average air yards 7.4–8.3; the short, 10–19 and 20+ shares 65–70%,
+  19–23% and 10.5–13%. Completion, yards an attempt and picks by depth are shown against the table above, not judged: the
+  totals already are, and each judged line is one more edge to trip on.
 - **`npm run careers`:** the steady-state win spread, reported; the five tree lines green (Stage 4).
 - **Everything that reads play** runs on CI as usual (audit, size, weather, crews, quirks, endings, morale, offseason);
   nothing may be flagged and no range moves.
@@ -116,7 +141,7 @@ of players nobody on the staff has worked with) is a finding for the owner, not 
 
 | File | Change |
 | --- | --- |
-| `src/engine/match/lineup.ts`, `match/gameSim.ts` | the day; the first read; Stage 3's short-throw shape and the per-depth counts |
+| `src/engine/match/lineup.ts`, `match/gameSim.ts` | the day; the first read reverted; Stage 3's short-throw shape and per-depth counts |
 | `src/engine/match/coach.ts` | Stage 3's depth mix |
 | `src/engine/schemes.ts` | Air Coryell without play action |
 | `src/engine/generate.ts` | depth and the even deal |
