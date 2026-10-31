@@ -6,7 +6,7 @@
  */
 import { actorsIn } from '../../engine/playActors';
 import type { PlayLogEntry } from '../../engine/types';
-import { pointAt, type Seg } from './ballPath';
+import { buildPath, ground, pointAt, type Seg } from './ballPath';
 import type { Cast } from './cast';
 import type { Pt } from './formations';
 
@@ -62,6 +62,46 @@ const times = (segs: readonly Seg[]) => {
 };
 
 const at = (t: number, p: { x: number; y: number }): Keyframe => ({ t, x: p.x, y: p.y });
+
+/** The quarterback standing in the pocket: a segment that goes nowhere for `dur` seconds. */
+const hold = (p: { x: number; y: number }, dur: number): Seg => ({ x0: p.x, y0: p.y, x1: p.x, y1: p.y, peak: 0, dur });
+
+/** Seconds in the pocket before a sack gets home. */
+const SACK_HOLD = 1.8;
+/** Before a scramble breaks out. */
+const SCRAMBLE_HOLD = 1.1;
+
+/**
+ * The ball's path as All-22 tells it. The broadcast view's path (`buildPath`) is the same ball, but a dropback there
+ * goes straight from the drop to the throw or the sack: from above, routes need time to run. So a pass waits in the
+ * pocket after the drop (longer for a deeper throw), a sack holds before the rush gets home, and a scramble holds
+ * before the quarterback takes off. Every dropback here is: drop, hold, then the throw, the run or the sack.
+ */
+export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
+  const segs = buildPath(e, homeId, snapY);
+  if (!segs.length || e.from === undefined || e.to === undefined) return segs;
+  const dir = e.offense === homeId ? 1 : -1;
+  if (e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int') {
+    const drop = segs[0];
+    const air = segs[1];
+    const depth = air ? Math.abs(air.x1 - air.x0) : 10;
+    return [
+      drop,
+      hold({ x: drop.x1, y: drop.y1 }, Math.max(0.8, Math.min(1.6, 0.7 + depth * 0.035))),
+      ...segs.slice(1),
+    ];
+  }
+  if (e.kind === 'sack' || e.kind === 'scramble') {
+    const qb = { x: e.from - dir * 6, y: snapY };
+    const end = segs[segs.length - 1];
+    return [
+      ground(e.from, snapY, qb.x, qb.y, 0.8),
+      hold(qb, e.kind === 'sack' ? SACK_HOLD : SCRAMBLE_HOLD),
+      ground(qb.x, qb.y, end.x1, end.y1),
+    ];
+  }
+  return segs;
+}
 
 /** Keyframes that ride the ball through segments `from`..`to` (inclusive). */
 function ride(segs: readonly Seg[], from: number, to: number): Keyframe[] {
@@ -136,16 +176,17 @@ export function script(
       if (e.kind === 'sack' && who.rush !== undefined && start.has(who.rush)) {
         // Past the man he beat (or straight in), then onto the quarterback where the sack lands.
         const beat = who.beat !== undefined ? start.get(who.beat) : undefined;
-        const mid: Keyframe[] = beat ? [at(total * 0.4, toward(beat, end, 1))] : [];
+        const mid: Keyframe[] = beat ? [at(total * 0.6, toward(beat, end, 1))] : [];
         set(who.rush, [...mid, at(total, toward(end, start.get(who.rush)!, 0.6))]);
       }
       break;
     case 'pass':
     case 'incomplete':
     case 'int': {
-      if (qb !== undefined) set(qb, ride(segs, 0, 0));
-      const throwEnd = segs[1] ? ts[1][1] : total;
-      const land = segs[1] ? pointAt(segs[1], 1) : end;
+      // Drop, hold in the pocket, throw (`stagedPath`).
+      if (qb !== undefined) set(qb, ride(segs, 0, 1));
+      const throwEnd = segs[2] ? ts[2][1] : total;
+      const land = segs[2] ? pointAt(segs[2], 1) : end;
       const target = who.ball;
       if (target !== undefined && start.has(target)) {
         const s0 = start.get(target)!;
@@ -153,12 +194,12 @@ export function script(
         const short = e.kind === 'pass' ? 0 : e.kind === 'int' ? 1.5 : 0.7;
         const arrive = short ? toward(land, s0, short) : land;
         const stem = { x: s0.x + (arrive.x - s0.x) * 0.6, y: s0.y + (arrive.y - s0.y) * 0.25 };
-        const after = e.kind === 'pass' ? ride(segs, 2, segs.length - 1) : [];
+        const after = e.kind === 'pass' ? ride(segs, 3, segs.length - 1) : [];
         set(target, [at(throwEnd * 0.55, stem), at(throwEnd, arrive), ...after]);
         if (e.kind === 'pass') carrier = target;
       }
       if (e.kind === 'int' && who.take !== undefined && start.has(who.take)) {
-        set(who.take, [at(throwEnd, land), ...ride(segs, 2, segs.length - 1)]);
+        set(who.take, [at(throwEnd, land), ...ride(segs, 3, segs.length - 1)]);
         carrier = who.take;
       }
       if (who.cover !== undefined && who.cover !== who.take && start.has(who.cover)) {
@@ -196,6 +237,15 @@ export function script(
       tacklerId = tackler;
     }
   }
-  const release = e.kind === 'run' || e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int' ? ts[0][1] : 0;
+  // When the defense reads the ball out: the handoff, the throw (after the pocket), the scramble breaking out. A sack
+  // never releases: the rush is on the quarterback and the coverage stays on the routes the whole play.
+  const release =
+    e.kind === 'run'
+      ? ts[0][1]
+      : e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int' || e.kind === 'scramble'
+        ? (ts[1]?.[1] ?? 0)
+        : e.kind === 'sack'
+          ? Infinity
+          : 0;
   return { keys, carrier: carrier ?? null, tackler: tacklerId, release };
 }

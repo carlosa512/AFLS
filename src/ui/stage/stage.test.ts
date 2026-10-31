@@ -4,10 +4,10 @@ import { simulateGame } from '../../engine/match/gameSim';
 import { actorsIn } from '../../engine/playActors';
 import type { FieldUnits, Game, GameResult, PlayLogEntry } from '../../engine/types';
 import { Rng } from '../../engine/rng';
-import { buildPath, FIELD_W, pointAt, snapYFor } from './ballPath';
+import { FIELD_W, pointAt, snapYFor } from './ballPath';
 import { castFor, unitsAt } from './cast';
 import { lineUp } from './formations';
-import { sample, script } from './scripts';
+import { sample, script, stagedPath } from './scripts';
 import { stagePlay, type StagedPlay } from './stage';
 
 const league = createLeague({ seed: 'stage' });
@@ -140,7 +140,7 @@ describe('formations', () => {
 function scripted(n: number) {
   return lineUps(n, ['run', 'pass', 'incomplete', 'int', 'sack', 'scramble', 'kneel', 'spike']).map((x) => {
     const g = games.find(({ r }) => r.plays!.includes(x.e))!.g;
-    const segs = buildPath(x.e, g.homeId, x.ballY);
+    const segs = stagedPath(x.e, g.homeId, x.ballY);
     const { keys } = script(x.e, x.cast, x.spots, segs, x.dir);
     const end = segs.length ? pointAt(segs[segs.length - 1], 1) : null;
     const total = segs.reduce((t, sg) => t + sg.dur, 0);
@@ -197,9 +197,9 @@ describe('scripts', () => {
   it('the target reaches the landing point when the ball does', () => {
     let n = 0;
     for (const { e, keys, segs, who } of all) {
-      if ((e.kind !== 'pass' && e.kind !== 'incomplete') || who.ball === undefined || segs.length < 2) continue;
-      const land = pointAt(segs[1], 1);
-      const p = sample(keys.get(who.ball)!, segs[0].dur + segs[1].dur);
+      if ((e.kind !== 'pass' && e.kind !== 'incomplete') || who.ball === undefined || segs.length < 3) continue;
+      const land = pointAt(segs[2], 1);
+      const p = sample(keys.get(who.ball)!, segs[0].dur + segs[1].dur + segs[2].dur);
       expect(Math.hypot(p.x - land.x, p.y - land.y)).toBeLessThan(e.kind === 'incomplete' ? 1.5 : 0.5);
       n++;
     }
@@ -235,7 +235,7 @@ describe('the staged play', () => {
 
   it('ends the ball where the ball path ends', () => {
     for (const { e, p, homeId, snapY } of staged) {
-      const segs = buildPath(e, homeId, snapY);
+      const segs = stagedPath(e, homeId, snapY);
       if (!segs.length) continue;
       const end = pointAt(segs[segs.length - 1], 1);
       const last = (p.steps - 1) * 3;
@@ -296,5 +296,72 @@ describe('the staged play', () => {
     }
     times.sort((x, y) => x - y);
     expect(times[Math.floor(times.length / 2)]).toBeLessThan(50);
+  });
+});
+
+describe('off the ball', () => {
+  const picks = (kind: string) =>
+    games.slice(0, 15).flatMap(({ g, r }) =>
+      r.plays!.flatMap((e, i) =>
+        e.kind === kind && e.down > 0
+          ? [
+              {
+                e,
+                p: stagePlay({
+                  plays: r.plays!,
+                  index: i,
+                  record: r.field!,
+                  homeId: g.homeId,
+                  seed: `o${i}`,
+                  snapY: 26,
+                }),
+              },
+            ]
+          : [],
+      ),
+    );
+  const moved = (p: StagedPlay, k: number) => {
+    const last = p.steps - 1;
+    const x0 = p.pos[k * 2];
+    const x1 = p.pos[(last * 22 + k) * 2];
+    return { downfield: x1 - x0, dist: Math.hypot(x1 - x0, p.pos[(last * 22 + k) * 2 + 1] - p.pos[k * 2 + 1]) };
+  };
+
+  it('gives a sack time: the quarterback holds the ball at least two seconds', () => {
+    const sacks = picks('sack');
+    expect(sacks.length).toBeGreaterThan(20);
+    for (const { p } of sacks) expect((p.steps - 1) * p.dt).toBeGreaterThanOrEqual(2);
+  });
+
+  it('runs routes while the rush gets home: receivers on a sack end well downfield', () => {
+    let routes = 0;
+    for (const { e, p } of picks('sack')) {
+      const dir = p.home[0] ? 1 : -1; // the offense attacks toward 100 when it is the home side
+      p.ids.forEach((id, k) => {
+        if (!p.offense[k] || p.keys.includes(id) || p.roles[k] !== 'WR') return;
+        expect(moved(p, k).downfield * dir, `${e.text}`).toBeGreaterThan(5);
+        routes++;
+      });
+    }
+    expect(routes).toBeGreaterThan(40);
+  });
+
+  it('moves the back on a dropback: he blocks or runs a checkdown, never stands still', () => {
+    let backs = 0;
+    for (const kind of ['pass', 'incomplete', 'sack'])
+      for (const { p } of picks(kind))
+        p.ids.forEach((id, k) => {
+          if (p.roles[k] !== 'RB' || p.keys.includes(id)) return;
+          // The farthest he gets from his spot: a blocker may follow the quarterback back on a sack and end near it.
+          let farthest = 0;
+          for (let st = 0; st < p.steps; st++)
+            farthest = Math.max(
+              farthest,
+              Math.hypot(p.pos[(st * 22 + k) * 2] - p.pos[k * 2], p.pos[(st * 22 + k) * 2 + 1] - p.pos[k * 2 + 1]),
+            );
+          expect(farthest).toBeGreaterThan(1.5);
+          backs++;
+        });
+    expect(backs).toBeGreaterThan(100);
   });
 });

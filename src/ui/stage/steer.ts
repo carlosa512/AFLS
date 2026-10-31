@@ -49,6 +49,8 @@ export interface SteerArgs {
   /** The ball holder before the release (the quarterback), whom chasers also keep off. */
   holder: number | null;
   man: boolean;
+  /** A dropback: the back blocks or runs a checkdown, the line pass-protects. */
+  dropback: boolean;
   /** Kicks in this pass: everyone holds his spot while the ball flies. */
   hold: boolean;
   dir: 1 | -1;
@@ -98,6 +100,19 @@ export function steer(a: SteerArgs): Float32Array {
   const routes = new Map<number, Route>();
   const receivers = members.filter((m, k) => offense[k] && (m.role === 'WR' || m.role === 'TE'));
   for (const m of receivers) routes.set(m.id, decoy(a.start.get(m.id)!, a.dir, a.rng, ballY0));
+  // On a dropback the back stays in to block or leaks out to the flat: a coin per play.
+  const checkdowns = new Set<number>();
+  if (a.dropback)
+    for (const m of members.filter((x, k) => offense[k] && x.role === 'RB')) {
+      if (a.rng.next() < 0.5) continue;
+      const p = a.start.get(m.id)!;
+      const side = p.y < ballY0 ? -1 : 1;
+      routes.set(m.id, [
+        { x: p.x + a.dir * 1, y: p.y + side * 4 },
+        { x: p.x + a.dir * 5, y: p.y + side * 11 },
+      ]);
+      checkdowns.add(m.id);
+    }
   const marks = new Map<number, number>();
   if (a.man) {
     const free = new Set(receivers.map((m) => m.id));
@@ -153,7 +168,19 @@ export function steer(a: SteerArgs): Float32Array {
         const s0 = a.start.get(m.id)!;
         let goal: Pt = s0;
         if (offense[k]) {
-          if (m.role === 'OL' || m.role === 'RB') {
+          if (a.dropback && released && (m.role === 'OL' || (m.role === 'RB' && !checkdowns.has(m.id)))) {
+            // The ball's out: blockers hold where the block left them.
+            goal = { x: px[k], y: py[k] };
+          } else if (m.role === 'RB' && a.dropback && !checkdowns.has(m.id) && hk >= 0) {
+            // Pass protection: step up two and a half yards off the quarterback, into the nearest rusher's path.
+            const j = nearest(k);
+            const qx = px[hk];
+            const qy = py[hk];
+            const rx = j < 0 ? qx + a.dir * 3 : px[j];
+            const ry = j < 0 ? qy : py[j];
+            const d = Math.hypot(rx - qx, ry - qy) || 1;
+            goal = { x: qx + ((rx - qx) / d) * 2.5, y: qy + ((ry - qy) / d) * 2.5 };
+          } else if (m.role === 'OL' || (m.role === 'RB' && !checkdowns.has(m.id))) {
             // Engage the nearest defender a step in front of where he lined up.
             const j = nearest(k);
             goal =

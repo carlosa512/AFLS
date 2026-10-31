@@ -22,7 +22,7 @@ export interface Seg {
   dur: number;
 }
 
-function ground(x0: number, y0: number, x1: number, y1: number, pace = 1): Seg {
+export function ground(x0: number, y0: number, x1: number, y1: number, pace = 1): Seg {
   return { x0, y0, x1, y1, peak: 0, dur: (0.3 + Math.min(1.9, Math.hypot(x1 - x0, y1 - y0) * 0.04)) * pace };
 }
 function air(x0: number, y0: number, x1: number, y1: number, peak: number, dur?: number): Seg {

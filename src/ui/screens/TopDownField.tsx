@@ -82,7 +82,6 @@ export function TopDownField({
   const dotRefs = useRef(new Map<number, SVGGElement>());
   const ballRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
-  const trailRef = useRef<SVGPathElement>(null);
   const memory = useRef<Memory>({ spots: new Map(), ballY: MID, cx: 50 });
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
@@ -163,13 +162,6 @@ export function TopDownField({
         `translate(${(bx + h * 0.3).toFixed(2)} ${(by + h * 0.3).toFixed(2)})`,
       );
       shadowRef.current?.setAttribute('opacity', String(Math.max(0.15, 0.45 - h / 40)));
-      // The ball's trail so far, as the broadcast view draws it.
-      const pts: string[] = [];
-      for (let i = 0; i <= step; i += 2) {
-        const [tx, ty] = toScreen(view, s.ball[i * 3], s.ball[i * 3 + 1]);
-        pts.push(`${tx.toFixed(1)},${ty.toFixed(1)}`);
-      }
-      trailRef.current?.setAttribute('d', pts.length > 1 && slide >= 1 ? `M${pts.join('L')}` : '');
       mem.ballY = ballY;
       mem.cx = view.cx;
     };
@@ -283,14 +275,6 @@ export function TopDownField({
           {lines && losLine(lines.los, '#5aa9ff')}
           {lines && losLine(lines.gain, '#ffd43b')}
         </g>
-        <path
-          ref={trailRef}
-          fill="none"
-          stroke={(entry?.offense === home.id ? home : away).colors[1]}
-          strokeWidth={0.35}
-          strokeLinecap="round"
-          opacity={0.9}
-        />
         {order.map((k) => {
           const id = staged.ids[k];
           const k2 = staged.home[k] ? homeKit : awayKit;

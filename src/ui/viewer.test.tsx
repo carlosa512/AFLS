@@ -41,6 +41,8 @@ describe('All-22', () => {
     expect(numbers).toHaveLength(22);
     expect(html).toContain('stroke="#ffd43b"');
     expect(html).toContain('aria-label="All-22: the play from above"');
+    // The ball is the read: no trail behind it (the broadcast view keeps its own).
+    expect(html).not.toContain('<path');
   });
 
   it('draws nothing for a game without a field record', () => {

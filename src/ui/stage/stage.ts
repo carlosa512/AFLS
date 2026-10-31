@@ -5,14 +5,18 @@
  */
 import { Rng } from '../../engine/rng';
 import type { FieldRecord, PlayLogEntry } from '../../engine/types';
-import { buildPath, MID } from './ballPath';
+import { MID } from './ballPath';
+import type { Role } from './cast';
 import { castFor } from './cast';
 import { lineUp } from './formations';
-import { ballTrack, script } from './scripts';
+import { ballTrack, script, stagedPath } from './scripts';
 import { steer } from './steer';
 import { COVERAGES } from '../../engine/schemes';
 
 export const STEP = 0.05;
+/** Plays where the quarterback has the ball first, and the ones where he drops back to throw. */
+const HOLDERS: ReadonlySet<string> = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble']);
+const DROPBACKS: ReadonlySet<string> = new Set(['pass', 'incomplete', 'int', 'sack', 'scramble']);
 /** A play with no path (a flag before the snap, a timeout): the line-up, held this long. */
 const STILL = 0.5;
 
@@ -34,6 +38,8 @@ export interface StagedPlay {
   keys: number[];
   /** Who has the ball at the whistle. */
   carrier: number | null;
+  /** Per id: the spot he lined up at (QB, OL, WR...). */
+  roles: Role[];
 }
 
 export function stagePlay(args: {
@@ -55,7 +61,7 @@ export function stagePlay(args: {
   const off = record.scheme[cast.offSide];
   const def = record.scheme[1 - cast.offSide];
   const start = lineUp(e, cast, off, def, ballX, ballY, dir, rng);
-  const segs = buildPath(e, homeId, args.snapY);
+  const segs = stagedPath(e, homeId, args.snapY);
   const { keys, carrier, tackler, release } = script(e, cast, start, segs, dir);
   const total = segs.reduce((t, s) => t + s.dur, 0) || STILL;
   const steps = Math.ceil(total / STEP) + 1;
@@ -77,7 +83,8 @@ export function stagePlay(args: {
     release,
     carrier,
     tackler,
-    holder: e.kind === 'run' || e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int' ? qb : null,
+    holder: e.kind && HOLDERS.has(e.kind) ? qb : null,
+    dropback: !!e.kind && DROPBACKS.has(e.kind),
     man: !!(def.coverage && COVERAGES[def.coverage].man),
     hold: !segs.length || e.kind === 'kickoff' || e.kind === 'punt' || e.kind === 'fg' || e.kind === 'xp',
     dir,
@@ -97,5 +104,6 @@ export function stagePlay(args: {
     ball: ball.subarray(0, steps * 3),
     keys: [...keys.keys()],
     carrier,
+    roles: members.map((m) => m.role),
   };
 }
