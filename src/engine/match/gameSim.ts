@@ -53,6 +53,8 @@ import type {
   GameInjury,
   GameResult,
   League,
+  FieldRecord,
+  FieldUnits,
   PlayActors,
   PlayKind,
   PlayLogEntry,
@@ -427,18 +429,71 @@ export function startGame(league: League, game: Game, options: SimOptions = {}):
 /** Hard stop for a runaway loop; a real game is ~170 iterations. */
 const MAX_STEPS = 2000;
 
+/** The receivers on the field for the offense's personnel. */
+function receivers(l: Lineup): Player[] {
+  const personnel = l.scheme.offense.personnel;
+  return personnel === '12'
+    ? [...l.wrs.slice(0, 2), ...l.tes.slice(0, 2)]
+    : personnel === '10'
+      ? [...l.wrs, ...(l.wr4 ? [l.wr4] : [])]
+      : [...l.wrs, l.tes[0]];
+}
+
 /** Who is on the field for a snap: the offense's eleven (by personnel) and the defense's. */
 function units(l: Lineup): [offense: Player[], defense: Player[]] {
-  const personnel = l.scheme.offense.personnel;
-  const receivers =
-    personnel === '12'
-      ? [...l.wrs.slice(0, 2), ...l.tes.slice(0, 2)]
-      : personnel === '10'
-        ? [...l.wrs, ...(l.wr4 ? [l.wr4] : [])]
-        : [...l.wrs, l.tes[0]];
   return [
-    [l.qb, ...l.ol, l.rbs[0], ...receivers],
+    [l.qb, ...l.ol, l.rbs[0], ...receivers(l)],
     [...l.dt, ...l.edge, ...l.lb, ...l.cb, ...l.s],
+  ];
+}
+
+/** A lineup as All-22 keeps it: ids by group, the same eleven `units` puts on the field. */
+export function fieldUnits(l: Lineup): FieldUnits {
+  const ids = (ps: readonly Player[]) => ps.map((p) => p.id);
+  const on = receivers(l);
+  return {
+    qb: l.qb.id,
+    ol: ids(l.ol),
+    rb: l.rbs[0].id,
+    ...(l.rbs[1] ? { rb2: l.rbs[1].id } : {}),
+    wr: ids(on.filter((p) => !l.tes.includes(p))),
+    te: ids(on.filter((p) => l.tes.includes(p))),
+    dt: ids(l.dt),
+    edge: ids(l.edge),
+    lb: ids(l.lb),
+    cb: ids(l.cb),
+    s: ids(l.s),
+    rot: l.rushRotation.map((p): [number, 'EDGE' | 'DT'] => [p.id, p.position === 'EDGE' ? 'EDGE' : 'DT']),
+    k: l.k.id,
+    p: l.p.id,
+    kr: l.kr.id,
+    pr: l.pr.id,
+    st: ids(l.st),
+    fg: ids(l.fg),
+  };
+}
+
+/** Every id a side's units name. */
+function unitIds(u: FieldUnits): number[] {
+  return [
+    u.qb,
+    ...u.ol,
+    u.rb,
+    ...(u.rb2 !== undefined ? [u.rb2] : []),
+    ...u.wr,
+    ...u.te,
+    ...u.dt,
+    ...u.edge,
+    ...u.lb,
+    ...u.cb,
+    ...u.s,
+    ...u.rot.map(([id]) => id),
+    u.k,
+    u.p,
+    u.kr,
+    u.pr,
+    ...u.st,
+    ...u.fg,
   ];
 }
 
@@ -543,6 +598,8 @@ class GameSim {
   private pressureBy: Player | null = null;
   /** The blocker charged on this snap's pressure or sack, if any: recorded for All-22, never read by the sim. */
   private beatBy: Player | null = null;
+  /** Who was on the field, kept with the plays for All-22 (only when `keepPlays`). */
+  private fieldRecord: FieldRecord | null = null;
   /**
    * Injuries draw from their own stream, like credit: a game where nobody gets hurt plays out exactly
    * as it would with no injury model at all.
@@ -633,6 +690,20 @@ class GameSim {
     this.culture = [cultureCalls(league, game.homeId), cultureCalls(league, game.awayId)];
     this.qbLeans = this.leans();
     this.fields = [units(this.lineups[0]), units(this.lineups[1])];
+    if (options.keepPlays) {
+      const scheme = (l: Lineup) => ({
+        personnel: l.scheme.offense.personnel,
+        front: l.scheme.front.id,
+        coverage: l.scheme.coverage?.id ?? null,
+      });
+      this.fieldRecord = {
+        units: [fieldUnits(this.lineups[0]), fieldUnits(this.lineups[1])],
+        scheme: [scheme(this.lineups[0]), scheme(this.lineups[1])],
+        jerseys: {},
+        changes: [],
+      };
+      for (const u of this.fieldRecord.units) this.noteJerseys(u);
+    }
     // Form carried in from last week: a quarterback still shaken, a kicker in a slump.
     for (const l of this.lineups) {
       if (this.has(l.qb, 'seesGhosts') && formFor(league, l.qb, game.week).shaken) this.rattled.set(l.qb.id, 0.5);
@@ -940,9 +1011,18 @@ class GameSim {
       this.lineups[side] = buildLineup(this.league, this.lineups[side].team, this.out, this.game, this.moodMean);
       this.syncKnocks();
       this.fields[side] = units(this.lineups[side]);
+      if (this.fieldRecord) {
+        const u = fieldUnits(this.lineups[side]);
+        this.fieldRecord.changes.push([this.plays.length, side, u]);
+        this.noteJerseys(u);
+      }
       if (this.lineups[side].qb !== qb) this.qbLeans = this.leans();
     }
     this.hurt = [];
+  }
+
+  private noteJerseys(u: FieldUnits) {
+    for (const id of unitIds(u)) this.fieldRecord!.jerseys[id] ??= this.league.players[id].jersey;
   }
 
   private fgProb(distance: number, kicker: Player): number {
@@ -3436,6 +3516,7 @@ class GameSim {
       playerStats: this.playerStats,
       playerTeams,
       plays,
+      ...(this.fieldRecord ? { field: this.fieldRecord } : {}),
       ...(this.injuries.length ? { injuries: this.injuries, diagnoses: this.diagnoses } : {}),
       condition,
       weather: this.weather,

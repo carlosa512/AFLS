@@ -53,6 +53,7 @@ function prunePlayLogs(league: League) {
     if (!g.result?.plays || g.week >= league.week - 1) continue;
     if (g.homeId === league.userTeamId || g.awayId === league.userTeamId) continue;
     g.result.plays = g.result.plays.filter((p) => p.scoring);
+    delete g.result.field;
   }
 }
 

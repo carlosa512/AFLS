@@ -14,8 +14,8 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(70);
-    expect(up.version).toBe(70);
+    expect(SAVE_VERSION).toBe(71);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
 });
@@ -27,7 +27,7 @@ describe('save v67', () => {
     delete l.moraleAt;
     l.version = 66;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(70);
+    expect(up.version).toBe(SAVE_VERSION);
     const ctx = moraleContext(up);
     for (const p of Object.values(up.players)) {
       if (p.teamId === null) {
@@ -66,7 +66,7 @@ describe('save v68', () => {
     const before = JSON.stringify(Object.values(l.players).map((p) => p.morale ?? null));
     l.version = 67;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(70);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(JSON.stringify(Object.values(up.players).map((p) => p.morale ?? null))).toBe(before);
   });
 });
@@ -79,7 +79,7 @@ describe('save v69', () => {
     const before = JSON.stringify(Object.values(l.players).map((x) => x.dev ?? null));
     l.version = 68;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(70);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(JSON.stringify(Object.values(up.players).map((x) => x.dev ?? null))).toBe(before);
   });
 });
@@ -124,5 +124,24 @@ describe('the new letters read back', () => {
     expect(mailSubject(m('staffNotes:2028:4'))).toEqual({ kind: 'staffNotes', season: 2028, week: 4 });
     expect(mailSubject(m('positions:2028:regular:1'))).toEqual({ kind: 'positionMoves', season: 2028 });
     expect(mailSubject(m('feud:2028:1:2'))?.kind).toBe('locker');
+  });
+});
+
+describe('save v71', () => {
+  it('loads a v70 save; its games have no field record and keep their plays', () => {
+    const l = createLeague({ seed: 'v71' });
+    playWeek(l);
+    for (const g of l.games) {
+      if (!g.result) continue;
+      delete g.result.field;
+      for (const e of g.result.plays ?? []) delete e.who;
+    }
+    const plays = l.games.find((g) => g.result?.plays?.length)!.result!.plays!.length;
+    l.version = 70;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(71);
+    const game = up.games.find((g) => g.result?.plays?.length)!;
+    expect(game.result!.field).toBeUndefined();
+    expect(game.result!.plays!.length).toBe(plays);
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
-import type { GameResult, PlayLogEntry } from '../types';
+import { playWeek } from '../league';
+import type { FieldUnits, GameResult, PlayLogEntry } from '../types';
 import { simulateGame } from './gameSim';
 
 const league = createLeague({ seed: 'actors' });
@@ -74,4 +75,65 @@ describe('who each play was about', () => {
       expect(kept.playerStats).toEqual(bare.playerStats);
     }
   });
+});
+
+describe('who was on the field', () => {
+  const offense = (u: FieldUnits) => [u.qb, ...u.ol, u.rb, ...u.wr, ...u.te];
+  const defense = (u: FieldUnits) => [...u.dt, ...u.edge, ...u.lb, ...u.cb, ...u.s];
+
+  it('records 11 a side at kickoff, with unique ids and a jersey for each', () => {
+    for (const { r } of games) {
+      const f = r.field!;
+      expect(f).toBeDefined();
+      for (const u of f.units) {
+        for (const eleven of [offense(u), defense(u)]) {
+          expect(eleven).toHaveLength(11);
+          expect(new Set(eleven).size).toBe(11);
+          for (const id of eleven) expect(f.jerseys[id]).toBeTypeOf('number');
+        }
+        expect(u.st.length).toBeGreaterThanOrEqual(10);
+        for (const id of [u.k, u.p, u.kr, u.pr, ...u.st, ...u.fg]) expect(f.jerseys[id]).toBeTypeOf('number');
+      }
+    }
+  });
+
+  it('records a change at the play after each injury, and the injured man is in no later units', () => {
+    let checked = 0;
+    for (const { r } of games) {
+      const f = r.field!;
+      for (const hurt of r.injuries ?? []) {
+        const side = f.units[0].qb && r.playerTeams[f.units[0].qb] === hurt.teamId ? 0 : 1;
+        const later = f.changes.filter(([, s]) => s === side);
+        expect(later.length).toBeGreaterThan(0);
+        const last = later[later.length - 1][2];
+        expect([...offense(last), ...defense(last)]).not.toContain(hurt.playerId);
+        checked++;
+      }
+      for (const [index] of f.changes) expect(index).toBeLessThanOrEqual((r.plays ?? []).length);
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it('keeps a game’s added data small', () => {
+    for (const { r } of games) {
+      const who = (r.plays ?? []).reduce((n, e) => n + JSON.stringify(e.who ?? {}).length, 0);
+      expect(JSON.stringify(r.field).length + who).toBeLessThan(16_000);
+    }
+  });
+
+  it('records nothing when the plays are not kept', () => {
+    expect(simulateGame(league, league.games[0], { seed: 'bare' }).field).toBeUndefined();
+  });
+});
+
+describe('pruning', () => {
+  it('drops the field record with the plays when an old game is pruned, and keeps your own', () => {
+    const l = createLeague({ seed: 'prune-field' });
+    for (let w = 0; w < 3; w++) playWeek(l);
+    const week1 = l.games.filter((g) => g.week === 1 && g.result);
+    const yours = week1.find((g) => g.homeId === l.userTeamId || g.awayId === l.userTeamId)!;
+    const theirs = week1.find((g) => g !== yours)!;
+    expect(theirs.result!.field).toBeUndefined();
+    expect(yours.result!.field).toBeDefined();
+  }, 120_000);
 });
