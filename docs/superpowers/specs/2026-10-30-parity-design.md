@@ -102,10 +102,11 @@ The sim today: short 49.5% (79%, 5.1), 10–19 36% (60%, 9.8, 3.0%), 20+ 14.5% (
 **Expected:** drives less steady (red-zone trips down), the leaders near the NFL's 12–13 yards a catch (#5 receiving
 yards under 1,500), Air Coryell's 1.5-point edge narrowed. Measured, not assumed.
 
-**Red-zone trips, counted alike:** the sim counts a drive that snaps a play at the 20 or inside. Counted the same way
-from *nflverse*, the NFL ran 3.30, 3.62, 3.45, 3.25, 3.25 and 3.39 a team-game in 2019–24 (3.34 over 2021–24); the
-check's range (3.0–3.4) came from TeamRankings and drive tables that count differently. Whether the range follows the
-like-for-like count is the owner's call; until then it stands.
+**Red-zone trips, counted alike** (owner's call, 2026-10-31): the sim counts a drive that snaps a play at the 20 or
+inside. Counted the same way from *nflverse*, the NFL ran 3.30, 3.62, 3.45, 3.25, 3.25 and 3.39 a team-game in 2019–24,
+54.7–60.8% of them touchdowns. The check's range moves to that count, kept small: **3.2–3.5** (every season but 2020's
+3.62, the year without crowds). The touchdown share's 50–60% already holds counted alike. The old 3.0–3.4 came from
+TeamRankings and drive tables that count differently.
 
 ## Stage 4: the trees' winner bar (after Stage 3)
 
@@ -121,7 +122,7 @@ of players nobody on the staff has worked with) is a finding for the owner, not 
 - **`npm run sim`**, Parity, with each game's strength read as a line reads it: both teams' overall before that week's
   games (injuries in), not the season's kickoff. Judged against *nflverse* 2015–24: the margin strength predicts (SD)
   5.5–6.5 (the line's 6.0), the margin's spread around it 12.3–13.3 (12.8; the first version's 13–14.5 rested on a
-  remembered 13.5), the win spread 3.0–3.4 (3.09). How often the favourite wins is shown (the NFL's 66.4%), not judged:
+  remembered 13.5, corrected with the owner's OK), the win spread 3.0–3.4 (3.09). How often the favourite wins is shown (the NFL's 66.4%), not judged:
   a line still knows more than a rating. (The first version judged the better-rated team at 65–69%.)
 - **`npm run sim`**, Passing by depth (Stage 3): average air yards 7.4–8.3; the short, 10–19 and 20+ shares 65–70%,
   19–23% and 10.5–13%. Completion, yards an attempt and picks by depth are shown against the table above, not judged: the

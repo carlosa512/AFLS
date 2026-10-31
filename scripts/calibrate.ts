@@ -35,10 +35,11 @@ const TARGETS: Record<string, [number, number]> = {
   fumblesLost: [0.35, 0.55],
   firstDowns: [18.5, 20.5],
   thirdDownPct: [37, 41],
-  // Drives that run a play inside the 20, and the share of them that end in a touchdown (NFL 2021–25:
-  // 56.8–58.2% scored, Sharp Football's drive tables; trips 3.2 a team-game in 2025, TeamRankings, and
-  // 3.0–3.3 derived for 2021–24).
-  redZoneTrips: [3.0, 3.4],
+  // Drives that snap a play at the 20 or inside, and the share of them that end in a touchdown, counted the way the
+  // engine counts them from nflverse's play-by-play: 3.30, 3.62, 3.45, 3.25, 3.25 and 3.39 trips a team-game in
+  // 2019–24 (2020, the year without crowds, the outlier), 54.7–60.8% of them touchdowns. TeamRankings' 3.2 (2025)
+  // counts differently.
+  redZoneTrips: [3.2, 3.5],
   redZonePct: [50, 60],
   fgAtt: [1.6, 2.0],
   // Fourth-down tries a team-game (NFL 2023: 1.47, 2024: 1.40; UW–Madison's season recaps).
@@ -80,14 +81,14 @@ const INJURY_TARGETS: Record<string, [number, number]> = {
   'hamstrings / team': [3.5, 7],
 };
 
-// How much team strength decides, against the betting line (NFL 2015–24: closing spreads vary with an SD of about
-// 5.5–6 points, a final margin sits about 13.5 either side of the line, team wins spread with an SD of 3.0–3.3).
+// How much team strength decides, against the betting line (nflverse, 2015–24 regular seasons: closing spreads vary
+// with an SD of 6.0 points, a final margin sits 12.8 either side of the line, team wins spread with an SD of 3.09).
 // Strength is each team's overall at kickoff, so the margin it predicts stands in for the line. How often the
-// better-rated team wins follows from the first two (about 63–64%); betting favourites win more (66–67%) because a
-// line knows more than a rating, so it's shown, not judged.
+// better-rated team wins is shown, not judged: favourites win 66.4% against the line, and a line knows more than a
+// rating.
 const PARITY_TARGETS: Record<string, [number, number]> = {
   'margin strength predicts (SD)': [5.5, 6.5],
-  'margin spread around strength': [13, 14.5],
+  'margin spread around strength': [12.3, 13.3],
   'win spread (SD)': [3.0, 3.4],
 };
 const inj: Record<string, number> = {};
