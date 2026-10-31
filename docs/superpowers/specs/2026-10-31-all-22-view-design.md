@@ -53,7 +53,7 @@ A pure module, `src/ui/highlights.ts`. `highlightLevel(plays, index)` returns th
 **Extended** (about 60–80 plays), Key plus:
 
 - third downs;
-- snaps inside the opponent's 20;
+- snaps inside the opponent's 10 (calibrated: inside the 20 put Extended at 80 plays a game, on its ceiling);
 - sacks;
 - plays of 15+ yards (calibrated: 10+ put Extended at 84 plays a game, over its range);
 - every snap in the last two minutes of the first half.
