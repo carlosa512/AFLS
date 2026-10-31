@@ -42,8 +42,10 @@ prove-it deal with whoever has room.
 ## Checks
 
 - **`npm run offseason`:** last season's starters out of football at kickoff (unsigned or retired), as a share:
-  judged 4–7% (*nflverse* 2021–24: 4.7–6.2% of regular starters didn't play the next season). Cap space, rosters and
-  talent stay stable, as judged today.
+  judged 2.5–4.5% (owner's call, 2026-10-31), counted as nflverse counts it: 3.2% and 2.9% of regular starters were on
+  no club's week-1 roster the next season (2022–24), another 1.5–2.1% on one but hurt or on a reserve list. (The first
+  version judged 4–7% against the 4.7–6.2% who didn't play at all, injuries included.) Cap space, rosters and talent
+  stay stable, as judged today.
 - **`npm run careers`:** a team's record against its own one and three seasons later, reported against the NFL's 0.34
   and 0.18; the five tree lines and the rest judged as today.
 - **`npm run trades`, `npm run morale`, `npm run sim`:** run as usual on CI; nothing may be flagged, no range moves.
