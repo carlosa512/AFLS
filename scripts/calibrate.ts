@@ -82,9 +82,6 @@ const INJURY_TARGETS: Record<string, [number, number]> = {
   'hamstrings / team': [3.5, 7],
 };
 
-// How much team strength decides, against the betting line (nflverse, 2015–24 regular seasons: favourites win 66.4%
-// straight up, a final margin sits 12.8 either side of the line, team wins spread with an SD of 3.09). Strength is both
-// teams' overall before each week's games, injuries in, as a line reads it.
 /**
  * NFL passing by depth of target (nflverse play-by-play, 2019–24 regular seasons, every throw with its air yards):
  * share of throws, completion %, yards an attempt, interception %, yards after the catch.
@@ -107,6 +104,9 @@ const depthTally = Object.fromEntries(
   (Object.keys(PASS_DEPTH_NFL) as DepthBand[]).map((b) => [b, { att: 0, cmp: 0, yds: 0, int: 0, yac: 0, air: 0 }]),
 ) as Record<DepthBand, { att: number; cmp: number; yds: number; int: number; yac: number; air: number }>;
 
+// How much team strength decides, against the betting line (nflverse, 2015–24 regular seasons: favourites win 66.4%
+// straight up, a final margin sits 12.8 either side of the line, team wins spread with an SD of 3.09). Strength is both
+// teams' overall before each week's games, injuries in, as a line reads it.
 const PARITY_TARGETS: Record<string, [number, number]> = {
   // Who wins, as a line reads it (owner's call, 2026-10-31): the margin it predicts runs larger than the line's 6.0
   // (shown below), about a point more in a mismatch, while who wins matches.
