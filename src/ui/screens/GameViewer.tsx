@@ -7,7 +7,8 @@ import { TeamChip } from '../components';
 import { gameClock, weekLabel } from '../format';
 import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '../stage/ballPath';
 import { HIGHLIGHT_LEVELS, nextShown, type HighlightLevel } from '../highlights';
-import { HIGHLIGHTS_KEY, usePref } from '../viewerPrefs';
+import { HIGHLIGHTS_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
+import { TopDownField } from './TopDownField';
 
 // ───────── 2.5D field projection ─────────
 // Field coordinates: x from -10 (home end zone) to 110 (away end zone), y from 0 (near
@@ -420,6 +421,33 @@ export function HighlightSwitch({ value, onChange }: { value: HighlightLevel; on
   );
 }
 
+export type ViewKind = 'broadcast' | 'all22';
+const VIEWS: readonly ViewKind[] = ['broadcast', 'all22'];
+/** All-22's speeds: faster than 2× it can't be read. */
+const ALL22_SPEEDS = [1, 2];
+export const allSpeed = (speed: number): 1 | 2 => (speed > 1 ? 2 : 1);
+
+/** Broadcast | All-22: shown only for games that kept who was on the field. */
+export function ViewSwitch({ value, onChange }: { value: ViewKind; onChange: (v: ViewKind) => void }) {
+  return (
+    <span className="vc-levels" role="group" aria-label="View">
+      {VIEWS.map((v) => (
+        <button
+          key={v}
+          className={`vc-level${v === value ? ' on' : ''}`}
+          aria-pressed={v === value}
+          onClick={() => onChange(v)}
+        >
+          {v === 'all22' ? 'All-22' : 'Broadcast'}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/** Broadcast or All-22, picked on this device. */
+export const useViewPick = () => usePref<ViewKind>(VIEW_KEY, VIEWS, 'broadcast');
+
 /** The highlight level picked on this device. */
 export const useHighlightPick = () => usePref<HighlightLevel>(HIGHLIGHTS_KEY, HIGHLIGHT_LEVELS, 'full');
 
@@ -505,6 +533,7 @@ export function GameViewer({
   const [run, setRun] = useState(0); // bumps to replay the current play
   const [still, setStill] = useState(false);
   const [pick, setPick] = useHighlightPick();
+  const [viewPick, setViewPick] = useViewPick();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const names = usePlayNames(league, game);
 
@@ -526,6 +555,9 @@ export function GameViewer({
   const home = league.teams[game.homeId];
   const away = league.teams[game.awayId];
   const entry = plays[index];
+  const all22 = viewPick === 'all22' && !!game.result.field;
+  const speeds = all22 ? ALL22_SPEEDS : SPEEDS;
+  const shownSpeed = all22 ? allSpeed(speed) : speed;
   const atEnd = index >= plays.length - 1;
   const label = game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(game.week);
 
@@ -548,7 +580,7 @@ export function GameViewer({
     if (atEnd) return setPlaying(false);
     // A skipped batch has been shown: its hold was the pause, so the highlight follows at once.
     if (still) return go(index + 1, true);
-    timer.current = setTimeout(() => advanceFrom(index), 650 / speed);
+    timer.current = setTimeout(() => advanceFrom(index), 650 / shownSpeed);
   };
   const step = (dir: 1 | -1) => {
     const n = nextShown(plays, index, home.id, pick, dir);
@@ -599,16 +631,32 @@ export function GameViewer({
           </div>
         </div>
 
-        <Field
-          home={home}
-          away={away}
-          entry={entry}
-          restX={restingSpot(plays, index, home.id)}
-          animKey={`${index}:${run}`}
-          speed={speed}
-          still={still}
-          onDone={onDone}
-        />
+        {all22 ? (
+          <TopDownField
+            league={league}
+            record={game.result.field}
+            game={game}
+            home={home}
+            away={away}
+            plays={plays}
+            index={index}
+            animKey={`${index}:${run}`}
+            speed={shownSpeed}
+            still={still}
+            onDone={onDone}
+          />
+        ) : (
+          <Field
+            home={home}
+            away={away}
+            entry={entry}
+            restX={restingSpot(plays, index, home.id)}
+            animKey={`${index}:${run}`}
+            speed={shownSpeed}
+            still={still}
+            onDone={onDone}
+          />
+        )}
 
         <div className="viewer-sit">
           <span className="num">{situation(entry, home, away) || ' '}</span>
@@ -627,12 +675,13 @@ export function GameViewer({
           </button>
           <button
             className="vc-speed"
-            onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])}
+            onClick={() => setSpeed(speeds[(speeds.indexOf(shownSpeed) + 1) % speeds.length])}
             aria-label="Playback speed"
           >
-            {speed}×
+            {shownSpeed}×
           </button>
           <HighlightSwitch value={pick} onChange={setPick} />
+          {game.result.field && <ViewSwitch value={viewPick} onChange={setViewPick} />}
           <input
             className="vc-scrub"
             type="range"

@@ -4,7 +4,7 @@
  * Spec: docs/superpowers/specs/2026-10-31-all-22-view-design.md §4.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Game, League, PlayLogEntry, Team } from '../../engine/types';
+import type { FieldRecord, Game, League, PlayLogEntry, Team } from '../../engine/types';
 import { kitFor } from '../color';
 import { PlayerLink } from '../components';
 import { FIELD_W, HASH_HI, HASH_LO, MID, snapYFor } from '../stage/ballPath';
@@ -12,7 +12,8 @@ import { cameraCenter, cameraSpan, layoutFor, type Layout } from '../stage/camer
 import { stagePlay, type StagedPlay } from '../stage/stage';
 import { downLines } from './GameViewer';
 
-const DOT = 0.9;
+/** A dot's radius in yards: bigger sideways, where the whole field shares the width. */
+const DOT: Record<Layout, number> = { wide: 1.3, upright: 0.95 };
 /** Taps land within this many yards of a dot. */
 const REACH = 2.5;
 /** Seconds (at 1×) to slide everyone from where the last play ended to the next line-up. */
@@ -47,6 +48,7 @@ interface Memory {
 
 export function TopDownField({
   league,
+  record,
   game,
   home,
   away,
@@ -58,6 +60,8 @@ export function TopDownField({
   onDone,
 }: {
   league: League;
+  /** Who was on the field: the result's for a replay, the running game's for a live one. */
+  record: FieldRecord | undefined;
   game: Game;
   home: Team;
   away: Team;
@@ -68,7 +72,6 @@ export function TopDownField({
   still?: boolean;
   onDone: () => void;
 }) {
-  const record = game.result?.field;
   const entry = plays[index];
   const box = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
@@ -195,6 +198,7 @@ export function TopDownField({
   const homeKit = kit(home, false);
   const awayKit = kit(away, true);
   const keys = new Set(staged.keys);
+  const dot = DOT[layout];
   // Players in the play are drawn last, so their rings sit on top.
   const order = staged.ids
     .map((_, k) => k)
@@ -286,9 +290,9 @@ export function TopDownField({
               }}
               transform={`translate(${sx.toFixed(2)} ${sy.toFixed(2)})`}
             >
-              {keys.has(id) && <circle r={DOT + 0.45} fill="none" stroke="#ffd43b" strokeWidth={0.28} />}
-              <circle r={DOT} fill={k2.jersey} stroke={k2.trim} strokeWidth={0.18} />
-              <text y={0.34} textAnchor="middle" fontSize={0.95} fontWeight={700} fill={k2.ink}>
+              {keys.has(id) && <circle r={dot + 0.45} fill="none" stroke="#ffd43b" strokeWidth={0.28} />}
+              <circle r={dot} fill={k2.jersey} stroke={k2.trim} strokeWidth={0.18} />
+              <text y={dot * 0.37} textAnchor="middle" fontSize={dot * 1.05} fontWeight={700} fill={k2.ink}>
                 {record.jerseys[id] ?? ''}
               </text>
             </g>
