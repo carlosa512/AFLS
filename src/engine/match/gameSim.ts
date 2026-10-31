@@ -415,9 +415,13 @@ function units(l: Lineup): [offense: Player[], defense: Player[]] {
 
 /**
  * The share of a receiver's short throws thrown behind the line: screens and quick throws to the flat with blockers in
- * front (nflverse 2019–24: a quarter of the short game, 16.6% of every throw, at −3.3 air yards on average).
+ * front (nflverse 2019–24: 16.6% of every throw, at −3.3 air yards on average; backs' checkdowns behind the line add
+ * to it).
  */
-export const BEHIND_SHARE = 0.25;
+export const BEHIND_SHARE = 0.2;
+
+/** A catch behind the line has blockers in front of it: the NFL's gain 9.1 yards after the catch (nflverse 2019–24). */
+const SCREEN_YAC = 7.8;
 
 /**
  * How far a throw travels past the line: a back's short throw is a checkdown in the flat; a receiver's is a screen
@@ -2459,8 +2463,10 @@ class GameSim {
 
     // Base odds are tuned with injuries on: backups throw and catch about a tenth of the passes, as in the NFL.
     // The red zone's squeeze takes about a point off the league's rate, and short throws elsewhere give most of it back.
+    // By depth as the NFL completes them (nflverse 2019–24: 81% behind the line, 70% at 0–9, 55% at 10–19, 36% deep),
+    // before the passer, the separation and the hands.
     let pComplete =
-      { short: 0.81, medium: 0.596, deep: 0.371 }[depth] +
+      (depth === 'short' && air < 0 ? 0.81 : { short: 0.72, medium: 0.54, deep: 0.371 }[depth]) +
       0.018 * (acc - 12) +
       0.019 * sep +
       0.012 * (skill(receiver, 'hands') - 12);
@@ -2553,7 +2559,9 @@ class GameSim {
       let yac = Math.max(
         0,
         rng.normal(
-          { short: 3.2, medium: 2.15, deep: 1.75 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth),
+          (depth === 'short' && air < 0 ? SCREEN_YAC : { short: 3.2, medium: 2.15, deep: 1.75 }[depth]) +
+            0.3 * yacSkill +
+            this.afterCatch(receiver, tackler, depth),
           3,
         ),
       );
