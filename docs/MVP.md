@@ -11,7 +11,8 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       nicknames, the NFL's 17-game formula (`season/schedule.ts`), tiebreakers (`season/standings.ts`) and a
       14-team bracket to a champion (`season/playoffs.ts`).
 - [x] **2. Match engine with box scores** · **Done**: a play-by-play engine (`match/gameSim.ts`) with box scores and
-      a replay viewer (`BoxScore.tsx`, `GameViewer.tsx`).
+      a replay viewer (`BoxScore.tsx`, `GameViewer.tsx`). Games as uncertain as the NFL's (a team's day, new
+      leagues as even as lived-in ones) and a passing game shaped like today's, checked against nflverse (0.2.27).
 - [x] **3. Rosters and depth charts** · **Done**: 53-man rosters, a drag-to-reorder depth chart and scheme spots
       (`roster.ts`, `Roster.tsx`).
 - [x] **4. Injuries that matter** · **Done**: snap and collision injuries with layoffs and IR (`injuries.ts`).

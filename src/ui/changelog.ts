@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.27',
+    date: '2026-10-31',
+    title: 'Any given Sunday',
+    text:
+      'Teams now have good days and bad ones, so upsets come about as often as in the real league, and a new league ' +
+      'starts as even as one that has played for years. Quarterbacks throw like today’s NFL too: mostly short, with ' +
+      'screens and checkdowns, fewer intermediate chain-movers, and the deep shot when it’s there. Play-callers differ ' +
+      'more, so some offenses throw far more than others, and a great passer’s accuracy counts in full.',
+  },
+  {
     version: '0.2.26',
     date: '2026-10-30',
     title: 'Being heard',
