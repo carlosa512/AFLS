@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FIELD_W } from './ballPath';
-import { BENCH, JOG, transition, type Mark } from './transition';
+import type { PlayLogEntry } from '../../engine/types';
+import { BENCH, celebrates, JOG, transition, type Mark } from './transition';
 
 const mark = (x: number, y: number, home = true): Mark => ({ x, y, home });
 
@@ -52,5 +53,61 @@ describe('between plays', () => {
     };
     const t = transition(far, units);
     expect(t.duration).toBeLessThanOrEqual(7.5);
+  });
+});
+
+describe('celebrations', () => {
+  const e = (x: Partial<PlayLogEntry>): PlayLogEntry => ({
+    quarter: 1,
+    clock: 600,
+    offense: 1,
+    down: 1,
+    distance: 10,
+    yardLine: 50,
+    text: '',
+    homeScore: 0,
+    awayScore: 0,
+    kind: 'pass',
+    from: 50,
+    to: 55,
+    ...x,
+  });
+  it('celebrates only the big ones: a long touchdown, a return score, a pick, a fumble lost', () => {
+    expect(celebrates([e({ text: 'pass, TOUCHDOWN', from: 60, to: 102 })], 0, 1)).toBe(true);
+    expect(celebrates([e({ text: 'pass, TOUCHDOWN', from: 95, to: 102 })], 0, 1)).toBe(false);
+    expect(celebrates([e({ kind: 'kickoff', text: 'returns the kickoff 97 yards for a TOUCHDOWN!' })], 0, 1)).toBe(
+      true,
+    );
+    expect(celebrates([e({ kind: 'int' })], 0, 1)).toBe(true);
+    expect(celebrates([e({ text: 'run. FUMBLE, recovered by J.Smith' }), e({ offense: 2 })], 0, 1)).toBe(true);
+    expect(celebrates([e({ text: 'run. FUMBLE, recovered by J.Smith' }), e({ offense: 1 })], 0, 1)).toBe(false);
+    expect(celebrates([e({})], 0, 1)).toBe(false);
+  });
+
+  it("gathers the scorer's teammates round him for a moment, then everyone jogs to his spot", () => {
+    const prev = new Map<number, Mark>([
+      [1, mark(100, 20)], // the scorer
+      [2, mark(90, 25)], // a teammate nearby
+      [3, mark(40, 30)], // a teammate far away
+      [4, mark(95, 22, false)], // a defender
+    ]);
+    const next = {
+      ids: [1, 2, 3, 4],
+      home: [true, true, true, false],
+      pos: new Float32Array([35, 26, 35, 20, 35, 30, 45, 26]),
+    };
+    const plain = transition(prev, next);
+    const party = transition(prev, next, { x: 100, y: 20, home: true });
+    expect(party.duration).toBeGreaterThan(plain.duration + 1);
+    const at = (id: number, t: number) => party.at(party.moves.find((m) => m.id === id)!, t);
+    const gathered = at(2, party.celebrate);
+    expect(Math.hypot(gathered.x - 100, gathered.y - 20)).toBeLessThan(3);
+    expect(Math.hypot(at(3, party.celebrate).x - 40, at(3, party.celebrate).y - 30)).toBeLessThan(1); // too far to join
+    expect(Math.hypot(at(4, party.celebrate).x - 95, at(4, party.celebrate).y - 22)).toBeLessThan(1); // not his team
+    for (const id of [1, 2, 3, 4]) {
+      const end = at(id, party.duration);
+      const k = next.ids.indexOf(id);
+      expect([end.x, end.y]).toEqual([next.pos[k * 2], next.pos[k * 2 + 1]]);
+    }
   });
 });

@@ -10,7 +10,7 @@ import { PlayerLink } from '../components';
 import { FIELD_W, HASH_HI, HASH_LO, MID, offenseSide, snapYFor } from '../stage/ballPath';
 import { cameraCenter, cameraSpan, easeCamera, layoutFor, type Layout } from '../stage/camera';
 import { stagePlay, type StagedPlay } from '../stage/stage';
-import { transition, type Mark } from '../stage/transition';
+import { celebrates, transition, type Mark } from '../stage/transition';
 import { downLines } from './GameViewer';
 
 /** A dot's radius in yards: bigger sideways, where the whole field shares the width. */
@@ -45,6 +45,8 @@ interface Memory {
   ballX: number | null;
   ballY: number;
   cx: number;
+  /** Where the last play shown ended and whose man had the ball: a big one is celebrated there. */
+  ended: { index: number; at: Mark | null } | null;
 }
 
 export function TopDownField({
@@ -83,7 +85,7 @@ export function TopDownField({
   const dotRefs = useRef(new Map<number, SVGGElement>());
   const ballRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
-  const memory = useRef<Memory>({ spots: new Map(), ballX: null, ballY: MID, cx: 50 });
+  const memory = useRef<Memory>({ spots: new Map(), ballX: null, ballY: MID, cx: 50, ended: null });
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
   const [layout, setLayout] = useState<Layout>('wide');
@@ -131,7 +133,9 @@ export function TopDownField({
     const view: View = { layout, dir, cx: mem.cx, span };
     // Between plays: everyone jogs from where the last play left him to his spot, subs come and go (none on the
     // first play shown, which starts set).
-    const gap = mem.spots.size ? transition(mem.spots, s) : null;
+    const big =
+      mem.ended && mem.ended.index === index - 1 && celebrates(plays, index - 1, home.id) ? mem.ended.at : null;
+    const gap = mem.spots.size ? transition(mem.spots, s, big ?? undefined) : null;
     const ballFrom = mem.ballX === null ? null : { x: mem.ballX, y: mem.ballY };
 
     const camera = (ballX: number, seconds: number) => {
@@ -190,6 +194,19 @@ export function TopDownField({
       }
       drawBall(s.ball[step * 3], s.ball[step * 3 + 1], s.ball[step * 3 + 2]);
       mem.cx = view.cx;
+      if (step === last) mem.ended = { index, at: madeIt() };
+    };
+    /** Who made the play, where it ended: the man with the ball (for a fumble, the side that came up with it). */
+    const madeIt = (): Mark | null => {
+      const x = s.ball[last * 3];
+      const y = s.ball[last * 3 + 1];
+      const e = plays[index];
+      if (/FUMBLE/.test(e.text)) {
+        const next = plays.slice(index + 1).find((p) => p.down > 0);
+        return next ? { x, y, home: next.offense === home.id } : null;
+      }
+      const c = s.carrier === null ? -1 : s.ids.indexOf(s.carrier);
+      return c < 0 ? null : { x, y, home: s.home[c] };
     };
     /** The men who came off are gone once the play starts. */
     const clearBench = () => {
