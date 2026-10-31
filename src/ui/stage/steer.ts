@@ -199,7 +199,8 @@ export function steer(a: SteerArgs): Float32Array {
   const retIdx = all.find((k) => !offense[k] && members[k].role === 'RET') ?? -1;
   const gunner = (k: number) => a.kick === 'punt' && offense[k] && Math.abs(py[k] - ballY0) > 12;
   const isGunner = all.map(gunner);
-  const rusherAt = all.map((k) => !offense[k] && Math.abs(px[k] - ballX0) < 3);
+  // The punt rush: the men on the line inside the box (the jammers out wide over the gunners are on the line too).
+  const rusherAt = all.map((k) => !offense[k] && Math.abs(px[k] - ballX0) < 3 && Math.abs(py[k] - ballY0) < 10);
   const landX = a.land?.x ?? ballX0 + a.dir * 40;
   const landY = a.land?.y ?? ballY0;
   /** Between `from` and `to`, a yard off `from`: a blocker's spot. */

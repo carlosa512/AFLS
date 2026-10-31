@@ -612,6 +612,20 @@ describe('special teams', () => {
     expect(n).toBeGreaterThan(30);
   });
 
+  it('sends the punt jammers down the field with the gunners, not after the punter', () => {
+    let n = 0;
+    for (const { e, p } of punts) {
+      if (/BLOCKED/.test(e.text)) continue;
+      const dir = p.home[0] ? 1 : -1;
+      const ballY = p.ball[1];
+      const jammers = p.ids.map((_, k) => k).filter((k) => !p.offense[k] && Math.abs(at(p, 0, k).y - ballY) > 12);
+      const st = Math.min(p.steps - 1, Math.round(3 / p.dt));
+      for (const k of jammers) expect((at(p, st, k).x - at(p, 0, k).x) * dir, e.text).toBeGreaterThan(8);
+      n += jammers.length;
+    }
+    expect(n).toBeGreaterThan(60);
+  });
+
   it('protects the holder on a field goal: the rush is held up until the kick', () => {
     let n = 0;
     for (const kind of ['fg', 'xp'])
