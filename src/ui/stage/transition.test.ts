@@ -215,14 +215,16 @@ describe('no two alike', () => {
     expect(Math.max(...paces) / Math.min(...paces)).toBeGreaterThan(1.15);
   });
 
-  it('runs no one on a ruler-straight line', () => {
+  it('runs no one on a ruler-straight line over any distance (a short step stays straight: no circling)', () => {
     let bent = 0;
-    for (const m of tr.moves) {
+    const long = tr.moves.filter((m) => Math.hypot(m.to.x - m.hud.x, m.to.y - m.hud.y) > 12);
+    for (const m of long) {
       const half = tr.at(m, tr.beat + m.delay + m.arrive / 2);
       const line = { x: (m.hud.x + m.to.x) / 2, y: (m.hud.y + m.to.y) / 2 };
       if (Math.hypot(half.x - line.x, half.y - line.y) > 0.3) bent++;
     }
-    expect(bent).toBeGreaterThan(tr.moves.length / 2);
+    expect(long.length).toBeGreaterThan(4);
+    expect(bent).toBeGreaterThan(long.length / 2);
   });
 
   it('still ends every man on his spot, and plays the same way every time', () => {
@@ -284,27 +286,20 @@ describe('the change-over before a kickoff', () => {
     }
   });
 
-  it('keeps the men coming on and going off clear of everyone: no two dots run through each other', () => {
-    const room = 2;
-    let close = 0;
-    let checked = 0;
-    for (let t = 0; t <= tr.duration; t += 0.1) {
-      const f = tr.frame(t, room);
-      for (let i = 0; i < f.length; i++)
-        for (let j = i + 1; j < f.length; j++) {
-          const a = f[i];
-          const b = f[j];
-          // Only pairs with a man on his way on or off, both still showing.
-          if (!(a.m.enter || a.m.leave || b.m.enter || b.m.leave) || a.opacity < 0.5 || b.opacity < 0.5) continue;
-          checked++;
-          if (Math.hypot(a.x - b.x, a.y - b.y) < room * 0.8) close++;
-        }
+  it('spreads the men waiting to come on along their team area, and where the men going off head, never on one spot', () => {
+    for (const enter of [true, false])
+      for (const home of [true, false]) {
+        const spots = tr.moves
+          .filter((m) => m.home === home && (enter ? m.enter : m.leave))
+          .map((m) => (enter ? m.from.x : m.to.x))
+          .sort((a, b) => a - b);
+        for (let i = 1; i < spots.length; i++) expect(spots[i] - spots[i - 1]).toBeGreaterThan(2.3);
+      }
+    // The units coming on wait in their team area, between the 32-yard lines (give or take the spacing).
+    for (const m of tr.moves.filter((x) => x.enter)) {
+      expect(m.from.x).toBeGreaterThan(25);
+      expect(m.from.x).toBeLessThan(75);
     }
-    expect(checked).toBeGreaterThan(1000);
-    expect(close / checked).toBeLessThan(0.002);
-    // And everyone still ends on his spot for the snap.
-    for (const p of tr.frame(tr.duration, room))
-      if (!p.m.leave) expect(Math.hypot(p.x - p.m.to.x, p.y - p.m.to.y)).toBeLessThan(1e-6);
   });
 
   it('gives the moment a beat, but not forever', () => {

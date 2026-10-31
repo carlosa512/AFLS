@@ -103,11 +103,6 @@ export interface Transition {
   huddle: number;
   moves: Move[];
   at(m: Move, t: number): Pt & { opacity: number };
-  /**
-   * Everyone at `t`, with the men coming on and going off kept `room` yards from everyone else (no two dots run
-   * through each other); the rest are where `at` puts them.
-   */
-  frame(t: number, room: number): (Pt & { m: Move; opacity: number })[];
 }
 
 const benchY = (home: boolean) => (home ? -BENCH : FIELD_W + BENCH);
@@ -119,7 +114,8 @@ function along(a: Pt, b: Pt, k: number, bow: number): Pt {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len = Math.hypot(dx, dy);
-  const off = len > 0 ? bow * Math.min(2.5, len * 0.12) * 4 * k * (1 - k) : 0;
+  // A gentle bend on a long jog, next to none on a short step: short hops that curve read as circling.
+  const off = len > 0 ? bow * Math.min(1.2, Math.max(0, len - 4) * 0.06) * 4 * k * (1 - k) : 0;
   return { x: a.x + dx * k - (dy / (len || 1)) * off, y: a.y + dy * k + (dx / (len || 1)) * off };
 }
 /**
@@ -313,14 +309,6 @@ export function transition(
   const duration =
     beat + celebrate + Math.max(0.6, ...moves.map((m) => m.start + m.delay + m.arrive - (m.leave ? SET : 0))) + SET;
 
-  /** How much a man on his way on or off gives way: fully in transit, easing off as he settles or fades. */
-  const giving = (m: Move, t: number, opacity: number) => {
-    if (m.leave) return opacity > 0.15 ? 1 : 0;
-    if (!m.enter) return 0;
-    const into = Math.max(0, t - beat - celebrate - m.start - m.delay);
-    const k = m.arrive > 0 ? Math.min(1, into / m.arrive) : 1;
-    return Math.min(1, (1 - k) * 4);
-  };
   const tr: Transition = {
     duration,
     beat,
@@ -350,31 +338,6 @@ export function transition(
       // Coming on from his sideline in full view; going off, dimmed and gone at the sideline.
       const opacity = m.leave ? leaving(k, t - m.delay) : 1;
       return { x, y, opacity };
-    },
-    frame(t, room) {
-      const out = moves.map((m) => ({ m, ...tr.at(m, t) }));
-      const give = out.map((p) => giving(p.m, t, p.opacity));
-      // A few passes of pushing apart: only men in transit move, each by his share of the overlap.
-      for (let pass = 0; pass < 4; pass++)
-        for (let i = 0; i < out.length; i++)
-          for (let j = i + 1; j < out.length; j++) {
-            const gi = give[i];
-            const gj = give[j];
-            if (gi + gj === 0 || out[i].opacity < 0.15 || out[j].opacity < 0.15) continue;
-            const dx = out[j].x - out[i].x;
-            const dy = out[j].y - out[i].y;
-            const d = Math.hypot(dx, dy);
-            if (d >= room) continue;
-            const ux = d > 1e-6 ? dx / d : 0;
-            const uy = d > 1e-6 ? dy / d : 1;
-            const over = room - d;
-            const wi = gi / (gi + gj);
-            out[i].x -= ux * over * wi * gi;
-            out[i].y -= uy * over * wi * gi;
-            out[j].x += ux * over * (1 - wi) * gj;
-            out[j].y += uy * over * (1 - wi) * gj;
-          }
-      return out;
     },
   };
   return tr;

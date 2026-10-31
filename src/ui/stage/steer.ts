@@ -521,15 +521,20 @@ export function steer(a: SteerArgs): Float32Array {
             const m = Math.hypot(mx, my);
             let ux = d > 0 ? dx / d : a.dir;
             let uy = d > 0 ? dy / d : 0;
-            if (m > 1e-6) {
+            // Only while he's really running (4 yards a second and up): as he slows into the tackle his heading
+            // wavers, and a side picked from it would flip frame to frame. Then the chaser simply holds the ring.
+            const running = m > 4 * a.dt;
+            if (running) {
               const side = Math.sign(-my * dx + mx * dy) || 1;
               ux = (-my / m) * side;
               uy = (mx / m) * side;
             }
             px[k] = px[r] + ux * RING;
             py[k] = py[r] + uy * RING;
-            vx[k] = 0;
-            vy[k] = 0;
+            if (running) {
+              vx[k] = 0;
+              vy[k] = 0;
+            }
           }
         }
       }

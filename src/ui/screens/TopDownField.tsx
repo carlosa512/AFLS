@@ -340,10 +340,10 @@ export function TopDownField({
       // The officials walk out to their spots for a kickoff while the units change over.
       crewRef.current?.setAttribute('opacity', Math.min(1, t / 2).toFixed(2));
       flagRef.current?.setAttribute('opacity', '0');
-      // Men coming on and going off step round everyone else: no two dots run through each other.
-      for (const p of g.frame(t, DOT[layout] * 2 + 0.2)) {
-        drawDot(p.m.id, p.x, p.y, p.opacity);
-        if (!p.m.leave) mem.spots.set(p.m.id, { x: p.x, y: p.y, home: p.m.home });
+      for (const m of g.moves) {
+        const p = g.at(m, t);
+        drawDot(m.id, p.x, p.y, p.opacity);
+        if (!m.leave) mem.spots.set(m.id, { x: p.x, y: p.y, home: m.home });
       }
       // An official picks the ball up after the whistle, walks it to the new spot, sets it down and steps away.
       const tb = Math.max(0, t - g.beat);
