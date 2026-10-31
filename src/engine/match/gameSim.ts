@@ -418,7 +418,7 @@ function units(l: Lineup): [offense: Player[], defense: Player[]] {
  * front (nflverse 2019–24: 16.6% of every throw, at −3.3 air yards on average; backs' checkdowns behind the line add
  * to it).
  */
-export const BEHIND_SHARE = 0.2;
+export const BEHIND_SHARE = 0.18;
 
 /** A catch behind the line has blockers in front of it: the NFL's gain 9.1 yards after the catch (nflverse 2019–24). */
 const SCREEN_YAC = 8.6;

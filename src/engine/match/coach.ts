@@ -45,8 +45,12 @@ const isLateHalf = (s: Situation, seconds: number) => (s.quarter === 2 || s.quar
 /** Seconds left in the game (regulation fourth quarter or overtime). */
 const gameSecondsLeft = (s: Situation) => (s.quarter >= 4 ? s.clock : Infinity);
 
-/** Pass probability a full-strength lean adds or takes away in an ordinary situation. */
-const PASS_LEAN = 0.06;
+/**
+ * Pass probability a full-strength lean adds or takes away in an ordinary situation. Play-callers differ: NFL teams'
+ * pass rates in neutral situations spread with an SD of about 4.5 points once the sample's noise is set aside (nflverse
+ * 2021–24, 43% to 65%), so a pass-first offense throws 650 times and a run-first one 480.
+ */
+const PASS_LEAN = 0.09;
 /**
  * Pass probability a top passer adds (a poor one takes it away) in an ordinary situation: callers
  * keep throwing with a great quarterback even with a lead, so NFL passing leaders throw 600+ times.
@@ -224,10 +228,10 @@ export function passDepth(s: Situation, rng: Rng): PassDepth {
   // Two throws in three go short (screens and checkdowns behind the line among them), one in five 10 to 19 yards
   // and one in nine deep (nflverse 2019–24: 67.5 / 20.9 / 11.6%); the chain-mover gets more of the long downs.
   let mix: [number, number, number];
-  if (s.distance >= 15) mix = [0.568, 0.232, 0.2];
-  else if (s.distance >= 7) mix = [0.679, 0.209, 0.112];
-  else if (s.distance <= 3) mix = [0.82, 0.116, 0.064];
-  else mix = [0.744, 0.168, 0.088];
+  if (s.distance >= 15) mix = [0.554, 0.232, 0.214];
+  else if (s.distance >= 7) mix = [0.671, 0.209, 0.12];
+  else if (s.distance <= 3) mix = [0.816, 0.116, 0.068];
+  else mix = [0.738, 0.168, 0.094];
   // The scheme's taste (West Coast underneath, Air Coryell deep) only where the situation doesn't dictate.
   if (s.depthLean && ordinary(s)) mix = shiftMix(mix, s.depthLean);
   // Wind and slop take the deep ball away; a dome gives a little back.
