@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
 import { playWeek } from '../league';
 import type { FieldUnits, GameResult, PlayLogEntry } from '../types';
+import { actorsIn, packActors } from '../playActors';
 import { simulateGame } from './gameSim';
 
 const league = createLeague({ seed: 'actors' });
@@ -22,12 +23,11 @@ describe('who each play was about', () => {
       if (!scrimmage(e)) return;
       if (e.kind === 'pass' || e.kind === 'int') {
         passes++;
-        expect(e.who?.qb).toBeDefined();
-        expect(e.who?.ball).toBeDefined();
+        expect(actorsIn(e).ball).toBeDefined();
       }
-      if (e.kind === 'int') expect(e.who?.take).toBeDefined();
-      if (e.kind === 'sack') expect(e.who?.rush).toBeDefined();
-      if (e.kind === 'run') expect(e.who?.ball).toBeDefined();
+      if (e.kind === 'int') expect(actorsIn(e).take).toBeDefined();
+      if (e.kind === 'sack') expect(actorsIn(e).rush).toBeDefined();
+      if (e.kind === 'run') expect(actorsIn(e).ball).toBeDefined();
     });
     expect(passes).toBeGreaterThan(200);
   });
@@ -37,15 +37,15 @@ describe('who each play was about', () => {
     each((e) => {
       if (e.kind !== 'kneel' && e.kind !== 'spike') return;
       n++;
-      expect(e.who?.beat).toBeUndefined();
-      expect(e.who?.rush).toBeUndefined();
+      expect(actorsIn(e).beat).toBeUndefined();
+      expect(actorsIn(e).rush).toBeUndefined();
     });
     expect(n).toBeGreaterThan(0);
   });
 
   it('names the rusher whenever it names a beaten blocker', () => {
     each((e) => {
-      if (e.who?.beat !== undefined) expect(e.who.rush).toBeDefined();
+      if (actorsIn(e).beat !== undefined) expect(actorsIn(e).rush).toBeDefined();
     });
   });
 
@@ -53,8 +53,8 @@ describe('who each play was about', () => {
     each((e, r, offense) => {
       if (!scrimmage(e) || !e.who) return;
       const team = (id: number | undefined) => (id === undefined ? undefined : r.playerTeams[id]);
-      for (const id of [e.who.qb, e.who.ball, e.who.beat]) if (id !== undefined) expect(team(id)).toBe(offense);
-      for (const id of [e.who.tackle, e.who.cover, e.who.take, e.who.rush])
+      for (const id of [actorsIn(e).ball, actorsIn(e).beat]) if (id !== undefined) expect(team(id)).toBe(offense);
+      for (const id of [actorsIn(e).tackle, actorsIn(e).cover, actorsIn(e).take, actorsIn(e).rush])
         if (id !== undefined) expect(team(id)).not.toBe(offense);
     });
   });
@@ -62,13 +62,11 @@ describe('who each play was about', () => {
   it('matches the box score: targets on logged passes equal each receiver’s targets', () => {
     for (const { r } of games) {
       const targets = new Map<number, number>();
-      for (const e of r.plays ?? [])
-        if (
-          e.down > 0 &&
-          (e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int') &&
-          e.who?.ball !== undefined
-        )
-          targets.set(e.who.ball, (targets.get(e.who.ball) ?? 0) + 1);
+      for (const e of r.plays ?? []) {
+        const ball = actorsIn(e).ball;
+        if (e.down > 0 && (e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int') && ball !== undefined)
+          targets.set(ball, (targets.get(ball) ?? 0) + 1);
+      }
       for (const [id, line] of Object.entries(r.playerStats))
         expect(targets.get(Number(id)) ?? 0, `player ${id}`).toBe(line.targets ?? 0);
     }
@@ -77,8 +75,10 @@ describe('who each play was about', () => {
   it('never credits more first tackles than a player has tackles', () => {
     for (const { r } of games) {
       const first = new Map<number, number>();
-      for (const e of r.plays ?? [])
-        if (e.who?.tackle !== undefined) first.set(e.who.tackle, (first.get(e.who.tackle) ?? 0) + 1);
+      for (const e of r.plays ?? []) {
+        const tackle = actorsIn(e).tackle;
+        if (tackle !== undefined) first.set(tackle, (first.get(tackle) ?? 0) + 1);
+      }
       for (const [id, n] of first) expect(n).toBeLessThanOrEqual(r.playerStats[id]?.tackles ?? 0);
     }
   });
@@ -91,6 +91,24 @@ describe('who each play was about', () => {
       expect([kept.homeScore, kept.awayScore]).toEqual([bare.homeScore, bare.awayScore]);
       expect(kept.playerStats).toEqual(bare.playerStats);
     }
+  });
+});
+
+describe('packing', () => {
+  it('packs a play into a short list in a fixed order, trimmed at the end, and reads it back', () => {
+    expect(packActors({ ball: 7, tackle: 9 })).toEqual([7, 9]);
+    expect(packActors({ ball: 7, rush: 3 })).toEqual([7, null, null, 3]);
+    expect(packActors({})).toBeUndefined();
+    for (const a of [{ ball: 7, tackle: 9, cover: 4, rush: 3, beat: 2, take: 1 }, { ball: 7, rush: 3 }, { take: 5 }])
+      expect(actorsIn({ who: packActors(a) })).toEqual(a);
+    expect(actorsIn({})).toEqual({});
+  });
+
+  it('records nothing on kicks: the kick units already name the kicker and returner', () => {
+    each((e) => {
+      if (e.kind === 'kickoff' || e.kind === 'punt' || e.kind === 'fg' || e.kind === 'xp')
+        expect(e.who).toBeUndefined();
+    });
   });
 });
 
@@ -133,8 +151,8 @@ describe('who was on the field', () => {
 
   it('keeps a game’s added data small', () => {
     for (const { r } of games) {
-      const who = (r.plays ?? []).reduce((n, e) => n + JSON.stringify(e.who ?? {}).length, 0);
-      expect(JSON.stringify(r.field).length + who).toBeLessThan(16_000);
+      const who = (r.plays ?? []).reduce((n, e) => n + (e.who ? JSON.stringify(e.who).length + 7 : 0), 0);
+      expect(JSON.stringify(r.field).length + who).toBeLessThan(7_000); // about 4.7 KB a game; a game with several injuries saves more lineups
     }
   });
 

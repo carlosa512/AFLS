@@ -55,6 +55,7 @@ import type {
   League,
   FieldRecord,
   FieldUnits,
+  PackedActors,
   PlayActors,
   PlayKind,
   PlayLogEntry,
@@ -64,6 +65,7 @@ import type {
   TeamGameStats,
 } from '../types';
 import { MAX_STATS } from '../types';
+import { packActors } from '../playActors';
 import { isExplosive, isSuccess, playEpa, type PlayState } from '../analytics';
 import {
   gameWeather,
@@ -138,16 +140,12 @@ function qbLeans(league: League, qbs: [Player, Player]): [number, number] {
 
 type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane' | 'who'>;
 
-/** Plays where the quarterback drops back: he is the passer the view stages. */
-const DROPBACKS: ReadonlySet<string> = new Set(['pass', 'sack', 'spike', 'scramble']);
-
 /**
  * Who a scrimmage play was about, read off what the engine already chose: its stat lines, the man in coverage, the
  * rusher who got home and the blocker charged for it. Nothing here draws, so recording it never changes a game.
  */
 export function actorsOf(play: {
   entries: readonly (readonly [Player, StatKey, number])[];
-  qb?: Player;
   defender?: Player;
   rusher?: Player | null;
   beat?: Player | null;
@@ -159,7 +157,6 @@ export function actorsOf(play: {
   const set = (k: keyof PlayActors, p: Player | null | undefined) => {
     if (p) who[k] = p.id;
   };
-  set('qb', play.qb);
   set('ball', ball);
   set('cover', play.defender);
   set('tackle', first('tackles'));
@@ -1098,7 +1095,7 @@ class GameSim {
     return side === 0 ? yardLine : 100 - yardLine;
   }
 
-  private setAnim(side: Side, kind: PlayKind, from: number, to: number, air?: number, lane = 0, who?: PlayActors) {
+  private setAnim(side: Side, kind: PlayKind, from: number, to: number, air?: number, lane = 0, who?: PackedActors) {
     this.anim = { kind, from: this.fieldX(side, from), to: this.fieldX(side, to), lane };
     if (air !== undefined) this.anim.air = this.fieldX(side, air);
     if (who) this.anim.who = who;
@@ -1328,7 +1325,7 @@ class GameSim {
         this.addPoints(side, 1);
       }
       this.credit(buf);
-      this.setAnim(side, 'xp', at.yardLine, 110, 110, 0, { ball: k.id });
+      this.setAnim(side, 'xp', at.yardLine, 110, 110);
       this.log(
         `${note}${short(k)} ${distance === 33 ? 'extra point' : `${distance}-yard extra point`} is ${made ? 'GOOD' : 'NO GOOD'}.`,
         true,
@@ -1363,7 +1360,7 @@ class GameSim {
     if (coach.shouldOnside(scoreDiff, this.quarter, this.clock, this.timeouts[kickingSide])) {
       const recovered = this.rng.chance(0.12);
       this.playTime(3);
-      this.setAnim(kickingSide, 'kickoff', 35, 46, 46, 0, { ball: kicking.k.id });
+      this.setAnim(kickingSide, 'kickoff', 35, 46, 46);
       if (recovered) {
         this.startSeries(46);
         this.log(`${short(kicking.k)} onside kick RECOVERED by ${kicking.team.abbrev} at the ${this.spot()}.`);
@@ -1384,7 +1381,7 @@ class GameSim {
       this.offense = receivingSide;
       this.kickWear(false);
       this.flag(kickingSide, 'kickoffMiss', kicking.k, 'accepted');
-      this.setAnim(kickingSide, 'kickoff', 35, 60, 60, 0, { ball: kicking.k.id });
+      this.setAnim(kickingSide, 'kickoff', 35, 60, 60);
       this.startSeries(40);
       this.clockRunning = false;
       this.log(
@@ -1402,7 +1399,7 @@ class GameSim {
     let text: string;
     if (touchback) {
       this.kickWear(false);
-      this.setAnim(kickingSide, 'kickoff', 35, 104, 104, 0, { ball: kicking.k.id });
+      this.setAnim(kickingSide, 'kickoff', 35, 104, 104);
       start = 35;
       text = `${short(kicking.k)} kicks off into the end zone. Touchback`;
     } else {
@@ -1431,10 +1428,7 @@ class GameSim {
       buf.add(kr, 'krYds', (block ? block.at : start) - 3);
       this.playTime(this.rng.int(5, 8));
       this.kickWear(true);
-      this.setAnim(kickingSide, 'kickoff', 35, returnTd && !block ? -3 : 100 - (block ? block.spot : start), 97, 0, {
-        ball: kicking.k.id,
-        ret: kr.id,
-      });
+      this.setAnim(kickingSide, 'kickoff', 35, returnTd && !block ? -3 : 100 - (block ? block.spot : start), 97);
       if (returnTd && !block) {
         buf.add(kr, 'krTd');
         this.credit(buf);
@@ -1519,7 +1513,7 @@ class GameSim {
       buf.add(p, 'puntsBlocked');
       this.credit(buf);
       const ballAt = this.yardLine - 8;
-      this.setAnim(this.offense, 'punt', this.yardLine, ballAt, undefined, 0, { ball: p.id });
+      this.setAnim(this.offense, 'punt', this.yardLine, ballAt);
       if (ballAt <= 0) {
         this.log(`${short(p)} punt is BLOCKED out of the end zone.`);
         this.safety();
@@ -1578,9 +1572,7 @@ class GameSim {
     buf.add(p, 'punts');
     buf.add(p, 'puntYds', gross);
     const landing = this.yardLine + gross;
-    this.setAnim(this.offense, 'punt', this.yardLine, Math.min(landing, 105), Math.min(landing, 105), 0, {
-      ball: p.id,
-    });
+    this.setAnim(this.offense, 'punt', this.yardLine, Math.min(landing, 105), Math.min(landing, 105));
     if (landing >= 100) {
       this.credit(buf);
       this.kickWear(false);
@@ -1635,10 +1627,7 @@ class GameSim {
       : null;
     const end = block ? block.spot : receiveAt + ret;
     // Returns run back toward the punting team's goal line.
-    this.setAnim(this.offense, 'punt', this.yardLine, end >= 100 ? -3 : 100 - end, landing, 0, {
-      ball: p.id,
-      ret: pr.id,
-    });
+    this.setAnim(this.offense, 'punt', this.yardLine, end >= 100 ? -3 : 100 - end, landing);
     buf.add(pr, 'prAtt');
     buf.add(pr, 'prYds', (block ? block.at : receiveAt + ret) - receiveAt);
     if (!block && receiveAt + ret >= 100) buf.add(pr, 'prTd');
@@ -1692,7 +1681,7 @@ class GameSim {
     const buf = new StatBuffer();
     buf.add(k, 'fgAtt');
     this.kickForm(k, made);
-    this.setAnim(this.offense, 'fg', this.yardLine - 7, 110, 110, 0, { ball: k.id });
+    this.setAnim(this.offense, 'fg', this.yardLine - 7, 110, 110);
     if (made) {
       buf.add(k, 'fgMade');
       buf.add(k, 'fgLong', distance);
@@ -3032,15 +3021,16 @@ class GameSim {
     ts.plays++;
 
     this.credit(result.stats);
-    const who = actorsOf({
-      entries: result.stats.entries,
-      qb: DROPBACKS.has(result.kind) ? this.lineups[offSide].qb : undefined,
-      defender: result.defender,
-      // Kneels and spikes skip the snap's reset, so this snap's rush is only read on plays that had one.
-      rusher: result.rusher ?? (result.kind === 'pass' || result.kind === 'scramble' ? this.pressureBy : null),
-      beat: result.kind === 'kneel' || result.kind === 'spike' ? null : this.beatBy,
-      take: result.turnover?.by,
-    });
+    const who = packActors(
+      actorsOf({
+        entries: result.stats.entries,
+        defender: result.defender,
+        // Kneels and spikes skip the snap's reset, so this snap's rush is only read on plays that had one.
+        rusher: result.rusher ?? (result.kind === 'pass' || result.kind === 'scramble' ? this.pressureBy : null),
+        beat: result.kind === 'kneel' || result.kind === 'spike' ? null : this.beatBy,
+        take: result.turnover?.by,
+      }),
+    );
     if (result.kind === 'pass' || result.kind === 'spike') {
       ts.passAtt++;
       if (result.complete) {

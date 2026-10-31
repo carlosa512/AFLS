@@ -1546,8 +1546,9 @@ export interface PlayLogEntry {
   to?: number;
   /** Direction across the field from the offense's view: -1 left … 1 right. */
   lane?: number;
-  /** Who the play was about (All-22 stages it). Games before v71 have none. */
-  who?: PlayActors;
+  /** Who the play was about (All-22 stages it), packed: read it with `actorsIn` (`playActors.ts`). Games before v71
+   * and kicks have none. */
+  who?: PackedActors;
 }
 
 /** One side's players by group: the eleven each way, the rush rotation and the kick units (ids). */
@@ -1598,9 +1599,7 @@ export interface FieldRecord {
 
 /** Who a play was about, by player id: what All-22 stages. Recorded only, never drawn: the sim already chose them. */
 export interface PlayActors {
-  /** The passer on a dropback. */
-  qb?: number;
-  /** The target, the ball carrier, or the kicker or punter. */
+  /** The target or the ball carrier. */
   ball?: number;
   /** The man in coverage on a pass. */
   cover?: number;
@@ -1612,9 +1611,10 @@ export interface PlayActors {
   beat?: number;
   /** The interceptor or fumble recoverer. */
   take?: number;
-  /** The returner on a kick. */
-  ret?: number;
 }
+
+/** `PlayActors` as a save keeps it: ball, tackle, cover, rush, beat, take, in that order (see `playActors.ts`). */
+export type PackedActors = (number | null)[];
 
 export interface GameResult {
   /** Event-time coaching evidence; independent of replay retention. */
