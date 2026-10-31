@@ -177,7 +177,12 @@ export function TopDownField({
     const big =
       mem.ended && mem.ended.index === index - 1 && celebrates(plays, index - 1, home.id) ? mem.ended.at : null;
     const gap = mem.spots.size
-      ? transition(mem.spots, s, { party: big ?? undefined, huddle: huddleFor(s), hurry: hurried() })
+      ? transition(mem.spots, s, {
+          party: big ?? undefined,
+          huddle: huddleFor(s),
+          hurry: hurried(),
+          seed: `${league.seed}:${game.id}:gap:${index}`,
+        })
       : null;
     const ballFrom = mem.ballX === null ? null : { x: mem.ballX, y: mem.ballY };
 

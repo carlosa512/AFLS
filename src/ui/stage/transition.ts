@@ -3,6 +3,7 @@
  * coming off jog to their sideline and fade, men coming on jog in from theirs, and the formation sets for a beat before
  * the snap. Pure: where each man is at any moment of the gap.
  */
+import { Rng } from '../../engine/rng';
 import type { PlayLogEntry } from '../../engine/types';
 import { FIELD_W, offenseSide } from './ballPath';
 import type { Pt } from './formations';
@@ -67,6 +68,12 @@ export interface Move {
   /** Coming on from the sideline, or going off to it. */
   enter: boolean;
   leave: boolean;
+  /** His own reaction: seconds before he sets off to the line, and to the huddle. */
+  delay: number;
+  gdelay: number;
+  /** How far his path bows off a straight line (−1…1, of a few yards), to the line and to the huddle. */
+  bow: number;
+  gbow: number;
 }
 
 export interface Transition {
@@ -80,6 +87,15 @@ export interface Transition {
 }
 
 const benchY = (home: boolean) => (home ? -BENCH : FIELD_W + BENCH);
+
+/** `k` of the way from `a` to `b` on a gentle bend: off the straight line by `bow` of a few yards at the middle. */
+function along(a: Pt, b: Pt, k: number, bow: number): Pt {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  const off = len > 0 ? bow * Math.min(2.5, len * 0.12) * 4 * k * (1 - k) : 0;
+  return { x: a.x + dx * k - (dy / (len || 1)) * off, y: a.y + dy * k + (dx / (len || 1)) * off };
+}
 /** Ease in and out: a man accelerates into his jog and pulls up at his spot. */
 const smooth = (k: number) => k * k * (3 - 2 * k);
 
@@ -102,10 +118,23 @@ export function transition(
     huddle?: Huddle;
     /** A clock to beat: everyone sprints into place. */
     hurry?: boolean;
+    /** No two men move alike, the same way every time this gap is shown. */
+    seed?: string;
   } = {},
 ): Transition {
   const { party, huddle } = opts;
   const run = opts.hurry ? SPRINT : JOG;
+  const rng = new Rng(opts.seed ?? 'gap');
+  /** Each man's own way of getting there: when he reacts, his pace, the bend in his path. */
+  const style = () => ({
+    delay: rng.next() * (opts.hurry ? 0.2 : 0.55),
+    gdelay: rng.next() * (opts.hurry ? 0.15 : 0.5),
+    pace: 0.8 + rng.next() * 0.4,
+    // Every path bends a little, one way or the other: nobody runs a ruler line.
+    bow: (rng.next() < 0.5 ? -1 : 1) * (0.35 + rng.next() * 0.65),
+    gbow: (rng.next() < 0.5 ? -1 : 1) * (0.35 + rng.next() * 0.65),
+  });
+  const paceOf = new Map<number, number>();
   const moves: Move[] = [];
   const onNext = new Set(next.ids);
   next.ids.forEach((id, k) => {
@@ -113,6 +142,8 @@ export function transition(
     const was = prev.get(id);
     const from = was ?? { x: Math.max(-8, Math.min(108, to.x)), y: benchY(next.home[k]) };
     const at = { x: from.x, y: from.y };
+    const { pace, ...way } = style();
+    paceOf.set(id, pace);
     moves.push({
       id,
       home: next.home[k],
@@ -124,10 +155,15 @@ export function transition(
       arrive: 0,
       enter: !was,
       leave: false,
+      ...way,
     });
   });
   for (const [id, was] of prev)
-    if (!onNext.has(id))
+    if (!onNext.has(id)) {
+      const { pace, ...way } = style();
+      paceOf.set(id, pace);
+      // Off toward his bench area (between the 30s), each by his own line, not straight across in a row.
+      const benchX = Math.max(-5, Math.min(105, was.x + (50 - was.x) * 0.25 + (rng.next() * 2 - 1) * 4));
       moves.push({
         id,
         home: was.home,
@@ -135,11 +171,13 @@ export function transition(
         mid: { x: was.x, y: was.y },
         hud: { x: was.x, y: was.y },
         gather: 0,
-        to: { x: was.x, y: benchY(was.home) },
+        to: { x: benchX, y: benchY(was.home) },
         arrive: 0,
         enter: false,
         leave: true,
+        ...way,
       });
+    }
 
   // The celebration: teammates within reach gather in a loose ring round him; nobody else joins in.
   const celebrate = party ? CELEBRATE : 0;
@@ -168,24 +206,32 @@ export function transition(
       const ring = offense ? OFFENSE_RING : DEFENSE_RING;
       const side = moves.filter((m) => !m.leave && m.home === (offense ? huddle.offenseHome : !huddle.offenseHome));
       const rest = side.filter((m) => m.id !== lead);
-      for (const m of side) if (m.id === lead) m.hud = { x: center.x + front * ring * 0.8, y: center.y };
+      const loose = () => (rng.next() - 0.5) * 0.6;
+      for (const m of side)
+        if (m.id === lead) m.hud = { x: center.x + front * ring * 0.8 + loose(), y: center.y + loose() };
       rest.forEach((m, i) => {
-        // Round the back of the ring, away from the front.
-        const angle = Math.PI * (0.35 + (1.3 * (i + 0.5)) / Math.max(1, rest.length));
-        m.hud = { x: center.x + front * Math.cos(angle) * ring, y: center.y + Math.sin(angle) * ring };
+        // Round the back of the ring, away from the front: a loose ring, nobody on a mark.
+        const angle = Math.PI * (0.35 + (1.3 * (i + 0.5 + (rng.next() - 0.5) * 0.6)) / Math.max(1, rest.length));
+        const r = ring + (rng.next() - 0.5) * 0.7;
+        m.hud = { x: center.x + front * Math.cos(angle) * r, y: center.y + Math.sin(angle) * r };
       });
     }
     // A jog in (a sprint against the clock); the huddle waits for a sub coming from the bench.
-    for (const m of moves) if (!m.leave) m.gather = Math.hypot(m.hud.x - m.mid.x, m.hud.y - m.mid.y) / run;
-    huddleTime = Math.max(0, ...moves.map((m) => m.gather)) + HUDDLE_HOLD;
+    for (const m of moves)
+      if (!m.leave) m.gather = Math.hypot(m.hud.x - m.mid.x, m.hud.y - m.mid.y) / (run * paceOf.get(m.id)!);
+    huddleTime = Math.max(0, ...moves.filter((m) => !m.leave).map((m) => m.gdelay + m.gather)) + HUDDLE_HOLD;
   }
 
   const dist = (m: Move) => Math.hypot(m.to.x - m.hud.x, m.to.y - m.hud.y);
-  const longest = Math.max(0, ...moves.map(dist));
+  // Only men staying on can force a hustle (a change of possession): a sub coming from the bench jogs in at his own
+  // pace, and men going off walk off at theirs.
+  const longest = Math.max(0, ...moves.filter((m) => !m.enter && !m.leave).map(dist));
   // A jog, unless the longest trip couldn't make it in time (a change of possession): then everyone hustles.
-  const pace = Math.max(run, longest / MAX_JOG);
-  for (const m of moves) m.arrive = dist(m) / pace;
-  const duration = celebrate + huddleTime + Math.max(0.6, ...moves.filter((m) => !m.leave).map((m) => m.arrive)) + SET;
+  // Sized so the slowest of them (the pace below is scaled by each man's own, 0.8 at the least) still makes it.
+  const pace = Math.max(run, longest / (MAX_JOG * 0.8));
+  for (const m of moves) m.arrive = dist(m) / (pace * paceOf.get(m.id)!);
+  const duration =
+    celebrate + huddleTime + Math.max(0.6, ...moves.filter((m) => !m.leave).map((m) => m.delay + m.arrive)) + SET;
 
   return {
     duration,
@@ -203,16 +249,14 @@ export function transition(
       t -= celebrate;
       if (t < huddleTime && !m.leave) {
         // Into the huddle, then the call.
-        const g = m.gather > 0 ? smooth(Math.min(1, t / m.gather)) : 1;
-        const x = m.mid.x + (m.hud.x - m.mid.x) * g;
-        const y = m.mid.y + (m.hud.y - m.mid.y) * g;
-        return { x, y, opacity: m.enter ? Math.min(1, 0.2 + g * 1.6) : 1 };
+        const g = m.gather > 0 ? smooth(Math.min(1, Math.max(0, (t - m.gdelay) / m.gather))) : 1;
+        const p = along(m.mid, m.hud, g, m.gbow);
+        return { ...p, opacity: m.enter ? Math.min(1, 0.2 + g * 1.6) : 1 };
       }
       // The men going off head for the bench straight away; everyone else breaks the huddle.
       if (!m.leave) t -= huddleTime;
-      const k = m.arrive > 0 ? smooth(Math.min(1, Math.max(0, t / m.arrive))) : 1;
-      const x = m.hud.x + (m.to.x - m.hud.x) * k;
-      const y = m.hud.y + (m.to.y - m.hud.y) * k;
+      const k = m.arrive > 0 ? smooth(Math.min(1, Math.max(0, (t - m.delay) / m.arrive))) : 1;
+      const { x, y } = along(m.hud, m.to, k, m.bow);
       // Fading in from the bench, fading out on the way to it.
       const opacity =
         m.enter && !huddleTime ? Math.min(1, 0.2 + k * 1.6) : m.leave ? Math.max(0, 1 - Math.max(0, k - 0.5) * 2) : 1;

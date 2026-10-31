@@ -18,7 +18,8 @@ describe('between plays', () => {
   it('jogs everyone to his spot, then holds the formation before the snap', () => {
     const a = tr.at(move(1), tr.duration);
     expect([a.x, a.y]).toEqual([40, 20]);
-    expect(move(1).arrive).toBeCloseTo(10 / JOG, 1);
+    expect(move(1).arrive).toBeGreaterThan(10 / (JOG * 1.25));
+    expect(move(1).arrive).toBeLessThan(10 / (JOG * 0.75));
     expect(tr.duration).toBeGreaterThanOrEqual(move(1).arrive + 0.6);
     const mid = tr.at(move(1), move(1).arrive / 2);
     expect(mid.x).toBeGreaterThan(30);
@@ -28,7 +29,8 @@ describe('between plays', () => {
   it('never moves a man faster than a jog unless the field is changing over', () => {
     for (const m of tr.moves) {
       const d = Math.hypot(m.to.x - m.from.x, m.to.y - m.from.y);
-      expect(d / Math.max(m.arrive, 1e-6)).toBeLessThanOrEqual(JOG + 1e-6);
+      // Each man has his own pace about a jog: a lineman ambles, a corner trots a touch quicker.
+      expect(d / Math.max(m.arrive, 1e-6)).toBeLessThanOrEqual(JOG * 1.25 + 1e-6);
     }
   });
 
@@ -175,14 +177,62 @@ describe('the clock', () => {
 
   it('jogs a sub on when there is no hurry, however far he comes', () => {
     const t = transition(prev, next);
-    expect(speed(t, 3)).toBeCloseTo(JOG, 5);
+    expect(speed(t, 3)).toBeLessThanOrEqual(JOG * 1.25);
   });
 
   it('sprints everyone into place in a hurry-up', () => {
     const calm = transition(prev, next);
     const hurry = transition(prev, next, { hurry: true });
-    expect(speed(hurry, 1)).toBeCloseTo(SPRINT, 5);
-    expect(speed(hurry, 3)).toBeCloseTo(SPRINT, 5);
+    expect(speed(hurry, 1)).toBeGreaterThan(JOG * 1.25);
+    expect(speed(hurry, 3)).toBeGreaterThan(JOG * 1.25);
+    expect(speed(hurry, 3)).toBeLessThanOrEqual(SPRINT * 1.25);
     expect(hurry.duration).toBeLessThan(calm.duration);
+  });
+});
+
+describe('no two alike', () => {
+  // A whole offense and defense, eleven a side, jogging from one spot to the next.
+  const prev = new Map<number, Mark>(
+    Array.from({ length: 22 }, (_, i): [number, Mark] => [i, mark(30 + (i % 5) * 3, 5 + (i % 11) * 4, i < 11)]),
+  );
+  const next = {
+    ids: [...prev.keys()],
+    home: [...prev.keys()].map((i) => i < 11),
+    pos: new Float32Array(
+      [...prev.keys()].flatMap((i) => [45 + (i < 11 ? -1 : 1) * (1 + (i % 3)), 8 + (i % 11) * 3.5]),
+    ),
+  };
+  const tr = transition(prev, next, { seed: 'g1' });
+
+  it('starts each man in his own time, at his own pace', () => {
+    const starts = tr.moves.map((m) => m.delay);
+    expect(Math.max(...starts) - Math.min(...starts)).toBeGreaterThan(0.25);
+    const paces = tr.moves.map((m) => Math.hypot(m.to.x - m.hud.x, m.to.y - m.hud.y) / m.arrive);
+    expect(Math.max(...paces) / Math.min(...paces)).toBeGreaterThan(1.15);
+  });
+
+  it('runs no one on a ruler-straight line', () => {
+    let bent = 0;
+    for (const m of tr.moves) {
+      const half = tr.at(m, m.delay + m.arrive / 2);
+      const line = { x: (m.hud.x + m.to.x) / 2, y: (m.hud.y + m.to.y) / 2 };
+      if (Math.hypot(half.x - line.x, half.y - line.y) > 0.3) bent++;
+    }
+    expect(bent).toBeGreaterThan(tr.moves.length / 2);
+  });
+
+  it('still ends every man on his spot, and plays the same way every time', () => {
+    for (const m of tr.moves) {
+      const end = tr.at(m, tr.duration);
+      expect(Math.hypot(end.x - m.to.x, end.y - m.to.y)).toBeLessThan(1e-6);
+    }
+    const again = transition(prev, next, { seed: 'g1' });
+    expect(again.moves.map((m) => [m.delay, m.arrive])).toEqual(tr.moves.map((m) => [m.delay, m.arrive]));
+  });
+
+  it('sends the men coming off toward their bench area, not straight across in a row', () => {
+    const off = transition(prev, { ids: [], home: [], pos: new Float32Array() }, { seed: 'g1' });
+    const xs = off.moves.map((m) => m.to.x - m.from.x);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(2);
   });
 });
