@@ -547,13 +547,16 @@ export function fitPayroll(players: Player[], season: number, target: number, ma
   if (short <= 1) return;
   const worth = new Map(players.map((p) => [p, marketApy(market, p)]));
   const priced = (p: Player) => worth.get(p)! > min(p);
-  /** Raises over the remaining years of running deals `who` picks, none past `most` in any year. */
-  const raise = (most: (p: Player) => number, who: (p: Player) => boolean = () => true) => {
+  /**
+   * Raises over the remaining years of running deals `who` picks, none past `most` in any year (`oneYear`: this
+   * year's deals too, for the last fill).
+   */
+  const raise = (most: (p: Player) => number, who: (p: Player) => boolean = () => true, oneYear = false) => {
     for (const weight of [salary, hit]) {
       for (let pass = 0; pass < 6 && short > 1; pass++) {
         const room = new Map(
           vets
-            .filter((p) => running(p) && who(p))
+            .filter((p) => (oneYear || running(p)) && who(p))
             .map((p) => [p, Math.max(0, Math.min(...real(p).map((y) => most(p) - capHit(p.contract!, y.season))))]),
         );
         const open = [...room.keys()].filter((p) => room.get(p)! >= 1 && weight(p) > 0);
@@ -610,7 +613,13 @@ export function fitPayroll(players: Player[], season: number, target: number, ma
     c.length += more.length;
     raise(twice, (q) => q === p);
   }
-  raise((p) => (priced(p) ? Math.min(top(p), 3.5 * worth.get(p)!) : 3 * min(p)));
+  // The last fill reaches this year's deals too: a roster of one-year minimum veterans behind linemen already near
+  // their position's top otherwise opened with a sixth of the cap unspent.
+  raise(
+    (p) => (priced(p) ? Math.min(top(p), 3.5 * worth.get(p)!) : 3 * min(p)),
+    () => true,
+    true,
+  );
 }
 
 /** Each team's seven picks in the `season` draft. */
@@ -785,13 +794,25 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     talent.push(teamTalent);
     const jerseysUsed = new Set<number>();
     const roster: Player[] = [];
-    // Every roll first, so the starters' luck can be dealt back before anyone is built.
-    const rolls = Object.fromEntries(
-      POSITIONS.map((pos) => [
-        pos,
-        Array.from({ length: ROSTER_TEMPLATE[pos] }, (_, slot) => slotRoll(rng, pos, slot)),
-      ]),
-    ) as Record<Position, number[]>;
+    // The starters' luck is dealt back before anyone is built, without moving a draw: a probe on a copy of the
+    // stream builds the roster once to read its rolls, then the real pass makes every draw where it always came and
+    // only the starters' qualities change.
+    const probe = new Rng(rng.getState());
+    const rolls = {} as Record<Position, number[]>;
+    const probeJerseys = new Set<number>();
+    for (const position of POSITIONS)
+      for (let slot = 0; slot < ROSTER_TEMPLATE[position]; slot++) {
+        const roll = slotRoll(probe, position, slot);
+        (rolls[position] ??= []).push(roll);
+        generatePlayer(probe, {
+          id: -1,
+          position,
+          quality: clamp(roll, 4, 19.5),
+          age: slotAge(probe, slot < STARTERS[position]),
+          teamId: team.id,
+          jerseysUsed: probeJerseys,
+        });
+      }
     const dealt = evenDeal(
       Object.fromEntries(
         POSITIONS.map((pos) => [pos, rolls[pos].slice(0, STARTERS[pos]).map((q) => q - STARTER_QUALITY)]),
@@ -801,6 +822,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     for (const position of POSITIONS) {
       for (let slot = 0; slot < ROSTER_TEMPLATE[position]; slot++) {
         const isStarter = slot < STARTERS[position];
+        // The roll's draw where it always came; the quality is the probe's roll, dealt.
+        slotRoll(rng, position, slot);
         const player = generatePlayer(rng, {
           id: league.nextPlayerId++,
           position,
