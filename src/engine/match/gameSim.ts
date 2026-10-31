@@ -409,6 +409,8 @@ export interface LiveGame {
   next(): PlayLogEntry[];
   readonly over: boolean;
   result(): GameResult;
+  /** Who is on the field so far (All-22): read-only, it draws nothing. */
+  field(): FieldRecord | undefined;
 }
 
 export function startGame(league: League, game: Game, options: SimOptions = {}): LiveGame {
@@ -420,6 +422,7 @@ export function startGame(league: League, game: Game, options: SimOptions = {}):
       return sim.isOver;
     },
     result: () => sim.result(),
+    field: () => sim.fieldNow(),
   };
 }
 
@@ -1016,6 +1019,11 @@ class GameSim {
       if (this.lineups[side].qb !== qb) this.qbLeans = this.leans();
     }
     this.hurt = [];
+  }
+
+  /** The field record as it stands (a live game's view reads it before the result exists). */
+  fieldNow(): FieldRecord | undefined {
+    return this.fieldRecord ?? undefined;
   }
 
   private noteJerseys(u: FieldUnits) {

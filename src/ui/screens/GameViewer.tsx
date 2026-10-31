@@ -5,8 +5,10 @@ import { useNav } from '../App';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import { TeamChip } from '../components';
 import { gameClock, weekLabel } from '../format';
+import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '../stage/ballPath';
 import { HIGHLIGHT_LEVELS, nextShown, type HighlightLevel } from '../highlights';
-import { HIGHLIGHTS_KEY, usePref } from '../viewerPrefs';
+import { HIGHLIGHTS_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
+import { TopDownField } from './TopDownField';
 
 // ───────── 2.5D field projection ─────────
 // Field coordinates: x from -10 (home end zone) to 110 (away end zone), y from 0 (near
@@ -16,8 +18,6 @@ const VIEW_W = 360;
 const VIEW_H = 176;
 const NEAR = { y: 166, w: 346 };
 const FAR = { y: 66, w: 226 };
-const FIELD_W = 53.3;
-const MID = FIELD_W / 2;
 
 function project(x: number, y: number, h = 0) {
   const t = y / FIELD_W;
@@ -31,104 +31,6 @@ const pt = (x: number, y: number) => {
 };
 const quad = (x0: number, x1: number) => `${pt(x0, 0)} ${pt(x1, 0)} ${pt(x1, FIELD_W)} ${pt(x0, FIELD_W)}`;
 
-// NFL hash marks sit 70'9" in from each sideline; the ball is spotted between them.
-const HASH_LO = 23.6;
-const HASH_HI = FIELD_W - 23.6;
-const clampY = (y: number) => Math.max(1.5, Math.min(FIELD_W - 1.5, y));
-
-// ───────── ball paths ─────────
-interface Seg {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-  /** Peak height for passes and kicks; 0 on the ground. */
-  peak: number;
-  dur: number;
-}
-
-function ground(x0: number, y0: number, x1: number, y1: number, pace = 1): Seg {
-  return { x0, y0, x1, y1, peak: 0, dur: (0.3 + Math.min(1.9, Math.hypot(x1 - x0, y1 - y0) * 0.04)) * pace };
-}
-function air(x0: number, y0: number, x1: number, y1: number, peak: number, dur?: number): Seg {
-  const dist = Math.hypot(x1 - x0, y1 - y0);
-  return { x0, y0, x1, y1, peak, dur: dur ?? 0.5 + dist * 0.018 };
-}
-
-/** Plays snapped from scrimmage start on the hash nearest to where the last play ended. */
-const SNAPPED = new Set([
-  'run',
-  'pass',
-  'incomplete',
-  'int',
-  'sack',
-  'scramble',
-  'kneel',
-  'spike',
-  'penalty',
-  'punt',
-  'fg',
-]);
-
-function buildPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
-  if (e.from === undefined || e.to === undefined || !e.kind) return [];
-  const { from, to } = e;
-  const dir = e.offense === homeId ? 1 : -1;
-  // Home drives toward screen-left, so its left hand is the near sideline; away is the reverse.
-  const laneY = clampY(snapY + (e.lane ?? 0) * dir * 16);
-  const segs: Seg[] = [];
-  switch (e.kind) {
-    case 'pass':
-    case 'incomplete':
-    case 'int': {
-      const qbX = from - dir * 6;
-      segs.push(ground(from, snapY, qbX, snapY, 0.8));
-      const target = e.air ?? from + dir * 2;
-      const targetY = e.air === undefined ? (laneY > MID ? FIELD_W + 2 : -2) : laneY;
-      segs.push(air(qbX, snapY, target, targetY, Math.min(14, 2.5 + Math.abs(target - qbX) * 0.3)));
-      if (e.kind !== 'incomplete' && Math.abs(to - target) > 0.5)
-        segs.push(ground(target, targetY, to, clampY(laneY + (e.lane ?? 0) * 3)));
-      break;
-    }
-    case 'run':
-    case 'scramble': {
-      const handoff = from - dir * 3;
-      segs.push(ground(from, snapY, handoff, snapY, 0.6));
-      segs.push(ground(handoff, snapY, to, laneY));
-      break;
-    }
-    case 'spike':
-      segs.push(ground(from, snapY, from - dir, snapY, 0.5));
-      break;
-    case 'kickoff':
-    case 'punt': {
-      const land = e.air ?? to;
-      let start = from;
-      const y = e.kind === 'punt' ? snapY : MID;
-      if (e.kind === 'punt') {
-        start = from - Math.sign(land - from || dir) * 13;
-        segs.push(ground(from, y, start, y, 0.5));
-      }
-      segs.push(air(start, y, land, y, e.kind === 'kickoff' ? 24 : 20, 1.5));
-      if (Math.abs(to - land) > 0.5) segs.push(ground(land, y, to, clampY(y + 4)));
-      break;
-    }
-    case 'fg':
-      segs.push(air(from, snapY, e.air ?? to, MID, 13, 1.1));
-      break;
-    case 'xp':
-      segs.push(air(from, MID, e.air ?? to, MID, 13, 1.1));
-      break;
-    default:
-      segs.push(ground(from, snapY, to, snapY, e.kind === 'penalty' ? 1.6 : 1));
-  }
-  return segs;
-}
-
-function pointAt(seg: Seg, s: number) {
-  return { x: seg.x0 + (seg.x1 - seg.x0) * s, y: seg.y0 + (seg.y1 - seg.y0) * s, h: 4 * seg.peak * s * (1 - s) };
-}
-
 /** Where the ball sits once a play is over (or before it, for plays without a path). */
 export function restingSpot(plays: PlayLogEntry[], index: number, homeId: number): number {
   for (let i = index; i >= 0; i--) {
@@ -140,7 +42,7 @@ export function restingSpot(plays: PlayLogEntry[], index: number, homeId: number
 }
 
 /** Line of scrimmage and line to gain in field coordinates, or null when no snap is set. */
-function downLines(
+export function downLines(
   e: PlayLogEntry | undefined,
   homeId: number,
 ): { los: number | null; gain: number | null } | undefined {
@@ -238,7 +140,7 @@ export function Field({
     const from = prev ? { ...prev } : { x: restX, y: MID, ...lines };
     memory.current = { ...from };
     const settleLines = () => Object.assign(memory.current!, lines);
-    const snapY = entry?.kind && SNAPPED.has(entry.kind) ? Math.max(HASH_LO, Math.min(HASH_HI, from.y)) : MID;
+    const snapY = snapYFor(entry, from.y);
     const segs = entry ? buildPath(entry, home.id, snapY) : [];
     // Plays without a path (timeouts, announcements) leave the ball where it lies.
     const start = segs.length
@@ -519,6 +421,33 @@ export function HighlightSwitch({ value, onChange }: { value: HighlightLevel; on
   );
 }
 
+export type ViewKind = 'broadcast' | 'all22';
+const VIEWS: readonly ViewKind[] = ['broadcast', 'all22'];
+/** All-22's speeds: faster than 2× it can't be read. */
+const ALL22_SPEEDS = [1, 2];
+export const allSpeed = (speed: number): 1 | 2 => (speed > 1 ? 2 : 1);
+
+/** Broadcast | All-22: shown only for games that kept who was on the field. */
+export function ViewSwitch({ value, onChange }: { value: ViewKind; onChange: (v: ViewKind) => void }) {
+  return (
+    <span className="vc-levels" role="group" aria-label="View">
+      {VIEWS.map((v) => (
+        <button
+          key={v}
+          className={`vc-level${v === value ? ' on' : ''}`}
+          aria-pressed={v === value}
+          onClick={() => onChange(v)}
+        >
+          {v === 'all22' ? 'All-22' : 'Broadcast'}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/** Broadcast or All-22, picked on this device. */
+export const useViewPick = () => usePref<ViewKind>(VIEW_KEY, VIEWS, 'broadcast');
+
 /** The highlight level picked on this device. */
 export const useHighlightPick = () => usePref<HighlightLevel>(HIGHLIGHTS_KEY, HIGHLIGHT_LEVELS, 'full');
 
@@ -604,6 +533,7 @@ export function GameViewer({
   const [run, setRun] = useState(0); // bumps to replay the current play
   const [still, setStill] = useState(false);
   const [pick, setPick] = useHighlightPick();
+  const [viewPick, setViewPick] = useViewPick();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const names = usePlayNames(league, game);
 
@@ -625,6 +555,9 @@ export function GameViewer({
   const home = league.teams[game.homeId];
   const away = league.teams[game.awayId];
   const entry = plays[index];
+  const all22 = viewPick === 'all22' && !!game.result.field;
+  const speeds = all22 ? ALL22_SPEEDS : SPEEDS;
+  const shownSpeed = all22 ? allSpeed(speed) : speed;
   const atEnd = index >= plays.length - 1;
   const label = game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(game.week);
 
@@ -647,7 +580,7 @@ export function GameViewer({
     if (atEnd) return setPlaying(false);
     // A skipped batch has been shown: its hold was the pause, so the highlight follows at once.
     if (still) return go(index + 1, true);
-    timer.current = setTimeout(() => advanceFrom(index), 650 / speed);
+    timer.current = setTimeout(() => advanceFrom(index), 650 / shownSpeed);
   };
   const step = (dir: 1 | -1) => {
     const n = nextShown(plays, index, home.id, pick, dir);
@@ -668,6 +601,18 @@ export function GameViewer({
   const quarterLabel = entry.quarter <= 4 ? `Q${entry.quarter}` : 'OT';
   const final = atEnd && !playing;
 
+  const broadcast = (
+    <Field
+      home={home}
+      away={away}
+      entry={entry}
+      restX={restingSpot(plays, index, home.id)}
+      animKey={`${index}:${run}`}
+      speed={shownSpeed}
+      still={still}
+      onDone={onDone}
+    />
+  );
   return (
     <>
       <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -698,16 +643,24 @@ export function GameViewer({
           </div>
         </div>
 
-        <Field
-          home={home}
-          away={away}
-          entry={entry}
-          restX={restingSpot(plays, index, home.id)}
-          animKey={`${index}:${run}`}
-          speed={speed}
-          still={still}
-          onDone={onDone}
-        />
+        {all22 ? (
+          <TopDownField
+            league={league}
+            record={game.result.field}
+            game={game}
+            home={home}
+            away={away}
+            plays={plays}
+            index={index}
+            animKey={`${index}:${run}`}
+            speed={shownSpeed}
+            still={still}
+            onDone={onDone}
+            fallback={broadcast}
+          />
+        ) : (
+          broadcast
+        )}
 
         <div className="viewer-sit">
           <span className="num">{situation(entry, home, away) || ' '}</span>
@@ -726,12 +679,13 @@ export function GameViewer({
           </button>
           <button
             className="vc-speed"
-            onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])}
+            onClick={() => setSpeed(speeds[(speeds.indexOf(shownSpeed) + 1) % speeds.length])}
             aria-label="Playback speed"
           >
-            {speed}×
+            {shownSpeed}×
           </button>
           <HighlightSwitch value={pick} onChange={setPick} />
+          {game.result.field && <ViewSwitch value={viewPick} onChange={setViewPick} />}
           <input
             className="vc-scrub"
             type="range"

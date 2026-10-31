@@ -14,9 +14,13 @@ import {
   PlayText,
   restingSpot,
   situation,
+  allSpeed,
   useHighlightPick,
   usePlayNames,
+  useViewPick,
+  ViewSwitch,
 } from './GameViewer';
+import { TopDownField } from './TopDownField';
 
 const SPEEDS = [1, 2, 4, 8];
 /** Pause between plays at 1×, so each snap can be read. */
@@ -31,6 +35,7 @@ export function LiveGame({ league }: { league: League }) {
   const game = s ? league.games.find((g) => g.id === s.gameId) : undefined;
   const names = usePlayNames(league, game);
   const [pick, setPick] = useHighlightPick();
+  const [viewPick, setViewPick] = useViewPick();
   if (!s || !game) {
     return (
       <section className="panel stack">
@@ -50,6 +55,10 @@ export function LiveGame({ league }: { league: League }) {
   const home = league.teams[game.homeId];
   const away = league.teams[game.awayId];
   const entry = s.plays[s.current];
+  const record = s.sim.field();
+  const all22 = viewPick === 'all22' && !!record;
+  const speeds = all22 ? [1, 2] : SPEEDS;
+  const speed = all22 ? allSpeed(s.speed) : s.speed;
   const label = game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(game.week);
 
   const step = () => {
@@ -65,7 +74,7 @@ export function LiveGame({ league }: { league: League }) {
     if (!s.playing || s.finished) return;
     // A skipped batch's hold was the pause: the highlight follows at once.
     if (s.still) return step();
-    timer.current = setTimeout(next, HOLD_MS / s.speed);
+    timer.current = setTimeout(next, HOLD_MS / speed);
   };
   const togglePlay = () => {
     clearTimeout(timer.current);
@@ -86,6 +95,18 @@ export function LiveGame({ league }: { league: League }) {
   // Every play so far, newest first, in a box that scrolls back to the kickoff.
   const recent = s.plays.slice(0, s.current + 1).reverse();
 
+  const broadcast = (
+    <Field
+      home={home}
+      away={away}
+      entry={entry}
+      restX={restingSpot(s.plays, s.current, home.id)}
+      animKey={`live:${s.gameId}:${s.current}`}
+      speed={speed}
+      still={s.still}
+      onDone={onDone}
+    />
+  );
   return (
     <>
       <section className="viewer">
@@ -116,16 +137,24 @@ export function LiveGame({ league }: { league: League }) {
           </div>
         </div>
 
-        <Field
-          home={home}
-          away={away}
-          entry={entry}
-          restX={restingSpot(s.plays, s.current, home.id)}
-          animKey={`live:${s.gameId}:${s.current}`}
-          speed={s.speed}
-          still={s.still}
-          onDone={onDone}
-        />
+        {all22 ? (
+          <TopDownField
+            league={league}
+            record={record}
+            game={game}
+            home={home}
+            away={away}
+            plays={s.plays}
+            index={s.current}
+            animKey={`live:${s.gameId}:${s.current}`}
+            speed={speed}
+            still={s.still}
+            onDone={onDone}
+            fallback={broadcast}
+          />
+        ) : (
+          broadcast
+        )}
 
         <div className="viewer-sit">
           <span className="num">{situation(entry, home, away) || ' '}</span>
@@ -139,12 +168,13 @@ export function LiveGame({ league }: { league: League }) {
             </button>
             <button
               className="vc-speed"
-              onClick={() => live.update({ speed: SPEEDS[(SPEEDS.indexOf(s.speed) + 1) % SPEEDS.length] })}
+              onClick={() => live.update({ speed: speeds[(speeds.indexOf(speed) + 1) % speeds.length] })}
               aria-label="Playback speed"
             >
-              {s.speed}×
+              {speed}×
             </button>
             <HighlightSwitch value={pick} onChange={setPick} />
+            {record && <ViewSwitch value={viewPick} onChange={setViewPick} />}
             <span className="live-label">Live</span>
             <button className="vc-skip" onClick={simToFinal}>
               Sim to final
