@@ -28,3 +28,12 @@ export function cameraCenter(ballX: number, dir: 1 | -1, span: number): number {
   const half = span / 2;
   return Math.max(-10 + half, Math.min(110 - half, ballX + dir * LEAD));
 }
+
+/** How quickly the upright window catches the ball: the share of the gap closed in a second is 1 - e^-RATE. */
+const RATE = 4;
+
+/** The window's centre after `seconds` easing toward `target`: the same at any frame rate; `Infinity` snaps. */
+export function easeCamera(current: number, target: number, seconds: number): number {
+  if (seconds === Infinity) return target;
+  return current + (target - current) * (1 - Math.exp(-RATE * seconds));
+}

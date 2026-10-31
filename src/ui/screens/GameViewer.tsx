@@ -601,6 +601,18 @@ export function GameViewer({
   const quarterLabel = entry.quarter <= 4 ? `Q${entry.quarter}` : 'OT';
   const final = atEnd && !playing;
 
+  const broadcast = (
+    <Field
+      home={home}
+      away={away}
+      entry={entry}
+      restX={restingSpot(plays, index, home.id)}
+      animKey={`${index}:${run}`}
+      speed={shownSpeed}
+      still={still}
+      onDone={onDone}
+    />
+  );
   return (
     <>
       <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -644,18 +656,10 @@ export function GameViewer({
             speed={shownSpeed}
             still={still}
             onDone={onDone}
+            fallback={broadcast}
           />
         ) : (
-          <Field
-            home={home}
-            away={away}
-            entry={entry}
-            restX={restingSpot(plays, index, home.id)}
-            animKey={`${index}:${run}`}
-            speed={shownSpeed}
-            still={still}
-            onDone={onDone}
-          />
+          broadcast
         )}
 
         <div className="viewer-sit">

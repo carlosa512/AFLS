@@ -95,6 +95,18 @@ export function LiveGame({ league }: { league: League }) {
   // Every play so far, newest first, in a box that scrolls back to the kickoff.
   const recent = s.plays.slice(0, s.current + 1).reverse();
 
+  const broadcast = (
+    <Field
+      home={home}
+      away={away}
+      entry={entry}
+      restX={restingSpot(s.plays, s.current, home.id)}
+      animKey={`live:${s.gameId}:${s.current}`}
+      speed={speed}
+      still={s.still}
+      onDone={onDone}
+    />
+  );
   return (
     <>
       <section className="viewer">
@@ -138,18 +150,10 @@ export function LiveGame({ league }: { league: League }) {
             speed={speed}
             still={s.still}
             onDone={onDone}
+            fallback={broadcast}
           />
         ) : (
-          <Field
-            home={home}
-            away={away}
-            entry={entry}
-            restX={restingSpot(s.plays, s.current, home.id)}
-            animKey={`live:${s.gameId}:${s.current}`}
-            speed={speed}
-            still={s.still}
-            onDone={onDone}
-          />
+          broadcast
         )}
 
         <div className="viewer-sit">

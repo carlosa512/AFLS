@@ -3,12 +3,12 @@
  * here, writing each dot's spot straight to the SVG each frame (no React state per frame), as `Field` does.
  * Spec: docs/superpowers/specs/2026-10-31-all-22-view-design.md §4.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FieldRecord, Game, League, PlayLogEntry, Team } from '../../engine/types';
 import { kitFor } from '../color';
 import { PlayerLink } from '../components';
 import { FIELD_W, HASH_HI, HASH_LO, MID, snapYFor } from '../stage/ballPath';
-import { cameraCenter, cameraSpan, layoutFor, type Layout } from '../stage/camera';
+import { cameraCenter, cameraSpan, easeCamera, layoutFor, type Layout } from '../stage/camera';
 import { stagePlay, type StagedPlay } from '../stage/stage';
 import { downLines } from './GameViewer';
 
@@ -57,6 +57,7 @@ export function TopDownField({
   animKey,
   speed,
   still = false,
+  fallback,
   onDone,
 }: {
   league: League;
@@ -70,6 +71,8 @@ export function TopDownField({
   animKey: string;
   speed: number;
   still?: boolean;
+  /** Shown if a play can't be staged: the broadcast field. */
+  fallback?: ReactNode;
   onDone: () => void;
 }) {
   const entry = plays[index];
@@ -85,6 +88,8 @@ export function TopDownField({
   doneRef.current = onDone;
   const [layout, setLayout] = useState<Layout>('wide');
   const [card, setCard] = useState<number | null>(null);
+  // A new play closes the card: its player may not even be on the field for it.
+  useEffect(() => setCard(null), [index]);
 
   useEffect(() => {
     const el = box.current;
@@ -96,14 +101,19 @@ export function TopDownField({
 
   const staged: StagedPlay | null = useMemo(() => {
     if (!record || !entry) return null;
-    return stagePlay({
-      plays,
-      index,
-      record,
-      homeId: home.id,
-      seed: `${league.seed}:${game.season}:${game.id}:stage:${index}`,
-      snapY: snapYFor(entry, memory.current.ballY),
-    });
+    try {
+      return stagePlay({
+        plays,
+        index,
+        record,
+        homeId: home.id,
+        seed: `${league.seed}:${game.season}:${game.id}:stage:${index}`,
+        snapY: snapYFor(entry, memory.current.ballY),
+      });
+    } catch {
+      // A log this view can't stage: the broadcast view instead, rather than take the viewer down.
+      return null;
+    }
     // The play is staged once per play shown; the memory it reads is where the last play left the ball.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, index, game.id]);
@@ -121,13 +131,13 @@ export function TopDownField({
     const from = s.ids.map((id, k) => mem.spots.get(id) ?? [s.pos[k * 2], s.pos[k * 2 + 1]]);
     const view: View = { layout, dir, cx: mem.cx, span };
 
-    const place = (step: number, slide: number) => {
+    const place = (step: number, slide: number, seconds: number) => {
       const ballX = s.ball[step * 3];
       const ballY = s.ball[step * 3 + 1];
       const h = s.ball[step * 3 + 2];
       if (layout === 'upright') {
         const target = cameraCenter(ballX, dir, span);
-        view.cx += (target - view.cx) * (slide < 1 ? 0.08 : 0.12);
+        view.cx = easeCamera(view.cx, target, seconds);
         fieldRef.current?.setAttribute('transform', fieldTransform(view));
         svg.current?.setAttribute('viewBox', viewBox(view));
       }
@@ -166,20 +176,24 @@ export function TopDownField({
 
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (still || reduced) {
-      place(last, 1);
+      // Nothing moves, so the window jumps straight to where the play ended.
+      place(last, 1, Infinity);
       const t = setTimeout(() => doneRef.current(), 450 / speed);
       return () => clearTimeout(t);
     }
     let raf = 0;
     let t0 = 0;
+    let prev = 0;
     const playTime = last * s.dt;
     const tick = (now: number) => {
-      if (!t0) t0 = now;
+      if (!t0) t0 = prev = now;
       const t = ((now - t0) / 1000) * speed;
-      if (t < RESPOT) place(0, t / RESPOT);
-      else if (t - RESPOT < playTime) place(Math.min(last, Math.floor((t - RESPOT) / s.dt)), 1);
+      const frame = ((now - prev) / 1000) * speed;
+      prev = now;
+      if (t < RESPOT) place(0, t / RESPOT, frame);
+      else if (t - RESPOT < playTime) place(Math.min(last, Math.floor((t - RESPOT) / s.dt)), 1, frame);
       else {
-        place(last, 1);
+        place(last, 1, frame);
         doneRef.current();
         return;
       }
@@ -191,7 +205,8 @@ export function TopDownField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animKey, staged, layout]);
 
-  if (!record || !staged) return null;
+  if (!record) return null;
+  if (!staged) return <>{fallback}</>;
 
   const view: View = { layout, dir, cx: memory.current.cx, span };
   const kit = (t: Team, isAway: boolean) => kitFor({ primary: t.colors[0], secondary: t.colors[1] }, isAway);
@@ -279,7 +294,9 @@ export function TopDownField({
         {order.map((k) => {
           const id = staged.ids[k];
           const k2 = staged.home[k] ? homeKit : awayKit;
-          const [sx, sy] = toScreen(view, staged.pos[k * 2], staged.pos[k * 2 + 1]);
+          // Where the dot is now (the last frame drawn), so a re-render never moves it; the effect takes it from there.
+          const [x, y] = memory.current.spots.get(id) ?? [staged.pos[k * 2], staged.pos[k * 2 + 1]];
+          const [sx, sy] = toScreen(view, x, y);
           return (
             <g
               key={id}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cameraCenter, cameraSpan, layoutFor } from './camera';
+import { cameraCenter, cameraSpan, easeCamera, layoutFor } from './camera';
 
 describe('the camera', () => {
   it('picks the layout from the box', () => {
@@ -21,5 +21,13 @@ describe('the camera', () => {
     expect(cameraSpan({ kind: 'run' })).toBe(45);
     expect(cameraSpan({ kind: 'punt' })).toBe(70);
     expect(cameraSpan({ kind: 'kickoff' })).toBe(70);
+  });
+
+  it('eases toward the ball by time, not by frame, and snaps when asked', () => {
+    const half = easeCamera(easeCamera(0, 10, 0.05), 10, 0.05);
+    expect(half).toBeCloseTo(easeCamera(0, 10, 0.1), 6);
+    expect(easeCamera(0, 10, 0.1)).toBeGreaterThan(0);
+    expect(easeCamera(0, 10, 0.1)).toBeLessThan(10);
+    expect(easeCamera(0, 10, Infinity)).toBe(10);
   });
 });
