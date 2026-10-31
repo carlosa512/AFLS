@@ -82,6 +82,17 @@ const SCRAMBLE_HOLD = 1.1;
  * before the quarterback takes off. Every dropback here is: drop, hold, then the throw, the run or the sack. A run is
  * the mesh, the press to the line while the back reads his blocks, then the burst.
  */
+/**
+ * A ball carrier's pace in the open, by how far he goes: a short gain is a back working through traffic; a long one
+ * is a breakaway, at the speed the pursuit can't match (yards a second).
+ */
+export const runPace = (yards: number) => Math.min(9.3, 6.5 + yards * 0.05);
+/** A carrier's leg on the ground at his pace. */
+const carry = (sg: Seg): Seg => {
+  const l = Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0);
+  return { ...sg, dur: Math.max(0.3, l / runPace(l)) };
+};
+
 export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
   const segs = buildPath(e, homeId, snapY);
   if (!segs.length || e.from === undefined || e.to === undefined) return segs;
@@ -93,8 +104,10 @@ export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[
     return [
       drop,
       hold({ x: drop.x1, y: drop.y1 }, Math.max(0.8, Math.min(1.6, 0.7 + depth * 0.035))),
-      ...segs.slice(1),
-    ];
+      air,
+      // After the catch (or the pick): a runner's pace, not the broadcast view's slide.
+      ...segs.slice(2).map(carry),
+    ].filter((sg): sg is Seg => !!sg);
   }
   const len = (sg: Seg) => Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0);
   /** A return: a back's pace, not the broadcast view's quick slide. */
@@ -130,12 +143,14 @@ export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[
     // The mesh, then the back presses the line reading his blocks, then bursts through the hole.
     const hand = { x: segs[0].x1, y: segs[0].y1 };
     const end = { x: segs[1].x1, y: segs[1].y1 };
-    const press = { x: hand.x + (end.x - hand.x) * 0.35, y: hand.y + (end.y - hand.y) * 0.5 };
+    // To the line and a step past it while the hole opens (a few yards at most: a long run bursts from there).
+    const k = Math.min(0.35, 4 / Math.max(1, Math.abs(end.x - hand.x)));
+    const press = { x: hand.x + (end.x - hand.x) * k, y: hand.y + (end.y - hand.y) * Math.min(0.5, k * 1.4) };
     const len = (p: { x: number; y: number }, q: { x: number; y: number }) => Math.hypot(q.x - p.x, q.y - p.y);
     return [
       { ...segs[0], dur: MESH },
       { x0: hand.x, y0: hand.y, x1: press.x, y1: press.y, peak: 0, dur: Math.max(0.9, len(hand, press) / 4.5 + 0.5) },
-      { x0: press.x, y0: press.y, x1: end.x, y1: end.y, peak: 0, dur: Math.max(0.3, len(press, end) / 7) },
+      carry({ x0: press.x, y0: press.y, x1: end.x, y1: end.y, peak: 0, dur: 0 }),
     ];
   }
   if (e.kind === 'sack' || e.kind === 'scramble') {
@@ -144,7 +159,7 @@ export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[
     return [
       ground(e.from, snapY, qb.x, qb.y, 0.8),
       hold(qb, e.kind === 'sack' ? SACK_HOLD : SCRAMBLE_HOLD),
-      ground(qb.x, qb.y, end.x1, end.y1),
+      e.kind === 'scramble' ? carry(ground(qb.x, qb.y, end.x1, end.y1)) : ground(qb.x, qb.y, end.x1, end.y1),
     ];
   }
   return segs;

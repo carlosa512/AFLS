@@ -5111,6 +5111,24 @@ button.tip-pill {
   font-size: var(--step--1);
   white-space: nowrap;
 }
+/* The ball changing hands, while the units change over. */
+.td-banner {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: var(--step--1);
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
 .td-card-x {
   border: 0;
   background: none;

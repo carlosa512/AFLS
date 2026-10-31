@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactElement } from 'react';
+import type { PlayLogEntry } from '../engine/types';
 import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { NavContext, type Nav } from './nav';
 import { allSpeed, GameViewer } from './screens/GameViewer';
-import { TopDownField } from './screens/TopDownField';
+import { handoverFor, TopDownField } from './screens/TopDownField';
 import { VIEW_KEY } from './viewerPrefs';
 import { vi } from 'vitest';
 
@@ -117,5 +118,33 @@ describe('the view switch', () => {
     expect(all22).toContain('td-field');
     expect(broadcast).not.toContain('td-field');
     expect(strip(all22)).toBe(strip(broadcast));
+  });
+});
+
+describe('the ball changing hands in All-22', () => {
+  const play = (o: Partial<PlayLogEntry>): PlayLogEntry => ({
+    quarter: 1,
+    clock: 600,
+    offense: 1,
+    down: 1,
+    distance: 10,
+    yardLine: 50,
+    text: '',
+    homeScore: 0,
+    awayScore: 0,
+    ...o,
+  });
+
+  it("names the turnover before the other side's first snap, and nothing for a kick or a series that carries on", () => {
+    const pick = play({ kind: 'int', offense: 1, text: 'X pass INTERCEPTED by Y' });
+    const theirs = play({ kind: 'run', offense: 2 });
+    expect(handoverFor([pick, theirs], 1, 1)).toBe('Interception');
+    expect(handoverFor([play({ kind: 'run', offense: 1, down: 4 }), theirs], 1, 1)).toBe('Turnover on downs');
+    expect(handoverFor([play({ kind: 'run', offense: 1, text: 'FUMBLE, recovered by Z' }), theirs], 1, 1)).toBe(
+      'Fumble',
+    );
+    // A punt has its own change-over, and the same side's next snap is no handover.
+    expect(handoverFor([play({ kind: 'punt', offense: 1, from: 30, air: 70 }), theirs], 1, 1)).toBeNull();
+    expect(handoverFor([play({ kind: 'run', offense: 1 }), play({ kind: 'pass', offense: 1 })], 1, 1)).toBeNull();
   });
 });

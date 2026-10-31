@@ -31,19 +31,33 @@ interface View {
   /** The upright window's centre yard line. */
   cx: number;
   span: number;
+  /**
+   * The upright field's turn: 0 with the home side's offense attacking up, π with the away side's. It turns through
+   * the change-over when the ball changes hands, rather than flipping in a frame.
+   */
+  phi: number;
 }
 function toScreen(v: View, x: number, y: number): [number, number] {
-  return v.layout === 'wide' ? [100 - x, FIELD_W - y] : [v.dir * (y - MID), -v.dir * (x - v.cx)];
+  if (v.layout === 'wide') return [100 - x, FIELD_W - y];
+  const c = Math.cos(v.phi);
+  const s = Math.sin(v.phi);
+  return [c * (y - MID) + s * (x - v.cx), s * (y - MID) - c * (x - v.cx)];
 }
 function viewBox(v: View): string {
   return v.layout === 'wide' ? '-12 -2 124 57.3' : `${-MID - 1} ${-v.span / 2} ${FIELD_W + 2} ${v.span}`;
 }
 /** The field group's transform: the same mapping as `toScreen`, as an SVG matrix. */
 function fieldTransform(v: View): string {
-  return v.layout === 'wide'
-    ? `matrix(-1 0 0 -1 100 ${FIELD_W})`
-    : `matrix(0 ${-v.dir} ${v.dir} 0 ${-v.dir * MID} ${v.dir * v.cx})`;
+  if (v.layout === 'wide') return `matrix(-1 0 0 -1 100 ${FIELD_W})`;
+  const c = Math.cos(v.phi);
+  const s = Math.sin(v.phi);
+  const f = (n: number) => n.toFixed(4);
+  return `matrix(${f(s)} ${f(-c)} ${f(c)} ${f(s)} ${f(-c * MID - s * v.cx)} ${f(-s * MID + c * v.cx)})`;
 }
+/** The upright field's turn for an offense attacking toward x = 100 (1) or x = 0 (-1). */
+const turnFor = (dir: 1 | -1) => (dir === 1 ? 0 : Math.PI);
+/** How long the field takes to turn when the ball changes hands, in seconds. */
+const TURN = 1.4;
 
 /**
  * The officials on a kickoff, from the ball on the kicking 35: a pair on the sidelines at the kicking team's line
@@ -58,6 +72,24 @@ function crew(ballX: number, dir: 1 | -1): [number, number][] {
     [at(45), FIELD_W + 1.2],
     [at(65), MID + 9],
   ];
+}
+
+/**
+ * Whether the ball changed hands on the way to the play at `index` (not counting a kick, which has its own
+ * change-over), and how: the words on the banner while the units change over.
+ */
+export function handoverFor(plays: readonly PlayLogEntry[], index: number, homeId: number): string | null {
+  const e = plays[index];
+  if (!e?.kind || e.kind === 'kickoff') return null;
+  let prev: PlayLogEntry | undefined;
+  for (let i = index - 1; i >= 0 && !prev; i--) if (plays[i].kind) prev = plays[i];
+  if (!prev || prev.kind === 'kickoff' || prev.kind === 'punt') return null;
+  if (offenseSide(prev, homeId) === offenseSide(e, homeId)) return null;
+  if (prev.kind === 'int') return 'Interception';
+  if (/FUMBLE/.test(prev.text)) return 'Fumble';
+  if (prev.kind === 'fg') return 'Missed field goal';
+  if (prev.down === 4) return 'Turnover on downs';
+  return 'Change of possession';
 }
 
 /** An official: white with black stripes, a touch smaller than a player. */
@@ -106,6 +138,8 @@ interface Memory {
   ballX: number | null;
   ballY: number;
   cx: number;
+  /** The upright field's turn as last drawn. */
+  phi: number | null;
   /** Where the last play shown ended and whose man had the ball: a big one is celebrated there. */
   ended: { index: number; at: Mark | null } | null;
 }
@@ -146,11 +180,12 @@ export function TopDownField({
   const dotRefs = useRef(new Map<number, SVGGElement>());
   const ringRefs = useRef(new Map<number, SVGCircleElement>());
   const crewRef = useRef<SVGGElement>(null);
+  const bannerRef = useRef<HTMLDivElement>(null);
   const spotterRef = useRef<SVGGElement>(null);
   const flagRef = useRef<SVGGElement>(null);
   const ballRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
-  const memory = useRef<Memory>({ spots: new Map(), ballX: null, ballY: MID, cx: 50, ended: null });
+  const memory = useRef<Memory>({ spots: new Map(), ballX: null, ballY: MID, cx: 50, phi: null, ended: null });
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
   const [layout, setLayout] = useState<Layout>('wide');
@@ -215,6 +250,7 @@ export function TopDownField({
       caller,
     };
   };
+  const handover = handoverFor(plays, index, home.id);
   const span = cameraSpan(entry);
   const lines = downLines(entry, home.id);
 
@@ -224,7 +260,10 @@ export function TopDownField({
     const n = s.ids.length;
     const last = s.steps - 1;
     const mem = memory.current;
-    const view: View = { layout, dir, cx: mem.cx, span };
+    // The field turns with the ball: from where it was drawn last, through the change-over (none on a jump).
+    const turnTo = turnFor(dir);
+    const turnFrom = mem.phi ?? turnTo;
+    const view: View = { layout, dir, cx: mem.cx, span, phi: turnTo };
     // Between plays: everyone jogs from where the last play left him to his spot, subs come and go (none on the
     // first play shown, which starts set).
     const big =
@@ -239,7 +278,8 @@ export function TopDownField({
             huddle: huddleFor(s),
             hurry: hurried(),
             seed: `${league.seed}:${game.id}:gap:${index}`,
-            change: entry?.kind === 'kickoff',
+            // Before a kickoff, and when the ball changes hands: the units change over at their sidelines.
+            change: entry?.kind === 'kickoff' || !!handover,
           })
         : null;
     const ballFrom = mem.ballX === null || !following ? null : { x: mem.ballX, y: mem.ballY };
@@ -279,6 +319,13 @@ export function TopDownField({
     /** The jog between plays, `t` seconds in. */
     const jog = (t: number, seconds: number) => {
       const g = gap!;
+      // The field turns once the moment's been had, while the units change over.
+      const q = Math.min(1, Math.max(0, (t - g.beat - g.celebrate - 0.3) / TURN));
+      const turned = turnFrom === turnTo ? 0 : q * q * (3 - 2 * q);
+      view.phi = turnFrom + ((turnTo - turnFrom + 2 * Math.PI) % (2 * Math.PI)) * turned;
+      // The banner when the ball has changed hands: up after the whistle, gone before the formation sets.
+      const shown = t > g.beat && t < g.duration - 1.2 ? 1 : 0;
+      bannerRef.current?.style.setProperty('opacity', String(shown));
       rings(-1);
       // The officials walk out to their spots for a kickoff while the units change over.
       crewRef.current?.setAttribute('opacity', Math.min(1, t / 2).toFixed(2));
@@ -310,8 +357,10 @@ export function TopDownField({
 
     /** The play itself, at `step`. */
     const place = (step: number, seconds: number) => {
+      view.phi = turnTo;
       camera(s.ball[step * 3], seconds);
       rings(step === last ? Infinity : step * s.dt);
+      bannerRef.current?.style.setProperty('opacity', '0');
       spotterRef.current?.setAttribute('opacity', '0');
       crewRef.current?.setAttribute('opacity', '1');
       // A flag on the play: thrown partway through, from the official's spot near the line.
@@ -324,6 +373,7 @@ export function TopDownField({
       }
       drawBall(s.ball[step * 3], s.ball[step * 3 + 1], s.ball[step * 3 + 2]);
       mem.cx = view.cx;
+      mem.phi = turnTo;
       if (step === last) mem.ended = { index, at: madeIt() };
     };
     /** Who made the play, where it ended: the man with the ball (for a fumble, the side that came up with it). */
@@ -389,7 +439,7 @@ export function TopDownField({
   if (!record) return null;
   if (!staged) return <>{fallback}</>;
 
-  const view: View = { layout, dir, cx: memory.current.cx, span };
+  const view: View = { layout, dir, cx: memory.current.cx, span, phi: memory.current.phi ?? turnFor(dir) };
   const kit = (t: Team, isAway: boolean) => kitFor({ primary: t.colors[0], secondary: t.colors[1] }, isAway);
   const homeKit = kit(home, false);
   const awayKit = kit(away, true);
@@ -552,6 +602,11 @@ export function TopDownField({
         <ellipse ref={shadowRef} rx={0.55} ry={0.32} fill="rgba(0,0,0,0.45)" />
         <ellipse ref={ballRef} rx={0.55} ry={0.34} fill="#7a3f1d" stroke="#fff" strokeWidth={0.1} />
       </svg>
+      {handover && (
+        <div ref={bannerRef} className="td-banner" style={{ opacity: 0 }} aria-live="polite">
+          {handover} · {(entry.offense === home.id ? home : away).abbrev} ball
+        </div>
+      )}
       {cardPlayer && (
         <div className="td-card" role="dialog" aria-label="Player">
           <span className="num">#{record.jerseys[cardPlayer.id]}</span>{' '}

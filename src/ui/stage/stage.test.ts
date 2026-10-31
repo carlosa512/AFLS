@@ -311,6 +311,32 @@ describe('the staged play', () => {
     expect(n).toBeGreaterThan(10_000);
   });
 
+  it('lets a long gain break clear: no pack escorting the carrier through the second half of the run', () => {
+    let n = 0;
+    const crowds: number[] = [];
+    for (const { e, p } of staged) {
+      if ((e.kind !== 'run' && e.kind !== 'pass') || p.carrier === null) continue;
+      if (e.from === undefined || e.to === undefined || Math.abs(e.to - e.from) < 30) continue;
+      const c = p.ids.indexOf(p.carrier);
+      const last = p.steps - 1;
+      let crowd = 0;
+      let samples = 0;
+      // The second half of the play, short of the tackle itself.
+      for (let st = Math.round(last / 2); st < last - Math.round(0.6 / p.dt); st += 5) {
+        const b = pos(p, st, c);
+        crowd += p.ids.filter((_, k) => k !== c && Math.hypot(pos(p, st, k).x - b.x, pos(p, st, k).y - b.y) < 4).length;
+        samples++;
+      }
+      if (samples) crowds.push(crowd / samples);
+      n++;
+    }
+    crowds.sort((a, b) => a - b);
+    // Most break clear; the worst still have the pursuit closing in for the tackle, never a pack around him.
+    expect(crowds[Math.floor(crowds.length / 2)]).toBeLessThan(1.5);
+    expect(crowds[crowds.length - 1]).toBeLessThan(6);
+    expect(n).toBeGreaterThan(10);
+  });
+
   it('stages the same play the same way every time', () => {
     const { g, r } = games[3];
     const a = stagePlay({ plays: r.plays!, index: 40, record: r.field!, homeId: g.homeId, seed: 'same', snapY: 26 });

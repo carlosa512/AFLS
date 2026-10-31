@@ -42,6 +42,8 @@ const MISS = 1.1;
 const MISSED = 1;
 /** Within this many yards of the carrier the tackler sheds his block and attacks him, running through the hit. */
 const CLOSING = 8;
+/** Pursuit lanes, yards either side of the carrier's line: the chase fans out. */
+const LANES = [0, -2.5, 2.5, -5, 5, -1.2, 1.2, -3.8, 3.8, -6, 6];
 
 export interface SteerArgs {
   cast: Cast;
@@ -102,10 +104,13 @@ export function steer(a: SteerArgs): Float32Array {
   const py = new Float64Array(n);
   const vx = new Float64Array(n);
   const vy = new Float64Array(n);
+  /** Where each man was a step ago: the carrier's heading. */
+  const lastX = new Float64Array(n);
+  const lastY = new Float64Array(n);
   members.forEach((m, k) => {
     const p = a.start.get(m.id)!;
-    px[k] = p.x;
-    py[k] = p.y;
+    px[k] = lastX[k] = p.x;
+    py[k] = lastY[k] = p.y;
   });
   const steered = members.map((m) => !a.scripted.has(m.id));
   const index = new Map(members.map((m, k) => [m.id, k]));
@@ -331,6 +336,8 @@ export function steer(a: SteerArgs): Float32Array {
         const m = members[k];
         const s0 = a.start.get(m.id)!;
         let goal: Pt = s0;
+        /** Below 1 for a man out of the play, easing off. */
+        let beaten = 1;
         // A combo block's second man comes off the double a second after the handoff and climbs to a linebacker.
         if (climbs.includes(k) && t > a.release + 1 && !climbed.has(k)) {
           const lb = pick(backers, k);
@@ -384,8 +391,17 @@ export function steer(a: SteerArgs): Float32Array {
           }
         } else {
           const mark = marks.get(m.id);
-          if (released && t > a.release + (a.run ? 0.1 : 0.25)) goal = chase;
-          else if (a.run && t > 0.3 && (m.role === 'LB' || m.role === 'S'))
+          if (released && t > a.release + (a.run ? 0.1 : 0.25)) {
+            // Pursuit: an angle on where the ball is going, further ahead the further off it he is, so the chase
+            // spreads out across the field instead of piling onto the carrier's back.
+            const d = Math.hypot(chase.x - px[k], chase.y - py[k]);
+            const aim = ballAt(step + Math.round(Math.min(1.6, d / 9) / a.dt) + 4);
+            // Each takes his own angle (a lane of his own, wider the further off he is), not one file behind him.
+            goal = { x: aim.x, y: aim.y + LANES[k % LANES.length] * Math.min(1, d / 12) };
+            // A big man well beaten (the ball past him and away) eases off: the chase thins out behind the play.
+            const past = (ballAt(step).x - px[k]) * a.dir;
+            if ((m.role === 'DT' || m.role === 'EDGE') && past > 8) beaten = 0.7;
+          } else if (a.run && t > 0.3 && (m.role === 'LB' || m.role === 'S'))
             // Reading run on the mesh: step up and flow with the play before the ball is even handed off.
             goal = { x: s0.x - a.dir * (m.role === 'LB' ? 1.5 : 3), y: s0.y + side * 2.5 };
           else if (m.role === 'DT' || m.role === 'EDGE') goal = hk >= 0 ? { x: px[hk], y: py[hk] } : ballAt(step);
@@ -403,7 +419,7 @@ export function steer(a: SteerArgs): Float32Array {
           k === pk && !!carrierPath && (a.kick ? t >= a.catchAt : released && t > a.release + (a.run ? 0.1 : 0.25));
         if (pursuing) goal = sample(carrierPath!, t + LEAD);
         // Engaged: a blocked man only leans into his block, slowly toward the ball on a dropback, driven back on a run.
-        let top = SPEED[m.role] + (k === pk ? PURSUIT : 0);
+        let top = (SPEED[m.role] + (k === pk ? PURSUIT : 0)) * beaten;
         /** The tackler, clear of the blocks and closing: within a few yards of the carrier. */
         const closing =
           pursuing && carrierIdx >= 0 && Math.hypot(px[carrierIdx] - px[k], py[carrierIdx] - py[k]) < CLOSING;
@@ -498,10 +514,22 @@ export function steer(a: SteerArgs): Float32Array {
           const dy = py[k] - py[r];
           const d = Math.hypot(dx, dy);
           if (d < RING) {
-            const ux = d > 0 ? dx / d : a.dir;
-            const uy = d > 0 ? dy / d : 0;
+            // He's there too soon (the tackle is the tackler's): he whiffs. Knocked off to the side the carrier is
+            // passing him on, not shoved along in front of him, and his momentum gone, so he falls off the play.
+            const mx = px[r] - lastX[r];
+            const my = py[r] - lastY[r];
+            const m = Math.hypot(mx, my);
+            let ux = d > 0 ? dx / d : a.dir;
+            let uy = d > 0 ? dy / d : 0;
+            if (m > 1e-6) {
+              const side = Math.sign(-my * dx + mx * dy) || 1;
+              ux = (-my / m) * side;
+              uy = (mx / m) * side;
+            }
             px[k] = px[r] + ux * RING;
             py[k] = py[r] + uy * RING;
+            vx[k] = 0;
+            vy[k] = 0;
           }
         }
       }
@@ -509,6 +537,8 @@ export function steer(a: SteerArgs): Float32Array {
     for (let k = 0; k < n; k++) {
       out[(step * n + k) * 2] = px[k];
       out[(step * n + k) * 2 + 1] = py[k];
+      lastX[k] = px[k];
+      lastY[k] = py[k];
     }
   }
   return out;
