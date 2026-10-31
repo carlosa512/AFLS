@@ -635,12 +635,16 @@ const PEDIGREE = 4;
 /** A starter's quality before his team's talent: the luck of his roll is how far he lands from this. */
 const STARTER_QUALITY = 12.8;
 
-/** The roll for the Nth player at a position, before his team's talent (a starter's lands around `STARTER_QUALITY`). */
+/**
+ * The roll for the Nth player at a position, before his team's talent (a starter's lands around `STARTER_QUALITY`).
+ * Backups roll as a league the AI has built over the years carries them: its next men average about 9.7, three points
+ * behind the starters (a new league's sat four behind and lost more to every injury).
+ */
 function slotRoll(rng: Rng, position: Position, slot: number): number {
   const starters = STARTERS[position];
   if (slot < starters) return rng.normal(STARTER_QUALITY, 2.3);
-  if (slot === starters) return rng.normal(10, 1.8);
-  return rng.normal(8.3, 1.7);
+  if (slot === starters) return rng.normal(11.1, 1.8);
+  return rng.normal(9.4, 1.7);
 }
 
 /**
@@ -800,7 +804,10 @@ export function createLeague(options: NewLeagueOptions = {}): League {
         const player = generatePlayer(rng, {
           id: league.nextPlayerId++,
           position,
-          quality: clamp(rolls[position][slot] + teamTalent, 4, 19.5),
+          // A franchise's record lifts its starters, not its depth: a built league's depth barely follows its
+          // strength (stars cost the room it would take), and depth that did let strong clubs shrug off injuries
+          // weak ones couldn't, pulling a new league apart through its first season.
+          quality: clamp(rolls[position][slot] + (isStarter ? teamTalent : 0), 4, 19.5),
           age: slotAge(rng, isStarter),
           teamId: team.id,
           jerseysUsed,

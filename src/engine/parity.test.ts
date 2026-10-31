@@ -19,8 +19,8 @@ const { knockFor } = await import('./familiarity');
 const { buildLineup, DAY_SD, teamDay } = await import('./match/lineup');
 const { simulateGame } = await import('./match/gameSim');
 const { createLeague, EVEN_DEAL, evenDeal } = await import('./generate');
-const { headline, UNIT_POSITIONS } = await import('./roster');
-const { STARTERS } = await import('./positions');
+const { headline, teamRatings, UNIT_POSITIONS } = await import('./roster');
+const { playerOvr, STARTERS } = await import('./positions');
 const { POSITIONS } = await import('./types');
 type Lineup = import('./match/lineup').Lineup;
 type Position = import('./types').Position;
@@ -154,4 +154,30 @@ describe('an even deal at a new league (parity)', () => {
     expect(luck(evenDeal(r))).toBeCloseTo((1 - EVEN_DEAL) * luck(r), 9);
     expect(evenDeal(zero())).toEqual(zero());
   });
+});
+
+describe("a new league's depth (parity)", () => {
+  /** Each team's starters' overall and its next men's average (one backup per starter, kickers and punters apart). */
+  const depthRows = (seed: string) => {
+    const l = createLeague({ seed });
+    return l.teams.map((t) => {
+      const next = POSITIONS.filter((p) => p !== 'K' && p !== 'P').flatMap((p) =>
+        t.depthChart[p].slice(STARTERS[p], 2 * STARTERS[p]).map((id) => playerOvr(l.players[id])),
+      );
+      return [teamRatings(l, t).overall, next.reduce((a, b) => a + b, 0) / next.length];
+    });
+  };
+
+  it("is a built league's: about as deep, and no deeper at a strong club than a weak one", () => {
+    const rows = [...depthRows('depth-a'), ...depthRows('depth-b'), ...depthRows('depth-c')];
+    const mean = (x: number[]) => x.reduce((a, b) => a + b, 0) / x.length;
+    const o = rows.map((r) => r[0]);
+    const d = rows.map((r) => r[1]);
+    const sd = (x: number[]) => Math.sqrt(mean(x.map((v) => (v - mean(x)) ** 2)));
+    const corr = mean(o.map((v, i) => (v - mean(o)) * (d[i] - mean(d)))) / sd(o) / sd(d);
+    // A league the AI has built over eight seasons: next men about 9.7, correlation with strength 0.06–0.11.
+    expect(mean(d)).toBeGreaterThan(9.2);
+    expect(mean(d)).toBeLessThan(10.2);
+    expect(corr).toBeLessThan(0.25);
+  }, 60_000);
 });
