@@ -55,7 +55,7 @@ A pure module, `src/ui/highlights.ts`. `highlightLevel(plays, index)` returns th
 - third downs;
 - snaps inside the opponent's 20;
 - sacks;
-- plays of 10+ yards;
+- plays of 15+ yards (calibrated: 10+ put Extended at 84 plays a game, over its range);
 - every snap in the last two minutes of the first half.
 
 **Full game:** every play. It's the default, so nothing changes until you pick a level.
