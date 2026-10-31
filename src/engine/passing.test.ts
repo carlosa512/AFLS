@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { passDepth, type Situation } from './match/coach';
-import { BEHIND_SHARE, passAir } from './match/gameSim';
+import { BEHIND_SHARE, passAir, SCREEN_YAC, screenRoom } from './match/gameSim';
 import { Rng } from './rng';
 
 /** An ordinary snap between the 20s, no clock pressure. */
@@ -56,5 +56,14 @@ describe("the passing game's shape (nflverse 2019–24)", () => {
   it('never completes a pass behind its own goal line', () => {
     const rng = new Rng('goal-line');
     for (let i = 0; i < 2000; i++) expect(passAir(rng, 'short', false, 2, 98)).toBeGreaterThanOrEqual(-1);
+  });
+});
+
+describe('screens at the goal line (nflverse 2021–24: 36.7% of catches behind the line inside the 5 score)', () => {
+  it('lose their room after the catch as the field shrinks', () => {
+    expect(screenRoom(0)).toBeCloseTo(SCREEN_YAC, 9);
+    expect(screenRoom(1)).toBeLessThan(0.65 * SCREEN_YAC);
+    expect(screenRoom(0.5)).toBeLessThan(screenRoom(0));
+    expect(screenRoom(0.5)).toBeGreaterThan(screenRoom(1));
   });
 });

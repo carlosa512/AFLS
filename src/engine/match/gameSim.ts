@@ -419,7 +419,14 @@ function units(l: Lineup): [offense: Player[], defense: Player[]] {
 export const BEHIND_SHARE = 0.18;
 
 /** A catch behind the line has blockers in front of it: the NFL's gain 9.1 yards after the catch (nflverse 2019–24). */
-const SCREEN_YAC = 8.6;
+export const SCREEN_YAC = 8.6;
+/**
+ * Share of a screen's room that the goal line takes away: inside the 5 the whole defense is a step from the ball
+ * (nflverse 2021–24: 36.7% of catches behind the line score there, 92% of those past it).
+ */
+const SCREEN_SQUEEZE = 0.65;
+/** A screen's room after the catch with the field shrunk by `tight` (0 between the 20s, 1 at the goal line). */
+export const screenRoom = (tight: number) => SCREEN_YAC * (1 - SCREEN_SQUEEZE * tight);
 
 /**
  * How far a throw travels past the line: a back's short throw is a checkdown in the flat; a receiver's is a screen
@@ -2562,7 +2569,7 @@ class GameSim {
       let yac = Math.max(
         0,
         rng.normal(
-          (depth === 'short' && air < 0 ? SCREEN_YAC : { short: 3.6, medium: 3.2, deep: 6 }[depth]) +
+          (depth === 'short' && air < 0 ? screenRoom(tight) : { short: 3.6, medium: 3.2, deep: 6 }[depth]) +
             0.3 * yacSkill +
             this.afterCatch(receiver, tackler, depth),
           3,
