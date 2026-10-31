@@ -196,10 +196,11 @@ export function fourthDown(s: Situation, rng: Rng): FourthDown {
 
 /** Probability the offense calls a pass (vs. a run). */
 export function passProbability(s: Situation): number {
+  // Today's NFL throws: 33.4 attempts, 2.4 sacks, 1.9 scrambles and 24.4 designed runs a team-game (nflverse 2021–24).
   let p: number;
-  if (s.down === 1) p = s.distance > 10 ? 0.65 : 0.505;
-  else if (s.down === 2) p = s.distance >= 8 ? 0.68 : s.distance <= 3 ? 0.45 : 0.61;
-  else p = s.distance >= 7 ? 0.88 : s.distance >= 4 ? 0.74 : s.distance <= 1 ? 0.3 : 0.52;
+  if (s.down === 1) p = s.distance > 10 ? 0.67 : 0.525;
+  else if (s.down === 2) p = s.distance >= 8 ? 0.7 : s.distance <= 3 ? 0.47 : 0.63;
+  else p = s.distance >= 7 ? 0.9 : s.distance >= 4 ? 0.76 : s.distance <= 1 ? 0.32 : 0.54;
 
   // Inside the 20 the windows shrink and play-callers lean on the run (NFL 2021–25: about half of red-zone
   // snaps are runs, two in three at the 1 or 2); the clock and the score still decide the end of games.
