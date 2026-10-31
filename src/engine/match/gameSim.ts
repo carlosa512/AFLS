@@ -215,8 +215,6 @@ const PUNT_RETURN = 9;
 /** League-typical edge contain and safety help: their effects are measured from these. */
 const EDGE_CONTAIN = 11.5;
 const DEEP_HELP = 14;
-/** Accuracy beyond which each point does half as much (elite passers stay inside NFL records). */
-const ACC_SOFT_CAP = 16;
 /** How much more (man) or less (zone) the covering defender's skill counts, away from a typical 12. */
 const MAN_ISLAND = 0.25;
 const ZONE_ISLAND = -0.15;
@@ -2453,13 +2451,13 @@ class GameSim {
     sep = fade(sep, tight);
 
     // Past a point, placement can't beat physics: the best arms complete a few more, not every throw.
-    const rawAcc =
+    // Every point of accuracy counts in full: no cap on what an elite passer can do.
+    const acc =
       skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy') +
       fast -
       1.5 * ghosts +
       // Over the middle and downfield a short passer throws through his own line; a tall one sees over it.
       (depth === 'short' ? 0 : sizeEdge(qb, 'lanes'));
-    const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
     const air = passAir(rng, depth, isBack, this.yardLine, yardsToGoal);
 
     // Base odds are tuned with injuries on: backups throw and catch about a tenth of the passes, as in the NFL.
