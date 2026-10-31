@@ -49,7 +49,7 @@ describe('between plays', () => {
     expect(tr.at(off, tr.duration).opacity).toBe(0);
   });
 
-  it('fits a full change of units (after a kick) into a few seconds', () => {
+  it('runs a full change of units at a sprint at most, in the time it takes', () => {
     const far = new Map<number, Mark>(Array.from({ length: 22 }, (_, i) => [i, mark(10, 3 + i * 2, i < 11)]));
     const units = {
       ids: Array.from({ length: 22 }, (_, i) => i),
@@ -57,8 +57,12 @@ describe('between plays', () => {
       pos: new Float32Array(44).map((_, k) => (k % 2 === 0 ? 75 : 3 + (k / 2) * 2)),
     };
     const t = transition(far, units);
-    // A beat after the whistle, then the change.
-    expect(t.duration - t.beat).toBeLessThanOrEqual(7.5);
+    // Sixty-five yards: at a sprint, never faster (a man covers it in the time it takes, no blur across the field).
+    for (const m of t.moves) {
+      const d = Math.hypot(m.to.x - m.from.x, m.to.y - m.from.y);
+      expect(d / m.arrive).toBeLessThanOrEqual(SPRINT * 1.25);
+    }
+    expect(t.duration - t.beat).toBeLessThanOrEqual(65 / (SPRINT * 0.8) + 3);
   });
 });
 
@@ -309,15 +313,17 @@ describe('the change-over before a kickoff', () => {
       { seed: 'c2', change: true, huddle },
       { seed: 'c3', huddle },
       { seed: 'c4' },
+      // A celebration first: teammates run to him, they don't arrive in a blink.
+      { seed: 'c5', change: true, party: { x: 92, y: 20, home: true } },
     ]) {
       const t = transition(prev, next, opts);
       for (const m of t.moves) {
         let was = t.at(m, 0);
         for (let s = 0.05; s <= t.duration; s += 0.05) {
           const now = t.at(m, s);
-          // A sprint covers under half a yard in a twentieth of a second.
+          // Never faster than a sprint: 11 yards a second at the very most, a little over half a yard a step.
           expect(Math.hypot(now.x - was.x, now.y - was.y), `${opts.seed} ${m.id} at ${s.toFixed(2)}`).toBeLessThan(
-            0.75,
+            0.55,
           );
           was = now;
         }

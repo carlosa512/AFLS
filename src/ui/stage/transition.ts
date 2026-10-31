@@ -27,10 +27,11 @@ const OFF_PACE = 6.5;
 const SET = 0.8;
 /** After the whistle: everyone where the play left him for a moment, before anyone heads back. */
 const WHISTLE = 0.7;
-/** A celebration: the gather round the man who made the play, and the moment together. */
-const CELEBRATE = 1.6;
+/** A celebration: the moment together once the teammates are in (seconds), and how fast they run to him. */
+const TOGETHER = 1.0;
+const CELEBRATE_PACE = 6;
 /** Teammates closer than this to him join in; the rest head for the next play. */
-const JOIN = 25;
+const JOIN = 15;
 /** How long a huddle stays together once everyone's in, before it breaks. */
 const HUDDLE_HOLD = 1.0;
 /** The offense's huddle is tight round the quarterback; the defense's looser round its play-caller. */
@@ -40,8 +41,6 @@ const DEFENSE_RING = 2.6;
 const BIG_SCORE = 20;
 /** Before a kickoff: off the field at a run, a moment on the sideline, and the kick units on (yards a second). */
 const CHANGE = 6;
-/** The longest anyone takes to get off, or on: past it, the whole change-over picks up. */
-const CHANGE_MAX = 7;
 /** A man coming off stands on the sideline this long (a range) before a man in both units goes back on. */
 const SIDELINE = [0.6, 1.4] as const;
 
@@ -71,8 +70,9 @@ export interface Move {
   id: number;
   home: boolean;
   from: Pt;
-  /** Where he celebrates (his `from` when he doesn't). */
+  /** Where he celebrates (his `from` when he doesn't), and when he gets there (seconds into the celebration). */
   mid: Pt;
+  joins: number;
   /** His spot in the huddle (his `mid` when there's none). */
   hud: Pt;
   /** Seconds from the end of the celebration to his spot in the huddle. */
@@ -137,8 +137,19 @@ function spreadOut(spots: Pt[]) {
   const shift = was - order.reduce((sum, p) => sum + p.x, 0) / order.length;
   for (const p of order) p.x += shift;
 }
-/** Ease in and out: a man accelerates into his jog and pulls up at his spot. */
-const smooth = (k: number) => k * k * (3 - 2 * k);
+/**
+ * A man's run, as the share of the way covered: up to speed in the first stretch, steady, then pulling up at the
+ * end. Unlike a smooth S-curve (half again his average at the middle), he never runs much over his pace.
+ */
+const STRIDE = 0.15;
+const smooth = (k: number) => {
+  const v = 1 / (1 - STRIDE);
+  if (k <= 0) return 0;
+  if (k >= 1) return 1;
+  if (k < STRIDE) return (0.5 * v * k * k) / STRIDE;
+  if (k > 1 - STRIDE) return 1 - (0.5 * v * (1 - k) * (1 - k)) / STRIDE;
+  return v * (k - STRIDE / 2);
+};
 
 /** Where each side huddles, and who stands at the front: the quarterback, and the defense's play-caller. */
 export interface Huddle {
@@ -196,6 +207,7 @@ export function transition(
       home: next.home[k],
       from: at,
       mid: at,
+      joins: 0,
       hud: at,
       gather: 0,
       to,
@@ -222,6 +234,7 @@ export function transition(
         home: was.home,
         from: { x: was.x, y: was.y },
         mid: { x: was.x, y: was.y },
+        joins: 0,
         hud: { x: was.x, y: was.y },
         gather: 0,
         to: { x: benchX, y: benchY(was.home) },
@@ -241,7 +254,9 @@ export function transition(
   }
 
   // The celebration: teammates within reach gather in a loose ring round him; nobody else joins in.
-  const celebrate = party ? CELEBRATE : 0;
+  // Each runs to him at a sprint, in his own time: the celebration lasts as long as the last one takes, then a
+  // moment together.
+  let celebrate = 0;
   if (party) {
     let ring = 0;
     for (const m of moves) {
@@ -251,8 +266,11 @@ export function transition(
       const angle = ring * 2.4;
       const r = 1.6 + (ring % 2) * 0.6;
       m.mid = { x: party.x + Math.cos(angle) * r, y: party.y + Math.sin(angle) * r };
+      m.joins = Math.hypot(m.mid.x - m.from.x, m.mid.y - m.from.y) / (CELEBRATE_PACE * paceOf.get(m.id)!);
+      celebrate = Math.max(celebrate, m.joins);
       ring++;
     }
+    celebrate += TOGETHER;
   }
   for (const m of moves) m.hud = m.mid;
 
@@ -309,14 +327,15 @@ export function transition(
       }
       huddleTime = 0;
     }
-    pace = Math.max(CHANGE, Math.max(0, ...staying.map(dist)) / (CHANGE_MAX * 0.8));
+    // A change-over takes the time it takes: everyone at a run, nobody dashing to beat a clock.
+    pace = CHANGE;
   } else {
     // Only men staying on can force a hustle (a change of possession): a sub coming from the bench jogs in at his own
     // pace, and men going off walk off at theirs.
     const longest = Math.max(0, ...moves.filter((m) => !m.enter && !m.leave).map(dist));
     // A jog, unless the longest trip couldn't make it in time (a change of possession): then everyone hustles.
     // Sized so the slowest of them (the pace below is scaled by each man's own, 0.8 at the least) still makes it.
-    pace = Math.max(run, longest / (MAX_JOG * 0.8));
+    pace = Math.min(SPRINT, Math.max(run, longest / (MAX_JOG * 0.8)));
     for (const m of moves) if (!m.leave) m.start = huddleTime;
   }
   // Men going off hustle (a twelfth man on the field at the snap is a flag); everyone else at the pace above.
@@ -334,8 +353,8 @@ export function transition(
     at(m, t) {
       t = Math.max(0, t - beat);
       if (t < celebrate) {
-        // Gathering round him, then a moment together.
-        const g = smooth(Math.min(1, t / (celebrate * 0.6)));
+        // Running to him, then a moment together.
+        const g = m.joins > 0 ? smooth(Math.min(1, t / m.joins)) : 0;
         const x = m.from.x + (m.mid.x - m.from.x) * g;
         const y = m.from.y + (m.mid.y - m.from.y) * g;
         return { x, y, opacity: m.enter ? 0.2 : 1 };
