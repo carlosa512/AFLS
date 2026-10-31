@@ -116,7 +116,7 @@ export function recapAside(league: League, p: Player, game: { won: boolean; marg
     return how === 'traded' ? ', against the club that traded him away' : ', against the club that cut him';
   }
   if (p.teamId === user && game.won && game.margin <= 8 && personalityRead(league, user, p)?.name === 'Clutch')
-    return '. He wanted the ball late';
+    return ', and he wanted the ball late';
   return '';
 }
 
