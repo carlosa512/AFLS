@@ -1546,6 +1546,28 @@ export interface PlayLogEntry {
   to?: number;
   /** Direction across the field from the offense's view: -1 left … 1 right. */
   lane?: number;
+  /** Who the play was about (All-22 stages it). Games before v71 have none. */
+  who?: PlayActors;
+}
+
+/** Who a play was about, by player id: what All-22 stages. Recorded only, never drawn: the sim already chose them. */
+export interface PlayActors {
+  /** The passer on a dropback. */
+  qb?: number;
+  /** The target, the ball carrier, or the kicker or punter. */
+  ball?: number;
+  /** The man in coverage on a pass. */
+  cover?: number;
+  /** The first tackler. */
+  tackle?: number;
+  /** Who got home: the sack, or the pressure without one. */
+  rush?: number;
+  /** The blocker he beat, when the engine charged one. */
+  beat?: number;
+  /** The interceptor or fumble recoverer. */
+  take?: number;
+  /** The returner on a kick. */
+  ret?: number;
 }
 
 export interface GameResult {
