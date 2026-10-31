@@ -251,6 +251,11 @@ export function TopDownField({
     };
   };
   const handover = handoverFor(plays, index, home.id);
+  /** The first snap after a kick: the kick units go off and the offense and defense come on. */
+  const afterKick =
+    !!entry?.kind &&
+    entry.kind !== 'kickoff' &&
+    ['kickoff', 'punt'].includes([...plays.slice(0, index)].reverse().find((p) => !!p.kind)?.kind ?? '');
   const span = cameraSpan(entry);
   const lines = downLines(entry, home.id);
 
@@ -279,7 +284,7 @@ export function TopDownField({
             hurry: hurried(),
             seed: `${league.seed}:${game.id}:gap:${index}`,
             // Before a kickoff, and when the ball changes hands: the units change over at their sidelines.
-            change: entry?.kind === 'kickoff' || !!handover,
+            change: entry?.kind === 'kickoff' || !!handover || afterKick,
           })
         : null;
     const ballFrom = mem.ballX === null || !following ? null : { x: mem.ballX, y: mem.ballY };
@@ -330,10 +335,10 @@ export function TopDownField({
       // The officials walk out to their spots for a kickoff while the units change over.
       crewRef.current?.setAttribute('opacity', Math.min(1, t / 2).toFixed(2));
       flagRef.current?.setAttribute('opacity', '0');
-      for (const m of g.moves) {
-        const p = g.at(m, t);
-        drawDot(m.id, p.x, p.y, p.opacity);
-        if (!m.leave) mem.spots.set(m.id, { x: p.x, y: p.y, home: m.home });
+      // Men coming on and going off step round everyone else: no two dots run through each other.
+      for (const p of g.frame(t, DOT[layout] * 2 + 0.2)) {
+        drawDot(p.m.id, p.x, p.y, p.opacity);
+        if (!p.m.leave) mem.spots.set(p.m.id, { x: p.x, y: p.y, home: p.m.home });
       }
       // An official picks the ball up after the whistle, walks it to the new spot, sets it down and steps away.
       const tb = Math.max(0, t - g.beat);

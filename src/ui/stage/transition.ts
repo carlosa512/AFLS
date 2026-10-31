@@ -96,6 +96,11 @@ export interface Transition {
   huddle: number;
   moves: Move[];
   at(m: Move, t: number): Pt & { opacity: number };
+  /**
+   * Everyone at `t`, with the men coming on and going off kept `room` yards from everyone else (no two dots run
+   * through each other); the rest are where `at` puts them.
+   */
+  frame(t: number, room: number): (Pt & { m: Move; opacity: number })[];
 }
 
 const benchY = (home: boolean) => (home ? -BENCH : FIELD_W + BENCH);
@@ -111,6 +116,11 @@ function along(a: Pt, b: Pt, k: number, bow: number): Pt {
   const off = len > 0 ? bow * Math.min(2.5, len * 0.12) * 4 * k * (1 - k) : 0;
   return { x: a.x + dx * k - (dy / (len || 1)) * off, y: a.y + dy * k + (dx / (len || 1)) * off };
 }
+/**
+ * How far a man going off has faded: over the second half of his walk, or a couple of seconds after he sets off,
+ * whichever comes first, so a whole unit going off doesn't crowd the field while the next one comes on.
+ */
+const leaving = (k: number, since: number) => Math.min(1, Math.max((k - 0.5) * 2, (since - 1) / 1.5, 0));
 /** Ease in and out: a man accelerates into his jog and pulls up at his spot. */
 const smooth = (k: number) => k * k * (3 - 2 * k);
 
@@ -248,19 +258,11 @@ export function transition(
   const dist = (m: Move) => Math.hypot(m.to.x - m.hud.x, m.to.y - m.hud.y);
   let pace: number;
   if (opts.change) {
-    // The change-over before a kickoff: each man on the field runs off to his sideline (a man in both units stops
-    // there a moment, then goes back on); the kick units come on as the field clears, not all at once.
-    for (const m of moves)
-      if (!m.enter && !m.leave) m.hud = { x: benchAt(m.from.x, rng, 0.4, 20, 80), y: benchY(m.home) };
-    const off = (m: Move) => Math.hypot(m.hud.x - m.mid.x, m.hud.y - m.mid.y);
-    const offPace = Math.max(CHANGE, Math.max(0, ...moves.map((m) => (m.leave ? 0 : off(m)))) / (CHANGE_MAX * 0.8));
+    // The change-over: the men going off head for their sideline, the units coming on run out as the field clears,
+    // not all at once; a man in both units goes straight to his new spot (no trip to the sideline and back to wait on).
     for (const m of moves) {
       if (m.leave) continue;
-      if (m.enter) m.start = 1.2 + rng.next() * 1.8;
-      else {
-        m.gather = off(m) / (offPace * paceOf.get(m.id)!);
-        m.start = m.gdelay + m.gather + SIDELINE[0] + rng.next() * (SIDELINE[1] - SIDELINE[0]);
-      }
+      m.start = m.enter ? 1.2 + rng.next() * 1.8 : SIDELINE[0] + rng.next() * (SIDELINE[1] - SIDELINE[0]);
     }
     pace = Math.max(CHANGE, Math.max(0, ...moves.filter((m) => !m.leave).map(dist)) / (CHANGE_MAX * 0.8));
     huddleTime = 0;
@@ -278,7 +280,15 @@ export function transition(
   const duration =
     beat + celebrate + Math.max(0.6, ...moves.filter((m) => !m.leave).map((m) => m.start + m.delay + m.arrive)) + SET;
 
-  return {
+  /** How much a man on his way on or off gives way: fully in transit, easing off as he settles or fades. */
+  const giving = (m: Move, t: number, opacity: number) => {
+    if (m.leave) return opacity > 0.15 ? opacity : 0;
+    if (!m.enter) return 0;
+    const into = Math.max(0, t - beat - celebrate - m.start - m.delay);
+    const k = m.arrive > 0 ? Math.min(1, into / m.arrive) : 1;
+    return Math.min(1, (1 - k) * 4);
+  };
+  const tr: Transition = {
     duration,
     beat,
     celebrate,
@@ -306,8 +316,34 @@ export function transition(
       const { x, y } = along(m.hud, m.to, k, m.bow);
       // Fading in from the bench, fading out on the way to it.
       const opacity =
-        m.enter && !huddleTime ? Math.min(1, 0.2 + k * 1.6) : m.leave ? Math.max(0, 1 - Math.max(0, k - 0.5) * 2) : 1;
+        m.enter && !huddleTime ? Math.min(1, 0.2 + k * 1.6) : m.leave ? Math.max(0, 1 - leaving(k, t - m.delay)) : 1;
       return { x, y, opacity };
     },
+    frame(t, room) {
+      const out = moves.map((m) => ({ m, ...tr.at(m, t) }));
+      const give = out.map((p) => giving(p.m, t, p.opacity));
+      // A few passes of pushing apart: only men in transit move, each by his share of the overlap.
+      for (let pass = 0; pass < 4; pass++)
+        for (let i = 0; i < out.length; i++)
+          for (let j = i + 1; j < out.length; j++) {
+            const gi = give[i];
+            const gj = give[j];
+            if (gi + gj === 0 || out[i].opacity < 0.15 || out[j].opacity < 0.15) continue;
+            const dx = out[j].x - out[i].x;
+            const dy = out[j].y - out[i].y;
+            const d = Math.hypot(dx, dy);
+            if (d >= room) continue;
+            const ux = d > 1e-6 ? dx / d : 0;
+            const uy = d > 1e-6 ? dy / d : 1;
+            const over = room - d;
+            const wi = gi / (gi + gj);
+            out[i].x -= ux * over * wi * gi;
+            out[i].y -= uy * over * wi * gi;
+            out[j].x += ux * over * (1 - wi) * gj;
+            out[j].y += uy * over * (1 - wi) * gj;
+          }
+      return out;
+    },
   };
+  return tr;
 }

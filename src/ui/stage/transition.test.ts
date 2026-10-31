@@ -253,11 +253,20 @@ describe('the change-over before a kickoff', () => {
   const tr = transition(prev, next, { seed: 'k1', change: true });
   const move = (id: number) => tr.moves.find((m) => m.id === id)!;
 
-  it('takes every man on the field to his own sideline, even one who goes back on', () => {
+  it('takes the men going off to their own sideline, and a man in both units straight to his new spot', () => {
+    for (const id of [5, 6, 16, 17]) {
+      const m = move(id);
+      expect(m.leave).toBe(true);
+      expect(m.to.y).toBe(m.home ? -BENCH : FIELD_W + BENCH);
+    }
     for (const id of [0, 1, 11, 12]) {
       const m = move(id);
-      const there = tr.at(m, m.start - 0.01);
-      expect(there.y).toBeCloseTo(m.home ? -BENCH : FIELD_W + BENCH, 1);
+      // Never off the field on the way: no trip to the sideline and back.
+      for (let t = 0; t <= tr.duration; t += 0.2) {
+        const p = tr.at(m, t);
+        expect(p.y).toBeGreaterThan(-0.5);
+        expect(p.y).toBeLessThan(FIELD_W + 0.5);
+      }
     }
   });
 
@@ -270,6 +279,29 @@ describe('the change-over before a kickoff', () => {
       const end = tr.at(m, tr.duration);
       expect(Math.hypot(end.x - m.to.x, end.y - m.to.y)).toBeLessThan(1e-6);
     }
+  });
+
+  it('keeps the men coming on and going off clear of everyone: no two dots run through each other', () => {
+    const room = 2;
+    let close = 0;
+    let checked = 0;
+    for (let t = 0; t <= tr.duration; t += 0.1) {
+      const f = tr.frame(t, room);
+      for (let i = 0; i < f.length; i++)
+        for (let j = i + 1; j < f.length; j++) {
+          const a = f[i];
+          const b = f[j];
+          // Only pairs with a man on his way on or off, both still showing.
+          if (!(a.m.enter || a.m.leave || b.m.enter || b.m.leave) || a.opacity < 0.5 || b.opacity < 0.5) continue;
+          checked++;
+          if (Math.hypot(a.x - b.x, a.y - b.y) < room * 0.8) close++;
+        }
+    }
+    expect(checked).toBeGreaterThan(1000);
+    expect(close / checked).toBeLessThan(0.002);
+    // And everyone still ends on his spot for the snap.
+    for (const p of tr.frame(tr.duration, room))
+      if (!p.m.leave) expect(Math.hypot(p.x - p.m.to.x, p.y - p.m.to.y)).toBeLessThan(1e-6);
   });
 
   it('gives the moment a beat, but not forever', () => {
