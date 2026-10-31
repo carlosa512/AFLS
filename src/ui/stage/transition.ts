@@ -288,12 +288,28 @@ export function transition(
   if (opts.change) {
     // The change-over: the men going off head for their sideline, the units coming on run out as the field clears,
     // not all at once; a man in both units goes straight to his new spot (no trip to the sideline and back to wait on).
-    for (const m of moves) {
-      if (m.leave) continue;
-      m.start = m.enter ? 1.2 + rng.next() * 1.8 : SIDELINE[0] + rng.next() * (SIDELINE[1] - SIDELINE[0]);
+    const staying = moves.filter((m) => !m.leave);
+    const setOff = (m: Move) =>
+      m.enter ? 1.2 + rng.next() * 1.8 : SIDELINE[0] + rng.next() * (SIDELINE[1] - SIDELINE[0]);
+    if (huddle) {
+      // An offense huddles first: each man runs from where he is (the sideline, for the men coming on) into the
+      // huddle in his own time, and it breaks once everyone's in.
+      for (const m of staying) {
+        m.gdelay = setOff(m);
+        m.gather = Math.hypot(m.hud.x - m.mid.x, m.hud.y - m.mid.y) / (CHANGE * paceOf.get(m.id)!);
+      }
+      huddleTime = Math.max(0, ...staying.map((m) => m.gdelay + m.gather)) + HUDDLE_HOLD;
+      for (const m of staying) m.start = huddleTime;
+    } else {
+      // No huddle (a kickoff): straight to the spots, each in his own time.
+      for (const m of staying) {
+        m.hud = m.mid;
+        m.gather = 0;
+        m.start = setOff(m);
+      }
+      huddleTime = 0;
     }
-    pace = Math.max(CHANGE, Math.max(0, ...moves.filter((m) => !m.leave).map(dist)) / (CHANGE_MAX * 0.8));
-    huddleTime = 0;
+    pace = Math.max(CHANGE, Math.max(0, ...staying.map(dist)) / (CHANGE_MAX * 0.8));
   } else {
     // Only men staying on can force a hustle (a change of possession): a sub coming from the bench jogs in at his own
     // pace, and men going off walk off at theirs.
@@ -304,7 +320,7 @@ export function transition(
     for (const m of moves) if (!m.leave) m.start = huddleTime;
   }
   // Men going off hustle (a twelfth man on the field at the snap is a flag); everyone else at the pace above.
-  for (const m of moves) m.arrive = dist(m) / ((m.leave ? Math.max(pace, OFF_PACE) : pace) * paceOf.get(m.id)!);
+  for (const m of moves) m.arrive = dist(m) / ((m.leave ? OFF_PACE : pace) * paceOf.get(m.id)!);
   const beat = party ? 0 : WHISTLE;
   const duration =
     beat + celebrate + Math.max(0.6, ...moves.map((m) => m.start + m.delay + m.arrive - (m.leave ? SET : 0))) + SET;

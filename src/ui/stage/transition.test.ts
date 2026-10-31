@@ -302,6 +302,29 @@ describe('the change-over before a kickoff', () => {
     }
   });
 
+  it('never jumps anyone: every path is continuous, with a huddle or without, change-over or not', () => {
+    const huddle = { offense: { x: 55, y: 26 }, defense: { x: 70, y: 26 }, offenseHome: true, qb: 0 };
+    for (const opts of [
+      { seed: 'c1', change: true },
+      { seed: 'c2', change: true, huddle },
+      { seed: 'c3', huddle },
+      { seed: 'c4' },
+    ]) {
+      const t = transition(prev, next, opts);
+      for (const m of t.moves) {
+        let was = t.at(m, 0);
+        for (let s = 0.05; s <= t.duration; s += 0.05) {
+          const now = t.at(m, s);
+          // A sprint covers under half a yard in a twentieth of a second.
+          expect(Math.hypot(now.x - was.x, now.y - was.y), `${opts.seed} ${m.id} at ${s.toFixed(2)}`).toBeLessThan(
+            0.75,
+          );
+          was = now;
+        }
+      }
+    }
+  });
+
   it('gives the moment a beat, but not forever', () => {
     expect(tr.duration).toBeGreaterThan(6);
     expect(tr.duration).toBeLessThan(20);
