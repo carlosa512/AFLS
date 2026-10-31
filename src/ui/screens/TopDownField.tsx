@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FieldRecord, Game, League, PlayLogEntry, Team } from '../../engine/types';
 import { kitFor } from '../color';
 import { PlayerLink } from '../components';
-import { FIELD_W, HASH_HI, HASH_LO, MID, snapYFor } from '../stage/ballPath';
+import { FIELD_W, HASH_HI, HASH_LO, MID, offenseSide, snapYFor } from '../stage/ballPath';
 import { cameraCenter, cameraSpan, easeCamera, layoutFor, type Layout } from '../stage/camera';
 import { stagePlay, type StagedPlay } from '../stage/stage';
 import { transition, type Mark } from '../stage/transition';
@@ -118,7 +118,7 @@ export function TopDownField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, index, game.id]);
 
-  const dir: 1 | -1 = entry?.offense === home.id ? 1 : -1;
+  const dir: 1 | -1 = entry && offenseSide(entry, home.id) === 1 ? -1 : 1;
   const span = cameraSpan(entry);
   const lines = downLines(entry, home.id);
 

@@ -122,7 +122,8 @@ function kickoff(cast: Cast, put: Put, face: Put, ballY: number) {
   const k = cast.offense.find((m) => m.role === 'K');
   const cover = cast.offense.filter((m) => m !== k);
   if (k) put(k.id, 7, 0);
-  room(cover.length).forEach((a, i) => put(cover[i].id, 1, a + (MID - ballY)));
+  // A few yards back, for the running start as the kicker approaches.
+  room(cover.length).forEach((a, i) => put(cover[i].id, 5, a + (MID - ballY)));
   const ret = cast.defense.find((m) => m.role === 'RET');
   const rest = cast.defense.filter((m) => m !== ret);
   if (ret) face(ret.id, 60, 0);

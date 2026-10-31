@@ -6,7 +6,7 @@
  */
 import { actorsIn } from '../../engine/playActors';
 import type { PlayLogEntry } from '../../engine/types';
-import { buildPath, ground, pointAt, type Seg } from './ballPath';
+import { buildPath, ground, offenseSide, pointAt, type Seg } from './ballPath';
 import type { Cast } from './cast';
 import type { Pt } from './formations';
 
@@ -68,6 +68,8 @@ const hold = (p: { x: number; y: number }, dur: number): Seg => ({ x0: p.x, y0: 
 
 /** Seconds in the pocket before a sack gets home. */
 const SACK_HOLD = 1.8;
+/** The kicker's run-up to the ball on the tee. */
+const KICK_RUN_UP = 0.9;
 /** The handoff, from the snap to the ball in the back's belly. */
 const MESH = 0.8;
 /** Before a scramble breaks out. */
@@ -83,7 +85,7 @@ const SCRAMBLE_HOLD = 1.1;
 export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
   const segs = buildPath(e, homeId, snapY);
   if (!segs.length || e.from === undefined || e.to === undefined) return segs;
-  const dir = e.offense === homeId ? 1 : -1;
+  const dir = offenseSide(e, homeId) === 0 ? 1 : -1;
   if (e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int') {
     const drop = segs[0];
     const air = segs[1];
@@ -92,6 +94,34 @@ export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[
       drop,
       hold({ x: drop.x1, y: drop.y1 }, Math.max(0.8, Math.min(1.6, 0.7 + depth * 0.035))),
       ...segs.slice(1),
+    ];
+  }
+  const len = (sg: Seg) => Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0);
+  /** A return: a back's pace, not the broadcast view's quick slide. */
+  const returnPace = (sg: Seg): Seg => ({ ...sg, dur: Math.max(0.4, len(sg) / 7 + 0.2) });
+  if (e.kind === 'kickoff') {
+    const a = segs.findIndex((sg) => sg.peak > 0);
+    if (a < 0) return segs;
+    // On the tee while the kicker runs up, then the hang time, then the return.
+    const tee = { x: segs[a].x0, y: segs[a].y0 };
+    const flight = { ...segs[a], dur: Math.max(3.2, Math.min(4, len(segs[a]) / 17)) };
+    return [hold(tee, KICK_RUN_UP), flight, ...segs.slice(a + 1).map(returnPace)];
+  }
+  if (e.kind === 'punt') {
+    const a = segs.findIndex((sg) => sg.peak > 0);
+    if (a < 1) return segs.map(returnPace); // blocked: no flight
+    const snap = { ...segs[0], dur: 0.75 };
+    const flight = { ...segs[a], dur: Math.max(3.4, Math.min(4.6, len(segs[a]) / 11)) };
+    return [snap, hold({ x: snap.x1, y: snap.y1 }, 0.45), flight, ...segs.slice(a + 1).map(returnPace)];
+  }
+  if (e.kind === 'fg' || e.kind === 'xp') {
+    // The snap back to the holder, the hold, then the kick.
+    const kick = segs[0];
+    const line = { x: kick.x0 + dir * 7, y: kick.y0 };
+    return [
+      { x0: line.x, y0: line.y, x1: kick.x0, y1: kick.y0, peak: 0, dur: 0.4 },
+      hold({ x: kick.x0, y: kick.y0 }, 0.35),
+      { ...kick, dur: 1.3 },
     ];
   }
   if (e.kind === 'run' && segs.length === 2) {
@@ -145,6 +175,8 @@ export interface Scripted {
   tackler: number | null;
   /** When the ball leaves the quarterback's hands (the throw or the handoff): the defense reacts from then. */
   release: number;
+  /** A kick: when it comes down to the returner. */
+  catchAt?: number;
 }
 
 export function script(
@@ -168,6 +200,8 @@ export function script(
   };
   const touchdown = /TOUCHDOWN/.test(e.text);
   let carrier: number | undefined;
+  let kickAt: number | undefined;
+  let catchAt: number | undefined;
 
   switch (e.kind) {
     case 'run': {
@@ -195,6 +229,34 @@ export function script(
         set(who.rush, [...mid, at(total, toward(end, start.get(who.rush)!, 0.6))]);
       }
       break;
+    case 'kickoff':
+    case 'punt':
+    case 'fg':
+    case 'xp': {
+      const a = segs.findIndex((sg) => sg.peak > 0);
+      if (a < 0) break;
+      const [kickT, landT] = ts[a];
+      const tee = pointAt(segs[a], 0);
+      const land = pointAt(segs[a], 1);
+      const kicker = cast.offense.find((m) => m.role === (e.kind === 'punt' ? 'P' : 'K'))?.id;
+      if (kicker !== undefined) {
+        const s0 = start.get(kicker)!;
+        if (e.kind === 'kickoff')
+          // The run-up to the tee, then down the field behind the coverage.
+          set(kicker, [at(kickT, tee), at(total, { x: tee.x + dir * 12, y: tee.y })]);
+        else if (e.kind === 'punt') set(kicker, [at(kickT, s0), at(total, { x: s0.x + dir * 4, y: s0.y })]);
+        else set(kicker, [at(kickT, toward(tee, s0, 0.8)), at(total, toward(tee, s0, 0.5))]);
+      }
+      const ret = cast.defense.find((m) => m.role === 'RET')?.id;
+      if (ret !== undefined && (e.kind === 'kickoff' || e.kind === 'punt')) {
+        // Under the ball as it comes down, then the return (a touchback or a fair catch ends there).
+        set(ret, [at(landT, land), ...ride(segs, a + 1, segs.length - 1)]);
+        if (segs.length > a + 1) carrier = ret;
+      }
+      kickAt = kickT;
+      catchAt = landT;
+      break;
+    }
     case 'pass':
     case 'incomplete':
     case 'int': {
@@ -229,14 +291,17 @@ export function script(
 
   // The tackler meets the carrier at the whistle, from the side he came.
   let tacklerId: number | null = null;
+  const kickReturn = catchAt !== undefined;
   if (
     carrier !== undefined &&
     !touchdown &&
-    (TACKLED.has(e.kind ?? '') || (e.kind === 'int' && who.tackle !== undefined))
+    (TACKLED.has(e.kind ?? '') || kickReturn || (e.kind === 'int' && who.tackle !== undefined))
   ) {
-    const side = e.kind === 'int' ? cast.offense : cast.defense;
+    // The coverage tackles a returner; the offense tackles a man who picked it off.
+    const side =
+      e.kind === 'int' || kickReturn ? cast.offense.filter((m) => m.role !== 'K' && m.role !== 'P') : cast.defense;
     let tackler = who.tackle !== undefined && start.has(who.tackle) && who.tackle !== carrier ? who.tackle : undefined;
-    if (tackler === undefined && e.kind !== 'int') {
+    if (tackler === undefined && (e.kind !== 'int' || kickReturn)) {
       let best = Infinity;
       for (const m of side) {
         const p = start.get(m.id)!;
@@ -255,12 +320,14 @@ export function script(
   // When the defense reads the ball out: the handoff, the throw (after the pocket), the scramble breaking out. A sack
   // never releases: the rush is on the quarterback and the coverage stays on the routes the whole play.
   const release =
-    e.kind === 'run'
-      ? ts[0][1]
-      : e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int' || e.kind === 'scramble'
-        ? (ts[1]?.[1] ?? 0)
-        : e.kind === 'sack'
-          ? Infinity
-          : 0;
-  return { keys, carrier: carrier ?? null, tackler: tacklerId, release };
+    kickAt !== undefined
+      ? kickAt
+      : e.kind === 'run'
+        ? ts[0][1]
+        : e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int' || e.kind === 'scramble'
+          ? (ts[1]?.[1] ?? 0)
+          : e.kind === 'sack'
+            ? Infinity
+            : 0;
+  return { keys, carrier: carrier ?? null, tackler: tacklerId, release, ...(catchAt !== undefined ? { catchAt } : {}) };
 }

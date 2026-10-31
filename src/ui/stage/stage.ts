@@ -62,7 +62,9 @@ export function stagePlay(args: {
   const def = record.scheme[1 - cast.offSide];
   const start = lineUp(e, cast, off, def, ballX, ballY, dir, rng);
   const segs = stagedPath(e, homeId, args.snapY);
-  const { keys, carrier, tackler, release } = script(e, cast, start, segs, dir);
+  const { keys, carrier, tackler, release, catchAt } = script(e, cast, start, segs, dir);
+  const flight = segs.find((sg) => sg.peak > 0);
+  const kick = e.kind === 'kickoff' || e.kind === 'punt' ? e.kind : e.kind === 'fg' || e.kind === 'xp' ? 'fg' : null;
   const total = segs.reduce((t, s) => t + s.dur, 0) || STILL;
   const steps = Math.ceil(total / STEP) + 1;
   let ball = ballTrack(segs, STEP);
@@ -87,7 +89,10 @@ export function stagePlay(args: {
     dropback: !!e.kind && DROPBACKS.has(e.kind),
     run: e.kind === 'run',
     man: !!(def.coverage && COVERAGES[def.coverage].man),
-    hold: !segs.length || e.kind === 'kickoff' || e.kind === 'punt' || e.kind === 'fg' || e.kind === 'xp',
+    hold: !segs.length,
+    kick: segs.length ? kick : null,
+    land: flight ? { x: flight.x1, y: flight.y1 } : null,
+    catchAt: catchAt ?? Infinity,
     dir,
     dt: STEP,
     steps,

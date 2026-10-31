@@ -461,3 +461,107 @@ describe('off the ball', () => {
     expect(backs).toBeGreaterThan(100);
   });
 });
+
+describe('special teams', () => {
+  const kicks = (kind: string) =>
+    games.slice(0, 20).flatMap(({ g, r }) =>
+      r.plays!.flatMap((e, i) =>
+        e.kind === kind
+          ? [
+              {
+                e,
+                segs: stagedPath(e, g.homeId, 26),
+                p: stagePlay({
+                  plays: r.plays!,
+                  index: i,
+                  record: r.field!,
+                  homeId: g.homeId,
+                  seed: `k${i}`,
+                  snapY: 26,
+                }),
+              },
+            ]
+          : [],
+      ),
+    );
+  const at = (p: StagedPlay, st: number, k: number) => ({
+    x: p.pos[(st * 22 + k) * 2],
+    y: p.pos[(st * 22 + k) * 2 + 1],
+  });
+  const returned = (e: PlayLogEntry) => e.air !== undefined && e.to !== undefined && Math.abs(e.to - e.air) > 0.5;
+  const kickoffs = kicks('kickoff');
+  const punts = kicks('punt');
+
+  it('gives a kick its hang time', () => {
+    for (const { e, p } of kickoffs)
+      if (!/onside/i.test(e.text)) expect((p.steps - 1) * p.dt).toBeGreaterThanOrEqual(4);
+    for (const { e, p } of punts) if (!/BLOCKED/.test(e.text)) expect((p.steps - 1) * p.dt).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('puts the returner under the ball when it comes down, and the tackler on him at the whistle', () => {
+    let n = 0;
+    for (const { e, segs, p } of [...kickoffs, ...punts]) {
+      if (!returned(e) || /TOUCHDOWN|BLOCKED|onside/i.test(e.text)) continue;
+      const ret = p.roles.indexOf('RET');
+      const air = segs.findIndex((s) => s.peak > 0);
+      const land = segs.slice(0, air + 1).reduce((t, s) => t + s.dur, 0);
+      const st = Math.min(p.steps - 1, Math.round(land / p.dt));
+      const r = at(p, st, ret);
+      expect(Math.hypot(r.x - segs[air].x1, r.y - segs[air].y1)).toBeLessThan(1.5);
+      const last = p.steps - 1;
+      const end = at(p, last, ret);
+      const tackled = p.ids.some(
+        (_, k) => p.offense[k] && Math.hypot(at(p, last, k).x - end.x, at(p, last, k).y - end.y) <= 1.2,
+      );
+      expect(tackled).toBe(true);
+      n++;
+    }
+    expect(n).toBeGreaterThan(30);
+  });
+
+  it('sends the kickoff coverage downfield in its lanes', () => {
+    for (const { e, p } of kickoffs) {
+      // A short kick (onside, out of bounds) travels too little for the coverage to run far.
+      if (/onside|out of bounds/i.test(e.text)) continue;
+      const dir = p.home[0] ? 1 : -1;
+      const cover = p.ids.map((_, k) => k).filter((k) => p.offense[k] && p.roles[k] !== 'K');
+      const mid = Math.round((p.steps - 1) * 0.7);
+      const gain = cover.reduce((sum, k) => sum + (at(p, mid, k).x - at(p, 0, k).x) * dir, 0) / cover.length;
+      expect(gain, e.text).toBeGreaterThan(20);
+    }
+  });
+
+  it('releases the punt gunners at the snap', () => {
+    let n = 0;
+    for (const { e, p } of punts) {
+      if (/BLOCKED/.test(e.text)) continue;
+      const dir = p.home[0] ? 1 : -1;
+      const ballY = p.ball[1];
+      const gunners = p.ids.map((_, k) => k).filter((k) => p.offense[k] && Math.abs(at(p, 0, k).y - ballY) > 12);
+      expect(gunners.length).toBeGreaterThanOrEqual(2);
+      const st = Math.min(p.steps - 1, Math.round(3 / p.dt));
+      for (const k of gunners) expect((at(p, st, k).x - at(p, 0, k).x) * dir).toBeGreaterThan(15);
+      n++;
+    }
+    expect(n).toBeGreaterThan(30);
+  });
+
+  it('protects the holder on a field goal: the rush is held up until the kick', () => {
+    let n = 0;
+    for (const kind of ['fg', 'xp'])
+      for (const { p } of kicks(kind)) {
+        const holder = p.roles.indexOf('P');
+        const kickAt = Math.round(0.8 / p.dt);
+        p.ids.forEach((id, k) => {
+          if (p.offense[k] || p.keys.includes(id)) return;
+          for (let st = 0; st <= kickAt; st++) {
+            const a = at(p, st, k);
+            const h = at(p, st, holder);
+            expect(Math.hypot(a.x - h.x, a.y - h.y)).toBeGreaterThan(1.5);
+          }
+          n++;
+        });
+      }
+    expect(n).toBeGreaterThan(300);
+  });
+});

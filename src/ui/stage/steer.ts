@@ -53,8 +53,12 @@ export interface SteerArgs {
   dropback: boolean;
   /** A handoff: the line drives its men off the ball, receivers stalk-block. */
   run: boolean;
-  /** Kicks in this pass: everyone holds his spot while the ball flies. */
+  /** No play to run (a flag before the snap, a timeout): everyone holds his spot. */
   hold: boolean;
+  /** A kick, and where and when it comes down. */
+  kick: 'kickoff' | 'punt' | 'fg' | null;
+  land: Pt | null;
+  catchAt: number;
   dir: 1 | -1;
   dt: number;
   steps: number;
@@ -188,6 +192,73 @@ export function steer(a: SteerArgs): Float32Array {
   }
 
   const climbed = new Set<number>();
+
+  // Special teams: who does what, from where they line up.
+  const kickerIdx = all.find((k) => offense[k] && (members[k].role === 'K' || members[k].role === 'P')) ?? -1;
+  const holderIdx = all.find((k) => offense[k] && members[k].role === 'P') ?? -1;
+  const retIdx = all.find((k) => !offense[k] && members[k].role === 'RET') ?? -1;
+  const gunner = (k: number) => a.kick === 'punt' && offense[k] && Math.abs(py[k] - ballY0) > 12;
+  const isGunner = all.map(gunner);
+  const rusherAt = all.map((k) => !offense[k] && Math.abs(px[k] - ballX0) < 3);
+  const landX = a.land?.x ?? ballX0 + a.dir * 40;
+  const landY = a.land?.y ?? ballY0;
+  /** Between `from` and `to`, a yard off `from`: a blocker's spot. */
+  const between = (from: number, to: number): Pt => {
+    const dx = px[to] - px[from];
+    const dy = py[to] - py[from];
+    const d = Math.hypot(dx, dy) || 1;
+    return { x: px[from] + (dx / d) * 1, y: py[from] + (dy / d) * 1 };
+  };
+  const nearestOf = (k: number, pool: (j: number) => boolean): number => {
+    let best = -1;
+    let d = Infinity;
+    for (let j = 0; j < n; j++) {
+      if (!pool(j)) continue;
+      const dd = Math.hypot(px[j] - px[k], py[j] - py[k]);
+      if (dd < d) [d, best] = [dd, j];
+    }
+    return best;
+  };
+  function kickGoal(k: number, t: number): Pt {
+    const s0 = a.start.get(members[k].id)!;
+    const here = { x: px[k], y: py[k] };
+    const caught = t >= a.catchAt;
+    if (offense[k]) {
+      if (k === kickerIdx || k === holderIdx) return here;
+      if (a.kick === 'fg') {
+        // Protection: hold the line, square to the nearest rusher.
+        const r = nearestOf(k, (j) => !offense[j]);
+        return r < 0 ? s0 : { x: s0.x - a.dir * 0.3, y: s0.y + Math.max(-0.8, Math.min(0.8, py[r] - s0.y)) };
+      }
+      if (a.kick === 'punt' && !isGunner[k] && t < a.release) {
+        // Punt protection: between the nearest rusher and the punter until the ball is away.
+        const r = nearestOf(k, (j) => !offense[j] && rusherAt[j]);
+        return r < 0 || kickerIdx < 0 ? here : between(r, kickerIdx);
+      }
+      if (caught && retIdx >= 0) return { x: px[retIdx], y: py[retIdx] };
+      // The running start: level with the ball as it's kicked.
+      if (a.kick === 'kickoff' && t < a.release) return { x: s0.x + a.dir * 5, y: s0.y };
+      // Down the field in his lane, squeezing toward where the ball comes down.
+      return { x: landX, y: s0.y + (landY - s0.y) * 0.35 };
+    }
+    if (k === retIdx) return here;
+    if (a.kick === 'fg') return t < a.release && holderIdx >= 0 ? { x: px[holderIdx], y: py[holderIdx] } : here;
+    if (a.kick === 'punt' && t < a.release) {
+      if (rusherAt[k] && kickerIdx >= 0) return { x: px[kickerIdx], y: py[kickerIdx] };
+      const g = nearestOf(k, (j) => isGunner[j]);
+      // A jammer rides the gunner down the field.
+      if (g >= 0 && Math.abs(py[k] - ballY0) > 10) return { x: px[g] + a.dir * 1, y: py[g] };
+    }
+    if (!caught) {
+      const g = a.kick === 'punt' ? nearestOf(k, (j) => isGunner[j]) : -1;
+      if (g >= 0 && Math.abs(s0.y - ballY0) > 10) return { x: px[g] + a.dir * 1, y: py[g] };
+      // Fall back toward the returner and set up the return.
+      return { x: s0.x + (landX - s0.x) * 0.55, y: s0.y + (landY - s0.y) * 0.3 };
+    }
+    // The return: get between the nearest man in coverage and the returner.
+    const c = nearestOf(k, (j) => offense[j] && j !== kickerIdx);
+    return c < 0 || retIdx < 0 ? here : between(c, retIdx);
+  }
   /** Everyone who blocks on this play: the line, a back staying in, receivers stalking on a run. */
   const blockerIdx = all.filter(
     (k) =>
@@ -296,8 +367,21 @@ export function steer(a: SteerArgs): Float32Array {
             goal = { x: ballX0 + a.dir * depth, y: s0.y };
           }
         }
+        if (a.kick) goal = kickGoal(k, t);
         // Engaged: a blocked man only leans into his block, slowly toward the ball on a dropback, driven back on a run.
         let top = SPEED[m.role];
+        if (a.kick) {
+          // The rush is held up by the protection until the kick; after the catch the coverage fights through blocks.
+          const opp = (j: number) => offense[j] !== offense[k] && steered[j] && members[j].role !== 'RET';
+          const near = all.some((j) => opp(j) && Math.hypot(px[j] - px[k], py[j] - py[k]) < 1.6);
+          if (!offense[k] && a.kick !== 'kickoff' && t < a.release + 0.2 && near) top = 1.2;
+          if (offense[k] && t >= a.catchAt && near) top = 2;
+          const v = Math.hypot(vx[k], vy[k]);
+          if (v > top) {
+            vx[k] *= top / v;
+            vy[k] *= top / v;
+          }
+        }
         if (!offense[k]) {
           // Held by whoever is on him (the matchups only aim the blockers): any blocker within reach.
           const holding =

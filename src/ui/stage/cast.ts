@@ -4,6 +4,7 @@
  * starter, a rotation rusher) takes the spot of the man in his group for that snap.
  */
 import { actorsIn } from '../../engine/playActors';
+import { offenseSide } from './ballPath';
 import type { FieldRecord, FieldUnits, PlayLogEntry } from '../../engine/types';
 
 export type Role = 'QB' | 'OL' | 'RB' | 'WR' | 'TE' | 'DT' | 'EDGE' | 'LB' | 'CB' | 'S' | 'K' | 'P' | 'RET' | 'ST';
@@ -91,7 +92,7 @@ function withSlots(side: Entry[]): CastMember[] {
 export function castFor(record: FieldRecord, plays: readonly PlayLogEntry[], index: number, homeId: number): Cast {
   const e = plays[index];
   const units = unitsAt(record, index);
-  const offSide: 0 | 1 = e.offense === homeId ? 0 : 1;
+  const offSide = offenseSide(e, homeId);
   const off = units[offSide];
   const def = units[(1 - offSide) as 0 | 1];
   const stOf = (u: FieldUnits) => u.st.map((id): Entry => [id, 'ST']);

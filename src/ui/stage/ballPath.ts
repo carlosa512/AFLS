@@ -108,3 +108,14 @@ export function pointAt(seg: Seg, s: number) {
 export function snapYFor(e: PlayLogEntry | undefined, lastY: number): number {
   return e?.kind && SNAPPED.has(e.kind) ? Math.max(HASH_LO, Math.min(HASH_HI, lastY)) : MID;
 }
+
+/**
+ * The side with the ball: 0 home, 1 away. A kick's log entry can name the receiving team (the engine logs it after
+ * possession changes on a touchback), so a kick reads its side off the ball's flight, which always goes away from
+ * the kicking team.
+ */
+export function offenseSide(e: PlayLogEntry, homeId: number): 0 | 1 {
+  const kick = e.kind === 'kickoff' || e.kind === 'punt' || e.kind === 'fg' || e.kind === 'xp';
+  if (kick && e.air !== undefined && e.from !== undefined && e.air !== e.from) return e.air > e.from ? 0 : 1;
+  return e.offense === homeId ? 0 : 1;
+}
