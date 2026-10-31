@@ -464,11 +464,21 @@ export const upgradeBar = (league: League, team: Team, apy: number) =>
   minGainFor(league, team) + PRICE_GAIN * Math.max(0, apy / league.caps[league.season] - PRICEY);
 
 /** One day of free agency: every AI team bids on the players it needs; each player takes his best offer if it's good enough. */
-export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: boolean } = {}): number {
+/**
+ * One pass of the AI's free agency: each free agent, best first, to the club whose offer he values most, if it beats
+ * his walk-away. `rosterMax` is the roster a club may fill to (camp's 90 when the calendar already reads 53).
+ */
+export function aiFreeAgencyDay(
+  league: League,
+  rng: Rng,
+  opts: { includeUser?: boolean; rosterMax?: number } = {},
+): number {
   const teams = league.teams.filter((t) => opts.includeUser || t.id !== league.userTeamId);
   const depth = new Map(teams.map((t) => [t.id, depthOutlooks(league, t)]));
   const budget = new Map(teams.map((t) => [t.id, spendable(league, t.id)]));
-  const room = new Map(teams.map((t) => [t.id, rosterLimit(league) - activeRoster(league, t.id).length]));
+  const room = new Map(
+    teams.map((t) => [t.id, (opts.rosterMax ?? rosterLimit(league)) - activeRoster(league, t.id).length]),
+  );
   // Cap planning: big deals must also fit next year's books, not just this year's.
   const nextCap = capFor(league, league.season + 1) * 0.92;
   const committedNext = new Map(teams.map((t) => [t.id, capSheet(league, t.id, league.season + 1).used]));

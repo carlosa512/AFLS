@@ -6,7 +6,9 @@ import { Rng } from '../rng';
 import type { League } from '../types';
 import { aiFreeAgencyDay, fitOffer, spendable } from './ai';
 import { advanceOffseason, beginOffseason, FA_DAYS } from './index';
-import { demand, freeAgents } from './negotiation';
+import { demand, freeAgents, OFFSEASON_ROSTER_MAX } from './negotiation';
+import { activeRoster } from '../roster';
+import { releasePlayer } from '../finance/cap';
 
 /** A league at free agency's last day, after one season. */
 const lastDay = (() => {
@@ -66,5 +68,48 @@ describe('the late market: a club offers what it can fit', () => {
       break;
     }
     expect(signed).toBe(true);
+  }, 120_000);
+});
+
+describe('the late market runs past day 5', () => {
+  /** The draft step from free agency's end: what was left, and the league after. */
+  const draftStep = (autoUser: boolean) => {
+    const l: League = JSON.parse(lastDay);
+    advanceOffseason(l, { autoUser }); // free agency's last day closes: the draft opens
+    expect(l.phase).toBe('draft');
+    // Eight good starters on AI clubs, cut once free agency has closed: what the late passes have to place.
+    const cut = Object.values(l.players)
+      .filter((p) => p.teamId !== null && p.teamId !== l.userTeamId && p.contract && !p.injury && p.age <= 29)
+      .filter((p) => playerOvr(p) >= 12.5 && playerOvr(p) <= 14)
+      .slice(0, 8);
+    for (const p of cut) releasePlayer(l, p);
+    const starters = (x: League) =>
+      freeAgents(x)
+        .filter((p) => playerOvr(p) >= 12 && p.age <= 31)
+        .map((p) => p.id);
+    const left = starters(l);
+    const before = activeRoster(l, l.userTeamId).map((p) => p.id);
+    advanceOffseason(l, { autoUser });
+    return { l, left, after: starters(l), before };
+  };
+
+  it('signs most of the starter-quality free agents left after day 5 by the time camp opens', () => {
+    const { left, after } = draftStep(true);
+    expect(left.length).toBeGreaterThan(5);
+    expect(after.length).toBeLessThanOrEqual(0.6 * left.length);
+  }, 120_000);
+
+  it('never takes a club past the 90', () => {
+    const { l } = draftStep(true);
+    for (const t of l.teams) expect(activeRoster(l, t.id).length).toBeLessThanOrEqual(OFFSEASON_ROSTER_MAX);
+  }, 120_000);
+
+  it('signs nobody for a club whose front office you run', () => {
+    const { l, before } = draftStep(false);
+    const drafted = new Set(l.draftClass ?? []);
+    const added = activeRoster(l, l.userTeamId).filter(
+      (p) => !before.includes(p.id) && !(p.draft && p.draft.season === l.season),
+    );
+    expect(added.map((p) => p.id).filter((id) => !drafted.has(id))).toEqual([]);
   }, 120_000);
 });
