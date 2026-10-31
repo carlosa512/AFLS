@@ -7,7 +7,8 @@
  */
 import { callerStyle, teamScheme } from '../src/engine/coaching';
 import { createLeague } from '../src/engine/generate';
-import { simToEndOfRegularSeason } from '../src/engine/league';
+import { gamesInWeek, playWeek } from '../src/engine/league';
+import { simulateGame } from '../src/engine/match/gameSim';
 import { teamRatings } from '../src/engine/roster';
 import { REGULAR_SEASON_WEEKS } from '../src/engine/season/schedule';
 import { regularSeasonGames } from '../src/engine/season/standings';
@@ -86,6 +87,28 @@ const INJURY_TARGETS: Record<string, [number, number]> = {
 // Strength is each team's overall at kickoff, so the margin it predicts stands in for the line. How often the
 // better-rated team wins is shown, not judged: favourites win 66.4% against the line, and a line knows more than a
 // rating.
+/**
+ * NFL passing by depth of target (nflverse play-by-play, 2019–24 regular seasons, every throw with its air yards):
+ * share of throws, completion %, yards an attempt, interception %, yards after the catch.
+ */
+const PASS_DEPTH_NFL = {
+  behind: { share: 16.6, cmp: 81, ypa: 4.7, int: 0.8, yac: 9.1 },
+  '0–9': { share: 50.9, cmp: 70, ypa: 5.8, int: 1.4, yac: 4.2 },
+  '10–19': { share: 20.9, cmp: 54.9, ypa: 9.6, int: 3.4, yac: 3.7 },
+  '20+': { share: 11.6, cmp: 36.2, ypa: 12.2, int: 6.3, yac: 5.6 },
+} as const;
+type DepthBand = keyof typeof PASS_DEPTH_NFL;
+// The shape judged: average air yards a throw (nflverse 7.9; 7.7 in 2024) and the shares by depth.
+const DEPTH_TARGETS: Record<string, [number, number]> = {
+  'average air yards': [7.4, 8.3],
+  'short share %': [65, 70],
+  '10–19 share %': [19, 23],
+  '20+ share %': [10.5, 13],
+};
+const depthTally = Object.fromEntries(
+  (Object.keys(PASS_DEPTH_NFL) as DepthBand[]).map((b) => [b, { att: 0, cmp: 0, yds: 0, int: 0, yac: 0, air: 0 }]),
+) as Record<DepthBand, { att: number; cmp: number; yds: number; int: number; yac: number; air: number }>;
+
 const PARITY_TARGETS: Record<string, [number, number]> = {
   'margin strength predicts (SD)': [5.5, 6.5],
   'margin spread around strength': [12.3, 13.3],
@@ -173,7 +196,35 @@ const t0 = Date.now();
 for (let s = 0; s < seasons; s++) {
   const league = createLeague({ seed: `calibrate-${s}` });
   const ratings = new Map(league.teams.map((t) => [t.id, teamRatings(league, t).overall]));
-  simToEndOfRegularSeason(league);
+  // Passing by depth from week 1 replayed with its play log before it's played for real. A replay only reads the
+  // league, and the sample must not change the season: the league is compared before and after.
+  const untouched = JSON.stringify(league);
+  for (const g of gamesInWeek(league)) {
+    const r = simulateGame(league, g, { keepPlays: true });
+    for (const p of r.plays ?? []) {
+      if ((p.kind !== 'pass' && p.kind !== 'incomplete' && p.kind !== 'int') || p.air === undefined) continue;
+      const dir = p.offense === g.homeId ? 1 : -1;
+      const air = (p.air - p.from!) * dir;
+      const t = depthTally[air < 0 ? 'behind' : air < 10 ? '0–9' : air < 20 ? '10–19' : '20+'];
+      t.att++;
+      t.air += air;
+      if (p.kind === 'int') t.int++;
+      if (p.kind === 'pass') {
+        const gain = (p.to! - p.from!) * dir;
+        t.cmp++;
+        t.yds += gain;
+        t.yac += gain - air;
+      }
+    }
+  }
+  if (JSON.stringify(league) !== untouched) throw new Error('the depth sample changed the league');
+  // Strength as a line reads it: both teams' overall before each week's games, injuries in.
+  const gameGap = new Map<number, number>();
+  while (league.phase === 'regular') {
+    const week = new Map(league.teams.map((t) => [t.id, teamRatings(league, t).overall]));
+    for (const g of gamesInWeek(league)) gameGap.set(g.id, week.get(g.homeId)! - week.get(g.awayId)!);
+    playWeek(league);
+  }
   const wins = new Map<number, number>();
   for (const g of regularSeasonGames(league)) {
     const r = g.result as GameResult;
@@ -193,13 +244,13 @@ for (let s = 0; s < seasons; s++) {
     roof[0] += r.homeScore + r.awayScore;
     roof[1]++;
     if (r.overtime) ot++;
-    gaps.push([ratings.get(g.homeId)! - ratings.get(g.awayId)!, r.homeScore - r.awayScore]);
+    gaps.push([gameGap.get(g.id)!, r.homeScore - r.awayScore]);
     if (r.homeScore === r.awayScore) ties++;
     else {
       if (r.homeScore > r.awayScore) homeWins++;
       const winner = r.homeScore > r.awayScore ? g.homeId : g.awayId;
       wins.set(winner, (wins.get(winner) ?? 0) + 1);
-      const fav = ratings.get(g.homeId)! >= ratings.get(g.awayId)! ? g.homeId : g.awayId;
+      const fav = gameGap.get(g.id)! >= 0 ? g.homeId : g.awayId;
       decided++;
       if (winner === fav) favoriteWins++;
     }
@@ -455,6 +506,38 @@ for (const [k, v] of Object.entries(parityResults)) {
 console.log(
   `Better-rated team wins ${((100 * favoriteWins) / decided).toFixed(1)}% of decided games; ${slope.toFixed(1)} points of margin per rating point (informational)`,
 );
+
+const bands = Object.keys(PASS_DEPTH_NFL) as DepthBand[];
+const throws = bands.reduce((n, b) => n + depthTally[b].att, 0);
+const shareOf = (...bs: DepthBand[]) => (100 * bs.reduce((n, b) => n + depthTally[b].att, 0)) / throws;
+const depthResults: Record<string, number> = {
+  'average air yards': bands.reduce((n, b) => n + depthTally[b].air, 0) / throws,
+  'short share %': shareOf('behind', '0–9'),
+  '10–19 share %': shareOf('10–19'),
+  '20+ share %': shareOf('20+'),
+};
+console.log(`\nPassing by depth (week 1 replayed, ${throws} throws; NFL from nflverse 2019–24)`);
+console.log('stat'.padEnd(30), 'sim'.padStart(8), '  NFL range');
+for (const [k, v] of Object.entries(depthResults)) {
+  const [lo, hi] = DEPTH_TARGETS[k];
+  const ok = v >= lo && v <= hi;
+  if (!ok) misses++;
+  console.log(k.padEnd(30), v.toFixed(2).padStart(8), `  ${lo}–${hi}`, ok ? '' : v < lo ? '  ▼ LOW' : '  ▲ HIGH');
+}
+console.log('band (informational)   share      cmp%     Y/A     INT%   YAC/catch   (sim / NFL)');
+for (const b of bands) {
+  const t = depthTally[b];
+  const nfl = PASS_DEPTH_NFL[b];
+  const pair = (sim: number, real: number, d = 1) => `${sim.toFixed(d).padStart(5)}/${real.toFixed(d).padEnd(5)}`;
+  console.log(
+    b.padEnd(22),
+    pair((100 * t.att) / throws, nfl.share),
+    pair((100 * t.cmp) / t.att, nfl.cmp),
+    pair(t.yds / t.att, nfl.ypa),
+    pair((100 * t.int) / t.att, nfl.int),
+    pair(t.yac / Math.max(1, t.cmp), nfl.yac),
+  );
+}
 
 console.log(`\n${misses} stat(s) outside target range`);
 // The tables below are informational; a stat outside its range fails the run (and CI).
