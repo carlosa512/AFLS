@@ -10,14 +10,13 @@ import { PlayerLink } from '../components';
 import { FIELD_W, HASH_HI, HASH_LO, MID, snapYFor } from '../stage/ballPath';
 import { cameraCenter, cameraSpan, easeCamera, layoutFor, type Layout } from '../stage/camera';
 import { stagePlay, type StagedPlay } from '../stage/stage';
+import { transition, type Mark } from '../stage/transition';
 import { downLines } from './GameViewer';
 
 /** A dot's radius in yards: bigger sideways, where the whole field shares the width. */
 const DOT: Record<Layout, number> = { wide: 1.3, upright: 0.95 };
 /** Taps land within this many yards of a dot. */
 const REACH = 2.5;
-/** Seconds (at 1×) to slide everyone from where the last play ended to the next line-up. */
-const RESPOT = 0.6;
 
 /** Field (x, y) to the picture: sideways like the broadcast view, or upright with the offense attacking up. */
 interface View {
@@ -41,7 +40,9 @@ function fieldTransform(v: View): string {
 }
 
 interface Memory {
-  spots: Map<number, [number, number]>;
+  /** Where each man on the field was last drawn, and which kit he wears. */
+  spots: Map<number, Mark>;
+  ballX: number | null;
   ballY: number;
   cx: number;
 }
@@ -82,7 +83,7 @@ export function TopDownField({
   const dotRefs = useRef(new Map<number, SVGGElement>());
   const ballRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
-  const memory = useRef<Memory>({ spots: new Map(), ballY: MID, cx: 50 });
+  const memory = useRef<Memory>({ spots: new Map(), ballX: null, ballY: MID, cx: 50 });
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
   const [layout, setLayout] = useState<Layout>('wide');
@@ -127,31 +128,27 @@ export function TopDownField({
     const n = s.ids.length;
     const last = s.steps - 1;
     const mem = memory.current;
-    const from = s.ids.map((id, k) => mem.spots.get(id) ?? [s.pos[k * 2], s.pos[k * 2 + 1]]);
     const view: View = { layout, dir, cx: mem.cx, span };
+    // Between plays: everyone jogs from where the last play left him to his spot, subs come and go (none on the
+    // first play shown, which starts set).
+    const gap = mem.spots.size ? transition(mem.spots, s) : null;
+    const ballFrom = mem.ballX === null ? null : { x: mem.ballX, y: mem.ballY };
 
-    const place = (step: number, slide: number, seconds: number) => {
-      const ballX = s.ball[step * 3];
-      const ballY = s.ball[step * 3 + 1];
-      const h = s.ball[step * 3 + 2];
-      if (layout === 'upright') {
-        const target = cameraCenter(ballX, dir, span);
-        view.cx = easeCamera(view.cx, target, seconds);
-        fieldRef.current?.setAttribute('transform', fieldTransform(view));
-        svg.current?.setAttribute('viewBox', viewBox(view));
-      }
-      for (let k = 0; k < n; k++) {
-        let x = s.pos[(step * n + k) * 2];
-        let y = s.pos[(step * n + k) * 2 + 1];
-        if (slide < 1) {
-          x = from[k][0] + (x - from[k][0]) * slide;
-          y = from[k][1] + (y - from[k][1]) * slide;
-        }
-        const [sx, sy] = toScreen(view, x, y);
-        dotRefs.current.get(s.ids[k])?.setAttribute('transform', `translate(${sx.toFixed(2)} ${sy.toFixed(2)})`);
-        mem.spots.set(s.ids[k], [x, y]);
-      }
-      const [bx, by] = toScreen(view, ballX, ballY);
+    const camera = (ballX: number, seconds: number) => {
+      if (layout !== 'upright') return;
+      view.cx = easeCamera(view.cx, cameraCenter(ballX, dir, span), seconds);
+      fieldRef.current?.setAttribute('transform', fieldTransform(view));
+      svg.current?.setAttribute('viewBox', viewBox(view));
+    };
+    const drawDot = (id: number, x: number, y: number, opacity = 1) => {
+      const el = dotRefs.current.get(id);
+      if (!el) return;
+      const [sx, sy] = toScreen(view, x, y);
+      el.setAttribute('transform', `translate(${sx.toFixed(2)} ${sy.toFixed(2)})`);
+      el.setAttribute('opacity', opacity.toFixed(2));
+    };
+    const drawBall = (x: number, y: number, h: number) => {
+      const [bx, by] = toScreen(view, x, y);
       const grow = 1 + h / 18;
       ballRef.current?.setAttribute(
         'transform',
@@ -162,30 +159,73 @@ export function TopDownField({
         `translate(${(bx + h * 0.3).toFixed(2)} ${(by + h * 0.3).toFixed(2)})`,
       );
       shadowRef.current?.setAttribute('opacity', String(Math.max(0.15, 0.45 - h / 40)));
-      mem.ballY = ballY;
+      mem.ballX = x;
+      mem.ballY = y;
+    };
+
+    /** The jog between plays, `t` seconds in. */
+    const jog = (t: number, seconds: number) => {
+      const g = gap!;
+      for (const m of g.moves) {
+        const p = g.at(m, t);
+        drawDot(m.id, p.x, p.y, p.opacity);
+        if (!m.leave) mem.spots.set(m.id, { x: p.x, y: p.y, home: m.home });
+      }
+      // The official carries the ball to the new spot while they jog.
+      const k = Math.min(1, t / Math.max(0.5, g.duration * 0.6));
+      const bx = ballFrom ? ballFrom.x + (s.ball[0] - ballFrom.x) * k : s.ball[0];
+      const by = ballFrom ? ballFrom.y + (s.ball[1] - ballFrom.y) * k : s.ball[1];
+      drawBall(bx, by, 0);
+      camera(bx, seconds);
+    };
+
+    /** The play itself, at `step`. */
+    const place = (step: number, seconds: number) => {
+      camera(s.ball[step * 3], seconds);
+      for (let k = 0; k < n; k++) {
+        const x = s.pos[(step * n + k) * 2];
+        const y = s.pos[(step * n + k) * 2 + 1];
+        drawDot(s.ids[k], x, y);
+        mem.spots.set(s.ids[k], { x, y, home: s.home[k] });
+      }
+      drawBall(s.ball[step * 3], s.ball[step * 3 + 1], s.ball[step * 3 + 2]);
       mem.cx = view.cx;
+    };
+    /** The men who came off are gone once the play starts. */
+    const clearBench = () => {
+      for (const id of [...mem.spots.keys()]) if (!s.ids.includes(id)) mem.spots.delete(id);
+      for (const id of gap?.moves.filter((m) => m.leave).map((m) => m.id) ?? []) drawDot(id, 0, -20, 0);
     };
 
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (still || reduced) {
       // Nothing moves, so the window jumps straight to where the play ended.
-      place(last, 1, Infinity);
+      clearBench();
+      place(last, Infinity);
       const t = setTimeout(() => doneRef.current(), 450 / speed);
       return () => clearTimeout(t);
     }
     let raf = 0;
     let t0 = 0;
     let prev = 0;
+    let cleared = false;
     const playTime = last * s.dt;
     const tick = (now: number) => {
       if (!t0) t0 = prev = now;
       const t = ((now - t0) / 1000) * speed;
       const frame = ((now - prev) / 1000) * speed;
       prev = now;
-      if (t < RESPOT) place(0, t / RESPOT, frame);
-      else if (t - RESPOT < playTime) place(Math.min(last, Math.floor((t - RESPOT) / s.dt)), 1, frame);
-      else {
-        place(last, 1, frame);
+      const pre = gap?.duration ?? 0;
+      if (t < pre) jog(t, frame);
+      else if (t - pre < playTime) {
+        if (gap && !cleared) {
+          clearBench();
+          cleared = true;
+        }
+        place(Math.min(last, Math.floor((t - pre) / s.dt)), frame);
+      } else {
+        clearBench();
+        place(last, frame);
         doneRef.current();
         return;
       }
@@ -206,6 +246,8 @@ export function TopDownField({
   const awayKit = kit(away, true);
   const keys = new Set(staged.keys);
   const dot = DOT[layout];
+  // Men from the last play who aren't in this one: drawn until they've jogged off.
+  const leaving = [...memory.current.spots.entries()].filter(([id]) => !staged.ids.includes(id));
   // Players in the play are drawn last, so their rings sit on top.
   const order = staged.ids
     .map((_, k) => k)
@@ -218,7 +260,7 @@ export function TopDownField({
     const p = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(ctm.inverse());
     let best: number | null = null;
     let d = REACH;
-    for (const [id, [x, y]] of memory.current.spots) {
+    for (const [id, { x, y }] of memory.current.spots) {
       if (!staged.ids.includes(id)) continue;
       const [sx, sy] = toScreen({ ...view, cx: memory.current.cx }, x, y);
       const dd = Math.hypot(sx - p.x, sy - p.y);
@@ -275,11 +317,32 @@ export function TopDownField({
           {lines && losLine(lines.los, '#5aa9ff')}
           {lines && losLine(lines.gain, '#ffd43b')}
         </g>
+        {leaving.map(([id, m]) => {
+          const k2 = m.home ? homeKit : awayKit;
+          const [sx, sy] = toScreen(view, m.x, m.y);
+          return (
+            <g
+              key={id}
+              className="dot"
+              ref={(el) => {
+                if (el) dotRefs.current.set(id, el);
+                else dotRefs.current.delete(id);
+              }}
+              transform={`translate(${sx.toFixed(2)} ${sy.toFixed(2)})`}
+            >
+              <circle r={dot} fill={k2.jersey} stroke={k2.trim} strokeWidth={0.18} />
+              <text y={dot * 0.37} textAnchor="middle" fontSize={dot * 1.05} fontWeight={700} fill={k2.ink}>
+                {record.jerseys[id] ?? ''}
+              </text>
+            </g>
+          );
+        })}
         {order.map((k) => {
           const id = staged.ids[k];
           const k2 = staged.home[k] ? homeKit : awayKit;
           // Where the dot is now (the last frame drawn), so a re-render never moves it; the effect takes it from there.
-          const [x, y] = memory.current.spots.get(id) ?? [staged.pos[k * 2], staged.pos[k * 2 + 1]];
+          const was = memory.current.spots.get(id);
+          const [x, y] = was ? [was.x, was.y] : [staged.pos[k * 2], staged.pos[k * 2 + 1]];
           const [sx, sy] = toScreen(view, x, y);
           return (
             <g
