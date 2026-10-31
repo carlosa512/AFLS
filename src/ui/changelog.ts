@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.28',
+    date: '2026-10-31',
+    title: 'Watch the highlights',
+    text:
+      'Replays and live games now have Key, Ext and Full beside the speed button. Key shows the plays that decide a ' +
+      'game: scores, turnovers, big gains, fourth downs and a close finish. Ext adds third downs, goal-line snaps, ' +
+      'sacks and the drive before half. The plays in between still land in the log and on the scoreboard, so you ' +
+      'never miss a result. Your pick is remembered on this device.',
+  },
+  {
     version: '0.2.27',
     date: '2026-10-31',
     title: 'Every body is different',

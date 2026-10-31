@@ -5,6 +5,8 @@ import { useNav } from '../App';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import { TeamChip } from '../components';
 import { gameClock, weekLabel } from '../format';
+import { HIGHLIGHT_LEVELS, nextShown, type HighlightLevel } from '../highlights';
+import { HIGHLIGHTS_KEY, usePref } from '../viewerPrefs';
 
 // ───────── 2.5D field projection ─────────
 // Field coordinates: x from -10 (home end zone) to 110 (away end zone), y from 0 (near
@@ -172,6 +174,7 @@ export function Field({
   restX,
   animKey,
   speed,
+  still = false,
   onDone,
 }: {
   home: Team;
@@ -180,6 +183,8 @@ export function Field({
   restX: number;
   animKey: string;
   speed: number;
+  /** A play the highlight level skipped: show where it ended without animating it. */
+  still?: boolean;
   onDone: () => void;
 }) {
   const ballRef = useRef<SVGEllipseElement>(null);
@@ -280,7 +285,7 @@ export function Field({
       settleLines();
     };
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduced || (!segs.length && !respot)) {
+    if (reduced || still || (!segs.length && !respot)) {
       finish();
       const t = setTimeout(() => doneRef.current(), 450 / speed);
       return () => clearTimeout(t);
@@ -488,6 +493,35 @@ export function situation(e: PlayLogEntry, home: Team, away: Team): string {
 
 const SPEEDS = [1, 2, 4];
 
+const LEVEL_LABELS: Record<HighlightLevel, string> = { key: 'Key', extended: 'Ext', full: 'Full' };
+const LEVEL_NAMES: Record<HighlightLevel, string> = {
+  key: 'Key plays only',
+  extended: 'Extended highlights',
+  full: 'Full game',
+};
+
+/** How much of the game to animate: Key · Ext · Full. Skipped plays still land in the log and on the scoreboard. */
+export function HighlightSwitch({ value, onChange }: { value: HighlightLevel; onChange: (v: HighlightLevel) => void }) {
+  return (
+    <span className="vc-levels" role="group" aria-label="Highlights">
+      {HIGHLIGHT_LEVELS.map((l) => (
+        <button
+          key={l}
+          className={`vc-level${l === value ? ' on' : ''}`}
+          aria-pressed={l === value}
+          title={LEVEL_NAMES[l]}
+          onClick={() => onChange(l)}
+        >
+          {LEVEL_LABELS[l]}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/** The highlight level picked on this device. */
+export const useHighlightPick = () => usePref<HighlightLevel>(HIGHLIGHTS_KEY, HIGHLIGHT_LEVELS, 'full');
+
 /** "K.Snyder": how the engine writes a player into a play. */
 const playName = (p: Player) => `${p.firstName[0]}.${p.lastName}`;
 
@@ -568,6 +602,8 @@ export function GameViewer({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [run, setRun] = useState(0); // bumps to replay the current play
+  const [still, setStill] = useState(false);
+  const [pick, setPick] = useHighlightPick();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const names = usePlayNames(league, game);
 
@@ -592,16 +628,30 @@ export function GameViewer({
   const atEnd = index >= plays.length - 1;
   const label = game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(game.week);
 
-  const go = (i: number, keepPlaying = false) => {
+  const go = (i: number, keepPlaying = false, skipped = false) => {
     clearTimeout(timer.current);
     setIndex(Math.max(0, Math.min(plays.length - 1, i)));
+    setStill(skipped);
     setRun((r) => r + 1);
     if (!keepPlaying) setPlaying(false);
+  };
+  /** The next play to show from `from` at the level picked: past the plays it skips, they land together, still. */
+  const advanceFrom = (from: number) => {
+    const n = nextShown(plays, from, home.id, pick, 1);
+    if (n === -1) return go(plays.length - 1, false, plays.length - 1 > from);
+    if (n > from + 1) return go(n - 1, true, true);
+    go(n, true);
   };
   const onDone = () => {
     if (!playing) return;
     if (atEnd) return setPlaying(false);
-    timer.current = setTimeout(() => go(index + 1, true), 650 / speed);
+    // A skipped batch has been shown: its hold was the pause, so the highlight follows at once.
+    if (still) return go(index + 1, true);
+    timer.current = setTimeout(() => advanceFrom(index), 650 / speed);
+  };
+  const step = (dir: 1 | -1) => {
+    const n = nextShown(plays, index, home.id, pick, dir);
+    go(n === -1 ? (dir === 1 ? plays.length - 1 : 0) : n);
   };
   const togglePlay = () => {
     if (playing) {
@@ -609,7 +659,8 @@ export function GameViewer({
       setPlaying(false);
     } else {
       setPlaying(true);
-      go(atEnd ? 0 : index + 1, true);
+      if (atEnd) go(0, true);
+      else advanceFrom(index);
     }
   };
   // Every play up to this one, newest first: nothing past the current play, so the log never spoils it.
@@ -654,6 +705,7 @@ export function GameViewer({
           restX={restingSpot(plays, index, home.id)}
           animKey={`${index}:${run}`}
           speed={speed}
+          still={still}
           onDone={onDone}
         />
 
@@ -663,13 +715,13 @@ export function GameViewer({
         </div>
 
         <div className="viewer-controls">
-          <button className="vc-btn" onClick={() => go(index - 1)} disabled={index === 0} aria-label="Previous play">
+          <button className="vc-btn" onClick={() => step(-1)} disabled={index === 0} aria-label="Previous play">
             ◀◀
           </button>
           <button className="vc-btn vc-play" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
             {playing ? '❚❚' : '▶'}
           </button>
-          <button className="vc-btn" onClick={() => go(index + 1)} disabled={atEnd} aria-label="Next play">
+          <button className="vc-btn" onClick={() => step(1)} disabled={atEnd} aria-label="Next play">
             ▶▶
           </button>
           <button
@@ -679,6 +731,7 @@ export function GameViewer({
           >
             {speed}×
           </button>
+          <HighlightSwitch value={pick} onChange={setPick} />
           <input
             className="vc-scrub"
             type="range"
