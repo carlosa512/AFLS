@@ -421,7 +421,7 @@ function units(l: Lineup): [offense: Player[], defense: Player[]] {
 export const BEHIND_SHARE = 0.2;
 
 /** A catch behind the line has blockers in front of it: the NFL's gain 9.1 yards after the catch (nflverse 2019–24). */
-const SCREEN_YAC = 7.8;
+const SCREEN_YAC = 8.6;
 
 /**
  * How far a throw travels past the line: a back's short throw is a checkdown in the flat; a receiver's is a screen
@@ -434,8 +434,9 @@ export function passAir(rng: Rng, depth: PassDepth, isBack: boolean, yardLine: n
   else if (depth === 'short')
     air = rng.chance(BEHIND_SHARE) ? -rng.int(1, 5) : Math.round(clamp(rng.normal(4.2, 2.6), 0, 9));
   else if (depth === 'medium') air = rng.int(10, 17);
-  // Deep balls travel (NFL 2021–25: 0.47 completions of 40+ yards a team-game, a third of them touchdowns).
-  else air = 20 + Math.round(Math.min(rng.exponential(12), 60));
+  // Deep balls travel about 29 yards in the air (nflverse 2019–24) and their catchers keep running (5.6 yards after the
+  // catch): NFL 2021–25, 0.47 completions of 40+ yards a team-game, a third of them touchdowns.
+  else air = 20 + Math.round(Math.min(rng.exponential(9), 60));
   air = Math.max(air, 1 - yardLine);
   return Math.min(air, yardsToGoal + 9);
 }
@@ -2466,7 +2467,7 @@ class GameSim {
     // By depth as the NFL completes them (nflverse 2019–24: 81% behind the line, 70% at 0–9, 55% at 10–19, 36% deep),
     // before the passer, the separation and the hands.
     let pComplete =
-      (depth === 'short' && air < 0 ? 0.81 : { short: 0.72, medium: 0.54, deep: 0.371 }[depth]) +
+      (depth === 'short' && air < 0 ? 0.81 : { short: 0.74, medium: 0.54, deep: 0.371 }[depth]) +
       0.018 * (acc - 12) +
       0.019 * sep +
       0.012 * (skill(receiver, 'hands') - 12);
@@ -2556,10 +2557,12 @@ class GameSim {
       tackler = rng.chance(0.6) ? defender : this.pickTackler(def, air + 4);
       const yacSkill =
         skill(receiver, 'afterCatch') - skill(tackler, 'tackling') + sizeEdge(receiver, 'contact', tackler);
+      // Room after the catch by where it's made, as the NFL's catchers find it (nflverse 2019–24: 9.1 yards behind the
+      // line, 4.2 at 0–9, 3.7 at 10–19, 5.6 deep), before the catcher and the tackler.
       let yac = Math.max(
         0,
         rng.normal(
-          (depth === 'short' && air < 0 ? SCREEN_YAC : { short: 3.2, medium: 2.15, deep: 1.75 }[depth]) +
+          (depth === 'short' && air < 0 ? SCREEN_YAC : { short: 3.6, medium: 3.2, deep: 4.6 }[depth]) +
             0.3 * yacSkill +
             this.afterCatch(receiver, tackler, depth),
           3,

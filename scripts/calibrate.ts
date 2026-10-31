@@ -13,7 +13,7 @@ import { teamRatings } from '../src/engine/roster';
 import { REGULAR_SEASON_WEEKS } from '../src/engine/season/schedule';
 import { regularSeasonGames } from '../src/engine/season/standings';
 import { FOUL_KINDS, FOULS } from '../src/engine/penalties';
-import type { GameResult, TeamGameStats } from '../src/engine/types';
+import type { GameResult, League, TeamGameStats } from '../src/engine/types';
 import { LEADER_TARGETS, overRecordAllowed, seasonTops } from './leaders';
 
 const seasons = Number(process.argv[2] ?? 3);
@@ -192,25 +192,23 @@ const lean = (v: number) => (v >= 0.35 ? 'high' : v <= -0.35 ? 'low' : 'mid');
 /** The league's advanced numbers (`analytics.ts`), both sides of every game. */
 const adv = { plays: 0, epa: 0, success: 0, explosive: 0, dropbacks: 0, passEpa: 0, rushes: 0, rushEpa: 0 };
 
-const t0 = Date.now();
-for (let s = 0; s < seasons; s++) {
-  const league = createLeague({ seed: `calibrate-${s}` });
-  const ratings = new Map(league.teams.map((t) => [t.id, teamRatings(league, t).overall]));
-  // Passing by depth from week 1 replayed with its play log before it's played for real. A replay only reads the
-  // league, and the sample must not change the season: the league is compared before and after.
+function sampleDepth(league: League) {
   const untouched = JSON.stringify(league);
   for (const g of gamesInWeek(league)) {
     const r = simulateGame(league, g, { keepPlays: true });
     for (const p of r.plays ?? []) {
-      if ((p.kind !== 'pass' && p.kind !== 'incomplete' && p.kind !== 'int') || p.air === undefined) continue;
-      const dir = p.offense === g.homeId ? 1 : -1;
-      const air = (p.air - p.from!) * dir;
+      // A throw away has no target (nflverse leaves its air yards blank too); a throw caught at the line logs no air.
+      if (p.kind !== 'pass' && p.kind !== 'incomplete' && p.kind !== 'int') continue;
+      if (p.from === undefined || p.text.includes('throws it away')) continue;
+      // In the offense's own yards (0–100): a touchdown's animation runs into the end zone, its gain stops at the line.
+      const own = (x: number) => (p.offense === g.homeId ? x : 100 - x);
+      const air = own(p.air ?? p.from) - own(p.from);
       const t = depthTally[air < 0 ? 'behind' : air < 10 ? '0–9' : air < 20 ? '10–19' : '20+'];
       t.att++;
       t.air += air;
       if (p.kind === 'int') t.int++;
       if (p.kind === 'pass') {
-        const gain = (p.to! - p.from!) * dir;
+        const gain = Math.min(own(p.to!), 100) - own(p.from);
         t.cmp++;
         t.yds += gain;
         t.yac += gain - air;
@@ -218,9 +216,19 @@ for (let s = 0; s < seasons; s++) {
     }
   }
   if (JSON.stringify(league) !== untouched) throw new Error('the depth sample changed the league');
+}
+
+const t0 = Date.now();
+for (let s = 0; s < seasons; s++) {
+  const league = createLeague({ seed: `calibrate-${s}` });
+  const ratings = new Map(league.teams.map((t) => [t.id, teamRatings(league, t).overall]));
   // Strength as a line reads it: both teams' overall before each week's games, injuries in.
   const gameGap = new Map<number, number>();
   while (league.phase === 'regular') {
+    // Passing by depth from weeks 1 and 10 replayed with their play logs before they're played for real (week 10's
+    // injuries in: backups throw and catch about a tenth of the passes). A replay only reads the league, and the
+    // sample must not change the season: the league is compared before and after.
+    if (league.week === 1 || league.week === 10) sampleDepth(league);
     const week = new Map(league.teams.map((t) => [t.id, teamRatings(league, t).overall]));
     for (const g of gamesInWeek(league)) gameGap.set(g.id, week.get(g.homeId)! - week.get(g.awayId)!);
     playWeek(league);
@@ -516,7 +524,7 @@ const depthResults: Record<string, number> = {
   '10–19 share %': shareOf('10–19'),
   '20+ share %': shareOf('20+'),
 };
-console.log(`\nPassing by depth (week 1 replayed, ${throws} throws; NFL from nflverse 2019–24)`);
+console.log(`\nPassing by depth (weeks 1 and 10 replayed, ${throws} throws; NFL from nflverse 2019–24)`);
 console.log('stat'.padEnd(30), 'sim'.padStart(8), '  NFL range');
 for (const [k, v] of Object.entries(depthResults)) {
   const [lo, hi] = DEPTH_TARGETS[k];
