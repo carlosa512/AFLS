@@ -436,7 +436,7 @@ export function passAir(rng: Rng, depth: PassDepth, isBack: boolean, yardLine: n
   else if (depth === 'medium') air = rng.int(10, 17);
   // Deep balls travel about 29 yards in the air (nflverse 2019–24) and their catchers keep running (5.6 yards after the
   // catch): NFL 2021–25, 0.47 completions of 40+ yards a team-game, a third of them touchdowns.
-  else air = 20 + Math.round(Math.min(rng.exponential(9), 60));
+  else air = 20 + Math.round(Math.min(rng.exponential(10), 60));
   air = Math.max(air, 1 - yardLine);
   return Math.min(air, yardsToGoal + 9);
 }
@@ -2484,8 +2484,10 @@ class GameSim {
     pComplete -= WEATHER_PASS[depth] * this.wx.pass;
     pComplete = clamp(pComplete, 0.05, 0.95);
 
+    // Picks by depth as the NFL throws them (nflverse 2019–24: 0.8% behind the line, 1.4% at 0–9, 3.4% at 10–19, 6.3%
+    // deep), before the passer's eyes and arm and the coverage's hands.
     const pInt =
-      { short: 0.0089, medium: 0.0216, deep: 0.0375 }[depth] *
+      (depth === 'short' && air < 0 ? 0.0065 : { short: 0.0113, medium: 0.0245, deep: 0.0422 }[depth]) *
       Math.exp(
         -0.07 * (decisions - 12) -
           0.05 * (acc - 12) +
@@ -2562,7 +2564,7 @@ class GameSim {
       let yac = Math.max(
         0,
         rng.normal(
-          (depth === 'short' && air < 0 ? SCREEN_YAC : { short: 3.6, medium: 3.2, deep: 4.6 }[depth]) +
+          (depth === 'short' && air < 0 ? SCREEN_YAC : { short: 3.6, medium: 3.2, deep: 6 }[depth]) +
             0.3 * yacSkill +
             this.afterCatch(receiver, tackler, depth),
           3,
