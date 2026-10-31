@@ -7,11 +7,21 @@ import type { League, Player, Team } from '../engine/types';
 import { contrast, kitFor, mix, readableOn, shade } from './color';
 import { FREE_AGENT, PlayerAvatar, wearsWhite } from './components';
 import { COLD_KICKOFF_F, lookOf, StaffAvatar, StaffFigure, staffDay } from './staffAvatar';
+import { BUILDS, buildOf, growOf, headOf, PLAYER_HEADS, playerLook } from './playerLook';
 import { pick, STAFF_FAMILY, staffLook } from './staffLook';
+import { SIZE } from '../engine/size';
 import { gameWeather } from '../engine/weather';
 
 const BLUE = { id: 0, colors: ['#1D4ED8', '#FFFFFF'] } as Team;
-const pearson = { firstName: 'Mario', lastName: 'Pearson', jersey: 7 } as Player;
+const pearson = {
+  id: 7,
+  firstName: 'Mario',
+  lastName: 'Pearson',
+  jersey: 7,
+  position: 'WR',
+  heightIn: 72,
+  weightLb: 200,
+} as Player;
 const html = (size: number, player = pearson) =>
   renderToStaticMarkup(<PlayerAvatar player={player} team={BLUE} size={size} />);
 const seeds = TEAM_SEEDS.map((t) => ({ abbrev: t.abbrev, primary: t.colors[0], secondary: t.colors[1] }));
@@ -131,6 +141,57 @@ describe('PlayerAvatar', () => {
   });
   it("shows a mod's portrait instead", () => {
     expect(html(48, { ...pearson, portrait: 'p.png' })).toContain('<img');
+  });
+});
+
+describe('playerLook', () => {
+  const median = (pos: Player['position']) =>
+    ({ id: 1, position: pos, heightIn: SIZE[pos].h[0], weightLb: SIZE[pos].w[0] }) as Player;
+  it('builds by real weight, the same ruler at every position', () => {
+    expect([204, 205, 229, 230, 264, 265, 294, 295, 360].map((w) => buildOf(w).name)).toEqual([
+      'lean',
+      'athletic',
+      'athletic',
+      'solid',
+      'solid',
+      'big',
+      'big',
+      'heavy',
+      'heavy',
+    ]);
+    // a 212 lb corner is drawn like a safety
+    expect(playerLook({ ...median('CB'), weightLb: 212 }, 128).build).toBe(playerLook(median('S'), 128).build);
+  });
+  it('keeps every build wider than the last, and gives each a waist', () => {
+    for (let i = 1; i < BUILDS.length; i++) expect(BUILDS[i].knots[0][1]).toBeGreaterThan(BUILDS[i - 1].knots[0][1]);
+    for (const b of BUILDS) expect(b.knots[b.knots.length - 1][1]).toBeLessThan(Math.max(...b.knots.map((k) => k[1])));
+  });
+  it('gives a player the same head for life, and the three about evenly', () => {
+    expect(headOf({ id: 42 })).toBe(headOf({ id: 42 }));
+    const counts = PLAYER_HEADS.map(() => 0);
+    for (let id = 1; id <= 3000; id++) counts[headOf({ id })]++;
+    for (const n of counts) expect(n).toBeGreaterThan(850);
+  });
+  it('draws height against his position: level at the median, capped at 2.5 sd', () => {
+    expect(growOf(median('OL'))).toBe(1);
+    expect(growOf(median('CB'))).toBe(1);
+    const tall = (inches: number) => growOf({ ...median('CB'), heightIn: SIZE.CB.h[0] + inches });
+    expect(tall(2)).toBeGreaterThan(1);
+    expect(tall(-2)).toBeLessThan(1);
+    expect(tall(20)).toBe(tall(SIZE.CB.h[1] * 2.5));
+  });
+  it('is the plain figure in lists, builds from 32px, height only on the card', () => {
+    const short = { ...median('CB'), heightIn: SIZE.CB.h[0] - 4 };
+    expect(playerLook(short, 24).build).toBeNull();
+    expect(playerLook(short, 24).transform).toBeUndefined();
+    expect(playerLook(short, 32).transform).toContain('scale(1)');
+    expect(playerLook(short, 128).transform).not.toContain('scale(1)');
+  });
+  it('leaves list icons exactly as they were', () => {
+    const plain = renderToStaticMarkup(<PlayerAvatar player={pearson} team={BLUE} size={24} />);
+    const heavy = renderToStaticMarkup(<PlayerAvatar player={{ ...pearson, weightLb: 330 }} team={BLUE} size={24} />);
+    expect(heavy).toBe(plain);
+    expect(plain).not.toContain('transform');
   });
 });
 
