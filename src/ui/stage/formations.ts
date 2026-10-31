@@ -43,7 +43,11 @@ export function lineUp(
   const jit = () => (rng.next() * 2 - 1) * JITTER;
   // Offense behind the ball, defense beyond it; `across` from the offense's view.
   const place = (id: number, x: number, across: number) =>
-    spots.set(id, { x, y: Math.max(EDGE, Math.min(FIELD_W - EDGE, ballY + dir * (across + jit()))) });
+    spots.set(id, {
+      // Inside the end lines: a long punt's returner waits at the back of his end zone, not beyond it.
+      x: Math.max(-9, Math.min(109, x)),
+      y: Math.max(EDGE, Math.min(FIELD_W - EDGE, ballY + dir * (across + jit()))),
+    });
   const put: Put = (id, back, across) => place(id, ballX - dir * Math.max(0.5, back + jit() * 0.5), across);
   const face: Put = (id, depth, across) => place(id, ballX + dir * Math.max(0.6, depth + jit() * 0.5), across);
 

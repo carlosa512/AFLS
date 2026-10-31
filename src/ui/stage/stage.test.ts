@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../../engine/generate';
 import { simulateGame } from '../../engine/match/gameSim';
 import { actorsIn } from '../../engine/playActors';
-import type { FieldUnits, Game, GameResult } from '../../engine/types';
+import type { FieldUnits, Game, GameResult, PlayLogEntry } from '../../engine/types';
 import { Rng } from '../../engine/rng';
 import { buildPath, FIELD_W, pointAt, snapYFor } from './ballPath';
 import { castFor, unitsAt } from './cast';
 import { lineUp } from './formations';
 import { sample, script } from './scripts';
+import { stagePlay, type StagedPlay } from './stage';
 
 const league = createLeague({ seed: 'stage' });
 const games: { g: Game; r: GameResult }[] = Array.from({ length: 40 }, (_, i) => {
@@ -140,7 +141,7 @@ function scripted(n: number) {
   return lineUps(n, ['run', 'pass', 'incomplete', 'int', 'sack', 'scramble', 'kneel', 'spike']).map((x) => {
     const g = games.find(({ r }) => r.plays!.includes(x.e))!.g;
     const segs = buildPath(x.e, g.homeId, x.ballY);
-    const keys = script(x.e, x.cast, x.spots, segs, x.dir);
+    const { keys } = script(x.e, x.cast, x.spots, segs, x.dir);
     const end = segs.length ? pointAt(segs[segs.length - 1], 1) : null;
     const total = segs.reduce((t, sg) => t + sg.dur, 0);
     return { ...x, segs, keys, end, total, who: actorsIn(x.e) };
@@ -203,5 +204,97 @@ describe('scripts', () => {
       n++;
     }
     expect(n).toBeGreaterThan(300);
+  });
+});
+
+describe('the staged play', () => {
+  const staged: { e: PlayLogEntry; p: StagedPlay; homeId: number; snapY: number }[] = [];
+  for (const { g, r } of games)
+    r.plays!.forEach((e, i) => {
+      const snapY = snapYFor(e, 20 + (i % 14));
+      staged.push({
+        e,
+        p: stagePlay({ plays: r.plays!, index: i, record: r.field!, homeId: g.homeId, seed: `${g.id}:${i}`, snapY }),
+        homeId: g.homeId,
+        snapY,
+      });
+    });
+  const pos = (p: StagedPlay, step: number, k: number) => ({
+    x: p.pos[(step * p.ids.length + k) * 2],
+    y: p.pos[(step * p.ids.length + k) * 2 + 1],
+  });
+
+  it('stages every entry of 40 games without throwing, 22 ids each', () => {
+    expect(staged.length).toBeGreaterThan(5000);
+    for (const { p } of staged) {
+      expect(p.ids).toHaveLength(22);
+      expect(p.pos.length).toBe(p.steps * 22 * 2);
+      expect(p.ball.length).toBe(p.steps * 3);
+    }
+  });
+
+  it('ends the ball where the ball path ends', () => {
+    for (const { e, p, homeId, snapY } of staged) {
+      const segs = buildPath(e, homeId, snapY);
+      if (!segs.length) continue;
+      const end = pointAt(segs[segs.length - 1], 1);
+      const last = (p.steps - 1) * 3;
+      expect(Math.hypot(p.ball[last] - end.x, p.ball[last + 1] - end.y)).toBeLessThan(0.5);
+    }
+  });
+
+  it('keeps everyone on the field, give or take a step out of bounds', () => {
+    let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
+    for (const { p } of staged)
+      for (let i = 0; i < p.pos.length; i += 2) {
+        minX = Math.min(minX, p.pos[i]);
+        maxX = Math.max(maxX, p.pos[i]);
+        minY = Math.min(minY, p.pos[i + 1]);
+        maxY = Math.max(maxY, p.pos[i + 1]);
+      }
+    expect(minY).toBeGreaterThanOrEqual(-2.5);
+    expect(maxY).toBeLessThanOrEqual(FIELD_W + 2.5);
+    expect(minX).toBeGreaterThanOrEqual(-12);
+    expect(maxX).toBeLessThanOrEqual(112);
+  });
+
+  it('no steered defender reaches the carrier before the tackler', () => {
+    let n = 0;
+    for (const { p } of staged) {
+      if (p.carrier === null) continue;
+      const c = p.ids.indexOf(p.carrier);
+      for (let k = 0; k < 22; k++) {
+        // Chasers: the other side from the man with the ball (the offense, after an interception).
+        if (p.offense[k] === p.offense[c] || p.keys.includes(p.ids[k])) continue;
+        let closest = Infinity;
+        for (let st = 0; st < p.steps - 1; st++) {
+          const a = pos(p, st, k);
+          const b = pos(p, st, c);
+          closest = Math.min(closest, Math.hypot(a.x - b.x, a.y - b.y));
+        }
+        expect(closest).toBeGreaterThanOrEqual(1);
+        n++;
+      }
+    }
+    expect(n).toBeGreaterThan(10_000);
+  });
+
+  it('stages the same play the same way every time', () => {
+    const { g, r } = games[3];
+    const a = stagePlay({ plays: r.plays!, index: 40, record: r.field!, homeId: g.homeId, seed: 'same', snapY: 26 });
+    const b = stagePlay({ plays: r.plays!, index: 40, record: r.field!, homeId: g.homeId, seed: 'same', snapY: 26 });
+    expect([...a.pos]).toEqual([...b.pos]);
+  });
+
+  it('stages a play in well under 50 ms', () => {
+    const { g, r } = games[5];
+    const times: number[] = [];
+    for (let i = 0; i < Math.min(200, r.plays!.length); i++) {
+      const t0 = performance.now();
+      stagePlay({ plays: r.plays!, index: i, record: r.field!, homeId: g.homeId, seed: `t${i}`, snapY: 26 });
+      times.push(performance.now() - t0);
+    }
+    times.sort((x, y) => x - y);
+    expect(times[Math.floor(times.length / 2)]).toBeLessThan(50);
   });
 });

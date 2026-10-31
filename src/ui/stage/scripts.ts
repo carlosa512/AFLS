@@ -82,15 +82,25 @@ const toward = (p: Pt, q: Pt, d: number): Pt => {
 
 const TACKLED: ReadonlySet<string> = new Set(['run', 'pass', 'scramble']);
 
+export interface Scripted {
+  keys: Map<number, Keyframe[]>;
+  /** Who has the ball at the whistle (null on a miss, a kick or an announcement). */
+  carrier: number | null;
+  /** Who brings him down. */
+  tackler: number | null;
+  /** When the ball leaves the quarterback's hands (the throw or the handoff): the defense reacts from then. */
+  release: number;
+}
+
 export function script(
   e: PlayLogEntry,
   cast: Cast,
   start: ReadonlyMap<number, Pt>,
   segs: readonly Seg[],
   dir: 1 | -1,
-): Map<number, Keyframe[]> {
+): Scripted {
   const keys = new Map<number, Keyframe[]>();
-  if (!segs.length) return keys;
+  if (!segs.length) return { keys, carrier: null, tackler: null, release: 0 };
   const ts = times(segs);
   const total = ts[ts.length - 1][1];
   const end = pointAt(segs[segs.length - 1], 1);
@@ -162,6 +172,7 @@ export function script(
   }
 
   // The tackler meets the carrier at the whistle, from the side he came.
+  let tacklerId: number | null = null;
   if (
     carrier !== undefined &&
     !touchdown &&
@@ -182,7 +193,9 @@ export function script(
       // Already scripted (the cover man on a catch): keep his path, and end it on the carrier.
       const before = keys.get(tackler)?.filter((k) => k.t < total) ?? [];
       keys.set(tackler, [from(tackler), ...before.filter((k) => k.t > 0), at(total, toward(end, s0, 0.6))]);
+      tacklerId = tackler;
     }
   }
-  return keys;
+  const release = e.kind === 'run' || e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int' ? ts[0][1] : 0;
+  return { keys, carrier: carrier ?? null, tackler: tacklerId, release };
 }
