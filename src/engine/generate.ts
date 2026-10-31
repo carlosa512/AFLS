@@ -650,10 +650,10 @@ function slotRoll(rng: Rng, position: Position, slot: number): number {
 /**
  * The share of a team's luck in its starters' rolls that a new league deals back. Rolled alone, 22 starters leave
  * about half a point of team overall between clubs by chance, on top of their records (`PEDIGREE`), and a league
- * starts with records spread wider than the NFL's (an SD of 3.8 wins against 3.0–3.3); one built over many seasons
- * reads 3.2. Dealt back, a club that rolled a great quarterback has a little less around him, as the cap would leave it.
+ * starts with records spread wider than the NFL's (an SD of 3.8 wins against nflverse's 3.09 for 2015–24); one built
+ * over many seasons reads 3.09. Three quarters dealt back, a new league reads 3.3. Dealt back, a club that rolled a great quarterback has a little less around him, as the cap would leave it.
  */
-export const EVEN_DEAL = 0.5;
+export const EVEN_DEAL = 0.75;
 
 /**
  * A team's starters' rolls (each less `STARTER_QUALITY`, by position and slot) with `EVEN_DEAL` of their luck dealt
