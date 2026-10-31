@@ -120,10 +120,12 @@ of players nobody on the staff has worked with) is a finding for the owner, not 
 ## Checks
 
 - **`npm run sim`**, Parity, with each game's strength read as a line reads it: both teams' overall before that week's
-  games (injuries in), not the season's kickoff. Judged against *nflverse* 2015–24: the margin strength predicts (SD)
-  5.5–6.5 (the line's 6.0), the margin's spread around it 12.3–13.3 (12.8; the first version's 13–14.5 rested on a
-  remembered 13.5, corrected with the owner's OK), the win spread 3.0–3.4 (3.09). How often the favourite wins is shown (the NFL's 66.4%), not judged:
-  a line still knows more than a rating. (The first version judged the better-rated team at 65–69%.)
+  games (injuries in), not the season's kickoff. Judged against *nflverse* 2015–24: the favourite wins 64–69% (66.4%),
+  the margin's spread around strength 12.3–13.3 (12.8), the win spread 3.0–3.4 (3.09). The margin strength predicts is
+  shown against the line's 6.0, not judged (owner's call, 2026-10-31): the sim's runs about 7.5, about a point more in a
+  mismatch, while who wins matches; making a rating point decide less is its own piece of work. (Earlier versions judged
+  the better-rated team at kickoff 65–69%, then the predicted margin 5.5–6.5; and the margin around strength at
+  13–14.5, from a remembered 13.5.)
 - **`npm run sim`**, Passing by depth (Stage 3): average air yards 7.4–8.3; the short, 10–19 and 20+ shares 65–70%,
   19–23% and 10.5–13%. Completion, yards an attempt and picks by depth are shown against the table above, not judged: the
   totals already are, and each judged line is one more edge to trip on.
