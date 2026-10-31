@@ -4,9 +4,10 @@ import { simulateGame } from '../../engine/match/gameSim';
 import { actorsIn } from '../../engine/playActors';
 import type { FieldUnits, Game, GameResult } from '../../engine/types';
 import { Rng } from '../../engine/rng';
-import { FIELD_W, snapYFor } from './ballPath';
+import { buildPath, FIELD_W, pointAt, snapYFor } from './ballPath';
 import { castFor, unitsAt } from './cast';
 import { lineUp } from './formations';
+import { sample, script } from './scripts';
 
 const league = createLeague({ seed: 'stage' });
 const games: { g: Game; r: GameResult }[] = Array.from({ length: 40 }, (_, i) => {
@@ -87,7 +88,7 @@ function lineUps(n: number, kinds?: readonly string[]) {
       const e = r.plays![i];
       if (!e.kind || e.from === undefined || (kinds && !kinds.includes(e.kind))) continue;
       const cast = castFor(r.field!, r.plays!, i, g.homeId);
-      const dir = cast.offSide === 0 ? 1 : -1;
+      const dir: 1 | -1 = cast.offSide === 0 ? 1 : -1;
       const ballY = snapYFor(e, 20 + (i % 14));
       const spots = lineUp(
         e,
@@ -99,7 +100,7 @@ function lineUps(n: number, kinds?: readonly string[]) {
         dir,
         new Rng(`f:${g.id}:${i}`),
       );
-      out.push({ e, cast, dir, ballX: e.from, spots });
+      out.push({ e, cast, dir, ballX: e.from, ballY, spots });
     }
   return out;
 }
@@ -131,5 +132,76 @@ describe('formations', () => {
   it('lines the same play up the same way every time', () => {
     const [a, b] = [lineUps(2), lineUps(2)];
     expect(a.map((x) => [...x.spots])).toEqual(b.map((x) => [...x.spots]));
+  });
+});
+
+/** Script every scrimmage play of the first `n` games. */
+function scripted(n: number) {
+  return lineUps(n, ['run', 'pass', 'incomplete', 'int', 'sack', 'scramble', 'kneel', 'spike']).map((x) => {
+    const g = games.find(({ r }) => r.plays!.includes(x.e))!.g;
+    const segs = buildPath(x.e, g.homeId, x.ballY);
+    const keys = script(x.e, x.cast, x.spots, segs, x.dir);
+    const end = segs.length ? pointAt(segs[segs.length - 1], 1) : null;
+    const total = segs.reduce((t, sg) => t + sg.dur, 0);
+    return { ...x, segs, keys, end, total, who: actorsIn(x.e) };
+  });
+}
+
+describe('scripts', () => {
+  const all = scripted(20);
+  const touchdown = (t: string) => /TOUCHDOWN/.test(t);
+
+  it('hands the ball to the right man: the carrier ends where the ball ends', () => {
+    let n = 0;
+    for (const { e, keys, end, total, who, cast } of all) {
+      if (!end) continue;
+      const qb = cast.offense.find((m) => m.role === 'QB')!.id;
+      const holder =
+        e.kind === 'int'
+          ? who.take
+          : e.kind === 'pass' || e.kind === 'run'
+            ? who.ball
+            : e.kind === 'incomplete'
+              ? undefined
+              : qb;
+      if (holder === undefined) continue;
+      const p = sample(keys.get(holder)!, total);
+      expect(Math.hypot(p.x - end.x, p.y - end.y), `${e.kind} ${e.text}`).toBeLessThan(0.5);
+      n++;
+    }
+    expect(n).toBeGreaterThan(500);
+  });
+
+  it('the tackler is within a yard of the carrier at the whistle', () => {
+    let n = 0;
+    for (const { e, keys, end, total, who } of all) {
+      if (
+        !end ||
+        touchdown(e.text) ||
+        e.kind === 'incomplete' ||
+        e.kind === 'int' ||
+        e.kind === 'kneel' ||
+        e.kind === 'spike'
+      )
+        continue;
+      const tackler = [...keys.keys()].find((id) => id === who.tackle) ?? (e.kind === 'sack' ? who.rush : undefined);
+      if (tackler === undefined) continue;
+      const p = sample(keys.get(tackler)!, total);
+      expect(Math.hypot(p.x - end.x, p.y - end.y), `${e.kind}`).toBeLessThanOrEqual(1);
+      n++;
+    }
+    expect(n).toBeGreaterThan(300);
+  });
+
+  it('the target reaches the landing point when the ball does', () => {
+    let n = 0;
+    for (const { e, keys, segs, who } of all) {
+      if ((e.kind !== 'pass' && e.kind !== 'incomplete') || who.ball === undefined || segs.length < 2) continue;
+      const land = pointAt(segs[1], 1);
+      const p = sample(keys.get(who.ball)!, segs[0].dur + segs[1].dur);
+      expect(Math.hypot(p.x - land.x, p.y - land.y)).toBeLessThan(e.kind === 'incomplete' ? 1.5 : 0.5);
+      n++;
+    }
+    expect(n).toBeGreaterThan(300);
   });
 });
