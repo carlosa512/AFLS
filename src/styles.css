@@ -5070,3 +5070,71 @@ button.tip-pill {
     grid-column: 2;
   }
 }
+
+/* ───────── All-22: the play from above (`TopDownField`) ───────── */
+.td-field {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 124 / 62.3;
+  background: #1f4f2e;
+  touch-action: manipulation;
+}
+@media (max-width: 600px) {
+  /* A phone held upright: the field runs up the screen and the camera follows the ball. */
+  .td-field {
+    aspect-ratio: 4 / 5;
+  }
+}
+.td-scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.td-scene .dot text {
+  font-family: var(--font-data);
+  pointer-events: none;
+}
+.td-card {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 32px);
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+/* The ball changing hands, while the units change over. */
+.td-banner {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: var(--step--1);
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.td-card-x {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  min-width: 32px;
+  min-height: 32px;
+}

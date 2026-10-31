@@ -1,5 +1,5 @@
 import { employed } from '../../engine/employment';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import type { League } from '../../engine/types';
 import { useNav } from '../App';
@@ -10,13 +10,18 @@ import { shows } from '../highlights';
 import {
   Field,
   HighlightSwitch,
+  inPlay,
   playLabel,
   PlayText,
   restingSpot,
   situation,
+  allSpeed,
   useHighlightPick,
   usePlayNames,
+  useViewPick,
+  ViewSwitch,
 } from './GameViewer';
+import { holdAfter, TopDownField } from './TopDownField';
 
 const SPEEDS = [1, 2, 4, 8];
 /** Pause between plays at 1×, so each snap can be read. */
@@ -31,6 +36,9 @@ export function LiveGame({ league }: { league: League }) {
   const game = s ? league.games.find((g) => g.id === s.gameId) : undefined;
   const names = usePlayNames(league, game);
   const [pick, setPick] = useHighlightPick();
+  const [viewPick, setViewPick] = useViewPick();
+  // The play whose finish has been shown: until then its result, its line in the log and its points stay hidden.
+  const [toldKey, setToldKey] = useState('');
   if (!s || !game) {
     return (
       <section className="panel stack">
@@ -50,6 +58,14 @@ export function LiveGame({ league }: { league: League }) {
   const home = league.teams[game.homeId];
   const away = league.teams[game.awayId];
   const entry = s.plays[s.current];
+  const playKey = `${s.gameId}:${s.current}`;
+  const told = toldKey === playKey || s.finished || !inPlay(entry);
+  /** The score on the board: the last play's until this one has been seen. */
+  const board = told ? entry : (s.plays[s.current - 1] ?? { homeScore: 0, awayScore: 0 });
+  const record = s.sim.field();
+  const all22 = viewPick === 'all22' && !!record;
+  const speeds = all22 ? [1, 2] : SPEEDS;
+  const speed = all22 ? allSpeed(s.speed) : s.speed;
   const label = game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(game.week);
 
   const step = () => {
@@ -61,11 +77,13 @@ export function LiveGame({ league }: { league: League }) {
     step();
   };
   const onDone = () => {
+    setToldKey(playKey);
     clearTimeout(timer.current);
     if (!s.playing || s.finished) return;
     // A skipped batch's hold was the pause: the highlight follows at once.
     if (s.still) return step();
-    timer.current = setTimeout(next, HOLD_MS / s.speed);
+    // All-22 holds a beat on the play's end, longer after a kick, a score or a turnover, to read what happened.
+    timer.current = setTimeout(next, (all22 ? holdAfter(entry) : HOLD_MS) / speed);
   };
   const togglePlay = () => {
     clearTimeout(timer.current);
@@ -84,8 +102,20 @@ export function LiveGame({ league }: { league: League }) {
   const them = result ? (userIsHome ? result.awayScore : result.homeScore) : 0;
   const verdict = us > them ? 'W' : us < them ? 'L' : 'T';
   // Every play so far, newest first, in a box that scrolls back to the kickoff.
-  const recent = s.plays.slice(0, s.current + 1).reverse();
+  const recent = s.plays.slice(0, told ? s.current + 1 : s.current).reverse();
 
+  const broadcast = (
+    <Field
+      home={home}
+      away={away}
+      entry={entry}
+      restX={restingSpot(s.plays, s.current, home.id)}
+      animKey={`live:${s.gameId}:${s.current}`}
+      speed={speed}
+      still={s.still}
+      onDone={onDone}
+    />
+  );
   return (
     <>
       <section className="viewer">
@@ -98,7 +128,7 @@ export function LiveGame({ league }: { league: League }) {
                   <span className="vb-poss" aria-label="has the ball" />
                 ) : null}
               </span>
-              <span className="vb-score">{t.id === home.id ? entry.homeScore : entry.awayScore}</span>
+              <span className="vb-score">{t.id === home.id ? board.homeScore : board.awayScore}</span>
             </div>
           ))}
           <div className="vb-clock">
@@ -116,20 +146,28 @@ export function LiveGame({ league }: { league: League }) {
           </div>
         </div>
 
-        <Field
-          home={home}
-          away={away}
-          entry={entry}
-          restX={restingSpot(s.plays, s.current, home.id)}
-          animKey={`live:${s.gameId}:${s.current}`}
-          speed={s.speed}
-          still={s.still}
-          onDone={onDone}
-        />
+        {all22 ? (
+          <TopDownField
+            league={league}
+            record={record}
+            game={game}
+            home={home}
+            away={away}
+            plays={s.plays}
+            index={s.current}
+            animKey={`live:${s.gameId}:${s.current}`}
+            speed={speed}
+            still={s.still}
+            onDone={onDone}
+            fallback={broadcast}
+          />
+        ) : (
+          broadcast
+        )}
 
         <div className="viewer-sit">
           <span className="num">{situation(entry, home, away) || ' '}</span>
-          <span className="viewer-tag">{playLabel(entry, home.id)}</span>
+          <span className="viewer-tag">{told ? playLabel(entry, home.id) : ''}</span>
         </div>
 
         {!s.finished && (
@@ -139,12 +177,13 @@ export function LiveGame({ league }: { league: League }) {
             </button>
             <button
               className="vc-speed"
-              onClick={() => live.update({ speed: SPEEDS[(SPEEDS.indexOf(s.speed) + 1) % SPEEDS.length] })}
+              onClick={() => live.update({ speed: speeds[(speeds.indexOf(speed) + 1) % speeds.length] })}
               aria-label="Playback speed"
             >
-              {s.speed}×
+              {speed}×
             </button>
             <HighlightSwitch value={pick} onChange={setPick} />
+            {record && <ViewSwitch value={viewPick} onChange={setViewPick} />}
             <span className="live-label">Live</span>
             <button className="vc-skip" onClick={simToFinal}>
               Sim to final
@@ -193,8 +232,8 @@ export function LiveGame({ league }: { league: League }) {
             const team = p.offense === home.id ? home : away;
             return (
               <div
-                key={s.current - i}
-                className={`play-card${i === 0 ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
+                key={s.current - i - (told ? 0 : 1)}
+                className={`play-card${i === 0 && told ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
               >
                 <span className="pc-meta">
                   <TeamChip team={team} />
