@@ -80,10 +80,13 @@ const INJURY_TARGETS: Record<string, [number, number]> = {
   'hamstrings / team': [3.5, 7],
 };
 
-// How much team strength decides (NFL 2015–24: betting favourites win 66–67%, a final margin sits about 13.5 points
-// either side of the line, team wins spread with an SD of 3.0–3.3). Strength is each team's overall at kickoff.
+// How much team strength decides, against the betting line (NFL 2015–24: closing spreads vary with an SD of about
+// 5.5–6 points, a final margin sits about 13.5 either side of the line, team wins spread with an SD of 3.0–3.3).
+// Strength is each team's overall at kickoff, so the margin it predicts stands in for the line. How often the
+// better-rated team wins follows from the first two (about 63–64%); betting favourites win more (66–67%) because a
+// line knows more than a rating, so it's shown, not judged.
 const PARITY_TARGETS: Record<string, [number, number]> = {
-  'stronger team wins %': [65, 69],
+  'margin strength predicts (SD)': [5.5, 6.5],
   'margin spread around strength': [13, 14.5],
   'win spread (SD)': [3.0, 3.4],
 };
@@ -434,8 +437,9 @@ const gy = meanOf(gaps.map(([, y]) => y));
 const slope = gaps.reduce((t, [x, y]) => t + (x - gx) * (y - gy), 0) / gaps.reduce((t, [x]) => t + (x - gx) ** 2, 0);
 const residual = Math.sqrt(meanOf(gaps.map(([x, y]) => (y - gy - slope * (x - gx)) ** 2)));
 const meanWins = meanOf(winsByStrength.map((x) => x.wins));
+const gapSd = Math.sqrt(meanOf(gaps.map(([x]) => (x - gx) ** 2)));
 const parityResults: Record<string, number> = {
-  'stronger team wins %': (100 * favoriteWins) / decided,
+  'margin strength predicts (SD)': slope * gapSd,
   'margin spread around strength': residual,
   'win spread (SD)': Math.sqrt(meanOf(winsByStrength.map((x) => (x.wins - meanWins) ** 2))),
 };
@@ -448,7 +452,7 @@ for (const [k, v] of Object.entries(parityResults)) {
   console.log(k.padEnd(30), v.toFixed(2).padStart(8), `  ${lo}–${hi}`, ok ? '' : v < lo ? '  ▼ LOW' : '  ▲ HIGH');
 }
 console.log(
-  `Points of margin per rating point ${slope.toFixed(1)}; margin strength predicts, SD ${(slope * Math.sqrt(meanOf(gaps.map(([x]) => (x - gx) ** 2)))).toFixed(1)} (NFL ≈ 5.5–6) (informational)`,
+  `Better-rated team wins ${((100 * favoriteWins) / decided).toFixed(1)}% of decided games; ${slope.toFixed(1)} points of margin per rating point (informational)`,
 );
 
 console.log(`\n${misses} stat(s) outside target range`);
