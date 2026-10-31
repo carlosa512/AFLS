@@ -2340,10 +2340,8 @@ class GameSim {
     const teCover = rng.chance(0.5) ? (def.s[1] ?? def.s[0]) : def.lb[0];
     // Personnel decides who runs routes: 12 swaps the slot receiver for a second tight end, 10 the tight end for a fourth receiver.
     const options: [Player | undefined, Record<PassDepth, number>, Player][] = [
-      // The first receiver is the first read: the volume catches underneath and between the hashes go to him, while
-      // the second stretches the field (the NFL's leaders catch 120-plus at 11 to 13 yards a catch, not 15).
-      [off.wrs[0], times({ short: 0.25, medium: 0.3, deep: 0.3 }, tw.wr), def.cb[0]],
-      [off.wrs[1], times({ short: 0.13, medium: 0.23, deep: 0.33 }, tw.wr), def.cb[1] ?? def.cb[0]],
+      [off.wrs[0], times({ short: 0.21, medium: 0.27, deep: 0.33 }, tw.wr), def.cb[0]],
+      [off.wrs[1], times({ short: 0.17, medium: 0.26, deep: 0.3 }, tw.wr), def.cb[1] ?? def.cb[0]],
       [
         scheme.personnel === '12' ? undefined : off.wrs[2],
         times({ short: 0.14, medium: 0.15, deep: 0.15 }, tw.slot),
