@@ -413,6 +413,29 @@ function units(l: Lineup): [offense: Player[], defense: Player[]] {
   ];
 }
 
+/**
+ * The share of a receiver's short throws thrown behind the line: screens and quick throws to the flat with blockers in
+ * front (nflverse 2019–24: a quarter of the short game, 16.6% of every throw, at −3.3 air yards on average).
+ */
+export const BEHIND_SHARE = 0.25;
+
+/**
+ * How far a throw travels past the line: a back's short throw is a checkdown in the flat; a receiver's is a screen
+ * behind the line or the quick game in front of it (0 to 9, about 4.2 on average, as the NFL's). Never caught behind the
+ * offense's own goal line, nor more than nine yards deep in the end zone.
+ */
+export function passAir(rng: Rng, depth: PassDepth, isBack: boolean, yardLine: number, yardsToGoal: number): number {
+  let air: number;
+  if (isBack && depth === 'short') air = rng.int(-3, 4);
+  else if (depth === 'short')
+    air = rng.chance(BEHIND_SHARE) ? -rng.int(1, 5) : Math.round(clamp(rng.normal(4.2, 2.6), 0, 9));
+  else if (depth === 'medium') air = rng.int(10, 17);
+  // Deep balls travel (NFL 2021–25: 0.47 completions of 40+ yards a team-game, a third of them touchdowns).
+  else air = 20 + Math.round(Math.min(rng.exponential(12), 60));
+  air = Math.max(air, 1 - yardLine);
+  return Math.min(air, yardsToGoal + 9);
+}
+
 class GameSim {
   private rng: Rng;
   private habitRng: Rng;
@@ -2432,14 +2455,7 @@ class GameSim {
       // Over the middle and downfield a short passer throws through his own line; a tall one sees over it.
       (depth === 'short' ? 0 : sizeEdge(qb, 'lanes'));
     const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
-    let air: number;
-    if (isBack && depth === 'short') air = rng.int(-3, 4);
-    else if (depth === 'short') air = Math.round(clamp(rng.normal(2.9, 3.2), -3, 9));
-    else if (depth === 'medium') air = rng.int(10, 17);
-    // Deep balls travel (NFL 2021–25: 0.47 completions of 40+ yards a team-game, a third of them touchdowns).
-    else air = 20 + Math.round(Math.min(rng.exponential(12), 60));
-    air = Math.max(air, 1 - this.yardLine);
-    air = Math.min(air, yardsToGoal + 9);
+    const air = passAir(rng, depth, isBack, this.yardLine, yardsToGoal);
 
     // Base odds are tuned with injuries on: backups throw and catch about a tenth of the passes, as in the NFL.
     // The red zone's squeeze takes about a point off the league's rate, and short throws elsewhere give most of it back.

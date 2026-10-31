@@ -221,11 +221,13 @@ export function passProbability(s: Situation): number {
 
 export function passDepth(s: Situation, rng: Rng): PassDepth {
   const yardsToGoal = 100 - s.yardLine;
+  // Two throws in three go short (screens and checkdowns behind the line among them), one in five 10 to 19 yards
+  // and one in nine deep (nflverse 2019–24: 67.5 / 20.9 / 11.6%); the chain-mover gets more of the long downs.
   let mix: [number, number, number];
-  if (s.distance >= 15) mix = [0.35, 0.4, 0.25];
-  else if (s.distance >= 7) mix = [0.5, 0.36, 0.14];
-  else if (s.distance <= 3) mix = [0.72, 0.2, 0.08];
-  else mix = [0.6, 0.29, 0.11];
+  if (s.distance >= 15) mix = [0.568, 0.232, 0.2];
+  else if (s.distance >= 7) mix = [0.679, 0.209, 0.112];
+  else if (s.distance <= 3) mix = [0.82, 0.116, 0.064];
+  else mix = [0.744, 0.168, 0.088];
   // The scheme's taste (West Coast underneath, Air Coryell deep) only where the situation doesn't dictate.
   if (s.depthLean && ordinary(s)) mix = shiftMix(mix, s.depthLean);
   // Wind and slop take the deep ball away; a dome gives a little back.
