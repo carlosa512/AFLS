@@ -64,6 +64,12 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // 17,620 KB against 17,600 at the sixth. Each rounded up to the next 10 KB, plus 10, as the spec allows (an
   // allowance as measured when the budget needs it).
   moraleEffects: { firstSeason: 0, retainedSeasons: 30, games: 0, annualGrowth: 20, playersGrowth: 20 },
+  // All-22 (0.2.29): who was on the field in each kept game (`GameResult.field`) and who each kept play was about
+  // (`PlayLogEntry.who`, packed: a short list, no passer, nothing on kicks), about 4.7 KB a kept game. Measured on
+  // offseason-audit against main over six seasons: first season 8,766 KB against 8,663 (+103), retained +152 to +160
+  // (17,759 against 17,607 at the sixth), games +161 at most (7,484 against 7,323, inside its own budget), growth
+  // unchanged. Rounded up to the next 10 KB, plus 10. Agreed by the owner (Oct 31: trim, then an allowance).
+  all22: { firstSeason: 120, retainedSeasons: 170, games: 0, annualGrowth: 0, playersGrowth: 0 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(
