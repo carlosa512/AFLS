@@ -13,6 +13,8 @@ const RANK: Record<HighlightLevel, number> = { key: 0, extended: 1, full: 2 };
 const LATE = 120;
 /** A one-score game: a touchdown and a two-point try. */
 const ONE_SCORE = 8;
+/** Plays whose spots measure the offense's gain. */
+const GAINS: ReadonlySet<string> = new Set(['run', 'pass', 'scramble', 'sack']);
 
 /** The lowest level a play shows at. */
 export function highlightLevel(plays: readonly PlayLogEntry[], index: number, homeId: number): HighlightLevel {
@@ -20,7 +22,8 @@ export function highlightLevel(plays: readonly PlayLogEntry[], index: number, ho
   if (!e.kind) return 'full';
   const snap = e.down > 0;
   const dir = e.offense === homeId ? 1 : -1;
-  const gain = snap && e.from !== undefined && e.to !== undefined ? (e.to - e.from) * dir : 0;
+  // Gains from scrimmage only: a punt's spots run from the snap to the return, which is no gain for the offense.
+  const gain = snap && GAINS.has(e.kind) && e.from !== undefined && e.to !== undefined ? (e.to - e.from) * dir : 0;
   // The score as it stood at the snap: the entry itself carries the score after the play.
   const prev = plays[index - 1];
   const margin = Math.abs((prev?.homeScore ?? 0) - (prev?.awayScore ?? 0));
@@ -31,6 +34,11 @@ export function highlightLevel(plays: readonly PlayLogEntry[], index: number, ho
     e.kind === 'int' ||
     e.kind === 'two' ||
     gain >= 20 ||
+    // A big return: the ball comes back the other way from where the kick came down.
+    ((e.kind === 'punt' || e.kind === 'kickoff') &&
+      e.air !== undefined &&
+      e.to !== undefined &&
+      Math.abs(e.to - e.air) >= 30) ||
     (e.down === 4 && e.kind !== 'punt') ||
     (snap && e.quarter >= 4 && e.clock <= LATE && margin <= ONE_SCORE)
   )

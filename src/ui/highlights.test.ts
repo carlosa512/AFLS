@@ -36,6 +36,15 @@ describe('highlight levels', () => {
     expect(level({ kind: 'punt', down: 4, text: 'punts 45 yards' })).toBe('full');
   });
 
+  it('a punt’s flight is not a big gain: a 45-yard punt returned to the 30 is Full', () => {
+    expect(level({ kind: 'punt', down: 4, from: 25, to: 70, air: 70, text: 'punts 45 yards' })).toBe('full');
+  });
+
+  it('a return of 30+ yards is Key, a 15-yard one is not', () => {
+    expect(level({ kind: 'punt', down: 4, from: 25, air: 70, to: 38, text: 'punts 45 yards' })).toBe('key');
+    expect(level({ kind: 'kickoff', down: 0, from: 35, air: 97, to: 82, text: 'kicks off' })).toBe('full');
+  });
+
   it('reads the gain the offense way: 22 yards for the away side is Key', () => {
     expect(level({ offense: AWAY, from: 70, to: 48 })).toBe('key');
   });
@@ -78,7 +87,7 @@ describe('highlight levels', () => {
     expect(shows(plays, 1, HOME, 'extended')).toBe(true);
   });
 
-  it('across 40 simulated games, Key averages 25–40 plays and Extended 60–80', () => {
+  it('across 40 simulated games, Key averages 20–40 plays and Extended 60–80', () => {
     const league = createLeague({ seed: 'highlights' });
     const N = 40;
     let key = 0;
@@ -93,7 +102,7 @@ describe('highlight levels', () => {
     }
     const keyAvg = key / N;
     const extAvg = ext / N;
-    expect(keyAvg).toBeGreaterThanOrEqual(25);
+    expect(keyAvg).toBeGreaterThanOrEqual(20);
     expect(keyAvg).toBeLessThanOrEqual(40);
     expect(extAvg).toBeGreaterThanOrEqual(60);
     expect(extAvg).toBeLessThanOrEqual(80);

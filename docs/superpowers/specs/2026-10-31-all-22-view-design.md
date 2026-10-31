@@ -42,11 +42,11 @@ instant replays, changes to the broadcast view, and a coach mode.
 A pure module, `src/ui/highlights.ts`. `highlightLevel(plays, index)` returns the lowest level a play shows at:
 `'key'`, `'extended'` or `'full'`.
 
-**Key** (about 25–40 plays a game):
+**Key** (about 20–40 plays a game; about 26 measured):
 
 - touchdowns, field goals made or missed, safeties;
 - turnovers: interceptions, lost fumbles, turnovers on downs, blocked kicks;
-- plays of 20+ yards;
+- plays of 20+ yards from scrimmage, and kick or punt returns of 30+ yards;
 - fourth-down tries (not punts or field goals) and two-point tries;
 - every snap in the last two minutes of the fourth quarter or overtime with the score within eight.
 
@@ -215,7 +215,7 @@ the game's `FieldRecord`. `GameViewer` and `LiveGame` show one or the other.
 
 - Unit tests for each rule: a touchdown is Key, a 12-yard gain is Extended, a 3-yard run on first down is Full, and so
   on.
-- Across many simulated games, Key averages 25–40 plays and Extended 60–80.
+- Across many simulated games, Key averages 20–40 plays and Extended 60–80.
 
 **Data (PR 2)**
 
