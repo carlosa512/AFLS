@@ -261,6 +261,9 @@ export function migrateLeague(league: League): League | null {
     }
     league.version = 70;
   }
+  // v71: All-22's play actors (`PlayLogEntry.who`) and who was on the field (`GameResult.field`). Both are optional:
+  // games played before simply have none, and their replays offer the broadcast view only.
+  if (league.version < 71) league.version = 71;
   return league;
 }
 

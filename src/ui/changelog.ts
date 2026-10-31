@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.29',
+    date: '2026-10-31',
+    title: 'Every snap is on file',
+    text:
+      'Games you play from now on remember who was on the field and who each play was about: the passer, the target, ' +
+      'the man in coverage, the tackler, the rusher who got home. Nothing changes on screen yet, and no result moves. ' +
+      'It is what the coming top-down All-22 view will show. Games played before this keep their replays as they are.',
+  },
+  {
     version: '0.2.28',
     date: '2026-10-31',
     title: 'Watch the highlights',

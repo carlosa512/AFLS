@@ -81,18 +81,21 @@ always drop straight into the log.
 The engine already knows who did what on every snap and who is on the field. This PR writes it down, for games that
 keep their plays.
 
-**Per play:** `PlayLogEntry.who?: PlayActors`, player ids.
+**Per play:** `PlayLogEntry.who?: PackedActors`, player ids packed as a short list in a fixed order (ball, tackle,
+cover, rush, beat, take; gaps as null, trailing gaps dropped). `actorsIn(entry)` in `playActors.ts` reads it back as
+`PlayActors`. Packed because every kept play carries one: named fields cost 6.1 KB a game, the list 2.6 KB.
 
 | Field    | Who                                                    | Where the engine has it                         |
 | -------- | ------------------------------------------------------ | ----------------------------------------------- |
-| `qb`     | the passer on a dropback                               | the lineup's `qb`                               |
-| `ball`   | the target, the ball carrier, the kicker or punter     | the play's `targets` / `rushAtt` stat entries   |
+| `ball`   | the target or the ball carrier                         | the play's `targets` / `rushAtt` stat entries   |
 | `cover`  | the man in coverage on a pass                          | `PlayResult.defender`                           |
 | `tackle` | the first tackler                                      | the play's first `tackles` stat entry           |
 | `rush`   | who got home: the sack, or the pressure without one    | `PlayResult.rusher`, `pressureBy`               |
 | `beat`   | the blocker he beat                                    | `blockerFor`, where the engine already calls it |
 | `take`   | the interceptor or fumble recoverer                    | `PlayResult.turnover.by`                        |
-| `ret`    | the returner on a kick                                 | the kick's returner                             |
+
+The passer and the kick units aren't recorded per play: the field record names the quarterback on the field and each
+side's kicker, punter and returners, and a kick's spots say whether it was returned.
 
 **The rule:** record only what the engine already computes, and never add a draw on any stream. Where the engine
 didn't pick someone (say, the beaten blocker on a pressure that didn't become a sack), the field stays empty and the
@@ -112,7 +115,8 @@ A running back's breather and a rush-rotation man getting home don't need record
 play who isn't among the eleven and swaps him in for the man at his position for that snap.
 
 **Retention:** written only when `keepPlays` is on. `prunePlayLogs` drops `field` along with the plays. That's about
-1,200 numbers per kept game.
+4.7 KB per kept game (2.6 of plays, 2.1 of field record), on top of the plays' 37 KB. The save budget gets a measured
+allowance for it (`scripts/save-budget.ts`, `all22`), agreed by the owner.
 
 **Save:** bump `SAVE_VERSION` and add a `migrate.ts` step. The step changes nothing, because both fields are optional
 and older games simply lack them.

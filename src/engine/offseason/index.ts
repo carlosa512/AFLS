@@ -225,7 +225,11 @@ export function beginOffseason(league: League): void {
   cflArrivals(league);
   league.games = league.games.filter((g) => g.season >= last);
   // Last season's games keep their box scores and scoring plays; full replays are for the season being played.
-  for (const g of league.games) if (g.result?.plays) g.result.plays = g.result.plays.filter((p) => p.scoring);
+  for (const g of league.games)
+    if (g.result?.plays) {
+      g.result.plays = g.result.plays.filter((p) => p.scoring);
+      delete g.result.field;
+    }
   league.games.push(...generateSchedule(league, rng, order));
   league.week = 1;
   league.phase = 'resign';

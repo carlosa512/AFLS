@@ -265,6 +265,8 @@ describe('migration and collection', () => {
       for (const key of ['dropbacks', 'epa', 'successes', 'rushSnaps'] as const) delete line[key];
       if (!Object.keys(line).length) delete c.playerStats[Number(id)];
     }
+    // Who each kept play was about (All-22, 0.2.29) is recorded, never drawn: it plays nothing.
+    for (const e of c.plays ?? []) delete e.who;
     return c;
   };
   it('leaves unrelated seeded generation and match results unchanged', () => {
