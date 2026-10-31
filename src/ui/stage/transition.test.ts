@@ -21,7 +21,7 @@ describe('between plays', () => {
     expect(move(1).arrive).toBeGreaterThan(10 / (JOG * 1.25));
     expect(move(1).arrive).toBeLessThan(10 / (JOG * 0.75));
     expect(tr.duration).toBeGreaterThanOrEqual(move(1).arrive + 0.6);
-    const mid = tr.at(move(1), move(1).arrive / 2);
+    const mid = tr.at(move(1), tr.beat + move(1).delay + move(1).arrive / 2);
     expect(mid.x).toBeGreaterThan(30);
     expect(mid.x).toBeLessThan(40);
   });
@@ -54,7 +54,8 @@ describe('between plays', () => {
       pos: new Float32Array(44).map((_, k) => (k % 2 === 0 ? 75 : 3 + (k / 2) * 2)),
     };
     const t = transition(far, units);
-    expect(t.duration).toBeLessThanOrEqual(7.5);
+    // A beat after the whistle, then the change.
+    expect(t.duration - t.beat).toBeLessThanOrEqual(7.5);
   });
 });
 
@@ -214,7 +215,7 @@ describe('no two alike', () => {
   it('runs no one on a ruler-straight line', () => {
     let bent = 0;
     for (const m of tr.moves) {
-      const half = tr.at(m, m.delay + m.arrive / 2);
+      const half = tr.at(m, tr.beat + m.delay + m.arrive / 2);
       const line = { x: (m.hud.x + m.to.x) / 2, y: (m.hud.y + m.to.y) / 2 };
       if (Math.hypot(half.x - line.x, half.y - line.y) > 0.3) bent++;
     }

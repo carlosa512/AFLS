@@ -68,7 +68,7 @@ export function stagePlay(args: {
   const def = record.scheme[1 - cast.offSide];
   const start = lineUp(e, cast, off, def, ballX, ballY, dir, rng);
   const segs = stagedPath(e, homeId, args.snapY);
-  const { keys, carrier, tackler, release, catchAt, moments } = script(e, cast, start, segs, dir);
+  const { keys, carrier, tackler, pursuer, release, catchAt, moments } = script(e, cast, start, segs, dir);
   const flight = segs.find((sg) => sg.peak > 0);
   const kick = e.kind === 'kickoff' || e.kind === 'punt' ? e.kind : e.kind === 'fg' || e.kind === 'xp' ? 'fg' : null;
   const total = segs.reduce((t, s) => t + s.dur, 0) || STILL;
@@ -86,11 +86,13 @@ export function stagePlay(args: {
   const pos = steer({
     cast,
     start,
-    scripted: keys,
+    // The tackler runs the play down himself (`steer`); only where he meets the carrier is scripted, below.
+    scripted: pursuer === null ? keys : new Map([...keys].filter(([id]) => id !== pursuer)),
     ball,
     release,
     carrier,
     tackler,
+    pursuer,
     holder: e.kind && HOLDERS.has(e.kind) ? qb : null,
     dropback: !!e.kind && DROPBACKS.has(e.kind),
     run: e.kind === 'run',
@@ -105,6 +107,17 @@ export function stagePlay(args: {
     rng,
   });
   const members = [...cast.offense, ...cast.defense];
+  // No earlier than he may move: the ball down on a kick, the ball out on a snap.
+  const earliest = Math.ceil((kick ? (catchAt ?? 0) : Number.isFinite(release) ? release : 0) / STEP);
+  if (pursuer !== null)
+    closeIn(
+      pos,
+      members.length,
+      members.findIndex((m) => m.id === pursuer),
+      keys.get(pursuer)!,
+      steps,
+      earliest,
+    );
   const homeSide = cast.offSide === 0;
   return {
     dt: STEP,
@@ -119,4 +132,38 @@ export function stagePlay(args: {
     carrier,
     roles: members.map((m) => m.role),
   };
+}
+
+/** The tackler's top closing speed (yards a second): the last stretch into the carrier is never quicker than this. */
+const CLOSE = 9.5;
+
+/**
+ * The tackler ran the play down himself (`steer`); he meets the carrier where his script says. From the latest moment
+ * he can still get there at full speed, he runs straight into the hit, so the tackle is his run and not a slide.
+ */
+function closeIn(
+  pos: Float32Array,
+  n: number,
+  k: number,
+  keys: readonly { t: number; x: number; y: number }[],
+  steps: number,
+  earliest: number,
+) {
+  const last = steps - 1;
+  const end = keys[keys.length - 1];
+  const at = (st: number) => ({ x: pos[(st * n + k) * 2], y: pos[(st * n + k) * 2 + 1] });
+  let from = last;
+  for (let st = last - 1; st >= Math.min(earliest, last - 1); st--) {
+    const p = at(st);
+    const left = (last - st) * STEP;
+    from = st;
+    // Far enough out that a full-speed run covers the gap with a little room: start the run in here.
+    if (left >= 0.35 && Math.hypot(end.x - p.x, end.y - p.y) <= CLOSE * left * 0.8) break;
+  }
+  const p0 = at(from);
+  for (let st = from + 1; st <= last; st++) {
+    const g = (st - from) / (last - from);
+    pos[(st * n + k) * 2] = p0.x + (end.x - p0.x) * g;
+    pos[(st * n + k) * 2 + 1] = p0.y + (end.y - p0.y) * g;
+  }
 }

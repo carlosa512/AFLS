@@ -19,13 +19,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     text:
       'Replays and live games have a new All-22 view: the play from above, all 22 players as numbered dots in their ' +
       'kits. The line blocks, receivers run their routes, the back blocks or leaks out, the defense reads and pursues, ' +
-      'and the tackler meets the carrier where the play ended. Kicks are staged too: coverage lanes, gunners, returns, ' +
-      "the field goal rush, and today's kickoff line-up. Between plays both sides huddle, everyone jogs to his spot in " +
-      'his own time, subs come and go, the units change over before a kickoff with the officials out, and a big play ' +
-      'gets a short celebration. The players a play is about are ringed only as their moment comes, and in both views ' +
-      'the result and the score wait until you have seen the play. Tap a dot to see who it is. On a phone held upright ' +
-      'the field runs up the screen and follows the ball. Switch between Broadcast and All-22 beside the highlights; ' +
-      'All-22 plays at 1× or 2×.',
+      'and the tackler plays his part, then runs the carrier down (on a long return he can miss and come again). Kicks ' +
+      "are staged with real formations: field goals, punts, and kickoffs under today's rules. After the whistle an " +
+      'official walks the ball to the spot, both sides huddle, everyone jogs to his spot in his own time, subs come ' +
+      'and go, the units change over before a kickoff with the officials out, and a big play gets a short ' +
+      'celebration. The players a play is about are ringed only as their moment comes, and in both views the result ' +
+      'and the score wait until you have seen the play. Tap a dot to see who it is. On a phone held upright the field ' +
+      'runs up the screen and follows the ball. Switch between Broadcast and All-22 beside the highlights; All-22 ' +
+      'plays at 1× or 2×.',
   },
   {
     version: '0.2.29',

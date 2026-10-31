@@ -8,7 +8,7 @@ import { gameClock, weekLabel } from '../format';
 import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '../stage/ballPath';
 import { HIGHLIGHT_LEVELS, nextShown, type HighlightLevel } from '../highlights';
 import { HIGHLIGHTS_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
-import { TopDownField } from './TopDownField';
+import { holdAfter, TopDownField } from './TopDownField';
 
 // ───────── 2.5D field projection ─────────
 // Field coordinates: x from -10 (home end zone) to 110 (away end zone), y from 0 (near
@@ -585,7 +585,8 @@ export function GameViewer({
     if (atEnd) return setPlaying(false);
     // A skipped batch has been shown: its hold was the pause, so the highlight follows at once.
     if (still) return go(index + 1, true);
-    timer.current = setTimeout(() => advanceFrom(index), 650 / shownSpeed);
+    // All-22 holds a beat on the play's end, longer after a kick, a score or a turnover, to read what happened.
+    timer.current = setTimeout(() => advanceFrom(index), (all22 ? holdAfter(entry) : 650) / shownSpeed);
   };
   const step = (dir: 1 | -1) => {
     const n = nextShown(plays, index, home.id, pick, dir);

@@ -20,7 +20,7 @@ import {
   useViewPick,
   ViewSwitch,
 } from './GameViewer';
-import { TopDownField } from './TopDownField';
+import { holdAfter, TopDownField } from './TopDownField';
 
 const SPEEDS = [1, 2, 4, 8];
 /** Pause between plays at 1×, so each snap can be read. */
@@ -81,7 +81,8 @@ export function LiveGame({ league }: { league: League }) {
     if (!s.playing || s.finished) return;
     // A skipped batch's hold was the pause: the highlight follows at once.
     if (s.still) return step();
-    timer.current = setTimeout(next, HOLD_MS / speed);
+    // All-22 holds a beat on the play's end, longer after a kick, a score or a turnover, to read what happened.
+    timer.current = setTimeout(next, (all22 ? holdAfter(entry) : HOLD_MS) / speed);
   };
   const togglePlay = () => {
     clearTimeout(timer.current);

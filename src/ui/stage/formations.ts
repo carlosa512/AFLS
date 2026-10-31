@@ -18,6 +18,8 @@ export interface Pt {
 /** How far a spot may wander from the book, so two formations from the same call never look stamped out. */
 const JITTER = 0.3;
 const EDGE = 3;
+/** A punt's gunners, split this far from the ball. */
+const GUNNER = 16;
 
 const of = (side: CastMember[], role: Role) => side.filter((m) => m.role === role);
 
@@ -169,36 +171,54 @@ function kickoff(cast: Cast, put: Put, face: Put, ballY: number) {
   rest.slice(9).forEach((m, i) => face(m.id, 57, 6 + i * 4));
 }
 
+/**
+ * The spread punt: a line of five with wide splits, a wing angled back off each end, a gunner split wide on each side,
+ * the personal protector (the "upback" every NFL punt team has: he calls the protection and picks up a free rusher)
+ * and the punter fifteen yards deep. The return team: six on the line, a pair of jammers on each gunner, the returner.
+ */
 function punt(e: PlayLogEntry, cast: Cast, put: Put, face: Put, ballX: number) {
   const p = cast.offense.find((m) => m.role === 'P');
   const rest = cast.offense.filter((m) => m !== p);
-  if (p) put(p.id, 13, 0);
-  // A line of seven, two gunners split wide, a personal protector in front of the punter.
-  const line = [-6, -4, -2, 0, 2, 4, 6];
+  if (p) put(p.id, 14, 0);
+  const line = [-3.4, -1.7, 0, 1.7, 3.4];
   rest.forEach((m, i) => {
-    if (i < 7) put(m.id, 0.8, line[i]);
-    else if (i < 9) put(m.id, 1, (i === 7 ? -1 : 1) * 20);
-    else put(m.id, 5, 0);
+    if (i < 5) put(m.id, 0.8, line[i]);
+    else if (i < 7) put(m.id, 1.7, (i === 5 ? -1 : 1) * 4.9);
+    else if (i < 9) put(m.id, 1, (i === 7 ? -1 : 1) * GUNNER);
+    else put(m.id, 6, 0.8);
   });
   const ret = cast.defense.find((m) => m.role === 'RET');
   const def = cast.defense.filter((m) => m !== ret);
   const land = e.air !== undefined ? Math.abs(e.air - ballX) : 40;
   if (ret) face(ret.id, Math.max(25, Math.min(60, land)), 0);
+  const front = [-5, -3, -1, 1, 3, 5];
+  // The vise: one jammer inside each gunner, one outside.
+  const vise = [-GUNNER + 1.6, GUNNER - 1.6, -GUNNER - 1.6, GUNNER + 1.6];
   def.forEach((m, i) => {
-    if (i < 7) face(m.id, 1, line[i] + 0.5);
-    else if (i < 9) face(m.id, 1.5, (i === 7 ? -1 : 1) * 18);
-    else face(m.id, 8, 0);
+    if (i < 6) face(m.id, 1, front[i] + 0.5);
+    else face(m.id, 1.6, vise[(i - 6) % 4]);
   });
 }
 
+/**
+ * Field goals and extra points: the protection shoulder to shoulder, its ends' wings angled back (the line bends
+ * round the holder), the holder seven yards deep and the kicker off his hip. The block unit: ten on the line, five
+ * each side of the snapper and the widest off the edge, and one man back for a fake or a short miss.
+ */
 function fieldGoal(cast: Cast, put: Put, face: Put) {
   const k = cast.offense.find((m) => m.role === 'K');
   const holder = cast.offense.find((m) => m.role === 'P');
   const line = cast.offense.filter((m) => m !== k && m !== holder);
   if (holder) put(holder.id, 7, 0);
   if (k) put(k.id, 9.5, -1.5);
-  spread(line.length, 1.8).forEach((a, i) => put(line[i].id, 0.8, a));
+  line.forEach((m, i) => {
+    if (i < 7) put(m.id, 0.8, (i - 3) * 1.45);
+    else put(m.id, 1.8, (i === 7 ? -1 : 1) * 5.6);
+  });
   const d = cast.defense;
-  spread(Math.min(d.length, 8), 1.8).forEach((a, i) => face(d[i].id, 1, a + 0.4));
-  d.slice(8).forEach((m, i) => face(m.id, 6, (i - 1) * 6));
+  const rush = [1, 2.45, 3.9, 5.35, 7];
+  d.forEach((m, i) => {
+    if (i < 10) face(m.id, 1, (i % 2 === 0 ? -1 : 1) * rush[Math.floor(i / 2)]);
+    else face(m.id, 9, 0);
+  });
 }

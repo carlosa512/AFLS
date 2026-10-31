@@ -9,7 +9,7 @@ import { FIELD_W, offenseSide } from './ballPath';
 import type { Pt } from './formations';
 
 /** A jog, in yards a second. */
-export const JOG = 5;
+export const JOG = 4.5;
 /** Getting set against the clock: a hurry-up offense, a sub racing on before a delay of game. */
 export const SPRINT = 7.5;
 /** Yards outside the sideline where each team's bench stands (home on the near side, away on the far). */
@@ -18,6 +18,8 @@ export const BENCH = 3;
 const MAX_JOG = 6.5;
 /** The formation, set, before the snap. */
 const SET = 0.8;
+/** After the whistle: everyone where the play left him for a moment, before anyone heads back. */
+const WHISTLE = 0.7;
 /** A celebration: the gather round the man who made the play, and the moment together. */
 const CELEBRATE = 1.6;
 /** Teammates closer than this to him join in; the rest head for the next play. */
@@ -86,6 +88,8 @@ export interface Move {
 
 export interface Transition {
   duration: number;
+  /** Seconds after the whistle before anyone moves (none when a big play is celebrated: they run to him at once). */
+  beat: number;
   /** Seconds of celebration before the jog (0 for none). */
   celebrate: number;
   /** Seconds in the huddle, from the end of the celebration until it breaks (0 for none). */
@@ -270,15 +274,18 @@ export function transition(
     for (const m of moves) if (!m.leave) m.start = huddleTime;
   }
   for (const m of moves) m.arrive = dist(m) / (pace * paceOf.get(m.id)!);
+  const beat = party ? 0 : WHISTLE;
   const duration =
-    celebrate + Math.max(0.6, ...moves.filter((m) => !m.leave).map((m) => m.start + m.delay + m.arrive)) + SET;
+    beat + celebrate + Math.max(0.6, ...moves.filter((m) => !m.leave).map((m) => m.start + m.delay + m.arrive)) + SET;
 
   return {
     duration,
+    beat,
     celebrate,
     huddle: huddleTime,
     moves,
     at(m, t) {
+      t = Math.max(0, t - beat);
       if (t < celebrate) {
         // Gathering round him, then a moment together.
         const g = smooth(Math.min(1, t / (celebrate * 0.6)));

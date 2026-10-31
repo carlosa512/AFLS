@@ -612,6 +612,29 @@ describe('special teams', () => {
     expect(n).toBeGreaterThan(30);
   });
 
+  it('runs the returner down: the tackler arrives at speed, not waiting for him', () => {
+    let n = 0;
+    let moving = 0;
+    for (const { e, p } of [...kickoffs, ...punts]) {
+      if (!returned(e) || /TOUCHDOWN|BLOCKED|onside/i.test(e.text) || p.carrier === null) continue;
+      const last = p.steps - 1;
+      const c = p.ids.indexOf(p.carrier);
+      const end = at(p, last, c);
+      const k = p.ids.findIndex(
+        (_, j) => p.offense[j] && Math.hypot(at(p, last, j).x - end.x, at(p, last, j).y - end.y) <= 1.2,
+      );
+      if (k < 0) continue;
+      // His speed over the last half second.
+      const back = Math.round(0.5 / p.dt);
+      const a = at(p, last - back, k);
+      const b = at(p, last, k);
+      if (Math.hypot(b.x - a.x, b.y - a.y) / 0.5 > 4) moving++;
+      n++;
+    }
+    expect(n).toBeGreaterThan(30);
+    expect(moving / n).toBeGreaterThan(0.9);
+  });
+
   it('sends the punt jammers down the field with the gunners, not after the punter', () => {
     let n = 0;
     for (const { e, p } of punts) {

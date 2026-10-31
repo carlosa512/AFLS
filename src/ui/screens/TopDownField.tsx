@@ -17,6 +17,8 @@ import { downLines } from './GameViewer';
 const DOT: Record<Layout, number> = { wide: 1.3, upright: 0.95 };
 /** Taps land within this many yards of a dot. */
 const REACH = 2.5;
+/** The official walking the ball to its new spot, in yards a second. */
+const CARRY = 6;
 /** How far through a play a flag comes out. */
 const FLAG_AT = 0.4;
 /** A play a flag was thrown on, accepted or declined (a flag before the snap is its own play, `penalty`). */
@@ -56,6 +58,34 @@ function crew(ballX: number, dir: 1 | -1): [number, number][] {
     [at(45), FIELD_W + 1.2],
     [at(65), MID + 9],
   ];
+}
+
+/** An official: white with black stripes, a touch smaller than a player. */
+function Official({ r }: { r: number }) {
+  return (
+    <>
+      <circle r={r} fill="#f4f4f4" stroke="#111" strokeWidth={0.15} />
+      <line x1={-r * 0.38} y1={-r * 0.92} x2={-r * 0.38} y2={r * 0.92} stroke="#111" strokeWidth={0.2} />
+      <line x1={r * 0.38} y1={-r * 0.92} x2={r * 0.38} y2={r * 0.92} stroke="#111" strokeWidth={0.2} />
+    </>
+  );
+}
+
+/**
+ * How long All-22 holds on a play's end before the next one, in milliseconds at 1×: a beat to read it, longer after
+ * a kick, a score or a turnover.
+ */
+export function holdAfter(e: PlayLogEntry | undefined): number {
+  if (!e) return 1600;
+  const big =
+    e.scoring ||
+    e.kind === 'kickoff' ||
+    e.kind === 'punt' ||
+    e.kind === 'fg' ||
+    e.kind === 'xp' ||
+    e.kind === 'int' ||
+    /FUMBLE|TOUCHDOWN/.test(e.text);
+  return big ? 2600 : 1600;
 }
 
 /** Plays the offense huddles before: every snap from scrimmage. Kick units and two-point tries line straight up. */
@@ -116,6 +146,7 @@ export function TopDownField({
   const dotRefs = useRef(new Map<number, SVGGElement>());
   const ringRefs = useRef(new Map<number, SVGCircleElement>());
   const crewRef = useRef<SVGGElement>(null);
+  const spotterRef = useRef<SVGGElement>(null);
   const flagRef = useRef<SVGGElement>(null);
   const ballRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
@@ -253,18 +284,31 @@ export function TopDownField({
         drawDot(m.id, p.x, p.y, p.opacity);
         if (!m.leave) mem.spots.set(m.id, { x: p.x, y: p.y, home: m.home });
       }
-      // The official carries the ball to the new spot while they jog.
-      const k = Math.min(1, t / Math.max(0.5, g.duration * 0.6));
+      // An official picks the ball up after the whistle, walks it to the new spot, sets it down and steps away.
+      const tb = Math.max(0, t - g.beat);
+      const dist = ballFrom ? Math.hypot(s.ball[0] - ballFrom.x, s.ball[1] - ballFrom.y) : 0;
+      const carry = Math.min(Math.max(0.5, dist / CARRY), Math.max(0.5, (g.duration - g.beat - 1.5) * 0.8));
+      const k = ballFrom ? Math.min(1, tb / carry) : 1;
       const bx = ballFrom ? ballFrom.x + (s.ball[0] - ballFrom.x) * k : s.ball[0];
       const by = ballFrom ? ballFrom.y + (s.ball[1] - ballFrom.y) * k : s.ball[1];
       drawBall(bx, by, 0);
       camera(bx, seconds);
+      const away = Math.min(1, Math.max(0, (tb - carry) / 1.2));
+      const side = by > MID ? 1 : -1;
+      const [ox, oy] = toScreen(view, bx - dir * 0.6, by + side * (0.9 + away * 5));
+      const el = spotterRef.current;
+      el?.setAttribute('transform', `translate(${ox.toFixed(2)} ${oy.toFixed(2)})`);
+      el?.setAttribute(
+        'opacity',
+        (ballFrom ? Math.min(1, t / 0.4) * (1 - Math.max(0, away - 0.4) / 0.6) : 0).toFixed(2),
+      );
     };
 
     /** The play itself, at `step`. */
     const place = (step: number, seconds: number) => {
       camera(s.ball[step * 3], seconds);
       rings(step === last ? Infinity : step * s.dt);
+      spotterRef.current?.setAttribute('opacity', '0');
       crewRef.current?.setAttribute('opacity', '1');
       // A flag on the play: thrown partway through, from the official's spot near the line.
       flagRef.current?.setAttribute('opacity', step === last || step * s.dt >= FLAG_AT * last * s.dt ? '1' : '0');
@@ -419,23 +463,7 @@ export function TopDownField({
             <g ref={crewRef} opacity={0}>
               {crew(staged.ball[0], dir).map(([x, y], i) => (
                 <g key={i} transform={`translate(${x} ${y})`}>
-                  <circle r={dot * 0.8} fill="#f4f4f4" stroke="#111" strokeWidth={0.15} />
-                  <line
-                    x1={-dot * 0.3}
-                    y1={-dot * 0.75}
-                    x2={-dot * 0.3}
-                    y2={dot * 0.75}
-                    stroke="#111"
-                    strokeWidth={0.2}
-                  />
-                  <line
-                    x1={dot * 0.3}
-                    y1={-dot * 0.75}
-                    x2={dot * 0.3}
-                    y2={dot * 0.75}
-                    stroke="#111"
-                    strokeWidth={0.2}
-                  />
+                  <Official r={dot * 0.8} />
                 </g>
               ))}
             </g>
@@ -512,6 +540,9 @@ export function TopDownField({
             </g>
           );
         })}
+        <g ref={spotterRef} opacity={0}>
+          <Official r={dot * 0.85} />
+        </g>
         <ellipse ref={shadowRef} rx={0.55} ry={0.32} fill="rgba(0,0,0,0.45)" />
         <ellipse ref={ballRef} rx={0.55} ry={0.34} fill="#7a3f1d" stroke="#fff" strokeWidth={0.1} />
       </svg>

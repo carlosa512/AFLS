@@ -175,6 +175,11 @@ export interface Scripted {
   carrier: number | null;
   /** Who brings him down. */
   tackler: number | null;
+  /**
+   * The tackler when nothing else is scripted for him: he plays his own part (rush, drop, cover, run down on a kick)
+   * and then runs the play down, steered, rather than sliding to the spot; only his final step is scripted.
+   */
+  pursuer: number | null;
   /** When the ball leaves the quarterback's hands (the throw or the handoff): the defense reacts from then. */
   release: number;
   /** A kick: when it comes down to the returner. */
@@ -192,7 +197,7 @@ export function script(
 ): Scripted {
   const keys = new Map<number, Keyframe[]>();
   const moments = new Map<number, number>();
-  if (!segs.length) return { keys, carrier: null, tackler: null, release: 0, moments };
+  if (!segs.length) return { keys, carrier: null, tackler: null, pursuer: null, release: 0, moments };
   /** His moment: the first that comes, if he has two (a cover man who makes the tackle). */
   const moment = (id: number | undefined, t: number) => {
     if (id !== undefined && keys.has(id)) moments.set(id, Math.min(t, moments.get(id) ?? Infinity));
@@ -311,6 +316,7 @@ export function script(
 
   // The tackler meets the carrier at the whistle, from the side he came.
   let tacklerId: number | null = null;
+  let pursuer: number | null = null;
   const kickReturn = catchAt !== undefined;
   if (
     carrier !== undefined &&
@@ -337,6 +343,7 @@ export function script(
       const set = e.kind === 'kickoff' && catchAt !== undefined && catchAt + 0.2 < total ? [at(catchAt + 0.2, s0)] : [];
       keys.set(tackler, [from(tackler), ...set, ...before.filter((k) => k.t > 0), at(total, toward(end, s0, 0.6))]);
       tacklerId = tackler;
+      if (!before.some((k) => k.t > 0)) pursuer = tackler;
       moment(tackler, total);
     }
   }
@@ -356,6 +363,7 @@ export function script(
     keys,
     carrier: carrier ?? null,
     tackler: tacklerId,
+    pursuer,
     release,
     moments,
     ...(catchAt !== undefined ? { catchAt } : {}),
