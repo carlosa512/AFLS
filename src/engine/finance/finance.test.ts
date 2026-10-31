@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createLeague, fitPayroll, SAVE_VERSION } from '../generate';
+import { createLeague, fitPayroll, LAST_YEAR_MOST, SAVE_VERSION } from '../generate';
 import { startNextSeason, simToEndOfSeason } from '../league';
 import { migrateLeague } from '../migrate';
 import { playerOvr, STARTERS } from '../positions';
@@ -184,6 +184,25 @@ describe('opening league', () => {
           expect(hit).toBeLessThanOrEqual(TOP_APY_PCT[p.position] * BASE_CAP + 1);
         }
       }
+    }
+  });
+
+  it('never raises a one-year deal past what a last-year deal may be paid, even when the room has nowhere else to go', () => {
+    const { league, roster, vets, market } = minimumRoster(0);
+    for (const p of vets) {
+      const min = minSalary(p.experience, BASE_CAP);
+      p.contract = buildContract(
+        { years: 1, total: min, signingBonus: 0, guaranteedBase: 0, voidYears: 0, escalator: 0 },
+        league.season,
+        'minimum',
+        min,
+      );
+    }
+    fitPayroll(roster, league.season, BASE_CAP * 0.95, market, league.teams[0].gm);
+    for (const p of vets) {
+      const min = minSalary(p.experience, BASE_CAP);
+      const most = Math.min(TOP_APY_PCT[p.position] * BASE_CAP, LAST_YEAR_MOST * Math.max(marketApy(market, p), min));
+      expect(capHit(p.contract!, league.season)).toBeLessThanOrEqual(Math.max(most, min) + 1);
     }
   });
 

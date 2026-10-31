@@ -2457,7 +2457,6 @@ class GameSim {
     if (sep > SEP_ROLL) sep = SEP_ROLL + (sep - SEP_ROLL) * 0.5;
     sep = fade(sep, tight);
 
-    // Past a point, placement can't beat physics: the best arms complete a few more, not every throw.
     // Every point of accuracy counts in full: no cap on what an elite passer can do.
     const acc =
       skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy') +

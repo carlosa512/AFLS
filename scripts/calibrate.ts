@@ -211,7 +211,8 @@ function sampleDepth(league: League) {
         const gain = Math.min(own(p.to!), 100) - own(p.from);
         t.cmp++;
         t.yds += gain;
-        t.yac += gain - air;
+        // A catch in the end zone stops at the line: nflverse records no yards after it.
+        t.yac += Math.max(0, gain - air);
       }
     }
   }

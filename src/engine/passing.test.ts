@@ -41,7 +41,7 @@ describe("the passing game's shape (nflverse 2019–24)", () => {
     }
   });
 
-  it("throws a quarter of a receiver's short passes behind the line, the rest 0 to 9", () => {
+  it("throws about a fifth of a receiver's short passes behind the line, the rest 0 to 9", () => {
     const rng = new Rng('air');
     const air = Array.from({ length: 4000 }, () => passAir(rng, 'short', false, 50, 50));
     const behind = air.filter((a) => a < 0);

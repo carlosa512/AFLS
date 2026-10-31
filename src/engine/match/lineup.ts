@@ -161,8 +161,8 @@ const MOOD_EDGE = 0.5;
 
 /**
  * A team's day, in rating points either side (one standard deviation). Any given Sunday: a strong team sometimes plays
- * flat and a weak one sharp, so a final margin sits about 13.5 points either side of what strength predicts, as the
- * NFL's do around the line. It averages out, so league totals hold. (A team's day, not a player's form: `formFor`.)
+ * flat and a weak one sharp, so a final margin sits about 12.8 points either side of what strength predicts, as the
+ * NFL's do around the closing line (nflverse 2015–24). It averages out, so league totals hold. (A team's day, not a player's form: `formFor`.)
  */
 export const DAY_SD = 0.35;
 

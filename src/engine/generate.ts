@@ -434,7 +434,7 @@ const NEXT_YEAR_CEILING = 0.97;
  * last-year deals 1.13-1.55 times their market in all; 1.55 a deal left a new league's at 1.16 (the position's top
  * holds the best back) and 28.5% of payroll, against a settled 29-33%.
  */
-const LAST_YEAR_MOST = 1.7;
+export const LAST_YEAR_MOST = 1.7;
 
 /**
  * Nudge veteran money so a team's opening payroll lands near `target`, never over the cap. Rookie deals stay
@@ -615,8 +615,14 @@ export function fitPayroll(players: Player[], season: number, target: number, ma
   }
   // The last fill reaches this year's deals too: a roster of one-year minimum veterans behind linemen already near
   // their position's top otherwise opened with a sixth of the cap unspent.
+  // A one-year deal there is held to what a last-year deal may be paid.
   raise(
-    (p) => (priced(p) ? Math.min(top(p), 3.5 * worth.get(p)!) : 3 * min(p)),
+    (p) =>
+      !running(p)
+        ? Math.min(top(p), LAST_YEAR_MOST * Math.max(worth.get(p)!, min(p)))
+        : priced(p)
+          ? Math.min(top(p), 3.5 * worth.get(p)!)
+          : 3 * min(p),
     () => true,
     true,
   );
@@ -632,12 +638,11 @@ export function createDraftPicks(league: League, season: number): void {
   }
 }
 
-/** Quality (target overall) for the Nth player on the depth chart at a position. */
 /**
- * Quality per point of a franchise's recent win share, above or below .500 (`TeamSeed.winPct`). The real
- * league's spread (.335 to .750 over 2015–2024) then spans about 1.65 points of starter quality, on top of
- * the luck of each player's roll (about half a point between teams): a new league's team ratings follow the
- * real records at about 0.7 (0.6–0.75 by seed), so the old pecking order shows in year one without deciding it.
+ * Quality per point of a franchise's recent win share, above or below .500 (`TeamSeed.winPct`), on its starters. The
+ * real league's spread (.335 to .750 over 2015–2024) then spans about 1.65 points of starter quality; with most of
+ * each roll's luck dealt back (`EVEN_DEAL`), a new league's team ratings follow the real records at about 0.66
+ * (0.42–0.84 by seed), so the old pecking order shows in year one without deciding it.
  */
 const PEDIGREE = 4;
 
