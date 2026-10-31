@@ -198,8 +198,13 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
 }
 
 /** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
-/** A tree grows from a clear winner: .600 or better over five seasons or more as a head coach. */
-export const WINNER = { seasons: 5, share: 0.6 };
+/**
+ * A tree grows from a winner: .550 or better over five seasons or more as a head coach, Kyle Shanahan's record (.556)
+ * and his tree among the NFL's best known. About 10 of the NFL's head coaches cleared it entering 2025, 8 cleared
+ * .600; the sim's long leagues carry as many five-year head coaches (15) but fewer winners among them (6 at .550, 3 at
+ * .600), so .600 left trees at the floor of their bands.
+ */
+export const WINNER = { seasons: 5, share: 0.55 };
 
 /**
  * The seasons by which he was a winner as a head coach, his record up to and including each (his team's record
