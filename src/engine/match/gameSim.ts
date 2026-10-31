@@ -3036,8 +3036,9 @@ class GameSim {
       entries: result.stats.entries,
       qb: DROPBACKS.has(result.kind) ? this.lineups[offSide].qb : undefined,
       defender: result.defender,
-      rusher: result.rusher ?? (result.kind === 'pass' ? this.pressureBy : null),
-      beat: this.beatBy,
+      // Kneels and spikes skip the snap's reset, so this snap's rush is only read on plays that had one.
+      rusher: result.rusher ?? (result.kind === 'pass' || result.kind === 'scramble' ? this.pressureBy : null),
+      beat: result.kind === 'kneel' || result.kind === 'spike' ? null : this.beatBy,
       take: result.turnover?.by,
     });
     if (result.kind === 'pass' || result.kind === 'spike') {

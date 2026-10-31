@@ -32,6 +32,23 @@ describe('who each play was about', () => {
     expect(passes).toBeGreaterThan(200);
   });
 
+  it('names no rusher or beaten blocker on a kneel or a spike', () => {
+    let n = 0;
+    each((e) => {
+      if (e.kind !== 'kneel' && e.kind !== 'spike') return;
+      n++;
+      expect(e.who?.beat).toBeUndefined();
+      expect(e.who?.rush).toBeUndefined();
+    });
+    expect(n).toBeGreaterThan(0);
+  });
+
+  it('names the rusher whenever it names a beaten blocker', () => {
+    each((e) => {
+      if (e.who?.beat !== undefined) expect(e.who.rush).toBeDefined();
+    });
+  });
+
   it('puts the passer, target and carrier on the offense, and the tackler, cover man and taker on the defense', () => {
     each((e, r, offense) => {
       if (!scrimmage(e) || !e.who) return;
