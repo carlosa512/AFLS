@@ -192,6 +192,15 @@ export function aiOffer(league: League, team: Team, player: Player, rng: Rng, ga
   return { years, apy, bonusPct, gtdPct, voidYears };
 }
 
+/**
+ * The deal a club can fit when it can't fit his market price: one year at the room it has, no bonus, as the NFL's
+ * late market signs a good veteran to a prove-it deal with whoever has room. Null below his minimum.
+ */
+export function fitOffer(offer: Offer, budget: number, min: number): Offer | null {
+  if (budget < min) return null;
+  return { years: 1, apy: Math.floor(Math.min(offer.apy, budget)), bonusPct: 0, gtdPct: offer.gtdPct, voidYears: 0 };
+}
+
 // ───────── re-sign window ─────────
 
 /** How far below the room's last starter (outlook) a player can sit and still be planned as one: a job battle. */
@@ -483,13 +492,18 @@ export function aiFreeAgencyDay(league: League, rng: Rng, opts: { includeUser?: 
       const ahead = teamOutlook(league, team.id, p, winNow(league, team), read(team.id, p));
       const gain = needGain(depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p));
       if (gain < minGain.get(team.id)!) continue;
-      const offer = aiOffer(league, team, p, rng, gain);
+      let offer = aiOffer(league, team, p, rng, gain);
       if (gain < upgradeBar(league, team, offer.apy)) continue;
       // Year-one charge must fit; bonus spreads, so the hit is below the APY for bigger deals.
       const yearOne =
         offer.apy * (1 - offer.bonusPct) +
         (offer.apy * offer.years * offer.bonusPct) / Math.min(5, offer.years + offer.voidYears);
-      if (yearOne > budget.get(team.id)!) continue;
+      if (yearOne > budget.get(team.id)!) {
+        // Can't fit his market price: offer what it can fit, and he takes it only if it beats his walk-away (below).
+        const fitted = fitOffer(offer, budget.get(team.id)!, minSalary(p.experience, league.caps[league.season]));
+        if (!fitted || gain < upgradeBar(league, team, fitted.apy)) continue;
+        offer = fitted;
+      }
       if (
         offer.years > 1 &&
         offer.apy > 0.03 * league.caps[league.season] &&
