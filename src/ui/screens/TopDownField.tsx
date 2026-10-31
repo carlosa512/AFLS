@@ -32,8 +32,8 @@ interface View {
   cx: number;
   span: number;
   /**
-   * The upright field's turn: 0 with the home side's offense attacking up, π with the away side's. It turns through
-   * the change-over when the ball changes hands, rather than flipping in a frame.
+   * The upright field's turn: 0 with the home side's offense attacking up, π with the away side's. When the ball
+   * changes hands it flips behind a quick dip to dark, like a camera cut.
    */
   phi: number;
 }
@@ -44,7 +44,8 @@ function toScreen(v: View, x: number, y: number): [number, number] {
   return [c * (y - MID) + s * (x - v.cx), s * (y - MID) - c * (x - v.cx)];
 }
 function viewBox(v: View): string {
-  return v.layout === 'wide' ? '-12 -2 124 57.3' : `${-MID - 1} ${-v.span / 2} ${FIELD_W + 2} ${v.span}`;
+  // Wide enough to take in the benches: a man coming on is seen on his sideline before he runs on.
+  return v.layout === 'wide' ? '-12 -4.5 124 62.3' : `${-MID - 4.5} ${-v.span / 2} ${FIELD_W + 9} ${v.span}`;
 }
 /** The field group's transform: the same mapping as `toScreen`, as an SVG matrix. */
 function fieldTransform(v: View): string {
@@ -56,8 +57,8 @@ function fieldTransform(v: View): string {
 }
 /** The upright field's turn for an offense attacking toward x = 100 (1) or x = 0 (-1). */
 const turnFor = (dir: 1 | -1) => (dir === 1 ? 0 : Math.PI);
-/** How long the field takes to turn when the ball changes hands, in seconds. */
-const TURN = 1.4;
+/** The cut when the field flips with the ball: seconds to dark, and back. */
+const DIP = 0.25;
 
 /**
  * The officials on a kickoff, from the ball on the kicking 35: a pair on the sidelines at the kicking team's line
@@ -324,10 +325,14 @@ export function TopDownField({
     /** The jog between plays, `t` seconds in. */
     const jog = (t: number, seconds: number) => {
       const g = gap!;
-      // The field turns once the moment's been had, while the units change over.
-      const q = Math.min(1, Math.max(0, (t - g.beat - g.celebrate - 0.3) / TURN));
-      const turned = turnFrom === turnTo ? 0 : q * q * (3 - 2 * q);
-      view.phi = turnFrom + ((turnTo - turnFrom + 2 * Math.PI) % (2 * Math.PI)) * turned;
+      // The ball's changed hands: the picture dips to dark and comes back the other way round (a camera cut, not a
+      // spin), once the moment's been had and before the units change over.
+      if (turnFrom !== turnTo) {
+        const cut = g.beat + g.celebrate + 0.2 + DIP;
+        view.phi = t < cut ? turnFrom : turnTo;
+        const dark = Math.max(0, 1 - Math.abs(t - cut) / DIP);
+        svg.current?.style.setProperty('opacity', (1 - dark).toFixed(2));
+      } else view.phi = turnTo;
       // The banner when the ball has changed hands: up after the whistle, gone before the formation sets.
       const shown = t > g.beat && t < g.duration - 1.2 ? 1 : 0;
       bannerRef.current?.style.setProperty('opacity', String(shown));
@@ -363,6 +368,7 @@ export function TopDownField({
     /** The play itself, at `step`. */
     const place = (step: number, seconds: number) => {
       view.phi = turnTo;
+      svg.current?.style.setProperty('opacity', '1');
       camera(s.ball[step * 3], seconds);
       rings(step === last ? Infinity : step * s.dt);
       bannerRef.current?.style.setProperty('opacity', '0');
@@ -489,7 +495,7 @@ export function TopDownField({
         onPointerDown={onTap}
       >
         <g ref={fieldRef} transform={fieldTransform(view)}>
-          <rect x={-12} y={-2} width={124} height={FIELD_W + 4} fill="#255f37" />
+          <rect x={-12} y={-5} width={124} height={FIELD_W + 10} fill="#255f37" />
           <rect x={-10} y={0} width={120} height={FIELD_W} fill="#2f7a46" />
           {Array.from({ length: 10 }, (_, i) => i * 10)
             .filter((x) => (x / 10) % 2 === 0)

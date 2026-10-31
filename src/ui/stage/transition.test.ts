@@ -27,7 +27,8 @@ describe('between plays', () => {
   });
 
   it('never moves a man faster than a jog unless the field is changing over', () => {
-    for (const m of tr.moves) {
+    // Men going off hustle off (a twelfth man at the snap is a flag): everyone else jogs.
+    for (const m of tr.moves.filter((x) => !x.leave)) {
       const d = Math.hypot(m.to.x - m.from.x, m.to.y - m.from.y);
       // Each man has his own pace about a jog: a lineman ambles, a corner trots a touch quicker.
       expect(d / Math.max(m.arrive, 1e-6)).toBeLessThanOrEqual(JOG * 1.25 + 1e-6);
@@ -38,7 +39,9 @@ describe('between plays', () => {
     const on = move(4);
     expect(on.enter).toBe(true);
     expect(on.from.y).toBe(FIELD_W + BENCH); // away bench
-    expect(tr.at(on, 0).opacity).toBeLessThan(1);
+    // In full view on his sideline, then on at a jog.
+    expect(tr.at(on, 0).opacity).toBe(1);
+    expect(tr.at(on, 0).y).toBe(FIELD_W + BENCH);
     expect(tr.at(on, tr.duration).opacity).toBe(1);
     const off = move(3);
     expect(off.leave).toBe(true);

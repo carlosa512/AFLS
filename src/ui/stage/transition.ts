@@ -14,8 +14,15 @@ export const JOG = 4.5;
 export const SPRINT = 7.5;
 /** Yards outside the sideline where each team's bench stands (home on the near side, away on the far). */
 export const BENCH = 3;
+/**
+ * The team area along each sideline: between the 32-yard lines, as the NFL marks it. Subs come on from it and men
+ * coming off go back to it, spread along it, wherever the ball is.
+ */
+const TEAM_AREA = [33, 67] as const;
 /** The longest a change-over may take: past this the whole field hustles. */
 const MAX_JOG = 6.5;
+/** Men going off get off: yards a second. */
+const OFF_PACE = 6.5;
 /** The formation, set, before the snap. */
 const SET = 0.8;
 /** After the whistle: everyone where the play left him for a moment, before anyone heads back. */
@@ -104,9 +111,8 @@ export interface Transition {
 }
 
 const benchY = (home: boolean) => (home ? -BENCH : FIELD_W + BENCH);
-/** Where a man reaches his sideline: drifting toward his team's bench area, each by his own line. */
-const benchAt = (x: number, rng: Rng, toward = 0.25, lo = -5, hi = 105) =>
-  Math.max(lo, Math.min(hi, x + (50 - x) * toward + (rng.next() * 2 - 1) * 4));
+/** A spot in his team's area: near where he is, if the area reaches that far, each his own. */
+const benchAt = (x: number, rng: Rng) => Math.max(TEAM_AREA[0], Math.min(TEAM_AREA[1], x + (rng.next() * 2 - 1) * 4));
 
 /** `k` of the way from `a` to `b` on a gentle bend: off the straight line by `bow` of a few yards at the middle. */
 function along(a: Pt, b: Pt, k: number, bow: number): Pt {
@@ -117,10 +123,24 @@ function along(a: Pt, b: Pt, k: number, bow: number): Pt {
   return { x: a.x + dx * k - (dy / (len || 1)) * off, y: a.y + dy * k + (dx / (len || 1)) * off };
 }
 /**
- * How far a man going off has faded: over the second half of his walk, or a couple of seconds after he sets off,
- * whichever comes first, so a whole unit going off doesn't crowd the field while the next one comes on.
+ * A man going off: dimmed as he heads for his sideline, so a unit going off never crowds the one coming on, and gone
+ * as he gets there. He's seen all the way off, never vanishing mid-field.
  */
-const leaving = (k: number, since: number) => Math.min(1, Math.max((k - 0.5) * 2, (since - 1) / 1.5, 0));
+const leaving = (k: number, since: number) => {
+  const dim = Math.max(0.5, 1 - Math.max(0, since) * 0.25);
+  return k < 0.85 ? dim : dim * Math.max(0, (1 - k) / 0.15);
+};
+/** Room between two men standing side by side on the sideline, in yards. */
+const SIDE_BY_SIDE = 2.4;
+/** Spots along a sideline, nudged apart to `SIDE_BY_SIDE` in their order along it, keeping their middle. */
+function spreadOut(spots: Pt[]) {
+  if (spots.length < 2) return;
+  const order = [...spots].sort((a, b) => a.x - b.x);
+  const was = order.reduce((sum, p) => sum + p.x, 0) / order.length;
+  for (let i = 1; i < order.length; i++) order[i].x = Math.max(order[i].x, order[i - 1].x + SIDE_BY_SIDE);
+  const shift = was - order.reduce((sum, p) => sum + p.x, 0) / order.length;
+  for (const p of order) p.x += shift;
+}
 /** Ease in and out: a man accelerates into his jog and pulls up at his spot. */
 const smooth = (k: number) => k * k * (3 - 2 * k);
 
@@ -169,7 +189,7 @@ export function transition(
     const was = prev.get(id);
     const from = was ?? {
       // From the bench: on a change-over the kick units come from the team area, otherwise level with his spot.
-      x: opts.change ? benchAt(to.x, rng) : Math.max(-8, Math.min(108, to.x)),
+      x: benchAt(to.x, rng),
       y: benchY(next.home[k]),
     };
     const at = { x: from.x, y: from.y };
@@ -195,7 +215,12 @@ export function transition(
       const { pace, ...way } = style();
       paceOf.set(id, pace);
       // Off toward his bench area (between the 30s), each by his own line, not straight across in a row.
-      const benchX = opts.change ? benchAt(was.x, rng, 0.4, 20, 80) : benchAt(was.x, rng);
+      // Off at his own sideline, angling toward the team area when it's near; from far off (the end zone after a score)
+      // he just goes off the nearest way. Only men coming on come from the team area itself.
+      const area = benchAt(was.x, rng);
+      const far = Math.abs(area - was.x);
+      const lean = Math.max(0.1, Math.min(0.7, 1 - (far - 8) / 25));
+      const benchX = Math.max(-5, Math.min(105, was.x + (area - was.x) * lean));
       moves.push({
         id,
         home: was.home,
@@ -211,6 +236,13 @@ export function transition(
         ...way,
       });
     }
+
+  // On the sideline, side by side: the men waiting to come on, and the spots the men going off head for, are spread
+  // along it a couple of yards apart (each team on its own sideline), not stacked on one spot.
+  for (const home of [true, false]) {
+    spreadOut(moves.filter((m) => m.enter && m.home === home).map((m) => m.from));
+    spreadOut(moves.filter((m) => m.leave && m.home === home).map((m) => m.to));
+  }
 
   // The celebration: teammates within reach gather in a loose ring round him; nobody else joins in.
   const celebrate = party ? CELEBRATE : 0;
@@ -275,14 +307,15 @@ export function transition(
     pace = Math.max(run, longest / (MAX_JOG * 0.8));
     for (const m of moves) if (!m.leave) m.start = huddleTime;
   }
-  for (const m of moves) m.arrive = dist(m) / (pace * paceOf.get(m.id)!);
+  // Men going off hustle (a twelfth man on the field at the snap is a flag); everyone else at the pace above.
+  for (const m of moves) m.arrive = dist(m) / ((m.leave ? Math.max(pace, OFF_PACE) : pace) * paceOf.get(m.id)!);
   const beat = party ? 0 : WHISTLE;
   const duration =
-    beat + celebrate + Math.max(0.6, ...moves.filter((m) => !m.leave).map((m) => m.start + m.delay + m.arrive)) + SET;
+    beat + celebrate + Math.max(0.6, ...moves.map((m) => m.start + m.delay + m.arrive - (m.leave ? SET : 0))) + SET;
 
   /** How much a man on his way on or off gives way: fully in transit, easing off as he settles or fades. */
   const giving = (m: Move, t: number, opacity: number) => {
-    if (m.leave) return opacity > 0.15 ? opacity : 0;
+    if (m.leave) return opacity > 0.15 ? 1 : 0;
     if (!m.enter) return 0;
     const into = Math.max(0, t - beat - celebrate - m.start - m.delay);
     const k = m.arrive > 0 ? Math.min(1, into / m.arrive) : 1;
@@ -308,15 +341,14 @@ export function transition(
         // Into the huddle (or off to the sideline), then the call (or his turn to go back on).
         const g = m.gather > 0 ? smooth(Math.min(1, Math.max(0, (t - m.gdelay) / m.gather))) : 1;
         const p = along(m.mid, m.hud, g, m.gbow);
-        return { ...p, opacity: m.enter && huddleTime ? Math.min(1, 0.2 + g * 1.6) : m.enter ? 0.2 : 1 };
+        return { ...p, opacity: 1 };
       }
       // The men going off head for the bench straight away; everyone else breaks the huddle, or takes his turn.
       t -= m.start;
       const k = m.arrive > 0 ? smooth(Math.min(1, Math.max(0, (t - m.delay) / m.arrive))) : 1;
       const { x, y } = along(m.hud, m.to, k, m.bow);
-      // Fading in from the bench, fading out on the way to it.
-      const opacity =
-        m.enter && !huddleTime ? Math.min(1, 0.2 + k * 1.6) : m.leave ? Math.max(0, 1 - leaving(k, t - m.delay)) : 1;
+      // Coming on from his sideline in full view; going off, dimmed and gone at the sideline.
+      const opacity = m.leave ? leaving(k, t - m.delay) : 1;
       return { x, y, opacity };
     },
     frame(t, room) {
