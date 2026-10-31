@@ -32,7 +32,7 @@ import {
   type Market,
 } from './finance/market';
 import { clamp, Rng } from './rng';
-import { buildAutoDepthChart } from './roster';
+import { buildAutoDepthChart, headline, UNIT_POSITIONS } from './roster';
 import { newIdentity } from './identity';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateSchedule } from './season/schedule';
@@ -632,13 +632,49 @@ export function createDraftPicks(league: League, season: number): void {
  */
 const PEDIGREE = 4;
 
-function slotQuality(rng: Rng, position: Position, slot: number, teamTalent: number): number {
+/** A starter's quality before his team's talent: the luck of his roll is how far he lands from this. */
+const STARTER_QUALITY = 12.8;
+
+/** The roll for the Nth player at a position, before his team's talent (a starter's lands around `STARTER_QUALITY`). */
+function slotRoll(rng: Rng, position: Position, slot: number): number {
   const starters = STARTERS[position];
-  let q: number;
-  if (slot < starters) q = rng.normal(12.8, 2.3);
-  else if (slot === starters) q = rng.normal(10, 1.8);
-  else q = rng.normal(8.3, 1.7);
-  return clamp(q + teamTalent, 4, 19.5);
+  if (slot < starters) return rng.normal(STARTER_QUALITY, 2.3);
+  if (slot === starters) return rng.normal(10, 1.8);
+  return rng.normal(8.3, 1.7);
+}
+
+/**
+ * The share of a team's luck in its starters' rolls that a new league deals back. Rolled alone, 22 starters leave
+ * about half a point of team overall between clubs by chance, on top of their records (`PEDIGREE`), and a league
+ * starts with records spread wider than the NFL's (an SD of 3.8 wins against 3.0–3.3); one built over many seasons
+ * reads 3.2. Dealt back, a club that rolled a great quarterback has a little less around him, as the cap would leave it.
+ */
+export const EVEN_DEAL = 0.5;
+
+/**
+ * A team's starters' rolls (each less `STARTER_QUALITY`, by position and slot) with `EVEN_DEAL` of their luck dealt
+ * back: the luck weighed as team overall weighs its units (`headline`), taken evenly from everyone but the
+ * quarterback, who keeps the roll that makes him a star or not.
+ */
+export function evenDeal(luck: Record<Position, number[]>): Record<Position, number[]> {
+  const avg = (positions: readonly Position[], r: (pos: Position, x: number) => number) => {
+    const xs = positions.flatMap((pos) => luck[pos].map((x) => r(pos, x)));
+    return xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+  };
+  const weigh = (r: (pos: Position, x: number) => number) =>
+    headline(
+      avg(UNIT_POSITIONS.qb, r),
+      avg(UNIT_POSITIONS.offense, r),
+      avg(UNIT_POSITIONS.defense, r),
+      avg(UNIT_POSITIONS.special, r),
+    );
+  const total = weigh((_, x) => x);
+  // What one point on every starter but the quarterback is worth to team overall.
+  const perPoint = weigh((pos) => (pos === 'QB' ? 0 : 1));
+  const shift = total ? (-EVEN_DEAL * total) / perPoint : 0;
+  return Object.fromEntries(
+    Object.entries(luck).map(([pos, xs]) => [pos, pos === 'QB' ? [...xs] : xs.map((x) => x + shift)]),
+  ) as Record<Position, number[]>;
 }
 
 function slotAge(rng: Rng, isStarter: boolean): number {
@@ -745,13 +781,26 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     talent.push(teamTalent);
     const jerseysUsed = new Set<number>();
     const roster: Player[] = [];
+    // Every roll first, so the starters' luck can be dealt back before anyone is built.
+    const rolls = Object.fromEntries(
+      POSITIONS.map((pos) => [
+        pos,
+        Array.from({ length: ROSTER_TEMPLATE[pos] }, (_, slot) => slotRoll(rng, pos, slot)),
+      ]),
+    ) as Record<Position, number[]>;
+    const dealt = evenDeal(
+      Object.fromEntries(
+        POSITIONS.map((pos) => [pos, rolls[pos].slice(0, STARTERS[pos]).map((q) => q - STARTER_QUALITY)]),
+      ) as Record<Position, number[]>,
+    );
+    for (const pos of POSITIONS) dealt[pos].forEach((x, slot) => (rolls[pos][slot] = x + STARTER_QUALITY));
     for (const position of POSITIONS) {
       for (let slot = 0; slot < ROSTER_TEMPLATE[position]; slot++) {
         const isStarter = slot < STARTERS[position];
         const player = generatePlayer(rng, {
           id: league.nextPlayerId++,
           position,
-          quality: slotQuality(rng, position, slot, teamTalent),
+          quality: clamp(rolls[position][slot] + teamTalent, 4, 19.5),
           age: slotAge(rng, isStarter),
           teamId: team.id,
           jerseysUsed,

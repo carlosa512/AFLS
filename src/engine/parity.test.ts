@@ -16,10 +16,14 @@ vi.mock('./match/lineup', async (load) => {
 
 const { skill, useKnocks } = await import('./attributes');
 const { knockFor } = await import('./familiarity');
-const { createLeague } = await import('./generate');
 const { buildLineup, DAY_SD, teamDay } = await import('./match/lineup');
 const { simulateGame } = await import('./match/gameSim');
+const { createLeague, EVEN_DEAL, evenDeal } = await import('./generate');
+const { headline, UNIT_POSITIONS } = await import('./roster');
+const { STARTERS } = await import('./positions');
+const { POSITIONS } = await import('./types');
 type Lineup = import('./match/lineup').Lineup;
+type Position = import('./types').Position;
 
 /** The men a lineup lines up at its positions (the ones `buildLineup` reads knocks for). */
 const slotted = (l: Lineup) => [
@@ -112,4 +116,42 @@ describe("a team's day (parity)", () => {
     const g = l.games[0];
     expect(simulateGame(l, g, { seed: 'again' })).toEqual(simulateGame(l, g, { seed: 'again' }));
   }, 60_000);
+});
+
+describe('an even deal at a new league (parity)', () => {
+  const zero = () =>
+    Object.fromEntries(POSITIONS.map((pos) => [pos, Array(STARTERS[pos]).fill(0)])) as Record<Position, number[]>;
+  const luck = (r: Record<Position, number[]>) => {
+    const avg = (ps: readonly Position[]) => {
+      const xs = ps.flatMap((pos) => r[pos]);
+      return xs.reduce((a, b) => a + b, 0) / xs.length;
+    };
+    return headline(
+      avg(UNIT_POSITIONS.qb),
+      avg(UNIT_POSITIONS.offense),
+      avg(UNIT_POSITIONS.defense),
+      avg(UNIT_POSITIONS.special),
+    );
+  };
+
+  it('deals back EVEN_DEAL of a lucky team’s luck through everyone but the quarterback', () => {
+    const r = zero();
+    r.QB[0] = 4;
+    r.CB[1] = 2;
+    const dealt = evenDeal(r);
+    expect(dealt.QB[0]).toBe(4);
+    expect(luck(dealt)).toBeCloseTo((1 - EVEN_DEAL) * luck(r), 9);
+    // Every other starter gives back the same.
+    const shift = dealt.WR[0] - r.WR[0];
+    expect(shift).toBeLessThan(0);
+    for (const pos of POSITIONS)
+      if (pos !== 'QB') r[pos].forEach((q, i) => expect(dealt[pos][i] - q).toBeCloseTo(shift, 9));
+  });
+
+  it('lifts an unlucky team the same way, and leaves an even one alone', () => {
+    const r = zero();
+    r.OL[2] = -3;
+    expect(luck(evenDeal(r))).toBeCloseTo((1 - EVEN_DEAL) * luck(r), 9);
+    expect(evenDeal(zero())).toEqual(zero());
+  });
 });
