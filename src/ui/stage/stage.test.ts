@@ -109,6 +109,38 @@ function lineUps(n: number, kinds?: readonly string[]) {
 describe('formations', () => {
   const SCRIMMAGE = ['run', 'pass', 'incomplete', 'int', 'sack', 'scramble', 'kneel', 'spike'];
 
+  it('keeps every lineman, end and corner on his own side, play after play', () => {
+    // Which side of the ball (from the offense's view) each fixed position takes; never both in a game.
+    const sides = new Map<string, Set<number>>();
+    let checked = 0;
+    for (const { e, cast, dir, ballY, spots } of lineUps(10, SCRIMMAGE)) {
+      void e;
+      for (const m of [...cast.offense, ...cast.defense]) {
+        if (!['OL', 'EDGE', 'CB'].includes(m.role) || (m.role === 'CB' && m.slot > 1)) continue;
+        const across = (spots.get(m.id)!.y - ballY) * dir;
+        if (Math.abs(across) < 1) continue; // the center
+        const key = `${m.id}:${m.role}`;
+        if (!sides.has(key)) sides.set(key, new Set());
+        sides.get(key)!.add(Math.sign(across));
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(5000);
+    const flipped = [...sides].filter(([, set]) => set.size > 1).map(([k]) => k);
+    expect(flipped).toEqual([]);
+  });
+
+  it('lines the cover man up across from the receiver he covers', () => {
+    let n = 0;
+    for (const { e, spots } of lineUps(20, ['pass', 'incomplete', 'int'])) {
+      const who = actorsIn(e);
+      if (who.cover === undefined || who.ball === undefined || !spots.has(who.cover) || !spots.has(who.ball)) continue;
+      expect(Math.abs(spots.get(who.cover)!.y - spots.get(who.ball)!.y), e.text).toBeLessThan(6);
+      n++;
+    }
+    expect(n).toBeGreaterThan(300);
+  });
+
   it('lines up 22 players on their own sides of the ball, inside the field', () => {
     for (const { cast, dir, ballX, spots } of lineUps(10, SCRIMMAGE)) {
       expect(spots.size).toBe(22);

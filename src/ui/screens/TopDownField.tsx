@@ -10,7 +10,7 @@ import { PlayerLink } from '../components';
 import { FIELD_W, HASH_HI, HASH_LO, MID, offenseSide, snapYFor } from '../stage/ballPath';
 import { cameraCenter, cameraSpan, easeCamera, layoutFor, type Layout } from '../stage/camera';
 import { stagePlay, type StagedPlay } from '../stage/stage';
-import { celebrates, transition, type Mark } from '../stage/transition';
+import { celebrates, transition, type Huddle, type Mark } from '../stage/transition';
 import { downLines } from './GameViewer';
 
 /** A dot's radius in yards: bigger sideways, where the whole field shares the width. */
@@ -38,6 +38,18 @@ function fieldTransform(v: View): string {
     ? `matrix(-1 0 0 -1 100 ${FIELD_W})`
     : `matrix(0 ${-v.dir} ${v.dir} 0 ${-v.dir * MID} ${v.dir * v.cx})`;
 }
+
+/** Plays the offense huddles before: every snap from scrimmage. Kick units and two-point tries line straight up. */
+const HUDDLED: ReadonlySet<string> = new Set([
+  'run',
+  'pass',
+  'incomplete',
+  'int',
+  'sack',
+  'scramble',
+  'kneel',
+  'spike',
+]);
 
 interface Memory {
   /** Where each man on the field was last drawn, and which kit he wears. */
@@ -121,6 +133,35 @@ export function TopDownField({
   }, [record, index, game.id]);
 
   const dir: 1 | -1 = entry && offenseSide(entry, home.id) === 1 ? -1 : 1;
+
+  /**
+   * The huddles before this snap: the offense seven yards off the ball round its quarterback, the defense five yards
+   * off it round its play-caller (the middle linebacker, or a safety with none on). None in a two-minute drill, where
+   * offenses go no-huddle, nor before a kick.
+   */
+  /** Late in a half (the two-minute warning on), or late in the game with the offense behind: a clock to beat. */
+  const twoMinute = !!entry && (entry.quarter === 2 || entry.quarter >= 4) && entry.clock <= 120;
+  const hurried = () => {
+    if (!entry || !entry.down) return false;
+    const behind =
+      (entry.offense === home.id ? entry.homeScore - entry.awayScore : entry.awayScore - entry.homeScore) < 0;
+    return twoMinute || (entry.quarter >= 4 && entry.clock <= 300 && behind);
+  };
+  const huddleFor = (s: StagedPlay): Huddle | undefined => {
+    if (!entry?.kind || !HUDDLED.has(entry.kind)) return undefined;
+    if (twoMinute) return undefined; // no-huddle
+    const bx = s.ball[0];
+    const by = s.ball[1];
+    const lbs = s.ids.filter((_, k) => !s.offense[k] && s.roles[k] === 'LB');
+    const caller = lbs[Math.floor(lbs.length / 2)] ?? s.ids.find((_, k) => !s.offense[k] && s.roles[k] === 'S');
+    return {
+      offense: { x: bx - dir * 7, y: by },
+      defense: { x: bx + dir * 5, y: by },
+      offenseHome: s.home[0],
+      qb: s.ids.find((_, k) => s.roles[k] === 'QB'),
+      caller,
+    };
+  };
   const span = cameraSpan(entry);
   const lines = downLines(entry, home.id);
 
@@ -135,7 +176,9 @@ export function TopDownField({
     // first play shown, which starts set).
     const big =
       mem.ended && mem.ended.index === index - 1 && celebrates(plays, index - 1, home.id) ? mem.ended.at : null;
-    const gap = mem.spots.size ? transition(mem.spots, s, big ?? undefined) : null;
+    const gap = mem.spots.size
+      ? transition(mem.spots, s, { party: big ?? undefined, huddle: huddleFor(s), hurry: hurried() })
+      : null;
     const ballFrom = mem.ballX === null ? null : { x: mem.ballX, y: mem.ballY };
 
     const camera = (ballX: number, seconds: number) => {

@@ -4,6 +4,7 @@
  * view, so its right hand is +dir in y (as `buildPath` reads a play's lane).
  */
 import type { Rng } from '../../engine/rng';
+import { actorsIn } from '../../engine/playActors';
 import { COVERAGES } from '../../engine/schemes';
 import type { FieldScheme, PlayLogEntry } from '../../engine/types';
 import { FIELD_W, MID } from './ballPath';
@@ -57,8 +58,34 @@ export function lineUp(
   if (e.kind === 'kickoff') kickoff(cast, put, face, ballY);
   else if (e.kind === 'punt') punt(e, cast, put, face, ballX);
   else if (e.kind === 'fg' || e.kind === 'xp') fieldGoal(cast, put, face);
-  else scrimmage(e, cast, off, def, put, face, strong);
+  else {
+    scrimmage(e, cast, off, def, put, face, strong);
+    coverTheTarget(e, cast, spots);
+  }
   return spots;
+}
+
+/**
+ * The engine names the man who covered the target, so the target lines up across from him. Defenders keep their
+ * sides (a left corner stays the left corner); the receiver trades spots with whichever receiver the formation put
+ * nearest that defender, as receivers swap sides between formations.
+ */
+function coverTheTarget(e: PlayLogEntry, cast: Cast, spots: Map<number, Pt>) {
+  const who = actorsIn(e);
+  const cover = who.cover === undefined ? undefined : spots.get(who.cover);
+  const target = who.ball;
+  if (!cover || target === undefined || !spots.has(target)) return;
+  const receivers = cast.offense.filter((m) => m.role === 'WR' || m.role === 'TE' || m.role === 'RB');
+  let over: number | undefined;
+  let gap = Infinity;
+  for (const m of receivers) {
+    const d = Math.abs(spots.get(m.id)!.y - cover.y);
+    if (d < gap) [gap, over] = [d, m.id];
+  }
+  if (over === undefined || over === target) return;
+  const a = spots.get(target)!;
+  spots.set(target, spots.get(over)!);
+  spots.set(over, a);
 }
 
 type Put = (id: number, back: number, across: number) => void;
@@ -99,7 +126,9 @@ function scrimmage(e: PlayLogEntry, cast: Cast, off: FieldScheme, def: FieldSche
   const dts = of(d, 'DT');
   spread(dts.length, 3).forEach((across, i) => face(dts[i].id, 1, across));
   const edgeWidth = def.front === 'wide9' ? 7.5 : 5.5;
-  of(d, 'EDGE').forEach((m, i) => face(m.id, 1, (i % 2 === 0 ? -s : s) * (edgeWidth + Math.floor(i / 2) * 2)));
+  // Fixed sides, never flipped by the offense's strength: the first end lines up over the left tackle (he's the one
+  // the engine charges him against), the second over the right.
+  of(d, 'EDGE').forEach((m, i) => face(m.id, 1, (i % 2 === 0 ? -1 : 1) * (edgeWidth + Math.floor(i / 2) * 2)));
   const lbs = of(d, 'LB');
   const lbSpots = lbs.length === 1 ? [0] : lbs.length === 2 ? [-2.5, 2.5] : spread(lbs.length, 4);
   lbs.forEach((m, i) => face(m.id, 4.5, lbSpots[i]));

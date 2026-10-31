@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FIELD_W } from './ballPath';
 import type { PlayLogEntry } from '../../engine/types';
-import { BENCH, celebrates, JOG, transition, type Mark } from './transition';
+import { BENCH, celebrates, JOG, SPRINT, transition, type Mark } from './transition';
 
 const mark = (x: number, y: number, home = true): Mark => ({ x, y, home });
 
@@ -97,7 +97,7 @@ describe('celebrations', () => {
       pos: new Float32Array([35, 26, 35, 20, 35, 30, 45, 26]),
     };
     const plain = transition(prev, next);
-    const party = transition(prev, next, { x: 100, y: 20, home: true });
+    const party = transition(prev, next, { party: { x: 100, y: 20, home: true } });
     expect(party.duration).toBeGreaterThan(plain.duration + 1);
     const at = (id: number, t: number) => party.at(party.moves.find((m) => m.id === id)!, t);
     const gathered = at(2, party.celebrate);
@@ -109,5 +109,80 @@ describe('celebrations', () => {
       const k = next.ids.indexOf(id);
       expect([end.x, end.y]).toEqual([next.pos[k * 2], next.pos[k * 2 + 1]]);
     }
+  });
+});
+
+describe('huddles', () => {
+  // Offense (home) and defense (away), five a side, ten yards from where they ended up.
+  const prev = new Map<number, Mark>([
+    ...Array.from({ length: 5 }, (_, i): [number, Mark] => [i, mark(40 + i, 10 + i * 6, true)]),
+    ...Array.from({ length: 5 }, (_, i): [number, Mark] => [10 + i, mark(45 + i, 12 + i * 6, false)]),
+  ]);
+  const ids = [...prev.keys()];
+  const next = {
+    ids,
+    home: ids.map((id) => id < 10),
+    pos: new Float32Array(ids.flatMap((id) => (id < 10 ? [49, 20 + (id % 10) * 3] : [51, 20 + (id % 10) * 3]))),
+  };
+  const huddle = { offense: { x: 42, y: 26 }, defense: { x: 55, y: 26 }, offenseHome: true, qb: 2, caller: 12 };
+  const tr = transition(prev, next, { huddle });
+  const at = (id: number, t: number) => tr.at(tr.moves.find((m) => m.id === id)!, t);
+
+  it('gathers each side in its huddle before breaking to the line', () => {
+    expect(tr.huddle).toBeGreaterThan(1);
+    const t = tr.huddle - 0.1;
+    for (const id of ids) {
+      const c = id < 10 ? huddle.offense : huddle.defense;
+      const p = at(id, t);
+      expect(Math.hypot(p.x - c.x, p.y - c.y), `player ${id}`).toBeLessThan(4);
+    }
+  });
+
+  it('puts the quarterback and the play-caller at the front of their huddles, toward the ball', () => {
+    const t = tr.huddle - 0.1;
+    const qb = at(2, t);
+    const others = ids.filter((id) => id < 10 && id !== 2).map((id) => at(id, t).x);
+    expect(qb.x).toBeGreaterThanOrEqual(Math.max(...others) - 0.01); // the ball is at higher x
+    const caller = at(12, t);
+    const defenders = ids.filter((id) => id >= 10 && id !== 12).map((id) => at(id, t).x);
+    expect(caller.x).toBeLessThanOrEqual(Math.min(...defenders) + 0.01);
+  });
+
+  it('breaks the huddle and ends everyone on his spot', () => {
+    for (const id of ids) {
+      const k = ids.indexOf(id);
+      const end = at(id, tr.duration);
+      expect([end.x, end.y]).toEqual([next.pos[k * 2], next.pos[k * 2 + 1]]);
+    }
+  });
+
+  it('has no huddle when none is asked for (two-minute drill, kicks)', () => {
+    expect(transition(prev, next).huddle).toBe(0);
+  });
+});
+
+describe('the clock', () => {
+  const prev = new Map<number, Mark>([
+    [1, mark(30, 20)],
+    [2, mark(30, 30)],
+  ]);
+  // Player 3 comes on from the far bench, thirty-odd yards away.
+  const next = { ids: [1, 2, 3], home: [true, true, true], pos: new Float32Array([40, 20, 40, 30, 40, 26]) };
+  const speed = (t: ReturnType<typeof transition>, id: number) => {
+    const m = t.moves.find((x) => x.id === id)!;
+    return Math.hypot(m.to.x - m.hud.x, m.to.y - m.hud.y) / m.arrive;
+  };
+
+  it('jogs a sub on when there is no hurry, however far he comes', () => {
+    const t = transition(prev, next);
+    expect(speed(t, 3)).toBeCloseTo(JOG, 5);
+  });
+
+  it('sprints everyone into place in a hurry-up', () => {
+    const calm = transition(prev, next);
+    const hurry = transition(prev, next, { hurry: true });
+    expect(speed(hurry, 1)).toBeCloseTo(SPRINT, 5);
+    expect(speed(hurry, 3)).toBeCloseTo(SPRINT, 5);
+    expect(hurry.duration).toBeLessThan(calm.duration);
   });
 });

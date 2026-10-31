@@ -27,8 +27,29 @@ export interface Cast {
 /** Each side's units at a play: kickoff's, with every change up to that play applied. */
 export function unitsAt(record: FieldRecord, index: number): [FieldUnits, FieldUnits] {
   const units: [FieldUnits, FieldUnits] = [record.units[0], record.units[1]];
-  for (const [at, side, u] of record.changes) if (at <= index) units[side] = u;
+  for (const [at, side, u] of record.changes) if (at <= index) units[side] = keepSpots(units[side], u);
   return units;
+}
+
+/** The groups whose order is a spot on the field (left tackle first, left end first...). */
+const SPOTS = ['ol', 'wr', 'te', 'dt', 'edge', 'lb', 'cb', 's'] as const;
+
+/**
+ * A lineup rebuilt mid-game (an injury) can come back in a different order. Men still on the field keep their spots,
+ * so a right corner stays the right corner; the man coming in takes the spot of the man he replaces.
+ */
+function keepSpots(before: FieldUnits, after: FieldUnits): FieldUnits {
+  const out: FieldUnits = { ...after };
+  for (const key of SPOTS) {
+    const was = before[key];
+    const now = after[key];
+    const stay = new Set(now.filter((id) => was.includes(id)));
+    const fresh = now.filter((id) => !stay.has(id));
+    const spots: (number | undefined)[] = was.map((id) => (stay.has(id) ? id : undefined));
+    for (let i = 0; i < spots.length && fresh.length; i++) if (spots[i] === undefined) spots[i] = fresh.shift();
+    out[key] = [...spots.filter((id): id is number => id !== undefined), ...fresh];
+  }
+  return out;
 }
 
 type Entry = [number, Role];
