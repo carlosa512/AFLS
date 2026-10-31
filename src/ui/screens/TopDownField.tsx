@@ -229,16 +229,20 @@ export function TopDownField({
     // first play shown, which starts set).
     const big =
       mem.ended && mem.ended.index === index - 1 && celebrates(plays, index - 1, home.id) ? mem.ended.at : null;
-    const gap = mem.spots.size
-      ? transition(mem.spots, s, {
-          party: big ?? undefined,
-          huddle: huddleFor(s),
-          hurry: hurried(),
-          seed: `${league.seed}:${game.id}:gap:${index}`,
-          change: entry?.kind === 'kickoff',
-        })
-      : null;
-    const ballFrom = mem.ballX === null ? null : { x: mem.ballX, y: mem.ballY };
+    // Only the play right after the one just shown jogs in from it. A jump (the scrubber, the log, a replay)
+    // starts set: a jog from some other moment of the game means nothing.
+    const following = mem.ended?.index === index - 1;
+    const gap =
+      mem.spots.size && following
+        ? transition(mem.spots, s, {
+            party: big ?? undefined,
+            huddle: huddleFor(s),
+            hurry: hurried(),
+            seed: `${league.seed}:${game.id}:gap:${index}`,
+            change: entry?.kind === 'kickoff',
+          })
+        : null;
+    const ballFrom = mem.ballX === null || !following ? null : { x: mem.ballX, y: mem.ballY };
     /** A key man's ring, only once his moment is about to come (`t` seconds from the snap): nothing gives the play away. */
     const rings = (t: number) =>
       s.keys.forEach((id, i) => ringRefs.current.get(id)?.setAttribute('opacity', t >= s.reveal[i] ? '1' : '0'));
@@ -351,7 +355,9 @@ export function TopDownField({
     let raf = 0;
     let t0 = 0;
     let prev = 0;
-    let cleared = false;
+    // Starting set: the last play's men are gone at once.
+    let cleared = !gap;
+    if (!gap) clearBench();
     const playTime = last * s.dt;
     const tick = (now: number) => {
       if (!t0) t0 = prev = now;

@@ -339,6 +339,10 @@ export function Field({
 }
 
 // ───────── viewer screen ─────────
+/** Plays from scrimmage, whose result waits until it's been seen; a kick, a flag or a timeout is told at once. */
+const IN_PLAY: ReadonlySet<string> = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble']);
+export const inPlay = (e: PlayLogEntry | undefined): boolean => !!e?.kind && IN_PLAY.has(e.kind);
+
 export function playLabel(e: PlayLogEntry, homeId: number): string {
   if (/TOUCHDOWN/.test(e.text)) return 'Touchdown';
   const dir = e.offense === homeId ? 1 : -1;
@@ -534,7 +538,7 @@ export function GameViewer({
   const [still, setStill] = useState(false);
   // Whether the current play has finished on screen: until it has, its result, its line in the log and the score it
   // put up stay hidden, so the words never get ahead of the picture.
-  const [told, setTold] = useState(false);
+  const [seen, setSeen] = useState(false);
   const [pick, setPick] = useHighlightPick();
   const [viewPick, setViewPick] = useViewPick();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -568,7 +572,7 @@ export function GameViewer({
     clearTimeout(timer.current);
     setIndex(Math.max(0, Math.min(plays.length - 1, i)));
     setStill(skipped);
-    setTold(false);
+    setSeen(false);
     setRun((r) => r + 1);
     if (!keepPlaying) setPlaying(false);
   };
@@ -580,7 +584,7 @@ export function GameViewer({
     go(n, true);
   };
   const onDone = () => {
-    setTold(true);
+    setSeen(true);
     if (!playing) return;
     if (atEnd) return setPlaying(false);
     // A skipped batch has been shown: its hold was the pause, so the highlight follows at once.
@@ -604,6 +608,7 @@ export function GameViewer({
   };
   // Every play up to this one, newest first: nothing past the current play (nor the current one, until it's been
   // seen), so the log never spoils it.
+  const told = seen || !inPlay(entry);
   const recent = plays.slice(0, told ? index + 1 : index).reverse();
   /** The score on the board: the last play's until this one has been seen. */
   const board = told ? entry : (plays[index - 1] ?? { homeScore: 0, awayScore: 0 });

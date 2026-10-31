@@ -10,6 +10,7 @@ import { shows } from '../highlights';
 import {
   Field,
   HighlightSwitch,
+  inPlay,
   playLabel,
   PlayText,
   restingSpot,
@@ -58,7 +59,7 @@ export function LiveGame({ league }: { league: League }) {
   const away = league.teams[game.awayId];
   const entry = s.plays[s.current];
   const playKey = `${s.gameId}:${s.current}`;
-  const told = toldKey === playKey || s.finished;
+  const told = toldKey === playKey || s.finished || !inPlay(entry);
   /** The score on the board: the last play's until this one has been seen. */
   const board = told ? entry : (s.plays[s.current - 1] ?? { homeScore: 0, awayScore: 0 });
   const record = s.sim.field();
