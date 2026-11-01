@@ -21,6 +21,12 @@ describe('gearOf', () => {
     expect(share('QB', (g) => !!g.sleeve)).toBeCloseTo(GEAR_RATES.QB.sleeve!, 1);
     expect(share('OL', (g) => !!g.elbowPads)).toBeCloseTo(GEAR_RATES.OL.elbowPads!, 1);
     expect(share('OL', (g) => !!g.shoulderBrace)).toBeCloseTo(GEAR_RATES.OL.brace!, 1);
+    // a brace is rare everywhere
+    for (const position of POSITIONS)
+      expect(
+        share(position, (g) => !!g.shoulderBrace),
+        position,
+      ).toBeLessThan(0.08);
     // most skill players wear something, most quarterbacks and kickers nothing
     expect(share('WR', (g) => pieces(g) > 0)).toBeGreaterThan(0.6);
     expect(share('QB', (g) => pieces(g) > 0)).toBeLessThan(0.6);
@@ -46,6 +52,20 @@ describe('gearOf', () => {
         expect(pieces(gearOf(p))).toBeLessThanOrEqual(GEAR_MAX);
         expect(pieces(gearOf(p, true))).toBeLessThanOrEqual(GEAR_MAX + 1);
       }
+  });
+  it('rarely layers bands over a sleeve, but often over an undershirt sleeve', () => {
+    for (const position of ['WR', 'CB', 'RB'] as const) {
+      const gear = players(position).map((p) => gearOf(p));
+      const rate = (has: (g: Gear) => boolean) => gear.filter((g) => has(g) && g.band).length / gear.filter(has).length;
+      expect(
+        rate((g) => !!g.sleeve),
+        position,
+      ).toBeLessThan(0.1);
+      expect(
+        rate((g) => !!g.undershirt),
+        position,
+      ).toBeGreaterThan(0.25);
+    }
   });
   it('puts bands on both biceps, a single band on the forearm', () => {
     const bands = players('WR')

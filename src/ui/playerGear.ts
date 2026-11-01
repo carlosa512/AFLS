@@ -61,7 +61,7 @@ export const GEAR_RATES: Record<Position, Rates> = {
     biceps: 0.3,
     forearm: 0.15,
     elbowPads: 0.1,
-    brace: 0.04,
+    brace: 0.02,
     cold: 0.85,
   },
   WR: {
@@ -74,11 +74,11 @@ export const GEAR_RATES: Record<Position, Rates> = {
     forearm: 0.15,
     cold: 0.85,
   },
-  TE: { sleeve: 0.25, bothArms: 0.5, undershirt: 0.25, biceps: 0.1, elbowPads: 0.35, brace: 0.08, cold: 0.85 },
-  OL: { sleeve: 0.1, bothArms: 0.5, undershirt: 0.08, elbowPads: 0.4, brace: 0.12 },
-  DT: { sleeve: 0.15, bothArms: 0.5, undershirt: 0.15, elbowPads: 0.3, brace: 0.08, cold: 0.5 },
-  EDGE: { sleeve: 0.25, bothArms: 0.6, undershirt: 0.2, elbowPads: 0.4, brace: 0.1, cold: 0.85 },
-  LB: { sleeve: 0.25, bothArms: 0.6, undershirt: 0.3, biceps: 0.15, elbowPads: 0.3, brace: 0.08, cold: 0.85 },
+  TE: { sleeve: 0.25, bothArms: 0.5, undershirt: 0.25, biceps: 0.1, elbowPads: 0.35, brace: 0.04, cold: 0.85 },
+  OL: { sleeve: 0.1, bothArms: 0.5, undershirt: 0.08, elbowPads: 0.4, brace: 0.06 },
+  DT: { sleeve: 0.15, bothArms: 0.5, undershirt: 0.15, elbowPads: 0.3, brace: 0.04, cold: 0.5 },
+  EDGE: { sleeve: 0.25, bothArms: 0.6, undershirt: 0.2, elbowPads: 0.4, brace: 0.05, cold: 0.85 },
+  LB: { sleeve: 0.25, bothArms: 0.6, undershirt: 0.3, biceps: 0.15, elbowPads: 0.3, brace: 0.04, cold: 0.85 },
   CB: {
     sleeve: 0.55,
     bothArms: 0.7,
@@ -102,6 +102,8 @@ export const GEAR_RATES: Record<Position, Rates> = {
   K: { sleeve: 0.1, bothArms: 0.3, undershirt: 0.2, cold: 0.85 },
   P: { sleeve: 0.1, bothArms: 0.3, undershirt: 0.2, cold: 0.85 },
 };
+/** Bands over a sleeve are rare (layered): their usual chance times this. Over an undershirt sleeve, they're usual. */
+export const BANDS_OVER_SLEEVE = 0.15;
 /** Pieces a player wears at most in normal weather; a cold game's sleeves can make it three. */
 export const GEAR_MAX = 2;
 /** Open air at this or colder at kickoff, or snow, or heavy rain: most players pull sleeves on (tune). */
@@ -141,7 +143,7 @@ const oneSide = (id: number, salt: string): 'left' | 'right' => (roll(id, salt) 
 
 /**
  * What `player` wears on his arms: a brace first (rare, and needed), then elbow pads, a sleeve or an undershirt
- * sleeve, then bands, two pieces at most. Each piece has its own draw, so a cold game's sleeves change nothing else.
+ * sleeve, then bands (rarely over a sleeve), two pieces at most. Each piece has its own draw, so a cold game's sleeves change nothing else.
  */
 export function gearOf(player: Pick<Player, 'id' | 'position'>, cold = false): Gear {
   const { id, position } = player;
@@ -173,10 +175,11 @@ export function gearOf(player: Pick<Player, 'id' | 'position'>, cold = false): G
     pieces++;
   }
   if (room()) {
-    if (r.biceps && roll(id, 'biceps') < r.biceps) {
+    const layered = gear.sleeve ? BANDS_OVER_SLEEVE : 1;
+    if (r.biceps && roll(id, 'biceps') < r.biceps * layered) {
       const side = roll(id, 'bicepsBoth') < 0.85 ? 'both' : oneSide(id, 'bandSide');
       gear.band = { at: 'biceps', color: weighted(id, 'bandColor', BAND_COLORS), side };
-    } else if (r.forearm && roll(id, 'forearm') < r.forearm) {
+    } else if (r.forearm && roll(id, 'forearm') < r.forearm * layered) {
       gear.band = { at: 'forearm', color: weighted(id, 'bandColor', BAND_COLORS), side: oneSide(id, 'bandSide') };
     }
   }
