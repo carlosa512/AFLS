@@ -340,8 +340,20 @@ export function Field({
 }
 
 // ───────── viewer screen ─────────
-/** Plays from scrimmage, whose result waits until it's been seen; a kick, a flag or a timeout is told at once. */
-const IN_PLAY: ReadonlySet<string> = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble']);
+/** Plays whose result waits until it's been seen (from scrimmage, and at the posts); a kickoff, a punt, a flag or a
+ * timeout is told at once. */
+const IN_PLAY: ReadonlySet<string> = new Set([
+  'run',
+  'pass',
+  'incomplete',
+  'int',
+  'sack',
+  'scramble',
+  // A kick at the posts, and a two-point try: good or not waits until you've seen it.
+  'fg',
+  'xp',
+  'two',
+]);
 export const inPlay = (e: PlayLogEntry | undefined): boolean => {
   // A snap a flag wiped out ran like any other: its result waits too.
   const kind = e ? asRan(e).kind : undefined;
@@ -675,6 +687,7 @@ export function GameViewer({
             animKey={`${index}:${run}`}
             speed={shownSpeed}
             still={still}
+            final={index === plays.length - 1}
             onDone={onDone}
             fallback={broadcast}
           />

@@ -5154,6 +5154,10 @@ button.tip-pill {
   transition: opacity 0.3s ease;
   border-left: 6px solid #ffd400;
 }
+.td-call-final {
+  border-left-color: var(--accent, #2e7d32);
+  font-size: var(--step-0);
+}
 .td-call-injury {
   border-left-color: #d32f2f;
 }

@@ -158,6 +158,7 @@ export function LiveGame({ league }: { league: League }) {
             animKey={`live:${s.gameId}:${s.current}`}
             speed={speed}
             still={s.still}
+            final={s.sim.over && s.current === s.plays.length - 1}
             onDone={onDone}
             fallback={broadcast}
           />

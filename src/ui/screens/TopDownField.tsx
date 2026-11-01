@@ -4,12 +4,13 @@
  * Spec: docs/superpowers/specs/2026-10-31-all-22-view-design.md §4.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { FieldRecord, Game, League, PlayLogEntry, Team } from '../../engine/types';
+import type { FieldRecord, FieldUnits, Game, League, PlayLogEntry, Team } from '../../engine/types';
 import { kitFor } from '../color';
 import { PlayerLink } from '../components';
 import { FIELD_W, MID, offenseSide, snapYFor } from '../stage/ballPath';
 import { cameraCenter, cameraSpan, easeCamera, layoutFor, type Layout } from '../stage/camera';
 import { exitFor, flagCall, hurtOnField, injuryBanner, injuryCall, type Exit } from '../stage/calls';
+import { finaleBanner, finaleKind, finaleScene, type FinaleScene } from '../stage/finale';
 import { injuryScene } from '../stage/injury';
 import { conference, CREW, crewSpots, crewTrack, flagThrow, flagAt as flagIn, UMPIRE } from '../stage/officials';
 import { asRan, stagePlay, type StagedPlay } from '../stage/stage';
@@ -84,6 +85,20 @@ export function handoverFor(plays: readonly PlayLogEntry[], index: number, homeI
   if (prev.kind === 'fg') return 'Missed field goal';
   if (prev.down === 4) return 'Turnover on downs';
   return 'Change of possession';
+}
+
+/** Every man a side put on the field in the game (its units and every change to them). */
+function squad(record: FieldRecord, side: 0 | 1): number[] {
+  const ids = new Set<number>();
+  const add = (u: FieldUnits) => {
+    for (const id of [u.qb, u.rb, u.rb2, u.k, u.p, u.kr, u.pr]) if (id !== undefined) ids.add(id);
+    for (const list of [u.ol, u.wr, u.te, u.dt, u.edge, u.lb, u.cb, u.s, u.st, u.fg])
+      for (const id of list) ids.add(id);
+    for (const [id] of u.rot) ids.add(id);
+  };
+  add(record.units[side]);
+  for (const [, s, u] of record.changes) if (s === side) add(u);
+  return [...ids];
 }
 
 /** A trainer: white, with the medical staff's red cross. */
@@ -187,6 +202,7 @@ export function TopDownField({
   animKey,
   speed,
   still = false,
+  final = false,
   fallback,
   onDone,
 }: {
@@ -201,6 +217,8 @@ export function TopDownField({
   animKey: string;
   speed: number;
   still?: boolean;
+  /** The game's last play: the final whistle follows it (the celebration, the handshakes, the walk off). */
+  final?: boolean;
   /** Shown if a play can't be staged: the broadcast field. */
   fallback?: ReactNode;
   onDone: () => void;
@@ -216,6 +234,9 @@ export function TopDownField({
   const callRef = useRef<HTMLDivElement>(null);
   const trainerRefs = useRef<(SVGGElement | null)[]>([]);
   const cartRef = useRef<SVGGElement>(null);
+  const extraRefs = useRef(new Map<number, SVGGElement>());
+  const confettiRefs = useRef<(SVGRectElement | null)[]>([]);
+  const finaleRef = useRef<HTMLDivElement>(null);
   const hurtRingRef = useRef<SVGCircleElement>(null);
   const flagRef = useRef<SVGGElement>(null);
   const ballRef = useRef<SVGEllipseElement>(null);
@@ -337,6 +358,26 @@ export function TopDownField({
     // Staged once per play shown, like the play itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staged]);
+  // The final whistle: who won, how, and the winners' men off the field who run on to celebrate.
+  const ending = final && entry && record && staged ? finaleKind(plays, index) : null;
+  const winnersHome = !ending || ending === 'tie' ? null : entry.homeScore > entry.awayScore;
+  const winners = winnersHome === null ? null : winnersHome ? home : away;
+  const sideline =
+    winnersHome === null || !record || !staged
+      ? []
+      : squad(record, winnersHome ? 0 : 1)
+          .filter((id) => !staged.ids.includes(id))
+          .slice(0, 20);
+  const finaleText = ending
+    ? finaleBanner({
+        kind: ending,
+        winner: winners?.abbrev,
+        score: `${away.abbrev} ${entry.awayScore} – ${home.abbrev} ${entry.homeScore}`,
+        how: entry.kind === 'fg' ? 'field goal' : /TOUCHDOWN/.test(entry.text) ? 'touchdown' : undefined,
+        playoff: !!game.playoffRound,
+        title: game.playoffRound === 'FINAL',
+      })
+    : null;
 
   useEffect(() => {
     if (!staged || !svg.current) return;
@@ -377,11 +418,13 @@ export function TopDownField({
       fieldRef.current?.setAttribute('transform', fieldTransform(view));
       svg.current?.setAttribute('viewBox', viewBox(view));
     };
-    const drawDot = (id: number, x: number, y: number, opacity = 1) => {
-      const el = dotRefs.current.get(id);
+    const drawDot = (id: number, x: number, y: number, opacity = 1, scale = 1, el = dotRefs.current.get(id)) => {
       if (!el) return;
       const [sx, sy] = toScreen(view, x, y);
-      el.setAttribute('transform', `translate(${sx.toFixed(2)} ${sy.toFixed(2)})`);
+      el.setAttribute(
+        'transform',
+        `translate(${sx.toFixed(2)} ${sy.toFixed(2)})${scale !== 1 ? ` scale(${scale.toFixed(2)})` : ''}`,
+      );
       el.setAttribute('opacity', opacity.toFixed(2));
     };
     const drawBall = (x: number, y: number, h: number) => {
@@ -525,6 +568,55 @@ export function TopDownField({
       for (const id of dotRefs.current.keys()) if (!s.ids.includes(id)) drawDot(id, 0, -20, 0);
     };
 
+    /** The final whistle, `t` seconds after it: the celebration (or the handshakes), the walk off, the confetti. */
+    let scene: FinaleScene | null = null;
+    const finaleFrame = (t: number, seconds: number): boolean => {
+      if (!ending) return true;
+      if (!scene) {
+        const kicker = s.ids.find((_, k) => s.offense[k] && s.roles[k] === 'K');
+        scene = finaleScene({
+          kind: ending,
+          spots: new Map(mem.spots),
+          winnersHome,
+          at: { x: s.ball[last * 3], y: s.ball[last * 3 + 1] },
+          hero: ending === 'walkoff' ? (s.carrier ?? kicker) : undefined,
+          sideline,
+          playoff: !!game.playoffRound,
+          title: game.playoffRound === 'FINAL',
+          colors: winners ? [winners.colors[0], winners.colors[1]] : [],
+          seed: `${league.seed}:${game.id}:final`,
+        });
+      }
+      finaleRef.current?.style.setProperty('opacity', t > 0.6 ? '1' : '0');
+      callRef.current?.style.setProperty('opacity', '0');
+      let sx = 0;
+      let n2 = 0;
+      for (const id of mem.spots.keys()) {
+        const f = scene.at(id, t);
+        if (!f) continue;
+        drawDot(id, f.x, f.y, f.opacity, f.scale);
+        if (f.opacity > 0.5 && winnersHome !== null && mem.spots.get(id)!.home === winnersHome) {
+          sx += f.x;
+          n2++;
+        }
+      }
+      for (const id of sideline) {
+        const f = scene.at(id, t);
+        if (f) drawDot(id, f.x, f.y, f.opacity, f.scale, extraRefs.current.get(id));
+      }
+      scene.confetti(t).forEach((c, i) => {
+        const el = confettiRefs.current[i];
+        if (!el) return;
+        const [cx, cy] = toScreen(view, c.x, c.y);
+        el.setAttribute('x', (cx - 0.25).toFixed(2));
+        el.setAttribute('y', (cy - c.h * 0.3 - 0.15).toFixed(2));
+        el.setAttribute('fill', c.color);
+        el.setAttribute('opacity', '1');
+      });
+      if (n2) camera(sx / n2, seconds);
+      return t >= scene.duration;
+    };
+
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     // A man hurt on the last play: the stoppage on the field, from where that play left everyone.
     if (hurtId !== undefined && exit && following && !still && !reduced && mem.spots.has(hurtId)) {
@@ -584,6 +676,21 @@ export function TopDownField({
       clearBench();
       place(last, Infinity);
       if (plan.thrown) drawFlag({ ...plan.thrown.to, h: 0 });
+      if (ending && !reduced) {
+        // A skipped batch that lands on the last play still gets its final whistle.
+        let raf = 0;
+        let t0 = 0;
+        let prev = 0;
+        const tick = (now: number) => {
+          if (!t0) t0 = prev = now;
+          const frame = ((now - prev) / 1000) * speed;
+          prev = now;
+          if (finaleFrame(((now - t0) / 1000) * speed, frame)) return doneRef.current();
+          raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+      }
       const t = setTimeout(() => doneRef.current(), 450 / speed);
       return () => clearTimeout(t);
     }
@@ -623,6 +730,16 @@ export function TopDownField({
         drawCrew(now);
         mem.crew = now;
         camera(plan.thrown.to.x, frame);
+      } else if (ending) {
+        if (!stopped) {
+          clearBench();
+          place(last, frame);
+          stopped = true;
+        }
+        if (finaleFrame(t - pre - playTime - (plan.thrown ? BREAK : 0), frame)) {
+          doneRef.current();
+          return;
+        }
       } else {
         if (!stopped) {
           clearBench();
@@ -748,6 +865,26 @@ export function TopDownField({
             </g>
           );
         })}
+        {/* The winners' men off the field, who run on at the final whistle. */}
+        {sideline.map((id) => {
+          const k2 = winnersHome ? homeKit : awayKit;
+          return (
+            <g
+              key={`side:${id}`}
+              className="dot"
+              ref={(el) => {
+                if (el) extraRefs.current.set(id, el);
+                else extraRefs.current.delete(id);
+              }}
+              opacity={0}
+            >
+              <circle r={dot} fill={k2.jersey} stroke={k2.trim} strokeWidth={0.18} />
+              <text y={dot * 0.37} textAnchor="middle" fontSize={dot * 1.05} fontWeight={700} fill={k2.ink}>
+                {record.jerseys[id] ?? ''}
+              </text>
+            </g>
+          );
+        })}
         {/* The crew, drawn under the ball; the flag on top of everything once it's thrown. */}
         {CREW.map((role, i) => (
           <g
@@ -781,6 +918,21 @@ export function TopDownField({
         )}
         <ellipse ref={shadowRef} rx={0.55} ry={0.32} fill="rgba(0,0,0,0.45)" />
         <ellipse ref={ballRef} rx={0.55} ry={0.34} fill="#7a3f1d" stroke="#fff" strokeWidth={0.1} />
+        {ending && game.playoffRound === 'FINAL' && winnersHome !== null && (
+          <g>
+            {Array.from({ length: 140 }, (_, i) => (
+              <rect
+                key={i}
+                ref={(el) => {
+                  confettiRefs.current[i] = el;
+                }}
+                width={0.5}
+                height={0.3}
+                opacity={0}
+              />
+            ))}
+          </g>
+        )}
         {flagged && (
           <g ref={flagRef} opacity={0}>
             <rect
@@ -796,6 +948,17 @@ export function TopDownField({
           </g>
         )}
       </svg>
+      {finaleText && (
+        <div
+          ref={finaleRef}
+          key={`final:${index}`}
+          className="td-call td-call-final"
+          style={{ opacity: 0 }}
+          aria-live="polite"
+        >
+          {finaleText}
+        </div>
+      )}
       {callText && (
         <div
           // A new element for each play: the last play's call never carries over, shown, onto this one.
