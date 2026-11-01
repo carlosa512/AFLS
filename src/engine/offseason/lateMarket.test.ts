@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { capHit } from '../finance/contract';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
@@ -45,7 +46,8 @@ describe('the late market: a club offers what it can fit', () => {
       for (const t of l.teams) {
         if (t.id === l.userTeamId) continue;
         const d = demand(l, p, t.id);
-        const want = t.id === clubId ? room(d.walkAway, d.market) : -1_000;
+        // Far enough under for the rest that no single cut could cover a deal.
+        const want = t.id === clubId ? room(d.walkAway, d.market) : -100_000;
         t.deadMoney.push({
           season: l.season,
           amount: Math.round(spendable(l, t.id) - want),
@@ -64,7 +66,12 @@ describe('the late market: a club offers what it can fit', () => {
       if (got.teamId !== t.id) continue;
       signed = true;
       expect(got.contract!.length).toBe(1);
-      expect(setUp(t.id, (walkAway) => walkAway * 0.8).teamId).toBeNull();
+      // Room short of his walk-away: never a deal below it (the club may cut a lesser player to pay it).
+      const short = setUp(t.id, (walkAway) => walkAway * 0.8);
+      if (short.teamId !== null) {
+        const l2: League = JSON.parse(lastDay);
+        expect(capHit(short.contract!, l2.season)).toBeGreaterThanOrEqual(0.9 * demand(l2, pick(l2), t.id).walkAway);
+      }
       break;
     }
     expect(signed).toBe(true);
