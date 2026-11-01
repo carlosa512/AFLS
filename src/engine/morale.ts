@@ -516,8 +516,10 @@ export function seedMorale(league: League): void {
   const spots = new Map(league.teams.map((t) => [t.id, league.phase === 'regular' && playoffRace(league, t.id).spot]));
   rememberClinches(league, new Set(), spots);
   const spot = () => false;
+  const seeded: Player[] = [];
   for (const p of Object.values(league.players))
     if (p.teamId !== null && !p.retired && !p.morale) {
+      seeded.push(p);
       p.morale = { level: round(moraleTarget(moraleFactors(league, p, ctx))) };
       // What already happened this league year (a captaincy, a benching, a friend cut) is history to a save from
       // before morale: mark it felt, so the first step doesn't announce it as news.
@@ -525,6 +527,18 @@ export function seedMorale(league: League): void {
       if (!p.morale.seen?.length) delete p.morale.seen;
       if (p.contract) p.morale.apy = p.contract.apy;
     }
+  // The voices around a man pull on his target (L1), and theirs were unknown until now: settle the new moods together
+  // until they stop moving, so each starts where he stands.
+  for (let pass = 0; pass < 6 && seeded.length; pass++) {
+    const settled = moraleContext(league);
+    let moved = false;
+    for (const p of seeded) {
+      const level = round(moraleTarget(moraleFactors(league, p, settled)));
+      if (level !== p.morale!.level) moved = true;
+      p.morale!.level = level;
+    }
+    if (!moved) break;
+  }
   league.moraleAt = clock;
 }
 

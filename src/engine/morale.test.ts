@@ -408,7 +408,16 @@ describe('morale: what a save keeps', () => {
     simToEndOfSeason(l);
     const clinched = Object.values(l.players).filter((p) => p.morale?.jolts?.some((j) => j.kind === 'playoffs'));
     expect(clinched.length).toBeGreaterThan(0);
-    for (const p of clinched) expect(p.morale!.jolts!.filter((j) => j.kind === 'playoffs')).toHaveLength(1);
+    // Once per club: a man cut by one club that clinched and signed by another feels both, so he's left out here.
+    const moved = (p: Player) =>
+      l.transactions.some(
+        (t) =>
+          t.season === l.season &&
+          ['sign', 'release', 'claim', 'trade', 'waiver'].includes(t.kind) &&
+          t.text.includes(`${p.firstName} ${p.lastName}`),
+      );
+    for (const p of clinched.filter((x) => !moved(x)))
+      expect(p.morale!.jolts!.filter((j) => j.kind === 'playoffs')).toHaveLength(1);
     expect(Object.values(l.players).some((p) => p.morale?.seen?.includes('playoffs'))).toBe(false);
   }, 60_000);
 });
