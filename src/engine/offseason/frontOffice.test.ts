@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { capHit } from '../finance/contract';
-import { capSpace, releasePlayer } from '../finance/cap';
+import { capFor, capSheet, capSpace, releasePlayer } from '../finance/cap';
 import { leagueMarket, marketApy, minSalary, payTier, positionRank } from '../finance/market';
 import { ageShift } from '../aging';
 import { createLeague } from '../generate';
@@ -8,7 +8,16 @@ import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import type { League, Player } from '../types';
-import { aiFreeAgencyDay, aiResignWindow, expiringPlayers, nextYearCeiling, resignCall, spendable } from './ai';
+import {
+  aiFreeAgencyDay,
+  aiResignWindow,
+  expiringPlayers,
+  nextYearCeiling,
+  nextYearNeeds,
+  resignCall,
+  spendable,
+  winNow,
+} from './ai';
 import { NEXT_YEAR_CEILING } from '../generate';
 import { advanceOffseason, beginOffseason } from './index';
 import { demand, OFFSEASON_ROSTER_MAX } from './negotiation';
@@ -66,7 +75,7 @@ describe('the market clears by camp', () => {
       const signed = last.l.players[last.p.id];
       expect(signed.contract!.length).toBe(1);
       expect(capHit(signed.contract!, last.l.season)).toBeLessThanOrEqual(1.5 * last.min + 1);
-      // Before camp he takes less than his walk-away from nobody (a club may still cut to pay it).
+      // Before camp he takes less than his walk-away from nobody.
       const early = lateVeteran(t.id, 1.5);
       const walkAway = demand(early.l, early.p, t.id).walkAway;
       expect(1.5 * early.min).toBeLessThan(walkAway);
@@ -99,11 +108,59 @@ describe('free agency signs with the room a club has', () => {
     // of a median cap by year four (the cut veteran's bonus money lands at once); the club passes instead.
     const l0: League = JSON.parse(afterFreeAgency);
     for (const t of l0.teams.filter((x) => x.id !== l0.userTeamId).slice(0, 8)) {
-      const { l, p } = lateVeteran(t.id, 0.5);
+      const { l } = lateVeteran(t.id, 0.5);
       const before = new Set(cutBy(l, t.id).map((x) => x.id));
       aiFreeAgencyDay(l, new Rng('cut'), { rosterMax: OFFSEASON_ROSTER_MAX });
       expect(cutBy(l, t.id).filter((x) => !before.has(x.id))).toEqual([]);
-      expect(l.players[p.id].teamId).not.toBe(t.id);
+    }
+  }, 300_000);
+});
+
+describe('a GM restructures to sign a free agent he can’t fit', () => {
+  const restructuresBy = (l: League, teamId: number) =>
+    l.transactions.filter((m) => m.kind === 'restructure' && m.teamIds.includes(teamId) && m.season === l.season)
+      .length;
+  /** `lateVeteran` with next year's books set relative to the club's ceiling, its needs counted. */
+  const withNextYear = (clubId: number, room: (ceiling: number, used: number, needs: number) => number) => {
+    const x = lateVeteran(clubId, 0.5);
+    const team = x.l.teams[clubId];
+    const cap = capFor(x.l, x.l.season + 1);
+    const ceiling = nextYearCeiling(team.gm, winNow(x.l, team)) * cap;
+    const used = capSheet(x.l, clubId, x.l.season + 1).used;
+    team.deadMoney.push({
+      season: x.l.season + 1,
+      amount: Math.round(ceiling - used - nextYearNeeds(x.l, team) - room(ceiling, used, cap)),
+      playerId: -1,
+      note: 'test',
+    });
+    return x;
+  };
+
+  it('restructures a planned starter to sign a free agent it can’t fit', () => {
+    // The NFL's March restructures are mostly room for free agency; with next year's room after its needs, a club that
+    // wants him at his market price makes it rather than offer what little it has.
+    const l0: League = JSON.parse(afterFreeAgency);
+    let found = false;
+    for (const t of l0.teams.filter((x) => x.id !== l0.userTeamId)) {
+      const { l, p } = withNextYear(t.id, (_c, _u, cap) => 0.2 * cap);
+      const before = restructuresBy(l, t.id);
+      aiFreeAgencyDay(l, new Rng('room'), { rosterMax: OFFSEASON_ROSTER_MAX });
+      if (l.players[p.id].teamId !== t.id) continue;
+      found = true;
+      expect(l.players[p.id].contract!.length).toBeGreaterThan(1);
+      expect(restructuresBy(l, t.id)).toBeGreaterThan(before);
+      break;
+    }
+    expect(found).toBe(true);
+  }, 300_000);
+
+  it('makes no room for a free agent when next year’s needs fill next year', () => {
+    for (const t of JSON.parse(afterFreeAgency).teams.slice(0, 8) as League['teams']) {
+      if (t.id === JSON.parse(afterFreeAgency).userTeamId) continue;
+      const { l } = withNextYear(t.id, () => 0);
+      const before = restructuresBy(l, t.id);
+      aiFreeAgencyDay(l, new Rng('room'), { rosterMax: OFFSEASON_ROSTER_MAX });
+      expect(restructuresBy(l, t.id)).toBe(before);
     }
   }, 300_000);
 });

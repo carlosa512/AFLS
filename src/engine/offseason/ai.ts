@@ -387,10 +387,11 @@ function makeRoom(league: League, team: Team, need: number, keeper: Player): num
 
 /**
  * What next year will need before anything is borrowed against it: the players whose deals end after this league year
- * that the club plans to keep (`inPlans`), at their market price; next year's draft class (the picks it owns for next
- * season, a pick's slot read from its round until the order is set); and the cushion it holds for in-season injuries at
- * next year's cap. A GM who borrowed without these was short again the next spring and borrowed more: room made for
- * keepers ran 86, 98, 137 and 167 restructures in seasons 1-4.
+ * that the club plans to keep (`inPlans`), at their market price; and next year's draft class (the picks it owns for
+ * next season, a pick's slot read from its round until the order is set). The cushion for in-season injuries is the
+ * ceiling's own room under the cap (`NEXT_YEAR_CEILING`), so it isn't counted again. A GM who borrowed without these was
+ * short again the next spring and borrowed more: room made for keepers ran 86, 98, 137 and 167 restructures in seasons
+ * 1-4.
  */
 export function nextYearNeeds(league: League, team: Team): number {
   const season = league.season + 1;
@@ -402,7 +403,7 @@ export function nextYearNeeds(league: League, team: Team): number {
   const draft = league.draftPicks
     .filter((d) => d.season === season && d.ownerId === team.id && d.playerId === undefined)
     .reduce((sum, d) => sum + capHit(rookieContract(d.overall ?? (d.round - 1) * 32 + 16, season, cap), season), 0);
-  return keepers + draft + cap * IN_SEASON_RESERVE * (1.5 - team.gm.capAggression);
+  return keepers + draft;
 }
 
 /**
@@ -443,6 +444,32 @@ function restructureRoom(league: League, team: Team, need: number, keeper?: Play
     gained += saved;
   }
   return gained;
+}
+
+/**
+ * The most room `restructureRoom` could make this league year: what its planned starters' deals would save if converted,
+ * held to what next year can carry after its needs (each dollar a deal moves onto next year saves `years - 1` now).
+ * Read before a club bids on a free agent it can't fit, so it makes the room only once he has chosen it.
+ */
+function restructurable(league: League, team: Team): number {
+  const deals = teamPlayers(league, team.id)
+    .filter((p) => p.contract && !isExpired(p.contract, league.season) && canRestructure(league, p))
+    .filter((p) => inPlans(league, team, p))
+    .map((p) => restructureOptions(league, p))
+    .filter((o) => o.savings > 1_000);
+  if (!deals.length) return 0;
+  const nextRoom =
+    nextYearCeiling(team.gm, winNow(league, team)) * capFor(league, league.season + 1) -
+    capSheet(league, team.id, league.season + 1).used -
+    nextYearNeeds(league, team);
+  const longest = Math.max(...deals.map((o) => o.years));
+  return Math.max(
+    0,
+    Math.min(
+      deals.reduce((a, o) => a + o.savings, 0),
+      nextRoom * (longest - 1),
+    ),
+  );
 }
 
 /** The AI's re-sign window: options, extensions for keepers (room made for them), a tag for a star who won't sign. */
@@ -613,11 +640,17 @@ export function aiFreeAgencyDay(
     .sort((a, b) => b.value - a.value);
   // Each front office bids on what its own scouts see; the player's price is still his real market.
   const read = viewCache(league);
+  // What each club could restructure for a free agent, read once a pass (and again after it restructures).
+  const canMake = new Map<number, number>();
+  const makeable = (team: Team) => {
+    if (!canMake.has(team.id)) canMake.set(team.id, restructurable(league, team));
+    return canMake.get(team.id)!;
+  };
   let signings = 0;
   for (const { p } of pool) {
     // Injury reports are public: nobody pays market price for a player who'll miss the start of the season.
     if (p.injury && p.injury.estimate[0] >= 4) continue;
-    let best: { team: Team; offer: Offer; value: number } | null = null;
+    let best: { team: Team; offer: Offer; value: number; gain: number; borrow: number } | null = null;
     const minimum = minSalary(p.experience, league.caps[league.season]);
     // What he signs for: his walk-away, or on the last call anything from his minimum up.
     const floorAt = (teamId: number) => (opts.lastCall ? minimum : demand(league, p, teamId).walkAway);
@@ -633,7 +666,12 @@ export function aiFreeAgencyDay(
       const yearOne =
         offer.apy * (1 - offer.bonusPct) +
         (offer.apy * offer.years * offer.bonusPct) / Math.min(5, offer.years + offer.voidYears);
-      if (yearOne > budget.get(team.id)!) {
+      let borrow = 0;
+      if (yearOne > budget.get(team.id)! && yearOne - budget.get(team.id)! <= makeable(team)) {
+        // Can't fit his market price, but restructuring players it plans to keep could, within next year's room after
+        // its needs: the NFL's March restructures are mostly room for free agency. The room is made once he chooses it.
+        borrow = yearOne - budget.get(team.id)!;
+      } else if (yearOne > budget.get(team.id)!) {
         // Can't fit his market price: offer what it can fit, and he takes it only if it beats his walk-away (below).
         // No cut to make room: releasing a pricier veteran for him put his bonus money on the cap at once, and by year
         // four the league's dead money passed 6% of a median cap; the late passes and the last call place him instead.
@@ -653,9 +691,28 @@ export function aiFreeAgencyDay(
       )
         continue;
       const value = offerValue(league, p, team.id, offer);
-      if (!best || value > best.value) best = { team, offer, value };
+      if (!best || value > best.value) best = { team, offer, value, gain, borrow };
     }
     if (!best || best.value < floorAt(best.team.id)) continue;
+    if (best.borrow > 0) {
+      // He chose it: make the room. Short of it, the deal the club can fit, if he'd still take it.
+      budget.set(best.team.id, budget.get(best.team.id)! + restructureRoom(league, best.team, best.borrow));
+      canMake.delete(best.team.id);
+      const yearOne =
+        best.offer.apy * (1 - best.offer.bonusPct) +
+        (best.offer.apy * best.offer.years * best.offer.bonusPct) /
+          Math.min(5, best.offer.years + best.offer.voidYears);
+      if (yearOne > budget.get(best.team.id)!) {
+        const fitted = fitOffer(best.offer, budget.get(best.team.id)!, minimum);
+        if (
+          !fitted ||
+          best.gain < upgradeBar(league, best.team, fitted.apy) ||
+          offerValue(league, p, best.team.id, fitted) < floorAt(best.team.id)
+        )
+          continue;
+        best.offer = fitted;
+      }
+    }
     const before = capSpace(league, best.team.id);
     signPlayer(league, p, best.team.id, best.offer);
     signings++;

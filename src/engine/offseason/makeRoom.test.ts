@@ -12,7 +12,6 @@ import {
   aiCapCompliance,
   aiResignWindow,
   expiringPlayers,
-  IN_SEASON_RESERVE,
   inPlans,
   nextYearCeiling,
   nextYearNeeds,
@@ -157,14 +156,13 @@ describe('GMs plan next year first', () => {
       (x) => x.contract && lastSeason(x.contract) === l.season && inPlans(l, l.teams[teamId], x),
     );
 
-  it('counts next year’s planned keepers, next year’s draft class and the cushion', () => {
+  it('counts next year’s planned keepers and next year’s draft class', () => {
     const l: League = JSON.parse(window);
     const team = l.teams.find((t) => t.id !== l.userTeamId && nextKeepers(l, t.id).length)!;
     const market = leagueMarket(l);
-    const cushion = capFor(l, l.season + 1) * IN_SEASON_RESERVE * (1.5 - team.gm.capAggression);
     const keepers = nextKeepers(l, team.id);
     const base = nextYearNeeds(l, team);
-    expect(base).toBeGreaterThanOrEqual(keepers.reduce((a, x) => a + marketApy(market, x), 0) + cushion - 1);
+    expect(base).toBeGreaterThanOrEqual(keepers.reduce((a, x) => a + marketApy(market, x), 0) - 1);
     // Another club's pick for next year, now his: next year's class costs more.
     const pick = l.draftPicks.find((d) => d.season === l.season + 1 && d.ownerId !== team.id)!;
     pick.ownerId = team.id;
@@ -175,6 +173,20 @@ describe('GMs plan next year first', () => {
     const last = k.contract!.years.find((y) => y.season === l.season)!;
     k.contract!.years.push({ ...last, season: l.season + 1 });
     expect(nextYearNeeds(l, team)).toBeCloseTo(withPick - marketApy(market, k), 0);
+  });
+
+  it('counts the injury cushion once: in the ceiling, not in the needs', () => {
+    // No keeper's deal ends next year and no pick next year: nothing is owed (the ceiling's room under the cap is the
+    // cushion for in-season injuries).
+    const l: League = JSON.parse(window);
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const other = l.teams.find((t) => t.id !== team.id)!;
+    for (const d of l.draftPicks) if (d.season === l.season + 1 && d.ownerId === team.id) d.ownerId = other.id;
+    for (const k of nextKeepers(l, team.id)) {
+      const last = k.contract!.years.find((y) => y.season === l.season)!;
+      k.contract!.years.push({ ...last, season: l.season + 1 });
+    }
+    expect(nextYearNeeds(l, team)).toBe(0);
   });
 
   /** `squeezed`, with next year's books plus next year's needs set right at the GM's ceiling. */
