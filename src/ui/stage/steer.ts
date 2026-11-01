@@ -5,7 +5,9 @@
  * same way, at any playback speed.
  */
 import type { Rng } from '../../engine/rng';
-import { FIELD_W } from './ballPath';
+import type { DefenseCall } from '../../engine/match/coach';
+import type { CoverageId } from '../../engine/schemes';
+import { FIELD_W, MID } from './ballPath';
 import type { Cast, CastMember, Role } from './cast';
 import type { Pt } from './formations';
 import { sample, type Keyframe } from './scripts';
@@ -36,6 +38,11 @@ const ROOM_PUSH = 0.12;
 const MAX_STEP = 0.55;
 /** How close a chaser may come to the man with the ball before the scripted tackler gets there. */
 const RING = 1.2;
+/** A chaser who gets there first whiffs: this long (seconds) at this share of his speed, finding his feet. */
+const WHIFF = 1;
+const STUMBLE = 0.35;
+/** A chaser this close and level with a running carrier (not ahead of him) lunges at him, and misses. */
+const LUNGE = 2;
 /** However he's pushed, no chaser is ever closer than this to the man with the ball before the tackler. */
 const FLOOR = 1.01;
 const WOBBLE = 0.2;
@@ -71,6 +78,10 @@ export interface SteerArgs {
   /** The ball holder before the release (the quarterback), whom chasers also keep off. */
   holder: number | null;
   man: boolean;
+  /** The coordinator's coverage (its zone landmarks), the defense's call on the snap, and the men a blitz sends. */
+  coverage?: CoverageId | null;
+  call?: DefenseCall;
+  blitz?: ReadonlySet<number>;
   /** A dropback: the back blocks or runs a checkdown, the line pass-protects. */
   dropback: boolean;
   /** A handoff: the line drives its men off the ball, receivers stalk-block. */
@@ -123,8 +134,9 @@ export function steer(a: SteerArgs): Float32Array {
     py[k] = lastY[k] = p.y;
   });
   const steered = members.map((m) => !a.scripted.has(m.id));
-  /** The side of the carrier a chaser was knocked to (−1, 1; 0: not near him). */
+  /** The side of the carrier a chaser was knocked to (−1, 1; 0: not near him), and until when he's stumbling. */
   const ringSide = new Int8Array(n);
+  const whiffed = new Float64Array(n);
   /** When each scripted man is let go (Infinity: never). */
   const freeAt = members.map((m) => (a.scripted.has(m.id) ? (a.free?.get(m.id) ?? Infinity) : 0));
   const index = new Map(members.map((m, k) => [m.id, k]));
@@ -335,6 +347,46 @@ export function steer(a: SteerArgs): Float32Array {
     }
     return ballAt(step + ahead);
   };
+  /** The middle linebacker: the one lined up nearest the ball (in a Tampa 2 he carries the seam). */
+  const mike = members
+    .filter((m, k) => !offense[k] && m.role === 'LB')
+    .sort((p, q) => Math.abs(a.start.get(p.id)!.y - ballY0) - Math.abs(a.start.get(q.id)!.y - ballY0))[0]?.id;
+  /**
+   * Where a man in zone drops to, by the coverage his coordinator plays: Tampa 2's corners squat in the flats under two
+   * deep halves with the middle linebacker carrying the seam; Cover 3's corners bail to the deep thirds over a single
+   * high safety, the other safety in the curl; Quarters' corners and safeties split the deep field four ways; behind
+   * man (Cover 1, a blitz), a safety deep in the middle and one robbing underneath. Deeper on a pass-defense call.
+   */
+  const zoneSpot = (m: CastMember, s0: Pt): Pt => {
+    const deeper = a.call === 'passD' ? 2 : 0;
+    const side = Math.sign(s0.y - ballY0) || 1;
+    const at = (depth: number, y: number): Pt => ({
+      x: ballX0 + a.dir * (depth + deeper),
+      y: Math.max(2, Math.min(FIELD_W - 2, y)),
+    });
+    const outside = m.role === 'CB' && m.slot <= 1;
+    const coverage = a.man ? 'man' : a.coverage;
+    switch (coverage) {
+      case 'cover2':
+        if (outside) return at(5, s0.y);
+        if (m.role === 'S') return at(18, MID + side * 11);
+        if (m.role === 'LB' && m.id === mike) return at(13, ballY0);
+        return at(8, ballY0 + side * 7);
+      case 'cover3':
+        if (outside) return at(15, s0.y < MID ? 9 : FIELD_W - 9);
+        if (m.role === 'S') return m.slot === 0 ? at(17, MID) : at(7, s0.y);
+        return at(8, ballY0 + side * 6);
+      case 'quarters':
+        if (outside) return at(13, s0.y < MID ? 7 : FIELD_W - 7);
+        if (m.role === 'S') return at(14, MID + side * 7);
+        return at(7, ballY0 + side * 7);
+      case 'man':
+        if (m.role === 'S') return m.slot === 0 ? at(16, MID) : at(9, ballY0);
+        return at(6, ballY0 + side * 4);
+      default:
+        return at(m.role === 'LB' ? 8 : m.role === 'S' ? 16 : 12, s0.y);
+    }
+  };
   /** The nearest man on the other side. */
   const nearest = (k: number): number => {
     let best = -1;
@@ -452,17 +504,17 @@ export function steer(a: SteerArgs): Float32Array {
             if (past > 1) beaten = Math.max(0.8, 0.95 - (past - 1) * 0.03);
             if ((m.role === 'DT' || m.role === 'EDGE') && past > 8) beaten = 0.7;
             if (k === pk) beaten = 1;
-          } else if (a.run && t > 0.3 && (m.role === 'LB' || m.role === 'S'))
+          } else if (a.blitz?.has(m.id))
+            // Sent: after the quarterback, or into the backfield after the ball on a run.
+            goal = hk >= 0 ? { x: px[hk], y: py[hk] } : ballAt(step);
+          else if (a.run && t > 0.3 && (m.role === 'LB' || m.role === 'S'))
             // Reading run on the mesh: step up and flow with the play before the ball is even handed off.
             goal = { x: s0.x - a.dir * (m.role === 'LB' ? 1.5 : 3), y: s0.y + side * 2.5 };
           else if (m.role === 'DT' || m.role === 'EDGE') goal = hk >= 0 ? { x: px[hk], y: py[hk] } : ballAt(step);
           else if (mark !== undefined) {
             const q = index.get(mark)!;
             goal = { x: px[q] + a.dir * 1.5, y: py[q] };
-          } else {
-            const depth = m.role === 'LB' ? 8 : m.role === 'S' ? 16 : 12;
-            goal = { x: ballX0 + a.dir * depth, y: s0.y };
-          }
+          } else goal = zoneSpot(m, s0);
         }
         if (a.kick) goal = kickGoal(k, t);
         // The tackler reads it, takes his angle and closes: aimed where the carrier is going, not where he is.
@@ -482,7 +534,7 @@ export function steer(a: SteerArgs): Float32Array {
           goal = carried && !facing ? meet(k, step, SPEED[m.role] + PURSUIT) : sample(carrierPath!, t + LEAD);
         }
         // Engaged: a blocked man only leans into his block, slowly toward the ball on a dropback, driven back on a run.
-        let top = (SPEED[m.role] + (k === pk ? PURSUIT : 0)) * beaten;
+        let top = (SPEED[m.role] + (k === pk ? PURSUIT : 0)) * beaten * (t < whiffed[k] ? STUMBLE : 1);
         /** The tackler, clear of the blocks and closing: within a few yards of the carrier. */
         const closing =
           pursuing && carrierIdx >= 0 && Math.hypot(px[carrierIdx] - px[k], py[carrierIdx] - py[k]) < CLOSING;
@@ -512,9 +564,16 @@ export function steer(a: SteerArgs): Float32Array {
           }
         }
         if (!offense[k] && k !== pk) {
-          // Held by whoever is on him (the matchups only aim the blockers): any blocker within reach.
+          // Held by whoever is on him (the matchups only aim the blockers): any blocker within reach. A blitzer comes
+          // through the gaps the line's men leave: only the back picking him up, or a man assigned to him, holds him.
+          const sent = !!a.blitz?.has(m.id);
           const holding =
-            (a.dropback || a.run) && blockerIdx.some((b) => Math.hypot(px[b] - px[k], py[b] - py[k]) < 1.6);
+            (a.dropback || a.run) &&
+            blockerIdx.some(
+              (b) =>
+                (!sent || members[b].role === 'RB' || blockOn.get(b) === k) &&
+                Math.hypot(px[b] - px[k], py[b] - py[k]) < 1.6,
+            );
           const live = a.dropback ? t < a.release + 0.3 : a.run && t < a.release + 1;
           if (holding && live) {
             top = a.dropback ? 1.2 : 1;
@@ -600,6 +659,22 @@ export function steer(a: SteerArgs): Float32Array {
             if (running) {
               vx[k] = 0;
               vy[k] = 0;
+              // He missed: a stumble, and the play goes on without him for a moment.
+              whiffed[k] = t + WHIFF;
+            }
+          } else if (
+            d < LUNGE &&
+            t >= whiffed[k] &&
+            r === ck &&
+            Math.hypot(px[r] - lastX[r], py[r] - lastY[r]) > 6 * a.dt
+          ) {
+            // Level with him and close, running with the play: he lunges and misses. No escort at the carrier's elbow.
+            const mx = px[r] - lastX[r];
+            const my = py[r] - lastY[r];
+            if (((px[r] - px[k]) * mx + (py[r] - py[k]) * my) / Math.hypot(mx, my) > -1) {
+              whiffed[k] = t + WHIFF;
+              vx[k] *= 0.4;
+              vy[k] *= 0.4;
             }
           } else if (d > RING * 2) ringSide[k] = 0;
         }

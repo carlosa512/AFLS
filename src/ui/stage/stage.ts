@@ -3,13 +3,13 @@
  * steered rest, as tracks of every dot at 20 steps a second. Pure and seeded: the same play stages the same way.
  * Spec: docs/superpowers/specs/2026-10-31-all-22-view-design.md §3.
  */
-import { actorsIn } from '../../engine/playActors';
+import { actorsIn, defenseCallAt } from '../../engine/playActors';
 import { Rng } from '../../engine/rng';
 import type { FieldRecord, PlayLogEntry } from '../../engine/types';
-import { MID, offenseSide } from './ballPath';
+import { FIELD_W, MID, offenseSide } from './ballPath';
 import type { Role } from './cast';
 import { castFor } from './cast';
-import { lineUp } from './formations';
+import { blitzersFor, lineUp } from './formations';
 import { ballTrack, script, stagedPath } from './scripts';
 import { SPEED, steer } from './steer';
 import type { Pt } from './formations';
@@ -58,6 +58,11 @@ export interface StagedPlay {
   release: number;
   /** When a pass or a kick comes down (null for anything else). */
   arrive: number | null;
+  /**
+   * A man in motion before the snap: he sets at `from` and moves to his spot over the last `dur` seconds before it
+   * (`across`: from the far side of the formation, behind the line). Presentation only: the engine has no motion.
+   */
+  motion?: { id: number; from: Pt; dur: number; across: boolean };
 }
 
 /** The play as it ran: a flagged snap's own path (`PlayLogEntry.ran`), else the entry itself. */
@@ -92,7 +97,10 @@ export function stagePlay(args: {
   const ballY = e.kind === 'kickoff' ? MID : args.snapY;
   const off = record.scheme[cast.offSide];
   const def = record.scheme[1 - cast.offSide];
-  const start = lineUp(look, cast, off, def, ballX, ballY, dir, rng);
+  // The defense's call on the snap (run or pass defense, a blitz: the engine's own), and who a blitz sends.
+  const call = defenseCallAt(record, index);
+  const blitz = blitzersFor(e, cast, call, rng);
+  const start = lineUp(look, cast, off, def, ballX, ballY, dir, rng, { call, blitz });
   const target = actorsIn(e).ball;
   const segs = stagedPath(e, homeId, args.snapY, target === undefined ? undefined : start.get(target));
   const { keys, carrier, tackler, pursuer, release, catchAt, moments, until, free } = script(e, cast, start, segs, dir);
@@ -125,7 +133,11 @@ export function stagePlay(args: {
     holder: e.kind && HOLDERS.has(e.kind) ? qb : null,
     dropback: !!e.kind && DROPBACKS.has(e.kind),
     run: e.kind === 'run',
-    man: !!(def.coverage && COVERAGES[def.coverage].man),
+    // Man coverage behind a blitz, as the engine plays it.
+    man: !!(def.coverage && COVERAGES[def.coverage].man) || call === 'blitz',
+    coverage: def.coverage,
+    call,
+    blitz,
     hold: !segs.length,
     kick: segs.length ? kick : null,
     land: flight ? { x: flight.x1, y: flight.y1 } : null,
@@ -168,6 +180,7 @@ export function stagePlay(args: {
     dir,
     kind: e.kind,
     release: Number.isFinite(release) ? release : total,
+    ...motionFor(e, cast, start, off, ballY, carrier, args.seed),
     arrive:
       catchAt ??
       ((e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int') && segs.length >= 3
@@ -190,6 +203,45 @@ export function returned(e: PlayLogEntry): PlayLogEntry {
   return { ...e, to };
 }
 
+/** How often an offense sends a man in motion: most snaps out of two tight ends, fewer spread out, few in a hurry. */
+const MOTION_RATE = { heavy: 0.45, base: 0.35, hurry: 0.1 };
+const MOTION_KINDS: ReadonlySet<string> = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble']);
+
+/**
+ * A man in motion before the snap (`StagedPlay.motion`): a receiver carrying a run is a jet sweep, coming across at
+ * speed; otherwise, now and then, a receiver or tight end shifts a few yards or comes across the formation. Seeded on
+ * its own stream: it never moves anyone else.
+ */
+function motionFor(
+  e: PlayLogEntry,
+  cast: ReturnType<typeof castFor>,
+  start: ReadonlyMap<number, Pt>,
+  off: { personnel: string },
+  ballY: number,
+  carrier: number | null,
+  seed: string,
+): { motion: NonNullable<StagedPlay['motion']> } | Record<string, never> {
+  if (!e.kind || !MOTION_KINDS.has(e.kind)) return {};
+  const rng = new Rng(`${seed}:motion`);
+  const jet = e.kind === 'run' && cast.offense.find((m) => m.id === carrier)?.role === 'WR';
+  const hurry = (e.quarter === 2 || e.quarter >= 4) && e.clock <= 120;
+  const rate = hurry ? MOTION_RATE.hurry : off.personnel.startsWith('1') ? MOTION_RATE.base : MOTION_RATE.heavy;
+  if (!jet && rng.next() >= rate) return {};
+  const movers = cast.offense.filter((m) => m.role === 'WR' || m.role === 'TE');
+  const mover = jet ? carrier! : movers[Math.floor(rng.next() * movers.length)]?.id;
+  if (mover === undefined) return {};
+  const spot = start.get(mover)!;
+  const out = Math.sign(spot.y - ballY) || 1;
+  const across = jet || rng.next() < 0.4;
+  const y = across ? ballY - (spot.y - ballY) * 0.8 : spot.y + out * (rng.next() < 0.5 ? 6 : -5);
+  const from = { x: spot.x, y: Math.max(3, Math.min(FIELD_W - 3, y)) };
+  // Not on top of a teammate's spot.
+  for (const m of cast.offense)
+    if (m.id !== mover && Math.hypot(start.get(m.id)!.x - from.x, start.get(m.id)!.y - from.y) < 1.5) return {};
+  const dur = Math.max(1, Math.min(2.2, Math.abs(from.y - spot.y) / (jet ? 8 : 6.5)));
+  return { motion: { id: mover, from, dur, across } };
+}
+
 /** A punter roughed: how far the punt would have gone, for the picture (the flag wiped it out before it was measured). */
 const ROUGHED_PUNT = 42;
 
@@ -205,6 +257,9 @@ function roughedPunt(e: PlayLogEntry, homeId: number): PlayLogEntry | undefined 
 const CLOSE = 9.5;
 /** A last run into the hit longer than this would be a slide alongside the carrier: he runs him down instead. */
 const LONG_CLOSE = 1.2;
+/** A run-down: he stays this far behind the carrier (yards) until the last `CLOSE_IN` seconds, then closes. */
+const TRAIL = 2.6;
+const CLOSE_IN = 1;
 /** The last stretch of a run-down, eased onto the spot the script has the hit at (seconds). */
 const INTO = 0.6;
 /** How quickly a man gets up to speed (yards a second, each second). */
@@ -315,18 +370,45 @@ function chaseDown(
   const plan = tries.find(({ v0, top }) => gone(v0, top, L) >= need);
   if (!plan) return false;
   const v0 = plan.v0;
-  let lo = 0;
-  let hi = plan.top;
-  for (let i = 0; i < 30; i++) {
-    const mid = (lo + hi) / 2;
-    if (gone(v0, mid, L) < need) lo = mid;
-    else hi = mid;
+  /** The pace from `a` that covers `d` in `t` seconds (no more than `top`). */
+  const paceFor = (a: number, d: number, t: number, top: number) => {
+    let lo = 0;
+    let hi = top;
+    for (let i = 0; i < 30; i++) {
+      const mid = (lo + hi) / 2;
+      const ramp = Math.min(t, Math.abs(mid - a) / ACCEL);
+      const went = a * ramp + ((mid >= a ? 1 : -1) * ACCEL * ramp * ramp) / 2 + mid * (t - ramp);
+      if (went < d) lo = mid;
+      else hi = mid;
+    }
+    return hi;
+  };
+  // Two legs: a couple of yards behind him until the last second, then the burst that closes it, so the hit is a
+  // run-down and not a man creeping up at his elbow. One leg when there's no time for two or the burst is beyond him.
+  const T1 = L - CLOSE_IN;
+  const hold = T1 > 0.5 ? run[Math.min(last, from + Math.round(T1 / STEP))] - TRAIL - start : -1;
+  let v1 = paceFor(v0, need, L, plan.top);
+  let v2 = v1;
+  let split = L;
+  if (hold > 0) {
+    const a = paceFor(v0, hold, T1, plan.top);
+    const reach = gone(v0, a, T1);
+    const b = paceFor(a, need - reach, CLOSE_IN, plan.top + 1.5);
+    const ramp = Math.min(CLOSE_IN, Math.abs(b - a) / ACCEL);
+    const went = a * ramp + ((b >= a ? 1 : -1) * ACCEL * ramp * ramp) / 2 + b * (CLOSE_IN - ramp);
+    if (Math.abs(reach - hold) < 0.3 && Math.abs(went - (need - reach)) < 0.3) [v1, v2, split] = [a, b, T1];
   }
-  const v = hi;
+  /** How far along the carrier's footsteps he's come `t` seconds in. */
+  const along = (t: number) => {
+    if (t <= split) return gone(v0, v1, t);
+    const t2 = t - split;
+    const ramp = Math.min(t2, Math.abs(v2 - v1) / ACCEL);
+    return gone(v0, v1, split) + v1 * ramp + ((v2 >= v1 ? 1 : -1) * ACCEL * ramp * ramp) / 2 + v2 * (t2 - ramp);
+  };
   for (let st = from + 1; st <= last; st++) {
     const t = (st - from) * STEP;
     const u = t / L;
-    const f = foot(start + gone(v0, v, t));
+    const f = foot(start + along(t));
     // Off his own line onto the carrier's, then into the hit where the script has it.
     const k2 = Math.min(1, t / 0.3) * (1 - u);
     // His own line fades into the carrier's early (most of it by halfway), so little is left for the hit.

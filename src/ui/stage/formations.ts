@@ -3,6 +3,7 @@
  * for the defense, in yards; `dir` is 1 when the offense attacks toward x = 100, and "across" is from the offense's
  * view, so its right hand is +dir in y (as `buildPath` reads a play's lane).
  */
+import type { DefenseCall } from '../../engine/match/coach';
 import type { Rng } from '../../engine/rng';
 import { actorsIn } from '../../engine/playActors';
 import { COVERAGES } from '../../engine/schemes';
@@ -26,6 +27,36 @@ const of = (side: CastMember[], role: Role) => side.filter((m) => m.role === rol
 /** `n` spots `gap` yards apart, centred on 0. */
 const spread = (n: number, gap: number) => Array.from({ length: n }, (_, i) => (i - (n - 1) / 2) * gap);
 
+/** The defense's call on a snap and the men it sends (`blitzersFor`): how it lines up (`scrimmage`) and plays. */
+export interface DefenseLook {
+  call: DefenseCall;
+  blitz: ReadonlySet<number>;
+}
+export const BASE_LOOK: DefenseLook = { call: 'base', blitz: new Set() };
+
+/**
+ * Who a blitz sends besides the line: the man the engine says got home (a linebacker or a defensive back), else a
+ * linebacker, and half the time a second man (a safety, the slot corner or another linebacker). None on any other call.
+ */
+export function blitzersFor(e: PlayLogEntry, cast: Cast, call: DefenseCall, rng: Rng): Set<number> {
+  const out = new Set<number>();
+  if (call !== 'blitz') return out;
+  const d = cast.defense;
+  const rush = actorsIn(e).rush;
+  const sendable = (m: CastMember) => m.role === 'LB' || m.role === 'S' || (m.role === 'CB' && m.slot > 1);
+  const by = d.find((m) => m.id === rush);
+  if (by && sendable(by)) out.add(by.id);
+  const lbs = of(d, 'LB');
+  if (!out.size && lbs.length) out.add(lbs[Math.floor((lbs.length - 1) / 2)].id);
+  if (rng.next() < 0.5) {
+    const second = [...of(d, 'S').slice(1), ...d.filter((m) => m.role === 'CB' && m.slot > 1), ...lbs].find(
+      (m) => !out.has(m.id),
+    );
+    if (second) out.add(second.id);
+  }
+  return out;
+}
+
 /** Under center on early downs at a normal distance, outside either two-minute window; the shotgun otherwise. */
 function underCenter(e: PlayLogEntry): boolean {
   // The victory formation, and the spike: the quarterback takes the snap under center.
@@ -43,6 +74,7 @@ export function lineUp(
   ballY: number,
   dir: 1 | -1,
   rng: Rng,
+  look: DefenseLook = BASE_LOOK,
 ): Map<number, Pt> {
   const spots = new Map<number, Pt>();
   const jit = () => (rng.next() * 2 - 1) * JITTER;
@@ -63,7 +95,7 @@ export function lineUp(
   else if (e.kind === 'punt') punt(e, cast, put, face, ballX);
   else if (e.kind === 'fg' || e.kind === 'xp') fieldGoal(cast, put, face);
   else {
-    scrimmage(e, cast, off, def, put, face, strong);
+    scrimmage(e, cast, off, def, put, face, strong, look);
     coverTheTarget(e, cast, spots);
     tacklerNear(e, cast, spots, ballY, dir);
   }
@@ -131,7 +163,16 @@ function tacklerNear(e: PlayLogEntry, cast: Cast, spots: Map<number, Pt>, ballY:
 
 type Put = (id: number, back: number, across: number) => void;
 
-function scrimmage(e: PlayLogEntry, cast: Cast, off: FieldScheme, def: FieldScheme, put: Put, face: Put, s: 1 | -1) {
+function scrimmage(
+  e: PlayLogEntry,
+  cast: Cast,
+  off: FieldScheme,
+  def: FieldScheme,
+  put: Put,
+  face: Put,
+  s: 1 | -1,
+  look: DefenseLook,
+) {
   const o = cast.offense;
   spread(5, 2).forEach((across, i) => {
     const m = of(o, 'OL')[i];
@@ -162,8 +203,12 @@ function scrimmage(e: PlayLogEntry, cast: Cast, off: FieldScheme, def: FieldSche
 
   const d = cast.defense;
   const cov = def.coverage ? COVERAGES[def.coverage] : null;
-  const man = !!cov?.man;
+  // The call shapes the look: man behind a blitz (as the engine plays it), a safety down in the box against the run,
+  // everyone a step or two deeper against the pass. Blitzers walk up to show it.
+  const { call, blitz } = look;
+  const man = !!cov?.man || call === 'blitz';
   const twoHigh = cov?.twoHigh ?? true;
+  const deeper = call === 'passD' ? 2 : 0;
   const dts = of(d, 'DT');
   spread(dts.length, 3).forEach((across, i) => face(dts[i].id, 1, across));
   const edgeWidth = def.front === 'wide9' ? 7.5 : 5.5;
@@ -172,17 +217,24 @@ function scrimmage(e: PlayLogEntry, cast: Cast, off: FieldScheme, def: FieldSche
   of(d, 'EDGE').forEach((m, i) => face(m.id, 1, (i % 2 === 0 ? -1 : 1) * (edgeWidth + Math.floor(i / 2) * 2)));
   const lbs = of(d, 'LB');
   const lbSpots = lbs.length === 1 ? [0] : lbs.length === 2 ? [-2.5, 2.5] : spread(lbs.length, 4);
-  lbs.forEach((m, i) => face(m.id, 4.5, lbSpots[i]));
+  lbs.forEach((m, i) =>
+    blitz.has(m.id)
+      ? face(m.id, 1.6, lbSpots[i] * 0.6 + (i % 2 ? 1 : -1))
+      : face(m.id, call === 'runD' ? 3.5 : 4.5 + deeper * 0.5, lbSpots[i]),
+  );
   // Corners over the widest receiver each side, a third over a slot.
   const widest = [Math.min(...outside, -12), Math.max(...outside, 12)];
   const slot = outside.find((a) => Math.abs(a) < 15) ?? s * 10;
   of(d, 'CB').forEach((m, i) => {
-    if (i < 2) face(m.id, man ? 1 : 6, widest[i]);
-    else face(m.id, 5, slot + (i - 2) * 2);
+    if (i < 2) face(m.id, man ? 1 : 6 + deeper, widest[i]);
+    else face(m.id, blitz.has(m.id) ? 2 : 5, slot + (i - 2) * 2);
   });
   of(d, 'S').forEach((m, i) => {
-    if (twoHigh) face(m.id, 12, (i === 0 ? -1 : 1) * 9);
-    else face(m.id, i === 0 ? 13 : 6, i === 0 ? 0 : s * 4);
+    if (blitz.has(m.id)) face(m.id, 4.5, s * 6.5);
+    // Against the run, the second safety comes down into the box: eight men in it.
+    else if (call === 'runD' && i === 1) face(m.id, 6.5, s * 3.5);
+    else if (twoHigh) face(m.id, 12 + deeper, (i === 0 ? -1 : 1) * 9);
+    else face(m.id, i === 0 ? 13 + deeper : 6, i === 0 ? 0 : s * 4);
   });
 }
 

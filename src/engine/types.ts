@@ -1600,6 +1600,11 @@ export interface FieldRecord {
   jerseys: Record<number, number>;
   /** [index of the first play these units are on the field for, side, units]: injuries rebuild a lineup. */
   changes: [number, 0 | 1, FieldUnits][];
+  /**
+   * The defense's call on each kept play, a character a play ('r' run defense, 'p' pass defense, 'b' blitz, '.' its
+   * base call; trailing base calls left off): read it with `defenseCallAt`. Games before 0.2.31 have none.
+   */
+  calls?: string;
 }
 
 /** Who a play was about, by player id: what All-22 stages. Recorded only, never drawn: the sim already chose them. */

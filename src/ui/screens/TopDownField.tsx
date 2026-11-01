@@ -420,9 +420,20 @@ export function TopDownField({
     // Only the play right after the one just shown jogs in from it. A jump (the scrubber, the log, a replay)
     // starts set: a jog from some other moment of the game means nothing.
     const following = mem.ended?.index === index - 1;
+    // A man in motion sets at his own spot first (the jog takes him there), then moves into the formation's.
+    const motion = s.motion;
+    const setAt = motion
+      ? (() => {
+          const k = s.ids.indexOf(motion.id);
+          const pos = s.pos.slice(0, n * 2);
+          pos[k * 2] = motion.from.x;
+          pos[k * 2 + 1] = motion.from.y;
+          return { ids: s.ids, home: s.home, pos };
+        })()
+      : s;
     const gap =
       mem.spots.size && following
-        ? transition(mem.spots, s, {
+        ? transition(mem.spots, setAt, {
             party: big ?? undefined,
             huddle: huddleFor(s),
             hurry: hurried(),
@@ -526,8 +537,24 @@ export function TopDownField({
       rings(-1);
       drawFlags(null);
       callRef.current?.style.setProperty('opacity', '0');
+      // The motion: over the last seconds before the snap, from where he set to his spot (across: an arc behind the line).
+      const moving = motion && g.duration > motion.dur + 0.6 ? motion : null;
+      const motionFrom = moving ? g.duration - moving.dur : Infinity;
       for (const m of g.moves) {
-        const p = g.at(m, t);
+        let p = g.at(m, t);
+        if (moving && m.id === moving.id && t > motionFrom) {
+          const k = s.ids.indexOf(m.id);
+          const p0 = g.at(m, motionFrom);
+          const u = Math.min(1, (t - motionFrom) / moving.dur);
+          const e = u * u * (3 - 2 * u);
+          const arc = moving.across ? Math.sin(Math.PI * u) * 1.8 : 0;
+          p = {
+            ...p,
+            x: p0.x + (s.pos[k * 2] - p0.x) * e - dir * arc,
+            y: p0.y + (s.pos[k * 2 + 1] - p0.y) * e,
+            opacity: 1,
+          };
+        }
         drawDot(m.id, p.x, p.y, p.opacity);
         if (!m.leave) mem.spots.set(m.id, { x: p.x, y: p.y, home: m.home });
       }
