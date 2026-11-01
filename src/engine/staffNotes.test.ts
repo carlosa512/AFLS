@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { adviceKey, updateCoachAdvice } from './coachDecisions';
-import { teamCoaches } from './coaching';
+import { releaseCoach, ROOM_LABEL, teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject } from './inbox';
-import { teamPlayers } from './roster';
+import { moraleClock } from './morale';
+import { activeRoster, teamPlayers } from './roster';
+import { UNITS, unitOf, type Unit, type UnitWord } from './standing';
+import { unitTurnFor } from './staffNotes';
+import { toldKeys } from './voice';
 import { ATTRIBUTES, type League } from './types';
 
 const BANNED = /marble|\btraits?\b|z-score/i;
@@ -111,5 +115,82 @@ describe('the staff-notes letter', () => {
     note(l.week);
     deliverMail(l);
     expect(notes(l)).toHaveLength(1);
+  });
+});
+
+describe('staff notes: the position coach on his unit', () => {
+  const men = (l: League, unit: Unit) =>
+    activeRoster(l, l.userTeamId).filter((p) => unitOf(p.position) === unit && p.morale);
+  const setUnit = (l: League, unit: Unit, level: number) =>
+    men(l, unit).forEach((p) => {
+      p.morale!.level = level;
+      delete p.morale!.jolts;
+    });
+  const splitUnit = (l: League, unit: Unit) =>
+    men(l, unit).forEach((p, i) => {
+      p.morale!.level = i % 2 ? 2 : -2;
+      delete p.morale!.jolts;
+    });
+  const told = (l: League, unit: Unit, word: UnitWord, ago: number) => {
+    l.mailTold = { ...l.mailTold, [`unit:${moraleClock(l) + ago}:${unit}:${word}`]: 1 };
+  };
+  /** Week 6, every unit Okay and told Settled five steps ago. */
+  const inSeason = () => {
+    const l = copy(template);
+    l.phase = 'regular';
+    l.week = 6;
+    for (const u of UNITS) {
+      if (u === 'ST') continue;
+      setUnit(l, u, 0);
+      told(l, u, 'Settled', -5);
+    }
+    return l;
+  };
+  const fireRoomCoach = (l: League, unit: Unit) => {
+    const c = teamCoaches(l, l.userTeamId).find((x) => x.role === 'positionCoach' && x.room === unit);
+    // Coaching moves open in the re-sign window: step into it to let him go, then back to the season.
+    if (!c) return;
+    l.phase = 'resign';
+    releaseCoach(l, l.userTeamId, c.id);
+    l.phase = 'regular';
+  };
+
+  it('the position coach writes when his unit turns Split', () => {
+    const l = inSeason();
+    splitUnit(l, 'WR');
+    const turn = unitTurnFor(l, toldKeys(l))!;
+    expect(turn.unit).toBe('WR');
+    expect(turn.word).toBe('Split');
+    expect(turn.key).toBe(`unit:${moraleClock(l)}:WR:Split`);
+  });
+
+  it('files it in the week’s notes, in his words, and remembers it', () => {
+    const l = inSeason();
+    splitUnit(l, 'WR');
+    deliverMail(l);
+    const m = notes(l).at(-1)!;
+    const row = m.sections![0].rows.find((r) => r.cells[0] === ROOM_LABEL.WR)!;
+    expect(row.note).toMatch(/\b(my|I|I'm)\b/i);
+    expect(row.note).not.toMatch(BANNED);
+    expect(m.covered).toContain(`unit:${moraleClock(l)}:WR:Split`);
+  });
+
+  it('says nothing about a unit told within three weeks', () => {
+    const l = inSeason();
+    told(l, 'WR', 'Split', -2);
+    expect(unitTurnFor(l, toldKeys(l))).toBeNull();
+  });
+
+  it('ignores Settled to Restless', () => {
+    const l = inSeason();
+    setUnit(l, 'WR', -2);
+    expect(unitTurnFor(l, toldKeys(l))?.unit).not.toBe('WR');
+  });
+
+  it('stays quiet when the room has no position coach', () => {
+    const l = inSeason();
+    splitUnit(l, 'WR');
+    fireRoomCoach(l, 'WR');
+    expect(unitTurnFor(l, toldKeys(l))?.unit).not.toBe('WR');
   });
 });
