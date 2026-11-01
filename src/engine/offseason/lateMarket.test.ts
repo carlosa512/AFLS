@@ -75,7 +75,7 @@ describe('the late market: a club offers what it can fit', () => {
       if (got.teamId !== t.id) continue;
       signed = true;
       expect(got.contract!.length).toBe(1);
-      // Room short of his walk-away: never a deal below it (the club may cut a lesser player to pay it).
+      // Room short of his walk-away: never a deal below it.
       const short = setUp(t.id, (floor) => floor * 0.8);
       if (short.teamId !== null) {
         const l2: League = JSON.parse(lastDay);

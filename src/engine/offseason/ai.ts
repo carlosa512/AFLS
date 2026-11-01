@@ -347,22 +347,6 @@ export const nextYearCeiling = (gm: Pick<GmTraits, 'capAggression'>) =>
   NEXT_YEAR_CEILING - 0.07 * (1 - gm.capAggression);
 
 /**
- * Whether cutting a player for a free agent is worth it: what the club gains, less what it loses with the cut man,
- * against the bar any deal of that size must clear (`upgradeBar`), the free agent's salary and the dead money the
- * release leaves both counted as its cost.
- */
-export function cutWorth(
-  league: League,
-  team: Team,
-  gain: number,
-  loss: number,
-  apy: number,
-  release: { thisYear: number; nextYear: number },
-): boolean {
-  return gain - loss >= upgradeBar(league, team, apy + release.thisYear + release.nextYear);
-}
-
-/**
  * Whether a club plans to keep a player starting: where he's headed (its three-season read, `teamOutlook`) he's still
  * one of its starters at his position. A GM restructures only such a player: the money pushed forward lands as dead
  * money if he goes before it's paid (aging veterans restructured and then cut or traded a year on carried most of the
@@ -598,7 +582,7 @@ export function aiFreeAgencyDay(
   for (const { p } of pool) {
     // Injury reports are public: nobody pays market price for a player who'll miss the start of the season.
     if (p.injury && p.injury.estimate[0] >= 4) continue;
-    let best: { team: Team; offer: Offer; value: number; cut?: Player } | null = null;
+    let best: { team: Team; offer: Offer; value: number } | null = null;
     const minimum = minSalary(p.experience, league.caps[league.season]);
     // What he signs for: his walk-away, or on the last call anything from his minimum up.
     const floorAt = (teamId: number) => (opts.lastCall ? minimum : demand(league, p, teamId).walkAway);
@@ -614,32 +598,18 @@ export function aiFreeAgencyDay(
       const yearOne =
         offer.apy * (1 - offer.bonusPct) +
         (offer.apy * offer.years * offer.bonusPct) / Math.min(5, offer.years + offer.voidYears);
-      let cut: Player | undefined;
       if (yearOne > budget.get(team.id)!) {
         // Can't fit his market price: offer what it can fit, and he takes it only if it beats his walk-away (below).
-        const fits = (o: Offer | null): o is Offer =>
-          !!o && gain >= upgradeBar(league, team, o.apy) && offerValue(league, p, team.id, o) >= floorAt(team.id);
+        // No cut to make room: releasing a pricier veteran for him put his bonus money on the cap at once, and by year
+        // four the league's dead money passed 6% of a median cap; the late passes and the last call place him instead.
         const fitted = fitOffer(offer, budget.get(team.id)!, minimum);
-        if (fits(fitted)) offer = fitted;
-        else {
-          // Still short: the GM may cut the player it can best spare (never a better one) when the upgrade is worth
-          // all it costs: the free agent's salary and the dead money the release leaves, against what the cut man
-          // gave the room (an NFL club cutting a pricier veteran for a better, cheaper one).
-          const spare = capCut(league, team);
-          if (!spare || playerOvr(spare) >= playerOvr(p)) continue;
-          const release = releasePreview(league, spare);
-          const refit = fitOffer(offer, budget.get(team.id)! + release.savings, minimum);
-          if (!fits(refit)) continue;
-          const room = depth.get(team.id)!;
-          const spareAhead = teamOutlook(league, team.id, spare, winNow(league, team));
-          const without = [...room[spare.position]];
-          const at = without.findIndex((v) => Math.abs(v - spareAhead) < 1e-9);
-          without.splice(at >= 0 ? at : without.length - 1, 1);
-          const loss = needGain({ ...room, [spare.position]: without }, spare, spareAhead);
-          if (!cutWorth(league, team, gain, loss, refit.apy, release)) continue;
-          offer = refit;
-          cut = spare;
-        }
+        if (
+          !fitted ||
+          gain < upgradeBar(league, team, fitted.apy) ||
+          offerValue(league, p, team.id, fitted) < floorAt(team.id)
+        )
+          continue;
+        offer = fitted;
       }
       if (
         offer.years > 1 &&
@@ -648,14 +618,9 @@ export function aiFreeAgencyDay(
       )
         continue;
       const value = offerValue(league, p, team.id, offer);
-      if (!best || value > best.value) best = { team, offer, value, cut };
+      if (!best || value > best.value) best = { team, offer, value };
     }
     if (!best || best.value < floorAt(best.team.id)) continue;
-    if (best.cut) {
-      budget.set(best.team.id, budget.get(best.team.id)! + releasePreview(league, best.cut).savings);
-      releasePlayer(league, best.cut);
-      room.set(best.team.id, room.get(best.team.id)! + 1);
-    }
     const before = capSpace(league, best.team.id);
     signPlayer(league, p, best.team.id, best.offer);
     signings++;

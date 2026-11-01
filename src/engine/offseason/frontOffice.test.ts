@@ -8,15 +8,7 @@ import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import type { League, Player } from '../types';
-import {
-  aiFreeAgencyDay,
-  aiResignWindow,
-  cutWorth,
-  expiringPlayers,
-  nextYearCeiling,
-  resignCall,
-  spendable,
-} from './ai';
+import { aiFreeAgencyDay, aiResignWindow, expiringPlayers, nextYearCeiling, resignCall, spendable } from './ai';
 import { NEXT_YEAR_CEILING } from '../generate';
 import { advanceOffseason, beginOffseason } from './index';
 import { demand, OFFSEASON_ROSTER_MAX } from './negotiation';
@@ -95,55 +87,23 @@ describe('the market clears by camp', () => {
   }, 60_000);
 });
 
-describe('a GM upgrades by cutting', () => {
+describe('free agency signs with the room a club has', () => {
   /** Players a club cut this league year, from their departures. */
   const cutBy = (l: League, teamId: number) =>
     Object.values(l.players).filter((x) =>
       x.left?.some((d) => d.teamId === teamId && d.how === 'cut' && d.season === l.season),
     );
 
-  it('cuts a lesser, pricier player to sign a better free agent it couldn’t otherwise fit', () => {
+  it('never cuts a player to sign a free agent it can’t fit', () => {
+    // Half a minimum of room: no deal fits. Cutting a pricier veteran for him once put the league's dead money past 6%
+    // of a median cap by year four (the cut veteran's bonus money lands at once); the club passes instead.
     const l0: League = JSON.parse(afterFreeAgency);
-    let found = false;
-    for (const t of l0.teams) {
-      if (t.id === l0.userTeamId) continue;
-      // Half a minimum of room: no deal fits without a cut.
+    for (const t of l0.teams.filter((x) => x.id !== l0.userTeamId).slice(0, 8)) {
       const { l, p } = lateVeteran(t.id, 0.5);
       const before = new Set(cutBy(l, t.id).map((x) => x.id));
       aiFreeAgencyDay(l, new Rng('cut'), { rosterMax: OFFSEASON_ROSTER_MAX });
-      if (l.players[p.id].teamId !== t.id) continue;
-      found = true;
-      const cut = cutBy(l, t.id).filter((x) => !before.has(x.id));
-      expect(cut.length).toBe(1);
-      expect(playerOvr(cut[0])).toBeLessThan(playerOvr(l.players[p.id]));
-      break;
-    }
-    expect(found).toBe(true);
-  }, 180_000);
-
-  it('never cuts a better player, and cuts at most once a pass', () => {
-    const l0: League = JSON.parse(afterFreeAgency);
-    for (const t of l0.teams.filter((x) => x.id !== l0.userTeamId).slice(0, 6)) {
-      const { l } = lateVeteran(t.id, 0.5);
-      // A second good starter loose, so the club wants two.
-      const second = Object.values(l.players).find(
-        (x) =>
-          x.teamId !== null &&
-          x.teamId !== t.id &&
-          x.teamId !== l.userTeamId &&
-          x.contract &&
-          playerOvr(x) >= 12.5 &&
-          x.age <= 29,
-      )!;
-      releasePlayer(l, second);
-      const before = new Set(cutBy(l, t.id).map((x) => x.id));
-      aiFreeAgencyDay(l, new Rng('cut'), { rosterMax: OFFSEASON_ROSTER_MAX });
-      const cut = cutBy(l, t.id).filter((x) => !before.has(x.id));
-      expect(cut.length).toBeLessThanOrEqual(1);
-      const signed = Object.values(l.players).filter(
-        (x) => x.teamId === t.id && x.contract?.signedSeason === l.season && x.contract.length === 1,
-      );
-      for (const c of cut) expect(signed.some((s) => playerOvr(s) > playerOvr(c))).toBe(true);
+      expect(cutBy(l, t.id).filter((x) => !before.has(x.id))).toEqual([]);
+      expect(l.players[p.id].teamId).not.toBe(t.id);
     }
   }, 300_000);
 });
@@ -227,21 +187,6 @@ describe('the tag keeps a star who’d walk', () => {
     }
     expect(tags).toBeGreaterThan(0);
   }, 180_000);
-});
-
-describe('a GM weighs a move against what it costs', () => {
-  it('prices a cut’s dead money and what the club loses into the move', () => {
-    const l: League = JSON.parse(afterFreeAgency);
-    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
-    const cap = l.caps[l.season];
-    const clean = { thisYear: 0, nextYear: 0, savings: 0.02 * cap };
-    // A point's upgrade on a cheap deal is worth a clean release...
-    expect(cutWorth(l, team, 1.5, 0.5, 0.02 * cap, clean)).toBe(true);
-    // ...not one that leaves a fifth of the cap in dead money.
-    expect(cutWorth(l, team, 1.5, 0.5, 0.02 * cap, { ...clean, thisYear: 0.2 * cap })).toBe(false);
-    // Losing as much as it gains is never worth a cut.
-    expect(cutWorth(l, team, 2, 2, 0.01 * cap, clean)).toBe(false);
-  });
 });
 
 describe('caution is next year’s headroom, not a quota', () => {
