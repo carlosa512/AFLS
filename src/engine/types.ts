@@ -1602,7 +1602,7 @@ export interface FieldRecord {
   changes: [number, 0 | 1, FieldUnits][];
   /**
    * The defense's call on each kept play, a character a play ('r' run defense, 'p' pass defense, 'b' blitz, '.' its
-   * base call; trailing base calls left off): read it with `defenseCallAt`. Games before 0.2.31 have none.
+   * base call; trailing base calls left off): read it with `defenseCallAt`. Games before 0.2.32 have none.
    */
   calls?: string;
 }
