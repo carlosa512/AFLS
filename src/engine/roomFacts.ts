@@ -66,8 +66,8 @@ export function unitFact(
   view: UnitView,
   last: { word: UnitWord } | null,
   gone: string | null,
+  ctx = viewContext(league),
 ): UnitFact {
-  const ctx = viewContext(league);
   const teamId = league.userTeamId;
   const team = league.teams[teamId];
   const unit = phraseOf(view.unit);
@@ -135,8 +135,14 @@ export function unitFact(
 }
 
 /** What a line about a man who found his voice, or lost it, may read. */
-export function standingFact(league: League, p: Player, now: Tier | null, was: Tier | null): StandingFact {
-  const view = standingView(league, p);
+export function standingFact(
+  league: League,
+  p: Player,
+  now: Tier | null,
+  was: Tier | null,
+  ctx = viewContext(league),
+): StandingFact {
+  const view = standingView(league, p, ctx);
   return {
     name: p.lastName,
     now,
