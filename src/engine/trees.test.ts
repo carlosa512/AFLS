@@ -20,6 +20,7 @@ import {
 import { migrateLeague } from './migrate';
 import { asPromoted, headCoachVision } from './coaching';
 import type { Coach, CoachRole, League } from './types';
+import { teamRatings } from './roster';
 
 /** A league whose coaches' careers are cleared, so each test writes exactly the history it means. */
 function blank(): { l: League; c: Coach[] } {
@@ -252,6 +253,20 @@ describe('founding trees', () => {
     // Founding history lives in pastUnder only: no career row before the league began.
     for (const c of [...Object.values(l.coaches), ...Object.values(l.retiredCoaches)])
       for (const r of c.career ?? []) expect(r.season).toBeGreaterThanOrEqual(l.season);
+  });
+
+  it('hands a founding tree the stronger half of the league’s clubs', () => {
+    // A tree is known by its winners: a mentor whose two disciples both ran losing clubs wouldn't be one. Founding
+    // disciples on random clubs often both lost their jobs within two seasons, taking a tree with them (one careers
+    // league lost all four by its fourth season).
+    for (const seed of ['founding', 'founding-2', 'founding-3', 'careers-audit-2']) {
+      const l = createLeague({ seed });
+      const ranked = l.teams
+        .map((t) => t.id)
+        .sort((a, b) => teamRatings(l, l.teams[b]).overall - teamRatings(l, l.teams[a]).overall);
+      const strong = new Set(ranked.slice(0, l.teams.length / 2));
+      for (const t of liveTrees(l)) for (const id of t.disciples) expect(strong.has(l.coaches[id].teamId!)).toBe(true);
+    }
   });
 
   it('is the same for the same seed, and an upgraded save gets the trees a new league would', () => {

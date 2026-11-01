@@ -428,9 +428,11 @@ export function standingOf(league: League, tree: Tree): TreeStanding {
  * A new league starts with a few trees, as the NFL always has some: three or four founding roots, one or two of them
  * retired legends, each with two of today's head coaches and a few coordinators or position coaches who worked under
  * him before the league began. That history goes in `Coach.pastUnder`, never in a career row, so nobody's record
- * counts it. On its own stream, and only once (an upgraded save gets what a new league from its seed would).
+ * counts it. A tree is known by its winners, so its head coaches run the stronger half of the league's clubs
+ * (`strength`, a club's overall; on random clubs, both a tree's men were often fired within two seasons and the tree
+ * gone with them). On its own stream, and only once (an upgraded save gets what a new league from its seed would).
  */
-export function seedFoundingTrees(league: League): void {
+export function seedFoundingTrees(league: League, strength?: (teamId: number) => number): void {
   const all = Object.values(league.coaches);
   if (all.some((c) => c.pastUnder?.length)) return;
   const rng = new Rng(`${league.seed}:trees:init`);
@@ -469,8 +471,11 @@ export function seedFoundingTrees(league: League): void {
     league.retiredCoaches[legend.id] = legend;
     founders.push(legend);
   }
+  const clubs = league.teams.map((t) => t.id);
+  if (strength) clubs.sort((a, b) => strength(b) - strength(a) || a - b);
+  const strong = new Set(clubs.slice(0, strength ? Math.ceil(clubs.length / 2) : clubs.length));
   for (const root of founders) {
-    for (const d of take(heads, 2))
+    for (const d of take(heads, 2, (c) => c.teamId !== null && strong.has(c.teamId)))
       (d.pastUnder ??= []).push({
         coachId: root.id,
         role: rng.chance(0.5) ? 'offCoord' : 'defCoord',

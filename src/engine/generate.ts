@@ -32,7 +32,7 @@ import {
   type Market,
 } from './finance/market';
 import { clamp, Rng } from './rng';
-import { buildAutoDepthChart, headline, UNIT_POSITIONS } from './roster';
+import { buildAutoDepthChart, headline, teamRatings, UNIT_POSITIONS } from './roster';
 import { newIdentity } from './identity';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateSchedule } from './season/schedule';
@@ -888,7 +888,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   if (options.inheritStaff) league.userTeamId = -1;
   generateStaffWorld(league);
   generateCoachingWorld(league);
-  seedFoundingTrees(league);
+  seedFoundingTrees(league, (id) => teamRatings(league, league.teams[id]).overall);
   // Every player starts where he stands: no jolts, nothing drawn.
   seedMorale(league);
   generateMedicalWorld(league);
