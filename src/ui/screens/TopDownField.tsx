@@ -205,6 +205,7 @@ export function TopDownField({
   final = false,
   fallback,
   onDone,
+  onSnap,
 }: {
   league: League;
   /** Who was on the field: the result's for a replay, the running game's for a live one. */
@@ -222,6 +223,8 @@ export function TopDownField({
   /** Shown if a play can't be staged: the broadcast field. */
   fallback?: ReactNode;
   onDone: () => void;
+  /** The ball is snapped (the jog and huddle are over): the viewer clears the last play's result then. */
+  onSnap?: () => void;
 }) {
   const entry = plays[index];
   const box = useRef<HTMLDivElement>(null);
@@ -256,6 +259,8 @@ export function TopDownField({
   if (memory.current.game !== game.id) memory.current = fresh();
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
+  const snapRef = useRef(onSnap);
+  snapRef.current = onSnap;
   const [layout, setLayout] = useState<Layout>('wide');
   const [card, setCard] = useState<number | null>(null);
   // A new play closes the card: its player may not even be on the field for it.
@@ -700,6 +705,7 @@ export function TopDownField({
     // Starting set: the last play's men are gone at once.
     let cleared = !gap;
     let stopped = false;
+    let snappedYet = false;
     if (!gap) clearBench();
     const playTime = last * s.dt;
     const tick = (now: number) => {
@@ -713,6 +719,10 @@ export function TopDownField({
         if (gap && !cleared) {
           clearBench();
           cleared = true;
+        }
+        if (!snappedYet) {
+          snappedYet = true;
+          snapRef.current?.();
         }
         place(Math.min(last, Math.floor((t - pre) / s.dt)), frame);
       } else if (plan.thrown && t - pre - playTime < BREAK) {
