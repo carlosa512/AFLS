@@ -202,6 +202,31 @@ describe('the tag keeps a star who’d walk', () => {
       expect(c.players[p.id].contract?.kind).not.toBe('tag');
     }
   }, 120_000);
+
+  it('never pays a tag past what the club would offer him', () => {
+    // Every AI club with room and every expiring player willing to test the market: whoever is tagged is worth his tag
+    // to the club, never a backup it would offer a fraction of that (a thin room once counted any back as a starter).
+    const l: League = JSON.parse(windowLeague);
+    const most = new Map<number, number>();
+    for (const t of l.teams) {
+      if (t.id === l.userTeamId) continue;
+      t.deadMoney.push({ season: l.season, amount: -200_000, playerId: -1, note: 'test room' });
+      for (const p of expiringPlayers(l, t.id)) {
+        p.personality.loyalty = 0;
+        // The most an offer reaches: his market at the GM's keenest, loyalty's nudge on top.
+        most.set(p.id, demand(l, p, t.id).market * 1.12 * (0.96 + t.gm.loyalty * 0.08));
+      }
+    }
+    let tags = 0;
+    for (const t of l.teams) {
+      if (t.id === l.userTeamId) continue;
+      aiResignWindow(l, t, new Rng(`worth-${t.id}`));
+      if (!t.taggedId || !most.has(t.taggedId)) continue;
+      tags++;
+      expect(l.players[t.taggedId].contract!.apy).toBeLessThanOrEqual(most.get(t.taggedId)! + 1);
+    }
+    expect(tags).toBeGreaterThan(0);
+  }, 180_000);
 });
 
 describe('a GM weighs a move against what it costs', () => {

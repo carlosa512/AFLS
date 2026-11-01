@@ -428,8 +428,10 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     }
     // The GM's call, not a coin: he tags a player who won't sign when keeping him is worth the tag's price, as any
     // signing must be (`upgradeBar`; where he's headed, his age with it, is in his outlook), and makes room for it first.
-    // The league allows one tag a year.
-    if (!team.taggedId && !tagBlocker(league, p)) {
+    // Never a tag past his own price for the player (`offer`): the tag pays a top-of-the-position wage, so only a player
+    // the club values near that is worth it (a thin room counts any back as a starter, and once tagged 7-rated backs at
+    // a starter's price). The league allows one tag a year.
+    if (!team.taggedId && !tagBlocker(league, p) && tagValue(league, p) <= offer.apy) {
       // The tag's charge, less the old deal's (its void years' bonus money accelerates), as `tagBlocker` reads it.
       const value =
         tagValue(league, p) - (capHit(p.contract!, league.season) - remainingProration(p.contract!, league.season));
