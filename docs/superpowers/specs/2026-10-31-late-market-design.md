@@ -39,6 +39,22 @@ prove-it deal with whoever has room.
 3. **Nothing else changes.** Asks, walk-aways, the re-sign window, tags, the cap rules and in-season signings stay as
    they are. No player is capped; the market just stops shutting its door on him.
 
+## GMs make room to keep their core (added 2026-10-31, owner's call)
+
+The late market placed the players who'd sat unsigned (starters out of football 9.6% to about 3.8%, nflverse's 2.9–3.2%),
+but records still didn't carry over (0.26 and −0.04 at one and three seasons). Measured in the re-sign window: of the
+13+ players a top-8 club wanted to keep, 52% re-signed and **32% were lost because their cost didn't fit**, nobody
+making room (bottom-8 clubs: 76% and 5%). In the NFL a contender restructures and cuts to keep its core.
+
+- When a keeper's year-one cost doesn't fit, the GM makes room first (`makeRoom` in `offseason/ai.ts`): restructures its
+  biggest deals, converting only what it needs, up to 1 + 3 × its cap aggression across the window (one for the most
+  cautious, four for the boldest); then cuts the veteran it can best spare (`capCut`), never one rated above the keeper.
+  The restructured money lands on later caps, so a club that keeps pushing it forward pays for it.
+- He still has to want the deal (his walk-away, testing the market as before); nothing else in the window changes.
+- Tests: a squeezed contender re-signs its keeper through a restructure and stays under the cap; a bold GM restructures
+  more than a cautious one; no player rated above the keeper is cut. Checks: the offseason check's dead money, cap space
+  and over-cap lines hold; careers' carryover and trees are read.
+
 ## Checks
 
 - **`npm run offseason`:** last season's starters out of football at kickoff (unsigned or retired), as a share:

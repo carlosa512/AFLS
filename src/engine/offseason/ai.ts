@@ -339,7 +339,38 @@ export function resignCall(
   return { call: tag ? 'tag' : 'keep', reason, ahead };
 }
 
-/** The AI's re-sign window: options, extensions for keepers, a tag for a star who won't sign. */
+/** Restructures a GM makes in one re-sign window to keep his core: one for the most cautious, four for the boldest. */
+const restructuresFor = (team: Team) => 1 + Math.round(3 * team.gm.capAggression);
+
+/**
+ * Make `need` of room this league year to keep `keeper`, as an NFL front office does: restructure its biggest deals,
+ * converting only what it needs (as many as its GM's appetite for pushing money forward allows across the window,
+ * `made`), then cut the veteran it can best spare, never one better than the keeper. The bill comes later: the
+ * restructured money lands on next years' caps. Returns the room made.
+ */
+function makeRoom(league: League, team: Team, need: number, keeper: Player, made: { restructures: number }): number {
+  let gained = 0;
+  while (gained < need && made.restructures < restructuresFor(team)) {
+    const best = teamPlayers(league, team.id)
+      .filter((p) => p !== keeper && p.contract && !isExpired(p.contract, league.season) && canRestructure(league, p))
+      .map((p) => ({ p, o: restructureOptions(league, p) }))
+      .filter((x) => x.o.savings > 1_000)
+      .sort((a, b) => b.o.savings - a.o.savings)[0];
+    if (!best) break;
+    gained += restructurePlayer(league, best.p, Math.ceil((need - gained) / (1 - 1 / best.o.years)));
+    made.restructures++;
+  }
+  if (gained < need) {
+    const cut = capCut(league, team);
+    if (cut && playerOvr(cut) < playerOvr(keeper)) {
+      gained += releasePreview(league, cut).savings;
+      releasePlayer(league, cut);
+    }
+  }
+  return gained;
+}
+
+/** The AI's re-sign window: options, extensions for keepers (room made for them), a tag for a star who won't sign. */
 export function aiResignWindow(league: League, team: Team, rng: Rng): void {
   aiFifthYearOptions(league, team);
   const depth = depthOutlooks(league, team);
@@ -348,6 +379,7 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
   // What a re-sign may cost: what the team can spend, plus the minimum deal it keeps for his spot while it's open.
   const budget = () =>
     spendable(league, team.id) + (openSpots(league, team.id) > 0 ? topMinimum(league.caps[league.season]) : 0);
+  const made = { restructures: 0 };
   for (const p of expiringPlayers(league, team.id)) {
     const { call, ahead } = resignCall(league, team.id, p, depth, wn);
     if (call === 'walk') continue;
@@ -359,7 +391,11 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const testsMarket = rng.chance(0.3 * (1 - p.personality.loyalty));
     // The new deal's year-one cap hit: 0.85x its APY ran about a tenth under a market deal's (all of a one-year one's).
     const cost = offerCharge(league, p, team.id, offer);
-    if (!testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway && cost <= budget()) {
+    const wanted = !testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway;
+    // A keeper it can't fit: the GM makes room before he lets him walk (a third of a contender's keepers were lost
+    // to the cap with nobody making room).
+    if (wanted && cost > budget()) makeRoom(league, team, cost - budget(), p, made);
+    if (wanted && cost <= budget()) {
       signPlayer(league, p, team.id, offer);
       mine.push(ahead);
       mine.sort((a, b) => b - a);
