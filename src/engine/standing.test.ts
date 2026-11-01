@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { moraleContext } from './morale';
-import { starters } from './roster';
+import { releasePlayer } from './finance/cap';
 import { nameCaptains } from './personality';
+import { activeRoster, starters } from './roster';
 import {
   isNewcomer,
+  roomView,
+  standingView,
+  unitRead,
+  type Unit,
   leadersOf,
   voicesOf,
   seniority,
@@ -16,7 +21,6 @@ import {
   weightOf,
   type VoiceRef,
 } from './standing';
-import { activeRoster } from './roster';
 import type { League } from './types';
 
 const base = createLeague({ seed: 'standing' });
@@ -167,5 +171,58 @@ describe('standing: who the room follows', () => {
     }
     expect(voicesOf(l, 0).length).toBeGreaterThan(0);
     for (const p of voicesOf(l, 0)) expect(tierOf(l, p, weightOf(l, p, ctx))).toBe('voice');
+  });
+});
+
+describe('standing: a unit read', () => {
+  const levels = (l: League, unit: Unit, f: (i: number) => number) =>
+    activeRoster(l, 0)
+      .filter((p) => unitOf(p.position) === unit)
+      .forEach((p, i) => {
+        p.morale = { level: f(i) };
+      });
+
+  it('reads Tight, Down and Split off the weighted levels', () => {
+    const l = fresh();
+    levels(l, 'OL', () => 2);
+    expect(unitRead(l, 0, 'OL', moraleContext(l))!.word).toBe('Tight');
+    levels(l, 'OL', () => -4);
+    expect(unitRead(l, 0, 'OL', moraleContext(l))!.word).toBe('Down');
+    levels(l, 'OL', (i) => (i % 2 ? 2 : -2));
+    expect(unitRead(l, 0, 'OL', moraleContext(l))!.word).toBe('Split');
+  });
+
+  it('gives no read to the specialists or a room below three men', () => {
+    const l = fresh();
+    expect(unitRead(l, 0, 'ST', moraleContext(l))).toBeNull();
+    const qbs = activeRoster(l, 0).filter((p) => p.position === 'QB');
+    for (const q of qbs.slice(2)) q.teamId = null;
+    expect(unitRead(l, 0, 'QB', moraleContext(l))).toBeNull();
+  });
+
+  it('flags a unit with no voice of its own', () => {
+    const l = fresh();
+    for (const p of activeRoster(l, 0).filter((p) => unitOf(p.position) === 'DB')) p.traits.leads = 1;
+    l.teams[0].captains = undefined;
+    expect(unitRead(l, 0, 'DB', moraleContext(l))!.noVoice).toBe(true);
+  });
+});
+
+describe('standing: your views', () => {
+  it('shows your club only', () => {
+    const l = fresh();
+    const other = activeRoster(l, (l.userTeamId + 1) % l.teams.length)[0];
+    expect(standingView(l, other)).toBeNull();
+    const view = roomView(l);
+    expect(view.units.length).toBeGreaterThan(0);
+    expect(view.units.every((u) => u.unit !== 'ST')).toBe(true);
+  });
+
+  it('drops a released voice at once', () => {
+    const l = fresh();
+    const v = voicesOf(l, l.userTeamId)[0];
+    expect(roomView(l).voices).toContain(v.id);
+    releasePlayer(l, v);
+    expect(roomView(l).voices).not.toContain(v.id);
   });
 });

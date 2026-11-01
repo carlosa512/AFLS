@@ -7,9 +7,20 @@
  *
  * `morale.ts` and this module import each other: each uses the other's exports only inside function bodies.
  */
-import { ROOM_OF } from './coaching';
+import { ROOM_LABEL, ROOM_OF } from './coaching';
 import { leadFactor } from './mentoring';
-import { actualRole, isCaptain, viewContext, type MoraleContext } from './morale';
+import {
+  actualRole,
+  isCaptain,
+  MORALE_WORDS,
+  moodLean,
+  moraleLevel,
+  moraleStepOf,
+  moraleView,
+  TEMPERAMENT_REASONS,
+  viewContext,
+  type MoraleContext,
+} from './morale';
 import { activeRoster, starters } from './roster';
 import { seasonRole } from './scouting';
 import { temperamentOf, TRAIT_MEAN } from './traits';
@@ -178,8 +189,7 @@ export function friendLean(league: League, p: Player, ctx: MoraleContext): numbe
 
 // ───────── who the room follows ─────────
 
-function byTier(league: League, teamId: number, want: Tier): Player[] {
-  const ctx = viewContext(league);
+function byTier(league: League, teamId: number, want: Tier, ctx = viewContext(league)): Player[] {
   return activeRoster(league, teamId)
     .map((p) => ({ p, w: weightOf(league, p, ctx) }))
     .filter((x) => tierOf(league, x.p, x.w) === want && !(want === 'leader' && isCaptain(league, x.p)))
@@ -189,5 +199,170 @@ function byTier(league: League, teamId: number, want: Tier): Player[] {
 
 /** The leaders past the captains, heaviest first. */
 export const leadersOf = (league: League, teamId: number): Player[] => byTier(league, teamId, 'leader');
-/** The voices, heaviest first. */
 export const voicesOf = (league: League, teamId: number): Player[] => byTier(league, teamId, 'voice');
+
+// ───────── a unit's read ─────────
+
+export type UnitWord = 'Tight' | 'Settled' | 'Restless' | 'Down' | 'Split';
+/** A unit is split when this share of its weight sits at Good or better and this share at Poor or worse. */
+export const SPLIT_SHARE = 0.3;
+/** Fewer men than this and a room has no read of its own (a two-man quarterback room). */
+export const READ_MIN = 3;
+/** A quiet man still counts in his unit's read. */
+const READ_FLOOR = 0.3;
+/** A lean this far either side of Okay is a pull one way. */
+const PULL_AT = 0.17;
+
+export interface UnitRead {
+  teamId: number;
+  unit: Unit;
+  word: UnitWord;
+  members: number[];
+  /** Who sets the tone: the unit's heaviest leader or voice, else its side's captain. */
+  setter: number | null;
+  pulling: 'up' | 'down' | 'even' | null;
+  /** No leader or voice of its own (its side's captain is elsewhere, or there is none). */
+  noVoice: boolean;
+}
+
+const pullOf = (lean: number) => (lean >= PULL_AT ? 'up' : lean <= -PULL_AT ? 'down' : 'even');
+
+/** How one unit is feeling: its men's moods, the voices counting more. Null for the specialists and a tiny room. */
+export function unitRead(league: League, teamId: number, unit: Unit, ctx: MoraleContext): UnitRead | null {
+  if (unit === 'ST') return null;
+  const men = activeRoster(league, teamId).filter((p) => unitOf(p.position) === unit);
+  if (men.length < READ_MIN) return null;
+  let total = 0;
+  let sum = 0;
+  let up = 0;
+  let down = 0;
+  let setter: { p: Player; w: number } | null = null;
+  for (const p of men) {
+    const weight = weightOf(league, p, ctx);
+    const w = Math.max(weight, READ_FLOOR);
+    const level = moraleLevel(league, p);
+    const step = moraleStepOf(level);
+    total += w;
+    sum += w * level;
+    if (step >= 5) up += w;
+    if (step <= 3) down += w;
+    if (tierOf(league, p, weight) && (!setter || weight > setter.w || (weight === setter.w && p.id < setter.p.id)))
+      setter = { p, w: weight };
+  }
+  const noVoice = !setter;
+  const captain = ctx.sideCaptains.get(`${teamId}:${sideOf(unit)}`);
+  const lead = setter?.p ?? (captain ? league.players[captain.id] : undefined);
+  const mean = moraleStepOf(sum / total);
+  const word: UnitWord =
+    up / total >= SPLIT_SHARE && down / total >= SPLIT_SHARE
+      ? 'Split'
+      : mean >= 5
+        ? 'Tight'
+        : mean === 4
+          ? 'Settled'
+          : mean === 3
+            ? 'Restless'
+            : 'Down';
+  return {
+    teamId,
+    unit,
+    word,
+    members: men.map((p) => p.id),
+    setter: lead?.id ?? null,
+    pulling: lead ? pullOf(moodLean(moraleLevel(league, lead))) : null,
+    noVoice,
+  };
+}
+
+/** Every read unit of a club, in `UNITS` order. */
+export function unitReads(league: League, teamId: number, ctx: MoraleContext): UnitRead[] {
+  return UNITS.flatMap((u) => unitRead(league, teamId, u, ctx) ?? []);
+}
+
+// ───────── your club, in words ─────────
+
+/** The parts of his weight a coach would name, biggest first. */
+export type WhyPart = 'captain' | 'quarterback' | 'veteran' | 'starts' | 'honoured' | 'leads' | 'newcomer';
+
+export interface StandingView {
+  tier: Tier | null;
+  sound: Sound | null;
+  parts: WhyPart[];
+}
+
+/** Where one of your players stands in the room, or null for anyone else's (the fog of war). */
+export function standingView(league: League, p: Player, ctx = viewContext(league)): StandingView | null {
+  if (p.teamId !== league.userTeamId) return null;
+  const tier = tierOf(league, p, weightOf(league, p, ctx));
+  const team = league.teams[p.teamId];
+  const parts: WhyPart[] = [];
+  if (isCaptain(league, p)) parts.push('captain');
+  if (p.position === 'QB' && starters(league, team, 'QB')[0]?.id === p.id) parts.push('quarterback');
+  if (p.experience >= 6) parts.push('veteran');
+  if (actualRole(league, p, ctx) === 2 || starters(league, team, p.position).some((s) => s.id === p.id))
+    parts.push('starts');
+  if (ctx.honoured.has(p.id)) parts.push('honoured');
+  if (z(p.traits.leads) >= 1) parts.push('leads');
+  if (isNewcomer(league, p)) parts.push('newcomer');
+  return { tier, sound: soundOf(p), parts };
+}
+
+export interface UnitView extends Omit<UnitRead, 'teamId' | 'members'> {
+  label: string;
+  members: number;
+  /** What the unit is feeling, most-felt first: the mood board's phrases, with how many feel each. */
+  reasons: { text: string; count: number }[];
+}
+
+export interface RoomView {
+  /** The room's mood: the 53's, the voices counting more. */
+  word: string;
+  units: UnitView[];
+  /** Leaders past the captains, and voices, heaviest first. */
+  leaders: number[];
+  voices: number[];
+  /** The vets and the young guys two mood steps or more apart, and which of them is down. */
+  apart: 'young down' | 'vets down' | null;
+}
+
+/** Your room as your staff see it: every read unit, who it follows, and its shape. Words and ids only. */
+export function roomView(league: League, ctx = viewContext(league)): RoomView {
+  const teamId = league.userTeamId;
+  const units = unitReads(league, teamId, ctx).map((r): UnitView => {
+    const counts = new Map<string, number>();
+    for (const id of r.members)
+      for (const text of moraleView(league, league.players[id], ctx)?.reasons ?? [])
+        if (!TEMPERAMENT_REASONS.has(text)) counts.set(text, (counts.get(text) ?? 0) + 1);
+    const reasons = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 2)
+      .map(([text, count]) => ({ text, count }));
+    const { teamId: _t, members, ...rest } = r;
+    return { ...rest, label: ROOM_LABEL[r.unit as CoachRoom], members: members.length, reasons };
+  });
+  const mean = (ps: Player[]) => {
+    let t = 0;
+    let s = 0;
+    for (const p of ps) {
+      const w = Math.max(weightOf(league, p, ctx), READ_FLOOR);
+      t += w;
+      s += w * moraleLevel(league, p);
+    }
+    return t ? s / t : 0;
+  };
+  const roster = activeRoster(league, teamId);
+  const vets = roster.filter((p) => p.experience >= 6);
+  const young = roster.filter((p) => p.experience <= 2);
+  let apart: RoomView['apart'] = null;
+  if (vets.length && young.length) {
+    const gap = moraleStepOf(mean(vets)) - moraleStepOf(mean(young));
+    apart = gap >= 2 ? 'young down' : gap <= -2 ? 'vets down' : null;
+  }
+  return {
+    word: MORALE_WORDS[moraleStepOf(mean(roster))],
+    units,
+    leaders: byTier(league, teamId, 'leader', ctx).map((p) => p.id),
+    voices: byTier(league, teamId, 'voice', ctx).map((p) => p.id),
+    apart,
+  };
+}
