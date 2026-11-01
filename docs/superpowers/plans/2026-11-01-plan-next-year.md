@@ -121,6 +121,34 @@ check gains the share of clubs restructuring a season.
 
 ---
 
+### Task 3b: Restructure to sign a free agent; the cushion counted once (owner's call after Task 3's measure)
+
+**Files:**
+- Modify: `src/engine/offseason/ai.ts` (`aiFreeAgencyDay`, `nextYearNeeds`)
+- Test: `src/engine/offseason/frontOffice.test.ts`, `src/engine/offseason/makeRoom.test.ts`
+
+**Interfaces:**
+- Consumes: Task 1's `restructureRoom(league, team, need)` and `nextYearNeeds`.
+- Produces: in `aiFreeAgencyDay`, a club that can't fit a wanted free agent's market deal carries `room` (the year-one
+  charge less its budget) when its planned starters' restructures could cover it; when he chooses that club, it calls
+  `restructureRoom(league, team, room)` and signs the market deal if the room was made, else the fitted deal if valid,
+  else nothing. `nextYearNeeds` drops the in-season cushion.
+
+- [ ] **Step 1: Write the failing tests:**
+  - `frontOffice.test.ts`: `restructures a planned starter to sign a free agent it can't fit` — `lateVeteran(club, 0.5)`
+    with next year's room (−20% of next year's cap as dead money): after `aiFreeAgencyDay`, he's on the club on a deal
+    longer than one year, and the club has a restructure transaction this league year.
+  - `frontOffice.test.ts`: `makes no room for a free agent when next year's needs fill next year` — next year's books
+    plus `nextYearNeeds` at the ceiling: no restructure transaction.
+  - `makeRoom.test.ts`: the needs test no longer expects the cushion (needs = keepers + next year's draft class).
+- [ ] **Step 2:** run → the first and the needs test fail.
+- [ ] **Step 3: Implement.** Comment: the NFL's March restructures are mostly room for free agency.
+- [ ] **Step 4:** both files → PASS; `npx vitest run src/engine/offseason --maxWorkers=2` (re-take the re-sign pin if it
+  moves).
+- [ ] **Step 5:** commit and push; then Task 3's Steps 2–4 again (measure, size `REBUILD_CAUTION`, read everything).
+
+---
+
 ### Task 4: Finish the front-office work
 
 **Files:**

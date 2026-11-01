@@ -102,8 +102,8 @@ year's own needs, so next year he is short again.
 
 1. **Plan next year first.** Before he borrows, a GM counts next year's needs against next year's cap: the players whose
    deals end after this league year that he plans to keep (`inPlans`), at their market price; next year's draft class
-   (this year's rookie pool as the estimate); and the cushion he holds for in-season injuries (`inSeasonReserve` at next
-   year's cap). He borrows only what's left under his ceiling.
+   (the picks he owns for next season). The cushion for in-season injuries is the ceiling's own room under the cap (see
+   4 below). He borrows only what's left under his ceiling.
 2. **Contend or rebuild.** How much of next year a GM commits early reads his cap aggression (as now) and how hard he
    plays for now (`winNow`: his temperament with where his roster stands). An all-in contender borrows to the full
    ceiling; a rebuilding club commits less, lets a middling keeper walk and keeps the space (unused cap carries over).
@@ -112,6 +112,17 @@ year's own needs, so next year he is short again.
 
 The worth check tried first (a keeper worth the room's borrowed money, `roomWorth`) is dropped: against a room with its
 expiring players taken out, nearly every keeper reads as worth it, so it rarely changed a decision.
+
+**Measured (2026-11-01):** counting next year's needs stopped the snowball (dead money 1.9–4.0%, out of football
+3.1–4.3% in seasons 1–4), but only 6–28% of clubs restructured, whatever the rebuild caution (0.1, 0.05 or 0): ours
+restructure only to keep their own players or to get under the cap, while the NFL's clubs restructure in March mostly to
+make room for free agency, and its 55% counts those too. Two more pieces (owner's call):
+
+3. **A GM restructures to sign a free agent he can't fit.** When a club wants a free agent at his market price and can't
+   fit him, it restructures players it plans to keep, within next year's room after its needs (`restructureRoom`), and
+   only once he has chosen it (no room made for a player who signs elsewhere). Short of that, the fitted offer stands.
+4. **The injury cushion is counted once.** The ceiling's 3% under next year's cap (`NEXT_YEAR_CEILING`) is the cushion
+   for in-season injuries; next year's needs no longer add it again.
 
 **Check (`npm run offseason`):** clubs restructuring anyone a season, judged 40–70% (the NFL's about 55%). Starters out
 of football, dead money, tags and cap space judged as before; careers as before.
