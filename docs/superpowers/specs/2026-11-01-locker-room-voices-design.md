@@ -44,7 +44,8 @@ Hold-ins, holdouts and trade requests (G4, `2026-10-30-morale-escalations-design
    green.
 2. **Two words, and quiet is the default.** A player is a **leader**, a **voice**, or neither. The thresholds are
    absolute, not ranks, so a young room can have no leader past its captains, and the head coach will say so.
-3. **Units are the groups that carry mood.** Seven units by position (§2). Veterans against young players is a lens
+3. **Units are the groups that carry mood.** The seven position coaches' rooms plus the specialists (§2), so every
+   unit has one coach who writes about it. Veterans against young players is a lens
    the coaches read the room through, with no mechanic of its own until L2 gives it one.
 4. **Nothing new in the save.** Standing, units and their reads are worked out on the spot. Reports remember what
    they told through `covered` keys, as they do now. No `SAVE_VERSION` bump.
@@ -70,9 +71,11 @@ weight = leadFactor(leads) × field × seniority × stature
 ```
 
 - **Leadership:** `leadFactor` (`mentoring.ts`), from ×0.3 for the quietest to ×1.5 for a Born Leader.
-- **Field:** `standingFactor` (`mentoring.ts`): a starter 1, a rotation player 0.7, a backup 0.4. It reads this
-  season's role (`seasonRole(league, p, league.season)`) once he has four games of snaps, and last season's role
-  before that, so a rookie who wins a job earns his say during the year instead of a year late.
+- **Field:** a starter 1, a rotation player 0.7, a backup 0.4 (the values of `standingFactor` in `mentoring.ts`). It
+  reads the role morale's grievance reads (`actualRole` in `morale.ts`): this season's snaps once his club has three
+  games in, last season's before that. So a rookie who wins a job earns his say during the year instead of a year
+  late, and the room and the role grievance never disagree about who starts. A man hurt in season counts at last
+  season's role.
 - **Seniority:** 0.6 for a rookie, rising 0.1 a year to 1.0 at four seasons in the league, then on to 1.15 at eight
   or more. In his first season at the club, ×0.8: a newcomer has to earn the room.
 - **Stature:** ×1.2 with a season award or an All-League team in the last three seasons (`awards.ts`). The starting
@@ -111,19 +114,23 @@ his. No history is stored. The report compares a man's tier against the one it t
 
 ## 2. Units
 
+The units are the position coaches' rooms (`COACH_ROOMS`, `ROOM_OF` and `ROOM_LABEL` in `coaching.ts`), plus the
+specialists, who have no position coach:
+
 | Unit | Positions | The coaches say |
 | --- | --- | --- |
-| Backfield | QB, RB | "the backfield", "the quarterbacks" or "the backs" when it's only one room |
-| Receivers | WR, TE | "the receivers", "the tight ends" when it's only them |
-| Offensive line | OL | "the line", "the O-line" |
-| Defensive line | DT, EDGE | "the D-line", "the front", "the rushers" when it's only EDGE |
-| Linebackers | LB | "the linebackers" |
-| Secondary | CB, S | "the secondary", "the DBs", "the corners" or "the safeties" when it's only one room |
-| Specialists | K, P | "the specialists" (too few for a read of their own) |
+| QB | QB | "the quarterbacks" |
+| RB | RB | "the backs" |
+| WR | WR, TE | "the receivers" |
+| OL | OL | "the line" |
+| DL | DT, EDGE | "the D-line" |
+| LB | LB | "the linebackers" |
+| DB | CB, S | "the secondary" |
+| Specialists | K, P | "the specialists" (no read of their own) |
 
 A player belongs to his own position's unit, even when he lines up somewhere else ("Play at…", `Team.playingAt`), the
-same way `sameRoom` keeps him in his position room. **Sides:** offense is the first four units, defense the next
-three, special teams the specialists. The offense captain's voice reaches every offensive unit, the defense captain's
+same way `sameRoom` keeps him in his position room. **Sides:** offense is QB, RB, WR and OL; defense is DL, LB and
+DB; special teams is the specialists. The offense captain's voice reaches every offensive unit, the defense captain's
 every defensive unit, and the special teams captain's the specialists and his own unit.
 
 ### 2.1 A voice's mood rubs off (the mechanic)
@@ -158,7 +165,7 @@ by room.
 
 ### 2.2 A unit's read
 
-Each unit with four or more men on the 53 gets a read, from its men's levels weighted by `max(weight, 0.3)`, so a
+Each unit with three or more men on the 53 gets a read (so a two-man quarterback room has none), from its men's levels weighted by `max(weight, 0.3)`, so a
 voice counts for more but a quiet man still counts:
 
 | Read | When |
@@ -205,16 +212,18 @@ Down 5–20%, Tight 15–35%.
   Split or Down. A unit still Split or Down from last time is told again with "still". Columns: Unit, Read, and a
   note in one sentence.
 - **Standing changes** go in the captains section, now titled "Who the room follows": a man who became a leader or
-  a voice, or stopped being one, since the last report.
+  a voice, or stopped being one, since the last report. A GM's first report has nothing to compare against, so it
+  lists no changes. A leader on injured reserve hasn't left: only a man off the club counts as gone.
 - **The verdict's facts** gain the room's shape (split units, down units, a tight unit, a unit with no voice, the
   vets and the young guys apart), so the opening line can speak about it.
 
 ### 4.3 Position coaches in the weekly staff notes
 
 When a unit's read turns between weeks (into or out of Split or Down, or into Tight), the coach of that unit's
-tone-setter (`roomCoach`) adds a note to the week's staff notes (`staffNotes.ts`). At most one unit note a week (the
-biggest turn), told once per turn (`unitTurn:{season}:{week}:{unit}:{read}`). A week with nothing to say adds
-nothing.
+unit adds a note to the week's staff notes (`staffNotes.ts`). A turn is measured against what was last told about
+the unit, by a report or an earlier note, so the two never repeat each other. At most one unit note a week (the
+biggest turn), never for a unit told about in the last three weeks, and none when the room has no position coach (the
+head coach's report covers it). A week with nothing to say adds nothing.
 
 ### 4.4 Not shown
 
@@ -277,7 +286,7 @@ time. This section is the contract for every line L1 adds, and L2–L4 inherit i
 | --- | --- |
 | standing, weight, influence, tier, hierarchy | "the room goes to him", "his word carries", "one of the voices in that room" |
 | faction, clique, cohesion | "the vets", "the young guys", "the line", "a tight group", "split" |
-| tone, contagion, spread | "it's rubbing off", "the room follows his lead", "he's dragging them down" |
+| contagion, spread, a score of any kind | "it's rubbing off", "the room follows his lead", "he's dragging them down" ("sets the tone" is fine: it's how coaches talk) |
 | atmosphere, gauge, chemistry score | "the room's in a good place", "quiet room", "the room's tense" |
 | morale level, step | the seven mood words already in use |
 | a trait as a number or a z-score | personality names and `characterLine` |
@@ -354,8 +363,9 @@ Nothing stored. Worked out on the spot:
   the voice (`'stirs' | 'steadies' | null`) and the parts of his weight for the screen's reason; `UNITS`, `unitOf`,
   `unitRead`; `leadersOf` moves here.
 - `MoraleContext` gains each club's voices by unit (weight and loudness) and each side's captain, for tone.
-- Report `covered` keys: `standing:{season}:{checkin}:{playerId}:{tier}`, `unit:{season}:{checkin}:{unit}:{read}`;
-  staff notes: `unitTurn:{season}:{week}:{unit}:{read}`.
+- `covered` keys, stamped with morale's clock (`moraleClock`, which only moves forward) so the report and the staff
+  notes read one memory: `standing:{clock}:{playerId}:{tier}` for every leader and voice at each report, and
+  `unit:{clock}:{unit}:{read}` for every read unit at each report and for each unit a staff note tells.
 
 ## 8. Checks
 
@@ -365,8 +375,10 @@ Nothing stored. Worked out on the spot:
   captains in 10–30% of club-weeks.
 - **Unit reads league-wide:** Split 5–15% of unit-weeks, Down 5–20%, Tight 15–35%.
 - **Room moods cluster but don't run away:** club rooms at Poor or worse in 5–25% of club-weeks.
-- **Direction checks:** units with a down voice who stirs read lower than units without one (✗ if not). After a
-  three-game losing streak, units with a steady leader read higher two weeks later than units without one.
+- **Direction checks, like against like:** the unit-mates of a down voice who stirs have a lower room factor than the
+  unit-mates of a down voice who is even, and the unit-mates of a down voice who steadies a higher one (✗ if not).
+- **The mechanic's size:** the average size of the voices' pull on a player's room factor sits at 0.05–0.4, so it
+  does something without running the room.
 - **Existing checks hold:** band shares, underpaid final-year starters, a benching's dip and recovery, winning rooms
   happier than losing ones, no drift, no level out of range.
 
@@ -391,7 +403,9 @@ hold. CI's planner decides what runs on the pull request in any case.
 | `src/engine/standing.test.ts` | new |
 | `src/engine/morale.ts` | tone in `roomScore`; voices and captains in `moraleContext`; the room's mood weighted |
 | `src/engine/personality.ts` | `nameCaptains` rates by weight; `leadersOf` moves out |
-| `src/engine/lockerVoice.ts` | banks: unit reads, standing changes, the room's shape in the verdict |
+| `src/engine/roomFacts.ts` | new: the facts a line reads (a unit's, a standing change's, a leader's reason), built from our club only |
+| `src/engine/roomVoice.ts` | new: the banks for unit reads, standing changes, a leader's reason and the position coach's note |
+| `src/engine/lockerVoice.ts` | the verdict's room-shape facts and lines |
 | `src/engine/lockerReport.ts` | "The room" section, standing rows, verdict facts |
 | `src/engine/staffNotes.ts` | the position coach's unit note |
 | `src/ui/screens/LockerRoom.tsx` | "Who the room follows", "The units" |
