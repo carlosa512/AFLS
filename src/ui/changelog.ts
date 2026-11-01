@@ -21,7 +21,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'motion (more for offenses built on it): jets, orbits, shifts. ' +
       'The defense answers by its scheme: a man defender travels with the motion while a zone bumps over, safeties ' +
       'show one shell and rotate at the snap, linebackers walk up to show a blitz and bail, or creep up late to time ' +
-      "a real one, and an offside man jumps the count. The defense plays the engine's call on each snap: a blitz " +
+      'a real one. The quarterback barks to send the motion and to call for the ball (a ripple from him), and now ' +
+      "and then tries a hard count, which an offside man jumps. The defense plays the engine's call on each snap: a blitz " +
       'sends a linebacker or a defensive back, run defense puts a safety in the box, and zone defenders drop to their ' +
       'coverage. Every foul is acted out where and when it happened, by the player who committed it: a false start ' +
       'is one lineman moving early, offside a man across at the snap, a hold a blocker hanging on to his man, a late ' +

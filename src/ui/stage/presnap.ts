@@ -38,6 +38,11 @@ export interface Presnap {
   /** Seconds at the line before the snap, everyone in: the time all this takes. */
   line: number;
   moves: PreMove[];
+  /**
+   * When the quarterback barks (seconds before the snap): to send the motion, for the ball, and twice on a hard count.
+   * Drawn as a ripple from him; nobody else's calls are drawn.
+   */
+  barks: number[];
   /** What the snap shows, for tests and the curious: the motion's kind, the defense's look. */
   shows: string[];
 }
@@ -62,6 +67,11 @@ const PRESS_BAIL = 0.3;
 /** The quickest a man moves before the snap, on average over a leg (yards a second; his top speed half again). */
 const PRE_PACE = 6.5;
 const AUDIBLE = 0.1;
+/** How often the quarterback tries a hard count (nobody jumps, unless the flag says someone did). */
+const HARD_COUNT = 0.08;
+/** His barks: the snap a moment before the ball moves; a hard count's two, a beat apart, well before it. */
+const SNAP_BARK = 0.12;
+const HARD_BARKS = [1.15, 0.95];
 
 const SCRIMMAGE: ReadonlySet<string> = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble']);
 
@@ -73,7 +83,7 @@ export function presnapPlan(args: {
   seed: string;
 }): Presnap {
   const { staged: s, e, hurry } = args;
-  const none: Presnap = { line: 0, moves: [], shows: [] };
+  const none: Presnap = { line: 0, moves: [], barks: [], shows: [] };
   if (!s.kind || !SCRIMMAGE.has(s.kind)) return none;
   const rng = new Rng(`${args.seed}:presnap`);
   const n = s.ids.length;
@@ -124,13 +134,20 @@ export function presnapPlan(args: {
     move(k, { x: p.x - dir * 0.35, y: p.y }, [{ at: 0.85, dur: 0.3, to: p }]);
   }
 
-  // The hard count that draws an offside flag: the man who jumps sets on his side of the line and goes early.
+  // Every snap the quarterback calls for the ball. A hard count is two barks before it with no ball: nobody moves,
+  // unless the flag says a defender jumped (he sets on his side of the line and goes on the second bark).
+  const barks = [SNAP_BARK];
   const offside = (s.fouls ?? []).find((f) => f.id !== null && f.at < 0.3 && !s.offense[s.ids.indexOf(f.id)]);
-  if (offside) {
-    const k = s.ids.indexOf(offside.id!);
-    const p = snap(k);
-    // He's across the line at the snap (`fouls.ts`).
-    if (move(k, { x: p.x + dir * 0.9, y: p.y }, [{ at: 0.95, dur: 0.2, to: p }])) shows.push('jumps the count');
+  if (offside || (!hurry && rng.next() < HARD_COUNT)) {
+    barks.push(...HARD_BARKS);
+    shows.push('hard count');
+    if (offside) {
+      const k = s.ids.indexOf(offside.id!);
+      const p = snap(k);
+      // He's across the line at the snap (`fouls.ts`).
+      if (move(k, { x: p.x + dir * 0.9, y: p.y }, [{ at: HARD_BARKS[1], dur: 0.2, to: p }]))
+        shows.push('jumps the count');
+    }
   }
 
   // An audible: the back flips to the other side of the quarterback.
@@ -180,7 +197,11 @@ export function presnapPlan(args: {
         leg = { at: 1.7, dur: 0.75, to: p };
       }
       if (move(k, set, [leg])) {
-        motionLeg = { k, leg, set };
+        // As paced when he was given it (`move`): the man covering him, and the bark that sends him, go by it.
+        const sentLeg = moves.get(k)!.legs[0];
+        motionLeg = { k, leg: sentLeg, set };
+        // He sends the motion: a bark (a leg kick, a clap) as it starts.
+        barks.push(sentLeg.at);
         shows.push(kind === 'two' ? 'shift' : kind);
         // Two men shifting at once: a second receiver or the tight end resets beside the first.
         if (kind === 'two') {
@@ -292,9 +313,9 @@ export function presnapPlan(args: {
   }
 
   // Time enough for all of it, and a beat at the line besides.
-  const latest = Math.max(0, ...[...moves.values()].flatMap((m) => m.legs.map((l) => l.at)));
-  const lineTime = Math.min(hurry ? 2 : 3.6, Math.max(hurry ? 0.9 : 1.9, latest + 0.3));
-  return { line: lineTime, moves: [...moves.values()], shows };
+  const latest = Math.max(0, ...[...moves.values()].flatMap((m) => m.legs.map((l) => l.at)), ...barks);
+  const lineTime = Math.min(hurry ? 2 : 4.2, Math.max(hurry ? 0.9 : 1.9, latest + 0.3));
+  return { line: lineTime, moves: [...moves.values()], barks: barks.filter((b) => b <= lineTime), shows };
 }
 
 /** Where a man who moves before the snap is, `before` seconds before it, given where he started his first leg. */

@@ -88,7 +88,19 @@ describe('the moments before the snap', () => {
           prev = p;
         }
       }
-      expect(plan.line).toBeLessThanOrEqual(3.6);
+      expect(plan.line).toBeLessThanOrEqual(4.2);
+      // The quarterback barks for every ball, once to send any motion, twice more on a hard count; all at the line.
+      expect(plan.barks).toContain(0.12);
+      for (const b of plan.barks) expect(b).toBeLessThanOrEqual(plan.line);
+      const motion = plan.shows.some((w) => ['jet', 'orbit', 'shift', 'cross'].includes(w));
+      const hard = plan.shows.includes('hard count');
+      // A motion sent before the line's moment begins (a long jet, still coming as the rest set) goes unbarked.
+      const sent = plan.barks.length - 1 - (hard ? 2 : 0);
+      expect(sent).toBe(
+        motion && plan.moves.some((m) => m.legs.some((l) => l.at <= plan.line && plan.barks.includes(l.at))) ? 1 : sent,
+      );
+      expect(sent).toBeLessThanOrEqual(motion ? 1 : 0);
+      expect(sent).toBeGreaterThanOrEqual(0);
     }
   });
 

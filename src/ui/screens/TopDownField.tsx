@@ -38,6 +38,9 @@ const UMP_RUN = 6;
 const UMP_CARRY = 5;
 /** Past this far (yards) from its next spot, a dead ball stays where it is and a fresh one comes in from the sideline. */
 const FRESH_BALL = 20;
+/** The quarterback's bark at the line (`Presnap.barks`): how long its ripple lasts (seconds), and the most at once. */
+const BARK = 0.5;
+const BARKS = 2;
 /** A play a flag was thrown on: accepted, declined or offsetting (a flag before the snap is its own play, `penalty`). */
 const FLAGGED = /PENALTY|declined|Offsetting/;
 /** A flag the log names no foul for (an old save's): out this far through the play, by the ball. */
@@ -254,6 +257,7 @@ export function TopDownField({
   const finaleRef = useRef<HTMLDivElement>(null);
   const hurtRingRef = useRef<SVGCircleElement>(null);
   const flagRefs = useRef<(SVGGElement | null)[]>([]);
+  const barkRefs = useRef<(SVGCircleElement | null)[]>([]);
   const ballRef = useRef<SVGEllipseElement>(null);
   const oldBallRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
@@ -481,6 +485,21 @@ export function TopDownField({
       );
       el.setAttribute('opacity', opacity.toFixed(2));
     };
+    /** The quarterback barking at the line, `before` the snap: a ripple spreading and fading from him (null: none). */
+    const drawBarks = (before: number | null, qb?: { x: number; y: number }) => {
+      const live = before === null || !qb ? [] : (pre?.barks ?? []).filter((b) => b >= before && b - before < BARK);
+      barkRefs.current.forEach((el, i) => {
+        if (!el) return;
+        const b = live[i];
+        if (b === undefined || !qb) return el.setAttribute('opacity', '0');
+        const k = (b - before!) / BARK;
+        const [sx, sy] = toScreen(view, qb.x, qb.y);
+        el.setAttribute('cx', sx.toFixed(2));
+        el.setAttribute('cy', sy.toFixed(2));
+        el.setAttribute('r', (dot * (1.1 + k * 1.8)).toFixed(2));
+        el.setAttribute('opacity', (0.9 * (1 - k)).toFixed(2));
+      });
+    };
     const drawBall = (x: number, y: number, h: number) => {
       const [bx, by] = toScreen(view, x, y);
       const grow = 1 + h / 18;
@@ -550,6 +569,8 @@ export function TopDownField({
       callRef.current?.style.setProperty('opacity', '0');
       // At the line: each man who moves before the snap runs his legs from where he was when the first began.
       const before = g.duration - t;
+      const qbId = s.ids[s.roles.findIndex((r, k) => r === 'QB' && s.offense[k])];
+      let qbAt: { x: number; y: number } | undefined;
       for (const m of g.moves) {
         let p = g.at(m, t);
         const pm = preOf.get(m.id);
@@ -557,9 +578,12 @@ export function TopDownField({
           const start = g.at(m, g.duration - pm.legs[0].at);
           p = { ...p, ...preMoveAt(pm, before, dir, start), opacity: 1 };
         }
+        if (m.id === qbId) qbAt = p;
         drawDot(m.id, p.x, p.y, p.opacity);
         if (!m.leave) mem.spots.set(m.id, { x: p.x, y: p.y, home: m.home });
       }
+      // The quarterback barking: the motion sent, the snap called, a hard count.
+      drawBarks(before, qbAt);
       // The ball between plays. Close by, the umpire runs to it where it died, picks it up and walks it to its spot.
       // A long way off (a kick in the net behind the posts, a touchback, anything past 20 yards), that ball stays
       // where it is and fades, and he collects a fresh one from the sideline level with the spot and brings it in.
@@ -623,6 +647,7 @@ export function TopDownField({
 
     /** The play itself, at `step`. */
     const place = (step: number, seconds: number) => {
+      drawBarks(null);
       view.phi = turnTo;
       svg.current?.style.setProperty('opacity', '1');
       camera(s.ball[step * 3], seconds);
@@ -1046,6 +1071,20 @@ export function TopDownField({
             ))}
           </g>
         )}
+        {/* The quarterback barking at the line: a ripple from him. */}
+        {Array.from({ length: BARKS }, (_, i) => (
+          <circle
+            key={`bark${i}`}
+            ref={(el) => {
+              barkRefs.current[i] = el;
+            }}
+            r={0}
+            fill="none"
+            stroke="#fff"
+            strokeWidth={0.18}
+            opacity={0}
+          />
+        ))}
         {/* A flag for each foul (two when they offset). */}
         {(crewPlan?.flags ?? []).map((_, i) => (
           <g
