@@ -150,8 +150,10 @@ describe('PlayerAvatar', () => {
         <PlayerAvatar player={pearson} team={null} />
       </>,
     );
+    // the ring's clip, and the gear's when he wears any: none shared between the two
     const ids = [...two.matchAll(/clipPath id="([^"]+)"/g)].map((m) => m[1]);
-    expect(new Set(ids).size).toBe(2);
+    expect(ids.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(ids).size).toBe(ids.length);
   });
   it("shows a mod's portrait instead", () => {
     expect(html(48, { ...pearson, portrait: 'p.png' })).toContain('<img');

@@ -18,7 +18,9 @@ import { gameWeather, type Forecast, type Weather } from '../engine/weather';
 import { inkOn, kitFor, shade, tint, type TeamColors } from './color';
 import { band, gameWeatherText, playerName, severityText, shortName } from './format';
 import { useNav } from './nav';
-import { playerLook } from './playerLook';
+import { GearLayer } from './gearArt';
+import { coldGame, gearOf } from './playerGear';
+import { BUILD_MIN_PX, playerLook } from './playerLook';
 import { store } from './store';
 
 /** Free agents, prospects and staff on the market: the app's grey-green. */
@@ -75,6 +77,8 @@ export function PlayerAvatar({
   const kit = kitFor(colors, team !== null && wearsWhite(store.get(), team.id, game));
   const { jersey, ink, trim, accent } = kit;
   const { figure: f, head, transform } = playerLook(player, size);
+  // his gear from 32px, like his build: sleeves in a cold game follow the kit's game
+  const gear = size >= BUILD_MIN_PX ? gearOf(player, team !== null && coldGame(store.get(), team.id, game)) : null;
   const plate = player.lastName.toUpperCase();
   // long names shrink, and textLength holds the estimate even if the font hasn't loaded and a wider one stands in
   const plateSize = Math.min(9.5, f.plateMax / (plate.length * PLATE_EM));
@@ -132,6 +136,7 @@ export function PlayerAvatar({
         <g transform={transform}>
           <path d={f.armL} fill={url('arm')} />
           <path d={f.armR} fill={url('arm')} />
+          {gear && <GearLayer id={id} figure={f} gear={gear} colors={colors} />}
           <path d={f.neck} fill={url('sk')} />
           <path d={f.neckSides} fill="#000" fillOpacity={0.08} />
           <path d={f.neckShade} fill="#000" fillOpacity={0.16} />

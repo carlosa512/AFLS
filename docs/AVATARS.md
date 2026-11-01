@@ -77,12 +77,42 @@ framing and height); don't undo one without a reason.
   (inches over his position's median), so a man who stands taller wins the contested balls the picture
   promises.
 
+## 2b. Gear
+
+> **Status.** Built: `gearOf` and the rates in `src/ui/playerGear.ts`, the drawing in `src/ui/gearArt.tsx`. Tested
+> in `src/ui/playerGear.test.ts`.
+
+From 32px each player wears his own gear on his arms, picked once from his id and position like his head, so his
+look is his for a career. Nothing is saved and nothing reads ratings. Each choice was picked from rendered options
+(four rounds); don't undo one without a reason.
+
+- **Pieces:** sleeves (full, three-quarter, half, or the forearm only), a short solid undershirt sleeve (the
+  jersey keeps its stripes), biceps bands (on both arms; a single band goes on the forearm), elbow pads, and a
+  black shoulder brace with a strap in the team's colour (bulkier than the arm, a diagonal strap and a D-ring, so it
+  doesn't read as a sleeve). Two pieces at most. Colours: black, white or the primary; bands also the secondary.
+- **By position** (`GEAR_RATES`): skill players in light sleeves and bands (a sleeve on about 60% of receivers,
+  55% of corners, 45% of backs and safeties), a third of quarterbacks in one (on both arms more often than not,
+  otherwise the throwing arm), the trenches in elbow pads (60% of the offensive line, 45% of tackles, 40% of edge
+  rushers), a shoulder brace on about one lineman or edge rusher in ten, kickers and punters nearly bare. Linemen
+  take most of their contact through the elbows, and most NFL arm injuries are theirs
+  ([WashU](https://source.washu.edu/2008/08/researchers-track-common-arm-injuries-among-nfl-players/)); skill players
+  wear the lighter gear ([Dick's](https://www.dickssportinggoods.com/protips/sports-and-activities/football/choose-football-arm-protection));
+  shoulder braces are worn mostly by offensive linemen after an injury
+  ([study](https://pmc.ncbi.nlm.nih.gov/articles/PMC5140042/)).
+- **Cold games** (`coldGame`): open air at 35°F or colder at kickoff (`COLD_KICKOFF_F`), snow, or heavy rain, and
+  about 85% of players pull on full sleeves in the colour they'd pick anyway, half the tackles, never the offensive
+  line, which goes bare-armed in any weather ([SI](https://www.si.com/more-sports/2010/12/08/long-sleeves)). It
+  follows the kit's game, like the hot-day white jerseys; nothing else he wears changes.
+- **Dropped:** a neck roll (a crescent at the collar at these sizes), a hinged elbow brace (read wrong), a flat
+  brace (read as a sleeve). The ring crops above the wrist, so wristbands, gloves and the quarterback's playbook
+  band wouldn't show.
+
 ## 3. Detail by size
 
 | Size | Shows | Used in |
 | --- | --- | --- |
 | under 32px | ring, figure, jersey: the same plain figure for everyone | list rows (trades, medical, stats, cap, front office): the name sits beside it |
-| 32 to 95px | adds his build and head, the sleeve bands and the number | depth chart (32), player of the game, inbox, negotiation |
+| 32 to 95px | adds his build and head, his gear, the sleeve bands and the number | depth chart (32), player of the game, inbox, negotiation |
 | 96px and up | adds the surname and his height | the player card (128; 96 on phones) |
 
 It is decorative (`aria-hidden`): every placement shows the player's name next to it.
@@ -135,12 +165,6 @@ In `src/ui/playerLook.ts`: `BUILDS` (with each build's `arm` mix), `BUILD_MIN_PX
 
 - Alternate and throwback uniforms, colour-on-colour specials, club traditions (a team that always
   wears white at home), and each club's own pants colour (gold, silver…): today's pants follow the rule in section 4.
-- Gear by position, picked once per player from his id like his head (section 2a), never worn where his
-  position wouldn't: shooter sleeves (receivers, backs, defensive backs; a quarterback's throwing arm only),
-  solid-colour undershirt sleeves (the jersey keeps its stripes), biceps bands, linemen's elbow sleeves, neck
-  rolls (some linebackers and edge rushers), a kicker's smaller pads; long sleeves in cold games from the game's
-  weather, never on offensive or defensive linemen. The ring crops below the elbow, so wristbands, the
-  quarterback's playbook band and gloves wouldn't show.
 - Hair from behind (no helmet in the picture): buzz, fade, braids, locs, a bun.
 - Ring text ("QB · Dallas Stampede"): the card header already shows that line, and curved text is
   unreadable at these sizes. Dropped.
