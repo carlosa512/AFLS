@@ -28,6 +28,8 @@ const spread = (n: number, gap: number) => Array.from({ length: n }, (_, i) => (
 
 /** Under center on early downs at a normal distance, outside either two-minute window; the shotgun otherwise. */
 function underCenter(e: PlayLogEntry): boolean {
+  // The victory formation, and the spike: the quarterback takes the snap under center.
+  if (e.kind === 'kneel' || e.kind === 'spike') return true;
   const twoMinute = (e.quarter === 2 || e.quarter >= 4) && e.clock <= 120;
   return (e.down === 1 || e.down === 2) && e.distance <= 10 && !twoMinute;
 }
@@ -63,6 +65,7 @@ export function lineUp(
   else {
     scrimmage(e, cast, off, def, put, face, strong);
     coverTheTarget(e, cast, spots);
+    tacklerNear(e, cast, spots, ballY, dir);
   }
   return spots;
 }
@@ -88,6 +91,42 @@ function coverTheTarget(e: PlayLogEntry, cast: Cast, spots: Map<number, Pt>) {
   const a = spots.get(target)!;
   spots.set(target, spots.get(over)!);
   spots.set(over, a);
+}
+
+/** How far across the field a play goes, at full lane (`buildPath`: the lane times this, from the snap). */
+const LANE_YARDS = 16;
+
+/** Who can trade spots with whom: the defensive backs among themselves, the linebackers, the line. */
+const GROUP: Partial<Record<string, string>> = { CB: 'DB', S: 'DB', LB: 'LB', DT: 'DL', EDGE: 'DL' };
+
+/**
+ * The man the engine says made the tackle lines up where he can: in the spot of whoever in his group (the defensive
+ * backs, the linebackers, the line) the formation put nearest where the play ends, so he isn't running down a play on
+ * the far side of the field. The man in coverage keeps his spot.
+ */
+function tacklerNear(e: PlayLogEntry, cast: Cast, spots: Map<number, Pt>, ballY: number, dir: 1 | -1) {
+  const who = actorsIn(e);
+  const tackler = who.tackle;
+  // The man in coverage who made the tackle lines up over his receiver (`coverTheTarget`).
+  if (tackler === undefined || tackler === who.cover || e.to === undefined || !spots.has(tackler)) return;
+  const group = GROUP[cast.defense.find((m) => m.id === tackler)?.role ?? ''];
+  if (!group) return;
+  const end = { x: e.to, y: ballY + dir * (e.lane ?? 0) * LANE_YARDS };
+  const far = (id: number) => Math.hypot(spots.get(id)!.x - end.x, spots.get(id)!.y - end.y);
+  // The ends and the outside corners keep their sides (play after play, as on Sundays): they trade only on their own.
+  const fixed = (m: Cast['defense'][number]) => m.role === 'EDGE' || (m.role === 'CB' && m.slot <= 1);
+  const sideOf = (id: number) => Math.sign(spots.get(id)!.y - ballY);
+  const me = cast.defense.find((m) => m.id === tackler)!;
+  let best = tackler;
+  for (const m of cast.defense) {
+    if (GROUP[m.role] !== group || m.id === who.cover || far(m.id) >= far(best)) continue;
+    if ((fixed(m) || fixed(me)) && sideOf(m.id) !== sideOf(tackler)) continue;
+    best = m.id;
+  }
+  if (best === tackler) return;
+  const a = spots.get(tackler)!;
+  spots.set(tackler, spots.get(best)!);
+  spots.set(best, a);
 }
 
 type Put = (id: number, back: number, across: number) => void;

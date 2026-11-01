@@ -11,7 +11,7 @@ import type { Pt } from './formations';
 import { sample, type Keyframe } from './scripts';
 
 /** Top speeds in yards a second, roughly the NFL's tracking data. */
-const SPEED: Record<Role, number> = {
+export const SPEED: Record<Role, number> = {
   CB: 9,
   S: 9,
   WR: 9,
@@ -29,10 +29,15 @@ const SPEED: Record<Role, number> = {
 };
 /** Yards a second gained or shed in a second. */
 const ACCEL = 6;
-/** Men closer than this push apart. */
+/** Men closer than this push apart, a little each step (a shove, not a jolt). */
 const ROOM = 1;
+const ROOM_PUSH = 0.12;
+/** No one moves further than this in a step (yards: 11 a second), however he's pushed or knocked off. */
+const MAX_STEP = 0.55;
 /** How close a chaser may come to the man with the ball before the scripted tackler gets there. */
 const RING = 1.2;
+/** However he's pushed, no chaser is ever closer than this to the man with the ball before the tackler. */
+const FLOOR = 1.01;
 const WOBBLE = 0.2;
 /** The tackler aims this many seconds ahead of the carrier, and runs this much over his top speed: he makes the play. */
 const LEAD = 0.35;
@@ -49,6 +54,11 @@ export interface SteerArgs {
   cast: Cast;
   start: ReadonlyMap<number, Pt>;
   scripted: ReadonlyMap<number, Keyframe[]>;
+  /**
+   * Scripted men who play on from a moment (seconds from the snap): the cover man beaten on a catch is scripted to
+   * the catch and runs the rest himself, so he chases from where he was rather than sliding along with the receiver.
+   */
+  free?: ReadonlyMap<number, number>;
   /** The ball, x, y, h per step (`ballTrack`). */
   ball: Float32Array;
   /** The throw or handoff, in seconds: the defense reads it from then. */
@@ -113,6 +123,10 @@ export function steer(a: SteerArgs): Float32Array {
     py[k] = lastY[k] = p.y;
   });
   const steered = members.map((m) => !a.scripted.has(m.id));
+  /** The side of the carrier a chaser was knocked to (−1, 1; 0: not near him). */
+  const ringSide = new Int8Array(n);
+  /** When each scripted man is let go (Infinity: never). */
+  const freeAt = members.map((m) => (a.scripted.has(m.id) ? (a.free?.get(m.id) ?? Infinity) : 0));
   const index = new Map(members.map((m, k) => [m.id, k]));
   /** The man who makes the tackle, and the path of the man he tackles. */
   const pk = a.pursuer === null ? -1 : (index.get(a.pursuer) ?? -1);
@@ -305,6 +319,22 @@ export function steer(a: SteerArgs): Float32Array {
     const s = Math.max(0, Math.min(a.steps - 1, step));
     return { x: a.ball[s * 3], y: a.ball[s * 3 + 1] };
   };
+  /**
+   * Where a chaser can meet the ball: the first spot on its path (over the next two seconds) he can reach by the time
+   * it gets there at `speed`; a ball in the air is met where it comes down. One who can't get there in time runs for
+   * where it will be in two seconds, the angle to the sideline or the pylon. A man in front of the carrier comes to
+   * meet him; aiming further ahead would only have him back away in front of him, running with the play.
+   */
+  const meet = (k: number, step: number, speed: number): Pt => {
+    const ahead = Math.round(2 / a.dt);
+    for (let j = 1; j <= ahead; j++) {
+      const s = Math.min(a.steps - 1, step + j);
+      if (a.ball[s * 3 + 2] > 0.5) continue;
+      const b = ballAt(s);
+      if (Math.hypot(b.x - px[k], b.y - py[k]) <= speed * j * a.dt) return b;
+    }
+    return ballAt(step + ahead);
+  };
   /** The nearest man on the other side. */
   const nearest = (k: number): number => {
     let best = -1;
@@ -320,6 +350,13 @@ export function steer(a: SteerArgs): Float32Array {
   for (let step = 0; step < a.steps; step++) {
     const t = step * a.dt;
     const released = t >= a.release;
+    // A scripted man let go runs on from there, at the pace his script had him going.
+    for (let k = 0; k < n; k++)
+      if (!steered[k] && t >= freeAt[k] && step > 0) {
+        steered[k] = true;
+        vx[k] = (px[k] - lastX[k]) / a.dt;
+        vy[k] = (py[k] - lastY[k]) / a.dt;
+      }
     // Scripted men are where their script says.
     for (let k = 0; k < n; k++)
       if (!steered[k]) {
@@ -395,12 +432,26 @@ export function steer(a: SteerArgs): Float32Array {
             // Pursuit: an angle on where the ball is going, further ahead the further off it he is, so the chase
             // spreads out across the field instead of piling onto the carrier's back.
             const d = Math.hypot(chase.x - px[k], chase.y - py[k]);
-            const aim = ballAt(step + Math.round(Math.min(1.6, d / 9) / a.dt) + 4);
-            // Each takes his own angle (a lane of his own, wider the further off he is), not one file behind him.
-            goal = { x: aim.x, y: aim.y + LANES[k % LANES.length] * Math.min(1, d / 12) };
-            // A big man well beaten (the ball past him and away) eases off: the chase thins out behind the play.
-            const past = (ballAt(step).x - px[k]) * a.dir;
+            const aim = meet(k, step, SPEED[m.role] * 0.9);
+            // Once a man has the ball on the ground: how far past this chaser he is. A chaser he's gone by has lost his
+            // angle; he can only run after him from behind, and a breakaway runs away from him.
+            const now = ballAt(step);
+            const carried =
+              !a.kick &&
+              carrierIdx >= 0 &&
+              offense[carrierIdx] &&
+              a.ball[step * 3 + 2] < 0.5 &&
+              Math.abs(now.x - px[carrierIdx]) < 1;
+            const past = carried ? (now.x - px[k]) * a.dir : 0;
+            // Each takes his own angle (a lane of his own, wider the further off he is), not one file behind him; a
+            // chaser left behind gives his lane up and runs straight after him.
+            const lane = LANES[k % LANES.length] * Math.min(1, d / 12) * Math.max(0, 1 - Math.max(0, past - 1) / 3);
+            goal = { x: aim.x, y: aim.y + lane };
+            // Beaten: he loses ground, more the further behind he is, so the chase thins out behind the play rather
+            // than running alongside it. A big man well beaten eases right off.
+            if (past > 1) beaten = Math.max(0.8, 0.95 - (past - 1) * 0.03);
             if ((m.role === 'DT' || m.role === 'EDGE') && past > 8) beaten = 0.7;
+            if (k === pk) beaten = 1;
           } else if (a.run && t > 0.3 && (m.role === 'LB' || m.role === 'S'))
             // Reading run on the mesh: step up and flow with the play before the ball is even handed off.
             goal = { x: s0.x - a.dir * (m.role === 'LB' ? 1.5 : 3), y: s0.y + side * 2.5 };
@@ -417,7 +468,19 @@ export function steer(a: SteerArgs): Float32Array {
         // The tackler reads it, takes his angle and closes: aimed where the carrier is going, not where he is.
         const pursuing =
           k === pk && !!carrierPath && (a.kick ? t >= a.catchAt : released && t > a.release + (a.run ? 0.1 : 0.25));
-        if (pursuing) goal = sample(carrierPath!, t + LEAD);
+        // Once the ball is on the ground with the carrier, he takes the angle that meets him; till then, and coming
+        // straight at him with the hit between them, a step ahead of him: into him, at speed.
+        if (pursuing) {
+          const carried =
+            a.ball[step * 3 + 2] < 0.5 && carrierIdx >= 0 && Math.abs(a.ball[step * 3] - px[carrierIdx]) < 1;
+          const hx = px[carrierIdx] - lastX[carrierIdx];
+          const hy = py[carrierIdx] - lastY[carrierIdx];
+          const facing =
+            carried &&
+            (px[k] - px[carrierIdx]) * hx + (py[k] - py[carrierIdx]) * hy > 0 &&
+            (carrierEnd.x - px[k]) * hx + (carrierEnd.y - py[k]) * hy < 0;
+          goal = carried && !facing ? meet(k, step, SPEED[m.role] + PURSUIT) : sample(carrierPath!, t + LEAD);
+        }
         // Engaged: a blocked man only leans into his block, slowly toward the ball on a dropback, driven back on a run.
         let top = (SPEED[m.role] + (k === pk ? PURSUIT : 0)) * beaten;
         /** The tackler, clear of the blocks and closing: within a few yards of the carrier. */
@@ -491,7 +554,7 @@ export function steer(a: SteerArgs): Float32Array {
           const dy = py[k] - py[j];
           const d = Math.hypot(dx, dy);
           if (d > 0 && d < ROOM) {
-            const push = (ROOM - d) * (steered[j] ? 0.5 : 1);
+            const push = Math.min(ROOM_PUSH, (ROOM - d) * (steered[j] ? 0.5 : 1));
             px[k] += (dx / d) * push;
             py[k] += (dy / d) * push;
           }
@@ -525,7 +588,10 @@ export function steer(a: SteerArgs): Float32Array {
             // wavers, and a side picked from it would flip frame to frame. Then the chaser simply holds the ring.
             const running = m > 4 * a.dt;
             if (running) {
-              const side = Math.sign(-my * dx + mx * dy) || 1;
+              // The side he's knocked to stays his while he's near: picked afresh each step, a man straight in front
+              // would flip from one side of the carrier to the other.
+              if (!ringSide[k]) ringSide[k] = Math.sign(-my * dx + mx * dy) || 1;
+              const side = ringSide[k];
               ux = (-my / m) * side;
               uy = (mx / m) * side;
             }
@@ -535,6 +601,31 @@ export function steer(a: SteerArgs): Float32Array {
               vx[k] = 0;
               vy[k] = 0;
             }
+          } else if (d > RING * 2) ringSide[k] = 0;
+        }
+      }
+      // However he was pushed or knocked off, a man covers no more ground in a step than a man can.
+      for (let k = 0; k < n; k++) {
+        if (!steered[k]) continue;
+        const dx = px[k] - lastX[k];
+        const dy = py[k] - lastY[k];
+        const d = Math.hypot(dx, dy);
+        if (d > MAX_STEP) {
+          px[k] = lastX[k] + (dx / d) * MAX_STEP;
+          py[k] = lastY[k] + (dy / d) * MAX_STEP;
+        }
+      }
+      // ...and nobody but the tackler gets his hands on the man with the ball: the least step out to a yard off him.
+      for (const r of new Set([hk, ck])) {
+        if (r < 0) continue;
+        for (let k = 0; k < n; k++) {
+          if (!steered[k] || k === pk || offense[k] === offense[r]) continue;
+          const dx = px[k] - px[r];
+          const dy = py[k] - py[r];
+          const d = Math.hypot(dx, dy);
+          if (d < FLOOR && d > 0) {
+            px[k] = px[r] + (dx / d) * FLOOR;
+            py[k] = py[r] + (dy / d) * FLOOR;
           }
         }
       }

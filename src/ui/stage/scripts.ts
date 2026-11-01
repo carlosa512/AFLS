@@ -6,7 +6,7 @@
  */
 import { actorsIn } from '../../engine/playActors';
 import type { PlayLogEntry } from '../../engine/types';
-import { buildPath, ground, offenseSide, pointAt, type Seg } from './ballPath';
+import { buildPath, FIELD_W, ground, offenseSide, pointAt, type Seg } from './ballPath';
 import type { Cast } from './cast';
 import type { Pt } from './formations';
 
@@ -72,6 +72,8 @@ const SACK_HOLD = 1.8;
 const KICK_RUN_UP = 0.9;
 /** The handoff, from the snap to the ball in the back's belly. */
 const MESH = 0.8;
+/** A receiver's pace down the field once he's up to speed (yards a second). */
+const ROUTE_PACE = 8.5;
 /** Before a scramble breaks out. */
 const SCRAMBLE_HOLD = 1.1;
 
@@ -87,26 +89,52 @@ const SCRAMBLE_HOLD = 1.1;
  * is a breakaway, at the speed the pursuit can't match (yards a second).
  */
 export const runPace = (yards: number) => Math.min(9.3, 6.5 + yards * 0.05);
+/**
+ * A long gain someone runs down from behind: the carrier is a step slower than a breakaway's, so the man who catches
+ * him can (a touchdown keeps the breakaway's pace).
+ */
+const CAUGHT_PACE = 8.4;
 /** A carrier's leg on the ground at his pace. */
-const carry = (sg: Seg): Seg => {
+const carry = (sg: Seg, caught = false): Seg => {
   const l = Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0);
-  return { ...sg, dur: Math.max(0.3, l / runPace(l)) };
+  return { ...sg, dur: Math.max(0.3, l / Math.min(caught ? CAUGHT_PACE : Infinity, runPace(l))) };
 };
 
-export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
+export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number, receiverAt?: Pt): Seg[] {
+  // A flag before the snap: no play, nothing moves (the walk-off is the official's, between plays).
+  if (e.kind === 'penalty') return [];
   const segs = buildPath(e, homeId, snapY);
   if (!segs.length || e.from === undefined || e.to === undefined) return segs;
   const dir = offenseSide(e, homeId) === 0 ? 1 : -1;
+  const caught = !/TOUCHDOWN/.test(e.text);
   if (e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int') {
     const drop = segs[0];
-    const air = segs[1];
+    let air = segs[1];
+    // A catch the log gives no air yards for (a screen, a flat): the broadcast view throws it at the sideline; here it
+    // goes to the receiver where the play went across the field, and he runs on from there.
+    if (air && e.air === undefined && e.kind !== 'incomplete') {
+      const y = Math.max(4, Math.min(FIELD_W - 4, snapY + (e.lane ?? 0) * dir * 16));
+      air = { ...air, y1: y };
+      if (segs[2]) segs[2] = { ...segs[2], y0: y };
+    }
     const depth = air ? Math.abs(air.x1 - air.x0) : 10;
+    // In the pocket until the route has had time to get there: the receiver's run from the line to the catch, up to
+    // speed and then at it, less the drop and the ball's flight. A deep shot is a long hold, as it is on Sundays.
+    // From where he lined up when that's known (a crosser has the width of the field to run, too), else the depth.
+    const route = !air
+      ? 0
+      : receiverAt
+        ? // His route has a stem and a break: a little longer than the straight line.
+          Math.hypot(air.x1 - receiverAt.x, air.y1 - receiverAt.y) * 1.1
+        : Math.abs(air.x1 - (e.from ?? air.x0));
+    const run = route < 3 ? route / 4 : 0.75 + (route - 3) / ROUTE_PACE;
+    const wait = run - drop.dur - (air?.dur ?? 0);
     return [
       drop,
-      hold({ x: drop.x1, y: drop.y1 }, Math.max(0.8, Math.min(1.6, 0.7 + depth * 0.035))),
+      hold({ x: drop.x1, y: drop.y1 }, Math.max(0.8, Math.min(3.4, Math.max(0.7 + depth * 0.035, wait)))),
       air,
       // After the catch (or the pick): a runner's pace, not the broadcast view's slide.
-      ...segs.slice(2).map(carry),
+      ...segs.slice(2).map((sg) => carry(sg, caught)),
     ].filter((sg): sg is Seg => !!sg);
   }
   const len = (sg: Seg) => Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0);
@@ -150,7 +178,7 @@ export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[
     return [
       { ...segs[0], dur: MESH },
       { x0: hand.x, y0: hand.y, x1: press.x, y1: press.y, peak: 0, dur: Math.max(0.9, len(hand, press) / 4.5 + 0.5) },
-      carry({ x0: press.x, y0: press.y, x1: end.x, y1: end.y, peak: 0, dur: 0 }),
+      carry({ x0: press.x, y0: press.y, x1: end.x, y1: end.y, peak: 0, dur: 0 }, caught),
     ];
   }
   if (e.kind === 'sack' || e.kind === 'scramble') {
@@ -159,7 +187,7 @@ export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[
     return [
       ground(e.from, snapY, qb.x, qb.y, 0.8),
       hold(qb, e.kind === 'sack' ? SACK_HOLD : SCRAMBLE_HOLD),
-      e.kind === 'scramble' ? carry(ground(qb.x, qb.y, end.x1, end.y1)) : ground(qb.x, qb.y, end.x1, end.y1),
+      e.kind === 'scramble' ? carry(ground(qb.x, qb.y, end.x1, end.y1), caught) : ground(qb.x, qb.y, end.x1, end.y1),
     ];
   }
   return segs;
@@ -199,8 +227,15 @@ export interface Scripted {
   release: number;
   /** A kick: when it comes down to the returner. */
   catchAt?: number;
-  /** When each scripted man's moment comes (the handoff, the throw, the catch, the sack, the tackle), from the snap. */
+  /**
+   * When each featured man's moment comes (the handoff, the throw, the catch, the sack, the tackle), from the snap: he's
+   * ringed from just before it. A scripted man with no moment (the quarterback handing off) isn't featured.
+   */
   moments: Map<number, number>;
+  /** When a featured man's part is over and his ring goes (the quarterback once his pass arrives); absent: never. */
+  until: Map<number, number>;
+  /** Scripted men let go after their part (`SteerArgs.free`): the cover man on a catch, from the catch. */
+  free: Map<number, number>;
 }
 
 export function script(
@@ -212,7 +247,9 @@ export function script(
 ): Scripted {
   const keys = new Map<number, Keyframe[]>();
   const moments = new Map<number, number>();
-  if (!segs.length) return { keys, carrier: null, tackler: null, pursuer: null, release: 0, moments };
+  const free = new Map<number, number>();
+  const until = new Map<number, number>();
+  if (!segs.length) return { keys, carrier: null, tackler: null, pursuer: null, release: 0, moments, until, free };
   /** His moment: the first that comes, if he has two (a cover man who makes the tackle). */
   const moment = (id: number | undefined, t: number) => {
     if (id !== undefined && keys.has(id)) moments.set(id, Math.min(t, moments.get(id) ?? Infinity));
@@ -243,7 +280,7 @@ export function script(
         if (qb !== undefined) set(qb, [at(ts[0][1], hand), at(total, toward(hand, start.get(qb)!, 1))]);
         set(carrier, [at(ts[0][1], hand), ...ride(segs, 1, segs.length - 1)]);
       }
-      moment(qb, ts[0][1]);
+      // The handoff is the back's moment; the quarterback is only featured when he keeps it.
       moment(carrier, ts[0][1]);
       break;
     }
@@ -288,6 +325,8 @@ export function script(
         if (segs.length > a + 1) carrier = ret;
       }
       moment(kicker, kickT);
+      // A kickoff or a punt is the returner's once it comes down; a kick at the posts stays the kicker's.
+      if (kicker !== undefined && (e.kind === 'kickoff' || e.kind === 'punt')) until.set(kicker, landT);
       moment(ret, landT);
       kickAt = kickT;
       catchAt = landT;
@@ -308,21 +347,28 @@ export function script(
         const arrive = short ? toward(land, s0, short) : land;
         const stem = { x: s0.x + (arrive.x - s0.x) * 0.6, y: s0.y + (arrive.y - s0.y) * 0.25 };
         const after = e.kind === 'pass' ? ride(segs, 3, segs.length - 1) : [];
-        set(target, [at(throwEnd * 0.55, stem), at(throwEnd, arrive), ...after]);
+        // Each leg in its share of the time, so he runs it at one pace (a crosser's break is the long leg).
+        const legs = [Math.hypot(stem.x - s0.x, stem.y - s0.y), Math.hypot(arrive.x - stem.x, arrive.y - stem.y)];
+        const split = legs[0] + legs[1] > 0 ? legs[0] / (legs[0] + legs[1]) : 0.55;
+        set(target, [at(throwEnd * Math.max(0.3, Math.min(0.75, split)), stem), at(throwEnd, arrive), ...after]);
         if (e.kind === 'pass') carrier = target;
         moment(target, ts[1]?.[1] ?? 0);
       }
       moment(qb, ts[1]?.[1] ?? 0);
+      // The throw is his; once it arrives the play is the receiver's (or the man who picked it off).
+      if (qb !== undefined) until.set(qb, throwEnd);
       if (e.kind === 'int' && who.take !== undefined && start.has(who.take)) {
         set(who.take, [at(throwEnd, land), ...ride(segs, 3, segs.length - 1)]);
         carrier = who.take;
         moment(who.take, throwEnd);
       }
       if (who.cover !== undefined && who.cover !== who.take && start.has(who.cover)) {
-        // Trailing the receiver: a yard and a half deeper than the catch (under it on a miss).
+        // Trailing the receiver: a yard and a half deeper than the catch (under it on a miss). Beaten on a catch, he
+        // chases from there on his own legs (`free`), not sliding along at the receiver's back.
         const trail = e.kind === 'incomplete' ? 0.7 : 1.5;
         const spot = { x: land.x + dir * trail, y: land.y };
-        set(who.cover, [at(throwEnd, spot), ...(e.kind === 'pass' ? [at(total, toward(end, spot, 2.5))] : [])]);
+        set(who.cover, [at(throwEnd, spot)]);
+        if (e.kind === 'pass') free.set(who.cover, throwEnd);
         moment(who.cover, throwEnd);
       }
       break;
@@ -358,7 +404,14 @@ export function script(
       const set = e.kind === 'kickoff' && catchAt !== undefined && catchAt + 0.2 < total ? [at(catchAt + 0.2, s0)] : [];
       keys.set(tackler, [from(tackler), ...set, ...before.filter((k) => k.t > 0), at(total, toward(end, s0, 0.6))]);
       tacklerId = tackler;
-      if (!before.some((k) => k.t > 0)) pursuer = tackler;
+      // Nothing else scripted for him, or his part over well before the tackle (the cover man beaten on the catch, the
+      // receiver a pass was picked off from): he runs the carrier down himself from there.
+      const done = before.length ? before[before.length - 1].t : 0;
+      if (total - done > 0.5) {
+        pursuer = tackler;
+        if (done > 0) free.set(tackler, done);
+        else free.delete(tackler);
+      }
       moment(tackler, total);
     }
   }
@@ -381,6 +434,8 @@ export function script(
     pursuer,
     release,
     moments,
+    until,
+    free,
     ...(catchAt !== undefined ? { catchAt } : {}),
   };
 }
