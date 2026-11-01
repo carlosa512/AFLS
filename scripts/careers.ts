@@ -312,13 +312,17 @@ for (const r of runs) for (const [group, ages] of Object.entries(r.retiredAt)) (
 for (const r of runs)
   console.log(`starter OVR by season (${r.seed}): ` + r.starterOvr.map((v) => v.toFixed(2)).join(' '));
 // The league must neither drain nor inflate (v4 on careers-audit slid from 12.92 to 12.60 over 16 seasons).
-// Judged on the leagues' average path, so one league's luck doesn't decide it.
+// Judged on the leagues' average path, so one league's luck doesn't decide it. The ceiling sits 0.35 over a lived-in
+// league's level (its seasons 7-10): 12.85 + 0.35 = 13.2 while about a tenth of last season's starters fell out of
+// football; once good veterans stay (0.2.27, the late market and front offices) a lived-in league holds 12.94, so 13.3
+// (owner's call, 2026-11-01). A new league's young starters growing into their prime peak it at 13.22 in year three.
+const STARTER_OVR_CEILING = 13.3;
 const meanPath = runs[0].starterOvr.map((_, i) => mean(runs.map((r) => r.starterOvr[i])));
 console.log(`starter OVR by season (mean): ${meanPath.map((v) => v.toFixed(2)).join(' ')}`);
 console.log(
-  check('lowest starter OVR', Math.min(...meanPath), 12.65, 13.2) +
+  check('lowest starter OVR', Math.min(...meanPath), 12.65, STARTER_OVR_CEILING) +
     ' · ' +
-    check('highest starter OVR', Math.max(...meanPath), 12.65, 13.2),
+    check('highest starter OVR', Math.max(...meanPath), 12.65, STARTER_OVR_CEILING),
 );
 console.log(
   `starter awareness: ${runs.map((r) => `${r.awareness[0].toFixed(2)} → ${r.awareness[1].toFixed(2)}`).join(', ')} (informational: the mental game rises with age, the league shouldn't)`,
