@@ -40,23 +40,34 @@ the primary with a thin highlight inside it.
 ## 2a. Builds, heads and height
 
 From 32px each player is drawn to his own body. Nothing is saved: it's a pure function of his weight, height,
-position and id. Each choice was picked from rendered options (three rounds of mockups); don't undo one without
-a reason.
+position and id. Each choice was picked from rendered options (three rounds of mockups, then a fourth for the arms,
+framing and height); don't undo one without a reason.
 
 - **Five builds by real weight**, the same ruler at every position, so a 212 lb corner looks like a safety:
   Lean (under 205: most receivers, corners, kickers), Athletic (205–229: safeties, backs, quarterbacks,
   punters), Solid (230–264: linebackers, tight ends), Big (265–294: edge rushers) and Heavy (295 and up:
   linemen). A build sets the pads' width, the chest, belly and waist, the neck and how high the shoulders
   ride toward it (`BUILDS`). The head stays one size, so the body reads bigger or smaller.
-- **Every build has a waist**, so the heaviest still read as men and not walls.
-- **Zoomed out 12%** about the collar (`ZOOM`), so the wide builds show their width inside the ring instead
-  of filling it. The number gives up a little size for it, and narrows with a narrow back.
+- **Every build has a waist**, so the heaviest still read as men and not walls. The light builds taper only a
+  little below the chest: a sharper taper made receivers and corners look pinched.
+- **Zoomed out 21%** about the collar (`ZOOM`), so the wide builds show their width inside the ring and the ring
+  crops the arm below the elbow, where its shape shows. The number gives up a little size for it, and narrows
+  with a narrow back. **Moved down** (`DROP`), so the waist doesn't run long under the number.
+- **No pants.** Tried twice (a belt, then football pants with the jersey bloused over and a side stripe): at
+  these sizes they read as high-waisted slacks. Moving the figure down fixed the long waist instead.
+- **Arms are two outlines mixed by build:** a smooth tube and a muscled arm (triceps, a pinch at the elbow,
+  the forearm), with the same commands so a build sits anywhere between them (`Build.arm`: lean 25% muscled up to
+  heavy 55%; the plain figure 40%). The old single arm bowed out and tapered to a point.
 - **Arms keep their gap to the jersey** and thicken only a little with the build (skinny arms read wrong);
   they hang a touch off the body (`ARM_GAP`, `ARM_SWING`; a wider swing read as bowed out on the big builds).
+  Below the chest they follow only 30% of the body's width (`ARM_FOLLOW`): following all of it bowed a heavy
+  man's arms out around his belly.
 - **Three heads** from behind (today's blocky one, a wide round one and a long one), picked once from his id.
   Outline only, like the staff.
 - **Height against his position, on the card only:** an average height for his position is today's spot; a
-  tall one is drawn up to 6.5% bigger from his feet (2.6% per sd, capped at 2.5 sd), a short one smaller. From
+  tall one is drawn up to 6.5% taller from his feet (2.6% per sd, capped at 2.5 sd), a short one shorter. His
+  width moves the other way by about half as much (`1 / sqrt` of the height's scale), because the same weight on a
+  shorter frame is stockier: drawn bigger all over, a short receiver looked skinnier than a tall one. From
   the feet, not a slide, so the number never drops out of the ring. The engine judges size the same way
   (inches over his position's median), so a man who stands taller wins the contested balls the picture
   promises.
@@ -105,8 +116,9 @@ with the secondary as trim.
 
 ## 6. Tunables
 
-In `src/ui/playerLook.ts`: `BUILDS`, `BUILD_MIN_PX` (32), `HEIGHT_MIN_PX` (96), `ZOOM` (0.88), `GROW_PER_SD`
-(0.026), `ARM_GAP` (1.3), `ARM_SWING` (2) and `NAMEPLATE_MAX` (40 viewBox units). In `src/ui/components.tsx` and
+In `src/ui/playerLook.ts`: `BUILDS` (with each build's `arm` mix), `BUILD_MIN_PX` (32), `HEIGHT_MIN_PX` (96), `ZOOM`
+(0.79), `DROP` (6), `GROW_PER_SD` (0.026), `ARM_GAP` (1.3), `ARM_SWING` (2), `ARM_FOLLOW` (0.3), `PLAIN_ARM` (0.4)
+and `NAMEPLATE_MAX` (40 viewBox units). In `src/ui/components.tsx` and
 `src/ui/color.ts`: `NUMBER_MIN_PX` (32), `NAMEPLATE_MIN_PX` (96), `PLATE_EM` (re-measure if the display font changes), `MIN_CONTRAST`
 (4.5) and `HOT_KICKOFF_F` (85).
 
@@ -114,7 +126,13 @@ In `src/ui/playerLook.ts`: `BUILDS`, `BUILD_MIN_PX` (32), `HEIGHT_MIN_PX` (96), 
 
 - Alternate and throwback uniforms, colour-on-colour specials, and club traditions (a team that always
   wears white at home).
-- Gear by position (neck rolls, a kicker's smaller pads). Builds are in (section 2a).
+- Gear by position, picked once per player from his id like his head (section 2a), never worn where his
+  position wouldn't: shooter sleeves (receivers, backs, defensive backs; a quarterback's throwing arm only),
+  solid-colour undershirt sleeves (the jersey keeps its stripes), biceps bands, linemen's elbow sleeves, neck
+  rolls (some linebackers and edge rushers), a kicker's smaller pads; long sleeves in cold games from the game's
+  weather, never on offensive or defensive linemen. The ring crops below the elbow, so wristbands, the
+  quarterback's playbook band and gloves wouldn't show.
+- Hair from behind (no helmet in the picture): buzz, fade, braids, locs, a bun.
 - Ring text ("QB · Dallas Stampede"): the card header already shows that line, and curved text is
   unreadable at these sizes. Dropped.
 - Validating mod-supplied colours (arrives with league import).

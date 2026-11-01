@@ -166,6 +166,31 @@ describe('playerLook', () => {
     for (let i = 1; i < BUILDS.length; i++) expect(BUILDS[i].knots[0][1]).toBeGreaterThan(BUILDS[i - 1].knots[0][1]);
     for (const b of BUILDS) expect(b.knots[b.knots.length - 1][1]).toBeLessThan(Math.max(...b.knots.map((k) => k[1])));
   });
+  it('draws a short man stockier and a tall one leaner at the same weight', () => {
+    const scaleOf = (inches: number) => {
+      const t = playerLook({ ...median('WR'), heightIn: SIZE.WR.h[0] + inches }, 128).transform!;
+      const [sx, sy] = /scale\(([\d.]+) ([\d.]+)\)/.exec(t)!.slice(1).map(Number);
+      return { sx, sy };
+    };
+    expect(scaleOf(-4).sy).toBeLessThan(1);
+    expect(scaleOf(-4).sx).toBeGreaterThan(1);
+    expect(scaleOf(4).sy).toBeGreaterThan(1);
+    expect(scaleOf(4).sx).toBeLessThan(1);
+  });
+  it('gives heavier builds more muscle in the arm', () => {
+    for (let i = 1; i < BUILDS.length; i++) expect(BUILDS[i].arm).toBeGreaterThan(BUILDS[i - 1].arm);
+  });
+  it("hangs a heavy man's arms past his belly instead of bowing them out around it", () => {
+    // how far the arm's inner edge moves out from the armpit to the elbow
+    const spread = (weightLb: number) => {
+      const d = playerLook({ ...median('OL'), weightLb }, 64).figure.armL;
+      const pts = [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+      const inner = (y: number) => Math.max(...pts.filter((p) => p[1] === y).map((p) => p[0]));
+      return inner(65.6) - inner(80.6);
+    };
+    // the solid build runs straight down to the elbow; the heavy one's belly mustn't push his arm out further
+    expect(spread(330) - spread(240)).toBeLessThan(0.4);
+  });
   it('gives a player the same head for life, and the three about evenly', () => {
     expect(headOf({ id: 42 })).toBe(headOf({ id: 42 }));
     const counts = PLAYER_HEADS.map(() => 0);
@@ -184,8 +209,8 @@ describe('playerLook', () => {
     const short = { ...median('CB'), heightIn: SIZE.CB.h[0] - 4 };
     expect(playerLook(short, 24).build).toBeNull();
     expect(playerLook(short, 24).transform).toBeUndefined();
-    expect(playerLook(short, 32).transform).toContain('scale(1)');
-    expect(playerLook(short, 128).transform).not.toContain('scale(1)');
+    expect(playerLook(short, 32).transform).toContain('scale(1 1)');
+    expect(playerLook(short, 128).transform).not.toContain('scale(1 1)');
   });
   it('leaves list icons exactly as they were', () => {
     const plain = renderToStaticMarkup(<PlayerAvatar player={pearson} team={BLUE} size={24} />);

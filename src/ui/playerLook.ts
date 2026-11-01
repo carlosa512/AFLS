@@ -16,11 +16,15 @@ const NECK = 'M41.6 34 C41.8 39.6 41 43.8 38 47.8 L62 47.8 C59 43.8 58.2 39.6 58
 const NECK_SIDES =
   'M41.8 37 C42 40.6 41.4 44 38.8 47.6 L41.4 47.6 C42.8 44 43 40.6 42.8 37 Z M58.2 37 C58 40.6 58.6 44 61.2 47.6 L58.6 47.6 C57.2 44 57 40.6 57.2 37 Z';
 const NECK_SHADE = 'M42 39.2 C46.6 42 53.4 42 58 39.2 L57.9 41.6 C53.4 43.8 46.6 43.8 42.1 41.6 Z';
-// arms tuck under the pads and angle slightly away from the torso, so a sliver of background shows at the waist
-const ARM_L =
-  'M10.6 61.6 C8.2 68.4 8.6 76 11.6 83 C13.6 88 15.6 94 16.4 100 L22.6 100 C22 94 21.6 88 21.6 82 C21.8 76 23.4 70 25.4 65.6 Z';
-const ARM_R =
-  'M89.4 61.6 C91.8 68.4 91.4 76 88.4 83 C86.4 88 84.4 94 83.6 100 L77.4 100 C78 94 78.4 88 78.4 82 C78.2 76 76.6 70 74.6 65.6 Z';
+// Two outlines of the left arm with the same commands, so a build can sit anywhere between them (`blend`): a smooth
+// tube, and a muscled arm (triceps, a pinch at the elbow, the forearm, the wrist). Both tuck under the pads, keep
+// the same inner edge (`ARM_INNER`) and run straight down: the old single arm bowed out and tapered to a point.
+const ARM_TUBE =
+  'M9.6 60.6 C9 65.6 8.8 70.4 8.8 75.4 C8.9 77.2 9.1 78.9 9.3 80.6 C9.5 83.2 9.7 85.8 9.9 88.4 C10.3 92.2 10.6 96.2 11 100 L22.6 100 C22.2 96 21.8 92.4 21.6 88.6 C21.6 86 21.7 83.2 21.8 80.6 C22 77.6 22.4 74.6 23 71.8 C23.6 69.6 24.4 67.6 25.4 65.6 Z';
+const ARM_MUSCLED =
+  'M9.8 60.6 C6.2 64 5.6 70.4 7.2 75.4 C8.4 77.8 9.8 78.8 9.8 80.6 C9.4 82.6 8.4 85 8.8 88.4 C9.6 92.6 11.4 96.4 12.4 100 L22.4 100 C22 96.4 21.2 92.6 21.2 88.6 C21.2 85.2 22.8 82.8 23 80.6 C23 77.6 22.4 74.6 22.8 71.8 C23.4 69.2 24.4 67.4 25.4 65.6 Z';
+/** The plain figure's arm, part way to muscled (the solid build's). */
+const PLAIN_ARM = 0.4;
 // the arm sits in shade under each pad's overhang
 const SLEEVE_SHADOW =
   'M93.4 57.8 C90 59.8 84 60.6 78 60.2 L77.2 64.8 C83.6 65.2 89.6 63.8 92.4 61.4 Z M6.6 57.8 C10 59.8 16 60.6 22 60.2 L22.8 64.8 C16.4 65.2 10.4 63.8 7.6 61.4 Z';
@@ -66,12 +70,15 @@ export interface Build {
   neck: number;
   /** How far the shoulder line rises toward the collar: heavier men carry their pads higher. */
   traps: number;
+  /** How far his arm runs from the smooth tube (0) to the muscled one (1). */
+  arm: number;
   /** The body's width at each height, as [y, scale] knots (linear between): pads, chest, belly, waist. */
   knots: readonly (readonly [number, number])[];
 }
 /**
  * Five builds by real weight, the same ruler for every position, so a 212 lb corner is drawn like a safety.
- * Every build has a waist, so even the heaviest reads as a man and not a wall.
+ * Every build has a waist, so even the heaviest reads as a man and not a wall; the light ones taper only a little,
+ * or a receiver looks pinched. Heavier builds carry more muscle in the arm.
  */
 export const BUILDS: readonly Build[] = [
   {
@@ -79,12 +86,13 @@ export const BUILDS: readonly Build[] = [
     under: 205,
     neck: 0.88,
     traps: -0.6,
+    arm: 0.25,
     knots: [
       [42, 0.83],
       [60, 0.83],
-      [72, 0.79],
-      [80, 0.77],
-      [94, 0.74],
+      [72, 0.81],
+      [80, 0.8],
+      [94, 0.79],
     ],
   },
   {
@@ -92,12 +100,13 @@ export const BUILDS: readonly Build[] = [
     under: 230,
     neck: 0.94,
     traps: 0,
+    arm: 0.325,
     knots: [
       [42, 0.9],
       [60, 0.9],
-      [72, 0.87],
-      [80, 0.86],
-      [94, 0.82],
+      [72, 0.89],
+      [80, 0.88],
+      [94, 0.86],
     ],
   },
   {
@@ -105,6 +114,7 @@ export const BUILDS: readonly Build[] = [
     under: 265,
     neck: 1,
     traps: 1,
+    arm: 0.4,
     knots: [
       [42, 0.97],
       [60, 0.97],
@@ -118,6 +128,7 @@ export const BUILDS: readonly Build[] = [
     under: 295,
     neck: 1.08,
     traps: 2,
+    arm: 0.475,
     knots: [
       [42, 1.03],
       [60, 1.03],
@@ -131,6 +142,7 @@ export const BUILDS: readonly Build[] = [
     under: Infinity,
     neck: 1.16,
     traps: 3,
+    arm: 0.55,
     knots: [
       [42, 1.08],
       [60, 1.08],
@@ -145,14 +157,20 @@ export const BUILDS: readonly Build[] = [
 export const BUILD_MIN_PX = 32;
 /** From this size (the card) he also stands taller or shorter. */
 export const HEIGHT_MIN_PX = 96;
-/** A built figure is zoomed out about the collar, so the wide builds show their width inside the ring. */
-const ZOOM = 0.88;
+/**
+ * A built figure is zoomed out about the collar, so the wide builds show their width inside the ring and the ring
+ * crops the arm below the elbow, where its shape shows; then moved down, so the waist doesn't run long under the number.
+ */
+const ZOOM = 0.79;
+const DROP = 6;
 /** How much bigger he's drawn per sd of height over his position's median, from his feet, and how far it goes. */
 const GROW_PER_SD = 0.026;
 const GROW_SD_MAX = 2.5;
 /** Arms keep a little more than today's gap at the waist, and the forearms swing out a touch (picked: "B"). */
 const ARM_GAP = 1.3;
 const ARM_SWING = 2;
+/** How much of the body's width below the chest the arms follow: all of it bowed them out around a heavy man's belly. */
+const ARM_FOLLOW = 0.3;
 /** The plain figure's widest nameplate, in viewBox units. */
 export const NAMEPLATE_MAX = 40;
 
@@ -196,8 +214,20 @@ function warp(d: string, f: (x: number, y: number) => [number, number]): string 
     .trim();
 }
 
+/** `a` part way to `b` (0 to 1): two paths with the same commands, each number mixed. */
+function blend(a: string, b: string, t: number): string {
+  const to = b.match(/-?\d+(\.\d+)?/g)!.map(Number);
+  let i = 0;
+  return a.replace(/-?\d+(\.\d+)?/g, (n) => {
+    const v = Number(n) + (to[i++] - Number(n)) * t;
+    return String(+v.toFixed(2));
+  });
+}
+const armOf = (t: number) => blend(ARM_TUBE, ARM_MUSCLED, t);
+const mirror = (d: string) => warp(d, (x, y) => [100 - x, y]);
+
 // The paths stop at y 100. Zoomed out, or drawn shorter, that edge would show inside the circle, so it runs on.
-const foot = (y: number) => (y >= 99.9 ? 108 : y);
+const foot = (y: number) => (y >= 99.9 ? 120 : y);
 
 /** Pads, jersey and shadows: the body's width at each height, the shoulder line rising toward the collar. */
 const bodyAt =
@@ -231,11 +261,15 @@ const ARM_INNER: Knots = [
   [94, 28],
   [100, 27.4],
 ];
-/** Arms ride the jersey's side in or out, keep their gap to it, and thicken only a little (skinny arms read wrong). */
+/**
+ * Arms ride the jersey's side in or out (mostly the chest's width: `ARM_FOLLOW`), keep their gap to it, and thicken
+ * only a little (skinny arms read wrong).
+ */
 const armAt =
   (b: Build) =>
   (x: number, y: number): [number, number] => {
-    const s = at(b.knots, y);
+    const chest = at(b.knots, 60);
+    const s = chest + (at(b.knots, y) - chest) * ARM_FOLLOW;
     const thick = 1 + (s - 1) * 0.35;
     const side = at(TORSO_EDGE, y);
     const inner = at(ARM_INNER, y);
@@ -266,9 +300,10 @@ export interface Figure {
   plateMax: number;
 }
 
+const PLAIN_ARM_L = armOf(PLAIN_ARM);
 const PLAIN: Figure = {
-  armL: ARM_L,
-  armR: ARM_R,
+  armL: PLAIN_ARM_L,
+  armR: mirror(PLAIN_ARM_L),
   neck: NECK,
   neckSides: NECK_SIDES,
   neckShade: NECK_SHADE,
@@ -289,9 +324,10 @@ function figureOf(b: Build): Figure {
   const body = (d: string) => warp(d, bodyAt(b));
   const neck = (d: string) => warp(d, neckAt(b));
   const arm = (d: string) => warp(d, armAt(b));
+  const armL = armOf(b.arm);
   return {
-    armL: arm(ARM_L),
-    armR: arm(ARM_R),
+    armL: arm(armL),
+    armR: arm(mirror(armL)),
     neck: neck(NECK),
     neckSides: neck(NECK_SIDES),
     neckShade: neck(NECK_SHADE),
@@ -327,11 +363,13 @@ export function playerLook(
   if (size < BUILD_MIN_PX) return { build: null, figure: PLAIN, head: PLAYER_HEADS[0] };
   const build = buildOf(player.weightLb);
   const grow = size >= HEIGHT_MIN_PX ? growOf(player) : 1;
+  const girth = 1 / Math.sqrt(grow);
   return {
     build: build.name,
     figure: FIGURES.get(build.name)!,
     head: PLAYER_HEADS[headOf(player)],
-    // from his feet for height, so the number never drops out of the ring; then the zoom about the collar
-    transform: `translate(50 100) scale(${+grow.toFixed(4)}) translate(-50 -100) translate(50 40) scale(${ZOOM}) translate(-50 -40)`,
+    // moved down; height (and the girth that goes with it) from his feet, so the number never drops out of the ring;
+    // then the zoom about the collar
+    transform: `translate(0 ${DROP}) translate(50 100) scale(${+girth.toFixed(4)} ${+grow.toFixed(4)}) translate(-50 -100) translate(50 40) scale(${ZOOM}) translate(-50 -40)`,
   };
 }

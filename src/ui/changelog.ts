@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.32',
+    date: '2026-11-01',
+    title: 'Better-drawn players',
+    text:
+      'Player pictures have new arms: they hang straight instead of bowing out, with more muscle the heavier the ' +
+      'player. The picture is framed a little wider and lower, so you see down past the elbow and the jersey no ' +
+      'longer runs long under the number. Receivers and corners no longer look pinched at the waist, and on the ' +
+      'player card a short player looks compact and a tall one rangy, at the same weight.',
+  },
+  {
     version: '0.2.31',
     date: '2026-11-01',
     title: 'Flags, injuries and the final whistle',
