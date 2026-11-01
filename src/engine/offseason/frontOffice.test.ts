@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { capHit } from '../finance/contract';
-import { capSpace, releasePlayer, releasePreview } from '../finance/cap';
+import { capSpace, releasePlayer } from '../finance/cap';
 import { leagueMarket, marketApy, minSalary, payTier, positionRank } from '../finance/market';
 import { ageShift } from '../aging';
 import { createLeague } from '../generate';
@@ -8,7 +8,16 @@ import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import type { League, Player } from '../types';
-import { aiFreeAgencyDay, aiResignWindow, expiringPlayers, resignCall, spendable, TAG_TIER } from './ai';
+import {
+  aiFreeAgencyDay,
+  aiResignWindow,
+  cutWorth,
+  expiringPlayers,
+  nextYearCeiling,
+  resignCall,
+  spendable,
+} from './ai';
+import { NEXT_YEAR_CEILING } from '../generate';
 import { advanceOffseason, beginOffseason } from './index';
 import { demand, OFFSEASON_ROSTER_MAX } from './negotiation';
 
@@ -155,7 +164,7 @@ describe('the tag keeps a star who’d walk', () => {
       .flatMap((t) => expiringPlayers(l, t.id).map((p) => ({ t, p })))
       .filter(({ t, p }) => {
         const c = resignCall(l, t.id, p);
-        return c.call !== 'walk' && c.reason === 'starter' && payTier(p.position, positionRank(market, p)) >= TAG_TIER;
+        return c.call !== 'walk' && c.reason === 'starter' && payTier(p.position, positionRank(market, p)) >= 0.75;
       })
       .filter(({ p }) => p.age - ageShift(p.position) <= 30)[0];
     const { t, p } = pick;
@@ -180,48 +189,39 @@ describe('the tag keeps a star who’d walk', () => {
     expect(tests).toBeGreaterThan(0);
   }, 180_000);
 
-  it('never tags one past his age line', () => {
-    for (let i = 0; i < 10; i++) {
-      const { l, t, p } = setUp(31);
-      aiResignWindow(l, t, new Rng(`tag-${i}`));
-      expect(l.players[p.id].contract?.kind).not.toBe('tag');
+  it('never tags a player not worth his tag', () => {
+    // A backup at a deep spot: the room barely misses him, so his tag's price isn't worth paying.
+    const l: League = JSON.parse(windowLeague);
+    const t = l.teams.find((x) => x.id !== l.userTeamId && !x.taggedId)!;
+    const p = expiringPlayers(l, t.id).sort((a, b) => playerOvr(a) - playerOvr(b))[0];
+    p.personality.loyalty = 0;
+    t.deadMoney.push({ season: l.season, amount: -200_000, playerId: -1, note: 'test room' });
+    for (let i = 0; i < 5; i++) {
+      const c: League = JSON.parse(JSON.stringify(l));
+      aiResignWindow(c, c.teams[t.id], new Rng(`tag-${i}`));
+      expect(c.players[p.id].contract?.kind).not.toBe('tag');
     }
   }, 120_000);
 });
 
-describe('an upgrade cut is a rare call', () => {
-  it('cuts at most once an offseason, never with dead money past half of what the cut saves', () => {
-    const l0: League = JSON.parse(afterFreeAgency);
-    for (const t of l0.teams.filter((x) => x.id !== l0.userTeamId).slice(0, 6)) {
-      const { l } = lateVeteran(t.id, 0.5);
-      const released = () =>
-        l.transactions.filter((m) => m.kind === 'release' && m.season === l.season && m.teamIds.includes(t.id)).length;
-      const before = released();
-      const dead: number[] = [];
-      const saves: number[] = [];
-      for (const pass of [{ rosterMax: OFFSEASON_ROSTER_MAX }, { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true }]) {
-        // Another good starter loose before each pass, so the club wants one every time.
-        const next = Object.values(l.players).find(
-          (x) =>
-            x.teamId !== null &&
-            x.teamId !== t.id &&
-            x.teamId !== l.userTeamId &&
-            x.contract &&
-            playerOvr(x) >= 12.5 &&
-            x.age <= 29,
-        )!;
-        releasePlayer(l, next);
-        const spare = Object.values(l.players).filter((x) => x.teamId === t.id && x.contract);
-        const previews = new Map(spare.map((x) => [x.id, releasePreview(l, x)]));
-        aiFreeAgencyDay(l, new Rng('rare'), pass);
-        for (const x of spare)
-          if (l.players[x.id].teamId === null) {
-            dead.push(previews.get(x.id)!.thisYear + previews.get(x.id)!.nextYear);
-            saves.push(previews.get(x.id)!.savings);
-          }
-      }
-      expect(released() - before).toBeLessThanOrEqual(1);
-      dead.forEach((d, i) => expect(d).toBeLessThanOrEqual(0.5 * saves[i] + 1));
-    }
-  }, 300_000);
+describe('a GM weighs a move against what it costs', () => {
+  it('prices a cut’s dead money and what the club loses into the move', () => {
+    const l: League = JSON.parse(afterFreeAgency);
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const cap = l.caps[l.season];
+    const clean = { thisYear: 0, nextYear: 0, savings: 0.02 * cap };
+    // A point's upgrade on a cheap deal is worth a clean release...
+    expect(cutWorth(l, team, 1.5, 0.5, 0.02 * cap, clean)).toBe(true);
+    // ...not one that leaves a fifth of the cap in dead money.
+    expect(cutWorth(l, team, 1.5, 0.5, 0.02 * cap, { ...clean, thisYear: 0.2 * cap })).toBe(false);
+    // Losing as much as it gains is never worth a cut.
+    expect(cutWorth(l, team, 2, 2, 0.01 * cap, clean)).toBe(false);
+  });
+});
+
+describe('caution is next year’s headroom, not a quota', () => {
+  it('leaves a cautious GM more of next year’s cap free than a bold one', () => {
+    expect(nextYearCeiling({ capAggression: 0 } as never)).toBeLessThan(nextYearCeiling({ capAggression: 1 } as never));
+    expect(nextYearCeiling({ capAggression: 1 } as never)).toBeCloseTo(NEXT_YEAR_CEILING, 9);
+  });
 });

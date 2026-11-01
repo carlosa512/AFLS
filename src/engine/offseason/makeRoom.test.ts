@@ -62,13 +62,15 @@ describe('GMs make room to keep their core', () => {
     expect(capSpace(l, team.id)).toBeGreaterThanOrEqual(0);
   });
 
-  it('goes further for an aggressive GM than a cautious one', () => {
+  it('pushes more into next year for a bold GM than a cautious one', () => {
     const cautious = squeezed(-0.6, 0);
     const bold = squeezed(-0.6, 1);
     aiResignWindow(cautious.l, cautious.team, new Rng('room'));
     aiResignWindow(bold.l, bold.team, new Rng('room'));
-    expect(restructures(cautious.l, cautious.team.id)).toBeLessThanOrEqual(1);
-    expect(restructures(bold.l, bold.team.id)).toBeGreaterThan(restructures(cautious.l, cautious.team.id));
+    // Caution is next year's headroom: a cautious GM leaves more of it free than a bold one.
+    const next = (x: typeof cautious) => capSheet(x.l, x.team.id, x.l.season + 1).used;
+    expect(next(cautious)).toBeLessThan(next(bold));
+    expect(restructures(bold.l, bold.team.id)).toBeGreaterThanOrEqual(restructures(cautious.l, cautious.team.id));
   });
 
   it('never cuts a better player than the one it keeps', () => {
