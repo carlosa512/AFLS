@@ -15,12 +15,80 @@ export function flagCall(e: PlayLogEntry): string | null {
     const noPlay = /No play\./.test(e.text) ? ', no play' : '';
     return `${foul} · ${team}${by ? ` ${by}` : ''} · ${yards} yd${yards === '1' ? '' : 's'}${noPlay}`;
   }
+  // A kickoff out of bounds: no yards, the ball goes to the receiving 40.
+  const placed = /PENALTY on (\S+?)(?: \(([^)]+)\))?: ([^,.]+)\. Ball at the (\S+ \d+)/.exec(e.text);
+  if (placed) {
+    const [, team, by, foul, spot] = placed;
+    return `${foul} · ${team}${by ? ` ${by}` : ''} · ball at the ${spot}`;
+  }
   const declined = /(?:^|\.\s)([A-Z][^.,]*?) on (\S+?)(?: \(([^)]+)\))?, declined/.exec(e.text);
   if (declined) {
     const [, foul, team, by] = declined;
     return `${foul} · ${team}${by ? ` ${by}` : ''} · declined`;
   }
   return null;
+}
+
+/**
+ * When in a play a foul happens, which is when its flag flies: before the snap (a false start), at it (offside), while
+ * the play is on (holding, a block in the back), as the ball arrives (interference), just after the throw or the kick
+ * (a hit on the passer or the kicker), at the whistle (a late or a dirty hit), or where a kickoff went out of bounds.
+ */
+export type FoulPhase = 'early' | 'snap' | 'during' | 'ball' | 'afterThrow' | 'afterKick' | 'whistle' | 'out';
+
+/** One foul named in a play's log line: what, by which side's man (abbreviation and short name), and when. */
+export interface FoulCall {
+  label: string;
+  team: string;
+  name?: string;
+  phase: FoulPhase;
+}
+
+/** Each foul's moment, by its label (`penalties.ts`); anything else is a foul while the play is on. */
+const PHASES: [RegExp, FoulPhase][] = [
+  [/^false start/i, 'early'],
+  [/^offside|formation/i, 'snap'],
+  [/interference/i, 'ball'],
+  [/roughing the passer/i, 'afterThrow'],
+  [/kicker/i, 'afterKick'],
+  [/out of bounds/i, 'out'],
+  [/roughness|face mask|horse collar|unsportsmanlike/i, 'whistle'],
+];
+const phaseOf = (label: string): FoulPhase => PHASES.find(([re]) => re.test(label))?.[1] ?? 'during';
+
+/**
+ * Every foul a play's log line names: taken ("PENALTY on BAL (J.Murphy): Offensive holding, 10 yards."), declined
+ * ("Offside on BAL (D.Miller), declined") and offsetting ("Offsetting penalties: offensive holding on JAX (K.Liufau),
+ * pass interference on NYK (T.Miles)."), in the order they're written.
+ */
+export function foulsIn(e: PlayLogEntry): FoulCall[] {
+  const out: { at: number; call: FoulCall }[] = [];
+  for (const m of e.text.matchAll(/PENALTY on (\S+?)(?: \(([^)]+)\))?: ([^,.]+)/g))
+    out.push({ at: m.index, call: { label: m[3], team: m[1], ...(m[2] ? { name: m[2] } : {}), phase: phaseOf(m[3]) } });
+  // Declined or offsetting: "<foul> on <TEAM> (<name>)", after the start, a full stop, a colon or a comma.
+  for (const m of e.text.matchAll(/(?:^|[.:,] )([A-Za-z][A-Za-z -]*?) on (\S+?)(?: \(([^)]+)\))?(?=[,.]|$)/g))
+    out.push({ at: m.index, call: { label: m[1], team: m[2], ...(m[3] ? { name: m[3] } : {}), phase: phaseOf(m[1]) } });
+  return out.sort((a, b) => a.at - b.at).map((o) => o.call);
+}
+
+/**
+ * The men on the field (`ids`, `home` per id) who committed each foul: matched by short name and side, null when he
+ * isn't among them (a log the field record can't place).
+ */
+export function foulersOn(
+  league: League,
+  ids: readonly number[],
+  home: readonly boolean[],
+  fouls: readonly FoulCall[],
+  abbrev: { home: string; away: string },
+): { id: number | null; phase: FoulPhase; label: string }[] {
+  return fouls.map((f) => {
+    const k = ids.findIndex((id, i) => {
+      const p = league.players[id];
+      return !!p && `${p.firstName[0]}.${p.lastName}` === f.name && (home[i] ? abbrev.home : abbrev.away) === f.team;
+    });
+    return { id: k < 0 ? null : ids[k], phase: f.phase, label: f.label };
+  });
 }
 
 /** How a man hurt in a game leaves the field: on his own with a trainer, helped off by two, or on the cart. */

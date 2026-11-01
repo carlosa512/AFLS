@@ -267,6 +267,10 @@ export function migrateLeague(league: League): League | null {
   // v72: a snap a flag wiped out keeps the play as it ran (`PlayLogEntry.ran`), for All-22. Optional: older games'
   // flagged plays show the walk-off alone.
   if (league.version < 72) league.version = 72;
+  // v73: the defense's call on each kept play (`FieldRecord.calls`) and the offense each side ran
+  // (`FieldScheme.offense`), for All-22. Optional: in older games every snap shows the defense's base call, and each
+  // offense moves before the snap at the league's rate.
+  if (league.version < 73) league.version = 73;
   return league;
 }
 

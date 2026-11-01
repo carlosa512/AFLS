@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../../engine/generate';
 import { playWeek } from '../../engine/league';
 import type { PlayLogEntry } from '../../engine/types';
-import { exitFor, flagCall, injuryBanner, injuryCall } from './calls';
+import { exitFor, flagCall, foulsIn, injuryBanner, injuryCall } from './calls';
 import { injuryScene } from './injury';
 import type { Mark } from './transition';
 
@@ -38,6 +38,50 @@ describe('the calls on the banner', () => {
       flagCall(entry('X pass incomplete. Offsetting penalties: holding on A, holding on B. Replay the down.')),
     ).toBe('Offsetting penalties · replay the down');
     expect(flagCall(entry('J.Largo rush right end for 9 yards (N.Gaoa).'))).toBeNull();
+    expect(
+      flagCall(
+        entry(
+          'T.Berry kicks off out of bounds. PENALTY on MIA (T.Berry): Kickoff out of bounds or short. Ball at the CAR 40.',
+        ),
+      ),
+    ).toBe('Kickoff out of bounds or short · MIA T.Berry · ball at the CAR 40');
+  });
+
+  it('names every foul on a play, who did it and when it happened', () => {
+    expect(foulsIn(entry('PENALTY on BUF (B.Bennett): False start, 5 yards.'))).toEqual([
+      { label: 'False start', team: 'BUF', name: 'B.Bennett', phase: 'early' },
+    ]);
+    expect(
+      foulsIn(
+        entry(
+          'R.Moore pass deep left to D.Oliver incomplete. Offsetting penalties: offensive holding on JAX (K.Liufau), pass interference on NYK (T.Miles). Replay the down.',
+        ),
+      ),
+    ).toEqual([
+      { label: 'offensive holding', team: 'JAX', name: 'K.Liufau', phase: 'during' },
+      { label: 'pass interference', team: 'NYK', name: 'T.Miles', phase: 'ball' },
+    ]);
+    expect(
+      foulsIn(
+        entry(
+          'D.Bryant pass medium middle to N.Stevenson incomplete. Defensive holding on DET (C.Meadows), declined. PENALTY on DET (O.Okafor): Roughing the passer, 15 yards. No play.',
+        ),
+      ).map((f) => [f.name, f.phase]),
+    ).toEqual([
+      ['C.Meadows', 'during'],
+      ['O.Okafor', 'afterThrow'],
+    ]);
+    expect(foulsIn(entry('Running into the kicker on SEA (C.Boateng), declined. D.Webb extra point is GOOD.'))).toEqual(
+      [{ label: 'Running into the kicker', team: 'SEA', name: 'C.Boateng', phase: 'afterKick' }],
+    );
+    expect(
+      foulsIn(
+        entry(
+          'M.Hunter rush right tackle for 6 yards (J.Gibson). PENALTY on HOU (J.Gibson): Unnecessary roughness, 3 yards.',
+        ),
+      )[0].phase,
+    ).toBe('whistle');
+    expect(foulsIn(entry('J.Largo rush right end for 9 yards (N.Gaoa).'))).toEqual([]);
   });
 
   it('reads every flag in a week of games', () => {

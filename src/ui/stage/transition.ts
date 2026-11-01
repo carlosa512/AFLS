@@ -174,6 +174,8 @@ export function transition(
     seed?: string;
     /** A kickoff next: everyone comes off to his sideline, and the kick units come on. */
     change?: boolean;
+    /** Seconds at the line once everyone's set, for the moments before the snap (`presnap.ts`). */
+    line?: number;
   } = {},
 ): Transition {
   const { party, huddle } = opts;
@@ -342,7 +344,11 @@ export function transition(
   for (const m of moves) m.arrive = dist(m) / ((m.leave ? OFF_PACE : pace) * paceOf.get(m.id)!);
   const beat = party ? 0 : WHISTLE;
   const duration =
-    beat + celebrate + Math.max(0.6, ...moves.map((m) => m.start + m.delay + m.arrive - (m.leave ? SET : 0))) + SET;
+    beat +
+    celebrate +
+    Math.max(0.6, ...moves.map((m) => m.start + m.delay + m.arrive - (m.leave ? SET : 0))) +
+    SET +
+    (opts.line ?? 0);
 
   const tr: Transition = {
     duration,

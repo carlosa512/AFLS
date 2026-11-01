@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from '../../engine/generate';
 import { simulateGame } from '../../engine/match/gameSim';
-import { actorsIn } from '../../engine/playActors';
+import { actorsIn, defenseCallAt } from '../../engine/playActors';
 import type { FieldUnits, Game, GameResult, PlayLogEntry } from '../../engine/types';
 import { Rng } from '../../engine/rng';
 import { FIELD_W, pointAt, snapYFor } from './ballPath';
 import { castFor, unitsAt } from './cast';
 import { lineUp } from './formations';
 import { sample, script, stagedPath } from './scripts';
-import { asRan, stagePlay, type StagedPlay } from './stage';
+import { asRan, returned, stagePlay, type StagedPlay } from './stage';
 
 const league = createLeague({ seed: 'stage' });
 const games: { g: Game; r: GameResult }[] = Array.from({ length: 40 }, (_, i) => {
@@ -265,6 +265,29 @@ describe('the staged play', () => {
     }
   });
 
+  it('rings the quarterback only while the play is his: not on a handoff, and off once his pass arrives', () => {
+    let runs = 0;
+    let passes = 0;
+    for (const { e, p } of staged) {
+      const qb = p.ids[p.roles.indexOf('QB')];
+      if (e.kind === 'run' && p.carrier !== qb) {
+        expect(p.keys).not.toContain(qb);
+        expect(p.keys).toContain(p.carrier);
+        runs++;
+      }
+      if (e.kind === 'pass') {
+        const i = p.keys.indexOf(qb);
+        expect(i).toBeGreaterThanOrEqual(0);
+        // Gone before the whistle; the receiver's stays.
+        expect(p.until[i]).toBeLessThanOrEqual((p.steps - 1) * p.dt);
+        expect(p.until[p.keys.indexOf(p.carrier!)]).toBe(Infinity);
+        passes++;
+      }
+    }
+    expect(runs).toBeGreaterThan(500);
+    expect(passes).toBeGreaterThan(500);
+  });
+
   it('stages a snap a flag wiped out as it ran: the run or the pass, not just the walk-off', () => {
     let n = 0;
     for (const { e, p } of staged) {
@@ -278,7 +301,7 @@ describe('the staged play', () => {
 
   it('ends the ball where the ball path ends (a snap a flag wiped out, where it ran)', () => {
     for (const { e, p, homeId, snapY } of staged) {
-      const segs = stagedPath(asRan(e), homeId, snapY);
+      const segs = stagedPath(returned(asRan(e)), homeId, snapY);
       if (!segs.length) continue;
       const end = pointAt(segs[segs.length - 1], 1);
       const last = (p.steps - 1) * 3;
@@ -346,6 +369,36 @@ describe('the staged play', () => {
     expect(crowds[Math.floor(crowds.length / 2)]).toBeLessThan(1.5);
     expect(crowds[crowds.length - 1]).toBeLessThan(6);
     expect(n).toBeGreaterThan(10);
+  });
+
+  it('runs a long gain down: nobody rides along at the carrier side, the tackler included, until the hit', () => {
+    let n = 0;
+    let worst = 0;
+    for (const { e, p } of staged) {
+      if ((e.kind !== 'run' && e.kind !== 'pass') || p.carrier === null) continue;
+      if (e.from === undefined || e.to === undefined || Math.abs(e.to - e.from) < 20) continue;
+      const c = p.ids.indexOf(p.carrier);
+      const last = p.steps - 1 - Math.round(0.6 / p.dt);
+      for (let k = 0; k < 22; k++) {
+        if (p.offense[k] === p.offense[c]) continue;
+        // Within two yards of him while he's running with the ball (on the ground, a step quicker than a jog).
+        let glued = 0;
+        for (let st = 4; st < last; st++) {
+          const b = pos(p, st, c);
+          const b0 = pos(p, st - 4, c);
+          const ball = { x: p.ball[st * 3], y: p.ball[st * 3 + 1], h: p.ball[st * 3 + 2] };
+          const running = Math.hypot(b.x - b0.x, b.y - b0.y) / (4 * p.dt) > 6;
+          const carrying = ball.h < 0.5 && Math.hypot(ball.x - b.x, ball.y - b.y) < 1;
+          const d = pos(p, st, k);
+          glued = running && carrying && Math.hypot(d.x - b.x, d.y - b.y) < 2 ? glued + p.dt : 0;
+          worst = Math.max(worst, glued);
+        }
+      }
+      n++;
+    }
+    expect(n).toBeGreaterThan(30);
+    // The last stretch of a chase (closing into the hit) only; it was six seconds and more at the receiver's back.
+    expect(worst).toBeLessThan(2);
   });
 
   it('stages the same play the same way every time', () => {
@@ -528,6 +581,86 @@ describe('off the ball', () => {
           backs++;
         });
     expect(backs).toBeGreaterThan(100);
+  });
+});
+
+describe('the call', () => {
+  const plays: { e: PlayLogEntry; p: StagedPlay; call: string; coverage: string | null }[] = [];
+  for (const { g, r } of games.slice(0, 20))
+    r.plays!.forEach((e, i) => {
+      if (e.kind !== 'run' && e.kind !== 'pass' && e.kind !== 'incomplete') return;
+      const p = stagePlay({
+        plays: r.plays!,
+        index: i,
+        record: r.field!,
+        homeId: g.homeId,
+        seed: `${g.id}:${i}`,
+        snapY: 26,
+      });
+      const def = r.field!.scheme[p.home[p.ids.length - 1] ? 0 : 1];
+      plays.push({ e, p, call: defenseCallAt(r.field!, i), coverage: def.coverage });
+    });
+  const at = (p: StagedPlay, st: number, k: number) => ({
+    x: p.pos[(st * p.ids.length + k) * 2],
+    y: p.pos[(st * p.ids.length + k) * 2 + 1],
+  });
+  /** How far past the line (toward the defense's goal) a man is. */
+  const depth = (p: StagedPlay, st: number, k: number) => (at(p, st, k).x - p.ball[0]) * p.dir;
+
+  it("reads the engine's call on every snap: blitzes, run and pass defense all come up", () => {
+    const calls = new Set(plays.map((x) => x.call));
+    for (const c of ['base', 'blitz', 'runD', 'passD']) expect(calls).toContain(c);
+  });
+
+  it('a blitz: a linebacker or a back walked up to the line, and after the quarterback at the snap', () => {
+    let n = 0;
+    let home = 0;
+    for (const { p, call, e } of plays) {
+      // Out in the field (at the goal line the whole defense is up on it anyway).
+      if (call !== 'blitz' || e.kind === 'run' || e.yardLine > 80) continue;
+      const sent = p.ids
+        .map((_, k) => k)
+        .filter((k) => !p.offense[k] && ['LB', 'S', 'CB'].includes(p.roles[k]) && depth(p, 0, k) < 5);
+      expect(sent.length, e.text).toBeGreaterThan(0);
+      // Into the backfield a second and a quarter in (the quarterback's dropping away from him meanwhile).
+      const st = Math.min(p.steps - 1, Math.round(1.25 / p.dt));
+      const closer = sent.some((k) => depth(p, st, k) < depth(p, 0, k) - 2.5);
+      if (closer) home++;
+      n++;
+    }
+    expect(n).toBeGreaterThan(30);
+    // Most get after him; the rest are picked up by a blocker.
+    expect(home / n).toBeGreaterThan(0.7);
+  });
+
+  it('against the run, eight in the box; against the pass, the safeties deeper', () => {
+    const box = (p: StagedPlay) =>
+      p.ids.filter((_, k) => !p.offense[k] && depth(p, 0, k) < 8 && Math.abs(at(p, 0, k).y - p.ball[1]) < 8).length;
+    const deep = (p: StagedPlay) =>
+      Math.max(...p.ids.map((_, k) => (!p.offense[k] && p.roles[k] === 'S' ? depth(p, 0, k) : 0)));
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    const of = (c: string) => plays.filter((x) => x.call === c).map((x) => x.p);
+    expect(mean(of('runD').map(box))).toBeGreaterThan(mean(of('passD').map(box)) + 0.5);
+    expect(mean(of('passD').map(deep))).toBeGreaterThan(mean(of('base').map(deep)) + 1);
+  });
+
+  it("drops the zone to its coverage's landmarks: Cover 3 corners bail deep, Tampa 2 corners sit in the flat", () => {
+    const corners = (cov: string) =>
+      plays
+        .filter((x) => x.coverage === cov && x.call !== 'blitz' && x.e.kind !== 'run')
+        .flatMap(({ p }) =>
+          p.ids
+            .map((_, k) => k)
+            .filter((k) => !p.offense[k] && p.roles[k] === 'CB')
+            .slice(0, 2)
+            .map((k) => depth(p, Math.min(p.steps - 1, Math.round(1.8 / p.dt)), k)),
+        );
+    const three = corners('cover3');
+    const two = corners('cover2');
+    if (three.length && two.length) {
+      const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+      expect(mean(three)).toBeGreaterThan(mean(two) + 3);
+    } else expect(three.length + two.length).toBeGreaterThan(0);
   });
 });
 

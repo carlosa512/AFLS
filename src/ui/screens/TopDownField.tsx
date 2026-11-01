@@ -9,9 +9,20 @@ import { kitFor } from '../color';
 import { PlayerLink } from '../components';
 import { FIELD_W, MID, offenseSide, snapYFor } from '../stage/ballPath';
 import { cameraCenter, cameraSpan, easeCamera, layoutFor, type Layout } from '../stage/camera';
-import { exitFor, flagCall, hurtOnField, injuryBanner, injuryCall, type Exit } from '../stage/calls';
+import {
+  exitFor,
+  flagCall,
+  foulersOn,
+  foulsIn,
+  hurtOnField,
+  injuryBanner,
+  injuryCall,
+  type Exit,
+} from '../stage/calls';
 import { finaleBanner, finaleKind, finaleScene, type FinaleScene } from '../stage/finale';
+import { stageFouls, type FouledPlay } from '../stage/fouls';
 import { injuryScene } from '../stage/injury';
+import { preMoveAt, presnapPlan } from '../stage/presnap';
 import { conference, CREW, crewSpots, crewTrack, flagThrow, flagAt as flagIn, UMPIRE } from '../stage/officials';
 import { asRan, stagePlay, type StagedPlay } from '../stage/stage';
 import { celebrates, transition, type Huddle, type Mark } from '../stage/transition';
@@ -27,12 +38,13 @@ const UMP_RUN = 6;
 const UMP_CARRY = 5;
 /** Past this far (yards) from its next spot, a dead ball stays where it is and a fresh one comes in from the sideline. */
 const FRESH_BALL = 20;
-/** How far through a play a flag comes out (a flag before the snap comes out at once). */
-const FLAG_AT = 0.4;
+/** The quarterback's bark at the line (`Presnap.barks`): how long its ripple lasts (seconds), and the most at once. */
+const BARK = 0.5;
+const BARKS = 2;
 /** A play a flag was thrown on: accepted, declined or offsetting (a flag before the snap is its own play, `penalty`). */
 const FLAGGED = /PENALTY|declined|Offsetting/;
-/** Fouls called at the line (the flag lands there): before the snap, or by the blockers. */
-const AT_LINE = /False start|Offside|Encroachment|Neutral zone|holding|formation|Delay of game/i;
+/** A flag the log names no foul for (an old save's): out this far through the play, by the ball. */
+const FLAG_AT = 0.4;
 /** After a flag: the officials confer and the call goes up, before the walk-off (seconds). */
 const BREAK = 2.6;
 
@@ -244,7 +256,8 @@ export function TopDownField({
   const confettiRefs = useRef<(SVGRectElement | null)[]>([]);
   const finaleRef = useRef<HTMLDivElement>(null);
   const hurtRingRef = useRef<SVGCircleElement>(null);
-  const flagRef = useRef<SVGGElement>(null);
+  const flagRefs = useRef<(SVGGElement | null)[]>([]);
+  const barkRefs = useRef<(SVGCircleElement | null)[]>([]);
   const ballRef = useRef<SVGEllipseElement>(null);
   const oldBallRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
@@ -278,10 +291,10 @@ export function TopDownField({
     return () => ro.disconnect();
   }, []);
 
-  const staged: StagedPlay | null = useMemo(() => {
+  const staged: FouledPlay | null = useMemo(() => {
     if (!record || !entry) return null;
     try {
-      return stagePlay({
+      const base = stagePlay({
         plays,
         index,
         record,
@@ -289,6 +302,9 @@ export function TopDownField({
         seed: `${league.seed}:${game.season}:${game.id}:stage:${index}`,
         snapY: snapYFor(entry, memory.current.ballY),
       });
+      // Each flag's foul, acted out by the man who committed it (named in the log, found among the men on the field).
+      const named = FLAGGED.test(entry.text) ? foulsIn(entry) : [];
+      return stageFouls(base, foulersOn(league, base.ids, base.home, named, { home: home.abbrev, away: away.abbrev }));
     } catch {
       // A log this view can't stage: the broadcast view instead, rather than take the viewer down.
       return null;
@@ -349,9 +365,7 @@ export function TopDownField({
   const callText = flag ?? (hurtCall ? `Injury · ${injuryBanner(hurtCall, exit ?? 'walk')}` : null);
   /** A flag before the snap (a false start, an offside the play never ran with): out at once. Interference, as the
    * ball arrives; anything else partway through. */
-  const preSnap = entry?.kind === 'penalty' && !entry.ran;
   const flagged = !!entry && (entry.kind === 'penalty' || FLAGGED.test(entry.text));
-  const flagFrac = preSnap ? 0.05 : entry && /interference/i.test(entry.text) ? 0.8 : FLAG_AT;
   /** The crew for this snap: where each official stands, how he moves with the play, and the flag one throws. */
   const crewPlan = useMemo(() => {
     if (!staged || !entry) return null;
@@ -360,10 +374,16 @@ export function TopDownField({
     const start = crewSpots(e, staged.ball[0], staged.ball[1], dir, land);
     const track = crewTrack(start, staged.ball, staged.steps, staged.dt, dir);
     const playTime = (staged.steps - 1) * staged.dt;
-    const thrown = flagged
-      ? flagThrow(track, staged.ball, staged.steps, staged.dt, flagFrac * playTime, preSnap || AT_LINE.test(entry.text))
-      : null;
-    return { start, track, thrown };
+    // A flag for each foul, where and when it happened, by the official nearest it; one by the ball for a flag the
+    // log names no foul for.
+    const at = FLAG_AT * playTime;
+    const st = Math.round(at / staged.dt) * 3;
+    const flags = staged.fouls.length
+      ? staged.fouls.map((f) => flagThrow(track, staged.steps, staged.dt, f.at, f.spot))
+      : flagged
+        ? [flagThrow(track, staged.steps, staged.dt, at, { x: staged.ball[st], y: staged.ball[st + 1] + 1.1 })]
+        : [];
+    return { start, track, flags, thrown: flags[0] ?? null };
     // Staged once per play shown, like the play itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staged]);
@@ -405,24 +425,50 @@ export function TopDownField({
     // Only the play right after the one just shown jogs in from it. A jump (the scrubber, the log, a replay)
     // starts set: a jog from some other moment of the game means nothing.
     const following = mem.ended?.index === index - 1;
+    // The moments at the line before the snap (`presnap.ts`): who points, who goes in motion, how the defense shows
+    // and rotates. A man who moves before the snap sets at his own spot first (the jog takes him there).
+    const pre =
+      following && entry && mem.spots.size
+        ? presnapPlan({ staged: s, e: entry, hurry: hurried(), seed: `${league.seed}:${game.id}:${index}` })
+        : null;
+    const preOf = new Map((pre?.moves ?? []).map((m) => [m.id, m]));
+    const setAt = preOf.size
+      ? (() => {
+          const pos = s.pos.slice(0, n * 2);
+          for (const m of preOf.values()) {
+            const k = s.ids.indexOf(m.id);
+            pos[k * 2] = m.set.x;
+            pos[k * 2 + 1] = m.set.y;
+          }
+          return { ids: s.ids, home: s.home, pos };
+        })()
+      : s;
     const gap =
       mem.spots.size && following
-        ? transition(mem.spots, s, {
+        ? transition(mem.spots, setAt, {
             party: big ?? undefined,
             huddle: huddleFor(s),
             hurry: hurried(),
             seed: `${league.seed}:${game.id}:gap:${index}`,
             // Before a kickoff, and when the ball changes hands: the units change over at their sidelines.
             change: entry?.kind === 'kickoff' || !!handover || afterKick,
+            line: pre?.line ?? 0,
           })
         : null;
     const ballFrom = mem.ballX === null || !following ? null : { x: mem.ballX, y: mem.ballY };
     /** The last play's ball is in the net behind the posts (a field goal or an extra point, good or not). */
     const lastKind = index > 0 ? asRan(plays[index - 1]).kind : undefined;
     const deadBall = lastKind === 'fg' || lastKind === 'xp';
-    /** A key man's ring, only once his moment is about to come (`t` seconds from the snap): nothing gives the play away. */
+    /**
+     * A key man's ring, only once his moment is about to come (`t` seconds from the snap): nothing gives the play away.
+     * It goes once his part is over (the quarterback's when his pass arrives).
+     */
     const rings = (t: number) =>
-      s.keys.forEach((id, i) => ringRefs.current.get(id)?.setAttribute('opacity', t >= s.reveal[i] ? '1' : '0'));
+      s.keys.forEach((id, i) =>
+        ringRefs.current
+          .get(id)
+          ?.setAttribute('opacity', t >= s.reveal[i] && (t < s.until[i] || s.until[i] === Infinity) ? '1' : '0'),
+      );
 
     const camera = (ballX: number, seconds: number) => {
       if (layout !== 'upright') return;
@@ -438,6 +484,21 @@ export function TopDownField({
         `translate(${sx.toFixed(2)} ${sy.toFixed(2)})${scale !== 1 ? ` scale(${scale.toFixed(2)})` : ''}`,
       );
       el.setAttribute('opacity', opacity.toFixed(2));
+    };
+    /** The quarterback barking at the line, `before` the snap: a ripple spreading and fading from him (null: none). */
+    const drawBarks = (before: number | null, qb?: { x: number; y: number }) => {
+      const live = before === null || !qb ? [] : (pre?.barks ?? []).filter((b) => b >= before && b - before < BARK);
+      barkRefs.current.forEach((el, i) => {
+        if (!el) return;
+        const b = live[i];
+        if (b === undefined || !qb) return el.setAttribute('opacity', '0');
+        const k = (b - before!) / BARK;
+        const [sx, sy] = toScreen(view, qb.x, qb.y);
+        el.setAttribute('cx', sx.toFixed(2));
+        el.setAttribute('cy', sy.toFixed(2));
+        el.setAttribute('r', (dot * (1.1 + k * 1.8)).toFixed(2));
+        el.setAttribute('opacity', (0.9 * (1 - k)).toFixed(2));
+      });
     };
     const drawBall = (x: number, y: number, h: number) => {
       const [bx, by] = toScreen(view, x, y);
@@ -471,9 +532,8 @@ export function TopDownField({
       }));
     const drawCrew = (spots: readonly { x: number; y: number }[]) =>
       spots.forEach((p, k) => figure(officialRefs.current[k], { ...p, opacity: 1 }));
-    /** The flag: in the air with its height, on the ground, or not out. */
-    const drawFlag = (f: { x: number; y: number; h: number } | null) => {
-      const el = flagRef.current;
+    /** One flag: in the air with its height, on the ground, or not out. */
+    const drawOne = (el: SVGGElement | null | undefined, f: { x: number; y: number; h: number } | null) => {
       if (!el) return;
       if (!f) return el.setAttribute('opacity', '0');
       const [sx, sy] = toScreen(view, f.x, f.y);
@@ -483,6 +543,11 @@ export function TopDownField({
       );
       el.setAttribute('opacity', '1');
     };
+    /** The flags `t` seconds into the play ('down': all on the ground; null: none out). */
+    const drawFlags = (t: number | 'down' | null) =>
+      plan.flags.forEach((f, i) =>
+        drawOne(flagRefs.current[i], t === null ? null : t === 'down' ? { ...f.to, h: 0 } : flagIn(f, t)),
+      );
     const crewFrom = mem.crew ?? plan.start;
 
     /** The jog between plays, `t` seconds in. */
@@ -500,13 +565,25 @@ export function TopDownField({
       const shown = t > g.beat && t < g.duration - 1.2 ? 1 : 0;
       bannerRef.current?.style.setProperty('opacity', String(shown));
       rings(-1);
-      drawFlag(null);
+      drawFlags(null);
       callRef.current?.style.setProperty('opacity', '0');
+      // At the line: each man who moves before the snap runs his legs from where he was when the first began.
+      const before = g.duration - t;
+      const qbId = s.ids[s.roles.findIndex((r, k) => r === 'QB' && s.offense[k])];
+      let qbAt: { x: number; y: number } | undefined;
       for (const m of g.moves) {
-        const p = g.at(m, t);
+        let p = g.at(m, t);
+        const pm = preOf.get(m.id);
+        if (pm && before < pm.legs[0].at) {
+          const start = g.at(m, g.duration - pm.legs[0].at);
+          p = { ...p, ...preMoveAt(pm, before, dir, start), opacity: 1 };
+        }
+        if (m.id === qbId) qbAt = p;
         drawDot(m.id, p.x, p.y, p.opacity);
         if (!m.leave) mem.spots.set(m.id, { x: p.x, y: p.y, home: m.home });
       }
+      // The quarterback barking: the motion sent, the snap called, a hard count.
+      drawBarks(before, qbAt);
       // The ball between plays. Close by, the umpire runs to it where it died, picks it up and walks it to its spot.
       // A long way off (a kick in the net behind the posts, a touchback, anything past 20 yards), that ball stays
       // where it is and fades, and he collects a fresh one from the sideline level with the spot and brings it in.
@@ -570,6 +647,7 @@ export function TopDownField({
 
     /** The play itself, at `step`. */
     const place = (step: number, seconds: number) => {
+      drawBarks(null);
       view.phi = turnTo;
       svg.current?.style.setProperty('opacity', '1');
       camera(s.ball[step * 3], seconds);
@@ -577,7 +655,7 @@ export function TopDownField({
       bannerRef.current?.style.setProperty('opacity', '0');
       // The crew with the play; the flag, thrown by the official nearest the foul; the call once it's over.
       drawCrew(crewAt(step));
-      drawFlag(plan.thrown ? flagIn(plan.thrown, step * s.dt) : null);
+      drawFlags(step * s.dt);
       callRef.current?.style.setProperty('opacity', step === last ? '1' : '0');
       if (step === last) mem.crew = crewAt(last);
       for (let k = 0; k < n; k++) {
@@ -676,7 +754,7 @@ export function TopDownField({
       // Men in this entry's cast who weren't on the field for the last play stay out of sight until the next snap.
       for (const id of s.ids) if (!mem.spots.has(id)) drawDot(id, 0, -20, 0);
       const ball = { x: mem.ballX ?? s.ball[0], y: mem.ballY };
-      drawFlag(null);
+      drawFlags(null);
       let raf = 0;
       let t0 = 0;
       let prev = 0;
@@ -726,7 +804,7 @@ export function TopDownField({
       // Nothing moves, so the window jumps straight to where the play ended.
       clearBench();
       place(last, Infinity);
-      if (plan.thrown) drawFlag({ ...plan.thrown.to, h: 0 });
+      drawFlags('down');
       if (ending && !reduced) {
         // A skipped batch that lands on the last play still gets its final whistle.
         let raf = 0;
@@ -781,6 +859,8 @@ export function TopDownField({
         const k = Math.min(1, (t - pre - playTime) / (BREAK * 0.6));
         const e2 = k * k * (3 - 2 * k);
         const end = crewAt(last);
+        // A flag thrown at the whistle is still in the air as the break begins.
+        drawFlags(t - pre);
         const huddle = conference(end, plan.thrown.to);
         const now = end.map((p, i) => ({ x: p.x + (huddle[i].x - p.x) * e2, y: p.y + (huddle[i].y - p.y) * e2 }));
         drawCrew(now);
@@ -991,8 +1071,29 @@ export function TopDownField({
             ))}
           </g>
         )}
-        {flagged && (
-          <g ref={flagRef} opacity={0}>
+        {/* The quarterback barking at the line: a ripple from him. */}
+        {Array.from({ length: BARKS }, (_, i) => (
+          <circle
+            key={`bark${i}`}
+            ref={(el) => {
+              barkRefs.current[i] = el;
+            }}
+            r={0}
+            fill="none"
+            stroke="#fff"
+            strokeWidth={0.18}
+            opacity={0}
+          />
+        ))}
+        {/* A flag for each foul (two when they offset). */}
+        {(crewPlan?.flags ?? []).map((_, i) => (
+          <g
+            key={i}
+            ref={(el) => {
+              flagRefs.current[i] = el;
+            }}
+            opacity={0}
+          >
             <rect
               x={-0.6}
               y={-0.42}
@@ -1004,7 +1105,7 @@ export function TopDownField({
               strokeWidth={0.1}
             />
           </g>
-        )}
+        ))}
       </svg>
       {finaleText && (
         <div
