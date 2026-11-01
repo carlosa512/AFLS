@@ -4,6 +4,7 @@
  * flat sentences, the room's business kept in the room, captains as the room's call. Our own lines, never anyone's
  * quotes. Personality names are our scouts' read; nothing here is a number or a trait.
  */
+import { inWords, pronounFor, unitIs } from './roomVoice';
 import type { Line } from './voice';
 
 export type Checkin = 'camp' | 'cutdown' | 'deadline' | 'end';
@@ -12,6 +13,9 @@ const ORDINAL = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Sevent
 const yearOf = (experience: number) => ORDINAL[experience] ?? `${experience + 1}th`;
 const COUNT = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
 const count = (n: number) => COUNT[n] ?? String(n);
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const first = (units: string[] | undefined) => units?.[0] ?? 'the room';
+const isAreOf = (unit: string) => unitIs(unit).split(' ').pop()!;
 
 // ───────── the verdict: the line a GM reads every report ─────────
 
@@ -29,6 +33,13 @@ export interface VerdictFact {
   grew: number;
   /** Men whose mood reads Poor or worse. */
   unhappy: number;
+  /** The room's shape (L1): units reading Split and Down, as "the receivers". */
+  split?: string[];
+  down?: string[];
+  /** A unit reading Tight, when none is Split or Down. */
+  tight?: string | null;
+  /** The vets and the young guys two mood steps or more apart. */
+  apart?: 'young down' | 'vets down' | null;
 }
 
 const quiet = (f: VerdictFact) =>
@@ -38,11 +49,58 @@ const quiet = (f: VerdictFact) =>
   f.struggling === 0 &&
   f.friends === 0 &&
   f.grew === 0 &&
-  f.unhappy < 3;
+  f.unhappy < 3 &&
+  !f.split?.length &&
+  !f.down?.length &&
+  !f.apart;
 const month = (c: Checkin) => (c === 'camp' ? 'the season' : c === 'cutdown' ? 'September' : 'the stretch run');
 
 /** `motto: true` lines close with the coach's saying. */
 export const VERDICT: readonly (Line<VerdictFact> & { motto?: true })[] = [
+  // The room's shape (L1): a split or a down unit is the news; a tight one is worth a word on a quiet report. Text
+  // must hold for any fact: the report reads every line's text to find the one it picked.
+  {
+    when: (f) => f.split?.length === 1 && !f.down?.length,
+    reads: 2,
+    text: (f) => `Mostly fine. ${unitIs(first(f.split))} the exception.`,
+  },
+  {
+    when: (f) => f.split?.length === 1 && !f.down?.length,
+    reads: 2,
+    text: (f) => `${unitIs(first(f.split))} split. The rest of the room is fine.`,
+  },
+  {
+    when: (f) => (f.split?.length ?? 0) >= 2,
+    reads: 2,
+    text: (f) => `${cap(inWords(f.split?.length ?? 0))} rooms pulling different ways. I'm watching it.`,
+  },
+  {
+    when: (f) => !!f.down?.length && !f.split?.length,
+    reads: 2,
+    text: (f) => `${unitIs(first(f.down))} down. The rest of the room is holding up.`,
+  },
+  {
+    when: (f) => !!f.down?.length && f.split?.length === 1,
+    reads: 2,
+    text: (f) =>
+      `${unitIs(first(f.split))} split, and ${first(f.down)} ${isAreOf(first(f.down))} down. Not the room I want.`,
+  },
+  {
+    when: (f) => f.apart === 'young down' && !f.split?.length,
+    reads: 2,
+    text: () => "The vets are fine. It's the young guys who are down.",
+  },
+  {
+    when: (f) => f.apart === 'vets down' && !f.split?.length,
+    reads: 2,
+    text: () => "The young guys are fine. It's the vets who are down.",
+  },
+  {
+    when: (f) => quiet(f) && !!f.tight,
+    reads: 2,
+    text: (f) =>
+      `Good room. ${unitIs(f.tight ?? 'the room')} as tight as I've seen ${pronounFor(f.tight ?? 'the room')}.`,
+  },
   {
     when: (f) => !!f.standing && f.newFeuds === 0,
     reads: 3,
