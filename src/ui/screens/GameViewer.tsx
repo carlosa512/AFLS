@@ -8,6 +8,7 @@ import { gameClock, weekLabel } from '../format';
 import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '../stage/ballPath';
 import { HIGHLIGHT_LEVELS, nextShown, type HighlightLevel } from '../highlights';
 import { HIGHLIGHTS_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
+import { asRan } from '../stage/stage';
 import { holdAfter, TopDownField } from './TopDownField';
 
 // ───────── 2.5D field projection ─────────
@@ -341,7 +342,11 @@ export function Field({
 // ───────── viewer screen ─────────
 /** Plays from scrimmage, whose result waits until it's been seen; a kick, a flag or a timeout is told at once. */
 const IN_PLAY: ReadonlySet<string> = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble']);
-export const inPlay = (e: PlayLogEntry | undefined): boolean => !!e?.kind && IN_PLAY.has(e.kind);
+export const inPlay = (e: PlayLogEntry | undefined): boolean => {
+  // A snap a flag wiped out ran like any other: its result waits too.
+  const kind = e ? asRan(e).kind : undefined;
+  return !!kind && IN_PLAY.has(kind);
+};
 
 export function playLabel(e: PlayLogEntry, homeId: number): string {
   if (/TOUCHDOWN/.test(e.text)) return 'Touchdown';

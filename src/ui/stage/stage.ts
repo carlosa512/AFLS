@@ -46,6 +46,11 @@ export interface StagedPlay {
   roles: Role[];
 }
 
+/** The play as it ran: a flagged snap's own path (`PlayLogEntry.ran`), else the entry itself. */
+export function asRan(e: PlayLogEntry): PlayLogEntry {
+  return e.kind === 'penalty' && e.ran?.kind ? { ...e, ...e.ran } : e;
+}
+
 export function stagePlay(args: {
   plays: readonly PlayLogEntry[];
   index: number;
@@ -55,8 +60,11 @@ export function stagePlay(args: {
   /** Where the ball is snapped across the field (`snapYFor`). */
   snapY: number;
 }): StagedPlay {
-  const { plays, index, record, homeId } = args;
-  const e = plays[index];
+  const { record, homeId } = args;
+  const index = args.index;
+  // A snap a flag wiped out is staged as it ran (the walk-off is the official's, between plays).
+  const e = asRan(args.plays[index]);
+  const plays = e === args.plays[index] ? args.plays : Object.assign(args.plays.slice(), { [index]: e });
   const rng = new Rng(args.seed);
   const cast = castFor(record, plays, index, homeId);
   const dir: 1 | -1 = cast.offSide === 0 ? 1 : -1;

@@ -23,46 +23,55 @@ export interface Stadium {
   altitudeFt?: number;
   /** A new or rebuilt stadium, from that league year on. */
   changes?: { season: number; roof: RoofType; windShelter?: number }[];
+  /** The playing surface (2026): how All-22 paints the field. Nothing in the sim reads it. Turf when left out. */
+  surface?: Surface;
 }
+
+export type Surface = 'grass' | 'turf';
 
 /** No published thresholds for ARI, DAL and ATL: open in mild, calm, dry weather. */
 export const DEFAULT_ROOF_POLICY: RoofPolicy = { minF: 60, maxF: 80, maxWind: 15 };
 
 export const STADIUMS: Record<string, Stadium> = {
-  BUF: { roof: 'outdoors', climate: 'BUF', windShelter: 0.75 }, // the new stadium's canopy cuts field-level wind
-  MIA: { roof: 'outdoors', climate: 'MIA' },
+  BUF: { roof: 'outdoors', climate: 'BUF', windShelter: 0.75, surface: 'grass' }, // the new stadium's canopy cuts field-level wind
+  MIA: { roof: 'outdoors', climate: 'MIA', surface: 'grass' },
   NE: { roof: 'outdoors', climate: 'NE' },
   NYK: { roof: 'outdoors', climate: 'NY' },
-  BAL: { roof: 'outdoors', climate: 'BAL' },
+  BAL: { roof: 'outdoors', climate: 'BAL', surface: 'grass' },
   CIN: { roof: 'outdoors', climate: 'CIN' },
-  CLE: { roof: 'outdoors', climate: 'CLE', changes: [{ season: 2029, roof: 'dome' }] },
-  PIT: { roof: 'outdoors', climate: 'PIT' },
+  CLE: { roof: 'outdoors', climate: 'CLE', changes: [{ season: 2029, roof: 'dome' }], surface: 'grass' },
+  PIT: { roof: 'outdoors', climate: 'PIT', surface: 'grass' },
   // Opens only around 50–80°F with no real rain threat.
   HOU: { roof: 'retractable', climate: 'HOU', policy: { minF: 50, maxF: 80, maxWind: 20 } },
   // Must close at 40°F, 40 mph gusts or nearby precipitation.
   IND: { roof: 'retractable', climate: 'IND', policy: { minF: 41, maxF: 100, maxWind: 28 } },
   // shortcut: the 2027 season in Orlando during construction keeps Jacksonville's climate; add Orlando if it shows.
-  JAX: { roof: 'outdoors', climate: 'JAX', changes: [{ season: 2028, roof: 'outdoors', windShelter: 0.85 }] },
+  JAX: {
+    roof: 'outdoors',
+    climate: 'JAX',
+    changes: [{ season: 2028, roof: 'outdoors', windShelter: 0.85 }],
+    surface: 'grass',
+  },
   TEN: { roof: 'outdoors', climate: 'TEN', changes: [{ season: 2027, roof: 'dome' }] },
-  DEN: { roof: 'outdoors', climate: 'DEN', altitudeFt: 5280 },
-  KC: { roof: 'outdoors', climate: 'KC', changes: [{ season: 2031, roof: 'dome' }] },
-  LV: { roof: 'dome' },
+  DEN: { roof: 'outdoors', climate: 'DEN', altitudeFt: 5280, surface: 'grass' },
+  KC: { roof: 'outdoors', climate: 'KC', changes: [{ season: 2031, roof: 'dome' }], surface: 'grass' },
+  LV: { roof: 'dome', surface: 'grass' },
   LAC: { roof: 'dome' },
   DAL: { roof: 'retractable', climate: 'DAL' },
   NYE: { roof: 'outdoors', climate: 'NY' },
-  PHI: { roof: 'outdoors', climate: 'PHI' },
-  WAS: { roof: 'outdoors', climate: 'WAS', changes: [{ season: 2030, roof: 'dome' }] },
-  CHI: { roof: 'outdoors', climate: 'CHI' },
+  PHI: { roof: 'outdoors', climate: 'PHI', surface: 'grass' },
+  WAS: { roof: 'outdoors', climate: 'WAS', changes: [{ season: 2030, roof: 'dome' }], surface: 'grass' },
+  CHI: { roof: 'outdoors', climate: 'CHI', surface: 'grass' },
   DET: { roof: 'dome' },
-  GB: { roof: 'outdoors', climate: 'GB' },
+  GB: { roof: 'outdoors', climate: 'GB', surface: 'grass' },
   MIN: { roof: 'dome' },
   ATL: { roof: 'retractable', climate: 'ATL' },
-  CAR: { roof: 'outdoors', climate: 'CAR' },
+  CAR: { roof: 'outdoors', climate: 'CAR', surface: 'grass' },
   NO: { roof: 'dome' },
-  TB: { roof: 'outdoors', climate: 'TB' },
-  ARI: { roof: 'retractable', climate: 'ARI' },
+  TB: { roof: 'outdoors', climate: 'TB', surface: 'grass' },
+  ARI: { roof: 'retractable', climate: 'ARI', surface: 'grass' },
   LAS: { roof: 'dome' },
-  SF: { roof: 'outdoors', climate: 'SF' },
+  SF: { roof: 'outdoors', climate: 'SF', surface: 'grass' },
   SEA: { roof: 'outdoors', climate: 'SEA' },
 };
 

@@ -19,7 +19,8 @@ const GAINS: ReadonlySet<string> = new Set(['run', 'pass', 'scramble', 'sack']);
 /** The lowest level a play shows at. */
 export function highlightLevel(plays: readonly PlayLogEntry[], index: number, homeId: number): HighlightLevel {
   const e = plays[index];
-  if (!e.kind) return 'full';
+  // An injury stoppage matters to a GM: it shows from Extended up. Other notes (timeouts, the two-minute warning) at Full.
+  if (!e.kind) return /^Injury:/.test(e.text) ? 'extended' : 'full';
   const snap = e.down > 0;
   const dir = e.offense === homeId ? 1 : -1;
   // Gains from scrimmage only: a punt's spots run from the snap to the return, which is no gain for the offense.
