@@ -16,6 +16,7 @@ import { seasonRole } from './scouting';
 import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
 import { cultureRoom } from './coachTraits';
 import { talkStep } from './playerTalks';
+import { honouredSince } from './standing';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, MoraleJolt, Player, Position, TalkCause } from './types';
 
@@ -47,6 +48,8 @@ export interface MoraleContext {
   mentors: Set<number>;
   /** Each team's head coach's culture: what he adds to his players' room (`cultureRoom`). */
   culture: Map<number, number>;
+  /** Players with a season award or an All-League team in the last three seasons (their word carries further). */
+  honoured: Set<number>;
 }
 
 const games = (r: { w: number; l: number; t: number } | undefined) => (r ? r.w + r.l + r.t : 0);
@@ -101,6 +104,7 @@ export function moraleContext(league: League): MoraleContext {
     live,
     mentors,
     culture,
+    honoured: honouredSince(league, season - 3),
   };
 }
 
