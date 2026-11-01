@@ -452,7 +452,9 @@ export function TopDownField({
      */
     const rings = (t: number) =>
       s.keys.forEach((id, i) =>
-        ringRefs.current.get(id)?.setAttribute('opacity', t >= s.reveal[i] && t < s.until[i] ? '1' : '0'),
+        ringRefs.current
+          .get(id)
+          ?.setAttribute('opacity', t >= s.reveal[i] && (t < s.until[i] || s.until[i] === Infinity) ? '1' : '0'),
       );
 
     const camera = (ballX: number, seconds: number) => {
@@ -832,6 +834,8 @@ export function TopDownField({
         const k = Math.min(1, (t - pre - playTime) / (BREAK * 0.6));
         const e2 = k * k * (3 - 2 * k);
         const end = crewAt(last);
+        // A flag thrown at the whistle is still in the air as the break begins.
+        drawFlags(t - pre);
         const huddle = conference(end, plan.thrown.to);
         const now = end.map((p, i) => ({ x: p.x + (huddle[i].x - p.x) * e2, y: p.y + (huddle[i].y - p.y) * e2 }));
         drawCrew(now);

@@ -17,9 +17,15 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     date: '2026-11-01',
     title: 'Flags, injuries and the final whistle',
     text:
-      'All-22 now has officials on the field for every snap: the nearest one throws the flag when there is a foul, ' +
-      'play stops while the crew confers, and the call goes up on a banner. A flag that wipes out a play shows the ' +
-      'play first. When a player is hurt, play stops: the others back off, the trainers run out, and he walks off, is ' +
+      'All-22 now has officials on the field for every snap. Each foul is shown where and when it happened, by the ' +
+      'player who committed it: on a false start one lineman moves early while everyone else holds, an offside ' +
+      'defender is across the line at the snap, a late hit lands at the whistle. The nearest official throws the ' +
+      'flag on him (two flags when fouls offset), play stops while the crew confers, and the call goes up on a ' +
+      "banner. A flag that wipes out a play shows the play first. The defense plays the engine's call on each snap: " +
+      'a blitz sends a linebacker or a defensive back, run defense puts a safety in the box, and zone defenders drop ' +
+      'to their coverage (Tampa 2, Cover 3, Quarters). Offenses sometimes send a man in motion before the snap. On ' +
+      'long gains, defenders chase from behind, miss tackles or fall off the play instead of running alongside the ' +
+      'carrier, and the quarterback is ringed only while the play is his. When a player is hurt, play stops: the others back off, the trainers run out, and he walks off, is ' +
       'helped off or is carted off. A game won on its last play brings the whole sideline onto the field while the ' +
       'losers walk off; a title ends in confetti. Each field now looks like its stadium: grass or turf, end zones in ' +
       "the teams' colors, yard numbers and goalposts. Field goal results wait until you have seen the kick, and " +
