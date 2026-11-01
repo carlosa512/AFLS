@@ -14,6 +14,7 @@ import { createPortal } from 'react-dom';
 import { gamesInWeek } from '../engine/league';
 import type { Game, League, Player, Position, Team } from '../engine/types';
 import { POSITIONS } from '../engine/types';
+import { isProspect } from '../engine/scouting';
 import { gameWeather, type Forecast, type Weather } from '../engine/weather';
 import { inkOn, kitFor, shade, tint, type TeamColors } from './color';
 import { band, gameWeatherText, playerName, severityText, shortName } from './format';
@@ -48,6 +49,19 @@ export function wearsWhite(league: League | null, teamId: number, game?: Game): 
   const w = gameWeather(league, g);
   const homeInWhite = (w.roof === 'outdoors' || w.roof === 'open') && w.tempF >= HOT_KICKOFF_F;
   return (g.homeId === teamId) === homeInWhite;
+}
+
+/** A first-year pro (drafted or signed, never a prospect): a red "R" sits beside his name in lists and on his card. */
+export const isRookie = (p: Player) => p.experience === 0 && !p.retired && !isProspect(p);
+
+/** The rookie's red "R", on the line of his name; a screen reader hears "rookie". */
+export function RookieMark() {
+  return (
+    <span className="rookie-mark" title="Rookie">
+      <span aria-hidden="true">R</span>
+      <span className="visually-hidden">rookie</span>
+    </span>
+  );
 }
 
 /**
@@ -268,6 +282,8 @@ export function PlayerLink({
         {pos ? `${player.position} ` : ''}
         {surname ? player.lastName : short ? shortName(player) : playerName(player)}
       </span>
+      {/* in a list (with his picture), a rookie's "R" on the line of his name; never in a sentence */}
+      {avatar && isRookie(player) ? <RookieMark /> : null}
     </button>
   );
 }

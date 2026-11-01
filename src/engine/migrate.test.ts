@@ -15,7 +15,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(73);
+    expect(SAVE_VERSION).toBe(74);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -178,5 +178,26 @@ describe('save v73', () => {
     expect(up.version).toBe(SAVE_VERSION);
     const game = up.games.find((g) => g.result?.field)!;
     expect(game.result!.plays!.every((_, i) => defenseCallAt(game.result!.field!, i) === 'base')).toBe(true);
+  });
+});
+
+describe('save v74', () => {
+  it("loads a v73 save: no gear chosen yet, and this season's captains get this season as their first", () => {
+    const l = createLeague({ seed: 'v74' });
+    const team = l.teams[0];
+    const [offense, defense, specialTeams] = Object.values(l.players)
+      .filter((p) => p.teamId === team.id)
+      .slice(0, 3);
+    team.captains = { season: l.season, offense: offense.id, defense: defense.id, specialTeams: specialTeams.id };
+    for (const p of Object.values(l.players)) {
+      delete p.captainSeasons;
+      delete p.gear;
+    }
+    l.version = 73;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    expect(up.players[offense.id].captainSeasons).toEqual([l.season]);
+    expect(up.players[specialTeams.id].captainSeasons).toEqual([l.season]);
+    expect(Object.values(up.players).some((p) => p.gear)).toBe(false);
   });
 });

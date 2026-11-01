@@ -129,6 +129,14 @@ describe('personality', () => {
     }
   });
 
+  it("keeps each captain's seasons once, for his patch", () => {
+    const l = createLeague({ seed: 'captains' });
+    nameCaptains(l);
+    nameCaptains(l);
+    const c = l.teams[0].captains!;
+    expect(l.players[c.offense].captainSeasons).toEqual([l.season]);
+  });
+
   it("lists up to five more men the room follows, captains aside, by the staff's read", () => {
     const l = createLeague({ seed: 'captains' });
     nameCaptains(l);

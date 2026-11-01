@@ -1794,6 +1794,10 @@ select {
     width: 96px;
     height: 96px;
   }
+  .sheet-head .captain-patch {
+    height: 48px;
+    width: 38px;
+  }
 }
 .player-link,
 .staff-link {
@@ -3496,6 +3500,63 @@ details.more > summary {
 }
 .jersey-input {
   max-width: 6ch;
+}
+/* the gear rows under name and number: a piece, then its arm and colour when it has them */
+.gear-edit {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.gear-edit legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+.gear-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.gear-edit-row label {
+  display: grid;
+  gap: 2px;
+  min-width: 130px;
+}
+/* a first-year pro: a red "R" on the line of his name, in lists and on his card */
+.rookie-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.35em;
+  height: 1.35em;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.72em;
+  font-weight: 900;
+  line-height: 1;
+  vertical-align: 0.1em;
+}
+.player-link .rookie-mark {
+  margin-left: -2px;
+}
+.sheet-head .rookie-mark {
+  font-size: 0.42em;
+  margin-left: 12px;
+  vertical-align: 0.35em;
+  box-shadow: 0 0 0 2px #fff;
+}
+/* a captain's patch, close up, at the right of his card's header */
+.sheet-head .captain-patch {
+  flex: none;
+  margin-left: auto;
+  margin-right: 8px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
 }
 .team-tag {
   display: inline-block;

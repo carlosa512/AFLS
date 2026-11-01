@@ -107,7 +107,23 @@ look is his for a career. Nothing is saved and nothing reads ratings. Each choic
   about 85% of players pull on full sleeves in the colour they'd pick anyway, half the tackles, never the offensive
   line: a lineman who wears sleeves keeps them, but the line doesn't dress for the cold
   ([SI](https://www.si.com/more-sports/2010/12/08/long-sleeves)). It follows the kit's game, like the hot-day white
-  jerseys; nothing else he wears changes.
+  jerseys. Under full sleeves a shoulder brace and bands stay on; the undershirt sleeve and elbow pads come off.
+- **Your pick** (the card's pencil): name, number and gear in one editor, a row a piece (sleeve or undershirt
+  sleeve, band, elbow pads, shoulder brace) with its arm and colour, the card's avatar wearing it as you change it.
+  Anything goes, whatever his position (cosmetic, like a rename); it's kept on the player (`Player.gear`,
+  `editPlayerGear`) and "Back to his own" drops it. A cold game still dresses him as above.
+
+## 2c. Captains and rookies
+
+- **The captain's patch**, close up at the right of his card's header (`captainPatch.tsx`), never on the small
+  avatar: a "C" in the team's second colour (white or dark when that doesn't stand off the header), four tiny stars
+  under it, one lit for each season in a row he's been a captain (`Player.captainSeasons`, kept when captains are
+  named at camp), and the whole patch gold from the fifth (`GOLD_AFTER`). Hover or a screen reader says "Captain · 3
+  seasons in a row".
+- **Rookies** (a first-year pro, drafted or signed, never a prospect: `isRookie`) get a small red "R" on the line of
+  their name (`RookieMark`): in every list that shows the player's picture (`PlayerLink` with an avatar: depth charts,
+  the market, rosters), so they stand out at a glance, and beside the name on their card. Never inside a sentence, and
+  never on the picture itself.
 - **Dropped:** a neck roll (a crescent at the collar at these sizes), a hinged elbow brace (read wrong), a flat
   brace (read as a sleeve). The ring crops above the wrist, so wristbands, gloves and the quarterback's playbook
   band wouldn't show.

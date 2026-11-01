@@ -170,6 +170,23 @@ export const MAX_STATS: ReadonlySet<StatKey> = new Set(['rushLong', 'recLong', '
 
 import type { CoachScheme, CoverageId, FrontId, OffSchemeId, Personnel } from './schemes';
 
+/** The avatar's arm gear (`ui/playerGear.ts` picks it, `ui/gearArt.tsx` draws it). Cosmetic: never read by play. */
+export type GearColor = 'black' | 'white' | 'primary' | 'secondary';
+/** Seen from behind: his left arm is on the viewer's left. */
+export type GearSide = 'left' | 'right' | 'both';
+/** A shooter sleeve starts partway down the upper arm, bare skin above it, and runs to the wrist. */
+export type SleeveLength = 'half' | 'threeQuarter' | 'full' | 'forearm' | 'shooter';
+export interface Gear {
+  sleeve?: { length: SleeveLength; color: GearColor; side: GearSide };
+  /** A short, solid sleeve under the jersey's (the jersey keeps its stripes). */
+  undershirt?: GearColor;
+  /** Bands go on both biceps; a single band goes on the forearm. */
+  band?: { at: 'biceps' | 'forearm'; color: GearColor; side: GearSide };
+  elbowPads?: { color: GearColor; side: GearSide };
+  /** Black neoprene with a strap in the team's colour, on one shoulder. */
+  shoulderBrace?: { side: 'left' | 'right'; strap: 'primary' | 'secondary' };
+}
+
 export interface Player {
   id: number;
   firstName: string;
@@ -255,6 +272,10 @@ export interface Player {
   cflSeasons?: number;
   /** Optional picture URL (or data: URI) supplied by a roster mod; the UI shows a placeholder otherwise. */
   portrait?: string;
+  /** The gear you chose for his avatar (the card's pencil); without it the avatar picks his own. Never read by play. */
+  gear?: Gear;
+  /** The league years he was named a captain, oldest first (his avatar's patch counts the ones in a row). */
+  captainSeasons?: number[];
   /** What he is hurt with right now, if anything (see `injuries.ts`). */
   injury?: Injury;
   /** Every injury that cost him time, oldest first. Public: the league's injury reports. */
