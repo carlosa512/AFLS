@@ -510,11 +510,13 @@ export const upgradeBar = (league: League, team: Team, apy: number) =>
 /**
  * One pass of the AI's free agency: each free agent, best first, to the club whose offer he values most, if it beats
  * his walk-away. `rosterMax` is the roster a club may fill to (camp's 90 when the calendar already reads 53).
+ * `lastCall` is the pass as camp opens: an NFL veteran still unsigned in August takes what's left, often near the
+ * veteran minimum, so a free agent signs for anything at his minimum or above.
  */
 export function aiFreeAgencyDay(
   league: League,
   rng: Rng,
-  opts: { includeUser?: boolean; rosterMax?: number } = {},
+  opts: { includeUser?: boolean; rosterMax?: number; lastCall?: boolean } = {},
 ): number {
   const teams = league.teams.filter((t) => opts.includeUser || t.id !== league.userTeamId);
   const depth = new Map(teams.map((t) => [t.id, depthOutlooks(league, t)]));
@@ -566,7 +568,11 @@ export function aiFreeAgencyDay(
       const value = offerValue(league, p, team.id, offer);
       if (!best || value > best.value) best = { team, offer, value };
     }
-    if (!best || best.value < demand(league, p, best.team.id).walkAway) continue;
+    if (!best) continue;
+    const floor = opts.lastCall
+      ? minSalary(p.experience, league.caps[league.season])
+      : demand(league, p, best.team.id).walkAway;
+    if (best.value < floor) continue;
     const before = capSpace(league, best.team.id);
     signPlayer(league, p, best.team.id, best.offer);
     signings++;
