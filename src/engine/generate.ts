@@ -646,8 +646,13 @@ export function createDraftPicks(league: League, season: number): void {
  */
 const PEDIGREE = 4;
 
-/** A starter's quality before his team's talent: the luck of his roll is how far he lands from this. */
-const STARTER_QUALITY = 12.8;
+/**
+ * A starter's quality before his team's talent: the luck of his roll is how far he lands from this. Set so a new league
+ * starts where a lived-in one sits: its starters read 12.83 overall in seasons 9–16 of the careers leagues (12.7 gives
+ * 12.83 at kickoff; 12.8 gave 12.905, and a new league's young starters growing into their prime then lifted the
+ * league past the 13.2 ceiling in year three).
+ */
+const STARTER_QUALITY = 12.7;
 
 /**
  * The roll for the Nth player at a position, before his team's talent (a starter's lands around `STARTER_QUALITY`).
