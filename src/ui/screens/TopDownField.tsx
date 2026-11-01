@@ -22,7 +22,6 @@ import {
 import { finaleBanner, finaleKind, finaleScene, type FinaleScene } from '../stage/finale';
 import { stageFouls, type FouledPlay } from '../stage/fouls';
 import { injuryScene } from '../stage/injury';
-import type { Pt } from '../stage/formations';
 import { preMoveAt, presnapPlan } from '../stage/presnap';
 import { conference, CREW, crewSpots, crewTrack, flagThrow, flagAt as flagIn, UMPIRE } from '../stage/officials';
 import { asRan, stagePlay, type StagedPlay } from '../stage/stage';
@@ -41,9 +40,6 @@ const UMP_CARRY = 5;
 const FRESH_BALL = 20;
 /** A play a flag was thrown on: accepted, declined or offsetting (a flag before the snap is its own play, `penalty`). */
 const FLAGGED = /PENALTY|declined|Offsetting/;
-/** A call at the line: how long its ripple lasts (seconds), and the most drawn at once. */
-const PULSE = 0.6;
-const PULSES = 4;
 /** A flag the log names no foul for (an old save's): out this far through the play, by the ball. */
 const FLAG_AT = 0.4;
 /** After a flag: the officials confer and the call goes up, before the walk-off (seconds). */
@@ -258,7 +254,6 @@ export function TopDownField({
   const finaleRef = useRef<HTMLDivElement>(null);
   const hurtRingRef = useRef<SVGCircleElement>(null);
   const flagRefs = useRef<(SVGGElement | null)[]>([]);
-  const pulseRefs = useRef<(SVGCircleElement | null)[]>([]);
   const ballRef = useRef<SVGEllipseElement>(null);
   const oldBallRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
@@ -486,21 +481,6 @@ export function TopDownField({
       );
       el.setAttribute('opacity', opacity.toFixed(2));
     };
-    /** The calls at the line (`Pulse`): a ripple spreading and fading from the man's dot, `before` the snap. */
-    const drawPulses = (before: number | null, at?: ReadonlyMap<number, Pt>) => {
-      const live = before === null ? [] : (pre?.pulses ?? []).filter((p) => p.at >= before && p.at - before < PULSE);
-      pulseRefs.current.forEach((el, i) => {
-        const p = live[i];
-        const where = p && at?.get(p.id);
-        if (!el || !p || !where) return el?.setAttribute('opacity', '0');
-        const k = (p.at - before!) / PULSE;
-        const [sx, sy] = toScreen(view, where.x, where.y);
-        el.setAttribute('cx', sx.toFixed(2));
-        el.setAttribute('cy', sy.toFixed(2));
-        el.setAttribute('r', (dot * (1.1 + k * 1.8)).toFixed(2));
-        el.setAttribute('opacity', (0.85 * (1 - k)).toFixed(2));
-      });
-    };
     const drawBall = (x: number, y: number, h: number) => {
       const [bx, by] = toScreen(view, x, y);
       const grow = 1 + h / 18;
@@ -570,7 +550,6 @@ export function TopDownField({
       callRef.current?.style.setProperty('opacity', '0');
       // At the line: each man who moves before the snap runs his legs from where he was when the first began.
       const before = g.duration - t;
-      const drawn = new Map<number, Pt>();
       for (const m of g.moves) {
         let p = g.at(m, t);
         const pm = preOf.get(m.id);
@@ -578,12 +557,9 @@ export function TopDownField({
           const start = g.at(m, g.duration - pm.legs[0].at);
           p = { ...p, ...preMoveAt(pm, before, dir, start), opacity: 1 };
         }
-        drawn.set(m.id, p);
         drawDot(m.id, p.x, p.y, p.opacity);
         if (!m.leave) mem.spots.set(m.id, { x: p.x, y: p.y, home: m.home });
       }
-      // Someone calling it out: a ripple from his dot.
-      drawPulses(before, drawn);
       // The ball between plays. Close by, the umpire runs to it where it died, picks it up and walks it to its spot.
       // A long way off (a kick in the net behind the posts, a touchback, anything past 20 yards), that ball stays
       // where it is and fades, and he collects a fresh one from the sideline level with the spot and brings it in.
@@ -647,7 +623,6 @@ export function TopDownField({
 
     /** The play itself, at `step`. */
     const place = (step: number, seconds: number) => {
-      drawPulses(null);
       view.phi = turnTo;
       svg.current?.style.setProperty('opacity', '1');
       camera(s.ball[step * 3], seconds);
@@ -1071,20 +1046,6 @@ export function TopDownField({
             ))}
           </g>
         )}
-        {/* The calls at the line: ripples from the men making them. */}
-        {Array.from({ length: PULSES }, (_, i) => (
-          <circle
-            key={`pulse${i}`}
-            ref={(el) => {
-              pulseRefs.current[i] = el;
-            }}
-            r={0}
-            fill="none"
-            stroke="#fff"
-            strokeWidth={0.18}
-            opacity={0}
-          />
-        ))}
         {/* A flag for each foul (two when they offset). */}
         {(crewPlan?.flags ?? []).map((_, i) => (
           <g

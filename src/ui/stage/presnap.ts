@@ -1,14 +1,14 @@
 /**
- * The seconds before the snap, as the dots show them. Nobody stands still waiting for the ball: the quarterback points
- * out the middle linebacker and the center echoes him, the line sinks into its stance, a receiver goes in motion (more
- * for the offenses built on it: about half of NFL snaps have some), and the defense answers by its front and coverage.
- * A man in man coverage travels with the motion, a zone bumps over; safeties show one shell and rotate to another at
- * the snap (about a third of snaps are disguised, more on passing downs); linebackers walk up to show a blitz and bail,
- * or creep up late to time a real one; corners show press and bail. Now and then the quarterback tries a hard count.
+ * The seconds before the snap, as the dots show them. Nobody stands still waiting for the ball: the line sinks into its
+ * stance, a receiver goes in motion (more for the offenses built on it: about half of NFL snaps have some), and the
+ * defense answers by its front and coverage. A man in man coverage travels with the motion, a zone bumps over; safeties
+ * show one shell and rotate to another at the snap (about a third of snaps are disguised, more on passing downs);
+ * linebackers walk up to show a blitz and bail, or creep up late to time a real one; corners show press and bail; an
+ * offside man jumps on the count.
  *
- * Talking is shown, not written: a ripple from the man calling something out (`Pulse`). Everything ends where the play
- * begins (`StagedPlay.pos` at the snap), so the play itself is untouched. Pure and seeded: the same snap, the same look.
- * Presentation only: the engine plays the snap; this only stages the moments before it.
+ * Everything ends where the play begins (`StagedPlay.pos` at the snap), so the play itself is untouched. Pure and
+ * seeded: the same snap, the same look. Presentation only: the engine plays the snap; this only stages the moments
+ * before it.
  */
 import type { DefenseCall } from '../../engine/match/coach';
 import type { PlayLogEntry } from '../../engine/types';
@@ -34,17 +34,10 @@ export interface PreMove {
   legs: Leg[];
 }
 
-/** Someone calling something out, `at` seconds before the snap (a ripple from his dot). */
-export interface Pulse {
-  id: number;
-  at: number;
-}
-
 export interface Presnap {
   /** Seconds at the line before the snap, everyone in: the time all this takes. */
   line: number;
   moves: PreMove[];
-  pulses: Pulse[];
   /** What the snap shows, for tests and the curious: the motion's kind, the defense's look. */
   shows: string[];
 }
@@ -66,7 +59,6 @@ const SHOW_BLITZ = { fireZone: 0.35, threeFour: 0.25, nickel: 0.2, fourThree: 0.
 const CREEP = { fireZone: 0.6, threeFour: 0.4, nickel: 0.4, fourThree: 0.3, wide9: 0.3 } as const;
 const SLIDE = { fourThree: 0.25, threeFour: 0.3, wide9: 0.15, fireZone: 0.3, nickel: 0.2 } as const;
 const PRESS_BAIL = 0.3;
-const HARD_COUNT = 0.08;
 /** The quickest a man moves before the snap, on average over a leg (yards a second; his top speed half again). */
 const PRE_PACE = 6.5;
 const AUDIBLE = 0.1;
@@ -81,7 +73,7 @@ export function presnapPlan(args: {
   seed: string;
 }): Presnap {
   const { staged: s, e, hurry } = args;
-  const none: Presnap = { line: 0, moves: [], pulses: [], shows: [] };
+  const none: Presnap = { line: 0, moves: [], shows: [] };
   if (!s.kind || !SCRIMMAGE.has(s.kind)) return none;
   const rng = new Rng(`${args.seed}:presnap`);
   const n = s.ids.length;
@@ -100,7 +92,6 @@ export function presnapPlan(args: {
   const shortYardage = e.distance <= 2;
 
   const moves = new Map<number, PreMove>();
-  const pulses: Pulse[] = [];
   const shows: string[] = [];
   const move = (k: number, set: Pt, legs: Leg[]) => {
     if (moves.has(k)) return false;
@@ -121,48 +112,33 @@ export function presnapPlan(args: {
     moves.set(k, { id: s.ids[k], set: at, legs: paced });
     return true;
   };
-  const pulse = (k: number, at: number) => k >= 0 && pulses.push({ id: s.ids[k], at });
 
   const qb = off.find((k) => role(k) === 'QB') ?? -1;
   const line = off.filter((k) => role(k) === 'OL');
-  const center = line.length
-    ? line.reduce((a, b) => (Math.abs(across(snap(a))) < Math.abs(across(snap(b))) ? a : b))
-    : -1;
   const lbs = def.filter((k) => role(k) === 'LB');
-  const mike = lbs.length ? lbs.reduce((a, b) => (Math.abs(across(snap(a))) < Math.abs(across(snap(b))) ? a : b)) : -1;
   const blitz = new Set(s.blitz.map((id) => s.ids.indexOf(id)));
 
-  // The offense at the line: the quarterback points out the middle linebacker, the center echoes him, the line sinks
-  // into its stance.
-  if (rng.next() < 0.75) pulse(qb, 1.7);
-  if (rng.next() < 0.45) pulse(center, 1.45);
+  // The offense at the line: the line sinks into its stance.
   for (const k of line) {
     const p = snap(k);
     move(k, { x: p.x - dir * 0.35, y: p.y }, [{ at: 0.85, dur: 0.3, to: p }]);
   }
 
-  // The hard count: the quarterback barks, and only a man who jumps moves (the offside flag's man, when there is one).
+  // The hard count that draws an offside flag: the man who jumps sets on his side of the line and goes early.
   const offside = (s.fouls ?? []).find((f) => f.id !== null && f.at < 0.3 && !s.offense[s.ids.indexOf(f.id)]);
-  if (offside || (!hurry && rng.next() < HARD_COUNT)) {
-    pulse(qb, 1.1);
-    pulse(qb, 0.95);
-    shows.push('hard count');
-    if (offside) {
-      const k = s.ids.indexOf(offside.id!);
-      const p = snap(k);
-      // He's across the line at the snap (`fouls.ts`): set on his side of it, and he jumps on the count.
-      move(k, { x: p.x + dir * 0.9, y: p.y }, [{ at: 0.95, dur: 0.2, to: p }]);
-    }
+  if (offside) {
+    const k = s.ids.indexOf(offside.id!);
+    const p = snap(k);
+    // He's across the line at the snap (`fouls.ts`).
+    if (move(k, { x: p.x + dir * 0.9, y: p.y }, [{ at: 0.95, dur: 0.2, to: p }])) shows.push('jumps the count');
   }
 
-  // An audible: the quarterback calls it twice, and the back flips to the other side of him.
+  // An audible: the back flips to the other side of the quarterback.
   const back = off.find((k) => role(k) === 'RB');
   if (!hurry && back !== undefined && qb >= 0 && rng.next() < AUDIBLE) {
     const p = snap(back);
     const q = snap(qb);
     if (Math.abs(p.y - q.y) > 1 && Math.abs(p.x - q.x) < 1.5) {
-      pulse(qb, 2.2);
-      pulse(qb, 2.0);
       if (move(back, { x: p.x, y: q.y - (p.y - q.y) }, [{ at: 1.9, dur: 0.7, to: p, arc: -1.2 }]))
         shows.push('audible');
     }
@@ -235,21 +211,14 @@ export function presnapPlan(args: {
       const q = snap(j);
       if (move(j, { x: q.x, y: clampY(q.y + shiftY) }, [{ at: leg.at, dur: leg.dur, to: q }]))
         shows.push('man travels');
-      pulse(j, leg.at - 0.1);
     } else {
       for (const j of near.slice(0, 2)) {
         const q = snap(j);
         move(j, { x: q.x, y: clampY(q.y + Math.sign(shiftY) * 1.5) }, [{ at: leg.at - 0.2, dur: 0.6, to: q }]);
       }
-      if (near.length) {
-        pulse(near[0], leg.at - 0.1);
-        shows.push('zone bumps');
-      }
+      if (near.length) shows.push('zone bumps');
     }
   }
-
-  // The middle linebacker relays the call.
-  if (rng.next() < 0.75) pulse(mike, 1.55);
 
   // The front slides a gap before the snap.
   if (front && !hurry && rng.next() < SLIDE[front]) {
@@ -285,10 +254,7 @@ export function presnapPlan(args: {
           { at: 0.65, dur: 0.65, to: q },
         ]) || shown;
     }
-    if (shown) {
-      shows.push('shows blitz');
-      pulse(mike, 1.0);
-    }
+    if (shown) shows.push('shows blitz');
   }
 
   // The shell: shown one way, rotated at the snap. Single-high at the snap shows two deep; two-high shows one down.
@@ -312,7 +278,6 @@ export function presnapPlan(args: {
       rolled = move(low.j, { x: ball.x + dir * 6.5, y: ball.y + dir * side * 4 }, [{ at: 0.8, dur: 0.8, to: low.p }]);
       if (rolled) shows.push('rotates to two high');
     }
-    if (rolled) pulse(high.j, 1.2);
   }
 
   // Corners show press and bail to their zone as the ball is snapped.
@@ -327,13 +292,9 @@ export function presnapPlan(args: {
   }
 
   // Time enough for all of it, and a beat at the line besides.
-  const latest = Math.max(
-    0,
-    ...[...moves.values()].flatMap((m) => m.legs.map((l) => l.at)),
-    ...pulses.map((p) => p.at),
-  );
+  const latest = Math.max(0, ...[...moves.values()].flatMap((m) => m.legs.map((l) => l.at)));
   const lineTime = Math.min(hurry ? 2 : 3.6, Math.max(hurry ? 0.9 : 1.9, latest + 0.3));
-  return { line: lineTime, moves: [...moves.values()], pulses, shows };
+  return { line: lineTime, moves: [...moves.values()], shows };
 }
 
 /** Where a man who moves before the snap is, `before` seconds before it, given where he started his first leg. */

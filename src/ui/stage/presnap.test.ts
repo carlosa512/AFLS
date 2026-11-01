@@ -89,7 +89,6 @@ describe('the moments before the snap', () => {
         }
       }
       expect(plan.line).toBeLessThanOrEqual(3.6);
-      for (const p of plan.pulses) expect(p.at).toBeLessThanOrEqual(plan.line);
     }
   });
 

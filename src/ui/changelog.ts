@@ -17,11 +17,11 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     date: '2026-11-01',
     title: 'Before the snap, fouls and the chase',
     text:
-      'All-22 now shows the seconds before the snap. The quarterback points out the middle linebacker, the line sinks ' +
-      'into its stance, and about half of snaps have motion (more for offenses built on it): jets, orbits, shifts. ' +
+      'All-22 now shows the seconds before the snap. The line sinks into its stance, and about half of snaps have ' +
+      'motion (more for offenses built on it): jets, orbits, shifts. ' +
       'The defense answers by its scheme: a man defender travels with the motion while a zone bumps over, safeties ' +
       'show one shell and rotate at the snap, linebackers walk up to show a blitz and bail, or creep up late to time ' +
-      "a real one. Now and then there's a hard count. The defense plays the engine's call on each snap: a blitz " +
+      "a real one, and an offside man jumps the count. The defense plays the engine's call on each snap: a blitz " +
       'sends a linebacker or a defensive back, run defense puts a safety in the box, and zone defenders drop to their ' +
       'coverage. Every foul is acted out where and when it happened, by the player who committed it: a false start ' +
       'is one lineman moving early, offside a man across at the snap, a hold a blocker hanging on to his man, a late ' +
