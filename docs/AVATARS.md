@@ -52,12 +52,17 @@ framing and height); don't undo one without a reason.
   little below the chest: a sharper taper made receivers and corners look pinched.
 - **Zoomed out 21%** about the collar (`ZOOM`), so the wide builds show their width inside the ring and the ring
   crops the arm below the elbow, where its shape shows. The number gives up a little size for it, and narrows
-  with a narrow back. **Moved down** (`DROP`), so the waist doesn't run long under the number.
-- **No pants.** Tried twice (a belt, then football pants with the jersey bloused over and a side stripe): at
-  these sizes they read as high-waisted slacks. Moving the figure down fixed the long waist instead.
+  with a narrow back. **Moved up** a little (`DROP`, -4), so the head sits near the top and the pants show at
+  the bottom (moved down 6 left too much air over the head; up 8 crowded it).
+- **Football pants at the hips.** The jersey runs well past the number before it tucks in, and the waistband
+  sits at the hips (`PANTS_TOP`): two tries with the belt just under the number read as high-waisted slacks.
+  A thin belt half hidden under the jersey's tuck, the waistband dipping in the middle with its sides lifted
+  (`PANTS_DIP`), tight over the seat with a sheen, a seam down the middle and two stripes down each side. Only
+  built figures wear them: on the plain figure they'd sit below the ring.
 - **Arms are two outlines mixed by build:** a smooth tube and a muscled arm (triceps, a pinch at the elbow,
   the forearm), with the same commands so a build sits anywhere between them (`Build.arm`: lean 25% muscled up to
-  heavy 55%; the plain figure 40%). The old single arm bowed out and tapered to a point.
+  heavy 55%; the plain figure 40%). The old single arm bowed out and tapered to a point. Each ends in a wrist and
+  a hand at the hip, past the ring's edge: stretched past the ring instead, the forearm ran on with no end.
 - **Arms keep their gap to the jersey** and thicken only a little with the build (skinny arms read wrong);
   they hang a touch off the body (`ARM_GAP`, `ARM_SWING`; a wider swing read as bowed out on the big builds).
   Below the chest they follow only 30% of the body's width (`ARM_FOLLOW`): following all of it bowed a heavy
@@ -95,6 +100,10 @@ It is decorative (`aria-hidden`): every placement shows the player's name next t
   pinned there with `textLength`, so it stays on the jersey even if a wider fallback font stands in.
 - **Dark mode.** A 1px edge (`--avatar-edge` in `styles.css`) outlines the circle; without it the 19
   primaries under 2:1 against the dark surface (navies, blacks, browns) sink into it.
+- **Pants** are white at home, silver under a jersey too light to stand off white, and the primary under the
+  white away jersey, so white never meets white. The wide side stripe is the primary on light pants and white
+  on the primary; the thin one is the secondary when it shows against the pants. The belt is a shade of the
+  primary.
 - **Free agents and prospects** wear the app's grey-green (`#4a554e` / `#9aa59e`).
 
 ## 5. Home and away
@@ -117,15 +126,15 @@ with the secondary as trim.
 ## 6. Tunables
 
 In `src/ui/playerLook.ts`: `BUILDS` (with each build's `arm` mix), `BUILD_MIN_PX` (32), `HEIGHT_MIN_PX` (96), `ZOOM`
-(0.79), `DROP` (6), `GROW_PER_SD` (0.026), `ARM_GAP` (1.3), `ARM_SWING` (2), `ARM_FOLLOW` (0.3), `PLAIN_ARM` (0.4)
-and `NAMEPLATE_MAX` (40 viewBox units). In `src/ui/components.tsx` and
+(0.79), `DROP` (-4), `PANTS_TOP` (104), `PANTS_DIP` (4), `GROW_PER_SD` (0.026), `ARM_GAP` (1.3), `ARM_SWING` (2),
+`ARM_FOLLOW` (0.3), `PLAIN_ARM` (0.4) and `NAMEPLATE_MAX` (40 viewBox units). In `src/ui/components.tsx` and
 `src/ui/color.ts`: `NUMBER_MIN_PX` (32), `NAMEPLATE_MIN_PX` (96), `PLATE_EM` (re-measure if the display font changes), `MIN_CONTRAST`
 (4.5) and `HOT_KICKOFF_F` (85).
 
 ## 7. Not yet
 
-- Alternate and throwback uniforms, colour-on-colour specials, and club traditions (a team that always
-  wears white at home).
+- Alternate and throwback uniforms, colour-on-colour specials, club traditions (a team that always
+  wears white at home), and each club's own pants colour (gold, silver…): today's pants follow the rule in section 4.
 - Gear by position, picked once per player from his id like his head (section 2a), never worn where his
   position wouldn't: shooter sleeves (receivers, backs, defensive backs; a quarterback's throwing arm only),
   solid-colour undershirt sleeves (the jersey keeps its stripes), biceps bands, linemen's elbow sleeves, neck

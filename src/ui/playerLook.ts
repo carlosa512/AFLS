@@ -17,12 +17,13 @@ const NECK_SIDES =
   'M41.8 37 C42 40.6 41.4 44 38.8 47.6 L41.4 47.6 C42.8 44 43 40.6 42.8 37 Z M58.2 37 C58 40.6 58.6 44 61.2 47.6 L58.6 47.6 C57.2 44 57 40.6 57.2 37 Z';
 const NECK_SHADE = 'M42 39.2 C46.6 42 53.4 42 58 39.2 L57.9 41.6 C53.4 43.8 46.6 43.8 42.1 41.6 Z';
 // Two outlines of the left arm with the same commands, so a build can sit anywhere between them (`blend`): a smooth
-// tube, and a muscled arm (triceps, a pinch at the elbow, the forearm, the wrist). Both tuck under the pads, keep
-// the same inner edge (`ARM_INNER`) and run straight down: the old single arm bowed out and tapered to a point.
+// tube, and a muscled arm (triceps, a pinch at the elbow, the forearm). Both tuck under the pads, keep the same inner
+// edge (`ARM_INNER`), run straight down, and end in a wrist and a hand at the hip: stretched past the ring instead,
+// the forearm ran on with no end. The old single arm bowed out and tapered to a point.
 const ARM_TUBE =
-  'M9.6 60.6 C9 65.6 8.8 70.4 8.8 75.4 C8.9 77.2 9.1 78.9 9.3 80.6 C9.5 83.2 9.7 85.8 9.9 88.4 C10.3 92.2 10.6 96.2 11 100 L22.6 100 C22.2 96 21.8 92.4 21.6 88.6 C21.6 86 21.7 83.2 21.8 80.6 C22 77.6 22.4 74.6 23 71.8 C23.6 69.6 24.4 67.6 25.4 65.6 Z';
+  'M9.6 60.6 C9 65.6 8.8 70.4 8.8 75.4 C8.9 77.2 9.1 78.9 9.3 80.6 C9.5 83.2 9.7 85.8 9.9 88.4 C10.3 92.2 10.6 96.2 11 100 C11.4 103 12.4 105.6 13.4 107.6 C13.6 110.6 14.2 114.4 16 116.2 C17.8 117.8 20.6 117.6 21.8 115.6 C22.6 113.6 22.4 110.6 21.8 107.8 C21.8 105 22.2 102.4 22.6 100 C22.2 96 21.8 92.4 21.6 88.6 C21.6 86 21.7 83.2 21.8 80.6 C22 77.6 22.4 74.6 23 71.8 C23.6 69.6 24.4 67.6 25.4 65.6 Z';
 const ARM_MUSCLED =
-  'M9.8 60.6 C6.2 64 5.6 70.4 7.2 75.4 C8.4 77.8 9.8 78.8 9.8 80.6 C9.4 82.6 8.4 85 8.8 88.4 C9.6 92.6 11.4 96.4 12.4 100 L22.4 100 C22 96.4 21.2 92.6 21.2 88.6 C21.2 85.2 22.8 82.8 23 80.6 C23 77.6 22.4 74.6 22.8 71.8 C23.4 69.2 24.4 67.4 25.4 65.6 Z';
+  'M9.8 60.6 C6.2 64 5.6 70.4 7.2 75.4 C8.4 77.8 9.8 78.8 9.8 80.6 C9.4 82.6 8.4 85 8.8 88.4 C9.6 92.6 11.4 96.4 12.4 100 C12.8 103 13.4 105.6 13.8 107.6 C13.8 110.6 14.4 114.4 16.2 116.2 C18 117.8 20.8 117.6 22 115.6 C22.8 113.6 22.4 110.6 21.8 107.8 C21.6 105 22 102.4 22.4 100 C22 96.4 21.2 92.6 21.2 88.6 C21.2 85.2 22.8 82.8 23 80.6 C23 77.6 22.4 74.6 22.8 71.8 C23.4 69.2 24.4 67.4 25.4 65.6 Z';
 /** The plain figure's arm, part way to muscled (the solid build's). */
 const PLAIN_ARM = 0.4;
 // the arm sits in shade under each pad's overhang
@@ -159,10 +160,18 @@ export const BUILD_MIN_PX = 32;
 export const HEIGHT_MIN_PX = 96;
 /**
  * A built figure is zoomed out about the collar, so the wide builds show their width inside the ring and the ring
- * crops the arm below the elbow, where its shape shows; then moved down, so the waist doesn't run long under the number.
+ * crops the arm below the elbow, where its shape shows; then moved up, so the head sits near the top and the pants
+ * show at the bottom.
  */
 const ZOOM = 0.79;
-const DROP = 6;
+const DROP = -4;
+/**
+ * The middle of the pants' waistband, at the hips, well under the number (the jersey runs long before it tucks in:
+ * a belt just under the number read as slacks), and how far its sides lift above that, as the back of a waistband
+ * curves.
+ */
+const PANTS_TOP = 104;
+const PANTS_DIP = 4;
 /** How much bigger he's drawn per sd of height over his position's median, from his feet, and how far it goes. */
 const GROW_PER_SD = 0.026;
 const GROW_SD_MAX = 2.5;
@@ -275,8 +284,54 @@ const armAt =
     const inner = at(ARM_INNER, y);
     const out = (ARM_GAP - 1) * Math.max(0, inner - side) + (ARM_SWING * Math.max(0, y - 62)) / 38;
     const d = side * s + (inner - side) + out + (Math.abs(x - 50) - inner) * thick;
-    return [50 + Math.sign(x - 50) * d, foot(y)];
+    // the arm ends in a hand, so it isn't stretched past the ring like the jersey
+    return [50 + Math.sign(x - 50) * d, y];
   };
+
+/**
+ * Football pants from behind: a thin belt half hidden under the jersey's tuck, tight over the seat and the thigh
+ * pads, two stripes down each side and a seam down the middle. Drawn to the build's width at the hips.
+ */
+function pantsOf(b: Build): Pants {
+  const T = PANTS_TOP;
+  const B = T + 30;
+  const k = at(b.knots, 100);
+  const L = (d: number) => 50 - d;
+  const R = (d: number) => 50 + d;
+  const pants = `M${L(24.2)} ${T} C40 ${T + 1.2} 60 ${T + 1.2} ${R(24.2)} ${T} C${R(25.6)} ${T + 3} ${R(26.8)} ${T + 6} ${R(27)} ${T + 10} L${R(26.6)} ${B} L${L(26.6)} ${B} L${L(27)} ${T + 10} C${L(26.8)} ${T + 6} ${L(25.6)} ${T + 3} ${L(24.2)} ${T} Z`;
+  const belt = `M${L(24.3)} ${T - 0.6} C40 ${T + 0.6} 60 ${T + 0.6} ${R(24.3)} ${T - 0.6} L${R(24.5)} ${T + 1.2} C60 ${T + 2.4} 40 ${T + 2.4} ${L(24.5)} ${T + 1.2} Z`;
+  // the jersey's tail, bloused a little over the belt, with a soft wavy hem
+  const tuck = `M${L(24.2)} ${T - 3} C40 ${T - 1.6} 60 ${T - 1.6} ${R(24.2)} ${T - 3} L${R(24.6)} ${T - 0.2} C${R(20)} ${T + 1} 68 ${T + 0.4} 64 ${T + 1} C59 ${T + 1.7} 55 ${T + 0.7} 50 ${T + 1.2} C45 ${T + 0.7} 41 ${T + 1.7} 36 ${T + 1} C32 ${T + 0.4} ${L(20)} ${T + 1} ${L(24.6)} ${T - 0.2} Z`;
+  const stripe = (sgn: number, a: number, w: number) => {
+    const o = (d: number) => 50 + sgn * d;
+    return `M${o(24.4 - a)} ${T + 1.6} C${o(25.6 - a)} ${T + 3.6} ${o(26.6 - a)} ${T + 6.4} ${o(26.8 - a)} ${T + 10} L${o(26.4 - a)} ${B} L${o(26.4 - a - w)} ${B} L${o(26.8 - a - w)} ${T + 10} C${o(26.6 - a - w)} ${T + 6.4} ${o(25.6 - a - w)} ${T + 3.6} ${o(24.4 - a - w)} ${T + 1.6} Z`;
+  };
+  // the waistband's sides lift (its middle stays at the hips), across the belt, the tuck, the stripes and the pants'
+  // top edge; then everything is drawn to his width at the hips
+  const dy = (x: number) => PANTS_DIP * (Math.max(0, 1 - ((x - 50) / 24.6) ** 2) - 1);
+  const draw = (d: string, band: boolean) =>
+    warp(d, (x, y) => [50 + (x - 50) * k, band || y <= T + 1.5 ? y + dy(x) : y]);
+  return {
+    pants: draw(pants, false),
+    belt: draw(belt, true),
+    tuck: draw(tuck, true),
+    stripes: `${draw(stripe(-1, 0.3, 1.3), true)} ${draw(stripe(1, 0.3, 1.3), true)}`,
+    stripesThin: `${draw(stripe(-1, 1.9, 0.8), true)} ${draw(stripe(1, 1.9, 0.8), true)}`,
+    seam: draw(`M50 ${T + 1.4} L50 ${B}`, false),
+    halfWidth: 27 * k,
+  };
+}
+
+export interface Pants {
+  pants: string;
+  belt: string;
+  tuck: string;
+  stripes: string;
+  stripesThin: string;
+  seam: string;
+  /** How far the pants reach either side of the middle, for their shading. */
+  halfWidth: number;
+}
 
 export interface Figure {
   armL: string;
@@ -298,6 +353,8 @@ export interface Figure {
   numberWidth: number;
   /** The widest his nameplate may run, in viewBox units. */
   plateMax: number;
+  /** Below the ring on the plain figure, so only built figures wear them. */
+  pants: Pants | null;
 }
 
 const PLAIN_ARM_L = armOf(PLAIN_ARM);
@@ -318,6 +375,7 @@ const PLAIN: Figure = {
   shadow: { cy: 48.6, rx: 11 },
   numberWidth: 1,
   plateMax: NAMEPLATE_MAX,
+  pants: null,
 };
 
 function figureOf(b: Build): Figure {
@@ -342,6 +400,7 @@ function figureOf(b: Build): Figure {
     shadow: { cy: 48.6 - b.traps * 0.6, rx: 11 * b.neck },
     numberWidth: Math.min(1, at(b.knots, 78) / 0.9),
     plateMax: NAMEPLATE_MAX * Math.min(1, at(b.knots, 56)),
+    pants: pantsOf(b),
   };
 }
 const FIGURES = new Map(BUILDS.map((b) => [b.name, figureOf(b)]));
@@ -368,7 +427,7 @@ export function playerLook(
     build: build.name,
     figure: FIGURES.get(build.name)!,
     head: PLAYER_HEADS[headOf(player)],
-    // moved down; height (and the girth that goes with it) from his feet, so the number never drops out of the ring;
+    // moved up; height (and the girth that goes with it) from his feet, so the number never drops out of the ring;
     // then the zoom about the collar
     transform: `translate(0 ${DROP}) translate(50 100) scale(${+girth.toFixed(4)} ${+grow.toFixed(4)}) translate(-50 -100) translate(50 40) scale(${ZOOM}) translate(-50 -40)`,
   };

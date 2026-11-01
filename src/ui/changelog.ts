@@ -18,9 +18,10 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     title: 'Better-drawn players',
     text:
       'Player pictures have new arms: they hang straight instead of bowing out, with more muscle the heavier the ' +
-      'player. The picture is framed a little wider and lower, so you see down past the elbow and the jersey no ' +
-      'longer runs long under the number. Receivers and corners no longer look pinched at the waist, and on the ' +
-      'player card a short player looks compact and a tall one rangy, at the same weight.',
+      'player. The picture is framed a little wider, the jersey runs down to football pants at the hips, white at ' +
+      'home and in the team colour with the white jersey, striped down the side. Receivers and corners no longer ' +
+      'look pinched at the waist, and on the player card a short player looks compact and a tall one rangy, at the ' +
+      'same weight.',
   },
   {
     version: '0.2.31',
