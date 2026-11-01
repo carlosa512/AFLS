@@ -190,3 +190,12 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       4.08 → 3.61, born 2.63 → 2.50 (6 of 8 worlds at 3), founding trees alive in every world; head-coach changes 7.2 a
       year, year-to-year win correlation 0.335. The price premium stayed as it was: the budget wasn't what kept a winner's
       men out (they were outscored).
+
+      **Front offices (0.2.27,** `docs/superpowers/specs/2026-11-01-front-offices-design.md`**):** a good team didn't
+      stay good, so few coaches lasted as winners. Now good veterans find a club by camp (the late market and the last
+      call); a GM plans next year's cap before he borrows, restructures only players he plans to keep (for his own and
+      for a free agent he wants), contends or rebuilds by his win-now; the tag goes to a star the club values near its
+      price. The upgrade cut was tried and dropped (it put the median club's dead money past 6%). Four 16-season
+      leagues: live trees 3.1, head coaches in a tree 0.24, hires from a tree 0.23, born 3.3; record carryover 0.30 a
+      season on, 0.01 three on (NFL 0.34 and 0.18). **Left:** three-season carryover; owners' spending; contenders
+      selling their stars (a trade-AI question); dead money from trading restructured players.
