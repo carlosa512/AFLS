@@ -498,8 +498,14 @@ for (let s = 0; s < seasons; s++) {
   // rebounds to 497), while the whole run grew alike (+110 and +115 on average), so the step ceiling is 210; the pool
   // band (100-650) is what catches a runaway.
   const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 210, 0)}` : ''}`;
+  // Clubs restructuring anyone this offseason: about 55% of NFL clubs restructure at least a minor deal in a year, 37% a
+  // major one (over $6.5M), 78% of playoff teams (Over the Cap, "Looking at restructuring NFL contracts"). Before GMs
+  // planned next year (2026-11-01), nearly every club did, three to five times a year, and the league tightened each
+  // season till no club had room for a faded veteran.
+  const restructuring =
+    (100 * new Set(moves.filter((m) => m.kind === 'restructure').flatMap((m) => m.teamIds)).size) / league.teams.length;
   console.log(
-    `  checks ${year} cap: ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 30, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
+    `  checks ${year} cap: ${check('clubs restructuring %', restructuring, 40, 70, 0)} · ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 30, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
   );
 
   // League talent (mean starter OVR at kickoff): 12.89, 12.92, 13.02, 13.09, 13.18, 13.20 (all seeds then 12.69-13.12),
